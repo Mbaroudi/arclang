@@ -559,6 +559,12 @@ arclang export my_system.arc -o diagram.html -f arc-viz-ultimate
 
 ---
 
-**Built with ❤️ by the ArcLang community**
+## 👥 Authors
+
+**Malek Baroudi** & **Bilel Laasami**
+
+Built with ❤️ for the systems engineering community
+
+---
 
 **Licensed under MIT • Made with Rust 🦀 • Version 1.0.0**
