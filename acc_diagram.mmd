@@ -1,0 +1,43 @@
+---
+config:
+  layout: elk
+title: System Requirements
+---
+flowchart TD
+ subgraph subGraph0["Functional Safety"]
+        SYS-ACC-001["SYS-ACC-001<br>The ACC system shall maintain minimum 2-second following distance at all speeds"]
+  end
+ subgraph subGraph1["Operational Range"]
+        SYS-ACC-005["SYS-ACC-005<br>System shall operate in speed range 30-180 km/h"]
+  end
+ subgraph subGraph2["Performance"]
+        SYS-ACC-002["SYS-ACC-002<br>The system shall detect cut-in vehicles within 500ms"]
+        SYS-ACC-003["SYS-ACC-003<br>Maximum deceleration shall not exceed 3.5 m/s²"]
+  end
+ subgraph subGraph3["Safety Override"]
+        SYS-ACC-004["SYS-ACC-004<br>Driver brake input shall immediately override ACC control"]
+  end
+     SYS-ACC-001:::functional_safety
+     SYS-ACC-005:::operational
+     SYS-ACC-002:::performance
+     SYS-ACC-003:::performance
+     SYS-ACC-004:::safety_override
+    classDef executive fill:#1F77B4,color:white
+    classDef market fill:#FF7F0E,color:white
+    classDef merchant fill:#2CA02C,color:white
+    classDef client fill:#D62728,color:white
+    classDef financial fill:#9467BD,color:white
+    classDef compliance fill:#8C564B,color:white
+    classDef quality fill:#E377C2,color:white
+    classDef advanced fill:#7F7F7F,color:white
+    classDef architecture fill:#BCBD22,color:white
+    classDef business fill:#17BECF,color:white
+    classDef system fill:#1F77B4,color:white
+    classDef software fill:#FF7F0E,color:white
+    classDef hardware fill:#2CA02C,color:white
+    classDef safety fill:#D62728,color:white
+    classDef functional_safety fill:#9467BD,color:white
+    classDef performance fill:#FF7F0E,color:white
+    classDef safety_override fill:#D62728,color:white
+    classDef operational fill:#8C564B,color:white
+    classDef requirements fill:#7F7F7F,color:white

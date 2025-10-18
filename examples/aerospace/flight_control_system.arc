@@ -1,0 +1,335 @@
+operational_analysis "Aircraft Flight Control" {
+    actor "Pilot" {
+        id: "ACT-001"
+        description: "Commercial aircraft pilot"
+        interactions: ["control_aircraft", "monitor_systems"]
+    }
+    
+    actor "ATC" {
+        id: "ACT-002"
+        description: "Air Traffic Control"
+        interactions: ["provide_guidance", "coordinate_traffic"]
+    }
+    
+    operational_capability "Safe Flight Operations" {
+        id: "OC-001"
+        description: "Ability to safely control aircraft in all flight phases"
+        involving: ["Pilot", "ATC"]
+        phases: ["takeoff", "cruise", "landing"]
+    }
+    
+    operational_activity "Control Aircraft Attitude" {
+        id: "OA-001"
+        description: "Maintain desired aircraft pitch, roll, and yaw"
+        performed_by: "Pilot"
+        safety_critical: true
+    }
+}
+
+system_analysis "Flight Control System" {
+    requirement "SYS-FCS-001" {
+        description: "The flight control system shall respond to pilot inputs within 50ms"
+        priority: "Critical"
+        safety_level: "DAL_A"
+        traces: ["OA-001"]
+        verification_method: "Test"
+        allocated_to: "Flight Control Computer"
+    }
+    
+    requirement "SYS-FCS-002" {
+        description: "The system shall provide redundant control paths for all critical surfaces"
+        priority: "Critical"
+        safety_level: "DAL_A"
+        rationale: "Ensure continued safe flight with single point failures"
+        derived_from: ["DO-178C", "ARP-4754A"]
+    }
+    
+    requirement "SYS-FCS-003" {
+        description: "Control surface deflection accuracy shall be within ±0.5 degrees"
+        priority: "High"
+        safety_level: "DAL_B"
+        verification_method: "Analysis"
+    }
+    
+    system_function "Process Pilot Commands" {
+        id: "SF-001"
+        description: "Interpret and validate pilot control inputs"
+        inputs: ["pilot_stick_position", "pilot_rudder_position"]
+        outputs: ["validated_commands"]
+        safety_level: "DAL_A"
+    }
+    
+    system_function "Compute Control Laws" {
+        id: "SF-002"
+        description: "Calculate control surface deflections based on flight envelope"
+        inputs: ["validated_commands", "aircraft_state", "flight_mode"]
+        outputs: ["surface_commands"]
+        safety_level: "DAL_A"
+        execution_time: "10ms"
+    }
+    
+    system_component "Flight Control Computer" {
+        id: "SC-101"
+        description: "Dual-redundant flight control computer"
+        implements_functions: ["SF-001", "SF-002"]
+        safety_level: "DAL_A"
+        redundancy: "Dual"
+    }
+}
+
+logical_architecture "Flight Control Logical Architecture" {
+    component "Primary Flight Computer" {
+        id: "LC-001"
+        component_type: "Logical"
+        description: "Main flight control processing unit"
+        safety_level: "DAL_A"
+        
+        function "Command Processing" {
+            id: "LF-001"
+            inputs: ["raw_pilot_input: SensorData"]
+            outputs: ["processed_commands: CommandData"]
+            behavior: "validate_input(raw_pilot_input); apply_limits(raw_pilot_input); return processed_commands"
+            wcet: "5ms"
+        }
+        
+        function "Control Law Computation" {
+            id: "LF-002"
+            inputs: [
+                "commands: CommandData",
+                "state: AircraftState",
+                "mode: FlightMode"
+            ]
+            outputs: ["surface_deflections: ControlOutputs"]
+            behavior: "gains = get_gains(mode, state); deflections = compute_pid(commands, state, gains); return limit_rates(deflections)"
+            wcet: "8ms"
+        }
+    }
+    
+    component "Backup Flight Computer" {
+        id: "LC-002"
+        component_type: "Logical"
+        description: "Redundant flight control processing unit"
+        safety_level: "DAL_A"
+        monitors: "LC-001"
+        
+        function "Monitor Primary" {
+            id: "LF-003"
+            description: "Continuously monitor primary computer health"
+            outputs: ["health_status: HealthData"]
+        }
+        
+        function "Takeover Control" {
+            id: "LF-004"
+            description: "Assume control if primary fails"
+            trigger: "primary_failure"
+        }
+    }
+    
+    component "Actuator Control" {
+        id: "LC-003"
+        component_type: "Logical"
+        description: "Manages control surface actuators"
+        
+        function "Command Actuators" {
+            id: "LF-005"
+            inputs: ["surface_commands: ControlOutputs"]
+            outputs: ["actuator_signals: ElectricalSignals"]
+        }
+        
+        function "Monitor Position Feedback" {
+            id: "LF-006"
+            inputs: ["position_sensors: SensorData"]
+            outputs: ["position_feedback: PositionData"]
+        }
+    }
+    
+    interface "Command Interface" {
+        id: "LI-001"
+        from: "LC-001"
+        to: "LC-003"
+        interface_type: "Data"
+        data: ["aileron_cmd", "elevator_cmd", "rudder_cmd"]
+        rate: "100Hz"
+        latency: "max 10ms"
+    }
+    
+    interface "Cross-Channel Datalink" {
+        id: "LI-002"
+        from: "LC-001"
+        to: "LC-002"
+        interface_type: "Data"
+        data: ["computed_outputs", "health_status"]
+        rate: "50Hz"
+        protocol: "AFDX"
+    }
+}
+
+physical_architecture "Flight Control Physical Architecture" {
+    node "FCC-A" {
+        id: "PN-001"
+        description: "Flight Control Computer Channel A"
+        processor: "PowerPC MPC7448"
+        memory: "256MB ECC RAM"
+        safety_level: "DAL_A"
+        
+        deploys "LC-001" {
+            partition: "Primary Control Partition"
+            criticality: "DAL_A"
+        }
+    }
+    
+    node "FCC-B" {
+        id: "PN-002"
+        description: "Flight Control Computer Channel B"
+        processor: "PowerPC MPC7448"
+        memory: "256MB ECC RAM"
+        safety_level: "DAL_A"
+        
+        deploys "LC-002" {
+            partition: "Backup Control Partition"
+            criticality: "DAL_A"
+        }
+    }
+    
+    node "Remote Terminal Unit" {
+        id: "PN-003"
+        description: "Actuator control and sensor interface"
+        processor: "ARM Cortex-R5"
+        safety_level: "DAL_B"
+        
+        deploys "LC-003" {
+            partition: "Actuator Control Partition"
+        }
+    }
+    
+    physical_link "ARINC 664 Network" {
+        id: "PL-001"
+        topology: "Full Duplex Switched Ethernet"
+        bandwidth: "100Mbps"
+        protocol: "AFDX"
+        connects: ["PN-001", "PN-002", "PN-003"]
+        realizes: ["LI-001", "LI-002"]
+    }
+    
+    physical_link "Discrete IO" {
+        id: "PL-002"
+        link_type: "Digital Signals"
+        voltage: "28VDC"
+        connects: ["PN-003", "Actuators"]
+    }
+}
+
+epbs "Flight Control EPBS" {
+    system "Flight Control System" {
+        id: "EPBS-001"
+        
+        subsystem "Computing Subsystem" {
+            id: "EPBS-101"
+            
+            item "FCC-A Hardware" {
+                id: "EPBS-1001"
+                part_number: "FCC-A-001-Rev-C"
+                supplier: "Collins Aerospace"
+                implements_node: "PN-001"
+                certification: "DO-254 Level A"
+            }
+            
+            item "FCC-B Hardware" {
+                id: "EPBS-1002"
+                part_number: "FCC-B-001-Rev-C"
+                supplier: "Collins Aerospace"
+                implements_node: "PN-002"
+                certification: "DO-254 Level A"
+            }
+            
+            item "Flight Control Software" {
+                id: "EPBS-1003"
+                version: "v3.2.1"
+                supplier: "Internal"
+                implements_components: ["LC-001", "LC-002"]
+                certification: "DO-178C Level A"
+                sloc: 45000
+            }
+        }
+        
+        subsystem "Actuation Subsystem" {
+            id: "EPBS-102"
+            
+            item "Remote Terminal Unit" {
+                id: "EPBS-1004"
+                part_number: "RTU-001-Rev-B"
+                supplier: "Parker Aerospace"
+                implements_node: "PN-003"
+                certification: "DO-254 Level B"
+            }
+            
+            item "Aileron Actuator" {
+                id: "EPBS-1005"
+                part_number: "ACT-AIL-001"
+                supplier: "Moog"
+                quantity: 4
+            }
+            
+            item "Elevator Actuator" {
+                id: "EPBS-1006"
+                part_number: "ACT-ELEV-001"
+                supplier: "Moog"
+                quantity: 2
+            }
+        }
+        
+        subsystem "Network Subsystem" {
+            id: "EPBS-103"
+            
+            item "AFDX Switch" {
+                id: "EPBS-1007"
+                part_number: "SW-AFDX-100"
+                supplier: "DDC"
+                ports: 24
+                implements_link: "PL-001"
+            }
+            
+            item "Network Cables" {
+                id: "EPBS-1008"
+                specification: "ARINC 664 Part 7"
+                length: "Various"
+            }
+        }
+    }
+}
+
+safety_analysis {
+    standard: "DO_178C"
+    dal: "DAL_A"
+    
+    hazard "Loss of Flight Control" {
+        id: "HAZ-001"
+        description: "Complete loss of aircraft control authority"
+        severity: "Catastrophic"
+        likelihood: "ExtremelyImprobable"
+        dal: "DAL_A"
+        
+        causes: [
+            "Dual FCC failure",
+            "Complete network failure",
+            "Multiple actuator failures"
+        ]
+        
+        mitigations: [
+            "Dual redundant FCCs with dissimilar hardware",
+            "Redundant network paths",
+            "Independent backup control modes"
+        ]
+    }
+    
+    fmea "Flight Control FMEA" {
+        fmea_component: "Primary Flight Computer"
+        failure_mode: "Processor fault"
+        effects: "Loss of primary control channel"
+        severity: "Major"
+        occurrence: "Remote"
+        detection: "Built-in test detects within 50ms"
+        rpn: 48
+        actions: ["Automatic switchover to backup FCC"]
+    }
+}

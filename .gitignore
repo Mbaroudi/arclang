@@ -1,0 +1,66 @@
+# Rust
+/target/
+**/*.rs.bk
+*.pdb
+Cargo.lock
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Build artifacts
+*.o
+*.so
+*.dylib
+*.dll
+*.exe
+
+# Generated files
+*.json
+!examples/**/*.json
+*.xml
+!examples/**/*.xml
+
+# Generated diagrams (keep examples)
+*.html
+!acc_ultimate.html
+!examples/**/*.html
+
+# Logs
+*.log
+
+# Temporary files
+tmp/
+temp/
+.tmp/
+
+# OS
+Thumbs.db
+.DS_Store
+
+# Package managers
+node_modules/
+package-lock.json
+yarn.lock
+
+# Environment
+.env
+.env.local
+
+# Coverage
+coverage/
+*.profraw
+*.profdata
+
+# Backup files
+*.bak
+*.backup
+*~
+
+# Documentation builds
+docs/build/
+site/

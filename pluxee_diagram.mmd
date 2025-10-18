@@ -1,0 +1,96 @@
+---
+config:
+  layout: elk
+title: System Requirements
+---
+flowchart TD
+ subgraph subGraph0["Advanced Analytics"]
+        BR-ADV-001["BR-ADV-001<br>System shall provide predictive analytics using ML models"]
+        BR-ADV-002["BR-ADV-002<br>System shall provide prescriptive recommendations based on analytics"]
+  end
+ subgraph subGraph1["Client Analytics"]
+        BR-ANALYTICS-007["BR-ANALYTICS-007<br>System shall analyze client program performance and engagement"]
+        BR-ANALYTICS-008["BR-ANALYTICS-008<br>System shall track portfolio performance across all clients"]
+  end
+ subgraph subGraph2["Compliance Analytics"]
+        BR-ANALYTICS-011["BR-ANALYTICS-011<br>System shall generate regulatory reports for compliance"]
+        BR-ANALYTICS-012["BR-ANALYTICS-012<br>System shall track compliance metrics continuously"]
+  end
+ subgraph subGraph3["Data Quality Analytics"]
+        BR-ANALYTICS-013["BR-ANALYTICS-013<br>System shall monitor data quality metrics across all data sources"]
+        BR-ANALYTICS-014["BR-ANALYTICS-014<br>System shall track data lineage from source to analytics"]
+  end
+ subgraph subGraph4["Executive Analytics"]
+        BR-ANALYTICS-001["BR-ANALYTICS-001<br>System shall provide consolidated KPI monitoring across all markets with real-time dashboards"]
+        BR-ANALYTICS-002["BR-ANALYTICS-002<br>System shall analyze benefit program performance across client base"]
+  end
+ subgraph subGraph5["Financial Analytics"]
+        BR-ANALYTICS-009["BR-ANALYTICS-009<br>System shall analyze revenue and cost patterns for financial insights"]
+        BR-ANALYTICS-010["BR-ANALYTICS-010<br>System shall track financial KPIs across all markets"]
+  end
+ subgraph subGraph6["Implementation"]
+        BR-ARCH-001["BR-ARCH-001<br>System shall process analytics queries efficiently at scale"]
+        BR-GOV-001["BR-GOV-001<br>System shall ensure data quality standards for analytics"]
+  end
+ subgraph subGraph7["Market Analytics"]
+        BR-ANALYTICS-003["BR-ANALYTICS-003<br>System shall analyze transaction patterns to identify trends and anomalies"]
+        BR-ANALYTICS-004["BR-ANALYTICS-004<br>System shall track and analyze consumer behavior patterns"]
+  end
+ subgraph subGraph8["Merchant Analytics"]
+        BR-ANALYTICS-005["BR-ANALYTICS-005<br>System shall analyze individual merchant performance metrics"]
+        BR-ANALYTICS-006["BR-ANALYTICS-006<br>System shall track overall merchant network effectiveness"]
+  end
+    BR-ANALYTICS-001 --> BR-ANALYTICS-010
+    BR-ANALYTICS-001 --> BR-ANALYTICS-003
+    BR-ANALYTICS-002 --> BR-ANALYTICS-007
+    BR-ANALYTICS-002 --> BR-ANALYTICS-008
+    BR-ANALYTICS-003 --> BR-ANALYTICS-005
+    BR-ANALYTICS-003 --> BR-ANALYTICS-006
+    BR-ANALYTICS-004 --> BR-ANALYTICS-007
+    BR-ANALYTICS-004 --> BR-ADV-001
+    BR-ANALYTICS-005 --> BR-ANALYTICS-006
+    BR-ANALYTICS-005 --> BR-ANALYTICS-009
+    BR-ANALYTICS-006 --> BR-ADV-002
+    BR-ANALYTICS-007 --> BR-ANALYTICS-008
+    BR-ANALYTICS-007 --> BR-ANALYTICS-002
+    BR-ANALYTICS-008 --> BR-ANALYTICS-009
+    BR-ANALYTICS-009 --> BR-ANALYTICS-010
+    BR-ANALYTICS-009 --> BR-ADV-001
+    BR-ANALYTICS-010 --> BR-ADV-002
+    BR-ANALYTICS-011 --> BR-ANALYTICS-012
+    BR-ANALYTICS-011 --> BR-ANALYTICS-013
+    BR-ANALYTICS-012 --> BR-GOV-001
+    BR-ANALYTICS-013 --> BR-GOV-001
+    BR-ANALYTICS-013 --> BR-ANALYTICS-014
+    BR-ANALYTICS-014 --> BR-ARCH-001
+    BR-ADV-001 --> BR-ADV-002
+    BR-ARCH-001 --> BR-ADV-001
+    BR-ARCH-001 --> BR-ADV-002
+    BR-GOV-001 --> BR-ANALYTICS-013
+     BR-ADV-001:::advanced
+     BR-ADV-002:::advanced
+     BR-ANALYTICS-007:::client
+     BR-ANALYTICS-008:::client
+     BR-ANALYTICS-011:::compliance
+     BR-ANALYTICS-012:::compliance
+     BR-ANALYTICS-013:::quality
+     BR-ANALYTICS-014:::quality
+     BR-ANALYTICS-001:::executive
+     BR-ANALYTICS-002:::executive
+     BR-ANALYTICS-009:::financial
+     BR-ANALYTICS-010:::financial
+     BR-ARCH-001:::architecture
+     BR-GOV-001:::architecture
+     BR-ANALYTICS-003:::market
+     BR-ANALYTICS-004:::market
+     BR-ANALYTICS-005:::merchant
+     BR-ANALYTICS-006:::merchant
+    classDef executive fill:#1F77B4,color:white
+    classDef market fill:#FF7F0E,color:white
+    classDef merchant fill:#2CA02C,color:white
+    classDef client fill:#D62728,color:white
+    classDef financial fill:#9467BD,color:white
+    classDef compliance fill:#8C564B,color:white
+    classDef quality fill:#E377C2,color:white
+    classDef advanced fill:#7F7F7F,color:white
+    classDef architecture fill:#BCBD22,color:white

@@ -1,0 +1,176 @@
+stages:
+  - test
+  - build
+  - safety
+  - deploy
+
+variables:
+  CARGO_HOME: $CI_PROJECT_DIR/.cargo
+  RUST_BACKTRACE: "1"
+
+cache:
+  paths:
+    - .cargo/
+    - target/
+
+before_script:
+  - rustc --version
+  - cargo --version
+
+test:unit:
+  stage: test
+  image: rust:latest
+  script:
+    - cargo test --all-features --workspace --verbose
+  artifacts:
+    reports:
+      junit: target/junit.xml
+
+test:integration:
+  stage: test
+  image: rust:latest
+  script:
+    - cargo build --release
+    - ./target/release/arclang check examples/aerospace/flight_control_system.arc
+    - ./target/release/arclang check examples/automotive/adaptive_cruise_control.arc
+    - ./target/release/arclang check examples/defense/mission_computer.arc
+
+lint:fmt:
+  stage: test
+  image: rust:latest
+  script:
+    - rustup component add rustfmt
+    - cargo fmt --all -- --check
+
+lint:clippy:
+  stage: test
+  image: rust:latest
+  script:
+    - rustup component add clippy
+    - cargo clippy --all-targets --all-features -- -D warnings
+
+coverage:
+  stage: test
+  image: rust:latest
+  script:
+    - cargo install cargo-tarpaulin
+    - cargo tarpaulin --all-features --workspace --timeout 300 --out Xml
+  coverage: '/\d+\.\d+% coverage/'
+  artifacts:
+    reports:
+      coverage_report:
+        coverage_format: cobertura
+        path: cobertura.xml
+
+build:debug:
+  stage: build
+  image: rust:latest
+  script:
+    - cargo build --workspace --verbose
+  artifacts:
+    paths:
+      - target/debug/arclang
+
+build:release:
+  stage: build
+  image: rust:latest
+  script:
+    - cargo build --release --workspace
+  artifacts:
+    paths:
+      - target/release/arclang
+    expire_in: 1 week
+
+safety:do178c:
+  stage: safety
+  image: rust:latest
+  dependencies:
+    - build:release
+  script:
+    - ./target/release/arclang safety examples/aerospace/flight_control_system.arc --standard DO178C --report
+  artifacts:
+    paths:
+      - "*_safety_report.pdf"
+    expire_in: 1 month
+
+safety:iso26262:
+  stage: safety
+  image: rust:latest
+  dependencies:
+    - build:release
+  script:
+    - ./target/release/arclang safety examples/automotive/adaptive_cruise_control.arc --standard ISO26262 --fmea --fta --report
+  artifacts:
+    paths:
+      - "*_safety_report.pdf"
+      - "*_fmea.csv"
+      - "*_fta.dot"
+    expire_in: 1 month
+
+safety:iec61508:
+  stage: safety
+  image: rust:latest
+  dependencies:
+    - build:release
+  script:
+    - ./target/release/arclang safety examples/industrial/plc_control.arc --standard IEC61508 --report
+  artifacts:
+    paths:
+      - "*_safety_report.pdf"
+    expire_in: 1 month
+  allow_failure: true
+
+benchmark:
+  stage: test
+  image: rust:latest
+  script:
+    - cargo bench --workspace
+  artifacts:
+    paths:
+      - target/criterion/
+    expire_in: 1 week
+
+security:audit:
+  stage: test
+  image: rust:latest
+  script:
+    - cargo install cargo-audit
+    - cargo audit
+  allow_failure: true
+
+docs:build:
+  stage: build
+  image: rust:latest
+  script:
+    - cargo doc --all-features --no-deps --workspace
+  artifacts:
+    paths:
+      - target/doc/
+    expire_in: 1 week
+
+docs:deploy:
+  stage: deploy
+  image: rust:latest
+  dependencies:
+    - docs:build
+  script:
+    - echo "Deploying documentation..."
+  artifacts:
+    paths:
+      - target/doc/
+  only:
+    - main
+    - tags
+
+pages:
+  stage: deploy
+  dependencies:
+    - docs:build
+  script:
+    - mkdir -p public
+    - cp -r target/doc/* public/
+  artifacts:
+    paths:
+      - public
+  only:
+    - main
