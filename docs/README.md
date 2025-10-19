@@ -4,18 +4,18 @@ Welcome to the ArcLang documentation. ArcLang is an industrial-grade programming
 
 ## Table of Contents
 
-1. [Introduction](introduction.md)
+1. [Introduction](INTRODUCTION.md)
 2. [Getting Started](getting_started.md)
 3. [Language Specification](language_spec.md)
-4. [Compiler Architecture](compiler_architecture.md)
-5. [CLI Reference](cli_reference.md)
+4. [Compiler Architecture](COMPILER_ARCHITECTURE.md)
+5. [CLI Reference](CLI_REFERENCE.md)
 6. [API Reference](api_reference.md)
-7. [PLM Integration](plm_integration.md)
-8. [Requirements Management](requirements_management.md)
-9. [Safety & Certification](safety_certification.md)
-10. [Plugin Development](plugin_development.md)
-11. [Examples & Tutorials](examples.md)
-12. [Best Practices](best_practices.md)
+7. [PLM Integration](PLM_INTEGRATION.md)
+8. [Requirements Management](REQUEREMENTS_MANAGEMENT.md)
+9. [Safety & Certification](SAFETY_CERTIFICATION.md)
+10. [Plugin Development](PLUGIN_DEVELOPMENT.md)
+11. [Examples & Tutorials](TUTORIALS.md)
+12. [Best Practices](BEST_PRACTICES.md)
 
 ## Quick Links
 
