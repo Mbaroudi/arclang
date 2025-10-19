@@ -35,7 +35,11 @@ arclang export model.arc -o diagram.html -f arc-viz-ultimate
 - ✅ **SVG export** - Vector graphics for documentation
 - ✅ **Certification ready** - Suitable for ISO 26262 / DO-178C submissions
 
-![Example Diagram](docs/acc_ultimate_example.png)
+**Example: Code → Diagram**
+
+![ArcLang Example: Code to Diagram](docs/example_diagram.svg)
+
+*Write text-based models → Generate professional diagrams → Enable Git collaboration*
 
 ---
 
