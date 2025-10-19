@@ -45,7 +45,7 @@ arclang export model.arc -o diagram.html -f arc-viz-ultimate
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/arclang.git
+git clone https://github.com/Mbaroudi/arclang.git
 cd arclang
 
 # Build and install
@@ -265,22 +265,31 @@ open acc_diagram.html
 
 ## 📚 Documentation
 
+**📖 [Complete Documentation Index](docs/INDEX.md)** - Start here for all documentation
+
 ### Core Documentation
 - [**Quick Start Guide**](docs/QUICKSTART.md) - Get started in 5 minutes
+- [**Language Specification**](docs/LANGUAGE_SPECIFICATION.md) - Formal language spec
 - [**Language Reference**](docs/LANGUAGE_REFERENCE.md) - Complete syntax guide
-- [**Diagram Generation**](CAPELLA_DIAGRAMS_FINAL.md) - Professional diagrams
-- [**Safety Standards**](docs/SAFETY_STANDARDS.md) - ISO 26262 / DO-178C
+- [**Compiler Architecture**](docs/COMPILER_ARCHITECTURE.md) - Internal design
+- [**CLI Reference**](docs/CLI_REFERENCE.md) - Command-line interface
 
-### Advanced Topics
-- [**Capella Integration**](CAPELLA_INTEGRATION.md) - Bidirectional conversion
+### Integration Guides
+- [**PLM Integration**](docs/PLM_INTEGRATION.md) - Windchill, Teamcenter, SAP
+- [**Requirements Management**](docs/REQUIREMENTS_MANAGEMENT.md) - DOORS, Polarion, Jama
+- [**API Reference**](docs/API.md) - Rust compiler API
+- [**Plugin Development**](docs/PLUGIN_DEVELOPMENT.md) - Creating plugins
+
+### Safety & Certification
+- [**Safety Standards**](docs/SAFETY_STANDARDS.md) - ISO 26262, DO-178C, IEC 61508
+- [**Safety Certification**](docs/SAFETY_CERTIFICATION.md) - Certification process
 - [**Traceability**](docs/TRACEABILITY.md) - Requirements tracing
-- [**Format Comparison**](DIAGRAM_FORMAT_COMPARISON.md) - Diagram formats
-- [**API Reference**](docs/API.md) - Compiler API
 
-### Guides
+### Tutorials & Guides
+- [**Tutorials**](docs/TUTORIALS.md) - Step-by-step tutorials
 - [**Best Practices**](docs/BEST_PRACTICES.md) - Production recommendations
-- [**Contributing**](CONTRIBUTING.md) - How to contribute
 - [**Examples**](examples/) - Real-world models
+- [**Contributing**](CONTRIBUTING.md) - How to contribute
 
 ---
 
@@ -401,7 +410,7 @@ arclang trace model.arc --validate --matrix
 
 ```bash
 # Clone repository
-git clone https://github.com/yourusername/arclang.git
+git clone https://github.com/Mbaroudi/arclang.git
 cd arclang
 
 # Build in debug mode
@@ -481,8 +490,8 @@ This project is licensed under the **MIT License** - see the [LICENSE](LICENSE) 
 
 ## 📞 Support & Contact
 
-- **Issues**: [GitHub Issues](https://github.com/yourusername/arclang/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/yourusername/arclang/discussions)
+- **Issues**: [GitHub Issues](https://github.com/Mbaroudi/arclang/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/Mbaroudi/arclang/discussions)
 - **Documentation**: [Full Docs](docs/)
 
 ---
