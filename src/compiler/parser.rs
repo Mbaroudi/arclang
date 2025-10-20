@@ -66,7 +66,6 @@ impl Parser {
                     // Parse and skip metadata block for now
                     self.advance();
                     self.skip_block()?;
-                    self.expect(Token::RightBrace)?;
                 }
                 Token::Requirements => {
                     // Parse requirements block
@@ -75,7 +74,6 @@ impl Parser {
                         Token::Stakeholder | Token::System | Token::Identifier(_) => {
                             self.advance(); // Skip sub-type
                             self.skip_block()?;
-                            self.expect(Token::RightBrace)?;
                         }
                         _ => {}
                     }
@@ -86,12 +84,10 @@ impl Parser {
                         Token::Logical => {
                             self.advance();
                             self.skip_block()?;
-                            self.expect(Token::RightBrace)?;
                         }
                         Token::Physical => {
                             self.advance();
                             self.skip_block()?;
-                            self.expect(Token::RightBrace)?;
                         }
                         _ => {}
                     }
@@ -99,12 +95,10 @@ impl Parser {
                 Token::Scenarios => {
                     self.advance();
                     self.skip_block()?;
-                    self.expect(Token::RightBrace)?;
                 }
                 Token::Identifier(ref id) if id == "traceability" => {
                     self.advance();
                     self.skip_block()?;
-                    self.expect(Token::RightBrace)?;
                 }
                 Token::OperationalAnalysis => {
                     model.operational_analysis.push(self.parse_operational_analysis()?);
@@ -291,13 +285,21 @@ impl Parser {
         let mut attributes = HashMap::new();
         
         while !self.check(&Token::RightBrace) && !self.is_at_end() {
-            if let Token::Function = self.current() {
-                functions.push(self.parse_logical_function()?);
-            } else if let Token::Identifier(_) = self.current() {
-                let (key, value) = self.parse_attribute()?;
-                attributes.insert(key, value);
-            } else {
-                return Err(format!("Unexpected token in component: {}", self.current()));
+            match self.current() {
+                Token::Function => {
+                    functions.push(self.parse_logical_function()?);
+                }
+                Token::Identifier(_) | Token::Description | Token::Version | Token::Author |
+                Token::Priority | Token::Rationale | Token::Verification | Token::Traces |
+                Token::SafetyLevel | Token::Parent | Token::Properties | Token::Signals |
+                Token::Provides | Token::Requires => {
+                    let (key, value) = self.parse_attribute()?;
+                    attributes.insert(key, value);
+                }
+                _ => {
+                    // Skip unknown tokens in component
+                    self.advance();
+                }
             }
         }
         
@@ -676,23 +678,27 @@ impl Parser {
     }
     
     fn skip_block(&mut self) -> Result<(), String> {
-        let mut depth = 0;
+        // Expect opening brace first
+        self.expect(Token::LeftBrace)?;
         
-        while !self.is_at_end() {
+        let mut depth = 1;  // Start at 1 since we just consumed opening brace
+        
+        while !self.is_at_end() && depth > 0 {
             match self.current() {
                 Token::LeftBrace => {
                     depth += 1;
                     self.advance();
                 }
                 Token::RightBrace => {
-                    if depth == 0 {
-                        break;
-                    }
                     depth -= 1;
                     self.advance();
                 }
                 _ => self.advance(),
             }
+        }
+        
+        if depth != 0 {
+            return Err("Unmatched braces in skip_block".to_string());
         }
         
         Ok(())

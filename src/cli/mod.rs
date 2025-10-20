@@ -589,6 +589,9 @@ impl CliRunner {
             ExportFormat::ArcVizChannel => "json".to_string(),
             ExportFormat::ArcVizPerfect => "json".to_string(),
             ExportFormat::ArcVizUltimate => "json".to_string(),
+            ExportFormat::HTML => "json".to_string(),
+            ExportFormat::PDF => "json".to_string(),
+            ExportFormat::YAML => "json".to_string(),
             _ => {
                 println!("⚠ Format {:?} not yet implemented", format);
                 return Err(CliError::Config(format!("Export format {:?} not supported yet", format)));
@@ -638,6 +641,13 @@ impl CliRunner {
                         let svg = generate_ultimate_arcviz(&result.semantic_model, "System Architecture")
                             .map_err(|e| CliError::Compilation(e.to_string()))?;
                         wrap_ultimate_html("System Architecture", &svg)
+                    }
+                    ExportFormat::HTML => {
+                        // Use ArcVizUltimate for HTML export (best visualization)
+                        use crate::compiler::arcviz_ultimate_routing::{generate_ultimate_arcviz, wrap_ultimate_html};
+                        let svg = generate_ultimate_arcviz(&result.semantic_model, "Adaptive Cruise Control System")
+                            .map_err(|e| CliError::Compilation(e.to_string()))?;
+                        wrap_ultimate_html("Adaptive Cruise Control System", &svg)
                     }
                     _ => result.output
                 };
