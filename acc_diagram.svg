@@ -1,0 +1,105 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="1000" viewBox="0 0 1400 1000">
+  <defs>
+    <marker id="arrowhead" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto">
+      <polygon points="0 0, 10 3, 0 6" fill="#666" />
+    </marker>
+  </defs>
+  <style>
+    .requirement { fill: #E3F2FD; stroke: #1976D2; stroke-width: 2; }
+    .component { fill: #FFF3E0; stroke: #F57C00; stroke-width: 2; }
+    .text { font-family: Arial, sans-serif; font-size: 12px; text-anchor: middle; }
+    .title { font-weight: bold; font-size: 14px; }
+    .trace { stroke: #666; stroke-width: 1.5; fill: none; marker-end: url(#arrowhead); }
+    .satisfies { stroke: #4CAF50; stroke-dasharray: 5,5; }
+    .implements { stroke: #2196F3; }
+  </style>
+  
+  <rect x="0" y="0" width="1400" height="1000" fill="#FAFAFA"/>
+  
+  <text x="700" y="30" class="text title" font-size="20">Adaptive Cruise Control - Logical Architecture</text>
+  <!-- Requirements -->
+  <rect x="50" y="80" width="280" height="60" class="requirement" rx="5"/>
+  <text x="190" y="100" class="text title">SYS-ACC-001</text>
+  <text x="190" y="118" class="text" font-size="10">The ACC system shall maintain minimum...</text>
+  <text x="190" y="132" class="text" font-size="9" fill="#666">Critical</text>
+  <rect x="350" y="80" width="280" height="60" class="requirement" rx="5"/>
+  <text x="490" y="100" class="text title">SYS-ACC-002</text>
+  <text x="490" y="118" class="text" font-size="10">The system shall detect cut-in vehicl...</text>
+  <text x="490" y="132" class="text" font-size="9" fill="#666">High</text>
+  <rect x="50" y="160" width="280" height="60" class="requirement" rx="5"/>
+  <text x="190" y="180" class="text title">SYS-ACC-003</text>
+  <text x="190" y="198" class="text" font-size="10">Maximum deceleration shall not exceed...</text>
+  <text x="190" y="212" class="text" font-size="9" fill="#666">High</text>
+  <rect x="350" y="160" width="280" height="60" class="requirement" rx="5"/>
+  <text x="490" y="180" class="text title">SYS-ACC-004</text>
+  <text x="490" y="198" class="text" font-size="10">Driver brake input shall immediately ...</text>
+  <text x="490" y="212" class="text" font-size="9" fill="#666">Critical</text>
+  <rect x="50" y="240" width="280" height="60" class="requirement" rx="5"/>
+  <text x="190" y="260" class="text title">SYS-ACC-005</text>
+  <text x="190" y="278" class="text" font-size="10">System shall operate in speed range 3...</text>
+  <text x="190" y="292" class="text" font-size="9" fill="#666">Medium</text>
+  <rect x="350" y="240" width="280" height="60" class="requirement" rx="5"/>
+  <text x="490" y="260" class="text title">SYS-ACC-006</text>
+  <text x="490" y="278" class="text" font-size="10">System shall provide visual and audib...</text>
+  <text x="490" y="292" class="text" font-size="9" fill="#666">High</text>
+  <rect x="50" y="320" width="280" height="60" class="requirement" rx="5"/>
+  <text x="190" y="340" class="text title">SYS-ACC-007</text>
+  <text x="190" y="358" class="text" font-size="10">System shall perform continuous self-...</text>
+  <text x="190" y="372" class="text" font-size="9" fill="#666">Critical</text>
+  <!-- Components -->
+  <rect x="50" y="400" width="140" height="80" class="component" rx="5"/>
+  <text x="120" y="425" class="text title">LC-001</text>
+  <text x="120" y="445" class="text" font-size="10">Long</text>
+  <text x="120" y="458" class="text" font-size="10">Range Radar</text>
+  <rect x="210" y="400" width="140" height="80" class="component" rx="5"/>
+  <text x="280" y="425" class="text title">LC-002</text>
+  <text x="280" y="450" class="text" font-size="10">Forward Camera</text>
+  <rect x="370" y="400" width="140" height="80" class="component" rx="5"/>
+  <text x="440" y="425" class="text title">LC-003</text>
+  <text x="440" y="450" class="text" font-size="10">Sensor Fusion</text>
+  <rect x="530" y="400" width="140" height="80" class="component" rx="5"/>
+  <text x="600" y="425" class="text title">LC-004</text>
+  <text x="600" y="445" class="text" font-size="10">Target</text>
+  <text x="600" y="458" class="text" font-size="10">Selection</text>
+  <rect x="690" y="400" width="140" height="80" class="component" rx="5"/>
+  <text x="760" y="425" class="text title">LC-005</text>
+  <text x="760" y="445" class="text" font-size="10">Longitudinal</text>
+  <text x="760" y="458" class="text" font-size="10">Controller</text>
+  <rect x="50" y="500" width="140" height="80" class="component" rx="5"/>
+  <text x="120" y="525" class="text title">LC-006</text>
+  <text x="120" y="545" class="text" font-size="10">Actuator</text>
+  <text x="120" y="558" class="text" font-size="10">Command</text>
+  <rect x="210" y="500" width="140" height="80" class="component" rx="5"/>
+  <text x="280" y="525" class="text title">LC-007</text>
+  <text x="280" y="550" class="text" font-size="10">Safety Monitor</text>
+  <rect x="370" y="500" width="140" height="80" class="component" rx="5"/>
+  <text x="440" y="525" class="text title">LC-008</text>
+  <text x="440" y="545" class="text" font-size="10">Driver</text>
+  <text x="440" y="558" class="text" font-size="10">Interface</text>
+  <rect x="530" y="500" width="140" height="80" class="component" rx="5"/>
+  <text x="600" y="525" class="text title">LC-009</text>
+  <text x="600" y="545" class="text" font-size="10">Override</text>
+  <text x="600" y="558" class="text" font-size="10">Manager</text>
+  <!-- Traces -->
+  <line x1="120" y1="440" x2="490" y2="110" class="trace satisfies"/>
+  <line x1="280" y1="440" x2="490" y2="110" class="trace satisfies"/>
+  <line x1="440" y1="440" x2="190" y2="110" class="trace satisfies"/>
+  <line x1="600" y1="440" x2="190" y2="110" class="trace satisfies"/>
+  <line x1="760" y1="440" x2="190" y2="110" class="trace satisfies"/>
+  <line x1="760" y1="440" x2="190" y2="190" class="trace satisfies"/>
+  <line x1="120" y1="540" x2="190" y2="190" class="trace satisfies"/>
+  <line x1="280" y1="540" x2="190" y2="350" class="trace satisfies"/>
+  <line x1="440" y1="540" x2="490" y2="270" class="trace satisfies"/>
+  <line x1="600" y1="540" x2="490" y2="190" class="trace satisfies"/>
+  <line x1="760" y1="440" x2="190" y2="270" class="trace satisfies"/>
+  <line x1="120" y1="440" x2="440" y2="440" class="trace implements"/>
+  <line x1="280" y1="440" x2="440" y2="440" class="trace implements"/>
+  <line x1="440" y1="440" x2="600" y2="440" class="trace implements"/>
+  <line x1="600" y1="440" x2="760" y2="440" class="trace implements"/>
+  <line x1="760" y1="440" x2="120" y2="540" class="trace implements"/>
+  <line x1="280" y1="540" x2="760" y2="440" class="trace implements"/>
+  <line x1="440" y1="540" x2="760" y2="440" class="trace implements"/>
+  <line x1="600" y1="540" x2="760" y2="440" class="trace implements"/>
+  <line x1="600" y1="540" x2="120" y2="540" class="trace implements"/>
+</svg>

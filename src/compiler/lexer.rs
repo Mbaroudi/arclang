@@ -24,6 +24,34 @@ pub enum Token {
     Deploys,
     Implements,
     Satisfies,
+    // New MBSE keywords
+    Model,
+    Metadata,
+    Version,
+    Author,
+    Description,
+    Requirements,
+    Stakeholder,
+    Architecture,
+    Logical,
+    Physical,
+    Provides,
+    Requires,
+    Signals,
+    Connect,
+    Via,
+    Scenarios,
+    Scenario,
+    Steps,
+    Precondition,
+    Postcondition,
+    Properties,
+    Parent,
+    SafetyLevel,
+    Priority,
+    Traces,
+    Verification,
+    Rationale,
     
     // Literals
     Identifier(String),
@@ -37,6 +65,9 @@ pub enum Token {
     RightBracket,
     Colon,
     Comma,
+    Dot,
+    Arrow,
+    Minus,
     
     // End of file
     Eof,
@@ -122,8 +153,24 @@ impl Lexer {
                 self.advance();
                 Ok(Token::Comma)
             }
+            '.' => {
+                self.advance();
+                Ok(Token::Dot)
+            }
+            '-' => {
+                if self.peek_char() == Some('>') {
+                    self.advance();
+                    self.advance();
+                    Ok(Token::Arrow)
+                } else if self.peek_char().map_or(false, |c| c.is_ascii_digit()) {
+                    self.read_number()
+                } else {
+                    self.advance();
+                    Ok(Token::Minus)
+                }
+            }
             '"' => self.read_string_literal(),
-            _ if ch.is_ascii_digit() || ch == '-' => self.read_number(),
+            _ if ch.is_ascii_digit() => self.read_number(),
             _ if ch.is_alphabetic() || ch == '_' => self.read_identifier_or_keyword(),
             _ => Err(format!("Unexpected character: '{}'", ch)),
         }
@@ -163,15 +210,28 @@ impl Lexer {
     
     fn read_number(&mut self) -> Result<Token, String> {
         let mut number_str = String::new();
+        let mut has_decimal = false;
         
         if self.current_char() == '-' {
             number_str.push('-');
             self.advance();
         }
         
-        while !self.is_at_end() && (self.current_char().is_ascii_digit() || self.current_char() == '.') {
-            number_str.push(self.current_char());
-            self.advance();
+        while !self.is_at_end() {
+            let ch = self.current_char();
+            
+            if ch.is_ascii_digit() {
+                number_str.push(ch);
+                self.advance();
+            } else if ch == '.' && !has_decimal && self.peek_char().map_or(false, |c| c.is_ascii_digit()) {
+                has_decimal = true;
+                number_str.push(ch);
+                self.advance();
+            } else if ch == '_' {
+                self.advance();
+            } else {
+                break;
+            }
         }
         
         number_str.parse::<f64>()
@@ -209,6 +269,34 @@ impl Lexer {
             "deploys" => Token::Deploys,
             "implements" => Token::Implements,
             "satisfies" => Token::Satisfies,
+            // New MBSE keywords
+            "model" => Token::Model,
+            "metadata" => Token::Metadata,
+            "version" => Token::Version,
+            "author" => Token::Author,
+            "description" => Token::Description,
+            "requirements" => Token::Requirements,
+            "stakeholder" => Token::Stakeholder,
+            "architecture" => Token::Architecture,
+            "logical" => Token::Logical,
+            "physical" => Token::Physical,
+            "provides" => Token::Provides,
+            "requires" => Token::Requires,
+            "signals" => Token::Signals,
+            "connect" => Token::Connect,
+            "via" => Token::Via,
+            "scenarios" => Token::Scenarios,
+            "scenario" => Token::Scenario,
+            "steps" => Token::Steps,
+            "precondition" => Token::Precondition,
+            "postcondition" => Token::Postcondition,
+            "properties" => Token::Properties,
+            "parent" => Token::Parent,
+            "safety_level" => Token::SafetyLevel,
+            "priority" => Token::Priority,
+            "traces" => Token::Traces,
+            "verification" => Token::Verification,
+            "rationale" => Token::Rationale,
             _ => Token::Identifier(ident),
         };
         

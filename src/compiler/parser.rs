@@ -17,6 +17,10 @@ impl Parser {
         
         while !self.is_at_end() {
             match self.current() {
+                Token::Model => {
+                    // Parse new-style model block
+                    return self.parse_model_block();
+                }
                 Token::OperationalAnalysis => {
                     model.operational_analysis.push(self.parse_operational_analysis()?);
                 }
@@ -43,6 +47,83 @@ impl Parser {
             }
         }
         
+        Ok(model)
+    }
+    
+    fn parse_model_block(&mut self) -> Result<Model, String> {
+        self.expect(Token::Model)?;
+        
+        // Model name (identifier)
+        let _model_name = self.expect_identifier()?;
+        
+        self.expect(Token::LeftBrace)?;
+        
+        let mut model = Model::new();
+        
+        while !self.check(&Token::RightBrace) && !self.is_at_end() {
+            match self.current() {
+                Token::Metadata => {
+                    // Parse and skip metadata block for now
+                    self.advance();
+                    self.skip_block()?;
+                    self.expect(Token::RightBrace)?;
+                }
+                Token::Requirements => {
+                    // Parse requirements block
+                    self.advance();
+                    match self.current() {
+                        Token::Stakeholder | Token::System | Token::Identifier(_) => {
+                            self.advance(); // Skip sub-type
+                            self.skip_block()?;
+                            self.expect(Token::RightBrace)?;
+                        }
+                        _ => {}
+                    }
+                }
+                Token::Architecture => {
+                    self.advance();
+                    match self.current() {
+                        Token::Logical => {
+                            self.advance();
+                            self.skip_block()?;
+                            self.expect(Token::RightBrace)?;
+                        }
+                        Token::Physical => {
+                            self.advance();
+                            self.skip_block()?;
+                            self.expect(Token::RightBrace)?;
+                        }
+                        _ => {}
+                    }
+                }
+                Token::Scenarios => {
+                    self.advance();
+                    self.skip_block()?;
+                    self.expect(Token::RightBrace)?;
+                }
+                Token::Identifier(ref id) if id == "traceability" => {
+                    self.advance();
+                    self.skip_block()?;
+                    self.expect(Token::RightBrace)?;
+                }
+                Token::OperationalAnalysis => {
+                    model.operational_analysis.push(self.parse_operational_analysis()?);
+                }
+                Token::SystemAnalysis => {
+                    model.system_analysis.push(self.parse_system_analysis()?);
+                }
+                Token::LogicalArchitecture => {
+                    model.logical_architecture.push(self.parse_logical_architecture()?);
+                }
+                Token::Eof => break,
+                _ => {
+                    // Skip unknown tokens within model block
+                    self.advance();
+                }
+            }
+        }
+        
+        self.expect(Token::RightBrace)?;
         Ok(model)
     }
     
@@ -637,12 +718,25 @@ impl Parser {
     }
     
     fn expect_identifier(&mut self) -> Result<String, String> {
-        if let Token::Identifier(id) = self.current() {
-            let result = id.clone();
-            self.advance();
-            Ok(result)
-        } else {
-            Err(format!("Expected identifier, got {}", self.current()))
+        match self.current() {
+            Token::Identifier(id) => {
+                let result = id.clone();
+                self.advance();
+                Ok(result)
+            }
+            // Allow keywords as identifiers in attribute context
+            Token::Description => { self.advance(); Ok("description".to_string()) }
+            Token::Version => { self.advance(); Ok("version".to_string()) }
+            Token::Author => { self.advance(); Ok("author".to_string()) }
+            Token::Priority => { self.advance(); Ok("priority".to_string()) }
+            Token::Rationale => { self.advance(); Ok("rationale".to_string()) }
+            Token::Verification => { self.advance(); Ok("verification".to_string()) }
+            Token::Traces => { self.advance(); Ok("traces".to_string()) }
+            Token::SafetyLevel => { self.advance(); Ok("safety_level".to_string()) }
+            Token::Parent => { self.advance(); Ok("parent".to_string()) }
+            Token::Properties => { self.advance(); Ok("properties".to_string()) }
+            Token::Signals => { self.advance(); Ok("signals".to_string()) }
+            _ => Err(format!("Expected identifier, got {}", self.current()))
         }
     }
     

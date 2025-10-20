@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<capella:Project xmlns:capella="http://www.polarsys.org/capella/core/1.4.0">
+  <ownedRequirements>
+    <requirement id="SYS-ACC-001" name="SYS-ACC-001" description="The ACC system shall maintain minimum 2-second following distance at all speeds" priority="Critical" />
+    <requirement id="SYS-ACC-002" name="SYS-ACC-002" description="The system shall detect cut-in vehicles within 500ms" priority="High" />
+    <requirement id="SYS-ACC-003" name="SYS-ACC-003" description="Maximum deceleration shall not exceed 3.5 m/s²" priority="High" />
+    <requirement id="SYS-ACC-004" name="SYS-ACC-004" description="Driver brake input shall immediately override ACC control" priority="Critical" />
+    <requirement id="SYS-ACC-005" name="SYS-ACC-005" description="System shall operate in speed range 30-180 km/h" priority="Medium" />
+    <requirement id="SYS-ACC-006" name="SYS-ACC-006" description="System shall provide visual and audible warnings" priority="High" />
+    <requirement id="SYS-ACC-007" name="SYS-ACC-007" description="System shall perform continuous self-diagnostics" priority="Critical" />
+  </ownedRequirements>
+  <ownedLogicalComponents>
+    <component id="LC-001" name="Long Range Radar" type="Logical" />
+    <component id="LC-002" name="Forward Camera" type="Logical" />
+    <component id="LC-003" name="Sensor Fusion" type="Logical" />
+    <component id="LC-004" name="Target Selection" type="Logical" />
+    <component id="LC-005" name="Longitudinal Controller" type="Logical" />
+    <component id="LC-006" name="Actuator Command" type="Logical" />
+    <component id="LC-007" name="Safety Monitor" type="Logical" />
+    <component id="LC-008" name="Driver Interface" type="Logical" />
+    <component id="LC-009" name="Override Manager" type="Logical" />
+  </ownedLogicalComponents>
+  <ownedTraces>
+    <trace from="LC-001" to="SYS-ACC-002" type="satisfies" />
+    <trace from="LC-002" to="SYS-ACC-002" type="satisfies" />
+    <trace from="LC-003" to="SYS-ACC-001" type="satisfies" />
+    <trace from="LC-004" to="SYS-ACC-001" type="satisfies" />
+    <trace from="LC-005" to="SYS-ACC-001" type="satisfies" />
+    <trace from="LC-005" to="SYS-ACC-003" type="satisfies" />
+    <trace from="LC-006" to="SYS-ACC-003" type="satisfies" />
+    <trace from="LC-007" to="SYS-ACC-007" type="satisfies" />
+    <trace from="LC-008" to="SYS-ACC-006" type="satisfies" />
+    <trace from="LC-009" to="SYS-ACC-004" type="satisfies" />
+    <trace from="LC-005" to="SYS-ACC-005" type="satisfies" />
+    <trace from="LC-001" to="LC-003" type="implements" />
+    <trace from="LC-002" to="LC-003" type="implements" />
+    <trace from="LC-003" to="LC-004" type="implements" />
+    <trace from="LC-004" to="LC-005" type="implements" />
+    <trace from="LC-005" to="LC-006" type="implements" />
+    <trace from="LC-007" to="LC-005" type="implements" />
+    <trace from="LC-008" to="LC-005" type="implements" />
+    <trace from="LC-009" to="LC-005" type="implements" />
+    <trace from="LC-009" to="LC-006" type="implements" />
+    <trace from="LF-001" to="LF-002" type="implements" />
+    <trace from="LF-002" to="LF-003" type="implements" />
+    <trace from="LF-003" to="LF-007" type="implements" />
+    <trace from="LF-005" to="LF-007" type="implements" />
+    <trace from="LF-007" to="LF-008" type="implements" />
+    <trace from="LF-008" to="LF-009" type="implements" />
+    <trace from="LF-008" to="LF-010" type="implements" />
+    <trace from="LF-010" to="LF-012" type="implements" />
+    <trace from="LF-012" to="LF-013" type="implements" />
+    <trace from="LF-013" to="LF-014" type="implements" />
+    <trace from="LF-014" to="LF-015" type="implements" />
+    <trace from="LF-014" to="LF-016" type="implements" />
+  </ownedTraces>
+</capella:Project>
