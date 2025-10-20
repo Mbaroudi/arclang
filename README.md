@@ -255,7 +255,7 @@ The MCP server was used to generate a complete **ISO 26262 ASIL-B compliant** AC
 
 **Interactive Diagram Output**:
 
-![ACC System Architecture](docs/adaptive_cruise_control_diagram.svg)
+![ACC System Architecture](docs/acc_diagram.png)
 
 **Try it yourself:**
 
