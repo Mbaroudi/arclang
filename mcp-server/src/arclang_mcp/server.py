@@ -8,9 +8,10 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from mcp.server import Server
-from mcp.types import Tool, TextContent, ImageContent
+from mcp.types import Tool, TextContent, ImageContent, Resource
 
 from .tools.core import CoreTools
+from .resources.syntax_guide import get_syntax_rules
 from .tools.generation import GenerationTools
 from .tools.safety import SafetyTools
 from .tools.integration import IntegrationTools
@@ -45,7 +46,27 @@ class ArcLangMCPServer:
         self._register_tools()
 
     def _register_tools(self) -> None:
-        """Register all available tools with the MCP server."""
+        """Register all available tools and resources with the MCP server."""
+        
+        # Register syntax rules as a resource
+        @self.server.list_resources()
+        async def list_resources() -> List[Resource]:
+            """List available resources including syntax rules."""
+            return [
+                Resource(
+                    uri="arclang://syntax-rules",
+                    name="ArcLang Syntax Rules",
+                    description="Mandatory syntax rules for generating ArcLang models. AI clients MUST follow these rules.",
+                    mimeType="text/markdown"
+                )
+            ]
+        
+        @self.server.read_resource()
+        async def read_resource(uri: str) -> str:
+            """Read resource content."""
+            if uri == "arclang://syntax-rules":
+                return get_syntax_rules()
+            raise ValueError(f"Unknown resource: {uri}")
         
         # Core tools
         @self.server.list_tools()
@@ -171,7 +192,11 @@ class ArcLangMCPServer:
                 # Generation tools
                 Tool(
                     name="arclang_generate_requirement",
-                    description="Generate ArcLang requirement from natural language description.",
+                    description="""Generate ArcLang requirement from natural language description.
+                    
+MANDATORY SYNTAX: Use 'req ID \"Title\" { }' format inside 'requirements stakeholder/system/safety { }' block.
+CORRECT: requirements stakeholder { req STK-001 \"Title\" { description: \"Text\" } }
+WRONG: requirement \"REQ-001\" { } or req { id: \"REQ-001\" }""",
                     inputSchema={
                         "type": "object",
                         "properties": {
@@ -197,7 +222,11 @@ class ArcLangMCPServer:
                 
                 Tool(
                     name="arclang_generate_component",
-                    description="Generate ArcLang component architecture from description.",
+                    description="""Generate ArcLang component architecture from description.
+                    
+MANDATORY SYNTAX: Use 'component Name \"Display\" { }' inside 'architecture logical/physical { }' block.
+CORRECT: component SensorSubsystem \"Sensor\" { provides interface IData { } }
+WRONG: component \"Name\" { port \"input\" { } } or component { name: \"Name\" }""",
                     inputSchema={
                         "type": "object",
                         "properties": {
