@@ -85,7 +85,7 @@ class ArcLangCompiler:
     async def export_diagram(
         self,
         model_path: Path,
-        format_type: str = "arc-viz-ultimate",
+        format_type: str = "html",
         output_path: Optional[str] = None
     ) -> Dict[str, Any]:
         """Export architecture diagram."""

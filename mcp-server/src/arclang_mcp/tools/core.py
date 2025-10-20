@@ -139,7 +139,7 @@ class CoreTools:
     async def _export_diagram(self, args: Dict[str, Any]) -> str:
         """Export architecture diagram."""
         model_path = self._resolve_path(args["model_path"])
-        format_type = args.get("format", "arc-viz-ultimate")
+        format_type = args.get("format", "html")
         output_path = args.get("output_path")
 
         result = await self.compiler.export_diagram(

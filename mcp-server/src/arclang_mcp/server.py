@@ -135,9 +135,9 @@ class ArcLangMCPServer:
                             },
                             "format": {
                                 "type": "string",
-                                "enum": ["arc-viz-ultimate", "mermaid", "plant-uml"],
+                                "enum": ["capella", "json", "yaml", "xml", "markdown", "html", "pdf"],
                                 "description": "Output diagram format",
-                                "default": "arc-viz-ultimate"
+                                "default": "html"
                             },
                             "output_path": {
                                 "type": "string",
