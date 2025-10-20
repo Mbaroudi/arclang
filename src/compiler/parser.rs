@@ -17,21 +17,27 @@ impl Parser {
         
         while !self.is_at_end() {
             match self.current() {
-                Token::Model => {
-                    // Parse new-style model block
+                Token::Model | Token::System => {
+                    // Parse new-style model/system block
                     return self.parse_model_block();
+                }
+                Token::Requirements => {
+                    // Top-level requirements block (alternative syntax 3)
+                    return self.parse_model_with_toplevel_blocks();
+                }
+                Token::LogicalArchitecture => {
+                    // Alternative syntax: logical_architecture without model wrapper
+                    model.logical_architecture.push(self.parse_logical_architecture()?);
+                }
+                Token::PhysicalArchitecture => {
+                    // Alternative syntax: physical_architecture without model wrapper
+                    model.physical_architecture.push(self.parse_physical_architecture()?);
                 }
                 Token::OperationalAnalysis => {
                     model.operational_analysis.push(self.parse_operational_analysis()?);
                 }
                 Token::SystemAnalysis => {
                     model.system_analysis.push(self.parse_system_analysis()?);
-                }
-                Token::LogicalArchitecture => {
-                    model.logical_architecture.push(self.parse_logical_architecture()?);
-                }
-                Token::PhysicalArchitecture => {
-                    model.physical_architecture.push(self.parse_physical_architecture()?);
                 }
                 Token::Epbs => {
                     model.epbs.push(self.parse_epbs()?);
@@ -51,10 +57,27 @@ impl Parser {
     }
     
     fn parse_model_block(&mut self) -> Result<Model, String> {
-        self.expect(Token::Model)?;
+        // Support both 'model' and 'system' keywords
+        if matches!(self.current(), Token::Model | Token::System) {
+            self.advance();
+        } else {
+            return Err(format!("Expected 'model' or 'system', got {}", self.current()));
+        }
         
-        // Model name (identifier)
-        let _model_name = self.expect_identifier()?;
+        // Model name can be either identifier or string
+        let _model_name = match self.current() {
+            Token::Identifier(id) => {
+                let name = id.clone();
+                self.advance();
+                name
+            }
+            Token::StringLiteral(s) => {
+                let name = s.clone();
+                self.advance();
+                name
+            }
+            _ => return Err(format!("Expected model name (identifier or string), got {}", self.current())),
+        };
         
         self.expect(Token::LeftBrace)?;
         
@@ -92,6 +115,24 @@ impl Parser {
                         _ => {}
                     }
                 }
+                Token::LogicalArchitecture => {
+                    // Alternative syntax 1: logical_architecture with identifier
+                    self.advance();
+                    // Check if followed by identifier (name) - skip it
+                    if matches!(self.current(), Token::Identifier(_)) {
+                        self.advance();
+                    }
+                    self.skip_block()?;
+                }
+                Token::PhysicalArchitecture => {
+                    // Alternative syntax 1: physical_architecture with identifier
+                    self.advance();
+                    // Check if followed by identifier (name) - skip it
+                    if matches!(self.current(), Token::Identifier(_)) {
+                        self.advance();
+                    }
+                    self.skip_block()?;
+                }
                 Token::Scenarios => {
                     self.advance();
                     self.skip_block()?;
@@ -118,6 +159,71 @@ impl Parser {
         }
         
         self.expect(Token::RightBrace)?;
+        Ok(model)
+    }
+    
+    fn parse_model_with_toplevel_blocks(&mut self) -> Result<Model, String> {
+        // Alternative syntax 3: model "Name" { } followed by top-level blocks
+        let mut model = Model::new();
+        
+        // Check if we start with model declaration
+        let has_model_decl = matches!(self.current(), Token::Model | Token::System);
+        if has_model_decl {
+            // Parse model declaration
+            self.advance(); // Skip 'model' or 'system'
+            
+            // Model name can be identifier or string
+            if matches!(self.current(), Token::Identifier(_) | Token::StringLiteral(_)) {
+                self.advance(); // Skip name
+            }
+            
+            // Model attributes block
+            if self.check(&Token::LeftBrace) {
+                self.skip_block()?; // Skip model metadata/attributes
+            }
+        }
+        
+        // Now parse top-level blocks
+        while !self.is_at_end() {
+            match self.current() {
+                Token::Requirements => {
+                    self.advance();
+                    // Requirements block without subtype - skip it for now
+                    self.skip_block()?;
+                }
+                Token::LogicalArchitecture => {
+                    self.advance();
+                    // logical_architecture without string name - skip block content
+                    self.skip_block()?;
+                }
+                Token::PhysicalArchitecture => {
+                    self.advance();
+                    // physical_architecture without string name - skip block content  
+                    self.skip_block()?;
+                }
+                Token::DataFlows => {
+                    self.advance();
+                    self.skip_block()?;
+                }
+                Token::SafetyAnalysis => {
+                    self.advance();
+                    self.skip_block()?;
+                }
+                Token::ValidationKeyword => {
+                    self.advance();
+                    self.skip_block()?;
+                }
+                Token::Identifier(ref id) if id == "traces" || id == "traceability" => {
+                    self.advance();
+                    self.skip_block()?;
+                }
+                Token::Eof => break,
+                _ => {
+                    self.advance(); // Skip unknown tokens
+                }
+            }
+        }
+        
         Ok(model)
     }
     
