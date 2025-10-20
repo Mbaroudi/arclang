@@ -239,6 +239,66 @@ open acc_diagram.html
 
 ---
 
+## 🤖 MCP Server Integration
+
+ArcLang includes an **MCP (Model Context Protocol) server** that enables AI assistants like Claude to generate and work with ArcLang models.
+
+### Real-World Example: Adaptive Cruise Control System
+
+The MCP server was used to generate a complete **ISO 26262 ASIL-B compliant** ACC system:
+
+**Generated Model**: `adaptive_cruise_control_fixed.arc`
+- ✅ 9 requirements (stakeholder, system, safety)
+- ✅ 10 logical components with safety levels
+- ✅ 9 component connections
+- ✅ Full traceability
+
+**Interactive Diagram Output**:
+
+![ACC System Architecture](adaptive_cruise_control.html)
+
+**Try it yourself:**
+
+```bash
+# Start MCP server
+cd mcp-server
+python -m arclang_mcp.server
+
+# Use with Claude Desktop or any MCP client
+# The AI can now generate ArcLang models!
+
+# Export generated model to HTML
+arclang export adaptive_cruise_control_fixed.arc \
+  --format html \
+  --output acc_system.html
+
+# View interactive diagram
+open acc_system.html
+```
+
+**Features**:
+- 🎨 **Interactive HTML diagrams** with zoom/pan
+- 🔗 **Connection arrows** between components
+- 📊 **Professional styling** (Capella-quality)
+- 🛡️ **Safety annotations** (ASIL levels)
+- 📈 **Requirements traceability**
+
+**Results**:
+- Diagram size: 14KB
+- 10 component boxes rendered
+- 9 connection arrows visualized
+- Zero-crossing routing algorithm
+- Ready for certification documentation
+
+### MCP Server Features
+
+- **Syntax enforcement**: AI must follow correct ArcLang syntax
+- **Resource exposure**: Syntax rules provided to AI clients
+- **Validation**: All generated code is validated
+- **Examples**: Working examples in `mcp-server/examples/`
+
+---
+
 ## 🎯 Use Cases
 
 ### Aerospace

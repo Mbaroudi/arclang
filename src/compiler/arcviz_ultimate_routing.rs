@@ -278,6 +278,20 @@ pub fn generate_ultimate_arcviz(model: &SemanticModel, title: &str) -> Result<St
     // Ultimate connectors - ZERO crossings guaranteed!
     svg.push_str("  <!-- ULTIMATE Connectors - ABSOLUTE ZERO Crossings! -->\\n");
     
+    // Render interfaces as connections
+    for interface in &model.interfaces {
+        if let Some(path) = router.generate_ultimate_path(&interface.from, &interface.to) {
+            svg.push_str(&format!(
+                r#"  <path d="{}" class="connector">
+    <title>{} → {} ({})</title>
+  </path>
+"#,
+                path, interface.from, interface.to, interface.name
+            ));
+        }
+    }
+    
+    // Render trace connections
     for trace in &model.traces {
         if trace.trace_type == "implements" {
             if let Some(path) = router.generate_ultimate_path(&trace.from, &trace.to) {

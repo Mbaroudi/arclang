@@ -7,7 +7,15 @@ pub struct SemanticModel {
     pub components: Vec<ComponentInfo>,
     pub functions: Vec<FunctionInfo>,
     pub traces: Vec<TraceInfo>,
+    pub interfaces: Vec<InterfaceInfo>,
     pub all_elements: HashMap<String, ElementInfo>,
+}
+
+#[derive(Debug, Clone)]
+pub struct InterfaceInfo {
+    pub name: String,
+    pub from: String,
+    pub to: String,
 }
 
 #[derive(Debug, Clone)]
@@ -62,6 +70,7 @@ impl SemanticAnalyzer {
         let mut components = Vec::new();
         let mut functions = Vec::new();
         let mut traces = Vec::new();
+        let mut interfaces = Vec::new();
         let mut all_elements = HashMap::new();
         
         // Collect requirements from system analysis
@@ -101,8 +110,17 @@ impl SemanticAnalyzer {
             }
         }
         
-        // Collect components from logical architecture
+        // Collect components and interfaces from logical architecture
         for la in &ast.logical_architecture {
+            // Collect interfaces
+            for interface in &la.interfaces {
+                interfaces.push(InterfaceInfo {
+                    name: interface.name.clone(),
+                    from: interface.from.clone(),
+                    to: interface.to.clone(),
+                });
+            }
+            
             for comp in &la.components {
                 let comp_id = comp.attributes.get("id")
                     .and_then(|v| v.as_string())
@@ -196,6 +214,7 @@ impl SemanticAnalyzer {
             components,
             functions,
             traces,
+            interfaces,
             all_elements,
         })
     }

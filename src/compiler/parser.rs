@@ -91,28 +91,25 @@ impl Parser {
                     self.skip_block()?;
                 }
                 Token::Requirements => {
-                    // Parse requirements block
-                    self.advance();
-                    match self.current() {
-                        Token::Stakeholder | Token::System | Token::Identifier(_) => {
-                            self.advance(); // Skip sub-type
-                            self.skip_block()?;
-                        }
-                        _ => {}
-                    }
+                    // Parse requirements block with subtype (stakeholder/system/safety)
+                    model.system_analysis.push(self.parse_requirements_block()?);
                 }
                 Token::Architecture => {
                     self.advance();
                     match self.current() {
                         Token::Logical => {
-                            self.advance();
-                            self.skip_block()?;
+                            self.advance(); // consume 'logical'
+                            model.logical_architecture.push(self.parse_logical_architecture_block("Logical Architecture".to_string())?);
                         }
                         Token::Physical => {
-                            self.advance();
+                            self.advance(); // consume 'physical'
+                            model.physical_architecture.push(self.parse_physical_architecture_block("Physical Architecture".to_string())?);
+                        }
+                        _ => {
+                            // Unknown architecture type (operational, etc.) - skip it
+                            self.advance(); // skip the subtype token
                             self.skip_block()?;
                         }
-                        _ => {}
                     }
                 }
                 Token::LogicalArchitecture => {
@@ -159,6 +156,40 @@ impl Parser {
         }
         
         self.expect(Token::RightBrace)?;
+        
+        // Continue parsing top-level blocks after model block
+        while !self.is_at_end() {
+            match self.current() {
+                Token::Requirements => {
+                    model.system_analysis.push(self.parse_requirements_block()?);
+                }
+                Token::Architecture => {
+                    self.advance();
+                    match self.current() {
+                        Token::Logical => {
+                            self.advance();
+                            model.logical_architecture.push(self.parse_logical_architecture_block("Logical Architecture".to_string())?);
+                        }
+                        Token::Physical => {
+                            self.advance();
+                            model.physical_architecture.push(self.parse_physical_architecture_block("Physical Architecture".to_string())?);
+                        }
+                        _ => {
+                            self.advance();
+                            self.skip_block()?;
+                        }
+                    }
+                }
+                Token::Trace => {
+                    model.traces.push(self.parse_trace()?);
+                }
+                Token::Eof => break,
+                _ => {
+                    self.advance();
+                }
+            }
+        }
+        
         Ok(model)
     }
     
@@ -187,9 +218,26 @@ impl Parser {
         while !self.is_at_end() {
             match self.current() {
                 Token::Requirements => {
+                    // Parse top-level requirements blocks (stakeholder/system/safety)
+                    model.system_analysis.push(self.parse_requirements_block()?);
+                }
+                Token::Architecture => {
                     self.advance();
-                    // Requirements block without subtype - skip it for now
-                    self.skip_block()?;
+                    match self.current() {
+                        Token::Logical => {
+                            self.advance(); // consume 'logical'
+                            model.logical_architecture.push(self.parse_logical_architecture_block("Logical Architecture".to_string())?);
+                        }
+                        Token::Physical => {
+                            self.advance(); // consume 'physical'
+                            model.physical_architecture.push(self.parse_physical_architecture_block("Physical Architecture".to_string())?);
+                        }
+                        _ => {
+                            // Unknown architecture type (operational, etc.) - skip it
+                            self.advance(); // skip the subtype token
+                            self.skip_block()?;
+                        }
+                    }
                 }
                 Token::LogicalArchitecture => {
                     self.advance();
@@ -323,6 +371,65 @@ impl Parser {
         })
     }
     
+    fn parse_requirements_block(&mut self) -> Result<SystemAnalysis, String> {
+        self.expect(Token::Requirements)?;
+        
+        // Get subtype (stakeholder, system, safety, etc.)
+        let subtype = match self.current() {
+            Token::Stakeholder => "Stakeholder",
+            Token::System => "System",
+            Token::Identifier(ref id) if id == "safety" => "Safety",
+            _ => "Requirements",
+        };
+        self.advance(); // consume subtype
+        
+        let name = format!("{} Requirements", subtype);
+        self.expect(Token::LeftBrace)?;
+        
+        let mut requirements = Vec::new();
+        
+        while !self.check(&Token::RightBrace) && !self.is_at_end() {
+            match self.current() {
+                Token::Req => {
+                    requirements.push(self.parse_req_statement()?);
+                }
+                Token::Requirement => {
+                    requirements.push(self.parse_requirement()?);
+                }
+                _ => {
+                    self.advance(); // skip unknown tokens
+                }
+            }
+        }
+        
+        self.expect(Token::RightBrace)?;
+        
+        Ok(SystemAnalysis {
+            name,
+            requirements,
+            functions: Vec::new(),
+            components: Vec::new(),
+        })
+    }
+    
+    fn parse_req_statement(&mut self) -> Result<Requirement, String> {
+        self.expect(Token::Req)?;
+        let id = self.expect_identifier_or_string()?;
+        let title = if matches!(self.current(), Token::StringLiteral(_)) {
+            self.expect_string()?
+        } else {
+            String::new()
+        };
+        let mut attributes = self.parse_attributes_block()?;
+        
+        // Add title to attributes if provided
+        if !title.is_empty() {
+            attributes.insert("title".to_string(), AttributeValue::String(title));
+        }
+        
+        Ok(Requirement { id, attributes })
+    }
+    
     fn parse_requirement(&mut self) -> Result<Requirement, String> {
         self.expect(Token::Requirement)?;
         let id = self.expect_string()?;
@@ -350,6 +457,10 @@ impl Parser {
     fn parse_logical_architecture(&mut self) -> Result<LogicalArchitecture, String> {
         self.expect(Token::LogicalArchitecture)?;
         let name = self.expect_string()?;
+        self.parse_logical_architecture_block(name)
+    }
+    
+    fn parse_logical_architecture_block(&mut self, name: String) -> Result<LogicalArchitecture, String> {
         self.expect(Token::LeftBrace)?;
         
         let mut components = Vec::new();
@@ -362,6 +473,9 @@ impl Parser {
                 }
                 Token::Interface => {
                     interfaces.push(self.parse_logical_interface()?);
+                }
+                Token::Connection => {
+                    interfaces.push(self.parse_connection_as_interface()?);
                 }
                 Token::Trace => {
                     // Skip traces for now, they're collected at model level
@@ -395,10 +509,21 @@ impl Parser {
                 Token::Function => {
                     functions.push(self.parse_logical_function()?);
                 }
+                Token::Provides | Token::Requires => {
+                    // Skip provides/requires interface blocks
+                    self.advance(); // skip 'provides' or 'requires'
+                    if matches!(self.current(), Token::Interface) {
+                        self.advance(); // skip 'interface'
+                        if matches!(self.current(), Token::Identifier(_)) {
+                            self.advance(); // skip interface name
+                        }
+                        self.skip_block()?; // skip interface block
+                    }
+                    // If not followed by 'interface', just skip (no attribute to parse)
+                }
                 Token::Identifier(_) | Token::Description | Token::Version | Token::Author |
                 Token::Priority | Token::Rationale | Token::Verification | Token::Traces |
-                Token::SafetyLevel | Token::Parent | Token::Properties | Token::Signals |
-                Token::Provides | Token::Requires => {
+                Token::SafetyLevel | Token::Parent | Token::Properties | Token::Signals => {
                     let (key, value) = self.parse_attribute()?;
                     attributes.insert(key, value);
                 }
@@ -464,9 +589,78 @@ impl Parser {
         })
     }
     
+    fn parse_connection_as_interface(&mut self) -> Result<LogicalInterface, String> {
+        self.expect(Token::Connection)?;
+        let name = self.expect_string()?;
+        self.expect(Token::LeftBrace)?;
+        
+        let mut attributes = HashMap::new();
+        let mut from = String::new();
+        let mut to = String::new();
+        
+        while !self.check(&Token::RightBrace) && !self.is_at_end() {
+            match self.current() {
+                Token::From => {
+                    self.advance();
+                    self.expect(Token::Colon)?;
+                    from = self.expect_identifier_or_string()?;
+                }
+                Token::To => {
+                    self.advance();
+                    self.expect(Token::Colon)?;
+                    to = self.expect_identifier_or_string()?;
+                }
+                Token::Identifier(ref id) => {
+                    if id == "from" {
+                        self.advance();
+                        self.expect(Token::Colon)?;
+                        from = self.expect_identifier_or_string()?;
+                    } else if id == "to" {
+                        self.advance();
+                        self.expect(Token::Colon)?;
+                        to = self.expect_identifier_or_string()?;
+                    } else {
+                        let (key, value) = self.parse_attribute()?;
+                        attributes.insert(key, value);
+                    }
+                }
+                _ => break,
+            }
+        }
+        
+        self.expect(Token::RightBrace)?;
+        
+        Ok(LogicalInterface {
+            name,
+            from,
+            to,
+            attributes,
+        })
+    }
+    
+    fn expect_identifier_or_string(&mut self) -> Result<String, String> {
+        match self.current() {
+            Token::Identifier(id) => {
+                let result = id.clone();
+                self.advance();
+                Ok(result)
+            }
+            Token::StringLiteral(s) => {
+                let result = s.clone();
+                self.advance();
+                Ok(result)
+            }
+            _ => Err(format!("Expected identifier or string, got {}", self.current())),
+        }
+    }
+    
     fn parse_physical_architecture(&mut self) -> Result<PhysicalArchitecture, String> {
         self.expect(Token::PhysicalArchitecture)?;
         let name = self.expect_string()?;
+        self.parse_physical_architecture_block(name)
+    }
+    
+    fn parse_physical_architecture_block(&mut self, name: String) -> Result<PhysicalArchitecture, String> {
         self.expect(Token::LeftBrace)?;
         
         let mut nodes = Vec::new();
@@ -476,6 +670,12 @@ impl Parser {
             match self.current() {
                 Token::Node => {
                     nodes.push(self.parse_physical_node()?);
+                }
+                Token::Component => {
+                    nodes.push(self.parse_physical_component_as_node()?);
+                }
+                Token::Connection => {
+                    links.push(self.parse_connection_as_physical_link()?);
                 }
                 Token::Identifier(ref id) if id == "physical_link" => {
                     links.push(self.parse_physical_link()?);
@@ -546,6 +746,58 @@ impl Parser {
         } else {
             Vec::new()
         };
+        
+        Ok(PhysicalLink {
+            name,
+            connections,
+            attributes,
+        })
+    }
+    
+    fn parse_physical_component_as_node(&mut self) -> Result<PhysicalNode, String> {
+        self.expect(Token::Component)?;
+        let name = self.expect_string()?;
+        let attributes = if self.check(&Token::LeftBrace) {
+            self.parse_attributes_block()?
+        } else {
+            HashMap::new()
+        };
+        
+        Ok(PhysicalNode {
+            name,
+            deployments: Vec::new(),
+            attributes,
+        })
+    }
+    
+    fn parse_connection_as_physical_link(&mut self) -> Result<PhysicalLink, String> {
+        self.expect(Token::Connection)?;
+        let name = self.expect_string()?;
+        self.expect(Token::LeftBrace)?;
+        
+        let mut attributes = HashMap::new();
+        let mut connections = Vec::new();
+        
+        while !self.check(&Token::RightBrace) && !self.is_at_end() {
+            if let Token::Identifier(ref id) = self.current() {
+                if id == "from" {
+                    self.advance();
+                    self.expect(Token::Colon)?;
+                    connections.push(self.expect_identifier_or_string()?);
+                } else if id == "to" {
+                    self.advance();
+                    self.expect(Token::Colon)?;
+                    connections.push(self.expect_identifier_or_string()?);
+                } else {
+                    let (key, value) = self.parse_attribute()?;
+                    attributes.insert(key, value);
+                }
+            } else {
+                break;
+            }
+        }
+        
+        self.expect(Token::RightBrace)?;
         
         Ok(PhysicalLink {
             name,
