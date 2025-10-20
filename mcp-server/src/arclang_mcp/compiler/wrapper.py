@@ -4,6 +4,7 @@ Wrapper for ArcLang compiler binary.
 
 import asyncio
 import json
+import os
 import subprocess
 from pathlib import Path
 from typing import Any, Dict, Optional
@@ -13,7 +14,12 @@ class ArcLangCompiler:
     """Wrapper for ArcLang compiler binary."""
 
     def __init__(self, config: Dict[str, Any]):
-        self.binary_path = config.get("path", "arclang")
+        # Try environment variable first, then config, then default
+        self.binary_path = (
+            os.getenv("ARCLANG_BINARY") or 
+            config.get("path") or 
+            "arclang"
+        )
         self.timeout = config.get("timeout", 30)
 
     async def compile(
