@@ -267,6 +267,20 @@ open acc_diagram.html
 
 ---
 
+## 🤖 AI-Powered MBSE (NEW!)
+
+**ArcLang MCP Server** - The first AI-native MBSE platform!
+
+Transform your workflow with AI assistance:
+- 💬 **Natural Language → Models**: "Create an ASIL-B brake system" → Complete architecture
+- ✨ **AI-Powered Generation**: Requirements, components, architectures
+- 🔍 **Intelligent Analysis**: Traceability gaps, safety compliance, merge conflicts
+- 🚀 **Real-time Validation**: Instant feedback as you design
+
+**[Get Started with MCP Server →](mcp-server/QUICKSTART.md)**
+
+---
+
 ## 📚 Documentation
 
 **📖 [Complete Documentation Index](docs/INDEX.md)** - Start here for all documentation
