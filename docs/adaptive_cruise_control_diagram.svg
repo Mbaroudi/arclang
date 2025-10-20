@@ -1,0 +1,205 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1980" height="1670" viewBox="0 0 1980 1670">
+  <defs>
+    <style>
+      .title {
+        font-family: 'Segoe UI', Roboto, sans-serif;
+        font-size: 36px;
+        font-weight: 800;
+        fill: #0d47a1;
+        text-anchor: middle;
+      }
+      .component-box {
+        fill: url(#grad1);
+        stroke: #01579b;
+        stroke-width: 4;
+        rx: 12;
+        filter: drop-shadow(5px 5px 10px rgba(0,0,0,0.25));
+      }
+      .component-name {
+        font-family: 'Segoe UI', sans-serif;
+        font-size: 18px;
+        font-weight: 700;
+        fill: #01579b;
+        text-anchor: middle;
+      }
+      .component-id {
+        font-family: 'Consolas', 'Courier New', monospace;
+        font-size: 13px;
+        fill: #37474f;
+        font-weight: 700;
+        text-anchor: middle;
+      }
+      .port-in {
+        fill: #43a047;
+        stroke: #1b5e20;
+        stroke-width: 2.5;
+        rx: 4;
+      }
+      .port-out {
+        fill: #fb8c00;
+        stroke: #e65100;
+        stroke-width: 2.5;
+        rx: 4;
+      }
+      .port-text {
+        font-family: 'Consolas', monospace;
+        font-size: 11px;
+        fill: white;
+        font-weight: 900;
+      }
+      .connector {
+        stroke: #0277bd;
+        stroke-width: 1.5;
+        fill: none;
+        marker-end: url(#arrowhead);
+        stroke-linecap: round;
+        stroke-linejoin: round;
+        opacity: 0.7;
+      }
+      .connector:hover {
+        stroke: #01579b;
+        stroke-width: 2.5;
+        opacity: 1;
+      }
+      .func-box {
+        fill: #fafafa;
+        stroke: #90a4ae;
+        stroke-width: 1.5;
+        rx: 8;
+      }
+      .side-channel {
+        stroke: #bbdefb;
+        stroke-width: 40;
+        stroke-dasharray: 8,8;
+        opacity: 0.2;
+      }
+    </style>
+    <linearGradient id="grad1" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#e1f5fe;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#b3e5fc;stop-opacity:1" />
+    </linearGradient>
+    <marker id="arrowhead" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto">
+      <path d="M 0 0 L 9 5 L 0 10 z" fill="#0277bd" />
+    </marker>
+  </defs>
+  <text x="990" y="70" class="title">System Architecture</text>
+  <!-- Side Channel (visualization) -->
+  <line x1="1830" y1="100" x2="1830" y2="1570" class="side-channel"/>
+  <!-- LC-001 -->\n  <rect x="100" y="120" width="380" height="200" class="component-box"/>
+  <text x="290" y="155" class="component-name">ACCController</text>
+  <text x="290" y="175" class="component-id">LC-001</text>
+  <rect x="274" y="113" width="32" height="14" class="port-in"/>
+  <text x="290" y="124" class="port-text" text-anchor="middle">IN</text>
+  <rect x="274" y="313" width="32" height="14" class="port-out"/>
+  <text x="290" y="324" class="port-text" text-anchor="middle">OUT</text>
+  <rect x="120" y="195" width="340" height="100" class="func-box"/>
+  <text x="130" y="215" style="font-size:13px;fill:#607d8b;font-weight:700;">⚙ Functions</text>
+  <!-- LC-002 -->\n  <rect x="660" y="120" width="380" height="200" class="component-box"/>
+  <text x="850" y="155" class="component-name">RadarSensor</text>
+  <text x="850" y="175" class="component-id">LC-002</text>
+  <rect x="834" y="113" width="32" height="14" class="port-in"/>
+  <text x="850" y="124" class="port-text" text-anchor="middle">IN</text>
+  <rect x="834" y="313" width="32" height="14" class="port-out"/>
+  <text x="850" y="324" class="port-text" text-anchor="middle">OUT</text>
+  <rect x="680" y="195" width="340" height="100" class="func-box"/>
+  <text x="690" y="215" style="font-size:13px;fill:#607d8b;font-weight:700;">⚙ Functions</text>
+  <!-- LC-003 -->\n  <rect x="1220" y="120" width="380" height="200" class="component-box"/>
+  <text x="1410" y="155" class="component-name">CameraSensor</text>
+  <text x="1410" y="175" class="component-id">LC-003</text>
+  <rect x="1394" y="113" width="32" height="14" class="port-in"/>
+  <text x="1410" y="124" class="port-text" text-anchor="middle">IN</text>
+  <rect x="1394" y="313" width="32" height="14" class="port-out"/>
+  <text x="1410" y="324" class="port-text" text-anchor="middle">OUT</text>
+  <rect x="1240" y="195" width="340" height="100" class="func-box"/>
+  <text x="1250" y="215" style="font-size:13px;fill:#607d8b;font-weight:700;">⚙ Functions</text>
+  <!-- LC-004 -->\n  <rect x="100" y="520" width="380" height="200" class="component-box"/>
+  <text x="290" y="555" class="component-name">SpeedSensor</text>
+  <text x="290" y="575" class="component-id">LC-004</text>
+  <rect x="274" y="513" width="32" height="14" class="port-in"/>
+  <text x="290" y="524" class="port-text" text-anchor="middle">IN</text>
+  <rect x="274" y="713" width="32" height="14" class="port-out"/>
+  <text x="290" y="724" class="port-text" text-anchor="middle">OUT</text>
+  <rect x="120" y="595" width="340" height="100" class="func-box"/>
+  <text x="130" y="615" style="font-size:13px;fill:#607d8b;font-weight:700;">⚙ Functions</text>
+  <!-- LC-005 -->\n  <rect x="660" y="520" width="380" height="200" class="component-box"/>
+  <text x="850" y="555" class="component-name">BrakeActuator</text>
+  <text x="850" y="575" class="component-id">LC-005</text>
+  <rect x="834" y="513" width="32" height="14" class="port-in"/>
+  <text x="850" y="524" class="port-text" text-anchor="middle">IN</text>
+  <rect x="834" y="713" width="32" height="14" class="port-out"/>
+  <text x="850" y="724" class="port-text" text-anchor="middle">OUT</text>
+  <rect x="680" y="595" width="340" height="100" class="func-box"/>
+  <text x="690" y="615" style="font-size:13px;fill:#607d8b;font-weight:700;">⚙ Functions</text>
+  <!-- LC-006 -->\n  <rect x="1220" y="520" width="380" height="200" class="component-box"/>
+  <text x="1410" y="555" class="component-name">ThrottleActuator</text>
+  <text x="1410" y="575" class="component-id">LC-006</text>
+  <rect x="1394" y="513" width="32" height="14" class="port-in"/>
+  <text x="1410" y="524" class="port-text" text-anchor="middle">IN</text>
+  <rect x="1394" y="713" width="32" height="14" class="port-out"/>
+  <text x="1410" y="724" class="port-text" text-anchor="middle">OUT</text>
+  <rect x="1240" y="595" width="340" height="100" class="func-box"/>
+  <text x="1250" y="615" style="font-size:13px;fill:#607d8b;font-weight:700;">⚙ Functions</text>
+  <!-- LC-007 -->\n  <rect x="100" y="920" width="380" height="200" class="component-box"/>
+  <text x="290" y="955" class="component-name">DriverInterface</text>
+  <text x="290" y="975" class="component-id">LC-007</text>
+  <rect x="274" y="913" width="32" height="14" class="port-in"/>
+  <text x="290" y="924" class="port-text" text-anchor="middle">IN</text>
+  <rect x="274" y="1113" width="32" height="14" class="port-out"/>
+  <text x="290" y="1124" class="port-text" text-anchor="middle">OUT</text>
+  <rect x="120" y="995" width="340" height="100" class="func-box"/>
+  <text x="130" y="1015" style="font-size:13px;fill:#607d8b;font-weight:700;">⚙ Functions</text>
+  <!-- LC-008 -->\n  <rect x="660" y="920" width="380" height="200" class="component-box"/>
+  <text x="850" y="955" class="component-name">PedalMonitor</text>
+  <text x="850" y="975" class="component-id">LC-008</text>
+  <rect x="834" y="913" width="32" height="14" class="port-in"/>
+  <text x="850" y="924" class="port-text" text-anchor="middle">IN</text>
+  <rect x="834" y="1113" width="32" height="14" class="port-out"/>
+  <text x="850" y="1124" class="port-text" text-anchor="middle">OUT</text>
+  <rect x="680" y="995" width="340" height="100" class="func-box"/>
+  <text x="690" y="1015" style="font-size:13px;fill:#607d8b;font-weight:700;">⚙ Functions</text>
+  <!-- LC-009 -->\n  <rect x="1220" y="920" width="380" height="200" class="component-box"/>
+  <text x="1410" y="955" class="component-name">SafetyMonitor</text>
+  <text x="1410" y="975" class="component-id">LC-009</text>
+  <rect x="1394" y="913" width="32" height="14" class="port-in"/>
+  <text x="1410" y="924" class="port-text" text-anchor="middle">IN</text>
+  <rect x="1394" y="1113" width="32" height="14" class="port-out"/>
+  <text x="1410" y="1124" class="port-text" text-anchor="middle">OUT</text>
+  <rect x="1240" y="995" width="340" height="100" class="func-box"/>
+  <text x="1250" y="1015" style="font-size:13px;fill:#607d8b;font-weight:700;">⚙ Functions</text>
+  <!-- LC-010 -->\n  <rect x="100" y="1320" width="380" height="200" class="component-box"/>
+  <text x="290" y="1355" class="component-name">WarningSystem</text>
+  <text x="290" y="1375" class="component-id">LC-010</text>
+  <rect x="274" y="1313" width="32" height="14" class="port-in"/>
+  <text x="290" y="1324" class="port-text" text-anchor="middle">IN</text>
+  <rect x="274" y="1513" width="32" height="14" class="port-out"/>
+  <text x="290" y="1524" class="port-text" text-anchor="middle">OUT</text>
+  <rect x="120" y="1395" width="340" height="100" class="func-box"/>
+  <text x="130" y="1415" style="font-size:13px;fill:#607d8b;font-weight:700;">⚙ Functions</text>
+  <!-- ULTIMATE Connectors - ABSOLUTE ZERO Crossings! -->\n  <path d="M 850 320 L 850 360 L 1830 360 L 1830 80 L 290 80 L 290 120" class="connector">
+    <title>LC-002 → LC-001 (SensorToController1)</title>
+  </path>
+  <path d="M 1410 320 L 1410 360 L 1830 360 L 1830 80 L 290 80 L 290 120" class="connector">
+    <title>LC-003 → LC-001 (SensorToController2)</title>
+  </path>
+  <path d="M 290 720 L 290 760 L 1830 760 L 1830 80 L 290 80 L 290 120" class="connector">
+    <title>LC-004 → LC-001 (SensorToController3)</title>
+  </path>
+  <path d="M 290 320 L 290 360 L 1830 360 L 1830 480 L 850 480 L 850 520" class="connector">
+    <title>LC-001 → LC-005 (ControllerToBrake)</title>
+  </path>
+  <path d="M 290 320 L 290 360 L 1830 360 L 1830 480 L 1410 480 L 1410 520" class="connector">
+    <title>LC-001 → LC-006 (ControllerToThrottle)</title>
+  </path>
+  <path d="M 290 1120 L 290 1160 L 1830 1160 L 1830 80 L 290 80 L 290 120" class="connector">
+    <title>LC-007 → LC-001 (DriverToController)</title>
+  </path>
+  <path d="M 850 1120 L 850 1160 L 1830 1160 L 1830 80 L 290 80 L 290 120" class="connector">
+    <title>LC-008 → LC-001 (PedalToController)</title>
+  </path>
+  <path d="M 1410 1120 L 1410 1160 L 1830 1160 L 1830 80 L 290 80 L 290 120" class="connector">
+    <title>LC-009 → LC-001 (SafetyToController)</title>
+  </path>
+  <path d="M 290 320 L 290 360 L 1830 360 L 1830 1280 L 290 1280 L 290 1320" class="connector">
+    <title>LC-001 → LC-010 (ControllerToWarning)</title>
+  </path>
+</svg>\n
