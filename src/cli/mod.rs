@@ -276,6 +276,7 @@ pub enum ExportFormat {
     ArcVizUltimate,
     HTML,
     PDF,
+    Terraform,
 }
 
 #[derive(Debug, clap::ValueEnum, Clone)]
@@ -592,6 +593,7 @@ impl CliRunner {
             ExportFormat::HTML => "json".to_string(),
             ExportFormat::PDF => "json".to_string(),
             ExportFormat::YAML => "json".to_string(),
+            ExportFormat::Terraform => "terraform".to_string(),
             _ => {
                 println!("⚠ Format {:?} not yet implemented", format);
                 return Err(CliError::Config(format!("Export format {:?} not supported yet", format)));
@@ -648,6 +650,12 @@ impl CliRunner {
                         let svg = generate_ultimate_arcviz(&result.semantic_model, "Adaptive Cruise Control System")
                             .map_err(|e| CliError::Compilation(e.to_string()))?;
                         wrap_ultimate_html("Adaptive Cruise Control System", &svg)
+                    }
+                    ExportFormat::Terraform => {
+                        use crate::compiler::terraform_databricks_generator::{generate_terraform_databricks, TerraformConfig};
+                        let config = TerraformConfig::default();
+                        generate_terraform_databricks(&result.semantic_model, &config)
+                            .map_err(|e| CliError::Compilation(e.to_string()))?
                     }
                     _ => result.output
                 };

@@ -13,6 +13,14 @@ pub mod arcviz_smart_routing;
 pub mod arcviz_channel_routing;
 pub mod arcviz_perfect_routing;
 pub mod arcviz_ultimate_routing;
+pub mod terraform_databricks_generator;
+pub mod terraform_aws_complete_generator;
+pub mod terraform_azure_generator;
+pub mod terraform_gcp_generator;
+pub mod kubernetes_helm_generator;
+pub mod github_actions_generator;
+pub mod gitlab_ci_generator;
+pub mod opa_policy_generator;
 
 use std::path::Path;
 use thiserror::Error;

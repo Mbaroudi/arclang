@@ -17,8 +17,15 @@ impl<'a> CodeGenerator<'a> {
             "capella" => self.generate_capella(model),
             "markdown" => self.generate_markdown(model),
             "mermaid" => self.generate_mermaid(model),
+            "terraform" => self.generate_terraform(model),
             _ => Err(CompilerError::Semantic(format!("Unknown target: {}", self.config.target))),
         }
+    }
+    
+    fn generate_terraform(&self, model: &SemanticModel) -> Result<String, CompilerError> {
+        use super::terraform_databricks_generator::{generate_terraform_databricks, TerraformConfig};
+        let config = TerraformConfig::default();
+        generate_terraform_databricks(model, &config)
     }
     
     fn generate_mermaid(&self, model: &SemanticModel) -> Result<String, CompilerError> {

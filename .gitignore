@@ -64,3 +64,9 @@ coverage/
 # Documentation builds
 docs/build/
 site/
+
+# LinkedIn launch materials (private)
+LINKEDIN_POST.md
+LINKEDIN_SHORT_POST.md
+LAUNCH_CHECKLIST.md
+COPY_PASTE_POST.txt
