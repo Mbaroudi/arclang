@@ -1,0 +1,3447 @@
+<\!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Architecture Explorer</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <script src="https://unpkg.com/dagre-d3@0.6.4/dist/dagre-d3.min.js"></script>
+    <script>
+        // ArcViz Capella Engine - Configuration Centrale
+        const ARCVIZ_CONFIG = {
+            // Dagre Layout Configuration
+            layout: {
+                rankdir: 'TB',              // Direction: TB (top-bottom), LR (left-right)
+                nodesep: 350,               // Horizontal spacing between nodes (px)
+                ranksep: 200,               // Vertical spacing between layers (px)
+                marginx: 150,               // Left/right margins (px)
+                marginy: 100,               // Top/bottom margins (px)
+                edgesep: 100,               // Spacing between edges (px)
+                ranker: 'network-simplex'   // Layout algorithm
+            },
+            
+            // Component Node Configuration
+            node: {
+                defaultWidth: 220,          // Default node width (px)
+                defaultHeight: 180,         // Default node height (px)
+                minWidth: 180,              // Minimum node width (px)
+                minHeight: 150,             // Minimum node height (px)
+                maxWidth: 400,              // Maximum node width (px)
+                maxHeight: 500,             // Maximum node height (px)
+                borderRadius: 4,            // Component border radius (px)
+                headerHeight: 60,           // Header section height (px)
+                padding: 12                 // Internal padding (px)
+            },
+            
+            // Port Configuration
+            port: {
+                size: 12,                   // Port square size (px)
+                spacing: 50,                // Vertical spacing between ports (px)
+                borderRadius: 2,            // Port corner radius (px)
+                edgeOffset: 6,              // Distance from component edge (size/2)
+                labelGap: 5,                // Gap between port and label (px)
+                nameYOffset: 2,             // Y offset for port name (px)
+                protocolYOffset: 14,        // Y offset for protocol label (px)
+                colors: {
+                    inFill: '#4caf50',      // IN port fill color
+                    inStroke: '#2e7d32',    // IN port border color
+                    outFill: '#ff9800',     // OUT port fill color
+                    outStroke: '#e65100'    // OUT port border color
+                }
+            },
+            
+            // Label Configuration
+            label: {
+                portName: {
+                    fontSize: 9,            // Port name font size (px)
+                    fontWeight: 600,        // Port name font weight
+                    maxLength: 15,          // Max characters before truncate
+                    color: '#263238'        // Text color
+                },
+                protocol: {
+                    fontSize: 7,            // Protocol font size (px)
+                    fontStyle: 'italic',    // Font style
+                    maxLength: 12,          // Max characters before truncate
+                    color: '#546e7a'        // Text color
+                },
+                function: {
+                    fontSize: 10,           // Function name font size (px)
+                    fontWeight: 500,        // Function font weight
+                    lineHeight: 18,         // Line spacing (px)
+                    color: '#37474f'        // Text color
+                },
+                stereotype: {
+                    fontSize: 20,           // Icon size (px)
+                    xOffset: 15,            // X offset from left (px)
+                    yOffset: 40             // Y offset from top (px)
+                }
+            },
+            
+            // Function List Configuration
+            functions: {
+                lineHeight: 18,             // Line spacing (px)
+                fontSize: 10,               // Font size (px)
+                xOffset: 12,                // Indent from left (px)
+                yOffset: 16,                // Offset from header (px)
+                moreIndicatorSize: 9,       // "more..." font size (px)
+                portReserveMultiplier: 50,  // Space per port (portSpacing value)
+                minPortArea: 100            // Minimum space for ports (px)
+            },
+            
+            // Layer Swimlane Configuration
+            layer: {
+                padding: {
+                    left: 30,
+                    right: 30,
+                    top: 50,
+                    bottom: 30
+                },
+                labelFont: 16,              // Layer label font size (px)
+                labelColor: '#263238',       // Layer label color
+                borderDash: [8, 4],         // Border dash pattern
+                borderWidth: 2,             // Border width (px)
+                borderRadius: 12            // Corner radius (px)
+            },
+            
+            // Edge Configuration
+            edge: {
+                strokeWidth: 2.5,           // Edge line width (px)
+                color: '#607d8b',           // Edge color
+                arrowhead: 'vee',           // Arrowhead style
+                labelBox: {
+                    width: 80,              // Exchange item label width (px)
+                    height: 24,             // Exchange item label height (px)
+                    fontSize: 9,            // Label font size (px)
+                    maxLength: 12,          // Max characters
+                    borderRadius: 4,        // Corner radius (px)
+                    fill: 'white',          // Background color
+                    stroke: '#b0bec5'       // Border color
+                }
+            },
+            
+            // Safety Badge Configuration
+            safety: {
+                radius: 12,                 // Badge circle radius (px)
+                fontSize: 7,                // Badge font size (px)
+                fontWeight: 'bold',         // Font weight
+                xOffset: 20,                // Offset from right edge (px)
+                yOffset: 20,                // Offset from top (px)
+                colors: {
+                    ASIL_B: '#ff9800',      // Orange for ASIL B
+                    ASIL_C: '#f44336',      // Red for ASIL C
+                    ASIL_D: '#d32f2f'       // Dark red for ASIL D
+                }
+            },
+            
+            // Collision Detection (if enabled)
+            collision: {
+                enabled: false,              // Enable/disable collision detection
+                minSpacing: 4,              // Min spacing within component (px)
+                margin: 3,                  // Margin between components (px)
+                maxIterations: 100          // Max collision resolution iterations
+            },
+            
+            // Auto-sizing Configuration
+            autoSize: {
+                enabled: true,              // Enable automatic node sizing
+                widthPerChar: 7,            // Pixels per character for width
+                heightPerFunction: 18,      // Pixels per function for height
+                heightPerPort: 50,          // Pixels per port for height
+                minPadding: 40              // Minimum padding (px)
+            }
+        };
+    </script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Helvetica', 'Arial', sans-serif;
+            background: white;
+            color: #2c3e50;
+            line-height: 1.6;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #1a237e 0%, #283593 50%, #3949ab 100%);
+            color: white;
+            padding: 30px 40px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+        
+        .header h1 {
+            font-size: 28px;
+            font-weight: 300;
+            margin-bottom: 8px;
+            letter-spacing: 0.5px;
+        }
+        
+        .header p {
+            opacity: 0.9;
+            font-size: 14px;
+        }
+        
+        .stats {
+            display: flex;
+            gap: 30px;
+            margin-top: 15px;
+            flex-wrap: wrap;
+        }
+        
+        .stat {
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .stat-value {
+            font-size: 24px;
+            font-weight: 600;
+        }
+        
+        .stat-label {
+            font-size: 11px;
+            opacity: 0.8;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .floating-toc {
+            position: fixed;
+            left: 20px;
+            top: 65%;
+            transform: translateY(-50%);
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+            padding: 20px;
+            z-index: 1000;
+            max-width: 280px;
+            max-height: 70vh;
+            overflow-y: auto;
+        }
+        
+        .floating-toc h3 {
+            font-size: 14px;
+            color: #1976d2;
+            margin-bottom: 15px;
+            font-weight: 600;
+        }
+        
+        .toc-item {
+            padding: 10px 15px;
+            margin: 5px 0;
+            cursor: pointer;
+            border-radius: 6px;
+            font-size: 14px;
+            color: #546e7a;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .toc-item:hover {
+            background: #e3f2fd;
+            color: #1976d2;
+        }
+        
+        .toc-item.active {
+            background: #1976d2;
+            color: white;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 40px;
+            margin-left: 320px;
+        }
+        
+        .section {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            margin: 25px 0;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            scroll-margin-top: 150px;
+        }
+        
+        .section-title {
+            font-size: 24px;
+            color: #1976d2;
+            margin-bottom: 25px;
+            font-weight: 400;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .icon {
+            font-size: 28px;
+        }
+        
+        .accordion {
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            margin: 12px 0;
+            overflow: hidden;
+        }
+        
+        .accordion-header {
+            background: #f8f9fa;
+            padding: 16px 20px;
+            cursor: pointer;
+            font-weight: 500;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: background 0.2s;
+            user-select: none;
+        }
+        
+        .accordion-header:hover {
+            background: #e9ecef;
+        }
+        
+        .accordion-icon {
+            transition: transform 0.3s;
+            font-size: 12px;
+        }
+        
+        .accordion-content {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.4s ease-out;
+        }
+        
+        .accordion-content.active {
+            max-height: 10000px;
+            border-top: 1px solid #e0e0e0;
+        }
+        
+        .accordion-body {
+            padding: 20px;
+        }
+        
+        .requirement {
+            padding: 15px;
+            margin: 10px 0;
+            background: #fafbfc;
+            border-left: 4px solid #1976d2;
+            border-radius: 6px;
+        }
+        
+        .req-id {
+            font-weight: 600;
+            color: #1976d2;
+            margin-right: 12px;
+            font-size: 15px;
+        }
+        
+        .badge {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 600;
+            margin-left: 12px;
+        }
+        
+        .badge-critical { background: #ffebee; color: #c62828; }
+        .badge-high { background: #fff3e0; color: #ef6c00; }
+        .badge-medium { background: #e3f2fd; color: #1976d2; }
+        .badge-low { background: #f1f8e9; color: #558b2f; }
+        
+        .component {
+            padding: 15px;
+            margin: 10px 0;
+            background: #f1f8ff;
+            border-left: 4px solid #0366d6;
+            border-radius: 6px;
+        }
+        
+        .comp-id {
+            font-weight: 600;
+            color: #0366d6;
+            margin-right: 8px;
+        }
+        
+        .comp-layer {
+            display: inline-block;
+            padding: 3px 10px;
+            background: #e1f5fe;
+            border-radius: 4px;
+            font-size: 11px;
+            margin-left: 10px;
+            font-weight: 500;
+        }
+        
+        .comp-description {
+            margin-top: 8px;
+            font-size: 13px;
+            color: #666;
+        }
+        
+        .function-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 12px;
+            margin-top: 15px;
+        }
+        
+        .function-item {
+            padding: 12px;
+            background: #f5f5f5;
+            border-radius: 6px;
+            border-left: 3px solid #7c4dff;
+        }
+        
+        .function-name {
+            font-weight: 600;
+            color: #5e35b1;
+            margin-bottom: 4px;
+        }
+        
+        .function-comp {
+            color: #666;
+            font-size: 12px;
+        }
+        
+        .trace-item {
+            padding: 12px;
+            background: #fafafa;
+            margin: 8px 0;
+            border-radius: 6px;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        
+        .trace-from {
+            font-weight: 600;
+            color: #1976d2;
+        }
+        
+        .trace-arrow {
+            color: #999;
+        }
+        
+        .trace-to {
+            font-weight: 600;
+            color: #0366d6;
+        }
+        
+        .trace-type {
+            margin-left: auto;
+            font-size: 12px;
+            color: #666;
+            padding: 2px 8px;
+            background: #f0f0f0;
+            border-radius: 3px;
+        }
+        
+        .back-to-top {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            background: #1976d2;
+            color: white;
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+            font-size: 24px;
+            opacity: 0;
+            transition: opacity 0.3s, transform 0.2s;
+            z-index: 1000;
+        }
+        
+        .back-to-top.visible {
+            opacity: 1;
+        }
+        
+        .back-to-top:hover {
+            transform: scale(1.1);
+        }
+        
+        .search-box {
+            width: 100%;
+            padding: 12px 15px;
+            border: 1px solid #e0e0e0;
+            border-radius: 6px;
+            font-size: 14px;
+            margin-bottom: 20px;
+        }
+        
+        .search-box:focus {
+            outline: none;
+            border-color: #1976d2;
+        }
+        
+        /* Diagram edge styles */
+        .edgePath path {
+            stroke: #607d8b;
+            stroke-width: 2px;
+            fill: none;
+        }
+        
+        .edgePath:hover path {
+            stroke: #1976d2;
+            stroke-width: 3px;
+        }
+        
+        .edgeLabel {
+            background-color: white;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 10px;
+            color: #37474f;
+        }
+        
+        .arrowhead {
+            fill: #607d8b;
+        }
+        
+        /* Capella-style component styles */
+        .component-rect {
+            fill: white;
+            stroke: #1976d2;
+            stroke-width: 2;
+        }
+
+        .component-header {
+            fill: #1976d2;
+        }
+
+        .component-name {
+            fill: white;
+            font-size: 14px;
+            font-weight: bold;
+        }
+
+        .stereotype {
+            fill: white;
+            font-size: 10px;
+            font-style: italic;
+        }
+
+        .interface-port {
+            fill: #4caf50;
+            stroke: #2e7d32;
+            stroke-width: 1.5;
+        }
+
+        .interface-port.out {
+            fill: #ff9800;
+            stroke: #e65100;
+        }
+
+        .interface-label {
+            font-size: 10px;
+            fill: #0d47a1;
+            font-weight: 600;
+        }
+
+        .port-protocol {
+            font-size: 8px;
+            fill: #607d8b;
+            font-style: italic;
+        }
+
+        .function-text {
+            font-size: 11px;
+            fill: #37474f;
+            font-weight: 500;
+        }
+
+        .function-separator {
+            stroke: #e0e0e0;
+            stroke-width: 1;
+        }
+
+        .safety-badge {
+            font-size: 10px;
+            font-weight: bold;
+        }
+
+        .asil-b {
+            fill: #ff9800;
+        }
+
+        .asil-c {
+            fill: #f44336;
+        }
+
+        .asil-d {
+            fill: #d32f2f;
+        }
+
+        .cluster rect {
+            fill-opacity: 0.3 !important;
+        }
+
+        .node {
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .node:hover {
+            filter: drop-shadow(0 8px 16px rgba(0,0,0,0.3));
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1 id="doc-title">🏗️ Architecture Explorer</h1>
+        <p id="doc-description">Loading...</p>
+        <div class="stats">
+            <div class="stat">
+                <div class="stat-value" id="req-count">0</div>
+                <div class="stat-label">REQUIREMENTS</div>
+            </div>
+            <div class="stat">
+                <div class="stat-value" id="comp-count">0</div>
+                <div class="stat-label">COMPONENTS</div>
+            </div>
+            <div class="stat">
+                <div class="stat-value" id="iface-count">0</div>
+                <div class="stat-label">INTERFACES</div>
+            </div>
+            <div class="stat">
+                <div class="stat-value" id="func-count">0</div>
+                <div class="stat-label">FUNCTIONS</div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="floating-toc" id="toc">
+        <h3>📑 Table des matières</h3>
+        <div class="toc-item" onclick="scrollToSection('diagram')">
+            <span>🏗️</span> Diagram
+        </div>
+        <div class="toc-item" onclick="scrollToSection('requirements')">
+            <span>📋</span> Requirements
+        </div>
+        <div class="toc-item" onclick="scrollToSection('components')">
+            <span>🔧</span> Components
+        </div>
+        <div class="toc-item" onclick="scrollToSection('interfaces')">
+            <span>🔗</span> Interfaces
+        </div>
+        <div class="toc-item" onclick="scrollToSection('functions')">
+            <span>⚙️</span> Functions
+        </div>
+        <div class="toc-item" onclick="scrollToSection('traceability')">
+            <span>🔍</span> Traceability
+        </div>
+    </div>
+    
+    <div class="container">
+        <section id="diagram" class="section">
+            <h2 class="section-title">
+                <span class="icon">🏗️</span>
+                Architecture Diagram
+            </h2>
+            <div style="margin-bottom: 15px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+                <button onclick="resetDiagramZoom()" style="padding: 8px 16px; background: #1976d2; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 13px;">Reset Zoom</button>
+                <button onclick="zoomInDiagram()" style="padding: 8px 16px; background: #1976d2; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 13px;">Zoom In</button>
+                <button onclick="zoomOutDiagram()" style="padding: 8px 16px; background: #1976d2; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 13px;">Zoom Out</button>
+                <button onclick="exportDiagramSVG()" style="padding: 8px 16px; background: #43a047; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 13px;">📄 Export SVG</button>
+                <button onclick="exportDiagramPNG()" style="padding: 8px 16px; background: #fb8c00; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 13px;">🖼️ Export PNG</button>
+            </div>
+            <div style="width: 100%; height: 700px; border: 1px solid #e0e0e0; border-radius: 8px; background: white; overflow: hidden;">
+                <svg id="arch-diagram" width="100%" height="100%" style="background: white;"></svg>
+            </div>
+        </section>
+        
+        <section id="requirements" class="section">
+            <h2 class="section-title">
+                <span class="icon">📋</span>
+                Requirements
+            </h2>
+            <input type="text" class="search-box" id="search-requirements" placeholder="Rechercher des requirements..." onkeyup="searchRequirements(this.value)">
+            <div id="requirements-container"></div>
+        </section>
+        
+        <section id="components" class="section">
+            <h2 class="section-title">
+                <span class="icon">🔧</span>
+                Components
+            </h2>
+            <input type="text" class="search-box" id="search-components" placeholder="Rechercher des components..." onkeyup="searchComponents(this.value)">
+            <div id="components-container"></div>
+        </section>
+        
+        <section id="interfaces" class="section">
+            <h2 class="section-title">
+                <span class="icon">🔗</span>
+                Interfaces
+            </h2>
+            <div id="interfaces-container"></div>
+        </section>
+        
+        <section id="functions" class="section">
+            <h2 class="section-title">
+                <span class="icon">⚙️</span>
+                Functions
+            </h2>
+            <div id="functions-container"></div>
+        </section>
+        
+        <section id="traceability" class="section">
+            <h2 class="section-title">
+                <span class="icon">🔍</span>
+                Traceability Matrix
+            </h2>
+            <div id="traceability-container"></div>
+        </section>
+    </div>
+    
+    <div class="back-to-top" id="back-to-top" onclick="scrollToTop()">
+        ↑
+    </div>
+    
+    <script>
+        // Architecture data embedded
+        const archData = {
+  "metadata": {
+    "title": "Vehicle Remote Start System Architecture",
+    "version": "1.0.0",
+    "description": "Complete architecture with 25 components, 16 interfaces, and 33 requirements",
+    "total_requirements": 33,
+    "total_components": 25,
+    "total_interfaces": 16,
+    "total_functions": 32
+  },
+  "requirements": [
+    {
+      "category": "General",
+      "requirements": [
+        {
+          "id": "STK-RS-001",
+          "description": "User must be able to remotely start the vehicle from their smartphone within 100m range",
+          "priority": "Critical",
+          "category": null,
+          "safety_level": null,
+          "traces_to": [
+            "SYS-RS-001",
+            "FUNC-RS-001"
+          ]
+        },
+        {
+          "id": "STK-RS-002",
+          "description": "System must prevent remote start if vehicle safety conditions are not met",
+          "priority": "Critical",
+          "category": null,
+          "safety_level": "ASIL_B",
+          "traces_to": [
+            "SYS-RS-002",
+            "FUNC-RS-002"
+          ]
+        },
+        {
+          "id": "STK-RS-003",
+          "description": "Remote start must work for ICE, Hybrid, and Electric vehicles with appropriate powertrain control",
+          "priority": "Critical",
+          "category": null,
+          "safety_level": null,
+          "traces_to": [
+            "SYS-RS-005"
+          ]
+        },
+        {
+          "id": "STK-RS-004",
+          "description": "System must authenticate user and secure all communications to prevent unauthorized access",
+          "priority": "Critical",
+          "category": null,
+          "safety_level": null,
+          "traces_to": [
+            "SYS-RS-001",
+            "SYS-RS-003"
+          ]
+        },
+        {
+          "id": "STK-RS-005",
+          "description": "Vehicle must comply with regional emission and safety regulations during remote start",
+          "priority": "High",
+          "category": null,
+          "safety_level": null,
+          "traces_to": [
+            "SYS-RS-009"
+          ]
+        },
+        {
+          "id": "STK-RS-006",
+          "description": "User shall receive confirmation of remote start status within 3 seconds",
+          "priority": "High",
+          "category": null,
+          "safety_level": null,
+          "traces_to": [
+            "SYS-RS-006"
+          ]
+        },
+        {
+          "id": "STK-RS-007",
+          "description": "System must automatically shut down after 10 minutes if not manually overridden",
+          "priority": "Medium",
+          "category": null,
+          "safety_level": null,
+          "traces_to": [
+            "SYS-RS-007"
+          ]
+        },
+        {
+          "id": "STK-RS-008",
+          "description": "Remote start must maintain cabin comfort through climate control pre-conditioning",
+          "priority": "Medium",
+          "category": null,
+          "safety_level": null,
+          "traces_to": [
+            "SYS-RS-008"
+          ]
+        },
+        {
+          "id": "SYS-RS-001",
+          "description": "System shall authenticate user identity using cryptographic tokens before allowing remote start",
+          "priority": "Critical",
+          "category": null,
+          "safety_level": "ASIL_B",
+          "traces_to": []
+        },
+        {
+          "id": "SYS-RS-002",
+          "description": "System shall verify all safety interlocks (parking brake, neutral, doors closed) before starting",
+          "priority": "Critical",
+          "category": null,
+          "safety_level": "ASIL_B",
+          "traces_to": []
+        },
+        {
+          "id": "SYS-RS-003",
+          "description": "System shall establish secure encrypted communication channel between smartphone and vehicle",
+          "priority": "Critical",
+          "category": null,
+          "safety_level": null,
+          "traces_to": []
+        },
+        {
+          "id": "SYS-RS-004",
+          "description": "System shall monitor battery state of charge and prevent start if below 20 percent for EV or voltage below 11V for ICE",
+          "priority": "High",
+          "category": null,
+          "safety_level": null,
+          "traces_to": []
+        },
+        {
+          "id": "SYS-RS-005",
+          "description": "System shall activate appropriate powertrain control strategy based on vehicle type ICE Hybrid or EV",
+          "priority": "Critical",
+          "category": null,
+          "safety_level": null,
+          "traces_to": []
+        },
+        {
+          "id": "SYS-RS-006",
+          "description": "System shall send status notifications success failure warnings to user smartphone",
+          "priority": "High",
+          "category": null,
+          "safety_level": null,
+          "traces_to": []
+        },
+        {
+          "id": "SYS-RS-007",
+          "description": "System shall implement automatic shutdown timer with maximum 10 minute duration",
+          "priority": "High",
+          "category": null,
+          "safety_level": null,
+          "traces_to": []
+        },
+        {
+          "id": "SYS-RS-008",
+          "description": "System shall activate climate control to target temperature based on user preferences",
+          "priority": "Medium",
+          "category": null,
+          "safety_level": null,
+          "traces_to": []
+        },
+        {
+          "id": "SYS-RS-009",
+          "description": "System shall log all remote start attempts with timestamp and result for audit trail",
+          "priority": "Medium",
+          "category": null,
+          "safety_level": null,
+          "traces_to": []
+        },
+        {
+          "id": "SYS-RS-010",
+          "description": "System shall detect tampering or replay attacks and raise security alerts",
+          "priority": "Critical",
+          "category": null,
+          "safety_level": null,
+          "traces_to": []
+        },
+        {
+          "id": "FUNC-RS-001",
+          "description": "Remote start request processing function shall validate user credentials within 500ms",
+          "priority": "Critical",
+          "category": null,
+          "safety_level": null,
+          "traces_to": []
+        },
+        {
+          "id": "FUNC-RS-002",
+          "description": "Safety interlock validation function shall check all preconditions within 200ms",
+          "priority": "Critical",
+          "category": null,
+          "safety_level": "ASIL_B",
+          "traces_to": []
+        },
+        {
+          "id": "FUNC-RS-003",
+          "description": "Powertrain control function shall initiate start sequence based on vehicle type",
+          "priority": "Critical",
+          "category": null,
+          "safety_level": null,
+          "traces_to": []
+        },
+        {
+          "id": "FUNC-RS-004",
+          "description": "Notification service shall deliver status updates with 99.9 percent reliability",
+          "priority": "High",
+          "category": null,
+          "safety_level": null,
+          "traces_to": []
+        },
+        {
+          "id": "SAFE-RS-001",
+          "description": "Remote start controller shall implement watchdog monitoring with 100ms timeout",
+          "priority": "Critical",
+          "category": null,
+          "safety_level": "ASIL_B",
+          "traces_to": []
+        },
+        {
+          "id": "SAFE-RS-002",
+          "description": "Safety interlock failure shall inhibit remote start and log fault code",
+          "priority": "Critical",
+          "category": null,
+          "safety_level": "ASIL_B",
+          "traces_to": []
+        },
+        {
+          "id": "SAFE-RS-003",
+          "description": "Remote start shall be inhibited if any ASIL B or higher fault is active",
+          "priority": "Critical",
+          "category": null,
+          "safety_level": "ASIL_B",
+          "traces_to": []
+        },
+        {
+          "id": "SEC-RS-001",
+          "description": "All remote commands shall use AES 256 encryption with perfect forward secrecy",
+          "priority": "Critical",
+          "category": null,
+          "safety_level": null,
+          "traces_to": []
+        },
+        {
+          "id": "SEC-RS-002",
+          "description": "System shall implement certificate based authentication with hardware backed key storage",
+          "priority": "Critical",
+          "category": null,
+          "safety_level": null,
+          "traces_to": []
+        },
+        {
+          "id": "SEC-RS-003",
+          "description": "Replay attack detection shall use cryptographic nonce with maximum 5 second window",
+          "priority": "Critical",
+          "category": null,
+          "safety_level": null,
+          "traces_to": []
+        },
+        {
+          "id": "SEC-RS-004",
+          "description": "Failed authentication attempts shall trigger exponential backoff after 3 failures",
+          "priority": "High",
+          "category": null,
+          "safety_level": null,
+          "traces_to": []
+        },
+        {
+          "id": "REG-RS-001",
+          "description": "System shall comply with FCC Part 15 for radiated emissions",
+          "priority": "Critical",
+          "category": null,
+          "safety_level": null,
+          "traces_to": []
+        },
+        {
+          "id": "REG-RS-002",
+          "description": "Remote start duration shall comply with local idle time regulations maximum 10 minutes",
+          "priority": "High",
+          "category": null,
+          "safety_level": null,
+          "traces_to": []
+        },
+        {
+          "id": "REG-RS-003",
+          "description": "System shall comply with GDPR for user data privacy and consent",
+          "priority": "High",
+          "category": null,
+          "safety_level": null,
+          "traces_to": []
+        },
+        {
+          "id": "REG-RS-004",
+          "description": "Remote start shall comply with UNECE R100 for electric vehicle safety",
+          "priority": "High",
+          "category": null,
+          "safety_level": null,
+          "traces_to": []
+        }
+      ]
+    }
+  ],
+  "components": [
+    {
+      "id": "LA-USER-001",
+      "name": "Smartphone Application",
+      "layer": "User",
+      "component_type": "Logical",
+      "safety_level": null,
+      "asil": null,
+      "interfaces_in": [
+        {
+          "name": "StartConfirmation",
+          "protocol": "HTTPS",
+          "format": "JSON"
+        }
+      ],
+      "interfaces_out": [
+        {
+          "name": "RemoteStartRequest",
+          "protocol": "HTTPS",
+          "format": "JSON"
+        }
+      ],
+      "functions": [
+        "displayUI",
+        "sendRemoteStartRequest"
+      ],
+      "description": "Component in User layer"
+    },
+    {
+      "id": "LA-USER-002",
+      "name": "User Authentication Service",
+      "layer": "User",
+      "component_type": "Logical",
+      "safety_level": null,
+      "asil": null,
+      "interfaces_in": [],
+      "interfaces_out": [
+        {
+          "name": "TokenValidation",
+          "protocol": "OAuth",
+          "format": "JWT"
+        }
+      ],
+      "functions": [
+        "generateAuthToken",
+        "validateBiometric"
+      ],
+      "description": "Component in User layer"
+    },
+    {
+      "id": "LA-CONN-001",
+      "name": "Telematics Control Unit",
+      "layer": "Connectivity",
+      "component_type": "Logical",
+      "safety_level": "ASIL_B",
+      "asil": null,
+      "interfaces_in": [
+        {
+          "name": "RemoteCommandIn",
+          "protocol": "LTE",
+          "format": "Encrypted"
+        }
+      ],
+      "interfaces_out": [
+        {
+          "name": "CANCommandOut",
+          "protocol": "CAN",
+          "format": "Binary"
+        }
+      ],
+      "functions": [
+        "receiveRemoteCommands",
+        "routeToVehicleBus"
+      ],
+      "description": "Component in Connectivity layer"
+    },
+    {
+      "id": "LA-CONN-002",
+      "name": "Secure Communication Manager",
+      "layer": "Connectivity",
+      "component_type": "Logical",
+      "safety_level": null,
+      "asil": null,
+      "interfaces_in": [
+        {
+          "name": "SecurityValidation",
+          "protocol": "Internal",
+          "format": "Encrypted"
+        }
+      ],
+      "interfaces_out": [],
+      "functions": [
+        "verifyCryptographicSignature",
+        "detectReplayAttacks"
+      ],
+      "description": "Component in Connectivity layer"
+    },
+    {
+      "id": "LA-CONN-003",
+      "name": "Cloud Backend Service",
+      "layer": "Connectivity",
+      "component_type": "Logical",
+      "safety_level": null,
+      "asil": null,
+      "interfaces_in": [
+        {
+          "name": "CloudRequestIn",
+          "protocol": "HTTPS",
+          "format": "JSON"
+        }
+      ],
+      "interfaces_out": [
+        {
+          "name": "CloudCommandOut",
+          "protocol": "MQTT",
+          "format": "JSON"
+        }
+      ],
+      "functions": [
+        "queueRequests",
+        "storeAuditLogs"
+      ],
+      "description": "Component in Connectivity layer"
+    },
+    {
+      "id": "LA-CTRL-001",
+      "name": "Remote Start Controller",
+      "layer": "Control",
+      "component_type": "Logical",
+      "safety_level": "ASIL_B",
+      "asil": null,
+      "interfaces_in": [
+        {
+          "name": "StartVehicleCommand",
+          "protocol": "CAN",
+          "format": "Binary"
+        }
+      ],
+      "interfaces_out": [
+        {
+          "name": "PowertrainStartCommand",
+          "protocol": "CAN",
+          "format": "Binary"
+        }
+      ],
+      "functions": [
+        "orchestrateStartSequence",
+        "validateSafetyPreconditions"
+      ],
+      "description": "Component in Control layer"
+    },
+    {
+      "id": "LA-CTRL-002",
+      "name": "Safety Interlock Validator",
+      "layer": "Control",
+      "component_type": "Logical",
+      "safety_level": "ASIL_B",
+      "asil": null,
+      "interfaces_in": [
+        {
+          "name": "SensorInputs",
+          "protocol": "CAN",
+          "format": "Binary"
+        }
+      ],
+      "interfaces_out": [
+        {
+          "name": "InterlockStatus",
+          "protocol": "Internal",
+          "format": "Boolean"
+        }
+      ],
+      "functions": [
+        "checkTransmissionPosition",
+        "verifyParkingBrake"
+      ],
+      "description": "Component in Control layer"
+    },
+    {
+      "id": "LA-CTRL-003",
+      "name": "Powertrain Start Manager",
+      "layer": "Control",
+      "component_type": "Logical",
+      "safety_level": "ASIL_B",
+      "asil": null,
+      "interfaces_in": [
+        {
+          "name": "PowertrainControl",
+          "protocol": "CAN",
+          "format": "Binary"
+        }
+      ],
+      "interfaces_out": [
+        {
+          "name": "EngineStart",
+          "protocol": "CAN",
+          "format": "Binary"
+        }
+      ],
+      "functions": [
+        "detectPowertrainType",
+        "executeStartSequence"
+      ],
+      "description": "Component in Control layer"
+    },
+    {
+      "id": "LA-CTRL-004",
+      "name": "Climate Control Pre-Conditioner",
+      "layer": "Control",
+      "component_type": "Logical",
+      "safety_level": null,
+      "asil": null,
+      "interfaces_in": [
+        {
+          "name": "ClimateActivate",
+          "protocol": "LIN",
+          "format": "Binary"
+        }
+      ],
+      "interfaces_out": [
+        {
+          "name": "HVACControl",
+          "protocol": "LIN",
+          "format": "Binary"
+        }
+      ],
+      "functions": [
+        "readClimatePreferences",
+        "activateHVAC"
+      ],
+      "description": "Component in Control layer"
+    },
+    {
+      "id": "LA-CTRL-005",
+      "name": "Timer and Shutdown Manager",
+      "layer": "Control",
+      "component_type": "Logical",
+      "safety_level": "ASIL_B",
+      "asil": null,
+      "interfaces_in": [],
+      "interfaces_out": [
+        {
+          "name": "ShutdownCommand",
+          "protocol": "Internal",
+          "format": "Binary"
+        }
+      ],
+      "functions": [
+        "startCountdownTimer",
+        "executeAutoShutdown"
+      ],
+      "description": "Component in Control layer"
+    },
+    {
+      "id": "LA-VHC-001",
+      "name": "Engine Control Unit",
+      "layer": "Vehicle",
+      "component_type": "Logical",
+      "safety_level": "ASIL_B",
+      "asil": null,
+      "interfaces_in": [
+        {
+          "name": "ICEStartCommand",
+          "protocol": "CAN",
+          "format": "Binary"
+        }
+      ],
+      "interfaces_out": [
+        {
+          "name": "EngineStatus",
+          "protocol": "CAN",
+          "format": "Binary"
+        }
+      ],
+      "functions": [
+        "controlFuelInjection",
+        "crankEngine"
+      ],
+      "description": "Component in Vehicle layer"
+    },
+    {
+      "id": "LA-VHC-002",
+      "name": "Battery Management System",
+      "layer": "Vehicle",
+      "component_type": "Logical",
+      "safety_level": "ASIL_B",
+      "asil": null,
+      "interfaces_in": [
+        {
+          "name": "EVStartCommand",
+          "protocol": "CAN_FD",
+          "format": "Binary"
+        }
+      ],
+      "interfaces_out": [
+        {
+          "name": "BatteryStatus",
+          "protocol": "CAN_FD",
+          "format": "Binary"
+        }
+      ],
+      "functions": [
+        "monitorBatteryState",
+        "enableContactors"
+      ],
+      "description": "Component in Vehicle layer"
+    },
+    {
+      "id": "LA-VHC-003",
+      "name": "Hybrid Control Unit",
+      "layer": "Vehicle",
+      "component_type": "Logical",
+      "safety_level": "ASIL_B",
+      "asil": null,
+      "interfaces_in": [
+        {
+          "name": "HybridStartCommand",
+          "protocol": "CAN_FD",
+          "format": "Binary"
+        }
+      ],
+      "interfaces_out": [
+        {
+          "name": "HybridModeStatus",
+          "protocol": "CAN_FD",
+          "format": "Binary"
+        }
+      ],
+      "functions": [
+        "coordinateHybridPowertrain",
+        "selectOperatingMode"
+      ],
+      "description": "Component in Vehicle layer"
+    },
+    {
+      "id": "LA-VHC-004",
+      "name": "HVAC Control Module",
+      "layer": "Vehicle",
+      "component_type": "Logical",
+      "safety_level": null,
+      "asil": null,
+      "interfaces_in": [
+        {
+          "name": "HVACActivate",
+          "protocol": "LIN",
+          "format": "Binary"
+        }
+      ],
+      "interfaces_out": [
+        {
+          "name": "CabinTemperature",
+          "protocol": "LIN",
+          "format": "Analog"
+        }
+      ],
+      "functions": [
+        "controlCompressor",
+        "adjustTemperature"
+      ],
+      "description": "Component in Vehicle layer"
+    },
+    {
+      "id": "LA-VHC-005",
+      "name": "Body Control Module",
+      "layer": "Vehicle",
+      "component_type": "Logical",
+      "safety_level": null,
+      "asil": null,
+      "interfaces_in": [],
+      "interfaces_out": [
+        {
+          "name": "SensorData",
+          "protocol": "CAN",
+          "format": "Binary"
+        }
+      ],
+      "functions": [
+        "monitorDoorStatus",
+        "readParkingBrake"
+      ],
+      "description": "Component in Vehicle layer"
+    },
+    {
+      "id": "LA-VHC-006",
+      "name": "Instrument Cluster",
+      "layer": "Vehicle",
+      "component_type": "Logical",
+      "safety_level": null,
+      "asil": null,
+      "interfaces_in": [
+        {
+          "name": "DisplayCommand",
+          "protocol": "CAN",
+          "format": "Binary"
+        }
+      ],
+      "interfaces_out": [],
+      "functions": [
+        "displayRemoteStartIndicator",
+        "showCountdownTimer"
+      ],
+      "description": "Component in Vehicle layer"
+    },
+    {
+      "id": "PA-ECU-001",
+      "name": "Telematics Control Unit Hardware",
+      "layer": "Physical",
+      "component_type": "Physical",
+      "safety_level": null,
+      "asil": null,
+      "interfaces_in": [],
+      "interfaces_out": [],
+      "functions": [],
+      "description": "Component in Physical layer"
+    },
+    {
+      "id": "PA-ECU-002",
+      "name": "Gateway ECU",
+      "layer": "Physical",
+      "component_type": "Physical",
+      "safety_level": "ASIL_C",
+      "asil": null,
+      "interfaces_in": [],
+      "interfaces_out": [],
+      "functions": [],
+      "description": "Component in Physical layer"
+    },
+    {
+      "id": "PA-ECU-003",
+      "name": "Engine Control Module Hardware",
+      "layer": "Physical",
+      "component_type": "Physical",
+      "safety_level": "ASIL_D",
+      "asil": null,
+      "interfaces_in": [],
+      "interfaces_out": [],
+      "functions": [],
+      "description": "Component in Physical layer"
+    },
+    {
+      "id": "PA-ECU-004",
+      "name": "Battery Management System Hardware",
+      "layer": "Physical",
+      "component_type": "Physical",
+      "safety_level": "ASIL_D",
+      "asil": null,
+      "interfaces_in": [],
+      "interfaces_out": [],
+      "functions": [],
+      "description": "Component in Physical layer"
+    },
+    {
+      "id": "PA-ECU-005",
+      "name": "Body Control Module Hardware",
+      "layer": "Physical",
+      "component_type": "Physical",
+      "safety_level": null,
+      "asil": null,
+      "interfaces_in": [],
+      "interfaces_out": [],
+      "functions": [],
+      "description": "Component in Physical layer"
+    },
+    {
+      "id": "PA-SW-001",
+      "name": "TCU Application Software",
+      "layer": "Physical",
+      "component_type": "Physical",
+      "safety_level": null,
+      "asil": null,
+      "interfaces_in": [],
+      "interfaces_out": [],
+      "functions": [],
+      "description": "Component in Physical layer"
+    },
+    {
+      "id": "PA-SW-002",
+      "name": "Remote Start Controller Software",
+      "layer": "Physical",
+      "component_type": "Physical",
+      "safety_level": "ASIL_B",
+      "asil": null,
+      "interfaces_in": [],
+      "interfaces_out": [],
+      "functions": [],
+      "description": "Component in Physical layer"
+    },
+    {
+      "id": "PA-SW-003",
+      "name": "Engine Control Software",
+      "layer": "Physical",
+      "component_type": "Physical",
+      "safety_level": "ASIL_D",
+      "asil": null,
+      "interfaces_in": [],
+      "interfaces_out": [],
+      "functions": [],
+      "description": "Component in Physical layer"
+    },
+    {
+      "id": "PA-SW-004",
+      "name": "BMS Control Software",
+      "layer": "Physical",
+      "component_type": "Physical",
+      "safety_level": "ASIL_D",
+      "asil": null,
+      "interfaces_in": [],
+      "interfaces_out": [],
+      "functions": [],
+      "description": "Component in Physical layer"
+    }
+  ],
+  "interfaces": [
+    {
+      "name": "User to Backend",
+      "from": "LA-USER-001",
+      "to": "LA-USER-002",
+      "from_component": "Smartphone Application",
+      "to_component": "User Authentication Service"
+    },
+    {
+      "name": "Backend to TCU",
+      "from": "LA-USER-002",
+      "to": "LA-CONN-001",
+      "from_component": "User Authentication Service",
+      "to_component": "Telematics Control Unit"
+    },
+    {
+      "name": "TCU to Security",
+      "from": "LA-CONN-001",
+      "to": "LA-CONN-002",
+      "from_component": "Telematics Control Unit",
+      "to_component": "Secure Communication Manager"
+    },
+    {
+      "name": "TCU to Auth Service",
+      "from": "LA-CONN-001",
+      "to": "LA-CONN-003",
+      "from_component": "Telematics Control Unit",
+      "to_component": "Cloud Backend Service"
+    },
+    {
+      "name": "TCU to Remote Start Controller",
+      "from": "LA-CONN-001",
+      "to": "LA-CTRL-001",
+      "from_component": "Telematics Control Unit",
+      "to_component": "Remote Start Controller"
+    },
+    {
+      "name": "Remote Start to Safety Monitor",
+      "from": "LA-CTRL-001",
+      "to": "LA-CTRL-002",
+      "from_component": "Remote Start Controller",
+      "to_component": "Safety Interlock Validator"
+    },
+    {
+      "name": "Remote Start to Vehicle State Manager",
+      "from": "LA-CTRL-001",
+      "to": "LA-CTRL-003",
+      "from_component": "Remote Start Controller",
+      "to_component": "Powertrain Start Manager"
+    },
+    {
+      "name": "Remote Start to Power Management",
+      "from": "LA-CTRL-001",
+      "to": "LA-CTRL-004",
+      "from_component": "Remote Start Controller",
+      "to_component": "Climate Control Pre-Conditioner"
+    },
+    {
+      "name": "Remote Start to Climate Control",
+      "from": "LA-CTRL-001",
+      "to": "LA-CTRL-005",
+      "from_component": "Remote Start Controller",
+      "to_component": "Timer and Shutdown Manager"
+    },
+    {
+      "name": "Power Management to ECM",
+      "from": "LA-CTRL-004",
+      "to": "LA-VHC-001",
+      "from_component": "Climate Control Pre-Conditioner",
+      "to_component": "Engine Control Unit"
+    },
+    {
+      "name": "Power Management to BMS",
+      "from": "LA-CTRL-004",
+      "to": "LA-VHC-002",
+      "from_component": "Climate Control Pre-Conditioner",
+      "to_component": "Battery Management System"
+    },
+    {
+      "name": "Climate Control to HVAC",
+      "from": "LA-CTRL-005",
+      "to": "LA-VHC-004",
+      "from_component": "Timer and Shutdown Manager",
+      "to_component": "HVAC Control Module"
+    },
+    {
+      "name": "Safety Monitor to Sensors",
+      "from": "LA-CTRL-002",
+      "to": "LA-VHC-005",
+      "from_component": "Safety Interlock Validator",
+      "to_component": "Body Control Module"
+    },
+    {
+      "name": "Vehicle State to Display",
+      "from": "LA-CTRL-003",
+      "to": "LA-VHC-006",
+      "from_component": "Powertrain Start Manager",
+      "to_component": "Instrument Cluster"
+    },
+    {
+      "name": "ECM to Display",
+      "from": "LA-VHC-001",
+      "to": "LA-VHC-006",
+      "from_component": "Engine Control Unit",
+      "to_component": "Instrument Cluster"
+    },
+    {
+      "name": "BMS to Display",
+      "from": "LA-VHC-002",
+      "to": "LA-VHC-006",
+      "from_component": "Battery Management System",
+      "to_component": "Instrument Cluster"
+    }
+  ],
+  "functions": [
+    {
+      "id": "displayUI",
+      "name": "displayUI",
+      "inputs": [],
+      "outputs": [],
+      "component": "Smartphone Application"
+    },
+    {
+      "id": "sendRemoteStartRequest",
+      "name": "sendRemoteStartRequest",
+      "inputs": [],
+      "outputs": [],
+      "component": "Smartphone Application"
+    },
+    {
+      "id": "generateAuthToken",
+      "name": "generateAuthToken",
+      "inputs": [],
+      "outputs": [],
+      "component": "User Authentication Service"
+    },
+    {
+      "id": "validateBiometric",
+      "name": "validateBiometric",
+      "inputs": [],
+      "outputs": [],
+      "component": "User Authentication Service"
+    },
+    {
+      "id": "receiveRemoteCommands",
+      "name": "receiveRemoteCommands",
+      "inputs": [],
+      "outputs": [],
+      "component": "Telematics Control Unit"
+    },
+    {
+      "id": "routeToVehicleBus",
+      "name": "routeToVehicleBus",
+      "inputs": [],
+      "outputs": [],
+      "component": "Telematics Control Unit"
+    },
+    {
+      "id": "verifyCryptographicSignature",
+      "name": "verifyCryptographicSignature",
+      "inputs": [],
+      "outputs": [],
+      "component": "Secure Communication Manager"
+    },
+    {
+      "id": "detectReplayAttacks",
+      "name": "detectReplayAttacks",
+      "inputs": [],
+      "outputs": [],
+      "component": "Secure Communication Manager"
+    },
+    {
+      "id": "queueRequests",
+      "name": "queueRequests",
+      "inputs": [],
+      "outputs": [],
+      "component": "Cloud Backend Service"
+    },
+    {
+      "id": "storeAuditLogs",
+      "name": "storeAuditLogs",
+      "inputs": [],
+      "outputs": [],
+      "component": "Cloud Backend Service"
+    },
+    {
+      "id": "orchestrateStartSequence",
+      "name": "orchestrateStartSequence",
+      "inputs": [],
+      "outputs": [],
+      "component": "Remote Start Controller"
+    },
+    {
+      "id": "validateSafetyPreconditions",
+      "name": "validateSafetyPreconditions",
+      "inputs": [],
+      "outputs": [],
+      "component": "Remote Start Controller"
+    },
+    {
+      "id": "checkTransmissionPosition",
+      "name": "checkTransmissionPosition",
+      "inputs": [],
+      "outputs": [],
+      "component": "Safety Interlock Validator"
+    },
+    {
+      "id": "verifyParkingBrake",
+      "name": "verifyParkingBrake",
+      "inputs": [],
+      "outputs": [],
+      "component": "Safety Interlock Validator"
+    },
+    {
+      "id": "detectPowertrainType",
+      "name": "detectPowertrainType",
+      "inputs": [],
+      "outputs": [],
+      "component": "Powertrain Start Manager"
+    },
+    {
+      "id": "executeStartSequence",
+      "name": "executeStartSequence",
+      "inputs": [],
+      "outputs": [],
+      "component": "Powertrain Start Manager"
+    },
+    {
+      "id": "readClimatePreferences",
+      "name": "readClimatePreferences",
+      "inputs": [],
+      "outputs": [],
+      "component": "Climate Control Pre-Conditioner"
+    },
+    {
+      "id": "activateHVAC",
+      "name": "activateHVAC",
+      "inputs": [],
+      "outputs": [],
+      "component": "Climate Control Pre-Conditioner"
+    },
+    {
+      "id": "startCountdownTimer",
+      "name": "startCountdownTimer",
+      "inputs": [],
+      "outputs": [],
+      "component": "Timer and Shutdown Manager"
+    },
+    {
+      "id": "executeAutoShutdown",
+      "name": "executeAutoShutdown",
+      "inputs": [],
+      "outputs": [],
+      "component": "Timer and Shutdown Manager"
+    },
+    {
+      "id": "controlFuelInjection",
+      "name": "controlFuelInjection",
+      "inputs": [],
+      "outputs": [],
+      "component": "Engine Control Unit"
+    },
+    {
+      "id": "crankEngine",
+      "name": "crankEngine",
+      "inputs": [],
+      "outputs": [],
+      "component": "Engine Control Unit"
+    },
+    {
+      "id": "monitorBatteryState",
+      "name": "monitorBatteryState",
+      "inputs": [],
+      "outputs": [],
+      "component": "Battery Management System"
+    },
+    {
+      "id": "enableContactors",
+      "name": "enableContactors",
+      "inputs": [],
+      "outputs": [],
+      "component": "Battery Management System"
+    },
+    {
+      "id": "coordinateHybridPowertrain",
+      "name": "coordinateHybridPowertrain",
+      "inputs": [],
+      "outputs": [],
+      "component": "Hybrid Control Unit"
+    },
+    {
+      "id": "selectOperatingMode",
+      "name": "selectOperatingMode",
+      "inputs": [],
+      "outputs": [],
+      "component": "Hybrid Control Unit"
+    },
+    {
+      "id": "controlCompressor",
+      "name": "controlCompressor",
+      "inputs": [],
+      "outputs": [],
+      "component": "HVAC Control Module"
+    },
+    {
+      "id": "adjustTemperature",
+      "name": "adjustTemperature",
+      "inputs": [],
+      "outputs": [],
+      "component": "HVAC Control Module"
+    },
+    {
+      "id": "monitorDoorStatus",
+      "name": "monitorDoorStatus",
+      "inputs": [],
+      "outputs": [],
+      "component": "Body Control Module"
+    },
+    {
+      "id": "readParkingBrake",
+      "name": "readParkingBrake",
+      "inputs": [],
+      "outputs": [],
+      "component": "Body Control Module"
+    },
+    {
+      "id": "displayRemoteStartIndicator",
+      "name": "displayRemoteStartIndicator",
+      "inputs": [],
+      "outputs": [],
+      "component": "Instrument Cluster"
+    },
+    {
+      "id": "showCountdownTimer",
+      "name": "showCountdownTimer",
+      "inputs": [],
+      "outputs": [],
+      "component": "Instrument Cluster"
+    }
+  ],
+  "traces": [
+    {
+      "from": "STK-RS-001",
+      "to": "SYS-RS-001",
+      "trace_type": "satisfies",
+      "rationale": null
+    },
+    {
+      "from": "STK-RS-001",
+      "to": "FUNC-RS-001",
+      "trace_type": "satisfies",
+      "rationale": null
+    },
+    {
+      "from": "STK-RS-002",
+      "to": "SYS-RS-002",
+      "trace_type": "satisfies",
+      "rationale": null
+    },
+    {
+      "from": "STK-RS-002",
+      "to": "FUNC-RS-002",
+      "trace_type": "satisfies",
+      "rationale": null
+    },
+    {
+      "from": "STK-RS-003",
+      "to": "SYS-RS-005",
+      "trace_type": "satisfies",
+      "rationale": null
+    },
+    {
+      "from": "STK-RS-004",
+      "to": "SYS-RS-001",
+      "trace_type": "satisfies",
+      "rationale": null
+    },
+    {
+      "from": "STK-RS-004",
+      "to": "SYS-RS-003",
+      "trace_type": "satisfies",
+      "rationale": null
+    },
+    {
+      "from": "STK-RS-005",
+      "to": "SYS-RS-009",
+      "trace_type": "satisfies",
+      "rationale": null
+    },
+    {
+      "from": "STK-RS-006",
+      "to": "SYS-RS-006",
+      "trace_type": "satisfies",
+      "rationale": null
+    },
+    {
+      "from": "STK-RS-007",
+      "to": "SYS-RS-007",
+      "trace_type": "satisfies",
+      "rationale": null
+    },
+    {
+      "from": "STK-RS-008",
+      "to": "SYS-RS-008",
+      "trace_type": "satisfies",
+      "rationale": null
+    }
+  ],
+  "diagram": {
+    "nodes": [
+      {
+        "id": "LA-USER-001",
+        "label": "Smartphone Application",
+        "layer": "User",
+        "stereotype": "<<component>>",
+        "interfaces_in": [
+          {
+            "name": "StartConfirmation",
+            "protocol": "HTTPS",
+            "format": "JSON"
+          }
+        ],
+        "interfaces_out": [
+          {
+            "name": "RemoteStartRequest",
+            "protocol": "HTTPS",
+            "format": "JSON"
+          }
+        ],
+        "functions": [
+          "displayUI",
+          "sendRemoteStartRequest"
+        ],
+        "width": 220,
+        "height": 180
+      },
+      {
+        "id": "LA-USER-002",
+        "label": "User Authentication Service",
+        "layer": "User",
+        "stereotype": "<<component>>",
+        "interfaces_in": [],
+        "interfaces_out": [
+          {
+            "name": "TokenValidation",
+            "protocol": "OAuth",
+            "format": "JWT"
+          }
+        ],
+        "functions": [
+          "generateAuthToken",
+          "validateBiometric"
+        ],
+        "width": 249,
+        "height": 180
+      },
+      {
+        "id": "LA-CONN-001",
+        "label": "Telematics Control Unit",
+        "layer": "Connectivity",
+        "stereotype": "<<component>>",
+        "safety_level": "ASIL_B",
+        "interfaces_in": [
+          {
+            "name": "RemoteCommandIn",
+            "protocol": "LTE",
+            "format": "Encrypted"
+          }
+        ],
+        "interfaces_out": [
+          {
+            "name": "CANCommandOut",
+            "protocol": "CAN",
+            "format": "Binary"
+          }
+        ],
+        "functions": [
+          "receiveRemoteCommands",
+          "routeToVehicleBus"
+        ],
+        "width": 221,
+        "height": 180
+      },
+      {
+        "id": "LA-CONN-002",
+        "label": "Secure Communication Manager",
+        "layer": "Connectivity",
+        "stereotype": "<<component>>",
+        "interfaces_in": [
+          {
+            "name": "SecurityValidation",
+            "protocol": "Internal",
+            "format": "Encrypted"
+          }
+        ],
+        "interfaces_out": [],
+        "functions": [
+          "verifyCryptographicSignature",
+          "detectReplayAttacks"
+        ],
+        "width": 256,
+        "height": 180
+      },
+      {
+        "id": "LA-CONN-003",
+        "label": "Cloud Backend Service",
+        "layer": "Connectivity",
+        "stereotype": "<<component>>",
+        "interfaces_in": [
+          {
+            "name": "CloudRequestIn",
+            "protocol": "HTTPS",
+            "format": "JSON"
+          }
+        ],
+        "interfaces_out": [
+          {
+            "name": "CloudCommandOut",
+            "protocol": "MQTT",
+            "format": "JSON"
+          }
+        ],
+        "functions": [
+          "queueRequests",
+          "storeAuditLogs"
+        ],
+        "width": 220,
+        "height": 180
+      },
+      {
+        "id": "LA-CTRL-001",
+        "label": "Remote Start Controller",
+        "layer": "Control",
+        "stereotype": "<<component>>",
+        "safety_level": "ASIL_B",
+        "interfaces_in": [
+          {
+            "name": "StartVehicleCommand",
+            "protocol": "CAN",
+            "format": "Binary"
+          }
+        ],
+        "interfaces_out": [
+          {
+            "name": "PowertrainStartCommand",
+            "protocol": "CAN",
+            "format": "Binary"
+          }
+        ],
+        "functions": [
+          "orchestrateStartSequence",
+          "validateSafetyPreconditions"
+        ],
+        "width": 221,
+        "height": 180
+      },
+      {
+        "id": "LA-CTRL-002",
+        "label": "Safety Interlock Validator",
+        "layer": "Control",
+        "stereotype": "<<service>>",
+        "safety_level": "ASIL_B",
+        "interfaces_in": [
+          {
+            "name": "SensorInputs",
+            "protocol": "CAN",
+            "format": "Binary"
+          }
+        ],
+        "interfaces_out": [
+          {
+            "name": "InterlockStatus",
+            "protocol": "Internal",
+            "format": "Boolean"
+          }
+        ],
+        "functions": [
+          "checkTransmissionPosition",
+          "verifyParkingBrake"
+        ],
+        "width": 242,
+        "height": 180
+      },
+      {
+        "id": "LA-CTRL-003",
+        "label": "Powertrain Start Manager",
+        "layer": "Control",
+        "stereotype": "<<component>>",
+        "safety_level": "ASIL_B",
+        "interfaces_in": [
+          {
+            "name": "PowertrainControl",
+            "protocol": "CAN",
+            "format": "Binary"
+          }
+        ],
+        "interfaces_out": [
+          {
+            "name": "EngineStart",
+            "protocol": "CAN",
+            "format": "Binary"
+          }
+        ],
+        "functions": [
+          "detectPowertrainType",
+          "executeStartSequence"
+        ],
+        "width": 228,
+        "height": 180
+      },
+      {
+        "id": "LA-CTRL-004",
+        "label": "Climate Control Pre-Conditioner",
+        "layer": "Control",
+        "stereotype": "<<component>>",
+        "interfaces_in": [
+          {
+            "name": "ClimateActivate",
+            "protocol": "LIN",
+            "format": "Binary"
+          }
+        ],
+        "interfaces_out": [
+          {
+            "name": "HVACControl",
+            "protocol": "LIN",
+            "format": "Binary"
+          }
+        ],
+        "functions": [
+          "readClimatePreferences",
+          "activateHVAC"
+        ],
+        "width": 277,
+        "height": 180
+      },
+      {
+        "id": "LA-CTRL-005",
+        "label": "Timer and Shutdown Manager",
+        "layer": "Control",
+        "stereotype": "<<component>>",
+        "safety_level": "ASIL_B",
+        "interfaces_in": [],
+        "interfaces_out": [
+          {
+            "name": "ShutdownCommand",
+            "protocol": "Internal",
+            "format": "Binary"
+          }
+        ],
+        "functions": [
+          "startCountdownTimer",
+          "executeAutoShutdown"
+        ],
+        "width": 242,
+        "height": 180
+      },
+      {
+        "id": "LA-VHC-001",
+        "label": "Engine Control Unit",
+        "layer": "Vehicle",
+        "stereotype": "<<process>>",
+        "safety_level": "ASIL_B",
+        "interfaces_in": [
+          {
+            "name": "ICEStartCommand",
+            "protocol": "CAN",
+            "format": "Binary"
+          }
+        ],
+        "interfaces_out": [
+          {
+            "name": "EngineStatus",
+            "protocol": "CAN",
+            "format": "Binary"
+          }
+        ],
+        "functions": [
+          "controlFuelInjection",
+          "crankEngine"
+        ],
+        "width": 220,
+        "height": 180
+      },
+      {
+        "id": "LA-VHC-002",
+        "label": "Battery Management System",
+        "layer": "Vehicle",
+        "stereotype": "<<component>>",
+        "safety_level": "ASIL_B",
+        "interfaces_in": [
+          {
+            "name": "EVStartCommand",
+            "protocol": "CAN_FD",
+            "format": "Binary"
+          }
+        ],
+        "interfaces_out": [
+          {
+            "name": "BatteryStatus",
+            "protocol": "CAN_FD",
+            "format": "Binary"
+          }
+        ],
+        "functions": [
+          "monitorBatteryState",
+          "enableContactors"
+        ],
+        "width": 235,
+        "height": 180
+      },
+      {
+        "id": "LA-VHC-003",
+        "label": "Hybrid Control Unit",
+        "layer": "Vehicle",
+        "stereotype": "<<component>>",
+        "safety_level": "ASIL_B",
+        "interfaces_in": [
+          {
+            "name": "HybridStartCommand",
+            "protocol": "CAN_FD",
+            "format": "Binary"
+          }
+        ],
+        "interfaces_out": [
+          {
+            "name": "HybridModeStatus",
+            "protocol": "CAN_FD",
+            "format": "Binary"
+          }
+        ],
+        "functions": [
+          "coordinateHybridPowertrain",
+          "selectOperatingMode"
+        ],
+        "width": 220,
+        "height": 180
+      },
+      {
+        "id": "LA-VHC-004",
+        "label": "HVAC Control Module",
+        "layer": "Vehicle",
+        "stereotype": "<<component>>",
+        "interfaces_in": [
+          {
+            "name": "HVACActivate",
+            "protocol": "LIN",
+            "format": "Binary"
+          }
+        ],
+        "interfaces_out": [
+          {
+            "name": "CabinTemperature",
+            "protocol": "LIN",
+            "format": "Analog"
+          }
+        ],
+        "functions": [
+          "controlCompressor",
+          "adjustTemperature"
+        ],
+        "width": 220,
+        "height": 180
+      },
+      {
+        "id": "LA-VHC-005",
+        "label": "Body Control Module",
+        "layer": "Vehicle",
+        "stereotype": "<<component>>",
+        "interfaces_in": [],
+        "interfaces_out": [
+          {
+            "name": "SensorData",
+            "protocol": "CAN",
+            "format": "Binary"
+          }
+        ],
+        "functions": [
+          "monitorDoorStatus",
+          "readParkingBrake"
+        ],
+        "width": 220,
+        "height": 180
+      },
+      {
+        "id": "LA-VHC-006",
+        "label": "Instrument Cluster",
+        "layer": "Vehicle",
+        "stereotype": "<<component>>",
+        "interfaces_in": [
+          {
+            "name": "DisplayCommand",
+            "protocol": "CAN",
+            "format": "Binary"
+          }
+        ],
+        "interfaces_out": [],
+        "functions": [
+          "displayRemoteStartIndicator",
+          "showCountdownTimer"
+        ],
+        "width": 220,
+        "height": 180
+      },
+      {
+        "id": "PA-ECU-001",
+        "label": "Telematics Control Unit Hardware",
+        "layer": "Physical",
+        "stereotype": "<<component>>",
+        "interfaces_in": [],
+        "interfaces_out": [],
+        "functions": [],
+        "width": 284,
+        "height": 180
+      },
+      {
+        "id": "PA-ECU-002",
+        "label": "Gateway ECU",
+        "layer": "Physical",
+        "stereotype": "<<interface>>",
+        "safety_level": "ASIL_C",
+        "interfaces_in": [],
+        "interfaces_out": [],
+        "functions": [],
+        "width": 220,
+        "height": 180
+      },
+      {
+        "id": "PA-ECU-003",
+        "label": "Engine Control Module Hardware",
+        "layer": "Physical",
+        "stereotype": "<<process>>",
+        "safety_level": "ASIL_D",
+        "interfaces_in": [],
+        "interfaces_out": [],
+        "functions": [],
+        "width": 270,
+        "height": 180
+      },
+      {
+        "id": "PA-ECU-004",
+        "label": "Battery Management System Hardware",
+        "layer": "Physical",
+        "stereotype": "<<component>>",
+        "safety_level": "ASIL_D",
+        "interfaces_in": [],
+        "interfaces_out": [],
+        "functions": [],
+        "width": 298,
+        "height": 180
+      },
+      {
+        "id": "PA-ECU-005",
+        "label": "Body Control Module Hardware",
+        "layer": "Physical",
+        "stereotype": "<<component>>",
+        "interfaces_in": [],
+        "interfaces_out": [],
+        "functions": [],
+        "width": 256,
+        "height": 180
+      },
+      {
+        "id": "PA-SW-001",
+        "label": "TCU Application Software",
+        "layer": "Physical",
+        "stereotype": "<<component>>",
+        "interfaces_in": [],
+        "interfaces_out": [],
+        "functions": [],
+        "width": 228,
+        "height": 180
+      },
+      {
+        "id": "PA-SW-002",
+        "label": "Remote Start Controller Software",
+        "layer": "Physical",
+        "stereotype": "<<component>>",
+        "safety_level": "ASIL_B",
+        "interfaces_in": [],
+        "interfaces_out": [],
+        "functions": [],
+        "width": 284,
+        "height": 180
+      },
+      {
+        "id": "PA-SW-003",
+        "label": "Engine Control Software",
+        "layer": "Physical",
+        "stereotype": "<<process>>",
+        "safety_level": "ASIL_D",
+        "interfaces_in": [],
+        "interfaces_out": [],
+        "functions": [],
+        "width": 221,
+        "height": 180
+      },
+      {
+        "id": "PA-SW-004",
+        "label": "BMS Control Software",
+        "layer": "Physical",
+        "stereotype": "<<component>>",
+        "safety_level": "ASIL_D",
+        "interfaces_in": [],
+        "interfaces_out": [],
+        "functions": [],
+        "width": 220,
+        "height": 180
+      }
+    ],
+    "edges": [
+      {
+        "source": "LA-USER-001",
+        "target": "LA-USER-002",
+        "label": "User to Backend"
+      },
+      {
+        "source": "LA-USER-002",
+        "target": "LA-CONN-001",
+        "label": "Backend to TCU"
+      },
+      {
+        "source": "LA-CONN-001",
+        "target": "LA-CONN-002",
+        "label": "TCU to Security"
+      },
+      {
+        "source": "LA-CONN-001",
+        "target": "LA-CONN-003",
+        "label": "TCU to Auth Service"
+      },
+      {
+        "source": "LA-CONN-001",
+        "target": "LA-CTRL-001",
+        "label": "TCU to Remote Start Controller"
+      },
+      {
+        "source": "LA-CTRL-001",
+        "target": "LA-CTRL-002",
+        "label": "Remote Start to Safety Monitor"
+      },
+      {
+        "source": "LA-CTRL-001",
+        "target": "LA-CTRL-003",
+        "label": "Remote Start to Vehicle State Manager"
+      },
+      {
+        "source": "LA-CTRL-001",
+        "target": "LA-CTRL-004",
+        "label": "Remote Start to Power Management"
+      },
+      {
+        "source": "LA-CTRL-001",
+        "target": "LA-CTRL-005",
+        "label": "Remote Start to Climate Control"
+      },
+      {
+        "source": "LA-CTRL-004",
+        "target": "LA-VHC-001",
+        "label": "Power Management to ECM"
+      },
+      {
+        "source": "LA-CTRL-004",
+        "target": "LA-VHC-002",
+        "label": "Power Management to BMS"
+      },
+      {
+        "source": "LA-CTRL-005",
+        "target": "LA-VHC-004",
+        "label": "Climate Control to HVAC"
+      },
+      {
+        "source": "LA-CTRL-002",
+        "target": "LA-VHC-005",
+        "label": "Safety Monitor to Sensors"
+      },
+      {
+        "source": "LA-CTRL-003",
+        "target": "LA-VHC-006",
+        "label": "Vehicle State to Display"
+      },
+      {
+        "source": "LA-VHC-001",
+        "target": "LA-VHC-006",
+        "label": "ECM to Display"
+      },
+      {
+        "source": "LA-VHC-002",
+        "target": "LA-VHC-006",
+        "label": "BMS to Display"
+      }
+    ],
+    "layers": [
+      {
+        "name": "Connectivity",
+        "color": "#FFF3E0",
+        "description": "Connectivity & Communication Layer"
+      },
+      {
+        "name": "Control",
+        "color": "#F3E5F5",
+        "description": "Control & Logic Layer"
+      },
+      {
+        "name": "Physical",
+        "color": "#FCE4EC",
+        "description": "Physical Hardware Layer"
+      },
+      {
+        "name": "User",
+        "color": "#E1F5FE",
+        "description": "User Interface Layer"
+      },
+      {
+        "name": "Vehicle",
+        "color": "#E8F5E9",
+        "description": "Vehicle Systems Layer"
+      }
+    ]
+  }
+};
+        
+        // Initialize when DOM is ready
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', initialize);
+        } else {
+            initialize();
+        }
+        
+        function initialize() {
+            if (!archData) {
+                alert('Error: Architecture data not found');
+                return;
+            }
+            
+            console.log('✓ Initializing architecture explorer...');
+            loadStats();
+            loadRequirements();
+            loadComponents();
+            loadInterfaces();
+            loadFunctions();
+            loadDiagram();
+            loadTraceability();
+            initScrollEffects();
+            console.log('✓ Architecture explorer loaded successfully');
+        }
+        
+        function loadStats() {
+            document.getElementById('doc-title').textContent = '🏗️ ' + archData.metadata.title;
+            document.getElementById('doc-description').textContent = archData.metadata.description;
+            document.getElementById('req-count').textContent = archData.metadata.total_requirements;
+            document.getElementById('comp-count').textContent = archData.metadata.total_components;
+            document.getElementById('iface-count').textContent = archData.metadata.total_interfaces;
+            document.getElementById('func-count').textContent = archData.metadata.total_functions;
+            document.title = archData.metadata.title + ' - Architecture Explorer';
+        }
+        
+        function loadRequirements() {
+            const container = document.getElementById('requirements-container');
+            
+            archData.requirements.forEach(section => {
+                const accordion = document.createElement('div');
+                accordion.className = 'accordion';
+                
+                const header = document.createElement('div');
+                header.className = 'accordion-header';
+                header.innerHTML = `
+                    <span>${section.category} (${section.requirements.length})</span>
+                    <span class="accordion-icon">▼</span>
+                `;
+                
+                const content = document.createElement('div');
+                content.className = 'accordion-content';
+                
+                const body = document.createElement('div');
+                body.className = 'accordion-body';
+                
+                section.requirements.forEach(req => {
+                    const reqDiv = document.createElement('div');
+                    reqDiv.className = 'requirement';
+                    reqDiv.setAttribute('data-search', req.id + ' ' + req.description);
+                    
+                    const priorityClass = 'badge-' + (req.priority || 'medium').toLowerCase();
+                    
+                    reqDiv.innerHTML = `
+                        <span class="req-id">${req.id}</span>
+                        ${req.description}
+                        <span class="badge ${priorityClass}">${req.priority || 'Medium'}</span>
+                    `;
+                    
+                    body.appendChild(reqDiv);
+                });
+                
+                content.appendChild(body);
+                accordion.appendChild(header);
+                accordion.appendChild(content);
+                container.appendChild(accordion);
+                
+                header.onclick = () => toggleAccordion(header);
+            });
+        }
+        
+        function loadComponents() {
+            const container = document.getElementById('components-container');
+            
+            archData.components.forEach(comp => {
+                const compDiv = document.createElement('div');
+                compDiv.className = 'component';
+                compDiv.setAttribute('data-search', comp.id + ' ' + comp.name);
+                
+                const safety = comp.safety_level ? 
+                    `<span class="badge badge-critical">ASIL ${comp.safety_level}</span>` : '';
+                
+                compDiv.innerHTML = `
+                    <div>
+                        <span class="comp-id">${comp.id}</span>
+                        ${comp.name}
+                        <span class="comp-layer">${comp.layer}</span>
+                        ${safety}
+                    </div>
+                    <div class="comp-description">${comp.description}</div>
+                `;
+                
+                container.appendChild(compDiv);
+            });
+        }
+        
+        function loadInterfaces() {
+            const container = document.getElementById('interfaces-container');
+            
+            if (archData.interfaces.length === 0) {
+                container.innerHTML = '<p style="color: #999;">No interfaces defined</p>';
+                return;
+            }
+            
+            archData.interfaces.forEach(iface => {
+                const ifaceDiv = document.createElement('div');
+                ifaceDiv.className = 'trace-item';
+                ifaceDiv.innerHTML = `
+                    <span class="trace-from">${iface.from_component}</span>
+                    <span class="trace-arrow">→</span>
+                    <span class="trace-to">${iface.to_component}</span>
+                    <span class="trace-type">${iface.name}</span>
+                `;
+                container.appendChild(ifaceDiv);
+            });
+        }
+        
+        function loadFunctions() {
+            const container = document.getElementById('functions-container');
+            const grid = document.createElement('div');
+            grid.className = 'function-grid';
+            
+            archData.functions.forEach(func => {
+                const funcDiv = document.createElement('div');
+                funcDiv.className = 'function-item';
+                funcDiv.innerHTML = `
+                    <div class="function-name">${func.name}</div>
+                    <div class="function-comp">${func.component}</div>
+                `;
+                grid.appendChild(funcDiv);
+            });
+            
+            container.appendChild(grid);
+        }
+        
+        function loadDiagram() {
+            if (!archData.diagram || !archData.diagram.nodes || archData.diagram.nodes.length === 0) {
+                console.warn('No diagram data available');
+                return;
+            }
+            
+            try {
+                renderDiagram();
+            } catch (error) {
+                console.error('Error rendering diagram:', error);
+                document.getElementById('arch-diagram').innerHTML = '<text x="50%" y="50%" text-anchor="middle" fill="#999">Error rendering diagram. Check console for details.</text>';
+            }
+        }
+        
+        function renderDiagram() {
+            const diagramData = archData.diagram;
+            
+            if (!diagramData || !diagramData.nodes || !diagramData.layers) {
+                console.error('Invalid diagram data:', diagramData);
+                return;
+            }
+            
+            const g = new dagreD3.graphlib.Graph({compound: true})
+                .setGraph({
+                    rankdir: ARCVIZ_CONFIG.layout.rankdir,
+                    nodesep: ARCVIZ_CONFIG.layout.nodesep,
+                    ranksep: ARCVIZ_CONFIG.layout.ranksep,
+                    marginx: ARCVIZ_CONFIG.layout.marginx,
+                    marginy: ARCVIZ_CONFIG.layout.marginy,
+                    ranker: ARCVIZ_CONFIG.layout.ranker,
+                    edgesep: ARCVIZ_CONFIG.layout.edgesep
+                })
+                .setDefaultEdgeLabel(() => ({}));
+            
+            const nodesByLayer = {};
+            const layerNames = new Set();
+            
+            diagramData.nodes.forEach(node => {
+                const layer = node.layer || 'Other';
+                if (!nodesByLayer[layer]) {
+                    nodesByLayer[layer] = [];
+                }
+                nodesByLayer[layer].push(node);
+                layerNames.add(layer);
+            });
+            
+            const layerConfigs = {};
+            if (diagramData.layers && diagramData.layers.length > 0) {
+                diagramData.layers.forEach(layer => {
+                    layerConfigs[layer.name] = layer;
+                });
+            }
+            
+            layerNames.forEach(layerName => {
+                const layerConfig = layerConfigs[layerName];
+                const layerColor = layerConfig ? layerConfig.color : '#E8F5E9';
+                
+                g.setNode(layerName, {
+                    label: layerName + ' Layer',
+                    clusterLabelPos: 'top',
+                    style: `fill: ${layerColor}; fill-opacity: 0.25; stroke: #37474f; stroke-width: 3px; stroke-dasharray: 10,5;`,
+                    rx: 16,
+                    ry: 16,
+                    paddingLeft: 30,
+                    paddingRight: 30,
+                    paddingTop: 50,
+                    paddingBottom: 30
+                });
+            });
+            
+            diagramData.nodes.forEach(node => {
+                if (!node.id) {
+                    console.warn('Node without ID:', node);
+                    return;
+                }
+                
+                const width = node.width || ARCVIZ_CONFIG.node.defaultWidth;
+                const height = node.height || ARCVIZ_CONFIG.node.defaultHeight;
+                
+                // Use simple text label for Dagre-D3 compatibility
+                let textLabel = node.label;
+                if (node.functions && node.functions.length > 0) {
+                    textLabel += '\n' + node.functions.slice(0, 3).join('\n');
+                }
+                
+                g.setNode(node.id, {
+                    label: textLabel,
+                    width: width,
+                    height: height,
+                    class: 'diagram-node',
+                    rx: 6,
+                    ry: 6,
+                    style: 'fill: white; stroke: #2196f3; stroke-width: 2px;'
+                });
+                
+                const layer = node.layer || 'Other';
+                g.setParent(node.id, layer);
+            });
+            
+            if (diagramData.edges && diagramData.edges.length > 0) {
+                diagramData.edges.forEach(edge => {
+                    if (edge.source && edge.target) {
+                        g.setEdge(edge.source, edge.target, {
+                            label: '',
+                            curve: d3.curveLinear,
+                            arrowhead: 'vee',
+                            arrowheadClass: 'arrowhead',
+                            style: 'stroke: #607d8b; stroke-width: 2.5px; fill: none;'
+                        });
+                    }
+                });
+            }
+            
+            const svg = d3.select('#arch-diagram');
+            svg.selectAll('*').remove();
+            const svgGroup = svg.append('g');
+            
+            const render = new dagreD3.render();
+            render(svgGroup, g);
+            
+            // Enhance nodes with Capella-style SVG after Dagre layout
+            enhanceNodesWithCapellaStyle(svgGroup, g, diagramData);
+            
+            const graphWidth = g.graph().width || 1000;
+            const graphHeight = g.graph().height || 800;
+            const svgWidth = svg.node().getBoundingClientRect().width;
+            const svgHeight = svg.node().getBoundingClientRect().height;
+            
+            const scaleX = svgWidth / (graphWidth + 100);
+            const scaleY = svgHeight / (graphHeight + 100);
+            const initialScale = Math.min(scaleX, scaleY, 0.85);
+            
+            const xCenterOffset = (svgWidth - graphWidth * initialScale) / 2;
+            const yCenterOffset = 50;
+            
+            const zoom = d3.zoom()
+                .scaleExtent([0.1, 3])
+                .on('zoom', (event) => {
+                    svgGroup.attr('transform', event.transform);
+                });
+            
+            svg.call(zoom).call(
+                zoom.transform,
+                d3.zoomIdentity.translate(xCenterOffset, yCenterOffset).scale(initialScale)
+            );
+            
+            window.diagramZoom = zoom;
+            window.diagramSvg = svg;
+            window.diagramSvgGroup = svgGroup;
+            window.diagramGraph = g;
+            window.diagramInitialTransform = { xCenterOffset, yCenterOffset, initialScale };
+            
+            console.log('✓ Diagram rendered:', diagramData.nodes.length, 'nodes,', (diagramData.edges || []).length, 'edges');
+        }
+        
+        function enhanceNodesWithCapellaStyle(svgGroup, graph, diagramData) {
+            console.log('Starting Capella enhancement for', diagramData.nodes.length, 'nodes');
+            
+            const allNodes = svgGroup.selectAll('g.node');
+            console.log('Total nodes found by Dagre:', allNodes.size());
+            
+            const portLabels = [];
+            
+            diagramData.nodes.forEach(nodeData => {
+                // Dagre-D3 doesn't use id attribute, it creates nodes with specific structure
+                // Try selecting by the node's internal ID stored in __data__
+                let nodeElem = null;
+                svgGroup.selectAll('g.node').each(function() {
+                    const d3Node = d3.select(this);
+                    const nodeId = d3Node.datum(); // Get the node ID from d3 data
+                    if (nodeId === nodeData.id) {
+                        nodeElem = d3Node;
+                    }
+                });
+                
+                if (!nodeElem || nodeElem.empty()) {
+                    console.warn('Node element not found for:', nodeData.id);
+                    return;
+                }
+                
+                if (nodeData.safety_level) {
+                    console.log('✓ Rendering ASIL badge for:', nodeData.id, nodeData.label, nodeData.safety_level);
+                }
+                
+                nodeElem.selectAll('*').remove();
+                
+                const nodeInfo = graph.node(nodeData.id);
+                const width = nodeInfo.width || 220;
+                const height = nodeInfo.height || 180;
+                const x = -width / 2;
+                const y = -height / 2;
+                
+                const headerHeight = ARCVIZ_CONFIG.node.headerHeight;
+                
+                nodeElem.append('rect')
+                    .attr('class', 'component-rect')
+                    .attr('x', x)
+                    .attr('y', y)
+                    .attr('width', width)
+                    .attr('height', height)
+                    .attr('rx', 4)
+                    .attr('fill', 'white')
+                    .attr('stroke', '#1976d2')
+                    .attr('stroke-width', 2);
+                
+                nodeElem.append('rect')
+                    .attr('class', 'component-header')
+                    .attr('x', x)
+                    .attr('y', y)
+                    .attr('width', width)
+                    .attr('height', headerHeight)
+                    .attr('rx', 4)
+                    .attr('fill', '#1976d2');
+                
+                if (nodeData.stereotype) {
+                    nodeElem.append('text')
+                        .attr('class', 'stereotype')
+                        .attr('x', 0)
+                        .attr('y', y + 20)
+                        .attr('text-anchor', 'middle')
+                        .attr('fill', 'white')
+                        .attr('font-size', 10)
+                        .attr('font-style', 'italic')
+                        .text(`<<${nodeData.stereotype}>>`);
+                }
+                
+                nodeElem.append('text')
+                    .attr('class', 'component-name')
+                    .attr('x', 0)
+                    .attr('y', y + (nodeData.stereotype ? 42 : 35))
+                    .attr('text-anchor', 'middle')
+                    .attr('fill', 'white')
+                    .attr('font-size', 14)
+                    .attr('font-weight', 'bold')
+                    .text(truncate(nodeData.label, 24));
+                
+                if (nodeData.safety_level) {
+                    const asilLabel = nodeData.safety_level.replace('ASIL_', '');
+                    const badgeColor = asilLabel === 'B' ? '#ff9800' : 
+                                       asilLabel === 'C' ? '#f44336' : 
+                                       asilLabel === 'D' ? '#d32f2f' : '#ff9800';
+                    
+                    nodeElem.append('circle')
+                        .attr('class', `safety-badge asil-${asilLabel.toLowerCase()}`)
+                        .attr('cx', x + width - 20)
+                        .attr('cy', y + 20)
+                        .attr('r', 12)
+                        .attr('fill', badgeColor);
+                    
+                    nodeElem.append('text')
+                        .attr('class', 'safety-badge')
+                        .attr('x', x + width - 20)
+                        .attr('y', y + 24)
+                        .attr('text-anchor', 'middle')
+                        .attr('fill', 'white')
+                        .attr('font-size', 10)
+                        .attr('font-weight', 'bold')
+                        .text(asilLabel);
+                }
+                
+                if (nodeData.functions && nodeData.functions.length > 0) {
+                    nodeElem.append('line')
+                        .attr('class', 'function-separator')
+                        .attr('x1', x)
+                        .attr('y1', y + headerHeight)
+                        .attr('x2', x + width)
+                        .attr('y2', y + headerHeight)
+                        .attr('stroke', '#e0e0e0')
+                        .attr('stroke-width', 1);
+                    
+                    const portAreaHeight = Math.max(
+                        (nodeData.interfaces_in ? nodeData.interfaces_in.length : 0) * ARCVIZ_CONFIG.functions.portReserveMultiplier,
+                        (nodeData.interfaces_out ? nodeData.interfaces_out.length : 0) * ARCVIZ_CONFIG.functions.portReserveMultiplier,
+                        ARCVIZ_CONFIG.functions.minPortArea
+                    );
+                    const availableHeight = Math.max(height - headerHeight - portAreaHeight - 20, 0);
+                    const lineHeight = ARCVIZ_CONFIG.functions.lineHeight;
+                    const maxFuncs = Math.max(0, Math.floor(availableHeight / lineHeight));
+                    
+                    const clipId = `clip-${nodeData.id}`;
+                    nodeElem.append('clipPath')
+                        .attr('id', clipId)
+                        .append('rect')
+                        .attr('x', x)
+                        .attr('y', y + headerHeight)
+                        .attr('width', width)
+                        .attr('height', availableHeight);
+                    
+                    const funcGroup = nodeElem.append('g')
+                        .attr('clip-path', `url(#${clipId})`);
+                    
+                    nodeData.functions.slice(0, maxFuncs).forEach((func, i) => {
+                        funcGroup.append('text')
+                            .attr('class', 'function-text')
+                            .attr('x', x + 12)
+                            .attr('y', y + headerHeight + 16 + (i * lineHeight))
+                            .attr('fill', '#37474f')
+                            .attr('font-size', 10)
+                            .attr('font-weight', 500)
+                            .text(`+ ${truncate(func, Math.floor((width - 24) / 6))}`);
+                    });
+                    
+                    if (nodeData.functions.length > maxFuncs && maxFuncs > 0) {
+                        funcGroup.append('text')
+                            .attr('x', x + 12)
+                            .attr('y', y + headerHeight + 16 + (maxFuncs * lineHeight))
+                            .attr('fill', '#607d8b')
+                            .attr('font-size', 9)
+                            .attr('font-style', 'italic')
+                            .text(`+${nodeData.functions.length - maxFuncs} more...`);
+                    }
+                }
+                
+                // Capella-style port distribution along all edges
+                const globalX = nodeInfo.x;
+                const globalY = nodeInfo.y;
+                const portSize = ARCVIZ_CONFIG.port.size;
+                const portSpacing = ARCVIZ_CONFIG.port.spacing;
+                
+                // Distribute IN ports (required) on LEFT edge
+                if (nodeData.interfaces_in && nodeData.interfaces_in.length > 0) {
+                    const portCount = nodeData.interfaces_in.length;
+                    const totalHeight = (portCount - 1) * portSpacing;
+                    const startY = y + headerHeight + (height - headerHeight - totalHeight) / 2;
+                    
+                    nodeData.interfaces_in.forEach((port, i) => {
+                        const py = startY + (i * portSpacing);
+                        const portCenterY = py + portSize / 2;
+                        
+                        nodeElem.append('rect')
+                            .attr('class', 'interface-port in-port')
+                            .attr('id', `port-${nodeData.id}-in-${i}`)
+                            .attr('data-port-id', port.name)
+                            .attr('data-node-id', nodeData.id)
+                            .attr('data-port-type', 'in')
+                            .attr('x', x - portSize / 2)
+                            .attr('y', py)
+                            .attr('width', portSize)
+                            .attr('height', portSize)
+                            .attr('rx', 2)
+                            .attr('fill', '#4caf50')
+                            .attr('stroke', '#2e7d32')
+                            .attr('stroke-width', 2);
+                        
+                        nodeElem.append('text')
+                            .attr('class', 'port-label')
+                            .attr('x', x - portSize - 5)
+                            .attr('y', py + 2)
+                            .attr('text-anchor', 'end')
+                            .attr('fill', '#263238')
+                            .attr('font-size', 9)
+                            .attr('font-weight', 600)
+                            .text(truncate(port.name, 15));
+                        
+                        if (port.protocol) {
+                            nodeElem.append('text')
+                                .attr('class', 'port-protocol')
+                                .attr('x', x - portSize - 5)
+                                .attr('y', py + 14)
+                                .attr('text-anchor', 'end')
+                                .attr('fill', '#546e7a')
+                                .attr('font-size', 7)
+                                .attr('font-style', 'italic')
+                                .text(`[${truncate(port.protocol, 12)}]`);
+                        }
+                    });
+                }
+                
+                // Distribute OUT ports (provided) on RIGHT edge
+                if (nodeData.interfaces_out && nodeData.interfaces_out.length > 0) {
+                    const portCount = nodeData.interfaces_out.length;
+                    const totalHeight = (portCount - 1) * portSpacing;
+                    const startY = y + headerHeight + (height - headerHeight - totalHeight) / 2;
+                    
+                    nodeData.interfaces_out.forEach((port, i) => {
+                        const py = startY + (i * portSpacing);
+                        const portCenterY = py + portSize / 2;
+                        
+                        nodeElem.append('rect')
+                            .attr('class', 'interface-port out-port')
+                            .attr('id', `port-${nodeData.id}-out-${i}`)
+                            .attr('data-port-id', port.name)
+                            .attr('data-node-id', nodeData.id)
+                            .attr('data-port-type', 'out')
+                            .attr('x', x + width - portSize / 2)
+                            .attr('y', py)
+                            .attr('width', portSize)
+                            .attr('height', portSize)
+                            .attr('rx', 2)
+                            .attr('fill', '#ff9800')
+                            .attr('stroke', '#e65100')
+                            .attr('stroke-width', 2);
+                        
+                        nodeElem.append('text')
+                            .attr('class', 'port-label')
+                            .attr('x', x + width + portSize + 5)
+                            .attr('y', py + 2)
+                            .attr('text-anchor', 'start')
+                            .attr('fill', '#263238')
+                            .attr('font-size', 9)
+                            .attr('font-weight', 600)
+                            .text(truncate(port.name, 15));
+                        
+                        if (port.protocol) {
+                            nodeElem.append('text')
+                                .attr('class', 'port-protocol')
+                                .attr('x', x + width + portSize + 5)
+                                .attr('y', py + 14)
+                                .attr('text-anchor', 'start')
+                                .attr('fill', '#546e7a')
+                                .attr('font-size', 7)
+                                .attr('font-style', 'italic')
+                                .text(`[${truncate(port.protocol, 12)}]`);
+                        }
+                    });
+                }
+                
+                // Add stereotype icon
+                const iconMap = {
+                    'Gateway': '⚡',
+                    'Controller': '⚙️',
+                    'Sensor': '📡',
+                    'Actuator': '🔧',
+                    'ECU_Hardware': '💾',
+                    'CAN_Bus': '🔌',
+                    'LIN_Bus': '🔌',
+                    'Software': '💻',
+                    'HMI': '📱'
+                };
+                
+                const icon = iconMap[nodeData.stereotype] || '📦';
+                nodeElem.append('text')
+                    .attr('x', x + 15)
+                    .attr('y', y + 40)
+                    .attr('font-size', 20)
+                    .text(icon);
+            });
+            
+            // Enhance edges with exchange items and orthogonal routing
+            enhanceEdgesWithExchangeItems(svgGroup, graph, diagramData);
+            
+            // No collision detection needed - fixed at source with proper spacing
+            console.log('✓ Capella enhancement complete with proper spacing');
+        }
+        
+        function resolveAllTextCollisions(svgGroup, graph) {
+            const allLabels = [];
+            
+            svgGroup.selectAll('.port-label, .port-protocol').each(function() {
+                const elem = d3.select(this);
+                let componentNode = this.parentNode;
+                while (componentNode && !d3.select(componentNode).classed('node')) {
+                    componentNode = componentNode.parentNode;
+                }
+                if (!componentNode) return;
+                
+                const componentId = d3.select(componentNode).datum();
+                const x = parseFloat(elem.attr('x'));
+                const y = parseFloat(elem.attr('y'));
+                const bbox = this.getBBox();
+                const side = elem.attr('text-anchor') === 'end' ? 'left' : 'right';
+                const isProtocol = elem.classed('port-protocol');
+                
+                allLabels.push({
+                    element: elem,
+                    componentId: componentId,
+                    side: side,
+                    isProtocol: isProtocol,
+                    x: x,
+                    y: y,
+                    width: bbox.width,
+                    height: bbox.height,
+                    x1: side === 'end' ? x - bbox.width : x,
+                    y1: y - bbox.height * 0.75,
+                    x2: side === 'end' ? x : x + bbox.width,
+                    y2: y + bbox.height * 0.25
+                });
+            });
+            
+            // Group by component and side
+            const groups = new Map();
+            allLabels.forEach(label => {
+                const key = `${label.componentId}-${label.side}`;
+                if (!groups.has(key)) groups.set(key, []);
+                groups.get(key).push(label);
+            });
+            
+            // Sort within each group and apply minimum spacing
+            groups.forEach(labels => {
+                labels.sort((a, b) => a.y - b.y);
+                
+                const minSpacing = 4;
+                for (let i = 1; i < labels.length; i++) {
+                    const prev = labels[i - 1];
+                    const curr = labels[i];
+                    
+                    const gap = curr.y1 - prev.y2;
+                    if (gap < minSpacing) {
+                        const shift = minSpacing - gap;
+                        curr.y += shift;
+                        curr.y1 += shift;
+                        curr.y2 += shift;
+                    }
+                }
+            });
+            
+            // Cross-component collision detection
+            const maxIterations = 100;
+            for (let iter = 0; iter < maxIterations; iter++) {
+                let hadCollision = false;
+                
+                for (let i = 0; i < allLabels.length; i++) {
+                    for (let j = i + 1; j < allLabels.length; j++) {
+                        const a = allLabels[i];
+                        const b = allLabels[j];
+                        
+                        if (a.componentId === b.componentId) continue;
+                        if (a.side !== b.side) continue;
+                        
+                        const margin = 3;
+                        const xOverlap = Math.max(0, Math.min(a.x2, b.x2) - Math.max(a.x1, b.x1));
+                        const yOverlap = Math.max(0, Math.min(a.y2, b.y2) - Math.max(a.y1, b.y1));
+                        
+                        if (xOverlap > 0 && yOverlap > 0) {
+                            hadCollision = true;
+                            const shift = (yOverlap + margin) * 0.5;
+                            
+                            if (a.y < b.y) {
+                                a.y -= shift;
+                                a.y1 -= shift;
+                                a.y2 -= shift;
+                                b.y += shift;
+                                b.y1 += shift;
+                                b.y2 += shift;
+                            } else {
+                                a.y += shift;
+                                a.y1 += shift;
+                                a.y2 += shift;
+                                b.y -= shift;
+                                b.y1 -= shift;
+                                b.y2 -= shift;
+                            }
+                        }
+                    }
+                }
+                
+                if (!hadCollision) {
+                    console.log(`✓ Collision resolution converged in ${iter + 1} iterations`);
+                    break;
+                }
+            }
+            
+            // Apply adjusted positions
+            allLabels.forEach(label => {
+                label.element.attr('y', label.y);
+            });
+        }
+        
+        function enhanceEdgesWithExchangeItems(svgGroup, graph, diagramData) {
+            svgGroup.selectAll('g.edgePath').each(function() {
+                const edge = d3.select(this);
+                const edgeData = edge.datum();
+                
+                if (!edgeData) return;
+                
+                const interfaceData = diagramData.edges.find(e => 
+                    (e.source === edgeData.v && e.target === edgeData.w) ||
+                    (e.source === edgeData.w && e.target === edgeData.v)
+                );
+                
+                if (!interfaceData) return;
+                
+                const path = edge.select('path');
+                if (path.empty()) return;
+                
+                const pathNode = path.node();
+                const pathLength = pathNode.getTotalLength();
+                const midPoint = pathNode.getPointAtLength(pathLength / 2);
+                
+                edge.append('rect')
+                    .attr('x', midPoint.x - 40)
+                    .attr('y', midPoint.y - 12)
+                    .attr('width', 80)
+                    .attr('height', 24)
+                    .attr('rx', 4)
+                    .attr('fill', 'white')
+                    .attr('stroke', '#1976d2')
+                    .attr('stroke-width', 1.5)
+                    .attr('filter', 'drop-shadow(0 2px 4px rgba(0,0,0,0.2))');
+                
+                edge.append('text')
+                    .attr('x', midPoint.x)
+                    .attr('y', midPoint.y + 4)
+                    .attr('text-anchor', 'middle')
+                    .attr('fill', '#1976d2')
+                    .attr('font-size', 9)
+                    .attr('font-weight', 700)
+                    .text(truncate(interfaceData.label, 12));
+            });
+        }
+        
+        function truncate(text, maxLen) {
+            if (!text) return '';
+            return text.length <= maxLen ? text : text.substring(0, maxLen - 3) + '...';
+        }
+        
+        function resetDiagramZoom() {
+            if (!window.diagramZoom || !window.diagramSvg) return;
+            const t = window.diagramInitialTransform;
+            window.diagramSvg.transition().duration(750).call(
+                window.diagramZoom.transform,
+                d3.zoomIdentity.translate(t.xCenterOffset, t.yCenterOffset).scale(t.initialScale)
+            );
+        }
+        
+        function zoomInDiagram() {
+            if (!window.diagramZoom || !window.diagramSvg) return;
+            window.diagramSvg.transition().duration(300).call(window.diagramZoom.scaleBy, 1.3);
+        }
+        
+        function zoomOutDiagram() {
+            if (!window.diagramZoom || !window.diagramSvg) return;
+            window.diagramSvg.transition().duration(300).call(window.diagramZoom.scaleBy, 0.7);
+        }
+        
+        function exportDiagramSVG() {
+            try {
+                const svg = window.diagramSvg;
+                if (!svg) {
+                    alert('Diagram not ready. Please wait for it to load.');
+                    return;
+                }
+                
+                const svgNode = svg.node();
+                const svgGroup = window.diagramSvgGroup;
+                const bbox = svgGroup.node().getBBox();
+                const padding = 40;
+                
+                const clone = svgNode.cloneNode(true);
+                clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+                clone.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink');
+                clone.setAttribute('viewBox', `${bbox.x - padding} ${bbox.y - padding} ${bbox.width + padding * 2} ${bbox.height + padding * 2}`);
+                clone.setAttribute('width', bbox.width + padding * 2);
+                clone.setAttribute('height', bbox.height + padding * 2);
+                
+                // Remove all foreignObject elements (HTML content that can't be in SVG)
+                const foreignObjects = clone.querySelectorAll('foreignObject');
+                foreignObjects.forEach(fo => fo.remove());
+                
+                // Add essential styles inline
+                const styleElement = document.createElementNS('http://www.w3.org/2000/svg', 'style');
+                styleElement.textContent = `
+                    .edgePath path { stroke: #607d8b; stroke-width: 2px; fill: none; }
+                    .arrowhead { fill: #607d8b; }
+                    .cluster rect { stroke: #37474f; stroke-width: 2px; }
+                    text { font-family: Arial, sans-serif; }
+                `;
+                clone.insertBefore(styleElement, clone.firstChild);
+                
+                const serializer = new XMLSerializer();
+                const svgString = serializer.serializeToString(clone);
+                
+                const blob = new Blob([svgString], {type: 'image/svg+xml;charset=utf-8'});
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = 'architecture_diagram.svg';
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                setTimeout(() => URL.revokeObjectURL(url), 100);
+                
+                console.log('✓ SVG exported successfully');
+            } catch (error) {
+                console.error('Error exporting SVG:', error);
+                alert('Error exporting SVG: ' + error.message);
+            }
+        }
+        
+        function exportDiagramPNG() {
+            alert('PNG export is not fully supported due to SVG complexity. Please use SVG export instead, which can be opened in any image editor and converted to PNG if needed.');
+        }
+        
+        function loadTraceability() {
+            const container = document.getElementById('traceability-container');
+            
+            if (archData.traces.length === 0) {
+                container.innerHTML = '<p style="color: #999;">No traces defined</p>';
+                return;
+            }
+            
+            archData.traces.forEach(trace => {
+                const traceDiv = document.createElement('div');
+                traceDiv.className = 'trace-item';
+                traceDiv.innerHTML = `
+                    <span class="trace-from">${trace.from}</span>
+                    <span class="trace-arrow">→</span>
+                    <span class="trace-to">${trace.to}</span>
+                    <span class="trace-type">${trace.trace_type}</span>
+                `;
+                container.appendChild(traceDiv);
+            });
+        }
+        
+        function toggleAccordion(header) {
+            const content = header.nextElementSibling;
+            const icon = header.querySelector('.accordion-icon');
+            content.classList.toggle('active');
+            icon.style.transform = content.classList.contains('active') ? 'rotate(180deg)' : 'rotate(0deg)';
+        }
+        
+        function scrollToSection(id) {
+            document.getElementById(id).scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+        
+        function scrollToTop() {
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+        
+        function searchRequirements(query) {
+            const requirements = document.querySelectorAll('.requirement');
+            query = query.toLowerCase();
+            requirements.forEach(req => {
+                const searchText = req.getAttribute('data-search').toLowerCase();
+                req.style.display = searchText.includes(query) ? 'block' : 'none';
+            });
+        }
+        
+        function searchComponents(query) {
+            const components = document.querySelectorAll('.component');
+            query = query.toLowerCase();
+            components.forEach(comp => {
+                const searchText = comp.getAttribute('data-search').toLowerCase();
+                comp.style.display = searchText.includes(query) ? 'block' : 'none';
+            });
+        }
+        
+        function initScrollEffects() {
+            window.addEventListener('scroll', () => {
+                const backToTop = document.getElementById('back-to-top');
+                if (window.scrollY > 300) {
+                    backToTop.classList.add('visible');
+                } else {
+                    backToTop.classList.remove('visible');
+                }
+            });
+        }
+        
+        // Keyboard shortcuts
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                scrollToTop();
+            }
+        });
+    </script>
+</body>
+</html>
