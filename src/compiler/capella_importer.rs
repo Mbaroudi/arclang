@@ -195,6 +195,8 @@ impl CapellaImporter {
         Ok(Some(LogicalComponent {
             name,
             functions: Vec::new(),
+            interfaces_in: Vec::new(),
+            interfaces_out: Vec::new(),
             attributes,
         }))
     }

@@ -33,6 +33,18 @@ pub struct ComponentInfo {
     pub name: String,
     pub component_type: String,
     pub level: String,
+    pub safety_level: Option<String>,
+    pub asil: Option<String>,
+    pub interfaces_in: Vec<InterfacePortInfo>,
+    pub interfaces_out: Vec<InterfacePortInfo>,
+    pub functions: Vec<String>,
+}
+
+#[derive(Debug, Clone)]
+pub struct InterfacePortInfo {
+    pub name: String,
+    pub protocol: Option<String>,
+    pub format: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -132,11 +144,52 @@ impl SemanticAnalyzer {
                     .unwrap_or("Logical")
                     .to_string();
                 
+                let safety_level = comp.attributes.get("safety_level")
+                    .and_then(|v| v.as_string())
+                    .map(|s| s.to_string());
+                
+                let asil = comp.attributes.get("asil")
+                    .and_then(|v| v.as_string())
+                    .map(|s| s.to_string());
+                
+                // Extract interface_in
+                let interfaces_in: Vec<InterfacePortInfo> = comp.interfaces_in.iter()
+                    .map(|iface| InterfacePortInfo {
+                        name: iface.name.clone(),
+                        protocol: iface.protocol.clone(),
+                        format: iface.format.clone(),
+                    })
+                    .collect();
+                
+                // Extract interface_out
+                let interfaces_out: Vec<InterfacePortInfo> = comp.interfaces_out.iter()
+                    .map(|iface| InterfacePortInfo {
+                        name: iface.name.clone(),
+                        protocol: iface.protocol.clone(),
+                        format: iface.format.clone(),
+                    })
+                    .collect();
+                
+                // Collect function IDs for this component
+                let comp_functions: Vec<String> = comp.functions.iter()
+                    .map(|f| f.name.clone())
+                    .collect();
+                
+                let layer = comp.attributes.get("layer")
+                    .and_then(|v| v.as_string())
+                    .unwrap_or("Logical")
+                    .to_string();
+                
                 components.push(ComponentInfo {
                     id: comp_id.clone(),
                     name: comp.name.clone(),
                     component_type: comp_type,
-                    level: "Logical".to_string(),
+                    level: layer,
+                    safety_level,
+                    asil,
+                    interfaces_in,
+                    interfaces_out,
+                    functions: comp_functions,
                 });
                 
                 all_elements.insert(comp_id.clone(), ElementInfo {
@@ -144,6 +197,29 @@ impl SemanticAnalyzer {
                     name: comp.name.clone(),
                     element_type: "Component".to_string(),
                 });
+                
+                // Collect interface_in and interface_out from components
+                for interface_def in &comp.interfaces_in {
+                    all_elements.insert(
+                        format!("{}_{}", comp_id, interface_def.name),
+                        ElementInfo {
+                            id: format!("{}_{}", comp_id, interface_def.name),
+                            name: format!("{} IN", interface_def.name),
+                            element_type: "InterfaceIn".to_string(),
+                        }
+                    );
+                }
+                
+                for interface_def in &comp.interfaces_out {
+                    all_elements.insert(
+                        format!("{}_{}", comp_id, interface_def.name),
+                        ElementInfo {
+                            id: format!("{}_{}", comp_id, interface_def.name),
+                            name: format!("{} OUT", interface_def.name),
+                            element_type: "InterfaceOut".to_string(),
+                        }
+                    );
+                }
                 
                 // Collect functions from components
                 for func in &comp.functions {
@@ -189,6 +265,52 @@ impl SemanticAnalyzer {
                         element_type: "Function".to_string(),
                     });
                 }
+            }
+        }
+        
+        // Collect components from physical architecture (nodes)
+        for pa in &ast.physical_architecture {
+            for node in &pa.nodes {
+                let node_id = node.attributes.get("id")
+                    .and_then(|v| v.as_string())
+                    .unwrap_or(&node.name)
+                    .to_string();
+                
+                let node_type = node.attributes.get("type")
+                    .and_then(|v| v.as_string())
+                    .unwrap_or("Physical")
+                    .to_string();
+                
+                let safety_level = node.attributes.get("safety_level")
+                    .and_then(|v| v.as_string())
+                    .map(|s| s.to_string());
+                
+                let asil = node.attributes.get("asil")
+                    .and_then(|v| v.as_string())
+                    .map(|s| s.to_string());
+                
+                let layer = node.attributes.get("layer")
+                    .and_then(|v| v.as_string())
+                    .unwrap_or("Physical")
+                    .to_string();
+                
+                components.push(ComponentInfo {
+                    id: node_id.clone(),
+                    name: node.name.clone(),
+                    component_type: node_type,
+                    level: layer,
+                    safety_level,
+                    asil,
+                    interfaces_in: Vec::new(),
+                    interfaces_out: Vec::new(),
+                    functions: Vec::new(),
+                });
+                
+                all_elements.insert(node_id.clone(), ElementInfo {
+                    id: node_id.clone(),
+                    name: node.name.clone(),
+                    element_type: "Component".to_string(),
+                });
             }
         }
         

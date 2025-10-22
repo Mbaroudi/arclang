@@ -88,6 +88,16 @@ pub struct LogicalArchitecture {
 pub struct LogicalComponent {
     pub name: String,
     pub functions: Vec<LogicalFunction>,
+    pub interfaces_in: Vec<InterfaceDefinition>,
+    pub interfaces_out: Vec<InterfaceDefinition>,
+    pub attributes: HashMap<String, AttributeValue>,
+}
+
+#[derive(Debug, Clone)]
+pub struct InterfaceDefinition {
+    pub name: String,
+    pub protocol: Option<String>,
+    pub format: Option<String>,
     pub attributes: HashMap<String, AttributeValue>,
 }
 

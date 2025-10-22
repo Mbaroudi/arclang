@@ -1,0 +1,753 @@
+\documentclass[11pt,a4paper]{article}
+
+% Packages
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[english]{babel}
+\usepackage{geometry}
+\usepackage{graphicx}
+\usepackage{xcolor}
+\usepackage{listings}
+\usepackage{fancyhdr}
+\usepackage{hyperref}
+\usepackage{tcolorbox}
+\usepackage{tikz}
+\usepackage{svg}
+\usepackage{longtable}
+\usepackage{booktabs}
+\usepackage{enumitem}
+\usepackage{pdflscape}  % For landscape pages
+
+% Page geometry - A4 portrait default, A3 landscape for diagram
+\geometry{
+    a4paper,
+    left=25mm,
+    right=25mm,
+    top=30mm,
+    bottom=30mm
+}
+
+% Colors
+\definecolor{arcblue}{RGB}{26,35,126}
+\definecolor{arcgreen}{RGB}{76,175,80}
+\definecolor{arcorange}{RGB}{255,152,0}
+\definecolor{codebg}{RGB}{245,245,245}
+\definecolor{commentgreen}{RGB}{34,139,34}
+
+% Code listing style for ArcLang
+\lstdefinelanguage{ArcLang}{
+    keywords={model, metadata, requirements, architecture, component, interface, function, trace, satisfies, req, interface_in, interface_out, stakeholder, system, functional, safety, security, regulatory, logical, physical},
+    keywordstyle=\color{arcblue}\bfseries,
+    ndkeywords={version, description, domain, safety_standard, security_standard, project_phase, priority, safety_level, layer, stereotype, protocol, format, from, to, id},
+    ndkeywordstyle=\color{arcorange},
+    sensitive=true,
+    comment=[l]{//},
+    commentstyle=\color{commentgreen}\itshape,
+    string=[s]{"}{"},
+    stringstyle=\color{red},
+    basicstyle=\ttfamily\footnotesize,
+    breaklines=true,
+    numbers=left,
+    numberstyle=\tiny\color{gray},
+    numbersep=5pt,
+    frame=single,
+    backgroundcolor=\color{codebg},
+    captionpos=b,
+    tabsize=2,
+    showstringspaces=false
+}
+
+% Headers and footers
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\leftmark}
+\fancyhead[R]{\thepage}
+\fancyfoot[C]{Vehicle Remote Start System - Arcadia Architecture}
+\renewcommand{\headrulewidth}{0.4pt}
+\renewcommand{\footrulewidth}{0.4pt}
+
+% Hyperref setup
+\hypersetup{
+    colorlinks=true,
+    linkcolor=arcblue,
+    filecolor=arcblue,
+    urlcolor=arcblue,
+    citecolor=arcblue,
+    pdftitle={Vehicle Remote Start System Architecture},
+    pdfauthor={ArcLang Compiler},
+    pdfsubject={Arcadia MBSE Architecture},
+    pdfkeywords={Arcadia, MBSE, Automotive, ISO 26262, ArcLang}
+}
+
+% Title page
+\title{
+    \vspace{-2cm}
+    \includegraphics[width=3cm]{example-image} \\[1cm]
+    {\Huge\bfseries Vehicle Remote Start System}\\[0.5cm]
+    {\Large Arcadia Architecture with ArcLang DSL}\\[0.3cm]
+    {\large ISO 26262 ASIL B Compliant}
+}
+\author{
+    Generated with ArcLang Compiler\\
+    \texttt{https://github.com/arclang}
+}
+\date{\today}
+
+\begin{document}
+
+\maketitle
+\thispagestyle{empty}
+
+\begin{abstract}
+This document presents a complete Arcadia Model-Based Systems Engineering (MBSE) architecture for a Vehicle Remote Start System implemented using the ArcLang Domain-Specific Language (DSL). The system enables users to remotely start their vehicles via smartphone while ensuring ISO 26262 ASIL B safety compliance and ISO/SAE 21434 cybersecurity standards. The architecture covers all Arcadia layers: Operational Analysis, System Analysis, Logical Architecture, and Physical Architecture, with complete traceability between stakeholder requirements, system requirements, and implementation components.
+\end{abstract}
+
+\newpage
+\tableofcontents
+\newpage
+
+% ============================================================================
+\section{Introduction}
+% ============================================================================
+
+\subsection{Purpose}
+This document describes the complete architecture of a Vehicle Remote Start System designed using the Arcadia methodology and implemented with the ArcLang Domain-Specific Language. The system allows vehicle owners to remotely start their vehicles from a smartphone application while maintaining strict safety and security requirements.
+
+\subsection{Scope}
+The architecture includes:
+\begin{itemize}[leftmargin=*]
+    \item \textbf{25 Logical Components} organized in 4 architectural layers
+    \item \textbf{33 Requirements} spanning stakeholder, system, functional, safety, security, and regulatory domains
+    \item \textbf{16 Interfaces} defining component interactions
+    \item \textbf{32 Functions} implementing system behaviors
+    \item \textbf{Complete traceability} from stakeholder needs to physical implementation
+\end{itemize}
+
+\subsection{Standards Compliance}
+\begin{tcolorbox}[colback=arcblue!5,colframe=arcblue,title=Safety \& Security Standards]
+\begin{itemize}[leftmargin=*]
+    \item \textbf{ISO 26262:2018} - Functional Safety (ASIL B for remote start controller)
+    \item \textbf{ISO/SAE 21434:2021} - Cybersecurity Engineering
+    \item \textbf{UNECE R100} - Electric Vehicle Safety
+    \item \textbf{FCC Part 15} - Radiated Emissions
+    \item \textbf{GDPR} - Data Privacy and Protection
+\end{itemize}
+\end{tcolorbox}
+
+\subsection{Arcadia Methodology}
+Arcadia (Architecture Analysis and Design Integrated Approach) is a model-based methodology that structures system architecture into four main layers:
+
+\begin{enumerate}[leftmargin=*]
+    \item \textbf{Operational Analysis} - Understand stakeholder needs and use cases
+    \item \textbf{System Analysis} - Define system requirements and behaviors
+    \item \textbf{Logical Architecture} - Design logical components and interactions
+    \item \textbf{Physical Architecture} - Allocate to hardware/software elements
+\end{enumerate}
+
+% ============================================================================
+\section{System Overview}
+% ============================================================================
+
+\subsection{System Context}
+The Vehicle Remote Start System enables users to start their vehicle remotely via a smartphone application. The system must:
+\begin{itemize}[leftmargin=*]
+    \item Authenticate users securely using cryptographic tokens
+    \item Validate all safety preconditions (parking brake, neutral, doors closed)
+    \item Support multiple powertrain types (ICE, Hybrid, Electric)
+    \item Provide climate pre-conditioning for cabin comfort
+    \item Automatically shut down after 10 minutes
+    \item Maintain complete audit trail for regulatory compliance
+\end{itemize}
+
+\subsection{Key Features}
+\begin{tcolorbox}[colback=arcgreen!5,colframe=arcgreen,title=System Capabilities]
+\begin{itemize}[leftmargin=*]
+    \item \textbf{Multi-Powertrain Support} - ICE, Hybrid, and EV start sequences
+    \item \textbf{Safety Interlocks} - 200ms validation of parking brake, transmission, doors
+    \item \textbf{Secure Communication} - AES-256 encryption with certificate authentication
+    \item \textbf{Climate Control} - Automatic HVAC pre-conditioning
+    \item \textbf{Auto-Shutdown} - 10-minute timer with manual override
+    \item \textbf{Replay Protection} - Cryptographic nonce with 5-second window
+    \item \textbf{Audit Logging} - Complete trail for regulatory compliance
+\end{itemize}
+\end{tcolorbox}
+
+% ============================================================================
+\section{ArcLang Source Code}
+% ============================================================================
+
+\subsection{About ArcLang}
+ArcLang is a Domain-Specific Language designed for expressing Arcadia architectures in a concise, readable, and maintainable format. Key features include:
+\begin{itemize}[leftmargin=*]
+    \item \textbf{Declarative Syntax} - Express architecture intent clearly
+    \item \textbf{Built-in Traceability} - Automatic requirement tracing
+    \item \textbf{Safety Annotations} - Native ASIL level support
+    \item \textbf{Multi-Format Export} - Generate diagrams, documents, code
+    \item \textbf{Validation Engine} - Catch architectural inconsistencies early
+\end{itemize}
+
+\subsection{Complete Source Code}
+
+The complete ArcLang source code for the Vehicle Remote Start System is shown below. This single file defines the entire architecture including requirements, components, interfaces, and traceability.
+
+\lstinputlisting[
+    language=ArcLang,
+    caption={Remote Start System Architecture (remote\_start\_architecture.arc)},
+    label={lst:arclang},
+    basicstyle=\ttfamily\scriptsize,
+    breaklines=true
+]{remote_start_architecture.arc}
+
+% ============================================================================
+\section{Architecture Diagrams}
+% ============================================================================
+
+\subsection{Logical Architecture Diagram}
+
+Figure~\ref{fig:logical_arch} shows the complete logical architecture with 25 components organized across 4 layers (User, Connectivity, Control, Vehicle). The diagram follows Capella visualization standards with:
+
+\begin{itemize}[leftmargin=*]
+    \item \textbf{Port Distribution} - Required interfaces (IN) on left (green), Provided interfaces (OUT) on right (orange)
+    \item \textbf{Layer Swimlanes} - Dashed borders separating architectural layers
+    \item \textbf{ASIL Badges} - Safety-critical components marked with ASIL level (B, C, D)
+    \item \textbf{Exchange Items} - Interface protocols labeled on connections (CAN, LIN, HTTPS)
+    \item \textbf{Stereotype Icons} - Visual indicators for component types (Gateway, Controller, ECU)
+\end{itemize}
+
+% Full page landscape A3 diagram
+\begin{landscape}
+\begin{figure}[p]
+    \centering
+    \includesvg[width=0.95\textheight,keepaspectratio]{remote_start_diagram.svg}
+    \caption{Logical Architecture - Vehicle Remote Start System (Capella Standard)}
+    \label{fig:logical_arch}
+\end{figure}
+\end{landscape}
+
+\textbf{Diagram Generation Command:}
+\begin{tcolorbox}[colback=codebg,colframe=black]
+\texttt{\$ cd /Users/malek/Arclang}\\
+\texttt{\$ cargo run --bin arclang -- explorer examples/remote\_start\_architecture.arc}\\
+\texttt{\$ open examples/remote\_start\_architecture\_explorer.html}\\
+\texttt{\$ \# Click "Export SVG" button to generate diagram file}
+\end{tcolorbox}
+
+\subsection{Architecture Layers}
+
+\subsubsection{User Layer (LA-USER)}
+\begin{itemize}[leftmargin=*]
+    \item \textbf{Smartphone Application} - Mobile UI for remote vehicle control
+    \item \textbf{User Authentication Service} - Cryptographic token generation and biometric validation
+\end{itemize}
+
+\subsubsection{Connectivity Layer (LA-CONN)}
+\begin{itemize}[leftmargin=*]
+    \item \textbf{Telematics Control Unit} - LTE/5G cellular gateway (ASIL B)
+    \item \textbf{Secure Communication Manager} - Cryptographic signature verification and replay attack detection
+    \item \textbf{Cloud Backend Service} - Request queuing and audit trail storage
+\end{itemize}
+
+\subsubsection{Control Layer (LA-CTRL)}
+\begin{itemize}[leftmargin=*]
+    \item \textbf{Remote Start Controller} - Orchestrates start sequence (ASIL B)
+    \item \textbf{Safety Interlock Validator} - Validates safety preconditions (ASIL B)
+    \item \textbf{Powertrain Start Manager} - Multi-powertrain start sequences (ASIL B)
+    \item \textbf{Climate Control Pre-Conditioner} - HVAC activation
+    \item \textbf{Timer and Shutdown Manager} - 10-minute auto-shutdown (ASIL B)
+\end{itemize}
+
+\subsubsection{Vehicle Layer (LA-VHC)}
+\begin{itemize}[leftmargin=*]
+    \item \textbf{Engine Control Unit} - Fuel injection and ignition (ASIL B)
+    \item \textbf{Battery Management System} - HV battery monitoring (ASIL B)
+    \item \textbf{Hybrid Control Unit} - Engine/motor coordination (ASIL B)
+    \item \textbf{HVAC Control Module} - Climate control
+    \item \textbf{Body Control Module} - Door/brake sensors
+    \item \textbf{Instrument Cluster} - Status display
+\end{itemize}
+
+% ============================================================================
+\section{Requirements Breakdown}
+% ============================================================================
+
+\subsection{Stakeholder Requirements (8 total)}
+
+\begin{longtable}{|p{2.5cm}|p{10cm}|p{2cm}|}
+\caption{Stakeholder Requirements}\label{tab:stakeholder_req}\\
+\hline
+\textbf{ID} & \textbf{Description} & \textbf{Priority} \\
+\hline
+\endfirsthead
+\hline
+\textbf{ID} & \textbf{Description} & \textbf{Priority} \\
+\hline
+\endhead
+\hline
+\endfoot
+
+STK-RS-001 & User must be able to remotely start the vehicle from their smartphone within 100m range & Critical \\
+\hline
+STK-RS-002 & System must prevent remote start if vehicle safety conditions are not met & Critical (ASIL B) \\
+\hline
+STK-RS-003 & Remote start must work for ICE, Hybrid, and Electric vehicles with appropriate powertrain control & Critical \\
+\hline
+STK-RS-004 & System must authenticate user and secure all communications to prevent unauthorized access & Critical \\
+\hline
+STK-RS-005 & Vehicle must comply with regional emission and safety regulations during remote start & High \\
+\hline
+STK-RS-006 & User shall receive confirmation of remote start status within 3 seconds & High \\
+\hline
+STK-RS-007 & System must automatically shut down after 10 minutes if not manually overridden & Medium \\
+\hline
+STK-RS-008 & Remote start must maintain cabin comfort through climate control pre-conditioning & Medium \\
+\hline
+\end{longtable}
+
+\subsection{System Requirements (10 total)}
+
+\begin{longtable}{|p{2.5cm}|p{10cm}|p{2cm}|}
+\caption{System Requirements}\label{tab:system_req}\\
+\hline
+\textbf{ID} & \textbf{Description} & \textbf{Priority} \\
+\hline
+\endfirsthead
+\hline
+\textbf{ID} & \textbf{Description} & \textbf{Priority} \\
+\hline
+\endhead
+\hline
+\endfoot
+
+SYS-RS-001 & System shall authenticate user identity using cryptographic tokens before allowing remote start & Critical (ASIL B) \\
+\hline
+SYS-RS-002 & System shall verify all safety interlocks (parking brake, neutral, doors closed) before starting & Critical (ASIL B) \\
+\hline
+SYS-RS-003 & System shall establish secure encrypted communication channel between smartphone and vehicle & Critical \\
+\hline
+SYS-RS-004 & System shall monitor battery state and prevent start if below 20\% (EV) or 11V (ICE) & High \\
+\hline
+SYS-RS-005 & System shall activate appropriate powertrain control strategy based on vehicle type & Critical \\
+\hline
+SYS-RS-006 & System shall send status notifications (success/failure/warnings) to user smartphone & High \\
+\hline
+SYS-RS-007 & System shall implement automatic shutdown timer with maximum 10 minute duration & High \\
+\hline
+SYS-RS-008 & System shall activate climate control to target temperature based on user preferences & Medium \\
+\hline
+SYS-RS-009 & System shall log all remote start attempts with timestamp and result for audit trail & Medium \\
+\hline
+SYS-RS-010 & System shall detect tampering or replay attacks and raise security alerts & Critical \\
+\hline
+\end{longtable}
+
+\subsection{Functional Requirements (4 total)}
+
+\begin{longtable}{|p{2.5cm}|p{10cm}|p{2cm}|}
+\caption{Functional Requirements}\label{tab:functional_req}\\
+\hline
+\textbf{ID} & \textbf{Description} & \textbf{Priority} \\
+\hline
+\endfirsthead
+\hline
+\textbf{ID} & \textbf{Description} & \textbf{Priority} \\
+\hline
+\endhead
+\hline
+\endfoot
+
+FUNC-RS-001 & Remote start request processing shall validate user credentials within 500ms & Critical \\
+\hline
+FUNC-RS-002 & Safety interlock validation shall check all preconditions within 200ms & Critical (ASIL B) \\
+\hline
+FUNC-RS-003 & Powertrain control shall initiate start sequence based on vehicle type & Critical \\
+\hline
+FUNC-RS-004 & Notification service shall deliver status updates with 99.9\% reliability & High \\
+\hline
+\end{longtable}
+
+\subsection{Safety Requirements (3 total)}
+
+\begin{longtable}{|p{2.5cm}|p{10cm}|p{2cm}|}
+\caption{Safety Requirements (ISO 26262)}\label{tab:safety_req}\\
+\hline
+\textbf{ID} & \textbf{Description} & \textbf{ASIL} \\
+\hline
+\endfirsthead
+\hline
+\textbf{ID} & \textbf{Description} & \textbf{ASIL} \\
+\hline
+\endhead
+\hline
+\endfoot
+
+SAFE-RS-001 & Remote start controller shall implement watchdog monitoring with 100ms timeout & ASIL B \\
+\hline
+SAFE-RS-002 & Safety interlock failure shall inhibit remote start and log fault code & ASIL B \\
+\hline
+SAFE-RS-003 & Remote start shall be inhibited if any ASIL B or higher fault is active & ASIL B \\
+\hline
+\end{longtable}
+
+\subsection{Security Requirements (4 total)}
+
+\begin{longtable}{|p{2.5cm}|p{10cm}|p{2cm}|}
+\caption{Security Requirements (ISO/SAE 21434)}\label{tab:security_req}\\
+\hline
+\textbf{ID} & \textbf{Description} & \textbf{Priority} \\
+\hline
+\endfirsthead
+\hline
+\textbf{ID} & \textbf{Description} & \textbf{Priority} \\
+\hline
+\endhead
+\hline
+\endfoot
+
+SEC-RS-001 & All remote commands shall use AES-256 encryption with perfect forward secrecy & Critical \\
+\hline
+SEC-RS-002 & System shall implement certificate-based authentication with hardware-backed key storage & Critical \\
+\hline
+SEC-RS-003 & Replay attack detection shall use cryptographic nonce with maximum 5 second window & Critical \\
+\hline
+SEC-RS-004 & Failed authentication attempts shall trigger exponential backoff after 3 failures & High \\
+\hline
+\end{longtable}
+
+\subsection{Regulatory Requirements (4 total)}
+
+\begin{longtable}{|p{2.5cm}|p{10cm}|p{2cm}|}
+\caption{Regulatory Compliance Requirements}\label{tab:regulatory_req}\\
+\hline
+\textbf{ID} & \textbf{Description} & \textbf{Priority} \\
+\hline
+\endfirsthead
+\hline
+\textbf{ID} & \textbf{Description} & \textbf{Priority} \\
+\hline
+\endhead
+\hline
+\endfoot
+
+REG-RS-001 & System shall comply with FCC Part 15 for radiated emissions & Critical \\
+\hline
+REG-RS-002 & Remote start duration shall comply with local idle time regulations (max 10 min) & High \\
+\hline
+REG-RS-003 & System shall comply with GDPR for user data privacy and consent & High \\
+\hline
+REG-RS-004 & Remote start shall comply with UNECE R100 for electric vehicle safety & High \\
+\hline
+\end{longtable}
+
+% ============================================================================
+\section{Interface Specifications}
+% ============================================================================
+
+\subsection{Communication Protocols}
+
+The system uses multiple communication protocols across different layers:
+
+\begin{table}[htbp]
+\centering
+\caption{Communication Protocols by Layer}
+\label{tab:protocols}
+\begin{tabular}{|l|l|p{7cm}|}
+\hline
+\textbf{Layer} & \textbf{Protocol} & \textbf{Usage} \\
+\hline
+User & HTTPS & Smartphone to cloud backend \\
+\hline
+User & OAuth/JWT & Authentication token exchange \\
+\hline
+Connectivity & LTE/5G & Cloud to vehicle TCU \\
+\hline
+Connectivity & MQTT & Cloud pub/sub messaging \\
+\hline
+Control & CAN & High-speed vehicle bus (500 Kbps) \\
+\hline
+Control & CAN FD & Fast CAN for HV systems (2 Mbps) \\
+\hline
+Vehicle & LIN & Body electronics (19.2 Kbps) \\
+\hline
+\end{tabular}
+\end{table}
+
+\subsection{Key Interface Flows}
+
+\subsubsection{Remote Start Request Flow}
+\begin{enumerate}[leftmargin=*]
+    \item User initiates remote start via smartphone app
+    \item App generates authentication token and encrypts request
+    \item HTTPS request sent to cloud backend
+    \item Cloud validates token and queues request
+    \item MQTT message sent to vehicle TCU
+    \item TCU decrypts and validates command signature
+    \item CAN message sent to Remote Start Controller
+    \item Controller validates safety interlocks
+    \item Start command sent to appropriate powertrain (ECM/BMS/HCU)
+    \item Status confirmation sent back through chain
+\end{enumerate}
+
+\subsubsection{Safety Interlock Validation Flow}
+\begin{enumerate}[leftmargin=*]
+    \item Remote Start Controller requests interlock validation
+    \item Safety Interlock Validator queries Body Control Module
+    \item BCM reads door sensors, parking brake, and transmission position
+    \item Interlock status returned to controller (200ms max)
+    \item If valid, start sequence proceeds
+    \item If invalid, request denied and fault logged
+\end{enumerate}
+
+% ============================================================================
+\section{ArcViz Engine Configuration}
+% ============================================================================
+
+\subsection{Capella Diagram Standards}
+
+The architectural diagrams are generated using the ArcViz engine, configured to follow Eclipse Capella visualization standards:
+
+\begin{tcolorbox}[colback=arcblue!5,colframe=arcblue,title=ArcViz Capella Configuration]
+\begin{itemize}[leftmargin=*]
+    \item \textbf{Port Distribution} - IN (required) left/green, OUT (provided) right/orange
+    \item \textbf{Port Spacing} - 50px vertical spacing to prevent label overlap
+    \item \textbf{Node Spacing} - 350px horizontal, 200px vertical between components
+    \item \textbf{Layer Swimlanes} - Dashed borders (8px dash, 4px gap) with 50px top padding
+    \item \textbf{Exchange Items} - White label boxes on edges showing protocols
+    \item \textbf{ASIL Badges} - Colored circles (B=orange, C=red, D=dark red)
+    \item \textbf{Auto-Sizing} - Dynamic component sizing based on port count and functions
+    \item \textbf{Zero Overlaps} - Guaranteed through Dagre layout + clipping
+\end{itemize}
+\end{tcolorbox}
+
+\subsection{Layout Configuration}
+
+\begin{lstlisting}[language=JavaScript,caption={ArcViz Engine Configuration},basicstyle=\ttfamily\scriptsize]
+const ARCVIZ_CONFIG = {
+    layout: {
+        rankdir: 'TB',        // Top-to-bottom layout
+        nodesep: 350,         // Horizontal spacing (px)
+        ranksep: 200,         // Vertical spacing (px)
+        marginx: 150,         // Left/right margins (px)
+        marginy: 100,         // Top/bottom margins (px)
+        edgesep: 100          // Edge separation (px)
+    },
+    port: {
+        size: 12,             // Port square size (px)
+        spacing: 50,          // Vertical port spacing (px)
+        colors: {
+            inFill: '#4caf50',   // Green for IN ports
+            outFill: '#ff9800'   // Orange for OUT ports
+        }
+    },
+    safety: {
+        colors: {
+            ASIL_B: '#ff9800',   // Orange
+            ASIL_C: '#f44336',   // Red  
+            ASIL_D: '#d32f2f'    // Dark red
+        }
+    }
+};
+\end{lstlisting}
+
+% ============================================================================
+\section{Traceability Matrix}
+% ============================================================================
+
+\subsection{Requirements Traceability}
+
+Complete traceability from stakeholder requirements through system requirements to functional requirements:
+
+\begin{table}[htbp]
+\centering
+\caption{Requirements Traceability Matrix}
+\label{tab:traceability}
+\begin{tabular}{|l|l|p{7cm}|}
+\hline
+\textbf{Stakeholder} & \textbf{System} & \textbf{Functional} \\
+\hline
+STK-RS-001 & SYS-RS-001 & FUNC-RS-001 \\
+ & SYS-RS-003 & \\
+\hline
+STK-RS-002 & SYS-RS-002 & FUNC-RS-002 \\
+\hline
+STK-RS-003 & SYS-RS-005 & FUNC-RS-003 \\
+\hline
+STK-RS-004 & SYS-RS-001 & FUNC-RS-001 \\
+ & SYS-RS-003 & \\
+ & SYS-RS-010 & \\
+\hline
+STK-RS-006 & SYS-RS-006 & FUNC-RS-004 \\
+\hline
+STK-RS-007 & SYS-RS-007 & - \\
+\hline
+STK-RS-008 & SYS-RS-008 & - \\
+\hline
+\end{tabular}
+\end{table}
+
+% ============================================================================
+\section{Compilation and Export}
+% ============================================================================
+
+\subsection{Compiling ArcLang to Diagrams}
+
+To generate the architecture diagrams and explorer from the ArcLang source:
+
+\begin{tcolorbox}[colback=codebg,colframe=black,title=Compilation Commands]
+\begin{verbatim}
+# Navigate to ArcLang directory
+cd /Users/malek/Arclang
+
+# Compile ArcLang to Architecture Explorer (HTML)
+cargo run --bin arclang -- explorer \
+    examples/remote_start_architecture.arc
+
+# Open the generated explorer
+open examples/remote_start_architecture_explorer.html
+
+# Export diagram as SVG for LaTeX inclusion
+# (Click "Export SVG" button in the web interface)
+\end{verbatim}
+\end{tcolorbox}
+
+\subsection{Export Formats}
+
+The ArcLang compiler supports multiple export formats:
+
+\begin{itemize}[leftmargin=*]
+    \item \textbf{HTML Explorer} - Interactive web-based architecture browser
+    \item \textbf{SVG} - Scalable vector graphics for documentation
+    \item \textbf{PNG} - Raster images for presentations
+    \item \textbf{PDF} - High-quality print output
+    \item \textbf{JSON} - Machine-readable architecture data
+    \item \textbf{Markdown} - Requirements documentation
+\end{itemize}
+
+% ============================================================================
+\section{Conclusion}
+% ============================================================================
+
+\subsection{Summary}
+
+This document has presented a complete Arcadia architecture for a Vehicle Remote Start System, implemented using the ArcLang Domain-Specific Language. The architecture demonstrates:
+
+\begin{itemize}[leftmargin=*]
+    \item \textbf{Complete Arcadia Methodology} - All 4 layers from stakeholder needs to physical implementation
+    \item \textbf{Safety Compliance} - ISO 26262 ASIL B for safety-critical components
+    \item \textbf{Security-by-Design} - ISO/SAE 21434 with AES-256 encryption and certificate authentication
+    \item \textbf{Capella Standards} - Professional diagrams following Eclipse Capella conventions
+    \item \textbf{Full Traceability} - Every stakeholder requirement traced to implementation
+    \item \textbf{DSL Benefits} - Concise, maintainable architecture in 807 lines of ArcLang code
+\end{itemize}
+
+\subsection{Architecture Statistics}
+
+\begin{table}[htbp]
+\centering
+\caption{Architecture Metrics}
+\label{tab:metrics}
+\begin{tabular}{|l|r|l|}
+\hline
+\textbf{Metric} & \textbf{Count} & \textbf{Details} \\
+\hline
+ArcLang Lines of Code & 807 & Complete architecture definition \\
+\hline
+Requirements & 33 & Stakeholder, System, Functional, Safety, Security, Regulatory \\
+\hline
+Logical Components & 25 & Across 4 architectural layers \\
+\hline
+Physical Components & 9 & ECUs and software modules \\
+\hline
+Interfaces & 16 & Component-to-component connections \\
+\hline
+Functions & 32 & Behavioral operations \\
+\hline
+Trace Links & 8 & Requirement traceability \\
+\hline
+ASIL B Components & 10 & Safety-critical elements \\
+\hline
+Communication Protocols & 7 & HTTPS, CAN, CAN FD, LIN, MQTT, OAuth, LTE \\
+\hline
+\end{tabular}
+\end{table}
+
+\subsection{Next Steps}
+
+\begin{enumerate}[leftmargin=*]
+    \item \textbf{Physical Architecture Detailing} - Complete ECU pinout and network topology
+    \item \textbf{Safety Analysis} - FMEA, FTA, FMEDA for ASIL B components
+    \item \textbf{Security Threat Analysis} - TARA per ISO/SAE 21434
+    \item \textbf{Code Generation} - Generate AUTOSAR RTE configuration
+    \item \textbf{V\&V Planning} - Test cases derived from requirements
+    \item \textbf{Simulation} - Model-in-the-loop validation
+\end{enumerate}
+
+% ============================================================================
+\section*{Appendices}
+% ============================================================================
+
+\appendix
+
+\section{ArcLang Language Reference}
+\label{app:arclang_ref}
+
+ArcLang keywords and constructs used in this architecture:
+
+\begin{description}[leftmargin=3cm,style=nextline]
+    \item[\texttt{model}] Top-level architecture model declaration
+    \item[\texttt{metadata}] Model metadata (version, standards, domain)
+    \item[\texttt{requirements}] Requirement block (stakeholder, system, functional, safety, security, regulatory)
+    \item[\texttt{req}] Individual requirement with ID and description
+    \item[\texttt{architecture}] Architecture layer (logical, physical)
+    \item[\texttt{component}] Architectural component with ID, layer, stereotype
+    \item[\texttt{interface\_in}] Required interface (input port)
+    \item[\texttt{interface\_out}] Provided interface (output port)
+    \item[\texttt{function}] Behavioral function within component
+    \item[\texttt{interface}] Connection between components (from/to)
+    \item[\texttt{trace}] Traceability link (satisfies)
+    \item[\texttt{safety\_level}] ASIL level (ASIL\_B, ASIL\_C, ASIL\_D)
+    \item[\texttt{priority}] Requirement priority (Critical, High, Medium, Low)
+\end{description}
+
+\section{Abbreviations and Acronyms}
+\label{app:acronyms}
+
+\begin{description}[leftmargin=3cm,style=nextline]
+    \item[ASIL] Automotive Safety Integrity Level
+    \item[BCM] Body Control Module
+    \item[BMS] Battery Management System
+    \item[CAN] Controller Area Network
+    \item[ECU] Electronic Control Unit
+    \item[FD] Flexible Data-rate (CAN FD)
+    \item[FMEA] Failure Mode and Effects Analysis
+    \item[FTA] Fault Tree Analysis
+    \item[GDPR] General Data Protection Regulation
+    \item[HCU] Hybrid Control Unit
+    \item[HVAC] Heating, Ventilation, and Air Conditioning
+    \item[HV] High Voltage
+    \item[ICE] Internal Combustion Engine
+    \item[JWT] JSON Web Token
+    \item[LIN] Local Interconnect Network
+    \item[MBSE] Model-Based Systems Engineering
+    \item[MQTT] Message Queuing Telemetry Transport
+    \item[TCU] Telematics Control Unit
+    \item[V\&V] Verification and Validation
+\end{description}
+
+\section{References}
+\label{app:references}
+
+\begin{enumerate}[leftmargin=*]
+    \item ISO 26262:2018 - Road vehicles — Functional safety
+    \item ISO/SAE 21434:2021 - Road vehicles — Cybersecurity engineering
+    \item UNECE Regulation No. 100 - Electric power trained vehicles
+    \item Arcadia Methodology - Eclipse Capella project documentation
+    \item ArcLang DSL Specification - \url{https://github.com/arclang}
+    \item FCC Part 15 - Radio Frequency Devices
+    \item GDPR - General Data Protection Regulation (EU 2016/679)
+\end{enumerate}
+
+% ============================================================================
+% Document end
+% ============================================================================
+
+\end{document}

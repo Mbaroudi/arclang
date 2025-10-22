@@ -144,6 +144,17 @@ pub enum Commands {
         port: Option<u16>,
     },
     
+    Explorer {
+        #[clap(value_parser)]
+        input: PathBuf,
+        
+        #[clap(short, long, value_parser)]
+        output: Option<PathBuf>,
+        
+        #[clap(long, help = "Open in browser after generation")]
+        open: bool,
+    },
+    
     Repl {
         #[clap(value_parser)]
         project: Option<PathBuf>,
@@ -274,6 +285,7 @@ pub enum ExportFormat {
     ArcVizChannel,
     ArcVizPerfect,
     ArcVizUltimate,
+    ArcVizEnhanced,
     HTML,
     PDF,
     Terraform,
@@ -352,6 +364,9 @@ impl CliRunner {
             }
             Commands::Lsp { stdio, port } => {
                 self.run_lsp(stdio, port)
+            }
+            Commands::Explorer { input, output, open } => {
+                self.run_explorer(input, output, open)
             }
             Commands::Repl { project } => {
                 self.run_repl(project)
@@ -590,6 +605,7 @@ impl CliRunner {
             ExportFormat::ArcVizChannel => "json".to_string(),
             ExportFormat::ArcVizPerfect => "json".to_string(),
             ExportFormat::ArcVizUltimate => "json".to_string(),
+            ExportFormat::ArcVizEnhanced => "json".to_string(),
             ExportFormat::HTML => "json".to_string(),
             ExportFormat::PDF => "json".to_string(),
             ExportFormat::YAML => "json".to_string(),
@@ -643,6 +659,11 @@ impl CliRunner {
                         let svg = generate_ultimate_arcviz(&result.semantic_model, "System Architecture")
                             .map_err(|e| CliError::Compilation(e.to_string()))?;
                         wrap_ultimate_html("System Architecture", &svg)
+                    }
+                    ExportFormat::ArcVizEnhanced => {
+                        use crate::compiler::arcviz_enhanced::generate_enhanced_html;
+                        generate_enhanced_html(&result.semantic_model)
+                            .map_err(|e| CliError::Compilation(e.to_string()))?
                     }
                     ExportFormat::HTML => {
                         // Use ArcVizUltimate for HTML export (best visualization)
@@ -818,6 +839,67 @@ impl CliRunner {
         }
         
         Ok(())
+    }
+    
+    fn run_explorer(
+        &self,
+        input: PathBuf,
+        output: Option<PathBuf>,
+        open: bool,
+    ) -> Result<(), CliError> {
+        println!("🔍 Generating Architecture Explorer from {}...", input.display());
+        
+        let config = crate::CompilerConfig::default();
+        let mut compiler = crate::Compiler::new(config);
+        
+        match compiler.compile_file(&input) {
+            Ok(result) => {
+                use crate::compiler::arcviz_explorer::generate_explorer_html;
+                
+                let (html, json) = generate_explorer_html(&result.semantic_model)
+                    .map_err(|e| CliError::Compilation(e.to_string()))?;
+                
+                let output_html = output.unwrap_or_else(|| {
+                    input.with_file_name(format!("{}_explorer.html", 
+                        input.file_stem().unwrap().to_str().unwrap()))
+                });
+                
+                let output_json = output_html.with_extension("json");
+                
+                std::fs::write(&output_html, &html)
+                    .map_err(|e| CliError::Io(e))?;
+                std::fs::write(&output_json, &json)
+                    .map_err(|e| CliError::Io(e))?;
+                
+                println!("✓ Architecture Explorer generated successfully");
+                println!("  Input: {}", input.display());
+                println!("  Output: {}", output_html.display());
+                println!("  Data: {}", output_json.display());
+                println!("  Requirements: {}", result.semantic_model.requirements.len());
+                println!("  Components: {}", result.semantic_model.components.len());
+                println!("  Interfaces: {}", result.semantic_model.interfaces.len());
+                println!("  Functions: {}", result.semantic_model.functions.len());
+                
+                println!("\n📋 Features:");
+                println!("  • Interactive architecture diagram");
+                println!("  • Expandable requirements & components");
+                println!("  • Complete traceability matrix");
+                println!("  • Floating table of contents");
+                println!("  • PDF & HTML export");
+                
+                if open {
+                    println!("\n🌐 Opening explorer in browser...");
+                    opener::open(&output_html)
+                        .map_err(|e| CliError::Io(std::io::Error::new(std::io::ErrorKind::Other, e)))?;
+                }
+                
+                Ok(())
+            }
+            Err(e) => {
+                eprintln!("✗ Explorer generation failed: {}", e);
+                Err(CliError::Compilation(e.to_string()))
+            }
+        }
     }
     
     fn run_diagram(

@@ -48,6 +48,10 @@ impl Parser {
                 Token::Trace => {
                     model.traces.push(self.parse_trace()?);
                 }
+                Token::Scenario | Token::Dataflow => {
+                    // Skip scenario and dataflow blocks for now
+                    self.skip_until_brace_balanced()?;
+                }
                 Token::Eof => break,
                 _ => return Err(format!("Unexpected token: {}", self.current())),
             }
@@ -502,12 +506,20 @@ impl Parser {
         self.expect(Token::LeftBrace)?;
         
         let mut functions = Vec::new();
+        let mut interfaces_in = Vec::new();
+        let mut interfaces_out = Vec::new();
         let mut attributes = HashMap::new();
         
         while !self.check(&Token::RightBrace) && !self.is_at_end() {
             match self.current() {
                 Token::Function => {
                     functions.push(self.parse_logical_function()?);
+                }
+                Token::InterfaceIn => {
+                    interfaces_in.push(self.parse_interface_definition()?);
+                }
+                Token::InterfaceOut => {
+                    interfaces_out.push(self.parse_interface_definition()?);
                 }
                 Token::Provides | Token::Requires => {
                     // Skip provides/requires interface blocks
@@ -539,6 +551,8 @@ impl Parser {
         Ok(LogicalComponent {
             name,
             functions,
+            interfaces_in,
+            interfaces_out,
             attributes,
         })
     }
@@ -561,21 +575,28 @@ impl Parser {
         let mut to = String::new();
         
         while !self.check(&Token::RightBrace) && !self.is_at_end() {
-            if let Token::Identifier(ref id) = self.current() {
-                if id == "from" {
+            match self.current() {
+                Token::From => {
                     self.advance();
                     self.expect(Token::Colon)?;
                     from = self.expect_string()?;
-                } else if id == "to" {
+                }
+                Token::To => {
                     self.advance();
                     self.expect(Token::Colon)?;
                     to = self.expect_string()?;
-                } else {
+                }
+                Token::Description => {
+                    self.advance();
+                    self.expect(Token::Colon)?;
+                    let desc = self.expect_string()?;
+                    attributes.insert("description".to_string(), AttributeValue::String(desc));
+                }
+                Token::Identifier(_) => {
                     let (key, value) = self.parse_attribute()?;
                     attributes.insert(key, value);
                 }
-            } else {
-                break;
+                _ => break,
             }
         }
         
@@ -953,8 +974,11 @@ impl Parser {
         } else if let Token::Implements = self.current() {
             self.advance();
             "implements".to_string()
+        } else if let Token::Validates = self.current() {
+            self.advance();
+            "validates".to_string()
         } else {
-            return Err("Expected trace type (satisfies, implements, etc.)".to_string());
+            return Err("Expected trace type (satisfies, implements, validates, etc.)".to_string());
         };
         
         let to = self.expect_string()?;
@@ -1120,5 +1144,75 @@ impl Parser {
     
     fn is_at_end(&self) -> bool {
         matches!(self.current(), Token::Eof)
+    }
+    
+    fn skip_until_brace_balanced(&mut self) -> Result<(), String> {
+        // Skip the keyword (scenario, dataflow, etc.)
+        self.advance();
+        
+        // Skip identifiers/strings until we hit a brace
+        while !self.is_at_end() && !matches!(self.current(), Token::LeftBrace) {
+            self.advance();
+        }
+        
+        // Now skip the balanced braces
+        if matches!(self.current(), Token::LeftBrace) {
+            self.skip_block()?;
+        }
+        
+        Ok(())
+    }
+    
+    fn parse_interface_definition(&mut self) -> Result<InterfaceDefinition, String> {
+        // Parse interface_in or interface_out
+        if !matches!(self.current(), Token::InterfaceIn | Token::InterfaceOut) {
+            return Err(format!("Expected interface_in or interface_out, got {}", self.current()));
+        }
+        self.advance();
+        
+        // Expect colon
+        self.expect(Token::Colon)?;
+        
+        // Interface name (string literal)
+        let name = self.expect_string()?;
+        
+        // Expect left brace
+        self.expect(Token::LeftBrace)?;
+        
+        let mut protocol = None;
+        let mut format = None;
+        let mut attributes = HashMap::new();
+        
+        // Parse interface attributes
+        while !self.check(&Token::RightBrace) && !self.is_at_end() {
+            match self.current() {
+                Token::Protocol => {
+                    self.advance();
+                    self.expect(Token::Colon)?;
+                    protocol = Some(self.expect_string()?);
+                }
+                Token::Identifier(ref id) if id == "format" => {
+                    self.advance();
+                    self.expect(Token::Colon)?;
+                    format = Some(self.expect_string()?);
+                }
+                Token::Identifier(_) => {
+                    let (key, value) = self.parse_attribute()?;
+                    attributes.insert(key, value);
+                }
+                _ => {
+                    self.advance();
+                }
+            }
+        }
+        
+        self.expect(Token::RightBrace)?;
+        
+        Ok(InterfaceDefinition {
+            name,
+            protocol,
+            format,
+            attributes,
+        })
     }
 }

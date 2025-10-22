@@ -6,15 +6,16 @@ Complete architecture examples demonstrating the ArcLang Domain-Specific Languag
 
 ```
 examples/
-├── automotive/          # Automotive domain architectures
-│   ├── remote_start/   # Complete remote start system (ISO 26262 ASIL B)
-│   ├── acc_*.arc       # Adaptive Cruise Control examples
+├── automotive/                    # Automotive domain architectures
+│   ├── remote_start/             # Complete remote start system (ISO 26262 ASIL B)
+│   ├── acc_*.arc                 # Adaptive Cruise Control examples
 │   └── adaptive_cruise_control.arc
-├── aerospace/          # Aerospace domain architectures
+├── aerospace/                     # Aerospace domain architectures
 │   └── flight_control_system.arc
-├── defense/            # Defense domain architectures
+├── defense/                       # Defense domain architectures
 │   └── mission_computer.arc
-└── business/           # Business domain architectures
+└── business/                      # Business domain architectures
+    ├── data_platform_migration/  # Enterprise data platform migration
     └── pluxee_analytics.arc
 ```
 
@@ -37,7 +38,6 @@ A complete, production-ready architecture for a Vehicle Remote Start System demo
 **Files:**
 - `remote_start_architecture.arc` (807 lines) - Complete ArcLang source
 - `remote_start_architecture_explorer.html` (109 KB) - Interactive web viewer
-- `remote_start_architecture_report.tex` - LaTeX documentation (40+ pages)
 - `remote_start_diagram.svg` - Capella-compliant architecture diagram
 - `remote_start_explorer_package.zip` - Shareable package
 - `WORKFLOW_DEMO.md` - Complete workflow from prompt to architecture
@@ -127,6 +127,37 @@ cargo run --bin arclang -- explorer examples/defense/mission_computer.arc
 ---
 
 ## 💼 Business Examples
+
+### Data Platform Migration (Complete Architecture)
+
+**Location:** `business/data_platform_migration/`
+
+Enterprise-grade data platform migration from Oracle/Snowflake to Databricks demonstrating:
+- ✅ Complete migration architecture (868 lines)
+- ✅ 27 requirements with traceability
+- ✅ 24 components across 8 architectural layers
+- ✅ Bidirectional sync and data validation
+- ✅ Zero-downtime migration strategy
+- ✅ GDPR/CCPA compliance
+
+**Files:**
+- `data_platform_migration.arc` (868 lines) - Complete ArcLang source
+- `data_platform_migration_explorer.html` (98 KB) - Interactive web viewer
+- `data_platform_migration_explorer.json` - Architecture data
+
+**Generate Explorer:**
+```bash
+cargo run --bin arclang -- explorer examples/business/data_platform_migration/data_platform_migration.arc
+```
+
+**Key Features:**
+- 8 migration layers (Source, Target, Processing, Governance, etc.)
+- Automated schema mapping
+- Data validation framework
+- Rollback procedures
+- Incremental migration waves
+
+---
 
 ### Pluxee Analytics Platform
 

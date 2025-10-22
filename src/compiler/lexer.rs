@@ -24,6 +24,7 @@ pub enum Token {
     Deploys,
     Implements,
     Satisfies,
+    Validates,
     // New MBSE keywords
     Model,
     Metadata,
@@ -75,6 +76,14 @@ pub enum Token {
     DataFlows,
     SafetyMeasures,
     Req,
+    InterfaceIn,
+    InterfaceOut,
+    In,
+    Out,
+    Dataflow,
+    Step,
+    Action,
+    Participants,
     
     // Literals
     Identifier(String),
@@ -292,6 +301,7 @@ impl Lexer {
             "deploys" => Token::Deploys,
             "implements" => Token::Implements,
             "satisfies" => Token::Satisfies,
+            "validates" => Token::Validates,
             // New MBSE keywords
             "model" => Token::Model,
             "metadata" => Token::Metadata,
@@ -343,6 +353,13 @@ impl Lexer {
             "data_flows" => Token::DataFlows,
             "safety_measures" => Token::SafetyMeasures,
             "req" => Token::Req,
+            "interface_in" => Token::InterfaceIn,
+            "interface_out" => Token::InterfaceOut,
+            "in" => Token::In,
+            "out" => Token::Out,
+            "dataflow" => Token::Dataflow,
+            "step" => Token::Step,
+            "participants" => Token::Participants,
             _ => Token::Identifier(ident),
         };
         
