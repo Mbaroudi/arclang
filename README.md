@@ -11,29 +11,32 @@
 
 ## ✨ Highlights
 
-- 🎯 **Zero-crossing diagrams** - Professional Capella-quality visualizations
+- 🎯 **ELK Layout Engine** - Eclipse Layout Kernel for professional Capella-style diagrams
 - ⚡ **Fast compilation** - < 1 second for typical models
 - 🛡️ **Safety certified** - ISO 26262, DO-178C, IEC 61508 ready
 - 🔄 **Bidirectional** - ArcLang ↔ Capella XML conversion
-- 📊 **Interactive diagrams** - Zoom, pan, export to SVG
-- ✅ **Production ready** - 100% test coverage, validated examples
+- 📊 **Interactive diagrams** - Native port positioning, orthogonal routing, zoom/pan
+- ✅ **Production ready** - ELK default, Dagre fallback, validated examples
 
 ---
 
-## 🎨 Capella-Quality Diagrams
+## 🎨 Capella-Quality Diagrams with ELK
 
-**NEW**: Generate professional diagrams with **mathematically guaranteed zero crossings**!
+**NEW**: Professional architecture diagrams using **Eclipse Layout Kernel (ELK)**!
 
 ```bash
-arclang export model.arc -o diagram.html -f arc-viz-ultimate
+arclang explorer model.arc
 ```
 
 ### Features
-- ✅ **Zero crossings** - Mathematical guarantee via side-channel routing
-- ✅ **Thin arrows** - Subtle 1.5px lines, professional appearance
-- ✅ **Interactive** - Zoom, pan, hover effects
-- ✅ **SVG export** - Vector graphics for documentation
-- ✅ **Certification ready** - Suitable for ISO 26262 / DO-178C submissions
+- ✅ **ELK Layout Engine** - Hierarchical layout with native port support
+- ✅ **Orthogonal Routing** - Clean 90° edges (Capella standard)
+- ✅ **Native Ports** - FIXED_SIDE constraints (WEST/EAST)
+- ✅ **Hierarchical Layers** - Multi-level architecture visualization
+- ✅ **Interactive** - Zoom, pan, hover tooltips
+- ✅ **Auto-sizing** - Components adapt to label length
+- ✅ **Safety Badges** - ASIL level indicators
+- ✅ **Dual Engine** - ELK primary, Dagre fallback
 
 **Example: Code → Diagram**
 

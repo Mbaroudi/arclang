@@ -16,16 +16,22 @@ async function renderWithELK(diagramData) {
     
     // Run ELK layout
     console.time('ELK Layout');
-    const layoutGraph = await elk.layout(elkGraph);
-    console.timeEnd('ELK Layout');
-    
-    // Render with D3
-    console.time('D3 Render');
-    renderELKGraph(layoutGraph, diagramData);
-    console.timeEnd('D3 Render');
-    
-    console.timeEnd('ELK Total');
-    console.log('✓ ELK diagram rendered:', diagramData.nodes.length, 'nodes,', (diagramData.edges || []).length, 'edges');
+    try {
+        const layoutGraph = await elk.layout(elkGraph);
+        console.timeEnd('ELK Layout');
+
+        // Render with D3
+        console.time('D3 Render');
+        renderELKGraph(layoutGraph, diagramData);
+        console.timeEnd('D3 Render');
+
+        console.timeEnd('ELK Total');
+        console.log('✓ ELK diagram rendered:', diagramData.nodes.length, 'nodes,', (diagramData.edges || []).length, 'edges');
+    } catch (err) {
+        console.error('✗ ELK layout failed:', err);
+        console.log('Falling back to Dagre...');
+        renderWithDagre(diagramData);
+    }
 }
 
 /**
@@ -93,7 +99,7 @@ function convertToELKGraph(diagramData) {
         elkGraph.children.push(layerNode);
     });
     
-    // Add edges
+    // Add edges (ELK auto-resolves hierarchy by node ID)
     if (diagramData.edges) {
         diagramData.edges.forEach(edge => {
             if (edge.source && edge.target) {
