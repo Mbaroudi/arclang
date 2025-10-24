@@ -53,8 +53,6 @@ system_analysis "Analytics Platform Requirements" {
         description: "System shall provide consolidated KPI monitoring across all markets with real-time dashboards"
         priority: "Critical"
         category: "Executive Analytics"
-        stakeholder: "Executive"
-        acceptance_criteria: "Dashboard shows KPIs from all markets in unified view"
     }
     
     requirement "BR-ANALYTICS-002" {
@@ -63,7 +61,6 @@ system_analysis "Analytics Platform Requirements" {
         description: "System shall analyze benefit program performance across client base"
         priority: "Critical"
         category: "Executive Analytics"
-        stakeholder: "Executive"
     }
     
     // Market Analytics Requirements
@@ -73,7 +70,6 @@ system_analysis "Analytics Platform Requirements" {
         description: "System shall analyze transaction patterns to identify trends and anomalies"
         priority: "High"
         category: "Market Analytics"
-        stakeholder: "Market Analyst"
     }
     
     requirement "BR-ANALYTICS-004" {
@@ -82,7 +78,6 @@ system_analysis "Analytics Platform Requirements" {
         description: "System shall track and analyze consumer behavior patterns"
         priority: "High"
         category: "Market Analytics"
-        stakeholder: "Market Analyst"
     }
     
     // Merchant Analytics Requirements
@@ -92,7 +87,6 @@ system_analysis "Analytics Platform Requirements" {
         description: "System shall analyze individual merchant performance metrics"
         priority: "High"
         category: "Merchant Analytics"
-        stakeholder: "Merchant Manager"
     }
     
     requirement "BR-ANALYTICS-006" {
@@ -101,7 +95,6 @@ system_analysis "Analytics Platform Requirements" {
         description: "System shall track overall merchant network effectiveness"
         priority: "High"
         category: "Merchant Analytics"
-        stakeholder: "Merchant Manager"
     }
     
     // Client Analytics Requirements
@@ -111,7 +104,6 @@ system_analysis "Analytics Platform Requirements" {
         description: "System shall analyze client program performance and engagement"
         priority: "High"
         category: "Client Analytics"
-        stakeholder: "Client Manager"
     }
     
     requirement "BR-ANALYTICS-008" {
@@ -120,7 +112,6 @@ system_analysis "Analytics Platform Requirements" {
         description: "System shall track portfolio performance across all clients"
         priority: "High"
         category: "Client Analytics"
-        stakeholder: "Client Manager"
     }
     
     // Financial Analytics Requirements
@@ -130,7 +121,6 @@ system_analysis "Analytics Platform Requirements" {
         description: "System shall analyze revenue and cost patterns for financial insights"
         priority: "Critical"
         category: "Financial Analytics"
-        stakeholder: "Finance Team"
     }
     
     requirement "BR-ANALYTICS-010" {
@@ -139,7 +129,6 @@ system_analysis "Analytics Platform Requirements" {
         description: "System shall track financial KPIs across all markets"
         priority: "Critical"
         category: "Financial Analytics"
-        stakeholder: "Finance Team"
     }
     
     // Compliance Analytics Requirements
@@ -149,7 +138,6 @@ system_analysis "Analytics Platform Requirements" {
         description: "System shall generate regulatory reports for compliance"
         priority: "Critical"
         category: "Compliance Analytics"
-        stakeholder: "Compliance Officer"
     }
     
     requirement "BR-ANALYTICS-012" {
@@ -158,7 +146,6 @@ system_analysis "Analytics Platform Requirements" {
         description: "System shall track compliance metrics continuously"
         priority: "Critical"
         category: "Compliance Analytics"
-        stakeholder: "Compliance Officer"
     }
     
     // Data Quality Analytics Requirements
@@ -168,7 +155,6 @@ system_analysis "Analytics Platform Requirements" {
         description: "System shall monitor data quality metrics across all data sources"
         priority: "High"
         category: "Data Quality Analytics"
-        stakeholder: "Data Quality Manager"
     }
     
     requirement "BR-ANALYTICS-014" {
@@ -177,7 +163,6 @@ system_analysis "Analytics Platform Requirements" {
         description: "System shall track data lineage from source to analytics"
         priority: "High"
         category: "Data Quality Analytics"
-        stakeholder: "Data Quality Manager"
     }
     
     // Advanced Analytics Requirements
@@ -187,7 +172,6 @@ system_analysis "Analytics Platform Requirements" {
         description: "System shall provide predictive analytics using ML models"
         priority: "Medium"
         category: "Advanced Analytics"
-        stakeholder: "Market Analyst"
     }
     
     requirement "BR-ADV-002" {
@@ -196,7 +180,6 @@ system_analysis "Analytics Platform Requirements" {
         description: "System shall provide prescriptive recommendations based on analytics"
         priority: "Medium"
         category: "Advanced Analytics"
-        stakeholder: "Executive"
     }
     
     // Implementation Requirements
@@ -206,7 +189,6 @@ system_analysis "Analytics Platform Requirements" {
         description: "System shall process analytics queries efficiently at scale"
         priority: "High"
         category: "Implementation"
-        stakeholder: "Technical Team"
     }
     
     requirement "BR-GOV-001" {
@@ -215,7 +197,6 @@ system_analysis "Analytics Platform Requirements" {
         description: "System shall ensure data quality standards for analytics"
         priority: "Critical"
         category: "Implementation"
-        stakeholder: "Data Quality Manager"
     }
 }
 
@@ -228,15 +209,11 @@ logical_architecture "Analytics Platform Architecture" {
         function "Aggregate KPIs" {
             id: "LF-001"
             description: "Aggregates KPIs from all markets"
-            inputs: ["market_kpis", "financial_kpis"]
-            outputs: ["consolidated_kpis"]
         }
         
         function "Analyze Program Performance" {
             id: "LF-002"
             description: "Analyzes benefit program performance"
-            inputs: ["program_data", "client_data"]
-            outputs: ["program_analysis"]
         }
     }
     
@@ -248,15 +225,11 @@ logical_architecture "Analytics Platform Architecture" {
         function "Analyze Transaction Patterns" {
             id: "LF-003"
             description: "Analyzes transaction patterns"
-            inputs: ["transaction_data"]
-            outputs: ["pattern_insights"]
         }
         
         function "Track Consumer Behavior" {
             id: "LF-004"
             description: "Tracks consumer behavior"
-            inputs: ["consumer_data", "transaction_data"]
-            outputs: ["behavior_insights"]
         }
     }
     
@@ -268,15 +241,11 @@ logical_architecture "Analytics Platform Architecture" {
         function "Analyze Merchant Performance" {
             id: "LF-005"
             description: "Analyzes merchant performance"
-            inputs: ["merchant_data", "transaction_data"]
-            outputs: ["merchant_metrics"]
         }
         
         function "Track Network Effectiveness" {
             id: "LF-006"
             description: "Tracks merchant network effectiveness"
-            inputs: ["merchant_metrics", "network_data"]
-            outputs: ["network_insights"]
         }
     }
     
@@ -288,15 +257,11 @@ logical_architecture "Analytics Platform Architecture" {
         function "Analyze Client Programs" {
             id: "LF-007"
             description: "Analyzes client programs"
-            inputs: ["client_data", "program_data"]
-            outputs: ["client_analysis"]
         }
         
         function "Track Portfolio Performance" {
             id: "LF-008"
             description: "Tracks client portfolio performance"
-            inputs: ["client_analysis", "financial_data"]
-            outputs: ["portfolio_metrics"]
         }
     }
     
@@ -308,15 +273,11 @@ logical_architecture "Analytics Platform Architecture" {
         function "Analyze Revenue Patterns" {
             id: "LF-009"
             description: "Analyzes revenue and cost patterns"
-            inputs: ["financial_data", "transaction_data"]
-            outputs: ["financial_insights"]
         }
         
         function "Track Financial KPIs" {
             id: "LF-010"
             description: "Tracks financial KPIs"
-            inputs: ["financial_insights", "market_data"]
-            outputs: ["financial_kpis"]
         }
     }
     
@@ -328,15 +289,11 @@ logical_architecture "Analytics Platform Architecture" {
         function "Generate Regulatory Reports" {
             id: "LF-011"
             description: "Generates regulatory reports"
-            inputs: ["compliance_data", "transaction_data"]
-            outputs: ["regulatory_reports"]
         }
         
         function "Track Compliance Metrics" {
             id: "LF-012"
             description: "Tracks compliance metrics"
-            inputs: ["compliance_data"]
-            outputs: ["compliance_metrics"]
         }
     }
     
@@ -348,15 +305,11 @@ logical_architecture "Analytics Platform Architecture" {
         function "Monitor Data Quality" {
             id: "LF-013"
             description: "Monitors data quality"
-            inputs: ["raw_data"]
-            outputs: ["quality_metrics"]
         }
         
         function "Track Data Lineage" {
             id: "LF-014"
             description: "Tracks data lineage"
-            inputs: ["metadata", "processing_logs"]
-            outputs: ["lineage_graph"]
         }
     }
     
@@ -368,15 +321,11 @@ logical_architecture "Analytics Platform Architecture" {
         function "Predictive Analytics" {
             id: "LF-015"
             description: "Performs predictive analytics"
-            inputs: ["historical_data", "ml_models"]
-            outputs: ["predictions"]
         }
         
         function "Prescriptive Analytics" {
             id: "LF-016"
             description: "Provides prescriptive recommendations"
-            inputs: ["predictions", "business_rules"]
-            outputs: ["recommendations"]
         }
     }
     
@@ -388,15 +337,11 @@ logical_architecture "Analytics Platform Architecture" {
         function "Process Analytics Queries" {
             id: "LF-017"
             description: "Processes analytics queries efficiently"
-            inputs: ["queries"]
-            outputs: ["results"]
         }
         
         function "Ensure Data Quality" {
             id: "LF-018"
             description: "Ensures data quality for analytics"
-            inputs: ["raw_data"]
-            outputs: ["quality_data"]
         }
     }
 }

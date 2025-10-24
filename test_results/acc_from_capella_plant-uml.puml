@@ -1,0 +1,12 @@
+@startuml
+!theme plain
+
+package "System Components" {
+  [ACC Controller]
+  [Sensor Fusion]
+  [Radar Sensor]
+  [Vision Camera]
+}
+
+
+@enduml

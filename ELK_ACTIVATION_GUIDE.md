@@ -1,13 +1,13 @@
-# Guide d'Activation ELK dans ArcViz
+# ELK Activation Guide for ArcViz
 
-## Objectif
-Activer ELK comme moteur de layout par défaut, Dagre en fallback.
+## Objective
+Activate ELK as the default layout engine, with Dagre as fallback.
 
-## Modifications Effectuées
+## Changes Made
 
-### ✅ 1. Template HTML (arcviz_explorer_template.html)
+### ✅ 1. HTML Template (arcviz_explorer_template.html)
 
-**Ligne 8-13:** Ajout d'ELK + initialisation
+**Lines 8-13:** Added ELK + initialization
 ```html
 <script src="https://d3js.org/d3.v7.min.js"></script>
 <script src="https://unpkg.com/elkjs@0.9.3/lib/elk.bundled.js"></script>
@@ -18,7 +18,7 @@ Activer ELK comme moteur de layout par défaut, Dagre en fallback.
 </script>
 ```
 
-**Ligne 17-45:** Configuration mise à jour
+**Lines 17-45:** Updated configuration
 ```javascript
 const ARCVIZ_CONFIG = {
     // Layout Engine Selection
@@ -45,7 +45,7 @@ const ARCVIZ_CONFIG = {
 };
 ```
 
-**Ligne 897-912:** Fonction renderDiagram modifiée
+**Lines 897-912:** Modified renderDiagram function
 ```javascript
 async function renderDiagram() {
     const diagramData = archData.diagram;
@@ -65,7 +65,7 @@ async function renderDiagram() {
 }
 ```
 
-**Ligne 914:** Renommage fonction Dagre
+**Line 914:** Renamed Dagre function
 ```javascript
 function renderWithDagre(diagramData) {
     console.log('📊 Using Dagre-D3 layout engine...');
@@ -73,38 +73,38 @@ function renderWithDagre(diagramData) {
 }
 ```
 
-### ✅ 2. Renderer ELK (arcviz_elk_renderer.js)
+### ✅ 2. ELK Renderer (arcviz_elk_renderer.js)
 
-Fichier complet créé avec:
-- `renderWithELK()` - Point d'entrée principal
-- `convertToELKGraph()` - Conversion ArcLang → ELK
-- `convertNodeToELK()` - Conversion nœuds avec ports
-- `renderELKGraph()` - Rendu D3 du résultat ELK
-- `renderLayer()` - Rendu layers Capella
-- `renderComponent()` - Rendu composants avec style Capella
-- `renderPort()` - Rendu ports natifs ELK (IN/OUT)
-- `renderEdge()` - Rendu edges avec routing orthogonal
-- `setupZoomAndPan()` - Zoom/pan identique à Dagre
+Complete file created with:
+- `renderWithELK()` - Main entry point
+- `convertToELKGraph()` - ArcLang → ELK conversion
+- `convertNodeToELK()` - Node conversion with ports
+- `renderELKGraph()` - D3 rendering of ELK result
+- `renderLayer()` - Capella layer rendering
+- `renderComponent()` - Component rendering with Capella style
+- `renderPort()` - Native ELK port rendering (IN/OUT)
+- `renderEdge()` - Edge rendering with orthogonal routing
+- `setupZoomAndPan()` - Zoom/pan identical to Dagre
 
-## Étapes d'Intégration
+## Integration Steps
 
-### Étape 1: Injecter le renderer ELK dans le template
+### Step 1: Inject ELK renderer into template
 
-Ouvrir `src/compiler/arcviz_explorer_template.html` et ajouter AVANT la ligne `</script>` finale (vers ligne 1600):
+Open `src/compiler/arcviz_explorer_template.html` and add BEFORE the final `</script>` line (around line 1600):
 
 ```html
         // ============================================================================
         // ELK LAYOUT RENDERER
         // ============================================================================
         
-        <<INSÉRER LE CONTENU DE arcviz_elk_renderer.js ICI>>
+        <<INSERT CONTENT OF arcviz_elk_renderer.js HERE>>
         
     </script>
 </body>
 </html>
 ```
 
-### Étape 2: Tester avec remote_start
+### Step 2: Test with remote_start
 
 ```bash
 cd /Users/malek/Arclang
@@ -112,7 +112,7 @@ cargo run --bin arclang -- explorer examples/automotive/remote_start/remote_star
 open examples/automotive/remote_start/remote_start_architecture_explorer.html
 ```
 
-**Console attendue:**
+**Expected console output:**
 ```
 🎨 ArcViz Engine: ELK
 🚀 Using ELK layout engine...
@@ -122,44 +122,44 @@ ELK Total: 125ms
 ✓ ELK diagram rendered: 25 nodes, 16 edges
 ```
 
-### Étape 3: Vérifier le résultat
+### Step 3: Verify the result
 
-**Vérifications visuelles:**
-- ✅ Ports natifs visibles (carrés verts à gauche, orange à droite)
-- ✅ Labels de ports bien placés
-- ✅ Layers avec fond coloré et bordures
-- ✅ Edges routing orthogonal propre
-- ✅ ASIL badges affichés
-- ✅ Fonctions listées dans composants
-- ✅ Zoom/pan fonctionnel
+**Visual checks:**
+- ✅ Native ports visible (green squares on left, orange on right)
+- ✅ Port labels well positioned
+- ✅ Layers with colored backgrounds and borders
+- ✅ Clean orthogonal edge routing
+- ✅ ASIL badges displayed
+- ✅ Functions listed in components
+- ✅ Zoom/pan functional
 
-### Étape 4: Fallback vers Dagre (optionnel)
+### Step 4: Fallback to Dagre (optional)
 
-Si ELK échoue ou est désactivé, changer dans ARCVIZ_CONFIG:
+If ELK fails or is disabled, change in ARCVIZ_CONFIG:
 
 ```javascript
-engine: 'dagre',  // Revenir à Dagre
+engine: 'dagre',  // Back to Dagre
 ```
 
-## Comparaison Avant/Après
+## Before/After Comparison
 
-### Avant (Dagre uniquement)
+### Before (Dagre only)
 ```
 ✓ Diagram rendered: 25 nodes, 16 edges (Dagre layout: 65ms)
-Ports: ❌ Positionnés manuellement après layout
-Routing: ⭐⭐⭐ Bon pour <50 composants
+Ports: ❌ Manually positioned after layout
+Routing: ⭐⭐⭐ Good for <50 components
 ```
 
-### Après (ELK par défaut)
+### After (ELK by default)
 ```
 ✓ ELK diagram rendered: 25 nodes, 16 edges (ELK layout: 125ms)
-Ports: ✅ Natifs avec contraintes FIXED_SIDE
+Ports: ✅ Native with FIXED_SIDE constraints
 Routing: ⭐⭐⭐⭐⭐ Excellent orthogonal routing
 ```
 
-## Configuration Avancée
+## Advanced Configuration
 
-### Pour architectures complexes (>100 composants)
+### For complex architectures (>100 components)
 
 ```javascript
 elk: {
@@ -167,15 +167,15 @@ elk: {
     'elk.direction': 'DOWN',
     'elk.layered.spacing.nodeNodeBetweenLayers': 150,
     'elk.spacing.nodeNode': 60,
-    'elk.layered.thoroughness': 200,  // Plus de qualité
+    'elk.layered.thoroughness': 200,  // Higher quality
     'elk.layered.compaction.postCompaction.strategy': 'EDGE_LENGTH',
-    'elk.separateConnectedComponents': true  // Séparer composants déconnectés
+    'elk.separateConnectedComponents': true  // Separate disconnected components
 }
 ```
 
-### Toggle dynamique Dagre/ELK
+### Dynamic Dagre/ELK Toggle
 
-Ajouter dans l'UI (toolbar):
+Add to the UI (toolbar):
 
 ```html
 <button onclick="toggleLayoutEngine()">
@@ -192,27 +192,27 @@ function toggleLayoutEngine() {
 </script>
 ```
 
-## Performance Attendue
+## Expected Performance
 
-### Remote Start (25 composants, 16 edges)
+### Remote Start (25 components, 16 edges)
 - **Dagre:** 65ms total
 - **ELK:** 125ms total (+60ms, acceptable)
-- **Qualité:** ELK supérieur (ports natifs, routing orthogonal)
+- **Quality:** ELK superior (native ports, orthogonal routing)
 
-### Data Platform Migration (24 composants, 8 layers)
+### Data Platform Migration (24 components, 8 layers)
 - **Dagre:** ~70ms total
 - **ELK:** ~135ms total
-- **Qualité:** ELK bien meilleur pour hiérarchie multi-layers
+- **Quality:** ELK much better for multi-layer hierarchy
 
-### Large System (150 composants)
-- **Dagre:** ~1200ms (devient crowded)
-- **ELK:** ~1300ms (reste clean)
+### Large System (150 components)
+- **Dagre:** ~1200ms (becomes crowded)
+- **ELK:** ~1300ms (stays clean)
 - **Winner:** ELK
 
 ## Troubleshooting
 
-### Erreur: "elk is not defined"
-**Solution:** Vérifier que elkjs est chargé avant l'initialisation:
+### Error: "elk is not defined"
+**Solution:** Verify that elkjs is loaded before initialization:
 ```html
 <script src="https://unpkg.com/elkjs@0.9.3/lib/elk.bundled.js"></script>
 <script>
@@ -220,65 +220,149 @@ function toggleLayoutEngine() {
 </script>
 ```
 
-### Ports non affichés
-**Solution:** Vérifier que les interfaces sont dans diagramData:
+### Ports not displayed
+**Solution:** Verify that interfaces are in diagramData:
 ```javascript
 console.log('Node interfaces:', node.interfaces_in, node.interfaces_out);
 ```
 
-### Layout semble "écrasé"
-**Solution:** Augmenter spacing:
+### Layout appears "squashed"
+**Solution:** Increase spacing:
 ```javascript
-'elk.spacing.nodeNode': 100,  // au lieu de 80
-'elk.layered.spacing.nodeNodeBetweenLayers': 250  // au lieu de 200
+'elk.spacing.nodeNode': 100,  // instead of 80
+'elk.layered.spacing.nodeNodeBetweenLayers': 250  // instead of 200
 ```
 
-### Edges se chevauchent
-**Solution:** Changer routing:
+### Edges overlap
+**Solution:** Change routing:
 ```javascript
-'elk.edgeRouting': 'SPLINES',  // au lieu de ORTHOGONAL
+'elk.edgeRouting': 'SPLINES',  // instead of ORTHOGONAL
 ```
 
-## ✅ INTÉGRATION COMPLÉTÉE
+## ✅ INTEGRATION COMPLETED
 
-### Statut Final
+### Final Status
 
-1. ✅ ELK intégré dans template (lignes 1520-2130)
-2. ✅ Testé avec remote_start (25 composants, 16 interfaces)
-3. ✅ Configuration optimisée pour Capella MBSE
-4. ✅ Dagre disponible en fallback
-5. ✅ Stéréotypes désactivés (stabilité)
-6. ✅ Largeurs dynamiques avec mesure SVG
+1. ✅ ELK integrated into template (lines 1520-2130)
+2. ✅ Tested with remote_start (25 components, 16 interfaces)
+3. ✅ Configuration optimized for Capella MBSE
+4. ✅ Dagre available as fallback
+5. ✅ Stereotypes disabled (stability)
+6. ✅ Dynamic widths with SVG measurement
 
-### Configuration Active
+### Active Configuration
 
-**Moteur par défaut:** `engine: 'elk'`  
-**Layout:** Hierarchical avec INCLUDE_CHILDREN  
+**Default engine:** `engine: 'elk'`  
+**Layout:** Hierarchical with INCLUDE_CHILDREN  
 **Port positioning:** FIXED_SIDE (WEST/EAST)  
 **Edge routing:** ORTHOGONAL  
-**Node spacing:** 100px entre composants, 250px entre layers  
-**Component width:** Min 300px, Max 700px (dynamique)
+**Node spacing:** 100px between components, 250px between layers  
+**Component width:** Min 300px, Max 700px (dynamic)
 
-### Fonctionnalités
+### Features
 
-✅ Ports natifs ELK (carrés verts/orange)  
-✅ Routing orthogonal propre  
-✅ Layers hiérarchiques avec drop shadows  
-✅ ASIL badges (cercles colorés)  
-✅ Largeur auto-adaptée au texte  
-✅ Troncature intelligente des labels longs  
-✅ Fallback automatique vers Dagre si erreur ELK
+✅ Native ELK ports (green/orange squares)  
+✅ Clean orthogonal routing  
+✅ Hierarchical layers with drop shadows  
+✅ ASIL badges (colored circles)  
+✅ Auto-adapted width to text  
+✅ Intelligent truncation of long labels  
+✅ Automatic fallback to Dagre if ELK error
 
-## Rollback (si nécessaire)
+## Rollback (if necessary)
 
 ```bash
-# Dans arcviz_explorer_template.html, ligne 18:
-engine: 'dagre'  # Au lieu de 'elk'
+# In arcviz_explorer_template.html, line 18:
+engine: 'dagre'  # Instead of 'elk'
 ```
 
 ---
 
-**Statut:** ✅ **ELK EST MAINTENANT LE STANDARD ARCLANG**  
+**Status:** ✅ **ELK IS NOW THE ARCLANG STANDARD**  
 **Date:** 2025-10-23  
-**Testé:** Remote Start System (25 composants)  
-**Production Ready:** Oui
+**Tested:** Remote Start System (25 components), Data Platform Migration (24 components)  
+**Production Ready:** Yes
+
+## ✅ COMPLETE UNIFICATION - ALL GENERATORS
+
+### Global Integration
+
+1. ✅ **arclang explorer** - Interactive ELK (HTML template)
+2. ✅ **arc-viz-ultimate** - Static ELK with fallback
+3. ✅ **arc-viz-smart** - Static ELK with fallback  
+4. ✅ **arc-viz-channel** - Static ELK with fallback
+5. ✅ **arc-viz-perfect** - Static ELK with fallback
+6. ✅ **HTML export** - Static ELK by default
+
+### New Available Formats
+
+**ELK Formats (default):**
+- `arc-viz-ultimate` → Static ELK (requires Node.js/elkjs)
+- `arc-viz-smart` → Static ELK
+- `arc-viz-channel` → Static ELK
+- `arc-viz-perfect` → Static ELK
+- `arc-viz-elk` → Explicit static ELK
+
+**Legacy Formats (automatic fallback):**
+- `arc-viz-ultimate-legacy` → Original custom algorithm
+- `arc-viz-smart-legacy` → Original custom algorithm
+- `arc-viz-channel-legacy` → Original custom algorithm
+- `arc-viz-perfect-legacy` → Original custom algorithm
+
+### Fallback Mechanism
+
+If Node.js or elkjs is not available:
+```
+⚠ ELK unavailable (MODULE_NOT_FOUND), falling back to custom layout
+✓ Export successful
+```
+
+The system automatically switches to `arcviz_elk.rs` (custom hierarchical algorithm).
+
+### CLI Commands
+
+```bash
+# ELK with automatic fallback (RECOMMENDED)
+arclang export model.arc -o diagram.html -f arc-viz-ultimate
+
+# Force ELK usage (fails if unavailable)
+arclang export model.arc -o diagram.html -f arc-viz-elk
+
+# Use legacy explicitly
+arclang export model.arc -o diagram.html -f arc-viz-ultimate-legacy
+```
+
+### ELK Installation (Optional but Recommended)
+
+```bash
+# Install Node.js (if not available)
+brew install node  # macOS
+sudo apt install nodejs  # Ubuntu
+
+# Install elkjs globally
+npm install -g elkjs
+
+# Verify
+node -e "require('elkjs')" && echo "✓ ELK ready"
+```
+
+### Code Architecture
+
+**Modified files:**
+- `src/compiler/arcviz_elk_static.rs` - New static ELK generator
+- `src/compiler/mod.rs` - Module export + CompilerError::Other
+- `src/cli/mod.rs` - ELK/Legacy formats in ExportFormat enum
+- `src/cli/mod.rs` - Routing to ELK by default for all formats
+
+**Principle:**
+1. Try generation with ELK via Node.js subprocess
+2. If failure: automatic fallback to `arcviz_elk.rs` custom algorithm
+3. Guarantee compatibility even without Node.js/elkjs
+
+### Unification Benefits
+
+✅ **Consistent visual style** - Capella design everywhere  
+✅ **Better layout** - ELK hierarchical > custom algorithms  
+✅ **Native ports** - Correct WEST/EAST constraints  
+✅ **Simplified maintenance** - One renderer instead of 5+  
+✅ **Guaranteed compatibility** - Automatic fallback if ELK unavailable

@@ -1,0 +1,291 @@
+{
+  "metadata": {
+    "title": "Vehicle Remote Start System Architecture",
+    "version": "1.0.0",
+    "description": "Complete architecture with 7 components, 0 interfaces, and 3 requirements",
+    "total_requirements": 3,
+    "total_components": 7,
+    "total_interfaces": 0,
+    "total_functions": 4
+  },
+  "requirements": [
+    {
+      "category": "General",
+      "requirements": [
+        {
+          "id": "SYS-ACC-001",
+          "description": "The ACC system shall maintain minimum 2-second following distance",
+          "priority": "Critical",
+          "category": null,
+          "safety_level": "ASIL_B",
+          "traces_to": []
+        },
+        {
+          "id": "SYS-ACC-002",
+          "description": "Driver brake input shall override ACC",
+          "priority": "Critical",
+          "category": null,
+          "safety_level": "ASIL_C",
+          "traces_to": []
+        },
+        {
+          "id": "SYS-ACC-003",
+          "description": "System shall detect cut-in vehicles within 500ms",
+          "priority": "High",
+          "category": null,
+          "safety_level": "ASIL_B",
+          "traces_to": []
+        }
+      ]
+    }
+  ],
+  "components": [
+    {
+      "id": "LC-001",
+      "name": "Radar Sensor",
+      "layer": "Logical",
+      "component_type": "Logical",
+      "safety_level": null,
+      "asil": null,
+      "interfaces_in": [],
+      "interfaces_out": [],
+      "functions": [
+        "Detect Objects"
+      ],
+      "description": "Component in Logical layer"
+    },
+    {
+      "id": "LC-002",
+      "name": "Vision Camera",
+      "layer": "Logical",
+      "component_type": "Logical",
+      "safety_level": null,
+      "asil": null,
+      "interfaces_in": [],
+      "interfaces_out": [],
+      "functions": [
+        "Classify Objects"
+      ],
+      "description": "Component in Logical layer"
+    },
+    {
+      "id": "LC-003",
+      "name": "Sensor Fusion",
+      "layer": "Logical",
+      "component_type": "Logical",
+      "safety_level": "ASIL_B",
+      "asil": null,
+      "interfaces_in": [],
+      "interfaces_out": [],
+      "functions": [
+        "Fuse Detections"
+      ],
+      "description": "Component in Logical layer"
+    },
+    {
+      "id": "LC-004",
+      "name": "ACC Controller",
+      "layer": "Logical",
+      "component_type": "Logical",
+      "safety_level": "ASIL_B",
+      "asil": null,
+      "interfaces_in": [],
+      "interfaces_out": [],
+      "functions": [
+        "Compute Speed Profile"
+      ],
+      "description": "Component in Logical layer"
+    },
+    {
+      "id": "PN-001",
+      "name": "Radar ECU",
+      "layer": "Physical",
+      "component_type": "Physical",
+      "safety_level": null,
+      "asil": null,
+      "interfaces_in": [],
+      "interfaces_out": [],
+      "functions": [],
+      "description": "Component in Physical layer"
+    },
+    {
+      "id": "PN-002",
+      "name": "Camera ECU",
+      "layer": "Physical",
+      "component_type": "Physical",
+      "safety_level": null,
+      "asil": null,
+      "interfaces_in": [],
+      "interfaces_out": [],
+      "functions": [],
+      "description": "Component in Physical layer"
+    },
+    {
+      "id": "PN-003",
+      "name": "ADAS ECU",
+      "layer": "Physical",
+      "component_type": "Physical",
+      "safety_level": null,
+      "asil": null,
+      "interfaces_in": [],
+      "interfaces_out": [],
+      "functions": [],
+      "description": "Component in Physical layer"
+    }
+  ],
+  "interfaces": [],
+  "functions": [
+    {
+      "id": "LF-001",
+      "name": "Detect Objects",
+      "inputs": [],
+      "outputs": [],
+      "component": "Radar Sensor"
+    },
+    {
+      "id": "LF-003",
+      "name": "Classify Objects",
+      "inputs": [],
+      "outputs": [],
+      "component": "Vision Camera"
+    },
+    {
+      "id": "LF-005",
+      "name": "Fuse Detections",
+      "inputs": [],
+      "outputs": [],
+      "component": "Sensor Fusion"
+    },
+    {
+      "id": "LF-008",
+      "name": "Compute Speed Profile",
+      "inputs": [],
+      "outputs": [],
+      "component": "ACC Controller"
+    }
+  ],
+  "traces": [
+    {
+      "from": "LC-001",
+      "to": "SYS-ACC-001",
+      "trace_type": "satisfies",
+      "rationale": "Radar provides target detection for distance control"
+    },
+    {
+      "from": "LC-003",
+      "to": "SYS-ACC-002",
+      "trace_type": "satisfies",
+      "rationale": "Sensor fusion enables reliable tracking"
+    },
+    {
+      "from": "LC-004",
+      "to": "SYS-ACC-003",
+      "trace_type": "satisfies",
+      "rationale": "Controller computes safe following profile"
+    }
+  ],
+  "diagram": {
+    "nodes": [
+      {
+        "id": "LC-001",
+        "label": "Radar Sensor",
+        "layer": "Logical",
+        "stereotype": "<<component>>",
+        "interfaces_in": [],
+        "interfaces_out": [],
+        "functions": [
+          "Detect Objects"
+        ],
+        "width": 220,
+        "height": 180
+      },
+      {
+        "id": "LC-002",
+        "label": "Vision Camera",
+        "layer": "Logical",
+        "stereotype": "<<component>>",
+        "interfaces_in": [],
+        "interfaces_out": [],
+        "functions": [
+          "Classify Objects"
+        ],
+        "width": 220,
+        "height": 180
+      },
+      {
+        "id": "LC-003",
+        "label": "Sensor Fusion",
+        "layer": "Logical",
+        "stereotype": "<<component>>",
+        "safety_level": "ASIL_B",
+        "interfaces_in": [],
+        "interfaces_out": [],
+        "functions": [
+          "Fuse Detections"
+        ],
+        "width": 220,
+        "height": 180
+      },
+      {
+        "id": "LC-004",
+        "label": "ACC Controller",
+        "layer": "Logical",
+        "stereotype": "<<component>>",
+        "safety_level": "ASIL_B",
+        "interfaces_in": [],
+        "interfaces_out": [],
+        "functions": [
+          "Compute Speed Profile"
+        ],
+        "width": 220,
+        "height": 180
+      },
+      {
+        "id": "PN-001",
+        "label": "Radar ECU",
+        "layer": "Physical",
+        "stereotype": "<<component>>",
+        "interfaces_in": [],
+        "interfaces_out": [],
+        "functions": [],
+        "width": 220,
+        "height": 180
+      },
+      {
+        "id": "PN-002",
+        "label": "Camera ECU",
+        "layer": "Physical",
+        "stereotype": "<<component>>",
+        "interfaces_in": [],
+        "interfaces_out": [],
+        "functions": [],
+        "width": 220,
+        "height": 180
+      },
+      {
+        "id": "PN-003",
+        "label": "ADAS ECU",
+        "layer": "Physical",
+        "stereotype": "<<component>>",
+        "interfaces_in": [],
+        "interfaces_out": [],
+        "functions": [],
+        "width": 220,
+        "height": 180
+      }
+    ],
+    "edges": [],
+    "layers": [
+      {
+        "name": "Logical",
+        "color": "#E3F2FD",
+        "description": "Logical Architecture Layer"
+      },
+      {
+        "name": "Physical",
+        "color": "#FCE4EC",
+        "description": "Physical Hardware Layer"
+      }
+    ]
+  }
+}

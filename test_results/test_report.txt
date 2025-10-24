@@ -1,0 +1,228 @@
+
+================================================================================
+ArcLang Test Report
+================================================================================
+
+Summary:
+  Total Tests:    99
+  Passed:         99 (100.0%)
+  Failed:         0
+  Skipped:        0
+
+Status: ✓ PASS
+
+================================================================================
+
+Detailed Results:
+
+COMPILE: 9/9 (100.0%)
+--------------------------------------------------------------------------------
+  ✓ compile:pluxee_analytics
+     Compilation successful
+  ✓ compile:data_platform_migration
+     Compilation successful
+  ✓ compile:adaptive_cruise_control
+     Compilation successful
+  ✓ compile:acc_complete_architecture
+     Compilation successful
+  ✓ compile:acc_from_capella
+     Compilation successful
+  ✓ compile:acc_minimal
+     Compilation successful
+  ✓ compile:remote_start_architecture
+     Compilation successful
+  ✓ compile:flight_control_system
+     Compilation successful
+  ✓ compile:mission_computer
+     Compilation successful
+
+EXPLORER: 9/9 (100.0%)
+--------------------------------------------------------------------------------
+  ✓ explorer:pluxee_analytics
+     Explorer rendered successfully (SVG: 100%x100%, 117998 bytes)
+  ✓ explorer:data_platform_migration
+     Explorer rendered successfully (SVG: 100%x100%, 129787 bytes)
+  ✓ explorer:adaptive_cruise_control
+     Explorer rendered successfully (SVG: 100%x100%, 103708 bytes)
+  ✓ explorer:acc_complete_architecture
+     Explorer rendered successfully (SVG: 100%x100%, 111766 bytes)
+  ✓ explorer:acc_from_capella
+     Explorer rendered successfully (SVG: 100%x100%, 97045 bytes)
+  ✓ explorer:acc_minimal
+     Explorer rendered successfully (SVG: 100%x100%, 99986 bytes)
+  ✓ explorer:remote_start_architecture
+     Explorer rendered successfully (SVG: 100%x100%, 140956 bytes)
+  ✓ explorer:flight_control_system
+     Explorer rendered successfully (SVG: 100%x100%, 100025 bytes)
+  ✓ explorer:mission_computer
+     Explorer rendered successfully (SVG: 100%x100%, 106252 bytes)
+
+EXPORT: 36/36 (100.0%)
+--------------------------------------------------------------------------------
+  ✓ export:pluxee_analytics:mermaid
+     Export successful (5002 bytes)
+  ✓ export:pluxee_analytics:plant-uml
+     Export successful (322 bytes)
+  ✓ export:pluxee_analytics:json
+     Export successful (14502 bytes)
+  ✓ export:pluxee_analytics:capella
+     Export successful (7012 bytes)
+  ✓ export:data_platform_migration:mermaid
+     Export successful (6166 bytes)
+  ✓ export:data_platform_migration:plant-uml
+     Export successful (622 bytes)
+  ✓ export:data_platform_migration:json
+     Export successful (14636 bytes)
+  ✓ export:data_platform_migration:capella
+     Export successful (9141 bytes)
+  ✓ export:adaptive_cruise_control:mermaid
+     Export successful (1644 bytes)
+  ✓ export:adaptive_cruise_control:plant-uml
+     Export successful (219 bytes)
+  ✓ export:adaptive_cruise_control:json
+     Export successful (3632 bytes)
+  ✓ export:adaptive_cruise_control:capella
+     Export successful (1708 bytes)
+  ✓ export:acc_complete_architecture:mermaid
+     Export successful (2539 bytes)
+  ✓ export:acc_complete_architecture:plant-uml
+     Export successful (655 bytes)
+  ✓ export:acc_complete_architecture:json
+     Export successful (10403 bytes)
+  ✓ export:acc_complete_architecture:capella
+     Export successful (3790 bytes)
+  ✓ export:acc_from_capella:mermaid
+     Export successful (1382 bytes)
+  ✓ export:acc_from_capella:plant-uml
+     Export successful (138 bytes)
+  ✓ export:acc_from_capella:json
+     Export successful (1565 bytes)
+  ✓ export:acc_from_capella:capella
+     Export successful (1137 bytes)
+  ✓ export:acc_minimal:mermaid
+     Export successful (1382 bytes)
+  ✓ export:acc_minimal:plant-uml
+     Export successful (180 bytes)
+  ✓ export:acc_minimal:json
+     Export successful (2487 bytes)
+  ✓ export:acc_minimal:capella
+     Export successful (1326 bytes)
+  ✓ export:remote_start_architecture:mermaid
+     Export successful (6171 bytes)
+  ✓ export:remote_start_architecture:plant-uml
+     Export successful (795 bytes)
+  ✓ export:remote_start_architecture:json
+     Export successful (15567 bytes)
+  ✓ export:remote_start_architecture:capella
+     Export successful (8645 bytes)
+  ✓ export:flight_control_system:mermaid
+     Export successful (1438 bytes)
+  ✓ export:flight_control_system:plant-uml
+     Export successful (187 bytes)
+  ✓ export:flight_control_system:json
+     Export successful (2209 bytes)
+  ✓ export:flight_control_system:capella
+     Export successful (1155 bytes)
+  ✓ export:mission_computer:mermaid
+     Export successful (1796 bytes)
+  ✓ export:mission_computer:plant-uml
+     Export successful (312 bytes)
+  ✓ export:mission_computer:json
+     Export successful (4802 bytes)
+  ✓ export:mission_computer:capella
+     Export successful (2082 bytes)
+
+VIZ: 45/45 (100.0%)
+--------------------------------------------------------------------------------
+  ✓ viz:pluxee_analytics:arc-viz-ultimate
+     Export successful (7262 bytes)
+  ✓ viz:pluxee_analytics:arc-viz-smart
+     Export successful (7262 bytes)
+  ✓ viz:pluxee_analytics:arc-viz-channel
+     Export successful (7262 bytes)
+  ✓ viz:pluxee_analytics:arc-viz-perfect
+     Export successful (7262 bytes)
+  ✓ viz:pluxee_analytics:arc-viz-elk
+     Export successful (7262 bytes)
+  ✓ viz:data_platform_migration:arc-viz-ultimate
+     Export successful (26591 bytes)
+  ✓ viz:data_platform_migration:arc-viz-smart
+     Export successful (26591 bytes)
+  ✓ viz:data_platform_migration:arc-viz-channel
+     Export successful (26591 bytes)
+  ✓ viz:data_platform_migration:arc-viz-perfect
+     Export successful (26591 bytes)
+  ✓ viz:data_platform_migration:arc-viz-elk
+     Export successful (26591 bytes)
+  ✓ viz:adaptive_cruise_control:arc-viz-ultimate
+     Export successful (7262 bytes)
+  ✓ viz:adaptive_cruise_control:arc-viz-smart
+     Export successful (7262 bytes)
+  ✓ viz:adaptive_cruise_control:arc-viz-channel
+     Export successful (7262 bytes)
+  ✓ viz:adaptive_cruise_control:arc-viz-perfect
+     Export successful (7262 bytes)
+  ✓ viz:adaptive_cruise_control:arc-viz-elk
+     Export successful (7262 bytes)
+  ✓ viz:acc_complete_architecture:arc-viz-ultimate
+     Export successful (7262 bytes)
+  ✓ viz:acc_complete_architecture:arc-viz-smart
+     Export successful (7262 bytes)
+  ✓ viz:acc_complete_architecture:arc-viz-channel
+     Export successful (7262 bytes)
+  ✓ viz:acc_complete_architecture:arc-viz-perfect
+     Export successful (7262 bytes)
+  ✓ viz:acc_complete_architecture:arc-viz-elk
+     Export successful (7262 bytes)
+  ✓ viz:acc_from_capella:arc-viz-ultimate
+     Export successful (7262 bytes)
+  ✓ viz:acc_from_capella:arc-viz-smart
+     Export successful (7262 bytes)
+  ✓ viz:acc_from_capella:arc-viz-channel
+     Export successful (7262 bytes)
+  ✓ viz:acc_from_capella:arc-viz-perfect
+     Export successful (7262 bytes)
+  ✓ viz:acc_from_capella:arc-viz-elk
+     Export successful (7262 bytes)
+  ✓ viz:acc_minimal:arc-viz-ultimate
+     Export successful (7262 bytes)
+  ✓ viz:acc_minimal:arc-viz-smart
+     Export successful (7262 bytes)
+  ✓ viz:acc_minimal:arc-viz-channel
+     Export successful (7262 bytes)
+  ✓ viz:acc_minimal:arc-viz-perfect
+     Export successful (7262 bytes)
+  ✓ viz:acc_minimal:arc-viz-elk
+     Export successful (7262 bytes)
+  ✓ viz:remote_start_architecture:arc-viz-ultimate
+     Export successful (7262 bytes)
+  ✓ viz:remote_start_architecture:arc-viz-smart
+     Export successful (7262 bytes)
+  ✓ viz:remote_start_architecture:arc-viz-channel
+     Export successful (7262 bytes)
+  ✓ viz:remote_start_architecture:arc-viz-perfect
+     Export successful (7262 bytes)
+  ✓ viz:remote_start_architecture:arc-viz-elk
+     Export successful (7262 bytes)
+  ✓ viz:flight_control_system:arc-viz-ultimate
+     Export successful (7262 bytes)
+  ✓ viz:flight_control_system:arc-viz-smart
+     Export successful (7262 bytes)
+  ✓ viz:flight_control_system:arc-viz-channel
+     Export successful (7262 bytes)
+  ✓ viz:flight_control_system:arc-viz-perfect
+     Export successful (7262 bytes)
+  ✓ viz:flight_control_system:arc-viz-elk
+     Export successful (7262 bytes)
+  ✓ viz:mission_computer:arc-viz-ultimate
+     Export successful (7262 bytes)
+  ✓ viz:mission_computer:arc-viz-smart
+     Export successful (7262 bytes)
+  ✓ viz:mission_computer:arc-viz-channel
+     Export successful (7262 bytes)
+  ✓ viz:mission_computer:arc-viz-perfect
+     Export successful (7262 bytes)
+  ✓ viz:mission_computer:arc-viz-elk
+     Export successful (7262 bytes)
+
+================================================================================

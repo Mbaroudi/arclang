@@ -97,22 +97,17 @@ logical_architecture "ACC Logical Architecture" {
         function "Transmit RF Signal" {
             id: "LF-001"
             description: "Generate and transmit radar pulses"
-            outputs: ["rf_signal: RadarWaveform"]
             power: "20dBm"
         }
         
         function "Receive Echoes" {
             id: "LF-002"
             description: "Capture reflected radar signals"
-            inputs: ["reflected_signal: RadarWaveform"]
-            outputs: ["raw_echoes: SignalArray"]
         }
         
         function "Process Radar Data" {
             id: "LF-003"
             description: "Extract target information from echoes"
-            inputs: ["raw_echoes: SignalArray"]
-            outputs: ["radar_targets: TargetList"]
         }
     }
     
@@ -125,22 +120,17 @@ logical_architecture "ACC Logical Architecture" {
         function "Capture Image" {
             id: "LF-004"
             description: "Acquire camera frames"
-            outputs: ["raw_image: ImageFrame"]
             frame_rate: "30 Hz"
         }
         
         function "Detect Objects" {
             id: "LF-005"
             description: "Identify vehicles and obstacles"
-            inputs: ["raw_image: ImageFrame"]
-            outputs: ["detected_objects: ObjectList"]
         }
         
         function "Detect Lanes" {
             id: "LF-006"
             description: "Identify lane markings"
-            inputs: ["raw_image: ImageFrame"]
-            outputs: ["lane_data: LaneInfo"]
         }
     }
     
@@ -154,22 +144,16 @@ logical_architecture "ACC Logical Architecture" {
         function "Correlate Detections" {
             id: "LF-007"
             description: "Match radar and camera targets"
-            inputs: ["radar_targets: TargetList", "detected_objects: ObjectList"]
-            outputs: ["fused_targets: FusedTargetList"]
         }
         
         function "Track Objects" {
             id: "LF-008"
             description: "Maintain consistent object tracks over time"
-            inputs: ["fused_targets: FusedTargetList"]
-            outputs: ["tracked_objects: TrackList"]
         }
         
         function "Predict Trajectories" {
             id: "LF-009"
             description: "Estimate future positions of tracked objects"
-            inputs: ["tracked_objects: TrackList"]
-            outputs: ["predicted_paths: TrajectoryList"]
         }
     }
     
@@ -182,15 +166,11 @@ logical_architecture "ACC Logical Architecture" {
         function "Identify Lead Vehicle" {
             id: "LF-010"
             description: "Select most relevant target in ego lane"
-            inputs: ["tracked_objects: TrackList", "lane_data: LaneInfo"]
-            outputs: ["lead_vehicle: Target"]
         }
         
         function "Detect Cut-In" {
             id: "LF-011"
             description: "Identify vehicles entering ego lane"
-            inputs: ["tracked_objects: TrackList", "lane_data: LaneInfo"]
-            outputs: ["cut_in_detected: Boolean", "cut_in_vehicle: Target"]
         }
     }
     
@@ -204,22 +184,16 @@ logical_architecture "ACC Logical Architecture" {
         function "Calculate Time Gap" {
             id: "LF-012"
             description: "Compute time to lead vehicle"
-            inputs: ["lead_vehicle: Target", "ego_speed: Speed"]
-            outputs: ["time_gap: Duration"]
         }
         
         function "Determine Desired Speed" {
             id: "LF-013"
             description: "Calculate target speed based on lead vehicle"
-            inputs: ["lead_vehicle: Target", "driver_set_speed: Speed", "time_gap: Duration"]
-            outputs: ["desired_speed: Speed"]
         }
         
         function "Compute Acceleration" {
             id: "LF-014"
             description: "Calculate required acceleration to achieve desired speed"
-            inputs: ["desired_speed: Speed", "ego_speed: Speed"]
-            outputs: ["target_acceleration: Acceleration"]
         }
     }
     
@@ -232,15 +206,11 @@ logical_architecture "ACC Logical Architecture" {
         function "Map to Throttle" {
             id: "LF-015"
             description: "Convert positive acceleration to throttle position"
-            inputs: ["target_acceleration: Acceleration"]
-            outputs: ["throttle_command: Percentage"]
         }
         
         function "Map to Brake" {
             id: "LF-016"
             description: "Convert negative acceleration to brake pressure"
-            inputs: ["target_acceleration: Acceleration"]
-            outputs: ["brake_command: Pressure"]
         }
     }
     
@@ -254,21 +224,16 @@ logical_architecture "ACC Logical Architecture" {
         function "Check Sensor Health" {
             id: "LF-017"
             description: "Verify sensor data validity"
-            inputs: ["radar_targets: TargetList", "detected_objects: ObjectList"]
-            outputs: ["sensor_status: HealthStatus"]
         }
         
         function "Enforce Limits" {
             id: "LF-018"
             description: "Limit acceleration/deceleration to safe values"
-            inputs: ["target_acceleration: Acceleration"]
-            outputs: ["limited_acceleration: Acceleration"]
         }
         
         function "Detect Faults" {
             id: "LF-019"
             description: "Identify system malfunctions"
-            outputs: ["fault_status: FaultCode"]
         }
     }
     
@@ -281,21 +246,16 @@ logical_architecture "ACC Logical Architecture" {
         function "Read Driver Inputs" {
             id: "LF-020"
             description: "Capture driver commands (set, resume, cancel)"
-            outputs: ["driver_command: Command", "set_speed: Speed"]
         }
         
         function "Display Status" {
             id: "LF-021"
             description: "Show ACC status on instrument cluster"
-            inputs: ["system_state: State", "time_gap: Duration"]
-            outputs: ["display_data: DisplayInfo"]
         }
         
         function "Issue Warnings" {
             id: "LF-022"
             description: "Alert driver of critical conditions"
-            inputs: ["fault_status: FaultCode"]
-            outputs: ["warning_signal: Alert"]
         }
     }
     
@@ -308,20 +268,16 @@ logical_architecture "ACC Logical Architecture" {
         function "Detect Brake Pedal" {
             id: "LF-023"
             description: "Monitor brake pedal input"
-            outputs: ["brake_pedal_active: Boolean"]
         }
         
         function "Detect Accelerator Pedal" {
             id: "LF-024"
             description: "Monitor accelerator pedal input"
-            outputs: ["accel_pedal_active: Boolean"]
         }
         
         function "Override Control" {
             id: "LF-025"
             description: "Disable ACC when driver overrides"
-            inputs: ["brake_pedal_active: Boolean", "accel_pedal_active: Boolean"]
-            outputs: ["acc_enabled: Boolean"]
         }
     }
 }

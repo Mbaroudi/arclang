@@ -1,21 +1,25 @@
 operational_analysis "Aircraft Flight Control" {
     actor "Pilot" {
         id: "ACT-001"
+        description: "Commercial aircraft pilot"
         interactions: ["control_aircraft", "monitor_systems"]
     }
     
     actor "ATC" {
         id: "ACT-002"
+        description: "Air Traffic Control"
         interactions: ["provide_guidance", "coordinate_traffic"]
     }
     
     operational_capability "Safe Flight Operations" {
         id: "OC-001"
+        description: "Ability to safely control aircraft in all flight phases"
         phases: ["takeoff", "cruise", "landing"]
     }
     
     operational_activity "Control Aircraft Attitude" {
         id: "OA-001"
+        description: "Maintain desired aircraft pitch, roll, and yaw"
         safety_critical: true
     }
 }
@@ -47,15 +51,21 @@ system_analysis "Flight Control System" {
     
     system_function "Process Pilot Commands" {
         id: "SF-001"
+        description: "Interpret and validate pilot control inputs"
+        safety_level: "DAL_A"
     }
     
     system_function "Compute Control Laws" {
         id: "SF-002"
+        description: "Calculate control surface deflections based on flight envelope"
+        safety_level: "DAL_A"
     }
     
     system_component "Flight Control Computer" {
         id: "SC-101"
+        description: "Dual-redundant flight control computer"
         implements_functions: ["SF-001", "SF-002"]
+        safety_level: "DAL_A"
         redundancy: "Dual"
     }
 }
@@ -64,33 +74,48 @@ logical_architecture "Flight Control Logical Architecture" {
     component "Primary Flight Computer" {
         id: "LC-001"
         component_type: "Logical"
+        description: "Main flight control processing unit"
+        safety_level: "DAL_A"
         
         function "Command Processing" {
             id: "LF-001"
+            behavior: "validate_input(raw_pilot_input); apply_limits(raw_pilot_input); return processed_commands"
+            wcet: "5ms"
         }
         
         function "Control Law Computation" {
             id: "LF-002"
+                "commands: CommandData",
+                "state: AircraftState",
+                "mode: FlightMode"
+            ]
+            behavior: "gains = get_gains(mode, state); deflections = compute_pid(commands, state, gains); return limit_rates(deflections)"
+            wcet: "8ms"
         }
     }
     
     component "Backup Flight Computer" {
         id: "LC-002"
         component_type: "Logical"
+        description: "Redundant flight control processing unit"
+        safety_level: "DAL_A"
         monitors: "LC-001"
         
         function "Monitor Primary" {
             id: "LF-003"
+            description: "Continuously monitor primary computer health"
         }
         
         function "Takeover Control" {
             id: "LF-004"
+            description: "Assume control if primary fails"
         }
     }
     
     component "Actuator Control" {
         id: "LC-003"
         component_type: "Logical"
+        description: "Manages control surface actuators"
         
         function "Command Actuators" {
             id: "LF-005"
@@ -106,6 +131,9 @@ logical_architecture "Flight Control Logical Architecture" {
         from: "LC-001"
         to: "LC-003"
         interface_type: "Data"
+        data: ["aileron_cmd", "elevator_cmd", "rudder_cmd"]
+        rate: "100Hz"
+        latency: "max 10ms"
     }
     
     interface "Cross-Channel Datalink" {
@@ -113,14 +141,19 @@ logical_architecture "Flight Control Logical Architecture" {
         from: "LC-001"
         to: "LC-002"
         interface_type: "Data"
+        data: ["computed_outputs", "health_status"]
+        rate: "50Hz"
+        protocol: "AFDX"
     }
 }
 
 physical_architecture "Flight Control Physical Architecture" {
     node "FCC-A" {
         id: "PN-001"
+        description: "Flight Control Computer Channel A"
         processor: "PowerPC MPC7448"
         memory: "256MB ECC RAM"
+        safety_level: "DAL_A"
         
         deploys "LC-001" {
             partition: "Primary Control Partition"
@@ -130,8 +163,10 @@ physical_architecture "Flight Control Physical Architecture" {
     
     node "FCC-B" {
         id: "PN-002"
+        description: "Flight Control Computer Channel B"
         processor: "PowerPC MPC7448"
         memory: "256MB ECC RAM"
+        safety_level: "DAL_A"
         
         deploys "LC-002" {
             partition: "Backup Control Partition"
@@ -141,7 +176,9 @@ physical_architecture "Flight Control Physical Architecture" {
     
     node "Remote Terminal Unit" {
         id: "PN-003"
+        description: "Actuator control and sensor interface"
         processor: "ARM Cortex-R5"
+        safety_level: "DAL_B"
         
         deploys "LC-003" {
             partition: "Actuator Control Partition"
@@ -152,6 +189,7 @@ physical_architecture "Flight Control Physical Architecture" {
         id: "PL-001"
         topology: "Full Duplex Switched Ethernet"
         bandwidth: "100Mbps"
+        protocol: "AFDX"
         connects: ["PN-001", "PN-002", "PN-003"]
         realizes: ["LI-001", "LI-002"]
     }
@@ -249,6 +287,7 @@ safety_analysis {
     
     hazard "Loss of Flight Control" {
         id: "HAZ-001"
+        description: "Complete loss of aircraft control authority"
         severity: "Catastrophic"
         likelihood: "ExtremelyImprobable"
         dal: "DAL_A"

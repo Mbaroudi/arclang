@@ -16,6 +16,7 @@ pub mod arcviz_ultimate_routing;
 pub mod arcviz_enhanced;
 pub mod arcviz_capella_routing;
 pub mod arcviz_elk;
+pub mod arcviz_elk_static;
 pub mod arcviz_d3;
 pub mod arcviz_explorer;
 pub mod terraform_databricks_generator;
@@ -46,6 +47,9 @@ pub enum CompilerError {
     
     #[error("IO error: {0}")]
     Io(#[from] std::io::Error),
+    
+    #[error("{0}")]
+    Other(String),
 }
 
 pub struct Compiler {

@@ -24,7 +24,6 @@ operational_analysis "Tactical Mission System" {
         id: "OC-001"
         description: "Detect, track, and engage airborne threats"
         classification: "SECRET"
-        involving: ["Pilot", "Weapons System Officer"]
         phases: ["detection", "tracking", "engagement", "assessment"]
     }
     
@@ -32,14 +31,12 @@ operational_analysis "Tactical Mission System" {
         id: "OC-002"
         description: "Identify and engage ground targets with precision"
         classification: "SECRET"
-        involving: ["Pilot", "Weapons System Officer", "Ground Control"]
         authorization_required: true
     }
     
     operational_activity "Track Multiple Targets" {
         id: "OA-001"
         description: "Maintain situational awareness of multiple threats"
-        performed_by: "Weapons System Officer"
         max_targets: 20
         update_rate: "1Hz"
     }
@@ -47,7 +44,6 @@ operational_analysis "Tactical Mission System" {
     operational_activity "Weapon Employment" {
         id: "OA-002"
         description: "Select and launch appropriate ordnance"
-        performed_by: "Pilot"
         safety_critical: true
         requires_authorization: true
     }
@@ -102,8 +98,6 @@ system_analysis "Mission Computer System" {
     system_function "Sensor Management" {
         id: "SF-001"
         description: "Control and coordinate onboard sensors"
-        inputs: ["operator_commands", "threat_priorities"]
-        outputs: ["sensor_tasks", "raw_sensor_data"]
         safety_level: "DAL_A"
         classification: "SECRET"
     }
@@ -111,8 +105,6 @@ system_analysis "Mission Computer System" {
     system_function "Track Management" {
         id: "SF-002"
         description: "Correlate and maintain tracks on detected objects"
-        inputs: ["raw_sensor_data", "datalink_tracks"]
-        outputs: ["fused_track_file"]
         safety_level: "DAL_A"
         max_tracks: 200
     }
@@ -120,16 +112,12 @@ system_analysis "Mission Computer System" {
     system_function "Threat Evaluation" {
         id: "SF-003"
         description: "Assess threat level and prioritize responses"
-        inputs: ["fused_track_file", "threat_library"]
-        outputs: ["threat_priorities", "recommended_actions"]
         classification: "TOP_SECRET"
     }
     
     system_function "Weapon Control" {
         id: "SF-004"
         description: "Manage weapon inventory and employment"
-        inputs: ["target_designation", "authorization_code"]
-        outputs: ["weapon_release_command"]
         safety_level: "DAL_A"
         security_critical: true
     }
@@ -144,24 +132,14 @@ logical_architecture "Mission Computer Logical Architecture" {
         
         function "Beam Steering" {
             id: "LF-001"
-            inputs: ["steering_commands"]
-            outputs: ["rf_pattern"]
-            scan_rate: "10 scans per second"
         }
         
         function "Target Detection" {
             id: "LF-002"
-            inputs: ["return_signals"]
-            outputs: ["raw_detections"]
-            algorithm: "CFAR with Doppler processing"
-            classification: "TOP_SECRET"
         }
         
         function "Doppler Processing" {
             id: "LF-003"
-            inputs: ["return_signals"]
-            outputs: ["velocity_estimates"]
-            prf: "Variable 10-100 kHz"
         }
     }
     
@@ -173,17 +151,10 @@ logical_architecture "Mission Computer Logical Architecture" {
         
         function "RWR Processing" {
             id: "LF-004"
-            description: "Radar warning receiver processing"
-            inputs: ["rf_intercepts"]
-            outputs: ["threat_warnings"]
-            frequency_range: "2-18 GHz"
         }
         
         function "Countermeasures Control" {
             id: "LF-005"
-            inputs: ["threat_warnings"]
-            outputs: ["cm_commands"]
-            response_time: "less than 1 second"
         }
     }
     
@@ -196,26 +167,14 @@ logical_architecture "Mission Computer Logical Architecture" {
         
         function "Track Association" {
             id: "LF-006"
-            inputs: [
-                "radar_tracks",
-                "ew_tracks",
-                "datalink_tracks"
-            ]
-            outputs: ["correlated_tracks"]
-            algorithm: "Multi-hypothesis tracking"
         }
         
         function "Track Prediction" {
             id: "LF-007"
-            inputs: ["correlated_tracks"]
-            outputs: ["predicted_positions"]
-            algorithm: "Extended Kalman Filter"
         }
         
         function "Track Quality Assessment" {
             id: "LF-008"
-            inputs: ["correlated_tracks"]
-            outputs: ["quality_metrics"]
         }
     }
     
@@ -227,15 +186,10 @@ logical_architecture "Mission Computer Logical Architecture" {
         
         function "Identify Emitters" {
             id: "LF-009"
-            inputs: ["ew_signals", "emitter_library"]
-            outputs: ["identified_threats"]
-            library_size: "5000 plus emitters"
         }
         
         function "Calculate Threat Priority" {
             id: "LF-010"
-            inputs: ["identified_threats", "ownship_state"]
-            outputs: ["threat_priorities"]
         }
     }
     
@@ -248,27 +202,18 @@ logical_architecture "Mission Computer Logical Architecture" {
         
         function "Weapon Inventory" {
             id: "LF-011"
-            outputs: ["available_weapons"]
         }
         
         function "Target-Weapon Pairing" {
             id: "LF-012"
-            inputs: ["target", "available_weapons"]
-            outputs: ["recommended_weapon"]
-            algorithm: "Mission effectiveness optimization"
         }
         
         function "Authorization Check" {
             id: "LF-013"
-            inputs: ["release_request", "authorization"]
-            outputs: ["authorized"]
-            security_level: "Type 1"
         }
         
         function "Generate Release Command" {
             id: "LF-014"
-            inputs: ["authorized", "weapon_params"]
-            outputs: ["release_command"]
         }
     }
     
@@ -281,15 +226,10 @@ logical_architecture "Mission Computer Logical Architecture" {
         
         function "Encrypt Data" {
             id: "LF-015"
-            inputs: ["plaintext", "key"]
-            outputs: ["ciphertext"]
-            algorithm: "AES-256-GCM"
         }
         
         function "Key Management" {
             id: "LF-016"
-            description: "Secure key generation and distribution"
-            certification: "FIPS 140-3 Level 3"
         }
     }
     
@@ -298,11 +238,7 @@ logical_architecture "Mission Computer Logical Architecture" {
         from: "LC-001"
         to: "LC-003"
         iface_type: "Data"
-        protocol: "Fibre Channel"
         classification: "SECRET"
-        rate: "10Hz"
-        bandwidth: "50Mbps"
-        latency: "less than 50ms"
     }
     
     interface "Threat Data Bus" {
@@ -311,20 +247,17 @@ logical_architecture "Mission Computer Logical Architecture" {
         to: "LC-004"
         iface_type: "Data"
         classification: "TOP_SECRET"
-        rate: "20Hz"
         encryption: "Type 1"
     }
     
-    interface "Weapon Control Bus" {
-        id: "LI-003"
-        from: "LC-005"
-        to: "Stores Management System"
-        iface_type: "Control"
-        protocol: "MIL-STD-1760"
-        rate: "Event-driven"
-        latency: "less than 100ms"
-        safety_critical: true
-    }
+    // Note: Interface to external Stores Management System not shown in this architecture
+    // interface "Weapon Control Bus" {
+    //     id: "LI-003"
+    //     from: "LC-005"
+    //     to: "Stores Management System"
+    //     iface_type: "Control"
+    //     safety_critical: true
+    // }
     
 }
 
@@ -339,50 +272,23 @@ trace "LF-013" satisfies "SYS-MC-003" {
 physical_architecture "Mission Computer Physical Architecture" {
     node "Mission Processor 1" {
         id: "PN-001"
-        description: "Primary mission computer"
-        processor: "PowerPC e6500 at 2.5 GHz"
-        cores: 8
-        memory: "32GB ECC RAM"
-        safety_level: "DAL_A"
         classification: "TOP_SECRET"
-        tempest_certified: true
         
-        deploys "LC-003" {
-            partition: "Track Fusion Partition"
-            criticality: "DAL_A"
-            memory_protection: "MMU-enforced"
-        }
+        deploys "LC-003"
         
-        deploys "LC-004" {
-            partition: "Threat Management Partition"
-            criticality: "DAL_A"
-        }
+        deploys "LC-004"
         
-        deploys "LC-005" {
-            partition: "Weapon Control Partition"
-            criticality: "DAL_A"
-            isolation: "Strong spatial and temporal"
-        }
+        deploys "LC-005"
     }
     
     node "Mission Processor 2" {
         id: "PN-002"
-        description: "Backup mission computer (hot standby)"
-        processor: "PowerPC e6500 at 2.5 GHz"
-        cores: 8
-        memory: "32GB ECC RAM"
-        safety_level: "DAL_A"
         
-        deploys "LC-003" {
-            partition: "Backup Track Fusion"
-            mode: "Hot Standby"
-        }
+        deploys "LC-003"
     }
     
     node "Radar Signal Processor" {
         id: "PN-003"
-        description: "Dedicated radar processing unit"
-        processor: "Xilinx Virtex UltraScale+ FPGA"
         classification: "SECRET"
         
         deploys "LC-001"
@@ -390,8 +296,6 @@ physical_architecture "Mission Computer Physical Architecture" {
     
     node "EW Processor" {
         id: "PN-004"
-        description: "Electronic warfare processing unit"
-        processor: "Multi-core DSP"
         classification: "TOP_SECRET"
         
         deploys "LC-002"
@@ -399,37 +303,26 @@ physical_architecture "Mission Computer Physical Architecture" {
     
     node "Crypto Appliance" {
         id: "PN-005"
-        description: "NSA-certified Type 1 encryptor"
-        certification: "NSA Type 1, FIPS 140-3 Level 3"
         classification: "TOP_SECRET"
-        tamper_protection: "Hardware"
         
         deploys "LC-006"
     }
     
     physical_link "High-Speed Backplane" {
         id: "PL-001"
-        topology: "VPX"
-        protocol: "Serial RapidIO"
-        bandwidth: "10Gbps-per-lane"
-        lanes: 4
         classification: "SECRET"
         
         connects: ["PN-001", "PN-002", "PN-003", "PN-004", "PN-005"]
     }
     
-    physical_link "Weapon Bus" {
-        id: "PL-002"
-        protocol: "MIL-STD-1760"
-        redundancy: "Dual"
-        connects: ["PN-001", "Stores Management"]
-    }
+    // Note: Physical link to external Stores Management not shown in this architecture
+    // physical_link "Weapon Bus" {
+    //     id: "PL-002"
+    //     connects: ["PN-001", "Stores Management"]
+    // }
     
     physical_link "Cross-Channel Link" {
         id: "PL-003"
-        description: "Synchronization between mission processors"
-        protocol: "Deterministic Ethernet"
-        latency: "less than 1ms"
         connects: ["PN-001", "PN-002"]
     }
 }

@@ -1,0 +1,26 @@
+@startuml
+!theme plain
+
+package "System Components" {
+  [Long Range Radar]
+  [Forward Camera]
+  [Sensor Fusion]
+  [Target Selection]
+  [Longitudinal Controller]
+  [Actuator Command]
+  [Safety Monitor]
+  [Driver Interface]
+  [Override Manager]
+}
+
+[Long Range Radar] --> [Sensor Fusion]
+[Forward Camera] --> [Sensor Fusion]
+[Sensor Fusion] --> [Target Selection]
+[Target Selection] --> [Longitudinal Controller]
+[Longitudinal Controller] --> [Actuator Command]
+[Safety Monitor] --> [Longitudinal Controller]
+[Driver Interface] --> [Longitudinal Controller]
+[Override Manager] --> [Longitudinal Controller]
+[Override Manager] --> [Actuator Command]
+
+@enduml

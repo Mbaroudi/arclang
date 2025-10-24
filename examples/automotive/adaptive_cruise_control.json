@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<capella:Project xmlns:capella="http://www.polarsys.org/capella/core/1.4.0">
+  <ownedRequirements>
+    <requirement id="SYS-ACC-001" name="SYS-ACC-001" description="The ACC system shall maintain minimum 2-second following distance at all speeds" priority="Critical" />
+    <requirement id="SYS-ACC-002" name="SYS-ACC-002" description="The system shall detect cut-in vehicles within 500ms" priority="High" />
+    <requirement id="SYS-ACC-003" name="SYS-ACC-003" description="Maximum deceleration shall not exceed 3.5 m/s²" priority="High" />
+    <requirement id="SYS-ACC-004" name="SYS-ACC-004" description="Driver brake input shall immediately override ACC control" priority="Critical" />
+    <requirement id="SYS-ACC-005" name="SYS-ACC-005" description="System shall operate in speed range 30-180 km/h" priority="Medium" />
+  </ownedRequirements>
+  <ownedLogicalComponents>
+    <component id="LC-001" name="Radar Sensor" type="Logical" />
+    <component id="LC-002" name="Vision Camera" type="Logical" />
+    <component id="LC-003" name="Sensor Fusion" type="Logical" />
+    <component id="LC-004" name="ACC Controller" type="Logical" />
+    <component id="LC-005" name="Actuator Interface" type="Logical" />
+    <component id="PN-001" name="Radar ECU" type="Physical" />
+    <component id="PN-002" name="Camera ECU" type="Physical" />
+    <component id="PN-003" name="ADAS ECU" type="Physical" />
+    <component id="PN-004" name="Gateway ECU" type="Physical" />
+  </ownedLogicalComponents>
+  <ownedTraces>
+    <trace from="LC-003" to="SYS-ACC-001" type="satisfies" />
+    <trace from="LF-006" to="SYS-ACC-002" type="satisfies" />
+  </ownedTraces>
+</capella:Project>

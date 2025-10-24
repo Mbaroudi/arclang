@@ -1,0 +1,289 @@
+{
+  "metadata": {
+    "title": "System Architecture",
+    "version": "1.0.0",
+    "description": "Complete architecture with 6 components, 2 interfaces, and 3 requirements",
+    "total_requirements": 3,
+    "total_components": 6,
+    "total_interfaces": 2,
+    "total_functions": 6
+  },
+  "requirements": [
+    {
+      "category": "General",
+      "requirements": [
+        {
+          "id": "SYS-FCS-001",
+          "description": "The flight control system shall respond to pilot inputs within 50ms",
+          "priority": "Critical",
+          "category": null,
+          "safety_level": "DAL_A",
+          "traces_to": []
+        },
+        {
+          "id": "SYS-FCS-002",
+          "description": "The system shall provide redundant control paths for all critical surfaces",
+          "priority": "Critical",
+          "category": null,
+          "safety_level": "DAL_A",
+          "traces_to": []
+        },
+        {
+          "id": "SYS-FCS-003",
+          "description": "Control surface deflection accuracy shall be within ±0.5 degrees",
+          "priority": "High",
+          "category": null,
+          "safety_level": "DAL_B",
+          "traces_to": []
+        }
+      ]
+    }
+  ],
+  "components": [
+    {
+      "id": "LC-001",
+      "name": "Primary Flight Computer",
+      "layer": "Logical",
+      "component_type": "Logical",
+      "safety_level": null,
+      "asil": null,
+      "interfaces_in": [],
+      "interfaces_out": [],
+      "functions": [
+        "Command Processing",
+        "Control Law Computation"
+      ],
+      "description": "Component in Logical layer"
+    },
+    {
+      "id": "LC-002",
+      "name": "Backup Flight Computer",
+      "layer": "Logical",
+      "component_type": "Logical",
+      "safety_level": null,
+      "asil": null,
+      "interfaces_in": [],
+      "interfaces_out": [],
+      "functions": [
+        "Monitor Primary",
+        "Takeover Control"
+      ],
+      "description": "Component in Logical layer"
+    },
+    {
+      "id": "LC-003",
+      "name": "Actuator Control",
+      "layer": "Logical",
+      "component_type": "Logical",
+      "safety_level": null,
+      "asil": null,
+      "interfaces_in": [],
+      "interfaces_out": [],
+      "functions": [
+        "Command Actuators",
+        "Monitor Position Feedback"
+      ],
+      "description": "Component in Logical layer"
+    },
+    {
+      "id": "PN-001",
+      "name": "FCC-A",
+      "layer": "Physical",
+      "component_type": "Physical",
+      "safety_level": null,
+      "asil": null,
+      "interfaces_in": [],
+      "interfaces_out": [],
+      "functions": [],
+      "description": "Component in Physical layer"
+    },
+    {
+      "id": "PN-002",
+      "name": "FCC-B",
+      "layer": "Physical",
+      "component_type": "Physical",
+      "safety_level": null,
+      "asil": null,
+      "interfaces_in": [],
+      "interfaces_out": [],
+      "functions": [],
+      "description": "Component in Physical layer"
+    },
+    {
+      "id": "PN-003",
+      "name": "Remote Terminal Unit",
+      "layer": "Physical",
+      "component_type": "Physical",
+      "safety_level": null,
+      "asil": null,
+      "interfaces_in": [],
+      "interfaces_out": [],
+      "functions": [],
+      "description": "Component in Physical layer"
+    }
+  ],
+  "interfaces": [
+    {
+      "name": "Command Interface",
+      "from": "LC-001",
+      "to": "LC-003",
+      "from_component": "Primary Flight Computer",
+      "to_component": "Actuator Control"
+    },
+    {
+      "name": "Cross-Channel Datalink",
+      "from": "LC-001",
+      "to": "LC-002",
+      "from_component": "Primary Flight Computer",
+      "to_component": "Backup Flight Computer"
+    }
+  ],
+  "functions": [
+    {
+      "id": "LF-001",
+      "name": "Command Processing",
+      "inputs": [],
+      "outputs": [],
+      "component": "Primary Flight Computer"
+    },
+    {
+      "id": "LF-002",
+      "name": "Control Law Computation",
+      "inputs": [],
+      "outputs": [],
+      "component": "Primary Flight Computer"
+    },
+    {
+      "id": "LF-003",
+      "name": "Monitor Primary",
+      "inputs": [],
+      "outputs": [],
+      "component": "Backup Flight Computer"
+    },
+    {
+      "id": "LF-004",
+      "name": "Takeover Control",
+      "inputs": [],
+      "outputs": [],
+      "component": "Backup Flight Computer"
+    },
+    {
+      "id": "LF-005",
+      "name": "Command Actuators",
+      "inputs": [],
+      "outputs": [],
+      "component": "Actuator Control"
+    },
+    {
+      "id": "LF-006",
+      "name": "Monitor Position Feedback",
+      "inputs": [],
+      "outputs": [],
+      "component": "Actuator Control"
+    }
+  ],
+  "traces": [],
+  "diagram": {
+    "nodes": [
+      {
+        "id": "LC-001",
+        "label": "Primary Flight Computer",
+        "layer": "Logical",
+        "stereotype": "<<component>>",
+        "interfaces_in": [],
+        "interfaces_out": [],
+        "functions": [
+          "Command Processing",
+          "Control Law Computation"
+        ],
+        "width": 221,
+        "height": 180
+      },
+      {
+        "id": "LC-002",
+        "label": "Backup Flight Computer",
+        "layer": "Logical",
+        "stereotype": "<<component>>",
+        "interfaces_in": [],
+        "interfaces_out": [],
+        "functions": [
+          "Monitor Primary",
+          "Takeover Control"
+        ],
+        "width": 220,
+        "height": 180
+      },
+      {
+        "id": "LC-003",
+        "label": "Actuator Control",
+        "layer": "Logical",
+        "stereotype": "<<component>>",
+        "interfaces_in": [],
+        "interfaces_out": [],
+        "functions": [
+          "Command Actuators",
+          "Monitor Position Feedback"
+        ],
+        "width": 220,
+        "height": 180
+      },
+      {
+        "id": "PN-001",
+        "label": "FCC-A",
+        "layer": "Physical",
+        "stereotype": "<<component>>",
+        "interfaces_in": [],
+        "interfaces_out": [],
+        "functions": [],
+        "width": 220,
+        "height": 180
+      },
+      {
+        "id": "PN-002",
+        "label": "FCC-B",
+        "layer": "Physical",
+        "stereotype": "<<component>>",
+        "interfaces_in": [],
+        "interfaces_out": [],
+        "functions": [],
+        "width": 220,
+        "height": 180
+      },
+      {
+        "id": "PN-003",
+        "label": "Remote Terminal Unit",
+        "layer": "Physical",
+        "stereotype": "<<component>>",
+        "interfaces_in": [],
+        "interfaces_out": [],
+        "functions": [],
+        "width": 220,
+        "height": 180
+      }
+    ],
+    "edges": [
+      {
+        "source": "LC-001",
+        "target": "LC-003",
+        "label": "Command Interface"
+      },
+      {
+        "source": "LC-001",
+        "target": "LC-002",
+        "label": "Cross-Channel Datalink"
+      }
+    ],
+    "layers": [
+      {
+        "name": "Logical",
+        "color": "#E3F2FD",
+        "description": "Logical Architecture Layer"
+      },
+      {
+        "name": "Physical",
+        "color": "#FCE4EC",
+        "description": "Physical Hardware Layer"
+      }
+    ]
+  }
+}

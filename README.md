@@ -22,21 +22,34 @@
 
 ## 🎨 Capella-Quality Diagrams with ELK
 
-**NEW**: Professional architecture diagrams using **Eclipse Layout Kernel (ELK)**!
+**NEW**: Professional architecture diagrams using **Eclipse Layout Kernel (ELK)** - now the **default for ALL generators**!
 
 ```bash
+# Interactive explorer with ELK
 arclang explorer model.arc
+
+# Static SVG with ELK (auto-fallback)
+arclang export model.arc -o diagram.html -f arc-viz-ultimate
 ```
 
 ### Features
-- ✅ **ELK Layout Engine** - Hierarchical layout with native port support
+- ✅ **ELK Layout Engine** - Default for all arc-viz formats
+- ✅ **Automatic Fallback** - Custom algorithm if Node.js/elkjs unavailable
 - ✅ **Orthogonal Routing** - Clean 90° edges (Capella standard)
 - ✅ **Native Ports** - FIXED_SIDE constraints (WEST/EAST)
 - ✅ **Hierarchical Layers** - Multi-level architecture visualization
-- ✅ **Interactive** - Zoom, pan, hover tooltips
+- ✅ **Interactive & Static** - Both modes supported
 - ✅ **Auto-sizing** - Components adapt to label length
 - ✅ **Safety Badges** - ASIL level indicators
-- ✅ **Dual Engine** - ELK primary, Dagre fallback
+- ✅ **Backward Compatible** - Legacy formats available (`*-legacy`)
+
+### All Generators Now Use ELK
+- `arc-viz-ultimate` → ELK (recommended)
+- `arc-viz-smart` → ELK
+- `arc-viz-channel` → ELK  
+- `arc-viz-perfect` → ELK
+- `arclang explorer` → ELK interactive
+- Legacy formats: Add `-legacy` suffix (e.g., `arc-viz-ultimate-legacy`)
 
 **Example: Code → Diagram**
 

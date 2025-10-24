@@ -1,0 +1,110 @@
+---
+config:
+  layout: elk
+title: System Requirements
+---
+flowchart TD
+ subgraph subGraph0["Client Analytics"]
+        STK-008["STK-008<br>Leadership needs migration completed within 12 months with clear Q1-Q4 milestones"]
+  end
+ subgraph subGraph1["Executive Analytics"]
+        STK-002["STK-002<br>Platform must support both real-time streaming analytics and batch analytics for video streaming metrics"]
+  end
+ subgraph subGraph2["Market Analytics"]
+        STK-004["STK-004<br>Data teams need unified platform combining data engineering, data science, and analytics workloads"]
+  end
+ subgraph subGraph3["Merchant Analytics"]
+        STK-006["STK-006<br>Organization needs scalable architecture supporting 10x data growth from 100TB to 1PB over 3 years"]
+  end
+ subgraph subGraph4["Requirements"]
+        STK-001["STK-001<br>Business must reduce total cost of ownership for data platform by 40% over 3 years through consolidation and automation"]
+        STK-003["STK-003<br>System must maintain 99.9% data availability during migration period with no data loss"]
+        STK-005["STK-005<br>Business requires seamless user experience with zero planned downtime during migration"]
+        STK-007["STK-007<br>Compliance team requires complete data lineage tracking and audit trails for GDPR and CCPA compliance"]
+  end
+ subgraph subGraph5["System Requirements"]
+        SYS-MIG-001["SYS-MIG-001<br>System shall support bidirectional synchronization between Oracle/Snowflake and Databricks with conflict resolution"]
+        SYS-MIG-002["SYS-MIG-002<br>System shall automatically discover and map schemas from Oracle/Snowflake to Databricks Delta Lake format"]
+        SYS-MIG-003["SYS-MIG-003<br>System shall validate data integrity through row count reconciliation and checksum validation after each migration batch"]
+        SYS-MIG-004["SYS-MIG-004<br>System shall provide automated rollback capability to previous stable state within 15 minutes"]
+        SYS-MIG-005["SYS-MIG-005<br>System shall support incremental migration in waves with table-level granularity and parallel execution"]
+        SYS-PERF-001["SYS-PERF-001<br>System shall deliver query response time under 5 seconds for 95th percentile of analytical queries"]
+        SYS-PERF-002["SYS-PERF-002<br>System shall efficiently handle datasets exceeding 100TB with columnar storage and optimization"]
+        SYS-PERF-003["SYS-PERF-003<br>System shall support 500+ concurrent users with workload isolation and auto-scaling"]
+        SYS-PERF-004["SYS-PERF-004<br>System shall process streaming data with end-to-end latency under 60 seconds for 99% of events"]
+        SYS-SCALE-001["SYS-SCALE-001<br>System shall automatically scale compute clusters from 2 to 200 nodes based on workload demand"]
+        SYS-SCALE-002["SYS-SCALE-002<br>System shall provide elastic cloud storage scaling from 100TB to 1PB+ with automatic tiering"]
+        SYS-GOV-001["SYS-GOV-001<br>System shall enforce granular RBAC at table, column, and row level with dynamic data masking for PII"]
+        SYS-GOV-002["SYS-GOV-002<br>System shall automatically detect and classify PII data using ML-based scanning"]
+        SYS-GOV-003["SYS-GOV-003<br>System shall capture and visualize end-to-end data lineage with column-level tracking"]
+        SYS-REL-001["SYS-REL-001<br>System shall perform automated incremental backups every 6 hours with point-in-time recovery"]
+        SYS-REL-002["SYS-REL-002<br>System shall meet disaster recovery SLA with RPO under 1 hour and RTO under 4 hours"]
+        SYS-MON-001["SYS-MON-001<br>System shall provide real-time monitoring of data pipelines with alerts for failures and SLA breaches"]
+        SYS-MON-002["SYS-MON-002<br>System shall track data quality metrics with automated anomaly detection and root cause analysis"]
+        SYS-MON-003["SYS-MON-003<br>System shall track cloud costs by workload and team with optimization recommendations"]
+  end
+    SYS-MIG-001 --> LA-MIG-004
+    SYS-MIG-002 --> LA-MIG-002
+    SYS-MIG-003 --> LA-MIG-003
+    SYS-MIG-004 --> LA-MIG-001
+    SYS-PERF-001 --> LA-ANLZ-001
+    SYS-PERF-002 --> LA-TGT-003
+    SYS-PERF-003 --> LA-TGT-001
+    SYS-PERF-004 --> LA-PROC-002
+    SYS-SCALE-001 --> LA-TGT-001
+    SYS-SCALE-002 --> LA-TGT-003
+    SYS-GOV-001 --> LA-GOV-001
+    SYS-GOV-002 --> LA-GOV-001
+    SYS-GOV-003 --> LA-GOV-002
+    SYS-REL-001 --> LA-TGT-003
+    SYS-MON-001 --> LA-MON-001
+    SYS-MON-002 --> LA-PROC-003
+    SYS-MON-003 --> LA-MON-002
+    SYS-REL-002 --> LA-TGT-003
+    SYS-MIG-005 --> LA-MIG-001
+     STK-008:::client
+     STK-002:::executive
+     STK-004:::market
+     STK-006:::merchant
+     STK-001:::requirements
+     STK-003:::requirements
+     STK-005:::requirements
+     STK-007:::requirements
+     SYS-MIG-001:::system
+     SYS-MIG-002:::system
+     SYS-MIG-003:::system
+     SYS-MIG-004:::system
+     SYS-MIG-005:::system
+     SYS-PERF-001:::system
+     SYS-PERF-002:::system
+     SYS-PERF-003:::system
+     SYS-PERF-004:::system
+     SYS-SCALE-001:::system
+     SYS-SCALE-002:::system
+     SYS-GOV-001:::system
+     SYS-GOV-002:::system
+     SYS-GOV-003:::system
+     SYS-REL-001:::system
+     SYS-REL-002:::system
+     SYS-MON-001:::system
+     SYS-MON-002:::system
+     SYS-MON-003:::system
+    classDef executive fill:#1F77B4,color:white
+    classDef market fill:#FF7F0E,color:white
+    classDef merchant fill:#2CA02C,color:white
+    classDef client fill:#D62728,color:white
+    classDef financial fill:#9467BD,color:white
+    classDef compliance fill:#8C564B,color:white
+    classDef quality fill:#E377C2,color:white
+    classDef advanced fill:#7F7F7F,color:white
+    classDef architecture fill:#BCBD22,color:white
+    classDef business fill:#17BECF,color:white
+    classDef system fill:#1F77B4,color:white
+    classDef software fill:#FF7F0E,color:white
+    classDef hardware fill:#2CA02C,color:white
+    classDef safety fill:#D62728,color:white
+    classDef functional_safety fill:#9467BD,color:white
+    classDef performance fill:#FF7F0E,color:white
+    classDef safety_override fill:#D62728,color:white
+    classDef operational fill:#8C564B,color:white
+    classDef requirements fill:#7F7F7F,color:white

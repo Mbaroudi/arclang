@@ -33,8 +33,6 @@ logical_architecture "ACC Logical Architecture" {
         
         function "Detect Objects" {
             id: "LF-001"
-            inputs: ["rf_signal"]
-            outputs: ["raw_detections"]
         }
     }
     
@@ -45,8 +43,6 @@ logical_architecture "ACC Logical Architecture" {
         
         function "Classify Objects" {
             id: "LF-003"
-            inputs: ["image_frame"]
-            outputs: ["detected_objects"]
         }
     }
     
@@ -57,8 +53,6 @@ logical_architecture "ACC Logical Architecture" {
         
         function "Fuse Detections" {
             id: "LF-005"
-            inputs: ["radar_objects", "camera_objects"]
-            outputs: ["fused_objects"]
         }
     }
     
@@ -69,8 +63,6 @@ logical_architecture "ACC Logical Architecture" {
         
         function "Compute Speed Profile" {
             id: "LF-008"
-            inputs: ["required_distance", "current_distance"]
-            outputs: ["target_acceleration"]
         }
     }
 }

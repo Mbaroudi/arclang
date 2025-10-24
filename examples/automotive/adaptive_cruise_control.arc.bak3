@@ -34,32 +34,43 @@ operational_analysis "Adaptive Cruise Control Operations" {
 system_analysis "ACC System" {
     requirement "SYS-ACC-001" {
         description: "The ACC system shall maintain minimum 2-second following distance at all speeds"
+        category: "Functional Safety"
         priority: "Critical"
         safety_level: "ASIL_B"
         traces: ["OC-001"]
         verification_method: "Test"
+        standard: "ISO 26262"
     }
     
     requirement "SYS-ACC-002" {
         description: "The system shall detect cut-in vehicles within 500ms"
+        category: "Performance"
         priority: "High"
         safety_level: "ASIL_B"
+        verification_method: "Test"
+        performance_metric: "Detection latency < 500ms"
     }
     
     requirement "SYS-ACC-003" {
         description: "Maximum deceleration shall not exceed 3.5 m/s²"
+        category: "Performance"
         priority: "High"
         safety_level: "ASIL_B"
+        rationale: "Prevent passenger discomfort and maintain stability"
     }
     
     requirement "SYS-ACC-004" {
         description: "Driver brake input shall immediately override ACC control"
+        category: "Safety Override"
         priority: "Critical"
         safety_level: "ASIL_C"
+        verification_method: "Test"
+        response_time: "< 100ms"
     }
     
     requirement "SYS-ACC-005" {
         description: "System shall operate in speed range 30-180 km/h"
+        category: "Operational Range"
         priority: "Medium"
         safety_level: "ASIL_A"
     }
@@ -86,21 +97,23 @@ system_analysis "ACC System" {
 logical_architecture "ACC Logical Architecture" {
     component "Radar Sensor" {
         id: "LC-001"
-        component_type: "Logical"
+        type: "Logical"
         description: "77 GHz long-range radar"
         
         function "Transmit RF Signal" {
             id: "LF-001"
+            power: "20dBm"
         }
         
         function "Process Echoes" {
             id: "LF-002"
+            algorithm: "FFT + CFAR"
         }
     }
     
     component "Vision Camera" {
         id: "LC-002"
-        component_type: "Logical"
+        type: "Logical"
         description: "Forward-facing camera for object classification"
         
         function "Capture Images" {
@@ -109,27 +122,33 @@ logical_architecture "ACC Logical Architecture" {
         
         function "Detect Objects" {
             id: "LF-004"
+            algorithm: "CNN-based detection"
         }
     }
     
     component "Sensor Fusion" {
         id: "LC-003"
-        component_type: "Logical"
+        type: "Logical"
         description: "Combine radar and camera data"
         safety_level: "ASIL_B"
         
         function "Fuse Detections" {
             id: "LF-005"
+                "radar_objects: RawObjectList",
+                "camera_objects: ObjectList"
+            ]
+            algorithm: "Kalman Filter"
         }
         
         function "Select Target" {
             id: "LF-006"
+            impl: "SF-001"
         }
     }
     
     component "ACC Controller" {
         id: "LC-004"
-        component_type: "Logical"
+        type: "Logical"
         description: "Main ACC control logic"
         safety_level: "ASIL_B"
         
@@ -140,17 +159,24 @@ logical_architecture "ACC Logical Architecture" {
         
         function "Compute Speed Profile" {
             id: "LF-008"
+                "required_distance: Distance",
+                "current_distance: Distance",
+                "set_speed: Speed"
+            ]
+            impl: "SF-002"
+            control_law: "PID"
         }
     }
     
     component "Actuator Interface" {
         id: "LC-005"
-        component_type: "Logical"
+        type: "Logical"
         description: "Interface to vehicle actuators"
         safety_level: "ASIL_C"
         
         function "Convert to CAN Commands" {
             id: "LF-009"
+            impl: "SF-003"
         }
         
         function "Monitor Driver Override" {
@@ -163,75 +189,109 @@ logical_architecture "ACC Logical Architecture" {
         id: "LI-001"
         from: "LC-001"
         to: "LC-003"
-        interface_type: "Data"
+        type: "Data"
+        protocol: "CAN FD"
+        message_id: "0x200"
+        rate: "20Hz"
     }
     
     interface "Camera Data Bus" {
         id: "LI-002"
         from: "LC-002"
         to: "LC-003"
-        interface_type: "Data"
+        type: "Data"
+        protocol: "Ethernet"
+        rate: "10Hz"
     }
     
     interface "Control Bus" {
         id: "LI-003"
         from: "LC-004"
         to: "LC-005"
-        interface_type: "Data"
+        type: "Data"
+        protocol: "CAN"
+        message_id: "0x300"
+        rate: "50Hz"
+    }
+    
+    trace "LC-003" satisfies "SYS-ACC-001" {
+        rationale: "Sensor fusion provides target detection for distance control"
+    }
+    
+    trace "LF-006" satisfies "SYS-ACC-002" {
+        rationale: "Target selection detects cut-in vehicles"
     }
 }
 
 physical_architecture "ACC Physical Architecture" {
     node "Radar ECU" {
         id: "PN-001"
+        description: "Continental ARS540 Radar"
+        supplier: "Continental"
         processor: "Aurix TC397"
+        memory: "8MB"
         
-        deploys "LC-001"
+        deployed_component: "LC-001"
     }
     
     node "Camera ECU" {
         id: "PN-002"
+        description: "Mobileye EyeQ5"
+        supplier: "Mobileye"
         processor: "EyeQ5 SoC"
+        memory: "4GB"
         
-        deploys "LC-002"
+        deployed_component: "LC-002"
     }
     
     node "ADAS ECU" {
         id: "PN-003"
+        description: "Domain controller for ADAS functions"
         processor: "NVIDIA Xavier"
+        memory: "16GB"
+        safety_level: "ASIL_B"
         
-        deploys "LC-003"
-        deploys "LC-004"
+        deployed_component: "LC-003"
+        partition_lc003: "Sensor Fusion Partition"
+        criticality_lc003: "ASIL_B"
+        
+        deployed_component_2: "LC-004"
+        partition_lc004: "ACC Control Partition"
+        criticality_lc004: "ASIL_B"
     }
     
     node "Gateway ECU" {
         id: "PN-004"
+        description: "Central vehicle gateway"
         
-        deploys "LC-005"
+        deployed_component: "LC-005"
     }
     
     physical_link "CAN FD Bus" {
         id: "PL-001"
-        topology: "CAN FD"
-        bandwidth: "2Mbps"
+        protocol: "CAN FD"
+        baudrate: "2Mbps"
         connects: ["PN-001", "PN-003"]
-        realizes: ["LI-001"]
+        
+        realizes: "LI-001"
     }
     
     physical_link "Automotive Ethernet" {
         id: "PL-002"
-        topology: "100BASE-T1"
-        bandwidth: "100Mbps"
+        protocol: "100BASE-T1"
+        baudrate: "100Mbps"
         connects: ["PN-002", "PN-003"]
-        realizes: ["LI-002"]
+        
+        realizes: "LI-002"
     }
     
     physical_link "Vehicle CAN" {
         id: "PL-003"
-        topology: "CAN"
-        bandwidth: "500kbps"
+        protocol: "CAN"
+        baudrate: "500kbps"
         connects: ["PN-003", "PN-004", "Engine ECU", "Brake ECU"]
-        realizes: ["LI-003"]
+        
+        realizes: "LI-003"
     }
 }
 
@@ -245,11 +305,19 @@ epbs "ACC EPBS" {
             item "Continental ARS540 Radar" {
                 id: "EPBS-1001"
                 part_number: "ARS540-2022"
+                supplier: "Continental"
+                impl: "PN-001"
+                unit_cost: "$450"
+                asil: "ASIL_B"
             }
             
             item "Mobileye EyeQ5 Camera" {
                 id: "EPBS-1002"
                 part_number: "EQ5-2021"
+                supplier: "Mobileye"
+                impl: "PN-002"
+                unit_cost: "$180"
+                asil: "ASIL_B"
             }
         }
         
@@ -259,11 +327,19 @@ epbs "ACC EPBS" {
             item "ADAS Domain Controller" {
                 id: "EPBS-1003"
                 part_number: "ADAS-CTRL-001"
+                supplier: "Aptiv"
+                impl: "PN-003"
+                unit_cost: "$320"
+                asil: "ASIL_D"
             }
             
             item "ACC Software Stack" {
                 id: "EPBS-1004"
-                part_number: "SW-ACC-V2.5.0"
+                version: "v2.5.0"
+                impl: ["LC-003", "LC-004"]
+                sloc: 125000
+                language: "C++"
+                certification: "ISO 26262 ASIL-B"
             }
         }
         
@@ -273,29 +349,64 @@ epbs "ACC EPBS" {
             item "Central Gateway" {
                 id: "EPBS-1005"
                 part_number: "CGW-001"
+                impl: "PN-004"
             }
             
             item "CAN FD Transceiver" {
                 id: "EPBS-1006"
                 part_number: "TJA1463"
+                supplier: "NXP"
+                quantity: 2
             }
         }
     }
 }
 
 safety_analysis {
+    standard: "ISO_26262"
+    asil: "ASIL_B"
+    
     hazard "Unintended Acceleration" {
         id: "HAZ-001"
         description: "Vehicle accelerates when it should decelerate"
         severity: "S3"
+        exposure: "E4"
+        controllability: "C2"
         asil: "ASIL_C"
+        
+        causes: [
+            "Sensor fusion error",
+            "Control logic fault",
+            "CAN message corruption"
+        ]
+        
+        mitigations: [
+            "Plausibility checking of sensor data",
+            "Acceleration rate limiting",
+            "Driver override monitoring",
+            "Watchdog monitoring"
+        ]
     }
     
     hazard "Loss of Target Tracking" {
         id: "HAZ-002"
         description: "System loses track of lead vehicle"
         severity: "S2"
+        exposure: "E4"
+        controllability: "C1"
         asil: "ASIL_B"
+        
+        causes: [
+            "Radar/camera blockage",
+            "Severe weather conditions",
+            "Software fault"
+        ]
+        
+        mitigations: [
+            "Sensor redundancy (radar + camera)",
+            "Degraded mode operation",
+            "Driver warning within 1 second"
+        ]
     }
     
     fmea "ACC FMEA" {
@@ -303,14 +414,12 @@ safety_analysis {
         failure_mode: "False target detection"
         effects: "Unnecessary braking or acceleration"
         severity: "S2"
+        occurrence: "C"
+        detection: "Plausibility checks detect 90%"
         rpn: 36
+        actions: [
+            "Enhance fusion algorithm",
+            "Add redundant detection logic"
+        ]
     }
-}
-
-trace "LC-003" satisfies "SYS-ACC-001" {
-    rationale: "Sensor fusion provides target detection for distance control"
-}
-
-trace "LF-006" satisfies "SYS-ACC-002" {
-    rationale: "Target selection detects cut-in vehicles"
 }

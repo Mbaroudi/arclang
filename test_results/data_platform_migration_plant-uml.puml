@@ -1,0 +1,32 @@
+@startuml
+!theme plain
+
+package "System Components" {
+  [Oracle Database Subsystem]
+  [Snowflake Warehouse Subsystem]
+  [ETL Orchestrator]
+  [Schema Converter]
+  [Data Validator]
+  [Conflict Resolver]
+  [Databricks Lakehouse Platform]
+  [Unity Catalog]
+  [Delta Lake Storage]
+  [Batch Pipeline Engine]
+  [Streaming Pipeline Engine]
+  [Data Quality Engine]
+  [Access Control Manager]
+  [Lineage Tracker]
+  [Audit Logger]
+  [API Gateway]
+  [Metadata Manager]
+  [Workflow Orchestrator]
+  [SQL Analytics Engine]
+  [ML Workspace]
+  [BI Connector Hub]
+  [Observability Platform]
+  [Cost Optimizer]
+  [Alert Manager]
+}
+
+
+@enduml

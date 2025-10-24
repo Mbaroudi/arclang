@@ -759,1302 +759,915 @@
   "metadata": {
     "title": "Vehicle Remote Start System Architecture",
     "version": "1.0.0",
-    "description": "Complete architecture with 24 components, 19 interfaces, and 27 requirements",
-    "total_requirements": 27,
-    "total_components": 24,
-    "total_interfaces": 19,
-    "total_functions": 0
+    "description": "Complete architecture with 9 components, 0 interfaces, and 18 requirements",
+    "total_requirements": 18,
+    "total_components": 9,
+    "total_interfaces": 0,
+    "total_functions": 18
   },
   "requirements": [
     {
-      "category": "General",
+      "category": "Data Quality Analytics",
       "requirements": [
         {
-          "id": "STK-001",
-          "description": "Business must reduce total cost of ownership for data platform by 40% over 3 years through consolidation and automation",
-          "priority": "Critical",
-          "category": null,
-          "safety_level": null,
-          "traces_to": [
-            "SYS-MIG-005",
-            "SYS-MON-003"
-          ]
-        },
-        {
-          "id": "STK-002",
-          "description": "Platform must support both real-time streaming analytics and batch analytics for video streaming metrics",
-          "priority": "Critical",
-          "category": null,
-          "safety_level": null,
-          "traces_to": [
-            "SYS-PERF-001",
-            "SYS-PERF-004"
-          ]
-        },
-        {
-          "id": "STK-003",
-          "description": "System must maintain 99.9% data availability during migration period with no data loss",
-          "priority": "Critical",
-          "category": null,
-          "safety_level": null,
-          "traces_to": [
-            "SYS-MIG-003",
-            "SYS-REL-001"
-          ]
-        },
-        {
-          "id": "STK-004",
-          "description": "Data teams need unified platform combining data engineering, data science, and analytics workloads",
+          "id": "BR-ANALYTICS-013",
+          "description": "System shall monitor data quality metrics across all data sources",
           "priority": "High",
-          "category": null,
+          "category": "Data Quality Analytics",
           "safety_level": null,
           "traces_to": [
-            "SYS-PERF-003"
+            "BR-GOV-001",
+            "BR-ANALYTICS-014"
           ]
         },
         {
-          "id": "STK-005",
-          "description": "Business requires seamless user experience with zero planned downtime during migration",
-          "priority": "Critical",
-          "category": null,
-          "safety_level": null,
-          "traces_to": [
-            "SYS-MIG-001"
-          ]
-        },
-        {
-          "id": "STK-006",
-          "description": "Organization needs scalable architecture supporting 10x data growth from 100TB to 1PB over 3 years",
+          "id": "BR-ANALYTICS-014",
+          "description": "System shall track data lineage from source to analytics",
           "priority": "High",
-          "category": null,
+          "category": "Data Quality Analytics",
           "safety_level": null,
           "traces_to": [
-            "SYS-SCALE-001",
-            "SYS-SCALE-002"
+            "BR-ARCH-001"
           ]
-        },
+        }
+      ]
+    },
+    {
+      "category": "Executive Analytics",
+      "requirements": [
         {
-          "id": "STK-007",
-          "description": "Compliance team requires complete data lineage tracking and audit trails for GDPR and CCPA compliance",
+          "id": "BR-ANALYTICS-001",
+          "description": "System shall provide consolidated KPI monitoring across all markets with real-time dashboards",
           "priority": "Critical",
-          "category": null,
+          "category": "Executive Analytics",
           "safety_level": null,
           "traces_to": [
-            "SYS-GOV-001",
-            "SYS-GOV-003"
+            "BR-ANALYTICS-010",
+            "BR-ANALYTICS-003"
           ]
         },
         {
-          "id": "STK-008",
-          "description": "Leadership needs migration completed within 12 months with clear Q1-Q4 milestones",
+          "id": "BR-ANALYTICS-002",
+          "description": "System shall analyze benefit program performance across client base",
           "priority": "Critical",
-          "category": null,
+          "category": "Executive Analytics",
           "safety_level": null,
           "traces_to": [
-            "SYS-MIG-002"
+            "BR-ANALYTICS-007",
+            "BR-ANALYTICS-008"
           ]
-        },
+        }
+      ]
+    },
+    {
+      "category": "Market Analytics",
+      "requirements": [
         {
-          "id": "SYS-MIG-001",
-          "description": "System shall support bidirectional synchronization between Oracle/Snowflake and Databricks with conflict resolution",
-          "priority": "Critical",
-          "category": null,
-          "safety_level": "High",
-          "traces_to": [
-            "LA-MIG-004"
-          ]
-        },
-        {
-          "id": "SYS-MIG-002",
-          "description": "System shall automatically discover and map schemas from Oracle/Snowflake to Databricks Delta Lake format",
+          "id": "BR-ANALYTICS-003",
+          "description": "System shall analyze transaction patterns to identify trends and anomalies",
           "priority": "High",
-          "category": null,
+          "category": "Market Analytics",
           "safety_level": null,
           "traces_to": [
-            "LA-MIG-002"
+            "BR-ANALYTICS-005",
+            "BR-ANALYTICS-006"
           ]
         },
         {
-          "id": "SYS-MIG-003",
-          "description": "System shall validate data integrity through row count reconciliation and checksum validation after each migration batch",
-          "priority": "Critical",
-          "category": null,
-          "safety_level": "High",
-          "traces_to": [
-            "LA-MIG-003"
-          ]
-        },
-        {
-          "id": "SYS-MIG-004",
-          "description": "System shall provide automated rollback capability to previous stable state within 15 minutes",
-          "priority": "Critical",
-          "category": null,
-          "safety_level": "High",
-          "traces_to": [
-            "LA-MIG-001"
-          ]
-        },
-        {
-          "id": "SYS-MIG-005",
-          "description": "System shall support incremental migration in waves with table-level granularity and parallel execution",
+          "id": "BR-ANALYTICS-004",
+          "description": "System shall track and analyze consumer behavior patterns",
           "priority": "High",
-          "category": null,
+          "category": "Market Analytics",
           "safety_level": null,
           "traces_to": [
-            "LA-MIG-001"
+            "BR-ANALYTICS-007",
+            "BR-ADV-001"
           ]
-        },
+        }
+      ]
+    },
+    {
+      "category": "Client Analytics",
+      "requirements": [
         {
-          "id": "SYS-PERF-001",
-          "description": "System shall deliver query response time under 5 seconds for 95th percentile of analytical queries",
-          "priority": "Critical",
-          "category": null,
-          "safety_level": null,
-          "traces_to": [
-            "LA-ANLZ-001"
-          ]
-        },
-        {
-          "id": "SYS-PERF-002",
-          "description": "System shall efficiently handle datasets exceeding 100TB with columnar storage and optimization",
+          "id": "BR-ANALYTICS-007",
+          "description": "System shall analyze client program performance and engagement",
           "priority": "High",
-          "category": null,
+          "category": "Client Analytics",
           "safety_level": null,
           "traces_to": [
-            "LA-TGT-003"
+            "BR-ANALYTICS-008",
+            "BR-ANALYTICS-002"
           ]
         },
         {
-          "id": "SYS-PERF-003",
-          "description": "System shall support 500+ concurrent users with workload isolation and auto-scaling",
+          "id": "BR-ANALYTICS-008",
+          "description": "System shall track portfolio performance across all clients",
           "priority": "High",
-          "category": null,
+          "category": "Client Analytics",
           "safety_level": null,
           "traces_to": [
-            "LA-TGT-001"
+            "BR-ANALYTICS-009"
           ]
-        },
+        }
+      ]
+    },
+    {
+      "category": "Merchant Analytics",
+      "requirements": [
         {
-          "id": "SYS-PERF-004",
-          "description": "System shall process streaming data with end-to-end latency under 60 seconds for 99% of events",
-          "priority": "Critical",
-          "category": null,
-          "safety_level": null,
-          "traces_to": [
-            "LA-PROC-002"
-          ]
-        },
-        {
-          "id": "SYS-SCALE-001",
-          "description": "System shall automatically scale compute clusters from 2 to 200 nodes based on workload demand",
+          "id": "BR-ANALYTICS-005",
+          "description": "System shall analyze individual merchant performance metrics",
           "priority": "High",
-          "category": null,
+          "category": "Merchant Analytics",
           "safety_level": null,
           "traces_to": [
-            "LA-TGT-001"
+            "BR-ANALYTICS-006",
+            "BR-ANALYTICS-009"
           ]
         },
         {
-          "id": "SYS-SCALE-002",
-          "description": "System shall provide elastic cloud storage scaling from 100TB to 1PB+ with automatic tiering",
+          "id": "BR-ANALYTICS-006",
+          "description": "System shall track overall merchant network effectiveness",
           "priority": "High",
-          "category": null,
+          "category": "Merchant Analytics",
           "safety_level": null,
           "traces_to": [
-            "LA-TGT-003"
+            "BR-ADV-002"
           ]
-        },
+        }
+      ]
+    },
+    {
+      "category": "Financial Analytics",
+      "requirements": [
         {
-          "id": "SYS-GOV-001",
-          "description": "System shall enforce granular RBAC at table, column, and row level with dynamic data masking for PII",
+          "id": "BR-ANALYTICS-009",
+          "description": "System shall analyze revenue and cost patterns for financial insights",
           "priority": "Critical",
-          "category": null,
-          "safety_level": "Critical",
+          "category": "Financial Analytics",
+          "safety_level": null,
           "traces_to": [
-            "LA-GOV-001"
+            "BR-ANALYTICS-010",
+            "BR-ADV-001"
           ]
         },
         {
-          "id": "SYS-GOV-002",
-          "description": "System shall automatically detect and classify PII data using ML-based scanning",
+          "id": "BR-ANALYTICS-010",
+          "description": "System shall track financial KPIs across all markets",
           "priority": "Critical",
-          "category": null,
-          "safety_level": "High",
+          "category": "Financial Analytics",
+          "safety_level": null,
           "traces_to": [
-            "LA-GOV-001"
+            "BR-ADV-002"
           ]
-        },
+        }
+      ]
+    },
+    {
+      "category": "Implementation",
+      "requirements": [
         {
-          "id": "SYS-GOV-003",
-          "description": "System shall capture and visualize end-to-end data lineage with column-level tracking",
-          "priority": "Critical",
-          "category": null,
-          "safety_level": "High",
-          "traces_to": [
-            "LA-GOV-002"
-          ]
-        },
-        {
-          "id": "SYS-REL-001",
-          "description": "System shall perform automated incremental backups every 6 hours with point-in-time recovery",
-          "priority": "Critical",
-          "category": null,
-          "safety_level": "High",
-          "traces_to": [
-            "LA-TGT-003"
-          ]
-        },
-        {
-          "id": "SYS-REL-002",
-          "description": "System shall meet disaster recovery SLA with RPO under 1 hour and RTO under 4 hours",
-          "priority": "Critical",
-          "category": null,
-          "safety_level": "High",
-          "traces_to": [
-            "LA-TGT-003"
-          ]
-        },
-        {
-          "id": "SYS-MON-001",
-          "description": "System shall provide real-time monitoring of data pipelines with alerts for failures and SLA breaches",
+          "id": "BR-ARCH-001",
+          "description": "System shall process analytics queries efficiently at scale",
           "priority": "High",
-          "category": null,
+          "category": "Implementation",
           "safety_level": null,
           "traces_to": [
-            "LA-MON-001"
+            "BR-ADV-001",
+            "BR-ADV-002"
           ]
         },
         {
-          "id": "SYS-MON-002",
-          "description": "System shall track data quality metrics with automated anomaly detection and root cause analysis",
-          "priority": "High",
-          "category": null,
+          "id": "BR-GOV-001",
+          "description": "System shall ensure data quality standards for analytics",
+          "priority": "Critical",
+          "category": "Implementation",
           "safety_level": null,
           "traces_to": [
-            "LA-PROC-003"
+            "BR-ANALYTICS-013"
+          ]
+        }
+      ]
+    },
+    {
+      "category": "Compliance Analytics",
+      "requirements": [
+        {
+          "id": "BR-ANALYTICS-011",
+          "description": "System shall generate regulatory reports for compliance",
+          "priority": "Critical",
+          "category": "Compliance Analytics",
+          "safety_level": null,
+          "traces_to": [
+            "BR-ANALYTICS-012",
+            "BR-ANALYTICS-013"
           ]
         },
         {
-          "id": "SYS-MON-003",
-          "description": "System shall track cloud costs by workload and team with optimization recommendations",
+          "id": "BR-ANALYTICS-012",
+          "description": "System shall track compliance metrics continuously",
+          "priority": "Critical",
+          "category": "Compliance Analytics",
+          "safety_level": null,
+          "traces_to": [
+            "BR-GOV-001"
+          ]
+        }
+      ]
+    },
+    {
+      "category": "Advanced Analytics",
+      "requirements": [
+        {
+          "id": "BR-ADV-001",
+          "description": "System shall provide predictive analytics using ML models",
           "priority": "Medium",
-          "category": null,
+          "category": "Advanced Analytics",
           "safety_level": null,
           "traces_to": [
-            "LA-MON-002"
+            "BR-ADV-002"
           ]
+        },
+        {
+          "id": "BR-ADV-002",
+          "description": "System shall provide prescriptive recommendations based on analytics",
+          "priority": "Medium",
+          "category": "Advanced Analytics",
+          "safety_level": null,
+          "traces_to": []
         }
       ]
     }
   ],
   "components": [
     {
-      "id": "LA-SRC-001",
-      "name": "Oracle Database Subsystem",
+      "id": "LC-001",
+      "name": "Executive Dashboard",
       "layer": "Logical",
       "component_type": "Logical",
-      "safety_level": "High",
+      "safety_level": null,
       "asil": null,
       "interfaces_in": [],
       "interfaces_out": [],
-      "functions": [],
+      "functions": [
+        "Aggregate KPIs",
+        "Analyze Program Performance"
+      ],
       "description": "Component in Logical layer"
     },
     {
-      "id": "LA-SRC-002",
-      "name": "Snowflake Warehouse Subsystem",
+      "id": "LC-002",
+      "name": "Market Analytics Engine",
       "layer": "Logical",
       "component_type": "Logical",
-      "safety_level": "High",
+      "safety_level": null,
       "asil": null,
       "interfaces_in": [],
       "interfaces_out": [],
-      "functions": [],
+      "functions": [
+        "Analyze Transaction Patterns",
+        "Track Consumer Behavior"
+      ],
       "description": "Component in Logical layer"
     },
     {
-      "id": "LA-MIG-001",
-      "name": "ETL Orchestrator",
+      "id": "LC-003",
+      "name": "Merchant Analytics Engine",
       "layer": "Logical",
       "component_type": "Logical",
-      "safety_level": "High",
+      "safety_level": null,
       "asil": null,
       "interfaces_in": [],
       "interfaces_out": [],
-      "functions": [],
+      "functions": [
+        "Analyze Merchant Performance",
+        "Track Network Effectiveness"
+      ],
       "description": "Component in Logical layer"
     },
     {
-      "id": "LA-MIG-002",
-      "name": "Schema Converter",
+      "id": "LC-004",
+      "name": "Client Analytics Engine",
       "layer": "Logical",
       "component_type": "Logical",
-      "safety_level": "High",
+      "safety_level": null,
       "asil": null,
       "interfaces_in": [],
       "interfaces_out": [],
-      "functions": [],
+      "functions": [
+        "Analyze Client Programs",
+        "Track Portfolio Performance"
+      ],
       "description": "Component in Logical layer"
     },
     {
-      "id": "LA-MIG-003",
-      "name": "Data Validator",
+      "id": "LC-005",
+      "name": "Financial Analytics Engine",
       "layer": "Logical",
       "component_type": "Logical",
-      "safety_level": "Critical",
+      "safety_level": null,
       "asil": null,
       "interfaces_in": [],
       "interfaces_out": [],
-      "functions": [],
+      "functions": [
+        "Analyze Revenue Patterns",
+        "Track Financial KPIs"
+      ],
       "description": "Component in Logical layer"
     },
     {
-      "id": "LA-MIG-004",
-      "name": "Conflict Resolver",
+      "id": "LC-006",
+      "name": "Compliance Analytics Engine",
       "layer": "Logical",
       "component_type": "Logical",
-      "safety_level": "High",
+      "safety_level": null,
       "asil": null,
       "interfaces_in": [],
       "interfaces_out": [],
-      "functions": [],
+      "functions": [
+        "Generate Regulatory Reports",
+        "Track Compliance Metrics"
+      ],
       "description": "Component in Logical layer"
     },
     {
-      "id": "LA-TGT-001",
-      "name": "Databricks Lakehouse Platform",
-      "layer": "Logical",
-      "component_type": "Logical",
-      "safety_level": "High",
-      "asil": null,
-      "interfaces_in": [],
-      "interfaces_out": [],
-      "functions": [],
-      "description": "Component in Logical layer"
-    },
-    {
-      "id": "LA-TGT-002",
-      "name": "Unity Catalog",
-      "layer": "Logical",
-      "component_type": "Logical",
-      "safety_level": "Critical",
-      "asil": null,
-      "interfaces_in": [],
-      "interfaces_out": [],
-      "functions": [],
-      "description": "Component in Logical layer"
-    },
-    {
-      "id": "LA-TGT-003",
-      "name": "Delta Lake Storage",
-      "layer": "Logical",
-      "component_type": "Logical",
-      "safety_level": "High",
-      "asil": null,
-      "interfaces_in": [],
-      "interfaces_out": [],
-      "functions": [],
-      "description": "Component in Logical layer"
-    },
-    {
-      "id": "LA-PROC-001",
-      "name": "Batch Pipeline Engine",
-      "layer": "Logical",
-      "component_type": "Logical",
-      "safety_level": "Medium",
-      "asil": null,
-      "interfaces_in": [],
-      "interfaces_out": [],
-      "functions": [],
-      "description": "Component in Logical layer"
-    },
-    {
-      "id": "LA-PROC-002",
-      "name": "Streaming Pipeline Engine",
-      "layer": "Logical",
-      "component_type": "Logical",
-      "safety_level": "Medium",
-      "asil": null,
-      "interfaces_in": [],
-      "interfaces_out": [],
-      "functions": [],
-      "description": "Component in Logical layer"
-    },
-    {
-      "id": "LA-PROC-003",
+      "id": "LC-007",
       "name": "Data Quality Engine",
       "layer": "Logical",
       "component_type": "Logical",
-      "safety_level": "High",
+      "safety_level": null,
       "asil": null,
       "interfaces_in": [],
       "interfaces_out": [],
-      "functions": [],
+      "functions": [
+        "Monitor Data Quality",
+        "Track Data Lineage"
+      ],
       "description": "Component in Logical layer"
     },
     {
-      "id": "LA-GOV-001",
-      "name": "Access Control Manager",
+      "id": "LC-008",
+      "name": "Advanced Analytics Engine",
       "layer": "Logical",
       "component_type": "Logical",
-      "safety_level": "Critical",
+      "safety_level": null,
       "asil": null,
       "interfaces_in": [],
       "interfaces_out": [],
-      "functions": [],
+      "functions": [
+        "Predictive Analytics",
+        "Prescriptive Analytics"
+      ],
       "description": "Component in Logical layer"
     },
     {
-      "id": "LA-GOV-002",
-      "name": "Lineage Tracker",
+      "id": "LC-009",
+      "name": "Analytics Infrastructure",
       "layer": "Logical",
       "component_type": "Logical",
-      "safety_level": "High",
+      "safety_level": null,
       "asil": null,
       "interfaces_in": [],
       "interfaces_out": [],
-      "functions": [],
-      "description": "Component in Logical layer"
-    },
-    {
-      "id": "LA-GOV-003",
-      "name": "Audit Logger",
-      "layer": "Logical",
-      "component_type": "Logical",
-      "safety_level": "Critical",
-      "asil": null,
-      "interfaces_in": [],
-      "interfaces_out": [],
-      "functions": [],
-      "description": "Component in Logical layer"
-    },
-    {
-      "id": "LA-INT-001",
-      "name": "API Gateway",
-      "layer": "Logical",
-      "component_type": "Logical",
-      "safety_level": "High",
-      "asil": null,
-      "interfaces_in": [],
-      "interfaces_out": [],
-      "functions": [],
-      "description": "Component in Logical layer"
-    },
-    {
-      "id": "LA-INT-002",
-      "name": "Metadata Manager",
-      "layer": "Logical",
-      "component_type": "Logical",
-      "safety_level": "Medium",
-      "asil": null,
-      "interfaces_in": [],
-      "interfaces_out": [],
-      "functions": [],
-      "description": "Component in Logical layer"
-    },
-    {
-      "id": "LA-INT-003",
-      "name": "Workflow Orchestrator",
-      "layer": "Logical",
-      "component_type": "Logical",
-      "safety_level": "Medium",
-      "asil": null,
-      "interfaces_in": [],
-      "interfaces_out": [],
-      "functions": [],
-      "description": "Component in Logical layer"
-    },
-    {
-      "id": "LA-ANLZ-001",
-      "name": "SQL Analytics Engine",
-      "layer": "Logical",
-      "component_type": "Logical",
-      "safety_level": "Low",
-      "asil": null,
-      "interfaces_in": [],
-      "interfaces_out": [],
-      "functions": [],
-      "description": "Component in Logical layer"
-    },
-    {
-      "id": "LA-ANLZ-002",
-      "name": "ML Workspace",
-      "layer": "Logical",
-      "component_type": "Logical",
-      "safety_level": "Low",
-      "asil": null,
-      "interfaces_in": [],
-      "interfaces_out": [],
-      "functions": [],
-      "description": "Component in Logical layer"
-    },
-    {
-      "id": "LA-ANLZ-003",
-      "name": "BI Connector Hub",
-      "layer": "Logical",
-      "component_type": "Logical",
-      "safety_level": "Low",
-      "asil": null,
-      "interfaces_in": [],
-      "interfaces_out": [],
-      "functions": [],
-      "description": "Component in Logical layer"
-    },
-    {
-      "id": "LA-MON-001",
-      "name": "Observability Platform",
-      "layer": "Logical",
-      "component_type": "Logical",
-      "safety_level": "Medium",
-      "asil": null,
-      "interfaces_in": [],
-      "interfaces_out": [],
-      "functions": [],
-      "description": "Component in Logical layer"
-    },
-    {
-      "id": "LA-MON-002",
-      "name": "Cost Optimizer",
-      "layer": "Logical",
-      "component_type": "Logical",
-      "safety_level": "Low",
-      "asil": null,
-      "interfaces_in": [],
-      "interfaces_out": [],
-      "functions": [],
-      "description": "Component in Logical layer"
-    },
-    {
-      "id": "LA-MON-003",
-      "name": "Alert Manager",
-      "layer": "Logical",
-      "component_type": "Logical",
-      "safety_level": "Medium",
-      "asil": null,
-      "interfaces_in": [],
-      "interfaces_out": [],
-      "functions": [],
+      "functions": [
+        "Process Analytics Queries",
+        "Ensure Data Quality"
+      ],
       "description": "Component in Logical layer"
     }
   ],
-  "interfaces": [
+  "interfaces": [],
+  "functions": [
     {
-      "name": "OracleToMigrationEngine",
-      "from": "LA-SRC-001",
-      "to": "LA-MIG-001",
-      "from_component": "Oracle Database Subsystem",
-      "to_component": "ETL Orchestrator"
+      "id": "LF-001",
+      "name": "Aggregate KPIs",
+      "inputs": [],
+      "outputs": [],
+      "component": "Executive Dashboard"
     },
     {
-      "name": "SnowflakeToMigrationEngine",
-      "from": "LA-SRC-002",
-      "to": "LA-MIG-001",
-      "from_component": "Snowflake Warehouse Subsystem",
-      "to_component": "ETL Orchestrator"
+      "id": "LF-002",
+      "name": "Analyze Program Performance",
+      "inputs": [],
+      "outputs": [],
+      "component": "Executive Dashboard"
     },
     {
-      "name": "MigrationEngineToSchemaConverter",
-      "from": "LA-MIG-001",
-      "to": "LA-MIG-002",
-      "from_component": "ETL Orchestrator",
-      "to_component": "Schema Converter"
+      "id": "LF-003",
+      "name": "Analyze Transaction Patterns",
+      "inputs": [],
+      "outputs": [],
+      "component": "Market Analytics Engine"
     },
     {
-      "name": "SchemaConverterToValidator",
-      "from": "LA-MIG-002",
-      "to": "LA-MIG-003",
-      "from_component": "Schema Converter",
-      "to_component": "Data Validator"
+      "id": "LF-004",
+      "name": "Track Consumer Behavior",
+      "inputs": [],
+      "outputs": [],
+      "component": "Market Analytics Engine"
     },
     {
-      "name": "MigrationEngineToDeltaLake",
-      "from": "LA-MIG-001",
-      "to": "LA-TGT-003",
-      "from_component": "ETL Orchestrator",
-      "to_component": "Delta Lake Storage"
+      "id": "LF-005",
+      "name": "Analyze Merchant Performance",
+      "inputs": [],
+      "outputs": [],
+      "component": "Merchant Analytics Engine"
     },
     {
-      "name": "ValidatorToConflictResolver",
-      "from": "LA-MIG-003",
-      "to": "LA-MIG-004",
-      "from_component": "Data Validator",
-      "to_component": "Conflict Resolver"
+      "id": "LF-006",
+      "name": "Track Network Effectiveness",
+      "inputs": [],
+      "outputs": [],
+      "component": "Merchant Analytics Engine"
     },
     {
-      "name": "DeltaLakeToBatchPipeline",
-      "from": "LA-TGT-003",
-      "to": "LA-PROC-001",
-      "from_component": "Delta Lake Storage",
-      "to_component": "Batch Pipeline Engine"
+      "id": "LF-007",
+      "name": "Analyze Client Programs",
+      "inputs": [],
+      "outputs": [],
+      "component": "Client Analytics Engine"
     },
     {
-      "name": "BatchPipelineToDataQuality",
-      "from": "LA-PROC-001",
-      "to": "LA-PROC-003",
-      "from_component": "Batch Pipeline Engine",
-      "to_component": "Data Quality Engine"
+      "id": "LF-008",
+      "name": "Track Portfolio Performance",
+      "inputs": [],
+      "outputs": [],
+      "component": "Client Analytics Engine"
     },
     {
-      "name": "StreamingPipelineToDeltaLake",
-      "from": "LA-PROC-002",
-      "to": "LA-TGT-003",
-      "from_component": "Streaming Pipeline Engine",
-      "to_component": "Delta Lake Storage"
+      "id": "LF-009",
+      "name": "Analyze Revenue Patterns",
+      "inputs": [],
+      "outputs": [],
+      "component": "Financial Analytics Engine"
     },
     {
-      "name": "DataQualityToQuarantine",
-      "from": "LA-PROC-003",
-      "to": "LA-TGT-003",
-      "from_component": "Data Quality Engine",
-      "to_component": "Delta Lake Storage"
+      "id": "LF-010",
+      "name": "Track Financial KPIs",
+      "inputs": [],
+      "outputs": [],
+      "component": "Financial Analytics Engine"
     },
     {
-      "name": "UnityCatalogToAccessControl",
-      "from": "LA-TGT-002",
-      "to": "LA-GOV-001",
-      "from_component": "Unity Catalog",
-      "to_component": "Access Control Manager"
+      "id": "LF-011",
+      "name": "Generate Regulatory Reports",
+      "inputs": [],
+      "outputs": [],
+      "component": "Compliance Analytics Engine"
     },
     {
-      "name": "UnityCatalogToLineageTracker",
-      "from": "LA-TGT-002",
-      "to": "LA-GOV-002",
-      "from_component": "Unity Catalog",
-      "to_component": "Lineage Tracker"
+      "id": "LF-012",
+      "name": "Track Compliance Metrics",
+      "inputs": [],
+      "outputs": [],
+      "component": "Compliance Analytics Engine"
     },
     {
-      "name": "AccessControlToAuditLogger",
-      "from": "LA-GOV-001",
-      "to": "LA-GOV-003",
-      "from_component": "Access Control Manager",
-      "to_component": "Audit Logger"
+      "id": "LF-013",
+      "name": "Monitor Data Quality",
+      "inputs": [],
+      "outputs": [],
+      "component": "Data Quality Engine"
     },
     {
-      "name": "DeltaLakeToSQLAnalytics",
-      "from": "LA-TGT-003",
-      "to": "LA-ANLZ-001",
-      "from_component": "Delta Lake Storage",
-      "to_component": "SQL Analytics Engine"
+      "id": "LF-014",
+      "name": "Track Data Lineage",
+      "inputs": [],
+      "outputs": [],
+      "component": "Data Quality Engine"
     },
     {
-      "name": "SQLAnalyticsToBIConnector",
-      "from": "LA-ANLZ-001",
-      "to": "LA-ANLZ-003",
-      "from_component": "SQL Analytics Engine",
-      "to_component": "BI Connector Hub"
+      "id": "LF-015",
+      "name": "Predictive Analytics",
+      "inputs": [],
+      "outputs": [],
+      "component": "Advanced Analytics Engine"
     },
     {
-      "name": "MLWorkspaceToLakehouse",
-      "from": "LA-ANLZ-002",
-      "to": "LA-TGT-001",
-      "from_component": "ML Workspace",
-      "to_component": "Databricks Lakehouse Platform"
+      "id": "LF-016",
+      "name": "Prescriptive Analytics",
+      "inputs": [],
+      "outputs": [],
+      "component": "Advanced Analytics Engine"
     },
     {
-      "name": "LakehouseToObservability",
-      "from": "LA-TGT-001",
-      "to": "LA-MON-001",
-      "from_component": "Databricks Lakehouse Platform",
-      "to_component": "Observability Platform"
+      "id": "LF-017",
+      "name": "Process Analytics Queries",
+      "inputs": [],
+      "outputs": [],
+      "component": "Analytics Infrastructure"
     },
     {
-      "name": "ObservabilityToAlertManager",
-      "from": "LA-MON-001",
-      "to": "LA-MON-003",
-      "from_component": "Observability Platform",
-      "to_component": "Alert Manager"
-    },
-    {
-      "name": "CostOptimizerToAlertManager",
-      "from": "LA-MON-002",
-      "to": "LA-MON-003",
-      "from_component": "Cost Optimizer",
-      "to_component": "Alert Manager"
+      "id": "LF-018",
+      "name": "Ensure Data Quality",
+      "inputs": [],
+      "outputs": [],
+      "component": "Analytics Infrastructure"
     }
   ],
-  "functions": [],
   "traces": [
     {
-      "from": "STK-001",
-      "to": "SYS-MIG-005",
+      "from": "LC-001",
+      "to": "BR-ANALYTICS-001",
       "trace_type": "satisfies",
-      "rationale": "Incremental migration waves reduce TCO by enabling phased decommissioning"
+      "rationale": "Executive Dashboard provides consolidated KPI monitoring"
     },
     {
-      "from": "STK-001",
-      "to": "SYS-MON-003",
+      "from": "LC-001",
+      "to": "BR-ANALYTICS-002",
       "trace_type": "satisfies",
-      "rationale": "Cost tracking and optimization directly supports TCO reduction goals"
+      "rationale": "Executive Dashboard analyzes program performance"
     },
     {
-      "from": "STK-002",
-      "to": "SYS-PERF-001",
+      "from": "LC-002",
+      "to": "BR-ANALYTICS-003",
       "trace_type": "satisfies",
-      "rationale": "Query response time requirement enables real-time analytics capability"
+      "rationale": "Market Analytics Engine analyzes transaction patterns"
     },
     {
-      "from": "STK-002",
-      "to": "SYS-PERF-004",
+      "from": "LC-002",
+      "to": "BR-ANALYTICS-004",
       "trace_type": "satisfies",
-      "rationale": "Streaming latency requirement supports real-time analytics"
+      "rationale": "Market Analytics Engine tracks consumer behavior"
     },
     {
-      "from": "STK-003",
-      "to": "SYS-MIG-003",
+      "from": "LC-003",
+      "to": "BR-ANALYTICS-005",
       "trace_type": "satisfies",
-      "rationale": "Data validation framework ensures availability during migration"
+      "rationale": "Merchant Analytics Engine analyzes merchant performance"
     },
     {
-      "from": "STK-003",
-      "to": "SYS-REL-001",
+      "from": "LC-003",
+      "to": "BR-ANALYTICS-006",
       "trace_type": "satisfies",
-      "rationale": "Automated backup/recovery ensures high availability"
+      "rationale": "Merchant Analytics Engine tracks network effectiveness"
     },
     {
-      "from": "STK-004",
-      "to": "SYS-PERF-003",
+      "from": "LC-004",
+      "to": "BR-ANALYTICS-007",
       "trace_type": "satisfies",
-      "rationale": "Concurrent user support enables unified platform for data teams"
+      "rationale": "Client Analytics Engine analyzes client programs"
     },
     {
-      "from": "STK-005",
-      "to": "SYS-MIG-001",
+      "from": "LC-004",
+      "to": "BR-ANALYTICS-008",
       "trace_type": "satisfies",
-      "rationale": "Bidirectional sync enables zero downtime migration"
+      "rationale": "Client Analytics Engine tracks portfolio performance"
     },
     {
-      "from": "STK-006",
-      "to": "SYS-SCALE-001",
+      "from": "LC-005",
+      "to": "BR-ANALYTICS-009",
       "trace_type": "satisfies",
-      "rationale": "Auto-scaling compute supports 10x growth"
+      "rationale": "Financial Analytics Engine analyzes revenue patterns"
     },
     {
-      "from": "STK-006",
-      "to": "SYS-SCALE-002",
+      "from": "LC-005",
+      "to": "BR-ANALYTICS-010",
       "trace_type": "satisfies",
-      "rationale": "Elastic storage addresses 100TB to 1PB scalability"
+      "rationale": "Financial Analytics Engine tracks financial KPIs"
     },
     {
-      "from": "STK-007",
-      "to": "SYS-GOV-001",
+      "from": "LC-006",
+      "to": "BR-ANALYTICS-011",
       "trace_type": "satisfies",
-      "rationale": "RBAC provides access control for compliance"
+      "rationale": "Compliance Engine generates regulatory reports"
     },
     {
-      "from": "STK-007",
-      "to": "SYS-GOV-003",
+      "from": "LC-006",
+      "to": "BR-ANALYTICS-012",
       "trace_type": "satisfies",
-      "rationale": "Complete data lineage enables required audit trails"
+      "rationale": "Compliance Engine tracks compliance metrics"
     },
     {
-      "from": "STK-008",
-      "to": "SYS-MIG-002",
+      "from": "LC-007",
+      "to": "BR-ANALYTICS-013",
       "trace_type": "satisfies",
-      "rationale": "Automated schema mapping accelerates migration timeline"
+      "rationale": "Data Quality Engine monitors data quality"
     },
     {
-      "from": "SYS-MIG-001",
-      "to": "LA-MIG-004",
-      "trace_type": "implements",
-      "rationale": "Conflict Resolver implements bidirectional sync"
+      "from": "LC-007",
+      "to": "BR-ANALYTICS-014",
+      "trace_type": "satisfies",
+      "rationale": "Data Quality Engine tracks data lineage"
     },
     {
-      "from": "SYS-MIG-002",
-      "to": "LA-MIG-002",
-      "trace_type": "implements",
-      "rationale": "Schema Converter automates schema mapping"
+      "from": "LC-008",
+      "to": "BR-ADV-001",
+      "trace_type": "satisfies",
+      "rationale": "Advanced Analytics Engine provides predictive capabilities"
     },
     {
-      "from": "SYS-MIG-003",
-      "to": "LA-MIG-003",
-      "trace_type": "implements",
-      "rationale": "Data Validator performs integrity validation"
+      "from": "LC-008",
+      "to": "BR-ADV-002",
+      "trace_type": "satisfies",
+      "rationale": "Advanced Analytics Engine provides prescriptive recommendations"
     },
     {
-      "from": "SYS-MIG-004",
-      "to": "LA-MIG-001",
-      "trace_type": "implements",
-      "rationale": "ETL Orchestrator includes rollback functionality"
+      "from": "LC-009",
+      "to": "BR-ARCH-001",
+      "trace_type": "satisfies",
+      "rationale": "Analytics Infrastructure ensures efficient processing"
     },
     {
-      "from": "SYS-PERF-001",
-      "to": "LA-ANLZ-001",
-      "trace_type": "implements",
-      "rationale": "SQL Analytics Engine provides fast query response"
+      "from": "LC-009",
+      "to": "BR-GOV-001",
+      "trace_type": "satisfies",
+      "rationale": "Analytics Infrastructure ensures data quality"
     },
     {
-      "from": "SYS-PERF-002",
-      "to": "LA-TGT-003",
+      "from": "BR-ANALYTICS-001",
+      "to": "BR-ANALYTICS-010",
       "trace_type": "implements",
-      "rationale": "Delta Lake Storage handles 100TB+ datasets"
+      "rationale": "Consolidated KPIs depend on financial KPI tracking"
     },
     {
-      "from": "SYS-PERF-003",
-      "to": "LA-TGT-001",
+      "from": "BR-ANALYTICS-001",
+      "to": "BR-ANALYTICS-003",
       "trace_type": "implements",
-      "rationale": "Databricks Lakehouse supports 500+ concurrent users"
+      "rationale": "Consolidated KPIs depend on transaction pattern analysis"
     },
     {
-      "from": "SYS-PERF-004",
-      "to": "LA-PROC-002",
+      "from": "BR-ANALYTICS-002",
+      "to": "BR-ANALYTICS-007",
       "trace_type": "implements",
-      "rationale": "Streaming Pipeline Engine delivers low latency"
+      "rationale": "Program performance depends on client program analysis"
     },
     {
-      "from": "SYS-SCALE-001",
-      "to": "LA-TGT-001",
+      "from": "BR-ANALYTICS-002",
+      "to": "BR-ANALYTICS-008",
       "trace_type": "implements",
-      "rationale": "Databricks Platform provides auto-scaling"
+      "rationale": "Program performance depends on portfolio tracking"
     },
     {
-      "from": "SYS-SCALE-002",
-      "to": "LA-TGT-003",
+      "from": "BR-ANALYTICS-003",
+      "to": "BR-ANALYTICS-005",
       "trace_type": "implements",
-      "rationale": "Delta Lake on S3 provides elastic storage"
+      "rationale": "Transaction patterns inform merchant performance"
     },
     {
-      "from": "SYS-GOV-001",
-      "to": "LA-GOV-001",
+      "from": "BR-ANALYTICS-003",
+      "to": "BR-ANALYTICS-006",
       "trace_type": "implements",
-      "rationale": "Access Control Manager enforces RBAC"
+      "rationale": "Transaction patterns inform network effectiveness"
     },
     {
-      "from": "SYS-GOV-002",
-      "to": "LA-GOV-001",
+      "from": "BR-ANALYTICS-004",
+      "to": "BR-ANALYTICS-007",
       "trace_type": "implements",
-      "rationale": "Access Control Manager includes PII detection"
+      "rationale": "Consumer behavior informs client programs"
     },
     {
-      "from": "SYS-GOV-003",
-      "to": "LA-GOV-002",
+      "from": "BR-ANALYTICS-004",
+      "to": "BR-ADV-001",
       "trace_type": "implements",
-      "rationale": "Lineage Tracker captures complete lineage"
+      "rationale": "Consumer behavior enables predictive analytics"
     },
     {
-      "from": "SYS-REL-001",
-      "to": "LA-TGT-003",
+      "from": "BR-ANALYTICS-005",
+      "to": "BR-ANALYTICS-006",
       "trace_type": "implements",
-      "rationale": "Delta Lake provides automated backups"
+      "rationale": "Merchant performance feeds network effectiveness"
     },
     {
-      "from": "SYS-MON-001",
-      "to": "LA-MON-001",
+      "from": "BR-ANALYTICS-005",
+      "to": "BR-ANALYTICS-009",
       "trace_type": "implements",
-      "rationale": "Observability Platform provides monitoring"
+      "rationale": "Merchant performance impacts revenue analysis"
     },
     {
-      "from": "SYS-MON-002",
-      "to": "LA-PROC-003",
+      "from": "BR-ANALYTICS-006",
+      "to": "BR-ADV-002",
       "trace_type": "implements",
-      "rationale": "Data Quality Engine tracks quality metrics"
+      "rationale": "Network effectiveness enables prescriptive analytics"
     },
     {
-      "from": "SYS-MON-003",
-      "to": "LA-MON-002",
+      "from": "BR-ANALYTICS-007",
+      "to": "BR-ANALYTICS-008",
       "trace_type": "implements",
-      "rationale": "Cost Optimizer tracks and optimizes costs"
+      "rationale": "Client programs feed portfolio tracking"
     },
     {
-      "from": "SYS-REL-002",
-      "to": "LA-TGT-003",
+      "from": "BR-ANALYTICS-007",
+      "to": "BR-ANALYTICS-002",
       "trace_type": "implements",
-      "rationale": "Delta Lake Storage provides DR capability through automated backups, cross-region replication (RPO <1hr, RTO <4hr), deployed on AWS multi-AZ infrastructure (PA-CLOUD-001)"
+      "rationale": "Client programs feed benefit program analysis"
     },
     {
-      "from": "SYS-MIG-005",
-      "to": "LA-MIG-001",
+      "from": "BR-ANALYTICS-008",
+      "to": "BR-ANALYTICS-009",
       "trace_type": "implements",
-      "rationale": "ETL Orchestrator supports incremental wave-based migration with table-level granularity and parallel execution up to 100 concurrent jobs (deployed on PA-MIG-001)"
+      "rationale": "Portfolio performance impacts revenue analysis"
+    },
+    {
+      "from": "BR-ANALYTICS-009",
+      "to": "BR-ANALYTICS-010",
+      "trace_type": "implements",
+      "rationale": "Revenue patterns feed financial KPIs"
+    },
+    {
+      "from": "BR-ANALYTICS-009",
+      "to": "BR-ADV-001",
+      "trace_type": "implements",
+      "rationale": "Revenue patterns enable predictive analytics"
+    },
+    {
+      "from": "BR-ANALYTICS-010",
+      "to": "BR-ADV-002",
+      "trace_type": "implements",
+      "rationale": "Financial KPIs enable prescriptive recommendations"
+    },
+    {
+      "from": "BR-ANALYTICS-011",
+      "to": "BR-ANALYTICS-012",
+      "trace_type": "implements",
+      "rationale": "Regulatory reporting depends on compliance metrics"
+    },
+    {
+      "from": "BR-ANALYTICS-011",
+      "to": "BR-ANALYTICS-013",
+      "trace_type": "implements",
+      "rationale": "Regulatory reporting depends on data quality"
+    },
+    {
+      "from": "BR-ANALYTICS-012",
+      "to": "BR-GOV-001",
+      "trace_type": "implements",
+      "rationale": "Compliance metrics require data quality governance"
+    },
+    {
+      "from": "BR-ANALYTICS-013",
+      "to": "BR-GOV-001",
+      "trace_type": "implements",
+      "rationale": "Data quality monitoring enforces governance"
+    },
+    {
+      "from": "BR-ANALYTICS-013",
+      "to": "BR-ANALYTICS-014",
+      "trace_type": "implements",
+      "rationale": "Data quality depends on lineage tracking"
+    },
+    {
+      "from": "BR-ANALYTICS-014",
+      "to": "BR-ARCH-001",
+      "trace_type": "implements",
+      "rationale": "Data lineage supports efficient processing"
+    },
+    {
+      "from": "BR-ADV-001",
+      "to": "BR-ADV-002",
+      "trace_type": "implements",
+      "rationale": "Predictive analytics enables prescriptive recommendations"
+    },
+    {
+      "from": "BR-ARCH-001",
+      "to": "BR-ADV-001",
+      "trace_type": "implements",
+      "rationale": "Efficient processing enables predictive analytics"
+    },
+    {
+      "from": "BR-ARCH-001",
+      "to": "BR-ADV-002",
+      "trace_type": "implements",
+      "rationale": "Efficient processing enables prescriptive analytics"
+    },
+    {
+      "from": "BR-GOV-001",
+      "to": "BR-ANALYTICS-013",
+      "trace_type": "implements",
+      "rationale": "Data governance ensures quality monitoring"
     }
   ],
   "diagram": {
     "nodes": [
       {
-        "id": "LA-SRC-001",
-        "label": "Oracle Database Subsystem",
+        "id": "LC-001",
+        "label": "Executive Dashboard",
         "layer": "Logical",
-        "stereotype": "<<datastore>>",
-        "safety_level": "High",
+        "stereotype": "<<component>>",
         "interfaces_in": [],
         "interfaces_out": [],
-        "functions": [],
+        "functions": [
+          "Aggregate KPIs",
+          "Analyze Program Performance"
+        ],
+        "width": 220,
+        "height": 180
+      },
+      {
+        "id": "LC-002",
+        "label": "Market Analytics Engine",
+        "layer": "Logical",
+        "stereotype": "<<process>>",
+        "interfaces_in": [],
+        "interfaces_out": [],
+        "functions": [
+          "Analyze Transaction Patterns",
+          "Track Consumer Behavior"
+        ],
+        "width": 221,
+        "height": 180
+      },
+      {
+        "id": "LC-003",
+        "label": "Merchant Analytics Engine",
+        "layer": "Logical",
+        "stereotype": "<<process>>",
+        "interfaces_in": [],
+        "interfaces_out": [],
+        "functions": [
+          "Analyze Merchant Performance",
+          "Track Network Effectiveness"
+        ],
         "width": 235,
         "height": 180
       },
       {
-        "id": "LA-SRC-002",
-        "label": "Snowflake Warehouse Subsystem",
-        "layer": "Logical",
-        "stereotype": "<<datastore>>",
-        "safety_level": "High",
-        "interfaces_in": [],
-        "interfaces_out": [],
-        "functions": [],
-        "width": 263,
-        "height": 180
-      },
-      {
-        "id": "LA-MIG-001",
-        "label": "ETL Orchestrator",
+        "id": "LC-004",
+        "label": "Client Analytics Engine",
         "layer": "Logical",
         "stereotype": "<<process>>",
-        "safety_level": "High",
         "interfaces_in": [],
         "interfaces_out": [],
-        "functions": [],
-        "width": 220,
+        "functions": [
+          "Analyze Client Programs",
+          "Track Portfolio Performance"
+        ],
+        "width": 221,
         "height": 180
       },
       {
-        "id": "LA-MIG-002",
-        "label": "Schema Converter",
-        "layer": "Logical",
-        "stereotype": "<<component>>",
-        "safety_level": "High",
-        "interfaces_in": [],
-        "interfaces_out": [],
-        "functions": [],
-        "width": 220,
-        "height": 180
-      },
-      {
-        "id": "LA-MIG-003",
-        "label": "Data Validator",
-        "layer": "Logical",
-        "stereotype": "<<service>>",
-        "safety_level": "Critical",
-        "interfaces_in": [],
-        "interfaces_out": [],
-        "functions": [],
-        "width": 220,
-        "height": 180
-      },
-      {
-        "id": "LA-MIG-004",
-        "label": "Conflict Resolver",
-        "layer": "Logical",
-        "stereotype": "<<service>>",
-        "safety_level": "High",
-        "interfaces_in": [],
-        "interfaces_out": [],
-        "functions": [],
-        "width": 220,
-        "height": 180
-      },
-      {
-        "id": "LA-TGT-001",
-        "label": "Databricks Lakehouse Platform",
-        "layer": "Logical",
-        "stereotype": "<<component>>",
-        "safety_level": "High",
-        "interfaces_in": [],
-        "interfaces_out": [],
-        "functions": [],
-        "width": 263,
-        "height": 180
-      },
-      {
-        "id": "LA-TGT-002",
-        "label": "Unity Catalog",
-        "layer": "Logical",
-        "stereotype": "<<registry>>",
-        "safety_level": "Critical",
-        "interfaces_in": [],
-        "interfaces_out": [],
-        "functions": [],
-        "width": 220,
-        "height": 180
-      },
-      {
-        "id": "LA-TGT-003",
-        "label": "Delta Lake Storage",
-        "layer": "Logical",
-        "stereotype": "<<datastore>>",
-        "safety_level": "High",
-        "interfaces_in": [],
-        "interfaces_out": [],
-        "functions": [],
-        "width": 220,
-        "height": 180
-      },
-      {
-        "id": "LA-PROC-001",
-        "label": "Batch Pipeline Engine",
+        "id": "LC-005",
+        "label": "Financial Analytics Engine",
         "layer": "Logical",
         "stereotype": "<<process>>",
-        "safety_level": "Medium",
         "interfaces_in": [],
         "interfaces_out": [],
-        "functions": [],
-        "width": 220,
+        "functions": [
+          "Analyze Revenue Patterns",
+          "Track Financial KPIs"
+        ],
+        "width": 242,
         "height": 180
       },
       {
-        "id": "LA-PROC-002",
-        "label": "Streaming Pipeline Engine",
+        "id": "LC-006",
+        "label": "Compliance Analytics Engine",
         "layer": "Logical",
         "stereotype": "<<process>>",
-        "safety_level": "Medium",
         "interfaces_in": [],
         "interfaces_out": [],
-        "functions": [],
-        "width": 235,
+        "functions": [
+          "Generate Regulatory Reports",
+          "Track Compliance Metrics"
+        ],
+        "width": 249,
         "height": 180
       },
       {
-        "id": "LA-PROC-003",
+        "id": "LC-007",
         "label": "Data Quality Engine",
         "layer": "Logical",
         "stereotype": "<<process>>",
-        "safety_level": "High",
         "interfaces_in": [],
         "interfaces_out": [],
-        "functions": [],
+        "functions": [
+          "Monitor Data Quality",
+          "Track Data Lineage"
+        ],
         "width": 220,
         "height": 180
       },
       {
-        "id": "LA-GOV-001",
-        "label": "Access Control Manager",
-        "layer": "Logical",
-        "stereotype": "<<component>>",
-        "safety_level": "Critical",
-        "interfaces_in": [],
-        "interfaces_out": [],
-        "functions": [],
-        "width": 220,
-        "height": 180
-      },
-      {
-        "id": "LA-GOV-002",
-        "label": "Lineage Tracker",
-        "layer": "Logical",
-        "stereotype": "<<component>>",
-        "safety_level": "High",
-        "interfaces_in": [],
-        "interfaces_out": [],
-        "functions": [],
-        "width": 220,
-        "height": 180
-      },
-      {
-        "id": "LA-GOV-003",
-        "label": "Audit Logger",
-        "layer": "Logical",
-        "stereotype": "<<component>>",
-        "safety_level": "Critical",
-        "interfaces_in": [],
-        "interfaces_out": [],
-        "functions": [],
-        "width": 220,
-        "height": 180
-      },
-      {
-        "id": "LA-INT-001",
-        "label": "API Gateway",
-        "layer": "Logical",
-        "stereotype": "<<interface>>",
-        "safety_level": "High",
-        "interfaces_in": [],
-        "interfaces_out": [],
-        "functions": [],
-        "width": 220,
-        "height": 180
-      },
-      {
-        "id": "LA-INT-002",
-        "label": "Metadata Manager",
-        "layer": "Logical",
-        "stereotype": "<<component>>",
-        "safety_level": "Medium",
-        "interfaces_in": [],
-        "interfaces_out": [],
-        "functions": [],
-        "width": 220,
-        "height": 180
-      },
-      {
-        "id": "LA-INT-003",
-        "label": "Workflow Orchestrator",
+        "id": "LC-008",
+        "label": "Advanced Analytics Engine",
         "layer": "Logical",
         "stereotype": "<<process>>",
-        "safety_level": "Medium",
         "interfaces_in": [],
         "interfaces_out": [],
-        "functions": [],
-        "width": 220,
+        "functions": [
+          "Predictive Analytics",
+          "Prescriptive Analytics"
+        ],
+        "width": 235,
         "height": 180
       },
       {
-        "id": "LA-ANLZ-001",
-        "label": "SQL Analytics Engine",
-        "layer": "Logical",
-        "stereotype": "<<process>>",
-        "safety_level": "Low",
-        "interfaces_in": [],
-        "interfaces_out": [],
-        "functions": [],
-        "width": 220,
-        "height": 180
-      },
-      {
-        "id": "LA-ANLZ-002",
-        "label": "ML Workspace",
+        "id": "LC-009",
+        "label": "Analytics Infrastructure",
         "layer": "Logical",
         "stereotype": "<<component>>",
-        "safety_level": "Low",
         "interfaces_in": [],
         "interfaces_out": [],
-        "functions": [],
-        "width": 220,
-        "height": 180
-      },
-      {
-        "id": "LA-ANLZ-003",
-        "label": "BI Connector Hub",
-        "layer": "Logical",
-        "stereotype": "<<component>>",
-        "safety_level": "Low",
-        "interfaces_in": [],
-        "interfaces_out": [],
-        "functions": [],
-        "width": 220,
-        "height": 180
-      },
-      {
-        "id": "LA-MON-001",
-        "label": "Observability Platform",
-        "layer": "Logical",
-        "stereotype": "<<component>>",
-        "safety_level": "Medium",
-        "interfaces_in": [],
-        "interfaces_out": [],
-        "functions": [],
-        "width": 220,
-        "height": 180
-      },
-      {
-        "id": "LA-MON-002",
-        "label": "Cost Optimizer",
-        "layer": "Logical",
-        "stereotype": "<<component>>",
-        "safety_level": "Low",
-        "interfaces_in": [],
-        "interfaces_out": [],
-        "functions": [],
-        "width": 220,
-        "height": 180
-      },
-      {
-        "id": "LA-MON-003",
-        "label": "Alert Manager",
-        "layer": "Logical",
-        "stereotype": "<<component>>",
-        "safety_level": "Medium",
-        "interfaces_in": [],
-        "interfaces_out": [],
-        "functions": [],
-        "width": 220,
+        "functions": [
+          "Process Analytics Queries",
+          "Ensure Data Quality"
+        ],
+        "width": 228,
         "height": 180
       }
     ],
-    "edges": [
-      {
-        "source": "LA-SRC-001",
-        "target": "LA-MIG-001",
-        "label": "OracleToMigrationEngine"
-      },
-      {
-        "source": "LA-SRC-002",
-        "target": "LA-MIG-001",
-        "label": "SnowflakeToMigrationEngine"
-      },
-      {
-        "source": "LA-MIG-001",
-        "target": "LA-MIG-002",
-        "label": "MigrationEngineToSchemaConverter"
-      },
-      {
-        "source": "LA-MIG-002",
-        "target": "LA-MIG-003",
-        "label": "SchemaConverterToValidator"
-      },
-      {
-        "source": "LA-MIG-001",
-        "target": "LA-TGT-003",
-        "label": "MigrationEngineToDeltaLake"
-      },
-      {
-        "source": "LA-MIG-003",
-        "target": "LA-MIG-004",
-        "label": "ValidatorToConflictResolver"
-      },
-      {
-        "source": "LA-TGT-003",
-        "target": "LA-PROC-001",
-        "label": "DeltaLakeToBatchPipeline"
-      },
-      {
-        "source": "LA-PROC-001",
-        "target": "LA-PROC-003",
-        "label": "BatchPipelineToDataQuality"
-      },
-      {
-        "source": "LA-PROC-002",
-        "target": "LA-TGT-003",
-        "label": "StreamingPipelineToDeltaLake"
-      },
-      {
-        "source": "LA-PROC-003",
-        "target": "LA-TGT-003",
-        "label": "DataQualityToQuarantine"
-      },
-      {
-        "source": "LA-TGT-002",
-        "target": "LA-GOV-001",
-        "label": "UnityCatalogToAccessControl"
-      },
-      {
-        "source": "LA-TGT-002",
-        "target": "LA-GOV-002",
-        "label": "UnityCatalogToLineageTracker"
-      },
-      {
-        "source": "LA-GOV-001",
-        "target": "LA-GOV-003",
-        "label": "AccessControlToAuditLogger"
-      },
-      {
-        "source": "LA-TGT-003",
-        "target": "LA-ANLZ-001",
-        "label": "DeltaLakeToSQLAnalytics"
-      },
-      {
-        "source": "LA-ANLZ-001",
-        "target": "LA-ANLZ-003",
-        "label": "SQLAnalyticsToBIConnector"
-      },
-      {
-        "source": "LA-ANLZ-002",
-        "target": "LA-TGT-001",
-        "label": "MLWorkspaceToLakehouse"
-      },
-      {
-        "source": "LA-TGT-001",
-        "target": "LA-MON-001",
-        "label": "LakehouseToObservability"
-      },
-      {
-        "source": "LA-MON-001",
-        "target": "LA-MON-003",
-        "label": "ObservabilityToAlertManager"
-      },
-      {
-        "source": "LA-MON-002",
-        "target": "LA-MON-003",
-        "label": "CostOptimizerToAlertManager"
-      }
-    ],
+    "edges": [],
     "layers": [
       {
         "name": "Logical",

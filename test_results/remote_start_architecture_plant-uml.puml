@@ -1,0 +1,33 @@
+@startuml
+!theme plain
+
+package "System Components" {
+  [Smartphone Application]
+  [User Authentication Service]
+  [Telematics Control Unit]
+  [Secure Communication Manager]
+  [Cloud Backend Service]
+  [Remote Start Controller]
+  [Safety Interlock Validator]
+  [Powertrain Start Manager]
+  [Climate Control Pre-Conditioner]
+  [Timer and Shutdown Manager]
+  [Engine Control Unit]
+  [Battery Management System]
+  [Hybrid Control Unit]
+  [HVAC Control Module]
+  [Body Control Module]
+  [Instrument Cluster]
+  [Telematics Control Unit Hardware]
+  [Gateway ECU]
+  [Engine Control Module Hardware]
+  [Battery Management System Hardware]
+  [Body Control Module Hardware]
+  [TCU Application Software]
+  [Remote Start Controller Software]
+  [Engine Control Software]
+  [BMS Control Software]
+}
+
+
+@enduml

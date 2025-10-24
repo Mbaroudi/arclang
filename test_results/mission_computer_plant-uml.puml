@@ -1,0 +1,19 @@
+@startuml
+!theme plain
+
+package "System Components" {
+  [Radar Processor]
+  [Electronic Warfare Processor]
+  [Track Fusion]
+  [Threat Manager]
+  [Weapon Manager]
+  [Cryptographic Module]
+  [Mission Processor 1]
+  [Mission Processor 2]
+  [Radar Signal Processor]
+  [EW Processor]
+  [Crypto Appliance]
+}
+
+
+@enduml

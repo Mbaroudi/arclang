@@ -1,0 +1,15 @@
+@startuml
+!theme plain
+
+package "System Components" {
+  [Radar Sensor]
+  [Vision Camera]
+  [Sensor Fusion]
+  [ACC Controller]
+  [Radar ECU]
+  [Camera ECU]
+  [ADAS ECU]
+}
+
+
+@enduml

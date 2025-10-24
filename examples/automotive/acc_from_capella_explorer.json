@@ -1,0 +1,170 @@
+{
+  "metadata": {
+    "title": "System Architecture",
+    "version": "1.0.0",
+    "description": "Complete architecture with 4 components, 0 interfaces, and 3 requirements",
+    "total_requirements": 3,
+    "total_components": 4,
+    "total_interfaces": 0,
+    "total_functions": 0
+  },
+  "requirements": [
+    {
+      "category": "General",
+      "requirements": [
+        {
+          "id": "SYS-ACC-002",
+          "description": "Driver brake input shall override ACC",
+          "priority": "Critical",
+          "category": null,
+          "safety_level": null,
+          "traces_to": []
+        },
+        {
+          "id": "SYS-ACC-003",
+          "description": "System shall detect cut-in vehicles within 500ms",
+          "priority": "High",
+          "category": null,
+          "safety_level": null,
+          "traces_to": []
+        },
+        {
+          "id": "SYS-ACC-001",
+          "description": "The ACC system shall maintain minimum 2-second following distance",
+          "priority": "Critical",
+          "category": null,
+          "safety_level": null,
+          "traces_to": []
+        }
+      ]
+    }
+  ],
+  "components": [
+    {
+      "id": "LC-004",
+      "name": "ACC Controller",
+      "layer": "Logical",
+      "component_type": "Logical",
+      "safety_level": null,
+      "asil": null,
+      "interfaces_in": [],
+      "interfaces_out": [],
+      "functions": [],
+      "description": "Component in Logical layer"
+    },
+    {
+      "id": "LC-003",
+      "name": "Sensor Fusion",
+      "layer": "Logical",
+      "component_type": "Logical",
+      "safety_level": null,
+      "asil": null,
+      "interfaces_in": [],
+      "interfaces_out": [],
+      "functions": [],
+      "description": "Component in Logical layer"
+    },
+    {
+      "id": "LC-001",
+      "name": "Radar Sensor",
+      "layer": "Logical",
+      "component_type": "Logical",
+      "safety_level": null,
+      "asil": null,
+      "interfaces_in": [],
+      "interfaces_out": [],
+      "functions": [],
+      "description": "Component in Logical layer"
+    },
+    {
+      "id": "LC-002",
+      "name": "Vision Camera",
+      "layer": "Logical",
+      "component_type": "Logical",
+      "safety_level": null,
+      "asil": null,
+      "interfaces_in": [],
+      "interfaces_out": [],
+      "functions": [],
+      "description": "Component in Logical layer"
+    }
+  ],
+  "interfaces": [],
+  "functions": [],
+  "traces": [
+    {
+      "from": "LC-001",
+      "to": "SYS-ACC-001",
+      "trace_type": "satisfies",
+      "rationale": null
+    },
+    {
+      "from": "LC-003",
+      "to": "SYS-ACC-002",
+      "trace_type": "satisfies",
+      "rationale": null
+    },
+    {
+      "from": "LC-004",
+      "to": "SYS-ACC-003",
+      "trace_type": "satisfies",
+      "rationale": null
+    }
+  ],
+  "diagram": {
+    "nodes": [
+      {
+        "id": "LC-004",
+        "label": "ACC Controller",
+        "layer": "Logical",
+        "stereotype": "<<component>>",
+        "interfaces_in": [],
+        "interfaces_out": [],
+        "functions": [],
+        "width": 220,
+        "height": 180
+      },
+      {
+        "id": "LC-003",
+        "label": "Sensor Fusion",
+        "layer": "Logical",
+        "stereotype": "<<component>>",
+        "interfaces_in": [],
+        "interfaces_out": [],
+        "functions": [],
+        "width": 220,
+        "height": 180
+      },
+      {
+        "id": "LC-001",
+        "label": "Radar Sensor",
+        "layer": "Logical",
+        "stereotype": "<<component>>",
+        "interfaces_in": [],
+        "interfaces_out": [],
+        "functions": [],
+        "width": 220,
+        "height": 180
+      },
+      {
+        "id": "LC-002",
+        "label": "Vision Camera",
+        "layer": "Logical",
+        "stereotype": "<<component>>",
+        "interfaces_in": [],
+        "interfaces_out": [],
+        "functions": [],
+        "width": 220,
+        "height": 180
+      }
+    ],
+    "edges": [],
+    "layers": [
+      {
+        "name": "Logical",
+        "color": "#E3F2FD",
+        "description": "Logical Architecture Layer"
+      }
+    ]
+  }
+}

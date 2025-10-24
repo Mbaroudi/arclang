@@ -759,1090 +759,373 @@
   "metadata": {
     "title": "Vehicle Remote Start System Architecture",
     "version": "1.0.0",
-    "description": "Complete architecture with 24 components, 19 interfaces, and 27 requirements",
-    "total_requirements": 27,
-    "total_components": 24,
-    "total_interfaces": 19,
-    "total_functions": 0
+    "description": "Complete architecture with 9 components, 3 interfaces, and 5 requirements",
+    "total_requirements": 5,
+    "total_components": 9,
+    "total_interfaces": 3,
+    "total_functions": 10
   },
   "requirements": [
     {
       "category": "General",
       "requirements": [
         {
-          "id": "STK-001",
-          "description": "Business must reduce total cost of ownership for data platform by 40% over 3 years through consolidation and automation",
+          "id": "SYS-ACC-001",
+          "description": "The ACC system shall maintain minimum 2-second following distance at all speeds",
           "priority": "Critical",
           "category": null,
-          "safety_level": null,
-          "traces_to": [
-            "SYS-MIG-005",
-            "SYS-MON-003"
-          ]
+          "safety_level": "ASIL_B",
+          "traces_to": []
         },
         {
-          "id": "STK-002",
-          "description": "Platform must support both real-time streaming analytics and batch analytics for video streaming metrics",
-          "priority": "Critical",
-          "category": null,
-          "safety_level": null,
-          "traces_to": [
-            "SYS-PERF-001",
-            "SYS-PERF-004"
-          ]
-        },
-        {
-          "id": "STK-003",
-          "description": "System must maintain 99.9% data availability during migration period with no data loss",
-          "priority": "Critical",
-          "category": null,
-          "safety_level": null,
-          "traces_to": [
-            "SYS-MIG-003",
-            "SYS-REL-001"
-          ]
-        },
-        {
-          "id": "STK-004",
-          "description": "Data teams need unified platform combining data engineering, data science, and analytics workloads",
+          "id": "SYS-ACC-002",
+          "description": "The system shall detect cut-in vehicles within 500ms",
           "priority": "High",
           "category": null,
-          "safety_level": null,
-          "traces_to": [
-            "SYS-PERF-003"
-          ]
+          "safety_level": "ASIL_B",
+          "traces_to": []
         },
         {
-          "id": "STK-005",
-          "description": "Business requires seamless user experience with zero planned downtime during migration",
-          "priority": "Critical",
-          "category": null,
-          "safety_level": null,
-          "traces_to": [
-            "SYS-MIG-001"
-          ]
-        },
-        {
-          "id": "STK-006",
-          "description": "Organization needs scalable architecture supporting 10x data growth from 100TB to 1PB over 3 years",
+          "id": "SYS-ACC-003",
+          "description": "Maximum deceleration shall not exceed 3.5 m/s²",
           "priority": "High",
           "category": null,
-          "safety_level": null,
-          "traces_to": [
-            "SYS-SCALE-001",
-            "SYS-SCALE-002"
-          ]
+          "safety_level": "ASIL_B",
+          "traces_to": []
         },
         {
-          "id": "STK-007",
-          "description": "Compliance team requires complete data lineage tracking and audit trails for GDPR and CCPA compliance",
+          "id": "SYS-ACC-004",
+          "description": "Driver brake input shall immediately override ACC control",
           "priority": "Critical",
           "category": null,
-          "safety_level": null,
-          "traces_to": [
-            "SYS-GOV-001",
-            "SYS-GOV-003"
-          ]
+          "safety_level": "ASIL_C",
+          "traces_to": []
         },
         {
-          "id": "STK-008",
-          "description": "Leadership needs migration completed within 12 months with clear Q1-Q4 milestones",
-          "priority": "Critical",
-          "category": null,
-          "safety_level": null,
-          "traces_to": [
-            "SYS-MIG-002"
-          ]
-        },
-        {
-          "id": "SYS-MIG-001",
-          "description": "System shall support bidirectional synchronization between Oracle/Snowflake and Databricks with conflict resolution",
-          "priority": "Critical",
-          "category": null,
-          "safety_level": "High",
-          "traces_to": [
-            "LA-MIG-004"
-          ]
-        },
-        {
-          "id": "SYS-MIG-002",
-          "description": "System shall automatically discover and map schemas from Oracle/Snowflake to Databricks Delta Lake format",
-          "priority": "High",
-          "category": null,
-          "safety_level": null,
-          "traces_to": [
-            "LA-MIG-002"
-          ]
-        },
-        {
-          "id": "SYS-MIG-003",
-          "description": "System shall validate data integrity through row count reconciliation and checksum validation after each migration batch",
-          "priority": "Critical",
-          "category": null,
-          "safety_level": "High",
-          "traces_to": [
-            "LA-MIG-003"
-          ]
-        },
-        {
-          "id": "SYS-MIG-004",
-          "description": "System shall provide automated rollback capability to previous stable state within 15 minutes",
-          "priority": "Critical",
-          "category": null,
-          "safety_level": "High",
-          "traces_to": [
-            "LA-MIG-001"
-          ]
-        },
-        {
-          "id": "SYS-MIG-005",
-          "description": "System shall support incremental migration in waves with table-level granularity and parallel execution",
-          "priority": "High",
-          "category": null,
-          "safety_level": null,
-          "traces_to": [
-            "LA-MIG-001"
-          ]
-        },
-        {
-          "id": "SYS-PERF-001",
-          "description": "System shall deliver query response time under 5 seconds for 95th percentile of analytical queries",
-          "priority": "Critical",
-          "category": null,
-          "safety_level": null,
-          "traces_to": [
-            "LA-ANLZ-001"
-          ]
-        },
-        {
-          "id": "SYS-PERF-002",
-          "description": "System shall efficiently handle datasets exceeding 100TB with columnar storage and optimization",
-          "priority": "High",
-          "category": null,
-          "safety_level": null,
-          "traces_to": [
-            "LA-TGT-003"
-          ]
-        },
-        {
-          "id": "SYS-PERF-003",
-          "description": "System shall support 500+ concurrent users with workload isolation and auto-scaling",
-          "priority": "High",
-          "category": null,
-          "safety_level": null,
-          "traces_to": [
-            "LA-TGT-001"
-          ]
-        },
-        {
-          "id": "SYS-PERF-004",
-          "description": "System shall process streaming data with end-to-end latency under 60 seconds for 99% of events",
-          "priority": "Critical",
-          "category": null,
-          "safety_level": null,
-          "traces_to": [
-            "LA-PROC-002"
-          ]
-        },
-        {
-          "id": "SYS-SCALE-001",
-          "description": "System shall automatically scale compute clusters from 2 to 200 nodes based on workload demand",
-          "priority": "High",
-          "category": null,
-          "safety_level": null,
-          "traces_to": [
-            "LA-TGT-001"
-          ]
-        },
-        {
-          "id": "SYS-SCALE-002",
-          "description": "System shall provide elastic cloud storage scaling from 100TB to 1PB+ with automatic tiering",
-          "priority": "High",
-          "category": null,
-          "safety_level": null,
-          "traces_to": [
-            "LA-TGT-003"
-          ]
-        },
-        {
-          "id": "SYS-GOV-001",
-          "description": "System shall enforce granular RBAC at table, column, and row level with dynamic data masking for PII",
-          "priority": "Critical",
-          "category": null,
-          "safety_level": "Critical",
-          "traces_to": [
-            "LA-GOV-001"
-          ]
-        },
-        {
-          "id": "SYS-GOV-002",
-          "description": "System shall automatically detect and classify PII data using ML-based scanning",
-          "priority": "Critical",
-          "category": null,
-          "safety_level": "High",
-          "traces_to": [
-            "LA-GOV-001"
-          ]
-        },
-        {
-          "id": "SYS-GOV-003",
-          "description": "System shall capture and visualize end-to-end data lineage with column-level tracking",
-          "priority": "Critical",
-          "category": null,
-          "safety_level": "High",
-          "traces_to": [
-            "LA-GOV-002"
-          ]
-        },
-        {
-          "id": "SYS-REL-001",
-          "description": "System shall perform automated incremental backups every 6 hours with point-in-time recovery",
-          "priority": "Critical",
-          "category": null,
-          "safety_level": "High",
-          "traces_to": [
-            "LA-TGT-003"
-          ]
-        },
-        {
-          "id": "SYS-REL-002",
-          "description": "System shall meet disaster recovery SLA with RPO under 1 hour and RTO under 4 hours",
-          "priority": "Critical",
-          "category": null,
-          "safety_level": "High",
-          "traces_to": [
-            "LA-TGT-003"
-          ]
-        },
-        {
-          "id": "SYS-MON-001",
-          "description": "System shall provide real-time monitoring of data pipelines with alerts for failures and SLA breaches",
-          "priority": "High",
-          "category": null,
-          "safety_level": null,
-          "traces_to": [
-            "LA-MON-001"
-          ]
-        },
-        {
-          "id": "SYS-MON-002",
-          "description": "System shall track data quality metrics with automated anomaly detection and root cause analysis",
-          "priority": "High",
-          "category": null,
-          "safety_level": null,
-          "traces_to": [
-            "LA-PROC-003"
-          ]
-        },
-        {
-          "id": "SYS-MON-003",
-          "description": "System shall track cloud costs by workload and team with optimization recommendations",
+          "id": "SYS-ACC-005",
+          "description": "System shall operate in speed range 30-180 km/h",
           "priority": "Medium",
           "category": null,
-          "safety_level": null,
-          "traces_to": [
-            "LA-MON-002"
-          ]
+          "safety_level": "ASIL_A",
+          "traces_to": []
         }
       ]
     }
   ],
   "components": [
     {
-      "id": "LA-SRC-001",
-      "name": "Oracle Database Subsystem",
+      "id": "LC-001",
+      "name": "Radar Sensor",
       "layer": "Logical",
       "component_type": "Logical",
-      "safety_level": "High",
+      "safety_level": null,
       "asil": null,
       "interfaces_in": [],
       "interfaces_out": [],
-      "functions": [],
+      "functions": [
+        "Transmit RF Signal",
+        "Process Echoes"
+      ],
       "description": "Component in Logical layer"
     },
     {
-      "id": "LA-SRC-002",
-      "name": "Snowflake Warehouse Subsystem",
+      "id": "LC-002",
+      "name": "Vision Camera",
       "layer": "Logical",
       "component_type": "Logical",
-      "safety_level": "High",
+      "safety_level": null,
       "asil": null,
       "interfaces_in": [],
       "interfaces_out": [],
-      "functions": [],
+      "functions": [
+        "Capture Images",
+        "Detect Objects"
+      ],
       "description": "Component in Logical layer"
     },
     {
-      "id": "LA-MIG-001",
-      "name": "ETL Orchestrator",
+      "id": "LC-003",
+      "name": "Sensor Fusion",
       "layer": "Logical",
       "component_type": "Logical",
-      "safety_level": "High",
+      "safety_level": "ASIL_B",
       "asil": null,
       "interfaces_in": [],
       "interfaces_out": [],
-      "functions": [],
+      "functions": [
+        "Fuse Detections",
+        "Select Target"
+      ],
       "description": "Component in Logical layer"
     },
     {
-      "id": "LA-MIG-002",
-      "name": "Schema Converter",
+      "id": "LC-004",
+      "name": "ACC Controller",
       "layer": "Logical",
       "component_type": "Logical",
-      "safety_level": "High",
+      "safety_level": "ASIL_B",
       "asil": null,
       "interfaces_in": [],
       "interfaces_out": [],
-      "functions": [],
+      "functions": [
+        "Calculate Following Distance",
+        "Compute Speed Profile"
+      ],
       "description": "Component in Logical layer"
     },
     {
-      "id": "LA-MIG-003",
-      "name": "Data Validator",
+      "id": "LC-005",
+      "name": "Actuator Interface",
       "layer": "Logical",
       "component_type": "Logical",
-      "safety_level": "Critical",
+      "safety_level": "ASIL_C",
       "asil": null,
       "interfaces_in": [],
       "interfaces_out": [],
-      "functions": [],
+      "functions": [
+        "Convert to CAN Commands",
+        "Monitor Driver Override"
+      ],
       "description": "Component in Logical layer"
     },
     {
-      "id": "LA-MIG-004",
-      "name": "Conflict Resolver",
-      "layer": "Logical",
-      "component_type": "Logical",
-      "safety_level": "High",
+      "id": "PN-001",
+      "name": "Radar ECU",
+      "layer": "Physical",
+      "component_type": "Physical",
+      "safety_level": null,
       "asil": null,
       "interfaces_in": [],
       "interfaces_out": [],
       "functions": [],
-      "description": "Component in Logical layer"
+      "description": "Component in Physical layer"
     },
     {
-      "id": "LA-TGT-001",
-      "name": "Databricks Lakehouse Platform",
-      "layer": "Logical",
-      "component_type": "Logical",
-      "safety_level": "High",
+      "id": "PN-002",
+      "name": "Camera ECU",
+      "layer": "Physical",
+      "component_type": "Physical",
+      "safety_level": null,
       "asil": null,
       "interfaces_in": [],
       "interfaces_out": [],
       "functions": [],
-      "description": "Component in Logical layer"
+      "description": "Component in Physical layer"
     },
     {
-      "id": "LA-TGT-002",
-      "name": "Unity Catalog",
-      "layer": "Logical",
-      "component_type": "Logical",
-      "safety_level": "Critical",
+      "id": "PN-003",
+      "name": "ADAS ECU",
+      "layer": "Physical",
+      "component_type": "Physical",
+      "safety_level": null,
       "asil": null,
       "interfaces_in": [],
       "interfaces_out": [],
       "functions": [],
-      "description": "Component in Logical layer"
+      "description": "Component in Physical layer"
     },
     {
-      "id": "LA-TGT-003",
-      "name": "Delta Lake Storage",
-      "layer": "Logical",
-      "component_type": "Logical",
-      "safety_level": "High",
+      "id": "PN-004",
+      "name": "Gateway ECU",
+      "layer": "Physical",
+      "component_type": "Physical",
+      "safety_level": null,
       "asil": null,
       "interfaces_in": [],
       "interfaces_out": [],
       "functions": [],
-      "description": "Component in Logical layer"
-    },
-    {
-      "id": "LA-PROC-001",
-      "name": "Batch Pipeline Engine",
-      "layer": "Logical",
-      "component_type": "Logical",
-      "safety_level": "Medium",
-      "asil": null,
-      "interfaces_in": [],
-      "interfaces_out": [],
-      "functions": [],
-      "description": "Component in Logical layer"
-    },
-    {
-      "id": "LA-PROC-002",
-      "name": "Streaming Pipeline Engine",
-      "layer": "Logical",
-      "component_type": "Logical",
-      "safety_level": "Medium",
-      "asil": null,
-      "interfaces_in": [],
-      "interfaces_out": [],
-      "functions": [],
-      "description": "Component in Logical layer"
-    },
-    {
-      "id": "LA-PROC-003",
-      "name": "Data Quality Engine",
-      "layer": "Logical",
-      "component_type": "Logical",
-      "safety_level": "High",
-      "asil": null,
-      "interfaces_in": [],
-      "interfaces_out": [],
-      "functions": [],
-      "description": "Component in Logical layer"
-    },
-    {
-      "id": "LA-GOV-001",
-      "name": "Access Control Manager",
-      "layer": "Logical",
-      "component_type": "Logical",
-      "safety_level": "Critical",
-      "asil": null,
-      "interfaces_in": [],
-      "interfaces_out": [],
-      "functions": [],
-      "description": "Component in Logical layer"
-    },
-    {
-      "id": "LA-GOV-002",
-      "name": "Lineage Tracker",
-      "layer": "Logical",
-      "component_type": "Logical",
-      "safety_level": "High",
-      "asil": null,
-      "interfaces_in": [],
-      "interfaces_out": [],
-      "functions": [],
-      "description": "Component in Logical layer"
-    },
-    {
-      "id": "LA-GOV-003",
-      "name": "Audit Logger",
-      "layer": "Logical",
-      "component_type": "Logical",
-      "safety_level": "Critical",
-      "asil": null,
-      "interfaces_in": [],
-      "interfaces_out": [],
-      "functions": [],
-      "description": "Component in Logical layer"
-    },
-    {
-      "id": "LA-INT-001",
-      "name": "API Gateway",
-      "layer": "Logical",
-      "component_type": "Logical",
-      "safety_level": "High",
-      "asil": null,
-      "interfaces_in": [],
-      "interfaces_out": [],
-      "functions": [],
-      "description": "Component in Logical layer"
-    },
-    {
-      "id": "LA-INT-002",
-      "name": "Metadata Manager",
-      "layer": "Logical",
-      "component_type": "Logical",
-      "safety_level": "Medium",
-      "asil": null,
-      "interfaces_in": [],
-      "interfaces_out": [],
-      "functions": [],
-      "description": "Component in Logical layer"
-    },
-    {
-      "id": "LA-INT-003",
-      "name": "Workflow Orchestrator",
-      "layer": "Logical",
-      "component_type": "Logical",
-      "safety_level": "Medium",
-      "asil": null,
-      "interfaces_in": [],
-      "interfaces_out": [],
-      "functions": [],
-      "description": "Component in Logical layer"
-    },
-    {
-      "id": "LA-ANLZ-001",
-      "name": "SQL Analytics Engine",
-      "layer": "Logical",
-      "component_type": "Logical",
-      "safety_level": "Low",
-      "asil": null,
-      "interfaces_in": [],
-      "interfaces_out": [],
-      "functions": [],
-      "description": "Component in Logical layer"
-    },
-    {
-      "id": "LA-ANLZ-002",
-      "name": "ML Workspace",
-      "layer": "Logical",
-      "component_type": "Logical",
-      "safety_level": "Low",
-      "asil": null,
-      "interfaces_in": [],
-      "interfaces_out": [],
-      "functions": [],
-      "description": "Component in Logical layer"
-    },
-    {
-      "id": "LA-ANLZ-003",
-      "name": "BI Connector Hub",
-      "layer": "Logical",
-      "component_type": "Logical",
-      "safety_level": "Low",
-      "asil": null,
-      "interfaces_in": [],
-      "interfaces_out": [],
-      "functions": [],
-      "description": "Component in Logical layer"
-    },
-    {
-      "id": "LA-MON-001",
-      "name": "Observability Platform",
-      "layer": "Logical",
-      "component_type": "Logical",
-      "safety_level": "Medium",
-      "asil": null,
-      "interfaces_in": [],
-      "interfaces_out": [],
-      "functions": [],
-      "description": "Component in Logical layer"
-    },
-    {
-      "id": "LA-MON-002",
-      "name": "Cost Optimizer",
-      "layer": "Logical",
-      "component_type": "Logical",
-      "safety_level": "Low",
-      "asil": null,
-      "interfaces_in": [],
-      "interfaces_out": [],
-      "functions": [],
-      "description": "Component in Logical layer"
-    },
-    {
-      "id": "LA-MON-003",
-      "name": "Alert Manager",
-      "layer": "Logical",
-      "component_type": "Logical",
-      "safety_level": "Medium",
-      "asil": null,
-      "interfaces_in": [],
-      "interfaces_out": [],
-      "functions": [],
-      "description": "Component in Logical layer"
+      "description": "Component in Physical layer"
     }
   ],
   "interfaces": [
     {
-      "name": "OracleToMigrationEngine",
-      "from": "LA-SRC-001",
-      "to": "LA-MIG-001",
-      "from_component": "Oracle Database Subsystem",
-      "to_component": "ETL Orchestrator"
+      "name": "Radar Data Bus",
+      "from": "LC-001",
+      "to": "LC-003",
+      "from_component": "Radar Sensor",
+      "to_component": "Sensor Fusion"
     },
     {
-      "name": "SnowflakeToMigrationEngine",
-      "from": "LA-SRC-002",
-      "to": "LA-MIG-001",
-      "from_component": "Snowflake Warehouse Subsystem",
-      "to_component": "ETL Orchestrator"
+      "name": "Camera Data Bus",
+      "from": "LC-002",
+      "to": "LC-003",
+      "from_component": "Vision Camera",
+      "to_component": "Sensor Fusion"
     },
     {
-      "name": "MigrationEngineToSchemaConverter",
-      "from": "LA-MIG-001",
-      "to": "LA-MIG-002",
-      "from_component": "ETL Orchestrator",
-      "to_component": "Schema Converter"
-    },
-    {
-      "name": "SchemaConverterToValidator",
-      "from": "LA-MIG-002",
-      "to": "LA-MIG-003",
-      "from_component": "Schema Converter",
-      "to_component": "Data Validator"
-    },
-    {
-      "name": "MigrationEngineToDeltaLake",
-      "from": "LA-MIG-001",
-      "to": "LA-TGT-003",
-      "from_component": "ETL Orchestrator",
-      "to_component": "Delta Lake Storage"
-    },
-    {
-      "name": "ValidatorToConflictResolver",
-      "from": "LA-MIG-003",
-      "to": "LA-MIG-004",
-      "from_component": "Data Validator",
-      "to_component": "Conflict Resolver"
-    },
-    {
-      "name": "DeltaLakeToBatchPipeline",
-      "from": "LA-TGT-003",
-      "to": "LA-PROC-001",
-      "from_component": "Delta Lake Storage",
-      "to_component": "Batch Pipeline Engine"
-    },
-    {
-      "name": "BatchPipelineToDataQuality",
-      "from": "LA-PROC-001",
-      "to": "LA-PROC-003",
-      "from_component": "Batch Pipeline Engine",
-      "to_component": "Data Quality Engine"
-    },
-    {
-      "name": "StreamingPipelineToDeltaLake",
-      "from": "LA-PROC-002",
-      "to": "LA-TGT-003",
-      "from_component": "Streaming Pipeline Engine",
-      "to_component": "Delta Lake Storage"
-    },
-    {
-      "name": "DataQualityToQuarantine",
-      "from": "LA-PROC-003",
-      "to": "LA-TGT-003",
-      "from_component": "Data Quality Engine",
-      "to_component": "Delta Lake Storage"
-    },
-    {
-      "name": "UnityCatalogToAccessControl",
-      "from": "LA-TGT-002",
-      "to": "LA-GOV-001",
-      "from_component": "Unity Catalog",
-      "to_component": "Access Control Manager"
-    },
-    {
-      "name": "UnityCatalogToLineageTracker",
-      "from": "LA-TGT-002",
-      "to": "LA-GOV-002",
-      "from_component": "Unity Catalog",
-      "to_component": "Lineage Tracker"
-    },
-    {
-      "name": "AccessControlToAuditLogger",
-      "from": "LA-GOV-001",
-      "to": "LA-GOV-003",
-      "from_component": "Access Control Manager",
-      "to_component": "Audit Logger"
-    },
-    {
-      "name": "DeltaLakeToSQLAnalytics",
-      "from": "LA-TGT-003",
-      "to": "LA-ANLZ-001",
-      "from_component": "Delta Lake Storage",
-      "to_component": "SQL Analytics Engine"
-    },
-    {
-      "name": "SQLAnalyticsToBIConnector",
-      "from": "LA-ANLZ-001",
-      "to": "LA-ANLZ-003",
-      "from_component": "SQL Analytics Engine",
-      "to_component": "BI Connector Hub"
-    },
-    {
-      "name": "MLWorkspaceToLakehouse",
-      "from": "LA-ANLZ-002",
-      "to": "LA-TGT-001",
-      "from_component": "ML Workspace",
-      "to_component": "Databricks Lakehouse Platform"
-    },
-    {
-      "name": "LakehouseToObservability",
-      "from": "LA-TGT-001",
-      "to": "LA-MON-001",
-      "from_component": "Databricks Lakehouse Platform",
-      "to_component": "Observability Platform"
-    },
-    {
-      "name": "ObservabilityToAlertManager",
-      "from": "LA-MON-001",
-      "to": "LA-MON-003",
-      "from_component": "Observability Platform",
-      "to_component": "Alert Manager"
-    },
-    {
-      "name": "CostOptimizerToAlertManager",
-      "from": "LA-MON-002",
-      "to": "LA-MON-003",
-      "from_component": "Cost Optimizer",
-      "to_component": "Alert Manager"
+      "name": "Control Bus",
+      "from": "LC-004",
+      "to": "LC-005",
+      "from_component": "ACC Controller",
+      "to_component": "Actuator Interface"
     }
   ],
-  "functions": [],
+  "functions": [
+    {
+      "id": "LF-001",
+      "name": "Transmit RF Signal",
+      "inputs": [],
+      "outputs": [],
+      "component": "Radar Sensor"
+    },
+    {
+      "id": "LF-002",
+      "name": "Process Echoes",
+      "inputs": [],
+      "outputs": [],
+      "component": "Radar Sensor"
+    },
+    {
+      "id": "LF-003",
+      "name": "Capture Images",
+      "inputs": [],
+      "outputs": [],
+      "component": "Vision Camera"
+    },
+    {
+      "id": "LF-004",
+      "name": "Detect Objects",
+      "inputs": [],
+      "outputs": [],
+      "component": "Vision Camera"
+    },
+    {
+      "id": "LF-005",
+      "name": "Fuse Detections",
+      "inputs": [],
+      "outputs": [],
+      "component": "Sensor Fusion"
+    },
+    {
+      "id": "LF-006",
+      "name": "Select Target",
+      "inputs": [],
+      "outputs": [],
+      "component": "Sensor Fusion"
+    },
+    {
+      "id": "LF-007",
+      "name": "Calculate Following Distance",
+      "inputs": [],
+      "outputs": [],
+      "component": "ACC Controller"
+    },
+    {
+      "id": "LF-008",
+      "name": "Compute Speed Profile",
+      "inputs": [],
+      "outputs": [],
+      "component": "ACC Controller"
+    },
+    {
+      "id": "LF-009",
+      "name": "Convert to CAN Commands",
+      "inputs": [],
+      "outputs": [],
+      "component": "Actuator Interface"
+    },
+    {
+      "id": "LF-010",
+      "name": "Monitor Driver Override",
+      "inputs": [],
+      "outputs": [],
+      "component": "Actuator Interface"
+    }
+  ],
   "traces": [
     {
-      "from": "STK-001",
-      "to": "SYS-MIG-005",
+      "from": "LC-003",
+      "to": "SYS-ACC-001",
       "trace_type": "satisfies",
-      "rationale": "Incremental migration waves reduce TCO by enabling phased decommissioning"
+      "rationale": "Sensor fusion provides target detection for distance control"
     },
     {
-      "from": "STK-001",
-      "to": "SYS-MON-003",
+      "from": "LF-006",
+      "to": "SYS-ACC-002",
       "trace_type": "satisfies",
-      "rationale": "Cost tracking and optimization directly supports TCO reduction goals"
-    },
-    {
-      "from": "STK-002",
-      "to": "SYS-PERF-001",
-      "trace_type": "satisfies",
-      "rationale": "Query response time requirement enables real-time analytics capability"
-    },
-    {
-      "from": "STK-002",
-      "to": "SYS-PERF-004",
-      "trace_type": "satisfies",
-      "rationale": "Streaming latency requirement supports real-time analytics"
-    },
-    {
-      "from": "STK-003",
-      "to": "SYS-MIG-003",
-      "trace_type": "satisfies",
-      "rationale": "Data validation framework ensures availability during migration"
-    },
-    {
-      "from": "STK-003",
-      "to": "SYS-REL-001",
-      "trace_type": "satisfies",
-      "rationale": "Automated backup/recovery ensures high availability"
-    },
-    {
-      "from": "STK-004",
-      "to": "SYS-PERF-003",
-      "trace_type": "satisfies",
-      "rationale": "Concurrent user support enables unified platform for data teams"
-    },
-    {
-      "from": "STK-005",
-      "to": "SYS-MIG-001",
-      "trace_type": "satisfies",
-      "rationale": "Bidirectional sync enables zero downtime migration"
-    },
-    {
-      "from": "STK-006",
-      "to": "SYS-SCALE-001",
-      "trace_type": "satisfies",
-      "rationale": "Auto-scaling compute supports 10x growth"
-    },
-    {
-      "from": "STK-006",
-      "to": "SYS-SCALE-002",
-      "trace_type": "satisfies",
-      "rationale": "Elastic storage addresses 100TB to 1PB scalability"
-    },
-    {
-      "from": "STK-007",
-      "to": "SYS-GOV-001",
-      "trace_type": "satisfies",
-      "rationale": "RBAC provides access control for compliance"
-    },
-    {
-      "from": "STK-007",
-      "to": "SYS-GOV-003",
-      "trace_type": "satisfies",
-      "rationale": "Complete data lineage enables required audit trails"
-    },
-    {
-      "from": "STK-008",
-      "to": "SYS-MIG-002",
-      "trace_type": "satisfies",
-      "rationale": "Automated schema mapping accelerates migration timeline"
-    },
-    {
-      "from": "SYS-MIG-001",
-      "to": "LA-MIG-004",
-      "trace_type": "implements",
-      "rationale": "Conflict Resolver implements bidirectional sync"
-    },
-    {
-      "from": "SYS-MIG-002",
-      "to": "LA-MIG-002",
-      "trace_type": "implements",
-      "rationale": "Schema Converter automates schema mapping"
-    },
-    {
-      "from": "SYS-MIG-003",
-      "to": "LA-MIG-003",
-      "trace_type": "implements",
-      "rationale": "Data Validator performs integrity validation"
-    },
-    {
-      "from": "SYS-MIG-004",
-      "to": "LA-MIG-001",
-      "trace_type": "implements",
-      "rationale": "ETL Orchestrator includes rollback functionality"
-    },
-    {
-      "from": "SYS-PERF-001",
-      "to": "LA-ANLZ-001",
-      "trace_type": "implements",
-      "rationale": "SQL Analytics Engine provides fast query response"
-    },
-    {
-      "from": "SYS-PERF-002",
-      "to": "LA-TGT-003",
-      "trace_type": "implements",
-      "rationale": "Delta Lake Storage handles 100TB+ datasets"
-    },
-    {
-      "from": "SYS-PERF-003",
-      "to": "LA-TGT-001",
-      "trace_type": "implements",
-      "rationale": "Databricks Lakehouse supports 500+ concurrent users"
-    },
-    {
-      "from": "SYS-PERF-004",
-      "to": "LA-PROC-002",
-      "trace_type": "implements",
-      "rationale": "Streaming Pipeline Engine delivers low latency"
-    },
-    {
-      "from": "SYS-SCALE-001",
-      "to": "LA-TGT-001",
-      "trace_type": "implements",
-      "rationale": "Databricks Platform provides auto-scaling"
-    },
-    {
-      "from": "SYS-SCALE-002",
-      "to": "LA-TGT-003",
-      "trace_type": "implements",
-      "rationale": "Delta Lake on S3 provides elastic storage"
-    },
-    {
-      "from": "SYS-GOV-001",
-      "to": "LA-GOV-001",
-      "trace_type": "implements",
-      "rationale": "Access Control Manager enforces RBAC"
-    },
-    {
-      "from": "SYS-GOV-002",
-      "to": "LA-GOV-001",
-      "trace_type": "implements",
-      "rationale": "Access Control Manager includes PII detection"
-    },
-    {
-      "from": "SYS-GOV-003",
-      "to": "LA-GOV-002",
-      "trace_type": "implements",
-      "rationale": "Lineage Tracker captures complete lineage"
-    },
-    {
-      "from": "SYS-REL-001",
-      "to": "LA-TGT-003",
-      "trace_type": "implements",
-      "rationale": "Delta Lake provides automated backups"
-    },
-    {
-      "from": "SYS-MON-001",
-      "to": "LA-MON-001",
-      "trace_type": "implements",
-      "rationale": "Observability Platform provides monitoring"
-    },
-    {
-      "from": "SYS-MON-002",
-      "to": "LA-PROC-003",
-      "trace_type": "implements",
-      "rationale": "Data Quality Engine tracks quality metrics"
-    },
-    {
-      "from": "SYS-MON-003",
-      "to": "LA-MON-002",
-      "trace_type": "implements",
-      "rationale": "Cost Optimizer tracks and optimizes costs"
-    },
-    {
-      "from": "SYS-REL-002",
-      "to": "LA-TGT-003",
-      "trace_type": "implements",
-      "rationale": "Delta Lake Storage provides DR capability through automated backups, cross-region replication (RPO <1hr, RTO <4hr), deployed on AWS multi-AZ infrastructure (PA-CLOUD-001)"
-    },
-    {
-      "from": "SYS-MIG-005",
-      "to": "LA-MIG-001",
-      "trace_type": "implements",
-      "rationale": "ETL Orchestrator supports incremental wave-based migration with table-level granularity and parallel execution up to 100 concurrent jobs (deployed on PA-MIG-001)"
+      "rationale": "Target selection detects cut-in vehicles"
     }
   ],
   "diagram": {
     "nodes": [
       {
-        "id": "LA-SRC-001",
-        "label": "Oracle Database Subsystem",
-        "layer": "Logical",
-        "stereotype": "<<datastore>>",
-        "safety_level": "High",
-        "interfaces_in": [],
-        "interfaces_out": [],
-        "functions": [],
-        "width": 235,
-        "height": 180
-      },
-      {
-        "id": "LA-SRC-002",
-        "label": "Snowflake Warehouse Subsystem",
-        "layer": "Logical",
-        "stereotype": "<<datastore>>",
-        "safety_level": "High",
-        "interfaces_in": [],
-        "interfaces_out": [],
-        "functions": [],
-        "width": 263,
-        "height": 180
-      },
-      {
-        "id": "LA-MIG-001",
-        "label": "ETL Orchestrator",
-        "layer": "Logical",
-        "stereotype": "<<process>>",
-        "safety_level": "High",
-        "interfaces_in": [],
-        "interfaces_out": [],
-        "functions": [],
-        "width": 220,
-        "height": 180
-      },
-      {
-        "id": "LA-MIG-002",
-        "label": "Schema Converter",
+        "id": "LC-001",
+        "label": "Radar Sensor",
         "layer": "Logical",
         "stereotype": "<<component>>",
-        "safety_level": "High",
         "interfaces_in": [],
         "interfaces_out": [],
-        "functions": [],
+        "functions": [
+          "Transmit RF Signal",
+          "Process Echoes"
+        ],
         "width": 220,
         "height": 180
       },
       {
-        "id": "LA-MIG-003",
-        "label": "Data Validator",
-        "layer": "Logical",
-        "stereotype": "<<service>>",
-        "safety_level": "Critical",
-        "interfaces_in": [],
-        "interfaces_out": [],
-        "functions": [],
-        "width": 220,
-        "height": 180
-      },
-      {
-        "id": "LA-MIG-004",
-        "label": "Conflict Resolver",
-        "layer": "Logical",
-        "stereotype": "<<service>>",
-        "safety_level": "High",
-        "interfaces_in": [],
-        "interfaces_out": [],
-        "functions": [],
-        "width": 220,
-        "height": 180
-      },
-      {
-        "id": "LA-TGT-001",
-        "label": "Databricks Lakehouse Platform",
+        "id": "LC-002",
+        "label": "Vision Camera",
         "layer": "Logical",
         "stereotype": "<<component>>",
-        "safety_level": "High",
         "interfaces_in": [],
         "interfaces_out": [],
-        "functions": [],
-        "width": 263,
-        "height": 180
-      },
-      {
-        "id": "LA-TGT-002",
-        "label": "Unity Catalog",
-        "layer": "Logical",
-        "stereotype": "<<registry>>",
-        "safety_level": "Critical",
-        "interfaces_in": [],
-        "interfaces_out": [],
-        "functions": [],
+        "functions": [
+          "Capture Images",
+          "Detect Objects"
+        ],
         "width": 220,
         "height": 180
       },
       {
-        "id": "LA-TGT-003",
-        "label": "Delta Lake Storage",
-        "layer": "Logical",
-        "stereotype": "<<datastore>>",
-        "safety_level": "High",
-        "interfaces_in": [],
-        "interfaces_out": [],
-        "functions": [],
-        "width": 220,
-        "height": 180
-      },
-      {
-        "id": "LA-PROC-001",
-        "label": "Batch Pipeline Engine",
-        "layer": "Logical",
-        "stereotype": "<<process>>",
-        "safety_level": "Medium",
-        "interfaces_in": [],
-        "interfaces_out": [],
-        "functions": [],
-        "width": 220,
-        "height": 180
-      },
-      {
-        "id": "LA-PROC-002",
-        "label": "Streaming Pipeline Engine",
-        "layer": "Logical",
-        "stereotype": "<<process>>",
-        "safety_level": "Medium",
-        "interfaces_in": [],
-        "interfaces_out": [],
-        "functions": [],
-        "width": 235,
-        "height": 180
-      },
-      {
-        "id": "LA-PROC-003",
-        "label": "Data Quality Engine",
-        "layer": "Logical",
-        "stereotype": "<<process>>",
-        "safety_level": "High",
-        "interfaces_in": [],
-        "interfaces_out": [],
-        "functions": [],
-        "width": 220,
-        "height": 180
-      },
-      {
-        "id": "LA-GOV-001",
-        "label": "Access Control Manager",
+        "id": "LC-003",
+        "label": "Sensor Fusion",
         "layer": "Logical",
         "stereotype": "<<component>>",
-        "safety_level": "Critical",
+        "safety_level": "ASIL_B",
         "interfaces_in": [],
         "interfaces_out": [],
-        "functions": [],
+        "functions": [
+          "Fuse Detections",
+          "Select Target"
+        ],
         "width": 220,
         "height": 180
       },
       {
-        "id": "LA-GOV-002",
-        "label": "Lineage Tracker",
+        "id": "LC-004",
+        "label": "ACC Controller",
         "layer": "Logical",
         "stereotype": "<<component>>",
-        "safety_level": "High",
+        "safety_level": "ASIL_B",
         "interfaces_in": [],
         "interfaces_out": [],
-        "functions": [],
+        "functions": [
+          "Calculate Following Distance",
+          "Compute Speed Profile"
+        ],
         "width": 220,
         "height": 180
       },
       {
-        "id": "LA-GOV-003",
-        "label": "Audit Logger",
+        "id": "LC-005",
+        "label": "Actuator Interface",
         "layer": "Logical",
         "stereotype": "<<component>>",
-        "safety_level": "Critical",
+        "safety_level": "ASIL_C",
+        "interfaces_in": [],
+        "interfaces_out": [],
+        "functions": [
+          "Convert to CAN Commands",
+          "Monitor Driver Override"
+        ],
+        "width": 220,
+        "height": 180
+      },
+      {
+        "id": "PN-001",
+        "label": "Radar ECU",
+        "layer": "Physical",
+        "stereotype": "<<component>>",
         "interfaces_in": [],
         "interfaces_out": [],
         "functions": [],
@@ -1850,107 +1133,32 @@
         "height": 180
       },
       {
-        "id": "LA-INT-001",
-        "label": "API Gateway",
-        "layer": "Logical",
+        "id": "PN-002",
+        "label": "Camera ECU",
+        "layer": "Physical",
+        "stereotype": "<<component>>",
+        "interfaces_in": [],
+        "interfaces_out": [],
+        "functions": [],
+        "width": 220,
+        "height": 180
+      },
+      {
+        "id": "PN-003",
+        "label": "ADAS ECU",
+        "layer": "Physical",
+        "stereotype": "<<component>>",
+        "interfaces_in": [],
+        "interfaces_out": [],
+        "functions": [],
+        "width": 220,
+        "height": 180
+      },
+      {
+        "id": "PN-004",
+        "label": "Gateway ECU",
+        "layer": "Physical",
         "stereotype": "<<interface>>",
-        "safety_level": "High",
-        "interfaces_in": [],
-        "interfaces_out": [],
-        "functions": [],
-        "width": 220,
-        "height": 180
-      },
-      {
-        "id": "LA-INT-002",
-        "label": "Metadata Manager",
-        "layer": "Logical",
-        "stereotype": "<<component>>",
-        "safety_level": "Medium",
-        "interfaces_in": [],
-        "interfaces_out": [],
-        "functions": [],
-        "width": 220,
-        "height": 180
-      },
-      {
-        "id": "LA-INT-003",
-        "label": "Workflow Orchestrator",
-        "layer": "Logical",
-        "stereotype": "<<process>>",
-        "safety_level": "Medium",
-        "interfaces_in": [],
-        "interfaces_out": [],
-        "functions": [],
-        "width": 220,
-        "height": 180
-      },
-      {
-        "id": "LA-ANLZ-001",
-        "label": "SQL Analytics Engine",
-        "layer": "Logical",
-        "stereotype": "<<process>>",
-        "safety_level": "Low",
-        "interfaces_in": [],
-        "interfaces_out": [],
-        "functions": [],
-        "width": 220,
-        "height": 180
-      },
-      {
-        "id": "LA-ANLZ-002",
-        "label": "ML Workspace",
-        "layer": "Logical",
-        "stereotype": "<<component>>",
-        "safety_level": "Low",
-        "interfaces_in": [],
-        "interfaces_out": [],
-        "functions": [],
-        "width": 220,
-        "height": 180
-      },
-      {
-        "id": "LA-ANLZ-003",
-        "label": "BI Connector Hub",
-        "layer": "Logical",
-        "stereotype": "<<component>>",
-        "safety_level": "Low",
-        "interfaces_in": [],
-        "interfaces_out": [],
-        "functions": [],
-        "width": 220,
-        "height": 180
-      },
-      {
-        "id": "LA-MON-001",
-        "label": "Observability Platform",
-        "layer": "Logical",
-        "stereotype": "<<component>>",
-        "safety_level": "Medium",
-        "interfaces_in": [],
-        "interfaces_out": [],
-        "functions": [],
-        "width": 220,
-        "height": 180
-      },
-      {
-        "id": "LA-MON-002",
-        "label": "Cost Optimizer",
-        "layer": "Logical",
-        "stereotype": "<<component>>",
-        "safety_level": "Low",
-        "interfaces_in": [],
-        "interfaces_out": [],
-        "functions": [],
-        "width": 220,
-        "height": 180
-      },
-      {
-        "id": "LA-MON-003",
-        "label": "Alert Manager",
-        "layer": "Logical",
-        "stereotype": "<<component>>",
-        "safety_level": "Medium",
         "interfaces_in": [],
         "interfaces_out": [],
         "functions": [],
@@ -1960,99 +1168,19 @@
     ],
     "edges": [
       {
-        "source": "LA-SRC-001",
-        "target": "LA-MIG-001",
-        "label": "OracleToMigrationEngine"
+        "source": "LC-001",
+        "target": "LC-003",
+        "label": "Radar Data Bus"
       },
       {
-        "source": "LA-SRC-002",
-        "target": "LA-MIG-001",
-        "label": "SnowflakeToMigrationEngine"
+        "source": "LC-002",
+        "target": "LC-003",
+        "label": "Camera Data Bus"
       },
       {
-        "source": "LA-MIG-001",
-        "target": "LA-MIG-002",
-        "label": "MigrationEngineToSchemaConverter"
-      },
-      {
-        "source": "LA-MIG-002",
-        "target": "LA-MIG-003",
-        "label": "SchemaConverterToValidator"
-      },
-      {
-        "source": "LA-MIG-001",
-        "target": "LA-TGT-003",
-        "label": "MigrationEngineToDeltaLake"
-      },
-      {
-        "source": "LA-MIG-003",
-        "target": "LA-MIG-004",
-        "label": "ValidatorToConflictResolver"
-      },
-      {
-        "source": "LA-TGT-003",
-        "target": "LA-PROC-001",
-        "label": "DeltaLakeToBatchPipeline"
-      },
-      {
-        "source": "LA-PROC-001",
-        "target": "LA-PROC-003",
-        "label": "BatchPipelineToDataQuality"
-      },
-      {
-        "source": "LA-PROC-002",
-        "target": "LA-TGT-003",
-        "label": "StreamingPipelineToDeltaLake"
-      },
-      {
-        "source": "LA-PROC-003",
-        "target": "LA-TGT-003",
-        "label": "DataQualityToQuarantine"
-      },
-      {
-        "source": "LA-TGT-002",
-        "target": "LA-GOV-001",
-        "label": "UnityCatalogToAccessControl"
-      },
-      {
-        "source": "LA-TGT-002",
-        "target": "LA-GOV-002",
-        "label": "UnityCatalogToLineageTracker"
-      },
-      {
-        "source": "LA-GOV-001",
-        "target": "LA-GOV-003",
-        "label": "AccessControlToAuditLogger"
-      },
-      {
-        "source": "LA-TGT-003",
-        "target": "LA-ANLZ-001",
-        "label": "DeltaLakeToSQLAnalytics"
-      },
-      {
-        "source": "LA-ANLZ-001",
-        "target": "LA-ANLZ-003",
-        "label": "SQLAnalyticsToBIConnector"
-      },
-      {
-        "source": "LA-ANLZ-002",
-        "target": "LA-TGT-001",
-        "label": "MLWorkspaceToLakehouse"
-      },
-      {
-        "source": "LA-TGT-001",
-        "target": "LA-MON-001",
-        "label": "LakehouseToObservability"
-      },
-      {
-        "source": "LA-MON-001",
-        "target": "LA-MON-003",
-        "label": "ObservabilityToAlertManager"
-      },
-      {
-        "source": "LA-MON-002",
-        "target": "LA-MON-003",
-        "label": "CostOptimizerToAlertManager"
+        "source": "LC-004",
+        "target": "LC-005",
+        "label": "Control Bus"
       }
     ],
     "layers": [
@@ -2060,6 +1188,11 @@
         "name": "Logical",
         "color": "#E3F2FD",
         "description": "Logical Architecture Layer"
+      },
+      {
+        "name": "Physical",
+        "color": "#FCE4EC",
+        "description": "Physical Hardware Layer"
       }
     ]
   }

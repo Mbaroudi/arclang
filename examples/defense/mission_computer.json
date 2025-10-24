@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<capella:Project xmlns:capella="http://www.polarsys.org/capella/core/1.4.0">
+  <ownedRequirements>
+    <requirement id="SYS-MC-001" name="SYS-MC-001" description="The mission computer shall process radar data with latency less than 100ms" priority="Critical" />
+    <requirement id="SYS-MC-002" name="SYS-MC-002" description="The system shall maintain track continuity for all detected targets" priority="Critical" />
+    <requirement id="SYS-MC-003" name="SYS-MC-003" description="Weapon release authorization shall require dual operator confirmation" priority="Critical" />
+    <requirement id="SYS-MC-004" name="SYS-MC-004" description="All tactical data shall be encrypted using NSA-approved algorithms" priority="Critical" />
+    <requirement id="SYS-MC-005" name="SYS-MC-005" description="System shall operate in contested electromagnetic environment" priority="High" />
+    <requirement id="SYS-MC-006" name="SYS-MC-006" description="Mission data shall be stored with tamper detection" priority="High" />
+  </ownedRequirements>
+  <ownedLogicalComponents>
+    <component id="LC-001" name="Radar Processor" type="Logical" />
+    <component id="LC-002" name="Electronic Warfare Processor" type="Logical" />
+    <component id="LC-003" name="Track Fusion" type="Logical" />
+    <component id="LC-004" name="Threat Manager" type="Logical" />
+    <component id="LC-005" name="Weapon Manager" type="Logical" />
+    <component id="LC-006" name="Cryptographic Module" type="Logical" />
+    <component id="PN-001" name="Mission Processor 1" type="Physical" />
+    <component id="PN-002" name="Mission Processor 2" type="Physical" />
+    <component id="PN-003" name="Radar Signal Processor" type="Physical" />
+    <component id="PN-004" name="EW Processor" type="Physical" />
+    <component id="PN-005" name="Crypto Appliance" type="Physical" />
+  </ownedLogicalComponents>
+  <ownedTraces>
+    <trace from="LC-003" to="SYS-MC-001" type="satisfies" />
+    <trace from="LF-013" to="SYS-MC-003" type="satisfies" />
+  </ownedTraces>
+</capella:Project>

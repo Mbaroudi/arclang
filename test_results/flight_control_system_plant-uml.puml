@@ -1,0 +1,14 @@
+@startuml
+!theme plain
+
+package "System Components" {
+  [Primary Flight Computer]
+  [Backup Flight Computer]
+  [Actuator Control]
+  [FCC-A]
+  [FCC-B]
+  [Remote Terminal Unit]
+}
+
+
+@enduml

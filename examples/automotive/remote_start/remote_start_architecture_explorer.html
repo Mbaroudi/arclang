@@ -1,16 +1,61 @@
-<\!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Architecture Explorer</title>
     <script src="https://d3js.org/d3.v7.min.js"></script>
+    <script src="https://unpkg.com/elkjs@0.9.3/lib/elk.bundled.js"></script>
     <script src="https://unpkg.com/dagre-d3@0.6.4/dist/dagre-d3.min.js"></script>
+    <script>
+        // Initialize ELK layout engine
+        const elk = new ELK();
+    </script>
     <script>
         // ArcViz Capella Engine - Configuration Centrale
         const ARCVIZ_CONFIG = {
-            // Dagre Layout Configuration
-            layout: {
+            // Layout Engine Selection
+            engine: 'elk',                  // 'elk' (default) | 'dagre' (fallback)
+            
+            // ELK Layout Configuration (Primary) - Optimized for Capella
+            elk: {
+                algorithm: 'layered',
+                'elk.direction': 'DOWN',
+                'elk.hierarchyHandling': 'INCLUDE_CHILDREN',
+                
+                // Layer spacing (Capella swimlanes)
+                'elk.layered.spacing.nodeNodeBetweenLayers': 250,
+                'elk.spacing.nodeNode': 100,
+                'elk.spacing.edgeNode': 50,
+                'elk.spacing.edgeEdge': 30,
+                
+                // Port positioning (Capella interfaces)
+                'elk.portConstraints': 'FIXED_SIDE',
+                'elk.port.borderOffset': 0,
+                'elk.spacing.portPort': 50,
+                
+                // Edge routing (Capella orthogonal style)
+                'elk.edgeRouting': 'ORTHOGONAL',
+                'elk.layered.edgeRouting.sloppiness': 0.3,
+                'elk.layered.edgeRouting.minimizeNumBends': true,
+                
+                // Node placement (optimal layout)
+                'elk.layered.nodePlacement.strategy': 'NETWORK_SIMPLEX',
+                'elk.layered.nodePlacement.favorStraightEdges': true,
+                'elk.layered.crossingMinimization.strategy': 'LAYER_SWEEP',
+                'elk.layered.thoroughness': 150,
+                
+                // Layer separation
+                'elk.separateConnectedComponents': false,
+                'elk.layered.compaction.postCompaction.strategy': 'EDGE_LENGTH',
+                
+                // Label placement
+                'elk.edgeLabels.placement': 'CENTER',
+                'elk.edgeLabels.inline': true
+            },
+            
+            // Dagre Layout Configuration (Fallback)
+            dagre: {
                 rankdir: 'TB',              // Direction: TB (top-bottom), LR (left-right)
                 nodesep: 350,               // Horizontal spacing between nodes (px)
                 ranksep: 200,               // Vertical spacing between layers (px)
@@ -20,33 +65,33 @@
                 ranker: 'network-simplex'   // Layout algorithm
             },
             
-            // Component Node Configuration
+            // Component Node Configuration (Capella-compliant)
             node: {
-                defaultWidth: 220,          // Default node width (px)
-                defaultHeight: 180,         // Default node height (px)
-                minWidth: 180,              // Minimum node width (px)
-                minHeight: 150,             // Minimum node height (px)
-                maxWidth: 400,              // Maximum node width (px)
-                maxHeight: 500,             // Maximum node height (px)
-                borderRadius: 4,            // Component border radius (px)
-                headerHeight: 60,           // Header section height (px)
-                padding: 12                 // Internal padding (px)
+                defaultWidth: 320,          // Default node width (px) - VERY wide for safety
+                defaultHeight: 200,         // Default node height (px)
+                minWidth: 300,              // Minimum node width (px) - LARGE minimum
+                minHeight: 160,             // Minimum node height (px)
+                maxWidth: 700,              // Maximum node width (px) - VERY wide max
+                maxHeight: 600,             // Maximum node height (px)
+                borderRadius: 6,            // Component border radius (px) - Capella rounded
+                headerHeight: 65,           // Header section height (px)
+                padding: 15                 // Internal padding (px)
             },
             
-            // Port Configuration
+            // Port Configuration (Capella interface style)
             port: {
-                size: 12,                   // Port square size (px)
-                spacing: 50,                // Vertical spacing between ports (px)
-                borderRadius: 2,            // Port corner radius (px)
-                edgeOffset: 6,              // Distance from component edge (size/2)
-                labelGap: 5,                // Gap between port and label (px)
-                nameYOffset: 2,             // Y offset for port name (px)
-                protocolYOffset: 14,        // Y offset for protocol label (px)
+                size: 14,                   // Port square size (px) - larger for visibility
+                spacing: 55,                // Vertical spacing between ports (px)
+                borderRadius: 3,            // Port corner radius (px)
+                edgeOffset: 7,              // Distance from component edge (size/2)
+                labelGap: 8,                // Gap between port and label (px)
+                nameYOffset: 3,             // Y offset for port name (px)
+                protocolYOffset: 16,        // Y offset for protocol label (px)
                 colors: {
-                    inFill: '#4caf50',      // IN port fill color
-                    inStroke: '#2e7d32',    // IN port border color
-                    outFill: '#ff9800',     // OUT port fill color
-                    outStroke: '#e65100'    // OUT port border color
+                    inFill: '#4caf50',      // IN port fill (Capella green)
+                    inStroke: '#2e7d32',    // IN port border
+                    outFill: '#ff9800',     // OUT port fill (Capella orange)
+                    outStroke: '#e65100'    // OUT port border
                 }
             },
             
@@ -71,9 +116,9 @@
                     color: '#37474f'        // Text color
                 },
                 stereotype: {
-                    fontSize: 20,           // Icon size (px)
-                    xOffset: 15,            // X offset from left (px)
-                    yOffset: 40             // Y offset from top (px)
+                    fontSize: 16,           // Icon size (px) - smaller to prevent overlap
+                    xOffset: 10,            // X offset from left (px)
+                    yOffset: 36             // Y offset from top (px)
                 }
             },
             
@@ -2702,7 +2747,7 @@
             }
         }
         
-        function renderDiagram() {
+        async function renderDiagram() {
             const diagramData = archData.diagram;
             
             if (!diagramData || !diagramData.nodes || !diagramData.layers) {
@@ -2710,15 +2755,27 @@
                 return;
             }
             
+            console.log(`🎨 ArcViz Engine: ${ARCVIZ_CONFIG.engine.toUpperCase()}`);
+            
+            if (ARCVIZ_CONFIG.engine === 'elk') {
+                await renderWithELK(diagramData);
+            } else {
+                renderWithDagre(diagramData);
+            }
+        }
+        
+        function renderWithDagre(diagramData) {
+            console.log('📊 Using Dagre-D3 layout engine...');
+            
             const g = new dagreD3.graphlib.Graph({compound: true})
                 .setGraph({
-                    rankdir: ARCVIZ_CONFIG.layout.rankdir,
-                    nodesep: ARCVIZ_CONFIG.layout.nodesep,
-                    ranksep: ARCVIZ_CONFIG.layout.ranksep,
-                    marginx: ARCVIZ_CONFIG.layout.marginx,
-                    marginy: ARCVIZ_CONFIG.layout.marginy,
-                    ranker: ARCVIZ_CONFIG.layout.ranker,
-                    edgesep: ARCVIZ_CONFIG.layout.edgesep
+                    rankdir: ARCVIZ_CONFIG.dagre.rankdir,
+                    nodesep: ARCVIZ_CONFIG.dagre.nodesep,
+                    ranksep: ARCVIZ_CONFIG.dagre.ranksep,
+                    marginx: ARCVIZ_CONFIG.dagre.marginx,
+                    marginy: ARCVIZ_CONFIG.dagre.marginy,
+                    ranker: ARCVIZ_CONFIG.dagre.ranker,
+                    edgesep: ARCVIZ_CONFIG.dagre.edgesep
                 })
                 .setDefaultEdgeLabel(() => ({}));
             
@@ -2902,22 +2959,23 @@
                     .attr('rx', 4)
                     .attr('fill', '#1976d2');
                 
-                if (nodeData.stereotype) {
-                    nodeElem.append('text')
-                        .attr('class', 'stereotype')
-                        .attr('x', 0)
-                        .attr('y', y + 20)
-                        .attr('text-anchor', 'middle')
-                        .attr('fill', 'white')
-                        .attr('font-size', 10)
-                        .attr('font-style', 'italic')
-                        .text(`<<${nodeData.stereotype}>>`);
-                }
+                // Stereotype rendering disabled
+                // if (nodeData.stereotype) {
+                //     nodeElem.append('text')
+                //         .attr('class', 'stereotype')
+                //         .attr('x', 0)
+                //         .attr('y', y + 20)
+                //         .attr('text-anchor', 'middle')
+                //         .attr('fill', 'white')
+                //         .attr('font-size', 10)
+                //         .attr('font-style', 'italic')
+                //         .text(`<<${nodeData.stereotype}>>`);
+                // }
                 
                 nodeElem.append('text')
                     .attr('class', 'component-name')
                     .attr('x', 0)
-                    .attr('y', y + (nodeData.stereotype ? 42 : 35))
+                    .attr('y', y + 35)  // Fixed position, no stereotype offset
                     .attr('text-anchor', 'middle')
                     .attr('fill', 'white')
                     .attr('font-size', 14)
@@ -3105,25 +3163,25 @@
                     });
                 }
                 
-                // Add stereotype icon
-                const iconMap = {
-                    'Gateway': '⚡',
-                    'Controller': '⚙️',
-                    'Sensor': '📡',
-                    'Actuator': '🔧',
-                    'ECU_Hardware': '💾',
-                    'CAN_Bus': '🔌',
-                    'LIN_Bus': '🔌',
-                    'Software': '💻',
-                    'HMI': '📱'
-                };
-                
-                const icon = iconMap[nodeData.stereotype] || '📦';
-                nodeElem.append('text')
-                    .attr('x', x + 15)
-                    .attr('y', y + 40)
-                    .attr('font-size', 20)
-                    .text(icon);
+                // Stereotype icons DISABLED
+                // const iconMap = {
+                //     'Gateway': '⚡',
+                //     'Controller': '⚙️',
+                //     'Sensor': '📡',
+                //     'Actuator': '🔧',
+                //     'ECU_Hardware': '💾',
+                //     'CAN_Bus': '🔌',
+                //     'LIN_Bus': '🔌',
+                //     'Software': '💻',
+                //     'HMI': '📱'
+                // };
+                // 
+                // const icon = iconMap[nodeData.stereotype] || '📦';
+                // nodeElem.append('text')
+                //     .attr('x', x + 15)
+                //     .attr('y', y + 40)
+                //     .attr('font-size', 20)
+                //     .text(icon);
             });
             
             // Enhance edges with exchange items and orthogonal routing
@@ -3312,6 +3370,670 @@
             if (!window.diagramZoom || !window.diagramSvg) return;
             window.diagramSvg.transition().duration(300).call(window.diagramZoom.scaleBy, 0.7);
         }
+        
+        
+        // ============================================================================
+        // ELK LAYOUT ENGINE
+        // ============================================================================
+        
+        // ============================================================================
+        // ArcViz ELK Layout Renderer
+        // Eclipse Layout Kernel integration for Capella-compliant diagrams
+        // ============================================================================
+
+        /**
+         * Render diagram using ELK layout engine
+         * @param {Object} diagramData - Architecture diagram data
+         */
+        async function renderWithELK(diagramData) {
+            console.log('🚀 Using ELK layout engine...');
+            console.time('ELK Total');
+
+            // Convert ArcLang diagram to ELK graph format
+            const elkGraph = convertToELKGraph(diagramData);
+            console.log('📊 ELK Graph structure:', elkGraph);
+
+            // Run ELK layout
+            console.time('ELK Layout');
+            try {
+                const layoutGraph = await elk.layout(elkGraph);
+                console.timeEnd('ELK Layout');
+
+                // Render with D3
+                console.time('D3 Render');
+                renderELKGraph(layoutGraph, diagramData);
+                console.timeEnd('D3 Render');
+
+                console.timeEnd('ELK Total');
+                console.log('✓ ELK diagram rendered:', diagramData.nodes.length, 'nodes,', (diagramData.edges || []).length, 'edges');
+            } catch (err) {
+                console.error('✗ ELK layout failed:', err);
+                console.log('Falling back to Dagre...');
+                renderWithDagre(diagramData);
+            }
+        }
+
+        /**
+         * Convert ArcLang diagram data to ELK graph format
+         */
+        function convertToELKGraph(diagramData) {
+            console.log('Converting to ELK graph...', diagramData);
+            const elkGraph = {
+                id: 'root',
+                layoutOptions: ARCVIZ_CONFIG.elk,
+                children: [],
+                edges: []
+            };
+
+            // Group nodes by layer
+            const nodesByLayer = {};
+            const layerConfigs = {};
+
+            if (diagramData.layers) {
+                diagramData.layers.forEach(layer => {
+                    layerConfigs[layer.name] = layer;
+                    nodesByLayer[layer.name] = [];
+                });
+            }
+
+            diagramData.nodes.forEach(node => {
+                const layer = node.layer || 'Other';
+                if (!nodesByLayer[layer]) {
+                    nodesByLayer[layer] = [];
+                }
+                nodesByLayer[layer].push(node);
+            });
+
+            // Create layer nodes
+            Object.keys(nodesByLayer).forEach(layerName => {
+                const layerConfig = layerConfigs[layerName];
+                const layerColor = layerConfig ? layerConfig.color : '#E8F5E9';
+
+                const layerNode = {
+                    id: layerName,
+                    layoutOptions: {
+                        'elk.padding': '[top=50,left=30,bottom=30,right=30]',
+                        'elk.portConstraints': 'FREE',
+                        'elk.layered.spacing.nodeNodeBetweenLayers': 100
+                    },
+                    labels: [{ 
+                        text: layerName + ' Layer',
+                        layoutOptions: {
+                            'nodeLabels.placement': 'INSIDE V_TOP H_CENTER'
+                        }
+                    }],
+                    properties: {
+                        color: layerColor,
+                        isLayer: true
+                    },
+                    children: [],
+                    ports: []
+                };
+
+                // Add components to layer
+                nodesByLayer[layerName].forEach(node => {
+                    const elkNode = convertNodeToELK(node);
+                    layerNode.children.push(elkNode);
+                });
+
+                elkGraph.children.push(layerNode);
+            });
+
+            // Add edges (ELK auto-resolves hierarchy by node ID)
+            if (diagramData.edges) {
+                diagramData.edges.forEach(edge => {
+                    if (edge.source && edge.target) {
+                        elkGraph.edges.push({
+                            id: `edge_${edge.source}_${edge.target}`,
+                            sources: [edge.source],
+                            targets: [edge.target],
+                            labels: edge.label ? [{ text: edge.label }] : []
+                        });
+                    }
+                });
+            }
+
+            return elkGraph;
+        }
+
+        /**
+         * Convert single node to ELK format
+         */
+        function convertNodeToELK(node) {
+            const height = node.height || ARCVIZ_CONFIG.node.defaultHeight;
+            
+            // Use provided width if available
+            if (node.width) {
+                return createElkNode(node, node.width, height);
+            }
+            
+            // Calculate dynamic width based on actual text measurement
+            const label = node.label || node.id;
+            
+            // Create temporary SVG text element to measure actual width
+            const tempSvg = d3.select('body').append('svg')
+                .style('position', 'absolute')
+                .style('visibility', 'hidden');
+            
+            const tempText = tempSvg.append('text')
+                .style('font-size', '14px')
+                .style('font-weight', '600')
+                .text(label);
+            
+            const textWidth = tempText.node().getComputedTextLength();
+            tempSvg.remove();
+            
+            // Calculate required width (simple centered layout)
+            // Padding (50px) + text + padding (50px) + ASIL badge (50px if present)
+            const badgeSpace = node.safety_level ? 50 : 0;
+            const calculatedWidth = 50 + textWidth + 50 + badgeSpace;
+            
+            // Ensure within min/max bounds
+            const width = Math.max(
+                ARCVIZ_CONFIG.node.minWidth,
+                Math.min(Math.ceil(calculatedWidth), ARCVIZ_CONFIG.node.maxWidth)
+            );
+            
+            return createElkNode(node, width, height);
+        }
+        
+        function createElkNode(node, width, height) {
+
+            const elkNode = {
+                id: node.id,
+                width: width,
+                height: height,
+                layoutOptions: {
+                    'elk.portConstraints': 'FIXED_SIDE'
+                },
+                labels: [{ 
+                    text: node.label || node.id,
+                    layoutOptions: {
+                        'nodeLabels.placement': 'INSIDE V_TOP H_CENTER'
+                    }
+                }],
+                properties: {
+                    originalNode: node,
+                    safety_level: node.safety_level,
+                    functions: node.functions || [],
+                    interfaces_in: node.interfaces_in || [],
+                    interfaces_out: node.interfaces_out || []
+                },
+                ports: []
+            };
+
+            // Add IN ports (left side)
+            if (node.interfaces_in) {
+                node.interfaces_in.forEach((port, idx) => {
+                    elkNode.ports.push({
+                        id: `${node.id}_in_${idx}`,
+                        properties: {
+                            'port.side': 'WEST',
+                            'port.index': idx,
+                            portType: 'in',
+                            portData: port
+                        },
+                        width: ARCVIZ_CONFIG.port.size,
+                        height: ARCVIZ_CONFIG.port.size,
+                        labels: [{ text: port.name || `IN${idx}` }]
+                    });
+                });
+            }
+
+            // Add OUT ports (right side)
+            if (node.interfaces_out) {
+                node.interfaces_out.forEach((port, idx) => {
+                    elkNode.ports.push({
+                        id: `${node.id}_out_${idx}`,
+                        properties: {
+                            'port.side': 'EAST',
+                            'port.index': idx,
+                            portType: 'out',
+                            portData: port
+                        },
+                        width: ARCVIZ_CONFIG.port.size,
+                        height: ARCVIZ_CONFIG.port.size,
+                        labels: [{ text: port.name || `OUT${idx}` }]
+                    });
+                });
+            }
+
+            return elkNode;
+        }
+
+        /**
+         * Render ELK graph with D3
+         */
+        function renderELKGraph(graph, diagramData) {
+            const svg = d3.select('#arch-diagram');
+            svg.selectAll('*').remove();
+
+            // Add Capella-style arrow marker definition
+            const defs = svg.append('defs');
+            defs.append('marker')
+                .attr('id', 'arrowhead')
+                .attr('viewBox', '0 0 12 12')
+                .attr('refX', 11)
+                .attr('refY', 6)
+                .attr('markerUnits', 'strokeWidth')
+                .attr('markerWidth', 10)
+                .attr('markerHeight', 8)
+                .attr('orient', 'auto')
+                .append('path')
+                .attr('d', 'M 0 0 L 12 6 L 0 12 z')
+                .attr('fill', '#546e7a')
+                .attr('stroke', '#546e7a')
+                .attr('stroke-width', 0.5);
+
+            const svgGroup = svg.append('g');
+
+            // Render layers
+            graph.children.forEach(layer => {
+                renderLayer(svgGroup, layer);
+            });
+
+            // Render edges
+            if (graph.edges) {
+                graph.edges.forEach(edge => {
+                    renderEdge(svgGroup, edge);
+                });
+            }
+
+            // Setup zoom and pan
+            const graphWidth = graph.width || 1000;
+            const graphHeight = graph.height || 800;
+            setupZoomAndPan(svg, svgGroup, graphWidth, graphHeight);
+
+            // Store references
+            window.diagramSvg = svg;
+            window.diagramSvgGroup = svgGroup;
+            window.diagramGraph = graph;
+        }
+
+        /**
+         * Render a layer with its components
+         */
+        function renderLayer(svgGroup, layer) {
+            const layerGroup = svgGroup.append('g')
+                .attr('class', 'layer')
+                .attr('id', `layer_${layer.id}`)
+                .attr('transform', `translate(${layer.x}, ${layer.y})`);
+
+            // Layer background (Capella swimlane style)
+            const layerColor = layer.properties && layer.properties.color ? layer.properties.color : '#E8F5E9';
+            
+            // Drop shadow for depth
+            layerGroup.append('rect')
+                .attr('class', 'layer-shadow')
+                .attr('x', 3)
+                .attr('y', 3)
+                .attr('width', layer.width)
+                .attr('height', layer.height)
+                .attr('rx', ARCVIZ_CONFIG.layer.cornerRadius)
+                .attr('ry', ARCVIZ_CONFIG.layer.cornerRadius)
+                .style('fill', '#000')
+                .style('fill-opacity', 0.08);
+            
+            layerGroup.append('rect')
+                .attr('class', 'layer-rect')
+                .attr('width', layer.width)
+                .attr('height', layer.height)
+                .attr('rx', ARCVIZ_CONFIG.layer.cornerRadius)
+                .attr('ry', ARCVIZ_CONFIG.layer.cornerRadius)
+                .style('fill', layerColor)
+                .style('fill-opacity', 0.15)
+                .style('stroke', '#37474f')
+                .style('stroke-width', ARCVIZ_CONFIG.layer.borderWidth)
+                .style('stroke-dasharray', ARCVIZ_CONFIG.layer.borderStyle);
+
+            // Layer label (Capella style with background)
+            if (layer.labels && layer.labels.length > 0) {
+                const labelText = layer.labels[0].text;
+                const labelGroup = layerGroup.append('g')
+                    .attr('class', 'layer-label-group');
+                
+                // Label background pill
+                const textWidth = labelText.length * 10;
+                labelGroup.append('rect')
+                    .attr('x', (layer.width - textWidth) / 2 - 15)
+                    .attr('y', 12)
+                    .attr('width', textWidth + 30)
+                    .attr('height', 32)
+                    .attr('rx', 16)
+                    .style('fill', '#37474f')
+                    .style('fill-opacity', 0.08)
+                    .style('stroke', '#37474f')
+                    .style('stroke-width', 1.5);
+                
+                labelGroup.append('text')
+                    .attr('class', 'layer-label')
+                    .attr('x', layer.width / 2)
+                    .attr('y', 34)
+                    .attr('text-anchor', 'middle')
+                    .style('font-size', '16px')
+                    .style('font-weight', '700')
+                    .style('fill', '#1a237e')
+                    .style('letter-spacing', '0.5px')
+                    .text(labelText);
+            }
+
+            // Render components
+            if (layer.children) {
+                layer.children.forEach(node => {
+                    renderComponent(layerGroup, node);
+                });
+            }
+        }
+
+        /**
+         * Render a component node with Capella style
+         */
+        function renderComponent(parentGroup, node) {
+            const nodeGroup = parentGroup.append('g')
+                .attr('class', 'component')
+                .attr('id', `node_${node.id}`)
+                .attr('transform', `translate(${node.x}, ${node.y})`);
+
+            const props = node.properties || {};
+            const originalNode = props.originalNode || {};
+
+            // Component box (Capella 3D effect)
+            // Drop shadow
+            nodeGroup.append('rect')
+                .attr('class', 'component-shadow')
+                .attr('x', 2)
+                .attr('y', 2)
+                .attr('width', node.width)
+                .attr('height', node.height)
+                .attr('rx', ARCVIZ_CONFIG.node.borderRadius)
+                .attr('ry', ARCVIZ_CONFIG.node.borderRadius)
+                .style('fill', '#000')
+                .style('fill-opacity', 0.12);
+            
+            nodeGroup.append('rect')
+                .attr('class', 'component-rect')
+                .attr('width', node.width)
+                .attr('height', node.height)
+                .attr('rx', ARCVIZ_CONFIG.node.borderRadius)
+                .attr('ry', ARCVIZ_CONFIG.node.borderRadius)
+                .style('fill', 'white')
+                .style('stroke', '#1976d2')
+                .style('stroke-width', 2.5);
+
+            // Header
+            const headerHeight = ARCVIZ_CONFIG.node.headerHeight;
+            nodeGroup.append('rect')
+                .attr('class', 'component-header')
+                .attr('width', node.width)
+                .attr('height', headerHeight)
+                .attr('rx', ARCVIZ_CONFIG.node.borderRadius)
+                .style('fill', '#1976d2')
+                .style('fill-opacity', 0.1);
+
+            // Title - centered in header with intelligent truncation
+            if (node.labels && node.labels.length > 0) {
+                const fullText = node.labels[0].text;
+                const titleY = headerHeight / 2 + 5;
+                const badgeWidth = props.safety_level ? 55 : 20;
+                const maxTextWidth = node.width - badgeWidth - 20; // Available width for text
+                
+                // Measure text
+                const tempSvg = d3.select('body').append('svg')
+                    .style('position', 'absolute')
+                    .style('visibility', 'hidden');
+                const tempText = tempSvg.append('text')
+                    .style('font-size', '14px')
+                    .style('font-weight', '600')
+                    .text(fullText);
+                const actualWidth = tempText.node().getComputedTextLength();
+                tempSvg.remove();
+                
+                // Truncate if needed
+                let displayText = fullText;
+                if (actualWidth > maxTextWidth) {
+                    const ratio = maxTextWidth / actualWidth;
+                    const maxChars = Math.floor(fullText.length * ratio) - 3;
+                    displayText = fullText.substring(0, maxChars) + '...';
+                }
+                
+                nodeGroup.append('text')
+                    .attr('class', 'component-title')
+                    .attr('x', node.width / 2)
+                    .attr('y', titleY)
+                    .attr('text-anchor', 'middle')
+                    .attr('dominant-baseline', 'middle')
+                    .style('font-size', '14px')
+                    .style('font-weight', '600')
+                    .style('fill', '#1565c0')
+                    .text(displayText)
+                    .append('title')
+                    .text(fullText);
+            }
+            
+            // ASIL badge
+            if (props.safety_level) {
+                const badgeColor = ARCVIZ_CONFIG.safety.colors[props.safety_level] || '#ff9800';
+                const badgeGroup = nodeGroup.append('g')
+                    .attr('transform', `translate(${node.width - 35}, 10)`);
+
+                badgeGroup.append('circle')
+                    .attr('r', ARCVIZ_CONFIG.safety.radius || 12)
+                    .style('fill', badgeColor)
+                    .style('stroke', 'white')
+                    .style('stroke-width', 2);
+
+                badgeGroup.append('text')
+                    .attr('y', 5)
+                    .attr('text-anchor', 'middle')
+                    .style('font-size', '10px')
+                    .style('font-weight', 'bold')
+                    .style('fill', 'white')
+                    .text(props.safety_level.replace('ASIL_', ''));
+            }
+
+            // Functions list
+            if (props.functions && props.functions.length > 0) {
+                const funcY = headerHeight + 20;
+                const maxFuncs = Math.floor((node.height - headerHeight - 20) / 18);
+                const funcsToShow = props.functions.slice(0, maxFuncs);
+
+                funcsToShow.forEach((func, idx) => {
+                    nodeGroup.append('text')
+                        .attr('class', 'function-text')
+                        .attr('x', 12)
+                        .attr('y', funcY + idx * 18)
+                        .style('font-size', '10px')
+                        .style('font-weight', '500')
+                        .style('fill', '#37474f')
+                        .text(`+ ${func.length > 25 ? func.substring(0, 25) + '...' : func}`);
+                });
+
+                if (props.functions.length > maxFuncs) {
+                    nodeGroup.append('text')
+                        .attr('x', 12)
+                        .attr('y', funcY + maxFuncs * 18)
+                        .style('font-size', '9px')
+                        .style('font-style', 'italic')
+                        .style('fill', '#999')
+                        .text(`...${props.functions.length - maxFuncs} more`);
+                }
+            }
+
+            // Render ports
+            if (node.ports) {
+                node.ports.forEach(port => {
+                    renderPort(nodeGroup, port, node);
+                });
+            }
+        }
+
+        /**
+         * Render a port with Capella style
+         */
+        function renderPort(nodeGroup, port, node) {
+            const portProps = port.properties || {};
+            const isInput = portProps.portType === 'in';
+            const portData = portProps.portData || {};
+
+            const portGroup = nodeGroup.append('g')
+                .attr('class', `port port-${portProps.portType}`)
+                .attr('transform', `translate(${port.x}, ${port.y})`);
+
+            // Port square
+            const portColor = isInput ? ARCVIZ_CONFIG.port.colors.inFill : ARCVIZ_CONFIG.port.colors.outFill;
+            const portStroke = isInput ? ARCVIZ_CONFIG.port.colors.inStroke : ARCVIZ_CONFIG.port.colors.outStroke;
+
+            // Port with Capella-style shadow
+            portGroup.append('rect')
+                .attr('x', -ARCVIZ_CONFIG.port.size / 2 + 1)
+                .attr('y', -ARCVIZ_CONFIG.port.size / 2 + 1)
+                .attr('width', ARCVIZ_CONFIG.port.size)
+                .attr('height', ARCVIZ_CONFIG.port.size)
+                .attr('rx', ARCVIZ_CONFIG.port.borderRadius)
+                .attr('ry', ARCVIZ_CONFIG.port.borderRadius)
+                .style('fill', '#000')
+                .style('fill-opacity', 0.15);
+            
+            portGroup.append('rect')
+                .attr('x', -ARCVIZ_CONFIG.port.size / 2)
+                .attr('y', -ARCVIZ_CONFIG.port.size / 2)
+                .attr('width', ARCVIZ_CONFIG.port.size)
+                .attr('height', ARCVIZ_CONFIG.port.size)
+                .attr('rx', ARCVIZ_CONFIG.port.borderRadius)
+                .attr('ry', ARCVIZ_CONFIG.port.borderRadius)
+                .style('fill', portColor)
+                .style('stroke', portStroke)
+                .style('stroke-width', 2.5);
+
+            // Port label (name)
+            const labelX = isInput ? -ARCVIZ_CONFIG.port.size - 5 : ARCVIZ_CONFIG.port.size + 5;
+            const anchor = isInput ? 'end' : 'start';
+
+            if (portData.name) {
+                portGroup.append('text')
+                    .attr('class', 'port-label')
+                    .attr('x', labelX)
+                    .attr('y', 4)
+                    .attr('text-anchor', anchor)
+                    .style('font-size', '9px')
+                    .style('font-weight', '600')
+                    .style('fill', '#263238')
+                    .text(portData.name.length > 15 ? portData.name.substring(0, 15) + '...' : portData.name);
+            }
+
+            // Protocol label
+            if (portData.protocol) {
+                portGroup.append('text')
+                    .attr('class', 'port-protocol')
+                    .attr('x', labelX)
+                    .attr('y', 16)
+                    .attr('text-anchor', anchor)
+                    .style('font-size', '7px')
+                    .style('font-style', 'italic')
+                    .style('fill', '#546e7a')
+                    .text(`[${portData.protocol}]`);
+            }
+        }
+
+        /**
+         * Render an edge with proper routing
+         */
+        function renderEdge(svgGroup, edge) {
+            if (!edge.sections || edge.sections.length === 0) return;
+
+            const section = edge.sections[0];
+            let path = `M ${section.startPoint.x} ${section.startPoint.y} `;
+
+            if (section.bendPoints) {
+                section.bendPoints.forEach(bp => {
+                    path += `L ${bp.x} ${bp.y} `;
+                });
+            }
+
+            path += `L ${section.endPoint.x} ${section.endPoint.y}`;
+
+            // Capella-style edge with subtle shadow
+            svgGroup.append('path')
+                .attr('class', 'edge-shadow')
+                .attr('d', path)
+                .style('stroke', '#000')
+                .style('stroke-opacity', 0.1)
+                .style('stroke-width', 4)
+                .style('fill', 'none')
+                .attr('transform', 'translate(1, 1)');
+            
+            const edgePath = svgGroup.append('path')
+                .attr('class', 'edge')
+                .attr('id', edge.id)
+                .attr('d', path)
+                .style('stroke', '#546e7a')
+                .style('stroke-width', 2.5)
+                .style('fill', 'none')
+                .style('stroke-linecap', 'round')
+                .style('stroke-linejoin', 'round')
+                .attr('marker-end', 'url(#arrowhead)');
+
+            // Edge label
+            if (edge.labels && edge.labels.length > 0) {
+                const midX = (section.startPoint.x + section.endPoint.x) / 2;
+                const midY = (section.startPoint.y + section.endPoint.y) / 2;
+
+                const labelGroup = svgGroup.append('g')
+                    .attr('class', 'edge-label')
+                    .attr('transform', `translate(${midX}, ${midY})`);
+
+                const text = edge.labels[0].text;
+                const bbox = { width: text.length * 6, height: 16 };
+
+                labelGroup.append('rect')
+                    .attr('x', -bbox.width / 2 - 4)
+                    .attr('y', -bbox.height / 2)
+                    .attr('width', bbox.width + 8)
+                    .attr('height', bbox.height)
+                    .attr('rx', 3)
+                    .style('fill', 'white')
+                    .style('stroke', '#607d8b')
+                    .style('stroke-width', 1);
+
+                labelGroup.append('text')
+                    .attr('text-anchor', 'middle')
+                    .attr('y', 4)
+                    .style('font-size', '10px')
+                    .style('font-weight', '500')
+                    .style('fill', '#37474f')
+                    .text(text);
+            }
+        }
+
+        /**
+         * Setup zoom and pan behavior
+         */
+        function setupZoomAndPan(svg, svgGroup, graphWidth, graphHeight) {
+            const svgWidth = svg.node().getBoundingClientRect().width;
+            const svgHeight = svg.node().getBoundingClientRect().height;
+
+            const scaleX = svgWidth / (graphWidth + 100);
+            const scaleY = svgHeight / (graphHeight + 100);
+            const initialScale = Math.min(scaleX, scaleY, 0.85);
+
+            const xCenterOffset = (svgWidth - graphWidth * initialScale) / 2;
+            const yCenterOffset = 50;
+
+            const zoom = d3.zoom()
+                .scaleExtent([0.1, 3])
+                .on('zoom', (event) => {
+                    svgGroup.attr('transform', event.transform);
+                });
+
+            svg.call(zoom).call(
+                zoom.transform,
+                d3.zoomIdentity.translate(xCenterOffset, yCenterOffset).scale(initialScale)
+            );
+
+            window.diagramZoom = zoom;
+            window.diagramInitialTransform = { xCenterOffset, yCenterOffset, initialScale };
+        }
+
         
         function exportDiagramSVG() {
             try {

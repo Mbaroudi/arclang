@@ -1,0 +1,17 @@
+@startuml
+!theme plain
+
+package "System Components" {
+  [Executive Dashboard]
+  [Market Analytics Engine]
+  [Merchant Analytics Engine]
+  [Client Analytics Engine]
+  [Financial Analytics Engine]
+  [Compliance Analytics Engine]
+  [Data Quality Engine]
+  [Advanced Analytics Engine]
+  [Analytics Infrastructure]
+}
+
+
+@enduml

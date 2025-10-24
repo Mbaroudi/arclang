@@ -286,6 +286,11 @@ pub enum ExportFormat {
     ArcVizPerfect,
     ArcVizUltimate,
     ArcVizEnhanced,
+    ArcVizElk,
+    ArcVizSmartLegacy,
+    ArcVizChannelLegacy,
+    ArcVizPerfectLegacy,
+    ArcVizUltimateLegacy,
     HTML,
     PDF,
     Terraform,
@@ -606,6 +611,11 @@ impl CliRunner {
             ExportFormat::ArcVizPerfect => "json".to_string(),
             ExportFormat::ArcVizUltimate => "json".to_string(),
             ExportFormat::ArcVizEnhanced => "json".to_string(),
+            ExportFormat::ArcVizElk => "json".to_string(),
+            ExportFormat::ArcVizSmartLegacy => "json".to_string(),
+            ExportFormat::ArcVizChannelLegacy => "json".to_string(),
+            ExportFormat::ArcVizPerfectLegacy => "json".to_string(),
+            ExportFormat::ArcVizUltimateLegacy => "json".to_string(),
             ExportFormat::HTML => "json".to_string(),
             ExportFormat::PDF => "json".to_string(),
             ExportFormat::YAML => "json".to_string(),
@@ -637,24 +647,44 @@ impl CliRunner {
                             .map_err(|e| CliError::Compilation(e.to_string()))?
                     }
                     ExportFormat::ArcVizSmart => {
+                        use crate::compiler::arcviz_elk_static::generate_elk_static_svg;
+                        generate_elk_static_svg(&result.semantic_model, "System Architecture")
+                            .map_err(|e| CliError::Compilation(e.to_string()))?
+                    }
+                    ExportFormat::ArcVizSmartLegacy => {
                         use crate::compiler::arcviz_smart_routing::{generate_smart_arcviz, wrap_smart_arcviz_html};
                         let svg = generate_smart_arcviz(&result.semantic_model, "System Architecture")
                             .map_err(|e| CliError::Compilation(e.to_string()))?;
                         wrap_smart_arcviz_html("System Architecture", &svg)
                     }
                     ExportFormat::ArcVizChannel => {
+                        use crate::compiler::arcviz_elk_static::generate_elk_static_svg;
+                        generate_elk_static_svg(&result.semantic_model, "System Architecture")
+                            .map_err(|e| CliError::Compilation(e.to_string()))?
+                    }
+                    ExportFormat::ArcVizChannelLegacy => {
                         use crate::compiler::arcviz_channel_routing::{generate_channel_routed_arcviz, wrap_channel_routed_html};
                         let svg = generate_channel_routed_arcviz(&result.semantic_model, "System Architecture")
                             .map_err(|e| CliError::Compilation(e.to_string()))?;
                         wrap_channel_routed_html("System Architecture", &svg)
                     }
                     ExportFormat::ArcVizPerfect => {
+                        use crate::compiler::arcviz_elk_static::generate_elk_static_svg;
+                        generate_elk_static_svg(&result.semantic_model, "System Architecture")
+                            .map_err(|e| CliError::Compilation(e.to_string()))?
+                    }
+                    ExportFormat::ArcVizPerfectLegacy => {
                         use crate::compiler::arcviz_perfect_routing::{generate_perfect_arcviz, wrap_perfect_html};
                         let svg = generate_perfect_arcviz(&result.semantic_model, "System Architecture")
                             .map_err(|e| CliError::Compilation(e.to_string()))?;
                         wrap_perfect_html("System Architecture", &svg)
                     }
                     ExportFormat::ArcVizUltimate => {
+                        use crate::compiler::arcviz_elk_static::generate_elk_static_svg;
+                        generate_elk_static_svg(&result.semantic_model, "System Architecture")
+                            .map_err(|e| CliError::Compilation(e.to_string()))?
+                    }
+                    ExportFormat::ArcVizUltimateLegacy => {
                         use crate::compiler::arcviz_ultimate_routing::{generate_ultimate_arcviz, wrap_ultimate_html};
                         let svg = generate_ultimate_arcviz(&result.semantic_model, "System Architecture")
                             .map_err(|e| CliError::Compilation(e.to_string()))?;
@@ -665,12 +695,15 @@ impl CliRunner {
                         generate_enhanced_html(&result.semantic_model)
                             .map_err(|e| CliError::Compilation(e.to_string()))?
                     }
+                    ExportFormat::ArcVizElk => {
+                        use crate::compiler::arcviz_elk_static::generate_elk_static_svg;
+                        generate_elk_static_svg(&result.semantic_model, "System Architecture")
+                            .map_err(|e| CliError::Compilation(e.to_string()))?
+                    }
                     ExportFormat::HTML => {
-                        // Use ArcVizUltimate for HTML export (best visualization)
-                        use crate::compiler::arcviz_ultimate_routing::{generate_ultimate_arcviz, wrap_ultimate_html};
-                        let svg = generate_ultimate_arcviz(&result.semantic_model, "Adaptive Cruise Control System")
-                            .map_err(|e| CliError::Compilation(e.to_string()))?;
-                        wrap_ultimate_html("Adaptive Cruise Control System", &svg)
+                        use crate::compiler::arcviz_elk_static::generate_elk_static_svg;
+                        generate_elk_static_svg(&result.semantic_model, "System Architecture")
+                            .map_err(|e| CliError::Compilation(e.to_string()))?
                     }
                     ExportFormat::Terraform => {
                         use crate::compiler::terraform_databricks_generator::{generate_terraform_databricks, TerraformConfig};

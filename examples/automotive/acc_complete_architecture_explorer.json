@@ -1,0 +1,760 @@
+{
+  "metadata": {
+    "title": "System Architecture",
+    "version": "1.0.0",
+    "description": "Complete architecture with 9 components, 0 interfaces, and 7 requirements",
+    "total_requirements": 7,
+    "total_components": 9,
+    "total_interfaces": 0,
+    "total_functions": 25
+  },
+  "requirements": [
+    {
+      "category": "Human Machine Interface",
+      "requirements": [
+        {
+          "id": "SYS-ACC-006",
+          "description": "System shall provide visual and audible warnings",
+          "priority": "High",
+          "category": "Human Machine Interface",
+          "safety_level": "ASIL_A",
+          "traces_to": []
+        }
+      ]
+    },
+    {
+      "category": "Diagnostic",
+      "requirements": [
+        {
+          "id": "SYS-ACC-007",
+          "description": "System shall perform continuous self-diagnostics",
+          "priority": "Critical",
+          "category": "Diagnostic",
+          "safety_level": "ASIL_B",
+          "traces_to": []
+        }
+      ]
+    },
+    {
+      "category": "Safety Override",
+      "requirements": [
+        {
+          "id": "SYS-ACC-004",
+          "description": "Driver brake input shall immediately override ACC control",
+          "priority": "Critical",
+          "category": "Safety Override",
+          "safety_level": "ASIL_C",
+          "traces_to": []
+        }
+      ]
+    },
+    {
+      "category": "Functional Safety",
+      "requirements": [
+        {
+          "id": "SYS-ACC-001",
+          "description": "The ACC system shall maintain minimum 2-second following distance at all speeds",
+          "priority": "Critical",
+          "category": "Functional Safety",
+          "safety_level": "ASIL_B",
+          "traces_to": []
+        }
+      ]
+    },
+    {
+      "category": "Operational Range",
+      "requirements": [
+        {
+          "id": "SYS-ACC-005",
+          "description": "System shall operate in speed range 30-180 km/h",
+          "priority": "Medium",
+          "category": "Operational Range",
+          "safety_level": "ASIL_A",
+          "traces_to": []
+        }
+      ]
+    },
+    {
+      "category": "Performance",
+      "requirements": [
+        {
+          "id": "SYS-ACC-002",
+          "description": "The system shall detect cut-in vehicles within 500ms",
+          "priority": "High",
+          "category": "Performance",
+          "safety_level": "ASIL_B",
+          "traces_to": []
+        },
+        {
+          "id": "SYS-ACC-003",
+          "description": "Maximum deceleration shall not exceed 3.5 m/s²",
+          "priority": "High",
+          "category": "Performance",
+          "safety_level": "ASIL_B",
+          "traces_to": []
+        }
+      ]
+    }
+  ],
+  "components": [
+    {
+      "id": "LC-001",
+      "name": "Long Range Radar",
+      "layer": "Logical",
+      "component_type": "Logical",
+      "safety_level": null,
+      "asil": null,
+      "interfaces_in": [],
+      "interfaces_out": [],
+      "functions": [
+        "Transmit RF Signal",
+        "Receive Echoes",
+        "Process Radar Data"
+      ],
+      "description": "Component in Logical layer"
+    },
+    {
+      "id": "LC-002",
+      "name": "Forward Camera",
+      "layer": "Logical",
+      "component_type": "Logical",
+      "safety_level": null,
+      "asil": null,
+      "interfaces_in": [],
+      "interfaces_out": [],
+      "functions": [
+        "Capture Image",
+        "Detect Objects",
+        "Detect Lanes"
+      ],
+      "description": "Component in Logical layer"
+    },
+    {
+      "id": "LC-003",
+      "name": "Sensor Fusion",
+      "layer": "Logical",
+      "component_type": "Logical",
+      "safety_level": null,
+      "asil": null,
+      "interfaces_in": [],
+      "interfaces_out": [],
+      "functions": [
+        "Correlate Detections",
+        "Track Objects",
+        "Predict Trajectories"
+      ],
+      "description": "Component in Logical layer"
+    },
+    {
+      "id": "LC-004",
+      "name": "Target Selection",
+      "layer": "Logical",
+      "component_type": "Logical",
+      "safety_level": null,
+      "asil": null,
+      "interfaces_in": [],
+      "interfaces_out": [],
+      "functions": [
+        "Identify Lead Vehicle",
+        "Detect Cut-In"
+      ],
+      "description": "Component in Logical layer"
+    },
+    {
+      "id": "LC-005",
+      "name": "Longitudinal Controller",
+      "layer": "Logical",
+      "component_type": "Logical",
+      "safety_level": null,
+      "asil": null,
+      "interfaces_in": [],
+      "interfaces_out": [],
+      "functions": [
+        "Calculate Time Gap",
+        "Determine Desired Speed",
+        "Compute Acceleration"
+      ],
+      "description": "Component in Logical layer"
+    },
+    {
+      "id": "LC-006",
+      "name": "Actuator Command",
+      "layer": "Logical",
+      "component_type": "Logical",
+      "safety_level": null,
+      "asil": null,
+      "interfaces_in": [],
+      "interfaces_out": [],
+      "functions": [
+        "Map to Throttle",
+        "Map to Brake"
+      ],
+      "description": "Component in Logical layer"
+    },
+    {
+      "id": "LC-007",
+      "name": "Safety Monitor",
+      "layer": "Logical",
+      "component_type": "Logical",
+      "safety_level": null,
+      "asil": null,
+      "interfaces_in": [],
+      "interfaces_out": [],
+      "functions": [
+        "Check Sensor Health",
+        "Enforce Limits",
+        "Detect Faults"
+      ],
+      "description": "Component in Logical layer"
+    },
+    {
+      "id": "LC-008",
+      "name": "Driver Interface",
+      "layer": "Logical",
+      "component_type": "Logical",
+      "safety_level": null,
+      "asil": null,
+      "interfaces_in": [],
+      "interfaces_out": [],
+      "functions": [
+        "Read Driver Inputs",
+        "Display Status",
+        "Issue Warnings"
+      ],
+      "description": "Component in Logical layer"
+    },
+    {
+      "id": "LC-009",
+      "name": "Override Manager",
+      "layer": "Logical",
+      "component_type": "Logical",
+      "safety_level": null,
+      "asil": null,
+      "interfaces_in": [],
+      "interfaces_out": [],
+      "functions": [
+        "Detect Brake Pedal",
+        "Detect Accelerator Pedal",
+        "Override Control"
+      ],
+      "description": "Component in Logical layer"
+    }
+  ],
+  "interfaces": [],
+  "functions": [
+    {
+      "id": "LF-001",
+      "name": "Transmit RF Signal",
+      "inputs": [],
+      "outputs": [],
+      "component": "Long Range Radar"
+    },
+    {
+      "id": "LF-002",
+      "name": "Receive Echoes",
+      "inputs": [],
+      "outputs": [],
+      "component": "Long Range Radar"
+    },
+    {
+      "id": "LF-003",
+      "name": "Process Radar Data",
+      "inputs": [],
+      "outputs": [],
+      "component": "Long Range Radar"
+    },
+    {
+      "id": "LF-004",
+      "name": "Capture Image",
+      "inputs": [],
+      "outputs": [],
+      "component": "Forward Camera"
+    },
+    {
+      "id": "LF-005",
+      "name": "Detect Objects",
+      "inputs": [],
+      "outputs": [],
+      "component": "Forward Camera"
+    },
+    {
+      "id": "LF-006",
+      "name": "Detect Lanes",
+      "inputs": [],
+      "outputs": [],
+      "component": "Forward Camera"
+    },
+    {
+      "id": "LF-007",
+      "name": "Correlate Detections",
+      "inputs": [],
+      "outputs": [],
+      "component": "Sensor Fusion"
+    },
+    {
+      "id": "LF-008",
+      "name": "Track Objects",
+      "inputs": [],
+      "outputs": [],
+      "component": "Sensor Fusion"
+    },
+    {
+      "id": "LF-009",
+      "name": "Predict Trajectories",
+      "inputs": [],
+      "outputs": [],
+      "component": "Sensor Fusion"
+    },
+    {
+      "id": "LF-010",
+      "name": "Identify Lead Vehicle",
+      "inputs": [],
+      "outputs": [],
+      "component": "Target Selection"
+    },
+    {
+      "id": "LF-011",
+      "name": "Detect Cut-In",
+      "inputs": [],
+      "outputs": [],
+      "component": "Target Selection"
+    },
+    {
+      "id": "LF-012",
+      "name": "Calculate Time Gap",
+      "inputs": [],
+      "outputs": [],
+      "component": "Longitudinal Controller"
+    },
+    {
+      "id": "LF-013",
+      "name": "Determine Desired Speed",
+      "inputs": [],
+      "outputs": [],
+      "component": "Longitudinal Controller"
+    },
+    {
+      "id": "LF-014",
+      "name": "Compute Acceleration",
+      "inputs": [],
+      "outputs": [],
+      "component": "Longitudinal Controller"
+    },
+    {
+      "id": "LF-015",
+      "name": "Map to Throttle",
+      "inputs": [],
+      "outputs": [],
+      "component": "Actuator Command"
+    },
+    {
+      "id": "LF-016",
+      "name": "Map to Brake",
+      "inputs": [],
+      "outputs": [],
+      "component": "Actuator Command"
+    },
+    {
+      "id": "LF-017",
+      "name": "Check Sensor Health",
+      "inputs": [],
+      "outputs": [],
+      "component": "Safety Monitor"
+    },
+    {
+      "id": "LF-018",
+      "name": "Enforce Limits",
+      "inputs": [],
+      "outputs": [],
+      "component": "Safety Monitor"
+    },
+    {
+      "id": "LF-019",
+      "name": "Detect Faults",
+      "inputs": [],
+      "outputs": [],
+      "component": "Safety Monitor"
+    },
+    {
+      "id": "LF-020",
+      "name": "Read Driver Inputs",
+      "inputs": [],
+      "outputs": [],
+      "component": "Driver Interface"
+    },
+    {
+      "id": "LF-021",
+      "name": "Display Status",
+      "inputs": [],
+      "outputs": [],
+      "component": "Driver Interface"
+    },
+    {
+      "id": "LF-022",
+      "name": "Issue Warnings",
+      "inputs": [],
+      "outputs": [],
+      "component": "Driver Interface"
+    },
+    {
+      "id": "LF-023",
+      "name": "Detect Brake Pedal",
+      "inputs": [],
+      "outputs": [],
+      "component": "Override Manager"
+    },
+    {
+      "id": "LF-024",
+      "name": "Detect Accelerator Pedal",
+      "inputs": [],
+      "outputs": [],
+      "component": "Override Manager"
+    },
+    {
+      "id": "LF-025",
+      "name": "Override Control",
+      "inputs": [],
+      "outputs": [],
+      "component": "Override Manager"
+    }
+  ],
+  "traces": [
+    {
+      "from": "LC-001",
+      "to": "SYS-ACC-002",
+      "trace_type": "satisfies",
+      "rationale": "Radar provides primary detection for cut-in vehicles"
+    },
+    {
+      "from": "LC-002",
+      "to": "SYS-ACC-002",
+      "trace_type": "satisfies",
+      "rationale": "Camera provides complementary detection for cut-in scenarios"
+    },
+    {
+      "from": "LC-003",
+      "to": "SYS-ACC-001",
+      "trace_type": "satisfies",
+      "rationale": "Sensor fusion ensures robust target tracking for distance maintenance"
+    },
+    {
+      "from": "LC-004",
+      "to": "SYS-ACC-001",
+      "trace_type": "satisfies",
+      "rationale": "Target selection identifies correct lead vehicle for following"
+    },
+    {
+      "from": "LC-005",
+      "to": "SYS-ACC-001",
+      "trace_type": "satisfies",
+      "rationale": "Longitudinal controller maintains 2-second time gap"
+    },
+    {
+      "from": "LC-005",
+      "to": "SYS-ACC-003",
+      "trace_type": "satisfies",
+      "rationale": "Controller enforces maximum deceleration limit"
+    },
+    {
+      "from": "LC-006",
+      "to": "SYS-ACC-003",
+      "trace_type": "satisfies",
+      "rationale": "Actuator command limits brake pressure to prevent excessive deceleration"
+    },
+    {
+      "from": "LC-007",
+      "to": "SYS-ACC-007",
+      "trace_type": "satisfies",
+      "rationale": "Safety monitor performs continuous diagnostics"
+    },
+    {
+      "from": "LC-008",
+      "to": "SYS-ACC-006",
+      "trace_type": "satisfies",
+      "rationale": "Driver interface provides visual and audible warnings"
+    },
+    {
+      "from": "LC-009",
+      "to": "SYS-ACC-004",
+      "trace_type": "satisfies",
+      "rationale": "Override manager detects brake input and disables ACC"
+    },
+    {
+      "from": "LC-005",
+      "to": "SYS-ACC-005",
+      "trace_type": "satisfies",
+      "rationale": "Controller operates within specified speed range"
+    },
+    {
+      "from": "LC-001",
+      "to": "LC-003",
+      "trace_type": "implements",
+      "rationale": "Radar provides target data to sensor fusion"
+    },
+    {
+      "from": "LC-002",
+      "to": "LC-003",
+      "trace_type": "implements",
+      "rationale": "Camera provides object and lane data to sensor fusion"
+    },
+    {
+      "from": "LC-003",
+      "to": "LC-004",
+      "trace_type": "implements",
+      "rationale": "Fused tracks feed target selection algorithm"
+    },
+    {
+      "from": "LC-004",
+      "to": "LC-005",
+      "trace_type": "implements",
+      "rationale": "Selected lead vehicle drives longitudinal controller"
+    },
+    {
+      "from": "LC-005",
+      "to": "LC-006",
+      "trace_type": "implements",
+      "rationale": "Acceleration command sent to actuator command mapper"
+    },
+    {
+      "from": "LC-007",
+      "to": "LC-005",
+      "trace_type": "implements",
+      "rationale": "Safety monitor validates and limits controller outputs"
+    },
+    {
+      "from": "LC-008",
+      "to": "LC-005",
+      "trace_type": "implements",
+      "rationale": "Driver commands affect controller behavior"
+    },
+    {
+      "from": "LC-009",
+      "to": "LC-005",
+      "trace_type": "implements",
+      "rationale": "Override manager can disable controller"
+    },
+    {
+      "from": "LC-009",
+      "to": "LC-006",
+      "trace_type": "implements",
+      "rationale": "Override manager can block actuator commands"
+    },
+    {
+      "from": "LF-001",
+      "to": "LF-002",
+      "trace_type": "implements",
+      "rationale": "Transmitted signal creates echoes that are received"
+    },
+    {
+      "from": "LF-002",
+      "to": "LF-003",
+      "trace_type": "implements",
+      "rationale": "Raw echoes are processed to extract targets"
+    },
+    {
+      "from": "LF-003",
+      "to": "LF-007",
+      "trace_type": "implements",
+      "rationale": "Radar targets feed into fusion algorithm"
+    },
+    {
+      "from": "LF-005",
+      "to": "LF-007",
+      "trace_type": "implements",
+      "rationale": "Camera objects feed into fusion algorithm"
+    },
+    {
+      "from": "LF-007",
+      "to": "LF-008",
+      "trace_type": "implements",
+      "rationale": "Correlated detections are tracked over time"
+    },
+    {
+      "from": "LF-008",
+      "to": "LF-009",
+      "trace_type": "implements",
+      "rationale": "Current tracks used to predict future trajectories"
+    },
+    {
+      "from": "LF-008",
+      "to": "LF-010",
+      "trace_type": "implements",
+      "rationale": "Tracked objects used for lead vehicle identification"
+    },
+    {
+      "from": "LF-010",
+      "to": "LF-012",
+      "trace_type": "implements",
+      "rationale": "Lead vehicle used to calculate time gap"
+    },
+    {
+      "from": "LF-012",
+      "to": "LF-013",
+      "trace_type": "implements",
+      "rationale": "Time gap influences desired speed calculation"
+    },
+    {
+      "from": "LF-013",
+      "to": "LF-014",
+      "trace_type": "implements",
+      "rationale": "Desired speed drives acceleration computation"
+    },
+    {
+      "from": "LF-014",
+      "to": "LF-015",
+      "trace_type": "implements",
+      "rationale": "Positive acceleration maps to throttle"
+    },
+    {
+      "from": "LF-014",
+      "to": "LF-016",
+      "trace_type": "implements",
+      "rationale": "Negative acceleration maps to brake pressure"
+    }
+  ],
+  "diagram": {
+    "nodes": [
+      {
+        "id": "LC-001",
+        "label": "Long Range Radar",
+        "layer": "Logical",
+        "stereotype": "<<component>>",
+        "interfaces_in": [],
+        "interfaces_out": [],
+        "functions": [
+          "Transmit RF Signal",
+          "Receive Echoes",
+          "Process Radar Data"
+        ],
+        "width": 220,
+        "height": 180
+      },
+      {
+        "id": "LC-002",
+        "label": "Forward Camera",
+        "layer": "Logical",
+        "stereotype": "<<component>>",
+        "interfaces_in": [],
+        "interfaces_out": [],
+        "functions": [
+          "Capture Image",
+          "Detect Objects",
+          "Detect Lanes"
+        ],
+        "width": 220,
+        "height": 180
+      },
+      {
+        "id": "LC-003",
+        "label": "Sensor Fusion",
+        "layer": "Logical",
+        "stereotype": "<<component>>",
+        "interfaces_in": [],
+        "interfaces_out": [],
+        "functions": [
+          "Correlate Detections",
+          "Track Objects",
+          "Predict Trajectories"
+        ],
+        "width": 220,
+        "height": 180
+      },
+      {
+        "id": "LC-004",
+        "label": "Target Selection",
+        "layer": "Logical",
+        "stereotype": "<<component>>",
+        "interfaces_in": [],
+        "interfaces_out": [],
+        "functions": [
+          "Identify Lead Vehicle",
+          "Detect Cut-In"
+        ],
+        "width": 220,
+        "height": 180
+      },
+      {
+        "id": "LC-005",
+        "label": "Longitudinal Controller",
+        "layer": "Logical",
+        "stereotype": "<<component>>",
+        "interfaces_in": [],
+        "interfaces_out": [],
+        "functions": [
+          "Calculate Time Gap",
+          "Determine Desired Speed",
+          "Compute Acceleration"
+        ],
+        "width": 221,
+        "height": 180
+      },
+      {
+        "id": "LC-006",
+        "label": "Actuator Command",
+        "layer": "Logical",
+        "stereotype": "<<component>>",
+        "interfaces_in": [],
+        "interfaces_out": [],
+        "functions": [
+          "Map to Throttle",
+          "Map to Brake"
+        ],
+        "width": 220,
+        "height": 180
+      },
+      {
+        "id": "LC-007",
+        "label": "Safety Monitor",
+        "layer": "Logical",
+        "stereotype": "<<service>>",
+        "interfaces_in": [],
+        "interfaces_out": [],
+        "functions": [
+          "Check Sensor Health",
+          "Enforce Limits",
+          "Detect Faults"
+        ],
+        "width": 220,
+        "height": 180
+      },
+      {
+        "id": "LC-008",
+        "label": "Driver Interface",
+        "layer": "Logical",
+        "stereotype": "<<component>>",
+        "interfaces_in": [],
+        "interfaces_out": [],
+        "functions": [
+          "Read Driver Inputs",
+          "Display Status",
+          "Issue Warnings"
+        ],
+        "width": 220,
+        "height": 180
+      },
+      {
+        "id": "LC-009",
+        "label": "Override Manager",
+        "layer": "Logical",
+        "stereotype": "<<component>>",
+        "interfaces_in": [],
+        "interfaces_out": [],
+        "functions": [
+          "Detect Brake Pedal",
+          "Detect Accelerator Pedal",
+          "Override Control"
+        ],
+        "width": 220,
+        "height": 180
+      }
+    ],
+    "edges": [],
+    "layers": [
+      {
+        "name": "Logical",
+        "color": "#E3F2FD",
+        "description": "Logical Architecture Layer"
+      }
+    ]
+  }
+}

@@ -1,0 +1,539 @@
+{
+  "metadata": {
+    "title": "System Architecture",
+    "version": "1.0.0",
+    "description": "Complete architecture with 11 components, 2 interfaces, and 6 requirements",
+    "total_requirements": 6,
+    "total_components": 11,
+    "total_interfaces": 2,
+    "total_functions": 16
+  },
+  "requirements": [
+    {
+      "category": "General",
+      "requirements": [
+        {
+          "id": "SYS-MC-001",
+          "description": "The mission computer shall process radar data with latency less than 100ms",
+          "priority": "Critical",
+          "category": null,
+          "safety_level": "DAL_A",
+          "traces_to": []
+        },
+        {
+          "id": "SYS-MC-002",
+          "description": "The system shall maintain track continuity for all detected targets",
+          "priority": "Critical",
+          "category": null,
+          "safety_level": "DAL_A",
+          "traces_to": []
+        },
+        {
+          "id": "SYS-MC-003",
+          "description": "Weapon release authorization shall require dual operator confirmation",
+          "priority": "Critical",
+          "category": null,
+          "safety_level": "DAL_A",
+          "traces_to": []
+        },
+        {
+          "id": "SYS-MC-004",
+          "description": "All tactical data shall be encrypted using NSA-approved algorithms",
+          "priority": "Critical",
+          "category": null,
+          "safety_level": null,
+          "traces_to": []
+        },
+        {
+          "id": "SYS-MC-005",
+          "description": "System shall operate in contested electromagnetic environment",
+          "priority": "High",
+          "category": null,
+          "safety_level": null,
+          "traces_to": []
+        },
+        {
+          "id": "SYS-MC-006",
+          "description": "Mission data shall be stored with tamper detection",
+          "priority": "High",
+          "category": null,
+          "safety_level": null,
+          "traces_to": []
+        }
+      ]
+    }
+  ],
+  "components": [
+    {
+      "id": "LC-001",
+      "name": "Radar Processor",
+      "layer": "Logical",
+      "component_type": "Logical",
+      "safety_level": null,
+      "asil": null,
+      "interfaces_in": [],
+      "interfaces_out": [],
+      "functions": [
+        "Beam Steering",
+        "Target Detection",
+        "Doppler Processing"
+      ],
+      "description": "Component in Logical layer"
+    },
+    {
+      "id": "LC-002",
+      "name": "Electronic Warfare Processor",
+      "layer": "Logical",
+      "component_type": "Logical",
+      "safety_level": null,
+      "asil": null,
+      "interfaces_in": [],
+      "interfaces_out": [],
+      "functions": [
+        "RWR Processing",
+        "Countermeasures Control"
+      ],
+      "description": "Component in Logical layer"
+    },
+    {
+      "id": "LC-003",
+      "name": "Track Fusion",
+      "layer": "Logical",
+      "component_type": "Logical",
+      "safety_level": "DAL_A",
+      "asil": null,
+      "interfaces_in": [],
+      "interfaces_out": [],
+      "functions": [
+        "Track Association",
+        "Track Prediction",
+        "Track Quality Assessment"
+      ],
+      "description": "Component in Logical layer"
+    },
+    {
+      "id": "LC-004",
+      "name": "Threat Manager",
+      "layer": "Logical",
+      "component_type": "Logical",
+      "safety_level": null,
+      "asil": null,
+      "interfaces_in": [],
+      "interfaces_out": [],
+      "functions": [
+        "Identify Emitters",
+        "Calculate Threat Priority"
+      ],
+      "description": "Component in Logical layer"
+    },
+    {
+      "id": "LC-005",
+      "name": "Weapon Manager",
+      "layer": "Logical",
+      "component_type": "Logical",
+      "safety_level": "DAL_A",
+      "asil": null,
+      "interfaces_in": [],
+      "interfaces_out": [],
+      "functions": [
+        "Weapon Inventory",
+        "Target-Weapon Pairing",
+        "Authorization Check",
+        "Generate Release Command"
+      ],
+      "description": "Component in Logical layer"
+    },
+    {
+      "id": "LC-006",
+      "name": "Cryptographic Module",
+      "layer": "Logical",
+      "component_type": "Logical",
+      "safety_level": null,
+      "asil": null,
+      "interfaces_in": [],
+      "interfaces_out": [],
+      "functions": [
+        "Encrypt Data",
+        "Key Management"
+      ],
+      "description": "Component in Logical layer"
+    },
+    {
+      "id": "PN-001",
+      "name": "Mission Processor 1",
+      "layer": "Physical",
+      "component_type": "Physical",
+      "safety_level": null,
+      "asil": null,
+      "interfaces_in": [],
+      "interfaces_out": [],
+      "functions": [],
+      "description": "Component in Physical layer"
+    },
+    {
+      "id": "PN-002",
+      "name": "Mission Processor 2",
+      "layer": "Physical",
+      "component_type": "Physical",
+      "safety_level": null,
+      "asil": null,
+      "interfaces_in": [],
+      "interfaces_out": [],
+      "functions": [],
+      "description": "Component in Physical layer"
+    },
+    {
+      "id": "PN-003",
+      "name": "Radar Signal Processor",
+      "layer": "Physical",
+      "component_type": "Physical",
+      "safety_level": null,
+      "asil": null,
+      "interfaces_in": [],
+      "interfaces_out": [],
+      "functions": [],
+      "description": "Component in Physical layer"
+    },
+    {
+      "id": "PN-004",
+      "name": "EW Processor",
+      "layer": "Physical",
+      "component_type": "Physical",
+      "safety_level": null,
+      "asil": null,
+      "interfaces_in": [],
+      "interfaces_out": [],
+      "functions": [],
+      "description": "Component in Physical layer"
+    },
+    {
+      "id": "PN-005",
+      "name": "Crypto Appliance",
+      "layer": "Physical",
+      "component_type": "Physical",
+      "safety_level": null,
+      "asil": null,
+      "interfaces_in": [],
+      "interfaces_out": [],
+      "functions": [],
+      "description": "Component in Physical layer"
+    }
+  ],
+  "interfaces": [
+    {
+      "name": "Sensor Data Bus",
+      "from": "LC-001",
+      "to": "LC-003",
+      "from_component": "Radar Processor",
+      "to_component": "Track Fusion"
+    },
+    {
+      "name": "Threat Data Bus",
+      "from": "LC-002",
+      "to": "LC-004",
+      "from_component": "Electronic Warfare Processor",
+      "to_component": "Threat Manager"
+    }
+  ],
+  "functions": [
+    {
+      "id": "LF-001",
+      "name": "Beam Steering",
+      "inputs": [],
+      "outputs": [],
+      "component": "Radar Processor"
+    },
+    {
+      "id": "LF-002",
+      "name": "Target Detection",
+      "inputs": [],
+      "outputs": [],
+      "component": "Radar Processor"
+    },
+    {
+      "id": "LF-003",
+      "name": "Doppler Processing",
+      "inputs": [],
+      "outputs": [],
+      "component": "Radar Processor"
+    },
+    {
+      "id": "LF-004",
+      "name": "RWR Processing",
+      "inputs": [],
+      "outputs": [],
+      "component": "Electronic Warfare Processor"
+    },
+    {
+      "id": "LF-005",
+      "name": "Countermeasures Control",
+      "inputs": [],
+      "outputs": [],
+      "component": "Electronic Warfare Processor"
+    },
+    {
+      "id": "LF-006",
+      "name": "Track Association",
+      "inputs": [],
+      "outputs": [],
+      "component": "Track Fusion"
+    },
+    {
+      "id": "LF-007",
+      "name": "Track Prediction",
+      "inputs": [],
+      "outputs": [],
+      "component": "Track Fusion"
+    },
+    {
+      "id": "LF-008",
+      "name": "Track Quality Assessment",
+      "inputs": [],
+      "outputs": [],
+      "component": "Track Fusion"
+    },
+    {
+      "id": "LF-009",
+      "name": "Identify Emitters",
+      "inputs": [],
+      "outputs": [],
+      "component": "Threat Manager"
+    },
+    {
+      "id": "LF-010",
+      "name": "Calculate Threat Priority",
+      "inputs": [],
+      "outputs": [],
+      "component": "Threat Manager"
+    },
+    {
+      "id": "LF-011",
+      "name": "Weapon Inventory",
+      "inputs": [],
+      "outputs": [],
+      "component": "Weapon Manager"
+    },
+    {
+      "id": "LF-012",
+      "name": "Target-Weapon Pairing",
+      "inputs": [],
+      "outputs": [],
+      "component": "Weapon Manager"
+    },
+    {
+      "id": "LF-013",
+      "name": "Authorization Check",
+      "inputs": [],
+      "outputs": [],
+      "component": "Weapon Manager"
+    },
+    {
+      "id": "LF-014",
+      "name": "Generate Release Command",
+      "inputs": [],
+      "outputs": [],
+      "component": "Weapon Manager"
+    },
+    {
+      "id": "LF-015",
+      "name": "Encrypt Data",
+      "inputs": [],
+      "outputs": [],
+      "component": "Cryptographic Module"
+    },
+    {
+      "id": "LF-016",
+      "name": "Key Management",
+      "inputs": [],
+      "outputs": [],
+      "component": "Cryptographic Module"
+    }
+  ],
+  "traces": [
+    {
+      "from": "LC-003",
+      "to": "SYS-MC-001",
+      "trace_type": "satisfies",
+      "rationale": "Track fusion provides required latency performance"
+    },
+    {
+      "from": "LF-013",
+      "to": "SYS-MC-003",
+      "trace_type": "satisfies",
+      "rationale": "Authorization check enforces dual-operator requirement"
+    }
+  ],
+  "diagram": {
+    "nodes": [
+      {
+        "id": "LC-001",
+        "label": "Radar Processor",
+        "layer": "Logical",
+        "stereotype": "<<component>>",
+        "interfaces_in": [],
+        "interfaces_out": [],
+        "functions": [
+          "Beam Steering",
+          "Target Detection",
+          "Doppler Processing"
+        ],
+        "width": 220,
+        "height": 180
+      },
+      {
+        "id": "LC-002",
+        "label": "Electronic Warfare Processor",
+        "layer": "Logical",
+        "stereotype": "<<component>>",
+        "interfaces_in": [],
+        "interfaces_out": [],
+        "functions": [
+          "RWR Processing",
+          "Countermeasures Control"
+        ],
+        "width": 256,
+        "height": 180
+      },
+      {
+        "id": "LC-003",
+        "label": "Track Fusion",
+        "layer": "Logical",
+        "stereotype": "<<component>>",
+        "safety_level": "DAL_A",
+        "interfaces_in": [],
+        "interfaces_out": [],
+        "functions": [
+          "Track Association",
+          "Track Prediction",
+          "Track Quality Assessment"
+        ],
+        "width": 220,
+        "height": 180
+      },
+      {
+        "id": "LC-004",
+        "label": "Threat Manager",
+        "layer": "Logical",
+        "stereotype": "<<component>>",
+        "interfaces_in": [],
+        "interfaces_out": [],
+        "functions": [
+          "Identify Emitters",
+          "Calculate Threat Priority"
+        ],
+        "width": 220,
+        "height": 180
+      },
+      {
+        "id": "LC-005",
+        "label": "Weapon Manager",
+        "layer": "Logical",
+        "stereotype": "<<component>>",
+        "safety_level": "DAL_A",
+        "interfaces_in": [],
+        "interfaces_out": [],
+        "functions": [
+          "Weapon Inventory",
+          "Target-Weapon Pairing",
+          "Authorization Check",
+          "Generate Release Command"
+        ],
+        "width": 220,
+        "height": 180
+      },
+      {
+        "id": "LC-006",
+        "label": "Cryptographic Module",
+        "layer": "Logical",
+        "stereotype": "<<component>>",
+        "interfaces_in": [],
+        "interfaces_out": [],
+        "functions": [
+          "Encrypt Data",
+          "Key Management"
+        ],
+        "width": 220,
+        "height": 180
+      },
+      {
+        "id": "PN-001",
+        "label": "Mission Processor 1",
+        "layer": "Physical",
+        "stereotype": "<<component>>",
+        "interfaces_in": [],
+        "interfaces_out": [],
+        "functions": [],
+        "width": 220,
+        "height": 180
+      },
+      {
+        "id": "PN-002",
+        "label": "Mission Processor 2",
+        "layer": "Physical",
+        "stereotype": "<<component>>",
+        "interfaces_in": [],
+        "interfaces_out": [],
+        "functions": [],
+        "width": 220,
+        "height": 180
+      },
+      {
+        "id": "PN-003",
+        "label": "Radar Signal Processor",
+        "layer": "Physical",
+        "stereotype": "<<component>>",
+        "interfaces_in": [],
+        "interfaces_out": [],
+        "functions": [],
+        "width": 220,
+        "height": 180
+      },
+      {
+        "id": "PN-004",
+        "label": "EW Processor",
+        "layer": "Physical",
+        "stereotype": "<<component>>",
+        "interfaces_in": [],
+        "interfaces_out": [],
+        "functions": [],
+        "width": 220,
+        "height": 180
+      },
+      {
+        "id": "PN-005",
+        "label": "Crypto Appliance",
+        "layer": "Physical",
+        "stereotype": "<<component>>",
+        "interfaces_in": [],
+        "interfaces_out": [],
+        "functions": [],
+        "width": 220,
+        "height": 180
+      }
+    ],
+    "edges": [
+      {
+        "source": "LC-001",
+        "target": "LC-003",
+        "label": "Sensor Data Bus"
+      },
+      {
+        "source": "LC-002",
+        "target": "LC-004",
+        "label": "Threat Data Bus"
+      }
+    ],
+    "layers": [
+      {
+        "name": "Logical",
+        "color": "#E3F2FD",
+        "description": "Logical Architecture Layer"
+      },
+      {
+        "name": "Physical",
+        "color": "#FCE4EC",
+        "description": "Physical Hardware Layer"
+      }
+    ]
+  }
+}

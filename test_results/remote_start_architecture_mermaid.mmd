@@ -1,0 +1,105 @@
+---
+config:
+  layout: elk
+title: System Requirements
+---
+flowchart TD
+ subgraph subGraph0["Client Analytics"]
+        STK-RS-008["STK-RS-008<br>Remote start must maintain cabin comfort through climate control pre-conditioning"]
+  end
+ subgraph subGraph1["Executive Analytics"]
+        STK-RS-002["STK-RS-002<br>System must prevent remote start if vehicle safety conditions are not met"]
+        FUNC-RS-002["FUNC-RS-002<br>Safety interlock validation function shall check all preconditions within 200ms"]
+        SEC-RS-002["SEC-RS-002<br>System shall implement certificate based authentication with hardware backed key storage"]
+        REG-RS-002["REG-RS-002<br>Remote start duration shall comply with local idle time regulations maximum 10 minutes"]
+  end
+ subgraph subGraph2["Market Analytics"]
+        STK-RS-004["STK-RS-004<br>System must authenticate user and secure all communications to prevent unauthorized access"]
+        FUNC-RS-004["FUNC-RS-004<br>Notification service shall deliver status updates with 99.9 percent reliability"]
+        SEC-RS-004["SEC-RS-004<br>Failed authentication attempts shall trigger exponential backoff after 3 failures"]
+        REG-RS-004["REG-RS-004<br>Remote start shall comply with UNECE R100 for electric vehicle safety"]
+  end
+ subgraph subGraph3["Merchant Analytics"]
+        STK-RS-006["STK-RS-006<br>User shall receive confirmation of remote start status within 3 seconds"]
+  end
+ subgraph subGraph4["Requirements"]
+        STK-RS-001["STK-RS-001<br>User must be able to remotely start the vehicle from their smartphone within 100m range"]
+        STK-RS-003["STK-RS-003<br>Remote start must work for ICE, Hybrid, and Electric vehicles with appropriate powertrain control"]
+        STK-RS-005["STK-RS-005<br>Vehicle must comply with regional emission and safety regulations during remote start"]
+        STK-RS-007["STK-RS-007<br>System must automatically shut down after 10 minutes if not manually overridden"]
+        FUNC-RS-001["FUNC-RS-001<br>Remote start request processing function shall validate user credentials within 500ms"]
+        FUNC-RS-003["FUNC-RS-003<br>Powertrain control function shall initiate start sequence based on vehicle type"]
+        SEC-RS-001["SEC-RS-001<br>All remote commands shall use AES 256 encryption with perfect forward secrecy"]
+        SEC-RS-003["SEC-RS-003<br>Replay attack detection shall use cryptographic nonce with maximum 5 second window"]
+        REG-RS-001["REG-RS-001<br>System shall comply with FCC Part 15 for radiated emissions"]
+        REG-RS-003["REG-RS-003<br>System shall comply with GDPR for user data privacy and consent"]
+  end
+ subgraph subGraph5["Safety Requirements"]
+        SAFE-RS-001["SAFE-RS-001<br>Remote start controller shall implement watchdog monitoring with 100ms timeout"]
+        SAFE-RS-002["SAFE-RS-002<br>Safety interlock failure shall inhibit remote start and log fault code"]
+        SAFE-RS-003["SAFE-RS-003<br>Remote start shall be inhibited if any ASIL B or higher fault is active"]
+  end
+ subgraph subGraph6["System Requirements"]
+        SYS-RS-001["SYS-RS-001<br>System shall authenticate user identity using cryptographic tokens before allowing remote start"]
+        SYS-RS-002["SYS-RS-002<br>System shall verify all safety interlocks (parking brake, neutral, doors closed) before starting"]
+        SYS-RS-003["SYS-RS-003<br>System shall establish secure encrypted communication channel between smartphone and vehicle"]
+        SYS-RS-004["SYS-RS-004<br>System shall monitor battery state of charge and prevent start if below 20 percent for EV or voltage below 11V for ICE"]
+        SYS-RS-005["SYS-RS-005<br>System shall activate appropriate powertrain control strategy based on vehicle type ICE Hybrid or EV"]
+        SYS-RS-006["SYS-RS-006<br>System shall send status notifications success failure warnings to user smartphone"]
+        SYS-RS-007["SYS-RS-007<br>System shall implement automatic shutdown timer with maximum 10 minute duration"]
+        SYS-RS-008["SYS-RS-008<br>System shall activate climate control to target temperature based on user preferences"]
+        SYS-RS-009["SYS-RS-009<br>System shall log all remote start attempts with timestamp and result for audit trail"]
+        SYS-RS-010["SYS-RS-010<br>System shall detect tampering or replay attacks and raise security alerts"]
+  end
+     STK-RS-008:::client
+     STK-RS-002:::executive
+     FUNC-RS-002:::executive
+     SEC-RS-002:::executive
+     REG-RS-002:::executive
+     STK-RS-004:::market
+     FUNC-RS-004:::market
+     SEC-RS-004:::market
+     REG-RS-004:::market
+     STK-RS-006:::merchant
+     STK-RS-001:::requirements
+     STK-RS-003:::requirements
+     STK-RS-005:::requirements
+     STK-RS-007:::requirements
+     FUNC-RS-001:::requirements
+     FUNC-RS-003:::requirements
+     SEC-RS-001:::requirements
+     SEC-RS-003:::requirements
+     REG-RS-001:::requirements
+     REG-RS-003:::requirements
+     SAFE-RS-001:::safety
+     SAFE-RS-002:::safety
+     SAFE-RS-003:::safety
+     SYS-RS-001:::system
+     SYS-RS-002:::system
+     SYS-RS-003:::system
+     SYS-RS-004:::system
+     SYS-RS-005:::system
+     SYS-RS-006:::system
+     SYS-RS-007:::system
+     SYS-RS-008:::system
+     SYS-RS-009:::system
+     SYS-RS-010:::system
+    classDef executive fill:#1F77B4,color:white
+    classDef market fill:#FF7F0E,color:white
+    classDef merchant fill:#2CA02C,color:white
+    classDef client fill:#D62728,color:white
+    classDef financial fill:#9467BD,color:white
+    classDef compliance fill:#8C564B,color:white
+    classDef quality fill:#E377C2,color:white
+    classDef advanced fill:#7F7F7F,color:white
+    classDef architecture fill:#BCBD22,color:white
+    classDef business fill:#17BECF,color:white
+    classDef system fill:#1F77B4,color:white
+    classDef software fill:#FF7F0E,color:white
+    classDef hardware fill:#2CA02C,color:white
+    classDef safety fill:#D62728,color:white
+    classDef functional_safety fill:#9467BD,color:white
+    classDef performance fill:#FF7F0E,color:white
+    classDef safety_override fill:#D62728,color:white
+    classDef operational fill:#8C564B,color:white
+    classDef requirements fill:#7F7F7F,color:white

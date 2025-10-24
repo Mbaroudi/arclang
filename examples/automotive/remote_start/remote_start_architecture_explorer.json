@@ -1,0 +1,1833 @@
+{
+  "metadata": {
+    "title": "Vehicle Remote Start System Architecture",
+    "version": "1.0.0",
+    "description": "Complete architecture with 25 components, 16 interfaces, and 33 requirements",
+    "total_requirements": 33,
+    "total_components": 25,
+    "total_interfaces": 16,
+    "total_functions": 32
+  },
+  "requirements": [
+    {
+      "category": "General",
+      "requirements": [
+        {
+          "id": "STK-RS-001",
+          "description": "User must be able to remotely start the vehicle from their smartphone within 100m range",
+          "priority": "Critical",
+          "category": null,
+          "safety_level": null,
+          "traces_to": [
+            "SYS-RS-001",
+            "FUNC-RS-001"
+          ]
+        },
+        {
+          "id": "STK-RS-002",
+          "description": "System must prevent remote start if vehicle safety conditions are not met",
+          "priority": "Critical",
+          "category": null,
+          "safety_level": "ASIL_B",
+          "traces_to": [
+            "SYS-RS-002",
+            "FUNC-RS-002"
+          ]
+        },
+        {
+          "id": "STK-RS-003",
+          "description": "Remote start must work for ICE, Hybrid, and Electric vehicles with appropriate powertrain control",
+          "priority": "Critical",
+          "category": null,
+          "safety_level": null,
+          "traces_to": [
+            "SYS-RS-005"
+          ]
+        },
+        {
+          "id": "STK-RS-004",
+          "description": "System must authenticate user and secure all communications to prevent unauthorized access",
+          "priority": "Critical",
+          "category": null,
+          "safety_level": null,
+          "traces_to": [
+            "SYS-RS-001",
+            "SYS-RS-003"
+          ]
+        },
+        {
+          "id": "STK-RS-005",
+          "description": "Vehicle must comply with regional emission and safety regulations during remote start",
+          "priority": "High",
+          "category": null,
+          "safety_level": null,
+          "traces_to": [
+            "SYS-RS-009"
+          ]
+        },
+        {
+          "id": "STK-RS-006",
+          "description": "User shall receive confirmation of remote start status within 3 seconds",
+          "priority": "High",
+          "category": null,
+          "safety_level": null,
+          "traces_to": [
+            "SYS-RS-006"
+          ]
+        },
+        {
+          "id": "STK-RS-007",
+          "description": "System must automatically shut down after 10 minutes if not manually overridden",
+          "priority": "Medium",
+          "category": null,
+          "safety_level": null,
+          "traces_to": [
+            "SYS-RS-007"
+          ]
+        },
+        {
+          "id": "STK-RS-008",
+          "description": "Remote start must maintain cabin comfort through climate control pre-conditioning",
+          "priority": "Medium",
+          "category": null,
+          "safety_level": null,
+          "traces_to": [
+            "SYS-RS-008"
+          ]
+        },
+        {
+          "id": "SYS-RS-001",
+          "description": "System shall authenticate user identity using cryptographic tokens before allowing remote start",
+          "priority": "Critical",
+          "category": null,
+          "safety_level": "ASIL_B",
+          "traces_to": []
+        },
+        {
+          "id": "SYS-RS-002",
+          "description": "System shall verify all safety interlocks (parking brake, neutral, doors closed) before starting",
+          "priority": "Critical",
+          "category": null,
+          "safety_level": "ASIL_B",
+          "traces_to": []
+        },
+        {
+          "id": "SYS-RS-003",
+          "description": "System shall establish secure encrypted communication channel between smartphone and vehicle",
+          "priority": "Critical",
+          "category": null,
+          "safety_level": null,
+          "traces_to": []
+        },
+        {
+          "id": "SYS-RS-004",
+          "description": "System shall monitor battery state of charge and prevent start if below 20 percent for EV or voltage below 11V for ICE",
+          "priority": "High",
+          "category": null,
+          "safety_level": null,
+          "traces_to": []
+        },
+        {
+          "id": "SYS-RS-005",
+          "description": "System shall activate appropriate powertrain control strategy based on vehicle type ICE Hybrid or EV",
+          "priority": "Critical",
+          "category": null,
+          "safety_level": null,
+          "traces_to": []
+        },
+        {
+          "id": "SYS-RS-006",
+          "description": "System shall send status notifications success failure warnings to user smartphone",
+          "priority": "High",
+          "category": null,
+          "safety_level": null,
+          "traces_to": []
+        },
+        {
+          "id": "SYS-RS-007",
+          "description": "System shall implement automatic shutdown timer with maximum 10 minute duration",
+          "priority": "High",
+          "category": null,
+          "safety_level": null,
+          "traces_to": []
+        },
+        {
+          "id": "SYS-RS-008",
+          "description": "System shall activate climate control to target temperature based on user preferences",
+          "priority": "Medium",
+          "category": null,
+          "safety_level": null,
+          "traces_to": []
+        },
+        {
+          "id": "SYS-RS-009",
+          "description": "System shall log all remote start attempts with timestamp and result for audit trail",
+          "priority": "Medium",
+          "category": null,
+          "safety_level": null,
+          "traces_to": []
+        },
+        {
+          "id": "SYS-RS-010",
+          "description": "System shall detect tampering or replay attacks and raise security alerts",
+          "priority": "Critical",
+          "category": null,
+          "safety_level": null,
+          "traces_to": []
+        },
+        {
+          "id": "FUNC-RS-001",
+          "description": "Remote start request processing function shall validate user credentials within 500ms",
+          "priority": "Critical",
+          "category": null,
+          "safety_level": null,
+          "traces_to": []
+        },
+        {
+          "id": "FUNC-RS-002",
+          "description": "Safety interlock validation function shall check all preconditions within 200ms",
+          "priority": "Critical",
+          "category": null,
+          "safety_level": "ASIL_B",
+          "traces_to": []
+        },
+        {
+          "id": "FUNC-RS-003",
+          "description": "Powertrain control function shall initiate start sequence based on vehicle type",
+          "priority": "Critical",
+          "category": null,
+          "safety_level": null,
+          "traces_to": []
+        },
+        {
+          "id": "FUNC-RS-004",
+          "description": "Notification service shall deliver status updates with 99.9 percent reliability",
+          "priority": "High",
+          "category": null,
+          "safety_level": null,
+          "traces_to": []
+        },
+        {
+          "id": "SAFE-RS-001",
+          "description": "Remote start controller shall implement watchdog monitoring with 100ms timeout",
+          "priority": "Critical",
+          "category": null,
+          "safety_level": "ASIL_B",
+          "traces_to": []
+        },
+        {
+          "id": "SAFE-RS-002",
+          "description": "Safety interlock failure shall inhibit remote start and log fault code",
+          "priority": "Critical",
+          "category": null,
+          "safety_level": "ASIL_B",
+          "traces_to": []
+        },
+        {
+          "id": "SAFE-RS-003",
+          "description": "Remote start shall be inhibited if any ASIL B or higher fault is active",
+          "priority": "Critical",
+          "category": null,
+          "safety_level": "ASIL_B",
+          "traces_to": []
+        },
+        {
+          "id": "SEC-RS-001",
+          "description": "All remote commands shall use AES 256 encryption with perfect forward secrecy",
+          "priority": "Critical",
+          "category": null,
+          "safety_level": null,
+          "traces_to": []
+        },
+        {
+          "id": "SEC-RS-002",
+          "description": "System shall implement certificate based authentication with hardware backed key storage",
+          "priority": "Critical",
+          "category": null,
+          "safety_level": null,
+          "traces_to": []
+        },
+        {
+          "id": "SEC-RS-003",
+          "description": "Replay attack detection shall use cryptographic nonce with maximum 5 second window",
+          "priority": "Critical",
+          "category": null,
+          "safety_level": null,
+          "traces_to": []
+        },
+        {
+          "id": "SEC-RS-004",
+          "description": "Failed authentication attempts shall trigger exponential backoff after 3 failures",
+          "priority": "High",
+          "category": null,
+          "safety_level": null,
+          "traces_to": []
+        },
+        {
+          "id": "REG-RS-001",
+          "description": "System shall comply with FCC Part 15 for radiated emissions",
+          "priority": "Critical",
+          "category": null,
+          "safety_level": null,
+          "traces_to": []
+        },
+        {
+          "id": "REG-RS-002",
+          "description": "Remote start duration shall comply with local idle time regulations maximum 10 minutes",
+          "priority": "High",
+          "category": null,
+          "safety_level": null,
+          "traces_to": []
+        },
+        {
+          "id": "REG-RS-003",
+          "description": "System shall comply with GDPR for user data privacy and consent",
+          "priority": "High",
+          "category": null,
+          "safety_level": null,
+          "traces_to": []
+        },
+        {
+          "id": "REG-RS-004",
+          "description": "Remote start shall comply with UNECE R100 for electric vehicle safety",
+          "priority": "High",
+          "category": null,
+          "safety_level": null,
+          "traces_to": []
+        }
+      ]
+    }
+  ],
+  "components": [
+    {
+      "id": "LA-USER-001",
+      "name": "Smartphone Application",
+      "layer": "User",
+      "component_type": "Logical",
+      "safety_level": null,
+      "asil": null,
+      "interfaces_in": [
+        {
+          "name": "StartConfirmation",
+          "protocol": "HTTPS",
+          "format": "JSON"
+        }
+      ],
+      "interfaces_out": [
+        {
+          "name": "RemoteStartRequest",
+          "protocol": "HTTPS",
+          "format": "JSON"
+        }
+      ],
+      "functions": [
+        "displayUI",
+        "sendRemoteStartRequest"
+      ],
+      "description": "Component in User layer"
+    },
+    {
+      "id": "LA-USER-002",
+      "name": "User Authentication Service",
+      "layer": "User",
+      "component_type": "Logical",
+      "safety_level": null,
+      "asil": null,
+      "interfaces_in": [],
+      "interfaces_out": [
+        {
+          "name": "TokenValidation",
+          "protocol": "OAuth",
+          "format": "JWT"
+        }
+      ],
+      "functions": [
+        "generateAuthToken",
+        "validateBiometric"
+      ],
+      "description": "Component in User layer"
+    },
+    {
+      "id": "LA-CONN-001",
+      "name": "Telematics Control Unit",
+      "layer": "Connectivity",
+      "component_type": "Logical",
+      "safety_level": "ASIL_B",
+      "asil": null,
+      "interfaces_in": [
+        {
+          "name": "RemoteCommandIn",
+          "protocol": "LTE",
+          "format": "Encrypted"
+        }
+      ],
+      "interfaces_out": [
+        {
+          "name": "CANCommandOut",
+          "protocol": "CAN",
+          "format": "Binary"
+        }
+      ],
+      "functions": [
+        "receiveRemoteCommands",
+        "routeToVehicleBus"
+      ],
+      "description": "Component in Connectivity layer"
+    },
+    {
+      "id": "LA-CONN-002",
+      "name": "Secure Communication Manager",
+      "layer": "Connectivity",
+      "component_type": "Logical",
+      "safety_level": null,
+      "asil": null,
+      "interfaces_in": [
+        {
+          "name": "SecurityValidation",
+          "protocol": "Internal",
+          "format": "Encrypted"
+        }
+      ],
+      "interfaces_out": [],
+      "functions": [
+        "verifyCryptographicSignature",
+        "detectReplayAttacks"
+      ],
+      "description": "Component in Connectivity layer"
+    },
+    {
+      "id": "LA-CONN-003",
+      "name": "Cloud Backend Service",
+      "layer": "Connectivity",
+      "component_type": "Logical",
+      "safety_level": null,
+      "asil": null,
+      "interfaces_in": [
+        {
+          "name": "CloudRequestIn",
+          "protocol": "HTTPS",
+          "format": "JSON"
+        }
+      ],
+      "interfaces_out": [
+        {
+          "name": "CloudCommandOut",
+          "protocol": "MQTT",
+          "format": "JSON"
+        }
+      ],
+      "functions": [
+        "queueRequests",
+        "storeAuditLogs"
+      ],
+      "description": "Component in Connectivity layer"
+    },
+    {
+      "id": "LA-CTRL-001",
+      "name": "Remote Start Controller",
+      "layer": "Control",
+      "component_type": "Logical",
+      "safety_level": "ASIL_B",
+      "asil": null,
+      "interfaces_in": [
+        {
+          "name": "StartVehicleCommand",
+          "protocol": "CAN",
+          "format": "Binary"
+        }
+      ],
+      "interfaces_out": [
+        {
+          "name": "PowertrainStartCommand",
+          "protocol": "CAN",
+          "format": "Binary"
+        }
+      ],
+      "functions": [
+        "orchestrateStartSequence",
+        "validateSafetyPreconditions"
+      ],
+      "description": "Component in Control layer"
+    },
+    {
+      "id": "LA-CTRL-002",
+      "name": "Safety Interlock Validator",
+      "layer": "Control",
+      "component_type": "Logical",
+      "safety_level": "ASIL_B",
+      "asil": null,
+      "interfaces_in": [
+        {
+          "name": "SensorInputs",
+          "protocol": "CAN",
+          "format": "Binary"
+        }
+      ],
+      "interfaces_out": [
+        {
+          "name": "InterlockStatus",
+          "protocol": "Internal",
+          "format": "Boolean"
+        }
+      ],
+      "functions": [
+        "checkTransmissionPosition",
+        "verifyParkingBrake"
+      ],
+      "description": "Component in Control layer"
+    },
+    {
+      "id": "LA-CTRL-003",
+      "name": "Powertrain Start Manager",
+      "layer": "Control",
+      "component_type": "Logical",
+      "safety_level": "ASIL_B",
+      "asil": null,
+      "interfaces_in": [
+        {
+          "name": "PowertrainControl",
+          "protocol": "CAN",
+          "format": "Binary"
+        }
+      ],
+      "interfaces_out": [
+        {
+          "name": "EngineStart",
+          "protocol": "CAN",
+          "format": "Binary"
+        }
+      ],
+      "functions": [
+        "detectPowertrainType",
+        "executeStartSequence"
+      ],
+      "description": "Component in Control layer"
+    },
+    {
+      "id": "LA-CTRL-004",
+      "name": "Climate Control Pre-Conditioner",
+      "layer": "Control",
+      "component_type": "Logical",
+      "safety_level": null,
+      "asil": null,
+      "interfaces_in": [
+        {
+          "name": "ClimateActivate",
+          "protocol": "LIN",
+          "format": "Binary"
+        }
+      ],
+      "interfaces_out": [
+        {
+          "name": "HVACControl",
+          "protocol": "LIN",
+          "format": "Binary"
+        }
+      ],
+      "functions": [
+        "readClimatePreferences",
+        "activateHVAC"
+      ],
+      "description": "Component in Control layer"
+    },
+    {
+      "id": "LA-CTRL-005",
+      "name": "Timer and Shutdown Manager",
+      "layer": "Control",
+      "component_type": "Logical",
+      "safety_level": "ASIL_B",
+      "asil": null,
+      "interfaces_in": [],
+      "interfaces_out": [
+        {
+          "name": "ShutdownCommand",
+          "protocol": "Internal",
+          "format": "Binary"
+        }
+      ],
+      "functions": [
+        "startCountdownTimer",
+        "executeAutoShutdown"
+      ],
+      "description": "Component in Control layer"
+    },
+    {
+      "id": "LA-VHC-001",
+      "name": "Engine Control Unit",
+      "layer": "Vehicle",
+      "component_type": "Logical",
+      "safety_level": "ASIL_B",
+      "asil": null,
+      "interfaces_in": [
+        {
+          "name": "ICEStartCommand",
+          "protocol": "CAN",
+          "format": "Binary"
+        }
+      ],
+      "interfaces_out": [
+        {
+          "name": "EngineStatus",
+          "protocol": "CAN",
+          "format": "Binary"
+        }
+      ],
+      "functions": [
+        "controlFuelInjection",
+        "crankEngine"
+      ],
+      "description": "Component in Vehicle layer"
+    },
+    {
+      "id": "LA-VHC-002",
+      "name": "Battery Management System",
+      "layer": "Vehicle",
+      "component_type": "Logical",
+      "safety_level": "ASIL_B",
+      "asil": null,
+      "interfaces_in": [
+        {
+          "name": "EVStartCommand",
+          "protocol": "CAN_FD",
+          "format": "Binary"
+        }
+      ],
+      "interfaces_out": [
+        {
+          "name": "BatteryStatus",
+          "protocol": "CAN_FD",
+          "format": "Binary"
+        }
+      ],
+      "functions": [
+        "monitorBatteryState",
+        "enableContactors"
+      ],
+      "description": "Component in Vehicle layer"
+    },
+    {
+      "id": "LA-VHC-003",
+      "name": "Hybrid Control Unit",
+      "layer": "Vehicle",
+      "component_type": "Logical",
+      "safety_level": "ASIL_B",
+      "asil": null,
+      "interfaces_in": [
+        {
+          "name": "HybridStartCommand",
+          "protocol": "CAN_FD",
+          "format": "Binary"
+        }
+      ],
+      "interfaces_out": [
+        {
+          "name": "HybridModeStatus",
+          "protocol": "CAN_FD",
+          "format": "Binary"
+        }
+      ],
+      "functions": [
+        "coordinateHybridPowertrain",
+        "selectOperatingMode"
+      ],
+      "description": "Component in Vehicle layer"
+    },
+    {
+      "id": "LA-VHC-004",
+      "name": "HVAC Control Module",
+      "layer": "Vehicle",
+      "component_type": "Logical",
+      "safety_level": null,
+      "asil": null,
+      "interfaces_in": [
+        {
+          "name": "HVACActivate",
+          "protocol": "LIN",
+          "format": "Binary"
+        }
+      ],
+      "interfaces_out": [
+        {
+          "name": "CabinTemperature",
+          "protocol": "LIN",
+          "format": "Analog"
+        }
+      ],
+      "functions": [
+        "controlCompressor",
+        "adjustTemperature"
+      ],
+      "description": "Component in Vehicle layer"
+    },
+    {
+      "id": "LA-VHC-005",
+      "name": "Body Control Module",
+      "layer": "Vehicle",
+      "component_type": "Logical",
+      "safety_level": null,
+      "asil": null,
+      "interfaces_in": [],
+      "interfaces_out": [
+        {
+          "name": "SensorData",
+          "protocol": "CAN",
+          "format": "Binary"
+        }
+      ],
+      "functions": [
+        "monitorDoorStatus",
+        "readParkingBrake"
+      ],
+      "description": "Component in Vehicle layer"
+    },
+    {
+      "id": "LA-VHC-006",
+      "name": "Instrument Cluster",
+      "layer": "Vehicle",
+      "component_type": "Logical",
+      "safety_level": null,
+      "asil": null,
+      "interfaces_in": [
+        {
+          "name": "DisplayCommand",
+          "protocol": "CAN",
+          "format": "Binary"
+        }
+      ],
+      "interfaces_out": [],
+      "functions": [
+        "displayRemoteStartIndicator",
+        "showCountdownTimer"
+      ],
+      "description": "Component in Vehicle layer"
+    },
+    {
+      "id": "PA-ECU-001",
+      "name": "Telematics Control Unit Hardware",
+      "layer": "Physical",
+      "component_type": "Physical",
+      "safety_level": null,
+      "asil": null,
+      "interfaces_in": [],
+      "interfaces_out": [],
+      "functions": [],
+      "description": "Component in Physical layer"
+    },
+    {
+      "id": "PA-ECU-002",
+      "name": "Gateway ECU",
+      "layer": "Physical",
+      "component_type": "Physical",
+      "safety_level": "ASIL_C",
+      "asil": null,
+      "interfaces_in": [],
+      "interfaces_out": [],
+      "functions": [],
+      "description": "Component in Physical layer"
+    },
+    {
+      "id": "PA-ECU-003",
+      "name": "Engine Control Module Hardware",
+      "layer": "Physical",
+      "component_type": "Physical",
+      "safety_level": "ASIL_D",
+      "asil": null,
+      "interfaces_in": [],
+      "interfaces_out": [],
+      "functions": [],
+      "description": "Component in Physical layer"
+    },
+    {
+      "id": "PA-ECU-004",
+      "name": "Battery Management System Hardware",
+      "layer": "Physical",
+      "component_type": "Physical",
+      "safety_level": "ASIL_D",
+      "asil": null,
+      "interfaces_in": [],
+      "interfaces_out": [],
+      "functions": [],
+      "description": "Component in Physical layer"
+    },
+    {
+      "id": "PA-ECU-005",
+      "name": "Body Control Module Hardware",
+      "layer": "Physical",
+      "component_type": "Physical",
+      "safety_level": null,
+      "asil": null,
+      "interfaces_in": [],
+      "interfaces_out": [],
+      "functions": [],
+      "description": "Component in Physical layer"
+    },
+    {
+      "id": "PA-SW-001",
+      "name": "TCU Application Software",
+      "layer": "Physical",
+      "component_type": "Physical",
+      "safety_level": null,
+      "asil": null,
+      "interfaces_in": [],
+      "interfaces_out": [],
+      "functions": [],
+      "description": "Component in Physical layer"
+    },
+    {
+      "id": "PA-SW-002",
+      "name": "Remote Start Controller Software",
+      "layer": "Physical",
+      "component_type": "Physical",
+      "safety_level": "ASIL_B",
+      "asil": null,
+      "interfaces_in": [],
+      "interfaces_out": [],
+      "functions": [],
+      "description": "Component in Physical layer"
+    },
+    {
+      "id": "PA-SW-003",
+      "name": "Engine Control Software",
+      "layer": "Physical",
+      "component_type": "Physical",
+      "safety_level": "ASIL_D",
+      "asil": null,
+      "interfaces_in": [],
+      "interfaces_out": [],
+      "functions": [],
+      "description": "Component in Physical layer"
+    },
+    {
+      "id": "PA-SW-004",
+      "name": "BMS Control Software",
+      "layer": "Physical",
+      "component_type": "Physical",
+      "safety_level": "ASIL_D",
+      "asil": null,
+      "interfaces_in": [],
+      "interfaces_out": [],
+      "functions": [],
+      "description": "Component in Physical layer"
+    }
+  ],
+  "interfaces": [
+    {
+      "name": "User to Backend",
+      "from": "LA-USER-001",
+      "to": "LA-USER-002",
+      "from_component": "Smartphone Application",
+      "to_component": "User Authentication Service"
+    },
+    {
+      "name": "Backend to TCU",
+      "from": "LA-USER-002",
+      "to": "LA-CONN-001",
+      "from_component": "User Authentication Service",
+      "to_component": "Telematics Control Unit"
+    },
+    {
+      "name": "TCU to Security",
+      "from": "LA-CONN-001",
+      "to": "LA-CONN-002",
+      "from_component": "Telematics Control Unit",
+      "to_component": "Secure Communication Manager"
+    },
+    {
+      "name": "TCU to Auth Service",
+      "from": "LA-CONN-001",
+      "to": "LA-CONN-003",
+      "from_component": "Telematics Control Unit",
+      "to_component": "Cloud Backend Service"
+    },
+    {
+      "name": "TCU to Remote Start Controller",
+      "from": "LA-CONN-001",
+      "to": "LA-CTRL-001",
+      "from_component": "Telematics Control Unit",
+      "to_component": "Remote Start Controller"
+    },
+    {
+      "name": "Remote Start to Safety Monitor",
+      "from": "LA-CTRL-001",
+      "to": "LA-CTRL-002",
+      "from_component": "Remote Start Controller",
+      "to_component": "Safety Interlock Validator"
+    },
+    {
+      "name": "Remote Start to Vehicle State Manager",
+      "from": "LA-CTRL-001",
+      "to": "LA-CTRL-003",
+      "from_component": "Remote Start Controller",
+      "to_component": "Powertrain Start Manager"
+    },
+    {
+      "name": "Remote Start to Power Management",
+      "from": "LA-CTRL-001",
+      "to": "LA-CTRL-004",
+      "from_component": "Remote Start Controller",
+      "to_component": "Climate Control Pre-Conditioner"
+    },
+    {
+      "name": "Remote Start to Climate Control",
+      "from": "LA-CTRL-001",
+      "to": "LA-CTRL-005",
+      "from_component": "Remote Start Controller",
+      "to_component": "Timer and Shutdown Manager"
+    },
+    {
+      "name": "Power Management to ECM",
+      "from": "LA-CTRL-004",
+      "to": "LA-VHC-001",
+      "from_component": "Climate Control Pre-Conditioner",
+      "to_component": "Engine Control Unit"
+    },
+    {
+      "name": "Power Management to BMS",
+      "from": "LA-CTRL-004",
+      "to": "LA-VHC-002",
+      "from_component": "Climate Control Pre-Conditioner",
+      "to_component": "Battery Management System"
+    },
+    {
+      "name": "Climate Control to HVAC",
+      "from": "LA-CTRL-005",
+      "to": "LA-VHC-004",
+      "from_component": "Timer and Shutdown Manager",
+      "to_component": "HVAC Control Module"
+    },
+    {
+      "name": "Safety Monitor to Sensors",
+      "from": "LA-CTRL-002",
+      "to": "LA-VHC-005",
+      "from_component": "Safety Interlock Validator",
+      "to_component": "Body Control Module"
+    },
+    {
+      "name": "Vehicle State to Display",
+      "from": "LA-CTRL-003",
+      "to": "LA-VHC-006",
+      "from_component": "Powertrain Start Manager",
+      "to_component": "Instrument Cluster"
+    },
+    {
+      "name": "ECM to Display",
+      "from": "LA-VHC-001",
+      "to": "LA-VHC-006",
+      "from_component": "Engine Control Unit",
+      "to_component": "Instrument Cluster"
+    },
+    {
+      "name": "BMS to Display",
+      "from": "LA-VHC-002",
+      "to": "LA-VHC-006",
+      "from_component": "Battery Management System",
+      "to_component": "Instrument Cluster"
+    }
+  ],
+  "functions": [
+    {
+      "id": "displayUI",
+      "name": "displayUI",
+      "inputs": [],
+      "outputs": [],
+      "component": "Smartphone Application"
+    },
+    {
+      "id": "sendRemoteStartRequest",
+      "name": "sendRemoteStartRequest",
+      "inputs": [],
+      "outputs": [],
+      "component": "Smartphone Application"
+    },
+    {
+      "id": "generateAuthToken",
+      "name": "generateAuthToken",
+      "inputs": [],
+      "outputs": [],
+      "component": "User Authentication Service"
+    },
+    {
+      "id": "validateBiometric",
+      "name": "validateBiometric",
+      "inputs": [],
+      "outputs": [],
+      "component": "User Authentication Service"
+    },
+    {
+      "id": "receiveRemoteCommands",
+      "name": "receiveRemoteCommands",
+      "inputs": [],
+      "outputs": [],
+      "component": "Telematics Control Unit"
+    },
+    {
+      "id": "routeToVehicleBus",
+      "name": "routeToVehicleBus",
+      "inputs": [],
+      "outputs": [],
+      "component": "Telematics Control Unit"
+    },
+    {
+      "id": "verifyCryptographicSignature",
+      "name": "verifyCryptographicSignature",
+      "inputs": [],
+      "outputs": [],
+      "component": "Secure Communication Manager"
+    },
+    {
+      "id": "detectReplayAttacks",
+      "name": "detectReplayAttacks",
+      "inputs": [],
+      "outputs": [],
+      "component": "Secure Communication Manager"
+    },
+    {
+      "id": "queueRequests",
+      "name": "queueRequests",
+      "inputs": [],
+      "outputs": [],
+      "component": "Cloud Backend Service"
+    },
+    {
+      "id": "storeAuditLogs",
+      "name": "storeAuditLogs",
+      "inputs": [],
+      "outputs": [],
+      "component": "Cloud Backend Service"
+    },
+    {
+      "id": "orchestrateStartSequence",
+      "name": "orchestrateStartSequence",
+      "inputs": [],
+      "outputs": [],
+      "component": "Remote Start Controller"
+    },
+    {
+      "id": "validateSafetyPreconditions",
+      "name": "validateSafetyPreconditions",
+      "inputs": [],
+      "outputs": [],
+      "component": "Remote Start Controller"
+    },
+    {
+      "id": "checkTransmissionPosition",
+      "name": "checkTransmissionPosition",
+      "inputs": [],
+      "outputs": [],
+      "component": "Safety Interlock Validator"
+    },
+    {
+      "id": "verifyParkingBrake",
+      "name": "verifyParkingBrake",
+      "inputs": [],
+      "outputs": [],
+      "component": "Safety Interlock Validator"
+    },
+    {
+      "id": "detectPowertrainType",
+      "name": "detectPowertrainType",
+      "inputs": [],
+      "outputs": [],
+      "component": "Powertrain Start Manager"
+    },
+    {
+      "id": "executeStartSequence",
+      "name": "executeStartSequence",
+      "inputs": [],
+      "outputs": [],
+      "component": "Powertrain Start Manager"
+    },
+    {
+      "id": "readClimatePreferences",
+      "name": "readClimatePreferences",
+      "inputs": [],
+      "outputs": [],
+      "component": "Climate Control Pre-Conditioner"
+    },
+    {
+      "id": "activateHVAC",
+      "name": "activateHVAC",
+      "inputs": [],
+      "outputs": [],
+      "component": "Climate Control Pre-Conditioner"
+    },
+    {
+      "id": "startCountdownTimer",
+      "name": "startCountdownTimer",
+      "inputs": [],
+      "outputs": [],
+      "component": "Timer and Shutdown Manager"
+    },
+    {
+      "id": "executeAutoShutdown",
+      "name": "executeAutoShutdown",
+      "inputs": [],
+      "outputs": [],
+      "component": "Timer and Shutdown Manager"
+    },
+    {
+      "id": "controlFuelInjection",
+      "name": "controlFuelInjection",
+      "inputs": [],
+      "outputs": [],
+      "component": "Engine Control Unit"
+    },
+    {
+      "id": "crankEngine",
+      "name": "crankEngine",
+      "inputs": [],
+      "outputs": [],
+      "component": "Engine Control Unit"
+    },
+    {
+      "id": "monitorBatteryState",
+      "name": "monitorBatteryState",
+      "inputs": [],
+      "outputs": [],
+      "component": "Battery Management System"
+    },
+    {
+      "id": "enableContactors",
+      "name": "enableContactors",
+      "inputs": [],
+      "outputs": [],
+      "component": "Battery Management System"
+    },
+    {
+      "id": "coordinateHybridPowertrain",
+      "name": "coordinateHybridPowertrain",
+      "inputs": [],
+      "outputs": [],
+      "component": "Hybrid Control Unit"
+    },
+    {
+      "id": "selectOperatingMode",
+      "name": "selectOperatingMode",
+      "inputs": [],
+      "outputs": [],
+      "component": "Hybrid Control Unit"
+    },
+    {
+      "id": "controlCompressor",
+      "name": "controlCompressor",
+      "inputs": [],
+      "outputs": [],
+      "component": "HVAC Control Module"
+    },
+    {
+      "id": "adjustTemperature",
+      "name": "adjustTemperature",
+      "inputs": [],
+      "outputs": [],
+      "component": "HVAC Control Module"
+    },
+    {
+      "id": "monitorDoorStatus",
+      "name": "monitorDoorStatus",
+      "inputs": [],
+      "outputs": [],
+      "component": "Body Control Module"
+    },
+    {
+      "id": "readParkingBrake",
+      "name": "readParkingBrake",
+      "inputs": [],
+      "outputs": [],
+      "component": "Body Control Module"
+    },
+    {
+      "id": "displayRemoteStartIndicator",
+      "name": "displayRemoteStartIndicator",
+      "inputs": [],
+      "outputs": [],
+      "component": "Instrument Cluster"
+    },
+    {
+      "id": "showCountdownTimer",
+      "name": "showCountdownTimer",
+      "inputs": [],
+      "outputs": [],
+      "component": "Instrument Cluster"
+    }
+  ],
+  "traces": [
+    {
+      "from": "STK-RS-001",
+      "to": "SYS-RS-001",
+      "trace_type": "satisfies",
+      "rationale": null
+    },
+    {
+      "from": "STK-RS-001",
+      "to": "FUNC-RS-001",
+      "trace_type": "satisfies",
+      "rationale": null
+    },
+    {
+      "from": "STK-RS-002",
+      "to": "SYS-RS-002",
+      "trace_type": "satisfies",
+      "rationale": null
+    },
+    {
+      "from": "STK-RS-002",
+      "to": "FUNC-RS-002",
+      "trace_type": "satisfies",
+      "rationale": null
+    },
+    {
+      "from": "STK-RS-003",
+      "to": "SYS-RS-005",
+      "trace_type": "satisfies",
+      "rationale": null
+    },
+    {
+      "from": "STK-RS-004",
+      "to": "SYS-RS-001",
+      "trace_type": "satisfies",
+      "rationale": null
+    },
+    {
+      "from": "STK-RS-004",
+      "to": "SYS-RS-003",
+      "trace_type": "satisfies",
+      "rationale": null
+    },
+    {
+      "from": "STK-RS-005",
+      "to": "SYS-RS-009",
+      "trace_type": "satisfies",
+      "rationale": null
+    },
+    {
+      "from": "STK-RS-006",
+      "to": "SYS-RS-006",
+      "trace_type": "satisfies",
+      "rationale": null
+    },
+    {
+      "from": "STK-RS-007",
+      "to": "SYS-RS-007",
+      "trace_type": "satisfies",
+      "rationale": null
+    },
+    {
+      "from": "STK-RS-008",
+      "to": "SYS-RS-008",
+      "trace_type": "satisfies",
+      "rationale": null
+    }
+  ],
+  "diagram": {
+    "nodes": [
+      {
+        "id": "LA-USER-001",
+        "label": "Smartphone Application",
+        "layer": "User",
+        "stereotype": "<<component>>",
+        "interfaces_in": [
+          {
+            "name": "StartConfirmation",
+            "protocol": "HTTPS",
+            "format": "JSON"
+          }
+        ],
+        "interfaces_out": [
+          {
+            "name": "RemoteStartRequest",
+            "protocol": "HTTPS",
+            "format": "JSON"
+          }
+        ],
+        "functions": [
+          "displayUI",
+          "sendRemoteStartRequest"
+        ],
+        "width": 220,
+        "height": 180
+      },
+      {
+        "id": "LA-USER-002",
+        "label": "User Authentication Service",
+        "layer": "User",
+        "stereotype": "<<component>>",
+        "interfaces_in": [],
+        "interfaces_out": [
+          {
+            "name": "TokenValidation",
+            "protocol": "OAuth",
+            "format": "JWT"
+          }
+        ],
+        "functions": [
+          "generateAuthToken",
+          "validateBiometric"
+        ],
+        "width": 249,
+        "height": 180
+      },
+      {
+        "id": "LA-CONN-001",
+        "label": "Telematics Control Unit",
+        "layer": "Connectivity",
+        "stereotype": "<<component>>",
+        "safety_level": "ASIL_B",
+        "interfaces_in": [
+          {
+            "name": "RemoteCommandIn",
+            "protocol": "LTE",
+            "format": "Encrypted"
+          }
+        ],
+        "interfaces_out": [
+          {
+            "name": "CANCommandOut",
+            "protocol": "CAN",
+            "format": "Binary"
+          }
+        ],
+        "functions": [
+          "receiveRemoteCommands",
+          "routeToVehicleBus"
+        ],
+        "width": 221,
+        "height": 180
+      },
+      {
+        "id": "LA-CONN-002",
+        "label": "Secure Communication Manager",
+        "layer": "Connectivity",
+        "stereotype": "<<component>>",
+        "interfaces_in": [
+          {
+            "name": "SecurityValidation",
+            "protocol": "Internal",
+            "format": "Encrypted"
+          }
+        ],
+        "interfaces_out": [],
+        "functions": [
+          "verifyCryptographicSignature",
+          "detectReplayAttacks"
+        ],
+        "width": 256,
+        "height": 180
+      },
+      {
+        "id": "LA-CONN-003",
+        "label": "Cloud Backend Service",
+        "layer": "Connectivity",
+        "stereotype": "<<component>>",
+        "interfaces_in": [
+          {
+            "name": "CloudRequestIn",
+            "protocol": "HTTPS",
+            "format": "JSON"
+          }
+        ],
+        "interfaces_out": [
+          {
+            "name": "CloudCommandOut",
+            "protocol": "MQTT",
+            "format": "JSON"
+          }
+        ],
+        "functions": [
+          "queueRequests",
+          "storeAuditLogs"
+        ],
+        "width": 220,
+        "height": 180
+      },
+      {
+        "id": "LA-CTRL-001",
+        "label": "Remote Start Controller",
+        "layer": "Control",
+        "stereotype": "<<component>>",
+        "safety_level": "ASIL_B",
+        "interfaces_in": [
+          {
+            "name": "StartVehicleCommand",
+            "protocol": "CAN",
+            "format": "Binary"
+          }
+        ],
+        "interfaces_out": [
+          {
+            "name": "PowertrainStartCommand",
+            "protocol": "CAN",
+            "format": "Binary"
+          }
+        ],
+        "functions": [
+          "orchestrateStartSequence",
+          "validateSafetyPreconditions"
+        ],
+        "width": 221,
+        "height": 180
+      },
+      {
+        "id": "LA-CTRL-002",
+        "label": "Safety Interlock Validator",
+        "layer": "Control",
+        "stereotype": "<<service>>",
+        "safety_level": "ASIL_B",
+        "interfaces_in": [
+          {
+            "name": "SensorInputs",
+            "protocol": "CAN",
+            "format": "Binary"
+          }
+        ],
+        "interfaces_out": [
+          {
+            "name": "InterlockStatus",
+            "protocol": "Internal",
+            "format": "Boolean"
+          }
+        ],
+        "functions": [
+          "checkTransmissionPosition",
+          "verifyParkingBrake"
+        ],
+        "width": 242,
+        "height": 180
+      },
+      {
+        "id": "LA-CTRL-003",
+        "label": "Powertrain Start Manager",
+        "layer": "Control",
+        "stereotype": "<<component>>",
+        "safety_level": "ASIL_B",
+        "interfaces_in": [
+          {
+            "name": "PowertrainControl",
+            "protocol": "CAN",
+            "format": "Binary"
+          }
+        ],
+        "interfaces_out": [
+          {
+            "name": "EngineStart",
+            "protocol": "CAN",
+            "format": "Binary"
+          }
+        ],
+        "functions": [
+          "detectPowertrainType",
+          "executeStartSequence"
+        ],
+        "width": 228,
+        "height": 180
+      },
+      {
+        "id": "LA-CTRL-004",
+        "label": "Climate Control Pre-Conditioner",
+        "layer": "Control",
+        "stereotype": "<<component>>",
+        "interfaces_in": [
+          {
+            "name": "ClimateActivate",
+            "protocol": "LIN",
+            "format": "Binary"
+          }
+        ],
+        "interfaces_out": [
+          {
+            "name": "HVACControl",
+            "protocol": "LIN",
+            "format": "Binary"
+          }
+        ],
+        "functions": [
+          "readClimatePreferences",
+          "activateHVAC"
+        ],
+        "width": 277,
+        "height": 180
+      },
+      {
+        "id": "LA-CTRL-005",
+        "label": "Timer and Shutdown Manager",
+        "layer": "Control",
+        "stereotype": "<<component>>",
+        "safety_level": "ASIL_B",
+        "interfaces_in": [],
+        "interfaces_out": [
+          {
+            "name": "ShutdownCommand",
+            "protocol": "Internal",
+            "format": "Binary"
+          }
+        ],
+        "functions": [
+          "startCountdownTimer",
+          "executeAutoShutdown"
+        ],
+        "width": 242,
+        "height": 180
+      },
+      {
+        "id": "LA-VHC-001",
+        "label": "Engine Control Unit",
+        "layer": "Vehicle",
+        "stereotype": "<<process>>",
+        "safety_level": "ASIL_B",
+        "interfaces_in": [
+          {
+            "name": "ICEStartCommand",
+            "protocol": "CAN",
+            "format": "Binary"
+          }
+        ],
+        "interfaces_out": [
+          {
+            "name": "EngineStatus",
+            "protocol": "CAN",
+            "format": "Binary"
+          }
+        ],
+        "functions": [
+          "controlFuelInjection",
+          "crankEngine"
+        ],
+        "width": 220,
+        "height": 180
+      },
+      {
+        "id": "LA-VHC-002",
+        "label": "Battery Management System",
+        "layer": "Vehicle",
+        "stereotype": "<<component>>",
+        "safety_level": "ASIL_B",
+        "interfaces_in": [
+          {
+            "name": "EVStartCommand",
+            "protocol": "CAN_FD",
+            "format": "Binary"
+          }
+        ],
+        "interfaces_out": [
+          {
+            "name": "BatteryStatus",
+            "protocol": "CAN_FD",
+            "format": "Binary"
+          }
+        ],
+        "functions": [
+          "monitorBatteryState",
+          "enableContactors"
+        ],
+        "width": 235,
+        "height": 180
+      },
+      {
+        "id": "LA-VHC-003",
+        "label": "Hybrid Control Unit",
+        "layer": "Vehicle",
+        "stereotype": "<<component>>",
+        "safety_level": "ASIL_B",
+        "interfaces_in": [
+          {
+            "name": "HybridStartCommand",
+            "protocol": "CAN_FD",
+            "format": "Binary"
+          }
+        ],
+        "interfaces_out": [
+          {
+            "name": "HybridModeStatus",
+            "protocol": "CAN_FD",
+            "format": "Binary"
+          }
+        ],
+        "functions": [
+          "coordinateHybridPowertrain",
+          "selectOperatingMode"
+        ],
+        "width": 220,
+        "height": 180
+      },
+      {
+        "id": "LA-VHC-004",
+        "label": "HVAC Control Module",
+        "layer": "Vehicle",
+        "stereotype": "<<component>>",
+        "interfaces_in": [
+          {
+            "name": "HVACActivate",
+            "protocol": "LIN",
+            "format": "Binary"
+          }
+        ],
+        "interfaces_out": [
+          {
+            "name": "CabinTemperature",
+            "protocol": "LIN",
+            "format": "Analog"
+          }
+        ],
+        "functions": [
+          "controlCompressor",
+          "adjustTemperature"
+        ],
+        "width": 220,
+        "height": 180
+      },
+      {
+        "id": "LA-VHC-005",
+        "label": "Body Control Module",
+        "layer": "Vehicle",
+        "stereotype": "<<component>>",
+        "interfaces_in": [],
+        "interfaces_out": [
+          {
+            "name": "SensorData",
+            "protocol": "CAN",
+            "format": "Binary"
+          }
+        ],
+        "functions": [
+          "monitorDoorStatus",
+          "readParkingBrake"
+        ],
+        "width": 220,
+        "height": 180
+      },
+      {
+        "id": "LA-VHC-006",
+        "label": "Instrument Cluster",
+        "layer": "Vehicle",
+        "stereotype": "<<component>>",
+        "interfaces_in": [
+          {
+            "name": "DisplayCommand",
+            "protocol": "CAN",
+            "format": "Binary"
+          }
+        ],
+        "interfaces_out": [],
+        "functions": [
+          "displayRemoteStartIndicator",
+          "showCountdownTimer"
+        ],
+        "width": 220,
+        "height": 180
+      },
+      {
+        "id": "PA-ECU-001",
+        "label": "Telematics Control Unit Hardware",
+        "layer": "Physical",
+        "stereotype": "<<component>>",
+        "interfaces_in": [],
+        "interfaces_out": [],
+        "functions": [],
+        "width": 284,
+        "height": 180
+      },
+      {
+        "id": "PA-ECU-002",
+        "label": "Gateway ECU",
+        "layer": "Physical",
+        "stereotype": "<<interface>>",
+        "safety_level": "ASIL_C",
+        "interfaces_in": [],
+        "interfaces_out": [],
+        "functions": [],
+        "width": 220,
+        "height": 180
+      },
+      {
+        "id": "PA-ECU-003",
+        "label": "Engine Control Module Hardware",
+        "layer": "Physical",
+        "stereotype": "<<process>>",
+        "safety_level": "ASIL_D",
+        "interfaces_in": [],
+        "interfaces_out": [],
+        "functions": [],
+        "width": 270,
+        "height": 180
+      },
+      {
+        "id": "PA-ECU-004",
+        "label": "Battery Management System Hardware",
+        "layer": "Physical",
+        "stereotype": "<<component>>",
+        "safety_level": "ASIL_D",
+        "interfaces_in": [],
+        "interfaces_out": [],
+        "functions": [],
+        "width": 298,
+        "height": 180
+      },
+      {
+        "id": "PA-ECU-005",
+        "label": "Body Control Module Hardware",
+        "layer": "Physical",
+        "stereotype": "<<component>>",
+        "interfaces_in": [],
+        "interfaces_out": [],
+        "functions": [],
+        "width": 256,
+        "height": 180
+      },
+      {
+        "id": "PA-SW-001",
+        "label": "TCU Application Software",
+        "layer": "Physical",
+        "stereotype": "<<component>>",
+        "interfaces_in": [],
+        "interfaces_out": [],
+        "functions": [],
+        "width": 228,
+        "height": 180
+      },
+      {
+        "id": "PA-SW-002",
+        "label": "Remote Start Controller Software",
+        "layer": "Physical",
+        "stereotype": "<<component>>",
+        "safety_level": "ASIL_B",
+        "interfaces_in": [],
+        "interfaces_out": [],
+        "functions": [],
+        "width": 284,
+        "height": 180
+      },
+      {
+        "id": "PA-SW-003",
+        "label": "Engine Control Software",
+        "layer": "Physical",
+        "stereotype": "<<process>>",
+        "safety_level": "ASIL_D",
+        "interfaces_in": [],
+        "interfaces_out": [],
+        "functions": [],
+        "width": 221,
+        "height": 180
+      },
+      {
+        "id": "PA-SW-004",
+        "label": "BMS Control Software",
+        "layer": "Physical",
+        "stereotype": "<<component>>",
+        "safety_level": "ASIL_D",
+        "interfaces_in": [],
+        "interfaces_out": [],
+        "functions": [],
+        "width": 220,
+        "height": 180
+      }
+    ],
+    "edges": [
+      {
+        "source": "LA-USER-001",
+        "target": "LA-USER-002",
+        "label": "User to Backend"
+      },
+      {
+        "source": "LA-USER-002",
+        "target": "LA-CONN-001",
+        "label": "Backend to TCU"
+      },
+      {
+        "source": "LA-CONN-001",
+        "target": "LA-CONN-002",
+        "label": "TCU to Security"
+      },
+      {
+        "source": "LA-CONN-001",
+        "target": "LA-CONN-003",
+        "label": "TCU to Auth Service"
+      },
+      {
+        "source": "LA-CONN-001",
+        "target": "LA-CTRL-001",
+        "label": "TCU to Remote Start Controller"
+      },
+      {
+        "source": "LA-CTRL-001",
+        "target": "LA-CTRL-002",
+        "label": "Remote Start to Safety Monitor"
+      },
+      {
+        "source": "LA-CTRL-001",
+        "target": "LA-CTRL-003",
+        "label": "Remote Start to Vehicle State Manager"
+      },
+      {
+        "source": "LA-CTRL-001",
+        "target": "LA-CTRL-004",
+        "label": "Remote Start to Power Management"
+      },
+      {
+        "source": "LA-CTRL-001",
+        "target": "LA-CTRL-005",
+        "label": "Remote Start to Climate Control"
+      },
+      {
+        "source": "LA-CTRL-004",
+        "target": "LA-VHC-001",
+        "label": "Power Management to ECM"
+      },
+      {
+        "source": "LA-CTRL-004",
+        "target": "LA-VHC-002",
+        "label": "Power Management to BMS"
+      },
+      {
+        "source": "LA-CTRL-005",
+        "target": "LA-VHC-004",
+        "label": "Climate Control to HVAC"
+      },
+      {
+        "source": "LA-CTRL-002",
+        "target": "LA-VHC-005",
+        "label": "Safety Monitor to Sensors"
+      },
+      {
+        "source": "LA-CTRL-003",
+        "target": "LA-VHC-006",
+        "label": "Vehicle State to Display"
+      },
+      {
+        "source": "LA-VHC-001",
+        "target": "LA-VHC-006",
+        "label": "ECM to Display"
+      },
+      {
+        "source": "LA-VHC-002",
+        "target": "LA-VHC-006",
+        "label": "BMS to Display"
+      }
+    ],
+    "layers": [
+      {
+        "name": "Connectivity",
+        "color": "#FFF3E0",
+        "description": "Connectivity & Communication Layer"
+      },
+      {
+        "name": "Control",
+        "color": "#F3E5F5",
+        "description": "Control & Logic Layer"
+      },
+      {
+        "name": "Physical",
+        "color": "#FCE4EC",
+        "description": "Physical Hardware Layer"
+      },
+      {
+        "name": "User",
+        "color": "#E1F5FE",
+        "description": "User Interface Layer"
+      },
+      {
+        "name": "Vehicle",
+        "color": "#E8F5E9",
+        "description": "Vehicle Systems Layer"
+      }
+    ]
+  }
+}
