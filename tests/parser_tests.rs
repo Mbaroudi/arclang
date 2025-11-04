@@ -88,7 +88,7 @@ architecture logical {
     let model = ast.unwrap();
     assert_eq!(model.logical_architecture.len(), 1, "Should have 1 logical architecture");
     assert_eq!(model.logical_architecture[0].components.len(), 2, "Should have 2 components");
-    assert_eq!(model.logical_architecture[0].interfaces.len(), 1, "Should have 1 connection");
+    assert_eq!(model.logical_architecture[0].component_exchanges.len(), 1, "Should have 1 connection");
 }
 
 #[test]
@@ -210,7 +210,7 @@ architecture logical {
     
     assert!(ast.is_ok(), "Failed to parse from/to keywords: {:?}", ast.err());
     let model = ast.unwrap();
-    let interface = &model.logical_architecture[0].interfaces[0];
-    assert_eq!(interface.from, "A1", "from field should be A1");
-    assert_eq!(interface.to, "B1", "to field should be B1");
+    let exchange = &model.logical_architecture[0].component_exchanges[0];
+    assert_eq!(exchange.from_port, "A1", "from field should be A1");
+    assert_eq!(exchange.to_port, "B1", "to field should be B1");
 }

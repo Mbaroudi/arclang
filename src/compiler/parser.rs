@@ -285,19 +285,32 @@ impl Parser {
         self.expect(Token::LeftBrace)?;
         
         let mut actors = Vec::new();
+        let mut entities = Vec::new();
         let mut capabilities = Vec::new();
         let mut activities = Vec::new();
+        let mut exchanges = Vec::new();
+        let mut traces = Vec::new();
         
         while !self.check(&Token::RightBrace) && !self.is_at_end() {
             match self.current() {
                 Token::Actor => {
                     actors.push(self.parse_actor()?);
                 }
+                Token::Identifier(ref id) if id == "operational_entity" || id == "entity" => {
+                    entities.push(self.parse_operational_entity()?);
+                }
                 Token::Identifier(ref id) if id == "operational_capability" => {
                     capabilities.push(self.parse_operational_capability()?);
                 }
                 Token::Identifier(ref id) if id == "operational_activity" => {
                     activities.push(self.parse_operational_activity()?);
+                }
+                Token::Identifier(ref id) if id == "operational_exchange" || id == "exchange" || id == "interaction" => {
+                    exchanges.push(self.parse_operational_exchange()?);
+                }
+                Token::Trace => {
+                    // Parse traces and collect them
+                    traces.push(self.parse_trace()?);
                 }
                 _ => {
                     return Err(format!("Unexpected token in operational_analysis: {}", self.current()));
@@ -310,8 +323,54 @@ impl Parser {
         Ok(OperationalAnalysis {
             name,
             actors,
+            entities,
             capabilities,
             activities,
+            exchanges,
+            capability_associations: Vec::new(),
+            traces,
+        })
+    }
+    
+    fn parse_operational_entity(&mut self) -> Result<OperationalEntity, String> {
+        self.advance(); // Skip 'operational_entity' or 'entity'
+        let name = self.expect_string()?;
+        self.expect(Token::LeftBrace)?;
+        
+        let mut attributes = HashMap::new();
+        let mut activities = Vec::new();
+        
+        while !self.check(&Token::RightBrace) && !self.is_at_end() {
+            match self.current() {
+                Token::Identifier(ref id) if id == "operational_activity" || id == "activity" => {
+                    activities.push(self.parse_operational_activity()?);
+                }
+                Token::Identifier(ref key) => {
+                    let key = key.clone();
+                    self.advance();
+                    self.expect(Token::Colon)?;
+                    let value = self.parse_attribute_value()?;
+                    attributes.insert(key, value);
+                }
+                _ => {
+                    return Err(format!("Unexpected token in operational_entity: {}", self.current()));
+                }
+            }
+        }
+        
+        self.expect(Token::RightBrace)?;
+        
+        let id = attributes.get("id")
+            .and_then(|v| v.as_string())
+            .map(|s| s.to_string())
+            .unwrap_or_else(|| format!("OE-{}", name.chars().take(3).collect::<String>()));
+        
+        Ok(OperationalEntity {
+            id,
+            name,
+            entity_type: EntityType::System,
+            activities,
+            attributes,
         })
     }
     
@@ -320,7 +379,12 @@ impl Parser {
         let name = self.expect_string()?;
         let attributes = self.parse_attributes_block()?;
         
-        Ok(Actor { name, attributes })
+        Ok(Actor {
+            name,
+            id: None,
+            icon: "person".to_string(),
+            attributes,
+        })
     }
     
     fn parse_operational_capability(&mut self) -> Result<OperationalCapability, String> {
@@ -328,7 +392,15 @@ impl Parser {
         let name = self.expect_string()?;
         let attributes = self.parse_attributes_block()?;
         
-        Ok(OperationalCapability { name, attributes })
+        Ok(OperationalCapability {
+            id: format!("CAP-{}", name.chars().take(3).collect::<String>()),
+            name,
+            level: CapabilityLevel::Capability,
+            color: None,
+            stereotype: None,
+            children: Vec::new(),
+            attributes,
+        })
     }
     
     fn parse_operational_activity(&mut self) -> Result<OperationalActivity, String> {
@@ -336,7 +408,73 @@ impl Parser {
         let name = self.expect_string()?;
         let attributes = self.parse_attributes_block()?;
         
-        Ok(OperationalActivity { name, attributes })
+        // Extract ID from attributes, or generate from name
+        let id = attributes.get("id")
+            .and_then(|v| v.as_string())
+            .map(|s| s.to_string())
+            .unwrap_or_else(|| format!("OA-{}", name.chars().take(3).collect::<String>()));
+        
+        let performed_by = attributes.get("performed_by")
+            .and_then(|v| v.as_string())
+            .map(|s| s.to_string())
+            .unwrap_or_default();
+        
+        let category = attributes.get("category")
+            .and_then(|v| v.as_string())
+            .map(|s| s.to_string())
+            .unwrap_or_else(|| "general".to_string());
+        
+        Ok(OperationalActivity {
+            id,
+            name,
+            performed_by,
+            category,
+            icon: "circle".to_string(),
+            color: "#FFD966".to_string(),
+            sub_activities: Vec::new(),
+            attributes,
+        })
+    }
+    
+    fn parse_operational_exchange(&mut self) -> Result<OperationalExchange, String> {
+        self.advance(); // Skip 'operational_exchange', 'exchange', or 'interaction'
+        
+        // Parse: "ID1" -> "ID2" { ... }
+        let from = self.expect_string()?;
+        self.expect(Token::Arrow)?;
+        let to = self.expect_string()?;
+        self.expect(Token::LeftBrace)?;
+        
+        let mut attributes = HashMap::new();
+        
+        while !self.check(&Token::RightBrace) && !self.is_at_end() {
+            let (key, value) = self.parse_attribute()?;
+            attributes.insert(key, value);
+        }
+        
+        self.expect(Token::RightBrace)?;
+        
+        let data_type = attributes.get("data_type")
+            .and_then(|v| v.as_string())
+            .unwrap_or("Data")
+            .to_string();
+            
+        let label = attributes.get("label")
+            .and_then(|v| v.as_string())
+            .map(|s| s.to_string());
+            
+        let protocol = attributes.get("protocol")
+            .and_then(|v| v.as_string())
+            .map(|s| s.to_string());
+        
+        Ok(OperationalExchange {
+            from,
+            to,
+            data_type,
+            label,
+            protocol,
+            attributes,
+        })
     }
     
     fn parse_system_analysis(&mut self) -> Result<SystemAnalysis, String> {
@@ -372,6 +510,8 @@ impl Parser {
             requirements,
             functions,
             components,
+            external_actors: Vec::new(),
+            functional_exchanges: Vec::new(),
         })
     }
     
@@ -413,6 +553,8 @@ impl Parser {
             requirements,
             functions: Vec::new(),
             components: Vec::new(),
+            external_actors: Vec::new(),
+            functional_exchanges: Vec::new(),
         })
     }
     
@@ -445,9 +587,50 @@ impl Parser {
     fn parse_system_function(&mut self) -> Result<SystemFunction, String> {
         self.advance(); // Skip 'system_function'
         let name = self.expect_string()?;
+        self.expect(Token::LeftBrace)?;
+        
+        let mut attributes = HashMap::new();
+        let mut sub_functions = Vec::new();
+        
+        while !self.check(&Token::RightBrace) && !self.is_at_end() {
+            if self.check(&Token::Function) {
+                let sub_func = self.parse_nested_function()?;
+                sub_functions.push(sub_func);
+            } else {
+                let (key, value) = self.parse_attribute()?;
+                attributes.insert(key, value);
+            }
+        }
+        
+        self.expect(Token::RightBrace)?;
+        
+        Ok(SystemFunction {
+            id: format!("SF-{}", name.chars().take(3).collect::<String>()),
+            name,
+            category: FunctionCategory::System,
+            color: Some("#70AD47".to_string()),
+            icon: None,
+            ports: Vec::new(),
+            sub_functions,
+            attributes,
+        })
+    }
+    
+    fn parse_nested_function(&mut self) -> Result<SystemFunction, String> {
+        self.advance(); // Skip 'function'
+        let name = self.expect_string()?;
         let attributes = self.parse_attributes_block()?;
         
-        Ok(SystemFunction { name, attributes })
+        Ok(SystemFunction {
+            id: format!("SF-{}", name.chars().take(3).collect::<String>()),
+            name,
+            category: FunctionCategory::System,
+            color: Some("#70AD47".to_string()),
+            icon: None,
+            ports: Vec::new(),
+            sub_functions: Vec::new(),
+            attributes,
+        })
     }
     
     fn parse_system_component(&mut self) -> Result<SystemComponent, String> {
@@ -469,6 +652,7 @@ impl Parser {
         
         let mut components = Vec::new();
         let mut interfaces = Vec::new();
+        let mut component_exchanges = Vec::new();
         
         while !self.check(&Token::RightBrace) && !self.is_at_end() {
             match self.current() {
@@ -479,7 +663,7 @@ impl Parser {
                     interfaces.push(self.parse_logical_interface()?);
                 }
                 Token::Connection => {
-                    interfaces.push(self.parse_connection_as_interface()?);
+                    component_exchanges.push(self.parse_component_exchange()?);
                 }
                 Token::Trace => {
                     // Skip traces for now, they're collected at model level
@@ -497,6 +681,76 @@ impl Parser {
             name,
             components,
             interfaces,
+            component_exchanges,
+            unallocated_functions: Vec::new(),
+        })
+    }
+    
+    fn parse_component_exchange(&mut self) -> Result<ComponentExchange, String> {
+        self.expect(Token::Connection)?;
+        
+        let name = self.expect_string()?;
+        let mut from = String::new();
+        let mut to = String::new();
+        
+        // Support both syntaxes:
+        // 1. connection "from" -> "to" { ... }
+        // 2. connection "name" { from: "x" to: "y" ... }
+        if self.check(&Token::Arrow) {
+            self.expect(Token::Arrow)?;
+            to = self.expect_string()?;
+            from = name.clone();
+        }
+        
+        self.expect(Token::LeftBrace)?;
+        
+        let mut attributes = HashMap::new();
+        
+        while !self.check(&Token::RightBrace) && !self.is_at_end() {
+            match self.current() {
+                Token::From => {
+                    self.advance();
+                    self.expect(Token::Colon)?;
+                    from = self.expect_identifier_or_string()?;
+                }
+                Token::To => {
+                    self.advance();
+                    self.expect(Token::Colon)?;
+                    to = self.expect_identifier_or_string()?;
+                }
+                Token::Identifier(ref id) if id == "from" => {
+                    self.advance();
+                    self.expect(Token::Colon)?;
+                    from = self.expect_identifier_or_string()?;
+                }
+                Token::Identifier(ref id) if id == "to" => {
+                    self.advance();
+                    self.expect(Token::Colon)?;
+                    to = self.expect_identifier_or_string()?;
+                }
+                _ => {
+                    let (key, value) = self.parse_attribute()?;
+                    attributes.insert(key, value);
+                }
+            }
+        }
+        
+        self.expect(Token::RightBrace)?;
+        
+        let label = attributes.get("label")
+            .and_then(|v| v.as_string())
+            .map(|s| s.to_string());
+        
+        let exchange_item = attributes.get("data_type")
+            .and_then(|v| v.as_string())
+            .unwrap_or("Data")
+            .to_string();
+        
+        Ok(ComponentExchange {
+            from_port: from,
+            to_port: to,
+            exchange_item,
+            label,
         })
     }
     
@@ -508,10 +762,15 @@ impl Parser {
         let mut functions = Vec::new();
         let mut interfaces_in = Vec::new();
         let mut interfaces_out = Vec::new();
+        let mut sub_components = Vec::new();
         let mut attributes = HashMap::new();
         
         while !self.check(&Token::RightBrace) && !self.is_at_end() {
             match self.current() {
+                Token::Component => {
+                    // Nested component
+                    sub_components.push(self.parse_logical_component()?);
+                }
                 Token::Function => {
                     functions.push(self.parse_logical_function()?);
                 }
@@ -548,8 +807,21 @@ impl Parser {
         
         self.expect(Token::RightBrace)?;
         
+        let id = attributes.get("id")
+            .and_then(|v| match v {
+                AttributeValue::String(s) => Some(s.clone()),
+                _ => None,
+            })
+            .unwrap_or_else(|| format!("LC-{}", name.chars().take(3).collect::<String>()));
+        
         Ok(LogicalComponent {
+            id,
             name,
+            component_type: "Logical".to_string(),
+            color: Some("#5B9BD5".to_string()),
+            sub_components,
+            allocated_functions: Vec::new(),
+            ports: Vec::new(),
             functions,
             interfaces_in,
             interfaces_out,
@@ -613,11 +885,18 @@ impl Parser {
     fn parse_connection_as_interface(&mut self) -> Result<LogicalInterface, String> {
         self.expect(Token::Connection)?;
         let name = self.expect_string()?;
-        self.expect(Token::LeftBrace)?;
         
-        let mut attributes = HashMap::new();
         let mut from = String::new();
         let mut to = String::new();
+        let mut attributes = HashMap::new();
+        
+        if self.check(&Token::Arrow) {
+            self.expect(Token::Arrow)?;
+            to = self.expect_string()?;
+            from = name.clone();
+        }
+        
+        self.expect(Token::LeftBrace)?;
         
         while !self.check(&Token::RightBrace) && !self.is_at_end() {
             match self.current() {
@@ -645,14 +924,27 @@ impl Parser {
                         attributes.insert(key, value);
                     }
                 }
+                Token::Description | Token::Version | Token::Author | Token::Priority | 
+                Token::Rationale | Token::Verification | Token::Traces | Token::SafetyLevel |
+                Token::Parent | Token::Properties | Token::Signals | Token::DataType |
+                Token::Protocol | Token::Rate | Token::Unit => {
+                    let (key, value) = self.parse_attribute()?;
+                    attributes.insert(key, value);
+                }
                 _ => break,
             }
         }
         
         self.expect(Token::RightBrace)?;
         
+        let connection_name = if from.is_empty() || to.is_empty() {
+            name
+        } else {
+            format!("{} -> {}", from, to)
+        };
+        
         Ok(LogicalInterface {
-            name,
+            name: connection_name,
             from,
             to,
             attributes,
@@ -709,7 +1001,12 @@ impl Parser {
         
         self.expect(Token::RightBrace)?;
         
-        Ok(PhysicalArchitecture { name, nodes, links })
+        Ok(PhysicalArchitecture {
+            name,
+            nodes,
+            links,
+            physical_exchanges: Vec::new(),
+        })
     }
     
     fn parse_physical_node(&mut self) -> Result<PhysicalNode, String> {
@@ -734,7 +1031,14 @@ impl Parser {
         self.expect(Token::RightBrace)?;
         
         Ok(PhysicalNode {
+            id: format!("PN-{}", name.chars().take(3).collect::<String>()),
             name,
+            node_type: NodeType::Hardware,
+            color: Some("#FFE699".to_string()),
+            processor: None,
+            memory: None,
+            behavior_components: Vec::new(),
+            hardware_components: Vec::new(),
             deployments,
             attributes,
         })
@@ -768,8 +1072,18 @@ impl Parser {
             Vec::new()
         };
         
+        let (from, to) = if connections.len() >= 2 {
+            (connections[0].clone(), connections[1].clone())
+        } else {
+            (String::new(), String::new())
+        };
+        
         Ok(PhysicalLink {
-            name,
+            from,
+            to,
+            protocol: attributes.get("protocol").and_then(|v| v.as_string()).unwrap_or("Unknown").to_string(),
+            bandwidth: None,
+            color: None,
             connections,
             attributes,
         })
@@ -785,7 +1099,14 @@ impl Parser {
         };
         
         Ok(PhysicalNode {
+            id: format!("PN-{}", name.chars().take(3).collect::<String>()),
             name,
+            node_type: NodeType::Hardware,
+            color: Some("#FFE699".to_string()),
+            processor: None,
+            memory: None,
+            behavior_components: Vec::new(),
+            hardware_components: Vec::new(),
             deployments: Vec::new(),
             attributes,
         })
@@ -798,30 +1119,44 @@ impl Parser {
         
         let mut attributes = HashMap::new();
         let mut connections = Vec::new();
+        let mut from_node = String::new();
+        let mut to_node = String::new();
         
         while !self.check(&Token::RightBrace) && !self.is_at_end() {
-            if let Token::Identifier(ref id) = self.current() {
-                if id == "from" {
-                    self.advance();
-                    self.expect(Token::Colon)?;
-                    connections.push(self.expect_identifier_or_string()?);
-                } else if id == "to" {
-                    self.advance();
-                    self.expect(Token::Colon)?;
-                    connections.push(self.expect_identifier_or_string()?);
-                } else {
+            match self.current() {
+                Token::Identifier(ref id) => {
+                    if id == "from" {
+                        self.advance();
+                        self.expect(Token::Colon)?;
+                        from_node = self.expect_identifier_or_string()?;
+                        connections.push(from_node.clone());
+                    } else if id == "to" {
+                        self.advance();
+                        self.expect(Token::Colon)?;
+                        to_node = self.expect_identifier_or_string()?;
+                        connections.push(to_node.clone());
+                    } else {
+                        let (key, value) = self.parse_attribute()?;
+                        attributes.insert(key, value);
+                    }
+                }
+                Token::Protocol | Token::DataType | Token::Description | Token::Rate |
+                Token::Unit | Token::Version | Token::Author => {
                     let (key, value) = self.parse_attribute()?;
                     attributes.insert(key, value);
                 }
-            } else {
-                break;
+                _ => break,
             }
         }
         
         self.expect(Token::RightBrace)?;
         
         Ok(PhysicalLink {
-            name,
+            from: from_node,
+            to: to_node,
+            protocol: attributes.get("protocol").and_then(|v| v.as_string()).unwrap_or("Unknown").to_string(),
+            bandwidth: None,
+            color: None,
             connections,
             attributes,
         })
@@ -966,22 +1301,80 @@ impl Parser {
     
     fn parse_trace(&mut self) -> Result<Trace, String> {
         self.expect(Token::Trace)?;
+        
+        // Support two syntaxes:
+        // 1. trace { from: "X" to: "Y" type: "..." }  (attribute block syntax)
+        // 2. trace "X" -> "Y" { ... }  (arrow syntax)
+        // 3. trace "X" satisfies "Y" { ... }  (keyword syntax)
+        
+        if self.check(&Token::LeftBrace) {
+            // Attribute block syntax
+            let attributes = self.parse_attributes_block()?;
+            
+            let from = attributes.get("from")
+                .and_then(|v| v.as_string())
+                .ok_or("trace block missing 'from' attribute")?
+                .to_string();
+            
+            let to = attributes.get("to")
+                .and_then(|v| v.as_string())
+                .ok_or("trace block missing 'to' attribute")?
+                .to_string();
+            
+            let trace_type = attributes.get("type")
+                .and_then(|v| v.as_string())
+                .unwrap_or("relates_to")
+                .to_string();
+            
+            return Ok(Trace {
+                from,
+                to,
+                trace_type,
+                attributes,
+            });
+        }
+        
+        // Arrow or keyword syntax
         let from = self.expect_string()?;
         
-        let trace_type = if let Token::Satisfies = self.current() {
+        // Support both syntaxes:
+        // 1. trace "X" satisfies "Y" { rationale: "..." }
+        // 2. trace "X" -> "Y" { trace_type: "satisfies", rationale: "..." }
+        let (trace_type, to) = if let Token::Arrow = self.current() {
+            // Arrow syntax: read trace_type from attributes
+            self.advance(); // skip '->'
+            let to = self.expect_string()?;
+            let attributes = if self.check(&Token::LeftBrace) {
+                self.parse_attributes_block()?
+            } else {
+                HashMap::new()
+            };
+            
+            let trace_type = if let Some(AttributeValue::String(t)) = attributes.get("trace_type") {
+                t.clone()
+            } else {
+                "relates_to".to_string() // default if not specified
+            };
+            
+            return Ok(Trace {
+                from,
+                to,
+                trace_type,
+                attributes,
+            });
+        } else if let Token::Satisfies = self.current() {
             self.advance();
-            "satisfies".to_string()
+            ("satisfies".to_string(), self.expect_string()?)
         } else if let Token::Implements = self.current() {
             self.advance();
-            "implements".to_string()
+            ("implements".to_string(), self.expect_string()?)
         } else if let Token::Validates = self.current() {
             self.advance();
-            "validates".to_string()
+            ("validates".to_string(), self.expect_string()?)
         } else {
-            return Err("Expected trace type (satisfies, implements, validates, etc.)".to_string());
+            return Err("Expected trace type (satisfies, implements, validates, etc.) or arrow".to_string());
         };
         
-        let to = self.expect_string()?;
         let attributes = if self.check(&Token::LeftBrace) {
             self.parse_attributes_block()?
         } else {
@@ -1010,7 +1403,43 @@ impl Parser {
     }
     
     fn parse_attribute(&mut self) -> Result<(String, AttributeValue), String> {
-        let key = self.expect_identifier()?;
+        // Accept both identifiers and reserved keywords as attribute keys
+        let key = match self.current() {
+            Token::Identifier(id) => {
+                let k = id.clone();
+                self.advance();
+                k
+            }
+            // Commonly used attribute keywords
+            Token::Inputs => { self.advance(); "inputs".to_string() }
+            Token::Outputs => { self.advance(); "outputs".to_string() }
+            Token::Type => { self.advance(); "type".to_string() }
+            Token::Port => { self.advance(); "port".to_string() }
+            Token::Flow => { self.advance(); "flow".to_string() }
+            Token::Description => { self.advance(); "description".to_string() }
+            Token::From => { self.advance(); "from".to_string() }
+            Token::To => { self.advance(); "to".to_string() }
+            Token::Rationale => { self.advance(); "rationale".to_string() }
+            Token::Priority => { self.advance(); "priority".to_string() }
+            Token::Version => { self.advance(); "version".to_string() }
+            Token::Author => { self.advance(); "author".to_string() }
+            Token::Parent => { self.advance(); "parent".to_string() }
+            Token::Protocol => { self.advance(); "protocol".to_string() }
+            Token::Rate => { self.advance(); "rate".to_string() }
+            Token::Latency => { self.advance(); "latency".to_string() }
+            Token::Unit => { self.advance(); "unit".to_string() }
+            Token::Value => { self.advance(); "value".to_string() }
+            Token::Property => { self.advance(); "property".to_string() }
+            Token::Action => { self.advance(); "action".to_string() }
+            Token::Measure => { self.advance(); "measure".to_string() }
+            Token::SafetyLevel => { self.advance(); "safety_level".to_string() }
+            Token::SafetyMeasures => { self.advance(); "safety_measures".to_string() }
+            Token::SafetyAnalysis => { self.advance(); "safety_analysis".to_string() }
+            Token::DataType => { self.advance(); "data_type".to_string() }
+            Token::Component => { self.advance(); "component".to_string() }
+            _ => return Err(format!("Expected attribute key, got: {}", self.current())),
+        };
+        
         self.expect(Token::Colon)?;
         let value = self.parse_attribute_value()?;
         
@@ -1124,6 +1553,7 @@ impl Parser {
             Token::Parent => { self.advance(); Ok("parent".to_string()) }
             Token::Properties => { self.advance(); Ok("properties".to_string()) }
             Token::Signals => { self.advance(); Ok("signals".to_string()) }
+            Token::Function => { self.advance(); Ok("function".to_string()) }
             _ => Err(format!("Expected identifier, got {}", self.current()))
         }
     }
@@ -1170,8 +1600,10 @@ impl Parser {
         }
         self.advance();
         
-        // Expect colon
-        self.expect(Token::Colon)?;
+        // Optional colon (support both "interface_out: "Name"" and "interface_out "Name"")
+        if self.check(&Token::Colon) {
+            self.advance();
+        }
         
         // Interface name (string literal)
         let name = self.expect_string()?;

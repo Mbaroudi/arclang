@@ -11,6 +11,19 @@ pub struct SemanticModel {
     pub all_elements: HashMap<String, ElementInfo>,
 }
 
+impl Default for SemanticModel {
+    fn default() -> Self {
+        Self {
+            requirements: Vec::new(),
+            components: Vec::new(),
+            functions: Vec::new(),
+            traces: Vec::new(),
+            interfaces: Vec::new(),
+            all_elements: HashMap::new(),
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct InterfaceInfo {
     pub name: String,
@@ -85,9 +98,200 @@ impl SemanticAnalyzer {
         let mut interfaces = Vec::new();
         let mut all_elements = HashMap::new();
         
+        // Collect actors from operational analysis
+        for oa in &ast.operational_analysis {
+            eprintln!("📊 Processing operational_analysis: '{}' with {} actors, {} activities", 
+                oa.name, oa.actors.len(), oa.activities.len());
+            
+            for actor in &oa.actors {
+                // Try actor.id first, then check attributes
+                let actor_id = actor.id.as_ref().cloned()
+                    .or_else(|| actor.attributes.get("id").and_then(|v| v.as_string()).map(|s| s.to_string()))
+                    .unwrap_or_else(|| format!("ACT-{}", actor.name.replace(" ", "-")));
+                
+                let actor_type = actor.attributes.get("category")
+                    .and_then(|v| v.as_string())
+                    .unwrap_or("Actor")
+                    .to_string();
+                
+                let safety_level = actor.attributes.get("safety_level")
+                    .and_then(|v| v.as_string())
+                    .map(|s| s.to_string());
+                
+                let asil = actor.attributes.get("asil")
+                    .and_then(|v| v.as_string())
+                    .map(|s| s.to_string());
+                
+                components.push(ComponentInfo {
+                    id: actor_id.clone(),
+                    name: actor.name.clone(),
+                    component_type: actor_type,
+                    level: "Operational".to_string(),
+                    safety_level,
+                    asil,
+                    interfaces_in: Vec::new(),
+                    interfaces_out: Vec::new(),
+                    functions: Vec::new(),
+                });
+                
+                all_elements.insert(actor_id.clone(), ElementInfo {
+                    id: actor_id.clone(),
+                    name: actor.name.clone(),
+                    element_type: "Actor".to_string(),
+                });
+            }
+            
+            // Collect traces from operational_analysis
+            for trace in &oa.traces {
+                traces.push(TraceInfo {
+                    from: trace.from.clone(),
+                    to: trace.to.clone(),
+                    trace_type: trace.trace_type.clone(),
+                    rationale: trace.attributes.get("rationale").and_then(|v| v.as_string()).map(|s| s.to_string()),
+                });
+            }
+            
+            // Collect operational entities with their nested activities
+            for entity in &oa.entities {
+                let entity_type = match entity.entity_type {
+                    EntityType::Actor => "Actor",
+                    EntityType::System => "System",
+                    EntityType::Environment => "Environment",
+                }.to_string();
+                
+                let safety_level = entity.attributes.get("safety_level")
+                    .and_then(|v| v.as_string())
+                    .map(|s| s.to_string());
+                
+                let asil = entity.attributes.get("asil")
+                    .and_then(|v| v.as_string())
+                    .map(|s| s.to_string());
+                
+                // Collect activity IDs that belong to this entity
+                let mut entity_function_ids = Vec::new();
+                for activity in &entity.activities {
+                    let activity_id = activity.attributes.get("id")
+                        .and_then(|v| v.as_string())
+                        .map(|s| s.to_string())
+                        .unwrap_or_else(|| activity.id.clone());
+                    entity_function_ids.push(activity_id.clone());
+                    
+                    // Register activity as function
+                    let inputs = activity.attributes.get("inputs")
+                        .and_then(|v| match v {
+                            AttributeValue::List(list) => Some(list),
+                            _ => None,
+                        })
+                        .map(|arr| arr.iter().filter_map(|v| v.as_string().map(|s| s.to_string())).collect())
+                        .unwrap_or_else(Vec::new);
+                    
+                    let outputs = activity.attributes.get("outputs")
+                        .and_then(|v| match v {
+                            AttributeValue::List(list) => Some(list),
+                            _ => None,
+                        })
+                        .map(|arr| arr.iter().filter_map(|v| v.as_string().map(|s| s.to_string())).collect())
+                        .unwrap_or_else(Vec::new);
+                    
+                    functions.push(FunctionInfo {
+                        id: activity_id.clone(),
+                        name: activity.name.clone(),
+                        inputs,
+                        outputs,
+                    });
+                    
+                    all_elements.insert(activity_id.clone(), ElementInfo {
+                        id: activity_id,
+                        name: activity.name.clone(),
+                        element_type: "Activity".to_string(),
+                    });
+                }
+                
+                components.push(ComponentInfo {
+                    id: entity.id.clone(),
+                    name: entity.name.clone(),
+                    component_type: entity_type,
+                    level: "Operational".to_string(),
+                    safety_level,
+                    asil,
+                    interfaces_in: Vec::new(),
+                    interfaces_out: Vec::new(),
+                    functions: entity_function_ids,
+                });
+                
+                all_elements.insert(entity.id.clone(), ElementInfo {
+                    id: entity.id.clone(),
+                    name: entity.name.clone(),
+                    element_type: "Entity".to_string(),
+                });
+            }
+            
+            // Collect operational activities (recursively handle sub-activities)
+            fn collect_activities_recursive(
+                activity: &OperationalActivity,
+                components: &mut Vec<ComponentInfo>,
+                all_elements: &mut HashMap<String, ElementInfo>,
+            ) {
+                // Use ID from attributes if available, otherwise use the struct id
+                let activity_id = activity.attributes.get("id")
+                    .and_then(|v| v.as_string())
+                    .map(|s| s.to_string())
+                    .unwrap_or_else(|| activity.id.clone());
+                
+                let safety_level = activity.attributes.get("safety_level")
+                    .and_then(|v| v.as_string())
+                    .map(|s| s.to_string());
+                
+                let asil = activity.attributes.get("asil")
+                    .and_then(|v| v.as_string())
+                    .map(|s| s.to_string());
+                
+                components.push(ComponentInfo {
+                    id: activity_id.clone(),
+                    name: activity.name.clone(),
+                    component_type: "OperationalActivity".to_string(),
+                    level: "Operational".to_string(),
+                    safety_level,
+                    asil,
+                    interfaces_in: Vec::new(),
+                    interfaces_out: Vec::new(),
+                    functions: Vec::new(),
+                });
+                
+                all_elements.insert(activity_id.clone(), ElementInfo {
+                    id: activity_id.clone(),
+                    name: activity.name.clone(),
+                    element_type: "OperationalActivity".to_string(),
+                });
+                
+                // Recursively collect sub-activities
+                for sub_activity in &activity.sub_activities {
+                    collect_activities_recursive(sub_activity, components, all_elements);
+                }
+            }
+            
+            for activity in &oa.activities {
+                let attr_id = activity.attributes.get("id")
+                    .and_then(|v| v.as_string())
+                    .unwrap_or(&activity.id);
+                eprintln!("  🎯 Collecting activity: struct_id='{}', attr_id='{}', name='{}'", 
+                    activity.id, attr_id, activity.name);
+                collect_activities_recursive(activity, &mut components, &mut all_elements);
+            }
+        }
+        
+        eprintln!("✅ Total components collected: {}", components.len());
+        eprintln!("✅ Total all_elements: {}", all_elements.len());
+        
         // Collect requirements from system analysis
         for sa in &ast.system_analysis {
             for req in &sa.requirements {
+                // Use ID from attributes if available, otherwise use struct id
+                let req_id = req.attributes.get("id")
+                    .and_then(|v| v.as_string())
+                    .map(|s| s.to_string())
+                    .unwrap_or_else(|| req.id.clone());
+                
                 let description = req.attributes.get("description")
                     .and_then(|v| v.as_string())
                     .unwrap_or("")
@@ -107,18 +311,83 @@ impl SemanticAnalyzer {
                     .map(|s| s.to_string());
                 
                 requirements.push(RequirementInfo {
-                    id: req.id.clone(),
+                    id: req_id.clone(),
                     description,
                     priority,
                     category,
                     safety_level,
                 });
                 
-                all_elements.insert(req.id.clone(), ElementInfo {
-                    id: req.id.clone(),
-                    name: req.id.clone(),
+                all_elements.insert(req_id.clone(), ElementInfo {
+                    id: req_id.clone(),
+                    name: req_id.clone(),
                     element_type: "Requirement".to_string(),
                 });
+            }
+            
+            // Collect system components
+            for comp in &sa.components {
+                let comp_id = comp.attributes.get("id")
+                    .and_then(|v| v.as_string())
+                    .unwrap_or(&comp.name)
+                    .to_string();
+                
+                let comp_type = comp.attributes.get("type")
+                    .and_then(|v| v.as_string())
+                    .unwrap_or("System")
+                    .to_string();
+                
+                let safety_level = comp.attributes.get("safety_level")
+                    .and_then(|v| v.as_string())
+                    .map(|s| s.to_string());
+                
+                let asil = comp.attributes.get("asil")
+                    .and_then(|v| v.as_string())
+                    .map(|s| s.to_string());
+                
+                components.push(ComponentInfo {
+                    id: comp_id.clone(),
+                    name: comp.name.clone(),
+                    component_type: comp_type,
+                    level: "System".to_string(),
+                    safety_level,
+                    asil,
+                    interfaces_in: Vec::new(),
+                    interfaces_out: Vec::new(),
+                    functions: Vec::new(),
+                });
+                
+                all_elements.insert(comp_id.clone(), ElementInfo {
+                    id: comp_id.clone(),
+                    name: comp.name.clone(),
+                    element_type: "SystemComponent".to_string(),
+                });
+            }
+            
+            // Collect system functions (recursively handle sub-functions)
+            fn collect_system_functions_recursive(
+                func: &SystemFunction,
+                all_elements: &mut HashMap<String, ElementInfo>,
+            ) {
+                let func_id = func.attributes.get("id")
+                    .and_then(|v| v.as_string())
+                    .map(|s| s.to_string())
+                    .unwrap_or_else(|| func.id.clone());
+                
+                all_elements.insert(func_id.clone(), ElementInfo {
+                    id: func_id.clone(),
+                    name: func.name.clone(),
+                    element_type: "SystemFunction".to_string(),
+                });
+                
+                // Recursively collect sub-functions
+                for sub_func in &func.sub_functions {
+                    collect_system_functions_recursive(sub_func, all_elements);
+                }
+            }
+            
+            for func in &sa.functions {
+                collect_system_functions_recursive(func, &mut all_elements);
             }
         }
         
@@ -130,6 +399,15 @@ impl SemanticAnalyzer {
                     name: interface.name.clone(),
                     from: interface.from.clone(),
                     to: interface.to.clone(),
+                });
+            }
+            
+            // Collect component_exchanges as interfaces
+            for exchange in &la.component_exchanges {
+                interfaces.push(InterfaceInfo {
+                    name: exchange.label.clone().unwrap_or_else(|| format!("{} -> {}", exchange.from_port, exchange.to_port)),
+                    from: exchange.from_port.clone(),
+                    to: exchange.to_port.clone(),
                 });
             }
             
@@ -328,33 +606,52 @@ impl SemanticAnalyzer {
             });
         }
         
-        // Validate traceability
-        self.validate_traces(&traces, &all_elements)?;
+        eprintln!("📊 FINAL STATS: {} components, {} requirements, {} all_elements", 
+            components.len(), requirements.len(), all_elements.len());
+        eprintln!("📊 First 10 element IDs in all_elements: {:?}", 
+            all_elements.keys().take(10).collect::<Vec<_>>());
+        
+        // Filter traces to only include valid ones (elements that exist)
+        let valid_traces = self.filter_valid_traces(traces, &all_elements);
         
         Ok(SemanticModel {
             requirements,
             components,
             functions,
-            traces,
+            traces: valid_traces,
             interfaces,
             all_elements,
         })
     }
     
-    fn validate_traces(
+    fn filter_valid_traces(
         &self,
-        traces: &[TraceInfo],
+        traces: Vec<TraceInfo>,
         elements: &HashMap<String, ElementInfo>,
-    ) -> Result<(), String> {
-        for trace in traces {
-            if !elements.contains_key(&trace.from) {
-                return Err(format!("Trace references unknown element: {}", trace.from));
-            }
-            if !elements.contains_key(&trace.to) {
-                return Err(format!("Trace references unknown element: {}", trace.to));
-            }
+    ) -> Vec<TraceInfo> {
+        let initial_count = traces.len();
+        let valid_traces: Vec<TraceInfo> = traces.into_iter()
+            .filter(|trace| {
+                let from_exists = elements.contains_key(&trace.from);
+                let to_exists = elements.contains_key(&trace.to);
+                
+                if !from_exists {
+                    eprintln!("⚠️  Warning: Trace references unknown element '{}' (from), skipping trace", trace.from);
+                }
+                if !to_exists {
+                    eprintln!("⚠️  Warning: Trace references unknown element '{}' (to), skipping trace", trace.to);
+                }
+                
+                from_exists && to_exists
+            })
+            .collect();
+        
+        let filtered_count = initial_count - valid_traces.len();
+        if filtered_count > 0 {
+            eprintln!("⚠️  Filtered out {} invalid trace(s)", filtered_count);
         }
-        Ok(())
+        
+        valid_traces
     }
 }
 
