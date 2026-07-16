@@ -426,26 +426,32 @@ impl SemanticAnalyzer {
                 });
             }
             
-            for comp in &la.components {
+            // Collect logical components recursively: nested sub-components are
+            // model elements in their own right (identity, trace/exchange targets).
+            fn collect_logical_component(
+                comp: &LogicalComponent,
+                components: &mut Vec<ComponentInfo>,
+                functions: &mut Vec<FunctionInfo>,
+                all_elements: &mut HashMap<String, ElementInfo>,
+            ) {
                 let comp_id = comp.attributes.get("id")
                     .and_then(|v| v.as_string())
                     .unwrap_or(&comp.name)
                     .to_string();
-                
+
                 let comp_type = comp.attributes.get("type")
                     .and_then(|v| v.as_string())
                     .unwrap_or("Logical")
                     .to_string();
-                
+
                 let safety_level = comp.attributes.get("safety_level")
                     .and_then(|v| v.as_string())
                     .map(|s| s.to_string());
-                
+
                 let asil = comp.attributes.get("asil")
                     .and_then(|v| v.as_string())
                     .map(|s| s.to_string());
-                
-                // Extract interface_in
+
                 let interfaces_in: Vec<InterfacePortInfo> = comp.interfaces_in.iter()
                     .map(|iface| InterfacePortInfo {
                         name: iface.name.clone(),
@@ -453,8 +459,7 @@ impl SemanticAnalyzer {
                         format: iface.format.clone(),
                     })
                     .collect();
-                
-                // Extract interface_out
+
                 let interfaces_out: Vec<InterfacePortInfo> = comp.interfaces_out.iter()
                     .map(|iface| InterfacePortInfo {
                         name: iface.name.clone(),
@@ -462,17 +467,16 @@ impl SemanticAnalyzer {
                         format: iface.format.clone(),
                     })
                     .collect();
-                
-                // Collect function IDs for this component
+
                 let comp_functions: Vec<String> = comp.functions.iter()
                     .map(|f| f.name.clone())
                     .collect();
-                
+
                 let layer = comp.attributes.get("layer")
                     .and_then(|v| v.as_string())
                     .unwrap_or("Logical")
                     .to_string();
-                
+
                 components.push(ComponentInfo {
                     id: comp_id.clone(),
                     name: comp.name.clone(),
@@ -484,10 +488,9 @@ impl SemanticAnalyzer {
                     interfaces_out,
                     functions: comp_functions,
                 });
-                
+
                 all_elements.insert(comp_id.clone(), ElementInfo::new(comp_id.clone(), comp.name.clone(), "Component"));
-                
-                // Collect interface_in and interface_out from components
+
                 for interface_def in &comp.interfaces_in {
                     all_elements.insert(
                         format!("{}_{}", comp_id, interface_def.name),
@@ -509,14 +512,13 @@ impl SemanticAnalyzer {
                         ),
                     );
                 }
-                
-                // Collect functions from components
+
                 for func in &comp.functions {
                     let func_id = func.attributes.get("id")
                         .and_then(|v| v.as_string())
                         .unwrap_or(&func.name)
                         .to_string();
-                    
+
                     let inputs = func.attributes.get("inputs")
                         .and_then(|v| {
                             if let AttributeValue::List(list) = v {
@@ -528,7 +530,7 @@ impl SemanticAnalyzer {
                             }
                         })
                         .unwrap_or_default();
-                    
+
                     let outputs = func.attributes.get("outputs")
                         .and_then(|v| {
                             if let AttributeValue::List(list) = v {
@@ -540,16 +542,24 @@ impl SemanticAnalyzer {
                             }
                         })
                         .unwrap_or_default();
-                    
+
                     functions.push(FunctionInfo {
                         id: func_id.clone(),
                         name: func.name.clone(),
                         inputs,
                         outputs,
                     });
-                    
+
                     all_elements.insert(func_id.clone(), ElementInfo::new(func_id.clone(), func.name.clone(), "Function"));
                 }
+
+                for sub in &comp.sub_components {
+                    collect_logical_component(sub, components, functions, all_elements);
+                }
+            }
+
+            for comp in &la.components {
+                collect_logical_component(comp, &mut components, &mut functions, &mut all_elements);
             }
         }
         
