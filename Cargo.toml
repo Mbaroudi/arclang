@@ -38,6 +38,9 @@ anyhow = "1.0"
 tokio = { version = "1.35", features = ["full"] }
 async-trait = "0.1"
 
+# Language Server Protocol
+tower-lsp = "0.20"
+
 # Logging
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }

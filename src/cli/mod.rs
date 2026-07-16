@@ -795,10 +795,16 @@ impl CliRunner {
         Ok(())
     }
     
-    fn run_lsp(&self, _stdio: bool, _port: Option<u16>) -> Result<(), CliError> {
-        Err(CliError::NotImplemented(
-            "the language server is not implemented yet (planned: tower-lsp over stdio)".to_string(),
-        ))
+    fn run_lsp(&self, _stdio: bool, port: Option<u16>) -> Result<(), CliError> {
+        if port.is_some() {
+            return Err(CliError::NotImplemented(
+                "TCP mode is not implemented; use stdio (arclang lsp --stdio)".to_string(),
+            ));
+        }
+        let runtime = tokio::runtime::Runtime::new()
+            .map_err(|e| CliError::Compilation(format!("Failed to create runtime: {}", e)))?;
+        runtime.block_on(language_server::run_stdio());
+        Ok(())
     }
 
     fn run_repl(&self, _project: Option<PathBuf>) -> Result<(), CliError> {
