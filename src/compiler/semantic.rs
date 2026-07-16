@@ -892,6 +892,121 @@ impl SemanticModel {
             .filter(|t| t.from == element_id)
             .collect()
     }
+
+    /// Change-impact analysis: everything transitively connected to the given
+    /// element through traces (both directions), exchanges/interfaces,
+    /// component-function allocations, and containment. BFS with the relation
+    /// that reached each element and its distance from the change.
+    pub fn impact_of(&self, element: &str) -> Option<Vec<ImpactEntry>> {
+        // Resolve by id first, then by unambiguous name.
+        let start_id = if self.all_elements.contains_key(element) {
+            element.to_string()
+        } else {
+            let matches: Vec<&ElementInfo> = self
+                .all_elements
+                .values()
+                .filter(|e| e.name == element)
+                .collect();
+            match matches.as_slice() {
+                [single] => single.id.clone(),
+                _ => return None,
+            }
+        };
+
+        // Adjacency: element id -> [(neighbor id, relation description)]
+        let mut graph: HashMap<String, Vec<(String, String)>> = HashMap::new();
+        let mut link = |graph: &mut HashMap<String, Vec<(String, String)>>,
+                        a: &str,
+                        b: &str,
+                        forward: &str,
+                        backward: &str| {
+            graph.entry(a.to_string()).or_default().push((b.to_string(), forward.to_string()));
+            graph.entry(b.to_string()).or_default().push((a.to_string(), backward.to_string()));
+        };
+
+        for trace in &self.traces {
+            link(
+                &mut graph,
+                &trace.from,
+                &trace.to,
+                &format!("{} (trace)", trace.trace_type),
+                &format!("is {}d by (trace)", trace.trace_type.trim_end_matches('s')),
+            );
+        }
+        let resolve_endpoint = |endpoint: &str| -> Option<String> {
+            if self.all_elements.contains_key(endpoint) {
+                return Some(endpoint.to_string());
+            }
+            let root = endpoint.split('.').next().unwrap_or(endpoint);
+            if self.all_elements.contains_key(root) {
+                return Some(root.to_string());
+            }
+            self.all_elements
+                .values()
+                .find(|e| e.name == endpoint || e.name == root)
+                .map(|e| e.id.clone())
+        };
+        for interface in &self.interfaces {
+            if let (Some(from), Some(to)) =
+                (resolve_endpoint(&interface.from), resolve_endpoint(&interface.to))
+            {
+                let label = format!("exchange '{}'", interface.name);
+                link(&mut graph, &from, &to, &label, &label);
+            }
+        }
+        for component in &self.components {
+            for function_ref in &component.functions {
+                if let Some(function_id) = resolve_endpoint(function_ref) {
+                    link(
+                        &mut graph,
+                        &component.id,
+                        &function_id,
+                        "performs (allocation)",
+                        "is performed by (allocation)",
+                    );
+                }
+            }
+        }
+
+        // BFS
+        let mut visited: HashMap<String, (u32, String, String)> = HashMap::new();
+        let mut queue = std::collections::VecDeque::new();
+        queue.push_back((start_id.clone(), 0u32));
+        visited.insert(start_id.clone(), (0, String::new(), String::new()));
+        while let Some((current, depth)) = queue.pop_front() {
+            if let Some(neighbors) = graph.get(&current) {
+                for (neighbor, relation) in neighbors {
+                    if !visited.contains_key(neighbor) {
+                        visited.insert(
+                            neighbor.clone(),
+                            (depth + 1, relation.clone(), current.clone()),
+                        );
+                        queue.push_back((neighbor.clone(), depth + 1));
+                    }
+                }
+            }
+        }
+
+        let mut entries: Vec<ImpactEntry> = visited
+            .into_iter()
+            .filter(|(id, _)| *id != start_id)
+            .map(|(id, (depth, via, from))| {
+                let element = self.all_elements.get(&id);
+                ImpactEntry {
+                    name: element.map(|e| e.name.clone()).unwrap_or_else(|| id.clone()),
+                    element_type: element
+                        .map(|e| e.element_type.clone())
+                        .unwrap_or_else(|| "Unknown".to_string()),
+                    id,
+                    via,
+                    via_element: from,
+                    depth,
+                }
+            })
+            .collect();
+        entries.sort_by(|a, b| a.depth.cmp(&b.depth).then(a.name.cmp(&b.name)));
+        Some(entries)
+    }
     
     pub fn get_traces_to(&self, element_id: &str) -> Vec<&TraceInfo> {
         self.traces.iter()
@@ -943,6 +1058,20 @@ impl SemanticModel {
             traceability_coverage,
         }
     }
+}
+
+/// One element reached by change-impact analysis.
+#[derive(Debug, Clone, Serialize)]
+pub struct ImpactEntry {
+    pub id: String,
+    pub name: String,
+    pub element_type: String,
+    /// The relation through which the impact propagates.
+    pub via: String,
+    /// The already-impacted element this one was reached from.
+    pub via_element: String,
+    /// Distance from the changed element (1 = directly related).
+    pub depth: u32,
 }
 
 #[derive(Debug, Clone)]

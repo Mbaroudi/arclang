@@ -82,18 +82,29 @@ pub enum Commands {
     Trace {
         #[clap(value_parser)]
         input: PathBuf,
-        
+
         #[clap(long)]
         from: Option<String>,
-        
+
         #[clap(long)]
         to: Option<String>,
-        
+
         #[clap(long)]
         validate: bool,
-        
+
         #[clap(long)]
         matrix: bool,
+    },
+
+    /// Change-impact analysis: everything transitively affected when an
+    /// element (requirement, component, function) changes
+    Impact {
+        #[clap(value_parser)]
+        input: PathBuf,
+
+        /// Element id or unambiguous name (e.g. "REQ-AEB-004")
+        #[clap(value_parser)]
+        element: String,
     },
     
     Export {
@@ -363,6 +374,9 @@ impl CliRunner {
             Commands::Trace { input, from, to, validate, matrix } => {
                 self.run_trace(input, from, to, validate, matrix)
             }
+            Commands::Impact { input, element } => {
+                self.run_impact(input, element)
+            }
             Commands::Export { input, output, format } => {
                 self.run_export(input, output, format)
             }
@@ -572,6 +586,45 @@ impl CliRunner {
         }
     }
     
+    fn run_impact(&self, input: PathBuf, element: String) -> Result<(), CliError> {
+        let config = crate::CompilerConfig::default();
+        let mut compiler = crate::Compiler::new(config);
+        let result = compiler
+            .compile_file(&input)
+            .map_err(|e| CliError::Compilation(e.to_string()))?;
+
+        let entries = result
+            .semantic_model
+            .impact_of(&element)
+            .ok_or_else(|| {
+                CliError::Compilation(format!(
+                    "element '{}' not found (or its name is ambiguous — use an id)",
+                    element
+                ))
+            })?;
+
+        println!("Impact analysis for '{}':", element);
+        if entries.is_empty() {
+            println!("  No connected elements — changing it affects nothing traced.");
+            return Ok(());
+        }
+
+        let mut current_depth = 0;
+        for entry in &entries {
+            if entry.depth != current_depth {
+                current_depth = entry.depth;
+                let label = if current_depth == 1 { "directly affected" } else { "transitively affected" };
+                println!("\n  Distance {} ({}):", current_depth, label);
+            }
+            println!(
+                "    {} '{}' [{}] — via {} from '{}'",
+                entry.element_type, entry.name, entry.id, entry.via, entry.via_element
+            );
+        }
+        println!("\n  Total affected elements: {}", entries.len());
+        Ok(())
+    }
+
     fn run_export(
         &self,
         input: PathBuf,

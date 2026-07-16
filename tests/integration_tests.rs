@@ -391,3 +391,45 @@ trace "LC-001" satisfies "REQ-001" { rationale: "direct" }
     assert!((metrics.traceability_coverage - 50.0).abs() < f64::EPSILON,
         "expected 50% coverage, got {}", metrics.traceability_coverage);
 }
+
+#[test]
+fn test_impact_analysis_traverses_traces_and_exchanges() {
+    let input = r#"
+model Test {
+}
+
+requirements safety {
+    req "REQ-001" "Braking" { description: "Brake on demand" }
+}
+
+system_analysis SA {
+    functional_exchange Flow1 {
+        from: "LC-001"
+        to: "LC-002"
+        exchange_item: "command"
+    }
+}
+
+architecture logical {
+    component "Controller" { id: "LC-001" }
+    component "Actuator" { id: "LC-002" }
+    component "Unrelated" { id: "LC-999" }
+}
+
+trace "LC-001" satisfies "REQ-001" { rationale: "direct" }
+"#;
+    let config = CompilerConfig::default();
+    let mut compiler = Compiler::new(config);
+    let result = compiler.compile_string(input).expect("compiles");
+    let entries = result.semantic_model.impact_of("REQ-001").expect("element resolves");
+
+    let ids: Vec<&str> = entries.iter().map(|e| e.id.as_str()).collect();
+    assert!(ids.contains(&"LC-001"), "trace target must be impacted: {ids:?}");
+    assert!(ids.contains(&"LC-002"), "exchange neighbor must be transitively impacted: {ids:?}");
+    assert!(!ids.contains(&"LC-999"), "unconnected element must NOT be impacted: {ids:?}");
+
+    let controller = entries.iter().find(|e| e.id == "LC-001").unwrap();
+    let actuator = entries.iter().find(|e| e.id == "LC-002").unwrap();
+    assert_eq!(controller.depth, 1);
+    assert_eq!(actuator.depth, 2);
+}
