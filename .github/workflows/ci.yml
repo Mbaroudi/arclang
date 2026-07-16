@@ -114,6 +114,14 @@ jobs:
             "tests/fixtures/capella/test7_0" "Model Test 7.0.aird" \
             ./target/release/arclang
 
+      # Editing workflows: description/requirement edits, component
+      # creation (--create-missing) and deletion (--delete-missing)
+      - name: Workflow test (edit/create/delete)
+        run: |
+          tools/capella_bridge/workflow_test.sh \
+            "tests/fixtures/capella/test7_0" "Model Test 7.0.aird" \
+            ./target/release/arclang
+
   build:
     name: Build Release
     runs-on: ubuntu-latest

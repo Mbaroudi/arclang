@@ -52,6 +52,13 @@ class ArcEmitter:
         self.lines: list[str] = []
         self.stats: dict[str, int] = {}
         self.emitted_components: set[str] = set()
+        # Every element UUID emitted with an `id:` attribute — traces may only
+        # reference UUIDs in this set (the strict parser rejects dangling refs).
+        self.emitted_ids: set[str] = set()
+        self.emitted_requirements: set[str] = set()
+
+    def track(self, uuid: str) -> None:
+        self.emitted_ids.add(uuid)
 
     def out(self, line: str = "") -> None:
         self.lines.append(line)
@@ -81,15 +88,18 @@ class ArcEmitter:
 
         self.out('operational_analysis "Operational Analysis" {')
         for actor in actors:
+            self.track(actor.uuid)
             self.out(f'  actor "{esc(actor.name)}" {{')
             self.out(f'    id: "{actor.uuid}"')
             self.lines += attr_block("    ", description=getattr(actor, "description", None))
             self.out("  }")
             self.count("actor")
         for entity in entities:
+            self.track(entity.uuid)
             self.out(f'  entity "{esc(entity.name)}" {{')
             self.out(f'    id: "{entity.uuid}"')
             for activity in getattr(entity, "activities", []) or []:
+                self.track(activity.uuid)
                 self.out(f'    activity "{esc(activity.name)}" {{')
                 self.out(f'      id: "{activity.uuid}"')
                 self.out("    }")
@@ -105,6 +115,7 @@ class ArcEmitter:
         for activity in activities:
             if activity.uuid in emitted:
                 continue
+            self.track(activity.uuid)
             self.out(f'  operational_activity "{esc(activity.name)}" {{')
             self.out(f'    id: "{activity.uuid}"')
             self.out("  }")
@@ -120,6 +131,7 @@ class ArcEmitter:
 
         self.out('system_analysis "System Analysis" {')
         for function in functions:
+            self.track(function.uuid)
             self.out(f'  function "{esc(function.name)}" {{')
             self.out(f'    id: "{function.uuid}"')
             self.lines += attr_block("    ", description=getattr(function, "description", None))
@@ -130,6 +142,7 @@ class ArcEmitter:
 
     def emit_component(self, component, indent: str) -> None:
         self.emitted_components.add(component.uuid)
+        self.track(component.uuid)
         self.out(f'{indent}component "{esc(component.name)}" {{')
         self.out(f'{indent}  id: "{component.uuid}"')
         self.lines += attr_block(
@@ -137,6 +150,7 @@ class ArcEmitter:
             description=getattr(component, "description", None),
         )
         for function in getattr(component, "allocated_functions", []) or []:
+            self.track(function.uuid)
             self.out(f'{indent}  function "{esc(function.name)}" {{')
             self.out(f'{indent}    id: "{function.uuid}"')
             self.out(f"{indent}  }}")
@@ -196,6 +210,7 @@ class ArcEmitter:
 
         self.out('physical_architecture "Physical Architecture" {')
         for node in roots:
+            self.track(node.uuid)
             self.out(f'  node "{esc(node.name)}" {{')
             self.out(f'    id: "{node.uuid}"')
             self.lines += attr_block("    ", description=getattr(node, "description", None))
@@ -204,12 +219,87 @@ class ArcEmitter:
         self.out("}")
         self.out()
 
+    def emit_requirements(self) -> None:
+        """Emit Capella requirement extensions as an ArcLang requirements block.
+
+        The requirement UUID becomes the ArcLang requirement name/id;
+        `title:` carries the Capella requirement name and `description:`
+        carries the requirement text (raw HTML Markup — esc() keeps it
+        byte-exact so the reverse path can compare/synchronize it).
+        """
+        try:
+            reqs = list(self.model.search("Requirement"))
+        except Exception:
+            reqs = []
+        if not reqs:
+            return
+
+        self.out("requirements {")
+        for req in reqs:
+            self.emitted_requirements.add(req.uuid)
+            self.out(f'  requirement "{req.uuid}" {{')
+            text = getattr(req, "text", None)
+            self.lines += attr_block(
+                "    ",
+                title=getattr(req, "name", None),
+                description=str(text) if text else None,
+            )
+            self.out("  }")
+            self.count("requirement")
+        self.out("}")
+        self.out()
+
+    def emit_requirement_traces(self) -> None:
+        """Emit requirement<->element relations as ArcLang traces.
+
+        Capella relation types seen on a requirement's `.relations` list
+        (`.target` is always the *other* end, seen from the requirement):
+          - CapellaOutgoingRelation: requirement -> model element
+          - CapellaIncomingRelation: model element -> requirement
+          - InternalRelation:        requirement -> requirement (NOT emitted:
+            ArcLang traces here link design elements to requirements)
+        All are normalized to the ArcLang form
+            trace "<element-uuid>" satisfies "<requirement-uuid>"
+        (the element satisfies the requirement).
+
+        The strict parser rejects dangling trace endpoints as compile
+        ERRORS, so a trace is only emitted when the element UUID was emitted
+        in this file AND the requirement UUID was emitted above.
+        """
+        try:
+            reqs = list(self.model.search("Requirement"))
+        except Exception:
+            return
+        seen: set[tuple[str, str]] = set()
+        lines: list[str] = []
+        for req in reqs:
+            if req.uuid not in self.emitted_requirements:
+                continue
+            for relation in getattr(req, "relations", []) or []:
+                target = getattr(relation, "target", None)
+                target_uuid = getattr(target, "uuid", None)
+                if not target_uuid or target_uuid not in self.emitted_ids:
+                    continue  # requirement->requirement or unemitted element
+                pair = (target_uuid, req.uuid)
+                if pair in seen:
+                    continue
+                seen.add(pair)
+                lines.append(f'trace "{target_uuid}" satisfies "{req.uuid}"')
+                self.count("trace")
+        if lines:
+            # Capella relation order is not stable across model edits —
+            # sort for a deterministic, diffable .arc output.
+            self.lines += sorted(lines)
+            self.out()
+
     def emit(self) -> str:
         self.emit_model_header()
         self.emit_operational_analysis()
         self.emit_system_analysis()
         self.emit_logical_architecture()
         self.emit_physical_architecture()
+        self.emit_requirements()
+        self.emit_requirement_traces()
         return "\n".join(self.lines) + "\n"
 
 
