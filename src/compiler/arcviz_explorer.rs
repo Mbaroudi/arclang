@@ -112,33 +112,11 @@ pub struct TraceDetail {
 
 impl ArchitectureDocument {
     pub fn from_model(model: &SemanticModel) -> Result<Self, CompilerError> {
-        // Extract metadata from model or use defaults
-        // Try to infer title from the architecture domain or system name
-        let title = if !model.components.is_empty() {
-            // Check component IDs and names for domain keywords
-            let comp_ids: Vec<String> = model.components.iter().map(|c| c.id.clone()).collect();
-            let comp_names: Vec<String> = model.components.iter().map(|c| c.name.clone()).collect();
-            
-            // Check for automotive/vehicle domain
-            if comp_ids.iter().any(|id| id.contains("VHC") || id.contains("CTRL")) ||
-               comp_names.iter().any(|n| n.contains("Engine") || n.contains("Battery") || 
-                                      n.contains("Vehicle") || n.contains("ECU") ||
-                                      n.contains("Telematics") || n.contains("Powertrain")) {
-                "Vehicle Remote Start System Architecture".to_string()
-            }
-            // Check for data platform domain
-            else if comp_ids.iter().any(|id| id.contains("MIG") || id.contains("ANLZ") || id.contains("TGT")) ||
-                    comp_names.iter().any(|n| n.contains("Migration") || n.contains("Analytics") || 
-                                           n.contains("Data") || n.contains("Databricks")) {
-                "Data Platform Architecture".to_string()
-            }
-            // Generic fallback
-            else {
-                "System Architecture".to_string()
-            }
-        } else {
-            "Architecture Document".to_string()
-        };
+        // The title is the model's declared name — never guessed from content.
+        let title = model
+            .name
+            .clone()
+            .unwrap_or_else(|| "System Architecture".to_string());
         
         let description = format!("Complete architecture with {} components, {} interfaces, and {} requirements",
             model.components.len(),

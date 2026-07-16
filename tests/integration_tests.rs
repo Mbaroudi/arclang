@@ -321,3 +321,47 @@ system_analysis SA {
         result.warnings
     );
 }
+
+#[test]
+fn test_duplicate_element_id_produces_warning() {
+    let input = r#"
+model Test {
+}
+
+architecture logical {
+    component "Controller" { id: "LC-001" }
+    component "OtherThing" { id: "LC-001" }
+}
+"#;
+    let config = CompilerConfig::default();
+    let mut compiler = Compiler::new(config);
+    let result = compiler.compile_string(input).expect("duplicate ids warn, not fail");
+    assert!(
+        result.warnings.iter().any(|w| w.contains("duplicate element id 'LC-001'")),
+        "Expected duplicate-id warning, got: {:?}",
+        result.warnings
+    );
+}
+
+#[test]
+fn test_deployment_to_unknown_component_produces_warning() {
+    let input = r#"
+model Test {
+}
+
+physical_architecture "PA" {
+    node "ECU" {
+        id: "PN-001"
+        deploys "GhostComponent"
+    }
+}
+"#;
+    let config = CompilerConfig::default();
+    let mut compiler = Compiler::new(config);
+    let result = compiler.compile_string(input).expect("unknown deployment warns");
+    assert!(
+        result.warnings.iter().any(|w| w.contains("GhostComponent")),
+        "Expected deployment warning, got: {:?}",
+        result.warnings
+    );
+}

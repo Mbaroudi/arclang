@@ -604,13 +604,14 @@ impl CliRunner {
                             .map_err(|e| CliError::Compilation(e.to_string()))?
                     }
                     ExportFormat::HTML => {
-                        use crate::compiler::elk_complete_v2_generator::ElkCompleteV2Generator;
+                        // The explorer is the renderer that actually draws the
+                        // diagram (layers, components, ports, labeled edges).
+                        // The ELK v2 pipeline's to_html only dumps layout JSON.
+                        use crate::compiler::arcviz_explorer::generate_explorer_html;
 
-                        let generator = ElkCompleteV2Generator::new();
-                        let generation = generator.generate(&result.semantic_model)
+                        let (html, _json) = generate_explorer_html(&result.semantic_model)
                             .map_err(|e| CliError::Compilation(format!("HTML generation failed: {}", e)))?;
-
-                        generation.to_html()
+                        html
                     }
                     ExportFormat::PDF => {
                         return Err(CliError::NotImplemented(

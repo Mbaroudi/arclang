@@ -4,6 +4,8 @@ use std::collections::HashMap;
 
 #[derive(Debug, Clone, Serialize)]
 pub struct SemanticModel {
+    /// Model name from the `model <Name>` header, when present.
+    pub name: Option<String>,
     pub requirements: Vec<RequirementInfo>,
     pub components: Vec<ComponentInfo>,
     pub functions: Vec<FunctionInfo>,
@@ -15,6 +17,7 @@ pub struct SemanticModel {
 impl Default for SemanticModel {
     fn default() -> Self {
         Self {
+            name: None,
             requirements: Vec::new(),
             components: Vec::new(),
             functions: Vec::new(),
@@ -126,6 +129,26 @@ impl TraceInfo {
     }
 }
 
+
+/// Register an element, recording a warning when an id is reused by a
+/// DIFFERENT element (identity must be unique across the whole model).
+fn register_element(
+    elements: &mut HashMap<String, ElementInfo>,
+    duplicates: &mut Vec<String>,
+    key: String,
+    info: ElementInfo,
+) {
+    if let Some(existing) = elements.get(&key) {
+        if existing.name != info.name || existing.element_type != info.element_type {
+            duplicates.push(format!(
+                "duplicate element id '{}': {} '{}' and {} '{}' share the same identity — give one an explicit unique id",
+                key, existing.element_type, existing.name, info.element_type, info.name
+            ));
+        }
+    }
+    elements.insert(key, info);
+}
+
 pub struct SemanticAnalyzer;
 
 impl SemanticAnalyzer {
@@ -149,6 +172,7 @@ impl SemanticAnalyzer {
         let mut traces = Vec::new();
         let mut interfaces = Vec::new();
         let mut all_elements = HashMap::new();
+        let mut duplicate_ids: Vec<String> = Vec::new();
         
         // Collect actors from operational analysis
         for oa in &ast.operational_analysis {
@@ -183,7 +207,7 @@ impl SemanticAnalyzer {
                     functions: Vec::new(),
                 });
                 
-                all_elements.insert(actor_id.clone(), ElementInfo::new(actor_id.clone(), actor.name.clone(), "Actor"));
+                register_element(&mut all_elements, &mut duplicate_ids, actor_id.clone(), ElementInfo::new(actor_id.clone(), actor.name.clone(), "Actor"));
             }
             
             // Collect traces from operational_analysis
@@ -245,7 +269,7 @@ impl SemanticAnalyzer {
                         outputs,
                     });
                     
-                    all_elements.insert(activity_id.clone(), ElementInfo::new(activity_id, activity.name.clone(), "Activity"));
+                    register_element(&mut all_elements, &mut duplicate_ids, activity_id.clone(), ElementInfo::new(activity_id, activity.name.clone(), "Activity"));
                 }
                 
                 components.push(ComponentInfo {
@@ -260,7 +284,7 @@ impl SemanticAnalyzer {
                     functions: entity_function_ids,
                 });
                 
-                all_elements.insert(entity.id.clone(), ElementInfo::new(entity.id.clone(), entity.name.clone(), "Entity"));
+                register_element(&mut all_elements, &mut duplicate_ids, entity.id.clone(), ElementInfo::new(entity.id.clone(), entity.name.clone(), "Entity"));
             }
             
             // Collect operational activities (recursively handle sub-activities)
@@ -268,6 +292,7 @@ impl SemanticAnalyzer {
                 activity: &OperationalActivity,
                 components: &mut Vec<ComponentInfo>,
                 all_elements: &mut HashMap<String, ElementInfo>,
+                duplicates: &mut Vec<String>,
             ) {
                 // Use ID from attributes if available, otherwise use the struct id
                 let activity_id = activity.attributes.get("id")
@@ -295,11 +320,11 @@ impl SemanticAnalyzer {
                     functions: Vec::new(),
                 });
                 
-                all_elements.insert(activity_id.clone(), ElementInfo::new(activity_id.clone(), activity.name.clone(), "OperationalActivity"));
+                register_element(all_elements, duplicates, activity_id.clone(), ElementInfo::new(activity_id.clone(), activity.name.clone(), "OperationalActivity"));
                 
                 // Recursively collect sub-activities
                 for sub_activity in &activity.sub_activities {
-                    collect_activities_recursive(sub_activity, components, all_elements);
+                    collect_activities_recursive(sub_activity, components, all_elements, duplicates);
                 }
             }
             
@@ -307,7 +332,7 @@ impl SemanticAnalyzer {
                 let attr_id = activity.attributes.get("id")
                     .and_then(|v| v.as_string())
                     .unwrap_or(&activity.id);
-                collect_activities_recursive(activity, &mut components, &mut all_elements);
+                collect_activities_recursive(activity, &mut components, &mut all_elements, &mut duplicate_ids);
             }
         }
         
@@ -346,7 +371,7 @@ impl SemanticAnalyzer {
                     safety_level,
                 });
                 
-                all_elements.insert(req_id.clone(), ElementInfo::new(req_id.clone(), req_id.clone(), "Requirement"));
+                register_element(&mut all_elements, &mut duplicate_ids, req_id.clone(), ElementInfo::new(req_id.clone(), req_id.clone(), "Requirement"));
             }
             
             // Collect system components
@@ -381,29 +406,30 @@ impl SemanticAnalyzer {
                     functions: Vec::new(),
                 });
                 
-                all_elements.insert(comp_id.clone(), ElementInfo::new(comp_id.clone(), comp.name.clone(), "SystemComponent"));
+                register_element(&mut all_elements, &mut duplicate_ids, comp_id.clone(), ElementInfo::new(comp_id.clone(), comp.name.clone(), "SystemComponent"));
             }
             
             // Collect system functions (recursively handle sub-functions)
             fn collect_system_functions_recursive(
                 func: &SystemFunction,
                 all_elements: &mut HashMap<String, ElementInfo>,
+                duplicates: &mut Vec<String>,
             ) {
                 let func_id = func.attributes.get("id")
                     .and_then(|v| v.as_string())
                     .map(|s| s.to_string())
                     .unwrap_or_else(|| func.id.clone());
-                
-                all_elements.insert(func_id.clone(), ElementInfo::new(func_id.clone(), func.name.clone(), "SystemFunction"));
-                
+
+                register_element(all_elements, duplicates, func_id.clone(), ElementInfo::new(func_id.clone(), func.name.clone(), "SystemFunction"));
+
                 // Recursively collect sub-functions
                 for sub_func in &func.sub_functions {
-                    collect_system_functions_recursive(sub_func, all_elements);
+                    collect_system_functions_recursive(sub_func, all_elements, duplicates);
                 }
             }
-            
+
             for func in &sa.functions {
-                collect_system_functions_recursive(func, &mut all_elements);
+                collect_system_functions_recursive(func, &mut all_elements, &mut duplicate_ids);
             }
         }
         
@@ -434,6 +460,7 @@ impl SemanticAnalyzer {
                 components: &mut Vec<ComponentInfo>,
                 functions: &mut Vec<FunctionInfo>,
                 all_elements: &mut HashMap<String, ElementInfo>,
+                duplicates: &mut Vec<String>,
             ) {
                 let comp_id = comp.attributes.get("id")
                     .and_then(|v| v.as_string())
@@ -490,10 +517,10 @@ impl SemanticAnalyzer {
                     functions: comp_functions,
                 });
 
-                all_elements.insert(comp_id.clone(), ElementInfo::new(comp_id.clone(), comp.name.clone(), "Component"));
+                register_element(all_elements, duplicates, comp_id.clone(), ElementInfo::new(comp_id.clone(), comp.name.clone(), "Component"));
 
                 for interface_def in &comp.interfaces_in {
-                    all_elements.insert(
+                    register_element(all_elements, duplicates, 
                         format!("{}_{}", comp_id, interface_def.name),
                         ElementInfo::new(
                             format!("{}_{}", comp_id, interface_def.name),
@@ -504,7 +531,7 @@ impl SemanticAnalyzer {
                 }
 
                 for interface_def in &comp.interfaces_out {
-                    all_elements.insert(
+                    register_element(all_elements, duplicates, 
                         format!("{}_{}", comp_id, interface_def.name),
                         ElementInfo::new(
                             format!("{}_{}", comp_id, interface_def.name),
@@ -551,16 +578,16 @@ impl SemanticAnalyzer {
                         outputs,
                     });
 
-                    all_elements.insert(func_id.clone(), ElementInfo::new(func_id.clone(), func.name.clone(), "Function"));
+                    register_element(all_elements, duplicates, func_id.clone(), ElementInfo::new(func_id.clone(), func.name.clone(), "Function"));
                 }
 
                 for sub in &comp.sub_components {
-                    collect_logical_component(sub, components, functions, all_elements);
+                    collect_logical_component(sub, components, functions, all_elements, duplicates);
                 }
             }
 
             for comp in &la.components {
-                collect_logical_component(comp, &mut components, &mut functions, &mut all_elements);
+                collect_logical_component(comp, &mut components, &mut functions, &mut all_elements, &mut duplicate_ids);
             }
         }
         
@@ -612,7 +639,7 @@ impl SemanticAnalyzer {
                     functions: Vec::new(),
                 });
                 
-                all_elements.insert(node_id.clone(), ElementInfo::new(node_id.clone(), node.name.clone(), "Component"));
+                register_element(&mut all_elements, &mut duplicate_ids, node_id.clone(), ElementInfo::new(node_id.clone(), node.name.clone(), "Component"));
             }
         }
         
@@ -636,10 +663,18 @@ impl SemanticAnalyzer {
 
         // Exchange endpoints are checked but only warned about for now:
         // port paths (Component.Port) are not first-class elements yet.
-        let warnings = Self::check_exchange_endpoints(ast, &all_elements);
+        let mut warnings = duplicate_ids;
+        warnings.extend(Self::check_exchange_endpoints(ast, &all_elements));
+
+        let name = ast
+            .attributes
+            .get("name")
+            .and_then(|v| v.as_string())
+            .map(|s| s.to_string());
 
         Ok((
             SemanticModel {
+                name,
                 requirements,
                 components,
                 functions,
@@ -705,6 +740,18 @@ impl SemanticAnalyzer {
             for link in &pa.links {
                 check("link", "", &link.from, "from");
                 check("link", "", &link.to, "to");
+            }
+            // Arcadia allocation rules: deployments and behavior-component
+            // allocations must point at declared elements.
+            for node in &pa.nodes {
+                for deployment in &node.deployments {
+                    check("deployment", &node.name, &deployment.component, "component");
+                }
+                for behavior in &node.behavior_components {
+                    for function in &behavior.allocated_functions {
+                        check("behavior_component", &behavior.name, function, "allocated");
+                    }
+                }
             }
         }
 

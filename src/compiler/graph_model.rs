@@ -139,14 +139,42 @@ impl DagreGraph {
             });
         }
 
-        // Extract edges
+        // Extract edges, resolving endpoints to NODE ids: interfaces may
+        // reference components by name or dotted port path (Comp.Port), and a
+        // renderer crashes on edges pointing at nonexistent nodes.
+        let node_ids: std::collections::HashSet<&str> =
+            nodes.iter().map(|n| n.id.as_str()).collect();
+        let name_to_id: HashMap<&str, &str> = nodes
+            .iter()
+            .map(|n| (n.label.as_str(), n.id.as_str()))
+            .collect();
+        let resolve = |endpoint: &str| -> Option<String> {
+            if node_ids.contains(endpoint) {
+                return Some(endpoint.to_string());
+            }
+            if let Some(id) = name_to_id.get(endpoint) {
+                return Some((*id).to_string());
+            }
+            let root = endpoint.split('.').next().unwrap_or(endpoint);
+            if node_ids.contains(root) {
+                return Some(root.to_string());
+            }
+            name_to_id.get(root).map(|id| (*id).to_string())
+        };
+
         let mut edges = Vec::new();
         for interface in &model.interfaces {
-            edges.push(GraphEdge {
-                source: interface.from.clone(),
-                target: interface.to.clone(),
-                label: interface.name.clone(),
-            });
+            // Edges between non-component elements (e.g. function-to-function
+            // exchanges) don't belong on this component-level view.
+            if let (Some(source), Some(target)) =
+                (resolve(&interface.from), resolve(&interface.to))
+            {
+                edges.push(GraphEdge {
+                    source,
+                    target,
+                    label: interface.name.clone(),
+                });
+            }
         }
 
         Ok(DagreGraph {
