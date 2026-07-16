@@ -384,6 +384,19 @@ impl SemanticAnalyzer {
         
         // Collect requirements from system analysis
         for sa in &ast.system_analysis {
+            // Functional exchanges are data flows of the canonical model,
+            // same as component and physical exchanges.
+            for exchange in &sa.functional_exchanges {
+                interfaces.push(InterfaceInfo {
+                    name: exchange
+                        .label
+                        .clone()
+                        .unwrap_or_else(|| format!("{} -> {}", exchange.from_port, exchange.to_port)),
+                    from: exchange.from_port.clone(),
+                    to: exchange.to_port.clone(),
+                });
+            }
+
             for req in &sa.requirements {
                 // Use ID from attributes if available, otherwise use struct id
                 let req_id = req.attributes.get("id")

@@ -623,7 +623,14 @@ impl CliRunner {
                         // The ELK v2 pipeline's to_html only dumps layout JSON.
                         use crate::compiler::arcviz_explorer::generate_explorer_html;
 
-                        let (html, _json) = generate_explorer_html(&result.semantic_model)
+                        let mut semantic_model = result.semantic_model.clone();
+                        if semantic_model.name.is_none() {
+                            // No `model` header: fall back to the file name.
+                            semantic_model.name = input
+                                .file_stem()
+                                .map(|stem| stem.to_string_lossy().to_string());
+                        }
+                        let (html, _json) = generate_explorer_html(&semantic_model)
                             .map_err(|e| CliError::Compilation(format!("HTML generation failed: {}", e)))?;
                         html
                     }
@@ -889,8 +896,15 @@ impl CliRunner {
         match compiler.compile_file(&input) {
             Ok(result) => {
                 use crate::compiler::arcviz_explorer::generate_explorer_html;
-                
-                let (html, json) = generate_explorer_html(&result.semantic_model)
+
+                let mut semantic_model = result.semantic_model.clone();
+                if semantic_model.name.is_none() {
+                    // No `model` header: fall back to the file name.
+                    semantic_model.name = input
+                        .file_stem()
+                        .map(|stem| stem.to_string_lossy().to_string());
+                }
+                let (html, json) = generate_explorer_html(&semantic_model)
                     .map_err(|e| CliError::Compilation(e.to_string()))?;
                 
                 let output_html = output.unwrap_or_else(|| {
