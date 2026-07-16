@@ -297,3 +297,27 @@ architecture logical {
     // Cross-checked against Python: uuid5(ARCLANG_NAMESPACE, "element:LC-001").
     assert_eq!(element.uuid, "8006ab91-390c-5908-8464-b353219dfc1f");
 }
+
+#[test]
+fn test_unresolved_exchange_endpoint_produces_warning() {
+    let input = r#"
+model Test {
+}
+
+system_analysis SA {
+    function Compute { outputs: ["x"] }
+    functional_exchange Flow1 {
+        from: Compute
+        to: DoesNotExist
+    }
+}
+"#;
+    let config = CompilerConfig::default();
+    let mut compiler = Compiler::new(config);
+    let result = compiler.compile_string(input).expect("must compile (warning, not error)");
+    assert!(
+        result.warnings.iter().any(|w| w.contains("DoesNotExist")),
+        "Expected a warning naming the unresolved endpoint, got: {:?}",
+        result.warnings
+    );
+}

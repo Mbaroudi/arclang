@@ -111,14 +111,17 @@ impl Compiler {
             .map_err(CompilerError::Lexer)?;
 
         // Parsing (strict: unknown constructs are errors, skipped ones are warnings)
-        let parser::ParseOutcome { model: ast, warnings } =
+        let parser::ParseOutcome { model: ast, mut warnings } =
             parser::Parser::with_spans(tokens, spans)
                 .parse_with_warnings()
                 .map_err(CompilerError::Parser)?;
 
-        // Semantic analysis
-        let semantic_model = semantic::SemanticAnalyzer::new().analyze(&ast)
+        // Semantic analysis (dangling traces are errors; unresolved exchange
+        // endpoints are warnings until ports become first-class)
+        let (semantic_model, semantic_warnings) = semantic::SemanticAnalyzer::new()
+            .analyze_with_warnings(&ast)
             .map_err(CompilerError::Semantic)?;
+        warnings.extend(semantic_warnings);
 
         // Code generation
         let output = codegen::CodeGenerator::new(&self.config).generate(&semantic_model)?;

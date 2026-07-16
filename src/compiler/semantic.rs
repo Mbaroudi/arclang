@@ -133,6 +133,15 @@ impl SemanticAnalyzer {
     }
     
     pub fn analyze(&self, ast: &Model) -> Result<SemanticModel, String> {
+        self.analyze_with_warnings(ast).map(|(model, _)| model)
+    }
+
+    /// Analyze and also return non-fatal diagnostics (unresolved exchange
+    /// endpoints, ...). Dangling trace references remain hard errors.
+    pub fn analyze_with_warnings(
+        &self,
+        ast: &Model,
+    ) -> Result<(SemanticModel, Vec<String>), String> {
         let mut requirements = Vec::new();
         let mut components = Vec::new();
         let mut functions = Vec::new();
@@ -604,14 +613,81 @@ impl SemanticAnalyzer {
         // a trace that points at nothing must never be silently dropped.
         let resolved_traces = Self::resolve_traces(traces, &all_elements)?;
 
-        Ok(SemanticModel {
-            requirements,
-            components,
-            functions,
-            traces: resolved_traces,
-            interfaces,
-            all_elements,
-        })
+        // Exchange endpoints are checked but only warned about for now:
+        // port paths (Component.Port) are not first-class elements yet.
+        let warnings = Self::check_exchange_endpoints(ast, &all_elements);
+
+        Ok((
+            SemanticModel {
+                requirements,
+                components,
+                functions,
+                traces: resolved_traces,
+                interfaces,
+                all_elements,
+            },
+            warnings,
+        ))
+    }
+
+    /// Check that exchange/link endpoints reference known elements.
+    /// A reference resolves if it matches an element id, an element name, or
+    /// a dotted path whose first segment matches (Component.Port).
+    fn check_exchange_endpoints(
+        ast: &Model,
+        elements: &HashMap<String, ElementInfo>,
+    ) -> Vec<String> {
+        let names: std::collections::HashSet<&str> =
+            elements.values().map(|e| e.name.as_str()).collect();
+
+        let resolves = |reference: &str| -> bool {
+            if reference.is_empty() {
+                return true; // absence is a parser-level concern
+            }
+            let root = reference.split('.').next().unwrap_or(reference);
+            elements.contains_key(reference)
+                || names.contains(reference)
+                || elements.contains_key(root)
+                || names.contains(root)
+        };
+
+        let mut warnings = Vec::new();
+        let mut check = |kind: &str, label: &str, endpoint: &str, role: &str| {
+            if !resolves(endpoint) {
+                warnings.push(format!(
+                    "{} '{}': '{}' ({}) does not match any declared element",
+                    kind, label, endpoint, role
+                ));
+            }
+        };
+
+        for sa in &ast.system_analysis {
+            for ex in &sa.functional_exchanges {
+                let label = ex.label.as_deref().unwrap_or("");
+                check("functional_exchange", label, &ex.from_port, "from");
+                check("functional_exchange", label, &ex.to_port, "to");
+            }
+        }
+        for la in &ast.logical_architecture {
+            for ex in &la.component_exchanges {
+                let label = ex.label.as_deref().unwrap_or("");
+                check("component_exchange", label, &ex.from_port, "from");
+                check("component_exchange", label, &ex.to_port, "to");
+            }
+        }
+        for pa in &ast.physical_architecture {
+            for ex in &pa.physical_exchanges {
+                let label = ex.label.as_deref().unwrap_or("");
+                check("physical_exchange", label, &ex.from, "from");
+                check("physical_exchange", label, &ex.to, "to");
+            }
+            for link in &pa.links {
+                check("link", "", &link.from, "from");
+                check("link", "", &link.to, "to");
+            }
+        }
+
+        warnings
     }
 
     /// Resolve each trace endpoint against the element registry, by id first
