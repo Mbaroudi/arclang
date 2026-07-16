@@ -287,6 +287,7 @@ pub enum ExportFormat {
     HTML,
     PDF,
     Terraform,
+    SysML,
 }
 
 #[derive(Debug, clap::ValueEnum, Clone)]
@@ -468,6 +469,18 @@ impl CliRunner {
                     }
                 }
                 
+                if lint {
+                    let lints = crate::compiler::semantic::arcadia_methodology_lints(&result.ast);
+                    if lints.is_empty() {
+                        println!("\n✓ Arcadia methodology: no advisories");
+                    } else {
+                        println!("\nℹ Arcadia methodology advisories:");
+                        for advisory in &lints {
+                            println!("  {}", advisory);
+                        }
+                    }
+                }
+
                 if lint || safety {
                     println!("\nModel metrics:");
                     let metrics = result.semantic_model.compute_metrics();
@@ -581,6 +594,7 @@ impl CliRunner {
             ExportFormat::PDF => "json".to_string(),
             ExportFormat::YAML => "json".to_string(),
             ExportFormat::Terraform => "terraform".to_string(),
+            ExportFormat::SysML => "json".to_string(),
         };
         
         let mut compiler = crate::Compiler::new(config);
@@ -613,9 +627,13 @@ impl CliRunner {
                             .map_err(|e| CliError::Compilation(format!("HTML generation failed: {}", e)))?;
                         html
                     }
+                    ExportFormat::SysML => {
+                        // SysML v2 textual notation (interoperability subset)
+                        crate::compiler::sysmlv2_generator::generate_sysmlv2(&result.semantic_model)
+                    }
                     ExportFormat::PDF => {
                         return Err(CliError::NotImplemented(
-                            "PDF export not implemented in v3 — use --format html (ELK v2) and print to PDF".to_string()
+                            "PDF export not implemented in v3 — use --format html and print to PDF".to_string()
                         ));
                     }
                     ExportFormat::Terraform => {

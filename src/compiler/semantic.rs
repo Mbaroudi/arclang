@@ -149,6 +149,52 @@ fn register_element(
     elements.insert(key, info);
 }
 
+/// Arcadia methodology lints: advisory checks on how the model uses the
+/// method's layers. Surfaced by `arclang check --lint`, not by every build —
+/// partial models (single-layer studies) are legitimate working states.
+pub fn arcadia_methodology_lints(ast: &Model) -> Vec<String> {
+    let mut lints = Vec::new();
+
+    if !ast.physical_architecture.is_empty() && ast.logical_architecture.is_empty() {
+        lints.push(
+            "physical architecture without a logical architecture: PA elements have nothing to realize"
+                .to_string(),
+        );
+    }
+    if !ast.logical_architecture.is_empty() && ast.system_analysis.is_empty() {
+        lints.push(
+            "logical architecture without a system analysis: no system functions or requirements to allocate"
+                .to_string(),
+        );
+    }
+    if !ast.system_analysis.is_empty() && ast.operational_analysis.is_empty() {
+        lints.push(
+            "system analysis without an operational analysis: no operational need is captured"
+                .to_string(),
+        );
+    }
+
+    for la in &ast.logical_architecture {
+        for comp in &la.components {
+            lint_functionless_components(comp, &mut lints);
+        }
+    }
+
+    lints
+}
+
+fn lint_functionless_components(comp: &LogicalComponent, lints: &mut Vec<String>) {
+    if comp.functions.is_empty() && comp.sub_components.is_empty() {
+        lints.push(format!(
+            "logical component '{}' performs no functions — Arcadia expects logical components to realize behavior",
+            comp.name
+        ));
+    }
+    for sub in &comp.sub_components {
+        lint_functionless_components(sub, lints);
+    }
+}
+
 pub struct SemanticAnalyzer;
 
 impl SemanticAnalyzer {

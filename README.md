@@ -57,6 +57,12 @@ the long-term goal.
   covered by in-process integration tests.
 - **Language server**: `arclang lsp --stdio` (tower-lsp) publishes compiler
   diagnostics at exact source positions on open/change/save.
+- **Model validation**: duplicate identities, dangling deployment/allocation
+  references (warnings on every build); Arcadia methodology advisories via
+  `arclang check --lint` (layer consistency, function-less components).
+- **SysML v2 interop export**: `arclang export -f sys-ml` emits the OMG
+  SysML v2 textual notation (packages, part defs/usages, action defs,
+  requirement defs, connect, satisfy — subset documented in the generator).
 
 ## Explicitly not implemented yet
 
@@ -153,7 +159,7 @@ This exact example compiles: 1 requirement, 3 components, 2 functions, 1 resolve
 | **M2 — Stable identity** | Deterministic UUIDs on every element, dangling references as compile errors, single semantic model | ✅ |
 | **M3 — Capella round-trip** | Native Capella import/export via [capellambse](https://github.com/DSD-DBS/py-capellambse) bridge, zero-diff round-trip + editing workflows in CI | ✅ (names/descriptions/requirements; see `tools/capella_bridge/README.md` for scope) |
 | **M4 — Programmatic access** | JSON API over the semantic model (axum), LSP (tower-lsp) with diagnostics from spans | ✅ diagnostics & API (next: go-to-definition, completion, MCP as API client) |
-| **M5 — Arcadia semantics** | Allocation rules (function→component), inter-layer consistency checks, SysML v2 interop export | ◻ next |
+| **M5 — Arcadia semantics** | Allocation rules (function→component), inter-layer consistency checks, SysML v2 interop export | ✅ (reference validation, methodology lints, SysML v2 subset export) |
 
 ## Repository layout
 
