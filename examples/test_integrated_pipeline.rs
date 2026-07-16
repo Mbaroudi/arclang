@@ -153,8 +153,14 @@ fn main() {
     println!();
     
     let generator = ElkCompleteV2Generator::new();
-    
-    match generator.generate(&model) {
+
+    // Single derivation: build the canonical semantic model once, then
+    // feed it to the generator (no AST re-analysis inside).
+    let semantic_model = arclang::compiler::semantic::SemanticAnalyzer::new()
+        .analyze(&model)
+        .expect("semantic analysis failed");
+
+    match generator.generate(&semantic_model) {
         Ok(result) => {
             println!();
             println!("╔══════════════════════════════════════════════════════════════════╗");

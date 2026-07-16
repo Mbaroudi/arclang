@@ -95,6 +95,225 @@ pub struct SemanticContext {
     pub has_safety_critical: bool,
 }
 
+impl SemanticContext {
+    /// Derive the semantic context from the canonical `SemanticModel`
+    /// produced by the main compilation pipeline.
+    ///
+    /// This is the single-derivation entry point: it replaces re-analyzing
+    /// the AST (`SemanticAnalyzer::analyze`) on generator paths, so the
+    /// already-computed canonical layer (stable UUIDs included) is the only
+    /// source of semantic truth.
+    pub fn from_model(model: &crate::compiler::semantic::SemanticModel) -> SemanticContext {
+        let analyzer = SemanticAnalyzer::new();
+
+        // --- Phase detection ---------------------------------------------
+        // Equivalent to the AST section-presence check (OA > SA > LA > PA):
+        // the canonical model tags every component with the level it came
+        // from ("Operational" / "System" / "Logical" / "Physical" or a
+        // custom layer), and system-analysis content also surfaces as
+        // requirements / SystemFunction elements.
+        let has_level = |level: &str| model.components.iter().any(|c| c.level == level);
+        let has_element_type = |element_type: &str| {
+            model.all_elements.values().any(|e| e.element_type == element_type)
+        };
+
+        let phase = if has_level("Operational") || has_element_type("Actor") || has_element_type("Entity") {
+            ArcadiaPhase::Operational
+        } else if has_level("System")
+            || !model.requirements.is_empty()
+            || has_element_type("SystemFunction")
+            || has_element_type("SystemComponent")
+        {
+            ArcadiaPhase::System
+        } else if has_level("Logical") || model.components.iter().any(|c| c.level != "Physical") {
+            ArcadiaPhase::Logical
+        } else if has_level("Physical") {
+            ArcadiaPhase::Physical
+        } else {
+            ArcadiaPhase::System
+        };
+
+        let diagram_type = match phase {
+            ArcadiaPhase::Operational => "operational",
+            ArcadiaPhase::System => "functional",
+            ArcadiaPhase::Logical => "component",
+            ArcadiaPhase::Physical => "physical",
+            ArcadiaPhase::EPBS => "component",
+        }
+        .to_string();
+
+        // --- Element classification --------------------------------------
+        // Owner map: allocated function id -> owning component id, so
+        // function allocation is represented as containment.
+        let mut function_owner: HashMap<&str, &str> = HashMap::new();
+        for component in &model.components {
+            for function_id in &component.functions {
+                function_owner.insert(function_id.as_str(), component.id.as_str());
+            }
+        }
+
+        let mut elements = Vec::new();
+        let mut classified: std::collections::HashSet<&str> = std::collections::HashSet::new();
+
+        for component in &model.components {
+            let registry_type = model
+                .all_elements
+                .get(&component.id)
+                .map(|e| e.element_type.as_str())
+                .unwrap_or("Component");
+
+            let (element_type, stereotype) = match registry_type {
+                "Actor" => (ElementType::Actor, ElementStereotype::Human),
+                "Entity" => {
+                    let stereotype = if component.component_type == "Actor" {
+                        ElementStereotype::Human
+                    } else {
+                        ElementStereotype::System
+                    };
+                    (ElementType::Actor, stereotype)
+                }
+                "Activity" | "OperationalActivity" => {
+                    (ElementType::Activity, ElementStereotype::Generic)
+                }
+                _ if component.level == "Physical" => {
+                    (ElementType::PhysicalNode, ElementStereotype::Hardware)
+                }
+                _ => (
+                    ElementType::Component,
+                    Self::stereotype_from_keywords(&component.component_type),
+                ),
+            };
+
+            classified.insert(component.id.as_str());
+            elements.push(ElementClassification {
+                id: component.id.clone(),
+                name: component.name.clone(),
+                element_type,
+                stereotype,
+                safety_level: component
+                    .safety_level
+                    .clone()
+                    .or_else(|| component.asil.clone()),
+                parent_id: None,
+                contains: component.functions.clone(),
+                interfaces_in: component.interfaces_in.iter().map(|i| i.name.clone()).collect(),
+                interfaces_out: component.interfaces_out.iter().map(|i| i.name.clone()).collect(),
+            });
+        }
+
+        // Functions (logical component functions and operational activities)
+        for function in &model.functions {
+            if !classified.insert(function.id.as_str()) {
+                continue;
+            }
+            elements.push(ElementClassification {
+                id: function.id.clone(),
+                name: function.name.clone(),
+                element_type: ElementType::Function,
+                stereotype: analyzer.infer_function_stereotype(&function.name),
+                safety_level: None,
+                parent_id: function_owner.get(function.id.as_str()).map(|s| s.to_string()),
+                contains: Vec::new(),
+                interfaces_in: function.inputs.clone(),
+                interfaces_out: function.outputs.clone(),
+            });
+        }
+
+        // System functions only exist in the element registry
+        for element in model.all_elements.values() {
+            if element.element_type == "SystemFunction" && classified.insert(element.id.as_str()) {
+                elements.push(ElementClassification {
+                    id: element.id.clone(),
+                    name: element.name.clone(),
+                    element_type: ElementType::Function,
+                    stereotype: analyzer.infer_function_stereotype(&element.name),
+                    safety_level: None,
+                    parent_id: None,
+                    contains: Vec::new(),
+                    interfaces_in: Vec::new(),
+                    interfaces_out: Vec::new(),
+                });
+            }
+        }
+
+        // Keep classification order deterministic regardless of HashMap iteration
+        elements.sort_by(|a, b| a.id.cmp(&b.id));
+
+        // --- Relationships -------------------------------------------------
+        // Containment + port-name matching (same as the AST derivation), then
+        // the explicit exchanges carried by the canonical model.
+        let mut relationships = analyzer.analyze_relationships(&elements);
+        for interface in &model.interfaces {
+            let from = Self::resolve_endpoint(&interface.from, model);
+            let to = Self::resolve_endpoint(&interface.to, model);
+            let connection = (from, to, "interface".to_string());
+            if !relationships.connections.contains(&connection) {
+                relationships.connections.push(connection);
+            }
+        }
+
+        let complexity = analyzer.assess_complexity(&elements, &relationships);
+
+        let has_actors = elements.iter().any(|e| e.element_type == ElementType::Actor);
+        let has_hierarchy = elements.iter().any(|e| !e.contains.is_empty());
+        let has_data_flow = !relationships.connections.is_empty();
+        let has_safety_critical = elements.iter().any(|e| e.safety_level.is_some());
+
+        let recommended_strategy =
+            analyzer.select_strategy(&phase, has_actors, has_hierarchy, has_data_flow);
+
+        SemanticContext {
+            phase,
+            diagram_type,
+            elements,
+            relationships,
+            complexity,
+            recommended_strategy,
+            has_actors,
+            has_hierarchy,
+            has_data_flow,
+            has_safety_critical,
+        }
+    }
+
+    /// Resolve an exchange endpoint ("Component", "Component.Port",
+    /// "COMP-ID", ...) to a canonical element id, best effort: exact id,
+    /// then element name, then legacy `PREFIX_...` port convention.
+    pub fn resolve_endpoint(
+        endpoint: &str,
+        model: &crate::compiler::semantic::SemanticModel,
+    ) -> String {
+        let root = endpoint.split('.').next().unwrap_or(endpoint);
+
+        if model.all_elements.contains_key(root) {
+            return root.to_string();
+        }
+        if let Some(element) = model.all_elements.values().find(|e| e.name == root) {
+            return element.id.clone();
+        }
+        let underscore_root = root.split('_').next().unwrap_or(root);
+        if model.all_elements.contains_key(underscore_root) {
+            return underscore_root.to_string();
+        }
+        root.to_string()
+    }
+
+    /// Infer a component stereotype from a free-form type string
+    /// (e.g. the canonical `component_type`).
+    fn stereotype_from_keywords(type_name: &str) -> ElementStereotype {
+        let lower = type_name.to_lowercase();
+        if lower.contains("sensor") {
+            ElementStereotype::Sensor
+        } else if lower.contains("controller") {
+            ElementStereotype::Controller
+        } else if lower.contains("actuator") {
+            ElementStereotype::Actuator
+        } else {
+            ElementStereotype::Generic
+        }
+    }
+}
+
 pub struct SemanticAnalyzer;
 
 impl SemanticAnalyzer {
@@ -561,6 +780,104 @@ mod tests {
         assert_eq!(strategy, RecommendedStrategy::Swimlane);
     }
     
+    #[test]
+    fn from_model_classifies_actor_and_logical_component() {
+        use crate::compiler::semantic::{ComponentInfo, ElementInfo, SemanticModel};
+
+        let mut model = SemanticModel::default();
+
+        model.components.push(ComponentInfo {
+            id: "ACT-001".to_string(),
+            name: "Driver".to_string(),
+            component_type: "Actor".to_string(),
+            level: "Operational".to_string(),
+            safety_level: None,
+            asil: None,
+            interfaces_in: Vec::new(),
+            interfaces_out: Vec::new(),
+            functions: Vec::new(),
+        });
+        model.all_elements.insert(
+            "ACT-001".to_string(),
+            ElementInfo::new("ACT-001", "Driver", "Actor"),
+        );
+
+        model.components.push(ComponentInfo {
+            id: "LC-001".to_string(),
+            name: "Radar Sensor".to_string(),
+            component_type: "Sensor".to_string(),
+            level: "Logical".to_string(),
+            safety_level: Some("ASIL_B".to_string()),
+            asil: None,
+            interfaces_in: Vec::new(),
+            interfaces_out: Vec::new(),
+            functions: vec!["LF-001".to_string()],
+        });
+        model.all_elements.insert(
+            "LC-001".to_string(),
+            ElementInfo::new("LC-001", "Radar Sensor", "Component"),
+        );
+
+        let context = SemanticContext::from_model(&model);
+
+        // Operational content wins phase detection (same priority as the AST path)
+        assert_eq!(context.phase, ArcadiaPhase::Operational);
+        assert_eq!(context.diagram_type, "operational");
+        assert!(context.has_actors);
+        assert!(context.has_hierarchy);
+        assert!(context.has_safety_critical);
+        assert_eq!(context.recommended_strategy, RecommendedStrategy::Swimlane);
+
+        let actor = context.elements.iter().find(|e| e.id == "ACT-001").unwrap();
+        assert_eq!(actor.element_type, ElementType::Actor);
+        assert_eq!(actor.stereotype, ElementStereotype::Human);
+
+        let component = context.elements.iter().find(|e| e.id == "LC-001").unwrap();
+        assert_eq!(component.element_type, ElementType::Component);
+        assert_eq!(component.stereotype, ElementStereotype::Sensor);
+        assert_eq!(component.safety_level, Some("ASIL_B".to_string()));
+        assert_eq!(component.contains, vec!["LF-001".to_string()]);
+    }
+
+    #[test]
+    fn from_model_detects_logical_phase_without_operational_content() {
+        use crate::compiler::semantic::{ComponentInfo, ElementInfo, InterfaceInfo, SemanticModel};
+
+        let mut model = SemanticModel::default();
+        for (id, name) in [("LC-001", "Radar"), ("LC-002", "Fusion")] {
+            model.components.push(ComponentInfo {
+                id: id.to_string(),
+                name: name.to_string(),
+                component_type: "Logical".to_string(),
+                level: "Logical".to_string(),
+                safety_level: None,
+                asil: None,
+                interfaces_in: Vec::new(),
+                interfaces_out: Vec::new(),
+                functions: Vec::new(),
+            });
+            model.all_elements.insert(
+                id.to_string(),
+                ElementInfo::new(id, name, "Component"),
+            );
+        }
+        model.interfaces.push(InterfaceInfo {
+            name: "detections".to_string(),
+            from: "Radar.out".to_string(),
+            to: "Fusion.in".to_string(),
+        });
+
+        let context = SemanticContext::from_model(&model);
+
+        assert_eq!(context.phase, ArcadiaPhase::Logical);
+        assert!(context.has_data_flow);
+        // Endpoints are resolved to canonical element ids
+        assert!(context
+            .relationships
+            .connections
+            .contains(&("LC-001".to_string(), "LC-002".to_string(), "interface".to_string())));
+    }
+
     #[test]
     fn test_strategy_selection_hierarchy() {
         let analyzer = SemanticAnalyzer::new();

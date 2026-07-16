@@ -607,7 +607,7 @@ impl CliRunner {
                         use crate::compiler::elk_complete_v2_generator::ElkCompleteV2Generator;
 
                         let generator = ElkCompleteV2Generator::new();
-                        let generation = generator.generate(&result.ast)
+                        let generation = generator.generate(&result.semantic_model)
                             .map_err(|e| CliError::Compilation(format!("HTML generation failed: {}", e)))?;
 
                         generation.to_html()

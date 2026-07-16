@@ -1,21 +1,20 @@
 //! ELK Complete Generator V2 - Integrated with Phase 1 & 2 Rendering Pipeline
-//! 
+//!
 //! This is the NEW integrated generator that uses:
-//! - SemanticAnalyzer for phase detection
+//! - the canonical `SemanticModel` (single derivation, no AST re-analysis)
+//! - SemanticContext::from_model for phase detection
 //! - LayoutStrategy for context-aware configuration
 //! - ArcadiaRulesEngine for methodology compliance
 //! - ProfessionalStyler for Capella colors
 //! - PostProcessor for alignment
 //! - QualityMetrics for scoring
 
-use super::semantic::*;
-use super::ast::Model;
+use super::semantic::SemanticModel;
 use serde_json::{json, Value};
-use std::collections::HashMap;
 
 // Import Phase 1 & 2 modules
-use crate::compiler::semantic_analyzer::{SemanticAnalyzer, SemanticContext};
-use crate::compiler::layout_strategy::{StrategySelector, LayoutStrategy, ElementData};
+use crate::compiler::semantic_analyzer::{ElementType, SemanticContext};
+use crate::compiler::layout_strategy::StrategySelector;
 use crate::compiler::arcadia_rules_engine::ArcadiaRulesEngine;
 use crate::compiler::professional_styler::{ProfessionalStyler, StyleConfig};
 use crate::compiler::post_processor::{PostProcessor, PostProcessConfig};
@@ -24,7 +23,6 @@ use crate::compiler::quality_metrics_v2::QualityMetrics;
 /// ELK Complete Generator V2 with integrated rendering pipeline
 #[derive(Debug, Clone)]
 pub struct ElkCompleteV2Generator {
-    pub enable_semantic_analysis: bool,
     pub enable_arcadia_rules: bool,
     pub enable_professional_styling: bool,
     pub enable_post_processing: bool,
@@ -34,7 +32,6 @@ pub struct ElkCompleteV2Generator {
 impl Default for ElkCompleteV2Generator {
     fn default() -> Self {
         Self {
-            enable_semantic_analysis: true,
             enable_arcadia_rules: true,
             enable_professional_styling: true,
             enable_post_processing: true,
@@ -47,33 +44,29 @@ impl ElkCompleteV2Generator {
     pub fn new() -> Self {
         Self::default()
     }
-    
-    /// Main generation method with full pipeline
-    pub fn generate(&self, model: &Model) -> Result<GenerationResult, String> {
+
+    /// Main generation method with full pipeline.
+    ///
+    /// Consumes the canonical `SemanticModel` produced by the compilation
+    /// pipeline — the semantic context is derived once from it, never
+    /// re-analyzed from the AST.
+    pub fn generate(&self, model: &SemanticModel) -> Result<GenerationResult, String> {
         println!("🚀 ELK Complete V2 Generator - Starting");
         println!("   Pipeline: Semantic → Strategy → Rules → Style → Post → Quality");
         println!();
-        
-        // Step 1: Semantic Analysis
-        let semantic = if self.enable_semantic_analysis {
-            println!("📊 Step 1: Semantic Analysis");
-            let analyzer = SemanticAnalyzer::new();
-            let semantic = analyzer.analyze(model);
-            
-            println!("   ✓ Phase detected: {:?}", semantic.phase);
-            println!("   ✓ Elements: {}", semantic.elements.len());
-            println!("   ✓ Relationships: {} connections", semantic.relationships.connections.len());
-            println!("   ✓ Has actors: {}", semantic.has_actors);
-            println!("   ✓ Has hierarchy: {}", semantic.has_hierarchy);
-            println!("   ✓ Has safety critical: {}", semantic.has_safety_critical);
-            println!("   ✓ Recommended strategy: {:?}", semantic.recommended_strategy);
-            println!();
-            
-            semantic
-        } else {
-            // Fallback: create minimal semantic context
-            self.create_minimal_semantic(model)
-        };
+
+        // Step 1: Semantic context from the canonical model (single derivation)
+        println!("📊 Step 1: Semantic Context (from canonical model)");
+        let semantic = SemanticContext::from_model(model);
+
+        println!("   ✓ Phase detected: {:?}", semantic.phase);
+        println!("   ✓ Elements: {}", semantic.elements.len());
+        println!("   ✓ Relationships: {} connections", semantic.relationships.connections.len());
+        println!("   ✓ Has actors: {}", semantic.has_actors);
+        println!("   ✓ Has hierarchy: {}", semantic.has_hierarchy);
+        println!("   ✓ Has safety critical: {}", semantic.has_safety_critical);
+        println!("   ✓ Recommended strategy: {:?}", semantic.recommended_strategy);
+        println!();
         
         // Step 2: Layout Strategy Selection
         println!("📐 Step 2: Layout Strategy Selection");
@@ -89,7 +82,7 @@ impl ElkCompleteV2Generator {
         
         // Step 3: Generate base diagram with ELK
         println!("🎨 Step 3: Base Diagram Generation");
-        let mut diagram_data = self.generate_elk_diagram(model, &layout_config)?;
+        let mut diagram_data = self.generate_elk_diagram(model, &semantic, &layout_config)?;
         println!("   ✓ Generated {} nodes", 
             diagram_data.get("nodes").and_then(|n| n.as_array()).map(|a| a.len()).unwrap_or(0));
         println!("   ✓ Generated {} edges", 
@@ -188,56 +181,53 @@ impl ElkCompleteV2Generator {
         })
     }
     
-    /// Generate base ELK diagram with strategy configuration
-    fn generate_elk_diagram(&self, model: &Model, layout_config: &crate::compiler::layout_strategy::LayoutConfig) -> Result<Value, String> {
-        // Convert model to nodes and edges
+    /// Generate base ELK diagram with strategy configuration.
+    ///
+    /// Nodes come from the canonical classification (components and physical
+    /// nodes); edges come from the canonical `interfaces` (logical component
+    /// exchanges, declared interfaces, and physical exchanges), with
+    /// endpoints resolved to element ids.
+    fn generate_elk_diagram(
+        &self,
+        model: &SemanticModel,
+        semantic: &SemanticContext,
+        layout_config: &crate::compiler::layout_strategy::LayoutConfig,
+    ) -> Result<Value, String> {
         let mut nodes = Vec::new();
         let mut edges = Vec::new();
-        
-        // Extract components from logical architecture
-        for la in &model.logical_architecture {
-            for comp in &la.components {
-                nodes.push(json!({
-                    "id": comp.id,
-                    "type": "component",
-                    "width": 100.0,
-                    "height": 60.0,
-                    "properties": {}
-                }));
-            }
-            
-            // Extract exchanges as edges
-            for exchange in &la.component_exchanges {
-                edges.push(json!({
-                    "id": format!("edge_{}", edges.len()),
-                    "source": exchange.from_port.split('_').next().unwrap_or(&exchange.from_port),
-                    "target": exchange.to_port.split('_').next().unwrap_or(&exchange.to_port),
-                }));
-            }
-        }
-        
-        // Extract from physical architecture
-        for pa in &model.physical_architecture {
-            for node in &pa.nodes {
-                nodes.push(json!({
-                    "id": node.id,
-                    "type": "physical_node",
-                    "width": 120.0,
-                    "height": 80.0,
-                    "properties": {}
-                }));
-            }
-            
-            // Extract exchanges
-            for exchange in &pa.physical_exchanges {
-                edges.push(json!({
-                    "id": format!("edge_{}", edges.len()),
-                    "source": exchange.from,
-                    "target": exchange.to,
-                }));
+
+        for element in &semantic.elements {
+            match element.element_type {
+                ElementType::Component => {
+                    nodes.push(json!({
+                        "id": element.id,
+                        "type": "component",
+                        "width": 100.0,
+                        "height": 60.0,
+                        "properties": {}
+                    }));
+                }
+                ElementType::PhysicalNode => {
+                    nodes.push(json!({
+                        "id": element.id,
+                        "type": "physical_node",
+                        "width": 120.0,
+                        "height": 80.0,
+                        "properties": {}
+                    }));
+                }
+                _ => {}
             }
         }
-        
+
+        for interface in &model.interfaces {
+            edges.push(json!({
+                "id": format!("edge_{}", edges.len()),
+                "source": SemanticContext::resolve_endpoint(&interface.from, model),
+                "target": SemanticContext::resolve_endpoint(&interface.to, model),
+            }));
+        }
+
         // Build diagram data structure
         let diagram = json!({
             "nodes": nodes,
@@ -248,44 +238,8 @@ impl ElkCompleteV2Generator {
                 "options": layout_config.options
             }
         });
-        
+
         Ok(diagram)
-    }
-    
-    /// Create minimal semantic context when semantic analysis is disabled
-    fn create_minimal_semantic(&self, model: &Model) -> SemanticContext {
-        use crate::compiler::semantic_analyzer::{
-            ArcadiaPhase, ComplexityMetrics, RelationshipAnalysis, RecommendedStrategy
-        };
-        
-        SemanticContext {
-            phase: if !model.logical_architecture.is_empty() {
-                ArcadiaPhase::Logical
-            } else if !model.physical_architecture.is_empty() {
-                ArcadiaPhase::Physical
-            } else {
-                ArcadiaPhase::System
-            },
-            diagram_type: "component".to_string(),
-            elements: vec![],
-            relationships: RelationshipAnalysis {
-                containment: vec![],
-                connections: vec![],
-                allocations: vec![],
-                traces: vec![],
-            },
-            complexity: ComplexityMetrics {
-                total_elements: 0,
-                depth: 0,
-                branching_factor: 0.0,
-                has_cycles: false,
-            },
-            recommended_strategy: RecommendedStrategy::Hierarchy,
-            has_actors: false,
-            has_hierarchy: !model.physical_architecture.is_empty(),
-            has_data_flow: false,
-            has_safety_critical: false,
-        }
     }
 }
 
@@ -369,16 +323,18 @@ mod tests {
     #[test]
     fn test_generator_creation() {
         let generator = ElkCompleteV2Generator::new();
-        assert!(generator.enable_semantic_analysis);
+        assert!(generator.enable_arcadia_rules);
         assert!(generator.enable_quality_metrics);
     }
-    
+
     #[test]
-    fn test_minimal_semantic() {
+    fn generates_diagram_from_canonical_model() {
         let generator = ElkCompleteV2Generator::new();
-        let model = Model::new();
-        let semantic = generator.create_minimal_semantic(&model);
-        
-        assert_eq!(semantic.diagram_type, "component");
+        let model = SemanticModel::default();
+        let result = generator.generate(&model).expect("generation should succeed");
+
+        assert_eq!(result.semantic.diagram_type, "functional");
+        let nodes = result.diagram_data.get("nodes").and_then(|n| n.as_array()).unwrap();
+        assert!(nodes.is_empty());
     }
 }

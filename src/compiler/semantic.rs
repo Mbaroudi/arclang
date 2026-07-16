@@ -555,6 +555,16 @@ impl SemanticAnalyzer {
         
         // Collect components from physical architecture (nodes)
         for pa in &ast.physical_architecture {
+            // Collect physical exchanges as interfaces so the canonical model
+            // carries every cross-component data flow (logical and physical)
+            for exchange in &pa.physical_exchanges {
+                interfaces.push(InterfaceInfo {
+                    name: exchange.label.clone().unwrap_or_else(|| format!("{} -> {}", exchange.from, exchange.to)),
+                    from: exchange.from.clone(),
+                    to: exchange.to.clone(),
+                });
+            }
+
             for node in &pa.nodes {
                 let node_id = node.attributes.get("id")
                     .and_then(|v| v.as_string())
