@@ -7,6 +7,7 @@ pub mod requirements;
 pub mod safety;
 pub mod collaboration;
 pub mod plugins;
+pub mod web_server;
 
 // Re-export for convenience
 pub use compiler::{Compiler, CompilerConfig, CompilerError, CompilationResult};

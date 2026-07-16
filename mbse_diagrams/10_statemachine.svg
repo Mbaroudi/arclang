@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="2182" height="652" viewBox="0 0 2182 652" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<defs>
+<marker id="arrow-transition" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="10" markerHeight="10" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#1976D2"></path></marker>
+<marker id="arrow-black" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="10" markerHeight="10" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#000000"></path></marker>
+</defs>
+
+<rect x="0" y="0" width="2182" height="652" fill="#FFFFFF" stroke="none" />
+<g id="transition-0"><line x1="220" y1="91" x2="916.6666666666666" y2="91" stroke="#1976D2" stroke-width="2.5" marker-end="url(#arrow-transition)" />
+<rect x="522.3333333333333" y="74" width="92" height="18" fill="#FFFFFF" stroke="#1976D2" stroke-width="1.5" rx="4" ry="4" filter="drop-shadow(0 1px 3px rgba(0,0,0,0.12))" />
+<text x="568.3333333333333" y="83" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="10" font-weight="600" fill="#1976D2">/ powerOn()</text></g>
+<g id="transition-1"><path d="M 1096.6666666666665 74 L 1752 74 L 1752 226 L 1882 226" fill="none" stroke="#1976D2" stroke-width="2.5" marker-end="url(#arrow-transition)"></path>
+<rect x="1756" y="141" width="294" height="18" fill="#FFFFFF" stroke="#1976D2" stroke-width="1.5" rx="4" ry="4" filter="drop-shadow(0 1px 3px rgba(0,0,0,0.12))" />
+<text x="1903" y="150" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="10" font-weight="600" fill="#1976D2">sensorsActive [systemReady] / startMonitoring()</text></g>
+<g id="transition-2"><path d="M 1882 265 L 1742 265 L 1742 273 L 220 273" fill="none" stroke="#1976D2" stroke-width="2.5" marker-end="url(#arrow-transition)"></path>
+<rect x="1746" y="260" width="294" height="18" fill="#FFFFFF" stroke="#1976D2" stroke-width="1.5" rx="4" ry="4" filter="drop-shadow(0 1px 3px rgba(0,0,0,0.12))" />
+<text x="1893" y="269" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="10" font-weight="600" fill="#1976D2">obstacleDetected [TTC < 3s] / calculateThreat()</text></g>
+<g id="transition-3"><path d="M 220 302 L 230 302 L 230 284 L 1882 284" fill="none" stroke="#F57C00" stroke-width="2.5" marker-end="url(#arrow-transition)"></path>
+<rect x="234" y="284" width="258" height="18" fill="#FFFFFF" stroke="#F57C00" stroke-width="1.5" rx="4" ry="4" filter="drop-shadow(0 1px 3px rgba(0,0,0,0.12))" />
+<text x="363" y="293" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="10" font-weight="600" fill="#F57C00">threatCleared [TTC > 4s] / resumeNormal()</text></g>
+<g id="transition-4"><path d="M 220 331 L 702 331 L 702 474 L 916.6666666666666 474" fill="none" stroke="#D32F2F" stroke-width="2.5" marker-end="url(#arrow-transition)"></path>
+<rect x="706" y="393.5" width="324" height="18" fill="#FFFFFF" stroke="#D32F2F" stroke-width="1.5" rx="4" ry="4" filter="drop-shadow(0 1px 3px rgba(0,0,0,0.12))" />
+<text x="868" y="402.5" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="10" font-weight="600" fill="#D32F2F">criticalThreat [TTC < 1.5s] / engageEmergencyBrake()</text></g>
+<g id="transition-5"><line x1="1096.6666666666665" y1="455" x2="1882" y2="304" stroke="#1976D2" stroke-width="2.5" marker-end="url(#arrow-transition)" />
+<rect x="1264.3333333333333" y="438" width="450" height="18" fill="#FFFFFF" stroke="#1976D2" stroke-width="1.5" rx="4" ry="4" filter="drop-shadow(0 1px 3px rgba(0,0,0,0.12))" />
+<text x="1489.3333333333333" y="447" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="10" font-weight="600" fill="#1976D2">collisionAvoided [vehicleStopped || obstacleCleared] / releaseFullBrake()</text></g>
+<g id="transition-6"><path d="M 1882 246 L 1742 246 L 1742 108 L 1096.6666666666665 108" fill="none" stroke="#1976D2" stroke-width="2.5" marker-end="url(#arrow-transition)"></path>
+<rect x="1746" y="168" width="300" height="18" fill="#FFFFFF" stroke="#1976D2" stroke-width="1.5" rx="4" ry="4" filter="drop-shadow(0 1px 3px rgba(0,0,0,0.12))" />
+<text x="1896" y="177" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="10" font-weight="600" fill="#1976D2">driverOverride [manualMode] / deactivateSystem()</text></g>
+<g id="transition-7"><line x1="1096.6666666666665" y1="493" x2="1882" y2="493" stroke="#D32F2F" stroke-width="2.5" marker-end="url(#arrow-transition)" />
+<rect x="1342.3333333333333" y="476" width="294" height="18" fill="#FFFFFF" stroke="#D32F2F" stroke-width="1.5" rx="4" ry="4" filter="drop-shadow(0 1px 3px rgba(0,0,0,0.12))" />
+<text x="1489.3333333333333" y="485" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="10" font-weight="600" fill="#D32F2F">systemShutdown [emergencyStop] / safeShutdown()</text></g>
+<g id="state-__initial__"><circle cx="210" cy="91" r="10" fill="#000000" stroke="none" /></g>
+<g id="state-Idle"><rect x="916.6666666666666" y="40" width="180" height="102" rx="12" ry="12" fill="#E8F5E9" stroke="#388E3C" stroke-width="3" filter="drop-shadow(0 2px 4px rgba(0,0,0,0.15))" />
+<text x="1006.6666666666666" y="55" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#388E3C">Idle</text>
+<line x1="916.6666666666666" y1="70" x2="1096.6666666666665" y2="70" stroke="#388E3C" stroke-width="2" opacity="0.7" />
+<text x="926.6666666666666" y="85" font-family="Arial, sans-serif" font-size="10" font-style="italic" fill="#666666">entry / initializeSensors()</text>
+<text x="926.6666666666666" y="99" font-family="Arial, sans-serif" font-size="10" font-style="italic" fill="#666666">entry / resetBrakeSystem()</text>
+<text x="926.6666666666666" y="113" font-family="Arial, sans-serif" font-size="10" font-style="italic" fill="#666666">exit / logStateExit()</text></g>
+<g id="state-Monitoring"><rect x="1882" y="207" width="180" height="116" rx="12" ry="12" fill="#E3F2FD" stroke="#1976D2" stroke-width="3" filter="drop-shadow(0 2px 4px rgba(0,0,0,0.15))" />
+<text x="1972" y="222" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#1976D2">Monitoring</text>
+<line x1="1882" y1="237" x2="2062" y2="237" stroke="#1976D2" stroke-width="2" opacity="0.7" />
+<text x="1892" y="252" font-family="Arial, sans-serif" font-size="10" font-style="italic" fill="#666666">entry / activateSensors()</text>
+<text x="1892" y="266" font-family="Arial, sans-serif" font-size="10" font-style="italic" fill="#666666">entry / startTracking()</text>
+<text x="1892" y="280" font-family="Arial, sans-serif" font-size="10" font-style="italic" fill="#666666">exit / saveSensorData()</text>
+<text x="1892" y="294" font-family="Arial, sans-serif" font-size="10" fill="#333333">updateObstacleList()</text></g>
+<g id="state-Warning"><rect x="40" y="244" width="180" height="116" rx="12" ry="12" fill="#FFF9C4" stroke="#F57C00" stroke-width="3" filter="drop-shadow(0 2px 4px rgba(0,0,0,0.15))" />
+<text x="130" y="259" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#F57C00">Warning</text>
+<line x1="40" y1="274" x2="220" y2="274" stroke="#F57C00" stroke-width="2" opacity="0.7" />
+<text x="50" y="289" font-family="Arial, sans-serif" font-size="10" font-style="italic" fill="#666666">entry / displayWarning()</text>
+<text x="50" y="303" font-family="Arial, sans-serif" font-size="10" font-style="italic" fill="#666666">entry / emitSound()</text>
+<text x="50" y="317" font-family="Arial, sans-serif" font-size="10" font-style="italic" fill="#666666">exit / clearWarning()</text>
+<text x="50" y="331" font-family="Arial, sans-serif" font-size="10" fill="#333333">updateTTC()</text></g>
+<g id="state-EmergencyBraking"><rect x="916.6666666666666" y="416" width="180" height="116" rx="12" ry="12" fill="#FFEBEE" stroke="#D32F2F" stroke-width="3" filter="drop-shadow(0 2px 4px rgba(0,0,0,0.15))" />
+<text x="1006.6666666666666" y="431" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#D32F2F">EmergencyBraking</text>
+<line x1="916.6666666666666" y1="446" x2="1096.6666666666665" y2="446" stroke="#D32F2F" stroke-width="2" opacity="0.7" />
+<text x="926.6666666666666" y="461" font-family="Arial, sans-serif" font-size="10" font-style="italic" fill="#666666">entry / applyMaxBrake()</text>
+<text x="926.6666666666666" y="475" font-family="Arial, sans-serif" font-size="10" font-style="italic" fill="#666666">entry / activateHazardLights()</text>
+<text x="926.6666666666666" y="489" font-family="Arial, sans-serif" font-size="10" font-style="italic" fill="#666666">exit / logBrakingEvent()</text>
+<text x="926.6666666666666" y="503" font-family="Arial, sans-serif" font-size="10" fill="#333333">monitorDeceleration()</text></g>
+<g id="state-__final__"><circle cx="1897" cy="493" r="15" fill="none" stroke="#000000" stroke-width="2" />
+<circle cx="1897" cy="493" r="10" fill="#000000" stroke="none" /></g>
+<text x="20" y="35" font-family="Arial, sans-serif" font-size="18" font-weight="bold" fill="#212529">Emergency Braking System</text>
+</svg>

@@ -1,0 +1,216 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="3887" height="1011" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<defs>
+<marker id="arrow-black" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="10" markerHeight="10" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#000000"></path></marker>
+<marker id="arrow-green" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="10" markerHeight="10" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#70AD47"></path></marker>
+</defs>
+
+<rect x="0" y="0" width="3887" height="1011" rx="0" ry="0" fill="#FFFFFF" stroke="none" />
+<g id="edge-SF-001.driver_commands-SF-009.desired_speed"><path d="M 1567 198 L 1690 198 Q 1698 198, 1698 206 L 1698 281 Q 1698 289, 1706 289 L 1809 289" fill="none" stroke="#000000" stroke-width="2" marker-end="url(#arrow-black)"></path>
+<rect x="1651.75" y="279" width="92.5" height="20" rx="3" ry="3" fill="#FFFFFF" stroke="#70AD47" stroke-width="1" />
+<text x="1698" y="289" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="11" fill="#2C5F2D" font-weight="bold">Desired Speed</text></g>
+<g id="edge-SF-002.radar_returns-SF-003.raw_radar"><path d="M 241 841 L 246.5 841 Q 252 841, 252 833 L 252 547 Q 252 539, 260 539 L 483 539" fill="none" stroke="#000000" stroke-width="2" marker-end="url(#arrow-black)"></path>
+<rect x="202.5" y="529" width="99" height="20" rx="3" ry="3" fill="#FFFFFF" stroke="#70AD47" stroke-width="1" />
+<text x="252" y="539" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="11" fill="#2C5F2D" font-weight="bold">Raw Radar Data</text></g>
+<g id="edge-SF-004.image_out-SF-003.camera_data"><path d="M 241 341 L 246.5 341 Q 252 341, 252 349 L 252 495 Q 252 503, 260 503 L 483 503" fill="none" stroke="#000000" stroke-width="2" marker-end="url(#arrow-black)"></path>
+<rect x="209" y="493" width="86" height="20" rx="3" ry="3" fill="#FFFFFF" stroke="#70AD47" stroke-width="1" />
+<text x="252" y="503" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="11" fill="#2C5F2D" font-weight="bold">Camera Image</text></g>
+<g id="edge-SF-004.image_out-SF-006.image_in"><path d="M 241 341 L 483 341" fill="none" stroke="#000000" stroke-width="2" marker-end="url(#arrow-black)"></path>
+<rect x="401" y="331" width="164" height="20" rx="3" ry="3" fill="#FFFFFF" stroke="#70AD47" stroke-width="1" />
+<text x="483" y="341" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="11" fill="#2C5F2D" font-weight="bold">Image for Lane Detection</text></g>
+<g id="edge-SF-003.targets-SF-005.targets_in"><path d="M 683 521 L 688.5 521 Q 694 521, 694 513 L 694 404 Q 694 396, 702 396 L 925 396" fill="none" stroke="#000000" stroke-width="2" marker-end="url(#arrow-black)"></path>
+<rect x="638" y="386" width="112" height="20" rx="3" ry="3" fill="#FFFFFF" stroke="#70AD47" stroke-width="1" />
+<text x="694" y="396" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="11" fill="#2C5F2D" font-weight="bold">Detected Targets</text></g>
+<g id="edge-SF-006.lane_info-SF-005.lane_data"><path d="M 683 341 L 806 341 Q 814 341, 814 349 L 814 352 Q 814 360, 822 360 L 925 360" fill="none" stroke="#000000" stroke-width="2" marker-end="url(#arrow-black)"></path>
+<rect x="758" y="350" width="112" height="20" rx="3" ry="3" fill="#FFFFFF" stroke="#70AD47" stroke-width="1" />
+<text x="814" y="360" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="11" fill="#2C5F2D" font-weight="bold">Lane Information</text></g>
+<g id="edge-SF-005.lead_vehicle-SF-007.lead_state"><path d="M 1125 378 L 1367 378" fill="none" stroke="#000000" stroke-width="2" marker-end="url(#arrow-black)"></path>
+<rect x="1304.5" y="368" width="125" height="20" rx="3" ry="3" fill="#FFFFFF" stroke="#70AD47" stroke-width="1" />
+<text x="1367" y="378" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="11" fill="#2C5F2D" font-weight="bold">Lead Vehicle State</text></g>
+<g id="edge-SF-008.speed_out-SF-007.ego_speed"><path d="M 1125 198 L 1248 198 Q 1256 198, 1256 206 L 1256 343 Q 1256 351, 1264 351 L 1367 351" fill="none" stroke="#000000" stroke-width="2" marker-end="url(#arrow-black)"></path>
+<rect x="1209.75" y="341" width="92.5" height="20" rx="3" ry="3" fill="#FFFFFF" stroke="#70AD47" stroke-width="1" />
+<text x="1256" y="351" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="11" fill="#2C5F2D" font-weight="bold">Current Speed</text></g>
+<g id="edge-SF-008.speed_out-SF-010.current_speed"><path d="M 1125 198 L 1138 198 Q 1146 198, 1146 190 L 1146 48 Q 1146 40, 1154 40 L 2132 40 Q 2140 40, 2140 48 L 2140 245 Q 2140 253, 2148 253 L 2251 253" fill="none" stroke="#000000" stroke-width="2" marker-end="url(#arrow-black)"></path>
+<rect x="2077.5" y="30" width="125" height="20" rx="3" ry="3" fill="#FFFFFF" stroke="#70AD47" stroke-width="1" />
+<text x="2140" y="40" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="11" fill="#2C5F2D" font-weight="bold">Speed for Throttle</text></g>
+<g id="edge-SF-008.speed_out-SF-011.current_speed"><path d="M 1125 198 L 1138 198 Q 1146 198, 1146 206 L 1146 440 Q 1146 448, 1154 448 L 2012 448 Q 2020 448, 2020 440.5 L 2020 440.5 Q 2020 433, 2028 433 L 2251 433" fill="none" stroke="#000000" stroke-width="2" marker-end="url(#arrow-black)"></path>
+<rect x="1967.25" y="438" width="105.5" height="20" rx="3" ry="3" fill="#FFFFFF" stroke="#70AD47" stroke-width="1" />
+<text x="2020" y="448" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="11" fill="#2C5F2D" font-weight="bold">Speed for Brake</text></g>
+<g id="edge-SF-007.safe_distance-SF-009.safe_distance"><path d="M 1567 378 L 1572.5 378 Q 1578 378, 1578 370 L 1578 325 Q 1578 317, 1586 317 L 1809 317" fill="none" stroke="#000000" stroke-width="2" marker-end="url(#arrow-black)"></path>
+<rect x="1499.25" y="307" width="157.5" height="20" rx="3" ry="3" fill="#FFFFFF" stroke="#70AD47" stroke-width="1" />
+<text x="1578" y="317" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="11" fill="#2C5F2D" font-weight="bold">Safe Following Distance</text></g>
+<g id="edge-SF-005.lead_vehicle-SF-009.current_distance"><path d="M 1125 378 L 1130.5 378 Q 1136 378, 1136 370 L 1136 72 Q 1136 64, 1144 64 L 1700 64 Q 1708 64, 1708 72 L 1708 254 Q 1708 262, 1716 262 L 1809 262" fill="none" stroke="#000000" stroke-width="2" marker-end="url(#arrow-black)"></path>
+<rect x="1652" y="54" width="112" height="20" rx="3" ry="3" fill="#FFFFFF" stroke="#70AD47" stroke-width="1" />
+<text x="1708" y="64" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="11" fill="#2C5F2D" font-weight="bold">Current Distance</text></g>
+<g id="edge-SF-009.target_speed-SF-010.target_speed"><path d="M 2009 289 L 2251 289" fill="none" stroke="#000000" stroke-width="2" marker-end="url(#arrow-black)"></path>
+<rect x="2182" y="279" width="138" height="20" rx="3" ry="3" fill="#FFFFFF" stroke="#70AD47" stroke-width="1" />
+<text x="2251" y="289" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="11" fill="#2C5F2D" font-weight="bold">Target Speed (Accel)</text></g>
+<g id="edge-SF-009.target_speed-SF-011.target_speed"><path d="M 2009 289 L 2022 289 Q 2030 289, 2030 297 L 2030 461 Q 2030 469, 2038 469 L 2251 469" fill="none" stroke="#000000" stroke-width="2" marker-end="url(#arrow-black)"></path>
+<rect x="1961" y="459" width="138" height="20" rx="3" ry="3" fill="#FFFFFF" stroke="#70AD47" stroke-width="1" />
+<text x="2030" y="469" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="11" fill="#2C5F2D" font-weight="bold">Target Speed (Brake)</text></g>
+<g id="edge-SF-010.throttle_cmd-SF-012.throttle_in"><path d="M 2451 271 L 2693 271" fill="none" stroke="#000000" stroke-width="2" marker-end="url(#arrow-black)"></path>
+<rect x="2637" y="261" width="112" height="20" rx="3" ry="3" fill="#FFFFFF" stroke="#70AD47" stroke-width="1" />
+<text x="2693" y="271" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="11" fill="#2C5F2D" font-weight="bold">Throttle Command</text></g>
+<g id="edge-SF-011.brake_cmd-SF-013.brake_in"><path d="M 2451 451 L 2693 451" fill="none" stroke="#000000" stroke-width="2" marker-end="url(#arrow-black)"></path>
+<rect x="2646.75" y="441" width="92.5" height="20" rx="3" ry="3" fill="#FFFFFF" stroke="#70AD47" stroke-width="1" />
+<text x="2693" y="451" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="11" fill="#2C5F2D" font-weight="bold">Brake Command</text></g>
+<g id="edge-SF-012.throttle_status-SF-015.actuator_health"><path d="M 2893 271 L 3016 271 Q 3024 271, 3024 279 L 3024 443 Q 3024 451, 3032 451 L 3135 451" fill="none" stroke="#000000" stroke-width="2" marker-end="url(#arrow-black)"></path>
+<rect x="2971.25" y="441" width="105.5" height="20" rx="3" ry="3" fill="#FFFFFF" stroke="#70AD47" stroke-width="1" />
+<text x="3024" y="451" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="11" fill="#2C5F2D" font-weight="bold">Throttle Status</text></g>
+<g id="edge-SF-013.brake_status-SF-015.actuator_health"><path d="M 2893 451 L 3135 451" fill="none" stroke="#000000" stroke-width="2" marker-end="url(#arrow-black)"></path>
+<rect x="3092" y="441" width="86" height="20" rx="3" ry="3" fill="#FFFFFF" stroke="#70AD47" stroke-width="1" />
+<text x="3135" y="451" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="11" fill="#2C5F2D" font-weight="bold">Brake Status</text></g>
+<g id="edge-SF-003.targets-SF-015.sensor_health"><path d="M 683 521 L 3016 521 Q 3024 521, 3024 513 L 3024 486 Q 3024 478, 3032 478 L 3135 478" fill="none" stroke="#000000" stroke-width="2" marker-end="url(#arrow-black)"></path>
+<rect x="2977.75" y="468" width="92.5" height="20" rx="3" ry="3" fill="#FFFFFF" stroke="#70AD47" stroke-width="1" />
+<text x="3024" y="478" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="11" fill="#2C5F2D" font-weight="bold">Sensor Health</text></g>
+<g id="edge-SF-015.system_status-SF-014.system_state"><path d="M 3335 478 L 3458 478 Q 3466 478, 3466 486 L 3466 513 Q 3466 521, 3474 521 L 3577 521" fill="none" stroke="#000000" stroke-width="2" marker-end="url(#arrow-black)"></path>
+<rect x="3419.75" y="511" width="92.5" height="20" rx="3" ry="3" fill="#FFFFFF" stroke="#70AD47" stroke-width="1" />
+<text x="3466" y="521" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="11" fill="#2C5F2D" font-weight="bold">System Status</text></g>
+<g id="edge-SF-005.lead_vehicle-SF-014.lead_distance"><path d="M 1125 378 L 1130.5 378 Q 1136 378, 1136 386 L 1136 540 Q 1136 548, 1144 548 L 3577 548" fill="none" stroke="#000000" stroke-width="2" marker-end="url(#arrow-black)"></path>
+<rect x="1050.75" y="538" width="170.5" height="20" rx="3" ry="3" fill="#FFFFFF" stroke="#70AD47" stroke-width="1" />
+<text x="1136" y="548" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="11" fill="#2C5F2D" font-weight="bold">Lead Distance for Display</text></g>
+<g id="node-SF-001"><rect x="1377" y="148" width="180" height="100" rx="8" ry="8" fill="#5B9BD5" stroke="#000000" stroke-width="2" />
+<text x="1467" y="178" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#000000">Monitor Driver Input</text>
+<text x="1552" y="162" text-anchor="end" font-family="Arial, sans-serif" font-size="10" fill="#2C5F2D">SF-001</text>
+<g ><rect x="1367" y="211" width="10" height="10" fill="#FFFFFF" stroke="#000000" stroke-width="1.5" />
+<text x="1352" y="216" text-anchor="end" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="9" fill="#495057">button_press</text></g>
+<g ><rect x="1367" y="175" width="10" height="10" fill="#FFFFFF" stroke="#000000" stroke-width="1.5" />
+<text x="1352" y="180" text-anchor="end" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="9" fill="#495057">speed_setting</text></g>
+<g ><rect x="1557" y="193" width="10" height="10" fill="#FFFFFF" stroke="#000000" stroke-width="1.5" />
+<text x="1582" y="198" text-anchor="start" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="9" fill="#495057">driver_commands</text></g></g>
+<g id="node-SF-002"><rect x="51" y="791" width="180" height="100" rx="8" ry="8" fill="#70AD47" stroke="#000000" stroke-width="2" />
+<text x="141" y="821" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#000000">Acquire Radar Data</text>
+<text x="226" y="805" text-anchor="end" font-family="Arial, sans-serif" font-size="10" fill="#2C5F2D">SF-002</text>
+<g ><rect x="41" y="836" width="10" height="10" fill="#FFFFFF" stroke="#000000" stroke-width="1.5" />
+<text x="26" y="841" text-anchor="end" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="9" fill="#495057">radar_trigger</text></g>
+<g ><rect x="231" y="836" width="10" height="10" fill="#FFFFFF" stroke="#000000" stroke-width="1.5" />
+<text x="256" y="841" text-anchor="start" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="9" fill="#495057">radar_returns</text></g></g>
+<g id="node-SF-003"><rect x="493" y="471" width="180" height="100" rx="8" ry="8" fill="#FFC000" stroke="#000000" stroke-width="2" />
+<text x="583" y="501" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#000000">Process Sensor Data</text>
+<text x="668" y="485" text-anchor="end" font-family="Arial, sans-serif" font-size="10" fill="#2C5F2D">SF-003</text>
+<g ><rect x="483" y="534" width="10" height="10" fill="#FFFFFF" stroke="#000000" stroke-width="1.5" />
+<text x="468" y="539" text-anchor="end" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="9" fill="#495057">raw_radar</text></g>
+<g ><rect x="483" y="498" width="10" height="10" fill="#FFFFFF" stroke="#000000" stroke-width="1.5" />
+<text x="468" y="503" text-anchor="end" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="9" fill="#495057">camera_data</text></g>
+<g ><rect x="673" y="516" width="10" height="10" fill="#FFFFFF" stroke="#000000" stroke-width="1.5" />
+<text x="698" y="521" text-anchor="start" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="9" fill="#495057">targets</text></g></g>
+<g id="node-SF-004"><rect x="51" y="291" width="180" height="100" rx="8" ry="8" fill="#70AD47" stroke="#000000" stroke-width="2" />
+<text x="141" y="321" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#000000">Acquire Camera Data</text>
+<text x="226" y="305" text-anchor="end" font-family="Arial, sans-serif" font-size="10" fill="#2C5F2D">SF-004</text>
+<g ><rect x="41" y="336" width="10" height="10" fill="#FFFFFF" stroke="#000000" stroke-width="1.5" />
+<text x="26" y="341" text-anchor="end" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="9" fill="#495057">camera_trigger</text></g>
+<g ><rect x="231" y="336" width="10" height="10" fill="#FFFFFF" stroke="#000000" stroke-width="1.5" />
+<text x="256" y="341" text-anchor="start" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="9" fill="#495057">image_out</text></g></g>
+<g id="node-SF-005"><rect x="935" y="328" width="180" height="100" rx="8" ry="8" fill="#A5A5A5" stroke="#000000" stroke-width="2" />
+<text x="1025" y="358" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#000000">Identify Lead</text>
+<text x="1025" y="374" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#000000">Vehicle</text>
+<text x="1110" y="342" text-anchor="end" font-family="Arial, sans-serif" font-size="10" fill="#2C5F2D">SF-005</text>
+<g ><rect x="925" y="391" width="10" height="10" fill="#FFFFFF" stroke="#000000" stroke-width="1.5" />
+<text x="910" y="396" text-anchor="end" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="9" fill="#495057">targets_in</text></g>
+<g ><rect x="925" y="355" width="10" height="10" fill="#FFFFFF" stroke="#000000" stroke-width="1.5" />
+<text x="910" y="360" text-anchor="end" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="9" fill="#495057">lane_data</text></g>
+<g ><rect x="1115" y="373" width="10" height="10" fill="#FFFFFF" stroke="#000000" stroke-width="1.5" />
+<text x="1140" y="378" text-anchor="start" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="9" fill="#495057">lead_vehicle</text></g></g>
+<g id="node-SF-006"><rect x="493" y="291" width="180" height="100" rx="8" ry="8" fill="#FFC000" stroke="#000000" stroke-width="2" />
+<text x="583" y="321" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#000000">Detect Lane Markings</text>
+<text x="668" y="305" text-anchor="end" font-family="Arial, sans-serif" font-size="10" fill="#2C5F2D">SF-006</text>
+<g ><rect x="483" y="336" width="10" height="10" fill="#FFFFFF" stroke="#000000" stroke-width="1.5" />
+<text x="468" y="341" text-anchor="end" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="9" fill="#495057">image_in</text></g>
+<g ><rect x="673" y="336" width="10" height="10" fill="#FFFFFF" stroke="#000000" stroke-width="1.5" />
+<text x="698" y="341" text-anchor="start" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="9" fill="#495057">lane_info</text></g></g>
+<g id="node-SF-007"><rect x="1377" y="328" width="180" height="100" rx="8" ry="8" fill="#FF6B6B" stroke="#000000" stroke-width="2" />
+<text x="1467" y="358" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#000000">Calculate Safe</text>
+<text x="1467" y="374" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#000000">Distance</text>
+<text x="1552" y="342" text-anchor="end" font-family="Arial, sans-serif" font-size="10" fill="#2C5F2D">SF-007</text>
+<g ><rect x="1367" y="373" width="10" height="10" fill="#FFFFFF" stroke="#000000" stroke-width="1.5" />
+<text x="1352" y="378" text-anchor="end" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="9" fill="#495057">lead_state</text></g>
+<g ><rect x="1367" y="346" width="10" height="10" fill="#FFFFFF" stroke="#000000" stroke-width="1.5" />
+<text x="1352" y="351" text-anchor="end" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="9" fill="#495057">ego_speed</text></g>
+<g ><rect x="1367" y="401" width="10" height="10" fill="#FFFFFF" stroke="#000000" stroke-width="1.5" />
+<text x="1352" y="406" text-anchor="end" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="9" fill="#495057">time_gap</text></g>
+<g ><rect x="1557" y="373" width="10" height="10" fill="#FFFFFF" stroke="#000000" stroke-width="1.5" />
+<text x="1582" y="378" text-anchor="start" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="9" fill="#495057">safe_distance</text></g></g>
+<g id="node-SF-008"><rect x="935" y="148" width="180" height="100" rx="8" ry="8" fill="#70AD47" stroke="#000000" stroke-width="2" />
+<text x="1025" y="178" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#000000">Read Vehicle Speed</text>
+<text x="1110" y="162" text-anchor="end" font-family="Arial, sans-serif" font-size="10" fill="#2C5F2D">SF-008</text>
+<g ><rect x="925" y="193" width="10" height="10" fill="#FFFFFF" stroke="#000000" stroke-width="1.5" />
+<text x="910" y="198" text-anchor="end" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="9" fill="#495057">can_bus</text></g>
+<g ><rect x="1115" y="193" width="10" height="10" fill="#FFFFFF" stroke="#000000" stroke-width="1.5" />
+<text x="1140" y="198" text-anchor="start" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="9" fill="#495057">speed_out</text></g></g>
+<g id="node-SF-009"><rect x="1819" y="239" width="180" height="100" rx="8" ry="8" fill="#FF6B6B" stroke="#000000" stroke-width="2" />
+<text x="1909" y="269" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#000000">Compute Target Speed</text>
+<text x="1994" y="253" text-anchor="end" font-family="Arial, sans-serif" font-size="10" fill="#2C5F2D">SF-009</text>
+<g ><rect x="1809" y="284" width="10" height="10" fill="#FFFFFF" stroke="#000000" stroke-width="1.5" />
+<text x="1794" y="289" text-anchor="end" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="9" fill="#495057">desired_speed</text></g>
+<g ><rect x="1809" y="312" width="10" height="10" fill="#FFFFFF" stroke="#000000" stroke-width="1.5" />
+<text x="1794" y="317" text-anchor="end" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="9" fill="#495057">safe_distance</text></g>
+<g ><rect x="1809" y="257" width="10" height="10" fill="#FFFFFF" stroke="#000000" stroke-width="1.5" />
+<text x="1794" y="262" text-anchor="end" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="9" fill="#495057">current_distance</text></g>
+<g ><rect x="1999" y="284" width="10" height="10" fill="#FFFFFF" stroke="#000000" stroke-width="1.5" />
+<text x="2024" y="289" text-anchor="start" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="9" fill="#495057">target_speed</text></g></g>
+<g id="node-SF-010"><rect x="2261" y="221" width="180" height="100" rx="8" ry="8" fill="#9B59B6" stroke="#000000" stroke-width="2" />
+<text x="2351" y="251" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#000000">Generate Throttle</text>
+<text x="2351" y="267" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#000000">Command</text>
+<text x="2436" y="235" text-anchor="end" font-family="Arial, sans-serif" font-size="10" fill="#2C5F2D">SF-010</text>
+<g ><rect x="2251" y="284" width="10" height="10" fill="#FFFFFF" stroke="#000000" stroke-width="1.5" />
+<text x="2236" y="289" text-anchor="end" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="9" fill="#495057">target_speed</text></g>
+<g ><rect x="2251" y="248" width="10" height="10" fill="#FFFFFF" stroke="#000000" stroke-width="1.5" />
+<text x="2236" y="253" text-anchor="end" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="9" fill="#495057">current_speed</text></g>
+<g ><rect x="2441" y="266" width="10" height="10" fill="#FFFFFF" stroke="#000000" stroke-width="1.5" />
+<text x="2466" y="271" text-anchor="start" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="9" fill="#495057">throttle_cmd</text></g></g>
+<g id="node-SF-011"><rect x="2261" y="401" width="180" height="100" rx="8" ry="8" fill="#9B59B6" stroke="#000000" stroke-width="2" />
+<text x="2351" y="431" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#000000">Generate Brake</text>
+<text x="2351" y="447" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#000000">Command</text>
+<text x="2436" y="415" text-anchor="end" font-family="Arial, sans-serif" font-size="10" fill="#2C5F2D">SF-011</text>
+<g ><rect x="2251" y="464" width="10" height="10" fill="#FFFFFF" stroke="#000000" stroke-width="1.5" />
+<text x="2236" y="469" text-anchor="end" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="9" fill="#495057">target_speed</text></g>
+<g ><rect x="2251" y="428" width="10" height="10" fill="#FFFFFF" stroke="#000000" stroke-width="1.5" />
+<text x="2236" y="433" text-anchor="end" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="9" fill="#495057">current_speed</text></g>
+<g ><rect x="2441" y="446" width="10" height="10" fill="#FFFFFF" stroke="#000000" stroke-width="1.5" />
+<text x="2466" y="451" text-anchor="start" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="9" fill="#495057">brake_cmd</text></g></g>
+<g id="node-SF-012"><rect x="2703" y="221" width="180" height="100" rx="8" ry="8" fill="#E67E22" stroke="#000000" stroke-width="2" />
+<text x="2793" y="251" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#000000">Apply Throttle</text>
+<text x="2878" y="235" text-anchor="end" font-family="Arial, sans-serif" font-size="10" fill="#2C5F2D">SF-012</text>
+<g ><rect x="2693" y="266" width="10" height="10" fill="#FFFFFF" stroke="#000000" stroke-width="1.5" />
+<text x="2678" y="271" text-anchor="end" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="9" fill="#495057">throttle_in</text></g>
+<g ><rect x="2883" y="266" width="10" height="10" fill="#FFFFFF" stroke="#000000" stroke-width="1.5" />
+<text x="2908" y="271" text-anchor="start" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="9" fill="#495057">throttle_status</text></g></g>
+<g id="node-SF-013"><rect x="2703" y="401" width="180" height="100" rx="8" ry="8" fill="#E67E22" stroke="#000000" stroke-width="2" />
+<text x="2793" y="431" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#000000">Apply Brakes</text>
+<text x="2878" y="415" text-anchor="end" font-family="Arial, sans-serif" font-size="10" fill="#2C5F2D">SF-013</text>
+<g ><rect x="2693" y="446" width="10" height="10" fill="#FFFFFF" stroke="#000000" stroke-width="1.5" />
+<text x="2678" y="451" text-anchor="end" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="9" fill="#495057">brake_in</text></g>
+<g ><rect x="2883" y="446" width="10" height="10" fill="#FFFFFF" stroke="#000000" stroke-width="1.5" />
+<text x="2908" y="451" text-anchor="start" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="9" fill="#495057">brake_status</text></g></g>
+<g id="node-SF-014"><rect x="3587" y="498" width="180" height="100" rx="8" ry="8" fill="#5B9BD5" stroke="#000000" stroke-width="2" />
+<text x="3677" y="528" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#000000">Display ACC Status</text>
+<text x="3762" y="512" text-anchor="end" font-family="Arial, sans-serif" font-size="10" fill="#2C5F2D">SF-014</text>
+<g ><rect x="3577" y="516" width="10" height="10" fill="#FFFFFF" stroke="#000000" stroke-width="1.5" />
+<text x="3562" y="521" text-anchor="end" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="9" fill="#495057">system_state</text></g>
+<g ><rect x="3577" y="543" width="10" height="10" fill="#FFFFFF" stroke="#000000" stroke-width="1.5" />
+<text x="3562" y="548" text-anchor="end" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="9" fill="#495057">lead_distance</text></g>
+<g ><rect x="3577" y="571" width="10" height="10" fill="#FFFFFF" stroke="#000000" stroke-width="1.5" />
+<text x="3602" y="576" text-anchor="start" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="9" fill="#495057">display_out</text></g></g>
+<g id="node-SF-015"><rect x="3145" y="428" width="180" height="100" rx="8" ry="8" fill="#E74C3C" stroke="#000000" stroke-width="2" />
+<text x="3235" y="458" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#000000">Monitor System</text>
+<text x="3235" y="474" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#000000">Health</text>
+<text x="3320" y="442" text-anchor="end" font-family="Arial, sans-serif" font-size="10" fill="#2C5F2D">SF-015</text>
+<g ><rect x="3135" y="473" width="10" height="10" fill="#FFFFFF" stroke="#000000" stroke-width="1.5" />
+<text x="3120" y="478" text-anchor="end" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="9" fill="#495057">sensor_health</text></g>
+<g ><rect x="3135" y="446" width="10" height="10" fill="#FFFFFF" stroke="#000000" stroke-width="1.5" />
+<text x="3120" y="451" text-anchor="end" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="9" fill="#495057">actuator_health</text></g>
+<g ><rect x="3325" y="473" width="10" height="10" fill="#FFFFFF" stroke="#000000" stroke-width="1.5" />
+<text x="3350" y="478" text-anchor="start" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="9" fill="#495057">system_status</text></g>
+<g ><rect x="3135" y="501" width="10" height="10" fill="#FFFFFF" stroke="#000000" stroke-width="1.5" />
+<text x="3160" y="506" text-anchor="start" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="9" fill="#495057">fault_alert</text></g></g>
+<g id="node-EA-001"><rect x="81" y="631" width="120" height="80" rx="12" ry="12" fill="#2E75B6" stroke="#000000" stroke-width="2" stroke-dasharray="5,5" />
+<text x="141" y="671" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#FFFFFF">Driver</text>
+<text x="141" y="696" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" font-style="italic" fill="#FFFFFF">«external»</text></g>
+<g id="node-EA-002"><rect x="81" y="471" width="120" height="80" rx="12" ry="12" fill="#70AD47" stroke="#000000" stroke-width="2" stroke-dasharray="5,5" />
+<text x="141" y="511" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#FFFFFF">Environment</text>
+<text x="141" y="536" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" font-style="italic" fill="#FFFFFF">«external»</text></g>
+<g id="node-EA-003"><rect x="81" y="131" width="120" height="80" rx="12" ry="12" fill="#FFC000" stroke="#000000" stroke-width="2" stroke-dasharray="5,5" />
+<text x="141" y="171" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#FFFFFF">Vehicle CAN Bus</text>
+<text x="141" y="196" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" font-style="italic" fill="#FFFFFF">«external»</text></g>
+<text x="20" y="30" font-family="Arial, sans-serif" font-size="18" font-weight="bold" fill="#212529">Adaptive Cruise Control - Rich Functional View</text>
+</svg>

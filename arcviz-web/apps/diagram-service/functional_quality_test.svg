@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="1453" height="278" viewBox="0 0 1453 278" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<defs>
+<marker id="arrow-event" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#FF6B6B"></path></marker>
+<marker id="arrow-flow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#4ECDC4"></path></marker>
+<marker id="arrow-operation" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#95E1D3"></path></marker>
+<marker id="arrow-data" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#808080"></path></marker>
+<marker id="arrow-shared_data" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#9B59B6"></path></marker>
+<marker id="arrow-unset" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#95A5A6"></path></marker>
+</defs>
+
+<rect x="0" y="0" width="1453" height="278" rx="0" ry="0" fill="#FFFFFF" stroke="none" />
+<g id="system-boundary" class="system-boundary-group"><rect x="11" y="0" width="1362" height="198" rx="12" ry="12" fill="#E8F4F8" fill-opacity="0.1" stroke="#2E75B6" stroke-width="3" stroke-dasharray="none" />
+<text x="692" y="-15" text-anchor="middle" font-family="Helvetica Neue, Arial, sans-serif" font-size="16" font-weight="bold" fill="#2E75B6">Emergency Braking System</text></g>
+<g id="edge-SF-001.obstacles-SF-002.obstacles"><path d="M 241 90 L 601 90" fill="none" stroke="#808080" stroke-width="2" marker-end="url(#arrow-data)"></path>
+<rect x="525.7" y="80" width="150.6" height="20" rx="3" ry="3" fill="#FFFFFF" stroke="#808080" stroke-width="1" />
+<text x="601" y="90" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="11" fill="#808080" font-weight="normal" font-style="normal">📦 Detected Obstacles</text></g>
+<g id="edge-SF-002.risk_level-SF-003.risk_level"><path d="M 801 90 L 1143 90" fill="none" stroke="#808080" stroke-width="2" marker-end="url(#arrow-data)"></path>
+<rect x="1077.6" y="80" width="130.8" height="20" rx="3" ry="3" fill="#FFFFFF" stroke="#808080" stroke-width="1" />
+<text x="1143" y="90" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="11" fill="#808080" font-weight="normal" font-style="normal">📦 Risk Assessment</text></g>
+<g id="node-SF-001"><rect x="51" y="40" width="180" height="100" rx="8" ry="8" fill="#ADD8E6" stroke="#000000" stroke-width="2" />
+<text x="141" y="70" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#000000">Detect Obstacles</text>
+<text x="226" y="54" text-anchor="end" font-family="Arial, sans-serif" font-size="10" fill="#2C5F2D">SF-001</text>
+<g ><rect x="41" y="85" width="10" height="10" fill="#FFFFFF" stroke="#000000" stroke-width="1.5" />
+<text x="26" y="90" text-anchor="end" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="9" fill="#495057">sensor_data</text></g>
+<g ><rect x="231" y="85" width="10" height="10" fill="#FFFFFF" stroke="#000000" stroke-width="1.5" />
+<text x="256" y="90" text-anchor="start" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="9" fill="#495057">obstacles</text></g></g>
+<g id="node-SF-002"><rect x="611" y="40" width="180" height="100" rx="8" ry="8" fill="#ADD8E6" stroke="#000000" stroke-width="2" />
+<text x="701" y="70" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#000000">Calculate Risk</text>
+<text x="786" y="54" text-anchor="end" font-family="Arial, sans-serif" font-size="10" fill="#2C5F2D">SF-002</text>
+<g ><rect x="601" y="85" width="10" height="10" fill="#FFFFFF" stroke="#000000" stroke-width="1.5" />
+<text x="586" y="90" text-anchor="end" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="9" fill="#495057">obstacles</text></g>
+<g ><rect x="791" y="85" width="10" height="10" fill="#FFFFFF" stroke="#000000" stroke-width="1.5" />
+<text x="816" y="90" text-anchor="start" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="9" fill="#495057">risk_level</text></g></g>
+<g id="node-SF-003"><rect x="1153" y="58" width="180" height="100" rx="8" ry="8" fill="#ADD8E6" stroke="#000000" stroke-width="2" />
+<text x="1243" y="88" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#000000">Decide Action</text>
+<text x="1328" y="72" text-anchor="end" font-family="Arial, sans-serif" font-size="10" fill="#2C5F2D">SF-003</text>
+<g ><rect x="1143" y="85" width="10" height="10" fill="#FFFFFF" stroke="#000000" stroke-width="1.5" />
+<text x="1128" y="90" text-anchor="end" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="9" fill="#495057">risk_level</text></g>
+<g ><rect x="1143" y="121" width="10" height="10" fill="#FFFFFF" stroke="#000000" stroke-width="1.5" />
+<text x="1168" y="126" text-anchor="start" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="9" fill="#495057">brake_command</text></g></g>
+<text x="20" y="30" font-family="Arial, sans-serif" font-size="18" font-weight="bold" fill="#212529">Emergency Braking System</text>
+</svg>

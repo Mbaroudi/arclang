@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="260" height="720" viewBox="0 0 260 720" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<defs>
+<marker id="arrow-component" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="10" markerHeight="10" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#6495ED"></path></marker>
+<marker id="arrow-black" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="10" markerHeight="10" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#000000"></path></marker>
+<filter id="drop-shadow" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur in="SourceAlpha" stdDeviation="4"></feGaussianBlur>
+<feOffset dx="2" dy="2" result="offsetblur"></feOffset>
+<feComponentTransfer ><feFuncA type="linear" slope="0.15"></feFuncA></feComponentTransfer>
+<feMerge ><feMergeNode ></feMergeNode>
+<feMergeNode in="SourceGraphic"></feMergeNode></feMerge></filter>
+<marker id="arrow-event" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#FF6B6B"></path></marker>
+<marker id="arrow-flow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#4ECDC4"></path></marker>
+<marker id="arrow-operation" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#95E1D3"></path></marker>
+<marker id="arrow-data" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#808080"></path></marker>
+<marker id="arrow-shared_data" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#9B59B6"></path></marker>
+<marker id="arrow-unset" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#95A5A6"></path></marker>
+</defs>
+
+<rect x="0" y="0" width="260" height="720" fill="#FFFFFF" stroke="none" />
+<g id="layer-edges" class="edges-layer"></g>
+<g id="layer-components" class="components-layer"><g id="component-LC-001"><rect x="40" y="400" width="160" height="80" rx="8" ry="8" fill="#70AD47" class="component-node" stroke="#000000" stroke-width="2" filter="url(#drop-shadow)" />
+<text x="120" y="420" text-anchor="middle" font-family="Helvetica Neue, Arial, sans-serif" font-size="12" font-weight="bold" fill="#FFFFFF" class="component-label">Radar Sensor</text>
+<text x="190" y="414" text-anchor="end" font-family="Arial, sans-serif" font-size="10" fill="#E8F4F8">LC-001</text>
+<circle cx="58" cy="418" r="8" fill="none" stroke="#FFFFFF" stroke-width="1.5" />
+<line x1="68" y1="418" x2="71" y2="418" stroke="#FFFFFF" stroke-width="1.5" />
+<line x1="65.07106781186548" y1="425.0710678118655" x2="67.19238815542512" y2="427.19238815542514" stroke="#FFFFFF" stroke-width="1.5" />
+<line x1="58" y1="428" x2="58" y2="431" stroke="#FFFFFF" stroke-width="1.5" />
+<line x1="50.928932188134524" y1="425.0710678118655" x2="48.80761184457488" y2="427.19238815542514" stroke="#FFFFFF" stroke-width="1.5" />
+<line x1="48" y1="418" x2="45" y2="418" stroke="#FFFFFF" stroke-width="1.5" />
+<line x1="50.928932188134524" y1="410.9289321881345" x2="48.80761184457488" y2="408.80761184457486" stroke="#FFFFFF" stroke-width="1.5" />
+<line x1="58" y1="408" x2="58" y2="405" stroke="#FFFFFF" stroke-width="1.5" />
+<line x1="65.07106781186548" y1="410.9289321881345" x2="67.19238815542512" y2="408.80761184457486" stroke="#FFFFFF" stroke-width="1.5" />
+<text x="120" y="468" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" font-style="italic" fill="#E8F4F8"><<sensor>></text></g>
+<g id="component-LC-002"><rect x="40" y="580" width="160" height="80" rx="8" ry="8" fill="#70AD47" class="component-node" stroke="#000000" stroke-width="2" filter="url(#drop-shadow)" />
+<text x="120" y="600" text-anchor="middle" font-family="Helvetica Neue, Arial, sans-serif" font-size="12" font-weight="bold" fill="#FFFFFF" class="component-label">Vision Camera</text>
+<text x="190" y="594" text-anchor="end" font-family="Arial, sans-serif" font-size="10" fill="#E8F4F8">LC-002</text>
+<circle cx="58" cy="598" r="8" fill="none" stroke="#FFFFFF" stroke-width="1.5" />
+<line x1="68" y1="598" x2="71" y2="598" stroke="#FFFFFF" stroke-width="1.5" />
+<line x1="65.07106781186548" y1="605.0710678118654" x2="67.19238815542512" y2="607.1923881554251" stroke="#FFFFFF" stroke-width="1.5" />
+<line x1="58" y1="608" x2="58" y2="611" stroke="#FFFFFF" stroke-width="1.5" />
+<line x1="50.928932188134524" y1="605.0710678118655" x2="48.80761184457488" y2="607.1923881554251" stroke="#FFFFFF" stroke-width="1.5" />
+<line x1="48" y1="598" x2="45" y2="598" stroke="#FFFFFF" stroke-width="1.5" />
+<line x1="50.928932188134524" y1="590.9289321881346" x2="48.80761184457488" y2="588.8076118445749" stroke="#FFFFFF" stroke-width="1.5" />
+<line x1="58" y1="588" x2="58" y2="585" stroke="#FFFFFF" stroke-width="1.5" />
+<line x1="65.07106781186548" y1="590.9289321881345" x2="67.19238815542512" y2="588.8076118445749" stroke="#FFFFFF" stroke-width="1.5" />
+<text x="120" y="648" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" font-style="italic" fill="#E8F4F8"><<sensor>></text></g>
+<g id="component-LC-003"><rect x="40" y="40" width="160" height="80" rx="8" ry="8" fill="#70AD47" class="component-node" stroke="#FF8C00" stroke-width="4" filter="url(#drop-shadow)" />
+<text x="120" y="60" text-anchor="middle" font-family="Helvetica Neue, Arial, sans-serif" font-size="12" font-weight="bold" fill="#FFFFFF" class="component-label">Sensor Fusion</text>
+<text x="190" y="54" text-anchor="end" font-family="Arial, sans-serif" font-size="10" fill="#E8F4F8">LC-003</text>
+<circle cx="58" cy="58" r="8" fill="none" stroke="#FFFFFF" stroke-width="1.5" />
+<line x1="68" y1="58" x2="71" y2="58" stroke="#FFFFFF" stroke-width="1.5" />
+<line x1="65.07106781186548" y1="65.07106781186548" x2="67.19238815542512" y2="67.19238815542512" stroke="#FFFFFF" stroke-width="1.5" />
+<line x1="58" y1="68" x2="58" y2="71" stroke="#FFFFFF" stroke-width="1.5" />
+<line x1="50.928932188134524" y1="65.07106781186548" x2="48.80761184457488" y2="67.19238815542512" stroke="#FFFFFF" stroke-width="1.5" />
+<line x1="48" y1="58" x2="45" y2="58" stroke="#FFFFFF" stroke-width="1.5" />
+<line x1="50.928932188134524" y1="50.928932188134524" x2="48.80761184457488" y2="48.80761184457488" stroke="#FFFFFF" stroke-width="1.5" />
+<line x1="58" y1="48" x2="58" y2="45" stroke="#FFFFFF" stroke-width="1.5" />
+<line x1="65.07106781186548" y1="50.928932188134524" x2="67.19238815542512" y2="48.80761184457488" stroke="#FFFFFF" stroke-width="1.5" />
+<text x="120" y="108" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" font-style="italic" fill="#E8F4F8"><<sensor>></text></g>
+<g id="component-LC-004"><rect x="40" y="220" width="160" height="80" rx="8" ry="8" fill="#6495ED" class="component-node" stroke="#FF8C00" stroke-width="4" filter="url(#drop-shadow)" />
+<text x="120" y="240" text-anchor="middle" font-family="Helvetica Neue, Arial, sans-serif" font-size="12" font-weight="bold" fill="#FFFFFF" class="component-label">ACC Controller</text>
+<text x="190" y="234" text-anchor="end" font-family="Arial, sans-serif" font-size="10" fill="#E8F4F8">LC-004</text>
+<rect x="50" y="230" width="16" height="16" fill="none" stroke="#FFFFFF" stroke-width="1.5" rx="2" ry="2" />
+<line x1="47" y1="233" x2="50" y2="233" stroke="#FFFFFF" stroke-width="1" />
+<line x1="66" y1="233" x2="69" y2="233" stroke="#FFFFFF" stroke-width="1" />
+<line x1="47" y1="238" x2="50" y2="238" stroke="#FFFFFF" stroke-width="1" />
+<line x1="66" y1="238" x2="69" y2="238" stroke="#FFFFFF" stroke-width="1" />
+<line x1="47" y1="243" x2="50" y2="243" stroke="#FFFFFF" stroke-width="1" />
+<line x1="66" y1="243" x2="69" y2="243" stroke="#FFFFFF" stroke-width="1" />
+<text x="120" y="288" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" font-style="italic" fill="#E8F4F8"><<controller>></text></g></g>
+<g id="layer-labels" class="labels-layer"><text x="20" y="30" font-family="Helvetica Neue, Arial, sans-serif" font-size="18" font-weight="bold" fill="#212529">ACC Logical Architecture</text>
+<text x="20" y="710" font-family="Helvetica Neue, Arial, sans-serif" font-size="11" fill="#666">Components: 4 | Exchanges: 0</text></g>
+</svg>

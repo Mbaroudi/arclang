@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="-Infinity" height="-Infinity" viewBox="0 0 -Infinity -Infinity" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<defs>
+<marker id="arrow-event" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#FF6B6B"></path></marker>
+<marker id="arrow-flow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#4ECDC4"></path></marker>
+<marker id="arrow-operation" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#95E1D3"></path></marker>
+<marker id="arrow-data" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#808080"></path></marker>
+<marker id="arrow-shared_data" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#9B59B6"></path></marker>
+<marker id="arrow-unset" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#95A5A6"></path></marker>
+</defs>
+
+<rect x="0" y="0" width="-Infinity" height="-Infinity" rx="0" ry="0" fill="#FFFFFF" stroke="none" />
+<g id="system-boundary" class="system-boundary-group"><rect x="0" y="0" width="0" height="0" rx="12" ry="12" fill="#E8F4F8" fill-opacity="0.1" stroke="#2E75B6" stroke-width="3" stroke-dasharray="none" />
+<text x="0" y="-15" text-anchor="middle" font-family="Helvetica Neue, Arial, sans-serif" font-size="16" font-weight="bold" fill="#2E75B6">ACC System</text></g>
+<text x="20" y="30" font-family="Arial, sans-serif" font-size="18" font-weight="bold" fill="#212529">ACC System</text>
+</svg>

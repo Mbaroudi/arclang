@@ -1,0 +1,7 @@
+[alias]
+# Alias to build and install arclang automatically
+build-install = "build --release && sh -c './install-arclang.sh'"
+
+[build]
+# Post-build hook (runs after successful build)
+# Note: Cargo doesn't have native post-build hooks, use build-install alias instead

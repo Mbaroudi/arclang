@@ -780,17 +780,17 @@ impl Parser {
                 Token::InterfaceOut => {
                     interfaces_out.push(self.parse_interface_definition()?);
                 }
-                Token::Provides | Token::Requires => {
-                    // Skip provides/requires interface blocks
-                    self.advance(); // skip 'provides' or 'requires'
-                    if matches!(self.current(), Token::Interface) {
-                        self.advance(); // skip 'interface'
-                        if matches!(self.current(), Token::Identifier(_)) {
-                            self.advance(); // skip interface name
-                        }
-                        self.skip_block()?; // skip interface block
-                    }
-                    // If not followed by 'interface', just skip (no attribute to parse)
+                Token::Provides => {
+                    // Parse provided interface: provides "InterfaceName" { protocol: "CAN" }
+                    self.advance(); // skip 'provides'
+                    let interface_def = self.parse_provides_requires_interface(true)?;
+                    interfaces_out.push(interface_def);
+                }
+                Token::Requires => {
+                    // Parse required interface: requires "InterfaceName" { protocol: "CAN" }
+                    self.advance(); // skip 'requires'
+                    let interface_def = self.parse_provides_requires_interface(false)?;
+                    interfaces_in.push(interface_def);
                 }
                 Token::Identifier(_) | Token::Description | Token::Version | Token::Author |
                 Token::Priority | Token::Rationale | Token::Verification | Token::Traces |
@@ -1015,30 +1015,48 @@ impl Parser {
         self.expect(Token::LeftBrace)?;
         
         let mut deployments = Vec::new();
+        let mut behavior_components = Vec::new();
+        let mut hardware_components = Vec::new();
         let mut attributes = HashMap::new();
         
         while !self.check(&Token::RightBrace) && !self.is_at_end() {
-            if let Token::Deploys = self.current() {
-                deployments.push(self.parse_deployment()?);
-            } else if let Token::Identifier(_) = self.current() {
-                let (key, value) = self.parse_attribute()?;
-                attributes.insert(key, value);
-            } else {
-                break;
+            match self.current() {
+                Token::Deploys => {
+                    deployments.push(self.parse_deployment()?);
+                }
+                Token::BehaviorComponent => {
+                    behavior_components.push(self.parse_behavior_component()?);
+                }
+                Token::HardwareComponent => {
+                    hardware_components.push(self.parse_hardware_component()?);
+                }
+                Token::Type | Token::Identifier(_) => {
+                    let (key, value) = self.parse_attribute()?;
+                    attributes.insert(key, value);
+                }
+                _ => break,
             }
         }
         
         self.expect(Token::RightBrace)?;
         
+        // Generate unique ID from attributes or full name
+        let id = if let Some(AttributeValue::String(ref id_val)) = attributes.get("id") {
+            id_val.clone()
+        } else {
+            // Use full name sanitized for ID
+            format!("PN-{}", name.replace(" ", "_").replace("-", "_"))
+        };
+        
         Ok(PhysicalNode {
-            id: format!("PN-{}", name.chars().take(3).collect::<String>()),
+            id,
             name,
             node_type: NodeType::Hardware,
             color: Some("#FFE699".to_string()),
             processor: None,
             memory: None,
-            behavior_components: Vec::new(),
-            hardware_components: Vec::new(),
+            behavior_components,
+            hardware_components,
             deployments,
             attributes,
         })
@@ -1645,6 +1663,169 @@ impl Parser {
             protocol,
             format,
             attributes,
+        })
+    }
+    
+    fn parse_provides_requires_interface(&mut self, is_provided: bool) -> Result<InterfaceDefinition, String> {
+        // Parse: provides "InterfaceName" { protocol: "CAN" }
+        // or: requires "InterfaceName" { protocol: "CAN" }
+        
+        // Interface name (string literal)
+        let name = self.expect_string()?;
+        
+        // Expect left brace
+        self.expect(Token::LeftBrace)?;
+        
+        let mut protocol = None;
+        let mut format = None;
+        let mut attributes = HashMap::new();
+        
+        // Parse interface attributes
+        while !self.check(&Token::RightBrace) && !self.is_at_end() {
+            match self.current() {
+                Token::Protocol => {
+                    self.advance();
+                    self.expect(Token::Colon)?;
+                    protocol = Some(self.expect_string()?);
+                }
+                Token::Identifier(ref id) if id == "format" => {
+                    self.advance();
+                    self.expect(Token::Colon)?;
+                    format = Some(self.expect_string()?);
+                }
+                Token::Identifier(_) => {
+                    let (key, value) = self.parse_attribute()?;
+                    attributes.insert(key, value);
+                }
+                _ => {
+                    self.advance();
+                }
+            }
+        }
+        
+        self.expect(Token::RightBrace)?;
+        
+        Ok(InterfaceDefinition {
+            name,
+            protocol,
+            format,
+            attributes,
+        })
+    }
+    
+    fn parse_behavior_component(&mut self) -> Result<BehaviorComponent, String> {
+        self.expect(Token::BehaviorComponent)?;
+        let name = self.expect_string()?;
+        self.expect(Token::LeftBrace)?;
+        
+        let mut allocated_functions = Vec::new();
+        let mut color = None;
+        let mut id = None;
+        
+        while !self.check(&Token::RightBrace) && !self.is_at_end() {
+            if let Token::Identifier(ref key) = self.current() {
+                let key_clone = key.clone();
+                self.advance();
+                self.expect(Token::Colon)?;
+                
+                match key_clone.as_str() {
+                    "id" => {
+                        id = Some(self.expect_string()?);
+                    }
+                    "color" => {
+                        color = Some(self.expect_string()?);
+                    }
+                    "allocated_functions" => {
+                        if self.check(&Token::LeftBracket) {
+                            self.advance();
+                            while !self.check(&Token::RightBracket) && !self.is_at_end() {
+                                allocated_functions.push(self.expect_string()?);
+                                if self.check(&Token::Comma) {
+                                    self.advance();
+                                }
+                            }
+                            self.expect(Token::RightBracket)?;
+                        }
+                    }
+                    _ => {
+                        match self.current() {
+                            Token::StringLiteral(_) | Token::Number(_) => {
+                                self.advance();
+                            }
+                            Token::LeftBracket => {
+                                self.skip_block()?;
+                            }
+                            _ => {
+                                self.advance();
+                            }
+                        }
+                    }
+                }
+            } else {
+                break;
+            }
+        }
+        
+        self.expect(Token::RightBrace)?;
+        
+        Ok(BehaviorComponent {
+            id: id.unwrap_or_else(|| format!("BC-{}", name.chars().take(3).collect::<String>())),
+            name,
+            allocated_functions,
+            color,
+        })
+    }
+    
+    fn parse_hardware_component(&mut self) -> Result<HardwareComponent, String> {
+        self.expect(Token::HardwareComponent)?;
+        let name = self.expect_string()?;
+        
+        let mut hw_type = "Generic".to_string();
+        let mut specs = None;
+        let mut color = None;
+        
+        if self.check(&Token::LeftBrace) {
+            self.advance();
+            while !self.check(&Token::RightBrace) && !self.is_at_end() {
+                if let Token::Identifier(ref key) = self.current() {
+                    let key_clone = key.clone();
+                    self.advance();
+                    self.expect(Token::Colon)?;
+                    
+                    match key_clone.as_str() {
+                        "type" => {
+                            hw_type = self.expect_string()?;
+                        }
+                        "specs" => {
+                            specs = Some(self.expect_string()?);
+                        }
+                        "color" => {
+                            color = Some(self.expect_string()?);
+                        }
+                        _ => {
+                            match self.current() {
+                                Token::StringLiteral(_) | Token::Number(_) => {
+                                    self.advance();
+                                }
+                                _ => {
+                                    self.advance();
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    break;
+                }
+            }
+            self.expect(Token::RightBrace)?;
+        }
+        
+        Ok(HardwareComponent {
+            id: format!("HC-{}", name.chars().take(3).collect::<String>()),
+            name,
+            hw_type,
+            specs,
+            color,
         })
     }
 }

@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="580" height="840" viewBox="0 0 580 840" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<defs>
+<marker id="arrow-black" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="10" markerHeight="10" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#000000"></path></marker>
+<marker id="arrow-blue" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="10" markerHeight="10" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#2E75B6"></path></marker>
+</defs>
+
+<rect x="0" y="0" width="580" height="840" rx="0" ry="0" fill="#FFFFFF" stroke="none" />
+<g id="swimlane-Driver"><rect x="0" y="80" width="480" height="180" rx="5" ry="5" fill="#F8F9FA" stroke="#CED4DA" stroke-width="2" />
+<rect x="0" y="80" width="200" height="180" rx="5" ry="5" fill="#E9ECEF" stroke="#CED4DA" stroke-width="2" />
+<g ><circle cx="100" cy="112" r="12" fill="none" stroke="#2E75B6" stroke-width="2" />
+<line x1="100" y1="124" x2="100" y2="154" stroke="#2E75B6" stroke-width="2" />
+<line x1="82" y1="133" x2="118" y2="133" stroke="#2E75B6" stroke-width="2" />
+<line x1="100" y1="154" x2="85" y2="169" stroke="#2E75B6" stroke-width="2" />
+<line x1="100" y1="154" x2="115" y2="169" stroke="#2E75B6" stroke-width="2" /></g>
+<g ><text x="100" y="184" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#212529">Driver</text></g></g>
+<g id="swimlane-Vehicle System"><rect x="0" y="300" width="480" height="360" rx="5" ry="5" fill="#F8F9FA" stroke="#CED4DA" stroke-width="2" />
+<rect x="0" y="300" width="200" height="360" rx="5" ry="5" fill="#E9ECEF" stroke="#CED4DA" stroke-width="2" />
+<g ><circle cx="100" cy="332" r="12" fill="none" stroke="#2E75B6" stroke-width="2" />
+<line x1="100" y1="344" x2="100" y2="374" stroke="#2E75B6" stroke-width="2" />
+<line x1="82" y1="353" x2="118" y2="353" stroke="#2E75B6" stroke-width="2" />
+<line x1="100" y1="374" x2="85" y2="389" stroke="#2E75B6" stroke-width="2" />
+<line x1="100" y1="374" x2="115" y2="389" stroke="#2E75B6" stroke-width="2" /></g>
+<g ><text x="100" y="404" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#212529">Vehicle System</text></g></g>
+<g id="node-OA-Mon"><rect x="220" y="80" width="180" height="100" rx="8" ry="8" fill="#FFD966" stroke="#000000" stroke-width="2" />
+<path d="M 10,10 m -8,0 a 8,8 0 1,0 16,0 a 8,8 0 1,0 -16,0" transform="translate(230, 90) scale(1)" fill="none" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path>
+<text x="310" y="122" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="12" fill="#000000">Monitor Environment</text>
+<text x="395" y="92" text-anchor="end" font-family="Arial, sans-serif" font-size="10" fill="#6C757D">OA-Mon</text></g>
+<g id="node-OA-Det"><rect x="220" y="260" width="180" height="100" rx="8" ry="8" fill="#FFD966" stroke="#000000" stroke-width="2" />
+<path d="M 10,10 m -8,0 a 8,8 0 1,0 16,0 a 8,8 0 1,0 -16,0" transform="translate(230, 270) scale(1)" fill="none" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path>
+<text x="310" y="302" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="12" fill="#000000">Detect Collision Risk</text>
+<text x="395" y="272" text-anchor="end" font-family="Arial, sans-serif" font-size="10" fill="#6C757D">OA-Det</text></g>
+<g id="node-OA-App"><rect x="220" y="440" width="180" height="100" rx="8" ry="8" fill="#FFD966" stroke="#000000" stroke-width="2" />
+<path d="M 10,10 m -8,0 a 8,8 0 1,0 16,0 a 8,8 0 1,0 -16,0" transform="translate(230, 450) scale(1)" fill="none" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path>
+<text x="310" y="482" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="12" fill="#000000">Apply Emergency Brake</text>
+<text x="395" y="452" text-anchor="end" font-family="Arial, sans-serif" font-size="10" fill="#6C757D">OA-App</text></g>
+<text x="20" y="30" font-family="Arial, sans-serif" font-size="18" font-weight="bold" fill="#212529">Emergency Braking Operational Context</text>
+</svg>

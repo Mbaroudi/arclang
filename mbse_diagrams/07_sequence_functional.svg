@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="2440" height="960" viewBox="0 0 2440 960" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<defs>
+<marker id="arrow-filled" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="10" markerHeight="10" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#000000"></path></marker>
+<marker id="arrow-open" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="10" markerHeight="10" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#000000"></path></marker>
+<marker id="arrow-black" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="10" markerHeight="10" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#000000"></path></marker>
+</defs>
+
+<rect x="0" y="0" width="2440" height="960" fill="#FFFFFF" stroke="none" />
+<line x1="100" y1="160" x2="100" y2="920" stroke="#90A4AE" stroke-width="2" stroke-dasharray="6,4" />
+<line x1="420" y1="160" x2="420" y2="920" stroke="#90A4AE" stroke-width="2" stroke-dasharray="6,4" />
+<line x1="740" y1="160" x2="740" y2="920" stroke="#90A4AE" stroke-width="2" stroke-dasharray="6,4" />
+<line x1="1060" y1="160" x2="1060" y2="920" stroke="#90A4AE" stroke-width="2" stroke-dasharray="6,4" />
+<line x1="1380" y1="160" x2="1380" y2="920" stroke="#90A4AE" stroke-width="2" stroke-dasharray="6,4" />
+<line x1="1700" y1="160" x2="1700" y2="920" stroke="#90A4AE" stroke-width="2" stroke-dasharray="6,4" />
+<line x1="2020" y1="160" x2="2020" y2="920" stroke="#90A4AE" stroke-width="2" stroke-dasharray="6,4" />
+<line x1="2340" y1="160" x2="2340" y2="920" stroke="#90A4AE" stroke-width="2" stroke-dasharray="6,4" />
+<g id="msg-0"><line x1="100" y1="200" x2="420" y2="200" stroke="#1976D2" stroke-width="2.5" marker-end="url(#arrow-filled)" fill="none" />
+<rect x="199.75" y="180" width="120.5" height="20" fill="#FFFFFF" stroke="#1976D2" stroke-width="1.5" rx="4" ry="4" filter="drop-shadow(0 1px 2px rgba(0,0,0,0.1))" />
+<text x="260" y="190" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="10" font-weight="600" fill="#1976D2">rawSensorData</text></g>
+<g id="msg-1"><line x1="420" y1="260" x2="740" y2="260" stroke="#1976D2" stroke-width="2.5" marker-end="url(#arrow-filled)" fill="none" />
+<rect x="522" y="240" width="116" height="20" fill="#FFFFFF" stroke="#1976D2" stroke-width="1.5" rx="4" ry="4" filter="drop-shadow(0 1px 2px rgba(0,0,0,0.1))" />
+<text x="580" y="250" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="10" font-weight="600" fill="#1976D2">fusedData</text></g>
+<g id="msg-2"><line x1="740" y1="320" x2="1060" y2="320" stroke="#1976D2" stroke-width="2.5" marker-end="url(#arrow-filled)" fill="none" />
+<rect x="833.25" y="300" width="133.5" height="20" fill="#FFFFFF" stroke="#1976D2" stroke-width="1.5" rx="4" ry="4" filter="drop-shadow(0 1px 2px rgba(0,0,0,0.1))" />
+<text x="900" y="310" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="10" font-weight="600" fill="#1976D2">detectedObjects</text></g>
+<g id="msg-3"><line x1="1060" y1="380" x2="1380" y2="380" stroke="#1976D2" stroke-width="2.5" marker-end="url(#arrow-filled)" fill="none" />
+<rect x="1156.5" y="360" width="127" height="20" fill="#FFFFFF" stroke="#1976D2" stroke-width="1.5" rx="4" ry="4" filter="drop-shadow(0 1px 2px rgba(0,0,0,0.1))" />
+<text x="1220" y="370" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="10" font-weight="600" fill="#1976D2">trackedObjects</text></g>
+<g id="msg-4"><path d="M 1380 440 L 1440 440 L 1440 480 L 1380 480" stroke="#1976D2" stroke-width="2.5" marker-end="url(#arrow-filled)" fill="none"></path>
+<rect x="1442" y="450" width="127" height="20" fill="#FFFFFF" stroke="#1976D2" stroke-width="1.5" rx="4" ry="4" filter="drop-shadow(0 1px 2px rgba(0,0,0,0.1))" />
+<text x="1505.5" y="460" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="10" font-weight="600" fill="#1976D2">calculateTTC()</text></g>
+<g id="msg-5"><line x1="1380" y1="540" x2="1700" y2="540" stroke="#388E3C" stroke-width="2.5" marker-end="url(#arrow-open)" fill="none" />
+<rect x="1434.25" y="520" width="211.5" height="20" fill="#FFFFFF" stroke="#388E3C" stroke-width="1.5" rx="4" ry="4" filter="drop-shadow(0 1px 2px rgba(0,0,0,0.1))" />
+<text x="1540" y="530" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="10" font-weight="600" fill="#388E3C">threatAssessment [CRITICAL]</text></g>
+<g id="msg-6"><line x1="1380" y1="600" x2="2340" y2="600" stroke="#388E3C" stroke-width="2.5" marker-end="url(#arrow-open)" fill="none" />
+<rect x="1799.75" y="580" width="120.5" height="20" fill="#FFFFFF" stroke="#388E3C" stroke-width="1.5" rx="4" ry="4" filter="drop-shadow(0 1px 2px rgba(0,0,0,0.1))" />
+<text x="1860" y="590" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="10" font-weight="600" fill="#388E3C">warningSignal</text></g>
+<g id="msg-7"><line x1="1700" y1="660" x2="2020" y2="660" stroke="#1976D2" stroke-width="2.5" marker-end="url(#arrow-filled)" fill="none" />
+<rect x="1764" y="640" width="192" height="20" fill="#FFFFFF" stroke="#1976D2" stroke-width="1.5" rx="4" ry="4" filter="drop-shadow(0 1px 2px rgba(0,0,0,0.1))" />
+<text x="1860" y="650" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="10" font-weight="600" fill="#1976D2">brakeCommand(force=100%)</text></g>
+<g id="msg-8"><line x1="2020" y1="720" x2="1700" y2="720" stroke="#666666" stroke-width="2.5" marker-end="url(#arrow-black)" fill="none" stroke-dasharray="5,5" />
+<rect x="1783.5" y="700" width="153" height="20" fill="#FFFFFF" stroke="#666666" stroke-width="1.5" rx="4" ry="4" filter="drop-shadow(0 1px 2px rgba(0,0,0,0.1))" />
+<text x="1860" y="710" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="10" font-weight="600" fill="#666666">actualDeceleration</text></g>
+<g id="msg-9"><path d="M 2340 780 L 2400 780 L 2400 820 L 2340 820" stroke="#1976D2" stroke-width="2.5" marker-end="url(#arrow-filled)" fill="none"></path>
+<rect x="2402" y="790" width="127" height="20" fill="#FFFFFF" stroke="#1976D2" stroke-width="1.5" rx="4" ry="4" filter="drop-shadow(0 1px 2px rgba(0,0,0,0.1))" />
+<text x="2465.5" y="800" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="10" font-weight="600" fill="#1976D2">displayAlert()</text></g>
+<g id="participant-SF-001"><rect x="40" y="100" width="120" height="60" fill="#E8F5E9" stroke="#388E3C" stroke-width="2.5" rx="8" ry="8" />
+<text x="100" y="123" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="11" font-weight="bold" fill="#388E3C">Sensor Data</text>
+<text x="100" y="137" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="11" font-weight="bold" fill="#388E3C">Acquisition</text></g>
+<g id="participant-SF-002"><rect x="360" y="100" width="120" height="60" fill="#E8F5E9" stroke="#388E3C" stroke-width="2.5" rx="8" ry="8" />
+<text x="420" y="123" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="11" font-weight="bold" fill="#388E3C">Multi-Sensor</text>
+<text x="420" y="137" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="11" font-weight="bold" fill="#388E3C">Fusion</text></g>
+<g id="participant-SF-003"><rect x="680" y="100" width="120" height="60" fill="#E8F5E9" stroke="#388E3C" stroke-width="2.5" rx="8" ry="8" />
+<text x="740" y="130" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="11" font-weight="bold" fill="#388E3C">Object Detection</text></g>
+<g id="participant-SF-004"><rect x="1000" y="100" width="120" height="60" fill="#E8F5E9" stroke="#388E3C" stroke-width="2.5" rx="8" ry="8" />
+<text x="1060" y="123" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="11" font-weight="bold" fill="#388E3C">Multi-Object</text>
+<text x="1060" y="137" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="11" font-weight="bold" fill="#388E3C">Tracking</text></g>
+<g id="participant-SF-005"><rect x="1320" y="100" width="120" height="60" fill="#E8F5E9" stroke="#388E3C" stroke-width="2.5" rx="8" ry="8" />
+<text x="1380" y="123" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="11" font-weight="bold" fill="#388E3C">Collision Risk</text>
+<text x="1380" y="137" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="11" font-weight="bold" fill="#388E3C">Assessment</text></g>
+<g id="participant-SF-006"><rect x="1640" y="100" width="120" height="60" fill="#E8F5E9" stroke="#388E3C" stroke-width="2.5" rx="8" ry="8" />
+<text x="1700" y="123" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="11" font-weight="bold" fill="#388E3C">Braking Strategy</text>
+<text x="1700" y="137" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="11" font-weight="bold" fill="#388E3C">Planning</text></g>
+<g id="participant-SF-007"><rect x="1960" y="100" width="120" height="60" fill="#E8F5E9" stroke="#388E3C" stroke-width="2.5" rx="8" ry="8" />
+<text x="2020" y="123" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="11" font-weight="bold" fill="#388E3C">Brake</text>
+<text x="2020" y="137" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="11" font-weight="bold" fill="#388E3C">Actuation</text></g>
+<g id="participant-SF-008"><rect x="2280" y="100" width="120" height="60" fill="#E8F5E9" stroke="#388E3C" stroke-width="2.5" rx="8" ry="8" />
+<text x="2340" y="123" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="11" font-weight="bold" fill="#388E3C">Driver</text>
+<text x="2340" y="137" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="11" font-weight="bold" fill="#388E3C">Warning</text></g>
+<rect x="410" y="260" width="16" height="100" fill="#E3F2FD" stroke="#1976D2" stroke-width="2" rx="2" ry="2" />
+<rect x="730" y="320" width="16" height="100" fill="#E3F2FD" stroke="#1976D2" stroke-width="2" rx="2" ry="2" />
+<rect x="1050" y="380" width="16" height="100" fill="#E3F2FD" stroke="#1976D2" stroke-width="2" rx="2" ry="2" />
+<rect x="1370" y="440" width="16" height="100" fill="#E3F2FD" stroke="#1976D2" stroke-width="2" rx="2" ry="2" />
+<rect x="1690" y="600" width="16" height="100" fill="#E3F2FD" stroke="#1976D2" stroke-width="2" rx="2" ry="2" />
+<rect x="2010" y="720" width="16" height="60" fill="#E3F2FD" stroke="#1976D2" stroke-width="2" rx="2" ry="2" />
+<text x="20" y="30" font-family="Arial, sans-serif" font-size="18" font-weight="bold" fill="#212529">Emergency Braking - Collision Avoidance Scenario</text>
+</svg>

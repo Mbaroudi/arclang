@@ -1,0 +1,112 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="1880" height="720" viewBox="0 0 1880 720" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<defs>
+<marker id="arrow-black" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="10" markerHeight="10" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#000000"></path></marker>
+<marker id="arrow-blue" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="10" markerHeight="10" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#2E75B6"></path></marker>
+</defs>
+
+<rect x="0" y="0" width="1880" height="720" rx="0" ry="0" fill="#FFFFFF" stroke="none" />
+<rect x="0" y="60" width="1880" height="510" rx="5" ry="5" fill="#F8F9FA" stroke="#CED4DA" stroke-width="2" />
+<rect x="0" y="60" width="240" height="510" rx="5" ry="5" fill="#E9ECEF" stroke="#CED4DA" stroke-width="2" />
+<g ><circle cx="100" cy="92" r="12" fill="none" stroke="#2E75B6" stroke-width="2" />
+<line x1="100" y1="104" x2="100" y2="134" stroke="#2E75B6" stroke-width="2" />
+<line x1="82" y1="113" x2="118" y2="113" stroke="#2E75B6" stroke-width="2" />
+<line x1="100" y1="134" x2="85" y2="149" stroke="#2E75B6" stroke-width="2" />
+<line x1="100" y1="134" x2="115" y2="149" stroke="#2E75B6" stroke-width="2" /></g>
+<g ><text x="100" y="160" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#212529">Driver</text></g>
+<rect x="0" y="610" width="1880" height="370" rx="5" ry="5" fill="#F8F9FA" stroke="#CED4DA" stroke-width="2" />
+<rect x="0" y="610" width="240" height="370" rx="5" ry="5" fill="#E9ECEF" stroke="#CED4DA" stroke-width="2" />
+<g ><circle cx="100" cy="642" r="12" fill="none" stroke="#2E75B6" stroke-width="2" />
+<line x1="100" y1="654" x2="100" y2="684" stroke="#2E75B6" stroke-width="2" />
+<line x1="82" y1="663" x2="118" y2="663" stroke="#2E75B6" stroke-width="2" />
+<line x1="100" y1="684" x2="85" y2="699" stroke="#2E75B6" stroke-width="2" />
+<line x1="100" y1="684" x2="115" y2="699" stroke="#2E75B6" stroke-width="2" /></g>
+<g ><text x="100" y="710" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#212529">ACC System</text></g>
+<rect x="0" y="1020" width="1880" height="180" rx="5" ry="5" fill="#F8F9FA" stroke="#CED4DA" stroke-width="2" />
+<rect x="0" y="1020" width="240" height="180" rx="5" ry="5" fill="#E9ECEF" stroke="#CED4DA" stroke-width="2" />
+<g ><circle cx="100" cy="1052" r="12" fill="none" stroke="#2E75B6" stroke-width="2" />
+<line x1="100" y1="1064" x2="100" y2="1094" stroke="#2E75B6" stroke-width="2" />
+<line x1="82" y1="1073" x2="118" y2="1073" stroke="#2E75B6" stroke-width="2" />
+<line x1="100" y1="1094" x2="85" y2="1109" stroke="#2E75B6" stroke-width="2" />
+<line x1="100" y1="1094" x2="115" y2="1109" stroke="#2E75B6" stroke-width="2" /></g>
+<g ><text x="100" y="1120" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#212529">Vehicle Sensors</text></g>
+<rect x="0" y="1240" width="1880" height="180" rx="5" ry="5" fill="#F8F9FA" stroke="#CED4DA" stroke-width="2" />
+<rect x="0" y="1240" width="240" height="180" rx="5" ry="5" fill="#E9ECEF" stroke="#CED4DA" stroke-width="2" />
+<g ><circle cx="100" cy="1272" r="12" fill="none" stroke="#2E75B6" stroke-width="2" />
+<line x1="100" y1="1284" x2="100" y2="1314" stroke="#2E75B6" stroke-width="2" />
+<line x1="82" y1="1293" x2="118" y2="1293" stroke="#2E75B6" stroke-width="2" />
+<line x1="100" y1="1314" x2="85" y2="1329" stroke="#2E75B6" stroke-width="2" />
+<line x1="100" y1="1314" x2="115" y2="1329" stroke="#2E75B6" stroke-width="2" /></g>
+<g ><text x="100" y="1340" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#212529">Traffic Infrastructure</text></g>
+<rect x="0" y="1460" width="1880" height="180" rx="5" ry="5" fill="#F8F9FA" stroke="#CED4DA" stroke-width="2" />
+<rect x="0" y="1460" width="240" height="180" rx="5" ry="5" fill="#E9ECEF" stroke="#CED4DA" stroke-width="2" />
+<g ><circle cx="100" cy="1492" r="12" fill="none" stroke="#2E75B6" stroke-width="2" />
+<line x1="100" y1="1504" x2="100" y2="1534" stroke="#2E75B6" stroke-width="2" />
+<line x1="82" y1="1513" x2="118" y2="1513" stroke="#2E75B6" stroke-width="2" />
+<line x1="100" y1="1534" x2="85" y2="1549" stroke="#2E75B6" stroke-width="2" />
+<line x1="100" y1="1534" x2="115" y2="1549" stroke="#2E75B6" stroke-width="2" /></g>
+<g ><text x="100" y="1560" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#212529">Lead Vehicle</text></g>
+<g id="edge-OA-001-OA-003"><path d="M 470 70 L 525 70 Q 535 70, 535 80 L 535 200 Q 535 210, 545 210 L 600 210" fill="none" stroke="#000000" stroke-width="2" marker-end="url(#arrow-black)"></path>
+<rect x="482.8" y="115" width="104.39999999999999" height="20" rx="3" ry="3" fill="#FFFFFF" stroke="#CED4DA" stroke-width="1" />
+<text x="535" y="125" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="11" fill="#495057">ACC Activation</text></g>
+<g id="edge-OA-002-OA-003"><path d="M 460 270 L 520 270 Q 530 270, 530 260 L 530 220 Q 530 210, 540 210 L 600 210" fill="none" stroke="#000000" stroke-width="2" marker-end="url(#arrow-black)"></path>
+<rect x="458" y="215" width="144" height="20" rx="3" ry="3" fill="#FFFFFF" stroke="#CED4DA" stroke-width="1" />
+<text x="530" y="225" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="11" fill="#495057">Desired Speed (km/h)</text></g>
+<g id="edge-OA-003-OA-005"><path d="M 780 210 L 840 210 Q 850 210, 850 220 L 850 390 Q 850 400, 860 400 L 920 400" fill="none" stroke="#000000" stroke-width="2" marker-end="url(#arrow-black)"></path>
+<rect x="791.2" y="280" width="117.6" height="20" rx="3" ry="3" fill="#FFFFFF" stroke="#CED4DA" stroke-width="1" />
+<text x="850" y="290" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="11" fill="#495057">Control Settings</text></g>
+<g id="edge-OA-004-OA-005"><path d="M 780 420 L 840 420 Q 850 420, 850 410 L 850 410 Q 850 400, 860 400 L 920 400" fill="none" stroke="#000000" stroke-width="2" marker-end="url(#arrow-black)"></path>
+<rect x="787.9" y="385" width="124.19999999999999" height="20" rx="3" ry="3" fill="#FFFFFF" stroke="#CED4DA" stroke-width="1" />
+<text x="850" y="395" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="11" fill="#495057">Detected Vehicles</text></g>
+<g id="edge-OA-009-OA-004"><path d="M 460 460 L 520 460 Q 530 460, 530 450 L 530 430 Q 530 420, 540 420 L 600 420" fill="none" stroke="#000000" stroke-width="2" marker-end="url(#arrow-black)"></path>
+<rect x="464.6" y="415" width="130.8" height="20" rx="3" ry="3" fill="#FFFFFF" stroke="#CED4DA" stroke-width="1" />
+<text x="530" y="425" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="11" fill="#495057">Lead Vehicle State</text></g>
+<g id="edge-OA-008-OA-005"><path d="M 800 610 L 850 610 Q 860 610, 860 600 L 860 410 Q 860 400, 870 400 L 920 400" fill="none" stroke="#000000" stroke-width="2" marker-end="url(#arrow-black)"></path>
+<rect x="804.5" y="480" width="111" height="20" rx="3" ry="3" fill="#FFFFFF" stroke="#CED4DA" stroke-width="1" />
+<text x="860" y="490" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="11" fill="#495057">Traffic Updates</text></g>
+<g id="edge-OA-005-OA-006"><path d="M 1100 400 L 1240 400" fill="none" stroke="#000000" stroke-width="2" marker-end="url(#arrow-black)"></path>
+<rect x="1098" y="375" width="144" height="20" rx="3" ry="3" fill="#FFFFFF" stroke="#CED4DA" stroke-width="1" />
+<text x="1170" y="385" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="11" fill="#495057">Target Speed Command</text></g>
+<g id="edge-OA-006-OA-007"><path d="M 1420 400 L 1560 400" fill="none" stroke="#000000" stroke-width="2" marker-end="url(#arrow-black)"></path>
+<rect x="1437.8" y="375" width="104.39999999999999" height="20" rx="3" ry="3" fill="#FFFFFF" stroke="#CED4DA" stroke-width="1" />
+<text x="1490" y="385" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="11" fill="#495057">Control Status</text></g>
+<g id="edge-OA-007-OA-010"><path d="M 1740 400 L 1880 400" fill="none" stroke="#000000" stroke-width="2" marker-end="url(#arrow-black)"></path>
+<rect x="1757.8" y="375" width="104.39999999999999" height="20" rx="3" ry="3" fill="#FFFFFF" stroke="#CED4DA" stroke-width="1" />
+<text x="1810" y="385" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="11" fill="#495057">Status Display</text></g>
+<g id="node-OA-001"><rect x="290" y="20" width="180" height="100" rx="8" ry="8" fill="#FFD966" stroke="#000000" stroke-width="2" />
+<text x="380" y="62" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="12" fill="#000000">Press ACC Button</text>
+<text x="465" y="32" text-anchor="end" font-family="Arial, sans-serif" font-size="10" fill="#6C757D">OA-001</text></g>
+<g id="node-OA-002"><rect x="280" y="220" width="180" height="100" rx="8" ry="8" fill="#FFD966" stroke="#000000" stroke-width="2" />
+<text x="370" y="262" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="12" fill="#000000">Set Desired Speed</text>
+<text x="455" y="232" text-anchor="end" font-family="Arial, sans-serif" font-size="10" fill="#6C757D">OA-002</text></g>
+<g id="node-OA-003"><rect x="600" y="160" width="180" height="100" rx="8" ry="8" fill="#B4D7A8" stroke="#000000" stroke-width="2" />
+<text x="690" y="202" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="12" fill="#000000">Monitor Driver Input</text>
+<text x="775" y="172" text-anchor="end" font-family="Arial, sans-serif" font-size="10" fill="#6C757D">OA-003</text></g>
+<g id="node-OA-004"><rect x="600" y="370" width="180" height="100" rx="8" ry="8" fill="#9FC5E8" stroke="#000000" stroke-width="2" />
+<text x="690" y="412" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="12" fill="#000000">Scan Environment</text>
+<text x="775" y="382" text-anchor="end" font-family="Arial, sans-serif" font-size="10" fill="#6C757D">OA-004</text></g>
+<g id="node-OA-005"><rect x="920" y="350" width="180" height="100" rx="8" ry="8" fill="#FFD966" stroke="#000000" stroke-width="2" />
+<text x="1010" y="384" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="12" fill="#000000">Calculate Safe</text>
+<text x="1010" y="400" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="12" fill="#000000">Distance</text>
+<text x="1095" y="362" text-anchor="end" font-family="Arial, sans-serif" font-size="10" fill="#6C757D">OA-005</text></g>
+<g id="node-OA-006"><rect x="1240" y="350" width="180" height="100" rx="8" ry="8" fill="#F4CCCC" stroke="#000000" stroke-width="2" />
+<text x="1330" y="392" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="12" fill="#000000">Adjust Vehicle Speed</text>
+<text x="1415" y="362" text-anchor="end" font-family="Arial, sans-serif" font-size="10" fill="#6C757D">OA-006</text></g>
+<g id="node-OA-007"><rect x="1560" y="350" width="180" height="100" rx="8" ry="8" fill="#B4D7A8" stroke="#000000" stroke-width="2" />
+<text x="1650" y="392" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="12" fill="#000000">Display Status</text>
+<text x="1735" y="362" text-anchor="end" font-family="Arial, sans-serif" font-size="10" fill="#6C757D">OA-007</text></g>
+<g id="node-OA-008"><rect x="620" y="560" width="180" height="100" rx="8" ry="8" fill="#D9D2E9" stroke="#000000" stroke-width="2" />
+<text x="710" y="602" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="12" fill="#000000">Broadcast Traffic Data</text>
+<text x="795" y="572" text-anchor="end" font-family="Arial, sans-serif" font-size="10" fill="#6C757D">OA-008</text></g>
+<g id="node-OA-009"><rect x="280" y="410" width="180" height="100" rx="8" ry="8" fill="#E8E8E8" stroke="#000000" stroke-width="2" />
+<text x="370" y="444" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="12" fill="#000000">Maintain Constant</text>
+<text x="370" y="460" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="12" fill="#000000">Speed</text>
+<text x="455" y="422" text-anchor="end" font-family="Arial, sans-serif" font-size="10" fill="#6C757D">OA-009</text></g>
+<g id="node-OA-010"><rect x="1880" y="350" width="180" height="100" rx="8" ry="8" fill="#FFD966" stroke="#000000" stroke-width="2" />
+<text x="1970" y="392" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="12" fill="#000000">Observe Driver Action</text>
+<text x="2055" y="362" text-anchor="end" font-family="Arial, sans-serif" font-size="10" fill="#6C757D">OA-010</text></g>
+<text x="20" y="30" font-family="Arial, sans-serif" font-size="18" font-weight="bold" fill="#212529">Adaptive Cruise Control - Rich Operational View</text>
+<g id="optimization-badge"><rect x="20" y="50" width="300" height="70" rx="5" ry="5" fill="#F0F8FF" stroke="#4472C4" stroke-width="2" />
+<text x="30" y="70" font-family="Arial, sans-serif" font-size="14" font-weight="bold" fill="#4472C4">Hybrid ELK+Dagre+D3 Engine</text>
+<text x="30" y="95" font-family="Arial, sans-serif" font-size="11" fill="#6C757D">ELK: 100 | Dagre: 100 | D3: 100 | 103ms</text></g>
+</svg>

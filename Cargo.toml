@@ -1,9 +1,9 @@
 [package]
 name = "arclang"
-version = "1.0.0"
+version = "2.0.0"
 edition = "2021"
 authors = ["ArcLang Contributors"]
-description = "Industrial-grade Arcadia-as-Code compiler"
+description = "Industrial-grade Arcadia-as-Code compiler with Phase 1 & 2 Rendering Pipeline"
 license = "MIT"
 repository = "https://github.com/arclang/arclang"
 keywords = ["arcadia", "mbse", "systems-engineering", "compiler", "capella"]
@@ -13,23 +13,16 @@ categories = ["development-tools", "compilers"]
 name = "arclang"
 path = "src/main.rs"
 
-[[bin]]
-name = "test_explorer"
-path = "test_explorer.rs"
-
-[[bin]]
-name = "test_d3"
-path = "test_d3.rs"
-
-[[bin]]
-name = "test_elk"
-path = "test_elk.rs"
-
 [dependencies]
 # CLI
 clap = { version = "4.4", features = ["derive", "cargo"] }
 colored = "2.0"
 opener = "0.7"
+
+# Web Server
+axum = "0.7"
+tower = "0.4"
+tower-http = { version = "0.5", features = ["cors", "trace"] }
 
 # Serialization
 serde = { version = "1.0", features = ["derive"] }
@@ -72,6 +65,9 @@ uuid = { version = "1.6", features = ["v4", "serde"] }
 
 # Threading
 rayon = "1.8"
+
+# Random number generation
+rand = "0.8"
 
 # Configuration
 config = "0.13"

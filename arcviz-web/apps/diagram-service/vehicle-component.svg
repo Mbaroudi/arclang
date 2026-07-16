@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="1210" height="524" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<defs>
+<marker id="arrow-component" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="10" markerHeight="10" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#5B9BD5"></path></marker>
+<marker id="arrow-black" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="10" markerHeight="10" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#000000"></path></marker>
+</defs>
+
+<rect x="0" y="0" width="1210" height="524" fill="#FFFFFF" stroke="none" />
+<g id="ce-0"><path d="M 940 280 L 800 280 L 800 400 L 200 400 L 200 280 L 190 280" fill="none" stroke="#000000" stroke-width="2" marker-end="url(#arrow-black)"></path>
+<rect x="155" y="380" width="90" height="18" fill="#FFFFFF" stroke="#5B9BD5" stroke-width="1" rx="3" ry="3" />
+<text x="200" y="390" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" fill="#000000">Driver Commands</text></g>
+<g id="ce-1"><path d="M 190 260 L 490 260" fill="none" stroke="#000000" stroke-width="2" marker-end="url(#arrow-black)"></path>
+<rect x="448" y="240" width="84" height="18" fill="#FFFFFF" stroke="#5B9BD5" stroke-width="1" rx="3" ry="3" />
+<text x="490" y="250" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" fill="#000000">Engine Control</text></g>
+<g id="ce-2"><path d="M 190 240 L 200 240 L 200 80 L 490 80" fill="none" stroke="#000000" stroke-width="2" marker-end="url(#arrow-black)"></path>
+<rect x="161" y="60" width="78" height="18" fill="#FFFFFF" stroke="#5B9BD5" stroke-width="1" rx="3" ry="3" />
+<text x="200" y="70" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" fill="#000000">Brake Control</text></g>
+<g id="ce-3"><path d="M 640 260 L 940 260" fill="none" stroke="#000000" stroke-width="2" marker-end="url(#arrow-black)"></path>
+<rect x="901" y="240" width="78" height="18" fill="#FFFFFF" stroke="#5B9BD5" stroke-width="1" rx="3" ry="3" />
+<text x="940" y="250" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" fill="#000000">Engine Status</text></g>
+<g id="ce-4"><path d="M 640 80 L 800 80 L 800 240 L 940 240" fill="none" stroke="#000000" stroke-width="2" marker-end="url(#arrow-black)"></path>
+<rect x="764" y="220" width="72" height="18" fill="#FFFFFF" stroke="#5B9BD5" stroke-width="1" rx="3" ry="3" />
+<text x="800" y="230" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" fill="#000000">Brake Status</text></g>
+<g id="component-LC-001"><rect x="940" y="220" width="150" height="80" rx="8" ry="8" fill="#5B9BD5" stroke="#000000" stroke-width="2" />
+<text x="1015" y="245" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#FFFFFF">Driver Interface</text>
+<text x="1080" y="234" text-anchor="end" font-family="Arial, sans-serif" font-size="10" fill="#E8F4F8">LC-001</text>
+<line x1="1090" y1="260" x2="1110" y2="260" stroke="#000000" stroke-width="2" />
+<circle cx="1110" cy="260" r="6" fill="#FFFFFF" stroke="#000000" stroke-width="2" />
+<text x="1120" y="260" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="9" fill="#000000">IDriverCommands</text>
+<line x1="920" y1="260" x2="940" y2="260" stroke="#000000" stroke-width="2" />
+<path d="M 920 254 A 6 6 0 0 1 920 266" fill="none" stroke="#000000" stroke-width="2"></path>
+<text x="910" y="260" text-anchor="end" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="9" fill="#000000">IVehicleStatus</text></g>
+<g id="component-LC-002"><rect x="40" y="220" width="150" height="80" rx="8" ry="8" fill="#5B9BD5" stroke="#000000" stroke-width="2" />
+<text x="115" y="245" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#FFFFFF">Vehicle Controller</text>
+<text x="180" y="234" text-anchor="end" font-family="Arial, sans-serif" font-size="10" fill="#E8F4F8">LC-002</text>
+<line x1="190" y1="246.66666666666666" x2="210" y2="246.66666666666666" stroke="#000000" stroke-width="2" />
+<circle cx="210" cy="246.66666666666666" r="6" fill="#FFFFFF" stroke="#000000" stroke-width="2" />
+<text x="220" y="246.66666666666666" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="9" fill="#000000">IEngineControl</text>
+<line x1="190" y1="273.3333333333333" x2="210" y2="273.3333333333333" stroke="#000000" stroke-width="2" />
+<circle cx="210" cy="273.3333333333333" r="6" fill="#FFFFFF" stroke="#000000" stroke-width="2" />
+<text x="220" y="273.3333333333333" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="9" fill="#000000">IBrakeControl</text>
+<line x1="20" y1="260" x2="40" y2="260" stroke="#000000" stroke-width="2" />
+<path d="M 20 254 A 6 6 0 0 1 20 266" fill="none" stroke="#000000" stroke-width="2"></path>
+<text x="10" y="260" text-anchor="end" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="9" fill="#000000">IDriverCommands</text></g>
+<g id="component-LC-003"><rect x="490" y="220" width="150" height="80" rx="8" ry="8" fill="#70AD47" stroke="#000000" stroke-width="2" />
+<text x="565" y="245" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#FFFFFF">Engine Management</text>
+<text x="630" y="234" text-anchor="end" font-family="Arial, sans-serif" font-size="10" fill="#E8F4F8">LC-003</text>
+<line x1="640" y1="260" x2="660" y2="260" stroke="#000000" stroke-width="2" />
+<circle cx="660" cy="260" r="6" fill="#FFFFFF" stroke="#000000" stroke-width="2" />
+<text x="670" y="260" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="9" fill="#000000">IEngineStatus</text>
+<line x1="470" y1="260" x2="490" y2="260" stroke="#000000" stroke-width="2" />
+<path d="M 470 254 A 6 6 0 0 1 470 266" fill="none" stroke="#000000" stroke-width="2"></path>
+<text x="460" y="260" text-anchor="end" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="9" fill="#000000">IEngineControl</text></g>
+<g id="component-LC-004"><rect x="490" y="40" width="150" height="80" rx="8" ry="8" fill="#70AD47" stroke="#000000" stroke-width="2" />
+<text x="565" y="65" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#FFFFFF">Brake System</text>
+<text x="630" y="54" text-anchor="end" font-family="Arial, sans-serif" font-size="10" fill="#E8F4F8">LC-004</text>
+<line x1="640" y1="80" x2="660" y2="80" stroke="#000000" stroke-width="2" />
+<circle cx="660" cy="80" r="6" fill="#FFFFFF" stroke="#000000" stroke-width="2" />
+<text x="670" y="80" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="9" fill="#000000">IBrakeStatus</text>
+<line x1="470" y1="80" x2="490" y2="80" stroke="#000000" stroke-width="2" />
+<path d="M 470 74 A 6 6 0 0 1 470 86" fill="none" stroke="#000000" stroke-width="2"></path>
+<text x="460" y="80" text-anchor="end" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="9" fill="#000000">IBrakeControl</text></g>
+<text x="20" y="30" font-family="Arial, sans-serif" font-size="18" font-weight="bold" fill="#212529">Vehicle Control System - Logical Architecture</text>
+</svg>

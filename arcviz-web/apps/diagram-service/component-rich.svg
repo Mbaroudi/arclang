@@ -1,0 +1,175 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="3628" height="938" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<defs>
+<marker id="arrow-component" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="10" markerHeight="10" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#5B9BD5"></path></marker>
+<marker id="arrow-black" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="10" markerHeight="10" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#000000"></path></marker>
+</defs>
+
+<rect x="0" y="0" width="3628" height="938" fill="#FFFFFF" stroke="none" />
+<g id="ce-0"><path d="M 2560 574 L 2860 574" fill="none" stroke="#000000" stroke-width="2" marker-end="url(#arrow-black)"></path>
+<rect x="2815" y="554" width="90" height="18" fill="#FFFFFF" stroke="#5B9BD5" stroke-width="1" rx="3" ry="3" />
+<text x="2860" y="564" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" fill="#000000">Driver Commands</text></g>
+<g id="ce-1"><path d="M 214 607 L 224 607 L 224 814 L 2730 814 L 2730 655 L 2860 655" fill="none" stroke="#000000" stroke-width="2" marker-end="url(#arrow-black)"></path>
+<rect x="2697" y="794" width="66" height="18" fill="#FFFFFF" stroke="#5B9BD5" stroke-width="1" rx="3" ry="3" />
+<text x="2730" y="804" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" fill="#000000">Sensor Data</text></g>
+<g id="ce-2"><path d="M 2860 614 L 2720 614 L 2720 793 L 1148 793 L 1148 582 L 1138 582" fill="none" stroke="#000000" stroke-width="2" marker-end="url(#arrow-black)"></path>
+<rect x="1100" y="773" width="96" height="18" fill="#FFFFFF" stroke="#5B9BD5" stroke-width="1" rx="3" ry="3" />
+<text x="1148" y="783" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" fill="#000000">Control Settings</text></g>
+<g id="ce-3"><path d="M 214 557 L 234 557 L 234 649 L 824 649 L 824 582 L 964 582" fill="none" stroke="#000000" stroke-width="2" marker-end="url(#arrow-black)"></path>
+<rect x="776" y="629" width="96" height="18" fill="#FFFFFF" stroke="#5B9BD5" stroke-width="1" rx="3" ry="3" />
+<text x="824" y="639" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" fill="#000000">Environment Data</text></g>
+<g id="ce-4"><path d="M 1138 506 L 1772 506 L 1772 409 L 1912 409" fill="none" stroke="#000000" stroke-width="2" marker-end="url(#arrow-black)"></path>
+<rect x="1733" y="389" width="78" height="18" fill="#FFFFFF" stroke="#5B9BD5" stroke-width="1" rx="3" ry="3" />
+<text x="1772" y="399" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" fill="#000000">Speed Command</text></g>
+<g id="ce-5"><path d="M 2086 409 L 2246 409 L 2246 574 L 2386 574" fill="none" stroke="#000000" stroke-width="2" marker-end="url(#arrow-black)"></path>
+<rect x="2201" y="554" width="90" height="18" fill="#FFFFFF" stroke="#5B9BD5" stroke-width="1" rx="3" ry="3" />
+<text x="2246" y="564" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" fill="#000000">Throttle Output</text></g>
+<g id="ce-6"><path d="M 2086 307 L 2256 307 L 2256 498 L 2386 498" fill="none" stroke="#000000" stroke-width="2" marker-end="url(#arrow-black)"></path>
+<rect x="2220" y="478" width="72" height="18" fill="#FFFFFF" stroke="#5B9BD5" stroke-width="1" rx="3" ry="3" />
+<text x="2256" y="488" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" fill="#000000">Brake Output</text></g>
+<g id="ce-7"><path d="M 3034 594 L 3044 594 L 3044 243 L 3334 243" fill="none" stroke="#000000" stroke-width="2" marker-end="url(#arrow-black)"></path>
+<rect x="3005" y="223" width="78" height="18" fill="#FFFFFF" stroke="#5B9BD5" stroke-width="1" rx="3" ry="3" />
+<text x="3044" y="233" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" fill="#000000">System Status</text></g>
+<g id="ce-8"><path d="M 1612 203 L 1622 203 L 1622 141 L 3334 141" fill="none" stroke="#000000" stroke-width="2" marker-end="url(#arrow-black)"></path>
+<rect x="1583" y="121" width="78" height="18" fill="#FFFFFF" stroke="#5B9BD5" stroke-width="1" rx="3" ry="3" />
+<text x="1622" y="131" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" fill="#000000">Safety Alerts</text></g>
+<g id="ce-9"><path d="M 1138 430 L 1148 430 L 1148 305 L 1438 305" fill="none" stroke="#000000" stroke-width="2" marker-end="url(#arrow-black)"></path>
+<rect x="1112" y="285" width="72" height="18" fill="#FFFFFF" stroke="#5B9BD5" stroke-width="1" rx="3" ry="3" />
+<text x="1148" y="295" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" fill="#000000">Control Data</text></g>
+<g id="ce-10"><path d="M 1612 305 L 1772 305 L 1772 307 L 1912 307" fill="none" stroke="#000000" stroke-width="2" marker-end="url(#arrow-black)"></path>
+<rect x="1736" y="287" width="72" height="18" fill="#FFFFFF" stroke="#5B9BD5" stroke-width="1" rx="3" ry="3" />
+<text x="1772" y="297" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" fill="#000000">Safe Control</text></g>
+<g id="ce-11"><path d="M 2074 650 L 2386 650" fill="none" stroke="#000000" stroke-width="2" marker-end="url(#arrow-black)"></path>
+<rect x="2374" y="630" width="24" height="18" fill="#FFFFFF" stroke="#5B9BD5" stroke-width="1" rx="3" ry="3" />
+<text x="2386" y="640" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" fill="#000000">DTCs</text></g>
+<g id="ce-12"><path d="M 2560 282 L 2720 282 L 2720 533 L 2860 533" fill="none" stroke="#000000" stroke-width="2" marker-end="url(#arrow-black)"></path>
+<rect x="2690" y="513" width="60" height="18" fill="#FFFFFF" stroke="#5B9BD5" stroke-width="1" rx="3" ry="3" />
+<text x="2720" y="523" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" fill="#000000">Power Mode</text></g>
+<g id="ce-13"><path d="M 1612 650 L 1924 650" fill="none" stroke="#000000" stroke-width="2" marker-end="url(#arrow-black)"></path>
+<rect x="1870" y="630" width="108" height="18" fill="#FFFFFF" stroke="#5B9BD5" stroke-width="1" rx="3" ry="3" />
+<text x="1924" y="640" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" fill="#000000">Calibration Status</text></g>
+<g id="ce-14"><path d="M 664 506 L 964 506" fill="none" stroke="#000000" stroke-width="2" marker-end="url(#arrow-black)"></path>
+<rect x="919" y="486" width="90" height="18" fill="#FFFFFF" stroke="#5B9BD5" stroke-width="1" rx="3" ry="3" />
+<text x="964" y="496" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" fill="#000000">Road Adaptation</text></g>
+<g id="ce-15"><path d="M 664 326 L 824 326 L 824 430 L 964 430" fill="none" stroke="#000000" stroke-width="2" marker-end="url(#arrow-black)"></path>
+<rect x="764" y="410" width="120" height="18" fill="#FFFFFF" stroke="#5B9BD5" stroke-width="1" rx="3" ry="3" />
+<text x="824" y="420" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" fill="#000000">Predicted Trajectory</text></g>
+<g id="ce-16"><path d="M 214 455 L 234 455 L 234 326 L 514 326" fill="none" stroke="#000000" stroke-width="2" marker-end="url(#arrow-black)"></path>
+<rect x="195" y="306" width="78" height="18" fill="#FFFFFF" stroke="#5B9BD5" stroke-width="1" rx="3" ry="3" />
+<text x="234" y="316" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" fill="#000000">Current State</text></g>
+<g id="ce-17"><path d="M 214 506 L 514 506" fill="none" stroke="#000000" stroke-width="2" marker-end="url(#arrow-black)"></path>
+<rect x="466" y="486" width="96" height="18" fill="#FFFFFF" stroke="#5B9BD5" stroke-width="1" rx="3" ry="3" />
+<text x="514" y="496" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" fill="#000000">Road Information</text></g>
+<g id="ce-18"><path d="M 214 405 L 224 405 L 224 203 L 1438 203" fill="none" stroke="#000000" stroke-width="2" marker-end="url(#arrow-black)"></path>
+<rect x="188" y="183" width="72" height="18" fill="#FFFFFF" stroke="#5B9BD5" stroke-width="1" rx="3" ry="3" />
+<text x="224" y="193" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" fill="#000000">Vehicle Data</text></g>
+<g id="component-LC-001"><rect x="2860" y="492" width="174" height="204" rx="8" ry="8" fill="#5B9BD5" stroke="#000000" stroke-width="2" />
+<text x="2947" y="517" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#FFFFFF">ACC Master Controller</text>
+<text x="3024" y="506" text-anchor="end" font-family="Arial, sans-serif" font-size="10" fill="#E8F4F8">LC-001</text>
+<line x1="3034" y1="560" x2="3054" y2="560" stroke="#000000" stroke-width="2" />
+<circle cx="3054" cy="560" r="6" fill="#FFFFFF" stroke="#000000" stroke-width="2" />
+<text x="3064" y="560" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="9" fill="#000000">IVehicleControl</text>
+<line x1="3034" y1="628" x2="3054" y2="628" stroke="#000000" stroke-width="2" />
+<circle cx="3054" cy="628" r="6" fill="#FFFFFF" stroke="#000000" stroke-width="2" />
+<text x="3064" y="628" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="9" fill="#000000">IHMIDisplay</text>
+<line x1="2840" y1="560" x2="2860" y2="560" stroke="#000000" stroke-width="2" />
+<path d="M 2840 554 A 6 6 0 0 1 2840 566" fill="none" stroke="#000000" stroke-width="2"></path>
+<text x="2830" y="560" text-anchor="end" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="9" fill="#000000">IDriverCommands</text>
+<line x1="2840" y1="628" x2="2860" y2="628" stroke="#000000" stroke-width="2" />
+<path d="M 2840 622 A 6 6 0 0 1 2840 634" fill="none" stroke="#000000" stroke-width="2"></path>
+<text x="2830" y="628" text-anchor="end" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="9" fill="#000000">ISensorData</text></g>
+<g id="component-LC-002"><rect x="40" y="354" width="174" height="304" rx="8" ry="8" fill="#70AD47" stroke="#000000" stroke-width="2" />
+<text x="127" y="379" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#FFFFFF">Sensor Fusion Module</text>
+<text x="204" y="368" text-anchor="end" font-family="Arial, sans-serif" font-size="10" fill="#E8F4F8">LC-002</text>
+<line x1="214" y1="506" x2="234" y2="506" stroke="#000000" stroke-width="2" />
+<circle cx="234" cy="506" r="6" fill="#FFFFFF" stroke="#000000" stroke-width="2" />
+<text x="244" y="506" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="9" fill="#000000">IFusedSensorData</text>
+<line x1="20" y1="455.3333333333333" x2="40" y2="455.3333333333333" stroke="#000000" stroke-width="2" />
+<path d="M 20 449.3333333333333 A 6 6 0 0 1 20 461.3333333333333" fill="none" stroke="#000000" stroke-width="2"></path>
+<text x="10" y="455.3333333333333" text-anchor="end" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="9" fill="#000000">IRadarSensor</text>
+<line x1="20" y1="556.6666666666666" x2="40" y2="556.6666666666666" stroke="#000000" stroke-width="2" />
+<path d="M 20 550.6666666666666 A 6 6 0 0 1 20 562.6666666666666" fill="none" stroke="#000000" stroke-width="2"></path>
+<text x="10" y="556.6666666666666" text-anchor="end" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="9" fill="#000000">ICameraSensor</text></g>
+<g id="component-LC-003"><rect x="964" y="354" width="174" height="304" rx="8" ry="8" fill="#FFD966" stroke="#000000" stroke-width="2" />
+<text x="1051" y="379" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#FFFFFF">Distance Controller</text>
+<text x="1128" y="368" text-anchor="end" font-family="Arial, sans-serif" font-size="10" fill="#E8F4F8">LC-003</text>
+<line x1="1138" y1="506" x2="1158" y2="506" stroke="#000000" stroke-width="2" />
+<circle cx="1158" cy="506" r="6" fill="#FFFFFF" stroke="#000000" stroke-width="2" />
+<text x="1168" y="506" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="9" fill="#000000">ISpeedControl</text>
+<line x1="944" y1="455.3333333333333" x2="964" y2="455.3333333333333" stroke="#000000" stroke-width="2" />
+<path d="M 944 449.3333333333333 A 6 6 0 0 1 944 461.3333333333333" fill="none" stroke="#000000" stroke-width="2"></path>
+<text x="934" y="455.3333333333333" text-anchor="end" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="9" fill="#000000">IFusedSensorData</text>
+<line x1="944" y1="556.6666666666666" x2="964" y2="556.6666666666666" stroke="#000000" stroke-width="2" />
+<path d="M 944 550.6666666666666 A 6 6 0 0 1 944 562.6666666666666" fill="none" stroke="#000000" stroke-width="2"></path>
+<text x="934" y="556.6666666666666" text-anchor="end" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="9" fill="#000000">IDriverSettings</text></g>
+<g id="component-LC-004"><rect x="1912" y="206" width="174" height="304" rx="8" ry="8" fill="#F4B084" stroke="#000000" stroke-width="2" />
+<text x="1999" y="231" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#FFFFFF">Actuator Controller</text>
+<text x="2076" y="220" text-anchor="end" font-family="Arial, sans-serif" font-size="10" fill="#E8F4F8">LC-004</text>
+<line x1="2086" y1="307.3333333333333" x2="2106" y2="307.3333333333333" stroke="#000000" stroke-width="2" />
+<circle cx="2106" cy="307.3333333333333" r="6" fill="#FFFFFF" stroke="#000000" stroke-width="2" />
+<text x="2116" y="307.3333333333333" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="9" fill="#000000">IThrottleActuator</text>
+<line x1="2086" y1="408.66666666666663" x2="2106" y2="408.66666666666663" stroke="#000000" stroke-width="2" />
+<circle cx="2106" cy="408.66666666666663" r="6" fill="#FFFFFF" stroke="#000000" stroke-width="2" />
+<text x="2116" y="408.66666666666663" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="9" fill="#000000">IBrakeActuator</text>
+<line x1="1892" y1="358" x2="1912" y2="358" stroke="#000000" stroke-width="2" />
+<path d="M 1892 352 A 6 6 0 0 1 1892 364" fill="none" stroke="#000000" stroke-width="2"></path>
+<text x="1882" y="358" text-anchor="end" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="9" fill="#000000">ISpeedControl</text></g>
+<g id="component-LC-005"><rect x="1438" y="102" width="174" height="304" rx="8" ry="8" fill="#C00000" stroke="#000000" stroke-width="2" />
+<text x="1525" y="127" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#FFFFFF">Safety Monitor</text>
+<text x="1602" y="116" text-anchor="end" font-family="Arial, sans-serif" font-size="10" fill="#E8F4F8">LC-005</text>
+<line x1="1612" y1="203.33333333333331" x2="1632" y2="203.33333333333331" stroke="#000000" stroke-width="2" />
+<circle cx="1632" cy="203.33333333333331" r="6" fill="#FFFFFF" stroke="#000000" stroke-width="2" />
+<text x="1642" y="203.33333333333331" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="9" fill="#000000">ISafeControl</text>
+<line x1="1612" y1="304.66666666666663" x2="1632" y2="304.66666666666663" stroke="#000000" stroke-width="2" />
+<circle cx="1632" cy="304.66666666666663" r="6" fill="#FFFFFF" stroke="#000000" stroke-width="2" />
+<text x="1642" y="304.66666666666663" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="9" fill="#000000">IAlertEvent</text>
+<line x1="1418" y1="203.33333333333331" x2="1438" y2="203.33333333333331" stroke="#000000" stroke-width="2" />
+<path d="M 1418 197.33333333333331 A 6 6 0 0 1 1418 209.33333333333331" fill="none" stroke="#000000" stroke-width="2"></path>
+<text x="1408" y="203.33333333333331" text-anchor="end" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="9" fill="#000000">ISystemStatus</text>
+<line x1="1418" y1="304.66666666666663" x2="1438" y2="304.66666666666663" stroke="#000000" stroke-width="2" />
+<path d="M 1418 298.66666666666663 A 6 6 0 0 1 1418 310.66666666666663" fill="none" stroke="#000000" stroke-width="2"></path>
+<text x="1408" y="304.66666666666663" text-anchor="end" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="9" fill="#000000">IControlData</text></g>
+<g id="component-LC-006"><rect x="3334" y="40" width="174" height="304" rx="8" ry="8" fill="#2E75B6" stroke="#000000" stroke-width="2" />
+<text x="3421" y="65" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#FFFFFF">HMI Controller</text>
+<text x="3498" y="54" text-anchor="end" font-family="Arial, sans-serif" font-size="10" fill="#E8F4F8">LC-006</text>
+<line x1="3508" y1="141.33333333333331" x2="3528" y2="141.33333333333331" stroke="#000000" stroke-width="2" />
+<circle cx="3528" cy="141.33333333333331" r="6" fill="#FFFFFF" stroke="#000000" stroke-width="2" />
+<text x="3538" y="141.33333333333331" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="9" fill="#000000">IDisplayDevice</text>
+<line x1="3508" y1="242.66666666666666" x2="3528" y2="242.66666666666666" stroke="#000000" stroke-width="2" />
+<circle cx="3528" cy="242.66666666666666" r="6" fill="#FFFFFF" stroke="#000000" stroke-width="2" />
+<text x="3538" y="242.66666666666666" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="9" fill="#000000">IAudioDevice</text>
+<line x1="3314" y1="192" x2="3334" y2="192" stroke="#000000" stroke-width="2" />
+<path d="M 3314 186 A 6 6 0 0 1 3314 198" fill="none" stroke="#000000" stroke-width="2"></path>
+<text x="3304" y="192" text-anchor="end" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="9" fill="#000000">IHMIDisplay</text></g>
+<g id="component-LC-007"><rect x="2386" y="422" width="174" height="304" rx="8" ry="8" fill="#44546A" stroke="#000000" stroke-width="2" />
+<text x="2473" y="447" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#FFFFFF">Vehicle Interface Gateway</text>
+<text x="2550" y="436" text-anchor="end" font-family="Arial, sans-serif" font-size="10" fill="#E8F4F8">LC-007</text>
+<line x1="2560" y1="574" x2="2580" y2="574" stroke="#000000" stroke-width="2" />
+<circle cx="2580" cy="574" r="6" fill="#FFFFFF" stroke="#000000" stroke-width="2" />
+<text x="2590" y="574" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="9" fill="#000000">IVehicleBus</text>
+<line x1="2366" y1="574" x2="2386" y2="574" stroke="#000000" stroke-width="2" />
+<path d="M 2366 568 A 6 6 0 0 1 2366 580" fill="none" stroke="#000000" stroke-width="2"></path>
+<text x="2356" y="574" text-anchor="end" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="9" fill="#000000">IVehicleBus</text></g>
+<g id="component-LC-008"><rect x="1924" y="610" width="150" height="80" rx="8" ry="8" fill="#7030A0" stroke="#000000" stroke-width="2" />
+<text x="1999" y="635" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#FFFFFF">Diagnostic Manager</text>
+<text x="2064" y="624" text-anchor="end" font-family="Arial, sans-serif" font-size="10" fill="#E8F4F8">LC-008</text>
+<line x1="2074" y1="650" x2="2094" y2="650" stroke="#000000" stroke-width="2" />
+<circle cx="2094" cy="650" r="6" fill="#FFFFFF" stroke="#000000" stroke-width="2" />
+<text x="2104" y="650" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="9" fill="#000000">IDTC</text>
+<line x1="1904" y1="650" x2="1924" y2="650" stroke="#000000" stroke-width="2" />
+<path d="M 1904 644 A 6 6 0 0 1 1904 656" fill="none" stroke="#000000" stroke-width="2"></path>
+<text x="1894" y="650" text-anchor="end" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="9" fill="#000000">IDiagnosticData</text></g>
+<g id="component-LC-009"><rect x="2410" y="242" width="150" height="80" rx="8" ry="8" fill="#305496" stroke="#000000" stroke-width="2" />
+<text x="2485" y="267" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#FFFFFF">Power Manager</text>
+<text x="2550" y="256" text-anchor="end" font-family="Arial, sans-serif" font-size="10" fill="#E8F4F8">LC-009</text></g>
+<g id="component-LC-010"><rect x="1462" y="610" width="150" height="80" rx="8" ry="8" fill="#833C0C" stroke="#000000" stroke-width="2" />
+<text x="1537" y="635" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#FFFFFF">Calibration Manager</text>
+<text x="1602" y="624" text-anchor="end" font-family="Arial, sans-serif" font-size="10" fill="#E8F4F8">LC-010</text></g>
+<g id="component-LC-011"><rect x="514" y="466" width="150" height="80" rx="8" ry="8" fill="#548235" stroke="#000000" stroke-width="2" />
+<text x="589" y="491" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#FFFFFF">Road Adaptation Module</text>
+<text x="654" y="480" text-anchor="end" font-family="Arial, sans-serif" font-size="10" fill="#E8F4F8">LC-011</text></g>
+<g id="component-LC-012"><rect x="514" y="286" width="150" height="80" rx="8" ry="8" fill="#BF8F00" stroke="#000000" stroke-width="2" />
+<text x="589" y="311" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#FFFFFF">Trajectory Predictor</text>
+<text x="654" y="300" text-anchor="end" font-family="Arial, sans-serif" font-size="10" fill="#E8F4F8">LC-012</text></g>
+<text x="20" y="30" font-family="Arial, sans-serif" font-size="18" font-weight="bold" fill="#212529">Adaptive Cruise Control - Rich Component Architecture</text>
+</svg>

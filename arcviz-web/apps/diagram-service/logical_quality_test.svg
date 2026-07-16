@@ -1,0 +1,107 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="1870" height="600" viewBox="0 0 1870 600" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<defs>
+<marker id="arrow-component" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="10" markerHeight="10" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#6495ED"></path></marker>
+<marker id="arrow-black" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="10" markerHeight="10" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#000000"></path></marker>
+<filter id="drop-shadow" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur in="SourceAlpha" stdDeviation="4"></feGaussianBlur>
+<feOffset dx="2" dy="2" result="offsetblur"></feOffset>
+<feComponentTransfer ><feFuncA type="linear" slope="0.15"></feFuncA></feComponentTransfer>
+<feMerge ><feMergeNode ></feMergeNode>
+<feMergeNode in="SourceGraphic"></feMergeNode></feMerge></filter>
+<marker id="arrow-event" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#FF6B6B"></path></marker>
+<marker id="arrow-flow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#4ECDC4"></path></marker>
+<marker id="arrow-operation" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#95E1D3"></path></marker>
+<marker id="arrow-data" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#808080"></path></marker>
+<marker id="arrow-shared_data" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#9B59B6"></path></marker>
+<marker id="arrow-unset" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#95A5A6"></path></marker>
+</defs>
+
+<rect x="0" y="0" width="1870" height="600" fill="#FFFFFF" stroke="none" />
+<g id="layer-edges" class="edges-layer"><g id="li-0"><path d="M 200 440 L 210 440 L 210 280 L 350 280" fill="none" stroke="#808080" stroke-width="2" marker-end="url(#arrow-data)"></path></g>
+<g id="li-1"><path d="M 200 260 L 350 260" fill="none" stroke="#808080" stroke-width="2" marker-end="url(#arrow-data)"></path></g>
+<g id="li-2"><path d="M 200 80 L 210 80 L 210 240 L 350 240" fill="none" stroke="#808080" stroke-width="2" marker-end="url(#arrow-data)"></path></g>
+<g id="li-3"><path d="M 510 260 L 660 260" fill="none" stroke="#808080" stroke-width="2" marker-end="url(#arrow-data)"></path></g>
+<g id="li-4"><path d="M 820 260 L 970 260" fill="none" stroke="#808080" stroke-width="2" marker-end="url(#arrow-data)"></path></g>
+<g id="li-5"><path d="M 1130 273 L 1140 273 L 1140 427 L 1280 427" fill="none" stroke="#808080" stroke-width="2" marker-end="url(#arrow-data)"></path></g>
+<g id="li-6"><path d="M 1440 427 L 1590 427" fill="none" stroke="#808080" stroke-width="2" marker-end="url(#arrow-data)"></path></g>
+<g id="li-7"><path d="M 1130 247 L 1280 247" fill="none" stroke="#808080" stroke-width="2" marker-end="url(#arrow-data)"></path></g></g>
+<g id="layer-components" class="components-layer"><g id="component-LA-001"><rect x="350" y="220" width="160" height="80" rx="8" ry="8" fill="#70AD47" class="component-node" stroke="#8B0000" stroke-width="6" filter="url(#drop-shadow)" />
+<text x="430" y="240" text-anchor="middle" font-family="Helvetica Neue, Arial, sans-serif" font-size="12" font-weight="bold" fill="#FFFFFF" class="component-label">Sensor Fusion</text>
+<text x="500" y="234" text-anchor="end" font-family="Arial, sans-serif" font-size="10" fill="#E8F4F8">LA-001</text>
+<circle cx="368" cy="238" r="8" fill="none" stroke="#FFFFFF" stroke-width="1.5" />
+<line x1="378" y1="238" x2="381" y2="238" stroke="#FFFFFF" stroke-width="1.5" />
+<line x1="375.0710678118655" y1="245.07106781186548" x2="377.19238815542514" y2="247.1923881554251" stroke="#FFFFFF" stroke-width="1.5" />
+<line x1="368" y1="248" x2="368" y2="251" stroke="#FFFFFF" stroke-width="1.5" />
+<line x1="360.9289321881345" y1="245.07106781186548" x2="358.80761184457486" y2="247.1923881554251" stroke="#FFFFFF" stroke-width="1.5" />
+<line x1="358" y1="238" x2="355" y2="238" stroke="#FFFFFF" stroke-width="1.5" />
+<line x1="360.9289321881345" y1="230.92893218813452" x2="358.80761184457486" y2="228.8076118445749" stroke="#FFFFFF" stroke-width="1.5" />
+<line x1="368" y1="228" x2="368" y2="225" stroke="#FFFFFF" stroke-width="1.5" />
+<line x1="375.0710678118655" y1="230.92893218813452" x2="377.19238815542514" y2="228.8076118445749" stroke="#FFFFFF" stroke-width="1.5" />
+<text x="430" y="288" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" font-style="italic" fill="#E8F4F8"><<sensor>></text></g>
+<g id="component-LA-002"><rect x="40" y="400" width="160" height="80" rx="8" ry="8" fill="#70AD47" class="component-node" stroke="#FF8C00" stroke-width="4" filter="url(#drop-shadow)" />
+<text x="120" y="420" text-anchor="middle" font-family="Helvetica Neue, Arial, sans-serif" font-size="12" font-weight="bold" fill="#FFFFFF" class="component-label">Radar Sensor</text>
+<text x="190" y="414" text-anchor="end" font-family="Arial, sans-serif" font-size="10" fill="#E8F4F8">LA-002</text>
+<circle cx="58" cy="418" r="8" fill="none" stroke="#FFFFFF" stroke-width="1.5" />
+<line x1="68" y1="418" x2="71" y2="418" stroke="#FFFFFF" stroke-width="1.5" />
+<line x1="65.07106781186548" y1="425.0710678118655" x2="67.19238815542512" y2="427.19238815542514" stroke="#FFFFFF" stroke-width="1.5" />
+<line x1="58" y1="428" x2="58" y2="431" stroke="#FFFFFF" stroke-width="1.5" />
+<line x1="50.928932188134524" y1="425.0710678118655" x2="48.80761184457488" y2="427.19238815542514" stroke="#FFFFFF" stroke-width="1.5" />
+<line x1="48" y1="418" x2="45" y2="418" stroke="#FFFFFF" stroke-width="1.5" />
+<line x1="50.928932188134524" y1="410.9289321881345" x2="48.80761184457488" y2="408.80761184457486" stroke="#FFFFFF" stroke-width="1.5" />
+<line x1="58" y1="408" x2="58" y2="405" stroke="#FFFFFF" stroke-width="1.5" />
+<line x1="65.07106781186548" y1="410.9289321881345" x2="67.19238815542512" y2="408.80761184457486" stroke="#FFFFFF" stroke-width="1.5" />
+<text x="120" y="468" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" font-style="italic" fill="#E8F4F8"><<sensor>></text></g>
+<g id="component-LA-003"><rect x="40" y="220" width="160" height="80" rx="8" ry="8" fill="#70AD47" class="component-node" stroke="#FF8C00" stroke-width="4" filter="url(#drop-shadow)" />
+<text x="120" y="240" text-anchor="middle" font-family="Helvetica Neue, Arial, sans-serif" font-size="12" font-weight="bold" fill="#FFFFFF" class="component-label">Camera Sensor</text>
+<text x="190" y="234" text-anchor="end" font-family="Arial, sans-serif" font-size="10" fill="#E8F4F8">LA-003</text>
+<circle cx="58" cy="238" r="8" fill="none" stroke="#FFFFFF" stroke-width="1.5" />
+<line x1="68" y1="238" x2="71" y2="238" stroke="#FFFFFF" stroke-width="1.5" />
+<line x1="65.07106781186548" y1="245.07106781186548" x2="67.19238815542512" y2="247.1923881554251" stroke="#FFFFFF" stroke-width="1.5" />
+<line x1="58" y1="248" x2="58" y2="251" stroke="#FFFFFF" stroke-width="1.5" />
+<line x1="50.928932188134524" y1="245.07106781186548" x2="48.80761184457488" y2="247.1923881554251" stroke="#FFFFFF" stroke-width="1.5" />
+<line x1="48" y1="238" x2="45" y2="238" stroke="#FFFFFF" stroke-width="1.5" />
+<line x1="50.928932188134524" y1="230.92893218813452" x2="48.80761184457488" y2="228.8076118445749" stroke="#FFFFFF" stroke-width="1.5" />
+<line x1="58" y1="228" x2="58" y2="225" stroke="#FFFFFF" stroke-width="1.5" />
+<line x1="65.07106781186548" y1="230.92893218813452" x2="67.19238815542512" y2="228.8076118445749" stroke="#FFFFFF" stroke-width="1.5" />
+<text x="120" y="288" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" font-style="italic" fill="#E8F4F8"><<sensor>></text></g>
+<g id="component-LA-004"><rect x="40" y="40" width="160" height="80" rx="8" ry="8" fill="#70AD47" class="component-node" stroke="#FF8C00" stroke-width="4" filter="url(#drop-shadow)" />
+<text x="120" y="60" text-anchor="middle" font-family="Helvetica Neue, Arial, sans-serif" font-size="12" font-weight="bold" fill="#FFFFFF" class="component-label">Lidar Sensor</text>
+<text x="190" y="54" text-anchor="end" font-family="Arial, sans-serif" font-size="10" fill="#E8F4F8">LA-004</text>
+<circle cx="58" cy="58" r="8" fill="none" stroke="#FFFFFF" stroke-width="1.5" />
+<line x1="68" y1="58" x2="71" y2="58" stroke="#FFFFFF" stroke-width="1.5" />
+<line x1="65.07106781186548" y1="65.07106781186548" x2="67.19238815542512" y2="67.19238815542512" stroke="#FFFFFF" stroke-width="1.5" />
+<line x1="58" y1="68" x2="58" y2="71" stroke="#FFFFFF" stroke-width="1.5" />
+<line x1="50.928932188134524" y1="65.07106781186548" x2="48.80761184457488" y2="67.19238815542512" stroke="#FFFFFF" stroke-width="1.5" />
+<line x1="48" y1="58" x2="45" y2="58" stroke="#FFFFFF" stroke-width="1.5" />
+<line x1="50.928932188134524" y1="50.928932188134524" x2="48.80761184457488" y2="48.80761184457488" stroke="#FFFFFF" stroke-width="1.5" />
+<line x1="58" y1="48" x2="58" y2="45" stroke="#FFFFFF" stroke-width="1.5" />
+<line x1="65.07106781186548" y1="50.928932188134524" x2="67.19238815542512" y2="48.80761184457488" stroke="#FFFFFF" stroke-width="1.5" />
+<text x="120" y="108" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" font-style="italic" fill="#E8F4F8"><<sensor>></text></g>
+<g id="component-LA-005"><rect x="660" y="220" width="160" height="80" rx="8" ry="8" fill="#6495ED" class="component-node" stroke="#8B0000" stroke-width="6" filter="url(#drop-shadow)" />
+<text x="740" y="240" text-anchor="middle" font-family="Helvetica Neue, Arial, sans-serif" font-size="12" font-weight="bold" fill="#FFFFFF" class="component-label">Object Tracking</text>
+<text x="810" y="234" text-anchor="end" font-family="Arial, sans-serif" font-size="10" fill="#E8F4F8">LA-005</text></g>
+<g id="component-LA-006"><rect x="970" y="220" width="160" height="80" rx="8" ry="8" fill="#6495ED" class="component-node" stroke="#8B0000" stroke-width="6" filter="url(#drop-shadow)" />
+<text x="1050" y="240" text-anchor="middle" font-family="Helvetica Neue, Arial, sans-serif" font-size="12" font-weight="bold" fill="#FFFFFF" class="component-label">Risk Assessment</text>
+<text x="1120" y="234" text-anchor="end" font-family="Arial, sans-serif" font-size="10" fill="#E8F4F8">LA-006</text></g>
+<g id="component-LA-007"><rect x="1280" y="387" width="160" height="80" rx="8" ry="8" fill="#6495ED" class="component-node" stroke="#8B0000" stroke-width="6" filter="url(#drop-shadow)" />
+<text x="1360" y="407" text-anchor="middle" font-family="Helvetica Neue, Arial, sans-serif" font-size="12" font-weight="bold" fill="#FFFFFF" class="component-label">Decision Logic</text>
+<text x="1430" y="401" text-anchor="end" font-family="Arial, sans-serif" font-size="10" fill="#E8F4F8">LA-007</text></g>
+<g id="component-LA-008"><rect x="1590" y="387" width="160" height="80" rx="8" ry="8" fill="#ED7D31" class="component-node" stroke="#8B0000" stroke-width="6" filter="url(#drop-shadow)" />
+<text x="1670" y="407" text-anchor="middle" font-family="Helvetica Neue, Arial, sans-serif" font-size="12" font-weight="bold" fill="#FFFFFF" class="component-label">Brake Actuator</text>
+<text x="1740" y="401" text-anchor="end" font-family="Arial, sans-serif" font-size="10" fill="#E8F4F8">LA-008</text>
+<line x1="1614" y1="405" x2="1617" y2="405" stroke="#FFFFFF" stroke-width="2" />
+<line x1="1612.2426406871193" y1="409.24264068711926" x2="1614.3639610306789" y2="411.3639610306789" stroke="#FFFFFF" stroke-width="2" />
+<line x1="1608" y1="411" x2="1608" y2="414" stroke="#FFFFFF" stroke-width="2" />
+<line x1="1603.7573593128807" y1="409.24264068711926" x2="1601.6360389693211" y2="411.3639610306789" stroke="#FFFFFF" stroke-width="2" />
+<line x1="1602" y1="405" x2="1599" y2="405" stroke="#FFFFFF" stroke-width="2" />
+<line x1="1603.7573593128807" y1="400.75735931288074" x2="1601.6360389693211" y2="398.6360389693211" stroke="#FFFFFF" stroke-width="2" />
+<line x1="1608" y1="399" x2="1608" y2="396" stroke="#FFFFFF" stroke-width="2" />
+<line x1="1612.2426406871193" y1="400.75735931288074" x2="1614.3639610306789" y2="398.6360389693211" stroke="#FFFFFF" stroke-width="2" />
+<circle cx="1608" cy="405" r="5.333333333333333" fill="none" stroke="#FFFFFF" stroke-width="1.5" />
+<text x="1670" y="455" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" font-style="italic" fill="#E8F4F8"><<actuator>></text></g>
+<g id="component-LA-009"><rect x="1280" y="207" width="160" height="80" rx="8" ry="8" fill="#6495ED" class="component-node" stroke="#808080" stroke-width="2" filter="url(#drop-shadow)" />
+<text x="1360" y="227" text-anchor="middle" font-family="Helvetica Neue, Arial, sans-serif" font-size="12" font-weight="bold" fill="#FFFFFF" class="component-label">HMI Display</text>
+<text x="1430" y="221" text-anchor="end" font-family="Arial, sans-serif" font-size="10" fill="#E8F4F8">LA-009</text></g></g>
+<g id="layer-labels" class="labels-layer"><text x="20" y="30" font-family="Helvetica Neue, Arial, sans-serif" font-size="18" font-weight="bold" fill="#212529">Emergency Braking Logical Architecture</text>
+<text x="20" y="590" font-family="Helvetica Neue, Arial, sans-serif" font-size="11" fill="#666">Components: 9 | Exchanges: 0</text></g>
+</svg>

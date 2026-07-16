@@ -21,6 +21,9 @@ class ArcLangCompiler:
             "arclang"
         )
         self.timeout = config.get("timeout", 30)
+        
+        # Get workspace root for resolving relative paths
+        self.workspace_root = Path(os.getenv("ARCLANG_WORKSPACE", os.getcwd()))
 
     async def compile(
         self,
@@ -186,6 +189,61 @@ class ArcLangCompiler:
             "error": result["stderr"] if result["returncode"] != 0 else None
         }
 
+    async def generate_diagram(
+        self,
+        model_path: str,
+        diagram_type: str,
+        output_path: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """Generate a specific diagram type."""
+        # Resolve model path relative to workspace if not absolute
+        resolved_model = Path(model_path)
+        if not resolved_model.is_absolute():
+            resolved_model = self.workspace_root / model_path
+        
+        # Resolve output path relative to workspace if not absolute
+        if not output_path:
+            output_path = str(self.workspace_root / f"{diagram_type}.svg")
+        else:
+            resolved_output = Path(output_path)
+            if not resolved_output.is_absolute():
+                output_path = str(self.workspace_root / output_path)
+        
+        # Create output directory if it doesn't exist
+        output_file = Path(output_path)
+        output_file.parent.mkdir(parents=True, exist_ok=True)
+        
+        cmd = [
+            self.binary_path,
+            "diagram",
+            str(resolved_model),
+            "-o", output_path,
+            "--format", diagram_type
+        ]
+        
+        result = await self._run_command(cmd)
+        
+        if result["returncode"] != 0:
+            raise Exception(f"Diagram generation failed: {result['stderr']}")
+        
+        # Get file size
+        import os
+        size = os.path.getsize(output_path)
+        size_str = f"{size/1024:.1f}KB" if size > 1024 else f"{size}B"
+        
+        # Parse output for element count
+        element_count = self._parse_element_count(result["stdout"], diagram_type)
+        
+        # Get features based on diagram type
+        features = self._get_diagram_features(diagram_type)
+        
+        return {
+            "output_path": output_path,
+            "size": size_str,
+            "element_count": element_count,
+            "features": features
+        }
+
     async def _run_command(self, cmd: list) -> Dict[str, Any]:
         """Run command asynchronously."""
         try:
@@ -274,3 +332,99 @@ class ArcLangCompiler:
     def _parse_hazards(self, output: str) -> list:
         """Parse hazards from HARA output."""
         return []
+
+    def _parse_element_count(self, output: str, diagram_type: str) -> str:
+        """Parse element count from CLI output."""
+        import re
+        patterns = {
+            "operational": r"Activities: (\d+)",
+            "functional": r"Functions: (\d+)",
+            "component": r"Components: (\d+)",
+            "sequence": r"Messages: (\d+)",
+            "state-machine": r"States: (\d+)",
+            "physical": r"Nodes: (\d+)",
+            "class": r"Classes: (\d+)",
+            "tree": r"Nodes: (\d+)",
+            "capability": r"Capabilities: (\d+)",
+            "functional-chain": r"Functions: (\d+)"
+        }
+        
+        pattern = patterns.get(diagram_type)
+        if pattern:
+            match = re.search(pattern, output)
+            if match:
+                return match.group(1)
+        
+        return "N/A"
+
+    def _get_diagram_features(self, diagram_type: str) -> list:
+        """Get feature list for diagram type."""
+        features = {
+            "operational": [
+                "Swimlane layout by actor",
+                "Stick figures for human actors",
+                "System boxes for components",
+                "Activity symbols (⊕)",
+                "Protocol labels (CAN, V2X, HMI)",
+                "Hierarchical activities"
+            ],
+            "functional": [
+                "Data flow visualization",
+                "Port-based connections",
+                "Category coloring (7 types)",
+                "External actor boundaries",
+                "Typed exchanges"
+            ],
+            "component": [
+                "Hierarchical structure",
+                "Interface protocols (CAN, Ethernet)",
+                "Port visualization",
+                "Sub-component nesting",
+                "Block diagram layout"
+            ],
+            "sequence": [
+                "Time-ordered messages",
+                "Participant lifelines",
+                "Fragment blocks (alt, loop, opt)",
+                "Synchronous/asynchronous calls"
+            ],
+            "state-machine": [
+                "State visualization",
+                "Transition arrows",
+                "Guard conditions",
+                "Entry/exit actions",
+                "Nested states"
+            ],
+            "physical": [
+                "Hardware node representation",
+                "Deployment links",
+                "Communication buses",
+                "Physical interfaces"
+            ],
+            "class": [
+                "UML class notation",
+                "Inheritance hierarchies",
+                "Associations",
+                "Attributes and operations"
+            ],
+            "tree": [
+                "Reingold-Tilford layout",
+                "Hierarchical breakdown",
+                "Expand/collapse indicators",
+                "Category icons"
+            ],
+            "capability": [
+                "3-level hierarchy",
+                "Mission/Capability/Operational",
+                "Capability associations",
+                "Color-coded levels"
+            ],
+            "functional-chain": [
+                "Left-to-right execution flow",
+                "Function sequence",
+                "Data exchange labels",
+                "Port connections"
+            ]
+        }
+        
+        return features.get(diagram_type, [])

@@ -84,6 +84,8 @@ impl CapellaImporter {
                 requirements,
                 functions: Vec::new(),
                 components: Vec::new(),
+                external_actors: Vec::new(),
+                functional_exchanges: Vec::new(),
             }]
         } else {
             Vec::new()
@@ -99,6 +101,8 @@ impl CapellaImporter {
                 name: "Imported Architecture".to_string(),
                 components,
                 interfaces: Vec::new(),
+                component_exchanges: Vec::new(),
+                unallocated_functions: Vec::new(),
             }]
         } else {
             Vec::new()
@@ -112,6 +116,10 @@ impl CapellaImporter {
             epbs: Vec::new(),
             safety_analysis: Vec::new(),
             traces,
+            state_machines: Vec::new(),
+            scenarios: Vec::new(),
+            exchange_items: Vec::new(),
+            data_types: Vec::new(),
         })
     }
     
@@ -193,7 +201,13 @@ impl CapellaImporter {
         }
         
         Ok(Some(LogicalComponent {
+            id: format!("LC-{}", name.chars().take(3).collect::<String>()),
             name,
+            component_type: "Logical".to_string(),
+            color: Some("#5B9BD5".to_string()),
+            sub_components: Vec::new(),
+            allocated_functions: Vec::new(),
+            ports: Vec::new(),
             functions: Vec::new(),
             interfaces_in: Vec::new(),
             interfaces_out: Vec::new(),

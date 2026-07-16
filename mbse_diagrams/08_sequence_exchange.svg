@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="2120" height="1160" viewBox="0 0 2120 1160" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<defs>
+<marker id="arrow-filled" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="10" markerHeight="10" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#000000"></path></marker>
+<marker id="arrow-open" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="10" markerHeight="10" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#000000"></path></marker>
+<marker id="arrow-black" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="10" markerHeight="10" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#000000"></path></marker>
+</defs>
+
+<rect x="0" y="0" width="2120" height="1160" fill="#FFFFFF" stroke="none" />
+<line x1="100" y1="160" x2="100" y2="1120" stroke="#90A4AE" stroke-width="2" stroke-dasharray="6,4" />
+<line x1="420" y1="160" x2="420" y2="1120" stroke="#90A4AE" stroke-width="2" stroke-dasharray="6,4" />
+<line x1="740" y1="160" x2="740" y2="1120" stroke="#90A4AE" stroke-width="2" stroke-dasharray="6,4" />
+<line x1="1060" y1="160" x2="1060" y2="1120" stroke="#90A4AE" stroke-width="2" stroke-dasharray="6,4" />
+<line x1="1380" y1="160" x2="1380" y2="1120" stroke="#90A4AE" stroke-width="2" stroke-dasharray="6,4" />
+<line x1="1700" y1="160" x2="1700" y2="1120" stroke="#90A4AE" stroke-width="2" stroke-dasharray="6,4" />
+<line x1="2020" y1="160" x2="2020" y2="1120" stroke="#90A4AE" stroke-width="2" stroke-dasharray="6,4" />
+<g id="msg-0"><path d="M 100 200 L 160 200 L 160 240 L 100 240" stroke="#1976D2" stroke-width="2.5" marker-end="url(#arrow-filled)" fill="none"></path>
+<rect x="162" y="210" width="140" height="20" fill="#FFFFFF" stroke="#1976D2" stroke-width="1.5" rx="4" ry="4" filter="drop-shadow(0 1px 2px rgba(0,0,0,0.1))" />
+<text x="232" y="220" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="10" font-weight="600" fill="#1976D2">driving normally</text></g>
+<g id="msg-1"><line x1="420" y1="300" x2="740" y2="300" stroke="#388E3C" stroke-width="2.5" marker-end="url(#arrow-open)" fill="none" />
+<rect x="503.5" y="280" width="153" height="20" fill="#FFFFFF" stroke="#388E3C" stroke-width="1.5" rx="4" ry="4" filter="drop-shadow(0 1px 2px rgba(0,0,0,0.1))" />
+<text x="580" y="290" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="10" font-weight="600" fill="#388E3C">CE-001: sensorData</text></g>
+<g id="msg-2"><path d="M 740 360 L 800 360 L 800 400 L 740 400" stroke="#1976D2" stroke-width="2.5" marker-end="url(#arrow-filled)" fill="none"></path>
+<rect x="802" y="370" width="140" height="20" fill="#FFFFFF" stroke="#1976D2" stroke-width="1.5" rx="4" ry="4" filter="drop-shadow(0 1px 2px rgba(0,0,0,0.1))" />
+<text x="872" y="380" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="10" font-weight="600" fill="#1976D2">detectObstacle()</text></g>
+<g id="msg-3"><line x1="740" y1="460" x2="1060" y2="460" stroke="#1976D2" stroke-width="2.5" marker-end="url(#arrow-filled)" fill="none" />
+<rect x="804" y="440" width="192" height="20" fill="#FFFFFF" stroke="#1976D2" stroke-width="1.5" rx="4" ry="4" filter="drop-shadow(0 1px 2px rgba(0,0,0,0.1))" />
+<text x="900" y="450" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="10" font-weight="600" fill="#1976D2">CE-002: obstacleDetected</text></g>
+<g id="msg-4"><path d="M 1060 520 L 1120 520 L 1120 560 L 1060 560" stroke="#1976D2" stroke-width="2.5" marker-end="url(#arrow-filled)" fill="none"></path>
+<rect x="1122" y="530" width="116" height="20" fill="#FFFFFF" stroke="#1976D2" stroke-width="1.5" rx="4" ry="4" filter="drop-shadow(0 1px 2px rgba(0,0,0,0.1))" />
+<text x="1180" y="540" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="10" font-weight="600" fill="#1976D2">assessRisk()</text></g>
+<g id="msg-5"><line x1="1060" y1="620" x2="1700" y2="620" stroke="#388E3C" stroke-width="2.5" marker-end="url(#arrow-open)" fill="none" />
+<rect x="1290.5" y="600" width="179" height="20" fill="#FFFFFF" stroke="#388E3C" stroke-width="1.5" rx="4" ry="4" filter="drop-shadow(0 1px 2px rgba(0,0,0,0.1))" />
+<text x="1380" y="610" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="10" font-weight="600" fill="#388E3C">CE-003: warningRequest</text></g>
+<g id="msg-6"><line x1="1700" y1="680" x2="100" y2="680" stroke="#388E3C" stroke-width="2.5" marker-end="url(#arrow-open)" fill="none" />
+<rect x="813.75" y="660" width="172.5" height="20" fill="#FFFFFF" stroke="#388E3C" stroke-width="1.5" rx="4" ry="4" filter="drop-shadow(0 1px 2px rgba(0,0,0,0.1))" />
+<text x="900" y="670" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="10" font-weight="600" fill="#388E3C">CE-004: visualWarning</text></g>
+<g id="msg-7"><line x1="1060" y1="740" x2="1380" y2="740" stroke="#1976D2" stroke-width="2.5" marker-end="url(#arrow-filled)" fill="none" />
+<rect x="1091.5" y="720" width="257" height="20" fill="#FFFFFF" stroke="#1976D2" stroke-width="1.5" rx="4" ry="4" filter="drop-shadow(0 1px 2px rgba(0,0,0,0.1))" />
+<text x="1220" y="730" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="10" font-weight="600" fill="#1976D2">CE-005: brakeRequest(urgency=HIGH)</text></g>
+<g id="msg-8"><line x1="1380" y1="800" x2="2020" y2="800" stroke="#1976D2" stroke-width="2.5" marker-end="url(#arrow-filled)" fill="none" />
+<rect x="1607.25" y="780" width="185.5" height="20" fill="#FFFFFF" stroke="#1976D2" stroke-width="1.5" rx="4" ry="4" filter="drop-shadow(0 1px 2px rgba(0,0,0,0.1))" />
+<text x="1700" y="790" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="10" font-weight="600" fill="#1976D2">CE-006: CANmsg_BrakeCmd</text></g>
+<g id="msg-9"><line x1="2020" y1="860" x2="1380" y2="860" stroke="#666666" stroke-width="2.5" marker-end="url(#arrow-black)" fill="none" stroke-dasharray="5,5" />
+<rect x="1597.5" y="840" width="205" height="20" fill="#FFFFFF" stroke="#666666" stroke-width="1.5" rx="4" ry="4" filter="drop-shadow(0 1px 2px rgba(0,0,0,0.1))" />
+<text x="1700" y="850" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="10" font-weight="600" fill="#666666">CE-007: CANmsg_BrakeStatus</text></g>
+<g id="msg-10"><line x1="1380" y1="920" x2="1060" y2="920" stroke="#666666" stroke-width="2.5" marker-end="url(#arrow-black)" fill="none" stroke-dasharray="5,5" />
+<rect x="1137" y="900" width="166" height="20" fill="#FFFFFF" stroke="#666666" stroke-width="1.5" rx="4" ry="4" filter="drop-shadow(0 1px 2px rgba(0,0,0,0.1))" />
+<text x="1220" y="910" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="10" font-weight="600" fill="#666666">CE-008: brakeApplied</text></g>
+<g id="msg-11"><path d="M 100 980 L 160 980 L 160 1020 L 100 1020" stroke="#1976D2" stroke-width="2.5" marker-end="url(#arrow-filled)" fill="none"></path>
+<rect x="162" y="990" width="146.5" height="20" fill="#FFFFFF" stroke="#1976D2" stroke-width="1.5" rx="4" ry="4" filter="drop-shadow(0 1px 2px rgba(0,0,0,0.1))" />
+<text x="235.25" y="1000" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="10" font-weight="600" fill="#1976D2">reacts to warning</text></g>
+<g id="participant-Driver"><rect x="40" y="100" width="120" height="60" fill="#FFF9C4" stroke="#F57C00" stroke-width="2.5" rx="8" ry="8" />
+<text x="100" y="130" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="11" font-weight="bold" fill="#F57C00">Driver</text></g>
+<g id="participant-LC-001"><rect x="360" y="100" width="120" height="60" fill="#F3E5F5" stroke="#7B1FA2" stroke-width="2.5" rx="8" ry="8" />
+<text x="420" y="123" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="11" font-weight="bold" fill="#7B1FA2">Sensor Array</text>
+<text x="420" y="137" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="11" font-weight="bold" fill="#7B1FA2">Controller</text></g>
+<g id="participant-LC-002"><rect x="680" y="100" width="120" height="60" fill="#F3E5F5" stroke="#7B1FA2" stroke-width="2.5" rx="8" ry="8" />
+<text x="740" y="123" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="11" font-weight="bold" fill="#7B1FA2">Perception</text>
+<text x="740" y="137" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="11" font-weight="bold" fill="#7B1FA2">Unit</text></g>
+<g id="participant-LC-003"><rect x="1000" y="100" width="120" height="60" fill="#F3E5F5" stroke="#7B1FA2" stroke-width="2.5" rx="8" ry="8" />
+<text x="1060" y="123" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="11" font-weight="bold" fill="#7B1FA2">Decision</text>
+<text x="1060" y="137" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="11" font-weight="bold" fill="#7B1FA2">Controller</text></g>
+<g id="participant-LC-004"><rect x="1320" y="100" width="120" height="60" fill="#F3E5F5" stroke="#7B1FA2" stroke-width="2.5" rx="8" ry="8" />
+<text x="1380" y="123" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="11" font-weight="bold" fill="#7B1FA2">Braking</text>
+<text x="1380" y="137" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="11" font-weight="bold" fill="#7B1FA2">Controller</text></g>
+<g id="participant-LC-005"><rect x="1640" y="100" width="120" height="60" fill="#F3E5F5" stroke="#7B1FA2" stroke-width="2.5" rx="8" ry="8" />
+<text x="1700" y="123" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="11" font-weight="bold" fill="#7B1FA2">HMI</text>
+<text x="1700" y="137" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="11" font-weight="bold" fill="#7B1FA2">Controller</text></g>
+<g id="participant-BrakeECU"><rect x="1960" y="100" width="120" height="60" fill="#FFF9C4" stroke="#F57C00" stroke-width="2.5" rx="8" ry="8" />
+<text x="2020" y="130" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="11" font-weight="bold" fill="#F57C00">Brake ECU</text></g>
+<rect x="730" y="360" width="16" height="100" fill="#E3F2FD" stroke="#1976D2" stroke-width="2" rx="2" ry="2" />
+<rect x="1050" y="520" width="16" height="100" fill="#E3F2FD" stroke="#1976D2" stroke-width="2" rx="2" ry="2" />
+<rect x="1370" y="800" width="16" height="180" fill="#E3F2FD" stroke="#1976D2" stroke-width="2" rx="2" ry="2" />
+<rect x="1690" y="680" width="16" height="100" fill="#E3F2FD" stroke="#1976D2" stroke-width="2" rx="2" ry="2" />
+<rect x="2010" y="860" width="16" height="60" fill="#E3F2FD" stroke="#1976D2" stroke-width="2" rx="2" ry="2" />
+<text x="20" y="30" font-family="Arial, sans-serif" font-size="18" font-weight="bold" fill="#212529">Emergency Braking - Component Exchange Scenario</text>
+</svg>

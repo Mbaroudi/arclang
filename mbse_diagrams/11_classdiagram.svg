@@ -1,0 +1,101 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="2179" height="1171" viewBox="0 0 2179 1171" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<defs>
+<marker id="arrow-assoc" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="10" markerHeight="10" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#607D8B"></path></marker>
+<marker id="arrow-inherit" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="12" markerHeight="12" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#FFFFFF"></path></marker>
+<marker id="arrow-diamond" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="10" markerHeight="10" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#607D8B"></path></marker>
+</defs>
+
+<rect x="0" y="0" width="2179" height="1171" fill="#FFFFFF" stroke="none" />
+<g id="assoc-0"><line x1="1867" y1="223" x2="1867" y2="483" stroke="#607D8B" stroke-width="2" marker-end="url(#arrow-assoc)" stroke-dasharray="5,5" />
+<rect x="1827" y="343" width="80" height="20" fill="#FFFFFF" stroke="#607D8B" stroke-width="1" rx="3" ry="3" />
+<text x="1867" y="353" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="9" fill="#607D8B">contains</text>
+<text x="1872" y="218" font-family="Arial, sans-serif" font-size="9" fill="#666666">1</text>
+<text x="1862" y="478" text-anchor="end" font-family="Arial, sans-serif" font-size="9" fill="#666666">0..*</text></g>
+<g id="assoc-1"><line x1="471" y1="223" x2="471" y2="483" stroke="#607D8B" stroke-width="2" marker-end="url(#arrow-assoc)" stroke-dasharray="undefined" />
+<rect x="431" y="343" width="80" height="20" fill="#FFFFFF" stroke="#607D8B" stroke-width="1" rx="3" ry="3" />
+<text x="471" y="353" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="9" fill="#607D8B">serializes to</text>
+<text x="476" y="218" font-family="Arial, sans-serif" font-size="9" fill="#666666">1</text>
+<text x="466" y="478" text-anchor="end" font-family="Arial, sans-serif" font-size="9" fill="#666666">1</text></g>
+<g id="assoc-2"><line x1="1867" y1="666" x2="1867" y2="926" stroke="#D32F2F" stroke-width="2" marker-end="url(#arrow-assoc)" stroke-dasharray="undefined" />
+<rect x="1827" y="786" width="80" height="20" fill="#FFFFFF" stroke="#D32F2F" stroke-width="1" rx="3" ry="3" />
+<text x="1867" y="796" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="9" fill="#D32F2F">has</text>
+<text x="1872" y="661" font-family="Arial, sans-serif" font-size="9" fill="#666666">1</text>
+<text x="1862" y="921" text-anchor="end" font-family="Arial, sans-serif" font-size="9" fill="#666666">1</text></g>
+<g id="class-SensorDataFrame"><rect x="1701" y="40" width="332" height="183" rx="8" ry="8" fill="#E8F5E9" stroke="#388E3C" stroke-width="2.5" filter="drop-shadow(0 2px 4px rgba(0,0,0,0.15))" />
+<text x="1867" y="52" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="9" font-style="italic" fill="#388E3C">«datatype»</text>
+<text x="1867" y="64" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="12" font-weight="bold" font-style="normal" fill="#388E3C">SensorDataFrame</text>
+<line x1="1701" y1="75" x2="2033" y2="75" stroke="#388E3C" stroke-width="1.5" opacity="0.7" />
+<text x="1711" y="87" font-family="Arial, sans-serif" font-size="10" fill="#333333">+ timestamp: Timestamp</text>
+<text x="1711" y="101" font-family="Arial, sans-serif" font-size="10" fill="#333333">+ radarDistance: Distance</text>
+<text x="1711" y="115" font-family="Arial, sans-serif" font-size="10" fill="#333333">+ cameraObjects: ObjectList</text>
+<text x="1711" y="129" font-family="Arial, sans-serif" font-size="10" fill="#333333">+ lidarPointCloud: PointCloud</text>
+<line x1="1701" y1="147" x2="2033" y2="147" stroke="#388E3C" stroke-width="1.5" opacity="0.7" />
+<text x="1711" y="159" font-family="Arial, sans-serif" font-size="10" fill="#333333">+ isValid(): Boolean</text>
+<text x="1711" y="173" font-family="Arial, sans-serif" font-size="10" fill="#333333">+ merge(other: SensorDataFrame): SensorDataFrame</text></g>
+<g id="class-ObstacleInfo"><rect x="1675" y="483" width="384" height="183" rx="8" ry="8" fill="#E8F5E9" stroke="#388E3C" stroke-width="2.5" filter="drop-shadow(0 2px 4px rgba(0,0,0,0.15))" />
+<text x="1867" y="495" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="9" font-style="italic" fill="#388E3C">«datatype»</text>
+<text x="1867" y="507" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="12" font-weight="bold" font-style="normal" fill="#388E3C">ObstacleInfo</text>
+<line x1="1675" y1="518" x2="2059" y2="518" stroke="#388E3C" stroke-width="1.5" opacity="0.7" />
+<text x="1685" y="530" font-family="Arial, sans-serif" font-size="10" fill="#333333">+ id: ObjectID</text>
+<text x="1685" y="544" font-family="Arial, sans-serif" font-size="10" fill="#333333">+ position: Position3D</text>
+<text x="1685" y="558" font-family="Arial, sans-serif" font-size="10" fill="#333333">+ velocity: Velocity3D</text>
+<text x="1685" y="572" font-family="Arial, sans-serif" font-size="10" fill="#333333">+ classification: ObjectClass</text>
+<text x="1685" y="586" font-family="Arial, sans-serif" font-size="10" fill="#333333">+ confidence: Percentage</text>
+<line x1="1675" y1="604" x2="2059" y2="604" stroke="#388E3C" stroke-width="1.5" opacity="0.7" />
+<text x="1685" y="616" font-family="Arial, sans-serif" font-size="10" fill="#333333">+ calculateTTC(egoVelocity: Velocity3D): TimeToCollision</text></g>
+<g id="class-BrakeCommand"><rect x="361" y="54" width="220" height="169" rx="8" ry="8" fill="#E8F5E9" stroke="#388E3C" stroke-width="2.5" filter="drop-shadow(0 2px 4px rgba(0,0,0,0.15))" />
+<text x="471" y="66" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="9" font-style="italic" fill="#388E3C">«command»</text>
+<text x="471" y="78" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="12" font-weight="bold" font-style="normal" fill="#388E3C">BrakeCommand</text>
+<line x1="361" y1="89" x2="581" y2="89" stroke="#388E3C" stroke-width="1.5" opacity="0.7" />
+<text x="371" y="101" font-family="Arial, sans-serif" font-size="10" fill="#333333">+ force: Percentage</text>
+<text x="371" y="115" font-family="Arial, sans-serif" font-size="10" fill="#333333">+ profile: BrakingProfile</text>
+<text x="371" y="129" font-family="Arial, sans-serif" font-size="10" fill="#333333">+ priority: Priority</text>
+<line x1="361" y1="147" x2="581" y2="147" stroke="#388E3C" stroke-width="1.5" opacity="0.7" />
+<text x="371" y="159" font-family="Arial, sans-serif" font-size="10" fill="#333333">+ execute(): void</text>
+<text x="371" y="173" font-family="Arial, sans-serif" font-size="10" fill="#333333">- validate(): Boolean</text></g>
+<g id="interface-ISensor"><rect x="40" y="69" width="241" height="125" rx="8" ry="8" fill="#E3F2FD" stroke="#1976D2" stroke-width="2.5" filter="drop-shadow(0 2px 4px rgba(0,0,0,0.15))" />
+<text x="160.5" y="81" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="9" font-style="italic" fill="#1976D2">«interface»</text>
+<text x="160.5" y="97" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#1976D2">ISensor</text>
+<line x1="40" y1="114" x2="281" y2="114" stroke="#1976D2" stroke-width="1.5" opacity="0.7" />
+<text x="50" y="126" font-family="Arial, sans-serif" font-size="10" fill="#333333">+ initialize(): Boolean</text>
+<text x="50" y="140" font-family="Arial, sans-serif" font-size="10" fill="#333333">+ getSensorData(): SensorDataFrame</text>
+<text x="50" y="154" font-family="Arial, sans-serif" font-size="10" fill="#333333">+ getStatus(): SensorStatus</text></g>
+<g id="interface-IPerception"><rect x="1328" y="76" width="293" height="111" rx="8" ry="8" fill="#E3F2FD" stroke="#1976D2" stroke-width="2.5" filter="drop-shadow(0 2px 4px rgba(0,0,0,0.15))" />
+<text x="1474.5" y="88" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="9" font-style="italic" fill="#1976D2">«interface»</text>
+<text x="1474.5" y="104" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#1976D2">IPerception</text>
+<line x1="1328" y1="121" x2="1621" y2="121" stroke="#1976D2" stroke-width="1.5" opacity="0.7" />
+<text x="1338" y="133" font-family="Arial, sans-serif" font-size="10" fill="#333333">+ processData(data: SensorDataFrame): void</text>
+<text x="1338" y="147" font-family="Arial, sans-serif" font-size="10" fill="#333333">+ getDetectedObjects(): ObstacleList</text></g>
+<g id="interface-IBrake"><rect x="961" y="69" width="286.5" height="125" rx="8" ry="8" fill="#E3F2FD" stroke="#1976D2" stroke-width="2.5" filter="drop-shadow(0 2px 4px rgba(0,0,0,0.15))" />
+<text x="1104.25" y="81" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="9" font-style="italic" fill="#1976D2">«interface»</text>
+<text x="1104.25" y="97" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#1976D2">IBrake</text>
+<line x1="961" y1="114" x2="1247.5" y2="114" stroke="#1976D2" stroke-width="1.5" opacity="0.7" />
+<text x="971" y="126" font-family="Arial, sans-serif" font-size="10" fill="#333333">+ applyBrake(command: BrakeCommand): void</text>
+<text x="971" y="140" font-family="Arial, sans-serif" font-size="10" fill="#333333">+ releaseBrake(): void</text>
+<text x="971" y="154" font-family="Arial, sans-serif" font-size="10" fill="#333333">+ getActualDeceleration(): Acceleration</text></g>
+<g id="struct-CANBrakeMessage"><rect x="361" y="483" width="220" height="167" rx="8" ry="8" fill="#FFF9C4" stroke="#F57C00" stroke-width="2.5" filter="drop-shadow(0 2px 4px rgba(0,0,0,0.15))" />
+<text x="471" y="495" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="9" font-style="italic" fill="#F57C00">«struct»</text>
+<text x="471" y="511" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#F57C00">CANBrakeMessage (64 bits)</text>
+<line x1="361" y1="528" x2="581" y2="528" stroke="#F57C00" stroke-width="1.5" opacity="0.7" />
+<text x="371" y="540" font-family="Arial, sans-serif" font-size="10" fill="#333333">messageId: uint16 [16 bits]</text>
+<text x="371" y="554" font-family="Arial, sans-serif" font-size="10" fill="#333333">brakeForce: uint8 [8 bits]</text>
+<text x="371" y="568" font-family="Arial, sans-serif" font-size="10" fill="#333333">emergencyFlag: bool [1 bits]</text>
+<text x="371" y="582" font-family="Arial, sans-serif" font-size="10" fill="#333333">priorityLevel: uint8 [3 bits]</text>
+<text x="371" y="596" font-family="Arial, sans-serif" font-size="10" fill="#333333">reserved: uint8 [4 bits]</text>
+<text x="371" y="610" font-family="Arial, sans-serif" font-size="10" fill="#333333">checksum: uint32 [32 bits]</text></g>
+<g id="struct-Position3D"><rect x="1757" y="926" width="220" height="125" rx="8" ry="8" fill="#FFF9C4" stroke="#F57C00" stroke-width="2.5" filter="drop-shadow(0 2px 4px rgba(0,0,0,0.15))" />
+<text x="1867" y="938" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="9" font-style="italic" fill="#F57C00">«struct»</text>
+<text x="1867" y="954" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#F57C00">Position3D (96 bits)</text>
+<line x1="1757" y1="971" x2="1977" y2="971" stroke="#F57C00" stroke-width="1.5" opacity="0.7" />
+<text x="1767" y="983" font-family="Arial, sans-serif" font-size="10" fill="#333333">x: float32 [32 bits]</text>
+<text x="1767" y="997" font-family="Arial, sans-serif" font-size="10" fill="#333333">y: float32 [32 bits]</text>
+<text x="1767" y="1011" font-family="Arial, sans-serif" font-size="10" fill="#333333">z: float32 [32 bits]</text></g>
+<g id="struct-ThreatLevel"><rect x="661" y="76" width="220" height="111" rx="8" ry="8" fill="#FFF9C4" stroke="#F57C00" stroke-width="2.5" filter="drop-shadow(0 2px 4px rgba(0,0,0,0.15))" />
+<text x="771" y="88" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="9" font-style="italic" fill="#F57C00">«struct»</text>
+<text x="771" y="104" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#F57C00">ThreatLevel (8 bits)</text>
+<line x1="661" y1="121" x2="881" y2="121" stroke="#F57C00" stroke-width="1.5" opacity="0.7" />
+<text x="671" y="133" font-family="Arial, sans-serif" font-size="10" fill="#333333">level: uint8 [3 bits]</text>
+<text x="671" y="147" font-family="Arial, sans-serif" font-size="10" fill="#333333">confidence: uint8 [5 bits]</text></g>
+<text x="20" y="35" font-family="Arial, sans-serif" font-size="18" font-weight="bold" fill="#212529">Emergency Braking - Data Model</text>
+</svg>

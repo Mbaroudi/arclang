@@ -1,0 +1,333 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  USER
+  ADMIN
+}
+
+enum ProjectVisibility {
+  PRIVATE
+  PUBLIC
+  ORGANIZATION
+}
+
+enum SafetyLevel {
+  ASIL_A
+  ASIL_B
+  ASIL_C
+  ASIL_D
+  DAL_A
+  DAL_B
+  DAL_C
+  DAL_D
+  QM
+}
+
+enum ArchitectureLayer {
+  OPERATIONAL_ANALYSIS
+  SYSTEM_ANALYSIS
+  LOGICAL_ARCHITECTURE
+  PHYSICAL_ARCHITECTURE
+  EPBS
+}
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  name          String?
+  passwordHash  String
+  role          UserRole  @default(USER)
+  avatarUrl     String?
+  
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  lastLoginAt   DateTime?
+  
+  projects      Project[]
+  files         File[]
+  sessions      Session[]
+  conversations Conversation[]
+  
+  @@map("users")
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  userId       String
+  token        String   @unique
+  refreshToken String   @unique
+  expiresAt    DateTime
+  
+  createdAt    DateTime @default(now())
+  
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@index([userId])
+  @@map("sessions")
+}
+
+model Project {
+  id          String              @id @default(cuid())
+  name        String
+  description String?
+  visibility  ProjectVisibility   @default(PRIVATE)
+  
+  ownerId     String
+  owner       User                @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+  
+  files         File[]
+  diagrams      Diagram[]
+  conversations Conversation[]
+  
+  @@index([ownerId])
+  @@map("projects")
+}
+
+model File {
+  id          String   @id @default(cuid())
+  name        String
+  path        String
+  content     String   @db.Text
+  language    String   @default("arclang")
+  
+  projectId   String
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  
+  authorId    String
+  author      User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  compilations Compilation[]
+  
+  @@unique([projectId, path])
+  @@index([projectId])
+  @@index([authorId])
+  @@map("files")
+}
+
+model Compilation {
+  id          String   @id @default(cuid())
+  success     Boolean
+  output      String?  @db.Text
+  errors      String?  @db.Text
+  warnings    String?  @db.Text
+  
+  stats       Json?
+  
+  fileId      String
+  file        File     @relation(fields: [fileId], references: [id], onDelete: Cascade)
+  
+  createdAt   DateTime @default(now())
+  
+  diagram     Diagram?
+  
+  @@index([fileId])
+  @@index([createdAt])
+  @@map("compilations")
+}
+
+model Diagram {
+  id          String             @id @default(cuid())
+  name        String
+  layer       ArchitectureLayer
+  
+  nodes       Json
+  edges       Json
+  layout      Json?
+  
+  projectId   String
+  project     Project            @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  
+  compilationId String?          @unique
+  compilation   Compilation?     @relation(fields: [compilationId], references: [id], onDelete: SetNull)
+  
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+  
+  @@index([projectId])
+  @@index([layer])
+  @@map("diagrams")
+}
+
+model ArchitectureNode {
+  id          String      @id @default(cuid())
+  nodeId      String
+  label       String
+  type        String
+  safetyLevel SafetyLevel?
+  description String?     @db.Text
+  
+  layer       ArchitectureLayer
+  properties  Json?
+  
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  
+  @@unique([nodeId, layer])
+  @@index([layer])
+  @@index([type])
+  @@index([safetyLevel])
+  @@map("architecture_nodes")
+}
+
+model ArchitectureEdge {
+  id          String             @id @default(cuid())
+  edgeId      String
+  sourceId    String
+  targetId    String
+  label       String?
+  type        String
+  
+  layer       ArchitectureLayer
+  properties  Json?
+  
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+  
+  @@unique([edgeId, layer])
+  @@index([layer])
+  @@index([type])
+  @@index([sourceId])
+  @@index([targetId])
+  @@map("architecture_edges")
+}
+
+model AuditLog {
+  id          String   @id @default(cuid())
+  action      String
+  entityType  String
+  entityId    String
+  userId      String?
+  metadata    Json?
+  
+  createdAt   DateTime @default(now())
+  
+  @@index([entityType, entityId])
+  @@index([userId])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
+enum MessageRole {
+  USER
+  ASSISTANT
+  SYSTEM
+}
+
+model Conversation {
+  id          String    @id @default(cuid())
+  userId      String
+  projectId   String?
+  title       String?
+  context     Json?
+  
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project     Project?  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  
+  messages    Message[]
+  corrections Correction[]
+  
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  
+  @@index([userId])
+  @@index([projectId])
+  @@map("conversations")
+}
+
+model Message {
+  id             String       @id @default(cuid())
+  conversationId String
+  role           MessageRole
+  content        String       @db.Text
+  
+  generatedCode  String?      @db.Text
+  diagramSvg     String?      @db.Text
+  diagramType    String?
+  actions        Json?
+  
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  feedback       Feedback?
+  corrections    Correction[]
+  
+  createdAt      DateTime     @default(now())
+  
+  @@index([conversationId])
+  @@index([createdAt])
+  @@map("messages")
+}
+
+model Feedback {
+  id          String   @id @default(cuid())
+  messageId   String   @unique
+  rating      Int
+  helpful     Boolean?
+  accurate    Boolean?
+  comment     String?  @db.Text
+  
+  message     Message  @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  
+  createdAt   DateTime @default(now())
+  
+  @@map("feedbacks")
+}
+
+model Correction {
+  id                 String       @id @default(cuid())
+  conversationId     String
+  originalMessageId  String
+  
+  originalCode       String       @db.Text
+  correctedCode      String       @db.Text
+  userFeedback       String       @db.Text
+  
+  issueType          String
+  issueDetails       Json?
+  
+  resolved           Boolean      @default(false)
+  resolutionAttempts Int          @default(0)
+  
+  conversation       Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  message            Message      @relation(fields: [originalMessageId], references: [id], onDelete: Cascade)
+  
+  createdAt          DateTime     @default(now())
+  
+  @@index([conversationId])
+  @@index([originalMessageId])
+  @@index([issueType])
+  @@map("corrections")
+}
+
+model ErrorPattern {
+  id              String   @id @default(cuid())
+  userId          String?
+  
+  errorSignature  String   @db.Text
+  solutionPattern String   @db.Text
+  
+  diagramType     String?
+  safetyLevel     String?
+  
+  frequency       Int      @default(1)
+  successRate     Float    @default(0.0)
+  
+  lastSeen        DateTime @updatedAt
+  createdAt       DateTime @default(now())
+  
+  @@unique([errorSignature, userId])
+  @@index([diagramType])
+  @@index([frequency])
+  @@map("error_patterns")
+}

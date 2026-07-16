@@ -1,0 +1,106 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="1302" height="1970" viewBox="0 0 1302 1970" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<defs>
+<marker id="arrow-allocation" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="10" markerHeight="10" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#7B1FA2"></path></marker>
+<marker id="arrow-unallocated" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="10" markerHeight="10" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#D32F2F"></path></marker>
+</defs>
+
+<rect x="0" y="0" width="1302" height="1970" fill="#FFFFFF" stroke="none" />
+<text x="100" y="80" font-family="Arial, sans-serif" font-size="16" font-weight="bold" fill="#388E3C">System Functions</text>
+<text x="1102" y="80" font-family="Arial, sans-serif" font-size="16" font-weight="bold" fill="#7B1FA2">Logical Components</text>
+<g id="alloc-SF-001-LC-001"><line x1="240" y1="1440" x2="922" y2="1440" stroke="#7B1FA2" stroke-width="2" marker-end="url(#arrow-allocation)" stroke-dasharray="8,4" />
+<rect x="531" y="1430" width="100" height="20" fill="#FFFFFF" stroke="#7B1FA2" stroke-width="1" rx="4" ry="4" filter="drop-shadow(0 1px 2px rgba(0,0,0,0.1))" />
+<text x="581" y="1440" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="9" font-style="italic" fill="#7B1FA2">allocated to</text></g>
+<g id="alloc-SF-002-LC-002"><line x1="240" y1="1280" x2="922" y2="1145" stroke="#7B1FA2" stroke-width="2" marker-end="url(#arrow-allocation)" stroke-dasharray="8,4" />
+<rect x="531" y="1202.5" width="100" height="20" fill="#FFFFFF" stroke="#7B1FA2" stroke-width="1" rx="4" ry="4" filter="drop-shadow(0 1px 2px rgba(0,0,0,0.1))" />
+<text x="581" y="1212.5" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="9" font-style="italic" fill="#7B1FA2">allocated to</text></g>
+<g id="alloc-SF-003-LC-002"><line x1="240" y1="1120" x2="922" y2="1120" stroke="#7B1FA2" stroke-width="2" marker-end="url(#arrow-allocation)" stroke-dasharray="8,4" />
+<rect x="531" y="1110" width="100" height="20" fill="#FFFFFF" stroke="#7B1FA2" stroke-width="1" rx="4" ry="4" filter="drop-shadow(0 1px 2px rgba(0,0,0,0.1))" />
+<text x="581" y="1120" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="9" font-style="italic" fill="#7B1FA2">allocated to</text></g>
+<g id="alloc-SF-004-LC-002"><line x1="240" y1="960" x2="922" y2="1095" stroke="#7B1FA2" stroke-width="2" marker-end="url(#arrow-allocation)" stroke-dasharray="8,4" />
+<rect x="531" y="1017.5" width="100" height="20" fill="#FFFFFF" stroke="#7B1FA2" stroke-width="1" rx="4" ry="4" filter="drop-shadow(0 1px 2px rgba(0,0,0,0.1))" />
+<text x="581" y="1027.5" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="9" font-style="italic" fill="#7B1FA2">allocated to</text></g>
+<g id="alloc-SF-005-LC-003"><line x1="240" y1="320" x2="922" y2="317" stroke="#7B1FA2" stroke-width="2" marker-end="url(#arrow-allocation)" stroke-dasharray="8,4" />
+<rect x="531" y="308.5" width="100" height="20" fill="#FFFFFF" stroke="#7B1FA2" stroke-width="1" rx="4" ry="4" filter="drop-shadow(0 1px 2px rgba(0,0,0,0.1))" />
+<text x="581" y="318.5" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="9" font-style="italic" fill="#7B1FA2">allocated to</text></g>
+<g id="alloc-SF-006-LC-003"><line x1="240" y1="160" x2="922" y2="283" stroke="#7B1FA2" stroke-width="2" marker-end="url(#arrow-allocation)" stroke-dasharray="8,4" />
+<rect x="531" y="211.5" width="100" height="20" fill="#FFFFFF" stroke="#7B1FA2" stroke-width="1" rx="4" ry="4" filter="drop-shadow(0 1px 2px rgba(0,0,0,0.1))" />
+<text x="581" y="221.5" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="9" font-style="italic" fill="#7B1FA2">allocated to</text></g>
+<g id="alloc-SF-007-LC-004"><line x1="240" y1="480" x2="922" y2="480" stroke="#7B1FA2" stroke-width="2" marker-end="url(#arrow-allocation)" stroke-dasharray="8,4" />
+<rect x="531" y="470" width="100" height="20" fill="#FFFFFF" stroke="#7B1FA2" stroke-width="1" rx="4" ry="4" filter="drop-shadow(0 1px 2px rgba(0,0,0,0.1))" />
+<text x="581" y="480" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="9" font-style="italic" fill="#7B1FA2">allocated to</text></g>
+<g id="alloc-SF-008-LC-005"><line x1="240" y1="800" x2="922" y2="800" stroke="#7B1FA2" stroke-width="2" marker-end="url(#arrow-allocation)" stroke-dasharray="8,4" />
+<rect x="531" y="790" width="100" height="20" fill="#FFFFFF" stroke="#7B1FA2" stroke-width="1" rx="4" ry="4" filter="drop-shadow(0 1px 2px rgba(0,0,0,0.1))" />
+<text x="581" y="800" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="9" font-style="italic" fill="#7B1FA2">allocated to</text></g>
+<g id="func-SF-001"><rect x="60" y="1400" width="180" height="80" rx="10" ry="10" fill="#E8F5E9" stroke="#388E3C" stroke-width="2.5" filter="drop-shadow(0 2px 4px rgba(0,0,0,0.15))" />
+<text x="150" y="1418" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="9" font-style="italic" fill="#388E3C">«function»</text>
+<text x="150" y="1438" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="11" font-weight="bold" fill="#388E3C">Sensor Data</text>
+<text x="150" y="1452" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="11" font-weight="bold" fill="#388E3C">Acquisition</text></g>
+<g id="func-SF-002"><rect x="60" y="1240" width="180" height="80" rx="10" ry="10" fill="#E8F5E9" stroke="#388E3C" stroke-width="2.5" filter="drop-shadow(0 2px 4px rgba(0,0,0,0.15))" />
+<text x="150" y="1258" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="9" font-style="italic" fill="#388E3C">«function»</text>
+<text x="150" y="1278" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="11" font-weight="bold" fill="#388E3C">Multi-Sensor</text>
+<text x="150" y="1292" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="11" font-weight="bold" fill="#388E3C">Fusion</text></g>
+<g id="func-SF-003"><rect x="60" y="1080" width="180" height="80" rx="10" ry="10" fill="#E8F5E9" stroke="#388E3C" stroke-width="2.5" filter="drop-shadow(0 2px 4px rgba(0,0,0,0.15))" />
+<text x="150" y="1098" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="9" font-style="italic" fill="#388E3C">«function»</text>
+<text x="150" y="1118" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="11" font-weight="bold" fill="#388E3C">Object</text>
+<text x="150" y="1132" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="11" font-weight="bold" fill="#388E3C">Detection</text></g>
+<g id="func-SF-004"><rect x="60" y="920" width="180" height="80" rx="10" ry="10" fill="#E8F5E9" stroke="#388E3C" stroke-width="2.5" filter="drop-shadow(0 2px 4px rgba(0,0,0,0.15))" />
+<text x="150" y="938" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="9" font-style="italic" fill="#388E3C">«function»</text>
+<text x="150" y="958" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="11" font-weight="bold" fill="#388E3C">Multi-Object</text>
+<text x="150" y="972" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="11" font-weight="bold" fill="#388E3C">Tracking</text></g>
+<g id="func-SF-005"><rect x="60" y="280" width="180" height="80" rx="10" ry="10" fill="#E8F5E9" stroke="#388E3C" stroke-width="2.5" filter="drop-shadow(0 2px 4px rgba(0,0,0,0.15))" />
+<text x="150" y="298" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="9" font-style="italic" fill="#388E3C">«function»</text>
+<text x="150" y="318" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="11" font-weight="bold" fill="#388E3C">Collision Risk</text>
+<text x="150" y="332" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="11" font-weight="bold" fill="#388E3C">Assessment</text></g>
+<g id="func-SF-006"><rect x="60" y="120" width="180" height="80" rx="10" ry="10" fill="#E8F5E9" stroke="#388E3C" stroke-width="2.5" filter="drop-shadow(0 2px 4px rgba(0,0,0,0.15))" />
+<text x="150" y="138" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="9" font-style="italic" fill="#388E3C">«function»</text>
+<text x="150" y="158" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="11" font-weight="bold" fill="#388E3C">Braking Strategy</text>
+<text x="150" y="172" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="11" font-weight="bold" fill="#388E3C">Planning</text></g>
+<g id="func-SF-007"><rect x="60" y="440" width="180" height="80" rx="10" ry="10" fill="#E8F5E9" stroke="#388E3C" stroke-width="2.5" filter="drop-shadow(0 2px 4px rgba(0,0,0,0.15))" />
+<text x="150" y="458" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="9" font-style="italic" fill="#388E3C">«function»</text>
+<text x="150" y="478" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="11" font-weight="bold" fill="#388E3C">Brake</text>
+<text x="150" y="492" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="11" font-weight="bold" fill="#388E3C">Actuation</text></g>
+<g id="func-SF-008"><rect x="60" y="760" width="180" height="80" rx="10" ry="10" fill="#E8F5E9" stroke="#388E3C" stroke-width="2.5" filter="drop-shadow(0 2px 4px rgba(0,0,0,0.15))" />
+<text x="150" y="778" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="9" font-style="italic" fill="#388E3C">«function»</text>
+<text x="150" y="798" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="11" font-weight="bold" fill="#388E3C">Driver</text>
+<text x="150" y="812" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="11" font-weight="bold" fill="#388E3C">Warning</text></g>
+<g id="func-SF-009"><rect x="60" y="600" width="180" height="80" rx="10" ry="10" fill="#FFEBEE" stroke="#D32F2F" stroke-width="4" filter="drop-shadow(0 2px 4px rgba(0,0,0,0.15))" />
+<text x="150" y="618" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="9" font-style="italic" fill="#D32F2F">«function»</text>
+<text x="150" y="638" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="11" font-weight="bold" fill="#D32F2F">System</text>
+<text x="150" y="652" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="11" font-weight="bold" fill="#D32F2F">Diagnostics</text>
+<text x="150" y="668" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" font-weight="bold" fill="#D32F2F">⚠ Not Allocated</text></g>
+<g id="comp-LC-001"><rect x="922" y="1390" width="200" height="100" rx="10" ry="10" fill="#F3E5F5" stroke="#7B1FA2" stroke-width="3" filter="drop-shadow(0 2px 4px rgba(0,0,0,0.15))" />
+<text x="1022" y="1410" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="10" font-style="italic" fill="#7B1FA2">«component»</text>
+<text x="1022" y="1435" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#7B1FA2">Sensor Array
+Controller</text>
+<text x="1022" y="1460" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" fill="#666666">1 allocated function</text></g>
+<g id="comp-LC-002"><rect x="922" y="1070" width="200" height="100" rx="10" ry="10" fill="#F3E5F5" stroke="#7B1FA2" stroke-width="3" filter="drop-shadow(0 2px 4px rgba(0,0,0,0.15))" />
+<text x="1022" y="1090" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="10" font-style="italic" fill="#7B1FA2">«component»</text>
+<text x="1022" y="1115" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#7B1FA2">Perception
+Unit</text>
+<text x="1022" y="1140" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" fill="#666666">3 allocated functions</text></g>
+<g id="comp-LC-003"><rect x="922" y="250" width="200" height="100" rx="10" ry="10" fill="#F3E5F5" stroke="#7B1FA2" stroke-width="3" filter="drop-shadow(0 2px 4px rgba(0,0,0,0.15))" />
+<text x="1022" y="270" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="10" font-style="italic" fill="#7B1FA2">«component»</text>
+<text x="1022" y="295" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#7B1FA2">Decision
+Controller</text>
+<text x="1022" y="320" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" fill="#666666">2 allocated functions</text></g>
+<g id="comp-LC-004"><rect x="922" y="430" width="200" height="100" rx="10" ry="10" fill="#F3E5F5" stroke="#7B1FA2" stroke-width="3" filter="drop-shadow(0 2px 4px rgba(0,0,0,0.15))" />
+<text x="1022" y="450" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="10" font-style="italic" fill="#7B1FA2">«component»</text>
+<text x="1022" y="475" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#7B1FA2">Braking
+Controller</text>
+<text x="1022" y="500" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" fill="#666666">1 allocated function</text></g>
+<g id="comp-LC-005"><rect x="922" y="750" width="200" height="100" rx="10" ry="10" fill="#F3E5F5" stroke="#7B1FA2" stroke-width="3" filter="drop-shadow(0 2px 4px rgba(0,0,0,0.15))" />
+<text x="1022" y="770" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="10" font-style="italic" fill="#7B1FA2">«component»</text>
+<text x="1022" y="795" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#7B1FA2">HMI
+Controller</text>
+<text x="1022" y="820" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" fill="#666666">1 allocated function</text></g>
+<text x="20" y="35" font-family="Arial, sans-serif" font-size="18" font-weight="bold" fill="#212529">Function-to-Component Allocation</text>
+<g id="legend"><rect x="536" y="1810" width="230" height="130" rx="8" ry="8" fill="#FFFFFF" stroke="#CCCCCC" stroke-width="1.5" />
+<text x="651" y="1830" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#212529">Legend</text>
+<rect x="546" y="1845" width="40" height="20" rx="4" ry="4" fill="#E8F5E9" stroke="#388E3C" stroke-width="2" />
+<text x="596" y="1855" font-family="Arial, sans-serif" font-size="10" fill="#333333">Allocated Function</text>
+<rect x="546" y="1875" width="40" height="20" rx="4" ry="4" fill="#FFEBEE" stroke="#D32F2F" stroke-width="3" />
+<text x="596" y="1885" font-family="Arial, sans-serif" font-size="10" fill="#333333">Unallocated Function</text>
+<rect x="546" y="1905" width="40" height="20" rx="4" ry="4" fill="#F3E5F5" stroke="#7B1FA2" stroke-width="2" />
+<text x="596" y="1915" font-family="Arial, sans-serif" font-size="10" fill="#333333">Component</text></g>
+</svg>

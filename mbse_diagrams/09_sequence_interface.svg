@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="1480" height="1240" viewBox="0 0 1480 1240" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<defs>
+<marker id="arrow-filled" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="10" markerHeight="10" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#000000"></path></marker>
+<marker id="arrow-open" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="10" markerHeight="10" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#000000"></path></marker>
+<marker id="arrow-black" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="10" markerHeight="10" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#000000"></path></marker>
+</defs>
+
+<rect x="0" y="0" width="1480" height="1240" fill="#FFFFFF" stroke="none" />
+<line x1="100" y1="160" x2="100" y2="1200" stroke="#90A4AE" stroke-width="2" stroke-dasharray="6,4" />
+<line x1="420" y1="160" x2="420" y2="1200" stroke="#90A4AE" stroke-width="2" stroke-dasharray="6,4" />
+<line x1="740" y1="160" x2="740" y2="1200" stroke="#90A4AE" stroke-width="2" stroke-dasharray="6,4" />
+<line x1="1060" y1="160" x2="1060" y2="1200" stroke="#90A4AE" stroke-width="2" stroke-dasharray="6,4" />
+<line x1="1380" y1="160" x2="1380" y2="1200" stroke="#90A4AE" stroke-width="2" stroke-dasharray="6,4" />
+<g id="msg-0"><line x1="100" y1="200" x2="420" y2="200" stroke="#1976D2" stroke-width="2.5" marker-end="url(#arrow-filled)" fill="none" />
+<rect x="167.25" y="180" width="185.5" height="20" fill="#FFFFFF" stroke="#1976D2" stroke-width="1.5" rx="4" ry="4" filter="drop-shadow(0 1px 2px rgba(0,0,0,0.1))" />
+<text x="260" y="190" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="10" font-weight="600" fill="#1976D2">ISensor.getSensorData()</text></g>
+<g id="msg-1"><line x1="420" y1="260" x2="100" y2="260" stroke="#666666" stroke-width="2.5" marker-end="url(#arrow-black)" fill="none" stroke-dasharray="5,5" />
+<rect x="167.25" y="240" width="185.5" height="20" fill="#FFFFFF" stroke="#666666" stroke-width="1.5" rx="4" ry="4" filter="drop-shadow(0 1px 2px rgba(0,0,0,0.1))" />
+<text x="260" y="250" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="10" font-weight="600" fill="#666666">return: SensorDataFrame</text></g>
+<g id="msg-2"><path d="M 420 320 L 480 320 L 480 360 L 420 360" stroke="#1976D2" stroke-width="2.5" marker-end="url(#arrow-filled)" fill="none"></path>
+<rect x="482" y="330" width="198.5" height="20" fill="#FFFFFF" stroke="#1976D2" stroke-width="1.5" rx="4" ry="4" filter="drop-shadow(0 1px 2px rgba(0,0,0,0.1))" />
+<text x="581.25" y="340" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="10" font-weight="600" fill="#1976D2">IPerception.processData()</text></g>
+<g id="msg-3"><line x1="420" y1="420" x2="740" y2="420" stroke="#388E3C" stroke-width="2.5" marker-end="url(#arrow-open)" fill="none" />
+<rect x="445" y="400" width="270" height="20" fill="#FFFFFF" stroke="#388E3C" stroke-width="1.5" rx="4" ry="4" filter="drop-shadow(0 1px 2px rgba(0,0,0,0.1))" />
+<text x="580" y="410" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="10" font-weight="600" fill="#388E3C">IPerception.notifyObstacle(obstacle)</text></g>
+<g id="msg-4"><path d="M 740 480 L 800 480 L 800 520 L 740 520" stroke="#1976D2" stroke-width="2.5" marker-end="url(#arrow-filled)" fill="none"></path>
+<rect x="802" y="490" width="244" height="20" fill="#FFFFFF" stroke="#1976D2" stroke-width="1.5" rx="4" ry="4" filter="drop-shadow(0 1px 2px rgba(0,0,0,0.1))" />
+<text x="924" y="500" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="10" font-weight="600" fill="#1976D2">IDecision.assessThreat(obstacle)</text></g>
+<g id="msg-5"><line x1="740" y1="580" x2="1380" y2="580" stroke="#388E3C" stroke-width="2.5" marker-end="url(#arrow-open)" fill="none" />
+<rect x="938" y="560" width="244" height="20" fill="#FFFFFF" stroke="#388E3C" stroke-width="1.5" rx="4" ry="4" filter="drop-shadow(0 1px 2px rgba(0,0,0,0.1))" />
+<text x="1060" y="570" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="10" font-weight="600" fill="#388E3C">IHMI.showWarning(level=CRITICAL)</text></g>
+<g id="msg-6"><line x1="740" y1="640" x2="1060" y2="640" stroke="#1976D2" stroke-width="2.5" marker-end="url(#arrow-filled)" fill="none" />
+<rect x="761.75" y="620" width="276.5" height="20" fill="#FFFFFF" stroke="#1976D2" stroke-width="1.5" rx="4" ry="4" filter="drop-shadow(0 1px 2px rgba(0,0,0,0.1))" />
+<text x="900" y="630" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="10" font-weight="600" fill="#1976D2">IBrake.requestBraking(force, profile)</text></g>
+<g id="msg-7"><path d="M 1060 700 L 1120 700 L 1120 740 L 1060 740" stroke="#1976D2" stroke-width="2.5" marker-end="url(#arrow-filled)" fill="none"></path>
+<rect x="1122" y="710" width="231" height="20" fill="#FFFFFF" stroke="#1976D2" stroke-width="1.5" rx="4" ry="4" filter="drop-shadow(0 1px 2px rgba(0,0,0,0.1))" />
+<text x="1237.5" y="720" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="10" font-weight="600" fill="#1976D2">IBrake.calculateDeceleration()</text></g>
+<g id="msg-8"><path d="M 1060 800 L 1120 800 L 1120 840 L 1060 840" stroke="#1976D2" stroke-width="2.5" marker-end="url(#arrow-filled)" fill="none"></path>
+<rect x="1122" y="810" width="159.5" height="20" fill="#FFFFFF" stroke="#1976D2" stroke-width="1.5" rx="4" ry="4" filter="drop-shadow(0 1px 2px rgba(0,0,0,0.1))" />
+<text x="1201.75" y="820" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="10" font-weight="600" fill="#1976D2">IBrake.applyBrake()</text></g>
+<g id="msg-9"><line x1="1060" y1="900" x2="740" y2="900" stroke="#666666" stroke-width="2.5" marker-end="url(#arrow-black)" fill="none" stroke-dasharray="5,5" />
+<rect x="820.25" y="880" width="159.5" height="20" fill="#FFFFFF" stroke="#666666" stroke-width="1.5" rx="4" ry="4" filter="drop-shadow(0 1px 2px rgba(0,0,0,0.1))" />
+<text x="900" y="890" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="10" font-weight="600" fill="#666666">return: BrakeStatus</text></g>
+<g id="msg-10"><path d="M 1380 960 L 1440 960 L 1440 1000 L 1380 1000" stroke="#1976D2" stroke-width="2.5" marker-end="url(#arrow-filled)" fill="none"></path>
+<rect x="1442" y="970" width="159.5" height="20" fill="#FFFFFF" stroke="#1976D2" stroke-width="1.5" rx="4" ry="4" filter="drop-shadow(0 1px 2px rgba(0,0,0,0.1))" />
+<text x="1521.75" y="980" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="10" font-weight="600" fill="#1976D2">IHMI.displayAlert()</text></g>
+<g id="msg-11"><path d="M 1380 1060 L 1440 1060 L 1440 1100 L 1380 1100" stroke="#1976D2" stroke-width="2.5" marker-end="url(#arrow-filled)" fill="none"></path>
+<rect x="1442" y="1070" width="140" height="20" fill="#FFFFFF" stroke="#1976D2" stroke-width="1.5" rx="4" ry="4" filter="drop-shadow(0 1px 2px rgba(0,0,0,0.1))" />
+<text x="1512" y="1080" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="10" font-weight="600" fill="#1976D2">IHMI.emitSound()</text></g>
+<g id="participant-SensorArray"><rect x="40" y="100" width="120" height="60" fill="#F3E5F5" stroke="#7B1FA2" stroke-width="2.5" rx="8" ry="8" />
+<text x="100" y="123" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="11" font-weight="bold" fill="#7B1FA2">«component»</text>
+<text x="100" y="137" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="11" font-weight="bold" fill="#7B1FA2">Sensor Array</text></g>
+<g id="participant-PerceptionUnit"><rect x="360" y="100" width="120" height="60" fill="#F3E5F5" stroke="#7B1FA2" stroke-width="2.5" rx="8" ry="8" />
+<text x="420" y="123" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="11" font-weight="bold" fill="#7B1FA2">«component»</text>
+<text x="420" y="137" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="11" font-weight="bold" fill="#7B1FA2">Perception Unit</text></g>
+<g id="participant-DecisionCtrl"><rect x="680" y="100" width="120" height="60" fill="#F3E5F5" stroke="#7B1FA2" stroke-width="2.5" rx="8" ry="8" />
+<text x="740" y="123" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="11" font-weight="bold" fill="#7B1FA2">«component»</text>
+<text x="740" y="137" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="11" font-weight="bold" fill="#7B1FA2">Decision Controller</text></g>
+<g id="participant-BrakingCtrl"><rect x="1000" y="100" width="120" height="60" fill="#F3E5F5" stroke="#7B1FA2" stroke-width="2.5" rx="8" ry="8" />
+<text x="1060" y="123" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="11" font-weight="bold" fill="#7B1FA2">«component»</text>
+<text x="1060" y="137" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="11" font-weight="bold" fill="#7B1FA2">Braking Controller</text></g>
+<g id="participant-HMI"><rect x="1320" y="100" width="120" height="60" fill="#F3E5F5" stroke="#7B1FA2" stroke-width="2.5" rx="8" ry="8" />
+<text x="1380" y="123" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="11" font-weight="bold" fill="#7B1FA2">«component»</text>
+<text x="1380" y="137" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="11" font-weight="bold" fill="#7B1FA2">HMI Controller</text></g>
+<rect x="410" y="260" width="16" height="60" fill="#E3F2FD" stroke="#1976D2" stroke-width="2" rx="2" ry="2" />
+<rect x="730" y="480" width="16" height="100" fill="#E3F2FD" stroke="#1976D2" stroke-width="2" rx="2" ry="2" />
+<rect x="1050" y="700" width="16" height="260" fill="#E3F2FD" stroke="#1976D2" stroke-width="2" rx="2" ry="2" />
+<rect x="1370" y="640" width="16" height="100" fill="#E3F2FD" stroke="#1976D2" stroke-width="2" rx="2" ry="2" />
+<text x="20" y="30" font-family="Arial, sans-serif" font-size="18" font-weight="bold" fill="#212529">Emergency Braking - Interface Operations Scenario</text>
+</svg>

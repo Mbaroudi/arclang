@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="11100" height="320" viewBox="0 0 11100 320" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<rect x="0" y="0" width="11100" height="320" fill="#FFFFFF" stroke="none" />
+<g id="SF-001-SF-001-01"><path d="M 200 180 L 200 210 L -5200 210 L -5200 240" fill="none" stroke="#666666" stroke-width="2"></path></g>
+<g id="SF-001-SF-001-02"><path d="M 200 180 L 200 210 L -1600 210 L -1600 240" fill="none" stroke="#666666" stroke-width="2"></path></g>
+<g id="SF-001-SF-001-03"><path d="M 200 180 L 200 210 L 2000 210 L 2000 240" fill="none" stroke="#666666" stroke-width="2"></path></g>
+<g id="SF-001-SF-001-04"><path d="M 200 180 L 200 210 L 5600 210 L 5600 240" fill="none" stroke="#666666" stroke-width="2"></path></g>
+<g id="function-SF-001"><rect x="100" y="100" width="200" height="80" rx="10" ry="10" fill="#E0E0E0" stroke="#333333" stroke-width="2" />
+<text x="200" y="130" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#000000"></text>
+<text x="200" y="150" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" font-style="italic" fill="#555555">[Input]</text>
+<rect x="280" y="110" width="16" height="16" fill="#FFFFFF" stroke="#333333" stroke-width="1.5" />
+<text x="288" y="122" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#333333">⊟</text></g>
+<g id="function-SF-001-01"><rect x="-5300" y="240" width="200" height="80" rx="10" ry="10" fill="#E0E0E0" stroke="#333333" stroke-width="2" />
+<text x="-5200" y="270" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#000000"></text>
+<text x="-5200" y="290" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" font-style="italic" fill="#555555">[Input]</text></g>
+<g id="function-SF-001-02"><rect x="-1700" y="240" width="200" height="80" rx="10" ry="10" fill="#E0E0E0" stroke="#333333" stroke-width="2" />
+<text x="-1600" y="270" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#000000"></text>
+<text x="-1600" y="290" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" font-style="italic" fill="#555555">[Input]</text></g>
+<g id="function-SF-001-03"><rect x="1900" y="240" width="200" height="80" rx="10" ry="10" fill="#E0E0E0" stroke="#333333" stroke-width="2" />
+<text x="2000" y="270" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#000000"></text>
+<text x="2000" y="290" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" font-style="italic" fill="#555555">[Input]</text></g>
+<g id="function-SF-001-04"><rect x="5500" y="240" width="200" height="80" rx="10" ry="10" fill="#E0E0E0" stroke="#333333" stroke-width="2" />
+<text x="5600" y="270" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#000000"></text>
+<text x="5600" y="290" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" font-style="italic" fill="#555555">[Input]</text></g>
+<text x="20" y="30" font-family="Arial, sans-serif" font-size="18" font-weight="bold" fill="#212529">Function Breakdown</text>
+<text x="20" y="55" font-family="Arial, sans-serif" font-size="10" fill="#666666">⊞ = Expandable  ⊟ = Expanded</text>
+</svg>

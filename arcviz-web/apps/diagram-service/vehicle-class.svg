@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="1690" height="620" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<defs>
+<marker id="arrow-black" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="10" markerHeight="10" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#000000"></path></marker>
+<marker id="arrow-white" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="10" markerHeight="10" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#FFFFFF"></path></marker>
+<marker id="generalization" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="10" markerHeight="10" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 Z" fill="#FFFFFF" stroke="#000000" stroke-width="2"></path></marker>
+</defs>
+
+<rect x="0" y="0" width="1690" height="620" fill="#FFFFFF" stroke="none" />
+<g id="VehicleState-position-Position"><path d="M 1240 120 L 1240 420" fill="none" stroke="#000000" stroke-width="1.5" marker-end="url(#arrow-black)" stroke-dasharray="5,5"></path>
+<rect x="1216" y="402" width="48" height="16" fill="#FFFFFF" stroke="none" />
+<text x="1240" y="410" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" fill="#000000">position</text></g>
+<g id="VehicleState-velocity-Velocity"><path d="M 1290 120 L 1290 280 L 1470 280 L 1470 420" fill="none" stroke="#000000" stroke-width="1.5" marker-end="url(#arrow-black)" stroke-dasharray="5,5"></path>
+<rect x="1446" y="262" width="48" height="16" fill="#FFFFFF" stroke="none" />
+<text x="1470" y="270" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" fill="#000000">velocity</text></g>
+<g id="class-Position"><rect x="1165" y="420" width="150" height="130" fill="#FFE6CC" stroke="#000000" stroke-width="2" />
+<rect x="1165" y="420" width="150" height="50" fill="#FFD699" stroke="none" />
+<text x="1240" y="435" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" font-style="italic" fill="#666666">«data»</text>
+<text x="1240" y="455" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#000000">Position</text>
+<line x1="1165" y1="470" x2="1315" y2="470" stroke="#000000" stroke-width="2" />
+<text x="1175" y="490" font-family="Arial, sans-serif" font-size="10" fill="#000000">latitude: Double = 0.0</text>
+<text x="1175" y="510" font-family="Arial, sans-serif" font-size="10" fill="#000000">longitude: Double = 0.0</text>
+<text x="1175" y="530" font-family="Arial, sans-serif" font-size="10" fill="#000000">altitude: Double</text></g>
+<g id="class-VehicleState"><rect x="1190" y="40" width="150" height="130" fill="#FFE6CC" stroke="#000000" stroke-width="2" />
+<rect x="1190" y="40" width="150" height="50" fill="#FFD699" stroke="none" />
+<text x="1265" y="55" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" font-style="italic" fill="#666666">«data»</text>
+<text x="1265" y="75" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#000000">VehicleState</text>
+<line x1="1190" y1="90" x2="1340" y2="90" stroke="#000000" stroke-width="2" />
+<text x="1200" y="110" font-family="Arial, sans-serif" font-size="10" fill="#000000">position: Position</text>
+<text x="1200" y="130" font-family="Arial, sans-serif" font-size="10" fill="#000000">velocity: Velocity</text>
+<text x="1200" y="150" font-family="Arial, sans-serif" font-size="10" fill="#000000">status: VehicleStatus = IDLE</text></g>
+<g id="class-Velocity"><rect x="1395" y="420" width="150" height="110" fill="#FFE6CC" stroke="#000000" stroke-width="2" />
+<rect x="1395" y="420" width="150" height="50" fill="#FFD699" stroke="none" />
+<text x="1470" y="435" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" font-style="italic" fill="#666666">«data»</text>
+<text x="1470" y="455" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#000000">Velocity</text>
+<line x1="1395" y1="470" x2="1545" y2="470" stroke="#000000" stroke-width="2" />
+<text x="1405" y="490" font-family="Arial, sans-serif" font-size="10" fill="#000000">speed: Double = 0.0</text>
+<text x="1405" y="510" font-family="Arial, sans-serif" font-size="10" fill="#000000">heading: Double = 0.0</text></g>
+<g id="class-Command"><rect x="40" y="40" width="150" height="130" fill="#FFE6CC" stroke="#000000" stroke-width="2" />
+<rect x="40" y="40" width="150" height="50" fill="#FFD699" stroke="none" />
+<text x="115" y="55" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" font-style="italic" fill="#666666">«event»</text>
+<text x="115" y="75" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#000000">Command</text>
+<line x1="40" y1="90" x2="190" y2="90" stroke="#000000" stroke-width="2" />
+<text x="50" y="110" font-family="Arial, sans-serif" font-size="10" fill="#000000">commandType: CommandType</text>
+<text x="50" y="130" font-family="Arial, sans-serif" font-size="10" fill="#000000">timestamp: Long</text>
+<text x="50" y="150" font-family="Arial, sans-serif" font-size="10" fill="#000000">priority: Integer = 5</text></g>
+<g id="datatype-VehicleStatus"><rect x="730" y="40" width="150" height="142" fill="#E1F5FF" stroke="#000000" stroke-width="2" />
+<rect x="730" y="40" width="150" height="50" fill="#B3E5FC" stroke="none" />
+<text x="805" y="55" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" font-style="italic" fill="#666666">«enumeration»</text>
+<text x="805" y="75" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#000000">VehicleStatus</text>
+<line x1="730" y1="90" x2="880" y2="90" stroke="#000000" stroke-width="2" />
+<text x="740" y="108" font-family="Arial, sans-serif" font-size="10" fill="#000000">IDLE = 0</text>
+<text x="740" y="126" font-family="Arial, sans-serif" font-size="10" fill="#000000">ACTIVE = 1</text>
+<text x="740" y="144" font-family="Arial, sans-serif" font-size="10" fill="#000000">FAULT = 2</text>
+<text x="740" y="162" font-family="Arial, sans-serif" font-size="10" fill="#000000">MAINTENANCE = 3</text></g>
+<g id="datatype-CommandType"><rect x="270" y="40" width="150" height="160" fill="#E1F5FF" stroke="#000000" stroke-width="2" />
+<rect x="270" y="40" width="150" height="50" fill="#B3E5FC" stroke="none" />
+<text x="345" y="55" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" font-style="italic" fill="#666666">«enumeration»</text>
+<text x="345" y="75" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#000000">CommandType</text>
+<line x1="270" y1="90" x2="420" y2="90" stroke="#000000" stroke-width="2" />
+<text x="280" y="108" font-family="Arial, sans-serif" font-size="10" fill="#000000">START</text>
+<text x="280" y="126" font-family="Arial, sans-serif" font-size="10" fill="#000000">STOP</text>
+<text x="280" y="144" font-family="Arial, sans-serif" font-size="10" fill="#000000">PAUSE</text>
+<text x="280" y="162" font-family="Arial, sans-serif" font-size="10" fill="#000000">RESUME</text>
+<text x="280" y="180" font-family="Arial, sans-serif" font-size="10" fill="#000000">EMERGENCY_STOP</text></g>
+<g id="datatype-Double"><rect x="1420" y="40" width="150" height="80" fill="#F0F0F0" stroke="#000000" stroke-width="2" />
+<rect x="1420" y="40" width="150" height="50" fill="#D0D0D0" stroke="none" />
+<text x="1495" y="55" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" font-style="italic" fill="#666666">«datatype»</text>
+<text x="1495" y="75" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#000000">Double</text>
+<line x1="1420" y1="90" x2="1570" y2="90" stroke="#000000" stroke-width="2" />
+<text x="1495" y="110" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" font-style="italic" fill="#666666">extends Float64</text></g>
+<g id="datatype-Integer"><rect x="960" y="40" width="150" height="80" fill="#F0F0F0" stroke="#000000" stroke-width="2" />
+<rect x="960" y="40" width="150" height="50" fill="#D0D0D0" stroke="none" />
+<text x="1035" y="55" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" font-style="italic" fill="#666666">«datatype»</text>
+<text x="1035" y="75" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#000000">Integer</text>
+<line x1="960" y1="90" x2="1110" y2="90" stroke="#000000" stroke-width="2" />
+<text x="1035" y="110" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" font-style="italic" fill="#666666">extends Int32</text></g>
+<g id="datatype-Long"><rect x="500" y="40" width="150" height="80" fill="#F0F0F0" stroke="#000000" stroke-width="2" />
+<rect x="500" y="40" width="150" height="50" fill="#D0D0D0" stroke="none" />
+<text x="575" y="55" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" font-style="italic" fill="#666666">«datatype»</text>
+<text x="575" y="75" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#000000">Long</text>
+<line x1="500" y1="90" x2="650" y2="90" stroke="#000000" stroke-width="2" />
+<text x="575" y="110" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" font-style="italic" fill="#666666">extends Int64</text></g>
+<text x="20" y="30" font-family="Arial, sans-serif" font-size="18" font-weight="bold" fill="#212529">Data Model</text>
+</svg>

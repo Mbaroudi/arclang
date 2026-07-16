@@ -29,14 +29,20 @@ The ArcLang MCP Server enables AI assistants (Claude, GPT-4, etc.) to interact w
 ### Installation
 
 ```bash
-# Install ArcLang compiler first
-cd ..
-cargo install --path .
+# 1. Build and install ArcLang compiler
+cd /Users/malek/arclang
+cargo build --release
+./install-arclang.sh
 
-# Install MCP server
+# Verify installation
+arclang --version
+
+# 2. Install MCP server
 cd mcp-server
 pip install -e .
 ```
+
+**Note**: The `install-arclang.sh` script copies the binary to `~/.local/bin/arclang` so it's accessible in your PATH for Claude Desktop MCP.
 
 ### Usage with Claude Desktop
 
@@ -97,6 +103,38 @@ Found 2 gaps:
 - LC-CTRL-02: No requirement traces to this component
 ```
 
+**Generate diagrams:**
+```
+User: Generate an operational diagram from my ACC model
+
+Claude: [Uses arclang_generate_diagram]
+
+📊 Generated Operational Diagram
+Output: acc_operational.svg (16KB)
+Elements: 10 activities, 5 swimlanes, 9 flows
+Features:
+  ✅ Swimlane layout by actor
+  ✅ Stick figures for human actors
+  ✅ Activity symbols (⊕)
+  ✅ Protocol labels (CAN, V2X, HMI)
+```
+
+**Generate all diagram types:**
+```
+User: Generate all Capella diagrams for my model
+
+Claude: [Uses arclang_generate_all_diagrams]
+
+📊 All Diagrams Generated
+Summary: 10/10 diagrams generated successfully
+Total Size: 127KB
+- Operational: 16KB ✅
+- Functional: 30KB ✅
+- Component: 21KB ✅
+- Sequence: 8KB ✅
+- (... and 6 more)
+```
+
 ---
 
 ## Available Tools
@@ -119,6 +157,8 @@ Found 2 gaps:
 | `arclang_generate_component` | Generate component architecture |
 | `arclang_generate_trace` | Generate traceability links |
 | `arclang_suggest_architecture` | AI-powered architecture suggestions |
+| `arclang_generate_diagram` | Generate specific Capella diagram type (10 types) |
+| `arclang_generate_all_diagrams` | Generate all 10 diagram types at once |
 
 ### Safety Tools
 

@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="1160" height="640" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<defs>
+<marker id="arrow-filled" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="10" markerHeight="10" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#000000"></path></marker>
+<marker id="arrow-open" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="10" markerHeight="10" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#000000"></path></marker>
+<marker id="arrow-black" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="10" markerHeight="10" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#000000"></path></marker>
+</defs>
+
+<rect x="0" y="0" width="1160" height="640" fill="#FFFFFF" stroke="none" />
+<line x1="100" y1="160" x2="100" y2="600" stroke="#000000" stroke-width="1" stroke-dasharray="5,5" />
+<line x1="420" y1="160" x2="420" y2="600" stroke="#000000" stroke-width="1" stroke-dasharray="5,5" />
+<line x1="740" y1="160" x2="740" y2="600" stroke="#000000" stroke-width="1" stroke-dasharray="5,5" />
+<line x1="1060" y1="160" x2="1060" y2="600" stroke="#000000" stroke-width="1" stroke-dasharray="5,5" />
+<g id="msg-0"><line x1="100" y1="200" x2="420" y2="200" stroke="#000000" stroke-width="2" marker-end="url(#arrow-filled)" />
+<rect x="209" y="182" width="102" height="18" fill="#FFFFFF" stroke="none" />
+<text x="260" y="192" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" fill="#000000">Enter credentials</text></g>
+<g id="msg-1"><line x1="420" y1="260" x2="740" y2="260" stroke="#000000" stroke-width="2" marker-end="url(#arrow-filled)" />
+<rect x="517" y="242" width="126" height="18" fill="#FFFFFF" stroke="none" />
+<text x="580" y="252" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" fill="#000000">Validate(credentials)</text></g>
+<g id="msg-2"><line x1="740" y1="320" x2="1060" y2="320" stroke="#000000" stroke-width="2" marker-end="url(#arrow-open)" />
+<rect x="870" y="302" width="60" height="18" fill="#FFFFFF" stroke="none" />
+<text x="900" y="312" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" fill="#000000">Query user</text></g>
+<g id="msg-3"><line x1="1060" y1="380" x2="740" y2="380" stroke="#000000" stroke-width="2" marker-end="url(#arrow-black)" stroke-dasharray="5,5" />
+<rect x="873" y="362" width="54" height="18" fill="#FFFFFF" stroke="none" />
+<text x="900" y="372" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" fill="#000000">User data</text></g>
+<g id="msg-4"><line x1="740" y1="440" x2="420" y2="440" stroke="#000000" stroke-width="2" marker-end="url(#arrow-black)" stroke-dasharray="5,5" />
+<rect x="550" y="422" width="60" height="18" fill="#FFFFFF" stroke="none" />
+<text x="580" y="432" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" fill="#000000">Auth token</text></g>
+<g id="msg-5"><line x1="420" y1="500" x2="100" y2="500" stroke="#000000" stroke-width="2" marker-end="url(#arrow-open)" />
+<rect x="218" y="482" width="84" height="18" fill="#FFFFFF" stroke="none" />
+<text x="260" y="492" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" fill="#000000">Show dashboard</text></g>
+<g id="participant-P1"><rect x="40" y="100" width="120" height="60" fill="#E7F3FF" stroke="#000000" stroke-width="2" rx="5" ry="5" />
+<text x="100" y="130" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#000000">User</text></g>
+<g id="participant-P2"><rect x="360" y="100" width="120" height="60" fill="#FFF2CC" stroke="#000000" stroke-width="2" rx="5" ry="5" />
+<text x="420" y="130" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#000000">UI</text></g>
+<g id="participant-P3"><rect x="680" y="100" width="120" height="60" fill="#FFF2CC" stroke="#000000" stroke-width="2" rx="5" ry="5" />
+<text x="740" y="130" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#000000">Auth Service</text></g>
+<g id="participant-P4"><rect x="1000" y="100" width="120" height="60" fill="#FFF2CC" stroke="#000000" stroke-width="2" rx="5" ry="5" />
+<text x="1060" y="130" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#000000">Database</text></g>
+<rect x="410" y="200" width="20" height="100" fill="#FFFFFF" stroke="#000000" stroke-width="1" />
+<rect x="730" y="260" width="20" height="180" fill="#FFFFFF" stroke="#000000" stroke-width="1" />
+<text x="20" y="30" font-family="Arial, sans-serif" font-size="18" font-weight="bold" fill="#212529">User Authentication Sequence</text>
+</svg>

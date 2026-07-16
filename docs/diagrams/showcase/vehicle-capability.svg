@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="1958" height="1560" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<defs>
+<marker id="arrow-black" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="10" markerHeight="10" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#000000"></path></marker>
+<marker id="arrow-dashed" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#666666"></path></marker>
+<marker id="diamond" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="10" markerHeight="10" orient="auto-start-reverse"><path d="M 0 5 L 5 0 L 10 5 L 5 10 Z" fill="#FFFFFF" stroke="#000000" stroke-width="1.5"></path></marker>
+</defs>
+
+<rect x="0" y="0" width="1958" height="1560" fill="#FFFFFF" stroke="none" />
+<g id="m1-contains-c1"><path d="M 1265 120 L 1265 140 L 808 140 L 808 260" fill="none" stroke="#000000" stroke-width="2" marker-end="url(#arrow-black)"></path></g>
+<g id="c1-contains-sc1"><path d="M 853 340 L 853 350 L 1219 350 L 1219 480" fill="none" stroke="#000000" stroke-width="2" marker-end="url(#arrow-black)"></path></g>
+<g id="c1-contains-sc2"><path d="M 823 340 L 823 360 L 969 360 L 969 480" fill="none" stroke="#000000" stroke-width="2" marker-end="url(#arrow-black)"></path></g>
+<g id="c1-contains-sc3"><path d="M 763 340 L 763 350 L 615 350 L 615 480" fill="none" stroke="#000000" stroke-width="2" marker-end="url(#arrow-black)"></path></g>
+<g id="m1-contains-c2"><path d="M 1295 120 L 1295 130 L 1314 130 L 1314 570 L 1112 570 L 1112 700" fill="none" stroke="#000000" stroke-width="2" marker-end="url(#arrow-black)"></path></g>
+<g id="c2-contains-sc4"><path d="M 1072 780 L 1072 920" fill="none" stroke="#000000" stroke-width="2" marker-end="url(#arrow-black)"></path></g>
+<g id="c2-contains-sc5"><path d="M 1102 780 L 1102 800 L 1167 800 L 1167 1230 L 1122 1230 L 1122 1360" fill="none" stroke="#000000" stroke-width="2" marker-end="url(#arrow-black)"></path></g>
+<g id="c2-contains-sc6"><path d="M 1042 780 L 1042 790 L 822 790 L 822 920" fill="none" stroke="#000000" stroke-width="2" marker-end="url(#arrow-black)"></path></g>
+<g id="m1-contains-c3"><path d="M 1325 120 L 1325 920" fill="none" stroke="#000000" stroke-width="2" marker-end="url(#arrow-black)"></path></g>
+<g id="c3-contains-sc7"><path d="M 1263 1000 L 1263 1140" fill="none" stroke="#000000" stroke-width="2" marker-end="url(#arrow-black)"></path></g>
+<g id="c3-contains-sc8"><path d="M 1300 1000 L 1300 1020 L 1513 1020 L 1513 1140" fill="none" stroke="#000000" stroke-width="2" marker-end="url(#arrow-black)"></path></g>
+<g id="c3-contains-sc9"><path d="M 1338 1000 L 1338 1010 L 1763 1010 L 1763 1140" fill="none" stroke="#000000" stroke-width="2" marker-end="url(#arrow-black)"></path></g>
+<g id="m1-contains-c4"><path d="M 1235 120 L 1235 130 L 340 130 L 340 260" fill="none" stroke="#000000" stroke-width="2" marker-end="url(#arrow-black)"></path></g>
+<g id="c4-contains-sc10"><path d="M 315 340 L 315 350 L 115 350 L 115 480" fill="none" stroke="#000000" stroke-width="2" marker-end="url(#arrow-black)"></path></g>
+<g id="c4-contains-sc11"><path d="M 365 340 L 365 480" fill="none" stroke="#000000" stroke-width="2" marker-end="url(#arrow-black)"></path></g>
+<g id="c1-c2"><path d="M 793 340 L 793 570 L 1062 570 L 1062 700" fill="none" stroke="#666666" stroke-width="1.5" stroke-dasharray="5,5" marker-end="url(#arrow-dashed)"></path>
+<rect x="1033" y="552" width="58" height="16" fill="#FFFFFF" stroke="none" />
+<text x="1062" y="560" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" fill="#000000">requires</text>
+<text x="1062" y="585" text-anchor="middle" font-family="Arial, sans-serif" font-size="8" font-style="italic" fill="#666666">«includes»</text></g>
+<g id="c2-c3"><path d="M 1132 780 L 1132 790 L 1275 790 L 1275 920" fill="none" stroke="#666666" stroke-width="1.5" stroke-dasharray="5,5" marker-end="url(#arrow-dashed)"></path>
+<text x="1275" y="805" text-anchor="middle" font-family="Arial, sans-serif" font-size="8" font-style="italic" fill="#666666">«extends»</text></g>
+<g id="sc4-sc5"><path d="M 1072 1000 L 1072 1360" fill="none" stroke="#666666" stroke-width="1.5" stroke-dasharray="5,5" marker-end="url(#arrow-dashed)"></path>
+<rect x="1019" y="1342" width="106" height="16" fill="#FFFFFF" stroke="none" />
+<text x="1072" y="1350" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" fill="#000000">provides data to</text>
+<text x="1072" y="1375" text-anchor="middle" font-family="Arial, sans-serif" font-size="8" font-style="italic" fill="#666666">«includes»</text></g>
+<g id="capability-m1"><rect x="1205" y="40" width="150" height="80" rx="12" ry="12" fill="#FFD699" stroke="#000000" stroke-width="3" />
+<text x="1280" y="58" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" font-style="italic" font-weight="bold" fill="#555555">[Mission]</text>
+<text x="1280" y="80" text-anchor="middle" font-family="Arial, sans-serif" font-size="13" font-weight="bold" fill="#000000">Autonomous Vehicle Operation</text></g>
+<g id="capability-c1"><rect x="733" y="260" width="150" height="80" rx="12" ry="12" fill="#BBDEFB" stroke="#000000" stroke-width="2" />
+<text x="808" y="278" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" font-style="italic" font-weight="bold" fill="#555555">[Capability]</text>
+<text x="808" y="300" text-anchor="middle" font-family="Arial, sans-serif" font-size="13" font-weight="bold" fill="#000000">Navigate to Destination</text>
+<text x="808" y="320" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" font-style="italic" fill="#666666">«primary»</text></g>
+<g id="capability-sc1"><rect x="1144" y="480" width="150" height="80" rx="12" ry="12" fill="#C8E6C9" stroke="#000000" stroke-width="2" />
+<text x="1219" y="498" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" font-style="italic" font-weight="bold" fill="#555555">[SubCapability]</text>
+<text x="1219" y="520" text-anchor="middle" font-family="Arial, sans-serif" font-size="13" font-weight="bold" fill="#000000">Plan Route</text></g>
+<g id="capability-sc2"><rect x="894" y="480" width="150" height="80" rx="12" ry="12" fill="#C8E6C9" stroke="#000000" stroke-width="2" />
+<text x="969" y="498" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" font-style="italic" font-weight="bold" fill="#555555">[SubCapability]</text>
+<text x="969" y="520" text-anchor="middle" font-family="Arial, sans-serif" font-size="13" font-weight="bold" fill="#000000">Follow Route</text></g>
+<g id="capability-sc3"><rect x="540" y="480" width="150" height="80" rx="12" ry="12" fill="#C8E6C9" stroke="#000000" stroke-width="2" />
+<text x="615" y="498" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" font-style="italic" font-weight="bold" fill="#555555">[SubCapability]</text>
+<text x="615" y="520" text-anchor="middle" font-family="Arial, sans-serif" font-size="13" font-weight="bold" fill="#000000">Adapt to Traffic</text></g>
+<g id="capability-c2"><rect x="1012" y="700" width="150" height="80" rx="12" ry="12" fill="#BBDEFB" stroke="#000000" stroke-width="2" />
+<text x="1087" y="718" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" font-style="italic" font-weight="bold" fill="#555555">[Capability]</text>
+<text x="1087" y="740" text-anchor="middle" font-family="Arial, sans-serif" font-size="13" font-weight="bold" fill="#000000">Detect and Avoid Obstacles</text>
+<text x="1087" y="760" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" font-style="italic" fill="#666666">«safety»</text></g>
+<g id="capability-sc4"><rect x="997" y="920" width="150" height="80" rx="12" ry="12" fill="#C8E6C9" stroke="#000000" stroke-width="2" />
+<text x="1072" y="938" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" font-style="italic" font-weight="bold" fill="#555555">[SubCapability]</text>
+<text x="1072" y="960" text-anchor="middle" font-family="Arial, sans-serif" font-size="13" font-weight="bold" fill="#000000">Sense Environment</text></g>
+<g id="capability-sc5"><rect x="1022" y="1360" width="150" height="80" rx="12" ry="12" fill="#C8E6C9" stroke="#000000" stroke-width="2" />
+<text x="1097" y="1378" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" font-style="italic" font-weight="bold" fill="#555555">[SubCapability]</text>
+<text x="1097" y="1400" text-anchor="middle" font-family="Arial, sans-serif" font-size="13" font-weight="bold" fill="#000000">Classify Objects</text></g>
+<g id="capability-sc6"><rect x="747" y="920" width="150" height="80" rx="12" ry="12" fill="#C8E6C9" stroke="#000000" stroke-width="2" />
+<text x="822" y="938" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" font-style="italic" font-weight="bold" fill="#555555">[SubCapability]</text>
+<text x="822" y="960" text-anchor="middle" font-family="Arial, sans-serif" font-size="13" font-weight="bold" fill="#000000">Calculate Avoidance Maneuver</text></g>
+<g id="capability-c3"><rect x="1225" y="920" width="150" height="80" rx="12" ry="12" fill="#BBDEFB" stroke="#000000" stroke-width="2" />
+<text x="1300" y="938" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" font-style="italic" font-weight="bold" fill="#555555">[Capability]</text>
+<text x="1300" y="960" text-anchor="middle" font-family="Arial, sans-serif" font-size="13" font-weight="bold" fill="#000000">Operate Within Safety Constraints</text>
+<text x="1300" y="980" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" font-style="italic" fill="#666666">«safety»</text></g>
+<g id="capability-sc7"><rect x="1188" y="1140" width="150" height="80" rx="12" ry="12" fill="#C8E6C9" stroke="#000000" stroke-width="2" />
+<text x="1263" y="1158" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" font-style="italic" font-weight="bold" fill="#555555">[SubCapability]</text>
+<text x="1263" y="1180" text-anchor="middle" font-family="Arial, sans-serif" font-size="13" font-weight="bold" fill="#000000">Monitor System Health</text></g>
+<g id="capability-sc8"><rect x="1438" y="1140" width="150" height="80" rx="12" ry="12" fill="#C8E6C9" stroke="#000000" stroke-width="2" />
+<text x="1513" y="1158" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" font-style="italic" font-weight="bold" fill="#555555">[SubCapability]</text>
+<text x="1513" y="1180" text-anchor="middle" font-family="Arial, sans-serif" font-size="13" font-weight="bold" fill="#000000">Execute Emergency Stop</text></g>
+<g id="capability-sc9"><rect x="1688" y="1140" width="150" height="80" rx="12" ry="12" fill="#C8E6C9" stroke="#000000" stroke-width="2" />
+<text x="1763" y="1158" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" font-style="italic" font-weight="bold" fill="#555555">[SubCapability]</text>
+<text x="1763" y="1180" text-anchor="middle" font-family="Arial, sans-serif" font-size="13" font-weight="bold" fill="#000000">Report Faults</text></g>
+<g id="capability-c4"><rect x="265" y="260" width="150" height="80" rx="12" ry="12" fill="#BBDEFB" stroke="#000000" stroke-width="2" />
+<text x="340" y="278" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" font-style="italic" font-weight="bold" fill="#555555">[Capability]</text>
+<text x="340" y="300" text-anchor="middle" font-family="Arial, sans-serif" font-size="13" font-weight="bold" fill="#000000">Communicate with Infrastructure</text></g>
+<g id="capability-sc10"><rect x="40" y="480" width="150" height="80" rx="12" ry="12" fill="#C8E6C9" stroke="#000000" stroke-width="2" />
+<text x="115" y="498" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" font-style="italic" font-weight="bold" fill="#555555">[SubCapability]</text>
+<text x="115" y="520" text-anchor="middle" font-family="Arial, sans-serif" font-size="13" font-weight="bold" fill="#000000">Receive Traffic Updates</text></g>
+<g id="capability-sc11"><rect x="290" y="480" width="150" height="80" rx="12" ry="12" fill="#C8E6C9" stroke="#000000" stroke-width="2" />
+<text x="365" y="498" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" font-style="italic" font-weight="bold" fill="#555555">[SubCapability]</text>
+<text x="365" y="520" text-anchor="middle" font-family="Arial, sans-serif" font-size="13" font-weight="bold" fill="#000000">Report Vehicle Status</text></g>
+<text x="20" y="30" font-family="Arial, sans-serif" font-size="18" font-weight="bold" fill="#212529">Capability Diagram</text>
+</svg>

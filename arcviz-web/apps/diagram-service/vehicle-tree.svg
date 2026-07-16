@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="16500" height="460" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<rect x="0" y="0" width="16500" height="460" fill="#FFFFFF" stroke="none" />
+<g id="f1-f1.1"><path d="M 200 180 L 200 210 L -5200 210 L -5200 240" fill="none" stroke="#666666" stroke-width="2"></path></g>
+<g id="f1.1-f1.1.1"><path d="M -5200 320 L -5200 350 L -8800 350 L -8800 380" fill="none" stroke="#666666" stroke-width="2"></path></g>
+<g id="f1.1-f1.1.2"><path d="M -5200 320 L -5200 350 L -5200 350 L -5200 380" fill="none" stroke="#666666" stroke-width="2"></path></g>
+<g id="f1.1-f1.1.3"><path d="M -5200 320 L -5200 350 L -1600 350 L -1600 380" fill="none" stroke="#666666" stroke-width="2"></path></g>
+<g id="f1-f1.2"><path d="M 200 180 L 200 210 L -1600 210 L -1600 240" fill="none" stroke="#666666" stroke-width="2"></path></g>
+<g id="f1.2-f1.2.1"><path d="M -1600 320 L -1600 350 L -5200 350 L -5200 380" fill="none" stroke="#666666" stroke-width="2"></path></g>
+<g id="f1.2-f1.2.2"><path d="M -1600 320 L -1600 350 L -1600 350 L -1600 380" fill="none" stroke="#666666" stroke-width="2"></path></g>
+<g id="f1.2-f1.2.3"><path d="M -1600 320 L -1600 350 L 2000 350 L 2000 380" fill="none" stroke="#666666" stroke-width="2"></path></g>
+<g id="f1-f1.3"><path d="M 200 180 L 200 210 L 2000 210 L 2000 240" fill="none" stroke="#666666" stroke-width="2"></path></g>
+<g id="f1.3-f1.3.1"><path d="M 2000 320 L 2000 350 L -1600 350 L -1600 380" fill="none" stroke="#666666" stroke-width="2"></path></g>
+<g id="f1.3-f1.3.2"><path d="M 2000 320 L 2000 350 L 2000 350 L 2000 380" fill="none" stroke="#666666" stroke-width="2"></path></g>
+<g id="f1.3-f1.3.3"><path d="M 2000 320 L 2000 350 L 5600 350 L 5600 380" fill="none" stroke="#666666" stroke-width="2"></path></g>
+<g id="f1-f1.4"><path d="M 200 180 L 200 210 L 5600 210 L 5600 240" fill="none" stroke="#666666" stroke-width="2"></path></g>
+<g id="f1.4-f1.4.1"><path d="M 5600 320 L 5600 350 L 3800 350 L 3800 380" fill="none" stroke="#666666" stroke-width="2"></path></g>
+<g id="f1.4-f1.4.2"><path d="M 5600 320 L 5600 350 L 7400 350 L 7400 380" fill="none" stroke="#666666" stroke-width="2"></path></g>
+<g id="function-f1"><rect x="100" y="100" width="200" height="80" rx="10" ry="10" fill="#BBDEFB" stroke="#333333" stroke-width="2" />
+<text x="110" y="125" font-family="Arial, sans-serif" font-size="16" fill="#000000">🚗</text>
+<text x="135" y="130" text-anchor="start" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#000000"></text>
+<text x="200" y="150" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" font-style="italic" fill="#555555">[System]</text>
+<rect x="280" y="110" width="16" height="16" fill="#FFFFFF" stroke="#333333" stroke-width="1.5" />
+<text x="288" y="122" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#333333">⊟</text></g>
+<g id="function-f1.1"><rect x="-5300" y="240" width="200" height="80" rx="10" ry="10" fill="#F8BBD0" stroke="#333333" stroke-width="2" />
+<text x="-5290" y="265" font-family="Arial, sans-serif" font-size="16" fill="#000000">🧭</text>
+<text x="-5265" y="270" text-anchor="start" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#000000"></text>
+<text x="-5200" y="290" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" font-style="italic" fill="#555555">[Control]</text>
+<rect x="-5120" y="250" width="16" height="16" fill="#FFFFFF" stroke="#333333" stroke-width="1.5" />
+<text x="-5112" y="262" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#333333">⊟</text></g>
+<g id="function-f1.1.1"><rect x="-8900" y="380" width="200" height="80" rx="10" ry="10" fill="#F8BBD0" stroke="#333333" stroke-width="2" />
+<text x="-8890" y="405" font-family="Arial, sans-serif" font-size="16" fill="#000000">📍</text>
+<text x="-8865" y="410" text-anchor="start" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#000000"></text>
+<text x="-8800" y="430" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" font-style="italic" fill="#555555">[Control]</text></g>
+<g id="function-f1.1.2"><rect x="-5300" y="380" width="200" height="80" rx="10" ry="10" fill="#F8BBD0" stroke="#333333" stroke-width="2" />
+<text x="-5290" y="405" font-family="Arial, sans-serif" font-size="16" fill="#000000">📏</text>
+<text x="-5265" y="410" text-anchor="start" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#000000"></text>
+<text x="-5200" y="430" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" font-style="italic" fill="#555555">[Control]</text></g>
+<g id="function-f1.1.3"><rect x="-1700" y="380" width="200" height="80" rx="10" ry="10" fill="#F8BBD0" stroke="#333333" stroke-width="2" />
+<text x="-1690" y="405" font-family="Arial, sans-serif" font-size="16" fill="#000000">🚧</text>
+<text x="-1665" y="410" text-anchor="start" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#000000"></text>
+<text x="-1600" y="430" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" font-style="italic" fill="#555555">[Control]</text></g>
+<g id="function-f1.2"><rect x="-1700" y="240" width="200" height="80" rx="10" ry="10" fill="#BBDEFB" stroke="#333333" stroke-width="2" />
+<text x="-1690" y="265" font-family="Arial, sans-serif" font-size="16" fill="#000000">⚡</text>
+<text x="-1665" y="270" text-anchor="start" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#000000"></text>
+<text x="-1600" y="290" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" font-style="italic" fill="#555555">[System]</text>
+<rect x="-1520" y="250" width="16" height="16" fill="#FFFFFF" stroke="#333333" stroke-width="1.5" />
+<text x="-1512" y="262" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#333333">⊟</text></g>
+<g id="function-f1.2.1"><rect x="-5300" y="380" width="200" height="80" rx="10" ry="10" fill="#F8BBD0" stroke="#333333" stroke-width="2" />
+<text x="-5200" y="410" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#000000"></text>
+<text x="-5200" y="430" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" font-style="italic" fill="#555555">[Control]</text></g>
+<g id="function-f1.2.2"><rect x="-1700" y="380" width="200" height="80" rx="10" ry="10" fill="#F8BBD0" stroke="#333333" stroke-width="2" />
+<text x="-1600" y="410" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#000000"></text>
+<text x="-1600" y="430" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" font-style="italic" fill="#555555">[Control]</text></g>
+<g id="function-f1.2.3"><rect x="1900" y="380" width="200" height="80" rx="10" ry="10" fill="#F8BBD0" stroke="#333333" stroke-width="2" />
+<text x="2000" y="410" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#000000"></text>
+<text x="2000" y="430" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" font-style="italic" fill="#555555">[Control]</text></g>
+<g id="function-f1.3"><rect x="1900" y="240" width="200" height="80" rx="10" ry="10" fill="#C8E6C9" stroke="#333333" stroke-width="2" />
+<text x="1910" y="265" font-family="Arial, sans-serif" font-size="16" fill="#000000">📡</text>
+<text x="1935" y="270" text-anchor="start" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#000000"></text>
+<text x="2000" y="290" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" font-style="italic" fill="#555555">[Environmental]</text>
+<rect x="2080" y="250" width="16" height="16" fill="#FFFFFF" stroke="#333333" stroke-width="1.5" />
+<text x="2088" y="262" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#333333">⊟</text></g>
+<g id="function-f1.3.1"><rect x="-1700" y="380" width="200" height="80" rx="10" ry="10" fill="#C8E6C9" stroke="#333333" stroke-width="2" />
+<text x="-1690" y="405" font-family="Arial, sans-serif" font-size="16" fill="#000000">📷</text>
+<text x="-1665" y="410" text-anchor="start" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#000000"></text>
+<text x="-1600" y="430" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" font-style="italic" fill="#555555">[Environmental]</text></g>
+<g id="function-f1.3.2"><rect x="1900" y="380" width="200" height="80" rx="10" ry="10" fill="#C8E6C9" stroke="#333333" stroke-width="2" />
+<text x="2000" y="410" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#000000"></text>
+<text x="2000" y="430" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" font-style="italic" fill="#555555">[Environmental]</text></g>
+<g id="function-f1.3.3"><rect x="5500" y="380" width="200" height="80" rx="10" ry="10" fill="#C8E6C9" stroke="#333333" stroke-width="2" />
+<text x="5600" y="410" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#000000"></text>
+<text x="5600" y="430" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" font-style="italic" fill="#555555">[Environmental]</text></g>
+<g id="function-f1.4"><rect x="5500" y="240" width="200" height="80" rx="10" ry="10" fill="#FFE0B2" stroke="#333333" stroke-width="2" />
+<text x="5510" y="265" font-family="Arial, sans-serif" font-size="16" fill="#000000">🛡️</text>
+<text x="5535" y="270" text-anchor="start" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#000000"></text>
+<text x="5600" y="290" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" font-style="italic" fill="#555555">[Management]</text>
+<rect x="5680" y="250" width="16" height="16" fill="#FFFFFF" stroke="#333333" stroke-width="1.5" />
+<text x="5688" y="262" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#333333">⊟</text></g>
+<g id="function-f1.4.1"><rect x="3700" y="380" width="200" height="80" rx="10" ry="10" fill="#FFE0B2" stroke="#333333" stroke-width="2" />
+<text x="3800" y="410" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#000000"></text>
+<text x="3800" y="430" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" font-style="italic" fill="#555555">[Management]</text></g>
+<g id="function-f1.4.2"><rect x="7300" y="380" width="200" height="80" rx="10" ry="10" fill="#FFE0B2" stroke="#333333" stroke-width="2" />
+<text x="7400" y="410" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#000000"></text>
+<text x="7400" y="430" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" font-style="italic" fill="#555555">[Management]</text></g>
+<text x="20" y="30" font-family="Arial, sans-serif" font-size="18" font-weight="bold" fill="#212529">Function Breakdown</text>
+<text x="20" y="55" font-family="Arial, sans-serif" font-size="10" fill="#666666">⊞ = Expandable  ⊟ = Expanded</text>
+</svg>

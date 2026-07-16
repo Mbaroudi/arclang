@@ -1,0 +1,140 @@
+
+================================================================================
+  SELENIUM TEST REPORT - ArcViz Platform
+================================================================================
+
+Total Tests: 31
+✓ Passed: 0
+✗ Failed: 31
+⊘ Skipped: 0
+Duration: 18.82s
+
+================================================================================
+Test Results:
+================================================================================
+
+1. ✗ Auth: Register new user (1.73s)
+   Error: session not created: This version of ChromeDriver only supports Chrome version 142
+Current browser version is 141.0.7390.123 with binary path /Applications/Google Chrome.app/Contents/MacOS/Google Chrome
+
+2. ✗ Auth: Login with valid credentials (0.60s)
+   Error: session not created: This version of ChromeDriver only supports Chrome version 142
+Current browser version is 141.0.7390.123 with binary path /Applications/Google Chrome.app/Contents/MacOS/Google Chrome
+
+3. ✗ Auth: Login with invalid credentials (0.58s)
+   Error: session not created: This version of ChromeDriver only supports Chrome version 142
+Current browser version is 141.0.7390.123 with binary path /Applications/Google Chrome.app/Contents/MacOS/Google Chrome
+
+4. ✗ Auth: Logout (0.55s)
+   Error: session not created: This version of ChromeDriver only supports Chrome version 142
+Current browser version is 141.0.7390.123 with binary path /Applications/Google Chrome.app/Contents/MacOS/Google Chrome
+
+5. ✗ Editor: Open editor and load interface (0.60s)
+   Error: session not created: This version of ChromeDriver only supports Chrome version 142
+Current browser version is 141.0.7390.123 with binary path /Applications/Google Chrome.app/Contents/MacOS/Google Chrome
+
+6. ✗ Editor: Write ArcLang code in editor (0.58s)
+   Error: session not created: This version of ChromeDriver only supports Chrome version 142
+Current browser version is 141.0.7390.123 with binary path /Applications/Google Chrome.app/Contents/MacOS/Google Chrome
+
+7. ✗ Editor: Save code to localStorage (0.56s)
+   Error: session not created: This version of ChromeDriver only supports Chrome version 142
+Current browser version is 141.0.7390.123 with binary path /Applications/Google Chrome.app/Contents/MacOS/Google Chrome
+
+8. ✗ Editor: Load saved code (0.60s)
+   Error: session not created: This version of ChromeDriver only supports Chrome version 142
+Current browser version is 141.0.7390.123 with binary path /Applications/Google Chrome.app/Contents/MacOS/Google Chrome
+
+9. ✗ Editor: Navigate to visualizer (0.55s)
+   Error: session not created: This version of ChromeDriver only supports Chrome version 142
+Current browser version is 141.0.7390.123 with binary path /Applications/Google Chrome.app/Contents/MacOS/Google Chrome
+
+10. ✗ Visualizer: Load visualizer page (0.58s)
+   Error: session not created: This version of ChromeDriver only supports Chrome version 142
+Current browser version is 141.0.7390.123 with binary path /Applications/Google Chrome.app/Contents/MacOS/Google Chrome
+
+11. ✗ Visualizer: Check available diagram types (0.55s)
+   Error: session not created: This version of ChromeDriver only supports Chrome version 142
+Current browser version is 141.0.7390.123 with binary path /Applications/Google Chrome.app/Contents/MacOS/Google Chrome
+
+12. ✗ Visualizer: Generate operational diagram (0.56s)
+   Error: session not created: This version of ChromeDriver only supports Chrome version 142
+Current browser version is 141.0.7390.123 with binary path /Applications/Google Chrome.app/Contents/MacOS/Google Chrome
+
+13. ✗ Visualizer: Generate functional diagram (0.58s)
+   Error: session not created: This version of ChromeDriver only supports Chrome version 142
+Current browser version is 141.0.7390.123 with binary path /Applications/Google Chrome.app/Contents/MacOS/Google Chrome
+
+14. ✗ Visualizer: Export diagram as SVG (0.57s)
+   Error: session not created: This version of ChromeDriver only supports Chrome version 142
+Current browser version is 141.0.7390.123 with binary path /Applications/Google Chrome.app/Contents/MacOS/Google Chrome
+
+15. ✗ Chat: Open chat interface (0.59s)
+   Error: session not created: This version of ChromeDriver only supports Chrome version 142
+Current browser version is 141.0.7390.123 with binary path /Applications/Google Chrome.app/Contents/MacOS/Google Chrome
+
+16. ✗ Chat: Send message to AI (0.55s)
+   Error: session not created: This version of ChromeDriver only supports Chrome version 142
+Current browser version is 141.0.7390.123 with binary path /Applications/Google Chrome.app/Contents/MacOS/Google Chrome
+
+17. ✗ Chat: Receive AI response (0.56s)
+   Error: session not created: This version of ChromeDriver only supports Chrome version 142
+Current browser version is 141.0.7390.123 with binary path /Applications/Google Chrome.app/Contents/MacOS/Google Chrome
+
+18. ✗ Chat: Test generate diagram action (0.54s)
+   Error: session not created: This version of ChromeDriver only supports Chrome version 142
+Current browser version is 141.0.7390.123 with binary path /Applications/Google Chrome.app/Contents/MacOS/Google Chrome
+
+19. ✗ Chat: Test code insertion action (0.57s)
+   Error: session not created: This version of ChromeDriver only supports Chrome version 142
+Current browser version is 141.0.7390.123 with binary path /Applications/Google Chrome.app/Contents/MacOS/Google Chrome
+
+20. ✗ Chat: Close chat interface (0.57s)
+   Error: session not created: This version of ChromeDriver only supports Chrome version 142
+Current browser version is 141.0.7390.123 with binary path /Applications/Google Chrome.app/Contents/MacOS/Google Chrome
+
+21. ✗ 7D Visualizer: Enable 7D view (0.55s)
+   Error: session not created: This version of ChromeDriver only supports Chrome version 142
+Current browser version is 141.0.7390.123 with binary path /Applications/Google Chrome.app/Contents/MacOS/Google Chrome
+
+22. ✗ 7D Visualizer: Navigate to Operational dimension (0.58s)
+   Error: session not created: This version of ChromeDriver only supports Chrome version 142
+Current browser version is 141.0.7390.123 with binary path /Applications/Google Chrome.app/Contents/MacOS/Google Chrome
+
+23. ✗ 7D Visualizer: Navigate to System dimension (0.56s)
+   Error: session not created: This version of ChromeDriver only supports Chrome version 142
+Current browser version is 141.0.7390.123 with binary path /Applications/Google Chrome.app/Contents/MacOS/Google Chrome
+
+24. ✗ 7D Visualizer: Navigate to Logical dimension (0.56s)
+   Error: session not created: This version of ChromeDriver only supports Chrome version 142
+Current browser version is 141.0.7390.123 with binary path /Applications/Google Chrome.app/Contents/MacOS/Google Chrome
+
+25. ✗ 7D Visualizer: Navigate to Physical dimension (0.57s)
+   Error: session not created: This version of ChromeDriver only supports Chrome version 142
+Current browser version is 141.0.7390.123 with binary path /Applications/Google Chrome.app/Contents/MacOS/Google Chrome
+
+26. ✗ 7D Visualizer: Navigate to EPBS dimension (0.57s)
+   Error: session not created: This version of ChromeDriver only supports Chrome version 142
+Current browser version is 141.0.7390.123 with binary path /Applications/Google Chrome.app/Contents/MacOS/Google Chrome
+
+27. ✗ 7D Visualizer: Navigate to Requirements dimension (0.56s)
+   Error: session not created: This version of ChromeDriver only supports Chrome version 142
+Current browser version is 141.0.7390.123 with binary path /Applications/Google Chrome.app/Contents/MacOS/Google Chrome
+
+28. ✗ 7D Visualizer: Navigate to Cross-cutting dimension (0.58s)
+   Error: session not created: This version of ChromeDriver only supports Chrome version 142
+Current browser version is 141.0.7390.123 with binary path /Applications/Google Chrome.app/Contents/MacOS/Google Chrome
+
+29. ✗ 7D Visualizer: Test SVG rendering (0.58s)
+   Error: session not created: This version of ChromeDriver only supports Chrome version 142
+Current browser version is 141.0.7390.123 with binary path /Applications/Google Chrome.app/Contents/MacOS/Google Chrome
+
+30. ✗ 7D Visualizer: Test node interaction (0.57s)
+   Error: session not created: This version of ChromeDriver only supports Chrome version 142
+Current browser version is 141.0.7390.123 with binary path /Applications/Google Chrome.app/Contents/MacOS/Google Chrome
+
+31. ✗ 7D Visualizer: Disable 7D view (0.56s)
+   Error: session not created: This version of ChromeDriver only supports Chrome version 142
+Current browser version is 141.0.7390.123 with binary path /Applications/Google Chrome.app/Contents/MacOS/Google Chrome
+
+================================================================================

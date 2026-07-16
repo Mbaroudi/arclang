@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="2860" height="240" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<defs>
+<marker id="arrow-blue" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="12" markerHeight="12" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#0066CC"></path></marker>
+<marker id="arrow-green" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="12" markerHeight="12" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#28a745"></path></marker>
+</defs>
+
+<rect x="0" y="0" width="2860" height="240" fill="#FFFFFF" stroke="none" />
+<g id="f1-f2"><path d="M 190 80 L 370 80 L 370 80 L 550 80" fill="none" stroke="#0066CC" stroke-width="2.5" marker-end="url(#arrow-blue)"></path>
+<rect x="500" y="62" width="100" height="16" fill="#E3F2FD" stroke="#0066CC" stroke-width="1" rx="3" />
+<text x="550" y="70" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" font-weight="bold" fill="#0066CC">Hazard Detected</text>
+<text x="550" y="95" text-anchor="middle" font-family="Arial, sans-serif" font-size="8" font-style="italic" fill="#666666">{HazardEvent}</text></g>
+<g id="f2-f3"><path d="M 700 80 L 880 80 L 880 80 L 1060 80" fill="none" stroke="#0066CC" stroke-width="2.5" marker-end="url(#arrow-blue)"></path>
+<rect x="1010" y="62" width="100" height="16" fill="#E3F2FD" stroke="#0066CC" stroke-width="1" rx="3" />
+<text x="1060" y="70" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" font-weight="bold" fill="#0066CC">Risk Assessment</text>
+<text x="1060" y="95" text-anchor="middle" font-family="Arial, sans-serif" font-size="8" font-style="italic" fill="#666666">{RiskLevel}</text></g>
+<g id="f3-f4"><path d="M 1210 80 L 1390 80 L 1390 80 L 1570 80" fill="none" stroke="#0066CC" stroke-width="2.5" marker-end="url(#arrow-blue)"></path>
+<rect x="1523" y="62" width="94" height="16" fill="#E3F2FD" stroke="#0066CC" stroke-width="1" rx="3" />
+<text x="1570" y="70" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" font-weight="bold" fill="#0066CC">Emergency Stop</text>
+<text x="1570" y="95" text-anchor="middle" font-family="Arial, sans-serif" font-size="8" font-style="italic" fill="#666666">{ActionCommand}</text></g>
+<g id="f4-f5"><path d="M 1720 80 L 1900 80 L 1900 80 L 2080 80" fill="none" stroke="#0066CC" stroke-width="2.5" marker-end="url(#arrow-blue)"></path>
+<rect x="2036" y="62" width="88" height="16" fill="#E3F2FD" stroke="#0066CC" stroke-width="1" rx="3" />
+<text x="2080" y="70" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" font-weight="bold" fill="#0066CC">Brake Command</text>
+<text x="2080" y="95" text-anchor="middle" font-family="Arial, sans-serif" font-size="8" font-style="italic" fill="#666666">{BrakeCommand}</text></g>
+<g id="f5-f6"><path d="M 2230 80 L 2410 80 L 2410 80 L 2590 80" fill="none" stroke="#0066CC" stroke-width="2.5" marker-end="url(#arrow-blue)"></path>
+<rect x="2549" y="62" width="82" height="16" fill="#E3F2FD" stroke="#0066CC" stroke-width="1" rx="3" />
+<text x="2590" y="70" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" font-weight="bold" fill="#0066CC">Brake Status</text>
+<text x="2590" y="95" text-anchor="middle" font-family="Arial, sans-serif" font-size="8" font-style="italic" fill="#666666">{BrakeStatus}</text></g>
+<g id="function-f1"><rect x="40" y="40" width="150" height="80" rx="10" ry="10" fill="#C8E6C9" stroke="#2c5282" stroke-width="2.5" />
+<text x="55" y="70" font-family="Arial, sans-serif" font-size="20" fill="#000000">⚠️</text>
+<text x="85" y="75" text-anchor="start" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#000000">Detect Hazard</text>
+<text x="115" y="95" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" font-style="italic" fill="#555555">[Environmental]</text>
+<circle cx="40" cy="60" r="4" fill="#4dabf7" stroke="#000000" stroke-width="1" />
+<circle cx="190" cy="60" r="4" fill="#51cf66" stroke="#000000" stroke-width="1" /></g>
+<g id="function-f2"><rect x="550" y="40" width="150" height="80" rx="10" ry="10" fill="#FFE0B2" stroke="#2c5282" stroke-width="2.5" />
+<text x="565" y="70" font-family="Arial, sans-serif" font-size="20" fill="#000000">🔍</text>
+<text x="595" y="75" text-anchor="start" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#000000">Assess Risk</text>
+<text x="625" y="95" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" font-style="italic" fill="#555555">[Management]</text>
+<circle cx="550" cy="60" r="4" fill="#4dabf7" stroke="#000000" stroke-width="1" />
+<circle cx="700" cy="60" r="4" fill="#51cf66" stroke="#000000" stroke-width="1" /></g>
+<g id="function-f3"><rect x="1060" y="40" width="150" height="80" rx="10" ry="10" fill="#F8BBD0" stroke="#2c5282" stroke-width="2.5" />
+<text x="1075" y="70" font-family="Arial, sans-serif" font-size="20" fill="#000000">🎯</text>
+<text x="1105" y="75" text-anchor="start" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#000000">Decide Action</text>
+<text x="1135" y="95" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" font-style="italic" fill="#555555">[Control]</text>
+<circle cx="1060" cy="60" r="4" fill="#4dabf7" stroke="#000000" stroke-width="1" />
+<circle cx="1060" cy="75" r="4" fill="#4dabf7" stroke="#000000" stroke-width="1" />
+<circle cx="1210" cy="60" r="4" fill="#ff6b6b" stroke="#000000" stroke-width="1" /></g>
+<g id="function-f4"><rect x="1570" y="40" width="150" height="80" rx="10" ry="10" fill="#BBDEFB" stroke="#2c5282" stroke-width="2.5" />
+<text x="1585" y="70" font-family="Arial, sans-serif" font-size="20" fill="#000000">🛑</text>
+<text x="1615" y="75" text-anchor="start" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#000000">Execute Emergency Stop</text>
+<text x="1645" y="95" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" font-style="italic" fill="#555555">[System]</text>
+<circle cx="1570" cy="60" r="4" fill="#ff6b6b" stroke="#000000" stroke-width="1" />
+<circle cx="1720" cy="60" r="4" fill="#ff6b6b" stroke="#000000" stroke-width="1" /></g>
+<g id="function-f5"><rect x="2080" y="40" width="150" height="80" rx="10" ry="10" fill="#BBDEFB" stroke="#2c5282" stroke-width="2.5" />
+<text x="2095" y="70" font-family="Arial, sans-serif" font-size="20" fill="#000000">🔧</text>
+<text x="2125" y="75" text-anchor="start" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#000000">Apply Brakes</text>
+<text x="2155" y="95" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" font-style="italic" fill="#555555">[System]</text>
+<circle cx="2080" cy="60" r="4" fill="#ff6b6b" stroke="#000000" stroke-width="1" />
+<circle cx="2230" cy="60" r="4" fill="#51cf66" stroke="#000000" stroke-width="1" /></g>
+<g id="function-f6"><rect x="2590" y="40" width="150" height="80" rx="10" ry="10" fill="#FFE0B2" stroke="#2c5282" stroke-width="2.5" />
+<text x="2605" y="70" font-family="Arial, sans-serif" font-size="20" fill="#000000">📊</text>
+<text x="2635" y="75" text-anchor="start" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#000000">Monitor Stop</text>
+<text x="2665" y="95" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" font-style="italic" fill="#555555">[Management]</text>
+<circle cx="2590" cy="60" r="4" fill="#4dabf7" stroke="#000000" stroke-width="1" />
+<circle cx="2740" cy="60" r="4" fill="#51cf66" stroke="#000000" stroke-width="1" /></g>
+<text x="20" y="30" font-family="Arial, sans-serif" font-size="18" font-weight="bold" fill="#212529">Functional Chain: Emergency Stop Scenario</text>
+<text x="20" y="55" font-family="Arial, sans-serif" font-size="10" fill="#666666">→ Data Flow Direction</text>
+</svg>

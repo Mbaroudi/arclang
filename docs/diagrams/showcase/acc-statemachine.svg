@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="1590" height="476" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<defs>
+<marker id="arrow-black" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="10" markerHeight="10" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#000000"></path></marker>
+<marker id="arrow-state" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="10" markerHeight="10" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#000000"></path></marker>
+</defs>
+
+<rect x="0" y="0" width="1590" height="476" fill="#FFFFFF" stroke="none" />
+<g id="trans-0"><path d="M 750 197 Q 750 197 780 193.5 Q 810 190 840 158.5 L 870 127" fill="none" stroke="#000000" stroke-width="2" marker-end="url(#arrow-black)"></path></g>
+<g id="trans-1"><path d="M 870 87 Q 810 87 791.25 87 Q 772.5 87 753.75 87 Q 735 87 716.25 87 Q 697.5 87 678.75 87 Q 660 87 630 87 L 600 87" fill="none" stroke="#000000" stroke-width="2" marker-end="url(#arrow-black)"></path>
+<rect x="603" y="62" width="264" height="18" fill="#FFFFFF" stroke="none" />
+<text x="735" y="72" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" fill="#000000">valid_code_entered [authorized] / log_access</text></g>
+<g id="trans-2"><path d="M 600 113 Q 660 98 675 98 Q 690 98 698.75 98 Q 707.5 98 716.25 98 Q 725 98 727.5 98 Q 730 98 732.5 98 Q 735 98 737.5 98 Q 740 98 742.5 98 Q 745 98 753.75 98 Q 762.5 98 771.25 98 Q 780 98 795 98 Q 810 98 840 102.5 L 870 107" fill="none" stroke="#000000" stroke-width="2" marker-end="url(#arrow-black)"></path>
+<rect x="714" y="73" width="42" height="18" fill="#FFFFFF" stroke="none" />
+<text x="735" y="83" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" fill="#000000">timeout</text></g>
+<g id="trans-3"><path d="M 450 87 Q 390 87 382.5 87 Q 374.99999999999994 87 368.7499999999999 87 Q 362.4999999999999 86.99999999999999 356.2499999999999 87 Q 349.99999999999994 87 345 87 Q 340 87 330 87 Q 320 87 310 87 Q 300 87 285 87 Q 270 87 240 90 L 210 93" fill="none" stroke="#000000" stroke-width="2" marker-end="url(#arrow-black)"></path>
+<rect x="307" y="62" width="66" height="18" fill="#FFFFFF" stroke="none" />
+<text x="340" y="72" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" fill="#000000">door_opened</text></g>
+<g id="trans-4"><path d="M 210 113 Q 270 113 285 113 Q 300 113 315 113 Q 330 113 345 113 Q 360 113 375 113 Q 390 113 420 113 L 450 113" fill="none" stroke="#000000" stroke-width="2" marker-end="url(#arrow-black)"></path>
+<rect x="297" y="88" width="66" height="18" fill="#FFFFFF" stroke="none" />
+<text x="330" y="98" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" fill="#000000">door_closed</text></g>
+<g id="trans-5"><path d="M 210 133 Q 270 292 285 292 Q 300 292 310 292 Q 320 292 330 292 Q 340 292 345 292 Q 349.99999999999994 292 354.99999999999994 292 Q 359.99999999999994 292 365 292 Q 370 292 375 292 Q 380 292 405 292 Q 430 292 455 292 Q 479.99999999999994 292 525 292 Q 570 292 598.75 292 Q 627.5 292 656.25 292 Q 685 292 697.5 292 Q 710 292 722.5 292 Q 734.9999999999999 292 747.4999999999999 292 Q 759.9999999999999 292 772.4999999999999 292 Q 784.9999999999999 292 813.7499999999999 292 Q 842.4999999999999 292 871.25 292 Q 900 292.00000000000006 945 292 Q 990 292 1015 292 Q 1040 292 1065 292 Q 1090 292.00000000000006 1095 292 Q 1100 292 1105 292 Q 1110 292 1115 292 Q 1120 292 1125 292 Q 1130 292 1140 292 Q 1150 292 1160 292 Q 1170 292 1185 292 Q 1200 292 1230 216 L 1260 140" fill="none" stroke="#000000" stroke-width="2" marker-end="url(#arrow-black)"></path>
+<rect x="662.9999999999999" y="267" width="144" height="18" fill="#FFFFFF" stroke="none" />
+<text x="734.9999999999999" y="277" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" fill="#000000">timeout [door_held_open]</text></g>
+<g id="trans-6"><path d="M 1260 100 Q 1200 100 1192.5 100 Q 1184.9999999999998 100 1178.7499999999995 100 Q 1172.4999999999995 100 1166.2499999999998 100 Q 1160 100 1155 100 Q 1150 100 1140 100 Q 1130 100 1120 100 Q 1110 100 1095 100 Q 1080 100 1050 97 L 1020 94" fill="none" stroke="#000000" stroke-width="2" marker-end="url(#arrow-black)"></path>
+<rect x="1099" y="75" width="102" height="18" fill="#FFFFFF" stroke="none" />
+<text x="1150" y="85" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" fill="#000000">reset / log_reset</text></g>
+<g id="trans-7"><path d="M 1020 120 Q 1080 120 1095 120 Q 1110 120 1125 120 Q 1140 120 1155 120 Q 1170 120 1185 120 Q 1200 120 1230 120 L 1260 120" fill="none" stroke="#000000" stroke-width="2" marker-end="url(#arrow-black)"></path>
+<rect x="1104" y="95" width="72" height="18" fill="#FFFFFF" stroke="none" />
+<text x="1140" y="105" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" fill="#000000">forced_entry</text></g>
+<g id="state-Initial"><circle cx="735" cy="197" r="15" fill="#000000" stroke="none" /></g>
+<g id="state-Locked"><rect x="870" y="67" width="150" height="80" rx="10" ry="10" fill="#BDD7EE" stroke="#000000" stroke-width="2" />
+<text x="945" y="87" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#000000">Locked</text>
+<text x="880" y="107" font-family="Arial, sans-serif" font-size="9" font-style="italic" fill="#495057">entry / lock_mechanism</text>
+<text x="880" y="122" font-family="Arial, sans-serif" font-size="9" font-style="italic" fill="#495057">exit / log_unlock</text>
+<line x1="870" y1="97" x2="1020" y2="97" stroke="#000000" stroke-width="1" /></g>
+<g id="state-Unlocked"><rect x="450" y="60" width="150" height="80" rx="10" ry="10" fill="#BDD7EE" stroke="#000000" stroke-width="2" />
+<text x="525" y="80" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#000000">Unlocked</text>
+<text x="460" y="100" font-family="Arial, sans-serif" font-size="9" font-style="italic" fill="#495057">entry / unlock_mechanism, start_timer</text>
+<text x="460" y="115" font-family="Arial, sans-serif" font-size="9" font-style="italic" fill="#495057">do / blink_led</text>
+<text x="460" y="130" font-family="Arial, sans-serif" font-size="9" font-style="italic" fill="#495057">exit / stop_timer</text>
+<line x1="450" y1="90" x2="600" y2="90" stroke="#000000" stroke-width="1" /></g>
+<g id="state-Open"><rect x="60" y="73" width="150" height="80" rx="10" ry="10" fill="#BDD7EE" stroke="#000000" stroke-width="2" />
+<text x="135" y="93" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#000000">Open</text>
+<text x="70" y="113" font-family="Arial, sans-serif" font-size="9" font-style="italic" fill="#495057">entry / open_door, sound_chime</text>
+<text x="70" y="128" font-family="Arial, sans-serif" font-size="9" font-style="italic" fill="#495057">exit / close_door</text>
+<line x1="60" y1="103" x2="210" y2="103" stroke="#000000" stroke-width="1" /></g>
+<g id="state-Alarm"><rect x="1260" y="80" width="150" height="80" rx="10" ry="10" fill="#BDD7EE" stroke="#000000" stroke-width="2" />
+<text x="1335" y="100" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#000000">Alarm</text>
+<text x="1270" y="120" font-family="Arial, sans-serif" font-size="9" font-style="italic" fill="#495057">entry / activate_alarm, notify_security</text>
+<text x="1270" y="135" font-family="Arial, sans-serif" font-size="9" font-style="italic" fill="#495057">exit / deactivate_alarm</text>
+<line x1="1260" y1="110" x2="1410" y2="110" stroke="#000000" stroke-width="1" /></g>
+<text x="20" y="30" font-family="Arial, sans-serif" font-size="18" font-weight="bold" fill="#212529">Door Controller State Machine</text>
+</svg>

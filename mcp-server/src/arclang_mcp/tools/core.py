@@ -198,8 +198,18 @@ class CoreTools:
         return output
 
     def _resolve_path(self, path_str: str) -> Path:
-        """Resolve path relative to workspace root."""
-        path = Path(path_str)
-        if not path.is_absolute():
-            path = self.workspace_root / path
-        return path
+        """Resolve path relative to workspace root or allow absolute paths.
+        
+        Supports:
+        - Absolute paths: /Users/malek/test.arc or /home/claude/test.arc
+        - Relative paths: examples/test.arc (resolved to workspace_root)
+        - ~ expansion: ~/test.arc (expands to user home)
+        """
+        path = Path(path_str).expanduser()  # Handle ~/path
+        
+        if path.is_absolute():
+            # Absolute paths work anywhere (including /home/claude/)
+            return path
+        else:
+            # Relative paths resolved to workspace root
+            return self.workspace_root / path

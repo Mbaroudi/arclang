@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="390" height="780" viewBox="0 0 390 780" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<defs>
+<marker id="arrow-black" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="10" markerHeight="10" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#000000"></path></marker>
+<marker id="arrow-blue" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="10" markerHeight="10" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#2E75B6"></path></marker>
+</defs>
+
+<rect x="0" y="0" width="390" height="780" rx="0" ry="0" fill="#FFFFFF" stroke="none" />
+<g id="swimlane-Driver"><rect x="0" y="60" width="390" height="120" rx="5" ry="5" fill="#F8F9FA" stroke="#CED4DA" stroke-width="2" />
+<rect x="0" y="60" width="200" height="120" rx="5" ry="5" fill="#E9ECEF" stroke="#CED4DA" stroke-width="2" />
+<g ><circle cx="100" cy="92" r="12" fill="none" stroke="#2E75B6" stroke-width="2" />
+<line x1="100" y1="104" x2="100" y2="134" stroke="#2E75B6" stroke-width="2" />
+<line x1="82" y1="113" x2="118" y2="113" stroke="#2E75B6" stroke-width="2" />
+<line x1="100" y1="134" x2="85" y2="149" stroke="#2E75B6" stroke-width="2" />
+<line x1="100" y1="134" x2="115" y2="149" stroke="#2E75B6" stroke-width="2" /></g>
+<g ><text x="100" y="164" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#212529">Driver</text></g></g>
+<g id="swimlane-Vehicle System"><rect x="0" y="200" width="390" height="120" rx="5" ry="5" fill="#F8F9FA" stroke="#CED4DA" stroke-width="2" />
+<rect x="0" y="200" width="200" height="120" rx="5" ry="5" fill="#E9ECEF" stroke="#CED4DA" stroke-width="2" />
+<g ><circle cx="100" cy="232" r="12" fill="none" stroke="#2E75B6" stroke-width="2" />
+<line x1="100" y1="244" x2="100" y2="274" stroke="#2E75B6" stroke-width="2" />
+<line x1="82" y1="253" x2="118" y2="253" stroke="#2E75B6" stroke-width="2" />
+<line x1="100" y1="274" x2="85" y2="289" stroke="#2E75B6" stroke-width="2" />
+<line x1="100" y1="274" x2="115" y2="289" stroke="#2E75B6" stroke-width="2" /></g>
+<g ><text x="100" y="304" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#212529">Vehicle System</text></g></g>
+<g id="swimlane-Road Environment"><rect x="0" y="340" width="390" height="120" rx="5" ry="5" fill="#F8F9FA" stroke="#CED4DA" stroke-width="2" />
+<rect x="0" y="340" width="200" height="120" rx="5" ry="5" fill="#E9ECEF" stroke="#CED4DA" stroke-width="2" />
+<g ><circle cx="100" cy="372" r="12" fill="none" stroke="#2E75B6" stroke-width="2" />
+<line x1="100" y1="384" x2="100" y2="414" stroke="#2E75B6" stroke-width="2" />
+<line x1="82" y1="393" x2="118" y2="393" stroke="#2E75B6" stroke-width="2" />
+<line x1="100" y1="414" x2="85" y2="429" stroke="#2E75B6" stroke-width="2" />
+<line x1="100" y1="414" x2="115" y2="429" stroke="#2E75B6" stroke-width="2" /></g>
+<g ><text x="100" y="444" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#212529">Road Environment</text></g></g>
+<g id="swimlane-Other Vehicles"><rect x="0" y="480" width="390" height="120" rx="5" ry="5" fill="#F8F9FA" stroke="#CED4DA" stroke-width="2" />
+<rect x="0" y="480" width="200" height="120" rx="5" ry="5" fill="#E9ECEF" stroke="#CED4DA" stroke-width="2" />
+<g ><circle cx="100" cy="512" r="12" fill="none" stroke="#2E75B6" stroke-width="2" />
+<line x1="100" y1="524" x2="100" y2="554" stroke="#2E75B6" stroke-width="2" />
+<line x1="82" y1="533" x2="118" y2="533" stroke="#2E75B6" stroke-width="2" />
+<line x1="100" y1="554" x2="85" y2="569" stroke="#2E75B6" stroke-width="2" />
+<line x1="100" y1="554" x2="115" y2="569" stroke="#2E75B6" stroke-width="2" /></g>
+<g ><text x="100" y="584" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#212529">Other Vehicles</text></g></g>
+<g id="swimlane-Pedestrians"><rect x="0" y="620" width="390" height="120" rx="5" ry="5" fill="#F8F9FA" stroke="#CED4DA" stroke-width="2" />
+<rect x="0" y="620" width="200" height="120" rx="5" ry="5" fill="#E9ECEF" stroke="#CED4DA" stroke-width="2" />
+<g ><circle cx="100" cy="652" r="12" fill="none" stroke="#2E75B6" stroke-width="2" />
+<line x1="100" y1="664" x2="100" y2="694" stroke="#2E75B6" stroke-width="2" />
+<line x1="82" y1="673" x2="118" y2="673" stroke="#2E75B6" stroke-width="2" />
+<line x1="100" y1="694" x2="85" y2="709" stroke="#2E75B6" stroke-width="2" />
+<line x1="100" y1="694" x2="115" y2="709" stroke="#2E75B6" stroke-width="2" /></g>
+<g ><text x="100" y="724" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#212529">Pedestrians</text></g></g>
+<g id="node-OA-Mon"><rect x="200" y="90" width="150" height="80" rx="8" ry="8" fill="#FFD966" stroke="#000000" stroke-width="2" />
+<path d="M 10,10 m -8,0 a 8,8 0 1,0 16,0 a 8,8 0 1,0 -16,0" transform="translate(210, 100) scale(1)" fill="none" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path>
+<text x="275" y="114" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="12" fill="#000000">Monitor</text>
+<text x="275" y="130" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="12" fill="#000000">Environment</text>
+<text x="345" y="102" text-anchor="end" font-family="Arial, sans-serif" font-size="10" fill="#6C757D">OA-Mon</text></g>
+<g id="node-OA-Con"><rect x="200" y="210" width="150" height="80" rx="8" ry="8" fill="#FFD966" stroke="#000000" stroke-width="2" />
+<path d="M 10,10 m -8,0 a 8,8 0 1,0 16,0 a 8,8 0 1,0 -16,0" transform="translate(210, 220) scale(1)" fill="none" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path>
+<text x="275" y="242" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="12" fill="#000000">Control Vehicle</text>
+<text x="345" y="222" text-anchor="end" font-family="Arial, sans-serif" font-size="10" fill="#6C757D">OA-Con</text></g>
+<g id="node-OA-Nav"><rect x="200" y="510" width="150" height="80" rx="8" ry="8" fill="#FFD966" stroke="#000000" stroke-width="2" />
+<path d="M 10,10 m -8,0 a 8,8 0 1,0 16,0 a 8,8 0 1,0 -16,0" transform="translate(210, 520) scale(1)" fill="none" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path>
+<text x="275" y="542" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="12" fill="#000000">Navigate Traffic</text>
+<text x="345" y="522" text-anchor="end" font-family="Arial, sans-serif" font-size="10" fill="#6C757D">OA-Nav</text></g>
+<g id="node-OA-Cro"><rect x="200" y="650" width="150" height="80" rx="8" ry="8" fill="#FFD966" stroke="#000000" stroke-width="2" />
+<path d="M 10,10 m -8,0 a 8,8 0 1,0 16,0 a 8,8 0 1,0 -16,0" transform="translate(210, 660) scale(1)" fill="none" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path>
+<text x="275" y="682" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="12" fill="#000000">Cross Road</text>
+<text x="345" y="662" text-anchor="end" font-family="Arial, sans-serif" font-size="10" fill="#6C757D">OA-Cro</text></g>
+<g id="node-OA-Pre"><rect x="200" y="370" width="150" height="80" rx="8" ry="8" fill="#FFD966" stroke="#000000" stroke-width="2" />
+<path d="M 10,10 m -8,0 a 8,8 0 1,0 16,0 a 8,8 0 1,0 -16,0" transform="translate(210, 380) scale(1)" fill="none" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path>
+<text x="275" y="402" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="12" fill="#000000">Present Hazards</text>
+<text x="345" y="382" text-anchor="end" font-family="Arial, sans-serif" font-size="10" fill="#6C757D">OA-Pre</text></g>
+<g id="node-OA-Det"><rect x="200" y="230" width="150" height="80" rx="8" ry="8" fill="#FFD966" stroke="#000000" stroke-width="2" />
+<path d="M 10,10 m -8,0 a 8,8 0 1,0 16,0 a 8,8 0 1,0 -16,0" transform="translate(210, 240) scale(1)" fill="none" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path>
+<text x="275" y="254" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="12" fill="#000000">Detect Collision</text>
+<text x="275" y="270" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="12" fill="#000000">Risk</text>
+<text x="345" y="242" text-anchor="end" font-family="Arial, sans-serif" font-size="10" fill="#6C757D">OA-Det</text></g>
+<g id="node-OA-Ale"><rect x="200" y="350" width="150" height="80" rx="8" ry="8" fill="#FFD966" stroke="#000000" stroke-width="2" />
+<path d="M 10,10 m -8,0 a 8,8 0 1,0 16,0 a 8,8 0 1,0 -16,0" transform="translate(210, 360) scale(1)" fill="none" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path>
+<text x="275" y="382" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="12" fill="#000000">Alert Driver</text>
+<text x="345" y="362" text-anchor="end" font-family="Arial, sans-serif" font-size="10" fill="#6C757D">OA-Ale</text></g>
+<g id="node-OA-App"><rect x="200" y="470" width="150" height="80" rx="8" ry="8" fill="#FFD966" stroke="#000000" stroke-width="2" />
+<path d="M 10,10 m -8,0 a 8,8 0 1,0 16,0 a 8,8 0 1,0 -16,0" transform="translate(210, 480) scale(1)" fill="none" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path>
+<text x="275" y="494" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="12" fill="#000000">Apply Emergency</text>
+<text x="275" y="510" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="12" fill="#000000">Brake</text>
+<text x="345" y="482" text-anchor="end" font-family="Arial, sans-serif" font-size="10" fill="#6C757D">OA-App</text></g>
+<text x="20" y="30" font-family="Arial, sans-serif" font-size="18" font-weight="bold" fill="#212529">Emergency Braking Operational Context</text>
+</svg>

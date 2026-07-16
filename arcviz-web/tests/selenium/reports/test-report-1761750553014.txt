@@ -1,0 +1,171 @@
+
+================================================================================
+  SELENIUM TEST REPORT - ArcViz Platform
+================================================================================
+
+Total Tests: 31
+✓ Passed: 0
+✗ Failed: 31
+⊘ Skipped: 0
+Duration: 23.55s
+
+================================================================================
+Test Results:
+================================================================================
+
+1. ✗ Auth: Register new user (1.66s)
+   Error: unknown error: net::ERR_CONNECTION_REFUSED
+  (Session info: chrome=141.0.7390.123)
+   Screenshot: /Users/malek/arclang/arcviz-web/tests/selenium/screenshots/auth-Register-new-user-failed-1761750531186.png
+
+2. ✗ Auth: Login with valid credentials (0.65s)
+   Error: unknown error: net::ERR_CONNECTION_REFUSED
+  (Session info: chrome=141.0.7390.123)
+   Screenshot: /Users/malek/arclang/arcviz-web/tests/selenium/screenshots/auth-Login-with-valid-credentials-failed-1761750531942.png
+
+3. ✗ Auth: Login with invalid credentials (0.60s)
+   Error: unknown error: net::ERR_CONNECTION_REFUSED
+  (Session info: chrome=141.0.7390.123)
+   Screenshot: /Users/malek/arclang/arcviz-web/tests/selenium/screenshots/auth-Login-with-invalid-credentials-failed-1761750532642.png
+
+4. ✗ Auth: Logout (0.65s)
+   Error: unknown error: net::ERR_CONNECTION_REFUSED
+  (Session info: chrome=141.0.7390.123)
+   Screenshot: /Users/malek/arclang/arcviz-web/tests/selenium/screenshots/auth-Logout-failed-1761750533400.png
+
+5. ✗ Editor: Open editor and load interface (0.64s)
+   Error: unknown error: net::ERR_CONNECTION_REFUSED
+  (Session info: chrome=141.0.7390.123)
+   Screenshot: /Users/malek/arclang/arcviz-web/tests/selenium/screenshots/editor-Open-editor-and-load-interface-failed-1761750534149.png
+
+6. ✗ Editor: Write ArcLang code in editor (0.61s)
+   Error: unknown error: net::ERR_CONNECTION_REFUSED
+  (Session info: chrome=141.0.7390.123)
+   Screenshot: /Users/malek/arclang/arcviz-web/tests/selenium/screenshots/editor-Write-ArcLang-code-in-editor-failed-1761750534866.png
+
+7. ✗ Editor: Save code to localStorage (0.66s)
+   Error: unknown error: net::ERR_CONNECTION_REFUSED
+  (Session info: chrome=141.0.7390.123)
+   Screenshot: /Users/malek/arclang/arcviz-web/tests/selenium/screenshots/editor-Save-code-to-localStorage-failed-1761750535633.png
+
+8. ✗ Editor: Load saved code (0.60s)
+   Error: unknown error: net::ERR_CONNECTION_REFUSED
+  (Session info: chrome=141.0.7390.123)
+   Screenshot: /Users/malek/arclang/arcviz-web/tests/selenium/screenshots/editor-Load-saved-code-failed-1761750536325.png
+
+9. ✗ Editor: Navigate to visualizer (0.62s)
+   Error: unknown error: net::ERR_CONNECTION_REFUSED
+  (Session info: chrome=141.0.7390.123)
+   Screenshot: /Users/malek/arclang/arcviz-web/tests/selenium/screenshots/editor-Navigate-to-visualizer-failed-1761750537041.png
+
+10. ✗ Visualizer: Load visualizer page (0.59s)
+   Error: unknown error: net::ERR_CONNECTION_REFUSED
+  (Session info: chrome=141.0.7390.123)
+   Screenshot: /Users/malek/arclang/arcviz-web/tests/selenium/screenshots/visualizer-Load-visualizer-page-failed-1761750537733.png
+
+11. ✗ Visualizer: Check available diagram types (0.64s)
+   Error: unknown error: net::ERR_CONNECTION_REFUSED
+  (Session info: chrome=141.0.7390.123)
+   Screenshot: /Users/malek/arclang/arcviz-web/tests/selenium/screenshots/visualizer-Check-available-diagram-types-failed-1761750538476.png
+
+12. ✗ Visualizer: Generate operational diagram (0.63s)
+   Error: unknown error: net::ERR_CONNECTION_REFUSED
+  (Session info: chrome=141.0.7390.123)
+   Screenshot: /Users/malek/arclang/arcviz-web/tests/selenium/screenshots/visualizer-Generate-operational-diagram-failed-1761750539207.png
+
+13. ✗ Visualizer: Generate functional diagram (0.59s)
+   Error: unknown error: net::ERR_CONNECTION_REFUSED
+  (Session info: chrome=141.0.7390.123)
+   Screenshot: /Users/malek/arclang/arcviz-web/tests/selenium/screenshots/visualizer-Generate-functional-diagram-failed-1761750539899.png
+
+14. ✗ Visualizer: Export diagram as SVG (0.65s)
+   Error: unknown error: net::ERR_CONNECTION_REFUSED
+  (Session info: chrome=141.0.7390.123)
+   Screenshot: /Users/malek/arclang/arcviz-web/tests/selenium/screenshots/visualizer-Export-diagram-as-SVG-failed-1761750540657.png
+
+15. ✗ Chat: Open chat interface (0.61s)
+   Error: unknown error: net::ERR_CONNECTION_REFUSED
+  (Session info: chrome=141.0.7390.123)
+   Screenshot: /Users/malek/arclang/arcviz-web/tests/selenium/screenshots/chat-Open-chat-interface-failed-1761750541366.png
+
+16. ✗ Chat: Send message to AI (0.61s)
+   Error: unknown error: net::ERR_CONNECTION_REFUSED
+  (Session info: chrome=141.0.7390.123)
+   Screenshot: /Users/malek/arclang/arcviz-web/tests/selenium/screenshots/chat-Send-message-to-AI-failed-1761750542081.png
+
+17. ✗ Chat: Receive AI response (0.59s)
+   Error: unknown error: net::ERR_CONNECTION_REFUSED
+  (Session info: chrome=141.0.7390.123)
+   Screenshot: /Users/malek/arclang/arcviz-web/tests/selenium/screenshots/chat-Receive-AI-response-failed-1761750542774.png
+
+18. ✗ Chat: Test generate diagram action (0.62s)
+   Error: unknown error: net::ERR_CONNECTION_REFUSED
+  (Session info: chrome=141.0.7390.123)
+   Screenshot: /Users/malek/arclang/arcviz-web/tests/selenium/screenshots/chat-Test-generate-diagram-action-failed-1761750543499.png
+
+19. ✗ Chat: Test code insertion action (0.65s)
+   Error: unknown error: net::ERR_CONNECTION_REFUSED
+  (Session info: chrome=141.0.7390.123)
+   Screenshot: /Users/malek/arclang/arcviz-web/tests/selenium/screenshots/chat-Test-code-insertion-action-failed-1761750544249.png
+
+20. ✗ Chat: Close chat interface (0.60s)
+   Error: unknown error: net::ERR_CONNECTION_REFUSED
+  (Session info: chrome=141.0.7390.123)
+   Screenshot: /Users/malek/arclang/arcviz-web/tests/selenium/screenshots/chat-Close-chat-interface-failed-1761750544958.png
+
+21. ✗ 7D Visualizer: Enable 7D view (0.64s)
+   Error: unknown error: net::ERR_CONNECTION_REFUSED
+  (Session info: chrome=141.0.7390.123)
+   Screenshot: /Users/malek/arclang/arcviz-web/tests/selenium/screenshots/7d-Enable-7D-view-failed-1761750545707.png
+
+22. ✗ 7D Visualizer: Navigate to Operational dimension (0.61s)
+   Error: unknown error: net::ERR_CONNECTION_REFUSED
+  (Session info: chrome=141.0.7390.123)
+   Screenshot: /Users/malek/arclang/arcviz-web/tests/selenium/screenshots/7d-Navigate-to-Operational-dimension-failed-1761750546416.png
+
+23. ✗ 7D Visualizer: Navigate to System dimension (0.62s)
+   Error: unknown error: net::ERR_CONNECTION_REFUSED
+  (Session info: chrome=141.0.7390.123)
+   Screenshot: /Users/malek/arclang/arcviz-web/tests/selenium/screenshots/7d-Navigate-to-System-dimension-failed-1761750547141.png
+
+24. ✗ 7D Visualizer: Navigate to Logical dimension (0.60s)
+   Error: unknown error: net::ERR_CONNECTION_REFUSED
+  (Session info: chrome=141.0.7390.123)
+   Screenshot: /Users/malek/arclang/arcviz-web/tests/selenium/screenshots/7d-Navigate-to-Logical-dimension-failed-1761750547840.png
+
+25. ✗ 7D Visualizer: Navigate to Physical dimension (0.63s)
+   Error: unknown error: net::ERR_CONNECTION_REFUSED
+  (Session info: chrome=141.0.7390.123)
+   Screenshot: /Users/malek/arclang/arcviz-web/tests/selenium/screenshots/7d-Navigate-to-Physical-dimension-failed-1761750548574.png
+
+26. ✗ 7D Visualizer: Navigate to EPBS dimension (0.64s)
+   Error: unknown error: net::ERR_CONNECTION_REFUSED
+  (Session info: chrome=141.0.7390.123)
+   Screenshot: /Users/malek/arclang/arcviz-web/tests/selenium/screenshots/7d-Navigate-to-EPBS-dimension-failed-1761750549315.png
+
+27. ✗ 7D Visualizer: Navigate to Requirements dimension (0.64s)
+   Error: unknown error: net::ERR_CONNECTION_REFUSED
+  (Session info: chrome=141.0.7390.123)
+   Screenshot: /Users/malek/arclang/arcviz-web/tests/selenium/screenshots/7d-Navigate-to-Requirements-dimension-failed-1761750550065.png
+
+28. ✗ 7D Visualizer: Navigate to Cross-cutting dimension (0.60s)
+   Error: unknown error: net::ERR_CONNECTION_REFUSED
+  (Session info: chrome=141.0.7390.123)
+   Screenshot: /Users/malek/arclang/arcviz-web/tests/selenium/screenshots/7d-Navigate-to-Cross-cutting-dimension-failed-1761750550765.png
+
+29. ✗ 7D Visualizer: Test SVG rendering (0.65s)
+   Error: unknown error: net::ERR_CONNECTION_REFUSED
+  (Session info: chrome=141.0.7390.123)
+   Screenshot: /Users/malek/arclang/arcviz-web/tests/selenium/screenshots/7d-Test-SVG-rendering-failed-1761750551508.png
+
+30. ✗ 7D Visualizer: Test node interaction (0.66s)
+   Error: unknown error: net::ERR_CONNECTION_REFUSED
+  (Session info: chrome=141.0.7390.123)
+   Screenshot: /Users/malek/arclang/arcviz-web/tests/selenium/screenshots/7d-Test-node-interaction-failed-1761750552274.png
+
+31. ✗ 7D Visualizer: Disable 7D view (0.58s)
+   Error: unknown error: net::ERR_CONNECTION_REFUSED
+  (Session info: chrome=141.0.7390.123)
+   Screenshot: /Users/malek/arclang/arcviz-web/tests/selenium/screenshots/7d-Disable-7D-view-failed-1761750552958.png
+
+================================================================================

@@ -3,7 +3,7 @@ pub mod repl;
 pub mod language_server;
 
 use clap::{Parser, Subcommand};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 #[derive(Parser)]
 #[clap(name = "arclang")]
@@ -134,6 +134,11 @@ pub enum Commands {
         
         #[clap(long)]
         report: bool,
+    },
+    
+    Serve {
+        #[clap(long, default_value = "5001")]
+        port: u16,
     },
     
     Lsp {
@@ -287,6 +292,10 @@ pub enum ExportFormat {
     ArcVizUltimate,
     ArcVizEnhanced,
     ArcVizElk,
+    ArcVizElkAdvanced,
+    ArcVizDagre,
+    ArcVizHybrid,
+    ArcVizElkComplete,
     ArcVizSmartLegacy,
     ArcVizChannelLegacy,
     ArcVizPerfectLegacy,
@@ -320,6 +329,17 @@ pub enum DiagramFormat {
     PlantUML,
     Graphviz,
     SVG,
+    Operational,
+    Functional,
+    Sequence,
+    StateMachine,
+    Component,
+    Physical,
+    Class,
+    Tree,
+    Capability,
+    FunctionalChain,
+    All,
 }
 
 pub struct CliRunner {
@@ -366,6 +386,9 @@ impl CliRunner {
             }
             Commands::Safety { input, standard, fmea, fta, report } => {
                 self.run_safety(input, standard, fmea, fta, report)
+            }
+            Commands::Serve { port } => {
+                self.run_serve(port)
             }
             Commands::Lsp { stdio, port } => {
                 self.run_lsp(stdio, port)
@@ -612,6 +635,10 @@ impl CliRunner {
             ExportFormat::ArcVizUltimate => "json".to_string(),
             ExportFormat::ArcVizEnhanced => "json".to_string(),
             ExportFormat::ArcVizElk => "json".to_string(),
+            ExportFormat::ArcVizElkAdvanced => "json".to_string(),
+            ExportFormat::ArcVizDagre => "json".to_string(),
+            ExportFormat::ArcVizHybrid => "json".to_string(),
+            ExportFormat::ArcVizElkComplete => "json".to_string(),
             ExportFormat::ArcVizSmartLegacy => "json".to_string(),
             ExportFormat::ArcVizChannelLegacy => "json".to_string(),
             ExportFormat::ArcVizPerfectLegacy => "json".to_string(),
@@ -620,10 +647,6 @@ impl CliRunner {
             ExportFormat::PDF => "json".to_string(),
             ExportFormat::YAML => "json".to_string(),
             ExportFormat::Terraform => "terraform".to_string(),
-            _ => {
-                println!("⚠ Format {:?} not yet implemented", format);
-                return Err(CliError::Config(format!("Export format {:?} not supported yet", format)));
-            }
         };
         
         let mut compiler = crate::Compiler::new(config);
@@ -631,6 +654,11 @@ impl CliRunner {
         match compiler.compile_file(&input) {
             Ok(result) => {
                 let output_content = match format {
+                    ExportFormat::JSON => {
+                        // Export the raw AST model as JSON for diagram rendering
+                        result.ast.to_json()
+                            .map_err(|e| CliError::Compilation(format!("JSON export failed: {}", e)))?
+                    }
                     ExportFormat::Mermaid => {
                         use crate::compiler::mermaid_generator::generate_mermaid_flowchart;
                         generate_mermaid_flowchart(&result.semantic_model, "System Requirements", "elk")
@@ -700,10 +728,61 @@ impl CliRunner {
                         generate_elk_static_svg(&result.semantic_model, "System Architecture")
                             .map_err(|e| CliError::Compilation(e.to_string()))?
                     }
+                    ExportFormat::ArcVizElkAdvanced => {
+                        use crate::compiler::elk_json_generator::ELKJsonGenerator;
+                        use crate::compiler::elk_html_template::generate_elk_html;
+                        
+                        let generator = ELKJsonGenerator::new();
+                        let elk_json = generator.generate(&result.semantic_model);
+                        let elk_json_str = serde_json::to_string_pretty(&elk_json)
+                            .map_err(|e| CliError::Compilation(format!("ELK JSON serialization failed: {}", e)))?;
+                        
+                        generate_elk_html(&elk_json_str, "ArcLang Architecture - Advanced ELK")
+                    }
+                    ExportFormat::ArcVizDagre => {
+                        use crate::compiler::dagre_json_generator::DagreJsonGenerator;
+                        use crate::compiler::dagre_html_template::generate_dagre_html;
+                        
+                        let generator = DagreJsonGenerator::new();
+                        let dagre_json = generator.generate(&result.semantic_model);
+                        let dagre_json_str = serde_json::to_string_pretty(&dagre_json)
+                            .map_err(|e| CliError::Compilation(format!("Dagre JSON serialization failed: {}", e)))?;
+                        
+                        generate_dagre_html(&dagre_json_str, "ArcLang Architecture - Dagre")
+                    }
+                    ExportFormat::ArcVizHybrid => {
+                        use crate::compiler::elk_dagre_hybrid::ElkDagreHybridGenerator;
+                        use crate::compiler::elk_dagre_hybrid_template::generate_elk_dagre_hybrid_html;
+                        
+                        let generator = ElkDagreHybridGenerator::new();
+                        let hybrid_json = generator.generate(&result.semantic_model);
+                        let hybrid_json_str = serde_json::to_string_pretty(&hybrid_json)
+                            .map_err(|e| CliError::Compilation(format!("Hybrid JSON serialization failed: {}", e)))?;
+                        
+                        generate_elk_dagre_hybrid_html(&hybrid_json_str, "ArcLang Architecture - Hybrid (Dagre + ELK)")
+                    }
+                    ExportFormat::ArcVizElkComplete => {
+                        use crate::compiler::elk_dagre_hybrid::ElkDagreHybridGenerator;
+                        use crate::compiler::elk_complete_template::generate_elk_complete_html;
+                        
+                        // Use Dagre+ELK hybrid for optimal results
+                        let generator = ElkDagreHybridGenerator::new();
+                        let hybrid_json = generator.generate(&result.semantic_model);
+                        let hybrid_json_str = serde_json::to_string_pretty(&hybrid_json)
+                            .map_err(|e| CliError::Compilation(format!("ELK Complete JSON serialization failed: {}", e)))?;
+                        
+                        generate_elk_complete_html(&hybrid_json_str, "ArcLang Architecture - ELK Complete (Capella-style)", true)
+                    }
                     ExportFormat::HTML => {
-                        use crate::compiler::arcviz_elk_static::generate_elk_static_svg;
-                        generate_elk_static_svg(&result.semantic_model, "System Architecture")
-                            .map_err(|e| CliError::Compilation(e.to_string()))?
+                        use crate::compiler::elk_json_generator::ELKJsonGenerator;
+                        use crate::compiler::elk_html_template::generate_elk_html;
+                        
+                        let generator = ELKJsonGenerator::new();
+                        let elk_json = generator.generate(&result.semantic_model);
+                        let elk_json_str = serde_json::to_string_pretty(&elk_json)
+                            .map_err(|e| CliError::Compilation(format!("ELK JSON serialization failed: {}", e)))?;
+                        
+                        generate_elk_html(&elk_json_str, "ArcLang Architecture")
                     }
                     ExportFormat::Terraform => {
                         use crate::compiler::terraform_databricks_generator::{generate_terraform_databricks, TerraformConfig};
@@ -830,6 +909,24 @@ impl CliRunner {
         Ok(())
     }
     
+    fn run_serve(&self, port: u16) -> Result<(), CliError> {
+        use colored::Colorize;
+        
+        println!("{}", "🚀 Starting ArcLang Rust Backend Server".bright_cyan().bold());
+        println!("{}", format!("   Port: {}", port).bright_white());
+        println!("{}", format!("   Professional 7D Arcadia Diagrams").bright_green());
+        println!();
+        
+        let runtime = tokio::runtime::Runtime::new()
+            .map_err(|e| CliError::Compilation(format!("Failed to create runtime: {}", e)))?;
+        
+        runtime.block_on(async {
+            crate::web_server::serve(port).await
+        }).map_err(|e| CliError::Compilation(format!("Server error: {}", e)))?;
+        
+        Ok(())
+    }
+    
     fn run_lsp(&self, stdio: bool, port: Option<u16>) -> Result<(), CliError> {
         if stdio {
             self.log("Starting language server (stdio)...");
@@ -943,37 +1040,37 @@ impl CliRunner {
         title: String,
         open: bool,
     ) -> Result<(), CliError> {
-        println!("Generating {:?} diagram from {}...", format, input.display());
+        println!("🎨 Generating {:?} diagram from {}...", format, input.display());
         
         let config = crate::CompilerConfig::default();
         let mut compiler = crate::Compiler::new(config);
         
         match compiler.compile_file(&input) {
             Ok(result) => {
-                use crate::compiler::mermaid_generator::generate_mermaid_flowchart;
-                
-                let diagram = match format {
+                match format {
                     DiagramFormat::Mermaid => {
-                        generate_mermaid_flowchart(&result.semantic_model, &title, "elk")
-                            .map_err(|e| CliError::Compilation(e.to_string()))?
+                        use crate::compiler::mermaid_generator::generate_mermaid_flowchart;
+                        let diagram = generate_mermaid_flowchart(&result.semantic_model, &title, "elk")
+                            .map_err(|e| CliError::Compilation(e.to_string()))?;
+                        
+                        std::fs::write(&output, &diagram)
+                            .map_err(|e| CliError::Io(e))?;
+                        
+                        println!("✓ Mermaid diagram generated");
+                        println!("  Output: {}", output.display());
+                        
+                        if open {
+                            self.open_mermaid_diagram(&output)?;
+                        }
                     }
+                    
+                    DiagramFormat::All => {
+                        self.generate_all_capella_diagrams(&input, &result, &output)?;
+                    }
+                    
                     _ => {
-                        return Err(CliError::Config(format!("Diagram format {:?} not yet supported", format)));
+                        self.generate_capella_diagram(&input, &result, &output, format)?;
                     }
-                };
-                
-                std::fs::write(&output, &diagram)
-                    .map_err(|e| CliError::Io(e))?;
-                
-                println!("✓ Diagram generated successfully");
-                println!("  Input: {}", input.display());
-                println!("  Output: {}", output.display());
-                println!("  Format: {:?}", format);
-                println!("  Title: {}", title);
-                
-                if open {
-                    println!("\n📊 Opening diagram in browser...");
-                    self.open_mermaid_diagram(&output)?;
                 }
                 
                 Ok(())
@@ -983,6 +1080,135 @@ impl CliRunner {
                 Err(CliError::Compilation(e.to_string()))
             }
         }
+    }
+    
+    fn generate_capella_diagram(
+        &self,
+        input: &PathBuf,
+        result: &crate::CompilationResult,
+        output: &PathBuf,
+        format: DiagramFormat,
+    ) -> Result<(), CliError> {
+        // Step 1: Export AST to JSON
+        let json_data = result.ast.to_json()
+            .map_err(|e| CliError::Compilation(format!("JSON export failed: {}", e)))?;
+        
+        let temp_json = std::env::temp_dir().join(format!("arclang_model_{}.json", std::process::id()));
+        std::fs::write(&temp_json, &json_data)
+            .map_err(|e| CliError::Io(e))?;
+        
+        // Step 2: Determine diagram service path
+        let diagram_service_dir = PathBuf::from("/Users/malek/Arclang/arcviz-web/apps/diagram-service");
+        
+        if !diagram_service_dir.exists() {
+            return Err(CliError::Config(
+                "Diagram service not found. Please ensure arcviz-web/apps/diagram-service is installed.".to_string()
+            ));
+        }
+        
+        // Step 3: Call Node.js diagram renderer
+        let diagram_type = match format {
+            DiagramFormat::Operational => "operational",
+            DiagramFormat::Functional => "functional",
+            DiagramFormat::Sequence => "sequence",
+            DiagramFormat::StateMachine => "statemachine",
+            DiagramFormat::Component => "component",
+            DiagramFormat::Physical => "physical",
+            DiagramFormat::Class => "class",
+            DiagramFormat::Tree => "tree",
+            DiagramFormat::Capability => "capability",
+            DiagramFormat::FunctionalChain => "functional-chain",
+            _ => return Err(CliError::Config(format!("Unsupported format: {:?}", format)))
+        };
+        
+        let test_script = format!("test-{}.js", diagram_type);
+        let script_path = diagram_service_dir.join(&test_script);
+        
+        if !script_path.exists() {
+            return Err(CliError::Config(
+                format!("Diagram renderer script not found: {}", test_script)
+            ));
+        }
+        
+        println!("  📊 Rendering {} diagram...", diagram_type);
+        
+        // Convert output to absolute path
+        let abs_output = std::fs::canonicalize(output.parent().unwrap_or_else(|| Path::new(".")))
+            .map_err(|e| CliError::Io(e))?
+            .join(output.file_name().unwrap_or_else(|| std::ffi::OsStr::new("output.svg")));
+        
+        let node_output = std::process::Command::new("node")
+            .current_dir(&diagram_service_dir)
+            .arg(&test_script)
+            .arg(&temp_json)
+            .arg(&abs_output)
+            .output()
+            .map_err(|e| CliError::Io(e))?;
+        
+        // Clean up temp file
+        let _ = std::fs::remove_file(&temp_json);
+        
+        if !node_output.status.success() {
+            let stderr = String::from_utf8_lossy(&node_output.stderr);
+            return Err(CliError::Compilation(format!("Diagram rendering failed: {}", stderr)));
+        }
+        
+        println!("✓ {} diagram generated successfully", diagram_type.to_uppercase());
+        println!("  Input: {}", input.display());
+        println!("  Output: {}", output.display());
+        
+        Ok(())
+    }
+    
+    fn generate_all_capella_diagrams(
+        &self,
+        input: &PathBuf,
+        result: &crate::CompilationResult,
+        base_output: &PathBuf,
+    ) -> Result<(), CliError> {
+        println!("📦 Generating all Capella diagrams...\n");
+        
+        let base_name = base_output.file_stem()
+            .and_then(|s| s.to_str())
+            .unwrap_or("diagram");
+        
+        let output_dir = base_output.parent().unwrap_or_else(|| Path::new("."));
+        
+        let diagram_types = vec![
+            (DiagramFormat::Operational, "operational"),
+            (DiagramFormat::Functional, "functional"),
+            (DiagramFormat::Sequence, "sequence"),
+            (DiagramFormat::StateMachine, "statemachine"),
+            (DiagramFormat::Component, "component"),
+            (DiagramFormat::Physical, "physical"),
+            (DiagramFormat::Class, "class"),
+            (DiagramFormat::Tree, "tree"),
+            (DiagramFormat::Capability, "capability"),
+            (DiagramFormat::FunctionalChain, "functional-chain"),
+        ];
+        
+        let mut success_count = 0;
+        let mut total = diagram_types.len();
+        
+        for (format, name) in diagram_types {
+            let output_path = output_dir.join(format!("{}_{}.svg", base_name, name));
+            
+            match self.generate_capella_diagram(input, result, &output_path, format) {
+                Ok(_) => {
+                    success_count += 1;
+                    println!();
+                }
+                Err(e) => {
+                    eprintln!("⚠ Warning: Failed to generate {} diagram: {}\n", name, e);
+                }
+            }
+        }
+        
+        println!("═══════════════════════════════════════");
+        println!("✓ Generated {}/{} diagrams successfully", success_count, total);
+        println!("  Output directory: {}", output_dir.display());
+        
+        Ok(())
     }
     
     fn open_mermaid_diagram(&self, mermaid_file: &PathBuf) -> Result<(), CliError> {

@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="260" height="580" viewBox="0 0 260 580" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<defs>
+<marker id="arrow-physical" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="10" markerHeight="10" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#FFD700"></path></marker>
+<marker id="arrow-black" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="10" markerHeight="10" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#000000"></path></marker>
+</defs>
+
+<rect x="0" y="0" width="260" height="580" fill="#FFFFFF" stroke="none" />
+<g id="node-PN-ECU_Sensing"><rect x="40" y="240" width="160" height="80" rx="5" ry="5" fill="#FFE699" stroke="#000000" stroke-width="2" />
+<path d="M 40 240 
+                     L 50 230 
+                     L 210 230 
+                     L 200 240 Z" fill="#ffffb8" stroke="#000000" stroke-width="1.5"></path>
+<path d="M 200 240 
+                       L 210 230 
+                       L 210 310 
+                       L 200 320 Z" fill="#ccb87a" stroke="#000000" stroke-width="1.5"></path>
+<text x="120" y="265" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#000000">ECU_Sensing</text>
+<text x="190" y="254" text-anchor="end" font-family="Arial, sans-serif" font-size="10" fill="#495057">PN-ECU_Sensing</text>
+<text x="120" y="305" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" font-style="italic" fill="#495057">«hardware»</text>
+<line x1="50" y1="280" x2="190" y2="280" stroke="#000000" stroke-width="1" stroke-dasharray="3,3" />
+<rect x="55" y="285" width="130" height="35" rx="4" ry="4" fill="#4472C4" stroke="#000000" stroke-width="1.5" opacity="0.9" />
+<text x="120" y="299" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" font-weight="bold" fill="#FFFFFF">Radar_SW</text>
+<text x="180" y="295" text-anchor="end" font-family="Arial, sans-serif" font-size="8" fill="#E8F4F8">BC-001</text>
+<text x="120" y="313" text-anchor="middle" font-family="Arial, sans-serif" font-size="8" font-style="italic" fill="#E8F4F8">DetectObstacle</text></g>
+<g id="node-PN-ECU_Control"><rect x="40" y="440" width="160" height="80" rx="5" ry="5" fill="#FFE699" stroke="#000000" stroke-width="2" />
+<path d="M 40 440 
+                     L 50 430 
+                     L 210 430 
+                     L 200 440 Z" fill="#ffffb8" stroke="#000000" stroke-width="1.5"></path>
+<path d="M 200 440 
+                       L 210 430 
+                       L 210 510 
+                       L 200 520 Z" fill="#ccb87a" stroke="#000000" stroke-width="1.5"></path>
+<text x="120" y="465" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#000000">ECU_Control</text>
+<text x="190" y="454" text-anchor="end" font-family="Arial, sans-serif" font-size="10" fill="#495057">PN-ECU_Control</text>
+<text x="120" y="505" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" font-style="italic" fill="#495057">«hardware»</text>
+<line x1="50" y1="480" x2="190" y2="480" stroke="#000000" stroke-width="1" stroke-dasharray="3,3" />
+<rect x="55" y="485" width="130" height="35" rx="4" ry="4" fill="#70AD47" stroke="#000000" stroke-width="1.5" opacity="0.9" />
+<text x="120" y="499" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" font-weight="bold" fill="#FFFFFF">BrakingControl_SW</text>
+<text x="180" y="495" text-anchor="end" font-family="Arial, sans-serif" font-size="8" fill="#E8F4F8">BC-002</text>
+<text x="120" y="513" text-anchor="middle" font-family="Arial, sans-serif" font-size="8" font-style="italic" fill="#E8F4F8">CalculateBraking</text></g>
+<g id="node-PN-ECU_Actuation"><rect x="40" y="40" width="160" height="80" rx="5" ry="5" fill="#FFE699" stroke="#000000" stroke-width="2" />
+<path d="M 40 40 
+                     L 50 30 
+                     L 210 30 
+                     L 200 40 Z" fill="#ffffb8" stroke="#000000" stroke-width="1.5"></path>
+<path d="M 200 40 
+                       L 210 30 
+                       L 210 110 
+                       L 200 120 Z" fill="#ccb87a" stroke="#000000" stroke-width="1.5"></path>
+<text x="120" y="65" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#000000">ECU_Actuation</text>
+<text x="190" y="54" text-anchor="end" font-family="Arial, sans-serif" font-size="10" fill="#495057">PN-ECU_Actuation</text>
+<text x="120" y="105" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" font-style="italic" fill="#495057">«hardware»</text>
+<line x1="50" y1="80" x2="190" y2="80" stroke="#000000" stroke-width="1" stroke-dasharray="3,3" />
+<rect x="55" y="85" width="130" height="35" rx="4" ry="4" fill="#ED7D31" stroke="#000000" stroke-width="1.5" opacity="0.9" />
+<text x="120" y="99" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" font-weight="bold" fill="#FFFFFF">BrakeActuator_SW</text>
+<text x="180" y="95" text-anchor="end" font-family="Arial, sans-serif" font-size="8" fill="#E8F4F8">BC-003</text>
+<text x="120" y="113" text-anchor="middle" font-family="Arial, sans-serif" font-size="8" font-style="italic" fill="#E8F4F8">ApplyBrakes</text></g>
+<text x="20" y="30" font-family="Arial, sans-serif" font-size="18" font-weight="bold" fill="#212529">Emergency Braking PA</text>
+</svg>

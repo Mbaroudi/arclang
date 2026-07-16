@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="1140" height="360" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<defs>
+<marker id="arrow-black" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="10" markerHeight="10" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#000000"></path></marker>
+<marker id="arrow-blue" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="10" markerHeight="10" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#2E75B6"></path></marker>
+</defs>
+
+<rect x="0" y="0" width="1140" height="360" rx="0" ry="0" fill="#FFFFFF" stroke="none" />
+<g id="swimlane-Passenger"><rect x="0" y="60" width="1140" height="120" rx="5" ry="5" fill="#F8F9FA" stroke="#CED4DA" stroke-width="2" />
+<rect x="0" y="60" width="200" height="120" rx="5" ry="5" fill="#E9ECEF" stroke="#CED4DA" stroke-width="2" />
+<g ><circle cx="100" cy="112" r="12" fill="none" stroke="#2E75B6" stroke-width="2" />
+<line x1="100" y1="124" x2="100" y2="154" stroke="#2E75B6" stroke-width="2" />
+<line x1="82" y1="133" x2="118" y2="133" stroke="#2E75B6" stroke-width="2" />
+<line x1="100" y1="154" x2="85" y2="169" stroke="#2E75B6" stroke-width="2" />
+<line x1="100" y1="154" x2="115" y2="169" stroke="#2E75B6" stroke-width="2" /></g>
+<text x="100" y="170" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#212529">Passenger</text></g>
+<g id="swimlane-Cabin Crew"><rect x="0" y="200" width="1140" height="120" rx="5" ry="5" fill="#F8F9FA" stroke="#CED4DA" stroke-width="2" />
+<rect x="0" y="200" width="200" height="120" rx="5" ry="5" fill="#E9ECEF" stroke="#CED4DA" stroke-width="2" />
+<g ><circle cx="100" cy="252" r="12" fill="none" stroke="#2E75B6" stroke-width="2" />
+<line x1="100" y1="264" x2="100" y2="294" stroke="#2E75B6" stroke-width="2" />
+<line x1="82" y1="273" x2="118" y2="273" stroke="#2E75B6" stroke-width="2" />
+<line x1="100" y1="294" x2="85" y2="309" stroke="#2E75B6" stroke-width="2" />
+<line x1="100" y1="294" x2="115" y2="309" stroke="#2E75B6" stroke-width="2" /></g>
+<text x="100" y="310" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#212529">Cabin Crew</text></g>
+<g id="edge-OA-001-OA-002"><path d="M 600 130 L 640 130 Q 650 130, NaN NaN L NaN NaN Q 650 130, 660 130 L 700 130" fill="none" stroke="#000000" stroke-width="2" marker-end="url(#arrow-black)"></path>
+<rect x="604" y="120" width="92" height="20" rx="3" ry="3" fill="#FFFFFF" stroke="#CED4DA" stroke-width="1" />
+<text x="650" y="130" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="11" fill="#495057">Audio Choice</text></g>
+<g id="edge-OA-001-OA-003"><path d="M 600 130 L 640 130 Q 650 130, 650 140 L 650 240 Q 650 250, 660 250 L 700 250" fill="none" stroke="#000000" stroke-width="2" marker-end="url(#arrow-black)"></path>
+<rect x="604" y="240" width="92" height="20" rx="3" ry="3" fill="#FFFFFF" stroke="#CED4DA" stroke-width="1" />
+<text x="650" y="250" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="11" fill="#495057">Video Choice</text></g>
+<g id="edge-OA-004-OA-001"><path d="M 350 270 L 390 270 Q 400 270, 400 260 L 400 140 Q 400 130, 410 130 L 450 130" fill="none" stroke="#000000" stroke-width="2" marker-end="url(#arrow-black)"></path>
+<rect x="350.5" y="120" width="99" height="20" rx="3" ry="3" fill="#FFFFFF" stroke="#CED4DA" stroke-width="1" />
+<text x="400" y="130" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="11" fill="#495057">Configuration</text></g>
+<g id="edge-OA-002-OA-005"><path d="M 850 130 L 890 130 Q 900 130, 900 140 L 900 260 Q 900 270, 910 270 L 950 270" fill="none" stroke="#000000" stroke-width="2" marker-end="url(#arrow-black)"></path>
+<rect x="857.5" y="260" width="85" height="20" rx="3" ry="3" fill="#FFFFFF" stroke="#CED4DA" stroke-width="1" />
+<text x="900" y="270" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="11" fill="#495057">Audio Stats</text></g>
+<g id="edge-OA-003-OA-005"><path d="M 850 250 L 890 250 Q 900 250, 900 260 L 900 260 Q 900 270, 910 270 L 950 270" fill="none" stroke="#000000" stroke-width="2" marker-end="url(#arrow-black)"></path>
+<rect x="857.5" y="260" width="85" height="20" rx="3" ry="3" fill="#FFFFFF" stroke="#CED4DA" stroke-width="1" />
+<text x="900" y="270" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="11" fill="#495057">Video Stats</text></g>
+<g id="node-OA-001"><rect x="450" y="90" width="150" height="80" rx="8" ry="8" fill="#FFD966" stroke="#000000" stroke-width="2" />
+<path d="M 10,10 m -8,0 a 8,8 0 1,0 16,0 a 8,8 0 1,0 -16,0" transform="translate(460, 100) scale(1)" fill="none" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path>
+<text x="525" y="114" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="12" fill="#000000">Select</text>
+<text x="525" y="130" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="12" fill="#000000">Entertainment</text>
+<text x="595" y="102" text-anchor="end" font-family="Arial, sans-serif" font-size="10" fill="#6C757D">OA-001</text></g>
+<g id="node-OA-002"><rect x="700" y="90" width="150" height="80" rx="8" ry="8" fill="#FFD966" stroke="#000000" stroke-width="2" />
+<path d="M 5,8 C 5,4 8,2 10,2 C 12,2 15,4 15,8 M 5,8 L 5,14 M 15,8 L 15,14" transform="translate(710, 100) scale(1)" fill="none" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path>
+<text x="775" y="122" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="12" fill="#000000">Listen to Audio</text>
+<text x="845" y="102" text-anchor="end" font-family="Arial, sans-serif" font-size="10" fill="#6C757D">OA-002</text></g>
+<g id="node-OA-003"><rect x="700" y="210" width="150" height="80" rx="8" ry="8" fill="#FFD966" stroke="#000000" stroke-width="2" />
+<path d="M 4,6 L 16,6 L 16,14 L 4,14 Z M 8,10 L 12,8 L 12,12 Z" transform="translate(710, 220) scale(1)" fill="none" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path>
+<text x="775" y="242" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="12" fill="#000000">Watch Video</text>
+<text x="845" y="222" text-anchor="end" font-family="Arial, sans-serif" font-size="10" fill="#6C757D">OA-003</text></g>
+<g id="node-OA-004"><rect x="200" y="230" width="150" height="80" rx="8" ry="8" fill="#FFD966" stroke="#000000" stroke-width="2" />
+<path d="M 6,6 L 14,6 L 14,14 L 6,14 Z" transform="translate(210, 240) scale(1)" fill="none" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path>
+<text x="275" y="262" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="12" fill="#000000">Configure System</text>
+<text x="345" y="242" text-anchor="end" font-family="Arial, sans-serif" font-size="10" fill="#6C757D">OA-004</text></g>
+<g id="node-OA-005"><rect x="950" y="230" width="150" height="80" rx="8" ry="8" fill="#FFD966" stroke="#000000" stroke-width="2" />
+<path d="M 6,6 L 14,6 L 14,14 L 6,14 Z" transform="translate(960, 240) scale(1)" fill="none" stroke="#000000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"></path>
+<text x="1025" y="262" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="12" fill="#000000">Monitor Usage</text>
+<text x="1095" y="242" text-anchor="end" font-family="Arial, sans-serif" font-size="10" fill="#6C757D">OA-005</text></g>
+<text x="20" y="30" font-family="Arial, sans-serif" font-size="18" font-weight="bold" fill="#212529">In-Flight Entertainment Operations</text>
+</svg>

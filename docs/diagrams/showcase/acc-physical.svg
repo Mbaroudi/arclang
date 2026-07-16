@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="1330" height="440" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<defs>
+<marker id="arrow-physical" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="10" markerHeight="10" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#FFE699"></path></marker>
+<marker id="arrow-black" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="10" markerHeight="10" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#000000"></path></marker>
+</defs>
+
+<rect x="0" y="0" width="1330" height="440" fill="#FFFFFF" stroke="none" />
+<g id="link-0"><path d="M 190 106 L 550 106" fill="none" stroke="#000000" stroke-width="3" marker-end="url(#arrow-black)"></path>
+<rect x="520" y="86" width="60" height="18" fill="#FFFACD" stroke="#000000" stroke-width="1" rx="3" ry="3" />
+<text x="550" y="96" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" font-weight="bold" fill="#000000">CAN Bus</text>
+<text x="550" y="111" text-anchor="middle" font-family="Arial, sans-serif" font-size="8" font-style="italic" fill="#666666">1 Mbps</text></g>
+<g id="link-1"><path d="M 700 93 L 1060 93" fill="none" stroke="#000000" stroke-width="3" marker-end="url(#arrow-black)"></path>
+<rect x="1030" y="73" width="60" height="18" fill="#FFFACD" stroke="#000000" stroke-width="1" rx="3" ry="3" />
+<text x="1060" y="83" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" font-weight="bold" fill="#000000">Ethernet</text>
+<text x="1060" y="98" text-anchor="middle" font-family="Arial, sans-serif" font-size="8" font-style="italic" fill="#666666">100 Mbps</text></g>
+<g id="link-2"><path d="M 700 113 L 890 113 L 890 280 L 1060 280" fill="none" stroke="#000000" stroke-width="3" marker-end="url(#arrow-black)"></path>
+<rect x="860" y="260" width="60" height="18" fill="#FFFACD" stroke="#000000" stroke-width="1" rx="3" ry="3" />
+<text x="890" y="270" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" font-weight="bold" fill="#000000">UART</text>
+<text x="890" y="285" text-anchor="middle" font-family="Arial, sans-serif" font-size="8" font-style="italic" fill="#666666">115.2 Kbps</text></g>
+<g id="exchange-0"><path d="M 190 80 L 550 80" fill="none" stroke="#000000" stroke-width="3" marker-end="url(#arrow-black)"></path>
+<rect x="517" y="60" width="66" height="18" fill="#FFFACD" stroke="#000000" stroke-width="1" rx="3" ry="3" />
+<text x="550" y="70" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" font-weight="bold" fill="#000000">Sensor Data</text></g>
+<g id="exchange-1"><path d="M 700 73 L 710 73 L 710 67 L 1060 67" fill="none" stroke="#000000" stroke-width="3" marker-end="url(#arrow-black)"></path>
+<rect x="662" y="47" width="96" height="18" fill="#FFFACD" stroke="#000000" stroke-width="1" rx="3" ry="3" />
+<text x="710" y="57" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" font-weight="bold" fill="#000000">Display Commands</text></g>
+<g id="node-PN-001"><rect x="550" y="53" width="150" height="80" rx="5" ry="5" fill="#C0C0C0" stroke="#000000" stroke-width="2" />
+<path d="M 550 53 
+                     L 560 43 
+                     L 710 43 
+                     L 700 53 Z" fill="#e6e6e6" stroke="#000000" stroke-width="1.5"></path>
+<path d="M 700 53 
+                       L 710 43 
+                       L 710 123 
+                       L 700 133 Z" fill="#9a9a9a" stroke="#000000" stroke-width="1.5"></path>
+<text x="625" y="78" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#000000">Flight Computer</text>
+<text x="690" y="67" text-anchor="end" font-family="Arial, sans-serif" font-size="10" fill="#495057">PN-001</text>
+<text x="625" y="118" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" font-style="italic" fill="#495057">«hardware»</text>
+<line x1="560" y1="93" x2="690" y2="93" stroke="#000000" stroke-width="1" stroke-dasharray="3,3" />
+<text x="625" y="98" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" fill="#495057">◈ Flight Control Software</text>
+<text x="625" y="110" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" fill="#495057">◈ Navigation Software</text></g>
+<g id="node-PN-002"><rect x="40" y="53" width="150" height="80" rx="5" ry="5" fill="#C0C0C0" stroke="#000000" stroke-width="2" />
+<path d="M 40 53 
+                     L 50 43 
+                     L 200 43 
+                     L 190 53 Z" fill="#e6e6e6" stroke="#000000" stroke-width="1.5"></path>
+<path d="M 190 53 
+                       L 200 43 
+                       L 200 123 
+                       L 190 133 Z" fill="#9a9a9a" stroke="#000000" stroke-width="1.5"></path>
+<text x="115" y="78" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#000000">Sensor Array</text>
+<text x="180" y="67" text-anchor="end" font-family="Arial, sans-serif" font-size="10" fill="#495057">PN-002</text>
+<text x="115" y="118" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" font-style="italic" fill="#495057">«hardware»</text>
+<line x1="50" y1="93" x2="180" y2="93" stroke="#000000" stroke-width="1" stroke-dasharray="3,3" />
+<text x="115" y="98" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" fill="#495057">◈ Sensor Fusion</text>
+<text x="115" y="110" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" fill="#495057">◈ IMU</text>
+<text x="115" y="122" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" fill="#495057">◈ Altimeter</text></g>
+<g id="node-PN-003"><rect x="1060" y="40" width="150" height="80" rx="5" ry="5" fill="#FFE699" stroke="#000000" stroke-width="2" />
+<path d="M 1060 40 
+                     L 1070 30 
+                     L 1220 30 
+                     L 1210 40 Z" fill="#ffffb8" stroke="#000000" stroke-width="1.5"></path>
+<path d="M 1210 40 
+                       L 1220 30 
+                       L 1220 110 
+                       L 1210 120 Z" fill="#ccb87a" stroke="#000000" stroke-width="1.5"></path>
+<text x="1135" y="65" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#000000">Display Unit</text>
+<text x="1200" y="54" text-anchor="end" font-family="Arial, sans-serif" font-size="10" fill="#495057">PN-003</text>
+<text x="1135" y="105" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" font-style="italic" fill="#495057">«hardware»</text>
+<line x1="1070" y1="80" x2="1200" y2="80" stroke="#000000" stroke-width="1" stroke-dasharray="3,3" />
+<text x="1135" y="85" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" fill="#495057">◈ HMI Software</text>
+<text x="1135" y="97" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" fill="#495057">◈ Touchscreen</text></g>
+<g id="node-PN-004"><rect x="1060" y="240" width="150" height="80" rx="5" ry="5" fill="#C0C0C0" stroke="#000000" stroke-width="2" />
+<path d="M 1060 240 
+                     L 1070 230 
+                     L 1220 230 
+                     L 1210 240 Z" fill="#e6e6e6" stroke="#000000" stroke-width="1.5"></path>
+<path d="M 1210 240 
+                       L 1220 230 
+                       L 1220 310 
+                       L 1210 320 Z" fill="#9a9a9a" stroke="#000000" stroke-width="1.5"></path>
+<text x="1135" y="265" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#000000">Communication Module</text>
+<text x="1200" y="254" text-anchor="end" font-family="Arial, sans-serif" font-size="10" fill="#495057">PN-004</text>
+<text x="1135" y="305" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" font-style="italic" fill="#495057">«hardware»</text>
+<line x1="1070" y1="280" x2="1200" y2="280" stroke="#000000" stroke-width="1" stroke-dasharray="3,3" />
+<text x="1135" y="285" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" fill="#495057">◈ Radio Stack</text>
+<text x="1135" y="297" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" fill="#495057">◈ RF Transceiver</text></g>
+<text x="20" y="30" font-family="Arial, sans-serif" font-size="18" font-weight="bold" fill="#212529">Avionics System Physical Architecture</text>
+</svg>

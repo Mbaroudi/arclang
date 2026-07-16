@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="2108" height="420" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<defs>
+<marker id="arrow-black" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="10" markerHeight="10" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#000000"></path></marker>
+<marker id="arrow-green" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="10" markerHeight="10" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#70AD47"></path></marker>
+</defs>
+
+<rect x="0" y="0" width="2108" height="420" rx="0" ry="0" fill="#FFFFFF" stroke="none" />
+<g id="edge-SF-001.light_out-SF-002.light_in"><path d="M 230 90 L 472 90" fill="none" stroke="#000000" stroke-width="2" marker-end="url(#arrow-black)"></path>
+<rect x="419.25" y="80" width="105.5" height="20" rx="3" ry="3" fill="#FFFFFF" stroke="#70AD47" stroke-width="1" />
+<text x="472" y="90" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="11" fill="#2C5F2D" font-weight="bold">Reflected Light</text></g>
+<g id="edge-SF-002.raw_image-SF-003.raw_in"><path d="M 672 90 L 914 90" fill="none" stroke="#000000" stroke-width="2" marker-end="url(#arrow-black)"></path>
+<rect x="880" y="80" width="68" height="20" rx="3" ry="3" fill="#FFFFFF" stroke="#70AD47" stroke-width="1" />
+<text x="914" y="90" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="11" fill="#2C5F2D" font-weight="bold">Raw Image</text></g>
+<g id="edge-SF-003.processed_out-SF-004.processed_in"><path d="M 1114 90 L 1356 90" fill="none" stroke="#000000" stroke-width="2" marker-end="url(#arrow-black)"></path>
+<rect x="1303.25" y="80" width="105.5" height="20" rx="3" ry="3" fill="#FFFFFF" stroke="#70AD47" stroke-width="1" />
+<text x="1356" y="90" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="11" fill="#2C5F2D" font-weight="bold">Processed Image</text></g>
+<g id="edge-SF-004.compressed_out-SF-005.image_in"><path d="M 1556 90 L 1798 90" fill="none" stroke="#000000" stroke-width="2" marker-end="url(#arrow-black)"></path>
+<rect x="1742" y="80" width="112" height="20" rx="3" ry="3" fill="#FFFFFF" stroke="#70AD47" stroke-width="1" />
+<text x="1798" y="90" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="11" fill="#2C5F2D" font-weight="bold">Compressed Image</text></g>
+<g id="node-SF-001"><rect x="40" y="40" width="180" height="100" rx="8" ry="8" fill="#70AD47" stroke="#000000" stroke-width="2" />
+<text x="130" y="70" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#000000">Sense Light</text>
+<text x="215" y="54" text-anchor="end" font-family="Arial, sans-serif" font-size="10" fill="#2C5F2D">SF-001</text>
+<g ><rect x="220" y="85" width="10" height="10" fill="#FFFFFF" stroke="#000000" stroke-width="1.5" />
+<text x="245" y="90" text-anchor="start" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="9" fill="#495057">light_out</text></g></g>
+<g id="node-SF-002"><rect x="482" y="40" width="180" height="100" rx="8" ry="8" fill="#70AD47" stroke="#000000" stroke-width="2" />
+<text x="572" y="70" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#000000">Acquire Image</text>
+<text x="657" y="54" text-anchor="end" font-family="Arial, sans-serif" font-size="10" fill="#2C5F2D">SF-002</text>
+<g ><rect x="472" y="85" width="10" height="10" fill="#FFFFFF" stroke="#000000" stroke-width="1.5" />
+<text x="457" y="90" text-anchor="end" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="9" fill="#495057">light_in</text></g>
+<g ><rect x="662" y="85" width="10" height="10" fill="#FFFFFF" stroke="#000000" stroke-width="1.5" />
+<text x="687" y="90" text-anchor="start" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="9" fill="#495057">raw_image</text></g></g>
+<g id="node-SF-003"><rect x="924" y="40" width="180" height="100" rx="8" ry="8" fill="#70AD47" stroke="#000000" stroke-width="2" />
+<text x="1014" y="70" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#000000">Process Image</text>
+<text x="1099" y="54" text-anchor="end" font-family="Arial, sans-serif" font-size="10" fill="#2C5F2D">SF-003</text>
+<g ><rect x="914" y="85" width="10" height="10" fill="#FFFFFF" stroke="#000000" stroke-width="1.5" />
+<text x="899" y="90" text-anchor="end" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="9" fill="#495057">raw_in</text></g>
+<g ><rect x="1104" y="85" width="10" height="10" fill="#FFFFFF" stroke="#000000" stroke-width="1.5" />
+<text x="1129" y="90" text-anchor="start" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="9" fill="#495057">processed_out</text></g></g>
+<g id="node-SF-004"><rect x="1366" y="40" width="180" height="100" rx="8" ry="8" fill="#70AD47" stroke="#000000" stroke-width="2" />
+<text x="1456" y="70" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#000000">Compress Image</text>
+<text x="1541" y="54" text-anchor="end" font-family="Arial, sans-serif" font-size="10" fill="#2C5F2D">SF-004</text>
+<g ><rect x="1356" y="85" width="10" height="10" fill="#FFFFFF" stroke="#000000" stroke-width="1.5" />
+<text x="1341" y="90" text-anchor="end" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="9" fill="#495057">processed_in</text></g>
+<g ><rect x="1546" y="85" width="10" height="10" fill="#FFFFFF" stroke="#000000" stroke-width="1.5" />
+<text x="1571" y="90" text-anchor="start" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="9" fill="#495057">compressed_out</text></g></g>
+<g id="node-SF-005"><rect x="1808" y="40" width="180" height="100" rx="8" ry="8" fill="#70AD47" stroke="#000000" stroke-width="2" />
+<text x="1898" y="70" text-anchor="middle" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#000000">Display Image</text>
+<text x="1983" y="54" text-anchor="end" font-family="Arial, sans-serif" font-size="10" fill="#2C5F2D">SF-005</text>
+<g ><rect x="1798" y="85" width="10" height="10" fill="#FFFFFF" stroke="#000000" stroke-width="1.5" />
+<text x="1783" y="90" text-anchor="end" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="9" fill="#495057">image_in</text></g></g>
+<g id="node-EA-001"><rect x="75.5" y="220" width="120" height="80" rx="12" ry="12" fill="#2E75B6" stroke="#000000" stroke-width="2" stroke-dasharray="5,5" />
+<text x="135.5" y="260" text-anchor="middle" dominant-baseline="middle" font-family="Arial, sans-serif" font-size="12" font-weight="bold" fill="#FFFFFF">User</text>
+<text x="135.5" y="285" text-anchor="middle" font-family="Arial, sans-serif" font-size="10" font-style="italic" fill="#FFFFFF">«external»</text></g>
+<text x="20" y="30" font-family="Arial, sans-serif" font-size="18" font-weight="bold" fill="#212529">Camera System Functions</text>
+</svg>
