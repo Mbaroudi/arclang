@@ -48,14 +48,23 @@ the long-term goal.
   --matrix`): real coverage numbers, real gap warnings.
 - **MCP server** (`mcp-server/`) exposing compile/validate/trace/export to LLM
   agents, aligned 1:1 with the actual CLI.
+- **Capella round-trip** (`tools/capella_bridge/`): a native Capella 7.0 model
+  converts to compiling ArcLang (UUIDs preserved) and back **byte-identically**;
+  description/requirement edits, component creation and deletion propagate into
+  Capella. Both proven in CI on every push.
+- **JSON API**: `POST /api/compile` on `arclang serve` returns the canonical
+  semantic model (stable uuids included) or a localized structured error —
+  covered by in-process integration tests.
+- **Language server**: `arclang lsp --stdio` (tower-lsp) publishes compiler
+  diagnostics at exact source positions on open/change/save.
 
 ## Explicitly not implemented yet
 
 These commands exist but fail honestly with `Not implemented` instead of
-pretending to work: `lsp`, `repl`, `clean`, `format`, `new`, `sync` (PLM),
-`plugin`, safety FTA/report generation, dependency analysis.
-The Capella importer reads a simplified XML, **not** real `.melodymodeller`
-files — round-trip does not exist yet.
+pretending to work: `repl`, `clean`, `format`, `new`, `sync` (PLM),
+`plugin`, `lsp` TCP mode, safety FTA/report generation, dependency analysis.
+The built-in Rust `import` command reads a simplified XML — real Capella
+round-trip goes through `tools/capella_bridge/` (capellambse).
 
 ## Quick start
 
@@ -140,11 +149,11 @@ This exact example compiles: 1 requirement, 3 components, 2 functions, 1 resolve
 
 | Milestone | Content | Status |
 |---|---|---|
-| **M1 — Honest core** | Strict parser, spans, golden corpus, de-faked CLI | ✅ done (this branch) |
-| **M2 — Stable identity** | Mandatory UUIDs on every element, reference resolution as compile errors, single semantic model | ◻ next |
-| **M3 — Capella round-trip** | Real `.melodymodeller` import/export (via [capellambse](https://github.com/DSD-DBS/py-capellambse) bridge), zero-diff round-trip test in CI | ◻ |
-| **M4 — Programmatic access** | JSON API over the semantic model (axum), MCP as a thin client, LSP (tower-lsp) with diagnostics from spans | ◻ |
-| **M5 — Arcadia semantics** | Allocation rules (function→component), inter-layer consistency checks, SysML v2 interop export | ◻ |
+| **M1 — Honest core** | Strict parser, spans, golden corpus, de-faked CLI | ✅ |
+| **M2 — Stable identity** | Deterministic UUIDs on every element, dangling references as compile errors, single semantic model | ✅ |
+| **M3 — Capella round-trip** | Native Capella import/export via [capellambse](https://github.com/DSD-DBS/py-capellambse) bridge, zero-diff round-trip + editing workflows in CI | ✅ (names/descriptions/requirements; see `tools/capella_bridge/README.md` for scope) |
+| **M4 — Programmatic access** | JSON API over the semantic model (axum), LSP (tower-lsp) with diagnostics from spans | ✅ diagnostics & API (next: go-to-definition, completion, MCP as API client) |
+| **M5 — Arcadia semantics** | Allocation rules (function→component), inter-layer consistency checks, SysML v2 interop export | ◻ next |
 
 ## Repository layout
 

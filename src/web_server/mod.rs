@@ -791,25 +791,30 @@ fn calculate_stats(model: &Arcadia7DModel) -> Arcadia7DStats {
     }
 }
 
-pub async fn serve(port: u16) -> Result<(), Box<dyn std::error::Error>> {
+/// Build the API router (exposed separately so tests can drive it in-process).
+pub fn build_router() -> Router {
     let state = Arc::new(AppState::new());
-    
-    let cors = CorsLayer::new()
-        .allow_origin("http://localhost:3002".parse::<HeaderValue>().unwrap())
-        .allow_methods([axum::http::Method::GET, axum::http::Method::POST, axum::http::Method::OPTIONS])
-        .allow_headers([header::CONTENT_TYPE, header::AUTHORIZATION])
-        .allow_credentials(true);
-    
-    let app = Router::new()
+
+    Router::new()
         .route("/health", get(health_check))
         .route("/api/compile", post(compile_source))
         .route("/api/arcadia-7d/parse", post(parse_arcadia_7d))
         .route("/api/arcadia-7d/layout", post(generate_7d_layout))
         .route("/api/diagrams/generate-professional", post(generate_professional_diagram))
+        .with_state(state)
+}
+
+pub async fn serve(port: u16) -> Result<(), Box<dyn std::error::Error>> {
+    let cors = CorsLayer::new()
+        .allow_origin("http://localhost:3002".parse::<HeaderValue>().unwrap())
+        .allow_methods([axum::http::Method::GET, axum::http::Method::POST, axum::http::Method::OPTIONS])
+        .allow_headers([header::CONTENT_TYPE, header::AUTHORIZATION])
+        .allow_credentials(true);
+
+    let app = build_router()
         .layer(cors)
-        .layer(TraceLayer::new_for_http())
-        .with_state(state);
-    
+        .layer(TraceLayer::new_for_http());
+
     let addr = std::net::SocketAddr::from(([127, 0, 0, 1], port));
     tracing::info!("🚀 ArcLang Rust Backend starting on {}", addr);
     
