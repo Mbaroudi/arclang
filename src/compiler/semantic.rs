@@ -81,6 +81,48 @@ pub struct ElementInfo {
     pub id: String,
     pub name: String,
     pub element_type: String,
+    /// Deterministic stable identity (UUIDv5 of the element id in the
+    /// ArcLang namespace). Same id -> same uuid, everywhere, always.
+    pub uuid: String,
+}
+
+impl ElementInfo {
+    pub fn new(id: impl Into<String>, name: impl Into<String>, element_type: impl Into<String>) -> Self {
+        let id = id.into();
+        let uuid = super::identity::element_uuid("element", &id);
+        Self {
+            id,
+            name: name.into(),
+            element_type: element_type.into(),
+            uuid,
+        }
+    }
+}
+
+impl ComponentInfo {
+    /// Stable identity; consistent with the `all_elements` registry entry.
+    pub fn uuid(&self) -> String {
+        super::identity::element_uuid("element", &self.id)
+    }
+}
+
+impl RequirementInfo {
+    pub fn uuid(&self) -> String {
+        super::identity::element_uuid("element", &self.id)
+    }
+}
+
+impl FunctionInfo {
+    pub fn uuid(&self) -> String {
+        super::identity::element_uuid("element", &self.id)
+    }
+}
+
+impl TraceInfo {
+    /// Stable identity of the trace link itself.
+    pub fn uuid(&self) -> String {
+        super::identity::element_uuid("trace", &format!("{}|{}|{}", self.from, self.trace_type, self.to))
+    }
 }
 
 pub struct SemanticAnalyzer;
@@ -131,11 +173,7 @@ impl SemanticAnalyzer {
                     functions: Vec::new(),
                 });
                 
-                all_elements.insert(actor_id.clone(), ElementInfo {
-                    id: actor_id.clone(),
-                    name: actor.name.clone(),
-                    element_type: "Actor".to_string(),
-                });
+                all_elements.insert(actor_id.clone(), ElementInfo::new(actor_id.clone(), actor.name.clone(), "Actor"));
             }
             
             // Collect traces from operational_analysis
@@ -197,11 +235,7 @@ impl SemanticAnalyzer {
                         outputs,
                     });
                     
-                    all_elements.insert(activity_id.clone(), ElementInfo {
-                        id: activity_id,
-                        name: activity.name.clone(),
-                        element_type: "Activity".to_string(),
-                    });
+                    all_elements.insert(activity_id.clone(), ElementInfo::new(activity_id, activity.name.clone(), "Activity"));
                 }
                 
                 components.push(ComponentInfo {
@@ -216,11 +250,7 @@ impl SemanticAnalyzer {
                     functions: entity_function_ids,
                 });
                 
-                all_elements.insert(entity.id.clone(), ElementInfo {
-                    id: entity.id.clone(),
-                    name: entity.name.clone(),
-                    element_type: "Entity".to_string(),
-                });
+                all_elements.insert(entity.id.clone(), ElementInfo::new(entity.id.clone(), entity.name.clone(), "Entity"));
             }
             
             // Collect operational activities (recursively handle sub-activities)
@@ -255,11 +285,7 @@ impl SemanticAnalyzer {
                     functions: Vec::new(),
                 });
                 
-                all_elements.insert(activity_id.clone(), ElementInfo {
-                    id: activity_id.clone(),
-                    name: activity.name.clone(),
-                    element_type: "OperationalActivity".to_string(),
-                });
+                all_elements.insert(activity_id.clone(), ElementInfo::new(activity_id.clone(), activity.name.clone(), "OperationalActivity"));
                 
                 // Recursively collect sub-activities
                 for sub_activity in &activity.sub_activities {
@@ -310,11 +336,7 @@ impl SemanticAnalyzer {
                     safety_level,
                 });
                 
-                all_elements.insert(req_id.clone(), ElementInfo {
-                    id: req_id.clone(),
-                    name: req_id.clone(),
-                    element_type: "Requirement".to_string(),
-                });
+                all_elements.insert(req_id.clone(), ElementInfo::new(req_id.clone(), req_id.clone(), "Requirement"));
             }
             
             // Collect system components
@@ -349,11 +371,7 @@ impl SemanticAnalyzer {
                     functions: Vec::new(),
                 });
                 
-                all_elements.insert(comp_id.clone(), ElementInfo {
-                    id: comp_id.clone(),
-                    name: comp.name.clone(),
-                    element_type: "SystemComponent".to_string(),
-                });
+                all_elements.insert(comp_id.clone(), ElementInfo::new(comp_id.clone(), comp.name.clone(), "SystemComponent"));
             }
             
             // Collect system functions (recursively handle sub-functions)
@@ -366,11 +384,7 @@ impl SemanticAnalyzer {
                     .map(|s| s.to_string())
                     .unwrap_or_else(|| func.id.clone());
                 
-                all_elements.insert(func_id.clone(), ElementInfo {
-                    id: func_id.clone(),
-                    name: func.name.clone(),
-                    element_type: "SystemFunction".to_string(),
-                });
+                all_elements.insert(func_id.clone(), ElementInfo::new(func_id.clone(), func.name.clone(), "SystemFunction"));
                 
                 // Recursively collect sub-functions
                 for sub_func in &func.sub_functions {
@@ -462,32 +476,28 @@ impl SemanticAnalyzer {
                     functions: comp_functions,
                 });
                 
-                all_elements.insert(comp_id.clone(), ElementInfo {
-                    id: comp_id.clone(),
-                    name: comp.name.clone(),
-                    element_type: "Component".to_string(),
-                });
+                all_elements.insert(comp_id.clone(), ElementInfo::new(comp_id.clone(), comp.name.clone(), "Component"));
                 
                 // Collect interface_in and interface_out from components
                 for interface_def in &comp.interfaces_in {
                     all_elements.insert(
                         format!("{}_{}", comp_id, interface_def.name),
-                        ElementInfo {
-                            id: format!("{}_{}", comp_id, interface_def.name),
-                            name: format!("{} IN", interface_def.name),
-                            element_type: "InterfaceIn".to_string(),
-                        }
+                        ElementInfo::new(
+                            format!("{}_{}", comp_id, interface_def.name),
+                            format!("{} IN", interface_def.name),
+                            "InterfaceIn",
+                        ),
                     );
                 }
-                
+
                 for interface_def in &comp.interfaces_out {
                     all_elements.insert(
                         format!("{}_{}", comp_id, interface_def.name),
-                        ElementInfo {
-                            id: format!("{}_{}", comp_id, interface_def.name),
-                            name: format!("{} OUT", interface_def.name),
-                            element_type: "InterfaceOut".to_string(),
-                        }
+                        ElementInfo::new(
+                            format!("{}_{}", comp_id, interface_def.name),
+                            format!("{} OUT", interface_def.name),
+                            "InterfaceOut",
+                        ),
                     );
                 }
                 
@@ -529,11 +539,7 @@ impl SemanticAnalyzer {
                         outputs,
                     });
                     
-                    all_elements.insert(func_id.clone(), ElementInfo {
-                        id: func_id.clone(),
-                        name: func.name.clone(),
-                        element_type: "Function".to_string(),
-                    });
+                    all_elements.insert(func_id.clone(), ElementInfo::new(func_id.clone(), func.name.clone(), "Function"));
                 }
             }
         }
@@ -576,11 +582,7 @@ impl SemanticAnalyzer {
                     functions: Vec::new(),
                 });
                 
-                all_elements.insert(node_id.clone(), ElementInfo {
-                    id: node_id.clone(),
-                    name: node.name.clone(),
-                    element_type: "Component".to_string(),
-                });
+                all_elements.insert(node_id.clone(), ElementInfo::new(node_id.clone(), node.name.clone(), "Component"));
             }
         }
         
@@ -598,47 +600,78 @@ impl SemanticAnalyzer {
             });
         }
         
-        // Filter traces to only include valid ones (elements that exist)
-        let valid_traces = self.filter_valid_traces(traces, &all_elements);
-        
+        // Resolve trace endpoints. Dangling references are compile errors:
+        // a trace that points at nothing must never be silently dropped.
+        let resolved_traces = Self::resolve_traces(traces, &all_elements)?;
+
         Ok(SemanticModel {
             requirements,
             components,
             functions,
-            traces: valid_traces,
+            traces: resolved_traces,
             interfaces,
             all_elements,
         })
     }
-    
-    fn filter_valid_traces(
-        &self,
+
+    /// Resolve each trace endpoint against the element registry, by id first
+    /// and by (unambiguous) name second, normalizing endpoints to element ids.
+    /// Unresolved or ambiguous references are errors.
+    fn resolve_traces(
         traces: Vec<TraceInfo>,
         elements: &HashMap<String, ElementInfo>,
-    ) -> Vec<TraceInfo> {
-        let initial_count = traces.len();
-        let valid_traces: Vec<TraceInfo> = traces.into_iter()
-            .filter(|trace| {
-                let from_exists = elements.contains_key(&trace.from);
-                let to_exists = elements.contains_key(&trace.to);
-                
-                if !from_exists {
-                    eprintln!("⚠️  Warning: Trace references unknown element '{}' (from), skipping trace", trace.from);
-                }
-                if !to_exists {
-                    eprintln!("⚠️  Warning: Trace references unknown element '{}' (to), skipping trace", trace.to);
-                }
-                
-                from_exists && to_exists
-            })
-            .collect();
-        
-        let filtered_count = initial_count - valid_traces.len();
-        if filtered_count > 0 {
-            eprintln!("⚠️  Filtered out {} invalid trace(s)", filtered_count);
+    ) -> Result<Vec<TraceInfo>, String> {
+        // Name index: name -> ids (a name may be ambiguous)
+        let mut by_name: HashMap<&str, Vec<&str>> = HashMap::new();
+        for element in elements.values() {
+            by_name.entry(element.name.as_str()).or_default().push(element.id.as_str());
         }
-        
-        valid_traces
+
+        let resolve = |reference: &str, role: &str, trace: &TraceInfo| -> Result<String, String> {
+            if elements.contains_key(reference) {
+                return Ok(reference.to_string());
+            }
+            match by_name.get(reference).map(Vec::as_slice) {
+                Some([single]) => Ok((*single).to_string()),
+                Some(candidates) => Err(format!(
+                    "trace '{}' {} '{}': ambiguous name, matches ids {:?} — use an id",
+                    trace.trace_type, role, reference, candidates
+                )),
+                None => Err(format!(
+                    "trace '{} {} {}': unknown element '{}' ({}) — declare it or fix the reference",
+                    trace.from, trace.trace_type, trace.to, reference, role
+                )),
+            }
+        };
+
+        let mut errors = Vec::new();
+        let mut resolved = Vec::new();
+        for mut trace in traces {
+            match (
+                resolve(&trace.from, "from", &trace),
+                resolve(&trace.to, "to", &trace),
+            ) {
+                (Ok(from), Ok(to)) => {
+                    trace.from = from;
+                    trace.to = to;
+                    resolved.push(trace);
+                }
+                (from_result, to_result) => {
+                    errors.extend(from_result.err());
+                    errors.extend(to_result.err());
+                }
+            }
+        }
+
+        if errors.is_empty() {
+            Ok(resolved)
+        } else {
+            Err(format!(
+                "{} unresolved trace reference(s):\n  {}",
+                errors.len(),
+                errors.join("\n  ")
+            ))
+        }
     }
 }
 

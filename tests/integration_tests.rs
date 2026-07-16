@@ -226,3 +226,74 @@ architecture logical {
     let output = result.unwrap();
     assert_eq!(output.semantic_model.components.len(), 1);
 }
+
+#[test]
+fn test_dangling_trace_is_a_compile_error() {
+    let input = r#"
+model Test {
+}
+
+architecture logical {
+    component "Controller" { id: "LC-001" }
+}
+
+trace "LC-001" satisfies "REQ-DOES-NOT-EXIST" { rationale: "test" }
+"#;
+    let config = CompilerConfig::default();
+    let mut compiler = Compiler::new(config);
+    let result = compiler.compile_string(input);
+    assert!(result.is_err(), "A trace to a nonexistent element must fail compilation");
+    let message = result.err().unwrap().to_string();
+    assert!(
+        message.contains("REQ-DOES-NOT-EXIST"),
+        "Error must name the unresolved reference, got: {message}"
+    );
+}
+
+#[test]
+fn test_trace_by_name_is_normalized_to_id() {
+    let input = r#"
+model Test {
+}
+
+requirements safety {
+    req "REQ-001" "Braking" { description: "Brake on demand" }
+}
+
+architecture logical {
+    component "Brake Controller" { id: "LC-001" }
+}
+
+trace "Brake Controller" satisfies "REQ-001" { rationale: "by-name reference" }
+"#;
+    let config = CompilerConfig::default();
+    let mut compiler = Compiler::new(config);
+    let result = compiler.compile_string(input).expect("name-based trace must resolve");
+    assert_eq!(result.semantic_model.traces.len(), 1);
+    // The endpoint written by name must be normalized to the element id.
+    assert_eq!(result.semantic_model.traces[0].from, "LC-001");
+}
+
+#[test]
+fn test_elements_have_stable_deterministic_uuids() {
+    let input = r#"
+model Test {
+}
+
+architecture logical {
+    component "Controller" { id: "LC-001" }
+}
+"#;
+    let config = CompilerConfig::default();
+    let mut compiler = Compiler::new(config);
+    let result = compiler.compile_string(input).expect("must compile");
+
+    let element = result
+        .semantic_model
+        .all_elements
+        .get("LC-001")
+        .expect("LC-001 must be registered");
+    // Deterministic v5 UUID: same id -> same uuid on every machine, forever.
+    // Cross-checked against Python: uuid5(ARCLANG_NAMESPACE, "element:LC-001").
+    assert_eq!(element.uuid, "8006ab91-390c-5908-8464-b353219dfc1f");
+}
