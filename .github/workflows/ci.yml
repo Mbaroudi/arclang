@@ -76,6 +76,44 @@ jobs:
           done < <(find examples -name '*.arc' -not -path 'examples/legacy/*' -print0)
           exit $fail
 
+  capella-roundtrip:
+    name: Capella round-trip (zero diff)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-roundtrip-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Install Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install capellambse
+        run: |
+          python -m venv tools/capella_bridge/.venv
+          tools/capella_bridge/.venv/bin/pip install -r tools/capella_bridge/requirements.txt
+
+      - name: Build compiler
+        run: cargo build --release
+
+      # Capella -> .arc -> strict compile -> apply back must be BYTE-IDENTICAL
+      - name: Round-trip zero-diff test
+        run: |
+          tools/capella_bridge/roundtrip_test.sh \
+            "tests/fixtures/capella/test7_0" "Model Test 7.0.aird" \
+            ./target/release/arclang
+
   build:
     name: Build Release
     runs-on: ubuntu-latest
