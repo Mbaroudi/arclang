@@ -21,11 +21,14 @@
             elk: {
                 algorithm: 'layered',
                 'elk.direction': 'DOWN',
-                'elk.hierarchyHandling': 'INCLUDE_CHILDREN',
-                
+                // Each layer box computes its own inner layout; the root only
+                // stacks the boxes (INCLUDE_CHILDREN flattened everything into
+                // one global layout and produced side-by-side strips).
+                'elk.hierarchyHandling': 'SEPARATE_CHILDREN',
+
                 // Layer spacing (Capella swimlanes)
-                'elk.layered.spacing.nodeNodeBetweenLayers': 250,
-                'elk.spacing.nodeNode': 100,
+                'elk.layered.spacing.nodeNodeBetweenLayers': 120,
+                'elk.spacing.nodeNode': 60,
                 'elk.spacing.edgeNode': 50,
                 'elk.spacing.edgeEdge': 30,
                 
@@ -57,11 +60,11 @@
             // Dagre Layout Configuration (Fallback)
             dagre: {
                 rankdir: 'TB',              // Direction: TB (top-bottom), LR (left-right)
-                nodesep: 350,               // Horizontal spacing between nodes (px)
-                ranksep: 200,               // Vertical spacing between layers (px)
-                marginx: 150,               // Left/right margins (px)
-                marginy: 100,               // Top/bottom margins (px)
-                edgesep: 100,               // Spacing between edges (px)
+                nodesep: 70,                // Horizontal spacing between nodes (px)
+                ranksep: 110,               // Vertical spacing between ranks (px)
+                marginx: 60,                // Left/right margins (px)
+                marginy: 50,                // Top/bottom margins (px)
+                edgesep: 40,                // Spacing between edges (px)
                 ranker: 'network-simplex'   // Layout algorithm
             },
             
@@ -1025,6 +1028,53 @@
                     }
                 });
             }
+
+            // ---- Layout shaping with invisible edges -----------------------
+            // Dagre puts every disconnected node in rank 0 (one endless row)
+            // and stacks unrelated clusters side by side. Two corrections:
+            //  1. isolated nodes inside a layer are chained into a grid;
+            //  2. layers are stacked vertically in Arcadia order.
+            const INVISIBLE_EDGE = () => ({
+                label: '',
+                style: 'stroke: none; fill: none;',
+                arrowheadStyle: 'fill: none; stroke: none;',
+                curve: d3.curveLinear
+            });
+
+            const connected = new Set();
+            (diagramData.edges || []).forEach(edge => {
+                connected.add(edge.source);
+                connected.add(edge.target);
+            });
+
+            const ARCADIA_ORDER = ['Operational', 'System', 'Logical', 'Physical', 'EPBS'];
+            const layerRank = name => {
+                const index = ARCADIA_ORDER.indexOf(name);
+                return index === -1 ? ARCADIA_ORDER.length : index;
+            };
+            const orderedLayers = [...layerNames].sort((a, b) => layerRank(a) - layerRank(b));
+
+            // 1. Grid-wrap isolated nodes: chaining node[i] -> node[i+COLS]
+            //    creates rows of COLS instead of a single endless rank.
+            orderedLayers.forEach(layerName => {
+                const isolated = nodesByLayer[layerName].filter(n => !connected.has(n.id));
+                if (isolated.length < 4) return;
+                const cols = Math.min(5, Math.max(3, Math.ceil(Math.sqrt(isolated.length))));
+                for (let i = 0; i + cols < isolated.length + cols; i++) {
+                    if (i + cols < isolated.length) {
+                        g.setEdge(isolated[i].id, isolated[i + cols].id, INVISIBLE_EDGE());
+                    }
+                }
+            });
+
+            // 2. Stack layers vertically in Arcadia order via anchor nodes.
+            for (let i = 0; i + 1 < orderedLayers.length; i++) {
+                const above = nodesByLayer[orderedLayers[i]];
+                const below = nodesByLayer[orderedLayers[i + 1]];
+                if (above.length && below.length) {
+                    g.setEdge(above[0].id, below[0].id, INVISIBLE_EDGE());
+                }
+            }
             
             const svg = d3.select('#arch-diagram');
             svg.selectAll('*').remove();
@@ -1612,18 +1662,56 @@
                 nodesByLayer[layer].push(node);
             });
 
-            // Create layer nodes
+            // Create layer nodes, stacked in Arcadia order
+            const ARCADIA_ORDER = ['Operational', 'System', 'Logical', 'Physical', 'EPBS'];
+            const layerRank = name => {
+                const index = ARCADIA_ORDER.indexOf(name);
+                return index === -1 ? ARCADIA_ORDER.length : index;
+            };
+            const orderedLayerNames = Object.keys(nodesByLayer)
+                .filter(name => nodesByLayer[name].length > 0)
+                .sort((a, b) => layerRank(a) - layerRank(b));
+
+            // A layer with no INTRA-layer edges is a plain collection: pack it
+            // as a grid (rectpacking) instead of one endless rank.
+            const layerOfNode = {};
             Object.keys(nodesByLayer).forEach(layerName => {
+                nodesByLayer[layerName].forEach(node => {
+                    layerOfNode[node.id] = layerName;
+                });
+            });
+            const layersWithInternalEdges = new Set();
+            (diagramData.edges || []).forEach(edge => {
+                const sourceLayer = layerOfNode[edge.source];
+                if (sourceLayer && sourceLayer === layerOfNode[edge.target]) {
+                    layersWithInternalEdges.add(sourceLayer);
+                }
+            });
+
+            orderedLayerNames.forEach(layerName => {
                 const layerConfig = layerConfigs[layerName];
                 const layerColor = layerConfig ? layerConfig.color : '#E8F5E9';
+                const hasInternalEdges = layersWithInternalEdges.has(layerName);
+
+                const layerLayout = hasInternalEdges
+                    ? {
+                        'elk.algorithm': 'layered',
+                        'elk.direction': 'DOWN',
+                        'elk.padding': '[top=50,left=30,bottom=30,right=30]',
+                        'elk.spacing.nodeNode': 50,
+                        'elk.layered.spacing.nodeNodeBetweenLayers': 80,
+                        'elk.edgeRouting': 'ORTHOGONAL'
+                    }
+                    : {
+                        'elk.algorithm': 'rectpacking',
+                        'elk.aspectRatio': '2.5',
+                        'elk.padding': '[top=50,left=30,bottom=30,right=30]',
+                        'elk.spacing.nodeNode': 30
+                    };
 
                 const layerNode = {
                     id: layerName,
-                    layoutOptions: {
-                        'elk.padding': '[top=50,left=30,bottom=30,right=30]',
-                        'elk.portConstraints': 'FREE',
-                        'elk.layered.spacing.nodeNodeBetweenLayers': 100
-                    },
+                    layoutOptions: layerLayout,
                     labels: [{ 
                         text: layerName + ' Layer',
                         layoutOptions: {
@@ -1647,17 +1735,52 @@
                 elkGraph.children.push(layerNode);
             });
 
-            // Add edges (ELK auto-resolves hierarchy by node ID)
+            // Add edges INSIDE their containing layer: with SEPARATE_CHILDREN
+            // each layer computes its own layout, and an edge must live in the
+            // lowest common ancestor of its endpoints or ELK produces broken
+            // coordinate fragments. Cross-layer edges stay at the root.
+            const nodeLayerById = {};
+            Object.keys(nodesByLayer).forEach(layerName => {
+                nodesByLayer[layerName].forEach(node => {
+                    nodeLayerById[node.id] = layerName;
+                });
+            });
+            const layerNodesById = {};
+            elkGraph.children.forEach(layerNode => {
+                layerNode.edges = layerNode.edges || [];
+                layerNodesById[layerNode.id] = layerNode;
+            });
+
             if (diagramData.edges) {
-                diagramData.edges.forEach(edge => {
-                    if (edge.source && edge.target) {
-                        elkGraph.edges.push({
-                            id: `edge_${edge.source}_${edge.target}`,
-                            sources: [edge.source],
-                            targets: [edge.target],
-                            labels: edge.label ? [{ text: edge.label }] : []
-                        });
+                diagramData.edges.forEach((edge, index) => {
+                    if (!edge.source || !edge.target) return;
+                    const elkEdge = {
+                        // Index keeps ids unique: two exchanges between the same
+                        // pair of components crash the ELK JSON importer.
+                        id: `edge_${index}_${edge.source}_${edge.target}`,
+                        sources: [edge.source],
+                        targets: [edge.target],
+                        labels: edge.label ? [{ text: edge.label }] : []
+                    };
+                    const sourceLayer = nodeLayerById[edge.source];
+                    const targetLayer = nodeLayerById[edge.target];
+                    if (sourceLayer && sourceLayer === targetLayer && layerNodesById[sourceLayer]) {
+                        layerNodesById[sourceLayer].edges.push(elkEdge);
+                    } else {
+                        elkGraph.edges.push(elkEdge);
                     }
+                });
+            }
+
+            // Invisible edges between consecutive layer boxes: without them the
+            // boxes share rank 0 and ELK lines them up side by side. These force
+            // the vertical Arcadia stack; the renderer skips drawing them.
+            for (let i = 0; i + 1 < orderedLayerNames.length; i++) {
+                elkGraph.edges.push({
+                    id: `layer_order_${i}`,
+                    sources: [orderedLayerNames[i]],
+                    targets: [orderedLayerNames[i + 1]],
+                    properties: { invisible: true }
                 });
             }
 
@@ -1730,16 +1853,20 @@
                 ports: []
             };
 
+            // Port metadata lives OUTSIDE the ELK graph: complex objects in
+            // port `properties` crash the elkjs JSON importer ("Severe
+            // implementation error"). The renderer reads PORT_DATA_BY_ID.
             // Add IN ports (left side)
             if (node.interfaces_in) {
                 node.interfaces_in.forEach((port, idx) => {
+                    const portId = `${node.id}_in_${idx}`;
+                    PORT_DATA_BY_ID[portId] = port;
                     elkNode.ports.push({
-                        id: `${node.id}_in_${idx}`,
+                        id: portId,
                         properties: {
                             'port.side': 'WEST',
                             'port.index': idx,
-                            portType: 'in',
-                            portData: port
+                            portType: 'in'
                         },
                         width: ARCVIZ_CONFIG.port.size,
                         height: ARCVIZ_CONFIG.port.size,
@@ -1751,13 +1878,14 @@
             // Add OUT ports (right side)
             if (node.interfaces_out) {
                 node.interfaces_out.forEach((port, idx) => {
+                    const portId = `${node.id}_out_${idx}`;
+                    PORT_DATA_BY_ID[portId] = port;
                     elkNode.ports.push({
-                        id: `${node.id}_out_${idx}`,
+                        id: portId,
                         properties: {
                             'port.side': 'EAST',
                             'port.index': idx,
-                            portType: 'out',
-                            portData: port
+                            portType: 'out'
                         },
                         width: ARCVIZ_CONFIG.port.size,
                         height: ARCVIZ_CONFIG.port.size,
@@ -1768,6 +1896,9 @@
 
             return elkNode;
         }
+
+        // Side table for port metadata (see createElkNode).
+        const PORT_DATA_BY_ID = {};
 
         /**
          * Render ELK graph with D3
@@ -1800,9 +1931,12 @@
                 renderLayer(svgGroup, layer);
             });
 
-            // Render edges
+            // Render edges (layer-ordering edges are layout-only)
             if (graph.edges) {
                 graph.edges.forEach(edge => {
+                    if (edge.properties && edge.properties.invisible) {
+                        return;
+                    }
                     renderEdge(svgGroup, edge);
                 });
             }
@@ -1889,6 +2023,13 @@
             if (layer.children) {
                 layer.children.forEach(node => {
                     renderComponent(layerGroup, node);
+                });
+            }
+
+            // Render intra-layer edges (coordinates are layer-relative)
+            if (layer.edges) {
+                layer.edges.forEach(edge => {
+                    renderEdge(layerGroup, edge);
                 });
             }
         }
@@ -2041,7 +2182,7 @@
         function renderPort(nodeGroup, port, node) {
             const portProps = port.properties || {};
             const isInput = portProps.portType === 'in';
-            const portData = portProps.portData || {};
+            const portData = PORT_DATA_BY_ID[port.id] || {};
 
             const portGroup = nodeGroup.append('g')
                 .attr('class', `port port-${portProps.portType}`)
