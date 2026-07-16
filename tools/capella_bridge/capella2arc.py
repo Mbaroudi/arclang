@@ -22,16 +22,19 @@ import capellambse
 
 
 def esc(text: str | None) -> str:
-    """Escape a value for an ArcLang double-quoted string."""
+    """Escape a value for an ArcLang double-quoted string.
+
+    Preserves the text EXACTLY (including leading/trailing whitespace):
+    round-trip fidelity requires byte-identical names.
+    """
     if not text:
         return ""
     return (
         str(text)
         .replace("\\", "\\\\")
         .replace('"', '\\"')
-        .replace("\n", " ")
-        .replace("\r", " ")
-        .strip()
+        .replace("\n", "\\n")
+        .replace("\r", "\\r")
     )
 
 

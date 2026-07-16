@@ -35,9 +35,27 @@ Against the Capella 7.0 test model from the capellambse test suite
 - Output compiles with the strict v3 parser: **33 components,
   21 functions, zero warnings** — every exchange endpoint resolves.
 
+## Round-trip (arc2capella.py + roundtrip_test.sh)
+
+The reverse direction works: `arc2capella.py` applies an ArcLang model (AST
+JSON from `arclang export -f json`) back onto a Capella model, matching
+elements by UUID and synchronizing names.
+
+```bash
+# Full round-trip test — must print "ROUND-TRIP: ZERO DIFF ✓"
+tools/capella_bridge/roundtrip_test.sh \
+  "capellambse-study/tests/data/models/test7_0" "Model Test 7.0.aird"
+```
+
+Verified on the Capella 7.0 test model:
+- **Zero diff**: Capella → .arc → compile → apply back yields a
+  byte-identical Capella model (60 elements matched, 0 unknown).
+- **Mutation propagates**: renaming a component in the .arc text updates the
+  native Capella XML through the bridge.
+
 ## Current scope / not yet covered
 
+- Name synchronization only on the reverse path (descriptions, attribute
+  edits, element creation/deletion are not applied yet)
 - Requirements (Capella requirement extensions), functional exchanges (SA),
-  physical links/exchanges, EPBS, modes/states, scenarios
-- The reverse direction (arc → Capella) — planned via capellambse's write
-  support; UUID preservation makes it possible
+  physical links/exchanges, EPBS, modes/states, scenarios on the forward path
