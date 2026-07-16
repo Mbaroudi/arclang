@@ -922,8 +922,10 @@ impl SemanticModel {
     pub fn compute_metrics(&self) -> ModelMetrics {
         let total_elements = self.requirements.len() + self.components.len() + self.functions.len();
         
+        // A requirement is covered when any trace touches it — usually as the
+        // TARGET ("component satisfies requirement"), sometimes as the source.
         let traced_requirements = self.requirements.iter()
-            .filter(|r| !self.get_traces_from(&r.id).is_empty())
+            .filter(|r| self.traces.iter().any(|t| t.to == r.id || t.from == r.id))
             .count();
         
         let traceability_coverage = if !self.requirements.is_empty() {

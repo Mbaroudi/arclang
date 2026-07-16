@@ -639,3 +639,43 @@ physical_architecture PA_EmergencyBraking {
 }
 
 // ===========================================================================
+
+// ===========================================================================
+// SAFETY REQUIREMENTS & TRACEABILITY
+// ISO 26262 requirements satisfied by the logical architecture
+// ===========================================================================
+
+requirements safety {
+  req "REQ-AEB-001" "Obstacle detection range" {
+    description: "The system shall detect obstacles at a range of at least 150 m"
+    safety_level: "ASIL-D"
+    priority: "High"
+  }
+  req "REQ-AEB-002" "Sensor fusion latency" {
+    description: "Radar and camera data shall be fused within 50 ms"
+    safety_level: "ASIL-D"
+    priority: "High"
+  }
+  req "REQ-AEB-003" "Collision risk assessment" {
+    description: "The system shall compute time-to-collision for every tracked object"
+    safety_level: "ASIL-D"
+    priority: "High"
+  }
+  req "REQ-AEB-004" "Emergency braking activation" {
+    description: "Full braking force shall be commanded within 100 ms of critical threat detection"
+    safety_level: "ASIL-D"
+    priority: "High"
+  }
+  req "REQ-AEB-005" "Driver warning" {
+    description: "The driver shall be warned before autonomous braking is applied"
+    safety_level: "ASIL-B"
+    priority: "Medium"
+  }
+}
+
+trace "RadarSensor" satisfies "REQ-AEB-001" { rationale: "150 m long-range radar detection" }
+trace "CameraSensor" satisfies "REQ-AEB-001" { rationale: "Visual obstacle confirmation" }
+trace "SensorFusion" satisfies "REQ-AEB-002" { rationale: "Fuses radar and camera within the latency budget" }
+trace "ThreatAssessment" satisfies "REQ-AEB-003" { rationale: "Computes time-to-collision per tracked object" }
+trace "BrakeController" satisfies "REQ-AEB-004" { rationale: "Commands full braking force on critical threat" }
+trace "DriverInterface" satisfies "REQ-AEB-005" { rationale: "Issues visual and audio warnings" }

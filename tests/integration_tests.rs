@@ -365,3 +365,29 @@ physical_architecture "PA" {
         result.warnings
     );
 }
+
+#[test]
+fn test_traceability_coverage_counts_satisfies_direction() {
+    let input = r#"
+model Test {
+}
+
+requirements safety {
+    req "REQ-001" "Covered" { description: "traced" }
+    req "REQ-002" "Uncovered" { description: "not traced" }
+}
+
+architecture logical {
+    component "Controller" { id: "LC-001" }
+}
+
+trace "LC-001" satisfies "REQ-001" { rationale: "direct" }
+"#;
+    let config = CompilerConfig::default();
+    let mut compiler = Compiler::new(config);
+    let result = compiler.compile_string(input).expect("compiles");
+    let metrics = result.semantic_model.compute_metrics();
+    // REQ-001 is the TARGET of the satisfies trace and must count as covered.
+    assert!((metrics.traceability_coverage - 50.0).abs() < f64::EPSILON,
+        "expected 50% coverage, got {}", metrics.traceability_coverage);
+}
