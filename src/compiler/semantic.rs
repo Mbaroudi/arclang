@@ -1,7 +1,8 @@
 use super::ast::*;
+use serde::Serialize;
 use std::collections::HashMap;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct SemanticModel {
     pub requirements: Vec<RequirementInfo>,
     pub components: Vec<ComponentInfo>,
@@ -24,14 +25,14 @@ impl Default for SemanticModel {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct InterfaceInfo {
     pub name: String,
     pub from: String,
     pub to: String,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct RequirementInfo {
     pub id: String,
     pub description: String,
@@ -40,7 +41,7 @@ pub struct RequirementInfo {
     pub safety_level: Option<String>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct ComponentInfo {
     pub id: String,
     pub name: String,
@@ -53,14 +54,14 @@ pub struct ComponentInfo {
     pub functions: Vec<String>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct InterfacePortInfo {
     pub name: String,
     pub protocol: Option<String>,
     pub format: Option<String>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct FunctionInfo {
     pub id: String,
     pub name: String,
@@ -68,7 +69,7 @@ pub struct FunctionInfo {
     pub outputs: Vec<String>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct TraceInfo {
     pub from: String,
     pub to: String,
@@ -76,7 +77,7 @@ pub struct TraceInfo {
     pub rationale: Option<String>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct ElementInfo {
     pub id: String,
     pub name: String,

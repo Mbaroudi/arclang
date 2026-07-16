@@ -356,6 +356,35 @@ async fn health_check() -> impl IntoResponse {
     }))
 }
 
+#[derive(Debug, Deserialize)]
+pub struct CompileRequest {
+    /// ArcLang source text to compile.
+    pub source: String,
+}
+
+/// Compile ArcLang source and return the canonical semantic model as JSON.
+/// This is the programmatic access point to the model (M4): errors are
+/// structured, warnings are included, every element carries its stable uuid.
+async fn compile_source(Json(request): Json<CompileRequest>) -> Response {
+    let mut compiler = crate::Compiler::new(crate::CompilerConfig::default());
+    match compiler.compile_string(&request.source) {
+        Ok(result) => Json(serde_json::json!({
+            "success": true,
+            "model": result.semantic_model,
+            "warnings": result.warnings,
+        }))
+        .into_response(),
+        Err(e) => (
+            axum::http::StatusCode::UNPROCESSABLE_ENTITY,
+            Json(serde_json::json!({
+                "success": false,
+                "error": e.to_string(),
+            })),
+        )
+            .into_response(),
+    }
+}
+
 async fn parse_arcadia_7d(
     State(_state): State<Arc<AppState>>,
     Json(payload): Json<ParseCodeRequest>,
@@ -773,6 +802,7 @@ pub async fn serve(port: u16) -> Result<(), Box<dyn std::error::Error>> {
     
     let app = Router::new()
         .route("/health", get(health_check))
+        .route("/api/compile", post(compile_source))
         .route("/api/arcadia-7d/parse", post(parse_arcadia_7d))
         .route("/api/arcadia-7d/layout", post(generate_7d_layout))
         .route("/api/diagrams/generate-professional", post(generate_professional_diagram))
