@@ -10,27 +10,22 @@
 //! - Hierarchical layer-based layout
 //! - Native port positioning (WEST/EAST)
 //! - Orthogonal edge routing
-//! - Fallback to legacy generators if ELK unavailable
 
 use super::semantic::SemanticModel;
 use super::CompilerError;
-use super::arcviz_d3::DagreGraph;
+use super::graph_model::DagreGraph;
 use serde_json;
 use std::process::{Command, Stdio};
 
 /// Generate static SVG using ELK layout engine
-/// Falls back to legacy generator if ELK unavailable
+/// Requires Node.js with elkjs available on the host
 pub fn generate_elk_static_svg(model: &SemanticModel, title: &str) -> Result<String, CompilerError> {
-    // Try ELK first
-    match try_generate_with_elk(model, title) {
-        Ok(svg) => Ok(svg),
-        Err(e) => {
-            eprintln!("⚠ ELK unavailable ({}), falling back to custom layout", e);
-            // Fallback to existing arcviz_elk.rs custom algorithm
-            use super::arcviz_elk::generate_elk_html;
-            generate_elk_html(model)
-        }
-    }
+    try_generate_with_elk(model, title).map_err(|e| {
+        CompilerError::Other(format!(
+            "ELK static generation failed (requires Node.js with elkjs): {}",
+            e
+        ))
+    })
 }
 
 /// Try to generate SVG using real ELK via Node.js

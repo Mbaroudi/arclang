@@ -284,21 +284,6 @@ pub enum ExportFormat {
     Markdown,
     Mermaid,
     PlantUML,
-    ArcViz,
-    ArcVizSmart,
-    ArcVizChannel,
-    ArcVizPerfect,
-    ArcVizUltimate,
-    ArcVizEnhanced,
-    ArcVizElk,
-    ArcVizElkAdvanced,
-    ArcVizDagre,
-    ArcVizHybrid,
-    ArcVizElkComplete,
-    ArcVizSmartLegacy,
-    ArcVizChannelLegacy,
-    ArcVizPerfectLegacy,
-    ArcVizUltimateLegacy,
     HTML,
     PDF,
     Terraform,
@@ -592,21 +577,6 @@ impl CliRunner {
             ExportFormat::Markdown => "markdown".to_string(),
             ExportFormat::Mermaid => "json".to_string(),
             ExportFormat::PlantUML => "json".to_string(),
-            ExportFormat::ArcViz => "json".to_string(),
-            ExportFormat::ArcVizSmart => "json".to_string(),
-            ExportFormat::ArcVizChannel => "json".to_string(),
-            ExportFormat::ArcVizPerfect => "json".to_string(),
-            ExportFormat::ArcVizUltimate => "json".to_string(),
-            ExportFormat::ArcVizEnhanced => "json".to_string(),
-            ExportFormat::ArcVizElk => "json".to_string(),
-            ExportFormat::ArcVizElkAdvanced => "json".to_string(),
-            ExportFormat::ArcVizDagre => "json".to_string(),
-            ExportFormat::ArcVizHybrid => "json".to_string(),
-            ExportFormat::ArcVizElkComplete => "json".to_string(),
-            ExportFormat::ArcVizSmartLegacy => "json".to_string(),
-            ExportFormat::ArcVizChannelLegacy => "json".to_string(),
-            ExportFormat::ArcVizPerfectLegacy => "json".to_string(),
-            ExportFormat::ArcVizUltimateLegacy => "json".to_string(),
             ExportFormat::HTML => "json".to_string(),
             ExportFormat::PDF => "json".to_string(),
             ExportFormat::YAML => "json".to_string(),
@@ -633,120 +603,19 @@ impl CliRunner {
                         generate_plantuml_component(&result.semantic_model)
                             .map_err(|e| CliError::Compilation(e.to_string()))?
                     }
-                    ExportFormat::ArcViz => {
-                        use crate::compiler::arcviz_generator::generate_arcviz_html;
-                        generate_arcviz_html(&result.semantic_model, "System Requirements")
-                            .map_err(|e| CliError::Compilation(e.to_string()))?
-                    }
-                    ExportFormat::ArcVizSmart => {
-                        use crate::compiler::arcviz_elk_static::generate_elk_static_svg;
-                        generate_elk_static_svg(&result.semantic_model, "System Architecture")
-                            .map_err(|e| CliError::Compilation(e.to_string()))?
-                    }
-                    ExportFormat::ArcVizSmartLegacy => {
-                        use crate::compiler::arcviz_smart_routing::{generate_smart_arcviz, wrap_smart_arcviz_html};
-                        let svg = generate_smart_arcviz(&result.semantic_model, "System Architecture")
-                            .map_err(|e| CliError::Compilation(e.to_string()))?;
-                        wrap_smart_arcviz_html("System Architecture", &svg)
-                    }
-                    ExportFormat::ArcVizChannel => {
-                        use crate::compiler::arcviz_elk_static::generate_elk_static_svg;
-                        generate_elk_static_svg(&result.semantic_model, "System Architecture")
-                            .map_err(|e| CliError::Compilation(e.to_string()))?
-                    }
-                    ExportFormat::ArcVizChannelLegacy => {
-                        use crate::compiler::arcviz_channel_routing::{generate_channel_routed_arcviz, wrap_channel_routed_html};
-                        let svg = generate_channel_routed_arcviz(&result.semantic_model, "System Architecture")
-                            .map_err(|e| CliError::Compilation(e.to_string()))?;
-                        wrap_channel_routed_html("System Architecture", &svg)
-                    }
-                    ExportFormat::ArcVizPerfect => {
-                        use crate::compiler::arcviz_elk_static::generate_elk_static_svg;
-                        generate_elk_static_svg(&result.semantic_model, "System Architecture")
-                            .map_err(|e| CliError::Compilation(e.to_string()))?
-                    }
-                    ExportFormat::ArcVizPerfectLegacy => {
-                        use crate::compiler::arcviz_perfect_routing::{generate_perfect_arcviz, wrap_perfect_html};
-                        let svg = generate_perfect_arcviz(&result.semantic_model, "System Architecture")
-                            .map_err(|e| CliError::Compilation(e.to_string()))?;
-                        wrap_perfect_html("System Architecture", &svg)
-                    }
-                    ExportFormat::ArcVizUltimate => {
-                        use crate::compiler::arcviz_elk_static::generate_elk_static_svg;
-                        generate_elk_static_svg(&result.semantic_model, "System Architecture")
-                            .map_err(|e| CliError::Compilation(e.to_string()))?
-                    }
-                    ExportFormat::ArcVizUltimateLegacy => {
-                        use crate::compiler::arcviz_ultimate_routing::{generate_ultimate_arcviz, wrap_ultimate_html};
-                        let svg = generate_ultimate_arcviz(&result.semantic_model, "System Architecture")
-                            .map_err(|e| CliError::Compilation(e.to_string()))?;
-                        wrap_ultimate_html("System Architecture", &svg)
-                    }
-                    ExportFormat::ArcVizEnhanced => {
-                        use crate::compiler::arcviz_enhanced::generate_enhanced_html;
-                        generate_enhanced_html(&result.semantic_model)
-                            .map_err(|e| CliError::Compilation(e.to_string()))?
-                    }
-                    ExportFormat::ArcVizElk => {
-                        use crate::compiler::arcviz_elk_static::generate_elk_static_svg;
-                        generate_elk_static_svg(&result.semantic_model, "System Architecture")
-                            .map_err(|e| CliError::Compilation(e.to_string()))?
-                    }
-                    ExportFormat::ArcVizElkAdvanced => {
-                        use crate::compiler::elk_json_generator::ELKJsonGenerator;
-                        use crate::compiler::elk_html_template::generate_elk_html;
-                        
-                        let generator = ELKJsonGenerator::new();
-                        let elk_json = generator.generate(&result.semantic_model);
-                        let elk_json_str = serde_json::to_string_pretty(&elk_json)
-                            .map_err(|e| CliError::Compilation(format!("ELK JSON serialization failed: {}", e)))?;
-                        
-                        generate_elk_html(&elk_json_str, "ArcLang Architecture - Advanced ELK")
-                    }
-                    ExportFormat::ArcVizDagre => {
-                        use crate::compiler::dagre_json_generator::DagreJsonGenerator;
-                        use crate::compiler::dagre_html_template::generate_dagre_html;
-                        
-                        let generator = DagreJsonGenerator::new();
-                        let dagre_json = generator.generate(&result.semantic_model);
-                        let dagre_json_str = serde_json::to_string_pretty(&dagre_json)
-                            .map_err(|e| CliError::Compilation(format!("Dagre JSON serialization failed: {}", e)))?;
-                        
-                        generate_dagre_html(&dagre_json_str, "ArcLang Architecture - Dagre")
-                    }
-                    ExportFormat::ArcVizHybrid => {
-                        use crate::compiler::elk_dagre_hybrid::ElkDagreHybridGenerator;
-                        use crate::compiler::elk_dagre_hybrid_template::generate_elk_dagre_hybrid_html;
-                        
-                        let generator = ElkDagreHybridGenerator::new();
-                        let hybrid_json = generator.generate(&result.semantic_model);
-                        let hybrid_json_str = serde_json::to_string_pretty(&hybrid_json)
-                            .map_err(|e| CliError::Compilation(format!("Hybrid JSON serialization failed: {}", e)))?;
-                        
-                        generate_elk_dagre_hybrid_html(&hybrid_json_str, "ArcLang Architecture - Hybrid (Dagre + ELK)")
-                    }
-                    ExportFormat::ArcVizElkComplete => {
-                        use crate::compiler::elk_dagre_hybrid::ElkDagreHybridGenerator;
-                        use crate::compiler::elk_complete_template::generate_elk_complete_html;
-                        
-                        // Use Dagre+ELK hybrid for optimal results
-                        let generator = ElkDagreHybridGenerator::new();
-                        let hybrid_json = generator.generate(&result.semantic_model);
-                        let hybrid_json_str = serde_json::to_string_pretty(&hybrid_json)
-                            .map_err(|e| CliError::Compilation(format!("ELK Complete JSON serialization failed: {}", e)))?;
-                        
-                        generate_elk_complete_html(&hybrid_json_str, "ArcLang Architecture - ELK Complete (Capella-style)", true)
-                    }
                     ExportFormat::HTML => {
-                        use crate::compiler::elk_json_generator::ELKJsonGenerator;
-                        use crate::compiler::elk_html_template::generate_elk_html;
-                        
-                        let generator = ELKJsonGenerator::new();
-                        let elk_json = generator.generate(&result.semantic_model);
-                        let elk_json_str = serde_json::to_string_pretty(&elk_json)
-                            .map_err(|e| CliError::Compilation(format!("ELK JSON serialization failed: {}", e)))?;
-                        
-                        generate_elk_html(&elk_json_str, "ArcLang Architecture")
+                        use crate::compiler::elk_complete_v2_generator::ElkCompleteV2Generator;
+
+                        let generator = ElkCompleteV2Generator::new();
+                        let generation = generator.generate(&result.ast)
+                            .map_err(|e| CliError::Compilation(format!("HTML generation failed: {}", e)))?;
+
+                        generation.to_html()
+                    }
+                    ExportFormat::PDF => {
+                        return Err(CliError::NotImplemented(
+                            "PDF export not implemented in v3 — use --format html (ELK v2) and print to PDF".to_string()
+                        ));
                     }
                     ExportFormat::Terraform => {
                         use crate::compiler::terraform_databricks_generator::{generate_terraform_databricks, TerraformConfig};

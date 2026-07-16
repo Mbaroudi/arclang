@@ -13,7 +13,7 @@
 
 use super::semantic::SemanticModel;
 use super::CompilerError;
-use super::arcviz_d3::{DagreGraph, GraphNode, GraphEdge, LayerInfo};
+use super::graph_model::{DagreGraph, GraphNode, GraphEdge, LayerInfo};
 use serde::{Serialize, Deserialize};
 
 /// Complete architecture document structure

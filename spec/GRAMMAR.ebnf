@@ -1,0 +1,188 @@
+(* ===========================================================================
+   ArcLang grammar — CANONICAL specification
+   ===========================================================================
+
+   This file is the single source of truth for ArcLang syntax. It describes
+   exactly what src/compiler/parser.rs accepts in v3. If the parser and this
+   file disagree, one of them has a bug — file an issue.
+
+   Conventions:
+     - The parser is STRICT: any construct not derivable from this grammar is
+       a compile error with a source location. Nothing is silently skipped.
+     - `scenario`, `scenarios`, `dataflow`, `data_flows`, `validation` and
+       `traceability` blocks are accepted syntactically but NOT yet
+       represented in the compiled model; the compiler emits a warning for
+       each occurrence (see "Unmodeled blocks" below).
+
+   =========================================================================== *)
+
+(* ---- Lexical elements ---------------------------------------------------- *)
+
+Identifier     ::= ( Letter | "_" ) ( Letter | Digit | "_" )* ;
+DottedName     ::= Identifier ( "." Identifier )* ;
+String         ::= '"' Character* '"' ;                 (* \n \t \r \" \\ escapes *)
+Number         ::= "-"? Digit+ ( "." Digit+ )? ;        (* "_" digit separators allowed *)
+Name           ::= DottedName | String ;
+LineComment    ::= "//" AnyCharacterExceptNewline* ;
+BlockComment   ::= "/*" AnyCharacter* "*/" ;
+
+(* ---- Top level ------------------------------------------------------------ *)
+
+CompilationUnit ::= ModelDecl TopLevelBlock*
+                  | TopLevelBlock+ ;
+
+ModelDecl       ::= ( "model" | "system" ) Name "{" ModelElement* "}" ;
+
+ModelElement    ::= MetadataBlock
+                  | ModelAttribute
+                  | TopLevelBlock ;
+
+MetadataBlock   ::= "metadata" AttributeBlock ;
+ModelAttribute  ::= AttributeKey ":" AttributeValue ;
+
+TopLevelBlock   ::= RequirementsBlock
+                  | ArchitectureBlock
+                  | OperationalAnalysis
+                  | SystemAnalysis
+                  | LogicalArchitecture
+                  | PhysicalArchitecture
+                  | Epbs
+                  | SafetyAnalysis
+                  | TraceDecl
+                  | UnmodeledBlock ;          (* warning emitted *)
+
+(* ---- Requirements ---------------------------------------------------------- *)
+
+RequirementsBlock ::= "requirements" RequirementsSubtype? "{" RequirementDecl* "}" ;
+RequirementsSubtype ::= "stakeholder" | "system" | "safety" | Identifier ;
+
+RequirementDecl ::= "req" Name String? AttributeBlock          (* req REQ-001 "Title" { ... } *)
+                  | "requirement" Name AttributeBlock ;        (* requirement "REQ-001" { ... } *)
+
+(* ---- Operational Analysis (OA) --------------------------------------------- *)
+
+OperationalAnalysis ::= "operational_analysis" Name "{" OaElement* "}" ;
+
+OaElement       ::= "actor" Name AttributeBlock
+                  | ( "operational_entity" | "entity" ) Name "{" EntityElement* "}"
+                  | "operational_capability" Name AttributeBlock
+                  | ( "operational_activity" | "activity" ) Name AttributeBlock
+                  | OperationalExchange
+                  | TraceDecl
+                  | Attribute ;                                (* name: overrides block name *)
+
+EntityElement   ::= ( "operational_activity" | "activity" ) Name AttributeBlock
+                  | Attribute ;
+
+OperationalExchange ::= ( "operational_exchange" | "exchange" | "interaction" )
+                        ( Name "->" Name AttributeBlock        (* arrow form *)
+                        | Name AttributeBlock ) ;              (* block form: from:/to: required *)
+
+(* ---- System Analysis (SA) --------------------------------------------------- *)
+
+SystemAnalysis  ::= "system_analysis" Name "{" SaElement* "}" ;
+
+SaElement       ::= RequirementDecl
+                  | ( "function" | "system_function" ) Name "{" FunctionElement* "}"
+                  | "actor" Name AttributeBlock
+                  | "system_component" Name AttributeBlock
+                  | FunctionalExchange
+                  | TraceDecl
+                  | Attribute ;
+
+FunctionElement ::= "function" Name AttributeBlock?            (* nested sub-function *)
+                  | Attribute ;
+
+FunctionalExchange ::= ( "functional_exchange" | "exchange" | "flow" )
+                       ( Name "->" Name AttributeBlock
+                       | Name AttributeBlock ) ;               (* from:/to: required *)
+
+(* ---- Logical Architecture (LA) ----------------------------------------------- *)
+
+LogicalArchitecture ::= "logical_architecture" Name "{" LaElement* "}"
+                      | "architecture" "logical" Name? "{" LaElement* "}" ;
+
+LaElement       ::= Component
+                  | "interface" Name "{" InterfaceBody "}"
+                  | ConnectionDecl
+                  | "component_exchange" Name AttributeBlock   (* from_port:/to_port: required *)
+                  | TraceDecl
+                  | Attribute ;
+
+Component       ::= "component" Name "{" ComponentElement* "}" ;
+
+ComponentElement ::= Component                                  (* nested components *)
+                  | "function" Name AttributeBlock?
+                  | "interface_in"  ":"? Name "{" InterfaceAttrs "}"
+                  | "interface_out" ":"? Name "{" InterfaceAttrs "}"
+                  | "provides" "interface"? Name "{" InterfaceAttrs "}"
+                  | "requires" "interface"? Name "{" InterfaceAttrs "}"
+                  | Attribute ;
+
+InterfaceAttrs  ::= ( "protocol" ":" String | Attribute )* ;
+InterfaceBody   ::= ( "from" ":" Name | "to" ":" Name | Attribute )* ;
+
+ConnectionDecl  ::= "connection" Name ( "->" Name )? AttributeBlock ;
+                    (* block form requires from:/to: attributes *)
+
+(* ---- Physical Architecture (PA) ----------------------------------------------- *)
+
+PhysicalArchitecture ::= "physical_architecture" Name "{" PaElement* "}"
+                       | "architecture" "physical" Name? "{" PaElement* "}" ;
+
+PaElement       ::= "node" Name "{" NodeElement* "}"
+                  | "component" Name PhysicalComponentBody?
+                  | ConnectionDecl
+                  | ( "physical_link" | "link" ) Name ( "->" Name )? AttributeBlock
+                  | "physical_exchange" Name AttributeBlock    (* from:/to: required; via:, message_type:, frequency: *)
+                  | "deployment" Name "->" Name AttributeBlock?
+                  | Attribute ;
+
+NodeElement     ::= "deploys" Name AttributeBlock?
+                  | "behavior_component" Name AttributeBlock
+                  | "hardware_component" Name AttributeBlock?
+                  | Attribute ;
+
+PhysicalComponentBody ::= "{" ( "interface_in" ":"? Name "{" InterfaceAttrs "}"
+                              | "interface_out" ":"? Name "{" InterfaceAttrs "}"
+                              | "function" Name AttributeBlock?
+                              | Attribute )* "}" ;
+
+(* ---- EPBS ---------------------------------------------------------------------- *)
+
+Epbs            ::= "epbs" Name "{" ( EpbsSystem | EpbsSubsystem )* "}" ;
+EpbsSystem      ::= "system" Name "{" ( EpbsSubsystem | Attribute )* "}" ;
+EpbsSubsystem   ::= "subsystem" Name "{" ( EpbsItem | Attribute )* "}" ;
+EpbsItem        ::= "item" Name AttributeBlock
+                  | "assembly" Name AttributeBlock ;
+
+(* ---- Safety ---------------------------------------------------------------------- *)
+
+SafetyAnalysis  ::= "safety_analysis" "{" SafetyElement* "}" ;
+SafetyElement   ::= "hazard" Name AttributeBlock
+                  | "fmea" Name AttributeBlock
+                  | Attribute ;
+
+(* ---- Traceability ------------------------------------------------------------------ *)
+
+TraceDecl       ::= "trace" AttributeBlock                                (* from:/to:/type: *)
+                  | "trace" Name "->" Name AttributeBlock?
+                  | "trace" Name TraceKind Name AttributeBlock? ;
+TraceKind       ::= "satisfies" | "implements" | "validates" ;
+
+(* ---- Attributes ---------------------------------------------------------------------- *)
+
+AttributeBlock  ::= "{" Attribute* "}" ;
+Attribute       ::= AttributeKey ":" AttributeValue ;
+AttributeKey    ::= Identifier | Keyword ;      (* any keyword may be used as a key *)
+AttributeValue  ::= String
+                  | Number
+                  | DottedName                  (* bare identifier / reference *)
+                  | "[" ( AttributeValue ( "," AttributeValue )* )? "]"
+                  | AttributeBlock ;            (* nested map *)
+
+(* ---- Unmodeled blocks (accepted, warned, ignored) -------------------------------------- *)
+
+UnmodeledBlock  ::= ( "scenario" | "scenarios" | "dataflow" | "data_flows"
+                    | "validation" | "traces" | "traceability" )
+                    Name? "{" BalancedTokens "}" ;

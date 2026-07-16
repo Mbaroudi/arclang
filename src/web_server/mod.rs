@@ -12,7 +12,6 @@ use tower_http::trace::TraceLayer;
 
 use crate::compiler::CompilerError;
 use crate::compiler::semantic::{SemanticModel, SemanticAnalyzer};
-use crate::compiler::arcviz_elk::generate_elk_html;
 use crate::compiler::ast::{
     Model,
     Actor as AstActor,
