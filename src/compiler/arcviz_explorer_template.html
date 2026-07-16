@@ -1,0 +1,2337 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Architecture Explorer</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <script src="https://unpkg.com/elkjs@0.9.3/lib/elk.bundled.js"></script>
+    <script src="https://unpkg.com/dagre-d3@0.6.4/dist/dagre-d3.min.js"></script>
+    <script>
+        // Initialize ELK layout engine
+        const elk = new ELK();
+    </script>
+    <script>
+        // ArcViz Capella Engine - Configuration Centrale
+        const ARCVIZ_CONFIG = {
+            // Layout Engine Selection
+            engine: 'elk',                  // 'elk' (default) | 'dagre' (fallback)
+            
+            // ELK Layout Configuration (Primary) - Optimized for Capella
+            elk: {
+                algorithm: 'layered',
+                'elk.direction': 'DOWN',
+                'elk.hierarchyHandling': 'INCLUDE_CHILDREN',
+                
+                // Layer spacing (Capella swimlanes)
+                'elk.layered.spacing.nodeNodeBetweenLayers': 250,
+                'elk.spacing.nodeNode': 100,
+                'elk.spacing.edgeNode': 50,
+                'elk.spacing.edgeEdge': 30,
+                
+                // Port positioning (Capella interfaces)
+                'elk.portConstraints': 'FIXED_SIDE',
+                'elk.port.borderOffset': 0,
+                'elk.spacing.portPort': 50,
+                
+                // Edge routing (Capella orthogonal style)
+                'elk.edgeRouting': 'ORTHOGONAL',
+                'elk.layered.edgeRouting.sloppiness': 0.3,
+                'elk.layered.edgeRouting.minimizeNumBends': true,
+                
+                // Node placement (optimal layout)
+                'elk.layered.nodePlacement.strategy': 'NETWORK_SIMPLEX',
+                'elk.layered.nodePlacement.favorStraightEdges': true,
+                'elk.layered.crossingMinimization.strategy': 'LAYER_SWEEP',
+                'elk.layered.thoroughness': 150,
+                
+                // Layer separation
+                'elk.separateConnectedComponents': false,
+                'elk.layered.compaction.postCompaction.strategy': 'EDGE_LENGTH',
+                
+                // Label placement
+                'elk.edgeLabels.placement': 'CENTER',
+                'elk.edgeLabels.inline': true
+            },
+            
+            // Dagre Layout Configuration (Fallback)
+            dagre: {
+                rankdir: 'TB',              // Direction: TB (top-bottom), LR (left-right)
+                nodesep: 350,               // Horizontal spacing between nodes (px)
+                ranksep: 200,               // Vertical spacing between layers (px)
+                marginx: 150,               // Left/right margins (px)
+                marginy: 100,               // Top/bottom margins (px)
+                edgesep: 100,               // Spacing between edges (px)
+                ranker: 'network-simplex'   // Layout algorithm
+            },
+            
+            // Component Node Configuration (Capella-compliant)
+            node: {
+                defaultWidth: 320,          // Default node width (px) - VERY wide for safety
+                defaultHeight: 200,         // Default node height (px)
+                minWidth: 300,              // Minimum node width (px) - LARGE minimum
+                minHeight: 160,             // Minimum node height (px)
+                maxWidth: 700,              // Maximum node width (px) - VERY wide max
+                maxHeight: 600,             // Maximum node height (px)
+                borderRadius: 6,            // Component border radius (px) - Capella rounded
+                headerHeight: 65,           // Header section height (px)
+                padding: 15                 // Internal padding (px)
+            },
+            
+            // Port Configuration (Capella interface style)
+            port: {
+                size: 14,                   // Port square size (px) - larger for visibility
+                spacing: 55,                // Vertical spacing between ports (px)
+                borderRadius: 3,            // Port corner radius (px)
+                edgeOffset: 7,              // Distance from component edge (size/2)
+                labelGap: 8,                // Gap between port and label (px)
+                nameYOffset: 3,             // Y offset for port name (px)
+                protocolYOffset: 16,        // Y offset for protocol label (px)
+                colors: {
+                    inFill: '#4caf50',      // IN port fill (Capella green)
+                    inStroke: '#2e7d32',    // IN port border
+                    outFill: '#ff9800',     // OUT port fill (Capella orange)
+                    outStroke: '#e65100'    // OUT port border
+                }
+            },
+            
+            // Label Configuration
+            label: {
+                portName: {
+                    fontSize: 9,            // Port name font size (px)
+                    fontWeight: 600,        // Port name font weight
+                    maxLength: 15,          // Max characters before truncate
+                    color: '#263238'        // Text color
+                },
+                protocol: {
+                    fontSize: 7,            // Protocol font size (px)
+                    fontStyle: 'italic',    // Font style
+                    maxLength: 12,          // Max characters before truncate
+                    color: '#546e7a'        // Text color
+                },
+                function: {
+                    fontSize: 10,           // Function name font size (px)
+                    fontWeight: 500,        // Function font weight
+                    lineHeight: 18,         // Line spacing (px)
+                    color: '#37474f'        // Text color
+                },
+                stereotype: {
+                    fontSize: 16,           // Icon size (px) - smaller to prevent overlap
+                    xOffset: 10,            // X offset from left (px)
+                    yOffset: 36             // Y offset from top (px)
+                }
+            },
+            
+            // Function List Configuration
+            functions: {
+                lineHeight: 18,             // Line spacing (px)
+                fontSize: 10,               // Font size (px)
+                xOffset: 12,                // Indent from left (px)
+                yOffset: 16,                // Offset from header (px)
+                moreIndicatorSize: 9,       // "more..." font size (px)
+                portReserveMultiplier: 50,  // Space per port (portSpacing value)
+                minPortArea: 100            // Minimum space for ports (px)
+            },
+            
+            // Layer Swimlane Configuration
+            layer: {
+                padding: {
+                    left: 30,
+                    right: 30,
+                    top: 50,
+                    bottom: 30
+                },
+                labelFont: 16,              // Layer label font size (px)
+                labelColor: '#263238',       // Layer label color
+                borderDash: [8, 4],         // Border dash pattern
+                borderWidth: 2,             // Border width (px)
+                borderRadius: 12            // Corner radius (px)
+            },
+            
+            // Edge Configuration
+            edge: {
+                strokeWidth: 2.5,           // Edge line width (px)
+                color: '#607d8b',           // Edge color
+                arrowhead: 'vee',           // Arrowhead style
+                labelBox: {
+                    width: 80,              // Exchange item label width (px)
+                    height: 24,             // Exchange item label height (px)
+                    fontSize: 9,            // Label font size (px)
+                    maxLength: 12,          // Max characters
+                    borderRadius: 4,        // Corner radius (px)
+                    fill: 'white',          // Background color
+                    stroke: '#b0bec5'       // Border color
+                }
+            },
+            
+            // Safety Badge Configuration
+            safety: {
+                radius: 12,                 // Badge circle radius (px)
+                fontSize: 7,                // Badge font size (px)
+                fontWeight: 'bold',         // Font weight
+                xOffset: 20,                // Offset from right edge (px)
+                yOffset: 20,                // Offset from top (px)
+                colors: {
+                    ASIL_B: '#ff9800',      // Orange for ASIL B
+                    ASIL_C: '#f44336',      // Red for ASIL C
+                    ASIL_D: '#d32f2f'       // Dark red for ASIL D
+                }
+            },
+            
+            // Collision Detection (if enabled)
+            collision: {
+                enabled: false,              // Enable/disable collision detection
+                minSpacing: 4,              // Min spacing within component (px)
+                margin: 3,                  // Margin between components (px)
+                maxIterations: 100          // Max collision resolution iterations
+            },
+            
+            // Auto-sizing Configuration
+            autoSize: {
+                enabled: true,              // Enable automatic node sizing
+                widthPerChar: 7,            // Pixels per character for width
+                heightPerFunction: 18,      // Pixels per function for height
+                heightPerPort: 50,          // Pixels per port for height
+                minPadding: 40              // Minimum padding (px)
+            }
+        };
+    </script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Helvetica', 'Arial', sans-serif;
+            background: white;
+            color: #2c3e50;
+            line-height: 1.6;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #1a237e 0%, #283593 50%, #3949ab 100%);
+            color: white;
+            padding: 30px 40px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+        
+        .header h1 {
+            font-size: 28px;
+            font-weight: 300;
+            margin-bottom: 8px;
+            letter-spacing: 0.5px;
+        }
+        
+        .header p {
+            opacity: 0.9;
+            font-size: 14px;
+        }
+        
+        .stats {
+            display: flex;
+            gap: 30px;
+            margin-top: 15px;
+            flex-wrap: wrap;
+        }
+        
+        .stat {
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .stat-value {
+            font-size: 24px;
+            font-weight: 600;
+        }
+        
+        .stat-label {
+            font-size: 11px;
+            opacity: 0.8;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .floating-toc {
+            position: fixed;
+            left: 20px;
+            top: 65%;
+            transform: translateY(-50%);
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+            padding: 20px;
+            z-index: 1000;
+            max-width: 280px;
+            max-height: 70vh;
+            overflow-y: auto;
+        }
+        
+        .floating-toc h3 {
+            font-size: 14px;
+            color: #1976d2;
+            margin-bottom: 15px;
+            font-weight: 600;
+        }
+        
+        .toc-item {
+            padding: 10px 15px;
+            margin: 5px 0;
+            cursor: pointer;
+            border-radius: 6px;
+            font-size: 14px;
+            color: #546e7a;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .toc-item:hover {
+            background: #e3f2fd;
+            color: #1976d2;
+        }
+        
+        .toc-item.active {
+            background: #1976d2;
+            color: white;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 40px;
+            margin-left: 320px;
+        }
+        
+        .section {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            margin: 25px 0;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            scroll-margin-top: 150px;
+        }
+        
+        .section-title {
+            font-size: 24px;
+            color: #1976d2;
+            margin-bottom: 25px;
+            font-weight: 400;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .icon {
+            font-size: 28px;
+        }
+        
+        .accordion {
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            margin: 12px 0;
+            overflow: hidden;
+        }
+        
+        .accordion-header {
+            background: #f8f9fa;
+            padding: 16px 20px;
+            cursor: pointer;
+            font-weight: 500;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: background 0.2s;
+            user-select: none;
+        }
+        
+        .accordion-header:hover {
+            background: #e9ecef;
+        }
+        
+        .accordion-icon {
+            transition: transform 0.3s;
+            font-size: 12px;
+        }
+        
+        .accordion-content {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.4s ease-out;
+        }
+        
+        .accordion-content.active {
+            max-height: 10000px;
+            border-top: 1px solid #e0e0e0;
+        }
+        
+        .accordion-body {
+            padding: 20px;
+        }
+        
+        .requirement {
+            padding: 15px;
+            margin: 10px 0;
+            background: #fafbfc;
+            border-left: 4px solid #1976d2;
+            border-radius: 6px;
+        }
+        
+        .req-id {
+            font-weight: 600;
+            color: #1976d2;
+            margin-right: 12px;
+            font-size: 15px;
+        }
+        
+        .badge {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 600;
+            margin-left: 12px;
+        }
+        
+        .badge-critical { background: #ffebee; color: #c62828; }
+        .badge-high { background: #fff3e0; color: #ef6c00; }
+        .badge-medium { background: #e3f2fd; color: #1976d2; }
+        .badge-low { background: #f1f8e9; color: #558b2f; }
+        
+        .component {
+            padding: 15px;
+            margin: 10px 0;
+            background: #f1f8ff;
+            border-left: 4px solid #0366d6;
+            border-radius: 6px;
+        }
+        
+        .comp-id {
+            font-weight: 600;
+            color: #0366d6;
+            margin-right: 8px;
+        }
+        
+        .comp-layer {
+            display: inline-block;
+            padding: 3px 10px;
+            background: #e1f5fe;
+            border-radius: 4px;
+            font-size: 11px;
+            margin-left: 10px;
+            font-weight: 500;
+        }
+        
+        .comp-description {
+            margin-top: 8px;
+            font-size: 13px;
+            color: #666;
+        }
+        
+        .function-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 12px;
+            margin-top: 15px;
+        }
+        
+        .function-item {
+            padding: 12px;
+            background: #f5f5f5;
+            border-radius: 6px;
+            border-left: 3px solid #7c4dff;
+        }
+        
+        .function-name {
+            font-weight: 600;
+            color: #5e35b1;
+            margin-bottom: 4px;
+        }
+        
+        .function-comp {
+            color: #666;
+            font-size: 12px;
+        }
+        
+        .trace-item {
+            padding: 12px;
+            background: #fafafa;
+            margin: 8px 0;
+            border-radius: 6px;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        
+        .trace-from {
+            font-weight: 600;
+            color: #1976d2;
+        }
+        
+        .trace-arrow {
+            color: #999;
+        }
+        
+        .trace-to {
+            font-weight: 600;
+            color: #0366d6;
+        }
+        
+        .trace-type {
+            margin-left: auto;
+            font-size: 12px;
+            color: #666;
+            padding: 2px 8px;
+            background: #f0f0f0;
+            border-radius: 3px;
+        }
+        
+        .back-to-top {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            background: #1976d2;
+            color: white;
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+            font-size: 24px;
+            opacity: 0;
+            transition: opacity 0.3s, transform 0.2s;
+            z-index: 1000;
+        }
+        
+        .back-to-top.visible {
+            opacity: 1;
+        }
+        
+        .back-to-top:hover {
+            transform: scale(1.1);
+        }
+        
+        .search-box {
+            width: 100%;
+            padding: 12px 15px;
+            border: 1px solid #e0e0e0;
+            border-radius: 6px;
+            font-size: 14px;
+            margin-bottom: 20px;
+        }
+        
+        .search-box:focus {
+            outline: none;
+            border-color: #1976d2;
+        }
+        
+        /* Diagram edge styles */
+        .edgePath path {
+            stroke: #607d8b;
+            stroke-width: 2px;
+            fill: none;
+        }
+        
+        .edgePath:hover path {
+            stroke: #1976d2;
+            stroke-width: 3px;
+        }
+        
+        .edgeLabel {
+            background-color: white;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 10px;
+            color: #37474f;
+        }
+        
+        .arrowhead {
+            fill: #607d8b;
+        }
+        
+        /* Capella-style component styles */
+        .component-rect {
+            fill: white;
+            stroke: #1976d2;
+            stroke-width: 2;
+        }
+
+        .component-header {
+            fill: #1976d2;
+        }
+
+        .component-name {
+            fill: white;
+            font-size: 14px;
+            font-weight: bold;
+        }
+
+        .stereotype {
+            fill: white;
+            font-size: 10px;
+            font-style: italic;
+        }
+
+        .interface-port {
+            fill: #4caf50;
+            stroke: #2e7d32;
+            stroke-width: 1.5;
+        }
+
+        .interface-port.out {
+            fill: #ff9800;
+            stroke: #e65100;
+        }
+
+        .interface-label {
+            font-size: 10px;
+            fill: #0d47a1;
+            font-weight: 600;
+        }
+
+        .port-protocol {
+            font-size: 8px;
+            fill: #607d8b;
+            font-style: italic;
+        }
+
+        .function-text {
+            font-size: 11px;
+            fill: #37474f;
+            font-weight: 500;
+        }
+
+        .function-separator {
+            stroke: #e0e0e0;
+            stroke-width: 1;
+        }
+
+        .safety-badge {
+            font-size: 10px;
+            font-weight: bold;
+        }
+
+        .asil-b {
+            fill: #ff9800;
+        }
+
+        .asil-c {
+            fill: #f44336;
+        }
+
+        .asil-d {
+            fill: #d32f2f;
+        }
+
+        .cluster rect {
+            fill-opacity: 0.3 !important;
+        }
+
+        .node {
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .node:hover {
+            filter: drop-shadow(0 8px 16px rgba(0,0,0,0.3));
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1 id="doc-title">🏗️ Architecture Explorer</h1>
+        <p id="doc-description">Loading...</p>
+        <div class="stats">
+            <div class="stat">
+                <div class="stat-value" id="req-count">0</div>
+                <div class="stat-label">REQUIREMENTS</div>
+            </div>
+            <div class="stat">
+                <div class="stat-value" id="comp-count">0</div>
+                <div class="stat-label">COMPONENTS</div>
+            </div>
+            <div class="stat">
+                <div class="stat-value" id="iface-count">0</div>
+                <div class="stat-label">INTERFACES</div>
+            </div>
+            <div class="stat">
+                <div class="stat-value" id="func-count">0</div>
+                <div class="stat-label">FUNCTIONS</div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="floating-toc" id="toc">
+        <h3>📑 Table des matières</h3>
+        <div class="toc-item" onclick="scrollToSection('diagram')">
+            <span>🏗️</span> Diagram
+        </div>
+        <div class="toc-item" onclick="scrollToSection('requirements')">
+            <span>📋</span> Requirements
+        </div>
+        <div class="toc-item" onclick="scrollToSection('components')">
+            <span>🔧</span> Components
+        </div>
+        <div class="toc-item" onclick="scrollToSection('interfaces')">
+            <span>🔗</span> Interfaces
+        </div>
+        <div class="toc-item" onclick="scrollToSection('functions')">
+            <span>⚙️</span> Functions
+        </div>
+        <div class="toc-item" onclick="scrollToSection('traceability')">
+            <span>🔍</span> Traceability
+        </div>
+    </div>
+    
+    <div class="container">
+        <section id="diagram" class="section">
+            <h2 class="section-title">
+                <span class="icon">🏗️</span>
+                Architecture Diagram
+            </h2>
+            <div style="margin-bottom: 15px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+                <button onclick="resetDiagramZoom()" style="padding: 8px 16px; background: #1976d2; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 13px;">Reset Zoom</button>
+                <button onclick="zoomInDiagram()" style="padding: 8px 16px; background: #1976d2; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 13px;">Zoom In</button>
+                <button onclick="zoomOutDiagram()" style="padding: 8px 16px; background: #1976d2; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 13px;">Zoom Out</button>
+                <button onclick="exportDiagramSVG()" style="padding: 8px 16px; background: #43a047; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 13px;">📄 Export SVG</button>
+                <button onclick="exportDiagramPNG()" style="padding: 8px 16px; background: #fb8c00; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 13px;">🖼️ Export PNG</button>
+            </div>
+            <div style="width: 100%; height: 700px; border: 1px solid #e0e0e0; border-radius: 8px; background: white; overflow: hidden;">
+                <svg id="arch-diagram" width="100%" height="100%" style="background: white;"></svg>
+            </div>
+        </section>
+        
+        <section id="requirements" class="section">
+            <h2 class="section-title">
+                <span class="icon">📋</span>
+                Requirements
+            </h2>
+            <input type="text" class="search-box" id="search-requirements" placeholder="Rechercher des requirements..." onkeyup="searchRequirements(this.value)">
+            <div id="requirements-container"></div>
+        </section>
+        
+        <section id="components" class="section">
+            <h2 class="section-title">
+                <span class="icon">🔧</span>
+                Components
+            </h2>
+            <input type="text" class="search-box" id="search-components" placeholder="Rechercher des components..." onkeyup="searchComponents(this.value)">
+            <div id="components-container"></div>
+        </section>
+        
+        <section id="interfaces" class="section">
+            <h2 class="section-title">
+                <span class="icon">🔗</span>
+                Interfaces
+            </h2>
+            <div id="interfaces-container"></div>
+        </section>
+        
+        <section id="functions" class="section">
+            <h2 class="section-title">
+                <span class="icon">⚙️</span>
+                Functions
+            </h2>
+            <div id="functions-container"></div>
+        </section>
+        
+        <section id="traceability" class="section">
+            <h2 class="section-title">
+                <span class="icon">🔍</span>
+                Traceability Matrix
+            </h2>
+            <div id="traceability-container"></div>
+        </section>
+    </div>
+    
+    <div class="back-to-top" id="back-to-top" onclick="scrollToTop()">
+        ↑
+    </div>
+    
+    <script>
+        // Architecture data embedded
+        const archData = /*ARCH_DATA_PLACEHOLDER*/null/*END_ARCH_DATA_PLACEHOLDER*/;
+        
+        // Initialize when DOM is ready
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', initialize);
+        } else {
+            initialize();
+        }
+        
+        function initialize() {
+            if (!archData) {
+                alert('Error: Architecture data not found');
+                return;
+            }
+            
+            console.log('✓ Initializing architecture explorer...');
+            loadStats();
+            loadRequirements();
+            loadComponents();
+            loadInterfaces();
+            loadFunctions();
+            loadDiagram();
+            loadTraceability();
+            initScrollEffects();
+            console.log('✓ Architecture explorer loaded successfully');
+        }
+        
+        function loadStats() {
+            document.getElementById('doc-title').textContent = '🏗️ ' + archData.metadata.title;
+            document.getElementById('doc-description').textContent = archData.metadata.description;
+            document.getElementById('req-count').textContent = archData.metadata.total_requirements;
+            document.getElementById('comp-count').textContent = archData.metadata.total_components;
+            document.getElementById('iface-count').textContent = archData.metadata.total_interfaces;
+            document.getElementById('func-count').textContent = archData.metadata.total_functions;
+            document.title = archData.metadata.title + ' - Architecture Explorer';
+        }
+        
+        function loadRequirements() {
+            const container = document.getElementById('requirements-container');
+            
+            archData.requirements.forEach(section => {
+                const accordion = document.createElement('div');
+                accordion.className = 'accordion';
+                
+                const header = document.createElement('div');
+                header.className = 'accordion-header';
+                header.innerHTML = `
+                    <span>${section.category} (${section.requirements.length})</span>
+                    <span class="accordion-icon">▼</span>
+                `;
+                
+                const content = document.createElement('div');
+                content.className = 'accordion-content';
+                
+                const body = document.createElement('div');
+                body.className = 'accordion-body';
+                
+                section.requirements.forEach(req => {
+                    const reqDiv = document.createElement('div');
+                    reqDiv.className = 'requirement';
+                    reqDiv.setAttribute('data-search', req.id + ' ' + req.description);
+                    
+                    const priorityClass = 'badge-' + (req.priority || 'medium').toLowerCase();
+                    
+                    reqDiv.innerHTML = `
+                        <span class="req-id">${req.id}</span>
+                        ${req.description}
+                        <span class="badge ${priorityClass}">${req.priority || 'Medium'}</span>
+                    `;
+                    
+                    body.appendChild(reqDiv);
+                });
+                
+                content.appendChild(body);
+                accordion.appendChild(header);
+                accordion.appendChild(content);
+                container.appendChild(accordion);
+                
+                header.onclick = () => toggleAccordion(header);
+            });
+        }
+        
+        function loadComponents() {
+            const container = document.getElementById('components-container');
+            
+            archData.components.forEach(comp => {
+                const compDiv = document.createElement('div');
+                compDiv.className = 'component';
+                compDiv.setAttribute('data-search', comp.id + ' ' + comp.name);
+                
+                const safety = comp.safety_level ? 
+                    `<span class="badge badge-critical">ASIL ${comp.safety_level}</span>` : '';
+                
+                compDiv.innerHTML = `
+                    <div>
+                        <span class="comp-id">${comp.id}</span>
+                        ${comp.name}
+                        <span class="comp-layer">${comp.layer}</span>
+                        ${safety}
+                    </div>
+                    <div class="comp-description">${comp.description}</div>
+                `;
+                
+                container.appendChild(compDiv);
+            });
+        }
+        
+        function loadInterfaces() {
+            const container = document.getElementById('interfaces-container');
+            
+            if (archData.interfaces.length === 0) {
+                container.innerHTML = '<p style="color: #999;">No interfaces defined</p>';
+                return;
+            }
+            
+            archData.interfaces.forEach(iface => {
+                const ifaceDiv = document.createElement('div');
+                ifaceDiv.className = 'trace-item';
+                ifaceDiv.innerHTML = `
+                    <span class="trace-from">${iface.from_component}</span>
+                    <span class="trace-arrow">→</span>
+                    <span class="trace-to">${iface.to_component}</span>
+                    <span class="trace-type">${iface.name}</span>
+                `;
+                container.appendChild(ifaceDiv);
+            });
+        }
+        
+        function loadFunctions() {
+            const container = document.getElementById('functions-container');
+            const grid = document.createElement('div');
+            grid.className = 'function-grid';
+            
+            archData.functions.forEach(func => {
+                const funcDiv = document.createElement('div');
+                funcDiv.className = 'function-item';
+                funcDiv.innerHTML = `
+                    <div class="function-name">${func.name}</div>
+                    <div class="function-comp">${func.component}</div>
+                `;
+                grid.appendChild(funcDiv);
+            });
+            
+            container.appendChild(grid);
+        }
+        
+        function loadDiagram() {
+            if (!archData.diagram || !archData.diagram.nodes || archData.diagram.nodes.length === 0) {
+                console.warn('No diagram data available');
+                return;
+            }
+            
+            try {
+                renderDiagram();
+            } catch (error) {
+                console.error('Error rendering diagram:', error);
+                document.getElementById('arch-diagram').innerHTML = '<text x="50%" y="50%" text-anchor="middle" fill="#999">Error rendering diagram. Check console for details.</text>';
+            }
+        }
+        
+        async function renderDiagram() {
+            const diagramData = archData.diagram;
+            
+            if (!diagramData || !diagramData.nodes || !diagramData.layers) {
+                console.error('Invalid diagram data:', diagramData);
+                return;
+            }
+            
+            console.log(`🎨 ArcViz Engine: ${ARCVIZ_CONFIG.engine.toUpperCase()}`);
+            
+            if (ARCVIZ_CONFIG.engine === 'elk') {
+                await renderWithELK(diagramData);
+            } else {
+                renderWithDagre(diagramData);
+            }
+        }
+        
+        function renderWithDagre(diagramData) {
+            console.log('📊 Using Dagre-D3 layout engine...');
+            
+            const g = new dagreD3.graphlib.Graph({compound: true})
+                .setGraph({
+                    rankdir: ARCVIZ_CONFIG.dagre.rankdir,
+                    nodesep: ARCVIZ_CONFIG.dagre.nodesep,
+                    ranksep: ARCVIZ_CONFIG.dagre.ranksep,
+                    marginx: ARCVIZ_CONFIG.dagre.marginx,
+                    marginy: ARCVIZ_CONFIG.dagre.marginy,
+                    ranker: ARCVIZ_CONFIG.dagre.ranker,
+                    edgesep: ARCVIZ_CONFIG.dagre.edgesep
+                })
+                .setDefaultEdgeLabel(() => ({}));
+            
+            const nodesByLayer = {};
+            const layerNames = new Set();
+            
+            diagramData.nodes.forEach(node => {
+                const layer = node.layer || 'Other';
+                if (!nodesByLayer[layer]) {
+                    nodesByLayer[layer] = [];
+                }
+                nodesByLayer[layer].push(node);
+                layerNames.add(layer);
+            });
+            
+            const layerConfigs = {};
+            if (diagramData.layers && diagramData.layers.length > 0) {
+                diagramData.layers.forEach(layer => {
+                    layerConfigs[layer.name] = layer;
+                });
+            }
+            
+            layerNames.forEach(layerName => {
+                const layerConfig = layerConfigs[layerName];
+                const layerColor = layerConfig ? layerConfig.color : '#E8F5E9';
+                
+                g.setNode(layerName, {
+                    label: layerName + ' Layer',
+                    clusterLabelPos: 'top',
+                    style: `fill: ${layerColor}; fill-opacity: 0.25; stroke: #37474f; stroke-width: 3px; stroke-dasharray: 10,5;`,
+                    rx: 16,
+                    ry: 16,
+                    paddingLeft: 30,
+                    paddingRight: 30,
+                    paddingTop: 50,
+                    paddingBottom: 30
+                });
+            });
+            
+            diagramData.nodes.forEach(node => {
+                if (!node.id) {
+                    console.warn('Node without ID:', node);
+                    return;
+                }
+                
+                const width = node.width || ARCVIZ_CONFIG.node.defaultWidth;
+                const height = node.height || ARCVIZ_CONFIG.node.defaultHeight;
+                
+                // Use simple text label for Dagre-D3 compatibility
+                let textLabel = node.label;
+                if (node.functions && node.functions.length > 0) {
+                    textLabel += '\n' + node.functions.slice(0, 3).join('\n');
+                }
+                
+                g.setNode(node.id, {
+                    label: textLabel,
+                    width: width,
+                    height: height,
+                    class: 'diagram-node',
+                    rx: 6,
+                    ry: 6,
+                    style: 'fill: white; stroke: #2196f3; stroke-width: 2px;'
+                });
+                
+                const layer = node.layer || 'Other';
+                g.setParent(node.id, layer);
+            });
+            
+            if (diagramData.edges && diagramData.edges.length > 0) {
+                diagramData.edges.forEach(edge => {
+                    if (edge.source && edge.target) {
+                        g.setEdge(edge.source, edge.target, {
+                            label: '',
+                            curve: d3.curveLinear,
+                            arrowhead: 'vee',
+                            arrowheadClass: 'arrowhead',
+                            style: 'stroke: #607d8b; stroke-width: 2.5px; fill: none;'
+                        });
+                    }
+                });
+            }
+            
+            const svg = d3.select('#arch-diagram');
+            svg.selectAll('*').remove();
+            const svgGroup = svg.append('g');
+            
+            const render = new dagreD3.render();
+            render(svgGroup, g);
+            
+            // Enhance nodes with Capella-style SVG after Dagre layout
+            enhanceNodesWithCapellaStyle(svgGroup, g, diagramData);
+            
+            const graphWidth = g.graph().width || 1000;
+            const graphHeight = g.graph().height || 800;
+            const svgWidth = svg.node().getBoundingClientRect().width;
+            const svgHeight = svg.node().getBoundingClientRect().height;
+            
+            const scaleX = svgWidth / (graphWidth + 100);
+            const scaleY = svgHeight / (graphHeight + 100);
+            const initialScale = Math.min(scaleX, scaleY, 0.85);
+            
+            const xCenterOffset = (svgWidth - graphWidth * initialScale) / 2;
+            const yCenterOffset = 50;
+            
+            const zoom = d3.zoom()
+                .scaleExtent([0.1, 3])
+                .on('zoom', (event) => {
+                    svgGroup.attr('transform', event.transform);
+                });
+            
+            svg.call(zoom).call(
+                zoom.transform,
+                d3.zoomIdentity.translate(xCenterOffset, yCenterOffset).scale(initialScale)
+            );
+            
+            window.diagramZoom = zoom;
+            window.diagramSvg = svg;
+            window.diagramSvgGroup = svgGroup;
+            window.diagramGraph = g;
+            window.diagramInitialTransform = { xCenterOffset, yCenterOffset, initialScale };
+            
+            console.log('✓ Diagram rendered:', diagramData.nodes.length, 'nodes,', (diagramData.edges || []).length, 'edges');
+        }
+        
+        function enhanceNodesWithCapellaStyle(svgGroup, graph, diagramData) {
+            console.log('Starting Capella enhancement for', diagramData.nodes.length, 'nodes');
+            
+            const allNodes = svgGroup.selectAll('g.node');
+            console.log('Total nodes found by Dagre:', allNodes.size());
+            
+            const portLabels = [];
+            
+            diagramData.nodes.forEach(nodeData => {
+                // Dagre-D3 doesn't use id attribute, it creates nodes with specific structure
+                // Try selecting by the node's internal ID stored in __data__
+                let nodeElem = null;
+                svgGroup.selectAll('g.node').each(function() {
+                    const d3Node = d3.select(this);
+                    const nodeId = d3Node.datum(); // Get the node ID from d3 data
+                    if (nodeId === nodeData.id) {
+                        nodeElem = d3Node;
+                    }
+                });
+                
+                if (!nodeElem || nodeElem.empty()) {
+                    console.warn('Node element not found for:', nodeData.id);
+                    return;
+                }
+                
+                if (nodeData.safety_level) {
+                    console.log('✓ Rendering ASIL badge for:', nodeData.id, nodeData.label, nodeData.safety_level);
+                }
+                
+                nodeElem.selectAll('*').remove();
+                
+                const nodeInfo = graph.node(nodeData.id);
+                const width = nodeInfo.width || 220;
+                const height = nodeInfo.height || 180;
+                const x = -width / 2;
+                const y = -height / 2;
+                
+                const headerHeight = ARCVIZ_CONFIG.node.headerHeight;
+                
+                nodeElem.append('rect')
+                    .attr('class', 'component-rect')
+                    .attr('x', x)
+                    .attr('y', y)
+                    .attr('width', width)
+                    .attr('height', height)
+                    .attr('rx', 4)
+                    .attr('fill', 'white')
+                    .attr('stroke', '#1976d2')
+                    .attr('stroke-width', 2);
+                
+                nodeElem.append('rect')
+                    .attr('class', 'component-header')
+                    .attr('x', x)
+                    .attr('y', y)
+                    .attr('width', width)
+                    .attr('height', headerHeight)
+                    .attr('rx', 4)
+                    .attr('fill', '#1976d2');
+                
+                // Stereotype rendering disabled
+                // if (nodeData.stereotype) {
+                //     nodeElem.append('text')
+                //         .attr('class', 'stereotype')
+                //         .attr('x', 0)
+                //         .attr('y', y + 20)
+                //         .attr('text-anchor', 'middle')
+                //         .attr('fill', 'white')
+                //         .attr('font-size', 10)
+                //         .attr('font-style', 'italic')
+                //         .text(`<<${nodeData.stereotype}>>`);
+                // }
+                
+                nodeElem.append('text')
+                    .attr('class', 'component-name')
+                    .attr('x', 0)
+                    .attr('y', y + 35)  // Fixed position, no stereotype offset
+                    .attr('text-anchor', 'middle')
+                    .attr('fill', 'white')
+                    .attr('font-size', 14)
+                    .attr('font-weight', 'bold')
+                    .text(truncate(nodeData.label, 24));
+                
+                if (nodeData.safety_level) {
+                    const asilLabel = nodeData.safety_level.replace('ASIL_', '');
+                    const badgeColor = asilLabel === 'B' ? '#ff9800' : 
+                                       asilLabel === 'C' ? '#f44336' : 
+                                       asilLabel === 'D' ? '#d32f2f' : '#ff9800';
+                    
+                    nodeElem.append('circle')
+                        .attr('class', `safety-badge asil-${asilLabel.toLowerCase()}`)
+                        .attr('cx', x + width - 20)
+                        .attr('cy', y + 20)
+                        .attr('r', 12)
+                        .attr('fill', badgeColor);
+                    
+                    nodeElem.append('text')
+                        .attr('class', 'safety-badge')
+                        .attr('x', x + width - 20)
+                        .attr('y', y + 24)
+                        .attr('text-anchor', 'middle')
+                        .attr('fill', 'white')
+                        .attr('font-size', 10)
+                        .attr('font-weight', 'bold')
+                        .text(asilLabel);
+                }
+                
+                if (nodeData.functions && nodeData.functions.length > 0) {
+                    nodeElem.append('line')
+                        .attr('class', 'function-separator')
+                        .attr('x1', x)
+                        .attr('y1', y + headerHeight)
+                        .attr('x2', x + width)
+                        .attr('y2', y + headerHeight)
+                        .attr('stroke', '#e0e0e0')
+                        .attr('stroke-width', 1);
+                    
+                    const portAreaHeight = Math.max(
+                        (nodeData.interfaces_in ? nodeData.interfaces_in.length : 0) * ARCVIZ_CONFIG.functions.portReserveMultiplier,
+                        (nodeData.interfaces_out ? nodeData.interfaces_out.length : 0) * ARCVIZ_CONFIG.functions.portReserveMultiplier,
+                        ARCVIZ_CONFIG.functions.minPortArea
+                    );
+                    const availableHeight = Math.max(height - headerHeight - portAreaHeight - 20, 0);
+                    const lineHeight = ARCVIZ_CONFIG.functions.lineHeight;
+                    const maxFuncs = Math.max(0, Math.floor(availableHeight / lineHeight));
+                    
+                    const clipId = `clip-${nodeData.id}`;
+                    nodeElem.append('clipPath')
+                        .attr('id', clipId)
+                        .append('rect')
+                        .attr('x', x)
+                        .attr('y', y + headerHeight)
+                        .attr('width', width)
+                        .attr('height', availableHeight);
+                    
+                    const funcGroup = nodeElem.append('g')
+                        .attr('clip-path', `url(#${clipId})`);
+                    
+                    nodeData.functions.slice(0, maxFuncs).forEach((func, i) => {
+                        funcGroup.append('text')
+                            .attr('class', 'function-text')
+                            .attr('x', x + 12)
+                            .attr('y', y + headerHeight + 16 + (i * lineHeight))
+                            .attr('fill', '#37474f')
+                            .attr('font-size', 10)
+                            .attr('font-weight', 500)
+                            .text(`+ ${truncate(func, Math.floor((width - 24) / 6))}`);
+                    });
+                    
+                    if (nodeData.functions.length > maxFuncs && maxFuncs > 0) {
+                        funcGroup.append('text')
+                            .attr('x', x + 12)
+                            .attr('y', y + headerHeight + 16 + (maxFuncs * lineHeight))
+                            .attr('fill', '#607d8b')
+                            .attr('font-size', 9)
+                            .attr('font-style', 'italic')
+                            .text(`+${nodeData.functions.length - maxFuncs} more...`);
+                    }
+                }
+                
+                // Capella-style port distribution along all edges
+                const globalX = nodeInfo.x;
+                const globalY = nodeInfo.y;
+                const portSize = ARCVIZ_CONFIG.port.size;
+                const portSpacing = ARCVIZ_CONFIG.port.spacing;
+                
+                // Distribute IN ports (required) on LEFT edge
+                if (nodeData.interfaces_in && nodeData.interfaces_in.length > 0) {
+                    const portCount = nodeData.interfaces_in.length;
+                    const totalHeight = (portCount - 1) * portSpacing;
+                    const startY = y + headerHeight + (height - headerHeight - totalHeight) / 2;
+                    
+                    nodeData.interfaces_in.forEach((port, i) => {
+                        const py = startY + (i * portSpacing);
+                        const portCenterY = py + portSize / 2;
+                        
+                        nodeElem.append('rect')
+                            .attr('class', 'interface-port in-port')
+                            .attr('id', `port-${nodeData.id}-in-${i}`)
+                            .attr('data-port-id', port.name)
+                            .attr('data-node-id', nodeData.id)
+                            .attr('data-port-type', 'in')
+                            .attr('x', x - portSize / 2)
+                            .attr('y', py)
+                            .attr('width', portSize)
+                            .attr('height', portSize)
+                            .attr('rx', 2)
+                            .attr('fill', '#4caf50')
+                            .attr('stroke', '#2e7d32')
+                            .attr('stroke-width', 2);
+                        
+                        nodeElem.append('text')
+                            .attr('class', 'port-label')
+                            .attr('x', x - portSize - 5)
+                            .attr('y', py + 2)
+                            .attr('text-anchor', 'end')
+                            .attr('fill', '#263238')
+                            .attr('font-size', 9)
+                            .attr('font-weight', 600)
+                            .text(truncate(port.name, 15));
+                        
+                        if (port.protocol) {
+                            nodeElem.append('text')
+                                .attr('class', 'port-protocol')
+                                .attr('x', x - portSize - 5)
+                                .attr('y', py + 14)
+                                .attr('text-anchor', 'end')
+                                .attr('fill', '#546e7a')
+                                .attr('font-size', 7)
+                                .attr('font-style', 'italic')
+                                .text(`[${truncate(port.protocol, 12)}]`);
+                        }
+                    });
+                }
+                
+                // Distribute OUT ports (provided) on RIGHT edge
+                if (nodeData.interfaces_out && nodeData.interfaces_out.length > 0) {
+                    const portCount = nodeData.interfaces_out.length;
+                    const totalHeight = (portCount - 1) * portSpacing;
+                    const startY = y + headerHeight + (height - headerHeight - totalHeight) / 2;
+                    
+                    nodeData.interfaces_out.forEach((port, i) => {
+                        const py = startY + (i * portSpacing);
+                        const portCenterY = py + portSize / 2;
+                        
+                        nodeElem.append('rect')
+                            .attr('class', 'interface-port out-port')
+                            .attr('id', `port-${nodeData.id}-out-${i}`)
+                            .attr('data-port-id', port.name)
+                            .attr('data-node-id', nodeData.id)
+                            .attr('data-port-type', 'out')
+                            .attr('x', x + width - portSize / 2)
+                            .attr('y', py)
+                            .attr('width', portSize)
+                            .attr('height', portSize)
+                            .attr('rx', 2)
+                            .attr('fill', '#ff9800')
+                            .attr('stroke', '#e65100')
+                            .attr('stroke-width', 2);
+                        
+                        nodeElem.append('text')
+                            .attr('class', 'port-label')
+                            .attr('x', x + width + portSize + 5)
+                            .attr('y', py + 2)
+                            .attr('text-anchor', 'start')
+                            .attr('fill', '#263238')
+                            .attr('font-size', 9)
+                            .attr('font-weight', 600)
+                            .text(truncate(port.name, 15));
+                        
+                        if (port.protocol) {
+                            nodeElem.append('text')
+                                .attr('class', 'port-protocol')
+                                .attr('x', x + width + portSize + 5)
+                                .attr('y', py + 14)
+                                .attr('text-anchor', 'start')
+                                .attr('fill', '#546e7a')
+                                .attr('font-size', 7)
+                                .attr('font-style', 'italic')
+                                .text(`[${truncate(port.protocol, 12)}]`);
+                        }
+                    });
+                }
+                
+                // Stereotype icons DISABLED
+                // const iconMap = {
+                //     'Gateway': '⚡',
+                //     'Controller': '⚙️',
+                //     'Sensor': '📡',
+                //     'Actuator': '🔧',
+                //     'ECU_Hardware': '💾',
+                //     'CAN_Bus': '🔌',
+                //     'LIN_Bus': '🔌',
+                //     'Software': '💻',
+                //     'HMI': '📱'
+                // };
+                // 
+                // const icon = iconMap[nodeData.stereotype] || '📦';
+                // nodeElem.append('text')
+                //     .attr('x', x + 15)
+                //     .attr('y', y + 40)
+                //     .attr('font-size', 20)
+                //     .text(icon);
+            });
+            
+            // Enhance edges with exchange items and orthogonal routing
+            enhanceEdgesWithExchangeItems(svgGroup, graph, diagramData);
+            
+            // No collision detection needed - fixed at source with proper spacing
+            console.log('✓ Capella enhancement complete with proper spacing');
+        }
+        
+        function resolveAllTextCollisions(svgGroup, graph) {
+            const allLabels = [];
+            
+            svgGroup.selectAll('.port-label, .port-protocol').each(function() {
+                const elem = d3.select(this);
+                let componentNode = this.parentNode;
+                while (componentNode && !d3.select(componentNode).classed('node')) {
+                    componentNode = componentNode.parentNode;
+                }
+                if (!componentNode) return;
+                
+                const componentId = d3.select(componentNode).datum();
+                const x = parseFloat(elem.attr('x'));
+                const y = parseFloat(elem.attr('y'));
+                const bbox = this.getBBox();
+                const side = elem.attr('text-anchor') === 'end' ? 'left' : 'right';
+                const isProtocol = elem.classed('port-protocol');
+                
+                allLabels.push({
+                    element: elem,
+                    componentId: componentId,
+                    side: side,
+                    isProtocol: isProtocol,
+                    x: x,
+                    y: y,
+                    width: bbox.width,
+                    height: bbox.height,
+                    x1: side === 'end' ? x - bbox.width : x,
+                    y1: y - bbox.height * 0.75,
+                    x2: side === 'end' ? x : x + bbox.width,
+                    y2: y + bbox.height * 0.25
+                });
+            });
+            
+            // Group by component and side
+            const groups = new Map();
+            allLabels.forEach(label => {
+                const key = `${label.componentId}-${label.side}`;
+                if (!groups.has(key)) groups.set(key, []);
+                groups.get(key).push(label);
+            });
+            
+            // Sort within each group and apply minimum spacing
+            groups.forEach(labels => {
+                labels.sort((a, b) => a.y - b.y);
+                
+                const minSpacing = 4;
+                for (let i = 1; i < labels.length; i++) {
+                    const prev = labels[i - 1];
+                    const curr = labels[i];
+                    
+                    const gap = curr.y1 - prev.y2;
+                    if (gap < minSpacing) {
+                        const shift = minSpacing - gap;
+                        curr.y += shift;
+                        curr.y1 += shift;
+                        curr.y2 += shift;
+                    }
+                }
+            });
+            
+            // Cross-component collision detection
+            const maxIterations = 100;
+            for (let iter = 0; iter < maxIterations; iter++) {
+                let hadCollision = false;
+                
+                for (let i = 0; i < allLabels.length; i++) {
+                    for (let j = i + 1; j < allLabels.length; j++) {
+                        const a = allLabels[i];
+                        const b = allLabels[j];
+                        
+                        if (a.componentId === b.componentId) continue;
+                        if (a.side !== b.side) continue;
+                        
+                        const margin = 3;
+                        const xOverlap = Math.max(0, Math.min(a.x2, b.x2) - Math.max(a.x1, b.x1));
+                        const yOverlap = Math.max(0, Math.min(a.y2, b.y2) - Math.max(a.y1, b.y1));
+                        
+                        if (xOverlap > 0 && yOverlap > 0) {
+                            hadCollision = true;
+                            const shift = (yOverlap + margin) * 0.5;
+                            
+                            if (a.y < b.y) {
+                                a.y -= shift;
+                                a.y1 -= shift;
+                                a.y2 -= shift;
+                                b.y += shift;
+                                b.y1 += shift;
+                                b.y2 += shift;
+                            } else {
+                                a.y += shift;
+                                a.y1 += shift;
+                                a.y2 += shift;
+                                b.y -= shift;
+                                b.y1 -= shift;
+                                b.y2 -= shift;
+                            }
+                        }
+                    }
+                }
+                
+                if (!hadCollision) {
+                    console.log(`✓ Collision resolution converged in ${iter + 1} iterations`);
+                    break;
+                }
+            }
+            
+            // Apply adjusted positions
+            allLabels.forEach(label => {
+                label.element.attr('y', label.y);
+            });
+        }
+        
+        function enhanceEdgesWithExchangeItems(svgGroup, graph, diagramData) {
+            svgGroup.selectAll('g.edgePath').each(function() {
+                const edge = d3.select(this);
+                const edgeData = edge.datum();
+                
+                if (!edgeData) return;
+                
+                const interfaceData = diagramData.edges.find(e => 
+                    (e.source === edgeData.v && e.target === edgeData.w) ||
+                    (e.source === edgeData.w && e.target === edgeData.v)
+                );
+                
+                if (!interfaceData) return;
+                
+                const path = edge.select('path');
+                if (path.empty()) return;
+                
+                const pathNode = path.node();
+                const pathLength = pathNode.getTotalLength();
+                const midPoint = pathNode.getPointAtLength(pathLength / 2);
+                
+                edge.append('rect')
+                    .attr('x', midPoint.x - 40)
+                    .attr('y', midPoint.y - 12)
+                    .attr('width', 80)
+                    .attr('height', 24)
+                    .attr('rx', 4)
+                    .attr('fill', 'white')
+                    .attr('stroke', '#1976d2')
+                    .attr('stroke-width', 1.5)
+                    .attr('filter', 'drop-shadow(0 2px 4px rgba(0,0,0,0.2))');
+                
+                edge.append('text')
+                    .attr('x', midPoint.x)
+                    .attr('y', midPoint.y + 4)
+                    .attr('text-anchor', 'middle')
+                    .attr('fill', '#1976d2')
+                    .attr('font-size', 9)
+                    .attr('font-weight', 700)
+                    .text(truncate(interfaceData.label, 12));
+            });
+        }
+        
+        function truncate(text, maxLen) {
+            if (!text) return '';
+            return text.length <= maxLen ? text : text.substring(0, maxLen - 3) + '...';
+        }
+        
+        function resetDiagramZoom() {
+            if (!window.diagramZoom || !window.diagramSvg) return;
+            const t = window.diagramInitialTransform;
+            window.diagramSvg.transition().duration(750).call(
+                window.diagramZoom.transform,
+                d3.zoomIdentity.translate(t.xCenterOffset, t.yCenterOffset).scale(t.initialScale)
+            );
+        }
+        
+        function zoomInDiagram() {
+            if (!window.diagramZoom || !window.diagramSvg) return;
+            window.diagramSvg.transition().duration(300).call(window.diagramZoom.scaleBy, 1.3);
+        }
+        
+        function zoomOutDiagram() {
+            if (!window.diagramZoom || !window.diagramSvg) return;
+            window.diagramSvg.transition().duration(300).call(window.diagramZoom.scaleBy, 0.7);
+        }
+        
+        
+        // ============================================================================
+        // ELK LAYOUT ENGINE
+        // ============================================================================
+        
+        // ============================================================================
+        // ArcViz ELK Layout Renderer
+        // Eclipse Layout Kernel integration for Capella-compliant diagrams
+        // ============================================================================
+
+        /**
+         * Render diagram using ELK layout engine
+         * @param {Object} diagramData - Architecture diagram data
+         */
+        async function renderWithELK(diagramData) {
+            console.log('🚀 Using ELK layout engine...');
+            console.time('ELK Total');
+
+            // Convert ArcLang diagram to ELK graph format
+            const elkGraph = convertToELKGraph(diagramData);
+            console.log('📊 ELK Graph structure:', elkGraph);
+
+            // Run ELK layout
+            console.time('ELK Layout');
+            try {
+                const layoutGraph = await elk.layout(elkGraph);
+                console.timeEnd('ELK Layout');
+
+                // Render with D3
+                console.time('D3 Render');
+                renderELKGraph(layoutGraph, diagramData);
+                console.timeEnd('D3 Render');
+
+                console.timeEnd('ELK Total');
+                console.log('✓ ELK diagram rendered:', diagramData.nodes.length, 'nodes,', (diagramData.edges || []).length, 'edges');
+            } catch (err) {
+                console.error('✗ ELK layout failed:', err);
+                console.log('Falling back to Dagre...');
+                renderWithDagre(diagramData);
+            }
+        }
+
+        /**
+         * Convert ArcLang diagram data to ELK graph format
+         */
+        function convertToELKGraph(diagramData) {
+            console.log('Converting to ELK graph...', diagramData);
+            const elkGraph = {
+                id: 'root',
+                layoutOptions: ARCVIZ_CONFIG.elk,
+                children: [],
+                edges: []
+            };
+
+            // Group nodes by layer
+            const nodesByLayer = {};
+            const layerConfigs = {};
+
+            if (diagramData.layers) {
+                diagramData.layers.forEach(layer => {
+                    layerConfigs[layer.name] = layer;
+                    nodesByLayer[layer.name] = [];
+                });
+            }
+
+            diagramData.nodes.forEach(node => {
+                const layer = node.layer || 'Other';
+                if (!nodesByLayer[layer]) {
+                    nodesByLayer[layer] = [];
+                }
+                nodesByLayer[layer].push(node);
+            });
+
+            // Create layer nodes
+            Object.keys(nodesByLayer).forEach(layerName => {
+                const layerConfig = layerConfigs[layerName];
+                const layerColor = layerConfig ? layerConfig.color : '#E8F5E9';
+
+                const layerNode = {
+                    id: layerName,
+                    layoutOptions: {
+                        'elk.padding': '[top=50,left=30,bottom=30,right=30]',
+                        'elk.portConstraints': 'FREE',
+                        'elk.layered.spacing.nodeNodeBetweenLayers': 100
+                    },
+                    labels: [{ 
+                        text: layerName + ' Layer',
+                        layoutOptions: {
+                            'nodeLabels.placement': 'INSIDE V_TOP H_CENTER'
+                        }
+                    }],
+                    properties: {
+                        color: layerColor,
+                        isLayer: true
+                    },
+                    children: [],
+                    ports: []
+                };
+
+                // Add components to layer
+                nodesByLayer[layerName].forEach(node => {
+                    const elkNode = convertNodeToELK(node);
+                    layerNode.children.push(elkNode);
+                });
+
+                elkGraph.children.push(layerNode);
+            });
+
+            // Add edges (ELK auto-resolves hierarchy by node ID)
+            if (diagramData.edges) {
+                diagramData.edges.forEach(edge => {
+                    if (edge.source && edge.target) {
+                        elkGraph.edges.push({
+                            id: `edge_${edge.source}_${edge.target}`,
+                            sources: [edge.source],
+                            targets: [edge.target],
+                            labels: edge.label ? [{ text: edge.label }] : []
+                        });
+                    }
+                });
+            }
+
+            return elkGraph;
+        }
+
+        /**
+         * Convert single node to ELK format
+         */
+        function convertNodeToELK(node) {
+            const height = node.height || ARCVIZ_CONFIG.node.defaultHeight;
+            
+            // Use provided width if available
+            if (node.width) {
+                return createElkNode(node, node.width, height);
+            }
+            
+            // Calculate dynamic width based on actual text measurement
+            const label = node.label || node.id;
+            
+            // Create temporary SVG text element to measure actual width
+            const tempSvg = d3.select('body').append('svg')
+                .style('position', 'absolute')
+                .style('visibility', 'hidden');
+            
+            const tempText = tempSvg.append('text')
+                .style('font-size', '14px')
+                .style('font-weight', '600')
+                .text(label);
+            
+            const textWidth = tempText.node().getComputedTextLength();
+            tempSvg.remove();
+            
+            // Calculate required width (simple centered layout)
+            // Padding (50px) + text + padding (50px) + ASIL badge (50px if present)
+            const badgeSpace = node.safety_level ? 50 : 0;
+            const calculatedWidth = 50 + textWidth + 50 + badgeSpace;
+            
+            // Ensure within min/max bounds
+            const width = Math.max(
+                ARCVIZ_CONFIG.node.minWidth,
+                Math.min(Math.ceil(calculatedWidth), ARCVIZ_CONFIG.node.maxWidth)
+            );
+            
+            return createElkNode(node, width, height);
+        }
+        
+        function createElkNode(node, width, height) {
+
+            const elkNode = {
+                id: node.id,
+                width: width,
+                height: height,
+                layoutOptions: {
+                    'elk.portConstraints': 'FIXED_SIDE'
+                },
+                labels: [{ 
+                    text: node.label || node.id,
+                    layoutOptions: {
+                        'nodeLabels.placement': 'INSIDE V_TOP H_CENTER'
+                    }
+                }],
+                properties: {
+                    originalNode: node,
+                    safety_level: node.safety_level,
+                    functions: node.functions || [],
+                    interfaces_in: node.interfaces_in || [],
+                    interfaces_out: node.interfaces_out || []
+                },
+                ports: []
+            };
+
+            // Add IN ports (left side)
+            if (node.interfaces_in) {
+                node.interfaces_in.forEach((port, idx) => {
+                    elkNode.ports.push({
+                        id: `${node.id}_in_${idx}`,
+                        properties: {
+                            'port.side': 'WEST',
+                            'port.index': idx,
+                            portType: 'in',
+                            portData: port
+                        },
+                        width: ARCVIZ_CONFIG.port.size,
+                        height: ARCVIZ_CONFIG.port.size,
+                        labels: [{ text: port.name || `IN${idx}` }]
+                    });
+                });
+            }
+
+            // Add OUT ports (right side)
+            if (node.interfaces_out) {
+                node.interfaces_out.forEach((port, idx) => {
+                    elkNode.ports.push({
+                        id: `${node.id}_out_${idx}`,
+                        properties: {
+                            'port.side': 'EAST',
+                            'port.index': idx,
+                            portType: 'out',
+                            portData: port
+                        },
+                        width: ARCVIZ_CONFIG.port.size,
+                        height: ARCVIZ_CONFIG.port.size,
+                        labels: [{ text: port.name || `OUT${idx}` }]
+                    });
+                });
+            }
+
+            return elkNode;
+        }
+
+        /**
+         * Render ELK graph with D3
+         */
+        function renderELKGraph(graph, diagramData) {
+            const svg = d3.select('#arch-diagram');
+            svg.selectAll('*').remove();
+
+            // Add Capella-style arrow marker definition
+            const defs = svg.append('defs');
+            defs.append('marker')
+                .attr('id', 'arrowhead')
+                .attr('viewBox', '0 0 12 12')
+                .attr('refX', 11)
+                .attr('refY', 6)
+                .attr('markerUnits', 'strokeWidth')
+                .attr('markerWidth', 10)
+                .attr('markerHeight', 8)
+                .attr('orient', 'auto')
+                .append('path')
+                .attr('d', 'M 0 0 L 12 6 L 0 12 z')
+                .attr('fill', '#546e7a')
+                .attr('stroke', '#546e7a')
+                .attr('stroke-width', 0.5);
+
+            const svgGroup = svg.append('g');
+
+            // Render layers
+            graph.children.forEach(layer => {
+                renderLayer(svgGroup, layer);
+            });
+
+            // Render edges
+            if (graph.edges) {
+                graph.edges.forEach(edge => {
+                    renderEdge(svgGroup, edge);
+                });
+            }
+
+            // Setup zoom and pan
+            const graphWidth = graph.width || 1000;
+            const graphHeight = graph.height || 800;
+            setupZoomAndPan(svg, svgGroup, graphWidth, graphHeight);
+
+            // Store references
+            window.diagramSvg = svg;
+            window.diagramSvgGroup = svgGroup;
+            window.diagramGraph = graph;
+        }
+
+        /**
+         * Render a layer with its components
+         */
+        function renderLayer(svgGroup, layer) {
+            const layerGroup = svgGroup.append('g')
+                .attr('class', 'layer')
+                .attr('id', `layer_${layer.id}`)
+                .attr('transform', `translate(${layer.x}, ${layer.y})`);
+
+            // Layer background (Capella swimlane style)
+            const layerColor = layer.properties && layer.properties.color ? layer.properties.color : '#E8F5E9';
+            
+            // Drop shadow for depth
+            layerGroup.append('rect')
+                .attr('class', 'layer-shadow')
+                .attr('x', 3)
+                .attr('y', 3)
+                .attr('width', layer.width)
+                .attr('height', layer.height)
+                .attr('rx', ARCVIZ_CONFIG.layer.cornerRadius)
+                .attr('ry', ARCVIZ_CONFIG.layer.cornerRadius)
+                .style('fill', '#000')
+                .style('fill-opacity', 0.08);
+            
+            layerGroup.append('rect')
+                .attr('class', 'layer-rect')
+                .attr('width', layer.width)
+                .attr('height', layer.height)
+                .attr('rx', ARCVIZ_CONFIG.layer.cornerRadius)
+                .attr('ry', ARCVIZ_CONFIG.layer.cornerRadius)
+                .style('fill', layerColor)
+                .style('fill-opacity', 0.15)
+                .style('stroke', '#37474f')
+                .style('stroke-width', ARCVIZ_CONFIG.layer.borderWidth)
+                .style('stroke-dasharray', ARCVIZ_CONFIG.layer.borderStyle);
+
+            // Layer label (Capella style with background)
+            if (layer.labels && layer.labels.length > 0) {
+                const labelText = layer.labels[0].text;
+                const labelGroup = layerGroup.append('g')
+                    .attr('class', 'layer-label-group');
+                
+                // Label background pill
+                const textWidth = labelText.length * 10;
+                labelGroup.append('rect')
+                    .attr('x', (layer.width - textWidth) / 2 - 15)
+                    .attr('y', 12)
+                    .attr('width', textWidth + 30)
+                    .attr('height', 32)
+                    .attr('rx', 16)
+                    .style('fill', '#37474f')
+                    .style('fill-opacity', 0.08)
+                    .style('stroke', '#37474f')
+                    .style('stroke-width', 1.5);
+                
+                labelGroup.append('text')
+                    .attr('class', 'layer-label')
+                    .attr('x', layer.width / 2)
+                    .attr('y', 34)
+                    .attr('text-anchor', 'middle')
+                    .style('font-size', '16px')
+                    .style('font-weight', '700')
+                    .style('fill', '#1a237e')
+                    .style('letter-spacing', '0.5px')
+                    .text(labelText);
+            }
+
+            // Render components
+            if (layer.children) {
+                layer.children.forEach(node => {
+                    renderComponent(layerGroup, node);
+                });
+            }
+        }
+
+        /**
+         * Render a component node with Capella style
+         */
+        function renderComponent(parentGroup, node) {
+            const nodeGroup = parentGroup.append('g')
+                .attr('class', 'component')
+                .attr('id', `node_${node.id}`)
+                .attr('transform', `translate(${node.x}, ${node.y})`);
+
+            const props = node.properties || {};
+            const originalNode = props.originalNode || {};
+
+            // Component box (Capella 3D effect)
+            // Drop shadow
+            nodeGroup.append('rect')
+                .attr('class', 'component-shadow')
+                .attr('x', 2)
+                .attr('y', 2)
+                .attr('width', node.width)
+                .attr('height', node.height)
+                .attr('rx', ARCVIZ_CONFIG.node.borderRadius)
+                .attr('ry', ARCVIZ_CONFIG.node.borderRadius)
+                .style('fill', '#000')
+                .style('fill-opacity', 0.12);
+            
+            nodeGroup.append('rect')
+                .attr('class', 'component-rect')
+                .attr('width', node.width)
+                .attr('height', node.height)
+                .attr('rx', ARCVIZ_CONFIG.node.borderRadius)
+                .attr('ry', ARCVIZ_CONFIG.node.borderRadius)
+                .style('fill', 'white')
+                .style('stroke', '#1976d2')
+                .style('stroke-width', 2.5);
+
+            // Header
+            const headerHeight = ARCVIZ_CONFIG.node.headerHeight;
+            nodeGroup.append('rect')
+                .attr('class', 'component-header')
+                .attr('width', node.width)
+                .attr('height', headerHeight)
+                .attr('rx', ARCVIZ_CONFIG.node.borderRadius)
+                .style('fill', '#1976d2')
+                .style('fill-opacity', 0.1);
+
+            // Title - centered in header with intelligent truncation
+            if (node.labels && node.labels.length > 0) {
+                const fullText = node.labels[0].text;
+                const titleY = headerHeight / 2 + 5;
+                const badgeWidth = props.safety_level ? 55 : 20;
+                const maxTextWidth = node.width - badgeWidth - 20; // Available width for text
+                
+                // Measure text
+                const tempSvg = d3.select('body').append('svg')
+                    .style('position', 'absolute')
+                    .style('visibility', 'hidden');
+                const tempText = tempSvg.append('text')
+                    .style('font-size', '14px')
+                    .style('font-weight', '600')
+                    .text(fullText);
+                const actualWidth = tempText.node().getComputedTextLength();
+                tempSvg.remove();
+                
+                // Truncate if needed
+                let displayText = fullText;
+                if (actualWidth > maxTextWidth) {
+                    const ratio = maxTextWidth / actualWidth;
+                    const maxChars = Math.floor(fullText.length * ratio) - 3;
+                    displayText = fullText.substring(0, maxChars) + '...';
+                }
+                
+                nodeGroup.append('text')
+                    .attr('class', 'component-title')
+                    .attr('x', node.width / 2)
+                    .attr('y', titleY)
+                    .attr('text-anchor', 'middle')
+                    .attr('dominant-baseline', 'middle')
+                    .style('font-size', '14px')
+                    .style('font-weight', '600')
+                    .style('fill', '#1565c0')
+                    .text(displayText)
+                    .append('title')
+                    .text(fullText);
+            }
+            
+            // ASIL badge
+            if (props.safety_level) {
+                const badgeColor = ARCVIZ_CONFIG.safety.colors[props.safety_level] || '#ff9800';
+                const badgeGroup = nodeGroup.append('g')
+                    .attr('transform', `translate(${node.width - 35}, 10)`);
+
+                badgeGroup.append('circle')
+                    .attr('r', ARCVIZ_CONFIG.safety.radius || 12)
+                    .style('fill', badgeColor)
+                    .style('stroke', 'white')
+                    .style('stroke-width', 2);
+
+                badgeGroup.append('text')
+                    .attr('y', 5)
+                    .attr('text-anchor', 'middle')
+                    .style('font-size', '10px')
+                    .style('font-weight', 'bold')
+                    .style('fill', 'white')
+                    .text(props.safety_level.replace('ASIL_', ''));
+            }
+
+            // Functions list
+            if (props.functions && props.functions.length > 0) {
+                const funcY = headerHeight + 20;
+                const maxFuncs = Math.floor((node.height - headerHeight - 20) / 18);
+                const funcsToShow = props.functions.slice(0, maxFuncs);
+
+                funcsToShow.forEach((func, idx) => {
+                    nodeGroup.append('text')
+                        .attr('class', 'function-text')
+                        .attr('x', 12)
+                        .attr('y', funcY + idx * 18)
+                        .style('font-size', '10px')
+                        .style('font-weight', '500')
+                        .style('fill', '#37474f')
+                        .text(`+ ${func.length > 25 ? func.substring(0, 25) + '...' : func}`);
+                });
+
+                if (props.functions.length > maxFuncs) {
+                    nodeGroup.append('text')
+                        .attr('x', 12)
+                        .attr('y', funcY + maxFuncs * 18)
+                        .style('font-size', '9px')
+                        .style('font-style', 'italic')
+                        .style('fill', '#999')
+                        .text(`...${props.functions.length - maxFuncs} more`);
+                }
+            }
+
+            // Render ports
+            if (node.ports) {
+                node.ports.forEach(port => {
+                    renderPort(nodeGroup, port, node);
+                });
+            }
+        }
+
+        /**
+         * Render a port with Capella style
+         */
+        function renderPort(nodeGroup, port, node) {
+            const portProps = port.properties || {};
+            const isInput = portProps.portType === 'in';
+            const portData = portProps.portData || {};
+
+            const portGroup = nodeGroup.append('g')
+                .attr('class', `port port-${portProps.portType}`)
+                .attr('transform', `translate(${port.x}, ${port.y})`);
+
+            // Port square
+            const portColor = isInput ? ARCVIZ_CONFIG.port.colors.inFill : ARCVIZ_CONFIG.port.colors.outFill;
+            const portStroke = isInput ? ARCVIZ_CONFIG.port.colors.inStroke : ARCVIZ_CONFIG.port.colors.outStroke;
+
+            // Port with Capella-style shadow
+            portGroup.append('rect')
+                .attr('x', -ARCVIZ_CONFIG.port.size / 2 + 1)
+                .attr('y', -ARCVIZ_CONFIG.port.size / 2 + 1)
+                .attr('width', ARCVIZ_CONFIG.port.size)
+                .attr('height', ARCVIZ_CONFIG.port.size)
+                .attr('rx', ARCVIZ_CONFIG.port.borderRadius)
+                .attr('ry', ARCVIZ_CONFIG.port.borderRadius)
+                .style('fill', '#000')
+                .style('fill-opacity', 0.15);
+            
+            portGroup.append('rect')
+                .attr('x', -ARCVIZ_CONFIG.port.size / 2)
+                .attr('y', -ARCVIZ_CONFIG.port.size / 2)
+                .attr('width', ARCVIZ_CONFIG.port.size)
+                .attr('height', ARCVIZ_CONFIG.port.size)
+                .attr('rx', ARCVIZ_CONFIG.port.borderRadius)
+                .attr('ry', ARCVIZ_CONFIG.port.borderRadius)
+                .style('fill', portColor)
+                .style('stroke', portStroke)
+                .style('stroke-width', 2.5);
+
+            // Port label (name)
+            const labelX = isInput ? -ARCVIZ_CONFIG.port.size - 5 : ARCVIZ_CONFIG.port.size + 5;
+            const anchor = isInput ? 'end' : 'start';
+
+            if (portData.name) {
+                portGroup.append('text')
+                    .attr('class', 'port-label')
+                    .attr('x', labelX)
+                    .attr('y', 4)
+                    .attr('text-anchor', anchor)
+                    .style('font-size', '9px')
+                    .style('font-weight', '600')
+                    .style('fill', '#263238')
+                    .text(portData.name.length > 15 ? portData.name.substring(0, 15) + '...' : portData.name);
+            }
+
+            // Protocol label
+            if (portData.protocol) {
+                portGroup.append('text')
+                    .attr('class', 'port-protocol')
+                    .attr('x', labelX)
+                    .attr('y', 16)
+                    .attr('text-anchor', anchor)
+                    .style('font-size', '7px')
+                    .style('font-style', 'italic')
+                    .style('fill', '#546e7a')
+                    .text(`[${portData.protocol}]`);
+            }
+        }
+
+        /**
+         * Render an edge with proper routing
+         */
+        function renderEdge(svgGroup, edge) {
+            if (!edge.sections || edge.sections.length === 0) return;
+
+            const section = edge.sections[0];
+            let path = `M ${section.startPoint.x} ${section.startPoint.y} `;
+
+            if (section.bendPoints) {
+                section.bendPoints.forEach(bp => {
+                    path += `L ${bp.x} ${bp.y} `;
+                });
+            }
+
+            path += `L ${section.endPoint.x} ${section.endPoint.y}`;
+
+            // Capella-style edge with subtle shadow
+            svgGroup.append('path')
+                .attr('class', 'edge-shadow')
+                .attr('d', path)
+                .style('stroke', '#000')
+                .style('stroke-opacity', 0.1)
+                .style('stroke-width', 4)
+                .style('fill', 'none')
+                .attr('transform', 'translate(1, 1)');
+            
+            const edgePath = svgGroup.append('path')
+                .attr('class', 'edge')
+                .attr('id', edge.id)
+                .attr('d', path)
+                .style('stroke', '#546e7a')
+                .style('stroke-width', 2.5)
+                .style('fill', 'none')
+                .style('stroke-linecap', 'round')
+                .style('stroke-linejoin', 'round')
+                .attr('marker-end', 'url(#arrowhead)');
+
+            // Edge label
+            if (edge.labels && edge.labels.length > 0) {
+                const midX = (section.startPoint.x + section.endPoint.x) / 2;
+                const midY = (section.startPoint.y + section.endPoint.y) / 2;
+
+                const labelGroup = svgGroup.append('g')
+                    .attr('class', 'edge-label')
+                    .attr('transform', `translate(${midX}, ${midY})`);
+
+                const text = edge.labels[0].text;
+                const bbox = { width: text.length * 6, height: 16 };
+
+                labelGroup.append('rect')
+                    .attr('x', -bbox.width / 2 - 4)
+                    .attr('y', -bbox.height / 2)
+                    .attr('width', bbox.width + 8)
+                    .attr('height', bbox.height)
+                    .attr('rx', 3)
+                    .style('fill', 'white')
+                    .style('stroke', '#607d8b')
+                    .style('stroke-width', 1);
+
+                labelGroup.append('text')
+                    .attr('text-anchor', 'middle')
+                    .attr('y', 4)
+                    .style('font-size', '10px')
+                    .style('font-weight', '500')
+                    .style('fill', '#37474f')
+                    .text(text);
+            }
+        }
+
+        /**
+         * Setup zoom and pan behavior
+         */
+        function setupZoomAndPan(svg, svgGroup, graphWidth, graphHeight) {
+            const svgWidth = svg.node().getBoundingClientRect().width;
+            const svgHeight = svg.node().getBoundingClientRect().height;
+
+            const scaleX = svgWidth / (graphWidth + 100);
+            const scaleY = svgHeight / (graphHeight + 100);
+            const initialScale = Math.min(scaleX, scaleY, 0.85);
+
+            const xCenterOffset = (svgWidth - graphWidth * initialScale) / 2;
+            const yCenterOffset = 50;
+
+            const zoom = d3.zoom()
+                .scaleExtent([0.1, 3])
+                .on('zoom', (event) => {
+                    svgGroup.attr('transform', event.transform);
+                });
+
+            svg.call(zoom).call(
+                zoom.transform,
+                d3.zoomIdentity.translate(xCenterOffset, yCenterOffset).scale(initialScale)
+            );
+
+            window.diagramZoom = zoom;
+            window.diagramInitialTransform = { xCenterOffset, yCenterOffset, initialScale };
+        }
+
+        
+        function exportDiagramSVG() {
+            try {
+                const svg = window.diagramSvg;
+                if (!svg) {
+                    alert('Diagram not ready. Please wait for it to load.');
+                    return;
+                }
+                
+                const svgNode = svg.node();
+                const svgGroup = window.diagramSvgGroup;
+                const bbox = svgGroup.node().getBBox();
+                const padding = 40;
+                
+                const clone = svgNode.cloneNode(true);
+                clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+                clone.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink');
+                clone.setAttribute('viewBox', `${bbox.x - padding} ${bbox.y - padding} ${bbox.width + padding * 2} ${bbox.height + padding * 2}`);
+                clone.setAttribute('width', bbox.width + padding * 2);
+                clone.setAttribute('height', bbox.height + padding * 2);
+                
+                // Remove all foreignObject elements (HTML content that can't be in SVG)
+                const foreignObjects = clone.querySelectorAll('foreignObject');
+                foreignObjects.forEach(fo => fo.remove());
+                
+                // Add essential styles inline
+                const styleElement = document.createElementNS('http://www.w3.org/2000/svg', 'style');
+                styleElement.textContent = `
+                    .edgePath path { stroke: #607d8b; stroke-width: 2px; fill: none; }
+                    .arrowhead { fill: #607d8b; }
+                    .cluster rect { stroke: #37474f; stroke-width: 2px; }
+                    text { font-family: Arial, sans-serif; }
+                `;
+                clone.insertBefore(styleElement, clone.firstChild);
+                
+                const serializer = new XMLSerializer();
+                const svgString = serializer.serializeToString(clone);
+                
+                const blob = new Blob([svgString], {type: 'image/svg+xml;charset=utf-8'});
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = 'architecture_diagram.svg';
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                setTimeout(() => URL.revokeObjectURL(url), 100);
+                
+                console.log('✓ SVG exported successfully');
+            } catch (error) {
+                console.error('Error exporting SVG:', error);
+                alert('Error exporting SVG: ' + error.message);
+            }
+        }
+        
+        function exportDiagramPNG() {
+            alert('PNG export is not fully supported due to SVG complexity. Please use SVG export instead, which can be opened in any image editor and converted to PNG if needed.');
+        }
+        
+        function loadTraceability() {
+            const container = document.getElementById('traceability-container');
+            
+            if (archData.traces.length === 0) {
+                container.innerHTML = '<p style="color: #999;">No traces defined</p>';
+                return;
+            }
+            
+            archData.traces.forEach(trace => {
+                const traceDiv = document.createElement('div');
+                traceDiv.className = 'trace-item';
+                traceDiv.innerHTML = `
+                    <span class="trace-from">${trace.from}</span>
+                    <span class="trace-arrow">→</span>
+                    <span class="trace-to">${trace.to}</span>
+                    <span class="trace-type">${trace.trace_type}</span>
+                `;
+                container.appendChild(traceDiv);
+            });
+        }
+        
+        function toggleAccordion(header) {
+            const content = header.nextElementSibling;
+            const icon = header.querySelector('.accordion-icon');
+            content.classList.toggle('active');
+            icon.style.transform = content.classList.contains('active') ? 'rotate(180deg)' : 'rotate(0deg)';
+        }
+        
+        function scrollToSection(id) {
+            document.getElementById(id).scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+        
+        function scrollToTop() {
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+        
+        function searchRequirements(query) {
+            const requirements = document.querySelectorAll('.requirement');
+            query = query.toLowerCase();
+            requirements.forEach(req => {
+                const searchText = req.getAttribute('data-search').toLowerCase();
+                req.style.display = searchText.includes(query) ? 'block' : 'none';
+            });
+        }
+        
+        function searchComponents(query) {
+            const components = document.querySelectorAll('.component');
+            query = query.toLowerCase();
+            components.forEach(comp => {
+                const searchText = comp.getAttribute('data-search').toLowerCase();
+                comp.style.display = searchText.includes(query) ? 'block' : 'none';
+            });
+        }
+        
+        function initScrollEffects() {
+            window.addEventListener('scroll', () => {
+                const backToTop = document.getElementById('back-to-top');
+                if (window.scrollY > 300) {
+                    backToTop.classList.add('visible');
+                } else {
+                    backToTop.classList.remove('visible');
+                }
+            });
+        }
+        
+        // Keyboard shortcuts
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                scrollToTop();
+            }
+        });
+    </script>
+</body>
+</html>
