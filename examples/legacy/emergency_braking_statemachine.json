@@ -1,0 +1,91 @@
+{
+  "state_machines": [
+    {
+      "name": "Emergency Braking System",
+      "states": [
+        {
+          "name": "Idle",
+          "entry_actions": ["initializeSensors()", "resetBrakeSystem()"],
+          "exit_actions": ["logStateExit()"],
+          "internal_transitions": []
+        },
+        {
+          "name": "Monitoring",
+          "entry_actions": ["activateSensors()", "startTracking()"],
+          "exit_actions": ["saveSensorData()"],
+          "internal_transitions": ["updateObstacleList()"]
+        },
+        {
+          "name": "Warning",
+          "entry_actions": ["displayWarning()", "emitSound()"],
+          "exit_actions": ["clearWarning()"],
+          "internal_transitions": ["updateTTC()"]
+        },
+        {
+          "name": "EmergencyBraking",
+          "entry_actions": ["applyMaxBrake()", "activateHazardLights()"],
+          "exit_actions": ["logBrakingEvent()"],
+          "internal_transitions": ["monitorDeceleration()"]
+        }
+      ],
+      "transitions": [
+        {
+          "from": "initial",
+          "to": "Idle",
+          "trigger": "",
+          "guard": "",
+          "action": "powerOn()"
+        },
+        {
+          "from": "Idle",
+          "to": "Monitoring",
+          "trigger": "sensorsActive",
+          "guard": "systemReady",
+          "action": "startMonitoring()"
+        },
+        {
+          "from": "Monitoring",
+          "to": "Warning",
+          "trigger": "obstacleDetected",
+          "guard": "TTC < 3s",
+          "action": "calculateThreat()"
+        },
+        {
+          "from": "Warning",
+          "to": "Monitoring",
+          "trigger": "threatCleared",
+          "guard": "TTC > 4s",
+          "action": "resumeNormal()"
+        },
+        {
+          "from": "Warning",
+          "to": "EmergencyBraking",
+          "trigger": "criticalThreat",
+          "guard": "TTC < 1.5s",
+          "action": "engageEmergencyBrake()"
+        },
+        {
+          "from": "EmergencyBraking",
+          "to": "Monitoring",
+          "trigger": "collisionAvoided",
+          "guard": "vehicleStopped || obstacleCleared",
+          "action": "releaseFullBrake()"
+        },
+        {
+          "from": "Monitoring",
+          "to": "Idle",
+          "trigger": "driverOverride",
+          "guard": "manualMode",
+          "action": "deactivateSystem()"
+        },
+        {
+          "from": "EmergencyBraking",
+          "to": "final",
+          "trigger": "systemShutdown",
+          "guard": "emergencyStop",
+          "action": "safeShutdown()"
+        }
+      ]
+    }
+  ]
+}

@@ -67,10 +67,13 @@ class SafetyTools:
         model_path = Path(args["model_path"])
         standard = args.get("standard", "iso26262")
 
-        result = await self.compiler.hazard_analysis(
-            model_path,
-            standard=standard
-        )
+        try:
+            result = await self.compiler.hazard_analysis(
+                model_path,
+                standard=standard
+            )
+        except NotImplementedError as e:
+            return f"❌ **Hazard Analysis (HARA) not available**\n\n{e}"
 
         output = f"⚠️  **Hazard Analysis (HARA)**\n\n"
         output += f"**Standard**: {standard.upper()}\n"

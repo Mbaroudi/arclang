@@ -1,0 +1,209 @@
+{
+  "class_models": [
+    {
+      "name": "Emergency Braking - Data Model",
+      "classes": [
+        {
+          "name": "SensorDataFrame",
+          "stereotype": "datatype",
+          "is_abstract": false,
+          "attributes": [
+            {"name": "timestamp", "type": "Timestamp", "visibility": "public"},
+            {"name": "radarDistance", "type": "Distance", "visibility": "public"},
+            {"name": "cameraObjects", "type": "ObjectList", "visibility": "public"},
+            {"name": "lidarPointCloud", "type": "PointCloud", "visibility": "public"}
+          ],
+          "operations": [
+            {
+              "name": "isValid",
+              "visibility": "public",
+              "return_type": "Boolean",
+              "parameters": []
+            },
+            {
+              "name": "merge",
+              "visibility": "public",
+              "return_type": "SensorDataFrame",
+              "parameters": [
+                {"name": "other", "type": "SensorDataFrame"}
+              ]
+            }
+          ]
+        },
+        {
+          "name": "ObstacleInfo",
+          "stereotype": "datatype",
+          "is_abstract": false,
+          "attributes": [
+            {"name": "id", "type": "ObjectID", "visibility": "public"},
+            {"name": "position", "type": "Position3D", "visibility": "public"},
+            {"name": "velocity", "type": "Velocity3D", "visibility": "public"},
+            {"name": "classification", "type": "ObjectClass", "visibility": "public"},
+            {"name": "confidence", "type": "Percentage", "visibility": "public"}
+          ],
+          "operations": [
+            {
+              "name": "calculateTTC",
+              "visibility": "public",
+              "return_type": "TimeToCollision",
+              "parameters": [
+                {"name": "egoVelocity", "type": "Velocity3D"}
+              ]
+            }
+          ]
+        },
+        {
+          "name": "BrakeCommand",
+          "stereotype": "command",
+          "is_abstract": false,
+          "attributes": [
+            {"name": "force", "type": "Percentage", "visibility": "public"},
+            {"name": "profile", "type": "BrakingProfile", "visibility": "public"},
+            {"name": "priority", "type": "Priority", "visibility": "public"}
+          ],
+          "operations": [
+            {
+              "name": "execute",
+              "visibility": "public",
+              "return_type": "void",
+              "parameters": []
+            },
+            {
+              "name": "validate",
+              "visibility": "private",
+              "return_type": "Boolean",
+              "parameters": []
+            }
+          ]
+        }
+      ],
+      "interfaces": [
+        {
+          "name": "ISensor",
+          "operations": [
+            {
+              "name": "initialize",
+              "visibility": "public",
+              "return_type": "Boolean",
+              "parameters": []
+            },
+            {
+              "name": "getSensorData",
+              "visibility": "public",
+              "return_type": "SensorDataFrame",
+              "parameters": []
+            },
+            {
+              "name": "getStatus",
+              "visibility": "public",
+              "return_type": "SensorStatus",
+              "parameters": []
+            }
+          ]
+        },
+        {
+          "name": "IPerception",
+          "operations": [
+            {
+              "name": "processData",
+              "visibility": "public",
+              "return_type": "void",
+              "parameters": [
+                {"name": "data", "type": "SensorDataFrame"}
+              ]
+            },
+            {
+              "name": "getDetectedObjects",
+              "visibility": "public",
+              "return_type": "ObstacleList",
+              "parameters": []
+            }
+          ]
+        },
+        {
+          "name": "IBrake",
+          "operations": [
+            {
+              "name": "applyBrake",
+              "visibility": "public",
+              "return_type": "void",
+              "parameters": [
+                {"name": "command", "type": "BrakeCommand"}
+              ]
+            },
+            {
+              "name": "releaseBrake",
+              "visibility": "public",
+              "return_type": "void",
+              "parameters": []
+            },
+            {
+              "name": "getActualDeceleration",
+              "visibility": "public",
+              "return_type": "Acceleration",
+              "parameters": []
+            }
+          ]
+        }
+      ],
+      "data_structures": [
+        {
+          "name": "CANBrakeMessage",
+          "bit_size": 64,
+          "fields": [
+            {"name": "messageId", "type": "uint16", "bit_size": 16},
+            {"name": "brakeForce", "type": "uint8", "bit_size": 8},
+            {"name": "emergencyFlag", "type": "bool", "bit_size": 1},
+            {"name": "priorityLevel", "type": "uint8", "bit_size": 3},
+            {"name": "reserved", "type": "uint8", "bit_size": 4},
+            {"name": "checksum", "type": "uint32", "bit_size": 32}
+          ]
+        },
+        {
+          "name": "Position3D",
+          "bit_size": 96,
+          "fields": [
+            {"name": "x", "type": "float32", "bit_size": 32},
+            {"name": "y", "type": "float32", "bit_size": 32},
+            {"name": "z", "type": "float32", "bit_size": 32}
+          ]
+        },
+        {
+          "name": "ThreatLevel",
+          "bit_size": 8,
+          "fields": [
+            {"name": "level", "type": "uint8", "bit_size": 3},
+            {"name": "confidence", "type": "uint8", "bit_size": 5}
+          ]
+        }
+      ],
+      "associations": [
+        {
+          "from": "SensorDataFrame",
+          "to": "ObstacleInfo",
+          "type": "aggregation",
+          "label": "contains",
+          "multiplicity_from": "1",
+          "multiplicity_to": "0..*"
+        },
+        {
+          "from": "BrakeCommand",
+          "to": "CANBrakeMessage",
+          "type": "association",
+          "label": "serializes to",
+          "multiplicity_from": "1",
+          "multiplicity_to": "1"
+        },
+        {
+          "from": "ObstacleInfo",
+          "to": "Position3D",
+          "type": "composition",
+          "label": "has",
+          "multiplicity_from": "1",
+          "multiplicity_to": "1"
+        }
+      ],
+      "generalizations": []
+    }
+  ]
+}

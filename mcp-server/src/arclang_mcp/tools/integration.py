@@ -28,11 +28,14 @@ class IntegrationTools:
         ours_path = Path(args["ours_path"])
         theirs_path = Path(args["theirs_path"])
 
-        result = await self.compiler.semantic_merge(
-            base_path=base_path,
-            ours_path=ours_path,
-            theirs_path=theirs_path
-        )
+        try:
+            result = await self.compiler.semantic_merge(
+                base_path=base_path,
+                ours_path=ours_path,
+                theirs_path=theirs_path
+            )
+        except NotImplementedError as e:
+            return f"❌ **Semantic merge not available**\n\n{e}"
 
         output = f"🔀 **Semantic Merge Analysis**\n\n"
         

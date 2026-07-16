@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<capella:Project xmlns:capella="http://www.polarsys.org/capella/core/1.4.0">
+  <ownedRequirements>
+    <requirement id="REQ-001" name="REQ-001" description="System shall migrate all Oracle tables to Databricks Delta format" priority="Critical" />
+    <requirement id="REQ-002" name="REQ-002" description="System shall support zero-downtime migration" priority="Critical" />
+    <requirement id="REQ-003" name="REQ-003" description="System shall process 1TB of data per hour" priority="High" />
+    <requirement id="REQ-004" name="REQ-004" description="System shall maintain 99.9 percent uptime during migration" priority="High" />
+    <requirement id="REQ-005" name="REQ-005" description="System shall encrypt all data in transit and at rest" priority="Critical" />
+  </ownedRequirements>
+  <ownedLogicalComponents>
+    <component id="OA-ACT-001" name="Data Analyst" type="Actor" />
+    <component id="OA-ACT-002" name="Data Engineer" type="Actor" />
+    <component id="OA-ACT-003" name="Database Administrator" type="Actor" />
+    <component id="OA-ACT-004" name="Business User" type="Actor" />
+    <component id="OA-ACTIVITY-101" name="Query Historical Data" type="OperationalActivity" />
+    <component id="OA-ACTIVITY-102" name="Transform Data" type="OperationalActivity" />
+    <component id="OA-ACTIVITY-103" name="Monitor System Health" type="OperationalActivity" />
+    <component id="OA-ACTIVITY-104" name="Generate Business Reports" type="OperationalActivity" />
+    <component id="SC-001" name="Oracle Connector" type="System" />
+    <component id="SC-002" name="ETL Engine" type="System" />
+    <component id="SC-003" name="Data Validator" type="System" />
+    <component id="Oracle Connector Service" name="Oracle Connector Service" type="Service" />
+    <component id="ETL Processing Engine" name="ETL Processing Engine" type="Process" />
+    <component id="Delta Lake Storage" name="Delta Lake Storage" type="DataStore" />
+    <component id="Data Validation Service" name="Data Validation Service" type="Service" />
+    <component id="Migration Orchestration Service" name="Migration Orchestration Service" type="Service" />
+    <component id="Monitoring Dashboard UI" name="Monitoring Dashboard UI" type="UI" />
+    <component id="PN-001" name="Oracle Database Server" type="hardware" />
+    <component id="PN-002" name="AWS EC2 Connector Instance" type="hardware" />
+    <component id="PN-003" name="Databricks Compute Cluster" type="hardware" />
+    <component id="PN-004" name="S3 Storage Bucket" type="hardware" />
+    <component id="PN-005" name="Kafka Message Broker" type="hardware" />
+  </ownedLogicalComponents>
+  <ownedTraces>
+  </ownedTraces>
+</capella:Project>

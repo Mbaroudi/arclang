@@ -1,0 +1,414 @@
+{
+  "operational_analysis": [],
+  "system_analysis": [],
+  "logical_architecture": [
+    {
+      "name": "Emergency Braking Physical Deployment",
+      "components": [
+        {
+          "id": "PA-001",
+          "name": "ADAS ECU",
+          "component_type": "Logical",
+          "color": "#5B9BD5",
+          "sub_components": [
+            {
+              "id": "PA-001-01",
+              "name": "Main Processor",
+              "component_type": "Logical",
+              "color": "#5B9BD5",
+              "sub_components": [],
+              "allocated_functions": [],
+              "ports": [],
+              "functions": [],
+              "interfaces_in": [],
+              "interfaces_out": [],
+              "attributes": {
+                "color": {
+                  "String": "#5B9BD5"
+                },
+                "description": {
+                  "String": "Application cores"
+                },
+                "id": {
+                  "String": "PA-001-01"
+                }
+              }
+            },
+            {
+              "id": "PA-001-02",
+              "name": "Safety Core",
+              "component_type": "Logical",
+              "color": "#5B9BD5",
+              "sub_components": [],
+              "allocated_functions": [],
+              "ports": [],
+              "functions": [],
+              "interfaces_in": [],
+              "interfaces_out": [],
+              "attributes": {
+                "id": {
+                  "String": "PA-001-02"
+                },
+                "description": {
+                  "String": "Lockstep safety core"
+                },
+                "color": {
+                  "String": "#5B9BD5"
+                }
+              }
+            }
+          ],
+          "allocated_functions": [],
+          "ports": [],
+          "functions": [],
+          "interfaces_in": [],
+          "interfaces_out": [],
+          "attributes": {
+            "description": {
+              "String": "ADAS ECU - NXP S32V234, 4x ARM Cortex-A53"
+            },
+            "safety_level": {
+              "String": "ASIL_D"
+            },
+            "id": {
+              "String": "PA-001"
+            },
+            "color": {
+              "String": "#2E75B6"
+            }
+          }
+        },
+        {
+          "id": "PA-002",
+          "name": "Front Radar",
+          "component_type": "Logical",
+          "color": "#5B9BD5",
+          "sub_components": [],
+          "allocated_functions": [],
+          "ports": [],
+          "functions": [],
+          "interfaces_in": [],
+          "interfaces_out": [],
+          "attributes": {
+            "id": {
+              "String": "PA-002"
+            },
+            "description": {
+              "String": "77GHz radar - Continental ARS540"
+            },
+            "color": {
+              "String": "#70AD47"
+            },
+            "safety_level": {
+              "String": "ASIL_B"
+            }
+          }
+        },
+        {
+          "id": "PA-003",
+          "name": "Stereo Camera",
+          "component_type": "Logical",
+          "color": "#5B9BD5",
+          "sub_components": [],
+          "allocated_functions": [],
+          "ports": [],
+          "functions": [],
+          "interfaces_in": [],
+          "interfaces_out": [],
+          "attributes": {
+            "color": {
+              "String": "#70AD47"
+            },
+            "safety_level": {
+              "String": "ASIL_B"
+            },
+            "description": {
+              "String": "Dual camera - Mobileye EyeQ4"
+            },
+            "id": {
+              "String": "PA-003"
+            }
+          }
+        },
+        {
+          "id": "PA-004",
+          "name": "Lidar Sensor",
+          "component_type": "Logical",
+          "color": "#5B9BD5",
+          "sub_components": [],
+          "allocated_functions": [],
+          "ports": [],
+          "functions": [],
+          "interfaces_in": [],
+          "interfaces_out": [],
+          "attributes": {
+            "color": {
+              "String": "#70AD47"
+            },
+            "description": {
+              "String": "3D lidar - Velodyne VLP-16"
+            },
+            "id": {
+              "String": "PA-004"
+            },
+            "safety_level": {
+              "String": "ASIL_B"
+            }
+          }
+        },
+        {
+          "id": "PA-005",
+          "name": "CAN Gateway",
+          "component_type": "Logical",
+          "color": "#5B9BD5",
+          "sub_components": [],
+          "allocated_functions": [],
+          "ports": [],
+          "functions": [],
+          "interfaces_in": [],
+          "interfaces_out": [],
+          "attributes": {
+            "description": {
+              "String": "Vehicle network - CAN-FD 5Mbps"
+            },
+            "id": {
+              "String": "PA-005"
+            },
+            "safety_level": {
+              "String": "ASIL_D"
+            },
+            "color": {
+              "String": "#FFB900"
+            }
+          }
+        },
+        {
+          "id": "PA-006",
+          "name": "Brake Module",
+          "component_type": "Logical",
+          "color": "#5B9BD5",
+          "sub_components": [],
+          "allocated_functions": [],
+          "ports": [],
+          "functions": [],
+          "interfaces_in": [],
+          "interfaces_out": [],
+          "attributes": {
+            "safety_level": {
+              "String": "ASIL_D"
+            },
+            "color": {
+              "String": "#ED7D31"
+            },
+            "id": {
+              "String": "PA-006"
+            },
+            "description": {
+              "String": "Electronic brake - Bosch iBooster"
+            }
+          }
+        },
+        {
+          "id": "PA-007",
+          "name": "Instrument Cluster",
+          "component_type": "Logical",
+          "color": "#5B9BD5",
+          "sub_components": [],
+          "allocated_functions": [],
+          "ports": [],
+          "functions": [],
+          "interfaces_in": [],
+          "interfaces_out": [],
+          "attributes": {
+            "id": {
+              "String": "PA-007"
+            },
+            "safety_level": {
+              "String": "QM"
+            },
+            "color": {
+              "String": "#A5A5A5"
+            },
+            "description": {
+              "String": "12.3 inch driver display"
+            }
+          }
+        },
+        {
+          "id": "PA-008",
+          "name": "Audio Warning",
+          "component_type": "Logical",
+          "color": "#5B9BD5",
+          "sub_components": [],
+          "allocated_functions": [],
+          "ports": [],
+          "functions": [],
+          "interfaces_in": [],
+          "interfaces_out": [],
+          "attributes": {
+            "safety_level": {
+              "String": "QM"
+            },
+            "color": {
+              "String": "#ED7D31"
+            },
+            "id": {
+              "String": "PA-008"
+            },
+            "description": {
+              "String": "Acoustic alert - 80dB"
+            }
+          }
+        },
+        {
+          "id": "PA-009",
+          "name": "Power Supply",
+          "component_type": "Logical",
+          "color": "#5B9BD5",
+          "sub_components": [],
+          "allocated_functions": [],
+          "ports": [],
+          "functions": [],
+          "interfaces_in": [],
+          "interfaces_out": [],
+          "attributes": {
+            "safety_level": {
+              "String": "ASIL_B"
+            },
+            "description": {
+              "String": "12V regulated - 50W"
+            },
+            "color": {
+              "String": "#FFC000"
+            },
+            "id": {
+              "String": "PA-009"
+            }
+          }
+        }
+      ],
+      "interfaces": [
+        {
+          "name": "PA-002 -> PA-001",
+          "from": "PA-002",
+          "to": "PA-001",
+          "attributes": {
+            "description": {
+              "String": "Radar CAN-FD"
+            }
+          }
+        },
+        {
+          "name": "PA-003 -> PA-001",
+          "from": "PA-003",
+          "to": "PA-001",
+          "attributes": {
+            "description": {
+              "String": "Camera GMSL"
+            }
+          }
+        },
+        {
+          "name": "PA-004 -> PA-001",
+          "from": "PA-004",
+          "to": "PA-001",
+          "attributes": {
+            "description": {
+              "String": "Lidar Ethernet"
+            }
+          }
+        },
+        {
+          "name": "PA-001 -> PA-005",
+          "from": "PA-001",
+          "to": "PA-005",
+          "attributes": {
+            "description": {
+              "String": "Vehicle CAN"
+            }
+          }
+        },
+        {
+          "name": "PA-001 -> PA-006",
+          "from": "PA-001",
+          "to": "PA-006",
+          "attributes": {
+            "description": {
+              "String": "Brake FlexRay"
+            }
+          }
+        },
+        {
+          "name": "PA-001 -> PA-007",
+          "from": "PA-001",
+          "to": "PA-007",
+          "attributes": {
+            "description": {
+              "String": "Display LVDS"
+            }
+          }
+        },
+        {
+          "name": "PA-001 -> PA-008",
+          "from": "PA-001",
+          "to": "PA-008",
+          "attributes": {
+            "description": {
+              "String": "Audio trigger"
+            }
+          }
+        },
+        {
+          "name": "PA-009 -> PA-001",
+          "from": "PA-009",
+          "to": "PA-001",
+          "attributes": {
+            "description": {
+              "String": "12V power"
+            }
+          }
+        },
+        {
+          "name": "PA-009 -> PA-002",
+          "from": "PA-009",
+          "to": "PA-002",
+          "attributes": {
+            "description": {
+              "String": "Sensor power"
+            }
+          }
+        },
+        {
+          "name": "PA-009 -> PA-003",
+          "from": "PA-009",
+          "to": "PA-003",
+          "attributes": {
+            "description": {
+              "String": "Camera power"
+            }
+          }
+        },
+        {
+          "name": "PA-009 -> PA-004",
+          "from": "PA-009",
+          "to": "PA-004",
+          "attributes": {
+            "description": {
+              "String": "Lidar power"
+            }
+          }
+        }
+      ],
+      "component_exchanges": [],
+      "unallocated_functions": []
+    }
+  ],
+  "physical_architecture": [],
+  "epbs": [],
+  "safety_analysis": [],
+  "traces": [],
+  "state_machines": [],
+  "scenarios": [],
+  "exchange_items": [],
+  "data_types": []
+}

@@ -1,0 +1,98 @@
+{
+  "system_analysis": [{
+    "name": "Emergency Braking System",
+    "external_actors": [
+      {
+        "id": "ACT-001",
+        "name": "Driver",
+        "color": "#FFC107",
+        "attributes": {}
+      },
+      {
+        "id": "ACT-002",
+        "name": "Road Environment",
+        "color": "#8BC34A",
+        "attributes": {}
+      },
+      {
+        "id": "ACT-003",
+        "name": "Vehicle ECUs",
+        "color": "#9C27B0",
+        "attributes": {}
+      },
+      {
+        "id": "ACT-004",
+        "name": "Brake System",
+        "color": "#2196F3",
+        "attributes": {}
+      },
+      {
+        "id": "ACT-005",
+        "name": "HMI Display",
+        "color": "#FF5722",
+        "attributes": {}
+      },
+      {
+        "id": "ACT-006",
+        "name": "Diagnostic System",
+        "color": "#00BCD4",
+        "attributes": {}
+      }
+    ],
+    "functions": [
+      {
+        "id": "SF-001",
+        "name": "Monitor Environment",
+        "category": "System",
+        "color": "#70AD47",
+        "icon": null,
+        "ports": [],
+        "sub_functions": [],
+        "attributes": {}
+      },
+      {
+        "id": "SF-002",
+        "name": "Detect Obstacles",
+        "category": "System",
+        "color": "#70AD47",
+        "icon": null,
+        "ports": [],
+        "sub_functions": [],
+        "attributes": {}
+      },
+      {
+        "id": "SF-003",
+        "name": "Assess Collision Risk",
+        "category": "System",
+        "color": "#4472C4",
+        "icon": null,
+        "ports": [],
+        "sub_functions": [],
+        "attributes": {}
+      },
+      {
+        "id": "SF-004",
+        "name": "Initiate Emergency Braking",
+        "category": "Control",
+        "color": "#ED7D31",
+        "icon": null,
+        "ports": [],
+        "sub_functions": [],
+        "attributes": {}
+      },
+      {
+        "id": "SF-005",
+        "name": "Warn Driver",
+        "category": "Interaction",
+        "color": "#FFC000",
+        "icon": null,
+        "ports": [],
+        "sub_functions": [],
+        "attributes": {}
+      }
+    ],
+    "components": [],
+    "requirements": [],
+    "functional_exchanges": []
+  }]
+}

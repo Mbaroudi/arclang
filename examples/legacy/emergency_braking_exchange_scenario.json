@@ -1,0 +1,150 @@
+{
+  "scenarios": [
+    {
+      "name": "Emergency Braking - Component Exchange Scenario",
+      "scenario_type": "Exchange",
+      "description": "Exchange scenario showing component interactions during emergency braking",
+      "participants": [
+        {
+          "id": "Driver",
+          "name": "Driver",
+          "participant_type": "Actor"
+        },
+        {
+          "id": "LC-001",
+          "name": "Sensor Array\nController",
+          "participant_type": "Component"
+        },
+        {
+          "id": "LC-002",
+          "name": "Perception\nUnit",
+          "participant_type": "Component"
+        },
+        {
+          "id": "LC-003",
+          "name": "Decision\nController",
+          "participant_type": "Component"
+        },
+        {
+          "id": "LC-004",
+          "name": "Braking\nController",
+          "participant_type": "Component"
+        },
+        {
+          "id": "LC-005",
+          "name": "HMI\nController",
+          "participant_type": "Component"
+        },
+        {
+          "id": "BrakeECU",
+          "name": "Brake ECU",
+          "participant_type": "Actor"
+        }
+      ],
+      "messages": [
+        {
+          "from": "Driver",
+          "to": "Driver",
+          "label": "driving normally",
+          "message_type": "Synchronous",
+          "activation": false
+        },
+        {
+          "from": "LC-001",
+          "to": "LC-002",
+          "label": "CE-001: sensorData",
+          "message_type": "Asynchronous",
+          "activation": true
+        },
+        {
+          "from": "LC-002",
+          "to": "LC-002",
+          "label": "detectObstacle()",
+          "message_type": "Synchronous",
+          "activation": false
+        },
+        {
+          "from": "LC-002",
+          "to": "LC-003",
+          "label": "CE-002: obstacleDetected",
+          "message_type": "Synchronous",
+          "activation": true
+        },
+        {
+          "from": "LC-003",
+          "to": "LC-003",
+          "label": "assessRisk()",
+          "message_type": "Synchronous",
+          "activation": false
+        },
+        {
+          "from": "LC-003",
+          "to": "LC-005",
+          "label": "CE-003: warningRequest",
+          "message_type": "Asynchronous",
+          "activation": true
+        },
+        {
+          "from": "LC-005",
+          "to": "Driver",
+          "label": "CE-004: visualWarning",
+          "message_type": "Asynchronous",
+          "activation": false
+        },
+        {
+          "from": "LC-003",
+          "to": "LC-004",
+          "label": "CE-005: brakeRequest(urgency=HIGH)",
+          "message_type": "Synchronous",
+          "activation": true
+        },
+        {
+          "from": "LC-004",
+          "to": "BrakeECU",
+          "label": "CE-006: CANmsg_BrakeCmd",
+          "message_type": "Synchronous",
+          "activation": true
+        },
+        {
+          "from": "BrakeECU",
+          "to": "LC-004",
+          "label": "CE-007: CANmsg_BrakeStatus",
+          "message_type": "Return",
+          "activation": false
+        },
+        {
+          "from": "LC-004",
+          "to": "LC-003",
+          "label": "CE-008: brakeApplied",
+          "message_type": "Return",
+          "activation": false
+        },
+        {
+          "from": "Driver",
+          "to": "Driver",
+          "label": "reacts to warning",
+          "message_type": "Synchronous",
+          "activation": false
+        }
+      ],
+      "fragments": [
+        {
+          "fragment_type": "Alt",
+          "label": "alt",
+          "condition": "TTC < 2s",
+          "operands": [
+            {
+              "label": "[collision imminent]",
+              "messages": []
+            },
+            {
+              "label": "[safe distance]",
+              "messages": []
+            }
+          ]
+        }
+      ],
+      "timing_constraints": []
+    }
+  ]
+}

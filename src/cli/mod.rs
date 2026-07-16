@@ -1,4 +1,3 @@
-pub mod commands;
 pub mod repl;
 pub mod language_server;
 
@@ -436,14 +435,20 @@ impl CliRunner {
                     return Err(CliError::Io(e));
                 }
                 
+                if !result.warnings.is_empty() {
+                    eprintln!("⚠ {} warning(s):", result.warnings.len());
+                    for warning in &result.warnings {
+                        eprintln!("  warning: {}", warning);
+                    }
+                }
+
                 println!("✓ Compilation successful");
                 println!("  Output: {}", output_path.display());
                 println!("  Requirements: {}", result.semantic_model.requirements.len());
                 println!("  Components: {}", result.semantic_model.components.len());
                 println!("  Functions: {}", result.semantic_model.functions.len());
                 println!("  Traces: {}", result.semantic_model.traces.len());
-                
-                
+
                 Ok(())
             }
             Err(e) => {
@@ -462,7 +467,14 @@ impl CliRunner {
         match compiler.compile_file(&input) {
             Ok(result) => {
                 println!("✓ No compilation errors");
-                
+
+                if !result.warnings.is_empty() {
+                    println!("\n⚠ Compilation warnings:");
+                    for warning in &result.warnings {
+                        println!("  {}", warning);
+                    }
+                }
+
                 let warnings = result.semantic_model.validate_traceability();
                 if !warnings.is_empty() {
                     println!("\n⚠ Traceability warnings:");
@@ -490,74 +502,26 @@ impl CliRunner {
         }
     }
     
-    fn run_format(&self, input: PathBuf, check: bool, write: bool) -> Result<(), CliError> {
-        if check {
-            self.log("Checking formatting...");
-        } else if write {
-            self.log("Formatting files...");
-        }
-        
-        Ok(())
+    fn run_format(&self, _input: PathBuf, _check: bool, _write: bool) -> Result<(), CliError> {
+        Err(CliError::NotImplemented("the formatter is not implemented yet".to_string()))
+    }
+
+    fn run_new(&self, _name: String, _template: Option<String>) -> Result<(), CliError> {
+        Err(CliError::NotImplemented(
+            "project scaffolding ('new') is not implemented yet".to_string(),
+        ))
+    }
+
+    fn run_sync(&self, _sync_command: SyncCommands) -> Result<(), CliError> {
+        Err(CliError::NotImplemented(
+            "PLM synchronization is not implemented yet".to_string(),
+        ))
     }
     
-    fn run_new(&self, name: String, template: Option<String>) -> Result<(), CliError> {
-        self.log(&format!("Creating new project: {}", name));
-        
-        if let Some(tmpl) = template {
-            self.log(&format!("Using template: {}", tmpl));
-        }
-        
-        Ok(())
-    }
-    
-    fn run_sync(&self, sync_command: SyncCommands) -> Result<(), CliError> {
-        match sync_command {
-            SyncCommands::Pull { plm, requirements, dry_run } => {
-                self.log("Pulling from external systems...");
-                if dry_run {
-                    self.log("(Dry run mode)");
-                }
-            }
-            SyncCommands::Push { plm, requirements, dry_run } => {
-                self.log("Pushing to external systems...");
-                if dry_run {
-                    self.log("(Dry run mode)");
-                }
-            }
-            SyncCommands::Status { project } => {
-                self.log("Checking sync status...");
-            }
-            SyncCommands::Configure { plm_type, url, credentials } => {
-                self.log(&format!("Configuring {} at {}", plm_type, url));
-            }
-        }
-        
-        Ok(())
-    }
-    
-    fn run_plugin(&self, plugin_command: PluginCommands) -> Result<(), CliError> {
-        match plugin_command {
-            PluginCommands::List => {
-                self.log("Installed plugins:");
-            }
-            PluginCommands::Install { name, version } => {
-                self.log(&format!("Installing plugin: {}", name));
-            }
-            PluginCommands::Uninstall { name } => {
-                self.log(&format!("Uninstalling plugin: {}", name));
-            }
-            PluginCommands::Info { name } => {
-                self.log(&format!("Plugin info: {}", name));
-            }
-            PluginCommands::Enable { name } => {
-                self.log(&format!("Enabling plugin: {}", name));
-            }
-            PluginCommands::Disable { name } => {
-                self.log(&format!("Disabling plugin: {}", name));
-            }
-        }
-        
-        Ok(())
+    fn run_plugin(&self, _plugin_command: PluginCommands) -> Result<(), CliError> {
+        Err(CliError::NotImplemented(
+            "the plugin system is not implemented yet".to_string(),
+        ))
     }
     
     fn run_trace(
@@ -892,20 +856,55 @@ impl CliRunner {
         fta: bool,
         report: bool,
     ) -> Result<(), CliError> {
-        self.log(&format!("Running safety analysis ({:?})...", standard));
-        
-        if fmea {
-            self.log("Generating FMEA...");
-        }
-        
         if fta {
-            self.log("Generating FTA...");
+            return Err(CliError::NotImplemented(
+                "FTA generation is not implemented yet".to_string(),
+            ));
         }
-        
         if report {
-            self.log("Generating safety report...");
+            return Err(CliError::NotImplemented(
+                "safety report generation is not implemented yet".to_string(),
+            ));
         }
-        
+
+        println!("Safety analysis ({:?}) of {}...", standard, input.display());
+
+        let config = crate::CompilerConfig::default();
+        let mut compiler = crate::Compiler::new(config);
+        let result = compiler
+            .compile_file(&input)
+            .map_err(|e| CliError::Compilation(e.to_string()))?;
+
+        let safety_blocks = &result.ast.safety_analysis;
+        let hazard_count: usize = safety_blocks.iter().map(|s| s.hazards.len()).sum();
+        let fmea_count: usize = safety_blocks.iter().map(|s| s.fmea.len()).sum();
+
+        println!("  Safety analysis blocks: {}", safety_blocks.len());
+        println!("  Hazards: {}", hazard_count);
+        println!("  FMEA entries: {}", fmea_count);
+
+        if hazard_count == 0 && fmea_count == 0 {
+            println!("⚠ No safety analysis content found in the model.");
+            println!("  Add a 'safety_analysis' block with 'hazard' and 'fmea' entries.");
+        }
+
+        if fmea {
+            if fmea_count == 0 {
+                return Err(CliError::Compilation(
+                    "cannot report FMEA: the model contains no fmea entries".to_string(),
+                ));
+            }
+            println!("\nFMEA entries:");
+            for block in safety_blocks {
+                for entry in &block.fmea {
+                    println!("  - {}", entry.name);
+                    for (key, value) in &entry.attributes {
+                        println!("      {}: {:?}", key, value);
+                    }
+                }
+            }
+        }
+
         Ok(())
     }
     
@@ -927,29 +926,18 @@ impl CliRunner {
         Ok(())
     }
     
-    fn run_lsp(&self, stdio: bool, port: Option<u16>) -> Result<(), CliError> {
-        if stdio {
-            self.log("Starting language server (stdio)...");
-        } else if let Some(p) = port {
-            self.log(&format!("Starting language server on port {}...", p));
-        }
-        
-        Ok(())
+    fn run_lsp(&self, _stdio: bool, _port: Option<u16>) -> Result<(), CliError> {
+        Err(CliError::NotImplemented(
+            "the language server is not implemented yet (planned: tower-lsp over stdio)".to_string(),
+        ))
     }
-    
-    fn run_repl(&self, project: Option<PathBuf>) -> Result<(), CliError> {
-        self.log("Starting REPL...");
-        Ok(())
+
+    fn run_repl(&self, _project: Option<PathBuf>) -> Result<(), CliError> {
+        Err(CliError::NotImplemented("the REPL is not implemented yet".to_string()))
     }
-    
-    fn run_clean(&self, project: PathBuf, cache: bool) -> Result<(), CliError> {
-        self.log("Cleaning project...");
-        
-        if cache {
-            self.log("Clearing cache...");
-        }
-        
-        Ok(())
+
+    fn run_clean(&self, _project: PathBuf, _cache: bool) -> Result<(), CliError> {
+        Err(CliError::NotImplemented("'clean' is not implemented yet".to_string()))
     }
     
     fn run_info(
@@ -958,16 +946,38 @@ impl CliRunner {
         metrics: bool,
         dependencies: bool,
     ) -> Result<(), CliError> {
-        self.log("Project information:");
-        
-        if metrics {
-            self.log("Computing metrics...");
-        }
-        
         if dependencies {
-            self.log("Analyzing dependencies...");
+            return Err(CliError::NotImplemented(
+                "dependency analysis is not implemented yet".to_string(),
+            ));
         }
-        
+
+        println!("Model information: {}", input.display());
+
+        let config = crate::CompilerConfig::default();
+        let mut compiler = crate::Compiler::new(config);
+        let result = compiler
+            .compile_file(&input)
+            .map_err(|e| CliError::Compilation(e.to_string()))?;
+
+        if let Some(name) = result.ast.attributes.get("name") {
+            println!("  Name: {:?}", name);
+        }
+        if let Some(version) = result.ast.attributes.get("version") {
+            println!("  Version: {:?}", version);
+        }
+
+        let model_metrics = result.semantic_model.compute_metrics();
+        println!("  Total elements: {}", model_metrics.total_elements);
+        println!("  Requirements: {}", model_metrics.requirements_count);
+        println!("  Components: {}", model_metrics.components_count);
+        println!("  Functions: {}", result.semantic_model.functions.len());
+        println!("  Traces: {}", model_metrics.traces_count);
+
+        if metrics {
+            println!("  Traceability coverage: {:.1}%", model_metrics.traceability_coverage);
+        }
+
         Ok(())
     }
     
@@ -1309,4 +1319,7 @@ pub enum CliError {
     
     #[error("Sync error: {0}")]
     Sync(String),
+
+    #[error("Not implemented: {0}")]
+    NotImplemented(String),
 }

@@ -159,6 +159,9 @@ pub struct CompilationResult {
     pub ast: ast::Model,
     pub semantic_model: semantic::SemanticModel,
     pub output: String,
+    /// Non-fatal diagnostics (e.g. constructs accepted syntactically but not
+    /// yet represented in the compiled model). Never silently empty a model.
+    pub warnings: Vec<String>,
 }
 
 impl Compiler {
@@ -172,25 +175,28 @@ impl Compiler {
     }
     
     pub fn compile_string(&mut self, source: &str) -> Result<CompilationResult, CompilerError> {
-        // Lexical analysis
-        let tokens = lexer::Lexer::new(source).tokenize()
-            .map_err(|e| CompilerError::Lexer(e))?;
-        
-        // Parsing
-        let ast = parser::Parser::new(tokens).parse()
-            .map_err(|e| CompilerError::Parser(e))?;
-        
+        // Lexical analysis (tokens with source positions)
+        let (tokens, spans) = lexer::Lexer::new(source).tokenize_spanned()
+            .map_err(CompilerError::Lexer)?;
+
+        // Parsing (strict: unknown constructs are errors, skipped ones are warnings)
+        let parser::ParseOutcome { model: ast, warnings } =
+            parser::Parser::with_spans(tokens, spans)
+                .parse_with_warnings()
+                .map_err(CompilerError::Parser)?;
+
         // Semantic analysis
         let semantic_model = semantic::SemanticAnalyzer::new().analyze(&ast)
-            .map_err(|e| CompilerError::Semantic(e))?;
-        
+            .map_err(CompilerError::Semantic)?;
+
         // Code generation
         let output = codegen::CodeGenerator::new(&self.config).generate(&semantic_model)?;
-        
+
         Ok(CompilationResult {
             ast,
             semantic_model,
             output,
+            warnings,
         })
     }
 }

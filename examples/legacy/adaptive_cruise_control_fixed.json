@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<capella:Project xmlns:capella="http://www.polarsys.org/capella/core/1.4.0">
+  <ownedRequirements>
+    <requirement id="STK-001" name="STK-001" description="The driver shall be able to set and maintain a desired cruising speed" priority="High" />
+    <requirement id="STK-002" name="STK-002" description="The system shall automatically maintain safe following distance from vehicles ahead" priority="Critical" />
+    <requirement id="STK-003" name="STK-003" description="The driver shall be able to override ACC at any time using brake or accelerator" priority="Critical" />
+    <requirement id="SYS-001" name="SYS-001" description="The ACC system shall operate in the speed range of 30-180 km/h" priority="High" />
+    <requirement id="SYS-002" name="SYS-002" description="The system shall allow speed setting in 5 km/h increments" priority="Medium" />
+    <requirement id="SYS-003" name="SYS-003" description="The forward radar shall detect vehicles up to 200 meters ahead" priority="Critical" />
+    <requirement id="SAF-001" name="SAF-001" description="Critical sensing functions shall have redundant sensors with failure detection" priority="Critical" />
+    <requirement id="SAF-002" name="SAF-002" description="ACC controller shall be monitored by independent watchdog with 100ms timeout" priority="Critical" />
+    <requirement id="SAF-003" name="SAF-003" description="Upon critical failure detection, system shall transition to safe state within 200ms" priority="Critical" />
+  </ownedRequirements>
+  <ownedLogicalComponents>
+    <component id="LC-001" name="ACCController" type="Logical" />
+    <component id="LC-002" name="RadarSensor" type="Logical" />
+    <component id="LC-003" name="CameraSensor" type="Logical" />
+    <component id="LC-004" name="SpeedSensor" type="Logical" />
+    <component id="LC-005" name="BrakeActuator" type="Logical" />
+    <component id="LC-006" name="ThrottleActuator" type="Logical" />
+    <component id="LC-007" name="DriverInterface" type="Logical" />
+    <component id="LC-008" name="PedalMonitor" type="Logical" />
+    <component id="LC-009" name="SafetyMonitor" type="Logical" />
+    <component id="LC-010" name="WarningSystem" type="Logical" />
+  </ownedLogicalComponents>
+  <ownedTraces>
+  </ownedTraces>
+</capella:Project>

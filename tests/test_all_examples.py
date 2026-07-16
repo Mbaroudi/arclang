@@ -72,8 +72,9 @@ class ArcLangTester:
             sys.exit(1)
     
     def find_all_examples(self) -> List[Path]:
-        """Find all .arc files in examples directory"""
-        return list(self.examples_dir.rglob("*.arc"))
+        """Find all .arc files in examples directory (excluding legacy root artifacts)"""
+        return [p for p in self.examples_dir.rglob("*.arc")
+                if "legacy" not in p.relative_to(self.examples_dir).parts]
     
     def test_compilation(self, arc_file: Path) -> TestResult:
         """Test basic compilation"""

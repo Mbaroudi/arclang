@@ -1,0 +1,315 @@
+{
+  "operational_analysis": [
+    {
+      "name": "Emergency Braking Operational Context",
+      "actors": [
+        {
+          "name": "Driver",
+          "id": null,
+          "icon": "person",
+          "attributes": {
+            "description": {
+              "String": "Human operator controlling the vehicle"
+            },
+            "category": {
+              "String": "Human"
+            },
+            "id": {
+              "String": "OA-ACT-001"
+            }
+          }
+        },
+        {
+          "name": "Vehicle System",
+          "id": null,
+          "icon": "person",
+          "attributes": {
+            "description": {
+              "String": "Autonomous emergency braking system"
+            },
+            "category": {
+              "String": "System"
+            },
+            "id": {
+              "String": "OA-ACT-002"
+            }
+          }
+        },
+        {
+          "name": "Road Environment",
+          "id": null,
+          "icon": "person",
+          "attributes": {
+            "id": {
+              "String": "OA-ACT-003"
+            },
+            "description": {
+              "String": "Physical environment with obstacles"
+            },
+            "category": {
+              "String": "External"
+            }
+          }
+        },
+        {
+          "name": "Other Vehicles",
+          "id": null,
+          "icon": "person",
+          "attributes": {
+            "description": {
+              "String": "Surrounding traffic"
+            },
+            "category": {
+              "String": "External"
+            },
+            "id": {
+              "String": "OA-ACT-004"
+            }
+          }
+        },
+        {
+          "name": "Pedestrians",
+          "id": null,
+          "icon": "person",
+          "attributes": {
+            "description": {
+              "String": "Vulnerable road users"
+            },
+            "id": {
+              "String": "OA-ACT-005"
+            },
+            "category": {
+              "String": "External"
+            }
+          }
+        }
+      ],
+      "entities": [],
+      "capabilities": [],
+      "activities": [
+        {
+          "id": "OA-Mon",
+          "name": "Monitor Environment",
+          "performed_by": "",
+          "category": "general",
+          "icon": "circle",
+          "color": "#FFD966",
+          "sub_activities": [],
+          "attributes": {
+            "performed_by": {
+              "String": "OA-ACT-001"
+            },
+            "description": {
+              "String": "Driver monitors road and traffic continuously"
+            },
+            "id": {
+              "String": "OA-01"
+            }
+          }
+        },
+        {
+          "id": "OA-Con",
+          "name": "Control Vehicle",
+          "performed_by": "",
+          "category": "general",
+          "icon": "circle",
+          "color": "#FFD966",
+          "sub_activities": [],
+          "attributes": {
+            "id": {
+              "String": "OA-02"
+            },
+            "description": {
+              "String": "Driver controls speed and braking"
+            },
+            "performed_by": {
+              "String": "OA-ACT-001"
+            }
+          }
+        },
+        {
+          "id": "OA-Det",
+          "name": "Detect Collision Risk",
+          "performed_by": "",
+          "category": "general",
+          "icon": "circle",
+          "color": "#FFD966",
+          "sub_activities": [],
+          "attributes": {
+            "description": {
+              "String": "System detects potential collisions"
+            },
+            "id": {
+              "String": "OA-03"
+            },
+            "performed_by": {
+              "String": "OA-ACT-002"
+            }
+          }
+        },
+        {
+          "id": "OA-Ale",
+          "name": "Alert Driver",
+          "performed_by": "",
+          "category": "general",
+          "icon": "circle",
+          "color": "#FFD966",
+          "sub_activities": [],
+          "attributes": {
+            "id": {
+              "String": "OA-04"
+            },
+            "description": {
+              "String": "System provides collision warnings"
+            },
+            "performed_by": {
+              "String": "OA-ACT-002"
+            }
+          }
+        },
+        {
+          "id": "OA-App",
+          "name": "Apply Emergency Brake",
+          "performed_by": "",
+          "category": "general",
+          "icon": "circle",
+          "color": "#FFD966",
+          "sub_activities": [],
+          "attributes": {
+            "description": {
+              "String": "System automatically brakes"
+            },
+            "performed_by": {
+              "String": "OA-ACT-002"
+            },
+            "id": {
+              "String": "OA-05"
+            }
+          }
+        },
+        {
+          "id": "OA-Pre",
+          "name": "Present Hazards",
+          "performed_by": "",
+          "category": "general",
+          "icon": "circle",
+          "color": "#FFD966",
+          "sub_activities": [],
+          "attributes": {
+            "description": {
+              "String": "Environment creates obstacles"
+            },
+            "id": {
+              "String": "OA-06"
+            },
+            "performed_by": {
+              "String": "OA-ACT-003"
+            }
+          }
+        },
+        {
+          "id": "OA-Nav",
+          "name": "Navigate Traffic",
+          "performed_by": "",
+          "category": "general",
+          "icon": "circle",
+          "color": "#FFD966",
+          "sub_activities": [],
+          "attributes": {
+            "performed_by": {
+              "String": "OA-ACT-004"
+            },
+            "id": {
+              "String": "OA-07"
+            },
+            "description": {
+              "String": "Other vehicles move dynamically"
+            }
+          }
+        },
+        {
+          "id": "OA-Cro",
+          "name": "Cross Road",
+          "performed_by": "",
+          "category": "general",
+          "icon": "circle",
+          "color": "#FFD966",
+          "sub_activities": [],
+          "attributes": {
+            "id": {
+              "String": "OA-08"
+            },
+            "description": {
+              "String": "Pedestrians enter vehicle path"
+            },
+            "performed_by": {
+              "String": "OA-ACT-005"
+            }
+          }
+        }
+      ],
+      "exchanges": [
+        {
+          "from": "OA-Mon",
+          "to": "OA-Det",
+          "label": "Environment Data",
+          "data_type": "Sensor Data",
+          "protocol": "CAN"
+        },
+        {
+          "from": "OA-Det",
+          "to": "OA-Ale",
+          "label": "Risk Alert",
+          "data_type": "Warning Signal",
+          "protocol": "Internal"
+        },
+        {
+          "from": "OA-Det",
+          "to": "OA-App",
+          "label": "Brake Command",
+          "data_type": "Control Signal",
+          "protocol": "Internal"
+        },
+        {
+          "from": "OA-Pre",
+          "to": "OA-Det",
+          "label": "Obstacle Info",
+          "data_type": "Environmental Data",
+          "protocol": "Sensor"
+        },
+        {
+          "from": "OA-Nav",
+          "to": "OA-Det",
+          "label": "Traffic Data",
+          "data_type": "Vehicle Position",
+          "protocol": "V2V"
+        },
+        {
+          "from": "OA-Cro",
+          "to": "OA-Det",
+          "label": "Pedestrian Position",
+          "data_type": "Position Data",
+          "protocol": "Sensor"
+        },
+        {
+          "from": "OA-Ale",
+          "to": "OA-Con",
+          "label": "Warning",
+          "data_type": "Alert",
+          "protocol": "HMI"
+        }
+      ],
+      "capability_associations": []
+    }
+  ],
+  "system_analysis": [],
+  "logical_architecture": [],
+  "physical_architecture": [],
+  "epbs": [],
+  "safety_analysis": [],
+  "traces": [],
+  "state_machines": [],
+  "scenarios": [],
+  "exchange_items": [],
+  "data_types": []
+}

@@ -1,0 +1,125 @@
+{
+  "scenarios": [
+    {
+      "name": "Emergency Braking - Collision Avoidance Scenario",
+      "scenario_type": "Functional",
+      "description": "Functional sequence showing emergency braking activation when obstacle detected",
+      "participants": [
+        {
+          "id": "SF-001",
+          "name": "Sensor Data\nAcquisition",
+          "participant_type": "Function"
+        },
+        {
+          "id": "SF-002",
+          "name": "Multi-Sensor\nFusion",
+          "participant_type": "Function"
+        },
+        {
+          "id": "SF-003",
+          "name": "Object Detection",
+          "participant_type": "Function"
+        },
+        {
+          "id": "SF-004",
+          "name": "Multi-Object\nTracking",
+          "participant_type": "Function"
+        },
+        {
+          "id": "SF-005",
+          "name": "Collision Risk\nAssessment",
+          "participant_type": "Function"
+        },
+        {
+          "id": "SF-006",
+          "name": "Braking Strategy\nPlanning",
+          "participant_type": "Function"
+        },
+        {
+          "id": "SF-007",
+          "name": "Brake\nActuation",
+          "participant_type": "Function"
+        },
+        {
+          "id": "SF-008",
+          "name": "Driver\nWarning",
+          "participant_type": "Function"
+        }
+      ],
+      "messages": [
+        {
+          "from": "SF-001",
+          "to": "SF-002",
+          "label": "rawSensorData",
+          "message_type": "Synchronous",
+          "activation": true
+        },
+        {
+          "from": "SF-002",
+          "to": "SF-003",
+          "label": "fusedData",
+          "message_type": "Synchronous",
+          "activation": true
+        },
+        {
+          "from": "SF-003",
+          "to": "SF-004",
+          "label": "detectedObjects",
+          "message_type": "Synchronous",
+          "activation": true
+        },
+        {
+          "from": "SF-004",
+          "to": "SF-005",
+          "label": "trackedObjects",
+          "message_type": "Synchronous",
+          "activation": true
+        },
+        {
+          "from": "SF-005",
+          "to": "SF-005",
+          "label": "calculateTTC()",
+          "message_type": "Synchronous",
+          "activation": false
+        },
+        {
+          "from": "SF-005",
+          "to": "SF-006",
+          "label": "threatAssessment [CRITICAL]",
+          "message_type": "Asynchronous",
+          "activation": true
+        },
+        {
+          "from": "SF-005",
+          "to": "SF-008",
+          "label": "warningSignal",
+          "message_type": "Asynchronous",
+          "activation": false
+        },
+        {
+          "from": "SF-006",
+          "to": "SF-007",
+          "label": "brakeCommand(force=100%)",
+          "message_type": "Synchronous",
+          "activation": true
+        },
+        {
+          "from": "SF-007",
+          "to": "SF-006",
+          "label": "actualDeceleration",
+          "message_type": "Return",
+          "activation": false
+        },
+        {
+          "from": "SF-008",
+          "to": "SF-008",
+          "label": "displayAlert()",
+          "message_type": "Synchronous",
+          "activation": false
+        }
+      ],
+      "fragments": [],
+      "timing_constraints": []
+    }
+  ]
+}

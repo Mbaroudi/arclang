@@ -2,7 +2,10 @@
 AI-powered code generation for ArcLang.
 """
 
+import json
+import os
 from typing import Any, Dict, List, Optional
+
 import anthropic
 
 
@@ -13,10 +16,12 @@ class AIGenerator:
         self.provider = config.get("provider", "anthropic")
         self.model = config.get("model", "claude-3-5-sonnet-20241022")
         self.temperature = config.get("temperature", 0.3)
-        
+        self.client: Optional[anthropic.AsyncAnthropic] = None
+
         if self.provider == "anthropic":
             api_key = config.get("api_key") or os.getenv("ANTHROPIC_API_KEY")
-            self.client = anthropic.Anthropic(api_key=api_key) if api_key else None
+            if api_key:
+                self.client = anthropic.AsyncAnthropic(api_key=api_key)
 
     async def generate_requirement(
         self,
@@ -25,7 +30,7 @@ class AIGenerator:
         priority: str = "High"
     ) -> str:
         """Generate ArcLang requirement from description."""
-        
+
         prompt = f"""Generate an ArcLang requirement based on this description:
 
 Description: {description}
@@ -51,7 +56,7 @@ Important:
 Generate only the ArcLang code, no explanation."""
 
         if self.client:
-            message = self.client.messages.create(
+            message = await self.client.messages.create(
                 model=self.model,
                 max_tokens=1024,
                 temperature=self.temperature,
@@ -76,7 +81,7 @@ Generate only the ArcLang code, no explanation."""
         safety_level: Optional[str] = None
     ) -> str:
         """Generate ArcLang component from description."""
-        
+
         prompt = f"""Generate an ArcLang component based on this description:
 
 Description: {description}
@@ -90,7 +95,7 @@ component "Component Name" {{
     type: "{component_type}"
     description: "..."
     {f'safety_level: "{safety_level}"' if safety_level else ''}
-    
+
     function "Main Function" {{
         id: "LF-XXX-YYY"
         inputs: ["input1", "input2"]
@@ -109,7 +114,7 @@ Important:
 Generate only the ArcLang code, no explanation."""
 
         if self.client:
-            message = self.client.messages.create(
+            message = await self.client.messages.create(
                 model=self.model,
                 max_tokens=2048,
                 temperature=self.temperature,
@@ -124,7 +129,7 @@ Generate only the ArcLang code, no explanation."""
     type: "{component_type}"
     description: "{description}"
     {f'safety_level: "{safety_level}"' if safety_level else ''}
-    
+
     function "Process" {{
         id: "LF-PROCESS"
         inputs: ["input_data"]
@@ -138,9 +143,9 @@ Generate only the ArcLang code, no explanation."""
         domain: str = "automotive"
     ) -> Dict[str, Any]:
         """Suggest architecture based on requirements."""
-        
+
         req_list = "\n".join([f"- {req}" for req in requirements])
-        
+
         prompt = f"""Given these requirements for a {domain} system, suggest an appropriate architecture:
 
 Requirements:
@@ -166,16 +171,15 @@ Provide suggestions in JSON format:
 }}"""
 
         if self.client:
-            message = self.client.messages.create(
+            message = await self.client.messages.create(
                 model=self.model,
                 max_tokens=2048,
                 temperature=self.temperature,
                 messages=[{"role": "user", "content": prompt}]
             )
             try:
-                import json
                 return json.loads(message.content[0].text.strip())
-            except:
+            except (json.JSONDecodeError, IndexError, AttributeError):
                 return {"components": [], "patterns": []}
         else:
             # Fallback
@@ -199,6 +203,3 @@ Provide suggestions in JSON format:
         words = description.split()[:2]
         prefix = "".join([w[0].upper() for w in words if w])
         return f"LC-{prefix}-001"
-
-
-import os

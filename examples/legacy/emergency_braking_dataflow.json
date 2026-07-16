@@ -1,0 +1,220 @@
+{
+  "operational_analysis": [],
+  "system_analysis": [
+    {
+      "name": "Emergency Braking Dataflow",
+      "requirements": [],
+      "functions": [
+        {
+          "id": "SF-001",
+          "name": "Sensor Data\nAcquisition",
+          "category": "System",
+          "color": "#70AD47",
+          "icon": null,
+          "ports": [],
+          "sub_functions": [],
+          "attributes": {
+            "category": { "String": "Input" }
+          }
+        },
+        {
+          "id": "SF-002",
+          "name": "Multi-Sensor\nFusion",
+          "category": "System",
+          "color": "#4472C4",
+          "icon": null,
+          "ports": [],
+          "sub_functions": [],
+          "attributes": {
+            "category": { "String": "Processing" }
+          }
+        },
+        {
+          "id": "SF-003",
+          "name": "Object Detection\n& Classification",
+          "category": "System",
+          "color": "#9E7BB5",
+          "icon": null,
+          "ports": [],
+          "sub_functions": [],
+          "attributes": {
+            "category": { "String": "Perception" }
+          }
+        },
+        {
+          "id": "SF-004",
+          "name": "Multi-Object\nTracking",
+          "category": "System",
+          "color": "#9E7BB5",
+          "icon": null,
+          "ports": [],
+          "sub_functions": [],
+          "attributes": {
+            "category": { "String": "Perception" }
+          }
+        },
+        {
+          "id": "SF-005",
+          "name": "Collision Risk\nAssessment",
+          "category": "System",
+          "color": "#ED7D31",
+          "icon": null,
+          "ports": [],
+          "sub_functions": [],
+          "attributes": {
+            "category": { "String": "Decision" }
+          }
+        },
+        {
+          "id": "SF-006",
+          "name": "Braking Strategy\nPlanning",
+          "category": "System",
+          "color": "#FFC000",
+          "icon": null,
+          "ports": [],
+          "sub_functions": [],
+          "attributes": {
+            "category": { "String": "Planning" }
+          }
+        },
+        {
+          "id": "SF-007",
+          "name": "Brake\nActuation",
+          "category": "System",
+          "color": "#C00000",
+          "icon": null,
+          "ports": [],
+          "sub_functions": [],
+          "attributes": {
+            "category": { "String": "Control" }
+          }
+        },
+        {
+          "id": "SF-008",
+          "name": "Driver\nWarning",
+          "category": "System",
+          "color": "#5B9BD5",
+          "icon": null,
+          "ports": [],
+          "sub_functions": [],
+          "attributes": {
+            "category": { "String": "HMI" }
+          }
+        },
+        {
+          "id": "SF-009",
+          "name": "System Health\nMonitoring",
+          "category": "System",
+          "color": "#43682B",
+          "icon": null,
+          "ports": [],
+          "sub_functions": [],
+          "attributes": {
+            "category": { "String": "Safety" }
+          }
+        }
+      ],
+      "components": [],
+      "external_actors": [],
+      "functional_exchanges": [
+        {
+          "from": "SF-001",
+          "to": "SF-002",
+          "data": "Raw Sensor Data",
+          "description": "Radar, Camera, Lidar streams",
+          "rate": "20-100 Hz",
+          "protocol": "CAN/Ethernet"
+        },
+        {
+          "from": "SF-002",
+          "to": "SF-003",
+          "data": "Fused Sensor Data",
+          "description": "Synchronized, validated sensor data",
+          "rate": "20 Hz",
+          "protocol": "Internal"
+        },
+        {
+          "from": "SF-003",
+          "to": "SF-004",
+          "data": "Object Detections",
+          "description": "Classified objects with positions",
+          "rate": "20 Hz",
+          "protocol": "Internal"
+        },
+        {
+          "from": "SF-004",
+          "to": "SF-005",
+          "data": "Tracked Objects",
+          "description": "Object tracks with trajectories",
+          "rate": "20 Hz",
+          "protocol": "Internal"
+        },
+        {
+          "from": "SF-005",
+          "to": "SF-006",
+          "data": "Threat Assessment",
+          "description": "Collision risk level",
+          "rate": "20 Hz",
+          "protocol": "Internal"
+        },
+        {
+          "from": "SF-006",
+          "to": "SF-007",
+          "data": "Brake Command",
+          "description": "Target deceleration profile",
+          "rate": "100 Hz",
+          "protocol": "CAN"
+        },
+        {
+          "from": "SF-005",
+          "to": "SF-008",
+          "data": "Warning Signal",
+          "description": "Driver alert level",
+          "rate": "10 Hz",
+          "protocol": "Internal"
+        },
+        {
+          "from": "SF-007",
+          "to": "SF-006",
+          "data": "Actual Deceleration",
+          "description": "Feedback from brake system",
+          "rate": "100 Hz",
+          "protocol": "CAN"
+        },
+        {
+          "from": "SF-001",
+          "to": "SF-009",
+          "data": "Sensor Status",
+          "description": "Health and availability info",
+          "rate": "1 Hz",
+          "protocol": "Internal"
+        },
+        {
+          "from": "SF-009",
+          "to": "SF-008",
+          "data": "System Status",
+          "description": "Overall system health",
+          "rate": "1 Hz",
+          "protocol": "Internal"
+        },
+        {
+          "from": "SF-002",
+          "to": "SF-009",
+          "data": "Data Quality",
+          "description": "Sensor fusion confidence",
+          "rate": "1 Hz",
+          "protocol": "Internal"
+        }
+      ]
+    }
+  ],
+  "logical_architecture": [],
+  "physical_architecture": [],
+  "epbs": [],
+  "safety_analysis": [],
+  "traces": [],
+  "state_machines": [],
+  "scenarios": [],
+  "exchange_items": [],
+  "data_types": []
+}

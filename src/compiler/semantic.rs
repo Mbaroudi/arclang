@@ -100,9 +100,6 @@ impl SemanticAnalyzer {
         
         // Collect actors from operational analysis
         for oa in &ast.operational_analysis {
-            eprintln!("📊 Processing operational_analysis: '{}' with {} actors, {} activities", 
-                oa.name, oa.actors.len(), oa.activities.len());
-            
             for actor in &oa.actors {
                 // Try actor.id first, then check attributes
                 let actor_id = actor.id.as_ref().cloned()
@@ -274,14 +271,9 @@ impl SemanticAnalyzer {
                 let attr_id = activity.attributes.get("id")
                     .and_then(|v| v.as_string())
                     .unwrap_or(&activity.id);
-                eprintln!("  🎯 Collecting activity: struct_id='{}', attr_id='{}', name='{}'", 
-                    activity.id, attr_id, activity.name);
                 collect_activities_recursive(activity, &mut components, &mut all_elements);
             }
         }
-        
-        eprintln!("✅ Total components collected: {}", components.len());
-        eprintln!("✅ Total all_elements: {}", all_elements.len());
         
         // Collect requirements from system analysis
         for sa in &ast.system_analysis {
@@ -605,11 +597,6 @@ impl SemanticAnalyzer {
                 rationale,
             });
         }
-        
-        eprintln!("📊 FINAL STATS: {} components, {} requirements, {} all_elements", 
-            components.len(), requirements.len(), all_elements.len());
-        eprintln!("📊 First 10 element IDs in all_elements: {:?}", 
-            all_elements.keys().take(10).collect::<Vec<_>>());
         
         // Filter traces to only include valid ones (elements that exist)
         let valid_traces = self.filter_valid_traces(traces, &all_elements);

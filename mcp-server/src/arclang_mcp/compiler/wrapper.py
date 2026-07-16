@@ -1,13 +1,21 @@
 """
 Wrapper for ArcLang compiler binary.
+
+Every command emitted here maps 1:1 to the real clap CLI defined in
+src/cli/mod.rs. Flags that do not exist in the CLI are never emitted.
+Parsers only extract data that the binary actually prints; when the
+binary does not expose structured output, methods return None together
+with "parse_supported": False instead of fabricating results.
 """
 
 import asyncio
-import json
 import os
-import subprocess
+import re
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
+
+# Substrings that mark a line as an error in compiler output.
+ERROR_MARKERS = ("error", "Error", "✗")
 
 
 class ArcLangCompiler:
@@ -16,12 +24,12 @@ class ArcLangCompiler:
     def __init__(self, config: Dict[str, Any]):
         # Try environment variable first, then config, then default
         self.binary_path = (
-            os.getenv("ARCLANG_BINARY") or 
-            config.get("path") or 
+            os.getenv("ARCLANG_BINARY") or
+            config.get("path") or
             "arclang"
         )
         self.timeout = config.get("timeout", 30)
-        
+
         # Get workspace root for resolving relative paths
         self.workspace_root = Path(os.getenv("ARCLANG_WORKSPACE", os.getcwd()))
 
@@ -31,36 +39,41 @@ class ArcLangCompiler:
         validate: bool = True,
         optimize: bool = False
     ) -> Dict[str, Any]:
-        """Compile ArcLang model."""
+        """Compile ArcLang model via `arclang build`.
+
+        Note: the CLI always validates during compilation; there is no
+        separate `--validate` flag. `optimize` maps to `--release`.
+        """
         cmd = [self.binary_path, "build", str(model_path)]
-        
-        if validate:
-            cmd.append("--validate")
+
         if optimize:
-            cmd.append("--optimize")
+            cmd.append("--release")
 
         result = await self._run_command(cmd)
-        
+
         return {
             "success": result["returncode"] == 0,
             "output": result["stdout"],
-            "errors": result["stderr"],
+            "raw_output": result["stdout"],
+            "errors": self._parse_errors(result["stderr"], result["stdout"]),
             "metrics": self._parse_metrics(result["stdout"]) if result["returncode"] == 0 else {}
         }
 
     async def validate(self, model_path: Path, strict: bool = False) -> Dict[str, Any]:
-        """Validate ArcLang model."""
+        """Validate ArcLang model via `arclang check --lint`.
+
+        Note: the CLI has no `--strict` flag; the `strict` argument is
+        accepted for API compatibility but has no effect.
+        """
         cmd = [self.binary_path, "check", str(model_path), "--lint"]
-        
-        if strict:
-            cmd.append("--strict")
 
         result = await self._run_command(cmd)
-        
+
         return {
             "valid": result["returncode"] == 0,
             "warnings": self._parse_warnings(result["stdout"]),
-            "errors": self._parse_errors(result["stderr"])
+            "errors": self._parse_errors(result["stderr"], result["stdout"]),
+            "raw_output": result["stdout"]
         }
 
     async def trace_analysis(
@@ -69,20 +82,27 @@ class ArcLangCompiler:
         show_gaps: bool = True,
         matrix: bool = False
     ) -> Dict[str, Any]:
-        """Analyze traceability."""
+        """Analyze traceability via `arclang trace --validate`.
+
+        Note: the CLI has no `--gaps` flag. Traceability issues reported
+        by `--validate` are returned as plain strings in "issues". A
+        structured gap breakdown is not provided by the binary, so
+        "gaps" is None with "parse_supported": False.
+        """
         cmd = [self.binary_path, "trace", str(model_path), "--validate"]
-        
-        if show_gaps:
-            cmd.append("--gaps")
+
         if matrix:
             cmd.append("--matrix")
 
         result = await self._run_command(cmd)
-        
+
         return {
             "coverage": self._parse_coverage(result["stdout"]),
             "total_traces": self._count_traces(result["stdout"]),
-            "gaps": self._parse_gaps(result["stdout"]) if show_gaps else {}
+            "issues": self._parse_trace_issues(result["stdout"]),
+            "gaps": None,
+            "parse_supported": False,
+            "raw_output": result["stdout"]
         }
 
     async def export_diagram(
@@ -91,7 +111,7 @@ class ArcLangCompiler:
         format_type: str = "html",
         output_path: Optional[str] = None
     ) -> Dict[str, Any]:
-        """Export architecture diagram."""
+        """Export architecture diagram via `arclang export -o <out> -f <fmt>`."""
         if not output_path:
             output_path = str(model_path.with_suffix(".html"))
 
@@ -102,25 +122,28 @@ class ArcLangCompiler:
         ]
 
         result = await self._run_command(cmd)
-        
+
         return {
             "success": result["returncode"] == 0,
             "output_path": output_path if result["returncode"] == 0 else None,
-            "error": result["stderr"] if result["returncode"] != 0 else None
+            "error": result["stderr"] if result["returncode"] != 0 else None,
+            "raw_output": result["stdout"]
         }
 
     async def info(self, model_path: Path, detailed: bool = False) -> Dict[str, Any]:
-        """Get model information."""
+        """Get model information via `arclang info --metrics`.
+
+        Note: the CLI has no `--detailed` flag; the `detailed` argument
+        is accepted for API compatibility but has no effect.
+        """
         cmd = [self.binary_path, "info", str(model_path), "--metrics"]
-        
-        if detailed:
-            cmd.append("--detailed")
 
         result = await self._run_command(cmd)
-        
+
         return {
             "metrics": self._parse_metrics(result["stdout"]),
-            "size_kb": model_path.stat().st_size / 1024 if model_path.exists() else 0
+            "size_kb": model_path.stat().st_size / 1024 if model_path.exists() else 0,
+            "raw_output": result["stdout"]
         }
 
     async def safety_check(
@@ -129,18 +152,24 @@ class ArcLangCompiler:
         standard: str,
         generate_report: bool = False
     ) -> Dict[str, Any]:
-        """Check safety compliance."""
+        """Check safety compliance via `arclang safety --standard <std>`.
+
+        Note: the binary does not print structured issue data, so
+        "issues" is None with "parse_supported": False.
+        """
         cmd = [self.binary_path, "safety", str(model_path), "--standard", standard]
-        
+
         if generate_report:
             cmd.append("--report")
 
         result = await self._run_command(cmd)
-        
+
         return {
             "compliant": result["returncode"] == 0,
-            "issues": self._parse_safety_issues(result["stdout"]),
-            "recommendations": []
+            "issues": None,
+            "parse_supported": False,
+            "recommendations": [],
+            "raw_output": result["stdout"]
         }
 
     async def hazard_analysis(
@@ -148,14 +177,16 @@ class ArcLangCompiler:
         model_path: Path,
         standard: str
     ) -> Dict[str, Any]:
-        """Perform hazard analysis."""
-        cmd = [self.binary_path, "safety", str(model_path), "--hara", "--standard", standard]
+        """Hazard analysis (HARA) is not implemented in the arclang CLI.
 
-        result = await self._run_command(cmd)
-        
-        return {
-            "hazards": self._parse_hazards(result["stdout"])
-        }
+        The CLI `safety` subcommand only supports --fmea/--fta/--report
+        and produces no hazard data.
+        """
+        raise NotImplementedError(
+            "Hazard analysis (HARA) is not implemented in the arclang CLI: "
+            "the `safety` subcommand only accepts --standard/--fmea/--fta/--report "
+            "and does not produce hazard data."
+        )
 
     async def semantic_merge(
         self,
@@ -163,14 +194,11 @@ class ArcLangCompiler:
         ours_path: Path,
         theirs_path: Path
     ) -> Dict[str, Any]:
-        """Semantic merge."""
-        # This would call the semantic merge tool
-        # For now, return placeholder
-        return {
-            "clean_merge": False,
-            "conflicts": [],
-            "merged_count": 0
-        }
+        """Semantic merge is not implemented in the arclang CLI."""
+        raise NotImplementedError(
+            "Semantic merge is not implemented in the arclang CLI: "
+            "no merge subcommand exists in the compiler."
+        )
 
     async def plm_sync(
         self,
@@ -178,15 +206,15 @@ class ArcLangCompiler:
         system: str,
         operation: str
     ) -> Dict[str, Any]:
-        """PLM synchronization."""
-        cmd = [self.binary_path, "plm", operation, str(model_path), "--system", system]
+        """PLM synchronization.
 
-        result = await self._run_command(cmd)
-        
+        There is no `plm` subcommand in the arclang CLI (only `sync
+        pull/push`, which are unimplemented stubs), so this returns a
+        structured error instead of invoking the binary.
+        """
         return {
-            "success": result["returncode"] == 0,
-            "changes_count": 0,
-            "error": result["stderr"] if result["returncode"] != 0 else None
+            "success": False,
+            "error": "plm sync not implemented in compiler"
         }
 
     async def generate_diagram(
@@ -200,7 +228,7 @@ class ArcLangCompiler:
         resolved_model = Path(model_path)
         if not resolved_model.is_absolute():
             resolved_model = self.workspace_root / model_path
-        
+
         # Resolve output path relative to workspace if not absolute
         if not output_path:
             output_path = str(self.workspace_root / f"{diagram_type}.svg")
@@ -208,11 +236,11 @@ class ArcLangCompiler:
             resolved_output = Path(output_path)
             if not resolved_output.is_absolute():
                 output_path = str(self.workspace_root / output_path)
-        
+
         # Create output directory if it doesn't exist
         output_file = Path(output_path)
         output_file.parent.mkdir(parents=True, exist_ok=True)
-        
+
         cmd = [
             self.binary_path,
             "diagram",
@@ -220,28 +248,23 @@ class ArcLangCompiler:
             "-o", output_path,
             "--format", diagram_type
         ]
-        
+
         result = await self._run_command(cmd)
-        
+
         if result["returncode"] != 0:
             raise Exception(f"Diagram generation failed: {result['stderr']}")
-        
+
         # Get file size
-        import os
         size = os.path.getsize(output_path)
         size_str = f"{size/1024:.1f}KB" if size > 1024 else f"{size}B"
-        
+
         # Parse output for element count
         element_count = self._parse_element_count(result["stdout"], diagram_type)
-        
-        # Get features based on diagram type
-        features = self._get_diagram_features(diagram_type)
-        
+
         return {
             "output_path": output_path,
             "size": size_str,
-            "element_count": element_count,
-            "features": features
+            "element_count": element_count
         }
 
     async def _run_command(self, cmd: list) -> Dict[str, Any]:
@@ -252,12 +275,12 @@ class ArcLangCompiler:
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE
             )
-            
+
             stdout, stderr = await asyncio.wait_for(
                 process.communicate(),
                 timeout=self.timeout
             )
-            
+
             return {
                 "returncode": process.returncode,
                 "stdout": stdout.decode(),
@@ -281,61 +304,105 @@ class ArcLangCompiler:
         metrics = {}
         for line in output.split("\n"):
             if "Requirements:" in line:
-                metrics["requirements"] = int(line.split(":")[-1].strip())
+                metrics["requirements"] = self._parse_int(line)
             elif "Components:" in line:
-                metrics["components"] = int(line.split(":")[-1].strip())
+                metrics["components"] = self._parse_int(line)
             elif "Functions:" in line:
-                metrics["functions"] = int(line.split(":")[-1].strip())
+                metrics["functions"] = self._parse_int(line)
             elif "Traces:" in line:
-                metrics["traces"] = int(line.split(":")[-1].strip())
-        return metrics
+                metrics["traces"] = self._parse_int(line)
+        return {k: v for k, v in metrics.items() if v is not None}
 
-    def _parse_warnings(self, output: str) -> list:
-        """Parse warnings from output."""
-        return [line for line in output.split("\n") if "warning:" in line.lower()]
+    @staticmethod
+    def _parse_int(line: str) -> Optional[int]:
+        """Parse the integer after the last colon in a line, or None."""
+        try:
+            return int(line.split(":")[-1].strip())
+        except ValueError:
+            return None
 
-    def _parse_errors(self, output: str) -> list:
-        """Parse errors from output."""
-        return [line for line in output.split("\n") if "error:" in line.lower() or line.strip()]
+    def _parse_warnings(self, output: str) -> List[str]:
+        """Parse warnings from `check` output.
 
-    def _parse_coverage(self, output: str) -> int:
-        """Parse coverage percentage."""
+        The CLI prints a '⚠ Traceability warnings:' header followed by
+        indented warning lines; standalone lines containing 'warning:'
+        are also collected.
+        """
+        warnings = []
+        in_warning_block = False
         for line in output.split("\n"):
-            if "Coverage:" in line or "coverage:" in line:
-                try:
-                    return int(line.split(":")[-1].strip().rstrip("%"))
-                except:
-                    pass
-        return 0
+            if "warnings:" in line.lower():
+                in_warning_block = True
+                continue
+            if in_warning_block:
+                if line.startswith("  ") and line.strip():
+                    warnings.append(line.strip())
+                    continue
+                in_warning_block = False
+            if "warning:" in line.lower():
+                warnings.append(line.strip())
+        return warnings
+
+    def _parse_errors(self, stderr: str, stdout: str = "") -> List[str]:
+        """Parse errors from compiler output.
+
+        Only lines containing an error marker ('error', 'Error', '✗')
+        are treated as errors; the full stdout is preserved separately
+        by callers in "raw_output".
+        """
+        errors = []
+        for source in (stderr, stdout):
+            for line in source.split("\n"):
+                if any(marker in line for marker in ERROR_MARKERS):
+                    errors.append(line.strip())
+        return errors
+
+    def _parse_coverage(self, output: str) -> float:
+        """Parse coverage percentage (the CLI prints e.g. 'Traceability Coverage: 85.0%')."""
+        for line in output.split("\n"):
+            if "coverage:" in line.lower():
+                match = re.search(r"([0-9]+(?:\.[0-9]+)?)\s*%", line)
+                if match:
+                    return float(match.group(1))
+        return 0.0
 
     def _count_traces(self, output: str) -> int:
-        """Count total traces."""
+        """Count total traces.
+
+        With `--matrix` the CLI prints one 'from → to' line per trace;
+        otherwise fall back to a 'Traces: N' line if present.
+        """
+        matrix_lines = [line for line in output.split("\n") if " → " in line]
+        if matrix_lines:
+            return len(matrix_lines)
         for line in output.split("\n"):
             if "Traces:" in line or "traces:" in line:
-                try:
-                    return int(line.split(":")[-1].strip())
-                except:
-                    pass
+                value = self._parse_int(line)
+                if value is not None:
+                    return value
         return 0
 
-    def _parse_gaps(self, output: str) -> Dict[str, list]:
-        """Parse traceability gaps."""
-        return {
-            "untraced_requirements": [],
-            "untraced_components": []
-        }
+    def _parse_trace_issues(self, output: str) -> List[str]:
+        """Parse traceability issues printed by `trace --validate`.
 
-    def _parse_safety_issues(self, output: str) -> list:
-        """Parse safety issues."""
-        return []
-
-    def _parse_hazards(self, output: str) -> list:
-        """Parse hazards from HARA output."""
-        return []
+        The CLI prints '⚠ Traceability issues found:' followed by
+        indented issue lines.
+        """
+        issues = []
+        in_issue_block = False
+        for line in output.split("\n"):
+            if "issues found:" in line.lower():
+                in_issue_block = True
+                continue
+            if in_issue_block:
+                if line.startswith("  ") and line.strip():
+                    issues.append(line.strip())
+                else:
+                    in_issue_block = False
+        return issues
 
     def _parse_element_count(self, output: str, diagram_type: str) -> str:
         """Parse element count from CLI output."""
-        import re
         patterns = {
             "operational": r"Activities: (\d+)",
             "functional": r"Functions: (\d+)",
@@ -348,83 +415,11 @@ class ArcLangCompiler:
             "capability": r"Capabilities: (\d+)",
             "functional-chain": r"Functions: (\d+)"
         }
-        
+
         pattern = patterns.get(diagram_type)
         if pattern:
             match = re.search(pattern, output)
             if match:
                 return match.group(1)
-        
-        return "N/A"
 
-    def _get_diagram_features(self, diagram_type: str) -> list:
-        """Get feature list for diagram type."""
-        features = {
-            "operational": [
-                "Swimlane layout by actor",
-                "Stick figures for human actors",
-                "System boxes for components",
-                "Activity symbols (⊕)",
-                "Protocol labels (CAN, V2X, HMI)",
-                "Hierarchical activities"
-            ],
-            "functional": [
-                "Data flow visualization",
-                "Port-based connections",
-                "Category coloring (7 types)",
-                "External actor boundaries",
-                "Typed exchanges"
-            ],
-            "component": [
-                "Hierarchical structure",
-                "Interface protocols (CAN, Ethernet)",
-                "Port visualization",
-                "Sub-component nesting",
-                "Block diagram layout"
-            ],
-            "sequence": [
-                "Time-ordered messages",
-                "Participant lifelines",
-                "Fragment blocks (alt, loop, opt)",
-                "Synchronous/asynchronous calls"
-            ],
-            "state-machine": [
-                "State visualization",
-                "Transition arrows",
-                "Guard conditions",
-                "Entry/exit actions",
-                "Nested states"
-            ],
-            "physical": [
-                "Hardware node representation",
-                "Deployment links",
-                "Communication buses",
-                "Physical interfaces"
-            ],
-            "class": [
-                "UML class notation",
-                "Inheritance hierarchies",
-                "Associations",
-                "Attributes and operations"
-            ],
-            "tree": [
-                "Reingold-Tilford layout",
-                "Hierarchical breakdown",
-                "Expand/collapse indicators",
-                "Category icons"
-            ],
-            "capability": [
-                "3-level hierarchy",
-                "Mission/Capability/Operational",
-                "Capability associations",
-                "Color-coded levels"
-            ],
-            "functional-chain": [
-                "Left-to-right execution flow",
-                "Function sequence",
-                "Data exchange labels",
-                "Port connections"
-            ]
-        }
-        
-        return features.get(diagram_type, [])
+        return "N/A"

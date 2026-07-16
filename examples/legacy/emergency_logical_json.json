@@ -1,0 +1,486 @@
+{
+  "operational_analysis": [],
+  "system_analysis": [],
+  "logical_architecture": [
+    {
+      "name": "Emergency Braking Architecture",
+      "components": [
+        {
+          "id": "LC-001",
+          "name": "Main Controller",
+          "component_type": "Logical",
+          "color": "#5B9BD5",
+          "sub_components": [
+            {
+              "id": "LC-001-01",
+              "name": "Supervisor",
+              "component_type": "Logical",
+              "color": "#5B9BD5",
+              "sub_components": [],
+              "allocated_functions": [],
+              "ports": [],
+              "functions": [
+                {
+                  "name": "Check Safety",
+                  "attributes": {
+                    "description": {
+                      "String": "Safety checking"
+                    },
+                    "id": {
+                      "String": "LF-003"
+                    }
+                  }
+                }
+              ],
+              "interfaces_in": [],
+              "interfaces_out": [],
+              "attributes": {
+                "id": {
+                  "String": "LC-001-01"
+                },
+                "safety_level": {
+                  "String": "ASIL_D"
+                },
+                "description": {
+                  "String": "Supervision logic"
+                }
+              }
+            }
+          ],
+          "allocated_functions": [],
+          "ports": [],
+          "functions": [
+            {
+              "name": "Manage System",
+              "attributes": {
+                "description": {
+                  "String": "Overall system management"
+                },
+                "id": {
+                  "String": "LF-001"
+                }
+              }
+            },
+            {
+              "name": "Monitor Health",
+              "attributes": {
+                "description": {
+                  "String": "System health monitoring"
+                },
+                "id": {
+                  "String": "LF-002"
+                }
+              }
+            }
+          ],
+          "interfaces_in": [],
+          "interfaces_out": [],
+          "attributes": {
+            "safety_level": {
+              "String": "ASIL_D"
+            },
+            "description": {
+              "String": "Central control unit"
+            },
+            "id": {
+              "String": "LC-001"
+            }
+          }
+        },
+        {
+          "id": "LC-002",
+          "name": "Sensor Fusion Unit",
+          "component_type": "Logical",
+          "color": "#5B9BD5",
+          "sub_components": [
+            {
+              "id": "LC-002-01",
+              "name": "Data Validator",
+              "component_type": "Logical",
+              "color": "#5B9BD5",
+              "sub_components": [],
+              "allocated_functions": [],
+              "ports": [],
+              "functions": [
+                {
+                  "name": "Validate Input",
+                  "attributes": {
+                    "id": {
+                      "String": "LF-005"
+                    },
+                    "description": {
+                      "String": "Input validation"
+                    }
+                  }
+                }
+              ],
+              "interfaces_in": [],
+              "interfaces_out": [],
+              "attributes": {
+                "id": {
+                  "String": "LC-002-01"
+                },
+                "description": {
+                  "String": "Data validation logic"
+                }
+              }
+            }
+          ],
+          "allocated_functions": [],
+          "ports": [],
+          "functions": [
+            {
+              "name": "Fuse Data",
+              "attributes": {
+                "description": {
+                  "String": "Sensor data fusion"
+                },
+                "id": {
+                  "String": "LF-004"
+                }
+              }
+            }
+          ],
+          "interfaces_in": [],
+          "interfaces_out": [],
+          "attributes": {
+            "safety_level": {
+              "String": "ASIL_C"
+            },
+            "id": {
+              "String": "LC-002"
+            },
+            "description": {
+              "String": "Multi-sensor fusion processor"
+            }
+          }
+        },
+        {
+          "id": "LC-003",
+          "name": "Radar Interface",
+          "component_type": "Logical",
+          "color": "#5B9BD5",
+          "sub_components": [],
+          "allocated_functions": [],
+          "ports": [],
+          "functions": [
+            {
+              "name": "Process Radar",
+              "attributes": {
+                "id": {
+                  "String": "LF-006"
+                },
+                "description": {
+                  "String": "Radar data processing"
+                }
+              }
+            }
+          ],
+          "interfaces_in": [],
+          "interfaces_out": [],
+          "attributes": {
+            "safety_level": {
+              "String": "ASIL_C"
+            },
+            "description": {
+              "String": "Radar sensor interface"
+            },
+            "id": {
+              "String": "LC-003"
+            }
+          }
+        },
+        {
+          "id": "LC-004",
+          "name": "Camera Interface",
+          "component_type": "Logical",
+          "color": "#5B9BD5",
+          "sub_components": [],
+          "allocated_functions": [],
+          "ports": [],
+          "functions": [
+            {
+              "name": "Process Image",
+              "attributes": {
+                "description": {
+                  "String": "Image processing"
+                },
+                "id": {
+                  "String": "LF-007"
+                }
+              }
+            }
+          ],
+          "interfaces_in": [],
+          "interfaces_out": [],
+          "attributes": {
+            "id": {
+              "String": "LC-004"
+            },
+            "description": {
+              "String": "Camera sensor interface"
+            },
+            "safety_level": {
+              "String": "ASIL_C"
+            }
+          }
+        },
+        {
+          "id": "LC-005",
+          "name": "Lidar Interface",
+          "component_type": "Logical",
+          "color": "#5B9BD5",
+          "sub_components": [],
+          "allocated_functions": [],
+          "ports": [],
+          "functions": [
+            {
+              "name": "Process Lidar",
+              "attributes": {
+                "id": {
+                  "String": "LF-008"
+                },
+                "description": {
+                  "String": "Lidar data processing"
+                }
+              }
+            }
+          ],
+          "interfaces_in": [],
+          "interfaces_out": [],
+          "attributes": {
+            "id": {
+              "String": "LC-005"
+            },
+            "safety_level": {
+              "String": "ASIL_C"
+            },
+            "description": {
+              "String": "Lidar sensor interface"
+            }
+          }
+        },
+        {
+          "id": "LC-006",
+          "name": "Object Tracker",
+          "component_type": "Logical",
+          "color": "#5B9BD5",
+          "sub_components": [
+            {
+              "id": "LC-006-01",
+              "name": "Trajectory Predictor",
+              "component_type": "Logical",
+              "color": "#5B9BD5",
+              "sub_components": [],
+              "allocated_functions": [],
+              "ports": [],
+              "functions": [
+                {
+                  "name": "Predict Motion",
+                  "attributes": {
+                    "description": {
+                      "String": "Motion prediction"
+                    },
+                    "id": {
+                      "String": "LF-010"
+                    }
+                  }
+                }
+              ],
+              "interfaces_in": [],
+              "interfaces_out": [],
+              "attributes": {
+                "id": {
+                  "String": "LC-006-01"
+                },
+                "description": {
+                  "String": "Trajectory prediction"
+                }
+              }
+            }
+          ],
+          "allocated_functions": [],
+          "ports": [],
+          "functions": [
+            {
+              "name": "Track Objects",
+              "attributes": {
+                "id": {
+                  "String": "LF-009"
+                },
+                "description": {
+                  "String": "Object tracking"
+                }
+              }
+            }
+          ],
+          "interfaces_in": [],
+          "interfaces_out": [],
+          "attributes": {
+            "id": {
+              "String": "LC-006"
+            },
+            "safety_level": {
+              "String": "ASIL_C"
+            },
+            "description": {
+              "String": "Object tracking unit"
+            }
+          }
+        },
+        {
+          "id": "LC-007",
+          "name": "Risk Assessor",
+          "component_type": "Logical",
+          "color": "#5B9BD5",
+          "sub_components": [],
+          "allocated_functions": [],
+          "ports": [],
+          "functions": [
+            {
+              "name": "Assess Risk",
+              "attributes": {
+                "id": {
+                  "String": "LF-011"
+                },
+                "description": {
+                  "String": "Risk assessment"
+                }
+              }
+            }
+          ],
+          "interfaces_in": [],
+          "interfaces_out": [],
+          "attributes": {
+            "safety_level": {
+              "String": "ASIL_D"
+            },
+            "id": {
+              "String": "LC-007"
+            },
+            "description": {
+              "String": "Risk assessment unit"
+            }
+          }
+        },
+        {
+          "id": "LC-008",
+          "name": "Brake Controller",
+          "component_type": "Logical",
+          "color": "#5B9BD5",
+          "sub_components": [],
+          "allocated_functions": [],
+          "ports": [],
+          "functions": [
+            {
+              "name": "Control Brakes",
+              "attributes": {
+                "id": {
+                  "String": "LF-012"
+                },
+                "description": {
+                  "String": "Brake actuation"
+                }
+              }
+            }
+          ],
+          "interfaces_in": [],
+          "interfaces_out": [],
+          "attributes": {
+            "safety_level": {
+              "String": "ASIL_D"
+            },
+            "description": {
+              "String": "Brake control unit"
+            },
+            "id": {
+              "String": "LC-008"
+            }
+          }
+        }
+      ],
+      "interfaces": [
+        {
+          "name": "LC-003 -> LC-002",
+          "from": "LC-003",
+          "to": "LC-002",
+          "attributes": {
+            "description": {
+              "String": "Radar data to fusion"
+            }
+          }
+        },
+        {
+          "name": "LC-004 -> LC-002",
+          "from": "LC-004",
+          "to": "LC-002",
+          "attributes": {
+            "description": {
+              "String": "Camera data to fusion"
+            }
+          }
+        },
+        {
+          "name": "LC-005 -> LC-002",
+          "from": "LC-005",
+          "to": "LC-002",
+          "attributes": {
+            "description": {
+              "String": "Lidar data to fusion"
+            }
+          }
+        },
+        {
+          "name": "LC-002 -> LC-006",
+          "from": "LC-002",
+          "to": "LC-006",
+          "attributes": {
+            "description": {
+              "String": "Fused data to tracker"
+            }
+          }
+        },
+        {
+          "name": "LC-006 -> LC-007",
+          "from": "LC-006",
+          "to": "LC-007",
+          "attributes": {
+            "description": {
+              "String": "Tracking to risk assessment"
+            }
+          }
+        },
+        {
+          "name": "LC-007 -> LC-008",
+          "from": "LC-007",
+          "to": "LC-008",
+          "attributes": {
+            "description": {
+              "String": "Risk assessment to brake control"
+            }
+          }
+        },
+        {
+          "name": "LC-001 -> LC-008",
+          "from": "LC-001",
+          "to": "LC-008",
+          "attributes": {
+            "description": {
+              "String": "Main control to brake actuation"
+            }
+          }
+        }
+      ],
+      "component_exchanges": [],
+      "unallocated_functions": []
+    }
+  ],
+  "physical_architecture": [],
+  "epbs": [],
+  "safety_analysis": [],
+  "traces": [],
+  "state_machines": [],
+  "scenarios": [],
+  "exchange_items": [],
+  "data_types": []
+}

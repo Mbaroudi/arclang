@@ -109,24 +109,14 @@ class CoreTools:
         output += f"**Coverage**: {result.get('coverage', 0)}%\n"
         output += f"**Total Traces**: {result.get('total_traces', 0)}\n\n"
 
-        if show_gaps and result.get("gaps"):
-            gaps = result["gaps"]
-            output += f"⚠️  **Gaps Found** ({len(gaps)}):\n\n"
-            
-            untraced_req = gaps.get("untraced_requirements", [])
-            if untraced_req:
-                output += f"**Untraced Requirements** ({len(untraced_req)}):\n"
-                for req in untraced_req[:5]:
-                    output += f"  - {req['id']}: {req.get('description', 'N/A')}\n"
+        if show_gaps:
+            issues = result.get("issues") or []
+            if issues:
+                output += f"⚠️  **Traceability Issues** ({len(issues)}):\n\n"
+                for issue in issues[:10]:
+                    output += f"  - {issue}\n"
                 output += "\n"
-            
-            untraced_comp = gaps.get("untraced_components", [])
-            if untraced_comp:
-                output += f"**Untraced Components** ({len(untraced_comp)}):\n"
-                for comp in untraced_comp[:5]:
-                    output += f"  - {comp['id']}: {comp.get('name', 'N/A')}\n"
-                output += "\n"
-        
+
         if result.get("coverage", 0) >= 90:
             output += "✅ Good traceability coverage"
         elif result.get("coverage", 0) >= 70:

@@ -1,0 +1,287 @@
+{
+  "tree_type": "function",
+  "functions": [
+    {
+      "id": "SF-001",
+      "name": "Sensor Data Acquisition",
+      "category": "Input",
+      "color": "#70AD47",
+      "sub_functions": [
+        {
+          "id": "SF-001-01",
+          "name": "Acquire Radar Data",
+          "category": "Input",
+          "color": "#70AD47",
+          "sub_functions": []
+        },
+        {
+          "id": "SF-001-02",
+          "name": "Acquire Camera Data",
+          "category": "Input",
+          "color": "#70AD47",
+          "sub_functions": []
+        },
+        {
+          "id": "SF-001-03",
+          "name": "Acquire Lidar Data",
+          "category": "Input",
+          "color": "#70AD47",
+          "sub_functions": []
+        },
+        {
+          "id": "SF-001-04",
+          "name": "Read Vehicle State",
+          "category": "Input",
+          "color": "#70AD47",
+          "sub_functions": []
+        }
+      ]
+    },
+    {
+      "id": "SF-002",
+      "name": "Multi-Sensor Fusion",
+      "category": "Processing",
+      "color": "#4472C4",
+      "sub_functions": [
+        {
+          "id": "SF-002-01",
+          "name": "Validate Sensor Data",
+          "category": "Processing",
+          "color": "#4472C4",
+          "sub_functions": []
+        },
+        {
+          "id": "SF-002-02",
+          "name": "Temporal Synchronization",
+          "category": "Processing",
+          "color": "#4472C4",
+          "sub_functions": []
+        },
+        {
+          "id": "SF-002-03",
+          "name": "Spatial Registration",
+          "category": "Processing",
+          "color": "#4472C4",
+          "sub_functions": []
+        },
+        {
+          "id": "SF-002-04",
+          "name": "Kalman Filtering",
+          "category": "Processing",
+          "color": "#4472C4",
+          "sub_functions": []
+        }
+      ]
+    },
+    {
+      "id": "SF-003",
+      "name": "Object Detection & Classification",
+      "category": "Perception",
+      "color": "#9E7BB5",
+      "sub_functions": [
+        {
+          "id": "SF-003-01",
+          "name": "Segment Objects",
+          "category": "Perception",
+          "color": "#9E7BB5",
+          "sub_functions": []
+        },
+        {
+          "id": "SF-003-02",
+          "name": "Classify Object Types",
+          "category": "Perception",
+          "color": "#9E7BB5",
+          "sub_functions": []
+        },
+        {
+          "id": "SF-003-03",
+          "name": "Estimate Dimensions",
+          "category": "Perception",
+          "color": "#9E7BB5",
+          "sub_functions": []
+        }
+      ]
+    },
+    {
+      "id": "SF-004",
+      "name": "Multi-Object Tracking",
+      "category": "Perception",
+      "color": "#9E7BB5",
+      "sub_functions": [
+        {
+          "id": "SF-004-01",
+          "name": "Associate Detections",
+          "category": "Perception",
+          "color": "#9E7BB5",
+          "sub_functions": []
+        },
+        {
+          "id": "SF-004-02",
+          "name": "Update Tracks",
+          "category": "Perception",
+          "color": "#9E7BB5",
+          "sub_functions": []
+        },
+        {
+          "id": "SF-004-03",
+          "name": "Predict Trajectories",
+          "category": "Perception",
+          "color": "#9E7BB5",
+          "sub_functions": []
+        },
+        {
+          "id": "SF-004-04",
+          "name": "Compute Uncertainty",
+          "category": "Perception",
+          "color": "#9E7BB5",
+          "sub_functions": []
+        }
+      ]
+    },
+    {
+      "id": "SF-005",
+      "name": "Collision Risk Assessment",
+      "category": "Decision",
+      "color": "#ED7D31",
+      "sub_functions": [
+        {
+          "id": "SF-005-01",
+          "name": "Calculate TTC",
+          "category": "Decision",
+          "color": "#ED7D31",
+          "sub_functions": []
+        },
+        {
+          "id": "SF-005-02",
+          "name": "Evaluate Threat Level",
+          "category": "Decision",
+          "color": "#ED7D31",
+          "sub_functions": []
+        },
+        {
+          "id": "SF-005-03",
+          "name": "Decide Intervention",
+          "category": "Decision",
+          "color": "#ED7D31",
+          "sub_functions": []
+        }
+      ]
+    },
+    {
+      "id": "SF-006",
+      "name": "Braking Strategy Planning",
+      "category": "Planning",
+      "color": "#FFC000",
+      "sub_functions": [
+        {
+          "id": "SF-006-01",
+          "name": "Select Strategy",
+          "category": "Planning",
+          "color": "#FFC000",
+          "sub_functions": []
+        },
+        {
+          "id": "SF-006-02",
+          "name": "Calculate Profile",
+          "category": "Planning",
+          "color": "#FFC000",
+          "sub_functions": []
+        },
+        {
+          "id": "SF-006-03",
+          "name": "Optimize Comfort",
+          "category": "Planning",
+          "color": "#FFC000",
+          "sub_functions": []
+        }
+      ]
+    },
+    {
+      "id": "SF-007",
+      "name": "Brake Actuation",
+      "category": "Control",
+      "color": "#C00000",
+      "sub_functions": [
+        {
+          "id": "SF-007-01",
+          "name": "Send Brake Commands",
+          "category": "Control",
+          "color": "#C00000",
+          "sub_functions": []
+        },
+        {
+          "id": "SF-007-02",
+          "name": "Monitor Response",
+          "category": "Control",
+          "color": "#C00000",
+          "sub_functions": []
+        },
+        {
+          "id": "SF-007-03",
+          "name": "Handle Driver Override",
+          "category": "Control",
+          "color": "#C00000",
+          "sub_functions": []
+        }
+      ]
+    },
+    {
+      "id": "SF-008",
+      "name": "Driver Warning",
+      "category": "HMI",
+      "color": "#5B9BD5",
+      "sub_functions": [
+        {
+          "id": "SF-008-01",
+          "name": "Display Visual Alerts",
+          "category": "HMI",
+          "color": "#5B9BD5",
+          "sub_functions": []
+        },
+        {
+          "id": "SF-008-02",
+          "name": "Emit Audio Alerts",
+          "category": "HMI",
+          "color": "#5B9BD5",
+          "sub_functions": []
+        },
+        {
+          "id": "SF-008-03",
+          "name": "Haptic Feedback",
+          "category": "HMI",
+          "color": "#5B9BD5",
+          "sub_functions": []
+        }
+      ]
+    },
+    {
+      "id": "SF-009",
+      "name": "System Health Monitoring",
+      "category": "Safety",
+      "color": "#43682B",
+      "sub_functions": [
+        {
+          "id": "SF-009-01",
+          "name": "Check Sensor Status",
+          "category": "Safety",
+          "color": "#43682B",
+          "sub_functions": []
+        },
+        {
+          "id": "SF-009-02",
+          "name": "Diagnose Faults",
+          "category": "Safety",
+          "color": "#43682B",
+          "sub_functions": []
+        },
+        {
+          "id": "SF-009-03",
+          "name": "Report Status",
+          "category": "Safety",
+          "color": "#43682B",
+          "sub_functions": []
+        }
+      ]
+    }
+  ]
+}

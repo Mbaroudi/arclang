@@ -1,0 +1,174 @@
+{
+  "system_analysis": {
+    "name": "Emergency Braking - System Analysis",
+    "functions": [
+      {
+        "id": "SF-001",
+        "name": "Sensor Data\nAcquisition",
+        "category": "Environmental",
+        "color": "#70AD47",
+        "icon": null,
+        "ports": [],
+        "sub_functions": [],
+        "attributes": {}
+      },
+      {
+        "id": "SF-002",
+        "name": "Multi-Sensor\nFusion",
+        "category": "System",
+        "color": "#70AD47",
+        "icon": null,
+        "ports": [],
+        "sub_functions": [],
+        "attributes": {}
+      },
+      {
+        "id": "SF-003",
+        "name": "Object\nDetection",
+        "category": "System",
+        "color": "#70AD47",
+        "icon": null,
+        "ports": [],
+        "sub_functions": [],
+        "attributes": {}
+      },
+      {
+        "id": "SF-004",
+        "name": "Multi-Object\nTracking",
+        "category": "System",
+        "color": "#70AD47",
+        "icon": null,
+        "ports": [],
+        "sub_functions": [],
+        "attributes": {}
+      },
+      {
+        "id": "SF-005",
+        "name": "Collision Risk\nAssessment",
+        "category": "System",
+        "color": "#4472C4",
+        "icon": null,
+        "ports": [],
+        "sub_functions": [],
+        "attributes": {}
+      },
+      {
+        "id": "SF-006",
+        "name": "Braking Strategy\nPlanning",
+        "category": "Control",
+        "color": "#ED7D31",
+        "icon": null,
+        "ports": [],
+        "sub_functions": [],
+        "attributes": {}
+      },
+      {
+        "id": "SF-007",
+        "name": "Brake\nActuation",
+        "category": "Control",
+        "color": "#ED7D31",
+        "icon": null,
+        "ports": [],
+        "sub_functions": [],
+        "attributes": {}
+      },
+      {
+        "id": "SF-008",
+        "name": "Driver\nWarning",
+        "category": "Interaction",
+        "color": "#FFC000",
+        "icon": null,
+        "ports": [],
+        "sub_functions": [],
+        "attributes": {}
+      },
+      {
+        "id": "SF-009",
+        "name": "System\nDiagnostics",
+        "category": "Management",
+        "color": "#A5A5A5",
+        "icon": null,
+        "ports": [],
+        "sub_functions": [],
+        "attributes": {}
+      }
+    ],
+    "external_actors": [],
+    "components": [],
+    "requirements": [],
+    "functional_exchanges": []
+  },
+  "logical_architecture": {
+    "name": "Emergency Braking - Logical Architecture",
+    "components": [
+      {
+        "id": "LC-001",
+        "name": "Sensor Array\nController",
+        "component_type": "Sensor",
+        "color": "#70AD47",
+        "sub_components": [],
+        "allocated_functions": ["SF-001"],
+        "ports": [],
+        "functions": [],
+        "interfaces_in": [],
+        "interfaces_out": [],
+        "attributes": {}
+      },
+      {
+        "id": "LC-002",
+        "name": "Perception\nUnit",
+        "component_type": "Processing",
+        "color": "#70AD47",
+        "sub_components": [],
+        "allocated_functions": ["SF-002", "SF-003", "SF-004"],
+        "ports": [],
+        "functions": [],
+        "interfaces_in": [],
+        "interfaces_out": [],
+        "attributes": {}
+      },
+      {
+        "id": "LC-003",
+        "name": "Decision\nController",
+        "component_type": "Controller",
+        "color": "#4472C4",
+        "sub_components": [],
+        "allocated_functions": ["SF-005", "SF-006"],
+        "ports": [],
+        "functions": [],
+        "interfaces_in": [],
+        "interfaces_out": [],
+        "attributes": {}
+      },
+      {
+        "id": "LC-004",
+        "name": "Braking\nController",
+        "component_type": "Actuator",
+        "color": "#ED7D31",
+        "sub_components": [],
+        "allocated_functions": ["SF-007"],
+        "ports": [],
+        "functions": [],
+        "interfaces_in": [],
+        "interfaces_out": [],
+        "attributes": {}
+      },
+      {
+        "id": "LC-005",
+        "name": "HMI\nController",
+        "component_type": "Interface",
+        "color": "#FFC000",
+        "sub_components": [],
+        "allocated_functions": ["SF-008"],
+        "ports": [],
+        "functions": [],
+        "interfaces_in": [],
+        "interfaces_out": [],
+        "attributes": {}
+      }
+    ],
+    "interfaces": [],
+    "component_exchanges": [],
+    "unallocated_functions": ["SF-009"]
+  }
+}

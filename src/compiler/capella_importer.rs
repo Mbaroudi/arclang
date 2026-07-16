@@ -109,6 +109,7 @@ impl CapellaImporter {
         };
         
         Ok(Model {
+            attributes: std::collections::HashMap::new(),
             operational_analysis: Vec::new(),
             system_analysis,
             logical_architecture,
@@ -304,9 +305,12 @@ impl ArcCodeGenerator {
                         AttributeValue::Boolean(b) => {
                             arc_code.push_str(&format!("        {}: {}\n", key, b));
                         }
+                        AttributeValue::Map(_) => {
+                            // Nested maps are not emitted in .arc export yet
+                        }
                     }
                 }
-                
+
                 arc_code.push_str("    }\n\n");
             }
             
@@ -355,9 +359,12 @@ impl ArcCodeGenerator {
                             AttributeValue::Boolean(b) => {
                                 arc_code.push_str(&format!("            {}: {}\n", key, b));
                             }
+                            AttributeValue::Map(_) => {
+                                // Nested maps are not emitted in .arc export yet
+                            }
                         }
                     }
-                    
+
                     arc_code.push_str("        }\n");
                 }
                 

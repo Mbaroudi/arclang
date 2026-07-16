@@ -1,0 +1,142 @@
+{
+  "scenarios": [
+    {
+      "name": "Emergency Braking - Interface Operations Scenario",
+      "scenario_type": "Interface",
+      "description": "Interface scenario showing operation calls between components",
+      "participants": [
+        {
+          "id": "SensorArray",
+          "name": "«component»\nSensor Array",
+          "participant_type": "Component"
+        },
+        {
+          "id": "PerceptionUnit",
+          "name": "«component»\nPerception Unit",
+          "participant_type": "Component"
+        },
+        {
+          "id": "DecisionCtrl",
+          "name": "«component»\nDecision Controller",
+          "participant_type": "Component"
+        },
+        {
+          "id": "BrakingCtrl",
+          "name": "«component»\nBraking Controller",
+          "participant_type": "Component"
+        },
+        {
+          "id": "HMI",
+          "name": "«component»\nHMI Controller",
+          "participant_type": "Component"
+        }
+      ],
+      "messages": [
+        {
+          "from": "SensorArray",
+          "to": "PerceptionUnit",
+          "label": "ISensor.getSensorData()",
+          "message_type": "Synchronous",
+          "activation": true
+        },
+        {
+          "from": "PerceptionUnit",
+          "to": "SensorArray",
+          "label": "return: SensorDataFrame",
+          "message_type": "Return",
+          "activation": false
+        },
+        {
+          "from": "PerceptionUnit",
+          "to": "PerceptionUnit",
+          "label": "IPerception.processData()",
+          "message_type": "Synchronous",
+          "activation": false
+        },
+        {
+          "from": "PerceptionUnit",
+          "to": "DecisionCtrl",
+          "label": "IPerception.notifyObstacle(obstacle)",
+          "message_type": "Asynchronous",
+          "activation": true
+        },
+        {
+          "from": "DecisionCtrl",
+          "to": "DecisionCtrl",
+          "label": "IDecision.assessThreat(obstacle)",
+          "message_type": "Synchronous",
+          "activation": false
+        },
+        {
+          "from": "DecisionCtrl",
+          "to": "HMI",
+          "label": "IHMI.showWarning(level=CRITICAL)",
+          "message_type": "Asynchronous",
+          "activation": true
+        },
+        {
+          "from": "DecisionCtrl",
+          "to": "BrakingCtrl",
+          "label": "IBrake.requestBraking(force, profile)",
+          "message_type": "Synchronous",
+          "activation": true
+        },
+        {
+          "from": "BrakingCtrl",
+          "to": "BrakingCtrl",
+          "label": "IBrake.calculateDeceleration()",
+          "message_type": "Synchronous",
+          "activation": false
+        },
+        {
+          "from": "BrakingCtrl",
+          "to": "BrakingCtrl",
+          "label": "IBrake.applyBrake()",
+          "message_type": "Synchronous",
+          "activation": false
+        },
+        {
+          "from": "BrakingCtrl",
+          "to": "DecisionCtrl",
+          "label": "return: BrakeStatus",
+          "message_type": "Return",
+          "activation": false
+        },
+        {
+          "from": "HMI",
+          "to": "HMI",
+          "label": "IHMI.displayAlert()",
+          "message_type": "Synchronous",
+          "activation": false
+        },
+        {
+          "from": "HMI",
+          "to": "HMI",
+          "label": "IHMI.emitSound()",
+          "message_type": "Synchronous",
+          "activation": false
+        }
+      ],
+      "fragments": [
+        {
+          "fragment_type": "Loop",
+          "label": "loop",
+          "condition": "every 50ms",
+          "operands": [
+            {
+              "label": "[monitoring cycle]",
+              "messages": []
+            }
+          ]
+        }
+      ],
+      "timing_constraints": [
+        {
+          "message_id": "msg-6",
+          "constraint": "< 100ms",
+          "constraint_type": "MaxDuration"
+        }
+      ]
+    }
+  ]
+}

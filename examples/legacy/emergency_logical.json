@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<capella:Project xmlns:capella="http://www.polarsys.org/capella/core/1.4.0">
+  <ownedRequirements>
+  </ownedRequirements>
+  <ownedLogicalComponents>
+    <component id="LC-001" name="Main Controller" type="Logical" />
+    <component id="LC-002" name="Sensor Fusion Unit" type="Logical" />
+    <component id="LC-003" name="Radar Interface" type="Logical" />
+    <component id="LC-004" name="Camera Interface" type="Logical" />
+    <component id="LC-005" name="Lidar Interface" type="Logical" />
+    <component id="LC-006" name="Object Tracker" type="Logical" />
+    <component id="LC-007" name="Risk Assessor" type="Logical" />
+    <component id="LC-008" name="Brake Controller" type="Logical" />
+  </ownedLogicalComponents>
+  <ownedTraces>
+  </ownedTraces>
+</capella:Project>

@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<capella:Project xmlns:capella="http://www.polarsys.org/capella/core/1.4.0">
+  <ownedRequirements>
+    <requirement id="REQ-MIGRATE-001" name="REQ-MIGRATE-001" description="System shall migrate all Oracle tables to Delta format" priority="Critical" />
+    <requirement id="REQ-PERF-001" name="REQ-PERF-001" description="System shall process 1TB per hour" priority="High" />
+    <requirement id="REQ-SEC-001" name="REQ-SEC-001" description="System shall encrypt data in transit and at rest" priority="Critical" />
+    <requirement id="REQ-AVAIL-001" name="REQ-AVAIL-001" description="System shall maintain 99.9 percent uptime" priority="High" />
+    <requirement id="REQ-COMPAT-001" name="REQ-COMPAT-001" description="System shall support Oracle 11g and 12c" priority="High" />
+  </ownedRequirements>
+  <ownedLogicalComponents>
+    <component id="ENG-001" name="Data Engineer" type="Actor" />
+    <component id="ANA-001" name="Data Analyst" type="Actor" />
+    <component id="DBA-001" name="DBA" type="Actor" />
+    <component id="BUS-001" name="Business User" type="Actor" />
+    <component id="OA-001" name="Extract Oracle Data" type="OperationalActivity" />
+    <component id="OA-002" name="Transform to Delta" type="OperationalActivity" />
+    <component id="OA-003" name="Validate Migration" type="OperationalActivity" />
+    <component id="OA-004" name="Generate Reports" type="OperationalActivity" />
+    <component id="SC-CONNECTOR" name="Oracle Connector" type="System" />
+    <component id="SC-ETL" name="ETL Engine" type="System" />
+    <component id="SC-VALIDATOR" name="Validator" type="System" />
+    <component id="OracleConnector" name="OracleConnector" type="Service" />
+    <component id="TransformEngine" name="TransformEngine" type="Process" />
+    <component id="DeltaStorage" name="DeltaStorage" type="DataStore" />
+    <component id="DataValidator" name="DataValidator" type="Service" />
+    <component id="Orchestrator" name="Orchestrator" type="Service" />
+    <component id="Dashboard" name="Dashboard" type="UI" />
+    <component id="HW-ORACLE" name="OracleDB" type="hardware" />
+    <component id="HW-EC2" name="EC2Connector" type="hardware" />
+    <component id="HW-DATABRICKS" name="DatabricksCluster" type="hardware" />
+    <component id="HW-S3" name="S3Bucket" type="hardware" />
+    <component id="HW-KAFKA" name="KafkaBroker" type="hardware" />
+  </ownedLogicalComponents>
+  <ownedTraces>
+  </ownedTraces>
+</capella:Project>

@@ -1,0 +1,722 @@
+{
+  "operational_analysis": [],
+  "system_analysis": [
+    {
+      "name": "Emergency Braking System Functions",
+      "requirements": [],
+      "functions": [
+        {
+          "id": "SF-Sen",
+          "name": "Sensor Data Acquisition",
+          "category": "System",
+          "color": "#70AD47",
+          "icon": null,
+          "ports": [],
+          "sub_functions": [
+            {
+              "id": "SF-Acq",
+              "name": "Acquire Radar Data",
+              "category": "System",
+              "color": "#70AD47",
+              "icon": null,
+              "ports": [],
+              "sub_functions": [],
+              "attributes": {
+                "id": {
+                  "String": "SF-001-01"
+                },
+                "description": {
+                  "String": "Read 77GHz radar object detections at 20Hz"
+                }
+              }
+            },
+            {
+              "id": "SF-Acq",
+              "name": "Acquire Camera Data",
+              "category": "System",
+              "color": "#70AD47",
+              "icon": null,
+              "ports": [],
+              "sub_functions": [],
+              "attributes": {
+                "description": {
+                  "String": "Process stereo camera images at 30Hz"
+                },
+                "id": {
+                  "String": "SF-001-02"
+                }
+              }
+            },
+            {
+              "id": "SF-Acq",
+              "name": "Acquire Lidar Data",
+              "category": "System",
+              "color": "#70AD47",
+              "icon": null,
+              "ports": [],
+              "sub_functions": [],
+              "attributes": {
+                "description": {
+                  "String": "Read 3D point cloud data at 10Hz"
+                },
+                "id": {
+                  "String": "SF-001-03"
+                }
+              }
+            },
+            {
+              "id": "SF-Rea",
+              "name": "Read Vehicle State",
+              "category": "System",
+              "color": "#70AD47",
+              "icon": null,
+              "ports": [],
+              "sub_functions": [],
+              "attributes": {
+                "id": {
+                  "String": "SF-001-04"
+                },
+                "description": {
+                  "String": "Get speed, steering, brake status at 100Hz"
+                }
+              }
+            }
+          ],
+          "attributes": {
+            "description": {
+              "String": "Collect data from all vehicle sensors"
+            },
+            "category": {
+              "String": "Input"
+            },
+            "id": {
+              "String": "SF-001"
+            }
+          }
+        },
+        {
+          "id": "SF-Mul",
+          "name": "Multi-Sensor Fusion",
+          "category": "System",
+          "color": "#70AD47",
+          "icon": null,
+          "ports": [],
+          "sub_functions": [
+            {
+              "id": "SF-Val",
+              "name": "Validate Sensor Data",
+              "category": "System",
+              "color": "#70AD47",
+              "icon": null,
+              "ports": [],
+              "sub_functions": [],
+              "attributes": {
+                "id": {
+                  "String": "SF-002-01"
+                },
+                "description": {
+                  "String": "Check data integrity and plausibility"
+                }
+              }
+            },
+            {
+              "id": "SF-Tem",
+              "name": "Temporal Synchronization",
+              "category": "System",
+              "color": "#70AD47",
+              "icon": null,
+              "ports": [],
+              "sub_functions": [],
+              "attributes": {
+                "description": {
+                  "String": "Align data to common timestamp"
+                },
+                "id": {
+                  "String": "SF-002-02"
+                }
+              }
+            },
+            {
+              "id": "SF-Spa",
+              "name": "Spatial Registration",
+              "category": "System",
+              "color": "#70AD47",
+              "icon": null,
+              "ports": [],
+              "sub_functions": [],
+              "attributes": {
+                "id": {
+                  "String": "SF-002-03"
+                },
+                "description": {
+                  "String": "Transform to vehicle coordinates"
+                }
+              }
+            },
+            {
+              "id": "SF-Kal",
+              "name": "Kalman Filtering",
+              "category": "System",
+              "color": "#70AD47",
+              "icon": null,
+              "ports": [],
+              "sub_functions": [],
+              "attributes": {
+                "description": {
+                  "String": "Fuse multi-modal sensor data"
+                },
+                "id": {
+                  "String": "SF-002-04"
+                }
+              }
+            }
+          ],
+          "attributes": {
+            "id": {
+              "String": "SF-002"
+            },
+            "description": {
+              "String": "Fuse and validate sensor data"
+            },
+            "category": {
+              "String": "Processing"
+            }
+          }
+        },
+        {
+          "id": "SF-Obj",
+          "name": "Object Detection & Classification",
+          "category": "System",
+          "color": "#70AD47",
+          "icon": null,
+          "ports": [],
+          "sub_functions": [
+            {
+              "id": "SF-Seg",
+              "name": "Segment Objects",
+              "category": "System",
+              "color": "#70AD47",
+              "icon": null,
+              "ports": [],
+              "sub_functions": [],
+              "attributes": {
+                "id": {
+                  "String": "SF-003-01"
+                },
+                "description": {
+                  "String": "Separate objects from background"
+                }
+              }
+            },
+            {
+              "id": "SF-Cla",
+              "name": "Classify Object Types",
+              "category": "System",
+              "color": "#70AD47",
+              "icon": null,
+              "ports": [],
+              "sub_functions": [],
+              "attributes": {
+                "description": {
+                  "String": "Identify vehicles, pedestrians, cyclists"
+                },
+                "id": {
+                  "String": "SF-003-02"
+                }
+              }
+            },
+            {
+              "id": "SF-Est",
+              "name": "Estimate Dimensions",
+              "category": "System",
+              "color": "#70AD47",
+              "icon": null,
+              "ports": [],
+              "sub_functions": [],
+              "attributes": {
+                "id": {
+                  "String": "SF-003-03"
+                },
+                "description": {
+                  "String": "Calculate bounding boxes and sizes"
+                }
+              }
+            }
+          ],
+          "attributes": {
+            "category": {
+              "String": "Perception"
+            },
+            "description": {
+              "String": "Identify and classify environmental objects"
+            },
+            "id": {
+              "String": "SF-003"
+            }
+          }
+        },
+        {
+          "id": "SF-Mul",
+          "name": "Multi-Object Tracking",
+          "category": "System",
+          "color": "#70AD47",
+          "icon": null,
+          "ports": [],
+          "sub_functions": [
+            {
+              "id": "SF-Ass",
+              "name": "Associate Detections",
+              "category": "System",
+              "color": "#70AD47",
+              "icon": null,
+              "ports": [],
+              "sub_functions": [],
+              "attributes": {
+                "id": {
+                  "String": "SF-004-01"
+                },
+                "description": {
+                  "String": "Match new detections to tracks"
+                }
+              }
+            },
+            {
+              "id": "SF-Upd",
+              "name": "Update Tracks",
+              "category": "System",
+              "color": "#70AD47",
+              "icon": null,
+              "ports": [],
+              "sub_functions": [],
+              "attributes": {
+                "id": {
+                  "String": "SF-004-02"
+                },
+                "description": {
+                  "String": "Update position and velocity"
+                }
+              }
+            },
+            {
+              "id": "SF-Pre",
+              "name": "Predict Trajectories",
+              "category": "System",
+              "color": "#70AD47",
+              "icon": null,
+              "ports": [],
+              "sub_functions": [],
+              "attributes": {
+                "description": {
+                  "String": "Forecast 3-second motion"
+                },
+                "id": {
+                  "String": "SF-004-03"
+                }
+              }
+            },
+            {
+              "id": "SF-Com",
+              "name": "Compute Uncertainty",
+              "category": "System",
+              "color": "#70AD47",
+              "icon": null,
+              "ports": [],
+              "sub_functions": [],
+              "attributes": {
+                "description": {
+                  "String": "Estimate prediction confidence"
+                },
+                "id": {
+                  "String": "SF-004-04"
+                }
+              }
+            }
+          ],
+          "attributes": {
+            "id": {
+              "String": "SF-004"
+            },
+            "description": {
+              "String": "Track objects over time"
+            },
+            "category": {
+              "String": "Perception"
+            }
+          }
+        },
+        {
+          "id": "SF-Col",
+          "name": "Collision Risk Assessment",
+          "category": "System",
+          "color": "#70AD47",
+          "icon": null,
+          "ports": [],
+          "sub_functions": [
+            {
+              "id": "SF-Cal",
+              "name": "Calculate TTC",
+              "category": "System",
+              "color": "#70AD47",
+              "icon": null,
+              "ports": [],
+              "sub_functions": [],
+              "attributes": {
+                "description": {
+                  "String": "Compute time-to-collision"
+                },
+                "id": {
+                  "String": "SF-005-01"
+                }
+              }
+            },
+            {
+              "id": "SF-Eva",
+              "name": "Evaluate Threat Level",
+              "category": "System",
+              "color": "#70AD47",
+              "icon": null,
+              "ports": [],
+              "sub_functions": [],
+              "attributes": {
+                "description": {
+                  "String": "Classify as safe, warning, critical"
+                },
+                "id": {
+                  "String": "SF-005-02"
+                }
+              }
+            },
+            {
+              "id": "SF-Dec",
+              "name": "Decide Intervention",
+              "category": "System",
+              "color": "#70AD47",
+              "icon": null,
+              "ports": [],
+              "sub_functions": [],
+              "attributes": {
+                "description": {
+                  "String": "Determine if braking needed"
+                },
+                "id": {
+                  "String": "SF-005-03"
+                }
+              }
+            }
+          ],
+          "attributes": {
+            "id": {
+              "String": "SF-005"
+            },
+            "description": {
+              "String": "Evaluate collision threat level"
+            },
+            "category": {
+              "String": "Decision"
+            }
+          }
+        },
+        {
+          "id": "SF-Bra",
+          "name": "Braking Strategy Planning",
+          "category": "System",
+          "color": "#70AD47",
+          "icon": null,
+          "ports": [],
+          "sub_functions": [
+            {
+              "id": "SF-Sel",
+              "name": "Select Strategy",
+              "category": "System",
+              "color": "#70AD47",
+              "icon": null,
+              "ports": [],
+              "sub_functions": [],
+              "attributes": {
+                "id": {
+                  "String": "SF-006-01"
+                },
+                "description": {
+                  "String": "Choose partial or full braking"
+                }
+              }
+            },
+            {
+              "id": "SF-Cal",
+              "name": "Calculate Profile",
+              "category": "System",
+              "color": "#70AD47",
+              "icon": null,
+              "ports": [],
+              "sub_functions": [],
+              "attributes": {
+                "id": {
+                  "String": "SF-006-02"
+                },
+                "description": {
+                  "String": "Compute deceleration trajectory"
+                }
+              }
+            },
+            {
+              "id": "SF-Opt",
+              "name": "Optimize Comfort",
+              "category": "System",
+              "color": "#70AD47",
+              "icon": null,
+              "ports": [],
+              "sub_functions": [],
+              "attributes": {
+                "description": {
+                  "String": "Balance safety and smoothness"
+                },
+                "id": {
+                  "String": "SF-006-03"
+                }
+              }
+            }
+          ],
+          "attributes": {
+            "description": {
+              "String": "Calculate optimal brake response"
+            },
+            "id": {
+              "String": "SF-006"
+            },
+            "category": {
+              "String": "Planning"
+            }
+          }
+        },
+        {
+          "id": "SF-Bra",
+          "name": "Brake Actuation",
+          "category": "System",
+          "color": "#70AD47",
+          "icon": null,
+          "ports": [],
+          "sub_functions": [
+            {
+              "id": "SF-Sen",
+              "name": "Send Brake Commands",
+              "category": "System",
+              "color": "#70AD47",
+              "icon": null,
+              "ports": [],
+              "sub_functions": [],
+              "attributes": {
+                "id": {
+                  "String": "SF-007-01"
+                },
+                "description": {
+                  "String": "Interface with brake ECU"
+                }
+              }
+            },
+            {
+              "id": "SF-Mon",
+              "name": "Monitor Response",
+              "category": "System",
+              "color": "#70AD47",
+              "icon": null,
+              "ports": [],
+              "sub_functions": [],
+              "attributes": {
+                "id": {
+                  "String": "SF-007-02"
+                },
+                "description": {
+                  "String": "Verify actual deceleration"
+                }
+              }
+            },
+            {
+              "id": "SF-Han",
+              "name": "Handle Driver Override",
+              "category": "System",
+              "color": "#70AD47",
+              "icon": null,
+              "ports": [],
+              "sub_functions": [],
+              "attributes": {
+                "id": {
+                  "String": "SF-007-03"
+                },
+                "description": {
+                  "String": "Respond to manual control"
+                }
+              }
+            }
+          ],
+          "attributes": {
+            "id": {
+              "String": "SF-007"
+            },
+            "description": {
+              "String": "Execute braking commands"
+            },
+            "category": {
+              "String": "Control"
+            }
+          }
+        },
+        {
+          "id": "SF-Dri",
+          "name": "Driver Warning",
+          "category": "System",
+          "color": "#70AD47",
+          "icon": null,
+          "ports": [],
+          "sub_functions": [
+            {
+              "id": "SF-Dis",
+              "name": "Display Visual Alerts",
+              "category": "System",
+              "color": "#70AD47",
+              "icon": null,
+              "ports": [],
+              "sub_functions": [],
+              "attributes": {
+                "description": {
+                  "String": "Show warnings on cluster"
+                },
+                "id": {
+                  "String": "SF-008-01"
+                }
+              }
+            },
+            {
+              "id": "SF-Emi",
+              "name": "Emit Audio Alerts",
+              "category": "System",
+              "color": "#70AD47",
+              "icon": null,
+              "ports": [],
+              "sub_functions": [],
+              "attributes": {
+                "description": {
+                  "String": "Provide audible warnings"
+                },
+                "id": {
+                  "String": "SF-008-02"
+                }
+              }
+            },
+            {
+              "id": "SF-Hap",
+              "name": "Haptic Feedback",
+              "category": "System",
+              "color": "#70AD47",
+              "icon": null,
+              "ports": [],
+              "sub_functions": [],
+              "attributes": {
+                "id": {
+                  "String": "SF-008-03"
+                },
+                "description": {
+                  "String": "Vibrate steering wheel"
+                }
+              }
+            }
+          ],
+          "attributes": {
+            "description": {
+              "String": "Alert driver of hazards"
+            },
+            "id": {
+              "String": "SF-008"
+            },
+            "category": {
+              "String": "HMI"
+            }
+          }
+        },
+        {
+          "id": "SF-Sys",
+          "name": "System Health Monitoring",
+          "category": "System",
+          "color": "#70AD47",
+          "icon": null,
+          "ports": [],
+          "sub_functions": [
+            {
+              "id": "SF-Che",
+              "name": "Check Sensor Status",
+              "category": "System",
+              "color": "#70AD47",
+              "icon": null,
+              "ports": [],
+              "sub_functions": [],
+              "attributes": {
+                "id": {
+                  "String": "SF-009-01"
+                },
+                "description": {
+                  "String": "Verify sensors operational"
+                }
+              }
+            },
+            {
+              "id": "SF-Dia",
+              "name": "Diagnose Faults",
+              "category": "System",
+              "color": "#70AD47",
+              "icon": null,
+              "ports": [],
+              "sub_functions": [],
+              "attributes": {
+                "id": {
+                  "String": "SF-009-02"
+                },
+                "description": {
+                  "String": "Detect component failures"
+                }
+              }
+            },
+            {
+              "id": "SF-Rep",
+              "name": "Report Status",
+              "category": "System",
+              "color": "#70AD47",
+              "icon": null,
+              "ports": [],
+              "sub_functions": [],
+              "attributes": {
+                "id": {
+                  "String": "SF-009-03"
+                },
+                "description": {
+                  "String": "Communicate health to driver"
+                }
+              }
+            }
+          ],
+          "attributes": {
+            "description": {
+              "String": "Monitor safety and availability"
+            },
+            "category": {
+              "String": "Safety"
+            },
+            "id": {
+              "String": "SF-009"
+            }
+          }
+        }
+      ],
+      "components": [],
+      "external_actors": [],
+      "functional_exchanges": []
+    }
+  ],
+  "logical_architecture": [],
+  "physical_architecture": [],
+  "epbs": [],
+  "safety_analysis": [],
+  "traces": [],
+  "state_machines": [],
+  "scenarios": [],
+  "exchange_items": [],
+  "data_types": []
+}

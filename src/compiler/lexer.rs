@@ -1,5 +1,18 @@
 use std::fmt;
 
+/// Source position of a token (1-based line and column).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Span {
+    pub line: usize,
+    pub column: usize,
+}
+
+impl fmt::Display for Span {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "line {}, column {}", self.line, self.column)
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum Token {
     // Keywords
@@ -118,9 +131,103 @@ impl fmt::Display for Token {
     }
 }
 
+impl Token {
+    /// The source spelling of a keyword token (inverse of the lexer's keyword
+    /// table). Lets keyword tokens double as attribute keys, e.g. `via: "CANBus"`.
+    pub fn keyword_text(&self) -> Option<&'static str> {
+        let text = match self {
+            Token::OperationalAnalysis => "operational_analysis",
+            Token::SystemAnalysis => "system_analysis",
+            Token::LogicalArchitecture => "logical_architecture",
+            Token::PhysicalArchitecture => "physical_architecture",
+            Token::Epbs => "epbs",
+            Token::Actor => "actor",
+            Token::Requirement => "requirement",
+            Token::Component => "component",
+            Token::Function => "function",
+            Token::Interface => "interface",
+            Token::Node => "node",
+            Token::System => "system",
+            Token::Subsystem => "subsystem",
+            Token::Item => "item",
+            Token::SafetyAnalysis => "safety_analysis",
+            Token::Hazard => "hazard",
+            Token::Fmea => "fmea",
+            Token::Trace => "trace",
+            Token::Deploys => "deploys",
+            Token::Implements => "implements",
+            Token::Satisfies => "satisfies",
+            Token::Validates => "validates",
+            Token::Model => "model",
+            Token::Metadata => "metadata",
+            Token::Version => "version",
+            Token::Author => "author",
+            Token::Description => "description",
+            Token::Requirements => "requirements",
+            Token::Stakeholder => "stakeholder",
+            Token::Architecture => "architecture",
+            Token::Logical => "logical",
+            Token::Physical => "physical",
+            Token::Provides => "provides",
+            Token::Requires => "requires",
+            Token::BehaviorComponent => "behavior_component",
+            Token::HardwareComponent => "hardware_component",
+            Token::Signals => "signals",
+            Token::Connect => "connect",
+            Token::Connection => "connection",
+            Token::Via => "via",
+            Token::Scenarios => "scenarios",
+            Token::Scenario => "scenario",
+            Token::Steps => "steps",
+            Token::Precondition => "precondition",
+            Token::Postcondition => "postcondition",
+            Token::Properties => "properties",
+            Token::Parent => "parent",
+            Token::SafetyLevel => "safety_level",
+            Token::Priority => "priority",
+            Token::Traces => "traces",
+            Token::Verification => "verification",
+            Token::Rationale => "rationale",
+            Token::Port => "port",
+            Token::Flow => "flow",
+            Token::Inputs => "inputs",
+            Token::Outputs => "outputs",
+            Token::ExecutionTime => "execution_time",
+            Token::Type => "type",
+            Token::DataType => "data_type",
+            Token::Rate => "rate",
+            Token::Unit => "unit",
+            Token::From => "from",
+            Token::To => "to",
+            Token::Protocol => "protocol",
+            Token::Latency => "latency",
+            Token::Property => "property",
+            Token::Value => "value",
+            Token::ValidationKeyword => "validation",
+            Token::TestCase => "test_case",
+            Token::Measure => "measure",
+            Token::DataFlows => "data_flows",
+            Token::SafetyMeasures => "safety_measures",
+            Token::Req => "req",
+            Token::InterfaceIn => "interface_in",
+            Token::InterfaceOut => "interface_out",
+            Token::In => "in",
+            Token::Out => "out",
+            Token::Dataflow => "dataflow",
+            Token::Step => "step",
+            Token::Action => "action",
+            Token::Participants => "participants",
+            _ => return None,
+        };
+        Some(text)
+    }
+}
+
 pub struct Lexer {
     input: Vec<char>,
     position: usize,
+    line: usize,
+    column: usize,
 }
 
 impl Lexer {
@@ -128,35 +235,52 @@ impl Lexer {
         Self {
             input: input.chars().collect(),
             position: 0,
+            line: 1,
+            column: 1,
         }
     }
-    
-    pub fn tokenize(mut self) -> Result<Vec<Token>, String> {
+
+    pub fn tokenize(self) -> Result<Vec<Token>, String> {
+        self.tokenize_spanned().map(|(tokens, _)| tokens)
+    }
+
+    /// Tokenize, returning each token together with its source position.
+    /// The two vectors are always the same length.
+    pub fn tokenize_spanned(mut self) -> Result<(Vec<Token>, Vec<Span>), String> {
         let mut tokens = Vec::new();
-        
+        let mut spans = Vec::new();
+
         loop {
             self.skip_whitespace();
-            
+
             if self.is_at_end() {
                 tokens.push(Token::Eof);
+                spans.push(self.span());
                 break;
             }
-            
+
             if self.current_char() == '/' && self.peek_char() == Some('/') {
                 self.skip_line_comment();
                 continue;
             }
-            
+
             if self.current_char() == '/' && self.peek_char() == Some('*') {
-                self.skip_block_comment()?;
+                let span = self.span();
+                self.skip_block_comment().map_err(|e| format!("{} at {}", e, span))?;
                 continue;
             }
-            
-            let token = self.next_token()?;
+
+            let span = self.span();
+            let token = self.next_token().map_err(|e| format!("{} at {}", e, span))?;
             tokens.push(token);
+            spans.push(span);
         }
-        
-        Ok(tokens)
+
+        Ok((tokens, spans))
+    }
+
+    fn span(&self) -> Span {
+        Span { line: self.line, column: self.column }
     }
     
     fn next_token(&mut self) -> Result<Token, String> {
@@ -411,6 +535,14 @@ impl Lexer {
     }
     
     fn advance(&mut self) {
+        if self.position < self.input.len() {
+            if self.input[self.position] == '\n' {
+                self.line += 1;
+                self.column = 1;
+            } else {
+                self.column += 1;
+            }
+        }
         self.position += 1;
     }
     

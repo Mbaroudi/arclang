@@ -136,11 +136,7 @@ class GenerationTools:
         output += f"**Size**: {result['size']}\n"
         output += f"**Elements**: {result.get('element_count', 'N/A')}\n\n"
 
-        output += "**Diagram Features**:\n"
-        for feature in result.get('features', []):
-            output += f"  ✅ {feature}\n"
-
-        output += "\n**Next Steps**:\n"
+        output += "**Next Steps**:\n"
         output += "1. Open the SVG file in a browser\n"
         output += "2. Review the visual layout\n"
         output += "3. Generate other diagram types if needed\n"
@@ -171,7 +167,8 @@ class GenerationTools:
                 results[diagram_type] = {
                     "status": "✅ Success",
                     "path": result['output_path'],
-                    "size": result['size']
+                    "size": result['size'],
+                    "elements": result.get('element_count', 'N/A')
                 }
             except Exception as e:
                 results[diagram_type] = {
@@ -191,18 +188,13 @@ class GenerationTools:
             if result['status'] == "✅ Success":
                 output += f"  - Path: {result['path']}\n"
                 output += f"  - Size: {result['size']}\n"
+                output += f"  - Elements: {result.get('elements', 'N/A')}\n"
                 success_count += 1
             elif 'reason' in result:
                 output += f"  - Reason: {result['reason']}\n"
             output += "\n"
 
-        output += f"**Summary**: {success_count}/10 diagrams generated successfully\n\n"
-
-        output += "**Rich Diagram Quality**:\n"
-        output += "  - Operational: Swimlanes, actors, activity symbols (⊕)\n"
-        output += "  - Functional: 15+ functions, data flows, categories\n"
-        output += "  - Component: Hierarchical, protocols (CAN, Ethernet)\n"
-        output += "  - All types: Professional Capella-quality output\n\n"
+        output += f"**Summary**: {success_count}/{len(diagram_types)} diagrams generated successfully\n\n"
 
         output += "**Next Steps**:\n"
         output += "1. Open generated diagrams in browser\n"

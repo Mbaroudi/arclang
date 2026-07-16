@@ -138,7 +138,7 @@ architecture logical {
 }
 
 #[test]
-fn test_compile_skips_unknown_tokens() {
+fn test_compile_rejects_unknown_tokens_with_location() {
     let input = r#"
 model Test {
     unknown_stuff here
@@ -147,8 +147,14 @@ model Test {
     let config = CompilerConfig::default();
     let mut compiler = Compiler::new(config);
     let result = compiler.compile_string(input);
-    // Parser is lenient and skips unknown tokens
-    assert!(result.is_ok(), "Parser should skip unknown tokens");
+    // The parser is strict: unknown constructs must fail loudly with a source
+    // location, never be silently dropped from the model.
+    assert!(result.is_err(), "Parser must reject unknown tokens instead of skipping them");
+    let message = result.err().unwrap().to_string();
+    assert!(
+        message.contains("line 3"),
+        "Error must carry the source location, got: {message}"
+    );
 }
 
 #[test]

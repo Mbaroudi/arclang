@@ -3,6 +3,10 @@ use serde::{Serialize, Deserialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Model {
+    /// Model-level metadata (name, version, author, ...) from the model header
+    /// and its `metadata` block.
+    #[serde(default)]
+    pub attributes: HashMap<String, AttributeValue>,
     pub operational_analysis: Vec<OperationalAnalysis>,
     pub system_analysis: Vec<SystemAnalysis>,
     pub logical_architecture: Vec<LogicalArchitecture>,
@@ -19,6 +23,7 @@ pub struct Model {
 impl Model {
     pub fn new() -> Self {
         Self {
+            attributes: HashMap::new(),
             operational_analysis: Vec::new(),
             system_analysis: Vec::new(),
             logical_architecture: Vec::new(),
@@ -417,6 +422,7 @@ pub enum AttributeValue {
     Number(f64),
     Boolean(bool),
     List(Vec<AttributeValue>),
+    Map(HashMap<String, AttributeValue>),
 }
 
 impl AttributeValue {

@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<capella:Project xmlns:capella="http://www.polarsys.org/capella/core/1.4.0">
+  <ownedRequirements>
+  </ownedRequirements>
+  <ownedLogicalComponents>
+    <component id="OA-ACT-001" name="Driver" type="Human" />
+    <component id="OA-ACT-002" name="Vehicle System" type="System" />
+    <component id="OA-ACT-003" name="Road Environment" type="External" />
+    <component id="OA-ACT-004" name="Other Vehicles" type="External" />
+    <component id="OA-ACT-005" name="Pedestrians" type="External" />
+    <component id="OA-01" name="Monitor Environment" type="OperationalActivity" />
+    <component id="OA-02" name="Control Vehicle" type="OperationalActivity" />
+    <component id="OA-03" name="Detect Collision Risk" type="OperationalActivity" />
+    <component id="OA-04" name="Alert Driver" type="OperationalActivity" />
+    <component id="OA-05" name="Apply Emergency Brake" type="OperationalActivity" />
+    <component id="OA-06" name="Present Hazards" type="OperationalActivity" />
+    <component id="OA-07" name="Navigate Traffic" type="OperationalActivity" />
+    <component id="OA-08" name="Cross Road" type="OperationalActivity" />
+  </ownedLogicalComponents>
+  <ownedTraces>
+  </ownedTraces>
+</capella:Project>

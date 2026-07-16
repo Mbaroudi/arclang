@@ -67,7 +67,7 @@ impl ElementData {
 /// Swimlane Strategy - For Operational Diagrams with Actors
 /// 
 /// Layout Pattern:
-/// ```
+/// ```text
 /// ┌──────────┬──────────────┬──────────┐
 /// │  Actor1  │   System     │  Actor2  │
 /// │          │              │          │
@@ -178,7 +178,7 @@ impl LayoutStrategy for SwimlaneStrategy {
 /// Hierarchy Strategy - For Component Containment
 /// 
 /// Layout Pattern:
-/// ```
+/// ```text
 /// ┌─────────────────────────┐
 /// │  Component A            │
 /// │  ┌───────────────────┐  │
@@ -272,7 +272,7 @@ impl LayoutStrategy for HierarchyStrategy {
 /// Port-Centric Strategy - For Data Flow Diagrams
 /// 
 /// Layout Pattern:
-/// ```
+/// ```text
 /// ┌─────┐        ┌─────┐        ┌─────┐
 /// │  F1 │───────→│  F2 │───────→│  F3 │
 /// └─────┘        └─────┘        └─────┘
