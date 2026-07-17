@@ -63,6 +63,10 @@ the long-term goal.
 - **SysML v2 interop export**: `arclang export -f sys-ml` emits the OMG
   SysML v2 textual notation (packages, part defs/usages, action defs,
   requirement defs, connect, satisfy — subset documented in the generator).
+- **Multi-file models**: `import "fragment.arc"` assembles a model from
+  team-owned files (paths relative to the importing file, recursive, cycles
+  and missing files are hard errors). Traces in one file resolve against
+  elements of another — see `examples/multifile/`.
 - **ReqIF exchange**: `arclang export -f req-if` emits OMG ReqIF 1.0 (the
   DOORS/Polarion/Jama exchange format) with deterministic identifiers and
   requirement-to-requirement relations; `arclang import -f req-if` reads

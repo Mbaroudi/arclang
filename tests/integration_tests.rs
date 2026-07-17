@@ -925,3 +925,56 @@ fn test_reqif_round_trip_on_flagship() {
         assert_eq!(round_tripped.uuid(), original.uuid(), "identity must survive");
     }
 }
+
+#[test]
+fn test_multifile_import_merges_fragments() {
+    let main = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("examples/multifile/main.arc");
+    let mut compiler = Compiler::new(CompilerConfig::default());
+    let result = compiler.compile_file(&main).expect("multi-file model compiles");
+
+    // Elements from both fragments are present in ONE semantic model
+    assert_eq!(result.semantic_model.requirements.len(), 2);
+    assert_eq!(result.semantic_model.components.len(), 2);
+    // The root file's traces resolve against imported elements
+    assert_eq!(result.semantic_model.traces.len(), 2);
+    // Root model attributes win
+    assert_eq!(result.semantic_model.name.as_deref(), Some("MultiFileDemo"));
+}
+
+#[test]
+fn test_multifile_circular_import_is_an_error() {
+    let dir = std::env::temp_dir().join("arclang_cycle_test");
+    std::fs::create_dir_all(&dir).unwrap();
+    std::fs::write(dir.join("a.arc"), "import \"b.arc\"\nrequirements { req \"R-A\" { description: \"a\" } }\n").unwrap();
+    std::fs::write(dir.join("b.arc"), "import \"a.arc\"\nrequirements { req \"R-B\" { description: \"b\" } }\n").unwrap();
+
+    let mut compiler = Compiler::new(CompilerConfig::default());
+    let err = compiler.compile_file(dir.join("a.arc")).expect_err("cycle must fail");
+    let message = err.to_string();
+    assert!(message.contains("circular import"), "got: {message}");
+    assert!(message.contains("a.arc") && message.contains("b.arc"),
+        "chain must name both files: {message}");
+}
+
+#[test]
+fn test_multifile_missing_import_is_a_localized_error() {
+    let dir = std::env::temp_dir().join("arclang_missing_import_test");
+    std::fs::create_dir_all(&dir).unwrap();
+    std::fs::write(dir.join("root.arc"), "import \"nope.arc\"\nrequirements { req \"R-1\" { description: \"x\" } }\n").unwrap();
+
+    let mut compiler = Compiler::new(CompilerConfig::default());
+    let err = compiler.compile_file(dir.join("root.arc")).expect_err("missing import must fail");
+    let message = err.to_string();
+    assert!(message.contains("imported file not found"), "got: {message}");
+    assert!(message.contains("nope.arc"), "must name the missing file: {message}");
+}
+
+#[test]
+fn test_string_compile_with_imports_fails_honestly() {
+    let mut compiler = Compiler::new(CompilerConfig::default());
+    let err = compiler
+        .compile_string("import \"other.arc\"\nrequirements { req \"R\" { description: \"x\" } }\n")
+        .expect_err("string compile cannot resolve imports");
+    assert!(err.to_string().contains("compile it from its file"), "got: {err}");
+}

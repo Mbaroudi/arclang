@@ -28,8 +28,13 @@ BlockComment   ::= "/*" AnyCharacter* "*/" ;
 
 (* ---- Top level ------------------------------------------------------------ *)
 
-CompilationUnit ::= ModelDecl TopLevelBlock*
-                  | TopLevelBlock+ ;
+CompilationUnit ::= ImportDecl* ModelDecl ( ImportDecl | TopLevelBlock )*
+                  | ( ImportDecl | TopLevelBlock )+ ;
+
+(* Multi-file models: the path is resolved relative to the importing file.
+   The compiler merges imported fragments into one model; circular imports
+   and missing files are errors. *)
+ImportDecl      ::= "import" STRING ;
 
 ModelDecl       ::= ( "model" | "system" ) Name "{" ModelElement* "}" ;
 

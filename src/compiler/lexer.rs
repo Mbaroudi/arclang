@@ -58,6 +58,8 @@ pub enum Token {
     CommunicationMeans,
     // New MBSE keywords
     Model,
+    /// `import "path.arc"` — multi-file models.
+    ImportKw,
     Metadata,
     Version,
     Author,
@@ -195,6 +197,7 @@ impl Token {
             Token::OperationalProcess => "operational_process",
             Token::CommunicationMeans => "communication_means",
             Token::Model => "model",
+            Token::ImportKw => "import",
             Token::Metadata => "metadata",
             Token::Version => "version",
             Token::Author => "author",
@@ -484,6 +487,7 @@ impl Lexer {
             "communication_means" => Token::CommunicationMeans,
             // New MBSE keywords
             "model" => Token::Model,
+            "import" => Token::ImportKw,
             "metadata" => Token::Metadata,
             "version" => Token::Version,
             "author" => Token::Author,

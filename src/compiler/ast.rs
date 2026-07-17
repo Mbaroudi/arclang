@@ -7,6 +7,11 @@ pub struct Model {
     /// and its `metadata` block.
     #[serde(default)]
     pub attributes: HashMap<String, AttributeValue>,
+    /// `import "path.arc"` declarations, resolved relative to the importing
+    /// file by `Compiler::compile_file` (a string-compiled model must not
+    /// have any). Kept in declaration order.
+    #[serde(default)]
+    pub imports: Vec<String>,
     pub operational_analysis: Vec<OperationalAnalysis>,
     pub system_analysis: Vec<SystemAnalysis>,
     pub logical_architecture: Vec<LogicalArchitecture>,
@@ -29,6 +34,7 @@ impl Model {
     pub fn new() -> Self {
         Self {
             attributes: HashMap::new(),
+            imports: Vec::new(),
             operational_analysis: Vec::new(),
             system_analysis: Vec::new(),
             logical_architecture: Vec::new(),
@@ -45,6 +51,30 @@ impl Model {
         }
     }
     
+    /// Merge an imported model into this one: every collection is appended
+    /// in import order; model-header attributes of the ROOT file win (an
+    /// imported fragment only fills keys the root did not set). Identity
+    /// collisions across files surface through the semantic analyzer's
+    /// duplicate-id warnings, exactly as within a single file.
+    pub fn merge(&mut self, other: Model) {
+        for (key, value) in other.attributes {
+            self.attributes.entry(key).or_insert(value);
+        }
+        self.operational_analysis.extend(other.operational_analysis);
+        self.system_analysis.extend(other.system_analysis);
+        self.logical_architecture.extend(other.logical_architecture);
+        self.physical_architecture.extend(other.physical_architecture);
+        self.epbs.extend(other.epbs);
+        self.safety_analysis.extend(other.safety_analysis);
+        self.traces.extend(other.traces);
+        self.state_machines.extend(other.state_machines);
+        self.scenarios.extend(other.scenarios);
+        self.exchange_items.extend(other.exchange_items);
+        self.data_types.extend(other.data_types);
+        self.classes.extend(other.classes);
+        self.test_cases.extend(other.test_cases);
+    }
+
     /// Export the model to JSON string for diagram rendering
     pub fn to_json(&self) -> Result<String, serde_json::Error> {
         serde_json::to_string_pretty(self)

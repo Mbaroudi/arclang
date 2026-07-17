@@ -83,6 +83,7 @@ impl Default for CompilerConfig {
     }
 }
 
+#[derive(Debug)]
 pub struct CompilationResult {
     pub ast: ast::Model,
     pub semantic_model: semantic::SemanticModel,
@@ -98,21 +99,102 @@ impl Compiler {
     }
     
     pub fn compile_file<P: AsRef<Path>>(&mut self, path: P) -> Result<CompilationResult, CompilerError> {
-        let source = std::fs::read_to_string(path)?;
-        self.compile_string(&source)
+        let path = path.as_ref();
+        let mut import_stack = Vec::new();
+        let (ast, warnings) = Self::parse_file_with_imports(path, &mut import_stack)?;
+        self.finish(ast, warnings)
     }
-    
+
     pub fn compile_string(&mut self, source: &str) -> Result<CompilationResult, CompilerError> {
-        // Lexical analysis (tokens with source positions)
+        let (ast, warnings) = Self::parse_source(source)?;
+        if !ast.imports.is_empty() {
+            return Err(CompilerError::Parser(format!(
+                "this model imports {} file(s) — compile it from its file so \
+                 relative import paths can be resolved",
+                ast.imports.len()
+            )));
+        }
+        self.finish(ast, warnings)
+    }
+
+    /// Lex + parse one source text. No filesystem access.
+    fn parse_source(source: &str) -> Result<(ast::Model, Vec<String>), CompilerError> {
         let (tokens, spans) = lexer::Lexer::new(source).tokenize_spanned()
             .map_err(CompilerError::Lexer)?;
-
-        // Parsing (strict: unknown constructs are errors, skipped ones are warnings)
-        let parser::ParseOutcome { model: ast, mut warnings } =
+        let parser::ParseOutcome { model, warnings } =
             parser::Parser::with_spans(tokens, spans)
                 .parse_with_warnings()
                 .map_err(CompilerError::Parser)?;
+        Ok((model, warnings))
+    }
 
+    /// Parse a file and recursively merge its `import "..."` declarations,
+    /// resolved relative to the importing file. `import_stack` holds the
+    /// canonical paths currently being parsed: re-entering one is a cycle
+    /// and fails with the full chain.
+    fn parse_file_with_imports(
+        path: &Path,
+        import_stack: &mut Vec<std::path::PathBuf>,
+    ) -> Result<(ast::Model, Vec<String>), CompilerError> {
+        let canonical = path.canonicalize().map_err(|e| {
+            CompilerError::Io(std::io::Error::new(
+                e.kind(),
+                format!("cannot resolve {}: {e}", path.display()),
+            ))
+        })?;
+        if import_stack.contains(&canonical) {
+            let chain: Vec<String> = import_stack
+                .iter()
+                .chain(std::iter::once(&canonical))
+                .map(|p| p.display().to_string())
+                .collect();
+            return Err(CompilerError::Parser(format!(
+                "circular import: {}",
+                chain.join(" -> ")
+            )));
+        }
+        import_stack.push(canonical.clone());
+
+        let source = std::fs::read_to_string(&canonical)?;
+        let (mut root, mut warnings) = Self::parse_source(&source).map_err(|e| match e {
+            // Localize parse errors to the file they came from.
+            CompilerError::Parser(msg) => {
+                CompilerError::Parser(format!("{}: {msg}", path.display()))
+            }
+            CompilerError::Lexer(msg) => {
+                CompilerError::Lexer(format!("{}: {msg}", path.display()))
+            }
+            other => other,
+        })?;
+
+        let base_dir = canonical.parent().map(Path::to_path_buf).unwrap_or_default();
+        for import in std::mem::take(&mut root.imports) {
+            let target = base_dir.join(&import);
+            if !target.exists() {
+                import_stack.pop();
+                return Err(CompilerError::Parser(format!(
+                    "{}: imported file not found: {} (resolved to {})",
+                    path.display(),
+                    import,
+                    target.display()
+                )));
+            }
+            let (fragment, fragment_warnings) =
+                Self::parse_file_with_imports(&target, import_stack)?;
+            root.merge(fragment);
+            warnings.extend(fragment_warnings);
+        }
+
+        import_stack.pop();
+        Ok((root, warnings))
+    }
+
+    /// Semantic analysis + code generation on a fully-merged AST.
+    fn finish(
+        &mut self,
+        ast: ast::Model,
+        mut warnings: Vec<String>,
+    ) -> Result<CompilationResult, CompilerError> {
         // Semantic analysis (dangling traces are errors; unresolved exchange
         // endpoints are warnings until ports become first-class)
         let (semantic_model, semantic_warnings) = semantic::SemanticAnalyzer::new()

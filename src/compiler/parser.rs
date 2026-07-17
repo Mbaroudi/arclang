@@ -56,12 +56,26 @@ impl Parser {
         while !self.is_at_end() {
             match self.current() {
                 Token::Model | Token::System => {
-                    // Parse new-style model/system block
-                    return self.parse_model_block();
+                    // Parse new-style model/system block; keep any imports
+                    // declared before the header.
+                    let pre_imports = std::mem::take(&mut model.imports);
+                    let mut parsed = self.parse_model_block()?;
+                    parsed.imports.splice(0..0, pre_imports);
+                    return Ok(parsed);
                 }
                 Token::Requirements => {
                     // Top-level requirements block (alternative syntax 3)
-                    return self.parse_model_with_toplevel_blocks();
+                    let pre_imports = std::mem::take(&mut model.imports);
+                    let mut parsed = self.parse_model_with_toplevel_blocks()?;
+                    parsed.imports.splice(0..0, pre_imports);
+                    return Ok(parsed);
+                }
+                Token::ImportKw if !self.peek_is_colon() => {
+                    model.imports.push(self.parse_import_decl()?);
+                }
+                Token::Architecture => {
+                    // Headerless fragment starting with `architecture <layer>`
+                    self.parse_architecture_into(&mut model)?;
                 }
                 Token::LogicalArchitecture => {
                     model.logical_architecture.push(self.parse_logical_architecture()?);
@@ -256,6 +270,9 @@ impl Parser {
         // Continue parsing top-level blocks after the model block
         while !self.is_at_end() {
             match self.current() {
+                Token::ImportKw if !self.peek_is_colon() => {
+                    model.imports.push(self.parse_import_decl()?);
+                }
                 Token::Requirements => {
                     model.system_analysis.push(self.parse_requirements_block()?);
                 }
@@ -2452,6 +2469,22 @@ impl Parser {
         Ok(FmeaEntry { name, attributes })
     }
     
+    /// `import "relative/path.arc"` — path resolution happens in the
+    /// compiler (the parser has no filesystem access).
+    fn parse_import_decl(&mut self) -> Result<String, String> {
+        self.expect(Token::ImportKw)?;
+        match self.current().clone() {
+            Token::StringLiteral(path) => {
+                self.advance();
+                Ok(path)
+            }
+            other => Err(self.err(format!(
+                "import expects a quoted file path, got {}",
+                other
+            ))),
+        }
+    }
+
     fn parse_trace(&mut self) -> Result<Trace, String> {
         self.expect(Token::Trace)?;
         
