@@ -17,6 +17,8 @@ pub mod capella_metamodel;
 pub mod codegen;
 pub mod capella_importer;
 pub mod sysmlv2_generator;
+pub mod simulink_generator;
+pub mod fmi_generator;
 pub mod mermaid_generator;
 pub mod mermaid_importer;
 pub mod plantuml_generator;

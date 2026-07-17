@@ -310,6 +310,8 @@ pub enum ExportFormat {
     PDF,
     Terraform,
     SysML,
+    Simulink,
+    FMI,
 }
 
 #[derive(Debug, clap::ValueEnum, Clone)]
@@ -722,6 +724,8 @@ impl CliRunner {
             ExportFormat::YAML => "json".to_string(),
             ExportFormat::Terraform => "terraform".to_string(),
             ExportFormat::SysML => "json".to_string(),
+            ExportFormat::Simulink => "json".to_string(),
+            ExportFormat::FMI => "json".to_string(),
         };
         
         let mut compiler = crate::Compiler::new(config);
@@ -764,6 +768,42 @@ impl CliRunner {
                     ExportFormat::SysML => {
                         // SysML v2 textual notation (interoperability subset)
                         crate::compiler::sysmlv2_generator::generate_sysmlv2(&result.semantic_model)
+                    }
+                    ExportFormat::Simulink => {
+                        // MATLAB script rebuilding the architecture in System Composer
+                        crate::compiler::simulink_generator::generate_simulink_script(
+                            &result.semantic_model,
+                            &result.ast,
+                        )
+                    }
+                    ExportFormat::FMI => {
+                        // One modelDescription.xml per component: `output` is a
+                        // DIRECTORY here, not a single file.
+                        use crate::compiler::fmi_generator::generate_fmi_descriptors;
+                        let descriptors =
+                            generate_fmi_descriptors(&result.semantic_model, &result.ast);
+                        if descriptors.is_empty() {
+                            return Err(CliError::Compilation(
+                                "FMI export: no component with ports or exchanges found".to_string(),
+                            ));
+                        }
+                        std::fs::create_dir_all(&output).map_err(CliError::Io)?;
+                        for descriptor in &descriptors {
+                            let dir = output.join(&descriptor.component_id);
+                            std::fs::create_dir_all(&dir).map_err(CliError::Io)?;
+                            std::fs::write(dir.join("modelDescription.xml"), &descriptor.xml)
+                                .map_err(CliError::Io)?;
+                            println!(
+                                "  ✓ {} ({}) -> {}/modelDescription.xml",
+                                descriptor.component_name,
+                                descriptor.component_id,
+                                dir.display()
+                            );
+                        }
+                        println!("✓ Export successful — {} FMU interface(s)", descriptors.len());
+                        println!("  Input: {}", input.display());
+                        println!("  Output directory: {}", output.display());
+                        return Ok(());
                     }
                     ExportFormat::PDF => {
                         return Err(CliError::NotImplemented(

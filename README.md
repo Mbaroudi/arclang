@@ -63,6 +63,13 @@ the long-term goal.
 - **SysML v2 interop export**: `arclang export -f sys-ml` emits the OMG
   SysML v2 textual notation (packages, part defs/usages, action defs,
   requirement defs, connect, satisfy — subset documented in the generator).
+- **Simulation bridges**: `arclang export -f simulink` emits a MATLAB script
+  that rebuilds the architecture in System Composer (components, oriented
+  ports, connections) plus Stateflow skeletons for state machines;
+  `arclang export -f fmi` emits one FMI 2.0 `modelDescription.xml` per
+  component (causality from exchange direction, GUID = the component's
+  deterministic ArcLang UUID). Interface contracts only — behaviour stays in
+  the simulation tool.
 
 ## Explicitly not implemented yet
 
