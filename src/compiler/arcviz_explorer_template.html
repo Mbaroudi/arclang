@@ -643,6 +643,35 @@
         .node:hover {
             filter: drop-shadow(0 8px 16px rgba(0,0,0,0.3));
         }
+
+        /* ---- Responsive: the generated document must be usable in a
+           narrow iframe, on tablet and on phone, not only full-desktop. */
+        @media (max-width: 1100px) {
+            .floating-toc {
+                position: static;
+                transform: none;
+                max-width: none;
+                max-height: none;
+                margin: 16px 20px 0;
+                border-radius: 10px;
+                display: flex;
+                flex-wrap: wrap;
+                gap: 4px;
+                padding: 10px 14px;
+                align-items: center;
+            }
+            .floating-toc h3 { width: 100%; margin-bottom: 6px; }
+            .toc-item { padding: 6px 10px; margin: 0; font-size: 13px; }
+            .container { margin-left: 0; padding: 20px; }
+        }
+        @media (max-width: 640px) {
+            .header { padding: 18px 16px; }
+            .header h1 { font-size: 1.3rem; }
+            .stats { gap: 16px; }
+            .container { padding: 12px; }
+            .section { padding: 16px 12px; }
+            table { display: block; overflow-x: auto; }
+        }
     </style>
 </head>
 <body>

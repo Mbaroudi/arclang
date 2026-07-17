@@ -9,15 +9,18 @@ const gutter = $('gutter');
 const status = $('status');
 const DEBOUNCE_MS = 600;
 
-const EXAMPLES = { starter: null, aeb: null };
+const EXAMPLE_FILES = {
+  starter: 'starter.arc',
+  aeb: 'emergency_braking.arc',
+  fcs: 'flight_control.arc',
+  mission: 'mission_computer.arc',
+};
+const EXAMPLES = {};
 
 async function loadExamples() {
-  const [starter, aeb] = await Promise.all([
-    fetch('/playground/examples/starter.arc').then((r) => r.text()),
-    fetch('/playground/examples/emergency_braking.arc').then((r) => r.text()),
-  ]);
-  EXAMPLES.starter = starter;
-  EXAMPLES.aeb = aeb;
+  await Promise.all(Object.entries(EXAMPLE_FILES).map(async ([key, file]) => {
+    EXAMPLES[key] = await fetch('/playground/examples/' + file).then((r) => r.text());
+  }));
 }
 
 function setStatus(text, cls) {
@@ -102,6 +105,7 @@ function renderExplorer(result) {
 }
 
 let timer = null;
+let lastResult = null;
 function scheduleCompile() {
   clearTimeout(timer);
   timer = setTimeout(runCompile, DEBOUNCE_MS);
@@ -116,6 +120,7 @@ function runCompile() {
     setStatus('compiler panic — please report this model as a bug', 'err');
     return;
   }
+  lastResult = result;
   const ms = Math.round(performance.now() - started);
   renderDiagnostics(result);
   renderGate(result);
@@ -134,7 +139,8 @@ async function main() {
   setStatus(`compiler v${version()} ready — wasm, client-side`);
 
   const params = new URLSearchParams(location.search);
-  const initial = params.get('example') === 'aeb' ? 'aeb' : 'starter';
+  const requested = params.get('example');
+  const initial = EXAMPLES[requested] ? requested : 'starter';
   $('example').value = initial;
   src.value = EXAMPLES[initial];
   syncGutter();
@@ -161,5 +167,13 @@ async function main() {
     tab.addEventListener('click', () => selectTab(tab.dataset.tab));
   });
 }
+
+// Small API surface for the AI design assistant (ai.js).
+window.arclangPG = {
+  getSource: () => src.value,
+  setSource: (text) => { src.value = text; syncGutter(); runCompile(); },
+  compile: () => { runCompile(); return lastResult; },
+  getLastResult: () => lastResult,
+};
 
 main().catch((e) => setStatus('failed to load compiler: ' + e.message, 'err'));

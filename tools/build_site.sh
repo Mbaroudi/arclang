@@ -21,5 +21,7 @@ cp wasm/pkg/arclang_wasm.js wasm/pkg/arclang_wasm_bg.wasm site/playground/pkg/
 
 echo "==> Staging examples"
 cp examples/complete_emergency_braking_simple.arc site/playground/examples/emergency_braking.arc
+cp examples/aerospace/flight_control_system.arc site/playground/examples/flight_control.arc
+cp examples/defense/mission_computer.arc site/playground/examples/mission_computer.arc
 
 echo "==> Done. site/ ($(du -sh site | cut -f1)) is ready to serve."
