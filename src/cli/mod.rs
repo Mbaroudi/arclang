@@ -107,6 +107,23 @@ pub enum Commands {
         standard: SafetyStandard,
     },
 
+    /// Semantic diff between two model versions: compares by stable
+    /// identity (UUID), so moving blocks is no change and renaming an
+    /// element is a modification, not a remove+add
+    Diff {
+        /// The old version of the model
+        #[clap(value_parser)]
+        old: PathBuf,
+
+        /// The new version of the model
+        #[clap(value_parser)]
+        new: PathBuf,
+
+        /// Output as JSON (for CI pipelines)
+        #[clap(long)]
+        json: bool,
+    },
+
     /// Change-impact analysis: everything transitively affected when an
     /// element (requirement, component, function) changes
     Impact {
@@ -392,6 +409,9 @@ impl CliRunner {
             Commands::Impact { input, element } => {
                 self.run_impact(input, element)
             }
+            Commands::Diff { old, new, json } => {
+                self.run_diff(old, new, json)
+            }
             Commands::Gate { input, standard } => {
                 self.run_gate(input, standard)
             }
@@ -661,6 +681,68 @@ impl CliRunner {
                 "production gate failed with {} blocker(s)",
                 blockers.len()
             )))
+        }
+    }
+
+    fn run_diff(&self, old: PathBuf, new: PathBuf, json: bool) -> Result<(), CliError> {
+        let compile = |path: &PathBuf| -> Result<crate::compiler::semantic::SemanticModel, CliError> {
+            crate::Compiler::new(crate::CompilerConfig::default())
+                .compile_file(path)
+                .map(|r| r.semantic_model)
+                .map_err(|e| CliError::Compilation(format!("{}: {e}", path.display())))
+        };
+        let old_model = compile(&old)?;
+        let new_model = compile(&new)?;
+        let report = crate::compiler::semantic_diff::diff_models(&old_model, &new_model);
+
+        if json {
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&report)
+                    .map_err(|e| CliError::Compilation(e.to_string()))?
+            );
+        } else {
+            println!("Semantic diff (by stable identity): {} -> {}", old.display(), new.display());
+            if report.is_empty() {
+                println!("  No semantic changes.");
+                return Ok(());
+            }
+            for entry in &report.added {
+                println!("  + added    {} '{}' [{}]", entry.element_type, entry.name, entry.id);
+            }
+            for entry in &report.removed {
+                println!("  - removed  {} '{}' [{}]", entry.element_type, entry.name, entry.id);
+            }
+            for entry in &report.modified {
+                println!(
+                    "  ~ modified {} '{}' [{}]",
+                    entry.element.element_type, entry.element.name, entry.element.id
+                );
+                for change in &entry.changes {
+                    println!("      {}: \"{}\" -> \"{}\"", change.field, change.old, change.new);
+                }
+            }
+            for trace in &report.traces_added {
+                println!("  + trace    {} {} {}", trace.from, trace.trace_type, trace.to);
+            }
+            for trace in &report.traces_removed {
+                println!("  - trace    {} {} {}", trace.from, trace.trace_type, trace.to);
+            }
+            println!(
+                "\n  Total: {} added, {} removed, {} modified, {} trace(s) added, {} trace(s) removed",
+                report.added.len(),
+                report.removed.len(),
+                report.modified.len(),
+                report.traces_added.len(),
+                report.traces_removed.len()
+            );
+        }
+
+        // Like diff(1): exit 1 when there are differences, so CI can gate on it.
+        if report.is_empty() {
+            Ok(())
+        } else {
+            Err(CliError::DiffFound)
         }
     }
 
@@ -1421,4 +1503,8 @@ pub enum CliError {
 
     #[error("Not implemented: {0}")]
     NotImplemented(String),
+
+    /// Not a failure: the two models differ (diff(1) convention, exit 1).
+    #[error("semantic differences found")]
+    DiffFound,
 }

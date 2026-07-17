@@ -63,6 +63,11 @@ the long-term goal.
 - **SysML v2 interop export**: `arclang export -f sys-ml` emits the OMG
   SysML v2 textual notation (packages, part defs/usages, action defs,
   requirement defs, connect, satisfy — subset documented in the generator).
+- **Semantic diff**: `arclang diff old.arc new.arc [--json]` compares two
+  model versions by stable identity — reformatting or moving blocks is an
+  empty diff, renaming an element (same id) is a modification with
+  field-level old/new values, traceability changes are listed explicitly.
+  Exit code 1 when models differ (diff(1) convention, CI-gateable).
 - **Multi-file models**: `import "fragment.arc"` assembles a model from
   team-owned files (paths relative to the importing file, recursive, cycles
   and missing files are hard errors). Traces in one file resolve against
