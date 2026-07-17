@@ -1,6 +1,6 @@
 [package]
 name = "arclang"
-version = "2.0.0"
+version = "3.0.0"
 edition = "2021"
 authors = ["ArcLang Contributors"]
 description = "Industrial-grade Arcadia-as-Code compiler with Phase 1 & 2 Rendering Pipeline"

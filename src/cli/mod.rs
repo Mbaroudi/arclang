@@ -7,7 +7,7 @@ use std::path::{Path, PathBuf};
 #[derive(Parser)]
 #[clap(name = "arclang")]
 #[clap(author = "ArcLang Contributors")]
-#[clap(version = "1.0.0")]
+#[clap(version)]
 #[clap(about = "Industrial-grade Arcadia-as-Code compiler", long_about = None)]
 pub struct Cli {
     #[clap(subcommand)]
