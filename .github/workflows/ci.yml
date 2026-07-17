@@ -141,6 +141,20 @@ jobs:
           name: arclang-${{ runner.os }}
           path: target/release/arclang
 
+  security-audit:
+    name: Dependency audit (RustSec)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install cargo-audit
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-audit
+
+      - name: Audit dependencies
+        run: cargo audit
+
 # NOTE (v3 honesty policy): the previous workflow ran `cargo clippy -- -D
 # warnings`, cargo-tarpaulin coverage, and a "safety analysis" job that
 # uploaded PDF/CSV artifacts the CLI never produced. They are removed until

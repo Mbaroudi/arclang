@@ -63,6 +63,12 @@ the long-term goal.
 - **SysML v2 interop export**: `arclang export -f sys-ml` emits the OMG
   SysML v2 textual notation (packages, part defs/usages, action defs,
   requirement defs, connect, satisfy — subset documented in the generator).
+- **Industrial governance**: MIT-licensed; dependency audit (RustSec) on
+  every CI run; releases ship binaries + `SHA256SUMS` + GitHub build
+  provenance attestations; language stability policy in
+  `docs/VERSIONING.md`; tool-qualification support kit (ISO 26262-8 §11
+  TCL analysis, DO-330 TQL, function/malfunction inventory, evidence
+  matrix into the test suite) in `docs/qualification/`.
 - **Semantic diff**: `arclang diff old.arc new.arc [--json]` compares two
   model versions by stable identity — reformatting or moving blocks is an
   empty diff, renaming an element (same id) is a modification with

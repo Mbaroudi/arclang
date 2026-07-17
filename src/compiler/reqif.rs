@@ -225,7 +225,7 @@ fn field_for(long_name: &str) -> &'static str {
 /// Parse a ReqIF file into an ArcLang `requirements` model source.
 pub fn import_reqif(xml: &str) -> Result<String, String> {
     let mut reader = Reader::from_str(xml);
-    reader.trim_text(true);
+    reader.config_mut().trim_text(true);
     let mut buf = Vec::new();
 
     // ATTRIBUTE-DEFINITION-* IDENTIFIER -> LONG-NAME
@@ -283,7 +283,7 @@ pub fn import_reqif(xml: &str) -> Result<String, String> {
                 }
             }
             Ok(Event::Text(ref t)) => {
-                let text = t.unescape().map_err(|e| e.to_string())?.to_string();
+                let text = t.xml10_content().map_err(|e| e.to_string())?.to_string();
                 if capture_ref {
                     if let Some(req) = current.as_mut() {
                         let value = if in_xhtml_value {

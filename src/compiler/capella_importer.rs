@@ -20,7 +20,7 @@ impl CapellaImporter {
         use quick_xml::events::Event;
         
         let mut reader = Reader::from_str(xml_content);
-        reader.trim_text(true);
+        reader.config_mut().trim_text(true);
         
         let mut requirements_map = HashMap::new();
         let mut components_map = HashMap::new();

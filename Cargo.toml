@@ -58,7 +58,7 @@ petgraph = "0.6"
 regex = "1.10"
 
 # XML parsing
-quick-xml = "0.31"
+quick-xml = "0.41"
 
 # Date/Time
 chrono = { version = "0.4", features = ["serde"] }
