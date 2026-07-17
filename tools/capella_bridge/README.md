@@ -27,15 +27,56 @@ arclang build model.arc
 ## Verified
 
 Against the Capella 7.0 test model from the capellambse test suite
-(`capellambse-study/tests/data/models/test7_0/`):
+(`capellambse-study/tests/data/models/test7_0/`, mirrored at
+`tests/fixtures/capella/test7_0/`):
 
-- 2 actors, 4 entities, 15 activities (OA); 6 functions (SA);
-  15 components with nested hierarchy + 16 allocated functions and
-  9 component exchanges (LA); 2 nodes (PA); 8 requirements and
-  5 requirement↔element traces
-- Output compiles with the strict v3 parser: **33 components,
-  21 functions, 8 requirements, 5 traces, zero warnings** — every exchange
-  endpoint and every trace endpoint resolves.
+- OA: 2 actors, 4 entities, 15 activities, 1 communication means,
+  2 operational processes
+- SA: 6 functions, 2 missions, 2 capabilities, 1 functional chain
+- LA: 15 components with nested hierarchy + 16 allocated functions,
+  9 component exchanges, 1 functional chain, 2 capability realizations
+- PA: 33 nodes (every physical component, flat), 10 physical links,
+  4 physical paths
+- Data model: 19 classes (23 fields), 7 enumerations, 17 data types,
+  17 exchange items
+- Transverse: 8 state machines (2 modes, 26 states, 27 transitions),
+  3 scenarios (14 messages; 4 scenarios skipped — no emitted participant)
+- 8 requirements and 5 requirement↔element traces
+- Output compiles with the strict v3 parser, **zero warnings** — every
+  exchange endpoint, trace endpoint, involves/realizes/mission reference,
+  scenario participant/message endpoint and transition endpoint resolves.
+
+### Concept mapping (forward path)
+
+| Capella (capellambse 0.8.1)                         | ArcLang                              |
+|-----------------------------------------------------|--------------------------------------|
+| `sa.all_missions`                                   | SA `mission` (id:)                   |
+| `sa.all_capabilities` (+ `mission.exploits`)        | SA `capability` (mission:, realizes:, involves:) |
+| `sa/la.all_functional_chains` (`.involved`)         | `functional_chain` (ordered involves:) |
+| `la.all_capabilities` (CapabilityRealization)       | LA `capability_realization` (realizes:) |
+| `oa.all_processes` (`.involved`)                    | OA `operational_process` (involves:) |
+| `oa.all_entity_exchanges` (CommunicationMean)       | OA `communication_means` (from:/to:) |
+| `pa.all_components`                                 | PA `node` (flat — no nesting in PA grammar) |
+| `pa.all_physical_links` (port-owner endpoints)      | PA `link` (id:, from:/to: owner UUIDs) |
+| `pa.all_physical_paths` (`.involved_links`)         | PA `physical_path` (involves: link NAMES) |
+| `search("Class")` (`.owned_properties`)             | `class` (fields: name -> type name)  |
+| `search("Enumeration")` (`.literals`)               | `enumeration` (values:)              |
+| layer `data_package` walk (NumericType, StringType…)| `data_type`                          |
+| `search("ExchangeItem")` (`.type`, `.elements`)     | `exchange_item` (mechanism:, elements:) |
+| `search("StateMachine")` (regions/states/modes/transitions) | `state_machine` (mode/state/transition) |
+| `search("Scenario")` (instance_roles -> Part.type, message ends) | `scenario` (participants:, message) |
+
+Strictness rules honoured by the emitter: `involves:`/`realizes:`/`mission:`
+lists reference **only UUIDs emitted in the same .arc** (dangling references
+are compile errors); chains/processes/paths whose involvements are all
+unemitted are **skipped** (involves is required non-empty); transition
+endpoints are state NAMES declared in the same machine (unnamed pseudostates
+and their transitions are skipped); transition triggers are emitted only when
+they name an emitted element (unresolved triggers are compiler warnings);
+scenario messages only connect emitted participants; a physical link is
+emitted only when both port owners are emitted, and paths reference links by
+name; exchange item `mechanism:` is emitted only for the five Arcadia values
+(`UNSET` → omitted, ArcLang defaults to DATA).
 
 ### Requirements & traces on the forward path
 
@@ -61,9 +102,14 @@ The reverse direction: `arc2capella.py` applies an ArcLang model (AST JSON
 from `arclang export -f json`) back onto a Capella model, matching elements
 by UUID. It synchronizes:
 
-- **names** of actors, entities, activities, functions, components, nodes
+- **names** of actors, entities, activities, functions, components, nodes —
+  and of missions, capabilities, capability realizations, functional chains,
+  operational processes, communication means, physical links, physical
+  paths, classes, data types/enumerations and exchange items (sync-only:
+  no create/delete for these kinds)
 - **descriptions** (wherever the forward path emits them: actors, SA
-  functions, logical components, PA nodes)
+  functions, logical components, PA nodes, and the new kinds above except
+  data types/enumerations/exchange items, whose AST carries no attributes)
 - **requirements**: `title:` → Capella requirement name, `description:` →
   Capella requirement `text`
 - **`--create-missing`**: logical components in the .arc whose id is not a
@@ -87,7 +133,7 @@ tools/capella_bridge/workflow_test.sh \
 
 Verified on the Capella 7.0 test model:
 - **Zero diff**: Capella → .arc → compile → apply back yields a
-  byte-identical Capella model (68 elements matched, 0 unknown).
+  byte-identical Capella model (184 elements matched, 0 unknown).
 - **Workflow test** (4 scenarios on a temp copy): description edit
   propagates to the Capella XML; requirement text edit propagates; adding a
   component + `--create-missing` creates it in Capella (and the re-export
@@ -99,7 +145,17 @@ Verified on the Capella 7.0 test model:
 Reverse path (`arc2capella.py`):
 
 - Creation/deletion covers **logical components only** — not functions,
-  actors, entities, activities, nodes, exchanges or requirements.
+  actors, entities, activities, nodes, exchanges, requirements, or any of
+  the newer kinds (missions, capabilities, chains, paths, data model…).
+  Those are **sync-only** (name + description by UUID).
+- **State machines and scenarios cannot be synced back at all**: the
+  ArcLang AST stores no `id:` for them (they are identified by name), so
+  renaming a state machine, state, scenario or message in the .arc does
+  nothing in Capella. Forward emission only.
+- Structural edits to the new kinds are not synced: changing `involves:`,
+  `realizes:`, `mission:`, `elements:`, `values:`, class fields,
+  transitions or messages in the .arc does not modify the Capella
+  involvement/realization/literal/property objects.
 - Deletion does **not cascade** references: exchanges, allocations or
   requirement relations pointing at a deleted component are left dangling.
   Safe for components without cross-references (e.g. freshly created ones).
@@ -112,7 +168,23 @@ Reverse path (`arc2capella.py`):
 
 Forward path (`capella2arc.py`):
 
-- Functional exchanges (SA), physical links/exchanges, EPBS, modes/states,
-  scenarios, interfaces and ports are not emitted.
+- Functional exchanges (SA), physical exchanges, EPBS, interfaces and
+  ports are not emitted. PA functional chains are not emitted (the ArcLang
+  PA grammar has no `functional_chain`).
+- Data-model **Unions** are not emitted (`search("Class")` matches strict
+  Classes only); class properties with non-identifier names or named
+  `id`/`description` are dropped (ArcLang attribute keys are identifiers).
+- State machines: unnamed (pseudo)states and transitions touching them are
+  skipped; guards (Capella Constraint objects) are not emitted; `initial:`
+  is not derived; nested regions inside composite states are not descended.
+- Scenarios whose lifelines represent no emitted element are skipped
+  (4/7 in the test model: lifelines representing Roles or unemitted parts);
+  message kinds other than ASYNCHRONOUS_CALL map to the default
+  synchronous type (REPLY/CREATE/DELETE/TIMER are not distinguished).
+- Operational processes / functional chains / physical paths whose
+  involvements are all unemitted are skipped (involves must be non-empty).
+- OA operational capabilities are not emitted, so SA `capability`
+  `realizes:` links to them are dropped (only emitted targets are
+  referenced).
 - Requirement metadata beyond name/text (identifier, long_name, type
   attributes) is not emitted.

@@ -49,7 +49,29 @@ def _attr_string(value):
 
 
 def iter_arc_elements(doc: dict):
-    """Yield (uuid_or_id, name, kind, description) for every identified element."""
+    """Yield (uuid_or_id, name, kind, description) for every identified element.
+
+    Covers, in addition to the structural elements:
+      - OA:  operational processes, communication means
+      - SA:  missions, capabilities, functional chains
+      - LA:  capability realizations, functional chains
+      - PA:  physical links (id: attribute), physical paths
+      - top: classes, data types/enumerations, exchange items
+    State machines and scenarios carry NO id in the ArcLang AST (identified
+    by name only) — they cannot be synchronized back and are skipped.
+    Sync is name+description only (no create/delete for these kinds).
+    """
+
+    def id_named(items, kind):
+        """Elements serialized as {id, name, attributes{description?}}."""
+        for item in items or []:
+            attrs = item.get("attributes", {}) or {}
+            yield (
+                item.get("id"),
+                item.get("name"),
+                kind,
+                _attr_string(attrs.get("description")),
+            )
 
     def walk_component(comp, kind):
         attrs = comp.get("attributes", {}) or {}
@@ -73,21 +95,55 @@ def iter_arc_elements(doc: dict):
                 yield activity.get("id"), activity.get("name"), "activity", None
         for activity in oa.get("activities", []) or []:
             yield activity.get("id"), activity.get("name"), "activity", None
+        yield from id_named(oa.get("processes"), "operational_process")
+        # Communication means: OperationalExchange JSON — the name is the
+        # `label`, the Capella UUID is the `id` attribute.
+        for mean in oa.get("communication_means", []) or []:
+            attrs = mean.get("attributes", {}) or {}
+            yield (
+                _attr_string(attrs.get("id")),
+                mean.get("label"),
+                "communication_means",
+                _attr_string(attrs.get("description")),
+            )
 
     for sa in doc.get("system_analysis", []) or []:
         for function in sa.get("functions", []) or []:
             attrs = function.get("attributes", {}) or {}
             fid = _attr_string(attrs.get("id")) or function.get("id")
             yield fid, function.get("name"), "function", _attr_string(attrs.get("description"))
+        yield from id_named(sa.get("missions"), "mission")
+        yield from id_named(sa.get("capabilities"), "capability")
+        yield from id_named(sa.get("functional_chains"), "functional_chain")
 
     for la in doc.get("logical_architecture", []) or []:
         for comp in la.get("components", []) or []:
             yield from walk_component(comp, "component")
+        yield from id_named(la.get("capability_realizations"), "capability_realization")
+        yield from id_named(la.get("functional_chains"), "functional_chain")
 
     for pa in doc.get("physical_architecture", []) or []:
         for node in pa.get("nodes", []) or []:
             attrs = node.get("attributes", {}) or {}
             yield node.get("id"), node.get("name"), "node", _attr_string(attrs.get("description"))
+        # Physical links: identified by name in ArcLang; UUID in `id` attr.
+        for link in pa.get("links", []) or []:
+            attrs = link.get("attributes", {}) or {}
+            yield (
+                _attr_string(attrs.get("id")),
+                link.get("name"),
+                "physical_link",
+                _attr_string(attrs.get("description")),
+            )
+        yield from id_named(pa.get("paths"), "physical_path")
+
+    # Top-level data model. DataType JSON carries no attributes map, so only
+    # the name can be synchronized for data types/enumerations.
+    yield from id_named(doc.get("classes"), "class")
+    for data_type in doc.get("data_types", []) or []:
+        yield data_type.get("id"), data_type.get("name"), "data_type", None
+    for item in doc.get("exchange_items", []) or []:
+        yield item.get("id"), item.get("name"), "exchange_item", None
 
 
 def iter_arc_requirements(doc: dict):
