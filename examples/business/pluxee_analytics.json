@@ -21,6 +21,13 @@
     <requirement id="BR-GOV-001" name="BR-GOV-001" description="System shall ensure data quality standards for analytics" priority="Critical" />
   </ownedRequirements>
   <ownedLogicalComponents>
+    <component id="ACT-001" name="Executive" type="Actor" />
+    <component id="ACT-002" name="Market Analyst" type="Actor" />
+    <component id="ACT-003" name="Merchant Manager" type="Actor" />
+    <component id="ACT-004" name="Client Manager" type="Actor" />
+    <component id="ACT-005" name="Finance Team" type="Actor" />
+    <component id="ACT-006" name="Compliance Officer" type="Actor" />
+    <component id="ACT-007" name="Data Quality Manager" type="Actor" />
     <component id="LC-001" name="Executive Dashboard" type="Logical" />
     <component id="LC-002" name="Market Analytics Engine" type="Logical" />
     <component id="LC-003" name="Merchant Analytics Engine" type="Logical" />

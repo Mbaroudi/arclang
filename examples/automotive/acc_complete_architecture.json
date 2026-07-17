@@ -10,6 +10,9 @@
     <requirement id="SYS-ACC-007" name="SYS-ACC-007" description="System shall perform continuous self-diagnostics" priority="Critical" />
   </ownedRequirements>
   <ownedLogicalComponents>
+    <component id="ACT-001" name="Driver" type="Actor" />
+    <component id="ACT-002" name="Lead Vehicle" type="Actor" />
+    <component id="ACT-003" name="Environment" type="Actor" />
     <component id="LC-001" name="Long Range Radar" type="Logical" />
     <component id="LC-002" name="Forward Camera" type="Logical" />
     <component id="LC-003" name="Sensor Fusion" type="Logical" />

@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<capella:Project xmlns:capella="http://www.polarsys.org/capella/core/1.4.0">
+  <ownedRequirements>
+    <requirement id="SYS-001" name="SYS-001" description="System shall detect obstacles up to 150m ahead" priority="Critical" />
+    <requirement id="SYS-002" name="SYS-002" description="System shall initiate braking within 100ms of obstacle detection" priority="Critical" />
+    <requirement id="SYS-003" name="SYS-003" description="False positive rate shall be less than 1 in 10^9 operating hours" priority="Critical" />
+    <requirement id="SYS-004" name="SYS-004" description="System shall fuse data from at least 3 sensor types" priority="High" />
+    <requirement id="SYS-005" name="SYS-005" description="System shall maintain basic functionality with one sensor failure" priority="High" />
+    <requirement id="SYS-006" name="SYS-006" description="Driver shall be able to override system at any time" priority="High" />
+    <requirement id="SYS-007" name="SYS-007" description="System shall continuously monitor and report its status" priority="Medium" />
+  </ownedRequirements>
+  <ownedLogicalComponents>
+    <component id="ACT-001" name="Driver" type="Human" />
+    <component id="ACT-002" name="Vehicle" type="System" />
+    <component id="ACT-003" name="Environment" type="External" />
+    <component id="ACT-004" name="Other Vehicles" type="External" />
+    <component id="OA-001" name="Monitor Traffic" type="OperationalActivity" />
+    <component id="OA-002" name="Control Vehicle" type="OperationalActivity" />
+    <component id="OA-003" name="Detect Obstacles" type="OperationalActivity" />
+    <component id="OA-004" name="Present Road Conditions" type="OperationalActivity" />
+    <component id="OA-005" name="Generate Traffic Situation" type="OperationalActivity" />
+    <component id="LC-001" name="Main Controller" type="Logical" />
+    <component id="LC-002" name="Sensor Fusion Unit" type="Logical" />
+    <component id="LC-003" name="Radar Interface" type="Logical" />
+    <component id="LC-004" name="Camera Interface" type="Logical" />
+    <component id="LC-005" name="Lidar Interface" type="Logical" />
+    <component id="LC-006" name="Object Tracker" type="Logical" />
+    <component id="LC-007" name="Risk Assessor" type="Logical" />
+    <component id="LC-008" name="Brake Controller" type="Logical" />
+  </ownedLogicalComponents>
+  <ownedTraces>
+    <trace from="ACT-001" to="ACT-002" type="interacts" />
+    <trace from="ACT-002" to="ACT-003" type="interacts" />
+    <trace from="ACT-002" to="ACT-004" type="interacts" />
+    <trace from="OA-001" to="OA-002" type="leads_to" />
+    <trace from="OA-003" to="OA-004" type="influenced_by" />
+    <trace from="OA-003" to="OA-005" type="includes" />
+    <trace from="SF-001" to="SF-002" type="flows_to" />
+    <trace from="SF-002" to="SF-003" type="flows_to" />
+    <trace from="SF-003" to="SF-004" type="flows_to" />
+    <trace from="SF-004" to="SF-005" type="flows_to" />
+    <trace from="SF-005" to="SF-006" type="flows_to" />
+    <trace from="SF-006" to="SF-007" type="flows_to" />
+    <trace from="SF-007" to="SF-008" type="monitored_by" />
+    <trace from="LC-003" to="LC-002" type="provides_data" />
+    <trace from="LC-004" to="LC-002" type="provides_data" />
+    <trace from="LC-005" to="LC-002" type="provides_data" />
+    <trace from="LC-002" to="LC-006" type="provides_data" />
+    <trace from="LC-006" to="LC-007" type="provides_data" />
+    <trace from="LC-007" to="LC-008" type="commands" />
+    <trace from="LC-001" to="LC-008" type="supervises" />
+    <trace from="LF-006" to="LF-004" type="allocated_to" />
+    <trace from="LF-007" to="LF-004" type="allocated_to" />
+    <trace from="LF-008" to="LF-004" type="allocated_to" />
+    <trace from="LF-004" to="LF-009" type="allocated_to" />
+    <trace from="LF-009" to="LF-011" type="allocated_to" />
+    <trace from="LF-011" to="LF-012" type="allocated_to" />
+    <trace from="LC-001" to="SYS-001" type="satisfies" />
+    <trace from="LC-002" to="SYS-004" type="satisfies" />
+    <trace from="LC-007" to="SYS-002" type="satisfies" />
+    <trace from="LC-008" to="SYS-006" type="satisfies" />
+    <trace from="LC-001" to="SYS-007" type="satisfies" />
+    <trace from="LF-004" to="SF-002" type="satisfies" />
+    <trace from="LF-009" to="SF-004" type="satisfies" />
+    <trace from="LF-011" to="SF-005" type="satisfies" />
+    <trace from="LF-012" to="SF-007" type="satisfies" />
+    <trace from="LF-002" to="SF-008" type="satisfies" />
+  </ownedTraces>
+</capella:Project>

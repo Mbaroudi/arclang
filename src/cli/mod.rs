@@ -96,6 +96,17 @@ pub enum Commands {
         matrix: bool,
     },
 
+    /// Production-readiness gate: PASS/FAIL verdict against what an
+    /// industrial design review requires (requirements coverage, HARA/ASIL
+    /// consistency, timing budgets, ICD completeness)
+    Gate {
+        #[clap(value_parser)]
+        input: PathBuf,
+
+        #[clap(long, default_value = "iso26262")]
+        standard: SafetyStandard,
+    },
+
     /// Change-impact analysis: everything transitively affected when an
     /// element (requirement, component, function) changes
     Impact {
@@ -377,6 +388,9 @@ impl CliRunner {
             Commands::Impact { input, element } => {
                 self.run_impact(input, element)
             }
+            Commands::Gate { input, standard } => {
+                self.run_gate(input, standard)
+            }
             Commands::Export { input, output, format } => {
                 self.run_export(input, output, format)
             }
@@ -586,6 +600,66 @@ impl CliRunner {
         }
     }
     
+    fn run_gate(&self, input: PathBuf, standard: SafetyStandard) -> Result<(), CliError> {
+        let config = crate::CompilerConfig::default();
+        let mut compiler = crate::Compiler::new(config);
+        let result = compiler
+            .compile_file(&input)
+            .map_err(|e| CliError::Compilation(e.to_string()))?;
+
+        let standard_name = match standard {
+            SafetyStandard::ISO26262 => "ISO26262",
+            SafetyStandard::DO178C => "DO178C",
+            SafetyStandard::IEC61508 => "IEC61508",
+        };
+        let report = crate::compiler::production_gate::run_gate(
+            &result.ast,
+            &result.semantic_model,
+            standard_name,
+        );
+
+        println!("Production-readiness gate ({}) — {}", standard_name, input.display());
+        println!(
+            "  Requirements: {} total, {} satisfied, {} verified",
+            report.requirements_total, report.requirements_satisfied, report.requirements_verified
+        );
+
+        let blockers: Vec<_> = report
+            .findings
+            .iter()
+            .filter(|f| f.severity == crate::compiler::production_gate::Severity::Blocker)
+            .collect();
+        let gate_warnings: Vec<_> = report
+            .findings
+            .iter()
+            .filter(|f| f.severity == crate::compiler::production_gate::Severity::Warning)
+            .collect();
+
+        if !blockers.is_empty() {
+            println!("\n✗ {} blocker(s):", blockers.len());
+            for finding in &blockers {
+                println!("  [{}] {}", finding.check, finding.message);
+            }
+        }
+        if !gate_warnings.is_empty() {
+            println!("\n⚠ {} warning(s):", gate_warnings.len());
+            for finding in &gate_warnings {
+                println!("  [{}] {}", finding.check, finding.message);
+            }
+        }
+
+        if report.passed {
+            println!("\nPRODUCTION GATE: PASS ✓");
+            Ok(())
+        } else {
+            println!("\nPRODUCTION GATE: FAIL ✗ ({} blockers)", blockers.len());
+            Err(CliError::Compilation(format!(
+                "production gate failed with {} blocker(s)",
+                blockers.len()
+            )))
+        }
+    }
+
     fn run_impact(&self, input: PathBuf, element: String) -> Result<(), CliError> {
         let config = crate::CompilerConfig::default();
         let mut compiler = crate::Compiler::new(config);

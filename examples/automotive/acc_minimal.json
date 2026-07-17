@@ -6,6 +6,7 @@
     <requirement id="SYS-ACC-003" name="SYS-ACC-003" description="System shall detect cut-in vehicles within 500ms" priority="High" />
   </ownedRequirements>
   <ownedLogicalComponents>
+    <component id="ACT-001" name="Driver" type="Actor" />
     <component id="LC-001" name="Radar Sensor" type="Logical" />
     <component id="LC-002" name="Vision Camera" type="Logical" />
     <component id="LC-003" name="Sensor Fusion" type="Logical" />

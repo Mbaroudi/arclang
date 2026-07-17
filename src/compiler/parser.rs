@@ -105,6 +105,9 @@ impl Parser {
                 Token::ExchangeItemKw if !self.peek_is_colon() => {
                     model.exchange_items.push(self.parse_exchange_item()?);
                 }
+                Token::TestCase if !self.peek_is_colon() => {
+                    model.test_cases.push(self.parse_test_case()?);
+                }
                 Token::Dataflow => {
                     self.warn_unmodeled_block("top level")?;
                 }
@@ -223,6 +226,9 @@ impl Parser {
                 Token::ExchangeItemKw if !self.peek_is_colon() => {
                     model.exchange_items.push(self.parse_exchange_item()?);
                 }
+                Token::TestCase if !self.peek_is_colon() => {
+                    model.test_cases.push(self.parse_test_case()?);
+                }
                 Token::Dataflow | Token::DataFlows => {
                     self.warn_unmodeled_block("model block")?;
                 }
@@ -297,6 +303,9 @@ impl Parser {
                 }
                 Token::ExchangeItemKw if !self.peek_is_colon() => {
                     model.exchange_items.push(self.parse_exchange_item()?);
+                }
+                Token::TestCase if !self.peek_is_colon() => {
+                    model.test_cases.push(self.parse_test_case()?);
                 }
                 Token::Dataflow | Token::DataFlows => {
                     self.warn_unmodeled_block("top level")?;
@@ -430,6 +439,9 @@ impl Parser {
                 }
                 Token::ExchangeItemKw if !self.peek_is_colon() => {
                     model.exchange_items.push(self.parse_exchange_item()?);
+                }
+                Token::TestCase if !self.peek_is_colon() => {
+                    model.test_cases.push(self.parse_test_case()?);
                 }
                 Token::DataFlows | Token::Dataflow | Token::ValidationKeyword => {
                     self.warn_unmodeled_block("top level")?;
@@ -1122,6 +1134,38 @@ impl Parser {
         })
     }
 
+    /// Parse: test_case Name { verifies: ["REQ-1"] method: "test" description: "..." }
+    fn parse_test_case(&mut self) -> Result<TestCase, String> {
+        self.expect(Token::TestCase)?;
+        let name = self.expect_name()?;
+        let attributes = self.parse_attributes_block()?;
+        let id = attributes
+            .get("id")
+            .and_then(|v| v.as_string())
+            .map(|s| s.to_string())
+            .unwrap_or_else(|| name.clone());
+        let verifies = Self::string_list(&attributes, "verifies");
+        if verifies.is_empty() {
+            return Err(self.err(format!(
+                "test_case '{}' must verify at least one requirement (verifies: [...])",
+                name
+            )));
+        }
+        let method = attributes
+            .get("method")
+            .and_then(|v| v.as_string())
+            .unwrap_or("test")
+            .to_lowercase();
+        const METHODS: [&str; 4] = ["test", "analysis", "inspection", "demonstration"];
+        if !METHODS.contains(&method.as_str()) {
+            return Err(self.err(format!(
+                "test_case '{}': method '{}' is not one of test|analysis|inspection|demonstration",
+                name, method
+            )));
+        }
+        Ok(TestCase { id, name, verifies, method, attributes })
+    }
+
     /// Parse: class Name { field speed: "float" ... } — Arcadia Class (Data).
     fn parse_class(&mut self) -> Result<ClassDef, String> {
         self.expect(Token::Class)?;
@@ -1416,7 +1460,11 @@ impl Parser {
         self.expect(Token::RightBrace)?;
         
         Ok(SystemFunction {
-            id: format!("SF-{}", name.chars().take(3).collect::<String>()),
+            id: attributes
+                .get("id")
+                .and_then(|v| v.as_string())
+                .map(|s| s.to_string())
+                .unwrap_or_else(|| format!("SF-{}", name.chars().take(3).collect::<String>())),
             name,
             category: FunctionCategory::System,
             color: Some("#70AD47".to_string()),
@@ -1433,7 +1481,11 @@ impl Parser {
         let attributes = self.parse_attributes_block()?;
         
         Ok(SystemFunction {
-            id: format!("SF-{}", name.chars().take(3).collect::<String>()),
+            id: attributes
+                .get("id")
+                .and_then(|v| v.as_string())
+                .map(|s| s.to_string())
+                .unwrap_or_else(|| format!("SF-{}", name.chars().take(3).collect::<String>())),
             name,
             category: FunctionCategory::System,
             color: Some("#70AD47".to_string()),

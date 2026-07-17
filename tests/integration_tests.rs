@@ -726,3 +726,117 @@ physical_architecture "PA" {
     let lints = arclang::compiler::semantic::arcadia_methodology_lints(&result.ast);
     assert!(!lints.iter().any(|l| l.contains("must be transported")), "{lints:?}");
 }
+
+#[test]
+fn test_production_gate_fails_on_unverified_requirements() {
+    let input = r#"
+model Test {
+}
+
+requirements safety {
+    req "REQ-001" "Braking" { description: "Brake on demand" safety_level: "ASIL-D" }
+}
+
+architecture logical {
+    component "Controller" { id: "LC-001" function "control" }
+}
+
+trace "LC-001" satisfies "REQ-001" { rationale: "direct" }
+"#;
+    let mut compiler = Compiler::new(CompilerConfig::default());
+    let result = compiler.compile_string(input).expect("compiles");
+    let report = arclang::compiler::production_gate::run_gate(
+        &result.ast, &result.semantic_model, "ISO26262");
+    assert!(!report.passed, "gate must FAIL: no test case, no HARA");
+    assert!(report.findings.iter().any(|f| f.check == "requirements.verification"));
+    assert!(report.findings.iter().any(|f| f.check == "safety.hara"));
+}
+
+#[test]
+fn test_production_gate_catches_asil_mismatch() {
+    let input = r#"
+model Test {
+}
+
+requirements safety {
+    req "REQ-001" "Braking" { description: "Brake" }
+}
+
+architecture logical {
+    component "Controller" { id: "LC-001" function "control" }
+}
+
+trace "LC-001" satisfies "REQ-001" { rationale: "direct" }
+
+test_case "TC" { verifies: ["REQ-001"] method: "test" }
+
+safety_analysis {
+    hazard "Bad" {
+        severity: "S3"
+        exposure: "E4"
+        controllability: "C3"
+        asil: "ASIL-A"
+        mitigated_by: ["REQ-001"]
+    }
+}
+"#;
+    let mut compiler = Compiler::new(CompilerConfig::default());
+    let result = compiler.compile_string(input).expect("compiles");
+    let report = arclang::compiler::production_gate::run_gate(
+        &result.ast, &result.semantic_model, "ISO26262");
+    // S3/E4/C3 => ASIL-D per ISO 26262; declaring ASIL-A is a lie the gate catches
+    assert!(report.findings.iter().any(
+        |f| f.check == "safety.asil" && f.message.contains("ASIL-D")),
+        "expected ASIL mismatch blocker: {:?}", report.findings);
+}
+
+#[test]
+fn test_production_gate_flags_blown_timing_budget() {
+    let input = r#"
+model Test {
+}
+
+requirements safety {
+    req "REQ-001" "Fast" { description: "Be fast" }
+}
+
+system_analysis SA {
+    function Slow1 { id: "F1" latency: "80 ms" }
+    function Slow2 { id: "F2" latency: "50 ms" }
+    functional_chain Chain {
+        id: "FC-1"
+        latency_budget: "100 ms"
+        involves: ["F1", "F2"]
+    }
+}
+
+architecture logical {
+    component "C" { id: "LC-001" function "go" }
+}
+
+trace "LC-001" satisfies "REQ-001" { rationale: "x" }
+test_case "TC" { verifies: ["REQ-001"] method: "test" }
+"#;
+    let mut compiler = Compiler::new(CompilerConfig::default());
+    let result = compiler.compile_string(input).expect("compiles");
+    let report = arclang::compiler::production_gate::run_gate(
+        &result.ast, &result.semantic_model, "ISO26262");
+    assert!(report.findings.iter().any(
+        |f| f.check == "timing.budget" && f.message.contains("exceeds")),
+        "expected blown-budget blocker: {:?}", report.findings);
+}
+
+#[test]
+fn test_production_gate_passes_on_complete_flagship() {
+    let flagship = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("examples/complete_emergency_braking_simple.arc");
+    let mut compiler = Compiler::new(CompilerConfig::default());
+    let result = compiler.compile_file(&flagship).expect("compiles");
+    let report = arclang::compiler::production_gate::run_gate(
+        &result.ast, &result.semantic_model, "ISO26262");
+    let blockers: Vec<_> = report.findings.iter()
+        .filter(|f| f.severity == arclang::compiler::production_gate::Severity::Blocker)
+        .collect();
+    assert!(report.passed, "flagship must pass the gate; blockers: {blockers:?}");
+    assert_eq!(report.requirements_verified, report.requirements_total);
+}

@@ -20,6 +20,9 @@ pub struct Model {
     pub data_types: Vec<DataType>,
     #[serde(default)]
     pub classes: Vec<ClassDef>,
+    /// Verification cases tracing to requirements (V&V).
+    #[serde(default)]
+    pub test_cases: Vec<TestCase>,
 }
 
 impl Model {
@@ -38,6 +41,7 @@ impl Model {
             exchange_items: Vec::new(),
             data_types: Vec::new(),
             classes: Vec::new(),
+            test_cases: Vec::new(),
         }
     }
     
@@ -662,6 +666,19 @@ pub struct DataType {
     pub name: String,
     pub base_type: Option<String>,
     pub enumeration_values: Option<Vec<EnumValue>>,
+}
+
+/// A verification case: how one or more requirements are verified.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TestCase {
+    #[serde(default)]
+    pub id: String,
+    pub name: String,
+    /// Requirements verified by this case.
+    pub verifies: Vec<String>,
+    /// Verification method: test | analysis | inspection | demonstration.
+    pub method: String,
+    pub attributes: HashMap<String, AttributeValue>,
 }
 
 /// A structured data element produced/used by functions (Arcadia: Class).

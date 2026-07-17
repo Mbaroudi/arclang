@@ -54,6 +54,14 @@
     <component id="LA-MON-001" name="Observability Platform" type="Logical" />
     <component id="LA-MON-002" name="Cost Optimizer" type="Logical" />
     <component id="LA-MON-003" name="Alert Manager" type="Logical" />
+    <component id="PA-CLOUD-001" name="AWS Cloud Infrastructure" type="Physical" />
+    <component id="PA-DBX-002" name="Databricks Workspace Cluster" type="Physical" />
+    <component id="PA-GOV-001" name="Governance Control Node" type="Physical" />
+    <component id="PA-INT-001" name="Integration Gateway Node" type="Physical" />
+    <component id="PA-ANLZ-001" name="Analytics Compute Node" type="Physical" />
+    <component id="PA-MON-001" name="Monitoring Infrastructure" type="Physical" />
+    <component id="PA-MIG-001" name="Migration Engine Node" type="Physical" />
+    <component id="PA-SRC-001" name="Source System Gateway" type="Physical" />
   </ownedLogicalComponents>
   <ownedTraces>
     <trace from="STK-001" to="SYS-MIG-005" type="satisfies" />

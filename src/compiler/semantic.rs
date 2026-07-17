@@ -221,9 +221,11 @@ pub fn arcadia_methodology_lints(ast: &Model) -> Vec<String> {
     // deployed on DIFFERENT nodes must be supported by a physical link or
     // physical path between those nodes (MetaModel p.16).
     let mut node_of_component: HashMap<&str, &str> = HashMap::new();
-    let mut linked_pairs: std::collections::HashSet<(String, String)> = std::collections::HashSet::new();
+    let mut node_id_by_name: HashMap<&str, &str> = HashMap::new();
     for pa in &ast.physical_architecture {
         for node in &pa.nodes {
+            node_id_by_name.insert(node.name.as_str(), node.id.as_str());
+            node_id_by_name.insert(node.id.as_str(), node.id.as_str());
             for deployment in &node.deployments {
                 node_of_component.insert(deployment.component.as_str(), node.id.as_str());
             }
@@ -233,13 +235,20 @@ pub fn arcadia_methodology_lints(ast: &Model) -> Vec<String> {
                 }
             }
         }
+    }
+    // Link endpoints may use node NAMES; normalize to node ids.
+    let normalize = |endpoint: &str| -> String {
+        node_id_by_name.get(endpoint).map(|id| id.to_string()).unwrap_or_else(|| endpoint.to_string())
+    };
+    let mut linked_pairs: std::collections::HashSet<(String, String)> = std::collections::HashSet::new();
+    for pa in &ast.physical_architecture {
         for link in &pa.links {
-            let mut pair = [link.from.clone(), link.to.clone()];
+            let mut pair = [normalize(&link.from), normalize(&link.to)];
             pair.sort();
             linked_pairs.insert((pair[0].clone(), pair[1].clone()));
         }
         for exchange in &pa.physical_exchanges {
-            let mut pair = [exchange.from.clone(), exchange.to.clone()];
+            let mut pair = [normalize(&exchange.from), normalize(&exchange.to)];
             pair.sort();
             linked_pairs.insert((pair[0].clone(), pair[1].clone()));
         }

@@ -6,6 +6,10 @@
     <requirement id="SYS-FCS-003" name="SYS-FCS-003" description="Control surface deflection accuracy shall be within ±0.5 degrees" priority="High" />
   </ownedRequirements>
   <ownedLogicalComponents>
+    <component id="ACT-001" name="Pilot" type="Actor" />
+    <component id="ACT-002" name="ATC" type="Actor" />
+    <component id="OA-001" name="Control Aircraft Attitude" type="OperationalActivity" />
+    <component id="SC-101" name="Flight Control Computer" type="System" />
     <component id="LC-001" name="Primary Flight Computer" type="Logical" />
     <component id="LC-002" name="Backup Flight Computer" type="Logical" />
     <component id="LC-003" name="Actuator Control" type="Logical" />

@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<capella:Project xmlns:capella="http://www.polarsys.org/capella/core/1.4.0">
+  <ownedRequirements>
+    <requirement id="REQ_AEB_001" name="REQ_AEB_001" description="" priority="Medium" />
+    <requirement id="REQ_AEB_002" name="REQ_AEB_002" description="" priority="Medium" />
+    <requirement id="REQ_AEB_003" name="REQ_AEB_003" description="" priority="Medium" />
+    <requirement id="REQ_AEB_004" name="REQ_AEB_004" description="" priority="Medium" />
+  </ownedRequirements>
+  <ownedLogicalComponents>
+    <component id="ACT-Driver" name="Driver" type="Actor" />
+    <component id="ACT-Pedestrian" name="Pedestrian" type="Actor" />
+    <component id="ACT-TrafficEnvironment" name="TrafficEnvironment" type="Actor" />
+    <component id="OE-Veh" name="Vehicle" type="System" />
+    <component id="RadarSensor" name="RadarSensor" type="Sensor" />
+    <component id="CameraSensor" name="CameraSensor" type="Sensor" />
+    <component id="SensorFusion" name="SensorFusion" type="Processing" />
+    <component id="ObjectTracker" name="ObjectTracker" type="Processing" />
+    <component id="ThreatAssessment" name="ThreatAssessment" type="Decision" />
+    <component id="BrakeController" name="BrakeController" type="Controller" />
+    <component id="DriverInterface" name="DriverInterface" type="Interface" />
+    <component id="VehicleCANGateway" name="VehicleCANGateway" type="Gateway" />
+    <component id="BrakeActuator" name="BrakeActuator" type="Actuator" />
+    <component id="FrontRadarECU" name="FrontRadarECU" type="Physical" />
+    <component id="FrontCameraECU" name="FrontCameraECU" type="Physical" />
+    <component id="CentralADASECU" name="CentralADASECU" type="Physical" />
+    <component id="BrakeECU" name="BrakeECU" type="Physical" />
+    <component id="InstrumentCluster" name="InstrumentCluster" type="Physical" />
+    <component id="CANGatewayECU" name="CANGatewayECU" type="Physical" />
+  </ownedLogicalComponents>
+  <ownedTraces>
+  </ownedTraces>
+</capella:Project>

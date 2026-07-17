@@ -9,6 +9,11 @@
     <requirement id="SYS-MC-006" name="SYS-MC-006" description="Mission data shall be stored with tamper detection" priority="High" />
   </ownedRequirements>
   <ownedLogicalComponents>
+    <component id="ACT-001" name="Pilot" type="Actor" />
+    <component id="ACT-002" name="Weapons System Officer" type="Actor" />
+    <component id="ACT-003" name="Ground Control" type="Actor" />
+    <component id="OA-001" name="Track Multiple Targets" type="OperationalActivity" />
+    <component id="OA-002" name="Weapon Employment" type="OperationalActivity" />
     <component id="LC-001" name="Radar Processor" type="Logical" />
     <component id="LC-002" name="Electronic Warfare Processor" type="Logical" />
     <component id="LC-003" name="Track Fusion" type="Logical" />

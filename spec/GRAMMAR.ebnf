@@ -231,6 +231,14 @@ OperationalProcessDecl ::= "operational_process" Name AttributeBlock ;
 CommunicationMeansDecl ::= "communication_means" Name AttributeBlock ;
                            (* from:, to: REQUIRED (operational entities) *)
 
+(* ---- Verification (V&V) --------------------------------------------------------------------- *)
+
+TestCaseDecl    ::= "test_case" Name AttributeBlock ;
+                    (* verifies: [ <requirement id>+ ] REQUIRED;
+                       method: test|analysis|inspection|demonstration (ERROR otherwise).
+                       The production gate (arclang gate) requires every
+                       requirement to be verified by at least one test_case. *)
+
 (* ---- Modes & States (Arcadia transverse) -------------------------------------------------- *)
 
 StateMachineDecl ::= "state_machine" Name "{" StateMachineElement* "}" ;

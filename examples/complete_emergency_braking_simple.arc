@@ -145,11 +145,13 @@ system_analysis SA_EmergencyBraking {
   functional_chain EmergencyBrakingChain {
     id: "FC-001"
     description: "Sensor acquisition to braking command"
+    latency_budget: "100 ms"
     involves: ["AcquireSensorData", "FuseData", "TrackObjects", "AssessThreat", "ComputeBrakingForce"]
   }
 
   // System functions (what the system does)
   function AcquireSensorData {
+    latency: "20 ms"
     description: "Collect data from radar and camera"
     inputs: ["radar_signal", "camera_image"]
     outputs: ["raw_sensor_data"]
@@ -158,6 +160,7 @@ system_analysis SA_EmergencyBraking {
   }
   
   function FuseData {
+    latency: "25 ms"
     description: "Combine multiple sensor inputs"
     inputs: ["raw_sensor_data"]
     outputs: ["fused_data"]
@@ -166,6 +169,7 @@ system_analysis SA_EmergencyBraking {
   }
   
   function TrackObjects {
+    latency: "15 ms"
     description: "Track detected objects over time"
     inputs: ["fused_data"]
     outputs: ["tracked_objects"]
@@ -174,6 +178,7 @@ system_analysis SA_EmergencyBraking {
   }
   
   function AssessThreat {
+    latency: "20 ms"
     description: "Determine collision risk"
     inputs: ["tracked_objects", "vehicle_speed"]
     outputs: ["threat_level"]
@@ -190,6 +195,7 @@ system_analysis SA_EmergencyBraking {
   }
   
   function ComputeBrakingForce {
+    latency: "10 ms"
     description: "Calculate required braking force"
     inputs: ["threat_level", "vehicle_speed"]
     outputs: ["brake_command"]
@@ -266,6 +272,7 @@ logical_architecture LA_EmergencyBraking {
   
   // Logical components (software/logical modules)
   component RadarSensor {
+    function "Acquire radar frames"
     description: "Front-facing radar sensor"
     type: "Sensor"
     color: "#6495ED"  // Capella Logical Component blue
@@ -279,6 +286,7 @@ logical_architecture LA_EmergencyBraking {
   }
   
   component CameraSensor {
+    function "Acquire camera frames"
     description: "Front-facing camera"
     type: "Sensor"
     color: "#6495ED"
@@ -291,6 +299,7 @@ logical_architecture LA_EmergencyBraking {
   }
   
   component SensorFusion {
+    function "Fuse sensor data"
     description: "Multi-sensor data fusion"
     type: "Processing"
     color: "#6495ED"
@@ -314,6 +323,7 @@ logical_architecture LA_EmergencyBraking {
   }
   
   component ObjectTracker {
+    function "Track objects"
     description: "Object tracking and prediction"
     type: "Processing"
     color: "#6495ED"
@@ -331,6 +341,7 @@ logical_architecture LA_EmergencyBraking {
   }
   
   component ThreatAssessment {
+    function "Assess collision threat"
     description: "Collision risk assessment"
     type: "Decision"
     color: "#6495ED"
@@ -352,6 +363,7 @@ logical_architecture LA_EmergencyBraking {
   }
   
   component BrakeController {
+    function "Compute braking command"
     description: "Emergency brake control"
     type: "Controller"
     color: "#6495ED"
@@ -373,6 +385,7 @@ logical_architecture LA_EmergencyBraking {
   }
   
   component DriverInterface {
+    function "Warn driver"
     description: "HMI for warnings"
     type: "Interface"
     color: "#6495ED"
@@ -386,6 +399,7 @@ logical_architecture LA_EmergencyBraking {
   }
   
   component VehicleCANGateway {
+    function "Relay vehicle state"
     description: "CAN bus interface"
     type: "Gateway"
     color: "#6495ED"
@@ -403,6 +417,7 @@ logical_architecture LA_EmergencyBraking {
   }
   
   component BrakeActuator {
+    function "Apply braking force"
     description: "Physical brake actuator"
     type: "Actuator"
     color: "#6495ED"
@@ -775,3 +790,65 @@ exchange_item vehicle_speed { id: "EI-007" mechanism: "FLOW" }
 trace "AcquireSensorData" realizes "OA-Mon" { rationale: "Sensor acquisition realizes environment monitoring" }
 trace "AssessThreat" realizes "OA-Det" { rationale: "Threat assessment realizes threat detection" }
 trace "ComputeBrakingForce" realizes "OA-App" { rationale: "Braking computation realizes brake application" }
+
+// ===========================================================================
+// HAZARD ANALYSIS (ISO 26262 HARA) & VERIFICATION (V&V)
+// ===========================================================================
+
+safety_analysis {
+  hazard "Unintended full braking on highway" {
+    id: "HAZ-001"
+    severity: "S3"
+    exposure: "E4"
+    controllability: "C3"
+    asil: "ASIL-D"
+    mitigated_by: ["REQ-AEB-003", "REQ-AEB-004"]
+  }
+  hazard "No braking on imminent collision" {
+    id: "HAZ-002"
+    severity: "S3"
+    exposure: "E3"
+    controllability: "C3"
+    asil: "ASIL-C"
+    mitigated_by: ["REQ-AEB-001", "REQ-AEB-002"]
+  }
+  hazard "Late driver warning" {
+    id: "HAZ-003"
+    severity: "S2"
+    exposure: "E4"
+    controllability: "C2"
+    asil: "ASIL-B"
+    mitigated_by: ["REQ-AEB-005"]
+  }
+}
+
+test_case "Radar range verification" {
+  id: "TC-001"
+  method: "test"
+  verifies: ["REQ-AEB-001"]
+  description: "Verify 150 m obstacle detection on the proving ground"
+}
+test_case "Fusion latency measurement" {
+  id: "TC-002"
+  method: "test"
+  verifies: ["REQ-AEB-002"]
+  description: "Measure radar+camera fusion latency under full bus load"
+}
+test_case "TTC computation analysis" {
+  id: "TC-003"
+  method: "analysis"
+  verifies: ["REQ-AEB-003"]
+  description: "Worst-case execution time analysis of the TTC algorithm"
+}
+test_case "Emergency braking activation test" {
+  id: "TC-004"
+  method: "test"
+  verifies: ["REQ-AEB-004"]
+  description: "Full braking force commanded within 100 ms on target dummy"
+}
+test_case "Driver warning demonstration" {
+  id: "TC-005"
+  method: "demonstration"
+  verifies: ["REQ-AEB-005"]
+  description: "Visual and audio warning precedes autonomous braking"
+}

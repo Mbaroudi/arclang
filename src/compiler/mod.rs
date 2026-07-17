@@ -2,6 +2,7 @@ pub mod lexer;
 pub mod parser;
 pub mod ast;
 pub mod identity;
+pub mod production_gate;
 pub mod semantic;
 pub mod semantic_analyzer;
 pub mod layout_strategy;
