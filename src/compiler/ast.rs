@@ -353,6 +353,15 @@ pub struct PhysicalNode {
     pub behavior_components: Vec<BehaviorComponent>,
     pub hardware_components: Vec<HardwareComponent>,
     pub deployments: Vec<Deployment>,
+    /// Physical ports are NOT oriented (Arcadia).
+    #[serde(default)]
+    pub ports: Vec<PhysicalPort>,
+    pub attributes: HashMap<String, AttributeValue>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PhysicalPort {
+    pub name: String,
     pub attributes: HashMap<String, AttributeValue>,
 }
 
@@ -498,11 +507,21 @@ pub struct StateMachine {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct State {
     pub name: String,
+    /// Arcadia distinguishes Mode (chosen behaviour) from State (undergone).
+    #[serde(default)]
+    pub kind: StateKind,
     pub entry_actions: Vec<String>,
     pub exit_actions: Vec<String>,
     pub internal_transitions: Vec<String>,
     pub sub_states: Vec<State>,
     pub color: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
+pub enum StateKind {
+    #[default]
+    State,
+    Mode,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

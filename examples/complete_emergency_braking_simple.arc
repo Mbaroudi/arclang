@@ -679,3 +679,28 @@ trace "SensorFusion" satisfies "REQ-AEB-002" { rationale: "Fuses radar and camer
 trace "ThreatAssessment" satisfies "REQ-AEB-003" { rationale: "Computes time-to-collision per tracked object" }
 trace "BrakeController" satisfies "REQ-AEB-004" { rationale: "Commands full braking force on critical threat" }
 trace "DriverInterface" satisfies "REQ-AEB-005" { rationale: "Issues visual and audio warnings" }
+
+// ===========================================================================
+// MODES & STATES + SCENARIO (Arcadia transverse concepts)
+// ===========================================================================
+
+state_machine AEBOperatingModes {
+  initial: "Standby"
+  mode Standby { description: "System armed, monitoring" }
+  mode Warning { description: "Threat detected, driver warned" }
+  mode EmergencyBraking { description: "Autonomous braking active" }
+  state Failed { description: "Undergone: sensor or actuator failure" }
+
+  transition Standby -> Warning { trigger: "AssessThreat" }
+  transition Warning -> EmergencyBraking { trigger: "ComputeBrakingForce" }
+  transition EmergencyBraking -> Standby { trigger: "MonitorVehicleState" }
+  transition Standby -> Failed { trigger: "MonitorVehicleState" guard: "sensor_fault" }
+}
+
+scenario EmergencyStop {
+  participants: ["RadarSensor", "SensorFusion", "ThreatAssessment", "BrakeController", "BrakeActuator"]
+  message RadarSensor -> SensorFusion "raw radar targets"
+  message SensorFusion -> ThreatAssessment "fused object list"
+  message ThreatAssessment -> BrakeController "critical threat" { type: "async" }
+  message BrakeController -> BrakeActuator "full braking force"
+}

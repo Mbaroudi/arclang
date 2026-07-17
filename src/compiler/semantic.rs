@@ -528,6 +528,16 @@ impl SemanticAnalyzer {
 
                 register_element(all_elements, duplicates, func_id.clone(), ElementInfo::new(func_id.clone(), func.name.clone(), "SystemFunction"));
 
+                for port in &func.ports {
+                    let port_id = format!("{}.{}", func_id, port.name);
+                    register_element(
+                        all_elements,
+                        duplicates,
+                        port_id.clone(),
+                        ElementInfo::new(port_id, port.name.clone(), "FunctionPort"),
+                    );
+                }
+
                 // Recursively collect sub-functions
                 for sub_func in &func.sub_functions {
                     collect_system_functions_recursive(sub_func, all_elements, duplicates);
@@ -687,6 +697,16 @@ impl SemanticAnalyzer {
                     register_element(all_elements, duplicates, func_id.clone(), ElementInfo::new(func_id.clone(), func.name.clone(), "Function"));
                 }
 
+                for port in &comp.ports {
+                    let port_id = format!("{}.{}", comp_id, port.name);
+                    register_element(
+                        all_elements,
+                        duplicates,
+                        port_id.clone(),
+                        ElementInfo::new(port_id, port.name.clone(), "ComponentPort"),
+                    );
+                }
+
                 for sub in &comp.sub_components {
                     collect_logical_component(sub, components, functions, all_elements, duplicates);
                 }
@@ -746,6 +766,16 @@ impl SemanticAnalyzer {
                 });
                 
                 register_element(&mut all_elements, &mut duplicate_ids, node_id.clone(), ElementInfo::new(node_id.clone(), node.name.clone(), "Component"));
+
+                for port in &node.ports {
+                    let port_id = format!("{}.{}", node_id, port.name);
+                    register_element(
+                        &mut all_elements,
+                        &mut duplicate_ids,
+                        port_id.clone(),
+                        ElementInfo::new(port_id, port.name.clone(), "PhysicalPort"),
+                    );
+                }
             }
         }
         
@@ -869,6 +899,89 @@ impl SemanticAnalyzer {
                 });
             }
         }
+        // State machines and scenarios: register identities and validate
+        // their internal references (declared states, participants).
+        let mut deferred_warnings: Vec<String> = Vec::new();
+        for machine in &ast.state_machines {
+            register_element(
+                &mut all_elements,
+                &mut duplicate_ids,
+                machine.name.clone(),
+                ElementInfo::new(machine.name.clone(), machine.name.clone(), "StateMachine"),
+            );
+            let state_names: std::collections::HashSet<&str> =
+                machine.states.iter().map(|s| s.name.as_str()).collect();
+            if !machine.initial_state.is_empty() && !state_names.contains(machine.initial_state.as_str()) {
+                reference_errors.push(format!(
+                    "state_machine '{}': initial state '{}' is not declared",
+                    machine.name, machine.initial_state
+                ));
+            }
+            for transition in &machine.transitions {
+                for (endpoint, role) in [(&transition.from, "from"), (&transition.to, "to")] {
+                    if !state_names.contains(endpoint.as_str()) {
+                        reference_errors.push(format!(
+                            "state_machine '{}': transition {} '{}' is not a declared state or mode",
+                            machine.name, role, endpoint
+                        ));
+                    }
+                }
+                if !transition.trigger.is_empty()
+                    && !all_elements.contains_key(&transition.trigger)
+                    && !all_elements.values().any(|e| e.name == transition.trigger)
+                {
+                    deferred_warnings.push(format!(
+                        "state_machine '{}': trigger '{}' does not match any declared element (Arcadia: transitions are commanded by functional dataflow)",
+                        machine.name, transition.trigger
+                    ));
+                }
+            }
+        }
+        for scenario in &ast.scenarios {
+            register_element(
+                &mut all_elements,
+                &mut duplicate_ids,
+                scenario.name.clone(),
+                ElementInfo::new(scenario.name.clone(), scenario.name.clone(), "Scenario"),
+            );
+            let mut participant_ids: std::collections::HashSet<String> =
+                std::collections::HashSet::new();
+            for participant in &scenario.participants {
+                let resolved = if all_elements.contains_key(&participant.id) {
+                    Some(participant.id.clone())
+                } else {
+                    let matches: Vec<&ElementInfo> = all_elements
+                        .values()
+                        .filter(|e| e.name == participant.id)
+                        .collect();
+                    match matches.as_slice() {
+                        [single] => Some(single.id.clone()),
+                        _ => None,
+                    }
+                };
+                match resolved {
+                    Some(id) => {
+                        participant_ids.insert(id);
+                        participant_ids.insert(participant.id.clone());
+                    }
+                    None => reference_errors.push(format!(
+                        "scenario '{}': participant '{}' does not match any declared element",
+                        scenario.name, participant.id
+                    )),
+                }
+            }
+            for message in &scenario.messages {
+                for (endpoint, role) in [(&message.from, "from"), (&message.to, "to")] {
+                    if !participant_ids.contains(endpoint.as_str()) {
+                        reference_errors.push(format!(
+                            "scenario '{}': message {} '{}' is not one of the scenario participants",
+                            scenario.name, role, endpoint
+                        ));
+                    }
+                }
+            }
+        }
+
         if !reference_errors.is_empty() {
             return Err(format!(
                 "{} unresolved reference(s):\n  {}",
@@ -884,6 +997,7 @@ impl SemanticAnalyzer {
         // Exchange endpoints are checked but only warned about for now:
         // port paths (Component.Port) are not first-class elements yet.
         let mut warnings = duplicate_ids;
+        warnings.extend(deferred_warnings);
         warnings.extend(Self::check_exchange_endpoints(ast, &all_elements));
 
         let name = ast

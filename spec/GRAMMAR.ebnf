@@ -104,7 +104,12 @@ FunctionalChainDecl ::= "functional_chain" Name AttributeBlock ;
                         (* involves: [ <ref>+ ] REQUIRED, ordered *)
 
 FunctionElement ::= "function" Name AttributeBlock?            (* nested sub-function *)
+                  | FunctionPortDecl
                   | Attribute ;
+
+(* Function ports are strictly input XOR output (Arcadia). *)
+FunctionPortDecl ::= "port" ( "in" | "out" ) Name AttributeBlock? ;
+                     (* attributes: data_type:, type: data|control|event *)
 
 FunctionalExchange ::= ( "functional_exchange" | "exchange" | "flow" )
                        ( Name "->" Name AttributeBlock
@@ -127,6 +132,7 @@ LaElement       ::= Component
 Component       ::= "component" Name "{" ComponentElement* "}" ;
 
 ComponentElement ::= Component                                  (* nested components *)
+                  | "port" ( "in" | "out" | "inout" ) Name AttributeBlock?
                   | "function" Name AttributeBlock?
                   | "interface_in"  ":"? Name "{" InterfaceAttrs "}"
                   | "interface_out" ":"? Name "{" InterfaceAttrs "}"
@@ -154,6 +160,7 @@ PaElement       ::= "node" Name "{" NodeElement* "}"
                   | Attribute ;
 
 NodeElement     ::= "deploys" Name AttributeBlock?
+                  | "port" Name AttributeBlock?               (* physical ports are UNORIENTED *)
                   | "behavior_component" Name AttributeBlock
                   | "hardware_component" Name AttributeBlock?
                   | Attribute ;
@@ -197,8 +204,30 @@ AttributeValue  ::= String
                   | "[" ( AttributeValue ( "," AttributeValue )* )? "]"
                   | AttributeBlock ;            (* nested map *)
 
+(* ---- Modes & States (Arcadia transverse) -------------------------------------------------- *)
+
+StateMachineDecl ::= "state_machine" Name "{" StateMachineElement* "}" ;
+StateMachineElement ::= ( "state" | "mode" ) Name AttributeBlock?
+                        (* mode = chosen behaviour, state = undergone (Arcadia) *)
+                      | "transition" Name "->" Name AttributeBlock?
+                        (* attributes: trigger:, guard:, action:, timing:, priority: ;
+                           endpoints must be declared states/modes (ERROR otherwise);
+                           unresolved triggers are warnings *)
+                      | Attribute ;                            (* initial: "StateName" *)
+
+(* ---- Scenarios (sequence flows) ------------------------------------------------------------ *)
+
+ScenarioDecl    ::= "scenario" Name "{" ScenarioElement* "}" ;
+ScenariosBlock  ::= "scenarios" Name? "{" ScenarioDecl* "}" ;
+ScenarioElement ::= "participants" ":" "[" Name ( "," Name )* "]"
+                    (* participants must resolve to declared elements (ERROR) *)
+                  | "message" Name "->" Name Name? AttributeBlock?
+                    (* endpoints must be scenario participants (ERROR);
+                       attributes: type: sync|async, timing: *)
+                  | Attribute ;
+
 (* ---- Unmodeled blocks (accepted, warned, ignored) -------------------------------------- *)
 
-UnmodeledBlock  ::= ( "scenario" | "scenarios" | "dataflow" | "data_flows"
+UnmodeledBlock  ::= ( "dataflow" | "data_flows"
                     | "validation" | "traces" | "traceability" )
                     Name? "{" BalancedTokens "}" ;

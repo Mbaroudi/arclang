@@ -527,3 +527,106 @@ trace "Monitor" realizes "OA-001" { rationale: "vertical realization" }
     assert_eq!(trace.trace_type, "realizes");
     assert_eq!(trace.to, "OA-001");
 }
+
+#[test]
+fn test_state_machine_parses_and_validates_transitions() {
+    let input = r#"
+model Test {
+}
+
+system_analysis SA {
+    function Detect { outputs: ["threat"] }
+}
+
+state_machine Modes {
+    initial: "Off"
+    mode Off { }
+    mode Active { }
+    transition Off -> Active { trigger: "Detect" }
+}
+"#;
+    let config = CompilerConfig::default();
+    let mut compiler = Compiler::new(config);
+    let result = compiler.compile_string(input).expect("must compile");
+    assert_eq!(result.ast.state_machines.len(), 1);
+    let machine = &result.ast.state_machines[0];
+    assert_eq!(machine.states.len(), 2);
+    assert_eq!(machine.transitions.len(), 1);
+    assert!(result.semantic_model.all_elements.contains_key("Modes"));
+    // Trigger resolves to a declared function: no warning about it
+    assert!(!result.warnings.iter().any(|w| w.contains("trigger")), "{:?}", result.warnings);
+}
+
+#[test]
+fn test_transition_to_undeclared_state_is_an_error() {
+    let input = r#"
+model Test {
+}
+
+state_machine Broken {
+    state A { }
+    transition A -> Ghost { trigger: "x" }
+}
+"#;
+    let config = CompilerConfig::default();
+    let mut compiler = Compiler::new(config);
+    let result = compiler.compile_string(input);
+    assert!(result.is_err());
+    assert!(result.err().unwrap().to_string().contains("Ghost"));
+}
+
+#[test]
+fn test_scenario_participants_and_messages_validated() {
+    let input = r#"
+model Test {
+}
+
+architecture logical {
+    component "Radar" { id: "LC-001" }
+    component "Brake" { id: "LC-002" }
+}
+
+scenario Stop {
+    participants: ["LC-001", "LC-002"]
+    message "LC-001" -> "LC-002" "threat"
+}
+"#;
+    let config = CompilerConfig::default();
+    let mut compiler = Compiler::new(config);
+    let result = compiler.compile_string(input).expect("must compile");
+    assert_eq!(result.ast.scenarios.len(), 1);
+    assert_eq!(result.ast.scenarios[0].messages.len(), 1);
+
+    // Unknown participant must fail
+    let bad = input.replace("\"LC-002\"]", "\"GHOST\"]");
+    let mut compiler = Compiler::new(CompilerConfig::default());
+    assert!(compiler.compile_string(&bad).is_err());
+}
+
+#[test]
+fn test_function_ports_strict_orientation_and_identity() {
+    let input = r#"
+model Test {
+}
+
+system_analysis SA {
+    function Detect {
+        id: "SF-001"
+        port in RadarIn { data_type: "radar_frame" }
+        port out ThreatOut { data_type: "threat" }
+    }
+}
+"#;
+    let config = CompilerConfig::default();
+    let mut compiler = Compiler::new(config);
+    let result = compiler.compile_string(input).expect("must compile");
+    let function = &result.ast.system_analysis[0].functions[0];
+    assert_eq!(function.ports.len(), 2);
+    // Ports get first-class identity: {function-id}.{port-name}
+    assert!(result.semantic_model.all_elements.contains_key("SF-001.RadarIn"));
+
+    // A directionless function port is rejected (Arcadia: in XOR out)
+    let bad = input.replace("port in RadarIn", "port RadarIn");
+    let mut compiler = Compiler::new(CompilerConfig::default());
+    assert!(compiler.compile_string(&bad).is_err());
+}

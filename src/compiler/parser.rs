@@ -84,7 +84,16 @@ impl Parser {
                 Token::Trace => {
                     model.traces.push(self.parse_trace()?);
                 }
-                Token::Scenario | Token::Dataflow => {
+                Token::Scenario => {
+                    model.scenarios.push(self.parse_scenario()?);
+                }
+                Token::Scenarios => {
+                    self.parse_scenarios_container(&mut model)?;
+                }
+                Token::StateMachineKw => {
+                    model.state_machines.push(self.parse_state_machine()?);
+                }
+                Token::Dataflow => {
                     self.warn_unmodeled_block("top level")?;
                 }
                 Token::Eof => break,
@@ -181,7 +190,16 @@ impl Parser {
                 Token::Trace => {
                     model.traces.push(self.parse_trace()?);
                 }
-                Token::Scenarios | Token::Scenario | Token::Dataflow | Token::DataFlows => {
+                Token::Scenario => {
+                    model.scenarios.push(self.parse_scenario()?);
+                }
+                Token::Scenarios => {
+                    self.parse_scenarios_container(&mut model)?;
+                }
+                Token::StateMachineKw => {
+                    model.state_machines.push(self.parse_state_machine()?);
+                }
+                Token::Dataflow | Token::DataFlows => {
                     self.warn_unmodeled_block("model block")?;
                 }
                 Token::Identifier(ref id) if id == "traceability" => {
@@ -235,7 +253,16 @@ impl Parser {
                 Token::Trace => {
                     model.traces.push(self.parse_trace()?);
                 }
-                Token::Scenarios | Token::Scenario | Token::Dataflow | Token::DataFlows => {
+                Token::Scenario => {
+                    model.scenarios.push(self.parse_scenario()?);
+                }
+                Token::Scenarios => {
+                    self.parse_scenarios_container(&mut model)?;
+                }
+                Token::StateMachineKw => {
+                    model.state_machines.push(self.parse_state_machine()?);
+                }
+                Token::Dataflow | Token::DataFlows => {
                     self.warn_unmodeled_block("top level")?;
                 }
                 Token::ValidationKeyword => {
@@ -347,8 +374,16 @@ impl Parser {
                 Token::Trace => {
                     model.traces.push(self.parse_trace()?);
                 }
-                Token::DataFlows | Token::Dataflow | Token::Scenarios | Token::Scenario
-                | Token::ValidationKeyword => {
+                Token::Scenario => {
+                    model.scenarios.push(self.parse_scenario()?);
+                }
+                Token::Scenarios => {
+                    self.parse_scenarios_container(&mut model)?;
+                }
+                Token::StateMachineKw => {
+                    model.state_machines.push(self.parse_state_machine()?);
+                }
+                Token::DataFlows | Token::Dataflow | Token::ValidationKeyword => {
                     self.warn_unmodeled_block("top level")?;
                 }
                 Token::Identifier(ref id) if id == "traces" || id == "traceability" => {
@@ -748,6 +783,258 @@ impl Parser {
         Ok(FunctionalChain { id, name, involves, attributes })
     }
 
+    /// Parse a function port: `port in Name { data_type: "..." }` (in XOR out).
+    fn parse_function_port(&mut self) -> Result<FunctionPort, String> {
+        self.expect(Token::Port)?;
+        let direction = match self.current() {
+            Token::In => { self.advance(); PortDirection::In }
+            Token::Out => { self.advance(); PortDirection::Out }
+            _ => {
+                return Err(self.err(
+                    "function ports are strictly 'in' or 'out' (Arcadia): port in|out Name { ... }",
+                ));
+            }
+        };
+        let name = self.expect_name()?;
+        let attributes = if self.check(&Token::LeftBrace) {
+            self.parse_attributes_block()?
+        } else {
+            HashMap::new()
+        };
+        let port_type = match attributes.get("type").and_then(|v| v.as_string()) {
+            Some("control") => PortType::Control,
+            Some("event") => PortType::Event,
+            _ => PortType::Data,
+        };
+        let data_type = attributes
+            .get("data_type")
+            .and_then(|v| v.as_string())
+            .unwrap_or("Data")
+            .to_string();
+        Ok(FunctionPort { name, direction, port_type, data_type })
+    }
+
+    /// Parse a component port: `port in|out|inout Name { protocol: "..." }`.
+    fn parse_component_port(&mut self) -> Result<ComponentPort, String> {
+        self.expect(Token::Port)?;
+        let direction = match self.current() {
+            Token::In => { self.advance(); PortDirection::In }
+            Token::Out => { self.advance(); PortDirection::Out }
+            Token::Identifier(ref d) if d == "inout" => { self.advance(); PortDirection::InOut }
+            _ => {
+                return Err(self.err(
+                    "component ports are 'in', 'out' or 'inout' (Arcadia): port in|out|inout Name { ... }",
+                ));
+            }
+        };
+        let name = self.expect_name()?;
+        let attributes = if self.check(&Token::LeftBrace) {
+            self.parse_attributes_block()?
+        } else {
+            HashMap::new()
+        };
+        let interface_type = attributes
+            .get("interface")
+            .or_else(|| attributes.get("protocol"))
+            .and_then(|v| v.as_string())
+            .unwrap_or("Data")
+            .to_string();
+        Ok(ComponentPort { name, direction, interface_type })
+    }
+
+    /// Parse an UNORIENTED physical port: `port Name { ... }` (Arcadia).
+    fn parse_physical_port(&mut self) -> Result<PhysicalPort, String> {
+        self.expect(Token::Port)?;
+        if matches!(self.current(), Token::In | Token::Out) {
+            return Err(self.err(
+                "physical ports are not oriented (Arcadia): port Name { ... }",
+            ));
+        }
+        let name = self.expect_name()?;
+        let attributes = if self.check(&Token::LeftBrace) {
+            self.parse_attributes_block()?
+        } else {
+            HashMap::new()
+        };
+        Ok(PhysicalPort { name, attributes })
+    }
+
+    /// Parse: state_machine Name { initial: "Idle" state A {..} mode B {..} transition A -> B { trigger: } }
+    fn parse_state_machine(&mut self) -> Result<StateMachine, String> {
+        self.expect(Token::StateMachineKw)?;
+        let name = self.expect_name()?;
+        self.expect(Token::LeftBrace)?;
+
+        let mut initial_state = String::new();
+        let mut states = Vec::new();
+        let mut transitions = Vec::new();
+
+        while !self.check(&Token::RightBrace) && !self.is_at_end() {
+            match self.current() {
+                Token::StateKw | Token::Mode => {
+                    let kind = if matches!(self.current(), Token::Mode) {
+                        StateKind::Mode
+                    } else {
+                        StateKind::State
+                    };
+                    self.advance();
+                    let state_name = self.expect_name()?;
+                    let attributes = if self.check(&Token::LeftBrace) {
+                        self.parse_attributes_block()?
+                    } else {
+                        HashMap::new()
+                    };
+                    states.push(State {
+                        name: state_name,
+                        kind,
+                        entry_actions: Self::string_list(&attributes, "entry"),
+                        exit_actions: Self::string_list(&attributes, "exit"),
+                        internal_transitions: Vec::new(),
+                        sub_states: Vec::new(),
+                        color: attributes.get("color").and_then(|v| v.as_string()).map(|s| s.to_string()),
+                    });
+                }
+                Token::Transition => {
+                    self.advance();
+                    let from = self.expect_name()?;
+                    self.expect(Token::Arrow)?;
+                    let to = self.expect_name()?;
+                    let attributes = if self.check(&Token::LeftBrace) {
+                        self.parse_attributes_block()?
+                    } else {
+                        HashMap::new()
+                    };
+                    let get = |key: &str| attributes.get(key).and_then(|v| v.as_string()).map(|s| s.to_string());
+                    transitions.push(Transition {
+                        from,
+                        to,
+                        trigger: get("trigger").unwrap_or_default(),
+                        guard: get("guard"),
+                        action: get("action"),
+                        timing: get("timing"),
+                        priority: get("priority"),
+                    });
+                }
+                _ if self.peek_is_colon() => {
+                    let (key, value) = self.parse_attribute()?;
+                    if key == "initial" {
+                        if let AttributeValue::String(s) = value {
+                            initial_state = s;
+                        }
+                    } else {
+                        self.warn(format!(
+                            "attribute '{}' on state_machine is not yet stored in the model",
+                            key
+                        ));
+                    }
+                }
+                _ => {
+                    return Err(self.err(format!("Unexpected token in state_machine: {}", self.current())));
+                }
+            }
+        }
+
+        self.expect(Token::RightBrace)?;
+
+        Ok(StateMachine { name, initial_state, states, transitions })
+    }
+
+    /// Parse: scenarios [Name] { scenario A { ... } scenario B { ... } }
+    fn parse_scenarios_container(&mut self, model: &mut Model) -> Result<(), String> {
+        self.expect(Token::Scenarios)?;
+        let _container_name = self.optional_name();
+        self.expect(Token::LeftBrace)?;
+        while !self.check(&Token::RightBrace) && !self.is_at_end() {
+            match self.current() {
+                Token::Scenario => {
+                    model.scenarios.push(self.parse_scenario()?);
+                }
+                _ => {
+                    return Err(self.err(format!(
+                        "Unexpected token in scenarios container: {} (expected 'scenario')",
+                        self.current()
+                    )));
+                }
+            }
+        }
+        self.expect(Token::RightBrace)?;
+        Ok(())
+    }
+
+    /// Parse: scenario Name { participants: [..] message A -> B "label" { type: async } }
+    fn parse_scenario(&mut self) -> Result<Scenario, String> {
+        self.expect(Token::Scenario)?;
+        let name = self.expect_name()?;
+        self.expect(Token::LeftBrace)?;
+
+        let mut participants = Vec::new();
+        let mut messages = Vec::new();
+
+        while !self.check(&Token::RightBrace) && !self.is_at_end() {
+            match self.current() {
+                Token::Participants => {
+                    self.advance();
+                    self.expect(Token::Colon)?;
+                    let value = self.parse_attribute_value()?;
+                    if let AttributeValue::List(items) = value {
+                        for item in items {
+                            if let Some(reference) = item.as_string() {
+                                participants.push(Participant {
+                                    id: reference.to_string(),
+                                    name: reference.to_string(),
+                                    participant_type: ParticipantType::Component,
+                                    lifeline_color: "#5B9BD5".to_string(),
+                                });
+                            }
+                        }
+                    }
+                }
+                Token::Message => {
+                    self.advance();
+                    let from = self.expect_name()?;
+                    self.expect(Token::Arrow)?;
+                    let to = self.expect_name()?;
+                    let label = self.optional_name().unwrap_or_default();
+                    let attributes = if self.check(&Token::LeftBrace) {
+                        self.parse_attributes_block()?
+                    } else {
+                        HashMap::new()
+                    };
+                    let message_type = match attributes.get("type").and_then(|v| v.as_string()) {
+                        Some("async") | Some("asynchronous") => MessageType::Asynchronous,
+                        _ => MessageType::Synchronous,
+                    };
+                    messages.push(Message {
+                        from,
+                        to,
+                        label,
+                        message_type,
+                        activation: true,
+                        timing: attributes.get("timing").and_then(|v| v.as_string()).map(|s| s.to_string()),
+                        params: None,
+                    });
+                }
+                _ if self.peek_is_colon() => {
+                    let (key, _) = self.parse_attribute()?;
+                    self.warn(format!("attribute '{}' on scenario is not yet stored in the model", key));
+                }
+                _ => {
+                    return Err(self.err(format!("Unexpected token in scenario: {}", self.current())));
+                }
+            }
+        }
+
+        self.expect(Token::RightBrace)?;
+
+        Ok(Scenario {
+            name,
+            participants,
+            messages,
+            fragments: Vec::new(),
+            timing_constraints: Vec::new(),
+        })
+    }
+
     fn string_list(attributes: &HashMap<String, AttributeValue>, key: &str) -> Vec<String> {
         match attributes.get(key) {
             Some(AttributeValue::List(items)) => items
@@ -921,10 +1208,13 @@ impl Parser {
         let mut attributes = HashMap::new();
         let mut sub_functions = Vec::new();
         
+        let mut ports = Vec::new();
         while !self.check(&Token::RightBrace) && !self.is_at_end() {
             if self.check(&Token::Function) {
                 let sub_func = self.parse_nested_function()?;
                 sub_functions.push(sub_func);
+            } else if self.check(&Token::Port) {
+                ports.push(self.parse_function_port()?);
             } else {
                 let (key, value) = self.parse_attribute()?;
                 attributes.insert(key, value);
@@ -939,7 +1229,7 @@ impl Parser {
             category: FunctionCategory::System,
             color: Some("#70AD47".to_string()),
             icon: None,
-            ports: Vec::new(),
+            ports,
             sub_functions,
             attributes,
         })
@@ -1157,6 +1447,7 @@ impl Parser {
         let mut interfaces_in = Vec::new();
         let mut interfaces_out = Vec::new();
         let mut sub_components = Vec::new();
+        let mut ports = Vec::new();
         let mut attributes = HashMap::new();
         
         while !self.check(&Token::RightBrace) && !self.is_at_end() {
@@ -1173,6 +1464,9 @@ impl Parser {
                 }
                 Token::InterfaceOut => {
                     interfaces_out.push(self.parse_interface_definition()?);
+                }
+                Token::Port => {
+                    ports.push(self.parse_component_port()?);
                 }
                 Token::Provides => {
                     // Parse provided interface: provides "InterfaceName" { protocol: "CAN" }
@@ -1222,7 +1516,7 @@ impl Parser {
             color: Some("#5B9BD5".to_string()),
             sub_components,
             allocated_functions: Vec::new(),
-            ports: Vec::new(),
+            ports,
             functions,
             interfaces_in,
             interfaces_out,
@@ -1496,6 +1790,7 @@ impl Parser {
         let mut deployments = Vec::new();
         let mut behavior_components = Vec::new();
         let mut hardware_components = Vec::new();
+        let mut node_ports = Vec::new();
         let mut attributes = HashMap::new();
         
         while !self.check(&Token::RightBrace) && !self.is_at_end() {
@@ -1508,6 +1803,9 @@ impl Parser {
                 }
                 Token::HardwareComponent => {
                     hardware_components.push(self.parse_hardware_component()?);
+                }
+                Token::Port => {
+                    node_ports.push(self.parse_physical_port()?);
                 }
                 _ if self.peek_is_colon() => {
                     let (key, value) = self.parse_attribute()?;
@@ -1539,6 +1837,7 @@ impl Parser {
             behavior_components,
             hardware_components,
             deployments,
+            ports: node_ports,
             attributes,
         })
     }
@@ -1679,6 +1978,7 @@ impl Parser {
             behavior_components: Vec::new(),
             hardware_components: Vec::new(),
             deployments: Vec::new(),
+            ports: Vec::new(),
             attributes,
         })
     }

@@ -141,7 +141,7 @@ mod tests {
 
     #[test]
     fn valid_model_with_unmodeled_block_yields_warning() {
-        let source = "model Test {\n  scenarios { anything at all }\n}\n";
+        let source = "model Test {\n  dataflow { anything at all }\n}\n";
         let diagnostics = compute_diagnostics(source);
         assert!(!diagnostics.is_empty());
         assert!(diagnostics
