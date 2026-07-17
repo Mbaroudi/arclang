@@ -9,6 +9,8 @@ fn create_test_model() -> Model {
     
     // Add logical architecture with components
     model.logical_architecture.push(LogicalArchitecture {
+        capability_realizations: Vec::new(),
+        functional_chains: Vec::new(),
         name: "Emergency Braking System".to_string(),
         components: vec![
             LogicalComponent {
