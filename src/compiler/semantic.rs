@@ -217,6 +217,57 @@ pub fn arcadia_methodology_lints(ast: &Model) -> Vec<String> {
         }
     }
 
+    // Arcadia transport rule: a behavioural exchange between components
+    // deployed on DIFFERENT nodes must be supported by a physical link or
+    // physical path between those nodes (MetaModel p.16).
+    let mut node_of_component: HashMap<&str, &str> = HashMap::new();
+    let mut linked_pairs: std::collections::HashSet<(String, String)> = std::collections::HashSet::new();
+    for pa in &ast.physical_architecture {
+        for node in &pa.nodes {
+            for deployment in &node.deployments {
+                node_of_component.insert(deployment.component.as_str(), node.id.as_str());
+            }
+            for behavior in &node.behavior_components {
+                for allocated in &behavior.allocated_functions {
+                    node_of_component.insert(allocated.as_str(), node.id.as_str());
+                }
+            }
+        }
+        for link in &pa.links {
+            let mut pair = [link.from.clone(), link.to.clone()];
+            pair.sort();
+            linked_pairs.insert((pair[0].clone(), pair[1].clone()));
+        }
+        for exchange in &pa.physical_exchanges {
+            let mut pair = [exchange.from.clone(), exchange.to.clone()];
+            pair.sort();
+            linked_pairs.insert((pair[0].clone(), pair[1].clone()));
+        }
+    }
+    if !node_of_component.is_empty() {
+        for la in &ast.logical_architecture {
+            for exchange in &la.component_exchanges {
+                let from_root = exchange.from_port.split('.').next().unwrap_or(&exchange.from_port);
+                let to_root = exchange.to_port.split('.').next().unwrap_or(&exchange.to_port);
+                if let (Some(node_a), Some(node_b)) =
+                    (node_of_component.get(from_root), node_of_component.get(to_root))
+                {
+                    if node_a != node_b {
+                        let mut pair = [node_a.to_string(), node_b.to_string()];
+                        pair.sort();
+                        if !linked_pairs.contains(&(pair[0].clone(), pair[1].clone())) {
+                            lints.push(format!(
+                                "component exchange '{}' crosses nodes '{}' and '{}' but no physical link or exchange connects them — behavioural exchanges must be transported (Arcadia)",
+                                exchange.label.as_deref().unwrap_or(""),
+                                node_a, node_b
+                            ));
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     lints
 }
 
@@ -899,9 +950,107 @@ impl SemanticAnalyzer {
                 });
             }
         }
+        let mut deferred_warnings: Vec<String> = Vec::new();
+
+        // Data model: classes, data types, exchange items — with identity.
+        for class_def in &ast.classes {
+            register_element(
+                &mut all_elements,
+                &mut duplicate_ids,
+                class_def.id.clone(),
+                ElementInfo::new(class_def.id.clone(), class_def.name.clone(), "Class"),
+            );
+        }
+        for data_type in &ast.data_types {
+            let kind = if data_type.enumeration_values.is_some() { "Enumeration" } else { "DataType" };
+            register_element(
+                &mut all_elements,
+                &mut duplicate_ids,
+                data_type.id.clone(),
+                ElementInfo::new(data_type.id.clone(), data_type.name.clone(), kind),
+            );
+        }
+        for item in &ast.exchange_items {
+            register_element(
+                &mut all_elements,
+                &mut duplicate_ids,
+                item.id.clone(),
+                ElementInfo::new(item.id.clone(), item.name.clone(), "ExchangeItem"),
+            );
+        }
+        for item in &ast.exchange_items {
+            for element in &item.elements {
+                if !all_elements.contains_key(element)
+                    && !all_elements.values().any(|e| e.name == *element)
+                {
+                    reference_errors.push(format!(
+                        "exchange_item '{}': element '{}' does not match any declared class or data type",
+                        item.name, element
+                    ));
+                }
+            }
+        }
+
+        // Physical links get identity by name; paths must reference them.
+        for pa in &ast.physical_architecture {
+            for link in &pa.links {
+                if !link.name.is_empty() {
+                    register_element(
+                        &mut all_elements,
+                        &mut duplicate_ids,
+                        link.name.clone(),
+                        ElementInfo::new(link.name.clone(), link.name.clone(), "PhysicalLink"),
+                    );
+                }
+            }
+            for path in &pa.paths {
+                register_element(
+                    &mut all_elements,
+                    &mut duplicate_ids,
+                    path.id.clone(),
+                    ElementInfo::new(path.id.clone(), path.name.clone(), "PhysicalPath"),
+                );
+                for link_ref in &path.involves {
+                    let is_link = all_elements
+                        .get(link_ref)
+                        .map(|e| e.element_type == "PhysicalLink")
+                        .unwrap_or(false)
+                        || all_elements
+                            .values()
+                            .any(|e| e.element_type == "PhysicalLink" && e.name == *link_ref);
+                    if !is_link {
+                        reference_errors.push(format!(
+                            "physical_path '{}': '{}' does not match any declared physical link",
+                            path.name, link_ref
+                        ));
+                    }
+                }
+            }
+        }
+
+        // When exchange items are declared, exchanges referencing unknown
+        // items get a warning (the data-model feature is in use).
+        if !ast.exchange_items.is_empty() {
+            let item_names: std::collections::HashSet<&str> = ast
+                .exchange_items
+                .iter()
+                .flat_map(|i| [i.id.as_str(), i.name.as_str()])
+                .collect();
+            for sa in &ast.system_analysis {
+                for exchange in &sa.functional_exchanges {
+                    if !item_names.contains(exchange.data_type.as_str()) {
+                        deferred_warnings.push(format!(
+                            "functional_exchange '{}': exchange item '{}' is not declared as an exchange_item",
+                            exchange.label.as_deref().unwrap_or(""),
+                            exchange.data_type
+                        ));
+                    }
+                }
+            }
+        }
+
         // State machines and scenarios: register identities and validate
         // their internal references (declared states, participants).
-        let mut deferred_warnings: Vec<String> = Vec::new();
         for machine in &ast.state_machines {
             register_element(
                 &mut all_elements,

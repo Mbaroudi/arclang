@@ -704,3 +704,43 @@ scenario EmergencyStop {
   message ThreatAssessment -> BrakeController "critical threat" { type: "async" }
   message BrakeController -> BrakeActuator "full braking force"
 }
+
+// ===========================================================================
+// DATA MODEL (Arcadia: Class, Enumeration, Exchange Items)
+// ===========================================================================
+
+class RadarFrame {
+  id: "CL-001"
+  range_m: "float"
+  azimuth_deg: "float"
+  velocity_mps: "float"
+}
+
+enumeration ThreatLevel {
+  id: "EN-001"
+  values: ["None", "Low", "Critical"]
+}
+
+data_type BrakingForce {
+  id: "DT-001"
+  base: "float"
+  unit: "N"
+}
+
+exchange_item RadarTargets {
+  id: "EI-001"
+  mechanism: "FLOW"
+  elements: ["CL-001"]
+}
+
+exchange_item ThreatAssessed {
+  id: "EI-002"
+  mechanism: "EVENT"
+  elements: ["EN-001"]
+}
+
+exchange_item raw_sensor_data { id: "EI-003" mechanism: "FLOW" elements: ["CL-001"] }
+exchange_item fused_data { id: "EI-004" mechanism: "FLOW" }
+exchange_item tracked_objects { id: "EI-005" mechanism: "FLOW" }
+exchange_item threat_level { id: "EI-006" mechanism: "EVENT" elements: ["EN-001"] }
+exchange_item vehicle_speed { id: "EI-007" mechanism: "FLOW" }

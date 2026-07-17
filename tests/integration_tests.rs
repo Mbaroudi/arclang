@@ -630,3 +630,99 @@ system_analysis SA {
     let mut compiler = Compiler::new(CompilerConfig::default());
     assert!(compiler.compile_string(&bad).is_err());
 }
+
+#[test]
+fn test_data_model_declarations_and_validation() {
+    let input = r#"
+model Test {
+}
+
+class RadarFrame { id: "CL-001" range_m: "float" }
+enumeration Level { id: "EN-001" values: ["Low", "High"] }
+data_type Force { id: "DT-001" base: "float" unit: "N" }
+
+exchange_item Targets {
+    id: "EI-001"
+    mechanism: "FLOW"
+    elements: ["CL-001"]
+}
+"#;
+    let config = CompilerConfig::default();
+    let mut compiler = Compiler::new(config);
+    let result = compiler.compile_string(input).expect("must compile");
+    assert_eq!(result.ast.classes.len(), 1);
+    assert_eq!(result.ast.data_types.len(), 2);
+    assert_eq!(result.ast.exchange_items.len(), 1);
+    assert_eq!(result.ast.exchange_items[0].stereotype, "FLOW");
+    assert!(result.semantic_model.all_elements.contains_key("EI-001"));
+
+    // Unknown element in an exchange_item is an error
+    let bad = input.replace("[\"CL-001\"]", "[\"GHOST\"]");
+    assert!(Compiler::new(CompilerConfig::default()).compile_string(&bad).is_err());
+
+    // Invalid mechanism is an error
+    let bad2 = input.replace("\"FLOW\"", "\"TELEPATHY\"");
+    assert!(Compiler::new(CompilerConfig::default()).compile_string(&bad2).is_err());
+}
+
+#[test]
+fn test_physical_path_references_named_links() {
+    let input = r#"
+model Test {
+}
+
+physical_architecture "PA" {
+    node "A" { id: "PN-A" }
+    node "B" { id: "PN-B" }
+    node "C" { id: "PN-C" }
+    link Seg1 { from: "PN-A" to: "PN-B" protocol: "CAN" }
+    link Seg2 { from: "PN-B" to: "PN-C" protocol: "CAN" }
+    physical_path EndToEnd { involves: ["Seg1", "Seg2"] }
+}
+"#;
+    let config = CompilerConfig::default();
+    let mut compiler = Compiler::new(config);
+    let result = compiler.compile_string(input).expect("must compile");
+    assert_eq!(result.ast.physical_architecture[0].paths.len(), 1);
+    assert!(result.semantic_model.all_elements.contains_key("EndToEnd"));
+
+    let bad = input.replace("\"Seg2\"]", "\"GhostSeg\"]");
+    assert!(Compiler::new(CompilerConfig::default()).compile_string(&bad).is_err());
+}
+
+#[test]
+fn test_transport_rule_lint_flags_unsupported_cross_node_exchange() {
+    let input = r#"
+model Test {
+}
+
+architecture logical {
+    component "Sensor" { id: "LC-001" function "sense" }
+    component "Controller" { id: "LC-002" function "control" }
+    component_exchange "data" { from_port: "LC-001" to_port: "LC-002" }
+}
+
+physical_architecture "PA" {
+    node "NodeA" { id: "PN-A" deploys "LC-001" }
+    node "NodeB" { id: "PN-B" deploys "LC-002" }
+}
+"#;
+    let config = CompilerConfig::default();
+    let mut compiler = Compiler::new(config);
+    let result = compiler.compile_string(input).expect("must compile");
+    let lints = arclang::compiler::semantic::arcadia_methodology_lints(&result.ast);
+    assert!(
+        lints.iter().any(|l| l.contains("must be transported")),
+        "expected transport lint, got: {lints:?}"
+    );
+
+    // Adding the physical link satisfies the rule
+    let good = input.replace(
+        "node \"NodeB\" { id: \"PN-B\" deploys \"LC-002\" }",
+        "node \"NodeB\" { id: \"PN-B\" deploys \"LC-002\" }\n    link Net { from: \"PN-A\" to: \"PN-B\" protocol: \"CAN\" }",
+    );
+    let mut compiler = Compiler::new(CompilerConfig::default());
+    let result = compiler.compile_string(&good).expect("must compile");
+    let lints = arclang::compiler::semantic::arcadia_methodology_lints(&result.ast);
+    assert!(!lints.iter().any(|l| l.contains("must be transported")), "{lints:?}");
+}

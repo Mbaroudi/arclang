@@ -18,6 +18,8 @@ pub struct Model {
     pub scenarios: Vec<Scenario>,
     pub exchange_items: Vec<ExchangeItem>,
     pub data_types: Vec<DataType>,
+    #[serde(default)]
+    pub classes: Vec<ClassDef>,
 }
 
 impl Model {
@@ -35,6 +37,7 @@ impl Model {
             scenarios: Vec::new(),
             exchange_items: Vec::new(),
             data_types: Vec::new(),
+            classes: Vec::new(),
         }
     }
     
@@ -64,6 +67,12 @@ pub struct OperationalAnalysis {
     pub exchanges: Vec<OperationalExchange>,
     pub capability_associations: Vec<CapabilityAssociation>,
     pub traces: Vec<Trace>,
+    /// Ordered activity/interaction paths fulfilling an operational capability.
+    #[serde(default)]
+    pub processes: Vec<FunctionalChain>,
+    /// Supports linking operational entities, followed by interactions.
+    #[serde(default)]
+    pub communication_means: Vec<OperationalExchange>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -340,6 +349,19 @@ pub struct PhysicalArchitecture {
     pub nodes: Vec<PhysicalNode>,
     pub links: Vec<PhysicalLink>,
     pub physical_exchanges: Vec<PhysicalExchange>,
+    /// Ordered sets of physical links routing behavioural exchanges (Arcadia).
+    #[serde(default)]
+    pub paths: Vec<PhysicalPath>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PhysicalPath {
+    #[serde(default)]
+    pub id: String,
+    pub name: String,
+    /// Ordered references to the physical links forming the path.
+    pub involves: Vec<String>,
+    pub attributes: HashMap<String, AttributeValue>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -397,6 +419,8 @@ pub struct Deployment {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PhysicalLink {
+    #[serde(default)]
+    pub name: String,
     pub from: String,
     pub to: String,
     pub protocol: String,
@@ -611,9 +635,16 @@ pub struct TimingConstraint {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ExchangeItem {
+    /// Stable identity (defaults to the name).
+    #[serde(default)]
+    pub id: String,
     pub name: String,
+    /// Exchange mechanism: EVENT | FLOW | OPERATION | DATA | SHARED_DATA.
     pub stereotype: String,
     pub attributes: Vec<DataAttribute>,
+    /// References to the data elements (classes) grouped by this item.
+    #[serde(default)]
+    pub elements: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -626,9 +657,22 @@ pub struct DataAttribute {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DataType {
+    #[serde(default)]
+    pub id: String,
     pub name: String,
     pub base_type: Option<String>,
     pub enumeration_values: Option<Vec<EnumValue>>,
+}
+
+/// A structured data element produced/used by functions (Arcadia: Class).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ClassDef {
+    #[serde(default)]
+    pub id: String,
+    pub name: String,
+    /// Fields: name -> type.
+    pub fields: Vec<DataAttribute>,
+    pub attributes: HashMap<String, AttributeValue>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

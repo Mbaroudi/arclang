@@ -114,6 +114,7 @@ impl CapellaImporter {
         };
         
         Ok(Model {
+            classes: Vec::new(),
             attributes: std::collections::HashMap::new(),
             operational_analysis: Vec::new(),
             system_analysis,

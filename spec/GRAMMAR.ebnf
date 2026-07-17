@@ -9,10 +9,10 @@
    Conventions:
      - The parser is STRICT: any construct not derivable from this grammar is
        a compile error with a source location. Nothing is silently skipped.
-     - `scenario`, `scenarios`, `dataflow`, `data_flows`, `validation` and
-       `traceability` blocks are accepted syntactically but NOT yet
-       represented in the compiled model; the compiler emits a warning for
-       each occurrence (see "Unmodeled blocks" below).
+     - `dataflow`, `data_flows`, `validation` and `traceability` blocks are
+       accepted syntactically but NOT yet represented in the compiled model;
+       the compiler emits a warning for each occurrence (see "Unmodeled
+       blocks" below). Everything else in this grammar is fully modeled.
 
    =========================================================================== *)
 
@@ -203,6 +203,33 @@ AttributeValue  ::= String
                   | DottedName                  (* bare identifier / reference *)
                   | "[" ( AttributeValue ( "," AttributeValue )* )? "]"
                   | AttributeBlock ;            (* nested map *)
+
+(* ---- Data Model (Arcadia: Class, DataType, Enumeration, Exchange Item) -------------------- *)
+
+ClassDecl        ::= "class" Name AttributeBlock ;
+                     (* every non-reserved attribute is a field: name -> type *)
+EnumerationDecl  ::= "enumeration" Name AttributeBlock ;       (* values: [ Name* ] *)
+DataTypeDecl     ::= "data_type" Name AttributeBlock ;         (* base:, unit: *)
+ExchangeItemDecl ::= "exchange_item" Name AttributeBlock ;
+                     (* mechanism: EVENT|FLOW|OPERATION|DATA|SHARED_DATA (ERROR otherwise);
+                        elements: [ <class/datatype ref>* ] — dangling refs are ERRORS.
+                        When exchange items are declared, exchanges referencing
+                        unknown items produce warnings. *)
+
+(* ---- Physical paths ------------------------------------------------------------------------ *)
+
+PhysicalPathDecl ::= "physical_path" Name AttributeBlock ;
+                     (* involves: [ <named link>+ ] REQUIRED, ordered; links are
+                        referenced by name; dangling refs are ERRORS. Methodology
+                        lint: component exchanges crossing nodes must be
+                        transported by a physical link or exchange. *)
+
+(* ---- Operational processes & communication means ------------------------------------------- *)
+
+OperationalProcessDecl ::= "operational_process" Name AttributeBlock ;
+                           (* involves: [ <activity/interaction ref>+ ] REQUIRED *)
+CommunicationMeansDecl ::= "communication_means" Name AttributeBlock ;
+                           (* from:, to: REQUIRED (operational entities) *)
 
 (* ---- Modes & States (Arcadia transverse) -------------------------------------------------- *)
 

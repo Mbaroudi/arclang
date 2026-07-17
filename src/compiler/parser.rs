@@ -93,6 +93,18 @@ impl Parser {
                 Token::StateMachineKw => {
                     model.state_machines.push(self.parse_state_machine()?);
                 }
+                Token::Class => {
+                    model.classes.push(self.parse_class()?);
+                }
+                Token::Enumeration => {
+                    model.data_types.push(self.parse_data_type(true)?);
+                }
+                Token::DataType if !self.peek_is_colon() => {
+                    model.data_types.push(self.parse_data_type(false)?);
+                }
+                Token::ExchangeItemKw if !self.peek_is_colon() => {
+                    model.exchange_items.push(self.parse_exchange_item()?);
+                }
                 Token::Dataflow => {
                     self.warn_unmodeled_block("top level")?;
                 }
@@ -199,6 +211,18 @@ impl Parser {
                 Token::StateMachineKw => {
                     model.state_machines.push(self.parse_state_machine()?);
                 }
+                Token::Class => {
+                    model.classes.push(self.parse_class()?);
+                }
+                Token::Enumeration => {
+                    model.data_types.push(self.parse_data_type(true)?);
+                }
+                Token::DataType if !self.peek_is_colon() => {
+                    model.data_types.push(self.parse_data_type(false)?);
+                }
+                Token::ExchangeItemKw if !self.peek_is_colon() => {
+                    model.exchange_items.push(self.parse_exchange_item()?);
+                }
                 Token::Dataflow | Token::DataFlows => {
                     self.warn_unmodeled_block("model block")?;
                 }
@@ -261,6 +285,18 @@ impl Parser {
                 }
                 Token::StateMachineKw => {
                     model.state_machines.push(self.parse_state_machine()?);
+                }
+                Token::Class => {
+                    model.classes.push(self.parse_class()?);
+                }
+                Token::Enumeration => {
+                    model.data_types.push(self.parse_data_type(true)?);
+                }
+                Token::DataType if !self.peek_is_colon() => {
+                    model.data_types.push(self.parse_data_type(false)?);
+                }
+                Token::ExchangeItemKw if !self.peek_is_colon() => {
+                    model.exchange_items.push(self.parse_exchange_item()?);
                 }
                 Token::Dataflow | Token::DataFlows => {
                     self.warn_unmodeled_block("top level")?;
@@ -383,6 +419,18 @@ impl Parser {
                 Token::StateMachineKw => {
                     model.state_machines.push(self.parse_state_machine()?);
                 }
+                Token::Class => {
+                    model.classes.push(self.parse_class()?);
+                }
+                Token::Enumeration => {
+                    model.data_types.push(self.parse_data_type(true)?);
+                }
+                Token::DataType if !self.peek_is_colon() => {
+                    model.data_types.push(self.parse_data_type(false)?);
+                }
+                Token::ExchangeItemKw if !self.peek_is_colon() => {
+                    model.exchange_items.push(self.parse_exchange_item()?);
+                }
                 Token::DataFlows | Token::Dataflow | Token::ValidationKeyword => {
                     self.warn_unmodeled_block("top level")?;
                 }
@@ -411,6 +459,8 @@ impl Parser {
         let mut activities = Vec::new();
         let mut exchanges = Vec::new();
         let mut traces = Vec::new();
+        let mut processes = Vec::new();
+        let mut communication_means = Vec::new();
 
         while !self.check(&Token::RightBrace) && !self.is_at_end() {
             match self.current() {
@@ -432,6 +482,41 @@ impl Parser {
                 Token::Trace => {
                     // Parse traces and collect them
                     traces.push(self.parse_trace()?);
+                }
+                Token::OperationalProcess => {
+                    self.advance();
+                    let process_name = self.expect_name()?;
+                    let attributes = self.parse_attributes_block()?;
+                    let id = attributes
+                        .get("id")
+                        .and_then(|v| v.as_string())
+                        .map(|s| s.to_string())
+                        .unwrap_or_else(|| process_name.clone());
+                    let involves = Self::string_list(&attributes, "involves");
+                    if involves.is_empty() {
+                        return Err(self.err(format!(
+                            "operational_process '{}' must involve at least one activity (involves: [...])",
+                            process_name
+                        )));
+                    }
+                    processes.push(FunctionalChain { id, name: process_name, involves, attributes });
+                }
+                Token::CommunicationMeans => {
+                    self.advance();
+                    let cm_name = self.expect_name()?;
+                    let attributes = self.parse_attributes_block()?;
+                    let from = attributes.get("from").and_then(|v| v.as_string()).map(|s| s.to_string())
+                        .ok_or_else(|| self.err(format!("communication_means '{}' is missing 'from'", cm_name)))?;
+                    let to = attributes.get("to").and_then(|v| v.as_string()).map(|s| s.to_string())
+                        .ok_or_else(|| self.err(format!("communication_means '{}' is missing 'to'", cm_name)))?;
+                    communication_means.push(OperationalExchange {
+                        from,
+                        to,
+                        data_type: "CommunicationMeans".to_string(),
+                        label: Some(cm_name),
+                        protocol: attributes.get("protocol").and_then(|v| v.as_string()).map(|s| s.to_string()),
+                        attributes,
+                    });
                 }
                 _ if self.peek_is_colon() => {
                     let (key, value) = self.parse_attribute()?;
@@ -456,6 +541,8 @@ impl Parser {
         
         Ok(OperationalAnalysis {
             name,
+            processes,
+            communication_means,
             actors,
             entities,
             capabilities,
@@ -1033,6 +1120,111 @@ impl Parser {
             fragments: Vec::new(),
             timing_constraints: Vec::new(),
         })
+    }
+
+    /// Parse: class Name { field speed: "float" ... } — Arcadia Class (Data).
+    fn parse_class(&mut self) -> Result<ClassDef, String> {
+        self.expect(Token::Class)?;
+        let name = self.expect_name()?;
+        let attributes = self.parse_attributes_block()?;
+        let id = attributes
+            .get("id")
+            .and_then(|v| v.as_string())
+            .map(|s| s.to_string())
+            .unwrap_or_else(|| name.clone());
+        // Every non-reserved attribute is a field: name -> type.
+        let fields = attributes
+            .iter()
+            .filter(|(k, _)| k.as_str() != "id" && k.as_str() != "description")
+            .filter_map(|(k, v)| {
+                v.as_string().map(|t| DataAttribute {
+                    name: k.clone(),
+                    attr_type: t.to_string(),
+                    default_value: None,
+                    enumeration: None,
+                })
+            })
+            .collect();
+        Ok(ClassDef { id, name, fields, attributes })
+    }
+
+    /// Parse: enumeration Name { values: ["A", "B"] } or data_type Name { base: "float" unit: "m/s" }.
+    fn parse_data_type(&mut self, is_enumeration: bool) -> Result<DataType, String> {
+        self.advance(); // Skip 'enumeration' or 'data_type'
+        let name = self.expect_name()?;
+        let attributes = self.parse_attributes_block()?;
+        let id = attributes
+            .get("id")
+            .and_then(|v| v.as_string())
+            .map(|s| s.to_string())
+            .unwrap_or_else(|| name.clone());
+        let enumeration_values = if is_enumeration {
+            Some(
+                Self::string_list(&attributes, "values")
+                    .into_iter()
+                    .map(|v| EnumValue { name: v, value: None })
+                    .collect(),
+            )
+        } else {
+            None
+        };
+        Ok(DataType {
+            id,
+            name,
+            base_type: attributes.get("base").and_then(|v| v.as_string()).map(|s| s.to_string()),
+            enumeration_values,
+        })
+    }
+
+    /// Parse: exchange_item Name { mechanism: FLOW elements: ["RadarFrame"] }.
+    fn parse_exchange_item(&mut self) -> Result<ExchangeItem, String> {
+        self.expect(Token::ExchangeItemKw)?;
+        let name = self.expect_name()?;
+        let attributes = self.parse_attributes_block()?;
+        let id = attributes
+            .get("id")
+            .and_then(|v| v.as_string())
+            .map(|s| s.to_string())
+            .unwrap_or_else(|| name.clone());
+        let mechanism = attributes
+            .get("mechanism")
+            .and_then(|v| v.as_string())
+            .unwrap_or("DATA")
+            .to_uppercase();
+        const MECHANISMS: [&str; 5] = ["EVENT", "FLOW", "OPERATION", "DATA", "SHARED_DATA"];
+        if !MECHANISMS.contains(&mechanism.as_str()) {
+            return Err(self.err(format!(
+                "exchange_item '{}': mechanism '{}' is not one of EVENT|FLOW|OPERATION|DATA|SHARED_DATA (Arcadia)",
+                name, mechanism
+            )));
+        }
+        Ok(ExchangeItem {
+            id,
+            name,
+            stereotype: mechanism,
+            attributes: Vec::new(),
+            elements: Self::string_list(&attributes, "elements"),
+        })
+    }
+
+    /// Parse: physical_path Name { involves: ["Link1", "Link2"] }.
+    fn parse_physical_path(&mut self) -> Result<PhysicalPath, String> {
+        self.expect(Token::PhysicalPathKw)?;
+        let name = self.expect_name()?;
+        let attributes = self.parse_attributes_block()?;
+        let id = attributes
+            .get("id")
+            .and_then(|v| v.as_string())
+            .map(|s| s.to_string())
+            .unwrap_or_else(|| name.clone());
+        let involves = Self::string_list(&attributes, "involves");
+        if involves.is_empty() {
+            return Err(self.err(format!(
+                "physical_path '{}' must involve at least one physical link (involves: [...])",
+                name
+            )));
+        }
+        Ok(PhysicalPath { id, name, involves, attributes })
     }
 
     fn string_list(attributes: &HashMap<String, AttributeValue>, key: &str) -> Vec<String> {
@@ -1680,6 +1872,7 @@ impl Parser {
         let mut nodes = Vec::new();
         let mut links = Vec::new();
         let mut physical_exchanges = Vec::new();
+        let mut paths = Vec::new();
 
         while !self.check(&Token::RightBrace) && !self.is_at_end() {
             match self.current() {
@@ -1697,6 +1890,9 @@ impl Parser {
                 }
                 Token::Identifier(ref id) if id == "physical_exchange" => {
                     physical_exchanges.push(self.parse_physical_exchange()?);
+                }
+                Token::PhysicalPathKw => {
+                    paths.push(self.parse_physical_path()?);
                 }
                 Token::Identifier(ref id) if id == "deployment" => {
                     // deployment "Component" -> "NodeId" [{ ... }]
@@ -1745,6 +1941,7 @@ impl Parser {
             nodes,
             links,
             physical_exchanges,
+            paths,
         })
     }
 
@@ -1873,6 +2070,7 @@ impl Parser {
 
         if let Some((from, to)) = arrow_endpoints {
             return Ok(PhysicalLink {
+                name: name.clone(),
                 from: from.clone(),
                 to: to.clone(),
                 protocol: attributes
@@ -1922,6 +2120,7 @@ impl Parser {
         };
         
         Ok(PhysicalLink {
+            name,
             from,
             to,
             protocol: attributes.get("protocol").and_then(|v| v.as_string()).unwrap_or("Unknown").to_string(),
@@ -2023,6 +2222,7 @@ impl Parser {
         self.expect(Token::RightBrace)?;
         
         Ok(PhysicalLink {
+            name,
             from: from_node,
             to: to_node,
             protocol: attributes.get("protocol").and_then(|v| v.as_string()).unwrap_or("Unknown").to_string(),
