@@ -677,8 +677,40 @@
             table { display: block; overflow-x: auto; }
         }
 
+        /* ---- dossier facelift ---- */
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; }
+        .header h1 { letter-spacing: -0.02em; font-weight: 700; }
+        .section { border: 1px solid #e4e7ec; border-radius: 12px; box-shadow: 0 1px 3px rgba(16,24,40,.06); }
+        button { border-radius: 8px !important; font-weight: 600 !important; box-shadow: 0 1px 2px rgba(16,24,40,.1); transition: filter .15s, transform .15s; }
+        button:hover { filter: brightness(1.1); transform: translateY(-1px); }
+        .floating-toc { border-radius: 12px; border: 1px solid #e4e7ec; box-shadow: 0 4px 16px rgba(16,24,40,.1); }
+        #diagram-viewport { border-radius: 10px; transition: height .3s ease; }
+
+        #print-diagrams { display: none; }
         @media print {
             .floating-toc, .back-to-top, button { display: none !important; }
+            #diagram-viewport { display: none !important; }
+            html, body, .container { background: #fff !important; }
+            section, .section { page-break-inside: auto; }
+            #print-diagrams h3 { page-break-after: avoid; }
+            /* Strip the diagram section chrome so the overview starts right
+               under the header instead of wasting two near-empty pages. */
+            #diagram { border: 0 !important; box-shadow: none !important; padding: 0 !important; page-break-inside: auto !important; }
+            #diagram > h2 { display: none !important; }
+            #print-diagrams .print-page.overview img { max-height: 78vh; }
+            #print-diagrams { display: block; }
+            #print-diagrams .print-page { page-break-before: always; }
+            #print-diagrams .print-page:first-child { page-break-before: auto; }
+            #print-diagrams h3 {
+                font-family: Arial, sans-serif; color: #1a237e;
+                margin: 0 0 10px; font-size: 15px;
+                border-bottom: 2px solid #1a237e; padding-bottom: 6px;
+            }
+            #print-diagrams img { width: 100%; height: auto; }
+            #print-diagrams .print-page.overview img {
+                width: auto; max-width: 100%; max-height: 85vh;
+                display: block; margin: 0 auto;
+            }
             .header { position: static; box-shadow: none; }
             .container { margin: 0; padding: 0; max-width: none; }
             .section { box-shadow: none; border: 1px solid #ddd; page-break-inside: avoid; margin-bottom: 12px; }
@@ -763,9 +795,10 @@
                 <button onclick="toggleDiagramFullscreen()" style="padding: 8px 16px; background: #37474f; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 13px;">⛶ Fullscreen</button>
                 <button onclick="exportDiagramPDF()" style="padding: 8px 16px; background: #6a1b9a; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 13px;">🖨️ Export PDF</button>
             </div>
-            <div style="width: 100%; height: 700px; border: 1px solid #e0e0e0; border-radius: 8px; background: white; overflow: hidden;">
+            <div id="diagram-viewport" style="width: 100%; height: 700px; border: 1px solid #e0e0e0; border-radius: 8px; background: white; overflow: hidden;">
                 <svg id="arch-diagram" width="100%" height="100%" style="background: white;"></svg>
             </div>
+            <div id="print-diagrams" aria-hidden="true"></div>
         </section>
         
         <section id="requirements" class="section">
@@ -1337,14 +1370,17 @@
             const graphWidth = g.graph().width || 1000;
             const graphHeight = g.graph().height || 800;
             const svgWidth = svg.node().getBoundingClientRect().width;
-            const svgHeight = svg.node().getBoundingClientRect().height;
-            
-            const scaleX = svgWidth / (graphWidth + 100);
-            const scaleY = svgHeight / (graphHeight + 100);
-            const initialScale = Math.min(scaleX, scaleY, 0.85);
-            
+            // Fit to WIDTH and grow the viewport (up to the window) so a
+            // tall diagram stays readable instead of shrinking into a stamp.
+            const initialScale = Math.min(svgWidth / (graphWidth + 80), 0.9);
+            const viewport = document.getElementById('diagram-viewport');
+            if (viewport) {
+                const wanted = graphHeight * initialScale + 70;
+                const ceiling = Math.max(700, window.innerHeight * 0.85);
+                viewport.style.height = Math.min(wanted, ceiling) + 'px';
+            }
             const xCenterOffset = (svgWidth - graphWidth * initialScale) / 2;
-            const yCenterOffset = 50;
+            const yCenterOffset = 24;
             
             const zoom = d3.zoom()
                 .scaleExtent([0.1, 3])
@@ -2571,14 +2607,17 @@
          */
         function setupZoomAndPan(svg, svgGroup, graphWidth, graphHeight) {
             const svgWidth = svg.node().getBoundingClientRect().width;
-            const svgHeight = svg.node().getBoundingClientRect().height;
-
-            const scaleX = svgWidth / (graphWidth + 100);
-            const scaleY = svgHeight / (graphHeight + 100);
-            const initialScale = Math.min(scaleX, scaleY, 0.85);
-
+            // Fit to WIDTH and grow the viewport (up to the window) so a
+            // tall diagram stays readable instead of shrinking into a stamp.
+            const initialScale = Math.min(svgWidth / (graphWidth + 80), 0.9);
+            const viewport = document.getElementById('diagram-viewport');
+            if (viewport) {
+                const wanted = graphHeight * initialScale + 70;
+                const ceiling = Math.max(700, window.innerHeight * 0.85);
+                viewport.style.height = Math.min(wanted, ceiling) + 'px';
+            }
             const xCenterOffset = (svgWidth - graphWidth * initialScale) / 2;
-            const yCenterOffset = 50;
+            const yCenterOffset = 24;
 
             const zoom = d3.zoom()
                 .scaleExtent([0.1, 3])
@@ -2657,10 +2696,77 @@
             }
         }
         
+        function svgToDataUrl(svgString) {
+            return 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svgString);
+        }
+
+        // Build print-only pages: a fit-to-page overview, then each Arcadia
+        // layer at full width — the interactive viewport prints truncated,
+        // these pages are what makes the PDF an exploitable dossier.
+        function buildPrintPages() {
+            const host = document.getElementById('print-diagrams');
+            if (!host) return;
+            host.innerHTML = '';
+            const svgNode = window.diagramSvg && window.diagramSvg.node();
+            if (!svgNode) return;
+
+            const styleBlock = '<style>text{font-family:Arial,sans-serif;}' +
+                '.edgePath path{stroke:#607d8b;stroke-width:2px;fill:none;}' +
+                '.arrowhead{fill:#607d8b;}.cluster rect{stroke:#37474f;stroke-width:2px;}</style>';
+            const defsNode = svgNode.querySelector('defs');
+            const defsHtml = defsNode ? new XMLSerializer().serializeToString(defsNode) : '';
+            const serializer = new XMLSerializer();
+
+            // Overview page: whole diagram, fit to one page
+            try {
+                const full = buildExportableSvg();
+                if (full) {
+                    const page = document.createElement('div');
+                    page.className = 'print-page overview';
+                    page.innerHTML = '<h3>Architecture — overview</h3>';
+                    const img = document.createElement('img');
+                    img.src = svgToDataUrl(full);
+                    page.appendChild(img);
+                    host.appendChild(page);
+                }
+            } catch (e) { console.warn('print overview failed:', e); }
+
+            // One page per layer, full width (readable)
+            svgNode.querySelectorAll('g.layer').forEach((layer) => {
+                try {
+                    const bbox = layer.getBBox();
+                    if (bbox.width < 1 || bbox.height < 1) return;
+                    const clone = layer.cloneNode(true);
+                    clone.removeAttribute('transform');
+                    const pad = 15;
+                    const svgString = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="' +
+                        (bbox.x - pad) + ' ' + (bbox.y - pad) + ' ' +
+                        (bbox.width + pad * 2) + ' ' + (bbox.height + pad * 2) +
+                        '" width="' + (bbox.width + pad * 2) + '" height="' + (bbox.height + pad * 2) + '">' +
+                        styleBlock + defsHtml + serializer.serializeToString(clone) + '</svg>';
+                    const name = (layer.id || 'layer').replace(/^layer_/, '');
+                    const page = document.createElement('div');
+                    page.className = 'print-page';
+                    page.innerHTML = '<h3>' + name + ' layer — detail</h3>';
+                    const img = document.createElement('img');
+                    img.src = svgToDataUrl(svgString);
+                    page.appendChild(img);
+                    host.appendChild(page);
+                } catch (e) { console.warn('print layer failed:', e); }
+            });
+        }
+
+        window.addEventListener('beforeprint', buildPrintPages);
+        window.addEventListener('afterprint', () => {
+            const host = document.getElementById('print-diagrams');
+            if (host) host.innerHTML = '';
+        });
+
         function exportDiagramPDF() {
             // Reset the zoom first: printing captures the on-screen viewport,
             // a zoomed/panned diagram would come out truncated.
             try { resetDiagramZoom(); } catch (e) {}
+            try { buildPrintPages(); } catch (e) {}
             setTimeout(() => window.print(), 350);
         }
 
