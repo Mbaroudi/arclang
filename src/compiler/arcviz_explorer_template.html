@@ -689,6 +689,21 @@
         <div class="toc-item" onclick="scrollToSection('traceability')">
             <span>🔍</span> Traceability
         </div>
+        <div class="toc-item" id="toc-capabilities" onclick="scrollToSection('capabilities')" style="display:none">
+            <span>🎯</span> Capabilities
+        </div>
+        <div class="toc-item" id="toc-chains" onclick="scrollToSection('chains')" style="display:none">
+            <span>⛓️</span> Functional Chains
+        </div>
+        <div class="toc-item" id="toc-machines" onclick="scrollToSection('machines')" style="display:none">
+            <span>🔄</span> Modes &amp; States
+        </div>
+        <div class="toc-item" id="toc-scenarios" onclick="scrollToSection('scenarios')" style="display:none">
+            <span>🎬</span> Scenarios
+        </div>
+        <div class="toc-item" id="toc-datamodel" onclick="scrollToSection('datamodel')" style="display:none">
+            <span>📦</span> Data Model
+        </div>
     </div>
     
     <div class="container">
@@ -750,6 +765,31 @@
             </h2>
             <div id="traceability-container"></div>
         </section>
+
+        <section id="capabilities" class="section" style="display:none">
+            <h2 class="section-title"><span class="icon">🎯</span> Missions &amp; Capabilities</h2>
+            <div id="capabilities-container"></div>
+        </section>
+
+        <section id="chains" class="section" style="display:none">
+            <h2 class="section-title"><span class="icon">⛓️</span> Functional Chains &amp; Operational Processes</h2>
+            <div id="chains-container"></div>
+        </section>
+
+        <section id="machines" class="section" style="display:none">
+            <h2 class="section-title"><span class="icon">🔄</span> Modes &amp; States</h2>
+            <div id="machines-container"></div>
+        </section>
+
+        <section id="scenarios" class="section" style="display:none">
+            <h2 class="section-title"><span class="icon">🎬</span> Scenarios</h2>
+            <div id="scenarios-container"></div>
+        </section>
+
+        <section id="datamodel" class="section" style="display:none">
+            <h2 class="section-title"><span class="icon">📦</span> Data Model</h2>
+            <div id="datamodel-container"></div>
+        </section>
     </div>
     
     <div class="back-to-top" id="back-to-top" onclick="scrollToTop()">
@@ -781,10 +821,133 @@
             loadFunctions();
             loadDiagram();
             loadTraceability();
+            loadArcadiaSections();
             initScrollEffects();
             console.log('✓ Architecture explorer loaded successfully');
         }
         
+
+        // ---- Arcadia P1-P3 sections (hidden when the model has none) ------
+        function showSection(sectionId, tocId) {
+            document.getElementById(sectionId).style.display = '';
+            document.getElementById(tocId).style.display = '';
+        }
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text == null ? '' : String(text);
+            return div.innerHTML;
+        }
+        function chips(items) {
+            return (items || []).map(i =>
+                `<span style="display:inline-block;background:#e3f2fd;border:1px solid #90caf9;border-radius:12px;padding:2px 10px;margin:2px;font-size:0.85em">${escapeHtml(i)}</span>`
+            ).join('');
+        }
+
+        function loadArcadiaSections() {
+            const caps = archData.capabilities || [];
+            const missions = archData.missions || [];
+            if (caps.length || missions.length) {
+                showSection('capabilities', 'toc-capabilities');
+                let html = '';
+                if (missions.length) {
+                    html += '<h3 style="margin:10px 0">Missions</h3>' + missions.map(m =>
+                        `<div style="padding:8px 12px;border-left:4px solid #7e57c2;background:#f7f5fb;margin:6px 0;border-radius:4px"><b>${escapeHtml(m.name)}</b> <code style="color:#888">${escapeHtml(m.id)}</code></div>`
+                    ).join('');
+                }
+                if (caps.length) {
+                    html += '<h3 style="margin:14px 0 10px">Capabilities</h3>' + caps.map(c => `
+                        <div style="padding:10px 14px;border:1px solid #d0d7de;border-radius:8px;margin:8px 0;background:#fff">
+                            <div><b>${escapeHtml(c.name)}</b>
+                                 <span style="background:${c.kind === 'Realization' ? '#fff3e0' : '#e8f5e9'};border-radius:10px;padding:1px 8px;font-size:0.8em;margin-left:6px">${escapeHtml(c.kind)}</span>
+                                 <code style="color:#888;margin-left:6px">${escapeHtml(c.id)}</code></div>
+                            ${c.mission ? `<div style="margin-top:4px;font-size:0.9em">fulfills mission: <b>${escapeHtml(c.mission)}</b></div>` : ''}
+                            ${c.realizes ? `<div style="margin-top:2px;font-size:0.9em">realizes: <b>${escapeHtml(c.realizes)}</b></div>` : ''}
+                            ${(c.involves || []).length ? `<div style="margin-top:6px">involves: ${chips(c.involves)}</div>` : ''}
+                        </div>`).join('');
+                }
+                document.getElementById('capabilities-container').innerHTML = html;
+            }
+
+            const chains = archData.functional_chains || [];
+            if (chains.length) {
+                showSection('chains', 'toc-chains');
+                document.getElementById('chains-container').innerHTML = chains.map(chain => `
+                    <div style="padding:10px 14px;border:1px solid #d0d7de;border-radius:8px;margin:8px 0;background:#fff">
+                        <div><b>${escapeHtml(chain.name)}</b>
+                             <span style="background:#e0f2f1;border-radius:10px;padding:1px 8px;font-size:0.8em;margin-left:6px">${escapeHtml(chain.kind)}</span>
+                             <code style="color:#888;margin-left:6px">${escapeHtml(chain.id)}</code></div>
+                        <div style="margin-top:8px;display:flex;align-items:center;flex-wrap:wrap;gap:2px">
+                            ${(chain.involves || []).map((step, i) =>
+                                (i ? '<span style="color:#90a4ae;margin:0 4px">→</span>' : '') +
+                                `<span style="background:#e3f2fd;border:1px solid #90caf9;border-radius:12px;padding:2px 10px;font-size:0.85em">${escapeHtml(step)}</span>`
+                            ).join('')}
+                        </div>
+                    </div>`).join('');
+            }
+
+            const machines = archData.state_machines || [];
+            if (machines.length) {
+                showSection('machines', 'toc-machines');
+                document.getElementById('machines-container').innerHTML = machines.map(machine => `
+                    <div style="padding:10px 14px;border:1px solid #d0d7de;border-radius:8px;margin:8px 0;background:#fff">
+                        <div><b>${escapeHtml(machine.name)}</b>${machine.initial ? ` <span style="font-size:0.85em;color:#666">initial: <b>${escapeHtml(machine.initial)}</b></span>` : ''}</div>
+                        <div style="margin-top:6px">${(machine.states || []).map(s =>
+                            `<span style="display:inline-block;border-radius:12px;padding:2px 10px;margin:2px;font-size:0.85em;border:1px solid ${s.kind === 'mode' ? '#81c784' : '#ffb74d'};background:${s.kind === 'mode' ? '#e8f5e9' : '#fff3e0'}">${escapeHtml(s.name)} <i style="color:#888">${escapeHtml(s.kind)}</i></span>`
+                        ).join('')}</div>
+                        ${(machine.transitions || []).length ? `<div style="margin-top:8px;font-size:0.9em">${machine.transitions.map(t =>
+                            `<div style="padding:2px 0">${escapeHtml(t.from)} <span style="color:#90a4ae">→</span> ${escapeHtml(t.to)}${t.trigger ? ` <span style="color:#666">on <b>${escapeHtml(t.trigger)}</b></span>` : ''}${t.guard ? ` <span style="color:#ad1457">[${escapeHtml(t.guard)}]</span>` : ''}</div>`
+                        ).join('')}</div>` : ''}
+                    </div>`).join('');
+            }
+
+            const scenarios = archData.scenario_details || [];
+            if (scenarios.length) {
+                showSection('scenarios', 'toc-scenarios');
+                document.getElementById('scenarios-container').innerHTML = scenarios.map(sc => `
+                    <div style="padding:10px 14px;border:1px solid #d0d7de;border-radius:8px;margin:8px 0;background:#fff">
+                        <div><b>${escapeHtml(sc.name)}</b></div>
+                        <div style="margin-top:6px;font-size:0.9em">participants: ${chips(sc.participants)}</div>
+                        ${(sc.messages || []).length ? `<ol style="margin:8px 0 0 20px;font-size:0.9em">${sc.messages.map(m =>
+                            `<li>${escapeHtml(m.from)} <span style="color:#90a4ae">→</span> ${escapeHtml(m.to)}${m.label ? `: <i>${escapeHtml(m.label)}</i>` : ''}</li>`
+                        ).join('')}</ol>` : ''}
+                    </div>`).join('');
+            }
+
+            const dm = archData.data_model || {};
+            const dmCount = (dm.classes || []).length + (dm.enumerations || []).length
+                + (dm.data_types || []).length + (dm.exchange_items || []).length;
+            if (dmCount) {
+                showSection('datamodel', 'toc-datamodel');
+                let html = '';
+                if ((dm.exchange_items || []).length) {
+                    html += '<h3 style="margin:10px 0">Exchange Items</h3>' + dm.exchange_items.map(item => `
+                        <div style="display:inline-block;border:1px solid #d0d7de;border-radius:8px;padding:6px 12px;margin:4px;background:#fff">
+                            <b>${escapeHtml(item.name)}</b>
+                            <span style="background:#ede7f6;border-radius:10px;padding:1px 8px;font-size:0.75em;margin-left:6px">${escapeHtml(item.mechanism)}</span>
+                            ${(item.elements || []).length ? `<span style="font-size:0.85em;color:#666;margin-left:6px">{ ${item.elements.map(escapeHtml).join(', ')} }</span>` : ''}
+                        </div>`).join('');
+                }
+                if ((dm.classes || []).length) {
+                    html += '<h3 style="margin:14px 0 6px">Classes</h3>' + dm.classes.map(c => `
+                        <div style="display:inline-block;vertical-align:top;border:1px solid #90caf9;border-radius:6px;margin:4px;background:#fff;min-width:140px">
+                            <div style="background:#e3f2fd;padding:4px 10px;font-weight:600;border-bottom:1px solid #90caf9">${escapeHtml(c.name)}</div>
+                            <div style="padding:4px 10px;font-size:0.85em;font-family:monospace">${(c.fields || []).map(escapeHtml).join('<br>') || '<i style="color:#aaa">no fields</i>'}</div>
+                        </div>`).join('');
+                }
+                if ((dm.enumerations || []).length) {
+                    html += '<h3 style="margin:14px 0 6px">Enumerations</h3>' + dm.enumerations.map(e =>
+                        `<div style="display:inline-block;border:1px solid #a5d6a7;border-radius:6px;margin:4px;padding:6px 12px;background:#fff"><b>${escapeHtml(e.name)}</b> = ${(e.values || []).map(escapeHtml).join(' | ')}</div>`
+                    ).join('');
+                }
+                if ((dm.data_types || []).length) {
+                    html += '<h3 style="margin:14px 0 6px">Data Types</h3>' + dm.data_types.map(t =>
+                        `<div style="display:inline-block;border:1px solid #d0d7de;border-radius:6px;margin:4px;padding:6px 12px;background:#fff"><b>${escapeHtml(t.name)}</b>${t.base ? ` : ${escapeHtml(t.base)}` : ''}</div>`
+                    ).join('');
+                }
+                document.getElementById('datamodel-container').innerHTML = html;
+            }
+        }
+
         function loadStats() {
             document.getElementById('doc-title').textContent = '🏗️ ' + archData.metadata.title;
             document.getElementById('doc-description').textContent = archData.metadata.description;
@@ -2414,10 +2577,11 @@
                 const traceDiv = document.createElement('div');
                 traceDiv.className = 'trace-item';
                 traceDiv.innerHTML = `
-                    <span class="trace-from">${trace.from}</span>
+                    <span class="trace-from" title="${escapeHtml(trace.from)}">${escapeHtml(trace.from_name || trace.from)}</span>
                     <span class="trace-arrow">→</span>
-                    <span class="trace-to">${trace.to}</span>
-                    <span class="trace-type">${trace.trace_type}</span>
+                    <span class="trace-to" title="${escapeHtml(trace.to)}">${escapeHtml(trace.to_name || trace.to)}</span>
+                    <span class="trace-type">${escapeHtml(trace.trace_type)}</span>
+                    ${trace.rationale ? `<div style="font-size:0.85em;color:#777;margin-top:2px">${escapeHtml(trace.rationale)}</div>` : ''}
                 `;
                 container.appendChild(traceDiv);
             });

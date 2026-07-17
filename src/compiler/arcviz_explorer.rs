@@ -11,6 +11,7 @@
 //! - Export as self-contained HTML
 //! - No external dependencies needed
 
+use super::ast::{Model, StateKind};
 use super::semantic::SemanticModel;
 use super::CompilerError;
 use super::graph_model::{DagreGraph, GraphNode, GraphEdge, LayerInfo};
@@ -25,7 +26,112 @@ pub struct ArchitectureDocument {
     pub interfaces: Vec<InterfaceDetail>,
     pub functions: Vec<FunctionDetail>,
     pub traces: Vec<TraceDetail>,
+    #[serde(default)]
+    pub missions: Vec<MissionDetail>,
+    #[serde(default)]
+    pub capabilities: Vec<CapabilityDetail>,
+    #[serde(default)]
+    pub functional_chains: Vec<ChainDetail>,
+    #[serde(default)]
+    pub state_machines: Vec<StateMachineDetail>,
+    #[serde(default)]
+    pub scenario_details: Vec<ScenarioDetail>,
+    #[serde(default)]
+    pub data_model: DataModelDetail,
     pub diagram: DiagramData,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct MissionDetail {
+    pub id: String,
+    pub name: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct CapabilityDetail {
+    pub id: String,
+    pub name: String,
+    pub kind: String,
+    pub mission: Option<String>,
+    pub realizes: Option<String>,
+    pub involves: Vec<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ChainDetail {
+    pub id: String,
+    pub name: String,
+    pub kind: String,
+    pub involves: Vec<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct StateMachineDetail {
+    pub name: String,
+    pub initial: String,
+    pub states: Vec<StateDetail>,
+    pub transitions: Vec<TransitionDetail>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct StateDetail {
+    pub name: String,
+    pub kind: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct TransitionDetail {
+    pub from: String,
+    pub to: String,
+    pub trigger: String,
+    pub guard: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ScenarioDetail {
+    pub name: String,
+    pub participants: Vec<String>,
+    pub messages: Vec<MessageDetail>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct MessageDetail {
+    pub from: String,
+    pub to: String,
+    pub label: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Default)]
+pub struct DataModelDetail {
+    pub classes: Vec<ClassDetail>,
+    pub enumerations: Vec<EnumDetail>,
+    pub data_types: Vec<TypeDetail>,
+    pub exchange_items: Vec<ExchangeItemDetail>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ClassDetail {
+    pub name: String,
+    pub fields: Vec<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct EnumDetail {
+    pub name: String,
+    pub values: Vec<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct TypeDetail {
+    pub name: String,
+    pub base: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ExchangeItemDetail {
+    pub name: String,
+    pub mechanism: String,
+    pub elements: Vec<String>,
 }
 
 /// Diagram data for D3.js visualization
@@ -106,12 +212,144 @@ pub struct FunctionDetail {
 pub struct TraceDetail {
     pub from: String,
     pub to: String,
+    /// Human-readable names resolved from the element registry.
+    #[serde(default)]
+    pub from_name: String,
+    #[serde(default)]
+    pub to_name: String,
     pub trace_type: String,
     pub rationale: Option<String>,
 }
 
 impl ArchitectureDocument {
-    pub fn from_model(model: &SemanticModel) -> Result<Self, CompilerError> {
+    pub fn from_model(model: &SemanticModel, ast: &Model) -> Result<Self, CompilerError> {
+        let display_name = |reference: &str| -> String {
+            model
+                .all_elements
+                .get(reference)
+                .map(|e| e.name.clone())
+                .unwrap_or_else(|| reference.to_string())
+        };
+
+        let missions = model
+            .missions
+            .iter()
+            .map(|m| MissionDetail { id: m.id.clone(), name: m.name.clone() })
+            .collect();
+        let capabilities = model
+            .capabilities
+            .iter()
+            .map(|c| CapabilityDetail {
+                id: c.id.clone(),
+                name: c.name.clone(),
+                kind: c.kind.clone(),
+                mission: c.mission.as_deref().map(display_name),
+                realizes: c.realizes.as_deref().map(display_name),
+                involves: c.involves.iter().map(|i| display_name(i)).collect(),
+            })
+            .collect();
+        let mut functional_chains: Vec<ChainDetail> = model
+            .functional_chains
+            .iter()
+            .map(|chain| ChainDetail {
+                id: chain.id.clone(),
+                name: chain.name.clone(),
+                kind: "Functional Chain".to_string(),
+                involves: chain.involves.iter().map(|i| display_name(i)).collect(),
+            })
+            .collect();
+        for oa in &ast.operational_analysis {
+            for process in &oa.processes {
+                functional_chains.push(ChainDetail {
+                    id: process.id.clone(),
+                    name: process.name.clone(),
+                    kind: "Operational Process".to_string(),
+                    involves: process.involves.iter().map(|i| display_name(i)).collect(),
+                });
+            }
+        }
+        let state_machines = ast
+            .state_machines
+            .iter()
+            .map(|machine| StateMachineDetail {
+                name: machine.name.clone(),
+                initial: machine.initial_state.clone(),
+                states: machine
+                    .states
+                    .iter()
+                    .map(|s| StateDetail {
+                        name: s.name.clone(),
+                        kind: if s.kind == StateKind::Mode { "mode" } else { "state" }.to_string(),
+                    })
+                    .collect(),
+                transitions: machine
+                    .transitions
+                    .iter()
+                    .map(|t| TransitionDetail {
+                        from: t.from.clone(),
+                        to: t.to.clone(),
+                        trigger: t.trigger.clone(),
+                        guard: t.guard.clone(),
+                    })
+                    .collect(),
+            })
+            .collect();
+        let scenario_details = ast
+            .scenarios
+            .iter()
+            .map(|scenario| ScenarioDetail {
+                name: scenario.name.clone(),
+                participants: scenario.participants.iter().map(|p| display_name(&p.id)).collect(),
+                messages: scenario
+                    .messages
+                    .iter()
+                    .map(|m| MessageDetail {
+                        from: display_name(&m.from),
+                        to: display_name(&m.to),
+                        label: m.label.clone(),
+                    })
+                    .collect(),
+            })
+            .collect();
+        let data_model = DataModelDetail {
+            classes: ast
+                .classes
+                .iter()
+                .map(|c| ClassDetail {
+                    name: c.name.clone(),
+                    fields: c.fields.iter().map(|f| format!("{}: {}", f.name, f.attr_type)).collect(),
+                })
+                .collect(),
+            enumerations: ast
+                .data_types
+                .iter()
+                .filter(|d| d.enumeration_values.is_some())
+                .map(|d| EnumDetail {
+                    name: d.name.clone(),
+                    values: d
+                        .enumeration_values
+                        .as_ref()
+                        .map(|vs| vs.iter().map(|v| v.name.clone()).collect())
+                        .unwrap_or_default(),
+                })
+                .collect(),
+            data_types: ast
+                .data_types
+                .iter()
+                .filter(|d| d.enumeration_values.is_none())
+                .map(|d| TypeDetail { name: d.name.clone(), base: d.base_type.clone() })
+                .collect(),
+            exchange_items: ast
+                .exchange_items
+                .iter()
+                .map(|item| ExchangeItemDetail {
+                    name: item.name.clone(),
+                    mechanism: item.stereotype.clone(),
+                    elements: item.elements.iter().map(|e| display_name(e)).collect(),
+                })
+                .collect(),
+        };
+
         // The title is the model's declared name — never guessed from content.
         let title = model
             .name
@@ -250,6 +488,8 @@ impl ArchitectureDocument {
         // Extract trace details
         let traces: Vec<TraceDetail> = model.traces.iter()
             .map(|trace| TraceDetail {
+                from_name: display_name(&trace.from),
+                to_name: display_name(&trace.to),
                 from: trace.from.clone(),
                 to: trace.to.clone(),
                 trace_type: trace.trace_type.clone(),
@@ -267,6 +507,12 @@ impl ArchitectureDocument {
         
         Ok(ArchitectureDocument {
             metadata,
+            missions,
+            capabilities,
+            functional_chains,
+            state_machines,
+            scenario_details,
+            data_model,
             requirements,
             components,
             interfaces,
@@ -304,8 +550,8 @@ fn generate_html_template() -> String {
     include_str!("arcviz_explorer_template.html").to_string()
 }
 
-pub fn generate_explorer_html(model: &SemanticModel) -> Result<(String, String), CompilerError> {
-    let doc = ArchitectureDocument::from_model(model)?;
+pub fn generate_explorer_html(model: &SemanticModel, ast: &Model) -> Result<(String, String), CompilerError> {
+    let doc = ArchitectureDocument::from_model(model, ast)?;
     let json = serde_json::to_string_pretty(&doc)
         .map_err(|e| CompilerError::Semantic(format!("JSON error: {}", e)))?;
     

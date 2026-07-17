@@ -683,7 +683,7 @@ impl CliRunner {
                                 .file_stem()
                                 .map(|stem| stem.to_string_lossy().to_string());
                         }
-                        let (html, _json) = generate_explorer_html(&semantic_model)
+                        let (html, _json) = generate_explorer_html(&semantic_model, &result.ast)
                             .map_err(|e| CliError::Compilation(format!("HTML generation failed: {}", e)))?;
                         html
                     }
@@ -957,7 +957,7 @@ impl CliRunner {
                         .file_stem()
                         .map(|stem| stem.to_string_lossy().to_string());
                 }
-                let (html, json) = generate_explorer_html(&semantic_model)
+                let (html, json) = generate_explorer_html(&semantic_model, &result.ast)
                     .map_err(|e| CliError::Compilation(e.to_string()))?;
                 
                 let output_html = output.unwrap_or_else(|| {

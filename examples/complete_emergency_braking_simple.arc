@@ -26,6 +26,11 @@ model EmergencyBrakingSystem {
 // ===========================================================================
 
 operational_analysis "Emergency Braking - Operational View" {
+  operational_capability "Avoid Collisions" {
+    id: "OC-001"
+    description: "Ability to avoid collisions with obstacles and vulnerable road users"
+  }
+
   // External actors (people/systems interacting with the vehicle)
   actor "Driver" {
     id: "OA-ACT-001"
@@ -122,6 +127,27 @@ system_analysis SA_EmergencyBraking {
     description: "Vehicle platform"
   }
   
+  // Mission and capability: why the system exists (Arcadia SA)
+  mission SafeAutonomousBraking {
+    id: "MIS-001"
+    description: "Prevent collisions through autonomous emergency braking"
+  }
+
+  capability EmergencyBraking {
+    id: "CAP-001"
+    description: "Detect an imminent collision and brake autonomously"
+    mission: "MIS-001"
+    realizes: "OC-001"
+    involves: ["AcquireSensorData", "FuseData", "AssessThreat", "ComputeBrakingForce"]
+  }
+
+  // The dataflow path that exemplifies the capability (Arcadia Functional Chain)
+  functional_chain EmergencyBrakingChain {
+    id: "FC-001"
+    description: "Sensor acquisition to braking command"
+    involves: ["AcquireSensorData", "FuseData", "TrackObjects", "AssessThreat", "ComputeBrakingForce"]
+  }
+
   // System functions (what the system does)
   function AcquireSensorData {
     description: "Collect data from radar and camera"
@@ -744,3 +770,8 @@ exchange_item fused_data { id: "EI-004" mechanism: "FLOW" }
 exchange_item tracked_objects { id: "EI-005" mechanism: "FLOW" }
 exchange_item threat_level { id: "EI-006" mechanism: "EVENT" elements: ["EN-001"] }
 exchange_item vehicle_speed { id: "EI-007" mechanism: "FLOW" }
+
+// Vertical traceability: system functions realize operational activities
+trace "AcquireSensorData" realizes "OA-Mon" { rationale: "Sensor acquisition realizes environment monitoring" }
+trace "AssessThreat" realizes "OA-Det" { rationale: "Threat assessment realizes threat detection" }
+trace "ComputeBrakingForce" realizes "OA-App" { rationale: "Braking computation realizes brake application" }
