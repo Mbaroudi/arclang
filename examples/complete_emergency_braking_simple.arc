@@ -677,6 +677,17 @@ physical_architecture PA_EmergencyBraking {
     message_type: "VehicleSpeed"
     frequency: "100 Hz"
   }
+
+  // Deployment: which logical component runs on which ECU
+  deployment RadarSensor -> FrontRadarECU
+  deployment CameraSensor -> FrontCameraECU
+  deployment SensorFusion -> CentralADASECU
+  deployment ObjectTracker -> CentralADASECU
+  deployment ThreatAssessment -> CentralADASECU
+  deployment BrakeController -> CentralADASECU
+  deployment BrakeActuator -> BrakeECU
+  deployment DriverInterface -> InstrumentCluster
+  deployment VehicleCANGateway -> CANGatewayECU
 }
 
 // ===========================================================================

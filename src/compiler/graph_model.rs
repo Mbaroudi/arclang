@@ -23,6 +23,9 @@ pub struct GraphNode {
     pub interfaces_in: Vec<InterfacePort>,
     pub interfaces_out: Vec<InterfacePort>,
     pub functions: Vec<String>,
+    /// Logical components deployed on this (physical) node — deployment view.
+    #[serde(default)]
+    pub deployed: Vec<String>,
     pub width: u32,
     pub height: u32,
 }
@@ -134,6 +137,7 @@ impl DagreGraph {
                 interfaces_in,
                 interfaces_out,
                 functions,
+                deployed: Vec::new(),
                 width,
                 height,
             });

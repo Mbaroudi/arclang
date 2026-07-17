@@ -248,6 +248,18 @@ impl ArchitectureDocument {
                 involves: c.involves.iter().map(|i| display_name(i)).collect(),
             })
             .collect();
+        // System-function latencies: shown on chain steps so the timing
+        // budget of a chain is readable directly in the dossier.
+        let mut sf_latency: std::collections::HashMap<String, String> =
+            std::collections::HashMap::new();
+        for sa in &ast.system_analysis {
+            for func in &sa.functions {
+                if let Some(lat) = func.attributes.get("latency").and_then(|v| v.as_string()) {
+                    sf_latency.insert(func.id.clone(), lat.to_string());
+                    sf_latency.insert(func.name.clone(), lat.to_string());
+                }
+            }
+        }
         let mut functional_chains: Vec<ChainDetail> = model
             .functional_chains
             .iter()
@@ -255,7 +267,17 @@ impl ArchitectureDocument {
                 id: chain.id.clone(),
                 name: chain.name.clone(),
                 kind: "Functional Chain".to_string(),
-                involves: chain.involves.iter().map(|i| display_name(i)).collect(),
+                involves: chain
+                    .involves
+                    .iter()
+                    .map(|i| {
+                        let shown = display_name(i);
+                        match sf_latency.get(i).or_else(|| sf_latency.get(&shown)) {
+                            Some(lat) => format!("{shown} \u{2022} {lat}"),
+                            None => shown,
+                        }
+                    })
+                    .collect(),
             })
             .collect();
         for oa in &ast.operational_analysis {
@@ -497,10 +519,71 @@ impl ArchitectureDocument {
             })
             .collect();
         
-        // Generate diagram data
+        // Generate diagram data, then enrich nodes with AST-level detail the
+        // semantic model flattens away: function latencies and the logical
+        // components deployed on each physical node (deployment view).
+        let mut latency_of: std::collections::HashMap<(String, String), String> =
+            std::collections::HashMap::new();
+        fn walk_latencies(
+            comp: &crate::compiler::ast::LogicalComponent,
+            map: &mut std::collections::HashMap<(String, String), String>,
+        ) {
+            for f in &comp.functions {
+                if let Some(lat) = f.attributes.get("latency").and_then(|v| v.as_string()) {
+                    if !comp.id.is_empty() {
+                        map.insert((comp.id.clone(), f.name.clone()), lat.to_string());
+                    }
+                    map.insert((comp.name.clone(), f.name.clone()), lat.to_string());
+                }
+            }
+            for sub in &comp.sub_components {
+                walk_latencies(sub, map);
+            }
+        }
+        for la in &ast.logical_architecture {
+            for comp in &la.components {
+                walk_latencies(comp, &mut latency_of);
+            }
+        }
+        let mut deployed_on: std::collections::HashMap<String, Vec<String>> =
+            std::collections::HashMap::new();
+        for pa in &ast.physical_architecture {
+            for node in &pa.nodes {
+                for dep in &node.deployments {
+                    let shown = display_name(&dep.component);
+                    if !node.id.is_empty() {
+                        deployed_on.entry(node.id.clone()).or_default().push(shown.clone());
+                    }
+                    deployed_on.entry(node.name.clone()).or_default().push(shown);
+                }
+            }
+        }
+
         let dagre_graph = DagreGraph::from_model(model)?;
+        let mut diagram_nodes = dagre_graph.nodes;
+        for node in &mut diagram_nodes {
+            node.functions = node
+                .functions
+                .iter()
+                .map(|f| {
+                    latency_of
+                        .get(&(node.id.clone(), f.clone()))
+                        .or_else(|| latency_of.get(&(node.label.clone(), f.clone())))
+                        .map(|lat| format!("{f}  \u{2022} {lat}"))
+                        .unwrap_or_else(|| f.clone())
+                })
+                .collect();
+            if let Some(dep) = deployed_on
+                .get(&node.id)
+                .or_else(|| deployed_on.get(&node.label))
+            {
+                node.deployed = dep.clone();
+            }
+            let lines = (node.functions.len() + node.deployed.len()) as u32;
+            node.height = node.height.max(64 + 18 * lines + 14);
+        }
         let diagram = DiagramData {
-            nodes: dagre_graph.nodes,
+            nodes: diagram_nodes,
             edges: dagre_graph.edges,
             layers: dagre_graph.layers,
         };

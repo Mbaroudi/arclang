@@ -109,7 +109,7 @@
                 protocol: {
                     fontSize: 7,            // Protocol font size (px)
                     fontStyle: 'italic',    // Font style
-                    maxLength: 12,          // Max characters before truncate
+                    maxLength: 20,          // Max characters before truncate
                     color: '#546e7a'        // Text color
                 },
                 function: {
@@ -157,10 +157,10 @@
                 color: '#607d8b',           // Edge color
                 arrowhead: 'vee',           // Arrowhead style
                 labelBox: {
-                    width: 80,              // Exchange item label width (px)
+                    width: 110,             // Exchange item label width (px)
                     height: 24,             // Exchange item label height (px)
                     fontSize: 9,            // Label font size (px)
-                    maxLength: 12,          // Max characters
+                    maxLength: 20,          // Max characters
                     borderRadius: 4,        // Corner radius (px)
                     fill: 'white',          // Background color
                     stroke: '#b0bec5'       // Border color
@@ -1600,7 +1600,7 @@
                             .attr('fill', '#263238')
                             .attr('font-size', 9)
                             .attr('font-weight', 600)
-                            .text(truncate(port.name, 15));
+                            .text(truncate(port.name, 26));
                         
                         if (port.protocol) {
                             nodeElem.append('text')
@@ -1611,7 +1611,7 @@
                                 .attr('fill', '#546e7a')
                                 .attr('font-size', 7)
                                 .attr('font-style', 'italic')
-                                .text(`[${truncate(port.protocol, 12)}]`);
+                                .text(`[${truncate(port.protocol, 18)}]`);
                         }
                     });
                 }
@@ -1649,7 +1649,7 @@
                             .attr('fill', '#263238')
                             .attr('font-size', 9)
                             .attr('font-weight', 600)
-                            .text(truncate(port.name, 15));
+                            .text(truncate(port.name, 26));
                         
                         if (port.protocol) {
                             nodeElem.append('text')
@@ -1660,7 +1660,7 @@
                                 .attr('fill', '#546e7a')
                                 .attr('font-size', 7)
                                 .attr('font-style', 'italic')
-                                .text(`[${truncate(port.protocol, 12)}]`);
+                                .text(`[${truncate(port.protocol, 18)}]`);
                         }
                     });
                 }
@@ -1845,7 +1845,7 @@
                     .attr('fill', '#1976d2')
                     .attr('font-size', 9)
                     .attr('font-weight', 700)
-                    .text(truncate(interfaceData.label, 12));
+                    .text(truncate(interfaceData.label, 20));
             });
         }
         
@@ -2131,6 +2131,7 @@
                     originalNode: node,
                     safety_level: node.safety_level,
                     functions: node.functions || [],
+                    deployed: node.deployed || [],
                     interfaces_in: node.interfaces_in || [],
                     interfaces_out: node.interfaces_out || []
                 },
@@ -2428,31 +2429,33 @@
                     .text(props.safety_level.replace('ASIL_', ''));
             }
 
-            // Functions list
-            if (props.functions && props.functions.length > 0) {
+            // Body: allocated functions (with latencies), then the logical
+            // components deployed on this node (deployment view).
+            {
+                const bodyLines = [];
+                (props.functions || []).forEach((f) => bodyLines.push({ text: `+ ${f}`, fill: '#37474f', weight: 500 }));
+                (props.deployed || []).forEach((d) => bodyLines.push({ text: `\u25B8 ${d}`, fill: '#1565c0', weight: 600 }));
                 const funcY = headerHeight + 20;
-                const maxFuncs = Math.floor((node.height - headerHeight - 20) / 18);
-                const funcsToShow = props.functions.slice(0, maxFuncs);
-
-                funcsToShow.forEach((func, idx) => {
+                const maxChars = Math.max(20, Math.floor((node.width - 24) / 5.6));
+                const maxLines = Math.max(0, Math.floor((node.height - headerHeight - 16) / 18));
+                bodyLines.slice(0, maxLines).forEach((line, idx) => {
                     nodeGroup.append('text')
                         .attr('class', 'function-text')
                         .attr('x', 12)
                         .attr('y', funcY + idx * 18)
                         .style('font-size', '10px')
-                        .style('font-weight', '500')
-                        .style('fill', '#37474f')
-                        .text(`+ ${func.length > 25 ? func.substring(0, 25) + '...' : func}`);
+                        .style('font-weight', line.weight)
+                        .style('fill', line.fill)
+                        .text(line.text.length > maxChars ? line.text.substring(0, maxChars - 1) + '\u2026' : line.text);
                 });
-
-                if (props.functions.length > maxFuncs) {
+                if (bodyLines.length > maxLines && maxLines > 0) {
                     nodeGroup.append('text')
                         .attr('x', 12)
-                        .attr('y', funcY + maxFuncs * 18)
+                        .attr('y', funcY + maxLines * 18)
                         .style('font-size', '9px')
                         .style('font-style', 'italic')
                         .style('fill', '#999')
-                        .text(`...${props.functions.length - maxFuncs} more`);
+                        .text(`\u2026${bodyLines.length - maxLines} more`);
                 }
             }
 
