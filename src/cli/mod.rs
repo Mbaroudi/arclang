@@ -312,6 +312,7 @@ pub enum ExportFormat {
     SysML,
     Simulink,
     FMI,
+    ReqIF,
 }
 
 #[derive(Debug, clap::ValueEnum, Clone)]
@@ -323,6 +324,7 @@ pub enum ImportFormat {
     YAML,
     XML,
     DOORS,
+    ReqIF,
 }
 
 #[derive(Debug, clap::ValueEnum, Clone)]
@@ -726,6 +728,7 @@ impl CliRunner {
             ExportFormat::SysML => "json".to_string(),
             ExportFormat::Simulink => "json".to_string(),
             ExportFormat::FMI => "json".to_string(),
+            ExportFormat::ReqIF => "json".to_string(),
         };
         
         let mut compiler = crate::Compiler::new(config);
@@ -768,6 +771,10 @@ impl CliRunner {
                     ExportFormat::SysML => {
                         // SysML v2 textual notation (interoperability subset)
                         crate::compiler::sysmlv2_generator::generate_sysmlv2(&result.semantic_model)
+                    }
+                    ExportFormat::ReqIF => {
+                        // Requirements exchange with DOORS/Polarion/Jama
+                        crate::compiler::reqif::generate_reqif(&result.semantic_model, &result.ast)
                     }
                     ExportFormat::Simulink => {
                         // MATLAB script rebuilding the architecture in System Composer
@@ -882,6 +889,23 @@ impl CliRunner {
                 println!("  Output: {}", output.display());
                 println!("  Format: Mermaid -> ArcLang");
                 
+                Ok(())
+            }
+            ImportFormat::ReqIF => {
+                let content = std::fs::read_to_string(&input)
+                    .map_err(|e| CliError::Io(e))?;
+
+                let arc_code = crate::compiler::reqif::import_reqif(&content)
+                    .map_err(CliError::Compilation)?;
+
+                std::fs::write(&output, arc_code)
+                    .map_err(|e| CliError::Io(e))?;
+
+                println!("✓ Import successful");
+                println!("  Input: {}", input.display());
+                println!("  Output: {}", output.display());
+                println!("  Format: ReqIF -> ArcLang");
+
                 Ok(())
             }
             ImportFormat::PlantUML => {

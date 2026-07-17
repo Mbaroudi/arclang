@@ -63,6 +63,11 @@ the long-term goal.
 - **SysML v2 interop export**: `arclang export -f sys-ml` emits the OMG
   SysML v2 textual notation (packages, part defs/usages, action defs,
   requirement defs, connect, satisfy — subset documented in the generator).
+- **ReqIF exchange**: `arclang export -f req-if` emits OMG ReqIF 1.0 (the
+  DOORS/Polarion/Jama exchange format) with deterministic identifiers and
+  requirement-to-requirement relations; `arclang import -f req-if` reads
+  foreign ReqIF (DOORS-style attribute names, XHTML text) into an ArcLang
+  requirements block, preserving the foreign identity as `reqif_id`.
 - **Simulation bridges**: `arclang export -f simulink` emits a MATLAB script
   that rebuilds the architecture in System Composer (components, oriented
   ports, connections) plus Stateflow skeletons for state machines;

@@ -895,3 +895,33 @@ fn test_fmi_export_generates_descriptor_per_ported_component() {
             "guid mismatch for {}", descriptor.component_id);
     }
 }
+
+#[test]
+fn test_reqif_round_trip_on_flagship() {
+    let flagship = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("examples/complete_emergency_braking_simple.arc");
+    let mut compiler = Compiler::new(CompilerConfig::default());
+    let result = compiler.compile_file(&flagship).expect("compiles");
+    let reqif = arclang::compiler::reqif::generate_reqif(&result.semantic_model, &result.ast);
+
+    // Every requirement is present as a SPEC-OBJECT with its ArcLang id
+    for req in &result.semantic_model.requirements {
+        assert!(reqif.contains(&format!("THE-VALUE=\"{}\"", req.id)),
+            "requirement {} missing from ReqIF export", req.id);
+    }
+
+    // Round-trip: import back and recompile — same ids, same descriptions
+    let arc = arclang::compiler::reqif::import_reqif(&reqif).expect("import succeeds");
+    let mut compiler2 = Compiler::new(CompilerConfig::default());
+    let reimported = compiler2.compile_string(&arc).expect("reimported source compiles");
+    assert_eq!(
+        reimported.semantic_model.requirements.len(),
+        result.semantic_model.requirements.len());
+    for original in &result.semantic_model.requirements {
+        let round_tripped = reimported.semantic_model.requirements.iter()
+            .find(|r| r.id == original.id)
+            .unwrap_or_else(|| panic!("requirement {} lost in round trip", original.id));
+        assert_eq!(round_tripped.description, original.description);
+        assert_eq!(round_tripped.uuid(), original.uuid(), "identity must survive");
+    }
+}
