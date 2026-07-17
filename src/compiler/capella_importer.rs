@@ -80,6 +80,9 @@ impl CapellaImporter {
             }
             
             vec![SystemAnalysis {
+                missions: Vec::new(),
+                capabilities: Vec::new(),
+                functional_chains: Vec::new(),
                 name: "Imported System".to_string(),
                 requirements,
                 functions: Vec::new(),
@@ -98,6 +101,8 @@ impl CapellaImporter {
             }
             
             vec![LogicalArchitecture {
+                capability_realizations: Vec::new(),
+                functional_chains: Vec::new(),
                 name: "Imported Architecture".to_string(),
                 components,
                 interfaces: Vec::new(),

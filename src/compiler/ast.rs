@@ -156,6 +156,46 @@ pub struct SystemAnalysis {
     pub components: Vec<SystemComponent>,
     pub external_actors: Vec<ExternalActor>,
     pub functional_exchanges: Vec<FunctionalExchange>,
+    #[serde(default)]
+    pub missions: Vec<Mission>,
+    #[serde(default)]
+    pub capabilities: Vec<Capability>,
+    #[serde(default)]
+    pub functional_chains: Vec<FunctionalChain>,
+}
+
+/// High-level goal the system contributes to (Arcadia: System Mission).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Mission {
+    pub id: String,
+    pub name: String,
+    pub attributes: HashMap<String, AttributeValue>,
+}
+
+/// Expected ability of the system to supply a service fulfilling missions.
+/// Also used for LA/PA CapabilityRealization (with `realizes` set).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Capability {
+    pub id: String,
+    pub name: String,
+    /// Elements (functions, actors, chains) involved in this capability.
+    pub involves: Vec<String>,
+    /// For realizations: the higher-level capability being realized.
+    pub realizes: Option<String>,
+    /// The mission this capability contributes to, when declared.
+    pub mission: Option<String>,
+    pub attributes: HashMap<String, AttributeValue>,
+}
+
+/// Ordered set of references to functions and exchanges describing one
+/// dataflow path, in the context of a capability (Arcadia: Functional Chain).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FunctionalChain {
+    pub id: String,
+    pub name: String,
+    /// Ordered references to the involved functions/exchanges.
+    pub involves: Vec<String>,
+    pub attributes: HashMap<String, AttributeValue>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -236,6 +276,10 @@ pub struct LogicalArchitecture {
     pub interfaces: Vec<LogicalInterface>,
     pub component_exchanges: Vec<ComponentExchange>,
     pub unallocated_functions: Vec<String>,
+    #[serde(default)]
+    pub capability_realizations: Vec<Capability>,
+    #[serde(default)]
+    pub functional_chains: Vec<FunctionalChain>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

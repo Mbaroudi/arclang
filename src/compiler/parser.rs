@@ -487,9 +487,15 @@ impl Parser {
         self.advance(); // Skip 'operational_capability'
         let name = self.expect_name()?;
         let attributes = self.parse_attributes_block()?;
-        
+
+        let id = attributes
+            .get("id")
+            .and_then(|v| v.as_string())
+            .map(|s| s.to_string())
+            .unwrap_or_else(|| format!("OC-{}", name.replace(' ', "_")));
+
         Ok(OperationalCapability {
-            id: format!("CAP-{}", name.chars().take(3).collect::<String>()),
+            id,
             name,
             level: CapabilityLevel::Capability,
             color: None,
@@ -611,6 +617,9 @@ impl Parser {
         let mut components = Vec::new();
         let mut external_actors = Vec::new();
         let mut functional_exchanges = Vec::new();
+        let mut missions = Vec::new();
+        let mut capabilities = Vec::new();
+        let mut functional_chains = Vec::new();
 
         while !self.check(&Token::RightBrace) && !self.is_at_end() {
             match self.current() {
@@ -622,6 +631,15 @@ impl Parser {
                 }
                 Token::Function => {
                     functions.push(self.parse_system_function()?);
+                }
+                Token::Mission => {
+                    missions.push(self.parse_mission()?);
+                }
+                Token::Capability => {
+                    capabilities.push(self.parse_capability()?);
+                }
+                Token::FunctionalChain => {
+                    functional_chains.push(self.parse_functional_chain()?);
                 }
                 Token::Actor => {
                     external_actors.push(self.parse_external_actor()?);
@@ -668,7 +686,77 @@ impl Parser {
             components,
             external_actors,
             functional_exchanges,
+            missions,
+            capabilities,
+            functional_chains,
         })
+    }
+
+    /// Parse: mission Name { id: "..." description: "..." }
+    fn parse_mission(&mut self) -> Result<Mission, String> {
+        self.expect(Token::Mission)?;
+        let name = self.expect_name()?;
+        let attributes = self.parse_attributes_block()?;
+        let id = attributes
+            .get("id")
+            .and_then(|v| v.as_string())
+            .map(|s| s.to_string())
+            .unwrap_or_else(|| format!("MIS-{}", name.replace(' ', "_")));
+        Ok(Mission { id, name, attributes })
+    }
+
+    /// Parse: capability Name { id: ... involves: [..] realizes: "..." mission: "..." }
+    /// Also used for LA `capability_realization` blocks.
+    fn parse_capability(&mut self) -> Result<Capability, String> {
+        self.advance(); // Skip 'capability' or 'capability_realization'
+        let name = self.expect_name()?;
+        let attributes = self.parse_attributes_block()?;
+        let id = attributes
+            .get("id")
+            .and_then(|v| v.as_string())
+            .map(|s| s.to_string())
+            .unwrap_or_else(|| format!("CAP-{}", name.replace(' ', "_")));
+        let involves = Self::string_list(&attributes, "involves");
+        let realizes = attributes
+            .get("realizes")
+            .and_then(|v| v.as_string())
+            .map(|s| s.to_string());
+        let mission = attributes
+            .get("mission")
+            .and_then(|v| v.as_string())
+            .map(|s| s.to_string());
+        Ok(Capability { id, name, involves, realizes, mission, attributes })
+    }
+
+    /// Parse: functional_chain Name { id: ... involves: ["F1", "FE1", "F2"] }
+    fn parse_functional_chain(&mut self) -> Result<FunctionalChain, String> {
+        self.expect(Token::FunctionalChain)?;
+        let name = self.expect_name()?;
+        let attributes = self.parse_attributes_block()?;
+        let id = attributes
+            .get("id")
+            .and_then(|v| v.as_string())
+            .map(|s| s.to_string())
+            .unwrap_or_else(|| format!("FC-{}", name.replace(' ', "_")));
+        let involves = Self::string_list(&attributes, "involves");
+        if involves.is_empty() {
+            return Err(self.err(format!(
+                "functional_chain '{}' must involve at least one function (involves: [...])",
+                name
+            )));
+        }
+        Ok(FunctionalChain { id, name, involves, attributes })
+    }
+
+    fn string_list(attributes: &HashMap<String, AttributeValue>, key: &str) -> Vec<String> {
+        match attributes.get(key) {
+            Some(AttributeValue::List(items)) => items
+                .iter()
+                .filter_map(|v| v.as_string().map(|s| s.to_string()))
+                .collect(),
+            Some(AttributeValue::String(single)) => vec![single.clone()],
+            _ => Vec::new(),
+        }
     }
 
     fn parse_external_actor(&mut self) -> Result<ExternalActor, String> {
@@ -793,6 +881,9 @@ impl Parser {
             components: Vec::new(),
             external_actors: Vec::new(),
             functional_exchanges: Vec::new(),
+            missions: Vec::new(),
+            capabilities: Vec::new(),
+            functional_chains: Vec::new(),
         })
     }
     
@@ -892,6 +983,8 @@ impl Parser {
         let mut components = Vec::new();
         let mut interfaces = Vec::new();
         let mut component_exchanges = Vec::new();
+        let mut capability_realizations = Vec::new();
+        let mut functional_chains = Vec::new();
         
         while !self.check(&Token::RightBrace) && !self.is_at_end() {
             match self.current() {
@@ -906,6 +999,12 @@ impl Parser {
                 }
                 Token::Identifier(ref id) if id == "component_exchange" => {
                     component_exchanges.push(self.parse_named_component_exchange()?);
+                }
+                Token::CapabilityRealization | Token::Capability => {
+                    capability_realizations.push(self.parse_capability()?);
+                }
+                Token::FunctionalChain => {
+                    functional_chains.push(self.parse_functional_chain()?);
                 }
                 Token::Trace => {
                     // Traces are collected at the model level
@@ -939,6 +1038,8 @@ impl Parser {
             interfaces,
             component_exchanges,
             unallocated_functions: Vec::new(),
+            capability_realizations,
+            functional_chains,
         })
     }
     
@@ -1871,6 +1972,12 @@ impl Parser {
         } else if let Token::Validates = self.current() {
             self.advance();
             ("validates".to_string(), self.expect_string()?)
+        } else if let Token::Realizes = self.current() {
+            self.advance();
+            ("realizes".to_string(), self.expect_name()?)
+        } else if let Token::Refines = self.current() {
+            self.advance();
+            ("refines".to_string(), self.expect_name()?)
         } else {
             return Err(self.err("Expected trace type (satisfies, implements, validates, etc.) or arrow"));
         };

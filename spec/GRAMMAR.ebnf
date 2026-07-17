@@ -87,8 +87,21 @@ SaElement       ::= RequirementDecl
                   | "actor" Name AttributeBlock
                   | "system_component" Name AttributeBlock
                   | FunctionalExchange
+                  | MissionDecl
+                  | CapabilityDecl
+                  | FunctionalChainDecl
                   | TraceDecl
                   | Attribute ;
+
+(* Arcadia: Mission requires Capability; Capability realized across layers;
+   Functional Chains exemplify capabilities. *)
+MissionDecl         ::= "mission" Name AttributeBlock ;
+CapabilityDecl      ::= "capability" Name AttributeBlock ;
+                        (* attributes: id:, mission: <ref>, realizes: <ref>,
+                           involves: [ <ref>* ] — references resolve by id or
+                           unambiguous name; dangling references are ERRORS *)
+FunctionalChainDecl ::= "functional_chain" Name AttributeBlock ;
+                        (* involves: [ <ref>+ ] REQUIRED, ordered *)
 
 FunctionElement ::= "function" Name AttributeBlock?            (* nested sub-function *)
                   | Attribute ;
@@ -106,6 +119,8 @@ LaElement       ::= Component
                   | "interface" Name "{" InterfaceBody "}"
                   | ConnectionDecl
                   | "component_exchange" Name AttributeBlock   (* from_port:/to_port: required *)
+                  | ( "capability_realization" | "capability" ) Name AttributeBlock
+                  | FunctionalChainDecl
                   | TraceDecl
                   | Attribute ;
 
@@ -168,7 +183,8 @@ SafetyElement   ::= "hazard" Name AttributeBlock
 TraceDecl       ::= "trace" AttributeBlock                                (* from:/to:/type: *)
                   | "trace" Name "->" Name AttributeBlock?
                   | "trace" Name TraceKind Name AttributeBlock? ;
-TraceKind       ::= "satisfies" | "implements" | "validates" ;
+TraceKind       ::= "satisfies" | "implements" | "validates"
+                  | "realizes" | "refines" ;   (* inter-layer realization *)
 
 (* ---- Attributes ---------------------------------------------------------------------- *)
 

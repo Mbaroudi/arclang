@@ -736,6 +736,8 @@ mod tests {
         let mut model = ast::Model::new();
         
         model.logical_architecture.push(ast::LogicalArchitecture {
+            capability_realizations: Vec::new(),
+            functional_chains: Vec::new(),
             name: "Test LA".to_string(),
             components: vec![],
             component_exchanges: vec![],

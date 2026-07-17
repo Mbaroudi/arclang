@@ -11,7 +11,41 @@ pub struct SemanticModel {
     pub functions: Vec<FunctionInfo>,
     pub traces: Vec<TraceInfo>,
     pub interfaces: Vec<InterfaceInfo>,
+    #[serde(default)]
+    pub missions: Vec<MissionInfo>,
+    #[serde(default)]
+    pub capabilities: Vec<CapabilityInfo>,
+    #[serde(default)]
+    pub functional_chains: Vec<FunctionalChainInfo>,
     pub all_elements: HashMap<String, ElementInfo>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct MissionInfo {
+    pub id: String,
+    pub name: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct CapabilityInfo {
+    pub id: String,
+    pub name: String,
+    /// Resolved element ids involved in this capability.
+    pub involves: Vec<String>,
+    /// Resolved id of the realized higher-level capability, if any.
+    pub realizes: Option<String>,
+    /// Resolved id of the mission fulfilled, if any.
+    pub mission: Option<String>,
+    /// "System" (SA) or "Realization" (LA/PA).
+    pub kind: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct FunctionalChainInfo {
+    pub id: String,
+    pub name: String,
+    /// Resolved, ordered element ids (functions/exchanges) of the chain.
+    pub involves: Vec<String>,
 }
 
 impl Default for SemanticModel {
@@ -23,6 +57,9 @@ impl Default for SemanticModel {
             functions: Vec::new(),
             traces: Vec::new(),
             interfaces: Vec::new(),
+            missions: Vec::new(),
+            capabilities: Vec::new(),
+            functional_chains: Vec::new(),
             all_elements: HashMap::new(),
         }
     }
@@ -256,6 +293,16 @@ impl SemanticAnalyzer {
                 register_element(&mut all_elements, &mut duplicate_ids, actor_id.clone(), ElementInfo::new(actor_id.clone(), actor.name.clone(), "Actor"));
             }
             
+            // Register operational capabilities (realization targets for SA)
+            for capability in &oa.capabilities {
+                register_element(
+                    &mut all_elements,
+                    &mut duplicate_ids,
+                    capability.id.clone(),
+                    ElementInfo::new(capability.id.clone(), capability.name.clone(), "OperationalCapability"),
+                );
+            }
+
             // Collect traces from operational_analysis
             for trace in &oa.traces {
                 traces.push(TraceInfo {
@@ -716,6 +763,120 @@ impl SemanticAnalyzer {
             });
         }
         
+        // Collect missions, capabilities, and functional chains (SA + LA),
+        // registering their identities BEFORE resolving their references.
+        let mut missions_info = Vec::new();
+        let mut capabilities_info = Vec::new();
+        let mut chains_info = Vec::new();
+
+        for sa in &ast.system_analysis {
+            for mission in &sa.missions {
+                register_element(
+                    &mut all_elements,
+                    &mut duplicate_ids,
+                    mission.id.clone(),
+                    ElementInfo::new(mission.id.clone(), mission.name.clone(), "Mission"),
+                );
+                missions_info.push(MissionInfo { id: mission.id.clone(), name: mission.name.clone() });
+            }
+        }
+        let capability_sources: Vec<(&Capability, &str)> = ast
+            .system_analysis
+            .iter()
+            .flat_map(|sa| sa.capabilities.iter().map(|c| (c, "System")))
+            .chain(
+                ast.logical_architecture
+                    .iter()
+                    .flat_map(|la| la.capability_realizations.iter().map(|c| (c, "Realization"))),
+            )
+            .collect();
+        for (capability, kind) in &capability_sources {
+            register_element(
+                &mut all_elements,
+                &mut duplicate_ids,
+                capability.id.clone(),
+                ElementInfo::new(capability.id.clone(), capability.name.clone(), format!("{}Capability", kind)),
+            );
+        }
+        let chain_sources: Vec<&FunctionalChain> = ast
+            .system_analysis
+            .iter()
+            .flat_map(|sa| sa.functional_chains.iter())
+            .chain(ast.logical_architecture.iter().flat_map(|la| la.functional_chains.iter()))
+            .collect();
+        for chain in &chain_sources {
+            register_element(
+                &mut all_elements,
+                &mut duplicate_ids,
+                chain.id.clone(),
+                ElementInfo::new(chain.id.clone(), chain.name.clone(), "FunctionalChain"),
+            );
+        }
+
+        // Resolve involves/realizes/mission references (dangling = error, like traces)
+        let mut reference_errors = Vec::new();
+        {
+            let resolve = |reference: &str, context: String, errors: &mut Vec<String>| -> Option<String> {
+                if all_elements.contains_key(reference) {
+                    return Some(reference.to_string());
+                }
+                let matches: Vec<&ElementInfo> =
+                    all_elements.values().filter(|e| e.name == reference).collect();
+                match matches.as_slice() {
+                    [single] => Some(single.id.clone()),
+                    [] => {
+                        errors.push(format!("{}: unknown element '{}'", context, reference));
+                        None
+                    }
+                    _ => {
+                        errors.push(format!("{}: ambiguous name '{}' — use an id", context, reference));
+                        None
+                    }
+                }
+            };
+
+            for (capability, kind) in &capability_sources {
+                let involves = capability
+                    .involves
+                    .iter()
+                    .filter_map(|r| resolve(r, format!("capability '{}' involves", capability.name), &mut reference_errors))
+                    .collect();
+                let realizes = capability.realizes.as_ref().and_then(|r| {
+                    resolve(r, format!("capability '{}' realizes", capability.name), &mut reference_errors)
+                });
+                let mission = capability.mission.as_ref().and_then(|r| {
+                    resolve(r, format!("capability '{}' mission", capability.name), &mut reference_errors)
+                });
+                capabilities_info.push(CapabilityInfo {
+                    id: capability.id.clone(),
+                    name: capability.name.clone(),
+                    involves,
+                    realizes,
+                    mission,
+                    kind: kind.to_string(),
+                });
+            }
+            for chain in &chain_sources {
+                let involves = chain
+                    .involves
+                    .iter()
+                    .filter_map(|r| resolve(r, format!("functional_chain '{}' involves", chain.name), &mut reference_errors))
+                    .collect();
+                chains_info.push(FunctionalChainInfo {
+                    id: chain.id.clone(),
+                    name: chain.name.clone(),
+                    involves,
+                });
+            }
+        }
+        if !reference_errors.is_empty() {
+            return Err(format!(
+                "{} unresolved reference(s):\n  {}",
+                reference_errors.len(),
+                reference_errors.join("\n  ")
+            ));
+        }
+
         // Resolve trace endpoints. Dangling references are compile errors:
         // a trace that points at nothing must never be silently dropped.
         let resolved_traces = Self::resolve_traces(traces, &all_elements)?;
@@ -739,6 +900,9 @@ impl SemanticAnalyzer {
                 functions,
                 traces: resolved_traces,
                 interfaces,
+                missions: missions_info,
+                capabilities: capabilities_info,
+                functional_chains: chains_info,
                 all_elements,
             },
             warnings,
@@ -965,6 +1129,34 @@ impl SemanticModel {
                         "is performed by (allocation)",
                     );
                 }
+            }
+        }
+        for chain in &self.functional_chains {
+            for involved in &chain.involves {
+                link(
+                    &mut graph,
+                    &chain.id,
+                    involved,
+                    "involves (functional chain)",
+                    "is involved in (functional chain)",
+                );
+            }
+        }
+        for capability in &self.capabilities {
+            for involved in &capability.involves {
+                link(
+                    &mut graph,
+                    &capability.id,
+                    involved,
+                    "involves (capability)",
+                    "is involved in (capability)",
+                );
+            }
+            if let Some(realized) = &capability.realizes {
+                link(&mut graph, &capability.id, realized, "realizes (capability)", "is realized by (capability)");
+            }
+            if let Some(mission) = &capability.mission {
+                link(&mut graph, &capability.id, mission, "fulfills (mission)", "requires (capability)");
             }
         }
 

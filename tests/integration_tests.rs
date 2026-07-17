@@ -433,3 +433,97 @@ trace "LC-001" satisfies "REQ-001" { rationale: "direct" }
     assert_eq!(controller.depth, 1);
     assert_eq!(actuator.depth, 2);
 }
+
+#[test]
+fn test_missions_capabilities_and_chains_are_first_class() {
+    let input = r#"
+model Test {
+}
+
+operational_analysis "OA" {
+    operational_capability "Avoid Collisions" { id: "OC-001" }
+}
+
+system_analysis SA {
+    mission SafeBraking { id: "MIS-001" }
+
+    capability EmergencyBraking {
+        id: "CAP-001"
+        mission: "MIS-001"
+        realizes: "OC-001"
+        involves: ["Detect"]
+    }
+
+    functional_chain BrakeChain {
+        id: "FC-001"
+        involves: ["Detect", "Brake"]
+    }
+
+    function Detect { outputs: ["threat"] }
+    function Brake { inputs: ["threat"] }
+}
+"#;
+    let config = CompilerConfig::default();
+    let mut compiler = Compiler::new(config);
+    let result = compiler.compile_string(input).expect("must compile");
+    let model = &result.semantic_model;
+
+    assert_eq!(model.missions.len(), 1);
+    assert_eq!(model.capabilities.len(), 1);
+    assert_eq!(model.functional_chains.len(), 1);
+
+    let cap = &model.capabilities[0];
+    assert_eq!(cap.realizes.as_deref(), Some("OC-001"));
+    assert_eq!(cap.mission.as_deref(), Some("MIS-001"));
+    // involves resolved from name to id
+    assert_eq!(cap.involves, vec!["SF-Det"]);
+
+    // All three registered with stable identity
+    assert!(model.all_elements.contains_key("MIS-001"));
+    assert!(model.all_elements.contains_key("CAP-001"));
+    assert!(model.all_elements.contains_key("FC-001"));
+}
+
+#[test]
+fn test_dangling_capability_reference_is_an_error() {
+    let input = r#"
+model Test {
+}
+
+system_analysis SA {
+    capability Broken {
+        id: "CAP-001"
+        realizes: "OC-DOES-NOT-EXIST"
+    }
+}
+"#;
+    let config = CompilerConfig::default();
+    let mut compiler = Compiler::new(config);
+    let result = compiler.compile_string(input);
+    assert!(result.is_err(), "dangling realizes must fail compilation");
+    assert!(result.err().unwrap().to_string().contains("OC-DOES-NOT-EXIST"));
+}
+
+#[test]
+fn test_realizes_trace_type_parses_and_resolves() {
+    let input = r#"
+model Test {
+}
+
+operational_analysis "OA" {
+    operational_activity "Watch" { id: "OA-001" }
+}
+
+system_analysis SA {
+    function Monitor { outputs: ["data"] }
+}
+
+trace "Monitor" realizes "OA-001" { rationale: "vertical realization" }
+"#;
+    let config = CompilerConfig::default();
+    let mut compiler = Compiler::new(config);
+    let result = compiler.compile_string(input).expect("must compile");
+    let trace = &result.semantic_model.traces[0];
+    assert_eq!(trace.trace_type, "realizes");
+    assert_eq!(trace.to, "OA-001");
+}
