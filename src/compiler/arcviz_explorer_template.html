@@ -647,6 +647,10 @@
         /* ---- Responsive: the generated document must be usable in a
            narrow iframe, on tablet and on phone, not only full-desktop. */
         @media (max-width: 1100px) {
+            .header { position: static; padding: 16px 20px; }
+            .header h1 { font-size: 1.35rem; }
+            .stats { gap: 18px; margin-top: 8px; }
+            .stat-number { font-size: 1.3rem; }
             .floating-toc {
                 position: static;
                 transform: none;
@@ -671,6 +675,15 @@
             .container { padding: 12px; }
             .section { padding: 16px 12px; }
             table { display: block; overflow-x: auto; }
+        }
+
+        @media print {
+            .floating-toc, .back-to-top, button { display: none !important; }
+            .header { position: static; box-shadow: none; }
+            .container { margin: 0; padding: 0; max-width: none; }
+            .section { box-shadow: none; border: 1px solid #ddd; page-break-inside: avoid; margin-bottom: 12px; }
+            body { background: white; }
+            a { text-decoration: none; color: inherit; }
         }
     </style>
 </head>
@@ -747,6 +760,8 @@
                 <button onclick="zoomOutDiagram()" style="padding: 8px 16px; background: #1976d2; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 13px;">Zoom Out</button>
                 <button onclick="exportDiagramSVG()" style="padding: 8px 16px; background: #43a047; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 13px;">📄 Export SVG</button>
                 <button onclick="exportDiagramPNG()" style="padding: 8px 16px; background: #fb8c00; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 13px;">🖼️ Export PNG</button>
+                <button onclick="toggleDiagramFullscreen()" style="padding: 8px 16px; background: #37474f; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 13px;">⛶ Fullscreen</button>
+                <button onclick="exportDiagramPDF()" style="padding: 8px 16px; background: #6a1b9a; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 13px;">🖨️ Export PDF</button>
             </div>
             <div style="width: 100%; height: 700px; border: 1px solid #e0e0e0; border-radius: 8px; background: white; overflow: hidden;">
                 <svg id="arch-diagram" width="100%" height="100%" style="background: white;"></svg>
@@ -2581,20 +2596,21 @@
         }
 
         
-        function exportDiagramSVG() {
-            try {
+        // Build a self-contained SVG string of the current diagram (shared by
+        // the SVG and PNG exports).
+        function buildExportableSvg() {
                 const svg = window.diagramSvg;
-                if (!svg) {
-                    alert('Diagram not ready. Please wait for it to load.');
-                    return;
-                }
-                
+                if (!svg) return null;
                 const svgNode = svg.node();
                 const svgGroup = window.diagramSvgGroup;
                 const bbox = svgGroup.node().getBBox();
                 const padding = 40;
                 
                 const clone = svgNode.cloneNode(true);
+                // Drop the interactive zoom/pan transform: the viewBox below
+                // frames the layout's natural coordinates, so a leftover
+                // transform would shrink the drawing inside a mostly-empty page.
+                clone.querySelectorAll(':scope > g').forEach((g) => g.removeAttribute('transform'));
                 clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
                 clone.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink');
                 clone.setAttribute('viewBox', `${bbox.x - padding} ${bbox.y - padding} ${bbox.width + padding * 2} ${bbox.height + padding * 2}`);
@@ -2616,27 +2632,83 @@
                 clone.insertBefore(styleElement, clone.firstChild);
                 
                 const serializer = new XMLSerializer();
-                const svgString = serializer.serializeToString(clone);
-                
-                const blob = new Blob([svgString], {type: 'image/svg+xml;charset=utf-8'});
-                const url = URL.createObjectURL(blob);
-                const link = document.createElement('a');
-                link.href = url;
-                link.download = 'architecture_diagram.svg';
-                document.body.appendChild(link);
-                link.click();
-                document.body.removeChild(link);
-                setTimeout(() => URL.revokeObjectURL(url), 100);
-                
+                return serializer.serializeToString(clone);
+        }
+
+        function downloadBlob(blob, filename) {
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = filename;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            setTimeout(() => URL.revokeObjectURL(url), 100);
+        }
+
+        function exportDiagramSVG() {
+            try {
+                const svgString = buildExportableSvg();
+                if (!svgString) { console.warn('Diagram not ready'); return; }
+                downloadBlob(new Blob([svgString], {type: 'image/svg+xml;charset=utf-8'}), 'architecture_diagram.svg');
                 console.log('✓ SVG exported successfully');
             } catch (error) {
                 console.error('Error exporting SVG:', error);
-                alert('Error exporting SVG: ' + error.message);
             }
         }
         
+        function exportDiagramPDF() {
+            // Reset the zoom first: printing captures the on-screen viewport,
+            // a zoomed/panned diagram would come out truncated.
+            try { resetDiagramZoom(); } catch (e) {}
+            setTimeout(() => window.print(), 350);
+        }
+
+        // Re-fit the diagram when entering/leaving fullscreen.
+        document.addEventListener('fullscreenchange', () => {
+            setTimeout(() => { try { resetDiagramZoom(); } catch (e) {} }, 150);
+        });
+
+        function toggleDiagramFullscreen() {
+            const container = document.getElementById('arch-diagram').parentElement;
+            if (document.fullscreenElement) {
+                document.exitFullscreen();
+            } else {
+                container.style.background = 'white';
+                (container.requestFullscreen ? container.requestFullscreen() : container.webkitRequestFullscreen?.())
+                    ?.catch?.((e) => console.warn('Fullscreen refused:', e.message));
+            }
+        }
+
         function exportDiagramPNG() {
-            alert('PNG export is not fully supported due to SVG complexity. Please use SVG export instead, which can be opened in any image editor and converted to PNG if needed.');
+            try {
+                const svgString = buildExportableSvg();
+                if (!svgString) { console.warn('Diagram not ready'); return; }
+                const svgBlob = new Blob([svgString], {type: 'image/svg+xml;charset=utf-8'});
+                const url = URL.createObjectURL(svgBlob);
+                const img = new Image();
+                img.onload = () => {
+                    const scale = Math.max(2, Math.min(4, 3200 / Math.max(img.width, img.height))); // crisp print-quality
+                    const canvas = document.createElement('canvas');
+                    canvas.width = Math.max(1, img.width * scale);
+                    canvas.height = Math.max(1, img.height * scale);
+                    const ctx = canvas.getContext('2d');
+                    ctx.fillStyle = '#ffffff';
+                    ctx.fillRect(0, 0, canvas.width, canvas.height);
+                    ctx.scale(scale, scale);
+                    ctx.drawImage(img, 0, 0);
+                    URL.revokeObjectURL(url);
+                    canvas.toBlob((pngBlob) => {
+                        if (pngBlob) downloadBlob(pngBlob, 'architecture_diagram.png');
+                        else console.error('PNG export: canvas.toBlob returned null');
+                    }, 'image/png');
+                };
+                img.onerror = () => { URL.revokeObjectURL(url); console.error('PNG export: SVG rasterization failed'); };
+                img.src = url;
+                console.log('✓ PNG export started');
+            } catch (error) {
+                console.error('Error exporting PNG:', error);
+            }
         }
         
         function loadTraceability() {

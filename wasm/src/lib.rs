@@ -41,6 +41,10 @@ struct CompileOutput {
     stats: Option<Stats>,
     explorer_html: Option<String>,
     gate: Option<GateOut>,
+    /// OMG SysML v2 textual notation (interop subset).
+    sysmlv2: Option<String>,
+    /// OMG ReqIF 1.0 (requirements exchange).
+    reqif: Option<String>,
 }
 
 /// Compile ArcLang source; returns a JSON string:
@@ -71,6 +75,8 @@ fn compile_inner(source: &str) -> CompileOutput {
             stats: None,
             explorer_html: None,
             gate: None,
+            sysmlv2: None,
+            reqif: None,
         },
         Ok(result) => {
             let model = &result.semantic_model;
@@ -113,6 +119,8 @@ fn compile_inner(source: &str) -> CompileOutput {
                 stats: Some(stats),
                 explorer_html,
                 gate: Some(gate),
+                sysmlv2: Some(arclang::compiler::sysmlv2_generator::generate_sysmlv2(model)),
+                reqif: Some(arclang::compiler::reqif::generate_reqif(model, &result.ast)),
             }
         }
     }
