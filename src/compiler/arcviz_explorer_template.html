@@ -815,6 +815,7 @@
             
             console.log('✓ Initializing architecture explorer...');
             loadStats();
+            indexElementNames();
             loadRequirements();
             loadComponents();
             loadInterfaces();
@@ -826,6 +827,43 @@
             console.log('✓ Architecture explorer loaded successfully');
         }
         
+
+
+        // ---- Capella-style cross-navigation ------------------------------
+        // Every element card gets an anchor (element-<id>); every reference
+        // rendered anywhere becomes a click-through, like Capella's
+        // semantic browser. NAME_TO_ID lets name-rendered chips navigate.
+        const NAME_TO_ID = {};
+        function indexElementNames() {
+            (archData.components || []).forEach(c => { NAME_TO_ID[c.name] = c.id; NAME_TO_ID[c.id] = c.id; });
+            (archData.functions || []).forEach(f => { NAME_TO_ID[f.name] = f.id; NAME_TO_ID[f.id] = f.id; });
+            ((archData.requirements || []).flatMap(s => s.requirements || [])).forEach(r => { NAME_TO_ID[r.id] = r.id; });
+            (archData.capabilities || []).forEach(c => { NAME_TO_ID[c.name] = c.id; NAME_TO_ID[c.id] = c.id; });
+            (archData.missions || []).forEach(m => { NAME_TO_ID[m.name] = m.id; NAME_TO_ID[m.id] = m.id; });
+            (archData.functional_chains || []).forEach(c => { NAME_TO_ID[c.name] = c.id; NAME_TO_ID[c.id] = c.id; });
+        }
+        function elementAnchor(id) {
+            return 'element-' + String(id).replace(/[^A-Za-z0-9_-]/g, '_');
+        }
+        function navigateToElement(reference) {
+            const id = NAME_TO_ID[reference] || reference;
+            const target = document.getElementById(elementAnchor(id));
+            if (target) {
+                target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                target.style.transition = 'background-color 0.3s';
+                const previous = target.style.backgroundColor;
+                target.style.backgroundColor = '#fff59d';
+                setTimeout(() => { target.style.backgroundColor = previous; }, 1600);
+            }
+        }
+        function refLink(reference, display) {
+            const id = NAME_TO_ID[reference] || reference;
+            const known = !!document.getElementById(elementAnchor(id)) || !!NAME_TO_ID[reference];
+            const label = escapeHtml(display == null ? reference : display);
+            return known
+                ? `<a href="javascript:void(0)" onclick="navigateToElement('${escapeHtml(reference)}')" style="text-decoration:none;color:#1565c0">${label}</a>`
+                : label;
+        }
 
         // ---- Arcadia P1-P3 sections (hidden when the model has none) ------
         function showSection(sectionId, tocId) {
@@ -839,7 +877,7 @@
         }
         function chips(items) {
             return (items || []).map(i =>
-                `<span style="display:inline-block;background:#e3f2fd;border:1px solid #90caf9;border-radius:12px;padding:2px 10px;margin:2px;font-size:0.85em">${escapeHtml(i)}</span>`
+                `<span style="display:inline-block;background:#e3f2fd;border:1px solid #90caf9;border-radius:12px;padding:2px 10px;margin:2px;font-size:0.85em">${refLink(i)}</span>`
             ).join('');
         }
 
@@ -860,8 +898,8 @@
                             <div><b>${escapeHtml(c.name)}</b>
                                  <span style="background:${c.kind === 'Realization' ? '#fff3e0' : '#e8f5e9'};border-radius:10px;padding:1px 8px;font-size:0.8em;margin-left:6px">${escapeHtml(c.kind)}</span>
                                  <code style="color:#888;margin-left:6px">${escapeHtml(c.id)}</code></div>
-                            ${c.mission ? `<div style="margin-top:4px;font-size:0.9em">fulfills mission: <b>${escapeHtml(c.mission)}</b></div>` : ''}
-                            ${c.realizes ? `<div style="margin-top:2px;font-size:0.9em">realizes: <b>${escapeHtml(c.realizes)}</b></div>` : ''}
+                            ${c.mission ? `<div style="margin-top:4px;font-size:0.9em">fulfills mission: <b>${refLink(c.mission)}</b></div>` : ''}
+                            ${c.realizes ? `<div style="margin-top:2px;font-size:0.9em">realizes: <b>${refLink(c.realizes)}</b></div>` : ''}
                             ${(c.involves || []).length ? `<div style="margin-top:6px">involves: ${chips(c.involves)}</div>` : ''}
                         </div>`).join('');
                 }
@@ -879,7 +917,7 @@
                         <div style="margin-top:8px;display:flex;align-items:center;flex-wrap:wrap;gap:2px">
                             ${(chain.involves || []).map((step, i) =>
                                 (i ? '<span style="color:#90a4ae;margin:0 4px">→</span>' : '') +
-                                `<span style="background:#e3f2fd;border:1px solid #90caf9;border-radius:12px;padding:2px 10px;font-size:0.85em">${escapeHtml(step)}</span>`
+                                `<span style="background:#e3f2fd;border:1px solid #90caf9;border-radius:12px;padding:2px 10px;font-size:0.85em">${refLink(step)}</span>`
                             ).join('')}
                         </div>
                     </div>`).join('');
@@ -981,6 +1019,7 @@
                 section.requirements.forEach(req => {
                     const reqDiv = document.createElement('div');
                     reqDiv.className = 'requirement';
+                    reqDiv.id = elementAnchor(req.id);
                     reqDiv.setAttribute('data-search', req.id + ' ' + req.description);
                     
                     const priorityClass = 'badge-' + (req.priority || 'medium').toLowerCase();
@@ -1009,6 +1048,7 @@
             archData.components.forEach(comp => {
                 const compDiv = document.createElement('div');
                 compDiv.className = 'component';
+                compDiv.id = elementAnchor(comp.id);
                 compDiv.setAttribute('data-search', comp.id + ' ' + comp.name);
                 
                 const safety = comp.safety_level ? 
@@ -1057,6 +1097,7 @@
             archData.functions.forEach(func => {
                 const funcDiv = document.createElement('div');
                 funcDiv.className = 'function-item';
+                funcDiv.id = elementAnchor(func.id);
                 funcDiv.innerHTML = `
                     <div class="function-name">${func.name}</div>
                     <div class="function-comp">${func.component}</div>
@@ -2201,6 +2242,10 @@
          * Render a component node with Capella style
          */
         function renderComponent(parentGroup, node) {
+            // Click-through: diagram node -> component detail card
+            parentGroup = parentGroup.append('g')
+                .style('cursor', 'pointer')
+                .on('click', () => navigateToElement(node.id));
             const nodeGroup = parentGroup.append('g')
                 .attr('class', 'component')
                 .attr('id', `node_${node.id}`)
@@ -2577,9 +2622,9 @@
                 const traceDiv = document.createElement('div');
                 traceDiv.className = 'trace-item';
                 traceDiv.innerHTML = `
-                    <span class="trace-from" title="${escapeHtml(trace.from)}">${escapeHtml(trace.from_name || trace.from)}</span>
+                    <span class="trace-from" title="${escapeHtml(trace.from)}">${refLink(trace.from, trace.from_name || trace.from)}</span>
                     <span class="trace-arrow">→</span>
-                    <span class="trace-to" title="${escapeHtml(trace.to)}">${escapeHtml(trace.to_name || trace.to)}</span>
+                    <span class="trace-to" title="${escapeHtml(trace.to)}">${refLink(trace.to, trace.to_name || trace.to)}</span>
                     <span class="trace-type">${escapeHtml(trace.trace_type)}</span>
                     ${trace.rationale ? `<div style="font-size:0.85em;color:#777;margin-top:2px">${escapeHtml(trace.rationale)}</div>` : ''}
                 `;
