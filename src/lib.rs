@@ -1,3 +1,4 @@
+#[cfg(feature = "native")]
 pub mod cli;
 pub mod compiler;
 pub mod parser;
@@ -7,10 +8,12 @@ pub mod requirements;
 pub mod safety;
 pub mod collaboration;
 pub mod plugins;
+#[cfg(feature = "native")]
 pub mod web_server;
 
 // Re-export for convenience
 pub use compiler::{Compiler, CompilerConfig, CompilerError, CompilationResult};
+#[cfg(feature = "native")]
 pub use cli::*;
 
 #[cfg(test)]
