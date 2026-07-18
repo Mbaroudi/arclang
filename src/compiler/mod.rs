@@ -21,6 +21,8 @@ pub mod simulink_generator;
 pub mod fmi_generator;
 pub mod reqif;
 pub mod semantic_diff;
+pub mod c_header_generator;
+pub mod proto_generator;
 pub mod mermaid_generator;
 pub mod mermaid_importer;
 pub mod plantuml_generator;

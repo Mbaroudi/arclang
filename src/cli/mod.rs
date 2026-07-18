@@ -330,6 +330,8 @@ pub enum ExportFormat {
     Simulink,
     FMI,
     ReqIF,
+    CHeaders,
+    Proto,
 }
 
 #[derive(Debug, clap::ValueEnum, Clone)]
@@ -811,6 +813,8 @@ impl CliRunner {
             ExportFormat::Simulink => "json".to_string(),
             ExportFormat::FMI => "json".to_string(),
             ExportFormat::ReqIF => "json".to_string(),
+            ExportFormat::CHeaders => "json".to_string(),
+            ExportFormat::Proto => "json".to_string(),
         };
         
         let mut compiler = crate::Compiler::new(config);
@@ -853,6 +857,14 @@ impl CliRunner {
                     ExportFormat::SysML => {
                         // SysML v2 textual notation (interoperability subset)
                         crate::compiler::sysmlv2_generator::generate_sysmlv2(&result.semantic_model)
+                    }
+                    ExportFormat::CHeaders => {
+                        crate::compiler::c_header_generator::generate_c_headers(
+                            &result.semantic_model, &result.ast)
+                    }
+                    ExportFormat::Proto => {
+                        crate::compiler::proto_generator::generate_proto(
+                            &result.semantic_model, &result.ast)
                     }
                     ExportFormat::ReqIF => {
                         // Requirements exchange with DOORS/Polarion/Jama

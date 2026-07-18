@@ -45,6 +45,10 @@ struct CompileOutput {
     sysmlv2: Option<String>,
     /// OMG ReqIF 1.0 (requirements exchange).
     reqif: Option<String>,
+    /// C99 interface contracts.
+    c_headers: Option<String>,
+    /// Protobuf (proto3) interface contracts.
+    proto: Option<String>,
 }
 
 /// Compile ArcLang source; returns a JSON string:
@@ -77,6 +81,8 @@ fn compile_inner(source: &str) -> CompileOutput {
             gate: None,
             sysmlv2: None,
             reqif: None,
+            c_headers: None,
+            proto: None,
         },
         Ok(result) => {
             let model = &result.semantic_model;
@@ -121,6 +127,8 @@ fn compile_inner(source: &str) -> CompileOutput {
                 gate: Some(gate),
                 sysmlv2: Some(arclang::compiler::sysmlv2_generator::generate_sysmlv2(model)),
                 reqif: Some(arclang::compiler::reqif::generate_reqif(model, &result.ast)),
+                c_headers: Some(arclang::compiler::c_header_generator::generate_c_headers(model, &result.ast)),
+                proto: Some(arclang::compiler::proto_generator::generate_proto(model, &result.ast)),
             }
         }
     }
