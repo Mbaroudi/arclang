@@ -1,6 +1,6 @@
 use super::ast::*;
 use serde::Serialize;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 #[derive(Debug, Clone, Serialize)]
 pub struct SemanticModel {
@@ -1579,24 +1579,43 @@ impl SemanticModel {
             .collect()
     }
     
+    /// Requirements and architecture components that no trace touches.
+    ///
+    /// A trace counts in either direction: "component satisfies requirement"
+    /// has the requirement as its TARGET. A component is also covered by a
+    /// trace on one of its functions. Operational elements (actors, entities,
+    /// activities) and physical nodes are stored with the components but are
+    /// not reported: the former express the need, the latter host components
+    /// that carry the traces.
     pub fn validate_traceability(&self) -> Vec<String> {
-        let mut issues = Vec::new();
-        
-        // Check for requirements without downstream traces
-        for req in &self.requirements {
-            if self.get_traces_from(&req.id).is_empty() {
-                issues.push(format!("Requirement {} has no downstream traces", req.id));
-            }
-        }
-        
-        // Check for components without upstream traces
-        for comp in &self.components {
-            if self.get_traces_to(&comp.id).is_empty() {
-                issues.push(format!("Component {} has no upstream traces", comp.id));
-            }
-        }
-        
-        issues
+        let touched: HashSet<&str> = self
+            .traces
+            .iter()
+            .flat_map(|trace| [trace.from.as_str(), trace.to.as_str()])
+            .collect();
+
+        // A component lists its functions by name; a trace names them by id.
+        let function_touched = |name: &String| {
+            touched.contains(name.as_str())
+                || self.functions.iter().any(|function| &function.name == name && touched.contains(function.id.as_str()))
+        };
+
+        let requirements = self
+            .requirements
+            .iter()
+            .filter(|requirement| !touched.contains(requirement.id.as_str()))
+            .map(|requirement| format!("Requirement {} has no trace", requirement.id));
+
+        let components = self
+            .components
+            .iter()
+            .filter(|component| !matches!(component.level.as_str(), "Operational" | "Physical"))
+            .filter(|component| {
+                !touched.contains(component.id.as_str()) && !component.functions.iter().any(function_touched)
+            })
+            .map(|component| format!("Component {} has no trace", component.id));
+
+        requirements.chain(components).collect()
     }
     
     pub fn compute_metrics(&self) -> ModelMetrics {

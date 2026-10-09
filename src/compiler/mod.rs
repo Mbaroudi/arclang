@@ -34,6 +34,7 @@ pub mod sysml_library;
 pub mod simulink_generator;
 pub mod fmi_generator;
 pub mod reqif;
+pub mod graph_diff;
 pub mod semantic_diff;
 pub mod c_header_generator;
 pub mod proto_generator;
