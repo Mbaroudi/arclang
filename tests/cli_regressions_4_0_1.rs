@@ -220,6 +220,20 @@ fn a_trace_from_a_function_covers_its_component() {
     assert!(!text(&output).contains("Traceability warnings"), "{}", text(&output));
 }
 
+#[test]
+fn a_physical_node_is_not_reported_as_an_untraced_component() {
+    let directory = tempfile::tempdir().unwrap();
+    let deployed = format!(
+        "{BASE}\narchitecture physical {{\n  node \"Brake ECU\" {{\n    id: \"PN-ECU\"\n    deploys \"LC-BRAKE\"\n    deploys \"LC-RADAR\"\n  }}\n}}\n"
+    );
+    let path = write(directory.path(), "brake.arc", &deployed);
+
+    let output = arclang(&["check", &path]);
+
+    assert!(output.status.success(), "{}", text(&output));
+    assert!(!text(&output).contains("PN-ECU has no trace"), "{}", text(&output));
+}
+
 // ---- diff ---------------------------------------------------------------------
 
 #[test]

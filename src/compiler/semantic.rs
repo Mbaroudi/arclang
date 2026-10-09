@@ -1584,8 +1584,9 @@ impl SemanticModel {
     /// A trace counts in either direction: "component satisfies requirement"
     /// has the requirement as its TARGET. A component is also covered by a
     /// trace on one of its functions. Operational elements (actors, entities,
-    /// activities) are stored with the components but are not expected to
-    /// trace to requirements, so they are not reported.
+    /// activities) and physical nodes are stored with the components but are
+    /// not reported: the former express the need, the latter host components
+    /// that carry the traces.
     pub fn validate_traceability(&self) -> Vec<String> {
         let touched: HashSet<&str> = self
             .traces
@@ -1608,7 +1609,7 @@ impl SemanticModel {
         let components = self
             .components
             .iter()
-            .filter(|component| component.level != "Operational")
+            .filter(|component| !matches!(component.level.as_str(), "Operational" | "Physical"))
             .filter(|component| {
                 !touched.contains(component.id.as_str()) && !component.functions.iter().any(function_touched)
             })
