@@ -1,0 +1,636 @@
+{
+  "generatedBy": "tools/sysml_library_index.py",
+  "reference": "OMG SysML v2 pilot implementation (jupyter-sysml-kernel)",
+  "elements": [
+    {
+      "qualifiedName": "DataFunctions::max",
+      "metaclass": "Function",
+      "name": "max",
+      "shortName": null,
+      "roles": [
+        "function"
+      ]
+    },
+    {
+      "qualifiedName": "DataFunctions::min",
+      "metaclass": "Function",
+      "name": "min",
+      "shortName": null,
+      "roles": [
+        "function"
+      ]
+    },
+    {
+      "qualifiedName": "ISQBase::DurationUnit",
+      "metaclass": "AttributeDefinition",
+      "name": "DurationUnit",
+      "shortName": null,
+      "roles": [
+        "type"
+      ]
+    },
+    {
+      "qualifiedName": "ISQBase::DurationValue",
+      "metaclass": "AttributeDefinition",
+      "name": "DurationValue",
+      "shortName": null,
+      "roles": [
+        "type"
+      ]
+    },
+    {
+      "qualifiedName": "ISQBase::ElectricCurrentUnit",
+      "metaclass": "AttributeDefinition",
+      "name": "ElectricCurrentUnit",
+      "shortName": null,
+      "roles": [
+        "type"
+      ]
+    },
+    {
+      "qualifiedName": "ISQBase::ElectricCurrentValue",
+      "metaclass": "AttributeDefinition",
+      "name": "ElectricCurrentValue",
+      "shortName": null,
+      "roles": [
+        "type"
+      ]
+    },
+    {
+      "qualifiedName": "ISQBase::LengthValue",
+      "metaclass": "AttributeDefinition",
+      "name": "LengthValue",
+      "shortName": null,
+      "roles": [
+        "type"
+      ]
+    },
+    {
+      "qualifiedName": "ISQBase::MassUnit",
+      "metaclass": "AttributeDefinition",
+      "name": "MassUnit",
+      "shortName": null,
+      "roles": [
+        "type"
+      ]
+    },
+    {
+      "qualifiedName": "ISQBase::MassValue",
+      "metaclass": "AttributeDefinition",
+      "name": "MassValue",
+      "shortName": null,
+      "roles": [
+        "type"
+      ]
+    },
+    {
+      "qualifiedName": "ISQBase::ThermodynamicTemperatureValue",
+      "metaclass": "AttributeDefinition",
+      "name": "ThermodynamicTemperatureValue",
+      "shortName": null,
+      "roles": [
+        "type"
+      ]
+    },
+    {
+      "qualifiedName": "ISQElectromagnetism::ElectricPotentialUnit",
+      "metaclass": "AttributeDefinition",
+      "name": "ElectricPotentialUnit",
+      "shortName": null,
+      "roles": [
+        "type"
+      ]
+    },
+    {
+      "qualifiedName": "ISQElectromagnetism::ElectricPotentialValue",
+      "metaclass": "AttributeDefinition",
+      "name": "ElectricPotentialValue",
+      "shortName": null,
+      "roles": [
+        "type"
+      ]
+    },
+    {
+      "qualifiedName": "ISQInformation::BinaryDigitRateUnit",
+      "metaclass": "AttributeDefinition",
+      "name": "BinaryDigitRateUnit",
+      "shortName": null,
+      "roles": [
+        "type"
+      ]
+    },
+    {
+      "qualifiedName": "ISQInformation::BinaryDigitRateValue",
+      "metaclass": "AttributeDefinition",
+      "name": "BinaryDigitRateValue",
+      "shortName": null,
+      "roles": [
+        "type"
+      ]
+    },
+    {
+      "qualifiedName": "ISQInformation::StorageCapacityUnit",
+      "metaclass": "AttributeDefinition",
+      "name": "StorageCapacityUnit",
+      "shortName": null,
+      "roles": [
+        "type"
+      ]
+    },
+    {
+      "qualifiedName": "ISQInformation::StorageCapacityValue",
+      "metaclass": "AttributeDefinition",
+      "name": "StorageCapacityValue",
+      "shortName": null,
+      "roles": [
+        "type"
+      ]
+    },
+    {
+      "qualifiedName": "ISQMechanics::ForceUnit",
+      "metaclass": "AttributeDefinition",
+      "name": "ForceUnit",
+      "shortName": null,
+      "roles": [
+        "type"
+      ]
+    },
+    {
+      "qualifiedName": "ISQMechanics::ForceValue",
+      "metaclass": "AttributeDefinition",
+      "name": "ForceValue",
+      "shortName": null,
+      "roles": [
+        "type"
+      ]
+    },
+    {
+      "qualifiedName": "ISQMechanics::PowerUnit",
+      "metaclass": "AttributeDefinition",
+      "name": "PowerUnit",
+      "shortName": null,
+      "roles": [
+        "type"
+      ]
+    },
+    {
+      "qualifiedName": "ISQMechanics::PowerValue",
+      "metaclass": "AttributeDefinition",
+      "name": "PowerValue",
+      "shortName": null,
+      "roles": [
+        "type"
+      ]
+    },
+    {
+      "qualifiedName": "ISQMechanics::PressureUnit",
+      "metaclass": "AttributeDefinition",
+      "name": "PressureUnit",
+      "shortName": null,
+      "roles": [
+        "type"
+      ]
+    },
+    {
+      "qualifiedName": "ISQMechanics::PressureValue",
+      "metaclass": "AttributeDefinition",
+      "name": "PressureValue",
+      "shortName": null,
+      "roles": [
+        "type"
+      ]
+    },
+    {
+      "qualifiedName": "ISQSpaceTime::FrequencyUnit",
+      "metaclass": "AttributeDefinition",
+      "name": "FrequencyUnit",
+      "shortName": null,
+      "roles": [
+        "type"
+      ]
+    },
+    {
+      "qualifiedName": "ISQSpaceTime::FrequencyValue",
+      "metaclass": "AttributeDefinition",
+      "name": "FrequencyValue",
+      "shortName": null,
+      "roles": [
+        "type"
+      ]
+    },
+    {
+      "qualifiedName": "ISQSpaceTime::SpeedValue",
+      "metaclass": "AttributeDefinition",
+      "name": "SpeedValue",
+      "shortName": null,
+      "roles": [
+        "type"
+      ]
+    },
+    {
+      "qualifiedName": "ISQThermodynamics::EnergyUnit",
+      "metaclass": "AttributeDefinition",
+      "name": "EnergyUnit",
+      "shortName": null,
+      "roles": [
+        "type"
+      ]
+    },
+    {
+      "qualifiedName": "ISQThermodynamics::EnergyValue",
+      "metaclass": "AttributeDefinition",
+      "name": "EnergyValue",
+      "shortName": null,
+      "roles": [
+        "type"
+      ]
+    },
+    {
+      "qualifiedName": "MeasurementReferences::ConversionByConvention",
+      "metaclass": "AttributeDefinition",
+      "name": "ConversionByConvention",
+      "shortName": null,
+      "roles": [
+        "type"
+      ]
+    },
+    {
+      "qualifiedName": "MeasurementReferences::ConversionByPrefix",
+      "metaclass": "AttributeDefinition",
+      "name": "ConversionByPrefix",
+      "shortName": null,
+      "roles": [
+        "type"
+      ]
+    },
+    {
+      "qualifiedName": "MeasurementReferences::ConversionByPrefix::prefix",
+      "metaclass": "AttributeUsage",
+      "name": "prefix",
+      "shortName": null,
+      "roles": [
+        "redefinition"
+      ]
+    },
+    {
+      "qualifiedName": "MeasurementReferences::DimensionOneUnit",
+      "metaclass": "AttributeDefinition",
+      "name": "DimensionOneUnit",
+      "shortName": null,
+      "roles": [
+        "type"
+      ]
+    },
+    {
+      "qualifiedName": "MeasurementReferences::DimensionOneValue",
+      "metaclass": "AttributeDefinition",
+      "name": "DimensionOneValue",
+      "shortName": null,
+      "roles": [
+        "type"
+      ]
+    },
+    {
+      "qualifiedName": "MeasurementReferences::MeasurementUnit::unitConversion",
+      "metaclass": "AttributeUsage",
+      "name": "unitConversion",
+      "shortName": null,
+      "roles": [
+        "redefinition"
+      ]
+    },
+    {
+      "qualifiedName": "MeasurementReferences::UnitConversion::conversionFactor",
+      "metaclass": "AttributeUsage",
+      "name": "conversionFactor",
+      "shortName": null,
+      "roles": [
+        "redefinition"
+      ]
+    },
+    {
+      "qualifiedName": "MeasurementReferences::UnitConversion::referenceUnit",
+      "metaclass": "AttributeUsage",
+      "name": "referenceUnit",
+      "shortName": null,
+      "roles": [
+        "redefinition"
+      ]
+    },
+    {
+      "qualifiedName": "MeasurementReferences::one",
+      "metaclass": "AttributeUsage",
+      "name": "one",
+      "shortName": null,
+      "roles": [
+        "value"
+      ]
+    },
+    {
+      "qualifiedName": "SI::'bit per second'",
+      "metaclass": "AttributeUsage",
+      "name": "bit per second",
+      "shortName": "bit/s",
+      "roles": [
+        "value"
+      ]
+    },
+    {
+      "qualifiedName": "SI::'kilometre per hour'",
+      "metaclass": "AttributeUsage",
+      "name": "kilometre per hour",
+      "shortName": "km/h",
+      "roles": [
+        "value"
+      ]
+    },
+    {
+      "qualifiedName": "SI::'metre per second'",
+      "metaclass": "AttributeUsage",
+      "name": "metre per second",
+      "shortName": "m/s",
+      "roles": [
+        "value"
+      ]
+    },
+    {
+      "qualifiedName": "SI::ampere",
+      "metaclass": "AttributeUsage",
+      "name": "ampere",
+      "shortName": "A",
+      "roles": [
+        "value"
+      ]
+    },
+    {
+      "qualifiedName": "SI::bit",
+      "metaclass": "AttributeUsage",
+      "name": "bit",
+      "shortName": "bit",
+      "roles": [
+        "value"
+      ]
+    },
+    {
+      "qualifiedName": "SI::byte",
+      "metaclass": "AttributeUsage",
+      "name": "byte",
+      "shortName": "B",
+      "roles": [
+        "value"
+      ]
+    },
+    {
+      "qualifiedName": "SI::centimetre",
+      "metaclass": "AttributeUsage",
+      "name": "centimetre",
+      "shortName": "cm",
+      "roles": [
+        "value"
+      ]
+    },
+    {
+      "qualifiedName": "SI::gram",
+      "metaclass": "AttributeUsage",
+      "name": "gram",
+      "shortName": "g",
+      "roles": [
+        "value"
+      ]
+    },
+    {
+      "qualifiedName": "SI::hertz",
+      "metaclass": "AttributeUsage",
+      "name": "hertz",
+      "shortName": "Hz",
+      "roles": [
+        "value"
+      ]
+    },
+    {
+      "qualifiedName": "SI::hour",
+      "metaclass": "AttributeUsage",
+      "name": "hour",
+      "shortName": "h",
+      "roles": [
+        "value"
+      ]
+    },
+    {
+      "qualifiedName": "SI::joule",
+      "metaclass": "AttributeUsage",
+      "name": "joule",
+      "shortName": "J",
+      "roles": [
+        "value"
+      ]
+    },
+    {
+      "qualifiedName": "SI::kelvin",
+      "metaclass": "AttributeUsage",
+      "name": "kelvin",
+      "shortName": "K",
+      "roles": [
+        "value"
+      ]
+    },
+    {
+      "qualifiedName": "SI::kilogram",
+      "metaclass": "AttributeUsage",
+      "name": "kilogram",
+      "shortName": "kg",
+      "roles": [
+        "value"
+      ]
+    },
+    {
+      "qualifiedName": "SI::kilojoule",
+      "metaclass": "AttributeUsage",
+      "name": "kilojoule",
+      "shortName": "kJ",
+      "roles": [
+        "value"
+      ]
+    },
+    {
+      "qualifiedName": "SI::kilometre",
+      "metaclass": "AttributeUsage",
+      "name": "kilometre",
+      "shortName": "km",
+      "roles": [
+        "value"
+      ]
+    },
+    {
+      "qualifiedName": "SI::kilowatt",
+      "metaclass": "AttributeUsage",
+      "name": "kilowatt",
+      "shortName": "kW",
+      "roles": [
+        "value"
+      ]
+    },
+    {
+      "qualifiedName": "SI::metre",
+      "metaclass": "AttributeUsage",
+      "name": "metre",
+      "shortName": "m",
+      "roles": [
+        "value"
+      ]
+    },
+    {
+      "qualifiedName": "SI::millimetre",
+      "metaclass": "AttributeUsage",
+      "name": "millimetre",
+      "shortName": "mm",
+      "roles": [
+        "value"
+      ]
+    },
+    {
+      "qualifiedName": "SI::minute",
+      "metaclass": "AttributeUsage",
+      "name": "minute",
+      "shortName": "min",
+      "roles": [
+        "value"
+      ]
+    },
+    {
+      "qualifiedName": "SI::newton",
+      "metaclass": "AttributeUsage",
+      "name": "newton",
+      "shortName": "N",
+      "roles": [
+        "value"
+      ]
+    },
+    {
+      "qualifiedName": "SI::pascal",
+      "metaclass": "AttributeUsage",
+      "name": "pascal",
+      "shortName": "Pa",
+      "roles": [
+        "value"
+      ]
+    },
+    {
+      "qualifiedName": "SI::second",
+      "metaclass": "AttributeUsage",
+      "name": "second",
+      "shortName": "s",
+      "roles": [
+        "value"
+      ]
+    },
+    {
+      "qualifiedName": "SI::volt",
+      "metaclass": "AttributeUsage",
+      "name": "volt",
+      "shortName": "V",
+      "roles": [
+        "value"
+      ]
+    },
+    {
+      "qualifiedName": "SI::watt",
+      "metaclass": "AttributeUsage",
+      "name": "watt",
+      "shortName": "W",
+      "roles": [
+        "value"
+      ]
+    },
+    {
+      "qualifiedName": "SIPrefixes::giga",
+      "metaclass": "AttributeUsage",
+      "name": "giga",
+      "shortName": null,
+      "roles": [
+        "value"
+      ]
+    },
+    {
+      "qualifiedName": "SIPrefixes::kilo",
+      "metaclass": "AttributeUsage",
+      "name": "kilo",
+      "shortName": null,
+      "roles": [
+        "value"
+      ]
+    },
+    {
+      "qualifiedName": "SIPrefixes::mega",
+      "metaclass": "AttributeUsage",
+      "name": "mega",
+      "shortName": null,
+      "roles": [
+        "value"
+      ]
+    },
+    {
+      "qualifiedName": "SIPrefixes::micro",
+      "metaclass": "AttributeUsage",
+      "name": "micro",
+      "shortName": null,
+      "roles": [
+        "value"
+      ]
+    },
+    {
+      "qualifiedName": "SIPrefixes::milli",
+      "metaclass": "AttributeUsage",
+      "name": "milli",
+      "shortName": null,
+      "roles": [
+        "value"
+      ]
+    },
+    {
+      "qualifiedName": "SIPrefixes::nano",
+      "metaclass": "AttributeUsage",
+      "name": "nano",
+      "shortName": null,
+      "roles": [
+        "value"
+      ]
+    },
+    {
+      "qualifiedName": "ScalarValues::Boolean",
+      "metaclass": "DataType",
+      "name": "Boolean",
+      "shortName": null,
+      "roles": [
+        "type"
+      ]
+    },
+    {
+      "qualifiedName": "ScalarValues::Integer",
+      "metaclass": "DataType",
+      "name": "Integer",
+      "shortName": null,
+      "roles": [
+        "type"
+      ]
+    },
+    {
+      "qualifiedName": "ScalarValues::Real",
+      "metaclass": "DataType",
+      "name": "Real",
+      "shortName": null,
+      "roles": [
+        "type"
+      ]
+    },
+    {
+      "qualifiedName": "ScalarValues::String",
+      "metaclass": "DataType",
+      "name": "String",
+      "shortName": null,
+      "roles": [
+        "type"
+      ]
+    }
+  ]
+}

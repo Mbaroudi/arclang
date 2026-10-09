@@ -366,37 +366,102 @@ Traceability:
 
 ### `arclang fmt`
 
-Format ArcLang source files.
+Format ArcLang source files (`arclang format` is the same command).
 
 ```bash
 arclang fmt [OPTIONS] <INPUT>
 ```
 
 **Arguments:**
-- `<INPUT>` - Input .arc file or directory
+- `<INPUT>` - A .arc file, or a directory walked recursively
 
 **Options:**
 ```bash
---check                      Check if files are formatted
---diff                       Show formatting differences
---indent <SPACES>            Indentation spaces [default: 4]
---line-width <WIDTH>         Maximum line width [default: 100]
+--check                      Change nothing; exit 1 if a file is not formatted
+--write                      Rewrite the files in place
 ```
+
+Without an option, the formatted text of a single file goes to stdout.
+
+The formatter rewrites whitespace only: indentation (four spaces per
+nesting level), spacing inside a line, blank lines (at most one), trailing
+whitespace. Comments, declaration order, literal spelling and line breaks
+are kept. It does not wrap long lines.
 
 **Examples:**
 ```bash
-# Format file
+# Print the formatted model
 arclang fmt model.arc
 
-# Format all files in directory
-arclang fmt models/
+# Format every model of a directory in place
+arclang fmt models/ --write
 
-# Check formatting
-arclang fmt model.arc --check
-
-# Show differences
-arclang fmt model.arc --diff
+# CI: fail when a model is not formatted
+arclang fmt models/ --check
 ```
+
+---
+
+### `arclang set` / `arclang unset`
+
+Change or remove one attribute of one element, keeping comments and layout.
+
+```bash
+arclang set <INPUT> <ELEMENT> <KEY> <VALUE> [--write]
+arclang unset <INPUT> <ELEMENT> <KEY> [--write]
+```
+
+**Arguments:**
+- `<INPUT>` - The .arc file that declares the element
+- `<ELEMENT>` - Its `id`, or its name when it writes no id
+- `<KEY>` - Attribute name
+- `<VALUE>` - The value as ArcLang source: `'"text"'`, `'25 ms'`, `'[A, B]'`
+
+Without `--write`, the edited model goes to stdout.
+
+The edit is refused, and nothing is written, when the element is not found
+or is ambiguous, when the value is not a single valid value, when the edited
+model does not compile, or when the compiled element would not show the
+requested value.
+
+`arclang rename <INPUT> <ELEMENT> <NAME> [--write]` renames an element. It
+is refused when the element would not keep its identity: an element that
+writes no `id` is known by its name, and so is an element a trace or an
+exchange refers to by name.
+
+**Examples:**
+```bash
+arclang rename model.arc LC-001 "Brake controller" --write
+arclang set model.arc LC-001 latency "10 ms" --write
+arclang set model.arc REQ-001 priority '"High"' --write
+arclang unset model.arc LC-001 owner --write
+```
+
+---
+
+### `arclang review`
+
+Advisory review of a model's traces by an external judgment model
+(TypeSafe's Jev). Probabilities, never a verdict; `arclang check` and the
+gate are unaffected.
+
+```bash
+arclang review [OPTIONS] <INPUT>
+```
+
+**Options:**
+```bash
+--threshold <P>              Report declared traces under this plausibility [default: 0.3]
+--suggest                    Also judge undeclared pairs that may be a missing trace
+--suggest-threshold <P>      Report undeclared pairs over this plausibility [default: 0.8]
+--max-questions <N>          Most questions asked, declared traces first [default: 200]
+--json                       Print the result as JSON
+--dry-run                    Say what would be sent, and send nothing
+```
+
+Needs `TYPESAFE_API_KEY` (environment variable, or `./.env`). The kind,
+name, id and text attributes of the elements concerned are sent to
+`api.typesafe.ai`; one request per question.
 
 ---
 

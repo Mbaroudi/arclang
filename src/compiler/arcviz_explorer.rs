@@ -254,7 +254,7 @@ impl ArchitectureDocument {
             std::collections::HashMap::new();
         for sa in &ast.system_analysis {
             for func in &sa.functions {
-                if let Some(lat) = func.attributes.get("latency").and_then(|v| v.as_string()) {
+                if let Some(lat) = func.attributes.get("latency").map(|v| v.display()) {
                     sf_latency.insert(func.id.clone(), lat.to_string());
                     sf_latency.insert(func.name.clone(), lat.to_string());
                 }
@@ -529,7 +529,7 @@ impl ArchitectureDocument {
             map: &mut std::collections::HashMap<(String, String), String>,
         ) {
             for f in &comp.functions {
-                if let Some(lat) = f.attributes.get("latency").and_then(|v| v.as_string()) {
+                if let Some(lat) = f.attributes.get("latency").map(|v| v.display()) {
                     if !comp.id.is_empty() {
                         map.insert((comp.id.clone(), f.name.clone()), lat.to_string());
                     }
@@ -634,16 +634,44 @@ fn generate_html_template() -> String {
 }
 
 pub fn generate_explorer_html(model: &SemanticModel, ast: &Model) -> Result<(String, String), CompilerError> {
+    generate_explorer_html_arranged(model, ast, None)
+}
+
+/// The explorer, with the diagrams shown as the layout file next to
+/// `source` arranges them (`<model>.layout.json`), when there is one. What
+/// that file names and the model no longer draws is reported in the viewer.
+pub fn generate_explorer_html_arranged(
+    model: &SemanticModel,
+    ast: &Model,
+    source: Option<&std::path::Path>,
+) -> Result<(String, String), CompilerError> {
     let doc = ArchitectureDocument::from_model(model, ast)?;
     let json = serde_json::to_string_pretty(&doc)
         .map_err(|e| CompilerError::Semantic(format!("JSON error: {}", e)))?;
     
-    // Embed JSON data into HTML template
-    let template = generate_html_template();
-    let html = template.replace(
-        "/*ARCH_DATA_PLACEHOLDER*/null/*END_ARCH_DATA_PLACEHOLDER*/",
-        &json
-    );
-    
+    // Embed the document data and the viewpoint diagram viewer. Each
+    // placeholder is replaced once (`replacen`), and the template places the
+    // style and viewer placeholders BEFORE the data placeholder: the first
+    // occurrence of each is therefore the template's own, never a copy that
+    // model text carried in. Keep that order when editing the template.
+    // In the data, `</` is escaped so no model string can close the script.
+    let mut diagrams = super::diagram::build_diagrams(ast);
+    if let Some(source) = source {
+        // What the file names and the model no longer draws lands in the
+        // diagnostics, which the viewer shows. A file that is not a layout
+        // stops here: it is never half-read.
+        super::diagram::layout_file::arrange(&mut diagrams, source, None)
+            .map_err(CompilerError::Semantic)?;
+    }
+    let viewer = super::diagram::html::viewer_parts(&diagrams, &doc.metadata.title);
+    let html = generate_html_template()
+        .replacen(
+            "/*ARCH_DATA_PLACEHOLDER*/null/*END_ARCH_DATA_PLACEHOLDER*/",
+            &json.replace("</", "<\\/"),
+            1,
+        )
+        .replacen("<!--ARCVIZ_STYLE-->", &viewer.style, 1)
+        .replacen("<!--ARCVIZ_VIEWER-->", &viewer.body, 1);
+
     Ok((html, json))
 }

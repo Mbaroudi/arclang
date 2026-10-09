@@ -214,3 +214,129 @@ architecture logical {
     assert_eq!(exchange.from_port, "A1", "from field should be A1");
     assert_eq!(exchange.to_port, "B1", "to field should be B1");
 }
+
+// ---- Typed quantities (metamodel M6) ------------------------------------
+
+fn parse_ok(input: &str) -> arclang::compiler::ast::Model {
+    let tokens = Lexer::new(input).tokenize().unwrap();
+    Parser::new(tokens).parse().unwrap_or_else(|e| panic!("parse failed: {e}"))
+}
+
+#[test]
+fn number_followed_by_unit_parses_as_typed_quantity() {
+    use arclang::compiler::ast::{AttributeValue, Quantity};
+    let model = parse_ok(
+        r#"
+model Test {}
+system_analysis "SA" {
+    function "Fuse" {
+        id: "SF-001"
+        latency: 25 ms
+        bandwidth: 100Mbps
+        period: 0.5 s
+    }
+}
+"#,
+    );
+    let function = &model.system_analysis[0].functions[0];
+    assert_eq!(
+        function.attributes.get("latency"),
+        Some(&AttributeValue::Quantity(Quantity::new(25.0, "ms").unwrap()))
+    );
+    assert_eq!(
+        function.attributes.get("bandwidth"),
+        Some(&AttributeValue::Quantity(Quantity::new(100.0, "Mbps").unwrap()))
+    );
+    assert_eq!(
+        function.attributes.get("period"),
+        Some(&AttributeValue::Quantity(Quantity::new(0.5, "s").unwrap()))
+    );
+}
+
+#[test]
+fn bare_number_before_next_attribute_stays_a_number() {
+    use arclang::compiler::ast::AttributeValue;
+    let model = parse_ok(
+        r#"
+model Test {}
+system_analysis "SA" {
+    function "Fuse" {
+        id: "SF-001"
+        wcet: 40
+        name: "Fuse data"
+        count: 3
+    }
+}
+"#,
+    );
+    let function = &model.system_analysis[0].functions[0];
+    assert!(matches!(function.attributes.get("wcet"), Some(AttributeValue::Number(n)) if *n == 40.0));
+    assert!(matches!(function.attributes.get("count"), Some(AttributeValue::Number(n)) if *n == 3.0));
+}
+
+#[test]
+fn unknown_unit_is_a_localized_compile_error() {
+    let input = "model Test {}\nsystem_analysis \"SA\" {\n    function \"Fuse\" {\n        id: \"SF-001\"\n        latency: 25 furlongs\n    }\n}\n";
+    // Go through the compiler entry point: that is the path that carries spans.
+    let err = arclang::compiler::Compiler::new(arclang::compiler::CompilerConfig::default())
+        .compile_string(input)
+        .err()
+        .map(|e| e.to_string())
+        .expect("unknown unit must not compile");
+    assert!(err.contains("unknown unit 'furlongs'"), "message was: {err}");
+    assert!(err.contains("line 5"), "error must carry a source position, got: {err}");
+}
+
+#[test]
+fn quantities_are_allowed_inside_lists_and_legacy_strings_stay_strings() {
+    use arclang::compiler::ast::{AttributeValue, Quantity};
+    let model = parse_ok(
+        r#"
+model Test {}
+system_analysis "SA" {
+    function "Fuse" {
+        id: "SF-001"
+        latency: "25 ms"
+        budgets: [10 ms, 20 ms]
+    }
+}
+"#,
+    );
+    let function = &model.system_analysis[0].functions[0];
+    assert_eq!(function.attributes.get("latency"), Some(&AttributeValue::String("25 ms".to_string())));
+    assert_eq!(
+        function.attributes.get("budgets"),
+        Some(&AttributeValue::List(vec![
+            AttributeValue::Quantity(Quantity::new(10.0, "ms").unwrap()),
+            AttributeValue::Quantity(Quantity::new(20.0, "ms").unwrap()),
+        ]))
+    );
+}
+
+#[test]
+fn compound_unit_symbols_parse_as_one_quantity() {
+    use arclang::compiler::ast::{AttributeValue, Quantity};
+    let model = parse_ok(
+        "model T {}\nsystem_analysis \"SA\" {\n    function \"Cruise\" { id: \"SF-1\" max_speed: 130 km/h rate: 2 Mbit/s }\n}\n",
+    );
+    let function = &model.system_analysis[0].functions[0];
+    assert_eq!(function.attributes.get("max_speed"), Some(&AttributeValue::Quantity(Quantity::new(130.0, "km/h").unwrap())));
+    assert_eq!(function.attributes.get("rate"), Some(&AttributeValue::Quantity(Quantity::new(2.0, "Mbit/s").unwrap())));
+}
+
+#[test]
+fn constraint_requires_exactly_one_assert() {
+    let compile = |source: &str| {
+        arclang::compiler::Compiler::new(arclang::compiler::CompilerConfig::default())
+            .compile_string(source)
+            .map(|_| ())
+            .map_err(|e| e.to_string())
+    };
+    let missing = compile("model T {}\nconstraint \"C\" { description: \"nothing asserted\" }").unwrap_err();
+    assert!(missing.contains("declares no `assert: <expression>`"), "{missing}");
+    let twice = compile("model T {}\nconstraint \"C\" { assert: 1 < 2 assert: 2 < 3 }").unwrap_err();
+    assert!(twice.contains("more than one `assert:`"), "{twice}");
+    let lone = compile("model T {}\nconstraint \"C\" { assert: 1 = 2 }").unwrap_err();
+    assert!(lone.contains("did you mean '=='"), "{lone}");
+    assert!(compile("model T {}\nconstraint \"C\" { assert: 1 + 1 == 2 }").is_ok());
+}

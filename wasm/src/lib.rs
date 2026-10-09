@@ -60,10 +60,28 @@ pub fn compile(source: &str) -> String {
         .unwrap_or_else(|e| format!("{{\"success\":false,\"errors\":[\"serialization: {e}\"]}}"))
 }
 
+/// Format ArcLang source (whitespace only, comments kept); returns a JSON
+/// string: `{success, formatted}` or `{success: false, error}`.
+#[wasm_bindgen]
+pub fn format(source: &str) -> String {
+    let output = match arclang::compiler::format::format_source(source) {
+        Ok(formatted) => serde_json::json!({ "success": true, "formatted": formatted }),
+        Err(error) => serde_json::json!({ "success": false, "error": error }),
+    };
+    output.to_string()
+}
+
 /// Version of the underlying compiler crate.
 #[wasm_bindgen]
 pub fn version() -> String {
     env!("CARGO_PKG_VERSION").to_string()
+}
+
+/// The language metamodel as JSON (element kinds, typed attributes,
+/// enumerations, units, trace rules) — same data as `GET /api/metamodel`.
+#[wasm_bindgen]
+pub fn metamodel() -> String {
+    arclang::compiler::metamodel::Metamodel::current().to_json()
 }
 
 fn compile_inner(source: &str) -> CompileOutput {
@@ -125,7 +143,7 @@ fn compile_inner(source: &str) -> CompileOutput {
                 stats: Some(stats),
                 explorer_html,
                 gate: Some(gate),
-                sysmlv2: Some(arclang::compiler::sysmlv2_generator::generate_sysmlv2(model)),
+                sysmlv2: Some(arclang::compiler::sysmlv2_generator::generate_sysmlv2(model, &result.ast)),
                 reqif: Some(arclang::compiler::reqif::generate_reqif(model, &result.ast)),
                 c_headers: Some(arclang::compiler::c_header_generator::generate_c_headers(model, &result.ast)),
                 proto: Some(arclang::compiler::proto_generator::generate_proto(model, &result.ast)),

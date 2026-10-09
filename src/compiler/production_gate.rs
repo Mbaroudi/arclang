@@ -6,6 +6,7 @@
 //! the gate refuses to say "ready" when the dossier is not.
 
 use super::ast::{AttributeValue, Model};
+use super::quantity::{Quantity, QuantityError};
 use super::semantic::SemanticModel;
 use serde::Serialize;
 use std::collections::{HashMap, HashSet};
@@ -30,6 +31,8 @@ pub struct GateReport {
     pub requirements_total: usize,
     pub requirements_satisfied: usize,
     pub requirements_verified: usize,
+    pub constraints_total: usize,
+    pub constraints_satisfied: usize,
     pub passed: bool,
 }
 
@@ -63,19 +66,45 @@ pub fn dal_for_condition(condition: &str) -> Option<&'static str> {
     }
 }
 
-/// Parse a duration attribute like "50 ms", "0.1 s", "100ms" into milliseconds.
+/// Parse a duration text like "50 ms", "0.1 s", "100ms" into milliseconds.
+/// A bare number is read as milliseconds (legacy convention).
 pub fn parse_millis(text: &str) -> Option<f64> {
-    let trimmed = text.trim().to_lowercase();
-    let (number_part, factor) = if let Some(stripped) = trimmed.strip_suffix("ms") {
-        (stripped, 1.0)
-    } else if let Some(stripped) = trimmed.strip_suffix("us") {
-        (stripped, 0.001)
-    } else if let Some(stripped) = trimmed.strip_suffix('s') {
-        (stripped, 1000.0)
-    } else {
-        (trimmed.as_str(), 1.0)
-    };
-    number_part.trim().parse::<f64>().ok().map(|v| v * factor)
+    match Quantity::parse(text) {
+        Ok(quantity) => quantity.as_millis(),
+        Err(QuantityError::MissingUnit(value)) => Some(value),
+        Err(_) => None,
+    }
+}
+
+/// Outcome of reading a time-typed attribute through the type system.
+#[derive(Debug, PartialEq)]
+enum TimeRead {
+    /// Not declared.
+    Absent,
+    /// A proper time quantity, in milliseconds.
+    Millis(f64),
+    /// A bare number: accepted as milliseconds, but the model should say so.
+    UnitlessMillis(f64),
+    /// Declared but not a time: the reason, for the finding.
+    Invalid(String),
+}
+
+/// Read a time attribute (`latency: 25 ms`, legacy `"25 ms"`, legacy `25`).
+fn read_time(attributes: &HashMap<String, AttributeValue>, key: &str) -> TimeRead {
+    let Some(value) = attributes.get(key) else { return TimeRead::Absent };
+    match value.as_quantity() {
+        None => TimeRead::Invalid(format!("{} is not a quantity", value.display())),
+        Some(Ok(quantity)) => match quantity.as_millis() {
+            Some(ms) => TimeRead::Millis(ms),
+            None => TimeRead::Invalid(format!(
+                "'{}' is a {}, not a time",
+                quantity,
+                quantity.dimension().label()
+            )),
+        },
+        Some(Err(QuantityError::MissingUnit(number))) => TimeRead::UnitlessMillis(number),
+        Some(Err(error)) => TimeRead::Invalid(error.to_string()),
+    }
 }
 
 fn attr<'a>(attributes: &'a HashMap<String, AttributeValue>, key: &str) -> Option<&'a str> {
@@ -91,6 +120,7 @@ fn level_digit(attributes: &HashMap<String, AttributeValue>, key: &str) -> Optio
 }
 
 pub fn run_gate(ast: &Model, semantic: &SemanticModel, standard: &str) -> GateReport {
+    let metamodel = super::metamodel::Metamodel::current();
     let mut findings = Vec::new();
     let mut push = |check: &str, severity: Severity, message: String| {
         findings.push(GateFinding { check: check.to_string(), severity, message });
@@ -186,7 +216,7 @@ pub fn run_gate(ast: &Model, semantic: &SemanticModel, standard: &str) -> GateRe
                     match condition.and_then(dal_for_condition) {
                         Some(computed) => {
                             if let Some(declared) = attr(&hazard.attributes, "dal") {
-                                if !declared.eq_ignore_ascii_case(computed) {
+                                if metamodel.normalize_enum("Dal", declared) != Some(computed) {
                                     push(
                                         "safety.dal",
                                         Severity::Blocker,
@@ -211,7 +241,7 @@ pub fn run_gate(ast: &Model, semantic: &SemanticModel, standard: &str) -> GateRe
                         (Some(s), Some(e), Some(c)) => match compute_asil(s, e, c) {
                             Some(computed) => {
                                 if let Some(declared) = attr(&hazard.attributes, "asil") {
-                                    if !declared.eq_ignore_ascii_case(computed) {
+                                    if metamodel.normalize_enum("Asil", declared) != Some(computed) {
                                         push(
                                             "safety.asil",
                                             Severity::Blocker,
@@ -258,17 +288,34 @@ pub fn run_gate(ast: &Model, semantic: &SemanticModel, standard: &str) -> GateRe
     }
 
     // ---- 3. Timing budgets on functional chains --------------------------
-    let function_latency: HashMap<&str, f64> = ast
-        .system_analysis
-        .iter()
-        .flat_map(|sa| sa.functions.iter())
-        .filter_map(|f| {
-            attr(&f.attributes, "latency")
-                .or_else(|| attr(&f.attributes, "execution_time"))
-                .and_then(parse_millis)
-                .map(|ms| (f.id.as_str(), ms))
-        })
-        .collect();
+    // Latencies are TYPED: a function whose latency is not a time quantity
+    // (wrong dimension, free text) is a blocker, a unitless number a warning.
+    let mut function_latency: HashMap<&str, f64> = HashMap::new();
+    for function in ast.system_analysis.iter().flat_map(|sa| sa.functions.iter()) {
+        let read = match read_time(&function.attributes, "latency") {
+            TimeRead::Absent => read_time(&function.attributes, "execution_time"),
+            other => other,
+        };
+        match read {
+            TimeRead::Absent => {}
+            TimeRead::Millis(ms) => {
+                function_latency.insert(function.id.as_str(), ms);
+            }
+            TimeRead::UnitlessMillis(ms) => {
+                function_latency.insert(function.id.as_str(), ms);
+                push(
+                    "timing.units",
+                    Severity::Warning,
+                    format!("function '{}': latency {} has no unit — assumed milliseconds; write `latency: {} ms`", function.id, ms, ms),
+                );
+            }
+            TimeRead::Invalid(reason) => push(
+                "timing.units",
+                Severity::Blocker,
+                format!("function '{}': latency is not a time quantity ({})", function.id, reason),
+            ),
+        }
+    }
     let function_names: HashMap<&str, &str> = ast
         .system_analysis
         .iter()
@@ -283,9 +330,26 @@ pub fn run_gate(ast: &Model, semantic: &SemanticModel, standard: &str) -> GateRe
             .flat_map(|sa| sa.functional_chains.iter())
             .chain(ast.logical_architecture.iter().flat_map(|la| la.functional_chains.iter()))
             .find(|c| c.id == chain.id);
-        let budget = ast_chain
-            .and_then(|c| attr(&c.attributes, "latency_budget"))
-            .and_then(parse_millis);
+        let budget = match ast_chain.map(|c| read_time(&c.attributes, "latency_budget")) {
+            None | Some(TimeRead::Absent) => None,
+            Some(TimeRead::Millis(ms)) => Some(ms),
+            Some(TimeRead::UnitlessMillis(ms)) => {
+                push(
+                    "timing.units",
+                    Severity::Warning,
+                    format!("functional_chain '{}': latency_budget {} has no unit — assumed milliseconds", chain.name, ms),
+                );
+                Some(ms)
+            }
+            Some(TimeRead::Invalid(reason)) => {
+                push(
+                    "timing.units",
+                    Severity::Blocker,
+                    format!("functional_chain '{}': latency_budget is not a time quantity ({})", chain.name, reason),
+                );
+                None
+            }
+        };
         match budget {
             None => push(
                 "timing.budget",
@@ -362,7 +426,30 @@ pub fn run_gate(ast: &Model, semantic: &SemanticModel, standard: &str) -> GateRe
         }
     }
 
-    // ---- 5. Methodology lints become gate warnings ------------------------
+    // ---- 5. Constraints: every declared constraint must hold --------------
+    for constraint in &semantic.constraints {
+        if !constraint.satisfied {
+            push(
+                "constraints.violated",
+                Severity::Blocker,
+                format!(
+                    "constraint '{}' is violated: `{}` — left side is {}, right side is {}",
+                    constraint.name, constraint.expression, constraint.left, constraint.right
+                ),
+            );
+        }
+    }
+
+    // ---- 5b. Typed metamodel: type violations are blockers ----------------
+    for diagnostic in super::metamodel_check::check_model(ast, semantic) {
+        let severity = match diagnostic.level {
+            super::metamodel_check::Level::Error => Severity::Blocker,
+            super::metamodel_check::Level::Warning => Severity::Warning,
+        };
+        push("metamodel.types", severity, diagnostic.to_string());
+    }
+
+    // ---- 6. Methodology lints become gate warnings ------------------------
     for lint in super::semantic::arcadia_methodology_lints(ast) {
         push("methodology", Severity::Warning, lint);
     }
@@ -374,6 +461,8 @@ pub fn run_gate(ast: &Model, semantic: &SemanticModel, standard: &str) -> GateRe
         requirements_total: semantic.requirements.len(),
         requirements_satisfied,
         requirements_verified,
+        constraints_total: semantic.constraints.len(),
+        constraints_satisfied: semantic.constraints.iter().filter(|c| c.satisfied).count(),
         passed,
     }
 }
@@ -410,7 +499,134 @@ mod tests {
         assert_eq!(parse_millis("50 ms"), Some(50.0));
         assert_eq!(parse_millis("100ms"), Some(100.0));
         assert_eq!(parse_millis("0.1 s"), Some(100.0));
-        assert_eq!(parse_millis("200 us"), Some(0.2));
+        assert!((parse_millis("200 us").unwrap() - 0.2).abs() < 1e-12);
+        assert_eq!(parse_millis("50"), Some(50.0), "bare numbers are legacy milliseconds");
         assert_eq!(parse_millis("garbage"), None);
+    }
+
+    #[test]
+    fn typed_time_reads_distinguish_units_dimensions_and_text() {
+        use super::super::quantity::Quantity;
+        let mut attributes = HashMap::new();
+        attributes.insert("typed".to_string(), AttributeValue::Quantity(Quantity::new(0.25, "s").unwrap()));
+        attributes.insert("legacy".to_string(), AttributeValue::String("250 ms".to_string()));
+        attributes.insert("bare".to_string(), AttributeValue::Number(250.0));
+        attributes.insert("wrong".to_string(), AttributeValue::Quantity(Quantity::new(135.0, "MHz").unwrap()));
+        attributes.insert("text".to_string(), AttributeValue::String("fast".to_string()));
+
+        assert_eq!(read_time(&attributes, "typed"), TimeRead::Millis(250.0));
+        assert_eq!(read_time(&attributes, "legacy"), TimeRead::Millis(250.0));
+        assert_eq!(read_time(&attributes, "bare"), TimeRead::UnitlessMillis(250.0));
+        assert_eq!(read_time(&attributes, "missing"), TimeRead::Absent);
+        assert!(matches!(read_time(&attributes, "wrong"), TimeRead::Invalid(reason) if reason.contains("frequency, not a time")));
+        assert!(matches!(read_time(&attributes, "text"), TimeRead::Invalid(_)));
+    }
+
+    fn compile(source: &str) -> (Model, SemanticModel) {
+        let result = crate::compiler::Compiler::new(crate::compiler::CompilerConfig::default())
+            .compile_string(source)
+            .expect("compiles");
+        (result.ast, result.semantic_model)
+    }
+
+    #[test]
+    fn gate_sums_typed_latencies_across_units_against_the_budget() {
+        let (ast, semantic) = compile(
+            r#"
+model T {}
+system_analysis "SA" {
+    requirement "REQ-1" { description: "fast" }
+    function "A" { id: "F-A" latency: 0.04 s }
+    function "B" { id: "F-B" latency: 50 ms }
+    functional_chain "Chain" { id: "FC-1" involves: ["F-A", "F-B"] latency_budget: 100 ms }
+}
+test_case "TC-1" { verifies: ["REQ-1"] method: "test" }
+architecture logical { component "C" { id: "LC-1" } }
+trace "LC-1" satisfies "REQ-1"
+"#,
+        );
+        let report = run_gate(&ast, &semantic, "ISO26262");
+        assert!(report.passed, "findings: {:?}", report.findings);
+
+        let (ast, semantic) = compile(
+            r#"
+model T {}
+system_analysis "SA" {
+    function "A" { id: "F-A" latency: 0.06 s }
+    function "B" { id: "F-B" latency: 50 ms }
+    functional_chain "Chain" { id: "FC-1" involves: ["F-A", "F-B"] latency_budget: 100 ms }
+}
+"#,
+        );
+        let report = run_gate(&ast, &semantic, "ISO26262");
+        assert!(report.findings.iter().any(|f| f.check == "timing.budget" && f.message.contains("110.0 ms exceeds the 100.0 ms budget")),
+            "findings: {:?}", report.findings);
+    }
+
+    #[test]
+    fn declared_asil_is_compared_after_normalization_and_type_errors_block() {
+        let (ast, semantic) = compile(
+            r#"
+model T {}
+system_analysis "SA" { requirement "REQ-1" { description: "x" } }
+safety_analysis {
+    hazard "H1" { severity: "S3" exposure: "E4" controllability: "C3" asil: "ASIL_D" mitigated_by: ["REQ-1"] }
+    hazard "H2" { severity: "S3" exposure: "E4" controllability: "C3" asil: "ASIL_B" mitigated_by: ["REQ-1"] }
+}
+architecture logical { component "C" { id: "LC-1" safety_level: "High" } }
+"#,
+        );
+        let report = run_gate(&ast, &semantic, "ISO26262");
+        let asil: Vec<_> = report.findings.iter().filter(|f| f.check == "safety.asil").collect();
+        assert_eq!(asil.len(), 1, "only H2 contradicts the table: {:?}", asil);
+        assert!(asil[0].message.contains("H2"));
+        assert!(report.findings.iter().any(|f| f.check == "metamodel.types" && f.severity == Severity::Blocker && f.message.contains("'High' is not a valid SafetyLevel")),
+            "{:?}", report.findings);
+    }
+
+    #[test]
+    fn violated_constraint_blocks_the_gate() {
+        let source = |limit: &str| {
+            format!(
+                r#"
+model T {{}}
+system_analysis "SA" {{
+    function "A" {{ id: "F-A" latency: 60 ms }}
+    function "B" {{ id: "F-B" latency: 30 ms }}
+    functional_chain "Chain" {{ id: "FC-1" involves: ["F-A", "F-B"] latency_budget: 100 ms }}
+}}
+constraint "Margin" {{ assert: sum("FC-1", latency) <= "FC-1".latency_budget * {} }}
+"#,
+                limit
+            )
+        };
+        let (ast, semantic) = compile(&source("0.8"));
+        let report = run_gate(&ast, &semantic, "ISO26262");
+        assert!(
+            report.findings.iter().any(|f| f.check == "constraints.violated" && f.severity == Severity::Blocker && f.message.contains("left side is 90 ms, right side is 80 ms")),
+            "{:?}",
+            report.findings
+        );
+        let (ast, semantic) = compile(&source("0.9"));
+        let report = run_gate(&ast, &semantic, "ISO26262");
+        assert!(!report.findings.iter().any(|f| f.check == "constraints.violated"), "{:?}", report.findings);
+    }
+
+    #[test]
+    fn gate_blocks_a_latency_of_the_wrong_dimension_and_warns_on_unitless() {
+        let (ast, semantic) = compile(
+            r#"
+model T {}
+system_analysis "SA" {
+    function "A" { id: "F-A" latency: 20 MHz }
+    function "B" { id: "F-B" latency: 5 }
+    functional_chain "Chain" { id: "FC-1" involves: ["F-A", "F-B"] latency_budget: 100 ms }
+}
+"#,
+        );
+        let report = run_gate(&ast, &semantic, "ISO26262");
+        let units: Vec<_> = report.findings.iter().filter(|f| f.check == "timing.units").collect();
+        assert!(units.iter().any(|f| f.severity == Severity::Blocker && f.message.contains("F-A") && f.message.contains("frequency, not a time")), "{:?}", units);
+        assert!(units.iter().any(|f| f.severity == Severity::Warning && f.message.contains("F-B") && f.message.contains("assumed milliseconds")), "{:?}", units);
     }
 }

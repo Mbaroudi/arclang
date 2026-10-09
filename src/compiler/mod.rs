@@ -1,9 +1,20 @@
 pub mod lexer;
+pub mod format;
+pub mod source_edit;
 pub mod parser;
 pub mod ast;
 pub mod identity;
+pub mod quantity;
+pub mod multiplicity;
+pub mod constraint;
+pub mod types;
+pub mod elements;
+pub mod metamodel;
+pub mod metamodel_check;
 pub mod production_gate;
 pub mod semantic;
+pub mod capability_relations;
+mod capability_semantics;
 pub mod semantic_analyzer;
 pub mod layout_strategy;
 pub mod post_processor;
@@ -17,6 +28,9 @@ pub mod capella_metamodel;
 pub mod codegen;
 pub mod capella_importer;
 pub mod sysmlv2_generator;
+pub mod sysml_syntax;
+pub mod sysml_records;
+pub mod sysml_library;
 pub mod simulink_generator;
 pub mod fmi_generator;
 pub mod reqif;
@@ -32,7 +46,7 @@ pub mod capella_compliant_generator;
 
 // v2.0.0 Active Generators (RECOMMENDED)
 pub mod graph_model;
-pub mod arcviz_elk_static;
+pub mod diagram;
 pub mod arcviz_explorer;
 pub mod terraform_databricks_generator;
 pub mod terraform_aws_complete_generator;
@@ -195,15 +209,80 @@ impl Compiler {
     /// Semantic analysis + code generation on a fully-merged AST.
     fn finish(
         &mut self,
-        ast: ast::Model,
+        mut ast: ast::Model,
         mut warnings: Vec<String>,
     ) -> Result<CompilationResult, CompilerError> {
+        // User-defined types: fold inherited attributes and ports into every
+        // typed element FIRST, so all later stages see effective values.
+        let type_uses = types::resolve(&mut ast).map_err(CompilerError::Semantic)?;
+
         // Semantic analysis (dangling traces are errors; unresolved exchange
         // endpoints are warnings until ports become first-class)
         let (semantic_model, semantic_warnings) = semantic::SemanticAnalyzer::new()
             .analyze_with_warnings(&ast)
             .map_err(CompilerError::Semantic)?;
         warnings.extend(semantic_warnings);
+
+        // Constraints: an ill-formed constraint (unknown element, dimension
+        // mismatch) is an ERROR; a violated one is a warning here and a
+        // blocker in the production gate.
+        let mut semantic_model = semantic_model;
+        // Already validated by `types::resolve` above.
+        let effective_types = types::effective_types(&ast.types).unwrap_or_default();
+        for declared in &ast.types {
+            semantic_model.types.push(semantic::TypeInfo {
+                name: declared.name.clone(),
+                extends: declared.extends.clone(),
+                required: effective_types
+                    .get(&declared.name)
+                    .map(|effective| effective.required.clone())
+                    .unwrap_or_default(),
+                instances: type_uses
+                    .iter()
+                    .filter(|usage| usage.type_name == declared.name)
+                    .map(|usage| usage.element.clone())
+                    .collect(),
+            });
+        }
+        let scope = constraint::Scope::from_model(&ast);
+        for declared in &ast.constraints {
+            let outcome = constraint::check(&declared.expression, &scope)
+                .map_err(|reason| CompilerError::Semantic(format!("constraint '{}': {}", declared.name, reason)))?;
+            let expression = declared.expression.to_string();
+            if !outcome.satisfied {
+                warnings.push(format!(
+                    "constraint: constraint '{}' is violated: `{}` — left side is {}, right side is {}",
+                    declared.name, expression, outcome.left, outcome.right
+                ));
+            }
+            if let Some(existing) = semantic_model.all_elements.get(&declared.id) {
+                warnings.push(format!(
+                    "duplicate element id '{}': {} '{}' and Constraint '{}' share the same identity — give one an explicit unique id",
+                    declared.id, existing.element_type, existing.name, declared.name
+                ));
+            } else {
+                semantic_model.all_elements.insert(
+                    declared.id.clone(),
+                    semantic::ElementInfo::new(declared.id.clone(), declared.name.clone(), "Constraint"),
+                );
+            }
+            semantic_model.constraints.push(semantic::ConstraintInfo {
+                id: declared.id.clone(),
+                name: declared.name.clone(),
+                expression,
+                satisfied: outcome.satisfied,
+                left: outcome.left.to_string(),
+                right: outcome.right.to_string(),
+            });
+        }
+
+        // Typed metamodel: attribute type violations are reported, never
+        // fatal (semver MINOR); the production gate turns errors into blockers.
+        warnings.extend(
+            metamodel_check::check_model(&ast, &semantic_model)
+                .iter()
+                .map(|d| d.to_string()),
+        );
 
         // Code generation
         let output = codegen::CodeGenerator::new(&self.config).generate(&semantic_model)?;

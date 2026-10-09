@@ -10,7 +10,7 @@
     <component id="ACT-Driver" name="Driver" type="Actor" />
     <component id="ACT-Pedestrian" name="Pedestrian" type="Actor" />
     <component id="ACT-TrafficEnvironment" name="TrafficEnvironment" type="Actor" />
-    <component id="OE-Veh" name="Vehicle" type="System" />
+    <component id="OE-Vehicle" name="Vehicle" type="System" />
     <component id="RadarSensor" name="RadarSensor" type="Sensor" />
     <component id="CameraSensor" name="CameraSensor" type="Sensor" />
     <component id="SensorFusion" name="SensorFusion" type="Processing" />

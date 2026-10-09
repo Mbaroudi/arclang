@@ -396,7 +396,7 @@ logical_architecture LA_EmergencyBraking {
   
   component_exchange "CameraToFusion" {
     from_port: "CameraSensor.CameraDataProvider"
-    to_port: "SensorFusion.FusedDataConsumer"
+    to_port: "SensorFusion.CameraDataConsumer"
     exchange_item: "camera_data"
     label: "Camera Data"
   }
@@ -600,7 +600,8 @@ physical_architecture PA_EmergencyBraking {
     protocol: "LVDS"
     from: "CentralADASECU"
     to: "InstrumentCluster"
-    bandwidth: "135 MHz"
+    bandwidth: "3.2 Gbps"
+    pixel_clock: "135 MHz"
   }
   
   // Physical exchanges (messages on physical links)

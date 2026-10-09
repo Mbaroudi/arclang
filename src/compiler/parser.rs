@@ -2,6 +2,8 @@ use super::ast::*;
 use super::lexer::{Span, Token};
 use std::collections::HashMap;
 
+mod declarations;
+
 /// Result of a parse, including non-fatal warnings (e.g. constructs that are
 /// syntactically accepted but not yet represented in the model).
 #[derive(Debug)]
@@ -42,6 +44,17 @@ impl Parser {
 
     pub fn parse(self) -> Result<Model, String> {
         self.parse_with_warnings().map(|outcome| outcome.model)
+    }
+
+    /// Parse the whole input as ONE attribute value (`"text"`, `25 ms`,
+    /// `[A, B]`, `{ cpu: 4 }`): what may stand after `key:` in a block.
+    pub fn parse_value(mut self) -> Result<AttributeValue, String> {
+        let value = self.parse_attribute_value()?;
+        if self.is_at_end() {
+            Ok(value)
+        } else {
+            Err(self.err(format!("Expected a single value, got {} after it", self.current())))
+        }
     }
 
     pub fn parse_with_warnings(mut self) -> Result<ParseOutcome, String> {
@@ -121,6 +134,12 @@ impl Parser {
                 }
                 Token::TestCase if !self.peek_is_colon() => {
                     model.test_cases.push(self.parse_test_case()?);
+                }
+                Token::ConstraintKw if !self.peek_is_colon() => {
+                    model.constraints.push(self.parse_constraint()?);
+                }
+                Token::Type if !self.peek_is_colon() => {
+                    model.types.push(self.parse_type_def()?);
                 }
                 Token::Dataflow => {
                     self.warn_unmodeled_block("top level")?;
@@ -243,6 +262,12 @@ impl Parser {
                 Token::TestCase if !self.peek_is_colon() => {
                     model.test_cases.push(self.parse_test_case()?);
                 }
+                Token::ConstraintKw if !self.peek_is_colon() => {
+                    model.constraints.push(self.parse_constraint()?);
+                }
+                Token::Type if !self.peek_is_colon() => {
+                    model.types.push(self.parse_type_def()?);
+                }
                 Token::Dataflow | Token::DataFlows => {
                     self.warn_unmodeled_block("model block")?;
                 }
@@ -323,6 +348,12 @@ impl Parser {
                 }
                 Token::TestCase if !self.peek_is_colon() => {
                     model.test_cases.push(self.parse_test_case()?);
+                }
+                Token::ConstraintKw if !self.peek_is_colon() => {
+                    model.constraints.push(self.parse_constraint()?);
+                }
+                Token::Type if !self.peek_is_colon() => {
+                    model.types.push(self.parse_type_def()?);
                 }
                 Token::Dataflow | Token::DataFlows => {
                     self.warn_unmodeled_block("top level")?;
@@ -460,6 +491,12 @@ impl Parser {
                 Token::TestCase if !self.peek_is_colon() => {
                     model.test_cases.push(self.parse_test_case()?);
                 }
+                Token::ConstraintKw if !self.peek_is_colon() => {
+                    model.constraints.push(self.parse_constraint()?);
+                }
+                Token::Type if !self.peek_is_colon() => {
+                    model.types.push(self.parse_type_def()?);
+                }
                 Token::DataFlows | Token::Dataflow | Token::ValidationKeyword => {
                     self.warn_unmodeled_block("top level")?;
                 }
@@ -500,7 +537,7 @@ impl Parser {
                     entities.push(self.parse_operational_entity()?);
                 }
                 Token::Identifier(ref id) if id == "operational_capability" => {
-                    capabilities.push(self.parse_operational_capability()?);
+                    capabilities.extend(self.parse_operational_capabilities()?);
                 }
                 Token::Identifier(ref id) if id == "operational_activity" => {
                     activities.push(self.parse_operational_activity()?);
@@ -610,7 +647,7 @@ impl Parser {
         let id = attributes.get("id")
             .and_then(|v| v.as_string())
             .map(|s| s.to_string())
-            .unwrap_or_else(|| format!("OE-{}", name.chars().take(3).collect::<String>()));
+            .unwrap_or_else(|| default_element_id("OE", &name));
         
         Ok(OperationalEntity {
             id,
@@ -634,28 +671,6 @@ impl Parser {
         })
     }
     
-    fn parse_operational_capability(&mut self) -> Result<OperationalCapability, String> {
-        self.advance(); // Skip 'operational_capability'
-        let name = self.expect_name()?;
-        let attributes = self.parse_attributes_block()?;
-
-        let id = attributes
-            .get("id")
-            .and_then(|v| v.as_string())
-            .map(|s| s.to_string())
-            .unwrap_or_else(|| format!("OC-{}", name.replace(' ', "_")));
-
-        Ok(OperationalCapability {
-            id,
-            name,
-            level: CapabilityLevel::Capability,
-            color: None,
-            stereotype: None,
-            children: Vec::new(),
-            attributes,
-        })
-    }
-    
     fn parse_operational_activity(&mut self) -> Result<OperationalActivity, String> {
         self.advance(); // Skip 'operational_activity'
         let name = self.expect_name()?;
@@ -665,7 +680,7 @@ impl Parser {
         let id = attributes.get("id")
             .and_then(|v| v.as_string())
             .map(|s| s.to_string())
-            .unwrap_or_else(|| format!("OA-{}", name.chars().take(3).collect::<String>()));
+            .unwrap_or_else(|| default_element_id("OA", &name));
         
         let performed_by = attributes.get("performed_by")
             .and_then(|v| v.as_string())
@@ -787,7 +802,7 @@ impl Parser {
                     missions.push(self.parse_mission()?);
                 }
                 Token::Capability => {
-                    capabilities.push(self.parse_capability()?);
+                    capabilities.extend(self.parse_capabilities()?);
                 }
                 Token::FunctionalChain => {
                     functional_chains.push(self.parse_functional_chain()?);
@@ -854,29 +869,6 @@ impl Parser {
             .map(|s| s.to_string())
             .unwrap_or_else(|| format!("MIS-{}", name.replace(' ', "_")));
         Ok(Mission { id, name, attributes })
-    }
-
-    /// Parse: capability Name { id: ... involves: [..] realizes: "..." mission: "..." }
-    /// Also used for LA `capability_realization` blocks.
-    fn parse_capability(&mut self) -> Result<Capability, String> {
-        self.advance(); // Skip 'capability' or 'capability_realization'
-        let name = self.expect_name()?;
-        let attributes = self.parse_attributes_block()?;
-        let id = attributes
-            .get("id")
-            .and_then(|v| v.as_string())
-            .map(|s| s.to_string())
-            .unwrap_or_else(|| format!("CAP-{}", name.replace(' ', "_")));
-        let involves = Self::string_list(&attributes, "involves");
-        let realizes = attributes
-            .get("realizes")
-            .and_then(|v| v.as_string())
-            .map(|s| s.to_string());
-        let mission = attributes
-            .get("mission")
-            .and_then(|v| v.as_string())
-            .map(|s| s.to_string());
-        Ok(Capability { id, name, involves, realizes, mission, attributes })
     }
 
     /// Parse: functional_chain Name { id: ... involves: ["F1", "FE1", "F2"] }
@@ -1151,6 +1143,251 @@ impl Parser {
         })
     }
 
+    /// Parse a number and, when a unit follows, the typed quantity:
+    /// `25 ms`, `100 Mbps`, `50 km/h`, `40 %`. A unit is an identifier right after
+    /// the number that is NOT the key of the next attribute (not followed by
+    /// ':'). An identifier that is not a known unit is an error.
+    fn parse_number_or_quantity(&mut self) -> Result<(f64, Option<super::quantity::Quantity>), String> {
+        let n = match self.current() {
+            Token::Number(n) => *n,
+            other => return Err(self.err(format!("Expected a number, got {}", other))),
+        };
+        self.advance();
+        if matches!(self.tokens.get(self.position), Some(Token::Percent)) {
+            let quantity = super::quantity::Quantity::new(n, "%").map_err(|e| self.err(e.to_string()))?;
+            self.advance();
+            return Ok((n, Some(quantity)));
+        }
+        let Some(Token::Identifier(unit)) = self.tokens.get(self.position) else {
+            return Ok((n, None));
+        };
+        if matches!(self.tokens.get(self.position + 1), Some(Token::Colon)) {
+            return Ok((n, None));
+        }
+        let unit = unit.clone();
+        // Compound symbols lex as three tokens: `km` `/` `h`.
+        if let (Some(Token::Slash), Some(Token::Identifier(denominator))) =
+            (self.tokens.get(self.position + 1), self.tokens.get(self.position + 2))
+        {
+            let compound = format!("{}/{}", unit, denominator);
+            if let Ok(quantity) = super::quantity::Quantity::new(n, &compound) {
+                self.advance();
+                self.advance();
+                self.advance();
+                return Ok((n, Some(quantity)));
+            }
+        }
+        let quantity = super::quantity::Quantity::new(n, &unit).map_err(|_| {
+            self.err(format!(
+                "unknown unit '{}' in quantity '{} {}' (known units include ms, s, Hz, Mbps, MB, m, kg, N, V, W)",
+                unit, n, unit
+            ))
+        })?;
+        self.advance();
+        Ok((n, Some(quantity)))
+    }
+
+    /// Parse: type Name [extends Base] { required: [..]  attr: value  port in|out|inout Name {..} }
+    fn parse_type_def(&mut self) -> Result<TypeDef, String> {
+        self.expect(Token::Type)?;
+        let name = self.expect_name()?;
+        let extends = if matches!(self.current(), Token::Identifier(word) if word == "extends") {
+            self.advance();
+            Some(self.expect_name()?)
+        } else {
+            None
+        };
+        self.expect(Token::LeftBrace)?;
+        let mut attributes = HashMap::new();
+        let mut ports = Vec::new();
+        while !self.check(&Token::RightBrace) && !self.is_at_end() {
+            if self.check(&Token::Port) && !self.peek_is_colon() {
+                ports.push(self.parse_component_port()?);
+            } else {
+                let (key, value) = self.parse_attribute()?;
+                attributes.insert(key, value);
+            }
+        }
+        self.expect(Token::RightBrace)?;
+        if attributes.contains_key("is") {
+            return Err(self.err(format!(
+                "type '{}': a type specializes with `type {} extends Base {{ ... }}`, not with `is:`",
+                name, name
+            )));
+        }
+        let required = Self::string_list(&attributes, "required");
+        Ok(TypeDef { name, extends, attributes, ports, required })
+    }
+
+    /// Parse: constraint Name { id: "CST-1" description: "..." assert: <expression> }
+    fn parse_constraint(&mut self) -> Result<Constraint, String> {
+        self.expect(Token::ConstraintKw)?;
+        let name = self.expect_name()?;
+        self.expect(Token::LeftBrace)?;
+        let mut attributes = HashMap::new();
+        let mut expression = None;
+        while !self.check(&Token::RightBrace) && !self.is_at_end() {
+            let is_assert = matches!(self.current(), Token::Identifier(key) if key == "assert") && self.peek_is_colon();
+            if is_assert {
+                if expression.is_some() {
+                    return Err(self.err(format!("constraint '{}' has more than one `assert:`", name)));
+                }
+                self.advance(); // assert
+                self.advance(); // :
+                expression = Some(self.parse_expression()?);
+            } else {
+                let (key, value) = self.parse_attribute()?;
+                attributes.insert(key, value);
+            }
+        }
+        self.expect(Token::RightBrace)?;
+        let expression = expression
+            .ok_or_else(|| self.err(format!("constraint '{}' declares no `assert: <expression>`", name)))?;
+        let id = attributes
+            .get("id")
+            .and_then(|v| v.as_string())
+            .map(|s| s.to_string())
+            .unwrap_or_else(|| name.clone());
+        Ok(Constraint { id, name, expression, attributes })
+    }
+
+    /// expression := additive ( ("<"|"<="|">"|">="|"=="|"!=") additive )?
+    fn parse_expression(&mut self) -> Result<Expr, String> {
+        let lhs = self.parse_additive()?;
+        let op = match self.current() {
+            Token::Less => BinOp::Lt,
+            Token::LessEq => BinOp::Le,
+            Token::Greater => BinOp::Gt,
+            Token::GreaterEq => BinOp::Ge,
+            Token::EqualEq => BinOp::Eq,
+            Token::NotEq => BinOp::Ne,
+            _ => return Ok(lhs),
+        };
+        self.advance();
+        let rhs = self.parse_additive()?;
+        Ok(Expr::Binary { op, lhs: Box::new(lhs), rhs: Box::new(rhs) })
+    }
+
+    /// additive := term ( ("+"|"-") term )*
+    fn parse_additive(&mut self) -> Result<Expr, String> {
+        let mut lhs = self.parse_term()?;
+        loop {
+            let op = match self.current() {
+                Token::Plus => BinOp::Add,
+                Token::Minus => BinOp::Sub,
+                // The lexer reads `-5` as one negative number; after an
+                // operand that is a subtraction (`a -5 ms` = `a - 5 ms`).
+                Token::Number(n) if *n < 0.0 => {
+                    let (n, quantity) = self.parse_number_or_quantity()?;
+                    let rhs = match quantity {
+                        Some(q) => Expr::Quantity(super::quantity::Quantity { value: -q.value, unit: q.unit }),
+                        None => Expr::Number(-n),
+                    };
+                    lhs = Expr::Binary { op: BinOp::Sub, lhs: Box::new(lhs), rhs: Box::new(rhs) };
+                    continue;
+                }
+                _ => return Ok(lhs),
+            };
+            self.advance();
+            let rhs = self.parse_term()?;
+            lhs = Expr::Binary { op, lhs: Box::new(lhs), rhs: Box::new(rhs) };
+        }
+    }
+
+    /// term := unary ( ("*"|"/") unary )*
+    fn parse_term(&mut self) -> Result<Expr, String> {
+        let mut lhs = self.parse_unary()?;
+        loop {
+            let op = match self.current() {
+                Token::Star => BinOp::Mul,
+                Token::Slash => BinOp::Div,
+                _ => return Ok(lhs),
+            };
+            self.advance();
+            let rhs = self.parse_unary()?;
+            lhs = Expr::Binary { op, lhs: Box::new(lhs), rhs: Box::new(rhs) };
+        }
+    }
+
+    /// unary := "-" unary | primary
+    fn parse_unary(&mut self) -> Result<Expr, String> {
+        if self.check(&Token::Minus) {
+            self.advance();
+            return Ok(Expr::Neg(Box::new(self.parse_unary()?)));
+        }
+        self.parse_primary()
+    }
+
+    /// primary := Number Unit? | Name "." Attribute | Name | Function "(" args ")" | "(" expression ")"
+    fn parse_primary(&mut self) -> Result<Expr, String> {
+        match self.current().clone() {
+            Token::Number(_) => Ok(match self.parse_number_or_quantity()? {
+                (n, None) => Expr::Number(n),
+                (_, Some(quantity)) => Expr::Quantity(quantity),
+            }),
+            Token::LeftParen => {
+                self.advance();
+                let inner = self.parse_additive()?;
+                if !self.check(&Token::RightParen) {
+                    return Err(self.err(format!("Expected ')', got {}", self.current())));
+                }
+                self.advance();
+                Ok(inner)
+            }
+            Token::Identifier(function) if matches!(self.tokens.get(self.position + 1), Some(Token::LeftParen)) => {
+                self.advance(); // function name
+                self.advance(); // (
+                let mut args = Vec::new();
+                while !self.check(&Token::RightParen) && !self.is_at_end() {
+                    args.push(self.parse_additive()?);
+                    if self.check(&Token::Comma) {
+                        self.advance();
+                    } else if !self.check(&Token::RightParen) {
+                        return Err(self.err(format!("Expected ',' or ')' in arguments of {}(), got {}", function, self.current())));
+                    }
+                }
+                if !self.check(&Token::RightParen) {
+                    return Err(self.err(format!("Unclosed argument list of {}()", function)));
+                }
+                self.advance();
+                Ok(Expr::Call { function, args })
+            }
+            Token::Identifier(_) | Token::StringLiteral(_) => {
+                let was_string = matches!(self.current(), Token::StringLiteral(_));
+                let name = self.expect_name()?;
+                // `.attribute` where the attribute is a keyword token (latency, type...)
+                if self.check(&Token::Dot) {
+                    let attribute = match self.tokens.get(self.position + 1) {
+                        Some(Token::Identifier(attribute)) => Some(attribute.clone()),
+                        Some(token) => token.keyword_text().map(str::to_string),
+                        None => None,
+                    };
+                    if let Some(attribute) = attribute {
+                        self.advance();
+                        self.advance();
+                        return Ok(Expr::Attr { element: name, attribute });
+                    }
+                    return Err(self.err("Expected an attribute name after '.'"));
+                }
+                // Bare dotted identifier: the last segment is the attribute.
+                if !was_string {
+                    if let Some((element, attribute)) = name.rsplit_once('.') {
+                        return Ok(Expr::Attr { element: element.to_string(), attribute: attribute.to_string() });
+                    }
+                }
+                Ok(Expr::Ref(name))
+            }
+            // A keyword used as a bare name (`sum(chain, latency)`).
+            token => match token.keyword_text() {
+                Some(text) => {
+                    self.advance();
+                    Ok(Expr::Ref(text.to_string()))
+                }
+                None => Err(self.err(format!("Expected a value, a name or '(' in expression, got {}", token))),
+            },
+        }
+    }
+
     /// Parse: test_case Name { verifies: ["REQ-1"] method: "test" description: "..." }
     fn parse_test_case(&mut self) -> Result<TestCase, String> {
         self.expect(Token::TestCase)?;
@@ -1183,32 +1420,6 @@ impl Parser {
         Ok(TestCase { id, name, verifies, method, attributes })
     }
 
-    /// Parse: class Name { field speed: "float" ... } — Arcadia Class (Data).
-    fn parse_class(&mut self) -> Result<ClassDef, String> {
-        self.expect(Token::Class)?;
-        let name = self.expect_name()?;
-        let attributes = self.parse_attributes_block()?;
-        let id = attributes
-            .get("id")
-            .and_then(|v| v.as_string())
-            .map(|s| s.to_string())
-            .unwrap_or_else(|| name.clone());
-        // Every non-reserved attribute is a field: name -> type.
-        let fields = attributes
-            .iter()
-            .filter(|(k, _)| k.as_str() != "id" && k.as_str() != "description")
-            .filter_map(|(k, v)| {
-                v.as_string().map(|t| DataAttribute {
-                    name: k.clone(),
-                    attr_type: t.to_string(),
-                    default_value: None,
-                    enumeration: None,
-                })
-            })
-            .collect();
-        Ok(ClassDef { id, name, fields, attributes })
-    }
-
     /// Parse: enumeration Name { values: ["A", "B"] } or data_type Name { base: "float" unit: "m/s" }.
     fn parse_data_type(&mut self, is_enumeration: bool) -> Result<DataType, String> {
         self.advance(); // Skip 'enumeration' or 'data_type'
@@ -1233,6 +1444,7 @@ impl Parser {
             id,
             name,
             base_type: attributes.get("base").and_then(|v| v.as_string()).map(|s| s.to_string()),
+            unit: attributes.get("unit").and_then(|v| v.as_string()).map(|s| s.to_string()),
             enumeration_values,
         })
     }
@@ -1481,7 +1693,7 @@ impl Parser {
                 .get("id")
                 .and_then(|v| v.as_string())
                 .map(|s| s.to_string())
-                .unwrap_or_else(|| format!("SF-{}", name.chars().take(3).collect::<String>())),
+                .unwrap_or_else(|| default_element_id("SF", &name)),
             name,
             category: FunctionCategory::System,
             color: Some("#70AD47".to_string()),
@@ -1502,7 +1714,7 @@ impl Parser {
                 .get("id")
                 .and_then(|v| v.as_string())
                 .map(|s| s.to_string())
-                .unwrap_or_else(|| format!("SF-{}", name.chars().take(3).collect::<String>())),
+                .unwrap_or_else(|| default_element_id("SF", &name)),
             name,
             category: FunctionCategory::System,
             color: Some("#70AD47".to_string()),
@@ -1552,7 +1764,7 @@ impl Parser {
                     component_exchanges.push(self.parse_named_component_exchange()?);
                 }
                 Token::CapabilityRealization | Token::Capability => {
-                    capability_realizations.push(self.parse_capability()?);
+                    capability_realizations.extend(self.parse_capabilities()?);
                 }
                 Token::FunctionalChain => {
                     functional_chains.push(self.parse_functional_chain()?);
@@ -1768,7 +1980,7 @@ impl Parser {
                 AttributeValue::String(s) => Some(s.clone()),
                 _ => None,
             })
-            .unwrap_or_else(|| format!("LC-{}", name.chars().take(3).collect::<String>()));
+            .unwrap_or_else(|| default_element_id("LC", &name));
         
         Ok(LogicalComponent {
             id,
@@ -2237,7 +2449,7 @@ impl Parser {
         }
         
         Ok(PhysicalNode {
-            id: format!("PN-{}", name.chars().take(3).collect::<String>()),
+            id: default_element_id("PN", &name),
             name,
             node_type: NodeType::Hardware,
             color: Some("#FFE699".to_string()),
@@ -2627,14 +2839,10 @@ impl Parser {
                 let s = self.expect_string()?;
                 Ok(AttributeValue::String(s))
             }
-            Token::Number(_) => {
-                if let Token::Number(n) = self.current().clone() {
-                    self.advance();
-                    Ok(AttributeValue::Number(n))
-                } else {
-                    unreachable!()
-                }
-            }
+            Token::Number(_) => Ok(match self.parse_number_or_quantity()? {
+                (n, None) => AttributeValue::Number(n),
+                (_, Some(quantity)) => AttributeValue::Quantity(quantity),
+            }),
             Token::LeftBracket => self.parse_list(),
             Token::LeftBrace => {
                 // Nested attribute map: properties: { cpu: "32 cores" ... }
@@ -2919,7 +3127,7 @@ impl Parser {
             .get("id")
             .and_then(|v| v.as_string())
             .map(|s| s.to_string())
-            .unwrap_or_else(|| format!("BC-{}", name.chars().take(3).collect::<String>()));
+            .unwrap_or_else(|| default_element_id("BC", &name));
         let color = attributes
             .get("color")
             .and_then(|v| v.as_string())
@@ -2967,11 +3175,21 @@ impl Parser {
         }
         
         Ok(HardwareComponent {
-            id: format!("HC-{}", name.chars().take(3).collect::<String>()),
+            id: default_element_id("HC", &name),
             name,
             hw_type,
             specs,
             color,
         })
     }
+}
+
+/// Default identity of an element declared without an explicit `id`:
+/// `<PREFIX>-<Name>`, spaces written as underscores.
+///
+/// The whole name is used. Earlier pre-releases kept only its first three
+/// characters, so `BrakingModule` and `BrakeActuation` silently shared the
+/// identity `BC-Bra` (and therefore one UUID).
+pub(crate) fn default_element_id(prefix: &str, name: &str) -> String {
+    format!("{prefix}-{}", name.replace(' ', "_"))
 }

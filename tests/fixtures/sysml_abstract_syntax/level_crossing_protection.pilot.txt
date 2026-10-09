@@ -1,0 +1,121 @@
+Package name=LevelCrossingProtection short=- via=-
+  ItemDefinition name=Data short=- via=OwningMembership
+  RequirementUsage name=req_REQ_LX_001 short=REQ-LX-001 via=OwningMembership
+    Documentation name=- short=- via=OwningMembership body="Train detection — The system shall detect an approaching train at least 30 s before it reaches the crossing"
+    AttributeUsage name=priority short=- via=FeatureMembership : ScalarValues::String = String("High")
+  RequirementUsage name=req_REQ_LX_002 short=REQ-LX-002 via=OwningMembership
+    Documentation name=- short=- via=OwningMembership body="Barrier closure — Barriers shall be fully closed at least 10 s before the train reaches the crossing"
+    AttributeUsage name=priority short=- via=FeatureMembership : ScalarValues::String = String("High")
+  RequirementUsage name=req_REQ_LX_003 short=REQ-LX-003 via=OwningMembership
+    Documentation name=- short=- via=OwningMembership body="Crossing clear proving — The system shall prove the crossing area is free of obstacles before authorising train passage"
+    AttributeUsage name=priority short=- via=FeatureMembership : ScalarValues::String = String("High")
+  RequirementUsage name=req_REQ_LX_004 short=REQ-LX-004 via=OwningMembership
+    Documentation name=- short=- via=OwningMembership body="Fail-safe state — On any internal failure, barriers shall close and the protecting signal shall show stop"
+    AttributeUsage name=priority short=- via=FeatureMembership : ScalarValues::String = String("High")
+  UseCaseDefinition name=Protect_the_crossing short=OC-001 via=OwningMembership
+    Documentation name=- short=- via=OwningMembership body="OperationalCapability: Protect the crossing"
+  ActionDefinition name=Detect_approaching_train short=Detect approaching train via=OwningMembership
+    Documentation name=- short=- via=OwningMembership body="Detect approaching train (logical function of Train Detector)"
+    AttributeUsage name=latency short=- via=FeatureMembership : ISQBase::DurationValue = op([, Integer(500), ref(LevelCrossingProtection::ArcLangUnits::millisecond))
+  ActionDefinition name=Sequence_the_protection_cycle short=Sequence the protection cycle via=OwningMembership
+    Documentation name=- short=- via=OwningMembership body="Sequence the protection cycle (logical function of Crossing Controller)"
+    AttributeUsage name=latency short=- via=FeatureMembership : ISQBase::DurationValue = op([, Integer(200), ref(LevelCrossingProtection::ArcLangUnits::millisecond))
+  ActionDefinition name=Enter_fail_safe_on_fault short=Enter fail-safe on fault via=OwningMembership
+    Documentation name=- short=- via=OwningMembership body="Enter fail-safe on fault (logical function of Crossing Controller)"
+  ActionDefinition name=Drive_the_barriers short=Drive the barriers via=OwningMembership
+    Documentation name=- short=- via=OwningMembership body="Drive the barriers (logical function of Barrier Machine)"
+  ActionDefinition name=Prove_crossing_clear short=Prove crossing clear via=OwningMembership
+    Documentation name=- short=- via=OwningMembership body="Prove crossing clear (logical function of Obstacle Detector)"
+    AttributeUsage name=latency short=- via=FeatureMembership : ISQBase::DurationValue = op([, Integer(300), ref(LevelCrossingProtection::ArcLangUnits::millisecond))
+  ActionDefinition name=Display_movement_authority short=Display movement authority via=OwningMembership
+    Documentation name=- short=- via=OwningMembership body="Display movement authority (logical function of Protecting Signal)"
+  PortDefinition name=In_Data_Port short=- via=OwningMembership
+    ItemUsage name=data short=- via=FeatureMembership dir=in : LevelCrossingProtection::Data
+  PortDefinition name=Out_Data_Port short=- via=OwningMembership
+    ItemUsage name=data short=- via=FeatureMembership dir=out : LevelCrossingProtection::Data
+  PartDefinition name=Train_Driver short=OA-ACT-001 via=OwningMembership
+    Documentation name=- short=- via=OwningMembership body="Train Driver (actor)"
+  PartUsage name=p_OA_ACT_001 short=- via=OwningMembership : LevelCrossingProtection::Train_Driver
+  PartDefinition name=Road_User short=OA-ACT-002 via=OwningMembership
+    Documentation name=- short=- via=OwningMembership body="Road User (actor)"
+  PartUsage name=p_OA_ACT_002 short=- via=OwningMembership : LevelCrossingProtection::Road_User
+  PartDefinition name=Signaller short=OA-ACT-003 via=OwningMembership
+    Documentation name=- short=- via=OwningMembership body="Signaller (actor)"
+  PartUsage name=p_OA_ACT_003 short=- via=OwningMembership : LevelCrossingProtection::Signaller
+  PartDefinition name=Train_Detector short=LC-LX-001 via=OwningMembership
+    Documentation name=- short=- via=OwningMembership body="Train Detector (logical component)"
+    PortUsage name=TrainApproach short=- via=FeatureMembership : LevelCrossingProtection::Out_Data_Port
+    PerformActionUsage name=perform_Detect_approaching_train short=- via=FeatureMembership : LevelCrossingProtection::Detect_approaching_train
+  PartUsage name=p_LC_LX_001 short=- via=OwningMembership : LevelCrossingProtection::Train_Detector
+  PartDefinition name=Crossing_Controller short=LC-LX-002 via=OwningMembership
+    Documentation name=- short=- via=OwningMembership body="Crossing Controller (logical component)"
+    PortUsage name=TrainApproach short=- via=FeatureMembership : LevelCrossingProtection::In_Data_Port
+    PortUsage name=CrossingStatus short=- via=FeatureMembership : LevelCrossingProtection::In_Data_Port
+    PortUsage name=BarrierCommand short=- via=FeatureMembership : LevelCrossingProtection::Out_Data_Port
+    PortUsage name=SignalCommand short=- via=FeatureMembership : LevelCrossingProtection::Out_Data_Port
+    PerformActionUsage name=perform_Sequence_the_protection_cycle short=- via=FeatureMembership : LevelCrossingProtection::Sequence_the_protection_cycle
+    PerformActionUsage name=perform_Enter_fail_safe_on_fault short=- via=FeatureMembership : LevelCrossingProtection::Enter_fail_safe_on_fault
+  PartUsage name=p_LC_LX_002 short=- via=OwningMembership : LevelCrossingProtection::Crossing_Controller
+  PartDefinition name=Barrier_Machine short=LC-LX-003 via=OwningMembership
+    Documentation name=- short=- via=OwningMembership body="Barrier Machine (logical component)"
+    PortUsage name=BarrierCommand short=- via=FeatureMembership : LevelCrossingProtection::In_Data_Port
+    PerformActionUsage name=perform_Drive_the_barriers short=- via=FeatureMembership : LevelCrossingProtection::Drive_the_barriers
+  PartUsage name=p_LC_LX_003 short=- via=OwningMembership : LevelCrossingProtection::Barrier_Machine
+  PartDefinition name=Obstacle_Detector short=LC-LX-004 via=OwningMembership
+    Documentation name=- short=- via=OwningMembership body="Obstacle Detector (logical component)"
+    PortUsage name=CrossingStatus short=- via=FeatureMembership : LevelCrossingProtection::Out_Data_Port
+    PerformActionUsage name=perform_Prove_crossing_clear short=- via=FeatureMembership : LevelCrossingProtection::Prove_crossing_clear
+  PartUsage name=p_LC_LX_004 short=- via=OwningMembership : LevelCrossingProtection::Obstacle_Detector
+  PartDefinition name=Protecting_Signal short=LC-LX-005 via=OwningMembership
+    Documentation name=- short=- via=OwningMembership body="Protecting Signal (logical component)"
+    PortUsage name=SignalCommand short=- via=FeatureMembership : LevelCrossingProtection::In_Data_Port
+    PerformActionUsage name=perform_Display_movement_authority short=- via=FeatureMembership : LevelCrossingProtection::Display_movement_authority
+  PartUsage name=p_LC_LX_005 short=- via=OwningMembership : LevelCrossingProtection::Protecting_Signal
+  ConnectionUsage name=- short=- via=OwningMembership src=LevelCrossingProtection::p_LC_LX_001 tgt=LevelCrossingProtection::p_LC_LX_002
+  ConnectionUsage name=- short=- via=OwningMembership src=LevelCrossingProtection::p_LC_LX_004 tgt=LevelCrossingProtection::p_LC_LX_002
+  ConnectionUsage name=- short=- via=OwningMembership src=LevelCrossingProtection::p_LC_LX_002 tgt=LevelCrossingProtection::p_LC_LX_003
+  ConnectionUsage name=- short=- via=OwningMembership src=LevelCrossingProtection::p_LC_LX_002 tgt=LevelCrossingProtection::p_LC_LX_005
+  StateDefinition name=CrossingModes short=- via=OwningMembership
+    ActionUsage name=- short=- via=StateSubactionMembership
+    SuccessionAsUsage name=- short=- via=FeatureMembership src=LevelCrossingProtection::CrossingModes::entryAction tgt=LevelCrossingProtection::CrossingModes::Open
+    StateUsage name=Open short=- via=FeatureMembership
+    StateUsage name=Closing short=- via=FeatureMembership
+    StateUsage name=Protected short=- via=FeatureMembership
+    StateUsage name=Failed short=- via=FeatureMembership
+    TransitionUsage name=t1 short=- via=FeatureMembership
+      SuccessionAsUsage name=- short=- via=OwningMembership src=LevelCrossingProtection::CrossingModes::Open tgt=LevelCrossingProtection::CrossingModes::Closing
+    TransitionUsage name=t2 short=- via=FeatureMembership
+      SuccessionAsUsage name=- short=- via=OwningMembership src=LevelCrossingProtection::CrossingModes::Closing tgt=LevelCrossingProtection::CrossingModes::Protected
+    TransitionUsage name=t3 short=- via=FeatureMembership
+      SuccessionAsUsage name=- short=- via=OwningMembership src=LevelCrossingProtection::CrossingModes::Protected tgt=LevelCrossingProtection::CrossingModes::Open
+    TransitionUsage name=t4 short=- via=FeatureMembership
+      SuccessionAsUsage name=- short=- via=OwningMembership src=LevelCrossingProtection::CrossingModes::Closing tgt=LevelCrossingProtection::CrossingModes::Failed
+    TransitionUsage name=t5 short=- via=FeatureMembership
+      SuccessionAsUsage name=- short=- via=OwningMembership src=LevelCrossingProtection::CrossingModes::Protected tgt=LevelCrossingProtection::CrossingModes::Failed
+  VerificationCaseDefinition name=verify_TC_LX_001 short=TC-LX-001 via=OwningMembership
+    Documentation name=- short=- via=OwningMembership body="TC-LX-001 (method: test)"
+    AttributeUsage name=method short=- via=FeatureMembership : ScalarValues::String = String("test")
+    RequirementUsage name=- short=- via=ObjectiveMembership
+      RequirementUsage name=- short=- via=RequirementVerificationMembership references LevelCrossingProtection::req_REQ_LX_001
+  VerificationCaseDefinition name=verify_TC_LX_002 short=TC-LX-002 via=OwningMembership
+    Documentation name=- short=- via=OwningMembership body="TC-LX-002 (method: analysis)"
+    AttributeUsage name=method short=- via=FeatureMembership : ScalarValues::String = String("analysis")
+    RequirementUsage name=- short=- via=ObjectiveMembership
+      RequirementUsage name=- short=- via=RequirementVerificationMembership references LevelCrossingProtection::req_REQ_LX_002
+  VerificationCaseDefinition name=verify_TC_LX_003 short=TC-LX-003 via=OwningMembership
+    Documentation name=- short=- via=OwningMembership body="TC-LX-003 (method: demonstration)"
+    AttributeUsage name=method short=- via=FeatureMembership : ScalarValues::String = String("demonstration")
+    RequirementUsage name=- short=- via=ObjectiveMembership
+      RequirementUsage name=- short=- via=RequirementVerificationMembership references LevelCrossingProtection::req_REQ_LX_003
+  VerificationCaseDefinition name=verify_TC_LX_004 short=TC-LX-004 via=OwningMembership
+    Documentation name=- short=- via=OwningMembership body="TC-LX-004 (method: test)"
+    AttributeUsage name=method short=- via=FeatureMembership : ScalarValues::String = String("test")
+    RequirementUsage name=- short=- via=ObjectiveMembership
+      RequirementUsage name=- short=- via=RequirementVerificationMembership references LevelCrossingProtection::req_REQ_LX_004
+  SatisfyRequirementUsage name=- short=- via=OwningMembership references LevelCrossingProtection::req_REQ_LX_001 req=LevelCrossingProtection::req_REQ_LX_001 by=LevelCrossingProtection::p_LC_LX_001
+  SatisfyRequirementUsage name=- short=- via=OwningMembership references LevelCrossingProtection::req_REQ_LX_002 req=LevelCrossingProtection::req_REQ_LX_002 by=LevelCrossingProtection::p_LC_LX_002
+  SatisfyRequirementUsage name=- short=- via=OwningMembership references LevelCrossingProtection::req_REQ_LX_002 req=LevelCrossingProtection::req_REQ_LX_002 by=LevelCrossingProtection::p_LC_LX_003
+  SatisfyRequirementUsage name=- short=- via=OwningMembership references LevelCrossingProtection::req_REQ_LX_003 req=LevelCrossingProtection::req_REQ_LX_003 by=LevelCrossingProtection::p_LC_LX_004
+  SatisfyRequirementUsage name=- short=- via=OwningMembership references LevelCrossingProtection::req_REQ_LX_004 req=LevelCrossingProtection::req_REQ_LX_004 by=LevelCrossingProtection::p_LC_LX_002
+  Package name=ArcLangUnits short=- via=OwningMembership
+    AttributeUsage name=millisecond short=ms via=OwningMembership : ISQBase::DurationUnit

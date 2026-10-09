@@ -55,3 +55,42 @@ async fn compile_endpoint_returns_localized_error() {
         "error must be localized, got: {error}"
     );
 }
+
+#[tokio::test]
+async fn metamodel_endpoint_publishes_the_typed_contract() {
+    let app = arclang::web_server::build_router();
+    let response = app
+        .oneshot(Request::builder().method("GET").uri("/api/metamodel").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let bytes = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
+    let json: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+    assert_eq!(json["version"], arclang::compiler::metamodel::LANGUAGE_VERSION);
+    let kinds = json["kinds"].as_array().unwrap();
+    let component = kinds.iter().find(|k| k["name"] == "LogicalComponent").expect("LogicalComponent kind");
+    let latency = kinds
+        .iter()
+        .find(|k| k["name"] == "SystemFunction")
+        .and_then(|k| k["attributes"].as_array())
+        .and_then(|attrs| attrs.iter().find(|a| a["key"] == "latency"))
+        .expect("SystemFunction.latency");
+    assert_eq!(latency["type"]["type"], "Quantity");
+    assert_eq!(latency["type"]["of"], "Time");
+    assert_eq!(component["sysml"], "part def + part");
+    assert!(json["units"].as_array().unwrap().iter().any(|u| u["symbol"] == "ms"));
+}
+
+#[tokio::test]
+async fn compile_endpoint_reports_metamodel_type_violations_as_warnings() {
+    let (status, json) = post_compile(
+        "model T {}\nsystem_analysis \"SA\" {\n  function \"F\" { id: \"F-1\" latency: 20 MHz }\n}",
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "type violations never fail compilation (semver MINOR)");
+    let warnings = json["warnings"].as_array().unwrap();
+    assert!(
+        warnings.iter().any(|w| w.as_str().unwrap().contains("metamodel: SystemFunction 'F-1'.latency")),
+        "{warnings:?}"
+    );
+}

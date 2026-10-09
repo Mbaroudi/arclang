@@ -2,7 +2,9 @@
    ArcLang grammar — CANONICAL specification
    ===========================================================================
 
-   This file is the single source of truth for ArcLang syntax. It describes
+   This file is the single source of truth for ArcLang SYNTAX; the typed
+   element kinds, attributes, enumerations and units are specified in
+   spec/METAMODEL.md (generated from src/compiler/metamodel.rs). It describes
    exactly what src/compiler/parser.rs accepts in v3. If the parser and this
    file disagree, one of them has a bug — file an issue.
 
@@ -70,7 +72,7 @@ OperationalAnalysis ::= "operational_analysis" Name "{" OaElement* "}" ;
 
 OaElement       ::= "actor" Name AttributeBlock
                   | ( "operational_entity" | "entity" ) Name "{" EntityElement* "}"
-                  | "operational_capability" Name AttributeBlock
+                  | OperationalCapabilityDecl
                   | ( "operational_activity" | "activity" ) Name AttributeBlock
                   | OperationalExchange
                   | TraceDecl
@@ -98,10 +100,19 @@ SaElement       ::= RequirementDecl
                   | TraceDecl
                   | Attribute ;
 
+(* Capabilities nest: one declared inside another is part of it. Relations
+   between capabilities of ONE level are attributes of the source:
+   extends: [ <ref>* ], includes: [ <ref>* ], specializes: [ <ref>* ].
+   A target that is unknown, of another level or the capability itself is
+   an ERROR. involves: [ <ref>* ] names actors, entities, activities and
+   processes (operational) or functions, actors and chains (system). *)
+OperationalCapabilityDecl ::= "operational_capability" Name
+                              "{" ( Attribute | OperationalCapabilityDecl )* "}" ;
+
 (* Arcadia: Mission requires Capability; Capability realized across layers;
    Functional Chains exemplify capabilities. *)
 MissionDecl         ::= "mission" Name AttributeBlock ;
-CapabilityDecl      ::= "capability" Name AttributeBlock ;
+CapabilityDecl      ::= "capability" Name "{" ( Attribute | CapabilityDecl )* "}" ;
                         (* attributes: id:, mission: <ref>, realizes: <ref>,
                            involves: [ <ref>* ] — references resolve by id or
                            unambiguous name; dangling references are ERRORS *)
@@ -125,11 +136,14 @@ FunctionalExchange ::= ( "functional_exchange" | "exchange" | "flow" )
 LogicalArchitecture ::= "logical_architecture" Name "{" LaElement* "}"
                       | "architecture" "logical" Name? "{" LaElement* "}" ;
 
+CapabilityRealizationDecl ::= ( "capability_realization" | "capability" ) Name
+                              "{" ( Attribute | CapabilityRealizationDecl )* "}" ;
+
 LaElement       ::= Component
                   | "interface" Name "{" InterfaceBody "}"
                   | ConnectionDecl
                   | "component_exchange" Name AttributeBlock   (* from_port:/to_port: required *)
-                  | ( "capability_realization" | "capability" ) Name AttributeBlock
+                  | CapabilityRealizationDecl
                   | FunctionalChainDecl
                   | TraceDecl
                   | Attribute ;
@@ -204,17 +218,34 @@ AttributeBlock  ::= "{" Attribute* "}" ;
 Attribute       ::= AttributeKey ":" AttributeValue ;
 AttributeKey    ::= Identifier | Keyword ;      (* any keyword may be used as a key *)
 AttributeValue  ::= String
+                  | Quantity                    (* typed: 25 ms, 100 Mbps, 512 MB *)
                   | Number
                   | DottedName                  (* bare identifier / reference *)
                   | "[" ( AttributeValue ( "," AttributeValue )* )? "]"
                   | AttributeBlock ;            (* nested map *)
 
+(* A quantity is a number immediately followed by a unit symbol. The unit
+   table (symbols, dimensions, conversion factors) is part of the metamodel:
+   see spec/METAMODEL.md "Units". An unknown unit is a compile ERROR. The
+   next token after a Number is read as a unit only when it is NOT the key
+   of the following attribute (i.e. not followed by ":").
+   Typed attributes (which keys expect which dimension or enumeration) are
+   declared in spec/METAMODEL.md; violations are `metamodel:` warnings at
+   compile time and blockers in the production gate. *)
+Quantity        ::= Number UnitSymbol ;
+UnitSymbol      ::= Identifier ( "/" Identifier )?     (* must be in the unit table: ms, km/h *)
+                  | "%" ;                              (* percent, same unit as `percent` *)
+
 (* ---- Data Model (Arcadia: Class, DataType, Enumeration, Exchange Item) -------------------- *)
 
 ClassDecl        ::= "class" Name AttributeBlock ;
-                     (* every non-reserved attribute is a field: name -> type *)
+                     (* every attribute but id: and description: is a field,
+                        name -> type. Fields keep their declared order; one
+                        declared twice is an ERROR. *)
 EnumerationDecl  ::= "enumeration" Name AttributeBlock ;       (* values: [ Name* ] *)
-DataTypeDecl     ::= "data_type" Name AttributeBlock ;         (* base:, unit: *)
+DataTypeDecl     ::= "data_type" Name AttributeBlock ;
+                     (* base:, unit: <UnitSymbol> — a symbol outside the unit
+                        table is reported like any typed attribute. *)
 ExchangeItemDecl ::= "exchange_item" Name AttributeBlock ;
                      (* mechanism: EVENT|FLOW|OPERATION|DATA|SHARED_DATA (ERROR otherwise);
                         elements: [ <class/datatype ref>* ] — dangling refs are ERRORS.
@@ -243,6 +274,53 @@ TestCaseDecl    ::= "test_case" Name AttributeBlock ;
                        method: test|analysis|inspection|demonstration (ERROR otherwise).
                        The production gate (arclang gate) requires every
                        requirement to be verified by at least one test_case. *)
+
+(* ---- User-defined types ------------------------------------------------------------------------ *)
+
+TypeDecl        ::= "type" Name ( "extends" Name )? "{" ( TypePort | Attribute )* "}" ;
+TypePort        ::= "port" ( "in" | "out" | "inout" ) Name AttributeBlock? ;
+                    (* A type is a reusable definition. `required: [ key* ]` lists
+                       the attributes every instance must provide.
+                       Any element is typed with the attribute `is: <type name>`
+                       or `is: [ <type name>+ ]` (multiple typing): it inherits
+                       the types' attributes (own values win) and, for
+                       components, their ports. Two types defining the same
+                       attribute or port DIFFERENTLY is an ERROR unless the
+                       element redefines it. ERRORS: duplicate or unknown
+                       type, cyclic `extends`, a missing required attribute, a
+                       redefinition that changes a quantity's dimension, a type
+                       with ports applied to a non-component. `id`, `name`,
+                       `description` and `required` are never inherited.
+                       Types have their own namespace. *)
+
+(* ---- Constraints ------------------------------------------------------------------------------ *)
+
+ConstraintDecl  ::= "constraint" Name "{" ( "assert" ":" Expression | Attribute )* "}" ;
+                    (* exactly one `assert:` REQUIRED. The expression must be a
+                       comparison of two values of the SAME dimension. Unknown
+                       elements/attributes and dimension mismatches are ERRORS.
+                       A constraint that evaluates to false is a `constraint:`
+                       warning and a blocker in the production gate. *)
+
+Expression      ::= Additive ( ( "<" | "<=" | ">" | ">=" | "==" | "!=" ) Additive )? ;
+Additive        ::= Term ( ( "+" | "-" ) Term )* ;
+Term            ::= Unary ( ( "*" | "/" ) Unary )* ;
+                    (* products and quotients carry DERIVED dimensions:
+                       voltage * current is a power, size / data rate is a time.
+                       "+", "-" and comparisons need both sides in the same
+                       dimension. *)
+Unary           ::= "-" Unary | Primary ;
+Primary         ::= Quantity | Number
+                  | Name "." AttributeKey          (* attribute of an element, by id or name *)
+                  | Identifier "(" ( Additive ( "," Additive )* )? ")"
+                  | Name                           (* bare name: function argument only *)
+                  | "(" Additive ")" ;
+                    (* functions: sum(collection, attribute), min(...), max(...),
+                       count(collection). A collection is an element with an
+                       `involves:` list (functional chain, physical path,
+                       capability). Members without attributes of their own
+                       (exchanges) are not operands; a member lacking the
+                       aggregated attribute is an ERROR naming it. *)
 
 (* ---- Modes & States (Arcadia transverse) -------------------------------------------------- *)
 

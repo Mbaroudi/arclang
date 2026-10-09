@@ -10,6 +10,8 @@ use std::sync::Arc;
 use tower_http::cors::CorsLayer;
 use tower_http::trace::TraceLayer;
 
+pub mod systems_modeling;
+
 use crate::compiler::CompilerError;
 use crate::compiler::semantic::{SemanticModel, SemanticAnalyzer};
 use crate::compiler::ast::{
@@ -365,6 +367,11 @@ pub struct CompileRequest {
 /// Compile ArcLang source and return the canonical semantic model as JSON.
 /// This is the programmatic access point to the model (M4): errors are
 /// structured, warnings are included, every element carries its stable uuid.
+/// The language metamodel: the contract behind every JSON the API returns.
+async fn metamodel_json() -> Response {
+    Json(serde_json::to_value(crate::compiler::metamodel::Metamodel::current()).unwrap_or_default()).into_response()
+}
+
 async fn compile_source(Json(request): Json<CompileRequest>) -> Response {
     let mut compiler = crate::Compiler::new(crate::CompilerConfig::default());
     match compiler.compile_string(&request.source) {
@@ -793,25 +800,43 @@ fn calculate_stats(model: &Arcadia7DModel) -> Arcadia7DStats {
 
 /// Build the API router (exposed separately so tests can drive it in-process).
 pub fn build_router() -> Router {
+    build_router_with(systems_modeling::Workspace::default())
+}
+
+/// Base path of the Systems Modeling API (projects, commits, elements...).
+pub const SYSTEMS_MODELING_BASE: &str = "/api/systems-modeling";
+
+/// Base path of the same API in the SysML v2 vocabulary (`@type` is a
+/// KerML / SysML v2 metaclass).
+pub const SYSML_V2_BASE: &str = "/api/sysml-v2";
+
+/// The API router serving the given models through the Systems Modeling API.
+pub fn build_router_with(workspace: systems_modeling::Workspace) -> Router {
+    use systems_modeling::Vocabulary;
     let state = Arc::new(AppState::new());
+    let workspace = Arc::new(std::sync::RwLock::new(workspace));
 
     Router::new()
         .route("/health", get(health_check))
         .route("/api/compile", post(compile_source))
+        .route("/api/metamodel", get(metamodel_json))
         .route("/api/arcadia-7d/parse", post(parse_arcadia_7d))
         .route("/api/arcadia-7d/layout", post(generate_7d_layout))
         .route("/api/diagrams/generate-professional", post(generate_professional_diagram))
         .with_state(state)
+        .nest(SYSTEMS_MODELING_BASE, systems_modeling::router(workspace.clone(), Vocabulary::ArcLang))
+        .nest(SYSML_V2_BASE, systems_modeling::router(workspace.clone(), Vocabulary::SysML))
+        .layer(axum::middleware::from_fn_with_state(workspace, systems_modeling::authenticate))
 }
 
-pub async fn serve(port: u16) -> Result<(), Box<dyn std::error::Error>> {
+pub async fn serve(port: u16, workspace: systems_modeling::Workspace) -> Result<(), Box<dyn std::error::Error>> {
     let cors = CorsLayer::new()
         .allow_origin("http://localhost:3002".parse::<HeaderValue>().unwrap())
         .allow_methods([axum::http::Method::GET, axum::http::Method::POST, axum::http::Method::OPTIONS])
         .allow_headers([header::CONTENT_TYPE, header::AUTHORIZATION])
         .allow_credentials(true);
 
-    let app = build_router()
+    let app = build_router_with(workspace)
         .layer(cors)
         .layer(TraceLayer::new_for_http());
 

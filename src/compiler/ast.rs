@@ -1,5 +1,7 @@
 use std::collections::HashMap;
 use serde::{Serialize, Deserialize};
+pub use super::constraint::{BinOp, Expr};
+pub use super::quantity::{Quantity, QuantityError};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Model {
@@ -28,6 +30,12 @@ pub struct Model {
     /// Verification cases tracing to requirements (V&V).
     #[serde(default)]
     pub test_cases: Vec<TestCase>,
+    /// Dimension-checked assertions over typed attributes.
+    #[serde(default)]
+    pub constraints: Vec<Constraint>,
+    /// User-defined types (`type Name extends Base { ... }`).
+    #[serde(default)]
+    pub types: Vec<TypeDef>,
 }
 
 impl Model {
@@ -48,6 +56,8 @@ impl Model {
             data_types: Vec::new(),
             classes: Vec::new(),
             test_cases: Vec::new(),
+            constraints: Vec::new(),
+            types: Vec::new(),
         }
     }
     
@@ -73,6 +83,8 @@ impl Model {
         self.data_types.extend(other.data_types);
         self.classes.extend(other.classes);
         self.test_cases.extend(other.test_cases);
+        self.constraints.extend(other.constraints);
+        self.types.extend(other.types);
     }
 
     /// Export the model to JSON string for diagram rendering
@@ -151,6 +163,12 @@ pub struct OperationalCapability {
     pub color: Option<String>,
     pub stereotype: Option<String>,
     pub children: Vec<OperationalCapability>,
+    /// Id of the capability this one is declared inside, when nested.
+    #[serde(default)]
+    pub parent: Option<String>,
+    /// Elements (actors, entities, activities, processes) involved.
+    #[serde(default)]
+    pub involves: Vec<String>,
     pub attributes: HashMap<String, AttributeValue>,
 }
 
@@ -227,6 +245,9 @@ pub struct Capability {
     pub realizes: Option<String>,
     /// The mission this capability contributes to, when declared.
     pub mission: Option<String>,
+    /// Id of the capability this one is declared inside, when nested.
+    #[serde(default)]
+    pub parent: Option<String>,
     pub attributes: HashMap<String, AttributeValue>,
 }
 
@@ -527,11 +548,14 @@ pub struct Trace {
     pub attributes: HashMap<String, AttributeValue>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum AttributeValue {
     String(String),
     Number(f64),
     Boolean(bool),
+    /// A number with a unit (`latency: 25 ms`). Typed at parse time: the
+    /// unit is always a known symbol, so the dimension is never in doubt.
+    Quantity(Quantity),
     List(Vec<AttributeValue>),
     Map(HashMap<String, AttributeValue>),
 }
@@ -548,6 +572,42 @@ impl AttributeValue {
         match self {
             AttributeValue::Number(n) => Some(*n),
             _ => None,
+        }
+    }
+
+    /// The value as a typed quantity. Accepts the typed literal form and,
+    /// for backward compatibility, the legacy string form (`"25 ms"`).
+    /// A bare number is NOT a quantity (its unit is unknown) and yields
+    /// `Some(Err(MissingUnit))` so callers can report it precisely.
+    pub fn as_quantity(&self) -> Option<Result<Quantity, QuantityError>> {
+        match self {
+            AttributeValue::Quantity(q) => Some(Ok(q.clone())),
+            AttributeValue::String(s) => Some(Quantity::parse(s)),
+            AttributeValue::Number(n) => Some(Err(QuantityError::MissingUnit(*n))),
+            _ => None,
+        }
+    }
+
+    /// Human-readable rendering used by exporters and the explorer.
+    pub fn display(&self) -> String {
+        match self {
+            AttributeValue::String(s) => s.clone(),
+            AttributeValue::Number(n) => {
+                if n.fract() == 0.0 && n.abs() < 1e15 { format!("{}", *n as i64) } else { n.to_string() }
+            }
+            AttributeValue::Boolean(b) => b.to_string(),
+            AttributeValue::Quantity(q) => q.to_string(),
+            AttributeValue::List(items) => {
+                format!("[{}]", items.iter().map(|v| v.display()).collect::<Vec<_>>().join(", "))
+            }
+            AttributeValue::Map(map) => {
+                let mut keys: Vec<_> = map.keys().collect();
+                keys.sort();
+                format!(
+                    "{{{}}}",
+                    keys.iter().map(|k| format!("{}: {}", k, map[*k].display())).collect::<Vec<_>>().join(", ")
+                )
+            }
         }
     }
 }
@@ -695,6 +755,9 @@ pub struct DataType {
     pub id: String,
     pub name: String,
     pub base_type: Option<String>,
+    /// Unit symbol of the values (`m/s`), when declared.
+    #[serde(default)]
+    pub unit: Option<String>,
     pub enumeration_values: Option<Vec<EnumValue>>,
 }
 
@@ -708,6 +771,33 @@ pub struct TestCase {
     pub verifies: Vec<String>,
     /// Verification method: test | analysis | inspection | demonstration.
     pub method: String,
+    pub attributes: HashMap<String, AttributeValue>,
+}
+
+/// A reusable definition: typed attributes, ports, and the attributes its
+/// instances must provide. Elements reference it with `is: "Name"`.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TypeDef {
+    pub name: String,
+    /// The type this one specializes.
+    pub extends: Option<String>,
+    /// Attributes declared by this type itself (not the inherited ones).
+    pub attributes: HashMap<String, AttributeValue>,
+    #[serde(default)]
+    pub ports: Vec<ComponentPort>,
+    /// Attributes every instance must provide.
+    #[serde(default)]
+    pub required: Vec<String>,
+}
+
+/// A named assertion over typed model attributes (Arcadia: Constraint).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Constraint {
+    #[serde(default)]
+    pub id: String,
+    pub name: String,
+    /// The asserted comparison.
+    pub expression: Expr,
     pub attributes: HashMap<String, AttributeValue>,
 }
 

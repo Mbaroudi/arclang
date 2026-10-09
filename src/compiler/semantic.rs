@@ -17,7 +17,37 @@ pub struct SemanticModel {
     pub capabilities: Vec<CapabilityInfo>,
     #[serde(default)]
     pub functional_chains: Vec<FunctionalChainInfo>,
+    /// Evaluated constraints (filled by the compiler after analysis).
+    #[serde(default)]
+    pub constraints: Vec<ConstraintInfo>,
+    /// User-defined types and the elements they type.
+    #[serde(default)]
+    pub types: Vec<TypeInfo>,
     pub all_elements: HashMap<String, ElementInfo>,
+}
+
+/// A user-defined type as seen by API consumers.
+#[derive(Debug, Clone, Serialize)]
+pub struct TypeInfo {
+    pub name: String,
+    pub extends: Option<String>,
+    /// Attributes instances must provide, inherited ones included.
+    pub required: Vec<String>,
+    /// Ids of the elements declared `is:` this type (not its subtypes).
+    pub instances: Vec<String>,
+}
+
+/// A constraint with its verdict on this model.
+#[derive(Debug, Clone, Serialize)]
+pub struct ConstraintInfo {
+    pub id: String,
+    pub name: String,
+    /// Canonical source text of the asserted comparison.
+    pub expression: String,
+    pub satisfied: bool,
+    /// Evaluated left and right sides, human-readable ("90 ms").
+    pub left: String,
+    pub right: String,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -36,8 +66,23 @@ pub struct CapabilityInfo {
     pub realizes: Option<String>,
     /// Resolved id of the mission fulfilled, if any.
     pub mission: Option<String>,
-    /// "System" (SA) or "Realization" (LA/PA).
+    /// "Operational" (OA), "System" (SA) or "Realization" (LA/PA).
     pub kind: String,
+    /// Id of the capability this one is declared inside, when nested.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub parent: Option<String>,
+    /// Extend / include / generalization towards capabilities of the level.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub relations: Vec<CapabilityRelationInfo>,
+}
+
+/// One relation of a capability to another capability of the same level.
+#[derive(Debug, Clone, Serialize)]
+pub struct CapabilityRelationInfo {
+    /// "extends", "includes" or "specializes".
+    pub kind: String,
+    /// Resolved id of the target capability.
+    pub target: String,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -60,6 +105,8 @@ impl Default for SemanticModel {
             missions: Vec::new(),
             capabilities: Vec::new(),
             functional_chains: Vec::new(),
+            constraints: Vec::new(),
+            types: Vec::new(),
             all_elements: HashMap::new(),
         }
     }
@@ -166,6 +213,38 @@ impl TraceInfo {
     }
 }
 
+
+/// Help for a reference written against a truncated default id.
+///
+/// Before default ids used the whole element name they kept its first three
+/// characters (`OA-Mon` for `MonitorEnvironment`). When `reference` has that
+/// shape and matches elements declared without an explicit id, name them.
+fn truncated_id_hint(reference: &str, elements: &HashMap<String, ElementInfo>) -> Option<String> {
+    let (prefix, stem) = reference.split_once('-')?;
+    if stem.chars().count() != 3 {
+        return None;
+    }
+    let mut names: Vec<&str> = elements
+        .values()
+        .filter(|element| {
+            element.id.strip_prefix(prefix).and_then(|rest| rest.strip_prefix('-'))
+                == Some(element.name.replace(' ', "_").as_str())
+                && element.name.chars().take(3).collect::<String>() == stem
+        })
+        .map(|element| element.name.as_str())
+        .collect();
+    names.sort_unstable();
+    match names.as_slice() {
+        [] => None,
+        [name] => Some(format!(
+            "default ids are no longer truncated: reference \"{name}\" by name, or give it an explicit id"
+        )),
+        several => Some(format!(
+            "default ids are no longer truncated, and this one was shared by {} — reference the one you mean by name",
+            several.join(", ")
+        )),
+    }
+}
 
 /// Register an element, recording a warning when an id is reused by a
 /// DIFFERENT element (identity must be unique across the whole model).
@@ -870,6 +949,24 @@ impl SemanticAnalyzer {
                 missions_info.push(MissionInfo { id: mission.id.clone(), name: mission.name.clone() });
             }
         }
+        // System actors and operational processes can be involved in
+        // capabilities: they need an identity like any other element.
+        for actor in ast.system_analysis.iter().flat_map(|sa| &sa.external_actors) {
+            register_element(
+                &mut all_elements,
+                &mut duplicate_ids,
+                actor.id.clone(),
+                ElementInfo::new(actor.id.clone(), actor.name.clone(), "SystemActor"),
+            );
+        }
+        for process in ast.operational_analysis.iter().flat_map(|oa| &oa.processes) {
+            register_element(
+                &mut all_elements,
+                &mut duplicate_ids,
+                process.id.clone(),
+                ElementInfo::new(process.id.clone(), process.name.clone(), "OperationalProcess"),
+            );
+        }
         let capability_sources: Vec<(&Capability, &str)> = ast
             .system_analysis
             .iter()
@@ -925,27 +1022,7 @@ impl SemanticAnalyzer {
                 }
             };
 
-            for (capability, kind) in &capability_sources {
-                let involves = capability
-                    .involves
-                    .iter()
-                    .filter_map(|r| resolve(r, format!("capability '{}' involves", capability.name), &mut reference_errors))
-                    .collect();
-                let realizes = capability.realizes.as_ref().and_then(|r| {
-                    resolve(r, format!("capability '{}' realizes", capability.name), &mut reference_errors)
-                });
-                let mission = capability.mission.as_ref().and_then(|r| {
-                    resolve(r, format!("capability '{}' mission", capability.name), &mut reference_errors)
-                });
-                capabilities_info.push(CapabilityInfo {
-                    id: capability.id.clone(),
-                    name: capability.name.clone(),
-                    involves,
-                    realizes,
-                    mission,
-                    kind: kind.to_string(),
-                });
-            }
+            capabilities_info = super::capability_semantics::resolve_capabilities(ast, &all_elements, &mut reference_errors);
             for chain in &chain_sources {
                 let involves = chain
                     .involves
@@ -1175,6 +1252,8 @@ impl SemanticAnalyzer {
                 missions: missions_info,
                 capabilities: capabilities_info,
                 functional_chains: chains_info,
+                constraints: Vec::new(),
+                types: Vec::new(),
                 all_elements,
             },
             warnings,
@@ -1272,13 +1351,24 @@ impl SemanticAnalyzer {
             }
             match by_name.get(reference).map(Vec::as_slice) {
                 Some([single]) => Ok((*single).to_string()),
-                Some(candidates) => Err(format!(
-                    "trace '{}' {} '{}': ambiguous name, matches ids {:?} — use an id",
-                    trace.trace_type, role, reference, candidates
-                )),
+                Some(candidates) => {
+                    // Sorted: the message must not depend on hash order.
+                    let mut candidates = candidates.to_vec();
+                    candidates.sort_unstable();
+                    Err(format!(
+                        "trace '{}' {} '{}': ambiguous name, matches ids {:?} — use an id",
+                        trace.trace_type, role, reference, candidates
+                    ))
+                }
                 None => Err(format!(
-                    "trace '{} {} {}': unknown element '{}' ({}) — declare it or fix the reference",
-                    trace.from, trace.trace_type, trace.to, reference, role
+                    "trace '{} {} {}': unknown element '{}' ({}) — {}",
+                    trace.from,
+                    trace.trace_type,
+                    trace.to,
+                    reference,
+                    role,
+                    truncated_id_hint(reference, elements)
+                        .unwrap_or_else(|| "declare it or fix the reference".to_string())
                 )),
             }
         };
@@ -1429,6 +1519,17 @@ impl SemanticModel {
             }
             if let Some(mission) = &capability.mission {
                 link(&mut graph, &capability.id, mission, "fulfills (mission)", "requires (capability)");
+            }
+            if let Some(parent) = &capability.parent {
+                link(&mut graph, &capability.id, parent, "is part of (capability)", "contains (capability)");
+            }
+            for relation in &capability.relations {
+                let (forward, backward) = match relation.kind.as_str() {
+                    "extends" => ("extends (capability)", "is extended by (capability)"),
+                    "includes" => ("includes (capability)", "is included in (capability)"),
+                    _ => ("specializes (capability)", "is specialized by (capability)"),
+                };
+                link(&mut graph, &capability.id, &relation.target, forward, backward);
             }
         }
 

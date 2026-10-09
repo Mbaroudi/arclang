@@ -10,6 +10,8 @@ pub mod collaboration;
 pub mod plugins;
 #[cfg(feature = "native")]
 pub mod web_server;
+#[cfg(feature = "native")]
+pub mod review;
 
 // Re-export for convenience
 pub use compiler::{Compiler, CompilerConfig, CompilerError, CompilationResult};
