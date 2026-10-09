@@ -116,6 +116,8 @@ impl CapellaImporter {
         Ok(Model {
             classes: Vec::new(),
             test_cases: Vec::new(),
+            constraints: Vec::new(),
+            types: Vec::new(),
             attributes: std::collections::HashMap::new(),
             imports: Vec::new(),
             operational_analysis: Vec::new(),
@@ -210,7 +212,7 @@ impl CapellaImporter {
         }
         
         Ok(Some(LogicalComponent {
-            id: format!("LC-{}", name.chars().take(3).collect::<String>()),
+            id: super::parser::default_element_id("LC", &name),
             name,
             component_type: "Logical".to_string(),
             color: Some("#5B9BD5".to_string()),
@@ -313,6 +315,9 @@ impl ArcCodeGenerator {
                         AttributeValue::Boolean(b) => {
                             arc_code.push_str(&format!("        {}: {}\n", key, b));
                         }
+                        AttributeValue::Quantity(q) => {
+                            arc_code.push_str(&format!("        {}: {}\n", key, q));
+                        }
                         AttributeValue::Map(_) => {
                             // Nested maps are not emitted in .arc export yet
                         }
@@ -366,6 +371,9 @@ impl ArcCodeGenerator {
                             }
                             AttributeValue::Boolean(b) => {
                                 arc_code.push_str(&format!("            {}: {}\n", key, b));
+                            }
+                            AttributeValue::Quantity(q) => {
+                                arc_code.push_str(&format!("            {}: {}\n", key, q));
                             }
                             AttributeValue::Map(_) => {
                                 // Nested maps are not emitted in .arc export yet

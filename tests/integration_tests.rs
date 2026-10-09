@@ -469,14 +469,16 @@ system_analysis SA {
     let model = &result.semantic_model;
 
     assert_eq!(model.missions.len(), 1);
-    assert_eq!(model.capabilities.len(), 1);
+    // Operational and system capabilities are both capabilities.
+    let kinds: Vec<&str> = model.capabilities.iter().map(|c| c.kind.as_str()).collect();
+    assert_eq!(kinds, vec!["Operational", "System"]);
     assert_eq!(model.functional_chains.len(), 1);
 
-    let cap = &model.capabilities[0];
+    let cap = model.capabilities.iter().find(|c| c.id == "CAP-001").expect("system capability");
     assert_eq!(cap.realizes.as_deref(), Some("OC-001"));
     assert_eq!(cap.mission.as_deref(), Some("MIS-001"));
     // involves resolved from name to id
-    assert_eq!(cap.involves, vec!["SF-Det"]);
+    assert_eq!(cap.involves, vec!["SF-Detect"]);
 
     // All three registered with stable identity
     assert!(model.all_elements.contains_key("MIS-001"));
@@ -977,4 +979,38 @@ fn test_string_compile_with_imports_fails_honestly() {
         .compile_string("import \"other.arc\"\nrequirements { req \"R\" { description: \"x\" } }\n")
         .expect_err("string compile cannot resolve imports");
     assert!(err.to_string().contains("compile it from its file"), "got: {err}");
+}
+
+#[test]
+fn reference_to_a_truncated_default_id_names_the_element_to_use() {
+    // Default ids once kept three characters of the name (`OA-Mon`); they
+    // now use the whole name, and a stale reference must say how to fix it.
+    let source = r#"
+operational_analysis OA {
+  entity Vehicle {
+    activity MonitorEnvironment {
+      description: "observe"
+    }
+  }
+}
+system_analysis SA {
+  function Acquire {
+    description: "acquire"
+  }
+}
+trace "Acquire" realizes "OA-Mon" { rationale: "stale id" }
+"#;
+    let error = arclang::compiler::Compiler::new(arclang::compiler::CompilerConfig::default())
+        .compile_string(source)
+        .expect_err("a stale truncated id must not resolve")
+        .to_string();
+    assert!(error.contains("'OA-Mon'"), "{error}");
+    assert!(error.contains("reference \"MonitorEnvironment\" by name"), "{error}");
+
+    let fixed = source.replace("\"OA-Mon\"", "\"MonitorEnvironment\"");
+    let result = arclang::compiler::Compiler::new(arclang::compiler::CompilerConfig::default())
+        .compile_string(&fixed)
+        .expect("referencing by name compiles");
+    assert!(result.semantic_model.all_elements.contains_key("OA-MonitorEnvironment"));
+    assert!(result.semantic_model.all_elements.contains_key("SF-Acquire"));
 }

@@ -76,6 +76,17 @@ jobs:
           done < <(find examples -name '*.arc' -not -path 'examples/legacy/*' -print0)
           exit $fail
 
+      - name: Install Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      # Lays out and draws the viewpoint diagrams of every example with the
+      # layout engine and renderer shipped in the HTML viewer (no npm install:
+      # both are vendored in the repository).
+      - name: Lay out and draw every example's diagrams
+        run: ARCLANG=target/release/arclang tools/diagram_render/check.sh
+
   capella-roundtrip:
     name: Capella round-trip (zero diff)
     runs-on: ubuntu-latest

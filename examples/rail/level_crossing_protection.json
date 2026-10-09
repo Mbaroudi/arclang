@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<capella:Project xmlns:capella="http://www.polarsys.org/capella/core/1.4.0">
+  <ownedRequirements>
+    <requirement id="REQ-LX-001" name="REQ-LX-001" description="The system shall detect an approaching train at least 30 s before it reaches the crossing" priority="High" />
+    <requirement id="REQ-LX-002" name="REQ-LX-002" description="Barriers shall be fully closed at least 10 s before the train reaches the crossing" priority="High" />
+    <requirement id="REQ-LX-003" name="REQ-LX-003" description="The system shall prove the crossing area is free of obstacles before authorising train passage" priority="High" />
+    <requirement id="REQ-LX-004" name="REQ-LX-004" description="On any internal failure, barriers shall close and the protecting signal shall show stop" priority="High" />
+  </ownedRequirements>
+  <ownedLogicalComponents>
+    <component id="OA-ACT-001" name="Train Driver" type="Actor" />
+    <component id="OA-ACT-002" name="Road User" type="Actor" />
+    <component id="OA-ACT-003" name="Signaller" type="Actor" />
+    <component id="LC-LX-001" name="Train Detector" type="Logical" />
+    <component id="LC-LX-002" name="Crossing Controller" type="Logical" />
+    <component id="LC-LX-003" name="Barrier Machine" type="Logical" />
+    <component id="LC-LX-004" name="Obstacle Detector" type="Logical" />
+    <component id="LC-LX-005" name="Protecting Signal" type="Logical" />
+  </ownedLogicalComponents>
+  <ownedTraces>
+    <trace from="LC-LX-001" to="REQ-LX-001" type="satisfies" />
+    <trace from="LC-LX-002" to="REQ-LX-002" type="satisfies" />
+    <trace from="LC-LX-003" to="REQ-LX-002" type="satisfies" />
+    <trace from="LC-LX-004" to="REQ-LX-003" type="satisfies" />
+    <trace from="LC-LX-002" to="REQ-LX-004" type="satisfies" />
+  </ownedTraces>
+</capella:Project>

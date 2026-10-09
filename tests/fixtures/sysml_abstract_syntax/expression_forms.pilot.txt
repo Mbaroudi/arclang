@@ -1,0 +1,79 @@
+Package name=ExpressionForms short=- via=-
+  ActionDefinition name=Sample short=SF-A via=OwningMembership :> ExpressionForms::Task
+    Documentation name=- short=- via=OwningMembership body="Sample"
+    AttributeUsage name=bandwidth short=- via=FeatureMembership : ISQInformation::BinaryDigitRateValue = op([, Integer(2), ref(ExpressionForms::ArcLangUnits::'megabit per second'))
+    AttributeUsage name=clock short=- via=FeatureMembership : ISQSpaceTime::FrequencyValue = op([, Integer(16), ref(ExpressionForms::ArcLangUnits::megahertz))
+    AttributeUsage name=count short=- via=FeatureMembership : ScalarValues::Real = Integer(3)
+    AttributeUsage name=distance short=- via=FeatureMembership : ISQBase::LengthValue = op([, Integer(250), ref(SI::metre))
+    AttributeUsage name=energy short=- via=FeatureMembership : ISQThermodynamics::EnergyValue = op([, Integer(2), ref(ExpressionForms::ArcLangUnits::'kilowatt hour'))
+    AttributeUsage name=- short=- via=FeatureMembership :>> ExpressionForms::Task::gain = Rational(2.5)
+    AttributeUsage name=label short=- via=FeatureMembership : ScalarValues::String = String("a \"quoted\" label")
+    AttributeUsage name=load short=- via=FeatureMembership : MeasurementReferences::DimensionOneValue = op([, Integer(40), ref(ExpressionForms::ArcLangUnits::percent))
+    AttributeUsage name=mass short=- via=FeatureMembership : ISQBase::MassValue = op([, Integer(12), ref(SI::kilogram))
+    AttributeUsage name=memory short=- via=FeatureMembership : ISQInformation::StorageCapacityValue = op([, Integer(512), ref(ExpressionForms::ArcLangUnits::mebibyte))
+    AttributeUsage name=offset short=- via=FeatureMembership : ScalarValues::Real = op(-, Integer(5))
+    AttributeUsage name=- short=- via=FeatureMembership :>> ExpressionForms::Task::period = op([, Integer(10), ref(ExpressionForms::ArcLangUnits::millisecond))
+    AttributeUsage name=pressure short=- via=FeatureMembership : ISQMechanics::PressureValue = op([, Integer(3), ref(ExpressionForms::ArcLangUnits::bar))
+    AttributeUsage name=rate short=- via=FeatureMembership : ISQInformation::BinaryDigitRateValue = op([, Integer(9600), ref(SI::'bit per second'))
+    AttributeUsage name=speed short=- via=FeatureMembership : ISQSpaceTime::SpeedValue = op([, Integer(130), ref(SI::'kilometre per hour'))
+    AttributeUsage name=supply short=- via=FeatureMembership : ISQElectromagnetism::ElectricPotentialValue = op([, Integer(12), ref(SI::volt))
+    AttributeUsage name=wcet short=- via=FeatureMembership : ISQBase::DurationValue = op([, Rational(0.004), ref(SI::second))
+  ActionUsage name=a_SF_A short=- via=OwningMembership : ExpressionForms::Sample
+  ActionDefinition name=Filter short=SF-B via=OwningMembership :> ExpressionForms::Task
+    Documentation name=- short=- via=OwningMembership body="Filter"
+    AttributeUsage name=wcet short=- via=FeatureMembership : ISQBase::DurationValue = op([, Integer(6), ref(ExpressionForms::ArcLangUnits::millisecond))
+  ActionUsage name=a_SF_B short=- via=OwningMembership : ExpressionForms::Filter
+  ActionDefinition name=chain_Acquire short=FC-A via=OwningMembership
+    Documentation name=- short=- via=OwningMembership body="Acquire"
+    ActionUsage name=step1 short=- via=FeatureMembership : ExpressionForms::Sample
+    SuccessionAsUsage name=- short=- via=FeatureMembership src=ExpressionForms::chain_Acquire::step1 tgt=ExpressionForms::chain_Acquire::step2
+    ActionUsage name=step2 short=- via=FeatureMembership : ExpressionForms::Filter
+    AttributeUsage name=latency_budget short=- via=FeatureMembership : ISQBase::DurationValue = op([, Integer(40), ref(ExpressionForms::ArcLangUnits::millisecond))
+  ActionUsage name=a_FC_A short=- via=OwningMembership : ExpressionForms::chain_Acquire
+  PartDefinition name=Lens short=LC-LNS via=OwningMembership
+    Documentation name=- short=- via=OwningMembership body="Lens (logical component)"
+  PartDefinition name=Sensor short=LC-SNS via=OwningMembership
+    Documentation name=- short=- via=OwningMembership body="Sensor (logical component)"
+    PartUsage name=p_LC_LNS short=- via=FeatureMembership : ExpressionForms::Lens
+      MultiplicityRange name=- short=- via=OwningMembership bounds=Integer(4)
+  PartUsage name=p_LC_SNS short=- via=OwningMembership : ExpressionForms::Sensor
+    MultiplicityRange name=- short=- via=OwningMembership bounds=Integer(2)
+  PartDefinition name=Backup short=LC-BKP via=OwningMembership
+    Documentation name=- short=- via=OwningMembership body="Backup (logical component)"
+  PartUsage name=p_LC_BKP short=- via=OwningMembership : ExpressionForms::Backup
+    MultiplicityRange name=- short=- via=OwningMembership bounds=Integer(0),Integer(1)
+  PartDefinition name=Channel short=LC-CHN via=OwningMembership
+    Documentation name=- short=- via=OwningMembership body="Channel (logical component)"
+  PartUsage name=p_LC_CHN short=- via=OwningMembership : ExpressionForms::Channel
+    MultiplicityRange name=- short=- via=OwningMembership bounds=Integer(1),Infinity(null)
+  PartDefinition name=Probe short=LC-PRB via=OwningMembership
+    Documentation name=- short=- via=OwningMembership body="Probe (logical component)"
+  PartUsage name=p_LC_PRB short=- via=OwningMembership : ExpressionForms::Probe
+    MultiplicityRange name=- short=- via=OwningMembership bounds=Infinity(null)
+  PartDefinition name=Hub short=LC-HUB via=OwningMembership
+    Documentation name=- short=- via=OwningMembership body="Hub (logical component)"
+  PartUsage name=p_LC_HUB short=- via=OwningMembership : ExpressionForms::Hub
+  PartDefinition name=Compute_unit short=PN-CPU via=OwningMembership
+    Documentation name=- short=- via=OwningMembership body="Compute unit (physical node)"
+  PartUsage name=p_PN_CPU short=- via=OwningMembership : ExpressionForms::Compute_unit
+    MultiplicityRange name=- short=- via=OwningMembership bounds=Integer(2),Integer(3)
+  AssertConstraintUsage name=Fastest_stage short=CST-MIN via=OwningMembership result op(>=, call(DataFunctions::min, chain(ref(ExpressionForms::a_SF_A), ExpressionForms::Sample::wcet), chain(ref(ExpressionForms::a_SF_B), ExpressionForms::Filter::wcet)), op([, Integer(1), ref(ExpressionForms::ArcLangUnits::millisecond)))
+    Documentation name=- short=- via=OwningMembership body="Fastest stage"
+  AssertConstraintUsage name=Slowest_stage short=CST-MAX via=OwningMembership result op(<, op(+, call(DataFunctions::max, chain(ref(ExpressionForms::a_SF_A), ExpressionForms::Sample::wcet), chain(ref(ExpressionForms::a_SF_B), ExpressionForms::Filter::wcet)), op([, Integer(2), ref(ExpressionForms::ArcLangUnits::millisecond))), op(/, chain(ref(ExpressionForms::a_FC_A), ExpressionForms::chain_Acquire::latency_budget), Integer(2)))
+    Documentation name=- short=- via=OwningMembership body="Slowest stage"
+  AssertConstraintUsage name=Total short=CST-SUM via=OwningMembership result op(<=, op(-, op(+, chain(ref(ExpressionForms::a_SF_A), ExpressionForms::Sample::wcet), chain(ref(ExpressionForms::a_SF_B), ExpressionForms::Filter::wcet)), op(*, chain(ref(ExpressionForms::a_SF_B), ExpressionForms::Filter::wcet), Integer(2))), chain(ref(ExpressionForms::a_SF_A), ExpressionForms::Sample::period))
+    Documentation name=- short=- via=OwningMembership body="Total"
+  AssertConstraintUsage name=Stages short=CST-CNT via=OwningMembership result op(==, Integer(2), Integer(2))
+    Documentation name=- short=- via=OwningMembership body="Stages"
+  ActionDefinition name=Task short=- via=OwningMembership abstract
+    Documentation name=- short=- via=OwningMembership body="type Task"
+    AttributeUsage name=gain short=- via=FeatureMembership : ScalarValues::Real default= Rational(1.5)
+    AttributeUsage name=period short=- via=FeatureMembership : ISQBase::DurationValue default= op([, Integer(20), ref(ExpressionForms::ArcLangUnits::millisecond))
+  Package name=ArcLangUnits short=- via=OwningMembership
+    AttributeUsage name=percent short=% via=OwningMembership : MeasurementReferences::DimensionOneUnit
+    AttributeUsage name=megabit per second short=Mbit/s via=OwningMembership : ISQInformation::BinaryDigitRateUnit
+    AttributeUsage name=kilowatt hour short=kW*h via=OwningMembership : ISQThermodynamics::EnergyUnit
+    AttributeUsage name=megahertz short=MHz via=OwningMembership : ISQSpaceTime::FrequencyUnit
+    AttributeUsage name=mebibyte short=MiB via=OwningMembership : ISQInformation::StorageCapacityUnit
+    AttributeUsage name=bar short=bar via=OwningMembership : ISQMechanics::PressureUnit
+    AttributeUsage name=millisecond short=ms via=OwningMembership : ISQBase::DurationUnit

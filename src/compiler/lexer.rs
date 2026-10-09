@@ -13,6 +13,31 @@ impl fmt::Display for Span {
     }
 }
 
+/// What a [`Lexeme`] is: a token the parser sees, or a comment it does not.
+#[derive(Debug, Clone, PartialEq)]
+pub enum LexemeKind {
+    Token(Token),
+    LineComment,
+    BlockComment,
+}
+
+/// One piece of source text as written, comments included. Produced by
+/// [`Lexer::tokenize_lossless`] for tools that rewrite source (the formatter)
+/// and must not lose anything the author wrote.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Lexeme {
+    pub kind: LexemeKind,
+    /// Exact source text: quotes, escapes and digit separators included.
+    pub text: String,
+    pub span: Span,
+    /// Position of the first character, counted in characters from the start.
+    pub offset: usize,
+    /// Line breaks between the previous lexeme and this one.
+    pub newlines_before: usize,
+    /// Whether any whitespace separated this lexeme from the previous one.
+    pub space_before: bool,
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum Token {
     // Keywords
@@ -107,6 +132,8 @@ pub enum Token {
     Value,
     ValidationKeyword,
     TestCase,
+    /// `constraint Name { assert: <expression> }`
+    ConstraintKw,
     Measure,
     DataFlows,
     SafetyMeasures,
@@ -135,6 +162,20 @@ pub enum Token {
     Dot,
     Arrow,
     Minus,
+    // Expression operators (constraints)
+    Plus,
+    Star,
+    Slash,
+    LeftParen,
+    RightParen,
+    Less,
+    LessEq,
+    Greater,
+    GreaterEq,
+    EqualEq,
+    NotEq,
+    /// `%`: the percent unit of a quantity (`load: 40 %`).
+    Percent,
     
     // End of file
     Eof,
@@ -244,6 +285,7 @@ impl Token {
             Token::Value => "value",
             Token::ValidationKeyword => "validation",
             Token::TestCase => "test_case",
+            Token::ConstraintKw => "constraint",
             Token::Measure => "measure",
             Token::DataFlows => "data_flows",
             Token::SafetyMeasures => "safety_measures",
@@ -318,6 +360,41 @@ impl Lexer {
         Ok((tokens, spans))
     }
 
+    /// Tokenize without dropping anything: tokens and comments, each with its
+    /// exact source text and the whitespace that preceded it. Uses the same
+    /// rules as [`Lexer::tokenize`], so both always agree on the tokens.
+    pub fn tokenize_lossless(mut self) -> Result<Vec<Lexeme>, String> {
+        let mut lexemes = Vec::new();
+
+        loop {
+            let gap_start = self.position;
+            self.skip_whitespace();
+            let gap = &self.input[gap_start..self.position];
+            let newlines_before = gap.iter().filter(|c| **c == '\n').count();
+            let space_before = !gap.is_empty();
+
+            if self.is_at_end() {
+                break;
+            }
+
+            let span = self.span();
+            let start = self.position;
+            let kind = if self.current_char() == '/' && self.peek_char() == Some('/') {
+                self.skip_line_comment();
+                LexemeKind::LineComment
+            } else if self.current_char() == '/' && self.peek_char() == Some('*') {
+                self.skip_block_comment().map_err(|e| format!("{} at {}", e, span))?;
+                LexemeKind::BlockComment
+            } else {
+                LexemeKind::Token(self.next_token().map_err(|e| format!("{} at {}", e, span))?)
+            };
+            let text: String = self.input[start..self.position].iter().collect();
+            lexemes.push(Lexeme { kind, text, span, offset: start, newlines_before, space_before });
+        }
+
+        Ok(lexemes)
+    }
+
     fn span(&self) -> Span {
         Span { line: self.line, column: self.column }
     }
@@ -364,6 +441,47 @@ impl Lexer {
                 } else {
                     self.advance();
                     Ok(Token::Minus)
+                }
+            }
+            '+' => {
+                self.advance();
+                Ok(Token::Plus)
+            }
+            '*' => {
+                self.advance();
+                Ok(Token::Star)
+            }
+            // `//` and `/*` comments are consumed before tokenization.
+            '/' => {
+                self.advance();
+                Ok(Token::Slash)
+            }
+            '(' => {
+                self.advance();
+                Ok(Token::LeftParen)
+            }
+            ')' => {
+                self.advance();
+                Ok(Token::RightParen)
+            }
+            '%' => {
+                self.advance();
+                Ok(Token::Percent)
+            }
+            '<' | '>' | '=' | '!' => {
+                let followed_by_equals = self.peek_char() == Some('=');
+                self.advance();
+                if followed_by_equals {
+                    self.advance();
+                }
+                match (ch, followed_by_equals) {
+                    ('<', true) => Ok(Token::LessEq),
+                    ('<', false) => Ok(Token::Less),
+                    ('>', true) => Ok(Token::GreaterEq),
+                    ('>', false) => Ok(Token::Greater),
+                    ('=', true) => Ok(Token::EqualEq),
+                    ('!', true) => Ok(Token::NotEq),
+                    _ => Err(format!("Unexpected character: '{}' (did you mean '{}='?)", ch, ch)),
                 }
             }
             '"' => self.read_string_literal(),
@@ -535,6 +653,7 @@ impl Lexer {
             "value" => Token::Value,
             "validation" => Token::ValidationKeyword,
             "test_case" => Token::TestCase,
+            "constraint" => Token::ConstraintKw,
             "measure" => Token::Measure,
             "data_flows" => Token::DataFlows,
             "safety_measures" => Token::SafetyMeasures,

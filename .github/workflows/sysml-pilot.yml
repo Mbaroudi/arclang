@@ -1,0 +1,64 @@
+name: SysML v2 pilot validation
+
+# Exports every active example to SysML v2, validates it with the OMG pilot
+# implementation, and checks that the SysML v2 vocabulary served by the API
+# agrees with the abstract syntax the pilot derives from the same text. Kept separate from the main CI workflow: it needs a
+# JVM and the pilot kernel, and must prove itself stable before it gates
+# merges.
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'src/compiler/sysmlv2_generator.rs'
+      - 'src/compiler/metamodel.rs'
+      - 'src/compiler/quantity.rs'
+      - 'src/compiler/constraint.rs'
+      - 'examples/**'
+      - 'tools/sysmlv2_validate.py'
+      - 'tools/validate_sysml_corpus.sh'
+      - 'src/compiler/sysml_syntax/**'
+      - 'src/compiler/sysml_records.rs'
+      - 'src/compiler/sysml_library.rs'
+      - 'spec/sysml_library_index.json'
+      - 'tools/sysml_library_index.py'
+      - 'tools/sysml_abstract_syntax_check.py'
+      - 'tools/check_sysml_abstract_syntax_corpus.sh'
+      - '.github/workflows/sysml-pilot.yml'
+
+jobs:
+  pilot:
+    name: OMG pilot accepts every exported example
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash -el {0}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install the SysML v2 pilot kernel
+        uses: conda-incubator/setup-miniconda@v3
+        with:
+          activate-environment: sysml-pilot
+          channels: conda-forge
+          python-version: "3.11"
+
+      - name: Install pilot dependencies
+        run: conda install -y -c conda-forge "jupyter-sysml-kernel=0.62.0" jupyter_client "openjdk>=21"
+
+      - name: Build compiler
+        run: cargo build
+
+      - name: Export and validate the example corpus
+        run: tools/validate_sysml_corpus.sh
+
+      - name: Compare the served SysML v2 vocabulary with the pilot's abstract syntax
+        run: tools/check_sysml_abstract_syntax_corpus.sh
+
+      - name: The standard-library index is what the pilot says
+        run: |
+          python tools/sysml_library_index.py --output /tmp/sysml_library_index.json
+          diff spec/sysml_library_index.json /tmp/sysml_library_index.json

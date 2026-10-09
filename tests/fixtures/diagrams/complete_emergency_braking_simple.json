@@ -1,0 +1,1874 @@
+{
+  "schema_version": "1",
+  "diagrams": [
+    {
+      "id": "oab",
+      "kind": "oab",
+      "title": "Emergency Braking - Operational View",
+      "nodes": [
+        {
+          "id": "OA-ACT-001",
+          "uuid": "56401223-dc3f-5045-a4b9-e4b6d8049a08",
+          "name": "Driver",
+          "kind": "operational_actor",
+          "properties": {
+            "description": "Vehicle driver",
+            "type": "human"
+          }
+        },
+        {
+          "id": "OA-ACT-002",
+          "uuid": "4f66937e-9f35-59d0-9f6f-ef510bd3d239",
+          "name": "Pedestrian",
+          "kind": "operational_actor",
+          "properties": {
+            "description": "Vulnerable road user",
+            "type": "human"
+          }
+        },
+        {
+          "id": "OA-ACT-003",
+          "uuid": "ec0d9b30-5ece-5a1c-9db2-0f2a48e6c8eb",
+          "name": "TrafficEnvironment",
+          "kind": "operational_actor",
+          "properties": {
+            "description": "Road conditions, weather, other vehicles",
+            "type": "environment"
+          }
+        },
+        {
+          "id": "OE-Vehicle",
+          "uuid": "1042eafc-1543-56b6-b42e-26f326912796",
+          "name": "Vehicle",
+          "kind": "operational_entity",
+          "children": [
+            {
+              "id": "OA-MonitorEnvironment",
+              "uuid": "abadb49a-4c94-55c3-af97-4aa24bb94734",
+              "name": "MonitorEnvironment",
+              "kind": "operational_activity",
+              "properties": {
+                "description": "Continuously observe surroundings"
+              }
+            },
+            {
+              "id": "OA-DetectThreat",
+              "uuid": "d611c930-2939-55a9-baaa-27f22e2526e0",
+              "name": "DetectThreat",
+              "kind": "operational_activity",
+              "properties": {
+                "description": "Identify potential collision hazards"
+              }
+            },
+            {
+              "id": "OA-AlertDriver",
+              "uuid": "10d073d7-4a28-5a4b-afa5-4478a558a6e0",
+              "name": "AlertDriver",
+              "kind": "operational_activity",
+              "properties": {
+                "description": "Warn driver of imminent danger"
+              }
+            },
+            {
+              "id": "OA-ApplyBrakes",
+              "uuid": "e49871fa-cc98-5bd5-81e4-d9ee7535d096",
+              "name": "ApplyBrakes",
+              "kind": "operational_activity",
+              "properties": {
+                "description": "Execute emergency braking"
+              }
+            }
+          ],
+          "properties": {
+            "description": "The vehicle being controlled"
+          }
+        }
+      ],
+      "edges": [
+        {
+          "id": "int:DriverCommands",
+          "kind": "interaction",
+          "source": "OA-ACT-001",
+          "target": "OA-MonitorEnvironment",
+          "label": "DriverCommands",
+          "properties": {
+            "description": "Driver provides driving inputs"
+          }
+        },
+        {
+          "id": "int:EnvironmentData",
+          "kind": "interaction",
+          "source": "OA-ACT-003",
+          "target": "OA-MonitorEnvironment",
+          "label": "EnvironmentData",
+          "properties": {
+            "description": "Environmental conditions"
+          }
+        },
+        {
+          "id": "int:ThreatDetection",
+          "kind": "interaction",
+          "source": "OA-MonitorEnvironment",
+          "target": "OA-DetectThreat",
+          "label": "ThreatDetection",
+          "properties": {
+            "description": "Sensor data for analysis"
+          }
+        },
+        {
+          "id": "int:DriverWarning",
+          "kind": "interaction",
+          "source": "OA-AlertDriver",
+          "target": "OA-ACT-001",
+          "label": "DriverWarning",
+          "properties": {
+            "description": "Visual/audio warning"
+          }
+        },
+        {
+          "id": "int:BrakingAction",
+          "kind": "interaction",
+          "source": "OA-ApplyBrakes",
+          "target": "OE-Vehicle",
+          "label": "BrakingAction",
+          "properties": {
+            "description": "Physical braking force"
+          }
+        },
+        {
+          "id": "int:PedestrianProtection",
+          "kind": "interaction",
+          "source": "OA-ApplyBrakes",
+          "target": "OA-ACT-002",
+          "label": "PedestrianProtection",
+          "properties": {
+            "description": "Collision avoidance"
+          }
+        }
+      ]
+    },
+    {
+      "id": "sab",
+      "kind": "sab",
+      "title": "AEB System - Functional View",
+      "nodes": [
+        {
+          "id": "SA-System",
+          "uuid": "83c6989e-8f86-5f97-8c38-5cdecc7c38ca",
+          "name": "Automotive Emergency Braking System (AEB)",
+          "kind": "system",
+          "children": [
+            {
+              "id": "SF-AcquireSensorData",
+              "uuid": "cdcfb5dc-b9f7-5212-a8a4-59264394653f",
+              "name": "AcquireSensorData",
+              "kind": "function",
+              "ports": [
+                {
+                  "id": "SF-AcquireSensorData::in.radar_signal",
+                  "name": "radar_signal",
+                  "direction": "in"
+                },
+                {
+                  "id": "SF-AcquireSensorData::in.camera_image",
+                  "name": "camera_image",
+                  "direction": "in"
+                },
+                {
+                  "id": "SF-AcquireSensorData::out.raw_sensor_data",
+                  "name": "raw_sensor_data",
+                  "direction": "out"
+                }
+              ],
+              "properties": {
+                "description": "Collect data from radar and camera",
+                "latency": "20 ms",
+                "safety_level": "ASIL-D"
+              }
+            },
+            {
+              "id": "SF-FuseData",
+              "uuid": "0355dac5-e82b-5dd6-9a41-fe8eda548e41",
+              "name": "FuseData",
+              "kind": "function",
+              "ports": [
+                {
+                  "id": "SF-FuseData::in.raw_sensor_data",
+                  "name": "raw_sensor_data",
+                  "direction": "in"
+                },
+                {
+                  "id": "SF-FuseData::out.fused_data",
+                  "name": "fused_data",
+                  "direction": "out"
+                }
+              ],
+              "properties": {
+                "description": "Combine multiple sensor inputs",
+                "latency": "25 ms",
+                "safety_level": "ASIL-D"
+              }
+            },
+            {
+              "id": "SF-TrackObjects",
+              "uuid": "c789fec3-d99b-544c-a7db-6d04e07bdd68",
+              "name": "TrackObjects",
+              "kind": "function",
+              "ports": [
+                {
+                  "id": "SF-TrackObjects::in.fused_data",
+                  "name": "fused_data",
+                  "direction": "in"
+                },
+                {
+                  "id": "SF-TrackObjects::out.tracked_objects",
+                  "name": "tracked_objects",
+                  "direction": "out"
+                }
+              ],
+              "properties": {
+                "description": "Track detected objects over time",
+                "latency": "15 ms",
+                "safety_level": "ASIL-D"
+              }
+            },
+            {
+              "id": "SF-AssessThreat",
+              "uuid": "ea8b90da-f483-573e-b338-7a7810b9ef2a",
+              "name": "AssessThreat",
+              "kind": "function",
+              "ports": [
+                {
+                  "id": "SF-AssessThreat::in.tracked_objects",
+                  "name": "tracked_objects",
+                  "direction": "in"
+                },
+                {
+                  "id": "SF-AssessThreat::in.vehicle_speed",
+                  "name": "vehicle_speed",
+                  "direction": "in"
+                },
+                {
+                  "id": "SF-AssessThreat::out.threat_level",
+                  "name": "threat_level",
+                  "direction": "out"
+                }
+              ],
+              "properties": {
+                "description": "Determine collision risk",
+                "latency": "20 ms",
+                "safety_level": "ASIL-D"
+              }
+            },
+            {
+              "id": "SF-GenerateWarning",
+              "uuid": "ae4fbd35-8d9a-52bc-ad73-d8f8b9c55216",
+              "name": "GenerateWarning",
+              "kind": "function",
+              "ports": [
+                {
+                  "id": "SF-GenerateWarning::in.threat_level",
+                  "name": "threat_level",
+                  "direction": "in"
+                },
+                {
+                  "id": "SF-GenerateWarning::out.warning_signal",
+                  "name": "warning_signal",
+                  "direction": "out"
+                }
+              ],
+              "properties": {
+                "description": "Create driver warning signals",
+                "safety_level": "ASIL-B"
+              }
+            },
+            {
+              "id": "SF-ComputeBrakingForce",
+              "uuid": "a5c8a2aa-e7f2-5619-a960-9250694cc909",
+              "name": "ComputeBrakingForce",
+              "kind": "function",
+              "ports": [
+                {
+                  "id": "SF-ComputeBrakingForce::in.threat_level",
+                  "name": "threat_level",
+                  "direction": "in"
+                },
+                {
+                  "id": "SF-ComputeBrakingForce::in.vehicle_speed",
+                  "name": "vehicle_speed",
+                  "direction": "in"
+                },
+                {
+                  "id": "SF-ComputeBrakingForce::out.brake_command",
+                  "name": "brake_command",
+                  "direction": "out"
+                }
+              ],
+              "properties": {
+                "description": "Calculate required braking force",
+                "latency": "10 ms",
+                "safety_level": "ASIL-D"
+              }
+            },
+            {
+              "id": "SF-MonitorVehicleState",
+              "uuid": "51c36f04-c125-5410-8a06-4fe1a3139bc2",
+              "name": "MonitorVehicleState",
+              "kind": "function",
+              "ports": [
+                {
+                  "id": "SF-MonitorVehicleState::in.vehicle_can_bus",
+                  "name": "vehicle_can_bus",
+                  "direction": "in"
+                },
+                {
+                  "id": "SF-MonitorVehicleState::out.vehicle_speed",
+                  "name": "vehicle_speed",
+                  "direction": "out"
+                },
+                {
+                  "id": "SF-MonitorVehicleState::out.vehicle_state",
+                  "name": "vehicle_state",
+                  "direction": "out"
+                }
+              ],
+              "properties": {
+                "description": "Track vehicle speed, steering, etc.",
+                "safety_level": "ASIL-B"
+              }
+            }
+          ]
+        },
+        {
+          "id": "SA-ACT-Driver",
+          "uuid": "2af3bc03-bb82-58e2-aea4-013350d86b3f",
+          "name": "Driver",
+          "kind": "system_actor",
+          "properties": {
+            "description": "Vehicle operator"
+          }
+        },
+        {
+          "id": "SA-ACT-Vehicle",
+          "uuid": "1437eb4c-7d27-5696-b4a8-db1b586a6693",
+          "name": "Vehicle",
+          "kind": "system_actor",
+          "properties": {
+            "description": "Vehicle platform"
+          }
+        }
+      ],
+      "edges": [
+        {
+          "id": "fe:SensorToFusion",
+          "kind": "functional_exchange",
+          "source": "SF-AcquireSensorData",
+          "source_port": "SF-AcquireSensorData::out.raw_sensor_data",
+          "target": "SF-FuseData",
+          "target_port": "SF-FuseData::in.raw_sensor_data",
+          "label": "SensorToFusion",
+          "exchange_item": "raw_sensor_data"
+        },
+        {
+          "id": "fe:FusionToTracking",
+          "kind": "functional_exchange",
+          "source": "SF-FuseData",
+          "source_port": "SF-FuseData::out.fused_data",
+          "target": "SF-TrackObjects",
+          "target_port": "SF-TrackObjects::in.fused_data",
+          "label": "FusionToTracking",
+          "exchange_item": "fused_data"
+        },
+        {
+          "id": "fe:TrackingToThreat",
+          "kind": "functional_exchange",
+          "source": "SF-TrackObjects",
+          "source_port": "SF-TrackObjects::out.tracked_objects",
+          "target": "SF-AssessThreat",
+          "target_port": "SF-AssessThreat::in.tracked_objects",
+          "label": "TrackingToThreat",
+          "exchange_item": "tracked_objects"
+        },
+        {
+          "id": "fe:ThreatToWarning",
+          "kind": "functional_exchange",
+          "source": "SF-AssessThreat",
+          "source_port": "SF-AssessThreat::out.threat_level",
+          "target": "SF-GenerateWarning",
+          "target_port": "SF-GenerateWarning::in.threat_level",
+          "label": "ThreatToWarning",
+          "exchange_item": "threat_level"
+        },
+        {
+          "id": "fe:ThreatToBraking",
+          "kind": "functional_exchange",
+          "source": "SF-AssessThreat",
+          "source_port": "SF-AssessThreat::out.threat_level",
+          "target": "SF-ComputeBrakingForce",
+          "target_port": "SF-ComputeBrakingForce::in.threat_level",
+          "label": "ThreatToBraking",
+          "exchange_item": "threat_level"
+        },
+        {
+          "id": "fe:VehicleToThreat",
+          "kind": "functional_exchange",
+          "source": "SF-MonitorVehicleState",
+          "source_port": "SF-MonitorVehicleState::out.vehicle_speed",
+          "target": "SF-AssessThreat",
+          "target_port": "SF-AssessThreat::in.vehicle_speed",
+          "label": "VehicleToThreat",
+          "exchange_item": "vehicle_speed"
+        },
+        {
+          "id": "fe:VehicleToBraking",
+          "kind": "functional_exchange",
+          "source": "SF-MonitorVehicleState",
+          "source_port": "SF-MonitorVehicleState::out.vehicle_speed",
+          "target": "SF-ComputeBrakingForce",
+          "target_port": "SF-ComputeBrakingForce::in.vehicle_speed",
+          "label": "VehicleToBraking",
+          "exchange_item": "vehicle_speed"
+        }
+      ],
+      "chains": [
+        {
+          "id": "FC-001",
+          "name": "EmergencyBrakingChain",
+          "nodes": [
+            "SF-AcquireSensorData",
+            "SF-FuseData",
+            "SF-TrackObjects",
+            "SF-AssessThreat",
+            "SF-ComputeBrakingForce"
+          ],
+          "edges": [
+            "fe:SensorToFusion",
+            "fe:FusionToTracking",
+            "fe:TrackingToThreat",
+            "fe:ThreatToBraking"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "lab",
+      "kind": "lab",
+      "title": "AEB System - Component Structure",
+      "nodes": [
+        {
+          "id": "RadarSensor",
+          "uuid": "215cd4f4-cecc-5e28-8627-b1bc97f349b2",
+          "name": "RadarSensor",
+          "kind": "logical_component",
+          "ports": [
+            {
+              "id": "RadarSensor::RadarDataProvider",
+              "name": "RadarDataProvider",
+              "direction": "out",
+              "interface": "IRadarData",
+              "protocol": "CAN"
+            }
+          ],
+          "children": [
+            {
+              "id": "RadarSensor.Acquire radar frames",
+              "uuid": "0b3b0559-8cd4-5a8e-bf72-045aa06276a6",
+              "name": "Acquire radar frames",
+              "kind": "function"
+            }
+          ],
+          "properties": {
+            "description": "Front-facing radar sensor",
+            "safety_level": "ASIL-D",
+            "type": "Sensor"
+          }
+        },
+        {
+          "id": "CameraSensor",
+          "uuid": "6d348730-fd90-5fa5-a8ff-2800ba0bf3af",
+          "name": "CameraSensor",
+          "kind": "logical_component",
+          "ports": [
+            {
+              "id": "CameraSensor::CameraDataProvider",
+              "name": "CameraDataProvider",
+              "direction": "out",
+              "interface": "ICameraData",
+              "protocol": "Ethernet"
+            }
+          ],
+          "children": [
+            {
+              "id": "CameraSensor.Acquire camera frames",
+              "uuid": "5f0cfa23-b5e2-56d9-a32a-26dce26592e4",
+              "name": "Acquire camera frames",
+              "kind": "function"
+            }
+          ],
+          "properties": {
+            "description": "Front-facing camera",
+            "safety_level": "ASIL-D",
+            "type": "Sensor"
+          }
+        },
+        {
+          "id": "SensorFusion",
+          "uuid": "e06c1f75-6138-5281-8439-f0eedb2c418f",
+          "name": "SensorFusion",
+          "kind": "logical_component",
+          "ports": [
+            {
+              "id": "SensorFusion::RadarDataConsumer",
+              "name": "RadarDataConsumer",
+              "direction": "in",
+              "interface": "IRadarData"
+            },
+            {
+              "id": "SensorFusion::CameraDataConsumer",
+              "name": "CameraDataConsumer",
+              "direction": "in",
+              "interface": "ICameraData"
+            },
+            {
+              "id": "SensorFusion::FusedDataProvider",
+              "name": "FusedDataProvider",
+              "direction": "out",
+              "interface": "IFusedData"
+            }
+          ],
+          "children": [
+            {
+              "id": "SF-FuseData",
+              "uuid": "0355dac5-e82b-5dd6-9a41-fe8eda548e41",
+              "name": "FuseData",
+              "kind": "function",
+              "ports": [
+                {
+                  "id": "SF-FuseData::in.raw_sensor_data",
+                  "name": "raw_sensor_data",
+                  "direction": "in"
+                },
+                {
+                  "id": "SF-FuseData::out.fused_data",
+                  "name": "fused_data",
+                  "direction": "out"
+                }
+              ],
+              "properties": {
+                "description": "Combine multiple sensor inputs",
+                "latency": "25 ms",
+                "safety_level": "ASIL-D"
+              }
+            },
+            {
+              "id": "SensorFusion.Fuse sensor data",
+              "uuid": "326ed72c-e593-5106-98e6-fc1a4174786e",
+              "name": "Fuse sensor data",
+              "kind": "function"
+            }
+          ],
+          "properties": {
+            "description": "Multi-sensor data fusion",
+            "safety_level": "ASIL-D",
+            "type": "Processing"
+          }
+        },
+        {
+          "id": "ObjectTracker",
+          "uuid": "d10a9e1a-7daa-51fa-84de-72a6f6a25f9a",
+          "name": "ObjectTracker",
+          "kind": "logical_component",
+          "ports": [
+            {
+              "id": "ObjectTracker::FusedDataConsumer",
+              "name": "FusedDataConsumer",
+              "direction": "in",
+              "interface": "IFusedData"
+            },
+            {
+              "id": "ObjectTracker::TrackedObjectsProvider",
+              "name": "TrackedObjectsProvider",
+              "direction": "out",
+              "interface": "ITrackedObjects"
+            }
+          ],
+          "children": [
+            {
+              "id": "SF-TrackObjects",
+              "uuid": "c789fec3-d99b-544c-a7db-6d04e07bdd68",
+              "name": "TrackObjects",
+              "kind": "function",
+              "ports": [
+                {
+                  "id": "SF-TrackObjects::in.fused_data",
+                  "name": "fused_data",
+                  "direction": "in"
+                },
+                {
+                  "id": "SF-TrackObjects::out.tracked_objects",
+                  "name": "tracked_objects",
+                  "direction": "out"
+                }
+              ],
+              "properties": {
+                "description": "Track detected objects over time",
+                "latency": "15 ms",
+                "safety_level": "ASIL-D"
+              }
+            },
+            {
+              "id": "ObjectTracker.Track objects",
+              "uuid": "07d1e060-b205-5ffc-861c-304fd260e5bb",
+              "name": "Track objects",
+              "kind": "function"
+            }
+          ],
+          "properties": {
+            "description": "Object tracking and prediction",
+            "safety_level": "ASIL-D",
+            "type": "Processing"
+          }
+        },
+        {
+          "id": "ThreatAssessment",
+          "uuid": "a24f46c8-9b1e-52d7-9a48-546c7b5539da",
+          "name": "ThreatAssessment",
+          "kind": "logical_component",
+          "ports": [
+            {
+              "id": "ThreatAssessment::TrackedObjectsConsumer",
+              "name": "TrackedObjectsConsumer",
+              "direction": "in",
+              "interface": "ITrackedObjects"
+            },
+            {
+              "id": "ThreatAssessment::VehicleStateConsumer",
+              "name": "VehicleStateConsumer",
+              "direction": "in",
+              "interface": "IVehicleState"
+            },
+            {
+              "id": "ThreatAssessment::ThreatLevelProvider",
+              "name": "ThreatLevelProvider",
+              "direction": "out",
+              "interface": "IThreatLevel"
+            }
+          ],
+          "children": [
+            {
+              "id": "SF-AssessThreat",
+              "uuid": "ea8b90da-f483-573e-b338-7a7810b9ef2a",
+              "name": "AssessThreat",
+              "kind": "function",
+              "ports": [
+                {
+                  "id": "SF-AssessThreat::in.tracked_objects",
+                  "name": "tracked_objects",
+                  "direction": "in"
+                },
+                {
+                  "id": "SF-AssessThreat::in.vehicle_speed",
+                  "name": "vehicle_speed",
+                  "direction": "in"
+                },
+                {
+                  "id": "SF-AssessThreat::out.threat_level",
+                  "name": "threat_level",
+                  "direction": "out"
+                }
+              ],
+              "properties": {
+                "description": "Determine collision risk",
+                "latency": "20 ms",
+                "safety_level": "ASIL-D"
+              }
+            },
+            {
+              "id": "ThreatAssessment.Assess collision threat",
+              "uuid": "869b4bf1-6ac8-56b7-82f2-fe110bb8a2db",
+              "name": "Assess collision threat",
+              "kind": "function"
+            }
+          ],
+          "properties": {
+            "description": "Collision risk assessment",
+            "safety_level": "ASIL-D",
+            "type": "Decision"
+          }
+        },
+        {
+          "id": "BrakeController",
+          "uuid": "f2515a4b-2de8-5ef9-a629-2557bfc5e56f",
+          "name": "BrakeController",
+          "kind": "logical_component",
+          "ports": [
+            {
+              "id": "BrakeController::ThreatLevelConsumer",
+              "name": "ThreatLevelConsumer",
+              "direction": "in",
+              "interface": "IThreatLevel"
+            },
+            {
+              "id": "BrakeController::VehicleSpeedConsumer",
+              "name": "VehicleSpeedConsumer",
+              "direction": "in",
+              "interface": "IVehicleSpeed"
+            },
+            {
+              "id": "BrakeController::BrakeCommandProvider",
+              "name": "BrakeCommandProvider",
+              "direction": "out",
+              "interface": "IBrakeCommand"
+            }
+          ],
+          "children": [
+            {
+              "id": "SF-ComputeBrakingForce",
+              "uuid": "a5c8a2aa-e7f2-5619-a960-9250694cc909",
+              "name": "ComputeBrakingForce",
+              "kind": "function",
+              "ports": [
+                {
+                  "id": "SF-ComputeBrakingForce::in.threat_level",
+                  "name": "threat_level",
+                  "direction": "in"
+                },
+                {
+                  "id": "SF-ComputeBrakingForce::in.vehicle_speed",
+                  "name": "vehicle_speed",
+                  "direction": "in"
+                },
+                {
+                  "id": "SF-ComputeBrakingForce::out.brake_command",
+                  "name": "brake_command",
+                  "direction": "out"
+                }
+              ],
+              "properties": {
+                "description": "Calculate required braking force",
+                "latency": "10 ms",
+                "safety_level": "ASIL-D"
+              }
+            },
+            {
+              "id": "BrakeController.Compute braking command",
+              "uuid": "50406322-4eb4-5fa4-bc66-ad9f2a2654dd",
+              "name": "Compute braking command",
+              "kind": "function"
+            }
+          ],
+          "properties": {
+            "description": "Emergency brake control",
+            "safety_level": "ASIL-D",
+            "type": "Controller"
+          }
+        },
+        {
+          "id": "DriverInterface",
+          "uuid": "9a4477a1-5291-580f-ba39-8dbe3a3a2a2b",
+          "name": "DriverInterface",
+          "kind": "logical_component",
+          "ports": [
+            {
+              "id": "DriverInterface::WarningConsumer",
+              "name": "WarningConsumer",
+              "direction": "in",
+              "interface": "IWarning"
+            }
+          ],
+          "children": [
+            {
+              "id": "SF-GenerateWarning",
+              "uuid": "ae4fbd35-8d9a-52bc-ad73-d8f8b9c55216",
+              "name": "GenerateWarning",
+              "kind": "function",
+              "ports": [
+                {
+                  "id": "SF-GenerateWarning::in.threat_level",
+                  "name": "threat_level",
+                  "direction": "in"
+                },
+                {
+                  "id": "SF-GenerateWarning::out.warning_signal",
+                  "name": "warning_signal",
+                  "direction": "out"
+                }
+              ],
+              "properties": {
+                "description": "Create driver warning signals",
+                "safety_level": "ASIL-B"
+              }
+            },
+            {
+              "id": "DriverInterface.Warn driver",
+              "uuid": "dcf27b93-b72d-5873-9fb0-7b459b06359a",
+              "name": "Warn driver",
+              "kind": "function"
+            }
+          ],
+          "properties": {
+            "description": "HMI for warnings",
+            "safety_level": "QM",
+            "type": "Interface"
+          }
+        },
+        {
+          "id": "VehicleCANGateway",
+          "uuid": "e097ae2f-815b-570c-b6c5-66109149bacb",
+          "name": "VehicleCANGateway",
+          "kind": "logical_component",
+          "ports": [
+            {
+              "id": "VehicleCANGateway::VehicleStateProvider",
+              "name": "VehicleStateProvider",
+              "direction": "out",
+              "interface": "IVehicleState"
+            },
+            {
+              "id": "VehicleCANGateway::VehicleSpeedProvider",
+              "name": "VehicleSpeedProvider",
+              "direction": "out",
+              "interface": "IVehicleSpeed"
+            }
+          ],
+          "children": [
+            {
+              "id": "SF-MonitorVehicleState",
+              "uuid": "51c36f04-c125-5410-8a06-4fe1a3139bc2",
+              "name": "MonitorVehicleState",
+              "kind": "function",
+              "ports": [
+                {
+                  "id": "SF-MonitorVehicleState::in.vehicle_can_bus",
+                  "name": "vehicle_can_bus",
+                  "direction": "in"
+                },
+                {
+                  "id": "SF-MonitorVehicleState::out.vehicle_speed",
+                  "name": "vehicle_speed",
+                  "direction": "out"
+                },
+                {
+                  "id": "SF-MonitorVehicleState::out.vehicle_state",
+                  "name": "vehicle_state",
+                  "direction": "out"
+                }
+              ],
+              "properties": {
+                "description": "Track vehicle speed, steering, etc.",
+                "safety_level": "ASIL-B"
+              }
+            },
+            {
+              "id": "VehicleCANGateway.Relay vehicle state",
+              "uuid": "bab81499-11b1-502c-8f4b-7ff95fba9811",
+              "name": "Relay vehicle state",
+              "kind": "function"
+            }
+          ],
+          "properties": {
+            "description": "CAN bus interface",
+            "safety_level": "ASIL-B",
+            "type": "Gateway"
+          }
+        },
+        {
+          "id": "BrakeActuator",
+          "uuid": "d09be69f-4ec5-5eba-ab3f-67fbb4611bf4",
+          "name": "BrakeActuator",
+          "kind": "logical_component",
+          "ports": [
+            {
+              "id": "BrakeActuator::BrakeCommandConsumer",
+              "name": "BrakeCommandConsumer",
+              "direction": "in",
+              "interface": "IBrakeCommand"
+            }
+          ],
+          "children": [
+            {
+              "id": "BrakeActuator.Apply braking force",
+              "uuid": "926b7b7a-1ee1-5b31-ad00-cc5212bee02b",
+              "name": "Apply braking force",
+              "kind": "function"
+            }
+          ],
+          "properties": {
+            "description": "Physical brake actuator",
+            "safety_level": "ASIL-D",
+            "type": "Actuator"
+          }
+        }
+      ],
+      "edges": [
+        {
+          "id": "ce:Radar Data",
+          "kind": "component_exchange",
+          "source": "RadarSensor",
+          "source_port": "RadarSensor::RadarDataProvider",
+          "target": "SensorFusion",
+          "target_port": "SensorFusion::RadarDataConsumer",
+          "label": "Radar Data",
+          "exchange_item": "radar_data"
+        },
+        {
+          "id": "ce:Camera Data",
+          "kind": "component_exchange",
+          "source": "CameraSensor",
+          "source_port": "CameraSensor::CameraDataProvider",
+          "target": "SensorFusion",
+          "target_port": "SensorFusion::CameraDataConsumer",
+          "label": "Camera Data",
+          "exchange_item": "camera_data"
+        },
+        {
+          "id": "ce:Fused Data",
+          "kind": "component_exchange",
+          "source": "SensorFusion",
+          "source_port": "SensorFusion::FusedDataProvider",
+          "target": "ObjectTracker",
+          "target_port": "ObjectTracker::FusedDataConsumer",
+          "label": "Fused Data",
+          "exchange_item": "fused_sensor_data"
+        },
+        {
+          "id": "ce:Tracked Objects",
+          "kind": "component_exchange",
+          "source": "ObjectTracker",
+          "source_port": "ObjectTracker::TrackedObjectsProvider",
+          "target": "ThreatAssessment",
+          "target_port": "ThreatAssessment::TrackedObjectsConsumer",
+          "label": "Tracked Objects",
+          "exchange_item": "tracked_objects"
+        },
+        {
+          "id": "ce:Vehicle State",
+          "kind": "component_exchange",
+          "source": "VehicleCANGateway",
+          "source_port": "VehicleCANGateway::VehicleStateProvider",
+          "target": "ThreatAssessment",
+          "target_port": "ThreatAssessment::VehicleStateConsumer",
+          "label": "Vehicle State",
+          "exchange_item": "vehicle_state"
+        },
+        {
+          "id": "ce:Threat Level",
+          "kind": "component_exchange",
+          "source": "ThreatAssessment",
+          "source_port": "ThreatAssessment::ThreatLevelProvider",
+          "target": "BrakeController",
+          "target_port": "BrakeController::ThreatLevelConsumer",
+          "label": "Threat Level",
+          "exchange_item": "threat_level"
+        },
+        {
+          "id": "ce:Vehicle Speed",
+          "kind": "component_exchange",
+          "source": "VehicleCANGateway",
+          "source_port": "VehicleCANGateway::VehicleSpeedProvider",
+          "target": "BrakeController",
+          "target_port": "BrakeController::VehicleSpeedConsumer",
+          "label": "Vehicle Speed",
+          "exchange_item": "vehicle_speed"
+        },
+        {
+          "id": "ce:Brake Command",
+          "kind": "component_exchange",
+          "source": "BrakeController",
+          "source_port": "BrakeController::BrakeCommandProvider",
+          "target": "BrakeActuator",
+          "target_port": "BrakeActuator::BrakeCommandConsumer",
+          "label": "Brake Command",
+          "exchange_item": "brake_command"
+        },
+        {
+          "id": "fe:FusionToTracking",
+          "kind": "functional_exchange",
+          "source": "SF-FuseData",
+          "source_port": "SF-FuseData::out.fused_data",
+          "target": "SF-TrackObjects",
+          "target_port": "SF-TrackObjects::in.fused_data",
+          "label": "FusionToTracking",
+          "exchange_item": "fused_data"
+        },
+        {
+          "id": "fe:TrackingToThreat",
+          "kind": "functional_exchange",
+          "source": "SF-TrackObjects",
+          "source_port": "SF-TrackObjects::out.tracked_objects",
+          "target": "SF-AssessThreat",
+          "target_port": "SF-AssessThreat::in.tracked_objects",
+          "label": "TrackingToThreat",
+          "exchange_item": "tracked_objects"
+        },
+        {
+          "id": "fe:ThreatToWarning",
+          "kind": "functional_exchange",
+          "source": "SF-AssessThreat",
+          "source_port": "SF-AssessThreat::out.threat_level",
+          "target": "SF-GenerateWarning",
+          "target_port": "SF-GenerateWarning::in.threat_level",
+          "label": "ThreatToWarning",
+          "exchange_item": "threat_level"
+        },
+        {
+          "id": "fe:ThreatToBraking",
+          "kind": "functional_exchange",
+          "source": "SF-AssessThreat",
+          "source_port": "SF-AssessThreat::out.threat_level",
+          "target": "SF-ComputeBrakingForce",
+          "target_port": "SF-ComputeBrakingForce::in.threat_level",
+          "label": "ThreatToBraking",
+          "exchange_item": "threat_level"
+        },
+        {
+          "id": "fe:VehicleToThreat",
+          "kind": "functional_exchange",
+          "source": "SF-MonitorVehicleState",
+          "source_port": "SF-MonitorVehicleState::out.vehicle_speed",
+          "target": "SF-AssessThreat",
+          "target_port": "SF-AssessThreat::in.vehicle_speed",
+          "label": "VehicleToThreat",
+          "exchange_item": "vehicle_speed"
+        },
+        {
+          "id": "fe:VehicleToBraking",
+          "kind": "functional_exchange",
+          "source": "SF-MonitorVehicleState",
+          "source_port": "SF-MonitorVehicleState::out.vehicle_speed",
+          "target": "SF-ComputeBrakingForce",
+          "target_port": "SF-ComputeBrakingForce::in.vehicle_speed",
+          "label": "VehicleToBraking",
+          "exchange_item": "vehicle_speed"
+        }
+      ]
+    },
+    {
+      "id": "pab",
+      "kind": "pab",
+      "title": "AEB System - Hardware Deployment",
+      "nodes": [
+        {
+          "id": "FrontRadarECU",
+          "uuid": "ee742c0c-50b2-51cf-afb0-510fccfe130a",
+          "name": "FrontRadarECU",
+          "kind": "physical_node",
+          "children": [
+            {
+              "id": "BC-RadarProcessing",
+              "uuid": "b123518a-fd4b-5b63-a724-aa9c23a87fce",
+              "name": "RadarProcessing",
+              "kind": "behavior_component",
+              "realizes": [
+                "RadarSensor"
+              ]
+            },
+            {
+              "id": "FrontRadarECU/RadarSensor",
+              "uuid": "5ca331d8-ec05-5ae3-91e6-ccab37ce1293",
+              "name": "RadarSensor",
+              "kind": "deployed_component",
+              "realizes": [
+                "RadarSensor"
+              ]
+            }
+          ],
+          "properties": {
+            "description": "Radar sensor ECU",
+            "memory": "512KB Flash, 128KB RAM",
+            "node_type": "ECU",
+            "processor": "ARM Cortex-M4",
+            "safety_level": "ASIL-D"
+          }
+        },
+        {
+          "id": "FrontCameraECU",
+          "uuid": "2bdf2b73-5953-5e9b-b2dc-1d19c7804c37",
+          "name": "FrontCameraECU",
+          "kind": "physical_node",
+          "children": [
+            {
+              "id": "BC-CameraProcessing",
+              "uuid": "e453fcf8-3513-5109-af0b-86a9bdbcb13c",
+              "name": "CameraProcessing",
+              "kind": "behavior_component",
+              "realizes": [
+                "CameraSensor"
+              ]
+            },
+            {
+              "id": "FrontCameraECU/CameraSensor",
+              "uuid": "cea8693c-7137-50ce-8c44-45173dc4872c",
+              "name": "CameraSensor",
+              "kind": "deployed_component",
+              "realizes": [
+                "CameraSensor"
+              ]
+            }
+          ],
+          "properties": {
+            "description": "Camera sensor ECU",
+            "memory": "2GB DDR4",
+            "node_type": "ECU",
+            "processor": "ARM Cortex-A53",
+            "safety_level": "ASIL-D"
+          }
+        },
+        {
+          "id": "CentralADASECU",
+          "uuid": "59a6af2c-e916-5a87-95d6-0ddf9fdf44e9",
+          "name": "CentralADASECU",
+          "kind": "physical_node",
+          "children": [
+            {
+              "id": "BC-FusionModule",
+              "uuid": "35a5bef0-1aef-558d-9181-99b3e11bedf3",
+              "name": "FusionModule",
+              "kind": "behavior_component",
+              "realizes": [
+                "SensorFusion"
+              ]
+            },
+            {
+              "id": "BC-TrackingModule",
+              "uuid": "4594d2a1-dd35-54a0-93c8-9938db65db17",
+              "name": "TrackingModule",
+              "kind": "behavior_component",
+              "realizes": [
+                "ObjectTracker"
+              ]
+            },
+            {
+              "id": "BC-ThreatModule",
+              "uuid": "59606e3e-5f46-53dd-a8e3-aa1d84b7e5ae",
+              "name": "ThreatModule",
+              "kind": "behavior_component",
+              "realizes": [
+                "ThreatAssessment"
+              ]
+            },
+            {
+              "id": "BC-BrakingModule",
+              "uuid": "fe02d4dd-c465-54c3-a074-26ce71524d88",
+              "name": "BrakingModule",
+              "kind": "behavior_component",
+              "realizes": [
+                "BrakeController"
+              ]
+            },
+            {
+              "id": "CentralADASECU/SensorFusion",
+              "uuid": "d0b424ec-732f-556c-8779-dcb97089cf3a",
+              "name": "SensorFusion",
+              "kind": "deployed_component",
+              "realizes": [
+                "SensorFusion"
+              ]
+            },
+            {
+              "id": "CentralADASECU/ObjectTracker",
+              "uuid": "30b98286-cbcb-5545-8b20-ae2ebf1029cd",
+              "name": "ObjectTracker",
+              "kind": "deployed_component",
+              "realizes": [
+                "ObjectTracker"
+              ]
+            },
+            {
+              "id": "CentralADASECU/ThreatAssessment",
+              "uuid": "f3100a2f-25ed-5ee3-9ba2-527aeb1fa620",
+              "name": "ThreatAssessment",
+              "kind": "deployed_component",
+              "realizes": [
+                "ThreatAssessment"
+              ]
+            },
+            {
+              "id": "CentralADASECU/BrakeController",
+              "uuid": "f5030e2d-d58a-5685-aa89-1969fc0ad6bc",
+              "name": "BrakeController",
+              "kind": "deployed_component",
+              "realizes": [
+                "BrakeController"
+              ]
+            }
+          ],
+          "properties": {
+            "description": "Central ADAS processing unit",
+            "memory": "8GB DDR4, 64GB eMMC",
+            "node_type": "ECU",
+            "processor": "Intel Atom x5-E3940",
+            "safety_level": "ASIL-D"
+          }
+        },
+        {
+          "id": "BrakeECU",
+          "uuid": "bce749f9-24b4-54bb-bd93-0ddd1c26afe0",
+          "name": "BrakeECU",
+          "kind": "physical_node",
+          "children": [
+            {
+              "id": "BC-BrakeActuation",
+              "uuid": "27460b30-d804-5b25-8c24-14fbcd3de115",
+              "name": "BrakeActuation",
+              "kind": "behavior_component",
+              "realizes": [
+                "BrakeActuator"
+              ]
+            },
+            {
+              "id": "BrakeECU/BrakeActuator",
+              "uuid": "1a8dd84e-3a0a-52eb-ad4a-ac15a15b55f3",
+              "name": "BrakeActuator",
+              "kind": "deployed_component",
+              "realizes": [
+                "BrakeActuator"
+              ]
+            }
+          ],
+          "properties": {
+            "description": "Electronic Brake Control Unit",
+            "memory": "8MB Flash, 3MB RAM",
+            "node_type": "ECU",
+            "processor": "Infineon AURIX TC397",
+            "safety_level": "ASIL-D"
+          }
+        },
+        {
+          "id": "InstrumentCluster",
+          "uuid": "031d8249-07a2-5f6d-b775-4aa940d32715",
+          "name": "InstrumentCluster",
+          "kind": "physical_node",
+          "children": [
+            {
+              "id": "BC-HMI",
+              "uuid": "775bb7e5-ad5a-5cfb-a9d4-87ca2df58fa9",
+              "name": "HMI",
+              "kind": "behavior_component",
+              "realizes": [
+                "DriverInterface"
+              ]
+            },
+            {
+              "id": "InstrumentCluster/DriverInterface",
+              "uuid": "c750bdb5-af6e-51c3-9ffd-11cc927cbfc2",
+              "name": "DriverInterface",
+              "kind": "deployed_component",
+              "realizes": [
+                "DriverInterface"
+              ]
+            }
+          ],
+          "properties": {
+            "description": "Driver display and HMI",
+            "memory": "4GB DDR4",
+            "node_type": "ECU",
+            "processor": "NXP i.MX 8M",
+            "safety_level": "QM"
+          }
+        },
+        {
+          "id": "CANGatewayECU",
+          "uuid": "0a18874d-22f5-5735-a66c-df05ef112b79",
+          "name": "CANGatewayECU",
+          "kind": "physical_node",
+          "children": [
+            {
+              "id": "BC-CANInterface",
+              "uuid": "ac3fb89b-6e18-5a1f-9047-847747a5434d",
+              "name": "CANInterface",
+              "kind": "behavior_component",
+              "realizes": [
+                "VehicleCANGateway"
+              ]
+            },
+            {
+              "id": "CANGatewayECU/VehicleCANGateway",
+              "uuid": "395eace6-f8d5-55d7-b6fa-7c94c51370fa",
+              "name": "VehicleCANGateway",
+              "kind": "deployed_component",
+              "realizes": [
+                "VehicleCANGateway"
+              ]
+            }
+          ],
+          "properties": {
+            "description": "Vehicle CAN gateway",
+            "memory": "2MB Flash",
+            "node_type": "Gateway",
+            "processor": "Renesas RH850",
+            "safety_level": "ASIL-B"
+          }
+        }
+      ],
+      "edges": [
+        {
+          "id": "pl:CANBus",
+          "kind": "physical_link",
+          "source": "FrontRadarECU",
+          "target": "CentralADASECU",
+          "label": "CANBus",
+          "properties": {
+            "bandwidth": "5 Mbps",
+            "protocol": "CAN FD"
+          }
+        },
+        {
+          "id": "pl:EthernetLink",
+          "kind": "physical_link",
+          "source": "FrontCameraECU",
+          "target": "CentralADASECU",
+          "label": "EthernetLink",
+          "properties": {
+            "bandwidth": "1 Gbps",
+            "protocol": "Automotive Ethernet"
+          }
+        },
+        {
+          "id": "pl:BrakeCAN",
+          "kind": "physical_link",
+          "source": "CentralADASECU",
+          "target": "BrakeECU",
+          "label": "BrakeCAN",
+          "properties": {
+            "bandwidth": "5 Mbps",
+            "protocol": "CAN FD"
+          }
+        },
+        {
+          "id": "pl:VehicleCAN",
+          "kind": "physical_link",
+          "source": "CANGatewayECU",
+          "target": "CentralADASECU",
+          "label": "VehicleCAN",
+          "properties": {
+            "bandwidth": "500 Kbps",
+            "protocol": "CAN"
+          }
+        },
+        {
+          "id": "pl:DisplayLink",
+          "kind": "physical_link",
+          "source": "CentralADASECU",
+          "target": "InstrumentCluster",
+          "label": "DisplayLink",
+          "properties": {
+            "bandwidth": "3.2 Gbps",
+            "protocol": "LVDS"
+          }
+        },
+        {
+          "id": "px:RadarMessages",
+          "kind": "physical_exchange",
+          "source": "FrontRadarECU",
+          "target": "CentralADASECU",
+          "label": "RadarMessages",
+          "exchange_item": "RadarTargets",
+          "properties": {
+            "frequency": "50 Hz",
+            "via": "CANBus"
+          }
+        },
+        {
+          "id": "px:CameraMessages",
+          "kind": "physical_exchange",
+          "source": "FrontCameraECU",
+          "target": "CentralADASECU",
+          "label": "CameraMessages",
+          "exchange_item": "CameraFrame",
+          "properties": {
+            "frequency": "30 Hz",
+            "via": "EthernetLink"
+          }
+        },
+        {
+          "id": "px:BrakeCommands",
+          "kind": "physical_exchange",
+          "source": "CentralADASECU",
+          "target": "BrakeECU",
+          "label": "BrakeCommands",
+          "exchange_item": "BrakeRequest",
+          "properties": {
+            "frequency": "100 Hz",
+            "via": "BrakeCAN"
+          }
+        },
+        {
+          "id": "px:VehicleStatus",
+          "kind": "physical_exchange",
+          "source": "CANGatewayECU",
+          "target": "CentralADASECU",
+          "label": "VehicleStatus",
+          "exchange_item": "VehicleSpeed",
+          "properties": {
+            "frequency": "100 Hz",
+            "via": "VehicleCAN"
+          }
+        }
+      ]
+    },
+    {
+      "id": "cap",
+      "kind": "cap",
+      "title": "Missions and capabilities",
+      "nodes": [
+        {
+          "id": "OC-001",
+          "uuid": "a9697f4c-0bc8-5a9b-9db4-836a8ec354c9",
+          "name": "Avoid Collisions",
+          "kind": "operational_capability",
+          "properties": {
+            "description": "Ability to avoid collisions with obstacles and vulnerable road users"
+          }
+        },
+        {
+          "id": "MIS-001",
+          "uuid": "3ebb0a22-80c8-5192-8adb-38bcb7e79197",
+          "name": "SafeAutonomousBraking",
+          "kind": "mission",
+          "properties": {
+            "description": "Prevent collisions through autonomous emergency braking"
+          }
+        },
+        {
+          "id": "CAP-001",
+          "uuid": "15a751c9-7a8f-504f-a5fa-702f6116c147",
+          "name": "EmergencyBraking",
+          "kind": "capability",
+          "properties": {
+            "description": "Detect an imminent collision and brake autonomously"
+          }
+        },
+        {
+          "id": "SF-AcquireSensorData",
+          "uuid": "cdcfb5dc-b9f7-5212-a8a4-59264394653f",
+          "name": "AcquireSensorData",
+          "kind": "function"
+        },
+        {
+          "id": "SF-FuseData",
+          "uuid": "0355dac5-e82b-5dd6-9a41-fe8eda548e41",
+          "name": "FuseData",
+          "kind": "function"
+        },
+        {
+          "id": "SF-AssessThreat",
+          "uuid": "ea8b90da-f483-573e-b338-7a7810b9ef2a",
+          "name": "AssessThreat",
+          "kind": "function"
+        },
+        {
+          "id": "SF-ComputeBrakingForce",
+          "uuid": "a5c8a2aa-e7f2-5619-a960-9250694cc909",
+          "name": "ComputeBrakingForce",
+          "kind": "function"
+        }
+      ],
+      "edges": [
+        {
+          "id": "exp:SafeAutonomousBraking exploits EmergencyBraking",
+          "kind": "exploitation",
+          "source": "MIS-001",
+          "target": "CAP-001",
+          "label": ""
+        },
+        {
+          "id": "rea:EmergencyBraking realizes OC-001",
+          "kind": "realization",
+          "source": "CAP-001",
+          "target": "OC-001",
+          "label": ""
+        },
+        {
+          "id": "inv:EmergencyBraking involves AcquireSensorData",
+          "kind": "involvement",
+          "source": "CAP-001",
+          "target": "SF-AcquireSensorData",
+          "label": ""
+        },
+        {
+          "id": "inv:EmergencyBraking involves FuseData",
+          "kind": "involvement",
+          "source": "CAP-001",
+          "target": "SF-FuseData",
+          "label": ""
+        },
+        {
+          "id": "inv:EmergencyBraking involves AssessThreat",
+          "kind": "involvement",
+          "source": "CAP-001",
+          "target": "SF-AssessThreat",
+          "label": ""
+        },
+        {
+          "id": "inv:EmergencyBraking involves ComputeBrakingForce",
+          "kind": "involvement",
+          "source": "CAP-001",
+          "target": "SF-ComputeBrakingForce",
+          "label": ""
+        }
+      ]
+    },
+    {
+      "id": "cdb",
+      "kind": "cdb",
+      "title": "Data model",
+      "nodes": [
+        {
+          "id": "CL-001",
+          "uuid": "f5bee956-d541-5ee2-a3f2-c590000c7795",
+          "name": "RadarFrame",
+          "kind": "class",
+          "compartment": [
+            "range_m : float",
+            "azimuth_deg : float",
+            "velocity_mps : float"
+          ]
+        },
+        {
+          "id": "EN-001",
+          "uuid": "ab94f897-e2c1-5230-9dd9-2eb6ba7db0ec",
+          "name": "ThreatLevel",
+          "kind": "enumeration",
+          "compartment": [
+            "None",
+            "Low",
+            "Critical"
+          ]
+        },
+        {
+          "id": "DT-001",
+          "uuid": "ae18659b-5af1-569e-bc39-1dbb113ed9fa",
+          "name": "BrakingForce",
+          "kind": "data_type",
+          "compartment": [
+            "base : float",
+            "unit : N"
+          ]
+        },
+        {
+          "id": "EI-001",
+          "uuid": "312bf6dc-6580-5785-8e10-1482b2954350",
+          "name": "RadarTargets",
+          "kind": "exchange_item",
+          "properties": {
+            "mechanism": "FLOW"
+          }
+        },
+        {
+          "id": "EI-002",
+          "uuid": "ac1c0e46-3903-586c-a905-fc9fa73418ae",
+          "name": "ThreatAssessed",
+          "kind": "exchange_item",
+          "properties": {
+            "mechanism": "EVENT"
+          }
+        },
+        {
+          "id": "EI-003",
+          "uuid": "75f8423e-6b8a-5d81-bd8c-41903923c57a",
+          "name": "raw_sensor_data",
+          "kind": "exchange_item",
+          "properties": {
+            "mechanism": "FLOW"
+          }
+        },
+        {
+          "id": "EI-004",
+          "uuid": "7b575326-cb4f-5c6c-98a1-865a55910a27",
+          "name": "fused_data",
+          "kind": "exchange_item",
+          "properties": {
+            "mechanism": "FLOW"
+          }
+        },
+        {
+          "id": "EI-005",
+          "uuid": "a419804f-1883-56d9-9440-03a2929150ef",
+          "name": "tracked_objects",
+          "kind": "exchange_item",
+          "properties": {
+            "mechanism": "FLOW"
+          }
+        },
+        {
+          "id": "EI-006",
+          "uuid": "4db4c12e-fb6a-54cd-a3c3-bc0a4037b56c",
+          "name": "threat_level",
+          "kind": "exchange_item",
+          "properties": {
+            "mechanism": "EVENT"
+          }
+        },
+        {
+          "id": "EI-007",
+          "uuid": "462e8145-be59-5bbf-a622-f45bff6a2691",
+          "name": "vehicle_speed",
+          "kind": "exchange_item",
+          "properties": {
+            "mechanism": "FLOW"
+          }
+        }
+      ],
+      "edges": [
+        {
+          "id": "ie:RadarTargets groups CL-001",
+          "kind": "item_element",
+          "source": "EI-001",
+          "target": "CL-001",
+          "label": ""
+        },
+        {
+          "id": "ie:ThreatAssessed groups EN-001",
+          "kind": "item_element",
+          "source": "EI-002",
+          "target": "EN-001",
+          "label": ""
+        },
+        {
+          "id": "ie:raw_sensor_data groups CL-001",
+          "kind": "item_element",
+          "source": "EI-003",
+          "target": "CL-001",
+          "label": ""
+        },
+        {
+          "id": "ie:threat_level groups EN-001",
+          "kind": "item_element",
+          "source": "EI-006",
+          "target": "EN-001",
+          "label": ""
+        }
+      ]
+    },
+    {
+      "id": "msm:AEBOperatingModes",
+      "kind": "msm",
+      "title": "AEBOperatingModes",
+      "nodes": [
+        {
+          "id": "AEBOperatingModes.Standby",
+          "uuid": "136e6b17-dbcb-5ca7-80a3-18cdc0034141",
+          "name": "Standby",
+          "kind": "mode"
+        },
+        {
+          "id": "AEBOperatingModes.Warning",
+          "uuid": "aa12a8da-9181-53bb-a1c7-707998ffcded",
+          "name": "Warning",
+          "kind": "mode"
+        },
+        {
+          "id": "AEBOperatingModes.EmergencyBraking",
+          "uuid": "03da8bc2-87d7-58c7-ab6b-b9880f0d7fec",
+          "name": "EmergencyBraking",
+          "kind": "mode"
+        },
+        {
+          "id": "AEBOperatingModes.Failed",
+          "uuid": "a7a19af9-2996-56af-9b95-e00828c0f314",
+          "name": "Failed",
+          "kind": "state"
+        },
+        {
+          "id": "AEBOperatingModes.(initial)",
+          "uuid": "ebcf1956-7236-5972-b9ca-753144c654d9",
+          "name": "",
+          "kind": "initial_state"
+        }
+      ],
+      "edges": [
+        {
+          "id": "tr:(initial) -> Standby",
+          "kind": "transition",
+          "source": "AEBOperatingModes.(initial)",
+          "target": "AEBOperatingModes.Standby",
+          "label": ""
+        },
+        {
+          "id": "tr:Standby -> Warning",
+          "kind": "transition",
+          "source": "AEBOperatingModes.Standby",
+          "target": "AEBOperatingModes.Warning",
+          "label": "AssessThreat",
+          "properties": {
+            "trigger": "AssessThreat"
+          }
+        },
+        {
+          "id": "tr:Warning -> EmergencyBraking",
+          "kind": "transition",
+          "source": "AEBOperatingModes.Warning",
+          "target": "AEBOperatingModes.EmergencyBraking",
+          "label": "ComputeBrakingForce",
+          "properties": {
+            "trigger": "ComputeBrakingForce"
+          }
+        },
+        {
+          "id": "tr:EmergencyBraking -> Standby",
+          "kind": "transition",
+          "source": "AEBOperatingModes.EmergencyBraking",
+          "target": "AEBOperatingModes.Standby",
+          "label": "MonitorVehicleState",
+          "properties": {
+            "trigger": "MonitorVehicleState"
+          }
+        },
+        {
+          "id": "tr:Standby -> Failed",
+          "kind": "transition",
+          "source": "AEBOperatingModes.Standby",
+          "target": "AEBOperatingModes.Failed",
+          "label": "MonitorVehicleState [sensor_fault]",
+          "properties": {
+            "guard": "sensor_fault",
+            "trigger": "MonitorVehicleState"
+          }
+        }
+      ]
+    },
+    {
+      "id": "es:EmergencyStop",
+      "kind": "es",
+      "title": "EmergencyStop",
+      "nodes": [
+        {
+          "id": "EmergencyStop.RadarSensor",
+          "uuid": "7d140e32-c43b-5cd2-ad03-a583aa0bb774",
+          "name": "RadarSensor",
+          "kind": "lifeline",
+          "properties": {
+            "represents": "logical_component"
+          }
+        },
+        {
+          "id": "EmergencyStop.SensorFusion",
+          "uuid": "b4731c8d-0ada-5a55-9709-1798fb71fb71",
+          "name": "SensorFusion",
+          "kind": "lifeline",
+          "properties": {
+            "represents": "logical_component"
+          }
+        },
+        {
+          "id": "EmergencyStop.ThreatAssessment",
+          "uuid": "06105cf6-d089-5ff3-afae-b378090dde12",
+          "name": "ThreatAssessment",
+          "kind": "lifeline",
+          "properties": {
+            "represents": "logical_component"
+          }
+        },
+        {
+          "id": "EmergencyStop.BrakeController",
+          "uuid": "87d73248-681e-5aee-b6b6-130a3b35d07d",
+          "name": "BrakeController",
+          "kind": "lifeline",
+          "properties": {
+            "represents": "logical_component"
+          }
+        },
+        {
+          "id": "EmergencyStop.BrakeActuator",
+          "uuid": "3286195f-7e4d-56b4-b1f6-8de65a2558e9",
+          "name": "BrakeActuator",
+          "kind": "lifeline",
+          "properties": {
+            "represents": "logical_component"
+          }
+        }
+      ],
+      "edges": [
+        {
+          "id": "msg:1",
+          "kind": "message",
+          "source": "EmergencyStop.RadarSensor",
+          "target": "EmergencyStop.SensorFusion",
+          "label": "raw radar targets",
+          "properties": {
+            "type": "sync"
+          }
+        },
+        {
+          "id": "msg:2",
+          "kind": "message",
+          "source": "EmergencyStop.SensorFusion",
+          "target": "EmergencyStop.ThreatAssessment",
+          "label": "fused object list",
+          "properties": {
+            "type": "sync"
+          }
+        },
+        {
+          "id": "msg:3",
+          "kind": "message",
+          "source": "EmergencyStop.ThreatAssessment",
+          "target": "EmergencyStop.BrakeController",
+          "label": "critical threat",
+          "properties": {
+            "type": "async"
+          }
+        },
+        {
+          "id": "msg:4",
+          "kind": "message",
+          "source": "EmergencyStop.BrakeController",
+          "target": "EmergencyStop.BrakeActuator",
+          "label": "full braking force",
+          "properties": {
+            "type": "sync"
+          }
+        }
+      ]
+    }
+  ],
+  "diagnostics": [],
+  "links": [
+    {
+      "kind": "satisfies",
+      "source": "RadarSensor",
+      "target": "REQ-AEB-001"
+    },
+    {
+      "kind": "satisfies",
+      "source": "CameraSensor",
+      "target": "REQ-AEB-001"
+    },
+    {
+      "kind": "satisfies",
+      "source": "SensorFusion",
+      "target": "REQ-AEB-002"
+    },
+    {
+      "kind": "satisfies",
+      "source": "ThreatAssessment",
+      "target": "REQ-AEB-003"
+    },
+    {
+      "kind": "satisfies",
+      "source": "BrakeController",
+      "target": "REQ-AEB-004"
+    },
+    {
+      "kind": "satisfies",
+      "source": "DriverInterface",
+      "target": "REQ-AEB-005"
+    },
+    {
+      "kind": "realizes",
+      "source": "SF-AcquireSensorData",
+      "target": "OA-MonitorEnvironment"
+    },
+    {
+      "kind": "realizes",
+      "source": "SF-AssessThreat",
+      "target": "OA-DetectThreat"
+    },
+    {
+      "kind": "realizes",
+      "source": "SF-ComputeBrakingForce",
+      "target": "OA-ApplyBrakes"
+    }
+  ]
+}

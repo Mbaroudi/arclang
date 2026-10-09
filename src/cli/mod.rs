@@ -1,3 +1,5 @@
+pub mod edit;
+pub mod review;
 pub mod repl;
 pub mod language_server;
 
@@ -18,6 +20,16 @@ pub struct Cli {
     
     #[clap(short, long, global = true)]
     pub config: Option<PathBuf>,
+}
+
+#[derive(Clone, Copy, Debug, clap::ValueEnum)]
+pub enum MetamodelFormat {
+    Markdown,
+    Json,
+    /// A SysML v2 package using every standard-library element the SysML
+    /// export can write (input of tools/sysml_library_index.py)
+    #[clap(name = "sysml-library-probe")]
+    SysmlLibraryProbe,
 }
 
 #[derive(Subcommand)]
@@ -50,13 +62,18 @@ pub enum Commands {
         safety: bool,
     },
     
+    /// Format .arc sources: whitespace only, comments and order are kept
+    #[clap(alias = "fmt")]
     Format {
+        /// A .arc file, or a directory formatted recursively
         #[clap(value_parser)]
         input: PathBuf,
-        
-        #[clap(long)]
+
+        /// Change nothing; exit 1 if any file is not formatted
+        #[clap(long, conflicts_with = "write")]
         check: bool,
-        
+
+        /// Rewrite the files in place instead of printing to stdout
         #[clap(long)]
         write: bool,
     },
@@ -174,9 +191,42 @@ pub enum Commands {
         report: bool,
     },
     
+    /// Start the HTTP API. Models given here are served through the
+    /// Systems Modeling API under /api/systems-modeling/projects
     Serve {
         #[clap(long, default_value = "5001")]
         port: u16,
+
+        /// Model files to serve (one project per model)
+        #[clap(value_parser)]
+        models: Vec<PathBuf>,
+
+        /// Serve each model with its git history: one API commit per git
+        /// commit that touched the file, the working tree as head
+        #[clap(long)]
+        history: bool,
+
+        /// Number of git commits served per model with --history
+        #[clap(long, default_value = "50")]
+        history_depth: usize,
+
+        /// Require a bearer token on every API request. The token is the
+        /// content of this file; without the option it is read from the
+        /// ARCLANG_API_TOKEN environment variable when that is set
+        #[clap(long, value_parser)]
+        token_file: Option<PathBuf>,
+
+        /// Declare the API users: a file with one `name role token` per
+        /// line, role being `read` or `write` and token given in clear or
+        /// as `sha256:<hex digest>`. Every request must then present the
+        /// token of one of them
+        #[clap(long, value_parser)]
+        users_file: Option<PathBuf>,
+
+        /// Accept writes: POST .../commits changes the model file and makes
+        /// one git commit per request. Needs a token, or a user who may write
+        #[clap(long)]
+        allow_write: bool,
     },
     
     Lsp {
@@ -222,6 +272,102 @@ pub enum Commands {
         dependencies: bool,
     },
     
+    /// Set one attribute of one element in a model file (comments and
+    /// layout are kept; refused unless the edited model compiles)
+    Set {
+        /// The .arc file that declares the element
+        #[clap(value_parser)]
+        input: PathBuf,
+
+        /// Identifier of the element, or its name when it writes no id
+        element: String,
+
+        /// Attribute name
+        key: String,
+
+        /// Value, as ArcLang source: '"text"', '25 ms', '[A, B]'
+        #[clap(allow_hyphen_values = true)]
+        value: String,
+
+        /// Rewrite the file in place instead of printing to stdout
+        #[clap(long)]
+        write: bool,
+    },
+
+    /// Ask a judgment model (TypeSafe's Jev) whether the traces of a model
+    /// are plausible. Advice only: probabilities, never a verdict. Sends
+    /// the names and descriptions of the traced elements to api.typesafe.ai
+    /// and needs TYPESAFE_API_KEY (environment or ./.env)
+    Review {
+        #[clap(value_parser)]
+        input: PathBuf,
+
+        /// Report declared traces under this plausibility
+        #[clap(long, default_value = "0.3")]
+        threshold: f64,
+
+        /// Also judge undeclared component/function-to-requirement pairs
+        /// and report those that may be a missing trace
+        #[clap(long)]
+        suggest: bool,
+
+        /// Report undeclared pairs over this plausibility (with --suggest)
+        #[clap(long, default_value = "0.8")]
+        suggest_threshold: f64,
+
+        /// Most questions asked; declared traces come first
+        #[clap(long, default_value = "200")]
+        max_questions: usize,
+
+        /// Print the result as JSON
+        #[clap(long)]
+        json: bool,
+
+        /// Say what would be sent, and send nothing
+        #[clap(long)]
+        dry_run: bool,
+    },
+
+    /// Rename one element in a model file. Refused when the element is
+    /// known by its name elsewhere: its identity must not change
+    Rename {
+        #[clap(value_parser)]
+        input: PathBuf,
+
+        /// Identifier of the element
+        element: String,
+
+        /// The new name
+        name: String,
+
+        /// Rewrite the file in place instead of printing to stdout
+        #[clap(long)]
+        write: bool,
+    },
+
+    /// Remove one attribute of one element in a model file
+    Unset {
+        #[clap(value_parser)]
+        input: PathBuf,
+
+        /// Identifier of the element, or its name when it writes no id
+        element: String,
+
+        /// Attribute name
+        key: String,
+
+        /// Rewrite the file in place instead of printing to stdout
+        #[clap(long)]
+        write: bool,
+    },
+
+    /// Print the language metamodel (element kinds, typed attributes,
+    /// enumerations, units, trace rules) as Markdown or JSON
+    Metamodel {
+        #[clap(long, default_value = "markdown")]
+        format: MetamodelFormat,
+    },
+
     Diagram {
         #[clap(value_parser)]
         input: PathBuf,
@@ -234,7 +380,18 @@ pub enum Commands {
         
         #[clap(long, default_value = "System Architecture")]
         title: String,
-        
+
+        /// Restrict the output to one kind of view: oab, sab, lab, pab, msm
+        /// (mode and state machines) or es (scenarios)
+        #[clap(long)]
+        view: Option<String>,
+
+        /// Layout file (folds, open containers, manual placement) to show
+        /// the diagrams with. Default: `<model>.layout.json` next to the
+        /// model, when it exists
+        #[clap(long, value_parser)]
+        layout: Option<PathBuf>,
+
         #[clap(long)]
         open: bool,
     },
@@ -327,6 +484,10 @@ pub enum ExportFormat {
     PDF,
     Terraform,
     SysML,
+    /// The abstract syntax of the SysML v2 export, as the JSON records the
+    /// API serves under /api/sysml-v2
+    #[clap(name = "sysml-json")]
+    SysMLJson,
     Simulink,
     FMI,
     ReqIF,
@@ -355,6 +516,12 @@ pub enum SafetyStandard {
 
 #[derive(Debug, clap::ValueEnum, Clone)]
 pub enum DiagramFormat {
+    /// Viewpoint diagram model (OAB/SAB/LAB/PAB) as JSON
+    Viewpoints,
+    /// ELK layout graphs of the viewpoint diagrams as JSON
+    Elk,
+    /// Self-contained HTML viewer of the viewpoint diagrams
+    Html,
     Mermaid,
     PlantUML,
     Graphviz,
@@ -426,8 +593,8 @@ impl CliRunner {
             Commands::Safety { input, standard, fmea, fta, report } => {
                 self.run_safety(input, standard, fmea, fta, report)
             }
-            Commands::Serve { port } => {
-                self.run_serve(port)
+            Commands::Serve { port, models, history, history_depth, token_file, users_file, allow_write } => {
+                self.run_serve(port, models, history.then_some(history_depth), token_file, users_file, allow_write)
             }
             Commands::Lsp { stdio, port } => {
                 self.run_lsp(stdio, port)
@@ -444,8 +611,49 @@ impl CliRunner {
             Commands::Info { input, metrics, dependencies } => {
                 self.run_info(input, metrics, dependencies)
             }
-            Commands::Diagram { input, output, format, title, open } => {
+            Commands::Diagram {
+                input,
+                output,
+                format: format @ (DiagramFormat::Viewpoints | DiagramFormat::Elk | DiagramFormat::Html),
+                view,
+                layout,
+                ..
+            } => self.run_viewpoint_diagrams(input, output, view, format, layout),
+            Commands::Diagram { layout: Some(_), format, .. } => Err(CliError::Compilation(format!(
+                "--layout applies to the viewpoint diagrams (-f html, viewpoints or elk), not to {format:?}"
+            ))),
+            Commands::Diagram { input, output, format, title, open, view: _, layout: None } => {
                 self.run_diagram(input, output, format, title, open)
+            }
+            Commands::Set { input, element, key, value, write } => {
+                edit::run(&input, &element, &key, Some(&value), write)
+            }
+            Commands::Unset { input, element, key, write } => {
+                edit::run(&input, &element, &key, None, write)
+            }
+            Commands::Rename { input, element, name, write } => edit::rename(&input, &element, &name, write),
+            Commands::Review { input, threshold, suggest, suggest_threshold, max_questions, json, dry_run } => {
+                let in_range = |value: f64| (0.0..=1.0).contains(&value);
+                if !in_range(threshold) || !in_range(suggest_threshold) {
+                    return Err(CliError::Config("a plausibility threshold is between 0 and 1".to_string()));
+                }
+                let options = crate::review::Options {
+                    threshold,
+                    suggest_over: suggest.then_some(suggest_threshold),
+                    max_questions,
+                };
+                review::run(&input, options, json, dry_run)
+            }
+            Commands::Metamodel { format } => {
+                let metamodel = crate::compiler::metamodel::Metamodel::current();
+                match format {
+                    MetamodelFormat::Markdown => print!("{}", metamodel.to_markdown()),
+                    MetamodelFormat::Json => println!("{}", metamodel.to_json()),
+                    MetamodelFormat::SysmlLibraryProbe => {
+                        print!("{}", crate::compiler::sysmlv2_generator::library_probe())
+                    }
+                }
+                Ok(())
             }
         }
     }
@@ -515,6 +723,20 @@ impl CliRunner {
                     }
                 }
 
+                if !result.semantic_model.constraints.is_empty() {
+                    println!("\nConstraints:");
+                    for constraint in &result.semantic_model.constraints {
+                        println!(
+                            "  {} {} — {}  [{} vs {}]",
+                            if constraint.satisfied { "✓" } else { "✗" },
+                            constraint.name,
+                            constraint.expression,
+                            constraint.left,
+                            constraint.right
+                        );
+                    }
+                }
+
                 let warnings = result.semantic_model.validate_traceability();
                 if !warnings.is_empty() {
                     println!("\n⚠ Traceability warnings:");
@@ -554,8 +776,65 @@ impl CliRunner {
         }
     }
     
-    fn run_format(&self, _input: PathBuf, _check: bool, _write: bool) -> Result<(), CliError> {
-        Err(CliError::NotImplemented("the formatter is not implemented yet".to_string()))
+    fn run_format(&self, input: PathBuf, check: bool, write: bool) -> Result<(), CliError> {
+        let is_directory = input.is_dir();
+        if is_directory && !check && !write {
+            return Err(CliError::Config(
+                "formatting a directory needs --write or --check".to_string(),
+            ));
+        }
+
+        let mut files = Vec::new();
+        collect_arc_files(&input, &mut files)?;
+        files.sort();
+        if files.is_empty() {
+            return Err(CliError::Config(format!("no .arc file in {}", input.display())));
+        }
+
+        let mut unformatted = 0;
+        let mut failed = 0;
+        for path in &files {
+            let source = std::fs::read_to_string(path)?;
+            let formatted = match crate::compiler::format::format_source(&source) {
+                Ok(formatted) => formatted,
+                // One unreadable file must not hide the state of the others.
+                Err(e) => {
+                    eprintln!("✗ {}: {e}", path.display());
+                    failed += 1;
+                    continue;
+                }
+            };
+            let changed = formatted != source;
+            if changed {
+                unformatted += 1;
+            }
+
+            if check {
+                if changed {
+                    println!("{}", path.display());
+                }
+            } else if write {
+                if changed {
+                    std::fs::write(path, &formatted)?;
+                    println!("formatted {}", path.display());
+                }
+            } else {
+                print!("{formatted}");
+            }
+        }
+
+        if failed > 0 {
+            return Err(CliError::Compilation(format!(
+                "{failed} file(s) could not be formatted"
+            )));
+        }
+        if check && unformatted > 0 {
+            return Err(CliError::Unformatted(unformatted));
+        }
+        if write {
+            println!("{} file(s) checked, {} rewritten", files.len(), unformatted);
+        }
+        Ok(())
     }
 
     fn run_new(&self, _name: String, _template: Option<String>) -> Result<(), CliError> {
@@ -649,6 +928,12 @@ impl CliRunner {
             "  Requirements: {} total, {} satisfied, {} verified",
             report.requirements_total, report.requirements_satisfied, report.requirements_verified
         );
+        if report.constraints_total > 0 {
+            println!(
+                "  Constraints: {} declared, {} hold",
+                report.constraints_total, report.constraints_satisfied
+            );
+        }
 
         let blockers: Vec<_> = report
             .findings
@@ -810,6 +1095,7 @@ impl CliRunner {
             ExportFormat::YAML => "json".to_string(),
             ExportFormat::Terraform => "terraform".to_string(),
             ExportFormat::SysML => "json".to_string(),
+            ExportFormat::SysMLJson => "json".to_string(),
             ExportFormat::Simulink => "json".to_string(),
             ExportFormat::FMI => "json".to_string(),
             ExportFormat::ReqIF => "json".to_string(),
@@ -841,7 +1127,7 @@ impl CliRunner {
                         // The explorer is the renderer that actually draws the
                         // diagram (layers, components, ports, labeled edges).
                         // The ELK v2 pipeline's to_html only dumps layout JSON.
-                        use crate::compiler::arcviz_explorer::generate_explorer_html;
+                        use crate::compiler::arcviz_explorer::generate_explorer_html_arranged;
 
                         let mut semantic_model = result.semantic_model.clone();
                         if semantic_model.name.is_none() {
@@ -850,13 +1136,20 @@ impl CliRunner {
                                 .file_stem()
                                 .map(|stem| stem.to_string_lossy().to_string());
                         }
-                        let (html, _json) = generate_explorer_html(&semantic_model, &result.ast)
+                        let (html, _json) = generate_explorer_html_arranged(&semantic_model, &result.ast, Some(&input))
                             .map_err(|e| CliError::Compilation(format!("HTML generation failed: {}", e)))?;
                         html
                     }
                     ExportFormat::SysML => {
                         // SysML v2 textual notation (interoperability subset)
-                        crate::compiler::sysmlv2_generator::generate_sysmlv2(&result.semantic_model)
+                        crate::compiler::sysmlv2_generator::generate_sysmlv2(&result.semantic_model, &result.ast)
+                    }
+                    ExportFormat::SysMLJson => {
+                        let text = crate::compiler::sysmlv2_generator::generate_sysmlv2(&result.semantic_model, &result.ast);
+                        let rendered = crate::compiler::sysml_records::from_text(&text)
+                            .map_err(|e| CliError::Compilation(format!("SysML v2 abstract syntax: {}", e)))?;
+                        serde_json::to_string_pretty(&rendered.records)
+                            .map_err(|e| CliError::Compilation(e.to_string()))?
                     }
                     ExportFormat::CHeaders => {
                         crate::compiler::c_header_generator::generate_c_headers(
@@ -1088,8 +1381,61 @@ impl CliRunner {
         Ok(())
     }
     
-    fn run_serve(&self, port: u16) -> Result<(), CliError> {
+    fn run_serve(
+        &self,
+        port: u16,
+        models: Vec<PathBuf>,
+        history_depth: Option<usize>,
+        token_file: Option<PathBuf>,
+        users_file: Option<PathBuf>,
+        allow_write: bool,
+    ) -> Result<(), CliError> {
         use colored::Colorize;
+
+        let mut workspace = crate::web_server::systems_modeling::Workspace::default();
+        // The token never comes from the command line: it would show in the
+        // process list and in the shell history.
+        let token = match &token_file {
+            Some(path) => Some(std::fs::read_to_string(path).map_err(|e| {
+                CliError::Config(format!("cannot read the token file {}: {e}", path.display()))
+            })?),
+            None => std::env::var("ARCLANG_API_TOKEN").ok().filter(|token| !token.trim().is_empty()),
+        };
+        if let Some(token) = &token {
+            workspace.require_token(token).map_err(CliError::Config)?;
+            println!("   Authentication: bearer token required on every API request");
+        }
+        if let Some(path) = &users_file {
+            let text = std::fs::read_to_string(path).map_err(|e| {
+                CliError::Config(format!("cannot read the users file {}: {e}", path.display()))
+            })?;
+            let users = workspace.add_users(&text).map_err(CliError::Config)?;
+            println!("   Authentication: {users} user(s) declared, a bearer token is required on every API request");
+        }
+        if allow_write {
+            workspace.allow_writes().map_err(|reason| {
+                CliError::Config(format!(
+                    "{reason}: pass --users-file <file>, --token-file <file> or set ARCLANG_API_TOKEN (for instance: openssl rand -hex 32)"
+                ))
+            })?;
+            println!("   Writes: enabled, one git commit per request");
+        }
+        for model in &models {
+            let project = match history_depth {
+                Some(depth) => workspace.add_file_with_history(model, depth),
+                None => workspace.add_file(model),
+            }
+            .map_err(CliError::Compilation)?;
+            println!(
+                "   Project '{}' ({} commit{}) — {}{}/projects/{}",
+                project.name,
+                project.commits.len(),
+                if project.commits.len() == 1 { "" } else { "s" },
+                format!("http://127.0.0.1:{}", port),
+                crate::web_server::SYSTEMS_MODELING_BASE,
+                project.id
+            );
+        }
         
         println!("{}", "🚀 Starting ArcLang Rust Backend Server".bright_cyan().bold());
         println!("{}", format!("   Port: {}", port).bright_white());
@@ -1100,7 +1446,7 @@ impl CliRunner {
             .map_err(|e| CliError::Compilation(format!("Failed to create runtime: {}", e)))?;
         
         runtime.block_on(async {
-            crate::web_server::serve(port).await
+            crate::web_server::serve(port, workspace).await
         }).map_err(|e| CliError::Compilation(format!("Server error: {}", e)))?;
         
         Ok(())
@@ -1180,7 +1526,7 @@ impl CliRunner {
         
         match compiler.compile_file(&input) {
             Ok(result) => {
-                use crate::compiler::arcviz_explorer::generate_explorer_html;
+                use crate::compiler::arcviz_explorer::generate_explorer_html_arranged;
 
                 let mut semantic_model = result.semantic_model.clone();
                 if semantic_model.name.is_none() {
@@ -1189,7 +1535,7 @@ impl CliRunner {
                         .file_stem()
                         .map(|stem| stem.to_string_lossy().to_string());
                 }
-                let (html, json) = generate_explorer_html(&semantic_model, &result.ast)
+                let (html, json) = generate_explorer_html_arranged(&semantic_model, &result.ast, Some(&input))
                     .map_err(|e| CliError::Compilation(e.to_string()))?;
                 
                 let output_html = output.unwrap_or_else(|| {
@@ -1235,6 +1581,77 @@ impl CliRunner {
         }
     }
     
+    /// Write the viewpoint diagram model (or its ELK layout graphs) as JSON
+    /// and print the model inconsistencies found while building it.
+    fn run_viewpoint_diagrams(
+        &self,
+        input: PathBuf,
+        output: PathBuf,
+        view: Option<String>,
+        format: DiagramFormat,
+        layout: Option<PathBuf>,
+    ) -> Result<(), CliError> {
+        use crate::compiler::diagram::{build_diagrams, elk, html, layout_file, ViewKind};
+
+        let selected = match view.as_deref() {
+            None => None,
+            Some(text) => Some(ViewKind::parse(text).ok_or_else(|| {
+                CliError::Compilation(format!("unknown view '{text}' — expected oab, sab, lab, pab, msm or es"))
+            })?),
+        };
+        let result = crate::Compiler::new(crate::CompilerConfig::default())
+            .compile_file(&input)
+            .map_err(|e| CliError::Compilation(e.to_string()))?;
+
+        let mut set = build_diagrams(&result.ast);
+        // The layout is checked against every view before one is selected:
+        // a view left out by `--view` is not a stale entry of the file.
+        layout_file::arrange(&mut set, &input, layout.as_deref()).map_err(CliError::Compilation)?;
+        if let Some(kind) = selected {
+            set.diagrams.retain(|diagram| diagram.kind == kind);
+            let (whole, named) = (format!("[{}]", kind.id()), format!("[{}:", kind.id()));
+            set.diagnostics.retain(|diagnostic| {
+                diagnostic.starts_with(&whole) || diagnostic.starts_with(&named) || diagnostic.starts_with("[layout]")
+            });
+            if set.diagrams.is_empty() {
+                return Err(CliError::Compilation(format!(
+                    "{} declares nothing to draw in the {} view",
+                    input.display(),
+                    kind.id()
+                )));
+            }
+        }
+
+        let serialized = match format {
+            DiagramFormat::Elk => {
+                let graphs: Vec<serde_json::Value> = set.diagrams.iter().map(elk::to_elk).collect();
+                serde_json::to_string_pretty(&graphs).map(|json| format!("{json}\n"))
+            }
+            DiagramFormat::Html => {
+                let title = match result.ast.attributes.get("name") {
+                    Some(crate::compiler::ast::AttributeValue::String(name)) => name.clone(),
+                    _ => input.file_stem().map(|s| s.to_string_lossy().into_owned()).unwrap_or_default(),
+                };
+                Ok(html::standalone_html(&set, &title))
+            }
+            _ => serde_json::to_string_pretty(&set).map(|json| format!("{json}\n")),
+        }
+        .map_err(|e| CliError::Compilation(e.to_string()))?;
+        std::fs::write(&output, serialized).map_err(CliError::Io)?;
+
+        for diagram in &set.diagrams {
+            println!("✓ {} — {} nodes, {} edges", diagram.id, count_nodes(&diagram.nodes), diagram.edges.len());
+        }
+        for diagnostic in &set.diagnostics {
+            println!("⚠ {diagnostic}");
+        }
+        if set.layout.is_some() {
+            println!("  Layout: {}", layout.unwrap_or_else(|| layout_file::sidecar_path(&input)).display());
+        }
+        println!("  Output: {}", output.display());
+        Ok(())
+    }
+
     fn run_diagram(
         &self,
         input: PathBuf,
@@ -1496,6 +1913,27 @@ impl CliRunner {
     }
 }
 
+/// The .arc files under `path`: the file itself, or a directory's tree.
+/// Hidden directories and `target` are skipped.
+fn collect_arc_files(path: &Path, files: &mut Vec<PathBuf>) -> Result<(), CliError> {
+    if !path.is_dir() {
+        files.push(path.to_path_buf());
+        return Ok(());
+    }
+    for entry in std::fs::read_dir(path)? {
+        let entry = entry?.path();
+        let name = entry.file_name().and_then(|n| n.to_str()).unwrap_or_default();
+        if entry.is_dir() {
+            if !name.starts_with('.') && name != "target" && name != "node_modules" {
+                collect_arc_files(&entry, files)?;
+            }
+        } else if entry.extension().is_some_and(|ext| ext == "arc") {
+            files.push(entry);
+        }
+    }
+    Ok(())
+}
+
 #[derive(Debug, thiserror::Error)]
 pub enum CliError {
     #[error("IO error: {0}")]
@@ -1516,7 +1954,15 @@ pub enum CliError {
     #[error("Not implemented: {0}")]
     NotImplemented(String),
 
+    /// `format --check` found files that are not in formatted form.
+    #[error("{0} file(s) not formatted; run `arclang fmt --write`")]
+    Unformatted(usize),
+
     /// Not a failure: the two models differ (diff(1) convention, exit 1).
     #[error("semantic differences found")]
     DiffFound,
+}
+
+fn count_nodes(nodes: &[crate::compiler::diagram::Node]) -> usize {
+    nodes.iter().map(|node| 1 + count_nodes(&node.children)).sum()
 }

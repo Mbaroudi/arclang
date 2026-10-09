@@ -1,8 +1,9 @@
-//! Graph model - Shared graph data structures for diagram generators
+//! Flat component graph embedded in the explorer's JSON document
+//! (`ArchitectureDocument.diagram`).
 //!
-//! Provides the layered graph representation (nodes, edges, layers) built
-//! from a `SemanticModel`. Used by the v2 generators (`arcviz_elk_static`,
-//! `arcviz_explorer`) as the common intermediate structure before layout.
+//! Nothing draws from it any more: diagrams are built by `compiler::diagram`,
+//! which keeps the nesting, ports and port-bound exchanges this graph drops.
+//! It remains only because the field is part of the exported JSON.
 
 use super::semantic::SemanticModel;
 use super::CompilerError;

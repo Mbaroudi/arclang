@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<capella:Project xmlns:capella="http://www.polarsys.org/capella/core/1.4.0">
+  <ownedRequirements>
+    <requirement id="REQ-LKA-001" name="REQ-LKA-001" description="Steering correction shall be commanded within 80 ms of lane departure detection" priority="Critical" />
+  </ownedRequirements>
+  <ownedLogicalComponents>
+    <component id="ACT-DRV" name="Driver" type="Actor" />
+    <component id="LC-CAM" name="Camera" type="Logical" />
+    <component id="LC-CTL" name="LKA Controller" type="Logical" />
+    <component id="PN-CAM" name="Camera ECU" type="Physical" />
+    <component id="PN-CHS" name="Chassis ECU" type="Physical" />
+  </ownedLogicalComponents>
+  <ownedTraces>
+    <trace from="LC-CTL" to="REQ-LKA-001" type="satisfies" />
+  </ownedTraces>
+</capella:Project>

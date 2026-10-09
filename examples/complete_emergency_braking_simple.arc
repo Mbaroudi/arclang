@@ -438,7 +438,7 @@ logical_architecture LA_EmergencyBraking {
   
   component_exchange "CameraToFusion" {
     from_port: "CameraSensor.CameraDataProvider"
-    to_port: "SensorFusion.FusedDataConsumer"
+    to_port: "SensorFusion.CameraDataConsumer"
     exchange_item: "camera_data"
     label: "Camera Data"
   }
@@ -642,7 +642,8 @@ physical_architecture PA_EmergencyBraking {
     protocol: "LVDS"
     from: "CentralADASECU"
     to: "InstrumentCluster"
-    bandwidth: "135 MHz"
+    bandwidth: "3.2 Gbps"
+    pixel_clock: "135 MHz"
   }
   
   // Physical exchanges (messages on physical links)
@@ -798,9 +799,9 @@ exchange_item threat_level { id: "EI-006" mechanism: "EVENT" elements: ["EN-001"
 exchange_item vehicle_speed { id: "EI-007" mechanism: "FLOW" }
 
 // Vertical traceability: system functions realize operational activities
-trace "AcquireSensorData" realizes "OA-Mon" { rationale: "Sensor acquisition realizes environment monitoring" }
-trace "AssessThreat" realizes "OA-Det" { rationale: "Threat assessment realizes threat detection" }
-trace "ComputeBrakingForce" realizes "OA-App" { rationale: "Braking computation realizes brake application" }
+trace "AcquireSensorData" realizes "MonitorEnvironment" { rationale: "Sensor acquisition realizes environment monitoring" }
+trace "AssessThreat" realizes "DetectThreat" { rationale: "Threat assessment realizes threat detection" }
+trace "ComputeBrakingForce" realizes "ApplyBrakes" { rationale: "Braking computation realizes brake application" }
 
 // ===========================================================================
 // HAZARD ANALYSIS (ISO 26262 HARA) & VERIFICATION (V&V)
