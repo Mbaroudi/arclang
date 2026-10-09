@@ -38,6 +38,31 @@ pub struct TraceRef {
     pub to: String,
 }
 
+/// A trace present in both models whose content (its rationale) changed.
+#[derive(Debug, Clone, Serialize)]
+pub struct ModifiedTrace {
+    #[serde(flatten)]
+    pub trace: TraceRef,
+    pub changes: Vec<FieldChange>,
+}
+
+/// A relationship other than a trace: an exchange, a deployment, a
+/// verification... `source` and `target` are element ids.
+#[derive(Debug, Clone, Serialize)]
+pub struct RelationshipRef {
+    pub kind: String,
+    pub name: String,
+    pub source: String,
+    pub target: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct ModifiedRelationship {
+    #[serde(flatten)]
+    pub relationship: RelationshipRef,
+    pub changes: Vec<FieldChange>,
+}
+
 #[derive(Debug, Clone, Serialize, Default)]
 pub struct DiffReport {
     pub added: Vec<ElementRef>,
@@ -45,6 +70,10 @@ pub struct DiffReport {
     pub modified: Vec<ModifiedElement>,
     pub traces_added: Vec<TraceRef>,
     pub traces_removed: Vec<TraceRef>,
+    pub traces_modified: Vec<ModifiedTrace>,
+    pub relationships_added: Vec<RelationshipRef>,
+    pub relationships_removed: Vec<RelationshipRef>,
+    pub relationships_modified: Vec<ModifiedRelationship>,
 }
 
 impl DiffReport {
@@ -54,6 +83,10 @@ impl DiffReport {
             && self.modified.is_empty()
             && self.traces_added.is_empty()
             && self.traces_removed.is_empty()
+            && self.traces_modified.is_empty()
+            && self.relationships_added.is_empty()
+            && self.relationships_removed.is_empty()
+            && self.relationships_modified.is_empty()
     }
 }
 
@@ -113,6 +146,27 @@ fn element_changes(old: &SemanticModel, new: &SemanticModel, id: &str) -> Vec<Fi
     changes
 }
 
+/// The complete diff of two compiled models.
+///
+/// Elements and relationships are compared on the element graph, which holds
+/// every element once, with its metamodel kind and effective attributes. The
+/// semantic model names some of them differently (a port, a physical link),
+/// so mixing the two sources would report one change twice: only its trace
+/// comparison is kept.
+pub fn diff_compiled(old: &crate::compiler::CompilationResult, new: &crate::compiler::CompilationResult) -> DiffReport {
+    let traces = diff_models(&old.semantic_model, &new.semantic_model);
+    let report = DiffReport {
+        traces_added: traces.traces_added,
+        traces_removed: traces.traces_removed,
+        ..DiffReport::default()
+    };
+    let old_graph = super::elements::build(&old.ast, &old.semantic_model);
+    let new_graph = super::elements::build(&new.ast, &new.semantic_model);
+    super::graph_diff::complete(report, &old_graph, &new_graph)
+}
+
+/// Comparison of the semantic models alone: elements with their core fields,
+/// and the trace graph. [`diff_compiled`] is the complete diff.
 pub fn diff_models(old: &SemanticModel, new: &SemanticModel) -> DiffReport {
     let mut report = DiffReport::default();
 
@@ -154,8 +208,8 @@ pub fn diff_models(old: &SemanticModel, new: &SemanticModel) -> DiffReport {
         }
     }
 
-    // Traces by identity (from, type, to); rationale changes are ignored —
-    // they don't alter the traceability graph.
+    // Traces by identity (from, type, to). A reworded rationale is not an
+    // added or removed trace; `diff_compiled` reports it as a modified one.
     let key = |t: &super::semantic::TraceInfo| (t.from.clone(), t.trace_type.clone(), t.to.clone());
     let old_traces: std::collections::HashSet<_> = old.traces.iter().map(key).collect();
     let new_traces: std::collections::HashSet<_> = new.traces.iter().map(key).collect();

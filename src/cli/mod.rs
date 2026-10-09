@@ -524,8 +524,6 @@ pub enum DiagramFormat {
     Html,
     Mermaid,
     PlantUML,
-    Graphviz,
-    SVG,
     Operational,
     Functional,
     Sequence,
@@ -662,27 +660,48 @@ impl CliRunner {
         &self,
         input: PathBuf,
         output: Option<PathBuf>,
-        incremental: bool,
+        _incremental: bool,
         release: bool,
         target: Option<String>,
     ) -> Result<(), CliError> {
+        // The file written holds what its extension says: the JSON model by
+        // default, the Capella-flavoured XML only when asked for.
+        let (target, extension) = match target.as_deref() {
+            None | Some("json") => ("json", "json"),
+            Some("capella") | Some("xml") => ("capella", "capella"),
+            Some(other) => {
+                return Err(CliError::Config(format!(
+                    "unknown build target '{other}': expected json or capella (other formats: arclang export)"
+                )))
+            }
+        };
+
         println!("Building {}...", input.display());
-        
-        let mut config = crate::CompilerConfig::default();
-        config.optimization_level = if release { 3 } else { 0 };
-        
+
+        let config = crate::CompilerConfig {
+            optimization_level: if release { 3 } else { 0 },
+            target: target.to_string(),
+            ..crate::CompilerConfig::default()
+        };
+
         let mut compiler = crate::Compiler::new(config);
-        
+
         match compiler.compile_file(&input) {
             Ok(result) => {
-                let output_path = output.unwrap_or_else(|| {
-                    input.with_extension("json")
-                });
-                
-                if let Err(e) = std::fs::write(&output_path, &result.output) {
+                let output_path = output.unwrap_or_else(|| input.with_extension(extension));
+                let content = if target == "json" {
+                    result
+                        .ast
+                        .to_json()
+                        .map_err(|e| CliError::Compilation(format!("JSON export failed: {}", e)))?
+                } else {
+                    result.output.clone()
+                };
+
+                if let Err(e) = std::fs::write(&output_path, content) {
                     return Err(CliError::Io(e));
                 }
-                
+
                 if !result.warnings.is_empty() {
                     eprintln!("⚠ {} warning(s):", result.warnings.len());
                     for warning in &result.warnings {
@@ -706,6 +725,62 @@ impl CliRunner {
         }
     }
     
+    fn print_diff(report: &crate::compiler::semantic_diff::DiffReport) {
+        let print_changes = |changes: &[crate::compiler::semantic_diff::FieldChange]| {
+            for change in changes {
+                println!("      {}: \"{}\" -> \"{}\"", change.field, change.old, change.new);
+            }
+        };
+        let relationship = |r: &crate::compiler::semantic_diff::RelationshipRef| {
+            let name = if r.name.is_empty() { String::new() } else { format!(" '{}'", r.name) };
+            format!("{}{} {} -> {}", r.kind, name, r.source, r.target)
+        };
+
+        for entry in &report.added {
+            println!("  + added    {} '{}' [{}]", entry.element_type, entry.name, entry.id);
+        }
+        for entry in &report.removed {
+            println!("  - removed  {} '{}' [{}]", entry.element_type, entry.name, entry.id);
+        }
+        for entry in &report.modified {
+            println!(
+                "  ~ modified {} '{}' [{}]",
+                entry.element.element_type, entry.element.name, entry.element.id
+            );
+            print_changes(&entry.changes);
+        }
+        for trace in &report.traces_added {
+            println!("  + trace    {} {} {}", trace.from, trace.trace_type, trace.to);
+        }
+        for trace in &report.traces_removed {
+            println!("  - trace    {} {} {}", trace.from, trace.trace_type, trace.to);
+        }
+        for entry in &report.traces_modified {
+            println!("  ~ trace    {} {} {}", entry.trace.from, entry.trace.trace_type, entry.trace.to);
+            print_changes(&entry.changes);
+        }
+        for entry in &report.relationships_added {
+            println!("  + relation {}", relationship(entry));
+        }
+        for entry in &report.relationships_removed {
+            println!("  - relation {}", relationship(entry));
+        }
+        for entry in &report.relationships_modified {
+            println!("  ~ relation {}", relationship(&entry.relationship));
+            print_changes(&entry.changes);
+        }
+        println!(
+            "\n  Total: {} added, {} removed, {} modified, {} trace(s) added, {} trace(s) removed, {} trace(s) modified, {} relationship change(s)",
+            report.added.len(),
+            report.removed.len(),
+            report.modified.len(),
+            report.traces_added.len(),
+            report.traces_removed.len(),
+            report.traces_modified.len(),
+            report.relationships_added.len() + report.relationships_removed.len() + report.relationships_modified.len()
+        );
+    }
+
     fn run_check(&self, input: PathBuf, lint: bool, safety: bool) -> Result<(), CliError> {
         println!("Checking {}...", input.display());
         
@@ -972,15 +1047,14 @@ impl CliRunner {
     }
 
     fn run_diff(&self, old: PathBuf, new: PathBuf, json: bool) -> Result<(), CliError> {
-        let compile = |path: &PathBuf| -> Result<crate::compiler::semantic::SemanticModel, CliError> {
+        let compile = |path: &PathBuf| -> Result<crate::CompilationResult, CliError> {
             crate::Compiler::new(crate::CompilerConfig::default())
                 .compile_file(path)
-                .map(|r| r.semantic_model)
                 .map_err(|e| CliError::Compilation(format!("{}: {e}", path.display())))
         };
         let old_model = compile(&old)?;
         let new_model = compile(&new)?;
-        let report = crate::compiler::semantic_diff::diff_models(&old_model, &new_model);
+        let report = crate::compiler::semantic_diff::diff_compiled(&old_model, &new_model);
 
         if json {
             println!(
@@ -994,35 +1068,7 @@ impl CliRunner {
                 println!("  No semantic changes.");
                 return Ok(());
             }
-            for entry in &report.added {
-                println!("  + added    {} '{}' [{}]", entry.element_type, entry.name, entry.id);
-            }
-            for entry in &report.removed {
-                println!("  - removed  {} '{}' [{}]", entry.element_type, entry.name, entry.id);
-            }
-            for entry in &report.modified {
-                println!(
-                    "  ~ modified {} '{}' [{}]",
-                    entry.element.element_type, entry.element.name, entry.element.id
-                );
-                for change in &entry.changes {
-                    println!("      {}: \"{}\" -> \"{}\"", change.field, change.old, change.new);
-                }
-            }
-            for trace in &report.traces_added {
-                println!("  + trace    {} {} {}", trace.from, trace.trace_type, trace.to);
-            }
-            for trace in &report.traces_removed {
-                println!("  - trace    {} {} {}", trace.from, trace.trace_type, trace.to);
-            }
-            println!(
-                "\n  Total: {} added, {} removed, {} modified, {} trace(s) added, {} trace(s) removed",
-                report.added.len(),
-                report.removed.len(),
-                report.modified.len(),
-                report.traces_added.len(),
-                report.traces_removed.len()
-            );
+            Self::print_diff(&report);
         }
 
         // Like diff(1): exit 1 when there are differences, so CI can gate on it.
@@ -1684,6 +1730,17 @@ impl CliRunner {
                         }
                     }
                     
+                    DiagramFormat::PlantUML => {
+                        use crate::compiler::plantuml_generator::generate_plantuml_component;
+                        let diagram = generate_plantuml_component(&result.semantic_model)
+                            .map_err(|e| CliError::Compilation(e.to_string()))?;
+
+                        std::fs::write(&output, &diagram).map_err(CliError::Io)?;
+
+                        println!("✓ PlantUML diagram generated");
+                        println!("  Output: {}", output.display());
+                    }
+
                     DiagramFormat::All => {
                         self.generate_all_capella_diagrams(&input, &result, &output)?;
                     }

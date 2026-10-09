@@ -461,6 +461,15 @@ impl Parser {
                 Token::PhysicalArchitecture => {
                     model.physical_architecture.push(self.parse_physical_architecture()?);
                 }
+                Token::OperationalAnalysis => {
+                    model.operational_analysis.push(self.parse_operational_analysis()?);
+                }
+                Token::SystemAnalysis => {
+                    model.system_analysis.push(self.parse_system_analysis()?);
+                }
+                Token::Epbs => {
+                    model.epbs.push(self.parse_epbs()?);
+                }
                 Token::SafetyAnalysis => {
                     model.safety_analysis.push(self.parse_safety_analysis()?);
                 }
