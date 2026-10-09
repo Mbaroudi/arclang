@@ -9,6 +9,10 @@ Write systems-engineering models (Operational Analysis → System Analysis → L
 Architecture → Physical Architecture → EPBS) as plain text. Version them in Git,
 review them in pull requests, compile them to JSON and diagrams.
 
+**Website and in-browser playground: [arclang.fr](https://arclang.fr/)**. The
+[playground](https://arclang.fr/playground/) runs this compiler in WebAssembly;
+nothing is uploaded.
+
 > **Version 4.0.0.** Upgrading from 3.0: see
 > [docs/MIGRATION_4.0.md](docs/MIGRATION_4.0.md).
 > This README only claims what the test suite verifies. Anything not listed under
