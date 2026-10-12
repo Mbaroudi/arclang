@@ -1413,8 +1413,16 @@ impl CliRunner {
                 // the data, the state machines, the realizations, and the
                 // diagrams of the .aird beside the file. The result compiles
                 // or the import fails.
-                let imported = crate::compiler::capella_xmi::import_file(&input)
-                    .map_err(CliError::Compilation)?;
+                let imported = crate::compiler::capella_xmi::import_file(&input).map_err(|failure| {
+                    // The text that was refused is kept beside the output, for the reader.
+                    if let Some(rejected) = &failure.rejected {
+                        let kept = output.with_extension("rejected.arc");
+                        if std::fs::write(&kept, rejected).is_ok() {
+                            eprintln!("  the refused text is in {}", kept.display());
+                        }
+                    }
+                    CliError::Compilation(failure.message)
+                })?;
                 std::fs::write(&output, &imported.source)
                     .map_err(CliError::Io)?;
                 for (what, count) in &imported.counts {

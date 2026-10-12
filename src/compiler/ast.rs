@@ -207,6 +207,9 @@ pub struct OperationalActivity {
     pub icon: String,
     pub color: String,
     pub sub_activities: Vec<OperationalActivity>,
+    /// Ports of the activity (Capella gives activities inputs and outputs, as functions).
+    #[serde(default)]
+    pub ports: Vec<FunctionPort>,
     pub attributes: HashMap<String, AttributeValue>,
 }
 

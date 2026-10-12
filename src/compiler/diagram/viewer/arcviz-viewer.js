@@ -101,6 +101,8 @@
     const onSelect = (options && options.onSelect) || (() => {});
     const onDrop = options && options.onDrop;
     const onOpen = options && options.onOpen;
+    // The host may take the whole window itself (with its own tools around the sheet).
+    const onFullscreen = options && options.onFullscreen;
     const state = { active: null, views: new Map(), layouts: new Map(), arranging: false, chain: null, selected: null, history: [], settled: new Map(), filters: new Map() };
 
     host.textContent = '';
@@ -199,7 +201,9 @@
         tool('Fit', 'Fit the diagram to the frame (0)', () => fit()),
         tool('−', 'Zoom out (-)', () => sheet.zoomOut()),
         tool('+', 'Zoom in (+)', () => sheet.zoomIn()),
-        tool('Full screen', 'Show the diagram full screen', () => sheet.toggleFullscreen()),
+        onFullscreen
+          ? tool('Full screen', 'Edit the diagram full screen, with the palette (Esc to leave)', () => onFullscreen())
+          : tool('Full screen', 'Show the diagram full screen', () => sheet.toggleFullscreen()),
       ]),
       group('Export', [
         tool('Save SVG', 'Download this view as drawn, folded containers included, as an SVG file', () => saveSvg()),

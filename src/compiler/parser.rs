@@ -692,10 +692,27 @@ impl Parser {
         })
     }
     
+    /// Parse: operational_activity Name { attributes, port in|out Name, nested activities }
     fn parse_operational_activity(&mut self) -> Result<OperationalActivity, String> {
         self.advance(); // Skip 'operational_activity'
         let name = self.expect_name()?;
-        let attributes = self.parse_attributes_block()?;
+        self.expect(Token::LeftBrace)?;
+        let mut attributes = HashMap::new();
+        let mut ports = Vec::new();
+        let mut sub_activities = Vec::new();
+        while !self.check(&Token::RightBrace) && !self.is_at_end() {
+            match self.current().clone() {
+                Token::Port if !self.peek_is_colon() => ports.push(self.parse_function_port()?),
+                Token::Identifier(ref id) if (id == "operational_activity" || id == "activity") && !self.peek_is_colon() => {
+                    sub_activities.push(self.parse_operational_activity()?);
+                }
+                _ => {
+                    let (key, value) = self.parse_attribute()?;
+                    attributes.insert(key, value);
+                }
+            }
+        }
+        self.expect(Token::RightBrace)?;
         
         // Extract ID from attributes, or generate from name
         let id = attributes.get("id")
@@ -720,7 +737,8 @@ impl Parser {
             category,
             icon: "circle".to_string(),
             color: "#FFD966".to_string(),
-            sub_activities: Vec::new(),
+            sub_activities,
+            ports,
             attributes,
         })
     }
@@ -1837,25 +1855,9 @@ impl Parser {
         })
     }
     
+    /// A function inside a function: the same body (attributes, ports, functions).
     fn parse_nested_function(&mut self) -> Result<SystemFunction, String> {
-        self.advance(); // Skip 'function'
-        let name = self.expect_name()?;
-        let attributes = self.parse_attributes_block()?;
-        
-        Ok(SystemFunction {
-            id: attributes
-                .get("id")
-                .and_then(|v| v.as_string())
-                .map(|s| s.to_string())
-                .unwrap_or_else(|| default_element_id("SF", &name)),
-            name,
-            category: FunctionCategory::System,
-            color: Some("#70AD47".to_string()),
-            icon: None,
-            ports: Vec::new(),
-            sub_functions: Vec::new(),
-            attributes,
-        })
+        self.parse_system_function()
     }
     
     fn parse_system_component(&mut self) -> Result<SystemComponent, String> {

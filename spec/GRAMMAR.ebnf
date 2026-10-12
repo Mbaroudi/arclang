@@ -74,13 +74,17 @@ OperationalAnalysis ::= "operational_analysis" Name "{" OaElement* "}" ;
 OaElement       ::= "actor" Name AttributeBlock
                   | ( "operational_entity" | "entity" ) Name "{" EntityElement* "}"
                   | OperationalCapabilityDecl
-                  | ( "operational_activity" | "activity" ) Name AttributeBlock
+                  | OperationalActivityDecl
                   | OperationalExchange
                   | TraceDecl
                   | Attribute ;                                (* name: overrides block name *)
 
-EntityElement   ::= ( "operational_activity" | "activity" ) Name AttributeBlock
+EntityElement   ::= OperationalActivityDecl
                   | Attribute ;
+
+OperationalActivityDecl ::= ( "operational_activity" | "activity" ) Name
+                            "{" ( Attribute | FunctionPortDecl | OperationalActivityDecl )* "}" ;
+                            (* an activity carries ports and sub-activities, as a function does *)
 
 OperationalExchange ::= ( "operational_exchange" | "exchange" | "interaction" )
                         ( Name "->" Name AttributeBlock        (* arrow form *)
