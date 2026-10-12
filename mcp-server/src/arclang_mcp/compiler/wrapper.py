@@ -1,425 +1,327 @@
 """
-Wrapper for ArcLang compiler binary.
+Wrapper for the ArcLang compiler binary.
 
-Every command emitted here maps 1:1 to the real clap CLI defined in
-src/cli/mod.rs. Flags that do not exist in the CLI are never emitted.
-Parsers only extract data that the binary actually prints; when the
-binary does not expose structured output, methods return None together
-with "parse_supported": False instead of fabricating results.
+This module is the only place where `arclang` command lines are written.
+Every method maps 1:1 to a subcommand of the real CLI (src/cli/mod.rs,
+arclang 4.0.1) and passes only options that the CLI accepts. Nothing is
+invented on the way back: a `Run` holds what the binary printed and its
+exit code, and the parsers below only read lines the binary really prints.
 """
 
 import asyncio
+import json
 import os
 import re
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Sequence, Tuple
 
-# Substrings that mark a line as an error in compiler output.
-ERROR_MARKERS = ("error", "Error", "✗")
+# `arclang export -f <format>` values (ExportFormat in src/cli/mod.rs).
+EXPORT_FORMATS: Tuple[str, ...] = (
+    "capella",
+    "json",
+    "yaml",
+    "xml",
+    "markdown",
+    "mermaid",
+    "plant-uml",
+    "html",
+    "pdf",
+    "terraform",
+    "sys-ml",
+    "sysml-json",
+    "simulink",
+    "fmi",
+    "req-if",
+    "c-headers",
+    "proto",
+)
+
+# `arclang diagram -f <format>`: one SVG per type.
+DIAGRAM_TYPES: Tuple[str, ...] = (
+    "operational",
+    "functional",
+    "component",
+    "sequence",
+    "state-machine",
+    "physical",
+    "class",
+    "tree",
+    "capability",
+    "functional-chain",
+)
+
+# `arclang diagram -f <format>`: the Arcadia viewpoint diagrams.
+VIEWPOINT_FORMATS: Tuple[str, ...] = ("viewpoints", "elk", "html")
+
+# `arclang diagram --view <view>`.
+VIEWS: Tuple[str, ...] = ("oab", "sab", "lab", "pab", "msm", "es")
+
+SAFETY_STANDARDS: Tuple[str, ...] = ("iso26262", "do178c", "iec61508")
+
+# Lines of `build` and `info --metrics` that carry a count.
+METRIC_LABELS: Dict[str, str] = {
+    "Total elements": "total_elements",
+    "Requirements": "requirements",
+    "Components": "components",
+    "Functions": "functions",
+    "Traces": "traces",
+}
+
+DEFAULT_TIMEOUT_SECONDS = 30
+# `arclang review` asks one question per trace over the network.
+DEFAULT_REVIEW_TIMEOUT_SECONDS = 600
+
+
+@dataclass(frozen=True)
+class Run:
+    """What one invocation of the binary did."""
+
+    command: Tuple[str, ...]
+    returncode: int
+    stdout: str
+    stderr: str
+
+    @property
+    def ok(self) -> bool:
+        return self.returncode == 0
+
+    @property
+    def output(self) -> str:
+        """Standard output then standard error, as a reader would see them."""
+        return "\n".join(part.rstrip() for part in (self.stdout, self.stderr) if part.strip())
+
+
+def absolute_binary(path: str) -> str:
+    """A bare name is left to the PATH; a path with a directory is made absolute."""
+    return str(Path(path).expanduser().resolve()) if os.sep in path or path.startswith("~") else path
+
+
+def seconds(value: Any, default: float) -> float:
+    """A timeout from the configuration: a positive number, else the default."""
+    if isinstance(value, (int, float)) and not isinstance(value, bool) and value > 0:
+        return float(value)
+    return default
 
 
 class ArcLangCompiler:
-    """Wrapper for ArcLang compiler binary."""
+    """Runs the ArcLang compiler binary."""
 
     def __init__(self, config: Dict[str, Any]):
-        # Try environment variable first, then config, then default
-        self.binary_path = (
-            os.getenv("ARCLANG_BINARY") or
-            config.get("path") or
-            "arclang"
+        # The compiler runs with the workspace as working directory: a relative
+        # binary path is resolved now, from where the server was started.
+        self.binary_path = absolute_binary(
+            os.getenv("ARCLANG_BINARY") or config.get("path") or "arclang"
         )
-        self.timeout = config.get("timeout", 30)
+        self.timeout = seconds(config.get("timeout"), DEFAULT_TIMEOUT_SECONDS)
+        self.review_timeout = seconds(config.get("review_timeout"), DEFAULT_REVIEW_TIMEOUT_SECONDS)
+        self.workspace_root = Path(os.getenv("ARCLANG_WORKSPACE", os.getcwd())).resolve()
 
-        # Get workspace root for resolving relative paths
-        self.workspace_root = Path(os.getenv("ARCLANG_WORKSPACE", os.getcwd()))
-
-    async def compile(
-        self,
-        model_path: Path,
-        validate: bool = True,
-        optimize: bool = False
-    ) -> Dict[str, Any]:
-        """Compile ArcLang model via `arclang build`.
-
-        Note: the CLI always validates during compilation; there is no
-        separate `--validate` flag. `optimize` maps to `--release`.
-        """
-        cmd = [self.binary_path, "build", str(model_path)]
-
-        if optimize:
-            cmd.append("--release")
-
-        result = await self._run_command(cmd)
-
-        return {
-            "success": result["returncode"] == 0,
-            "output": result["stdout"],
-            "raw_output": result["stdout"],
-            "errors": self._parse_errors(result["stderr"], result["stdout"]),
-            "metrics": self._parse_metrics(result["stdout"]) if result["returncode"] == 0 else {}
-        }
-
-    async def validate(self, model_path: Path, strict: bool = False) -> Dict[str, Any]:
-        """Validate ArcLang model via `arclang check --lint`.
-
-        Note: the CLI has no `--strict` flag; the `strict` argument is
-        accepted for API compatibility but has no effect.
-        """
-        cmd = [self.binary_path, "check", str(model_path), "--lint"]
-
-        result = await self._run_command(cmd)
-
-        return {
-            "valid": result["returncode"] == 0,
-            "warnings": self._parse_warnings(result["stdout"]),
-            "errors": self._parse_errors(result["stderr"], result["stdout"]),
-            "raw_output": result["stdout"]
-        }
-
-    async def trace_analysis(
-        self,
-        model_path: Path,
-        show_gaps: bool = True,
-        matrix: bool = False
-    ) -> Dict[str, Any]:
-        """Analyze traceability via `arclang trace --validate`.
-
-        Note: the CLI has no `--gaps` flag. Traceability issues reported
-        by `--validate` are returned as plain strings in "issues". A
-        structured gap breakdown is not provided by the binary, so
-        "gaps" is None with "parse_supported": False.
-        """
-        cmd = [self.binary_path, "trace", str(model_path), "--validate"]
-
-        if matrix:
-            cmd.append("--matrix")
-
-        result = await self._run_command(cmd)
-
-        return {
-            "coverage": self._parse_coverage(result["stdout"]),
-            "total_traces": self._count_traces(result["stdout"]),
-            "issues": self._parse_trace_issues(result["stdout"]),
-            "gaps": None,
-            "parse_supported": False,
-            "raw_output": result["stdout"]
-        }
-
-    async def export_diagram(
-        self,
-        model_path: Path,
-        format_type: str = "html",
-        output_path: Optional[str] = None
-    ) -> Dict[str, Any]:
-        """Export architecture diagram via `arclang export -o <out> -f <fmt>`."""
-        if not output_path:
-            output_path = str(model_path.with_suffix(".html"))
-
-        cmd = [
-            self.binary_path, "export", str(model_path),
-            "-o", output_path,
-            "-f", format_type
-        ]
-
-        result = await self._run_command(cmd)
-
-        return {
-            "success": result["returncode"] == 0,
-            "output_path": output_path if result["returncode"] == 0 else None,
-            "error": result["stderr"] if result["returncode"] != 0 else None,
-            "raw_output": result["stdout"]
-        }
-
-    async def info(self, model_path: Path, detailed: bool = False) -> Dict[str, Any]:
-        """Get model information via `arclang info --metrics`.
-
-        Note: the CLI has no `--detailed` flag; the `detailed` argument
-        is accepted for API compatibility but has no effect.
-        """
-        cmd = [self.binary_path, "info", str(model_path), "--metrics"]
-
-        result = await self._run_command(cmd)
-
-        return {
-            "metrics": self._parse_metrics(result["stdout"]),
-            "size_kb": model_path.stat().st_size / 1024 if model_path.exists() else 0,
-            "raw_output": result["stdout"]
-        }
-
-    async def safety_check(
-        self,
-        model_path: Path,
-        standard: str,
-        generate_report: bool = False
-    ) -> Dict[str, Any]:
-        """Check safety compliance via `arclang safety --standard <std>`.
-
-        Note: the binary does not print structured issue data, so
-        "issues" is None with "parse_supported": False.
-        """
-        cmd = [self.binary_path, "safety", str(model_path), "--standard", standard]
-
-        if generate_report:
-            cmd.append("--report")
-
-        result = await self._run_command(cmd)
-
-        return {
-            "compliant": result["returncode"] == 0,
-            "issues": None,
-            "parse_supported": False,
-            "recommendations": [],
-            "raw_output": result["stdout"]
-        }
-
-    async def hazard_analysis(
-        self,
-        model_path: Path,
-        standard: str
-    ) -> Dict[str, Any]:
-        """Hazard analysis (HARA) is not implemented in the arclang CLI.
-
-        The CLI `safety` subcommand only supports --fmea/--fta/--report
-        and produces no hazard data.
-        """
-        raise NotImplementedError(
-            "Hazard analysis (HARA) is not implemented in the arclang CLI: "
-            "the `safety` subcommand only accepts --standard/--fmea/--fta/--report "
-            "and does not produce hazard data."
-        )
-
-    async def semantic_merge(
-        self,
-        base_path: Path,
-        ours_path: Path,
-        theirs_path: Path
-    ) -> Dict[str, Any]:
-        """Semantic merge is not implemented in the arclang CLI."""
-        raise NotImplementedError(
-            "Semantic merge is not implemented in the arclang CLI: "
-            "no merge subcommand exists in the compiler."
-        )
-
-    async def plm_sync(
-        self,
-        model_path: Path,
-        system: str,
-        operation: str
-    ) -> Dict[str, Any]:
-        """PLM synchronization.
-
-        There is no `plm` subcommand in the arclang CLI (only `sync
-        pull/push`, which are unimplemented stubs), so this returns a
-        structured error instead of invoking the binary.
-        """
-        return {
-            "success": False,
-            "error": "plm sync not implemented in compiler"
-        }
-
-    async def generate_diagram(
-        self,
-        model_path: str,
-        diagram_type: str,
-        output_path: Optional[str] = None
-    ) -> Dict[str, Any]:
-        """Generate a specific diagram type."""
-        # Resolve model path relative to workspace if not absolute
-        resolved_model = Path(model_path)
-        if not resolved_model.is_absolute():
-            resolved_model = self.workspace_root / model_path
-
-        # Resolve output path relative to workspace if not absolute
-        if not output_path:
-            output_path = str(self.workspace_root / f"{diagram_type}.svg")
-        else:
-            resolved_output = Path(output_path)
-            if not resolved_output.is_absolute():
-                output_path = str(self.workspace_root / output_path)
-
-        # Create output directory if it doesn't exist
-        output_file = Path(output_path)
-        output_file.parent.mkdir(parents=True, exist_ok=True)
-
-        cmd = [
-            self.binary_path,
-            "diagram",
-            str(resolved_model),
-            "-o", output_path,
-            "--format", diagram_type
-        ]
-
-        result = await self._run_command(cmd)
-
-        if result["returncode"] != 0:
-            raise Exception(f"Diagram generation failed: {result['stderr']}")
-
-        # Get file size
-        size = os.path.getsize(output_path)
-        size_str = f"{size/1024:.1f}KB" if size > 1024 else f"{size}B"
-
-        # Parse output for element count
-        element_count = self._parse_element_count(result["stdout"], diagram_type)
-
-        return {
-            "output_path": output_path,
-            "size": size_str,
-            "element_count": element_count
-        }
-
-    async def _run_command(self, cmd: list) -> Dict[str, Any]:
-        """Run command asynchronously."""
+    async def run(self, arguments: Sequence[str], timeout: Optional[float] = None) -> Run:
+        """Run `arclang <arguments>`. A binary that cannot run is a failed Run."""
+        command = (self.binary_path, *arguments)
+        limit = timeout or self.timeout
         try:
             process = await asyncio.create_subprocess_exec(
-                *cmd,
+                *command,
                 stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE
+                stderr=asyncio.subprocess.PIPE,
+                cwd=str(self.workspace_root) if self.workspace_root.is_dir() else None,
             )
-
-            stdout, stderr = await asyncio.wait_for(
-                process.communicate(),
-                timeout=self.timeout
-            )
-
-            return {
-                "returncode": process.returncode,
-                "stdout": stdout.decode(),
-                "stderr": stderr.decode()
-            }
+        except OSError as failure:
+            return Run(command, -1, "", f"cannot run '{self.binary_path}': {failure}")
+        try:
+            stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=limit)
         except asyncio.TimeoutError:
-            return {
-                "returncode": -1,
-                "stdout": "",
-                "stderr": f"Command timed out after {self.timeout} seconds"
-            }
-        except Exception as e:
-            return {
-                "returncode": -1,
-                "stdout": "",
-                "stderr": str(e)
-            }
+            process.kill()
+            await process.wait()
+            return Run(command, -1, "", f"command timed out after {limit} seconds")
+        except asyncio.CancelledError:
+            # The client gave up: do not leave the compiler running.
+            process.kill()
+            raise
+        return Run(
+            command,
+            process.returncode if process.returncode is not None else -1,
+            stdout.decode(errors="replace"),
+            stderr.decode(errors="replace"),
+        )
 
-    def _parse_metrics(self, output: str) -> Dict[str, Any]:
-        """Parse metrics from output."""
-        metrics = {}
-        for line in output.split("\n"):
-            if "Requirements:" in line:
-                metrics["requirements"] = self._parse_int(line)
-            elif "Components:" in line:
-                metrics["components"] = self._parse_int(line)
-            elif "Functions:" in line:
-                metrics["functions"] = self._parse_int(line)
-            elif "Traces:" in line:
-                metrics["traces"] = self._parse_int(line)
-        return {k: v for k, v in metrics.items() if v is not None}
+    async def version(self) -> Run:
+        return await self.run(["--version"])
+
+    async def check(self, model: Path) -> Run:
+        """`arclang check --lint`: compile, then traceability and methodology advisories."""
+        return await self.run(["check", "--lint", "--", str(model)])
+
+    async def build(self, model: Path, output: Optional[Path] = None, release: bool = False) -> Run:
+        """`arclang build`: compile to the model's JSON."""
+        arguments = ["build"]
+        if output:
+            arguments += ["-o", str(output)]
+        if release:
+            arguments.append("--release")
+        return await self.run([*arguments, "--", str(model)])
+
+    async def trace(self, model: Path, matrix: bool = False) -> Run:
+        """`arclang trace --validate [--matrix]`."""
+        arguments = ["trace", "--validate"]
+        if matrix:
+            arguments.append("--matrix")
+        return await self.run([*arguments, "--", str(model)])
+
+    async def info(self, model: Path) -> Run:
+        """`arclang info --metrics`."""
+        return await self.run(["info", "--metrics", "--", str(model)])
+
+    async def gate(self, model: Path, standard: str = "iso26262") -> Run:
+        """`arclang gate`: exit 0 on PASS, 1 on FAIL."""
+        return await self.run(["gate", "--standard", standard, "--", str(model)])
+
+    async def diff(self, old: Path, new: Path, as_json: bool = True) -> Run:
+        """`arclang diff`: semantic diff by stable identity. Exits 1 when they differ."""
+        arguments = ["diff"]
+        if as_json:
+            arguments.append("--json")
+        return await self.run([*arguments, "--", str(old), str(new)])
+
+    async def impact(self, model: Path, element: str) -> Run:
+        """`arclang impact`: what a change to one element reaches."""
+        return await self.run(["impact", "--", str(model), element])
+
+    async def safety(self, model: Path, standard: str, report: bool = False) -> Run:
+        """`arclang safety --standard <standard> [--report]`."""
+        arguments = ["safety", "--standard", standard]
+        if report:
+            arguments.append("--report")
+        return await self.run([*arguments, "--", str(model)])
+
+    async def export(self, model: Path, export_format: str, output: Path) -> Run:
+        """`arclang export -f <format> -o <output>`."""
+        return await self.run(["export", "-f", export_format, "-o", str(output), "--", str(model)])
+
+    async def diagram(
+        self,
+        model: Path,
+        diagram_format: str,
+        output: Path,
+        view: Optional[str] = None,
+    ) -> Run:
+        """`arclang diagram -f <format> -o <output> [--view <view>]`."""
+        arguments = ["diagram", "-f", diagram_format, "-o", str(output)]
+        if view:
+            arguments += ["--view", view]
+        return await self.run([*arguments, "--", str(model)])
+
+    async def format(self, target: Path, write: bool = False, check: bool = False) -> Run:
+        """`arclang format`: whitespace only; prints the result unless told to write."""
+        arguments = ["format"]
+        if write:
+            arguments.append("--write")
+        if check:
+            arguments.append("--check")
+        return await self.run([*arguments, "--", str(target)])
+
+    async def set_attribute(
+        self, model: Path, element: str, key: str, value: str, write: bool = False
+    ) -> Run:
+        """`arclang set`: the value is ArcLang source (`"text"`, `25 ms`, `[A, B]`)."""
+        return await self.run([*self._edit("set", write), str(model), element, key, value])
+
+    async def unset_attribute(
+        self, model: Path, element: str, key: str, write: bool = False
+    ) -> Run:
+        """`arclang unset`."""
+        return await self.run([*self._edit("unset", write), str(model), element, key])
+
+    async def rename(self, model: Path, element: str, name: str, write: bool = False) -> Run:
+        """`arclang rename`."""
+        return await self.run([*self._edit("rename", write), str(model), element, name])
+
+    async def review(
+        self,
+        model: Path,
+        send: bool = False,
+        suggest: bool = False,
+        threshold: Optional[float] = None,
+        max_questions: Optional[int] = None,
+    ) -> Run:
+        """`arclang review --json`. Without `send` it is a dry run: nothing leaves the machine."""
+        arguments = ["review", "--json"]
+        if not send:
+            arguments.append("--dry-run")
+        if suggest:
+            arguments.append("--suggest")
+        if threshold is not None:
+            arguments += ["--threshold", str(threshold)]
+        if max_questions is not None:
+            arguments += ["--max-questions", str(max_questions)]
+        return await self.run([*arguments, "--", str(model)], timeout=self.review_timeout)
+
+    async def metamodel(self, as_json: bool = False) -> Run:
+        """`arclang metamodel --format markdown|json`."""
+        return await self.run(["metamodel", "--format", "json" if as_json else "markdown"])
 
     @staticmethod
-    def _parse_int(line: str) -> Optional[int]:
-        """Parse the integer after the last colon in a line, or None."""
-        try:
-            return int(line.split(":")[-1].strip())
-        except ValueError:
-            return None
+    def _edit(command: str, write: bool) -> List[str]:
+        # `--` so that a value such as `-5` is never read as an option.
+        return [command, "--write", "--"] if write else [command, "--"]
 
-    def _parse_warnings(self, output: str) -> List[str]:
-        """Parse warnings from `check` output.
 
-        The CLI prints a '⚠ Traceability warnings:' header followed by
-        indented warning lines; standalone lines containing 'warning:'
-        are also collected.
-        """
-        warnings = []
-        in_warning_block = False
-        for line in output.split("\n"):
-            if "warnings:" in line.lower():
-                in_warning_block = True
-                continue
-            if in_warning_block:
-                if line.startswith("  ") and line.strip():
-                    warnings.append(line.strip())
-                    continue
-                in_warning_block = False
-            if "warning:" in line.lower():
-                warnings.append(line.strip())
-        return warnings
+def parse_diff(run: Run) -> Optional[Dict[str, List[Any]]]:
+    """The changes printed by `arclang diff --json`, or None when it printed none.
 
-    def _parse_errors(self, stderr: str, stdout: str = "") -> List[str]:
-        """Parse errors from compiler output.
+    Like `diff`, the command exits 1 when the two models differ: the exit
+    code alone does not tell a difference from a failure, the JSON does.
+    """
+    try:
+        changes = json.loads(run.stdout)
+    except json.JSONDecodeError:
+        return None
+    if not isinstance(changes, dict) or not all(isinstance(v, list) for v in changes.values()):
+        return None
+    return changes
 
-        Only lines containing an error marker ('error', 'Error', '✗')
-        are treated as errors; the full stdout is preserved separately
-        by callers in "raw_output".
-        """
-        errors = []
-        for source in (stderr, stdout):
-            for line in source.split("\n"):
-                if any(marker in line for marker in ERROR_MARKERS):
-                    errors.append(line.strip())
-        return errors
 
-    def _parse_coverage(self, output: str) -> float:
-        """Parse coverage percentage (the CLI prints e.g. 'Traceability Coverage: 85.0%')."""
-        for line in output.split("\n"):
-            if "coverage:" in line.lower():
-                match = re.search(r"([0-9]+(?:\.[0-9]+)?)\s*%", line)
-                if match:
-                    return float(match.group(1))
-        return 0.0
+def parse_metrics(output: str) -> Dict[str, int]:
+    """Counts printed by `build`, `check --lint` and `info --metrics`."""
+    metrics: Dict[str, int] = {}
+    for line in output.splitlines():
+        label, _, value = line.strip().partition(":")
+        key = METRIC_LABELS.get(label)
+        if key and value.strip().isdigit():
+            metrics[key] = int(value.strip())
+    return metrics
 
-    def _count_traces(self, output: str) -> int:
-        """Count total traces.
 
-        With `--matrix` the CLI prints one 'from → to' line per trace;
-        otherwise fall back to a 'Traces: N' line if present.
-        """
-        matrix_lines = [line for line in output.split("\n") if " → " in line]
-        if matrix_lines:
-            return len(matrix_lines)
-        for line in output.split("\n"):
-            if "Traces:" in line or "traces:" in line:
-                value = self._parse_int(line)
-                if value is not None:
-                    return value
-        return 0
+def parse_coverage(output: str) -> Optional[float]:
+    """The traceability coverage the compiler printed, or None when it printed none.
 
-    def _parse_trace_issues(self, output: str) -> List[str]:
-        """Parse traceability issues printed by `trace --validate`.
+    Only the compiler's own lines count (`Traceability Coverage: 85.0%`,
+    `Traceability: 85.0%`), never a rationale or a name that mentions a percentage.
+    """
+    found = re.findall(
+        r"^\s*Traceability(?: [Cc]overage)?:\s*([0-9]+(?:\.[0-9]+)?)\s*%\s*$", output, flags=re.M
+    )
+    return float(found[-1]) if found else None
 
-        The CLI prints '⚠ Traceability issues found:' followed by
-        indented issue lines.
-        """
-        issues = []
-        in_issue_block = False
-        for line in output.split("\n"):
-            if "issues found:" in line.lower():
-                in_issue_block = True
-                continue
-            if in_issue_block:
-                if line.startswith("  ") and line.strip():
-                    issues.append(line.strip())
-                else:
-                    in_issue_block = False
-        return issues
 
-    def _parse_element_count(self, output: str, diagram_type: str) -> str:
-        """Parse element count from CLI output."""
-        patterns = {
-            "operational": r"Activities: (\d+)",
-            "functional": r"Functions: (\d+)",
-            "component": r"Components: (\d+)",
-            "sequence": r"Messages: (\d+)",
-            "state-machine": r"States: (\d+)",
-            "physical": r"Nodes: (\d+)",
-            "class": r"Classes: (\d+)",
-            "tree": r"Nodes: (\d+)",
-            "capability": r"Capabilities: (\d+)",
-            "functional-chain": r"Functions: (\d+)"
-        }
+def parse_block(output: str, header: str) -> List[str]:
+    """The indented lines that follow the line containing `header`."""
+    lines: List[str] = []
+    inside = False
+    for line in output.splitlines():
+        if header.lower() in line.lower():
+            inside = True
+            continue
+        if inside:
+            if line.startswith("  ") and line.strip():
+                lines.append(line.strip())
+            else:
+                inside = False
+    return lines
 
-        pattern = patterns.get(diagram_type)
-        if pattern:
-            match = re.search(pattern, output)
-            if match:
-                return match.group(1)
 
-        return "N/A"
+def parse_blockers(output: str) -> List[str]:
+    """The blockers of `arclang gate`, one `[rule] message` per line."""
+    return parse_block(output, "blocker(s):")

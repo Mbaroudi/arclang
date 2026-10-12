@@ -52,8 +52,10 @@ the long-term goal.
   viewpoint diagrams described below, in one self-contained file.
 - **Traceability analysis computed from the model** (`arclang trace --validate
   --matrix`): real coverage numbers, real gap warnings.
-- **MCP server** (`mcp-server/`) exposing compile/validate/trace/export to LLM
-  agents, aligned 1:1 with the actual CLI.
+- **MCP server** (`mcp-server/`, version 4.0.1) giving LLM agents the compiler's
+  commands, 1:1 with the CLI: check, gate, diff, impact, lossless edits
+  (`set`/`unset`/`rename`/`format`), exports (SysML v2, Capella, ReqIF), viewpoint
+  diagrams and the metamodel as the reference. Tested against the real binary.
 - **Capella round-trip** (`tools/capella_bridge/`): a native Capella 7.0 model
   converts to compiling ArcLang (UUIDs preserved) and back **byte-identically**;
   description/requirement edits, component creation and deletion propagate into
