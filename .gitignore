@@ -81,3 +81,8 @@ wasm/pkg/
 
 # Python bytecode
 __pycache__/
+
+# The VS Code extension manifests are sources, not outputs.
+!editors/vscode/package.json
+!editors/vscode/language-configuration.json
+!editors/vscode/syntaxes/*.json

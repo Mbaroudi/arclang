@@ -24,6 +24,64 @@ mod structure;
 
 pub use structure::{add_element, add_trace, remove_element, remove_trace, rename_element, string_literal, Container};
 
+/// One declaration of the source, where it stands: what an outline or a
+/// "go to definition" needs, read from the text itself.
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
+pub struct Declaration {
+    /// The first word of the declaration line: `component`, `req`, `trace`...
+    pub keyword: String,
+    /// The name on the declaration line (its first string, else its last word).
+    pub name: Option<String>,
+    /// The `id:` written in the block, when there is one.
+    pub id: Option<String>,
+    /// The declaration line as written, up to the brace: `trace "A" satisfies "B"`.
+    pub header: String,
+    /// 1-based line and column of the declaration's first word.
+    pub line: usize,
+    pub column: usize,
+    /// 1-based line of the closing brace.
+    pub end_line: usize,
+    pub children: Vec<Declaration>,
+}
+
+/// Every declaration of the source, nested as the braces nest. Fails only
+/// when the text does not lex.
+pub fn outline(source: &str) -> Result<Vec<Declaration>, EditError> {
+    let document = Document::read(source)?;
+    let blocks = document.blocks();
+    // Blocks come in order of their `{`; a block holds the ones opened
+    // inside it. A stack of open blocks places each one under its parent.
+    let mut roots: Vec<Declaration> = Vec::new();
+    let mut stack: Vec<(Block, Declaration)> = Vec::new();
+    let flush = |stack: &mut Vec<(Block, Declaration)>, roots: &mut Vec<Declaration>, open: usize| {
+        while stack.last().is_some_and(|(block, _)| block.close < open) {
+            let (_, done) = stack.pop().expect("checked");
+            match stack.last_mut() {
+                Some((_, parent)) => parent.children.push(done),
+                None => roots.push(done),
+            }
+        }
+    };
+    for block in blocks {
+        flush(&mut stack, &mut roots, block.open);
+        let header = document.header(&block);
+        let first = header.first();
+        let declaration = Declaration {
+            keyword: first.map(|lexeme| lexeme.text.clone()).unwrap_or_default(),
+            name: document.header_name(&block),
+            id: document.written_id(&block),
+            header: header.iter().map(|lexeme| lexeme.text.as_str()).collect::<Vec<_>>().join(" "),
+            line: first.map(|lexeme| lexeme.span.line).unwrap_or(document.lexemes[block.open].span.line),
+            column: first.map(|lexeme| lexeme.span.column).unwrap_or(document.lexemes[block.open].span.column),
+            end_line: document.lexemes[block.close].span.line,
+            children: Vec::new(),
+        };
+        stack.push((block, declaration));
+    }
+    flush(&mut stack, &mut roots, usize::MAX);
+    Ok(roots)
+}
+
 const INDENT: &str = "    ";
 
 #[derive(Debug, Clone, PartialEq)]

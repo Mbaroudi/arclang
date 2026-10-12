@@ -63,7 +63,9 @@ fn explorer_embeds_the_viewer_with_every_diagram_of_the_model() {
             "cap",
             "cdb",
             "msm:AEBOperatingModes",
-            "es:EmergencyStop"
+            "es:EmergencyStop",
+            "lab:Braking chain",
+            "pab:Around the brake ECU"
         ]
     );
 }
