@@ -67,8 +67,41 @@
 .arcviz .arcviz-tools {
   display: flex;
   flex-wrap: wrap;
-  gap: 2px;
+  gap: var(--av-space-1);
   padding-bottom: var(--av-space-1);
+}
+
+/* Tools come in groups: one bordered strip per group, no gap inside it. */
+.arcviz .arcviz-tool-group {
+  display: inline-flex;
+}
+
+.arcviz .arcviz-tool-group .arcviz-tool {
+  border-radius: 0;
+  margin-left: -1px;
+}
+
+.arcviz .arcviz-tool-group .arcviz-tool:first-child {
+  border-radius: 3px 0 0 3px;
+  margin-left: 0;
+}
+
+.arcviz .arcviz-tool-group .arcviz-tool:last-child {
+  border-radius: 0 3px 3px 0;
+}
+
+.arcviz .arcviz-tool-group .arcviz-tool:only-child {
+  border-radius: 3px;
+}
+
+.arcviz .arcviz-tool-group .arcviz-tool:hover,
+.arcviz .arcviz-tool-group .arcviz-tool[aria-pressed='true'] {
+  position: relative;
+  z-index: 1;
+}
+
+.arcviz .arcviz-tool[hidden] {
+  display: none;
 }
 
 .arcviz .arcviz-tool,
@@ -172,7 +205,8 @@
   background-size: 18px 18px;
   border: 1px solid var(--av-rule);
   cursor: grab;
-  height: clamp(26rem, 68vh, 52rem);
+  /* A workbench host sets --av-stage-height to fill its panel. */
+  height: var(--av-stage-height, clamp(26rem, 68vh, 52rem));
   overflow: hidden;
   position: relative;
   /* Vertical swipes scroll the page; dragging sideways pans the diagram. */
@@ -360,8 +394,17 @@
   display: flex;
   flex-direction: column;
   gap: var(--av-space-2);
-  height: clamp(26rem, 68vh, 52rem);
+  height: var(--av-stage-height, clamp(26rem, 68vh, 52rem));
   min-height: 0;
+}
+
+/* The host took both the tree and the details: the sheet has the width. */
+.arcviz .arcviz-work.is-sideless {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.arcviz .arcviz-work.is-sideless .arcviz-side {
+  display: none;
 }
 
 .arcviz .arcviz-work.is-treeless .arcviz-tree {

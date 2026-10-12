@@ -39,7 +39,16 @@ struct CompileOutput {
     errors: Vec<String>,
     warnings: Vec<String>,
     stats: Option<Stats>,
+    /// The standalone architecture dossier (the `arclang explorer` page).
     explorer_html: Option<String>,
+    /// The diagrams of the model, as `ArcViz.mount` takes them: one ELK
+    /// graph per Arcadia view, the traces between views, the drawing
+    /// diagnostics. The playground mounts the viewer on this directly.
+    diagrams: Option<serde_json::Value>,
+    /// The architecture document behind the dossier: requirements,
+    /// components, interfaces, functions, traces, chains, machines,
+    /// scenarios and the data model, resolved by the compiler.
+    document: Option<serde_json::Value>,
     gate: Option<GateOut>,
     /// OMG SysML v2 textual notation (interop subset).
     sysmlv2: Option<String>,
@@ -52,7 +61,8 @@ struct CompileOutput {
 }
 
 /// Compile ArcLang source; returns a JSON string:
-/// `{success, errors, warnings, stats, explorer_html, gate}`.
+/// `{success, errors, warnings, stats, explorer_html, diagrams, document,
+/// gate, sysmlv2, reqif, c_headers, proto}`.
 #[wasm_bindgen]
 pub fn compile(source: &str) -> String {
     let output = compile_inner(source);
@@ -96,6 +106,8 @@ fn compile_inner(source: &str) -> CompileOutput {
             warnings: Vec::new(),
             stats: None,
             explorer_html: None,
+            diagrams: None,
+            document: None,
             gate: None,
             sysmlv2: None,
             reqif: None,
@@ -113,10 +125,22 @@ fn compile_inner(source: &str) -> CompileOutput {
                 capabilities: model.capabilities.len(),
                 functional_chains: model.functional_chains.len(),
             };
-            let explorer_html =
-                arclang::compiler::arcviz_explorer::generate_explorer_html(model, &result.ast)
-                    .ok()
-                    .map(|(html, _json)| html);
+            let explorer = arclang::compiler::arcviz_explorer::generate_explorer_html(
+                model,
+                &result.ast,
+            )
+            .ok();
+            let explorer_html = explorer.as_ref().map(|(html, _json)| html.clone());
+            let document = explorer
+                .as_ref()
+                .and_then(|(_html, json)| serde_json::from_str(json).ok());
+            // The declared model name, as the dossier titles itself.
+            let title = model
+                .name
+                .clone()
+                .unwrap_or_else(|| "System Architecture".to_string());
+            let diagrams = arclang::compiler::diagram::build_diagrams(&result.ast);
+            let diagrams = arclang::compiler::diagram::html::viewer_payload(&diagrams, &title);
             let gate_report = arclang::compiler::production_gate::run_gate(
                 &result.ast,
                 model,
@@ -142,6 +166,8 @@ fn compile_inner(source: &str) -> CompileOutput {
                 warnings: result.warnings,
                 stats: Some(stats),
                 explorer_html,
+                diagrams: Some(diagrams),
+                document,
                 gate: Some(gate),
                 sysmlv2: Some(arclang::compiler::sysmlv2_generator::generate_sysmlv2(model, &result.ast)),
                 reqif: Some(arclang::compiler::reqif::generate_reqif(model, &result.ast)),
