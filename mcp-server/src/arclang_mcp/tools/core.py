@@ -1,205 +1,413 @@
 """
-Core tools for ArcLang compilation, validation, and analysis.
+Core tools: each one is a subcommand of the compiler and returns what it printed.
 """
 
 import json
+import tempfile
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Awaitable, Callable, Dict, List
 
-from ..compiler.wrapper import ArcLangCompiler
+from mcp.types import Tool
+
+from ..compiler.wrapper import (
+    EXPORT_FORMATS,
+    SAFETY_STANDARDS,
+    ArcLangCompiler,
+    parse_blockers,
+    parse_block,
+    parse_coverage,
+    parse_diff,
+)
+from .common import MODEL_PATH, report, resolve_path, schema
+
+# Formats whose result is short enough to hand back to the caller in full.
+INLINE_EXPORT_LIMIT = 20_000
+
+STANDARD = {
+    "type": "string",
+    "enum": list(SAFETY_STANDARDS),
+    "description": "Safety standard",
+    "default": "iso26262",
+}
+
+TOOLS: List[Tool] = [
+    Tool(
+        name="arclang_compile",
+        description=(
+            "Compile an ArcLang model to its JSON form (`arclang build`, same content as "
+            "`arclang_export` with format json). WRITES `<model>.json` next to the model, or "
+            "`output_path`; to check without writing use arclang_validate. The compiler is strict: any "
+            "construct outside the grammar is an error with its line and column. "
+            "Returns the counts the compiler prints and, on failure, its error."
+        ),
+        inputSchema=schema(
+            {
+                "model_path": MODEL_PATH,
+                "output_path": {
+                    "type": "string",
+                    "description": "Where to write the compiled output (default: next to the model)",
+                },
+                "optimize": {
+                    "type": "boolean",
+                    "description": "Pass --release",
+                    "default": False,
+                },
+            },
+            "model_path",
+        ),
+    ),
+    Tool(
+        name="arclang_validate",
+        description=(
+            "Check a model without writing anything (`arclang check --lint`): compile "
+            "errors, `metamodel:` and `constraint:` warnings, traceability warnings and "
+            "Arcadia methodology advisories. Run it after every edit. A requirement or "
+            "component is listed as having no trace only when no trace reaches it in "
+            "either direction; a trace on a function covers its component."
+        ),
+        inputSchema=schema({"model_path": MODEL_PATH}, "model_path"),
+    ),
+    Tool(
+        name="arclang_trace_analysis",
+        description=(
+            "Traceability of a model (`arclang trace --validate`): coverage, issues, "
+            "and the trace matrix with each rationale when `matrix` is true."
+        ),
+        inputSchema=schema(
+            {
+                "model_path": MODEL_PATH,
+                "matrix": {
+                    "type": "boolean",
+                    "description": "Also print the traceability matrix",
+                    "default": False,
+                },
+            },
+            "model_path",
+        ),
+    ),
+    Tool(
+        name="arclang_info",
+        description="Counts of a model (`arclang info --metrics`): elements, requirements, "
+        "components, functions, traces, traceability coverage.",
+        inputSchema=schema({"model_path": MODEL_PATH}, "model_path"),
+    ),
+    Tool(
+        name="arclang_gate",
+        description=(
+            "Production-readiness gate (`arclang gate`): PASS or FAIL against what an "
+            "industrial design review requires (every requirement satisfied and verified "
+            "by a test_case, HARA and ASIL consistency, typed attributes, constraints). "
+            "Returns the verdict and each blocker with its rule. A FAIL is a result, "
+            "not a tool error."
+        ),
+        inputSchema=schema({"model_path": MODEL_PATH, "standard": STANDARD}, "model_path"),
+    ),
+    Tool(
+        name="arclang_diff",
+        description=(
+            "Semantic diff between two versions of a model (`arclang diff --json`). "
+            "Elements are compared by stable identity: moving a block is no change, "
+            "renaming an element is a modification, not a removal and an addition. "
+            "It reports elements, traces and other relationships added, removed or "
+            "modified, with each changed attribute (old and new value). A reworded "
+            "trace rationale is a change. Element types are metamodel kinds."
+        ),
+        inputSchema=schema(
+            {
+                "old_path": {"type": "string", "description": "The old version of the model"},
+                "new_path": {"type": "string", "description": "The new version of the model"},
+            },
+            "old_path",
+            "new_path",
+        ),
+    ),
+    Tool(
+        name="arclang_impact",
+        description=(
+            "Change-impact analysis (`arclang impact`): everything transitively affected "
+            "when one element changes, by distance, with the relation that carries the impact."
+        ),
+        inputSchema=schema(
+            {
+                "model_path": MODEL_PATH,
+                "element": {
+                    "type": "string",
+                    "description": 'Element id or unambiguous name, e.g. "REQ-AEB-004"',
+                },
+            },
+            "model_path",
+            "element",
+        ),
+    ),
+    Tool(
+        name="arclang_export",
+        description=(
+            "Export a model (`arclang export`). `sys-ml` is the SysML v2 textual notation, "
+            "`sysml-json` its abstract syntax as KerML/SysML records, `capella` the Capella "
+            "XML, `req-if` the requirements, `c-headers` and `proto` the interface "
+            "contracts. Short results are returned; longer ones are only written to the file."
+        ),
+        inputSchema=schema(
+            {
+                "model_path": MODEL_PATH,
+                "format": {
+                    "type": "string",
+                    "enum": list(EXPORT_FORMATS),
+                    "description": "Export format",
+                },
+                "output_path": {
+                    "type": "string",
+                    "description": "Output file (default: a temporary file)",
+                },
+            },
+            "model_path",
+            "format",
+        ),
+    ),
+    Tool(
+        name="arclang_export_diagram",
+        description=(
+            "Kept for existing clients: same as arclang_export, with `html` as the "
+            "default format. For the Arcadia viewpoint diagrams use arclang_viewpoint_diagrams."
+        ),
+        inputSchema=schema(
+            {
+                "model_path": MODEL_PATH,
+                "format": {
+                    "type": "string",
+                    "enum": list(EXPORT_FORMATS),
+                    "description": "Export format",
+                    "default": "html",
+                },
+                "output_path": {"type": "string", "description": "Output file path"},
+            },
+            "model_path",
+        ),
+    ),
+    Tool(
+        name="arclang_metamodel",
+        description=(
+            "The language metamodel as the compiler holds it (`arclang metamodel`): element "
+            "kinds, typed attributes, enumerations, units, trace rules. Ask for one `kind` "
+            "(e.g. LogicalComponent) to get only its attributes. This is the reference for "
+            "which attribute a kind accepts and with which type."
+        ),
+        inputSchema=schema(
+            {
+                "kind": {
+                    "type": "string",
+                    "description": "Only this element kind (e.g. Requirement, PhysicalNode)",
+                },
+            }
+        ),
+    ),
+    Tool(
+        name="arclang_review",
+        description=(
+            "Ask a judgment model (TypeSafe's Jev) how plausible each trace of a model is "
+            "(`arclang review`). Advice only: probabilities, never a verdict, and never part "
+            "of the gate. PRIVACY: with `send: true` the kind, name, id, text attributes and "
+            "trace rationale of the traced elements go to api.typesafe.ai, and "
+            "TYPESAFE_API_KEY must be set. Without it (the default) this is a dry run: it "
+            "says what would be sent and sends nothing."
+        ),
+        inputSchema=schema(
+            {
+                "model_path": MODEL_PATH,
+                "send": {
+                    "type": "boolean",
+                    "description": "Really send the questions to api.typesafe.ai",
+                    "default": False,
+                },
+                "suggest": {
+                    "type": "boolean",
+                    "description": "Also judge undeclared pairs that may be a missing trace",
+                    "default": False,
+                },
+                "threshold": {
+                    "type": "number",
+                    "description": "Report declared traces under this plausibility (default 0.3)",
+                },
+                "max_questions": {
+                    "type": "integer",
+                    "description": "Most questions asked (default 200)",
+                },
+            },
+            "model_path",
+        ),
+    ),
+]
 
 
 class CoreTools:
-    """Core ArcLang tools (compile, validate, trace, export)."""
+    """Compile, check, trace, gate, diff, impact, export, metamodel, review."""
 
     def __init__(self, compiler: ArcLangCompiler, workspace_root: Path):
         self.compiler = compiler
         self.workspace_root = workspace_root
+        self._handlers: Dict[str, Callable[[Dict[str, Any]], Awaitable[str]]] = {
+            "arclang_compile": self._compile,
+            "arclang_validate": self._validate,
+            "arclang_trace_analysis": self._trace_analysis,
+            "arclang_info": self._info,
+            "arclang_gate": self._gate,
+            "arclang_diff": self._diff,
+            "arclang_impact": self._impact,
+            "arclang_export": self._export,
+            "arclang_export_diagram": self._export,
+            "arclang_metamodel": self._metamodel,
+            "arclang_review": self._review,
+        }
 
     async def execute(self, tool_name: str, arguments: Dict[str, Any]) -> str:
         """Execute a core tool."""
-        if tool_name == "arclang_compile":
-            return await self._compile(arguments)
-        elif tool_name == "arclang_validate":
-            return await self._validate(arguments)
-        elif tool_name == "arclang_trace_analysis":
-            return await self._trace_analysis(arguments)
-        elif tool_name == "arclang_export_diagram":
-            return await self._export_diagram(arguments)
-        elif tool_name == "arclang_info":
-            return await self._info(arguments)
-        else:
+        handler = self._handlers.get(tool_name)
+        if handler is None:
             raise ValueError(f"Unknown core tool: {tool_name}")
+        return await handler(arguments)
+
+    def _model(self, args: Dict[str, Any], key: str = "model_path") -> Path:
+        return resolve_path(self.workspace_root, args[key])
 
     async def _compile(self, args: Dict[str, Any]) -> str:
-        """Compile ArcLang model."""
-        model_path = self._resolve_path(args["model_path"])
-        validate = args.get("validate", True)
-        optimize = args.get("optimize", False)
-
-        result = await self.compiler.compile(
-            model_path,
-            validate=validate,
-            optimize=optimize
+        model = self._model(args)
+        requested = args.get("output_path")
+        output = resolve_path(self.workspace_root, requested) if requested else None
+        if output:
+            output.parent.mkdir(parents=True, exist_ok=True)
+        run = await self.compiler.build(
+            model,
+            output=output,
+            release=args.get("optimize", False),
         )
-
-        if result["success"]:
-            output = f"✅ Compilation successful\n\n"
-            output += f"**Model**: {model_path.name}\n"
-            
-            if "metrics" in result:
-                metrics = result["metrics"]
-                output += f"**Requirements**: {metrics.get('requirements', 0)}\n"
-                output += f"**Components**: {metrics.get('components', 0)}\n"
-                output += f"**Functions**: {metrics.get('functions', 0)}\n"
-                output += f"**Traces**: {metrics.get('traces', 0)}\n"
-            
-            if validate and "validation" in result:
-                validation = result["validation"]
-                output += f"\n**Validation**: {validation.get('status', 'OK')}\n"
-                if validation.get('warnings'):
-                    output += f"⚠️  Warnings: {len(validation['warnings'])}\n"
-            
-            output += f"\n**Output**: {result.get('output_path', 'N/A')}"
-            return output
-        else:
-            return f"❌ Compilation failed\n\n**Errors**:\n{result.get('errors', 'Unknown error')}"
+        return report(f"Compilation of {model.name}", run)
 
     async def _validate(self, args: Dict[str, Any]) -> str:
-        """Validate ArcLang model."""
-        model_path = self._resolve_path(args["model_path"])
-        strict = args.get("strict", False)
-
-        result = await self.compiler.validate(model_path, strict=strict)
-
-        if result["valid"]:
-            output = f"✅ Validation passed\n\n"
-            output += f"**Model**: {model_path.name}\n"
-            output += f"**Syntax**: Valid\n"
-            output += f"**Semantics**: Valid\n"
-            
-            if result.get("warnings"):
-                output += f"\n⚠️  **Warnings** ({len(result['warnings'])}):\n"
-                for warning in result["warnings"][:5]:  # Show first 5
-                    output += f"  - {warning}\n"
-            
-            return output
-        else:
-            output = f"❌ Validation failed\n\n"
-            output += f"**Model**: {model_path.name}\n\n"
-            output += f"**Errors** ({len(result.get('errors', []))}):\n"
-            for error in result.get("errors", [])[:10]:  # Show first 10
-                output += f"  - {error}\n"
-            return output
+        model = self._model(args)
+        run = await self.compiler.check(model)
+        verdict = None
+        if run.ok and "No compilation errors" in run.stdout:
+            compilation = parse_block(run.stdout, "Compilation warnings:")
+            traceability = parse_block(run.stdout, "Traceability warnings:")
+            advisories = parse_block(run.stdout, "methodology advisories:")
+            verdict = (
+                f"compiles; {len(compilation)} compilation warning(s), "
+                f"{len(traceability)} traceability warning(s), {len(advisories)} advisor(ies)"
+            )
+            if any(line.startswith(("metamodel:", "constraint:")) for line in compilation):
+                verdict += "; the metamodel/constraint warnings are blockers of the gate"
+        return report(f"Check of {model.name}", run, verdict)
 
     async def _trace_analysis(self, args: Dict[str, Any]) -> str:
-        """Analyze traceability."""
-        model_path = self._resolve_path(args["model_path"])
-        show_gaps = args.get("show_gaps", True)
-        matrix = args.get("matrix", False)
-
-        result = await self.compiler.trace_analysis(
-            model_path,
-            show_gaps=show_gaps,
-            matrix=matrix
-        )
-
-        output = f"🔗 **Traceability Analysis**\n\n"
-        output += f"**Model**: {model_path.name}\n"
-        output += f"**Coverage**: {result.get('coverage', 0)}%\n"
-        output += f"**Total Traces**: {result.get('total_traces', 0)}\n\n"
-
-        if show_gaps:
-            issues = result.get("issues") or []
-            if issues:
-                output += f"⚠️  **Traceability Issues** ({len(issues)}):\n\n"
-                for issue in issues[:10]:
-                    output += f"  - {issue}\n"
-                output += "\n"
-
-        if result.get("coverage", 0) >= 90:
-            output += "✅ Good traceability coverage"
-        elif result.get("coverage", 0) >= 70:
-            output += "⚠️  Moderate traceability coverage - consider adding more traces"
-        else:
-            output += "❌ Low traceability coverage - significant gaps detected"
-
-        return output
-
-    async def _export_diagram(self, args: Dict[str, Any]) -> str:
-        """Export architecture diagram."""
-        model_path = self._resolve_path(args["model_path"])
-        format_type = args.get("format", "html")
-        output_path = args.get("output_path")
-
-        result = await self.compiler.export_diagram(
-            model_path,
-            format_type=format_type,
-            output_path=output_path
-        )
-
-        if result["success"]:
-            output = f"✅ Diagram generated successfully\n\n"
-            output += f"**Model**: {model_path.name}\n"
-            output += f"**Format**: {format_type}\n"
-            output += f"**Output**: {result['output_path']}\n"
-            
-            if result.get("metrics"):
-                metrics = result["metrics"]
-                output += f"\n**Components**: {metrics.get('components', 0)}\n"
-                output += f"**Connections**: {metrics.get('connections', 0)}\n"
-            
-            return output
-        else:
-            return f"❌ Diagram generation failed\n\n{result.get('error', 'Unknown error')}"
+        model = self._model(args)
+        run = await self.compiler.trace(model, matrix=args.get("matrix", False))
+        verdict = None
+        if run.ok:
+            coverage = parse_coverage(run.stdout)
+            issues = parse_block(run.stdout, "issues found:")
+            covered = "coverage not printed" if coverage is None else f"coverage {coverage}%"
+            verdict = f"{covered}, {len(issues)} issue(s)"
+        return report(f"Traceability of {model.name}", run, verdict)
 
     async def _info(self, args: Dict[str, Any]) -> str:
-        """Get model information and metrics."""
-        model_path = self._resolve_path(args["model_path"])
-        detailed = args.get("detailed", False)
+        model = self._model(args)
+        return report(f"Metrics of {model.name}", await self.compiler.info(model))
 
-        result = await self.compiler.info(model_path, detailed=detailed)
-
-        output = f"📊 **Model Information**\n\n"
-        output += f"**Path**: {model_path}\n"
-        output += f"**Size**: {result.get('size_kb', 0)} KB\n\n"
-
-        metrics = result.get("metrics", {})
-        output += f"**Metrics**:\n"
-        output += f"  - Requirements: {metrics.get('requirements', 0)}\n"
-        output += f"  - Components: {metrics.get('components', 0)}\n"
-        output += f"  - Functions: {metrics.get('functions', 0)}\n"
-        output += f"  - Traces: {metrics.get('traces', 0)}\n"
-        output += f"  - Actors: {metrics.get('actors', 0)}\n"
-        output += f"  - Nodes: {metrics.get('nodes', 0)}\n\n"
-
-        if metrics.get("safety"):
-            safety = metrics["safety"]
-            output += f"**Safety Metrics**:\n"
-            output += f"  - ASIL-D: {safety.get('asil_d', 0)}\n"
-            output += f"  - ASIL-C: {safety.get('asil_c', 0)}\n"
-            output += f"  - ASIL-B: {safety.get('asil_b', 0)}\n"
-            output += f"  - ASIL-A: {safety.get('asil_a', 0)}\n\n"
-
-        if result.get("coverage"):
-            coverage = result["coverage"]
-            output += f"**Traceability Coverage**: {coverage.get('percentage', 0)}%\n"
-
-        return output
-
-    def _resolve_path(self, path_str: str) -> Path:
-        """Resolve path relative to workspace root or allow absolute paths.
-        
-        Supports:
-        - Absolute paths: /Users/malek/test.arc or /home/claude/test.arc
-        - Relative paths: examples/test.arc (resolved to workspace_root)
-        - ~ expansion: ~/test.arc (expands to user home)
-        """
-        path = Path(path_str).expanduser()  # Handle ~/path
-        
-        if path.is_absolute():
-            # Absolute paths work anywhere (including /home/claude/)
-            return path
+    async def _gate(self, args: Dict[str, Any]) -> str:
+        model = self._model(args)
+        run = await self.compiler.gate(model, standard=args.get("standard", "iso26262"))
+        if run.ok and "\nPRODUCTION GATE: PASS" in run.stdout:
+            verdict = "PASS"
+        elif not run.ok and "\nPRODUCTION GATE: FAIL" in run.stdout:
+            verdict = f"FAIL, {len(parse_blockers(run.stdout))} blocker(s)"
         else:
-            # Relative paths resolved to workspace root
-            return self.workspace_root / path
+            # No verdict line: the model did not compile, the gate did not run.
+            verdict = None
+        return report(f"Production gate of {model.name}", run, verdict)
+
+    async def _diff(self, args: Dict[str, Any]) -> str:
+        old = self._model(args, "old_path")
+        new = self._model(args, "new_path")
+        run = await self.compiler.diff(old, new, as_json=True)
+        title = f"Semantic diff {old.name} -> {new.name}"
+        changes = parse_diff(run)
+        if changes is None:
+            return report(title, run)
+        changed = {key: len(value) for key, value in changes.items() if value}
+        verdict = (
+            ", ".join(f"{count} {key}" for key, count in changed.items())
+            if changed
+            else "no semantic change"
+        )
+        return f"{title}: {verdict}\n\n{run.stdout.rstrip()}"
+
+    async def _impact(self, args: Dict[str, Any]) -> str:
+        model = self._model(args)
+        element = args["element"]
+        return report(
+            f"Impact of '{element}' in {model.name}", await self.compiler.impact(model, element)
+        )
+
+    async def _export(self, args: Dict[str, Any]) -> str:
+        model = self._model(args)
+        export_format = args.get("format", "html")
+        if export_format not in EXPORT_FORMATS:
+            return f"Unknown export format '{export_format}'. Known: {', '.join(EXPORT_FORMATS)}"
+        requested = args.get("output_path")
+        if requested:
+            output = resolve_path(self.workspace_root, requested)
+            output.parent.mkdir(parents=True, exist_ok=True)
+            return await self._export_to(model, export_format, output, keep=True)
+        # No output_path: nothing of the client's is written, the content is returned.
+        with tempfile.TemporaryDirectory(prefix="arclang-export-") as directory:
+            output = Path(directory) / f"{model.stem}.{export_format}"
+            return await self._export_to(model, export_format, output, keep=False)
+
+    async def _export_to(self, model: Path, export_format: str, output: Path, keep: bool) -> str:
+        run = await self.compiler.export(model, export_format, output)
+        answer = report(f"Export of {model.name} to {export_format}", run)
+        if not run.ok or not output.is_file():
+            return answer
+        where = f"Written to {output}" if keep else "Not written (no output_path); the export is"
+        try:
+            content = output.read_text()
+        except UnicodeDecodeError:
+            size = output.stat().st_size
+            return f"{answer}\n\n{where} binary ({size} bytes, not shown)." if not keep else f"{answer}\n\n{where} (binary, not shown)."
+        if len(content) > INLINE_EXPORT_LIMIT:
+            return f"{answer}\n\n{where} {len(content)} characters, not shown."
+        return f"{answer}\n\n{where}:\n\n{content}"
+
+    async def _metamodel(self, args: Dict[str, Any]) -> str:
+        kind = args.get("kind")
+        if not kind:
+            run = await self.compiler.metamodel(as_json=False)
+            return run.stdout if run.ok else report("Metamodel", run)
+        run = await self.compiler.metamodel(as_json=True)
+        if not run.ok:
+            return report("Metamodel", run)
+        metamodel = json.loads(run.stdout)
+        kinds = {entry["name"]: entry for entry in metamodel.get("kinds", [])}
+        found = next((kinds[name] for name in kinds if name.lower() == kind.lower()), None)
+        if found is None:
+            return f"No element kind '{kind}'. Known kinds: {', '.join(sorted(kinds))}"
+        return json.dumps(found, indent=2)
+
+    async def _review(self, args: Dict[str, Any]) -> str:
+        model = self._model(args)
+        send = args.get("send", False)
+        run = await self.compiler.review(
+            model,
+            send=send,
+            suggest=args.get("suggest", False),
+            threshold=args.get("threshold"),
+            max_questions=args.get("max_questions"),
+        )
+        verdict = None
+        if run.ok and not send:
+            verdict = "dry run, nothing was sent"
+        elif run.ok and "Nothing to review" in run.output:
+            verdict = "nothing to review, nothing was sent"
+        elif run.ok:
+            verdict = "advice received (probabilities, not a verdict)"
+        return report(f"Trace review of {model.name}", run, verdict)

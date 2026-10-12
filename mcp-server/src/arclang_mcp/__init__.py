@@ -1,14 +1,13 @@
 """
-ArcLang MCP Server - AI-powered Model Context Protocol server for ArcLang.
+ArcLang MCP Server - Model Context Protocol server for the ArcLang compiler.
 
-Provides intelligent assistance for Model-Based Systems Engineering (MBSE)
-through integration with AI assistants like Claude and GPT-4.
+Gives an AI assistant the compiler's own commands (check, gate, diff,
+impact, lossless edits, exports) and its metamodel as the reference.
 """
 
-__version__ = "0.1.0"
 __author__ = "Malek Baroudi & Bilel Laasami"
 __license__ = "MIT"
 
-from .server import ArcLangMCPServer
+from .server import ArcLangMCPServer, __version__
 
-__all__ = ["ArcLangMCPServer"]
+__all__ = ["ArcLangMCPServer", "__version__"]

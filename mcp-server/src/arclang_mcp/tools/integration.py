@@ -1,84 +1,60 @@
 """
-Integration tools for Git, PLM, and requirements management systems.
+Integration tools.
+
+The compiler has no merge and no PLM connector (`arclang sync` is a stub),
+so the tools below say so instead of pretending. What exists for working
+with versions is the semantic diff (`arclang_diff`) and the API writes of
+`arclang serve --allow-write`, one git commit per write.
 """
 
-from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, List
+
+from mcp.types import Tool
+
+from ..compiler.wrapper import ArcLangCompiler
+from .common import schema
+
+MERGE_UNAVAILABLE = (
+    "Semantic merge is not available: the arclang CLI has no merge subcommand. "
+    "Merge the .arc files with git, then run arclang_diff between each parent and "
+    "the result to read the outcome by stable identity, and arclang_validate on it."
+)
+PLM_UNAVAILABLE = (
+    "PLM synchronisation is not available: `arclang sync` is not implemented in the compiler."
+)
+
+TOOLS: List[Tool] = [
+    Tool(
+        name="arclang_git_merge",
+        description=(
+            "NOT AVAILABLE in arclang 4.0.1 (no merge subcommand): the tool answers so and "
+            "changes nothing. Use arclang_diff to compare versions by stable identity."
+        ),
+        inputSchema=schema(
+            {
+                "base_path": {"type": "string", "description": "Path to base version"},
+                "ours_path": {"type": "string", "description": "Path to our version"},
+                "theirs_path": {"type": "string", "description": "Path to their version"},
+            },
+            "base_path",
+            "ours_path",
+            "theirs_path",
+        ),
+    ),
+]
 
 
 class IntegrationTools:
-    """Integration tools for Git, PLM, DOORS, etc."""
+    """Tools the compiler does not back yet: they answer honestly."""
 
-    def __init__(self, compiler: Any, config: Dict[str, Any]):
+    def __init__(self, compiler: ArcLangCompiler, config: Dict[str, Any]):
         self.compiler = compiler
         self.config = config
 
     async def execute(self, tool_name: str, arguments: Dict[str, Any]) -> str:
         """Execute an integration tool."""
         if tool_name == "arclang_git_merge":
-            return await self._git_merge(arguments)
-        elif tool_name == "arclang_plm_sync":
-            return await self._plm_sync(arguments)
-        else:
-            raise ValueError(f"Unknown integration tool: {tool_name}")
-
-    async def _git_merge(self, args: Dict[str, Any]) -> str:
-        """Semantic merge assistance."""
-        base_path = Path(args["base_path"])
-        ours_path = Path(args["ours_path"])
-        theirs_path = Path(args["theirs_path"])
-
-        try:
-            result = await self.compiler.semantic_merge(
-                base_path=base_path,
-                ours_path=ours_path,
-                theirs_path=theirs_path
-            )
-        except NotImplementedError as e:
-            return f"❌ **Semantic merge not available**\n\n{e}"
-
-        output = f"🔀 **Semantic Merge Analysis**\n\n"
-        
-        if result.get("clean_merge"):
-            output += "✅ **Clean merge** - No conflicts!\n\n"
-            output += f"**Elements merged**: {result.get('merged_count', 0)}\n"
-        else:
-            conflicts = result.get("conflicts", [])
-            output += f"⚠️  **Conflicts detected**: {len(conflicts)}\n\n"
-            
-            for conflict in conflicts[:5]:
-                output += f"**{conflict['id']}**:\n"
-                output += f"  - Type: {conflict['type']}\n"
-                output += f"  - Ours: {conflict.get('ours_summary', 'N/A')}\n"
-                output += f"  - Theirs: {conflict.get('theirs_summary', 'N/A')}\n"
-                output += f"  - Suggestion: {conflict.get('suggestion', 'Manual resolution needed')}\n\n"
-
-        return output
-
-    async def _plm_sync(self, args: Dict[str, Any]) -> str:
-        """PLM synchronization."""
-        model_path = Path(args["model_path"])
-        system = args["system"]
-        operation = args.get("operation", "pull")
-
-        result = await self.compiler.plm_sync(
-            model_path=model_path,
-            system=system,
-            operation=operation
-        )
-
-        output = f"🔄 **PLM Synchronization**\n\n"
-        output += f"**System**: {system.upper()}\n"
-        output += f"**Operation**: {operation}\n"
-        output += f"**Model**: {model_path.name}\n\n"
-
-        if result.get("success"):
-            output += "✅ Synchronization successful\n\n"
-            if operation == "pull":
-                output += f"**Changes pulled**: {result.get('changes_count', 0)}\n"
-            elif operation == "push":
-                output += f"**Changes pushed**: {result.get('changes_count', 0)}\n"
-        else:
-            output += f"❌ Synchronization failed\n\n{result.get('error', 'Unknown error')}"
-
-        return output
+            return MERGE_UNAVAILABLE
+        if tool_name == "arclang_plm_sync":
+            return PLM_UNAVAILABLE
+        raise ValueError(f"Unknown integration tool: {tool_name}")

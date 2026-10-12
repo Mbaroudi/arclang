@@ -1,389 +1,74 @@
-# 🚀 ArcLang MCP Server - Quick Start
+# ArcLang MCP Server: quick start
 
-Get started with AI-powered MBSE in 5 minutes!
-
----
-
-## Prerequisites
-
-1. **ArcLang Compiler** installed
-2. **Python 3.10+**
-3. **Claude Desktop** or any MCP-compatible client
-4. **Anthropic API Key** (optional, for AI generation)
-
----
-
-## Installation
-
-### Step 1: Install ArcLang Compiler
+## 1. Install
 
 ```bash
-cd ..
-cargo install --path .
-arclang --version  # Verify installation
+cargo build --release && ./install-arclang.sh    # from the repository root
+arclang --version                                # arclang 4.0.1
+cd mcp-server && pip install -e .
+python test_install.py                           # imports, and finds the compiler
 ```
 
-### Step 2: Install MCP Server
+## 2. Connect a client
 
-```bash
-cd mcp-server
-pip install -e .
-```
-
-### Step 3: Verify Installation
-
-```bash
-arclang-mcp --help
-```
-
----
-
-## Configuration
-
-### Option 1: Claude Desktop (Recommended)
-
-Add to `~/Library/Application Support/Claude/claude_desktop_config.json`:
+Claude Desktop, in `~/Library/Application Support/Claude/claude_desktop_config.json`:
 
 ```json
 {
   "mcpServers": {
     "arclang": {
-      "command": "python",
-      "args": ["-m", "arclang_mcp.server"],
-      "env": {
-        "ARCLANG_WORKSPACE": "/path/to/your/models",
-        "ANTHROPIC_API_KEY": "your-api-key-here"
-      }
+      "command": "arclang-mcp",
+      "env": { "ARCLANG_WORKSPACE": "/path/to/your/models" }
     }
   }
 }
 ```
 
-### Option 2: Environment Variables
+Claude Code:
 
 ```bash
-export ARCLANG_WORKSPACE="/path/to/models"
-export ANTHROPIC_API_KEY="your-api-key"
-export ARCLANG_BINARY="arclang"  # Optional
+claude mcp add --env ARCLANG_WORKSPACE=/path/to/your/models arclang -- arclang-mcp
 ```
 
-### Option 3: Configuration File
+Restart the client. It should list about thirty `arclang_*` tools.
 
-Create `.arclang-mcp.toml` in your workspace:
+## 3. First steps
 
-```toml
-[workspace]
-root = "models/"
-build_dir = "build/"
+Put a model in the workspace. The reference model is a good start:
 
-[compiler]
-path = "arclang"
-timeout = 30
-
-[ai]
-provider = "anthropic"
-model = "claude-3-5-sonnet-20241022"
-temperature = 0.3
+```bash
+cp mcp-server/src/arclang_mcp/resources/reference_model.arc /path/to/your/models/braking.arc
 ```
 
----
+Then ask, in plain words:
 
-## First Usage
+| You ask | The assistant calls | You get |
+|---|---|---|
+| "Does braking.arc compile?" | `arclang_validate` | Errors with line and column, warnings by kind |
+| "Is it ready for a design review?" | `arclang_gate` | PASS, or FAIL with each blocker |
+| "What does REQ-BRK-001 affect?" | `arclang_impact` | Affected elements, by distance |
+| "Set the latency of LF-002 to 8 ms" | `arclang_set_attribute` | A diff, then the write once you agree |
+| "What changed since yesterday's copy?" | `arclang_diff` | Elements and traces added, removed, modified |
+| "Export it to SysML v2" | `arclang_export` (`sys-ml`) | The textual notation |
+| "Show me the logical architecture" | `arclang_viewpoint_diagrams` | An HTML viewer of the viewpoint diagrams |
 
-### 1. Restart Claude Desktop
+A recorded session, with the real answers, is in
+[examples/example_session.md](examples/example_session.md).
 
-Close and reopen Claude Desktop to load the MCP server.
+## 4. Writing ArcLang with an assistant
 
-### 2. Verify Connection
-
-In Claude Desktop, type:
-```
-Can you list the available ArcLang tools?
-```
-
-Claude should show 15+ tools available.
-
-### 3. Create Your First Model
-
-**You**: "Create an ASIL-B requirement for maintaining safe distance"
-
-**Claude**: [Uses arclang_generate_requirement]
-```arc
-requirement "REQ-DIST-001" {
-    description: "System shall maintain 2-second safe following distance"
-    priority: "Critical"
-    safety_level: "ASIL_B"
-    type: "Functional"
-    verification_method: "Test"
-}
-```
-
-### 4. Generate Architecture
-
-**You**: "Suggest an architecture for this requirement"
-
-**Claude**: [Uses arclang_suggest_architecture]
-
-Suggests components like:
-- Radar Sensor
-- Distance Controller
-- Safety Monitor
-
-### 5. Validate Model
-
-**You**: "Validate my model at models/acc_system.arc"
-
-**Claude**: [Uses arclang_validate]
-
-Shows validation results with errors/warnings.
-
----
-
-## Common Workflows
-
-### Create Complete System
-
-```
-You: I need to create an adaptive cruise control system for automotive (ISO 26262 ASIL-B). 
-     Can you help me design it?
-
-Claude: [Uses multiple tools]
-1. Generates requirements
-2. Suggests architecture
-3. Creates components
-4. Validates traceability
-5. Checks safety compliance
-```
-
-### Validate Existing Model
-
-```
-You: Check if models/flight_control.arc is valid and compliant with DO-178C DAL-A
-
-Claude: [Uses arclang_validate + arclang_safety_check]
-- Validates syntax
-- Checks safety compliance
-- Reports issues
-- Suggests fixes
-```
-
-### Analyze Traceability
-
-```
-You: Find untraced requirements in my model
-
-Claude: [Uses arclang_trace_analysis]
-- Shows coverage percentage
-- Lists untraced requirements
-- Lists untraced components
-- Suggests trace links
-```
-
-### Resolve Merge Conflicts
-
-```
-You: I have a merge conflict in models/architecture.arc. 
-     The conflict is between our changes to REQ-001 and their changes.
-
-Claude: [Uses arclang_git_merge]
-- Analyzes both versions
-- Identifies conflicts by component ID
-- Suggests resolution strategy
-```
-
----
-
-## Available Tools
-
-### Core Tools ✅
-
-| Tool | Use When |
-|------|----------|
-| `arclang_compile` | Compile model to Capella XML |
-| `arclang_validate` | Check syntax and semantics |
-| `arclang_trace_analysis` | Analyze traceability |
-| `arclang_export_diagram` | Generate visual diagrams |
-| `arclang_info` | Get model statistics |
-
-### Generation Tools 🎨
-
-| Tool | Use When |
-|------|----------|
-| `arclang_generate_requirement` | Create requirement from description |
-| `arclang_generate_component` | Create component from description |
-| `arclang_suggest_architecture` | Get AI architecture suggestions |
-
-### Safety Tools 🛡️
-
-| Tool | Use When |
-|------|----------|
-| `arclang_safety_check` | Validate safety compliance |
-| `arclang_hazard_analysis` | Perform HARA analysis |
-
-### Integration Tools 🔗
-
-| Tool | Use When |
-|------|----------|
-| `arclang_git_merge` | Resolve merge conflicts |
-| `arclang_plm_sync` | Sync with PLM systems |
-
----
-
-## Tips & Tricks
-
-### 1. Natural Language Works Best
-
-Instead of:
-```
-Use arclang_generate_requirement with description "brake system" and safety_level "ASIL_C"
-```
-
-Try:
-```
-Create an ASIL-C requirement for the brake override system
-```
-
-### 2. Ask for Multiple Steps
-
-```
-Create a complete ACC system with requirements, architecture, and traceability
-```
-
-Claude will use multiple tools automatically.
-
-### 3. Iterative Refinement
-
-```
-You: Create a radar sensor component
-Claude: [generates component]
-You: Add a self-diagnostic function
-Claude: [refines component]
-You: Make it ASIL-D compliant
-Claude: [adds safety attributes]
-```
-
-### 4. Context-Aware Assistance
-
-```
-You: I'm working on an aerospace flight control system (DO-178C DAL-A).
-     What components do I need?
-
-Claude: [Understands domain and standard, suggests appropriate architecture]
-```
-
----
+The compiler is strict, so the assistant must not guess the syntax. The server
+gives it three resources to read first: `arclang://syntax-rules`,
+`arclang://reference-model` and `arclang://metamodel`. Ask it to run
+`arclang_validate` after every change: a model the compiler has not accepted
+is not a model yet.
 
 ## Troubleshooting
 
-### MCP Server Not Showing in Claude
-
-1. Check Claude Desktop config:
-   ```bash
-   cat ~/Library/Application\ Support/Claude/claude_desktop_config.json
-   ```
-
-2. Verify paths are correct:
-   ```bash
-   which python
-   which arclang
-   ```
-
-3. Check logs:
-   ```bash
-   tail -f ~/Library/Logs/Claude/mcp*.log
-   ```
-
-### Compilation Errors
-
-```bash
-# Test compiler directly
-arclang build models/test.arc
-
-# Check if compiler is in PATH
-which arclang
-
-# Set explicit path in config
-export ARCLANG_BINARY="/full/path/to/arclang"
-```
-
-### API Key Issues
-
-```bash
-# Verify API key is set
-echo $ANTHROPIC_API_KEY
-
-# Or add to config file
-cat > ~/.arclang-mcp.toml << EOF
-[ai]
-api_key = "sk-ant-..."
-EOF
-```
-
----
-
-## What's Next?
-
-### Learn More
-
-- [Full Documentation](README.md)
-- [Example Sessions](examples/example_session.md)
-- [Tool Reference](docs/TOOLS.md)
-
-### Extend
-
-- Add custom tools
-- Integrate with your PLM
-- Create domain-specific templates
-
-### Contribute
-
-- Report issues: https://github.com/Mbaroudi/arclang/issues
-- Submit PRs: https://github.com/Mbaroudi/arclang/pulls
-
----
-
-## Example: Complete Session
-
-```
-You: Create an automotive ACC system with ISO 26262 ASIL-B compliance
-
-Claude: I'll create a complete ACC system for you.
-
-[Generates Requirements]
-- REQ-ACC-001: Maintain safe distance (ASIL-B)
-- REQ-ACC-002: Detect lead vehicle (ASIL-B)
-- REQ-ACC-003: Control throttle (ASIL-B)
-
-[Suggests Architecture]
-- Radar Sensor (LC-SENS-RADAR)
-- ACC Controller (LC-CTRL-ACC)
-- Throttle Actuator (LC-ACT-THROTTLE)
-- Safety Monitor (LC-SAFETY-MON)
-
-[Creates Components with Functions]
-Each component with appropriate:
-- Inputs/outputs
-- Execution times
-- Safety levels
-
-[Establishes Traceability]
-All components traced to requirements
-
-[Validates Safety]
-✅ ISO 26262 ASIL-B compliant
-✅ 100% traceability coverage
-✅ All safety requirements satisfied
-
-You: Export a diagram
-
-Claude: [Generates diagram]
-✅ Diagram saved to acc_system.html
-
-You: Perfect! Thanks!
-```
-
----
-
-**Ready to transform your systems engineering workflow?**
-
-Start chatting with Claude and experience AI-powered MBSE! 🚀
+| Symptom | Cause and fix |
+|---|---|
+| Every tool answers `cannot run 'arclang'` | The binary is not on the client's `PATH`. Set `ARCLANG_BINARY` to its full path in the client configuration |
+| `Expected LeftBrace, got Minus` on a `req` line | The requirement id must be a string: `req "REQ-001" "Title" { }` |
+| `arclang_suggest_architecture` answers "No suggestion" | It asks a Claude model: set `ANTHROPIC_API_KEY` |
+| `arclang_review` with `send: true` fails | It needs `TYPESAFE_API_KEY` |
+| A relative path is not found | Paths are resolved from `ARCLANG_WORKSPACE` |

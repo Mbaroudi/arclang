@@ -1,21 +1,63 @@
 """
-AI-powered code generation for ArcLang.
+ArcLang snippets from a description.
+
+Without an API key the snippets come from the templates below. With
+ANTHROPIC_API_KEY they are asked from a Claude model, which is given the
+compiler's own reference model as the syntax to follow. Either way the
+caller (tools/generation.py) compiles the snippet before returning it:
+this module never claims that what it wrote is valid.
 """
 
 import json
 import os
+import re
 from typing import Any, Dict, List, Optional
 
 import anthropic
 
+from ..resources.syntax_guide import reference_model
+
+DEFAULT_MODEL = "claude-opus-5-5"
+
+# Arcadia layer of a component, and the block that declares it.
+COMPONENT_BLOCKS = {
+    "Logical": ("architecture logical", "component", "LC"),
+    "Physical": ("architecture physical", "node", "PN"),
+}
+
+
+def arc_string(text: str) -> str:
+    """`text` as an ArcLang string literal."""
+    escaped = text.replace("\\", "\\\\").replace('"', '\\"')
+    return '"' + " ".join(escaped.split()) + '"'
+
+
+def safety_level(level: Optional[str]) -> Optional[str]:
+    """`ASIL_B` or `asil b` as the metamodel spells it: `ASIL-B`."""
+    if not level:
+        return None
+    return re.sub(r"[\s_]+", "-", level.strip().upper())
+
+
+def acronym(description: str, fallback: str) -> str:
+    """Up to three initials of the description, for an identifier."""
+    initials = "".join(word[0] for word in re.findall(r"[A-Za-z]+", description)[:3]).upper()
+    return initials or fallback
+
+
+def title_of(description: str, limit: int = 60) -> str:
+    """A short title: the first sentence, cut at `limit` characters."""
+    first = re.split(r"(?<=[.!?])\s", description.strip(), maxsplit=1)[0].rstrip(".")
+    return first if len(first) <= limit else first[: limit - 3].rstrip() + "..."
+
 
 class AIGenerator:
-    """AI-powered ArcLang code generator."""
+    """Writes ArcLang snippets, from templates or from a Claude model."""
 
     def __init__(self, config: Dict[str, Any]):
         self.provider = config.get("provider", "anthropic")
-        self.model = config.get("model", "claude-3-5-sonnet-20241022")
-        self.temperature = config.get("temperature", 0.3)
+        self.model = config.get("model", DEFAULT_MODEL)
+        self.temperature = config.get("temperature")
         self.client: Optional[anthropic.AsyncAnthropic] = None
 
         if self.provider == "anthropic":
@@ -23,183 +65,113 @@ class AIGenerator:
             if api_key:
                 self.client = anthropic.AsyncAnthropic(api_key=api_key)
 
-    async def generate_requirement(
-        self,
-        description: str,
-        safety_level: Optional[str] = None,
-        priority: str = "High"
+    @property
+    def uses_model(self) -> bool:
+        return self.client is not None
+
+    def requirement_template(
+        self, description: str, safety: Optional[str] = None, priority: str = "High"
     ) -> str:
-        """Generate ArcLang requirement from description."""
+        """A requirement, to be placed inside a `requirements <kind> { }` block."""
+        lines = [
+            f'req "REQ-{acronym(description, "X")}-001" {arc_string(title_of(description))} {{',
+            f"  description: {arc_string(description)}",
+            f"  priority: {arc_string(priority)}",
+        ]
+        level = safety_level(safety)
+        if level:
+            lines.append(f"  safety_level: {arc_string(level)}")
+        return "\n".join([*lines, "}"])
 
-        prompt = f"""Generate an ArcLang requirement based on this description:
+    def component_template(
+        self, description: str, component_type: str = "Logical", safety: Optional[str] = None
+    ) -> str:
+        """A component or a node, to be placed inside its architecture block."""
+        _, keyword, prefix = COMPONENT_BLOCKS.get(component_type, COMPONENT_BLOCKS["Logical"])
+        lines = [
+            f"{keyword} {arc_string(title_of(description, 40))} {{",
+            f'  id: "{prefix}-{acronym(description, "X")}-001"',
+            f"  description: {arc_string(description)}",
+        ]
+        level = safety_level(safety)
+        if level:
+            lines.append(f"  safety_level: {arc_string(level)}")
+        return "\n".join([*lines, "}"])
 
-Description: {description}
-Safety Level: {safety_level or 'Not specified'}
-Priority: {priority}
-
-Generate a complete ArcLang requirement block following this format:
-
-requirement "REQ-XXX-YYY" {{
-    description: "..."
-    priority: "{priority}"
-    {f'safety_level: "{safety_level}"' if safety_level else '// safety_level: "TBD"'}
-    type: "Functional"  // or Performance, Safety, etc.
-    verification_method: "Test"  // or Analysis, Inspection, Demonstration
-}}
-
-Important:
-- Use descriptive requirement ID (e.g., REQ-BRAKE-001)
-- Keep description concise and verifiable
-- Choose appropriate type based on description
-- Follow ISO 26262 / DO-178C conventions if safety level specified
-
-Generate only the ArcLang code, no explanation."""
-
-        if self.client:
-            message = await self.client.messages.create(
-                model=self.model,
-                max_tokens=1024,
-                temperature=self.temperature,
-                messages=[{"role": "user", "content": prompt}]
-            )
-            return message.content[0].text.strip()
-        else:
-            # Fallback template
-            req_id = self._generate_requirement_id(description)
-            return f'''requirement "{req_id}" {{
-    description: "{description}"
-    priority: "{priority}"
-    {f'safety_level: "{safety_level}"' if safety_level else '// safety_level: "TBD"'}
-    type: "Functional"
-    verification_method: "Test"
-}}'''
+    async def generate_requirement(
+        self, description: str, safety_level: Optional[str] = None, priority: str = "High"
+    ) -> str:
+        """An ArcLang requirement for the description."""
+        template = self.requirement_template(description, safety_level, priority)
+        if not self.client:
+            return template
+        return await self._ask(
+            "Write ONE ArcLang requirement (a `req` declaration only, without the "
+            "enclosing `requirements` block) for this description.\n\n"
+            f"Description: {description}\nPriority: {priority}\n"
+            f"Safety level: {safety_level or 'none'}\n\n"
+            f"Shape to follow:\n{template}",
+            max_tokens=1024,
+        )
 
     async def generate_component(
         self,
         description: str,
         component_type: str = "Logical",
-        safety_level: Optional[str] = None
+        safety_level: Optional[str] = None,
     ) -> str:
-        """Generate ArcLang component from description."""
-
-        prompt = f"""Generate an ArcLang component based on this description:
-
-Description: {description}
-Type: {component_type}
-Safety Level: {safety_level or 'Not specified'}
-
-Generate a complete ArcLang component block following this format:
-
-component "Component Name" {{
-    id: "LC-XXX-YYY"
-    type: "{component_type}"
-    description: "..."
-    {f'safety_level: "{safety_level}"' if safety_level else ''}
-
-    function "Main Function" {{
-        id: "LF-XXX-YYY"
-        inputs: ["input1", "input2"]
-        outputs: ["output1"]
-        execution_time: "XYms"
-    }}
-}}
-
-Important:
-- Use descriptive component and function names
-- Component ID pattern: LC-<SUBSYSTEM>-<NUM>
-- Function ID pattern: LF-<FUNCTION>-<NUM>
-- Include realistic inputs/outputs
-- Add execution_time for real-time systems
-
-Generate only the ArcLang code, no explanation."""
-
-        if self.client:
-            message = await self.client.messages.create(
-                model=self.model,
-                max_tokens=2048,
-                temperature=self.temperature,
-                messages=[{"role": "user", "content": prompt}]
-            )
-            return message.content[0].text.strip()
-        else:
-            # Fallback template
-            comp_id = self._generate_component_id(description)
-            return f'''component "{description}" {{
-    id: "{comp_id}"
-    type: "{component_type}"
-    description: "{description}"
-    {f'safety_level: "{safety_level}"' if safety_level else ''}
-
-    function "Process" {{
-        id: "LF-PROCESS"
-        inputs: ["input_data"]
-        outputs: ["output_data"]
-    }}
-}}'''
+        """An ArcLang component (or physical node) for the description."""
+        template = self.component_template(description, component_type, safety_level)
+        if not self.client:
+            return template
+        return await self._ask(
+            f"Write ONE ArcLang {component_type.lower()} element (the declaration only, "
+            "without the enclosing architecture block) for this description. Give it "
+            "ports and functions only when the description states them.\n\n"
+            f"Description: {description}\nSafety level: {safety_level or 'none'}\n\n"
+            f"Shape to follow:\n{template}",
+            max_tokens=2048,
+        )
 
     async def suggest_architecture(
-        self,
-        requirements: List[str],
-        domain: str = "automotive"
-    ) -> Dict[str, Any]:
-        """Suggest architecture based on requirements."""
+        self, requirements: List[str], domain: str = "automotive"
+    ) -> Optional[Dict[str, Any]]:
+        """Components suggested for the requirements, or None without a model to ask."""
+        if not self.client:
+            return None
+        listed = "\n".join(f"- {requirement}" for requirement in requirements)
+        answer = await self._ask(
+            f"Given these requirements for a {domain} system, suggest an architecture.\n\n"
+            f"Requirements:\n{listed}\n\n"
+            "Answer with JSON only, of this shape:\n"
+            '{"components": [{"name": "...", "type": "Logical", "description": "...", '
+            '"safety_level": "ASIL-B"}], "patterns": ["..."]}',
+            max_tokens=2048,
+            with_syntax=False,
+        )
+        try:
+            return json.loads(answer)
+        except json.JSONDecodeError:
+            return {"components": [], "patterns": [], "unparsed_answer": answer}
 
-        req_list = "\n".join([f"- {req}" for req in requirements])
-
-        prompt = f"""Given these requirements for a {domain} system, suggest an appropriate architecture:
-
-Requirements:
-{req_list}
-
-Suggest:
-1. Main components (5-10 components)
-2. Component types (Logical/Physical)
-3. Safety levels if applicable
-4. Recommended architectural patterns
-
-Provide suggestions in JSON format:
-{{
-    "components": [
-        {{
-            "name": "Component Name",
-            "type": "Logical",
-            "description": "Brief description",
-            "safety_level": "ASIL_B"  // if applicable
-        }}
-    ],
-    "patterns": ["Pattern 1", "Pattern 2"]
-}}"""
-
-        if self.client:
-            message = await self.client.messages.create(
-                model=self.model,
-                max_tokens=2048,
-                temperature=self.temperature,
-                messages=[{"role": "user", "content": prompt}]
+    async def _ask(self, request: str, max_tokens: int, with_syntax: bool = True) -> str:
+        assert self.client is not None
+        prompt = request
+        if with_syntax:
+            prompt = (
+                "ArcLang is a strict language: anything outside its grammar is a compile "
+                "error. This model compiles and shows the syntax to follow:\n\n"
+                f"{reference_model()}\n\n{request}\n\n"
+                "Answer with the ArcLang code only: no explanation, no code fence."
             )
-            try:
-                return json.loads(message.content[0].text.strip())
-            except (json.JSONDecodeError, IndexError, AttributeError):
-                return {"components": [], "patterns": []}
-        else:
-            # Fallback
-            return {
-                "components": [
-                    {"name": "Sensor Interface", "type": "Logical", "description": "Handles sensor data"},
-                    {"name": "Controller", "type": "Logical", "description": "Main control logic"},
-                    {"name": "Actuator Interface", "type": "Logical", "description": "Controls actuators"}
-                ],
-                "patterns": ["Layered Architecture", "Sense-Process-Actuate"]
-            }
-
-    def _generate_requirement_id(self, description: str) -> str:
-        """Generate requirement ID from description."""
-        words = description.split()[:2]
-        prefix = "".join([w[0].upper() for w in words if w])
-        return f"REQ-{prefix}-001"
-
-    def _generate_component_id(self, description: str) -> str:
-        """Generate component ID from description."""
-        words = description.split()[:2]
-        prefix = "".join([w[0].upper() for w in words if w])
-        return f"LC-{prefix}-001"
+        parameters: Dict[str, Any] = {
+            "model": self.model,
+            "max_tokens": max_tokens,
+            "messages": [{"role": "user", "content": prompt}],
+        }
+        if self.temperature is not None:
+            parameters["temperature"] = self.temperature
+        message = await self.client.messages.create(**parameters)
+        text = "".join(block.text for block in message.content if block.type == "text").strip()
+        fenced = re.fullmatch(r"```[a-zA-Z]*\n(.*?)\n?```", text, flags=re.DOTALL)
+        return fenced.group(1).strip() if fenced else text
