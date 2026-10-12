@@ -3,8 +3,11 @@
 //! validation, the production gate and the explorer rendering all run
 //! client-side. There is no server-side compile endpoint at all.
 
-use arclang::compiler::{Compiler, CompilerConfig};
-use serde::Serialize;
+use arclang::compiler::elements::{self, ElementGraph};
+use arclang::compiler::source_edit::{self, Container};
+use arclang::compiler::{CompilationResult, Compiler, CompilerConfig};
+use serde::{Deserialize, Serialize};
+use serde_json::json;
 use wasm_bindgen::prelude::*;
 
 #[derive(Serialize)]
@@ -49,6 +52,9 @@ struct CompileOutput {
     /// components, interfaces, functions, traces, chains, machines,
     /// scenarios and the data model, resolved by the compiler.
     document: Option<serde_json::Value>,
+    /// Every element of the compiled model with its typed attributes, as
+    /// the modelling API lists them: what a properties view edits.
+    elements: Option<serde_json::Value>,
     gate: Option<GateOut>,
     /// OMG SysML v2 textual notation (interop subset).
     sysmlv2: Option<String>,
@@ -108,6 +114,7 @@ fn compile_inner(source: &str) -> CompileOutput {
             explorer_html: None,
             diagrams: None,
             document: None,
+            elements: None,
             gate: None,
             sysmlv2: None,
             reqif: None,
@@ -168,6 +175,7 @@ fn compile_inner(source: &str) -> CompileOutput {
                 explorer_html,
                 diagrams: Some(diagrams),
                 document,
+                elements: Some(elements_json(&elements::build(&result.ast, model))),
                 gate: Some(gate),
                 sysmlv2: Some(arclang::compiler::sysmlv2_generator::generate_sysmlv2(model, &result.ast)),
                 reqif: Some(arclang::compiler::reqif::generate_reqif(model, &result.ast)),
@@ -175,5 +183,216 @@ fn compile_inner(source: &str) -> CompileOutput {
                 proto: Some(arclang::compiler::proto_generator::generate_proto(model, &result.ast)),
             }
         }
+    }
+}
+
+/// The element graph as a properties view reads it.
+fn elements_json(graph: &ElementGraph) -> serde_json::Value {
+    json!({
+        "elements": graph.elements.iter().map(|element| json!({
+            "uuid": element.uuid,
+            "id": element.id,
+            "kind": element.kind,
+            "name": element.name,
+            "owner": element.owner,
+            "attributes": elements::attributes_json(&element.attributes),
+        })).collect::<Vec<_>>(),
+        "relationships": graph.relationships.iter().map(|relationship| json!({
+            "uuid": relationship.uuid,
+            "kind": relationship.kind,
+            "name": relationship.name,
+            "source": relationship.source,
+            "target": relationship.target,
+        })).collect::<Vec<_>>(),
+    })
+}
+
+/// One edit of the model text, as `arclang set`, `unset`, `rename`, the
+/// modelling API's create and delete, and `trace` write it. Attribute
+/// values are ArcLang source (`"text"`, `25 ms`, `[A, B]`).
+#[derive(Deserialize)]
+#[serde(tag = "op", rename_all = "snake_case")]
+enum EditRequest {
+    Set { element: String, key: String, value: String },
+    Unset { element: String, key: String },
+    Rename { element: String, name: String },
+    Add {
+        keyword: String,
+        name: String,
+        #[serde(default)]
+        attributes: Vec<(String, String)>,
+        /// The element the declaration goes into, else a layer.
+        container: Option<String>,
+        layer: Option<String>,
+        layer_name: Option<String>,
+    },
+    Remove { element: String },
+    AddTrace { from: String, kind: String, to: String },
+    RemoveTrace { from: String, kind: String, to: String },
+}
+
+fn compile_text(source: &str) -> Result<CompilationResult, String> {
+    Compiler::new(CompilerConfig { optimization_level: 0, target: "json".to_string() })
+        .compile_string(source)
+        .map_err(|e| e.to_string())
+}
+
+fn identities(graph: &ElementGraph) -> Vec<String> {
+    let mut all: Vec<String> = graph.elements.iter().map(|e| e.uuid.clone()).collect();
+    all.extend(graph.relationships.iter().map(|r| r.uuid.clone()));
+    all.sort();
+    all
+}
+
+/// Apply one edit to ArcLang source; returns a JSON string:
+/// `{success, source}` with the edited text, or `{success: false, error}`.
+/// The edit is refused unless the edited model compiles and shows exactly
+/// what was asked: comments, order and every other declaration are kept.
+#[wasm_bindgen]
+pub fn edit(source: &str, request: &str) -> String {
+    let outcome = edit_inner(source, request);
+    let value = match outcome {
+        Ok(edited) => json!({ "success": true, "source": edited }),
+        Err(error) => json!({ "success": false, "error": error }),
+    };
+    value.to_string()
+}
+
+fn edit_inner(source: &str, request: &str) -> Result<String, String> {
+    let request: EditRequest = serde_json::from_str(request).map_err(|e| format!("invalid edit request: {e}"))?;
+    let edited = match &request {
+        EditRequest::Set { element, key, value } => source_edit::set_attribute(source, element, key, value),
+        EditRequest::Unset { element, key } => source_edit::remove_attribute(source, element, key),
+        EditRequest::Rename { element, name } => source_edit::rename_element(source, element, name),
+        EditRequest::Add { keyword, name, attributes, container, layer, layer_name } => {
+            let container = match (container, layer) {
+                (Some(element), _) => Container::Element(element),
+                (None, Some(layer)) => Container::Layer { keyword: layer, name: layer_name.as_deref() },
+                (None, None) => return Err("an element is added inside an element or a layer".to_string()),
+            };
+            source_edit::add_element(source, container, keyword, name, attributes)
+        }
+        EditRequest::Remove { element } => source_edit::remove_element(source, element),
+        EditRequest::AddTrace { from, kind, to } => source_edit::add_trace(source, from, kind, to),
+        EditRequest::RemoveTrace { from, kind, to } => source_edit::remove_trace(source, &[from.as_str()], kind, &[to.as_str()]),
+    }
+    .map_err(|e| e.to_string())?;
+
+    let compiled = compile_text(&edited).map_err(|e| format!("edit refused: the edited model does not compile: {e}"))?;
+    let after = elements::build(&compiled.ast, &compiled.semantic_model);
+    match &request {
+        EditRequest::Set { element, key, value } => {
+            source_edit::confirm_effect(&after, element, key, value).map_err(|e| e.to_string())?;
+        }
+        EditRequest::Rename { element, name } => {
+            let before_compiled = compile_text(source).map_err(|e| format!("the model does not compile: {e}"))?;
+            let before = elements::build(&before_compiled.ast, &before_compiled.semantic_model);
+            let record = before
+                .elements
+                .iter()
+                .find(|e| &e.id == element)
+                .or_else(|| before.elements.iter().find(|e| &e.name == element))
+                .ok_or_else(|| format!("no element with id or name '{element}'"))?;
+            let renamed = after.elements.iter().find(|e| e.uuid == record.uuid);
+            if renamed.map(|e| e.name.as_str()) != Some(name.as_str()) || identities(&before) != identities(&after) {
+                return Err(format!(
+                    "edit refused: renaming '{}' would change its identity or what refers to it; give it an `id` and refer to it by that id first",
+                    record.name
+                ));
+            }
+            if after.unresolved.len() > before.unresolved.len() {
+                return Err(format!("edit refused: renaming '{}' would leave a relationship without an end", record.name));
+            }
+        }
+        _ => {}
+    }
+    Ok(edited)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const MODEL: &str = r#"model M {
+    name: "M"
+}
+logical_architecture LA {
+    component "Controller" {
+        id: "LC-001"
+        description: "Controls" // kept
+        function "Compute" {}
+    }
+    component "Sensor" {}
+}
+requirements system {
+    req "REQ-001" "Shall compute" {
+        description: "The system shall compute."
+    }
+}
+"#;
+
+    fn parse(outcome: String) -> serde_json::Value {
+        serde_json::from_str(&outcome).expect("json")
+    }
+
+    #[test]
+    fn compile_reports_diagrams_document_and_elements() {
+        let output = parse(compile(MODEL));
+        assert_eq!(output["success"], true);
+        assert!(output["diagrams"]["graphs"].as_array().unwrap().len() >= 1);
+        assert_eq!(output["document"]["components"].as_array().unwrap().len(), 2);
+        let elements = output["elements"]["elements"].as_array().unwrap();
+        let controller = elements.iter().find(|e| e["id"] == "LC-001").expect("controller");
+        assert_eq!(controller["kind"], "LogicalComponent");
+        assert_eq!(controller["attributes"]["description"], "Controls");
+    }
+
+    #[test]
+    fn set_keeps_the_comment_and_shows_the_value() {
+        let output = parse(edit(MODEL, r#"{"op":"set","element":"LC-001","key":"description","value":"\"Controls braking\""}"#));
+        assert_eq!(output["success"], true, "{output}");
+        let source = output["source"].as_str().unwrap();
+        assert!(source.contains("description: \"Controls braking\" // kept"));
+        assert!(source.contains("function \"Compute\" {}"));
+    }
+
+    #[test]
+    fn add_inside_an_element_and_in_a_layer() {
+        let inside = parse(edit(MODEL, r#"{"op":"add","keyword":"function","name":"Filter","container":"LC-001"}"#));
+        assert_eq!(inside["success"], true, "{inside}");
+        assert!(inside["source"].as_str().unwrap().contains("function \"Filter\" {}"));
+        let layer = parse(edit(MODEL, r#"{"op":"add","keyword":"component","name":"Actuator","layer":"logical_architecture","attributes":[["id","\"LC-003\""]]}"#));
+        assert_eq!(layer["success"], true, "{layer}");
+        let source = layer["source"].as_str().unwrap();
+        assert!(source.contains("component \"Actuator\" {"));
+        assert!(source.contains("id: \"LC-003\""));
+    }
+
+    #[test]
+    fn rename_is_refused_when_the_identity_would_change() {
+        let refused = parse(edit(MODEL, r#"{"op":"rename","element":"Sensor","name":"Radar"}"#));
+        assert_eq!(refused["success"], false);
+        assert!(refused["error"].as_str().unwrap().contains("identity"));
+        let renamed = parse(edit(MODEL, r#"{"op":"rename","element":"LC-001","name":"Brake controller"}"#));
+        assert_eq!(renamed["success"], true, "{renamed}");
+        assert!(renamed["source"].as_str().unwrap().contains("component \"Brake controller\" {"));
+    }
+
+    #[test]
+    fn trace_added_then_removed_and_invalid_requests_refused() {
+        let added = parse(edit(MODEL, r#"{"op":"add_trace","from":"LC-001","kind":"satisfies","to":"REQ-001"}"#));
+        assert_eq!(added["success"], true, "{added}");
+        let with_trace = added["source"].as_str().unwrap().to_string();
+        assert!(with_trace.contains("trace \"LC-001\" satisfies \"REQ-001\""));
+        let removed = parse(edit(&with_trace, r#"{"op":"remove_trace","from":"LC-001","kind":"satisfies","to":"REQ-001"}"#));
+        assert_eq!(removed["success"], true, "{removed}");
+        assert!(!removed["source"].as_str().unwrap().contains("satisfies"));
+        let bad = parse(edit(MODEL, r#"{"op":"set","element":"LC-001","key":"description","value":"not a value"}"#));
+        assert_eq!(bad["success"], false);
+        let garbage = parse(edit(MODEL, "nope"));
+        assert_eq!(garbage["success"], false);
+        let unknown = parse(edit(MODEL, r#"{"op":"remove","element":"Nobody"}"#));
+        assert_eq!(unknown["success"], false);
+        assert!(unknown["error"].as_str().unwrap().contains("Nobody"));
     }
 }

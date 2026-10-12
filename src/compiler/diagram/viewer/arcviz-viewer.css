@@ -104,6 +104,138 @@
   display: none;
 }
 
+/* The filter menu: a popover under its button. */
+.arcviz .arcviz-filters {
+  position: relative;
+}
+
+.arcviz .arcviz-filters > summary {
+  display: inline-flex;
+  align-items: center;
+  list-style: none;
+}
+
+.arcviz .arcviz-filters > summary::-webkit-details-marker {
+  display: none;
+}
+
+.arcviz .arcviz-filters[open] > summary {
+  background: var(--av-desk);
+}
+
+.arcviz .arcviz-filter-pop {
+  background: var(--av-sheet);
+  border: 1px solid var(--av-rule);
+  border-radius: 3px;
+  box-shadow: 0 6px 18px rgba(24, 34, 45, 0.16);
+  left: 0;
+  max-height: 24rem;
+  min-width: 14rem;
+  overflow: auto;
+  padding: var(--av-space-1) var(--av-space-2);
+  position: absolute;
+  top: calc(100% + 2px);
+  z-index: 20;
+}
+
+.arcviz .arcviz-filter-title {
+  color: var(--av-muted);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  margin: var(--av-space-1) 0 2px;
+  text-transform: uppercase;
+}
+
+.arcviz .arcviz-filter {
+  align-items: center;
+  cursor: pointer;
+  display: flex;
+  font-size: 0.8125rem;
+  gap: var(--av-space-1);
+  min-height: 1.5rem;
+  white-space: nowrap;
+}
+
+.arcviz .hide-ports .av-port {
+  display: none;
+}
+
+.arcviz .hide-labels .av-edge-label {
+  display: none;
+}
+
+/* The semantic browser: what refers, the element, what it refers to. */
+.arcviz .arcviz-browser {
+  display: grid;
+  gap: var(--av-space-2);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.arcviz .arcviz-browser-column {
+  border-left: 1px solid var(--av-rule);
+  min-width: 0;
+  padding-left: var(--av-space-2);
+}
+
+.arcviz .arcviz-browser-column:first-child {
+  border-left: 0;
+  padding-left: 0;
+}
+
+.arcviz .arcviz-browser h4 {
+  color: var(--av-muted);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  margin: 0 0 var(--av-space-1);
+  text-transform: uppercase;
+}
+
+.arcviz .arcviz-browser-name {
+  font-size: 1rem;
+  font-weight: 600;
+  margin: 0 0 var(--av-space-1);
+}
+
+.arcviz .arcviz-browser dl {
+  display: grid;
+  gap: 2px 0;
+  grid-template-columns: minmax(0, 1fr);
+  margin: 0;
+}
+
+.arcviz .arcviz-browser dt {
+  color: var(--av-muted);
+  font-size: 0.75rem;
+  margin-top: var(--av-space-1);
+}
+
+.arcviz .arcviz-browser dd {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--av-space-1);
+  margin: 0;
+}
+
+.arcviz .arcviz-chip {
+  background: var(--av-desk);
+  border-radius: 3px;
+  font-size: 0.75rem;
+  padding: 0 0.375rem;
+}
+
+@media (max-width: 720px) {
+  .arcviz .arcviz-browser {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .arcviz .arcviz-browser-column {
+    border-left: 0;
+    padding-left: 0;
+  }
+}
+
 .arcviz .arcviz-tool,
 .arcviz .arcviz-chain {
   appearance: none;

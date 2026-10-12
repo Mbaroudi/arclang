@@ -93,7 +93,7 @@
     const render = deps.render;
     const slots = (options && options.slots) || {};
     const onSelect = (options && options.onSelect) || (() => {});
-    const state = { active: null, views: new Map(), layouts: new Map(), arranging: false, chain: null, selected: null, history: [], settled: new Map() };
+    const state = { active: null, views: new Map(), layouts: new Map(), arranging: false, chain: null, selected: null, history: [], settled: new Map(), filters: new Map() };
 
     host.textContent = '';
     host.classList.add('arcviz');
@@ -175,8 +175,16 @@
     const unfoldAll = tool('Unfold all', 'Show what every container holds', () => refold(new Set()));
     // Tools come in groups: moving about, folding, arranging, zooming, saving.
     const group = (label, items) => el('span', { class: 'arcviz-tool-group', role: 'group', 'aria-label': label }, items);
+    // Filters, as a diagram has them in Capella: kinds of boxes and lines
+    // left out of the drawing, ports and labels hidden.
+    const filterList = el('div', { class: 'arcviz-filter-list' });
+    const filterMenu = el('details', { class: 'arcviz-filters' }, [
+      el('summary', { class: 'arcviz-tool', text: 'Filters' }),
+      el('div', { class: 'arcviz-filter-pop' }, [filterList]),
+    ]);
     const toolbar = el('div', { class: 'arcviz-tools', role: 'toolbar', 'aria-label': 'Diagram tools' }, [
       group('Navigation', [treeToggle, back]),
+      group('Filters', [filterMenu]),
       group('Folding', [foldAll, unfoldAll]),
       group('Arrangement', [arrange, resetPlaces, saveLayout]),
       group('Zoom', [
@@ -258,7 +266,10 @@
     host.appendChild(work);
     // The "across layers" section follows the details unless it has a
     // panel of its own, like a semantic browser beside the properties.
-    const related = slots.related || null;
+    // An element of the viewer's own, so a host that moves the chrome
+    // about keeps receiving the selection.
+    const related = slots.related ? el('div', { class: 'arcviz-related-host' }) : null;
+    if (related) slots.related.appendChild(related);
     into('foot', host, hint);
     into('foot', host, pick);
     into('foot', host, el('div', { class: 'arcviz-below' }, [legend]));
@@ -279,12 +290,94 @@
     // A view is laid out once per scope: what is folded, what is open.
     // The automatic layout is computed once; the reader's placement is
     // applied on top of it each time a box is moved.
+    // --- filters --------------------------------------------------------
+    const filtersOf = (view) => {
+      if (!state.filters.has(view)) state.filters.set(view, { nodes: new Set(), edges: new Set(), ports: false, labels: false });
+      return state.filters.get(view);
+    };
+    const filterSignature = (view) => {
+      const filters = filtersOf(view);
+      return `|f:${[...filters.nodes].sort().join(',')}|e:${[...filters.edges].sort().join(',')}`;
+    };
+
+    /** The graph without the kinds filtered out, and the edges that touched them. */
+    function applyFilters(graph, filters) {
+      if (filters.nodes.size === 0 && filters.edges.size === 0) return graph;
+      const gone = new Set();
+      const prune = (node) => {
+        node.children = (node.children || []).filter((child) => {
+          const out = filters.nodes.has((child.arc || {}).kind);
+          if (out) collect(child);
+          return !out;
+        });
+        node.children.forEach(prune);
+      };
+      const collect = (node) => {
+        gone.add(node.id);
+        for (const port of node.ports || []) gone.add(port.id);
+        (node.children || []).forEach(collect);
+      };
+      prune(graph);
+      const touches = (edge) => [...(edge.sources || []), ...(edge.targets || [])].some((end) => gone.has(end))
+        || gone.has((edge.arc || {}).source_node) || gone.has((edge.arc || {}).target_node);
+      const sweep = (holder) => {
+        if (holder.edges) holder.edges = holder.edges.filter((edge) => !filters.edges.has((edge.arc || {}).kind) && !touches(edge));
+        (holder.children || []).forEach(sweep);
+      };
+      sweep(graph);
+      return graph;
+    }
+
+    /** Every kind of box and of line a view may draw, for the filter menu. */
+    function kindsIn(graph) {
+      const nodes = new Set();
+      const edges = new Set();
+      const walk = (holder) => {
+        for (const child of holder.children || []) { nodes.add((child.arc || {}).kind); walk(child); }
+        for (const edge of holder.edges || []) edges.add((edge.arc || {}).kind);
+      };
+      walk(scope.shape(graph));
+      nodes.delete(undefined);
+      edges.delete(undefined);
+      return { nodes: [...nodes], edges: [...edges] };
+    }
+
+    function drawFilterMenu(graph) {
+      filterList.textContent = '';
+      const filters = filtersOf(graph.id);
+      const sequence = render.isSequence(graph);
+      const check = (label, on, change) => el('label', { class: 'arcviz-filter' }, [
+        el('input', { type: 'checkbox', checked: on, onchange: (event) => change(event.currentTarget.checked) }),
+        el('span', { text: label }),
+      ]);
+      const apply = () => { state.views.delete(scope.key(graph.id) + filterSignature(graph.id)); redraw(); };
+      const kinds = kindsIn(graph);
+      if (!sequence) {
+        filterList.appendChild(el('p', { class: 'arcviz-filter-title', text: 'Show' }));
+        filterList.appendChild(check('Ports', !filters.ports, (on) => { filters.ports = !on; canvas.classList.toggle('hide-ports', filters.ports); }));
+        filterList.appendChild(check('Labels of lines', !filters.labels, (on) => { filters.labels = !on; canvas.classList.toggle('hide-labels', filters.labels); }));
+      }
+      if (kinds.nodes.length > 0) filterList.appendChild(el('p', { class: 'arcviz-filter-title', text: 'Boxes' }));
+      for (const kind of kinds.nodes) {
+        if (kind === 'lifeline' || kind === 'initial_state') continue;
+        filterList.appendChild(check(render.nodeStyle(kind).label, !filters.nodes.has(kind), (on) => { if (on) filters.nodes.delete(kind); else filters.nodes.add(kind); apply(); }));
+      }
+      if (kinds.edges.length > 0) filterList.appendChild(el('p', { class: 'arcviz-filter-title', text: 'Lines' }));
+      for (const kind of kinds.edges) {
+        filterList.appendChild(check(render.edgeStyle(kind).label, !filters.edges.has(kind), (on) => { if (on) filters.edges.delete(kind); else filters.edges.add(kind); apply(); }));
+      }
+      const active = filters.nodes.size + filters.edges.size + (filters.ports ? 1 : 0) + (filters.labels ? 1 : 0);
+      filterMenu.querySelector('summary').textContent = active > 0 ? `Filters (${active})` : 'Filters';
+      canvas.classList.toggle('hide-ports', filters.ports);
+      canvas.classList.toggle('hide-labels', filters.labels);
+    }
+
     function layout(graph, shown) {
-      const key = scope.key(graph.id, shown);
+      const key = scope.key(graph.id, shown) + filterSignature(graph.id);
       if (state.views.has(key)) return state.views.get(key);
       if (!state.layouts.has(key)) {
         // Scenarios are drawn as declared; everything else goes through ELK.
-        const copy = JSON.parse(JSON.stringify(scope.shape(graph, shown)));
+        const copy = applyFilters(JSON.parse(JSON.stringify(scope.shape(graph, shown))), filtersOf(graph.id));
         state.layouts.set(key, render.isSequence(graph) ? Promise.resolve(copy) : new deps.ELK().layout(copy));
       }
       const pending = state.layouts.get(key).then((laidOut) => {
@@ -297,7 +390,7 @@
 
     /** The active view once laid out, or null if it failed or is absent. */
     async function activeView() {
-      const pending = state.views.get(scope.key(state.active));
+      const pending = state.views.get(scope.key(state.active) + filterSignature(state.active));
       if (!pending) return null;
       try {
         return await pending;
@@ -324,8 +417,8 @@
     /** Change the scope of a view, dropping the layout it replaces. */
     function rescope(id, change) {
       // The whole view is kept for printing; any other is recomputed.
-      const before = scope.key(id);
-      if (before !== scope.key(id, scope.WHOLE)) {
+      const before = scope.key(id) + filterSignature(id);
+      if (scope.key(id) !== scope.key(id, scope.WHOLE)) {
         state.views.delete(before);
         state.layouts.delete(before);
       }
@@ -384,7 +477,7 @@
     async function replace(change) {
       const view = state.active;
       const where = sheet.position();
-      state.views.delete(scope.key(view));
+      state.views.delete(scope.key(view) + filterSignature(view));
       change();
       await redraw();
       if (state.active !== view) return;
@@ -545,6 +638,7 @@
         fit();
         drawChains(graph);
         drawCrumbs(graph);
+        drawFilterMenu(graph);
         drawLegend(view);
         drawNotes(graph);
         drawPicker(view);
@@ -640,6 +734,15 @@
       }
     }
 
+    /** A node's ports as `in Name (Interface)`. */
+    function portLabels(node) {
+      return (node.ports || []).map((port) => {
+        const arc = port.arc;
+        const carried = arc.interface ? ` (${arc.interface})` : '';
+        return `${arc.direction === 'undirected' ? '' : arc.direction + ' '}${arc.name}${carried}`;
+      });
+    }
+
     function row(list, term, value) {
       if (!value) return;
       list.appendChild(el('dt', { text: term }));
@@ -674,12 +777,7 @@
         if (entry.parent) row(list, 'Inside', view.index.nodes.get(entry.parent).node.labels[0].text);
         row(list, 'Realizes', (node.arc.realizes || []).join(', '));
         for (const [key, value] of Object.entries(node.arc.properties || {})) row(list, key.replace(/_/g, ' '), value);
-        const ports = (node.ports || []).map((port) => {
-          const arc = port.arc;
-          const carried = arc.interface ? ` (${arc.interface})` : '';
-          return `${arc.direction === 'undirected' ? '' : arc.direction + ' '}${arc.name}${carried}`;
-        });
-        row(list, 'Ports', ports.join(', '));
+        row(list, 'Ports', portLabels(node).join(', '));
       }
       if (isEdge) {
         details.appendChild(list);
@@ -688,7 +786,19 @@
       }
       // Where the element leads comes first: it is what the reader acts on.
       const id = entry.node.id;
-      (related || details).appendChild(nav.related(state.active, id));
+      if (related) {
+        const node = entry.node;
+        const parent = entry.parent ? view.index.nodes.get(entry.parent).node : null;
+        related.appendChild(nav.browser(state.active, id, {
+          name: displayName(node, render.nodeStyle(node.arc.kind).label),
+          kind: render.nodeStyle(node.arc.kind).label,
+          inside: parent ? parent.labels[0].text : null,
+          insideId: parent ? parent.id : null,
+          ports: portLabels(node),
+        }));
+      } else {
+        details.appendChild(nav.related(state.active, id));
+      }
       details.appendChild(list);
       if (canFold(id)) {
         const folded = foldedOf(state.active).has(id);
