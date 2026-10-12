@@ -49,6 +49,30 @@ fn check_keyword(keyword: &str) -> Result<(), EditError> {
 }
 
 impl Document {
+    /// A declaration without a block: `keyword Name` alone on its line,
+    /// as a function allocated by name is written. The lexeme indexes of
+    /// its first and last token.
+    fn find_bare_declaration(&self, element: &str) -> Option<(usize, usize)> {
+        let lexemes = &self.lexemes;
+        (0..lexemes.len().saturating_sub(1)).find_map(|index| {
+            let keyword = token(&lexemes[index])?.keyword_text()?;
+            if !matches!(keyword, "function" | "activity" | "operational_activity" | "deploys") {
+                return None;
+            }
+            let name = match token(&lexemes[index + 1])? {
+                Token::StringLiteral(text) => text.as_str(),
+                Token::Identifier(text) => text.as_str(),
+                _ => return None,
+            };
+            if name != element {
+                return None;
+            }
+            let own_line = lexemes[index].newlines_before > 0 || index == 0;
+            let ends_line = lexemes.get(index + 2).is_none_or(|next| next.newlines_before > 0 || matches!(token(next), Some(Token::RightBrace)));
+            (own_line && ends_line).then_some((index, index + 1))
+        })
+    }
+
     fn find_layer(&self, keyword: &str, name: Option<&str>) -> Result<Block, EditError> {
         let described = match name {
             Some(name) => format!("{keyword} \"{name}\""),
@@ -139,6 +163,15 @@ fn changed<'v>(before: &'v Value, after: &'v Value, path: String, found: &mut Ve
 }
 
 /// Whether `longer` is `shorter` with exactly one item inserted.
+/// How many values a syntax tree holds, wherever they stand.
+fn count_leaves(value: &Value) -> usize {
+    match value {
+        Value::Array(items) => items.iter().map(count_leaves).sum(),
+        Value::Object(map) => map.values().map(count_leaves).sum(),
+        _ => 1,
+    }
+}
+
 fn one_more(shorter: &[Value], longer: &[Value]) -> bool {
     longer.len() == shorter.len() + 1
         && (0..longer.len()).any(|skipped| {
@@ -216,6 +249,54 @@ pub fn add_element(
     };
     let edited = document.insert_declaration(&block, &declaration);
     verify_one_declaration(source, &edited, true)?;
+    Ok(edited)
+}
+
+/// Move the declaration of `element`, with everything declared inside it,
+/// into `container`, as its last declaration: a function reallocated to
+/// another component, a behaviour component deployed on another node, a
+/// component nested elsewhere. The text of the declaration is kept as
+/// written. The caller checks on the compiled model that every element
+/// kept its identity.
+pub fn move_element(source: &str, element: &str, container: Container) -> Result<String, EditError> {
+    let document = Document::read(source)?;
+    // A declaration with no block (`function "Name"` on its line) is
+    // moved as that line.
+    let (start, end, block_open) = match document.find_element(element) {
+        Ok(block) => (document.header_start(&block), block.close, block.open),
+        Err(EditError::NotFound(_)) => {
+            let (start, end) = document.find_bare_declaration(element).ok_or_else(|| EditError::NotFound(element.to_string()))?;
+            (start, end, start)
+        }
+        Err(other) => return Err(other),
+    };
+    let block = Block { open: block_open, close: end };
+    let text: String = document.chars[document.lexemes[start].offset..document.end_of(end)].iter().collect();
+    let declaration = text.trim().to_string();
+    let target = match container {
+        Container::Element(other) => document.find_element(other)?,
+        Container::Layer { keyword, name } => document.find_layer(keyword, name)?,
+    };
+    if target.open > block.open && target.close < block.close {
+        return Err(EditError::Unsafe(format!("'{element}' cannot be moved inside something it holds")));
+    }
+    if target.open == block.open {
+        return Err(EditError::Unsafe(format!("'{element}' cannot be moved into itself")));
+    }
+    // Remove first, then find the container again in the shorter text.
+    let removed = document.remove_range(start, end);
+    let shorter = Document::read(&removed)?;
+    let target = match container {
+        Container::Element(other) => shorter.find_element(other)?,
+        Container::Layer { keyword, name } => shorter.find_layer(keyword, name)?,
+    };
+    let edited = shorter.insert_declaration(&target, &declaration);
+    // The declarations are the same, one of them elsewhere.
+    let before = syntax_tree(source, "the model")?;
+    let after = syntax_tree(&edited, "the edited model")?;
+    if count_leaves(&before) != count_leaves(&after) {
+        return Err(EditError::Unsafe(format!("moving '{element}' would not keep the model's declarations")));
+    }
     Ok(edited)
 }
 

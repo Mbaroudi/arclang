@@ -86,6 +86,9 @@
    *             keeps that chrome in the host, as the standalone page has it.
    *   onSelect: (selection | null) => void, called whenever the selection
    *             changes, with { view, id, name, kind, isEdge }.
+   *   onDrop:   ({ view, from, to }) => void, when a box is dragged and let
+   *             go on another box (`to`) or on the background (`to` null),
+   *             outside arrange mode. Given, dragging a box is that gesture.
    */
   function mount(host, payload, deps, options) {
     const graphs = payload.graphs || [];
@@ -93,6 +96,7 @@
     const render = deps.render;
     const slots = (options && options.slots) || {};
     const onSelect = (options && options.onSelect) || (() => {});
+    const onDrop = options && options.onDrop;
     const state = { active: null, views: new Map(), layouts: new Map(), arranging: false, chain: null, selected: null, history: [], settled: new Map(), filters: new Map() };
 
     host.textContent = '';
@@ -676,6 +680,7 @@
       },
       carried: (id) => carried(id),
       onMove: (id, dx, dy) => moveBy(id, dx, dy),
+      onDrop: onDrop ? (from, to) => onDrop({ view: state.active, from, to }) : null,
     });
     const fit = sheet.fit;
 

@@ -350,6 +350,32 @@
   cursor: grabbing;
 }
 
+/* A box dragged towards another: the line follows the pointer, the box
+   under it is marked. */
+.arcviz .arcviz-stage.is-dragging {
+  cursor: copy;
+}
+
+.arcviz .arcviz-ghost {
+  height: 100%;
+  left: 0;
+  pointer-events: none;
+  position: absolute;
+  top: 0;
+  width: 100%;
+}
+
+.arcviz .arcviz-ghost line {
+  stroke: var(--av-accent);
+  stroke-dasharray: 6 4;
+  stroke-width: 2;
+}
+
+.arcviz .av-node.is-drop-target > .av-shape {
+  stroke: var(--av-accent);
+  stroke-width: 3.5;
+}
+
 /* Arrange mode: boxes are what the pointer takes hold of. */
 .arcviz .arcviz-stage.is-arranging .av-node {
   cursor: move;

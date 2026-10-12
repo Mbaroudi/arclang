@@ -22,7 +22,7 @@ use std::path::Path;
 
 mod structure;
 
-pub use structure::{add_element, add_trace, remove_element, remove_trace, rename_element, string_literal, Container};
+pub use structure::{add_element, add_trace, move_element, remove_element, remove_trace, rename_element, string_literal, Container};
 
 /// One declaration of the source, where it stands: what an outline or a
 /// "go to definition" needs, read from the text itself.
@@ -435,8 +435,19 @@ impl Document {
         }
     }
 
+    /// The `name:` written in the block, when there is one: the display
+    /// name of an element declared by an identifier.
+    fn written_name(&self, block: &Block) -> Option<String> {
+        let attribute = self.find_attribute(block, "name")?;
+        match token(&self.lexemes[attribute.value_start])? {
+            Token::StringLiteral(text) => Some(text.clone()),
+            _ => None,
+        }
+    }
+
     /// The one block declaring `element`: by its written `id`, and when no
-    /// block carries that id, by name among the blocks that write no id.
+    /// block carries that id, by name among the blocks that write no id —
+    /// the name on the declaration line, or the `name:` written inside.
     fn find_element(&self, element: &str) -> Result<Block, EditError> {
         let blocks = self.blocks();
         let ids: Vec<Option<String>> = blocks.iter().map(|block| self.written_id(block)).collect();
@@ -444,7 +455,10 @@ impl Document {
         let matches = if by_id.is_empty() {
             (0..blocks.len())
                 .filter(|i| ids[*i].is_none() && !self.is_relationship(&blocks[*i]))
-                .filter(|i| self.header_name(&blocks[*i]).as_deref() == Some(element))
+                .filter(|i| {
+                    self.header_name(&blocks[*i]).as_deref() == Some(element)
+                        || self.written_name(&blocks[*i]).as_deref() == Some(element)
+                })
                 .collect()
         } else {
             by_id

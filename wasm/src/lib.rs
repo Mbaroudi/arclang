@@ -272,6 +272,9 @@ enum EditRequest {
         layer_name: Option<String>,
     },
     Remove { element: String },
+    /// Move an element's declaration into another element (or a layer):
+    /// a function reallocated, a component nested or deployed elsewhere.
+    Move { element: String, container: Option<String>, layer: Option<String>, layer_name: Option<String> },
     AddTrace { from: String, kind: String, to: String },
     RemoveTrace { from: String, kind: String, to: String },
 }
@@ -318,6 +321,14 @@ fn edit_inner(source: &str, request: &str) -> Result<String, String> {
             source_edit::add_element(source, container, keyword, name, attributes)
         }
         EditRequest::Remove { element } => source_edit::remove_element(source, element),
+        EditRequest::Move { element, container, layer, layer_name } => {
+            let container = match (container, layer) {
+                (Some(other), _) => Container::Element(other),
+                (None, Some(layer)) => Container::Layer { keyword: layer, name: layer_name.as_deref() },
+                (None, None) => return Err("an element is moved into an element or a layer".to_string()),
+            };
+            source_edit::move_element(source, element, container)
+        }
         EditRequest::AddTrace { from, kind, to } => source_edit::add_trace(source, from, kind, to),
         EditRequest::RemoveTrace { from, kind, to } => source_edit::remove_trace(source, &[from.as_str()], kind, &[to.as_str()]),
     }
@@ -328,6 +339,19 @@ fn edit_inner(source: &str, request: &str) -> Result<String, String> {
     match &request {
         EditRequest::Set { element, key, value } => {
             source_edit::confirm_effect(&after, element, key, value).map_err(|e| e.to_string())?;
+        }
+        EditRequest::Move { element, .. } => {
+            // Every element keeps its identity; what referred to the moved one still does.
+            let before_compiled = compile_text(source).map_err(|e| format!("the model does not compile: {e}"))?;
+            let before = elements::build(&before_compiled.ast, &before_compiled.semantic_model);
+            if identities(&before) != identities(&after) {
+                return Err(format!(
+                    "edit refused: moving '{element}' would change identities or what refers to it; give it an `id` and refer to it by that id first"
+                ));
+            }
+            if after.unresolved.len() > before.unresolved.len() {
+                return Err(format!("edit refused: moving '{element}' would leave a reference without an end"));
+            }
         }
         EditRequest::Rename { element, name } => {
             let before_compiled = compile_text(source).map_err(|e| format!("the model does not compile: {e}"))?;
@@ -464,5 +488,38 @@ mod connect_tests {
         let lab = output["diagrams"]["graphs"].as_array().unwrap().iter().find(|g| g["id"] == "lab").unwrap();
         assert_eq!(lab["edges"].as_array().unwrap().len(), 1);
         assert!(serde_json::from_str::<serde_json::Value>(&edit(model, r#"{"op":"add","keyword":"port sideways","name":"X","container":"LC-A"}"#)).unwrap()["success"] == false);
+    }
+
+    #[test]
+    fn an_element_declared_by_identifier_is_found_by_its_written_name() {
+        let model = "logical_architecture LA {\n    component A {\n        id: \"LC-A\"\n        function Apply {\n            name: \"Apply braking force\"\n        }\n        function \"Bare one\"\n    }\n    component B { id: \"LC-B\" }\n}\n";
+        let moved: serde_json::Value = serde_json::from_str(&edit(model, r#"{"op":"move","element":"Apply braking force","container":"LC-B"}"#)).unwrap();
+        assert_eq!(moved["success"], true, "{moved}");
+        let text = moved["source"].as_str().unwrap();
+        assert!(text.find("function Apply").unwrap() > text.find("component B").unwrap(), "{text}");
+        // A declaration with no block moves as its line.
+        let bare: serde_json::Value = serde_json::from_str(&edit(model, r#"{"op":"move","element":"Bare one","container":"LC-B"}"#)).unwrap();
+        assert_eq!(bare["success"], true, "{bare}");
+        let text = bare["source"].as_str().unwrap();
+        assert!(text.find("function \"Bare one\"").unwrap() > text.find("component B").unwrap(), "{text}");
+        assert_eq!(text.matches("Bare one").count(), 1);
+    }
+
+    #[test]
+    fn a_function_moves_to_another_component_and_keeps_its_identity() {
+        let model = "logical_architecture LA {\n    component \"A\" {\n        id: \"LC-A\"\n        function \"Compute\" { id: \"LF-C\" description: \"kept\" }\n    }\n    component \"B\" { id: \"LC-B\" }\n}\ntrace \"LF-C\" realizes \"LC-B\"\n";
+        let moved: serde_json::Value = serde_json::from_str(&edit(model, r#"{"op":"move","element":"LF-C","container":"LC-B"}"#)).unwrap();
+        assert_eq!(moved["success"], true, "{moved}");
+        let text = moved["source"].as_str().unwrap();
+        let a = text.find("component \"A\"").unwrap();
+        let b = text.find("component \"B\"").unwrap();
+        let function = text.find("function \"Compute\" { id: \"LF-C\" description: \"kept\" }").expect("the declaration, as written");
+        assert!(function > b && b > a, "{text}");
+        let output: serde_json::Value = serde_json::from_str(&compile(text)).unwrap();
+        assert_eq!(output["success"], true);
+        let refused: serde_json::Value = serde_json::from_str(&edit(model, r#"{"op":"move","element":"LC-B","container":"LF-C"}"#)).unwrap();
+        assert!(refused["success"] == false || refused["source"].as_str().is_some());
+        let into_itself: serde_json::Value = serde_json::from_str(&edit(model, r#"{"op":"move","element":"LC-A","container":"LC-A"}"#)).unwrap();
+        assert_eq!(into_itself["success"], false);
     }
 }

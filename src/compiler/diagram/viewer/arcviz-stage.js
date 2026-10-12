@@ -24,9 +24,25 @@
    * @param {Function} deps.onKey      (event) -> true when the viewer handled the key
    * @param {Function} deps.carried    (node id) -> ids that move with it, [] if it cannot move
    * @param {Function} deps.onMove     (node id, dx, dy) in sheet units, when a box is dropped
+   * @param {Function} deps.onDrop     optional: (node id, node id under the pointer or null)
+   *                                   when a box is dragged and let go outside arrange mode;
+   *                                   given, a drag on a box is that gesture, not a pan
    */
   function create(deps) {
-    const { stage, canvas, viewSize, onPick, onOpen, onKey, carried, onMove } = deps;
+    const { stage, canvas, viewSize, onPick, onOpen, onKey, carried, onMove, onDrop } = deps;
+    // The line drawn from a dragged box to the pointer.
+    const ghost = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    ghost.setAttribute('class', 'arcviz-ghost');
+    ghost.setAttribute('aria-hidden', 'true');
+    const ghostLine = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    ghost.appendChild(ghostLine);
+    let dropTarget = null;
+    const markTarget = (node) => {
+      if (dropTarget === node) return;
+      if (dropTarget) dropTarget.classList.remove('is-drop-target');
+      dropTarget = node;
+      if (dropTarget) dropTarget.classList.add('is-drop-target');
+    };
     const at = { scale: 1, x: 0, y: 0 };
     let arranging = false;
 
@@ -78,12 +94,14 @@
     let drag = null;
     stage.addEventListener('pointerdown', (event) => {
       if (event.button !== 0) return;
-      drag = { x: event.clientX, y: event.clientY, startX: event.clientX, startY: event.clientY, moved: false, box: null };
+      drag = { x: event.clientX, y: event.clientY, startX: event.clientX, startY: event.clientY, moved: false, box: null, from: null };
+      const hit = under(event);
+      const node = hit && hit.closest ? hit.closest('.av-node') : null;
       if (arranging) {
-        const hit = under(event);
-        const node = hit && hit.closest ? hit.closest('.av-node') : null;
         const ids = node ? carried(node.dataset.id) : [];
         if (ids.length > 0) drag.box = { id: node.dataset.id, groups: groupsOf(ids) };
+      } else if (onDrop && node) {
+        drag.from = node;
       }
       stage.setPointerCapture(event.pointerId);
     });
@@ -93,6 +111,21 @@
       const dy = event.clientY - drag.y;
       if (!drag.moved && Math.hypot(event.clientX - drag.startX, event.clientY - drag.startY) < CLICK_SLOP) return;
       drag.moved = true;
+      if (drag.from) {
+        // A line from the box to the pointer, and the box under it marked.
+        if (!ghost.isConnected) stage.appendChild(ghost);
+        const frame = stage.getBoundingClientRect();
+        const box = drag.from.getBoundingClientRect();
+        ghostLine.setAttribute('x1', String(box.left + box.width / 2 - frame.left));
+        ghostLine.setAttribute('y1', String(box.top + box.height / 2 - frame.top));
+        ghostLine.setAttribute('x2', String(event.clientX - frame.left));
+        ghostLine.setAttribute('y2', String(event.clientY - frame.top));
+        const over = under(event);
+        const target = over && over.closest ? over.closest('.av-node') : null;
+        markTarget(target && target !== drag.from ? target : null);
+        stage.classList.add('is-dragging');
+        return;
+      }
       if (drag.box) {
         // The box follows the pointer; its exchanges are redrawn on drop.
         const shift = `translate(${(event.clientX - drag.startX) / at.scale} ${(event.clientY - drag.startY) / at.scale})`;
@@ -107,7 +140,9 @@
     });
     const release = () => {
       drag = null;
-      stage.classList.remove('is-panning', 'is-moving');
+      stage.classList.remove('is-panning', 'is-moving', 'is-dragging');
+      if (ghost.isConnected) ghost.remove();
+      markTarget(null);
     };
     stage.addEventListener('pointerup', (event) => {
       const done = drag;
@@ -115,6 +150,11 @@
       if (!done) return;
       if (!done.moved) onPick(under(event));
       else if (done.box) onMove(done.box.id, (event.clientX - done.startX) / at.scale, (event.clientY - done.startY) / at.scale);
+      else if (done.from) {
+        const over = under(event);
+        const target = over && over.closest ? over.closest('.av-node') : null;
+        onDrop(done.from.dataset.id, target && target !== done.from ? target.dataset.id : null);
+      }
     });
     stage.addEventListener('pointercancel', () => {
       if (drag && drag.box) for (const group of drag.box.groups) group.removeAttribute('transform');
