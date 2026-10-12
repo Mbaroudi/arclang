@@ -114,6 +114,7 @@ impl CapellaImporter {
         };
         
         Ok(Model {
+            diagrams: Vec::new(),
             classes: Vec::new(),
             test_cases: Vec::new(),
             constraints: Vec::new(),

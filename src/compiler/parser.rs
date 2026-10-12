@@ -120,6 +120,9 @@ impl Parser {
                 Token::StateMachineKw => {
                     model.state_machines.push(self.parse_state_machine()?);
                 }
+                Token::DiagramKw if !self.peek_is_colon() => {
+                    model.diagrams.push(self.parse_diagram()?);
+                }
                 Token::Class => {
                     model.classes.push(self.parse_class()?);
                 }
@@ -247,6 +250,9 @@ impl Parser {
                 Token::StateMachineKw => {
                     model.state_machines.push(self.parse_state_machine()?);
                 }
+                Token::DiagramKw if !self.peek_is_colon() => {
+                    model.diagrams.push(self.parse_diagram()?);
+                }
                 Token::Class => {
                     model.classes.push(self.parse_class()?);
                 }
@@ -333,6 +339,9 @@ impl Parser {
                 }
                 Token::StateMachineKw => {
                     model.state_machines.push(self.parse_state_machine()?);
+                }
+                Token::DiagramKw if !self.peek_is_colon() => {
+                    model.diagrams.push(self.parse_diagram()?);
                 }
                 Token::Class => {
                     model.classes.push(self.parse_class()?);
@@ -484,6 +493,9 @@ impl Parser {
                 }
                 Token::StateMachineKw => {
                     model.state_machines.push(self.parse_state_machine()?);
+                }
+                Token::DiagramKw if !self.peek_is_colon() => {
+                    model.diagrams.push(self.parse_diagram()?);
                 }
                 Token::Class => {
                     model.classes.push(self.parse_class()?);
@@ -1054,6 +1066,38 @@ impl Parser {
         self.expect(Token::RightBrace)?;
 
         Ok(StateMachine { name, initial_state, states, transitions })
+    }
+
+    /// Parse: diagram "Name" { view: lab shows: [A, B] context: true }
+    fn parse_diagram(&mut self) -> Result<DiagramDecl, String> {
+        self.expect(Token::DiagramKw)?;
+        let name = self.expect_name()?;
+        let attributes = self.parse_attributes_block()?;
+        let view = attributes
+            .get("view")
+            .and_then(|value| value.as_string())
+            .map(str::to_string)
+            .ok_or_else(|| {
+                self.err(format!(
+                    "diagram '{name}' needs `view: lab` (one of oab, sab, lab, pab, cap, cdb, pbs)"
+                ))
+            })?;
+        let shows = match attributes.get("shows") {
+            Some(AttributeValue::List(items)) => items
+                .iter()
+                .filter_map(|item| item.as_string().map(str::to_string))
+                .collect(),
+            Some(AttributeValue::String(one)) => vec![one.clone()],
+            Some(_) => return Err(self.err(format!("diagram '{name}': `shows` is a list of element ids or names"))),
+            None => Vec::new(),
+        };
+        let context = match attributes.get("context") {
+            Some(AttributeValue::Boolean(flag)) => *flag,
+            Some(AttributeValue::String(text)) => text == "true",
+            _ => false,
+        };
+        let description = attributes.get("description").and_then(|value| value.as_string()).map(str::to_string);
+        Ok(DiagramDecl { name, view, shows, context, description, attributes })
     }
 
     /// Parse: scenarios [Name] { scenario A { ... } scenario B { ... } }

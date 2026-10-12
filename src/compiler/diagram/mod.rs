@@ -36,6 +36,7 @@ mod elements;
 pub mod elk;
 mod functions;
 pub mod html;
+mod named;
 pub mod layout_file;
 mod links;
 mod logical;
@@ -334,7 +335,11 @@ pub fn build_diagrams(model: &Model) -> DiagramSet {
 
     let mut diagrams: Vec<Diagram> = Vec::new();
     let mut diagnostics: Vec<String> = Vec::new();
-    for (diagram, found) in built {
+    let built: Vec<(Option<Diagram>, Vec<String>)> = built.collect();
+    // Declared diagrams are cut from the views once those are built.
+    let views: Vec<Diagram> = built.iter().filter_map(|(diagram, _)| diagram.clone()).collect();
+    let declared = named::build(model, &views);
+    for (diagram, found) in built.into_iter().chain(declared) {
         let Some(mut diagram) = diagram else {
             diagnostics.extend(found);
             continue;

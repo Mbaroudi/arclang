@@ -36,6 +36,24 @@ pub struct Model {
     /// User-defined types (`type Name extends Base { ... }`).
     #[serde(default)]
     pub types: Vec<TypeDef>,
+    /// Diagrams declared by the author: a named view of chosen elements,
+    /// as Capella diagrams show what was put on them rather than a layer.
+    #[serde(default)]
+    pub diagrams: Vec<DiagramDecl>,
+}
+
+/// `diagram "Name" { view: lab shows: [A, B] context: true }`.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DiagramDecl {
+    pub name: String,
+    /// The view it is cut from: `oab`, `sab`, `lab`, `pab`, `cap`, `cdb`, `pbs`.
+    pub view: String,
+    /// Elements drawn, by id or name; what holds them is drawn around them.
+    pub shows: Vec<String>,
+    /// Also draw the elements an exchange ties to a shown one.
+    pub context: bool,
+    pub description: Option<String>,
+    pub attributes: HashMap<String, AttributeValue>,
 }
 
 impl Model {
@@ -58,6 +76,7 @@ impl Model {
             test_cases: Vec::new(),
             constraints: Vec::new(),
             types: Vec::new(),
+            diagrams: Vec::new(),
         }
     }
     

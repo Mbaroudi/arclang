@@ -56,6 +56,7 @@ TopLevelBlock   ::= RequirementsBlock
                   | Epbs
                   | SafetyAnalysis
                   | TraceDecl
+                  | DiagramDecl
                   | UnmodeledBlock ;          (* warning emitted *)
 
 (* ---- Requirements ---------------------------------------------------------- *)
@@ -321,6 +322,18 @@ Primary         ::= Quantity | Number
                        capability). Members without attributes of their own
                        (exchanges) are not operands; a member lacking the
                        aggregated attribute is an ERROR naming it. *)
+
+(* ---- Diagrams ------------------------------------------------------------- *)
+
+(* A named diagram cut from one view: the elements it names (by id or name),
+   what holds them, and the exchanges between drawn elements. `context: true`
+   adds the elements an exchange ties to a named one. A view the model does
+   not draw, or a name no element answers to, is reported by the viewer. *)
+DiagramDecl     ::= "diagram" Name "{" DiagramAttribute* "}" ;
+DiagramAttribute ::= "view" ":" ( "oab" | "sab" | "lab" | "pab" | "cap" | "cdb" | "pbs" | String )
+                   | "shows" ":" "[" ( Name ( "," Name )* )? "]"
+                   | "context" ":" ( "true" | "false" )
+                   | "description" ":" String ;
 
 (* ---- Modes & States (Arcadia transverse) -------------------------------------------------- *)
 

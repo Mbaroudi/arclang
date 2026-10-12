@@ -413,6 +413,13 @@ impl Metamodel {
                     attr("timing", AttrType::Quantity(Dimension::Time), "Timing constraint."),
                     attr("priority", AttrType::Number, "Priority among concurrent transitions."),
                 ]),
+            kind("Diagram", Layer::Transverse, "Diagram (DiagramRepresentation)", "view", "A declared diagram: a named view cut from one Arcadia level, drawing the elements it names, what holds them and the exchanges between them. `context: true` adds the elements an exchange ties to a named one.",
+                vec![
+                    attr("view", AttrType::Identifier, "The view it is cut from: oab, sab, lab, pab, cap, cdb or pbs."),
+                    attr("shows", list(AttrType::Reference("Element")), "Elements drawn, by id or name; their containers are drawn around them."),
+                    attr("context", AttrType::Boolean, "Also draw the elements an exchange ties to a shown one."),
+                    attr("description", AttrType::Text, "Free-text description."),
+                ]),
             kind("Scenario", Layer::Transverse, "Scenario", "interaction (sequence)", "Sequence of messages between participants.",
                 concat(vec![common(), vec![attr("participants", list(AttrType::Reference("Element")), "Lifelines.")]])),
             kind("Message", Layer::Transverse, "SequenceMessage", "message", "Message between two participants.",

@@ -1499,3 +1499,58 @@ fn breakdown_level_does_not_overwrite_an_attribute_named_level() {
         Some("item")
     );
 }
+
+#[test]
+fn a_declared_diagram_is_cut_from_its_view_with_containers_and_context() {
+    let set = diagrams_of(
+        r#"
+logical_architecture LA {
+    component "Perception" {
+        id: "LC-P"
+        component "Radar" { id: "LC-R" function "Detect" {} }
+        component "Camera" { id: "LC-C" }
+    }
+    component "Decision" { id: "LC-D" }
+    component "Actuation" { id: "LC-A" }
+    component_exchange "tracks" { from: "LC-R" to: "LC-D" }
+    component_exchange "command" { from: "LC-D" to: "LC-A" }
+}
+diagram "Radar to decision" {
+    view: lab
+    shows: ["LC-R"]
+    context: true
+}
+diagram "By name" {
+    view: lab
+    shows: [Actuation, "Nobody"]
+}
+diagram "Elsewhere" {
+    view: pab
+    shows: ["LC-R"]
+}
+"#,
+    );
+    let names = |nodes: &[Node]| -> Vec<String> { nodes.iter().map(|n| n.name.clone()).collect() };
+
+    let cut = set.diagrams.iter().find(|d| d.id == "lab:Radar to decision").expect("declared diagram");
+    assert_eq!(cut.kind, ViewKind::Lab);
+    assert_eq!(cut.title, "Radar to decision");
+    // The container of the radar is drawn around it, without its other child.
+    assert_eq!(names(&cut.nodes), ["Perception", "Decision"]);
+    let perception = &cut.nodes[0];
+    assert_eq!(names(&perception.children), ["Radar"]);
+    // A wanted element comes whole: its function is drawn.
+    assert_eq!(names(&perception.children[0].children), ["Detect"]);
+    // Only the exchange between drawn elements is drawn.
+    assert_eq!(cut.edges.iter().map(|e| e.label.as_str()).collect::<Vec<_>>(), ["tracks"]);
+
+    let by_name = set.diagrams.iter().find(|d| d.id == "lab:By name").expect("by name");
+    assert_eq!(names(&by_name.nodes), ["Actuation"]);
+    assert!(set.diagnostics.iter().any(|line| line.starts_with("[lab:By name] 'Nobody' is not drawn in the")), "{:?}", set.diagnostics);
+
+    // No physical view in this model: the declaration is reported, not drawn.
+    assert!(set.diagrams.iter().all(|d| d.id != "pab:Elsewhere"));
+    assert!(set.diagnostics.iter().any(|line| line.starts_with("[pab:Elsewhere] the model draws no Physical")));
+    // The whole view is still there, untouched.
+    assert_eq!(names(&view(&set, ViewKind::Lab).nodes), ["Perception", "Decision", "Actuation"]);
+}

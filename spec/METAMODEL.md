@@ -887,6 +887,20 @@ Transition between states.
 | `timing` | `quantity<time>` | Timing constraint. |
 | `priority` | `number` | Priority among concurrent transitions. |
 
+#### Diagram
+
+A declared diagram: a named view cut from one Arcadia level, drawing the elements it names, what holds them and the exchanges between them. `context: true` adds the elements an exchange ties to a named one.
+
+- Arcadia: `Diagram (DiagramRepresentation)`
+- SysML v2: `view`
+
+| Attribute | Type | Meaning |
+|---|---|---|
+| `view` | `identifier` | The view it is cut from: oab, sab, lab, pab, cap, cdb or pbs. |
+| `shows` | `list<ref<Element>>` | Elements drawn, by id or name; their containers are drawn around them. |
+| `context` | `boolean` | Also draw the elements an exchange ties to a shown one. |
+| `description` | `text` | Free-text description. |
+
 #### Scenario
 
 Sequence of messages between participants.
