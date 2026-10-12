@@ -38,7 +38,9 @@ pub fn string_literal(text: &str) -> String {
 }
 
 fn check_keyword(keyword: &str) -> Result<(), EditError> {
-    let is_keyword = !keyword.is_empty() && keyword.chars().all(|c| c.is_ascii_lowercase() || c == '_');
+    // A port is declared with its direction: `port out "Name"`.
+    let is_port = matches!(keyword, "port in" | "port out" | "port inout");
+    let is_keyword = is_port || (!keyword.is_empty() && keyword.chars().all(|c| c.is_ascii_lowercase() || c == '_'));
     if is_keyword {
         Ok(())
     } else {

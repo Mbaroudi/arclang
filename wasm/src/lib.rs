@@ -441,3 +441,28 @@ requirements system {
         assert!(unknown["error"].as_str().unwrap().contains("Nobody"));
     }
 }
+
+#[cfg(test)]
+mod connect_tests {
+    use super::*;
+
+    #[test]
+    fn ports_and_an_exchange_can_be_added_from_the_workbench() {
+        let model = "logical_architecture LA {\n    component \"A\" { id: \"LC-A\" }\n    component \"B\" { id: \"LC-B\" }\n}\n";
+        let with_out: serde_json::Value = serde_json::from_str(&edit(model, r#"{"op":"add","keyword":"port out","name":"Data","container":"LC-A"}"#)).unwrap();
+        assert_eq!(with_out["success"], true, "{with_out}");
+        let text = with_out["source"].as_str().unwrap().to_string();
+        assert!(text.contains("port out \"Data\""));
+        let with_in: serde_json::Value = serde_json::from_str(&edit(&text, r#"{"op":"add","keyword":"port in","name":"Data","container":"LC-B"}"#)).unwrap();
+        assert_eq!(with_in["success"], true, "{with_in}");
+        let text = with_in["source"].as_str().unwrap().to_string();
+        let wired: serde_json::Value = serde_json::from_str(&edit(&text, r#"{"op":"add","keyword":"component_exchange","name":"A to B","layer":"logical_architecture","attributes":[["from_port","\"LC-A.Data\""],["to_port","\"LC-B.Data\""]]}"#)).unwrap();
+        assert_eq!(wired["success"], true, "{wired}");
+        let text = wired["source"].as_str().unwrap();
+        assert!(text.contains("component_exchange \"A to B\""));
+        let output: serde_json::Value = serde_json::from_str(&compile(text)).unwrap();
+        let lab = output["diagrams"]["graphs"].as_array().unwrap().iter().find(|g| g["id"] == "lab").unwrap();
+        assert_eq!(lab["edges"].as_array().unwrap().len(), 1);
+        assert!(serde_json::from_str::<serde_json::Value>(&edit(model, r#"{"op":"add","keyword":"port sideways","name":"X","container":"LC-A"}"#)).unwrap()["success"] == false);
+    }
+}
