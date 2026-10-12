@@ -1409,18 +1409,20 @@ impl CliRunner {
         
         match format {
             ImportFormat::Capella => {
-                use crate::compiler::capella_importer::{CapellaImporter, ArcCodeGenerator};
-                
-                let importer = CapellaImporter::new();
-                let model = importer.import_file(&input)
-                    .map_err(|e| CliError::Compilation(e.to_string()))?;
-                
-                let generator = ArcCodeGenerator::new();
-                let arc_code = generator.generate(&model)
-                    .map_err(|e| CliError::Compilation(e.to_string()))?;
-                
-                std::fs::write(&output, arc_code)
-                    .map_err(|e| CliError::Io(e))?;
+                // The Capella 6/7 XMI reader: every level, the requirements,
+                // the data, the state machines, the realizations, and the
+                // diagrams of the .aird beside the file. The result compiles
+                // or the import fails.
+                let imported = crate::compiler::capella_xmi::import_file(&input)
+                    .map_err(CliError::Compilation)?;
+                std::fs::write(&output, &imported.source)
+                    .map_err(CliError::Io)?;
+                for (what, count) in &imported.counts {
+                    println!("  {count} {what}");
+                }
+                for note in &imported.notes {
+                    println!("  note: {note}");
+                }
                 
                 println!("✓ Import successful");
                 println!("  Input: {}", input.display());
