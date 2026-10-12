@@ -96,6 +96,39 @@ pub fn version() -> String {
     env!("CARGO_PKG_VERSION").to_string()
 }
 
+/// An Arcadia transition (`oa-to-sa`, `sa-to-la`, `la-to-pa`) applied to
+/// the source; returns `{success, source, created, container,
+/// container_created}` or `{success: false, error}`. With `plan_only`,
+/// returns the plan of every step instead: what each would create.
+#[wasm_bindgen]
+pub fn transition(source: &str, step: &str, into: &str, plan_only: bool) -> String {
+    use arclang::compiler::transition::{self, Step};
+    if plan_only {
+        return match compile_text(source) {
+            Ok(compiled) => {
+                let plans: Vec<transition::Plan> = Step::ALL.iter().map(|s| transition::plan(*s, &compiled.ast)).collect();
+                json!({ "success": true, "plans": plans }).to_string()
+            }
+            Err(error) => json!({ "success": false, "error": error }).to_string(),
+        };
+    }
+    let Some(step) = Step::parse(step) else {
+        return json!({ "success": false, "error": format!("unknown step '{step}': use oa-to-sa, sa-to-la or la-to-pa") }).to_string();
+    };
+    let into = if into.trim().is_empty() { None } else { Some(into.trim()) };
+    match transition::apply(step, source, into) {
+        Ok(done) => json!({
+            "success": true,
+            "source": done.source,
+            "created": done.created,
+            "container": done.container,
+            "container_created": done.container_created,
+        })
+        .to_string(),
+        Err(error) => json!({ "success": false, "error": error }).to_string(),
+    }
+}
+
 /// The catalogue of validation rules as JSON: what `findings` name.
 #[wasm_bindgen]
 pub fn rules() -> String {

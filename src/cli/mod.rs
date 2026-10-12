@@ -66,6 +66,24 @@ pub enum Commands {
         json: bool,
     },
 
+    /// Arcadia transition: declare on the next level what realizes the elements of this one
+    /// (oa-to-sa, sa-to-la, la-to-pa). Prints the edited model; --write writes it back.
+    Transition {
+        #[clap(value_parser)]
+        input: PathBuf,
+        /// oa-to-sa, sa-to-la or la-to-pa; omitted with --plan: every step
+        #[clap(long)]
+        step: Option<String>,
+        /// The logical component (sa-to-la) or physical node (la-to-pa) that receives the created elements
+        #[clap(long)]
+        into: Option<String>,
+        /// Only say what the step would create, as JSON
+        #[clap(long)]
+        plan: bool,
+        #[clap(long)]
+        write: bool,
+    },
+
     /// Print the catalogue of validation rules (what `check` reports) as Markdown or JSON
     Rules {
         #[clap(long, default_value = "markdown")]
@@ -572,6 +590,9 @@ impl CliRunner {
                     self.run_check(input, lint, safety)
                 }
             }
+            Commands::Transition { input, step, into, plan, write } => {
+                self.run_transition(input, step.as_deref(), into.as_deref(), plan, write)
+            }
             Commands::Rules { format } => {
                 match format {
                     MetamodelFormat::Json => println!(
@@ -803,6 +824,47 @@ impl CliRunner {
             report.traces_modified.len(),
             report.relationships_added.len() + report.relationships_removed.len() + report.relationships_modified.len()
         );
+    }
+
+    fn run_transition(&self, input: PathBuf, step: Option<&str>, into: Option<&str>, plan_only: bool, write: bool) -> Result<(), CliError> {
+        use crate::compiler::transition::{self, Step};
+        let source = std::fs::read_to_string(&input)?;
+        let step = match step {
+            Some(text) => Some(Step::parse(text).ok_or_else(|| CliError::Compilation(format!("unknown step '{text}': use oa-to-sa, sa-to-la or la-to-pa")))?),
+            None => None,
+        };
+        if plan_only || step.is_none() {
+            let compiled = crate::Compiler::new(crate::CompilerConfig::default())
+                .compile_string(&source)
+                .map_err(|e| CliError::Compilation(e.to_string()))?;
+            let steps: Vec<Step> = step.map(|s| vec![s]).unwrap_or_else(|| Step::ALL.to_vec());
+            let plans: Vec<transition::Plan> = steps.into_iter().map(|s| transition::plan(s, &compiled.ast)).collect();
+            println!("{}", serde_json::to_string_pretty(&plans).unwrap_or_default());
+            return Ok(());
+        }
+        let step = step.expect("a step");
+        let done = transition::apply(step, &source, into).map_err(CliError::Compilation)?;
+        for created in &done.created {
+            eprintln!("+ {} '{}' ({}) realizes {} in {}", created.kind, created.name, created.id, created.realizes, created.inside);
+            if let Some(note) = &created.note {
+                eprintln!("  note: {note}");
+            }
+        }
+        if done.container_created {
+            eprintln!("+ container '{}' created", done.container);
+        }
+        if done.created.is_empty() {
+            eprintln!("{}: nothing to do, every element is realized", step.id());
+        }
+        if !write {
+            print!("{}", done.source);
+            return Ok(());
+        }
+        if done.source != source {
+            std::fs::write(&input, &done.source)?;
+            eprintln!("{} written", input.display());
+        }
+        Ok(())
     }
 
     /// `check --json`: the outcome as one JSON document — errors, or the
