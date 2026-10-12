@@ -60,6 +60,16 @@ pub enum Commands {
         
         #[clap(long)]
         safety: bool,
+
+        /// Print the findings as JSON, each named after its rule (see `arclang rules`)
+        #[clap(long)]
+        json: bool,
+    },
+
+    /// Print the catalogue of validation rules (what `check` reports) as Markdown or JSON
+    Rules {
+        #[clap(long, default_value = "markdown")]
+        format: MetamodelFormat,
     },
     
     /// Format .arc sources: whitespace only, comments and order are kept
@@ -555,8 +565,22 @@ impl CliRunner {
             Commands::Build { input, output, incremental, release, target } => {
                 self.run_build(input, output, incremental, release, target)
             }
-            Commands::Check { input, lint, safety } => {
-                self.run_check(input, lint, safety)
+            Commands::Check { input, lint, safety, json } => {
+                if json {
+                    self.run_check_json(input)
+                } else {
+                    self.run_check(input, lint, safety)
+                }
+            }
+            Commands::Rules { format } => {
+                match format {
+                    MetamodelFormat::Json => println!(
+                        "{}",
+                        serde_json::to_string_pretty(crate::compiler::rules::catalogue()).unwrap_or_default()
+                    ),
+                    _ => print!("{}", crate::compiler::rules::to_markdown()),
+                }
+                Ok(())
             }
             Commands::Format { input, check, write } => {
                 self.run_format(input, check, write)
@@ -779,6 +803,43 @@ impl CliRunner {
             report.traces_modified.len(),
             report.relationships_added.len() + report.relationships_removed.len() + report.relationships_modified.len()
         );
+    }
+
+    /// `check --json`: the outcome as one JSON document — errors, or the
+    /// findings each named after its rule, with the element concerned and
+    /// the edit that answers it when one can be named.
+    fn run_check_json(&self, input: PathBuf) -> Result<(), CliError> {
+        let config = crate::CompilerConfig::default();
+        let mut compiler = crate::Compiler::new(config);
+        let document = match compiler.compile_file(&input) {
+            Ok(result) => {
+                let findings = crate::compiler::rules::findings(&result);
+                serde_json::json!({
+                    "success": true,
+                    "file": input.display().to_string(),
+                    "errors": [],
+                    "findings": findings,
+                    "metrics": {
+                        "requirements": result.semantic_model.requirements.len(),
+                        "components": result.semantic_model.components.len(),
+                        "functions": result.semantic_model.functions.len(),
+                        "traces": result.semantic_model.traces.len(),
+                    },
+                })
+            }
+            Err(error) => serde_json::json!({
+                "success": false,
+                "file": input.display().to_string(),
+                "errors": [error.to_string()],
+                "findings": [],
+            }),
+        };
+        println!("{}", serde_json::to_string_pretty(&document).unwrap_or_default());
+        if document["success"] == true {
+            Ok(())
+        } else {
+            Err(CliError::Compilation("check failed".to_string()))
+        }
     }
 
     fn run_check(&self, input: PathBuf, lint: bool, safety: bool) -> Result<(), CliError> {

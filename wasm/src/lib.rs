@@ -55,6 +55,9 @@ struct CompileOutput {
     /// Every element of the compiled model with its typed attributes, as
     /// the modelling API lists them: what a properties view edits.
     elements: Option<serde_json::Value>,
+    /// Every warning, traceability and methodology finding, each named
+    /// after its rule (`rules()` lists them) with the element concerned.
+    findings: Vec<arclang::compiler::rules::Finding>,
     gate: Option<GateOut>,
     /// OMG SysML v2 textual notation (interop subset).
     sysmlv2: Option<String>,
@@ -93,6 +96,12 @@ pub fn version() -> String {
     env!("CARGO_PKG_VERSION").to_string()
 }
 
+/// The catalogue of validation rules as JSON: what `findings` name.
+#[wasm_bindgen]
+pub fn rules() -> String {
+    serde_json::to_string(arclang::compiler::rules::catalogue()).unwrap_or_default()
+}
+
 /// The language metamodel as JSON (element kinds, typed attributes,
 /// enumerations, units, trace rules) — same data as `GET /api/metamodel`.
 #[wasm_bindgen]
@@ -115,6 +124,7 @@ fn compile_inner(source: &str) -> CompileOutput {
             diagrams: None,
             document: None,
             elements: None,
+            findings: Vec::new(),
             gate: None,
             sysmlv2: None,
             reqif: None,
@@ -146,6 +156,7 @@ fn compile_inner(source: &str) -> CompileOutput {
                 .name
                 .clone()
                 .unwrap_or_else(|| "System Architecture".to_string());
+            let findings = arclang::compiler::rules::findings(&result);
             let diagrams = arclang::compiler::diagram::build_diagrams(&result.ast);
             let diagrams = arclang::compiler::diagram::html::viewer_payload(&diagrams, &title);
             let gate_report = arclang::compiler::production_gate::run_gate(
@@ -176,6 +187,7 @@ fn compile_inner(source: &str) -> CompileOutput {
                 diagrams: Some(diagrams),
                 document,
                 elements: Some(elements_json(&elements::build(&result.ast, model))),
+                findings,
                 gate: Some(gate),
                 sysmlv2: Some(arclang::compiler::sysmlv2_generator::generate_sysmlv2(model, &result.ast)),
                 reqif: Some(arclang::compiler::reqif::generate_reqif(model, &result.ast)),

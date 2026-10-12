@@ -1,0 +1,22 @@
+# ArcLang validation rules
+
+What the compiler checks, as `arclang check --lint --json` reports it: each finding names its rule.
+
+| Rule | Severity | Title | Meaning | How to answer |
+|---|---|---|---|---|
+| `syntax.unmodeled` | warning | Block not represented in the model | A block the parser accepts but the compiled model does not hold (a `dataflow`, for instance): its contents are ignored. | Model the content with constructs the metamodel holds, or remove the block. |
+| `syntax.attribute-not-stored` | warning | Attribute not stored | An attribute written on a construct that does not keep it: it is read and dropped. | Move the information to an attribute the kind declares (see `arclang metamodel`), or remove it. |
+| `metamodel.type` | error (gate blocker) | Typed attribute violated | A declared attribute does not fit its type: a quantity of the wrong dimension, an unknown enumeration value, a list where one value is expected. The production gate blocks on it. | Write a value of the declared type; `arclang metamodel` lists the type and the accepted values. |
+| `metamodel.unit` | warning | Quantity without a unit | A bare number where the metamodel expects a quantity: the unit is assumed, the model should state it. | Write the unit with the number: `latency: 25 ms`. |
+| `metamodel.reference` | warning | Reference to an element of another kind | A reference attribute names an element whose kind is not the one expected there. | Point the attribute at an element of the expected kind. |
+| `identity.duplicate` | error (gate blocker) | Two elements share one identity | Two declarations resolve to the same id: traces and exchanges could not tell them apart. | Give one of them an explicit, unique `id`. |
+| `constraint.violated` | warning | Constraint violated | A declared `constraint` compares as false on the model's values. The production gate blocks on it. | Change the values the constraint compares, or the constraint, so that the model holds what it claims. |
+| `trace.requirement` | warning | Requirement without a trace | No element satisfies, refines or verifies the requirement, in either direction: it is not covered. | Declare `trace "<element>" satisfies "<requirement>"`, or a test case that `verifies:` it. |
+| `trace.component` | warning | Component without a trace | No trace names the component: nothing says what it realizes or satisfies. | Declare what the component satisfies or realizes with a `trace`. |
+| `method.layer-order` | info | Layer without the one it refines | Arcadia builds each level on the previous one: a physical architecture realizes a logical one, which allocates system functions, which answer operational needs. | Add the missing level, or keep the model as a single-level study if that is what it is. |
+| `method.component-functions` | info | Logical component without a function | Arcadia expects a logical component to realize behaviour: at least one function is allocated to it. | Declare the functions the component performs inside it. |
+| `method.exchange-transport` | info | Exchange between nodes without a physical link | A behavioural exchange between components deployed on different nodes must be carried by a physical link or exchange. | Declare the physical link (or physical exchange) between the two nodes. |
+| `method.other` | info | Methodology advisory | An Arcadia advisory the catalogue does not classify further. | Read the advisory. |
+| `compile.other` | warning | Compiler warning | A warning the catalogue does not classify further. | Read the warning. |
+
+The production gate (`arclang gate`) reports its own findings, each named after its check: `requirements.presence`, `requirements.satisfaction`, `requirements.verification`, `verification.dangling`, `safety.hara`, `safety.asil`, `safety.dal`, `safety.mitigation`, `timing.latency`, `timing.budget`, `timing.units`, `icd.completeness`, `constraints.violated`, `metamodel.types`, `methodology`.

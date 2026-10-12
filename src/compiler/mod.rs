@@ -11,6 +11,7 @@ pub mod types;
 pub mod elements;
 pub mod metamodel;
 pub mod metamodel_check;
+pub mod rules;
 pub mod production_gate;
 pub mod semantic;
 pub mod capability_relations;
