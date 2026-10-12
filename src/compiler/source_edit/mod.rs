@@ -22,7 +22,7 @@ use std::path::Path;
 
 mod structure;
 
-pub use structure::{add_element, add_trace, move_element, remove_element, remove_trace, rename_element, string_literal, Container};
+pub use structure::{add_declaration, add_element, add_trace, move_element, remove_element, remove_trace, rename_element, rename_references, string_literal, Container};
 
 /// One declaration of the source, where it stands: what an outline or a
 /// "go to definition" needs, read from the text itself.
@@ -574,7 +574,9 @@ fn verify(original: &str, edited: &str, key: &str) -> Result<(), EditError> {
     let mut found = Vec::new();
     differences(&before, &after, "", &mut found);
 
-    let about_key = |path: &String| path.split('/').any(|segment| segment == key);
+    // A class keeps its fields in one map: an attribute of a class shows
+    // there, under `fields`, not under its own name.
+    let about_key = |path: &String| path.split('/').any(|segment| segment == key || segment == "fields");
     if let Some(stray) = found.iter().find(|path| !about_key(path)) {
         return Err(EditError::Unsafe(format!(
             "it would also change `{}`, not only '{key}'",
@@ -585,7 +587,7 @@ fn verify(original: &str, edited: &str, key: &str) -> Result<(), EditError> {
     // in the element's attribute map: one owner, two places.
     let owner = |path: &String| {
         let segments: Vec<&str> = path.split('/').take_while(|segment| *segment != key).collect();
-        segments.join("/").trim_end_matches("/attributes").to_string()
+        segments.join("/").trim_end_matches("/attributes").trim_end_matches("/fields").to_string()
     };
     let owners: std::collections::BTreeSet<String> = found.iter().map(owner).collect();
     if owners.len() > 1 {

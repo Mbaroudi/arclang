@@ -89,6 +89,9 @@
    *   onDrop:   ({ view, from, to }) => void, when a box is dragged and let
    *             go on another box (`to`) or on the background (`to` null),
    *             outside arrange mode. Given, dragging a box is that gesture.
+   *   onOpen:   ({ view, id, name, kind }) => boolean, on a double-click on
+   *             a box; true means the host took it (an editor opened),
+   *             false lets the viewer fold or unfold the container.
    */
   function mount(host, payload, deps, options) {
     const graphs = payload.graphs || [];
@@ -97,6 +100,7 @@
     const slots = (options && options.slots) || {};
     const onSelect = (options && options.onSelect) || (() => {});
     const onDrop = options && options.onDrop;
+    const onOpen = options && options.onOpen;
     const state = { active: null, views: new Map(), layouts: new Map(), arranging: false, chain: null, selected: null, history: [], settled: new Map(), filters: new Map() };
 
     host.textContent = '';
@@ -668,7 +672,9 @@
       onPick: (element) => select(element),
       onOpen: (element) => {
         const node = nodeUnder(element);
-        if (node) toggleFold(node.dataset.id);
+        if (!node) return;
+        if (onOpen && onOpen({ view: state.active, id: node.dataset.id, name: nav.nameOf(node.dataset.id), kind: node.dataset.kind })) return;
+        toggleFold(node.dataset.id);
       },
       onKey: (event) => {
         const step = { ArrowLeft: [-NUDGE, 0], ArrowRight: [NUDGE, 0], ArrowUp: [0, -NUDGE], ArrowDown: [0, NUDGE] }[event.key];

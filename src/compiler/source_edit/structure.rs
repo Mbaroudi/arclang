@@ -17,6 +17,9 @@ pub enum Container<'a> {
     /// Inside a layer block (`logical_architecture "Name" { }`). The name
     /// may be omitted when the file has a single block of that keyword.
     Layer { keyword: &'a str, name: Option<&'a str> },
+    /// At the end of the file: a class, an exchange item, a state machine,
+    /// a scenario, a diagram.
+    Document,
 }
 
 /// An ArcLang string literal for `text`.
@@ -242,14 +245,90 @@ pub fn add_element(
         false => format!("{header} {{\n{}\n}}", lines.join("\n")),
     };
 
+    add_declaration(source, container, &declaration)
+}
+
+/// Add `declaration`, written as ArcLang source (one declaration, possibly
+/// several lines), as the last declaration of `container`, or at the end
+/// of the file. The text must lex without a comment, and the edited model
+/// must differ from the original by exactly that one declaration.
+pub fn add_declaration(source: &str, container: Container, declaration: &str) -> Result<String, EditError> {
+    let declaration = declaration.trim();
+    if declaration.is_empty() {
+        return Err(EditError::Invalid("a declaration is not empty".to_string()));
+    }
+    let lexemes = Lexer::new(declaration).tokenize_lossless().map_err(|e| EditError::Invalid(format!("`{declaration}` does not lex: {e}")))?;
+    if lexemes.iter().any(|lexeme| token(lexeme).is_none()) {
+        return Err(EditError::Invalid("a declaration added this way carries no comment".to_string()));
+    }
     let document = Document::read(source)?;
-    let block = match container {
-        Container::Element(element) => document.find_element(element)?,
-        Container::Layer { keyword, name } => document.find_layer(keyword, name)?,
+    let edited = match container {
+        Container::Element(element) => document.insert_declaration(&document.find_element(element)?, declaration),
+        Container::Layer { keyword, name } => document.insert_declaration(&document.find_layer(keyword, name)?, declaration),
+        Container::Document => {
+            let mut text = source.trim_end().to_string();
+            if !text.is_empty() {
+                text.push_str("\n\n");
+            }
+            text.push_str(declaration);
+            text.push('\n');
+            text
+        }
     };
-    let edited = document.insert_declaration(&block, &declaration);
     verify_one_declaration(source, &edited, true)?;
     Ok(edited)
+}
+
+/// Every reference to `name` rewritten as a reference to `id`: a string
+/// equal to the name, or starting with `name.` (a port of it), and a bare
+/// identifier equal to the name where a reference stands (an arrow end, a
+/// list item). The declaration of the element itself, and the `name:` it
+/// writes, are left alone: `rename_element` changes those. Returns the
+/// text and how many references moved.
+pub fn rename_references(source: &str, name: &str, id: &str, element: &str) -> Result<(String, usize), EditError> {
+    let document = Document::read(source)?;
+    let own = document.find_element(element).ok().map(|block| (document.header_start(&block), block.open, block))
+        .or_else(|| document.find_bare_declaration(element).map(|(start, end)| (start, end + 1, Block { open: end, close: end })));
+    let own_name_value = own.as_ref().and_then(|(_, _, block)| document.find_attribute(block, "name").map(|a| a.value_start));
+    let mut edits: Vec<(usize, usize, String)> = Vec::new();
+    let lexemes = &document.lexemes;
+    let qualified = format!("{name}.");
+    for (index, lexeme) in lexemes.iter().enumerate() {
+        if let Some((start, open, _)) = &own {
+            if index >= *start && index < *open {
+                continue;
+            }
+        }
+        if Some(index) == own_name_value {
+            continue;
+        }
+        let replacement = match token(lexeme) {
+            Some(Token::StringLiteral(text)) if text == name => Some(string_literal(id)),
+            Some(Token::StringLiteral(text)) if text.starts_with(&qualified) => Some(string_literal(&format!("{id}.{}", &text[qualified.len()..]))),
+            Some(Token::Identifier(text)) if text == name => {
+                let key = lexemes.get(index + 1).is_some_and(|next| matches!(token(next), Some(Token::Colon)));
+                let declared = index > 0 && token(&lexemes[index - 1]).is_some_and(|t| t.keyword_text().is_some()) && lexemes.get(index + 1).is_some_and(|next| matches!(token(next), Some(Token::LeftBrace)) || next.newlines_before > 0);
+                if key || declared { None } else { Some(string_literal(id)) }
+            }
+            _ => None,
+        };
+        if let Some(replacement) = replacement {
+            edits.push((lexeme.offset, document.end_of(index), replacement));
+        }
+    }
+    let count = edits.len();
+    let mut text = source.to_string();
+    for (start, end, replacement) in edits.into_iter().rev() {
+        let (before, rest) = text.split_at(char_offset(&text, start));
+        let after = &rest[char_offset(rest, end - start)..];
+        text = format!("{before}{replacement}{after}");
+    }
+    Ok((text, count))
+}
+
+/// Byte offset of the `index`th character.
+fn char_offset(text: &str, index: usize) -> usize {
+    text.char_indices().nth(index).map(|(offset, _)| offset).unwrap_or(text.len())
 }
 
 /// Move the declaration of `element`, with everything declared inside it,
@@ -276,6 +355,7 @@ pub fn move_element(source: &str, element: &str, container: Container) -> Result
     let target = match container {
         Container::Element(other) => document.find_element(other)?,
         Container::Layer { keyword, name } => document.find_layer(keyword, name)?,
+        Container::Document => return Err(EditError::Invalid("an element moves into an element or a layer".to_string())),
     };
     if target.open > block.open && target.close < block.close {
         return Err(EditError::Unsafe(format!("'{element}' cannot be moved inside something it holds")));
@@ -289,6 +369,7 @@ pub fn move_element(source: &str, element: &str, container: Container) -> Result
     let target = match container {
         Container::Element(other) => shorter.find_element(other)?,
         Container::Layer { keyword, name } => shorter.find_layer(keyword, name)?,
+        Container::Document => unreachable!("refused above"),
     };
     let edited = shorter.insert_declaration(&target, &declaration);
     // The declarations are the same, one of them elsewhere.
@@ -319,8 +400,17 @@ pub fn rename_element(source: &str, element: &str, new_name: &str) -> Result<Str
         return Err(EditError::Invalid("a name is one non-empty line".to_string()));
     }
     let document = Document::read(source)?;
-    let block = document.find_element(element)?;
-    let start = document.header_start(&block);
+    // A declaration with no block (`function "Name"` on its line): its name
+    // is the token after the keyword.
+    let (start, open) = match document.find_element(element) {
+        Ok(block) => (document.header_start(&block), block.open),
+        Err(EditError::NotFound(_)) => {
+            let (keyword, name) = document.find_bare_declaration(element).ok_or_else(|| EditError::NotFound(element.to_string()))?;
+            (keyword, name + 1)
+        }
+        Err(other) => return Err(other),
+    };
+    let block = Block { open, close: open };
     let is_string = |index: &usize| matches!(token(&document.lexemes[*index]), Some(Token::StringLiteral(_)));
     // The name is the first string of the declaration line, else its last word.
     let name = (start..block.open).find(is_string).or_else(|| block.open.checked_sub(1).filter(|last| *last > start));

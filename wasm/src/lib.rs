@@ -231,6 +231,55 @@ fn compile_inner(source: &str) -> CompileOutput {
     }
 }
 
+/// Rename an element the way a modelling workbench does: the element keeps
+/// its identity and what referred to it still does. An element that
+/// writes no `id` is first given its current id in writing; references
+/// that used its name are rewritten to the id; then the name changes. The
+/// edited model must compile, show the same identities and leave no
+/// reference dangling.
+fn rename_keeping_identity(source: &str, element: &str, name: &str) -> Result<String, String> {
+    let before_compiled = compile_text(source).map_err(|e| format!("the model does not compile: {e}"))?;
+    let before = elements::build(&before_compiled.ast, &before_compiled.semantic_model);
+    let record = before
+        .elements
+        .iter()
+        .find(|e| &e.id == element)
+        .or_else(|| before.elements.iter().find(|e| &e.name == element))
+        .ok_or_else(|| format!("no element with id or name '{element}'"))?;
+    let (id, old_name) = (record.id.clone(), record.name.clone());
+    let check = |edited: &str| -> Result<(), String> {
+        let after_compiled = compile_text(edited).map_err(|e| format!("edit refused: the renamed model does not compile: {e}"))?;
+        let after = elements::build(&after_compiled.ast, &after_compiled.semantic_model);
+        let renamed = after.elements.iter().find(|e| e.uuid == record.uuid);
+        if renamed.map(|e| e.name.as_str()) != Some(name) {
+            return Err(format!("edit refused: '{old_name}' would not read '{name}' once compiled"));
+        }
+        if identities(&before) != identities(&after) {
+            return Err(format!("edit refused: renaming '{old_name}' would change identities"));
+        }
+        if after.unresolved.len() > before.unresolved.len() {
+            return Err(format!("edit refused: renaming '{old_name}' would leave a reference without an end"));
+        }
+        Ok(())
+    };
+    // The plain rename, when nothing depends on the name.
+    if let Ok(edited) = source_edit::rename_element(source, element, name) {
+        if check(&edited).is_ok() {
+            return Ok(edited);
+        }
+    }
+    // Otherwise: the id in writing, the references on the id, the new name.
+    let written = record.attributes.contains_key("id");
+    let mut text = source.to_string();
+    if !written {
+        text = source_edit::set_attribute(&text, element, "id", &source_edit::string_literal(&id)).map_err(|e| e.to_string())?;
+    }
+    let (rewritten, _moved) = source_edit::rename_references(&text, &old_name, &id, &id).map_err(|e| e.to_string())?;
+    let edited = source_edit::rename_element(&rewritten, &id, name).map_err(|e| e.to_string())?;
+    check(&edited)?;
+    Ok(edited)
+}
+
 /// The element graph as a properties view reads it.
 fn elements_json(graph: &ElementGraph) -> serde_json::Value {
     json!({
@@ -266,10 +315,24 @@ enum EditRequest {
         name: String,
         #[serde(default)]
         attributes: Vec<(String, String)>,
-        /// The element the declaration goes into, else a layer.
+        /// The element the declaration goes into, else a layer, else (with
+        /// `top_level`) the end of the file.
         container: Option<String>,
         layer: Option<String>,
         layer_name: Option<String>,
+        #[serde(default)]
+        top_level: bool,
+    },
+    /// One declaration written as ArcLang source (`transition "A" -> "B" {}`,
+    /// `message "A" -> "B" "text"`, `provides interface "I" {}`), added as
+    /// the last declaration of an element, a layer, or the file.
+    AddRaw {
+        declaration: String,
+        container: Option<String>,
+        layer: Option<String>,
+        layer_name: Option<String>,
+        #[serde(default)]
+        top_level: bool,
     },
     Remove { element: String },
     /// Move an element's declaration into another element (or a layer):
@@ -308,17 +371,30 @@ pub fn edit(source: &str, request: &str) -> String {
 
 fn edit_inner(source: &str, request: &str) -> Result<String, String> {
     let request: EditRequest = serde_json::from_str(request).map_err(|e| format!("invalid edit request: {e}"))?;
+    if let EditRequest::Rename { element, name } = &request {
+        return rename_keeping_identity(source, element, name);
+    }
     let edited = match &request {
         EditRequest::Set { element, key, value } => source_edit::set_attribute(source, element, key, value),
         EditRequest::Unset { element, key } => source_edit::remove_attribute(source, element, key),
         EditRequest::Rename { element, name } => source_edit::rename_element(source, element, name),
-        EditRequest::Add { keyword, name, attributes, container, layer, layer_name } => {
-            let container = match (container, layer) {
-                (Some(element), _) => Container::Element(element),
-                (None, Some(layer)) => Container::Layer { keyword: layer, name: layer_name.as_deref() },
-                (None, None) => return Err("an element is added inside an element or a layer".to_string()),
+        EditRequest::Add { keyword, name, attributes, container, layer, layer_name, top_level } => {
+            let container = match (container, layer, top_level) {
+                (Some(element), _, _) => Container::Element(element),
+                (None, Some(layer), _) => Container::Layer { keyword: layer, name: layer_name.as_deref() },
+                (None, None, true) => Container::Document,
+                (None, None, false) => return Err("an element is added inside an element, a layer, or at the top level".to_string()),
             };
             source_edit::add_element(source, container, keyword, name, attributes)
+        }
+        EditRequest::AddRaw { declaration, container, layer, layer_name, top_level } => {
+            let container = match (container, layer, top_level) {
+                (Some(element), _, _) => Container::Element(element),
+                (None, Some(layer), _) => Container::Layer { keyword: layer, name: layer_name.as_deref() },
+                (None, None, true) => Container::Document,
+                (None, None, false) => return Err("a declaration is added inside an element, a layer, or at the top level".to_string()),
+            };
+            source_edit::add_declaration(source, container, declaration)
         }
         EditRequest::Remove { element } => source_edit::remove_element(source, element),
         EditRequest::Move { element, container, layer, layer_name } => {
@@ -338,7 +414,12 @@ fn edit_inner(source: &str, request: &str) -> Result<String, String> {
     let after = elements::build(&compiled.ast, &compiled.semantic_model);
     match &request {
         EditRequest::Set { element, key, value } => {
-            source_edit::confirm_effect(&after, element, key, value).map_err(|e| e.to_string())?;
+            // A diagram, a scenario or a state machine is no element of the
+            // graph: the compile above is its confirmation.
+            match source_edit::confirm_effect(&after, element, key, value) {
+                Ok(()) | Err(source_edit::EditError::NotFound(_)) => {}
+                Err(e) => return Err(e.to_string()),
+            }
         }
         EditRequest::Move { element, .. } => {
             // Every element keeps its identity; what referred to the moved one still does.
@@ -351,26 +432,6 @@ fn edit_inner(source: &str, request: &str) -> Result<String, String> {
             }
             if after.unresolved.len() > before.unresolved.len() {
                 return Err(format!("edit refused: moving '{element}' would leave a reference without an end"));
-            }
-        }
-        EditRequest::Rename { element, name } => {
-            let before_compiled = compile_text(source).map_err(|e| format!("the model does not compile: {e}"))?;
-            let before = elements::build(&before_compiled.ast, &before_compiled.semantic_model);
-            let record = before
-                .elements
-                .iter()
-                .find(|e| &e.id == element)
-                .or_else(|| before.elements.iter().find(|e| &e.name == element))
-                .ok_or_else(|| format!("no element with id or name '{element}'"))?;
-            let renamed = after.elements.iter().find(|e| e.uuid == record.uuid);
-            if renamed.map(|e| e.name.as_str()) != Some(name.as_str()) || identities(&before) != identities(&after) {
-                return Err(format!(
-                    "edit refused: renaming '{}' would change its identity or what refers to it; give it an `id` and refer to it by that id first",
-                    record.name
-                ));
-            }
-            if after.unresolved.len() > before.unresolved.len() {
-                return Err(format!("edit refused: renaming '{}' would leave a relationship without an end", record.name));
             }
         }
         _ => {}
@@ -438,13 +499,53 @@ requirements system {
     }
 
     #[test]
-    fn rename_is_refused_when_the_identity_would_change() {
-        let refused = parse(edit(MODEL, r#"{"op":"rename","element":"Sensor","name":"Radar"}"#));
-        assert_eq!(refused["success"], false);
-        assert!(refused["error"].as_str().unwrap().contains("identity"));
-        let renamed = parse(edit(MODEL, r#"{"op":"rename","element":"LC-001","name":"Brake controller"}"#));
+    fn rename_keeps_the_identity_by_writing_the_id_and_moving_the_references() {
+        // `Sensor` writes no id and nothing refers to it: its id is written, then it is renamed.
+        let renamed = parse(edit(MODEL, r#"{"op":"rename","element":"Sensor","name":"Radar"}"#));
         assert_eq!(renamed["success"], true, "{renamed}");
-        assert!(renamed["source"].as_str().unwrap().contains("component \"Brake controller\" {"));
+        let text = renamed["source"].as_str().unwrap();
+        assert!(text.contains("component \"Radar\" {"), "{text}");
+        assert!(text.contains("id: \"LC-Sensor\""), "{text}");
+        let plain = parse(edit(MODEL, r#"{"op":"rename","element":"LC-001","name":"Brake controller"}"#));
+        assert_eq!(plain["success"], true, "{plain}");
+        assert!(plain["source"].as_str().unwrap().contains("component \"Brake controller\" {"));
+        // Known by name in an exchange, a chain and a trace: the references move to the id.
+        let model = "model T { name: \"t\" }\nlogical_architecture LA {\n    component Alpha {\n        port out p {}\n    }\n    component Beta {\n        port in q {}\n    }\n    component_exchange \"ab\" { from_port: \"Alpha.p\" to_port: \"Beta.q\" }\n    functional_chain Chain { involves: [Alpha, Beta] }\n}\nrequirements system {\n    req \"REQ-1\" \"R\" { description: \"d\" }\n}\ntrace \"Alpha\" satisfies \"REQ-1\"\n";
+        let moved = parse(edit(model, r#"{"op":"rename","element":"Alpha","name":"Alpha prime"}"#));
+        assert_eq!(moved["success"], true, "{moved}");
+        let text = moved["source"].as_str().unwrap();
+        assert!(text.contains("component \"Alpha prime\" {"), "{text}");
+        assert!(text.contains("from_port: \"LC-Alpha.p\""), "{text}");
+        assert!(text.contains("trace \"LC-Alpha\" satisfies"), "{text}");
+        assert!(text.contains("involves: [\"LC-Alpha\", Beta]"), "{text}");
+    }
+
+    #[test]
+    fn a_diagram_and_a_class_take_attributes() {
+        let model = "model T { name: \"t\" }\nlogical_architecture LA {\n    component A { id: \"LC-A\" }\n    component B { id: \"LC-B\" }\n}\nclass Frame {\n    id: \"CL-1\"\n}\ndiagram \"Focus\" {\n    view: lab\n    shows: [\"LC-A\"]\n}\n";
+        let shown: serde_json::Value = serde_json::from_str(&edit(model, r#"{"op":"set","element":"Focus","key":"shows","value":"[\"LC-A\", \"LC-B\"]"}"#)).unwrap();
+        assert_eq!(shown["success"], true, "{shown}");
+        assert!(shown["source"].as_str().unwrap().contains("shows: [\"LC-A\", \"LC-B\"]"));
+        let field: serde_json::Value = serde_json::from_str(&edit(model, r#"{"op":"set","element":"CL-1","key":"speed","value":"Float"}"#)).unwrap();
+        assert_eq!(field["success"], true, "{field}");
+        assert!(field["source"].as_str().unwrap().contains("speed: Float"));
+    }
+
+    #[test]
+    fn raw_declarations_and_top_level_additions() {
+        let model = "logical_architecture LA {\n    component \"A\" { id: \"LC-A\" }\n}\nstate_machine Modes {\n    initial: \"Off\"\n    state \"Off\" {}\n    state \"On\" {}\n}\n";
+        let transition = parse(edit(model, r#"{"op":"add_raw","declaration":"transition \"Off\" -> \"On\" { trigger: \"start\" }","container":"Modes"}"#));
+        assert_eq!(transition["success"], true, "{transition}");
+        assert!(transition["source"].as_str().unwrap().contains("transition \"Off\" -> \"On\" { trigger: \"start\" }"));
+        let provides = parse(edit(model, r#"{"op":"add_raw","declaration":"provides interface \"IData\" {}","container":"LC-A"}"#));
+        assert_eq!(provides["success"], true, "{provides}");
+        let class = parse(edit(model, r#"{"op":"add","keyword":"class","name":"Frame","top_level":true,"attributes":[["id","\"CL-1\""]]}"#));
+        assert_eq!(class["success"], true, "{class}");
+        assert!(class["source"].as_str().unwrap().trim_end().ends_with("class \"Frame\" {\n    id: \"CL-1\"\n}"), "{}", class["source"]);
+        let bad = parse(edit(model, r#"{"op":"add_raw","declaration":"transition \"Off\" -> \"Nowhere\" {}","container":"Modes"}"#));
+        assert_eq!(bad["success"], false);
+        let comment = parse(edit(model, r#"{"op":"add_raw","declaration":"state \"X\" {} // no","container":"Modes"}"#));
+        assert_eq!(comment["success"], false);
     }
 
     #[test]
