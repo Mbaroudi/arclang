@@ -75,15 +75,35 @@
    * deps:    { ELK, render, links, navigation, collapse, scope, exporter,
    *          stage, place } — the layout engine constructor and the other
    *          ArcViz modules, each one named after its file.
+   * options: optional. A host that is a workbench of its own, with a
+   *          project explorer and a properties view, places the chrome
+   *          where it wants it:
+   *   slots:    { tabs, tools, head, tree, details, related, foot } —
+   *             elements that receive, in order, the view tabs, the
+   *             toolbar, the title and crumbs and chains, the model tree,
+   *             the details of the selection, the "across layers" section,
+   *             and the hint, picker, legend and notes. A slot left out
+   *             keeps that chrome in the host, as the standalone page has it.
+   *   onSelect: (selection | null) => void, called whenever the selection
+   *             changes, with { view, id, name, kind, isEdge }.
    */
-  function mount(host, payload, deps) {
+  function mount(host, payload, deps, options) {
     const graphs = payload.graphs || [];
     const diagnostics = payload.diagnostics || [];
     const render = deps.render;
+    const slots = (options && options.slots) || {};
+    const onSelect = (options && options.onSelect) || (() => {});
     const state = { active: null, views: new Map(), layouts: new Map(), arranging: false, chain: null, selected: null, history: [], settled: new Map() };
 
     host.textContent = '';
     host.classList.add('arcviz');
+    for (const slot of Object.values(slots)) {
+      slot.textContent = '';
+      slot.classList.add('arcviz');
+    }
+    // Chrome goes to its slot when the host names one, else where the
+    // standalone page keeps it.
+    const into = (name, fallback, element) => (slots[name] || fallback).appendChild(element);
 
     if (graphs.length === 0) {
       host.appendChild(el('p', {
@@ -153,21 +173,26 @@
     const saveLayout = tool('Save layout', `Download the folds, the open containers and the placement as ${layoutName}. Kept next to the model, it is what everyone sees.`, () => exporter.saveLayout(scope.toFile(), layoutName));
     const foldAll = tool('Fold all', 'Show every container as a single box', () => refold(new Set(scope.foldable(state.active))));
     const unfoldAll = tool('Unfold all', 'Show what every container holds', () => refold(new Set()));
+    // Tools come in groups: moving about, folding, arranging, zooming, saving.
+    const group = (label, items) => el('span', { class: 'arcviz-tool-group', role: 'group', 'aria-label': label }, items);
     const toolbar = el('div', { class: 'arcviz-tools', role: 'toolbar', 'aria-label': 'Diagram tools' }, [
-      treeToggle,
-      back,
-      foldAll,
-      unfoldAll,
-      arrange,
-      resetPlaces,
-      tool('Fit', 'Fit the diagram to the frame (0)', () => fit()),
-      tool('−', 'Zoom out (-)', () => sheet.zoomOut()),
-      tool('+', 'Zoom in (+)', () => sheet.zoomIn()),
-      tool('Full screen', 'Show the diagram full screen', () => sheet.toggleFullscreen()),
-      tool('Save SVG', 'Download this view as drawn, folded containers included, as an SVG file', () => saveSvg()),
-      saveLayout,
-      tool('Save PNG', 'Download this view as drawn, folded containers included, as a PNG image', () => savePng()),
+      group('Navigation', [treeToggle, back]),
+      group('Folding', [foldAll, unfoldAll]),
+      group('Arrangement', [arrange, resetPlaces, saveLayout]),
+      group('Zoom', [
+        tool('Fit', 'Fit the diagram to the frame (0)', () => fit()),
+        tool('−', 'Zoom out (-)', () => sheet.zoomOut()),
+        tool('+', 'Zoom in (+)', () => sheet.zoomIn()),
+        tool('Full screen', 'Show the diagram full screen', () => sheet.toggleFullscreen()),
+      ]),
+      group('Export', [
+        tool('Save SVG', 'Download this view as drawn, folded containers included, as an SVG file', () => saveSvg()),
+        tool('Save PNG', 'Download this view as drawn, folded containers included, as a PNG image', () => savePng()),
+      ]),
     ]);
+    // The tree lives in the project explorer of a workbench host: the
+    // button that hides it would hide a panel that is not the viewer's.
+    if (slots.tree) treeToggle.hidden = true;
 
     const title = el('p', { class: 'arcviz-title' });
     const which = el('select', { id: 'arcviz-which', onchange: (event) => show(event.currentTarget.value) });
@@ -201,7 +226,12 @@
     const notes = el('div', { class: 'arcviz-notes' });
     const printHost = el('div', { class: 'arcviz-print', 'aria-hidden': 'true' });
 
-    host.appendChild(el('div', { class: 'arcviz-bar' }, [tablist, toolbar]));
+    if (slots.tabs || slots.tools) {
+      into('tabs', host, tablist);
+      into('tools', host, toolbar);
+    } else {
+      host.appendChild(el('div', { class: 'arcviz-bar' }, [tablist, toolbar]));
+    }
     // Where the reader is inside a view once a container is open.
     const crumbs = el('nav', { class: 'arcviz-crumbs', 'aria-label': 'Location in the model', hidden: true });
     // What changed on screen, for readers who do not see it change.
@@ -211,21 +241,28 @@
       status.textContent = '';
       setTimeout(() => { status.textContent = text; }, 30);
     };
-    host.appendChild(title);
-    host.appendChild(whichRow);
-    host.appendChild(crumbs);
+    into('head', host, title);
+    into('head', host, whichRow);
+    into('head', host, crumbs);
     host.appendChild(status);
-    host.appendChild(chains);
+    into('head', host, chains);
     // Tree and details share the column beside the sheet, like a project
     // explorer over a properties view: what is selected, and where it
-    // leads, stays in sight while the drawing is read.
-    const side = el('div', { class: 'arcviz-side' }, [nav.tree, details]);
-    const work = el('div', { class: 'arcviz-work' }, [side, stage]);
+    // leads, stays in sight while the drawing is read. A workbench host
+    // has those panels already and takes the pieces into them.
+    const beside = [];
+    if (slots.tree) slots.tree.appendChild(nav.tree); else beside.push(nav.tree);
+    if (slots.details) slots.details.appendChild(details); else beside.push(details);
+    const side = el('div', { class: 'arcviz-side' }, beside);
+    const work = el('div', { class: `arcviz-work${beside.length === 0 ? ' is-sideless' : ''}` }, [side, stage]);
     host.appendChild(work);
-    host.appendChild(hint);
-    host.appendChild(pick);
-    host.appendChild(el('div', { class: 'arcviz-below' }, [legend]));
-    host.appendChild(notes);
+    // The "across layers" section follows the details unless it has a
+    // panel of its own, like a semantic browser beside the properties.
+    const related = slots.related || null;
+    into('foot', host, hint);
+    into('foot', host, pick);
+    into('foot', host, el('div', { class: 'arcviz-below' }, [legend]));
+    into('foot', host, notes);
     host.appendChild(printHost);
 
     // --- layout ---------------------------------------------------------
@@ -582,6 +619,7 @@
         state.selected = null;
         showDetails(null);
         nav.mark(state.active, null);
+        onSelect(null);
         return;
       }
       const id = group.dataset.id;
@@ -592,9 +630,13 @@
         for (const edge of canvas.querySelectorAll('.av-edge')) {
           if (edge.dataset.source === id || edge.dataset.target === id) edge.classList.add('is-linked');
         }
-        showDetails(view.index.nodes.get(id), view);
+        const entry = view.index.nodes.get(id);
+        showDetails(entry, view);
+        onSelect({ view: state.active, id, name: displayName(entry.node, ''), kind: entry.node.arc.kind, isEdge: false });
       } else {
-        showDetails(view.index.edges.get(id), view, true);
+        const edge = view.index.edges.get(id);
+        showDetails(edge, view, true);
+        onSelect({ view: state.active, id, name: displayName(edge, ''), kind: edge.arc.kind, isEdge: true });
       }
     }
 
@@ -606,8 +648,10 @@
 
     function showDetails(entry, view, isEdge) {
       details.textContent = '';
+      if (related) related.textContent = '';
       if (!entry) {
         details.appendChild(el('p', { class: 'arcviz-quiet', text: 'Nothing selected.' }));
+        if (related) related.appendChild(el('p', { class: 'arcviz-quiet', text: 'Select an element to see where it leads.' }));
         return;
       }
       const list = el('dl', {});
@@ -639,11 +683,12 @@
       }
       if (isEdge) {
         details.appendChild(list);
+        if (related) related.appendChild(el('p', { class: 'arcviz-quiet', text: 'An exchange leads nowhere else: select one of its ends.' }));
         return;
       }
       // Where the element leads comes first: it is what the reader acts on.
       const id = entry.node.id;
-      details.appendChild(nav.related(state.active, id));
+      (related || details).appendChild(nav.related(state.active, id));
       details.appendChild(list);
       if (canFold(id)) {
         const folded = foldedOf(state.active).has(id);
@@ -776,6 +821,13 @@
       goTo,
       goBack,
       focusOn,
+      select: selectById,
+      fit,
+      /** The view on screen, what is selected in it and where the sheet is. */
+      current: () => ({ view: state.active, selected: state.selected, position: sheet.position() }),
+      /** Put the sheet back where `current()` saw it. */
+      restore: (position) => sheet.restore(position),
+      views: () => graphs.map((graph) => ({ id: graph.id, view: graph.arc.view, title: graph.arc.title })),
       svgOf: (id) => (state.settled.get(id) || {}).svg || null,
       buildPrintPages,
     };

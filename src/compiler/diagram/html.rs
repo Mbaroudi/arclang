@@ -44,17 +44,26 @@ pub struct ViewerParts {
     pub body: String,
 }
 
-/// Build the viewer for a model's diagrams. `title` names the model in
-/// exported file names.
-pub fn viewer_parts(set: &DiagramSet, title: &str) -> ViewerParts {
-    let payload = json!({
+/// What the viewer is given: the diagrams as ELK graphs, the diagnostics
+/// met while drawing, the traces between views and the layout file. This is
+/// the `payload` argument of `ArcViz.mount`, whether the viewer is spliced
+/// into a page here or mounted by a host that got the data another way (the
+/// playground, from the WebAssembly build).
+pub fn viewer_payload(set: &DiagramSet, title: &str) -> serde_json::Value {
+    json!({
         "title": title,
         "graphs": set.diagrams.iter().map(elk::to_elk).collect::<Vec<_>>(),
         "diagnostics": set.diagnostics,
         "links": set.links,
         "layout": set.layout,
         "layout_name": set.layout_name,
-    });
+    })
+}
+
+/// Build the viewer for a model's diagrams. `title` names the model in
+/// exported file names.
+pub fn viewer_parts(set: &DiagramSet, title: &str) -> ViewerParts {
+    let payload = viewer_payload(set, title);
     let body = format!(
         "<div id=\"{HOST_ID}\"></div>\n\
          <script type=\"application/json\" id=\"arcviz-data\">{data}</script>\n\
