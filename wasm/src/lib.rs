@@ -335,6 +335,18 @@ enum EditRequest {
         top_level: bool,
     },
     Remove { element: String },
+    /// Wrap the messages of a scenario, from `first` to `last` (labels), in a
+    /// combined fragment; `operands` cut it at the messages named, with guards.
+    WrapFragment {
+        scenario: String,
+        kind: String,
+        #[serde(default)]
+        label: String,
+        first: String,
+        last: String,
+        #[serde(default)]
+        operands: Vec<(String, String)>,
+    },
     /// Move an element's declaration into another element (or a layer):
     /// a function reallocated, a component nested or deployed elsewhere.
     Move { element: String, container: Option<String>, layer: Option<String>, layer_name: Option<String> },
@@ -397,6 +409,9 @@ fn edit_inner(source: &str, request: &str) -> Result<String, String> {
             source_edit::add_declaration(source, container, declaration)
         }
         EditRequest::Remove { element } => source_edit::remove_element(source, element),
+        EditRequest::WrapFragment { scenario, kind, label, first, last, operands } => {
+            source_edit::wrap_fragment(source, scenario, kind, label, first, last, operands)
+        }
         EditRequest::Move { element, container, layer, layer_name } => {
             let container = match (container, layer) {
                 (Some(other), _) => Container::Element(other),
@@ -529,6 +544,35 @@ requirements system {
         let field: serde_json::Value = serde_json::from_str(&edit(model, r#"{"op":"set","element":"CL-1","key":"speed","value":"Float"}"#)).unwrap();
         assert_eq!(field["success"], true, "{field}");
         assert!(field["source"].as_str().unwrap().contains("speed: Float"));
+    }
+
+    #[test]
+    fn messages_are_wrapped_in_a_fragment_with_operands() {
+        let model = "model T { name: \"t\" }\nlogical_architecture LA {\n    component A { id: \"LC-A\" }\n    component B { id: \"LC-B\" }\n}\nscenario Run {\n    participants: [\"A\", \"B\"]\n    message A -> B \"start\"\n    message B -> A \"tick\"\n    message A -> B \"ack\" { type: \"async\" }\n    message B -> A \"done\"\n}\n";
+        let looped = parse(edit(model, r#"{"op":"wrap_fragment","scenario":"Run","kind":"loop","label":"while running","first":"tick","last":"ack"}"#));
+        assert_eq!(looped["success"], true, "{looped}");
+        let text = looped["source"].as_str().unwrap();
+        assert!(text.contains("fragment loop \"while running\" {\n        message B -> A \"tick\"\n        message A -> B \"ack\" { type: \"async\" }\n    }"), "{text}");
+        let output = parse(compile(text));
+        assert_eq!(output["success"], true);
+        let alt = parse(edit(model, r#"{"op":"wrap_fragment","scenario":"Run","kind":"alt","first":"tick","last":"ack","operands":[["tick","ok"],["ack","else"]]}"#));
+        assert_eq!(alt["success"], true, "{alt}");
+        let text = alt["source"].as_str().unwrap();
+        assert!(text.contains("fragment alt {\n        operand \"ok\" {\n            message B -> A \"tick\"\n        }\n        operand \"else\" {\n            message A -> B \"ack\" { type: \"async\" }\n        }\n    }"), "{text}");
+        assert_eq!(parse(compile(text))["success"], true);
+        let bad = parse(edit(model, r#"{"op":"wrap_fragment","scenario":"Run","kind":"loop","first":"ack","last":"tick"}"#));
+        assert_eq!(bad["success"], false);
+        // A fragment already there is kept whole inside a wider one.
+        let text = looped["source"].as_str().unwrap();
+        let wider = parse(edit(text, r#"{"op":"wrap_fragment","scenario":"Run","kind":"alt","first":"start","last":"done","operands":[["start","go"],["done","end"]]}"#));
+        assert_eq!(wider["success"], true, "{wider}");
+        let text = wider["source"].as_str().unwrap();
+        assert!(text.contains("operand \"go\" {\n            message A -> B \"start\"\n            fragment loop \"while running\" {\n                message B -> A \"tick\"\n                message A -> B \"ack\" { type: \"async\" }\n            }\n        }\n        operand \"end\" {\n            message B -> A \"done\"\n        }"), "{text}");
+        assert_eq!(parse(compile(text))["success"], true);
+        // Ends in different blocks are refused.
+        let cut = parse(edit(text, r#"{"op":"wrap_fragment","scenario":"Run","kind":"opt","first":"tick","last":"done"}"#));
+        assert_eq!(cut["success"], false);
+        assert!(cut["error"].as_str().unwrap().contains("same block"), "{cut}");
     }
 
     #[test]

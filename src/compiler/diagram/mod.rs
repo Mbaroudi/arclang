@@ -156,6 +156,32 @@ pub struct Diagram {
     pub edges: Vec<Edge>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub chains: Vec<Chain>,
+    /// Combined fragments of a scenario: frames over rows of messages.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub fragments: Vec<Fragment>,
+}
+
+/// A combined fragment of a sequence diagram: `alt`, `loop`, `opt`, `par`...
+/// over the messages from row `start` to row `end` (0-based, inclusive),
+/// spanning the lifelines its messages touch.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct Fragment {
+    pub kind: String,
+    pub label: String,
+    pub start: usize,
+    pub end: usize,
+    /// Ids of the lifelines the fragment spans; every lifeline when it holds no message.
+    pub lifelines: Vec<String>,
+    pub operands: Vec<Operand>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct Operand {
+    pub label: String,
+    pub start: usize,
+    pub end: usize,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub fragments: Vec<Fragment>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]

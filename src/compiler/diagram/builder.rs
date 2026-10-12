@@ -492,6 +492,7 @@ impl Builder {
             nodes: nodes.into_iter().flatten().collect(),
             edges: self.edges,
             chains: self.chains,
+            fragments: Vec::new(),
         };
         (diagram, self.diagnostics)
     }

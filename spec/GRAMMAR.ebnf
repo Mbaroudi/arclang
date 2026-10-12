@@ -338,8 +338,13 @@ DiagramAttribute ::= "view" ":" ( "oab" | "sab" | "lab" | "pab" | "cap" | "cdb" 
 (* ---- Modes & States (Arcadia transverse) -------------------------------------------------- *)
 
 StateMachineDecl ::= "state_machine" Name "{" StateMachineElement* "}" ;
-StateMachineElement ::= ( "state" | "mode" ) Name AttributeBlock?
+StateMachineElement ::= ( "state" | "mode" ) Name StateBody?
                         (* mode = chosen behaviour, state = undergone (Arcadia) *)
+(* A state holds a region: states, modes and transitions of its own. A
+   transition declared inside a state joins the machine's, and names any
+   state of the machine, at any depth. *)
+StateBody       ::= "{" ( Attribute | ( "state" | "mode" ) Name StateBody?
+                        | "transition" Name "->" Name AttributeBlock? )* "}" ;
                       | "transition" Name "->" Name AttributeBlock?
                         (* attributes: trigger:, guard:, action:, timing:, priority: ;
                            endpoints must be declared states/modes (ERROR otherwise);
@@ -350,12 +355,22 @@ StateMachineElement ::= ( "state" | "mode" ) Name AttributeBlock?
 
 ScenarioDecl    ::= "scenario" Name "{" ScenarioElement* "}" ;
 ScenariosBlock  ::= "scenarios" Name? "{" ScenarioDecl* "}" ;
+(* A combined fragment frames the messages it holds, in their order among
+   the scenario's messages: `alt` and `par` with their operands, `loop`,
+   `opt`, `seq` and `critical` with one body. A fragment with operand
+   blocks holds nothing outside them. Fragments nest. *)
+FragmentDecl    ::= "fragment" FragmentKind String?
+                    "{" ( OperandDecl* | ( MessageDecl | FragmentDecl )* ) "}" ;
+FragmentKind    ::= "alt" | "opt" | "loop" | "par" | "seq" | "critical" ;
+OperandDecl     ::= "operand" String? "{" ( MessageDecl | FragmentDecl )* "}" ;
 ScenarioElement ::= "participants" ":" "[" Name ( "," Name )* "]"
+                  | FragmentDecl
                     (* participants must resolve to declared elements (ERROR) *)
-                  | "message" Name "->" Name Name? AttributeBlock?
+                  | MessageDecl
+                  | Attribute ;
+MessageDecl     ::= "message" Name "->" Name Name? AttributeBlock? ;
                     (* endpoints must be scenario participants (ERROR);
                        attributes: type: sync|async, timing: *)
-                  | Attribute ;
 
 (* ---- Unmodeled blocks (accepted, warned, ignored) -------------------------------------- *)
 

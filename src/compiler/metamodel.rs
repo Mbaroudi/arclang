@@ -422,6 +422,8 @@ impl Metamodel {
                 ]),
             kind("Scenario", Layer::Transverse, "Scenario", "interaction (sequence)", "Sequence of messages between participants.",
                 concat(vec![common(), vec![attr("participants", list(AttrType::Reference("Element")), "Lifelines.")]])),
+            kind("Fragment", Layer::Transverse, "CombinedFragment", "combined fragment", "A combined fragment of a scenario: `alt`, `opt`, `loop`, `par`, `seq` or `critical`, framing the messages it holds, with its operands. Fragments nest.",
+                vec![attr("label", AttrType::Text, "The guard or the condition shown in the frame's tag.")]),
             kind("Message", Layer::Transverse, "SequenceMessage", "message", "Message between two participants.",
                 vec![attr("type", AttrType::Enum("MessageKind"), "sync | async."), attr("timing", AttrType::Quantity(Dimension::Time), "Timing constraint.")]),
         ];

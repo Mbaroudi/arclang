@@ -1001,48 +1001,10 @@ impl Parser {
         while !self.check(&Token::RightBrace) && !self.is_at_end() {
             match self.current() {
                 Token::StateKw | Token::Mode => {
-                    let kind = if matches!(self.current(), Token::Mode) {
-                        StateKind::Mode
-                    } else {
-                        StateKind::State
-                    };
-                    self.advance();
-                    let state_name = self.expect_name()?;
-                    let attributes = if self.check(&Token::LeftBrace) {
-                        self.parse_attributes_block()?
-                    } else {
-                        HashMap::new()
-                    };
-                    states.push(State {
-                        name: state_name,
-                        kind,
-                        entry_actions: Self::string_list(&attributes, "entry"),
-                        exit_actions: Self::string_list(&attributes, "exit"),
-                        internal_transitions: Vec::new(),
-                        sub_states: Vec::new(),
-                        color: attributes.get("color").and_then(|v| v.as_string()).map(|s| s.to_string()),
-                    });
+                    states.push(self.parse_state(&mut transitions)?);
                 }
                 Token::Transition => {
-                    self.advance();
-                    let from = self.expect_name()?;
-                    self.expect(Token::Arrow)?;
-                    let to = self.expect_name()?;
-                    let attributes = if self.check(&Token::LeftBrace) {
-                        self.parse_attributes_block()?
-                    } else {
-                        HashMap::new()
-                    };
-                    let get = |key: &str| attributes.get(key).and_then(|v| v.as_string()).map(|s| s.to_string());
-                    transitions.push(Transition {
-                        from,
-                        to,
-                        trigger: get("trigger").unwrap_or_default(),
-                        guard: get("guard"),
-                        action: get("action"),
-                        timing: get("timing"),
-                        priority: get("priority"),
-                    });
+                    transitions.push(self.parse_transition()?);
                 }
                 _ if self.peek_is_colon() => {
                     let (key, value) = self.parse_attribute()?;
@@ -1100,6 +1062,141 @@ impl Parser {
         Ok(DiagramDecl { name, view, shows, context, description, attributes })
     }
 
+    /// Parse: state Name { entry: [...] exit: [...] state Sub { ... } transition A -> B { ... } }
+    /// A state holds a region: states, modes and transitions of its own.
+    /// Transitions declared inside join the machine's, resolved by name.
+    fn parse_state(&mut self, transitions: &mut Vec<Transition>) -> Result<State, String> {
+        let kind = if matches!(self.current(), Token::Mode) { StateKind::Mode } else { StateKind::State };
+        self.advance();
+        let name = self.expect_name()?;
+        let mut attributes = HashMap::new();
+        let mut sub_states = Vec::new();
+        if self.check(&Token::LeftBrace) {
+            self.expect(Token::LeftBrace)?;
+            while !self.check(&Token::RightBrace) && !self.is_at_end() {
+                match self.current() {
+                    Token::StateKw | Token::Mode => sub_states.push(self.parse_state(transitions)?),
+                    Token::Transition => transitions.push(self.parse_transition()?),
+                    _ if self.peek_is_colon() => {
+                        let (key, value) = self.parse_attribute()?;
+                        attributes.insert(key, value);
+                    }
+                    _ => return Err(self.err(format!("Unexpected token in state '{name}': {}", self.current()))),
+                }
+            }
+            self.expect(Token::RightBrace)?;
+        }
+        Ok(State {
+            name,
+            kind,
+            entry_actions: Self::string_list(&attributes, "entry"),
+            exit_actions: Self::string_list(&attributes, "exit"),
+            internal_transitions: Vec::new(),
+            sub_states,
+            color: attributes.get("color").and_then(|v| v.as_string()).map(|s| s.to_string()),
+        })
+    }
+
+    fn parse_transition(&mut self) -> Result<Transition, String> {
+        self.expect(Token::Transition)?;
+        let from = self.expect_name()?;
+        self.expect(Token::Arrow)?;
+        let to = self.expect_name()?;
+        let attributes = if self.check(&Token::LeftBrace) { self.parse_attributes_block()? } else { HashMap::new() };
+        let get = |key: &str| attributes.get(key).and_then(|v| v.as_string()).map(|s| s.to_string());
+        Ok(Transition {
+            from,
+            to,
+            trigger: get("trigger").unwrap_or_default(),
+            guard: get("guard"),
+            action: get("action"),
+            timing: get("timing"),
+            priority: get("priority"),
+        })
+    }
+
+    /// Parse: message A -> B "label" { type: async }
+    fn parse_message(&mut self) -> Result<Message, String> {
+        self.expect(Token::Message)?;
+        let from = self.expect_name()?;
+        self.expect(Token::Arrow)?;
+        let to = self.expect_name()?;
+        let label = self.optional_name().unwrap_or_default();
+        let attributes = if self.check(&Token::LeftBrace) { self.parse_attributes_block()? } else { HashMap::new() };
+        let message_type = match attributes.get("type").and_then(|v| v.as_string()) {
+            Some("async") | Some("asynchronous") => MessageType::Asynchronous,
+            _ => MessageType::Synchronous,
+        };
+        Ok(Message {
+            from,
+            to,
+            label,
+            message_type,
+            activation: true,
+            timing: attributes.get("timing").and_then(|v| v.as_string()).map(|s| s.to_string()),
+            params: None,
+        })
+    }
+
+    /// Parse: fragment alt "label" { operand "a" { message ... } operand "b" { ... } }
+    /// or fragment loop "while armed" { message ... }. Messages land in the
+    /// scenario's flat list, in order; the fragment keeps their rows.
+    fn parse_fragment(&mut self, messages: &mut Vec<Message>) -> Result<CombinedFragment, String> {
+        self.expect(Token::Fragment)?;
+        let kind_word = match self.current() {
+            Token::Identifier(word) => word.clone(),
+            other => return Err(self.err(format!("Expected a fragment kind (alt, opt, loop, par, seq, critical), got {other}"))),
+        };
+        let fragment_type = FragmentType::parse(&kind_word)
+            .ok_or_else(|| self.err(format!("'{kind_word}' is not a fragment kind: use alt, opt, loop, par, seq or critical")))?;
+        self.advance();
+        let label = match self.current() {
+            Token::StringLiteral(text) => { let text = text.clone(); self.advance(); text }
+            _ => String::new(),
+        };
+        self.expect(Token::LeftBrace)?;
+        let start = messages.len();
+        let mut operands: Vec<FragmentOperand> = Vec::new();
+        let mut implicit = FragmentOperand { label: String::new(), messages: Vec::new(), start: messages.len(), end: 0, fragments: Vec::new() };
+        let mut explicit = false;
+        while !self.check(&Token::RightBrace) && !self.is_at_end() {
+            match self.current() {
+                Token::Operand => {
+                    explicit = true;
+                    self.advance();
+                    let operand_label = match self.current() {
+                        Token::StringLiteral(text) => { let text = text.clone(); self.advance(); text }
+                        _ => String::new(),
+                    };
+                    self.expect(Token::LeftBrace)?;
+                    let mut operand = FragmentOperand { label: operand_label, messages: Vec::new(), start: messages.len(), end: 0, fragments: Vec::new() };
+                    while !self.check(&Token::RightBrace) && !self.is_at_end() {
+                        match self.current() {
+                            Token::Message => { let message = self.parse_message()?; operand.messages.push(message.clone()); messages.push(message); }
+                            Token::Fragment => { let nested = self.parse_fragment(messages)?; operand.fragments.push(nested); }
+                            other => return Err(self.err(format!("Unexpected token in operand: {other}"))),
+                        }
+                    }
+                    self.expect(Token::RightBrace)?;
+                    operand.end = messages.len().wrapping_sub(1);
+                    operands.push(operand);
+                }
+                Token::Message => { let message = self.parse_message()?; implicit.messages.push(message.clone()); messages.push(message); }
+                Token::Fragment => { let nested = self.parse_fragment(messages)?; implicit.fragments.push(nested); }
+                other => return Err(self.err(format!("Unexpected token in fragment: {other}"))),
+            }
+        }
+        self.expect(Token::RightBrace)?;
+        if !explicit || !implicit.messages.is_empty() || !implicit.fragments.is_empty() {
+            implicit.end = messages.len().wrapping_sub(1);
+            if explicit {
+                return Err(self.err("a fragment mixes operand blocks and loose messages: put every message in an operand".to_string()));
+            }
+            operands.push(implicit);
+        }
+        Ok(CombinedFragment { fragment_type, label, condition: None, operands, start, end: messages.len().wrapping_sub(1) })
+    }
+
     /// Parse: scenarios [Name] { scenario A { ... } scenario B { ... } }
     fn parse_scenarios_container(&mut self, model: &mut Model) -> Result<(), String> {
         self.expect(Token::Scenarios)?;
@@ -1130,6 +1227,7 @@ impl Parser {
 
         let mut participants = Vec::new();
         let mut messages = Vec::new();
+        let mut fragments = Vec::new();
 
         while !self.check(&Token::RightBrace) && !self.is_at_end() {
             match self.current() {
@@ -1151,29 +1249,11 @@ impl Parser {
                     }
                 }
                 Token::Message => {
-                    self.advance();
-                    let from = self.expect_name()?;
-                    self.expect(Token::Arrow)?;
-                    let to = self.expect_name()?;
-                    let label = self.optional_name().unwrap_or_default();
-                    let attributes = if self.check(&Token::LeftBrace) {
-                        self.parse_attributes_block()?
-                    } else {
-                        HashMap::new()
-                    };
-                    let message_type = match attributes.get("type").and_then(|v| v.as_string()) {
-                        Some("async") | Some("asynchronous") => MessageType::Asynchronous,
-                        _ => MessageType::Synchronous,
-                    };
-                    messages.push(Message {
-                        from,
-                        to,
-                        label,
-                        message_type,
-                        activation: true,
-                        timing: attributes.get("timing").and_then(|v| v.as_string()).map(|s| s.to_string()),
-                        params: None,
-                    });
+                    messages.push(self.parse_message()?);
+                }
+                Token::Fragment => {
+                    let fragment = self.parse_fragment(&mut messages)?;
+                    fragments.push(fragment);
                 }
                 _ if self.peek_is_colon() => {
                     let (key, _) = self.parse_attribute()?;
@@ -1191,7 +1271,7 @@ impl Parser {
             name,
             participants,
             messages,
-            fragments: Vec::new(),
+            fragments,
             timing_constraints: Vec::new(),
         })
     }

@@ -1144,8 +1144,15 @@ impl SemanticAnalyzer {
                 machine.name.clone(),
                 ElementInfo::new(machine.name.clone(), machine.name.clone(), "StateMachine"),
             );
-            let state_names: std::collections::HashSet<&str> =
-                machine.states.iter().map(|s| s.name.as_str()).collect();
+            // States at every depth: a region's states are the machine's.
+            fn collect_states<'a>(states: &'a [super::ast::State], into: &mut std::collections::HashSet<&'a str>) {
+                for state in states {
+                    into.insert(state.name.as_str());
+                    collect_states(&state.sub_states, into);
+                }
+            }
+            let mut state_names: std::collections::HashSet<&str> = std::collections::HashSet::new();
+            collect_states(&machine.states, &mut state_names);
             if !machine.initial_state.is_empty() && !state_names.contains(machine.initial_state.as_str()) {
                 reference_errors.push(format!(
                     "state_machine '{}': initial state '{}' is not declared",

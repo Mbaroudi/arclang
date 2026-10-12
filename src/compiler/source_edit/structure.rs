@@ -381,6 +381,153 @@ pub fn move_element(source: &str, element: &str, container: Container) -> Result
     Ok(edited)
 }
 
+/// Wrap the messages of `scenario` from message `first` to message `last`
+/// (their labels, in order) in a combined fragment: `fragment <kind> "label"
+/// { ... }`. With `operands`, the frame is cut into operands at the messages
+/// named, each with the guard given; the first operand opens at `first`
+/// when no cut names it. The two ends and every cut must be messages of
+/// the same block (the scenario, or one fragment or operand of it), so that
+/// a fragment already there is kept whole. The messages keep their order,
+/// their text and their count; the compiler reads the result.
+pub fn wrap_fragment(
+    source: &str,
+    scenario: &str,
+    kind: &str,
+    label: &str,
+    first: &str,
+    last: &str,
+    operands: &[(String, String)],
+) -> Result<String, EditError> {
+    if !matches!(kind, "alt" | "opt" | "loop" | "par" | "seq" | "critical") {
+        return Err(EditError::Invalid(format!("'{kind}' is not a fragment kind: use alt, opt, loop, par, seq or critical")));
+    }
+    let document = Document::read(source)?;
+    let block = document.find_element(scenario)?;
+    let lexemes = &document.lexemes;
+    let messages = document.message_labels(&block);
+    let at = |name: &str| {
+        messages
+            .iter()
+            .find(|(_, label)| label == name)
+            .map(|(i, _)| *i)
+            .ok_or_else(|| EditError::NotFound(format!("message '{name}' in scenario '{scenario}'")))
+    };
+    let start = at(first)?;
+    let end = at(last)?;
+    if end < start {
+        return Err(EditError::Invalid(format!("message '{last}' comes before '{first}'")));
+    }
+    let home = enclosing_open(lexemes, start);
+    if enclosing_open(lexemes, end) != home {
+        return Err(EditError::Invalid(format!(
+            "messages '{first}' and '{last}' are not in the same block; a fragment wraps messages of one block, so a fragment already there stays whole"
+        )));
+    }
+    let mut cuts: Vec<(usize, &str)> = Vec::new();
+    for (message, guard) in operands {
+        let index = at(message)?;
+        if index < start || index > end {
+            return Err(EditError::Invalid(format!("message '{message}' is outside '{first}' … '{last}'")));
+        }
+        if enclosing_open(lexemes, index) != home {
+            return Err(EditError::Invalid(format!("message '{message}' is inside a fragment; an operand starts at a message of the block wrapped")));
+        }
+        cuts.push((index, guard.as_str()));
+    }
+    cuts.sort_by_key(|(index, _)| *index);
+    cuts.dedup_by_key(|(index, _)| *index);
+    if !cuts.is_empty() && cuts[0].0 != start {
+        cuts.insert(0, (start, ""));
+    }
+
+    let indentation = document.indentation_of(start);
+    let inner = format!("{indentation}{INDENT}");
+    let text_start = lexemes[start].offset;
+    let text_end = document.end_of(line_end(lexemes, end, block.close));
+    let piece = |from: usize, to: usize| -> String { document.chars[from..to].iter().collect() };
+    let reindent = |text: &str, prefix: &str| -> String {
+        text.lines()
+            .filter(|line| !line.trim().is_empty())
+            .map(|line| format!("{prefix}{}\n", line.strip_prefix(indentation.as_str()).unwrap_or(line.trim_start())))
+            .collect()
+    };
+    let tag = if label.is_empty() { String::new() } else { format!(" {}", string_literal(label)) };
+    let mut out = format!("fragment {kind}{tag} {{\n");
+    if cuts.is_empty() {
+        out.push_str(&reindent(&piece(text_start, text_end), &inner));
+    } else {
+        for (n, (index, guard)) in cuts.iter().enumerate() {
+            let from = lexemes[*index].offset;
+            let to = cuts.get(n + 1).map_or(text_end, |(next, _)| lexemes[*next].offset);
+            let guard_tag = if guard.is_empty() { String::new() } else { format!(" {}", string_literal(guard)) };
+            out.push_str(&format!("{inner}operand{guard_tag} {{\n"));
+            out.push_str(&reindent(&piece(from, to), &format!("{inner}{INDENT}")));
+            out.push_str(&format!("{inner}}}\n"));
+        }
+    }
+    out.push_str(&format!("{indentation}}}"));
+    let edited = document.splice(text_start, text_end, &out);
+
+    // The same messages, in the same order, under the same scenario.
+    let after = Document::read(&edited)?;
+    let kept: Vec<String> = after.message_labels(&after.find_element(scenario)?).into_iter().map(|(_, label)| label).collect();
+    let before: Vec<String> = messages.into_iter().map(|(_, label)| label).collect();
+    if kept != before {
+        return Err(EditError::Unsafe("wrapping the messages would change them".to_string()));
+    }
+    syntax_tree(&edited, "the edited model")?;
+    Ok(edited)
+}
+
+/// The index of the `{` that directly encloses lexeme `index`.
+fn enclosing_open(lexemes: &[Lexeme], index: usize) -> usize {
+    let mut depth = 0usize;
+    for j in (0..index).rev() {
+        match token(&lexemes[j]) {
+            Some(Token::RightBrace) => depth += 1,
+            Some(Token::LeftBrace) if depth == 0 => return j,
+            Some(Token::LeftBrace) => depth -= 1,
+            _ => {}
+        }
+    }
+    0
+}
+
+/// The last lexeme of the line that starts at `index`, taking the block
+/// opened on that line with it; never past `limit`.
+fn line_end(lexemes: &[Lexeme], index: usize, limit: usize) -> usize {
+    let mut j = index + 1;
+    while j < limit && lexemes[j].newlines_before == 0 {
+        if matches!(token(&lexemes[j]), Some(Token::LeftBrace)) {
+            if let Some(close) = matching_close(lexemes, j) {
+                return close - 1;
+            }
+        }
+        j += 1;
+    }
+    j - 1
+}
+
+impl Document {
+    /// The messages written directly or in fragments of `block`: the index
+    /// of each `message` keyword with the label that follows the arrow.
+    fn message_labels(&self, block: &Block) -> Vec<(usize, String)> {
+        let lexemes = &self.lexemes;
+        (block.open + 1..block.close)
+            .filter(|&i| matches!(token(&lexemes[i]), Some(Token::Message)))
+            .filter_map(|i| {
+                let label = (i + 4..block.close)
+                    .take_while(|&j| lexemes[j].newlines_before == 0)
+                    .find_map(|j| match token(&lexemes[j]) {
+                        Some(Token::StringLiteral(text)) => Some(text.clone()),
+                        _ => None,
+                    });
+                label.map(|label| (i, label))
+            })
+            .collect()
+    }
+}
+
 /// Remove the declaration of `element`, with everything declared inside it.
 pub fn remove_element(source: &str, element: &str) -> Result<String, EditError> {
     let document = Document::read(source)?;

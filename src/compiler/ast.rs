@@ -714,26 +714,71 @@ pub enum MessageType {
     Return,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct CombinedFragment {
-    pub fragment_type: FragmentType,
-    pub label: String,
-    pub condition: Option<String>,
-    pub operands: Vec<FragmentOperand>,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
 pub enum FragmentType {
     Par,
     Opt,
     Loop,
     Alt,
+    Seq,
+    Critical,
+}
+
+impl FragmentType {
+    pub fn parse(text: &str) -> Option<FragmentType> {
+        match text {
+            "par" => Some(FragmentType::Par),
+            "opt" => Some(FragmentType::Opt),
+            "loop" => Some(FragmentType::Loop),
+            "alt" => Some(FragmentType::Alt),
+            "seq" => Some(FragmentType::Seq),
+            "critical" => Some(FragmentType::Critical),
+            _ => None,
+        }
+    }
+
+    pub fn keyword(self) -> &'static str {
+        match self {
+            FragmentType::Par => "par",
+            FragmentType::Opt => "opt",
+            FragmentType::Loop => "loop",
+            FragmentType::Alt => "alt",
+            FragmentType::Seq => "seq",
+            FragmentType::Critical => "critical",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CombinedFragment {
+    pub fragment_type: FragmentType,
+    pub label: String,
+    pub condition: Option<String>,
+    /// The operands, in order; a fragment written without `operand` blocks
+    /// has one, unlabelled, holding its body.
+    pub operands: Vec<FragmentOperand>,
+    /// First and last message of the fragment, as indexes into the
+    /// scenario's messages (`end < start` when it holds none).
+    #[serde(default)]
+    pub start: usize,
+    #[serde(default)]
+    pub end: usize,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FragmentOperand {
     pub label: String,
     pub messages: Vec<Message>,
+    /// First and last message of the operand, as indexes into the
+    /// scenario's messages (`end < start` when it holds none).
+    #[serde(default)]
+    pub start: usize,
+    #[serde(default)]
+    pub end: usize,
+    /// Fragments nested in this operand.
+    #[serde(default)]
+    pub fragments: Vec<CombinedFragment>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

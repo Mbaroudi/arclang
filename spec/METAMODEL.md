@@ -916,6 +916,17 @@ Sequence of messages between participants.
 | `is` | `ref<Type>` | User-defined type of the element, or a list of types; their attributes (and ports, for components) are inherited. |
 | `participants` | `list<ref<Element>>` | Lifelines. |
 
+#### Fragment
+
+A combined fragment of a scenario: `alt`, `opt`, `loop`, `par`, `seq` or `critical`, framing the messages it holds, with its operands. Fragments nest.
+
+- Arcadia: `CombinedFragment`
+- SysML v2: `combined fragment`
+
+| Attribute | Type | Meaning |
+|---|---|---|
+| `label` | `text` | The guard or the condition shown in the frame's tag. |
+
 #### Message
 
 Message between two participants.

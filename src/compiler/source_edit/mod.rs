@@ -22,7 +22,7 @@ use std::path::Path;
 
 mod structure;
 
-pub use structure::{add_declaration, add_element, add_trace, move_element, remove_element, remove_trace, rename_element, rename_references, string_literal, Container};
+pub use structure::{add_declaration, add_element, add_trace, move_element, remove_element, remove_trace, rename_element, rename_references, string_literal, wrap_fragment, Container};
 
 /// One declaration of the source, where it stands: what an outline or a
 /// "go to definition" needs, read from the text itself.
@@ -413,7 +413,7 @@ impl Document {
     /// `trace "A" satisfies "B" { }` links two elements; it is not one, and
     /// the names on its line are those of its ends.
     fn is_relationship(&self, block: &Block) -> bool {
-        matches!(self.header(block).first().and_then(token), Some(Token::Trace))
+        matches!(self.header(block).first().and_then(token), Some(Token::Trace | Token::Transition | Token::Message))
     }
 
     /// The name in a block's header: its first string, else its last word.
