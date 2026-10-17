@@ -2,7 +2,7 @@
 //! components deployed on them, physical links and physical exchanges.
 
 use super::builder::{identity, properties, text, view_title, Builder};
-use super::functions::{add_functional_exchanges, FunctionTable, Placement};
+use super::functions::{add_functional_exchanges, add_level_function, FunctionTable, Placement};
 use super::{Diagram, EdgeKind, NodeKind, PortDirection, ViewKind};
 use crate::compiler::ast::{LogicalComponent, Model};
 use std::collections::{BTreeMap, HashMap};
@@ -22,6 +22,13 @@ pub(super) fn build(model: &Model) -> Option<(Diagram, Vec<String>)> {
     let logical = logical_component_ids(model);
 
     for pa in &model.physical_architecture {
+        functions.know_level(&pa.functions);
+        for node in &pa.nodes {
+            functions.know_level(&node.functions);
+            for behavior in &node.behavior_components {
+                functions.know_level(&behavior.functions);
+            }
+        }
         for node in &pa.nodes {
             let handle = builder.add_node(
                 None,
@@ -41,14 +48,21 @@ pub(super) fn build(model: &Model) -> Option<(Diagram, Vec<String>)> {
                     text(&port.attributes, "protocol").map(str::to_string),
                 );
             }
+            for function in &node.functions {
+                add_level_function(&mut builder, Some(handle), function, &node_id);
+            }
             for behavior in &node.behavior_components {
                 let child = builder.add_node(
                     Some(handle),
                     &behavior.id,
                     &behavior.name,
                     NodeKind::BehaviorComponent,
-                    BTreeMap::new(),
+                    properties(&behavior.attributes, &["description", "safety_level", "asil"]),
                 );
+                // The physical functions the component performs, declared inside it.
+                for function in &behavior.functions {
+                    add_level_function(&mut builder, Some(child), function, &behavior.id);
+                }
                 // The parser stores `allocated_component` and
                 // `allocated_function(s)` in one list: tell them apart here.
                 for reference in &behavior.allocated_functions {
@@ -99,6 +113,11 @@ pub(super) fn build(model: &Model) -> Option<(Diagram, Vec<String>)> {
                     builder.add_realization(child, (*realized).to_string());
                 }
             }
+        }
+    }
+    for pa in &model.physical_architecture {
+        for function in &pa.functions {
+            add_level_function(&mut builder, None, function, "PA");
         }
     }
     if builder.is_empty() {
@@ -165,6 +184,14 @@ pub(super) fn build(model: &Model) -> Option<(Diagram, Vec<String>)> {
             .system_analysis
             .iter()
             .flat_map(|sa| sa.functional_exchanges.iter()),
+        Some(&functions),
+    );
+    add_functional_exchanges(
+        &mut builder,
+        model
+            .physical_architecture
+            .iter()
+            .flat_map(|pa| pa.functional_exchanges.iter()),
         Some(&functions),
     );
     for pa in &model.physical_architecture {

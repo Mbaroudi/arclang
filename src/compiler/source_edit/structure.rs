@@ -56,6 +56,11 @@ impl Document {
     /// as a function allocated by name is written. The lexeme indexes of
     /// its first and last token.
     fn find_bare_declaration(&self, element: &str) -> Option<(usize, usize)> {
+        // `layer::Name` looks inside that layer only.
+        let (scope, element) = match element.split_once("::") {
+            Some((layer, name)) => (self.find_layer(layer, None).ok(), name),
+            None => (None, element),
+        };
         let lexemes = &self.lexemes;
         (0..lexemes.len().saturating_sub(1)).find_map(|index| {
             let keyword = token(&lexemes[index])?.keyword_text()?;
@@ -72,11 +77,12 @@ impl Document {
             }
             let own_line = lexemes[index].newlines_before > 0 || index == 0;
             let ends_line = lexemes.get(index + 2).is_none_or(|next| next.newlines_before > 0 || matches!(token(next), Some(Token::RightBrace)));
-            (own_line && ends_line).then_some((index, index + 1))
+            let in_scope = scope.as_ref().is_none_or(|layer| index > layer.open && index < layer.close);
+            (own_line && ends_line && in_scope).then_some((index, index + 1))
         })
     }
 
-    fn find_layer(&self, keyword: &str, name: Option<&str>) -> Result<Block, EditError> {
+    pub(super) fn find_layer(&self, keyword: &str, name: Option<&str>) -> Result<Block, EditError> {
         let described = match name {
             Some(name) => format!("{keyword} \"{name}\""),
             None => keyword.to_string(),
@@ -263,7 +269,18 @@ pub fn add_declaration(source: &str, container: Container, declaration: &str) ->
     }
     let document = Document::read(source)?;
     let edited = match container {
-        Container::Element(element) => document.insert_declaration(&document.find_element(element)?, declaration),
+        Container::Element(element) => match document.find_element(element) {
+            Ok(block) => document.insert_declaration(&block, declaration),
+            // A bare declaration (`function "X"`) opens a block to hold what is added.
+            Err(EditError::NotFound(_)) => {
+                let (_, name_index) = document.find_bare_declaration(element).ok_or_else(|| EditError::NotFound(element.to_string()))?;
+                let indentation = document.indentation_of(name_index);
+                let body: String = declaration.lines().map(|line| format!("{indentation}{INDENT}{line}\n")).collect();
+                let at = document.end_of(name_index);
+                document.splice(at, at, &format!(" {{\n{body}{indentation}}}"))
+            }
+            Err(error) => return Err(error),
+        },
         Container::Layer { keyword, name } => document.insert_declaration(&document.find_layer(keyword, name)?, declaration),
         Container::Document => {
             let mut text = source.trim_end().to_string();
@@ -715,5 +732,12 @@ trace "LC-001" implements "LC-002" {}
             Err(EditError::NotFound(_))
         ));
         assert!(matches!(remove_element(MODEL, "LC-404"), Err(EditError::NotFound(_))));
+    }
+
+    #[test]
+    fn a_bare_function_opens_a_block_for_what_is_added() {
+        let model = "model T { name: \"t\" }\nlogical_architecture LA {\n    component Fusion {\n        id: \"LC-F\"\n        function \"Fuse data\"\n    }\n}\n";
+        let edited = add_element(model, Container::Element("Fuse data"), "port out", "objects", &[]).unwrap();
+        assert!(edited.contains("        function \"Fuse data\" {\n            port out \"objects\" {}\n        }\n"), "{edited}");
     }
 }

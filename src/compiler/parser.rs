@@ -822,6 +822,7 @@ impl Parser {
         let mut components = Vec::new();
         let mut external_actors = Vec::new();
         let mut functional_exchanges = Vec::new();
+        let mut component_exchanges = Vec::new();
         let mut missions = Vec::new();
         let mut capabilities = Vec::new();
         let mut functional_chains = Vec::new();
@@ -854,6 +855,9 @@ impl Parser {
                 }
                 Token::Identifier(ref id) if id == "system_component" => {
                     components.push(self.parse_system_component()?);
+                }
+                Token::Identifier(ref id) if id == "component_exchange" => {
+                    component_exchanges.push(self.parse_named_component_exchange()?);
                 }
                 Token::Identifier(ref id)
                     if id == "functional_exchange" || id == "exchange" =>
@@ -891,6 +895,7 @@ impl Parser {
             components,
             external_actors,
             functional_exchanges,
+            component_exchanges,
             missions,
             capabilities,
             functional_chains,
@@ -1665,7 +1670,7 @@ impl Parser {
     fn parse_external_actor(&mut self) -> Result<ExternalActor, String> {
         self.expect(Token::Actor)?;
         let name = self.expect_name()?;
-        let attributes = self.parse_attributes_block()?;
+        let (attributes, ports) = self.parse_ported_block()?;
 
         let id = attributes
             .get("id")
@@ -1678,7 +1683,7 @@ impl Parser {
             .unwrap_or("#FFFFFF")
             .to_string();
 
-        Ok(ExternalActor { id, name, color, attributes })
+        Ok(ExternalActor { id, name, color, ports, attributes })
     }
 
     /// Parse a functional exchange in either form:
@@ -1784,6 +1789,7 @@ impl Parser {
             components: Vec::new(),
             external_actors: Vec::new(),
             functional_exchanges: Vec::new(),
+            component_exchanges: Vec::new(),
             missions: Vec::new(),
             capabilities: Vec::new(),
             functional_chains: Vec::new(),
@@ -1863,9 +1869,26 @@ impl Parser {
     fn parse_system_component(&mut self) -> Result<SystemComponent, String> {
         self.advance(); // Skip 'system_component'
         let name = self.expect_name()?;
-        let attributes = self.parse_attributes_block()?;
-        
-        Ok(SystemComponent { name, attributes })
+        let (attributes, ports) = self.parse_ported_block()?;
+        Ok(SystemComponent { name, ports, attributes })
+    }
+
+    /// An attribute block that also declares component ports:
+    /// `{ attributes, port in|out|inout Name { ... } }`.
+    fn parse_ported_block(&mut self) -> Result<(HashMap<String, AttributeValue>, Vec<ComponentPort>), String> {
+        self.expect(Token::LeftBrace)?;
+        let mut attributes = HashMap::new();
+        let mut ports = Vec::new();
+        while !self.check(&Token::RightBrace) && !self.is_at_end() {
+            if self.check(&Token::Port) && !self.peek_is_colon() {
+                ports.push(self.parse_component_port()?);
+            } else {
+                let (key, value) = self.parse_attribute()?;
+                attributes.insert(key, value);
+            }
+        }
+        self.expect(Token::RightBrace)?;
+        Ok((attributes, ports))
     }
     
     fn parse_logical_architecture(&mut self) -> Result<LogicalArchitecture, String> {
@@ -1879,8 +1902,10 @@ impl Parser {
 
         let mut name = name;
         let mut components = Vec::new();
+        let mut functions = Vec::new();
         let mut interfaces = Vec::new();
         let mut component_exchanges = Vec::new();
+        let mut functional_exchanges = Vec::new();
         let mut capability_realizations = Vec::new();
         let mut functional_chains = Vec::new();
         
@@ -1897,6 +1922,15 @@ impl Parser {
                 }
                 Token::Identifier(ref id) if id == "component_exchange" => {
                     component_exchanges.push(self.parse_named_component_exchange()?);
+                }
+                Token::Identifier(ref id) if id == "functional_exchange" || id == "exchange" => {
+                    functional_exchanges.push(self.parse_functional_exchange()?);
+                }
+                Token::Flow => {
+                    functional_exchanges.push(self.parse_functional_exchange()?);
+                }
+                Token::Function => {
+                    functions.push(self.parse_logical_function()?);
                 }
                 Token::CapabilityRealization | Token::Capability => {
                     capability_realizations.extend(self.parse_capabilities()?);
@@ -1933,8 +1967,10 @@ impl Parser {
         Ok(LogicalArchitecture {
             name,
             components,
+            functions,
             interfaces,
             component_exchanges,
+            functional_exchanges,
             unallocated_functions: Vec::new(),
             capability_realizations,
             functional_chains,
@@ -2132,17 +2168,31 @@ impl Parser {
         })
     }
     
+    /// A function of the logical or physical level:
+    /// `function Name { attributes, port in|out Name, function Nested { ... } }`.
+    /// The body block is optional: `function "Name"` declares a bare function.
     fn parse_logical_function(&mut self) -> Result<LogicalFunction, String> {
         self.expect(Token::Function)?;
         let name = self.expect_name()?;
-        // The body block is optional: `function "Name"` declares a bare function.
-        let attributes = if self.check(&Token::LeftBrace) {
-            self.parse_attributes_block()?
-        } else {
-            HashMap::new()
-        };
-
-        Ok(LogicalFunction { name, attributes })
+        let mut attributes = HashMap::new();
+        let mut ports = Vec::new();
+        let mut sub_functions = Vec::new();
+        if self.check(&Token::LeftBrace) {
+            self.expect(Token::LeftBrace)?;
+            while !self.check(&Token::RightBrace) && !self.is_at_end() {
+                match self.current() {
+                    Token::Port if !self.peek_is_colon() => ports.push(self.parse_function_port()?),
+                    Token::Function if !self.peek_is_colon() => sub_functions.push(self.parse_logical_function()?),
+                    _ => {
+                        let (key, value) = self.parse_attribute()?;
+                        attributes.insert(key, value);
+                    }
+                }
+            }
+            self.expect(Token::RightBrace)?;
+        }
+        let id = attributes.get("id").and_then(|v| v.as_string()).map(|s| s.to_string()).unwrap_or_else(|| name.clone());
+        Ok(LogicalFunction { id, name, ports, sub_functions, attributes })
     }
     
     fn parse_logical_interface(&mut self) -> Result<LogicalInterface, String> {
@@ -2288,6 +2338,8 @@ impl Parser {
         let mut nodes = Vec::new();
         let mut links = Vec::new();
         let mut physical_exchanges = Vec::new();
+        let mut functions = Vec::new();
+        let mut functional_exchanges = Vec::new();
         let mut paths = Vec::new();
 
         while !self.check(&Token::RightBrace) && !self.is_at_end() {
@@ -2303,6 +2355,15 @@ impl Parser {
                 }
                 Token::Identifier(ref id) if id == "physical_link" || id == "link" => {
                     links.push(self.parse_physical_link()?);
+                }
+                Token::Identifier(ref id) if id == "functional_exchange" || id == "exchange" => {
+                    functional_exchanges.push(self.parse_functional_exchange()?);
+                }
+                Token::Flow => {
+                    functional_exchanges.push(self.parse_functional_exchange()?);
+                }
+                Token::Function => {
+                    functions.push(self.parse_logical_function()?);
                 }
                 Token::Identifier(ref id) if id == "physical_exchange" => {
                     physical_exchanges.push(self.parse_physical_exchange()?);
@@ -2355,8 +2416,10 @@ impl Parser {
         Ok(PhysicalArchitecture {
             name,
             nodes,
+            functions,
             links,
             physical_exchanges,
+            functional_exchanges,
             paths,
         })
     }
@@ -2404,6 +2467,7 @@ impl Parser {
         let mut behavior_components = Vec::new();
         let mut hardware_components = Vec::new();
         let mut node_ports = Vec::new();
+        let mut node_functions = Vec::new();
         let mut attributes = HashMap::new();
         
         while !self.check(&Token::RightBrace) && !self.is_at_end() {
@@ -2419,6 +2483,9 @@ impl Parser {
                 }
                 Token::Port => {
                     node_ports.push(self.parse_physical_port()?);
+                }
+                Token::Function if !self.peek_is_colon() => {
+                    node_functions.push(self.parse_logical_function()?);
                 }
                 _ if self.peek_is_colon() => {
                     let (key, value) = self.parse_attribute()?;
@@ -2448,6 +2515,7 @@ impl Parser {
             processor: None,
             memory: None,
             behavior_components,
+            functions: node_functions,
             hardware_components,
             deployments,
             ports: node_ports,
@@ -2591,6 +2659,7 @@ impl Parser {
             processor: None,
             memory: None,
             behavior_components: Vec::new(),
+            functions: Vec::new(),
             hardware_components: Vec::new(),
             deployments: Vec::new(),
             ports: Vec::new(),
@@ -3243,9 +3312,12 @@ impl Parser {
         self.expect(Token::LeftBrace)?;
         
         let mut attributes = HashMap::new();
+        let mut functions = Vec::new();
 
         while !self.check(&Token::RightBrace) && !self.is_at_end() {
-            if self.peek_is_colon() {
+            if self.check(&Token::Function) && !self.peek_is_colon() {
+                functions.push(self.parse_logical_function()?);
+            } else if self.peek_is_colon() {
                 let (key, value) = self.parse_attribute()?;
                 attributes.insert(key, value);
             } else {
@@ -3289,6 +3361,8 @@ impl Parser {
             name,
             allocated_functions,
             color,
+            functions,
+            attributes,
         })
     }
     

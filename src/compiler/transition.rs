@@ -12,7 +12,7 @@
 //! realizes. What is realized already is left alone, so a transition can be
 //! run again after the model grew.
 
-use super::ast::{AttributeValue, LogicalComponent, Model, OperationalActivity, SystemFunction};
+use super::ast::{AttributeValue, LogicalComponent, LogicalFunction, Model, OperationalActivity, SystemFunction};
 use super::source_edit::{self, string_literal, Container};
 use super::{Compiler, CompilerConfig};
 use serde::Serialize;
@@ -131,18 +131,22 @@ fn realizations(model: &Model) -> Vec<(String, String)> {
             _ => {}
         }
     };
+    fn walk_level_functions(functions: &[LogicalFunction], attribute: &dyn Fn(&str, &std::collections::HashMap<String, AttributeValue>, &mut Vec<(String, String)>), into: &mut Vec<(String, String)>) {
+        for function in functions {
+            attribute(&function.id, &function.attributes, into);
+            walk_level_functions(&function.sub_functions, attribute, into);
+        }
+    }
     fn walk_components(components: &[LogicalComponent], attribute: &dyn Fn(&str, &std::collections::HashMap<String, AttributeValue>, &mut Vec<(String, String)>), into: &mut Vec<(String, String)>) {
         for component in components {
             attribute(&component.id, &component.attributes, into);
-            for function in &component.functions {
-                let id = function.attributes.get("id").and_then(|v| v.as_string()).unwrap_or(&function.name);
-                attribute(id, &function.attributes, into);
-            }
+            walk_level_functions(&component.functions, attribute, into);
             walk_components(&component.sub_components, attribute, into);
         }
     }
     for la in &model.logical_architecture {
         walk_components(&la.components, &attribute, &mut found);
+        walk_level_functions(&la.functions, &attribute, &mut found);
     }
     for pa in &model.physical_architecture {
         for node in &pa.nodes {
@@ -150,12 +154,15 @@ fn realizations(model: &Model) -> Vec<(String, String)> {
             // A behaviour component realizes the logical component it is
             // allocated (`allocated_component`), kept by the parser in one
             // list with the functions it performs.
+            walk_level_functions(&node.functions, &attribute, &mut found);
             for behavior in &node.behavior_components {
                 for reference in &behavior.allocated_functions {
                     found.push((behavior.id.clone(), reference.clone()));
                 }
+                walk_level_functions(&behavior.functions, &attribute, &mut found);
             }
         }
+        walk_level_functions(&pa.functions, &attribute, &mut found);
     }
     for sa in &model.system_analysis {
         fn walk_functions(functions: &[SystemFunction], attribute: &dyn Fn(&str, &std::collections::HashMap<String, AttributeValue>, &mut Vec<(String, String)>), into: &mut Vec<(String, String)>) {

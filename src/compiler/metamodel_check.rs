@@ -129,6 +129,9 @@ impl<'a> Checker<'a> {
             for component in &la.components {
                 self.walk_logical_component(component);
             }
+            for function in &la.functions {
+                self.walk_level_function("LogicalFunction", function);
+            }
             for interface in &la.interfaces {
                 self.check_attrs("LogicalInterface", &interface.name, &interface.attributes);
             }
@@ -141,10 +144,22 @@ impl<'a> Checker<'a> {
         }
 
         for pa in &ast.physical_architecture {
+            for function in &pa.functions {
+                self.walk_level_function("PhysicalFunction", function);
+            }
             for node in &pa.nodes {
                 self.check_attrs("PhysicalNode", &node.id, &node.attributes);
                 for port in &node.ports {
                     self.check_attrs("PhysicalPort", &format!("{}.{}", node.id, port.name), &port.attributes);
+                }
+                for function in &node.functions {
+                    self.walk_level_function("PhysicalFunction", function);
+                }
+                for behavior in &node.behavior_components {
+                    self.check_attrs("BehaviorComponent", &behavior.id, &behavior.attributes);
+                    for function in &behavior.functions {
+                        self.walk_level_function("PhysicalFunction", function);
+                    }
                 }
                 for deployment in &node.deployments {
                     self.check_attrs("Deployment", &deployment.component, &deployment.attributes);
@@ -289,10 +304,17 @@ impl<'a> Checker<'a> {
     fn walk_logical_component(&mut self, component: &LogicalComponent) {
         self.check_attrs("LogicalComponent", &component.id, &component.attributes);
         for function in &component.functions {
-            self.check_attrs("LogicalFunction", &function.name, &function.attributes);
+            self.walk_level_function("LogicalFunction", function);
         }
         for sub in &component.sub_components {
             self.walk_logical_component(sub);
+        }
+    }
+
+    pub(crate) fn walk_level_function(&mut self, kind: &'static str, function: &LogicalFunction) {
+        self.check_attrs(kind, &function.id, &function.attributes);
+        for sub in &function.sub_functions {
+            self.walk_level_function(kind, sub);
         }
     }
 

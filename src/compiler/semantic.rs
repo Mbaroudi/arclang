@@ -246,6 +246,39 @@ fn truncated_id_hint(reference: &str, elements: &HashMap<String, ElementInfo>) -
     }
 }
 
+/// Register a function of the logical or physical level: the function
+/// itself, its ports (`Function.port`) and its sub-functions, recursively.
+fn register_level_function(
+    func: &LogicalFunction,
+    kind: &str,
+    functions: &mut Vec<FunctionInfo>,
+    all_elements: &mut HashMap<String, ElementInfo>,
+    duplicates: &mut Vec<String>,
+) {
+    let func_id = func.id.clone();
+    let list = |key: &str| -> Vec<String> {
+        match func.attributes.get(key) {
+            Some(AttributeValue::List(list)) => list.iter().filter_map(|v| v.as_string().map(|s| s.to_string())).collect(),
+            _ => Vec::new(),
+        }
+    };
+    let mut inputs = list("inputs");
+    let mut outputs = list("outputs");
+    for port in &func.ports {
+        match port.direction {
+            PortDirection::In => inputs.push(port.name.clone()),
+            _ => outputs.push(port.name.clone()),
+        }
+        let port_id = format!("{}.{}", func_id, port.name);
+        register_element(all_elements, duplicates, port_id.clone(), ElementInfo::new(port_id, port.name.clone(), "FunctionPort"));
+    }
+    functions.push(FunctionInfo { id: func_id.clone(), name: func.name.clone(), inputs, outputs });
+    register_element(all_elements, duplicates, func_id.clone(), ElementInfo::new(func_id, func.name.clone(), kind));
+    for sub in &func.sub_functions {
+        register_level_function(sub, kind, functions, all_elements, duplicates);
+    }
+}
+
 /// Register an element, recording a warning when an id is reused by a
 /// DIFFERENT element (identity must be unique across the whole model).
 fn register_element(
@@ -652,6 +685,10 @@ impl SemanticAnalyzer {
                 });
                 
                 register_element(&mut all_elements, &mut duplicate_ids, comp_id.clone(), ElementInfo::new(comp_id.clone(), comp.name.clone(), "SystemComponent"));
+                for port in &comp.ports {
+                    let port_id = format!("{}.{}", comp_id, port.name);
+                    register_element(&mut all_elements, &mut duplicate_ids, port_id.clone(), ElementInfo::new(port_id, port.name.clone(), "ComponentPort"));
+                }
             }
             
             // Collect system functions (recursively handle sub-functions)
@@ -797,43 +834,7 @@ impl SemanticAnalyzer {
                 }
 
                 for func in &comp.functions {
-                    let func_id = func.attributes.get("id")
-                        .and_then(|v| v.as_string())
-                        .unwrap_or(&func.name)
-                        .to_string();
-
-                    let inputs = func.attributes.get("inputs")
-                        .and_then(|v| {
-                            if let AttributeValue::List(list) = v {
-                                Some(list.iter()
-                                    .filter_map(|v| v.as_string().map(|s| s.to_string()))
-                                    .collect())
-                            } else {
-                                None
-                            }
-                        })
-                        .unwrap_or_default();
-
-                    let outputs = func.attributes.get("outputs")
-                        .and_then(|v| {
-                            if let AttributeValue::List(list) = v {
-                                Some(list.iter()
-                                    .filter_map(|v| v.as_string().map(|s| s.to_string()))
-                                    .collect())
-                            } else {
-                                None
-                            }
-                        })
-                        .unwrap_or_default();
-
-                    functions.push(FunctionInfo {
-                        id: func_id.clone(),
-                        name: func.name.clone(),
-                        inputs,
-                        outputs,
-                    });
-
-                    register_element(all_elements, duplicates, func_id.clone(), ElementInfo::new(func_id.clone(), func.name.clone(), "Function"));
+                    register_level_function(func, "Function", functions, all_elements, duplicates);
                 }
 
                 for port in &comp.ports {
@@ -853,6 +854,16 @@ impl SemanticAnalyzer {
 
             for comp in &la.components {
                 collect_logical_component(comp, &mut components, &mut functions, &mut all_elements, &mut duplicate_ids);
+            }
+            for func in &la.functions {
+                register_level_function(func, "Function", &mut functions, &mut all_elements, &mut duplicate_ids);
+            }
+            for exchange in &la.functional_exchanges {
+                interfaces.push(InterfaceInfo {
+                    name: exchange.label.clone().unwrap_or_else(|| format!("{} -> {}", exchange.from_port, exchange.to_port)),
+                    from: exchange.from_port.clone(),
+                    to: exchange.to_port.clone(),
+                });
             }
         }
         
@@ -915,6 +926,31 @@ impl SemanticAnalyzer {
                         ElementInfo::new(port_id, port.name.clone(), "PhysicalPort"),
                     );
                 }
+                for func in &node.functions {
+                    register_level_function(func, "Function", &mut functions, &mut all_elements, &mut duplicate_ids);
+                }
+                // Behaviour components and the physical functions they perform.
+                for behavior in &node.behavior_components {
+                    register_element(
+                        &mut all_elements,
+                        &mut duplicate_ids,
+                        behavior.id.clone(),
+                        ElementInfo::new(behavior.id.clone(), behavior.name.clone(), "BehaviorComponent"),
+                    );
+                    for func in &behavior.functions {
+                        register_level_function(func, "Function", &mut functions, &mut all_elements, &mut duplicate_ids);
+                    }
+                }
+            }
+            for func in &pa.functions {
+                register_level_function(func, "Function", &mut functions, &mut all_elements, &mut duplicate_ids);
+            }
+            for exchange in &pa.functional_exchanges {
+                interfaces.push(InterfaceInfo {
+                    name: exchange.label.clone().unwrap_or_else(|| format!("{} -> {}", exchange.from_port, exchange.to_port)),
+                    from: exchange.from_port.clone(),
+                    to: exchange.to_port.clone(),
+                });
             }
         }
         
@@ -958,6 +994,10 @@ impl SemanticAnalyzer {
                 actor.id.clone(),
                 ElementInfo::new(actor.id.clone(), actor.name.clone(), "SystemActor"),
             );
+            for port in &actor.ports {
+                let port_id = format!("{}.{}", actor.id, port.name);
+                register_element(&mut all_elements, &mut duplicate_ids, port_id.clone(), ElementInfo::new(port_id, port.name.clone(), "ComponentPort"));
+            }
         }
         for process in ast.operational_analysis.iter().flat_map(|oa| &oa.processes) {
             register_element(
@@ -1305,11 +1345,30 @@ impl SemanticAnalyzer {
                 check("functional_exchange", label, &ex.to_port, "to");
             }
         }
+        for sa in &ast.system_analysis {
+            for ex in &sa.component_exchanges {
+                let label = ex.label.as_deref().unwrap_or("");
+                check("component_exchange", label, &ex.from_port, "from");
+                check("component_exchange", label, &ex.to_port, "to");
+            }
+        }
         for la in &ast.logical_architecture {
             for ex in &la.component_exchanges {
                 let label = ex.label.as_deref().unwrap_or("");
                 check("component_exchange", label, &ex.from_port, "from");
                 check("component_exchange", label, &ex.to_port, "to");
+            }
+            for ex in &la.functional_exchanges {
+                let label = ex.label.as_deref().unwrap_or("");
+                check("functional_exchange", label, &ex.from_port, "from");
+                check("functional_exchange", label, &ex.to_port, "to");
+            }
+        }
+        for pa in &ast.physical_architecture {
+            for ex in &pa.functional_exchanges {
+                let label = ex.label.as_deref().unwrap_or("");
+                check("functional_exchange", label, &ex.from_port, "from");
+                check("functional_exchange", label, &ex.to_port, "to");
             }
         }
         for pa in &ast.physical_architecture {

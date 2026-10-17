@@ -449,7 +449,17 @@ impl Document {
     /// block carries that id, by name among the blocks that write no id —
     /// the name on the declaration line, or the `name:` written inside.
     fn find_element(&self, element: &str) -> Result<Block, EditError> {
-        let blocks = self.blocks();
+        // `layer::Name` designates the element inside that layer block only:
+        // the same name at two levels is two elements.
+        let (scope, element) = match element.split_once("::") {
+            Some((layer, name)) => (Some(self.find_layer(layer, None)?), name),
+            None => (None, element),
+        };
+        let blocks: Vec<Block> = self
+            .blocks()
+            .into_iter()
+            .filter(|block| scope.as_ref().is_none_or(|layer| block.open > layer.open && block.close < layer.close))
+            .collect();
         let ids: Vec<Option<String>> = blocks.iter().map(|block| self.written_id(block)).collect();
         let by_id: Vec<usize> = (0..blocks.len()).filter(|i| ids[*i].as_deref() == Some(element)).collect();
         let matches = if by_id.is_empty() {

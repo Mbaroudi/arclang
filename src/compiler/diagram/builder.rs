@@ -502,7 +502,13 @@ impl Builder {
 fn carries_ports(kind: NodeKind) -> bool {
     matches!(
         kind,
-        NodeKind::Function | NodeKind::LogicalComponent | NodeKind::PhysicalNode
+        NodeKind::Function
+            | NodeKind::LogicalComponent
+            | NodeKind::PhysicalNode
+            | NodeKind::SystemComponent
+            | NodeKind::SystemActor
+            | NodeKind::System
+            | NodeKind::BehaviorComponent
     )
 }
 

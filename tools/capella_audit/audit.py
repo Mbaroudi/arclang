@@ -33,8 +33,8 @@ def owner_written(el):
 TOOLING = {'capellacommon:TransfoLink','capellacore:KeyValue','libraries:ModelInformation','re:CatalogElementLink','re:CatalogElement','re:RecCatalog','re:CatalogElementPkg','re:CompliancyDefinition','re:CompliancyDefinitionPkg','capellamodeller:SystemEngineering','datavalue:LiteralNumericValue','datavalue:LiteralBooleanValue','datavalue:BinaryExpression','datavalue:LiteralStringValue','datavalue:NumericReference','datavalue:EnumerationReference','datavalue:ValuePart','datavalue:ComplexValue','ctx:OperationalAnalysisRealization','la:SystemAnalysisRealization','pa:LogicalArchitectureRealization','epbs:PhysicalArchitectureRealization','epbs:EPBSArchitecture','oa:OperationalAnalysis','ctx:SystemAnalysis','la:LogicalArchitecture','pa:PhysicalArchitecture','filtering:FilteringModel','filtering:FilteringResults','filtering:FilteringResult','filtering:AssociatedFilteringCriterionSet','filtering:FilteringCriterion','filtering:FilteringCriterionPkg','libraries:LibraryReference','capellacore:EnumerationPropertyType','capellacore:EnumerationPropertyLiteral','capellacore:PropertyValuePkg','Requirements:DataTypeDefinition','Requirements:EnumerationDataTypeDefinition','Requirements:ModuleType','Requirements:RequirementType','Requirements:RelationType','Requirements:AttributeDefinition','Requirements:AttributeDefinitionEnumeration','Requirements:EnumValue','Requirements:Folder','CapellaRequirements:CapellaTypesFolder','CapellaRequirements:CapellaModule'}
 def is_pkg(k): return k.endswith('Pkg') or k.endswith('Structure')
 
+REASON = {}
 GAP = {  # kind -> why the language has no place yet
- 'pa:PhysicalFunction': 'physical functions: ArcLang allocates system functions by name at the physical level',
  'oa:Role': 'operational roles',
  'fa:ControlNode': 'control nodes of functional chains (chains are ordered lists)',
  'fa:SequenceLink': 'sequence links of functional chains',
@@ -73,15 +73,10 @@ for el in root.iter():
     elif eid and eid in written: bucket = 'declared'
     elif k in ('datatype:NumericType','datatype:StringType','datatype:BooleanType','datatype:Enumeration','datatype:PhysicalQuantity') and (el.get('name') or '') in names_declared: bucket = 'carried'
     elif k == 'capellacommon:StateTransition' and kind_of(byid.get(ref(el,'source'))) == 'capellacommon:InitialPseudoState': bucket = 'carried'
-    elif k == 'fa:ComponentPort' and arch == 'pa': bucket = 'gap'; GAP.setdefault(k, 'ports of behaviour components')
-    elif k.endswith('Realization') and kind_of(parent.get(el)) in ('pa:PhysicalFunction','la:LogicalFunction','la:CapabilityRealization','fa:FunctionalChain') and (parent.get(el).get('id') not in written): bucket = 'gap'; GAP.setdefault(k, 'realizations owned by elements the language has no place for')
-    elif k == 'fa:FunctionalExchange' and arch in ('la', 'pa'): bucket = 'gap'; GAP.setdefault(k, 'functional exchanges of the logical and physical levels (ArcLang draws the system exchanges of allocated functions)')
-    elif k in ('fa:FunctionInputPort', 'fa:FunctionOutputPort') and arch in ('la', 'pa'): bucket = 'gap'; GAP.setdefault(k, 'ports of logical and physical functions (a component function holds no port)')
-    elif k == 'fa:ComponentPort' and arch == 'ctx': bucket = 'gap'; GAP.setdefault(k, 'ports of system components')
-    elif k == 'fa:ComponentExchange' and arch == 'ctx': bucket = 'gap'; GAP.setdefault(k, 'component exchanges of the system level')
-    elif k in ('la:LogicalFunction',) : bucket = 'gap'; GAP.setdefault(k, 'logical functions not allocated to a component, and parent functions (a component function holds no function)')
-    elif k == 'fa:FunctionalChain' and arch == 'pa': bucket = 'gap'; GAP.setdefault(k, 'functional chains of the physical level')
-    elif k == 'la:CapabilityRealization' and arch == 'pa': bucket = 'gap'; GAP.setdefault(k, 'capability realizations of the physical level')
+    elif k == 'fa:ComponentPort' and arch == 'pa': bucket = 'gap'; REASON[k] = 'ports of behaviour components'
+    elif k.endswith('Realization') and kind_of(parent.get(el)) in ('pa:PhysicalFunction','la:LogicalFunction','la:CapabilityRealization','fa:FunctionalChain') and (parent.get(el).get('id') not in written): bucket = 'gap'; REASON[k] = 'realizations owned by elements the language has no place for'
+    elif k == 'fa:FunctionalChain' and arch == 'pa': bucket = 'gap'; REASON[k] = 'functional chains of the physical level'
+    elif k == 'la:CapabilityRealization' and arch == 'pa': bucket = 'gap'; REASON[k] = 'capability realizations of the physical level'
     elif k in GAP: bucket = 'gap'
     # carried: lives on inside another declaration
     elif k == 'cs:Part': bucket = 'carried' if ref(el, 'abstractType') in written else 'missing'
@@ -109,7 +104,7 @@ def show(bucket, title):
     if not rows: return
     print(f"  -- {title}")
     for n, k in rows:
-        extra = GAP.get(k, '') if bucket == 'gap' else (', '.join(examples[k])[:60] if bucket == 'missing' else '')
+        extra = (GAP.get(k) or REASON.get(k, '')) if bucket == 'gap' else (', '.join(examples[k])[:60] if bucket == 'missing' else '')
         print(f"     {n:5d}  {k:55s} {extra}")
 show('gap', 'language gaps (the compiler has no place for these yet)')
 show('missing', 'NOT IMPORTED YET (the importer could, the language can)')

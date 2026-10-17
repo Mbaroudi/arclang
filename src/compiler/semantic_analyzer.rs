@@ -740,7 +740,9 @@ mod tests {
             functional_chains: Vec::new(),
             name: "Test LA".to_string(),
             components: vec![],
+            functions: vec![],
             component_exchanges: vec![],
+            functional_exchanges: vec![],
             interfaces: vec![],
             unallocated_functions: vec![],
         });

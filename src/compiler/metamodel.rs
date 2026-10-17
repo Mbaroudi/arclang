@@ -328,7 +328,7 @@ impl Metamodel {
             // ---- Logical Architecture ----
             kind("LogicalComponent", Layer::Logical, "LogicalComponent", "part def + part", "Behavioural building block, may be nested.",
                 concat(vec![component_attrs(), vec![multiplicity()]])),
-            kind("LogicalFunction", Layer::Logical, "LogicalFunction", "action def (perform)", "Function allocated to a logical component.", function_attrs()),
+            kind("LogicalFunction", Layer::Logical, "LogicalFunction", "action def (perform)", "Function of the logical level, declared inside the component that performs it (or at the level, unallocated), with its ports and sub-functions; `realizes:` names the system function it realizes.", function_attrs()),
             kind("ComponentPort", Layer::Logical, "ComponentPort", "port", "Oriented port of a component (in, out, inout).",
                 vec![attr("interface", AttrType::Text, "Interface type carried."), attr("protocol", AttrType::Text, "Protocol.")]),
             kind("LogicalInterface", Layer::Logical, "Interface", "interface def", "Contract between two components.",
@@ -340,7 +340,8 @@ impl Metamodel {
             kind("PhysicalNode", Layer::Physical, "PhysicalComponent (NODE)", "part def + part", "Hardware node hosting behaviour components.",
                 concat(vec![component_attrs(), vec![multiplicity(), attr("processor", AttrType::Text, "Processor."), attr("cpu", AttrType::Text, "CPU description."), attr("redundancy", AttrType::Text, "Redundancy scheme.")]])),
             kind("PhysicalPort", Layer::Physical, "PhysicalPort", "port", "Unoriented physical connector.", vec![attr("connector", AttrType::Text, "Connector type.")]),
-            kind("BehaviorComponent", Layer::Physical, "PhysicalComponent (BEHAVIOR)", "part", "Software/behaviour deployed on a node.", concat(vec![common(), safety()])),
+            kind("BehaviorComponent", Layer::Physical, "PhysicalComponent (BEHAVIOR)", "part", "Software/behaviour deployed on a node; declares the physical functions it performs.", concat(vec![common(), safety()])),
+            kind("PhysicalFunction", Layer::Physical, "PhysicalFunction", "action def (perform)", "Function of the physical level, declared inside the behaviour component that performs it (or at the level, unallocated), with its ports and sub-functions; `realizes:` names the logical function it realizes.", function_attrs()),
             kind("HardwareComponent", Layer::Physical, "PhysicalComponent (NODE, nested)", "part", "Hardware part of a node.", concat(vec![common(), resources()])),
             kind("PhysicalLink", Layer::Physical, "PhysicalLink", "connect (binding)", "Physical medium between nodes or ports.", exchange_attrs()),
             kind("PhysicalExchange", Layer::Physical, "ComponentExchange (physical)", "flow", "Message routed over a link.",

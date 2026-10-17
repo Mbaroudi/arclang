@@ -58,7 +58,7 @@ fn view_by_kinds(writer: &Writer, shown: &[String]) -> Option<&'static str> {
             Some("OperationalCapability" | "Mission" | "Capability" | "CapabilityRealization") => "cap",
             Some("SystemActor" | "SystemComponent" | "SystemFunction" | "FunctionalExchange" | "FunctionalChain" | "FunctionPort") => "sab",
             Some("LogicalComponent" | "LogicalFunction" | "ComponentExchange" | "LogicalInterface" | "ComponentPort") => "lab",
-            Some("PhysicalNode" | "BehaviorComponent" | "PhysicalLink" | "PhysicalExchange" | "PhysicalPath" | "PhysicalPort") => "pab",
+            Some("PhysicalNode" | "BehaviorComponent" | "PhysicalFunction" | "PhysicalLink" | "PhysicalExchange" | "PhysicalPath" | "PhysicalPort") => "pab",
             Some("EpbsSystem" | "EpbsSubsystem" | "EpbsItem") => "pbs",
             Some("Class" | "Enumeration" | "DataType" | "ExchangeItem") => "cdb",
             _ => continue,
@@ -115,8 +115,10 @@ pub(super) fn diagrams(writer: &mut Writer, aird: &Node) {
             writer.note(format!("diagram '{name}' left out: its kind has no ArcLang view"));
             continue;
         };
-        // Only the elements the view draws are listed: a view declares what it holds.
-        let shown: Vec<String> = shown.into_iter().filter(|id| view_by_kinds(writer, std::slice::from_ref(id)) == Some(view) || view == "cap" && matches!(writer.kinds.get(id).copied(), Some("SystemActor" | "SystemComponent" | "Actor" | "OperationalEntity" | "SystemFunction" | "OperationalActivity" | "FunctionalChain" | "OperationalProcess" | "LogicalComponent"))).collect();
+        // Only the boxes the view draws are listed: a view declares what it
+        // holds; ports and exchanges follow their boxes.
+        let is_box = |id: &String| !matches!(writer.kinds.get(id).copied(), Some("FunctionPort" | "ComponentPort" | "PhysicalPort" | "FunctionalExchange" | "ComponentExchange" | "PhysicalLink" | "PhysicalExchange" | "OperationalExchange" | "CommunicationMean"));
+        let shown: Vec<String> = shown.into_iter().filter(is_box).filter(|id| view_by_kinds(writer, std::slice::from_ref(id)) == Some(view) || view == "cap" && matches!(writer.kinds.get(id).copied(), Some("SystemActor" | "SystemComponent" | "Actor" | "OperationalEntity" | "SystemFunction" | "OperationalActivity" | "FunctionalChain" | "OperationalProcess" | "LogicalComponent"))).collect();
         if shown.is_empty() {
             writer.note(format!("diagram '{name}' left out: it shows no imported element"));
             continue;

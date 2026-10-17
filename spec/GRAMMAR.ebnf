@@ -96,8 +96,9 @@ SystemAnalysis  ::= "system_analysis" Name "{" SaElement* "}" ;
 
 SaElement       ::= RequirementDecl
                   | ( "function" | "system_function" ) Name "{" FunctionElement* "}"
-                  | "actor" Name AttributeBlock
-                  | "system_component" Name AttributeBlock
+                  | "actor" Name "{" ( Attribute | ComponentPortDecl )* "}"
+                  | "system_component" Name "{" ( Attribute | ComponentPortDecl )* "}"
+                  | "component_exchange" Name AttributeBlock   (* from_port:/to_port: required *)
                   | FunctionalExchange
                   | MissionDecl
                   | CapabilityDecl
@@ -130,6 +131,17 @@ FunctionElement ::= "function" Name AttributeBlock?            (* nested sub-fun
 
 (* Function ports are strictly input XOR output (Arcadia). *)
 FunctionPortDecl ::= "port" ( "in" | "out" ) Name AttributeBlock? ;
+ComponentPortDecl ::= "port" ( "in" | "out" | "inout" ) Name AttributeBlock? ;
+
+(* A function of the logical or physical level: declared inside the
+   component that performs it (allocation by containment), or at the level
+   when nothing performs it yet (a breakdown's parents). It carries its own
+   ports and sub-functions; `realizes: <ref>` names the function of the
+   level above it realizes. Exchanges between the functions of a level are
+   declared at that level with FunctionalExchange, their ends being
+   functions or `Function.port`. *)
+LevelFunctionDecl ::= "function" Name
+                      ( "{" ( Attribute | FunctionPortDecl | LevelFunctionDecl )* "}" )? ;
                      (* attributes: data_type:, type: data|control|event *)
 
 FunctionalExchange ::= ( "functional_exchange" | "exchange" | "flow" )
@@ -145,6 +157,8 @@ CapabilityRealizationDecl ::= ( "capability_realization" | "capability" ) Name
                               "{" ( Attribute | CapabilityRealizationDecl )* "}" ;
 
 LaElement       ::= Component
+                  | LevelFunctionDecl                         (* a function no component performs *)
+                  | FunctionalExchange                        (* between logical functions *)
                   | "interface" Name "{" InterfaceBody "}"
                   | ConnectionDecl
                   | "component_exchange" Name AttributeBlock   (* from_port:/to_port: required *)
@@ -156,8 +170,8 @@ LaElement       ::= Component
 Component       ::= "component" Name "{" ComponentElement* "}" ;
 
 ComponentElement ::= Component                                  (* nested components *)
-                  | "port" ( "in" | "out" | "inout" ) Name AttributeBlock?
-                  | "function" Name AttributeBlock?
+                  | ComponentPortDecl
+                  | LevelFunctionDecl                           (* the logical functions it performs *)
                   | "interface_in"  ":"? Name "{" InterfaceAttrs "}"
                   | "interface_out" ":"? Name "{" InterfaceAttrs "}"
                   | "provides" "interface"? Name "{" InterfaceAttrs "}"
@@ -176,6 +190,8 @@ PhysicalArchitecture ::= "physical_architecture" Name "{" PaElement* "}"
                        | "architecture" "physical" Name? "{" PaElement* "}" ;
 
 PaElement       ::= "node" Name "{" NodeElement* "}"
+                  | LevelFunctionDecl                         (* a function no behaviour component performs *)
+                  | FunctionalExchange                        (* between physical functions *)
                   | "component" Name PhysicalComponentBody?
                   | ConnectionDecl
                   | ( "physical_link" | "link" ) Name ( "->" Name )? AttributeBlock
@@ -185,7 +201,9 @@ PaElement       ::= "node" Name "{" NodeElement* "}"
 
 NodeElement     ::= "deploys" Name AttributeBlock?
                   | "port" Name AttributeBlock?               (* physical ports are UNORIENTED *)
-                  | "behavior_component" Name AttributeBlock
+                  | LevelFunctionDecl                         (* the physical functions the node itself performs *)
+                  | "behavior_component" Name "{" ( Attribute | LevelFunctionDecl )* "}"
+                                                              (* the physical functions it performs *)
                   | "hardware_component" Name AttributeBlock?
                   | Attribute ;
 

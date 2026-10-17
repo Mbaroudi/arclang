@@ -239,6 +239,9 @@ pub struct SystemAnalysis {
     pub components: Vec<SystemComponent>,
     pub external_actors: Vec<ExternalActor>,
     pub functional_exchanges: Vec<FunctionalExchange>,
+    /// Exchanges between the ports of the system, its components and its actors.
+    #[serde(default)]
+    pub component_exchanges: Vec<ComponentExchange>,
     #[serde(default)]
     pub missions: Vec<Mission>,
     #[serde(default)]
@@ -338,6 +341,8 @@ pub struct ExternalActor {
     pub id: String,
     pub name: String,
     pub color: String,
+    #[serde(default)]
+    pub ports: Vec<ComponentPort>,
     pub attributes: HashMap<String, AttributeValue>,
 }
 
@@ -352,6 +357,8 @@ pub struct FunctionalExchange {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SystemComponent {
     pub name: String,
+    #[serde(default)]
+    pub ports: Vec<ComponentPort>,
     pub attributes: HashMap<String, AttributeValue>,
 }
 
@@ -359,8 +366,14 @@ pub struct SystemComponent {
 pub struct LogicalArchitecture {
     pub name: String,
     pub components: Vec<LogicalComponent>,
+    /// Functions of the level that no component performs (a breakdown's parents).
+    #[serde(default)]
+    pub functions: Vec<LogicalFunction>,
     pub interfaces: Vec<LogicalInterface>,
     pub component_exchanges: Vec<ComponentExchange>,
+    /// Exchanges between the functions of this level.
+    #[serde(default)]
+    pub functional_exchanges: Vec<FunctionalExchange>,
     pub unallocated_functions: Vec<String>,
     #[serde(default)]
     pub capability_realizations: Vec<Capability>,
@@ -407,8 +420,18 @@ pub struct InterfaceDefinition {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+/// A function of the logical or physical level: declared inside the
+/// component that performs it, with its own ports and sub-functions, and
+/// `realizes:` the function of the level above.
 pub struct LogicalFunction {
+    /// The written `id`, else the name.
+    #[serde(default)]
+    pub id: String,
     pub name: String,
+    #[serde(default)]
+    pub ports: Vec<FunctionPort>,
+    #[serde(default)]
+    pub sub_functions: Vec<LogicalFunction>,
     pub attributes: HashMap<String, AttributeValue>,
 }
 
@@ -424,8 +447,14 @@ pub struct LogicalInterface {
 pub struct PhysicalArchitecture {
     pub name: String,
     pub nodes: Vec<PhysicalNode>,
+    /// Functions of the level that no behaviour component performs.
+    #[serde(default)]
+    pub functions: Vec<LogicalFunction>,
     pub links: Vec<PhysicalLink>,
     pub physical_exchanges: Vec<PhysicalExchange>,
+    /// Exchanges between the functions of this level.
+    #[serde(default)]
+    pub functional_exchanges: Vec<FunctionalExchange>,
     /// Ordered sets of physical links routing behavioural exchanges (Arcadia).
     #[serde(default)]
     pub paths: Vec<PhysicalPath>,
@@ -451,6 +480,9 @@ pub struct PhysicalNode {
     pub memory: Option<String>,
     pub behavior_components: Vec<BehaviorComponent>,
     pub hardware_components: Vec<HardwareComponent>,
+    /// The physical functions the node itself performs.
+    #[serde(default)]
+    pub functions: Vec<LogicalFunction>,
     pub deployments: Vec<Deployment>,
     /// Physical ports are NOT oriented (Arcadia).
     #[serde(default)]
@@ -477,6 +509,11 @@ pub struct BehaviorComponent {
     pub name: String,
     pub allocated_functions: Vec<String>,
     pub color: Option<String>,
+    /// The physical functions the component performs, declared inside it.
+    #[serde(default)]
+    pub functions: Vec<LogicalFunction>,
+    #[serde(default)]
+    pub attributes: HashMap<String, AttributeValue>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

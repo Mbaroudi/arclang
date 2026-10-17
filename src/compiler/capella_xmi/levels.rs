@@ -37,6 +37,7 @@ fn function_ports(writer: &mut Writer, depth: usize, function: &Node, owner: &st
             writer.ids.insert(port.id().to_string(), port.id().to_string());
             writer.kinds.insert(port.id().to_string(), "FunctionPort");
             let name = data::unique_name(&mut taken, &display_name(port));
+            writer.port_ref.insert(port.id().to_string(), format!("{owner}.{name}"));
             writer.count("function ports");
             writer.line(depth, &format!("port {direction} {} {{ id: {} }}", string_literal(&name), string_literal(port.id())));
         }
@@ -64,13 +65,19 @@ fn exchange_attributes(writer: &mut Writer, exchange: &Node) -> String {
 }
 
 /// Functional exchanges anywhere under `holder`, written at `depth`.
-pub(super) fn functional_exchanges(writer: &mut Writer, depth: usize, holder: &Node, keyword: &str, kind: &'static str) {
+pub(super) fn functional_exchanges(writer: &mut Writer, depth: usize, holder: &Node, keyword: &str, kind: &'static str, by_port: bool) {
     let mut taken: HashSet<String> = HashSet::new();
     let mut left_out = 0;
     for exchange in holder.find_all("fa:FunctionalExchange") {
         let (Some(source), Some(target)) = (first_ref(exchange.attr("source")), first_ref(exchange.attr("target"))) else { continue };
-        // An end is a function port, or (operational interactions) the activity itself.
+        // An end is a function port (`Function.port`), or the function itself;
+        // operational interactions name the activity.
         let end = |writer: &Writer, reference: &str| -> Option<String> {
+            if by_port {
+                if let Some(port) = writer.port_ref.get(reference) {
+                    return Some(port.clone());
+                }
+            }
             writer.port_owner.get(reference).cloned().or_else(|| writer.ids.get(reference).cloned())
         };
         let (Some(from), Some(to)) = (end(writer, &source), end(writer, &target)) else {
@@ -273,7 +280,7 @@ pub(super) fn operational(writer: &mut Writer, oa: &Node) {
         }
         write_activities(writer, 1, &performer, &all);
     }
-    functional_exchanges(writer, 1, oa, "interaction", "OperationalExchange");
+    functional_exchanges(writer, 1, oa, "interaction", "OperationalExchange", false);
     for mean in oa.find_all("oa:CommunicationMean") {
         let (Some(source), Some(target)) = (first_ref(mean.attr("source")), first_ref(mean.attr("target"))) else { continue };
         let end = |writer: &Writer, id: &str| writer.ids.get(id).cloned().or_else(|| writer.part_type.get(id).and_then(|t| writer.ids.get(t).cloned()));
@@ -319,38 +326,31 @@ pub(super) fn system(writer: &mut Writer, sa: &Node) {
             }
         }
     }
-    functional_exchanges(writer, 1, sa, "functional_exchange", "FunctionalExchange");
+    functional_exchanges(writer, 1, sa, "functional_exchange", "FunctionalExchange", true);
 
-    let mut ports = 0;
     for component in sa.find_all("ctx:SystemComponent") {
         let actor = component.attr("actor") == Some("true");
         let kind = if actor { "SystemActor" } else { "SystemComponent" };
         writer.count(if actor { "system actors" } else { "system components" });
-        writer.remember(component, kind);
+        let id = writer.remember(component, kind);
         let name = data::unique_name(&mut taken, &display_name(component));
         writer.names.insert(component.id().to_string(), name.clone());
         writer.line(1, &format!("{} {} {{", if actor { "actor" } else { "system_component" }, string_literal(&name)));
         header_attributes(writer, 2, component, kind);
+        component_ports(writer, 2, component, &id);
         let allocated = writer.known_of(&component.tagged("ownedFunctionalAllocation").filter_map(|a| first_ref(a.attr("targetElement"))).collect::<Vec<_>>(), &["SystemFunction"]);
         if !allocated.is_empty() {
             writer.count_by("system function allocations", allocated.len());
             writer.line(2, &format!("allocated_functions: {}", list_literal(&allocated)));
         }
         writer.line(1, "}");
-        ports += component.tagged("ownedFeatures").filter(|f| f.is("fa:ComponentPort")).count();
         for realization in component.tagged("ownedComponentRealizations") {
             if let Some(target) = first_ref(realization.attr("targetElement")) {
                 writer.traces.push((component.id().to_string(), "realizes", target));
             }
         }
     }
-    if ports > 0 {
-        writer.count_by("system component ports (left out: the system level of ArcLang has no component port)", ports);
-    }
-    let exchanges = sa.find_all("fa:ComponentExchange").len();
-    if exchanges > 0 {
-        writer.count_by("system component exchanges (left out: the system level of ArcLang has no component exchange)", exchanges);
-    }
+    component_exchanges(writer, 1, sa, "system");
     chains(writer, 1, sa, "fa:FunctionalChain", "functional_chain", "functional chains", "FunctionalChain", &["SystemFunction"], &mut taken);
 
     // Missions exploit capabilities: a capability names the first mission exploiting it.
@@ -391,9 +391,165 @@ pub(super) fn system(writer: &mut Writer, sa: &Node) {
     writer.line(0, "");
 }
 
+// --- functions of a level ---------------------------------------------------------
+
+/// Which component (or behaviour component) performs each function of a
+/// level, from the functional allocations, and the parent of each function.
+struct FunctionTree<'a> {
+    by_id: HashMap<String, &'a Node>,
+    allocated_to: HashMap<String, String>,
+    parent_of: HashMap<String, String>,
+    written: HashSet<String>,
+}
+
+impl<'a> FunctionTree<'a> {
+    fn of(level: &'a Node, function_kind: &str) -> Self {
+        let functions = level.find_all(function_kind);
+        let by_id: HashMap<String, &Node> = functions.iter().map(|f| (f.id().to_string(), *f)).collect();
+        let mut parent_of = HashMap::new();
+        for function in &functions {
+            for child in function.tagged("ownedFunctions") {
+                parent_of.insert(child.id().to_string(), function.id().to_string());
+            }
+        }
+        let mut allocated_to = HashMap::new();
+        for allocation in level.find_all("fa:ComponentFunctionalAllocation") {
+            if let (Some(target), Some(owner)) = (first_ref(allocation.attr("targetElement")), first_ref(allocation.attr("sourceElement"))) {
+                allocated_to.insert(target, owner);
+            }
+        }
+        FunctionTree { by_id, allocated_to, parent_of, written: HashSet::new() }
+    }
+
+    fn is_root(function: &Node) -> bool {
+        function.name().starts_with("Root ")
+    }
+
+    /// The functions written directly under `owner` (a component id), or at
+    /// the level when `owner` is `None`: those allocated there whose parent is
+    /// not written in the same place.
+    fn tops(&self, owner: Option<&str>) -> Vec<&'a Node> {
+        let mut tops: Vec<&Node> = self
+            .by_id
+            .values()
+            .copied()
+            .filter(|f| !Self::is_root(f))
+            .filter(|f| self.allocated_to.get(f.id()).map(String::as_str) == owner)
+            .filter(|f| {
+                let parent = self.parent_of.get(f.id()).and_then(|p| self.by_id.get(p));
+                match parent {
+                    None => true,
+                    Some(parent) if Self::is_root(parent) => true,
+                    Some(parent) => self.allocated_to.get(parent.id()).map(String::as_str) != owner,
+                }
+            })
+            .collect();
+        tops.sort_by_key(|f| (f.name().to_string(), f.id().to_string()));
+        tops
+    }
+}
+
+/// Write a function of the level with its ports, what it realizes, and the
+/// sub-functions performed in the same place; a sub-function performed
+/// elsewhere is written there and names this one as `parent:`.
+fn level_function(writer: &mut Writer, depth: usize, function: &Node, owner: Option<&str>, tree: &mut FunctionTree<'_>, kind: &'static str, what: &'static str, taken: &mut HashSet<String>) {
+    if !tree.written.insert(function.id().to_string()) {
+        return;
+    }
+    writer.count(what);
+    let id = writer.remember(function, kind);
+    let name = data::unique_name(taken, &display_name(function));
+    writer.line(depth, &format!("function {} {{", string_literal(&name)));
+    header_attributes(writer, depth + 1, function, kind);
+    let realized: Vec<String> = function.tagged("ownedFunctionRealizations").filter_map(|r| first_ref(r.attr("targetElement"))).collect();
+    let realized = writer.known(&realized);
+    if let Some(first) = realized.first() {
+        writer.count("function realizations");
+        writer.line(depth + 1, &format!("realizes: {}", string_literal(first)));
+        for other in &realized[1..] {
+            writer.traces.push((id.clone(), "realizes", other.clone()));
+        }
+    }
+    if let Some(parent) = tree.parent_of.get(function.id()).filter(|p| tree.by_id.get(*p).is_some_and(|n| !FunctionTree::is_root(n))) {
+        let parent_written_here = owner.is_some() && tree.allocated_to.get(parent).map(String::as_str) == owner;
+        if !parent_written_here && !(owner.is_none() && tree.allocated_to.get(parent).is_none()) {
+            writer.line(depth + 1, &format!("parent: {}", string_literal(parent)));
+        }
+    }
+    function_ports(writer, depth + 1, function, &id);
+    let mut children: Vec<&Node> = function.tagged("ownedFunctions").collect();
+    children.sort_by_key(|c| (c.name().to_string(), c.id().to_string()));
+    let mut nested_taken: HashSet<String> = HashSet::new();
+    for child in children {
+        let child_owner = tree.allocated_to.get(child.id()).map(String::as_str);
+        // A child performed by the same component, or by nobody, nests here.
+        if child_owner == owner || (child_owner.is_none() && owner.is_some()) {
+            level_function(writer, depth + 1, child, owner, tree, kind, what, &mut nested_taken);
+        }
+    }
+    writer.line(depth, "}");
+}
+
+/// The functions `owner` performs, with their trees.
+fn owned_functions(writer: &mut Writer, depth: usize, owner: &str, tree: &mut FunctionTree<'_>, kind: &'static str, what: &'static str) {
+    let mut taken: HashSet<String> = HashSet::new();
+    for function in tree.tops(Some(owner)) {
+        level_function(writer, depth, function, Some(owner), tree, kind, what, &mut taken);
+    }
+}
+
+/// The functions nobody performs, written at the level.
+fn unallocated_functions(writer: &mut Writer, depth: usize, tree: &mut FunctionTree<'_>, kind: &'static str, what: &'static str, taken: &mut HashSet<String>) {
+    for function in tree.tops(None) {
+        level_function(writer, depth, function, None, tree, kind, what, taken);
+    }
+}
+
+/// The oriented ports of a component of any level.
+fn component_ports(writer: &mut Writer, depth: usize, component: &Node, owner: &str) {
+    let mut port_names: HashSet<String> = HashSet::new();
+    for port in component.tagged("ownedFeatures").filter(|f| f.is("fa:ComponentPort")) {
+        writer.port_owner.insert(port.id().to_string(), owner.to_string());
+        // An unnamed port is named by its id, so that an exchange can name it.
+        let label = data::unique_name(&mut port_names, &display_name(port));
+        writer.port_ref.insert(port.id().to_string(), format!("{owner}.{label}"));
+        writer.ids.insert(port.id().to_string(), port.id().to_string());
+        writer.kinds.insert(port.id().to_string(), "ComponentPort");
+        let direction = match port.attr("orientation") {
+            Some("OUT") => "out",
+            Some("INOUT") => "inout",
+            _ => "in",
+        };
+        writer.count("component ports");
+        writer.line(depth, &format!("port {direction} {} {{ id: {} }}", string_literal(&label), string_literal(port.id())));
+    }
+}
+
+/// The component exchanges of a level, between component ports.
+fn component_exchanges(writer: &mut Writer, depth: usize, level: &Node, level_name: &str) {
+    let mut exchange_names: HashSet<String> = HashSet::new();
+    let mut left_out = 0;
+    for exchange in level.find_all("fa:ComponentExchange") {
+        let (Some(source), Some(target)) = (first_ref(exchange.attr("source")), first_ref(exchange.attr("target"))) else { continue };
+        let (Some(from), Some(to)) = (writer.port_ref.get(&source).cloned(), writer.port_ref.get(&target).cloned()) else {
+            left_out += 1;
+            continue;
+        };
+        writer.count("component exchanges");
+        writer.remember(exchange, "ComponentExchange");
+        let name = data::unique_name(&mut exchange_names, &display_name(exchange));
+        let extra = exchange_attributes(writer, exchange);
+        writer.line(depth, &format!("component_exchange {} {{ id: {} from_port: {} to_port: {}{extra} }}", string_literal(&name), string_literal(exchange.id()), string_literal(&from), string_literal(&to)));
+    }
+    if left_out > 0 {
+        let _ = level_name;
+        writer.count_by("component exchanges whose end is not an imported component port (left out)", left_out);
+    }
+}
+
 // --- logical architecture ------------------------------------------------------------
 
-fn logical_component(writer: &mut Writer, depth: usize, component: &Node, functions_by_id: &HashMap<String, &Node>, taken: &mut HashSet<String>) {
+fn logical_component(writer: &mut Writer, depth: usize, component: &Node, tree: &mut FunctionTree<'_>, taken: &mut HashSet<String>) {
     writer.count("logical components");
     let id = writer.remember(component, "LogicalComponent");
     let name = data::unique_name(taken, &display_name(component));
@@ -403,47 +559,11 @@ fn logical_component(writer: &mut Writer, depth: usize, component: &Node, functi
     if component.attr("actor") == Some("true") {
         writer.line(depth + 1, "actor: true");
     }
-    let mut port_names: HashSet<String> = HashSet::new();
-    for port in component.tagged("ownedFeatures").filter(|f| f.is("fa:ComponentPort")) {
-        writer.port_owner.insert(port.id().to_string(), id.clone());
-        // An unnamed port is named by its id, so that an exchange can name it.
-        let label = data::unique_name(&mut port_names, &display_name(port));
-        writer.port_ref.insert(port.id().to_string(), format!("{id}.{label}"));
-        writer.ids.insert(port.id().to_string(), port.id().to_string());
-        writer.kinds.insert(port.id().to_string(), "ComponentPort");
-        let direction = match port.attr("orientation") {
-            Some("OUT") => "out",
-            Some("INOUT") => "inout",
-            _ => "in",
-        };
-        writer.count("component ports");
-        writer.line(depth + 1, &format!("port {direction} {} {{ id: {} }}", string_literal(&label), string_literal(port.id())));
-    }
-    let mut function_names: HashSet<String> = HashSet::new();
-    for allocation in component.tagged("ownedFunctionalAllocation") {
-        let Some(target) = first_ref(allocation.attr("targetElement")) else { continue };
-        let Some(function) = functions_by_id.get(&target) else {
-            writer.count("function allocations to functions not found (left out)");
-            continue;
-        };
-        writer.count("logical functions");
-        let function_id = writer.remember(function, "LogicalFunction");
-        let function_name = data::unique_name(&mut function_names, &display_name(function));
-        writer.line(depth + 1, &format!("function {} {{", string_literal(&function_name)));
-        header_attributes(writer, depth + 2, function, "LogicalFunction");
-        writer.line(depth + 1, "}");
-        for port in function.tagged("inputs").chain(function.tagged("outputs")) {
-            writer.port_owner.insert(port.id().to_string(), function_id.clone());
-        }
-        for realization in function.tagged("ownedFunctionRealizations") {
-            if let Some(realized) = first_ref(realization.attr("targetElement")) {
-                writer.traces.push((function_id.clone(), "realizes", realized));
-            }
-        }
-    }
+    component_ports(writer, depth + 1, component, &id);
+    owned_functions(writer, depth + 1, &id, tree, "LogicalFunction", "logical functions");
     data::component_interfaces(writer, depth + 1, component);
     for child in component.tagged("ownedLogicalComponents") {
-        logical_component(writer, depth + 1, child, functions_by_id, taken);
+        logical_component(writer, depth + 1, child, tree, taken);
     }
     writer.line(depth, "}");
     for realization in component.tagged("ownedComponentRealizations") {
@@ -466,42 +586,15 @@ pub(super) fn logical(writer: &mut Writer, la: &Node) {
         }
     }
 
-    let functions_by_id: HashMap<String, &Node> = la.find_all("la:LogicalFunction").into_iter().map(|f| (f.id().to_string(), f)).collect();
-    let allocated: HashSet<String> = la.find_all("fa:ComponentFunctionalAllocation").iter().filter_map(|a| first_ref(a.attr("targetElement"))).collect();
+    let mut tree = FunctionTree::of(la, "la:LogicalFunction");
     let all_components = la.find_all("la:LogicalComponent");
     let nested: HashSet<String> = all_components.iter().flat_map(|p| p.tagged("ownedLogicalComponents").map(|x| x.id().to_string())).collect();
     for root in all_components.iter().copied().filter(|c| !nested.contains(c.id())) {
-        logical_component(writer, 1, root, &functions_by_id, &mut taken);
+        logical_component(writer, 1, root, &mut tree, &mut taken);
     }
-    let unallocated = functions_by_id.iter().filter(|(id, f)| !allocated.contains(*id) && f.tagged("ownedFunctions").next().is_none() && !f.name().starts_with("Root ")).count();
-    if unallocated > 0 {
-        writer.count_by("logical functions allocated to no component (left out)", unallocated);
-    }
-    let parents = functions_by_id.values().filter(|f| f.tagged("ownedFunctions").next().is_some() && !f.name().starts_with("Root ")).count();
-    if parents > 0 {
-        writer.count_by("logical parent functions (left out: a component function holds no function)", parents);
-    }
-    let mut exchange_names: HashSet<String> = HashSet::new();
-    let mut left_out = 0;
-    for exchange in la.find_all("fa:ComponentExchange") {
-        let (Some(source), Some(target)) = (first_ref(exchange.attr("source")), first_ref(exchange.attr("target"))) else { continue };
-        let (Some(from), Some(to)) = (writer.port_ref.get(&source).cloned(), writer.port_ref.get(&target).cloned()) else {
-            left_out += 1;
-            continue;
-        };
-        writer.count("component exchanges");
-        writer.remember(exchange, "ComponentExchange");
-        let name = data::unique_name(&mut exchange_names, &display_name(exchange));
-        let extra = exchange_attributes(writer, exchange);
-        writer.line(1, &format!("component_exchange {} {{ id: {} from_port: {} to_port: {}{extra} }}", string_literal(&name), string_literal(exchange.id()), string_literal(&from), string_literal(&to)));
-    }
-    if left_out > 0 {
-        writer.count_by("component exchanges whose end is not an imported component port (left out)", left_out);
-    }
-    let exchanges = la.find_all("fa:FunctionalExchange").len();
-    if exchanges > 0 {
-        writer.count_by("logical functional exchanges (left out: ArcLang draws the system exchanges of the functions a component allocates)", exchanges);
-    }
+    unallocated_functions(writer, 1, &mut tree, "LogicalFunction", "logical functions (performed by no component)", &mut taken);
+    functional_exchanges(writer, 1, la, "functional_exchange", "FunctionalExchange", true);
+    component_exchanges(writer, 1, la, "logical");
     chains(writer, 1, la, "fa:FunctionalChain", "functional_chain", "functional chains", "FunctionalChain", &["LogicalFunction"], &mut taken);
     for realization in la.find_all("la:CapabilityRealization") {
         writer.count("capability realizations");
@@ -543,10 +636,7 @@ pub(super) fn physical(writer: &mut Writer, pa: &Node) {
             nodes_to_write.insert(0, root_node);
         }
     }
-    // Physical functions are system functions the behaviour components allocate, by name.
-    let functions_by_id: HashMap<String, &Node> = pa.find_all("pa:PhysicalFunction").into_iter().map(|f| (f.id().to_string(), f)).collect();
-    let system_function_names: HashSet<String> = writer.kinds.iter().filter(|(_, k)| **k == "SystemFunction").filter_map(|(id, _)| writer.names.get(id).cloned()).collect();
-    let mut functions_left_out = 0;
+    let mut tree = FunctionTree::of(pa, "pa:PhysicalFunction");
     for node in nodes_to_write {
         if !written_nodes.insert(node.id().to_string()) {
             continue;
@@ -566,6 +656,8 @@ pub(super) fn physical(writer: &mut Writer, pa: &Node) {
             writer.count("physical ports");
             writer.line(2, &format!("port {} {{ id: {} }}", string_literal(&label), string_literal(port.id())));
         }
+        // The functions the node itself performs (a node may be a behaviour too).
+        owned_functions(writer, 2, &node_id, &mut tree, "PhysicalFunction", "physical functions");
         let mut behaviour_names: HashSet<String> = HashSet::new();
         for behaviour in behaviours.iter().filter(|b| b.id() != root) {
             // A behaviour deployed on something that is not a node (another
@@ -588,27 +680,13 @@ pub(super) fn physical(writer: &mut Writer, pa: &Node) {
                     writer.line(3, &format!("allocated_component: {}", string_literal(&realized)));
                 }
             }
-            let mut allocated: Vec<String> = Vec::new();
-            for allocation in behaviour.tagged("ownedFunctionalAllocation") {
-                let Some(function) = first_ref(allocation.attr("targetElement")).and_then(|id| functions_by_id.get(&id)) else { continue };
-                let name = display_name(function);
-                if system_function_names.contains(&name) {
-                    allocated.push(name);
-                } else {
-                    functions_left_out += 1;
-                }
-            }
-            if !allocated.is_empty() {
-                writer.count_by("physical function allocations", allocated.len());
-                writer.line(3, &format!("allocated_functions: {}", list_literal(&allocated)));
-            }
+            owned_functions(writer, 3, &behaviour_id, &mut tree, "PhysicalFunction", "physical functions");
             writer.line(2, "}");
         }
         writer.line(1, "}");
     }
-    if functions_left_out > 0 {
-        writer.count_by("physical functions with no system function of their name (left out)", functions_left_out);
-    }
+    unallocated_functions(writer, 1, &mut tree, "PhysicalFunction", "physical functions (performed by no component)", &mut taken);
+    functional_exchanges(writer, 1, pa, "functional_exchange", "FunctionalExchange", true);
     let mut link_names: HashSet<String> = HashSet::new();
     let mut left_out = 0;
     for link in pa.find_all("cs:PhysicalLink") {

@@ -350,7 +350,7 @@ Behavioural building block, may be nested.
 
 #### LogicalFunction
 
-Function allocated to a logical component.
+Function of the logical level, declared inside the component that performs it (or at the level, unallocated), with its ports and sub-functions; `realizes:` names the system function it realizes.
 
 - Arcadia: `LogicalFunction`
 - SysML v2: `action def (perform)`
@@ -497,7 +497,7 @@ Unoriented physical connector.
 
 #### BehaviorComponent
 
-Software/behaviour deployed on a node.
+Software/behaviour deployed on a node; declares the physical functions it performs.
 
 - Arcadia: `PhysicalComponent (BEHAVIOR)`
 - SysML v2: `part`
@@ -508,6 +508,32 @@ Software/behaviour deployed on a node.
 | `name` | `text` | Display name; overrides the block name. |
 | `description` | `text` | Free-text description. |
 | `is` | `ref<Type>` | User-defined type of the element, or a list of types; their attributes (and ports, for components) are inherited. |
+| `safety_level` | `enum SafetyLevel` | ASIL, DAL or SIL assigned to the element. |
+| `asil` | `enum Asil` | ISO 26262 ASIL (QM, ASIL-A..D). |
+| `dal` | `enum Dal` | DO-178C design assurance level (DAL-A..E). |
+
+#### PhysicalFunction
+
+Function of the physical level, declared inside the behaviour component that performs it (or at the level, unallocated), with its ports and sub-functions; `realizes:` names the logical function it realizes.
+
+- Arcadia: `PhysicalFunction`
+- SysML v2: `action def (perform)`
+
+| Attribute | Type | Meaning |
+|---|---|---|
+| `id` | `identifier` | Stable identity; drives the UUIDv5. Defaults to the name. |
+| `name` | `text` | Display name; overrides the block name. |
+| `description` | `text` | Free-text description. |
+| `is` | `ref<Type>` | User-defined type of the element, or a list of types; their attributes (and ports, for components) are inherited. |
+| `category` | `text` | Functional category (free text). |
+| `inputs` | `list<text>` | Input data names. |
+| `outputs` | `list<text>` | Output data names. |
+| `latency` | `quantity<time>` | Execution latency; summed along functional chains by the gate. |
+| `execution_time` | `quantity<time>` | Alias of latency. |
+| `wcet` | `quantity<time>` | Worst-case execution time. |
+| `period` | `quantity<time>` | Activation period. |
+| `deadline` | `quantity<time>` | Completion deadline. |
+| `frequency` | `quantity<frequency>` | Activation frequency. |
 | `safety_level` | `enum SafetyLevel` | ASIL, DAL or SIL assigned to the element. |
 | `asil` | `enum Asil` | ISO 26262 ASIL (QM, ASIL-A..D). |
 | `dal` | `enum Dal` | DO-178C design assurance level (DAL-A..E). |

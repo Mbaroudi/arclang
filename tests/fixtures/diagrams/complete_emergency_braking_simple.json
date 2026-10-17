@@ -1061,7 +1061,11 @@
               "kind": "behavior_component",
               "realizes": [
                 "RadarSensor"
-              ]
+              ],
+              "properties": {
+                "description": "Radar data acquisition and preprocessing",
+                "safety_level": "ASIL-D"
+              }
             },
             {
               "id": "FrontRadarECU/RadarSensor",
@@ -1094,7 +1098,11 @@
               "kind": "behavior_component",
               "realizes": [
                 "CameraSensor"
-              ]
+              ],
+              "properties": {
+                "description": "Camera image processing and object detection",
+                "safety_level": "ASIL-D"
+              }
             },
             {
               "id": "FrontCameraECU/CameraSensor",
@@ -1127,7 +1135,10 @@
               "kind": "behavior_component",
               "realizes": [
                 "SensorFusion"
-              ]
+              ],
+              "properties": {
+                "safety_level": "ASIL-D"
+              }
             },
             {
               "id": "BC-TrackingModule",
@@ -1136,7 +1147,10 @@
               "kind": "behavior_component",
               "realizes": [
                 "ObjectTracker"
-              ]
+              ],
+              "properties": {
+                "safety_level": "ASIL-D"
+              }
             },
             {
               "id": "BC-ThreatModule",
@@ -1145,7 +1159,10 @@
               "kind": "behavior_component",
               "realizes": [
                 "ThreatAssessment"
-              ]
+              ],
+              "properties": {
+                "safety_level": "ASIL-D"
+              }
             },
             {
               "id": "BC-BrakingModule",
@@ -1154,7 +1171,10 @@
               "kind": "behavior_component",
               "realizes": [
                 "BrakeController"
-              ]
+              ],
+              "properties": {
+                "safety_level": "ASIL-D"
+              }
             },
             {
               "id": "CentralADASECU/SensorFusion",
@@ -1214,7 +1234,10 @@
               "kind": "behavior_component",
               "realizes": [
                 "BrakeActuator"
-              ]
+              ],
+              "properties": {
+                "safety_level": "ASIL-D"
+              }
             },
             {
               "id": "BrakeECU/BrakeActuator",
@@ -1247,7 +1270,10 @@
               "kind": "behavior_component",
               "realizes": [
                 "DriverInterface"
-              ]
+              ],
+              "properties": {
+                "safety_level": "QM"
+              }
             },
             {
               "id": "InstrumentCluster/DriverInterface",
@@ -1280,7 +1306,10 @@
               "kind": "behavior_component",
               "realizes": [
                 "VehicleCANGateway"
-              ]
+              ],
+              "properties": {
+                "safety_level": "ASIL-B"
+              }
             },
             {
               "id": "CANGatewayECU/VehicleCANGateway",
@@ -2102,7 +2131,10 @@
               "kind": "behavior_component",
               "realizes": [
                 "SensorFusion"
-              ]
+              ],
+              "properties": {
+                "safety_level": "ASIL-D"
+              }
             },
             {
               "id": "BC-TrackingModule",
@@ -2111,7 +2143,10 @@
               "kind": "behavior_component",
               "realizes": [
                 "ObjectTracker"
-              ]
+              ],
+              "properties": {
+                "safety_level": "ASIL-D"
+              }
             },
             {
               "id": "BC-ThreatModule",
@@ -2120,7 +2155,10 @@
               "kind": "behavior_component",
               "realizes": [
                 "ThreatAssessment"
-              ]
+              ],
+              "properties": {
+                "safety_level": "ASIL-D"
+              }
             },
             {
               "id": "BC-BrakingModule",
@@ -2129,7 +2167,10 @@
               "kind": "behavior_component",
               "realizes": [
                 "BrakeController"
-              ]
+              ],
+              "properties": {
+                "safety_level": "ASIL-D"
+              }
             },
             {
               "id": "CentralADASECU/SensorFusion",
@@ -2189,7 +2230,10 @@
               "kind": "behavior_component",
               "realizes": [
                 "BrakeActuator"
-              ]
+              ],
+              "properties": {
+                "safety_level": "ASIL-D"
+              }
             },
             {
               "id": "BrakeECU/BrakeActuator",

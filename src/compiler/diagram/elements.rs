@@ -3,7 +3,7 @@
 
 use super::builder::identity;
 use super::NodeKind;
-use crate::compiler::ast::{LogicalComponent, Model, OperationalActivity, SystemFunction};
+use crate::compiler::ast::{LogicalComponent, LogicalFunction, Model, OperationalActivity, SystemFunction};
 use std::collections::HashMap;
 
 /// A model element as another view refers to it.
@@ -52,12 +52,19 @@ pub(super) fn is_operational(kind: NodeKind) -> bool {
 pub(super) fn all_elements(model: &Model) -> Vec<ElementRef<'_>> {
     let mut found: Vec<ElementRef<'_>> = Vec::new();
 
+    fn level_functions<'a>(functions: &'a [LogicalFunction], out: &mut Vec<ElementRef<'a>>) {
+        for function in functions {
+            out.push(ElementRef { kind: NodeKind::Function, id: &function.id, name: &function.name });
+            level_functions(&function.sub_functions, out);
+        }
+    }
     fn components<'a>(component: &'a LogicalComponent, out: &mut Vec<ElementRef<'a>>) {
         out.push(ElementRef {
             kind: NodeKind::LogicalComponent,
             id: identity(&component.attributes, &component.name),
             name: &component.name,
         });
+        level_functions(&component.functions, out);
         for sub in &component.sub_components {
             components(sub, out);
         }
@@ -87,20 +94,24 @@ pub(super) fn all_elements(model: &Model) -> Vec<ElementRef<'_>> {
         for component in &la.components {
             components(component, &mut found);
         }
+        level_functions(&la.functions, &mut found);
     }
     for pa in &model.physical_architecture {
+        level_functions(&pa.functions, &mut found);
         for node in &pa.nodes {
             found.push(ElementRef {
                 kind: NodeKind::PhysicalNode,
                 id: identity(&node.attributes, &node.name),
                 name: &node.name,
             });
+            level_functions(&node.functions, &mut found);
             for behavior in &node.behavior_components {
                 found.push(ElementRef {
                     kind: NodeKind::BehaviorComponent,
                     id: &behavior.id,
                     name: &behavior.name,
                 });
+                level_functions(&behavior.functions, &mut found);
             }
             for hardware in &node.hardware_components {
                 found.push(ElementRef {

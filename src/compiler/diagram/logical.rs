@@ -6,7 +6,7 @@ use super::builder::{
     identity, properties, string_list, text, view_title, Builder, Endpoint, NodeRef,
 };
 use super::functions::{
-    add_flow_ports, add_functional_exchanges, dedupe, FunctionTable, Placement, UNSPECIFIED_ITEM,
+    add_functional_exchanges, add_level_function, dedupe, FunctionTable, Placement, UNSPECIFIED_ITEM,
 };
 use super::{Diagram, EdgeKind, NodeKind, PortDirection, ViewKind};
 use crate::compiler::ast::{self, InterfaceDefinition, LogicalComponent, Model};
@@ -19,8 +19,15 @@ pub(super) fn build(model: &Model) -> Option<(Diagram, Vec<String>)> {
     let mut functions = FunctionTable::of(model);
 
     for la in &model.logical_architecture {
+        functions.know_level(&la.functions);
         for component in &la.components {
+            know_component_functions(&mut functions, component);
             add_component(&mut builder, &mut functions, None, component);
+        }
+        // Functions no component performs yet stand on their own, as a
+        // breakdown shows them, so that a declared diagram can list them.
+        for function in &la.functions {
+            add_level_function(&mut builder, None, function, "LA");
         }
     }
     if builder.is_empty() {
@@ -65,6 +72,10 @@ pub(super) fn build(model: &Model) -> Option<(Diagram, Vec<String>)> {
             );
         }
         for interface in &la.interfaces {
+            // An interface with no provider or consumer is a contract, not an edge.
+            if interface.from.is_empty() || interface.to.is_empty() {
+                continue;
+            }
             let what = format!("interface '{}'", interface.name);
             let Some((source, target)) =
                 builder.resolve_pair(&what, &interface.from, &interface.to, "component")
@@ -81,12 +92,22 @@ pub(super) fn build(model: &Model) -> Option<(Diagram, Vec<String>)> {
             );
         }
     }
+    // The system exchanges of the system functions the components allocate,
+    // and the exchanges declared between the functions of this level.
     add_functional_exchanges(
         &mut builder,
         model
             .system_analysis
             .iter()
             .flat_map(|sa| sa.functional_exchanges.iter()),
+        Some(&functions),
+    );
+    add_functional_exchanges(
+        &mut builder,
+        model
+            .logical_architecture
+            .iter()
+            .flat_map(|la| la.functional_exchanges.iter()),
         Some(&functions),
     );
     for la in &model.logical_architecture {
@@ -151,25 +172,21 @@ fn add_component(
             )),
         }
     }
-    // Functions declared inline belong to this component alone: qualify
-    // their identity so `Init` in two components stays two elements.
+    // Functions declared inline are the logical functions this component
+    // performs, with their ports and sub-functions.
     let component_id = builder.node(node).id.clone();
     for function in &component.functions {
-        let qualified = format!("{component_id}.{}", function.name);
-        let function_node = builder.add_node(
-            Some(node),
-            identity(&function.attributes, &qualified),
-            &function.name,
-            NodeKind::Function,
-            properties(
-                &function.attributes,
-                &["description", "safety_level", "asil", "latency"],
-            ),
-        );
-        add_flow_ports(builder, function_node, &function.attributes);
+        add_level_function(builder, Some(node), function, &component_id);
     }
     for sub in &component.sub_components {
         add_component(builder, functions, Some(node), sub);
+    }
+}
+
+fn know_component_functions(functions: &mut FunctionTable<'_>, component: &LogicalComponent) {
+    functions.know_level(&component.functions);
+    for sub in &component.sub_components {
+        know_component_functions(functions, sub);
     }
 }
 
@@ -195,7 +212,7 @@ fn add_interface_port(
 }
 
 /// Report an exchange bound to a port of the wrong orientation.
-fn check_direction(
+pub(super) fn check_direction(
     builder: &mut Builder,
     what: &str,
     endpoint: &Endpoint,

@@ -89,6 +89,7 @@ impl CapellaImporter {
                 components: Vec::new(),
                 external_actors: Vec::new(),
                 functional_exchanges: Vec::new(),
+                component_exchanges: Vec::new(),
             }]
         } else {
             Vec::new()
@@ -105,7 +106,9 @@ impl CapellaImporter {
                 functional_chains: Vec::new(),
                 name: "Imported Architecture".to_string(),
                 components,
+                functions: Vec::new(),
                 interfaces: Vec::new(),
+                functional_exchanges: Vec::new(),
                 component_exchanges: Vec::new(),
                 unallocated_functions: Vec::new(),
             }]
