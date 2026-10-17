@@ -4,14 +4,14 @@
 
 use super::Parser;
 use crate::compiler::ast::{
-    AttributeValue, Capability, CapabilityLevel, ClassDef, DataAttribute, OperationalCapability,
+    Association, AssociationKind, AttributeValue, Capability, CapabilityLevel, ClassDef, DataAttribute, OperationalCapability,
 };
 use crate::compiler::lexer::Token;
 use std::collections::HashMap;
 
 /// Attributes of a class that describe the class itself; every other
 /// attribute is a field.
-const CLASS_ATTRIBUTES: [&str; 3] = ["id", "description", "extends"];
+const CLASS_ATTRIBUTES: [&str; 6] = ["id", "description", "extends", "summary", "constraints", "status"];
 
 /// One capability block as written, with the capabilities declared inside.
 struct CapabilityBlock {
@@ -189,6 +189,40 @@ impl Parser {
             name,
             extends,
             fields,
+            attributes,
+        })
+    }
+}
+
+impl Parser {
+    /// Parse: association "has" { from: "Seat" to: "Passenger" role: "passenger"
+    /// kind: "composition" multiplicity: "0..*" } — an association between
+    /// two classes, as an element of its own.
+    pub(super) fn parse_association(&mut self) -> Result<Association, String> {
+        self.expect(Token::Association)?;
+        let name = self.expect_name()?;
+        let attributes = self.parse_attributes_block()?;
+        self.require_text_id("association", &name, &attributes)?;
+        let required = |key: &str| -> Result<String, String> {
+            text(&attributes, key).ok_or_else(|| self.err(format!("association '{name}' is missing '{key}:' (a class, by id or name)")))
+        };
+        let from = required("from")?;
+        let to = required("to")?;
+        let kind = match text(&attributes, "kind") {
+            None => AssociationKind::Association,
+            Some(word) => AssociationKind::parse(&word).ok_or_else(|| {
+                self.err(format!("association '{name}': kind '{word}' is not association, aggregation or composition"))
+            })?,
+        };
+        let id = text(&attributes, "id").unwrap_or_else(|| format!("{name}:{from}->{to}"));
+        Ok(Association {
+            id,
+            name,
+            from,
+            to,
+            role: text(&attributes, "role"),
+            kind,
+            multiplicity: text(&attributes, "multiplicity"),
             attributes,
         })
     }

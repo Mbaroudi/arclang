@@ -1003,6 +1003,7 @@ impl SemanticAnalyzer {
                 register_element(&mut all_elements, &mut duplicate_ids, port_id.clone(), ElementInfo::new(port_id, port.name.clone(), "ComponentPort"));
             }
         }
+        let mut early_reference_errors: Vec<String> = Vec::new();
         for process in ast.operational_analysis.iter().flat_map(|oa| &oa.processes) {
             register_element(
                 &mut all_elements,
@@ -1010,6 +1011,23 @@ impl SemanticAnalyzer {
                 process.id.clone(),
                 ElementInfo::new(process.id.clone(), process.name.clone(), "OperationalProcess"),
             );
+            for control in &process.controls {
+                register_element(&mut all_elements, &mut duplicate_ids, control.id.clone(), ElementInfo::new(control.id.clone(), control.name.clone(), "ControlNode"));
+            }
+            let mut ends: std::collections::HashSet<&str> = process.involves.iter().map(String::as_str).collect();
+            ends.extend(process.controls.iter().flat_map(|c| [c.name.as_str(), c.id.as_str()]));
+            for link in &process.sequences {
+                let name = format!("{} -> {}", link.from, link.to);
+                register_element(&mut all_elements, &mut duplicate_ids, link.id.clone(), ElementInfo::new(link.id.clone(), name, "SequenceLink"));
+                for end in [&link.from, &link.to] {
+                    if !ends.contains(end.as_str()) {
+                        early_reference_errors.push(format!(
+                            "operational_process '{}': sequence '{}' -> '{}': '{end}' is neither a step of the process nor one of its control nodes",
+                            process.name, link.from, link.to
+                        ));
+                    }
+                }
+            }
         }
         let capability_sources: Vec<(&Capability, &str)> = ast
             .system_analysis
@@ -1033,6 +1051,22 @@ impl SemanticAnalyzer {
                 capability.id.clone(),
                 ElementInfo::new(capability.id.clone(), capability.name.clone(), format!("{}Capability", kind)),
             );
+        }
+        // Interactions and communication means are elements a trace can
+        // name: by their `id:`, else their label. Two written alike without
+        // an id share one: the first keeps it.
+        for oa in &ast.operational_analysis {
+            let interactions = oa.exchanges.iter().map(|e| (e, "OperationalExchange"));
+            let means = oa.communication_means.iter().map(|e| (e, "CommunicationMean"));
+            for (exchange, kind) in interactions.chain(means) {
+                let written = exchange.attributes.get("id").and_then(|v| v.as_string()).map(str::to_string);
+                let Some(id) = written.or_else(|| exchange.label.clone()) else { continue };
+                if all_elements.contains_key(&id) {
+                    continue;
+                }
+                let name = exchange.label.clone().unwrap_or_else(|| id.clone());
+                register_element(&mut all_elements, &mut duplicate_ids, id.clone(), ElementInfo::new(id, name, kind));
+            }
         }
         let chain_sources: Vec<&FunctionalChain> = ast
             .system_analysis
@@ -1073,10 +1107,19 @@ impl SemanticAnalyzer {
                 chain.id.clone(),
                 ElementInfo::new(chain.id.clone(), chain.name.clone(), "FunctionalChain"),
             );
+            // Control nodes and sequence links are elements too (a trace
+            // or a diagram can name them).
+            for control in &chain.controls {
+                register_element(&mut all_elements, &mut duplicate_ids, control.id.clone(), ElementInfo::new(control.id.clone(), control.name.clone(), "ControlNode"));
+            }
+            for link in &chain.sequences {
+                let name = format!("{} -> {}", link.from, link.to);
+                register_element(&mut all_elements, &mut duplicate_ids, link.id.clone(), ElementInfo::new(link.id.clone(), name, "SequenceLink"));
+            }
         }
 
         // Resolve involves/realizes/mission references (dangling = error, like traces)
-        let mut reference_errors = Vec::new();
+        let mut reference_errors = early_reference_errors;
         {
             let resolve = |reference: &str, context: String, errors: &mut Vec<String>| -> Option<String> {
                 if all_elements.contains_key(reference) {
@@ -1099,11 +1142,26 @@ impl SemanticAnalyzer {
 
             capabilities_info = super::capability_semantics::resolve_capabilities(ast, &all_elements, &mut reference_errors);
             for chain in &chain_sources {
-                let involves = chain
+                let involves: Vec<String> = chain
                     .involves
                     .iter()
                     .filter_map(|r| resolve(r, format!("functional_chain '{}' involves", chain.name), &mut reference_errors))
                     .collect();
+                // A sequence link joins steps of this chain (as written or
+                // as resolved) and its control nodes; nothing else.
+                let mut ends: std::collections::HashSet<&str> = involves.iter().map(String::as_str).collect();
+                ends.extend(chain.involves.iter().map(String::as_str));
+                ends.extend(chain.controls.iter().flat_map(|c| [c.name.as_str(), c.id.as_str()]));
+                for link in &chain.sequences {
+                    for end in [&link.from, &link.to] {
+                        if !ends.contains(end.as_str()) {
+                            reference_errors.push(format!(
+                                "functional_chain '{}': sequence '{}' -> '{}': '{end}' is neither a step of the chain nor one of its control nodes",
+                                chain.name, link.from, link.to
+                            ));
+                        }
+                    }
+                }
                 chains_info.push(FunctionalChainInfo {
                     id: chain.id.clone(),
                     name: chain.name.clone(),
@@ -1121,6 +1179,37 @@ impl SemanticAnalyzer {
                 class_def.id.clone(),
                 ElementInfo::new(class_def.id.clone(), class_def.name.clone(), "Class"),
             );
+        }
+        for association in &ast.associations {
+            register_element(
+                &mut all_elements,
+                &mut duplicate_ids,
+                association.id.clone(),
+                ElementInfo::new(association.id.clone(), association.name.clone(), "Association"),
+            );
+        }
+        // An association joins two declared classes; its role is a field of
+        // the class owning the navigable end.
+        for association in &ast.associations {
+            let class_of = |reference: &str| -> Option<&super::ast::ClassDef> {
+                ast.classes.iter().find(|c| c.id == reference).or_else(|| {
+                    let named: Vec<&super::ast::ClassDef> = ast.classes.iter().filter(|c| c.name == reference).collect();
+                    match named.as_slice() {
+                        [single] => Some(single),
+                        _ => None,
+                    }
+                })
+            };
+            for (end, role) in [(&association.from, "from"), (&association.to, "to")] {
+                if class_of(end).is_none() {
+                    reference_errors.push(format!("association '{}': {role} '{end}' is not a declared class (by id or unambiguous name)", association.name));
+                }
+            }
+            if let (Some(owner), Some(role)) = (class_of(&association.from), &association.role) {
+                if !owner.fields.iter().any(|field| &field.name == role) {
+                    reference_errors.push(format!("association '{}': role '{role}' is not a field of class '{}'", association.name, owner.name));
+                }
+            }
         }
         for data_type in &ast.data_types {
             let kind = if data_type.enumeration_values.is_some() { "Enumeration" } else { "DataType" };
@@ -1311,6 +1400,27 @@ impl SemanticAnalyzer {
                         ));
                     }
                 }
+            }
+            // An invariant sits on a participant and names a declared state
+            // (or mode) or function, by id or unambiguous name.
+            for invariant in &scenario.invariants {
+                let what = format!("scenario '{}': {} '{}' on '{}'", scenario.name, invariant.kind.keyword(), invariant.name, invariant.lifeline);
+                if !participant_ids.contains(invariant.lifeline.as_str()) {
+                    reference_errors.push(format!("{what}: '{}' is not one of the scenario participants", invariant.lifeline));
+                }
+                let wanted: &[&str] = match invariant.kind {
+                    super::ast::InvariantKind::State => &["State"],
+                    super::ast::InvariantKind::Function => &["SystemFunction", "Function", "LogicalFunction", "PhysicalFunction", "OperationalActivity"],
+                };
+                let fits = |element: &ElementInfo| wanted.contains(&element.element_type.as_str());
+                let by_id = all_elements.get(&invariant.name).filter(|e| fits(e)).is_some();
+                let by_name = all_elements.values().filter(|e| e.name == invariant.name && fits(e)).count();
+                if !by_id && by_name != 1 {
+                    let expected = if invariant.kind == super::ast::InvariantKind::State { "state or mode" } else { "function" };
+                    let why = if by_name > 1 { "is ambiguous: use an id" } else { "is not declared" };
+                    reference_errors.push(format!("{what}: {expected} '{}' {why}", invariant.name));
+                }
+                register_element(&mut all_elements, &mut duplicate_ids, invariant.id.clone(), ElementInfo::new(invariant.id.clone(), invariant.name.clone(), "StateFragment"));
             }
         }
 

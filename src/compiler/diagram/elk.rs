@@ -151,6 +151,7 @@ fn sequence_graph(diagram: &Diagram) -> Value {
             "title": diagram.title,
             "chains": diagram.chains,
             "fragments": diagram.fragments,
+            "invariants": diagram.invariants,
         },
     })
 }

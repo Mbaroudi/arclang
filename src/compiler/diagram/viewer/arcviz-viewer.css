@@ -871,3 +871,10 @@
     width: 100%;
   }
 }
+
+/* Control nodes and sequence links of the lit functional chain. */
+.arcviz .av-chain-graph .av-sequence { stroke: #C2410C; stroke-width: 1.8; stroke-dasharray: 6 4; pointer-events: stroke; }
+.arcviz .av-chain-graph .av-sequence-label { font-size: 10px; font-style: italic; fill: #C2410C; paint-order: stroke; stroke: #FFFFFF; stroke-width: 3px; }
+.arcviz .av-chain-graph .av-control rect, .arcviz .av-chain-graph .av-control polygon { fill: #C2410C; stroke: #7C2D12; stroke-width: 1; }
+.arcviz .av-chain-graph .av-control-label { font-size: 9px; font-weight: 700; fill: #7C2D12; }
+.arcviz .av-invariant text { pointer-events: none; }

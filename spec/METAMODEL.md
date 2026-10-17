@@ -133,7 +133,7 @@ Ordered path of activities fulfilling a capability.
 | `name` | `text` | Display name; overrides the block name. |
 | `description` | `text` | Free-text description. |
 | `is` | `ref<Type>` | User-defined type of the element, or a list of types; their attributes (and ports, for components) are inherited. |
-| `involves` | `list<ref<Element>>` | Ordered functions/exchanges of the chain. |
+| `involves` | `list<ref<Element>>` | Ordered functions, exchanges and chains of the chain. |
 | `latency_budget` | `quantity<time>` | End-to-end budget checked by the gate. |
 | `capability` | `ref<Capability>` | Capability this chain exemplifies. |
 
@@ -303,7 +303,7 @@ The system or one of its external components.
 
 #### FunctionalChain
 
-Ordered functions and exchanges realizing one dataflow path.
+Ordered functions, exchanges and chains realizing one dataflow path; `control` nodes and `sequence` links branch it.
 
 - Arcadia: `FunctionalChain`
 - SysML v2: `action def (sequence)`
@@ -314,9 +314,39 @@ Ordered functions and exchanges realizing one dataflow path.
 | `name` | `text` | Display name; overrides the block name. |
 | `description` | `text` | Free-text description. |
 | `is` | `ref<Type>` | User-defined type of the element, or a list of types; their attributes (and ports, for components) are inherited. |
-| `involves` | `list<ref<Element>>` | Ordered functions/exchanges of the chain. |
+| `involves` | `list<ref<Element>>` | Ordered functions, exchanges and chains of the chain. |
 | `latency_budget` | `quantity<time>` | End-to-end budget checked by the gate. |
 | `capability` | `ref<Capability>` | Capability this chain exemplifies. |
+
+#### ControlNode
+
+Control node of a functional chain: `control and|or|iterate "Name"`, joined to the chain's steps by sequence links.
+
+- Arcadia: `ControlNode`
+- SysML v2: `fork / join / decision / loop node`
+
+| Attribute | Type | Meaning |
+|---|---|---|
+| `id` | `identifier` | Stable identity; drives the UUIDv5. Defaults to the name. |
+| `name` | `text` | Display name; overrides the block name. |
+| `description` | `text` | Free-text description. |
+| `is` | `ref<Type>` | User-defined type of the element, or a list of types; their attributes (and ports, for components) are inherited. |
+| `kind` | `enum ControlKind` | and | or | iterate (from the keyword). |
+
+#### SequenceLink
+
+`sequence "A" -> "B" { condition: "..." }` inside a chain: each end a step of the chain or one of its control nodes.
+
+- Arcadia: `SequenceLink`
+- SysML v2: `succession`
+
+| Attribute | Type | Meaning |
+|---|---|---|
+| `id` | `identifier` | Stable identity; drives the UUIDv5. Defaults to the name. |
+| `name` | `text` | Display name; overrides the block name. |
+| `description` | `text` | Free-text description. |
+| `is` | `ref<Type>` | User-defined type of the element, or a list of types; their attributes (and ports, for components) are inherited. |
+| `condition` | `text` | Guard of the branch. |
 
 ### Logical Architecture
 
@@ -708,6 +738,25 @@ Structured data element; every attribute but `id`, `description` and `extends` i
 | `is` | `ref<Type>` | User-defined type of the element, or a list of types; their attributes (and ports, for components) are inherited. |
 | `extends` | `ref<Class>` | The class this one specializes. |
 
+#### Association
+
+Association between two classes, as an element of its own; `from` owns the navigable end.
+
+- Arcadia: `Association`
+- SysML v2: `connection def`
+
+| Attribute | Type | Meaning |
+|---|---|---|
+| `id` | `identifier` | Stable identity; drives the UUIDv5. Defaults to the name. |
+| `name` | `text` | Display name; overrides the block name. |
+| `description` | `text` | Free-text description. |
+| `is` | `ref<Type>` | User-defined type of the element, or a list of types; their attributes (and ports, for components) are inherited. |
+| `from` | `ref<Class>` | The class owning the navigable end. |
+| `to` | `ref<Class>` | The class at the navigable end. |
+| `role` | `text` | The field of `from` typed by `to` (the navigable end). |
+| `kind` | `enum AssociationKind` | association | aggregation | composition. |
+| `multiplicity` | `text` | Multiplicity of the navigable end (`1`, `0..*`). |
+
 #### Enumeration
 
 Enumerated data type.
@@ -954,6 +1003,20 @@ A combined fragment of a scenario: `alt`, `opt`, `loop`, `par`, `seq` or `critic
 |---|---|---|
 | `label` | `text` | The guard or the condition shown in the frame's tag. |
 
+#### StateFragment
+
+A state, mode or function asserted on a lifeline: `state "Lifeline" "Armed" { ... }` / `function "Lifeline" "Sense" { ... }`, spanning the messages of its body (an instant without any).
+
+- Arcadia: `StateFragment`
+- SysML v2: `state invariant`
+
+| Attribute | Type | Meaning |
+|---|---|---|
+| `id` | `identifier` | Stable identity; drives the UUIDv5. Defaults to the name. |
+| `name` | `text` | Display name; overrides the block name. |
+| `description` | `text` | Free-text description. |
+| `is` | `ref<Type>` | User-defined type of the element, or a list of types; their attributes (and ports, for components) are inherited. |
+
 #### Message
 
 Message between two participants.
@@ -978,6 +1041,8 @@ The element graph served by the Systems Modeling API (`/api/systems-modeling`) i
 | `Typing` | element or PhysicalLink | Type | `is:` — the element is an instance of the type. |
 | `Specialization` | Type | Type | `extends` — the source type specializes the target. |
 | `Involvement` | chain, path, capability | element | `involves:`; `order` is the 1-based position. |
+| `SequenceLink` | step or ControlNode | step or ControlNode | `sequence A -> B` of a functional chain; `condition` is its guard. |
+| `Association` | Class | Class | An `association` declaration; `kind`, `role` and `multiplicity` describe the navigable end. |
 | `Realization` | capability | capability | `realizes:` across layers. |
 | `CapabilityExtend` | capability | capability of the same level | `extends:` of a capability. |
 | `CapabilityInclude` | capability | capability of the same level | `includes:` of a capability. |
@@ -999,6 +1064,8 @@ Values match ignoring case and the separators `-`, `_` and space.
 
 | Enumeration | Values | Meaning |
 |---|---|---|
+| ControlKind | `and`, `or`, `iterate` | Kind of a control node of a functional chain. |
+| AssociationKind | `association`, `aggregation`, `composition` | Kind of an association between classes. |
 | Asil | `QM`, `ASIL-A`, `ASIL-B`, `ASIL-C`, `ASIL-D` | ISO 26262 automotive safety integrity level. |
 | Dal | `DAL-A`, `DAL-B`, `DAL-C`, `DAL-D`, `DAL-E` | DO-178C design assurance level. |
 | SafetyLevel | `QM`, `ASIL-A`, `ASIL-B`, `ASIL-C`, `ASIL-D`, `DAL-A`, `DAL-B`, `DAL-C`, `DAL-D`, `DAL-E`, `SIL-1`, `SIL-2`, `SIL-3`, `SIL-4` | Any integrity level: ASIL (ISO 26262), DAL (DO-178C) or SIL (IEC 61508). |

@@ -78,6 +78,11 @@ pub(super) fn applied_values(writer: &mut Writer, depth: usize, node: &Node, kin
             }
         }
     }
+    // What an add-on viewpoint says about this element, as attributes too.
+    if let Some(extensions) = writer.extension_values.get(node.id()).cloned() {
+        writer.count_by("viewpoint attributes of the elements they extend", extensions.len());
+        lines.extend(extensions);
+    }
     if lines.is_empty() {
         return;
     }
@@ -212,6 +217,9 @@ pub(super) fn data_model(writer: &mut Writer, engineering: &Node) {
     for class in &classes {
         type_names.insert(class.id().to_string(), display_name(class));
     }
+    // Property id -> (class id, field key written): an association names
+    // its navigable end so.
+    let mut field_keys: HashMap<String, (String, String)> = HashMap::new();
     let mut generalizations = 0;
     for class in &classes {
         let name = unique_name(&mut taken, &display_name(class));
@@ -246,6 +254,7 @@ pub(super) fn data_model(writer: &mut Writer, engineering: &Node) {
             }
             let type_name = first_ref(property.attr("abstractType")).and_then(|id| type_names.get(&id).cloned()).unwrap_or_else(|| "Data".to_string());
             writer.count("class fields");
+            field_keys.insert(property.id().to_string(), (class.id().to_string(), key.clone()));
             writer.line(1, &format!("{key}: {}", string_literal(&type_name)));
         }
         if class.is("information:Collection") {
@@ -262,6 +271,7 @@ pub(super) fn data_model(writer: &mut Writer, engineering: &Node) {
         generalizations += 0;
     }
     let _ = generalizations;
+    associations(writer, engineering, &field_keys);
 
     // Exchange items, with the types of their elements.
     for item in engineering.find_all("information:ExchangeItem") {
@@ -291,6 +301,56 @@ pub(super) fn data_model(writer: &mut Writer, engineering: &Node) {
         writer.line(0, "}");
     }
     writer.line(0, "");
+}
+
+/// The associations between classes, as `association` declarations: the
+/// class owning the navigable end is `from`, its field is the `role`.
+fn associations(writer: &mut Writer, engineering: &Node, field_keys: &HashMap<String, (String, String)>) {
+    let by_id: HashMap<&str, &Node> = engineering.descendants().into_iter().filter(|n| !n.id().is_empty()).map(|n| (n.id(), n)).collect();
+    let card = |end: &Node, tag: &str| end.tagged(tag).next().and_then(|v| v.attr("value").map(str::to_string));
+    for association in engineering.find_all("information:Association") {
+        let navigable: Option<&Node> = refs(association.attr("navigableMembers")).first().and_then(|id| by_id.get(id.as_str()).copied());
+        let members: Vec<&Node> = association.tagged("ownedMembers").collect();
+        let (from, to, role, end) = match navigable {
+            Some(property) => match (field_keys.get(property.id()), first_ref(property.attr("abstractType"))) {
+                (Some((owner, key)), Some(target)) => (owner.clone(), target, Some(key.clone()), property),
+                _ => { writer.count("associations whose navigable end is not a written field (left out)"); continue }
+            },
+            None => match members.as_slice() {
+                [first, second, ..] => match (first_ref(first.attr("abstractType")), first_ref(second.attr("abstractType"))) {
+                    (Some(from), Some(to)) => (from, to, None, *second),
+                    _ => { writer.count("associations without typed ends (left out)"); continue }
+                },
+                _ => { writer.count("associations without a navigable end (left out)"); continue }
+            },
+        };
+        if !writer.written(&from) || !writer.written(&to) {
+            writer.count("associations of a class not written (left out)");
+            continue;
+        }
+        let name = association.name().trim();
+        let name = if name.is_empty() { "association" } else { name };
+        writer.count("associations");
+        writer.remember(association, "Association");
+        writer.line(0, &format!("association {} {{", string_literal(name)));
+        header_attributes(writer, 1, association, "Association");
+        writer.line(1, &format!("from: {}", string_literal(&writer.ids[&from].clone())));
+        writer.line(1, &format!("to: {}", string_literal(&writer.ids[&to].clone())));
+        if let Some(role) = role {
+            writer.line(1, &format!("role: {}", string_literal(&role)));
+        }
+        match end.attr("aggregationKind") {
+            Some("COMPOSITION") => writer.line(1, "kind: \"composition\""),
+            Some("AGGREGATION") => writer.line(1, "kind: \"aggregation\""),
+            _ => {}
+        }
+        if let (Some(min), Some(max)) = (card(end, "ownedMinCard"), card(end, "ownedMaxCard")) {
+            let max = if max == "-1" { "*".to_string() } else { max };
+            let multiplicity = if min == max { min } else { format!("{min}..{max}") };
+            writer.line(1, &format!("multiplicity: {}", string_literal(&multiplicity)));
+        }
+        writer.line(0, "}");
+    }
 }
 
 /// Unit symbols the compiler's unit table knows: others are kept as a name.

@@ -858,6 +858,7 @@
       state.chain = turnOn ? chain.id : null;
       for (const other of chains.querySelectorAll('.arcviz-chain')) other.setAttribute('aria-pressed', 'false');
       for (const marked of canvas.querySelectorAll('.in-chain')) marked.classList.remove('in-chain');
+      for (const old of canvas.querySelectorAll('.av-chain-graph')) old.remove();
       canvas.classList.toggle('has-chain', turnOn);
       if (!turnOn) return;
       button.setAttribute('aria-pressed', 'true');
@@ -870,6 +871,106 @@
       for (const item of canvas.querySelectorAll('.av-node, .av-edge')) {
         if (members.has(item.dataset.id)) item.classList.add('in-chain');
       }
+      drawChainGraph(chain);
+    }
+
+    /**
+     * The control nodes (AND, OR, ITERATE) and sequence links of the lit
+     * chain, over the sheet: a control node sits between the steps it
+     * joins, a sequence link is a dashed arrow with its condition.
+     */
+    function drawChainGraph(chain) {
+      for (const old of canvas.querySelectorAll('.av-chain-graph')) old.remove();
+      const controls = chain.controls || [];
+      const sequences = chain.sequences || [];
+      if (controls.length === 0 && sequences.length === 0) return;
+      const svg = canvas.querySelector('svg.av-svg');
+      if (!svg) return;
+      const NS = 'http://www.w3.org/2000/svg';
+      const centreOf = (id) => {
+        const item = canvas.querySelector(`.av-node[data-id="${CSS.escape(id)}"], .av-edge[data-id="${CSS.escape(id)}"]`);
+        if (!item) return null;
+        const box = item.getBBox();
+        const matrix = item.getCTM();
+        const root = svg.getCTM();
+        const point = svg.createSVGPoint();
+        point.x = box.x + box.width / 2;
+        point.y = box.y + box.height / 2;
+        const moved = root ? point.matrixTransform(matrix).matrixTransform(root.inverse()) : point.matrixTransform(matrix);
+        return { x: moved.x, y: moved.y };
+      };
+      // A referenced chain stands at the mean of its own nodes.
+      const chainAt = (id) => {
+        const other = (activeGraph().arc.chains || []).find((c) => c.id === id);
+        const points = other ? other.nodes.map(centreOf).filter(Boolean) : [];
+        return points.length ? { x: points.reduce((s, p) => s + p.x, 0) / points.length, y: points.reduce((s, p) => s + p.y, 0) / points.length } : null;
+      };
+      // A control node is placed at the mean of the steps linked to it.
+      const places = new Map();
+      for (const control of controls) {
+        const around = sequences
+          .filter((link) => link.source === control.id || link.target === control.id)
+          .map((link) => (link.source === control.id ? link.target : link.source))
+          .filter((id) => !controls.some((other) => other.id === id))
+          .map((id) => centreOf(id) || chainAt(id))
+          .filter(Boolean);
+        if (around.length === 0) continue;
+        places.set(control.id, {
+          x: around.reduce((sum, p) => sum + p.x, 0) / around.length,
+          y: around.reduce((sum, p) => sum + p.y, 0) / around.length,
+        });
+      }
+      const where = (id) => places.get(id) || centreOf(id) || chainAt(id);
+      const layer = document.createElementNS(NS, 'g');
+      layer.setAttribute('class', 'av-chain-graph');
+      for (const link of sequences) {
+        const from = where(link.source);
+        const to = where(link.target);
+        if (!from || !to) continue;
+        const line = document.createElementNS(NS, 'line');
+        line.setAttribute('x1', from.x); line.setAttribute('y1', from.y);
+        line.setAttribute('x2', to.x); line.setAttribute('y2', to.y);
+        line.setAttribute('class', 'av-sequence');
+        const title = document.createElementNS(NS, 'title');
+        title.textContent = link.condition ? `Sequence [${link.condition}]` : 'Sequence';
+        line.appendChild(title);
+        layer.appendChild(line);
+        if (link.condition) {
+          const text = document.createElementNS(NS, 'text');
+          text.setAttribute('x', (from.x + to.x) / 2);
+          text.setAttribute('y', (from.y + to.y) / 2 - 6);
+          text.setAttribute('class', 'av-sequence-label');
+          text.setAttribute('text-anchor', 'middle');
+          text.textContent = `[${link.condition}]`;
+          layer.appendChild(text);
+        }
+      }
+      for (const control of controls) {
+        const at = places.get(control.id);
+        if (!at) continue;
+        const group = document.createElementNS(NS, 'g');
+        group.setAttribute('class', 'av-control');
+        group.setAttribute('data-kind', control.kind);
+        const shape = document.createElementNS(NS, control.kind === 'and' ? 'rect' : 'polygon');
+        if (control.kind === 'and') {
+          shape.setAttribute('x', at.x - 22); shape.setAttribute('y', at.y - 4);
+          shape.setAttribute('width', 44); shape.setAttribute('height', 8);
+        } else {
+          shape.setAttribute('points', `${at.x},${at.y - 14} ${at.x + 14},${at.y} ${at.x},${at.y + 14} ${at.x - 14},${at.y}`);
+        }
+        const title = document.createElementNS(NS, 'title');
+        title.textContent = `${control.kind.toUpperCase()}: ${control.name}`;
+        group.appendChild(title);
+        group.appendChild(shape);
+        const text = document.createElementNS(NS, 'text');
+        text.setAttribute('x', at.x); text.setAttribute('y', at.y + 26);
+        text.setAttribute('text-anchor', 'middle');
+        text.setAttribute('class', 'av-control-label');
+        text.textContent = control.kind.toUpperCase();
+        group.appendChild(text);
+        layer.appendChild(group);
+      }
+      svg.appendChild(layer);
     }
 
     // --- legend and notes -----------------------------------------------

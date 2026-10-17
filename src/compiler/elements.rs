@@ -164,9 +164,14 @@ impl Builder {
     }
 
     /// A port: addressable as `OwnerId.port` and `OwnerName.port`.
-    fn port(&mut self, kind: &'static str, owner_uuid: &str, owner_keys: [&str; 2], name: &str, extra: Vec<(&'static str, Value)>) {
-        let id = format!("{}.{}", owner_keys[0], name);
+    /// A port: its id is the written one when there is one (Capella keeps
+    /// ids on ports), else `Owner.name`; both resolve it.
+    fn port(&mut self, kind: &'static str, owner_uuid: &str, owner_keys: [&str; 2], written_id: &str, name: &str, attributes: &HashMap<String, AttributeValue>, extra: Vec<(&'static str, Value)>) {
+        let id = if written_id.is_empty() { format!("{}.{}", owner_keys[0], name) } else { written_id.to_string() };
         let uuid = self.unique_uuid("element", kind, &id);
+        if !written_id.is_empty() {
+            self.lookup.entry(written_id.to_string()).or_insert_with(|| uuid.clone());
+        }
         for owner_key in owner_keys {
             if !owner_key.is_empty() {
                 self.lookup.entry(format!("{}.{}", owner_key, name)).or_insert_with(|| uuid.clone());
@@ -178,7 +183,7 @@ impl Builder {
             kind,
             name: name.to_string(),
             owner: Some(owner_uuid.to_string()),
-            attributes: empty(),
+            attributes: attributes.clone(),
             extra: extra.into_iter().collect(),
         });
     }
@@ -324,7 +329,9 @@ impl Builder {
                 "FunctionPort",
                 &uuid,
                 [&id, &function.name],
+                &port.id,
                 &port.name,
+                &port.attributes,
                 vec![("direction", json!(direction_text(&port.direction))), ("dataType", json!(port.data_type))],
             );
         }
@@ -341,7 +348,9 @@ impl Builder {
                 "ComponentPort",
                 &uuid,
                 [&id, &component.name],
+                &port.id,
                 &port.name,
+                &port.attributes,
                 vec![("direction", json!(direction_text(&port.direction))), ("interface", json!(port.interface_type))],
             );
         }
@@ -351,7 +360,9 @@ impl Builder {
                     "ComponentPort",
                     &uuid,
                     [&id, &component.name],
+                    "",
                     &interface.name,
+                    &empty(),
                     vec![("direction", json!(direction)), ("protocol", json!(interface.protocol))],
                 );
             }
@@ -372,12 +383,43 @@ impl Builder {
                 "FunctionPort",
                 &uuid,
                 [&function.id, &function.name],
+                &port.id,
                 &port.name,
+                &port.attributes,
                 vec![("direction", json!(direction_text(&port.direction))), ("dataType", json!(port.data_type))],
             );
         }
         for sub in &function.sub_functions {
             self.level_function(kind, sub, &uuid);
+        }
+    }
+
+    /// The control nodes of a chain, owned by it, and its sequence links,
+    /// each end a step (an element) or a control node.
+    fn chain_graph(&mut self, chain: &FunctionalChain, owner: &str) {
+        for control in &chain.controls {
+            self.element("ControlNode", &control.id, &control.name, owner, &control.attributes);
+            self.set_extra("kind", json!(control.kind.keyword()));
+        }
+        for link in &chain.sequences {
+            let end = |builder: &Self, reference: &str| -> Option<String> {
+                chain
+                    .controls
+                    .iter()
+                    .find(|c| c.name == reference || c.id == reference)
+                    .and_then(|c| builder.resolve(&c.id))
+                    .or_else(|| builder.resolve(reference))
+            };
+            match (end(self, &link.from), end(self, &link.to)) {
+                (Some(source), Some(target)) => {
+                    let extra = link.condition.iter().map(|c| ("condition", json!(c))).collect();
+                    self.relate_resolved("SequenceLink", None, source, target, &link.attributes, extra);
+                }
+                _ => self.graph.unresolved.push(format!(
+                    "SequenceLink '{}' -> '{}' of chain '{}': an end is not an element (exchanges are relationships)",
+                    link.from, link.to, chain.name
+                )),
+            }
         }
     }
 
@@ -465,7 +507,8 @@ pub fn build(ast: &Model, semantic: &SemanticModel) -> ElementGraph {
             builder.activity(activity, &root);
         }
         for process in &oa.processes {
-            builder.typed_element("OperationalProcess", &process.id, &process.name, &root, &process.attributes);
+            let uuid = builder.typed_element("OperationalProcess", &process.id, &process.name, &root, &process.attributes);
+            builder.chain_graph(process, &uuid);
         }
     }
     for sa in &ast.system_analysis {
@@ -486,13 +529,13 @@ pub fn build(ast: &Model, semantic: &SemanticModel) -> ElementGraph {
             let uuid = builder.typed_element("SystemComponent", "", &component.name, &root, &component.attributes);
             let id = component.attributes.get("id").and_then(|v| v.as_string()).unwrap_or(&component.name).to_string();
             for port in &component.ports {
-                builder.port("ComponentPort", &uuid, [&id, &component.name], &port.name, vec![("direction", json!(direction_text(&port.direction))), ("interface", json!(port.interface_type))]);
+                builder.port("ComponentPort", &uuid, [&id, &component.name], &port.id, &port.name, &port.attributes, vec![("direction", json!(direction_text(&port.direction))), ("interface", json!(port.interface_type))]);
             }
         }
         for actor in &sa.external_actors {
             let uuid = builder.typed_element("SystemActor", &actor.id, &actor.name, &root, &actor.attributes);
             for port in &actor.ports {
-                builder.port("ComponentPort", &uuid, [&actor.id, &actor.name], &port.name, vec![("direction", json!(direction_text(&port.direction))), ("interface", json!(port.interface_type))]);
+                builder.port("ComponentPort", &uuid, [&actor.id, &actor.name], &port.id, &port.name, &port.attributes, vec![("direction", json!(direction_text(&port.direction))), ("interface", json!(port.interface_type))]);
             }
         }
         for mission in &sa.missions {
@@ -503,7 +546,8 @@ pub fn build(ast: &Model, semantic: &SemanticModel) -> ElementGraph {
             builder.typed_element("Capability", &capability.id, &capability.name, &owner, &capability.attributes);
         }
         for chain in &sa.functional_chains {
-            builder.typed_element("FunctionalChain", &chain.id, &chain.name, &root, &chain.attributes);
+            let uuid = builder.typed_element("FunctionalChain", &chain.id, &chain.name, &root, &chain.attributes);
+            builder.chain_graph(chain, &uuid);
         }
     }
     for la in &ast.logical_architecture {
@@ -518,7 +562,8 @@ pub fn build(ast: &Model, semantic: &SemanticModel) -> ElementGraph {
             builder.typed_element("CapabilityRealization", &capability.id, &capability.name, &owner, &capability.attributes);
         }
         for chain in &la.functional_chains {
-            builder.typed_element("FunctionalChain", &chain.id, &chain.name, &root, &chain.attributes);
+            let uuid = builder.typed_element("FunctionalChain", &chain.id, &chain.name, &root, &chain.attributes);
+            builder.chain_graph(chain, &uuid);
         }
     }
     for pa in &ast.physical_architecture {
@@ -526,7 +571,7 @@ pub fn build(ast: &Model, semantic: &SemanticModel) -> ElementGraph {
             let uuid = builder.typed_element("PhysicalNode", &node.id, &node.name, &root, &node.attributes);
             let id = node.attributes.get("id").and_then(|v| v.as_string()).unwrap_or(&node.id).to_string();
             for port in &node.ports {
-                builder.port("PhysicalPort", &uuid, [&id, &node.name], &port.name, Vec::new());
+                builder.port("PhysicalPort", &uuid, [&id, &node.name], "", &port.name, &empty(), Vec::new());
             }
             for hardware in &node.hardware_components {
                 builder.element("HardwareComponent", &hardware.id, &hardware.name, &uuid, &empty());
@@ -538,7 +583,7 @@ pub fn build(ast: &Model, semantic: &SemanticModel) -> ElementGraph {
             for behavior in &node.behavior_components {
                 let behaviour_uuid = builder.typed_element("BehaviorComponent", &behavior.id, &behavior.name, &uuid, &behavior.attributes);
                 for port in &behavior.ports {
-                    builder.port("ComponentPort", &behaviour_uuid, [&behavior.id, &behavior.name], &port.name, vec![("direction", json!(direction_text(&port.direction))), ("interface", json!(port.interface_type))]);
+                    builder.port("ComponentPort", &behaviour_uuid, [&behavior.id, &behavior.name], &port.id, &port.name, &port.attributes, vec![("direction", json!(direction_text(&port.direction))), ("interface", json!(port.interface_type))]);
                 }
                 for function in &behavior.functions {
                     builder.level_function("PhysicalFunction", function, &behaviour_uuid);
@@ -552,7 +597,8 @@ pub fn build(ast: &Model, semantic: &SemanticModel) -> ElementGraph {
             builder.typed_element("PhysicalPath", &path.id, &path.name, &root, &path.attributes);
         }
         for chain in &pa.functional_chains {
-            builder.typed_element("FunctionalChain", &chain.id, &chain.name, &root, &chain.attributes);
+            let uuid = builder.typed_element("FunctionalChain", &chain.id, &chain.name, &root, &chain.attributes);
+            builder.chain_graph(chain, &uuid);
         }
         for capability in &pa.capability_realizations {
             let owner = capability_owner(&builder, capability.parent.as_deref(), &root);
@@ -579,6 +625,16 @@ pub fn build(ast: &Model, semantic: &SemanticModel) -> ElementGraph {
             "fields",
             Value::Array(class.fields.iter().map(|f| json!({"name": f.name, "type": f.attr_type})).collect()),
         );
+    }
+    for association in &ast.associations {
+        let mut extra = vec![("kind", json!(association.kind.keyword()))];
+        if let Some(role) = &association.role {
+            extra.push(("role", json!(role)));
+        }
+        if let Some(multiplicity) = &association.multiplicity {
+            extra.push(("multiplicity", json!(multiplicity)));
+        }
+        builder.relate("Association", Some(&association.name), &association.from, &association.to, &association.attributes, extra);
     }
     for data_type in &ast.data_types {
         let kind = if data_type.enumeration_values.is_some() { "Enumeration" } else { "DataType" };
@@ -619,15 +675,22 @@ pub fn build(ast: &Model, semantic: &SemanticModel) -> ElementGraph {
         }
     }
     for machine in &ast.state_machines {
-        let uuid = builder.element("StateMachine", "", &machine.name, &root, &empty());
+        let uuid = builder.element("StateMachine", &machine.id, &machine.name, &root, &machine.attributes);
         builder.set_extra("initial", json!(machine.initial_state));
         for state in &machine.states {
             builder.state(state, &machine.name, &uuid);
         }
     }
     for scenario in &ast.scenarios {
-        builder.element("Scenario", "", &scenario.name, &root, &empty());
+        let uuid = builder.element("Scenario", &scenario.id, &scenario.name, &root, &scenario.attributes);
         builder.set_extra("participants", json!(scenario.participants.iter().map(|p| p.id.clone()).collect::<Vec<_>>()));
+        for invariant in &scenario.invariants {
+            builder.element("StateFragment", &invariant.id, &invariant.name, &uuid, &invariant.attributes);
+            builder.set_extra("lifeline", json!(invariant.lifeline));
+            builder.set_extra("kind", json!(invariant.kind.keyword()));
+            builder.set_extra("start", json!(invariant.start));
+            builder.set_extra("end", json!(if invariant.end < invariant.start { Value::Null } else { json!(invariant.end) }));
+        }
     }
 
     // ---- Relationships -----------------------------------------------------

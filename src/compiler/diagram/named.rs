@@ -80,8 +80,9 @@ fn one(decl: &DiagramDecl, views: &[Diagram]) -> (Option<Diagram>, Vec<String>) 
         nodes,
         edges,
         chains,
-            fragments: Vec::new(),
-        };
+        fragments: Vec::new(),
+        invariants: Vec::new(),
+    };
     (Some(diagram), diagnostics)
 }
 

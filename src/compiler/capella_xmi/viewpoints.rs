@@ -229,6 +229,7 @@ mod tests {
             values: HashMap::new(),
             categories: HashMap::new(),
             status_literals: HashMap::new(),
+            extension_values: HashMap::new(),
             engineering: Node::default(),
             metamodel: Metamodel::current(),
         }

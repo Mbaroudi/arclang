@@ -221,6 +221,28 @@ impl<'a> Checker<'a> {
         for class in &ast.classes {
             self.check_attrs("Class", &class.name, &class.attributes);
         }
+        for association in &ast.associations {
+            self.check_attrs("Association", &association.name, &association.attributes);
+        }
+        let chains = ast
+            .system_analysis
+            .iter()
+            .flat_map(|sa| sa.functional_chains.iter())
+            .chain(ast.logical_architecture.iter().flat_map(|la| la.functional_chains.iter()))
+            .chain(ast.physical_architecture.iter().flat_map(|pa| pa.functional_chains.iter()));
+        for chain in chains {
+            for control in &chain.controls {
+                self.check_attrs("ControlNode", &control.name, &control.attributes);
+            }
+            for link in &chain.sequences {
+                self.check_attrs("SequenceLink", &format!("{} -> {}", link.from, link.to), &link.attributes);
+            }
+        }
+        for scenario in &ast.scenarios {
+            for invariant in &scenario.invariants {
+                self.check_attrs("StateFragment", &invariant.name, &invariant.attributes);
+            }
+        }
         for data_type in &ast.data_types {
             if let Some(unit) = &data_type.unit {
                 self.check_value("DataType", &data_type.name, "unit", &AttrType::Enum("Unit"), &AttributeValue::String(unit.clone()));

@@ -3,7 +3,7 @@
 
 use super::builder::{Builder, Role};
 use super::elements::{element_index, kind_name, ElementRef};
-use super::{Diagram, EdgeKind, Fragment, NodeKind, Operand, ViewKind};
+use super::{Diagram, EdgeKind, Fragment, Invariant, NodeKind, Operand, ViewKind};
 use crate::compiler::ast::{CombinedFragment, MessageType, Model, Scenario};
 use std::collections::{BTreeMap, HashMap};
 
@@ -108,6 +108,25 @@ fn build_scenario(
         .collect();
     let all: Vec<String> = diagram.nodes.iter().map(|node| node.id.clone()).collect();
     diagram.fragments = scenario.fragments.iter().map(|fragment| frame(fragment, &rows, &all)).collect();
+    // The invariants, on the lifeline each one names, labelled with the
+    // name of the state or function (the model may reference it by id).
+    let mut diagnostics = diagnostics;
+    for invariant in &scenario.invariants {
+        let lifeline = format!("{}.{}", scenario.name, invariant.lifeline);
+        if !all.contains(&lifeline) {
+            diagnostics.push(format!("[{}] {what}: {} '{}' sits on '{}', which is not a participant", diagram.id, invariant.kind.keyword(), invariant.name, invariant.lifeline));
+            continue;
+        }
+        let label = elements.get(invariant.name.as_str()).map(|element| element.name.to_string()).unwrap_or_else(|| invariant.name.clone());
+        diagram.invariants.push(Invariant {
+            id: invariant.id.clone(),
+            lifeline,
+            label,
+            kind: invariant.kind.keyword().to_string(),
+            start: invariant.start,
+            end: invariant.end,
+        });
+    }
     (Some(diagram), diagnostics)
 }
 

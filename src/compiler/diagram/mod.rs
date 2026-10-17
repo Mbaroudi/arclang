@@ -159,6 +159,24 @@ pub struct Diagram {
     /// Combined fragments of a scenario: frames over rows of messages.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub fragments: Vec<Fragment>,
+    /// States, modes and functions asserted on the lifelines of a scenario.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub invariants: Vec<Invariant>,
+}
+
+/// A state, mode or function asserted on a lifeline (Capella: state
+/// fragment), from row `start` to row `end` (0-based, inclusive); an
+/// instant between rows when `end < start`.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct Invariant {
+    pub id: String,
+    /// Id of the lifeline node it sits on.
+    pub lifeline: String,
+    pub label: String,
+    /// `state` or `function`.
+    pub kind: String,
+    pub start: usize,
+    pub end: usize,
 }
 
 /// A combined fragment of a sequence diagram: `alt`, `loop`, `opt`, `par`...
@@ -333,6 +351,31 @@ pub struct Chain {
     /// Involved edges: those named by the chain, plus the exchanges linking
     /// consecutive chain nodes.
     pub edges: Vec<String>,
+    /// Control nodes (AND, OR, ITERATE) branching the chain.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub controls: Vec<ChainControl>,
+    /// Sequence links between chain nodes and control nodes.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub sequences: Vec<ChainSequence>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct ChainControl {
+    pub id: String,
+    pub name: String,
+    /// `and`, `or` or `iterate`.
+    pub kind: String,
+}
+
+/// A sequence link, each end a node id of the diagram, an edge id, or the
+/// id of a control node of the same chain.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct ChainSequence {
+    pub id: String,
+    pub source: String,
+    pub target: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub condition: Option<String>,
 }
 
 /// Build every viewpoint diagram the model populates.

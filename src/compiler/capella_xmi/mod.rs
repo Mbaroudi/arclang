@@ -225,6 +225,9 @@ pub(crate) struct Writer {
     /// Property value groups and values, by id, ready to write.
     value_groups: HashMap<String, Vec<PropertyValue>>,
     values: HashMap<String, PropertyValue>,
+    /// Attributes the add-on viewpoints (Cybersecurity...) put on an
+    /// element, by the Capella id of the element they extend.
+    extension_values: HashMap<String, Vec<PropertyValue>>,
     /// Names of the exchange categories, by exchange id.
     categories: HashMap<String, Vec<String>>,
     /// The progress status literals (DRAFT, REVIEWED...), by id.
@@ -431,6 +434,7 @@ fn import_document(document: &Node, aird: Option<Result<Node, String>>, file_nam
         values: HashMap::new(),
         categories: HashMap::new(),
         status_literals: project.find_all("capellacore:EnumerationPropertyLiteral").into_iter().map(|l| (l.id().to_string(), display_name(l))).collect(),
+        extension_values: viewpoints::extension_values(project),
         engineering: engineering.clone(),
         metamodel: Metamodel::current(),
     };
@@ -473,6 +477,8 @@ fn import_document(document: &Node, aird: Option<Result<Node, String>>, file_nam
             other => writer.note(format!("architecture '{}' of kind {other} left out", architecture.name())),
         }
     }
+    // Add-on viewpoints (STPA, Cybersecurity): their own elements.
+    viewpoints::viewpoints(&mut writer, project);
     behaviour::state_machines(&mut writer, engineering);
     behaviour::scenarios(&mut writer, engineering);
     data::requirement_relations(&mut writer, project);

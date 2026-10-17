@@ -282,7 +282,7 @@ impl Metamodel {
             concat(vec![
                 common(),
                 vec![
-                    attr("involves", list(AttrType::Reference("Element")), "Ordered functions/exchanges of the chain."),
+                    attr("involves", list(AttrType::Reference("Element")), "Ordered functions, exchanges and chains of the chain."),
                     attr("latency_budget", AttrType::Quantity(Dimension::Time), "End-to-end budget checked by the gate."),
                     attr("capability", AttrType::Reference("Capability"), "Capability this chain exemplifies."),
                 ],
@@ -324,7 +324,11 @@ impl Metamodel {
             kind("FunctionalExchange", Layer::System, "FunctionalExchange", "flow", "Data flow between function ports.", exchange_attrs()),
             kind("SystemActor", Layer::System, "SystemActor", "part def (actor)", "External actor at system level.", concat(vec![common(), safety()])),
             kind("SystemComponent", Layer::System, "SystemComponent", "part def", "The system or one of its external components.", component_attrs()),
-            kind("FunctionalChain", Layer::System, "FunctionalChain", "action def (sequence)", "Ordered functions and exchanges realizing one dataflow path.", chain_attrs()),
+            kind("FunctionalChain", Layer::System, "FunctionalChain", "action def (sequence)", "Ordered functions, exchanges and chains realizing one dataflow path; `control` nodes and `sequence` links branch it.", chain_attrs()),
+            kind("ControlNode", Layer::System, "ControlNode", "fork / join / decision / loop node", "Control node of a functional chain: `control and|or|iterate \"Name\"`, joined to the chain's steps by sequence links.",
+                concat(vec![common(), vec![attr("kind", AttrType::Enum("ControlKind"), "and | or | iterate (from the keyword).")]])),
+            kind("SequenceLink", Layer::System, "SequenceLink", "succession", "`sequence \"A\" -> \"B\" { condition: \"...\" }` inside a chain: each end a step of the chain or one of its control nodes.",
+                concat(vec![common(), vec![attr("condition", AttrType::Text, "Guard of the branch.")]])),
             // ---- Logical Architecture ----
             kind("LogicalComponent", Layer::Logical, "LogicalComponent", "part def + part", "Behavioural building block, may be nested.",
                 concat(vec![component_attrs(), vec![multiplicity()]])),
@@ -357,6 +361,14 @@ impl Metamodel {
             // ---- Data ----
             kind("Class", Layer::Data, "Class", "attribute def", "Structured data element; every attribute but `id`, `description` and `extends` is a field, kept in declared order.",
                 concat(vec![common(), vec![attr("extends", AttrType::Reference("Class"), "The class this one specializes.")]])),
+            kind("Association", Layer::Data, "Association", "connection def", "Association between two classes, as an element of its own; `from` owns the navigable end.",
+                concat(vec![common(), vec![
+                    attr("from", AttrType::Reference("Class"), "The class owning the navigable end."),
+                    attr("to", AttrType::Reference("Class"), "The class at the navigable end."),
+                    attr("role", AttrType::Text, "The field of `from` typed by `to` (the navigable end)."),
+                    attr("kind", AttrType::Enum("AssociationKind"), "association | aggregation | composition."),
+                    attr("multiplicity", AttrType::Text, "Multiplicity of the navigable end (`1`, `0..*`)."),
+                ]])),
             kind("Enumeration", Layer::Data, "Enumeration", "enum def", "Enumerated data type.",
                 concat(vec![common(), vec![attr("values", list(AttrType::Text), "Literals.")]])),
             kind("DataType", Layer::Data, "DataType", "attribute def", "Primitive data type.",
@@ -426,11 +438,14 @@ impl Metamodel {
                 concat(vec![common(), vec![attr("participants", list(AttrType::Reference("Element")), "Lifelines.")]])),
             kind("Fragment", Layer::Transverse, "CombinedFragment", "combined fragment", "A combined fragment of a scenario: `alt`, `opt`, `loop`, `par`, `seq` or `critical`, framing the messages it holds, with its operands. Fragments nest.",
                 vec![attr("label", AttrType::Text, "The guard or the condition shown in the frame's tag.")]),
+            kind("StateFragment", Layer::Transverse, "StateFragment", "state invariant", "A state, mode or function asserted on a lifeline: `state \"Lifeline\" \"Armed\" { ... }` / `function \"Lifeline\" \"Sense\" { ... }`, spanning the messages of its body (an instant without any).", common()),
             kind("Message", Layer::Transverse, "SequenceMessage", "message", "Message between two participants.",
                 vec![attr("type", AttrType::Enum("MessageKind"), "sync | async."), attr("timing", AttrType::Quantity(Dimension::Time), "Timing constraint.")]),
         ];
 
         let enums = vec![
+            EnumSpec { name: "ControlKind", values: &["and", "or", "iterate"], doc: "Kind of a control node of a functional chain." },
+            EnumSpec { name: "AssociationKind", values: &["association", "aggregation", "composition"], doc: "Kind of an association between classes." },
             EnumSpec { name: "Asil", values: &["QM", "ASIL-A", "ASIL-B", "ASIL-C", "ASIL-D"], doc: "ISO 26262 automotive safety integrity level." },
             EnumSpec { name: "Dal", values: &["DAL-A", "DAL-B", "DAL-C", "DAL-D", "DAL-E"], doc: "DO-178C design assurance level." },
             EnumSpec { name: "SafetyLevel", values: &["QM", "ASIL-A", "ASIL-B", "ASIL-C", "ASIL-D", "DAL-A", "DAL-B", "DAL-C", "DAL-D", "DAL-E", "SIL-1", "SIL-2", "SIL-3", "SIL-4"], doc: "Any integrity level: ASIL (ISO 26262), DAL (DO-178C) or SIL (IEC 61508)." },
@@ -465,6 +480,8 @@ impl Metamodel {
             relationship("Typing", "element or PhysicalLink", "Type", "`is:` — the element is an instance of the type."),
             relationship("Specialization", "Type", "Type", "`extends` — the source type specializes the target."),
             relationship("Involvement", "chain, path, capability", "element", "`involves:`; `order` is the 1-based position."),
+            relationship("SequenceLink", "step or ControlNode", "step or ControlNode", "`sequence A -> B` of a functional chain; `condition` is its guard."),
+            relationship("Association", "Class", "Class", "An `association` declaration; `kind`, `role` and `multiplicity` describe the navigable end."),
             relationship("Realization", "capability", "capability", "`realizes:` across layers."),
             relationship("CapabilityExtend", "capability", "capability of the same level", "`extends:` of a capability."),
             relationship("CapabilityInclude", "capability", "capability of the same level", "`includes:` of a capability."),

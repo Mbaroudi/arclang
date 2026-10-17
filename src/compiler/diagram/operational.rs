@@ -80,7 +80,7 @@ pub(super) fn build(model: &Model) -> Option<(Diagram, Vec<String>)> {
     }
     for oa in &model.operational_analysis {
         for process in &oa.processes {
-            builder.add_chain(&process.id, &process.name, &process.involves);
+            builder.add_chain_graph(&process.id, &process.name, &process.involves, &process.controls, &process.sequences);
         }
     }
     builder.finish(view_title(

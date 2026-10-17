@@ -157,25 +157,93 @@ fn chain_order(chain: &Node) -> Vec<String> {
 /// The chains of `holder`: `functional_chain` (or `operational_process`)
 /// declarations whose `involves` lists the elements written for its steps.
 fn chains(writer: &mut Writer, depth: usize, holder: &Node, capella_kind: &str, keyword: &str, what: &'static str, kind: &'static str, accept: &[&str], taken: &mut HashSet<String>) {
-    for chain in holder.find_all(capella_kind) {
-        let steps = chain_order(chain);
-        let involved = writer.known_of(&steps, accept);
-        if involved.is_empty() {
-            writer.count(if steps.is_empty() { "empty chains (left out: a chain involves at least one function)" } else { "chains whose steps were not imported (left out)" });
+    let all: Vec<&Node> = holder.find_all(capella_kind);
+    let steps_of: HashMap<String, Vec<String>> = all.iter().map(|chain| (chain.id().to_string(), chain_order(chain))).collect();
+    // A chain is written when one of its steps is: a function, an exchange,
+    // or a chain written itself (so references settle in any order).
+    let accept_with_chains: Vec<&str> = accept.iter().copied().chain(std::iter::once(kind)).collect();
+    loop {
+        let before = writer.kinds.len();
+        for chain in &all {
+            if writer.written(chain.id()) {
+                continue;
+            }
+            // An empty chain is a chain whose path is not described yet.
+            if steps_of[chain.id()].is_empty() || !writer.known_of(&steps_of[chain.id()], &accept_with_chains).is_empty() {
+                writer.remember(chain, kind);
+            }
+        }
+        if writer.kinds.len() == before {
+            break;
+        }
+    }
+    for chain in &all {
+        let steps = &steps_of[chain.id()];
+        if !writer.written(chain.id()) {
+            writer.count("chains whose steps were not imported (left out)");
             continue;
         }
+        let involved = writer.known_of(steps, &accept_with_chains);
         writer.count(what);
-        writer.remember(chain, kind);
+        if involved.is_empty() {
+            writer.count("empty chains (their path is not described yet)");
+        }
         let name = data::unique_name(taken, &display_name(chain));
         writer.line(depth, &format!("{keyword} {} {{", string_literal(&name)));
         header_attributes(writer, depth + 1, chain, kind);
-        writer.line(depth + 1, &format!("involves: {}", list_literal(&involved)));
+        if !involved.is_empty() {
+            writer.line(depth + 1, &format!("involves: {}", list_literal(&involved)));
+        }
+        chain_graph(writer, depth + 1, chain);
         writer.line(depth, "}");
         for realization in chain.tagged("ownedFunctionalChainRealizations") {
             if let Some(target) = first_ref(realization.attr("targetElement")) {
                 writer.traces.push((chain.id().to_string(), "realizes", target));
             }
         }
+    }
+}
+
+/// The control nodes and sequence links of a chain: `control and "AND 1"`
+/// and `sequence "F1" -> "AND 1" { condition: "..." }`, the ends being the
+/// written steps (functions, chains) and the control nodes.
+fn chain_graph(writer: &mut Writer, depth: usize, chain: &Node) {
+    let involved_of: HashMap<String, String> = chain
+        .tagged("ownedFunctionalChainInvolvements")
+        .filter_map(|involvement| first_ref(involvement.attr("involved")).map(|target| (involvement.id().to_string(), target)))
+        .collect();
+    let mut counters: HashMap<&str, usize> = HashMap::new();
+    let mut control_names: HashMap<String, String> = HashMap::new();
+    for node in chain.tagged("ownedSequenceNodes").filter(|n| n.is("fa:ControlNode")) {
+        let kind = match node.attr("kind") {
+            Some("OR") => "or",
+            Some("ITERATE") => "iterate",
+            _ => "and",
+        };
+        let n = counters.entry(kind).or_insert(0);
+        *n += 1;
+        let name = format!("{} {n}", kind.to_uppercase());
+        control_names.insert(node.id().to_string(), name.clone());
+        writer.count("control nodes of chains");
+        writer.remember(node, "ControlNode");
+        writer.line(depth, &format!("control {kind} {} {{ id: {} }}", string_literal(&name), string_literal(node.id())));
+    }
+    for link in chain.tagged("ownedSequenceLinks").filter(|l| l.is("fa:SequenceLink")) {
+        let end = |reference: Option<String>| -> Option<String> {
+            let id = reference?;
+            control_names.get(&id).cloned().or_else(|| involved_of.get(&id).filter(|target| writer.written(target)).map(|target| writer.ids[target].clone()))
+        };
+        let (Some(from), Some(to)) = (end(first_ref(link.attr("source"))), end(first_ref(link.attr("target")))) else {
+            writer.count("sequence links to an unwritten step (left out)");
+            continue;
+        };
+        let mut attributes = vec![format!("id: {}", string_literal(link.id()))];
+        if let Some(condition) = link.tagged("ownedConstraints").map(data::constraint_text).find(|text| !text.is_empty()) {
+            attributes.push(format!("condition: {}", string_literal(&condition)));
+        }
+        writer.count("sequence links of chains");
+        writer.remember(link, "SequenceLink");
+        writer.line(depth, &format!("sequence {} -> {} {{ {} }}", string_literal(&from), string_literal(&to), attributes.join(" ")));
     }
 }
 

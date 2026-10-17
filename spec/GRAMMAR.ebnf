@@ -122,8 +122,18 @@ CapabilityDecl      ::= "capability" Name "{" ( Attribute | CapabilityDecl )* "}
                         (* attributes: id:, mission: <ref>, realizes: <ref>,
                            involves: [ <ref>* ] — references resolve by id or
                            unambiguous name; dangling references are ERRORS *)
-FunctionalChainDecl ::= "functional_chain" Name AttributeBlock ;
-                        (* involves: [ <ref>+ ] REQUIRED, ordered *)
+FunctionalChainDecl ::= "functional_chain" Name "{" ( Attribute | ControlNodeDecl | SequenceLinkDecl )* "}" ;
+                        (* involves: [ <ref>* ] ordered: functions, exchanges and
+                           CHAINS (a chain involving a chain references it, as
+                           Capella does); empty is a WARNING (path not described
+                           yet). Control nodes and sequence links branch the
+                           chain; without any, the chain is the order of involves. *)
+ControlNodeDecl     ::= "control" ( "and" | "or" | "iterate" ) Name AttributeBlock? ;
+                        (* id: defaults to <chain id>.<name> *)
+SequenceLinkDecl    ::= "sequence" Name "->" Name AttributeBlock? ;
+                        (* each end a step of the chain (as written in involves)
+                           or one of its control nodes, else an ERROR;
+                           attributes: condition: <text>, id: *)
 
 FunctionElement ::= "function" Name AttributeBlock?            (* nested sub-function *)
                   | FunctionPortDecl
@@ -264,10 +274,17 @@ UnitSymbol      ::= Identifier ( "/" Identifier )?     (* must be in the unit ta
 (* ---- Data Model (Arcadia: Class, DataType, Enumeration, Exchange Item) -------------------- *)
 
 ClassDecl        ::= "class" Name AttributeBlock ;
-                     (* every attribute but id:, description: and extends: is a
-                        field, name -> type. Fields keep their declared order;
-                        one declared twice is an ERROR. extends: <class ref>
-                        names the class this one specializes. *)
+                     (* every attribute but id:, description:, summary:, status:,
+                        constraints: and extends: is a field, name -> type. Fields
+                        keep their declared order; one declared twice is an ERROR.
+                        extends: <class ref> names the class this one specializes. *)
+AssociationDecl  ::= "association" Name AttributeBlock ;
+                     (* an association between two classes, as an element:
+                        from: <class ref> (owns the navigable end), to: <class ref>,
+                        role: <field of from typed by to>, kind: association |
+                        aggregation | composition, multiplicity: <text>, id:.
+                        Unknown classes or role are ERRORS. Declared wherever a
+                        class is. *)
 EnumerationDecl  ::= "enumeration" Name AttributeBlock ;       (* values: [ Name* ] *)
 DataTypeDecl     ::= "data_type" Name AttributeBlock ;
                      (* base:, unit: <UnitSymbol> — a symbol outside the unit
@@ -385,14 +402,22 @@ ScenariosBlock  ::= "scenarios" Name? "{" ScenarioDecl* "}" ;
    `opt`, `seq` and `critical` with one body. A fragment with operand
    blocks holds nothing outside them. Fragments nest. *)
 FragmentDecl    ::= "fragment" FragmentKind String?
-                    "{" ( OperandDecl* | ( MessageDecl | FragmentDecl )* ) "}" ;
+                    "{" ( OperandDecl* | ( MessageDecl | FragmentDecl | InvariantDecl )* ) "}" ;
 FragmentKind    ::= "alt" | "opt" | "loop" | "par" | "seq" | "critical" ;
-OperandDecl     ::= "operand" String? "{" ( MessageDecl | FragmentDecl )* "}" ;
+OperandDecl     ::= "operand" String? "{" ( MessageDecl | FragmentDecl | InvariantDecl )* "}" ;
 ScenarioElement ::= "participants" ":" "[" Name ( "," Name )* "]"
                   | FragmentDecl
                     (* participants must resolve to declared elements (ERROR) *)
                   | MessageDecl
+                  | InvariantDecl
                   | Attribute ;
+(* A state, mode or function asserted on a lifeline (Capella: state fragment):
+   `state "Lifeline" "Armed" { ... }`, `mode ...`, `function "Lifeline" "Sense" { ... }`.
+   It spans the messages written in its body (an instant without any); the
+   lifeline must be a participant and the name a declared state/mode or
+   function, by id or unambiguous name (ERROR). Allowed inside fragments. *)
+InvariantDecl   ::= ( "state" | "mode" | "function" ) Name Name
+                    ( "{" ( Attribute | MessageDecl | FragmentDecl | InvariantDecl )* "}" )? ;
 MessageDecl     ::= "message" Name "->" Name Name? AttributeBlock? ;
                     (* endpoints must be scenario participants (ERROR);
                        attributes: type: sync|async, timing: *)

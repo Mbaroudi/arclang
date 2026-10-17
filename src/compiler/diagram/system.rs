@@ -99,7 +99,7 @@ pub(super) fn build(model: &Model) -> Option<(Diagram, Vec<String>)> {
     );
     for sa in &model.system_analysis {
         for chain in &sa.functional_chains {
-            builder.add_chain(&chain.id, &chain.name, &chain.involves);
+            builder.add_chain_graph(&chain.id, &chain.name, &chain.involves, &chain.controls, &chain.sequences);
         }
     }
     builder.finish(view_title(

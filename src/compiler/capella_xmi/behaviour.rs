@@ -185,16 +185,73 @@ fn represented(writer: &Writer, role: &Node) -> Option<String> {
     writer.ids.get(typed).cloned()
 }
 
-/// A combined fragment or an operand, as a range of fragment indexes.
+/// A combined fragment or an operand, as a range of fragment indexes; or a
+/// state fragment, the state or function a lifeline is in over that range.
 struct Frame<'a> {
     node: &'a Node,
     start: usize,
     end: usize,
     operands: Vec<(Option<&'a Node>, usize, usize)>,
+    invariant: Option<Invariant>,
+}
+
+/// What a state fragment asserts: `state`/`function`, on which lifeline,
+/// which element (by name when unique, else by id).
+struct Invariant {
+    keyword: &'static str,
+    lifeline: String,
+    reference: String,
+}
+
+/// The state fragments of a scenario, as frames; counts the ones whose
+/// state or function is not written.
+fn state_fragments<'a>(writer: &mut Writer, scenario: &'a Node, index_of: &HashMap<String, usize>, fragments: &[&Node], covered: &dyn Fn(&Node) -> Option<String>, unique: &HashSet<String>) -> Vec<Frame<'a>> {
+    let mut frames: Vec<Frame<'a>> = Vec::new();
+    for lapse in scenario.tagged("ownedTimeLapses").filter(|l| l.is("interaction:StateFragment")) {
+        let (Some(start), Some(end)) = (
+            first_ref(lapse.attr("start")).and_then(|e| index_of.get(&e).copied()),
+            first_ref(lapse.attr("finish")).and_then(|e| index_of.get(&e).copied()),
+        ) else { continue };
+        let Some(lifeline) = covered(fragments[start]) else {
+            writer.count("state fragments on a lifeline not written (left out)");
+            continue;
+        };
+        let (keyword, related) = match (first_ref(lapse.attr("relatedAbstractState")), first_ref(lapse.attr("relatedAbstractFunction"))) {
+            (Some(state), _) => ("state", state),
+            (None, Some(function)) => ("function", function),
+            (None, None) => { writer.count("state fragments asserting nothing (left out)"); continue }
+        };
+        if !writer.written(&related) {
+            writer.count("state fragments of a state or function not written (left out)");
+            continue;
+        }
+        let name = writer.names.get(&related).cloned().unwrap_or_default();
+        let reference = if unique.contains(&format!("{keyword}:{name}")) { name } else { writer.ids[&related].clone() };
+        frames.push(Frame { node: lapse, start, end, operands: Vec::new(), invariant: Some(Invariant { keyword, lifeline, reference }) });
+    }
+    frames
+}
+
+/// The names that denote one state (or one function) only, as `state:Name`
+/// / `function:Name`: an invariant names its element so, else by id.
+fn unique_names(writer: &Writer) -> HashSet<String> {
+    let mut counts: HashMap<String, usize> = HashMap::new();
+    for (id, kind) in &writer.kinds {
+        let group = match *kind {
+            "State" => "state",
+            "SystemFunction" | "LogicalFunction" | "PhysicalFunction" | "OperationalActivity" => "function",
+            _ => continue,
+        };
+        if let Some(name) = writer.names.get(id) {
+            *counts.entry(format!("{group}:{name}")).or_insert(0) += 1;
+        }
+    }
+    counts.into_iter().filter(|(_, n)| *n == 1).map(|(key, _)| key).collect()
 }
 
 pub(super) fn scenarios(writer: &mut Writer, engineering: &Node) {
     let mut taken: HashSet<String> = HashSet::new();
+    let unique = unique_names(writer);
     let all: Vec<&Node> = engineering.find_all("interaction:Scenario");
     let mut names_seen: HashMap<String, usize> = HashMap::new();
     for scenario in &all {
@@ -266,8 +323,9 @@ pub(super) fn scenarios(writer: &mut Writer, engineering: &Node) {
                 let until = starts.get(n + 1).map(|(next, _)| *next).unwrap_or(end);
                 operands.push((Some(operand), *at, until));
             }
-            frames.push(Frame { node: lapse, start, end, operands });
+            frames.push(Frame { node: lapse, start, end, operands, invariant: None });
         }
+        frames.extend(state_fragments(writer, scenario, &index_of, &fragments, &covered, &unique));
         frames.sort_by_key(|f| (f.start, std::cmp::Reverse(f.end)));
 
         writer.count("scenarios");
@@ -314,6 +372,21 @@ fn write_frame_body(writer: &mut Writer, depth: usize, messages: &[(usize, &Node
         }
         let Some(frame) = frame else { break };
         *next_frame += 1;
+        if let Some(invariant) = &frame.invariant {
+            // A state fragment: the lifeline is in that state (or runs that
+            // function) over the messages of the range.
+            writer.count(if invariant.keyword == "state" { "state fragments (states on lifelines)" } else { "state fragments (functions on lifelines)" });
+            writer.remember(frame.node, "StateFragment");
+            writer.line(depth, &format!("{} {} {} {{", invariant.keyword, string_literal(&invariant.lifeline), string_literal(&invariant.reference)));
+            writer.line(depth + 1, &format!("id: {}", string_literal(frame.node.id())));
+            written += write_frame_body(writer, depth + 1, messages, frames, frame.start, frame.end, next_frame);
+            writer.line(depth, "}");
+            position = frame.end;
+            if position >= to {
+                break;
+            }
+            continue;
+        }
         let kind = match frame.node.attr("operator").unwrap_or("SEQ") {
             "ALT" => "alt",
             "OPT" => "opt",

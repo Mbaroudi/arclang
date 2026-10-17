@@ -80,6 +80,8 @@ impl CapellaImporter {
             }
             
             vec![SystemAnalysis {
+            id: String::new(),
+            attributes: HashMap::new(),
                 missions: Vec::new(),
                 capabilities: Vec::new(),
                 functional_chains: Vec::new(),
@@ -102,6 +104,8 @@ impl CapellaImporter {
             }
             
             vec![LogicalArchitecture {
+            id: String::new(),
+            attributes: HashMap::new(),
                 capability_realizations: Vec::new(),
                 functional_chains: Vec::new(),
                 name: "Imported Architecture".to_string(),
@@ -119,6 +123,7 @@ impl CapellaImporter {
         Ok(Model {
             diagrams: Vec::new(),
             classes: Vec::new(),
+            associations: Vec::new(),
             test_cases: Vec::new(),
             constraints: Vec::new(),
             types: Vec::new(),

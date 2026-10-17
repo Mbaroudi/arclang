@@ -364,6 +364,13 @@
       });
     };
     fragments.forEach(reserve);
+    // A state or function asserted on a lifeline takes a row of its own
+    // above its first message (or at its instant).
+    const invariants = (graph.arc && graph.arc.invariants) || [];
+    const INVARIANT = 30;
+    invariants.forEach((invariant) => {
+      if (invariant.start < extra.length) extra[invariant.start] += INVARIANT;
+    });
     const offsets = [];
     extra.reduce((sum, value, index) => { offsets[index] = sum + value; return sum + value; }, 0);
     const rowY = (index) => SEQ.first + index * SEQ.row + (offsets[Math.min(index, offsets.length - 1)] || 0);
@@ -423,6 +430,27 @@
     };
     fragments.forEach((fragment) => drawFragment(fragment, 0));
 
+    // The invariants: a rounded box on the lifeline, spanning its messages.
+    const boxes = invariants.map((invariant) => {
+      const col = column.get(invariant.lifeline);
+      if (col === undefined) return '';
+      const cx = centre(col);
+      const instant = invariant.end < invariant.start || messages.length === 0;
+      const at = Math.min(invariant.start, Math.max(messages.length - 1, 0));
+      const top = messages.length === 0 ? SEQ.first - INVARIANT : rowY(at) - INVARIANT + 4;
+      const bottomY = instant ? top + 22 : rowY(invariant.end) + 10;
+      const width = Math.max(72, invariant.label.length * 6.2 + 18);
+      const fill = invariant.kind === 'function' ? '#E3F1E6' : '#FFF4D6';
+      const stroke = invariant.kind === 'function' ? '#2E7D4F' : '#B07A00';
+      const title = `${invariant.kind === 'function' ? 'Function' : 'State'} on the lifeline: ${invariant.label}`;
+      return (
+        `<g class="av-invariant" data-id="${esc(invariant.id)}" data-kind="${esc(invariant.kind)}"><title>${esc(title)}</title>` +
+        `<rect x="${num(cx - width / 2)}" y="${num(top)}" width="${num(width)}" height="${num(bottomY - top)}" rx="9" fill="${fill}" fill-opacity="0.85" stroke="${stroke}" stroke-width="1.2"/>` +
+        `<text x="${num(cx)}" y="${num(top + 14)}" text-anchor="middle" font-size="10.5" font-weight="600" fill="#18222D">${esc(invariant.label)}</text>` +
+        '</g>'
+      );
+    });
+
     const style = edgeStyle('message');
     const edges = messages.map((message, index) => {
       const arc = message.arc;
@@ -461,7 +489,7 @@
       );
     });
 
-    return frame(graph, nodes, [...frames, ...edges], '', contentWidth, bottom);
+    return frame(graph, nodes, [...frames, ...boxes, ...edges], '', contentWidth, bottom);
   }
 
   function frame(graph, nodes, edges, defs, contentWidth, contentHeight) {
