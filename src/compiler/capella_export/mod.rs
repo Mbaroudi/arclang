@@ -16,6 +16,7 @@
 mod behaviour;
 mod context;
 mod data;
+mod diagrams;
 mod epbs;
 mod functions;
 mod header;
@@ -170,7 +171,9 @@ pub fn export(model: &Model, file_stem: &str) -> Exported {
     project.push(engineering);
 
     let afm = afm(&project_id, !requirements::all(model).is_empty());
-    let aird = aird(&project_id, file_stem);
+    let index = diagrams::index(project.children().last().expect("the system engineering"));
+    let drawn = diagrams::diagrams(&mut context, &index, &model.diagrams, &format!("{file_stem}.capella"));
+    let aird = aird(&project_id, file_stem, drawn);
     Exported { capella: document(&project), aird, afm, notes: context.notes }
 }
 
@@ -230,7 +233,7 @@ fn afm(project_id: &str, with_requirements: bool) -> String {
 }
 
 /// The Sirius session of the model: its resources and the Capella viewpoints.
-fn aird(project_id: &str, file_stem: &str) -> String {
+fn aird(project_id: &str, file_stem: &str, drawn: Vec<(String, El, El)>) -> String {
     const VIEWPOINTS: &[&str] = &[
         "platform:/plugin/org.polarsys.kitalpha.ad.integration.sirius/description/ad.odesign#//@ownedViewpoints[name='ad']",
         "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/oa.odesign#//@ownedViewpoints[name='Operational%20Analysis']",
@@ -242,19 +245,41 @@ fn aird(project_id: &str, file_stem: &str) -> String {
     ];
     let views: Vec<String> = (0..VIEWPOINTS.len()).map(|i| format!("_{}", derived(&format!("{project_id}:view:{i}")))).collect();
     let mut root = El::root("viewpoint:DAnalysis")
-        .attr("xmi:version", "2.0")
-        .attr("xmlns:xmi", "http://www.omg.org/XMI")
-        .attr("xmlns:xsi", "http://www.w3.org/2001/XMLSchema-instance")
-        .attr("xmlns:description", "http://www.eclipse.org/sirius/description/1.1.0")
-        .attr("xmlns:viewpoint", "http://www.eclipse.org/sirius/1.1.0")
-        .attr("xsi:schemaLocation", "http://www.eclipse.org/sirius/description/1.1.0 http://www.eclipse.org/sirius/1.1.0#//description")
         .attr("uid", &format!("_{}", derived(&format!("{project_id}:analysis"))))
         .attr("selectedViews", &views.join(" "))
         .attr("version", "15.4.1.202403191723");
     root.push(El::text("semanticResources", &format!("{file_stem}.afm")));
     root.push(El::text("semanticResources", &format!("{file_stem}.capella")));
-    for (uid, viewpoint) in views.iter().zip(VIEWPOINTS) {
-        root.push(El::root("ownedViews").attr("xmi:type", "viewpoint:DView").attr("uid", uid).with(El::root("viewpoint").attr("xmi:type", "description:Viewpoint").attr("href", viewpoint)));
+    let mut representations = Vec::new();
+    let mut by_view: Vec<Vec<El>> = vec![Vec::new(); VIEWPOINTS.len()];
+    for (odesign, descriptor, representation) in drawn {
+        let view = VIEWPOINTS.iter().position(|v| v.contains(&format!("/description/{odesign}.odesign"))).unwrap_or(VIEWPOINTS.len() - 1);
+        by_view[view].push(descriptor);
+        representations.push(representation);
     }
-    document(&root)
+    for ((uid, viewpoint), descriptors) in views.iter().zip(VIEWPOINTS).zip(by_view) {
+        let mut view = El::root("ownedViews").attr("xmi:type", "viewpoint:DView").attr("uid", uid);
+        for descriptor in descriptors {
+            view.push(descriptor);
+        }
+        root.push(view.with(El::root("viewpoint").attr("xmi:type", "description:Viewpoint").attr("href", viewpoint)));
+    }
+    // One XMI resource: the session, then the diagrams.
+    let mut resource = El::root("xmi:XMI")
+        .attr("xmi:version", "2.0")
+        .attr("xmlns:xmi", "http://www.omg.org/XMI")
+        .attr("xmlns:xsi", "http://www.w3.org/2001/XMLSchema-instance")
+        .attr("xmlns:description", "http://www.eclipse.org/sirius/description/1.1.0")
+        .attr("xmlns:description_1", "http://www.eclipse.org/sirius/diagram/description/1.1.0")
+        .attr("xmlns:diagram", "http://www.eclipse.org/sirius/diagram/1.1.0")
+        .attr("xmlns:style", "http://www.eclipse.org/sirius/diagram/description/style/1.1.0")
+        .attr("xmlns:viewpoint", "http://www.eclipse.org/sirius/1.1.0");
+    for (key, value) in NAMESPACES.iter().filter(|(k, _)| k.starts_with("xmlns:org.") || *k == "xmlns:libraries") {
+        resource.set(key, value);
+    }
+    resource.push(root);
+    for representation in representations {
+        resource.push(representation);
+    }
+    document(&resource)
 }

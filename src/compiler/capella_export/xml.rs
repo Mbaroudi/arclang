@@ -81,6 +81,9 @@ impl El {
             None => self.attrs.push((key.to_string(), value.to_string())),
         }
     }
+    pub(super) fn rename(&mut self, tag: &str) {
+        self.tag = tag.to_string();
+    }
     pub(super) fn remove(&mut self, key: &str) {
         self.attrs.retain(|(k, _)| k != key);
     }
