@@ -2,8 +2,9 @@
 //! system and its actors with their ports, allocations and exchanges,
 //! functional chains, missions and capabilities.
 
-use super::context::{derived, id_of, list, Context};
+use super::context::{derived, id_of, list, port_id, Context};
 use super::header::apply;
+use super::relations;
 use super::xml::El;
 use crate::compiler::ast::{ComponentPort, FunctionPort, PortDirection, SystemAnalysis, SystemFunction};
 
@@ -12,12 +13,8 @@ fn level_id(sa: &SystemAnalysis) -> String {
     derived(&format!("system-analysis:{}", sa.name))
 }
 
-/// The id of a port: `Owner.port` names it.
-fn port_id(owner: &str, port: &str) -> String {
-    derived(&format!("port:{owner}.{port}"))
-}
-
 fn register_function(context: &mut Context, function: &SystemFunction) {
+    context.functions.insert(function.id.clone());
     context.register(&function.id, &function.id);
     context.register(&function.name, &function.id);
     for port in &function.ports {
@@ -91,7 +88,7 @@ fn function(function: &SystemFunction) -> El {
     el
 }
 
-fn component_port(owner: &str, port: &ComponentPort) -> El {
+pub(super) fn component_port(owner: &str, port: &ComponentPort) -> El {
     let orientation = match port.direction {
         PortDirection::In => "IN",
         PortDirection::Out => "OUT",
@@ -111,7 +108,7 @@ fn component(context: &Context, id: &str, name: &str, actor: bool, ports: &[Comp
         el.push(component_port(id, port));
     }
     for function in list(attributes, "allocated_functions") {
-        if let Some(target) = context.resolve(&function) {
+        if let Some(target) = context.resolve(&function).filter(|id| context.functions.contains(*id)) {
             el.push(
                 El::new("ownedFunctionalAllocation", "fa:ComponentFunctionalAllocation", &derived(&format!("{id}->{target}:allocation")))
                     .attr("targetElement", &format!("#{target}"))
@@ -135,28 +132,30 @@ fn ends(context: &mut Context, what: &str, label: &str, from: &str, to: &str) ->
 }
 
 /// The system analysis element.
-pub(super) fn write(context: &mut Context, sa: &SystemAnalysis) -> El {
+pub(super) fn write(context: &mut Context, sa: &SystemAnalysis, above_root: &str) -> El {
     let id = level_id(sa);
     let mut level = El::new("ownedArchitectures", "ctx:SystemAnalysis", &id).attr("name", &sa.name);
 
-    let mut root = El::new("ownedSystemFunctions", "ctx:SystemFunction", &derived(&format!("{id}:root-function"))).attr("name", "Root System Function");
+    let root_id = derived(&format!("{id}:root-function"));
+    let mut root = El::new("ownedSystemFunctions", "ctx:SystemFunction", &root_id).attr("name", "Root System Function");
+    root.push(super::realization("ownedFunctionRealizations", "fa:FunctionRealization", &root_id, above_root));
     for f in &sa.functions {
         root.push(function(f));
     }
+    let mut exchange_ends: std::collections::HashMap<String, (String, String)> = std::collections::HashMap::new();
     for exchange in &sa.functional_exchanges {
         let label = exchange.label.clone().unwrap_or_else(|| exchange.id.clone());
+        let owner = |port: &str| port.split_once('.').map(|(f, _)| f.to_string()).unwrap_or_else(|| port.to_string());
+        if let (Some(from), Some(to)) = (context.resolve(&owner(&exchange.from_port)), context.resolve(&owner(&exchange.to_port))) {
+            exchange_ends.insert(exchange.id.clone(), (from.to_string(), to.to_string()));
+        }
         if let Some((source, target)) = ends(context, "functional exchange", &label, &exchange.from_port, &exchange.to_port) {
             root.push(El::new("ownedFunctionalExchanges", "fa:FunctionalExchange", &exchange.id).attr("name", &label).attr("target", &format!("#{target}")).attr("source", &format!("#{source}")));
         }
     }
     for chain in &sa.functional_chains {
-        let mut el = apply(El::new("ownedFunctionalChains", "fa:FunctionalChain", &chain.id).attr("name", &chain.name), &chain.attributes, &["involves"]);
-        for (index, step) in chain.involves.iter().enumerate() {
-            if let Some(involved) = context.resolve(step) {
-                el.push(El::new("ownedFunctionalChainInvolvements", "fa:FunctionalChainInvolvementFunction", &derived(&format!("{}:{index}", chain.id))).attr("involved", &format!("#{involved}")));
-            }
-        }
-        root.push(el);
+        let el = apply(El::new("ownedFunctionalChains", "fa:FunctionalChain", &chain.id).attr("name", &chain.name), &chain.attributes, &["involves"]);
+        root.push(relations::chain_steps(context, el, &chain.id, &chain.involves, &exchange_ends));
     }
     level.push(El::new("ownedFunctionPkg", "ctx:SystemFunctionPkg", &derived(&format!("{id}:functions"))).attr("name", "System Functions").with(root));
 
@@ -221,7 +220,7 @@ pub(super) fn write(context: &mut Context, sa: &SystemAnalysis) -> El {
             };
             el.push(El::new(tag, kind, &derived(&format!("{}->{target}:involvement", capability.id))).attr("involved", &format!("#{target}")));
         }
-        capabilities.push(el);
+        capabilities.push(relations::capability(context, el, &capability.id, &capability.attributes, capability.realizes.as_deref()));
     }
     level.push(capabilities);
     level
@@ -232,6 +231,12 @@ fn contains_function(function: &SystemFunction, id: &str) -> bool {
 }
 
 /// An empty system analysis, for a model that declares none.
-pub(super) fn empty(project_id: &str) -> El {
-    El::new("ownedArchitectures", "ctx:SystemAnalysis", &derived(&format!("{project_id}:sa"))).attr("name", "System Analysis")
+pub(super) fn empty(project_id: &str, above_root: &str) -> El {
+    let id = derived(&format!("{project_id}:sa"));
+    let root_id = derived(&format!("{id}:root-function"));
+    let root = El::new("ownedSystemFunctions", "ctx:SystemFunction", &root_id).attr("name", "Root System Function");
+    let root = root.with(super::realization("ownedFunctionRealizations", "fa:FunctionRealization", &root_id, above_root));
+    El::new("ownedArchitectures", "ctx:SystemAnalysis", &id)
+        .attr("name", "System Analysis")
+        .with(El::new("ownedFunctionPkg", "ctx:SystemFunctionPkg", &derived(&format!("{id}:functions"))).attr("name", "System Functions").with(root))
 }

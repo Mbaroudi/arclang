@@ -20,6 +20,8 @@ pub(super) fn derived(seed: &str) -> String {
 pub(super) struct Context {
     /// ArcLang reference -> Capella id.
     refs: HashMap<String, String>,
+    /// Capella ids of the functions of every level.
+    pub(super) functions: std::collections::HashSet<String>,
     /// What could not be written, for the report.
     pub(super) notes: Vec<String>,
 }
@@ -54,6 +56,11 @@ impl Context {
             self.notes.push(text);
         }
     }
+}
+
+/// The id of a port of `owner` (a function or a component): `Owner.port` names it.
+pub(super) fn port_id(owner: &str, port: &str) -> String {
+    derived(&format!("port:{owner}.{port}"))
 }
 
 /// A text attribute.

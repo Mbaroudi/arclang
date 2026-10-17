@@ -43,7 +43,7 @@ pub(super) const NAMESPACES: &[(&str, &str)] = &[
 ];
 
 #[derive(Debug, Clone, Default)]
-pub(super) struct El {
+pub(crate) struct El {
     tag: String,
     attrs: Vec<(String, String)>,
     children: Vec<El>,
@@ -78,6 +78,9 @@ impl El {
             Some(slot) => slot.1 = value.to_string(),
             None => self.attrs.push((key.to_string(), value.to_string())),
         }
+    }
+    pub(super) fn remove(&mut self, key: &str) {
+        self.attrs.retain(|(k, _)| k != key);
     }
     pub(super) fn opt(self, key: &str, value: Option<&str>) -> Self {
         match value {

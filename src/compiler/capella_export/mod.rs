@@ -14,7 +14,12 @@
 //! what ArcLang holds.
 
 mod context;
+mod functions;
 mod header;
+mod logical;
+mod operational;
+mod physical;
+mod relations;
 mod system;
 mod xml;
 
@@ -52,36 +57,54 @@ pub fn export(model: &Model, file_stem: &str) -> Exported {
     project.push(El::new("keyValuePairs", "capellacore:KeyValue", &derived(&format!("{project_id}:approach"))).attr("key", "projectApproach").attr("value", "SingletonComponents"));
 
     // Every level registers what it declares before any level refers to it.
+    for oa in &model.operational_analysis {
+        operational::register(&mut context, oa);
+    }
     for sa in &model.system_analysis {
         system::register(&mut context, sa);
+    }
+    for la in &model.logical_architecture {
+        logical::register(&mut context, la);
+    }
+    for pa in &model.physical_architecture {
+        physical::register(&mut context, pa);
     }
 
     let engineering_id = derived(&format!("{project_id}:engineering"));
     let mut engineering = El::new("ownedModelRoots", "capellamodeller:SystemEngineering", &engineering_id).attr("name", &name);
-    let oa_id = derived(&format!("{project_id}:oa"));
+    let oa_el = match model.operational_analysis.first() {
+        Some(oa) => operational::write(&mut context, oa),
+        None => operational::empty(&project_id),
+    };
+    let oa_id = oa_el.id().to_string();
     let sa_el = match model.system_analysis.first() {
-        Some(sa) => system::write(&mut context, sa),
-        None => system::empty(&project_id),
+        Some(sa) => system::write(&mut context, sa, &derived(&format!("{oa_id}:root-activity"))),
+        None => system::empty(&project_id, &derived(&format!("{oa_id}:root-activity"))),
     };
     let sa_id = sa_el.id().to_string();
-    let la_id = derived(&format!("{project_id}:la"));
-    let pa_id = derived(&format!("{project_id}:pa"));
+    let la_el = match model.logical_architecture.first() {
+        Some(la) => logical::write(&mut context, la, &derived(&format!("{sa_id}:root-function"))),
+        None => logical::empty(&project_id, &derived(&format!("{sa_id}:root-function"))),
+    };
+    let la_id = la_el.id().to_string();
+    let pa_el = match model.physical_architecture.first() {
+        Some(pa) => physical::write(&mut context, pa, &derived(&format!("{la_id}:root-function"))),
+        None => physical::empty(&project_id, &derived(&format!("{la_id}:root-function"))),
+    };
+    let pa_id = pa_el.id().to_string();
     let epbs_id = derived(&format!("{project_id}:epbs"));
-    engineering.push(El::new("ownedArchitectures", "oa:OperationalAnalysis", &oa_id).attr("name", "Operational Analysis"));
+    engineering.push(oa_el);
     engineering.push(sa_el.with(realization("ownedOperationalAnalysisRealizations", "ctx:OperationalAnalysisRealization", &sa_id, &oa_id)));
-    engineering.push(
-        El::new("ownedArchitectures", "la:LogicalArchitecture", &la_id).attr("name", "Logical Architecture").with(realization("ownedSystemAnalysisRealizations", "la:SystemAnalysisRealization", &la_id, &sa_id)),
-    );
-    engineering.push(
-        El::new("ownedArchitectures", "pa:PhysicalArchitecture", &pa_id)
-            .attr("name", "Physical Architecture")
-            .with(realization("ownedLogicalArchitectureRealizations", "pa:LogicalArchitectureRealization", &pa_id, &la_id)),
-    );
+    engineering.push(la_el.with(realization("ownedSystemAnalysisRealizations", "la:SystemAnalysisRealization", &la_id, &sa_id)));
+    engineering.push(pa_el.with(realization("ownedLogicalArchitectureRealizations", "pa:LogicalArchitectureRealization", &pa_id, &la_id)));
     engineering.push(
         El::new("ownedArchitectures", "epbs:EPBSArchitecture", &epbs_id)
             .attr("name", "EPBS Architecture")
             .with(realization("ownedPhysicalArchitectureRealizations", "epbs:PhysicalArchitectureRealization", &epbs_id, &pa_id)),
     );
+    if model.operational_analysis.len() > 1 {
+        context.note(format!("{} operational analyses: Capella has one, the first is exported", model.operational_analysis.len()));
+    }
     if model.system_analysis.len() > 1 {
         context.note(format!("{} system analyses: Capella has one, the first is exported", model.system_analysis.len()));
     }
@@ -120,7 +143,7 @@ fn statuses(model: &Model) -> Vec<String> {
 }
 
 /// A realization link, from the element that owns it to the one it realizes.
-fn realization(tag: &str, kind: &str, source: &str, target: &str) -> El {
+pub(super) fn realization(tag: &str, kind: &str, source: &str, target: &str) -> El {
     El::new(tag, kind, &derived(&format!("{source}->{target}:{kind}"))).attr("targetElement", &format!("#{target}")).attr("sourceElement", &format!("#{source}"))
 }
 
