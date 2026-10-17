@@ -152,6 +152,14 @@ pub fn export(model: &Model, file_stem: &str) -> Exported {
             None => context.note(format!("scenario '{}' left out: no capability to own it", scenario.name)),
         }
     }
+    // Exchange categories go to the function package of the system analysis.
+    let functions = derived(&format!("{sa_id}:functions"));
+    let categories = relations::categories(&context, &functions);
+    if let Some(pkg) = engineering.find_mut(&functions) {
+        for category in categories {
+            pkg.push(category);
+        }
+    }
     project.push(engineering);
 
     let afm = afm(&project_id);

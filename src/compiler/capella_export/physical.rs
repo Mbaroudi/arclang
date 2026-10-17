@@ -89,6 +89,7 @@ pub(super) fn register(context: &mut Context, pa: &PhysicalArchitecture) {
         context.register(&exchange.id, &exchange.id);
     }
     for chain in &pa.functional_chains {
+        context.chains.insert(chain.id.clone());
         context.register(&chain.id, &chain.id);
         context.register(&chain.name, &chain.id);
     }
@@ -111,15 +112,20 @@ fn behaviour(context: &Context, b: &BehaviorComponent, placed: &[Placed<'_>]) ->
     for allocation in functions::allocations(context, &b.id, placed, &b.allocated_functions) {
         el.push(allocation);
     }
-    if let Some(target) = text(&b.attributes, "allocated_component").and_then(|c| context.resolve(c)) {
+    if let Some(target) = b.allocated_component.as_deref().or_else(|| text(&b.attributes, "allocated_component")).and_then(|c| context.resolve(c)) {
         el.push(super::realization("ownedComponentRealizations", "cs:ComponentRealization", &b.id, target));
     }
     el
 }
 
+fn is_actor(n: &PhysicalNode) -> bool {
+    super::context::flag(&n.attributes, "actor")
+}
+
 fn node(context: &Context, n: &PhysicalNode, placed: &[Placed<'_>], link_ports: &[(String, String)]) -> El {
     let el = El::new("ownedPhysicalComponents", "pa:PhysicalComponent", &n.id).attr("name", &n.name).attr("nature", "NODE");
-    let mut el = apply(el, &n.attributes, &["kind", "type", "processor", "memory"]);
+    let mut el = if is_actor(n) { el.attr("actor", "true") } else { el };
+    el = apply(el, &n.attributes, &["kind", "type", "processor", "memory", "actor"]);
     for port in &n.ports {
         let id = id_of(&port.attributes, &format!("port:{}.{}", n.id, port.name));
         el.push(apply(El::new("ownedFeatures", "cs:PhysicalPort", &id).attr("name", &port.name), &port.attributes, &[]));
@@ -151,7 +157,7 @@ pub(super) fn write(context: &mut Context, pa: &PhysicalArchitecture, above_root
     let ends = exchange_ends(context, &pa.functional_exchanges);
     for chain in &pa.functional_chains {
         let el = apply(El::new("ownedFunctionalChains", "fa:FunctionalChain", &chain.id).attr("name", &chain.name), &chain.attributes, &["involves"]);
-        root.push(relations::chain_steps(context, el, &chain.id, &chain.involves, &ends));
+        root.push(relations::chain_steps(context, el, chain, &ends));
     }
     level.push(El::new("ownedFunctionPkg", "pa:PhysicalFunctionPkg", &derived(&format!("{id}:functions"))).attr("name", "Physical Functions").with(root));
 
@@ -179,7 +185,9 @@ pub(super) fn write(context: &mut Context, pa: &PhysicalArchitecture, above_root
     }
 
     let mut pkg = El::new("ownedPhysicalComponentPkg", "pa:PhysicalComponentPkg", &derived(&format!("{id}:components"))).attr("name", "Structure");
-    if let Some((first, others)) = pa.nodes.split_first() {
+    let (actors, systems): (Vec<&PhysicalNode>, Vec<&PhysicalNode>) = pa.nodes.iter().partition(|n| is_actor(n));
+    // The root first: Capella (and the import) take the first component as the system.
+    if let Some((first, others)) = systems.split_first() {
         let mut system = node(context, first, &placed, &link_ports);
         // The root holds nodes and behaviours: it is of no nature.
         system.remove("nature");
@@ -199,7 +207,7 @@ pub(super) fn write(context: &mut Context, pa: &PhysicalArchitecture, above_root
             deploy(&mut part, n);
             parts.push(part);
         }
-        for n in pa.nodes.iter() {
+        for n in systems.iter() {
             for b in &n.behavior_components {
                 parts.push(El::new("ownedFeatures", "cs:Part", &part_id(&b.id)).attr("name", &b.name).attr("abstractType", &format!("#{}", b.id)));
             }
@@ -210,7 +218,7 @@ pub(super) fn write(context: &mut Context, pa: &PhysicalArchitecture, above_root
         for n in others {
             system.push(node(context, n, &placed, &link_ports));
         }
-        for n in pa.nodes.iter() {
+        for n in systems.iter() {
             for b in &n.behavior_components {
                 system.push(behaviour(context, b, &placed));
             }
@@ -221,9 +229,10 @@ pub(super) fn write(context: &mut Context, pa: &PhysicalArchitecture, above_root
         for exchange in &pa.physical_exchanges {
             let label = exchange.label.clone().unwrap_or_default();
             match (context.resolve(&exchange.from).map(str::to_string), context.resolve(&exchange.to).map(str::to_string)) {
-                (Some(source), Some(target)) => system.push(
-                    El::new("ownedComponentExchanges", "fa:ComponentExchange", &exchange.id).attr("name", &label).attr("target", &format!("#{target}")).attr("source", &format!("#{source}")).attr("kind", "FLOW"),
-                ),
+                (Some(source), Some(target)) => {
+                    let el = El::new("ownedComponentExchanges", "fa:ComponentExchange", &exchange.id).attr("name", &label).attr("target", &format!("#{target}")).attr("source", &format!("#{source}")).attr("kind", "FLOW");
+                    system.push(relations::exchange(context, el, &exchange.attributes));
+                }
                 _ => context.note(format!("physical exchange '{label}' left out: an end is not exported")),
             }
         }
@@ -255,7 +264,13 @@ pub(super) fn write(context: &mut Context, pa: &PhysicalArchitecture, above_root
             system.push(el);
         }
         pkg.push(system);
+        for actor in &actors {
+            pkg.push(node(context, actor, &placed, &link_ports));
+        }
         pkg.push(El::new("ownedParts", "cs:Part", &part_id(&first.id)).attr("name", &first.name).attr("abstractType", &format!("#{}", first.id)));
+        for actor in &actors {
+            pkg.push(El::new("ownedParts", "cs:Part", &part_id(&actor.id)).attr("name", &actor.name).attr("abstractType", &format!("#{}", actor.id)));
+        }
     } else if !pa.links.is_empty() || !pa.physical_exchanges.is_empty() {
         context.note("physical links and exchanges left out: the physical architecture has no node".to_string());
     }

@@ -24,6 +24,10 @@ pub(super) struct Context {
     types: HashMap<String, String>,
     /// Capella ids of the functions of every level.
     pub(super) functions: std::collections::HashSet<String>,
+    /// Capella ids of the functional chains and operational processes.
+    pub(super) chains: std::collections::HashSet<String>,
+    /// Exchange categories, as (category, exchange id), in the order met.
+    pub(super) categories: Vec<(String, String)>,
     /// What could not be written, for the report.
     pub(super) notes: Vec<String>,
 }
@@ -74,6 +78,15 @@ pub(super) fn port_id(owner: &str, port: &str, id: &str) -> String {
         derived(&format!("port:{owner}.{port}"))
     } else {
         id.to_string()
+    }
+}
+
+/// A flag attribute: `true`, written as a boolean or as text.
+pub(super) fn flag(attributes: &HashMap<String, AttributeValue>, key: &str) -> bool {
+    match attributes.get(key) {
+        Some(AttributeValue::Boolean(value)) => *value,
+        Some(AttributeValue::String(text)) => text == "true",
+        _ => false,
     }
 }
 

@@ -64,6 +64,7 @@ pub(super) fn register(context: &mut Context, oa: &OperationalAnalysis) {
         context.register(&id, &id);
     }
     for process in &oa.processes {
+        context.chains.insert(process.id.clone());
         context.register(&process.id, &process.id);
         context.register(&process.name, &process.id);
     }
@@ -148,11 +149,11 @@ pub(super) fn write(context: &mut Context, oa: &OperationalAnalysis) -> El {
         };
         ends.insert(xid.clone(), (from.clone(), to.clone()));
         let el = El::new("ownedFunctionalExchanges", "fa:FunctionalExchange", &xid).attr("name", exchange.label.as_deref().unwrap_or("")).attr("target", &format!("#{to}")).attr("source", &format!("#{from}"));
-        root.push(apply(el, &exchange.attributes, &["from", "to", "exchange_items", "category", "categories"]));
+        root.push(relations::exchange(context, el, &exchange.attributes));
     }
     for process in &oa.processes {
         let el = apply(El::new("ownedFunctionalChains", "oa:OperationalProcess", &process.id).attr("name", &process.name), &process.attributes, &["involves"]);
-        root.push(relations::chain_steps(context, el, &process.id, &process.involves, &ends));
+        root.push(relations::chain_steps(context, el, process, &ends));
     }
     level.push(El::new("ownedFunctionPkg", "oa:OperationalActivityPkg", &derived(&format!("{id}:activities"))).attr("name", "Operational Activities").with(root));
 
@@ -164,7 +165,7 @@ pub(super) fn write(context: &mut Context, oa: &OperationalAnalysis) -> El {
         let mid = interaction_id(mean, index, "communication-means");
         let (Some(from), Some(to)) = (context.resolve(&mean.from).map(str::to_string), context.resolve(&mean.to).map(str::to_string)) else { continue };
         let el = El::new("ownedComponentExchanges", "oa:CommunicationMean", &mid).attr("name", mean.label.as_deref().unwrap_or("")).attr("source", &format!("#{from}")).attr("target", &format!("#{to}"));
-        pkg.push(apply(el, &mean.attributes, &["from", "to", "exchange_items", "category", "categories"]));
+        pkg.push(relations::exchange(context, el, &mean.attributes));
     }
     for entity in &tops {
         pkg.push(El::new("ownedParts", "cs:Part", &derived(&format!("{}:part", entity.id))).attr("name", entity.name).attr("abstractType", &format!("#{}", entity.id)));

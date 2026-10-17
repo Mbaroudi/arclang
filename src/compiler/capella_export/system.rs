@@ -59,6 +59,7 @@ pub(super) fn register(context: &mut Context, sa: &SystemAnalysis) {
         context.register(&exchange.id, &exchange.id);
     }
     for chain in &sa.functional_chains {
+        context.chains.insert(chain.id.clone());
         context.register(&chain.id, &chain.id);
         context.register(&chain.name, &chain.id);
     }
@@ -153,12 +154,13 @@ pub(super) fn write(context: &mut Context, sa: &SystemAnalysis, above_root: &str
             exchange_ends.insert(exchange.id.clone(), (from.to_string(), to.to_string()));
         }
         if let Some((source, target)) = ends(context, "functional exchange", &label, &exchange.from_port, &exchange.to_port) {
-            root.push(El::new("ownedFunctionalExchanges", "fa:FunctionalExchange", &exchange.id).attr("name", &label).attr("target", &format!("#{target}")).attr("source", &format!("#{source}")));
+            let el = El::new("ownedFunctionalExchanges", "fa:FunctionalExchange", &exchange.id).attr("name", &label).attr("target", &format!("#{target}")).attr("source", &format!("#{source}"));
+            root.push(relations::exchange(context, el, &exchange.attributes));
         }
     }
     for chain in &sa.functional_chains {
         let el = apply(El::new("ownedFunctionalChains", "fa:FunctionalChain", &chain.id).attr("name", &chain.name), &chain.attributes, &["involves"]);
-        root.push(relations::chain_steps(context, el, &chain.id, &chain.involves, &exchange_ends));
+        root.push(relations::chain_steps(context, el, chain, &exchange_ends));
     }
     level.push(El::new("ownedFunctionPkg", "ctx:SystemFunctionPkg", &derived(&format!("{id}:functions"))).attr("name", "System Functions").with(root));
 
@@ -178,9 +180,8 @@ pub(super) fn write(context: &mut Context, sa: &SystemAnalysis, above_root: &str
     for exchange in &sa.component_exchanges {
         let label = exchange.label.clone().unwrap_or_else(|| exchange.id.clone());
         if let Some((source, target)) = ends(context, "component exchange", &label, &exchange.from_port, &exchange.to_port) {
-            components.push(
-                El::new("ownedComponentExchanges", "fa:ComponentExchange", &exchange.id).attr("name", &label).attr("target", &format!("#{target}")).attr("source", &format!("#{source}")).attr("kind", "FLOW"),
-            );
+            let el = El::new("ownedComponentExchanges", "fa:ComponentExchange", &exchange.id).attr("name", &label).attr("target", &format!("#{target}")).attr("source", &format!("#{source}")).attr("kind", "FLOW");
+            components.push(relations::exchange(context, el, &exchange.attributes));
         }
     }
     for part in parts {

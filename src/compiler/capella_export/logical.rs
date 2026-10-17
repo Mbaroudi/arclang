@@ -8,7 +8,7 @@ use super::header::apply;
 use super::relations;
 use super::system::component_port;
 use super::xml::El;
-use crate::compiler::ast::{AttributeValue, ComponentExchange, FunctionalExchange, LogicalArchitecture, LogicalComponent};
+use crate::compiler::ast::{ComponentExchange, FunctionalExchange, LogicalArchitecture, LogicalComponent};
 use std::collections::HashMap;
 
 fn level_id(la: &LogicalArchitecture) -> String {
@@ -54,6 +54,7 @@ pub(super) fn register(context: &mut Context, la: &LogicalArchitecture) {
         context.register(&exchange.id, &exchange.id);
     }
     for chain in &la.functional_chains {
+        context.chains.insert(chain.id.clone());
         context.register(&chain.id, &chain.id);
         context.register(&chain.name, &chain.id);
     }
@@ -63,13 +64,9 @@ pub(super) fn register(context: &mut Context, la: &LogicalArchitecture) {
     }
 }
 
-fn is_true(attributes: &HashMap<String, AttributeValue>, key: &str) -> bool {
-    matches!(attributes.get(key), Some(AttributeValue::Boolean(true)))
-}
-
 fn component(context: &Context, c: &LogicalComponent, placed: &[Placed<'_>]) -> El {
     let mut el = El::new("ownedLogicalComponents", "la:LogicalComponent", &c.id).attr("name", &c.name);
-    if is_true(&c.attributes, "actor") {
+    if super::context::flag(&c.attributes, "actor") {
         el.set("actor", "true");
     }
     let mut el = apply(el, &c.attributes, &["actor", "allocated_functions", "kind", "type"]);
@@ -102,7 +99,10 @@ fn component(context: &Context, c: &LogicalComponent, placed: &[Placed<'_>]) -> 
 pub(super) fn functional_exchange(context: &mut Context, exchange: &FunctionalExchange) -> Option<El> {
     let label = exchange.label.clone().unwrap_or_default();
     match (context.resolve(&exchange.from_port).map(str::to_string), context.resolve(&exchange.to_port).map(str::to_string)) {
-        (Some(source), Some(target)) => Some(El::new("ownedFunctionalExchanges", "fa:FunctionalExchange", &exchange.id).attr("name", &label).attr("target", &format!("#{target}")).attr("source", &format!("#{source}"))),
+        (Some(source), Some(target)) => {
+            let el = El::new("ownedFunctionalExchanges", "fa:FunctionalExchange", &exchange.id).attr("name", &label).attr("target", &format!("#{target}")).attr("source", &format!("#{source}"));
+            Some(relations::exchange(context, el, &exchange.attributes))
+        }
         _ => {
             context.note(format!("functional exchange '{label}' left out: an end ('{}' or '{}') is not exported", exchange.from_port, exchange.to_port));
             None
@@ -114,9 +114,10 @@ pub(super) fn functional_exchange(context: &mut Context, exchange: &FunctionalEx
 pub(super) fn component_exchange(context: &mut Context, exchange: &ComponentExchange) -> Option<El> {
     let label = exchange.label.clone().unwrap_or_default();
     match (context.resolve(&exchange.from_port).map(str::to_string), context.resolve(&exchange.to_port).map(str::to_string)) {
-        (Some(source), Some(target)) => Some(
-            El::new("ownedComponentExchanges", "fa:ComponentExchange", &exchange.id).attr("name", &label).attr("target", &format!("#{target}")).attr("source", &format!("#{source}")).attr("kind", "FLOW"),
-        ),
+        (Some(source), Some(target)) => {
+            let el = El::new("ownedComponentExchanges", "fa:ComponentExchange", &exchange.id).attr("name", &label).attr("target", &format!("#{target}")).attr("source", &format!("#{source}")).attr("kind", "FLOW");
+            Some(relations::exchange(context, el, &exchange.attributes))
+        }
         _ => {
             context.note(format!("component exchange '{label}' left out: an end ('{}' or '{}') is not exported", exchange.from_port, exchange.to_port));
             None
@@ -149,7 +150,7 @@ pub(super) fn write(context: &mut Context, la: &LogicalArchitecture, above_root:
     let ends = exchange_ends(context, &la.functional_exchanges);
     for chain in &la.functional_chains {
         let el = apply(El::new("ownedFunctionalChains", "fa:FunctionalChain", &chain.id).attr("name", &chain.name), &chain.attributes, &["involves"]);
-        root.push(relations::chain_steps(context, el, &chain.id, &chain.involves, &ends));
+        root.push(relations::chain_steps(context, el, chain, &ends));
     }
     level.push(El::new("ownedFunctionPkg", "la:LogicalFunctionPkg", &derived(&format!("{id}:functions"))).attr("name", "Logical Functions").with(root));
 

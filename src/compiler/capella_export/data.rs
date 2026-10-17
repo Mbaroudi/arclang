@@ -88,7 +88,8 @@ fn interface_id(interface: &LogicalInterface, index: usize) -> String {
 
 /// The data package of the model, or `None` when it declares no data.
 pub(super) fn package(context: &Context, model: &Model, level_id: &str) -> Option<El> {
-    if model.data_types.is_empty() && model.classes.is_empty() && model.exchange_items.is_empty() && model.associations.is_empty() {
+    let events = super::behaviour::events(&model.state_machines);
+    if model.data_types.is_empty() && model.classes.is_empty() && model.exchange_items.is_empty() && model.associations.is_empty() && events.is_empty() {
         return None;
     }
     let mut pkg = El::new("ownedDataPkg", "information:DataPkg", &derived(&format!("{level_id}:data"))).attr("name", "Data");
@@ -167,6 +168,9 @@ pub(super) fn package(context: &Context, model: &Model, level_id: &str) -> Optio
         if let Some(el) = association(context, a) {
             pkg.push(el);
         }
+    }
+    for event in events {
+        pkg.push(El::new("ownedStateEvents", "capellacommon:ChangeEvent", &super::behaviour::event_id(&event)).attr("name", &event));
     }
     for (id, name) in units {
         pkg.push(El::new("ownedUnits", "information:Unit", &id).attr("name", &name));
