@@ -1041,6 +1041,31 @@ impl SemanticAnalyzer {
             .chain(ast.logical_architecture.iter().flat_map(|la| la.functional_chains.iter()))
             .chain(ast.physical_architecture.iter().flat_map(|pa| pa.functional_chains.iter()))
             .collect();
+        // Exchanges are elements too: a realization across levels names them.
+        for sa in &ast.system_analysis {
+            for exchange in &sa.functional_exchanges {
+                register_element(&mut all_elements, &mut duplicate_ids, exchange.id.clone(), ElementInfo::new(exchange.id.clone(), exchange.label.clone().unwrap_or_else(|| exchange.id.clone()), "FunctionalExchange"));
+            }
+            for exchange in &sa.component_exchanges {
+                register_element(&mut all_elements, &mut duplicate_ids, exchange.id.clone(), ElementInfo::new(exchange.id.clone(), exchange.label.clone().unwrap_or_else(|| exchange.id.clone()), "ComponentExchange"));
+            }
+        }
+        for la in &ast.logical_architecture {
+            for exchange in &la.functional_exchanges {
+                register_element(&mut all_elements, &mut duplicate_ids, exchange.id.clone(), ElementInfo::new(exchange.id.clone(), exchange.label.clone().unwrap_or_else(|| exchange.id.clone()), "FunctionalExchange"));
+            }
+            for exchange in &la.component_exchanges {
+                register_element(&mut all_elements, &mut duplicate_ids, exchange.id.clone(), ElementInfo::new(exchange.id.clone(), exchange.label.clone().unwrap_or_else(|| exchange.id.clone()), "ComponentExchange"));
+            }
+        }
+        for pa in &ast.physical_architecture {
+            for exchange in &pa.functional_exchanges {
+                register_element(&mut all_elements, &mut duplicate_ids, exchange.id.clone(), ElementInfo::new(exchange.id.clone(), exchange.label.clone().unwrap_or_else(|| exchange.id.clone()), "FunctionalExchange"));
+            }
+            for exchange in &pa.physical_exchanges {
+                register_element(&mut all_elements, &mut duplicate_ids, exchange.id.clone(), ElementInfo::new(exchange.id.clone(), exchange.label.clone().unwrap_or_else(|| exchange.id.clone()), "PhysicalExchange"));
+            }
+        }
         for chain in &chain_sources {
             register_element(
                 &mut all_elements,
@@ -1203,6 +1228,21 @@ impl SemanticAnalyzer {
             }
             let mut state_names: std::collections::HashSet<&str> = std::collections::HashSet::new();
             collect_states(&machine.states, &mut state_names);
+            // States and transitions are elements a trace can name: by their
+            // written id, else `Machine.State` / `Machine.From->To`.
+            fn register_states(machine: &str, states: &[super::ast::State], all_elements: &mut HashMap<String, ElementInfo>, duplicates: &mut Vec<String>) {
+                for state in states {
+                    let id = if state.id.is_empty() { format!("{machine}.{}", state.name) } else { state.id.clone() };
+                    register_element(all_elements, duplicates, id.clone(), ElementInfo::new(id, state.name.clone(), "State"));
+                    register_states(machine, &state.sub_states, all_elements, duplicates);
+                }
+            }
+            register_states(&machine.name, &machine.states, &mut all_elements, &mut duplicate_ids);
+            for transition in &machine.transitions {
+                let id = if transition.id.is_empty() { format!("{}.{}->{}", machine.name, transition.from, transition.to) } else { transition.id.clone() };
+                let name = format!("{} -> {}", transition.from, transition.to);
+                register_element(&mut all_elements, &mut duplicate_ids, id.clone(), ElementInfo::new(id, name, "Transition"));
+            }
             if !machine.initial_state.is_empty() && !state_names.contains(machine.initial_state.as_str()) {
                 reference_errors.push(format!(
                     "state_machine '{}': initial state '{}' is not declared",

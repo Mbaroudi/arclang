@@ -34,10 +34,16 @@ fn function_ports(writer: &mut Writer, depth: usize, function: &Node, owner: &st
     for (tag, direction) in [("inputs", "in"), ("outputs", "out")] {
         for port in function.tagged(tag) {
             writer.port_owner.insert(port.id().to_string(), owner.to_string());
-            writer.ids.insert(port.id().to_string(), port.id().to_string());
             writer.kinds.insert(port.id().to_string(), "FunctionPort");
             let name = data::unique_name(&mut taken, &display_name(port));
+            // A trace names a port as `Owner.port`.
+            writer.ids.insert(port.id().to_string(), format!("{owner}.{name}"));
             writer.port_ref.insert(port.id().to_string(), format!("{owner}.{name}"));
+            for realization in port.tagged("ownedPortRealizations") {
+                if let Some(target) = first_ref(realization.attr("targetElement")) {
+                    writer.traces.push((port.id().to_string(), "realizes", target));
+                }
+            }
             writer.count("function ports");
             writer.line(depth, &format!("port {direction} {} {{ id: {} }}", string_literal(&name), string_literal(port.id())));
         }
@@ -86,6 +92,11 @@ pub(super) fn functional_exchanges(writer: &mut Writer, depth: usize, holder: &N
         };
         writer.count(if keyword == "interaction" { "interactions" } else { "functional exchanges" });
         writer.remember(exchange, kind);
+        for realization in exchange.tagged("ownedFunctionalExchangeRealizations") {
+            if let Some(target) = first_ref(realization.attr("targetElement")) {
+                writer.traces.push((exchange.id().to_string(), "realizes", target));
+            }
+        }
         let name = data::unique_name(&mut taken, &display_name(exchange));
         let extra = exchange_attributes(writer, exchange);
         writer.line(depth, &format!("{keyword} {} {{ id: {} from: {} to: {}{extra} }}", string_literal(&name), string_literal(exchange.id()), string_literal(&from), string_literal(&to)));
@@ -514,8 +525,13 @@ fn component_ports(writer: &mut Writer, depth: usize, component: &Node, owner: &
         // An unnamed port is named by its id, so that an exchange can name it.
         let label = data::unique_name(&mut port_names, &display_name(port));
         writer.port_ref.insert(port.id().to_string(), format!("{owner}.{label}"));
-        writer.ids.insert(port.id().to_string(), port.id().to_string());
+        writer.ids.insert(port.id().to_string(), format!("{owner}.{label}"));
         writer.kinds.insert(port.id().to_string(), "ComponentPort");
+        for realization in port.tagged("ownedPortRealizations") {
+            if let Some(target) = first_ref(realization.attr("targetElement")) {
+                writer.traces.push((port.id().to_string(), "realizes", target));
+            }
+        }
         let direction = match port.attr("orientation") {
             Some("OUT") => "out",
             Some("INOUT") => "inout",
@@ -538,6 +554,11 @@ fn component_exchanges(writer: &mut Writer, depth: usize, level: &Node, level_na
         };
         writer.count("component exchanges");
         writer.remember(exchange, "ComponentExchange");
+        for realization in exchange.tagged("ownedComponentExchangeRealizations") {
+            if let Some(target) = first_ref(realization.attr("targetElement")) {
+                writer.traces.push((exchange.id().to_string(), "realizes", target));
+            }
+        }
         let name = data::unique_name(&mut exchange_names, &display_name(exchange));
         let extra = exchange_attributes(writer, exchange);
         writer.line(depth, &format!("component_exchange {} {{ id: {} from_port: {} to_port: {}{extra} }}", string_literal(&name), string_literal(exchange.id()), string_literal(&from), string_literal(&to)));
@@ -718,6 +739,11 @@ pub(super) fn physical(writer: &mut Writer, pa: &Node) {
         };
         writer.count("physical exchanges");
         writer.remember(exchange, "PhysicalExchange");
+        for realization in exchange.tagged("ownedComponentExchangeRealizations") {
+            if let Some(target) = first_ref(realization.attr("targetElement")) {
+                writer.traces.push((exchange.id().to_string(), "realizes", target));
+            }
+        }
         let name = data::unique_name(&mut exchange_names, &display_name(exchange));
         let extra = exchange_attributes(writer, exchange);
         writer.line(1, &format!("physical_exchange {} {{ id: {} from: {} to: {}{extra} }}", string_literal(&name), string_literal(exchange.id()), string_literal(&from), string_literal(&to)));

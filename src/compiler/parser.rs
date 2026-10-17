@@ -1110,6 +1110,7 @@ impl Parser {
             self.expect(Token::RightBrace)?;
         }
         Ok(State {
+            id: attributes.get("id").and_then(|v| v.as_string()).map(|s| s.to_string()).unwrap_or_default(),
             name,
             kind,
             entry_actions: Self::string_list(&attributes, "entry"),
@@ -1128,6 +1129,7 @@ impl Parser {
         let attributes = if self.check(&Token::LeftBrace) { self.parse_attributes_block()? } else { HashMap::new() };
         let get = |key: &str| attributes.get(key).and_then(|v| v.as_string()).map(|s| s.to_string());
         Ok(Transition {
+            id: get("id").unwrap_or_default(),
             from,
             to,
             trigger: get("trigger").unwrap_or_default(),
@@ -1731,7 +1733,8 @@ impl Parser {
             .map(|s| s.to_string())
             .or(Some(name));
 
-        Ok(FunctionalExchange { from_port: from, to_port: to, data_type, label })
+        let id = attributes.get("id").and_then(|v| v.as_string()).map(|s| s.to_string()).or_else(|| label.clone()).unwrap_or_else(|| format!("{from} -> {to}"));
+        Ok(FunctionalExchange { id, from_port: from, to_port: to, data_type, label })
     }
     
     fn parse_requirements_block(&mut self) -> Result<SystemAnalysis, String> {
@@ -2038,6 +2041,7 @@ impl Parser {
             .to_string();
         
         Ok(ComponentExchange {
+            id: attributes.get("id").and_then(|v| v.as_string()).map(|s| s.to_string()).unwrap_or_else(|| name.clone()),
             from_port: from,
             to_port: to,
             exchange_item,
@@ -2079,7 +2083,8 @@ impl Parser {
             .map(|s| s.to_string())
             .or(Some(name));
 
-        Ok(ComponentExchange { from_port, to_port, exchange_item, label })
+        let id = attributes.get("id").and_then(|v| v.as_string()).map(|s| s.to_string()).or_else(|| label.clone()).unwrap_or_else(|| format!("{from_port} -> {to_port}"));
+        Ok(ComponentExchange { id, from_port, to_port, exchange_item, label })
     }
 
     fn parse_logical_component(&mut self) -> Result<LogicalComponent, String> {
@@ -2452,6 +2457,7 @@ impl Parser {
             .ok_or_else(|| self.err(format!("physical_exchange '{}' is missing 'to'", name)))?;
 
         Ok(PhysicalExchange {
+            id: attributes.get("id").and_then(|v| v.as_string()).map(|s| s.to_string()).unwrap_or_else(|| name.clone()),
             from,
             to,
             via: attributes.get("via").and_then(|v| v.as_string()).map(|s| s.to_string()),

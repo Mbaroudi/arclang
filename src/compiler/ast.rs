@@ -348,6 +348,9 @@ pub struct ExternalActor {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FunctionalExchange {
+    /// The written `id`, else the label, else `from -> to`.
+    #[serde(default)]
+    pub id: String,
     pub from_port: String,
     pub to_port: String,
     pub data_type: String,
@@ -405,6 +408,9 @@ pub struct ComponentPort {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ComponentExchange {
+    /// The written `id`, else the label, else `from -> to`.
+    #[serde(default)]
+    pub id: String,
     pub from_port: String,
     pub to_port: String,
     pub exchange_item: String,
@@ -555,6 +561,9 @@ pub struct PhysicalLink {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PhysicalExchange {
+    /// The written `id`, else the label, else `from -> to`.
+    #[serde(default)]
+    pub id: String,
     pub from: String,
     pub to: String,
     pub via: Option<String>,
@@ -692,6 +701,9 @@ pub struct StateMachine {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct State {
+    /// The written `id`, when the state has one; a trace names it by it.
+    #[serde(default)]
+    pub id: String,
     pub name: String,
     /// Arcadia distinguishes Mode (chosen behaviour) from State (undergone).
     #[serde(default)]
@@ -712,6 +724,9 @@ pub enum StateKind {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Transition {
+    /// The written `id`, when the transition has one.
+    #[serde(default)]
+    pub id: String,
     pub from: String,
     pub to: String,
     pub trigger: String,

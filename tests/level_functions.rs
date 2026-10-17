@@ -13,7 +13,7 @@ const MODEL: &str = r#"model T { name: "t" }
 system_analysis "SA" {
     function "Sense" { id: "SF-Sense" port out "targets" }
     function "Decide" { id: "SF-Decide" port in "targets" port out "order" }
-    functional_exchange "targets" { from: "SF-Sense.targets" to: "SF-Decide.targets" }
+    functional_exchange "targets" { id: "SA-targets" from: "SF-Sense.targets" to: "SF-Decide.targets" }
     system_component "AEB" { id: "SC-AEB" port in "vehicle bus" port out "brake command" }
     actor "Driver" { id: "SA-Driver" port out "pedal" }
     component_exchange "pedal" { from_port: "SA-Driver.pedal" to_port: "SC-AEB.vehicle bus" }
@@ -34,7 +34,7 @@ logical_architecture "LA" {
         function "Decide braking" { id: "LF-Decide" realizes: "SF-Decide" port in "targets" port out "order" }
     }
     function "Root logical function" { id: "LF-Root" }
-    functional_exchange "targets" { from: "LF-Sense.targets" to: "LF-Decide.targets" }
+    functional_exchange "targets" { id: "LA-targets" from: "LF-Sense.targets" to: "LF-Decide.targets" }
     capability_realization "Brake" { id: "LCR-1" realizes: "CAP-1" }
 }
 physical_architecture "PA" {
@@ -55,6 +55,16 @@ physical_architecture "PA" {
     functional_chain "Brake path" { id: "PFC-1" involves: ["PF-Sense", "PF-Decide"] }
     capability_realization "Brake on the ECU" { id: "PCR-1" realizes: "LCR-1" involves: ["PC-Ctrl", "PFC-1"] }
 }
+state_machine "Modes" {
+    initial: "Off"
+    state "Off" { id: "ST-Off" }
+    state "On" { id: "ST-On" }
+    transition "Off" -> "On" { id: "TR-1" trigger: "" }
+}
+trace "LF-Sense.targets" realizes "SF-Sense.targets"
+trace "LA-targets" realizes "SA-targets"
+trace "ST-On" realizes "ST-Off"
+trace "TR-1" realizes "ST-On"
 "#;
 
 fn compile(source: &str) -> arclang::CompilationResult {
@@ -140,4 +150,13 @@ fn an_exchange_to_an_unknown_function_is_reported() {
     let bad = MODEL.replace(r#"to: "LF-Decide.targets" }"#, r#"to: "LF-Nowhere.targets" }"#);
     let result = compile(&bad);
     assert!(result.warnings.iter().any(|w| w.contains("LF-Nowhere")), "{:?}", result.warnings);
+}
+
+#[test]
+fn ports_exchanges_states_and_transitions_are_traceable_across_levels() {
+    let result = compile(MODEL);
+    let traces: Vec<(&str, &str)> = result.semantic_model.traces.iter().map(|t| (t.from.as_str(), t.to.as_str())).collect();
+    assert!(traces.contains(&("LF-Sense.targets", "SF-Sense.targets")), "{traces:?}");
+    assert!(traces.contains(&("LA-targets", "SA-targets")), "{traces:?}");
+    assert!(traces.contains(&("ST-On", "ST-Off")) && traces.contains(&("TR-1", "ST-On")), "{traces:?}");
 }

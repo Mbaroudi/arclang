@@ -112,6 +112,11 @@ fn write_region(writer: &mut Writer, depth: usize, region: &Node, state_names: &
         let keyword = if state.is("capellacommon:Mode") { "mode" } else { "state" };
         writer.count(if keyword == "mode" { "modes" } else { "states" });
         writer.remember(state, "State");
+        for realization in state.tagged("ownedAbstractStateRealizations") {
+            if let Some(target) = first_ref(realization.attr("targetElement")) {
+                writer.traces.push((state.id().to_string(), "realizes", target));
+            }
+        }
         writer.names.insert(state.id().to_string(), name.clone());
         writer.line(depth, &format!("{keyword} {} {{", string_literal(name)));
         header_attributes(writer, depth + 1, state, "State");
@@ -142,6 +147,11 @@ fn write_region(writer: &mut Writer, depth: usize, region: &Node, state_names: &
         };
         writer.count("transitions");
         writer.remember(transition, "Transition");
+        for realization in transition.tagged("ownedStateTransitionRealizations") {
+            if let Some(target) = first_ref(realization.attr("targetElement")) {
+                writer.traces.push((transition.id().to_string(), "realizes", target));
+            }
+        }
         let mut attributes = vec![format!("id: {}", string_literal(transition.id()))];
         let trigger = text_attr(transition, "triggerDescription").unwrap_or_default();
         attributes.push(format!("trigger: {}", string_literal(&trigger)));

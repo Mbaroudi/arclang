@@ -118,12 +118,14 @@ fn create_test_model() -> Model {
         ],
         component_exchanges: vec![
             ComponentExchange {
+                id: String::new(),
                 from_port: "LC-001".to_string(),
                 to_port: "LC-002".to_string(),
                 exchange_item: "ObstacleData".to_string(),
                 label: Some("obstacle detection".to_string()),
             },
             ComponentExchange {
+                id: String::new(),
                 from_port: "LC-002".to_string(),
                 to_port: "LC-003".to_string(),
                 exchange_item: "BrakingCommand".to_string(),
