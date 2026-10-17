@@ -26,6 +26,7 @@ mod physical;
 mod relations;
 mod requirements;
 mod scenarios;
+mod stpa;
 mod system;
 mod traces;
 mod xml;
@@ -57,6 +58,9 @@ pub fn export(model: &Model, file_stem: &str) -> Exported {
     for (key, value) in NAMESPACES {
         project.set(key, value);
     }
+    if stpa::is_used(model) {
+        project.set("xmlns:stpa", "http://www.thalesgroup.com/capella/stpa");
+    }
     project.set("id", &project_id);
     project.set("name", &name);
     project.push(El::new("ownedExtensions", "libraries:ModelInformation", &derived(&format!("{project_id}:information"))));
@@ -66,6 +70,12 @@ pub fn export(model: &Model, file_stem: &str) -> Exported {
     // Every level registers what it declares before any level refers to it.
     data::register(&mut context, model);
     requirements::register(&mut context, model);
+    stpa::register(&mut context, model);
+    for r in stpa::constraints(model) {
+        let id = context::text(&r.attributes, "capella_id").unwrap_or(&r.id).to_string();
+        context.register(&r.id, &id);
+        context.register(&id, &id);
+    }
     for machine in &model.state_machines {
         behaviour::register(&mut context, machine);
     }
@@ -88,6 +98,9 @@ pub fn export(model: &Model, file_stem: &str) -> Exported {
 
     let engineering_id = derived(&format!("{project_id}:engineering"));
     let mut engineering = El::new("ownedModelRoots", "capellamodeller:SystemEngineering", &engineering_id).attr("name", &name);
+    if let Some(analysis) = stpa::write(&context, model, &engineering_id) {
+        engineering.push(analysis);
+    }
     let oa_el = match model.operational_analysis.first() {
         Some(oa) => operational::write(&mut context, oa),
         None => operational::empty(&project_id),
@@ -177,7 +190,7 @@ pub fn export(model: &Model, file_stem: &str) -> Exported {
     }
     project.push(engineering);
 
-    let afm = afm(&project_id, !requirements::all(model).is_empty());
+    let afm = afm(&project_id, !requirements::all(model).is_empty(), stpa::is_used(model));
     let index = diagrams::index(project.children().last().expect("the system engineering"));
     let drawn = diagrams::diagrams(&mut context, &index, &model.diagrams, &format!("{file_stem}.capella"));
     let aird = aird(&project_id, file_stem, drawn);
@@ -265,13 +278,16 @@ pub(super) fn realization(tag: &str, kind: &str, source: &str, target: &str) -> 
 }
 
 /// The viewpoints the model uses: Capella's own.
-fn afm(project_id: &str, with_requirements: bool) -> String {
+fn afm(project_id: &str, with_requirements: bool, with_stpa: bool) -> String {
     let mut root = El::root("metadata:Metadata")
         .attr("xmi:version", "2.0")
         .attr("xmlns:xmi", "http://www.omg.org/XMI")
         .attr("xmlns:metadata", "http://www.polarsys.org/kitalpha/ad/metadata/1.0.0")
         .attr("id", &derived(&format!("{project_id}:afm")))
         .with(El::root("viewpointReferences").attr("id", &derived(&format!("{project_id}:afm:capella"))).attr("vpId", "org.polarsys.capella.core.viewpoint").attr("version", "7.1.0"));
+    if with_stpa {
+        root.push(El::root("viewpointReferences").attr("id", &derived(&format!("{project_id}:afm:stpa"))).attr("vpId", "com.thalesgroup.mde.capella.stpa").attr("version", "0.1.0.qualifier"));
+    }
     if with_requirements {
         for vp in ["org.polarsys.kitalpha.vp.requirements", "org.polarsys.capella.vp.requirements"] {
             root.push(El::root("viewpointReferences").attr("id", &derived(&format!("{project_id}:afm:{vp}"))).attr("vpId", vp).attr("version", "0.14.0"));

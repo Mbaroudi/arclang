@@ -214,18 +214,20 @@ pub(super) fn diagrams(context: &mut Context, index: &Index, diagrams: &[Diagram
             continue;
         };
         let uid = format!("_{}", derived(&format!("diagram:{n}:{}", diagram.name)));
-        // Each shown element in the box of what holds it, when that is shown too.
+        // An element is drawn as itself, or through its part when this kind
+        // of diagram draws parts (a component in an architecture diagram).
+        let rows = &representation.boxes;
+        let draws = |parent: Option<&str>, target: &str| rows.iter().any(|r| r.target == target && parent.is_none_or(|p| r.parent == p));
         let box_of = |id: &str| -> Option<(String, String, Vec<(String, String)>)> {
             let kind = index.kind.get(id)?.clone();
             let part = derived(&format!("{id}:part"));
-            if index.kind.contains_key(&part) && !matches!(kind.as_str(), "oa:Entity") {
+            if index.kind.contains_key(&part) && !draws(None, &kind) && draws(None, "cs:Part") {
                 return Some(("cs:Part".to_string(), part.clone(), vec![("cs:Part".to_string(), part), (kind, id.to_string())]));
             }
             Some((kind.clone(), id.to_string(), vec![(kind, id.to_string())]))
         };
         // The box holding an element: the first shown of the component
         // performing it and its owner that this kind of diagram nests it in.
-        let rows = &representation.boxes;
         let target_of = |id: &str| box_of(id).map(|(kind, _, _)| kind);
         let holder = |id: &str| -> Option<String> {
             let child = target_of(id)?;

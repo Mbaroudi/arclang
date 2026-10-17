@@ -14,8 +14,10 @@ use std::collections::BTreeMap;
 const FIELDS: &[(&str, &str)] = &[("reqif_name", "ReqIFName"), ("chapter", "ReqIFChapterName"), ("prefix", "ReqIFPrefix"), ("foreign_id", "ReqIFForeignID")];
 const HEADER: &[&str] = &["id", "capella_id", "title", "description", "requirement_type", "reqif_name", "chapter", "prefix", "foreign_id"];
 
+/// The requirements of the model, but the STPA system constraints.
 pub(super) fn all(model: &Model) -> Vec<&Requirement> {
-    model.system_analysis.iter().flat_map(|sa| sa.requirements.iter()).collect()
+    let stpa: Vec<*const Requirement> = super::stpa::constraints(model).into_iter().map(|r| r as *const Requirement).collect();
+    model.system_analysis.iter().flat_map(|sa| sa.requirements.iter()).filter(|r| !stpa.contains(&(*r as *const Requirement))).collect()
 }
 
 fn capella_id(r: &Requirement) -> String {
