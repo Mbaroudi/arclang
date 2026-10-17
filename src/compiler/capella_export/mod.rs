@@ -53,7 +53,7 @@ fn model_name(model: &Model) -> String {
 /// Export `model`; `file_stem` names the files (`<stem>.capella`, `<stem>.afm`).
 pub fn export(model: &Model, file_stem: &str) -> Exported {
     let mut context = Context::default();
-    let name = model_name(&model);
+    let name = model_name(model);
     let project_id = context::id_of(&model.attributes, &format!("project:{name}"));
     let mut project = El::root("org.polarsys.capella.core.data.capellamodeller:Project").attr("xmi:version", "2.0");
     for (key, value) in NAMESPACES {

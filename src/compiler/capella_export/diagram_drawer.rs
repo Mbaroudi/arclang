@@ -12,6 +12,22 @@ use std::collections::HashMap;
 /// What a box of an element is drawn on: target kind, target id, semantic elements.
 pub(super) type Target = (String, String, Vec<(String, String)>);
 
+/// How a diagram element looks: its style and the mapping that draws it.
+struct Look<'b> {
+    style: Option<&'b str>,
+    style_description: &'b str,
+    mapping: &'b str,
+}
+
+impl<'b> Look<'b> {
+    fn of_box(row: &'b Box) -> Self {
+        Look { style: row.style.as_deref(), style_description: &row.style_description, mapping: &row.mapping }
+    }
+    fn of_edge(row: &'b Edge) -> Self {
+        Look { style: row.style.as_deref(), style_description: &row.style_description, mapping: &row.mapping }
+    }
+}
+
 pub(super) struct Drawer<'a> {
     representation: &'a Representation,
     index: &'a Index,
@@ -56,7 +72,8 @@ impl<'a> Drawer<'a> {
     }
 
     /// The parts every diagram element has: its target, semantic elements, style and mapping.
-    fn body(&self, mut el: El, target: (&str, &str), semantic: &[(String, String)], style: Option<&str>, style_description: &str, mapping: &str, uid: &str) -> El {
+    fn body(&self, mut el: El, target: (&str, &str), semantic: &[(String, String)], look: Look<'_>, uid: &str) -> El {
+        let Look { style, style_description, mapping } = look;
         el.push(reference("target", target.0, self.file, target.1));
         for (kind, id) in semantic {
             el.push(reference("semanticElements", kind, self.file, id));
@@ -85,7 +102,7 @@ impl<'a> Drawer<'a> {
         let uid = self.element_uid(id);
         self.drawn.insert(id.to_string(), uid.clone());
         let el = sirius("ownedDiagramElements", &row.kind, &uid).attr("name", &self.name(id));
-        let mut el = self.body(el, (&target_kind, &target), &semantic, row.style.as_deref(), &row.style_description, &row.mapping, &uid);
+        let mut el = self.body(el, (&target_kind, &target), &semantic, Look::of_box(row), &uid);
         for port in self.ports(id) {
             if let Some(node) = self.port(&port, &target_kind) {
                 el.push(node);
@@ -116,13 +133,13 @@ impl<'a> Drawer<'a> {
         let uid = self.element_uid(port);
         self.drawn.insert(port.to_string(), uid.clone());
         let el = sirius("ownedBorderedNodes", &row.kind, &uid).attr("name", &self.name(port));
-        Some(self.body(el, (&kind, port), &[(kind.clone(), port.to_string())], row.style.as_deref(), &row.style_description, &row.mapping, &uid))
+        Some(self.body(el, (&kind, port), &[(kind.clone(), port.to_string())], Look::of_box(row), &uid))
     }
 
     fn edge(&self, row: &Edge, target: (&str, &str), source_uid: &str, target_uid: &str, n: usize) -> El {
         let uid = format!("{}-{}", self.element_uid(target.1), n);
         let el = sirius("ownedDiagramElements", "diagram:DEdge", &uid).attr("sourceNode", source_uid).attr("targetNode", target_uid);
-        self.body(el, target, &[(target.0.to_string(), target.1.to_string())], row.style.as_deref(), &row.style_description, &row.mapping, &uid)
+        self.body(el, target, &[(target.0.to_string(), target.1.to_string())], Look::of_edge(row), &uid)
     }
 
     fn edge_row(&self, target: &str, from: &str, to: &str) -> Option<&'a Edge> {

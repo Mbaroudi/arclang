@@ -62,7 +62,7 @@ enum On {
 /// The Capella representation of a diagram: by the `[XXX]` prefix of its
 /// name, else by its view (a view showing functions only is a data flow);
 /// the kind of element it is drawn on, and which one.
-fn representation(diagram: &DiagramDecl, shows_boxes: bool) -> Option<(&'static str, &'static str, On)> {
+fn representation(diagram: &DiagramDecl, shows_boxes: bool, shows_realizations: bool) -> Option<(&'static str, &'static str, On)> {
     let prefix = diagram.name.trim_start().strip_prefix('[').and_then(|r| r.split(']').next()).unwrap_or("");
     let by_prefix = match prefix {
         "LAB" => "Logical Architecture Blank",
@@ -83,6 +83,9 @@ fn representation(diagram: &DiagramDecl, shows_boxes: bool) -> Option<(&'static 
         "OCB" => "Operational Capabilities Blank",
         "COC" => "Contextual Operational Capability",
         "CIBD" | "EAB" | "CBD" => "Configuration Items Breakdown",
+        "CRB" => "Capability Realization Blank",
+        "CRI" => "Contextual Capability Realization Involvement",
+        "IDB" | "ID" => "Interfaces Diagram Blank",
         _ => match (diagram.view.as_str(), shows_boxes) {
             ("lab", true) => "Logical Architecture Blank",
             ("lab", false) => "Logical Data Flow Blank",
@@ -93,6 +96,7 @@ fn representation(diagram: &DiagramDecl, shows_boxes: bool) -> Option<(&'static 
             ("oab", true) => "Operational Entity Blank",
             ("oab", false) => "Operational Activity Interaction Blank",
             ("cdb", _) => "Class Diagram Blank",
+            ("cap", _) if shows_realizations => "Capability Realization Blank",
             ("cap", _) => "Missions Capabilities Blank",
             ("pbs", _) => "Configuration Items Breakdown",
             _ => return None,
@@ -114,6 +118,9 @@ fn representation(diagram: &DiagramDecl, shows_boxes: bool) -> Option<(&'static 
         "Contextual System Actors" => ("ctx:SystemComponent", On::Shown),
         "Operational Capabilities Blank" => ("oa:OperationalCapabilityPkg", On::First),
         "Contextual Operational Capability" => ("oa:OperationalCapability", On::Shown),
+        "Capability Realization Blank" => ("la:CapabilityRealizationPkg", On::First),
+        "Contextual Capability Realization Involvement" => ("la:CapabilityRealization", On::Shown),
+        "Interfaces Diagram Blank" => ("la:LogicalComponent", On::First),
         _ => ("epbs:ConfigurationItemPkg", On::First),
     };
     Some((by_prefix, on, which))
@@ -206,13 +213,13 @@ pub(super) fn reference(tag: &str, kind: &str, file: &str, id: &str) -> El {
 /// representation of each diagram; diagrams Capella has no kind for, or
 /// that show nothing exported, are noted.
 pub(super) fn diagrams(context: &mut Context, index: &Index, diagrams: &[DiagramDecl], file: &str) -> Vec<(String, El, El)> {
-    let names = &index.name;
     let table = table();
     let mut out = Vec::new();
     for (n, diagram) in diagrams.iter().enumerate() {
         let shown: Vec<String> = diagram.shows.iter().filter_map(|s| context.resolve(s).map(str::to_string)).collect();
         let shows_boxes = shown.iter().any(|id| index.kind.get(id).is_some_and(|k| k.ends_with("Component") || k == "oa:Entity"));
-        let Some((rep, target_kind, which)) = representation(diagram, shows_boxes) else {
+        let shows_realizations = shown.iter().any(|id| index.kind.get(id).is_some_and(|k| k == "la:CapabilityRealization"));
+        let Some((rep, target_kind, which)) = representation(diagram, shows_boxes, shows_realizations) else {
             context.note(format!("diagram '{}' left out: Capella has no diagram for the view '{}'", diagram.name, diagram.view));
             continue;
         };
@@ -232,7 +239,7 @@ pub(super) fn diagrams(context: &mut Context, index: &Index, diagrams: &[Diagram
         // of diagram draws parts (a component in an architecture diagram).
         let rows = &representation.boxes;
         let draws = |parent: Option<&str>, target: &str| rows.iter().any(|r| r.target == target && parent.is_none_or(|p| r.parent == p));
-        let box_of = |id: &str| -> Option<(String, String, Vec<(String, String)>)> {
+        let box_of = |id: &str| -> Option<super::diagram_drawer::Target> {
             let kind = index.kind.get(id)?.clone();
             let part = derived(&format!("{id}:part"));
             if index.kind.contains_key(&part) && !draws(None, &kind) && draws(None, "cs:Part") {

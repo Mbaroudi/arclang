@@ -97,7 +97,7 @@ fn performers(context: &Context, activities: &[OperationalActivity], into: &mut 
     }
 }
 
-fn entity_element(context: &Context, entity: &Entity<'_>, performed: &HashMap<String, Vec<String>>, children: &HashMap<String, Vec<&Entity<'_>>>) -> El {
+fn entity_element(entity: &Entity<'_>, performed: &HashMap<String, Vec<String>>, children: &HashMap<String, Vec<&Entity<'_>>>) -> El {
     let mut el = El::new("ownedEntities", "oa:Entity", &entity.id).attr("name", entity.name);
     if entity.actor {
         el.set("actor", "true");
@@ -114,7 +114,7 @@ fn entity_element(context: &Context, entity: &Entity<'_>, performed: &HashMap<St
         el.push(El::new("ownedFeatures", "cs:Part", &derived(&format!("{}:part", child.id))).attr("name", child.name).attr("abstractType", &format!("#{}", child.id)));
     }
     for child in children.get(&entity.id).into_iter().flatten() {
-        el.push(entity_element(context, child, performed, children));
+        el.push(entity_element(child, performed, children));
     }
     el
 }
@@ -160,7 +160,7 @@ pub(super) fn write(context: &mut Context, oa: &OperationalAnalysis) -> El {
 
     let mut pkg = El::new("ownedEntityPkg", "oa:EntityPkg", &derived(&format!("{id}:entities"))).attr("name", "Operational Entities");
     for entity in &tops {
-        pkg.push(entity_element(context, entity, &performed, &children));
+        pkg.push(entity_element(entity, &performed, &children));
     }
     for (index, mean) in oa.communication_means.iter().enumerate() {
         let mid = interaction_id(mean, index, "communication-means");

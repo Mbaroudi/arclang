@@ -138,9 +138,9 @@ pub(super) fn scenario(context: &mut Context, engineering: &El, s: &Scenario, na
             }
         }
         // Operands that start inside an open fragment, at this message.
-        for f in 0..frames.len() {
-            if let What::Fragment(cf, fid) = &frames[f].what {
-                if frames[f].start < position {
+        for frame in &frames {
+            if let What::Fragment(cf, fid) = &frame.what {
+                if frame.start < position {
                     for (n, operand) in cf.operands.iter().enumerate().skip(1) {
                         if operand.start == position && operand.end >= operand.start {
                             fragments.push(El::new("ownedInteractionFragments", "interaction:InteractionOperand", &derived(&format!("{fid}:operand:{n}"))).attr("coveredInstanceRoles", &all_roles));
