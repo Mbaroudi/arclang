@@ -108,8 +108,8 @@ pub fn export(model: &Model, file_stem: &str) -> Exported {
     };
     let oa_id = oa_el.id().to_string();
     let mut sa_el = match main_sa {
-        Some(sa) => system::write(&mut context, sa, &derived(&format!("{oa_id}:root-activity"))),
-        None => system::empty(&project_id, &derived(&format!("{oa_id}:root-activity"))),
+        Some(sa) => system::write(&mut context, sa, model.operational_analysis.first().map(|_| derived(&format!("{oa_id}:root-activity"))).as_deref()),
+        None => system::empty(&project_id),
     };
     let sa_id = sa_el.id().to_string();
     for extension in requirements::write(&context, model, &sa_id) {
@@ -122,16 +122,16 @@ pub fn export(model: &Model, file_stem: &str) -> Exported {
         sa_el.push(pkg);
     }
     let mut la_el = match model.logical_architecture.first() {
-        Some(la) => logical::write(&mut context, la, &derived(&format!("{sa_id}:root-function"))),
-        None => logical::empty(&project_id, &derived(&format!("{sa_id}:root-function"))),
+        Some(la) => logical::write(&mut context, la, main_sa.map(|_| derived(&format!("{sa_id}:root-function"))).as_deref()),
+        None => logical::empty(&project_id),
     };
     let la_id = la_el.id().to_string();
     if let Some(pkg) = data::interfaces(&context, model, "logical", &la_id) {
         la_el.push(pkg);
     }
     let mut pa_el = match model.physical_architecture.first() {
-        Some(pa) => physical::write(&mut context, pa, &derived(&format!("{la_id}:root-function"))),
-        None => physical::empty(&project_id, &derived(&format!("{la_id}:root-function"))),
+        Some(pa) => physical::write(&mut context, pa, model.logical_architecture.first().map(|_| derived(&format!("{la_id}:root-function"))).as_deref()),
+        None => physical::empty(&project_id),
     };
     let pa_id = pa_el.id().to_string();
     if let Some(pkg) = data::interfaces(&context, model, "physical", &pa_id) {

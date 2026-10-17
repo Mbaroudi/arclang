@@ -134,14 +134,14 @@ pub(super) fn exchange_ends(context: &Context, exchanges: &[FunctionalExchange])
         .collect()
 }
 
-pub(super) fn write(context: &mut Context, la: &LogicalArchitecture, above_root: &str) -> El {
+pub(super) fn write(context: &mut Context, la: &LogicalArchitecture, above_root: Option<&str>) -> El {
     let id = level_id(la);
     let mut level = El::new("ownedArchitectures", "la:LogicalArchitecture", &id).attr("name", &la.name);
     let placed = placed(la);
 
     let root_id = derived(&format!("{id}:root-function"));
     let root = El::new("ownedLogicalFunctions", "la:LogicalFunction", &root_id).attr("name", "Root Logical Function");
-    let mut root = functions::tree(context, "la:LogicalFunction", root.with(super::realization("ownedFunctionRealizations", "fa:FunctionRealization", &root_id, above_root)), &placed);
+    let mut root = functions::tree(context, "la:LogicalFunction", match above_root { Some(above) => root.with(super::realization("ownedFunctionRealizations", "fa:FunctionRealization", &root_id, above)), None => root }, &placed);
     for exchange in &la.functional_exchanges {
         if let Some(el) = functional_exchange(context, exchange) {
             root.push(el);
@@ -200,12 +200,7 @@ pub(super) fn capability_realization(context: &Context, realization: &crate::com
 }
 
 /// An empty logical architecture.
-pub(super) fn empty(project_id: &str, above_root: &str) -> El {
-    let id = derived(&format!("{project_id}:la"));
-    let root_id = derived(&format!("{id}:root-function"));
-    let root = El::new("ownedLogicalFunctions", "la:LogicalFunction", &root_id).attr("name", "Root Logical Function");
-    let root = root.with(super::realization("ownedFunctionRealizations", "fa:FunctionRealization", &root_id, above_root));
-    El::new("ownedArchitectures", "la:LogicalArchitecture", &id)
-        .attr("name", "Logical Architecture")
-        .with(El::new("ownedFunctionPkg", "la:LogicalFunctionPkg", &derived(&format!("{id}:functions"))).attr("name", "Logical Functions").with(root))
+pub(super) fn empty(project_id: &str) -> El {
+    // As Capella's own empty project: no package, no root function.
+    El::new("ownedArchitectures", "la:LogicalArchitecture", &derived(&format!("{project_id}:la"))).attr("name", "Logical Architecture")
 }

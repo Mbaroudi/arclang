@@ -203,10 +203,6 @@ pub(super) fn write(context: &mut Context, oa: &OperationalAnalysis) -> El {
 
 /// An empty operational analysis.
 pub(super) fn empty(project_id: &str) -> El {
-    let id = derived(&format!("{project_id}:oa"));
-    let root_id = derived(&format!("{id}:root-activity"));
-    let root = El::new("ownedOperationalActivities", "oa:OperationalActivity", &root_id).attr("name", "Root Operational Activity");
-    El::new("ownedArchitectures", "oa:OperationalAnalysis", &id)
-        .attr("name", "Operational Analysis")
-        .with(El::new("ownedFunctionPkg", "oa:OperationalActivityPkg", &derived(&format!("{id}:functions"))).attr("name", "Operational Activities").with(root))
+    // As Capella's own empty project: no package, no root function.
+    El::new("ownedArchitectures", "oa:OperationalAnalysis", &derived(&format!("{project_id}:oa"))).attr("name", "Operational Analysis")
 }
