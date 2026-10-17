@@ -823,6 +823,10 @@ pub struct State {
     pub exit_actions: Vec<String>,
     pub internal_transitions: Vec<String>,
     pub sub_states: Vec<State>,
+    /// The transitions declared in the region this state opens; they are
+    /// also in the machine's flat list, which every check and view reads.
+    #[serde(default)]
+    pub transitions: Vec<Transition>,
     pub color: Option<String>,
     /// The initial state of the region this state opens (`initial:`), when any.
     #[serde(default)]
@@ -934,6 +938,10 @@ pub struct Message {
     pub activation: bool,
     pub timing: Option<String>,
     pub params: Option<String>,
+    /// Every attribute written: `kind:` (Capella's message kind), `exchange:`
+    /// (the functional or component exchange the message carries)...
+    #[serde(default)]
+    pub attributes: HashMap<String, AttributeValue>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -1032,6 +1040,10 @@ pub struct ExchangeItem {
     /// References to the data elements (classes) grouped by this item.
     #[serde(default)]
     pub elements: Vec<String>,
+    /// Every attribute written (status, description...); `attributes` are
+    /// the item's fields.
+    #[serde(default)]
+    pub properties: HashMap<String, AttributeValue>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -1052,6 +1064,9 @@ pub struct DataType {
     #[serde(default)]
     pub unit: Option<String>,
     pub enumeration_values: Option<Vec<EnumValue>>,
+    /// Every attribute written (status, unit_name, description...).
+    #[serde(default)]
+    pub attributes: HashMap<String, AttributeValue>,
 }
 
 /// A verification case: how one or more requirements are verified.

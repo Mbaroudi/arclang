@@ -430,7 +430,10 @@ InvariantDecl   ::= ( "state" | "mode" | "function" ) Name Name
                     ( "{" ( Attribute | MessageDecl | FragmentDecl | InvariantDecl )* "}" )? ;
 MessageDecl     ::= "message" Name "->" Name Name? AttributeBlock? ;
                     (* endpoints must be scenario participants (ERROR);
-                       attributes: type: sync|async, timing: *)
+                       attributes: type: sync|async, timing:, kind: (Capella's
+                       message kind), exchange: <functional or component
+                       exchange carried; unknown = WARNING>; every attribute is kept.
+                       A scenario's owner: <element> is kept too (unknown = WARNING). *)
 
 (* ---- Unmodeled blocks (accepted, warned, ignored) -------------------------------------- *)
 

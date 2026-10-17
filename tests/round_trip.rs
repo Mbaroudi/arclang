@@ -41,8 +41,12 @@ epbs "Product" {
         }
     }
 }
+data_type "Speed" { id: "DT-Speed" base: "Real" unit_name: "knots" status: "REVIEWED" }
+enumeration "Level" { id: "EN-Level" values: ["Low", "High"] status: "DRAFT" }
+exchange_item "Targets" { id: "EI-Targets" mechanism: "FLOW" status: "DRAFT" }
 state_machine "Modes" {
     id: "SM-1"
+    owner: "SC-AEB"
     initial: "Off"
     state "Off" { id: "ST-Off" }
     state "Running" {
@@ -55,8 +59,9 @@ state_machine "Modes" {
     transition "Off" -> "Running" { id: "TR-1" trigger: "power" events: ["power on", "wake"] }
 }
 scenario "Seat use" {
+    owner: "SC-AEB"
     participants: ["CI-Seat", "SA-Driver"]
-    message "SA-Driver" -> "CI-Seat" "press"
+    message "SA-Driver" -> "CI-Seat" "press" { kind: "CREATE" exchange: "SA-pedal" }
 }
 "#;
 
@@ -136,4 +141,36 @@ operational_analysis "OA" {
 "#;
     let result = compile(source);
     assert!(result.warnings.iter().any(|w| w.contains("Not described yet")), "{:?}", result.warnings);
+}
+
+#[test]
+fn data_types_exchange_items_and_messages_keep_their_attributes() {
+    let result = compile(MODEL);
+    let speed = result.ast.data_types.iter().find(|d| d.id == "DT-Speed").expect("data type");
+    assert_eq!(speed.attributes.get("unit_name").and_then(|v| v.as_string()), Some("knots"));
+    let level = result.ast.data_types.iter().find(|d| d.id == "EN-Level").expect("enumeration");
+    assert_eq!(level.attributes.get("status").and_then(|v| v.as_string()), Some("DRAFT"));
+    assert_eq!(result.ast.exchange_items[0].properties.get("status").and_then(|v| v.as_string()), Some("DRAFT"));
+    let message = &result.ast.scenarios[0].messages[0];
+    assert_eq!(message.attributes.get("kind").and_then(|v| v.as_string()), Some("CREATE"));
+    assert_eq!(message.attributes.get("exchange").and_then(|v| v.as_string()), Some("SA-pedal"));
+    assert!(result.warnings.iter().all(|w| !w.contains("SA-pedal") && !w.contains("owner")), "{:?}", result.warnings);
+}
+
+#[test]
+fn an_unknown_carried_exchange_or_owner_is_a_warning() {
+    let stranger = MODEL.replace(r#"exchange: "SA-pedal""#, r#"exchange: "SA-ghost""#).replace(r#"owner: "SC-AEB""#, r#"owner: "Nobody""#);
+    let result = compile(&stranger);
+    assert!(result.warnings.iter().any(|w| w.contains("SA-ghost")), "{:?}", result.warnings);
+    assert!(result.warnings.iter().filter(|w| w.contains("Nobody")).count() == 2, "{:?}", result.warnings);
+}
+
+#[test]
+fn a_region_keeps_the_transitions_declared_in_it() {
+    let result = compile(MODEL);
+    let machine = &result.ast.state_machines[0];
+    let running = &machine.states[1];
+    assert_eq!(running.transitions.len(), 1);
+    assert_eq!(running.transitions[0].id, "TR-2");
+    assert_eq!(machine.transitions.len(), 2, "the flat list still holds every transition");
 }

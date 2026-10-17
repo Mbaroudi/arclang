@@ -30,9 +30,11 @@ pub(super) fn state_machines(writer: &mut Writer, engineering: &Node) {
     let mut taken: HashSet<String> = HashSet::new();
     // The element owning each machine, to tell machines of one name apart.
     let mut owners: HashMap<String, String> = HashMap::new();
+    let mut owner_ids: HashMap<String, String> = HashMap::new();
     for node in engineering.descendants() {
         for machine in node.tagged("ownedStateMachines") {
             owners.insert(machine.id().to_string(), display_name(node));
+            owner_ids.insert(machine.id().to_string(), node.id().to_string());
         }
     }
     let all: Vec<&Node> = engineering.find_all("capellacommon:StateMachine");
@@ -55,6 +57,10 @@ pub(super) fn state_machines(writer: &mut Writer, engineering: &Node) {
         let name = data::unique_name(&mut taken, &preferred);
         writer.names.insert(machine.id().to_string(), name.clone());
         writer.line(0, &format!("state_machine {} {{", string_literal(&name)));
+        // The element owning the machine, so an export gives it back.
+        if let Some(owner) = owner_ids.get(machine.id()).filter(|id| writer.written(id)) {
+            writer.line(1, &format!("owner: {}", string_literal(&writer.ids[owner].clone())));
+        }
         writer.line(1, &format!("id: {}", string_literal(machine.id())));
         data::applied_values(writer, 1, machine, "StateMachine");
         // Every state of the machine, at any depth, by a name unique in the machine.
@@ -265,9 +271,11 @@ pub(super) fn scenarios(writer: &mut Writer, engineering: &Node) {
         *names_seen.entry(display_name(scenario)).or_insert(0) += 1;
     }
     let mut owners: HashMap<String, String> = HashMap::new();
+    let mut owner_ids: HashMap<String, String> = HashMap::new();
     for node in engineering.descendants() {
         for scenario in node.tagged("ownedScenarios") {
             owners.insert(scenario.id().to_string(), display_name(node));
+            owner_ids.insert(scenario.id().to_string(), node.id().to_string());
         }
     }
     for scenario in all {
@@ -295,6 +303,19 @@ pub(super) fn scenarios(writer: &mut Writer, engineering: &Node) {
         }
         let fragments: Vec<&Node> = scenario.tagged("ownedInteractionFragments").collect();
         let index_of: HashMap<String, usize> = fragments.iter().enumerate().map(|(i, f)| (f.id().to_string(), i)).collect();
+        // What each message carries: the operation of its sending end's event.
+        let events: HashMap<String, &Node> = scenario.tagged("ownedEvents").map(|e| (e.id().to_string(), e)).collect();
+        let mut carried: HashMap<String, String> = HashMap::new();
+        for message in scenario.tagged("ownedMessages") {
+            let operation = first_ref(message.attr("sendingEnd"))
+                .and_then(|end| index_of.get(&end).map(|i| fragments[*i]))
+                .and_then(|end| first_ref(end.attr("event")))
+                .and_then(|event| events.get(&event).copied())
+                .and_then(|event| first_ref(event.attr("operation")));
+            if let Some(operation) = operation.filter(|id| writer.written(id)) {
+                carried.insert(message.id().to_string(), writer.ids[&operation].clone());
+            }
+        }
         let covered = |fragment: &Node| first_ref(fragment.attr("coveredInstanceRoles")).and_then(|role| lifeline_of.get(&role).cloned());
         // Messages, in the order of their sending ends.
         let mut messages: Vec<(usize, &Node, String, String)> = Vec::new();
@@ -347,11 +368,14 @@ pub(super) fn scenarios(writer: &mut Writer, engineering: &Node) {
         writer.names.insert(scenario.id().to_string(), name.clone());
         writer.line(0, &format!("scenario {} {{", string_literal(&name)));
         header_attributes(writer, 1, scenario, "Scenario");
+        if let Some(owner) = owner_ids.get(scenario.id()).filter(|id| writer.written(id)) {
+            writer.line(1, &format!("owner: {}", string_literal(&writer.ids[owner].clone())));
+        }
         if let Some(kind) = scenario.attr("kind") {
             writer.line(1, &format!("kind: {}", string_literal(kind)));
         }
         writer.line(1, &format!("participants: {}", super::list_literal(&participants)));
-        let count = write_frame_body(writer, 1, &messages, &frames, 0, usize::MAX, &mut 0);
+        let count = write_frame_body(writer, 1, &messages, &frames, 0, usize::MAX, &mut 0, &carried);
         writer.count_by("messages", count);
         writer.line(0, "}");
         writer.line(0, "");
@@ -365,7 +389,7 @@ pub(super) fn scenarios(writer: &mut Writer, engineering: &Node) {
 
 /// The messages and fragments between fragment indexes `from` and `to`,
 /// the fragments nested as they are in Capella; returns the messages written.
-fn write_frame_body(writer: &mut Writer, depth: usize, messages: &[(usize, &Node, String, String)], frames: &[Frame], from: usize, to: usize, next_frame: &mut usize) -> usize {
+fn write_frame_body(writer: &mut Writer, depth: usize, messages: &[(usize, &Node, String, String)], frames: &[Frame], from: usize, to: usize, next_frame: &mut usize, carried: &HashMap<String, String>) -> usize {
     let mut written = 0;
     let mut position = from;
     loop {
@@ -374,7 +398,7 @@ fn write_frame_body(writer: &mut Writer, depth: usize, messages: &[(usize, &Node
         let stop = frame.map(|f| f.start).unwrap_or(to);
         for (at, message, source, target) in messages.iter().filter(|(at, _, _, _)| *at >= position && *at < stop) {
             let _ = at;
-            write_message(writer, depth, message, source, target);
+            write_message(writer, depth, message, source, target, carried.get(message.id()).map(String::as_str));
             written += 1;
         }
         let Some(frame) = frame else { break };
@@ -386,7 +410,7 @@ fn write_frame_body(writer: &mut Writer, depth: usize, messages: &[(usize, &Node
             writer.remember(frame.node, "StateFragment");
             writer.line(depth, &format!("{} {} {} {{", invariant.keyword, string_literal(&invariant.lifeline), string_literal(&invariant.reference)));
             writer.line(depth + 1, &format!("id: {}", string_literal(frame.node.id())));
-            written += write_frame_body(writer, depth + 1, messages, frames, frame.start, frame.end, next_frame);
+            written += write_frame_body(writer, depth + 1, messages, frames, frame.start, frame.end, next_frame, carried);
             writer.line(depth, "}");
             position = frame.end;
             if position >= to {
@@ -414,11 +438,11 @@ fn write_frame_body(writer: &mut Writer, depth: usize, messages: &[(usize, &Node
             for (operand, at, until) in &frame.operands {
                 let guard = operand.and_then(|o| o.tagged("guard").next()).map(data::constraint_text).filter(|g| !g.is_empty()).map(|g| format!(" {}", string_literal(&g))).unwrap_or_default();
                 writer.line(depth + 1, &format!("operand{guard} {{"));
-                written += write_frame_body(writer, depth + 2, messages, frames, *at, *until, next_frame);
+                written += write_frame_body(writer, depth + 2, messages, frames, *at, *until, next_frame, carried);
                 writer.line(depth + 1, "}");
             }
         } else {
-            written += write_frame_body(writer, depth + 1, messages, frames, start, end, next_frame);
+            written += write_frame_body(writer, depth + 1, messages, frames, start, end, next_frame, carried);
         }
         writer.line(depth, "}");
         position = end;
@@ -429,10 +453,14 @@ fn write_frame_body(writer: &mut Writer, depth: usize, messages: &[(usize, &Node
     written
 }
 
-fn write_message(writer: &mut Writer, depth: usize, message: &Node, source: &str, target: &str) {
+fn write_message(writer: &mut Writer, depth: usize, message: &Node, source: &str, target: &str, carried: Option<&str>) {
     writer.remember(message, "Message");
     let kind = message.attr("kind").unwrap_or("UNSET");
     let mut attributes = vec![format!("id: {}", string_literal(message.id()))];
+    if let Some(exchange) = carried {
+        writer.count("messages carrying an exchange");
+        attributes.push(format!("exchange: {}", string_literal(exchange)));
+    }
     match kind {
         "SYNCHRONOUS_CALL" => attributes.push("type: \"sync\"".to_string()),
         "ASYNCHRONOUS_CALL" => attributes.push("type: \"async\"".to_string()),

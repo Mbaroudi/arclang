@@ -17,6 +17,7 @@ pub(super) fn functions(writer: &mut Writer, depth: usize, holder: &Node, keywor
         let id = writer.remember(function, kind);
         writer.line(depth, &format!("{keyword} {} {{", string_literal(&display_name(function))));
         header_attributes(writer, depth + 1, function, kind);
+        available_states(writer, depth + 1, function);
         function_ports(writer, depth + 1, function, &id);
         functions(writer, depth + 1, function, keyword, what, kind);
         writer.line(depth, "}");
@@ -25,6 +26,16 @@ pub(super) fn functions(writer: &mut Writer, depth: usize, holder: &Node, keywor
                 writer.traces.push((id.clone(), "realizes", target));
             }
         }
+    }
+}
+
+/// The states and modes a function is available in, by their ids (the
+/// machines are written after the levels; the ids are theirs).
+fn available_states(writer: &mut Writer, depth: usize, function: &Node) {
+    let states = refs(function.attr("availableInStates"));
+    if !states.is_empty() {
+        writer.count_by("functions available in states", 1);
+        writer.line(depth, &format!("available_in_states: {}", list_literal(&states)));
     }
 }
 
@@ -541,6 +552,7 @@ fn level_function(writer: &mut Writer, depth: usize, function: &Node, owner: Opt
     let name = data::unique_name(taken, &display_name(function));
     writer.line(depth, &format!("function {} {{", string_literal(&name)));
     header_attributes(writer, depth + 1, function, kind);
+    available_states(writer, depth + 1, function);
     let realized: Vec<String> = function.tagged("ownedFunctionRealizations").filter_map(|r| first_ref(r.attr("targetElement"))).collect();
     let realized = writer.known(&realized);
     if let Some(first) = realized.first() {
@@ -717,8 +729,14 @@ pub(super) fn physical(writer: &mut Writer, pa: &Node) {
     let is_node = |c: &Node| c.attr("nature") == Some("NODE");
     let nodes: Vec<&Node> = components.iter().copied().filter(|c| is_node(c)).collect();
     let behaviours: Vec<&Node> = components.iter().copied().filter(|c| !is_node(c)).collect();
-    // The root physical system holds what is deployed nowhere.
-    let root = components.first().map(|c| c.id().to_string()).unwrap_or_default();
+    // The root physical system holds what is deployed nowhere: the component
+    // of no nature (Capella's root), else the first one.
+    let root = components
+        .iter()
+        .find(|c| matches!(c.attr("nature"), None | Some("UNSET")) && !deployed_on.contains_key(c.id()))
+        .or(components.first())
+        .map(|c| c.id().to_string())
+        .unwrap_or_default();
     let mut written_nodes: HashSet<String> = HashSet::new();
     let mut nodes_to_write: Vec<&Node> = nodes.clone();
     if !nodes.iter().any(|n| n.id() == root) {

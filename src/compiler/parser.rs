@@ -1168,12 +1168,18 @@ impl Parser {
         let name = self.expect_name()?;
         let mut attributes = HashMap::new();
         let mut sub_states = Vec::new();
+        let mut own_transitions: Vec<Transition> = Vec::new();
         if self.check(&Token::LeftBrace) {
             self.expect(Token::LeftBrace)?;
             while !self.check(&Token::RightBrace) && !self.is_at_end() {
                 match self.current() {
                     Token::StateKw | Token::Mode => sub_states.push(self.parse_state(transitions)?),
-                    Token::Transition => transitions.push(self.parse_transition()?),
+                    Token::Transition => {
+                        // Owned by this region, and in the machine's flat list.
+                        let transition = self.parse_transition()?;
+                        own_transitions.push(transition.clone());
+                        transitions.push(transition);
+                    }
                     _ if self.peek_is_colon() => {
                         let (key, value) = self.parse_attribute()?;
                         attributes.insert(key, value);
@@ -1191,6 +1197,7 @@ impl Parser {
             exit_actions: Self::string_list(&attributes, "exit"),
             internal_transitions: Vec::new(),
             sub_states,
+            transitions: own_transitions,
             color: attributes.get("color").and_then(|v| v.as_string()).map(|s| s.to_string()),
             initial: attributes.get("initial").and_then(|v| v.as_string()).map(|s| s.to_string()).unwrap_or_default(),
             attributes,
@@ -1238,6 +1245,7 @@ impl Parser {
             activation: true,
             timing: attributes.get("timing").and_then(|v| v.as_string()).map(|s| s.to_string()),
             params: None,
+            attributes,
         })
     }
 
@@ -1740,6 +1748,7 @@ impl Parser {
             base_type: attributes.get("base").and_then(|v| v.as_string()).map(|s| s.to_string()),
             unit: attributes.get("unit").and_then(|v| v.as_string()).map(|s| s.to_string()),
             enumeration_values,
+            attributes,
         })
     }
 
@@ -1771,6 +1780,7 @@ impl Parser {
             stereotype: mechanism,
             attributes: Vec::new(),
             elements: Self::string_list(&attributes, "elements"),
+            properties: attributes,
         })
     }
 

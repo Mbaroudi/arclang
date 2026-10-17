@@ -1333,6 +1333,11 @@ impl SemanticAnalyzer {
                 }
             }
             register_states(&machine.name, &machine.states, &mut all_elements, &mut duplicate_ids);
+            if let Some(owner) = machine.attributes.get("owner").and_then(|v| v.as_string()) {
+                if !all_elements.contains_key(owner) && !all_elements.values().any(|e| e.name == owner) {
+                    deferred_warnings.push(format!("state_machine '{}': owner '{owner}' is not a declared element", machine.name));
+                }
+            }
             for transition in &machine.transitions {
                 let id = if transition.id.is_empty() { format!("{}.{}->{}", machine.name, transition.from, transition.to) } else { transition.id.clone() };
                 let name = format!("{} -> {}", transition.from, transition.to);
@@ -1422,6 +1427,22 @@ impl SemanticAnalyzer {
                             scenario.name, role, endpoint
                         ));
                     }
+                }
+            }
+            // What a message carries and whom a scenario belongs to are
+            // references too; unknown ones are warnings (the model stands
+            // without them).
+            let known = |reference: &str, all: &HashMap<String, ElementInfo>| all.contains_key(reference) || all.values().any(|e| e.name == reference);
+            for message in &scenario.messages {
+                if let Some(exchange) = message.attributes.get("exchange").and_then(|v| v.as_string()) {
+                    if !known(exchange, &all_elements) {
+                        deferred_warnings.push(format!("scenario '{}': message '{}' carries exchange '{exchange}', which is not declared", scenario.name, message.label));
+                    }
+                }
+            }
+            if let Some(owner) = scenario.attributes.get("owner").and_then(|v| v.as_string()) {
+                if !known(owner, &all_elements) {
+                    deferred_warnings.push(format!("scenario '{}': owner '{owner}' is not a declared element", scenario.name));
                 }
             }
             // An invariant sits on a participant and names a declared state
