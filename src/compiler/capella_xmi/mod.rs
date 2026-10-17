@@ -17,6 +17,7 @@
 mod behaviour;
 mod data;
 mod diagrams;
+mod fragments;
 mod levels;
 
 use super::metamodel::Metamodel;
@@ -141,11 +142,14 @@ pub fn parse(xml: &str) -> Result<Node, String> {
     stack.pop().ok_or_else(|| "empty document".to_string())
 }
 
-/// A reference attribute: `#id`, or `file.capella#id`, several separated by spaces.
+/// A reference attribute: `#id`, or `file.capella#id`, several separated by
+/// spaces. A reference to another file is written `pkg:Kind file#id`: the
+/// type before it is not a reference.
 fn refs(value: Option<&str>) -> Vec<String> {
     value
         .unwrap_or("")
         .split_whitespace()
+        .filter(|item| item.contains('#') || !item.contains(':'))
         .map(|item| item.rsplit('#').next().unwrap_or(item).to_string())
         .filter(|item| !item.is_empty())
         .collect()
@@ -360,22 +364,56 @@ fn header_attributes(writer: &mut Writer, depth: usize, node: &Node, kind: &str)
 
 /// Import a `.capella` file; the `.aird` beside it, when there is one, gives
 /// the diagrams. The result compiles, or the import fails.
+/// The fragments of a fragmented model (`.capellafragment`, `.airdfragment`)
+/// are read from beside the file and take the place of their proxies.
 pub fn import_file(path: &Path) -> Result<Imported, ImportFailure> {
     let xml = std::fs::read_to_string(path).map_err(|e| format!("cannot read {}: {e}", path.display()))?;
+    let base = path.parent().unwrap_or(Path::new("."));
+    let mut document = parse(&xml)?;
+    let mut read = fragments::splice(&mut document, base, "capellafragment")?;
     let aird_path = path.with_extension("aird");
-    let aird = match std::fs::read_to_string(&aird_path) {
-        Ok(text) => Some(text),
-        Err(_) => None,
-    };
-    import_strings(&xml, aird.as_deref(), &path.file_name().map(|f| f.to_string_lossy().to_string()).unwrap_or_default())
+    let aird = std::fs::read_to_string(&aird_path).ok().map(|text| {
+        let mut aird = parse(&text)?;
+        read.extend(fragments::splice(&mut aird, base, "airdfragment")?);
+        Ok(aird)
+    });
+    let file_name = path.file_name().map(|f| f.to_string_lossy().to_string()).unwrap_or_default();
+    import_document(&document, aird, &file_name, read.len())
 }
 
+/// Import from text. A fragmented model needs its fragment files: import it
+/// with [`import_file`].
 pub fn import_strings(capella_xml: &str, aird_xml: Option<&str>, file_name: &str) -> Result<Imported, ImportFailure> {
     let document = parse(capella_xml)?;
-    let project = document.children.first().ok_or("no root element")?;
-    if !project.kind.ends_with(":Project") && !project.tag.ends_with(":Project") {
-        return Err(format!("not a Capella project: the root is <{}>", project.tag).into());
+    let fragments = fragments::referenced(&document, "capellafragment");
+    if !fragments.is_empty() {
+        return Err(format!("a fragmented model: its fragments {} are files beside the .capella, import the file itself", fragments.join(", ")).into());
     }
+    import_document(&document, aird_xml.map(parse), file_name, 0)
+}
+
+/// The Capella project or library of a document: the root, or, for an XMI
+/// resource of several roots, the first project or library among them.
+fn model_root(document: &Node) -> Result<&Node, ImportFailure> {
+    let is_model = |node: &Node| [":Project", ":Library"].iter().any(|kind| node.kind.ends_with(kind) || node.tag.ends_with(kind));
+    let root = document.children.first().ok_or("no root element")?;
+    if is_model(root) {
+        return Ok(root);
+    }
+    if root.tag == "xmi:XMI" {
+        if root.children.is_empty() {
+            return Err("an empty XMI resource: the file holds no Capella project".into());
+        }
+        return root.children.iter().find(|node| is_model(node)).ok_or_else(|| {
+            let held: Vec<&str> = root.children.iter().map(|node| node.tag.as_str()).collect();
+            format!("no Capella project or library in the XMI resource, which holds <{}>", held.join(">, <")).into()
+        });
+    }
+    Err(format!("not a Capella project: the root is <{}>", root.tag).into())
+}
+
+fn import_document(document: &Node, aird: Option<Result<Node, String>>, file_name: &str, fragments: usize) -> Result<Imported, ImportFailure> {
+    let project = model_root(document)?;
     let engineering = project.find("capellamodeller:SystemEngineering").ok_or("no SystemEngineering in the project")?;
     let mut writer = Writer {
         out: String::new(),
@@ -396,6 +434,12 @@ pub fn import_strings(capella_xml: &str, aird_xml: Option<&str>, file_name: &str
         metamodel: Metamodel::current(),
     };
     let project_name = project.attr("name").filter(|n| !n.is_empty()).unwrap_or("Capella model");
+    if fragments > 0 {
+        writer.count_by("fragment files read", fragments);
+    }
+    if project.kind.ends_with(":Library") || project.tag.ends_with(":Library") {
+        writer.note("a Capella library: imported as a model of its own; the projects that use it refer to it".to_string());
+    }
     writer.line(0, &format!("model {} {{", string_literal(project_name)));
     writer.line(1, &format!("name: {}", string_literal(project_name)));
     writer.line(1, &format!("description: {}", string_literal(&format!("Imported from Capella ({file_name})"))));
@@ -463,8 +507,8 @@ pub fn import_strings(capella_xml: &str, aird_xml: Option<&str>, file_name: &str
     }
     writer.line(0, "");
 
-    if let Some(aird_xml) = aird_xml {
-        match parse(aird_xml) {
+    if let Some(aird) = aird {
+        match aird {
             Ok(aird) => diagrams::diagrams(&mut writer, &aird),
             Err(error) => writer.note(format!("the .aird could not be read: {error}")),
         }
@@ -527,6 +571,44 @@ mod tests {
     fn a_file_that_is_not_a_project_is_refused() {
         assert!(import_strings("<a/>", None, "a.capella").is_err());
         assert!(import_strings("<not xml", None, "a.capella").is_err());
+    }
+
+    const LIBRARY: &str = r#"<org.polarsys.capella.core.data.capellamodeller:Library xmi:version="2.0" xmlns:xmi="http://www.omg.org/XMI" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="lib" name="Shared Library">
+  <ownedModelRoots xsi:type="org.polarsys.capella.core.data.capellamodeller:SystemEngineering" id="se" name="Shared Library">
+    <ownedArchitectures xsi:type="org.polarsys.capella.core.data.ctx:SystemAnalysis" id="sa" name="System Analysis">
+      <ownedFunctionPkg xsi:type="org.polarsys.capella.core.data.ctx:SystemFunctionPkg" id="sfp" name="System Functions">
+        <ownedSystemFunctions xsi:type="org.polarsys.capella.core.data.ctx:SystemFunction" id="root" name="Root System Function">
+          <ownedFunctions xsi:type="org.polarsys.capella.core.data.ctx:SystemFunction" id="f-shared" name="Shared function"/>
+        </ownedSystemFunctions>
+      </ownedFunctionPkg>
+    </ownedArchitectures>
+  </ownedModelRoots>
+</org.polarsys.capella.core.data.capellamodeller:Library>"#;
+
+    #[test]
+    fn a_capella_library_is_imported_like_a_project() {
+        let imported = import_strings(LIBRARY, None, "Shared Library.capella").expect("imports");
+        assert!(imported.source.contains("model \"Shared Library\""), "{}", imported.source);
+        assert!(imported.source.contains("id: \"f-shared\""), "{}", imported.source);
+        assert!(imported.notes.iter().any(|note| note.contains("library")), "{:?}", imported.notes);
+    }
+
+    #[test]
+    fn an_xmi_resource_holding_a_project_is_imported_and_an_empty_one_refused() {
+        let wrapped = format!(r#"<xmi:XMI xmi:version="2.0" xmlns:xmi="http://www.omg.org/XMI">{}</xmi:XMI>"#, LIBRARY.replacen(" xmi:version=\"2.0\" xmlns:xmi=\"http://www.omg.org/XMI\"", "", 1));
+        let imported = import_strings(&wrapped, None, "wrapped.capella").expect("imports");
+        assert!(imported.source.contains("id: \"f-shared\""), "{}", imported.source);
+        let empty = import_strings(r#"<xmi:XMI xmi:version="2.0" xmlns:xmi="http://www.omg.org/XMI"/>"#, None, "empty.capella").err().expect("refused");
+        assert!(empty.message.contains("empty XMI resource"), "{}", empty.message);
+        let other = import_strings(r#"<xmi:XMI xmi:version="2.0" xmlns:xmi="http://www.omg.org/XMI"><ecore:EPackage xmlns:ecore="http://www.eclipse.org/emf/2002/Ecore" name="p"/></xmi:XMI>"#, None, "other.capella").err().expect("refused");
+        assert!(other.message.contains("ecore:EPackage"), "{}", other.message);
+    }
+
+    #[test]
+    fn a_reference_to_another_file_names_the_element_not_its_type() {
+        let value = "org.polarsys.capella.core.data.pa:PhysicalComponent fragments/PA.capellafragment#pc-1";
+        assert_eq!(refs(Some(value)), vec!["pc-1".to_string()]);
+        assert_eq!(refs(Some("#a #b")), vec!["a".to_string(), "b".to_string()]);
     }
 
     #[test]
