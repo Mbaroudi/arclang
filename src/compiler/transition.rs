@@ -156,7 +156,7 @@ fn realizations(model: &Model) -> Vec<(String, String)> {
             // list with the functions it performs.
             walk_level_functions(&node.functions, &attribute, &mut found);
             for behavior in &node.behavior_components {
-                for reference in &behavior.allocated_functions {
+                for reference in behavior.allocated_functions.iter().chain(behavior.allocated_component.iter()) {
                     found.push((behavior.id.clone(), reference.clone()));
                 }
                 walk_level_functions(&behavior.functions, &attribute, &mut found);

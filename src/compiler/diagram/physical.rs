@@ -72,8 +72,12 @@ pub(super) fn build(model: &Model) -> Option<(Diagram, Vec<String>)> {
                 for function in &behavior.functions {
                     add_level_function(&mut builder, Some(child), function, &behavior.id);
                 }
-                // The parser stores `allocated_component` and
-                // `allocated_function(s)` in one list: tell them apart here.
+                // `allocated_component` is the logical component realized;
+                // a logical component named among the functions counts too
+                // (the legacy form).
+                if let Some(realized) = behavior.allocated_component.as_deref().and_then(|c| logical.get(c)) {
+                    builder.add_realization(child, (*realized).to_string());
+                }
                 for reference in &behavior.allocated_functions {
                     if let Some(realized) = logical.get(reference.as_str()) {
                         builder.add_realization(child, (*realized).to_string());

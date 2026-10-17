@@ -342,15 +342,21 @@ pub fn arcadia_methodology_lints(ast: &Model) -> Vec<String> {
                 node_of_component.insert(deployment.component.as_str(), node.id.as_str());
             }
             for behavior in &node.behavior_components {
-                for allocated in &behavior.allocated_functions {
+                for allocated in behavior.allocated_functions.iter().chain(behavior.allocated_component.iter()) {
                     node_of_component.insert(allocated.as_str(), node.id.as_str());
                 }
             }
         }
     }
-    // Link endpoints may use node NAMES; normalize to node ids.
+    // Link endpoints may use node NAMES, or ports (`Node.port`); normalize to node ids.
     let normalize = |endpoint: &str| -> String {
-        node_id_by_name.get(endpoint).map(|id| id.to_string()).unwrap_or_else(|| endpoint.to_string())
+        if let Some(id) = node_id_by_name.get(endpoint) {
+            return id.to_string();
+        }
+        endpoint
+            .rsplit_once('.')
+            .and_then(|(owner, _)| node_id_by_name.get(owner).map(|id| id.to_string()))
+            .unwrap_or_else(|| endpoint.to_string())
     };
     let mut linked_pairs: std::collections::HashSet<(String, String)> = std::collections::HashSet::new();
     for pa in &ast.physical_architecture {
@@ -1358,6 +1364,23 @@ impl SemanticAnalyzer {
                 }
             }
         }
+        // The product breakdown: systems, subsystems and items are elements
+        // (a scenario's lifeline may stand for a configuration item).
+        for epbs in &ast.epbs {
+            let id_of = |attributes: &HashMap<String, AttributeValue>, name: &str| attributes.get("id").and_then(|v| v.as_string()).map(str::to_string).unwrap_or_else(|| name.to_string());
+            for system in &epbs.systems {
+                let id = id_of(&system.attributes, &system.name);
+                register_element(&mut all_elements, &mut duplicate_ids, id.clone(), ElementInfo::new(id, system.name.clone(), "EpbsSystem"));
+                for subsystem in &system.subsystems {
+                    let id = id_of(&subsystem.attributes, &subsystem.name);
+                    register_element(&mut all_elements, &mut duplicate_ids, id.clone(), ElementInfo::new(id, subsystem.name.clone(), "EpbsSubsystem"));
+                    for item in &subsystem.items {
+                        let id = id_of(&item.attributes, &item.name);
+                        register_element(&mut all_elements, &mut duplicate_ids, id.clone(), ElementInfo::new(id, item.name.clone(), "EpbsItem"));
+                    }
+                }
+            }
+        }
         for scenario in &ast.scenarios {
             register_element(
                 &mut all_elements,
@@ -1550,6 +1573,9 @@ impl SemanticAnalyzer {
                 for behavior in &node.behavior_components {
                     for function in &behavior.allocated_functions {
                         check("behavior_component", &behavior.name, function, "allocated");
+                    }
+                    if let Some(component) = &behavior.allocated_component {
+                        check("behavior_component", &behavior.name, component, "allocated_component");
                     }
                 }
             }

@@ -207,6 +207,9 @@ PaElement       ::= "node" Name "{" NodeElement* "}"
                   | "component" Name PhysicalComponentBody?
                   | ConnectionDecl
                   | ( "physical_link" | "link" ) Name ( "->" Name )? AttributeBlock
+                                                              (* from:/to: (or connects:) name a node or a
+                                                                 node's port, `Node.port`; the link is drawn
+                                                                 between the ports when they are named *)
                   | "physical_exchange" Name AttributeBlock    (* from:/to: required; via:, message_type:, frequency: *)
                   | "deployment" Name "->" Name AttributeBlock?
                   | Attribute ;
@@ -215,7 +218,10 @@ NodeElement     ::= "deploys" Name AttributeBlock?
                   | "port" Name AttributeBlock?               (* physical ports are UNORIENTED *)
                   | LevelFunctionDecl                         (* the physical functions the node itself performs *)
                   | "behavior_component" Name "{" ( Attribute | ComponentPortDecl | LevelFunctionDecl )* "}"
-                                                              (* its ports and the physical functions it performs *)
+                                                              (* its ports and the physical functions it performs;
+                                                                 allocated_component: <logical component ref> is the
+                                                                 one it realizes, allocated_functions: [...] the
+                                                                 functions it performs by name (legacy form) *)
                   | "hardware_component" Name AttributeBlock?
                   | Attribute ;
 
@@ -305,8 +311,9 @@ PhysicalPathDecl ::= "physical_path" Name AttributeBlock ;
 
 (* ---- Operational processes & communication means ------------------------------------------- *)
 
-OperationalProcessDecl ::= "operational_process" Name AttributeBlock ;
-                           (* involves: [ <activity/interaction ref>+ ] REQUIRED *)
+OperationalProcessDecl ::= "operational_process" Name "{" ( Attribute | ControlNodeDecl | SequenceLinkDecl )* "}" ;
+                           (* involves: [ <activity/interaction ref>* ] ordered; empty is a
+                              WARNING; control nodes and sequence links as in a chain *)
 CommunicationMeansDecl ::= "communication_means" Name AttributeBlock ;
                            (* from:, to: REQUIRED (operational entities) *)
 
@@ -388,9 +395,12 @@ StateMachineElement ::= ( "state" | "mode" ) Name StateBody?
 StateBody       ::= "{" ( Attribute | ( "state" | "mode" ) Name StateBody?
                         | "transition" Name "->" Name AttributeBlock? )* "}" ;
                       | "transition" Name "->" Name AttributeBlock?
-                        (* attributes: trigger:, guard:, action:, timing:, priority: ;
+                        (* attributes: trigger:, guard:, action:, timing:, priority:,
+                           events: [...] (every attribute is kept) ;
                            endpoints must be declared states/modes (ERROR otherwise);
-                           unresolved triggers are warnings *)
+                           unresolved triggers are warnings. A state keeps its
+                           attributes too: kind: final|choice|fork|join|terminate...
+                           for a pseudo-state, initial: for the region it opens *)
                       | Attribute ;                            (* initial: "StateName" *)
 
 (* ---- Scenarios (sequence flows) ------------------------------------------------------------ *)

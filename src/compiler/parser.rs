@@ -594,10 +594,7 @@ impl Parser {
                         .unwrap_or_else(|| process_name.clone());
                     let involves = Self::string_list(&attributes, "involves");
                     if involves.is_empty() {
-                        return Err(self.err(format!(
-                            "operational_process '{}' must involve at least one activity (involves: [...])",
-                            process_name
-                        )));
+                        self.warn(format!("operational_process '{process_name}' involves nothing yet (involves: [...])"));
                     }
                     processes.push(Self::chain(id, process_name, involves, controls, sequences, attributes));
                 }
@@ -1195,6 +1192,8 @@ impl Parser {
             internal_transitions: Vec::new(),
             sub_states,
             color: attributes.get("color").and_then(|v| v.as_string()).map(|s| s.to_string()),
+            initial: attributes.get("initial").and_then(|v| v.as_string()).map(|s| s.to_string()).unwrap_or_default(),
+            attributes,
         })
     }
 
@@ -1214,6 +1213,7 @@ impl Parser {
             action: get("action"),
             timing: get("timing"),
             priority: get("priority"),
+            attributes,
         })
     }
 
@@ -1870,7 +1870,7 @@ impl Parser {
             .or(Some(name));
 
         let id = attributes.get("id").and_then(|v| v.as_string()).map(|s| s.to_string()).or_else(|| label.clone()).unwrap_or_else(|| format!("{from} -> {to}"));
-        Ok(FunctionalExchange { id, from_port: from, to_port: to, data_type, label })
+        Ok(FunctionalExchange { id, from_port: from, to_port: to, data_type, label, attributes })
     }
     
     fn parse_requirements_block(&mut self) -> Result<SystemAnalysis, String> {
@@ -2184,6 +2184,7 @@ impl Parser {
             to_port: to,
             exchange_item,
             label,
+            attributes,
         })
     }
     
@@ -2222,7 +2223,7 @@ impl Parser {
             .or(Some(name));
 
         let id = attributes.get("id").and_then(|v| v.as_string()).map(|s| s.to_string()).or_else(|| label.clone()).unwrap_or_else(|| format!("{from_port} -> {to_port}"));
-        Ok(ComponentExchange { id, from_port, to_port, exchange_item, label })
+        Ok(ComponentExchange { id, from_port, to_port, exchange_item, label, attributes })
     }
 
     fn parse_logical_component(&mut self) -> Result<LogicalComponent, String> {
@@ -2609,6 +2610,7 @@ impl Parser {
                 .and_then(|v| v.as_string())
                 .map(|s| s.to_string()),
             label: Some(name),
+            attributes,
         })
     }
     
@@ -3505,17 +3507,15 @@ impl Parser {
             } else {
                 Vec::new()
             };
-        if let Some(single) = attributes
-            .get("allocated_component")
-            .or_else(|| attributes.get("allocated_function"))
-            .and_then(|v| v.as_string())
-        {
+        if let Some(single) = attributes.get("allocated_function").and_then(|v| v.as_string()) {
             allocated_functions.push(single.to_string());
         }
+        let allocated_component = attributes.get("allocated_component").and_then(|v| v.as_string()).map(str::to_string);
 
         Ok(BehaviorComponent {
             id,
             name,
+            allocated_component,
             allocated_functions,
             color,
             functions,

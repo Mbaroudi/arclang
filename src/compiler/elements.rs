@@ -606,12 +606,13 @@ pub fn build(ast: &Model, semantic: &SemanticModel) -> ElementGraph {
         }
     }
     for epbs in &ast.epbs {
+        let written_id = |attributes: &HashMap<String, AttributeValue>| attributes.get("id").and_then(|v| v.as_string()).unwrap_or("").to_string();
         for system in &epbs.systems {
-            let system_uuid = builder.typed_element("EpbsSystem", "", &system.name, &root, &system.attributes);
+            let system_uuid = builder.typed_element("EpbsSystem", &written_id(&system.attributes), &system.name, &root, &system.attributes);
             for subsystem in &system.subsystems {
-                let subsystem_uuid = builder.typed_element("EpbsSubsystem", "", &subsystem.name, &system_uuid, &subsystem.attributes);
+                let subsystem_uuid = builder.typed_element("EpbsSubsystem", &written_id(&subsystem.attributes), &subsystem.name, &system_uuid, &subsystem.attributes);
                 for item in &subsystem.items {
-                    builder.typed_element("EpbsItem", "", &item.name, &subsystem_uuid, &item.attributes);
+                    builder.typed_element("EpbsItem", &written_id(&item.attributes), &item.name, &subsystem_uuid, &item.attributes);
                 }
             }
         }

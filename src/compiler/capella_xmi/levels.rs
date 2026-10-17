@@ -737,6 +737,9 @@ pub(super) fn physical(writer: &mut Writer, pa: &Node) {
         writer.names.insert(node_id.clone(), node_name.clone());
         writer.line(1, &format!("node {} {{", string_literal(&node_name)));
         header_attributes(writer, 2, node, "PhysicalNode");
+        if node.attr("actor") == Some("true") {
+            writer.line(2, "actor: true");
+        }
         let mut port_names: HashSet<String> = HashSet::new();
         for port in node.tagged("ownedFeatures").filter(|f| f.is("cs:PhysicalPort")) {
             writer.port_owner.insert(port.id().to_string(), node_id.clone());
@@ -784,7 +787,9 @@ pub(super) fn physical(writer: &mut Writer, pa: &Node) {
         if ends.len() != 2 {
             continue;
         }
-        let (Some(from), Some(to)) = (writer.port_owner.get(&ends[0]).cloned(), writer.port_owner.get(&ends[1]).cloned()) else {
+        // A link ends on physical ports: `Node.port`, else the node itself.
+        let end = |writer: &Writer, port: &str| writer.port_ref.get(port).cloned().or_else(|| writer.port_owner.get(port).cloned());
+        let (Some(from), Some(to)) = (end(writer, &ends[0]), end(writer, &ends[1])) else {
             left_out += 1;
             continue;
         };

@@ -125,6 +125,7 @@ fn create_test_model() -> Model {
                 to_port: "LC-002".to_string(),
                 exchange_item: "ObstacleData".to_string(),
                 label: Some("obstacle detection".to_string()),
+                attributes: Default::default(),
             },
             ComponentExchange {
                 id: String::new(),
@@ -132,6 +133,7 @@ fn create_test_model() -> Model {
                 to_port: "LC-003".to_string(),
                 exchange_item: "BrakingCommand".to_string(),
                 label: Some("brake command".to_string()),
+                attributes: Default::default(),
             },
         ],
         interfaces: vec![],

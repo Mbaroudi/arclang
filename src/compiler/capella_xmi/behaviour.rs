@@ -159,7 +159,14 @@ fn write_region(writer: &mut Writer, depth: usize, region: &Node, state_names: &
         if !triggers.is_empty() {
             attributes.push(format!("events: {}", super::list_literal(&triggers)));
         }
-        if let Some(guard) = transition.tagged("ownedGuard").next() {
+        // Capella 6 owns the guard (`ownedGuard`); Capella 7 references one
+        // of the transition's constraints (`guard="#id"`).
+        let referenced = first_ref(transition.attr("guard"));
+        let guard = transition
+            .tagged("ownedGuard")
+            .next()
+            .or_else(|| transition.tagged("ownedConstraints").find(|c| referenced.as_deref() == Some(c.id())));
+        if let Some(guard) = guard {
             let text = data::constraint_text(guard);
             if !text.is_empty() {
                 attributes.push(format!("guard: {}", string_literal(&text)));

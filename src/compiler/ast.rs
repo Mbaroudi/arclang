@@ -432,6 +432,9 @@ pub struct FunctionalExchange {
     pub to_port: String,
     pub data_type: String,
     pub label: Option<String>,
+    /// Every attribute written (exchange items, categories, description...).
+    #[serde(default)]
+    pub attributes: HashMap<String, AttributeValue>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -502,6 +505,9 @@ pub struct ComponentExchange {
     pub to_port: String,
     pub exchange_item: String,
     pub label: Option<String>,
+    /// Every attribute written (exchange items, categories, description...).
+    #[serde(default)]
+    pub attributes: HashMap<String, AttributeValue>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -611,6 +617,11 @@ pub enum NodeType {
 pub struct BehaviorComponent {
     pub id: String,
     pub name: String,
+    /// The logical component this behaviour realizes (`allocated_component:`).
+    #[serde(default)]
+    pub allocated_component: Option<String>,
+    /// The functions it performs by name (`allocated_functions:`), the legacy
+    /// form; functions declared inside it are in `functions`.
     pub allocated_functions: Vec<String>,
     pub color: Option<String>,
     /// The physical functions the component performs, declared inside it.
@@ -662,6 +673,9 @@ pub struct PhysicalExchange {
     pub message_type: String,
     pub frequency: Option<String>,
     pub label: Option<String>,
+    /// Every attribute written (exchange items, categories, description...).
+    #[serde(default)]
+    pub attributes: HashMap<String, AttributeValue>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -810,6 +824,12 @@ pub struct State {
     pub internal_transitions: Vec<String>,
     pub sub_states: Vec<State>,
     pub color: Option<String>,
+    /// The initial state of the region this state opens (`initial:`), when any.
+    #[serde(default)]
+    pub initial: String,
+    /// Every attribute written (`kind:` for a pseudo-state, property values...).
+    #[serde(default)]
+    pub attributes: HashMap<String, AttributeValue>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
@@ -831,6 +851,9 @@ pub struct Transition {
     pub action: Option<String>,
     pub timing: Option<String>,
     pub priority: Option<String>,
+    /// Every attribute written (`events:`, property values...).
+    #[serde(default)]
+    pub attributes: HashMap<String, AttributeValue>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
