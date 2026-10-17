@@ -80,6 +80,11 @@ pub fn export(model: &Model, file_stem: &str) -> Exported {
     for machine in &model.state_machines {
         behaviour::register(&mut context, machine);
     }
+    // The levels are known by their id: an owner can name one.
+    let level_ids = model.operational_analysis.iter().map(|l| &l.id).chain(model.system_analysis.iter().map(|l| &l.id)).chain(model.logical_architecture.iter().map(|l| &l.id)).chain(model.physical_architecture.iter().map(|l| &l.id));
+    for id in level_ids.filter(|id| !id.is_empty()).cloned().collect::<Vec<_>>() {
+        context.register(&id, &id);
+    }
     for oa in &model.operational_analysis {
         operational::register(&mut context, oa);
     }
@@ -108,7 +113,7 @@ pub fn export(model: &Model, file_stem: &str) -> Exported {
     };
     let oa_id = oa_el.id().to_string();
     let mut sa_el = match main_sa {
-        Some(sa) => system::write(&mut context, sa, model.operational_analysis.first().map(|_| derived(&format!("{oa_id}:root-activity"))).as_deref()),
+        Some(sa) => system::write(&mut context, sa, root_of(&oa_el, &format!("{oa_id}:root-activity")).as_deref()),
         None => system::empty(&project_id),
     };
     let sa_id = sa_el.id().to_string();
@@ -122,7 +127,7 @@ pub fn export(model: &Model, file_stem: &str) -> Exported {
         sa_el.push(pkg);
     }
     let mut la_el = match model.logical_architecture.first() {
-        Some(la) => logical::write(&mut context, la, main_sa.map(|_| derived(&format!("{sa_id}:root-function"))).as_deref()),
+        Some(la) => logical::write(&mut context, la, root_of(&sa_el, &format!("{sa_id}:root-function")).as_deref()),
         None => logical::empty(&project_id),
     };
     let la_id = la_el.id().to_string();
@@ -130,7 +135,7 @@ pub fn export(model: &Model, file_stem: &str) -> Exported {
         la_el.push(pkg);
     }
     let mut pa_el = match model.physical_architecture.first() {
-        Some(pa) => physical::write(&mut context, pa, model.logical_architecture.first().map(|_| derived(&format!("{la_id}:root-function"))).as_deref()),
+        Some(pa) => physical::write(&mut context, pa, root_of(&la_el, &format!("{la_id}:root-function")).as_deref()),
         None => physical::empty(&project_id),
     };
     let pa_id = pa_el.id().to_string();
@@ -158,6 +163,8 @@ pub fn export(model: &Model, file_stem: &str) -> Exported {
         .and_then(|sa| sa.components.first().map(|c| context::id_of(&c.attributes, &format!("system-component:{}", c.name))));
     for machine in &model.state_machines {
         let (owner, name) = behaviour::owner_and_name(&context, machine, fallback.as_deref());
+        // A machine owned by a level goes to the level's component package.
+        let owner = owner.map(|o| level_component(&engineering, &o).unwrap_or(o));
         let name = own_name(&engineering, owner.as_deref(), name);
         let el = behaviour::state_machine(&context, machine, name);
         match owner.and_then(|o| engineering.find_mut(&o)) {
@@ -167,6 +174,8 @@ pub fn export(model: &Model, file_stem: &str) -> Exported {
     }
     for scenario in &model.scenarios {
         let (owner, name) = scenarios::owner(&context, &engineering, scenario);
+        // A scenario owned by a level belongs to the level's first capability.
+        let owner = owner.map(|o| level_capability(&engineering, &o).unwrap_or(o));
         let name = own_name(&engineering, owner.as_deref(), name);
         let Some(el) = scenarios::scenario(&mut context, &engineering, scenario, name) else { continue };
         match owner.and_then(|o| engineering.find_mut(&o)) {
@@ -198,6 +207,41 @@ pub fn export(model: &Model, file_stem: &str) -> Exported {
     let drawn = diagrams::diagrams(&mut context, &index, &model.diagrams, &format!("{file_stem}.capella"));
     let aird = aird(&project_id, file_stem, drawn);
     Exported { capella: document(&project), aird, afm, notes: context.notes }
+}
+
+/// The root function of a level, when it has one.
+fn root_of(level: &El, seed: &str) -> Option<String> {
+    let id = derived(seed);
+    level.find(&id).map(|_| id)
+}
+
+/// When `id` is an architecture, where its machines go: its component (or
+/// entity) package, as Capella keeps a machine owned by no component.
+fn level_component(engineering: &El, id: &str) -> Option<String> {
+    let level = engineering.children().iter().find(|l| l.id() == id)?;
+    if let Some(pkg) = level.children().iter().find(|c| c.kind().ends_with("ComponentPkg") || c.kind().ends_with(":EntityPkg")) {
+        return Some(pkg.id().to_string());
+    }
+    fn first(el: &El) -> Option<&El> {
+        if el.kind().ends_with("Component") && !el.kind().ends_with("Pkg") && el.get("actor") != Some("true") {
+            return Some(el);
+        }
+        el.children().iter().find_map(first)
+    }
+    first(level).map(|c| c.id().to_string())
+}
+
+/// When `id` is an architecture, its first capability (or capability realization).
+fn level_capability(engineering: &El, id: &str) -> Option<String> {
+    let level = engineering.children().iter().find(|l| l.id() == id)?;
+    fn first(el: &El) -> Option<&El> {
+        let k = el.kind();
+        if k.ends_with(":Capability") || k.ends_with(":OperationalCapability") || k.ends_with(":CapabilityRealization") {
+            return Some(el);
+        }
+        el.children().iter().find_map(first)
+    }
+    first(level).map(|c| c.id().to_string())
 }
 
 /// A machine's or scenario's own name: the import names one `Owner / Name`

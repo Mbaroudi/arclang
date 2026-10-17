@@ -158,7 +158,10 @@ pub(super) fn write(context: &mut Context, oa: &OperationalAnalysis) -> El {
         root.push(relations::chain_steps(context, el, process, &ends));
     }
     super::functions::place_exchanges(&mut root);
-    level.push(El::new("ownedFunctionPkg", "oa:OperationalActivityPkg", &derived(&format!("{id}:activities"))).attr("name", "Operational Activities").with(root));
+    // A level without functions has no root function, as in Capella's empty project.
+    if root.children().iter().any(|c| !c.kind().ends_with("Realization")) {
+        level.push(El::new("ownedFunctionPkg", "oa:OperationalActivityPkg", &derived(&format!("{id}:activities"))).attr("name", "Operational Activities").with(root));
+    }
 
     let mut pkg = El::new("ownedEntityPkg", "oa:EntityPkg", &derived(&format!("{id}:entities"))).attr("name", "Operational Entities");
     for entity in &tops {

@@ -153,7 +153,10 @@ pub(super) fn write(context: &mut Context, la: &LogicalArchitecture, above_root:
         root.push(relations::chain_steps(context, el, chain, &ends));
     }
     super::functions::place_exchanges(&mut root);
-    level.push(El::new("ownedFunctionPkg", "la:LogicalFunctionPkg", &derived(&format!("{id}:functions"))).attr("name", "Logical Functions").with(root));
+    // A level without functions has no root function, as in Capella's empty project.
+    if root.children().iter().any(|c| !c.kind().ends_with("Realization")) {
+        level.push(El::new("ownedFunctionPkg", "la:LogicalFunctionPkg", &derived(&format!("{id}:functions"))).attr("name", "Logical Functions").with(root));
+    }
 
     let mut pkg = El::new("ownedLogicalComponentPkg", "la:LogicalComponentPkg", &derived(&format!("{id}:components"))).attr("name", "Structure");
     for c in &la.components {

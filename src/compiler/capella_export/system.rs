@@ -166,7 +166,10 @@ pub(super) fn write(context: &mut Context, sa: &SystemAnalysis, above_root: Opti
         root.push(relations::chain_steps(context, el, chain, &exchange_ends));
     }
     super::functions::place_exchanges(&mut root);
-    level.push(El::new("ownedFunctionPkg", "ctx:SystemFunctionPkg", &derived(&format!("{id}:functions"))).attr("name", "System Functions").with(root));
+    // A level without functions has no root function, as in Capella's empty project.
+    if root.children().iter().any(|c| !c.kind().ends_with("Realization")) {
+        level.push(El::new("ownedFunctionPkg", "ctx:SystemFunctionPkg", &derived(&format!("{id}:functions"))).attr("name", "System Functions").with(root));
+    }
 
     let mut components = El::new("ownedSystemComponentPkg", "ctx:SystemComponentPkg", &derived(&format!("{id}:components"))).attr("name", "Structure");
     let mut parts = Vec::new();

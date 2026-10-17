@@ -160,7 +160,10 @@ pub(super) fn write(context: &mut Context, pa: &PhysicalArchitecture, above_root
         root.push(relations::chain_steps(context, el, chain, &ends));
     }
     super::functions::place_exchanges(&mut root);
-    level.push(El::new("ownedFunctionPkg", "pa:PhysicalFunctionPkg", &derived(&format!("{id}:functions"))).attr("name", "Physical Functions").with(root));
+    // A level without functions has no root function, as in Capella's empty project.
+    if root.children().iter().any(|c| !c.kind().ends_with("Realization")) {
+        level.push(El::new("ownedFunctionPkg", "pa:PhysicalFunctionPkg", &derived(&format!("{id}:functions"))).attr("name", "Physical Functions").with(root));
+    }
 
     // Links first: a link between bare nodes gives each node a port.
     let mut link_ports: Vec<(String, String)> = Vec::new();
