@@ -192,8 +192,9 @@ pub fn export(model: &Model, file_stem: &str) -> Exported {
     }
     traces::write(&mut context, &mut engineering, &model.traces);
     requirements::relations(&mut context, &mut engineering, model, &sa_id);
-    // Exchange categories go to the function package of the system analysis.
-    let functions = derived(&format!("{sa_id}:functions"));
+    // Exchange categories go to the function package of the system analysis,
+    // else of the first level that has one.
+    let functions = [&sa_id, &la_id, &pa_id, &oa_id].iter().map(|l| derived(&format!("{l}:functions"))).find(|f| engineering.find(f).is_some()).unwrap_or_else(|| derived(&format!("{sa_id}:functions")));
     let categories = relations::categories(&context, &functions);
     if let Some(pkg) = engineering.find_mut(&functions) {
         for category in categories {
