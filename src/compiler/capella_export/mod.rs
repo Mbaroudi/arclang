@@ -13,7 +13,9 @@
 //! The import reads the export back: Capella -> ArcLang -> Capella keeps
 //! what ArcLang holds.
 
+mod behaviour;
 mod context;
+mod data;
 mod functions;
 mod header;
 mod logical;
@@ -57,6 +59,7 @@ pub fn export(model: &Model, file_stem: &str) -> Exported {
     project.push(El::new("keyValuePairs", "capellacore:KeyValue", &derived(&format!("{project_id}:approach"))).attr("key", "projectApproach").attr("value", "SingletonComponents"));
 
     // Every level registers what it declares before any level refers to it.
+    data::register(&mut context, model);
     for oa in &model.operational_analysis {
         operational::register(&mut context, oa);
     }
@@ -77,21 +80,33 @@ pub fn export(model: &Model, file_stem: &str) -> Exported {
         None => operational::empty(&project_id),
     };
     let oa_id = oa_el.id().to_string();
-    let sa_el = match model.system_analysis.first() {
+    let mut sa_el = match model.system_analysis.first() {
         Some(sa) => system::write(&mut context, sa, &derived(&format!("{oa_id}:root-activity"))),
         None => system::empty(&project_id, &derived(&format!("{oa_id}:root-activity"))),
     };
     let sa_id = sa_el.id().to_string();
-    let la_el = match model.logical_architecture.first() {
+    if let Some(pkg) = data::package(&context, model, &sa_id) {
+        sa_el.push(pkg);
+    }
+    if let Some(pkg) = data::interfaces(&context, model, "system", &sa_id) {
+        sa_el.push(pkg);
+    }
+    let mut la_el = match model.logical_architecture.first() {
         Some(la) => logical::write(&mut context, la, &derived(&format!("{sa_id}:root-function"))),
         None => logical::empty(&project_id, &derived(&format!("{sa_id}:root-function"))),
     };
     let la_id = la_el.id().to_string();
-    let pa_el = match model.physical_architecture.first() {
+    if let Some(pkg) = data::interfaces(&context, model, "logical", &la_id) {
+        la_el.push(pkg);
+    }
+    let mut pa_el = match model.physical_architecture.first() {
         Some(pa) => physical::write(&mut context, pa, &derived(&format!("{la_id}:root-function"))),
         None => physical::empty(&project_id, &derived(&format!("{la_id}:root-function"))),
     };
     let pa_id = pa_el.id().to_string();
+    if let Some(pkg) = data::interfaces(&context, model, "physical", &pa_id) {
+        pa_el.push(pkg);
+    }
     let epbs_id = derived(&format!("{project_id}:epbs"));
     engineering.push(oa_el);
     engineering.push(sa_el.with(realization("ownedOperationalAnalysisRealizations", "ctx:OperationalAnalysisRealization", &sa_id, &oa_id)));
@@ -107,6 +122,19 @@ pub fn export(model: &Model, file_stem: &str) -> Exported {
     }
     if model.system_analysis.len() > 1 {
         context.note(format!("{} system analyses: Capella has one, the first is exported", model.system_analysis.len()));
+    }
+    // State machines go to their component.
+    let fallback = model
+        .system_analysis
+        .first()
+        .and_then(|sa| sa.components.first().map(|c| context::id_of(&c.attributes, &format!("system-component:{}", c.name))));
+    for machine in &model.state_machines {
+        let (owner, name) = behaviour::owner_and_name(&context, machine, fallback.as_deref());
+        let el = behaviour::state_machine(machine, name);
+        match owner.and_then(|o| engineering.find_mut(&o)) {
+            Some(owner) => owner.push(el),
+            None => context.note(format!("state machine '{}' left out: no component to own it", machine.name)),
+        }
     }
     project.push(engineering);
 

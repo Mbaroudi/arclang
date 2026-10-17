@@ -95,6 +95,13 @@ impl El {
         self.children.push(child);
         self
     }
+    /// The element of this id, at any depth.
+    pub(super) fn find_mut(&mut self, id: &str) -> Option<&mut El> {
+        if self.id() == id {
+            return Some(self);
+        }
+        self.children.iter_mut().find_map(|child| child.find_mut(id))
+    }
     pub(super) fn is_empty(&self) -> bool {
         self.children.is_empty()
     }

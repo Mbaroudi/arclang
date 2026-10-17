@@ -76,6 +76,16 @@ fn component(context: &Context, c: &LogicalComponent, placed: &[Placed<'_>]) -> 
     for allocation in functions::allocations(context, &c.id, placed, &c.allocated_functions) {
         el.push(allocation);
     }
+    for (interfaces, tag, kind, reference) in [
+        (&c.interfaces_out, "ownedInterfaceImplementations", "cs:InterfaceImplementation", "implementedInterface"),
+        (&c.interfaces_in, "ownedInterfaceUses", "cs:InterfaceUse", "usedInterface"),
+    ] {
+        for interface in interfaces {
+            if let Some(target) = context.resolve(&interface.name) {
+                el.push(El::new(tag, kind, &derived(&format!("{}->{target}:{reference}", c.id))).attr(reference, &format!("#{target}")));
+            }
+        }
+    }
     for sub in &c.sub_components {
         el.push(El::new("ownedFeatures", "cs:Part", &derived(&format!("{}:part", sub.id))).attr("name", &sub.name).attr("abstractType", &format!("#{}", sub.id)));
     }

@@ -20,6 +20,8 @@ pub(super) fn derived(seed: &str) -> String {
 pub(super) struct Context {
     /// ArcLang reference -> Capella id.
     refs: HashMap<String, String>,
+    /// Data types and classes by id and by name: a field or an element names a type.
+    types: HashMap<String, String>,
     /// Capella ids of the functions of every level.
     pub(super) functions: std::collections::HashSet<String>,
     /// What could not be written, for the report.
@@ -47,9 +49,16 @@ impl Context {
     pub(super) fn resolve(&self, reference: &str) -> Option<&str> {
         self.refs.get(reference).map(String::as_str).filter(|id| !id.is_empty())
     }
-    /// `#id` references, separated by spaces, for those that resolve.
-    pub(super) fn refs(&self, references: &[String]) -> String {
-        references.iter().filter_map(|r| self.resolve(r)).map(|id| format!("#{id}")).collect::<Vec<_>>().join(" ")
+    /// Record a type (data type, enumeration, class) under its id and name.
+    pub(super) fn register_type(&mut self, id: &str, name: &str) {
+        self.types.insert(id.to_string(), id.to_string());
+        self.types.entry(name.to_string()).or_insert_with(|| id.to_string());
+        self.register(id, id);
+        self.register(name, id);
+    }
+    /// The type a field, an element or a generalization names.
+    pub(super) fn resolve_type(&self, reference: &str) -> Option<&str> {
+        self.types.get(reference).map(String::as_str)
     }
     pub(super) fn note(&mut self, text: String) {
         if !self.notes.contains(&text) {
@@ -101,6 +110,5 @@ mod tests {
         context.register("p-1", "1");
         assert_eq!(context.resolve("Pump"), None);
         assert_eq!(context.resolve("p-1"), Some("1"));
-        assert_eq!(context.refs(&["p-1".to_string(), "x".to_string()]), "#1");
     }
 }
