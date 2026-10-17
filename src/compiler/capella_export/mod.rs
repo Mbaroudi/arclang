@@ -158,6 +158,7 @@ pub fn export(model: &Model, file_stem: &str) -> Exported {
         .and_then(|sa| sa.components.first().map(|c| context::id_of(&c.attributes, &format!("system-component:{}", c.name))));
     for machine in &model.state_machines {
         let (owner, name) = behaviour::owner_and_name(&context, machine, fallback.as_deref());
+        let name = own_name(&engineering, owner.as_deref(), name);
         let el = behaviour::state_machine(&context, machine, name);
         match owner.and_then(|o| engineering.find_mut(&o)) {
             Some(owner) => owner.push(el),
@@ -166,6 +167,7 @@ pub fn export(model: &Model, file_stem: &str) -> Exported {
     }
     for scenario in &model.scenarios {
         let (owner, name) = scenarios::owner(&context, &engineering, scenario);
+        let name = own_name(&engineering, owner.as_deref(), name);
         let Some(el) = scenarios::scenario(&mut context, &engineering, scenario, name) else { continue };
         match owner.and_then(|o| engineering.find_mut(&o)) {
             Some(owner) => owner.push(el),
@@ -196,6 +198,20 @@ pub fn export(model: &Model, file_stem: &str) -> Exported {
     let drawn = diagrams::diagrams(&mut context, &index, &model.diagrams, &format!("{file_stem}.capella"));
     let aird = aird(&project_id, file_stem, drawn);
     Exported { capella: document(&project), aird, afm, notes: context.notes }
+}
+
+/// A machine's or scenario's own name: the import names one `Owner / Name`
+/// when several share a name; the owner says it again, so the prefix goes.
+fn own_name<'a>(engineering: &El, owner: Option<&str>, name: &'a str) -> &'a str {
+    let owner_name = owner.and_then(|o| engineering.find(o)).and_then(|o| o.get("name"));
+    match (name.split_once(" / "), owner_name) {
+        // `Owner / Name (2)`: the import numbers a prefixed name that two share.
+        (Some((prefix, rest)), Some(owner_name)) if prefix == owner_name => match rest.rsplit_once(" (") {
+            Some((base, n)) if n.strip_suffix(')').is_some_and(|n| n.parse::<u32>().is_ok()) => base,
+            _ => rest,
+        },
+        _ => name,
+    }
 }
 
 /// The system analysis that holds the model: the one with Capella's id,
