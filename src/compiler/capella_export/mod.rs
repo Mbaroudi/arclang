@@ -16,6 +16,7 @@
 mod behaviour;
 mod context;
 mod data;
+mod diagram_drawer;
 mod diagrams;
 mod epbs;
 mod functions;
