@@ -537,6 +537,9 @@ pub fn build(ast: &Model, semantic: &SemanticModel) -> ElementGraph {
             }
             for behavior in &node.behavior_components {
                 let behaviour_uuid = builder.typed_element("BehaviorComponent", &behavior.id, &behavior.name, &uuid, &behavior.attributes);
+                for port in &behavior.ports {
+                    builder.port("ComponentPort", &behaviour_uuid, [&behavior.id, &behavior.name], &port.name, vec![("direction", json!(direction_text(&port.direction))), ("interface", json!(port.interface_type))]);
+                }
                 for function in &behavior.functions {
                     builder.level_function("PhysicalFunction", function, &behaviour_uuid);
                 }
@@ -547,6 +550,13 @@ pub fn build(ast: &Model, semantic: &SemanticModel) -> ElementGraph {
         }
         for path in &pa.paths {
             builder.typed_element("PhysicalPath", &path.id, &path.name, &root, &path.attributes);
+        }
+        for chain in &pa.functional_chains {
+            builder.typed_element("FunctionalChain", &chain.id, &chain.name, &root, &chain.attributes);
+        }
+        for capability in &pa.capability_realizations {
+            let owner = capability_owner(&builder, capability.parent.as_deref(), &root);
+            builder.typed_element("CapabilityRealization", &capability.id, &capability.name, &owner, &capability.attributes);
         }
     }
     for epbs in &ast.epbs {
@@ -689,6 +699,23 @@ pub fn build(ast: &Model, semantic: &SemanticModel) -> ElementGraph {
             }
         }
         for chain in &la.functional_chains {
+            if let Some(owner) = builder.resolve(&chain.id) {
+                builder.involvements(&owner, &chain.id, &chain.involves);
+            }
+        }
+    }
+    for pa in &ast.physical_architecture {
+        let level: Vec<_> = pa.capability_realizations.iter().map(|c| (c.id.as_str(), c.name.as_str(), &c.attributes)).collect();
+        builder.capability_relations(&level);
+        for capability in &pa.capability_realizations {
+            if let Some(owner) = builder.resolve(&capability.id) {
+                builder.involvements(&owner, &capability.id, &capability.involves);
+                if let Some(reference) = &capability.realizes {
+                    builder.relate("Realization", None, &capability.id, reference, &empty(), Vec::new());
+                }
+            }
+        }
+        for chain in &pa.functional_chains {
             if let Some(owner) = builder.resolve(&chain.id) {
                 builder.involvements(&owner, &chain.id, &chain.involves);
             }

@@ -446,6 +446,14 @@ impl Resolver<'_> {
                 let label = path.name.clone();
                 self.apply("PhysicalPath", &label, &mut path.attributes, None)?;
             }
+            for chain in &mut pa.functional_chains {
+                let label = chain.id.clone();
+                self.apply("FunctionalChain", &label, &mut chain.attributes, None)?;
+            }
+            for capability in &mut pa.capability_realizations {
+                let label = capability.id.clone();
+                self.apply("CapabilityRealization", &label, &mut capability.attributes, None)?;
+            }
         }
         for epbs in &mut ast.epbs {
             for system in &mut epbs.systems {

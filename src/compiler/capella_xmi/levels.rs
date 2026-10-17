@@ -147,9 +147,10 @@ fn chain_order(chain: &Node) -> Vec<String> {
 /// declarations whose `involves` lists the elements written for its steps.
 fn chains(writer: &mut Writer, depth: usize, holder: &Node, capella_kind: &str, keyword: &str, what: &'static str, kind: &'static str, accept: &[&str], taken: &mut HashSet<String>) {
     for chain in holder.find_all(capella_kind) {
-        let involved = writer.known_of(&chain_order(chain), accept);
+        let steps = chain_order(chain);
+        let involved = writer.known_of(&steps, accept);
         if involved.is_empty() {
-            writer.count("chains whose steps were not imported (left out)");
+            writer.count(if steps.is_empty() { "empty chains (left out: a chain involves at least one function)" } else { "chains whose steps were not imported (left out)" });
             continue;
         }
         writer.count(what);
@@ -670,11 +671,9 @@ pub(super) fn physical(writer: &mut Writer, pa: &Node) {
             let behaviour_id = writer.remember(behaviour, "BehaviorComponent");
             let behaviour_name = data::unique_name(&mut behaviour_names, &display_name(behaviour));
             writer.names.insert(behaviour_id.clone(), behaviour_name.clone());
-            for port in behaviour.tagged("ownedFeatures").filter(|f| f.is("fa:ComponentPort")) {
-                writer.port_owner.insert(port.id().to_string(), behaviour_id.clone());
-            }
             writer.line(2, &format!("behavior_component {} {{", string_literal(&behaviour_name)));
             header_attributes(writer, 3, behaviour, "BehaviorComponent");
+            component_ports(writer, 3, behaviour, &behaviour_id);
             if let Some(realization) = behaviour.tagged("ownedComponentRealizations").next() {
                 if let Some(realized) = first_ref(realization.attr("targetElement")) {
                     writer.line(3, &format!("allocated_component: {}", string_literal(&realized)));
@@ -711,14 +710,12 @@ pub(super) fn physical(writer: &mut Writer, pa: &Node) {
     let mut exchange_names: HashSet<String> = HashSet::new();
     for exchange in pa.find_all("fa:ComponentExchange") {
         let (Some(source), Some(target)) = (first_ref(exchange.attr("source")), first_ref(exchange.attr("target"))) else { continue };
-        let (Some(from), Some(to)) = (writer.port_owner.get(&source).cloned(), writer.port_owner.get(&target).cloned()) else {
+        // Bound to the ports of the behaviour components when they are written.
+        let end = |writer: &Writer, reference: &str| writer.port_ref.get(reference).cloned().or_else(|| writer.port_owner.get(reference).cloned().filter(|owner| writer.written(owner)));
+        let (Some(from), Some(to)) = (end(writer, &source), end(writer, &target)) else {
             writer.count("physical component exchanges whose end is not an imported component (left out)");
             continue;
         };
-        if !writer.written(&from) || !writer.written(&to) {
-            writer.count("physical component exchanges whose end is not an imported component (left out)");
-            continue;
-        }
         writer.count("physical exchanges");
         writer.remember(exchange, "PhysicalExchange");
         let name = data::unique_name(&mut exchange_names, &display_name(exchange));
@@ -763,13 +760,15 @@ pub(super) fn physical(writer: &mut Writer, pa: &Node) {
         writer.line(2, &format!("involves: {}", list_literal(&links)));
         writer.line(1, "}");
     }
-    let chains_count = pa.find_all("fa:FunctionalChain").len();
-    if chains_count > 0 {
-        writer.count_by("physical functional chains (left out: the physical level of ArcLang has no functional chain)", chains_count);
-    }
-    let realizations = pa.find_all("la:CapabilityRealization").len();
-    if realizations > 0 {
-        writer.count_by("physical capability realizations (left out: the physical level of ArcLang has no capability realization)", realizations);
+    chains(writer, 1, pa, "fa:FunctionalChain", "functional_chain", "functional chains", "FunctionalChain", &["PhysicalFunction"], &mut taken);
+    for realization in pa.find_all("la:CapabilityRealization") {
+        writer.count("capability realizations");
+        writer.remember(realization, "CapabilityRealization");
+        let name = data::unique_name(&mut taken, &display_name(realization));
+        writer.line(1, &format!("capability_realization {} {{", string_literal(&name)));
+        header_attributes(writer, 2, realization, "CapabilityRealization");
+        capability_relations(writer, 2, realization, &["PhysicalNode", "BehaviorComponent", "FunctionalChain"], Some("CapabilityRealization"));
+        writer.line(1, "}");
     }
     writer.line(0, "}");
     writer.line(0, "");

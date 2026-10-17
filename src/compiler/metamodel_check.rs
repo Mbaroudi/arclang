@@ -147,6 +147,12 @@ impl<'a> Checker<'a> {
             for function in &pa.functions {
                 self.walk_level_function("PhysicalFunction", function);
             }
+            for chain in &pa.functional_chains {
+                self.check_attrs("FunctionalChain", &chain.id, &chain.attributes);
+            }
+            for capability in &pa.capability_realizations {
+                self.check_attrs("CapabilityRealization", &capability.id, &capability.attributes);
+            }
             for node in &pa.nodes {
                 self.check_attrs("PhysicalNode", &node.id, &node.attributes);
                 for port in &node.ports {
@@ -157,6 +163,9 @@ impl<'a> Checker<'a> {
                 }
                 for behavior in &node.behavior_components {
                     self.check_attrs("BehaviorComponent", &behavior.id, &behavior.attributes);
+                    for port in &behavior.ports {
+                        self.check_attrs("ComponentPort", &format!("{}.{}", behavior.id, port.name), &HashMap::new());
+                    }
                     for function in &behavior.functions {
                         self.walk_level_function("PhysicalFunction", function);
                     }

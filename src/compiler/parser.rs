@@ -2340,6 +2340,8 @@ impl Parser {
         let mut physical_exchanges = Vec::new();
         let mut functions = Vec::new();
         let mut functional_exchanges = Vec::new();
+        let mut functional_chains = Vec::new();
+        let mut capability_realizations = Vec::new();
         let mut paths = Vec::new();
 
         while !self.check(&Token::RightBrace) && !self.is_at_end() {
@@ -2364,6 +2366,12 @@ impl Parser {
                 }
                 Token::Function => {
                     functions.push(self.parse_logical_function()?);
+                }
+                Token::FunctionalChain => {
+                    functional_chains.push(self.parse_functional_chain()?);
+                }
+                Token::CapabilityRealization | Token::Capability => {
+                    capability_realizations.extend(self.parse_capabilities()?);
                 }
                 Token::Identifier(ref id) if id == "physical_exchange" => {
                     physical_exchanges.push(self.parse_physical_exchange()?);
@@ -2420,6 +2428,8 @@ impl Parser {
             links,
             physical_exchanges,
             functional_exchanges,
+            functional_chains,
+            capability_realizations,
             paths,
         })
     }
@@ -3313,10 +3323,13 @@ impl Parser {
         
         let mut attributes = HashMap::new();
         let mut functions = Vec::new();
+        let mut ports = Vec::new();
 
         while !self.check(&Token::RightBrace) && !self.is_at_end() {
             if self.check(&Token::Function) && !self.peek_is_colon() {
                 functions.push(self.parse_logical_function()?);
+            } else if self.check(&Token::Port) && !self.peek_is_colon() {
+                ports.push(self.parse_component_port()?);
             } else if self.peek_is_colon() {
                 let (key, value) = self.parse_attribute()?;
                 attributes.insert(key, value);
@@ -3362,6 +3375,7 @@ impl Parser {
             allocated_functions,
             color,
             functions,
+            ports,
             attributes,
         })
     }

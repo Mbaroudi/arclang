@@ -190,6 +190,12 @@ pub(super) fn all_elements(model: &Model) -> Vec<ElementRef<'_>> {
                 .logical_architecture
                 .iter()
                 .flat_map(|la| &la.functional_chains),
+        )
+        .chain(
+            model
+                .physical_architecture
+                .iter()
+                .flat_map(|pa| &pa.functional_chains),
         );
     for chain in chains {
         let id = if chain.id.is_empty() {

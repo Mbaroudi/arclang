@@ -940,6 +940,10 @@ impl SemanticAnalyzer {
                     for func in &behavior.functions {
                         register_level_function(func, "Function", &mut functions, &mut all_elements, &mut duplicate_ids);
                     }
+                    for port in &behavior.ports {
+                        let port_id = format!("{}.{}", behavior.id, port.name);
+                        register_element(&mut all_elements, &mut duplicate_ids, port_id.clone(), ElementInfo::new(port_id, port.name.clone(), "ComponentPort"));
+                    }
                 }
             }
             for func in &pa.functions {
@@ -1016,6 +1020,11 @@ impl SemanticAnalyzer {
                     .iter()
                     .flat_map(|la| la.capability_realizations.iter().map(|c| (c, "Realization"))),
             )
+            .chain(
+                ast.physical_architecture
+                    .iter()
+                    .flat_map(|pa| pa.capability_realizations.iter().map(|c| (c, "PhysicalRealization"))),
+            )
             .collect();
         for (capability, kind) in &capability_sources {
             register_element(
@@ -1030,6 +1039,7 @@ impl SemanticAnalyzer {
             .iter()
             .flat_map(|sa| sa.functional_chains.iter())
             .chain(ast.logical_architecture.iter().flat_map(|la| la.functional_chains.iter()))
+            .chain(ast.physical_architecture.iter().flat_map(|pa| pa.functional_chains.iter()))
             .collect();
         for chain in &chain_sources {
             register_element(

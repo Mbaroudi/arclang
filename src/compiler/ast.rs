@@ -455,6 +455,12 @@ pub struct PhysicalArchitecture {
     /// Exchanges between the functions of this level.
     #[serde(default)]
     pub functional_exchanges: Vec<FunctionalExchange>,
+    /// Ordered physical functions realizing one dataflow path.
+    #[serde(default)]
+    pub functional_chains: Vec<FunctionalChain>,
+    /// Realizations of the logical capability realizations by the physical components.
+    #[serde(default)]
+    pub capability_realizations: Vec<Capability>,
     /// Ordered sets of physical links routing behavioural exchanges (Arcadia).
     #[serde(default)]
     pub paths: Vec<PhysicalPath>,
@@ -512,6 +518,9 @@ pub struct BehaviorComponent {
     /// The physical functions the component performs, declared inside it.
     #[serde(default)]
     pub functions: Vec<LogicalFunction>,
+    /// Oriented ports, as a logical component has them.
+    #[serde(default)]
+    pub ports: Vec<ComponentPort>,
     #[serde(default)]
     pub attributes: HashMap<String, AttributeValue>,
 }

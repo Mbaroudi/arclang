@@ -4,7 +4,7 @@
 use super::builder::{identity, properties, text, view_title, Builder};
 use super::functions::{add_functional_exchanges, add_level_function, FunctionTable, Placement};
 use super::{Diagram, EdgeKind, NodeKind, PortDirection, ViewKind};
-use crate::compiler::ast::{LogicalComponent, Model};
+use crate::compiler::ast::{self, LogicalComponent, Model};
 use std::collections::{BTreeMap, HashMap};
 
 const NODE_PROPERTIES: [&str; 6] = [
@@ -59,6 +59,15 @@ pub(super) fn build(model: &Model) -> Option<(Diagram, Vec<String>)> {
                     NodeKind::BehaviorComponent,
                     properties(&behavior.attributes, &["description", "safety_level", "asil"]),
                 );
+                for port in &behavior.ports {
+                    let direction = match port.direction {
+                        ast::PortDirection::In => PortDirection::In,
+                        ast::PortDirection::Out => PortDirection::Out,
+                        ast::PortDirection::InOut => PortDirection::InOut,
+                    };
+                    let interface = Some(port.interface_type.clone()).filter(|t| !t.is_empty());
+                    builder.add_port(child, &port.name, &port.name, direction, interface, None);
+                }
                 // The physical functions the component performs, declared inside it.
                 for function in &behavior.functions {
                     add_level_function(&mut builder, Some(child), function, &behavior.id);
@@ -197,6 +206,9 @@ pub(super) fn build(model: &Model) -> Option<(Diagram, Vec<String>)> {
     for pa in &model.physical_architecture {
         for path in &pa.paths {
             builder.add_chain(&path.id, &path.name, &path.involves);
+        }
+        for chain in &pa.functional_chains {
+            builder.add_chain(&chain.id, &chain.name, &chain.involves);
         }
     }
     builder.finish(view_title(

@@ -17,6 +17,7 @@ system_analysis "SA" {
     system_component "AEB" { id: "SC-AEB" port in "vehicle bus" port out "brake command" }
     actor "Driver" { id: "SA-Driver" port out "pedal" }
     component_exchange "pedal" { from_port: "SA-Driver.pedal" to_port: "SC-AEB.vehicle bus" }
+    capability "Brake automatically" { id: "CAP-1" }
 }
 logical_architecture "LA" {
     component "Sensors" {
@@ -34,6 +35,7 @@ logical_architecture "LA" {
     }
     function "Root logical function" { id: "LF-Root" }
     functional_exchange "targets" { from: "LF-Sense.targets" to: "LF-Decide.targets" }
+    capability_realization "Brake" { id: "LCR-1" realizes: "CAP-1" }
 }
 physical_architecture "PA" {
     node "ECU" {
@@ -44,10 +46,14 @@ physical_architecture "PA" {
         }
         behavior_component "Sensor driver" {
             id: "PC-Sensor"
+            port out "bus"
             function "Sense targets" { id: "PF-Sense" realizes: "LF-Sense" port out "targets" }
         }
     }
     functional_exchange "targets" { from: "PF-Sense.targets" to: "PF-Decide.targets" }
+    physical_exchange "bus frames" { from: "PC-Sensor.bus" to: "PC-Ctrl" }
+    functional_chain "Brake path" { id: "PFC-1" involves: ["PF-Sense", "PF-Decide"] }
+    capability_realization "Brake on the ECU" { id: "PCR-1" realizes: "LCR-1" involves: ["PC-Ctrl", "PFC-1"] }
 }
 "#;
 
@@ -85,6 +91,17 @@ fn physical_functions_live_in_behaviour_components_and_exchange_at_their_level()
     let pab = set.diagrams.iter().find(|d| d.id == "pab").expect("pab drawn");
     let edge = pab.edges.iter().find(|e| e.label == "targets" && e.source != "SF-Sense").expect("the physical exchange is drawn");
     assert!(edge.source == "PF-Sense" && edge.target == "PF-Decide", "{edge:?}");
+    // A behaviour component carries ports; a physical exchange binds to them; a chain orders physical functions.
+    assert_eq!(pa.nodes[0].behavior_components[1].ports.len(), 1);
+    let frames = pab.edges.iter().find(|e| e.label == "bus frames").expect("the physical exchange between behaviours");
+    assert_eq!(frames.source_port.as_deref(), Some("PC-Sensor::bus"));
+    assert_eq!(pa.functional_chains[0].involves, vec!["PF-Sense", "PF-Decide"]);
+    assert!(pab.chains.iter().any(|c| c.id == "PFC-1" || c.name == "Brake path"), "{:?}", pab.chains.iter().map(|c| &c.name).collect::<Vec<_>>());
+    // A physical capability realization realizes a logical one and involves behaviours and chains.
+    assert_eq!(pa.capability_realizations[0].realizes.as_deref(), Some("LCR-1"));
+    assert!(result.warnings.iter().all(|w| !w.contains("PCR-1")), "{:?}", result.warnings);
+    let cap = set.diagrams.iter().find(|d| d.id == "cap").expect("capabilities drawn");
+    assert!(cap.nodes.iter().any(|n| n.id == "PCR-1"), "{:?}", cap.nodes.iter().map(|n| &n.id).collect::<Vec<_>>());
 }
 
 #[test]

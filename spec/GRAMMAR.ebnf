@@ -192,6 +192,8 @@ PhysicalArchitecture ::= "physical_architecture" Name "{" PaElement* "}"
 PaElement       ::= "node" Name "{" NodeElement* "}"
                   | LevelFunctionDecl                         (* a function no behaviour component performs *)
                   | FunctionalExchange                        (* between physical functions *)
+                  | FunctionalChainDecl                       (* ordered physical functions *)
+                  | CapabilityRealizationDecl                 (* realizes a logical capability realization *)
                   | "component" Name PhysicalComponentBody?
                   | ConnectionDecl
                   | ( "physical_link" | "link" ) Name ( "->" Name )? AttributeBlock
@@ -202,8 +204,8 @@ PaElement       ::= "node" Name "{" NodeElement* "}"
 NodeElement     ::= "deploys" Name AttributeBlock?
                   | "port" Name AttributeBlock?               (* physical ports are UNORIENTED *)
                   | LevelFunctionDecl                         (* the physical functions the node itself performs *)
-                  | "behavior_component" Name "{" ( Attribute | LevelFunctionDecl )* "}"
-                                                              (* the physical functions it performs *)
+                  | "behavior_component" Name "{" ( Attribute | ComponentPortDecl | LevelFunctionDecl )* "}"
+                                                              (* its ports and the physical functions it performs *)
                   | "hardware_component" Name AttributeBlock?
                   | Attribute ;
 

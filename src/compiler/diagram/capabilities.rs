@@ -18,6 +18,7 @@ use std::collections::{BTreeMap, HashMap};
 const OPERATIONAL: usize = 0;
 const SYSTEM: usize = 1;
 const LOGICAL: usize = 2;
+const PHYSICAL: usize = 3;
 
 /// The capabilities drawn for one level, by id and by name.
 #[derive(Default)]
@@ -60,7 +61,7 @@ struct Declared<'a> {
 
 pub(super) fn build(model: &Model) -> Option<(Diagram, Vec<String>)> {
     let mut builder = Builder::new(ViewKind::Cap);
-    let mut levels: [Level<'_>; 3] = Default::default();
+    let mut levels: [Level<'_>; 4] = Default::default();
     let mut declared: Vec<Declared<'_>> = Vec::new();
 
     for oa in &model.operational_analysis {
@@ -96,7 +97,12 @@ pub(super) fn build(model: &Model) -> Option<(Diagram, Vec<String>)> {
         .iter()
         .flat_map(|la| &la.capability_realizations)
         .map(|capability| (LOGICAL, NodeKind::CapabilityRealization, capability));
-    for (level, kind, capability) in system.chain(logical) {
+    let physical = model
+        .physical_architecture
+        .iter()
+        .flat_map(|pa| &pa.capability_realizations)
+        .map(|capability| (PHYSICAL, NodeKind::CapabilityRealization, capability));
+    for (level, kind, capability) in system.chain(logical).chain(physical) {
         add_capability(
             &mut builder,
             &mut levels[level],
@@ -309,7 +315,7 @@ fn link_mission(builder: &mut Builder, capability: &Declared<'_>, what: &str) {
 
 fn link_realization(
     builder: &mut Builder,
-    levels: &[Level<'_>; 3],
+    levels: &[Level<'_>; 4],
     capability: &Declared<'_>,
     what: &str,
 ) {
