@@ -82,6 +82,16 @@ fn transition(id: &str, index: usize, t: &crate::compiler::ast::Transition, name
     Some(el)
 }
 
+/// Record the states of a machine, by id and by name.
+pub(super) fn register(context: &mut Context, machine: &StateMachine) {
+    let id = machine_id(machine);
+    let mut names = HashMap::new();
+    states_by_name(&id, &machine.states, &mut names);
+    for (reference, state) in names {
+        context.register(&reference, &state);
+    }
+}
+
 fn state(machine: &str, s: &State, inner: &HashMap<String, Vec<El>>) -> El {
     let kind = match s.kind {
         StateKind::Mode => "capellacommon:Mode",

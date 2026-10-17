@@ -22,6 +22,7 @@ mod logical;
 mod operational;
 mod physical;
 mod relations;
+mod scenarios;
 mod system;
 mod xml;
 
@@ -60,6 +61,9 @@ pub fn export(model: &Model, file_stem: &str) -> Exported {
 
     // Every level registers what it declares before any level refers to it.
     data::register(&mut context, model);
+    for machine in &model.state_machines {
+        behaviour::register(&mut context, machine);
+    }
     for oa in &model.operational_analysis {
         operational::register(&mut context, oa);
     }
@@ -134,6 +138,14 @@ pub fn export(model: &Model, file_stem: &str) -> Exported {
         match owner.and_then(|o| engineering.find_mut(&o)) {
             Some(owner) => owner.push(el),
             None => context.note(format!("state machine '{}' left out: no component to own it", machine.name)),
+        }
+    }
+    for scenario in &model.scenarios {
+        let (owner, name) = scenarios::owner(&context, &engineering, scenario);
+        let Some(el) = scenarios::scenario(&mut context, &engineering, scenario, name) else { continue };
+        match owner.and_then(|o| engineering.find_mut(&o)) {
+            Some(owner) => owner.push(el),
+            None => context.note(format!("scenario '{}' left out: no capability to own it", scenario.name)),
         }
     }
     project.push(engineering);

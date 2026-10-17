@@ -95,6 +95,24 @@ impl El {
         self.children.push(child);
         self
     }
+    /// The value of an attribute.
+    pub(super) fn get(&self, key: &str) -> Option<&str> {
+        self.attrs.iter().find(|(k, _)| k == key).map(|(_, v)| v.as_str())
+    }
+    /// The `xsi:type` of the element.
+    pub(super) fn kind(&self) -> &str {
+        self.attrs.iter().find(|(k, _)| k == "xsi:type").map(|(_, v)| v.as_str()).unwrap_or("")
+    }
+    pub(super) fn children(&self) -> &[El] {
+        &self.children
+    }
+    /// The element of this id, at any depth.
+    pub(super) fn find(&self, id: &str) -> Option<&El> {
+        if self.id() == id {
+            return Some(self);
+        }
+        self.children.iter().find_map(|child| child.find(id))
+    }
     /// The element of this id, at any depth.
     pub(super) fn find_mut(&mut self, id: &str) -> Option<&mut El> {
         if self.id() == id {
