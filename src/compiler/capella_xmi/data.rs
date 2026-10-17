@@ -220,6 +220,16 @@ pub(super) fn data_model(writer: &mut Writer, engineering: &Node) {
     // Property id -> (class id, field key written): an association names
     // its navigable end so.
     let mut field_keys: HashMap<String, (String, String)> = HashMap::new();
+    // A type whose name several types share is referenced by its id, so a
+    // field, a base or a collection names one type only.
+    let mut name_count: HashMap<&str, usize> = HashMap::new();
+    for name in type_names.values() {
+        *name_count.entry(name.as_str()).or_insert(0) += 1;
+    }
+    let reference = |id: &str| -> Option<String> {
+        let name = type_names.get(id)?;
+        Some(if name_count.get(name.as_str()).copied().unwrap_or(0) > 1 { id.to_string() } else { name.clone() })
+    };
     let mut generalizations = 0;
     for class in &classes {
         let name = unique_name(&mut taken, &display_name(class));
@@ -233,9 +243,9 @@ pub(super) fn data_model(writer: &mut Writer, engineering: &Node) {
         header_attributes(writer, 1, class, "Class");
         // The first generalization is `extends:`; a class specializes one class here.
         let supers: Vec<String> = class.tagged("ownedGeneralizations").filter_map(|g| first_ref(g.attr("super"))).collect();
-        if let Some(base) = supers.first().and_then(|id| type_names.get(id)) {
+        if let Some(base) = supers.first().and_then(|id| reference(id)) {
             writer.count("class generalizations");
-            writer.line(1, &format!("extends: {}", string_literal(base)));
+            writer.line(1, &format!("extends: {}", string_literal(&base)));
         }
         if supers.len() > 1 {
             writer.count_by("class generalizations beyond the first (left out: a class extends one class)", supers.len() - 1);
@@ -252,13 +262,13 @@ pub(super) fn data_model(writer: &mut Writer, engineering: &Node) {
             while !fields.insert(key.clone()) {
                 key.push('_');
             }
-            let type_name = first_ref(property.attr("abstractType")).and_then(|id| type_names.get(&id).cloned()).unwrap_or_else(|| "Data".to_string());
+            let type_name = first_ref(property.attr("abstractType")).and_then(|id| reference(&id)).unwrap_or_else(|| "Data".to_string());
             writer.count("class fields");
             field_keys.insert(property.id().to_string(), (class.id().to_string(), key.clone()));
             writer.line(1, &format!("{key}: {}", string_literal(&type_name)));
         }
         if class.is("information:Collection") {
-            if let Some(items) = first_ref(class.attr("type")).and_then(|id| type_names.get(&id).cloned()) {
+            if let Some(items) = first_ref(class.attr("type")).and_then(|id| reference(&id)) {
                 writer.line(1, &format!("items: {}", string_literal(&items)));
             }
         }

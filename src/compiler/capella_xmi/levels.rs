@@ -726,17 +726,23 @@ pub(super) fn physical(writer: &mut Writer, pa: &Node) {
         deployed_on.insert(behaviour, node);
     }
     let by_id: HashMap<String, &Node> = components.iter().map(|c| (c.id().to_string(), *c)).collect();
-    let is_node = |c: &Node| c.attr("nature") == Some("NODE");
-    let nodes: Vec<&Node> = components.iter().copied().filter(|c| is_node(c)).collect();
-    let behaviours: Vec<&Node> = components.iter().copied().filter(|c| !is_node(c)).collect();
+    let is_unset = |c: &Node| matches!(c.attr("nature"), None | Some("UNSET"));
+    let is_actor = |c: &Node| c.attr("actor") == Some("true");
     // The root physical system holds what is deployed nowhere: the component
-    // of no nature (Capella's root), else the first one.
+    // of no nature that is not an actor (Capella's root), else the first of
+    // no nature, else the first one.
     let root = components
         .iter()
-        .find(|c| matches!(c.attr("nature"), None | Some("UNSET")) && !deployed_on.contains_key(c.id()))
+        .find(|c| is_unset(c) && !is_actor(c) && !deployed_on.contains_key(c.id()))
+        .or_else(|| components.iter().find(|c| is_unset(c)))
         .or(components.first())
         .map(|c| c.id().to_string())
         .unwrap_or_default();
+    // Nodes: Capella's NODE components, and the actors of the level (of no
+    // nature, `actor="true"`), written as `node { actor: true }`.
+    let is_node = |c: &Node| c.attr("nature") == Some("NODE") || (is_unset(c) && is_actor(c) && c.id() != root);
+    let nodes: Vec<&Node> = components.iter().copied().filter(|c| is_node(c)).collect();
+    let behaviours: Vec<&Node> = components.iter().copied().filter(|c| !is_node(c)).collect();
     let mut written_nodes: HashSet<String> = HashSet::new();
     let mut nodes_to_write: Vec<&Node> = nodes.clone();
     if !nodes.iter().any(|n| n.id() == root) {

@@ -592,6 +592,34 @@ mod tests {
   </ownedModelRoots>
 </org.polarsys.capella.core.data.capellamodeller:Library>"#;
 
+    const PHYSICAL_ACTORS: &str = r#"<org.polarsys.capella.core.data.capellamodeller:Project xmi:version="2.0" xmlns:xmi="http://www.omg.org/XMI" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" id="prj" name="Actors first">
+  <ownedModelRoots xsi:type="org.polarsys.capella.core.data.capellamodeller:SystemEngineering" id="se" name="Actors first">
+    <ownedArchitectures xsi:type="org.polarsys.capella.core.data.pa:PhysicalArchitecture" id="pa" name="Physical Architecture">
+      <ownedPhysicalComponentPkg xsi:type="org.polarsys.capella.core.data.pa:PhysicalComponentPkg" id="pcp" name="Structure">
+        <ownedPhysicalComponents xsi:type="org.polarsys.capella.core.data.pa:PhysicalComponent" id="pax" name="Passenger" actor="true"/>
+        <ownedPhysicalComponents xsi:type="org.polarsys.capella.core.data.pa:PhysicalComponent" id="sys" name="IFE System"/>
+        <ownedPhysicalComponents xsi:type="org.polarsys.capella.core.data.pa:PhysicalComponent" id="soft" name="RTSoft" nature="BEHAVIOR"/>
+        <ownedPhysicalComponents xsi:type="org.polarsys.capella.core.data.pa:PhysicalComponent" id="bus" name="Bus" nature="NODE"/>
+      </ownedPhysicalComponentPkg>
+    </ownedArchitectures>
+  </ownedModelRoots>
+</org.polarsys.capella.core.data.capellamodeller:Project>"#;
+
+    #[test]
+    fn the_physical_root_is_the_component_of_no_nature_that_is_not_an_actor() {
+        let imported = import_strings(PHYSICAL_ACTORS, None, "actors.capella").expect("imports");
+        let text = &imported.source;
+        let at = |needle: &str| text.find(needle).unwrap_or_else(|| panic!("{needle} missing in:\n{text}"));
+        // The root comes first, as a node; the actor is a node flagged actor;
+        // the behaviour at package level belongs to the root.
+        assert!(at("node \"IFE System\"") < at("node \"Passenger\""), "{text}");
+        assert!(at("node \"IFE System\"") < at("behavior_component \"RTSoft\"") && at("behavior_component \"RTSoft\"") < at("node \"Passenger\""), "{text}");
+        let passenger = &text[at("node \"Passenger\"")..];
+        assert!(passenger[..passenger.find('}').unwrap_or(passenger.len())].contains("actor: true"), "{passenger}");
+        assert!(!text.contains("behavior_component \"Passenger\""), "{text}");
+        assert!(text.contains("node \"Bus\""), "{text}");
+    }
+
     #[test]
     fn a_capella_library_is_imported_like_a_project() {
         let imported = import_strings(LIBRARY, None, "Shared Library.capella").expect("imports");
