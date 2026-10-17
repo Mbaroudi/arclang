@@ -10,6 +10,7 @@ use arclang::compiler::{Compiler, CompilerConfig};
 
 const MODEL: &str = r#"model T { name: "t" }
 system_analysis "SA" {
+    id: "ARCH-SA"
     function "Sense" { id: "SF-Sense" port out "targets" }
     function "Decide" { id: "SF-Decide" port in "targets" }
     functional_exchange "targets" { id: "SA-targets" from: "SF-Sense.targets" to: "SF-Decide.targets" exchange_items: ["Targets"] categories: ["data"] description: "the detected targets" }
