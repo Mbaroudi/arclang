@@ -28,6 +28,7 @@ fn pseudo_kind(node: &Node) -> Option<&'static str> {
 /// written as nested states, its transitions where they are declared.
 pub(super) fn state_machines(writer: &mut Writer, engineering: &Node) {
     let mut taken: HashSet<String> = HashSet::new();
+    let unique = unique_names(writer);
     // The element owning each machine, to tell machines of one name apart.
     let mut owners: HashMap<String, String> = HashMap::new();
     let mut owner_ids: HashMap<String, String> = HashMap::new();
@@ -90,7 +91,7 @@ pub(super) fn state_machines(writer: &mut Writer, engineering: &Node) {
             .map(|e| (e.id().to_string(), display_name(e)))
             .collect();
         for region in &regions {
-            write_region(writer, 1, region, &state_names, &events, true);
+            write_region(writer, 1, region, &state_names, &events, true, &unique);
         }
         writer.line(0, "}");
         writer.line(0, "");
@@ -98,7 +99,7 @@ pub(super) fn state_machines(writer: &mut Writer, engineering: &Node) {
 }
 
 /// A region: its initial state, its states (nested regions inside them), its transitions.
-fn write_region(writer: &mut Writer, depth: usize, region: &Node, state_names: &HashMap<String, String>, events: &HashMap<String, String>, top: bool) {
+fn write_region(writer: &mut Writer, depth: usize, region: &Node, state_names: &HashMap<String, String>, events: &HashMap<String, String>, top: bool, unique: &HashSet<String>) {
     let states: Vec<&Node> = region.tagged("ownedStates").collect();
     let initial: Option<&Node> = states.iter().copied().find(|s| s.is("capellacommon:InitialPseudoState"));
     let transitions: Vec<&Node> = region.tagged("ownedTransitions").collect();
@@ -130,14 +131,14 @@ fn write_region(writer: &mut Writer, depth: usize, region: &Node, state_names: &
             writer.line(depth + 1, &format!("kind: {}", string_literal(kind)));
         }
         for (tag, key) in [("entry", "entry"), ("exit", "exit"), ("doActivity", "do")] {
-            let names: Vec<String> = refs(state.attr(tag)).iter().filter_map(|id| writer.names.get(id).cloned()).collect();
+            let names = behaviours_of(writer, &refs(state.attr(tag)), unique);
             if !names.is_empty() {
                 writer.line(depth + 1, &format!("{key}: {}", super::list_literal(&names)));
             }
         }
         let nested: Vec<&Node> = state.tagged("ownedRegions").collect();
         for sub in nested {
-            write_region(writer, depth + 1, sub, state_names, events, false);
+            write_region(writer, depth + 1, sub, state_names, events, false, unique);
         }
         writer.line(depth, "}");
     }
@@ -205,8 +206,30 @@ fn written_holder(writer: &Writer, engineering: &Node, id: &str) -> Option<Strin
         if writer.written(current) {
             return Some(writer.ids[current].clone());
         }
+        // The level itself (its block carries the architecture's id) when
+        // nothing written lies between.
+        if let Some(level) = engineering.tagged("ownedArchitectures").find(|a| a.id() == current) {
+            return Some(level.id().to_string());
+        }
         current = parent_of.get(current)?;
     }
+}
+
+/// What a state's entry, exit or do names: a function or activity, by its
+/// name when no other has it, else by its id; anything else is left out.
+fn behaviours_of(writer: &mut Writer, ids: &[String], unique: &HashSet<String>) -> Vec<String> {
+    let mut named = Vec::new();
+    for id in ids {
+        match writer.kinds.get(id).copied() {
+            Some("SystemFunction" | "LogicalFunction" | "PhysicalFunction" | "OperationalActivity") => {
+                let name = writer.names.get(id).cloned().unwrap_or_default();
+                named.push(if unique.contains(&format!("function:{name}")) { name } else { writer.ids[id].clone() });
+            }
+            Some(_) => writer.count("state entry/exit/do naming something that is not a function (left out)"),
+            None => writer.count("state entry/exit/do naming an element not written (left out)"),
+        }
+    }
+    named
 }
 
 /// What a lifeline stands for: the element its instance role represents.

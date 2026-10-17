@@ -1305,6 +1305,17 @@ impl SemanticAnalyzer {
             }
         }
 
+        // The level blocks are elements by their written id: a machine or a
+        // scenario owned by the level names it.
+        let levels = ast.operational_analysis.iter().map(|l| (&l.id, &l.name, "OperationalAnalysis"))
+            .chain(ast.system_analysis.iter().map(|l| (&l.id, &l.name, "SystemAnalysis")))
+            .chain(ast.logical_architecture.iter().map(|l| (&l.id, &l.name, "LogicalArchitecture")))
+            .chain(ast.physical_architecture.iter().map(|l| (&l.id, &l.name, "PhysicalArchitecture")));
+        for (id, name, kind) in levels {
+            if !id.is_empty() && !all_elements.contains_key(id) {
+                register_element(&mut all_elements, &mut duplicate_ids, id.clone(), ElementInfo::new(id.clone(), name.clone(), kind));
+            }
+        }
         // State machines and scenarios: register identities and validate
         // their internal references (declared states, participants).
         for machine in &ast.state_machines {

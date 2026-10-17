@@ -166,6 +166,13 @@ fn an_unknown_carried_exchange_or_owner_is_a_warning() {
 }
 
 #[test]
+fn a_level_block_is_an_element_an_owner_can_name() {
+    let at_level = MODEL.replace(r#"owner: "SC-AEB""#, r#"owner: "ARCH-SA""#);
+    let result = compile(&at_level);
+    assert!(result.warnings.iter().all(|w| !w.contains("ARCH-SA")), "{:?}", result.warnings);
+}
+
+#[test]
 fn a_region_keeps_the_transitions_declared_in_it() {
     let result = compile(MODEL);
     let machine = &result.ast.state_machines[0];

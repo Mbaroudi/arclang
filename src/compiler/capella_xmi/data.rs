@@ -164,6 +164,9 @@ pub(super) fn data_model(writer: &mut Writer, engineering: &Node) {
     let mut taken: HashSet<String> = HashSet::new();
     let mut type_names: HashMap<String, String> = HashMap::new();
     let mut first_of_name: HashMap<String, String> = HashMap::new();
+    // Capella id -> the name written for the type (unique in the file): what
+    // a field, a base or a collection references.
+    let mut written_names: HashMap<String, String> = HashMap::new();
     let units: HashMap<String, String> = engineering.find_all("information:Unit").into_iter().map(|u| (u.id().to_string(), display_name(u))).collect();
 
     // Data types and enumerations.
@@ -181,11 +184,15 @@ pub(super) fn data_model(writer: &mut Writer, engineering: &Node) {
             // A copy of a type declared already (Capella's predefined types).
             writer.ids.insert(node.id().to_string(), first.clone());
             type_names.insert(node.id().to_string(), name);
+            if let Some(written) = written_names.get(first).cloned() {
+                written_names.insert(node.id().to_string(), written);
+            }
             continue;
         }
         first_of_name.insert(format!("{keyword}:{name}"), node.id().to_string());
         type_names.insert(node.id().to_string(), name.clone());
         let written = unique_name(&mut taken, &name);
+        written_names.insert(node.id().to_string(), written.clone());
         if keyword == "enumeration" {
             writer.count("enumerations");
             writer.remember(node, "Enumeration");
@@ -220,25 +227,17 @@ pub(super) fn data_model(writer: &mut Writer, engineering: &Node) {
     // Property id -> (class id, field key written): an association names
     // its navigable end so.
     let mut field_keys: HashMap<String, (String, String)> = HashMap::new();
-    // A type whose name several types share is referenced by its id, so a
-    // field, a base or a collection names one type only.
-    // Counted over what is declared: the copies of a predefined type merge
-    // into one declaration, classes are each their own.
-    let mut name_count: HashMap<String, usize> = HashMap::new();
-    for key in first_of_name.keys() {
-        let name = key.split_once(':').map(|(_, name)| name).unwrap_or(key);
-        *name_count.entry(name.to_string()).or_insert(0) += 1;
+    // Classes get their written names first: a field may name a class
+    // declared further down. The written names are unique in the file, so
+    // a reference by written name is exact and survives an export.
+    let class_names: Vec<String> = classes.iter().map(|class| unique_name(&mut taken, &display_name(class))).collect();
+    for (class, name) in classes.iter().zip(&class_names) {
+        written_names.insert(class.id().to_string(), name.clone());
     }
-    for class in &classes {
-        *name_count.entry(display_name(class)).or_insert(0) += 1;
-    }
-    let reference = |id: &str| -> Option<String> {
-        let name = type_names.get(id)?;
-        Some(if name_count.get(name).copied().unwrap_or(0) > 1 { id.to_string() } else { name.clone() })
-    };
+    let reference = |id: &str| -> Option<String> { written_names.get(id).cloned() };
     let mut generalizations = 0;
-    for class in &classes {
-        let name = unique_name(&mut taken, &display_name(class));
+    for (class, name) in classes.iter().zip(&class_names) {
+        let name = name.clone();
         writer.count(match class.kind.as_str() {
             "information:Union" => "unions (as classes)",
             "information:Collection" => "collections (as classes)",
