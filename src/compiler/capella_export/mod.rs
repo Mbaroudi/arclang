@@ -16,6 +16,7 @@
 mod behaviour;
 mod context;
 mod data;
+mod epbs;
 mod functions;
 mod header;
 mod logical;
@@ -76,6 +77,9 @@ pub fn export(model: &Model, file_stem: &str) -> Exported {
     for pa in &model.physical_architecture {
         physical::register(&mut context, pa);
     }
+    for e in &model.epbs {
+        epbs::register(&mut context, e);
+    }
 
     let engineering_id = derived(&format!("{project_id}:engineering"));
     let mut engineering = El::new("ownedModelRoots", "capellamodeller:SystemEngineering", &engineering_id).attr("name", &name);
@@ -111,16 +115,16 @@ pub fn export(model: &Model, file_stem: &str) -> Exported {
     if let Some(pkg) = data::interfaces(&context, model, "physical", &pa_id) {
         pa_el.push(pkg);
     }
-    let epbs_id = derived(&format!("{project_id}:epbs"));
+    let epbs_el = match model.epbs.first() {
+        Some(e) => epbs::write(&context, e, &project_id),
+        None => El::new("ownedArchitectures", "epbs:EPBSArchitecture", &derived(&format!("{project_id}:epbs"))).attr("name", "EPBS Architecture"),
+    };
+    let epbs_id = epbs_el.id().to_string();
     engineering.push(oa_el);
     engineering.push(sa_el.with(realization("ownedOperationalAnalysisRealizations", "ctx:OperationalAnalysisRealization", &sa_id, &oa_id)));
     engineering.push(la_el.with(realization("ownedSystemAnalysisRealizations", "la:SystemAnalysisRealization", &la_id, &sa_id)));
     engineering.push(pa_el.with(realization("ownedLogicalArchitectureRealizations", "pa:LogicalArchitectureRealization", &pa_id, &la_id)));
-    engineering.push(
-        El::new("ownedArchitectures", "epbs:EPBSArchitecture", &epbs_id)
-            .attr("name", "EPBS Architecture")
-            .with(realization("ownedPhysicalArchitectureRealizations", "epbs:PhysicalArchitectureRealization", &epbs_id, &pa_id)),
-    );
+    engineering.push(epbs_el.with(realization("ownedPhysicalArchitectureRealizations", "epbs:PhysicalArchitectureRealization", &epbs_id, &pa_id)));
     if model.operational_analysis.len() > 1 {
         context.note(format!("{} operational analyses: Capella has one, the first is exported", model.operational_analysis.len()));
     }
