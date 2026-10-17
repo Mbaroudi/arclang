@@ -70,6 +70,8 @@ fn property_value(owner: &str, key: &str, value: &AttributeValue) -> Option<El> 
     let id = derived(&format!("{owner}:pv:{key}"));
     let el = |kind: &str, text: String| Some(El::new("ownedPropertyValues", kind, &id).attr("name", name).attr("value", &text));
     match value {
+        // The parser keeps `true` and `false` as text.
+        AttributeValue::String(text) if text == "true" || text == "false" => el("capellacore:BooleanPropertyValue", text.clone()),
         AttributeValue::String(text) => el("capellacore:StringPropertyValue", text.clone()),
         AttributeValue::Boolean(flag) => el("capellacore:BooleanPropertyValue", flag.to_string()),
         AttributeValue::Number(n) if n.fract() == 0.0 && n.abs() < 1e15 => el("capellacore:IntegerPropertyValue", format!("{}", *n as i64)),
