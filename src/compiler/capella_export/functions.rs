@@ -101,3 +101,46 @@ pub(super) fn allocations(context: &Context, component: &str, placed: &[Placed<'
         })
         .collect()
 }
+
+/// Move each functional exchange of the root function into the lowest
+/// function holding both its ends, as Capella owns exchanges.
+pub(super) fn place_exchanges(root: &mut El) {
+    // Parent of every function and port, under the root.
+    let mut parent: HashMap<String, String> = HashMap::new();
+    fn walk(el: &El, parent: &mut HashMap<String, String>) {
+        for child in el.children() {
+            let kind = child.kind();
+            if kind.ends_with("Function") || kind.ends_with("OperationalActivity") || kind.ends_with("InputPort") || kind.ends_with("OutputPort") {
+                parent.insert(child.id().to_string(), el.id().to_string());
+                walk(child, parent);
+            }
+        }
+    }
+    walk(root, &mut parent);
+    let root_id = root.id().to_string();
+    let ancestors = |id: &str| -> Vec<String> {
+        let mut chain = Vec::new();
+        let mut current = parent.get(id).cloned();
+        while let Some(p) = current {
+            chain.push(p.clone());
+            current = parent.get(&p).cloned();
+        }
+        chain
+    };
+    let exchanges = root.take_children(|c| c.kind().ends_with(":FunctionalExchange"));
+    for exchange in exchanges {
+        let end = |key: &str| exchange.get(key).map(|r| r.trim_start_matches('#').to_string()).unwrap_or_default();
+        // The functions above an end: above a port, above its function.
+        let above = |id: String| -> Vec<String> {
+            let chain = ancestors(&id);
+            let is_port = root.find(&id).is_some_and(|e| e.kind().ends_with("InputPort") || e.kind().ends_with("OutputPort"));
+            if is_port { chain.into_iter().skip(1).collect() } else { chain }
+        };
+        let (from, to) = (above(end("source")), above(end("target")));
+        let holder = from.iter().find(|f| to.contains(f)).cloned().unwrap_or_else(|| root_id.clone());
+        match root.find_mut(&holder) {
+            Some(owner) => owner.push(exchange),
+            None => root.push(exchange),
+        }
+    }
+}

@@ -152,6 +152,7 @@ pub(super) fn write(context: &mut Context, la: &LogicalArchitecture, above_root:
         let el = apply(El::new("ownedFunctionalChains", "fa:FunctionalChain", &chain.id).attr("name", &chain.name), &chain.attributes, &["involves"]);
         root.push(relations::chain_steps(context, el, chain, &ends));
     }
+    super::functions::place_exchanges(&mut root);
     level.push(El::new("ownedFunctionPkg", "la:LogicalFunctionPkg", &derived(&format!("{id}:functions"))).attr("name", "Logical Functions").with(root));
 
     let mut pkg = El::new("ownedLogicalComponentPkg", "la:LogicalComponentPkg", &derived(&format!("{id}:components"))).attr("name", "Structure");

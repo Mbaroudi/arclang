@@ -159,6 +159,7 @@ pub(super) fn write(context: &mut Context, pa: &PhysicalArchitecture, above_root
         let el = apply(El::new("ownedFunctionalChains", "fa:FunctionalChain", &chain.id).attr("name", &chain.name), &chain.attributes, &["involves"]);
         root.push(relations::chain_steps(context, el, chain, &ends));
     }
+    super::functions::place_exchanges(&mut root);
     level.push(El::new("ownedFunctionPkg", "pa:PhysicalFunctionPkg", &derived(&format!("{id}:functions"))).attr("name", "Physical Functions").with(root));
 
     // Links first: a link between bare nodes gives each node a port.

@@ -162,6 +162,7 @@ pub(super) fn write(context: &mut Context, sa: &SystemAnalysis, above_root: &str
         let el = apply(El::new("ownedFunctionalChains", "fa:FunctionalChain", &chain.id).attr("name", &chain.name), &chain.attributes, &["involves"]);
         root.push(relations::chain_steps(context, el, chain, &exchange_ends));
     }
+    super::functions::place_exchanges(&mut root);
     level.push(El::new("ownedFunctionPkg", "ctx:SystemFunctionPkg", &derived(&format!("{id}:functions"))).attr("name", "System Functions").with(root));
 
     let mut components = El::new("ownedSystemComponentPkg", "ctx:SystemComponentPkg", &derived(&format!("{id}:components"))).attr("name", "Structure");

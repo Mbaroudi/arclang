@@ -155,6 +155,7 @@ pub(super) fn write(context: &mut Context, oa: &OperationalAnalysis) -> El {
         let el = apply(El::new("ownedFunctionalChains", "oa:OperationalProcess", &process.id).attr("name", &process.name), &process.attributes, &["involves"]);
         root.push(relations::chain_steps(context, el, process, &ends));
     }
+    super::functions::place_exchanges(&mut root);
     level.push(El::new("ownedFunctionPkg", "oa:OperationalActivityPkg", &derived(&format!("{id}:activities"))).attr("name", "Operational Activities").with(root));
 
     let mut pkg = El::new("ownedEntityPkg", "oa:EntityPkg", &derived(&format!("{id}:entities"))).attr("name", "Operational Entities");
