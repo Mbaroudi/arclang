@@ -222,13 +222,19 @@ pub(super) fn data_model(writer: &mut Writer, engineering: &Node) {
     let mut field_keys: HashMap<String, (String, String)> = HashMap::new();
     // A type whose name several types share is referenced by its id, so a
     // field, a base or a collection names one type only.
-    let mut name_count: HashMap<&str, usize> = HashMap::new();
-    for name in type_names.values() {
-        *name_count.entry(name.as_str()).or_insert(0) += 1;
+    // Counted over what is declared: the copies of a predefined type merge
+    // into one declaration, classes are each their own.
+    let mut name_count: HashMap<String, usize> = HashMap::new();
+    for key in first_of_name.keys() {
+        let name = key.split_once(':').map(|(_, name)| name).unwrap_or(key);
+        *name_count.entry(name.to_string()).or_insert(0) += 1;
+    }
+    for class in &classes {
+        *name_count.entry(display_name(class)).or_insert(0) += 1;
     }
     let reference = |id: &str| -> Option<String> {
         let name = type_names.get(id)?;
-        Some(if name_count.get(name.as_str()).copied().unwrap_or(0) > 1 { id.to_string() } else { name.clone() })
+        Some(if name_count.get(name).copied().unwrap_or(0) > 1 { id.to_string() } else { name.clone() })
     };
     let mut generalizations = 0;
     for class in &classes {

@@ -58,8 +58,8 @@ pub(super) fn state_machines(writer: &mut Writer, engineering: &Node) {
         writer.names.insert(machine.id().to_string(), name.clone());
         writer.line(0, &format!("state_machine {} {{", string_literal(&name)));
         // The element owning the machine, so an export gives it back.
-        if let Some(owner) = owner_ids.get(machine.id()).filter(|id| writer.written(id)) {
-            writer.line(1, &format!("owner: {}", string_literal(&writer.ids[owner].clone())));
+        if let Some(owner) = owner_ids.get(machine.id()).and_then(|id| written_holder(writer, engineering, id)) {
+            writer.line(1, &format!("owner: {}", string_literal(&owner)));
         }
         writer.line(1, &format!("id: {}", string_literal(machine.id())));
         data::applied_values(writer, 1, machine, "StateMachine");
@@ -187,6 +187,27 @@ fn write_region(writer: &mut Writer, depth: usize, region: &Node, state_names: &
 }
 
 // --- scenarios -----------------------------------------------------------------------
+
+/// The nearest written element holding `id`: the owner itself, else the
+/// first written ancestor (a machine owned by a pruned root component
+/// belongs to the element above it).
+fn written_holder(writer: &Writer, engineering: &Node, id: &str) -> Option<String> {
+    let mut parent_of: HashMap<&str, &str> = HashMap::new();
+    for node in engineering.descendants() {
+        for child in &node.children {
+            if !child.id().is_empty() {
+                parent_of.insert(child.id(), node.id());
+            }
+        }
+    }
+    let mut current = id;
+    loop {
+        if writer.written(current) {
+            return Some(writer.ids[current].clone());
+        }
+        current = parent_of.get(current)?;
+    }
+}
 
 /// What a lifeline stands for: the element its instance role represents.
 fn represented(writer: &Writer, role: &Node) -> Option<String> {
@@ -368,8 +389,8 @@ pub(super) fn scenarios(writer: &mut Writer, engineering: &Node) {
         writer.names.insert(scenario.id().to_string(), name.clone());
         writer.line(0, &format!("scenario {} {{", string_literal(&name)));
         header_attributes(writer, 1, scenario, "Scenario");
-        if let Some(owner) = owner_ids.get(scenario.id()).filter(|id| writer.written(id)) {
-            writer.line(1, &format!("owner: {}", string_literal(&writer.ids[owner].clone())));
+        if let Some(owner) = owner_ids.get(scenario.id()).and_then(|id| written_holder(writer, engineering, id)) {
+            writer.line(1, &format!("owner: {}", string_literal(&owner)));
         }
         if let Some(kind) = scenario.attr("kind") {
             writer.line(1, &format!("kind: {}", string_literal(kind)));
