@@ -1309,6 +1309,25 @@ impl CliRunner {
                             .map_err(|e| CliError::Compilation(format!("HTML generation failed: {}", e)))?;
                         html
                     }
+                    ExportFormat::Capella => {
+                        // A Capella 7 project: the .capella, and the .aird and
+                        // .afm beside it that Capella needs to open it.
+                        let capella_path = if output.extension().is_some_and(|e| e == "capella") { output.clone() } else { output.with_extension("capella") };
+                        let stem = capella_path.file_stem().map(|s| s.to_string_lossy().to_string()).unwrap_or_else(|| "model".to_string());
+                        let exported = crate::compiler::capella_export::export(&result.ast, &stem);
+                        if let Some(dir) = capella_path.parent().filter(|d| !d.as_os_str().is_empty()) {
+                            std::fs::create_dir_all(dir).map_err(CliError::Io)?;
+                        }
+                        std::fs::write(&capella_path, &exported.capella).map_err(CliError::Io)?;
+                        std::fs::write(capella_path.with_extension("aird"), &exported.aird).map_err(CliError::Io)?;
+                        std::fs::write(capella_path.with_extension("afm"), &exported.afm).map_err(CliError::Io)?;
+                        for note in &exported.notes {
+                            println!("  note: {note}");
+                        }
+                        println!("✓ Export successful");
+                        println!("  Output: {} (+ .aird, .afm)", capella_path.display());
+                        return Ok(());
+                    }
                     ExportFormat::SysML => {
                         // SysML v2 textual notation (interoperability subset)
                         crate::compiler::sysmlv2_generator::generate_sysmlv2(&result.semantic_model, &result.ast)

@@ -30,6 +30,7 @@ pub mod capella_metamodel;
 pub mod codegen;
 pub mod capella_importer;
 pub mod capella_xmi;
+pub mod capella_export;
 pub mod sysmlv2_generator;
 pub mod sysml_syntax;
 pub mod sysml_records;
