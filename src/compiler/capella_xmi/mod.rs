@@ -432,17 +432,33 @@ pub fn import_strings(capella_xml: &str, aird_xml: Option<&str>, file_name: &str
     behaviour::scenarios(&mut writer, engineering);
     data::requirement_relations(&mut writer, project);
 
+    // Allocations of functional exchanges to component exchanges, and of
+    // function ports to component ports: `allocates` traces.
+    let traceable = |writer: &Writer, id: &str| matches!(writer.kinds.get(id).copied(), Some("FunctionalExchange" | "ComponentExchange" | "PhysicalExchange" | "FunctionPort" | "ComponentPort" | "PhysicalPort"));
+    for allocation in project.descendants().into_iter().filter(|n| matches!(n.kind.as_str(), "fa:ComponentExchangeFunctionalExchangeAllocation" | "information:PortAllocation" | "fa:ComponentPortAllocation")) {
+        if let (Some(source), Some(target)) = (first_ref(allocation.attr("sourceElement")), first_ref(allocation.attr("targetElement"))) {
+            if traceable(&writer, &source) && traceable(&writer, &target) {
+                writer.traces.push((source, "allocates", target));
+            } else {
+                writer.count("allocations of an operational interaction or an unwritten end (left out)");
+            }
+        }
+    }
     // Realizations between what was written.
     let traces = std::mem::take(&mut writer.traces);
     let mut seen = HashSet::new();
     for (from, kind, to) in traces {
         if writer.written(&from) && writer.written(&to) && seen.insert((from.clone(), kind, to.clone())) {
-            writer.count("realization traces");
+            writer.count(if kind == "allocates" { "allocation traces" } else { "realization traces" });
             // Scenarios and state machines are known by name, the rest by id.
             let by_name = |writer: &Writer, id: &str| matches!(writer.kinds.get(id), Some(&"Scenario" | &"StateMachine"));
             let reference = |writer: &Writer, id: &str| if by_name(writer, id) { writer.names[id].clone() } else { writer.ids[id].clone() };
             let (from, to) = (reference(&writer, &from), reference(&writer, &to));
-            writer.line(0, &format!("trace {} {kind} {}", string_literal(&from), string_literal(&to)));
+            if kind == "allocates" {
+                writer.line(0, &format!("trace {} -> {} {{ trace_type: \"allocates\" }}", string_literal(&from), string_literal(&to)));
+            } else {
+                writer.line(0, &format!("trace {} {kind} {}", string_literal(&from), string_literal(&to)));
+            }
         }
     }
     writer.line(0, "");

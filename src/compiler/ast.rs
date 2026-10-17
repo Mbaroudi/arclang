@@ -935,6 +935,9 @@ pub struct ClassDef {
     #[serde(default)]
     pub id: String,
     pub name: String,
+    /// The class this one specializes (`extends: Base`), when any.
+    #[serde(default)]
+    pub extends: Option<String>,
     /// Fields: name -> type.
     pub fields: Vec<DataAttribute>,
     pub attributes: HashMap<String, AttributeValue>,

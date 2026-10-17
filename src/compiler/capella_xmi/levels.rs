@@ -672,9 +672,11 @@ pub(super) fn physical(writer: &mut Writer, pa: &Node) {
         let mut port_names: HashSet<String> = HashSet::new();
         for port in node.tagged("ownedFeatures").filter(|f| f.is("cs:PhysicalPort")) {
             writer.port_owner.insert(port.id().to_string(), node_id.clone());
-            writer.ids.insert(port.id().to_string(), port.id().to_string());
             writer.kinds.insert(port.id().to_string(), "PhysicalPort");
             let label = data::unique_name(&mut port_names, &display_name(port));
+            // A trace names a physical port as `Node.port`.
+            writer.ids.insert(port.id().to_string(), format!("{node_id}.{label}"));
+            writer.port_ref.insert(port.id().to_string(), format!("{node_id}.{label}"));
             writer.count("physical ports");
             writer.line(2, &format!("port {} {{ id: {} }}", string_literal(&label), string_literal(port.id())));
         }

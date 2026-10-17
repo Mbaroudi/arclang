@@ -355,7 +355,8 @@ impl Metamodel {
             kind("EpbsItem", Layer::Epbs, "ConfigurationItem (HW/SW)", "part def", "Leaf configuration item or assembly.",
                 concat(vec![common(), vec![attr("part_number", AttrType::Text, "Part number."), attr("supplier", AttrType::Text, "Supplier.")], resources()])),
             // ---- Data ----
-            kind("Class", Layer::Data, "Class", "attribute def", "Structured data element; every attribute but `id` and `description` is a field, kept in declared order.", common()),
+            kind("Class", Layer::Data, "Class", "attribute def", "Structured data element; every attribute but `id`, `description` and `extends` is a field, kept in declared order.",
+                concat(vec![common(), vec![attr("extends", AttrType::Reference("Class"), "The class this one specializes.")]])),
             kind("Enumeration", Layer::Data, "Enumeration", "enum def", "Enumerated data type.",
                 concat(vec![common(), vec![attr("values", list(AttrType::Text), "Literals.")]])),
             kind("DataType", Layer::Data, "DataType", "attribute def", "Primitive data type.",

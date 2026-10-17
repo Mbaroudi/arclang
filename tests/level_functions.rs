@@ -160,3 +160,30 @@ fn ports_exchanges_states_and_transitions_are_traceable_across_levels() {
     assert!(traces.contains(&("LA-targets", "SA-targets")), "{traces:?}");
     assert!(traces.contains(&("ST-On", "ST-Off")) && traces.contains(&("TR-1", "ST-On")), "{traces:?}");
 }
+
+#[test]
+fn a_class_extends_another_and_the_data_view_draws_the_generalization() {
+    let model = r#"model T { name: "t" }
+class "Vehicle" { id: "CL-Vehicle" speed: "Float" }
+class "Car" { id: "CL-Car" extends: "CL-Vehicle" doors: "Integer" }
+system_analysis "SA" {
+    function "A" { id: "SF-A" port out "x" }
+    function "B" { id: "SF-B" port in "x" }
+    functional_exchange "x" { id: "FE-x" from: "SF-A.x" to: "SF-B.x" }
+    system_component "S" { id: "SC-S" port out "bus" }
+    actor "U" { id: "SA-U" port in "bus" }
+    component_exchange "bus" { id: "CE-bus" from_port: "SC-S.bus" to_port: "SA-U.bus" }
+}
+trace "CE-bus" -> "FE-x" { trace_type: "allocates" }
+trace "SC-S.bus" -> "SF-A.x" { trace_type: "allocates" }
+"#;
+    let result = compile(model);
+    let car = result.ast.classes.iter().find(|c| c.id == "CL-Car").expect("Car");
+    assert_eq!(car.extends.as_deref(), Some("CL-Vehicle"));
+    assert_eq!(car.fields.iter().map(|f| f.name.as_str()).collect::<Vec<_>>(), ["doors"], "extends is not a field");
+    let set = build_diagrams(&result.ast);
+    let cdb = set.diagrams.iter().find(|d| d.id == "cdb").expect("cdb");
+    assert!(cdb.edges.iter().any(|e| e.source == "CL-Car" && e.target == "CL-Vehicle"), "{:?}", cdb.edges);
+    let traces: Vec<(&str, &str, &str)> = result.semantic_model.traces.iter().map(|t| (t.from.as_str(), t.trace_type.as_str(), t.to.as_str())).collect();
+    assert!(traces.contains(&("CE-bus", "allocates", "FE-x")) && traces.contains(&("SC-S.bus", "allocates", "SF-A.x")), "{traces:?}");
+}

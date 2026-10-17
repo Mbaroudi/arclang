@@ -572,6 +572,9 @@ pub fn build(ast: &Model, semantic: &SemanticModel) -> ElementGraph {
     }
     for class in &ast.classes {
         builder.element("Class", &class.id, &class.name, &root, &class.attributes);
+        if let Some(base) = &class.extends {
+            builder.relate("Specialization", None, &class.id, base, &empty(), Vec::new());
+        }
         builder.set_extra(
             "fields",
             Value::Array(class.fields.iter().map(|f| json!({"name": f.name, "type": f.attr_type})).collect()),

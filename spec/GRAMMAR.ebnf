@@ -264,9 +264,10 @@ UnitSymbol      ::= Identifier ( "/" Identifier )?     (* must be in the unit ta
 (* ---- Data Model (Arcadia: Class, DataType, Enumeration, Exchange Item) -------------------- *)
 
 ClassDecl        ::= "class" Name AttributeBlock ;
-                     (* every attribute but id: and description: is a field,
-                        name -> type. Fields keep their declared order; one
-                        declared twice is an ERROR. *)
+                     (* every attribute but id:, description: and extends: is a
+                        field, name -> type. Fields keep their declared order;
+                        one declared twice is an ERROR. extends: <class ref>
+                        names the class this one specializes. *)
 EnumerationDecl  ::= "enumeration" Name AttributeBlock ;       (* values: [ Name* ] *)
 DataTypeDecl     ::= "data_type" Name AttributeBlock ;
                      (* base:, unit: <UnitSymbol> — a symbol outside the unit

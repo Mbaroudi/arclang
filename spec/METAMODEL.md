@@ -695,7 +695,7 @@ Leaf configuration item or assembly.
 
 #### Class
 
-Structured data element; every attribute but `id` and `description` is a field, kept in declared order.
+Structured data element; every attribute but `id`, `description` and `extends` is a field, kept in declared order.
 
 - Arcadia: `Class`
 - SysML v2: `attribute def`
@@ -706,6 +706,7 @@ Structured data element; every attribute but `id` and `description` is a field, 
 | `name` | `text` | Display name; overrides the block name. |
 | `description` | `text` | Free-text description. |
 | `is` | `ref<Type>` | User-defined type of the element, or a list of types; their attributes (and ports, for components) are inherited. |
+| `extends` | `ref<Class>` | The class this one specializes. |
 
 #### Enumeration
 

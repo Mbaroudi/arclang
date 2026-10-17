@@ -223,6 +223,15 @@ pub(super) fn data_model(writer: &mut Writer, engineering: &Node) {
         writer.remember(class, "Class");
         writer.line(0, &format!("class {} {{", string_literal(&name)));
         header_attributes(writer, 1, class, "Class");
+        // The first generalization is `extends:`; a class specializes one class here.
+        let supers: Vec<String> = class.tagged("ownedGeneralizations").filter_map(|g| first_ref(g.attr("super"))).collect();
+        if let Some(base) = supers.first().and_then(|id| type_names.get(id)) {
+            writer.count("class generalizations");
+            writer.line(1, &format!("extends: {}", string_literal(base)));
+        }
+        if supers.len() > 1 {
+            writer.count_by("class generalizations beyond the first (left out: a class extends one class)", supers.len() - 1);
+        }
         let mut fields: HashSet<String> = HashSet::new();
         let mut index = 0;
         for property in class.children.iter().filter(|c| matches!(c.kind.as_str(), "information:Property" | "information:UnionProperty")) {
@@ -245,11 +254,14 @@ pub(super) fn data_model(writer: &mut Writer, engineering: &Node) {
             }
         }
         writer.line(0, "}");
-        generalizations += class.tagged("ownedGeneralizations").count();
+        for realization in class.tagged("ownedInformationRealizations") {
+            if let Some(target) = first_ref(realization.attr("targetElement")) {
+                writer.traces.push((class.id().to_string(), "realizes", target));
+            }
+        }
+        generalizations += 0;
     }
-    if generalizations > 0 {
-        writer.count_by("class generalizations (left out: ArcLang classes have no inheritance)", generalizations);
-    }
+    let _ = generalizations;
 
     // Exchange items, with the types of their elements.
     for item in engineering.find_all("information:ExchangeItem") {

@@ -11,7 +11,7 @@ use std::collections::HashMap;
 
 /// Attributes of a class that describe the class itself; every other
 /// attribute is a field.
-const CLASS_ATTRIBUTES: [&str; 2] = ["id", "description"];
+const CLASS_ATTRIBUTES: [&str; 3] = ["id", "description", "extends"];
 
 /// One capability block as written, with the capabilities declared inside.
 struct CapabilityBlock {
@@ -183,9 +183,11 @@ impl Parser {
         self.require_text_id("class", &name, &attributes)?;
 
         let id = text(&attributes, "id").unwrap_or_else(|| name.clone());
+        let extends = text(&attributes, "extends");
         Ok(ClassDef {
             id,
             name,
+            extends,
             fields,
             attributes,
         })

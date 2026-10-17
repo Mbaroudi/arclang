@@ -101,6 +101,19 @@ pub(super) fn build(model: &Model) -> Option<(Diagram, Vec<String>)> {
             }
         }
     }
+    // A class that extends another: a generalization towards its base.
+    for class in &model.classes {
+        let Some(base) = &class.extends else { continue };
+        let what = format!("class '{}' extends", class.name);
+        match (builder.find(&class.id), builder.find(base)) {
+            (Ok(source), Ok(target)) => {
+                let (source, target) = (builder.whole(source), builder.whole(target));
+                builder.add_edge(EdgeKind::Generalization, &source, &target, &format!("{}.extends", class.id), None, BTreeMap::new());
+            }
+            (_, Err(missing)) => builder.report_missing(&what, base, missing, "class"),
+            _ => {}
+        }
+    }
     for (node, item) in items {
         let what = format!("exchange_item '{}'", item.name);
         for element in &item.elements {
