@@ -21,6 +21,8 @@
 # Generated files
 *.json
 !examples/**/*.json
+# Data the export compiles in (include_str!).
+!src/compiler/capella_export/*.json
 *.xml
 !examples/**/*.xml
 
