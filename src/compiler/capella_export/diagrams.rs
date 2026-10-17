@@ -65,6 +65,11 @@ enum On {
 fn representation(diagram: &DiagramDecl, shows_boxes: bool, shows_realizations: bool) -> Option<(&'static str, &'static str, On)> {
     let prefix = diagram.name.trim_start().strip_prefix('[').and_then(|r| r.split(']').next()).unwrap_or("");
     let by_prefix = match prefix {
+        // An architecture diagram showing functions only is drawn as a data flow:
+        // its functions have no component to stand in.
+        "LAB" if !shows_boxes => "Logical Data Flow Blank",
+        "SAB" if !shows_boxes => "System Data Flow Blank",
+        "PAB" if !shows_boxes => "Physical Data Flow Blank",
         "LAB" => "Logical Architecture Blank",
         "SAB" => "System Architecture Blank",
         "PAB" => "Physical Architecture Blank",
@@ -226,7 +231,7 @@ pub(super) fn diagrams(context: &mut Context, index: &Index, diagrams: &[Diagram
         let Some(representation) = table.get(rep) else { continue };
         let of_kind = |id: &&String| index.kind.get(*id).map(String::as_str) == Some(target_kind);
         let target = match which {
-            On::Shown => shown.iter().find(of_kind).cloned(),
+            On::Shown => shown.iter().find(of_kind).or_else(|| index.order.iter().find(of_kind)).cloned(),
             On::Root => index.kind.keys().filter(of_kind).find(|id| index.name.get(*id).is_some_and(|n| n.starts_with("Root "))).cloned(),
             On::First => index.order.iter().find(of_kind).cloned(),
         };

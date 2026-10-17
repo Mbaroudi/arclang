@@ -248,7 +248,8 @@ pub(super) fn owner<'a>(context: &Context, engineering: &El, s: &'a Scenario) ->
     }
     let first = s.participants.iter().find_map(|p| context.resolve(&p.id).or_else(|| context.resolve(&p.name)));
     let level = first.and_then(|id| engineering.children().iter().find(|level| level.find(id).is_some()));
-    let capability = level.and_then(|level| first_capability(level)).map(str::to_string);
+    // A level without capability (EPBS) lends the scenario to the first capability of the model.
+    let capability = level.and_then(|level| first_capability(level)).or_else(|| first_capability(engineering)).map(str::to_string);
     (capability, s.name.as_str())
 }
 

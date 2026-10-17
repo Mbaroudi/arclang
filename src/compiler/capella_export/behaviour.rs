@@ -34,7 +34,10 @@ fn machine_id(machine: &StateMachine) -> String {
 
 /// A state's Capella id: its `id:`, else one made up in its machine.
 fn state_id(machine: &str, state: &State) -> String {
-    if state.id.is_empty() || state.id == state.name {
+    // The parser names an id after the state when none is written; an
+    // unnamed Capella state is named after its id, a uuid.
+    let looks_like_uuid = state.id.len() == 36 && state.id.matches('-').count() == 4;
+    if state.id.is_empty() || (state.id == state.name && !looks_like_uuid) {
         derived(&format!("{machine}:state:{}", state.name))
     } else {
         state.id.clone()
