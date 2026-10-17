@@ -19,6 +19,7 @@ mod data;
 mod diagrams;
 mod fragments;
 mod levels;
+mod viewpoints;
 
 use super::metamodel::Metamodel;
 use super::source_edit::string_literal;
