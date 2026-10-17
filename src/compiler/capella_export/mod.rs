@@ -23,8 +23,10 @@ mod logical;
 mod operational;
 mod physical;
 mod relations;
+mod requirements;
 mod scenarios;
 mod system;
+mod traces;
 mod xml;
 
 use crate::compiler::ast::Model;
@@ -62,12 +64,14 @@ pub fn export(model: &Model, file_stem: &str) -> Exported {
 
     // Every level registers what it declares before any level refers to it.
     data::register(&mut context, model);
+    requirements::register(&mut context, model);
     for machine in &model.state_machines {
         behaviour::register(&mut context, machine);
     }
     for oa in &model.operational_analysis {
         operational::register(&mut context, oa);
     }
+    let main_sa = main_system(model);
     for sa in &model.system_analysis {
         system::register(&mut context, sa);
     }
@@ -88,11 +92,14 @@ pub fn export(model: &Model, file_stem: &str) -> Exported {
         None => operational::empty(&project_id),
     };
     let oa_id = oa_el.id().to_string();
-    let mut sa_el = match model.system_analysis.first() {
+    let mut sa_el = match main_sa {
         Some(sa) => system::write(&mut context, sa, &derived(&format!("{oa_id}:root-activity"))),
         None => system::empty(&project_id, &derived(&format!("{oa_id}:root-activity"))),
     };
     let sa_id = sa_el.id().to_string();
+    for extension in requirements::write(&context, model, &sa_id) {
+        sa_el.push(extension);
+    }
     if let Some(pkg) = data::package(&context, model, &sa_id) {
         sa_el.push(pkg);
     }
@@ -128,17 +135,15 @@ pub fn export(model: &Model, file_stem: &str) -> Exported {
     if model.operational_analysis.len() > 1 {
         context.note(format!("{} operational analyses: Capella has one, the first is exported", model.operational_analysis.len()));
     }
-    if model.system_analysis.len() > 1 {
-        context.note(format!("{} system analyses: Capella has one, the first is exported", model.system_analysis.len()));
+    if model.system_analysis.iter().filter(|sa| !(sa.functions.is_empty() && sa.components.is_empty() && sa.external_actors.is_empty())).count() > 1 {
+        context.note(format!("{} system analyses: Capella has one, the main one is exported", model.system_analysis.len()));
     }
     // State machines go to their component.
-    let fallback = model
-        .system_analysis
-        .first()
+    let fallback = main_sa
         .and_then(|sa| sa.components.first().map(|c| context::id_of(&c.attributes, &format!("system-component:{}", c.name))));
     for machine in &model.state_machines {
         let (owner, name) = behaviour::owner_and_name(&context, machine, fallback.as_deref());
-        let el = behaviour::state_machine(machine, name);
+        let el = behaviour::state_machine(&context, machine, name);
         match owner.and_then(|o| engineering.find_mut(&o)) {
             Some(owner) => owner.push(el),
             None => context.note(format!("state machine '{}' left out: no component to own it", machine.name)),
@@ -152,6 +157,8 @@ pub fn export(model: &Model, file_stem: &str) -> Exported {
             None => context.note(format!("scenario '{}' left out: no capability to own it", scenario.name)),
         }
     }
+    traces::write(&mut context, &mut engineering, &model.traces);
+    requirements::relations(&mut context, &mut engineering, model, &sa_id);
     // Exchange categories go to the function package of the system analysis.
     let functions = derived(&format!("{sa_id}:functions"));
     let categories = relations::categories(&context, &functions);
@@ -162,9 +169,16 @@ pub fn export(model: &Model, file_stem: &str) -> Exported {
     }
     project.push(engineering);
 
-    let afm = afm(&project_id);
+    let afm = afm(&project_id, !requirements::all(model).is_empty());
     let aird = aird(&project_id, file_stem);
     Exported { capella: document(&project), aird, afm, notes: context.notes }
+}
+
+/// The system analysis that holds the model: the one with Capella's id,
+/// else the fullest (a `requirements` block makes one of its own).
+fn main_system(model: &Model) -> Option<&crate::compiler::ast::SystemAnalysis> {
+    let content = |sa: &crate::compiler::ast::SystemAnalysis| sa.functions.len() + sa.components.len() + sa.external_actors.len() + sa.capabilities.len() + sa.missions.len();
+    model.system_analysis.iter().find(|sa| !sa.id.is_empty()).or_else(|| model.system_analysis.iter().max_by_key(|sa| content(sa)))
 }
 
 /// The progress statuses the model uses, beyond Capella's own.
@@ -200,13 +214,18 @@ pub(super) fn realization(tag: &str, kind: &str, source: &str, target: &str) -> 
 }
 
 /// The viewpoints the model uses: Capella's own.
-fn afm(project_id: &str) -> String {
-    let root = El::root("metadata:Metadata")
+fn afm(project_id: &str, with_requirements: bool) -> String {
+    let mut root = El::root("metadata:Metadata")
         .attr("xmi:version", "2.0")
         .attr("xmlns:xmi", "http://www.omg.org/XMI")
         .attr("xmlns:metadata", "http://www.polarsys.org/kitalpha/ad/metadata/1.0.0")
         .attr("id", &derived(&format!("{project_id}:afm")))
         .with(El::root("viewpointReferences").attr("id", &derived(&format!("{project_id}:afm:capella"))).attr("vpId", "org.polarsys.capella.core.viewpoint").attr("version", "7.1.0"));
+    if with_requirements {
+        for vp in ["org.polarsys.kitalpha.vp.requirements", "org.polarsys.capella.vp.requirements"] {
+            root.push(El::root("viewpointReferences").attr("id", &derived(&format!("{project_id}:afm:{vp}"))).attr("vpId", vp).attr("version", "0.14.0"));
+        }
+    }
     document(&root)
 }
 

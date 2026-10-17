@@ -46,6 +46,9 @@ fn collect<'a>(fragments: &'a [CombinedFragment], scenario: &str, into: &mut Vec
 /// The scenario element, or `None` (with a note) when no lifeline resolves.
 pub(super) fn scenario(context: &mut Context, engineering: &El, s: &Scenario, name: &str) -> Option<El> {
     let id = if s.id.is_empty() { derived(&format!("scenario:{}", s.name)) } else { s.id.clone() };
+    // A trace names a scenario by its name.
+    context.register(&s.name, &id);
+    context.register(&id, &id);
     let mut el = El::new("ownedScenarios", "interaction:Scenario", &id).attr("name", name);
     if let Some(kind) = s.attributes.get("kind").and_then(|v| v.as_string()) {
         el.set("kind", kind);

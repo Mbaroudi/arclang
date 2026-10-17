@@ -27,7 +27,7 @@ pub(super) fn progress_status(project_id: &str, used: &[String]) -> El {
 }
 
 /// Keys every element writes through its header, never as property values.
-const HEADER_KEYS: &[&str] = &["id", "name", "description", "summary", "review", "status", "capella_status"];
+const HEADER_KEYS: &[&str] = &["id", "name", "description", "summary", "review", "status", "capella_status", "constraints"];
 
 /// The header of `el`: description, summary, review and status from the
 /// attributes, then every attribute that is neither a header key nor one of
@@ -40,6 +40,19 @@ pub(super) fn apply(el: El, attributes: &HashMap<String, AttributeValue>, struct
         el.set("status", &format!("#{}", status_id(status)));
     }
     let owner = el.id().to_string();
+    // Constraints are Capella constraints of the element, their text an opaque expression.
+    let constraints: Vec<String> = match attributes.get("constraints") {
+        Some(AttributeValue::List(items)) => items.iter().filter_map(|i| i.as_string().map(str::to_string)).collect(),
+        Some(AttributeValue::String(one)) => vec![one.clone()],
+        _ => Vec::new(),
+    };
+    for (index, body) in constraints.iter().enumerate() {
+        let id = derived(&format!("{owner}:constraint:{index}"));
+        el.push(
+            El::new("ownedConstraints", "capellacore:Constraint", &id)
+                .with(El::new("ownedSpecification", "datavalue:OpaqueExpression", &derived(&format!("{id}:expression"))).with(El::text("bodies", body)).with(El::text("languages", "capella:linkedText"))),
+        );
+    }
     let mut keys: Vec<&String> = attributes.keys().filter(|k| !HEADER_KEYS.contains(&k.as_str()) && !structural.contains(&k.as_str())).collect();
     keys.sort();
     for key in keys {

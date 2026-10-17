@@ -24,6 +24,8 @@ pub(super) struct Context {
     types: HashMap<String, String>,
     /// Capella ids of the functions of every level.
     pub(super) functions: std::collections::HashSet<String>,
+    /// Capella ids of the requirements.
+    pub(super) requirements: std::collections::HashSet<String>,
     /// Capella ids of the functional chains and operational processes.
     pub(super) chains: std::collections::HashSet<String>,
     /// Exchange categories, as (category, exchange id), in the order met.

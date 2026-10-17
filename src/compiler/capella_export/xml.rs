@@ -4,7 +4,7 @@
 /// The Capella package of a short kind prefix (`ctx` in `ctx:SystemFunction`).
 fn package(prefix: &str) -> String {
     match prefix {
-        "libraries" | "re" | "xmi" => prefix.to_string(),
+        "libraries" | "re" | "xmi" | "Requirements" | "CapellaRequirements" => prefix.to_string(),
         "datatype" | "datavalue" => format!("org.polarsys.capella.core.data.information.{prefix}"),
         "deployment" => "org.polarsys.capella.core.data.pa.deployment".to_string(),
         other => format!("org.polarsys.capella.core.data.{other}"),
@@ -40,6 +40,8 @@ pub(super) const NAMESPACES: &[(&str, &str)] = &[
     ("xmlns:org.polarsys.capella.core.data.pa", "http://www.polarsys.org/capella/core/pa/7.0.0"),
     ("xmlns:org.polarsys.capella.core.data.pa.deployment", "http://www.polarsys.org/capella/core/pa/deployment/7.0.0"),
     ("xmlns:re", "http://www.polarsys.org/capella/common/re/7.0.0"),
+    ("xmlns:CapellaRequirements", "http://www.polarsys.org/capella/requirements"),
+    ("xmlns:Requirements", "http://www.polarsys.org/kitalpha/requirements"),
 ];
 
 #[derive(Debug, Clone, Default)]

@@ -64,12 +64,17 @@ fn holder<'a>(states: &'a [State], from: &str, to: &str) -> Option<&'a State> {
     None
 }
 
-fn transition(id: &str, index: usize, t: &crate::compiler::ast::Transition, names: &HashMap<String, String>) -> Option<El> {
+fn transition(context: &Context, id: &str, index: usize, t: &crate::compiler::ast::Transition, names: &HashMap<String, String>) -> Option<El> {
     let (source, target) = (names.get(&t.from)?, names.get(&t.to)?);
     let tid = if t.id.is_empty() { derived(&format!("{id}:transition:{index}")) } else { t.id.clone() };
     let mut el = El::new("ownedTransitions", "capellacommon:StateTransition", &tid).attr("source", &format!("#{source}")).attr("target", &format!("#{target}"));
     if !t.trigger.is_empty() {
         el.set("triggerDescription", &t.trigger);
+    }
+    // The effect: the functions the action names.
+    let effects: Vec<String> = t.action.as_deref().unwrap_or("").split(", ").filter_map(|f| context.resolve(f.trim())).map(|f| format!("#{f}")).collect();
+    if !effects.is_empty() {
+        el.set("effect", &effects.join(" "));
     }
     let triggers: Vec<String> = list(&t.attributes, "events").iter().map(|e| format!("#{}", event_id(e))).collect();
     if !triggers.is_empty() {
@@ -93,6 +98,11 @@ pub(super) fn register(context: &mut Context, machine: &StateMachine) {
     states_by_name(&id, &machine.states, &mut names);
     for (reference, state) in names {
         context.register(&reference, &state);
+    }
+    context.register(&id, &id);
+    context.register(&machine.name, &id);
+    for t in machine.transitions.iter().filter(|t| !t.id.is_empty()) {
+        context.register(&t.id, &t.id);
     }
 }
 
@@ -140,10 +150,17 @@ fn initial(region: &mut El, owner: &str, target: &str) {
     region.push(El::new("ownedTransitions", "capellacommon:StateTransition", &derived(&format!("{owner}:initial-transition"))).attr("source", &format!("#{initial}")).attr("target", &format!("#{target}")));
 }
 
-fn state(machine: &str, s: &State, inner: &HashMap<String, Vec<El>>, names: &HashMap<String, String>) -> El {
+fn state(context: &Context, machine: &str, s: &State, inner: &HashMap<String, Vec<El>>, names: &HashMap<String, String>) -> El {
     let kind = state_kind(s);
     let id = state_id(machine, s);
     let mut el = super::header::apply(El::new("ownedStates", kind, &id).attr("name", &s.name), &s.attributes, &["kind", "initial", "entry", "exit", "do"]);
+    // Entry, exit and do activities: the functions they name.
+    for (key, attribute) in [("entry", "entry"), ("exit", "exit"), ("do", "doActivity")] {
+        let functions: Vec<String> = list(&s.attributes, key).iter().filter_map(|f| context.resolve(f)).map(|f| format!("#{f}")).collect();
+        if !functions.is_empty() {
+            el.set(attribute, &functions.join(" "));
+        }
+    }
     if !s.sub_states.is_empty() {
         let region_id = derived(&format!("{id}:region"));
         let mut region = El::new("ownedRegions", "capellacommon:Region", &region_id).attr("name", "Default Region");
@@ -151,7 +168,7 @@ fn state(machine: &str, s: &State, inner: &HashMap<String, Vec<El>>, names: &Has
             initial(&mut region, &region_id, target);
         }
         for sub in &s.sub_states {
-            region.push(state(machine, sub, inner, names));
+            region.push(state(context, machine, sub, inner, names));
         }
         for t in inner.get(&id).into_iter().flatten() {
             region.push(t.clone());
@@ -162,7 +179,7 @@ fn state(machine: &str, s: &State, inner: &HashMap<String, Vec<El>>, names: &Has
 }
 
 /// The machine element, to be owned by a component (`ownedStateMachines`).
-pub(super) fn state_machine(machine: &StateMachine, name: &str) -> El {
+pub(super) fn state_machine(context: &Context, machine: &StateMachine, name: &str) -> El {
     let id = machine_id(machine);
     let mut names = HashMap::new();
     states_by_name(&id, &machine.states, &mut names);
@@ -174,14 +191,14 @@ pub(super) fn state_machine(machine: &StateMachine, name: &str) -> El {
     let mut top: Vec<El> = Vec::new();
     let mut inner: HashMap<String, Vec<El>> = HashMap::new();
     for (index, t) in machine.transitions.iter().enumerate() {
-        let Some(el) = transition(&id, index, t, &names) else { continue };
+        let Some(el) = transition(context, &id, index, t, &names) else { continue };
         match holder(&machine.states, &t.from, &t.to) {
             Some(s) => inner.entry(state_id(&id, s)).or_default().push(el),
             None => top.push(el),
         }
     }
     for s in &machine.states {
-        region.push(state(&id, s, &inner, &names));
+        region.push(state(context, &id, s, &inner, &names));
     }
     for el in top {
         region.push(el);
