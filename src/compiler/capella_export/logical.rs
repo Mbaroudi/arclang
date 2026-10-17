@@ -12,6 +12,9 @@ use crate::compiler::ast::{AttributeValue, ComponentExchange, FunctionalExchange
 use std::collections::HashMap;
 
 fn level_id(la: &LogicalArchitecture) -> String {
+    if !la.id.is_empty() {
+        return la.id.clone();
+    }
     derived(&format!("logical-architecture:{}", la.name))
 }
 
@@ -33,7 +36,7 @@ fn register_components(context: &mut Context, list: &[LogicalComponent]) {
         context.register(&c.id, &c.id);
         context.register(&c.name, &c.id);
         for port in &c.ports {
-            let id = port_id(&c.id, &port.name);
+            let id = port_id(&c.id, &port.name, &port.id);
             context.register(&format!("{}.{}", c.id, port.name), &id);
             context.register(&format!("{}.{}", c.name, port.name), &id);
         }

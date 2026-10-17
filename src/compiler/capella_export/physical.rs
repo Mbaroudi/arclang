@@ -17,6 +17,9 @@ use super::xml::El;
 use crate::compiler::ast::{BehaviorComponent, PhysicalArchitecture, PhysicalLink, PhysicalNode};
 
 fn level_id(pa: &PhysicalArchitecture) -> String {
+    if !pa.id.is_empty() {
+        return pa.id.clone();
+    }
     derived(&format!("physical-architecture:{}", pa.name))
 }
 
@@ -67,7 +70,7 @@ pub(super) fn register(context: &mut Context, pa: &PhysicalArchitecture) {
             context.register(&behaviour.id, &behaviour.id);
             context.register(&behaviour.name, &behaviour.id);
             for port in &behaviour.ports {
-                let id = port_id(&behaviour.id, &port.name);
+                let id = port_id(&behaviour.id, &port.name, &port.id);
                 context.register(&format!("{}.{}", behaviour.id, port.name), &id);
                 context.register(&format!("{}.{}", behaviour.name, port.name), &id);
             }

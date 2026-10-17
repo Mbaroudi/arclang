@@ -3,7 +3,7 @@
 //! interactions, communication means, operational processes and
 //! capabilities.
 
-use super::context::{derived, id_of, text, Context};
+use super::context::{derived, id_of, port_id, text, Context};
 use super::header::apply;
 use super::relations;
 use super::xml::El;
@@ -11,6 +11,9 @@ use crate::compiler::ast::{AttributeValue, OperationalActivity, OperationalAnaly
 use std::collections::HashMap;
 
 fn level_id(oa: &OperationalAnalysis) -> String {
+    if !oa.id.is_empty() {
+        return oa.id.clone();
+    }
     derived(&format!("operational-analysis:{}", oa.name))
 }
 
@@ -36,7 +39,7 @@ fn register_activity(context: &mut Context, activity: &OperationalActivity) {
     context.register(&activity.id, &activity.id);
     context.register(&activity.name, &activity.id);
     for port in &activity.ports {
-        let id = derived(&format!("port:{}.{}", activity.id, port.name));
+        let id = port_id(&activity.id, &port.name, &port.id);
         context.register(&format!("{}.{}", activity.id, port.name), &id);
     }
     for sub in &activity.sub_activities {
@@ -74,7 +77,7 @@ fn activity(activity: &OperationalActivity) -> El {
     let mut el = apply(El::new("ownedFunctions", "oa:OperationalActivity", &activity.id).attr("name", &activity.name), &activity.attributes, &["performed_by", "kind"]);
     for port in &activity.ports {
         let (tag, kind) = if matches!(port.direction, PortDirection::Out) { ("outputs", "fa:FunctionOutputPort") } else { ("inputs", "fa:FunctionInputPort") };
-        el.push(El::new(tag, kind, &derived(&format!("port:{}.{}", activity.id, port.name))).attr("name", &port.name));
+        el.push(El::new(tag, kind, &port_id(&activity.id, &port.name, &port.id)).attr("name", &port.name));
     }
     for sub in &activity.sub_activities {
         el.push(self::activity(sub));

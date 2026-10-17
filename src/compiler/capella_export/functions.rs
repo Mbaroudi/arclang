@@ -36,7 +36,7 @@ pub(super) fn register(context: &mut Context, placed: &[Placed<'_>]) {
         context.register(&f.id, &f.id);
         context.register(&f.name, &f.id);
         for port in &f.ports {
-            let id = port_id(&f.id, &port.name);
+            let id = port_id(&f.id, &port.name, &port.id);
             context.register(&format!("{}.{}", f.id, port.name), &id);
             context.register(&format!("{}.{}", f.name, port.name), &id);
         }
@@ -48,7 +48,7 @@ pub(super) fn port(owner: &str, port: &FunctionPort) -> El {
         PortDirection::Out => ("outputs", "fa:FunctionOutputPort"),
         _ => ("inputs", "fa:FunctionInputPort"),
     };
-    El::new(tag, kind, &port_id(owner, &port.name)).attr("name", &port.name)
+    El::new(tag, kind, &port_id(owner, &port.name, &port.id)).attr("name", &port.name)
 }
 
 /// The root function of the level, holding every function in its tree;

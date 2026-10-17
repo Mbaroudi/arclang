@@ -10,6 +10,9 @@ use crate::compiler::ast::{ComponentPort, FunctionPort, PortDirection, SystemAna
 
 /// The id of the system analysis.
 fn level_id(sa: &SystemAnalysis) -> String {
+    if !sa.id.is_empty() {
+        return sa.id.clone();
+    }
     derived(&format!("system-analysis:{}", sa.name))
 }
 
@@ -18,7 +21,7 @@ fn register_function(context: &mut Context, function: &SystemFunction) {
     context.register(&function.id, &function.id);
     context.register(&function.name, &function.id);
     for port in &function.ports {
-        let id = port_id(&function.id, &port.name);
+        let id = port_id(&function.id, &port.name, &port.id);
         context.register(&format!("{}.{}", function.id, port.name), &id);
         context.register(&format!("{}.{}", function.name, port.name), &id);
     }
@@ -31,7 +34,7 @@ fn register_component(context: &mut Context, id: &str, name: &str, ports: &[Comp
     context.register(id, id);
     context.register(name, id);
     for port in ports {
-        let pid = port_id(id, &port.name);
+        let pid = port_id(id, &port.name, &port.id);
         context.register(&format!("{id}.{}", port.name), &pid);
         context.register(&format!("{name}.{}", port.name), &pid);
     }
@@ -74,7 +77,7 @@ fn function_port(owner: &str, port: &FunctionPort) -> El {
         PortDirection::Out => ("outputs", "fa:FunctionOutputPort"),
         _ => ("inputs", "fa:FunctionInputPort"),
     };
-    El::new(tag, kind, &port_id(owner, &port.name)).attr("name", &port.name)
+    El::new(tag, kind, &port_id(owner, &port.name, &port.id)).attr("name", &port.name)
 }
 
 fn function(function: &SystemFunction) -> El {
@@ -94,7 +97,7 @@ pub(super) fn component_port(owner: &str, port: &ComponentPort) -> El {
         PortDirection::Out => "OUT",
         PortDirection::InOut => "INOUT",
     };
-    El::new("ownedFeatures", "fa:ComponentPort", &port_id(owner, &port.name)).attr("name", &port.name).attr("orientation", orientation).attr("kind", "FLOW")
+    El::new("ownedFeatures", "fa:ComponentPort", &port_id(owner, &port.name, &port.id)).attr("name", &port.name).attr("orientation", orientation).attr("kind", "FLOW")
 }
 
 /// A system component or actor, with its ports and allocated functions, and its part.

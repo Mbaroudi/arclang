@@ -67,9 +67,14 @@ impl Context {
     }
 }
 
-/// The id of a port of `owner` (a function or a component): `Owner.port` names it.
-pub(super) fn port_id(owner: &str, port: &str) -> String {
-    derived(&format!("port:{owner}.{port}"))
+/// The id of a port of `owner` (a function or a component): its own `id:`
+/// when it has one, else one made up from `Owner.port`, which names it.
+pub(super) fn port_id(owner: &str, port: &str, id: &str) -> String {
+    if id.is_empty() {
+        derived(&format!("port:{owner}.{port}"))
+    } else {
+        id.to_string()
+    }
 }
 
 /// A text attribute.

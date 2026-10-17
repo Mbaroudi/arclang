@@ -20,6 +20,9 @@ pub(super) fn owner_and_name<'a>(context: &Context, machine: &'a StateMachine, f
 }
 
 fn machine_id(machine: &StateMachine) -> String {
+    if !machine.id.is_empty() {
+        return machine.id.clone();
+    }
     derived(&format!("state-machine:{}", machine.name))
 }
 
