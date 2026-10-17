@@ -347,3 +347,74 @@ fn aird(project_id: &str, file_stem: &str, drawn: Vec<(String, El, El)>) -> Stri
     }
     document(&resource)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::compiler::{capella_xmi, Compiler, CompilerConfig};
+    use std::collections::HashSet;
+
+    fn fixture() -> std::path::PathBuf {
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/capella/test7_0/Model Test 7.0.capella")
+    }
+
+    fn compiled(source: &str) -> Model {
+        Compiler::new(CompilerConfig { optimization_level: 0, target: "json".to_string() }).compile_string(source).expect("compiles").ast
+    }
+
+    /// The ids written in an ArcLang source.
+    fn ids(source: &str) -> HashSet<String> {
+        source.lines().flat_map(|l| l.match_indices("id: \"").map(move |(i, _)| l[i + 5..].split('"').next().unwrap_or("").to_string())).collect()
+    }
+
+    fn export_fixture() -> (capella_xmi::Imported, Exported) {
+        let imported = capella_xmi::import_file(&fixture()).expect("imports");
+        let exported = export(&compiled(&imported.source), "model");
+        (imported, exported)
+    }
+
+    #[test]
+    fn the_capella_7_fixture_comes_back_with_its_elements() {
+        let (first, exported) = export_fixture();
+        let dir = std::env::temp_dir().join(format!("arclang-export-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("model.capella"), &exported.capella).unwrap();
+        std::fs::write(dir.join("model.aird"), &exported.aird).unwrap();
+        let second = capella_xmi::import_file(&dir.join("model.capella")).unwrap_or_else(|f| panic!("{}", f.message));
+        let (before, after) = (ids(&first.source), ids(&second.source));
+        let kept = before.intersection(&after).count();
+        assert!(kept * 100 >= before.len() * 99, "{kept} of {} ids come back", before.len());
+        let traces = |s: &str| s.lines().filter(|l| l.starts_with("trace ")).map(str::to_string).collect::<HashSet<_>>();
+        assert_eq!(traces(&first.source), traces(&second.source));
+        assert!(second.counts.get("diagrams").copied().unwrap_or(0) >= 10, "{:?}", second.counts);
+    }
+
+    #[test]
+    fn the_export_has_unique_ids_and_no_dangling_reference() {
+        let (_, exported) = export_fixture();
+        let mut seen = HashSet::new();
+        for (i, _) in exported.capella.match_indices(" id=\"") {
+            let id = exported.capella[i + 5..].split('"').next().unwrap();
+            assert!(seen.insert(id.to_string()), "id {id} twice");
+        }
+        for (i, _) in exported.capella.match_indices("=\"#") {
+            for reference in exported.capella[i + 2..].split('"').next().unwrap().split_whitespace() {
+                let id = reference.trim_start_matches('#');
+                assert!(seen.contains(id), "dangling reference {reference}");
+            }
+        }
+        // Diagrams name elements of the model.
+        for (i, _) in exported.aird.match_indices("href=\"model.capella#") {
+            let id = exported.aird[i + 20..].split('"').next().unwrap();
+            assert!(seen.contains(id), "a diagram names {id}, not in the model");
+        }
+    }
+
+    #[test]
+    fn an_export_is_the_same_every_time() {
+        let (_, a) = export_fixture();
+        let (_, b) = export_fixture();
+        assert_eq!(a.capella, b.capella);
+        assert_eq!(a.aird, b.aird);
+    }
+}
