@@ -158,6 +158,13 @@ pub fn export(model: &Model, file_stem: &str) -> Exported {
             None => context.note(format!("scenario '{}' left out: no capability to own it", scenario.name)),
         }
     }
+    // Functions available only in some states or modes.
+    for (function, states) in available_in_states(model) {
+        let refs: Vec<String> = states.iter().filter_map(|s| context.resolve(s)).map(|s| format!("#{s}")).collect();
+        if let (false, Some(el)) = (refs.is_empty(), engineering.find_mut(&function)) {
+            el.set("availableInStates", &refs.join(" "));
+        }
+    }
     traces::write(&mut context, &mut engineering, &model.traces);
     requirements::relations(&mut context, &mut engineering, model, &sa_id);
     // Exchange categories go to the function package of the system analysis.
@@ -182,6 +189,47 @@ pub fn export(model: &Model, file_stem: &str) -> Exported {
 fn main_system(model: &Model) -> Option<&crate::compiler::ast::SystemAnalysis> {
     let content = |sa: &crate::compiler::ast::SystemAnalysis| sa.functions.len() + sa.components.len() + sa.external_actors.len() + sa.capabilities.len() + sa.missions.len();
     model.system_analysis.iter().find(|sa| !sa.id.is_empty()).or_else(|| model.system_analysis.iter().max_by_key(|sa| content(sa)))
+}
+
+/// `available_in_states` of the functions and activities of every level.
+fn available_in_states(model: &Model) -> Vec<(String, Vec<String>)> {
+    use crate::compiler::ast::{AttributeValue, LogicalFunction, OperationalActivity, SystemFunction};
+    use std::collections::HashMap;
+    let states = |attributes: &HashMap<String, AttributeValue>| context::list(attributes, "available_in_states");
+    let mut out = Vec::new();
+    fn system(f: &SystemFunction, out: &mut Vec<(String, Vec<String>)>, states: &dyn Fn(&HashMap<String, AttributeValue>) -> Vec<String>) {
+        out.push((f.id.clone(), states(&f.attributes)));
+        f.sub_functions.iter().for_each(|s| system(s, out, states));
+    }
+    fn logical(f: &LogicalFunction, out: &mut Vec<(String, Vec<String>)>, states: &dyn Fn(&HashMap<String, AttributeValue>) -> Vec<String>) {
+        out.push((f.id.clone(), states(&f.attributes)));
+        f.sub_functions.iter().for_each(|s| logical(s, out, states));
+    }
+    fn activity(a: &OperationalActivity, out: &mut Vec<(String, Vec<String>)>, states: &dyn Fn(&HashMap<String, AttributeValue>) -> Vec<String>) {
+        out.push((a.id.clone(), states(&a.attributes)));
+        a.sub_activities.iter().for_each(|s| activity(s, out, states));
+    }
+    model.operational_analysis.iter().flat_map(|oa| &oa.activities).for_each(|a| activity(a, &mut out, &states));
+    model.system_analysis.iter().flat_map(|sa| &sa.functions).for_each(|f| system(f, &mut out, &states));
+    for la in &model.logical_architecture {
+        la.functions.iter().for_each(|f| logical(f, &mut out, &states));
+        fn components(list: &[crate::compiler::ast::LogicalComponent], out: &mut Vec<(String, Vec<String>)>, states: &dyn Fn(&HashMap<String, AttributeValue>) -> Vec<String>) {
+            for c in list {
+                c.functions.iter().for_each(|f| logical(f, out, states));
+                components(&c.sub_components, out, states);
+            }
+        }
+        components(&la.components, &mut out, &states);
+    }
+    for pa in &model.physical_architecture {
+        pa.functions.iter().for_each(|f| logical(f, &mut out, &states));
+        for n in &pa.nodes {
+            n.functions.iter().for_each(|f| logical(f, &mut out, &states));
+            n.behavior_components.iter().flat_map(|b| &b.functions).for_each(|f| logical(f, &mut out, &states));
+        }
+    }
+    out.retain(|(_, s)| !s.is_empty());
+    out
 }
 
 /// The progress statuses the model uses, beyond Capella's own.

@@ -100,11 +100,11 @@ pub(super) fn package(context: &Context, model: &Model, level_id: &str) -> Optio
             for value in values {
                 el.push(El::new("ownedLiterals", "datavalue:EnumerationLiteral", &derived(&format!("{}:literal:{}", t.id, value.name))).attr("name", &value.name));
             }
-            pkg.push(el);
+            pkg.push(apply(el, &t.attributes, &["values", "base", "unit", "unit_name"]));
             continue;
         }
         let base = t.base_type.as_deref().unwrap_or("String");
-        let unit = t.unit.clone();
+        let unit = t.unit.clone().or_else(|| text(&t.attributes, "unit_name").map(str::to_string));
         let el = match (base, &unit) {
             (_, Some(unit)) => {
                 let unit_id = derived(&format!("unit:{unit}"));
@@ -118,7 +118,7 @@ pub(super) fn package(context: &Context, model: &Model, level_id: &str) -> Optio
             ("Boolean" | "Bool", None) => El::new("ownedDataTypes", "datatype:BooleanType", &t.id).attr("name", &t.name),
             _ => El::new("ownedDataTypes", "datatype:StringType", &t.id).attr("name", &t.name),
         };
-        pkg.push(el);
+        pkg.push(apply(el, &t.attributes, &["values", "base", "unit", "unit_name"]));
     }
     for c in &model.classes {
         let mut el = apply(El::new("ownedClasses", "information:Class", &c.id).attr("name", &c.name), &c.attributes, &field_keys(c));
@@ -154,7 +154,8 @@ pub(super) fn package(context: &Context, model: &Model, level_id: &str) -> Optio
             "DATA" => "FLOW",
             other => other,
         };
-        let mut el = El::new("ownedExchangeItems", "information:ExchangeItem", &item.id).attr("name", &item.name).attr("exchangeMechanism", mechanism);
+        let el = El::new("ownedExchangeItems", "information:ExchangeItem", &item.id).attr("name", &item.name).attr("exchangeMechanism", mechanism);
+        let mut el = apply(el, &item.properties, &["mechanism", "elements"]);
         for (index, element) in item.elements.iter().enumerate() {
             if let Some(t) = context.resolve_type(element).or_else(|| context.resolve(element)) {
                 let id = derived(&format!("{}:element:{index}", item.id));

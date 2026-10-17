@@ -11,6 +11,12 @@ use std::collections::HashMap;
 
 /// The machine's owner (a component id) and its own name.
 pub(super) fn owner_and_name<'a>(context: &Context, machine: &'a StateMachine, fallback: Option<&str>) -> (Option<String>, &'a str) {
+    let declared = text(&machine.attributes, "owner").and_then(|o| context.resolve(o)).map(str::to_string);
+    if let Some(declared) = declared {
+        // The import prefixes the owner's name when machines share a name.
+        let name = machine.name.split_once(" / ").filter(|(owner, _)| context.resolve(owner) == Some(declared.as_str())).map(|(_, n)| n).unwrap_or(&machine.name);
+        return (Some(declared), name);
+    }
     if let Some((owner, name)) = machine.name.split_once(" / ") {
         if let Some(id) = context.resolve(owner) {
             return (Some(id.to_string()), name);
@@ -153,7 +159,7 @@ fn initial(region: &mut El, owner: &str, target: &str) {
 fn state(context: &Context, machine: &str, s: &State, inner: &HashMap<String, Vec<El>>, names: &HashMap<String, String>) -> El {
     let kind = state_kind(s);
     let id = state_id(machine, s);
-    let mut el = super::header::apply(El::new("ownedStates", kind, &id).attr("name", &s.name), &s.attributes, &["kind", "initial", "entry", "exit", "do"]);
+    let mut el = super::header::apply(El::new("ownedStates", kind, &id).attr("name", &s.name), &s.attributes, &["kind", "initial", "entry", "exit", "do", "owner"]);
     // Entry, exit and do activities: the functions they name.
     for (key, attribute) in [("entry", "entry"), ("exit", "exit"), ("do", "doActivity")] {
         let functions: Vec<String> = list(&s.attributes, key).iter().filter_map(|f| context.resolve(f)).map(|f| format!("#{f}")).collect();
@@ -187,13 +193,24 @@ pub(super) fn state_machine(context: &Context, machine: &StateMachine, name: &st
     if let Some(target) = names.get(&machine.initial_state) {
         initial(&mut region, &id, target);
     }
-    // A transition goes to the region of the innermost state holding both its ends.
+    // A transition goes to the region it is declared in: a state's, else the machine's.
+    let mut declared_in: HashMap<String, String> = HashMap::new();
+    fn declared(machine: &str, states: &[State], into: &mut HashMap<String, String>) {
+        for s in states {
+            for t in &s.transitions {
+                into.insert(format!("{}->{}:{}", t.from, t.to, t.id), state_id(machine, s));
+            }
+            declared(machine, &s.sub_states, into);
+        }
+    }
+    declared(&id, &machine.states, &mut declared_in);
     let mut top: Vec<El> = Vec::new();
     let mut inner: HashMap<String, Vec<El>> = HashMap::new();
     for (index, t) in machine.transitions.iter().enumerate() {
         let Some(el) = transition(context, &id, index, t, &names) else { continue };
-        match holder(&machine.states, &t.from, &t.to) {
-            Some(s) => inner.entry(state_id(&id, s)).or_default().push(el),
+        let region = declared_in.get(&format!("{}->{}:{}", t.from, t.to, t.id)).cloned().or_else(|| if declared_in.is_empty() { holder(&machine.states, &t.from, &t.to).map(|s| state_id(&id, s)) } else { None });
+        match region {
+            Some(state) => inner.entry(state).or_default().push(el),
             None => top.push(el),
         }
     }

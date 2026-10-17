@@ -27,7 +27,7 @@ pub(super) fn progress_status(project_id: &str, used: &[String]) -> El {
 }
 
 /// Keys every element writes through its header, never as property values.
-const HEADER_KEYS: &[&str] = &["id", "name", "description", "summary", "review", "status", "capella_status", "constraints"];
+const HEADER_KEYS: &[&str] = &["id", "name", "description", "summary", "review", "status", "capella_status", "constraints", "available_in_states", "owner"];
 
 /// The header of `el`: description, summary, review and status from the
 /// attributes, then every attribute that is neither a header key nor one of

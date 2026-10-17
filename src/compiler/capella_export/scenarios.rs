@@ -162,13 +162,15 @@ pub(super) fn scenario(context: &mut Context, engineering: &El, s: &Scenario, na
         let (sent, received) = (derived(&format!("{mid}:sent")), derived(&format!("{mid}:received")));
         fragments.push(El::new("ownedInteractionFragments", "interaction:MessageEnd", &send).attr("coveredInstanceRoles", &format!("#{from}")).attr("event", &format!("#{sent}")));
         fragments.push(El::new("ownedInteractionFragments", "interaction:MessageEnd", &receive).attr("coveredInstanceRoles", &format!("#{to}")).attr("event", &format!("#{received}")));
-        events.push(El::new("ownedEvents", "interaction:EventSentOperation", &sent));
-        events.push(El::new("ownedEvents", "interaction:EventReceiptOperation", &received));
-        let kind = match m.message_type {
+        // The exchange the message carries is the operation of both its events.
+        let operation = m.attributes.get("exchange").and_then(|e| e.as_string()).and_then(|e| context.resolve(e)).map(|e| format!("#{e}"));
+        events.push(El::new("ownedEvents", "interaction:EventSentOperation", &sent).opt("operation", operation.as_deref()));
+        events.push(El::new("ownedEvents", "interaction:EventReceiptOperation", &received).opt("operation", operation.as_deref()));
+        let kind = m.attributes.get("kind").and_then(|k| k.as_string()).unwrap_or(match m.message_type {
             MessageType::Synchronous => "SYNCHRONOUS_CALL",
             MessageType::Asynchronous => "ASYNCHRONOUS_CALL",
             MessageType::Return => "REPLY",
-        };
+        });
         messages.push(El::new("ownedMessages", "interaction:SequenceMessage", &mid).attr("name", &m.label).attr("kind", kind).attr("sendingEnd", &format!("#{send}")).attr("receivingEnd", &format!("#{receive}")));
         // Frames ending at this message close, innermost first.
         let mut ending: Vec<usize> = closing.iter().filter(|(end, _)| *end == position).map(|(_, f)| *f).collect();
@@ -225,6 +227,17 @@ fn close(f: &Frame<'_>, index: usize, fragments: &mut Vec<El>, starts: &std::col
 /// (`Owner / Scenario`), else the first capability of the level of its
 /// first lifeline.
 pub(super) fn owner<'a>(context: &Context, engineering: &El, s: &'a Scenario) -> (Option<String>, &'a str) {
+    let declared = s.attributes.get("owner").and_then(|o| o.as_string()).and_then(|o| context.resolve(o)).map(str::to_string);
+    if let Some((owner, name)) = s.name.split_once(" / ") {
+        if let (Some(id), Some(declared)) = (context.resolve(owner), &declared) {
+            if id == declared {
+                return (Some(id.to_string()), name);
+            }
+        }
+    }
+    if declared.is_some() {
+        return (declared, s.name.as_str());
+    }
     if let Some((owner, name)) = s.name.split_once(" / ") {
         if let Some(id) = context.resolve(owner) {
             return (Some(id.to_string()), name);

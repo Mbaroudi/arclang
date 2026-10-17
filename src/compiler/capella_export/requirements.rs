@@ -81,29 +81,18 @@ pub(super) fn write(context: &Context, model: &Model, level: &str) -> Vec<El> {
     for kind in &data_types {
         folder.push(El::new("ownedDefinitionTypes", "Requirements:DataTypeDefinition", &derived(&format!("{folder_id}:data:{kind}"))).attr("ReqIFLongName", kind));
     }
-    let attribute_definitions = |owner: &str| -> Vec<El> {
-        definitions
-            .iter()
-            .map(|(key, (id, kind))| {
-                El::new("ownedAttributes", "Requirements:AttributeDefinition", &derived(&format!("{owner}:{id}")))
-                    .attr("ReqIFLongName", key)
-                    .attr("definitionType", &format!("#{}", derived(&format!("{folder_id}:data:{kind}"))))
-            })
-            .collect()
-    };
-    let _ = attribute_definitions;
-    for (name, id) in &types {
-        let mut t = El::new("ownedTypes", "Requirements:RequirementType", id).attr("ReqIFLongName", name);
-        for (key, (definition, kind)) in &definitions {
-            t.push(El::new("ownedAttributes", "Requirements:AttributeDefinition", definition).attr("ReqIFLongName", key).attr("definitionType", &format!("#{}", derived(&format!("{folder_id}:data:{kind}")))));
-        }
-        folder.push(t);
+    // Each requirement type defines the attributes; a requirement's values
+    // name the definitions of its own type.
+    let untyped = derived(&format!("{folder_id}:type:Requirement"));
+    let definition_of = |type_id: &str, key: &str| derived(&format!("{type_id}:definition:{key}"));
+    let mut all_types: Vec<(String, String)> = types.iter().map(|(n, i)| (n.clone(), i.clone())).collect();
+    if requirements.iter().any(|r| text(&r.attributes, "requirement_type").is_none()) && !definitions.is_empty() {
+        all_types.push(("Requirement".to_string(), untyped.clone()));
     }
-    if types.is_empty() && !definitions.is_empty() {
-        let id = derived(&format!("{folder_id}:type:Requirement"));
-        let mut t = El::new("ownedTypes", "Requirements:RequirementType", &id).attr("ReqIFLongName", "Requirement");
-        for (key, (definition, kind)) in &definitions {
-            t.push(El::new("ownedAttributes", "Requirements:AttributeDefinition", definition).attr("ReqIFLongName", key).attr("definitionType", &format!("#{}", derived(&format!("{folder_id}:data:{kind}")))));
+    for (name, id) in &all_types {
+        let mut t = El::new("ownedTypes", "Requirements:RequirementType", id).attr("ReqIFLongName", name);
+        for (key, (_, kind)) in &definitions {
+            t.push(El::new("ownedAttributes", "Requirements:AttributeDefinition", &definition_of(id, key)).attr("ReqIFLongName", key).attr("definitionType", &format!("#{}", derived(&format!("{folder_id}:data:{kind}")))));
         }
         folder.push(t);
     }
@@ -127,11 +116,12 @@ pub(super) fn write(context: &Context, model: &Model, level: &str) -> Vec<El> {
         if let Some(kind) = text(&r.attributes, "requirement_type").and_then(|k| types.get(k)) {
             el.set("requirementType", &format!("#{kind}"));
         }
+        let type_id = text(&r.attributes, "requirement_type").and_then(|k| types.get(k)).cloned().unwrap_or_else(|| untyped.clone());
         let mut keys: Vec<&String> = r.attributes.keys().filter(|k| !HEADER.contains(&k.as_str())).collect();
         keys.sort();
         for key in keys {
             let (kind, _, value) = value_kind(&r.attributes[key]);
-            let definition = &definitions[key].0;
+            let definition = definition_of(&type_id, key);
             el.push(El::new("ownedAttributes", kind, &derived(&format!("{id}:attribute:{key}"))).attr("definition", &format!("#{definition}")).attr("value", &value));
         }
         // A requirement refining another owns the relation.
