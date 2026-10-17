@@ -36,6 +36,8 @@ fn interaction_id(exchange: &crate::compiler::ast::OperationalExchange, index: u
 }
 
 fn register_activity(context: &mut Context, activity: &OperationalActivity) {
+    context.functions.insert(activity.id.clone());
+    context.register_function_name(&activity.name, &activity.id);
     context.register(&activity.id, &activity.id);
     context.register(&activity.name, &activity.id);
     for port in &activity.ports {

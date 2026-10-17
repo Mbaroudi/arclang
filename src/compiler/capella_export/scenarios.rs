@@ -49,7 +49,7 @@ pub(super) fn scenario(context: &mut Context, engineering: &El, s: &Scenario, na
     // A trace names a scenario by its name.
     context.register(&s.name, &id);
     context.register(&id, &id);
-    let mut el = El::new("ownedScenarios", "interaction:Scenario", &id).attr("name", name);
+    let mut el = super::header::apply(El::new("ownedScenarios", "interaction:Scenario", &id).attr("name", name), &s.attributes, &["kind", "participants"]);
     if let Some(kind) = s.attributes.get("kind").and_then(|v| v.as_string()) {
         el.set("kind", kind);
     }
@@ -171,7 +171,10 @@ pub(super) fn scenario(context: &mut Context, engineering: &El, s: &Scenario, na
             MessageType::Asynchronous => "ASYNCHRONOUS_CALL",
             MessageType::Return => "REPLY",
         });
-        messages.push(El::new("ownedMessages", "interaction:SequenceMessage", &mid).attr("name", &m.label).attr("kind", kind).attr("sendingEnd", &format!("#{send}")).attr("receivingEnd", &format!("#{receive}")));
+        let items: Vec<String> = super::context::list(&m.attributes, "exchange_items").iter().filter_map(|i| context.resolve_type(i).or_else(|| context.resolve(i))).map(|i| format!("#{i}")).collect();
+        let message = El::new("ownedMessages", "interaction:SequenceMessage", &mid).attr("name", &m.label).attr("kind", kind).attr("sendingEnd", &format!("#{send}")).attr("receivingEnd", &format!("#{receive}"));
+        let message = if items.is_empty() { message } else { message.attr("exchangedItems", &items.join(" ")) };
+        messages.push(super::header::apply(message, &m.attributes, &["kind", "type", "exchange", "exchange_items"]));
         // Frames ending at this message close, innermost first.
         let mut ending: Vec<usize> = closing.iter().filter(|(end, _)| *end == position).map(|(_, f)| *f).collect();
         ending.sort_by_key(|f| span(&frames[*f]));

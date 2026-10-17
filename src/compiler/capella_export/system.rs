@@ -18,6 +18,7 @@ fn level_id(sa: &SystemAnalysis) -> String {
 
 fn register_function(context: &mut Context, function: &SystemFunction) {
     context.functions.insert(function.id.clone());
+    context.register_function_name(&function.name, &function.id);
     context.register(&function.id, &function.id);
     context.register(&function.name, &function.id);
     for port in &function.ports {
