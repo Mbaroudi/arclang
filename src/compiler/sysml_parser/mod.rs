@@ -4,13 +4,14 @@
 //! API records that `sysml_import` reads like any other listing.
 
 pub mod lexer;
+pub mod library;
 mod parser;
 mod records;
 mod records_expr;
 mod scope;
 pub mod syntax;
 
-pub use parser::parse;
+pub use parser::{parse, parse_kerml, parse_target};
 pub use records::Built;
 
 /// Parse a text and render it as API records.

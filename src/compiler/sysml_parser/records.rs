@@ -13,7 +13,8 @@ use super::syntax::*;
 use crate::compiler::identity::element_uuid;
 use crate::compiler::sysml_library::{self, LibraryElement, Role};
 use serde_json::{json, Map, Value};
-use std::collections::BTreeMap;
+use std::cell::RefCell;
+use std::collections::{BTreeMap, BTreeSet};
 
 pub struct Built {
     pub records: Vec<Value>,
@@ -34,6 +35,8 @@ pub(super) struct Builder<'n> {
     pub(super) owned_memberships: Vec<Vec<String>>,
     pub(super) owned_members: Vec<Vec<String>>,
     pub(super) library: BTreeMap<String, &'static LibraryElement>,
+    /// Standard-library elements of the scope the records refer to.
+    pub(super) used_library: RefCell<BTreeSet<usize>>,
     pub(super) unresolved: Vec<String>,
 }
 
@@ -63,7 +66,7 @@ fn is_feature(kind: &str) -> bool {
 fn identities(scope: &Scope) -> Vec<String> {
     let mut paths: Vec<String> = Vec::with_capacity(scope.len());
     let mut ranks: std::collections::HashMap<(Option<usize>, String), usize> = std::collections::HashMap::new();
-    for index in 0..scope.len() {
+    for index in 0..scope.text_len() {
         let node = scope.node(index);
         let mut own = format!("{}:{}", node.kind, node.name.as_deref().or(node.short_name.as_deref()).unwrap_or(""));
         if let Detail::Connector { ends } = &node.detail {
@@ -81,14 +84,15 @@ fn identities(scope: &Scope) -> Vec<String> {
             None => own,
         });
     }
-    paths.iter().map(|path| element_uuid("sysml", path)).collect()
+    let library = (scope.text_len()..scope.len()).map(|index| element_uuid("sysml-library", &scope.qualified_name(index).unwrap_or_default()));
+    paths.iter().map(|path| element_uuid("sysml", path)).chain(library).collect()
 }
 
 /// Build the records of a parsed text.
 pub fn build(roots: &[Node]) -> Built {
-    let scope = Scope::new(roots);
+    let scope = Scope::new(roots, super::library::roots());
     let ids = identities(&scope);
-    let n = scope.len();
+    let n = scope.text_len();
     let mut builder = Builder {
         scope,
         ids,
@@ -98,6 +102,7 @@ pub fn build(roots: &[Node]) -> Built {
         owned_relationships: vec![Vec::new(); n],
         owned_memberships: vec![Vec::new(); n],
         owned_members: vec![Vec::new(); n],
+        used_library: RefCell::new(BTreeSet::new()),
         library: BTreeMap::new(),
         unresolved: Vec::new(),
     };
@@ -121,7 +126,18 @@ pub fn build(roots: &[Node]) -> Built {
         records.push(Value::Object(object));
     }
     records.append(&mut builder.extras);
-    for element in builder.library.values() {
+    let mut stubbed: BTreeSet<String> = BTreeSet::new();
+    for index in builder.used_library.borrow().iter().copied() {
+        let node = builder.scope.node(index);
+        let id = builder.ids[index].clone();
+        stubbed.insert(id.clone());
+        records.push(json!({
+            "@id": id, "@type": node.kind, "elementId": id,
+            "declaredName": node.name, "declaredShortName": node.short_name, "name": node.name, "shortName": node.short_name,
+            "qualifiedName": builder.scope.qualified_name(index), "owner": Value::Null, "isLibraryElement": true,
+        }));
+    }
+    for element in builder.library.values().filter(|e| !stubbed.contains(&library_id(e))) {
         records.push(json!({
             "@id": library_id(element),
             "@type": element.metaclass,
@@ -146,7 +162,11 @@ pub(super) fn library_id(element: &LibraryElement) -> String {
 impl<'n> Builder<'n> {
     // --- identities and resolution ----------------------------------------
 
+    /// The id of an element; a library element is recorded as referred to.
     pub(super) fn id(&self, index: usize) -> String {
+        if self.scope.is_library(index) {
+            self.used_library.borrow_mut().insert(index);
+        }
         self.ids[index].clone()
     }
 
