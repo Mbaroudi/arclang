@@ -1288,15 +1288,17 @@ impl SemanticAnalyzer {
             }
         }
 
-        // Physical links get identity by name; paths must reference them.
+        // Physical links get identity by their `id:`, else by name; paths
+        // reference them either way.
         for pa in &ast.physical_architecture {
             for link in &pa.links {
                 if !link.name.is_empty() {
+                    let key = link.attributes.get("id").and_then(|v| v.as_string()).map(str::to_string).unwrap_or_else(|| link.name.clone());
                     register_element(
                         &mut all_elements,
                         &mut duplicate_ids,
-                        link.name.clone(),
-                        ElementInfo::new(link.name.clone(), link.name.clone(), "PhysicalLink"),
+                        key.clone(),
+                        ElementInfo::new(key, link.name.clone(), "PhysicalLink"),
                     );
                 }
             }

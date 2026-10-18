@@ -81,7 +81,8 @@ SysML says most Arcadia kinds by itself; metadata names the rest.
 | logical component | `part` in LA, nested components as nested `part`s | `#Actor` for an actor |
 | physical node / behaviour / hardware component | `part` in PA; behaviours and hardware nested in the node | `#Node`, `#Behaviour`, `#Hardware` |
 | function / activity | `action` of the level, or `perform action` declared in the part that performs it; `in`/`out` item parameters are the ports | |
-| functional chain / process | `action` whose steps are `action`s referencing (`:>`) the functions, with `then` successions (control nodes: `fork`/`join`/`decide`/`merge`) | `#Chain` |
+| functional chain / process | `action` whose steps are `action`s referencing (`:>`) the functions, with `then` successions; exchanges it involves by `dependency involves`; control nodes `fork`/`join` (and), `decide`/`merge` (or), `#Iterate merge`; sequence links as identified `succession <'id'> first a then b { attribute condition : String = "..."; }` | `#Chain` |
+| physical path | `part` involving its links by `dependency involves` | `#Path` |
 | component port | `port` usage, direction by `in`/`out` on its port def or `~` conjugation | |
 | physical port | `port` without direction | `#PhysicalPort` |
 | functional exchange / interaction | `flow` between the ports (item parameters) of two actions, carrying its exchange items | |
@@ -90,13 +91,15 @@ SysML says most Arcadia kinds by itself; metadata names the rest.
 | physical link | `connection` between two nodes or their physical ports | `#Link` |
 | exchange item | `item def` | `#ExchangeItem` when it has attributes |
 | class | `item def` with attributes; `extends` by specialization | `#Class` |
+| association | `connection def` whose `end`s are the two classes, with `role`, `kind` and `multiplicity` attributes | `#Association` |
 | data type / enumeration | `attribute def` / `enum def` | |
 | ArcLang `type` | `part def` / `action def`, its ports and attributes; `type X extends Y` by specialization | |
 | requirement | `requirement` with `doc` and attributes | |
 | hazard | `requirement` | `#Hazard` |
 | mission / capability / operational capability / capability realization | `use case def` of the level | `#Mission`, `#Capability` |
 | state machine | `state def` exhibited by the part or action it belongs to; `state`/`mode` usages, `transition` with `accept`/`if`/`do` | `#Mode` on a mode |
-| scenario | `occurrence def` with one `part` per lifeline, `event occurrence`s and `flow` messages between them (fragments as `loop`/`alt`... occurrences) | |
+| scenario | `occurrence` with one `ref part` per lifeline (`:>` the element), `event occurrence`s and `flow` messages between them (fragments as `loop`/`alt`... occurrences) | |
+| state invariant of a scenario | in the lifeline: `state 'id' :> '<machine>'.'<state>' { attribute start : Integer = n; attribute end : Integer = m; }` (`action` for a function; no `end` for an instant; indexes into the scenario's messages) | `#Invariant` |
 | test case | `verification def` with `objective { verify requirement }` | |
 | constraint | `assert constraint <'CST-1'> 'Name' { <expression> }` over the attributes of elements by feature chain (`'SA'::'SF-1'.wcet`), quantities as `50 [ms]`; `sum(chain, attr)` unfolded as the sum over the chain's steps, `max`/`min` as `DataFunctions::max(...)` over them (folded back on import when the operands are the steps of one chain) | |
 | trace | `satisfy`, `allocate`, `dependency` named after the trace kind (`realizes`, `refines`, `implements`, `verifies`, `validates`, or any `trace_type`) | `#Trace` on a dependency whose name is also a reference key (`realizes`, `includes`...): without it the import reads the dependency as the source's attribute (`realizes: ...`) |

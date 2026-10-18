@@ -76,7 +76,6 @@ fn associations_come_back() {
 }
 
 #[test]
-#[ignore = "needs the reader's `fork` and identified `succession` (export slice in progress)"]
 fn chain_controls_come_back() {
     let text = format!(
         "package <'M'> 'Model' {{\n    {PROFILE}\n    library package More {{ metadata def Iterate; }}\n    private import More::*;\n    #SA package 'System Analysis' {{\n        action <'SF-1'> Detect;\n        action <'SF-2'> Warn;\n        action <'SF-3'> Brake;\n        #Chain action <'FC-1'> Reaction {{\n            action step1 :> 'SF-1';\n            action step2 :> 'SF-2';\n            action step3 :> 'SF-3';\n            fork <'N-1'> 'AND 1';\n            succession <'L-1'> first step1 then 'N-1';\n            succession <'L-2'> first 'N-1' then step2 {{ attribute condition : String = \"Condition A\"; }}\n            succession <'L-3'> first 'N-1' then step3;\n        }}\n    }}\n}}\n"

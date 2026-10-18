@@ -12,16 +12,15 @@ impl Parser {
         let line = self.line();
         self.expect_word("then")?;
         let multiplicity = if self.is_symbol("[") { Some(self.multiplicity_range()?) } else { None };
-        // A usage follows: `then action b;`, `then merge m;`, `then #meta x;`.
+        // A usage follows: `then action b;`, `then merge m;`, `then #meta x;`:
+        // the usage itself, marked as succeeding the previous member (the
+        // succession is implied when records are built).
         if self.is_declaration_start_here() {
-            let mut node = Node::new("SuccessionAsUsage", "FeatureMembership");
-            node.line = line;
-            node.detail = Detail::Connector { ends: vec![End { name: None, multiplicity, target: None, flow_feature: None }, End { name: None, multiplicity: None, target: None, flow_feature: None }] };
-            node.membership_kind = Some("then-next");
+            let _ = multiplicity;
             let mut usage = self.statement()?;
             usage.membership_kind = Some("after-then");
-            node.members.push(usage);
-            return Ok(node);
+            usage.line = line;
+            return Ok(usage);
         }
         let target = self.connector_end()?;
         let mut node = Node::new(if self.in_state { "TransitionUsage" } else { "SuccessionAsUsage" }, "FeatureMembership");

@@ -88,9 +88,17 @@ fn the_flagship_example_comes_back_from_sysml() {
     let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("examples/complete_emergency_braking_simple.arc");
     let m = round_trip(&path);
     report("complete_emergency_braking_simple", &m);
-    // Raised as the export carries more of the model.
     assert!(m.kept_elements == m.total_elements, "{} of {} elements come back", m.kept_elements, m.total_elements);
-    assert!(m.kept_relationships * 100 >= m.total_relationships * 85, "{} of {} relationships come back", m.kept_relationships, m.total_relationships);
+    assert!(m.kept_relationships == m.total_relationships, "{} of {} relationships come back", m.kept_relationships, m.total_relationships);
+}
+
+#[test]
+fn the_capella_ife_example_comes_back_whole() {
+    let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("examples/capella/in_flight_entertainment.arc");
+    let m = round_trip(&path);
+    report("in_flight_entertainment", &m);
+    assert!(m.kept_elements == m.total_elements, "{} of {} elements come back", m.kept_elements, m.total_elements);
+    assert!(m.kept_relationships == m.total_relationships, "{} of {} relationships come back", m.kept_relationships, m.total_relationships);
 }
 
 #[test]

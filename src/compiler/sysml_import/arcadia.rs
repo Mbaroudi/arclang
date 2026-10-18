@@ -301,7 +301,7 @@ impl<'g> Mapper<'g> {
             .elements
             .iter()
             .filter(|e| matches!(e.kind.as_str(), "PartUsage" | "ActionUsage" | "PerformActionUsage"))
-            .filter(|e| self.is_structural_usage(e) && !self.is_chain(e))
+            .filter(|e| self.is_structural_usage(e) && !self.is_chain(e) && !Self::has_metadata(e, &["Path"]))
             .collect();
         let anonymous = |u: &Element| u.short_name.is_none() && u.docs.is_empty() && !u.children.iter().any(|c| self.graph.kind_of(c) == "MetadataUsage");
         // A `perform X` referencing an action elsewhere is a performance,
@@ -1169,7 +1169,8 @@ impl<'g> Mapper<'g> {
         let chains: Vec<&Element> = self.graph.of_kinds(&["ActionDefinition", "ActionUsage"]).filter(|e| !self.is_library(e) && self.is_chain(e) && self.chain_level(e) == level).collect();
         let use_cases: Vec<(&Element, Option<&Element>)> = self.declared("UseCaseDefinition", "UseCaseUsage").into_iter().filter(|(e, d)| self.element_level(e, *d) == level).collect();
         let connectors = self.connectors_at(level);
-        if parts.is_empty() && actions.is_empty() && chains.is_empty() && use_cases.is_empty() && connectors.is_empty() {
+        let paths: Vec<&Element> = if level == Level::Pa { self.graph.of_kinds(&["PartUsage"]).filter(|e| !self.is_library(e) && Self::has_metadata(e, &["Path"])).collect() } else { Vec::new() };
+        if parts.is_empty() && actions.is_empty() && chains.is_empty() && use_cases.is_empty() && connectors.is_empty() && paths.is_empty() {
             return;
         }
         let (keyword, title) = match level {
@@ -1243,8 +1244,40 @@ impl<'g> Mapper<'g> {
         for chain in &chains {
             self.chain(chain, if level == Level::Oa { "operational_process" } else { "functional_chain" });
         }
+        for path in &paths {
+            self.physical_path(path);
+        }
         self.line(0, "}");
         self.line(0, "");
+    }
+
+    /// `#Path part`: a physical path over the links it involves.
+    fn physical_path(&mut self, path: &Element) {
+        let id = self.remember(&path.id, Self::identity_id(path), "PhysicalPath");
+        let mut links = Vec::new();
+        for (key, target) in self.dependency_attrs.get(&path.id).cloned().unwrap_or_default() {
+            if key == "involves" {
+                match self.intended_id(&target) {
+                    Some(written) if !links.contains(&written) => links.push(written),
+                    Some(_) => {}
+                    None => self.count("references by dependency to elements not written (left out)"),
+                }
+            }
+        }
+        if links.is_empty() {
+            self.count("physical paths without links (left out)");
+            return;
+        }
+        self.count("physical paths");
+        self.line(1, &format!("physical_path {} {{", string_literal(&Self::display(path))));
+        self.line(2, &format!("id: {}", string_literal(&id)));
+        if let Some(doc) = Self::description(path) {
+            self.line(2, &format!("description: {}", string_literal(&doc)));
+        }
+        self.line(2, &format!("involves: {}", list_literal(&links)));
+        self.attributes(2, &[path], &["description", "involves"]);
+        self.reference_attributes_except(2, &[path.id.clone()], &["involves"]);
+        self.line(1, "}");
     }
 
     fn element_level(&self, element: &Element, def: Option<&Element>) -> Level {
@@ -1820,19 +1853,90 @@ impl<'g> Mapper<'g> {
             self.line(1, &format!("participants: {}", list_literal(&participants)));
             self.reference_attributes(1, &[scenario.id.clone()]);
             let lifeline_of = |lifeline_id: &str| -> Option<String> { lifelines.iter().find(|(l, _)| l.id == lifeline_id).map(|(_, id)| id.clone()) };
-            for message in messages {
+            // State invariants of the lifelines: spans over the messages, by index.
+            let mut invariants = self.invariants(&lifelines);
+            invariants.sort_by(|a, b| a.start.cmp(&b.start).then(b.end.cmp(&a.end)));
+            let mut open: Vec<usize> = Vec::new();
+            let mut depth = 1;
+            let mut next_invariant = 0;
+            for (index, message) in messages.into_iter().enumerate() {
+                while next_invariant < invariants.len() && invariants[next_invariant].start <= index {
+                    let invariant = &invariants[next_invariant];
+                    next_invariant += 1;
+                    self.count("state invariants");
+                    let head = format!("{} {} {} {{", invariant.keyword, string_literal(&invariant.lifeline), string_literal(&invariant.name));
+                    let id_line = format!("id: {}", string_literal(&invariant.id));
+                    self.line(depth, &head);
+                    self.line(depth + 1, &id_line);
+                    match invariant.end {
+                        // An instant: a block holding no message.
+                        None => self.line(depth, "}"),
+                        Some(end) => {
+                            open.push(end);
+                            depth += 1;
+                        }
+                    }
+                }
                 let (from, to) = (message.sources.first().and_then(|s| self.event_lifeline(s, 0)), message.targets.first().and_then(|t| self.event_lifeline(t, 0)));
-                let (Some(from), Some(to)) = (from.as_deref().and_then(lifeline_of), to.as_deref().and_then(lifeline_of)) else {
-                    self.count("messages of lifelines not written (left out)");
-                    continue;
-                };
-                let label = Self::description(message).unwrap_or_else(|| Self::display(message));
-                self.count("messages");
-                self.line(1, &format!("message {} -> {} {}", string_literal(&from), string_literal(&to), string_literal(&label)));
+                match (from.as_deref().and_then(lifeline_of), to.as_deref().and_then(lifeline_of)) {
+                    (Some(from), Some(to)) => {
+                        let label = Self::description(message).unwrap_or_else(|| Self::display(message));
+                        self.count("messages");
+                        self.line(depth, &format!("message {} -> {} {}", string_literal(&from), string_literal(&to), string_literal(&label)));
+                    }
+                    _ => self.count("messages of lifelines not written (left out)"),
+                }
+                while open.last().is_some_and(|end| *end <= index) {
+                    open.pop();
+                    depth -= 1;
+                    self.line(depth, "}");
+                }
+            }
+            // Invariants after the last message, and spans the messages did not close.
+            for invariant in invariants.iter().skip(next_invariant) {
+                self.count("state invariants");
+                self.line(depth, &format!("{} {} {} {{ id: {} }}", invariant.keyword, string_literal(&invariant.lifeline), string_literal(&invariant.name), string_literal(&invariant.id)));
+            }
+            while open.pop().is_some() {
+                depth -= 1;
+                self.line(depth, "}");
             }
             self.line(0, "}");
             self.line(0, "");
         }
+    }
+
+    /// The `#Invariant` states and functions of the lifelines: what state a
+    /// lifeline is in over a span of messages (`start`, `end` indexes).
+    fn invariants(&self, lifelines: &[(&Element, String)]) -> Vec<Invariant> {
+        let mut out = Vec::new();
+        for (lifeline, lifeline_id) in lifelines {
+            for child in lifeline.children.iter().filter_map(|c| self.graph.get(c)).filter(|c| Self::has_metadata(c, &["Invariant"])) {
+                let target = child.subsets.first().or(child.types.first()).or(child.redefines.first());
+                let referenced = target.and_then(|t| self.graph.get(t)).map(|t| match t.chaining.last().and_then(|l| self.graph.get(l)) {
+                    Some(last) => last,
+                    None => t,
+                });
+                let attribute = |key: &str| child.children.iter().filter_map(|c| self.graph.get(c)).find(|c| c.kind == "AttributeUsage" && c.name.as_deref() == Some(key)).and_then(|c| c.value.clone());
+                let name = match referenced {
+                    Some(state) => state.short_name.clone().or_else(|| state.name.clone()).unwrap_or_else(|| state.id.clone()),
+                    None => match attribute("target").as_deref().and_then(unquote) {
+                        Some(text) => text,
+                        None => continue,
+                    },
+                };
+                let number = |key: &str| attribute(key).and_then(|v| v.parse::<usize>().ok());
+                let keyword = if child.kind == "ActionUsage" || child.kind == "PerformActionUsage" {
+                    "function"
+                } else if referenced.is_some_and(|s| Self::has_metadata(s, &["Mode"])) {
+                    "mode"
+                } else {
+                    "state"
+                };
+                out.push(Invariant { lifeline: lifeline_id.clone(), name, keyword, id: Self::identity_id(child), start: number("start").unwrap_or(0), end: number("end") });
+            }
+        }
+        out
     }
 
     /// The lifeline (an element id) an event of a message belongs to:
@@ -2008,6 +2112,16 @@ fn unquote(literal: &str) -> Option<String> {
         }
     }
     Some(out)
+}
+
+/// A state invariant of a scenario, as written: `state lifeline name { ... }`.
+struct Invariant {
+    lifeline: String,
+    name: String,
+    keyword: &'static str,
+    id: String,
+    start: usize,
+    end: Option<usize>,
 }
 
 fn list_literal(items: &[String]) -> String {
