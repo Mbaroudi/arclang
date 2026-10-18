@@ -8,6 +8,7 @@
 mod architecture;
 mod attributes;
 mod behaviour;
+mod constraints;
 mod data;
 mod levels;
 mod relations;
@@ -204,6 +205,15 @@ impl<'m> Exporter<'m> {
 
     fn finish(self) -> String {
         self.out
+    }
+}
+
+/// ` [2]`, ` [1..*]`: the multiplicity of a usage when its element states a
+/// valid one (then it is not an attribute); nothing otherwise.
+pub(crate) fn multiplicity(kind: &str, attributes: &HashMap<String, AttributeValue>) -> (String, Option<&'static str>) {
+    match crate::compiler::multiplicity::Multiplicity::of(kind, attributes) {
+        Some(m) => (format!(" [{}]", m.canonical()), Some("multiplicity")),
+        None => (String::new(), None),
     }
 }
 

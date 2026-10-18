@@ -14,7 +14,7 @@ use std::collections::{BTreeSet, HashMap};
 pub const NOT_ATTRIBUTES: &[&str] = &[
     "id", "name", "title", "description", "involves", "realizes", "realized_by", "allocated_functions", "allocated_component", "mission",
     "verifies", "mitigated_by", "participants", "from", "to", "owner", "applies_to", "members", "elements", "values", "required",
-    "parent", "performed_by", "deploys", "satisfies", "refines", "implements", "is",
+    "parent", "performed_by", "deploys", "satisfies", "refines", "implements", "is", "specializes", "includes", "extends", "exploits",
 ];
 
 /// The attribute lines of an element of `kind`, and the units they use.

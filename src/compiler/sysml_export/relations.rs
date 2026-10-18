@@ -93,12 +93,7 @@ pub(super) fn write(e: &mut Exporter<'_>) {
             });
         });
     }
-    for constraint in &model.constraints {
-        e.block(&format!("constraint {}", text::declared(&constraint.id, &constraint.name)), |e| {
-            e.header("Constraint", &constraint.attributes, &[]);
-            e.line(&format!("attribute expression : String = {};", text::string(&constraint.expression.to_string())));
-        });
-    }
+    super::constraints::write(e);
     traces(e);
 }
 

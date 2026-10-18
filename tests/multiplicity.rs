@@ -65,12 +65,12 @@ fn the_sysml_export_writes_the_multiplicity_on_the_usage_not_as_an_attribute() {
     let result = compile(MODEL);
     let sysml = generate_sysmlv2(&result.semantic_model, &result.ast);
 
-    assert!(sysml.contains("    part p_LC_SNS : Sensor [2];"), "{sysml}");
-    assert!(sysml.contains("        part p_LC_LNS : Lens [1..4];"), "{sysml}");
-    assert!(sysml.contains("    part p_LC_BKP : Backup [0..1];"), "{sysml}");
-    assert!(sysml.contains("    part p_LC_PRB : Probe [*];"), "{sysml}");
-    assert!(sysml.contains("    part p_PN_ECU : ECU [2..*];"), "{sysml}");
-    assert!(sysml.contains("    part p_LC_HUB : Hub;"), "{sysml}");
+    assert!(sysml.contains("part <'LC-SNS'> Sensor [2] {"), "{sysml}");
+    assert!(sysml.contains("part <'LC-LNS'> Lens [1..4];"), "{sysml}");
+    assert!(sysml.contains("part <'LC-BKP'> Backup [0..1];"), "{sysml}");
+    assert!(sysml.contains("part <'LC-PRB'> Probe [*];"), "{sysml}");
+    assert!(sysml.contains("#Node part <'PN-ECU'> ECU [2..*];"), "{sysml}");
+    assert!(sysml.contains("part <'LC-HUB'> Hub;"), "{sysml}");
     assert!(!sysml.contains("attribute multiplicity"), "{sysml}");
 }
 
@@ -90,7 +90,8 @@ fn an_invalid_multiplicity_is_a_warning_a_gate_blocker_and_is_not_exported_as_on
 
     // Nothing is guessed: the usage has no multiplicity, the text is kept.
     let sysml = generate_sysmlv2(&result.semantic_model, &result.ast);
-    assert!(sysml.contains("    part p_LC_A : A;"), "{sysml}");
+    assert!(sysml.contains("part <'LC-A'> A {"), "{sysml}");
+    assert!(!sysml.contains("part <'LC-A'> A ["), "{sysml}");
     assert!(sysml.contains("attribute multiplicity : String = \"4..2\";"), "{sysml}");
     let graph = elements::build(&result.ast, &result.semantic_model);
     assert!(graph.elements.iter().all(|e| !e.extra.contains_key("multiplicity")));

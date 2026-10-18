@@ -103,20 +103,20 @@ fn register_components(e: &mut Exporter<'_>, package: &str, components: &[Logica
 
 pub(super) fn write(e: &mut Exporter<'_>) {
     let model = e.model;
-    for la in &model.logical_architecture {
-        logical(e, la);
+    for group in levels::grouped(&model.logical_architecture, levels::la_level) {
+        levels::in_package(e, levels::la_level(group[0]), |e| group.iter().for_each(|la| logical(e, la)));
     }
-    for pa in &model.physical_architecture {
-        physical(e, pa);
+    for group in levels::grouped(&model.physical_architecture, levels::pa_level) {
+        levels::in_package(e, levels::pa_level(group[0]), |e| group.iter().for_each(|pa| physical(e, pa)));
     }
-    for epbs in &model.epbs {
-        breakdown(e, epbs);
+    for group in levels::grouped(&model.epbs, levels::epbs_level) {
+        levels::in_package(e, levels::epbs_level(group[0]), |e| group.iter().for_each(|b| breakdown(e, b)));
     }
 }
 
 fn logical(e: &mut Exporter<'_>, la: &LogicalArchitecture) {
-    let level = levels::la_level(la);
-    e.package(&level.head(), &level.qualified(), |e| {
+    {
+        let e = &mut *e;
         e.header("LogicalArchitecture", &la.attributes, &[]);
         let mut interfaces: Vec<String> = Vec::new();
         collect_interfaces(&la.components, &mut interfaces);
@@ -147,7 +147,7 @@ fn logical(e: &mut Exporter<'_>, la: &LogicalArchitecture) {
         for chain in &la.functional_chains {
             levels::chain(e, "FunctionalChain", chain, &keys);
         }
-    });
+    }
 }
 
 fn collect_interfaces(components: &[LogicalComponent], out: &mut Vec<String>) {
@@ -173,9 +173,11 @@ fn logical_component(e: &mut Exporter<'_>, component: &LogicalComponent) {
     let id = id_of(&component.attributes, &component.id).to_string();
     let actor = super::flag(&component.attributes, "actor") || component.component_type.eq_ignore_ascii_case("actor");
     let metadata = if actor { "#Actor " } else { "" };
-    e.block(&format!("{metadata}part {}", text::declared(&id, &component.name)), |e| {
-        e.header("LogicalComponent", &component.attributes, &["actor"]);
-        if !component.component_type.is_empty() && !actor {
+    let (bounds, stated) = super::multiplicity("LogicalComponent", &component.attributes);
+    e.block(&format!("{metadata}part {}{bounds}", text::declared(&id, &component.name)), |e| {
+        e.header("LogicalComponent", &component.attributes, &["actor", stated.unwrap_or("")]);
+        // `Logical` is what the parser gives a component that states no type.
+        if !component.component_type.is_empty() && component.component_type != "Logical" && !actor {
             e.line(&format!("attribute component_type : String = {};", text::string(&component.component_type)));
         }
         component_ports(e, &component.ports);
@@ -217,8 +219,8 @@ fn realizations(e: &mut Exporter<'_>, list: &[Capability]) {
 }
 
 fn physical(e: &mut Exporter<'_>, pa: &PhysicalArchitecture) {
-    let level = levels::pa_level(pa);
-    e.package(&level.head(), &level.qualified(), |e| {
+    {
+        let e = &mut *e;
         e.header("PhysicalArchitecture", &pa.attributes, &[]);
         let interfaces = pa.nodes.iter().flat_map(|n| n.component_ports.iter().chain(n.behavior_components.iter().flat_map(|b| b.ports.iter()))).map(|p| p.interface_type.clone());
         port_defs(e, interfaces.collect::<Vec<_>>());
@@ -282,7 +284,7 @@ fn physical(e: &mut Exporter<'_>, pa: &PhysicalArchitecture) {
         for chain in &pa.functional_chains {
             levels::chain(e, "FunctionalChain", chain, &keys);
         }
-    });
+    }
 }
 
 /// A node with its ports, the functions it holds, and its behaviour and hardware components.
@@ -290,8 +292,9 @@ fn physical_node(e: &mut Exporter<'_>, node: &PhysicalNode) {
     let id = id_of(&node.attributes, &node.id).to_string();
     let actor = super::flag(&node.attributes, "actor");
     let metadata = if actor { "#Node #Actor" } else { "#Node" };
-    e.block(&format!("{metadata} part {}", text::declared(&id, &node.name)), |e| {
-        e.header("PhysicalNode", &node.attributes, &["actor"]);
+    let (bounds, stated) = super::multiplicity("PhysicalNode", &node.attributes);
+    e.block(&format!("{metadata} part {}{bounds}", text::declared(&id, &node.name)), |e| {
+        e.header("PhysicalNode", &node.attributes, &["actor", stated.unwrap_or("")]);
         for (key, value) in [("processor", &node.processor), ("memory", &node.memory)] {
             if let Some(value) = value {
                 e.line(&format!("attribute {key} : String = {};", text::string(value)));
@@ -330,8 +333,8 @@ fn physical_node(e: &mut Exporter<'_>, node: &PhysicalNode) {
 }
 
 fn breakdown(e: &mut Exporter<'_>, epbs: &Epbs) {
-    let level = levels::epbs_level(epbs);
-    e.package(&level.head(), &level.qualified(), |e| {
+    {
+        let e = &mut *e;
         e.header("Epbs", &epbs.attributes, &[]);
         for system in &epbs.systems {
             e.block(&format!("part {}", text::declared(id_of(&system.attributes, &system.name), &system.name)), |e| {
@@ -346,5 +349,5 @@ fn breakdown(e: &mut Exporter<'_>, epbs: &Epbs) {
                 }
             });
         }
-    });
+    }
 }

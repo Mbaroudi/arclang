@@ -248,13 +248,31 @@ fn register_capabilities(e: &mut Exporter<'_>, package: &str, capabilities: &[Op
 
 pub(super) fn write(e: &mut Exporter<'_>) {
     let model = e.model;
-    for oa in &model.operational_analysis {
-        operational(e, oa);
+    for group in grouped(&model.operational_analysis, oa_level) {
+        in_package(e, oa_level(group[0]), |e| group.iter().for_each(|oa| operational(e, oa)));
     }
-    for sa in &model.system_analysis {
-        system(e, sa);
+    for group in grouped(&model.system_analysis, sa_level) {
+        in_package(e, sa_level(group[0]), |e| group.iter().for_each(|sa| system(e, sa)));
     }
     super::architecture::write(e);
+}
+
+/// Blocks of a level written under the same name are one level: one package.
+pub(super) fn grouped<T>(blocks: &[T], level: impl Fn(&T) -> Level) -> Vec<Vec<&T>> {
+    let mut groups: Vec<(String, Vec<&T>)> = Vec::new();
+    for block in blocks {
+        let name = level(block).name;
+        match groups.iter_mut().find(|(n, _)| *n == name) {
+            Some((_, group)) => group.push(block),
+            None => groups.push((name, vec![block])),
+        }
+    }
+    groups.into_iter().map(|(_, g)| g).collect()
+}
+
+/// The package of a level, its blocks written by `body`.
+pub(super) fn in_package(e: &mut Exporter<'_>, level: Level, body: impl FnOnce(&mut Exporter<'_>)) {
+    e.package(&level.head(), &level.qualified(), body);
 }
 
 /// A function as an action usage (`keyword` is `action`, or `perform
@@ -385,14 +403,20 @@ pub(super) fn function_keys<F: Function>(list: &[&F]) -> Vec<String> {
     keys
 }
 
-/// Missions and capabilities as use cases with their kind.
+/// Missions and capabilities as use cases with their kind; what a
+/// capability specializes, includes, extends or exploits, a dependency.
 pub(super) fn use_case(e: &mut Exporter<'_>, metadata: &str, kind: &str, id: &str, name: &str, attributes: &HashMap<String, AttributeValue>) {
     e.block(&format!("{metadata} use case {}", text::declared(id, name)), |e| e.header(kind, attributes, &[]));
+    for key in ["specializes", "includes", "extends", "exploits"] {
+        for target in super::relations::list(attributes, key) {
+            super::relations::dependency(e, key, id, &target);
+        }
+    }
 }
 
 fn operational(e: &mut Exporter<'_>, oa: &OperationalAnalysis) {
-    let level = oa_level(oa);
-    e.package(&level.head(), &level.qualified(), |e| {
+    {
+        let e = &mut *e;
         e.header("OperationalAnalysis", &oa.attributes, &[]);
         for activity in &oa.activities {
             function(e, "OperationalActivity", activity, "action");
@@ -431,7 +455,7 @@ fn operational(e: &mut Exporter<'_>, oa: &OperationalAnalysis) {
         for process in &oa.processes {
             chain(e, "OperationalProcess", process, &keys);
         }
-    });
+    }
 }
 
 fn capabilities(e: &mut Exporter<'_>, list: &[OperationalCapability]) {
@@ -449,8 +473,8 @@ fn capabilities(e: &mut Exporter<'_>, list: &[OperationalCapability]) {
 }
 
 fn system(e: &mut Exporter<'_>, sa: &SystemAnalysis) {
-    let level = sa_level(sa);
-    e.package(&level.head(), &level.qualified(), |e| {
+    {
+        let e = &mut *e;
         e.header("SystemAnalysis", &sa.attributes, &[]);
         let interfaces = sa.components.iter().flat_map(|c| c.ports.iter()).chain(sa.external_actors.iter().flat_map(|a| a.ports.iter())).map(|p| p.interface_type.clone());
         port_defs(e, interfaces.collect::<Vec<_>>());
@@ -503,5 +527,5 @@ fn system(e: &mut Exporter<'_>, sa: &SystemAnalysis) {
         for requirement in &sa.requirements {
             super::relations::requirement(e, requirement);
         }
-    });
+    }
 }

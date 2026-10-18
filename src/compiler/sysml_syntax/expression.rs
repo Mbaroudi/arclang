@@ -140,7 +140,13 @@ impl<'t> Expressions<'t> {
                             break;
                         }
                     }
-                    return Ok(Expr::Operator(",", items));
+                    // The notation's `,` is binary and groups to the right:
+                    // `(a, b, c)` is `a, (b, c)`; `(a,)` is `a`.
+                    let mut folded = items.pop().expect("a sequence has an item");
+                    while let Some(item) = items.pop() {
+                        folded = Expr::Operator(",", vec![item, folded]);
+                    }
+                    return Ok(folded);
                 }
                 self.expect(")")?;
                 Ok(inner)

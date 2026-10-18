@@ -154,6 +154,25 @@ impl<'d> Builder<'d> {
             for name in names {
                 // A redefined feature is one the owner inherits, never a
                 // namesake found further out.
+                // A feature chain (`a.b`) is designated through an anonymous
+                // feature that chains its parts, as KerML does.
+                if name.contains('.') && role != Role::Redefinition {
+                    if let Some(chain) = self.scope.chain(name, declaration.owner) {
+                        let chain_id = element_uuid("sysml-feature-chain", &format!("{}|{}|{}", self.ids[index], metaclass, name));
+                        let chaining: Vec<String> = chain.iter().map(|c| self.ids[*c].clone()).collect();
+                        self.expressions.push(json!({
+                            "@id": chain_id, "@type": "Feature", "elementId": chain_id,
+                            "chainingFeature": references(&chaining), "isLibraryElement": false,
+                        }));
+                        let mut extra = Map::new();
+                        extra.insert(specific_role.into(), reference(&self.ids[index]));
+                        extra.insert("specific".into(), reference(&self.ids[index]));
+                        extra.insert(general_role.into(), reference(&chain_id));
+                        extra.insert("general".into(), reference(&chain_id));
+                        self.relationship(metaclass, name, index, Some(chain_id), extra);
+                        continue;
+                    }
+                }
                 let target = match (role, declaration.owner) {
                     (Role::Redefinition, Some(owner)) => self
                         .scope
@@ -470,7 +489,27 @@ pub fn build(declarations: &[Declaration]) -> Records {
             object.insert("arclang:expression".into(), json!(expression));
         }
         if let Some((source_path, target_path)) = &declaration.ends {
-            let ends = [connector_end(&builder, declaration, source_path), connector_end(&builder, declaration, target_path)];
+            let mut ends = [connector_end(&builder, declaration, source_path), connector_end(&builder, declaration, target_path)];
+            // A flow relates the features that own its output and input: when
+            // that owner is itself reached through a chain (`a.b.out`), the
+            // chain `a.b`, an anonymous feature as KerML has it.
+            if declaration.metaclass == "FlowUsage" {
+                for end in ends.iter_mut() {
+                    let Some((owner_path, _)) = end.path.rsplit_once('.') else { continue };
+                    if !owner_path.contains('.') {
+                        continue;
+                    }
+                    if let Some(chain) = builder.scope.chain(owner_path, declaration.owner) {
+                        let chain_id = element_uuid("sysml-feature-chain", &format!("{}|end|{}", builder.ids[index], end.path));
+                        let chaining: Vec<String> = chain.iter().map(|c| builder.ids[*c].clone()).collect();
+                        builder.expressions.push(json!({
+                            "@id": chain_id, "@type": "Feature", "elementId": chain_id,
+                            "chainingFeature": references(&chaining), "isLibraryElement": false,
+                        }));
+                        end.related = vec![chain_id];
+                    }
+                }
+            }
             let related: Vec<String> = ends.iter().flat_map(|end| end.related.clone()).collect();
             let (source_role, target_role) = match declaration.metaclass {
                 "Dependency" => ("client", "supplier"),

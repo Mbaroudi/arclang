@@ -59,6 +59,8 @@ pub struct Declaration {
     /// Bounds of a `MultiplicityRange`, as written: `[4]` has no lower
     /// bound of its own, and an upper bound of `None` is `*`.
     pub bounds: Option<(Option<u64>, Option<u64>)>,
+    /// Packages whose members this namespace imports (`import P::*;`), as written.
+    pub imports: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -225,6 +227,8 @@ struct Reader {
     tokens: Vec<Token>,
     position: usize,
     declarations: Vec<Declaration>,
+    /// Imports written outside any package.
+    top_imports: Vec<String>,
 }
 
 /// What ended a statement head.
@@ -410,7 +414,23 @@ impl Reader {
 
         head.take_word("private");
         if head.take_word("import") {
-            return Ok(None); // library imports are not declarations of the model
+            // Not a declaration: what names resolve to inside the namespace.
+            let mut segments: Vec<String> = Vec::new();
+            loop {
+                if head.take_symbol("*") {
+                    break;
+                }
+                segments.push(head.name().ok_or_else(|| head.unexpected("an imported name"))?);
+                if !head.take_symbol("::") {
+                    break;
+                }
+            }
+            let path = segments.join("::");
+            match owner {
+                Some(owner) => self.declarations[owner].imports.push(path),
+                None => self.top_imports.push(path),
+            }
+            return Ok(None);
         }
         // `#OA package ...`: prefix metadata, usages of metadata definitions
         // owned by the declaration they annotate.
@@ -701,7 +721,7 @@ impl Reader {
 /// Read the declarations of an exported SysML v2 text, in document order.
 /// The owner of a declaration always precedes it.
 pub fn read(text: &str) -> Result<Vec<Declaration>, String> {
-    let mut reader = Reader { tokens: tokenize(text)?, position: 0, declarations: Vec::new() };
+    let mut reader = Reader { tokens: tokenize(text)?, position: 0, declarations: Vec::new(), top_imports: Vec::new() };
     reader.body(None)?;
     Ok(reader.declarations)
 }
@@ -772,12 +792,13 @@ impl<'d> Scope<'d> {
     }
 
     /// The first segment of a path: looked up from `from` outwards, then in
-    /// the packages of the model (the export imports them all).
+    /// the library packages of the model (the export imports its profile);
+    /// any other package is named by a qualified name.
     fn lexical(&self, name: &str, from: Option<usize>) -> Option<usize> {
         let mut scope = from;
         loop {
             let found = match scope {
-                Some(owner) => self.member(owner, name, 0),
+                Some(owner) => self.member(owner, name, 0).or_else(|| self.imported(owner, name)),
                 None => self.members.get(&(None, name)).copied(),
             };
             if found.is_some() {
@@ -791,8 +812,52 @@ impl<'d> Scope<'d> {
         self.declarations
             .iter()
             .enumerate()
-            .filter(|(_, declaration)| matches!(declaration.metaclass, "Package" | "LibraryPackage"))
+            .filter(|(_, declaration)| declaration.metaclass == "LibraryPackage")
             .find_map(|(package, _)| self.members.get(&(Some(package), name)).copied())
+    }
+
+    /// The declarations a feature chain `A.b.c` (or `P::A.b.c`) goes
+    /// through: what its first part names, then each feature in turn.
+    pub fn chain(&self, path: &str, from: Option<usize>) -> Option<Vec<usize>> {
+        let mut parts = path.split('.');
+        let mut current = self.resolve(parts.next()?, from)?;
+        let mut chain = vec![current];
+        for part in parts {
+            current = self.member(current, part, 0)?;
+            chain.push(current);
+        }
+        Some(chain)
+    }
+
+    /// A member of a package `owner` imports with `import P::*;`.
+    fn imported(&self, owner: usize, name: &str) -> Option<usize> {
+        let declaration = &self.declarations[owner];
+        declaration.imports.iter().find_map(|path| {
+            // An imported package is named from inside the importing namespace.
+            let package = self.resolve_package(path, Some(owner))?;
+            self.members.get(&(Some(package), name)).copied()
+        })
+    }
+
+    /// The package a path names, looked up outwards without imports.
+    fn resolve_package(&self, path: &str, from: Option<usize>) -> Option<usize> {
+        let mut segments = path.split("::");
+        let first = segments.next()?;
+        let mut scope = from;
+        let mut current = loop {
+            let found = match scope {
+                Some(owner) => self.members.get(&(Some(owner), first)).copied(),
+                None => self.members.get(&(None, first)).copied(),
+            };
+            if let Some(found) = found {
+                break found;
+            }
+            scope = self.declarations[scope?].owner;
+        };
+        for segment in segments {
+            current = *self.members.get(&(Some(current), segment))?;
+        }
+        Some(current)
     }
 
     /// The declaration a written path designates, seen from inside `from`.
@@ -970,21 +1035,32 @@ mod tests {
 
     #[test]
     fn a_short_name_resolves_like_a_name() {
-        let declarations = read_ok("package M {\n  package Units {\n    attribute <ms> millisecond : DurationUnit;\n  }\n}\n");
+        let declarations = read_ok("package M {\n  package Units {\n    attribute <ms> millisecond : DurationUnit;\n  }\n  private import Units::*;\n}\n");
         let scope = Scope::new(&declarations);
         assert_eq!(scope.resolve("ms", Some(0)), Some(2));
+        assert_eq!(scope.resolve("Units::ms", Some(0)), Some(2));
     }
 
     #[test]
     fn names_resolve_through_owners_types_and_packages() {
         let declarations = read_ok(
-            "package M {\n  part def Camera {\n    port lane : P;\n  }\n  part p_CAM : Camera;\n  connect p_CAM.lane to p_CAM.lane;\n  package Units {\n    attribute <ms> millisecond : DurationUnit;\n  }\n}\n",
+            "package M {\n  part def Camera {\n    port lane : P;\n  }\n  part p_CAM : Camera;\n  connect p_CAM.lane to p_CAM.lane;\n  package Units {\n    attribute <ms> millisecond : DurationUnit;\n  }\n  private import Units::*;\n}\n",
         );
         let scope = Scope::new(&declarations);
         let lane = scope.resolve("p_CAM.lane", Some(0)).expect("the port resolves through the part's type");
         assert_eq!(scope.qualified_name(lane).as_deref(), Some("M::Camera::lane"));
         assert_eq!(scope.resolve("millisecond", Some(1)).map(|i| declarations[i].metaclass), Some("AttributeUsage"));
         assert_eq!(scope.resolve("DurationUnit", Some(0)), None, "library names are not declared in the model");
+    }
+
+    #[test]
+    fn a_package_is_searched_only_when_imported() {
+        let declarations = read_ok("package M {\n  package Data {\n    item def String;\n  }\n  package Use {\n    attribute a : String;\n  }\n}\n");
+        let scope = Scope::new(&declarations);
+        assert_eq!(scope.resolve("String", Some(3)), None, "the library's String, not the model's Data::String");
+        let declarations = read_ok("package M {\n  library package Profile {\n    metadata def Actor;\n  }\n  #Actor part def A;\n}\n");
+        let scope = Scope::new(&declarations);
+        assert_eq!(scope.resolve("Actor", Some(0)).map(|i| declarations[i].metaclass), Some("MetadataDefinition"));
     }
 
     #[test]
