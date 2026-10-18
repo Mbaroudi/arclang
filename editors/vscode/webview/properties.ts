@@ -90,11 +90,12 @@ export class Properties {
       field = select;
     } else {
       const input = el('input', { type: 'text', class: 'wb-field', value: current, placeholder: placeholderFor(attribute) });
+      // Enter leaves the field; the change event then submits once.
       input.addEventListener('change', () => submit(input.value));
       input.addEventListener('keydown', (event) => {
         if (event.key === 'Enter') {
           event.preventDefault();
-          submit(input.value);
+          input.blur();
         }
         if (event.key === 'Escape') input.value = current;
       });
