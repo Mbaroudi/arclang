@@ -163,11 +163,34 @@ pub fn export(model: &Model, file_stem: &str) -> Exported {
         None => El::new("ownedArchitectures", "epbs:EPBSArchitecture", &derived(&format!("{project_id}:epbs"))).attr("name", "EPBS Architecture"),
     };
     let epbs_id = epbs_el.id().to_string();
-    engineering.push(oa_el);
-    engineering.push(sa_el.with(realization("ownedOperationalAnalysisRealizations", "ctx:OperationalAnalysisRealization", &sa_id, &oa_id)));
-    engineering.push(la_el.with(realization("ownedSystemAnalysisRealizations", "la:SystemAnalysisRealization", &la_id, &sa_id)));
-    engineering.push(pa_el.with(realization("ownedLogicalArchitectureRealizations", "pa:LogicalArchitectureRealization", &pa_id, &la_id)));
-    engineering.push(epbs_el.with(realization("ownedPhysicalArchitectureRealizations", "epbs:PhysicalArchitectureRealization", &epbs_id, &pa_id)));
+    // A level realizes the one above it when both are there.
+    let kept = |level: &str| match model.attributes.get("capella_levels") {
+        Some(crate::compiler::ast::AttributeValue::List(levels)) => levels.iter().any(|l| l.as_string() == Some(level)),
+        _ => true,
+    };
+    let chain = [
+        ("oa", oa_el, None),
+        ("sa", sa_el, Some(("ownedOperationalAnalysisRealizations", "ctx:OperationalAnalysisRealization", &oa_id))),
+        ("la", la_el, Some(("ownedSystemAnalysisRealizations", "la:SystemAnalysisRealization", &sa_id))),
+        ("pa", pa_el, Some(("ownedLogicalArchitectureRealizations", "pa:LogicalArchitectureRealization", &la_id))),
+        ("epbs", epbs_el, Some(("ownedPhysicalArchitectureRealizations", "epbs:PhysicalArchitectureRealization", &pa_id))),
+    ];
+    let mut above: Option<&str> = None;
+    for (level, el, realizes) in chain {
+        if !kept(level) {
+            above = None;
+            continue;
+        }
+        let el = match (realizes, above) {
+            (Some((tag, kind, target)), Some(_)) => {
+                let id = el.id().to_string();
+                el.with(realization(tag, kind, &id, target))
+            }
+            _ => el,
+        };
+        engineering.push(el);
+        above = Some(level);
+    }
     if model.operational_analysis.len() > 1 {
         context.note(format!("{} operational analyses: Capella has one, the first is exported", model.operational_analysis.len()));
     }

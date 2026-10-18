@@ -289,6 +289,9 @@ impl Writer {
     }
 }
 
+/// The architecture levels of a Capella project, by kind, as `capella_levels` names them.
+const LEVELS: &[(&str, &str)] = &[("oa:OperationalAnalysis", "oa"), ("ctx:SystemAnalysis", "sa"), ("la:LogicalArchitecture", "la"), ("pa:PhysicalArchitecture", "pa"), ("epbs:EPBSArchitecture", "epbs")];
+
 /// The name an element is written under: its name, else its id.
 fn display_name(node: &Node) -> String {
     let name = node.name().trim();
@@ -449,6 +452,12 @@ fn import_document(document: &Node, aird: Option<Result<Node, String>>, file_nam
     writer.line(0, &format!("model {} {{", string_literal(project_name)));
     writer.line(1, &format!("name: {}", string_literal(project_name)));
     writer.line(1, &format!("description: {}", string_literal(&format!("Imported from Capella ({file_name})"))));
+    // A project without some of the five levels says which it has: the
+    // export makes the five of a new project otherwise.
+    let levels: Vec<String> = engineering.tagged("ownedArchitectures").filter_map(|a| LEVELS.iter().find(|(kind, _)| *kind == a.kind).map(|(_, l)| l.to_string())).collect();
+    if LEVELS.iter().any(|(_, l)| !levels.iter().any(|x| x == l)) {
+        writer.line(1, &format!("capella_levels: {}", list_literal(&levels)));
+    }
     writer.line(0, "}");
     writer.line(0, "");
 

@@ -1,0 +1,53 @@
+name: Capella round trip
+
+on:
+  push:
+    branches: [ main, develop, v3-foundation, capella-parity ]
+    paths: [ 'src/**', 'tools/capella_bench/**', 'Cargo.toml', 'Cargo.lock', '.github/workflows/capella-bench.yml' ]
+  pull_request:
+    branches: [ main, develop, v3-foundation, capella-parity ]
+    paths: [ 'src/**', 'tools/capella_bench/**', 'Cargo.toml', 'Cargo.lock', '.github/workflows/capella-bench.yml' ]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  bench:
+    name: Capella corpus round trip
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-release-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Cache the corpus
+        uses: actions/cache@v4
+        with:
+          path: ~/capella-corpus
+          key: capella-corpus-${{ hashFiles('tools/capella_bench/corpus.txt') }}
+
+      - name: Build
+        run: cargo build --release
+
+      - name: Fetch the corpus
+        run: tools/capella_bench/fetch_corpus.sh ~/capella-corpus
+
+      - name: Round trip
+        run: python3 tools/capella_bench/bench.py ~/capella-corpus /tmp/capella-bench --json /tmp/capella-bench.json
+
+      - name: Keep the results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: capella-bench
+          path: /tmp/capella-bench.json
