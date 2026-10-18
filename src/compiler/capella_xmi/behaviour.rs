@@ -39,8 +39,11 @@ pub(super) fn state_machines(writer: &mut Writer, engineering: &Node) {
         }
     }
     let all: Vec<&Node> = engineering.find_all("capellacommon:StateMachine");
+    // Names counted over the machines written (those with a state): a
+    // machine left out does not force a prefix on another.
+    let has_states = |machine: &Node| machine.tagged("ownedRegions").any(|r| r.tagged("ownedStates").next().is_some());
     let mut names_seen: HashMap<String, usize> = HashMap::new();
-    for machine in &all {
+    for machine in all.iter().filter(|m| has_states(m)) {
         *names_seen.entry(display_name(machine)).or_insert(0) += 1;
     }
     for machine in all {
@@ -131,7 +134,7 @@ fn write_region(writer: &mut Writer, depth: usize, region: &Node, state_names: &
             writer.line(depth + 1, &format!("kind: {}", string_literal(kind)));
         }
         for (tag, key) in [("entry", "entry"), ("exit", "exit"), ("doActivity", "do")] {
-            let names = behaviours_of(writer, &refs(state.attr(tag)), unique);
+            let names = behaviours_of(writer, &refs(state.attr(tag)), unique, false);
             if !names.is_empty() {
                 writer.line(depth + 1, &format!("{key}: {}", super::list_literal(&names)));
             }
@@ -179,9 +182,10 @@ fn write_region(writer: &mut Writer, depth: usize, region: &Node, state_names: &
                 attributes.push(format!("guard: {}", string_literal(&text)));
             }
         }
-        let effects: Vec<String> = refs(transition.attr("effect")).iter().filter_map(|id| writer.names.get(id).cloned()).collect();
+        // The effects, as a list: a name may hold a comma.
+        let effects = behaviours_of(writer, &refs(transition.attr("effect")), unique, true);
         if !effects.is_empty() {
-            attributes.push(format!("action: {}", string_literal(&effects.join(", "))));
+            attributes.push(format!("action: {}", super::list_literal(&effects)));
         }
         writer.line(depth, &format!("transition {} -> {} {{ {} }}", string_literal(from), string_literal(to), attributes.join(" ")));
     }
@@ -215,9 +219,11 @@ fn written_holder(writer: &Writer, engineering: &Node, id: &str) -> Option<Strin
     }
 }
 
-/// What a state's entry, exit or do names: a function or activity, by its
-/// name when no other has it, else by its id; anything else is left out.
-fn behaviours_of(writer: &mut Writer, ids: &[String], unique: &HashSet<String>) -> Vec<String> {
+/// What a state's entry, exit or do, or a transition's effect, names: a
+/// function or activity, by its name when no other has it, else by its id.
+/// Another written element (an exchange item...) is kept by id when
+/// `keep_others` (a transition effect may be one); else left out.
+fn behaviours_of(writer: &mut Writer, ids: &[String], unique: &HashSet<String>, keep_others: bool) -> Vec<String> {
     let mut named = Vec::new();
     for id in ids {
         match writer.kinds.get(id).copied() {
@@ -225,8 +231,9 @@ fn behaviours_of(writer: &mut Writer, ids: &[String], unique: &HashSet<String>) 
                 let name = writer.names.get(id).cloned().unwrap_or_default();
                 named.push(if unique.contains(&format!("function:{name}")) { name } else { writer.ids[id].clone() });
             }
+            Some(_) if keep_others => named.push(writer.ids[id].clone()),
             Some(_) => writer.count("state entry/exit/do naming something that is not a function (left out)"),
-            None => writer.count("state entry/exit/do naming an element not written (left out)"),
+            None => writer.count("state entry/exit/do or effect naming an element not written (left out)"),
         }
     }
     named
@@ -310,8 +317,11 @@ pub(super) fn scenarios(writer: &mut Writer, engineering: &Node) {
     let mut taken: HashSet<String> = HashSet::new();
     let unique = unique_names(writer);
     let all: Vec<&Node> = engineering.find_all("interaction:Scenario");
+    // Names counted over the scenarios written (one lifeline stands for a
+    // written element): a scenario left out does not force a prefix.
+    let has_lifeline = |scenario: &Node| scenario.tagged("ownedInstanceRoles").any(|role| represented(writer, role).is_some());
     let mut names_seen: HashMap<String, usize> = HashMap::new();
-    for scenario in &all {
+    for scenario in all.iter().filter(|s| has_lifeline(s)) {
         *names_seen.entry(display_name(scenario)).or_insert(0) += 1;
     }
     let mut owners: HashMap<String, String> = HashMap::new();

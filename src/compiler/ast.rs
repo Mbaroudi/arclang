@@ -680,7 +680,12 @@ pub struct PhysicalExchange {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Epbs {
+    /// `id:` of the block when written (Capella's EPBS architecture id).
+    #[serde(default)]
+    pub id: String,
     pub name: String,
+    #[serde(default)]
+    pub attributes: HashMap<String, AttributeValue>,
     pub systems: Vec<EpbsSystem>,
 }
 

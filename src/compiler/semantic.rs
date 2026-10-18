@@ -1310,7 +1310,8 @@ impl SemanticAnalyzer {
         let levels = ast.operational_analysis.iter().map(|l| (&l.id, &l.name, "OperationalAnalysis"))
             .chain(ast.system_analysis.iter().map(|l| (&l.id, &l.name, "SystemAnalysis")))
             .chain(ast.logical_architecture.iter().map(|l| (&l.id, &l.name, "LogicalArchitecture")))
-            .chain(ast.physical_architecture.iter().map(|l| (&l.id, &l.name, "PhysicalArchitecture")));
+            .chain(ast.physical_architecture.iter().map(|l| (&l.id, &l.name, "PhysicalArchitecture")))
+            .chain(ast.epbs.iter().map(|l| (&l.id, &l.name, "Epbs")));
         for (id, name, kind) in levels {
             if !id.is_empty() && !all_elements.contains_key(id) {
                 register_element(&mut all_elements, &mut duplicate_ids, id.clone(), ElementInfo::new(id.clone(), name.clone(), kind));

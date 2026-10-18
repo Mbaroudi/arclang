@@ -34,6 +34,7 @@ physical_architecture "PA" {
     physical_exchange "frames" { id: "PE-1" from: "PC-Ctrl.bus" to: "PN-GW" via: "PL-1" exchange_items: ["Targets"] }
 }
 epbs "Product" {
+    id: "ARCH-EPBS"
     system "IFE" {
         id: "CI-IFE"
         subsystem "Cabin" {
@@ -57,7 +58,7 @@ state_machine "Modes" {
         state "Done" { id: "ST-Done" kind: "final" }
         transition "Idle" -> "Done" { id: "TR-2" trigger: "" events: ["timeout"] guard: "ready" }
     }
-    transition "Off" -> "Running" { id: "TR-1" trigger: "power" events: ["power on", "wake"] }
+    transition "Off" -> "Running" { id: "TR-1" trigger: "power" events: ["power on", "wake"] action: ["SF-Sense", "SF-Decide"] }
 }
 scenario "Seat use" {
     owner: "SC-AEB"
@@ -171,6 +172,16 @@ fn a_level_block_is_an_element_an_owner_can_name() {
     let at_level = MODEL.replace(r#"owner: "SC-AEB""#, r#"owner: "ARCH-SA""#);
     let result = compile(&at_level);
     assert!(result.warnings.iter().all(|w| !w.contains("ARCH-SA")), "{:?}", result.warnings);
+}
+
+#[test]
+fn a_transition_action_may_be_a_list_and_the_epbs_block_carries_its_id() {
+    let result = compile(MODEL);
+    let power = result.ast.state_machines[0].transitions.iter().find(|t| t.id == "TR-1").expect("transition");
+    assert_eq!(power.action.as_deref(), Some("SF-Sense, SF-Decide"));
+    assert_eq!(result.ast.epbs[0].id, "ARCH-EPBS");
+    let at_epbs = MODEL.replace(r#"owner: "SC-AEB""#, r#"owner: "ARCH-EPBS""#);
+    assert!(compile(&at_epbs).warnings.iter().all(|w| !w.contains("ARCH-EPBS")));
 }
 
 #[test]

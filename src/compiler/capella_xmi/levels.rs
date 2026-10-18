@@ -911,6 +911,7 @@ pub(super) fn epbs(writer: &mut Writer, architecture: &Node) {
         return;
     }
     writer.line(0, &format!("epbs {} {{", string_literal(&display_name(architecture))));
+    writer.line(1, &format!("id: {}", string_literal(architecture.id())));
     let mut taken: HashSet<String> = HashSet::new();
     fn realizations(writer: &mut Writer, depth: usize, item: &Node) {
         let realized = writer.known(&item.tagged("ownedPhysicalArtifactRealizations").filter_map(|r| first_ref(r.attr("targetElement"))).collect::<Vec<_>>());

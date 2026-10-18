@@ -1217,7 +1217,10 @@ impl Parser {
             to,
             trigger: get("trigger").unwrap_or_default(),
             guard: get("guard"),
-            action: get("action"),
+            action: get("action").or_else(|| {
+                let list = Self::string_list(&attributes, "action");
+                if list.is_empty() { None } else { Some(list.join(", ")) }
+            }),
             timing: get("timing"),
             priority: get("priority"),
             attributes,
@@ -2891,6 +2894,7 @@ impl Parser {
         
         let mut systems: Vec<EpbsSystem> = Vec::new();
         let mut orphan_subsystems = Vec::new();
+        let mut epbs_attributes: HashMap<String, AttributeValue> = HashMap::new();
 
         while !self.check(&Token::RightBrace) && !self.is_at_end() {
             match self.current() {
@@ -2901,6 +2905,10 @@ impl Parser {
                     // Subsystem declared directly under epbs: grouped under an
                     // implicit system named after the EPBS block.
                     orphan_subsystems.push(self.parse_epbs_subsystem()?);
+                }
+                _ if self.peek_is_colon() => {
+                    let (key, value) = self.parse_attribute()?;
+                    epbs_attributes.insert(key, value);
                 }
                 _ => {
                     return Err(self.err(format!("Unexpected token in epbs: {}", self.current())));
@@ -2918,7 +2926,8 @@ impl Parser {
             });
         }
 
-        Ok(Epbs { name, systems })
+        let id = epbs_attributes.get("id").and_then(|v| v.as_string()).map(str::to_string).unwrap_or_default();
+        Ok(Epbs { id, name, attributes: epbs_attributes, systems })
     }
     
     fn parse_epbs_system(&mut self) -> Result<EpbsSystem, String> {
