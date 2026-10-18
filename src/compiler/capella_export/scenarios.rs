@@ -17,6 +17,8 @@ struct Frame<'a> {
     end: usize,
     /// How many fragments hold it: outer frames open first.
     depth: usize,
+    /// The fragment frame it is in, if any.
+    parent: Option<usize>,
     what: What<'a>,
 }
 
@@ -36,19 +38,33 @@ fn operator(kind: FragmentType) -> &'static str {
     }
 }
 
-/// The fragments, nested ones after their parent, and the depth of the
-/// invariants each operand holds (by index into the scenario's invariants).
-fn collect<'a>(fragments: &'a [CombinedFragment], scenario: &str, depth: usize, into: &mut Vec<Frame<'a>>, invariant_depth: &mut HashMap<usize, usize>) {
+/// The fragments, nested ones after their parent, and the depth and the
+/// fragment of the invariants each operand holds (by index into the
+/// scenario's invariants).
+fn collect<'a>(fragments: &'a [CombinedFragment], scenario: &str, depth: usize, parent: Option<usize>, into: &mut Vec<Frame<'a>>, invariant_place: &mut HashMap<usize, (usize, usize)>) {
     for f in fragments {
-        let id = derived(&format!("{scenario}:fragment:{}:{}:{}", f.start, f.end, into.len()));
-        into.push(Frame { start: f.start, end: f.end, depth, what: What::Fragment(f, id) });
+        let index = into.len();
+        let id = derived(&format!("{scenario}:fragment:{}:{}:{index}", f.start, f.end));
+        into.push(Frame { start: f.start, end: f.end, depth, parent, what: What::Fragment(f, id) });
         for operand in &f.operands {
-            for index in &operand.invariants {
-                invariant_depth.insert(*index, depth + 1);
+            for invariant in &operand.invariants {
+                invariant_place.insert(*invariant, (depth + 1, index));
             }
-            collect(&operand.fragments, scenario, depth + 1, into, invariant_depth);
+            collect(&operand.fragments, scenario, depth + 1, Some(index), into, invariant_place);
         }
     }
+}
+
+/// Whether frame `f` is inside fragment frame `outer`.
+fn inside(frames: &[Frame<'_>], f: usize, outer: usize) -> bool {
+    let mut parent = frames[f].parent;
+    while let Some(p) = parent {
+        if p == outer {
+            return true;
+        }
+        parent = frames[p].parent;
+    }
+    false
 }
 
 /// The scenario element, or `None` (with a note) when no lifeline resolves.
@@ -92,8 +108,8 @@ pub(super) fn scenario(context: &mut Context, engineering: &El, s: &Scenario, na
     let role = |reference: &str| role_of.get(reference).cloned().or_else(|| resolved.get(reference).and_then(|t| role_of.get(t).cloned()));
 
     let mut frames: Vec<Frame<'_>> = Vec::new();
-    let mut invariant_depth: HashMap<usize, usize> = HashMap::new();
-    collect(&s.fragments, &id, 0, &mut frames, &mut invariant_depth);
+    let mut invariant_place: HashMap<usize, (usize, usize)> = HashMap::new();
+    collect(&s.fragments, &id, 0, None, &mut frames, &mut invariant_place);
     for (index, inv) in s.invariants.iter().enumerate() {
         // A function invariant names a function, a state invariant a state or mode.
         let related = match inv.kind {
@@ -102,10 +118,12 @@ pub(super) fn scenario(context: &mut Context, engineering: &El, s: &Scenario, na
         };
         let (Some(lifeline), Some(related)) = (role(&inv.lifeline), related.map(str::to_string)) else { continue };
         let iid = if inv.id.is_empty() { derived(&format!("{id}:invariant:{index}")) } else { inv.id.clone() };
-        frames.push(Frame { start: inv.start, end: inv.end, depth: invariant_depth.get(&index).copied().unwrap_or(0), what: What::Invariant { id: iid, lifeline, related, state: inv.kind == InvariantKind::State } });
+        let (depth, parent) = invariant_place.get(&index).map_or((0, None), |(d, p)| (*d, Some(*p)));
+        frames.push(Frame { start: inv.start, end: inv.end, depth, parent, what: What::Invariant { id: iid, lifeline, related, state: inv.kind == InvariantKind::State } });
     }
-    // Outer frames open first and close last.
-    let span = |f: &Frame<'_>| if f.end < f.start { 0 } else { f.end - f.start + 1 };
+    // Outer frames open first and close last. An instant before the first
+    // message ends at `usize::MAX`, one short of its start: it spans nothing.
+    let span = |f: &Frame<'_>| f.end.checked_sub(f.start).and_then(|d| d.checked_add(1)).unwrap_or(0);
 
     let mut fragments: Vec<El> = Vec::new();
     let mut messages: Vec<El> = Vec::new();
@@ -199,6 +217,20 @@ pub(super) fn scenario(context: &mut Context, engineering: &El, s: &Scenario, na
         let mut ending: Vec<usize> = closing.iter().filter(|(end, _)| *end == position).map(|(_, f)| *f).collect();
         ending.sort_by_key(|f| span(&frames[*f]));
         for f in ending {
+            // An instant ending an operand stands after its last message and
+            // before the end of its fragment.
+            if matches!(frames[f].what, What::Fragment(..)) {
+                let last: Vec<usize> = order
+                    .iter()
+                    .copied()
+                    .filter(|i| !opened[*i] && frames[*i].start == position + 1 && span(&frames[*i]) == 0 && matches!(frames[*i].what, What::Invariant { .. }) && inside(&frames, *i, f))
+                    .collect();
+                for i in last {
+                    opened[i] = true;
+                    open(&frames[i], i, &mut fragments, &mut starts);
+                    close(&frames[i], i, &mut fragments, &starts, &mut lapses, &all_roles);
+                }
+            }
             close(&frames[f], f, &mut fragments, &starts, &mut lapses, &all_roles);
         }
     }
@@ -281,4 +313,57 @@ fn first_capability(el: &El) -> Option<&str> {
         return Some(el.id());
     }
     el.children().iter().find_map(first_capability)
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::compiler::{Compiler, CompilerConfig};
+
+    const MODEL: &str = r#"model T { name: "t" }
+system_analysis "SA" {
+    function "Sense" { id: "SF-Sense" }
+    function "Decide" { id: "SF-Decide" }
+    function "Wait" { id: "SF-Wait" }
+    function "Rest" { id: "SF-Rest" }
+    capability "Operate" { id: "CAP-1" }
+}
+scenario "Run" {
+    id: "SC-1"
+    participants: ["SF-Sense", "SF-Decide"]
+    fragment par {
+        operand { message "SF-Sense" -> "SF-Decide" "a" { id: "M-a" } }
+        operand {
+            fragment loop { message "SF-Decide" -> "SF-Sense" "b" { id: "M-b" } }
+            function "SF-Decide" "Wait" { id: "SI-wait" }
+        }
+    }
+    function "SF-Sense" "Rest" { id: "SI-rest" }
+}
+"#;
+
+    /// The ids of the interaction fragments, in the order of the file.
+    fn fragment_order(capella: &str) -> Vec<String> {
+        capella
+            .lines()
+            .filter(|l| l.contains("<ownedInteractionFragments"))
+            .filter_map(|l| l.split("id=\"").nth(1).and_then(|r| r.split('"').next()).map(str::to_string))
+            .collect()
+    }
+
+    #[test]
+    fn an_instant_closing_an_operand_stays_inside_its_fragment() {
+        let model = Compiler::new(CompilerConfig::default()).compile_string(MODEL).expect("compiles").ast;
+        let exported = super::super::export(&model, "model");
+        let capella = &exported.capella;
+        let lapse = |id: &str, end: &str| -> String {
+            let line = capella.lines().find(|l| l.contains("<ownedTimeLapses") && l.contains(&format!("id=\"{id}\""))).unwrap_or_else(|| panic!("{id} in {capella}"));
+            line.split(&format!("{end}=\"#")).nth(1).and_then(|r| r.split('"').next()).unwrap().to_string()
+        };
+        let par = capella.lines().find(|l| l.contains("interaction:CombinedFragment") && l.contains("operator=\"PAR\"")).unwrap_or_else(|| panic!("par in {capella}"));
+        let par_finish = par.split("finish=\"#").nth(1).and_then(|r| r.split('"').next()).unwrap().to_string();
+        let order = fragment_order(capella);
+        let at = |id: &str| order.iter().position(|o| o == id).unwrap_or_else(|| panic!("{id} in {order:?}"));
+        assert!(at(&lapse("SI-wait", "finish")) < at(&par_finish), "the instant of the operand is before the end of the par: {order:?}");
+        assert!(at(&par_finish) < at(&lapse("SI-rest", "start")), "the instant after the par stays after it: {order:?}");
+    }
 }
