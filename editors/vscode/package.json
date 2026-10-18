@@ -1,37 +1,218 @@
 {
   "name": "arclang",
   "displayName": "ArcLang",
-  "description": "Arcadia MBSE as code: diagnostics with rules, outline, completion from the metamodel, hover, go to definition, rename, and the viewpoint diagrams beside the source — all from the ArcLang compiler.",
-  "version": "4.1.0",
+  "description": "Arcadia MBSE as code: diagnostics with rules, outline, completion from the metamodel, hover, go to definition, rename, formatting, the viewpoint diagrams beside the source, the production gate, Arcadia transitions, the @arclang chat participant and compiler tools for agent mode, the ArcLang MCP server. Everything comes from the ArcLang compiler.",
+  "version": "4.2.0",
   "publisher": "arclang",
   "license": "MIT",
-  "repository": { "type": "git", "url": "https://github.com/Mbaroudi/arclang", "directory": "editors/vscode" },
-  "engines": { "vscode": "^1.85.0" },
-  "categories": ["Programming Languages", "Linters", "Visualization"],
-  "keywords": ["arcadia", "capella", "mbse", "systems engineering", "sysml"],
-  "activationEvents": ["onLanguage:arclang"],
-  "main": "./extension.js",
+  "icon": "icon.png",
+  "homepage": "https://arclang.fr",
+  "bugs": {
+    "url": "https://github.com/Mbaroudi/arclang/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Mbaroudi/arclang",
+    "directory": "editors/vscode"
+  },
+  "engines": {
+    "vscode": "^1.104.0"
+  },
+  "categories": [
+    "Programming Languages",
+    "Linters",
+    "Formatters",
+    "Visualization",
+    "AI",
+    "Chat"
+  ],
+  "keywords": [
+    "arcadia",
+    "capella",
+    "mbse",
+    "systems engineering",
+    "sysml",
+    "sysml v2",
+    "model-based",
+    "chat-participant",
+    "mcp"
+  ],
+  "activationEvents": [
+    "onLanguage:arclang"
+  ],
+  "main": "./dist/extension.js",
   "contributes": {
     "languages": [
       {
         "id": "arclang",
-        "aliases": ["ArcLang", "arclang"],
-        "extensions": [".arc"],
-        "configuration": "./language-configuration.json"
+        "aliases": [
+          "ArcLang",
+          "arclang"
+        ],
+        "extensions": [
+          ".arc"
+        ],
+        "configuration": "./language-configuration.json",
+        "icon": {
+          "light": "./media/file-icon.svg",
+          "dark": "./media/file-icon.svg"
+        }
       }
     ],
     "grammars": [
-      { "language": "arclang", "scopeName": "source.arclang", "path": "./syntaxes/arclang.tmLanguage.json" }
+      {
+        "language": "arclang",
+        "scopeName": "source.arclang",
+        "path": "./syntaxes/arclang.tmLanguage.json"
+      }
     ],
     "commands": [
-      { "command": "arclang.openDiagrams", "title": "ArcLang: Open diagrams", "icon": "$(graph)" },
-      { "command": "arclang.runGate", "title": "ArcLang: Run the production gate" },
-      { "command": "arclang.transitionPlan", "title": "ArcLang: Transition plan (what each Arcadia step would create)" },
-      { "command": "arclang.restartServer", "title": "ArcLang: Restart the language server" }
+      {
+        "command": "arclang.openDiagrams",
+        "title": "Open diagrams",
+        "category": "ArcLang",
+        "icon": "$(graph)"
+      },
+      {
+        "command": "arclang.check",
+        "title": "Check the model (rules and findings)",
+        "category": "ArcLang"
+      },
+      {
+        "command": "arclang.runGate",
+        "title": "Run the production gate",
+        "category": "ArcLang"
+      },
+      {
+        "command": "arclang.format",
+        "title": "Format the model",
+        "category": "ArcLang"
+      },
+      {
+        "command": "arclang.transitionPlan",
+        "title": "Transition plan (what each Arcadia step would create)",
+        "category": "ArcLang"
+      },
+      {
+        "command": "arclang.transitionApply",
+        "title": "Apply an Arcadia transition step",
+        "category": "ArcLang"
+      },
+      {
+        "command": "arclang.impact",
+        "title": "Change impact of an element",
+        "category": "ArcLang"
+      },
+      {
+        "command": "arclang.diffWithHead",
+        "title": "Semantic diff against the committed version",
+        "category": "ArcLang"
+      },
+      {
+        "command": "arclang.export",
+        "title": "Export (SysML v2, Capella, ReqIF, C headers, ...)",
+        "category": "ArcLang"
+      },
+      {
+        "command": "arclang.import",
+        "title": "Import (SysML v2, Capella, ReqIF, ...)",
+        "category": "ArcLang"
+      },
+      {
+        "command": "arclang.showMetamodel",
+        "title": "Show the language metamodel",
+        "category": "ArcLang"
+      },
+      {
+        "command": "arclang.showRules",
+        "title": "Show the catalogue of rules",
+        "category": "ArcLang"
+      },
+      {
+        "command": "arclang.restartServer",
+        "title": "Restart the language server",
+        "category": "ArcLang"
+      },
+      {
+        "command": "arclang.installBinary",
+        "title": "Install or locate the arclang compiler",
+        "category": "ArcLang"
+      }
     ],
     "menus": {
       "editor/title": [
-        { "command": "arclang.openDiagrams", "when": "resourceLangId == arclang", "group": "navigation" }
+        {
+          "command": "arclang.openDiagrams",
+          "when": "resourceLangId == arclang",
+          "group": "navigation"
+        }
+      ],
+      "editor/context": [
+        {
+          "command": "arclang.impact",
+          "when": "resourceLangId == arclang",
+          "group": "arclang@1"
+        },
+        {
+          "command": "arclang.openDiagrams",
+          "when": "resourceLangId == arclang",
+          "group": "arclang@2"
+        }
+      ],
+      "explorer/context": [
+        {
+          "command": "arclang.openDiagrams",
+          "when": "resourceExtname == .arc",
+          "group": "arclang@1"
+        },
+        {
+          "command": "arclang.runGate",
+          "when": "resourceExtname == .arc",
+          "group": "arclang@2"
+        },
+        {
+          "command": "arclang.export",
+          "when": "resourceExtname == .arc",
+          "group": "arclang@3"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "arclang.openDiagrams",
+          "when": "resourceLangId == arclang"
+        },
+        {
+          "command": "arclang.check",
+          "when": "resourceLangId == arclang"
+        },
+        {
+          "command": "arclang.runGate",
+          "when": "resourceLangId == arclang"
+        },
+        {
+          "command": "arclang.format",
+          "when": "resourceLangId == arclang"
+        },
+        {
+          "command": "arclang.transitionPlan",
+          "when": "resourceLangId == arclang"
+        },
+        {
+          "command": "arclang.transitionApply",
+          "when": "resourceLangId == arclang"
+        },
+        {
+          "command": "arclang.impact",
+          "when": "resourceLangId == arclang"
+        },
+        {
+          "command": "arclang.diffWithHead",
+          "when": "resourceLangId == arclang"
+        },
+        {
+          "command": "arclang.export",
+          "when": "resourceLangId == arclang"
+        }
       ]
     },
     "configuration": {
@@ -40,15 +221,327 @@
         "arclang.binary": {
           "type": "string",
           "default": "arclang",
-          "description": "The arclang executable (on PATH, or an absolute path). The extension runs `arclang lsp --stdio` and `arclang diagram`."
+          "markdownDescription": "The `arclang` executable: a name on the PATH or an absolute path. The extension runs `arclang lsp --stdio`, `arclang diagram`, `arclang check`, `arclang gate`, `arclang transition`, `arclang export`, `arclang import`, `arclang set`, `arclang rename`."
+        },
+        "arclang.diagrams.refreshOnSave": {
+          "type": "boolean",
+          "default": true,
+          "description": "Redraw the open diagrams every time their model is saved."
+        },
+        "arclang.gate.standard": {
+          "type": "string",
+          "default": "iso26262",
+          "enum": [
+            "iso26262",
+            "do178c",
+            "iec61508"
+          ],
+          "description": "The standard the production gate judges against."
+        },
+        "arclang.ai.repairAttempts": {
+          "type": "integer",
+          "default": 2,
+          "minimum": 0,
+          "maximum": 5,
+          "markdownDescription": "When a model written by `@arclang` does not compile, how many times the compiler's errors are sent back to the model before the answer is shown as is."
+        },
+        "arclang.mcp.command": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "Command that starts the ArcLang MCP server for agent mode (for example `arclang-mcp`, or `uv run --directory /path/to/arclang/mcp-server arclang-mcp`). Empty: the server is offered only when `arclang-mcp` is on the PATH."
+        },
+        "arclang.mcp.args": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "description": "Arguments of the MCP server command."
         }
       }
-    }
-  },
-  "dependencies": {
-    "vscode-languageclient": "^9.0.1"
+    },
+    "chatParticipants": [
+      {
+        "id": "arclang.assistant",
+        "name": "arclang",
+        "fullName": "ArcLang",
+        "description": "Model in Arcadia with the compiler at hand: write, fix, explain and review ArcLang models.",
+        "isSticky": true,
+        "commands": [
+          {
+            "name": "model",
+            "description": "Write or extend an ArcLang model from a description. The result is compiled before it is shown."
+          },
+          {
+            "name": "fix",
+            "description": "Fix the compiler errors and findings of the open model, minimally."
+          },
+          {
+            "name": "explain",
+            "description": "Explain the open model, an element or a finding, from what the compiler knows."
+          },
+          {
+            "name": "review",
+            "description": "Review the open model: coverage, traces, safety, timing, against the production gate."
+          },
+          {
+            "name": "transition",
+            "description": "Plan and apply the next Arcadia transition (OA to SA, SA to LA, LA to PA)."
+          }
+        ],
+        "disambiguation": [
+          {
+            "category": "arclang_modeling",
+            "description": "The user wants to write, fix, review or understand an Arcadia / ArcLang / Capella model (.arc file): requirements, functions, components, traces, safety, timing.",
+            "examples": [
+              "Write the logical architecture of an emergency braking system",
+              "Why does the gate fail on this model?",
+              "Add a hazard for late braking"
+            ]
+          }
+        ]
+      }
+    ],
+    "languageModelTools": [
+      {
+        "name": "arclang_check",
+        "displayName": "ArcLang: check a model",
+        "toolReferenceName": "arclangCheck",
+        "canBeReferencedInPrompt": true,
+        "icon": "$(checklist)",
+        "userDescription": "Compile a .arc model and report the compiler's errors and rule findings.",
+        "modelDescription": "Compiles an ArcLang (.arc) model with the ArcLang compiler and returns its errors and its findings as JSON: each finding has a rule (see arclang_rules), a severity, the element concerned and, when the compiler knows one, a fix. Use it after every edit of a model and before claiming a model is correct. Input: either the absolute path of a .arc file, or the full source text.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string",
+              "description": "Absolute path of the .arc file to check."
+            },
+            "source": {
+              "type": "string",
+              "description": "Full ArcLang source to check instead of a file."
+            }
+          }
+        }
+      },
+      {
+        "name": "arclang_gate",
+        "displayName": "ArcLang: production gate",
+        "toolReferenceName": "arclangGate",
+        "canBeReferencedInPrompt": true,
+        "icon": "$(shield)",
+        "userDescription": "Run the production-readiness gate on a .arc model.",
+        "modelDescription": "Runs the ArcLang production gate on a .arc model: a PASS/FAIL verdict against what an industrial design review requires (requirements coverage, HARA/ASIL consistency, timing budgets, ICD completeness), for a standard (iso26262, do178c, iec61508). Returns the compiler's report verbatim.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string",
+              "description": "Absolute path of the .arc file."
+            },
+            "standard": {
+              "type": "string",
+              "enum": [
+                "iso26262",
+                "do178c",
+                "iec61508"
+              ],
+              "description": "The standard to judge against (default iso26262)."
+            }
+          },
+          "required": [
+            "path"
+          ]
+        }
+      },
+      {
+        "name": "arclang_metamodel",
+        "displayName": "ArcLang: language metamodel",
+        "toolReferenceName": "arclangMetamodel",
+        "canBeReferencedInPrompt": true,
+        "icon": "$(book)",
+        "userDescription": "The ArcLang language reference, printed by the compiler.",
+        "modelDescription": "Returns the ArcLang language metamodel as the compiler prints it: element kinds per Arcadia level, their typed attributes, enumerations, units of quantities and the trace rules. Read it before writing ArcLang; it is the only syntax reference to trust. Optionally filtered to one element kind.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "description": "An element kind to focus on (for example 'component', 'requirement', 'functional_chain'). Omit for the whole metamodel."
+            }
+          }
+        }
+      },
+      {
+        "name": "arclang_rules",
+        "displayName": "ArcLang: catalogue of rules",
+        "toolReferenceName": "arclangRules",
+        "canBeReferencedInPrompt": true,
+        "icon": "$(law)",
+        "userDescription": "The catalogue of validation rules the compiler checks.",
+        "modelDescription": "Returns the catalogue of ArcLang validation rules (what arclang_check reports) as JSON: rule id, severity, what it checks and how to satisfy it.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {}
+        }
+      },
+      {
+        "name": "arclang_impact",
+        "displayName": "ArcLang: change impact",
+        "toolReferenceName": "arclangImpact",
+        "canBeReferencedInPrompt": true,
+        "icon": "$(references)",
+        "userDescription": "Everything transitively affected when an element changes.",
+        "modelDescription": "Change-impact analysis of one element of a .arc model (requirement, component, function, by id or unambiguous name): everything transitively affected through traces, allocations, exchanges and deployments, as the compiler reports it.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string",
+              "description": "Absolute path of the .arc file."
+            },
+            "element": {
+              "type": "string",
+              "description": "Element id or unambiguous name, for example REQ-AEB-004."
+            }
+          },
+          "required": [
+            "path",
+            "element"
+          ]
+        }
+      },
+      {
+        "name": "arclang_transition_plan",
+        "displayName": "ArcLang: Arcadia transition plan",
+        "toolReferenceName": "arclangTransitionPlan",
+        "canBeReferencedInPrompt": true,
+        "icon": "$(arrow-right)",
+        "userDescription": "What each Arcadia transition step would create.",
+        "modelDescription": "For a .arc model, says what each Arcadia transition step (oa-to-sa, sa-to-la, la-to-pa) would declare on the next level: the elements already realized and those still to create, as the compiler's JSON plan. Nothing is written.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string",
+              "description": "Absolute path of the .arc file."
+            },
+            "step": {
+              "type": "string",
+              "enum": [
+                "oa-to-sa",
+                "sa-to-la",
+                "la-to-pa"
+              ],
+              "description": "One step; omit for every step."
+            }
+          },
+          "required": [
+            "path"
+          ]
+        }
+      },
+      {
+        "name": "arclang_set_attribute",
+        "displayName": "ArcLang: set an attribute",
+        "toolReferenceName": "arclangSet",
+        "canBeReferencedInPrompt": true,
+        "icon": "$(edit)",
+        "userDescription": "Set one attribute of one element, through the compiler's lossless editor.",
+        "modelDescription": "Sets one attribute of one element of an open .arc model through the compiler's source editor: comments and layout are kept, and the edit is refused unless the edited model compiles. The change is applied in the editor as an undoable edit. Value is ArcLang source: '\"text\"', '25 ms', '[A, B]', 'true'.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string",
+              "description": "Absolute path of the .arc file."
+            },
+            "element": {
+              "type": "string",
+              "description": "Identifier of the element, or its name when it has no id."
+            },
+            "key": {
+              "type": "string",
+              "description": "Attribute name."
+            },
+            "value": {
+              "type": "string",
+              "description": "Value as ArcLang source."
+            }
+          },
+          "required": [
+            "path",
+            "element",
+            "key",
+            "value"
+          ]
+        }
+      },
+      {
+        "name": "arclang_rename",
+        "displayName": "ArcLang: rename an element",
+        "toolReferenceName": "arclangRename",
+        "canBeReferencedInPrompt": true,
+        "icon": "$(symbol-string)",
+        "userDescription": "Rename one element without changing its identity.",
+        "modelDescription": "Renames one element of an open .arc model through the compiler's source editor; refused when the element is known by its name elsewhere, because its identity must not change. Applied as an undoable edit.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string",
+              "description": "Absolute path of the .arc file."
+            },
+            "element": {
+              "type": "string",
+              "description": "Identifier of the element."
+            },
+            "name": {
+              "type": "string",
+              "description": "The new name."
+            }
+          },
+          "required": [
+            "path",
+            "element",
+            "name"
+          ]
+        }
+      }
+    ],
+    "mcpServerDefinitionProviders": [
+      {
+        "id": "arclang.mcp",
+        "label": "ArcLang MCP server"
+      }
+    ]
   },
   "scripts": {
-    "package": "vsce package"
+    "build": "node esbuild.mjs",
+    "watch": "node esbuild.mjs --watch",
+    "typecheck": "tsc --noEmit",
+    "lint": "tsc --noEmit",
+    "test:unit": "node --test --import tsx test/unit/*.test.ts",
+    "test": "npm run build && npm run test:unit && npm run test:integration",
+    "vscode:prepublish": "npm run build -- --production",
+    "package": "vsce package --no-dependencies",
+    "publish": "vsce publish --no-dependencies",
+    "test:integration": "tsc -p ./ && vscode-test"
+  },
+  "dependencies": {
+    "vscode-languageclient": "^10.1.2"
+  },
+  "devDependencies": {
+    "@types/mocha": "^10.0.10",
+    "@types/node": "^22.0.0",
+    "@types/vscode": "^1.104.0",
+    "@vscode/test-cli": "^0.0.15",
+    "@vscode/test-electron": "^3.1.0",
+    "@vscode/vsce": "^4.0.0",
+    "esbuild": "^0.28.2",
+    "mocha": "^11.0.0",
+    "tsx": "^4.20.0",
+    "typescript": "^5.9.0"
   }
 }
