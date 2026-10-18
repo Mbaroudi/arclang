@@ -90,6 +90,19 @@ pub fn format(source: &str) -> String {
     output.to_string()
 }
 
+/// Import a SysML v2 text (any model of the textual notation) as ArcLang
+/// source, as `arclang import -f sysml` does; returns a JSON string:
+/// `{success, source, counts, notes}`, or `{success: false, error, rejected}`
+/// with the ArcLang that did not compile when there is one.
+#[wasm_bindgen]
+pub fn import_sysml(text: &str) -> String {
+    let output = match arclang::compiler::sysml_import::import_text(text) {
+        Ok(imported) => json!({ "success": true, "source": imported.source, "counts": imported.counts, "notes": imported.notes }),
+        Err(failure) => json!({ "success": false, "error": failure.message, "rejected": failure.rejected }),
+    };
+    output.to_string()
+}
+
 /// Version of the underlying compiler crate.
 #[wasm_bindgen]
 pub fn version() -> String {
@@ -666,5 +679,27 @@ mod connect_tests {
         assert!(refused["success"] == false || refused["source"].as_str().is_some());
         let into_itself: serde_json::Value = serde_json::from_str(&edit(model, r#"{"op":"move","element":"LC-A","container":"LC-A"}"#)).unwrap();
         assert_eq!(into_itself["success"], false);
+    }
+}
+
+#[cfg(test)]
+mod import_tests {
+    use super::*;
+
+    #[test]
+    fn any_sysml_v2_text_comes_back_as_arclang_that_compiles() {
+        let text = "package Garage {\n    part def Car { port fuel; }\n    part car : Car;\n    requirement def <'R1'> Range { doc /* The car shall drive 500 km. */ }\n}\n";
+        let output: serde_json::Value = serde_json::from_str(&import_sysml(text)).unwrap();
+        assert_eq!(output["success"], true, "{output}");
+        let source = output["source"].as_str().unwrap();
+        assert!(Compiler::new(CompilerConfig::default()).compile_string(source).is_ok(), "{source}");
+        assert!(output["counts"].as_object().is_some_and(|c| !c.is_empty()), "{output}");
+    }
+
+    #[test]
+    fn text_that_is_not_sysml_is_an_error_with_a_message() {
+        let output: serde_json::Value = serde_json::from_str(&import_sysml("package { part")).unwrap();
+        assert_eq!(output["success"], false);
+        assert!(!output["error"].as_str().unwrap().is_empty());
     }
 }
