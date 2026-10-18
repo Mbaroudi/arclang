@@ -1,236 +1,128 @@
-# Example MCP Session with Claude
+# A recorded session
 
-This document shows example interactions with Claude using the ArcLang MCP Server.
+The answers below are the ones the server gave, on a copy of the reference model
+(`src/arclang_mcp/resources/reference_model.arc`) named `braking.arc`, with
+arclang 4.0.1 and no API key set (the workspace path is removed from the output). The questions are what a user might ask; the
+tool and arguments are what the assistant calls.
 
-## Session 1: Create a New ACC System
+## 1. "Does braking.arc compile?"
 
-**User**: I need to create an adaptive cruise control system. Can you help me start?
+`arclang_validate` `{"model_path": "braking.arc"}`
 
-**Claude**: I'll help you create an ACC system model. Let me start by generating the main requirement.
+```text
+Check of braking.arc: compiles; 0 compilation warning(s), 0 traceability warning(s), 0 advisor(ies)
 
-[Uses `arclang_generate_requirement`]
+Checking braking.arc...
+✓ No compilation errors
 
-**Generated Requirement**:
+✓ Arcadia methodology: no advisories
+
+Model metrics:
+  Total elements: 9
+  Requirements: 1
+  Components: 5
+  Traces: 3
+  Traceability: 100.0%
+```
+
+## 2. "Is it ready for a design review?"
+
+`arclang_gate` `{"model_path": "braking.arc"}`
+
+```text
+Production gate of braking.arc: PASS
+
+Production-readiness gate (ISO26262) — braking.arc
+  Requirements: 1 total, 1 satisfied, 1 verified
+
+PRODUCTION GATE: PASS ✓
+```
+
+## 3. "Write a requirement: the system shall release the brakes when the driver presses the accelerator. ASIL-B."
+
+`arclang_generate_requirement` `{"description": "The system shall release the brakes when the driver presses the accelerator.", "safety_level": "ASIL-B"}`
+
+````text
+Written by the built-in template.
+
 ```arc
-requirement "REQ-ACC-001" {
-    description: "System shall maintain safe 2-second following distance from lead vehicle"
-    priority: "Critical"
-    safety_level: "ASIL_B"
-    type: "Functional"
-    verification_method: "Test"
+req "REQ-TSS-001" "The system shall release the brakes when the driver press..." {
+  description: "The system shall release the brakes when the driver presses the accelerator."
+  priority: "High"
+  safety_level: "ASIL-B"
 }
 ```
 
-**User**: Great! Now can you suggest an architecture for this?
+The compiler accepts it inside `requirements system { }` without a warning.
+````
 
-**Claude**: [Uses `arclang_suggest_architecture`]
+## 4. "Set the latency of LF-002 to 8 ms."
 
-Based on your ACC requirement, I suggest these components:
+`arclang_set_attribute` `{"model_path": "braking.arc", "element": "LF-002", "key": "latency", "value": "8 ms"}`
 
-1. **Radar Sensor** (Logical)
-   - Measures distance and relative speed
-   - Safety: ASIL-B
+```text
+Set LF-002.latency: accepted, NOT written (pass write: true to apply)
 
-2. **ACC Controller** (Logical)
-   - Calculates target speed
-   - Implements control algorithm
-   - Safety: ASIL-B
-
-3. **Throttle Actuator** (Logical)
-   - Controls vehicle speed
-   - Safety: ASIL-B
-
-4. **Safety Monitor** (Logical)
-   - Independent monitoring
-   - Safety: ASIL-B
-
-**User**: Can you generate the Radar Sensor component?
-
-**Claude**: [Uses `arclang_generate_component`]
-
-```arc
-component "Radar Sensor" {
-    id: "LC-SENS-RADAR"
-    type: "Logical"
-    description: "77GHz radar for distance and speed measurement"
-    safety_level: "ASIL_B"
-    
-    function "Measure Distance" {
-        id: "LF-MEASURE-DIST"
-        outputs: ["distance_m", "relative_speed_ms"]
-        execution_time: "10ms"
-    }
-    
-    function "Self-Diagnostic" {
-        id: "LF-DIAG"
-        outputs: ["sensor_status"]
-        execution_time: "50ms"
-    }
-}
+--- braking.arc
++++ braking.arc (not written)
+@@ -50,7 +50,7 @@
+             id: "LC-002"
+             safety_level: "ASIL-D"
+             port in threat { data_type: "ThreatLevel" }
+-            function "Compute braking force" { id: "LF-002" latency: 10 ms }
++            function "Compute braking force" { id: "LF-002" latency: 8 ms }
+         }
+ 
+         component_exchange ThreatToBrake {
 ```
 
----
+Nothing was written: the edit was accepted by the compiler and shown as a diff.
 
-## Session 2: Validate Existing Model
+## 5. "Go ahead."
 
-**User**: Can you check if my model is valid?
+`arclang_set_attribute` `{"model_path": "braking.arc", "element": "LF-002", "key": "latency", "value": "8 ms", "write": true}`
 
-**Claude**: [Uses `arclang_validate`]
+```text
+Set LF-002.latency: written to braking.arc
 
-✅ Validation passed
-
-**Model**: acc_system.arc  
-**Syntax**: Valid  
-**Semantics**: Valid  
-
----
-
-## Session 3: Traceability Analysis
-
-**User**: Check my traceability coverage
-
-**Claude**: [Uses `arclang_trace_analysis`]
-
-🔗 **Traceability Analysis**
-
-**Model**: acc_system.arc  
-**Coverage**: 85%  
-**Total Traces**: 12
-
-⚠️  **Gaps Found** (3):
-
-**Untraced Requirements** (2):
-  - REQ-ACC-005: System shall handle sensor failure
-  - REQ-ACC-007: System shall deactivate on brake press
-
-**Untraced Components** (1):
-  - LC-SAFETY-MON: Independent Safety Monitor
-
-⚠️  Moderate traceability coverage - consider adding more traces
-
-**User**: Can you help me create traces for those gaps?
-
-**Claude**: I'll create the missing traces:
-
-```arc
-trace "LC-SAFETY-MON" satisfies "REQ-ACC-005" {
-    rationale: "Safety monitor detects sensor failures and triggers safe state"
-}
-
-trace "LC-CTRL-BRAKE" satisfies "REQ-ACC-007" {
-    rationale: "Brake controller immediately deactivates ACC when brake pedal pressed"
-}
+LF-002.latency: 10 ms -> 8 ms
 ```
 
----
+## 6. "What would a change to REQ-BRK-001 affect?"
 
-## Session 4: Safety Compliance Check
+`arclang_impact` `{"model_path": "braking.arc", "element": "REQ-BRK-001"}`
 
-**User**: Validate this model against ISO 26262
+```text
+Impact of 'REQ-BRK-001' in braking.arc: succeeded
 
-**Claude**: [Uses `arclang_safety_check`]
+Impact analysis for 'REQ-BRK-001':
 
-🛡️  **Safety Compliance Check**
+  Distance 1 (directly affected):
+    Component 'BrakeController' [LC-002] — via is satisfied by (trace) from 'REQ-BRK-001'
+    Component 'ThreatAssessor' [LC-001] — via is satisfied by (trace) from 'REQ-BRK-001'
 
-**Standard**: ISO26262  
-**Model**: acc_system.arc
+  Distance 2 (transitively affected):
+    Function 'Assess threat' [LF-001] — via performs (allocation) from 'LC-001'
+    Function 'Compute braking force' [LF-002] — via performs (allocation) from 'LC-002'
 
-✅ **Status**: Compliant
+  Distance 3 (transitively affected):
+    SystemFunction 'AssessThreat' [SF-001] — via realizes (trace) from 'LF-001'
 
-**Issues Found** (2):
+  Total affected elements: 5
+```
 
-⚠️  **Missing Rationale**
-   Some ASIL-B requirements lack detailed rationale
+## 7. "Are the traces plausible?"
 
-⚠️  **Incomplete FMEA**
-   Component LC-SENS-RADAR missing failure modes
+`arclang_review` `{"model_path": "braking.arc"}`
 
-**Recommendations**:
-  - Add detailed rationale for all ASIL-B/C requirements
-  - Complete FMEA analysis for all safety-critical components
-  - Add independent verification for ASIL-C components
+```text
+Trace review of braking.arc: dry run, nothing was sent
 
----
+3 declared trace(s) and 0 undeclared pair(s) to judge: 3 question(s), one request each.
+Sent to api.typesafe.ai for each: the kind, name, id and text attributes of the two elements, and the trace's rationale.
+Nothing was sent (--dry-run).
+First request:
+[...]
+```
 
-## Session 5: Export Diagram
-
-**User**: Generate an architecture diagram
-
-**Claude**: [Uses `arclang_export_diagram`]
-
-✅ Diagram generated successfully
-
-**Model**: acc_system.arc  
-**Format**: arc-viz-ultimate  
-**Output**: acc_system.html
-
-**Components**: 9  
-**Connections**: 15
-
----
-
-## Session 6: Git Merge Assistance
-
-**User**: I have a merge conflict in my model. Can you help?
-
-**Claude**: [Uses `arclang_git_merge`]
-
-🔀 **Semantic Merge Analysis**
-
-⚠️  **Conflicts detected**: 2
-
-**REQ-ACC-001**:
-  - Type: Modified in both branches
-  - Ours: Changed priority from High to Critical
-  - Theirs: Added safety_level ASIL_B
-  - Suggestion: Keep Critical priority and add ASIL_B (combine both changes)
-
-**LC-CTRL-SPEED**:
-  - Type: Modified in both branches  
-  - Ours: Changed execution_time from 20ms to 15ms
-  - Theirs: Added new function "Monitor Health"
-  - Suggestion: Keep 15ms execution time and add new function (combine both)
-
-**User**: Thanks! I'll apply those suggestions.
-
----
-
-## Session 7: Model Metrics
-
-**User**: Show me statistics for my model
-
-**Claude**: [Uses `arclang_info`]
-
-📊 **Model Information**
-
-**Path**: models/acc_system.arc  
-**Size**: 15.2 KB
-
-**Metrics**:
-  - Requirements: 12
-  - Components: 9
-  - Functions: 18
-  - Traces: 15
-  - Actors: 2
-  - Nodes: 3
-
-**Safety Metrics**:
-  - ASIL-D: 0
-  - ASIL-C: 3
-  - ASIL-B: 8
-  - ASIL-A: 1
-
-**Traceability Coverage**: 95%
-
----
-
-These examples demonstrate how Claude can help with:
-- Requirements generation from natural language
-- Architecture suggestions
-- Component generation
-- Model validation
-- Traceability analysis
-- Safety compliance checking
-- Diagram generation
-- Merge conflict resolution
-- Model statistics
+Without `send: true` this is a dry run. The request shown after these lines is what would go to api.typesafe.ai; it is cut here.

@@ -1,3 +1,4 @@
+pub mod diagram_service;
 pub mod edit;
 pub mod review;
 pub mod repl;
@@ -1927,13 +1928,10 @@ impl CliRunner {
             .map_err(|e| CliError::Io(e))?;
         
         // Step 2: Determine diagram service path
-        let diagram_service_dir = PathBuf::from("/Users/malek/Arclang/arcviz-web/apps/diagram-service");
-        
-        if !diagram_service_dir.exists() {
-            return Err(CliError::Config(
-                "Diagram service not found. Please ensure arcviz-web/apps/diagram-service is installed.".to_string()
-            ));
-        }
+        let Some(diagram_service_dir) = diagram_service::locate() else {
+            let _ = std::fs::remove_file(&temp_json);
+            return Err(CliError::Config(diagram_service::missing()));
+        };
         
         // Step 3: Call Node.js diagram renderer
         let diagram_type = match format {
@@ -1972,7 +1970,7 @@ impl CliRunner {
             .arg(&temp_json)
             .arg(&abs_output)
             .output()
-            .map_err(|e| CliError::Io(e))?;
+            .map_err(|e| CliError::Config(format!("node could not run the SVG diagram renderer ({e}): install Node.js, or use -f html, viewpoints or elk")))?;
         
         // Clean up temp file
         let _ = std::fs::remove_file(&temp_json);

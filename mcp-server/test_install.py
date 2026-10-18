@@ -1,52 +1,39 @@
 #!/usr/bin/env python3
-"""Test MCP server installation."""
+"""Check an installation: the package imports and the compiler answers."""
 
-print("Testing ArcLang MCP Server installation...")
-print()
+import asyncio
+import sys
 
-# Test imports
-try:
-    from arclang_mcp import ArcLangMCPServer
-    print("✅ Main server import successful")
-except Exception as e:
-    print(f"❌ Failed to import server: {e}")
-    exit(1)
 
-try:
-    from arclang_mcp.tools import CoreTools, GenerationTools, SafetyTools, IntegrationTools
-    print("✅ Tool modules import successful")
-except Exception as e:
-    print(f"❌ Failed to import tools: {e}")
-    exit(1)
+def main() -> int:
+    try:
+        from arclang_mcp import ArcLangMCPServer, __version__
+    except Exception as failure:  # an install check reports any import failure
+        print(f"FAILED: the server does not import: {failure}")
+        return 1
+    print(f"arclang-mcp {__version__} imports")
 
-try:
-    from arclang_mcp.compiler import ArcLangCompiler
-    print("✅ Compiler wrapper import successful")
-except Exception as e:
-    print(f"❌ Failed to import compiler: {e}")
-    exit(1)
+    server = ArcLangMCPServer()
+    print(f"{len(server.tools)} tools, {len(server.list_resources())} resources")
 
-try:
-    from arclang_mcp.ai import AIGenerator
-    print("✅ AI generator import successful")
-except Exception as e:
-    print(f"❌ Failed to import AI generator: {e}")
-    exit(1)
+    run = asyncio.run(server.compiler.version())
+    if not run.ok:
+        print(f"FAILED: the compiler does not run: {run.stderr.strip()}")
+        print("Build it (cargo build --release) and put it on the PATH, or set ARCLANG_BINARY.")
+        return 1
+    compiler = run.stdout.strip()
+    print(f"compiler: {compiler}")
+    if not compiler.endswith(__version__):
+        print(f"FAILED: this server is written for arclang {__version__}, and '{compiler}'")
+        print(
+            f"is the one it would run ({server.compiler.binary_path}). Its tools would be refused"
+        )
+        print("or answer for an older language. Install the current build (./install-arclang.sh")
+        print("from the repository root) or set ARCLANG_BINARY to it.")
+        return 1
+    print("Ready. See QUICKSTART.md to connect a client.")
+    return 0
 
-try:
-    from arclang_mcp.utils import load_config
-    print("✅ Utils import successful")
-except Exception as e:
-    print(f"❌ Failed to import utils: {e}")
-    exit(1)
 
-print()
-print("🎉 All imports successful!")
-print()
-print("Installation complete. The MCP server is ready to use.")
-print()
-print("Next steps:")
-print("1. Configure Claude Desktop (see QUICKSTART.md)")
-print("2. Set ANTHROPIC_API_KEY environment variable")
-print("3. Restart Claude Desktop")
-print("4. Start using AI-powered MBSE!")
+if __name__ == "__main__":
+    sys.exit(main())

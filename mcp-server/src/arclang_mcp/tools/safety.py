@@ -1,92 +1,99 @@
 """
-Safety validation tools for ISO 26262, DO-178C, IEC 61508.
+Safety tools: what the compiler reports about the safety content of a model.
+
+Neither tool certifies anything. `arclang_safety_check` returns the output
+of `arclang safety`; the verdict on a model is `arclang_gate`'s.
+`arclang_hazard_analysis` lists the hazards the model DECLARES: it derives
+no hazard of its own.
 """
 
+import json
+import tempfile
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Awaitable, Callable, Dict, List
+
+from mcp.types import Tool
+
+from ..compiler.wrapper import SAFETY_STANDARDS, ArcLangCompiler
+from .common import MODEL_PATH, report, resolve_path, schema
+
+TOOLS: List[Tool] = [
+    Tool(
+        name="arclang_safety_check",
+        description=(
+            "Safety content of a model (`arclang safety`): safety analysis blocks, hazards "
+            "and FMEA entries counted for a standard. This is a summary, not a compliance "
+            "verdict: for PASS/FAIL (HARA and ASIL consistency, mitigations) use arclang_gate."
+        ),
+        inputSchema=schema(
+            {
+                "model_path": MODEL_PATH,
+                "standard": {
+                    "type": "string",
+                    "enum": list(SAFETY_STANDARDS),
+                    "description": "Safety standard",
+                },
+                "generate_report": {
+                    "type": "boolean",
+                    "description": "Pass --report",
+                    "default": False,
+                },
+            },
+            "model_path",
+            "standard",
+        ),
+    ),
+    Tool(
+        name="arclang_hazard_analysis",
+        description=(
+            "List the hazards and FMEA entries a model declares in its `safety_analysis` "
+            "blocks, with their attributes (severity, exposure, controllability, ASIL, "
+            "mitigated_by). It reads the model; it does not identify hazards for you."
+        ),
+        inputSchema=schema({"model_path": MODEL_PATH}, "model_path"),
+    ),
+]
 
 
 class SafetyTools:
-    """Safety compliance and analysis tools."""
+    """Safety summary and declared hazards."""
 
-    def __init__(self, compiler: Any, config: Dict[str, Any]):
+    def __init__(self, compiler: ArcLangCompiler, config: Dict[str, Any]):
         self.compiler = compiler
         self.config = config
+        self.workspace_root = compiler.workspace_root
+        self._handlers: Dict[str, Callable[[Dict[str, Any]], Awaitable[str]]] = {
+            "arclang_safety_check": self._safety_check,
+            "arclang_hazard_analysis": self._hazard_analysis,
+        }
 
     async def execute(self, tool_name: str, arguments: Dict[str, Any]) -> str:
         """Execute a safety tool."""
-        if tool_name == "arclang_safety_check":
-            return await self._safety_check(arguments)
-        elif tool_name == "arclang_hazard_analysis":
-            return await self._hazard_analysis(arguments)
-        else:
+        handler = self._handlers.get(tool_name)
+        if handler is None:
             raise ValueError(f"Unknown safety tool: {tool_name}")
+        return await handler(arguments)
 
     async def _safety_check(self, args: Dict[str, Any]) -> str:
-        """Validate safety compliance."""
-        model_path = Path(args["model_path"])
+        model = resolve_path(self.workspace_root, args["model_path"])
         standard = args["standard"]
-        generate_report = args.get("generate_report", False)
-
-        result = await self.compiler.safety_check(
-            model_path,
-            standard=standard,
-            generate_report=generate_report
+        run = await self.compiler.safety(
+            model, standard=standard, report=args.get("generate_report", False)
         )
-
-        output = f"🛡️  **Safety Compliance Check**\n\n"
-        output += f"**Standard**: {standard.upper()}\n"
-        output += f"**Model**: {model_path.name}\n\n"
-
-        if result.get("compliant"):
-            output += f"✅ **Status**: Compliant\n\n"
-        else:
-            output += f"❌ **Status**: Non-compliant\n\n"
-
-        issues = result.get("issues", [])
-        if issues:
-            output += f"**Issues Found** ({len(issues)}):\n\n"
-            for issue in issues[:10]:
-                severity = issue.get("severity", "warning")
-                icon = "🔴" if severity == "error" else "⚠️"
-                output += f"{icon} **{issue['title']}**\n"
-                output += f"   {issue['description']}\n\n"
-
-        if result.get("recommendations"):
-            output += "\n**Recommendations**:\n"
-            for rec in result["recommendations"][:5]:
-                output += f"  - {rec}\n"
-
-        if generate_report and result.get("report_path"):
-            output += f"\n📄 **Detailed Report**: {result['report_path']}"
-
-        return output
+        verdict = "summary printed (not a compliance verdict)" if run.ok else None
+        return report(f"Safety content of {model.name} ({standard})", run, verdict)
 
     async def _hazard_analysis(self, args: Dict[str, Any]) -> str:
-        """Perform hazard analysis."""
-        model_path = Path(args["model_path"])
-        standard = args.get("standard", "iso26262")
-
-        try:
-            result = await self.compiler.hazard_analysis(
-                model_path,
-                standard=standard
-            )
-        except NotImplementedError as e:
-            return f"❌ **Hazard Analysis (HARA) not available**\n\n{e}"
-
-        output = f"⚠️  **Hazard Analysis (HARA)**\n\n"
-        output += f"**Standard**: {standard.upper()}\n"
-        output += f"**Model**: {model_path.name}\n\n"
-
-        hazards = result.get("hazards", [])
-        output += f"**Hazards Identified**: {len(hazards)}\n\n"
-
-        for hazard in hazards[:5]:
-            output += f"**{hazard['id']}**: {hazard['description']}\n"
-            output += f"  - Severity: {hazard['severity']}\n"
-            output += f"  - Exposure: {hazard.get('exposure', 'N/A')}\n"
-            output += f"  - Controllability: {hazard.get('controllability', 'N/A')}\n"
-            output += f"  - ASIL: {hazard.get('asil', 'N/A')}\n\n"
-
-        return output
+        model = resolve_path(self.workspace_root, args["model_path"])
+        with tempfile.TemporaryDirectory(prefix="arclang-hazards-") as directory:
+            exported = Path(directory) / "model.json"
+            run = await self.compiler.export(model, "json", exported)
+            if not run.ok or not exported.is_file():
+                return report(f"Hazards of {model.name}", run)
+            blocks = json.loads(exported.read_text()).get("safety_analysis", [])
+        declared = {
+            "hazards": [hazard for block in blocks for hazard in block.get("hazards", [])],
+            "fmea": [entry for block in blocks for entry in block.get("fmea", [])],
+        }
+        count = f"{len(declared['hazards'])} hazard(s), {len(declared['fmea'])} FMEA entr(ies)"
+        return f"Declared in {model.name}: {count}\n\n{json.dumps(declared, indent=2)}"
