@@ -197,11 +197,30 @@ pub(super) fn state_machine(context: &Context, machine: &StateMachine, name: &st
     let id = machine_id(machine);
     let mut names = HashMap::new();
     states_by_name(&id, &machine.states, &mut names);
-    let mut region = El::new("ownedRegions", "capellacommon:Region", &derived(&format!("{id}:region"))).attr("name", "Default Region");
-    if let Some(target) = names.get(&machine.initial_state) {
-        initial(&mut region, &id, target);
+    let mut el = El::new("ownedStateMachines", "capellacommon:StateMachine", &id).attr("name", name);
+    if machine.regions.is_empty() {
+        let region_id = derived(&format!("{id}:region"));
+        el.push(region(context, &id, (&region_id, "Default Region"), &machine.initial_state, &machine.states, &machine.transitions, &names));
+    } else {
+        // Several top-level regions, each with its states, transitions and initial state.
+        for r in &machine.regions {
+            let region_id = if r.id.is_empty() { derived(&format!("{id}:region:{}", r.name)) } else { r.id.clone() };
+            el.push(region(context, &id, (&region_id, &r.name), &r.initial, &r.states, &r.transitions, &names));
+        }
     }
-    // A transition goes to the region it is declared in: a state's, else the machine's.
+    el
+}
+
+/// A top-level region: its initial state, its states (nested regions inside
+/// them), and the transitions declared in it or in its states.
+fn region(context: &Context, id: &str, (region_id, region_name): (&str, &str), initial_state: &str, states: &[State], transitions: &[crate::compiler::ast::Transition], names: &HashMap<String, String>) -> El {
+    let mut region = El::new("ownedRegions", "capellacommon:Region", region_id).attr("name", region_name);
+    if let Some(target) = names.get(initial_state) {
+        // The machine's single region keeps the initial ids it always had.
+        let owner = if region_name == "Default Region" { id.to_string() } else { region_id.to_string() };
+        initial(&mut region, &owner, target);
+    }
+    // A transition goes to the region it is declared in: a state's, else this one.
     let mut declared_in: HashMap<String, String> = HashMap::new();
     fn declared(machine: &str, states: &[State], into: &mut HashMap<String, String>) {
         for s in states {
@@ -211,22 +230,22 @@ pub(super) fn state_machine(context: &Context, machine: &StateMachine, name: &st
             declared(machine, &s.sub_states, into);
         }
     }
-    declared(&id, &machine.states, &mut declared_in);
+    declared(id, states, &mut declared_in);
     let mut top: Vec<El> = Vec::new();
     let mut inner: HashMap<String, Vec<El>> = HashMap::new();
-    for (index, t) in machine.transitions.iter().enumerate() {
-        let Some(el) = transition(context, &id, index, t, &names) else { continue };
-        let region = declared_in.get(&format!("{}->{}:{}", t.from, t.to, t.id)).cloned().or_else(|| if declared_in.is_empty() { holder(&machine.states, &t.from, &t.to).map(|s| state_id(&id, s)) } else { None });
-        match region {
+    for (index, t) in transitions.iter().enumerate() {
+        let Some(el) = transition(context, id, index, t, names) else { continue };
+        let at = declared_in.get(&format!("{}->{}:{}", t.from, t.to, t.id)).cloned().or_else(|| if declared_in.is_empty() { holder(states, &t.from, &t.to).map(|s| state_id(id, s)) } else { None });
+        match at {
             Some(state) => inner.entry(state).or_default().push(el),
             None => top.push(el),
         }
     }
-    for s in &machine.states {
-        region.push(state(context, &id, s, &inner, &names));
+    for s in states {
+        region.push(state(context, id, s, &inner, names));
     }
     for el in top {
         region.push(el);
     }
-    El::new("ownedStateMachines", "capellacommon:StateMachine", &id).attr("name", name).with(region)
+    region
 }

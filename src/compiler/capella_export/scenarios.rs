@@ -8,12 +8,15 @@
 
 use super::context::{derived, Context};
 use super::xml::El;
+use std::collections::HashMap;
 use crate::compiler::ast::{CombinedFragment, FragmentType, InvariantKind, MessageType, Scenario};
 
 /// A frame over messages `start..=end` (empty when `end < start`).
 struct Frame<'a> {
     start: usize,
     end: usize,
+    /// How many fragments hold it: outer frames open first.
+    depth: usize,
     what: What<'a>,
 }
 
@@ -33,12 +36,17 @@ fn operator(kind: FragmentType) -> &'static str {
     }
 }
 
-fn collect<'a>(fragments: &'a [CombinedFragment], scenario: &str, into: &mut Vec<Frame<'a>>) {
+/// The fragments, nested ones after their parent, and the depth of the
+/// invariants each operand holds (by index into the scenario's invariants).
+fn collect<'a>(fragments: &'a [CombinedFragment], scenario: &str, depth: usize, into: &mut Vec<Frame<'a>>, invariant_depth: &mut HashMap<usize, usize>) {
     for f in fragments {
         let id = derived(&format!("{scenario}:fragment:{}:{}:{}", f.start, f.end, into.len()));
-        into.push(Frame { start: f.start, end: f.end, what: What::Fragment(f, id) });
+        into.push(Frame { start: f.start, end: f.end, depth, what: What::Fragment(f, id) });
         for operand in &f.operands {
-            collect(&operand.fragments, scenario, into);
+            for index in &operand.invariants {
+                invariant_depth.insert(*index, depth + 1);
+            }
+            collect(&operand.fragments, scenario, depth + 1, into, invariant_depth);
         }
     }
 }
@@ -84,7 +92,8 @@ pub(super) fn scenario(context: &mut Context, engineering: &El, s: &Scenario, na
     let role = |reference: &str| role_of.get(reference).cloned().or_else(|| resolved.get(reference).and_then(|t| role_of.get(t).cloned()));
 
     let mut frames: Vec<Frame<'_>> = Vec::new();
-    collect(&s.fragments, &id, &mut frames);
+    let mut invariant_depth: HashMap<usize, usize> = HashMap::new();
+    collect(&s.fragments, &id, 0, &mut frames, &mut invariant_depth);
     for (index, inv) in s.invariants.iter().enumerate() {
         // A function invariant names a function, a state invariant a state or mode.
         let related = match inv.kind {
@@ -93,7 +102,7 @@ pub(super) fn scenario(context: &mut Context, engineering: &El, s: &Scenario, na
         };
         let (Some(lifeline), Some(related)) = (role(&inv.lifeline), related.map(str::to_string)) else { continue };
         let iid = if inv.id.is_empty() { derived(&format!("{id}:invariant:{index}")) } else { inv.id.clone() };
-        frames.push(Frame { start: inv.start, end: inv.end, what: What::Invariant { id: iid, lifeline, related, state: inv.kind == InvariantKind::State } });
+        frames.push(Frame { start: inv.start, end: inv.end, depth: invariant_depth.get(&index).copied().unwrap_or(0), what: What::Invariant { id: iid, lifeline, related, state: inv.kind == InvariantKind::State } });
     }
     // Outer frames open first and close last.
     let span = |f: &Frame<'_>| if f.end < f.start { 0 } else { f.end - f.start + 1 };
@@ -123,10 +132,23 @@ pub(super) fn scenario(context: &mut Context, engineering: &El, s: &Scenario, na
     let mut order: Vec<usize> = (0..frames.len()).collect();
     // At one position: instants first (they stand before what opens there),
     // then the outer frames before the inner ones.
-    order.sort_by_key(|i| (frames[*i].start, span(&frames[*i]) != 0, std::cmp::Reverse(span(&frames[*i]))));
+    order.sort_by_key(|i| (frames[*i].start, frames[*i].depth, span(&frames[*i]) != 0, std::cmp::Reverse(span(&frames[*i]))));
     let mut closing: Vec<(usize, usize)> = Vec::new(); // (message index after which it closes, frame)
     let mut opened = vec![false; frames.len()];
     for position in 0..=count {
+        // Operands of open fragments starting at this message come first: what
+        // opens here may be inside them.
+        for frame in &frames {
+            if let What::Fragment(cf, fid) = &frame.what {
+                if frame.start < position {
+                    for (n, operand) in cf.operands.iter().enumerate().skip(1) {
+                        if operand.start == position && operand.end >= operand.start {
+                            fragments.push(El::new("ownedInteractionFragments", "interaction:InteractionOperand", &derived(&format!("{fid}:operand:{n}"))).attr("coveredInstanceRoles", &all_roles));
+                        }
+                    }
+                }
+            }
+        }
         let now: Vec<usize> = order.iter().copied().filter(|f| frames[*f].start == position && !opened[*f]).collect();
         for f in now {
             opened[f] = true;
@@ -142,18 +164,6 @@ pub(super) fn scenario(context: &mut Context, engineering: &El, s: &Scenario, na
                 close(&frames[f], f, &mut fragments, &starts, &mut lapses, &all_roles);
             } else {
                 closing.push((frames[f].end, f));
-            }
-        }
-        // Operands that start inside an open fragment, at this message.
-        for frame in &frames {
-            if let What::Fragment(cf, fid) = &frame.what {
-                if frame.start < position {
-                    for (n, operand) in cf.operands.iter().enumerate().skip(1) {
-                        if operand.start == position && operand.end >= operand.start {
-                            fragments.push(El::new("ownedInteractionFragments", "interaction:InteractionOperand", &derived(&format!("{fid}:operand:{n}"))).attr("coveredInstanceRoles", &all_roles));
-                        }
-                    }
-                }
             }
         }
         if position == count {
