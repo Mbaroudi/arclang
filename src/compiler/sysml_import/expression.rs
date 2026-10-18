@@ -35,11 +35,79 @@ enum Expr {
 /// aggregates (`max`, `min`) the export unfolds over a chain's members.
 pub(super) fn render(graph: &Graph, id: &str, refer: &dyn Fn(&str) -> Option<String>, chains: &[(String, Vec<String>)]) -> Result<String, String> {
     let expr = read(graph, id, refer, chains, 0)?;
+    if let Some(name) = bare_reference(&expr) {
+        return Err(format!("'{name}' is a reference, not a value"));
+    }
     match &expr {
-        Expr::Ref(name) => Err(format!("'{name}' is a reference, not a value")),
         Expr::Unit(unit) => Err(format!("'{unit}' is a unit, not a value")),
         _ => Ok(text(&expr, true)),
     }
+}
+
+/// A reference standing where ArcLang wants a value (anywhere but as an
+/// argument of `max(chain, attribute)`).
+fn bare_reference(expr: &Expr) -> Option<&str> {
+    match expr {
+        Expr::Ref(name) => Some(name),
+        Expr::Call(_, _) | Expr::Literal(_) | Expr::Quantity(_, _) | Expr::Attr(_, _) | Expr::Unit(_) => None,
+        Expr::List(items) => items.iter().find_map(bare_reference),
+        Expr::Neg(inner) => bare_reference(inner),
+        Expr::Binary(_, lhs, rhs) => bare_reference(lhs).or_else(|| bare_reference(rhs)),
+    }
+}
+
+/// Whether a rendered value is one ArcLang takes as an attribute value: a
+/// literal, a quantity, a list of them.
+pub(super) fn is_attribute_value(text: &str) -> bool {
+    let trimmed = text.trim();
+    if trimmed == "true" || trimmed == "false" {
+        return true;
+    }
+    if trimmed.starts_with('"') {
+        return is_one_string(trimmed);
+    }
+    if let Some(inner) = trimmed.strip_prefix('[').and_then(|t| t.strip_suffix(']')) {
+        return inner.trim().is_empty() || split_top_level(inner).iter().all(|item| is_attribute_value(item));
+    }
+    // `12`, `-1.5`, `30 ms`
+    let mut parts = trimmed.splitn(2, ' ');
+    let number = parts.next().unwrap_or("");
+    let unit = parts.next().unwrap_or("");
+    number.parse::<f64>().is_ok() && (unit.is_empty() || unit.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '/' | '%' | '°' | 'µ' | '*' | '^')))
+}
+
+/// Whether the text is one string literal and nothing after it.
+fn is_one_string(text: &str) -> bool {
+    let mut chars = text.chars().skip(1);
+    while let Some(c) = chars.next() {
+        match c {
+            '\\' => {
+                chars.next();
+            }
+            '"' => return chars.next().is_none(),
+            _ => {}
+        }
+    }
+    false
+}
+
+fn split_top_level(text: &str) -> Vec<&str> {
+    let mut out = Vec::new();
+    let (mut depth, mut start, mut quoted) = (0i32, 0usize, false);
+    for (i, c) in text.char_indices() {
+        match c {
+            '"' => quoted = !quoted,
+            '[' | '(' if !quoted => depth += 1,
+            ']' | ')' if !quoted => depth -= 1,
+            ',' if !quoted && depth == 0 => {
+                out.push(text[start..i].trim());
+                start = i + 1;
+            }
+            _ => {}
+        }
+    }
+    out.push(text[start..].trim());
+    out
 }
 
 const BINARY: &[&str] = &["+", "-", "*", "/", "<", "<=", ">", ">=", "==", "!="];
@@ -173,9 +241,16 @@ fn function_name(graph: &Graph, element: &Element) -> Option<String> {
     Some(name.rsplit("::").next().unwrap_or(&name).to_string())
 }
 
-/// The ArcLang symbol of a unit referred to by its SysML name or symbol.
+/// The ArcLang symbol of a unit referred to by its SysML name or symbol: a
+/// library element, or one declared in a units package (never a model
+/// attribute that happens to be named `m`).
 fn unit_symbol(graph: &Graph, referent: &str) -> Option<String> {
     let element = graph.get(referent)?;
+    let owner = element.owner.as_deref().and_then(|o| graph.get(o));
+    let in_units = owner.is_some_and(|o| o.kind == "LibraryPackage" || o.name.as_deref().is_some_and(|n| n.ends_with("Units") || n == "SI" || n == "ISQ" || n == "USCustomaryUnits"));
+    if !(element.is_library || in_units) {
+        return None;
+    }
     let candidates = [element.short_name.as_deref(), element.name.as_deref()];
     for candidate in candidates.into_iter().flatten() {
         if let Some(spec) = UNITS.iter().find(|u| u.sysml.trim_matches('\'') == candidate || u.symbol == candidate) {

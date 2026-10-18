@@ -2,13 +2,17 @@
 
 ArcLang exchanges models with SysML v2 through the element listing of the
 Systems Modeling API (JSON records: `@type`, `@id`, names, relationships).
-The textual notation is read into that listing first. This page fixes how
-an Arcadia model is said in SysML v2 so that it comes back whole, and how a
-SysML v2 model written without Arcadia in mind is read.
+The textual notation is read into that listing first, by a complete reader
+of KerML and SysML v2 (`src/compiler/sysml_parser`, after the OMG grammars
+SysML.xtext and KerMLExpressions.xtext). This page fixes how an Arcadia
+model is said in SysML v2 so that it comes back whole, and how a SysML v2
+model written without Arcadia in mind is read.
 
-Status: the import (`arclang import -f sysml`) reads everything below. The
-export (`arclang export -f sys-ml`) is being brought to it; the round-trip
-bench (`tests/sysml_round_trip.rs`) measures the distance, kind by kind.
+Status: the import (`arclang import -f sysml`) reads any `.sysml` text and
+any API listing; the export (`arclang export -f sys-ml`) writes the profile
+below. Every example round-trips whole (`tests/sysml_round_trip.rs`), and
+the 95 examples of the OMG pilot import and compile
+(`tests/sysml_parser_corpus.rs`).
 
 ## Elements are usages
 

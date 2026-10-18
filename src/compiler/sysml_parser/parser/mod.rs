@@ -529,7 +529,7 @@ impl Parser {
             language = Some(self.string()?);
         }
         let body = match self.advance() {
-            Some(Kind::Comment(body)) => body,
+            Some(Kind::Comment(body)) => body.trim().to_string(),
             _ => {
                 self.position -= 1;
                 return Err(self.error("a comment body `/* ... */`"));
