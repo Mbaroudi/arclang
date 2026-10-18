@@ -1,4 +1,4 @@
-Package name=Automotive Emergency Braking System (AEB) short=- via=-
+Package name=Automotive Emergency Braking System (AEB) short=EmergencyBrakingSystem via=-
   LibraryPackage name=ArcadiaProfile short=- via=OwningMembership
     MetadataDefinition name=OA short=- via=OwningMembership
     MetadataDefinition name=SA short=- via=OwningMembership
@@ -22,6 +22,10 @@ Package name=Automotive Emergency Braking System (AEB) short=- via=-
     MetadataDefinition name=Path short=- via=OwningMembership
     MetadataDefinition name=Fmea short=- via=OwningMembership
     MetadataDefinition name=Interface short=- via=OwningMembership
+    MetadataDefinition name=Trace short=- via=OwningMembership
+    MetadataDefinition name=Association short=- via=OwningMembership
+    MetadataDefinition name=Iterate short=- via=OwningMembership
+    MetadataDefinition name=Invariant short=- via=OwningMembership
   Documentation name=- short=- via=OwningMembership body="Complete MBSE model with all Arcadia layers"
   AttributeUsage name=author short=- via=OwningMembership : ScalarValues::String = String("Malek Baroudi")
   AttributeUsage name=safety_standard short=- via=OwningMembership : ScalarValues::String = String("ISO 26262 ASIL-D")
@@ -513,30 +517,25 @@ Package name=Automotive Emergency Braking System (AEB) short=- via=-
   VerificationCaseUsage name=Radar range verification short=TC-001 via=OwningMembership
     Documentation name=- short=- via=OwningMembership body="Verify 150 m obstacle detection on the proving ground"
     AttributeUsage name=method short=- via=FeatureMembership : ScalarValues::String = String("test")
-    AttributeUsage name=method short=- via=FeatureMembership : ScalarValues::String = String("test")
     RequirementUsage name=- short=- via=ObjectiveMembership
       RequirementUsage name=- short=- via=RequirementVerificationMembership references 'Automotive Emergency Braking System (AEB)'::'Safety Requirements'::'Obstacle detection range'
   VerificationCaseUsage name=Fusion latency measurement short=TC-002 via=OwningMembership
     Documentation name=- short=- via=OwningMembership body="Measure radar+camera fusion latency under full bus load"
-    AttributeUsage name=method short=- via=FeatureMembership : ScalarValues::String = String("test")
     AttributeUsage name=method short=- via=FeatureMembership : ScalarValues::String = String("test")
     RequirementUsage name=- short=- via=ObjectiveMembership
       RequirementUsage name=- short=- via=RequirementVerificationMembership references 'Automotive Emergency Braking System (AEB)'::'Safety Requirements'::'Sensor fusion latency'
   VerificationCaseUsage name=TTC computation analysis short=TC-003 via=OwningMembership
     Documentation name=- short=- via=OwningMembership body="Worst-case execution time analysis of the TTC algorithm"
     AttributeUsage name=method short=- via=FeatureMembership : ScalarValues::String = String("analysis")
-    AttributeUsage name=method short=- via=FeatureMembership : ScalarValues::String = String("analysis")
     RequirementUsage name=- short=- via=ObjectiveMembership
       RequirementUsage name=- short=- via=RequirementVerificationMembership references 'Automotive Emergency Braking System (AEB)'::'Safety Requirements'::'Collision risk assessment'
   VerificationCaseUsage name=Emergency braking activation test short=TC-004 via=OwningMembership
     Documentation name=- short=- via=OwningMembership body="Full braking force commanded within 100 ms on target dummy"
     AttributeUsage name=method short=- via=FeatureMembership : ScalarValues::String = String("test")
-    AttributeUsage name=method short=- via=FeatureMembership : ScalarValues::String = String("test")
     RequirementUsage name=- short=- via=ObjectiveMembership
       RequirementUsage name=- short=- via=RequirementVerificationMembership references 'Automotive Emergency Braking System (AEB)'::'Safety Requirements'::'Emergency braking activation'
   VerificationCaseUsage name=Driver warning demonstration short=TC-005 via=OwningMembership
     Documentation name=- short=- via=OwningMembership body="Visual and audio warning precedes autonomous braking"
-    AttributeUsage name=method short=- via=FeatureMembership : ScalarValues::String = String("demonstration")
     AttributeUsage name=method short=- via=FeatureMembership : ScalarValues::String = String("demonstration")
     RequirementUsage name=- short=- via=ObjectiveMembership
       RequirementUsage name=- short=- via=RequirementVerificationMembership references 'Automotive Emergency Braking System (AEB)'::'Safety Requirements'::'Driver warning'
@@ -551,6 +550,9 @@ Package name=Automotive Emergency Braking System (AEB) short=- via=-
     AttributeUsage name=megabit per second short=Mbit/s via=OwningMembership : ISQInformation::BinaryDigitRateUnit
     AttributeUsage name=kilobit per second short=kbit/s via=OwningMembership : ISQInformation::BinaryDigitRateUnit
     AttributeUsage name=millisecond short=ms via=OwningMembership : ISQBase::DurationUnit
+    MetadataUsage name=- short=- via=- : 'Automotive Emergency Braking System (AEB)'::ArcadiaProfile::Trace
+    MetadataUsage name=- short=- via=- : 'Automotive Emergency Braking System (AEB)'::ArcadiaProfile::Trace
+    MetadataUsage name=- short=- via=- : 'Automotive Emergency Braking System (AEB)'::ArcadiaProfile::Trace
   Dependency name=realizes short=- via=OwningMembership client='Automotive Emergency Braking System (AEB)'::'AEB System - Functional View'::AcquireSensorData supplier='Automotive Emergency Braking System (AEB)'::'Emergency Braking - Operational View'::Vehicle::MonitorEnvironment
   Dependency name=realizes short=- via=OwningMembership client='Automotive Emergency Braking System (AEB)'::'AEB System - Functional View'::AssessThreat supplier='Automotive Emergency Braking System (AEB)'::'Emergency Braking - Operational View'::Vehicle::DetectThreat
   Dependency name=realizes short=- via=OwningMembership client='Automotive Emergency Braking System (AEB)'::'AEB System - Functional View'::ComputeBrakingForce supplier='Automotive Emergency Braking System (AEB)'::'Emergency Braking - Operational View'::Vehicle::ApplyBrakes

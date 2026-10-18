@@ -27,6 +27,10 @@ package LaneKeepingTiming {
         metadata def Path;
         metadata def Fmea;
         metadata def Interface;
+        metadata def Trace;
+        metadata def Association;
+        metadata def Iterate;
+        metadata def Invariant;
     }
     private import ArcadiaProfile::*;
     doc /* Lane keeping assist: end-to-end timing and bus load constraints */
@@ -133,7 +137,6 @@ package LaneKeepingTiming {
     }
     verification 'TC-LKA-001' {
         doc /* HIL measurement of departure-to-command latency */
-        attribute method : String = "test";
         attribute method : String = "test";
         objective {
             verify 'Lane Keeping Assist'::'REQ-LKA-001';

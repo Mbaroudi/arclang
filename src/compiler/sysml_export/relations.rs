@@ -27,6 +27,15 @@ pub(super) fn dependency(e: &mut Exporter<'_>, key: &str, from: &str, to: &str) 
     }
 }
 
+/// `#Trace dependency realizes from A to B;`: a trace, told by its metadata
+/// from the reference attribute of the same key.
+fn trace_dependency(e: &mut Exporter<'_>, key: &str, from: &str, to: &str) {
+    match (e.reference(from), e.reference(to)) {
+        (Some(source), Some(target)) => e.line(&format!("#Trace dependency {} from {source} to {target};", text::name(key))),
+        _ => e.line(&format!("// trace {from} {key} {to}: an end is not exported")),
+    }
+}
+
 /// `allocate` of the usage of `from` to the usage of `to`.
 pub(super) fn allocation(e: &mut Exporter<'_>, from: &str, to: &str) {
     match (e.feature(from), e.feature(to)) {
@@ -82,7 +91,7 @@ pub(super) fn write(e: &mut Exporter<'_>) {
         let id = if test.id.is_empty() { test.name.clone() } else { test.id.clone() };
         let verified: Vec<String> = test.verifies.iter().filter_map(|r| e.reference(r)).collect();
         e.block(&format!("verification {}", text::declared(&id, &test.name)), |e| {
-            e.header("TestCase", &test.attributes, &[]);
+            e.header("TestCase", &test.attributes, &["method"]);
             if !test.method.is_empty() {
                 e.line(&format!("attribute method : String = {};", text::string(&test.method)));
             }
@@ -110,10 +119,10 @@ fn traces(e: &mut Exporter<'_>) {
             // that "satisfies" is a dependency of that name.
             "satisfies" => match (is_requirement(model, &trace.to).then(|| e.reference(&trace.to)).flatten(), e.feature(&trace.from)) {
                 (Some(requirement), Some(by)) => e.line(&format!("satisfy {requirement} by {by};")),
-                _ => dependency(e, "satisfies", &trace.from, &trace.to),
+                _ => trace_dependency(e, "satisfies", &trace.from, &trace.to),
             },
             "allocates" => allocation(e, &trace.from, &trace.to),
-            kind => dependency(e, kind, &trace.from, &trace.to),
+            kind => trace_dependency(e, kind, &trace.from, &trace.to),
         }
     }
 }

@@ -18,15 +18,39 @@ fn state_id(state: &State) -> &str {
 
 pub(super) fn register(e: &mut Exporter<'_>) {
     let model = e.model;
+    // A state is known by its id, `Machine.State`, and its name when no
+    // other state has it (what a scenario's state fragment names).
+    let mut names: HashMap<&str, usize> = HashMap::new();
+    fn count<'a>(states: &'a [State], names: &mut HashMap<&'a str, usize>) {
+        for state in states {
+            *names.entry(state.name.as_str()).or_default() += 1;
+            count(&state.sub_states, names);
+        }
+    }
+    for machine in &model.state_machines {
+        count(&machine.states, &mut names);
+    }
     for machine in &model.state_machines {
         let id = if machine.id.is_empty() { machine.name.clone() } else { machine.id.clone() };
         e.register(PACKAGE, &id, &[&machine.name]);
+        register_states(e, &machine.name, vec![text::name(&id)], &machine.states, &names);
     }
     for scenario in &model.scenarios {
         let id = if scenario.id.is_empty() { scenario.name.clone() } else { scenario.id.clone() };
         e.register(PACKAGE, &id, &[&scenario.name]);
     }
     super::relations::register(e);
+}
+
+fn register_states(e: &mut Exporter<'_>, machine: &str, path: Vec<String>, states: &[State], names: &HashMap<&str, usize>) {
+    for state in states {
+        let mut segments = path.clone();
+        segments.push(text::name(state_id(state)));
+        let qualified = format!("{machine}.{}", state.name);
+        let unique = if names.get(state.name.as_str()) == Some(&1) { state.name.as_str() } else { "" };
+        e.register_at(PACKAGE, segments.clone(), &state.id, &[&qualified, unique]);
+        register_states(e, machine, segments, &state.sub_states, names);
+    }
 }
 
 pub(super) fn write(e: &mut Exporter<'_>) {
@@ -48,7 +72,8 @@ fn state_machine(e: &mut Exporter<'_>, machine: &StateMachine) {
     let id = if machine.id.is_empty() { machine.name.clone() } else { machine.id.clone() };
     e.block(&format!("state {}", text::declared(&id, &machine.name)), |e| {
         e.header("StateMachine", &machine.attributes, &[]);
-        states(e, &machine.states, &machine.initial_state, &machine.transitions);
+        let root = Root { name: text::name(&id), states: &machine.states };
+        states(e, &root, &machine.states, &machine.initial_state, &machine.transitions);
     });
     if let Some(owner) = machine.attributes.get("owner").and_then(|o| o.as_string()) {
         dependency(e, "owner", &id, owner);
@@ -57,7 +82,13 @@ fn state_machine(e: &mut Exporter<'_>, machine: &StateMachine) {
 
 /// The states of one region: the entry to its initial state, each state
 /// (its sub-states inside), the transitions between them.
-fn states(e: &mut Exporter<'_>, list: &[State], initial: &str, transitions: &[Transition]) {
+/// The machine a region is in: its name and its top states.
+struct Root<'a> {
+    name: String,
+    states: &'a [State],
+}
+
+fn states(e: &mut Exporter<'_>, root: &Root<'_>, list: &[State], initial: &str, transitions: &[Transition]) {
     let names: HashMap<&str, &str> = list.iter().flat_map(|s| [(s.name.as_str(), state_id(s)), (state_id(s), state_id(s))]).collect();
     if let Some(initial) = names.get(initial) {
         e.line(&format!("entry; then {};", text::name(initial)));
@@ -73,12 +104,12 @@ fn states(e: &mut Exporter<'_>, list: &[State], initial: &str, transitions: &[Tr
                 }
             }
             if !state.sub_states.is_empty() {
-                states(e, &state.sub_states, &state.initial, &state.transitions);
+                states(e, root, &state.sub_states, &state.initial, &state.transitions);
             }
         });
     }
     for (n, transition) in transitions.iter().enumerate() {
-        let (Some(from), Some(to)) = (names.get(transition.from.as_str()), names.get(transition.to.as_str())) else {
+        let (Some(from), Some(to)) = (path_to(list, &transition.from).or_else(|| from_machine(root, &transition.from)), path_to(list, &transition.to).or_else(|| from_machine(root, &transition.to))) else {
             e.line(&format!("// transition {} -> {}: a state is not in this region", transition.from, transition.to));
             continue;
         };
@@ -89,8 +120,23 @@ fn states(e: &mut Exporter<'_>, list: &[State], initial: &str, transitions: &[Tr
                 attributes.entry(key.to_string()).or_insert(AttributeValue::String(value.clone()));
             }
         }
-        e.block(&format!("transition {} first {} then {}", text::name(&id), text::name(from), text::name(to)), |e| e.header("Transition", &attributes, &[]));
+        e.block(&format!("transition {} first {from} then {to}", text::name(&id)), |e| e.header("Transition", &attributes, &[]));
     }
+}
+
+/// A state of this region or nested in one of its states, by id or name:
+/// `A` or `A.B` (a feature chain), the path that names it from the region.
+fn path_to(list: &[State], reference: &str) -> Option<String> {
+    if let Some(state) = list.iter().find(|s| s.name == reference || state_id(s) == reference) {
+        return Some(text::name(state_id(state)));
+    }
+    list.iter().find_map(|s| path_to(&s.sub_states, reference).map(|inner| format!("{}.{inner}", text::name(state_id(s)))))
+}
+
+/// A state of an enclosing region: the chain from the machine, which every
+/// region sees (`M.A.B`).
+fn from_machine(root: &Root<'_>, reference: &str) -> Option<String> {
+    path_to(root.states, reference).map(|path| format!("{}.{path}", root.name))
 }
 
 fn occurrence(e: &mut Exporter<'_>, scenario: &Scenario) {
@@ -127,17 +173,20 @@ fn occurrence(e: &mut Exporter<'_>, scenario: &Scenario) {
             written.push(name);
             // A lifeline stands for an element: a subset of its usage.
             let typing = e.feature(&p.id).or_else(|| e.feature(&p.name)).map(|t| format!(" :> {t}")).unwrap_or_default();
-            match events.get(name) {
-                Some(list) => {
-                    let list = list.clone();
-                    e.block(&format!("ref part {name}{typing}"), |e| {
-                        for (n, event) in list.iter().enumerate() {
-                            e.line(&format!("{}event occurrence {event};", if n == 0 { "" } else { "then " }));
-                        }
-                    });
-                }
-                None => e.line(&format!("ref part {name}{typing};")),
+            let list = events.get(name).cloned().unwrap_or_default();
+            let invariants: Vec<&StateInvariant> = scenario.invariants.iter().filter(|i| lifeline.get(i.lifeline.as_str()) == Some(name)).collect();
+            if list.is_empty() && invariants.is_empty() {
+                e.line(&format!("ref part {name}{typing};"));
+                continue;
             }
+            e.block(&format!("ref part {name}{typing}"), |e| {
+                for (n, event) in list.iter().enumerate() {
+                    e.line(&format!("{}event occurrence {event};", if n == 0 { "" } else { "then " }));
+                }
+                for invariant in invariants {
+                    state_invariant(e, invariant);
+                }
+            });
         }
         for message in &messages {
             e.line(message);
@@ -146,4 +195,27 @@ fn occurrence(e: &mut Exporter<'_>, scenario: &Scenario) {
     if let Some(owner) = scenario.attributes.get("owner").and_then(|o| o.as_string()) {
         dependency(e, "owner", &id, owner);
     }
+}
+
+/// `#Invariant state 'id' :> S { attribute start : Integer = 0; }`: a
+/// state (or `ref action`, a function) asserted on its lifeline from the
+/// message `start` to the message `end`; without `end`, an instant.
+fn state_invariant(e: &mut Exporter<'_>, invariant: &StateInvariant) {
+    let keyword = match invariant.kind {
+        InvariantKind::State => "state",
+        InvariantKind::Function => "action",
+    };
+    let target = e.feature(&invariant.name);
+    let typing = target.as_ref().map(|t| format!(" :> {t}")).unwrap_or_default();
+    e.block(&format!("#Invariant {keyword} {}{typing}", text::name(&invariant.id)), |e| {
+        e.header("StateFragment", &invariant.attributes, &[]);
+        if target.is_none() {
+            e.line(&format!("attribute target : String = {};", text::string(&invariant.name)));
+        }
+        e.line(&format!("attribute start : Integer = {};", invariant.start));
+        // An instant has no end: `end < start`, or no message at all to end on.
+        if invariant.end >= invariant.start && invariant.end != usize::MAX {
+            e.line(&format!("attribute end : Integer = {};", invariant.end));
+        }
+    });
 }

@@ -49,8 +49,11 @@ fn is_type(metaclass: &str) -> bool {
 }
 
 fn is_feature(metaclass: &str) -> bool {
-    metaclass.ends_with("Usage")
+    metaclass.ends_with("Usage") || CONTROL_NODES.contains(&metaclass)
 }
+
+/// The control nodes of an action: action usages of their own metaclass.
+const CONTROL_NODES: &[&str] = &["ForkNode", "JoinNode", "DecisionNode", "MergeNode"];
 
 /// Deterministic identity of each declaration: its place in the model.
 /// A declaration is known by its name, a connector also by what it
@@ -367,6 +370,18 @@ impl<'d> Builder<'d> {
         let declaration = &self.declarations[child];
         let child_id = self.ids[child].clone();
         let mut extra = Map::new();
+        if declaration.membership == "Annotation" {
+            // Metadata of a relationship (`#Trace dependency`): the
+            // relationship is no namespace, it owns an annotation.
+            for key in ["annotatedElement", "owningAnnotatedElement"] {
+                extra.insert(key.into(), reference(&self.ids[owner]));
+            }
+            for key in ["annotatingElement", "ownedAnnotatingElement"] {
+                extra.insert(key.into(), reference(&child_id));
+            }
+            extra.insert("ownedRelatedElement".into(), json!([reference(&child_id)]));
+            return self.relationship("Annotation", &child_id, owner, Some(child_id.clone()), extra);
+        }
         extra.insert("membershipOwningNamespace".into(), reference(&self.ids[owner]));
         extra.insert("memberElement".into(), reference(&child_id));
         extra.insert("ownedMemberElement".into(), reference(&child_id));
@@ -421,10 +436,17 @@ pub fn build(declarations: &[Declaration]) -> Records {
     let mut children: Vec<Vec<usize>> = vec![Vec::new(); declarations.len()];
     let mut memberships: Vec<Option<String>> = vec![None; declarations.len()];
     let mut owned_memberships: Vec<Vec<String>> = vec![Vec::new(); declarations.len()];
+    let mut annotations: Vec<Vec<String>> = vec![Vec::new(); declarations.len()];
+    let mut annotated_by: Vec<Option<String>> = vec![None; declarations.len()];
     for (index, declaration) in declarations.iter().enumerate() {
         if let Some(owner) = declaration.owner {
-            children[owner].push(index);
             let membership = builder.membership(owner, index);
+            if declaration.membership == "Annotation" {
+                annotations[owner].push(membership.clone());
+                annotated_by[index] = Some(membership);
+                continue;
+            }
+            children[owner].push(index);
             owned_memberships[owner].push(membership.clone());
             memberships[index] = Some(membership);
         }
@@ -460,6 +482,13 @@ pub fn build(declarations: &[Declaration]) -> Records {
         let membership = memberships[index].as_deref().map(reference).unwrap_or(Value::Null);
         object.insert("owningMembership".into(), membership.clone());
         object.insert("owningRelationship".into(), membership);
+        if let Some(annotation) = &annotated_by[index] {
+            let annotated = declaration.owner.map(|o| reference(&builder.ids[o])).unwrap_or(Value::Null);
+            object.insert("owningNamespace".into(), Value::Null);
+            object.insert("owningRelationship".into(), reference(annotation));
+            object.insert("annotatedElement".into(), json!([annotated]));
+        }
+        object.insert("ownedAnnotation".into(), references(&annotations[index]));
         object.insert("ownedRelationship".into(), references(&builder.owned_relationships[index]));
         object.insert("ownedMembership".into(), references(&owned_memberships[index]));
         object.insert("ownedMember".into(), references(&child_ids));

@@ -22,6 +22,10 @@ Package name=ExpressionForms short=- via=-
     MetadataDefinition name=Path short=- via=OwningMembership
     MetadataDefinition name=Fmea short=- via=OwningMembership
     MetadataDefinition name=Interface short=- via=OwningMembership
+    MetadataDefinition name=Trace short=- via=OwningMembership
+    MetadataDefinition name=Association short=- via=OwningMembership
+    MetadataDefinition name=Iterate short=- via=OwningMembership
+    MetadataDefinition name=Invariant short=- via=OwningMembership
   Package name=Forms short=- via=OwningMembership
     MetadataUsage name=- short=- via=OwningMembership : ExpressionForms::ArcadiaProfile::SA
     ActionUsage name=Sample short=SF-A via=OwningMembership : ExpressionForms::Types::Task

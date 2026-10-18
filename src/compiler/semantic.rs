@@ -1521,6 +1521,10 @@ impl SemanticAnalyzer {
                 scenario.name.clone(),
                 ElementInfo::new(scenario.name.clone(), scenario.name.clone(), "Scenario"),
             );
+            // A trace may name the scenario by its id as well.
+            if !scenario.id.is_empty() && !all_elements.contains_key(&scenario.id) {
+                register_element(&mut all_elements, &mut duplicate_ids, scenario.id.clone(), ElementInfo::new(scenario.id.clone(), scenario.name.clone(), "Scenario"));
+            }
             let mut participant_ids: std::collections::HashSet<String> =
                 std::collections::HashSet::new();
             for participant in &scenario.participants {

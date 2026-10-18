@@ -194,6 +194,11 @@ def canonical(elements):
             r["@id"] for r in element.get("ownedRelationship", [])
             if by[r["@id"]]["@type"] == "Dependency" and r["@id"] not in members
         ]
+        # A relationship's metadata are owned through annotations.
+        members += [
+            by[r["@id"]]["ownedAnnotatingElement"]["@id"] for r in element.get("ownedRelationship", [])
+            if by[r["@id"]]["@type"] == "Annotation" and by[r["@id"]].get("ownedAnnotatingElement")
+        ]
         dependencies = [m for m in members if by[m]["@type"] == "Dependency"]
         for member in members:
             if member not in dependencies:
@@ -248,8 +253,10 @@ class Pilot:
         return results
 
     def abstract_syntax(self, sysml):
-        # A quoted name may hold spaces: `package 'AEB model' {`.
-        package = re.search(r"^package ('(?:[^'\\]|\\.)*'|\S+)", sysml, re.M).group(1)
+        # A quoted name may hold spaces: `package 'AEB model' {`; the short
+        # name before it (`package <AEB> 'AEB model'`) is skipped.
+        quoted = r"'(?:[^'\\]|\\.)*'"
+        package = re.search(r"^package (?:<(?:%s|[^>\s]+)>\s+)?(%s|[^\s{]+)" % (quoted, quoted), sysml, re.M).group(1)
         self.run(sysml)
         if self.errors:
             raise RuntimeError("the pilot rejects the text: " + "; ".join(self.errors[:5]))

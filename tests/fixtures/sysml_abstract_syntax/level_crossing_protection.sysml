@@ -27,6 +27,10 @@ package LevelCrossingProtection {
         metadata def Path;
         metadata def Fmea;
         metadata def Interface;
+        metadata def Trace;
+        metadata def Association;
+        metadata def Iterate;
+        metadata def Invariant;
     }
     private import ArcadiaProfile::*;
     attribute version : String = "1.0";
@@ -130,13 +134,11 @@ package LevelCrossingProtection {
     }
     verification 'TC-LX-001' {
         attribute method : String = "test";
-        attribute method : String = "test";
         objective {
             verify 'Safety Requirements'::'REQ-LX-001';
         }
     }
     verification 'TC-LX-002' {
-        attribute method : String = "analysis";
         attribute method : String = "analysis";
         objective {
             verify 'Safety Requirements'::'REQ-LX-002';
@@ -144,13 +146,11 @@ package LevelCrossingProtection {
     }
     verification 'TC-LX-003' {
         attribute method : String = "demonstration";
-        attribute method : String = "demonstration";
         objective {
             verify 'Safety Requirements'::'REQ-LX-003';
         }
     }
     verification 'TC-LX-004' {
-        attribute method : String = "test";
         attribute method : String = "test";
         objective {
             verify 'Safety Requirements'::'REQ-LX-004';

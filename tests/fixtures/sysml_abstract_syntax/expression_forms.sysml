@@ -27,6 +27,10 @@ package ExpressionForms {
         metadata def Path;
         metadata def Fmea;
         metadata def Interface;
+        metadata def Trace;
+        metadata def Association;
+        metadata def Iterate;
+        metadata def Invariant;
     }
     private import ArcadiaProfile::*;
     #SA package Forms {

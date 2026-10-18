@@ -22,6 +22,10 @@ Package name=LevelCrossingProtection short=- via=-
     MetadataDefinition name=Path short=- via=OwningMembership
     MetadataDefinition name=Fmea short=- via=OwningMembership
     MetadataDefinition name=Interface short=- via=OwningMembership
+    MetadataDefinition name=Trace short=- via=OwningMembership
+    MetadataDefinition name=Association short=- via=OwningMembership
+    MetadataDefinition name=Iterate short=- via=OwningMembership
+    MetadataDefinition name=Invariant short=- via=OwningMembership
   AttributeUsage name=version short=- via=OwningMembership : ScalarValues::String = String("1.0")
   Package name=Data short=- via=OwningMembership
     ItemDefinition name=Data short=- via=OwningMembership
@@ -112,21 +116,17 @@ Package name=LevelCrossingProtection short=- via=-
         AttributeUsage name=trigger short=- via=FeatureMembership : ScalarValues::String = String("Enter fail-safe on fault")
   VerificationCaseUsage name=TC-LX-001 short=- via=OwningMembership
     AttributeUsage name=method short=- via=FeatureMembership : ScalarValues::String = String("test")
-    AttributeUsage name=method short=- via=FeatureMembership : ScalarValues::String = String("test")
     RequirementUsage name=- short=- via=ObjectiveMembership
       RequirementUsage name=- short=- via=RequirementVerificationMembership references LevelCrossingProtection::'Safety Requirements'::'Train detection'
   VerificationCaseUsage name=TC-LX-002 short=- via=OwningMembership
-    AttributeUsage name=method short=- via=FeatureMembership : ScalarValues::String = String("analysis")
     AttributeUsage name=method short=- via=FeatureMembership : ScalarValues::String = String("analysis")
     RequirementUsage name=- short=- via=ObjectiveMembership
       RequirementUsage name=- short=- via=RequirementVerificationMembership references LevelCrossingProtection::'Safety Requirements'::'Barrier closure'
   VerificationCaseUsage name=TC-LX-003 short=- via=OwningMembership
     AttributeUsage name=method short=- via=FeatureMembership : ScalarValues::String = String("demonstration")
-    AttributeUsage name=method short=- via=FeatureMembership : ScalarValues::String = String("demonstration")
     RequirementUsage name=- short=- via=ObjectiveMembership
       RequirementUsage name=- short=- via=RequirementVerificationMembership references LevelCrossingProtection::'Safety Requirements'::'Crossing clear proving'
   VerificationCaseUsage name=TC-LX-004 short=- via=OwningMembership
-    AttributeUsage name=method short=- via=FeatureMembership : ScalarValues::String = String("test")
     AttributeUsage name=method short=- via=FeatureMembership : ScalarValues::String = String("test")
     RequirementUsage name=- short=- via=ObjectiveMembership
       RequirementUsage name=- short=- via=RequirementVerificationMembership references LevelCrossingProtection::'Safety Requirements'::'Fail-safe state'
