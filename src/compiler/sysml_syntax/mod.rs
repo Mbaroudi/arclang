@@ -87,7 +87,7 @@ impl Token {
 
 const SYMBOLS: &[&str] = &[
     ":>>", "::", ":>", "<=", ">=", "==", "!=", "{", "}", ";", ",", ".", "(", ")", "[", "]", ":", "=", "<", ">",
-    "+", "-", "*", "/",
+    "+", "-", "*", "/", "#",
 ];
 
 fn tokenize(text: &str) -> Result<Vec<Token>, String> {
@@ -198,7 +198,9 @@ fn expression_text(tokens: &[Token]) -> String {
 /// Keywords that open a declaration, with the metaclass of the usage and of
 /// the definition (`part` / `part def`).
 const KINDS: &[(&[&str], &str, Option<&str>)] = &[
+    (&["library", "package"], "LibraryPackage", None),
     (&["package"], "Package", None),
+    (&["metadata"], "MetadataUsage", Some("MetadataDefinition")),
     (&["part"], "PartUsage", Some("PartDefinition")),
     (&["action"], "ActionUsage", Some("ActionDefinition")),
     (&["item"], "ItemUsage", Some("ItemDefinition")),
@@ -410,6 +412,12 @@ impl Reader {
         if head.take_word("import") {
             return Ok(None); // library imports are not declarations of the model
         }
+        // `#OA package ...`: prefix metadata, usages of metadata definitions
+        // owned by the declaration they annotate.
+        let mut metadata: Vec<String> = Vec::new();
+        while head.take_symbol("#") {
+            metadata.push(head.path()?);
+        }
         declaration.is_abstract = head.take_word("abstract");
         let follows = head.take_word("then");
         for direction in ["in", "out", "inout"] {
@@ -430,13 +438,26 @@ impl Reader {
             declaration.ends = Some(Self::ends(&mut head, "to")?);
         } else if head.take_word("flow") {
             declaration.metaclass = "FlowUsage";
+            if !is_word(head.peek(), "from") && !is_word(head.peek(), "of") {
+                Self::short_and_name(&mut head, &mut declaration)?;
+            }
+            // `of T`: what flows, the flow's payload feature.
+            let payload = if head.take_word("of") { Some(head.path()?) } else { None };
             Self::expect_word(&mut head, "from")?;
             declaration.ends = Some(Self::ends(&mut head, "to")?);
+            if let Some(payload) = payload {
+                self.finish(&head)?;
+                let flow = self.push(declaration, owner);
+                let feature = Declaration { metaclass: "PayloadFeature", membership: "FeatureMembership", typed_by: vec![payload], ..Declaration::default() };
+                self.push(feature, Some(flow));
+                self.annotate(flow, metadata);
+                return Ok(Some(flow));
+            }
         } else if head.take_word("message") {
             // A message is a flow between two events, with no connector ends.
             declaration.metaclass = "FlowUsage";
             declaration.is_abstract = true;
-            declaration.name = head.name();
+            Self::short_and_name(&mut head, &mut declaration)?;
             Self::expect_word(&mut head, "from")?;
             declaration.events = Some(Self::ends(&mut head, "to")?);
         } else if head.take_word("dependency") {
@@ -516,7 +537,7 @@ impl Reader {
             if is_end && in_interface && !declaration.typed_by.is_empty() {
                 declaration.metaclass = "PortUsage";
             }
-        } else if follows && owner.is_some_and(|o| self.declarations[o].metaclass == "StateDefinition") {
+        } else if follows && owner.is_some_and(|o| matches!(self.declarations[o].metaclass, "StateDefinition" | "StateUsage")) {
             // `then S;` after `entry;` — the succession to the initial state.
             let target = head.path()?;
             declaration.metaclass = "SuccessionAsUsage";
@@ -553,7 +574,30 @@ impl Reader {
             let range = Declaration { metaclass: "MultiplicityRange", membership: "OwningMembership", bounds, ..Declaration::default() };
             self.push(range, Some(declared));
         }
+        self.annotate(declared, metadata);
         Ok(Some(declared))
+    }
+
+    /// The prefix metadata of a declaration, as metadata usages it owns.
+    fn annotate(&mut self, declared: usize, metadata: Vec<String>) {
+        for definition in metadata {
+            let usage = Declaration { metaclass: "MetadataUsage", membership: "OwningMembership", typed_by: vec![definition], ..Declaration::default() };
+            self.push(usage, Some(declared));
+        }
+    }
+
+    /// `<'short'> name` of a connector written with its own keyword.
+    fn short_and_name(head: &mut Head, declaration: &mut Declaration) -> Result<(), String> {
+        if head.take_symbol("<") {
+            declaration.short_name = Some(head.name().ok_or_else(|| head.unexpected("a short name"))?);
+            if !head.take_symbol(">") {
+                return Err(head.unexpected("`>`"));
+            }
+        }
+        if !is_word(head.peek(), "from") && !is_word(head.peek(), "of") {
+            declaration.name = head.name();
+        }
+        Ok(())
     }
 
     fn expect_word(head: &mut Head, word: &str) -> Result<(), String> {
@@ -743,7 +787,7 @@ impl<'d> Scope<'d> {
         self.declarations
             .iter()
             .enumerate()
-            .filter(|(_, declaration)| declaration.metaclass == "Package")
+            .filter(|(_, declaration)| matches!(declaration.metaclass, "Package" | "LibraryPackage"))
             .find_map(|(package, _)| self.members.get(&(Some(package), name)).copied())
     }
 

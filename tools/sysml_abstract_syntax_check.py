@@ -217,7 +217,8 @@ class Pilot:
         return results
 
     def abstract_syntax(self, sysml):
-        package = re.search(r"^package (\S+)", sysml, re.M).group(1)
+        # A quoted name may hold spaces: `package 'AEB model' {`.
+        package = re.search(r"^package ('(?:[^'\\]|\\.)*'|\S+)", sysml, re.M).group(1)
         self.run(sysml)
         if self.errors:
             raise RuntimeError("the pilot rejects the text: " + "; ".join(self.errors[:5]))

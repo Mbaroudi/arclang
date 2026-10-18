@@ -130,6 +130,18 @@ impl<'t> Expressions<'t> {
             Token::Symbol("(") => {
                 self.position += 1;
                 let inner = self.comparison()?;
+                // `(a, b)` and `(a,)`: a sequence, the `,` operator of the notation.
+                if self.operator(&[","]).is_some() {
+                    let mut items = vec![inner];
+                    while self.operator(&[")"]).is_none() {
+                        items.push(self.comparison()?);
+                        if self.operator(&[","]).is_none() {
+                            self.expect(")")?;
+                            break;
+                        }
+                    }
+                    return Ok(Expr::Operator(",", items));
+                }
                 self.expect(")")?;
                 Ok(inner)
             }

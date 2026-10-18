@@ -34,6 +34,7 @@ pub mod capella_export;
 pub mod sysmlv2_generator;
 pub mod sysml_syntax;
 pub mod sysml_import;
+pub mod sysml_export;
 pub mod sysml_records;
 pub mod sysml_library;
 pub mod simulink_generator;
