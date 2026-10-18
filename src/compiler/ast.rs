@@ -608,6 +608,11 @@ pub struct PhysicalNode {
     #[serde(default)]
     pub functions: Vec<LogicalFunction>,
     pub deployments: Vec<Deployment>,
+    /// Oriented component ports of the node itself (`port in|out "name"`):
+    /// a node, an actor node above all, may exchange data as a component
+    /// does, so a `physical_exchange` may end on `Node.port`.
+    #[serde(default)]
+    pub component_ports: Vec<ComponentPort>,
     /// Physical ports are NOT oriented (Arcadia).
     #[serde(default)]
     pub ports: Vec<PhysicalPort>,

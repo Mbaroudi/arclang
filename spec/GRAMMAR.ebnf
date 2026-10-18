@@ -218,6 +218,8 @@ PaElement       ::= "node" Name "{" NodeElement* "}"
 
 NodeElement     ::= "deploys" Name AttributeBlock?
                   | "port" Name AttributeBlock?               (* physical ports are UNORIENTED *)
+                  | ComponentPortDecl                         (* port in|out|inout: a component port of the node,
+                                                                 end of a physical_exchange as `Node.port` *)
                   | LevelFunctionDecl                         (* the physical functions the node itself performs *)
                   | "behavior_component" Name "{" ( Attribute | ComponentPortDecl | LevelFunctionDecl )* "}"
                                                               (* its ports and the physical functions it performs;

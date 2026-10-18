@@ -796,6 +796,9 @@ pub(super) fn physical(writer: &mut Writer, pa: &Node) {
             writer.count("physical ports");
             writer.line(2, &format!("port {} {{ id: {} }}", string_literal(&label), string_literal(port.id())));
         }
+        // A node exchanges data through oriented component ports too (an
+        // actor node above all): `port in|out`, ends of physical exchanges.
+        component_ports(writer, 2, node, &node_id);
         // The functions the node itself performs (a node may be a behaviour too).
         owned_functions(writer, 2, &node_id, &mut tree, "PhysicalFunction", "physical functions");
         let mut behaviour_names: HashSet<String> = HashSet::new();

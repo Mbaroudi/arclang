@@ -495,13 +495,14 @@ fn import_document(document: &Node, aird: Option<Result<Node, String>>, file_nam
 
     // Allocations of functional exchanges to component exchanges, and of
     // function ports to component ports: `allocates` traces.
-    let traceable = |writer: &Writer, id: &str| matches!(writer.kinds.get(id).copied(), Some("FunctionalExchange" | "ComponentExchange" | "PhysicalExchange" | "FunctionPort" | "ComponentPort" | "PhysicalPort"));
+    // In OA a communication mean allocates interactions the same way.
+    let traceable = |writer: &Writer, id: &str| matches!(writer.kinds.get(id).copied(), Some("FunctionalExchange" | "ComponentExchange" | "PhysicalExchange" | "OperationalExchange" | "CommunicationMean" | "FunctionPort" | "ComponentPort" | "PhysicalPort"));
     for allocation in project.descendants().into_iter().filter(|n| matches!(n.kind.as_str(), "fa:ComponentExchangeFunctionalExchangeAllocation" | "information:PortAllocation" | "fa:ComponentPortAllocation")) {
         if let (Some(source), Some(target)) = (first_ref(allocation.attr("sourceElement")), first_ref(allocation.attr("targetElement"))) {
             if traceable(&writer, &source) && traceable(&writer, &target) {
                 writer.traces.push((source, "allocates", target));
             } else {
-                writer.count("allocations of an operational interaction or an unwritten end (left out)");
+                writer.count("allocations with an end not written (left out)");
             }
         }
     }

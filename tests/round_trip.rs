@@ -23,7 +23,7 @@ logical_architecture "LA" {
     component "Controller" { id: "LC-Ctrl" function "Decide" { id: "LF-Decide" realizes: "SF-Decide" } }
 }
 physical_architecture "PA" {
-    node "Passenger" { id: "PN-Pax" actor: true }
+    node "Passenger" { id: "PN-Pax" actor: true port in "orders" { id: "CP-Pax" } }
     node "ECU" {
         id: "PN-ECU"
         port "eth0" { id: "PP-1" }
@@ -32,6 +32,7 @@ physical_architecture "PA" {
     node "Gateway" { id: "PN-GW" port "eth1" }
     physical_link "ethernet" { id: "PL-1" from: "PN-ECU.eth0" to: "PN-GW.eth1" protocol: "Ethernet" }
     physical_exchange "frames" { id: "PE-1" from: "PC-Ctrl.bus" to: "PN-GW" via: "PL-1" exchange_items: ["Targets"] }
+    physical_exchange "orders" { id: "PE-2" from: "PC-Ctrl.bus" to: "PN-Pax.orders" }
 }
 epbs "Product" {
     id: "ARCH-EPBS"
@@ -124,6 +125,25 @@ fn a_physical_link_ends_on_ports_and_is_drawn_between_their_nodes() {
     assert_eq!((link.source.as_str(), link.target.as_str()), ("PN-ECU", "PN-GW"));
     assert_eq!(link.source_port.as_deref(), Some("PN-ECU::eth0"));
     assert_eq!(link.target_port.as_deref(), Some("PN-GW::eth1"));
+}
+
+#[test]
+fn a_node_carries_oriented_component_ports_where_physical_exchanges_end() {
+    let result = compile(MODEL);
+    assert!(result.warnings.iter().all(|w| !w.contains("PE-2") && !w.contains("orders")), "{:?}", result.warnings);
+    let node = &result.ast.physical_architecture[0].nodes[0];
+    assert_eq!(node.component_ports.len(), 1);
+    assert_eq!(node.component_ports[0].id, "CP-Pax");
+    assert!(node.ports.is_empty(), "an oriented port is a component port, not a physical one");
+    let graph = elements::build(&result.ast, &result.semantic_model);
+    let port = graph.elements.iter().find(|e| e.kind == "ComponentPort" && e.id == "CP-Pax").expect("component port of the node");
+    let owner = graph.elements.iter().find(|e| e.id == "PN-Pax").unwrap();
+    assert_eq!(port.owner.as_deref(), Some(owner.uuid.as_str()));
+    let diagrams = build_diagrams(&result.ast);
+    let pab = diagrams.diagrams.iter().find(|d| d.id == "pab").expect("pab");
+    let exchange = pab.edges.iter().find(|e| e.label == "orders").expect("exchange drawn");
+    assert_eq!(exchange.target.as_str(), "PN-Pax");
+    assert_eq!(exchange.target_port.as_deref(), Some("PN-Pax::orders"));
 }
 
 #[test]

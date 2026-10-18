@@ -574,6 +574,9 @@ pub fn build(ast: &Model, semantic: &SemanticModel) -> ElementGraph {
             for port in &node.ports {
                 builder.port("PhysicalPort", &uuid, [&id, &node.name], "", &port.name, &empty(), Vec::new());
             }
+            for port in &node.component_ports {
+                builder.port("ComponentPort", &uuid, [&id, &node.name], &port.id, &port.name, &port.attributes, vec![("direction", json!(direction_text(&port.direction))), ("interface", json!(port.interface_type))]);
+            }
             for hardware in &node.hardware_components {
                 builder.element("HardwareComponent", &hardware.id, &hardware.name, &uuid, &empty());
                 builder.set_extra("hardwareType", json!(hardware.hw_type));

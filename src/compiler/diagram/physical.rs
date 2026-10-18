@@ -48,6 +48,15 @@ pub(super) fn build(model: &Model) -> Option<(Diagram, Vec<String>)> {
                     text(&port.attributes, "protocol").map(str::to_string),
                 );
             }
+            for port in &node.component_ports {
+                let direction = match port.direction {
+                    ast::PortDirection::In => PortDirection::In,
+                    ast::PortDirection::Out => PortDirection::Out,
+                    ast::PortDirection::InOut => PortDirection::InOut,
+                };
+                let interface = Some(port.interface_type.clone()).filter(|t| !t.is_empty());
+                builder.add_port(handle, &port.name, &port.name, direction, interface, None);
+            }
             for function in &node.functions {
                 add_level_function(&mut builder, Some(handle), function, &node_id);
             }

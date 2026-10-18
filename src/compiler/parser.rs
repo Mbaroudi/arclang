@@ -489,6 +489,11 @@ impl Parser {
             .ok_or_else(|| self.err(format!("Expected name (identifier or string), got {}", self.current())))
     }
 
+    /// Whether the token after the current one is a port direction (`in`, `out`, `inout`).
+    fn peek_is_port_direction(&self) -> bool {
+        matches!(self.tokens.get(self.position + 1), Some(Token::In | Token::Out)) || matches!(self.tokens.get(self.position + 1), Some(Token::Identifier(d)) if d == "inout")
+    }
+
     fn peek_is_colon(&self) -> bool {
         matches!(self.tokens.get(self.position + 1), Some(Token::Colon))
     }
@@ -2726,6 +2731,7 @@ impl Parser {
         let mut behavior_components = Vec::new();
         let mut hardware_components = Vec::new();
         let mut node_ports = Vec::new();
+        let mut component_ports = Vec::new();
         let mut node_functions = Vec::new();
         let mut attributes = HashMap::new();
         
@@ -2739,6 +2745,9 @@ impl Parser {
                 }
                 Token::HardwareComponent => {
                     hardware_components.push(self.parse_hardware_component()?);
+                }
+                Token::Port if self.peek_is_port_direction() => {
+                    component_ports.push(self.parse_component_port()?);
                 }
                 Token::Port => {
                     node_ports.push(self.parse_physical_port()?);
@@ -2777,6 +2786,7 @@ impl Parser {
             functions: node_functions,
             hardware_components,
             deployments,
+            component_ports,
             ports: node_ports,
             attributes,
         })
@@ -2922,6 +2932,7 @@ impl Parser {
             hardware_components: Vec::new(),
             deployments: Vec::new(),
             ports: Vec::new(),
+            component_ports: Vec::new(),
             attributes,
         })
     }

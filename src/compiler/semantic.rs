@@ -951,6 +951,10 @@ impl SemanticAnalyzer {
                         ElementInfo::new(port_id, port.name.clone(), "PhysicalPort"),
                     );
                 }
+                for port in &node.component_ports {
+                    let port_id = format!("{}.{}", node_id, port.name);
+                    register_element(&mut all_elements, &mut duplicate_ids, port_id.clone(), ElementInfo::new(port_id, port.name.clone(), "ComponentPort"));
+                }
                 for func in &node.functions {
                     register_level_function(func, "Function", &mut functions, &mut all_elements, &mut duplicate_ids);
                 }
