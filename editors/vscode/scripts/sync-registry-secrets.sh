@@ -14,7 +14,7 @@ repo="${2:-$(gh repo view --json nameWithOwner --jq .nameWithOwner)}"
 [ -r "$env_file" ] || { echo "no readable env file at $env_file" >&2; exit 1; }
 
 read_var() {  # read_var NAME -> value on stdout, empty when absent
-  grep -E "^$1=" "$env_file" | head -1 | cut -d= -f2- | tr -d '"'"'"' \r'
+  { grep -E "^$1=" "$env_file" || true; } | head -1 | cut -d= -f2- | tr -d '"'"'"' \r'
 }
 
 vsce="$(read_var VSCE_PAT)"
