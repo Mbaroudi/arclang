@@ -86,7 +86,12 @@ pub(super) fn scenario(context: &mut Context, engineering: &El, s: &Scenario, na
     let mut frames: Vec<Frame<'_>> = Vec::new();
     collect(&s.fragments, &id, &mut frames);
     for (index, inv) in s.invariants.iter().enumerate() {
-        let (Some(lifeline), Some(related)) = (role(&inv.lifeline), context.resolve(&inv.name).map(str::to_string)) else { continue };
+        // A function invariant names a function, a state invariant a state or mode.
+        let related = match inv.kind {
+            InvariantKind::Function => context.resolve_function(&inv.name).or_else(|| context.resolve(&inv.name)),
+            InvariantKind::State => context.resolve(&inv.name),
+        };
+        let (Some(lifeline), Some(related)) = (role(&inv.lifeline), related.map(str::to_string)) else { continue };
         let iid = if inv.id.is_empty() { derived(&format!("{id}:invariant:{index}")) } else { inv.id.clone() };
         frames.push(Frame { start: inv.start, end: inv.end, what: What::Invariant { id: iid, lifeline, related, state: inv.kind == InvariantKind::State } });
     }
@@ -116,7 +121,9 @@ pub(super) fn scenario(context: &mut Context, engineering: &El, s: &Scenario, na
     let mut dropped: Vec<String> = Vec::new();
     let mut events: Vec<El> = Vec::new();
     let mut order: Vec<usize> = (0..frames.len()).collect();
-    order.sort_by_key(|i| (frames[*i].start, std::cmp::Reverse(span(&frames[*i]))));
+    // At one position: instants first (they stand before what opens there),
+    // then the outer frames before the inner ones.
+    order.sort_by_key(|i| (frames[*i].start, span(&frames[*i]) != 0, std::cmp::Reverse(span(&frames[*i]))));
     let mut closing: Vec<(usize, usize)> = Vec::new(); // (message index after which it closes, frame)
     let mut opened = vec![false; frames.len()];
     for position in 0..=count {
@@ -166,7 +173,10 @@ pub(super) fn scenario(context: &mut Context, engineering: &El, s: &Scenario, na
         let operation = m.attributes.get("exchange").and_then(|e| e.as_string()).and_then(|e| context.resolve(e)).map(|e| format!("#{e}"));
         events.push(El::new("ownedEvents", "interaction:EventSentOperation", &sent).opt("operation", operation.as_deref()));
         events.push(El::new("ownedEvents", "interaction:EventReceiptOperation", &received).opt("operation", operation.as_deref()));
+        // A message written with neither kind nor type is of no kind in Capella.
+        let typed = m.attributes.contains_key("type");
         let kind = m.attributes.get("kind").and_then(|k| k.as_string()).unwrap_or(match m.message_type {
+            _ if !typed => "UNSET",
             MessageType::Synchronous => "SYNCHRONOUS_CALL",
             MessageType::Asynchronous => "ASYNCHRONOUS_CALL",
             MessageType::Return => "REPLY",

@@ -67,13 +67,12 @@ pub(super) fn write(context: &mut Context, engineering: &mut El, traces: &[Trace
             left_out += 1;
             continue;
         };
-        // A realization written already (a function's `realizes:`) is not written twice.
+        // A model may realize the same element twice (Capella flags it): it is kept,
+        // with an id of its own.
         let target_ref = format!("#{target}");
-        if owner.children().iter().any(|c| c.get("targetElement") == Some(target_ref.as_str()) && c.kind().ends_with(link.rsplit(':').next().unwrap_or(link))) {
-            continue;
-        }
+        let repeats = owner.children().iter().filter(|c| c.get("targetElement") == Some(target_ref.as_str()) && c.kind().ends_with(link.rsplit(':').next().unwrap_or(link))).count();
         owner.push(
-            El::new(tag, link, &derived(&format!("{source}->{target}:{kind}")))
+            El::new(tag, link, &derived(&format!("{source}->{target}:{kind}{}", if repeats > 0 { format!(":{repeats}") } else { String::new() })))
                 .attr("targetElement", &format!("#{target}"))
                 .attr("sourceElement", &format!("#{source}")),
         );

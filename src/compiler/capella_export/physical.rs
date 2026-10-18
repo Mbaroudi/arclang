@@ -211,7 +211,7 @@ pub(super) fn write(context: &mut Context, pa: &PhysicalArchitecture, above_root
             deploy(&mut part, n);
             parts.push(part);
         }
-        for n in systems.iter() {
+        for n in pa.nodes.iter() {
             for b in &n.behavior_components {
                 parts.push(El::new("ownedFeatures", "cs:Part", &part_id(&b.id)).attr("name", &b.name).attr("abstractType", &format!("#{}", b.id)));
             }
@@ -222,7 +222,7 @@ pub(super) fn write(context: &mut Context, pa: &PhysicalArchitecture, above_root
         for n in others {
             system.push(node(context, n, &placed, &link_ports));
         }
-        for n in systems.iter() {
+        for n in pa.nodes.iter() {
             for b in &n.behavior_components {
                 system.push(behaviour(context, b, &placed));
             }
@@ -273,7 +273,16 @@ pub(super) fn write(context: &mut Context, pa: &PhysicalArchitecture, above_root
         }
         pkg.push(El::new("ownedParts", "cs:Part", &part_id(&first.id)).attr("name", &first.name).attr("abstractType", &format!("#{}", first.id)));
         for actor in &actors {
-            pkg.push(El::new("ownedParts", "cs:Part", &part_id(&actor.id)).attr("name", &actor.name).attr("abstractType", &format!("#{}", actor.id)));
+            // An actor's part holds the deployments of the behaviours written in it.
+            let mut part = El::new("ownedParts", "cs:Part", &part_id(&actor.id)).attr("name", &actor.name).attr("abstractType", &format!("#{}", actor.id));
+            for b in &actor.behavior_components {
+                part.push(
+                    El::new("ownedDeploymentLinks", "deployment:PartDeploymentLink", &derived(&format!("{}->{}:deployment", b.id, actor.id)))
+                        .attr("deployedElement", &format!("#{}", part_id(&b.id)))
+                        .attr("location", &format!("#{}", part_id(&actor.id))),
+                );
+            }
+            pkg.push(part);
         }
     } else if !pa.links.is_empty() || !pa.physical_exchanges.is_empty() {
         context.note("physical links and exchanges left out: the physical architecture has no node".to_string());

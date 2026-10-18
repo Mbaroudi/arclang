@@ -76,9 +76,6 @@ pub(super) fn write(context: &Context, model: &Model, level: &str) -> Vec<El> {
     let mut relation_types: Vec<String> = model.traces.iter().filter_map(|t| text(&t.attributes, "relation").map(str::to_string)).collect();
     relation_types.sort();
     relation_types.dedup();
-    if relation_types.is_empty() {
-        relation_types.push("Relation".to_string());
-    }
     let mut folder = El::new("ownedExtensions", "CapellaRequirements:CapellaTypesFolder", &folder_id).attr("ReqIFLongName", "Types");
     let data_types: Vec<&str> = {
         let mut kinds: Vec<&str> = definitions.values().map(|(_, k)| *k).collect();
@@ -173,8 +170,8 @@ pub(super) fn write(context: &Context, model: &Model, level: &str) -> Vec<El> {
         for trace in model.traces.iter().filter(|t| t.trace_type == "refines") {
             let (Some(from), Some(to)) = (context.resolve(&trace.from), context.resolve(&trace.to)) else { continue };
             if from == id && context.requirements.contains(to) {
-                let relation_type = relation_type_id(level, text(&trace.attributes, "relation").unwrap_or("Relation"));
-                el.push(El::new("ownedRelations", "Requirements:InternalRelation", &derived(&format!("{from}->{to}:refines"))).attr("relationType", &format!("#{relation_type}")).attr("source", &format!("#{from}")).attr("target", &format!("#{to}")));
+                let relation_type = text(&trace.attributes, "relation").map(|r| format!("#{}", relation_type_id(level, r)));
+                el.push(El::new("ownedRelations", "Requirements:InternalRelation", &derived(&format!("{from}->{to}:refines"))).opt("relationType", relation_type.as_deref()).attr("source", &format!("#{from}")).attr("target", &format!("#{to}")));
             }
         }
         module.push(el);
@@ -196,11 +193,12 @@ pub(super) fn relations(context: &mut Context, engineering: &mut El, model: &Mod
             (true, false) => (to, from),
             _ => continue,
         };
-        let relation_type = relation_type_id(level, text(&trace.attributes, "relation").unwrap_or("Relation"));
+        // A relation of no type stays of no type.
+        let relation_type = text(&trace.attributes, "relation").map(|r| format!("#{}", relation_type_id(level, r)));
         if let Some(owner) = engineering.find_mut(&element) {
             owner.push(
                 El::new("ownedExtensions", "CapellaRequirements:CapellaOutgoingRelation", &derived(&format!("{element}->{requirement}:relation")))
-                    .attr("relationType", &format!("#{relation_type}"))
+                    .opt("relationType", relation_type.as_deref())
                     .attr("source", &format!("#{element}"))
                     .attr("target", &format!("#{requirement}")),
             );
