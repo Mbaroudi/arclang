@@ -3,7 +3,7 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as vscode from 'vscode';
-import { binary } from './cli';
+import { binary, workspaceTrusted } from './cli';
 import { splitCommand } from './pure/arc';
 
 function onPath(name: string): string | null {
@@ -30,9 +30,11 @@ export function registerMcpProvider(context: vscode.ExtensionContext): void {
     vscode.workspace.onDidChangeConfiguration((event) => {
       if (event.affectsConfiguration('arclang.mcp') || event.affectsConfiguration('arclang.binary')) changed.fire();
     }),
+    vscode.workspace.onDidGrantWorkspaceTrust(() => changed.fire()),
     vscode.lm.registerMcpServerDefinitionProvider('arclang.mcp', {
       onDidChangeMcpServerDefinitions: changed.event,
       provideMcpServerDefinitions() {
+        if (!workspaceTrusted()) return [];
         const configuration = vscode.workspace.getConfiguration('arclang');
         const configured = splitCommand(configuration.get<string>('mcp.command', '').trim());
         const extraArgs = configuration.get<string[]>('mcp.args', []);

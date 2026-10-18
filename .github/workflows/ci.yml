@@ -221,6 +221,10 @@ jobs:
         working-directory: editors/vscode
         run: npm ci
 
+      - name: Audit the runtime dependencies
+        working-directory: editors/vscode
+        run: npm audit --omit=dev --audit-level=high
+
       - name: Type-check, bundle and unit tests
         working-directory: editors/vscode
         run: |

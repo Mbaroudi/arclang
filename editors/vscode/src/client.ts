@@ -2,12 +2,12 @@
 // completion, hover, definition and rename.
 import * as vscode from 'vscode';
 import { LanguageClient } from 'vscode-languageclient/node';
-import { binary, output } from './cli';
+import { binary, output, workspaceTrusted } from './cli';
 
 let client: LanguageClient | null = null;
 
 export async function startClient(context: vscode.ExtensionContext): Promise<void> {
-  if (client) return;
+  if (client || !workspaceTrusted()) return;
   // No `transport`: with TransportKind.stdio the client would add a second
   // `--stdio`, which the compiler's argument parser rejects.
   const serverOptions = { command: binary(), args: ['lsp', '--stdio'] };

@@ -7,7 +7,7 @@ export function registerFormatter(context: vscode.ExtensionContext): void {
     vscode.languages.registerDocumentFormattingEditProvider('arclang', {
       async provideDocumentFormattingEdits(document, _options, token) {
         const text = document.getText();
-        const result = await withTempFile(text, 'model.arc', (file) => run(['format', file], { token }));
+        const result = await withTempFile(text, 'model.arc', (file, dir) => run(['format', file], { cwd: dir, token }));
         if (result.code !== 0) {
           vscode.window.showWarningMessage(`ArcLang: not formatted. ${failureText(result).split('\n')[0]}`);
           return [];

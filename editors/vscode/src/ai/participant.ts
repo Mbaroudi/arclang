@@ -127,7 +127,7 @@ async function verifyAndOffer(
   let lastAnswer = answerText;
   for (let attempt = 0; ; attempt++) {
     stream.progress('Compiling the model with arclang');
-    const result = await withTempFile(text, 'model.arc', (tmp) => run(['check', '--json', tmp], { token }));
+    const result = await withTempFile(text, 'model.arc', (tmp, dir) => run(['check', '--json', tmp], { cwd: dir, token }));
     const parsed = parseCheckReport(result.stdout);
     const compiles = result.code !== 127 && parsed !== null && parsed.errors.length === 0 && (result.code === 0 || parsed.findings.length > 0);
     if (compiles && parsed) {

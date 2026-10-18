@@ -20,8 +20,19 @@ export interface RunOptions {
   token?: vscode.CancellationToken;
 }
 
-/** Runs `arclang <args>`; a missing binary is exit code 127, never a throw. */
+export const UNTRUSTED_MESSAGE = 'ArcLang does not run the compiler on the files of an untrusted workspace. Trust the workspace (Workspaces: Manage Workspace Trust) to get diagnostics, commands, diagrams and tools.';
+
+/** Whether the compiler may be run on the workspace's files. */
+export function workspaceTrusted(): boolean {
+  return vscode.workspace.isTrusted;
+}
+
+/**
+ * Runs `arclang <args>`, never through a shell; a missing binary is exit
+ * code 127 and an untrusted workspace exit code 126, never a throw.
+ */
 export function run(args: string[], options: RunOptions = {}): Promise<RunResult> {
+  if (!workspaceTrusted()) return Promise.resolve({ code: 126, stdout: '', stderr: UNTRUSTED_MESSAGE });
   return new Promise((resolve) => {
     const child = execFile(
       binary(),
@@ -40,16 +51,26 @@ export function run(args: string[], options: RunOptions = {}): Promise<RunResult
   });
 }
 
-/** Writes `text` in a fresh temporary directory and runs `use` on its path. */
-export async function withTempFile<T>(text: string, name: string, use: (file: string) => Promise<T>): Promise<T> {
+/**
+ * Writes `text` in a fresh private temporary directory (mode 0700, unguessable
+ * name) and runs `use` on its path and its directory; the directory is removed
+ * afterwards. Compiler runs on such a file take the directory as working
+ * directory, so nothing of the workspace is read by relative paths.
+ */
+export async function withTempFile<T>(text: string, name: string, use: (file: string, dir: string) => Promise<T>): Promise<T> {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'arclang-'));
   const file = path.join(dir, name);
   try {
-    fs.writeFileSync(file, text);
-    return await use(file);
+    fs.writeFileSync(file, text, { mode: 0o600 });
+    return await use(file, dir);
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }
+}
+
+/** A fresh private temporary directory (mode 0700); the caller removes it. */
+export function tempDir(): string {
+  return fs.mkdtempSync(path.join(os.tmpdir(), 'arclang-'));
 }
 
 let channel: vscode.OutputChannel | null = null;

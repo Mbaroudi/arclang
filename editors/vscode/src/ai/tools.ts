@@ -1,4 +1,5 @@
 // Language model tools: the compiler's answers, for agent mode and for @arclang.
+import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as vscode from 'vscode';
 import { failureText, run, RunResult, withTempFile } from '../cli';
@@ -12,11 +13,22 @@ function answer(lines: Array<string | undefined>): vscode.LanguageModelToolResul
 
 /** A path the tools may touch: inside a workspace folder, or open in the editor. */
 export function allowedPath(candidate: string | undefined): string | null {
-  if (!candidate) return null;
+  if (!candidate || typeof candidate !== 'string') return null;
   const resolved = path.resolve(candidate);
-  const folders = vscode.workspace.workspaceFolders ?? [];
-  const inWorkspace = folders.some((f) => resolved === f.uri.fsPath || resolved.startsWith(f.uri.fsPath + path.sep));
-  const open = vscode.workspace.textDocuments.some((d) => d.uri.scheme === 'file' && d.uri.fsPath === resolved);
+  const real = (p: string) => {
+    try {
+      return fs.realpathSync.native(p);
+    } catch {
+      return null;
+    }
+  };
+  const target = real(resolved);
+  if (!target) return null;
+  // Symbolic links are followed before the comparison: a link inside the
+  // workspace to a file outside it does not pass.
+  const folders = (vscode.workspace.workspaceFolders ?? []).map((f) => real(f.uri.fsPath)).filter((f): f is string => f !== null);
+  const inWorkspace = folders.some((f) => target === f || target.startsWith(f + path.sep));
+  const open = vscode.workspace.textDocuments.some((d) => d.uri.scheme === 'file' && real(d.uri.fsPath) === target);
   return inWorkspace || open ? resolved : null;
 }
 
@@ -69,7 +81,7 @@ export function registerTools(context: vscode.ExtensionContext): void {
       async invoke(options, token) {
         const { path: candidate, source } = options.input;
         if (source) {
-          const result = await withTempFile(source, 'model.arc', (tmp) => run(['check', '--json', tmp], { token }));
+          const result = await withTempFile(source, 'model.arc', (tmp, dir) => run(['check', '--json', tmp], { cwd: dir, token }));
           return checkAnswer('check --json (source text)', result);
         }
         const file = allowedPath(candidate);

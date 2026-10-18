@@ -18,6 +18,24 @@
   "engines": {
     "vscode": "^1.104.0"
   },
+  "extensionKind": [
+    "workspace"
+  ],
+  "capabilities": {
+    "virtualWorkspaces": {
+      "supported": false,
+      "description": "The extension runs the arclang compiler on files of the local file system."
+    },
+    "untrustedWorkspaces": {
+      "supported": "limited",
+      "description": "In an untrusted workspace the compiler is not run on its files: no diagnostics, commands, diagrams or tools until the workspace is trusted. The executable and the MCP server command can only be set in user settings.",
+      "restrictedConfigurations": [
+        "arclang.binary",
+        "arclang.mcp.command",
+        "arclang.mcp.args"
+      ]
+    }
+  },
   "categories": [
     "Programming Languages",
     "Linters",
@@ -221,7 +239,8 @@
         "arclang.binary": {
           "type": "string",
           "default": "arclang",
-          "markdownDescription": "The `arclang` executable: a name on the PATH or an absolute path. The extension runs `arclang lsp --stdio`, `arclang diagram`, `arclang check`, `arclang gate`, `arclang transition`, `arclang export`, `arclang import`, `arclang set`, `arclang rename`."
+          "markdownDescription": "The `arclang` executable: a name on the PATH or an absolute path. The extension runs `arclang lsp --stdio`, `arclang diagram`, `arclang check`, `arclang gate`, `arclang transition`, `arclang export`, `arclang import`, `arclang set`, `arclang rename`. User setting only: a workspace cannot choose the executable the extension runs.",
+          "scope": "machine"
         },
         "arclang.diagrams.refreshOnSave": {
           "type": "boolean",
@@ -248,7 +267,8 @@
         "arclang.mcp.command": {
           "type": "string",
           "default": "",
-          "markdownDescription": "Command that starts the ArcLang MCP server for agent mode (for example `arclang-mcp`, or `uv run --directory /path/to/arclang/mcp-server arclang-mcp`). Empty: the server is offered only when `arclang-mcp` is on the PATH."
+          "markdownDescription": "Command that starts the ArcLang MCP server for agent mode (for example `arclang-mcp`, or `uv run --directory /path/to/arclang/mcp-server arclang-mcp`). Empty: the server is offered only when `arclang-mcp` is on the PATH.",
+          "scope": "machine"
         },
         "arclang.mcp.args": {
           "type": "array",
@@ -256,7 +276,8 @@
             "type": "string"
           },
           "default": [],
-          "description": "Arguments of the MCP server command."
+          "description": "Arguments of the MCP server command.",
+          "scope": "machine"
         }
       }
     },

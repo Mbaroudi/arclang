@@ -10,6 +10,7 @@ import * as commands from './commands';
 import { registerDiagramRefresh, showDiagrams } from './diagrams';
 import { registerFormatter } from './format';
 import { registerMcpProvider } from './mcp';
+import { workspaceTrusted } from './cli';
 
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
   const register = (command: string, callback: (...args: unknown[]) => unknown) =>
@@ -53,7 +54,14 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       if (event.affectsConfiguration('arclang.binary')) await restartClient(context);
     }),
   );
-  if (vscode.workspace.textDocuments.some((d) => d.languageId === 'arclang')) {
+  // Nothing of the compiler runs on an untrusted workspace's files; the
+  // server starts when trust is granted.
+  context.subscriptions.push(
+    vscode.workspace.onDidGrantWorkspaceTrust(async () => {
+      if (vscode.workspace.textDocuments.some((d) => d.languageId === 'arclang') && (await warnIfMissing())) await startClient(context);
+    }),
+  );
+  if (workspaceTrusted() && vscode.workspace.textDocuments.some((d) => d.languageId === 'arclang')) {
     if (await warnIfMissing()) await startClient(context);
   }
 }

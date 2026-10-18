@@ -1,21 +1,27 @@
 // The compiler's own diagram viewer (`arclang diagram -f html`) beside the
 // source, redrawn when the model is saved.
+import { randomBytes } from 'node:crypto';
 import * as fs from 'node:fs';
-import * as os from 'node:os';
 import * as path from 'node:path';
 import * as vscode from 'vscode';
-import { failureText, run } from './cli';
+import { failureText, run, tempDir } from './cli';
+import { nonceFrom, secureViewerHtml } from './pure/arc';
 
 let panel: vscode.WebviewPanel | null = null;
 let shownFile: string | null = null;
 
 async function render(file: string): Promise<{ html?: string; error?: string }> {
-  const out = path.join(os.tmpdir(), `arclang-diagrams-${process.pid}-${Date.now()}.html`);
-  const result = await run(['diagram', file, '-f', 'html', '-o', out], { cwd: path.dirname(file) });
-  if (result.code !== 0 || !fs.existsSync(out)) return { error: failureText(result) };
-  const html = fs.readFileSync(out, 'utf8');
-  fs.rmSync(out, { force: true });
-  return { html };
+  // The viewer is written in a private temporary directory, never at a
+  // predictable path of a shared one.
+  const dir = tempDir();
+  const out = path.join(dir, 'diagrams.html');
+  try {
+    const result = await run(['diagram', file, '-f', 'html', '-o', out], { cwd: path.dirname(file) });
+    if (result.code !== 0 || !fs.existsSync(out)) return { error: failureText(result) };
+    return { html: fs.readFileSync(out, 'utf8') };
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 }
 
 function escapeHtml(text: string): string {
@@ -28,6 +34,9 @@ export async function showDiagrams(file: string): Promise<void> {
     panel = vscode.window.createWebviewPanel('arclangDiagrams', 'ArcLang diagrams', vscode.ViewColumn.Beside, {
       enableScripts: true,
       retainContextWhenHidden: true,
+      // The page is self-contained: no access to local resources, no command URIs.
+      localResourceRoots: [],
+      enableCommandUris: false,
     });
     panel.onDidDispose(() => {
       panel = null;
@@ -41,8 +50,10 @@ export async function showDiagrams(file: string): Promise<void> {
     return;
   }
   // The page is self-contained (the layout engine is inlined by native builds)
-  // and runs inside the webview's own origin.
-  panel.webview.html = outcome.html;
+  // and runs inside the webview's own origin, under a content security policy
+  // that allows only its own scripts, marked with a fresh nonce. The webview
+  // has no message channel to the extension.
+  panel.webview.html = secureViewerHtml(outcome.html, nonceFrom(randomBytes(16)));
   panel.reveal(vscode.ViewColumn.Beside, true);
 }
 

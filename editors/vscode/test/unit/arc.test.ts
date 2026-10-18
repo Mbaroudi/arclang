@@ -101,3 +101,17 @@ test('exit lines and command splitting', () => {
   assert.deepEqual(splitCommand('uv run --directory "/p/with space/mcp-server" arclang-mcp'), ['uv', 'run', '--directory', '/p/with space/mcp-server', 'arclang-mcp']);
   assert.deepEqual(splitCommand(''), []);
 });
+
+import { nonceFrom, secureViewerHtml } from '../../src/pure/arc';
+
+test('the diagram viewer gets a content security policy and its scripts a nonce', () => {
+  const html = '<!doctype html><html><head><title>v</title></head><body><script type="application/json" id="d">{}</script><script>run()</script><img src="data:image/png;base64,AA"></body></html>';
+  const secured = secureViewerHtml(html, 'abc123');
+  assert.match(secured, /<head><meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'nonce-abc123'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; worker-src blob:; connect-src 'none'; frame-src 'none'; form-action 'none'; base-uri 'none'">/);
+  assert.match(secured, /<script nonce="abc123" type="application\/json" id="d">/);
+  assert.match(secured, /<script nonce="abc123">run\(\)<\/script>/);
+  assert.equal((secured.match(/nonce="abc123"/g) ?? []).length, 2);
+  // A page without a head still gets the policy first.
+  assert.match(secureViewerHtml('<p>x</p>', 'n'), /^<meta http-equiv="Content-Security-Policy"/);
+  assert.equal(nonceFrom(new Uint8Array([0, 15, 255])), '000fff');
+});

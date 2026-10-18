@@ -66,6 +66,17 @@ suite('ArcLang extension', () => {
     assert.ok(participants.some((p) => p.name === 'arclang'));
   });
 
+  test('the executable and the MCP command are user settings, and untrusted workspaces are limited', () => {
+    const manifest = vscode.extensions.getExtension('arclang.arclang')?.packageJSON;
+    assert.ok(manifest);
+    for (const key of ['arclang.binary', 'arclang.mcp.command', 'arclang.mcp.args']) {
+      assert.equal(manifest.contributes.configuration.properties[key].scope, 'machine', `${key} is machine-scoped`);
+    }
+    assert.equal(manifest.capabilities.untrustedWorkspaces.supported, 'limited');
+    assert.deepEqual(manifest.capabilities.untrustedWorkspaces.restrictedConfigurations, ['arclang.binary', 'arclang.mcp.command', 'arclang.mcp.args']);
+    assert.equal(manifest.capabilities.virtualWorkspaces.supported, false);
+  });
+
   test('the check tool answers with the compiler verdict', async function () {
     if (!compilerAvailable()) this.skip();
     const result = await vscode.lm.invokeTool('arclang_check', { input: { source: 'model Probe {\n  version: "1"\n}\n' }, toolInvocationToken: undefined });

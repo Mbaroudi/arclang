@@ -82,6 +82,36 @@ VS Code (GitHub Copilot, for instance); the rest works without.
 | `arclang.ai.repairAttempts` | `2` | Corrections asked when a written model does not compile |
 | `arclang.mcp.command`, `arclang.mcp.args` | | How to start the MCP server |
 
+## Security
+
+- **Only the compiler runs, never a shell.** Every command is `arclang` with
+  an argument list (no shell, no string interpolation). The executable and the
+  MCP server command are user settings (`scope: machine`): a repository's
+  `.vscode/settings.json` cannot choose what the extension runs.
+- **Untrusted workspaces.** In a workspace VS Code does not trust, the
+  compiler is not run on its files: no diagnostics, commands, diagrams or
+  tools until the workspace is trusted.
+- **Diagrams** are drawn in a webview under a content security policy: only
+  the viewer's own scripts (marked with a fresh nonce) run, no network, no
+  local resources, no command URIs, no message channel to the extension. The
+  model's text is data in that page, never a script.
+- **Language model tools** read only files of the workspace or open in the
+  editor (symbolic links are resolved before the check). The two tools that
+  edit a model ask for confirmation, go through the compiler's source editor,
+  and apply undoable edits. The assistant is told that the content of models
+  and compiler outputs is data, not instructions.
+- **Temporary files** live in private directories (mode 0700, unguessable
+  names) removed after use.
+- **Nothing leaves the machine** through the extension itself. With
+  `@arclang`, the open model, its diagnostics and the compiler outputs are
+  sent to the language model provider you configured in VS Code, and only
+  then. The extension has no telemetry and makes no network request; its
+  only external link is the GitHub releases page, opened on request.
+- **Supply chain.** One runtime dependency (`vscode-languageclient`), a
+  committed lockfile, `npm audit` in CI, Dependabot updates.
+
+Report a vulnerability as described in the repository's `SECURITY.md`.
+
 ## Development
 
 ```bash

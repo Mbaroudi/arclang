@@ -261,3 +261,37 @@ export function clip(text: string, max: number): string {
   if (text.length <= max) return text;
   return `${text.slice(0, max)}\n... (${text.length - max} more characters not shown)`;
 }
+
+/**
+ * The compiler's self-contained diagram viewer, under a content security
+ * policy for the webview: only its own inline scripts (marked with `nonce`)
+ * run, workers come from blob URLs it creates, and nothing is fetched. A
+ * model's text (names, descriptions) is data in that page, never a script.
+ */
+export function secureViewerHtml(html: string, nonce: string): string {
+  const withNonces = html.replace(/<script(\s[^>]*)?>/gi, (tag, attributes: string | undefined) => {
+    if (/\snonce=/i.test(tag)) return tag;
+    return `<script nonce="${nonce}"${attributes ?? ''}>`;
+  });
+  const policy = [
+    "default-src 'none'",
+    `script-src 'nonce-${nonce}'`,
+    "style-src 'unsafe-inline'",
+    'img-src data: blob:',
+    'font-src data:',
+    'worker-src blob:',
+    "connect-src 'none'",
+    "frame-src 'none'",
+    "form-action 'none'",
+    "base-uri 'none'",
+  ].join('; ');
+  const meta = `<meta http-equiv="Content-Security-Policy" content="${policy}">`;
+  if (/<head[^>]*>/i.test(withNonces)) return withNonces.replace(/<head([^>]*)>/i, `<head$1>${meta}`);
+  if (/<html[^>]*>/i.test(withNonces)) return withNonces.replace(/<html([^>]*)>/i, `<html$1><head>${meta}</head>`);
+  return `${meta}${withNonces}`;
+}
+
+/** 32 hexadecimal characters from `bytes` (16 random bytes), for a CSP nonce. */
+export function nonceFrom(bytes: Uint8Array): string {
+  return Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
+}
