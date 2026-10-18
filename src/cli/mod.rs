@@ -527,6 +527,10 @@ pub enum ExportFormat {
 #[derive(Debug, clap::ValueEnum, Clone)]
 pub enum ImportFormat {
     Capella,
+    /// SysML v2: a JSON listing of Systems Modeling API records, or a .sysml
+    /// text of the dialect ArcLang exports
+    #[clap(name = "sysml")]
+    SysML,
     Mermaid,
     PlantUML,
     JSON,
@@ -1456,6 +1460,28 @@ impl CliRunner {
                 println!("  Input: {}", input.display());
                 println!("  Output: {}", output.display());
                 
+                Ok(())
+            }
+            ImportFormat::SysML => {
+                let imported = crate::compiler::sysml_import::import_file(&input).map_err(|failure| {
+                    if let Some(rejected) = &failure.rejected {
+                        let kept = output.with_extension("rejected.arc");
+                        if std::fs::write(&kept, rejected).is_ok() {
+                            eprintln!("  the refused text is in {}", kept.display());
+                        }
+                    }
+                    CliError::Compilation(failure.message)
+                })?;
+                std::fs::write(&output, &imported.source).map_err(CliError::Io)?;
+                for (what, count) in &imported.counts {
+                    println!("  {count} {what}");
+                }
+                for note in &imported.notes {
+                    println!("  note: {note}");
+                }
+                println!("✓ Import successful");
+                println!("  Input: {}", input.display());
+                println!("  Output: {}", output.display());
                 Ok(())
             }
             ImportFormat::Mermaid => {
