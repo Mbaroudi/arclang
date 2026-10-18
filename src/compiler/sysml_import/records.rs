@@ -43,6 +43,8 @@ pub struct Element {
     pub is_library: bool,
     /// The literal bound to the feature, rendered (`"text"`, `12`, `true`).
     pub value: Option<String>,
+    /// The features a feature chain goes through (`a.b.port`), in order.
+    pub chaining: Vec<String>,
     /// Ends of a connector or relationship: source ids, target ids.
     pub sources: Vec<String>,
     pub targets: Vec<String>,
@@ -105,6 +107,17 @@ impl Graph {
 /// `elements`, `members`, `data` or `records`.
 pub fn records_of(json: &Value) -> Result<Vec<Value>, String> {
     match json {
+        // The pilot's `%export`: items of {identity: {@id}, payload: {...}}.
+        Value::Array(items) if items.iter().any(|i| i.get("payload").is_some()) => Ok(items
+            .iter()
+            .filter_map(|item| {
+                let mut payload = item.get("payload")?.clone();
+                if let (Some(map), Some(id)) = (payload.as_object_mut(), item.get("identity").and_then(|i| i.get("@id")).cloned()) {
+                    map.entry("@id").or_insert(id);
+                }
+                Some(payload)
+            })
+            .collect()),
         Value::Array(items) => Ok(items.clone()),
         Value::Object(map) => {
             for key in ["elements", "records", "members", "data", "items"] {
@@ -213,9 +226,15 @@ pub fn load(records: &[Value]) -> Result<Graph, String> {
             order,
             ..Element::default()
         };
+        element.chaining = ids_of(record.get("chainingFeature"));
         // Connector and relationship ends, in the dialects' order of trust.
         element.sources = ids_of(record.get("arclang:sourceElement"));
         element.targets = ids_of(record.get("arclang:targetElement"));
+        if element.sources.is_empty() {
+            // ArcLang's flows of a scenario name their events.
+            element.sources = ids_of(record.get("arclang:sourceEvent"));
+            element.targets = ids_of(record.get("arclang:targetEvent"));
+        }
         if element.sources.is_empty() {
             element.sources = ids_of(record.get("sourceFeature"));
             element.targets = ids_of(record.get("targetFeature"));
