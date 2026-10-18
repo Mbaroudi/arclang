@@ -5,7 +5,7 @@
 //! exchange names that the model does not declare.
 
 use super::{id_of, text, Exporter};
-use crate::compiler::ast::{DataAttribute, PortDirection};
+use crate::compiler::ast::{Association, AssociationKind, DataAttribute, PortDirection};
 use std::collections::BTreeSet;
 
 pub(super) const PACKAGE: &str = "Data";
@@ -176,8 +176,32 @@ pub(super) fn write(e: &mut Exporter<'_>) {
                 fields(e, &class.fields);
             });
         }
+        for association in &model.associations {
+            association_def(e, association);
+        }
         for name in extra {
             e.line(&format!("item def {};", text::name(&name)));
+        }
+    });
+}
+
+/// `#Association connection def <'id'> has { end source : A; end target : B; }`:
+/// an association between classes, its role, kind and multiplicity as
+/// attributes.
+fn association_def(e: &mut Exporter<'_>, association: &Association) {
+    let (source, target) = (type_reference(e, &association.from), type_reference(e, &association.to));
+    e.block(&format!("#Association connection def {}", text::declared(&association.id, &association.name)), |e| {
+        e.header("Association", &association.attributes, &["role", "kind", "multiplicity"]);
+        e.line(&format!("end source : {source};"));
+        e.line(&format!("end target : {target};"));
+        if let Some(role) = &association.role {
+            e.line(&format!("attribute role : String = {};", text::string(role)));
+        }
+        if association.kind != AssociationKind::Association {
+            e.line(&format!("attribute kind : String = {};", text::string(association.kind.keyword())));
+        }
+        if let Some(multiplicity) = &association.multiplicity {
+            e.line(&format!("attribute multiplicity : String = {};", text::string(multiplicity)));
         }
     });
 }

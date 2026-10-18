@@ -394,20 +394,82 @@ pub(super) fn chain(e: &mut Exporter<'_>, kind: &str, chain: &FunctionalChain, f
     let mut others: Vec<String> = Vec::new();
     e.block(&format!("#Chain action {}", text::declared(&chain.id, &chain.name)), |e| {
         e.header(kind, &chain.attributes, &[]);
+        // With sequence links, the order is theirs, not that of the steps.
         let mut first = true;
+        let ordered = chain.sequences.is_empty();
         for (n, step) in chain.involves.iter().enumerate() {
             match e.feature(step).filter(|_| functions.iter().any(|f| f == step)) {
                 Some(function) => {
-                    let then = if first { "" } else { "then " };
+                    let then = if first || !ordered { "" } else { "then " };
                     e.line(&format!("{then}action step{} :> {function};", n + 1));
                     first = false;
                 }
                 None => others.push(step.clone()),
             }
         }
+        chain_graph(e, chain, functions);
     });
     for other in others {
         super::relations::dependency(e, "involves", &chain.id, &other);
+    }
+}
+
+/// The control nodes of a chain and its sequence links. An AND node is a
+/// `fork` when it branches, else a `join`; an OR node a `decide` or a
+/// `merge`; an ITERATE node a `#Iterate merge`. A link is a `succession`,
+/// its condition an attribute.
+fn chain_graph(e: &mut Exporter<'_>, chain: &FunctionalChain, functions: &[String]) {
+    // An end names a control node by id, else a step, else a control node by name.
+    let control_of = |reference: &str| -> Option<&ControlNode> {
+        let by_id = chain.controls.iter().find(|c| !c.id.is_empty() && c.id == reference);
+        let is_step = chain.involves.iter().any(|s| s == reference);
+        by_id.or_else(|| if is_step { None } else { chain.controls.iter().find(|c| c.name == reference) })
+    };
+    let outgoing = |control: &ControlNode| chain.sequences.iter().filter(|l| control_of(&l.from).is_some_and(|c| std::ptr::eq(c, control))).count();
+    for control in &chain.controls {
+        let branches = outgoing(control) > 1;
+        let keyword = match (control.kind, branches) {
+            (ControlKind::And, true) => "fork",
+            (ControlKind::And, false) => "join",
+            (ControlKind::Or, true) => "decide",
+            (ControlKind::Or, false) => "merge",
+            (ControlKind::Iterate, _) => "#Iterate merge",
+        };
+        let declared = text::declared(&control.id, &control.name);
+        if control.attributes.keys().any(|k| k != "id") {
+            e.block(&format!("{keyword} {declared}"), |e| e.header("ControlNode", &control.attributes, &[]));
+        } else {
+            e.line(&format!("{keyword} {declared};"));
+        }
+    }
+    let end = |e: &Exporter<'_>, reference: &str| -> Option<String> {
+        if let Some(control) = control_of(reference) {
+            return Some(text::name(if control.id.is_empty() { &control.name } else { &control.id }));
+        }
+        match chain.involves.iter().position(|s| s == reference).filter(|_| functions.iter().any(|f| f == reference)) {
+            Some(n) => Some(format!("step{}", n + 1)),
+            None => e.feature(reference),
+        }
+    };
+    for link in &chain.sequences {
+        let (Some(source), Some(target)) = (end(e, &link.from), end(e, &link.to)) else {
+            e.line(&format!("// sequence {} -> {}: an end is not exported", link.from, link.to));
+            continue;
+        };
+        let short = if link.id.is_empty() { String::new() } else { format!("{} ", text::short(&link.id)) };
+        // A function twice in the chain: its links go to its first step.
+        let head = format!("succession {short}first {source} then {target}");
+        let attributes = link.attributes.keys().any(|k| k != "id" && k != "condition");
+        if link.condition.is_none() && !attributes {
+            e.line(&format!("{head};"));
+            continue;
+        }
+        e.block(&head, |e| {
+            e.header("SequenceLink", &link.attributes, &["condition"]);
+            if let Some(condition) = &link.condition {
+                e.line(&format!("attribute condition : String = {};", text::string(condition)));
+            }
+        });
     }
 }
 

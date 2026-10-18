@@ -22,6 +22,9 @@ Package name=LaneKeepingTiming short=- via=-
     MetadataDefinition name=Path short=- via=OwningMembership
     MetadataDefinition name=Fmea short=- via=OwningMembership
     MetadataDefinition name=Interface short=- via=OwningMembership
+    MetadataDefinition name=Trace short=- via=OwningMembership
+    MetadataDefinition name=Association short=- via=OwningMembership
+    MetadataDefinition name=Iterate short=- via=OwningMembership
   Documentation name=- short=- via=OwningMembership body="Lane keeping assist: end-to-end timing and bus load constraints"
   AttributeUsage name=version short=- via=OwningMembership : ScalarValues::String = String("1.0")
   Package name=Data short=- via=OwningMembership
@@ -116,7 +119,6 @@ Package name=LaneKeepingTiming short=- via=-
     Dependency name=mitigated_by short=- via=OwningMembership client=LaneKeepingTiming::Safety::'Late steering correction' supplier=LaneKeepingTiming::'Lane Keeping Assist'::'REQ-LKA-001'
   VerificationCaseUsage name=TC-LKA-001 short=- via=OwningMembership
     Documentation name=- short=- via=OwningMembership body="HIL measurement of departure-to-command latency"
-    AttributeUsage name=method short=- via=FeatureMembership : ScalarValues::String = String("test")
     AttributeUsage name=method short=- via=FeatureMembership : ScalarValues::String = String("test")
     RequirementUsage name=- short=- via=ObjectiveMembership
       RequirementUsage name=- short=- via=RequirementVerificationMembership references LaneKeepingTiming::'Lane Keeping Assist'::'REQ-LKA-001'

@@ -80,7 +80,8 @@ fn canonical(records: &[Value]) -> Vec<String> {
     };
     let line = |element: &Value, is_root: bool| {
         let metaclass = element["@type"].as_str().unwrap();
-        let membership = if is_root { "-" } else { get(&element["owningMembership"])["@type"].as_str().unwrap() };
+        // An annotation is no membership: a relationship's metadata show `-`.
+        let membership = if is_root || element["owningMembership"].is_null() { "-" } else { get(&element["owningMembership"])["@type"].as_str().unwrap() };
         let mut parts = vec![
             metaclass.to_string(),
             format!("name={}", element["declaredName"].as_str().unwrap_or("-")),
@@ -159,7 +160,10 @@ fn canonical(records: &[Value]) -> Vec<String> {
             return;
         }
         lines.push(format!("{}{}", "  ".repeat(depth), line(element, depth == 0)));
-        let members: Vec<&'a Value> = element["ownedMember"].as_array().unwrap().iter().map(|m| get(m)).collect();
+        let mut members: Vec<&'a Value> = element["ownedMember"].as_array().unwrap().iter().map(|m| get(m)).collect();
+        // A relationship's metadata are owned through annotations.
+        let annotations = element["ownedAnnotation"].as_array().into_iter().flatten();
+        members.extend(annotations.map(|a| get(&get(a)["ownedAnnotatingElement"])));
         for member in members.iter().filter(|m| m["@type"] != "Dependency") {
             show(member, depth + 1, lines, get, line);
         }
