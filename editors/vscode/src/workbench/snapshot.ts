@@ -5,6 +5,7 @@ import * as path from 'node:path';
 import * as vscode from 'vscode';
 import { run, withTempFile, workspaceTrusted, UNTRUSTED_MESSAGE } from '../cli';
 import { Metamodel, parseSnapshot, Snapshot } from '../pure/workbench';
+import { arcTextOf, documentDir, isModelDocument } from './source';
 
 interface Cached {
   version: number;
@@ -37,8 +38,12 @@ export function snapshotOf(document: vscode.TextDocument): Promise<Snapshot> {
   const version = document.version;
   const work = (async () => {
     if (!workspaceTrusted()) return failed(UNTRUSTED_MESSAGE);
-    const dir = document.uri.scheme === 'file' ? path.dirname(document.uri.fsPath) : undefined;
-    const snapshot = await withTempFile(document.getText(), path.basename(document.uri.fsPath) || 'model.arc', async (file) => {
+    // A SysML v2 document is imported first; the snapshot is of the imported model.
+    const source = await arcTextOf(document);
+    if (!source.ok) return failed(source.error);
+    const dir = documentDir(document);
+    const name = path.basename(document.uri.fsPath).replace(/\.sysml$/i, '.arc') || 'model.arc';
+    const snapshot = await withTempFile(source.text, name, async (file) => {
       const result = await run(['workbench', file, '--gate-standard', gateStandard()], { cwd: dir });
       if (result.code !== 0 && !result.stdout.trim()) return failed(result.stderr.trim() || `arclang exited with ${result.code}`);
       return parseSnapshot(result.stdout);
@@ -86,7 +91,7 @@ export function registerSnapshotRefresh(context: vscode.ExtensionContext, delayM
   const timers = new Map<string, NodeJS.Timeout>();
   context.subscriptions.push(
     vscode.workspace.onDidChangeTextDocument((event) => {
-      if (event.document.languageId !== 'arclang') return;
+      if (!isModelDocument(event.document)) return;
       const key = event.document.uri.toString();
       const previous = timers.get(key);
       if (previous) clearTimeout(previous);

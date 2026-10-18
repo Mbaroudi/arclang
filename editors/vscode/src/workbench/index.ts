@@ -5,17 +5,18 @@ import { elementLabel } from '../pure/workbench';
 import { applyRequests, refusalMessage } from './edits';
 import { WorkbenchPanel } from './panel';
 import { forgetSnapshot, registerSnapshotRefresh, snapshotOf } from './snapshot';
+import { isModelDocument } from './source';
 import { ModelItem, ModelTreeProvider, revealElement } from './tree';
 
 /** The document to work on: the one given, the active .arc editor's, else the tree's. */
 async function documentFrom(uri: unknown, tree: ModelTreeProvider): Promise<vscode.TextDocument | null> {
   if (uri instanceof vscode.Uri) return vscode.workspace.openTextDocument(uri);
   const active = vscode.window.activeTextEditor;
-  if (active && active.document.languageId === 'arclang') return active.document;
+  if (active && isModelDocument(active.document)) return active.document;
   if (tree.shown) return tree.shown;
   const panelDocument = vscode.workspace.textDocuments.find((d) => WorkbenchPanel.for(d.uri));
   if (panelDocument) return panelDocument;
-  vscode.window.showInformationMessage('ArcLang: open a .arc file first.');
+  vscode.window.showInformationMessage('ArcLang: open a .arc or .sysml file first.');
   return null;
 }
 

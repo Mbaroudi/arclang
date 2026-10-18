@@ -5,6 +5,7 @@
 import * as vscode from 'vscode';
 import { ElementRecord, elementLabel, Metamodel, Snapshot, TreeNode, treeByLayer } from '../pure/workbench';
 import { metamodelJson, onDidChangeSnapshot, snapshotOf } from './snapshot';
+import { isModelDocument } from './source';
 
 export type ModelItem =
   | { type: 'layer'; layer: string; label: string; roots: TreeNode[]; uri: vscode.Uri }
@@ -65,7 +66,7 @@ export class ModelTreeProvider implements vscode.TreeDataProvider<ModelItem> {
   constructor(context: vscode.ExtensionContext) {
     context.subscriptions.push(
       vscode.window.onDidChangeActiveTextEditor((editor) => {
-        if (editor && editor.document.languageId === 'arclang') this.follow(editor.document);
+        if (editor && isModelDocument(editor.document)) this.follow(editor.document);
       }),
       onDidChangeSnapshot((uri) => {
         if (this.document && uri.toString() === this.document.uri.toString()) this.changed.fire(undefined);
@@ -78,7 +79,7 @@ export class ModelTreeProvider implements vscode.TreeDataProvider<ModelItem> {
       }),
     );
     const active = vscode.window.activeTextEditor;
-    if (active && active.document.languageId === 'arclang') this.follow(active.document);
+    if (active && isModelDocument(active.document)) this.follow(active.document);
     void metamodelJson().then((m) => {
       this.metamodel = m;
       this.changed.fire(undefined);
@@ -128,7 +129,7 @@ export class ModelTreeProvider implements vscode.TreeDataProvider<ModelItem> {
   }
 
   async getChildren(item?: ModelItem): Promise<ModelItem[]> {
-    if (!this.document) return [{ type: 'message', text: 'Open a .arc file to see its model.' }];
+    if (!this.document) return [{ type: 'message', text: 'Open a .arc or .sysml file to see its model.' }];
     if (!item) {
       if (!this.metamodel) this.metamodel = await metamodelJson();
       const snapshot = await snapshotOf(this.document);
@@ -189,7 +190,8 @@ export async function locateElement(document: vscode.TextDocument, element: Pick
   if (found) return found.selectionRange ?? found.range;
   // Without a symbol: the first line that spells the id or the name in quotes.
   const text = document.getText();
-  for (const needle of [`"${element.id}"`, `"${element.name}"`, element.id]) {
+  // ArcLang quotes with ", the SysML v2 export writes <'id'> and 'name'.
+  for (const needle of [`"${element.id}"`, `<'${element.id}'>`, `"${element.name}"`, `'${element.name}'`, element.id]) {
     const at = needle ? text.indexOf(needle) : -1;
     if (at >= 0) return new vscode.Range(document.positionAt(at), document.positionAt(at + needle.length));
   }

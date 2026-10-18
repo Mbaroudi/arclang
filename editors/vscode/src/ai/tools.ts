@@ -4,9 +4,9 @@ import * as path from 'node:path';
 import * as vscode from 'vscode';
 import { failureText, run, RunResult, withTempFile } from '../cli';
 import { clip, exitLine, parseCheckReport, renderTransitionPlan, summarizeCheck, TransitionPlan } from '../pure/arc';
-import { EditRequest, layerOfKind, Metamodel, neighbours, parseSnapshot, Snapshot } from '../pure/workbench';
+import { EditRequest, layerOfKind, Metamodel, neighbours, Snapshot } from '../pure/workbench';
 import { applyRequests } from '../workbench/edits';
-import { metamodelJson } from '../workbench/snapshot';
+import { metamodelJson, snapshotOf } from '../workbench/snapshot';
 
 const MAX_RESULT = 24000;
 
@@ -192,13 +192,13 @@ export function registerTools(context: vscode.ExtensionContext): void {
 
     vscode.lm.registerTool<{ path: string; kind?: string; element?: string; layer?: string }>('arclang_model', {
       prepareInvocation: (options) => ({ invocationMessage: `Reading the model ${path.basename(options.input.path ?? '')}` }),
-      async invoke(options, token) {
+      async invoke(options) {
         const file = allowedPath(options.input.path);
         if (!file) return refused(options.input.path);
-        const result = await runOnModel(file, (m) => ['workbench', m], token);
+        const document = await vscode.workspace.openTextDocument(vscode.Uri.file(file));
         const label = `workbench ${path.basename(file)}`;
-        const snapshot = parseSnapshot(result.stdout);
-        if (!snapshot.success || !snapshot.elements) return answer([exitLine(label, result.code || 1), snapshot.errors.join('\n') || failureText(result)]);
+        const snapshot = await snapshotOf(document);
+        if (!snapshot.success || !snapshot.elements) return answer([exitLine(label, 1), snapshot.errors.join('\n') || 'the model does not compile']);
         const metamodel = await metamodelJson();
         return answer([exitLine(label, 0), clip(describeModel(snapshot, metamodel, options.input), MAX_RESULT)]);
       },

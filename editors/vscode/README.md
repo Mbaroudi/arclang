@@ -47,6 +47,13 @@ that would leave a model that does not compile, and an accepted one lands in
 the editor as a single change that Undo takes back. Comments, order and layout
 of the text are kept.
 
+**SysML v2 files** (`.sysml`) open in the same workbench: the compiler imports
+the text for the tree and the views, and writes an edited model back through
+its SysML v2 export (the Arcadia profile, ids kept). The text is then the
+compiler's rendering of it: comments and layout of the original are not kept,
+unlike `.arc` files. **ArcLang: Import** converts a `.sysml` into a `.arc`
+file when you prefer to continue in ArcLang.
+
 ## From the command line, without leaving VS Code
 
 Every command of the palette is one CLI subcommand:

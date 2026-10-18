@@ -1,6 +1,7 @@
 // The workbench against the real compiler: the snapshot of a document, an
 // edit applied as one undoable change, the model tree and the panel.
 import * as assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
@@ -144,6 +145,30 @@ suite('ArcLang workbench', () => {
     });
     const why = refused.content.map((part) => (part instanceof vscode.LanguageModelTextPart ? part.value : '')).join('\n');
     assert.ok(/Refused at request 1/.test(why) && /Nobody/.test(why), why);
+  });
+
+  test('a SysML v2 file goes through the same workbench: imported for the views, exported after an edit', async () => {
+    const binary = process.env.ARCLANG_BINARY || 'arclang';
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'arclang-wb-sysml-'));
+    const arc = path.join(dir, 'model.arc');
+    fs.writeFileSync(arc, MODEL);
+    const sysml = path.join(dir, 'model.sysml');
+    const exported = spawnSync(binary, ['export', '-f', 'sys-ml', arc, '-o', sysml], { encoding: 'utf8' });
+    assert.equal(exported.status, 0, exported.stderr);
+    const document = await vscode.workspace.openTextDocument(sysml);
+    await vscode.window.showTextDocument(document);
+    assert.equal(document.languageId, 'sysml');
+    const snapshot = await snapshotOf(document);
+    assert.equal(snapshot.success, true, snapshot.errors.join('\n'));
+    const ids = (snapshot.elements?.elements ?? []).map((e: { id: string }) => e.id);
+    assert.ok(ids.includes('LC-CTL'), ids.join(','));
+    const outcome = await applyRequests(document, [{ op: 'set', element: 'LC-CTL', key: 'description', value: '"Controls the brakes"' }]);
+    assert.equal(outcome.ok, true, outcome.ok ? '' : outcome.error);
+    assert.ok(document.getText().includes('Controls the brakes'), document.getText());
+    assert.ok(document.getText().includes("<'LC-CTL'>"), 'the SysML text keeps the ids');
+    const again = await snapshotOf(document);
+    const controller = (again.elements?.elements ?? []).find((e: { id: string }) => e.id === 'LC-CTL') as { attributes: Record<string, unknown> } | undefined;
+    assert.equal(controller?.attributes.description, 'Controls the brakes');
   });
 
   test('the workbench panel opens beside the source', async () => {
