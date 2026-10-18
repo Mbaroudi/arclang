@@ -90,6 +90,34 @@ jobs:
           name: arclang-vscode
           path: editors/vscode/arclang-vscode-*.vsix
 
+  # Publishes the same .vsix to the Visual Studio Marketplace and to Open VSX
+  # when the tokens are configured as repository secrets. Without them the
+  # steps are skipped and the .vsix is still attached to the GitHub release.
+  vscode-registries:
+    name: Publish the VS Code extension to the registries
+    needs: vscode
+    runs-on: ubuntu-latest
+    env:
+      VSCE_PAT: ${{ secrets.VSCE_PAT }}
+      OVSX_PAT: ${{ secrets.OVSX_PAT }}
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Download the .vsix
+        uses: actions/download-artifact@v4
+        with:
+          name: arclang-vscode
+
+      - name: Visual Studio Marketplace
+        if: env.VSCE_PAT != ''
+        run: npx --yes @vscode/vsce@4 publish --packagePath arclang-vscode-*.vsix
+
+      - name: Open VSX
+        if: env.OVSX_PAT != ''
+        run: npx --yes ovsx@1 publish arclang-vscode-*.vsix
+
   release:
     name: Publish release
     needs: [build, vscode]

@@ -64,6 +64,13 @@ offered to agent mode when `arclang-mcp` is on the PATH or the setting
 `arclang.mcp.command` names how to start it, for example
 `uv run --directory /path/to/arclang/mcp-server arclang-mcp`.
 
+## Install
+
+- VS Code: [ArcLang on the Visual Studio Marketplace](https://marketplace.visualstudio.com/items?itemName=arclang.arclang)
+- VSCodium, Cursor, Gitpod, Theia and others: [ArcLang on Open VSX](https://open-vsx.org/extension/arclang/arclang)
+- By hand: the `.vsix` attached to every [release](https://github.com/Mbaroudi/arclang/releases),
+  then **Extensions: Install from VSIX...**.
+
 ## Requirements
 
 The `arclang` compiler, 4.0.1 or later: a
@@ -126,6 +133,29 @@ npx @vscode/vsce package --no-dependencies   # the .vsix
 Open the folder in VS Code and press F5 to run the extension on the
 repository's examples. The sample model the assistant is shown,
 `media/reference.arc`, must compile and pass the gate: CI checks it.
+
+### Publishing a version
+
+The extension is published under the publisher `arclang` on both registries,
+from the same `.vsix`. A version number can be published only once on each.
+
+1. Bump `version` in `package.json` and describe the change in `CHANGELOG.md`.
+2. Tag the repository `vX.Y.Z`. The release workflow builds the `.vsix`,
+   attaches it to the GitHub release and, when the repository secrets
+   `VSCE_PAT` (Azure DevOps token, scope *Marketplace: Manage*) and
+   `OVSX_PAT` (Open VSX access token) are set, publishes it to the
+   Marketplace and to Open VSX.
+3. By hand, with the same tokens in the environment and never on the command
+   line of a shell history:
+
+   ```bash
+   npx @vscode/vsce verify-pat arclang          # reads VSCE_PAT
+   npx @vscode/vsce publish --packagePath arclang-vscode-X.Y.Z.vsix
+   npx ovsx publish arclang-vscode-X.Y.Z.vsix   # reads OVSX_PAT
+   ```
+
+Publisher pages: [Marketplace](https://marketplace.visualstudio.com/manage/publishers/arclang),
+[Open VSX](https://open-vsx.org/namespace/arclang).
 
 ## License
 
