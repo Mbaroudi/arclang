@@ -85,8 +85,11 @@ pub fn attributes_json(attributes: &HashMap<String, AttributeValue>) -> Value {
 struct Builder {
     graph: ElementGraph,
     used: HashSet<String>,
-    /// id, name and `Owner.port` → element uuid (first declaration wins).
+    /// id, name, `Owner.port` and `Owner.child` → element uuid (first declaration wins).
     lookup: HashMap<String, String>,
+    /// The keys (id, name) an element was registered under, by uuid: what
+    /// a nested element is addressed through (`Vehicle.MonitorEnvironment`).
+    keys_of: HashMap<String, Vec<String>>,
     types: HashMap<String, String>,
 }
 
@@ -136,11 +139,20 @@ impl Builder {
         let id = attributes.get("id").and_then(|v| v.as_string()).unwrap_or(id);
         let id = if id.is_empty() { name } else { id };
         let uuid = self.unique_uuid("element", kind, id);
-        for key in [id, name] {
-            if !key.is_empty() {
-                self.lookup.entry(key.to_string()).or_insert_with(|| uuid.clone());
+        let own_keys: Vec<String> = [id, name].into_iter().filter(|k| !k.is_empty()).map(str::to_string).collect();
+        for key in &own_keys {
+            self.lookup.entry(key.clone()).or_insert_with(|| uuid.clone());
+        }
+        // A nested element is also `Owner.child`, by ids or names, as a
+        // reference names an activity of an entity or a function of a component.
+        if let Some(owner_keys) = self.keys_of.get(owner).cloned() {
+            for owner_key in owner_keys {
+                for key in &own_keys {
+                    self.lookup.entry(format!("{owner_key}.{key}")).or_insert_with(|| uuid.clone());
+                }
             }
         }
+        self.keys_of.insert(uuid.clone(), own_keys);
         self.graph.elements.push(ElementRecord {
             uuid: uuid.clone(),
             id: id.to_string(),
@@ -441,6 +453,7 @@ pub fn build(ast: &Model, semantic: &SemanticModel) -> ElementGraph {
         graph: ElementGraph::default(),
         used: HashSet::new(),
         lookup: HashMap::new(),
+        keys_of: HashMap::new(),
         types: HashMap::new(),
     };
     let root = builder.unique_uuid("model", "Model", &model_name);

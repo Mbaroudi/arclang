@@ -31,7 +31,8 @@ struct Measure {
     kept_relationships: usize,
     total_relationships: usize,
     lost_by_kind: BTreeMap<String, usize>,
-    lost_relationships_by_kind: BTreeMap<String, usize>,
+    /// Lost relationships by kind: their (source, target) pairs, to name them.
+    lost_relationships_by_kind: BTreeMap<String, Vec<(String, String)>>,
 }
 
 fn round_trip(path: &Path) -> Measure {
@@ -49,9 +50,9 @@ fn round_trip(path: &Path) -> Measure {
         let kept_elsewhere = elements_after.iter().any(|(_, other)| other == id);
         *lost_by_kind.entry(if kept_elsewhere { format!("{kind} (kind changed)") } else { kind.clone() }).or_insert(0) += 1;
     }
-    let mut lost_relationships_by_kind: BTreeMap<String, usize> = BTreeMap::new();
-    for (kind, _, _) in relationships_before.difference(&relationships_after) {
-        *lost_relationships_by_kind.entry(kind.clone()).or_insert(0) += 1;
+    let mut lost_relationships_by_kind: BTreeMap<String, Vec<(String, String)>> = BTreeMap::new();
+    for (kind, source, target) in relationships_before.difference(&relationships_after) {
+        lost_relationships_by_kind.entry(kind.clone()).or_default().push((source.clone(), target.clone()));
     }
     Measure {
         lost_relationships_by_kind,
@@ -76,8 +77,9 @@ fn report(name: &str, m: &Measure) {
     for (kind, n) in &m.lost_by_kind {
         println!("ROUNDTRIP   lost {n:4} {kind}");
     }
-    for (kind, n) in &m.lost_relationships_by_kind {
-        println!("ROUNDTRIP   lost relationship {n:4} {kind}");
+    for (kind, pairs) in &m.lost_relationships_by_kind {
+        let shown: Vec<String> = pairs.iter().take(3).map(|(s, t)| format!("{s} -> {t}")).collect();
+        println!("ROUNDTRIP   lost relationship {:4} {kind}: {}{}", pairs.len(), shown.join(", "), if pairs.len() > 3 { ", ..." } else { "" });
     }
 }
 
@@ -87,7 +89,8 @@ fn the_flagship_example_comes_back_from_sysml() {
     let m = round_trip(&path);
     report("complete_emergency_braking_simple", &m);
     // Raised as the export carries more of the model.
-    assert!(m.kept_elements * 100 >= m.total_elements * 45, "{} of {} elements come back", m.kept_elements, m.total_elements);
+    assert!(m.kept_elements == m.total_elements, "{} of {} elements come back", m.kept_elements, m.total_elements);
+    assert!(m.kept_relationships * 100 >= m.total_relationships * 85, "{} of {} relationships come back", m.kept_relationships, m.total_relationships);
 }
 
 #[test]

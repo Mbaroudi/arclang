@@ -27,14 +27,24 @@ identified by the definition; a definition used nowhere is an element of
 its own; a definition used several times becomes a `type`, its usages the
 elements.
 
+ArcLang `type`s are written in a package `Types` as abstract definitions
+(`abstract part def ECU`, `abstract action def 'Periodic task'`, `abstract
+connection def 'CAN FD bus'`), `type X extends Y` as `:> Y`; their default
+attributes are `attribute k : T default = v;` and the attributes instances
+must provide are said in the documentation: `doc /* instances must provide:
+wcet, latency */`. An abstract definition, or any definition of a package
+named `Types`, is read as a type whatever its use; an element `is:` it
+through its typing (`: Types::ECU`), and redefines a default with
+`attribute :>> period = 33 [ms];`.
+
 ## Identity and names
 
 | ArcLang | SysML v2 |
 |---|---|
-| `id:` | short name: `part <'LC-001'> ...`. Every written element has one. |
+| `id:` | short name: `part <'LC-001'> ...`. Every written element has one; an element whose id is its name is written by its name alone. Ports too: `in port <'0ad613f5'> 'CP 3' : ...`, `in item <'...'> name` for a function port. |
 | name | declared name, as written, quoted when it is not an identifier: `'Radar Sensor'`. |
 | `description:` | `doc /* ... */` of the element. |
-| other attributes | `attribute key : Type = value;` typed by the metamodel (quantities with their ISQ type and unit, else `String`, `Integer`, `Real`, `Boolean`). List attributes are lists (`(a, b)`), never a joined string. |
+| other attributes | `attribute key : Type = value;` typed by the metamodel (quantities with their ISQ type and unit: `30 [ms]`, else `String`, `Integer`, `Real`, `Boolean`). List attributes are lists: `attribute phases : String [*] = ("takeoff", "cruise");`, never a joined string. |
 | references (`involves:`, `realizes:`, `allocated_functions:`...) | relationships (below), never text attributes. |
 
 ## Levels
@@ -75,7 +85,8 @@ SysML says most Arcadia kinds by itself; metadata names the rest.
 | component port | `port` usage, direction by `in`/`out` on its port def or `~` conjugation | |
 | physical port | `port` without direction | `#PhysicalPort` |
 | functional exchange / interaction | `flow` between the ports (item parameters) of two actions, carrying its exchange items | |
-| component exchange / communication mean / physical exchange | `connection` (or `interface`) between the ports of two parts | |
+| component exchange / communication mean / physical exchange | `connection` (or `interface`) between the ports of two parts (`'LC-1'.port`), or between the parts themselves when the exchange has no ports | |
+| logical interface | `connection` between two logical components | `#Interface` |
 | physical link | `connection` between two nodes or their physical ports | `#Link` |
 | exchange item | `item def` | `#ExchangeItem` when it has attributes |
 | class | `item def` with attributes; `extends` by specialization | `#Class` |
@@ -87,7 +98,8 @@ SysML says most Arcadia kinds by itself; metadata names the rest.
 | state machine | `state def` exhibited by the part or action it belongs to; `state`/`mode` usages, `transition` with `accept`/`if`/`do` | `#Mode` on a mode |
 | scenario | `occurrence def` with one `part` per lifeline, `event occurrence`s and `flow` messages between them (fragments as `loop`/`alt`... occurrences) | |
 | test case | `verification def` with `objective { verify requirement }` | |
-| trace | `satisfy`, `allocate`, `dependency` named after the trace kind (`realizes`, `refines`, `implements`, `verifies`, `validates`) | |
+| constraint | `assert constraint <'CST-1'> 'Name' { <expression> }` over the attributes of elements by feature chain (`'SA'::'SF-1'.wcet`), quantities as `50 [ms]`; `sum(chain, attr)` unfolded as the sum over the chain's steps, `max`/`min` as `DataFunctions::max(...)` over them (folded back on import when the operands are the steps of one chain) | |
+| trace | `satisfy`, `allocate`, `dependency` named after the trace kind (`realizes`, `refines`, `implements`, `verifies`, `validates`, or any `trace_type`) | `#Trace` on a dependency whose name is also a reference key (`realizes`, `includes`...): without it the import reads the dependency as the source's attribute (`realizes: ...`) |
 | deployment | `allocate` of a logical component to a node | |
 | diagram | `metadata` on the level package: `@Diagram { view; shows }` (not yet) | |
 
@@ -101,9 +113,17 @@ SysML says most Arcadia kinds by itself; metadata names the rest.
   the default of its kind.
 - Library elements (`isLibraryElement`) are not written.
 - Connectors are read by their ends: `source`/`target`, `client`/`supplier`,
-  `relatedFeature`, or ArcLang's own `arclang:sourceElement`. An end that is
-  a port becomes `Owner.port`.
+  `relatedFeature`, or ArcLang's own `arclang:sourceFeature` (the port or
+  nested function an end lands on) and `arclang:sourceElement`. An end that
+  is a port becomes `Owner.port`; a chain's steps and a scenario's lifelines
+  may reach a function through its component (`'LC-1'.'LF-1'`).
 - A text attribute under a reference key (`involves`, `realizes`...) is left
   out and counted: a relationship is expected.
+- An attribute value that is an expression is read when ArcLang can say
+  it: a quantity (`30 [ms]` -> `30 ms`, units by their SysML name), a list,
+  a number. A constraint whose expression ArcLang cannot say (another
+  function, an operator it lacks) is left out and said in the notes.
+- A trace or allocation that lands on a port needs the port's id (its
+  short name): without one it is left out.
 - The written model must compile; else the import fails and keeps the text
   as `<output>.rejected.arc`.

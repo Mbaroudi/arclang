@@ -41,8 +41,24 @@ pub struct Element {
     pub is_abstract: bool,
     /// An element of the standard library the file carries along.
     pub is_library: bool,
-    /// The literal bound to the feature, rendered (`"text"`, `12`, `true`).
+    /// The literal bound to the feature, rendered (`"text"`, `12`, `true`);
+    /// a literal expression element carries its own.
     pub value: Option<String>,
+    /// The expression element bound to the feature (`= 30 [ms]`), when any.
+    pub value_expression: Option<String>,
+    /// Expression pieces: the operator of an `OperatorExpression` (`+`,
+    /// `<=`, `[` for a quantity, `.` for a feature chain), its arguments in
+    /// order, the referent of a `FeatureReferenceExpression`, the target
+    /// feature and written path of a `FeatureChainExpression`, the function
+    /// of an `InvocationExpression` (an element id, else its written name).
+    pub operator: Option<String>,
+    pub arguments: Vec<String>,
+    pub referent: Option<String>,
+    pub target_feature: Option<String>,
+    pub target_path: Option<String>,
+    pub function: Option<String>,
+    /// The written path of a connector's source end (`Vehicle.MonitorEnvironment`), when the export says it.
+    pub source_path: Option<String>,
     /// The features a feature chain goes through (`a.b.port`), in order.
     pub chaining: Vec<String>,
     /// Ends of a connector or relationship: source ids, target ids.
@@ -227,15 +243,31 @@ pub fn load(records: &[Value]) -> Result<Graph, String> {
             ..Element::default()
         };
         element.chaining = ids_of(record.get("chainingFeature"));
-        // Connector and relationship ends, in the dialects' order of trust.
-        element.sources = ids_of(record.get("arclang:sourceElement"));
-        element.targets = ids_of(record.get("arclang:targetElement"));
+        if kind.ends_with("Expression") || kind.starts_with("Literal") {
+            element.operator = text(record, "operator");
+            element.arguments = ids_of(record.get("argument"));
+            element.referent = first_id(record, &["referent"]);
+            element.target_feature = first_id(record, &["targetFeature"]);
+            element.function = first_id(record, &["function", "instantiatedType"]).or_else(|| text(record, "arclang:unresolvedTarget"));
+            element.value = literal(&by_id, &id);
+        }
+        element.source_path = text(record, "arclang:sourcePath");
+        element.target_path = text(record, "arclang:targetPath");
+        // Connector and relationship ends, in the dialects' order of trust:
+        // ArcLang's export names the feature an end lands on (the port) and
+        // the element holding it.
+        element.sources = ids_of(record.get("arclang:sourceFeature"));
+        element.targets = ids_of(record.get("arclang:targetFeature"));
+        if element.sources.is_empty() {
+            element.sources = ids_of(record.get("arclang:sourceElement"));
+            element.targets = ids_of(record.get("arclang:targetElement"));
+        }
         if element.sources.is_empty() {
             // ArcLang's flows of a scenario name their events.
             element.sources = ids_of(record.get("arclang:sourceEvent"));
             element.targets = ids_of(record.get("arclang:targetEvent"));
         }
-        if element.sources.is_empty() {
+        if element.sources.is_empty() && !kind.ends_with("Expression") {
             element.sources = ids_of(record.get("sourceFeature"));
             element.targets = ids_of(record.get("targetFeature"));
         }
@@ -275,11 +307,10 @@ pub fn load(records: &[Value]) -> Result<Graph, String> {
             "Subsetting" | "ReferenceSubsetting" => link(&mut graph, first_id(record, &["subsettingFeature", "referencingFeature", "specific"]), first_id(record, &["subsettedFeature", "referencedFeature", "general"]), |e, t| e.subsets.push(t)),
             "FeatureValue" => {
                 let owner = first_id(record, &["featureWithValue", "owner"]);
-                let value = first_id(record, &["value", "memberElement"]).and_then(|v| literal(&by_id, &v));
-                if let (Some(owner), Some(value)) = (owner, value) {
-                    if let Some(&i) = graph.index.get(&owner) {
-                        graph.elements[i].value = Some(value);
-                    }
+                let expression = first_id(record, &["value", "memberElement"]);
+                if let Some(&i) = owner.as_deref().and_then(|o| graph.index.get(o)) {
+                    graph.elements[i].value = expression.as_deref().and_then(|v| literal(&by_id, v));
+                    graph.elements[i].value_expression = expression;
                 }
             }
             _ => {}

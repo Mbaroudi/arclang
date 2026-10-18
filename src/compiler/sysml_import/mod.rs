@@ -6,6 +6,7 @@
 //! import fails rather than hand over a model the compiler refuses.
 
 pub mod arcadia;
+mod expression;
 pub mod records;
 
 use crate::compiler::{Compiler, CompilerConfig};

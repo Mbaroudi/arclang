@@ -21,6 +21,7 @@
 //! Every element is written with its SysML short name as id when it has
 //! one, else its name: a model exported with its ids comes back with them.
 
+use super::expression;
 use super::records::{Element, Graph};
 use crate::compiler::source_edit::string_literal;
 use std::collections::{BTreeMap, HashMap, HashSet};
@@ -320,6 +321,17 @@ impl<'g> Mapper<'g> {
             }
             candidates.push(usage);
         }
+        // Definitions that are ArcLang types whatever their use: abstract
+        // definitions, and those of a package named `Types`.
+        let declared_types: Vec<&'g Element> = self
+            .graph
+            .of_kinds(&["PartDefinition", "ActionDefinition", "ConnectionDefinition", "InterfaceDefinition"])
+            .filter(|d| !self.is_library(d) && !self.is_chain(d))
+            .filter(|d| d.is_abstract || d.owner.as_deref().and_then(|o| self.graph.get(o)).and_then(|o| o.name.as_deref()) == Some("Types"))
+            .collect();
+        for def in declared_types {
+            self.declare_type(def);
+        }
         let def_of = |u: &Element| u.types.first().and_then(|t| self.graph.get(t)).filter(|d| matches!(d.kind.as_str(), "PartDefinition" | "ActionDefinition"));
         let mut by_def: HashMap<&str, Vec<&'g Element>> = HashMap::new();
         for usage in &candidates {
@@ -334,6 +346,10 @@ impl<'g> Mapper<'g> {
         let mut merged_usages: HashSet<String> = HashSet::new();
         let mut main_of_def: HashMap<String, String> = HashMap::new();
         for (def_id, group) in &by_def {
+            if self.types.contains_key(*def_id) {
+                main_of_def.insert(def_id.to_string(), group[0].id.clone());
+                continue;
+            }
             let identified: Vec<&&Element> = group.iter().filter(|u| !anonymous(u)).collect();
             // Anonymous usages of one definition, at most one of them in a
             // part (`action a : X;` at the level and `perform action p : X`
@@ -361,16 +377,7 @@ impl<'g> Mapper<'g> {
                 }
             } else {
                 let def = self.graph.get(def_id).expect("a grouped definition");
-                // A type is known by its name: two definitions of one name
-                // (one per level) get distinct type names.
-                let base = Self::name_of(def).or_else(|| def.short_name.clone()).unwrap_or_else(|| def.id.clone());
-                let mut name = base.clone();
-                let mut n = 1;
-                while self.types.values().any(|existing| *existing == name) {
-                    n += 1;
-                    name = format!("{base} ({n})");
-                }
-                self.types.insert(def_id.to_string(), name);
+                self.declare_type(def);
                 main_of_def.insert(def_id.to_string(), group[0].id.clone());
             }
         }
@@ -397,7 +404,11 @@ impl<'g> Mapper<'g> {
         }
         // Definitions used nowhere are elements of their own. Chains are
         // not structure: they are written from their steps.
-        let defs: Vec<&'g Element> = self.graph.of_kinds(&["PartDefinition", "ActionDefinition"]).filter(|d| !self.is_library(d) && !self.is_chain(d) && !by_def.contains_key(d.id.as_str())).collect();
+        let defs: Vec<&'g Element> = self
+            .graph
+            .of_kinds(&["PartDefinition", "ActionDefinition"])
+            .filter(|d| !self.is_library(d) && !self.is_chain(d) && !by_def.contains_key(d.id.as_str()) && !self.types.contains_key(&d.id))
+            .collect();
         for def in defs {
             let shape = if def.kind == "PartDefinition" { Shape::Part } else { Shape::Action };
             let index = self.nodes.len();
@@ -449,6 +460,23 @@ impl<'g> Mapper<'g> {
         }
     }
 
+    /// Register a definition as an ArcLang type. A type is known by its
+    /// name: two definitions of one name (one per level) get distinct names.
+    fn declare_type(&mut self, def: &Element) -> String {
+        if let Some(name) = self.types.get(&def.id) {
+            return name.clone();
+        }
+        let base = Self::name_of(def).or_else(|| def.short_name.clone()).unwrap_or_else(|| def.id.clone());
+        let mut name = base.clone();
+        let mut n = 1;
+        while self.types.values().any(|existing| *existing == name) {
+            n += 1;
+            name = format!("{base} ({n})");
+        }
+        self.types.insert(def.id.clone(), name.clone());
+        name
+    }
+
     /// A node's level: stated on it, else its parent's, else the default
     /// of its shape and role.
     fn resolve_level(&self, index: usize, stated: &[Option<Level>], resolved: &mut Vec<Option<Level>>, depth: usize) -> Level {
@@ -497,7 +525,8 @@ impl<'g> Mapper<'g> {
         let node = &self.nodes[index];
         let mut out = Vec::new();
         if let Some(u) = node.usage { out.push(u); }
-        if let Some(d) = node.def {
+        // A type's attributes and documentation are the type's: written once, with it.
+        if let Some(d) = node.def.filter(|_| node.is_type.is_none()) {
             let first_of_type = self.node_of.get(&d.id) == Some(&index);
             if node.merged || first_of_type {
                 out.push(d);
@@ -639,7 +668,55 @@ impl<'g> Mapper<'g> {
         self.state_machines();
         self.scenarios();
         self.test_cases();
+        self.constraints();
         self.traces();
+    }
+
+    // --- constraints ------------------------------------------------------
+
+    /// `constraint` usages as ArcLang constraints: their asserted
+    /// expression over the attributes of written elements. An expression
+    /// ArcLang cannot say leaves the constraint out, and says so.
+    fn constraints(&mut self) {
+        let constraints: Vec<&'g Element> = self.graph.of_kinds(&["ConstraintUsage", "AssertConstraintUsage"]).filter(|c| !self.is_library(c)).collect();
+        for constraint in constraints {
+            let expression = constraint.children.iter().filter_map(|c| self.graph.get(c)).find(|c| c.kind.ends_with("Expression") || c.kind.starts_with("Literal"));
+            let text = match expression {
+                Some(expression) => self.expression_text(&expression.id),
+                // The export keeps an expression it cannot write as text: ArcLang's own.
+                None => constraint
+                    .children
+                    .iter()
+                    .filter_map(|c| self.graph.get(c))
+                    .find(|c| c.kind == "AttributeUsage" && c.name.as_deref() == Some("expression"))
+                    .and_then(|c| c.value.as_deref())
+                    .and_then(unquote)
+                    .ok_or_else(|| "no expression".to_string()),
+            };
+            let text = match text {
+                Ok(text) => text,
+                Err(reason) => {
+                    self.count("constraints left out (expression not ArcLang's)");
+                    if self.notes.len() < 40 {
+                        self.notes.push(format!("constraint '{}' left out: {reason}", Self::display(constraint)));
+                    }
+                    continue;
+                }
+            };
+            let id = self.remember(&constraint.id, Self::identity_id(constraint), "Constraint");
+            self.count("constraints");
+            self.line(0, &format!("constraint {} {{", string_literal(&Self::display(constraint))));
+            self.line(1, &format!("id: {}", string_literal(&id)));
+            if let Some(doc) = Self::description(constraint) {
+                self.line(1, &format!("description: {}", string_literal(&doc)));
+            }
+            self.attributes(1, &[constraint], &["description", "expression"]);
+            self.line(1, &format!("assert: {text}"));
+            self.line(0, "}");
+        }
+        if !self.ids.is_empty() {
+            self.line(0, "");
+        }
     }
 
     // --- data -------------------------------------------------------------
@@ -718,14 +795,21 @@ impl<'g> Mapper<'g> {
         entries.sort();
         for (def_id, name) in entries {
             let Some(def) = self.graph.get(&def_id) else { continue };
-            self.count("types (shared definitions)");
+            self.count("types");
             let parent = def.specializes.first().and_then(|s| self.types.get(s)).cloned();
             match parent {
                 Some(parent) => self.line(0, &format!("type {} extends {} {{", string_literal(&name), string_literal(&parent))),
                 None => self.line(0, &format!("type {} {{", string_literal(&name))),
             }
             if let Some(doc) = Self::description(def) {
-                self.line(1, &format!("description: {}", string_literal(&doc)));
+                // The export says a type's required attributes in its documentation.
+                match doc.strip_prefix("instances must provide:") {
+                    Some(list) => {
+                        let required: Vec<String> = list.split(',').map(|s| s.trim().to_string()).filter(|s| !s.is_empty()).collect();
+                        self.line(1, &format!("required: {}", list_literal(&required)));
+                    }
+                    None => self.line(1, &format!("description: {}", string_literal(&doc))),
+                }
             }
             self.attributes(1, &[def], &["description"]);
             // A type with ports is a component's; a function carries the
@@ -852,13 +936,29 @@ impl<'g> Mapper<'g> {
         let mut lines = Vec::new();
         let mut seen: HashSet<String> = HashSet::new();
         let mut references = 0;
+        let mut unwritten: Vec<String> = Vec::new();
+        let graph = self.graph;
         for element in elements {
-            for child in element.children.iter().filter_map(|c| self.graph.get(c)) {
+            for child in element.children.iter().filter_map(|c| graph.get(c)) {
                 if child.kind != "AttributeUsage" && child.kind != "ReferenceUsage" {
                     continue;
                 }
-                let (Some(name), Some(value)) = (&child.name, &child.value) else { continue };
-                let key = field_key(name);
+                // A redefinition (`attribute :>> period = 33 [ms]`) is named by what it redefines.
+                let name = child.name.clone().or_else(|| child.redefines.iter().filter_map(|r| graph.get(r)).find_map(|r| r.name.clone()));
+                let Some(name) = name else { continue };
+                // A value that is not a literal is an expression: a quantity (`30 [ms]`).
+                let value = match (&child.value, &child.value_expression) {
+                    (Some(value), _) => value.clone(),
+                    (None, Some(expression)) => match self.expression_text(expression) {
+                        Ok(text) => text,
+                        Err(reason) => {
+                            unwritten.push(format!("'{}': attribute '{name}' left out: {reason}", Self::display(element)));
+                            continue;
+                        }
+                    },
+                    (None, None) => continue,
+                };
+                let key = field_key(&name);
                 if skip.contains(&key.as_str()) || matches!(key.as_str(), "id" | "name") || !seen.insert(key.clone()) {
                     continue;
                 }
@@ -879,6 +979,40 @@ impl<'g> Mapper<'g> {
             self.line(depth, &line);
         }
         self.count_by("reference attributes written as text (left out: a relationship is expected)", references);
+        self.count_by("attribute values that are not ArcLang values (left out)", unwritten.len());
+        for note in unwritten {
+            if self.notes.len() < 40 {
+                self.notes.push(note);
+            }
+        }
+    }
+
+    /// An expression element as ArcLang text (an attribute value, a
+    /// constraint), or why it is not one.
+    fn expression_text(&self, id: &str) -> Result<String, String> {
+        let chains: Vec<(String, Vec<String>)> = self
+            .graph
+            .of_kinds(&["ActionDefinition", "ActionUsage"])
+            .filter(|e| !self.is_library(e) && self.is_chain(e))
+            .map(|chain| {
+                let written = self.ids.get(&chain.id).cloned().unwrap_or_else(|| Self::identity_id(chain));
+                (written, self.chain_steps(chain))
+            })
+            .collect();
+        expression::render(self.graph, id, &|element| self.element_ref(element).or_else(|| self.intended_id(element)), &chains)
+    }
+
+    /// The written ids of the functions a chain steps through.
+    fn chain_steps(&self, chain: &Element) -> Vec<String> {
+        chain
+            .children
+            .iter()
+            .filter_map(|c| self.graph.get(c))
+            .filter(|c| c.kind == "ActionUsage")
+            .filter_map(|c| c.types.first().or(c.subsets.first()).or(c.redefines.first()))
+            .filter_map(|t| self.end_node(t))
+            .filter_map(|i| self.ids.get(&self.node_key(i)).cloned())
+            .collect()
     }
 
     /// Register a written element under its element id; the written id is unique.
@@ -915,7 +1049,7 @@ impl<'g> Mapper<'g> {
     fn collect_dependency_attributes(&mut self) {
         for dependency in self.graph.of_kinds(&["Dependency"]) {
             let Some(name) = dependency.name.as_deref().map(str::to_ascii_lowercase) else { continue };
-            if !REFERENCE_KEYS.contains(&name.as_str()) {
+            if !REFERENCE_KEYS.contains(&name.as_str()) || Self::has_metadata(dependency, &["Trace"]) {
                 continue;
             }
             let (Some(source), Some(target)) = (dependency.sources.first(), dependency.targets.first()) else { continue };
@@ -940,10 +1074,17 @@ impl<'g> Mapper<'g> {
     /// Write the reference attributes said by dependencies from any of
     /// `element_ids` (a usage and its definition).
     fn reference_attributes(&mut self, depth: usize, element_ids: &[String]) {
+        self.reference_attributes_except(depth, element_ids, &[]);
+    }
+
+    fn reference_attributes_except(&mut self, depth: usize, element_ids: &[String], except: &[&str]) {
         let mut by_key: BTreeMap<String, Vec<String>> = BTreeMap::new();
         for id in element_ids {
             if let Some(entries) = self.dependency_attrs.get(id).cloned() {
                 for (key, target) in entries {
+                    if except.contains(&key.as_str()) {
+                        continue;
+                    }
                     match self.intended_id(&target) {
                         Some(written) => by_key.entry(key).or_default().push(written),
                         None => self.count("references by dependency to elements not written (left out)"),
@@ -1142,9 +1283,11 @@ impl<'g> Mapper<'g> {
                 }
                 self.ids.insert(port.id.clone(), format!("{owner_id}.{name}"));
                 self.count("ports");
+                // The port's short name is its id, when it differs from its name.
+                let id_text = port.short_name.as_deref().filter(|s| *s != name).map(|s| format!(" {{ id: {} }}", string_literal(s))).unwrap_or_default();
                 match direction {
-                    None if physical => self.line(depth, &format!("port {}", string_literal(&name))),
-                    _ => self.line(depth, &format!("port {} {}", direction.unwrap_or("in"), string_literal(&name))),
+                    None if physical => self.line(depth, &format!("port {}{id_text}", string_literal(&name))),
+                    _ => self.line(depth, &format!("port {} {}{id_text}", direction.unwrap_or("in"), string_literal(&name))),
                 }
             }
         }
@@ -1335,15 +1478,17 @@ impl<'g> Mapper<'g> {
 
     fn chain(&mut self, chain: &Element, keyword: &str) {
         let id = self.remember(&chain.id, Self::identity_id(chain), "FunctionalChain");
-        let steps: Vec<String> = chain
-            .children
-            .iter()
-            .filter_map(|c| self.graph.get(c))
-            .filter(|c| c.kind == "ActionUsage")
-            .filter_map(|c| c.types.first())
-            .filter_map(|t| self.node_for(t))
-            .filter_map(|i| self.ids.get(&self.node_key(i)).cloned())
-            .collect();
+        // The steps, then what a `dependency involves` adds (the exchanges of the chain).
+        let mut steps = self.chain_steps(chain);
+        for (key, target) in self.dependency_attrs.get(&chain.id).cloned().unwrap_or_default() {
+            if key == "involves" {
+                match self.intended_id(&target) {
+                    Some(written) if !steps.contains(&written) => steps.push(written),
+                    Some(_) => {}
+                    None => self.count("references by dependency to elements not written (left out)"),
+                }
+            }
+        }
         self.count("functional chains");
         self.line(1, &format!("{keyword} {} {{", string_literal(&Self::display(chain))));
         self.line(2, &format!("id: {}", string_literal(&id)));
@@ -1353,7 +1498,8 @@ impl<'g> Mapper<'g> {
         if !steps.is_empty() {
             self.line(2, &format!("involves: {}", list_literal(&steps)));
         }
-        self.reference_attributes(2, &[chain.id.clone()]);
+        self.attributes(2, &[chain], &["description", "involves"]);
+        self.reference_attributes_except(2, &[chain.id.clone()], &["involves"]);
         self.line(1, "}");
     }
 
@@ -1382,45 +1528,48 @@ impl<'g> Mapper<'g> {
             return;
         };
         let shape_of = |mapper: &Self, end: &str| mapper.end_node(end).map(|n| mapper.nodes[n].shape);
-        let functional = shape_of(self, &source) == Some(Shape::Action) && shape_of(self, &target) == Some(Shape::Action);
+        let (source_shape, target_shape) = (shape_of(self, &source), shape_of(self, &target));
+        // Between functions, an exchange is functional; at the operational
+        // level an interaction joins activities and entities alike.
+        let functional = match level {
+            Level::Oa => source_shape == Some(Shape::Action) || target_shape == Some(Shape::Action),
+            _ => source_shape == Some(Shape::Action) && target_shape == Some(Shape::Action),
+        };
         let name = Self::display(connector);
         let id = self.remember(&connector.id, Self::identity_id(connector), if functional { "FunctionalExchange" } else { "ComponentExchange" });
         let mut items: Vec<String> = connector.children.iter().filter_map(|c| self.graph.get(c)).filter(|c| c.kind == "ItemUsage" || c.kind == "PayloadFeature").filter_map(|c| c.types.first()).filter_map(|t| self.ids.get(t).cloned()).collect();
         if items.is_empty() {
             items = connector.types.iter().filter_map(|t| self.ids.get(t).cloned()).collect();
         }
-        let item_text = if items.is_empty() { String::new() } else { format!(" exchange_items: {}", list_literal(&items)) };
         let is_link = Self::has_metadata(connector, &["Link", "PhysicalLink"]) || (connector.kind == "InterfaceUsage" && level == Level::Pa);
-        match (level, functional) {
-            (Level::Oa, true) => {
-                self.count("operational interactions");
-                self.line(1, &format!("interaction {} {{ id: {} from: {} to: {}{item_text} }}", string_literal(&name), string_literal(&id), string_literal(&from), string_literal(&to)));
-            }
-            (Level::Oa, false) => {
-                self.count("communication means");
-                self.line(1, &format!("communication_means {} {{ id: {} from: {} to: {} }}", string_literal(&name), string_literal(&id), string_literal(&strip_port(&from)), string_literal(&strip_port(&to))));
-            }
-            (_, true) => {
-                self.count("functional exchanges");
-                self.line(1, &format!("functional_exchange {} {{ id: {} from: {} to: {}{item_text} }}", string_literal(&name), string_literal(&id), string_literal(&from), string_literal(&to)));
-            }
-            (Level::Pa, false) if is_link => {
-                self.count("physical links");
-                self.line(1, &format!("physical_link {} {{ id: {} from: {} to: {} }}", string_literal(&name), string_literal(&id), string_literal(&from), string_literal(&to)));
-            }
-            (Level::Pa, false) => {
-                self.count("physical exchanges");
-                self.line(1, &format!("physical_exchange {} {{ id: {} from: {} to: {}{item_text} }}", string_literal(&name), string_literal(&id), string_literal(&from), string_literal(&to)));
-            }
-            (_, false) => {
-                if !from.contains('.') || !to.contains('.') {
-                    self.count("component exchanges without ports (left out: ArcLang needs `Component.port` ends)");
-                    return;
-                }
-                self.count("component exchanges");
-                self.line(1, &format!("component_exchange {} {{ id: {} from_port: {} to_port: {}{item_text} }}", string_literal(&name), string_literal(&id), string_literal(&from), string_literal(&to)));
-            }
+        let is_interface = Self::has_metadata(connector, &["Interface"]);
+        // The keyword, the end keys, whether the ends are ports or whole
+        // elements, and whether exchange items are carried.
+        let (keyword, counted, end_keys, whole_ends, carries) = match (level, functional) {
+            (Level::Oa, true) => ("interaction", "operational interactions", ("from", "to"), false, true),
+            (Level::Oa, false) => ("communication_means", "communication means", ("from", "to"), true, false),
+            (_, true) => ("functional_exchange", "functional exchanges", ("from", "to"), false, true),
+            (Level::Pa, false) if is_link => ("physical_link", "physical links", ("from", "to"), false, false),
+            (Level::Pa, false) => ("physical_exchange", "physical exchanges", ("from", "to"), false, true),
+            (Level::La, false) if is_interface => ("interface", "logical interfaces", ("from", "to"), true, false),
+            // Ends are ports (`Component.port`) or whole components.
+            (_, false) => ("component_exchange", "component exchanges", ("from_port", "to_port"), false, true),
+        };
+        self.count(counted);
+        let (from, to) = if whole_ends { (strip_port(&from), strip_port(&to)) } else { (from, to) };
+        self.line(1, &format!("{keyword} {} {{", string_literal(&name)));
+        self.line(2, &format!("id: {}", string_literal(&id)));
+        self.line(2, &format!("{}: {}", end_keys.0, string_literal(&from)));
+        self.line(2, &format!("{}: {}", end_keys.1, string_literal(&to)));
+        if carries && !items.is_empty() {
+            self.line(2, &format!("exchange_items: {}", list_literal(&items)));
         }
+        // A connector typed by an ArcLang type `is:` it.
+        if let Some(ty) = connector.types.iter().find_map(|t| self.types.get(t)).cloned() {
+            self.line(2, &format!("is: {}", string_literal(&ty)));
+        }
+        self.attributes(2, &[connector], &["from", "to", "from_port", "to_port", "exchange_items"]);
+        self.line(1, "}");
     }
 
     // --- EPBS -------------------------------------------------------------
@@ -1484,7 +1633,18 @@ impl<'g> Mapper<'g> {
                 self.state(1, state, &mut state_names);
             }
             let initial = states.iter().find(|s| s.name.as_deref().is_some_and(|n| n.eq_ignore_ascii_case("start") || n.eq_ignore_ascii_case("initial")));
-            let entry = machine.children.iter().filter_map(|c| self.graph.get(c)).find(|c| c.kind == "TransitionUsage" && c.sources.is_empty()).and_then(|t| t.targets.first()).and_then(|t| state_names.get(t));
+            // `entry; then Idle;`: a succession from the (unnamed) entry action
+            // to the first state; else a transition from nowhere.
+            let is_entry_action = |id: &str| self.graph.get(id).is_some_and(|e| e.kind == "ActionUsage" && e.name.is_none() && e.owner.as_deref() == Some(machine.id.as_str()));
+            let entry = machine
+                .children
+                .iter()
+                .filter_map(|c| self.graph.get(c))
+                .find(|c| {
+                    (c.kind == "TransitionUsage" && c.sources.is_empty()) || (matches!(c.kind.as_str(), "SuccessionAsUsage" | "Succession" | "TransitionUsage") && c.sources.first().is_some_and(|s| is_entry_action(s)))
+                })
+                .and_then(|t| t.targets.first())
+                .and_then(|t| state_names.get(t));
             if let Some(initial) = entry.cloned().or_else(|| initial.and_then(|i| state_names.get(&i.id).cloned())).or_else(|| states.first().and_then(|s| state_names.get(&s.id).cloned())) {
                 self.line(1, &format!("initial: {}", string_literal(&initial)));
             }
@@ -1557,7 +1717,7 @@ impl<'g> Mapper<'g> {
                 .filter_map(|c| self.graph.get(c))
                 .filter(|c| matches!(c.kind.as_str(), "PartUsage" | "OccurrenceUsage" | "ItemUsage" | "ReferenceUsage"))
                 .filter_map(|c| {
-                    let node = c.types.iter().chain(c.subsets.iter()).find_map(|t| self.node_for(t))?;
+                    let node = c.types.iter().chain(c.subsets.iter()).find_map(|t| self.end_node(t))?;
                     let id = self.ids.get(&self.node_key(node))?.clone();
                     Some((c, id))
                 })
@@ -1659,7 +1819,21 @@ impl<'g> Mapper<'g> {
     // --- traces -----------------------------------------------------------
 
     /// The written id an end of a relationship refers to (an element, not a port).
+    /// The port an end is, when it is one: the element, or the last feature of its chain.
+    fn port_end(&self, id: &str) -> Option<&'g Element> {
+        let element = self.graph.get(id)?;
+        let end = match element.chaining.last() {
+            Some(last) => self.graph.get(last)?,
+            None => element,
+        };
+        self.is_port_like(end).then_some(end)
+    }
+
     fn element_ref(&self, id: &str) -> Option<String> {
+        // A port is referred to as `Owner.port`, as ArcLang names it.
+        if let Some(port) = self.port_end(id) {
+            return self.ids.get(&port.id).cloned();
+        }
         if let Some(node) = self.end_node(id) {
             return self.ids.get(&self.node_key(node)).cloned();
         }
@@ -1690,15 +1864,18 @@ impl<'g> Mapper<'g> {
                 "AllocationUsage" => {
                     let from_kind = self.end_node(source).and_then(|n| self.kinds.get(&self.node_key(n)).copied());
                     let to_kind = self.end_node(target).and_then(|n| self.kinds.get(&self.node_key(n)).copied());
-                    if from_kind == Some("LogicalComponent") && to_kind == Some("PhysicalNode") {
+                    let between_ports = self.port_end(source).is_some() || self.port_end(target).is_some();
+                    if !between_ports && from_kind == Some("LogicalComponent") && to_kind == Some("PhysicalNode") {
                         continue; // written as `deploys` in the node
                     }
                     "allocates".to_string()
                 }
                 _ => relation.name.clone().unwrap_or_else(|| "refines".to_string()).to_ascii_lowercase(),
             };
-            if relation.kind == "Dependency" && REFERENCE_KEYS.contains(&kind.as_str()) && !TRACE_KINDS.contains(&kind.as_str()) {
-                continue; // written as an attribute of its source
+            // A dependency under a reference key is the source's attribute
+            // (`realizes: ...`), unless it is marked as a trace.
+            if relation.kind == "Dependency" && REFERENCE_KEYS.contains(&kind.as_str()) && !TRACE_KINDS.contains(&kind.as_str()) && !Self::has_metadata(relation, &["Trace"]) {
+                continue;
             }
             if !seen.insert((from.clone(), kind.clone(), to.clone())) {
                 continue;
@@ -1732,6 +1909,24 @@ const SINGLE_KEYS: &[&str] = &["mission", "parent", "owner", "via", "allocated_c
 /// Dependency names that are traces, not attributes.
 const TRACE_KINDS: &[&str] = &["satisfies", "refines", "implements", "verifies", "validates", "allocates"];
 
+/// The text of a rendered string literal (`"a \"b\""` -> `a "b"`).
+fn unquote(literal: &str) -> Option<String> {
+    let inner = literal.strip_prefix('"')?.strip_suffix('"')?;
+    let mut out = String::with_capacity(inner.len());
+    let mut chars = inner.chars();
+    while let Some(c) = chars.next() {
+        match c {
+            '\\' => match chars.next()? {
+                'n' => out.push('\n'),
+                't' => out.push('\t'),
+                other => out.push(other),
+            },
+            other => out.push(other),
+        }
+    }
+    Some(out)
+}
+
 fn list_literal(items: &[String]) -> String {
     format!("[{}]", items.iter().map(|i| string_literal(i)).collect::<Vec<_>>().join(", "))
 }
@@ -1745,10 +1940,35 @@ fn strip_port(reference: &str) -> String {
 fn field_key(name: &str) -> String {
     let key: String = name.chars().map(|c| if c.is_ascii_alphanumeric() || c == '_' { c } else { '_' }).collect();
     let key = if key.chars().next().is_some_and(|c| c.is_ascii_digit()) { format!("_{key}") } else { key };
-    const KEYWORD_KEYS: &[&str] = &["description", "version", "author", "priority", "rationale", "verification", "traces", "safety_level", "parent", "properties", "signals", "function", "type"];
     let is_keyword = match crate::compiler::lexer::Lexer::new(&key).tokenize() {
         Ok(tokens) => !matches!(tokens.first(), Some(crate::compiler::lexer::Token::Identifier(_))),
         Err(_) => true,
     };
-    if is_keyword && !KEYWORD_KEYS.contains(&key.as_str()) { format!("sysml_{key}") } else { key }
+    if is_keyword && !keyword_is_attribute_key(&key) { format!("sysml_{key}") } else { key }
+}
+
+/// Whether a keyword doubles as an attribute key wherever ArcLang takes
+/// attributes: tried once on a probe model, remembered.
+fn keyword_is_attribute_key(key: &str) -> bool {
+    use std::cell::RefCell;
+    use std::collections::HashMap;
+    thread_local! {
+        static KNOWN: RefCell<HashMap<String, bool>> = RefCell::new(HashMap::new());
+    }
+    if let Some(&known) = KNOWN.with(|k| k.borrow().get(key).copied()).as_ref() {
+        return known;
+    }
+    let probe = format!(
+        "model Probe {{}}\nrequirements {{ requirement \"r\" {{ {key}: 1 }} }}\n\
+         system_analysis \"S\" {{ function \"f\" {{ {key}: 1 }} actor \"a\" {{ {key}: 1 }} functional_exchange \"x\" {{ from: \"f\" to: \"f\" {key}: 1 }} }}\n\
+         logical_architecture \"L\" {{ component \"c\" {{ {key}: 1 function \"g\" {{ {key}: 1 }} }} }}\n\
+         physical_architecture \"P\" {{ node \"n\" {{ {key}: 1 }} physical_link \"l\" {{ from: \"n\" to: \"n\" {key}: 1 }} }}\n"
+    );
+    let accepted = crate::compiler::lexer::Lexer::new(&probe)
+        .tokenize()
+        .ok()
+        .and_then(|tokens| crate::compiler::parser::Parser::new(tokens).parse().ok())
+        .is_some();
+    KNOWN.with(|k| k.borrow_mut().insert(key.to_string(), accepted));
+    accepted
 }
