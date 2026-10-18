@@ -114,6 +114,8 @@ struct Mapper<'g> {
     /// References said by dependencies named after ArcLang keys
     /// (`dependency involves from A to B`): source element id -> (key, target id).
     dependency_attrs: HashMap<String, Vec<(String, String)>>,
+    /// (performer element id, performed element id) of every `perform`.
+    performances: Vec<(String, String)>,
 }
 
 pub fn map(graph: &Graph) -> Mapped {
@@ -129,6 +131,7 @@ pub fn map(graph: &Graph) -> Mapped {
         kinds: HashMap::new(),
         taken: HashSet::new(),
         dependency_attrs: HashMap::new(),
+        performances: Vec::new(),
     };
     mapper.run();
     Mapped { source: mapper.out, counts: mapper.counts, notes: mapper.notes }
@@ -285,7 +288,7 @@ impl<'g> Mapper<'g> {
         let children: Vec<&Element> = action.children.iter().filter_map(|c| self.graph.get(c)).collect();
         let typed_steps = children.iter().filter(|c| c.kind == "ActionUsage" && c.types.iter().any(|t| matches!(self.graph.kind_of(t), "ActionDefinition" | "ActionUsage"))).count();
         let successions = children.iter().filter(|c| c.kind == "SuccessionAsUsage" || c.kind == "Succession").count();
-        typed_steps >= 2 && successions >= 1
+        typed_steps >= 2 || (typed_steps >= 1 && successions >= 1)
     }
 
     // --- the structural nodes ---------------------------------------------
@@ -297,45 +300,111 @@ impl<'g> Mapper<'g> {
             .elements
             .iter()
             .filter(|e| matches!(e.kind.as_str(), "PartUsage" | "ActionUsage" | "PerformActionUsage"))
-            .filter(|e| self.is_structural_usage(e))
+            .filter(|e| self.is_structural_usage(e) && !self.is_chain(e))
             .collect();
-        let mut usages_of_def: HashMap<&str, Vec<usize>> = HashMap::new();
+        let anonymous = |u: &Element| u.short_name.is_none() && u.docs.is_empty() && !u.children.iter().any(|c| self.graph.kind_of(c) == "MetadataUsage");
+        // A `perform X` referencing an action elsewhere is a performance,
+        // not an element: the part performs that function.
+        let mut performances: Vec<(String, String)> = Vec::new();
+        let mut aliases: HashMap<String, String> = HashMap::new();
+        let mut candidates: Vec<&'g Element> = Vec::new();
         for usage in &usages {
+            if usage.kind == "PerformActionUsage" && usage.types.is_empty() {
+                if let Some(target) = usage.subsets.first().or(usage.redefines.first()) {
+                    aliases.insert(usage.id.clone(), target.clone());
+                    if let Some(owner) = &usage.owner {
+                        performances.push((owner.clone(), target.clone()));
+                    }
+                    continue;
+                }
+            }
+            candidates.push(usage);
+        }
+        let def_of = |u: &Element| u.types.first().and_then(|t| self.graph.get(t)).filter(|d| matches!(d.kind.as_str(), "PartDefinition" | "ActionDefinition"));
+        let mut by_def: HashMap<&str, Vec<&'g Element>> = HashMap::new();
+        for usage in &candidates {
+            if let Some(def) = def_of(usage) {
+                by_def.entry(def.id.as_str()).or_default().push(usage);
+            }
+        }
+        // Per definition: one anonymous usage -> one element named by the
+        // definition; one identified usage among anonymous ones -> that
+        // usage is the element, the others stand for it (a `perform` of
+        // the level function); several -> a type and its usages.
+        let mut merged_usages: HashSet<String> = HashSet::new();
+        let mut main_of_def: HashMap<String, String> = HashMap::new();
+        for (def_id, group) in &by_def {
+            let identified: Vec<&&Element> = group.iter().filter(|u| !anonymous(u)).collect();
+            // Anonymous usages of one definition, at most one of them in a
+            // part (`action a : X;` at the level and `perform action p : X`
+            // in the part): one element, at home in the part.
+            let nested: Vec<&&Element> = group.iter().filter(|u| u.owner.as_deref().map(|o| self.graph.kind_of(o)).is_some_and(|k| k != "Package" && k != "LibraryPackage")).collect();
+            if identified.is_empty() && nested.len() <= 1 {
+                let main = nested.first().copied().unwrap_or(&group[0]);
+                merged_usages.insert(main.id.clone());
+                main_of_def.insert(def_id.to_string(), main.id.clone());
+                for u in group {
+                    if u.id != main.id {
+                        aliases.insert(u.id.clone(), main.id.clone());
+                    }
+                }
+            } else if identified.len() == 1 {
+                let main = identified[0];
+                main_of_def.insert(def_id.to_string(), main.id.clone());
+                for u in group {
+                    if u.id != main.id {
+                        aliases.insert(u.id.clone(), main.id.clone());
+                        if let Some(owner) = &u.owner {
+                            performances.push((owner.clone(), main.id.clone()));
+                        }
+                    }
+                }
+            } else {
+                let def = self.graph.get(def_id).expect("a grouped definition");
+                // A type is known by its name: two definitions of one name
+                // (one per level) get distinct type names.
+                let base = Self::name_of(def).or_else(|| def.short_name.clone()).unwrap_or_else(|| def.id.clone());
+                let mut name = base.clone();
+                let mut n = 1;
+                while self.types.values().any(|existing| *existing == name) {
+                    n += 1;
+                    name = format!("{base} ({n})");
+                }
+                self.types.insert(def_id.to_string(), name);
+                main_of_def.insert(def_id.to_string(), group[0].id.clone());
+            }
+        }
+        for usage in &candidates {
+            if aliases.contains_key(&usage.id) {
+                continue;
+            }
             let shape = if usage.kind == "PartUsage" { Shape::Part } else { Shape::Action };
-            let def = usage.types.first().and_then(|t| self.graph.get(t)).filter(|d| matches!(d.kind.as_str(), "PartDefinition" | "ActionDefinition"));
+            let def = def_of(usage);
+            let is_type = def.and_then(|d| self.types.get(&d.id).cloned());
             let index = self.nodes.len();
-            self.nodes.push(Node { usage: Some(usage), def, merged: false, shape, id: String::new(), name: String::new(), parent: None, children: Vec::new(), level: Level::La, role: None, is_type: None });
+            self.nodes.push(Node { usage: Some(usage), def, merged: merged_usages.contains(&usage.id), shape, id: String::new(), name: String::new(), parent: None, children: Vec::new(), level: Level::La, role: None, is_type });
             self.node_of.insert(usage.id.clone(), index);
             if let Some(def) = def {
-                usages_of_def.entry(def.id.as_str()).or_default().push(index);
-            }
-        }
-        // Definitions: merged into their single anonymous usage, elements of
-        // their own when used nowhere, types otherwise.
-        let defs: Vec<&'g Element> = self.graph.of_kinds(&["PartDefinition", "ActionDefinition"]).filter(|d| !self.is_library(d)).collect();
-        for def in defs {
-            match usages_of_def.get(def.id.as_str()).map(Vec::as_slice) {
-                None => {
-                    let shape = if def.kind == "PartDefinition" { Shape::Part } else { Shape::Action };
-                    let index = self.nodes.len();
-                    self.nodes.push(Node { usage: None, def: Some(def), merged: true, shape, id: String::new(), name: String::new(), parent: None, children: Vec::new(), level: Level::La, role: None, is_type: None });
+                if main_of_def.get(&def.id) == Some(&usage.id) {
                     self.node_of.insert(def.id.clone(), index);
                 }
-                Some([single]) if self.nodes[*single].usage.is_some_and(|u| u.short_name.is_none() && u.docs.is_empty() && !u.children.iter().any(|c| self.graph.kind_of(c) == "MetadataUsage")) => {
-                    self.nodes[*single].merged = true;
-                    self.node_of.insert(def.id.clone(), *single);
-                }
-                Some(many) => {
-                    let name = Self::name_of(def).or_else(|| def.short_name.clone()).unwrap_or_else(|| def.id.clone());
-                    self.types.insert(def.id.clone(), name.clone());
-                    for &index in many {
-                        self.nodes[index].is_type = Some(name.clone());
-                    }
-                    // The definition's own structure is written under the first usage.
-                    self.node_of.insert(def.id.clone(), many[0]);
-                }
             }
         }
+        for (alias, target) in &aliases {
+            if let Some(&index) = self.node_of.get(target) {
+                self.node_of.insert(alias.clone(), index);
+            }
+        }
+        // Definitions used nowhere are elements of their own. Chains are
+        // not structure: they are written from their steps.
+        let defs: Vec<&'g Element> = self.graph.of_kinds(&["PartDefinition", "ActionDefinition"]).filter(|d| !self.is_library(d) && !self.is_chain(d) && !by_def.contains_key(d.id.as_str())).collect();
+        for def in defs {
+            let shape = if def.kind == "PartDefinition" { Shape::Part } else { Shape::Action };
+            let index = self.nodes.len();
+            self.nodes.push(Node { usage: None, def: Some(def), merged: true, shape, id: String::new(), name: String::new(), parent: None, children: Vec::new(), level: Level::La, role: None, is_type: None });
+            self.node_of.insert(def.id.clone(), index);
+        }
+        self.performances = performances;
         // Identity, parent, role.
         for index in 0..self.nodes.len() {
             let (usage, def, merged) = (self.nodes[index].usage, self.nodes[index].def, self.nodes[index].merged);
@@ -350,6 +419,14 @@ impl<'g> Mapper<'g> {
             self.nodes[index].id = id;
             self.nodes[index].role = role;
             self.nodes[index].parent = parent;
+        }
+        // A function performed by a part and declared nowhere else sits in it.
+        let performances = self.performances.clone();
+        for (performer, performed) in &performances {
+            let (Some(part), Some(action)) = (self.node_for(performer), self.node_for(performed)) else { continue };
+            if self.nodes[action].parent.is_none() && part != action && self.nodes[action].shape == Shape::Action {
+                self.nodes[action].parent = Some(part);
+            }
         }
         for index in 0..self.nodes.len() {
             if let Some(parent) = self.nodes[index].parent {
@@ -536,16 +613,20 @@ impl<'g> Mapper<'g> {
     fn run(&mut self) {
         self.build_nodes();
         self.collect_dependency_attributes();
-        let model_name = self
-            .graph
-            .roots()
-            .into_iter()
-            .find(|e| e.kind == "Package")
-            .and_then(|e| e.name.clone())
-            .unwrap_or_else(|| "Imported".to_string());
-        self.line(0, &format!("model {} {{", string_literal(&model_name)));
+        // The root package: its short name is the model's header name, its
+        // name the model's `name:`.
+        let root = self.graph.roots().into_iter().find(|e| e.kind == "Package");
+        let model_name = root.and_then(|e| e.name.clone()).unwrap_or_else(|| "Imported".to_string());
+        let header = root.and_then(|e| e.short_name.clone()).unwrap_or_else(|| model_name.clone());
+        self.line(0, &format!("model {} {{", string_literal(&header)));
         self.line(1, &format!("name: {}", string_literal(&model_name)));
-        self.line(1, "description: \"Imported from SysML v2\"");
+        match root.and_then(Self::description) {
+            Some(doc) => self.line(1, &format!("description: {}", string_literal(&doc))),
+            None => self.line(1, "description: \"Imported from SysML v2\""),
+        }
+        if let Some(root) = root {
+            self.attributes(1, &[root], &["description", "name"]);
+        }
         self.line(0, "}");
         self.line(0, "");
         self.data_model();
@@ -586,14 +667,18 @@ impl<'g> Mapper<'g> {
         }
         let items: Vec<&Element> = self.graph.of_kinds(&["ItemDefinition"]).filter(|e| !self.is_library(e)).collect();
         for e in items {
+            // A field is a typed member without a bound value; a member with
+            // a value is an attribute of the item (its mechanism, its status).
             let fields: Vec<(String, String)> = e
                 .children
                 .iter()
                 .filter_map(|c| self.graph.get(c))
-                .filter(|c| c.kind == "AttributeUsage" || c.kind == "ItemUsage")
+                .filter(|c| (c.kind == "AttributeUsage" || c.kind == "ItemUsage") && c.value.is_none())
                 .filter_map(|c| Some((c.name.clone()?, c.types.first().and_then(|t| self.graph.get(t)).and_then(|t| t.name.clone()).unwrap_or_else(|| "String".to_string()))))
+                .filter(|(name, _)| !matches!(field_key(name).as_str(), "id" | "description" | "extends" | "summary" | "constraints" | "status"))
                 .collect();
-            if !fields.is_empty() || Self::has_metadata(e, &["Class"]) {
+            let is_class = Self::has_metadata(e, &["Class"]) || (!fields.is_empty() && !Self::has_metadata(e, &["ExchangeItem"]));
+            if is_class {
                 let id = self.remember(&e.id, Self::identity_id(e), "Class");
                 self.count("classes");
                 self.line(0, &format!("class {} {{", string_literal(&Self::display(e))));
@@ -604,11 +689,22 @@ impl<'g> Mapper<'g> {
                 for (name, ty) in fields {
                     self.line(1, &format!("{}: {}", field_key(&name), string_literal(&ty)));
                 }
+                if let Some(doc) = Self::description(e) {
+                    self.line(1, &format!("description: {}", string_literal(&doc)));
+                }
+                self.attributes(1, &[e], &["description", "extends"]);
                 self.line(0, "}");
             } else {
                 let id = self.remember(&e.id, Self::identity_id(e), "ExchangeItem");
                 self.count("exchange items");
-                self.line(0, &format!("exchange_item {} {{ id: {} }}", string_literal(&Self::display(e)), string_literal(&id)));
+                self.line(0, &format!("exchange_item {} {{", string_literal(&Self::display(e))));
+                self.line(1, &format!("id: {}", string_literal(&id)));
+                if let Some(doc) = Self::description(e) {
+                    self.line(1, &format!("description: {}", string_literal(&doc)));
+                }
+                self.attributes(1, &[e], &["description"]);
+                self.reference_attributes(1, &[e.id.clone()]);
+                self.line(0, "}");
             }
         }
         if !self.out.ends_with("}\n\n") {
@@ -636,7 +732,7 @@ impl<'g> Mapper<'g> {
             // ports of its type itself.
             if def.kind == "PartDefinition" {
                 for (port, direction) in self.ports_of(def) {
-                    self.line(1, &format!("port {direction} {}", string_literal(&port.name.clone().unwrap_or_else(|| port.id.clone()))));
+                    self.line(1, &format!("port {} {}", direction.unwrap_or("in"), string_literal(&port.name.clone().unwrap_or_else(|| port.id.clone()))));
                 }
             }
             self.line(0, "}");
@@ -687,8 +783,10 @@ impl<'g> Mapper<'g> {
 
     fn requirements(&mut self) {
         let all = self.declared("RequirementDefinition", "RequirementUsage");
+        let is_tagged = |e: &Element, d: Option<&Element>, names: &[&str]| Self::has_metadata(e, names) || d.is_some_and(|d| Self::has_metadata(d, names));
+        let (fmea, all): (Vec<_>, Vec<_>) = all.into_iter().partition(|(e, d)| is_tagged(e, *d, &["Fmea", "FMEA", "FmeaEntry"]));
         let (hazards, requirements): (Vec<_>, Vec<_>) = all.into_iter().partition(|(e, d)| {
-            Self::has_metadata(e, &["Hazard"]) || d.is_some_and(|d| Self::has_metadata(d, &["Hazard"])) || e.name.as_deref().is_some_and(|n| n.starts_with("hazard_"))
+            is_tagged(e, *d, &["Hazard"]) || e.name.as_deref().is_some_and(|n| n.starts_with("hazard_"))
         });
         if !requirements.is_empty() {
             self.line(0, "requirements {");
@@ -713,8 +811,23 @@ impl<'g> Mapper<'g> {
             self.line(0, "}");
             self.line(0, "");
         }
-        if !hazards.is_empty() {
+        if !hazards.is_empty() || !fmea.is_empty() {
             self.line(0, "safety_analysis {");
+            for (e, def) in fmea {
+                let identity = Self::identity_of(e, def);
+                let id = self.remember(&e.id, Self::identity_id(identity), "FmeaEntry");
+                self.count("FMEA entries");
+                self.line(1, &format!("fmea {} {{", string_literal(&Self::display(identity))));
+                self.line(2, &format!("id: {}", string_literal(&id)));
+                let sources: Vec<&Element> = [Some(e), def].into_iter().flatten().collect();
+                if let Some(doc) = sources.iter().find_map(|s| Self::description(s)) {
+                    self.line(2, &format!("description: {}", string_literal(&doc)));
+                }
+                self.attributes(2, &sources, &["description"]);
+                let element_ids: Vec<String> = sources.iter().map(|s| s.id.clone()).collect();
+                self.reference_attributes(2, &element_ids);
+                self.line(1, "}");
+            }
             for (e, def) in hazards {
                 let identity = Self::identity_of(e, def);
                 let id = self.remember(&e.id, Self::identity_id(identity), "Hazard");
@@ -753,6 +866,10 @@ impl<'g> Mapper<'g> {
                 // realizes, allocates...) is a relationship, not text.
                 if REFERENCE_KEYS.contains(&key.as_str()) {
                     references += 1;
+                    let note = format!("'{}': reference attribute '{key}' written as text is left out (a `dependency {key}` is expected)", Self::display(element));
+                    if self.notes.len() < 40 && !self.notes.contains(&note) {
+                        self.notes.push(note);
+                    }
                     continue;
                 }
                 lines.push(format!("{key}: {value}"));
@@ -867,7 +984,8 @@ impl<'g> Mapper<'g> {
             .filter(|&i| self.nodes[i].shape == shape && self.nodes[i].level == level)
             .filter(|&i| match self.nodes[i].parent {
                 None => true,
-                Some(p) => self.nodes[p].level != level,
+                // An operational actor holds no activity: its activities stand at the level.
+                Some(p) => self.nodes[p].level != level || (level == Level::Oa && shape == Shape::Action && self.nodes[p].role == Some(Role::Actor)),
             })
             .collect()
     }
@@ -904,7 +1022,14 @@ impl<'g> Mapper<'g> {
                     self.function(1, *action, "function");
                 }
                 for part in &parts {
-                    let performed: Vec<usize> = self.nodes[*part].children.iter().copied().filter(|&c| self.nodes[c].shape == Shape::Action).collect();
+                    let mut performed: Vec<usize> = self.nodes[*part].children.iter().copied().filter(|&c| self.nodes[c].shape == Shape::Action).collect();
+                    for (performer, action) in &self.performances {
+                        if self.node_for(performer) == Some(*part) {
+                            if let Some(a) = self.node_for(action) {
+                                if !performed.contains(&a) { performed.push(a); }
+                            }
+                        }
+                    }
                     for action in &performed {
                         self.function(1, *action, "function");
                     }
@@ -970,7 +1095,9 @@ impl<'g> Mapper<'g> {
             .unwrap_or(Level::Sa)
     }
 
-    fn ports_of(&self, element: &Element) -> Vec<(&'g Element, &'static str)> {
+    /// The ports of an element with their direction, `None` when the port
+    /// states none (a physical port on a node, a component port read as `in`).
+    fn ports_of(&self, element: &Element) -> Vec<(&'g Element, Option<&'static str>)> {
         element
             .children
             .iter()
@@ -978,13 +1105,14 @@ impl<'g> Mapper<'g> {
             .filter_map(|c| {
                 if c.kind == "PortUsage" {
                     let direction = c.direction.as_deref().map(|d| match d { "out" => "out", "inout" => "inout", _ => "in" });
-                    let by_type = c.types.first().and_then(|t| self.graph.get(t)).and_then(|t| t.name.as_deref()).map(|n| {
+                    let by_type = c.types.first().and_then(|t| self.graph.get(t)).and_then(|t| t.name.as_deref()).and_then(|n| {
                         let lower = n.to_ascii_lowercase();
-                        if lower.contains("inout") { "inout" } else if lower.contains("out") { "out" } else { "in" }
+                        if lower.contains("inout") { Some("inout") } else if lower.contains("out") { Some("out") } else if lower.contains("in") { Some("in") } else { None }
                     });
-                    Some((c, direction.or(by_type).unwrap_or("in")))
+                    let tagged = if Self::has_metadata(c, &["PhysicalPort"]) { None } else if Self::has_metadata(c, &["ComponentPort"]) { Some("in") } else { direction.or(by_type) };
+                    Some((c, tagged))
                 } else if matches!(c.kind.as_str(), "ItemUsage" | "ReferenceUsage" | "AttributeUsage") && c.direction.is_some() && !c.is_end {
-                    Some((c, match c.direction.as_deref() { Some("out") => "out", Some("inout") => "inout", _ => "in" }))
+                    Some((c, Some(match c.direction.as_deref() { Some("out") => "out", Some("inout") => "inout", _ => "in" })))
                 } else {
                     None
                 }
@@ -992,7 +1120,9 @@ impl<'g> Mapper<'g> {
             .collect()
     }
 
-    fn write_ports(&mut self, depth: usize, index: usize, oriented: bool) {
+    /// Write the ports of a node: oriented component ports, and on a node
+    /// (`physical`) the ports without a direction as physical ports.
+    fn write_ports(&mut self, depth: usize, index: usize, physical: bool) {
         let owner_id = self.nodes[index].id.clone();
         let mut written: HashSet<String> = HashSet::new();
         let mut sources = self.sources(index);
@@ -1012,10 +1142,9 @@ impl<'g> Mapper<'g> {
                 }
                 self.ids.insert(port.id.clone(), format!("{owner_id}.{name}"));
                 self.count("ports");
-                if oriented {
-                    self.line(depth, &format!("port {direction} {}", string_literal(&name)));
-                } else {
-                    self.line(depth, &format!("port {}", string_literal(&name)));
+                match direction {
+                    None if physical => self.line(depth, &format!("port {}", string_literal(&name))),
+                    _ => self.line(depth, &format!("port {} {}", direction.unwrap_or("in"), string_literal(&name))),
                 }
             }
         }
@@ -1044,7 +1173,7 @@ impl<'g> Mapper<'g> {
         let name = self.nodes[index].name.clone();
         self.line(depth, &format!("{keyword} {} {{", string_literal(&name)));
         self.header(depth + 1, index, &id);
-        self.write_ports(depth + 1, index, true);
+        self.write_ports(depth + 1, index, false);
         let subs: Vec<usize> = self.nodes[index].children.iter().copied().filter(|&c| self.nodes[c].shape == Shape::Action).collect();
         for sub in subs {
             self.function(depth + 1, sub, keyword);
@@ -1063,6 +1192,7 @@ impl<'g> Mapper<'g> {
         let children = self.nodes[index].children.clone();
         for child in children {
             match self.nodes[child].shape {
+                Shape::Action if role == Role::Actor => {} // written at the level
                 Shape::Action => self.function(2, child, "activity"),
                 Shape::Part => {
                     let note = format!("entity '{}' holds entity '{}': nested entities are left out", name, self.nodes[child].name);
@@ -1081,7 +1211,7 @@ impl<'g> Mapper<'g> {
         let name = self.nodes[index].name.clone();
         self.line(1, &format!("{keyword} {} {{", string_literal(&name)));
         self.header(2, index, &id);
-        self.write_ports(2, index, true);
+        self.write_ports(2, index, false);
         let allocated: Vec<String> = performed.iter().filter_map(|&a| self.ids.get(&self.node_key(a)).cloned()).collect();
         if !allocated.is_empty() {
             self.line(2, &format!("allocated_functions: {}", list_literal(&allocated)));
@@ -1099,7 +1229,7 @@ impl<'g> Mapper<'g> {
         if role == Some(Role::Actor) {
             self.line(depth + 1, "actor: true");
         }
-        self.write_ports(depth + 1, index, true);
+        self.write_ports(depth + 1, index, false);
         let children = self.nodes[index].children.clone();
         for child in children {
             match self.nodes[child].shape {
@@ -1157,7 +1287,7 @@ impl<'g> Mapper<'g> {
         self.count("behaviour components");
         self.line(2, &format!("behavior_component {} {{", string_literal(&name)));
         self.header(3, index, &id);
-        self.write_ports(3, index, true);
+        self.write_ports(3, index, false);
         if let Some(realized) = self.allocated_logical(index) {
             self.line(3, &format!("allocated_component: {}", string_literal(&realized)));
         }
@@ -1351,12 +1481,7 @@ impl<'g> Mapper<'g> {
             }
             let mut state_names: HashMap<String, String> = HashMap::new();
             for state in &states {
-                let name = Self::display(state);
-                state_names.insert(state.id.clone(), name.clone());
-                let state_id = self.remember(&state.id, Self::identity_id(state), "State");
-                self.count("states");
-                let kind = if Self::has_metadata(state, &["Mode"]) { "mode" } else { "state" };
-                self.line(1, &format!("{kind} {} {{ id: {} }}", string_literal(&name), string_literal(&state_id)));
+                self.state(1, state, &mut state_names);
             }
             let initial = states.iter().find(|s| s.name.as_deref().is_some_and(|n| n.eq_ignore_ascii_case("start") || n.eq_ignore_ascii_case("initial")));
             let entry = machine.children.iter().filter_map(|c| self.graph.get(c)).find(|c| c.kind == "TransitionUsage" && c.sources.is_empty()).and_then(|t| t.targets.first()).and_then(|t| state_names.get(t));
@@ -1365,21 +1490,49 @@ impl<'g> Mapper<'g> {
             }
             let transitions: Vec<&Element> = machine.children.iter().filter_map(|c| self.graph.get(c)).filter(|c| c.kind == "TransitionUsage").collect();
             for transition in transitions {
-                let (Some(from), Some(to)) = (transition.sources.first().and_then(|s| state_names.get(s)).cloned(), transition.targets.first().and_then(|t| state_names.get(t)).cloned()) else {
-                    self.count("transitions to states not written (left out)");
-                    continue;
-                };
-                let mut attributes = Vec::new();
-                if let Some(short) = &transition.short_name { attributes.push(format!("id: {}", string_literal(short))); }
-                if let Some(trigger) = &transition.trigger { attributes.push(format!("trigger: {}", string_literal(trigger))); }
-                if let Some(guard) = &transition.guard { attributes.push(format!("guard: {}", string_literal(guard))); }
-                if let Some(effect) = &transition.effect { attributes.push(format!("action: {}", string_literal(effect))); }
-                self.count("transitions");
-                self.line(1, &format!("transition {} -> {} {{ {} }}", string_literal(&from), string_literal(&to), attributes.join(" ")));
+                self.transition(1, transition, &state_names);
             }
             self.line(0, "}");
             self.line(0, "");
         }
+    }
+
+    /// A state, with the states and transitions nested in it (a region).
+    fn state(&mut self, depth: usize, state: &Element, state_names: &mut HashMap<String, String>) {
+        let name = Self::display(state);
+        state_names.insert(state.id.clone(), name.clone());
+        let state_id = self.remember(&state.id, Self::identity_id(state), "State");
+        self.count("states");
+        let kind = if Self::has_metadata(state, &["Mode"]) { "mode" } else { "state" };
+        let nested: Vec<&Element> = state.children.iter().filter_map(|c| self.graph.get(c)).filter(|c| c.kind == "StateUsage").collect();
+        let transitions: Vec<&Element> = state.children.iter().filter_map(|c| self.graph.get(c)).filter(|c| c.kind == "TransitionUsage").collect();
+        if nested.is_empty() && transitions.is_empty() {
+            self.line(depth, &format!("{kind} {} {{ id: {} }}", string_literal(&name), string_literal(&state_id)));
+            return;
+        }
+        self.line(depth, &format!("{kind} {} {{", string_literal(&name)));
+        self.line(depth + 1, &format!("id: {}", string_literal(&state_id)));
+        for inner in &nested {
+            self.state(depth + 1, inner, state_names);
+        }
+        for transition in transitions {
+            self.transition(depth + 1, transition, state_names);
+        }
+        self.line(depth, "}");
+    }
+
+    fn transition(&mut self, depth: usize, transition: &Element, state_names: &HashMap<String, String>) {
+        let (Some(from), Some(to)) = (transition.sources.first().and_then(|s| state_names.get(s)).cloned(), transition.targets.first().and_then(|t| state_names.get(t)).cloned()) else {
+            self.count("transitions to states not written (left out)");
+            return;
+        };
+        let mut attributes = Vec::new();
+        if let Some(short) = &transition.short_name { attributes.push(format!("id: {}", string_literal(short))); }
+        if let Some(trigger) = &transition.trigger { attributes.push(format!("trigger: {}", string_literal(trigger))); }
+        if let Some(guard) = &transition.guard { attributes.push(format!("guard: {}", string_literal(guard))); }
+        if let Some(effect) = &transition.effect { attributes.push(format!("action: {}", string_literal(effect))); }
+        self.count("transitions");
+        self.line(depth, &format!("transition {} -> {} {{ {} }}", string_literal(&from), string_literal(&to), attributes.join(" ")));
     }
 
     /// The written element that exhibits a state machine: its owner, or the
@@ -1551,7 +1704,8 @@ impl<'g> Mapper<'g> {
                 continue;
             }
             self.count("traces");
-            if TRACE_KINDS.contains(&kind.as_str()) {
+            // `allocates` has no keyword form: it is written with an arrow.
+            if TRACE_KINDS.contains(&kind.as_str()) && kind != "allocates" {
                 lines.push(format!("trace {} {kind} {}", string_literal(&from), string_literal(&to)));
             } else {
                 lines.push(format!("trace {} -> {} {{ trace_type: {} }}", string_literal(&from), string_literal(&to), string_literal(&kind)));
