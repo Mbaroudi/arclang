@@ -76,12 +76,18 @@ so there is no key to configure.
 - `/explain` explains the model, an element or a finding.
 - `/review` reviews the model against `arclang check` and the production gate.
 - `/transition` plans the next Arcadia step and offers to apply it.
+- `/agent` changes the open model step by step: it reads the elements and
+  their ids through the compiler, applies precise edits (add, connect, move,
+  trace, rename, set) that you confirm one gesture at a time, retries what the
+  compiler refuses, and ends with a check and the gate.
 
 **Agent mode and other assistants** get the compiler as tools:
+`#arclangModel` (the elements, ids, relationships and findings of a model),
+`#arclangEdit` (a list of edits applied as one undoable change),
 `#arclangCheck`, `#arclangGate`, `#arclangMetamodel`, `#arclangRules`,
 `#arclangImpact`, `#arclangTransitionPlan`, `#arclangSet`, `#arclangRename`.
-Reading tools run without asking; the two editing tools ask for confirmation
-and apply their change in the editor as an undoable edit, after the compiler
+Reading tools run without asking; the editing tools ask for confirmation and
+apply their change in the editor as an undoable edit, after the compiler
 accepted it. Tools only touch files of the workspace or open in the editor.
 
 **The ArcLang MCP server** (`mcp-server/` of the repository, Python) is

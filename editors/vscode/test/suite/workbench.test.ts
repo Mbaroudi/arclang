@@ -125,6 +125,27 @@ suite('ArcLang workbench', () => {
     assert.ok(document.getText(document.lineAt(range.start.line).range).includes('Sensor'));
   });
 
+  test('the model tool lists the elements and the edit tool applies a list of requests', async () => {
+    const document = await openCopy();
+    const read = await vscode.lm.invokeTool('arclang_model', { input: { path: document.uri.fsPath, layer: 'Logical' }, toolInvocationToken: undefined });
+    const text = read.content.map((part) => (part instanceof vscode.LanguageModelTextPart ? part.value : '')).join('\n');
+    assert.ok(text.includes('LC-CTL | LogicalComponent'), text);
+    assert.ok(text.includes('LC-Sensor | LogicalComponent'), text);
+    const edited = await vscode.lm.invokeTool('arclang_edit', {
+      input: { path: document.uri.fsPath, requests: [{ op: 'add', keyword: 'function', name: 'Sense', container: 'LC-Sensor' }] },
+      toolInvocationToken: undefined,
+    });
+    const answer = edited.content.map((part) => (part instanceof vscode.LanguageModelTextPart ? part.value : '')).join('\n');
+    assert.ok(/exit 0/.test(answer), answer);
+    assert.ok(document.getText().includes('function "Sense"'), document.getText());
+    const refused = await vscode.lm.invokeTool('arclang_edit', {
+      input: { path: document.uri.fsPath, requests: [{ op: 'remove', element: 'Nobody' }] },
+      toolInvocationToken: undefined,
+    });
+    const why = refused.content.map((part) => (part instanceof vscode.LanguageModelTextPart ? part.value : '')).join('\n');
+    assert.ok(/Refused at request 1/.test(why) && /Nobody/.test(why), why);
+  });
+
   test('the workbench panel opens beside the source', async () => {
     const document = await openCopy();
     await vscode.commands.executeCommand('arclang.openWorkbench', document.uri);

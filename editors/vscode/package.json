@@ -406,6 +406,10 @@
           {
             "name": "transition",
             "description": "Plan and apply the next Arcadia transition (OA to SA, SA to LA, LA to PA)."
+          },
+          {
+            "name": "agent",
+            "description": "Change the open model step by step through the compiler: read the elements, apply precise edits you confirm, check the result."
           }
         ],
         "disambiguation": [
@@ -625,6 +629,175 @@
             "path",
             "element",
             "name"
+          ]
+        }
+      },
+      {
+        "name": "arclang_model",
+        "displayName": "ArcLang: read the model",
+        "toolReferenceName": "arclangModel",
+        "canBeReferencedInPrompt": true,
+        "icon": "$(list-tree)",
+        "userDescription": "The elements of a model as the compiler sees them, with their ids, kinds, owners and attributes.",
+        "modelDescription": "Reads an open .arc model through the compiler (arclang workbench): counts by kind, the elements (id, kind, name, owner, attributes) filtered by kind, layer or one element (then with its relationships and traces), the findings and the gate. Use it before editing to know the exact ids; the ids it lists are accepted by arclang_edit even when the text writes none.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string",
+              "description": "Absolute path of the .arc file."
+            },
+            "kind": {
+              "type": "string",
+              "description": "Only the elements of this kind (LogicalComponent, SystemFunction, Requirement...)."
+            },
+            "layer": {
+              "type": "string",
+              "description": "Only the elements of this layer: Operational, System, Logical, Physical, Epbs, Data, Transverse."
+            },
+            "element": {
+              "type": "string",
+              "description": "Only this element (id or name), with what it is connected to."
+            }
+          },
+          "required": [
+            "path"
+          ]
+        }
+      },
+      {
+        "name": "arclang_edit",
+        "displayName": "ArcLang: edit the model",
+        "toolReferenceName": "arclangEdit",
+        "canBeReferencedInPrompt": true,
+        "icon": "$(edit)",
+        "userDescription": "Add, remove, move, rename, trace or set elements of a model; refused unless the model still compiles.",
+        "modelDescription": "Applies a list of edits to an open .arc model through the compiler's source editor (arclang edit), in order, as one undoable change in the editor: add an element inside another, in a layer or at the top level (ports with keyword 'port in'/'port out'), add a raw declaration (exchanges, messages, transitions), remove, move, rename (identity kept), set/unset an attribute, add/remove a trace, wrap messages in a fragment. Comments and layout are kept. The whole list is refused, and nothing changes, if any edit would leave a model that does not compile; the answer says which request and why. Prefer this over rewriting the file.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string",
+              "description": "Absolute path of the .arc file."
+            },
+            "requests": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "description": "One edit of the model text. op is one of set, unset, rename, add, add_raw, remove, move, add_trace, remove_trace, wrap_fragment. Elements are designated by the id the model tool lists (or the name when it writes none).",
+                "properties": {
+                  "op": {
+                    "type": "string",
+                    "enum": [
+                      "set",
+                      "unset",
+                      "rename",
+                      "add",
+                      "add_raw",
+                      "remove",
+                      "move",
+                      "add_trace",
+                      "remove_trace",
+                      "wrap_fragment"
+                    ]
+                  },
+                  "element": {
+                    "type": "string",
+                    "description": "set/unset/rename/remove/move: the element."
+                  },
+                  "key": {
+                    "type": "string",
+                    "description": "set/unset: the attribute."
+                  },
+                  "value": {
+                    "type": "string",
+                    "description": "set: the value as ArcLang source: '\"text\"', '25 ms', '[A, B]', 'ASIL-D'."
+                  },
+                  "name": {
+                    "type": "string",
+                    "description": "rename: the new name; add: the name of the new element."
+                  },
+                  "keyword": {
+                    "type": "string",
+                    "description": "add: the declaration keyword: actor, entity, activity, function, component, node, behavior_component, 'port in', 'port out', interface, class, mission, capability, functional_chain, requirement..."
+                  },
+                  "attributes": {
+                    "type": "array",
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      },
+                      "minItems": 2,
+                      "maxItems": 2
+                    },
+                    "description": "add: [key, value] pairs written with the new element, values as ArcLang source."
+                  },
+                  "declaration": {
+                    "type": "string",
+                    "description": "add_raw: one declaration as ArcLang source, e.g. 'component_exchange \"Flow\" { from_port: \"LC-A.p\" to_port: \"LC-B.q\" }' or 'message \"A\" -> \"B\" \"text\"'."
+                  },
+                  "container": {
+                    "type": "string",
+                    "description": "add/add_raw/move: the element the declaration goes into."
+                  },
+                  "layer": {
+                    "type": "string",
+                    "description": "add/add_raw/move: else the layer block: operational_analysis, system_analysis, logical_architecture, physical_architecture, epbs."
+                  },
+                  "layer_name": {
+                    "type": "string",
+                    "description": "add/add_raw/move: the layer's name when several layers of that kind exist."
+                  },
+                  "top_level": {
+                    "type": "boolean",
+                    "description": "add/add_raw: else at the end of the file (classes, data types, traces)."
+                  },
+                  "from": {
+                    "type": "string",
+                    "description": "add_trace/remove_trace: the source element."
+                  },
+                  "kind": {
+                    "type": "string",
+                    "description": "add_trace/remove_trace: satisfies, implements, realizes, allocates, verifies...; wrap_fragment: loop, opt, alt, par, seq, critical."
+                  },
+                  "to": {
+                    "type": "string",
+                    "description": "add_trace/remove_trace: the target element."
+                  },
+                  "scenario": {
+                    "type": "string"
+                  },
+                  "label": {
+                    "type": "string"
+                  },
+                  "first": {
+                    "type": "string"
+                  },
+                  "last": {
+                    "type": "string"
+                  },
+                  "operands": {
+                    "type": "array",
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                },
+                "required": [
+                  "op"
+                ]
+              },
+              "minItems": 1,
+              "description": "The edits, applied in order on one text."
+            }
+          },
+          "required": [
+            "path",
+            "requests"
           ]
         }
       }

@@ -4,6 +4,9 @@ import * as path from 'node:path';
 import * as vscode from 'vscode';
 import { failureText, run, RunResult, withTempFile } from '../cli';
 import { clip, exitLine, parseCheckReport, renderTransitionPlan, summarizeCheck, TransitionPlan } from '../pure/arc';
+import { EditRequest, layerOfKind, Metamodel, neighbours, parseSnapshot, Snapshot } from '../pure/workbench';
+import { applyRequests } from '../workbench/edits';
+import { metamodelJson } from '../workbench/snapshot';
 
 const MAX_RESULT = 24000;
 
@@ -186,5 +189,108 @@ export function registerTools(context: vscode.ExtensionContext): void {
         return answer([exitLine(label, 0), `Applied in the editor to ${path.basename(file)} (not saved).`]);
       },
     }),
+
+    vscode.lm.registerTool<{ path: string; kind?: string; element?: string; layer?: string }>('arclang_model', {
+      prepareInvocation: (options) => ({ invocationMessage: `Reading the model ${path.basename(options.input.path ?? '')}` }),
+      async invoke(options, token) {
+        const file = allowedPath(options.input.path);
+        if (!file) return refused(options.input.path);
+        const result = await runOnModel(file, (m) => ['workbench', m], token);
+        const label = `workbench ${path.basename(file)}`;
+        const snapshot = parseSnapshot(result.stdout);
+        if (!snapshot.success || !snapshot.elements) return answer([exitLine(label, result.code || 1), snapshot.errors.join('\n') || failureText(result)]);
+        const metamodel = await metamodelJson();
+        return answer([exitLine(label, 0), clip(describeModel(snapshot, metamodel, options.input), MAX_RESULT)]);
+      },
+    }),
+
+    vscode.lm.registerTool<{ path: string; requests: EditRequest[] }>('arclang_edit', {
+      prepareInvocation: (options) => ({
+        invocationMessage: `Editing ${path.basename(options.input.path ?? '')} (${(options.input.requests ?? []).length} request${(options.input.requests ?? []).length === 1 ? '' : 's'})`,
+        confirmationMessages: {
+          title: 'ArcLang: edit the model',
+          message: new vscode.MarkdownString(
+            `Apply to \`${path.basename(options.input.path ?? '')}\`:\n\n${(options.input.requests ?? []).map((r) => `- ${describeRequest(r)}`).join('\n')}\n\nThe compiler refuses the gesture unless the edited model compiles; it is applied in the editor as one undoable change, not saved.`,
+          ),
+        },
+      }),
+      async invoke(options) {
+        const file = allowedPath(options.input.path);
+        if (!file) return refused(options.input.path);
+        const requests = Array.isArray(options.input.requests) ? options.input.requests : [];
+        if (requests.length === 0) return answer(['Refused: no request. Give a list of edit requests ({"op": "add", ...}).']);
+        const document = await vscode.workspace.openTextDocument(vscode.Uri.file(file));
+        const outcome = await applyRequests(document, requests);
+        const label = `edit ${path.basename(file)} (${requests.length})`;
+        if (!outcome.ok) {
+          return answer([exitLine(label, 1), `Refused at request ${outcome.at + 1} (${describeRequest(requests[outcome.at])}): ${outcome.error}`, 'Nothing was changed.']);
+        }
+        return answer([exitLine(label, 0), `Applied in the editor to ${path.basename(file)} as one undoable change (not saved); the compiler accepted the edited model.`]);
+      },
+    }),
   );
+}
+
+/** One request in a sentence, for confirmations and refusals. */
+export function describeRequest(request: EditRequest): string {
+  switch (request.op) {
+    case 'set':
+      return `set \`${request.key}: ${request.value}\` on ${request.element}`;
+    case 'unset':
+      return `remove \`${request.key}\` from ${request.element}`;
+    case 'rename':
+      return `rename ${request.element} to "${request.name}"`;
+    case 'add':
+      return `add ${request.keyword} "${request.name}" ${request.container ? `inside ${request.container}` : request.layer ? `in ${request.layer}` : 'at the top level'}`;
+    case 'add_raw':
+      return `add the declaration \`${request.declaration.split('\n')[0]}…\` ${request.container ? `inside ${request.container}` : request.layer ? `in ${request.layer}` : 'at the top level'}`;
+    case 'remove':
+      return `delete ${request.element}`;
+    case 'move':
+      return `move ${request.element} into ${request.container ?? request.layer ?? '?'}`;
+    case 'add_trace':
+      return `trace ${request.from} ${request.kind} ${request.to}`;
+    case 'remove_trace':
+      return `remove the trace ${request.from} ${request.kind} ${request.to}`;
+    case 'wrap_fragment':
+      return `wrap the messages ${request.first}…${request.last} of ${request.scenario} in a ${request.kind} fragment`;
+    default:
+      return JSON.stringify(request);
+  }
+}
+
+/** The model as an agent reads it: counts, the elements asked for, the findings, the gate. */
+export function describeModel(snapshot: Snapshot, metamodel: Metamodel | null, filter: { kind?: string; element?: string; layer?: string }): string {
+  const records = snapshot.elements?.elements ?? [];
+  const byUuid = new Map(records.map((e) => [e.uuid, e]));
+  const counts = new Map<string, number>();
+  for (const e of records) counts.set(e.kind, (counts.get(e.kind) ?? 0) + 1);
+  const lines: string[] = [];
+  lines.push(`Elements by kind: ${[...counts.entries()].map(([k, n]) => `${k} ${n}`).join(', ')}.`);
+  const wanted = records.filter((e) => {
+    if (filter.element && e.id !== filter.element && e.name !== filter.element) return false;
+    if (filter.kind && e.kind.toLowerCase() !== filter.kind.toLowerCase()) return false;
+    if (filter.layer && layerOfKind(e.kind, metamodel).toLowerCase() !== filter.layer.toLowerCase()) return false;
+    return true;
+  });
+  const limit = filter.element || filter.kind || filter.layer ? 400 : 150;
+  lines.push(`${wanted.length} element${wanted.length === 1 ? '' : 's'}${wanted.length > limit ? ` (first ${limit})` : ''}: id | kind | name | owner | attributes`);
+  for (const e of wanted.slice(0, limit)) {
+    const owner = e.owner ? (byUuid.get(e.owner)?.id ?? '') : '';
+    const attributes = Object.entries(e.attributes)
+      .filter(([k]) => k !== 'id' && k !== 'name')
+      .map(([k, v]) => `${k}=${JSON.stringify(v)}`)
+      .join(' ');
+    lines.push(`${e.id} | ${e.kind} | ${e.name} | ${owner} | ${attributes}`);
+  }
+  if (filter.element && wanted.length === 1) {
+    const around = neighbours(wanted[0], snapshot);
+    lines.push(`Incoming: ${around.incoming.map((n) => `${n.kind}${n.name ? ` ${n.name}` : ''} from ${n.other?.id ?? '?'}`).join('; ') || 'none'}`);
+    lines.push(`Outgoing: ${around.outgoing.map((n) => `${n.kind}${n.name ? ` ${n.name}` : ''} to ${n.other?.id ?? '?'}`).join('; ') || 'none'}`);
+  }
+  const relationships = snapshot.elements?.relationships ?? [];
+  if (!filter.element) lines.push(`Relationships: ${relationships.length} (${[...new Set(relationships.map((r) => r.kind))].join(', ')}); traces: ${snapshot.diagrams?.links.length ?? 0}.`);
+  lines.push(`Findings: ${snapshot.findings.length}${snapshot.findings.length ? ` (${snapshot.findings.slice(0, 20).map((f) => `${f.rule}: ${f.message}`).join(' | ')})` : ''}.`);
+  if (snapshot.gate) lines.push(`Gate: ${snapshot.gate.passed ? 'PASS' : 'FAIL'}, ${snapshot.gate.requirements_verified}/${snapshot.gate.requirements_total} requirements verified.`);
+  return lines.join('\n');
 }
