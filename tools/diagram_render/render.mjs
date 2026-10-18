@@ -17,7 +17,7 @@ import { fileURLToPath } from 'node:url';
 const require = createRequire(import.meta.url);
 const viewer = resolve(dirname(fileURLToPath(import.meta.url)), '../../src/compiler/diagram/viewer');
 const ELK = require(join(viewer, 'vendor/elk.bundled.js'));
-const { renderSvg, isSequence, drawnIds, esc } = require(join(viewer, 'arcviz-render.js'));
+const { renderSvg, isSequence, layOut, drawnIds, esc } = require(join(viewer, 'arcviz-render.js'));
 
 const [input, target] = process.argv.slice(2);
 if (!input || !target) {
@@ -33,7 +33,7 @@ for (const graph of graphs) {
   let laidOut;
   try {
     // Scenarios are drawn as declared; everything else goes through ELK.
-    laidOut = isSequence(graph) ? graph : await elk.layout(graph);
+    laidOut = isSequence(graph) ? graph : await layOut(elk, graph);
   } catch (error) {
     console.error(`✗ ${graph.id}: layout failed — ${error.message}`);
     failures += 1;

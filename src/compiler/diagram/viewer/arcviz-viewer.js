@@ -390,7 +390,7 @@
       if (!state.layouts.has(key)) {
         // Scenarios are drawn as declared; everything else goes through ELK.
         const copy = applyFilters(JSON.parse(JSON.stringify(scope.shape(graph, shown))), filtersOf(graph.id));
-        state.layouts.set(key, render.isSequence(graph) ? Promise.resolve(copy) : new deps.ELK().layout(copy));
+        state.layouts.set(key, render.isSequence(graph) ? Promise.resolve(copy) : render.layOut(new deps.ELK(), copy));
       }
       const pending = state.layouts.get(key).then((laidOut) => {
         const placed = render.isSequence(graph) ? laidOut : deps.place.place(laidOut, scope.placedOf(graph.id, shown));
