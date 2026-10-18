@@ -73,7 +73,7 @@ pub(super) fn write(e: &mut Exporter<'_>) {
                 }
                 for entry in &analysis.fmea {
                     let id = id_of(&entry.attributes, &entry.name).to_string();
-                    e.block(&format!("requirement {}", text::declared(&id, &entry.name)), |e| e.header("FmeaEntry", &entry.attributes, &[]));
+                    e.block(&format!("#Fmea requirement {}", text::declared(&id, &entry.name)), |e| e.header("FmeaEntry", &entry.attributes, &[]));
                 }
             }
         });

@@ -25,31 +25,31 @@ package ExpressionForms {
         metadata def PhysicalPort;
         metadata def ExchangeItem;
         metadata def Path;
+        metadata def Fmea;
+        metadata def Interface;
     }
     private import ArcadiaProfile::*;
     #SA package Forms {
-        action <'SF-A'> Sample {
+        action <'SF-A'> Sample : Types::Task {
             attribute bandwidth : BinaryDigitRateValue = 2 ['Mbit/s'];
             attribute clock : FrequencyValue = 16 [MHz];
             attribute count : Integer = 3;
             attribute distance : LengthValue = 250 [m];
             attribute energy : EnergyValue = 2 ['kW*h'];
-            attribute gain : Real = 2.5;
+            attribute :>> gain = 2.5;
             attribute label : String = "a \"quoted\" label";
             attribute load : DimensionOneValue = 40 ['%'];
             attribute mass : MassValue = 12 [kg];
             attribute memory : StorageCapacityValue = 512 [MiB];
             attribute offset : Integer = -5;
-            attribute period : DurationValue = 10 [ms];
+            attribute :>> period = 10 [ms];
             attribute pressure : PressureValue = 3 [bar];
             attribute rate : BinaryDigitRateValue = 9600 ['bit/s'];
             attribute speed : SpeedValue = 130 ['km/h'];
             attribute supply : ElectricPotentialValue = 12 [V];
             attribute wcet : DurationValue = 0.004 [s];
         }
-        action <'SF-B'> Filter {
-            attribute gain : Real = 1.5;
-            attribute period : DurationValue = 20 [ms];
+        action <'SF-B'> Filter : Types::Task {
             attribute wcet : DurationValue = 6 [ms];
         }
         #Chain action <'FC-A'> Acquire {
@@ -69,6 +69,12 @@ package ExpressionForms {
     }
     #PA package Hardware {
         #Node part <'PN-CPU'> 'Compute unit' [2..3];
+    }
+    package Types {
+        abstract action def Task {
+            attribute gain : Real default = 1.5;
+            attribute period : DurationValue default = 20 [ms];
+        }
     }
     assert constraint <'CST-MIN'> 'Fastest stage' {
         DataFunctions::min(Forms::'SF-A'.wcet, Forms::'SF-B'.wcet) >= 1 [ms]

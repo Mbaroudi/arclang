@@ -20,6 +20,8 @@ Package name=LaneKeepingTiming short=- via=-
     MetadataDefinition name=PhysicalPort short=- via=OwningMembership
     MetadataDefinition name=ExchangeItem short=- via=OwningMembership
     MetadataDefinition name=Path short=- via=OwningMembership
+    MetadataDefinition name=Fmea short=- via=OwningMembership
+    MetadataDefinition name=Interface short=- via=OwningMembership
   Documentation name=- short=- via=OwningMembership body="Lane keeping assist: end-to-end timing and bus load constraints"
   AttributeUsage name=version short=- via=OwningMembership : ScalarValues::String = String("1.0")
   Package name=Data short=- via=OwningMembership
@@ -32,20 +34,18 @@ Package name=LaneKeepingTiming short=- via=-
       MetadataUsage name=- short=- via=OwningMembership : LaneKeepingTiming::ArcadiaProfile::Actor
   Package name=Lane Keeping Assist short=- via=OwningMembership
     MetadataUsage name=- short=- via=OwningMembership : LaneKeepingTiming::ArcadiaProfile::SA
-    ActionUsage name=Detect lane markings short=SF-DET via=OwningMembership
+    ActionUsage name=Detect lane markings short=SF-DET via=OwningMembership : LaneKeepingTiming::Types::'Periodic task'
       AttributeUsage name=latency short=- via=FeatureMembership : ISQBase::DurationValue = op([, Integer(30), ref(LaneKeepingTiming::ArcLangUnits::millisecond))
-      AttributeUsage name=period short=- via=FeatureMembership : ISQBase::DurationValue = op([, Integer(33), ref(LaneKeepingTiming::ArcLangUnits::millisecond))
+      AttributeUsage name=- short=- via=FeatureMembership :>> LaneKeepingTiming::Types::'Periodic task'::period = op([, Integer(33), ref(LaneKeepingTiming::ArcLangUnits::millisecond))
       AttributeUsage name=wcet short=- via=FeatureMembership : ISQBase::DurationValue = op([, Rational(0.035), ref(SI::second))
       ItemUsage name=lane short=- via=FeatureMembership dir=out : LaneKeepingTiming::Data::LaneModel
-    ActionUsage name=Estimate departure short=SF-EST via=OwningMembership
+    ActionUsage name=Estimate departure short=SF-EST via=OwningMembership : LaneKeepingTiming::Types::'Periodic task'
       AttributeUsage name=latency short=- via=FeatureMembership : ISQBase::DurationValue = op([, Integer(15), ref(LaneKeepingTiming::ArcLangUnits::millisecond))
-      AttributeUsage name=period short=- via=FeatureMembership : ISQBase::DurationValue = op([, Integer(20), ref(LaneKeepingTiming::ArcLangUnits::millisecond))
       AttributeUsage name=wcet short=- via=FeatureMembership : ISQBase::DurationValue = op([, Integer(18), ref(LaneKeepingTiming::ArcLangUnits::millisecond))
       ItemUsage name=lane short=- via=FeatureMembership dir=in : LaneKeepingTiming::Data::LaneModel
       ItemUsage name=departure short=- via=FeatureMembership dir=out : LaneKeepingTiming::Data::DepartureEstimate
-    ActionUsage name=Command steering short=SF-CMD via=OwningMembership
+    ActionUsage name=Command steering short=SF-CMD via=OwningMembership : LaneKeepingTiming::Types::'Periodic task'
       AttributeUsage name=latency short=- via=FeatureMembership : ISQBase::DurationValue = op([, Integer(10), ref(LaneKeepingTiming::ArcLangUnits::millisecond))
-      AttributeUsage name=period short=- via=FeatureMembership : ISQBase::DurationValue = op([, Integer(20), ref(LaneKeepingTiming::ArcLangUnits::millisecond))
       AttributeUsage name=wcet short=- via=FeatureMembership : ISQBase::DurationValue = op([, Integer(12), ref(LaneKeepingTiming::ArcLangUnits::millisecond))
       ItemUsage name=departure short=- via=FeatureMembership dir=in : LaneKeepingTiming::Data::DepartureEstimate
     FlowUsage name=lane model short=- via=OwningMembership src=LaneKeepingTiming::'Lane Keeping Assist'::'Detect lane markings' tgt=LaneKeepingTiming::'Lane Keeping Assist'::'Estimate departure'
@@ -80,22 +80,31 @@ Package name=LaneKeepingTiming short=- via=-
     ConnectionUsage name=LaneFlow short=- via=OwningMembership src=Camera.lane tgt=LKA Controller.lane
   Package name=LKA Physical short=- via=OwningMembership
     MetadataUsage name=- short=- via=OwningMembership : LaneKeepingTiming::ArcadiaProfile::PA
-    PartUsage name=Camera ECU short=PN-CAM via=OwningMembership
+    PartUsage name=Camera ECU short=PN-CAM via=OwningMembership : LaneKeepingTiming::Types::ECU
       MetadataUsage name=- short=- via=OwningMembership : LaneKeepingTiming::ArcadiaProfile::Node
       AttributeUsage name=ram short=- via=FeatureMembership : ISQInformation::StorageCapacityValue = op([, Integer(512), ref(LaneKeepingTiming::ArcLangUnits::megabyte))
-      AttributeUsage name=voltage short=- via=FeatureMembership : ISQElectromagnetism::ElectricPotentialValue = op([, Integer(12), ref(SI::volt))
-    PartUsage name=Chassis ECU short=PN-CHS via=OwningMembership
+    PartUsage name=Chassis ECU short=PN-CHS via=OwningMembership : LaneKeepingTiming::Types::'Safety ECU'
       MetadataUsage name=- short=- via=OwningMembership : LaneKeepingTiming::ArcadiaProfile::Node
       AttributeUsage name=ram short=- via=FeatureMembership : ISQInformation::StorageCapacityValue = op([, Integer(64), ref(LaneKeepingTiming::ArcLangUnits::megabyte))
-      AttributeUsage name=safety_level short=- via=FeatureMembership : ScalarValues::String = String("ASIL-B")
-      AttributeUsage name=voltage short=- via=FeatureMembership : ISQElectromagnetism::ElectricPotentialValue = op([, Integer(12), ref(SI::volt))
     AllocationUsage name=- short=- via=OwningMembership src=LaneKeepingTiming::'LKA Logical'::Camera tgt=LaneKeepingTiming::'LKA Physical'::'Camera ECU'
     AllocationUsage name=- short=- via=OwningMembership src=LaneKeepingTiming::'LKA Logical'::'LKA Controller' tgt=LaneKeepingTiming::'LKA Physical'::'Chassis ECU'
-    ConnectionUsage name=ChassisCAN short=- via=OwningMembership src=LaneKeepingTiming::'LKA Physical'::'Camera ECU' tgt=LaneKeepingTiming::'LKA Physical'::'Chassis ECU'
+    ConnectionUsage name=ChassisCAN short=- via=OwningMembership : LaneKeepingTiming::Types::'CAN FD bus' src=LaneKeepingTiming::'LKA Physical'::'Camera ECU' tgt=LaneKeepingTiming::'LKA Physical'::'Chassis ECU'
       MetadataUsage name=- short=- via=OwningMembership : LaneKeepingTiming::ArcadiaProfile::Link
-      AttributeUsage name=bandwidth short=- via=FeatureMembership : ISQInformation::BinaryDigitRateValue = op([, Integer(2), ref(LaneKeepingTiming::ArcLangUnits::'megabit per second'))
       AttributeUsage name=load short=- via=FeatureMembership : ISQInformation::BinaryDigitRateValue = op([, Integer(600), ref(LaneKeepingTiming::ArcLangUnits::'kilobit per second'))
-      AttributeUsage name=protocol short=- via=FeatureMembership : ScalarValues::String = String("CAN FD")
+  Package name=Types short=- via=OwningMembership
+    ActionDefinition name=Periodic task short=- via=OwningMembership abstract
+      Documentation name=- short=- via=OwningMembership body="instances must provide: wcet, latency"
+      AttributeUsage name=period short=- via=FeatureMembership : ISQBase::DurationValue default= op([, Integer(20), ref(LaneKeepingTiming::ArcLangUnits::millisecond))
+    PartDefinition name=ECU short=- via=OwningMembership abstract
+      Documentation name=- short=- via=OwningMembership body="instances must provide: ram"
+      AttributeUsage name=voltage short=- via=FeatureMembership : ISQElectromagnetism::ElectricPotentialValue default= op([, Integer(12), ref(SI::volt))
+    PartDefinition name=Safety ECU short=- via=OwningMembership abstract :> LaneKeepingTiming::Types::ECU
+      AttributeUsage name=safety_level short=- via=FeatureMembership : ScalarValues::String default= String("ASIL-B")
+    ConnectionDefinition name=CAN FD bus short=- via=OwningMembership abstract
+      ReferenceUsage name=source short=- via=FeatureMembership
+      ReferenceUsage name=target short=- via=FeatureMembership
+      AttributeUsage name=bandwidth short=- via=FeatureMembership : ISQInformation::BinaryDigitRateValue default= op([, Integer(2), ref(LaneKeepingTiming::ArcLangUnits::'megabit per second'))
+      AttributeUsage name=protocol short=- via=FeatureMembership : ScalarValues::String default= String("CAN FD")
   Package name=Safety short=- via=OwningMembership
     RequirementUsage name=Late steering correction short=- via=OwningMembership
       MetadataUsage name=- short=- via=OwningMembership : LaneKeepingTiming::ArcadiaProfile::Hazard
@@ -115,7 +124,7 @@ Package name=LaneKeepingTiming short=- via=-
     Documentation name=- short=- via=OwningMembership body="Sum of function latencies stays within 80 % of the chain budget"
   AssertConstraintUsage name=Worst-case reaction time short=CST-LKA-002 via=OwningMembership result op(<=, op(+, op(+, chain(ref(LaneKeepingTiming::'Lane Keeping Assist'::'Detect lane markings'), LaneKeepingTiming::'Lane Keeping Assist'::'Detect lane markings'::wcet), chain(ref(LaneKeepingTiming::'Lane Keeping Assist'::'Estimate departure'), LaneKeepingTiming::'Lane Keeping Assist'::'Estimate departure'::wcet)), chain(ref(LaneKeepingTiming::'Lane Keeping Assist'::'Command steering'), LaneKeepingTiming::'Lane Keeping Assist'::'Command steering'::wcet)), chain(ref(LaneKeepingTiming::'Lane Keeping Assist'::'Lane departure reaction'), LaneKeepingTiming::'Lane Keeping Assist'::'Lane departure reaction'::latency_budget))
   AssertConstraintUsage name=Stage fits a camera frame short=CST-LKA-003 via=OwningMembership result op(<=, call(DataFunctions::max, call(DataFunctions::max, chain(ref(LaneKeepingTiming::'Lane Keeping Assist'::'Detect lane markings'), LaneKeepingTiming::'Lane Keeping Assist'::'Detect lane markings'::wcet), chain(ref(LaneKeepingTiming::'Lane Keeping Assist'::'Estimate departure'), LaneKeepingTiming::'Lane Keeping Assist'::'Estimate departure'::wcet)), chain(ref(LaneKeepingTiming::'Lane Keeping Assist'::'Command steering'), LaneKeepingTiming::'Lane Keeping Assist'::'Command steering'::wcet)), op(*, chain(ref(LaneKeepingTiming::'LKA Logical'::Camera), Capture frame.frame_period), Rational(1.1)))
-  AssertConstraintUsage name=CAN bus load short=CST-LKA-004 via=OwningMembership result op(<=, op(/, chain(ref(LaneKeepingTiming::'LKA Physical'::ChassisCAN), LaneKeepingTiming::'LKA Physical'::ChassisCAN::load), chain(ref(LaneKeepingTiming::'LKA Physical'::ChassisCAN), LaneKeepingTiming::'LKA Physical'::ChassisCAN::bandwidth)), Rational(0.4))
+  AssertConstraintUsage name=CAN bus load short=CST-LKA-004 via=OwningMembership result op(<=, op(/, chain(ref(LaneKeepingTiming::'LKA Physical'::ChassisCAN), LaneKeepingTiming::'LKA Physical'::ChassisCAN::load), chain(ref(LaneKeepingTiming::'LKA Physical'::ChassisCAN), LaneKeepingTiming::Types::'CAN FD bus'::bandwidth)), Rational(0.4))
   AssertConstraintUsage name=Detection meets its period short=CST-LKA-005 via=OwningMembership result op(<=, chain(ref(LaneKeepingTiming::'Lane Keeping Assist'::'Detect lane markings'), LaneKeepingTiming::'Lane Keeping Assist'::'Detect lane markings'::wcet), op(*, chain(ref(LaneKeepingTiming::'Lane Keeping Assist'::'Detect lane markings'), LaneKeepingTiming::'Lane Keeping Assist'::'Detect lane markings'::period), Rational(1.1)))
   SatisfyRequirementUsage name=- short=- via=OwningMembership references LaneKeepingTiming::'Lane Keeping Assist'::'REQ-LKA-001' req=LaneKeepingTiming::'Lane Keeping Assist'::'REQ-LKA-001' by=LaneKeepingTiming::'LKA Logical'::'LKA Controller'
   Package name=ArcLangUnits short=- via=OwningMembership

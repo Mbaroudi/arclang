@@ -25,6 +25,8 @@ package LaneKeepingTiming {
         metadata def PhysicalPort;
         metadata def ExchangeItem;
         metadata def Path;
+        metadata def Fmea;
+        metadata def Interface;
     }
     private import ArcadiaProfile::*;
     doc /* Lane keeping assist: end-to-end timing and bus load constraints */
@@ -38,22 +40,20 @@ package LaneKeepingTiming {
         #Actor part <'ACT-DRV'> Driver;
     }
     #SA package 'Lane Keeping Assist' {
-        action <'SF-DET'> 'Detect lane markings' {
+        action <'SF-DET'> 'Detect lane markings' : Types::'Periodic task' {
             attribute latency : DurationValue = 30 [ms];
-            attribute period : DurationValue = 33 [ms];
+            attribute :>> period = 33 [ms];
             attribute wcet : DurationValue = 0.035 [s];
             out item lane : Data::LaneModel;
         }
-        action <'SF-EST'> 'Estimate departure' {
+        action <'SF-EST'> 'Estimate departure' : Types::'Periodic task' {
             attribute latency : DurationValue = 15 [ms];
-            attribute period : DurationValue = 20 [ms];
             attribute wcet : DurationValue = 18 [ms];
             in item lane : Data::LaneModel;
             out item departure : Data::DepartureEstimate;
         }
-        action <'SF-CMD'> 'Command steering' {
+        action <'SF-CMD'> 'Command steering' : Types::'Periodic task' {
             attribute latency : DurationValue = 10 [ms];
-            attribute period : DurationValue = 20 [ms];
             attribute wcet : DurationValue = 12 [ms];
             in item departure : Data::DepartureEstimate;
         }
@@ -90,21 +90,35 @@ package LaneKeepingTiming {
         connection LaneFlow connect 'LC-CAM'.lane to 'LC-CTL'.lane;
     }
     #PA package 'LKA Physical' {
-        #Node part <'PN-CAM'> 'Camera ECU' {
+        #Node part <'PN-CAM'> 'Camera ECU' : Types::ECU {
             attribute ram : StorageCapacityValue = 512 [MB];
-            attribute voltage : ElectricPotentialValue = 12 [V];
         }
-        #Node part <'PN-CHS'> 'Chassis ECU' {
+        #Node part <'PN-CHS'> 'Chassis ECU' : Types::'Safety ECU' {
             attribute ram : StorageCapacityValue = 64 [MB];
-            attribute safety_level : String = "ASIL-B";
-            attribute voltage : ElectricPotentialValue = 12 [V];
         }
         allocate 'LKA Logical'::'LC-CAM' to 'PN-CAM';
         allocate 'LKA Logical'::'LC-CTL' to 'PN-CHS';
-        #Link connection ChassisCAN connect 'PN-CAM' to 'PN-CHS' {
-            attribute bandwidth : BinaryDigitRateValue = 2 ['Mbit/s'];
+        #Link connection ChassisCAN : Types::'CAN FD bus' connect 'PN-CAM' to 'PN-CHS' {
             attribute load : BinaryDigitRateValue = 600 ['kbit/s'];
-            attribute protocol : String = "CAN FD";
+        }
+    }
+    package Types {
+        abstract action def 'Periodic task' {
+            doc /* instances must provide: wcet, latency */
+            attribute period : DurationValue default = 20 [ms];
+        }
+        abstract part def ECU {
+            doc /* instances must provide: ram */
+            attribute voltage : ElectricPotentialValue default = 12 [V];
+        }
+        abstract part def 'Safety ECU' :> ECU {
+            attribute safety_level : String default = "ASIL-B";
+        }
+        abstract connection def 'CAN FD bus' {
+            end source;
+            end target;
+            attribute bandwidth : BinaryDigitRateValue default = 2 ['Mbit/s'];
+            attribute protocol : String default = "CAN FD";
         }
     }
     package Safety {

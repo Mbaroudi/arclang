@@ -18,10 +18,25 @@ pub const NOT_ATTRIBUTES: &[&str] = &[
 ];
 
 /// The attribute lines of an element of `kind`, and the units they use.
-pub fn lines(metamodel: &Metamodel, kind: &str, attributes: &HashMap<String, AttributeValue>, skip: &[&str], units: &mut BTreeSet<&'static str>) -> Vec<String> {
+/// What it `inherits` from a type unchanged is the type's, not written;
+/// what it changes is a redefinition (`attribute :>> rate = ...;`).
+pub fn lines(metamodel: &Metamodel, kind: &str, attributes: &HashMap<String, AttributeValue>, skip: &[&str], inherits: Option<&HashMap<String, AttributeValue>>, units: &mut BTreeSet<&'static str>) -> Vec<String> {
     let mut keys: Vec<&String> = attributes.keys().filter(|k| !NOT_ATTRIBUTES.contains(&k.as_str()) && !skip.contains(&k.as_str())).collect();
     keys.sort();
-    keys.into_iter().map(|key| line(metamodel, kind, key, &attributes[key], units)).collect()
+    let mut out = Vec::new();
+    for key in keys {
+        let value = &attributes[key];
+        match inherits.and_then(|i| i.get(key.as_str())) {
+            Some(same) if same == value => continue,
+            Some(_) => {
+                let written = line(metamodel, kind, key, value, units);
+                let literal = written.split_once(" = ").map(|(_, l)| l).unwrap_or(";");
+                out.push(format!("attribute :>> {} = {literal}", text::name(key)));
+            }
+            None => out.push(line(metamodel, kind, key, value, units)),
+        }
+    }
+    out
 }
 
 fn line(metamodel: &Metamodel, kind: &str, key: &str, value: &AttributeValue, units: &mut BTreeSet<&'static str>) -> String {
@@ -84,7 +99,7 @@ mod tests {
 
     fn written(pairs: &[(&str, AttributeValue)]) -> Vec<String> {
         let attributes: HashMap<String, AttributeValue> = pairs.iter().map(|(k, v)| (k.to_string(), v.clone())).collect();
-        lines(&Metamodel::current(), "SystemFunction", &attributes, &[], &mut BTreeSet::new())
+        lines(&Metamodel::current(), "SystemFunction", &attributes, &[], None, &mut BTreeSet::new())
     }
 
     #[test]

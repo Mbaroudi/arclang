@@ -13,6 +13,7 @@ mod data;
 mod levels;
 mod relations;
 mod text;
+mod types;
 
 use crate::compiler::ast::{AttributeValue, Model};
 use crate::compiler::metamodel::Metamodel;
@@ -22,7 +23,7 @@ use std::collections::{BTreeSet, HashMap};
 /// SysML cannot tell by itself.
 pub const PROFILE: &[&str] = &[
     "OA", "SA", "LA", "PA", "EPBS", "Actor", "Entity", "Node", "Behaviour", "Hardware", "Mission", "Capability", "Chain", "Link", "Hazard",
-    "Mode", "Class", "PhysicalPort", "ExchangeItem", "Path",
+    "Mode", "Class", "PhysicalPort", "ExchangeItem", "Path", "Fmea", "Interface",
 ];
 
 /// The SysML v2 text of a model.
@@ -53,11 +54,13 @@ pub(crate) struct Exporter<'m> {
     package: String,
     /// Types ports and exchanges name that the model does not declare.
     undeclared: Vec<String>,
+    /// The ArcLang types, their inheritance folded in.
+    types: std::collections::BTreeMap<String, crate::compiler::types::EffectiveType>,
 }
 
 impl<'m> Exporter<'m> {
     fn new(model: &'m Model) -> Self {
-        Exporter { model, metamodel: Metamodel::current(), out: String::new(), depth: 0, units: BTreeSet::new(), targets: HashMap::new(), package: String::new(), undeclared: Vec::new() }
+        Exporter { model, metamodel: Metamodel::current(), out: String::new(), depth: 0, units: BTreeSet::new(), targets: HashMap::new(), package: String::new(), undeclared: Vec::new(), types: crate::compiler::types::effective_types(&model.types).unwrap_or_default() }
     }
 
     fn line(&mut self, text: &str) {
@@ -96,7 +99,8 @@ impl<'m> Exporter<'m> {
         if let Some(description) = attributes.get("description").and_then(|d| d.as_string()) {
             self.line(&text::doc(description));
         }
-        for line in attributes::lines(&self.metamodel, kind, attributes, skip, &mut self.units) {
+        let inherited = self.inherited(attributes).map(|i| i.attributes);
+        for line in attributes::lines(&self.metamodel, kind, attributes, skip, inherited.as_ref(), &mut self.units) {
             self.line(&line);
         }
     }
@@ -165,6 +169,7 @@ impl<'m> Exporter<'m> {
             data::write(e);
             levels::write(e);
             behaviour::write(e);
+            types::write(e);
             relations::write(e);
             e.units();
         });
@@ -181,6 +186,7 @@ impl<'m> Exporter<'m> {
 
     fn register_all(&mut self) {
         data::register(self);
+        types::register(self);
         levels::register(self);
         behaviour::register(self);
     }

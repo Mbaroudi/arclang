@@ -20,6 +20,8 @@ Package name=Automotive Emergency Braking System (AEB) short=- via=-
     MetadataDefinition name=PhysicalPort short=- via=OwningMembership
     MetadataDefinition name=ExchangeItem short=- via=OwningMembership
     MetadataDefinition name=Path short=- via=OwningMembership
+    MetadataDefinition name=Fmea short=- via=OwningMembership
+    MetadataDefinition name=Interface short=- via=OwningMembership
   Documentation name=- short=- via=OwningMembership body="Complete MBSE model with all Arcadia layers"
   AttributeUsage name=author short=- via=OwningMembership : ScalarValues::String = String("Malek Baroudi")
   AttributeUsage name=safety_standard short=- via=OwningMembership : ScalarValues::String = String("ISO 26262 ASIL-D")

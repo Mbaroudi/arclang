@@ -20,29 +20,29 @@ Package name=ExpressionForms short=- via=-
     MetadataDefinition name=PhysicalPort short=- via=OwningMembership
     MetadataDefinition name=ExchangeItem short=- via=OwningMembership
     MetadataDefinition name=Path short=- via=OwningMembership
+    MetadataDefinition name=Fmea short=- via=OwningMembership
+    MetadataDefinition name=Interface short=- via=OwningMembership
   Package name=Forms short=- via=OwningMembership
     MetadataUsage name=- short=- via=OwningMembership : ExpressionForms::ArcadiaProfile::SA
-    ActionUsage name=Sample short=SF-A via=OwningMembership
+    ActionUsage name=Sample short=SF-A via=OwningMembership : ExpressionForms::Types::Task
       AttributeUsage name=bandwidth short=- via=FeatureMembership : ISQInformation::BinaryDigitRateValue = op([, Integer(2), ref(ExpressionForms::ArcLangUnits::'megabit per second'))
       AttributeUsage name=clock short=- via=FeatureMembership : ISQSpaceTime::FrequencyValue = op([, Integer(16), ref(ExpressionForms::ArcLangUnits::megahertz))
       AttributeUsage name=count short=- via=FeatureMembership : ScalarValues::Integer = Integer(3)
       AttributeUsage name=distance short=- via=FeatureMembership : ISQBase::LengthValue = op([, Integer(250), ref(SI::metre))
       AttributeUsage name=energy short=- via=FeatureMembership : ISQThermodynamics::EnergyValue = op([, Integer(2), ref(ExpressionForms::ArcLangUnits::'kilowatt hour'))
-      AttributeUsage name=gain short=- via=FeatureMembership : ScalarValues::Real = Rational(2.5)
+      AttributeUsage name=- short=- via=FeatureMembership :>> ExpressionForms::Types::Task::gain = Rational(2.5)
       AttributeUsage name=label short=- via=FeatureMembership : ScalarValues::String = String("a \"quoted\" label")
       AttributeUsage name=load short=- via=FeatureMembership : MeasurementReferences::DimensionOneValue = op([, Integer(40), ref(ExpressionForms::ArcLangUnits::percent))
       AttributeUsage name=mass short=- via=FeatureMembership : ISQBase::MassValue = op([, Integer(12), ref(SI::kilogram))
       AttributeUsage name=memory short=- via=FeatureMembership : ISQInformation::StorageCapacityValue = op([, Integer(512), ref(ExpressionForms::ArcLangUnits::mebibyte))
       AttributeUsage name=offset short=- via=FeatureMembership : ScalarValues::Integer = op(-, Integer(5))
-      AttributeUsage name=period short=- via=FeatureMembership : ISQBase::DurationValue = op([, Integer(10), ref(ExpressionForms::ArcLangUnits::millisecond))
+      AttributeUsage name=- short=- via=FeatureMembership :>> ExpressionForms::Types::Task::period = op([, Integer(10), ref(ExpressionForms::ArcLangUnits::millisecond))
       AttributeUsage name=pressure short=- via=FeatureMembership : ISQMechanics::PressureValue = op([, Integer(3), ref(ExpressionForms::ArcLangUnits::bar))
       AttributeUsage name=rate short=- via=FeatureMembership : ISQInformation::BinaryDigitRateValue = op([, Integer(9600), ref(SI::'bit per second'))
       AttributeUsage name=speed short=- via=FeatureMembership : ISQSpaceTime::SpeedValue = op([, Integer(130), ref(SI::'kilometre per hour'))
       AttributeUsage name=supply short=- via=FeatureMembership : ISQElectromagnetism::ElectricPotentialValue = op([, Integer(12), ref(SI::volt))
       AttributeUsage name=wcet short=- via=FeatureMembership : ISQBase::DurationValue = op([, Rational(0.004), ref(SI::second))
-    ActionUsage name=Filter short=SF-B via=OwningMembership
-      AttributeUsage name=gain short=- via=FeatureMembership : ScalarValues::Real = Rational(1.5)
-      AttributeUsage name=period short=- via=FeatureMembership : ISQBase::DurationValue = op([, Integer(20), ref(ExpressionForms::ArcLangUnits::millisecond))
+    ActionUsage name=Filter short=SF-B via=OwningMembership : ExpressionForms::Types::Task
       AttributeUsage name=wcet short=- via=FeatureMembership : ISQBase::DurationValue = op([, Integer(6), ref(ExpressionForms::ArcLangUnits::millisecond))
     ActionUsage name=Acquire short=FC-A via=OwningMembership
       MetadataUsage name=- short=- via=OwningMembership : ExpressionForms::ArcadiaProfile::Chain
@@ -68,6 +68,10 @@ Package name=ExpressionForms short=- via=-
     PartUsage name=Compute unit short=PN-CPU via=OwningMembership
       MetadataUsage name=- short=- via=OwningMembership : ExpressionForms::ArcadiaProfile::Node
       MultiplicityRange name=- short=- via=OwningMembership bounds=Integer(2),Integer(3)
+  Package name=Types short=- via=OwningMembership
+    ActionDefinition name=Task short=- via=OwningMembership abstract
+      AttributeUsage name=gain short=- via=FeatureMembership : ScalarValues::Real default= Rational(1.5)
+      AttributeUsage name=period short=- via=FeatureMembership : ISQBase::DurationValue default= op([, Integer(20), ref(ExpressionForms::ArcLangUnits::millisecond))
   AssertConstraintUsage name=Fastest stage short=CST-MIN via=OwningMembership result op(>=, call(DataFunctions::min, chain(ref(ExpressionForms::Forms::Sample), ExpressionForms::Forms::Sample::wcet), chain(ref(ExpressionForms::Forms::Filter), ExpressionForms::Forms::Filter::wcet)), op([, Integer(1), ref(ExpressionForms::ArcLangUnits::millisecond)))
   AssertConstraintUsage name=Slowest stage short=CST-MAX via=OwningMembership result op(<, op(+, call(DataFunctions::max, chain(ref(ExpressionForms::Forms::Sample), ExpressionForms::Forms::Sample::wcet), chain(ref(ExpressionForms::Forms::Filter), ExpressionForms::Forms::Filter::wcet)), op([, Integer(2), ref(ExpressionForms::ArcLangUnits::millisecond))), op(/, chain(ref(ExpressionForms::Forms::Acquire), ExpressionForms::Forms::Acquire::latency_budget), Integer(2)))
   AssertConstraintUsage name=Total short=CST-SUM via=OwningMembership result op(<=, op(-, op(+, chain(ref(ExpressionForms::Forms::Sample), ExpressionForms::Forms::Sample::wcet), chain(ref(ExpressionForms::Forms::Filter), ExpressionForms::Forms::Filter::wcet)), op(*, chain(ref(ExpressionForms::Forms::Filter), ExpressionForms::Forms::Filter::wcet), Integer(2))), chain(ref(ExpressionForms::Forms::Sample), ExpressionForms::Forms::Sample::period))

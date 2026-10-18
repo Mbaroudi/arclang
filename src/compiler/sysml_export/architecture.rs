@@ -135,7 +135,7 @@ fn logical(e: &mut Exporter<'_>, la: &LogicalArchitecture) {
         }
         for interface in &la.interfaces {
             let id = id_of(&interface.attributes, &interface.name).to_string();
-            connection(e, "", &id, &interface.name, &interface.from, &interface.to, &interface.attributes, "LogicalInterface");
+            connection(e, "#Interface ", &id, &interface.name, &interface.from, &interface.to, &interface.attributes, "LogicalInterface");
         }
         realizations(e, &la.capability_realizations);
         let mut all: Vec<&LogicalFunction> = la.functions.iter().collect();
@@ -171,13 +171,14 @@ fn logical_component(e: &mut Exporter<'_>, component: &LogicalComponent) {
     let actor = super::flag(&component.attributes, "actor") || component.component_type.eq_ignore_ascii_case("actor");
     let metadata = if actor { "#Actor " } else { "" };
     let (bounds, stated) = super::multiplicity("LogicalComponent", &component.attributes);
-    e.block(&format!("{metadata}part {}{bounds}", text::declared(&id, &component.name)), |e| {
+    let typing = e.typing(&component.attributes);
+    e.block(&format!("{metadata}part {}{typing}{bounds}", text::declared(&id, &component.name)), |e| {
         e.header("LogicalComponent", &component.attributes, &["actor", stated.unwrap_or("")]);
         // `Logical` is what the parser gives a component that states no type.
         if !component.component_type.is_empty() && component.component_type != "Logical" && !actor {
             e.line(&format!("attribute component_type : String = {};", text::string(&component.component_type)));
         }
-        component_ports(e, &component.ports);
+        levels::owned_ports(e, &component.ports, &component.attributes);
         // `interface_in` / `interface_out`: ports named by the interface they offer.
         for (direction, interfaces) in [("in", &component.interfaces_in), ("out", &component.interfaces_out)] {
             for interface in interfaces {
@@ -292,14 +293,15 @@ fn physical_node(e: &mut Exporter<'_>, node: &PhysicalNode) {
     let actor = super::flag(&node.attributes, "actor");
     let metadata = if actor { "#Node #Actor" } else { "#Node" };
     let (bounds, stated) = super::multiplicity("PhysicalNode", &node.attributes);
-    e.block(&format!("{metadata} part {}{bounds}", text::declared(&id, &node.name)), |e| {
+    let typing = e.typing(&node.attributes);
+    e.block(&format!("{metadata} part {}{typing}{bounds}", text::declared(&id, &node.name)), |e| {
         e.header("PhysicalNode", &node.attributes, &["actor", stated.unwrap_or("")]);
         for (key, value) in [("processor", &node.processor), ("memory", &node.memory)] {
             if let Some(value) = value {
                 e.line(&format!("attribute {key} : String = {};", text::string(value)));
             }
         }
-        component_ports(e, &node.component_ports);
+        levels::owned_ports(e, &node.component_ports, &node.attributes);
         for port in &node.ports {
             let short = id_of(&port.attributes, "");
             let short = if short.is_empty() { String::new() } else { format!("{} ", text::short(short)) };

@@ -31,6 +31,7 @@ struct Measure {
     kept_relationships: usize,
     total_relationships: usize,
     lost_by_kind: BTreeMap<String, usize>,
+    lost_relationships_by_kind: BTreeMap<String, usize>,
 }
 
 fn round_trip(path: &Path) -> Measure {
@@ -48,7 +49,12 @@ fn round_trip(path: &Path) -> Measure {
         let kept_elsewhere = elements_after.iter().any(|(_, other)| other == id);
         *lost_by_kind.entry(if kept_elsewhere { format!("{kind} (kind changed)") } else { kind.clone() }).or_insert(0) += 1;
     }
+    let mut lost_relationships_by_kind: BTreeMap<String, usize> = BTreeMap::new();
+    for (kind, _, _) in relationships_before.difference(&relationships_after) {
+        *lost_relationships_by_kind.entry(kind.clone()).or_insert(0) += 1;
+    }
     Measure {
+        lost_relationships_by_kind,
         kept_elements: elements_before.intersection(&elements_after).count(),
         total_elements: elements_before.len(),
         kept_relationships: relationships_before.intersection(&relationships_after).count(),
@@ -69,6 +75,9 @@ fn report(name: &str, m: &Measure) {
     );
     for (kind, n) in &m.lost_by_kind {
         println!("ROUNDTRIP   lost {n:4} {kind}");
+    }
+    for (kind, n) in &m.lost_relationships_by_kind {
+        println!("ROUNDTRIP   lost relationship {n:4} {kind}");
     }
 }
 
@@ -106,10 +115,19 @@ fn every_example_round_trip_is_measured() {
         if Compiler::new(CompilerConfig::default()).compile_string(&source).is_err() {
             continue;
         }
-        let m = round_trip(&file);
-        report(file.file_name().unwrap().to_str().unwrap(), &m);
-        kept += m.kept_elements;
-        total += m.total_elements;
+        // A model that does not come back is reported, and the survey goes on.
+        let name = file.file_name().unwrap().to_str().unwrap().to_string();
+        match std::panic::catch_unwind(|| round_trip(&file)) {
+            Ok(m) => {
+                report(&name, &m);
+                kept += m.kept_elements;
+                total += m.total_elements;
+            }
+            Err(_) => {
+                println!("ROUNDTRIP {name}: does not come back (see the panic above)");
+                total += shape(&compile(&source)).0.len();
+            }
+        }
     }
     println!("ROUNDTRIP total elements {kept}/{total} ({}%)", 100 * kept / total.max(1));
 }

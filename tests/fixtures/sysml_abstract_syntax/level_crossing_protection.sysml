@@ -25,6 +25,8 @@ package LevelCrossingProtection {
         metadata def PhysicalPort;
         metadata def ExchangeItem;
         metadata def Path;
+        metadata def Fmea;
+        metadata def Interface;
     }
     private import ArcadiaProfile::*;
     attribute version : String = "1.0";

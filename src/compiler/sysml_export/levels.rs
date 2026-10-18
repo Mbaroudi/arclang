@@ -167,6 +167,11 @@ pub(super) fn register_part(e: &mut Exporter<'_>, package: &str, base: &[String]
     segments
 }
 
+/// The id of an operational actor: written, else `ACT-<name>`, as the element graph has it.
+fn operational_actor_id(actor: &Actor) -> String {
+    actor.id.clone().unwrap_or_else(|| format!("ACT-{}", actor.name.replace(' ', "-")))
+}
+
 pub(super) fn ports_of(ports: &[ComponentPort]) -> Vec<(&str, &str)> {
     ports.iter().map(|p| (p.id.as_str(), p.name.as_str())).collect()
 }
@@ -193,7 +198,8 @@ pub(super) fn register(e: &mut Exporter<'_>) {
             }
         }
         for actor in &oa.actors {
-            let id = id_of(&actor.attributes, actor.id.as_deref().unwrap_or(&actor.name));
+            let fallback = operational_actor_id(actor);
+            let id = id_of(&actor.attributes, &fallback);
             register_part(e, &package, &[], id, &actor.name, &[]);
         }
         register_capabilities(e, &package, &oa.capabilities);
@@ -279,7 +285,8 @@ pub(super) fn in_package(e: &mut Exporter<'_>, level: Level, body: impl FnOnce(&
 /// action` inside the part that holds it): its ports as directed items,
 /// its sub-functions nested.
 pub(super) fn function<F: Function>(e: &mut Exporter<'_>, kind: &str, f: &F, keyword: &str) {
-    e.block(&format!("{keyword} {}", text::declared(f.written(), f.name())), |e| {
+    let typing = e.typing(f.attributes());
+    e.block(&format!("{keyword} {}{typing}", text::declared(f.written(), f.name())), |e| {
         e.header(kind, f.attributes(), &["inputs", "outputs"]);
         for port in f.ports() {
             let ty = data::type_reference(e, &port.data_type);
@@ -310,6 +317,13 @@ pub(super) fn component_ports(e: &mut Exporter<'_>, ports: &[ComponentPort]) {
         let def = port_def(&port.interface_type);
         e.line(&format!("{} port {short}{} : {def};", data::direction(&port.direction), text::name(&port.name)));
     }
+}
+
+/// The ports of an element that its types do not give it already.
+pub(super) fn owned_ports(e: &mut Exporter<'_>, ports: &[ComponentPort], attributes: &HashMap<String, AttributeValue>) {
+    let inherited: Vec<String> = e.inherited(attributes).map(|i| i.ports.iter().map(|p| p.name.clone()).collect()).unwrap_or_default();
+    let own: Vec<ComponentPort> = ports.iter().filter(|p| !inherited.contains(&p.name)).cloned().collect();
+    component_ports(e, &own);
 }
 
 /// The port definition of a port carrying `interface`: one per interface, in the level.
@@ -366,7 +380,10 @@ pub(super) fn connection(e: &mut Exporter<'_>, metadata: &str, id: &str, label: 
         e.line(&format!("// connection {} from {from} to {to}: an end is not exported", text::name(label)));
         return;
     };
-    let head = format!("{metadata}connection {}connect {source} to {target}", connector_head(id, label));
+    let typing = e.typing(attributes);
+    let declared = format!("{}{typing}", connector_head(id, label).trim_end());
+    let declared = if declared.is_empty() { String::new() } else { format!("{} ", declared.trim_start()) };
+    let head = format!("{metadata}connection {declared}connect {source} to {target}");
     e.block(&head, |e| e.header(kind, attributes, &["from_port", "to_port", "exchange_item", "via"]));
 }
 
@@ -424,7 +441,8 @@ fn operational(e: &mut Exporter<'_>, oa: &OperationalAnalysis) {
         for entity in &oa.entities {
             let id = id_of(&entity.attributes, &entity.id).to_string();
             let allocated: Vec<String> = oa.activities.iter().filter(|a| a.performed_by == id || a.performed_by == entity.name).map(|a| a.written().to_string()).collect();
-            e.block(&format!("#Entity part {}", text::declared(&id, &entity.name)), |e| {
+            let typing = e.typing(&entity.attributes);
+            e.block(&format!("#Entity part {}{typing}", text::declared(&id, &entity.name)), |e| {
                 e.header("OperationalEntity", &entity.attributes, &[]);
                 for activity in &entity.activities {
                     function(e, "OperationalActivity", activity, "perform action");
@@ -433,9 +451,10 @@ fn operational(e: &mut Exporter<'_>, oa: &OperationalAnalysis) {
             });
         }
         for actor in &oa.actors {
-            let id = id_of(&actor.attributes, actor.id.as_deref().unwrap_or(&actor.name)).to_string();
+            let id = id_of(&actor.attributes, &operational_actor_id(actor)).to_string();
             let allocated: Vec<String> = oa.activities.iter().filter(|a| a.performed_by == id || a.performed_by == actor.name).map(|a| a.written().to_string()).collect();
-            e.block(&format!("#Actor part {}", text::declared(&id, &actor.name)), |e| {
+            let typing = e.typing(&actor.attributes);
+            e.block(&format!("#Actor part {}{typing}", text::declared(&id, &actor.name)), |e| {
                 e.header("Actor", &actor.attributes, &[]);
                 performs(e, &allocated);
             });
@@ -484,18 +503,20 @@ fn system(e: &mut Exporter<'_>, sa: &SystemAnalysis) {
         for component in &sa.components {
             let id = id_of(&component.attributes, &component.name).to_string();
             let allocated = super::relations::list(&component.attributes, "allocated_functions");
-            e.block(&format!("part {}", text::declared(&id, &component.name)), |e| {
+            let typing = e.typing(&component.attributes);
+            e.block(&format!("part {}{typing}", text::declared(&id, &component.name)), |e| {
                 e.header("SystemComponent", &component.attributes, &[]);
-                component_ports(e, &component.ports);
+                owned_ports(e, &component.ports, &component.attributes);
                 performs(e, &allocated);
             });
         }
         for actor in &sa.external_actors {
             let id = id_of(&actor.attributes, &actor.id).to_string();
             let allocated = super::relations::list(&actor.attributes, "allocated_functions");
-            e.block(&format!("#Actor part {}", text::declared(&id, &actor.name)), |e| {
+            let typing = e.typing(&actor.attributes);
+            e.block(&format!("#Actor part {}{typing}", text::declared(&id, &actor.name)), |e| {
                 e.header("SystemActor", &actor.attributes, &[]);
-                component_ports(e, &actor.ports);
+                owned_ports(e, &actor.ports, &actor.attributes);
                 performs(e, &allocated);
             });
         }
