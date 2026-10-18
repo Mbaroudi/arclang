@@ -62,7 +62,7 @@ enum On {
 /// The Capella representation of a diagram: by the `[XXX]` prefix of its
 /// name, else by its view (a view showing functions only is a data flow);
 /// the kind of element it is drawn on, and which one.
-fn representation(diagram: &DiagramDecl, shows_boxes: bool, shows_realizations: bool) -> Option<(&'static str, &'static str, On)> {
+fn representation(diagram: &DiagramDecl, shows_boxes: bool, shows_realizations: bool, shows_interfaces: bool) -> Option<(&'static str, &'static str, On)> {
     let prefix = diagram.name.trim_start().strip_prefix('[').and_then(|r| r.split(']').next()).unwrap_or("");
     let by_prefix = match prefix {
         // An architecture diagram showing functions only is drawn as a data flow:
@@ -91,6 +91,8 @@ fn representation(diagram: &DiagramDecl, shows_boxes: bool, shows_realizations: 
         "CRB" => "Capability Realization Blank",
         "CRI" => "Contextual Capability Realization Involvement",
         "IDB" | "ID" => "Interfaces Diagram Blank",
+        // An architecture view showing interfaces is an interfaces diagram.
+        _ if shows_interfaces && matches!(diagram.view.as_str(), "lab" | "sab" | "pab") => "Interfaces Diagram Blank",
         _ => match (diagram.view.as_str(), shows_boxes) {
             ("lab", true) => "Logical Architecture Blank",
             ("lab", false) => "Logical Data Flow Blank",
@@ -224,7 +226,8 @@ pub(super) fn diagrams(context: &mut Context, index: &Index, diagrams: &[Diagram
         let shown: Vec<String> = diagram.shows.iter().filter_map(|s| context.resolve(s).map(str::to_string)).collect();
         let shows_boxes = shown.iter().any(|id| index.kind.get(id).is_some_and(|k| k.ends_with("Component") || k == "oa:Entity"));
         let shows_realizations = shown.iter().any(|id| index.kind.get(id).is_some_and(|k| k == "la:CapabilityRealization"));
-        let Some((rep, target_kind, which)) = representation(diagram, shows_boxes, shows_realizations) else {
+        let shows_interfaces = shown.iter().any(|id| index.kind.get(id).is_some_and(|k| k == "cs:Interface"));
+        let Some((rep, target_kind, which)) = representation(diagram, shows_boxes, shows_realizations, shows_interfaces) else {
             context.note(format!("diagram '{}' left out: Capella has no diagram for the view '{}'", diagram.name, diagram.view));
             continue;
         };
