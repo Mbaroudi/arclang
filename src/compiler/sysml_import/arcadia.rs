@@ -122,6 +122,8 @@ struct Mapper<'g> {
     dependency_attrs: HashMap<String, Vec<(String, String)>>,
     /// (performer element id, performed element id) of every `perform`.
     performances: Vec<(String, String)>,
+    /// Connectors `exchange` gave up on, counted already.
+    lost: HashSet<String>,
     /// Names borne by more than one node: references to them are qualified.
     shared_names: HashSet<String>,
     /// The text uses the Arcadia profile (it is an ArcLang export or written
@@ -144,6 +146,7 @@ pub fn map(graph: &Graph) -> Mapped {
         dependency_attrs: HashMap::new(),
         performances: Vec::new(),
         shared_names: HashSet::new(),
+        lost: HashSet::new(),
         profiled: graph.elements.iter().any(|e| e.name.as_deref() == Some("ArcadiaProfile")),
     };
     mapper.run();
@@ -316,7 +319,8 @@ impl<'g> Mapper<'g> {
             .graph
             .elements
             .iter()
-            .filter(|e| matches!(e.kind.as_str(), "PartUsage" | "ActionUsage" | "PerformActionUsage"))
+            // Outside the profile, accepting and sending are functions too.
+            .filter(|e| matches!(e.kind.as_str(), "PartUsage" | "ActionUsage" | "PerformActionUsage") || (!self.profiled && matches!(e.kind.as_str(), "AcceptActionUsage" | "SendActionUsage")))
             .filter(|e| self.is_structural_usage(e) && !self.is_chain(e) && !Self::has_metadata(e, &["Path"]))
             .collect();
         let anonymous = |u: &Element| u.short_name.is_none() && u.docs.is_empty() && !u.children.iter().any(|c| self.graph.kind_of(c) == "MetadataUsage");
@@ -629,7 +633,16 @@ impl<'g> Mapper<'g> {
     }
 
     fn is_port_like(&self, element: &Element) -> bool {
-        element.kind == "PortUsage" || (matches!(element.kind.as_str(), "ItemUsage" | "ReferenceUsage" | "AttributeUsage" | "Feature") && element.direction.is_some())
+        element.kind == "PortUsage" || (matches!(element.kind.as_str(), "ItemUsage" | "ReferenceUsage" | "AttributeUsage" | "Feature") && element.direction.is_some()) || self.is_accepted_payload(element)
+    }
+
+    /// The payload of an `accept` (`accept cmd : Cmd via p`), outside the profile.
+    fn is_accepted_payload(&self, element: &Element) -> bool {
+        !self.profiled
+            && element.name.is_some()
+            && !element.is_end
+            && matches!(element.kind.as_str(), "ItemUsage" | "ReferenceUsage" | "AttributeUsage")
+            && element.owner.as_deref().is_some_and(|o| self.graph.kind_of(o) == "AcceptActionUsage")
     }
 
     /// The key a node is written under in `ids`.
@@ -1014,6 +1027,7 @@ impl<'g> Mapper<'g> {
                 let name = child.name.clone().or_else(|| child.redefines.iter().filter_map(|r| graph.get(r)).find_map(|r| r.name.clone()));
                 let Some(name) = name else { continue };
                 // A value that is not a literal is an expression: a quantity (`30 [ms]`).
+                let mut is_formula = false;
                 let value = match (&child.value, &child.value_expression) {
                     (Some(value), _) => value.clone(),
                     // A value that is not a literal, a quantity or a list (a
@@ -1022,11 +1036,13 @@ impl<'g> Mapper<'g> {
                         Ok(text) if expression::is_attribute_value(&text) => text,
                         Ok(text) => {
                             computed.push(format!("'{}': attribute '{name}' = {text} kept as text", Self::display(element)));
+                            is_formula = true;
                             string_literal(&text)
                         }
                         Err(_) => match child.source_text.clone() {
                             Some(source) => {
                                 computed.push(format!("'{}': attribute '{name}' = {source} kept as text", Self::display(element)));
+                                is_formula = true;
                                 string_literal(&source)
                             }
                             None => {
@@ -1038,6 +1054,9 @@ impl<'g> Mapper<'g> {
                     (None, None) => continue,
                 };
                 let key = field_key(&name);
+                // A formula for a typed key (`mass = dryMass + cargoMass`) is
+                // text, not the quantity the key holds: it keeps its own key.
+                let key = if is_formula && !self.profiled && generic::is_typed_key(&key) { format!("{key}_expression") } else { key };
                 if skip.contains(&key.as_str()) || matches!(key.as_str(), "id" | "name") || !seen.insert(key.clone()) {
                     continue;
                 }
@@ -1393,6 +1412,9 @@ impl<'g> Mapper<'g> {
                     Some((c, tagged))
                 } else if matches!(c.kind.as_str(), "ItemUsage" | "ReferenceUsage" | "AttributeUsage") && c.direction.is_some() && !c.is_end {
                     Some((c, Some(match c.direction.as_deref() { Some("out") => "out", Some("inout") => "inout", _ => "in" })))
+                } else if self.is_accepted_payload(c) {
+                    // What an action accepts is what it hands on.
+                    Some((c, Some("out")))
                 } else {
                     None
                 }
@@ -1703,7 +1725,7 @@ impl<'g> Mapper<'g> {
         self.graph
             .of_kinds(CONNECTOR_KINDS)
             .filter(|c| !self.is_library(c) && !self.inside_occurrence(c) && (self.profiled || !self.is_message(c)))
-            .filter(|c| c.sources.first().and_then(|s| self.end_node(s)).is_some_and(|n| self.nodes[n].level == level))
+            .filter(|c| self.connector_anchor(c).is_some_and(|n| self.nodes[n].level == level))
             .collect()
     }
 
@@ -1713,12 +1735,15 @@ impl<'g> Mapper<'g> {
 
     fn exchange(&mut self, level: Level, connector: &Element) {
         let (Some(source), Some(target)) = (connector.sources.first().cloned(), connector.targets.first().cloned()) else {
-            self.count("connectors without two ends (left out)");
+            self.connector_lost(connector, "connectors without two ends (left out)");
             return;
         };
-        let written = self.written_ends(connector).or_else(|| Some((self.end_ref(&source)?, self.end_ref(&target)?)));
+        let written = self
+            .written_ends(connector)
+            .or_else(|| Some((self.end_ref(&source)?, self.end_ref(&target)?)))
+            .or_else(|| self.flow_port_ends(connector).map(|((from, _), (to, _))| (from, to)));
         let Some((from, to)) = written else {
-            self.count("connectors to elements not written (left out)");
+            self.connector_lost(connector, "connectors to elements not written (left out)");
             return;
         };
         let shape_of = |mapper: &Self, end: &str| mapper.end_node(end).map(|n| mapper.nodes[n].shape);
@@ -1739,6 +1764,9 @@ impl<'g> Mapper<'g> {
         let mut items: Vec<String> = connector.children.iter().filter_map(|c| self.graph.get(c)).filter(|c| c.kind == "ItemUsage" || c.kind == "PayloadFeature").filter_map(|c| c.types.first()).filter_map(|t| self.ids.get(t).cloned()).collect();
         if items.is_empty() {
             items = connector.types.iter().filter_map(|t| self.ids.get(t).cloned()).collect();
+        }
+        if items.is_empty() {
+            items = self.flow_port_items(connector);
         }
         let is_link = Self::has_metadata(connector, &["Link", "PhysicalLink"]) || (connector.kind == "InterfaceUsage" && level == Level::Pa);
         let is_interface = Self::has_metadata(connector, &["Interface"]);

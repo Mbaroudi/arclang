@@ -109,6 +109,68 @@ impl<'g> Mapper<'g> {
         Some((self.written_end(connector, from)?, self.written_end(connector, to)?))
     }
 
+    /// The ends of a flow between items of ports (`from h.exit.air to
+    /// c.entry.air`): the ports, and the parts holding them.
+    pub(super) fn flow_port_ends(&self, flow: &Element) -> Option<((String, usize), (String, usize))> {
+        let [from, to] = self.flow_port_bases(flow)?;
+        Some(((self.end_ref(from)?, self.end_node(from)?), (self.end_ref(to)?, self.end_node(to)?)))
+    }
+
+    /// The ports a flow between port items goes between, as written.
+    fn flow_port_bases<'e>(&'e self, flow: &'e Element) -> Option<[&'e str; 2]> {
+        if self.profiled || !matches!(flow.kind.as_str(), "FlowUsage" | "FlowConnectionUsage" | "SuccessionFlowUsage") {
+            return None;
+        }
+        let ends: Vec<&Element> = flow.children.iter().filter_map(|c| self.graph.get(c)).filter(|c| c.kind == "FlowEnd").collect();
+        let [from, to] = ends.as_slice() else { return None };
+        let base = |end: &'e Element| -> Option<&'e str> {
+            let base = end.subsets.first()?;
+            let element = self.graph.get(base)?;
+            let port = element.chaining.last().map(String::as_str).unwrap_or(base);
+            (self.graph.kind_of(port) == "PortUsage").then_some(base.as_str())
+        };
+        Some([base(from)?, base(to)?])
+    }
+
+    /// What a flow between port items carries: the types of the items its
+    /// ends name (`h.outlet.air`, an `Air`).
+    pub(super) fn flow_port_items(&self, flow: &Element) -> Vec<String> {
+        if self.flow_port_bases(flow).is_none() {
+            return Vec::new();
+        }
+        let mut items: Vec<String> = Vec::new();
+        let ends = flow.children.iter().filter_map(|c| self.graph.get(c)).filter(|c| c.kind == "FlowEnd");
+        let features = ends.flat_map(|end| end.children.iter().filter_map(|c| self.graph.get(c)));
+        for feature in features {
+            let typed = feature.redefines.iter().filter_map(|r| self.graph.get(r)).flat_map(|r| r.types.iter());
+            for ty in typed.chain(feature.types.iter()) {
+                if let Some(id) = self.ids.get(ty).filter(|id| !items.contains(id)) {
+                    items.push(id.clone());
+                }
+            }
+        }
+        items
+    }
+
+    /// The node a connector is placed by: its source's, or the part holding
+    /// the source port of a flow between port items. Known before any id.
+    pub(super) fn connector_anchor(&self, connector: &Element) -> Option<usize> {
+        connector.sources.first().and_then(|s| self.end_node(s)).or_else(|| self.flow_port_bases(connector).and_then(|[from, _]| self.end_node(from)))
+    }
+
+    /// A connector `exchange` gave up on, counted there.
+    pub(super) fn connector_lost(&mut self, connector: &Element, why: &'static str) {
+        self.count(why);
+        self.lost.insert(connector.id.clone());
+    }
+
+    /// Whether a binding joins values (`bind a = x;` between attributes),
+    /// not elements of the architecture.
+    fn binds_values(&self, connector: &Element) -> bool {
+        connector.kind == "BindingConnectorAsUsage"
+            && connector.sources.iter().chain(connector.targets.iter()).all(|end| matches!(self.graph.kind_of(end), "AttributeUsage" | "ReferenceUsage" | "Feature" | "") && self.end_node(end).is_none())
+    }
+
     /// One end: a path is read through its steps; a port named alone is
     /// one of the part holding the connector (its own or inherited).
     fn written_end(&self, connector: &Element, end: &Element) -> Option<String> {
@@ -160,14 +222,25 @@ impl<'g> Mapper<'g> {
         if self.profiled {
             return;
         }
+        let mut value_bindings = 0;
         let lost: Vec<String> = self
             .graph
             .of_kinds(CONNECTOR_KINDS)
             .filter(|c| !self.is_library(c) && !self.inside_occurrence(c) && !self.is_message(c) && !self.inside_definition(c))
-            // A connector whose source is written reaches `exchange`, which counts its own losses.
-            .filter(|c| c.sources.first().and_then(|e| self.end_node(e)).is_none())
+            // Not written, and not counted by `exchange` already.
+            .filter(|c| !self.ids.contains_key(&c.id) && !self.lost.contains(&c.id))
+            .collect::<Vec<_>>()
+            .into_iter()
+            .filter(|c| {
+                let values = self.binds_values(c);
+                if values {
+                    value_bindings += 1;
+                }
+                !values
+            })
             .map(|c| Self::name_of(c).unwrap_or_else(|| format!("{} {}", c.kind, self.end_text(c))))
             .collect();
+        self.count_by("bindings between values (not architecture, left out)", value_bindings);
         if lost.is_empty() {
             return;
         }
@@ -396,6 +469,20 @@ impl<'g> Mapper<'g> {
         }
         (2..).map(|n| format!("{title} {n}")).find(|t| !taken.contains(t)).expect("an unused number")
     }
+}
+
+/// Whether the metamodel types a key as something other than text (a
+/// quantity, a number, a reference): a formula cannot be its value.
+pub(super) fn is_typed_key(key: &str) -> bool {
+    use crate::compiler::metamodel::{AttrType, Metamodel};
+    use std::sync::OnceLock;
+    static TYPED: OnceLock<HashSet<&'static str>> = OnceLock::new();
+    TYPED
+        .get_or_init(|| {
+            let metamodel = Metamodel::current();
+            metamodel.kinds.iter().flat_map(|k| k.attributes.iter()).filter(|a| !matches!(a.ty, AttrType::Text)).map(|a| a.key).collect()
+        })
+        .contains(key)
 }
 
 /// The last segment of a written reference (`engine.drivePwrPort`: `drivePwrPort`).
