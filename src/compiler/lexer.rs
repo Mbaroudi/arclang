@@ -58,6 +58,10 @@ pub enum Token {
     SafetyAnalysis,
     Hazard,
     Fmea,
+    SecurityAnalysis,
+    SecurityScales,
+    Threat,
+    Asset,
     Trace,
     Deploys,
     Implements,
@@ -157,7 +161,10 @@ pub enum Token {
     // Literals
     Identifier(String),
     StringLiteral(String),
+    /// A number written with a decimal point (`800.0`).
     Number(f64),
+    /// A number written without a decimal point (`800`).
+    Integer(i64),
     
     // Symbols
     LeftBrace,
@@ -194,6 +201,7 @@ impl fmt::Display for Token {
             Token::Identifier(s) => write!(f, "Identifier({})", s),
             Token::StringLiteral(s) => write!(f, "String(\"{}\")", s),
             Token::Number(n) => write!(f, "Number({})", n),
+            Token::Integer(n) => write!(f, "Integer({})", n),
             _ => write!(f, "{:?}", self),
         }
     }
@@ -221,6 +229,10 @@ impl Token {
             Token::SafetyAnalysis => "safety_analysis",
             Token::Hazard => "hazard",
             Token::Fmea => "fmea",
+            Token::SecurityAnalysis => "security_analysis",
+            Token::SecurityScales => "security_scales",
+            Token::Threat => "threat",
+            Token::Asset => "asset",
             Token::Trace => "trace",
             Token::Deploys => "deploys",
             Token::Implements => "implements",
@@ -563,6 +575,11 @@ impl Lexer {
             }
         }
         
+        if !has_decimal {
+            if let Ok(n) = number_str.parse::<i64>() {
+                return Ok(Token::Integer(n));
+            }
+        }
         number_str.parse::<f64>()
             .map(Token::Number)
             .map_err(|_| format!("Invalid number: {}", number_str))
@@ -593,6 +610,10 @@ impl Lexer {
             "item" => Token::Item,
             "safety_analysis" => Token::SafetyAnalysis,
             "hazard" => Token::Hazard,
+            "security_analysis" => Token::SecurityAnalysis,
+            "security_scales" => Token::SecurityScales,
+            "threat" => Token::Threat,
+            "asset" => Token::Asset,
             "fmea" => Token::Fmea,
             "trace" => Token::Trace,
             "deploys" => Token::Deploys,

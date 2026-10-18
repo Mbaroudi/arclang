@@ -169,6 +169,11 @@ fn chain_order(chain: &Node) -> Vec<String> {
 /// declarations whose `involves` lists the elements written for its steps.
 fn chains(writer: &mut Writer, depth: usize, holder: &Node, capella_kind: &str, keyword: &str, what: &'static str, kind: &'static str, accept: &[&str], taken: &mut HashSet<String>) {
     let all: Vec<&Node> = holder.find_all(capella_kind);
+    let parent_of: HashMap<&str, &Node> = holder
+        .descendants()
+        .into_iter()
+        .flat_map(|node| node.children.iter().map(move |child| (child.id(), node)))
+        .collect();
     let steps_of: HashMap<String, Vec<String>> = all.iter().map(|chain| (chain.id().to_string(), chain_order(chain))).collect();
     // A chain is written when one of its steps is: a function, an exchange,
     // or a chain written itself (so references settle in any order).
@@ -202,6 +207,10 @@ fn chains(writer: &mut Writer, depth: usize, holder: &Node, capella_kind: &str, 
         let name = data::unique_name(taken, &display_name(chain));
         writer.line(depth, &format!("{keyword} {} {{", string_literal(&name)));
         header_attributes(writer, depth + 1, chain, kind);
+        if let Some(owner) = chain_owner(&parent_of, writer, chain) {
+            writer.count("chains owned by a capability, a threat or a function");
+            writer.line(depth + 1, &format!("owner: {}", string_literal(&owner)));
+        }
         if !involved.is_empty() {
             writer.line(depth + 1, &format!("involves: {}", list_literal(&involved)));
         }
@@ -213,6 +222,18 @@ fn chains(writer: &mut Writer, depth: usize, holder: &Node, capella_kind: &str, 
             }
         }
     }
+}
+
+/// The element a chain is declared under when it is not the level's own
+/// chain holder (the root function): a capability, a capability realization,
+/// a threat, or a written function or activity. Written as `owner:` so the
+/// export puts the chain back under it.
+fn chain_owner(parent_of: &HashMap<&str, &Node>, writer: &Writer, chain: &Node) -> Option<String> {
+    let parent = parent_of.get(chain.id())?;
+    let owning_kind = ["ctx:Capability", "la:CapabilityRealization", "oa:OperationalCapability", "cybersecurity:Threat"]
+        .iter()
+        .any(|kind| parent.is(kind));
+    (owning_kind || writer.written(parent.id())).then(|| parent.id().to_string())
 }
 
 /// The control nodes and sequence links of a chain: `control and "AND 1"`

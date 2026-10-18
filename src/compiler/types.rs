@@ -475,6 +475,16 @@ impl Resolver<'_> {
                 self.apply("Hazard", &label, &mut hazard.attributes, None)?;
             }
         }
+        for analysis in &mut ast.security_analysis {
+            for threat in &mut analysis.threats {
+                let label = threat.name.clone();
+                self.apply("Threat", &label, &mut threat.attributes, None)?;
+            }
+            for asset in &mut analysis.assets {
+                let label = asset.name.clone();
+                self.apply("PrimaryAsset", &label, &mut asset.attributes, None)?;
+            }
+        }
         for test_case in &mut ast.test_cases {
             let label = test_case.name.clone();
             self.apply("TestCase", &label, &mut test_case.attributes, None)?;

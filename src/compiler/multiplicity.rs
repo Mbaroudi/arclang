@@ -64,6 +64,7 @@ impl Multiplicity {
     /// The multiplicity an attribute value states.
     pub fn from_value(value: &AttributeValue) -> Result<Multiplicity, MultiplicityError> {
         match value {
+            AttributeValue::Integer(i) if *i >= 0 => Ok(Multiplicity::exactly(*i as u64)),
             AttributeValue::Number(n) if n.fract() == 0.0 && *n >= 0.0 && *n < 1e15 => Ok(Multiplicity::exactly(*n as u64)),
             AttributeValue::String(text) => Multiplicity::parse(text),
             other => Err(MultiplicityError::Malformed(other.display())),

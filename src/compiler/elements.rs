@@ -57,6 +57,7 @@ pub fn attribute_json(value: &AttributeValue) -> Value {
     match value {
         AttributeValue::String(text) => json!(text),
         AttributeValue::Number(n) => json!(n),
+        AttributeValue::Integer(i) => json!(i),
         AttributeValue::Boolean(b) => json!(b),
         AttributeValue::Quantity(q) => json!({
             "@type": "Quantity",
@@ -662,6 +663,23 @@ pub fn build(ast: &Model, semantic: &SemanticModel) -> ElementGraph {
             builder.element("FmeaEntry", "", &entry.name, &root, &entry.attributes);
         }
     }
+    for analysis in &ast.security_analysis {
+        for threat in &analysis.threats {
+            let mut attributes = threat.attributes.clone();
+            if let Some(kind) = &threat.kind {
+                attributes.insert("kind".to_string(), AttributeValue::String(kind.clone()));
+            }
+            if let Some(level) = analysis.level() {
+                attributes.entry("level_of".to_string()).or_insert_with(|| AttributeValue::String(level.to_string()));
+            }
+            builder.typed_element("Threat", &threat.id, &threat.name, &root, &attributes);
+        }
+        for asset in &analysis.assets {
+            let mut attributes = asset.attributes.clone();
+            attributes.insert("kind".to_string(), AttributeValue::String(asset.kind.as_str().to_string()));
+            builder.typed_element("PrimaryAsset", &asset.id, &asset.name, &root, &attributes);
+        }
+    }
     for test_case in &ast.test_cases {
         builder.typed_element("TestCase", &test_case.id, &test_case.name, &root, &test_case.attributes);
         builder.set_extra("method", json!(test_case.method));
@@ -822,6 +840,21 @@ pub fn build(ast: &Model, semantic: &SemanticModel) -> ElementGraph {
         for path in &pa.paths {
             if let Some(owner) = builder.resolve(&path.id).or_else(|| builder.resolve(&path.name)) {
                 builder.involvements(&owner, &path.name, &path.involves);
+            }
+        }
+    }
+    for analysis in &ast.security_analysis {
+        for threat in &analysis.threats {
+            for asset in &threat.applies_to {
+                builder.relate("ThreatApplication", None, &threat.id, asset, &empty(), Vec::new());
+            }
+            for element in &threat.involves {
+                builder.relate("ThreatInvolvement", None, &threat.id, element, &empty(), Vec::new());
+            }
+        }
+        for asset in &analysis.assets {
+            for member in &asset.members {
+                builder.relate("AssetMember", None, &asset.id, member, &empty(), Vec::new());
             }
         }
     }

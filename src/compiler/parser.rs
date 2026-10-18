@@ -108,6 +108,17 @@ impl Parser {
                 Token::SafetyAnalysis => {
                     model.safety_analysis.push(self.parse_safety_analysis()?);
                 }
+                Token::SecurityAnalysis => {
+                    model.security_analysis.push(self.parse_security_analysis()?);
+                }
+                Token::SecurityScales => {
+                    let scales = self.parse_security_scales()?;
+                    if model.security_scales.is_some() {
+                        self.warnings.push("security_scales declared more than once; the first declaration is kept".to_string());
+                    } else {
+                        model.security_scales = Some(scales);
+                    }
+                }
                 Token::Trace => {
                     model.traces.push(self.parse_trace()?);
                 }
@@ -241,6 +252,17 @@ impl Parser {
                 Token::SafetyAnalysis => {
                     model.safety_analysis.push(self.parse_safety_analysis()?);
                 }
+                Token::SecurityAnalysis => {
+                    model.security_analysis.push(self.parse_security_analysis()?);
+                }
+                Token::SecurityScales => {
+                    let scales = self.parse_security_scales()?;
+                    if model.security_scales.is_some() {
+                        self.warnings.push("security_scales declared more than once; the first declaration is kept".to_string());
+                    } else {
+                        model.security_scales = Some(scales);
+                    }
+                }
                 Token::Trace => {
                     model.traces.push(self.parse_trace()?);
                 }
@@ -333,6 +355,17 @@ impl Parser {
                 }
                 Token::SafetyAnalysis => {
                     model.safety_analysis.push(self.parse_safety_analysis()?);
+                }
+                Token::SecurityAnalysis => {
+                    model.security_analysis.push(self.parse_security_analysis()?);
+                }
+                Token::SecurityScales => {
+                    let scales = self.parse_security_scales()?;
+                    if model.security_scales.is_some() {
+                        self.warnings.push("security_scales declared more than once; the first declaration is kept".to_string());
+                    } else {
+                        model.security_scales = Some(scales);
+                    }
                 }
                 Token::Trace => {
                     model.traces.push(self.parse_trace()?);
@@ -490,6 +523,17 @@ impl Parser {
                 }
                 Token::SafetyAnalysis => {
                     model.safety_analysis.push(self.parse_safety_analysis()?);
+                }
+                Token::SecurityAnalysis => {
+                    model.security_analysis.push(self.parse_security_analysis()?);
+                }
+                Token::SecurityScales => {
+                    let scales = self.parse_security_scales()?;
+                    if model.security_scales.is_some() {
+                        self.warnings.push("security_scales declared more than once; the first declaration is kept".to_string());
+                    } else {
+                        model.security_scales = Some(scales);
+                    }
                 }
                 Token::Trace => {
                     model.traces.push(self.parse_trace()?);
@@ -1492,25 +1536,28 @@ impl Parser {
     }
 
     /// Parse a number and, when a unit follows, the typed quantity:
+    /// the second value is the integer written when the literal had no
+    /// decimal point (`800` gives `Some(800)`, `800.0` gives `None`).
     /// `25 ms`, `100 Mbps`, `50 km/h`, `40 %`. A unit is an identifier right after
     /// the number that is NOT the key of the next attribute (not followed by
     /// ':'). An identifier that is not a known unit is an error.
-    fn parse_number_or_quantity(&mut self) -> Result<(f64, Option<super::quantity::Quantity>), String> {
-        let n = match self.current() {
-            Token::Number(n) => *n,
+    fn parse_number_or_quantity(&mut self) -> Result<(f64, Option<i64>, Option<super::quantity::Quantity>), String> {
+        let (n, integer) = match self.current() {
+            Token::Number(n) => (*n, None),
+            Token::Integer(i) => (*i as f64, Some(*i)),
             other => return Err(self.err(format!("Expected a number, got {}", other))),
         };
         self.advance();
         if matches!(self.tokens.get(self.position), Some(Token::Percent)) {
             let quantity = super::quantity::Quantity::new(n, "%").map_err(|e| self.err(e.to_string()))?;
             self.advance();
-            return Ok((n, Some(quantity)));
+            return Ok((n, integer, Some(quantity)));
         }
         let Some(Token::Identifier(unit)) = self.tokens.get(self.position) else {
-            return Ok((n, None));
+            return Ok((n, integer, None));
         };
         if matches!(self.tokens.get(self.position + 1), Some(Token::Colon)) {
-            return Ok((n, None));
+            return Ok((n, integer, None));
         }
         let unit = unit.clone();
         // Compound symbols lex as three tokens: `km` `/` `h`.
@@ -1522,7 +1569,7 @@ impl Parser {
                 self.advance();
                 self.advance();
                 self.advance();
-                return Ok((n, Some(quantity)));
+                return Ok((n, integer, Some(quantity)));
             }
         }
         let quantity = super::quantity::Quantity::new(n, &unit).map_err(|_| {
@@ -1532,7 +1579,7 @@ impl Parser {
             ))
         })?;
         self.advance();
-        Ok((n, Some(quantity)))
+        Ok((n, integer, Some(quantity)))
     }
 
     /// Parse: type Name [extends Base] { required: [..]  attr: value  port in|out|inout Name {..} }
@@ -1625,8 +1672,8 @@ impl Parser {
                 Token::Minus => BinOp::Sub,
                 // The lexer reads `-5` as one negative number; after an
                 // operand that is a subtraction (`a -5 ms` = `a - 5 ms`).
-                Token::Number(n) if *n < 0.0 => {
-                    let (n, quantity) = self.parse_number_or_quantity()?;
+                Token::Number(_) | Token::Integer(_) if self.current_is_negative_number() => {
+                    let (n, _, quantity) = self.parse_number_or_quantity()?;
                     let rhs = match quantity {
                         Some(q) => Expr::Quantity(super::quantity::Quantity { value: -q.value, unit: q.unit }),
                         None => Expr::Number(-n),
@@ -1669,9 +1716,9 @@ impl Parser {
     /// primary := Number Unit? | Name "." Attribute | Name | Function "(" args ")" | "(" expression ")"
     fn parse_primary(&mut self) -> Result<Expr, String> {
         match self.current().clone() {
-            Token::Number(_) => Ok(match self.parse_number_or_quantity()? {
-                (n, None) => Expr::Number(n),
-                (_, Some(quantity)) => Expr::Quantity(quantity),
+            Token::Number(_) | Token::Integer(_) => Ok(match self.parse_number_or_quantity()? {
+                (n, _, None) => Expr::Number(n),
+                (_, _, Some(quantity)) => Expr::Quantity(quantity),
             }),
             Token::LeftParen => {
                 self.advance();
@@ -3087,6 +3134,97 @@ impl Parser {
         })
     }
     
+    /// `security_analysis { level: "sa" id: "..." threat … asset … }`.
+    fn parse_security_analysis(&mut self) -> Result<SecurityAnalysis, String> {
+        self.expect(Token::SecurityAnalysis)?;
+        self.expect(Token::LeftBrace)?;
+        let mut threats = Vec::new();
+        let mut assets = Vec::new();
+        let mut attributes = HashMap::new();
+        while !self.check(&Token::RightBrace) && !self.is_at_end() {
+            match self.current() {
+                Token::Threat => threats.push(self.parse_threat()?),
+                Token::Asset => assets.push(self.parse_asset()?),
+                _ if self.peek_is_colon() => {
+                    let (key, value) = self.parse_attribute()?;
+                    attributes.insert(key, value);
+                }
+                _ => return Err(self.err(format!("Unexpected token in security_analysis: {}", self.current()))),
+            }
+        }
+        self.expect(Token::RightBrace)?;
+        if let Some(level) = attributes.get("level").and_then(|v| v.as_string()) {
+            if !matches!(level, "oa" | "sa" | "la" | "pa") {
+                return Err(self.err(format!("security_analysis: level '{level}' is not one of oa, sa, la, pa")));
+            }
+        }
+        if threats.is_empty() && assets.is_empty() {
+            self.warnings.push("security_analysis declares no threat and no asset".to_string());
+        }
+        let id = attributes.remove("id").and_then(|v| v.as_string().map(str::to_string)).unwrap_or_default();
+        Ok(SecurityAnalysis { id, threats, assets, attributes })
+    }
+
+    /// `threat "Name" { id: kind: level: applies_to: [...] involves: [...] … }`.
+    fn parse_threat(&mut self) -> Result<Threat, String> {
+        self.expect(Token::Threat)?;
+        let name = self.expect_name()?;
+        let mut attributes = self.parse_attributes_block()?;
+        let id = attributes.remove("id").and_then(|v| v.as_string().map(str::to_string)).unwrap_or_else(|| name.clone());
+        let kind = attributes.remove("kind").map(|v| v.display());
+        let applies_to = Self::take_names(&mut attributes, "applies_to", &name, "threat")?;
+        let involves = Self::take_names(&mut attributes, "involves", &name, "threat")?;
+        if let Some(level) = attributes.get("level") {
+            if level.as_integer().is_none() {
+                return Err(self.err(format!("threat '{name}': level must be an integer, got {}", level.display())));
+            }
+        }
+        Ok(Threat { id, name, kind, applies_to, involves, attributes })
+    }
+
+    /// `asset "Name" { id: kind: "functional" members: [...] … }`.
+    fn parse_asset(&mut self) -> Result<PrimaryAsset, String> {
+        self.expect(Token::Asset)?;
+        let name = self.expect_name()?;
+        let mut attributes = self.parse_attributes_block()?;
+        let id = attributes.remove("id").and_then(|v| v.as_string().map(str::to_string)).unwrap_or_else(|| name.clone());
+        let kind = match attributes.remove("kind") {
+            None => AssetKind::Functional,
+            Some(value) => AssetKind::parse(&value.display()).ok_or_else(|| {
+                self.err(format!("asset '{name}': kind '{}' is not one of functional, information, enterprise", value.display()))
+            })?,
+        };
+        let members = Self::take_names(&mut attributes, "members", &name, "asset")?;
+        Ok(PrimaryAsset { id, name, kind, members, attributes })
+    }
+
+    /// `security_scales { confidentiality: ["0", "1"] … threat_kinds: [...] }`.
+    fn parse_security_scales(&mut self) -> Result<SecurityScales, String> {
+        self.expect(Token::SecurityScales)?;
+        let mut attributes = self.parse_attributes_block()?;
+        let id = attributes.remove("id").and_then(|v| v.as_string().map(str::to_string)).unwrap_or_default();
+        for key in attributes.keys() {
+            if !SecurityScales::NEEDS.contains(&key.as_str()) && key != "threat_kinds" {
+                self.warnings.push(format!("security_scales: '{key}' is not a security need (confidentiality, integrity, availability, traceability) nor threat_kinds"));
+            }
+        }
+        Ok(SecurityScales { id, attributes })
+    }
+
+    /// A list attribute of names, removed from the block; a single name is
+    /// accepted as a list of one.
+    fn take_names(attributes: &mut HashMap<String, AttributeValue>, key: &str, owner: &str, kind: &str) -> Result<Vec<String>, String> {
+        match attributes.remove(key) {
+            None => Ok(Vec::new()),
+            Some(AttributeValue::List(items)) => items
+                .iter()
+                .map(|item| item.as_string().map(str::to_string).ok_or_else(|| format!("{kind} '{owner}': {key} must list names, got {}", item.display())))
+                .collect(),
+            Some(AttributeValue::String(single)) => Ok(vec![single]),
+            Some(other) => Err(format!("{kind} '{owner}': {key} must be a list of names, got {}", other.display())),
+        }
+    }
+
     fn parse_hazard(&mut self) -> Result<Hazard, String> {
         self.expect(Token::Hazard)?;
         let name = self.expect_name()?;
@@ -3261,9 +3399,10 @@ impl Parser {
                 let s = self.expect_string()?;
                 Ok(AttributeValue::String(s))
             }
-            Token::Number(_) => Ok(match self.parse_number_or_quantity()? {
-                (n, None) => AttributeValue::Number(n),
-                (_, Some(quantity)) => AttributeValue::Quantity(quantity),
+            Token::Number(_) | Token::Integer(_) => Ok(match self.parse_number_or_quantity()? {
+                (_, Some(i), None) => AttributeValue::Integer(i),
+                (n, None, None) => AttributeValue::Number(n),
+                (_, _, Some(quantity)) => AttributeValue::Quantity(quantity),
             }),
             Token::LeftBracket => self.parse_list(),
             Token::LeftBrace => {
@@ -3368,6 +3507,15 @@ impl Parser {
         }
     }
     
+    /// The lexer reads `-5` and `-5.0` as one negative literal.
+    fn current_is_negative_number(&self) -> bool {
+        match self.current() {
+            Token::Number(n) => *n < 0.0,
+            Token::Integer(i) => *i < 0,
+            _ => false,
+        }
+    }
+
     fn current(&self) -> &Token {
         &self.tokens[self.position]
     }

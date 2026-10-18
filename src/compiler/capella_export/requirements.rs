@@ -41,8 +41,8 @@ fn enum_value_id(folder: &str, key: &str, value: &str) -> String {
 fn value_kind(value: &AttributeValue) -> (&'static str, &'static str, String) {
     match value {
         AttributeValue::Boolean(b) => ("Requirements:BooleanValueAttribute", "Boolean", b.to_string()),
-        AttributeValue::Number(n) if n.fract() == 0.0 => ("Requirements:IntegerValueAttribute", "Integer", format!("{}", *n as i64)),
-        AttributeValue::Number(n) => ("Requirements:RealValueAttribute", "Real", n.to_string()),
+        AttributeValue::Integer(i) => ("Requirements:IntegerValueAttribute", "Integer", i.to_string()),
+        AttributeValue::Number(n) => ("Requirements:RealValueAttribute", "Real", super::super::ast::decimal_literal(*n)),
         AttributeValue::String(s) if s == "true" || s == "false" => ("Requirements:BooleanValueAttribute", "Boolean", s.clone()),
         // Several values: an enumeration attribute naming its literals.
         AttributeValue::List(_) => ("Requirements:EnumerationValueAttribute", "Enumeration", String::new()),

@@ -20,6 +20,14 @@ pub struct Model {
     pub physical_architecture: Vec<PhysicalArchitecture>,
     pub epbs: Vec<Epbs>,
     pub safety_analysis: Vec<SafetyAnalysis>,
+    /// Cybersecurity analyses: the threats and primary assets of a level
+    /// (the `CybersecurityPkg` of the Capella Cybersecurity viewpoint).
+    #[serde(default)]
+    pub security_analysis: Vec<SecurityAnalysis>,
+    /// The scales of the security needs and the threat kinds of the model
+    /// (the `CybersecurityConfiguration`); at most one per model.
+    #[serde(default)]
+    pub security_scales: Option<SecurityScales>,
     pub traces: Vec<Trace>,
     pub state_machines: Vec<StateMachine>,
     pub scenarios: Vec<Scenario>,
@@ -70,6 +78,8 @@ impl Model {
             physical_architecture: Vec::new(),
             epbs: Vec::new(),
             safety_analysis: Vec::new(),
+            security_analysis: Vec::new(),
+            security_scales: None,
             traces: Vec::new(),
             state_machines: Vec::new(),
             scenarios: Vec::new(),
@@ -99,6 +109,10 @@ impl Model {
         self.physical_architecture.extend(other.physical_architecture);
         self.epbs.extend(other.epbs);
         self.safety_analysis.extend(other.safety_analysis);
+        self.security_analysis.extend(other.security_analysis);
+        if self.security_scales.is_none() {
+            self.security_scales = other.security_scales;
+        }
         self.traces.extend(other.traces);
         self.state_machines.extend(other.state_machines);
         self.scenarios.extend(other.scenarios);
@@ -728,6 +742,108 @@ pub struct FmeaEntry {
     pub attributes: HashMap<String, AttributeValue>,
 }
 
+/// `security_analysis { level: "sa" threat … asset … }`: the threats and
+/// primary assets analysed at one level. `level` names the architecture
+/// (`oa`, `sa`, `la`, `pa`) whose cybersecurity package holds them.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SecurityAnalysis {
+    /// Written id of the package; empty when not written.
+    #[serde(default)]
+    pub id: String,
+    pub threats: Vec<Threat>,
+    pub assets: Vec<PrimaryAsset>,
+    pub attributes: HashMap<String, AttributeValue>,
+}
+
+impl SecurityAnalysis {
+    /// The architecture level (`oa`, `sa`, `la`, `pa`) when written.
+    pub fn level(&self) -> Option<&str> {
+        self.attributes.get("level").and_then(|v| v.as_string())
+    }
+}
+
+/// `threat "Name" { kind: level: applies_to: involves: … }`: a threat is a
+/// capability of an attacker (Capella: an AbstractCapability), so it may
+/// own scenarios (`owner:` of a scenario) and realize a threat of the
+/// level above through an ordinary `realizes` trace.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Threat {
+    /// The id, written or defaulted to the name.
+    pub id: String,
+    pub name: String,
+    /// A threat kind of the model's `security_scales.threat_kinds`.
+    pub kind: Option<String>,
+    /// Primary assets the threat applies to (ThreatApplication).
+    pub applies_to: Vec<String>,
+    /// Components, entities or actors involved (ThreatInvolvement).
+    pub involves: Vec<String>,
+    pub attributes: HashMap<String, AttributeValue>,
+}
+
+/// What a primary asset is: a service, a piece of information or a
+/// business concern (Capella's three PrimaryAsset metaclasses).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum AssetKind {
+    Functional,
+    Information,
+    Enterprise,
+}
+
+impl AssetKind {
+    pub fn parse(text: &str) -> Option<AssetKind> {
+        match text.to_ascii_lowercase().as_str() {
+            "functional" => Some(AssetKind::Functional),
+            "information" => Some(AssetKind::Information),
+            "enterprise" => Some(AssetKind::Enterprise),
+            _ => None,
+        }
+    }
+
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            AssetKind::Functional => "functional",
+            AssetKind::Information => "information",
+            AssetKind::Enterprise => "enterprise",
+        }
+    }
+}
+
+/// `asset "Name" { kind: "functional" members: [...] }`: a primary asset
+/// to protect; its members are the functions, exchange items or classes
+/// that make it up (PrimaryAssetMember).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PrimaryAsset {
+    /// The id, written or defaulted to the name.
+    pub id: String,
+    pub name: String,
+    pub kind: AssetKind,
+    pub members: Vec<String>,
+    pub attributes: HashMap<String, AttributeValue>,
+}
+
+/// `security_scales { confidentiality: ["0", …] … threat_kinds: [...] }`:
+/// the ordered literals of each security need and the kinds a threat may
+/// have. Every entry is a list of names; `id` is the configuration's.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SecurityScales {
+    #[serde(default)]
+    pub id: String,
+    pub attributes: HashMap<String, AttributeValue>,
+}
+
+impl SecurityScales {
+    /// The security needs a scale may be declared for, in Capella's order.
+    pub const NEEDS: [&'static str; 4] = ["confidentiality", "integrity", "availability", "traceability"];
+
+    /// The literal names of a scale (`confidentiality`, …, `threat_kinds`).
+    pub fn scale(&self, key: &str) -> Option<Vec<String>> {
+        match self.attributes.get(key)? {
+            AttributeValue::List(items) => Some(items.iter().map(|v| v.display()).collect()),
+            single => Some(vec![single.display()]),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Trace {
     pub from: String,
@@ -739,13 +855,23 @@ pub struct Trace {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum AttributeValue {
     String(String),
+    /// A number written with a decimal point (`800.0`): a real value, kept
+    /// apart from [`AttributeValue::Integer`] so a model round-trips as written.
     Number(f64),
+    /// A number written without a decimal point (`800`).
+    Integer(i64),
     Boolean(bool),
     /// A number with a unit (`latency: 25 ms`). Typed at parse time: the
     /// unit is always a known symbol, so the dimension is never in doubt.
     Quantity(Quantity),
     List(Vec<AttributeValue>),
     Map(HashMap<String, AttributeValue>),
+}
+
+/// A decimal number as it is written in a model: a whole value keeps its
+/// decimal point (`800.0`), so it stays a decimal when read back.
+pub fn decimal_literal(n: f64) -> String {
+    if n.is_finite() && n.fract() == 0.0 && n.abs() < 1e15 { format!("{n:.1}") } else { n.to_string() }
 }
 
 impl AttributeValue {
@@ -756,9 +882,24 @@ impl AttributeValue {
         }
     }
     
+    /// The numeric value, whether written as an integer or a decimal.
     pub fn as_number(&self) -> Option<f64> {
         match self {
             AttributeValue::Number(n) => Some(*n),
+            AttributeValue::Integer(i) => Some(*i as f64),
+            _ => None,
+        }
+    }
+
+    /// Same as [`AttributeValue::as_number`].
+    pub fn as_f64(&self) -> Option<f64> {
+        self.as_number()
+    }
+
+    /// The value when it was written as an integer.
+    pub fn as_integer(&self) -> Option<i64> {
+        match self {
+            AttributeValue::Integer(i) => Some(*i),
             _ => None,
         }
     }
@@ -772,6 +913,7 @@ impl AttributeValue {
             AttributeValue::Quantity(q) => Some(Ok(q.clone())),
             AttributeValue::String(s) => Some(Quantity::parse(s)),
             AttributeValue::Number(n) => Some(Err(QuantityError::MissingUnit(*n))),
+            AttributeValue::Integer(i) => Some(Err(QuantityError::MissingUnit(*i as f64))),
             _ => None,
         }
     }
@@ -780,9 +922,8 @@ impl AttributeValue {
     pub fn display(&self) -> String {
         match self {
             AttributeValue::String(s) => s.clone(),
-            AttributeValue::Number(n) => {
-                if n.fract() == 0.0 && n.abs() < 1e15 { format!("{}", *n as i64) } else { n.to_string() }
-            }
+            AttributeValue::Number(n) => decimal_literal(*n),
+            AttributeValue::Integer(i) => i.to_string(),
             AttributeValue::Boolean(b) => b.to_string(),
             AttributeValue::Quantity(q) => q.to_string(),
             AttributeValue::List(items) => {

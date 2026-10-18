@@ -55,6 +55,8 @@ TopLevelBlock   ::= RequirementsBlock
                   | PhysicalArchitecture
                   | Epbs
                   | SafetyAnalysis
+                  | SecurityAnalysis
+                  | SecurityScales
                   | TraceDecl
                   | DiagramDecl
                   | UnmodeledBlock ;          (* warning emitted *)
@@ -244,6 +246,14 @@ SafetyAnalysis  ::= "safety_analysis" "{" SafetyElement* "}" ;
 SafetyElement   ::= "hazard" Name AttributeBlock
                   | "fmea" Name AttributeBlock
                   | Attribute ;
+
+(* ---- Cybersecurity (Capella Cybersecurity viewpoint) ------------------------------ *)
+
+SecurityAnalysis ::= "security_analysis" "{" SecurityElement* "}" ;   (* level: "oa"|"sa"|"la"|"pa", id: *)
+SecurityElement  ::= "threat" Name AttributeBlock       (* kind:, level: Integer, applies_to: [asset…], involves: [element…], security_<need>: *)
+                   | "asset" Name AttributeBlock        (* kind: "functional"|"information"|"enterprise", members: [element…] *)
+                   | Attribute ;
+SecurityScales   ::= "security_scales" AttributeBlock ; (* confidentiality|integrity|availability|traceability: [literal…], threat_kinds: [name…] *)
 
 (* ---- Traceability ------------------------------------------------------------------ *)
 

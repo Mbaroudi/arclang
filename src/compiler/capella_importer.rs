@@ -135,6 +135,8 @@ impl CapellaImporter {
             physical_architecture: Vec::new(),
             epbs: Vec::new(),
             safety_analysis: Vec::new(),
+            security_analysis: Vec::new(),
+            security_scales: None,
             traces,
             state_machines: Vec::new(),
             scenarios: Vec::new(),
@@ -306,8 +308,8 @@ impl ArcCodeGenerator {
                         AttributeValue::String(s) => {
                             arc_code.push_str(&format!("        {}: \"{}\"\n", key, s));
                         }
-                        AttributeValue::Number(n) => {
-                            arc_code.push_str(&format!("        {}: {}\n", key, n));
+                        AttributeValue::Number(_) | AttributeValue::Integer(_) => {
+                            arc_code.push_str(&format!("        {}: {}\n", key, value.display()));
                         }
                         AttributeValue::List(items) => {
                             arc_code.push_str(&format!("        {}: [", key));
@@ -375,8 +377,8 @@ impl ArcCodeGenerator {
                                 }
                                 arc_code.push_str("]\n");
                             }
-                            AttributeValue::Number(n) => {
-                                arc_code.push_str(&format!("            {}: {}\n", key, n));
+                            AttributeValue::Number(_) | AttributeValue::Integer(_) => {
+                                arc_code.push_str(&format!("            {}: {}\n", key, value.display()));
                             }
                             AttributeValue::Boolean(b) => {
                                 arc_code.push_str(&format!("            {}: {}\n", key, b));

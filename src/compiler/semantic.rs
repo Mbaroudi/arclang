@@ -281,6 +281,25 @@ fn register_level_function(
 
 /// Register an element, recording a warning when an id is reused by a
 /// DIFFERENT element (identity must be unique across the whole model).
+/// A `security_<need>` value names a literal of the declared scale.
+fn check_security_needs(
+    kind: &str,
+    owner: &str,
+    attributes: &HashMap<String, super::ast::AttributeValue>,
+    scales: Option<&super::ast::SecurityScales>,
+    warnings: &mut Vec<String>,
+) {
+    let Some(scales) = scales else { return };
+    for need in super::ast::SecurityScales::NEEDS {
+        let key = format!("security_{need}");
+        let (Some(value), Some(scale)) = (attributes.get(&key), scales.scale(need)) else { continue };
+        let written = value.display();
+        if !scale.iter().any(|literal| *literal == written) {
+            warnings.push(format!("{kind} '{owner}': {key} '{written}' is not on the {need} scale {scale:?}"));
+        }
+    }
+}
+
 fn register_element(
     elements: &mut HashMap<String, ElementInfo>,
     duplicates: &mut Vec<String>,
@@ -1194,6 +1213,74 @@ impl SemanticAnalyzer {
                 ElementInfo::new(association.id.clone(), association.name.clone(), "Association"),
             );
         }
+        for analysis in &ast.security_analysis {
+            for threat in &analysis.threats {
+                register_element(
+                    &mut all_elements,
+                    &mut duplicate_ids,
+                    threat.id.clone(),
+                    ElementInfo::new(threat.id.clone(), threat.name.clone(), "Threat"),
+                );
+            }
+            for asset in &analysis.assets {
+                register_element(
+                    &mut all_elements,
+                    &mut duplicate_ids,
+                    asset.id.clone(),
+                    ElementInfo::new(asset.id.clone(), asset.name.clone(), "PrimaryAsset"),
+                );
+            }
+        }
+        // A threat applies to declared assets, involves declared elements and
+        // has a kind of the model's threat kinds; an asset's members are
+        // declared elements and its security needs are on the declared scales.
+        {
+            let by_name = |reference: &str, kinds: &[&str]| -> Vec<String> {
+                all_elements
+                    .values()
+                    .filter(|e| e.name == reference && (kinds.is_empty() || kinds.contains(&e.element_type.as_str())))
+                    .map(|e| e.id.clone())
+                    .collect()
+            };
+            let mut check_reference = |owner_kind: &str, owner: &str, role: &str, reference: &str, kinds: &[&str], errors: &mut Vec<String>| {
+                let by_id = all_elements.get(reference).filter(|e| kinds.is_empty() || kinds.contains(&e.element_type.as_str()));
+                if by_id.is_some() {
+                    return;
+                }
+                match by_name(reference, kinds).len() {
+                    1 => {}
+                    0 => errors.push(format!(
+                        "{owner_kind} '{owner}': {role} '{reference}' is not a declared {}",
+                        if kinds.is_empty() { "element".to_string() } else { kinds.join(" or ") }
+                    )),
+                    _ => errors.push(format!("{owner_kind} '{owner}': {role} '{reference}' is an ambiguous name, use an id")),
+                }
+            };
+            let scales = ast.security_scales.as_ref();
+            let threat_kinds = scales.and_then(|s| s.scale("threat_kinds"));
+            for analysis in &ast.security_analysis {
+                for threat in &analysis.threats {
+                    for asset in &threat.applies_to {
+                        check_reference("threat", &threat.name, "applies_to", asset, &["PrimaryAsset"], &mut reference_errors);
+                    }
+                    for element in &threat.involves {
+                        check_reference("threat", &threat.name, "involves", element, &[], &mut reference_errors);
+                    }
+                    if let (Some(kind), Some(kinds)) = (&threat.kind, &threat_kinds) {
+                        if !kinds.iter().any(|k| k == kind) {
+                            reference_errors.push(format!("threat '{}': kind '{kind}' is not one of the threat kinds {:?}", threat.name, kinds));
+                        }
+                    }
+                    check_security_needs("threat", &threat.name, &threat.attributes, scales, &mut deferred_warnings);
+                }
+                for asset in &analysis.assets {
+                    for member in &asset.members {
+                        check_reference("asset", &asset.name, "members", member, &[], &mut reference_errors);
+                    }
+                    check_security_needs("asset", &asset.name, &asset.attributes, scales, &mut deferred_warnings);
+                }
+            }
+        }
         // An association joins two declared classes; its role is a field of
         // the class owning the navigable end.
         for association in &ast.associations {
@@ -1402,6 +1489,19 @@ impl SemanticAnalyzer {
                     for item in &subsystem.items {
                         let id = id_of(&item.attributes, &item.name);
                         register_element(&mut all_elements, &mut duplicate_ids, id.clone(), ElementInfo::new(id, item.name.clone(), "EpbsItem"));
+                    }
+                }
+            }
+        }
+        // A chain or process may be declared under a capability, a capability
+        // realization, a threat or a function (`owner:`), by id or name.
+        {
+            let known = |reference: &str| all_elements.contains_key(reference) || all_elements.values().any(|e| e.name == reference);
+            let processes = ast.operational_analysis.iter().flat_map(|oa| oa.processes.iter()).map(|p| (p, "operational_process"));
+            for (chain, keyword) in chain_sources.iter().copied().map(|c| (c, "functional_chain")).chain(processes) {
+                if let Some(owner) = chain.attributes.get("owner").and_then(|v| v.as_string()) {
+                    if !known(owner) {
+                        deferred_warnings.push(format!("{keyword} '{}': owner '{owner}' is not a declared element", chain.name));
                     }
                 }
             }

@@ -283,7 +283,7 @@ pub fn symbols(source: &str) -> Vec<DocumentSymbol> {
 
 fn symbol_kind(keyword: &str) -> SymbolKind {
     match keyword {
-        "model" | "operational_analysis" | "system_analysis" | "logical_architecture" | "physical_architecture" | "epbs" | "architecture" | "requirements" | "safety_analysis" | "scenarios" => SymbolKind::MODULE,
+        "model" | "operational_analysis" | "system_analysis" | "logical_architecture" | "physical_architecture" | "epbs" | "architecture" | "requirements" | "safety_analysis" | "security_analysis" | "security_scales" | "scenarios" => SymbolKind::MODULE,
         "component" | "node" | "entity" | "behavior_component" | "hardware_component" | "configuration_item" | "system" => SymbolKind::CLASS,
         "function" | "activity" | "operational_activity" | "functional_chain" | "operational_process" => SymbolKind::FUNCTION,
         "actor" => SymbolKind::OBJECT,
@@ -372,6 +372,8 @@ fn kinds_of(keyword: &str) -> &'static [&'static str] {
         "data_type" => &["DataType"],
         "exchange_item" => &["ExchangeItem"],
         "hazard" => &["Hazard"],
+        "threat" => &["Threat"],
+        "asset" => &["PrimaryAsset"],
         "trace" => &["Trace"],
         "test_case" => &["TestCase"],
         "model" => &["Model"],
@@ -390,7 +392,7 @@ fn kinds_of(keyword: &str) -> &'static [&'static str] {
 /// Declaration keywords, by where they may be written.
 const TOP_LEVEL: &[&str] = &[
     "model", "import", "operational_analysis", "system_analysis", "logical_architecture", "physical_architecture", "epbs",
-    "architecture", "requirements", "safety_analysis", "trace", "state_machine", "scenario", "scenarios", "class", "enumeration",
+    "architecture", "requirements", "safety_analysis", "security_analysis", "security_scales", "trace", "state_machine", "scenario", "scenarios", "class", "enumeration",
     "data_type", "exchange_item", "test_case", "constraint", "type", "diagram",
 ];
 fn inside(keyword: &str) -> &'static [&'static str] {
@@ -402,6 +404,7 @@ fn inside(keyword: &str) -> &'static [&'static str] {
         "epbs" => &["configuration_item", "system"],
         "requirements" => &["req", "requirement"],
         "safety_analysis" => &["hazard"],
+        "security_analysis" => &["threat", "asset"],
         "component" => &["function", "port", "component", "interface"],
         "node" => &["behavior_component", "hardware_component", "port", "deploys"],
         "entity" | "actor" => &["activity", "operational_activity"],

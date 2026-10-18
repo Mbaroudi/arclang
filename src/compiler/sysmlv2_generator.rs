@@ -282,8 +282,10 @@ impl<'a> Generator<'a> {
                     format!("attribute {} : String = {};", name, string_literal(&canonical))
                 }
                 (Some(AttrType::Number), AttributeValue::Number(n)) => format!("attribute {} : Real = {};", name, number_literal(*n)),
+                (Some(AttrType::Number), AttributeValue::Integer(i)) => format!("attribute {} : Real = {};", name, i),
                 (Some(AttrType::Boolean), AttributeValue::Boolean(b)) => format!("attribute {} : Boolean = {};", name, b),
                 (_, AttributeValue::Number(n)) => format!("attribute {} : Real = {};", name, number_literal(*n)),
+                (_, AttributeValue::Integer(i)) => format!("attribute {} : Integer = {};", name, i),
                 (_, AttributeValue::Boolean(b)) => format!("attribute {} : Boolean = {};", name, b),
                 (_, AttributeValue::Quantity(quantity)) => {
                     self.units_used.insert(quantity.spec().sysml);

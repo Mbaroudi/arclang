@@ -21,10 +21,8 @@ pub(super) fn collect_property_values(writer: &mut Writer, project: &Node) {
         let key = key_of(value.name());
         let literal = match value.kind.as_str() {
             "capellacore:StringPropertyValue" => string_literal(value.attr("value").unwrap_or("")),
-            "capellacore:IntegerPropertyValue" | "capellacore:FloatPropertyValue" => {
-                let raw = value.attr("value").unwrap_or("0").trim();
-                if raw.parse::<f64>().is_ok() { raw.to_string() } else { string_literal(raw) }
-            }
+            "capellacore:IntegerPropertyValue" => integer_literal(value.attr("value").unwrap_or("0")),
+            "capellacore:FloatPropertyValue" => float_literal(value.attr("value").unwrap_or("0")),
             "capellacore:BooleanPropertyValue" => if value.attr("value") == Some("true") { "true".to_string() } else { "false".to_string() },
             "capellacore:EnumerationPropertyValue" => {
                 let name = first_ref(value.attr("value")).and_then(|id| literals.get(&id).cloned()).unwrap_or_default();
@@ -467,10 +465,8 @@ pub(super) fn requirements(writer: &mut Writer, project: &Node) {
                     if names.len() == 1 { string_literal(&names[0]) } else { list_literal(&names) }
                 }
                 "Requirements:BooleanValueAttribute" => if attribute.attr("value") == Some("true") { "true".to_string() } else { "false".to_string() },
-                "Requirements:IntegerValueAttribute" | "Requirements:RealValueAttribute" => {
-                    let raw = attribute.attr("value").unwrap_or("0").trim();
-                    if raw.parse::<f64>().is_ok() { raw.to_string() } else { string_literal(raw) }
-                }
+                "Requirements:IntegerValueAttribute" => integer_literal(attribute.attr("value").unwrap_or("0")),
+                "Requirements:RealValueAttribute" => float_literal(attribute.attr("value").unwrap_or("0")),
                 _ => string_literal(attribute.attr("value").unwrap_or("")),
             };
             let base = key_of(&definition);
@@ -517,5 +513,21 @@ pub(super) fn requirement_relations(writer: &mut Writer, project: &Node) {
             Some(name) => writer.line(0, &format!("trace {} {kind} {} {{ relation: {} }}", string_literal(&from), string_literal(&to), string_literal(&name))),
             None => writer.line(0, &format!("trace {} {kind} {}", string_literal(&from), string_literal(&to))),
         }
+    }
+}
+
+/// An integer value as a model literal: as written when it is one, else a string.
+fn integer_literal(raw: &str) -> String {
+    let raw = raw.trim();
+    if raw.parse::<i64>().is_ok() { raw.to_string() } else { string_literal(raw) }
+}
+
+/// A real value as a model literal that stays a decimal when read back:
+/// `800` becomes `800.0`, `1.5E3` becomes `1500.0`, anything else a string.
+fn float_literal(raw: &str) -> String {
+    let raw = raw.trim();
+    match raw.parse::<f64>() {
+        Ok(n) if n.is_finite() => super::super::ast::decimal_literal(n),
+        _ => string_literal(raw),
     }
 }

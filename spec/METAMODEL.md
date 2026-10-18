@@ -848,6 +848,41 @@ FMEA line: failure mode with S/O/D rating.
 | `detection` | `text` | Detection: rating, class or detection means. |
 | `rpn` | `number` | Risk priority number. |
 
+#### Threat
+
+Threat of a cybersecurity analysis: what an attacker may achieve, applied to primary assets and involving components. Its security needs are the free `security_<need>` attributes, checked against `security_scales`.
+
+- Arcadia: `cybersecurity:Threat (Cybersecurity viewpoint)`
+- SysML v2: `requirement (threat)`
+
+| Attribute | Type | Meaning |
+|---|---|---|
+| `id` | `identifier` | Stable identity; drives the UUIDv5. Defaults to the name. |
+| `name` | `text` | Display name; overrides the block name. |
+| `description` | `text` | Free-text description. |
+| `is` | `ref<Type>` | User-defined type of the element, or a list of types; their attributes (and ports, for components) are inherited. |
+| `kind` | `text` | Threat kind: one of `security_scales.threat_kinds` when declared. |
+| `level` | `number` | Criticality level of the threat (an integer). |
+| `rationale` | `text` | Why the threat is assessed so. |
+| `applies_to` | `list<ref<PrimaryAsset>>` | Primary assets the threat applies to. |
+| `involves` | `list<ref<Element>>` | Components, entities or actors involved. |
+
+#### PrimaryAsset
+
+Primary asset of a cybersecurity analysis: a service, information or business concern to protect, made of declared elements.
+
+- Arcadia: `cybersecurity:FunctionalPrimaryAsset / InformationPrimaryAsset / EnterprisePrimaryAsset`
+- SysML v2: `requirement (asset)`
+
+| Attribute | Type | Meaning |
+|---|---|---|
+| `id` | `identifier` | Stable identity; drives the UUIDv5. Defaults to the name. |
+| `name` | `text` | Display name; overrides the block name. |
+| `description` | `text` | Free-text description. |
+| `is` | `ref<Type>` | User-defined type of the element, or a list of types; their attributes (and ports, for components) are inherited. |
+| `kind` | `enum AssetKind` | What the asset is. |
+| `members` | `list<ref<Element>>` | Functions, exchange items or classes making up the asset. |
+
 #### Trace
 
 Typed link between two elements.
@@ -1038,6 +1073,9 @@ The element graph served by the Systems Modeling API (`/api/systems-modeling`) i
 | `Trace` | element | element | A `trace` declaration; `traceKind` is one of the TraceKind values. |
 | `Verification` | TestCase | Requirement | `verifies:` of a test case. |
 | `Mitigation` | Requirement | Hazard | `mitigated_by:` of a hazard. |
+| `ThreatApplication` | Threat | PrimaryAsset | `applies_to:` of a threat. |
+| `ThreatInvolvement` | Threat | component, entity or actor | `involves:` of a threat. |
+| `AssetMember` | PrimaryAsset | element | `members:` of a primary asset. |
 | `Typing` | element or PhysicalLink | Type | `is:` — the element is an instance of the type. |
 | `Specialization` | Type | Type | `extends` — the source type specializes the target. |
 | `Involvement` | chain, path, capability | element | `involves:`; `order` is the 1-based position. |
@@ -1066,6 +1104,7 @@ Values match ignoring case and the separators `-`, `_` and space.
 |---|---|---|
 | ControlKind | `and`, `or`, `iterate` | Kind of a control node of a functional chain. |
 | AssociationKind | `association`, `aggregation`, `composition` | Kind of an association between classes. |
+| AssetKind | `functional`, `information`, `enterprise` | What a primary asset is (Capella's three PrimaryAsset metaclasses). |
 | Asil | `QM`, `ASIL-A`, `ASIL-B`, `ASIL-C`, `ASIL-D` | ISO 26262 automotive safety integrity level. |
 | Dal | `DAL-A`, `DAL-B`, `DAL-C`, `DAL-D`, `DAL-E` | DO-178C design assurance level. |
 | SafetyLevel | `QM`, `ASIL-A`, `ASIL-B`, `ASIL-C`, `ASIL-D`, `DAL-A`, `DAL-B`, `DAL-C`, `DAL-D`, `DAL-E`, `SIL-1`, `SIL-2`, `SIL-3`, `SIL-4` | Any integrity level: ASIL (ISO 26262), DAL (DO-178C) or SIL (IEC 61508). |

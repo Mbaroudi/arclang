@@ -74,8 +74,8 @@ fn property_value(owner: &str, key: &str, value: &AttributeValue) -> Option<El> 
         AttributeValue::String(text) if text == "true" || text == "false" => el("capellacore:BooleanPropertyValue", text.clone()),
         AttributeValue::String(text) => el("capellacore:StringPropertyValue", text.clone()),
         AttributeValue::Boolean(flag) => el("capellacore:BooleanPropertyValue", flag.to_string()),
-        AttributeValue::Number(n) if n.fract() == 0.0 && n.abs() < 1e15 => el("capellacore:IntegerPropertyValue", format!("{}", *n as i64)),
-        AttributeValue::Number(n) => el("capellacore:FloatPropertyValue", n.to_string()),
+        AttributeValue::Integer(i) => el("capellacore:IntegerPropertyValue", i.to_string()),
+        AttributeValue::Number(n) => el("capellacore:FloatPropertyValue", super::super::ast::decimal_literal(*n)),
         other => el("capellacore:StringPropertyValue", other.display()),
     }
 }
@@ -96,7 +96,7 @@ mod tests {
             ("id".to_string(), AttributeValue::String("f1".into())),
             ("description".to_string(), AttributeValue::String("Pumps".into())),
             ("status".to_string(), AttributeValue::String("DRAFT".into())),
-            ("mass".to_string(), AttributeValue::Number(12.0)),
+            ("mass".to_string(), AttributeValue::Integer(12)),
             ("pv_kind".to_string(), AttributeValue::String("hydraulic".into())),
             ("parent".to_string(), AttributeValue::String("x".into())),
         ]

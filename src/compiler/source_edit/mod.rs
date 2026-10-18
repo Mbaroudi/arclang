@@ -279,8 +279,8 @@ fn matching_close(lexemes: &[Lexeme], open: usize) -> Option<usize> {
 fn value_end(lexemes: &[Lexeme], start: usize) -> Option<usize> {
     match token(lexemes.get(start)?)? {
         Token::StringLiteral(_) => Some(start + 1),
-        Token::Number(_) if is(lexemes, start + 1, &Token::Percent) => Some(start + 2),
-        Token::Number(_) => {
+        Token::Number(_) | Token::Integer(_) if is(lexemes, start + 1, &Token::Percent) => Some(start + 2),
+        Token::Number(_) | Token::Integer(_) => {
             let has_unit = matches!(lexemes.get(start + 1).and_then(token), Some(Token::Identifier(_)))
                 && !is(lexemes, start + 2, &Token::Colon);
             if !has_unit {

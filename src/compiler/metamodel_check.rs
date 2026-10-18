@@ -217,6 +217,14 @@ impl<'a> Checker<'a> {
                 self.check_attrs("FmeaEntry", &entry.name, &entry.attributes);
             }
         }
+        for analysis in &ast.security_analysis {
+            for threat in &analysis.threats {
+                self.check_attrs("Threat", &threat.name, &threat.attributes);
+            }
+            for asset in &analysis.assets {
+                self.check_attrs("PrimaryAsset", &asset.name, &asset.attributes);
+            }
+        }
 
         for class in &ast.classes {
             self.check_attrs("Class", &class.name, &class.attributes);
@@ -410,7 +418,7 @@ impl<'a> Checker<'a> {
                 }
             }
             AttrType::Number => match value {
-                AttributeValue::Number(_) => {}
+                AttributeValue::Number(_) | AttributeValue::Integer(_) => {}
                 AttributeValue::String(s) if s.trim().parse::<f64>().is_ok() => {}
                 other => self.push(Level::Error, kind, element, Some(key), format!("expected a number, got '{}'", other.display())),
             },
@@ -436,7 +444,7 @@ impl<'a> Checker<'a> {
                     format!("{} — expected a {} quantity", error, dimension.label())),
             },
             AttrType::Enum(name) => match value {
-                AttributeValue::String(_) | AttributeValue::Number(_) => {
+                AttributeValue::String(_) | AttributeValue::Number(_) | AttributeValue::Integer(_) => {
                     let raw = value.display();
                     if self.metamodel.normalize_enum(name, &raw).is_none() {
                         let values = self
