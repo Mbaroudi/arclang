@@ -6,7 +6,7 @@
 //! With `context: true`, the elements an exchange ties to a named one are
 //! drawn too, as a contextual diagram.
 
-use super::{Diagram, Node, ViewKind};
+use super::{Diagram, Edge, Node, ViewKind};
 use crate::compiler::ast::{DiagramDecl, Model};
 use std::collections::HashSet;
 
@@ -61,17 +61,24 @@ fn one(decl: &DiagramDecl, views: &[Diagram]) -> (Option<Diagram>, Vec<String>) 
     for node in &nodes {
         ids_of(node, &mut present);
     }
-    let edges = source
+    let edges: Vec<Edge> = source
         .edges
         .iter()
         .filter(|edge| present.contains(&edge.source) && present.contains(&edge.target))
         .cloned()
         .collect();
+    // A chain or path lights what the diagram shows of it, as Capella does:
+    // its steps and links kept here, nothing it would have to invent.
+    let kept_edges: HashSet<&str> = edges.iter().map(|edge| edge.id.as_str()).collect();
     let chains = source
         .chains
         .iter()
-        .filter(|chain| chain.nodes.iter().all(|node| present.contains(node)))
-        .cloned()
+        .filter_map(|chain| {
+            let mut chain = chain.clone();
+            chain.nodes.retain(|node| present.contains(node));
+            chain.edges.retain(|edge| kept_edges.contains(edge.as_str()));
+            (!chain.nodes.is_empty() || !chain.edges.is_empty()).then_some(chain)
+        })
         .collect();
     let diagram = Diagram {
         id,

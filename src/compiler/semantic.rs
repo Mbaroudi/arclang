@@ -1335,7 +1335,10 @@ impl SemanticAnalyzer {
                 .collect();
             for sa in &ast.system_analysis {
                 for exchange in &sa.functional_exchanges {
-                    if !item_names.contains(exchange.data_type.as_str()) {
+                    // Only an item the author named: the default `Data` of an
+                    // exchange written without one is not a reference.
+                    let named = exchange.attributes.contains_key("exchange_item") || exchange.attributes.contains_key("data_type");
+                    if named && !item_names.contains(exchange.data_type.as_str()) {
                         deferred_warnings.push(format!(
                             "functional_exchange '{}': exchange item '{}' is not declared as an exchange_item",
                             exchange.label.as_deref().unwrap_or(""),
