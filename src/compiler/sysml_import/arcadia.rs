@@ -784,8 +784,40 @@ impl<'g> Mapper<'g> {
                 self.line(0, "}");
             }
         }
+        self.associations();
         if !self.out.ends_with("}\n\n") {
             self.line(0, "");
+        }
+    }
+
+    /// `#Association connection def` between two classes: its ends are the
+    /// classes, its attributes the role, kind and multiplicity.
+    fn associations(&mut self) {
+        let associations: Vec<&'g Element> = self.graph.of_kinds(&["ConnectionDefinition", "AssociationStructure", "Association"]).filter(|e| !self.is_library(e) && Self::has_metadata(e, &["Association"])).collect();
+        for association in associations {
+            let ends: Vec<String> = association
+                .children
+                .iter()
+                .filter_map(|c| self.graph.get(c))
+                .filter(|c| c.is_end || c.kind == "ReferenceUsage")
+                .filter_map(|c| c.types.first().or(c.subsets.first()))
+                .filter_map(|t| self.ids.get(t).cloned())
+                .collect();
+            let [from, to] = ends.as_slice() else {
+                self.count("associations without two class ends (left out)");
+                continue;
+            };
+            let id = self.remember(&association.id, Self::identity_id(association), "Association");
+            self.count("associations");
+            self.line(0, &format!("association {} {{", string_literal(&Self::display(association))));
+            self.line(1, &format!("id: {}", string_literal(&id)));
+            self.line(1, &format!("from: {}", string_literal(from)));
+            self.line(1, &format!("to: {}", string_literal(to)));
+            if let Some(doc) = Self::description(association) {
+                self.line(1, &format!("description: {}", string_literal(&doc)));
+            }
+            self.attributes(1, &[association], &["description", "from", "to"]);
+            self.line(0, "}");
         }
     }
 
@@ -1500,7 +1532,58 @@ impl<'g> Mapper<'g> {
         }
         self.attributes(2, &[chain], &["description", "involves"]);
         self.reference_attributes_except(2, &[chain.id.clone()], &["involves"]);
+        self.chain_controls(chain);
         self.line(1, "}");
+    }
+
+    /// The control nodes of a chain (`fork`, `join`, `decide`, `merge`) and
+    /// its identified successions as `control` and `sequence` lines.
+    fn chain_controls(&mut self, chain: &Element) {
+        let children: Vec<&'g Element> = chain.children.iter().filter_map(|c| self.graph.get(c)).collect();
+        let mut control_names: HashMap<String, String> = HashMap::new();
+        for node in children.iter().filter(|c| matches!(c.kind.as_str(), "ForkNode" | "JoinNode" | "DecisionNode" | "MergeNode")) {
+            let kind = if Self::has_metadata(node, &["Iterate"]) {
+                "iterate"
+            } else if matches!(node.kind.as_str(), "ForkNode" | "JoinNode") {
+                "and"
+            } else {
+                "or"
+            };
+            let name = Self::display(node);
+            control_names.insert(node.id.clone(), name.clone());
+            self.count("control nodes");
+            match &node.short_name {
+                Some(id) => self.line(2, &format!("control {kind} {} {{ id: {} }}", string_literal(&name), string_literal(id))),
+                None => self.line(2, &format!("control {kind} {}", string_literal(&name))),
+            }
+        }
+        // A step of the chain refers to a function; a control node is named.
+        let end_text = |mapper: &Self, end: &str| -> Option<String> {
+            if let Some(name) = control_names.get(end) {
+                return Some(name.clone());
+            }
+            let element = mapper.graph.get(end)?;
+            if element.kind == "ActionUsage" && element.owner.as_deref() == Some(chain.id.as_str()) {
+                let target = element.types.first().or(element.subsets.first()).or(element.redefines.first())?;
+                let node = mapper.end_node(target)?;
+                return mapper.ids.get(&mapper.node_key(node)).cloned();
+            }
+            mapper.end_ref(end)
+        };
+        for link in children.iter().filter(|c| matches!(c.kind.as_str(), "SuccessionAsUsage" | "Succession") && c.short_name.is_some()) {
+            let (Some(source), Some(target)) = (link.sources.first(), link.targets.first()) else { continue };
+            let (Some(from), Some(to)) = (end_text(self, source), end_text(self, target)) else {
+                self.count("sequence links to elements not written (left out)");
+                continue;
+            };
+            let condition = link.children.iter().filter_map(|c| self.graph.get(c)).find(|c| c.kind == "AttributeUsage" && c.name.as_deref() == Some("condition")).and_then(|c| c.value.clone());
+            let id = link.short_name.clone().unwrap_or_default();
+            self.count("sequence links");
+            match condition {
+                Some(condition) => self.line(2, &format!("sequence {} -> {} {{ id: {} condition: {condition} }}", string_literal(&from), string_literal(&to), string_literal(&id))),
+                None => self.line(2, &format!("sequence {} -> {} {{ id: {} }}", string_literal(&from), string_literal(&to), string_literal(&id))),
+            }
+        }
     }
 
     // --- exchanges --------------------------------------------------------
