@@ -24,7 +24,7 @@ fn realization(kind: &str) -> Option<(&'static str, &'static str)> {
         "StateTransition" => ("ownedStateTransitionRealizations", "capellacommon:StateTransitionRealization"),
         "Class" | "ExchangeItem" | "NumericType" | "StringType" | "BooleanType" | "Enumeration" | "PhysicalQuantity" => ("ownedInformationRealizations", "information:InformationRealization"),
         "Scenario" => ("ownedScenarioRealization", "interaction:ScenarioRealization"),
-        "Capability" | "CapabilityRealization" | "OperationalCapability" => ("ownedAbstractCapabilityRealizations", "interaction:AbstractCapabilityRealization"),
+        "Capability" | "CapabilityRealization" | "OperationalCapability" | "Threat" => ("ownedAbstractCapabilityRealizations", "interaction:AbstractCapabilityRealization"),
         "ConfigurationItem" => ("ownedPhysicalArtifactRealizations", "epbs:PhysicalArtifactRealization"),
         _ => return None,
     })

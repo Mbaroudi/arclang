@@ -3,11 +3,13 @@
 //! place for it: STPA hazards become hazards, their system constraints the
 //! requirements that mitigate them, the losses a hazard leads to a list on
 //! it; the security needs and storage of a function, an exchange or a
-//! component become attributes of that element ([`extension_values`]).
+//! component become attributes of that element ([`extension_values`]); the
+//! threats, the primary assets and the scales of the Cybersecurity viewpoint
+//! are its security analyses ([`super::security`]).
 //! Everything else is counted and named in the notes, never dropped in
 //! silence.
 
-use super::{display_name, list_literal, refs, text_attr, Node, PropertyValue, Writer};
+use super::{display_name, first_ref, list_literal, refs, text_attr, Node, PropertyValue, Writer};
 use crate::compiler::source_edit::string_literal;
 use std::collections::{BTreeMap, HashMap};
 
@@ -29,14 +31,6 @@ const NOT_PLACED: &[(&str, &str)] = &[
     ("stpa:ControlFlawSet", "STPA control flaw sets"),
     ("stpa:UnsafeControlActionCategory", "STPA unsafe control action categories"),
     ("stpa:DecompositionCategory", "STPA hazard decomposition categories"),
-    ("cybersecurity:Threat", "cybersecurity threats"),
-    ("cybersecurity:ThreatInvolvement", "components involved in a threat"),
-    ("cybersecurity:ThreatApplication", "assets a threat applies to"),
-    ("cybersecurity:FunctionalPrimaryAsset", "functional primary assets"),
-    ("cybersecurity:InformationPrimaryAsset", "information primary assets"),
-    ("cybersecurity:EnterprisePrimaryAsset", "enterprise primary assets"),
-    ("cybersecurity:PrimaryAssetMember", "members of primary assets"),
-    ("cybersecurity:CybersecurityConfiguration", "the cybersecurity configuration (scales of the needs)"),
 ];
 
 /// How a viewpoint attribute is written in ArcLang.
@@ -106,6 +100,8 @@ fn literal(raw: &str) -> String {
 /// order of the document. An attribute Capella leaves at its default is not
 /// in the file, and is not written.
 pub(super) fn extension_values(project: &Node) -> HashMap<String, Vec<PropertyValue>> {
+    // A security need names a literal of its scale: it is written by its name.
+    let literals = super::security::literal_names(project);
     let mut values: HashMap<String, Vec<PropertyValue>> = HashMap::new();
     for element in project.descendants() {
         for extension in element.tagged("ownedExtensions") {
@@ -113,7 +109,10 @@ pub(super) fn extension_values(project: &Node) -> HashMap<String, Vec<PropertyVa
             for (attribute, key, shape) in keys.iter() {
                 let raw = extension.attr(attribute);
                 let literal = match (shape, raw) {
-                    (Shape::Plain, Some(raw)) => literal(raw),
+                    (Shape::Plain, Some(raw)) => match first_ref(Some(raw)).and_then(|id| literals.get(&id)) {
+                        Some(name) if raw.trim_start().starts_with('#') => string_literal(name),
+                        _ => literal(raw),
+                    },
                     (Shape::Refs, Some(raw)) => list_literal(&refs(Some(raw))),
                     (Shape::RefOrPresence, Some(raw)) => string_literal(&refs(Some(raw)).join(" ")),
                     (Shape::RefOrPresence, None) => "true".to_string(),
@@ -188,6 +187,8 @@ pub(super) fn viewpoints(writer: &mut Writer, project: &Node) {
         writer.line(0, "}");
         writer.line(0, "");
     }
+
+    super::security::write(writer, project);
 
     let mut left_out: BTreeMap<&str, usize> = BTreeMap::new();
     for node in project.descendants() {

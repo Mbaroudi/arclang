@@ -154,7 +154,7 @@ pub(super) fn write(context: &mut Context, oa: &OperationalAnalysis) -> El {
         root.push(relations::exchange(context, el, &exchange.attributes));
     }
     for process in &oa.processes {
-        let el = apply(El::new("ownedFunctionalChains", "oa:OperationalProcess", &process.id).attr("name", &process.name), &process.attributes, &["involves"]);
+        let el = apply(El::new("ownedFunctionalChains", "oa:OperationalProcess", &process.id).attr("name", &process.name), &process.attributes, &["involves", "owner"]);
         root.push(relations::chain_steps(context, el, process, &ends));
     }
     super::functions::place_exchanges(&mut root);

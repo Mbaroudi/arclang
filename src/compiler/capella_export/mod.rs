@@ -16,6 +16,7 @@
 mod behaviour;
 mod context;
 mod cyber;
+mod security;
 mod data;
 mod diagram_drawer;
 mod diagrams;
@@ -73,6 +74,7 @@ pub fn export(model: &Model, file_stem: &str) -> Exported {
     data::register(&mut context, model);
     requirements::register(&mut context, model);
     stpa::register(&mut context, model);
+    security::register(&mut context, model);
     for r in stpa::constraints(model) {
         let id = context::text(&r.attributes, "capella_id").unwrap_or(&r.id).to_string();
         context.register(&r.id, &id);
@@ -112,11 +114,18 @@ pub fn export(model: &Model, file_stem: &str) -> Exported {
         Some(oa) => operational::write(&mut context, oa),
         None => operational::empty(&project_id),
     };
+    let mut oa_el = oa_el;
+    for pkg in security::packages(&mut context, model, "oa") {
+        oa_el.push(pkg);
+    }
     let oa_id = oa_el.id().to_string();
     let mut sa_el = match main_sa {
         Some(sa) => system::write(&mut context, sa, root_of(&oa_el, &format!("{oa_id}:root-activity")).as_deref()),
         None => system::empty(&project_id),
     };
+    for pkg in security::packages(&mut context, model, "sa") {
+        sa_el.push(pkg);
+    }
     let sa_id = sa_el.id().to_string();
     for extension in requirements::write(&context, model, &sa_id) {
         sa_el.push(extension);
@@ -131,6 +140,9 @@ pub fn export(model: &Model, file_stem: &str) -> Exported {
         Some(la) => logical::write(&mut context, la, root_of(&sa_el, &format!("{sa_id}:root-function")).as_deref()),
         None => logical::empty(&project_id),
     };
+    for pkg in security::packages(&mut context, model, "la") {
+        la_el.push(pkg);
+    }
     let la_id = la_el.id().to_string();
     if let Some(pkg) = data::interfaces(&context, model, "logical", &la_id) {
         la_el.push(pkg);
@@ -139,6 +151,9 @@ pub fn export(model: &Model, file_stem: &str) -> Exported {
         Some(pa) => physical::write(&mut context, pa, root_of(&la_el, &format!("{la_id}:root-function")).as_deref()),
         None => physical::empty(&project_id),
     };
+    for pkg in security::packages(&mut context, model, "pa") {
+        pa_el.push(pkg);
+    }
     let pa_id = pa_el.id().to_string();
     if let Some(pkg) = data::interfaces(&context, model, "physical", &pa_id) {
         pa_el.push(pkg);
@@ -185,6 +200,20 @@ pub fn export(model: &Model, file_stem: &str) -> Exported {
             None => context.note(format!("scenario '{}' left out: no capability to own it", scenario.name)),
         }
     }
+    // A chain or a process with an owner (a capability, a threat, a
+    // function) goes under it rather than under its level's root function.
+    for (chain, owner) in chain_owners(model) {
+        let Some(owner) = context.resolve(&owner).or_else(|| context.resolve_function(&owner)).map(str::to_string) else {
+            context.note(format!("the owner '{owner}' of chain '{chain}' is not exported: the chain stays under its level"));
+            continue;
+        };
+        if engineering.find(&owner).is_none() || engineering.find(&chain).and_then(|c| c.find(&owner)).is_some() {
+            continue;
+        }
+        if let Some(el) = engineering.take(&chain) {
+            engineering.find_mut(&owner).expect("found above").push(el);
+        }
+    }
     // Functions available only in some states or modes.
     for (function, states) in available_in_states(model) {
         let refs: Vec<String> = states.iter().filter_map(|s| context.resolve(s)).map(|s| format!("#{s}")).collect();
@@ -203,18 +232,29 @@ pub fn export(model: &Model, file_stem: &str) -> Exported {
             pkg.push(category);
         }
     }
-    cyber::resolve(&mut context, &mut engineering);
-    let with_cybersecurity = cyber::is_used(&engineering);
-    if with_cybersecurity {
+    let mut with_cybersecurity = cyber::is_used(&engineering);
+    if with_cybersecurity || security::is_used(model) {
+        with_cybersecurity = true;
         project.set(cyber::NAMESPACE.0, cyber::NAMESPACE.1);
+        project.push(security::configuration(model, &project_id));
     }
     project.push(engineering);
+    cyber::resolve(&mut context, &mut project);
 
     let afm = afm(&project_id, !requirements::all(model).is_empty(), stpa::is_used(model), with_cybersecurity);
     let index = diagrams::index(project.children().last().expect("the system engineering"));
     let drawn = diagrams::diagrams(&mut context, &index, &model.diagrams, &format!("{file_stem}.capella"));
     let aird = aird(&project_id, file_stem, drawn);
     Exported { capella: document(&project), aird, afm, notes: context.notes }
+}
+
+/// The chains and operational processes written with an `owner:`, by id.
+fn chain_owners(model: &Model) -> Vec<(String, String)> {
+    let chains = model.operational_analysis.iter().flat_map(|oa| oa.processes.iter())
+        .chain(model.system_analysis.iter().flat_map(|sa| sa.functional_chains.iter()))
+        .chain(model.logical_architecture.iter().flat_map(|la| la.functional_chains.iter()))
+        .chain(model.physical_architecture.iter().flat_map(|pa| pa.functional_chains.iter()));
+    chains.filter_map(|c| context::text(&c.attributes, "owner").map(|o| (c.id.clone(), o.to_string()))).collect()
 }
 
 /// The root function of a level, when it has one.

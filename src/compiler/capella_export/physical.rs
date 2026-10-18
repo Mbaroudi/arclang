@@ -156,7 +156,7 @@ pub(super) fn write(context: &mut Context, pa: &PhysicalArchitecture, above_root
     }
     let ends = exchange_ends(context, &pa.functional_exchanges);
     for chain in &pa.functional_chains {
-        let el = apply(El::new("ownedFunctionalChains", "fa:FunctionalChain", &chain.id).attr("name", &chain.name), &chain.attributes, &["involves"]);
+        let el = apply(El::new("ownedFunctionalChains", "fa:FunctionalChain", &chain.id).attr("name", &chain.name), &chain.attributes, &["involves", "owner"]);
         root.push(relations::chain_steps(context, el, chain, &ends));
     }
     super::functions::place_exchanges(&mut root);

@@ -19,6 +19,7 @@ mod data;
 mod diagrams;
 mod fragments;
 mod levels;
+mod security;
 mod viewpoints;
 
 use super::metamodel::Metamodel;

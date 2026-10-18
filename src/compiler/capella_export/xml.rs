@@ -128,6 +128,13 @@ impl El {
         }
         self.children.iter_mut().find_map(|child| child.find_mut(id))
     }
+    /// Remove and return the element of this id, at any depth below.
+    pub(super) fn take(&mut self, id: &str) -> Option<El> {
+        if let Some(at) = self.children.iter().position(|c| c.id() == id) {
+            return Some(self.children.remove(at));
+        }
+        self.children.iter_mut().find_map(|child| child.take(id))
+    }
     /// Remove and return the children for which `take` holds.
     pub(super) fn take_children(&mut self, take: impl Fn(&El) -> bool) -> Vec<El> {
         let (taken, kept): (Vec<El>, Vec<El>) = std::mem::take(&mut self.children).into_iter().partition(|c| take(c));

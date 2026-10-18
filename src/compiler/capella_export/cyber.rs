@@ -1,6 +1,7 @@
 //! The Cybersecurity viewpoint (eclipse-capella/capella-cybersecurity): the
-//! data a function stores, the trust boundary of a component and the actor a
-//! component is used as a threat source by are extensions of that element
+//! security needs of an element, the data a function stores, the trust
+//! boundary of a component and the actor a component is used as a threat
+//! source by are extensions of that element
 //! (`ownedExtensions`), not property values. The import writes them as
 //! attributes of the element ([`crate::compiler::capella_xmi`]'s viewpoints);
 //! here they go back to their extension.
@@ -21,6 +22,8 @@ enum Shape {
     Refs,
     /// A reference, or `true` for an extension without one.
     RefOrPresence,
+    /// A literal of a scale of the configuration, by its name.
+    Scale(&'static str),
 }
 
 /// An extension: its kind, the kinds of element it extends (by the end of
@@ -32,6 +35,16 @@ struct Extension {
 }
 
 const EXTENSIONS: &[Extension] = &[
+    Extension {
+        kind: "cybersecurity:SecurityNeeds",
+        extends: &["Function", "OperationalActivity", "FunctionalExchange", "ComponentExchange", "ExchangeItem", "Threat", "PrimaryAsset"],
+        attributes: &[
+            ("security_confidentiality", "confidentialityValue", Shape::Scale("confidentiality")),
+            ("security_integrity", "integrityValue", Shape::Scale("integrity")),
+            ("security_availability", "availabilityValue", Shape::Scale("availability")),
+            ("security_traceability", "traceabilityValue", Shape::Scale("traceability")),
+        ],
+    },
     Extension {
         kind: "cybersecurity:FunctionStorage",
         extends: &["Function", "OperationalActivity"],
@@ -51,7 +64,7 @@ const EXTENSIONS: &[Extension] = &[
 ];
 
 /// The reference attributes of the extensions, which [`resolve`] rewrites.
-const REFERENCES: &[&str] = &["exchangedItems", "usedActor"];
+const REFERENCES: &[&str] = &["exchangedItems", "usedActor", "confidentialityValue", "integrityValue", "availabilityValue", "traceabilityValue"];
 
 fn extends(extension: &Extension, el: &El) -> bool {
     let name = el.kind().rsplit(':').next().unwrap_or("");
@@ -87,6 +100,15 @@ pub(super) fn extend(mut el: El, attributes: &HashMap<String, AttributeValue>) -
                 match shape {
                     Shape::Plain => ext.set(attribute, &value.display()),
                     Shape::Refs => ext.set(attribute, &texts(value).iter().map(|r| format!("#{}", r.trim_start_matches('#'))).collect::<Vec<_>>().join(" ")),
+                    // A need written by a literal's id (`#...`) stays that id.
+                    Shape::Scale(scale) => {
+                        let name = value.display();
+                        let id = match name.strip_prefix('#') {
+                            Some(id) => id.to_string(),
+                            None => super::security::literal_id(scale, &name),
+                        };
+                        ext.set(attribute, &format!("#{id}"));
+                    }
                     Shape::RefOrPresence => match value {
                         AttributeValue::String(flag) if flag == "true" => {}
                         AttributeValue::Boolean(true) => {}
@@ -101,9 +123,10 @@ pub(super) fn extend(mut el: El, attributes: &HashMap<String, AttributeValue>) -
     (el, taken)
 }
 
-/// Rewrite the references of the extensions under `root` to ids: an id of
-/// the export stays, any other name is resolved; one that resolves to
-/// nothing is left out, with a note.
+/// Rewrite the references of the extensions under `root` (the project: the
+/// literals of the scales are in its configuration) to ids: an id of the
+/// export stays, any other name is resolved; one that resolves to nothing is
+/// left out, with a note.
 pub(super) fn resolve(context: &mut Context, root: &mut El) {
     let mut ids = HashSet::new();
     collect_ids(root, &mut ids);
@@ -193,9 +216,9 @@ mod tests {
         let component = El::new("ownedActors", "ctx:SystemComponent", "sa2");
         let given = attributes(&[
             ("trusted", AttributeValue::String("false".into())),
-            ("threat_source_profile", AttributeValue::Number(3.0)),
+            ("threat_source_profile", AttributeValue::Integer(3)),
             ("trusted_", AttributeValue::String("false".into())),
-            ("threat_source_profile_", AttributeValue::Number(2.0)),
+            ("threat_source_profile_", AttributeValue::Integer(2)),
         ]);
         let (el, taken) = extend(component, &given);
         let out = rendered(&el);
