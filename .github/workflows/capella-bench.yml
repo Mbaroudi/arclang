@@ -22,7 +22,7 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
 
       - name: Cache dependencies
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: |
             ~/.cargo/registry
@@ -31,7 +31,7 @@ jobs:
           key: ${{ runner.os }}-cargo-release-${{ hashFiles('**/Cargo.lock') }}
 
       - name: Cache the corpus
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/capella-corpus
           key: capella-corpus-${{ hashFiles('tools/capella_bench/corpus.txt') }}
