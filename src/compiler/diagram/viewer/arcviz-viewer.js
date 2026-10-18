@@ -86,6 +86,12 @@
    *             keeps that chrome in the host, as the standalone page has it.
    *   onSelect: (selection | null) => void, called whenever the selection
    *             changes, with { view, id, name, kind, isEdge }.
+   *   onDrop:   ({ view, from, to }) => void, when a box is dragged and let
+   *             go on another box (`to`) or on the background (`to` null),
+   *             outside arrange mode. Given, dragging a box is that gesture.
+   *   onOpen:   ({ view, id, name, kind }) => boolean, on a double-click on
+   *             a box; true means the host took it (an editor opened),
+   *             false lets the viewer fold or unfold the container.
    */
   function mount(host, payload, deps, options) {
     const graphs = payload.graphs || [];
@@ -93,7 +99,11 @@
     const render = deps.render;
     const slots = (options && options.slots) || {};
     const onSelect = (options && options.onSelect) || (() => {});
-    const state = { active: null, views: new Map(), layouts: new Map(), arranging: false, chain: null, selected: null, history: [], settled: new Map() };
+    const onDrop = options && options.onDrop;
+    const onOpen = options && options.onOpen;
+    // The host may take the whole window itself (with its own tools around the sheet).
+    const onFullscreen = options && options.onFullscreen;
+    const state = { active: null, views: new Map(), layouts: new Map(), arranging: false, chain: null, selected: null, history: [], settled: new Map(), filters: new Map() };
 
     host.textContent = '';
     host.classList.add('arcviz');
@@ -175,15 +185,25 @@
     const unfoldAll = tool('Unfold all', 'Show what every container holds', () => refold(new Set()));
     // Tools come in groups: moving about, folding, arranging, zooming, saving.
     const group = (label, items) => el('span', { class: 'arcviz-tool-group', role: 'group', 'aria-label': label }, items);
+    // Filters, as a diagram has them in Capella: kinds of boxes and lines
+    // left out of the drawing, ports and labels hidden.
+    const filterList = el('div', { class: 'arcviz-filter-list' });
+    const filterMenu = el('details', { class: 'arcviz-filters' }, [
+      el('summary', { class: 'arcviz-tool', text: 'Filters' }),
+      el('div', { class: 'arcviz-filter-pop' }, [filterList]),
+    ]);
     const toolbar = el('div', { class: 'arcviz-tools', role: 'toolbar', 'aria-label': 'Diagram tools' }, [
       group('Navigation', [treeToggle, back]),
+      group('Filters', [filterMenu]),
       group('Folding', [foldAll, unfoldAll]),
       group('Arrangement', [arrange, resetPlaces, saveLayout]),
       group('Zoom', [
         tool('Fit', 'Fit the diagram to the frame (0)', () => fit()),
         tool('−', 'Zoom out (-)', () => sheet.zoomOut()),
         tool('+', 'Zoom in (+)', () => sheet.zoomIn()),
-        tool('Full screen', 'Show the diagram full screen', () => sheet.toggleFullscreen()),
+        onFullscreen
+          ? tool('Full screen', 'Edit the diagram full screen, with the palette (Esc to leave)', () => onFullscreen())
+          : tool('Full screen', 'Show the diagram full screen', () => sheet.toggleFullscreen()),
       ]),
       group('Export', [
         tool('Save SVG', 'Download this view as drawn, folded containers included, as an SVG file', () => saveSvg()),
@@ -258,7 +278,10 @@
     host.appendChild(work);
     // The "across layers" section follows the details unless it has a
     // panel of its own, like a semantic browser beside the properties.
-    const related = slots.related || null;
+    // An element of the viewer's own, so a host that moves the chrome
+    // about keeps receiving the selection.
+    const related = slots.related ? el('div', { class: 'arcviz-related-host' }) : null;
+    if (related) slots.related.appendChild(related);
     into('foot', host, hint);
     into('foot', host, pick);
     into('foot', host, el('div', { class: 'arcviz-below' }, [legend]));
@@ -279,12 +302,94 @@
     // A view is laid out once per scope: what is folded, what is open.
     // The automatic layout is computed once; the reader's placement is
     // applied on top of it each time a box is moved.
+    // --- filters --------------------------------------------------------
+    const filtersOf = (view) => {
+      if (!state.filters.has(view)) state.filters.set(view, { nodes: new Set(), edges: new Set(), ports: false, labels: false });
+      return state.filters.get(view);
+    };
+    const filterSignature = (view) => {
+      const filters = filtersOf(view);
+      return `|f:${[...filters.nodes].sort().join(',')}|e:${[...filters.edges].sort().join(',')}`;
+    };
+
+    /** The graph without the kinds filtered out, and the edges that touched them. */
+    function applyFilters(graph, filters) {
+      if (filters.nodes.size === 0 && filters.edges.size === 0) return graph;
+      const gone = new Set();
+      const prune = (node) => {
+        node.children = (node.children || []).filter((child) => {
+          const out = filters.nodes.has((child.arc || {}).kind);
+          if (out) collect(child);
+          return !out;
+        });
+        node.children.forEach(prune);
+      };
+      const collect = (node) => {
+        gone.add(node.id);
+        for (const port of node.ports || []) gone.add(port.id);
+        (node.children || []).forEach(collect);
+      };
+      prune(graph);
+      const touches = (edge) => [...(edge.sources || []), ...(edge.targets || [])].some((end) => gone.has(end))
+        || gone.has((edge.arc || {}).source_node) || gone.has((edge.arc || {}).target_node);
+      const sweep = (holder) => {
+        if (holder.edges) holder.edges = holder.edges.filter((edge) => !filters.edges.has((edge.arc || {}).kind) && !touches(edge));
+        (holder.children || []).forEach(sweep);
+      };
+      sweep(graph);
+      return graph;
+    }
+
+    /** Every kind of box and of line a view may draw, for the filter menu. */
+    function kindsIn(graph) {
+      const nodes = new Set();
+      const edges = new Set();
+      const walk = (holder) => {
+        for (const child of holder.children || []) { nodes.add((child.arc || {}).kind); walk(child); }
+        for (const edge of holder.edges || []) edges.add((edge.arc || {}).kind);
+      };
+      walk(scope.shape(graph));
+      nodes.delete(undefined);
+      edges.delete(undefined);
+      return { nodes: [...nodes], edges: [...edges] };
+    }
+
+    function drawFilterMenu(graph) {
+      filterList.textContent = '';
+      const filters = filtersOf(graph.id);
+      const sequence = render.isSequence(graph);
+      const check = (label, on, change) => el('label', { class: 'arcviz-filter' }, [
+        el('input', { type: 'checkbox', checked: on, onchange: (event) => change(event.currentTarget.checked) }),
+        el('span', { text: label }),
+      ]);
+      const apply = () => { state.views.delete(scope.key(graph.id) + filterSignature(graph.id)); redraw(); };
+      const kinds = kindsIn(graph);
+      if (!sequence) {
+        filterList.appendChild(el('p', { class: 'arcviz-filter-title', text: 'Show' }));
+        filterList.appendChild(check('Ports', !filters.ports, (on) => { filters.ports = !on; canvas.classList.toggle('hide-ports', filters.ports); }));
+        filterList.appendChild(check('Labels of lines', !filters.labels, (on) => { filters.labels = !on; canvas.classList.toggle('hide-labels', filters.labels); }));
+      }
+      if (kinds.nodes.length > 0) filterList.appendChild(el('p', { class: 'arcviz-filter-title', text: 'Boxes' }));
+      for (const kind of kinds.nodes) {
+        if (kind === 'lifeline' || kind === 'initial_state') continue;
+        filterList.appendChild(check(render.nodeStyle(kind).label, !filters.nodes.has(kind), (on) => { if (on) filters.nodes.delete(kind); else filters.nodes.add(kind); apply(); }));
+      }
+      if (kinds.edges.length > 0) filterList.appendChild(el('p', { class: 'arcviz-filter-title', text: 'Lines' }));
+      for (const kind of kinds.edges) {
+        filterList.appendChild(check(render.edgeStyle(kind).label, !filters.edges.has(kind), (on) => { if (on) filters.edges.delete(kind); else filters.edges.add(kind); apply(); }));
+      }
+      const active = filters.nodes.size + filters.edges.size + (filters.ports ? 1 : 0) + (filters.labels ? 1 : 0);
+      filterMenu.querySelector('summary').textContent = active > 0 ? `Filters (${active})` : 'Filters';
+      canvas.classList.toggle('hide-ports', filters.ports);
+      canvas.classList.toggle('hide-labels', filters.labels);
+    }
+
     function layout(graph, shown) {
-      const key = scope.key(graph.id, shown);
+      const key = scope.key(graph.id, shown) + filterSignature(graph.id);
       if (state.views.has(key)) return state.views.get(key);
       if (!state.layouts.has(key)) {
         // Scenarios are drawn as declared; everything else goes through ELK.
-        const copy = JSON.parse(JSON.stringify(scope.shape(graph, shown)));
+        const copy = applyFilters(JSON.parse(JSON.stringify(scope.shape(graph, shown))), filtersOf(graph.id));
         state.layouts.set(key, render.isSequence(graph) ? Promise.resolve(copy) : new deps.ELK().layout(copy));
       }
       const pending = state.layouts.get(key).then((laidOut) => {
@@ -297,7 +402,7 @@
 
     /** The active view once laid out, or null if it failed or is absent. */
     async function activeView() {
-      const pending = state.views.get(scope.key(state.active));
+      const pending = state.views.get(scope.key(state.active) + filterSignature(state.active));
       if (!pending) return null;
       try {
         return await pending;
@@ -324,8 +429,8 @@
     /** Change the scope of a view, dropping the layout it replaces. */
     function rescope(id, change) {
       // The whole view is kept for printing; any other is recomputed.
-      const before = scope.key(id);
-      if (before !== scope.key(id, scope.WHOLE)) {
+      const before = scope.key(id) + filterSignature(id);
+      if (scope.key(id) !== scope.key(id, scope.WHOLE)) {
         state.views.delete(before);
         state.layouts.delete(before);
       }
@@ -384,7 +489,7 @@
     async function replace(change) {
       const view = state.active;
       const where = sheet.position();
-      state.views.delete(scope.key(view));
+      state.views.delete(scope.key(view) + filterSignature(view));
       change();
       await redraw();
       if (state.active !== view) return;
@@ -545,6 +650,7 @@
         fit();
         drawChains(graph);
         drawCrumbs(graph);
+        drawFilterMenu(graph);
         drawLegend(view);
         drawNotes(graph);
         drawPicker(view);
@@ -570,7 +676,9 @@
       onPick: (element) => select(element),
       onOpen: (element) => {
         const node = nodeUnder(element);
-        if (node) toggleFold(node.dataset.id);
+        if (!node) return;
+        if (onOpen && onOpen({ view: state.active, id: node.dataset.id, name: nav.nameOf(node.dataset.id), kind: node.dataset.kind })) return;
+        toggleFold(node.dataset.id);
       },
       onKey: (event) => {
         const step = { ArrowLeft: [-NUDGE, 0], ArrowRight: [NUDGE, 0], ArrowUp: [0, -NUDGE], ArrowDown: [0, NUDGE] }[event.key];
@@ -582,6 +690,7 @@
       },
       carried: (id) => carried(id),
       onMove: (id, dx, dy) => moveBy(id, dx, dy),
+      onDrop: onDrop ? (from, to) => onDrop({ view: state.active, from, to }) : null,
     });
     const fit = sheet.fit;
 
@@ -640,6 +749,15 @@
       }
     }
 
+    /** A node's ports as `in Name (Interface)`. */
+    function portLabels(node) {
+      return (node.ports || []).map((port) => {
+        const arc = port.arc;
+        const carried = arc.interface ? ` (${arc.interface})` : '';
+        return `${arc.direction === 'undirected' ? '' : arc.direction + ' '}${arc.name}${carried}`;
+      });
+    }
+
     function row(list, term, value) {
       if (!value) return;
       list.appendChild(el('dt', { text: term }));
@@ -674,12 +792,7 @@
         if (entry.parent) row(list, 'Inside', view.index.nodes.get(entry.parent).node.labels[0].text);
         row(list, 'Realizes', (node.arc.realizes || []).join(', '));
         for (const [key, value] of Object.entries(node.arc.properties || {})) row(list, key.replace(/_/g, ' '), value);
-        const ports = (node.ports || []).map((port) => {
-          const arc = port.arc;
-          const carried = arc.interface ? ` (${arc.interface})` : '';
-          return `${arc.direction === 'undirected' ? '' : arc.direction + ' '}${arc.name}${carried}`;
-        });
-        row(list, 'Ports', ports.join(', '));
+        row(list, 'Ports', portLabels(node).join(', '));
       }
       if (isEdge) {
         details.appendChild(list);
@@ -688,7 +801,19 @@
       }
       // Where the element leads comes first: it is what the reader acts on.
       const id = entry.node.id;
-      (related || details).appendChild(nav.related(state.active, id));
+      if (related) {
+        const node = entry.node;
+        const parent = entry.parent ? view.index.nodes.get(entry.parent).node : null;
+        related.appendChild(nav.browser(state.active, id, {
+          name: displayName(node, render.nodeStyle(node.arc.kind).label),
+          kind: render.nodeStyle(node.arc.kind).label,
+          inside: parent ? parent.labels[0].text : null,
+          insideId: parent ? parent.id : null,
+          ports: portLabels(node),
+        }));
+      } else {
+        details.appendChild(nav.related(state.active, id));
+      }
       details.appendChild(list);
       if (canFold(id)) {
         const folded = foldedOf(state.active).has(id);
@@ -733,6 +858,7 @@
       state.chain = turnOn ? chain.id : null;
       for (const other of chains.querySelectorAll('.arcviz-chain')) other.setAttribute('aria-pressed', 'false');
       for (const marked of canvas.querySelectorAll('.in-chain')) marked.classList.remove('in-chain');
+      for (const old of canvas.querySelectorAll('.av-chain-graph')) old.remove();
       canvas.classList.toggle('has-chain', turnOn);
       if (!turnOn) return;
       button.setAttribute('aria-pressed', 'true');
@@ -745,6 +871,106 @@
       for (const item of canvas.querySelectorAll('.av-node, .av-edge')) {
         if (members.has(item.dataset.id)) item.classList.add('in-chain');
       }
+      drawChainGraph(chain);
+    }
+
+    /**
+     * The control nodes (AND, OR, ITERATE) and sequence links of the lit
+     * chain, over the sheet: a control node sits between the steps it
+     * joins, a sequence link is a dashed arrow with its condition.
+     */
+    function drawChainGraph(chain) {
+      for (const old of canvas.querySelectorAll('.av-chain-graph')) old.remove();
+      const controls = chain.controls || [];
+      const sequences = chain.sequences || [];
+      if (controls.length === 0 && sequences.length === 0) return;
+      const svg = canvas.querySelector('svg.av-svg');
+      if (!svg) return;
+      const NS = 'http://www.w3.org/2000/svg';
+      const centreOf = (id) => {
+        const item = canvas.querySelector(`.av-node[data-id="${CSS.escape(id)}"], .av-edge[data-id="${CSS.escape(id)}"]`);
+        if (!item) return null;
+        const box = item.getBBox();
+        const matrix = item.getCTM();
+        const root = svg.getCTM();
+        const point = svg.createSVGPoint();
+        point.x = box.x + box.width / 2;
+        point.y = box.y + box.height / 2;
+        const moved = root ? point.matrixTransform(matrix).matrixTransform(root.inverse()) : point.matrixTransform(matrix);
+        return { x: moved.x, y: moved.y };
+      };
+      // A referenced chain stands at the mean of its own nodes.
+      const chainAt = (id) => {
+        const other = (activeGraph().arc.chains || []).find((c) => c.id === id);
+        const points = other ? other.nodes.map(centreOf).filter(Boolean) : [];
+        return points.length ? { x: points.reduce((s, p) => s + p.x, 0) / points.length, y: points.reduce((s, p) => s + p.y, 0) / points.length } : null;
+      };
+      // A control node is placed at the mean of the steps linked to it.
+      const places = new Map();
+      for (const control of controls) {
+        const around = sequences
+          .filter((link) => link.source === control.id || link.target === control.id)
+          .map((link) => (link.source === control.id ? link.target : link.source))
+          .filter((id) => !controls.some((other) => other.id === id))
+          .map((id) => centreOf(id) || chainAt(id))
+          .filter(Boolean);
+        if (around.length === 0) continue;
+        places.set(control.id, {
+          x: around.reduce((sum, p) => sum + p.x, 0) / around.length,
+          y: around.reduce((sum, p) => sum + p.y, 0) / around.length,
+        });
+      }
+      const where = (id) => places.get(id) || centreOf(id) || chainAt(id);
+      const layer = document.createElementNS(NS, 'g');
+      layer.setAttribute('class', 'av-chain-graph');
+      for (const link of sequences) {
+        const from = where(link.source);
+        const to = where(link.target);
+        if (!from || !to) continue;
+        const line = document.createElementNS(NS, 'line');
+        line.setAttribute('x1', from.x); line.setAttribute('y1', from.y);
+        line.setAttribute('x2', to.x); line.setAttribute('y2', to.y);
+        line.setAttribute('class', 'av-sequence');
+        const title = document.createElementNS(NS, 'title');
+        title.textContent = link.condition ? `Sequence [${link.condition}]` : 'Sequence';
+        line.appendChild(title);
+        layer.appendChild(line);
+        if (link.condition) {
+          const text = document.createElementNS(NS, 'text');
+          text.setAttribute('x', (from.x + to.x) / 2);
+          text.setAttribute('y', (from.y + to.y) / 2 - 6);
+          text.setAttribute('class', 'av-sequence-label');
+          text.setAttribute('text-anchor', 'middle');
+          text.textContent = `[${link.condition}]`;
+          layer.appendChild(text);
+        }
+      }
+      for (const control of controls) {
+        const at = places.get(control.id);
+        if (!at) continue;
+        const group = document.createElementNS(NS, 'g');
+        group.setAttribute('class', 'av-control');
+        group.setAttribute('data-kind', control.kind);
+        const shape = document.createElementNS(NS, control.kind === 'and' ? 'rect' : 'polygon');
+        if (control.kind === 'and') {
+          shape.setAttribute('x', at.x - 22); shape.setAttribute('y', at.y - 4);
+          shape.setAttribute('width', 44); shape.setAttribute('height', 8);
+        } else {
+          shape.setAttribute('points', `${at.x},${at.y - 14} ${at.x + 14},${at.y} ${at.x},${at.y + 14} ${at.x - 14},${at.y}`);
+        }
+        const title = document.createElementNS(NS, 'title');
+        title.textContent = `${control.kind.toUpperCase()}: ${control.name}`;
+        group.appendChild(title);
+        group.appendChild(shape);
+        const text = document.createElementNS(NS, 'text');
+        text.setAttribute('x', at.x); text.setAttribute('y', at.y + 26);
+        text.setAttribute('text-anchor', 'middle');
+        text.setAttribute('class', 'av-control-label');
+        text.textContent = control.kind.toUpperCase();
+        group.appendChild(text);
+        layer.appendChild(group);
+      }
+      svg.appendChild(layer);
     }
 
     // --- legend and notes -----------------------------------------------

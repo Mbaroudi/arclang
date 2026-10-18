@@ -174,11 +174,11 @@ fn needs_space(previous: &Lexeme, lexeme: &Lexeme, next: Option<&Lexeme>) -> boo
     match (left, right) {
         // `SF-004` written bare lexes as a word and a negative number; keep
         // it in one piece, as the author wrote it.
-        (_, Token::Number(_)) if lexeme.text.starts_with('-') && !is_opening(left) => {
+        (_, Token::Number(_) | Token::Integer(_)) if lexeme.text.starts_with('-') && !is_opening(left) => {
             lexeme.space_before
         }
         // `40%` or `40 %`: as the author wrote it.
-        (Token::Number(_), Token::Percent) => lexeme.space_before,
+        (Token::Number(_) | Token::Integer(_), Token::Percent) => lexeme.space_before,
         (_, Token::Colon | Token::Comma) => false,
         (Token::LeftBrace, Token::RightBrace) => false,
         (Token::LeftBracket | Token::LeftParen, _) => false,

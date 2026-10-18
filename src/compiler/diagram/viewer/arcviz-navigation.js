@@ -125,6 +125,41 @@
     }
 
     /**
+     * The semantic browser, as Capella lays it out: what refers to the
+     * element, the element, what it refers to. `current` describes the
+     * element: { name, kind, inside, ports }.
+     */
+    function browser(graph, id, current) {
+      const relations = model.relationsOf(id);
+      const column = (title, entries) => el('section', { class: 'arcviz-browser-column', 'aria-label': title }, [
+        el('h4', { text: title }),
+        entries.length > 0 ? el('dl', {}, entries.flatMap(([label, ways]) => [el('dt', { text: label }), el('dd', {}, ways)])) : el('p', { class: 'arcviz-quiet', text: 'None.' }),
+      ]);
+      const grouped = (direction) => {
+        const byLabel = new Map();
+        for (const relation of relations.filter((r) => r.direction === direction)) byLabel.set(relation.label, [...(byLabel.get(relation.label) || []), relation]);
+        return [...byLabel].map(([label, group]) => [label, group.flatMap((relation) => (relation.places.length > 0
+          ? relation.places.slice(0, 1).map((place) => jump(place, relation.id, relation.name))
+          : [el('span', { class: 'arcviz-quiet', text: `${relation.name} (not on a diagram)` })]))]);
+      };
+      const here = [];
+      here.push(['Kind', [el('span', { text: current.kind })]]);
+      if (current.inside) here.push(['Inside', [current.insideId ? jump({ graph }, current.insideId, current.inside) : el('span', { text: current.inside })]]);
+      if (current.ports && current.ports.length > 0) here.push(['Ports', current.ports.map((port) => el('span', { class: 'arcviz-chip', text: port }))]);
+      const elsewhere = model.placesOf(id).filter((place) => place.graph !== graph);
+      if (elsewhere.length > 0) here.push(['Also shown in', elsewhere.map((place) => jump(place, id, placeLabel(place)))]);
+      return el('div', { class: 'arcviz-browser' }, [
+        column('Referencing elements', grouped('in')),
+        el('section', { class: 'arcviz-browser-column arcviz-browser-current', 'aria-label': 'Current element' }, [
+          el('h4', { text: 'Current element' }),
+          el('p', { class: 'arcviz-browser-name', text: current.name }),
+          el('dl', {}, here.flatMap(([label, ways]) => [el('dt', { text: label }), el('dd', {}, ways)])),
+        ]),
+        column('Referenced elements', grouped('out')),
+      ]);
+    }
+
+    /**
      * The way into an open container: the whole view, each container around
      * the open one, then the open one. `open(id)` goes to a step; `null` is
      * the whole view. An empty path hides the host.
@@ -163,7 +198,7 @@
       }
     }
 
-    return { tree, mark, related, crumbs, legend, nameOf: model.nameOf };
+    return { tree, mark, related, browser, crumbs, legend, nameOf: model.nameOf };
   }
 
   root.ArcVizNavigation = { create };

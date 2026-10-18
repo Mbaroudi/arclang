@@ -80,6 +80,8 @@ impl CapellaImporter {
             }
             
             vec![SystemAnalysis {
+            id: String::new(),
+            attributes: HashMap::new(),
                 missions: Vec::new(),
                 capabilities: Vec::new(),
                 functional_chains: Vec::new(),
@@ -89,6 +91,7 @@ impl CapellaImporter {
                 components: Vec::new(),
                 external_actors: Vec::new(),
                 functional_exchanges: Vec::new(),
+                component_exchanges: Vec::new(),
             }]
         } else {
             Vec::new()
@@ -101,11 +104,15 @@ impl CapellaImporter {
             }
             
             vec![LogicalArchitecture {
+            id: String::new(),
+            attributes: HashMap::new(),
                 capability_realizations: Vec::new(),
                 functional_chains: Vec::new(),
                 name: "Imported Architecture".to_string(),
                 components,
+                functions: Vec::new(),
                 interfaces: Vec::new(),
+                functional_exchanges: Vec::new(),
                 component_exchanges: Vec::new(),
                 unallocated_functions: Vec::new(),
             }]
@@ -114,7 +121,9 @@ impl CapellaImporter {
         };
         
         Ok(Model {
+            diagrams: Vec::new(),
             classes: Vec::new(),
+            associations: Vec::new(),
             test_cases: Vec::new(),
             constraints: Vec::new(),
             types: Vec::new(),
@@ -126,6 +135,8 @@ impl CapellaImporter {
             physical_architecture: Vec::new(),
             epbs: Vec::new(),
             safety_analysis: Vec::new(),
+            security_analysis: Vec::new(),
+            security_scales: None,
             traces,
             state_machines: Vec::new(),
             scenarios: Vec::new(),
@@ -297,8 +308,8 @@ impl ArcCodeGenerator {
                         AttributeValue::String(s) => {
                             arc_code.push_str(&format!("        {}: \"{}\"\n", key, s));
                         }
-                        AttributeValue::Number(n) => {
-                            arc_code.push_str(&format!("        {}: {}\n", key, n));
+                        AttributeValue::Number(_) | AttributeValue::Integer(_) => {
+                            arc_code.push_str(&format!("        {}: {}\n", key, value.display()));
                         }
                         AttributeValue::List(items) => {
                             arc_code.push_str(&format!("        {}: [", key));
@@ -366,8 +377,8 @@ impl ArcCodeGenerator {
                                 }
                                 arc_code.push_str("]\n");
                             }
-                            AttributeValue::Number(n) => {
-                                arc_code.push_str(&format!("            {}: {}\n", key, n));
+                            AttributeValue::Number(_) | AttributeValue::Integer(_) => {
+                                arc_code.push_str(&format!("            {}: {}\n", key, value.display()));
                             }
                             AttributeValue::Boolean(b) => {
                                 arc_code.push_str(&format!("            {}: {}\n", key, b));

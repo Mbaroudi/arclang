@@ -3,8 +3,8 @@
 
 use super::builder::{Builder, Role};
 use super::elements::{element_index, kind_name, ElementRef};
-use super::{Diagram, EdgeKind, NodeKind, ViewKind};
-use crate::compiler::ast::{MessageType, Model, Scenario};
+use super::{Diagram, EdgeKind, Fragment, Invariant, NodeKind, Operand, ViewKind};
+use crate::compiler::ast::{CombinedFragment, MessageType, Model, Scenario};
 use std::collections::{BTreeMap, HashMap};
 
 /// One entry per scenario: its diagram (none when it has no participant)
@@ -99,6 +99,67 @@ fn build_scenario(
         builder.set_edge_label(&edge, label.clone());
     }
 
-    let (diagram, diagnostics) = builder.finish_scoped(scenario.name.clone());
+    let (mut diagram, diagnostics) = builder.finish_scoped(scenario.name.clone());
+    // The lifelines a row of messages touches, by row.
+    let rows: Vec<(String, String)> = scenario
+        .messages
+        .iter()
+        .map(|message| (format!("{}.{}", scenario.name, message.from), format!("{}.{}", scenario.name, message.to)))
+        .collect();
+    let all: Vec<String> = diagram.nodes.iter().map(|node| node.id.clone()).collect();
+    diagram.fragments = scenario.fragments.iter().map(|fragment| frame(fragment, &rows, &all)).collect();
+    // The invariants, on the lifeline each one names, labelled with the
+    // name of the state or function (the model may reference it by id).
+    let mut diagnostics = diagnostics;
+    for invariant in &scenario.invariants {
+        let lifeline = format!("{}.{}", scenario.name, invariant.lifeline);
+        if !all.contains(&lifeline) {
+            diagnostics.push(format!("[{}] {what}: {} '{}' sits on '{}', which is not a participant", diagram.id, invariant.kind.keyword(), invariant.name, invariant.lifeline));
+            continue;
+        }
+        let label = elements.get(invariant.name.as_str()).map(|element| element.name.to_string()).unwrap_or_else(|| invariant.name.clone());
+        diagram.invariants.push(Invariant {
+            id: invariant.id.clone(),
+            lifeline,
+            label,
+            kind: invariant.kind.keyword().to_string(),
+            start: invariant.start,
+            end: invariant.end,
+        });
+    }
     (Some(diagram), diagnostics)
+}
+
+/// A fragment as the sheet draws it: its rows and the lifelines it spans.
+fn frame(fragment: &CombinedFragment, rows: &[(String, String)], all: &[String]) -> Fragment {
+    let mut lifelines: Vec<String> = Vec::new();
+    if fragment.end >= fragment.start {
+        for (from, to) in rows.iter().skip(fragment.start).take(fragment.end + 1 - fragment.start) {
+            for end in [from, to] {
+                if all.contains(end) && !lifelines.contains(end) {
+                    lifelines.push(end.clone());
+                }
+            }
+        }
+    }
+    if lifelines.is_empty() {
+        lifelines = all.to_vec();
+    }
+    Fragment {
+        kind: fragment.fragment_type.keyword().to_string(),
+        label: fragment.label.clone(),
+        start: fragment.start,
+        end: fragment.end,
+        lifelines,
+        operands: fragment
+            .operands
+            .iter()
+            .map(|operand| Operand {
+                label: operand.label.clone(),
+                start: operand.start,
+                end: operand.end,
+                fragments: operand.fragments.iter().map(|nested| frame(nested, rows, all)).collect(),
+            })
+            .collect(),
+    }
 }

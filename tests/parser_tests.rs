@@ -270,8 +270,8 @@ system_analysis "SA" {
 "#,
     );
     let function = &model.system_analysis[0].functions[0];
-    assert!(matches!(function.attributes.get("wcet"), Some(AttributeValue::Number(n)) if *n == 40.0));
-    assert!(matches!(function.attributes.get("count"), Some(AttributeValue::Number(n)) if *n == 3.0));
+    assert!(matches!(function.attributes.get("wcet"), Some(AttributeValue::Integer(40))));
+    assert!(matches!(function.attributes.get("count"), Some(AttributeValue::Integer(3))));
 }
 
 #[test]

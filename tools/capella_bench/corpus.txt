@@ -1,0 +1,14 @@
+capella https://github.com/eclipse-capella/capella.git 02ef59ed71cb420779f7c07e57f8a5c6ae972bec
+pycmbse https://github.com/DSD-DBS/py-capellambse.git 246f5a4cca574e951cbde7a2371a47b1fdbc9c57
+community/bouazizelyes_MBSE_ROB8 https://github.com/bouazizelyes/MBSE_ROB8.git ea78ee007a51ff395d46662e9f41e43b9c922ec3
+community/Cosys-Lab_lab-scale-gantry-crane https://github.com/Cosys-Lab/lab-scale-gantry-crane.git 1ae7e0198a05ed70928fe4c3f3afdb75ed701ca0
+community/DeltaLabo_ASADA_Paso_Ancho https://github.com/DeltaLabo/ASADA_Paso_Ancho.git c97ec2f558d4d0a1591f577ed07a57777e9e817f
+community/DSD-DBS_coffee-machine https://github.com/DSD-DBS/coffee-machine.git db45166576e7f1e7fec3256e8657ba431f9b5b77
+community/eclipse-capella_capella-cybersecurity https://github.com/eclipse-capella/capella-cybersecurity.git 69e8a4e207302aa2e38dc18711f8730bae1598ec
+community/Ionut-chelaru_OACC-Capella https://github.com/Ionut-chelaru/OACC-Capella.git e489ee989806b5ab076bb4dc7c5921d9d14d8019
+community/labs4capella_DSM4Capella https://github.com/labs4capella/DSM4Capella.git 76381e2cbee0cb166c0bdbd61e770ba24e2b1d12
+community/labs4capella_stpa-capella https://github.com/labs4capella/stpa-capella.git 06c9e37957c5dec973b00363092c17d1b84ff60b
+community/sKulll-J_PGE_2024_SoSheeps https://github.com/sKulll-J/PGE_2024_SoSheeps.git 237490f2649c9d5dc6f4743784720e2844c1808b
+community/ThomasLeMontagner_PolitelySecureDevice https://github.com/ThomasLeMontagner/PolitelySecureDevice.git 84cda829044e27913b2f6cdc3e7f4710e46d72be
+community/tkSDISW_Diesel_Engine https://github.com/tkSDISW/Diesel_Engine.git 9d357f410d2a7efb9980dd93f8c5b7162c957c17
+community/VidurangaLanders_LHMAM_MBSE https://github.com/VidurangaLanders/LHMAM_MBSE.git d52684d89f6d3788ff805c2cb6422044f21132a7

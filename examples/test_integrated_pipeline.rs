@@ -9,8 +9,12 @@ fn create_test_model() -> Model {
     
     // Add logical architecture with components
     model.logical_architecture.push(LogicalArchitecture {
+        id: String::new(),
+        attributes: Default::default(),
         capability_realizations: Vec::new(),
         functional_chains: Vec::new(),
+        functions: Vec::new(),
+        functional_exchanges: Vec::new(),
         name: "Emergency Braking System".to_string(),
         components: vec![
             LogicalComponent {
@@ -116,16 +120,20 @@ fn create_test_model() -> Model {
         ],
         component_exchanges: vec![
             ComponentExchange {
+                id: String::new(),
                 from_port: "LC-001".to_string(),
                 to_port: "LC-002".to_string(),
                 exchange_item: "ObstacleData".to_string(),
                 label: Some("obstacle detection".to_string()),
+                attributes: Default::default(),
             },
             ComponentExchange {
+                id: String::new(),
                 from_port: "LC-002".to_string(),
                 to_port: "LC-003".to_string(),
                 exchange_item: "BrakingCommand".to_string(),
                 label: Some("brake command".to_string()),
+                attributes: Default::default(),
             },
         ],
         interfaces: vec![],

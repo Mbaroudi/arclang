@@ -69,7 +69,7 @@ fn test_number_with_underscores() {
     let input = "speed: 1_000_000";
     let tokens = Lexer::new(input).tokenize().unwrap();
     
-    assert_eq!(tokens[2], Token::Number(1000000.0));
+    assert_eq!(tokens[2], Token::Integer(1000000));
 }
 
 #[test]
@@ -85,7 +85,7 @@ fn test_negative_number() {
     let input = "temp: -40";
     let tokens = Lexer::new(input).tokenize().unwrap();
     
-    assert_eq!(tokens[2], Token::Number(-40.0));
+    assert_eq!(tokens[2], Token::Integer(-40));
 }
 
 #[test]
@@ -308,7 +308,7 @@ fn test_edge_case_dot_at_end_of_number() {
     // Should either fail or parse as 42 followed by Dot
     assert!(result.is_err() || {
         let tokens = result.unwrap();
-        tokens[2] == Token::Number(42.0) && tokens[3] == Token::Dot
+        tokens[2] == Token::Integer(42) && tokens[3] == Token::Dot
     });
 }
 

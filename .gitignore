@@ -21,6 +21,10 @@
 # Generated files
 *.json
 !examples/**/*.json
+# Data the export compiles in (include_str!).
+!src/compiler/capella_export/*.json
+# The figures the Capella bench must keep.
+!tools/capella_bench/baseline.json
 *.xml
 !examples/**/*.xml
 
@@ -81,3 +85,8 @@ wasm/pkg/
 
 # Python bytecode
 __pycache__/
+
+# The VS Code extension manifests are sources, not outputs.
+!editors/vscode/package.json
+!editors/vscode/language-configuration.json
+!editors/vscode/syntaxes/*.json

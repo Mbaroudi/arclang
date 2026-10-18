@@ -129,6 +129,9 @@ impl<'a> Checker<'a> {
             for component in &la.components {
                 self.walk_logical_component(component);
             }
+            for function in &la.functions {
+                self.walk_level_function("LogicalFunction", function);
+            }
             for interface in &la.interfaces {
                 self.check_attrs("LogicalInterface", &interface.name, &interface.attributes);
             }
@@ -141,10 +144,31 @@ impl<'a> Checker<'a> {
         }
 
         for pa in &ast.physical_architecture {
+            for function in &pa.functions {
+                self.walk_level_function("PhysicalFunction", function);
+            }
+            for chain in &pa.functional_chains {
+                self.check_attrs("FunctionalChain", &chain.id, &chain.attributes);
+            }
+            for capability in &pa.capability_realizations {
+                self.check_attrs("CapabilityRealization", &capability.id, &capability.attributes);
+            }
             for node in &pa.nodes {
                 self.check_attrs("PhysicalNode", &node.id, &node.attributes);
                 for port in &node.ports {
                     self.check_attrs("PhysicalPort", &format!("{}.{}", node.id, port.name), &port.attributes);
+                }
+                for function in &node.functions {
+                    self.walk_level_function("PhysicalFunction", function);
+                }
+                for behavior in &node.behavior_components {
+                    self.check_attrs("BehaviorComponent", &behavior.id, &behavior.attributes);
+                    for port in &behavior.ports {
+                        self.check_attrs("ComponentPort", &format!("{}.{}", behavior.id, port.name), &HashMap::new());
+                    }
+                    for function in &behavior.functions {
+                        self.walk_level_function("PhysicalFunction", function);
+                    }
                 }
                 for deployment in &node.deployments {
                     self.check_attrs("Deployment", &deployment.component, &deployment.attributes);
@@ -193,9 +217,39 @@ impl<'a> Checker<'a> {
                 self.check_attrs("FmeaEntry", &entry.name, &entry.attributes);
             }
         }
+        for analysis in &ast.security_analysis {
+            for threat in &analysis.threats {
+                self.check_attrs("Threat", &threat.name, &threat.attributes);
+            }
+            for asset in &analysis.assets {
+                self.check_attrs("PrimaryAsset", &asset.name, &asset.attributes);
+            }
+        }
 
         for class in &ast.classes {
             self.check_attrs("Class", &class.name, &class.attributes);
+        }
+        for association in &ast.associations {
+            self.check_attrs("Association", &association.name, &association.attributes);
+        }
+        let chains = ast
+            .system_analysis
+            .iter()
+            .flat_map(|sa| sa.functional_chains.iter())
+            .chain(ast.logical_architecture.iter().flat_map(|la| la.functional_chains.iter()))
+            .chain(ast.physical_architecture.iter().flat_map(|pa| pa.functional_chains.iter()));
+        for chain in chains {
+            for control in &chain.controls {
+                self.check_attrs("ControlNode", &control.name, &control.attributes);
+            }
+            for link in &chain.sequences {
+                self.check_attrs("SequenceLink", &format!("{} -> {}", link.from, link.to), &link.attributes);
+            }
+        }
+        for scenario in &ast.scenarios {
+            for invariant in &scenario.invariants {
+                self.check_attrs("StateFragment", &invariant.name, &invariant.attributes);
+            }
         }
         for data_type in &ast.data_types {
             if let Some(unit) = &data_type.unit {
@@ -289,10 +343,17 @@ impl<'a> Checker<'a> {
     fn walk_logical_component(&mut self, component: &LogicalComponent) {
         self.check_attrs("LogicalComponent", &component.id, &component.attributes);
         for function in &component.functions {
-            self.check_attrs("LogicalFunction", &function.name, &function.attributes);
+            self.walk_level_function("LogicalFunction", function);
         }
         for sub in &component.sub_components {
             self.walk_logical_component(sub);
+        }
+    }
+
+    pub(crate) fn walk_level_function(&mut self, kind: &'static str, function: &LogicalFunction) {
+        self.check_attrs(kind, &function.id, &function.attributes);
+        for sub in &function.sub_functions {
+            self.walk_level_function(kind, sub);
         }
     }
 
@@ -357,7 +418,7 @@ impl<'a> Checker<'a> {
                 }
             }
             AttrType::Number => match value {
-                AttributeValue::Number(_) => {}
+                AttributeValue::Number(_) | AttributeValue::Integer(_) => {}
                 AttributeValue::String(s) if s.trim().parse::<f64>().is_ok() => {}
                 other => self.push(Level::Error, kind, element, Some(key), format!("expected a number, got '{}'", other.display())),
             },
@@ -383,7 +444,7 @@ impl<'a> Checker<'a> {
                     format!("{} — expected a {} quantity", error, dimension.label())),
             },
             AttrType::Enum(name) => match value {
-                AttributeValue::String(_) | AttributeValue::Number(_) => {
+                AttributeValue::String(_) | AttributeValue::Number(_) | AttributeValue::Integer(_) => {
                     let raw = value.display();
                     if self.metamodel.normalize_enum(name, &raw).is_none() {
                         let values = self

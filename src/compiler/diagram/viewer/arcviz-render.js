@@ -347,7 +347,34 @@
     });
 
     const centre = (index) => headWidth / 2 + index * spacing;
-    const bottom = SEQ.first + Math.max(messages.length - 1, 0) * SEQ.row + SEQ.tail + SEQ.selfDrop;
+    // Combined fragments take room above their first row (the frame's
+    // label), between operands, and below their last row.
+    const fragments = (graph.arc && graph.arc.fragments) || [];
+    const extra = new Array(messages.length + 1).fill(0);
+    const FRAME_TOP = 34;
+    const FRAME_BOTTOM = 22;
+    const SEPARATOR = 14;
+    const reserve = (fragment) => {
+      if (fragment.end < fragment.start || fragment.start >= extra.length) return;
+      extra[fragment.start] += FRAME_TOP;
+      if (fragment.end + 1 < extra.length) extra[fragment.end + 1] += FRAME_BOTTOM;
+      fragment.operands.forEach((operand, index) => {
+        if (index > 0 && operand.start < extra.length && operand.end >= operand.start) extra[operand.start] += SEPARATOR;
+        (operand.fragments || []).forEach(reserve);
+      });
+    };
+    fragments.forEach(reserve);
+    // A state or function asserted on a lifeline takes a row of its own
+    // above its first message (or at its instant).
+    const invariants = (graph.arc && graph.arc.invariants) || [];
+    const INVARIANT = 30;
+    invariants.forEach((invariant) => {
+      if (invariant.start < extra.length) extra[invariant.start] += INVARIANT;
+    });
+    const offsets = [];
+    extra.reduce((sum, value, index) => { offsets[index] = sum + value; return sum + value; }, 0);
+    const rowY = (index) => SEQ.first + index * SEQ.row + (offsets[Math.min(index, offsets.length - 1)] || 0);
+    const bottom = rowY(Math.max(messages.length - 1, 0)) + (offsets[messages.length] || 0) - (offsets[Math.max(messages.length - 1, 0)] || 0) + SEQ.tail + SEQ.selfDrop;
     const contentWidth = centre(Math.max(lifelines.length - 1, 0)) + headWidth / 2 + Math.max(0, selfRoom);
 
     const nodes = lifelines.map((lifeline, index) => {
@@ -367,11 +394,68 @@
       );
     });
 
+    // The frames of the fragments, drawn under the messages; a frame spans
+    // the lifelines its messages touch, and its operands are parted by a
+    // dashed line.
+    const frames = [];
+    const drawFragment = (fragment, depth) => {
+      if (fragment.end < fragment.start || messages.length === 0) return;
+      const columns = fragment.lifelines.map((id) => column.get(id)).filter((c) => c !== undefined);
+      // A nested frame sits inside its parent: a little narrower, a little lower.
+      const left = centre(Math.min(...columns)) - 40 + depth * 10;
+      const right = centre(Math.max(...columns)) + 40 - depth * 10;
+      const top = rowY(fragment.start) - FRAME_TOP + 2 + depth * 10;
+      const lastSelf = messages[fragment.end] && messages[fragment.end].arc.source_node === messages[fragment.end].arc.target_node;
+      const bottomY = rowY(fragment.end) + (lastSelf ? SEQ.selfDrop : 0) + FRAME_BOTTOM - 6 - depth * 6;
+      const title = fragment.label ? `${fragment.kind} [${fragment.label}]` : fragment.kind;
+      const tagWidth = Math.max(36, title.length * 6.2 + 14);
+      let body =
+        `<rect x="${num(left)}" y="${num(top)}" width="${num(right - left)}" height="${num(bottomY - top)}" fill="none" stroke="#5A6672" stroke-width="1.2"/>` +
+        `<path d="M${num(left)} ${num(top)}H${num(left + tagWidth)}V${num(top + 12)}L${num(left + tagWidth - 6)} ${num(top + 18)}H${num(left)}Z" fill="#E9EDF1" stroke="#5A6672" stroke-width="1.2"/>` +
+        `<text x="${num(left + 6)}" y="${num(top + 13)}" font-size="10.5" font-weight="700" fill="#18222D">${esc(title)}</text>`;
+      fragment.operands.forEach((operand, index) => {
+        if (index > 0 && operand.end >= operand.start) {
+          const y = rowY(operand.start) - SEPARATOR - 10;
+          body += `<line x1="${num(left)}" y1="${num(y)}" x2="${num(right)}" y2="${num(y)}" stroke="#5A6672" stroke-width="1" stroke-dasharray="6 4"/>`;
+        }
+        if (operand.label && operand.end >= operand.start) {
+          // The guard: right of the tag for the first operand, under the separator for the others.
+          const y = index > 0 ? rowY(operand.start) - SEPARATOR + 2 : top + 13;
+          const x = index > 0 ? left + 8 : left + tagWidth + 8;
+          body += `<text x="${num(x)}" y="${num(y)}" font-size="10" font-style="italic" fill="#3D4852">[${esc(operand.label)}]</text>`;
+        }
+        (operand.fragments || []).forEach((nested) => drawFragment(nested, depth + 1));
+      });
+      frames.push(`<g class="av-fragment" data-kind="${esc(fragment.kind)}"><title>${esc(title)}</title>${body}</g>`);
+    };
+    fragments.forEach((fragment) => drawFragment(fragment, 0));
+
+    // The invariants: a rounded box on the lifeline, spanning its messages.
+    const boxes = invariants.map((invariant) => {
+      const col = column.get(invariant.lifeline);
+      if (col === undefined) return '';
+      const cx = centre(col);
+      const instant = invariant.end < invariant.start || messages.length === 0;
+      const at = Math.min(invariant.start, Math.max(messages.length - 1, 0));
+      const top = messages.length === 0 ? SEQ.first - INVARIANT : rowY(at) - INVARIANT + 4;
+      const bottomY = instant ? top + 22 : rowY(invariant.end) + 10;
+      const width = Math.max(72, invariant.label.length * 6.2 + 18);
+      const fill = invariant.kind === 'function' ? '#E3F1E6' : '#FFF4D6';
+      const stroke = invariant.kind === 'function' ? '#2E7D4F' : '#B07A00';
+      const title = `${invariant.kind === 'function' ? 'Function' : 'State'} on the lifeline: ${invariant.label}`;
+      return (
+        `<g class="av-invariant" data-id="${esc(invariant.id)}" data-kind="${esc(invariant.kind)}"><title>${esc(title)}</title>` +
+        `<rect x="${num(cx - width / 2)}" y="${num(top)}" width="${num(width)}" height="${num(bottomY - top)}" rx="9" fill="${fill}" fill-opacity="0.85" stroke="${stroke}" stroke-width="1.2"/>` +
+        `<text x="${num(cx)}" y="${num(top + 14)}" text-anchor="middle" font-size="10.5" font-weight="600" fill="#18222D">${esc(invariant.label)}</text>` +
+        '</g>'
+      );
+    });
+
     const style = edgeStyle('message');
     const edges = messages.map((message, index) => {
       const arc = message.arc;
       const kind = (arc.properties && arc.properties.type) || 'sync';
-      const y = SEQ.first + index * SEQ.row;
+      const y = rowY(index);
       const x1 = centre(column.get(arc.source_node));
       const x2 = centre(column.get(arc.target_node));
       const text = messageText(message, index);
@@ -405,7 +489,7 @@
       );
     });
 
-    return frame(graph, nodes, edges, '', contentWidth, bottom);
+    return frame(graph, nodes, [...frames, ...boxes, ...edges], '', contentWidth, bottom);
   }
 
   function frame(graph, nodes, edges, defs, contentWidth, contentHeight) {

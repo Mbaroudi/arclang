@@ -1,6 +1,7 @@
 """Each tool returns what the compiler says, and says so when the compiler fails."""
 
 import json
+import os
 
 import pytest
 
@@ -278,10 +279,15 @@ async def test_all_diagrams_reports_what_was_not_generated(server, model, worksp
         "arclang_generate_all_diagrams", {"model_path": str(model), "output_dir": "diagrams"}
     )
     written = sorted(path.stem for path in (workspace / "diagrams").glob("*.svg"))
-    assert f"{len(written)}/{len(DIAGRAM_TYPES)} generated" in answer
-    assert "component" in written
+    assert f"{len(written)}/{len(DIAGRAM_TYPES)} generated" in answer, answer
+    # The SVG types need the Node renderer (ARCLANG_DIAGRAM_SERVICE): without
+    # it none is written, and each says why.
+    if os.environ.get("ARCLANG_DIAGRAM_SERVICE"):
+        assert "component" in written, answer
     for diagram_type in set(DIAGRAM_TYPES) - set(written):
-        assert f"- {diagram_type}: NOT generated" in answer
+        assert f"- {diagram_type}: NOT generated" in answer, answer
+    if not written:
+        assert "ARCLANG_DIAGRAM_SERVICE" in answer, answer
 
 
 async def test_a_binary_that_cannot_run_is_a_failure(workspace):

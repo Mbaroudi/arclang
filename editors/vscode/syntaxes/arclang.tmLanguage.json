@@ -1,0 +1,63 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "ArcLang",
+  "scopeName": "source.arclang",
+  "patterns": [
+    { "include": "#comments" },
+    { "include": "#strings" },
+    { "include": "#layers" },
+    { "include": "#declarations" },
+    { "include": "#traces" },
+    { "include": "#attributes" },
+    { "include": "#quantities" },
+    { "include": "#numbers" },
+    { "include": "#booleans" },
+    { "include": "#arrows" }
+  ],
+  "repository": {
+    "comments": {
+      "patterns": [
+        { "name": "comment.line.double-slash.arclang", "match": "//.*$" },
+        { "name": "comment.block.arclang", "begin": "/\\*", "end": "\\*/" }
+      ]
+    },
+    "strings": {
+      "name": "string.quoted.double.arclang",
+      "begin": "\"",
+      "end": "\"",
+      "patterns": [{ "name": "constant.character.escape.arclang", "match": "\\\\." }]
+    },
+    "layers": {
+      "match": "^\\s*(model|import|operational_analysis|system_analysis|logical_architecture|physical_architecture|epbs|architecture|requirements|safety_analysis|scenarios)\\b",
+      "captures": { "1": { "name": "keyword.control.layer.arclang" } }
+    },
+    "declarations": {
+      "match": "\\b(actor|entity|operational_capability|operational_activity|activity|operational_process|mission|capability|capability_realization|function|functional_exchange|functional_chain|component|behavior_component|hardware_component|port|interface|component_exchange|node|link|physical_link|physical_exchange|deployment|deploys|physical_path|configuration_item|system|class|enumeration|data_type|exchange_item|hazard|test_case|type|constraint|state_machine|state|mode|transition|scenario|message|diagram|req|requirement)\\b",
+      "captures": { "1": { "name": "storage.type.declaration.arclang" } }
+    },
+    "traces": {
+      "match": "\\b(trace)\\b|\\b(satisfies|refines|realizes|implements|validates|verifies|allocates|derives|traces|extends|includes|specializes|involves)\\b",
+      "captures": {
+        "1": { "name": "keyword.other.trace.arclang" },
+        "2": { "name": "keyword.operator.relation.arclang" }
+      }
+    },
+    "attributes": {
+      "match": "\\b([A-Za-z_][A-Za-z0-9_]*)\\s*(:)",
+      "captures": {
+        "1": { "name": "variable.other.attribute.arclang" },
+        "2": { "name": "punctuation.separator.key-value.arclang" }
+      }
+    },
+    "quantities": {
+      "match": "\\b(-?\\d+(?:\\.\\d+)?)\\s*(ms|us|ns|s|min|h|Hz|kHz|MHz|GHz|V|mV|kV|A|mA|W|mW|kW|kg|g|mg|t|B|KB|MB|GB|TB|bps|kbps|Mbps|Gbps|m|mm|cm|km|%)\\b",
+      "captures": {
+        "1": { "name": "constant.numeric.quantity.arclang" },
+        "2": { "name": "keyword.other.unit.arclang" }
+      }
+    },
+    "numbers": { "name": "constant.numeric.arclang", "match": "\\b-?\\d+(?:\\.\\d+)?\\b" },
+    "booleans": { "name": "constant.language.boolean.arclang", "match": "\\b(true|false)\\b" },
+    "arrows": { "name": "keyword.operator.arrow.arclang", "match": "->" }
+  }
+}

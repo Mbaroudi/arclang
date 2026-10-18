@@ -58,6 +58,8 @@ pub enum Token {
     SafetyAnalysis,
     Hazard,
     Fmea,
+    SecurityAnalysis,
+    SecurityScales,
     Trace,
     Deploys,
     Implements,
@@ -71,6 +73,13 @@ pub enum Token {
     CapabilityRealization,
     Involves,
     StateMachineKw,
+    DiagramKw,
+    Fragment,
+    Operand,
+    Control,
+    Sequence,
+    Association,
+    Region,
     StateKw,
     Mode,
     Transition,
@@ -150,7 +159,10 @@ pub enum Token {
     // Literals
     Identifier(String),
     StringLiteral(String),
+    /// A number written with a decimal point (`800.0`).
     Number(f64),
+    /// A number written without a decimal point (`800`).
+    Integer(i64),
     
     // Symbols
     LeftBrace,
@@ -187,6 +199,7 @@ impl fmt::Display for Token {
             Token::Identifier(s) => write!(f, "Identifier({})", s),
             Token::StringLiteral(s) => write!(f, "String(\"{}\")", s),
             Token::Number(n) => write!(f, "Number({})", n),
+            Token::Integer(n) => write!(f, "Integer({})", n),
             _ => write!(f, "{:?}", self),
         }
     }
@@ -214,6 +227,8 @@ impl Token {
             Token::SafetyAnalysis => "safety_analysis",
             Token::Hazard => "hazard",
             Token::Fmea => "fmea",
+            Token::SecurityAnalysis => "security_analysis",
+            Token::SecurityScales => "security_scales",
             Token::Trace => "trace",
             Token::Deploys => "deploys",
             Token::Implements => "implements",
@@ -227,6 +242,13 @@ impl Token {
             Token::CapabilityRealization => "capability_realization",
             Token::Involves => "involves",
             Token::StateMachineKw => "state_machine",
+            Token::DiagramKw => "diagram",
+            Token::Fragment => "fragment",
+            Token::Operand => "operand",
+            Token::Control => "control",
+            Token::Sequence => "sequence",
+            Token::Association => "association",
+            Token::Region => "region",
             Token::StateKw => "state",
             Token::Mode => "mode",
             Token::Transition => "transition",
@@ -549,6 +571,11 @@ impl Lexer {
             }
         }
         
+        if !has_decimal {
+            if let Ok(n) = number_str.parse::<i64>() {
+                return Ok(Token::Integer(n));
+            }
+        }
         number_str.parse::<f64>()
             .map(Token::Number)
             .map_err(|_| format!("Invalid number: {}", number_str))
@@ -579,6 +606,8 @@ impl Lexer {
             "item" => Token::Item,
             "safety_analysis" => Token::SafetyAnalysis,
             "hazard" => Token::Hazard,
+            "security_analysis" => Token::SecurityAnalysis,
+            "security_scales" => Token::SecurityScales,
             "fmea" => Token::Fmea,
             "trace" => Token::Trace,
             "deploys" => Token::Deploys,
@@ -593,6 +622,13 @@ impl Lexer {
             "capability_realization" => Token::CapabilityRealization,
             "involves" => Token::Involves,
             "state_machine" => Token::StateMachineKw,
+            "diagram" => Token::DiagramKw,
+            "fragment" => Token::Fragment,
+            "operand" => Token::Operand,
+            "control" => Token::Control,
+            "sequence" => Token::Sequence,
+            "association" => Token::Association,
+            "region" => Token::Region,
             "state" => Token::StateKw,
             "mode" => Token::Mode,
             "transition" => Token::Transition,

@@ -282,8 +282,10 @@ impl<'a> Generator<'a> {
                     format!("attribute {} : String = {};", name, string_literal(&canonical))
                 }
                 (Some(AttrType::Number), AttributeValue::Number(n)) => format!("attribute {} : Real = {};", name, number_literal(*n)),
+                (Some(AttrType::Number), AttributeValue::Integer(i)) => format!("attribute {} : Real = {};", name, i),
                 (Some(AttrType::Boolean), AttributeValue::Boolean(b)) => format!("attribute {} : Boolean = {};", name, b),
                 (_, AttributeValue::Number(n)) => format!("attribute {} : Real = {};", name, number_literal(*n)),
+                (_, AttributeValue::Integer(i)) => format!("attribute {} : Integer = {};", name, i),
                 (_, AttributeValue::Boolean(b)) => format!("attribute {} : Boolean = {};", name, b),
                 (_, AttributeValue::Quantity(quantity)) => {
                     self.units_used.insert(quantity.spec().sysml);
@@ -1717,8 +1719,14 @@ fn collect_generic_port_directions<'m>(component: &'m LogicalComponent, out: &mu
 }
 
 fn collect_logical_functions<'m>(component: &'m LogicalComponent, out: &mut Vec<(&'m LogicalFunction, String)>) {
+    fn walk<'m>(function: &'m LogicalFunction, owner: &str, out: &mut Vec<(&'m LogicalFunction, String)>) {
+        out.push((function, owner.to_string()));
+        for sub in &function.sub_functions {
+            walk(sub, owner, out);
+        }
+    }
     for function in &component.functions {
-        out.push((function, component.name.clone()));
+        walk(function, &component.name, out);
     }
     for sub in &component.sub_components {
         collect_logical_functions(sub, out);
