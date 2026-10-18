@@ -147,7 +147,7 @@ jobs:
         run: cargo build --release
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: arclang-${{ runner.os }}
           path: target/release/arclang
@@ -252,7 +252,7 @@ jobs:
         run: npx @vscode/vsce package --no-dependencies -o arclang-vscode.vsix
 
       - name: Upload the .vsix
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: arclang-vscode
           path: editors/vscode/arclang-vscode.vsix
