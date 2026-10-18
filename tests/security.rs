@@ -9,6 +9,8 @@ use arclang::compiler::elements;
 use arclang::compiler::{Compiler, CompilerConfig};
 
 const MODEL: &str = r#"model T { name: "t" }
+exchange_item "Visuals" { id: "EI-Vis" mechanism: "FLOW" }
+class "Frame" { id: "CL-Frame" width: "Integer" }
 security_scales {
     id: "CFG-1"
     confidentiality: ["0", "1", "2", "3"]
@@ -60,7 +62,7 @@ security_analysis {
     asset "Service of supply of visuals" {
         id: "AS-SA-1"
         kind: "information"
-        members: ["SF-Vis"]
+        members: ["SF-Vis", "EI-Vis", "CL-Frame"]
         security_confidentiality: "1"
     }
 }
@@ -102,7 +104,7 @@ fn threats_and_assets_are_parsed_with_their_references() {
     assert_eq!(threat.involves, vec!["OE-Min"]);
     let asset = &result.ast.security_analysis[1].assets[0];
     assert_eq!(asset.kind, AssetKind::Information);
-    assert_eq!(asset.members, vec!["SF-Vis"]);
+    assert_eq!(asset.members, vec!["SF-Vis", "EI-Vis", "CL-Frame"]);
     assert!(result.warnings.iter().all(|w| !w.contains("owner")), "{:?}", result.warnings);
 }
 
@@ -124,7 +126,7 @@ fn threats_and_assets_are_elements_joined_by_their_relationships() {
     assert_eq!(threat.attributes.get("kind").and_then(|v| v.as_string()), Some("Denial of service"));
     assert_eq!(graph.relationships.iter().filter(|r| r.kind == "ThreatApplication").count(), 2, "{:?}", graph.unresolved);
     assert_eq!(graph.relationships.iter().filter(|r| r.kind == "ThreatInvolvement").count(), 2, "{:?}", graph.unresolved);
-    assert_eq!(graph.relationships.iter().filter(|r| r.kind == "AssetMember").count(), 2, "{:?}", graph.unresolved);
+    assert_eq!(graph.relationships.iter().filter(|r| r.kind == "AssetMember").count(), 4, "{:?}", graph.unresolved);
     assert!(graph.unresolved.is_empty(), "{:?}", graph.unresolved);
 }
 

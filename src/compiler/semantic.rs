@@ -1231,56 +1231,6 @@ impl SemanticAnalyzer {
                 );
             }
         }
-        // A threat applies to declared assets, involves declared elements and
-        // has a kind of the model's threat kinds; an asset's members are
-        // declared elements and its security needs are on the declared scales.
-        {
-            let by_name = |reference: &str, kinds: &[&str]| -> Vec<String> {
-                all_elements
-                    .values()
-                    .filter(|e| e.name == reference && (kinds.is_empty() || kinds.contains(&e.element_type.as_str())))
-                    .map(|e| e.id.clone())
-                    .collect()
-            };
-            let mut check_reference = |owner_kind: &str, owner: &str, role: &str, reference: &str, kinds: &[&str], errors: &mut Vec<String>| {
-                let by_id = all_elements.get(reference).filter(|e| kinds.is_empty() || kinds.contains(&e.element_type.as_str()));
-                if by_id.is_some() {
-                    return;
-                }
-                match by_name(reference, kinds).len() {
-                    1 => {}
-                    0 => errors.push(format!(
-                        "{owner_kind} '{owner}': {role} '{reference}' is not a declared {}",
-                        if kinds.is_empty() { "element".to_string() } else { kinds.join(" or ") }
-                    )),
-                    _ => errors.push(format!("{owner_kind} '{owner}': {role} '{reference}' is an ambiguous name, use an id")),
-                }
-            };
-            let scales = ast.security_scales.as_ref();
-            let threat_kinds = scales.and_then(|s| s.scale("threat_kinds"));
-            for analysis in &ast.security_analysis {
-                for threat in &analysis.threats {
-                    for asset in &threat.applies_to {
-                        check_reference("threat", &threat.name, "applies_to", asset, &["PrimaryAsset"], &mut reference_errors);
-                    }
-                    for element in &threat.involves {
-                        check_reference("threat", &threat.name, "involves", element, &[], &mut reference_errors);
-                    }
-                    if let (Some(kind), Some(kinds)) = (&threat.kind, &threat_kinds) {
-                        if !kinds.iter().any(|k| k == kind) {
-                            reference_errors.push(format!("threat '{}': kind '{kind}' is not one of the threat kinds {:?}", threat.name, kinds));
-                        }
-                    }
-                    check_security_needs("threat", &threat.name, &threat.attributes, scales, &mut deferred_warnings);
-                }
-                for asset in &analysis.assets {
-                    for member in &asset.members {
-                        check_reference("asset", &asset.name, "members", member, &[], &mut reference_errors);
-                    }
-                    check_security_needs("asset", &asset.name, &asset.attributes, scales, &mut deferred_warnings);
-                }
-            }
-        }
         // An association joins two declared classes; its role is a field of
         // the class owning the navigable end.
         for association in &ast.associations {
@@ -1490,6 +1440,57 @@ impl SemanticAnalyzer {
                         let id = id_of(&item.attributes, &item.name);
                         register_element(&mut all_elements, &mut duplicate_ids, id.clone(), ElementInfo::new(id, item.name.clone(), "EpbsItem"));
                     }
+                }
+            }
+        }
+        // A threat applies to declared assets, involves declared elements and
+        // (checked here, once exchange items and classes are registered too)
+        // has a kind of the model's threat kinds; an asset's members are
+        // declared elements and its security needs are on the declared scales.
+        {
+            let by_name = |reference: &str, kinds: &[&str]| -> Vec<String> {
+                all_elements
+                    .values()
+                    .filter(|e| e.name == reference && (kinds.is_empty() || kinds.contains(&e.element_type.as_str())))
+                    .map(|e| e.id.clone())
+                    .collect()
+            };
+            let mut check_reference = |owner_kind: &str, owner: &str, role: &str, reference: &str, kinds: &[&str], errors: &mut Vec<String>| {
+                let by_id = all_elements.get(reference).filter(|e| kinds.is_empty() || kinds.contains(&e.element_type.as_str()));
+                if by_id.is_some() {
+                    return;
+                }
+                match by_name(reference, kinds).len() {
+                    1 => {}
+                    0 => errors.push(format!(
+                        "{owner_kind} '{owner}': {role} '{reference}' is not a declared {}",
+                        if kinds.is_empty() { "element".to_string() } else { kinds.join(" or ") }
+                    )),
+                    _ => errors.push(format!("{owner_kind} '{owner}': {role} '{reference}' is an ambiguous name, use an id")),
+                }
+            };
+            let scales = ast.security_scales.as_ref();
+            let threat_kinds = scales.and_then(|s| s.scale("threat_kinds"));
+            for analysis in &ast.security_analysis {
+                for threat in &analysis.threats {
+                    for asset in &threat.applies_to {
+                        check_reference("threat", &threat.name, "applies_to", asset, &["PrimaryAsset"], &mut reference_errors);
+                    }
+                    for element in &threat.involves {
+                        check_reference("threat", &threat.name, "involves", element, &[], &mut reference_errors);
+                    }
+                    if let (Some(kind), Some(kinds)) = (&threat.kind, &threat_kinds) {
+                        if !kinds.iter().any(|k| k == kind) {
+                            reference_errors.push(format!("threat '{}': kind '{kind}' is not one of the threat kinds {:?}", threat.name, kinds));
+                        }
+                    }
+                    check_security_needs("threat", &threat.name, &threat.attributes, scales, &mut deferred_warnings);
+                }
+                for asset in &analysis.assets {
+                    for member in &asset.members {
+                        check_reference("asset", &asset.name, "members", member, &[], &mut reference_errors);
+                    }
+                    check_security_needs("asset", &asset.name, &asset.attributes, scales, &mut deferred_warnings);
                 }
             }
         }
