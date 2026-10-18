@@ -5,9 +5,19 @@
 
 pub mod lexer;
 mod parser;
+mod records;
+mod records_expr;
+mod scope;
 pub mod syntax;
 
 pub use parser::parse;
+pub use records::Built;
+
+/// Parse a text and render it as API records.
+pub fn records(text: &str) -> Result<Built, String> {
+    let roots = parse(text)?;
+    Ok(records::build(&roots))
+}
 
 #[cfg(test)]
 mod tests {
@@ -45,11 +55,13 @@ mod tests {
         assert_eq!(
             kinds,
             vec![
-                "ReferenceUsage", "InitialNode", "SuccessionAsUsage", "TransitionUsage", "ActionUsage", "ForkNode", "SuccessionAsUsage", "DecisionNode", "TransitionUsage",
+                "ReferenceUsage", "InitialNode", "ActionUsage", "TransitionUsage", "ActionUsage", "ForkNode", "SuccessionAsUsage", "DecisionNode", "TransitionUsage",
                 "TransitionUsage", "AcceptActionUsage", "SendActionUsage", "AssignmentActionUsage", "WhileLoopActionUsage", "ForLoopActionUsage", "CalculationUsage"
             ]
         );
         assert_eq!(a.members[0].prefixes.direction, Some("in"));
+        // `then action a1 { }`: the usage, marked as succeeding the previous member.
+        assert_eq!(a.members[2].membership_kind, Some("after-then"));
         let calc = a.members.last().unwrap();
         assert_eq!(calc.members[0].membership, "ReturnParameterMembership");
         assert_eq!(calc.members[1].membership, "ResultExpressionMembership");
