@@ -172,6 +172,20 @@ fn a_security_need_off_its_scale_is_a_warning() {
 }
 
 #[test]
+fn threat_and_asset_stay_ordinary_names_outside_a_security_analysis() {
+    let result = compile(r#"model T { name: "t" }
+system_analysis "SA" {
+    function "Assess threat" { id: "SF-1" asset: "radar" port out threat { data_type: "ThreatLevel" } }
+    function "Brake" { id: "SF-2" port in threat }
+    functional_exchange "SF-1.threat" -> "SF-2.threat" { label: "threat level" }
+}
+"#);
+    let function = &result.ast.system_analysis[0].functions[0];
+    assert_eq!(function.ports[0].name, "threat");
+    assert_eq!(function.attributes.get("asset").and_then(|v| v.as_string()), Some("radar"));
+}
+
+#[test]
 fn integers_and_decimals_are_kept_apart() {
     let result = compile(r#"model T { name: "t" }
 system_analysis "SA" {

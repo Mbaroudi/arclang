@@ -3142,9 +3142,11 @@ impl Parser {
         let mut assets = Vec::new();
         let mut attributes = HashMap::new();
         while !self.check(&Token::RightBrace) && !self.is_at_end() {
+            // `threat` and `asset` are keywords only here: elsewhere they are
+            // ordinary names (`port out threat`).
             match self.current() {
-                Token::Threat => threats.push(self.parse_threat()?),
-                Token::Asset => assets.push(self.parse_asset()?),
+                Token::Identifier(word) if word == "threat" && !self.peek_is_colon() => threats.push(self.parse_threat()?),
+                Token::Identifier(word) if word == "asset" && !self.peek_is_colon() => assets.push(self.parse_asset()?),
                 _ if self.peek_is_colon() => {
                     let (key, value) = self.parse_attribute()?;
                     attributes.insert(key, value);
@@ -3167,7 +3169,7 @@ impl Parser {
 
     /// `threat "Name" { id: kind: level: applies_to: [...] involves: [...] … }`.
     fn parse_threat(&mut self) -> Result<Threat, String> {
-        self.expect(Token::Threat)?;
+        self.advance(); // `threat`
         let name = self.expect_name()?;
         let mut attributes = self.parse_attributes_block()?;
         let id = attributes.remove("id").and_then(|v| v.as_string().map(str::to_string)).unwrap_or_else(|| name.clone());
@@ -3184,7 +3186,7 @@ impl Parser {
 
     /// `asset "Name" { id: kind: "functional" members: [...] … }`.
     fn parse_asset(&mut self) -> Result<PrimaryAsset, String> {
-        self.expect(Token::Asset)?;
+        self.advance(); // `asset`
         let name = self.expect_name()?;
         let mut attributes = self.parse_attributes_block()?;
         let id = attributes.remove("id").and_then(|v| v.as_string().map(str::to_string)).unwrap_or_else(|| name.clone());
