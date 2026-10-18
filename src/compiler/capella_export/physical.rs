@@ -66,6 +66,12 @@ pub(super) fn register(context: &mut Context, pa: &PhysicalArchitecture) {
             context.register(&format!("{}.{}", node.id, port.name), &id);
             context.register(&format!("{}.{}", node.name, port.name), &id);
         }
+        // A node's oriented ports are component ports, as a behaviour's are.
+        for port in &node.component_ports {
+            let id = port_id(&node.id, &port.name, &port.id);
+            context.register(&format!("{}.{}", node.id, port.name), &id);
+            context.register(&format!("{}.{}", node.name, port.name), &id);
+        }
         for behaviour in &node.behavior_components {
             context.register(&behaviour.id, &behaviour.id);
             context.register(&behaviour.name, &behaviour.id);
@@ -129,6 +135,9 @@ fn node(context: &Context, n: &PhysicalNode, placed: &[Placed<'_>], link_ports: 
     for port in &n.ports {
         let id = id_of(&port.attributes, &format!("port:{}.{}", n.id, port.name));
         el.push(apply(El::new("ownedFeatures", "cs:PhysicalPort", &id).attr("name", &port.name), &port.attributes, &[]));
+    }
+    for port in &n.component_ports {
+        el.push(component_port(&n.id, port));
     }
     for (owner, port) in link_ports {
         if owner == &n.id {

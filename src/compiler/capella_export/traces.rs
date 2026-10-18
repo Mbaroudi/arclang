@@ -33,7 +33,8 @@ fn realization(kind: &str) -> Option<(&'static str, &'static str)> {
 /// The feature and kind of the allocation a source of this kind owns.
 fn allocation(kind: &str) -> Option<(&'static str, &'static str)> {
     Some(match kind.rsplit(':').next().unwrap_or(kind) {
-        "ComponentExchange" => ("ownedComponentExchangeFunctionalExchangeAllocations", "fa:ComponentExchangeFunctionalExchangeAllocation"),
+        // A communication mean allocates the interactions it carries.
+        "ComponentExchange" | "CommunicationMean" => ("ownedComponentExchangeFunctionalExchangeAllocations", "fa:ComponentExchangeFunctionalExchangeAllocation"),
         "ComponentPort" => ("ownedPortAllocations", "information:PortAllocation"),
         "PhysicalPort" => ("ownedComponentPortAllocations", "fa:ComponentPortAllocation"),
         "PhysicalLink" | "PhysicalPath" => ("ownedComponentExchangeAllocations", "fa:ComponentExchangeAllocation"),
