@@ -214,7 +214,7 @@ impl Parser {
     }
 
     /// Whether `action [decl] WORD` follows: an action node named before its keyword.
-    fn word_follows_declaration(&self, word: &str) -> bool {
+    pub(super) fn word_follows_declaration(&self, word: &str) -> bool {
         let mut i = self.position + 1;
         let mut depth = 0;
         while let Some(token) = self.tokens.get(i) {
@@ -418,19 +418,23 @@ impl Parser {
         if self.is_word("first") {
             self.position += 1;
             source = Some(self.target()?);
-        } else if self.is_name() && !self.is_word("then") {
-            // `transition t first a ...` or `transition a then b`? The grammar
-            // names the transition only before `first`.
+        } else if !(self.is_word("accept") || self.is_word("if") || self.is_word("do") || self.is_word("then")) {
+            // `transition t first a ...` names the transition before `first`;
+            // `transition a then b` names the source.
             let save = self.position;
             let mut probe = Node::default();
-            self.usage_declaration(&mut probe)?;
-            if self.take_word("first") {
+            let declared = self.is_symbol("<") || self.is_name();
+            if declared {
+                self.usage_declaration(&mut probe)?;
+            }
+            if declared && self.take_word("first") {
                 node.short_name = probe.short_name;
                 node.name = probe.name;
                 node.specializations = probe.specializations;
                 source = Some(self.target()?);
             } else {
                 self.position = save;
+                source = Some(self.target()?);
             }
         }
         let (trigger, guard, effect) = self.transition_parts()?;

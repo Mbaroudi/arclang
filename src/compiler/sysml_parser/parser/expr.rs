@@ -365,18 +365,13 @@ impl Parser {
         false
     }
 
-    /// `{ in x; in y; result }`
+    /// `{ in x : T; ... result }`: a calculation body.
     fn body_expression(&mut self) -> Parsed<Expr> {
-        self.expect_symbol("{")?;
-        let mut parameters = Vec::new();
-        while self.is_word("in") {
-            self.position += 1;
-            parameters.push(self.name()?);
-            self.expect_symbol(";")?;
+        if !self.is_symbol("{") {
+            return Err(self.error("`{`"));
         }
-        let result = self.expression()?;
-        self.expect_symbol("}")?;
-        Ok(Expr::Body { parameters, result: Box::new(result) })
+        let members = self.body_in(false, true)?;
+        Ok(Expr::Body { members })
     }
 
     /// `a, b, c` (a sequence) or a single expression.

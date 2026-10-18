@@ -234,7 +234,7 @@ impl Parser {
                 }
                 "then" => return self.then_statement(),
                 "else" if self.in_state || !self.in_calculation => return self.else_statement(),
-                "first" if !self.is_declaration_start(1) => return self.initial_node(),
+                "first" if !self.is_declaration_start(1) && !self.then_follows() => return self.initial_node(),
                 "return" => {
                     self.position += 1;
                     let mut node = self.usage_statement()?;
@@ -261,6 +261,9 @@ impl Parser {
                 if self.is_word("dependency") {
                     return self.dependency(metadata);
                 }
+                if self.is_symbol("@") || (self.is_word("metadata") && !self.is_word_at(1, "def")) {
+                    return self.metadata_usage(metadata);
+                }
                 if self.is_word("package") || self.is_word("library") || self.is_word("standard") {
                     let mut node = self.package()?;
                     node.metadata = metadata;
@@ -280,6 +283,27 @@ impl Parser {
             return Ok(node);
         }
         self.definition_or_usage(Vec::new())
+    }
+
+    /// After `name [`, whether a usage keyword follows the closing `]`.
+    fn usage_keyword_follows_multiplicity(&self) -> bool {
+        let mut i = self.position + 1;
+        let mut depth = 0i32;
+        while let Some(token) = self.tokens.get(i) {
+            match &token.kind {
+                Kind::Symbol("[") => depth += 1,
+                Kind::Symbol("]") => {
+                    depth -= 1;
+                    if depth == 0 {
+                        return matches!(self.tokens.get(i + 1).map(|t| &t.kind), Some(Kind::Word(w)) if RESERVED.contains(&w.as_str()) && !matches!(w.as_str(), "ordered" | "nonunique" | "defined" | "subsets" | "redefines" | "references" | "crosses" | "default"));
+                    }
+                }
+                Kind::Symbol(";") | Kind::Symbol("{") => return false,
+                _ => {}
+            }
+            i += 1;
+        }
+        false
     }
 
     /// Whether a `then` ends this statement's head: a target transition.
@@ -319,7 +343,7 @@ impl Parser {
         // and reaching `}` without `;` is an expression.
         if self.is_name() {
             if let Some(Kind::Symbol(s)) = self.peek_at(1) {
-                if matches!(*s, ":" | ":>" | "::>" | ":>>" | "=>" | "[" | "=" | ":=" | ";" | "{" | "<") {
+                if matches!(*s, ":" | ":>" | "::>" | ":>>" | "=>" | "[" | "=" | ":=" | ";" | "{") {
                     return false;
                 }
             }
@@ -572,7 +596,22 @@ impl Parser {
                     "variation" => node.prefixes.is_variation = true,
                     "constant" => node.prefixes.is_constant = true,
                     "ref" => node.prefixes.is_reference = true,
-                    "end" => node.prefixes.is_end = true,
+                    "end" => {
+                        node.prefixes.is_end = true;
+                        self.position += 1;
+                        // `end [0..1] item x`, `end inCart [0..1] item x`: a crossing
+                        // feature, with a name when a usage keyword follows its multiplicity.
+                        if self.is_symbol("[") || (self.is_name() && self.is_symbol_at(1, "[") && self.usage_keyword_follows_multiplicity()) {
+                            let mut cross = Node::new("ReferenceUsage", "OwningMembership");
+                            cross.membership_kind = Some("cross");
+                            if self.is_name() {
+                                cross.name = Some(self.name()?);
+                            }
+                            self.feature_specialization_part(&mut cross)?;
+                            node.members.push(cross);
+                        }
+                        continue;
+                    }
                     "individual" => node.prefixes.is_individual = true,
                     "snapshot" => node.prefixes.portion = Some("snapshot"),
                     "timeslice" => node.prefixes.portion = Some("timeslice"),
@@ -604,6 +643,17 @@ impl Parser {
             node.kind = "ReferenceUsage";
             return self.finish_usage(node);
         };
+        // `not satisfy ...`
+        if word == "not" && self.is_word_at(1, "satisfy") {
+            self.position += 1;
+            node.prefixes.is_negated = true;
+            return self.satisfy(node);
+        }
+        // `redefines x = 1;`, `subsets y;`: a reference usage declared by its specialization.
+        if matches!(word.as_str(), "redefines" | "subsets" | "references" | "crosses" | "defined") {
+            node.kind = "ReferenceUsage";
+            return self.finish_usage(node);
+        }
         let is_def = self.is_word_at(1, "def") || (word == "use" && self.is_word_at(1, "case") && self.is_word_at(2, "def"));
         let def_kind: Option<&'static str> = match word.as_str() {
             "attribute" => Some("AttributeDefinition"),
@@ -673,6 +723,14 @@ impl Parser {
             _ => None,
         };
         if let Some(kind) = usage_kind {
+            // `action name send ...`: an action node named before its keyword.
+            if kind == "ActionUsage" {
+                for keyword in ["accept", "send", "assign", "terminate", "if", "while", "loop", "for", "merge", "decide", "join", "fork"] {
+                    if self.word_follows_declaration(keyword) {
+                        return self.named_action_node(node, keyword);
+                    }
+                }
+            }
             if word == "use" {
                 self.expect_word("use")?;
                 self.expect_word("case")?;
@@ -690,6 +748,10 @@ impl Parser {
             "interface" => self.interface(node),
             "allocation" | "allocate" => self.connection(node, "AllocationUsage", "allocation", "allocate"),
             "binding" | "bind" => self.binding(node),
+            "succession" if self.is_word_at(1, "flow") => {
+                self.position += 1;
+                self.flow(node, "SuccessionFlowUsage")
+            }
             "succession" | "first" => self.succession(node),
             "flow" => self.flow(node, "FlowUsage"),
             "message" => self.message(node),
@@ -722,6 +784,26 @@ impl Parser {
                     return self.finish_usage(node);
                 }
                 Err(self.error("a declaration"))
+            }
+        }
+    }
+
+    /// `action [decl] accept|send|assign|terminate|if|while|loop|for|merge|decide|join|fork ...`
+    fn named_action_node(&mut self, mut node: Node, keyword: &str) -> Parsed<Node> {
+        match keyword {
+            "accept" => self.accept_node(node),
+            "send" => self.send_node(node),
+            "assign" => self.assign_node(node),
+            "terminate" => self.terminate_node(node),
+            _ => {
+                self.expect_word("action")?;
+                self.usage_declaration(&mut node)?;
+                match keyword {
+                    "if" => self.if_node(node),
+                    "while" | "loop" => self.while_node(node),
+                    "for" => self.for_node(node),
+                    _ => self.control_node(node),
+                }
             }
         }
     }

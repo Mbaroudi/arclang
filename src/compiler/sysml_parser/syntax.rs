@@ -138,8 +138,8 @@ pub enum Expr {
     Invocation { function: Target, arguments: Vec<Argument> },
     /// `new T(a, b)`
     Constructor { ty: Target, arguments: Vec<Argument> },
-    /// `{ in x; in y; result }`
-    Body { parameters: Vec<String>, result: Box<Expr> },
+    /// `{ in x : T; ... result }`: a calculation body (parameters, members, a result expression).
+    Body { members: Vec<Node> },
     /// `(a, b, c)`
     Sequence(Vec<Expr>),
     /// `a op b`, `-a`, `not a`, `a ?? b`, `a implies b`...
