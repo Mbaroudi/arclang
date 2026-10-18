@@ -22,6 +22,31 @@ does.
 - **Diagrams** beside the source (**ArcLang: Open diagrams**), the compiler's
   own viewer of the Arcadia views, redrawn on every save.
 
+## The workbench: text or mouse, your choice
+
+**ArcLang: Open the workbench** puts the compiler's diagram viewer beside the
+source, with what a Capella user expects around it. Text and views edit the
+same `.arc` file: type in one, click in the other, the selection follows.
+
+- **Palette**, per view: create actors, entities, activities, functions,
+  components, nodes, ports, classes; connect them by interactions, functional
+  and component exchanges, physical links (two clicks, then a name; ports are
+  declared when the ends have none). Drag a function or a component onto
+  another to move it.
+- **Properties**: a form typed by the metamodel (texts, quantities,
+  enumerations, references, lists); Rename keeps the identity, Delete asks
+  for the id.
+- **Semantic browser**: owner, incoming, outgoing, owned, each a step away.
+- **Findings and gate** at the bottom, each finding a click from its element
+  and its line.
+- **Model tree** in the ArcLang side bar: the elements by layer and
+  ownership, with Go to source, Rename, Delete and Ask @arclang.
+
+Every gesture becomes `arclang edit` requests: the compiler refuses the ones
+that would leave a model that does not compile, and an accepted one lands in
+the editor as a single change that Undo takes back. Comments, order and layout
+of the text are kept.
+
 ## From the command line, without leaving VS Code
 
 Every command of the palette is one CLI subcommand:

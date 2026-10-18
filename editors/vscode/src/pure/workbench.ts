@@ -1,0 +1,543 @@
+// The workbench, without VS Code: the shapes `arclang workbench` and
+// `arclang edit` exchange, the model tree, the palette of gestures and the
+// edits each gesture writes. Pure functions, tested with node:test; the
+// extension host and the webview both import from here.
+
+/** One element of the compiled model, as `arclang workbench` lists it. */
+export interface ElementRecord {
+  uuid: string;
+  /** The id the compiler gives it: written, or derived from the name. */
+  id: string;
+  kind: string;
+  name: string;
+  /** The uuid of the owning element, null at the top. */
+  owner: string | null;
+  attributes: Record<string, unknown>;
+}
+
+export interface RelationshipRecord {
+  uuid: string;
+  kind: string;
+  name: string;
+  /** uuids of the two ends */
+  source: string;
+  target: string;
+}
+
+export interface Finding {
+  rule: string;
+  severity: string;
+  message: string;
+  element?: string | null;
+  fix?: string | null;
+}
+
+export interface GateReport {
+  passed: boolean;
+  requirements_total: number;
+  requirements_verified: number;
+  findings: { check: string; severity: string; message: string }[];
+}
+
+export interface ViewerNode {
+  id: string;
+  arc: { kind: string; uuid?: string; properties?: Record<string, unknown> };
+  children?: ViewerNode[];
+  ports?: { id: string; arc?: { direction?: string } }[];
+}
+
+export interface ViewerEdge {
+  id: string;
+  arc: { kind: string; source_node?: string; target_node?: string };
+  sources: string[];
+  targets: string[];
+}
+
+export interface ViewerGraph {
+  id: string;
+  arc: { view: string; title: string; chains?: unknown[] };
+  children?: ViewerNode[];
+  edges?: ViewerEdge[];
+}
+
+/** The `payload` argument of `ArcViz.mount`. */
+export interface ViewerPayload {
+  title: string;
+  graphs: ViewerGraph[];
+  diagnostics: unknown[];
+  links: { kind: string; source: string; target: string }[];
+  layout?: unknown;
+  layout_name?: string;
+}
+
+export interface Snapshot {
+  success: boolean;
+  errors: string[];
+  warnings: string[];
+  stats: Record<string, number> | null;
+  diagrams: ViewerPayload | null;
+  document: unknown;
+  elements: { elements: ElementRecord[]; relationships: RelationshipRecord[] } | null;
+  findings: Finding[];
+  gate: GateReport | null;
+}
+
+export interface AttributeType {
+  type: string;
+  of?: string;
+  values?: string[];
+}
+
+export interface MetamodelAttribute {
+  key: string;
+  type: AttributeType;
+  doc?: string;
+}
+
+export interface MetamodelKind {
+  name: string;
+  layer: string;
+  arcadia?: string;
+  sysml?: string;
+  doc?: string;
+  attributes: MetamodelAttribute[];
+}
+
+export interface Metamodel {
+  version?: string;
+  kinds: MetamodelKind[];
+  enums?: Record<string, string[]> | unknown;
+  trace_rules?: unknown;
+  units?: unknown;
+}
+
+/** One edit of the model text, as `arclang edit --request` takes it. */
+export type EditRequest =
+  | { op: 'set'; element: string; key: string; value: string }
+  | { op: 'unset'; element: string; key: string }
+  | { op: 'rename'; element: string; name: string }
+  | {
+      op: 'add';
+      keyword: string;
+      name: string;
+      attributes?: [string, string][];
+      container?: string;
+      layer?: string;
+      layer_name?: string;
+      top_level?: boolean;
+    }
+  | { op: 'add_raw'; declaration: string; container?: string; layer?: string; layer_name?: string; top_level?: boolean }
+  | { op: 'remove'; element: string }
+  | { op: 'move'; element: string; container?: string; layer?: string; layer_name?: string }
+  | { op: 'add_trace'; from: string; kind: string; to: string }
+  | { op: 'remove_trace'; from: string; kind: string; to: string }
+  | {
+      op: 'wrap_fragment';
+      scenario: string;
+      kind: string;
+      label?: string;
+      first: string;
+      last: string;
+      operands?: [string, string][];
+    };
+
+/** What the extension host sends to the webview. */
+export type ToWebview =
+  | { type: 'snapshot'; snapshot: Snapshot; metamodel: Metamodel | null; file: string; selected: string | null }
+  | { type: 'select'; id: string | null }
+  | { type: 'edit-result'; ok: boolean; label: string; error?: string }
+  | { type: 'busy'; busy: boolean; label?: string };
+
+/** What the webview sends to the extension host. */
+export type FromWebview =
+  | { type: 'ready' }
+  | { type: 'edit'; requests: EditRequest[]; label: string }
+  | { type: 'reveal'; id: string }
+  | { type: 'ask'; id: string; name: string; kind: string }
+  | { type: 'selected'; id: string | null; kind?: string; name?: string }
+  | { type: 'open-text' }
+  | { type: 'command'; command: string };
+
+/** `arclang workbench` output, read leniently: a broken answer is a failed snapshot. */
+export function parseSnapshot(text: string): Snapshot {
+  const failed = (message: string): Snapshot => ({
+    success: false,
+    errors: [message],
+    warnings: [],
+    stats: null,
+    diagrams: null,
+    document: null,
+    elements: null,
+    findings: [],
+    gate: null,
+  });
+  let raw: unknown;
+  try {
+    raw = JSON.parse(text);
+  } catch {
+    return failed(text.trim() || 'the compiler printed nothing');
+  }
+  if (typeof raw !== 'object' || raw === null) return failed('the compiler printed no snapshot');
+  const value = raw as Record<string, unknown>;
+  const strings = (key: string): string[] => (Array.isArray(value[key]) ? (value[key] as unknown[]).map(String) : []);
+  const elements = value.elements as Snapshot['elements'] | undefined;
+  return {
+    success: value.success === true,
+    errors: strings('errors'),
+    warnings: strings('warnings'),
+    stats: (value.stats as Record<string, number> | null) ?? null,
+    diagrams: (value.diagrams as ViewerPayload | null) ?? null,
+    document: value.document ?? null,
+    elements: elements && Array.isArray(elements.elements) ? { elements: elements.elements, relationships: elements.relationships ?? [] } : null,
+    findings: Array.isArray(value.findings) ? (value.findings as Finding[]) : [],
+    gate: (value.gate as GateReport | null) ?? null,
+  };
+}
+
+/** `arclang edit` output: the edited text, or why it was refused. */
+export function parseEditAnswer(text: string): { ok: true; source: string } | { ok: false; error: string } {
+  try {
+    const value = JSON.parse(text) as { success?: boolean; source?: string; error?: string };
+    if (value.success === true && typeof value.source === 'string') return { ok: true, source: value.source };
+    return { ok: false, error: value.error ?? 'the edit was refused' };
+  } catch {
+    return { ok: false, error: text.trim() || 'the compiler printed nothing' };
+  }
+}
+
+// --- The model tree -------------------------------------------------------
+
+export interface TreeNode {
+  element: ElementRecord;
+  children: TreeNode[];
+}
+
+/** The Arcadia layers in method order, as the tree groups elements. */
+export const LAYERS = ['Operational', 'System', 'Logical', 'Physical', 'Epbs', 'Data', 'Transverse'] as const;
+
+export const LAYER_LABELS: Record<string, string> = {
+  Operational: 'Operational Analysis',
+  System: 'System Analysis',
+  Logical: 'Logical Architecture',
+  Physical: 'Physical Architecture',
+  Epbs: 'EPBS',
+  Data: 'Data',
+  Transverse: 'Transverse',
+};
+
+/** The layer of a kind, from the metamodel; unknown kinds are transverse. */
+export function layerOfKind(kind: string, metamodel: Metamodel | null): string {
+  const found = metamodel?.kinds.find((k) => k.name === kind);
+  return found?.layer ?? 'Transverse';
+}
+
+/** Elements nested by ownership, in the order the compiler lists them. */
+export function elementTree(elements: ElementRecord[]): TreeNode[] {
+  const nodes = new Map<string, TreeNode>();
+  for (const element of elements) nodes.set(element.uuid, { element, children: [] });
+  const roots: TreeNode[] = [];
+  for (const node of nodes.values()) {
+    const parent = node.element.owner ? nodes.get(node.element.owner) : undefined;
+    if (parent && parent !== node) parent.children.push(node);
+    else roots.push(node);
+  }
+  return roots;
+}
+
+/**
+ * The tree grouped by layer, layers in method order, empty ones left out.
+ * The compiler makes the model element own every top-level declaration:
+ * the groups are its children, and the model itself heads the list.
+ */
+export function treeByLayer(elements: ElementRecord[], metamodel: Metamodel | null): { layer: string; label: string; roots: TreeNode[] }[] {
+  const roots = elementTree(elements);
+  const models = roots.filter((r) => r.element.kind === 'Model');
+  const tops = roots.flatMap((r) => (r.element.kind === 'Model' ? r.children : [r]));
+  const groups = new Map<string, TreeNode[]>();
+  for (const top of tops) {
+    const layer = layerOfKind(top.element.kind, metamodel);
+    groups.set(layer, [...(groups.get(layer) ?? []), top]);
+  }
+  const order = [...LAYERS, ...[...groups.keys()].filter((l) => !(LAYERS as readonly string[]).includes(l))];
+  const layers = order
+    .filter((layer) => (groups.get(layer) ?? []).length > 0)
+    .map((layer) => ({ layer, label: LAYER_LABELS[layer] ?? layer, roots: groups.get(layer) ?? [] }));
+  const head = models.map((model) => ({ layer: 'Model', label: model.element.name || model.element.id, roots: [{ element: model.element, children: [] }] }));
+  return [...head, ...layers];
+}
+
+// --- Attribute values -----------------------------------------------------
+
+/** An ArcLang string literal. */
+export function stringLiteral(text: string): string {
+  return JSON.stringify(text);
+}
+
+/**
+ * What the user typed in a properties field, as ArcLang source for `set`:
+ * texts are quoted, numbers, quantities, enumeration members and booleans
+ * are written bare, references are quoted, lists are `[a, b]`.
+ */
+export function attributeLiteral(type: AttributeType | undefined, raw: string): string {
+  const text = raw.trim();
+  // Without a type, the shape of the text decides (numbers, booleans and lists stay bare).
+  const kind = type?.type ?? 'Unknown';
+  const quoteUnlessLiteral = (item: string): string => {
+    const t = item.trim();
+    if (/^".*"$/.test(t)) return t;
+    if (/^[A-Za-z_][A-Za-z0-9_]*$/.test(t)) return t;
+    return stringLiteral(t);
+  };
+  switch (kind) {
+    case 'Text':
+    case 'Identifier':
+      return /^".*"$/.test(text) ? text : stringLiteral(text);
+    case 'Number':
+    case 'Integer':
+    case 'Quantity':
+    case 'Boolean':
+    case 'Enum':
+    case 'Enumeration':
+      return text;
+    case 'Reference':
+      return quoteUnlessLiteral(text);
+    case 'List':
+    case 'References':
+    case 'TextList': {
+      const inner = text.replace(/^\[/, '').replace(/\]$/, '');
+      const items = inner
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean);
+      return `[${items.map(quoteUnlessLiteral).join(', ')}]`;
+    }
+    default:
+      return /^".*"$/.test(text) || /^[-+]?\d/.test(text) || /^(true|false)$/.test(text) || /^\[.*\]$/.test(text) ? text : stringLiteral(text);
+  }
+}
+
+/** The attribute as the properties view shows it: lists joined, texts bare. */
+export function attributeDisplay(value: unknown): string {
+  if (value === null || value === undefined) return '';
+  if (Array.isArray(value)) return value.map((v) => attributeDisplay(v)).join(', ');
+  if (typeof value === 'object') {
+    const record = value as Record<string, unknown>;
+    if ('value' in record && 'unit' in record) return `${record.value} ${record.unit}`;
+    return JSON.stringify(value);
+  }
+  return String(value);
+}
+
+// --- The palette ----------------------------------------------------------
+
+/** The layer block a view's elements are declared in. */
+export const LAYER_OF_VIEW: Record<string, string> = {
+  oab: 'operational_analysis',
+  sab: 'system_analysis',
+  lab: 'logical_architecture',
+  pab: 'physical_architecture',
+  cap: 'system_analysis',
+};
+
+export type ToolKind = 'create' | 'connect';
+
+export interface Tool {
+  id: string;
+  label: string;
+  kind: ToolKind;
+  /** create: the declaration keyword (`component`, `port out`). */
+  keyword?: string;
+  /** create: declared inside the selected element when its kind is one of these, else in the layer (or at the top level). */
+  containerKinds?: string[];
+  /** create: must be declared inside one of `containerKinds` (never in the layer). */
+  needsContainer?: boolean;
+  /** create: declared at the top level of the file (data model). */
+  topLevel?: boolean;
+  /** connect: the keyword of the relationship and how its ends are written. */
+  connect?: 'interaction' | 'functional_exchange' | 'component_exchange' | 'physical_link' | 'physical_exchange' | 'association' | 'transition' | 'message';
+  /** connect: the kinds the two ends may have. */
+  endKinds?: string[];
+}
+
+const PORTED = ['SystemFunction', 'LogicalFunction', 'PhysicalFunction', 'SystemComponent', 'SystemActor', 'LogicalComponent', 'BehaviorComponent', 'PhysicalNode', 'Actor'];
+const FUNCTION_KINDS = ['SystemFunction', 'LogicalFunction', 'PhysicalFunction', 'OperationalActivity'];
+
+export const PALETTE: Record<string, Tool[]> = {
+  oab: [
+    { id: 'actor', label: 'Actor', kind: 'create', keyword: 'actor' },
+    { id: 'entity', label: 'Entity', kind: 'create', keyword: 'entity' },
+    { id: 'activity', label: 'Activity', kind: 'create', keyword: 'activity', containerKinds: ['OperationalEntity', 'Actor'] },
+    { id: 'operational_capability', label: 'Capability', kind: 'create', keyword: 'operational_capability' },
+    { id: 'interaction', label: 'Interaction', kind: 'connect', connect: 'interaction', endKinds: ['Actor', 'OperationalEntity', 'OperationalActivity'] },
+  ],
+  sab: [
+    { id: 'actor', label: 'Actor', kind: 'create', keyword: 'actor' },
+    { id: 'function', label: 'Function', kind: 'create', keyword: 'function', containerKinds: ['SystemFunction', 'SystemComponent', 'SystemActor'] },
+    { id: 'component', label: 'Component', kind: 'create', keyword: 'component' },
+    { id: 'port_in', label: 'Port in', kind: 'create', keyword: 'port in', containerKinds: PORTED, needsContainer: true },
+    { id: 'port_out', label: 'Port out', kind: 'create', keyword: 'port out', containerKinds: PORTED, needsContainer: true },
+    { id: 'mission', label: 'Mission', kind: 'create', keyword: 'mission' },
+    { id: 'capability', label: 'Capability', kind: 'create', keyword: 'capability' },
+    { id: 'functional_chain', label: 'Functional chain', kind: 'create', keyword: 'functional_chain' },
+    { id: 'functional_exchange', label: 'Functional exchange', kind: 'connect', connect: 'functional_exchange', endKinds: ['SystemFunction', 'FunctionPort'] },
+    { id: 'component_exchange', label: 'Component exchange', kind: 'connect', connect: 'component_exchange', endKinds: ['SystemComponent', 'SystemActor', 'ComponentPort'] },
+  ],
+  lab: [
+    { id: 'component', label: 'Component', kind: 'create', keyword: 'component', containerKinds: ['LogicalComponent'] },
+    { id: 'function', label: 'Function', kind: 'create', keyword: 'function', containerKinds: ['LogicalComponent', 'LogicalFunction'] },
+    { id: 'port_in', label: 'Port in', kind: 'create', keyword: 'port in', containerKinds: PORTED, needsContainer: true },
+    { id: 'port_out', label: 'Port out', kind: 'create', keyword: 'port out', containerKinds: PORTED, needsContainer: true },
+    { id: 'interface', label: 'Interface', kind: 'create', keyword: 'interface' },
+    { id: 'component_exchange', label: 'Component exchange', kind: 'connect', connect: 'component_exchange', endKinds: ['LogicalComponent', 'ComponentPort'] },
+    { id: 'functional_exchange', label: 'Functional exchange', kind: 'connect', connect: 'functional_exchange', endKinds: ['LogicalFunction', 'FunctionPort'] },
+  ],
+  pab: [
+    { id: 'node', label: 'Node', kind: 'create', keyword: 'node', containerKinds: ['PhysicalNode'] },
+    { id: 'behavior_component', label: 'Behavior component', kind: 'create', keyword: 'behavior_component', containerKinds: ['PhysicalNode'], needsContainer: true },
+    { id: 'hardware_component', label: 'Hardware component', kind: 'create', keyword: 'hardware_component', containerKinds: ['PhysicalNode'], needsContainer: true },
+    { id: 'function', label: 'Function', kind: 'create', keyword: 'function', containerKinds: ['BehaviorComponent', 'PhysicalNode', 'PhysicalFunction'] },
+    { id: 'port_in', label: 'Port in', kind: 'create', keyword: 'port in', containerKinds: PORTED, needsContainer: true },
+    { id: 'port_out', label: 'Port out', kind: 'create', keyword: 'port out', containerKinds: PORTED, needsContainer: true },
+    { id: 'physical_link', label: 'Physical link', kind: 'connect', connect: 'physical_link', endKinds: ['PhysicalNode'] },
+    { id: 'physical_exchange', label: 'Physical exchange', kind: 'connect', connect: 'physical_exchange', endKinds: ['PhysicalNode', 'BehaviorComponent', 'ComponentPort', 'PhysicalPort'] },
+    { id: 'functional_exchange', label: 'Functional exchange', kind: 'connect', connect: 'functional_exchange', endKinds: ['PhysicalFunction', 'FunctionPort'] },
+  ],
+  cap: [
+    { id: 'mission', label: 'Mission', kind: 'create', keyword: 'mission' },
+    { id: 'capability', label: 'Capability', kind: 'create', keyword: 'capability' },
+  ],
+  cdb: [
+    { id: 'class', label: 'Class', kind: 'create', keyword: 'class', topLevel: true },
+    { id: 'enumeration', label: 'Enumeration', kind: 'create', keyword: 'enumeration', topLevel: true },
+    { id: 'data_type', label: 'Data type', kind: 'create', keyword: 'data_type', topLevel: true },
+    { id: 'exchange_item', label: 'Exchange item', kind: 'create', keyword: 'exchange_item', topLevel: true },
+    { id: 'association', label: 'Association', kind: 'connect', connect: 'association', endKinds: ['Class'] },
+  ],
+};
+
+/** The tools of a view; unknown views get what their diagrams can take. */
+export function toolsFor(view: string): Tool[] {
+  return PALETTE[view] ?? [];
+}
+
+export interface CreateContext {
+  view: string;
+  name: string;
+  /** The element clicked, if any, with its kind. */
+  selected?: { id: string; kind: string } | null;
+}
+
+/** Where a created element goes: inside the selected element, in the layer, or at the top. */
+export function createRequest(tool: Tool, context: CreateContext): EditRequest | { error: string } {
+  if (!tool.keyword) return { error: `${tool.label} creates nothing` };
+  const name = context.name.trim();
+  if (!name) return { error: 'a name is needed' };
+  const container = context.selected && tool.containerKinds?.includes(context.selected.kind) ? context.selected.id : undefined;
+  if (tool.needsContainer && !container) {
+    return { error: `${tool.label}: select ${(tool.containerKinds ?? []).join(', ')} first` };
+  }
+  if (container) return { op: 'add', keyword: tool.keyword, name, container };
+  if (tool.topLevel) return { op: 'add', keyword: tool.keyword, name, top_level: true };
+  const layer = LAYER_OF_VIEW[context.view];
+  if (!layer) return { error: `${tool.label}: no layer for the ${context.view} view` };
+  return { op: 'add', keyword: tool.keyword, name, layer };
+}
+
+export interface ConnectEnd {
+  id: string;
+  kind: string;
+}
+
+/** A port id is `Owner.port`; its owner is the part before the last dot. */
+export function ownerOfPort(portId: string): string {
+  const at = portId.lastIndexOf('.');
+  return at > 0 ? portId.slice(0, at) : portId;
+}
+
+/** A name that can serve as a port name: letters, digits and underscores. */
+export function portNameFrom(name: string): string {
+  const cleaned = name
+    .trim()
+    .replace(/[^A-Za-z0-9_]+/g, '_')
+    .replace(/^_+|_+$/g, '');
+  return cleaned || 'flow';
+}
+
+/**
+ * The edits that connect two ends: exchanges between functions or components
+ * go through ports, created when the ends are not ports already; links and
+ * interactions name the elements directly. Applied in order on one text.
+ */
+export function connectPlan(tool: Tool, from: ConnectEnd, to: ConnectEnd, name: string, view: string): EditRequest[] | { error: string } {
+  const label = name.trim();
+  if (!label) return { error: 'a name is needed' };
+  if (tool.endKinds && (!tool.endKinds.includes(from.kind) || !tool.endKinds.includes(to.kind))) {
+    return { error: `${tool.label} connects ${tool.endKinds.join(', ')}; not ${from.kind} to ${to.kind}` };
+  }
+  if (from.id === to.id) return { error: 'an element is not connected to itself' };
+  const layer = LAYER_OF_VIEW[view];
+  const quoted = stringLiteral(label);
+  const throughPorts = (fromKey: string, toKey: string, keyword: string): EditRequest[] => {
+    const port = portNameFrom(label);
+    const edits: EditRequest[] = [];
+    const isPort = (end: ConnectEnd) => end.kind === 'FunctionPort' || end.kind === 'ComponentPort' || end.kind === 'PhysicalPort';
+    const fromPort = isPort(from) ? from.id : `${from.id}.${port}`;
+    const toPort = isPort(to) ? to.id : `${to.id}.${port}`;
+    if (!isPort(from)) edits.push({ op: 'add', keyword: 'port out', name: port, container: from.id });
+    if (!isPort(to)) edits.push({ op: 'add', keyword: 'port in', name: port, container: to.id });
+    const declaration = `${keyword} ${quoted} {\n  ${fromKey}: ${stringLiteral(fromPort)}\n  ${toKey}: ${stringLiteral(toPort)}\n}`;
+    edits.push(layer ? { op: 'add_raw', declaration, layer } : { op: 'add_raw', declaration, top_level: true });
+    return edits;
+  };
+  const direct = (keyword: string, fromKey = 'from', toKey = 'to'): EditRequest[] => {
+    const declaration = `${keyword} ${quoted} {\n  ${fromKey}: ${stringLiteral(from.id)}\n  ${toKey}: ${stringLiteral(to.id)}\n}`;
+    return [layer ? { op: 'add_raw', declaration, layer } : { op: 'add_raw', declaration, top_level: true }];
+  };
+  switch (tool.connect) {
+    case 'interaction':
+      return direct('interaction');
+    case 'functional_exchange':
+      return throughPorts('from', 'to', 'functional_exchange');
+    case 'component_exchange':
+      return throughPorts('from_port', 'to_port', 'component_exchange');
+    case 'physical_exchange':
+      return throughPorts('from', 'to', 'physical_exchange');
+    case 'physical_link':
+      return direct('physical_link');
+    case 'association':
+      return [{ op: 'add_raw', declaration: `association ${quoted} {\n  from: ${stringLiteral(from.id)}\n  to: ${stringLiteral(to.id)}\n}`, top_level: true }];
+    default:
+      return { error: `${tool.label} connects nothing` };
+  }
+}
+
+/** The kinds that are functions, for the palette's own checks. */
+export function isFunctionKind(kind: string): boolean {
+  return FUNCTION_KINDS.includes(kind);
+}
+
+/** A short label for an element in lists and messages. */
+export function elementLabel(element: Pick<ElementRecord, 'id' | 'name' | 'kind'>): string {
+  return element.name && element.name !== element.id ? `${element.name} (${element.id})` : element.id;
+}
+
+/** The relationships and traces an element takes part in, for the semantic browser. */
+export function neighbours(
+  element: ElementRecord,
+  snapshot: Snapshot,
+): { incoming: { kind: string; name: string; other: ElementRecord | null }[]; outgoing: { kind: string; name: string; other: ElementRecord | null }[] } {
+  const records = snapshot.elements?.elements ?? [];
+  const byUuid = new Map(records.map((e) => [e.uuid, e]));
+  const byId = new Map(records.map((e) => [e.id, e]));
+  const incoming: { kind: string; name: string; other: ElementRecord | null }[] = [];
+  const outgoing: { kind: string; name: string; other: ElementRecord | null }[] = [];
+  for (const relationship of snapshot.elements?.relationships ?? []) {
+    if (relationship.source === element.uuid) outgoing.push({ kind: relationship.kind, name: relationship.name, other: byUuid.get(relationship.target) ?? null });
+    if (relationship.target === element.uuid) incoming.push({ kind: relationship.kind, name: relationship.name, other: byUuid.get(relationship.source) ?? null });
+  }
+  for (const link of snapshot.diagrams?.links ?? []) {
+    if (link.source === element.id) outgoing.push({ kind: link.kind, name: '', other: byId.get(link.target) ?? null });
+    if (link.target === element.id) incoming.push({ kind: link.kind, name: '', other: byId.get(link.source) ?? null });
+  }
+  return { incoming, outgoing };
+}

@@ -1,0 +1,159 @@
+import assert from 'node:assert/strict';
+import { test } from 'node:test';
+import {
+  attributeLiteral,
+  connectPlan,
+  createRequest,
+  elementTree,
+  ElementRecord,
+  Metamodel,
+  neighbours,
+  ownerOfPort,
+  parseEditAnswer,
+  parseSnapshot,
+  portNameFrom,
+  Snapshot,
+  toolsFor,
+  treeByLayer,
+} from '../../src/pure/workbench';
+
+const metamodel: Metamodel = {
+  kinds: [
+    { name: 'LogicalComponent', layer: 'Logical', attributes: [] },
+    { name: 'LogicalFunction', layer: 'Logical', attributes: [] },
+    { name: 'Requirement', layer: 'System', attributes: [] },
+    { name: 'Model', layer: 'Transverse', attributes: [] },
+  ],
+};
+
+const element = (uuid: string, id: string, kind: string, owner: string | null = null, name = id): ElementRecord => ({
+  uuid,
+  id,
+  kind,
+  name,
+  owner,
+  attributes: {},
+});
+
+test('a snapshot is read leniently and a broken answer is a failed one', () => {
+  const ok = parseSnapshot('{"success":true,"errors":[],"warnings":["w"],"findings":[],"elements":{"elements":[],"relationships":[]},"diagrams":{"title":"t","graphs":[],"diagnostics":[],"links":[]}}');
+  assert.equal(ok.success, true);
+  assert.deepEqual(ok.warnings, ['w']);
+  assert.ok(ok.elements && ok.diagrams);
+  const broken = parseSnapshot('not json');
+  assert.equal(broken.success, false);
+  assert.equal(broken.errors[0], 'not json');
+  const refused = parseEditAnswer('{"success":false,"error":"no element"}');
+  assert.deepEqual(refused, { ok: false, error: 'no element' });
+  assert.deepEqual(parseEditAnswer('{"success":true,"source":"model M {}"}'), { ok: true, source: 'model M {}' });
+});
+
+test('elements nest by ownership and group by the layer of their kind, under the model', () => {
+  // The compiler makes the model own every top-level declaration.
+  const elements = [
+    element('m', 'M', 'Model'),
+    element('c', 'LC-1', 'LogicalComponent', 'm'),
+    element('f', 'LF-1', 'LogicalFunction', 'c'),
+    element('r', 'REQ-1', 'Requirement', 'm'),
+    element('x', 'X-1', 'Unknown'),
+  ];
+  const roots = elementTree(elements);
+  assert.deepEqual(
+    roots.map((n) => [n.element.id, n.children.map((c) => c.element.id)]),
+    [
+      ['M', ['LC-1', 'REQ-1']],
+      ['X-1', []],
+    ],
+  );
+  const groups = treeByLayer(elements, metamodel);
+  assert.deepEqual(
+    groups.map((g) => [g.layer, g.roots.map((r) => r.element.id)]),
+    [
+      ['Model', ['M']],
+      ['System', ['REQ-1']],
+      ['Logical', ['LC-1']],
+      ['Transverse', ['X-1']],
+    ],
+  );
+  assert.equal(groups[0].label, 'M');
+});
+
+test('typed fields become ArcLang literals', () => {
+  assert.equal(attributeLiteral({ type: 'Text' }, 'Brake controller'), '"Brake controller"');
+  assert.equal(attributeLiteral({ type: 'Text' }, '"already quoted"'), '"already quoted"');
+  assert.equal(attributeLiteral({ type: 'Quantity' }, '20 ms'), '20 ms');
+  assert.equal(attributeLiteral({ type: 'Number' }, '3.5'), '3.5');
+  assert.equal(attributeLiteral({ type: 'Enum' }, 'ASIL-D'), 'ASIL-D');
+  assert.equal(attributeLiteral({ type: 'Boolean' }, 'true'), 'true');
+  assert.equal(attributeLiteral({ type: 'Reference' }, 'LC-001'), '"LC-001"');
+  assert.equal(attributeLiteral({ type: 'Reference' }, 'Alpha'), 'Alpha');
+  assert.equal(attributeLiteral({ type: 'List' }, 'LC-1, Beta, "x y"'), '["LC-1", Beta, "x y"]');
+  assert.equal(attributeLiteral(undefined, 'free text'), '"free text"');
+  assert.equal(attributeLiteral(undefined, '42'), '42');
+});
+
+test('a created element goes inside the selection, else in the layer or at the top', () => {
+  const component = toolsFor('lab').find((t) => t.id === 'component')!;
+  assert.deepEqual(createRequest(component, { view: 'lab', name: 'Radar', selected: null }), { op: 'add', keyword: 'component', name: 'Radar', layer: 'logical_architecture' });
+  assert.deepEqual(createRequest(component, { view: 'lab', name: 'Radar', selected: { id: 'LC-1', kind: 'LogicalComponent' } }), {
+    op: 'add',
+    keyword: 'component',
+    name: 'Radar',
+    container: 'LC-1',
+  });
+  const port = toolsFor('lab').find((t) => t.id === 'port_in')!;
+  assert.deepEqual(createRequest(port, { view: 'lab', name: 'lane', selected: null }), { error: `Port in: select ${port.containerKinds!.join(', ')} first` });
+  const klass = toolsFor('cdb').find((t) => t.id === 'class')!;
+  assert.deepEqual(createRequest(klass, { view: 'cdb', name: 'Frame', selected: { id: 'X', kind: 'Class' } }), { op: 'add', keyword: 'class', name: 'Frame', top_level: true });
+  assert.deepEqual(createRequest(component, { view: 'lab', name: '  ', selected: null }), { error: 'a name is needed' });
+});
+
+test('connecting two components declares the ports and the exchange; links name the ends', () => {
+  const exchange = toolsFor('lab').find((t) => t.id === 'component_exchange')!;
+  const plan = connectPlan(exchange, { id: 'LC-A', kind: 'LogicalComponent' }, { id: 'LC-B', kind: 'LogicalComponent' }, 'Lane flow', 'lab');
+  assert.ok(Array.isArray(plan));
+  assert.deepEqual(plan[0], { op: 'add', keyword: 'port out', name: 'Lane_flow', container: 'LC-A' });
+  assert.deepEqual(plan[1], { op: 'add', keyword: 'port in', name: 'Lane_flow', container: 'LC-B' });
+  assert.equal(plan[2].op, 'add_raw');
+  assert.match((plan[2] as { declaration: string }).declaration, /component_exchange "Lane flow" \{\n {2}from_port: "LC-A.Lane_flow"\n {2}to_port: "LC-B.Lane_flow"\n\}/);
+  assert.equal((plan[2] as { layer?: string }).layer, 'logical_architecture');
+  // Existing ports are used as they are.
+  const viaPorts = connectPlan(exchange, { id: 'LC-A.out1', kind: 'ComponentPort' }, { id: 'LC-B.in1', kind: 'ComponentPort' }, 'x', 'lab');
+  assert.ok(Array.isArray(viaPorts) && viaPorts.length === 1);
+  const link = toolsFor('pab').find((t) => t.id === 'physical_link')!;
+  const linkPlan = connectPlan(link, { id: 'PN-1', kind: 'PhysicalNode' }, { id: 'PN-2', kind: 'PhysicalNode' }, 'CAN', 'pab');
+  assert.ok(Array.isArray(linkPlan));
+  assert.match((linkPlan[0] as { declaration: string }).declaration, /physical_link "CAN" \{\n {2}from: "PN-1"\n {2}to: "PN-2"\n\}/);
+  assert.deepEqual(connectPlan(link, { id: 'PN-1', kind: 'PhysicalNode' }, { id: 'LC-1', kind: 'LogicalComponent' }, 'x', 'pab'), {
+    error: 'Physical link connects PhysicalNode; not PhysicalNode to LogicalComponent',
+  });
+  assert.deepEqual(connectPlan(link, { id: 'PN-1', kind: 'PhysicalNode' }, { id: 'PN-1', kind: 'PhysicalNode' }, 'x', 'pab'), { error: 'an element is not connected to itself' });
+  assert.equal(ownerOfPort('LC-A.lane'), 'LC-A');
+  assert.equal(portNameFrom('steering correction!'), 'steering_correction');
+});
+
+test('the semantic browser lists relationships and traces around an element', () => {
+  const a = element('a', 'LC-A', 'LogicalComponent');
+  const b = element('b', 'LC-B', 'LogicalComponent');
+  const r = element('r', 'REQ-1', 'Requirement');
+  const snapshot: Snapshot = {
+    success: true,
+    errors: [],
+    warnings: [],
+    stats: null,
+    document: null,
+    findings: [],
+    gate: null,
+    elements: { elements: [a, b, r], relationships: [{ uuid: 'x', kind: 'ComponentExchange', name: 'flow', source: 'a', target: 'b' }] },
+    diagrams: { title: 't', graphs: [], diagnostics: [], links: [{ kind: 'satisfies', source: 'LC-A', target: 'REQ-1' }] },
+  };
+  const around = neighbours(a, snapshot);
+  assert.deepEqual(
+    around.outgoing.map((e) => [e.kind, e.other?.id]),
+    [
+      ['ComponentExchange', 'LC-B'],
+      ['satisfies', 'REQ-1'],
+    ],
+  );
+  assert.deepEqual(neighbours(b, snapshot).incoming.map((e) => [e.kind, e.other?.id]), [['ComponentExchange', 'LC-A']]);
+});

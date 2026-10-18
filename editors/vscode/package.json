@@ -2,7 +2,7 @@
   "name": "arclang",
   "displayName": "ArcLang",
   "description": "Arcadia MBSE as code: diagnostics with rules, outline, completion from the metamodel, hover, go to definition, rename, formatting, the viewpoint diagrams beside the source, the production gate, Arcadia transitions, the @arclang chat participant and compiler tools for agent mode, the ArcLang MCP server. Everything comes from the ArcLang compiler.",
-  "version": "4.2.0",
+  "version": "4.3.0",
   "publisher": "arclang",
   "license": "MIT",
   "icon": "icon.png",
@@ -56,7 +56,8 @@
     "mcp"
   ],
   "activationEvents": [
-    "onLanguage:arclang"
+    "onLanguage:arclang",
+    "onView:arclangModel"
   ],
   "main": "./dist/extension.js",
   "contributes": {
@@ -155,6 +156,38 @@
         "command": "arclang.installBinary",
         "title": "Install or locate the arclang compiler",
         "category": "ArcLang"
+      },
+      {
+        "command": "arclang.openWorkbench",
+        "title": "Open the workbench (diagrams, palette, properties)",
+        "category": "ArcLang",
+        "icon": "$(layout)"
+      },
+      {
+        "command": "arclang.model.reveal",
+        "title": "Go to source",
+        "category": "ArcLang"
+      },
+      {
+        "command": "arclang.model.rename",
+        "title": "Rename…",
+        "category": "ArcLang"
+      },
+      {
+        "command": "arclang.model.delete",
+        "title": "Delete",
+        "category": "ArcLang"
+      },
+      {
+        "command": "arclang.model.ask",
+        "title": "Ask @arclang about this element",
+        "category": "ArcLang"
+      },
+      {
+        "command": "arclang.model.refresh",
+        "title": "Refresh the model tree",
+        "category": "ArcLang",
+        "icon": "$(refresh)"
       }
     ],
     "menus": {
@@ -163,6 +196,11 @@
           "command": "arclang.openDiagrams",
           "when": "resourceLangId == arclang",
           "group": "navigation"
+        },
+        {
+          "command": "arclang.openWorkbench",
+          "when": "resourceLangId == arclang",
+          "group": "navigation@1"
         }
       ],
       "editor/context": [
@@ -175,6 +213,11 @@
           "command": "arclang.openDiagrams",
           "when": "resourceLangId == arclang",
           "group": "arclang@2"
+        },
+        {
+          "command": "arclang.openWorkbench",
+          "when": "resourceLangId == arclang",
+          "group": "arclang@0"
         }
       ],
       "explorer/context": [
@@ -192,6 +235,11 @@
           "command": "arclang.export",
           "when": "resourceExtname == .arc",
           "group": "arclang@3"
+        },
+        {
+          "command": "arclang.openWorkbench",
+          "when": "resourceExtname == .arc",
+          "group": "arclang@0"
         }
       ],
       "commandPalette": [
@@ -230,6 +278,56 @@
         {
           "command": "arclang.export",
           "when": "resourceLangId == arclang"
+        },
+        {
+          "command": "arclang.model.reveal",
+          "when": "false"
+        },
+        {
+          "command": "arclang.model.rename",
+          "when": "false"
+        },
+        {
+          "command": "arclang.model.delete",
+          "when": "false"
+        },
+        {
+          "command": "arclang.model.ask",
+          "when": "false"
+        }
+      ],
+      "view/title": [
+        {
+          "command": "arclang.model.refresh",
+          "when": "view == arclangModel",
+          "group": "navigation@1"
+        },
+        {
+          "command": "arclang.openWorkbench",
+          "when": "view == arclangModel",
+          "group": "navigation@2"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "arclang.model.reveal",
+          "when": "view == arclangModel && viewItem == arclang.element",
+          "group": "navigation@1"
+        },
+        {
+          "command": "arclang.model.ask",
+          "when": "view == arclangModel && viewItem == arclang.element",
+          "group": "navigation@2"
+        },
+        {
+          "command": "arclang.model.rename",
+          "when": "view == arclangModel && viewItem == arclang.element",
+          "group": "edit@1"
+        },
+        {
+          "command": "arclang.model.delete",
+          "when": "view == arclangModel && viewItem == arclang.element",
+          "group": "edit@2"
         }
       ]
     },
@@ -536,13 +634,32 @@
         "id": "arclang.mcp",
         "label": "ArcLang MCP server"
       }
-    ]
+    ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "arclang",
+          "title": "ArcLang",
+          "icon": "media/icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "arclang": [
+        {
+          "id": "arclangModel",
+          "name": "Model",
+          "contextualTitle": "ArcLang model",
+          "icon": "media/icon.svg"
+        }
+      ]
+    }
   },
   "scripts": {
     "build": "node esbuild.mjs",
     "watch": "node esbuild.mjs --watch",
-    "typecheck": "tsc --noEmit",
-    "lint": "tsc --noEmit",
+    "typecheck": "tsc --noEmit && tsc -p webview --noEmit",
+    "lint": "tsc --noEmit && tsc -p webview --noEmit",
     "test:unit": "node --test --import tsx test/unit/*.test.ts",
     "test": "npm run build && npm run test:unit && npm run test:integration",
     "vscode:prepublish": "npm run build -- --production",
