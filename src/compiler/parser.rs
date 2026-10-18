@@ -120,8 +120,14 @@ impl Parser {
                 Token::StateMachineKw => {
                     model.state_machines.push(self.parse_state_machine()?);
                 }
+                Token::DiagramKw if !self.peek_is_colon() => {
+                    model.diagrams.push(self.parse_diagram()?);
+                }
                 Token::Class => {
                     model.classes.push(self.parse_class()?);
+                }
+                Token::Association if !self.peek_is_colon() => {
+                    model.associations.push(self.parse_association()?);
                 }
                 Token::Enumeration => {
                     model.data_types.push(self.parse_data_type(true)?);
@@ -247,8 +253,14 @@ impl Parser {
                 Token::StateMachineKw => {
                     model.state_machines.push(self.parse_state_machine()?);
                 }
+                Token::DiagramKw if !self.peek_is_colon() => {
+                    model.diagrams.push(self.parse_diagram()?);
+                }
                 Token::Class => {
                     model.classes.push(self.parse_class()?);
+                }
+                Token::Association if !self.peek_is_colon() => {
+                    model.associations.push(self.parse_association()?);
                 }
                 Token::Enumeration => {
                     model.data_types.push(self.parse_data_type(true)?);
@@ -334,8 +346,14 @@ impl Parser {
                 Token::StateMachineKw => {
                     model.state_machines.push(self.parse_state_machine()?);
                 }
+                Token::DiagramKw if !self.peek_is_colon() => {
+                    model.diagrams.push(self.parse_diagram()?);
+                }
                 Token::Class => {
                     model.classes.push(self.parse_class()?);
+                }
+                Token::Association if !self.peek_is_colon() => {
+                    model.associations.push(self.parse_association()?);
                 }
                 Token::Enumeration => {
                     model.data_types.push(self.parse_data_type(true)?);
@@ -485,8 +503,14 @@ impl Parser {
                 Token::StateMachineKw => {
                     model.state_machines.push(self.parse_state_machine()?);
                 }
+                Token::DiagramKw if !self.peek_is_colon() => {
+                    model.diagrams.push(self.parse_diagram()?);
+                }
                 Token::Class => {
                     model.classes.push(self.parse_class()?);
+                }
+                Token::Association if !self.peek_is_colon() => {
+                    model.associations.push(self.parse_association()?);
                 }
                 Token::Enumeration => {
                     model.data_types.push(self.parse_data_type(true)?);
@@ -523,6 +547,7 @@ impl Parser {
     }
     
     fn parse_operational_analysis(&mut self) -> Result<OperationalAnalysis, String> {
+        let mut level_attributes: HashMap<String, AttributeValue> = HashMap::new();
         self.expect(Token::OperationalAnalysis)?;
         let name = self.expect_name()?;
         self.expect(Token::LeftBrace)?;
@@ -561,7 +586,7 @@ impl Parser {
                 Token::OperationalProcess => {
                     self.advance();
                     let process_name = self.expect_name()?;
-                    let attributes = self.parse_attributes_block()?;
+                    let (attributes, controls, sequences) = self.parse_chain_body("operational_process", &process_name)?;
                     let id = attributes
                         .get("id")
                         .and_then(|v| v.as_string())
@@ -569,12 +594,9 @@ impl Parser {
                         .unwrap_or_else(|| process_name.clone());
                     let involves = Self::string_list(&attributes, "involves");
                     if involves.is_empty() {
-                        return Err(self.err(format!(
-                            "operational_process '{}' must involve at least one activity (involves: [...])",
-                            process_name
-                        )));
+                        self.warn(format!("operational_process '{process_name}' involves nothing yet (involves: [...])"));
                     }
-                    processes.push(FunctionalChain { id, name: process_name, involves, attributes });
+                    processes.push(Self::chain(id, process_name, involves, controls, sequences, attributes));
                 }
                 Token::CommunicationMeans => {
                     self.advance();
@@ -600,10 +622,7 @@ impl Parser {
                             name = s;
                         }
                     } else {
-                        self.warn(format!(
-                            "attribute '{}' on operational_analysis is not yet stored in the model",
-                            key
-                        ));
+                        level_attributes.insert(key, value);
                     }
                 }
                 _ => {
@@ -615,6 +634,8 @@ impl Parser {
         self.expect(Token::RightBrace)?;
         
         Ok(OperationalAnalysis {
+            id: level_attributes.get("id").and_then(|v| v.as_string()).map(str::to_string).unwrap_or_default(),
+            attributes: level_attributes,
             name,
             processes,
             communication_means,
@@ -680,10 +701,27 @@ impl Parser {
         })
     }
     
+    /// Parse: operational_activity Name { attributes, port in|out Name, nested activities }
     fn parse_operational_activity(&mut self) -> Result<OperationalActivity, String> {
         self.advance(); // Skip 'operational_activity'
         let name = self.expect_name()?;
-        let attributes = self.parse_attributes_block()?;
+        self.expect(Token::LeftBrace)?;
+        let mut attributes = HashMap::new();
+        let mut ports = Vec::new();
+        let mut sub_activities = Vec::new();
+        while !self.check(&Token::RightBrace) && !self.is_at_end() {
+            match self.current().clone() {
+                Token::Port if !self.peek_is_colon() => ports.push(self.parse_function_port()?),
+                Token::Identifier(ref id) if (id == "operational_activity" || id == "activity") && !self.peek_is_colon() => {
+                    sub_activities.push(self.parse_operational_activity()?);
+                }
+                _ => {
+                    let (key, value) = self.parse_attribute()?;
+                    attributes.insert(key, value);
+                }
+            }
+        }
+        self.expect(Token::RightBrace)?;
         
         // Extract ID from attributes, or generate from name
         let id = attributes.get("id")
@@ -708,7 +746,8 @@ impl Parser {
             category,
             icon: "circle".to_string(),
             color: "#FFD966".to_string(),
-            sub_activities: Vec::new(),
+            sub_activities,
+            ports,
             attributes,
         })
     }
@@ -783,6 +822,7 @@ impl Parser {
     }
     
     fn parse_system_analysis(&mut self) -> Result<SystemAnalysis, String> {
+        let mut level_attributes: HashMap<String, AttributeValue> = HashMap::new();
         self.expect(Token::SystemAnalysis)?;
         let mut name = self.expect_name()?;
         self.expect(Token::LeftBrace)?;
@@ -792,6 +832,7 @@ impl Parser {
         let mut components = Vec::new();
         let mut external_actors = Vec::new();
         let mut functional_exchanges = Vec::new();
+        let mut component_exchanges = Vec::new();
         let mut missions = Vec::new();
         let mut capabilities = Vec::new();
         let mut functional_chains = Vec::new();
@@ -825,6 +866,9 @@ impl Parser {
                 Token::Identifier(ref id) if id == "system_component" => {
                     components.push(self.parse_system_component()?);
                 }
+                Token::Identifier(ref id) if id == "component_exchange" => {
+                    component_exchanges.push(self.parse_named_component_exchange()?);
+                }
                 Token::Identifier(ref id)
                     if id == "functional_exchange" || id == "exchange" =>
                 {
@@ -840,10 +884,7 @@ impl Parser {
                             name = s;
                         }
                     } else {
-                        self.warn(format!(
-                            "attribute '{}' on system_analysis is not yet stored in the model",
-                            key
-                        ));
+                        level_attributes.insert(key, value);
                     }
                 }
                 _ => {
@@ -855,12 +896,15 @@ impl Parser {
         self.expect(Token::RightBrace)?;
 
         Ok(SystemAnalysis {
+            id: level_attributes.get("id").and_then(|v| v.as_string()).map(str::to_string).unwrap_or_default(),
+            attributes: level_attributes,
             name,
             requirements,
             functions,
             components,
             external_actors,
             functional_exchanges,
+            component_exchanges,
             missions,
             capabilities,
             functional_chains,
@@ -880,11 +924,12 @@ impl Parser {
         Ok(Mission { id, name, attributes })
     }
 
-    /// Parse: functional_chain Name { id: ... involves: ["F1", "FE1", "F2"] }
+    /// Parse: functional_chain Name { id: ... involves: ["F1", "FE1", "F2"]
+    /// control and "Split" { id: ... } sequence "F1" -> "Split" { condition: "..." } }
     fn parse_functional_chain(&mut self) -> Result<FunctionalChain, String> {
         self.expect(Token::FunctionalChain)?;
         let name = self.expect_name()?;
-        let attributes = self.parse_attributes_block()?;
+        let (attributes, controls, sequences) = self.parse_chain_body("functional_chain", &name)?;
         let id = attributes
             .get("id")
             .and_then(|v| v.as_string())
@@ -892,12 +937,75 @@ impl Parser {
             .unwrap_or_else(|| format!("FC-{}", name.replace(' ', "_")));
         let involves = Self::string_list(&attributes, "involves");
         if involves.is_empty() {
-            return Err(self.err(format!(
-                "functional_chain '{}' must involve at least one function (involves: [...])",
-                name
-            )));
+            // Capella keeps chains whose path is not described yet.
+            self.warn(format!("functional_chain '{name}' involves nothing yet (involves: [...])"));
         }
-        Ok(FunctionalChain { id, name, involves, attributes })
+        Ok(Self::chain(id, name, involves, controls, sequences, attributes))
+    }
+
+    /// The body of a chain or an operational process: attributes, control
+    /// nodes and sequence links, in any order.
+    fn parse_chain_body(&mut self, what: &str, name: &str) -> Result<(HashMap<String, AttributeValue>, Vec<ControlNode>, Vec<SequenceLink>), String> {
+        self.expect(Token::LeftBrace)?;
+        let mut attributes = HashMap::new();
+        let mut controls: Vec<ControlNode> = Vec::new();
+        let mut sequences: Vec<SequenceLink> = Vec::new();
+        while !self.check(&Token::RightBrace) && !self.is_at_end() {
+            match self.current() {
+                Token::Control if !self.peek_is_colon() => controls.push(self.parse_control_node(name)?),
+                Token::Sequence if !self.peek_is_colon() => sequences.push(self.parse_sequence_link(name)?),
+                _ if self.peek_is_colon() => {
+                    let (key, value) = self.parse_attribute()?;
+                    attributes.insert(key, value);
+                }
+                other => return Err(self.err(format!("Unexpected token in {what} '{name}': {other}"))),
+            }
+        }
+        self.expect(Token::RightBrace)?;
+        Ok((attributes, controls, sequences))
+    }
+
+    /// A chain whose control nodes and links get their default ids under
+    /// the chain's id (known only once the attributes are read).
+    fn chain(id: String, name: String, involves: Vec<String>, controls: Vec<ControlNode>, sequences: Vec<SequenceLink>, attributes: HashMap<String, AttributeValue>) -> FunctionalChain {
+        let controls = controls
+            .into_iter()
+            .map(|control| ControlNode { id: if control.id.is_empty() { format!("{id}.{}", control.name) } else { control.id }, ..control })
+            .collect();
+        let sequences = sequences
+            .into_iter()
+            .map(|link| SequenceLink { id: if link.id.is_empty() { format!("{id}.{}->{}", link.from, link.to) } else { link.id }, ..link })
+            .collect();
+        FunctionalChain { id, name, involves, controls, sequences, attributes }
+    }
+
+    /// Parse: control and|or|iterate "Name" { id: "..." } — a control node of
+    /// a chain. The id stays empty until the chain's id is known.
+    fn parse_control_node(&mut self, chain: &str) -> Result<ControlNode, String> {
+        self.expect(Token::Control)?;
+        let kind_word = match self.current() {
+            Token::Identifier(word) => word.clone(),
+            other => return Err(self.err(format!("functional_chain '{chain}': expected a control kind (and, or, iterate), got {other}"))),
+        };
+        let kind = ControlKind::parse(&kind_word)
+            .ok_or_else(|| self.err(format!("functional_chain '{chain}': '{kind_word}' is not a control kind: use and, or or iterate")))?;
+        self.advance();
+        let name = self.expect_name()?;
+        let attributes = if self.check(&Token::LeftBrace) { self.parse_attributes_block()? } else { HashMap::new() };
+        let id = attributes.get("id").and_then(|v| v.as_string()).map(|s| s.to_string()).unwrap_or_default();
+        Ok(ControlNode { id, name, kind, attributes })
+    }
+
+    /// Parse: sequence "From" -> "To" { condition: "..." id: "..." } — a
+    /// sequence link of a chain, between steps and control nodes.
+    fn parse_sequence_link(&mut self, _chain: &str) -> Result<SequenceLink, String> {
+        self.expect(Token::Sequence)?;
+        let from = self.expect_name()?;
+        self.expect(Token::Arrow)?;
+        let to = self.expect_name()?;
+        let attributes = if self.check(&Token::LeftBrace) { self.parse_attributes_block()? } else { HashMap::new() };
+        let text = |key: &str| attributes.get(key).and_then(|v| v.as_string()).map(|s| s.to_string());
+        Ok(SequenceLink { id: text("id").unwrap_or_default(), from, to, condition: text("condition"), attributes })
     }
 
     /// Parse a function port: `port in Name { data_type: "..." }` (in XOR out).
@@ -928,7 +1036,8 @@ impl Parser {
             .and_then(|v| v.as_string())
             .unwrap_or("Data")
             .to_string();
-        Ok(FunctionPort { name, direction, port_type, data_type })
+        let id = attributes.get("id").and_then(|v| v.as_string()).map(str::to_string).unwrap_or_default();
+        Ok(FunctionPort { id, name, direction, port_type, data_type, attributes })
     }
 
     /// Parse a component port: `port in|out|inout Name { protocol: "..." }`.
@@ -956,7 +1065,8 @@ impl Parser {
             .and_then(|v| v.as_string())
             .unwrap_or("Data")
             .to_string();
-        Ok(ComponentPort { name, direction, interface_type })
+        let id = attributes.get("id").and_then(|v| v.as_string()).map(str::to_string).unwrap_or_default();
+        Ok(ComponentPort { id, name, direction, interface_type, attributes })
     }
 
     /// Parse an UNORIENTED physical port: `port Name { ... }` (Arcadia).
@@ -985,52 +1095,27 @@ impl Parser {
         let mut initial_state = String::new();
         let mut states = Vec::new();
         let mut transitions = Vec::new();
+        let mut regions: Vec<Region> = Vec::new();
+        let mut attributes: HashMap<String, AttributeValue> = HashMap::new();
 
         while !self.check(&Token::RightBrace) && !self.is_at_end() {
             match self.current() {
                 Token::StateKw | Token::Mode => {
-                    let kind = if matches!(self.current(), Token::Mode) {
-                        StateKind::Mode
-                    } else {
-                        StateKind::State
-                    };
-                    self.advance();
-                    let state_name = self.expect_name()?;
-                    let attributes = if self.check(&Token::LeftBrace) {
-                        self.parse_attributes_block()?
-                    } else {
-                        HashMap::new()
-                    };
-                    states.push(State {
-                        name: state_name,
-                        kind,
-                        entry_actions: Self::string_list(&attributes, "entry"),
-                        exit_actions: Self::string_list(&attributes, "exit"),
-                        internal_transitions: Vec::new(),
-                        sub_states: Vec::new(),
-                        color: attributes.get("color").and_then(|v| v.as_string()).map(|s| s.to_string()),
-                    });
+                    states.push(self.parse_state(&mut transitions)?);
                 }
                 Token::Transition => {
-                    self.advance();
-                    let from = self.expect_name()?;
-                    self.expect(Token::Arrow)?;
-                    let to = self.expect_name()?;
-                    let attributes = if self.check(&Token::LeftBrace) {
-                        self.parse_attributes_block()?
-                    } else {
-                        HashMap::new()
-                    };
-                    let get = |key: &str| attributes.get(key).and_then(|v| v.as_string()).map(|s| s.to_string());
-                    transitions.push(Transition {
-                        from,
-                        to,
-                        trigger: get("trigger").unwrap_or_default(),
-                        guard: get("guard"),
-                        action: get("action"),
-                        timing: get("timing"),
-                        priority: get("priority"),
-                    });
+                    transitions.push(self.parse_transition()?);
+                }
+                Token::Region if !self.peek_is_colon() => {
+                    // A region of its own: its states and transitions join the
+                    // machine's flat lists, its initial state is its own.
+                    let region = self.parse_region(&name)?;
+                    states.extend(region.states.iter().cloned());
+                    transitions.extend(region.transitions.iter().cloned());
+                    if initial_state.is_empty() {
+                        initial_state = region.initial.clone();
+                    }
+                    regions.push(region);
                 }
                 _ if self.peek_is_colon() => {
                     let (key, value) = self.parse_attribute()?;
@@ -1039,10 +1124,7 @@ impl Parser {
                             initial_state = s;
                         }
                     } else {
-                        self.warn(format!(
-                            "attribute '{}' on state_machine is not yet stored in the model",
-                            key
-                        ));
+                        attributes.insert(key, value);
                     }
                 }
                 _ => {
@@ -1053,7 +1135,267 @@ impl Parser {
 
         self.expect(Token::RightBrace)?;
 
-        Ok(StateMachine { name, initial_state, states, transitions })
+        let id = attributes.get("id").and_then(|v| v.as_string()).map(str::to_string).unwrap_or_default();
+        Ok(StateMachine { id, name, attributes, initial_state, states, transitions, regions })
+    }
+
+    /// Parse: region "Name" { id: "..." initial: "A" state "A" {} transition A -> B {} }
+    fn parse_region(&mut self, machine: &str) -> Result<Region, String> {
+        self.expect(Token::Region)?;
+        let name = self.expect_name()?;
+        self.expect(Token::LeftBrace)?;
+        let mut states = Vec::new();
+        let mut transitions = Vec::new();
+        let mut attributes: HashMap<String, AttributeValue> = HashMap::new();
+        while !self.check(&Token::RightBrace) && !self.is_at_end() {
+            match self.current() {
+                Token::StateKw | Token::Mode => states.push(self.parse_state(&mut transitions)?),
+                Token::Transition => transitions.push(self.parse_transition()?),
+                _ if self.peek_is_colon() => {
+                    let (key, value) = self.parse_attribute()?;
+                    attributes.insert(key, value);
+                }
+                other => return Err(self.err(format!("Unexpected token in region '{name}' of state_machine '{machine}': {other}"))),
+            }
+        }
+        self.expect(Token::RightBrace)?;
+        let text = |key: &str| attributes.get(key).and_then(|v| v.as_string()).map(str::to_string);
+        Ok(Region {
+            id: text("id").unwrap_or_else(|| format!("{machine}.{name}")),
+            name,
+            initial: text("initial").unwrap_or_default(),
+            states,
+            transitions,
+            attributes,
+        })
+    }
+
+    /// Parse: diagram "Name" { view: lab shows: [A, B] context: true }
+    fn parse_diagram(&mut self) -> Result<DiagramDecl, String> {
+        self.expect(Token::DiagramKw)?;
+        let name = self.expect_name()?;
+        let attributes = self.parse_attributes_block()?;
+        let view = attributes
+            .get("view")
+            .and_then(|value| value.as_string())
+            .map(str::to_string)
+            .ok_or_else(|| {
+                self.err(format!(
+                    "diagram '{name}' needs `view: lab` (one of oab, sab, lab, pab, cap, cdb, pbs)"
+                ))
+            })?;
+        let shows = match attributes.get("shows") {
+            Some(AttributeValue::List(items)) => items
+                .iter()
+                .filter_map(|item| item.as_string().map(str::to_string))
+                .collect(),
+            Some(AttributeValue::String(one)) => vec![one.clone()],
+            Some(_) => return Err(self.err(format!("diagram '{name}': `shows` is a list of element ids or names"))),
+            None => Vec::new(),
+        };
+        let context = match attributes.get("context") {
+            Some(AttributeValue::Boolean(flag)) => *flag,
+            Some(AttributeValue::String(text)) => text == "true",
+            _ => false,
+        };
+        let description = attributes.get("description").and_then(|value| value.as_string()).map(str::to_string);
+        Ok(DiagramDecl { name, view, shows, context, description, attributes })
+    }
+
+    /// Parse: state Name { entry: [...] exit: [...] state Sub { ... } transition A -> B { ... } }
+    /// A state holds a region: states, modes and transitions of its own.
+    /// Transitions declared inside join the machine's, resolved by name.
+    fn parse_state(&mut self, transitions: &mut Vec<Transition>) -> Result<State, String> {
+        let kind = if matches!(self.current(), Token::Mode) { StateKind::Mode } else { StateKind::State };
+        self.advance();
+        let name = self.expect_name()?;
+        let mut attributes = HashMap::new();
+        let mut sub_states = Vec::new();
+        let mut own_transitions: Vec<Transition> = Vec::new();
+        if self.check(&Token::LeftBrace) {
+            self.expect(Token::LeftBrace)?;
+            while !self.check(&Token::RightBrace) && !self.is_at_end() {
+                match self.current() {
+                    Token::StateKw | Token::Mode => sub_states.push(self.parse_state(transitions)?),
+                    Token::Transition => {
+                        // Owned by this region, and in the machine's flat list.
+                        let transition = self.parse_transition()?;
+                        own_transitions.push(transition.clone());
+                        transitions.push(transition);
+                    }
+                    _ if self.peek_is_colon() => {
+                        let (key, value) = self.parse_attribute()?;
+                        attributes.insert(key, value);
+                    }
+                    _ => return Err(self.err(format!("Unexpected token in state '{name}': {}", self.current()))),
+                }
+            }
+            self.expect(Token::RightBrace)?;
+        }
+        Ok(State {
+            id: attributes.get("id").and_then(|v| v.as_string()).map(|s| s.to_string()).unwrap_or_default(),
+            name,
+            kind,
+            entry_actions: Self::string_list(&attributes, "entry"),
+            exit_actions: Self::string_list(&attributes, "exit"),
+            internal_transitions: Vec::new(),
+            sub_states,
+            transitions: own_transitions,
+            color: attributes.get("color").and_then(|v| v.as_string()).map(|s| s.to_string()),
+            initial: attributes.get("initial").and_then(|v| v.as_string()).map(|s| s.to_string()).unwrap_or_default(),
+            attributes,
+        })
+    }
+
+    fn parse_transition(&mut self) -> Result<Transition, String> {
+        self.expect(Token::Transition)?;
+        let from = self.expect_name()?;
+        self.expect(Token::Arrow)?;
+        let to = self.expect_name()?;
+        let attributes = if self.check(&Token::LeftBrace) { self.parse_attributes_block()? } else { HashMap::new() };
+        let get = |key: &str| attributes.get(key).and_then(|v| v.as_string()).map(|s| s.to_string());
+        Ok(Transition {
+            id: get("id").unwrap_or_default(),
+            from,
+            to,
+            trigger: get("trigger").unwrap_or_default(),
+            guard: get("guard"),
+            action: get("action").or_else(|| {
+                let list = Self::string_list(&attributes, "action");
+                if list.is_empty() { None } else { Some(list.join(", ")) }
+            }),
+            timing: get("timing"),
+            priority: get("priority"),
+            attributes,
+        })
+    }
+
+    /// Parse: message A -> B "label" { type: async }
+    fn parse_message(&mut self) -> Result<Message, String> {
+        self.expect(Token::Message)?;
+        let from = self.expect_name()?;
+        self.expect(Token::Arrow)?;
+        let to = self.expect_name()?;
+        let label = self.optional_name().unwrap_or_default();
+        let attributes = if self.check(&Token::LeftBrace) { self.parse_attributes_block()? } else { HashMap::new() };
+        let message_type = match attributes.get("type").and_then(|v| v.as_string()) {
+            Some("async") | Some("asynchronous") => MessageType::Asynchronous,
+            _ => MessageType::Synchronous,
+        };
+        Ok(Message {
+            id: attributes.get("id").and_then(|v| v.as_string()).map(str::to_string).unwrap_or_default(),
+            from,
+            to,
+            label,
+            message_type,
+            activation: true,
+            timing: attributes.get("timing").and_then(|v| v.as_string()).map(|s| s.to_string()),
+            params: None,
+            attributes,
+        })
+    }
+
+    /// Parse: fragment alt "label" { operand "a" { message ... } operand "b" { ... } }
+    /// or fragment loop "while armed" { message ... }. Messages land in the
+    /// scenario's flat list, in order; the fragment keeps their rows.
+    fn parse_fragment(&mut self, messages: &mut Vec<Message>, invariants: &mut Vec<StateInvariant>) -> Result<CombinedFragment, String> {
+        self.expect(Token::Fragment)?;
+        let kind_word = match self.current() {
+            Token::Identifier(word) => word.clone(),
+            other => return Err(self.err(format!("Expected a fragment kind (alt, opt, loop, par, seq, critical), got {other}"))),
+        };
+        let fragment_type = FragmentType::parse(&kind_word)
+            .ok_or_else(|| self.err(format!("'{kind_word}' is not a fragment kind: use alt, opt, loop, par, seq or critical")))?;
+        self.advance();
+        let label = match self.current() {
+            Token::StringLiteral(text) => { let text = text.clone(); self.advance(); text }
+            _ => String::new(),
+        };
+        self.expect(Token::LeftBrace)?;
+        let start = messages.len();
+        let mut operands: Vec<FragmentOperand> = Vec::new();
+        let mut implicit = FragmentOperand { label: String::new(), messages: Vec::new(), start: messages.len(), end: 0, fragments: Vec::new(), invariants: Vec::new() };
+        let mut explicit = false;
+        while !self.check(&Token::RightBrace) && !self.is_at_end() {
+            match self.current() {
+                Token::Operand => {
+                    explicit = true;
+                    self.advance();
+                    let operand_label = match self.current() {
+                        Token::StringLiteral(text) => { let text = text.clone(); self.advance(); text }
+                        _ => String::new(),
+                    };
+                    self.expect(Token::LeftBrace)?;
+                    let mut operand = FragmentOperand { label: operand_label, messages: Vec::new(), start: messages.len(), end: 0, fragments: Vec::new(), invariants: Vec::new() };
+                    while !self.check(&Token::RightBrace) && !self.is_at_end() {
+                        match self.current() {
+                            Token::Message => { let message = self.parse_message()?; operand.messages.push(message.clone()); messages.push(message); }
+                            Token::Fragment => { let nested = self.parse_fragment(messages, invariants)?; operand.fragments.push(nested); }
+                            Token::StateKw | Token::Mode | Token::Function => { let at = self.parse_invariant(messages, invariants, &mut operand.fragments)?; operand.invariants.push(at); }
+                            other => return Err(self.err(format!("Unexpected token in operand: {other}"))),
+                        }
+                    }
+                    self.expect(Token::RightBrace)?;
+                    operand.end = messages.len().wrapping_sub(1);
+                    operands.push(operand);
+                }
+                Token::Message => { let message = self.parse_message()?; implicit.messages.push(message.clone()); messages.push(message); }
+                Token::Fragment => { let nested = self.parse_fragment(messages, invariants)?; implicit.fragments.push(nested); }
+                Token::StateKw | Token::Mode | Token::Function => { let at = self.parse_invariant(messages, invariants, &mut implicit.fragments)?; implicit.invariants.push(at); }
+                other => return Err(self.err(format!("Unexpected token in fragment: {other}"))),
+            }
+        }
+        self.expect(Token::RightBrace)?;
+        if !explicit || !implicit.messages.is_empty() || !implicit.fragments.is_empty() {
+            implicit.end = messages.len().wrapping_sub(1);
+            if explicit {
+                return Err(self.err("a fragment mixes operand blocks and loose messages: put every message in an operand".to_string()));
+            }
+            operands.push(implicit);
+        }
+        Ok(CombinedFragment { fragment_type, label, condition: None, operands, start, end: messages.len().wrapping_sub(1) })
+    }
+
+    /// Parse: state "Lifeline" "Armed" { id: "..." message ... } — a state,
+    /// mode or function asserted on a lifeline. The messages of its body
+    /// land in the scenario's flat list; the invariant keeps their rows.
+    /// Fragments opened in its body belong to the enclosing frame.
+    fn parse_invariant(&mut self, messages: &mut Vec<Message>, invariants: &mut Vec<StateInvariant>, fragments: &mut Vec<CombinedFragment>) -> Result<usize, String> {
+        let kind = match self.current() {
+            Token::Function => InvariantKind::Function,
+            _ => InvariantKind::State,
+        };
+        self.advance();
+        let lifeline = self.expect_name()?;
+        let name = self.expect_name()?;
+        let mut attributes = HashMap::new();
+        let start = messages.len();
+        let at = invariants.len();
+        // Reserve the slot: an invariant comes before those its body holds.
+        invariants.push(StateInvariant { id: String::new(), lifeline: lifeline.clone(), name: name.clone(), kind, start, end: 0, attributes: HashMap::new() });
+        if self.check(&Token::LeftBrace) {
+            self.advance();
+            while !self.check(&Token::RightBrace) && !self.is_at_end() {
+                match self.current() {
+                    Token::Message => messages.push(self.parse_message()?),
+                    Token::Fragment => { let nested = self.parse_fragment(messages, invariants)?; fragments.push(nested); }
+                    Token::StateKw | Token::Mode | Token::Function => { self.parse_invariant(messages, invariants, fragments)?; }
+                    _ if self.peek_is_colon() => {
+                        let (key, value) = self.parse_attribute()?;
+                        attributes.insert(key, value);
+                    }
+                    other => return Err(self.err(format!("Unexpected token in {} '{name}' on '{lifeline}': {other}", kind.keyword()))),
+                }
+            }
+            self.expect(Token::RightBrace)?;
+        }
+        let id = attributes
+            .get("id")
+            .and_then(|v| v.as_string())
+            .map(|s| s.to_string())
+            .unwrap_or_else(|| format!("{lifeline}.{name}#{}", at + 1));
+        invariants[at] = StateInvariant { id, lifeline, name, kind, start, end: messages.len().wrapping_sub(1), attributes };
+        Ok(at)
     }
 
     /// Parse: scenarios [Name] { scenario A { ... } scenario B { ... } }
@@ -1086,6 +1428,9 @@ impl Parser {
 
         let mut participants = Vec::new();
         let mut messages = Vec::new();
+        let mut fragments = Vec::new();
+        let mut invariants: Vec<StateInvariant> = Vec::new();
+        let mut scenario_attributes: HashMap<String, AttributeValue> = HashMap::new();
 
         while !self.check(&Token::RightBrace) && !self.is_at_end() {
             match self.current() {
@@ -1107,33 +1452,18 @@ impl Parser {
                     }
                 }
                 Token::Message => {
-                    self.advance();
-                    let from = self.expect_name()?;
-                    self.expect(Token::Arrow)?;
-                    let to = self.expect_name()?;
-                    let label = self.optional_name().unwrap_or_default();
-                    let attributes = if self.check(&Token::LeftBrace) {
-                        self.parse_attributes_block()?
-                    } else {
-                        HashMap::new()
-                    };
-                    let message_type = match attributes.get("type").and_then(|v| v.as_string()) {
-                        Some("async") | Some("asynchronous") => MessageType::Asynchronous,
-                        _ => MessageType::Synchronous,
-                    };
-                    messages.push(Message {
-                        from,
-                        to,
-                        label,
-                        message_type,
-                        activation: true,
-                        timing: attributes.get("timing").and_then(|v| v.as_string()).map(|s| s.to_string()),
-                        params: None,
-                    });
+                    messages.push(self.parse_message()?);
+                }
+                Token::Fragment => {
+                    let fragment = self.parse_fragment(&mut messages, &mut invariants)?;
+                    fragments.push(fragment);
+                }
+                Token::StateKw | Token::Mode | Token::Function => {
+                    let _ = self.parse_invariant(&mut messages, &mut invariants, &mut fragments)?;
                 }
                 _ if self.peek_is_colon() => {
-                    let (key, _) = self.parse_attribute()?;
-                    self.warn(format!("attribute '{}' on scenario is not yet stored in the model", key));
+                    let (key, value) = self.parse_attribute()?;
+                    scenario_attributes.insert(key, value);
                 }
                 _ => {
                     return Err(self.err(format!("Unexpected token in scenario: {}", self.current())));
@@ -1143,11 +1473,20 @@ impl Parser {
 
         self.expect(Token::RightBrace)?;
 
+        // An invariant's id defaults under its scenario: the same lifeline
+        // asserts the same state in many scenarios.
+        let invariants = invariants
+            .into_iter()
+            .map(|invariant| StateInvariant { id: if invariant.attributes.contains_key("id") { invariant.id } else { format!("{name}.{}", invariant.id) }, ..invariant })
+            .collect();
         Ok(Scenario {
+            id: scenario_attributes.get("id").and_then(|v| v.as_string()).map(str::to_string).unwrap_or_default(),
             name,
+            attributes: scenario_attributes,
             participants,
             messages,
-            fragments: Vec::new(),
+            fragments,
+            invariants,
             timing_constraints: Vec::new(),
         })
     }
@@ -1455,6 +1794,7 @@ impl Parser {
             base_type: attributes.get("base").and_then(|v| v.as_string()).map(|s| s.to_string()),
             unit: attributes.get("unit").and_then(|v| v.as_string()).map(|s| s.to_string()),
             enumeration_values,
+            attributes,
         })
     }
 
@@ -1486,6 +1826,7 @@ impl Parser {
             stereotype: mechanism,
             attributes: Vec::new(),
             elements: Self::string_list(&attributes, "elements"),
+            properties: attributes,
         })
     }
 
@@ -1523,7 +1864,7 @@ impl Parser {
     fn parse_external_actor(&mut self) -> Result<ExternalActor, String> {
         self.expect(Token::Actor)?;
         let name = self.expect_name()?;
-        let attributes = self.parse_attributes_block()?;
+        let (attributes, ports) = self.parse_ported_block()?;
 
         let id = attributes
             .get("id")
@@ -1536,7 +1877,7 @@ impl Parser {
             .unwrap_or("#FFFFFF")
             .to_string();
 
-        Ok(ExternalActor { id, name, color, attributes })
+        Ok(ExternalActor { id, name, color, ports, attributes })
     }
 
     /// Parse a functional exchange in either form:
@@ -1584,7 +1925,8 @@ impl Parser {
             .map(|s| s.to_string())
             .or(Some(name));
 
-        Ok(FunctionalExchange { from_port: from, to_port: to, data_type, label })
+        let id = attributes.get("id").and_then(|v| v.as_string()).map(|s| s.to_string()).or_else(|| label.clone()).unwrap_or_else(|| format!("{from} -> {to}"));
+        Ok(FunctionalExchange { id, from_port: from, to_port: to, data_type, label, attributes })
     }
     
     fn parse_requirements_block(&mut self) -> Result<SystemAnalysis, String> {
@@ -1636,12 +1978,15 @@ impl Parser {
         self.expect(Token::RightBrace)?;
         
         Ok(SystemAnalysis {
+            id: String::new(),
+            attributes: HashMap::new(),
             name,
             requirements,
             functions: Vec::new(),
             components: Vec::new(),
             external_actors: Vec::new(),
             functional_exchanges: Vec::new(),
+            component_exchanges: Vec::new(),
             missions: Vec::new(),
             capabilities: Vec::new(),
             functional_chains: Vec::new(),
@@ -1713,33 +2058,34 @@ impl Parser {
         })
     }
     
+    /// A function inside a function: the same body (attributes, ports, functions).
     fn parse_nested_function(&mut self) -> Result<SystemFunction, String> {
-        self.advance(); // Skip 'function'
-        let name = self.expect_name()?;
-        let attributes = self.parse_attributes_block()?;
-        
-        Ok(SystemFunction {
-            id: attributes
-                .get("id")
-                .and_then(|v| v.as_string())
-                .map(|s| s.to_string())
-                .unwrap_or_else(|| default_element_id("SF", &name)),
-            name,
-            category: FunctionCategory::System,
-            color: Some("#70AD47".to_string()),
-            icon: None,
-            ports: Vec::new(),
-            sub_functions: Vec::new(),
-            attributes,
-        })
+        self.parse_system_function()
     }
     
     fn parse_system_component(&mut self) -> Result<SystemComponent, String> {
         self.advance(); // Skip 'system_component'
         let name = self.expect_name()?;
-        let attributes = self.parse_attributes_block()?;
-        
-        Ok(SystemComponent { name, attributes })
+        let (attributes, ports) = self.parse_ported_block()?;
+        Ok(SystemComponent { name, ports, attributes })
+    }
+
+    /// An attribute block that also declares component ports:
+    /// `{ attributes, port in|out|inout Name { ... } }`.
+    fn parse_ported_block(&mut self) -> Result<(HashMap<String, AttributeValue>, Vec<ComponentPort>), String> {
+        self.expect(Token::LeftBrace)?;
+        let mut attributes = HashMap::new();
+        let mut ports = Vec::new();
+        while !self.check(&Token::RightBrace) && !self.is_at_end() {
+            if self.check(&Token::Port) && !self.peek_is_colon() {
+                ports.push(self.parse_component_port()?);
+            } else {
+                let (key, value) = self.parse_attribute()?;
+                attributes.insert(key, value);
+            }
+        }
+        self.expect(Token::RightBrace)?;
+        Ok((attributes, ports))
     }
     
     fn parse_logical_architecture(&mut self) -> Result<LogicalArchitecture, String> {
@@ -1749,12 +2095,15 @@ impl Parser {
     }
     
     fn parse_logical_architecture_block(&mut self, name: String) -> Result<LogicalArchitecture, String> {
+        let mut level_attributes: HashMap<String, AttributeValue> = HashMap::new();
         self.expect(Token::LeftBrace)?;
 
         let mut name = name;
         let mut components = Vec::new();
+        let mut functions = Vec::new();
         let mut interfaces = Vec::new();
         let mut component_exchanges = Vec::new();
+        let mut functional_exchanges = Vec::new();
         let mut capability_realizations = Vec::new();
         let mut functional_chains = Vec::new();
         
@@ -1771,6 +2120,15 @@ impl Parser {
                 }
                 Token::Identifier(ref id) if id == "component_exchange" => {
                     component_exchanges.push(self.parse_named_component_exchange()?);
+                }
+                Token::Identifier(ref id) if id == "functional_exchange" || id == "exchange" => {
+                    functional_exchanges.push(self.parse_functional_exchange()?);
+                }
+                Token::Flow => {
+                    functional_exchanges.push(self.parse_functional_exchange()?);
+                }
+                Token::Function => {
+                    functions.push(self.parse_logical_function()?);
                 }
                 Token::CapabilityRealization | Token::Capability => {
                     capability_realizations.extend(self.parse_capabilities()?);
@@ -1790,10 +2148,7 @@ impl Parser {
                             name = s;
                         }
                     } else {
-                        self.warn(format!(
-                            "attribute '{}' on logical_architecture is not yet stored in the model",
-                            key
-                        ));
+                        level_attributes.insert(key, value);
                     }
                 }
                 _ => {
@@ -1805,10 +2160,14 @@ impl Parser {
         self.expect(Token::RightBrace)?;
         
         Ok(LogicalArchitecture {
+            id: level_attributes.get("id").and_then(|v| v.as_string()).map(str::to_string).unwrap_or_default(),
+            attributes: level_attributes,
             name,
             components,
+            functions,
             interfaces,
             component_exchanges,
+            functional_exchanges,
             unallocated_functions: Vec::new(),
             capability_realizations,
             functional_chains,
@@ -1876,10 +2235,12 @@ impl Parser {
             .to_string();
         
         Ok(ComponentExchange {
+            id: attributes.get("id").and_then(|v| v.as_string()).map(|s| s.to_string()).unwrap_or_else(|| name.clone()),
             from_port: from,
             to_port: to,
             exchange_item,
             label,
+            attributes,
         })
     }
     
@@ -1917,7 +2278,8 @@ impl Parser {
             .map(|s| s.to_string())
             .or(Some(name));
 
-        Ok(ComponentExchange { from_port, to_port, exchange_item, label })
+        let id = attributes.get("id").and_then(|v| v.as_string()).map(|s| s.to_string()).or_else(|| label.clone()).unwrap_or_else(|| format!("{from_port} -> {to_port}"));
+        Ok(ComponentExchange { id, from_port, to_port, exchange_item, label, attributes })
     }
 
     fn parse_logical_component(&mut self) -> Result<LogicalComponent, String> {
@@ -2006,17 +2368,31 @@ impl Parser {
         })
     }
     
+    /// A function of the logical or physical level:
+    /// `function Name { attributes, port in|out Name, function Nested { ... } }`.
+    /// The body block is optional: `function "Name"` declares a bare function.
     fn parse_logical_function(&mut self) -> Result<LogicalFunction, String> {
         self.expect(Token::Function)?;
         let name = self.expect_name()?;
-        // The body block is optional: `function "Name"` declares a bare function.
-        let attributes = if self.check(&Token::LeftBrace) {
-            self.parse_attributes_block()?
-        } else {
-            HashMap::new()
-        };
-
-        Ok(LogicalFunction { name, attributes })
+        let mut attributes = HashMap::new();
+        let mut ports = Vec::new();
+        let mut sub_functions = Vec::new();
+        if self.check(&Token::LeftBrace) {
+            self.expect(Token::LeftBrace)?;
+            while !self.check(&Token::RightBrace) && !self.is_at_end() {
+                match self.current() {
+                    Token::Port if !self.peek_is_colon() => ports.push(self.parse_function_port()?),
+                    Token::Function if !self.peek_is_colon() => sub_functions.push(self.parse_logical_function()?),
+                    _ => {
+                        let (key, value) = self.parse_attribute()?;
+                        attributes.insert(key, value);
+                    }
+                }
+            }
+            self.expect(Token::RightBrace)?;
+        }
+        let id = attributes.get("id").and_then(|v| v.as_string()).map(|s| s.to_string()).unwrap_or_else(|| name.clone());
+        Ok(LogicalFunction { id, name, ports, sub_functions, attributes })
     }
     
     fn parse_logical_interface(&mut self) -> Result<LogicalInterface, String> {
@@ -2156,12 +2532,17 @@ impl Parser {
     }
     
     fn parse_physical_architecture_block(&mut self, name: String) -> Result<PhysicalArchitecture, String> {
+        let mut level_attributes: HashMap<String, AttributeValue> = HashMap::new();
         self.expect(Token::LeftBrace)?;
 
         let mut name = name;
         let mut nodes = Vec::new();
         let mut links = Vec::new();
         let mut physical_exchanges = Vec::new();
+        let mut functions = Vec::new();
+        let mut functional_exchanges = Vec::new();
+        let mut functional_chains = Vec::new();
+        let mut capability_realizations = Vec::new();
         let mut paths = Vec::new();
 
         while !self.check(&Token::RightBrace) && !self.is_at_end() {
@@ -2177,6 +2558,21 @@ impl Parser {
                 }
                 Token::Identifier(ref id) if id == "physical_link" || id == "link" => {
                     links.push(self.parse_physical_link()?);
+                }
+                Token::Identifier(ref id) if id == "functional_exchange" || id == "exchange" => {
+                    functional_exchanges.push(self.parse_functional_exchange()?);
+                }
+                Token::Flow => {
+                    functional_exchanges.push(self.parse_functional_exchange()?);
+                }
+                Token::Function => {
+                    functions.push(self.parse_logical_function()?);
+                }
+                Token::FunctionalChain => {
+                    functional_chains.push(self.parse_functional_chain()?);
+                }
+                Token::CapabilityRealization | Token::Capability => {
+                    capability_realizations.extend(self.parse_capabilities()?);
                 }
                 Token::Identifier(ref id) if id == "physical_exchange" => {
                     physical_exchanges.push(self.parse_physical_exchange()?);
@@ -2212,10 +2608,7 @@ impl Parser {
                             name = s;
                         }
                     } else {
-                        self.warn(format!(
-                            "attribute '{}' on physical_architecture is not yet stored in the model",
-                            key
-                        ));
+                        level_attributes.insert(key, value);
                     }
                 }
                 _ => {
@@ -2227,10 +2620,16 @@ impl Parser {
         self.expect(Token::RightBrace)?;
 
         Ok(PhysicalArchitecture {
+            id: level_attributes.get("id").and_then(|v| v.as_string()).map(str::to_string).unwrap_or_default(),
+            attributes: level_attributes,
             name,
             nodes,
+            functions,
             links,
             physical_exchanges,
+            functional_exchanges,
+            functional_chains,
+            capability_realizations,
             paths,
         })
     }
@@ -2253,6 +2652,7 @@ impl Parser {
             .ok_or_else(|| self.err(format!("physical_exchange '{}' is missing 'to'", name)))?;
 
         Ok(PhysicalExchange {
+            id: attributes.get("id").and_then(|v| v.as_string()).map(|s| s.to_string()).unwrap_or_else(|| name.clone()),
             from,
             to,
             via: attributes.get("via").and_then(|v| v.as_string()).map(|s| s.to_string()),
@@ -2266,6 +2666,7 @@ impl Parser {
                 .and_then(|v| v.as_string())
                 .map(|s| s.to_string()),
             label: Some(name),
+            attributes,
         })
     }
     
@@ -2278,6 +2679,7 @@ impl Parser {
         let mut behavior_components = Vec::new();
         let mut hardware_components = Vec::new();
         let mut node_ports = Vec::new();
+        let mut node_functions = Vec::new();
         let mut attributes = HashMap::new();
         
         while !self.check(&Token::RightBrace) && !self.is_at_end() {
@@ -2293,6 +2695,9 @@ impl Parser {
                 }
                 Token::Port => {
                     node_ports.push(self.parse_physical_port()?);
+                }
+                Token::Function if !self.peek_is_colon() => {
+                    node_functions.push(self.parse_logical_function()?);
                 }
                 _ if self.peek_is_colon() => {
                     let (key, value) = self.parse_attribute()?;
@@ -2322,6 +2727,7 @@ impl Parser {
             processor: None,
             memory: None,
             behavior_components,
+            functions: node_functions,
             hardware_components,
             deployments,
             ports: node_ports,
@@ -2465,6 +2871,7 @@ impl Parser {
             processor: None,
             memory: None,
             behavior_components: Vec::new(),
+            functions: Vec::new(),
             hardware_components: Vec::new(),
             deployments: Vec::new(),
             ports: Vec::new(),
@@ -2530,6 +2937,7 @@ impl Parser {
         
         let mut systems: Vec<EpbsSystem> = Vec::new();
         let mut orphan_subsystems = Vec::new();
+        let mut epbs_attributes: HashMap<String, AttributeValue> = HashMap::new();
 
         while !self.check(&Token::RightBrace) && !self.is_at_end() {
             match self.current() {
@@ -2540,6 +2948,10 @@ impl Parser {
                     // Subsystem declared directly under epbs: grouped under an
                     // implicit system named after the EPBS block.
                     orphan_subsystems.push(self.parse_epbs_subsystem()?);
+                }
+                _ if self.peek_is_colon() => {
+                    let (key, value) = self.parse_attribute()?;
+                    epbs_attributes.insert(key, value);
                 }
                 _ => {
                     return Err(self.err(format!("Unexpected token in epbs: {}", self.current())));
@@ -2557,7 +2969,8 @@ impl Parser {
             });
         }
 
-        Ok(Epbs { name, systems })
+        let id = epbs_attributes.get("id").and_then(|v| v.as_string()).map(str::to_string).unwrap_or_default();
+        Ok(Epbs { id, name, attributes: epbs_attributes, systems })
     }
     
     fn parse_epbs_system(&mut self) -> Result<EpbsSystem, String> {
@@ -3117,9 +3530,15 @@ impl Parser {
         self.expect(Token::LeftBrace)?;
         
         let mut attributes = HashMap::new();
+        let mut functions = Vec::new();
+        let mut ports = Vec::new();
 
         while !self.check(&Token::RightBrace) && !self.is_at_end() {
-            if self.peek_is_colon() {
+            if self.check(&Token::Function) && !self.peek_is_colon() {
+                functions.push(self.parse_logical_function()?);
+            } else if self.check(&Token::Port) && !self.peek_is_colon() {
+                ports.push(self.parse_component_port()?);
+            } else if self.peek_is_colon() {
                 let (key, value) = self.parse_attribute()?;
                 attributes.insert(key, value);
             } else {
@@ -3150,19 +3569,20 @@ impl Parser {
             } else {
                 Vec::new()
             };
-        if let Some(single) = attributes
-            .get("allocated_component")
-            .or_else(|| attributes.get("allocated_function"))
-            .and_then(|v| v.as_string())
-        {
+        if let Some(single) = attributes.get("allocated_function").and_then(|v| v.as_string()) {
             allocated_functions.push(single.to_string());
         }
+        let allocated_component = attributes.get("allocated_component").and_then(|v| v.as_string()).map(str::to_string);
 
         Ok(BehaviorComponent {
             id,
             name,
+            allocated_component,
             allocated_functions,
             color,
+            functions,
+            ports,
+            attributes,
         })
     }
     

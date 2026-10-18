@@ -60,6 +60,34 @@ pub enum Commands {
         
         #[clap(long)]
         safety: bool,
+
+        /// Print the findings as JSON, each named after its rule (see `arclang rules`)
+        #[clap(long)]
+        json: bool,
+    },
+
+    /// Arcadia transition: declare on the next level what realizes the elements of this one
+    /// (oa-to-sa, sa-to-la, la-to-pa). Prints the edited model; --write writes it back.
+    Transition {
+        #[clap(value_parser)]
+        input: PathBuf,
+        /// oa-to-sa, sa-to-la or la-to-pa; omitted with --plan: every step
+        #[clap(long)]
+        step: Option<String>,
+        /// The logical component (sa-to-la) or physical node (la-to-pa) that receives the created elements
+        #[clap(long)]
+        into: Option<String>,
+        /// Only say what the step would create, as JSON
+        #[clap(long)]
+        plan: bool,
+        #[clap(long)]
+        write: bool,
+    },
+
+    /// Print the catalogue of validation rules (what `check` reports) as Markdown or JSON
+    Rules {
+        #[clap(long, default_value = "markdown")]
+        format: MetamodelFormat,
     },
     
     /// Format .arc sources: whitespace only, comments and order are kept
@@ -555,8 +583,25 @@ impl CliRunner {
             Commands::Build { input, output, incremental, release, target } => {
                 self.run_build(input, output, incremental, release, target)
             }
-            Commands::Check { input, lint, safety } => {
-                self.run_check(input, lint, safety)
+            Commands::Check { input, lint, safety, json } => {
+                if json {
+                    self.run_check_json(input)
+                } else {
+                    self.run_check(input, lint, safety)
+                }
+            }
+            Commands::Transition { input, step, into, plan, write } => {
+                self.run_transition(input, step.as_deref(), into.as_deref(), plan, write)
+            }
+            Commands::Rules { format } => {
+                match format {
+                    MetamodelFormat::Json => println!(
+                        "{}",
+                        serde_json::to_string_pretty(crate::compiler::rules::catalogue()).unwrap_or_default()
+                    ),
+                    _ => print!("{}", crate::compiler::rules::to_markdown()),
+                }
+                Ok(())
             }
             Commands::Format { input, check, write } => {
                 self.run_format(input, check, write)
@@ -779,6 +824,84 @@ impl CliRunner {
             report.traces_modified.len(),
             report.relationships_added.len() + report.relationships_removed.len() + report.relationships_modified.len()
         );
+    }
+
+    fn run_transition(&self, input: PathBuf, step: Option<&str>, into: Option<&str>, plan_only: bool, write: bool) -> Result<(), CliError> {
+        use crate::compiler::transition::{self, Step};
+        let source = std::fs::read_to_string(&input)?;
+        let step = match step {
+            Some(text) => Some(Step::parse(text).ok_or_else(|| CliError::Compilation(format!("unknown step '{text}': use oa-to-sa, sa-to-la or la-to-pa")))?),
+            None => None,
+        };
+        if plan_only || step.is_none() {
+            let compiled = crate::Compiler::new(crate::CompilerConfig::default())
+                .compile_string(&source)
+                .map_err(|e| CliError::Compilation(e.to_string()))?;
+            let steps: Vec<Step> = step.map(|s| vec![s]).unwrap_or_else(|| Step::ALL.to_vec());
+            let plans: Vec<transition::Plan> = steps.into_iter().map(|s| transition::plan(s, &compiled.ast)).collect();
+            println!("{}", serde_json::to_string_pretty(&plans).unwrap_or_default());
+            return Ok(());
+        }
+        let step = step.expect("a step");
+        let done = transition::apply(step, &source, into).map_err(CliError::Compilation)?;
+        for created in &done.created {
+            eprintln!("+ {} '{}' ({}) realizes {} in {}", created.kind, created.name, created.id, created.realizes, created.inside);
+            if let Some(note) = &created.note {
+                eprintln!("  note: {note}");
+            }
+        }
+        if done.container_created {
+            eprintln!("+ container '{}' created", done.container);
+        }
+        if done.created.is_empty() {
+            eprintln!("{}: nothing to do, every element is realized", step.id());
+        }
+        if !write {
+            print!("{}", done.source);
+            return Ok(());
+        }
+        if done.source != source {
+            std::fs::write(&input, &done.source)?;
+            eprintln!("{} written", input.display());
+        }
+        Ok(())
+    }
+
+    /// `check --json`: the outcome as one JSON document — errors, or the
+    /// findings each named after its rule, with the element concerned and
+    /// the edit that answers it when one can be named.
+    fn run_check_json(&self, input: PathBuf) -> Result<(), CliError> {
+        let config = crate::CompilerConfig::default();
+        let mut compiler = crate::Compiler::new(config);
+        let document = match compiler.compile_file(&input) {
+            Ok(result) => {
+                let findings = crate::compiler::rules::findings(&result);
+                serde_json::json!({
+                    "success": true,
+                    "file": input.display().to_string(),
+                    "errors": [],
+                    "findings": findings,
+                    "metrics": {
+                        "requirements": result.semantic_model.requirements.len(),
+                        "components": result.semantic_model.components.len(),
+                        "functions": result.semantic_model.functions.len(),
+                        "traces": result.semantic_model.traces.len(),
+                    },
+                })
+            }
+            Err(error) => serde_json::json!({
+                "success": false,
+                "file": input.display().to_string(),
+                "errors": [error.to_string()],
+                "findings": [],
+            }),
+        };
+        println!("{}", serde_json::to_string_pretty(&document).unwrap_or_default());
+        if document["success"] == true {
+            Ok(())
+        } else {
+            Err(CliError::Compilation("check failed".to_string()))
+        }
     }
 
     fn run_check(&self, input: PathBuf, lint: bool, safety: bool) -> Result<(), CliError> {
@@ -1186,6 +1309,25 @@ impl CliRunner {
                             .map_err(|e| CliError::Compilation(format!("HTML generation failed: {}", e)))?;
                         html
                     }
+                    ExportFormat::Capella => {
+                        // A Capella 7 project: the .capella, and the .aird and
+                        // .afm beside it that Capella needs to open it.
+                        let capella_path = if output.extension().is_some_and(|e| e == "capella") { output.clone() } else { output.with_extension("capella") };
+                        let stem = capella_path.file_stem().map(|s| s.to_string_lossy().to_string()).unwrap_or_else(|| "model".to_string());
+                        let exported = crate::compiler::capella_export::export(&result.ast, &stem);
+                        if let Some(dir) = capella_path.parent().filter(|d| !d.as_os_str().is_empty()) {
+                            std::fs::create_dir_all(dir).map_err(CliError::Io)?;
+                        }
+                        std::fs::write(&capella_path, &exported.capella).map_err(CliError::Io)?;
+                        std::fs::write(capella_path.with_extension("aird"), &exported.aird).map_err(CliError::Io)?;
+                        std::fs::write(capella_path.with_extension("afm"), &exported.afm).map_err(CliError::Io)?;
+                        for note in &exported.notes {
+                            println!("  note: {note}");
+                        }
+                        println!("✓ Export successful");
+                        println!("  Output: {} (+ .aird, .afm)", capella_path.display());
+                        return Ok(());
+                    }
                     ExportFormat::SysML => {
                         // SysML v2 textual notation (interoperability subset)
                         crate::compiler::sysmlv2_generator::generate_sysmlv2(&result.semantic_model, &result.ast)
@@ -1286,18 +1428,28 @@ impl CliRunner {
         
         match format {
             ImportFormat::Capella => {
-                use crate::compiler::capella_importer::{CapellaImporter, ArcCodeGenerator};
-                
-                let importer = CapellaImporter::new();
-                let model = importer.import_file(&input)
-                    .map_err(|e| CliError::Compilation(e.to_string()))?;
-                
-                let generator = ArcCodeGenerator::new();
-                let arc_code = generator.generate(&model)
-                    .map_err(|e| CliError::Compilation(e.to_string()))?;
-                
-                std::fs::write(&output, arc_code)
-                    .map_err(|e| CliError::Io(e))?;
+                // The Capella 6/7 XMI reader: every level, the requirements,
+                // the data, the state machines, the realizations, and the
+                // diagrams of the .aird beside the file. The result compiles
+                // or the import fails.
+                let imported = crate::compiler::capella_xmi::import_file(&input).map_err(|failure| {
+                    // The text that was refused is kept beside the output, for the reader.
+                    if let Some(rejected) = &failure.rejected {
+                        let kept = output.with_extension("rejected.arc");
+                        if std::fs::write(&kept, rejected).is_ok() {
+                            eprintln!("  the refused text is in {}", kept.display());
+                        }
+                    }
+                    CliError::Compilation(failure.message)
+                })?;
+                std::fs::write(&output, &imported.source)
+                    .map_err(CliError::Io)?;
+                for (what, count) in &imported.counts {
+                    println!("  {count} {what}");
+                }
+                for note in &imported.notes {
+                    println!("  note: {note}");
+                }
                 
                 println!("✓ Import successful");
                 println!("  Input: {}", input.display());

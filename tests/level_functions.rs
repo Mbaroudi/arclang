@@ -1,0 +1,189 @@
+//! Functions of each level, as Arcadia has them: logical functions inside
+//! the component that performs them, physical functions inside behaviour
+//! components, each with ports and sub-functions, exchanged between at
+//! their own level and realizing the function of the level above; the
+//! system, its components and its actors with ports and component
+//! exchanges.
+
+use arclang::compiler::diagram::build_diagrams;
+use arclang::compiler::elements;
+use arclang::compiler::{Compiler, CompilerConfig};
+
+const MODEL: &str = r#"model T { name: "t" }
+system_analysis "SA" {
+    function "Sense" { id: "SF-Sense" port out "targets" }
+    function "Decide" { id: "SF-Decide" port in "targets" port out "order" }
+    functional_exchange "targets" { id: "SA-targets" from: "SF-Sense.targets" to: "SF-Decide.targets" }
+    system_component "AEB" { id: "SC-AEB" port in "vehicle bus" port out "brake command" }
+    actor "Driver" { id: "SA-Driver" port out "pedal" }
+    component_exchange "pedal" { from_port: "SA-Driver.pedal" to_port: "SC-AEB.vehicle bus" }
+    capability "Brake automatically" { id: "CAP-1" }
+}
+logical_architecture "LA" {
+    component "Sensors" {
+        id: "LC-Sensors"
+        function "Sense targets" {
+            id: "LF-Sense"
+            realizes: "SF-Sense"
+            port out "targets"
+            function "Filter noise" { id: "LF-Filter" }
+        }
+    }
+    component "Controller" {
+        id: "LC-Ctrl"
+        function "Decide braking" { id: "LF-Decide" realizes: "SF-Decide" port in "targets" port out "order" }
+    }
+    function "Root logical function" { id: "LF-Root" }
+    functional_exchange "targets" { id: "LA-targets" from: "LF-Sense.targets" to: "LF-Decide.targets" }
+    capability_realization "Brake" { id: "LCR-1" realizes: "CAP-1" }
+}
+physical_architecture "PA" {
+    node "ECU" {
+        id: "PN-ECU"
+        behavior_component "Controller software" {
+            id: "PC-Ctrl"
+            function "Decide braking" { id: "PF-Decide" realizes: "LF-Decide" port in "targets" }
+        }
+        behavior_component "Sensor driver" {
+            id: "PC-Sensor"
+            port out "bus"
+            function "Sense targets" { id: "PF-Sense" realizes: "LF-Sense" port out "targets" }
+        }
+    }
+    functional_exchange "targets" { from: "PF-Sense.targets" to: "PF-Decide.targets" }
+    physical_exchange "bus frames" { from: "PC-Sensor.bus" to: "PC-Ctrl" }
+    functional_chain "Brake path" { id: "PFC-1" involves: ["PF-Sense", "PF-Decide"] }
+    capability_realization "Brake on the ECU" { id: "PCR-1" realizes: "LCR-1" involves: ["PC-Ctrl", "PFC-1"] }
+}
+state_machine "Modes" {
+    initial: "Off"
+    state "Off" { id: "ST-Off" }
+    state "On" { id: "ST-On" }
+    transition "Off" -> "On" { id: "TR-1" trigger: "" }
+}
+trace "LF-Sense.targets" realizes "SF-Sense.targets"
+trace "LA-targets" realizes "SA-targets"
+trace "ST-On" realizes "ST-Off"
+trace "TR-1" realizes "ST-On"
+"#;
+
+fn compile(source: &str) -> arclang::CompilationResult {
+    Compiler::new(CompilerConfig::default()).compile_string(source).expect("compiles")
+}
+
+#[test]
+fn logical_functions_carry_ports_sub_functions_and_their_own_exchanges() {
+    let result = compile(MODEL);
+    let la = &result.ast.logical_architecture[0];
+    let sensors = &la.components[0];
+    let sense = &sensors.functions[0];
+    assert_eq!(sense.id, "LF-Sense");
+    assert_eq!(sense.ports.len(), 1);
+    assert_eq!(sense.sub_functions[0].id, "LF-Filter");
+    assert_eq!(la.functions[0].id, "LF-Root");
+    assert_eq!(la.functional_exchanges.len(), 1);
+    let set = build_diagrams(&result.ast);
+    let lab = set.diagrams.iter().find(|d| d.id == "lab").expect("lab drawn");
+    let edge = lab.edges.iter().find(|e| e.label == "targets" && e.source != "SF-Sense").expect("the logical exchange is drawn");
+    assert!(edge.source == "LF-Sense" && edge.target == "LF-Decide", "{edge:?}");
+    assert!(lab.nodes.iter().flat_map(|n| n.children.iter()).any(|n| n.id == "LF-Sense" && n.children.iter().any(|c| c.id == "LF-Filter")));
+    // A function no component performs stands on its own, so that a declared diagram can list it.
+    assert!(lab.nodes.iter().any(|n| n.id == "LF-Root"));
+}
+
+#[test]
+fn physical_functions_live_in_behaviour_components_and_exchange_at_their_level() {
+    let result = compile(MODEL);
+    let pa = &result.ast.physical_architecture[0];
+    let behaviour = &pa.nodes[0].behavior_components[0];
+    assert_eq!(behaviour.functions[0].id, "PF-Decide");
+    let set = build_diagrams(&result.ast);
+    let pab = set.diagrams.iter().find(|d| d.id == "pab").expect("pab drawn");
+    let edge = pab.edges.iter().find(|e| e.label == "targets" && e.source != "SF-Sense").expect("the physical exchange is drawn");
+    assert!(edge.source == "PF-Sense" && edge.target == "PF-Decide", "{edge:?}");
+    // A behaviour component carries ports; a physical exchange binds to them; a chain orders physical functions.
+    assert_eq!(pa.nodes[0].behavior_components[1].ports.len(), 1);
+    let frames = pab.edges.iter().find(|e| e.label == "bus frames").expect("the physical exchange between behaviours");
+    assert_eq!(frames.source_port.as_deref(), Some("PC-Sensor::bus"));
+    assert_eq!(pa.functional_chains[0].involves, vec!["PF-Sense", "PF-Decide"]);
+    assert!(pab.chains.iter().any(|c| c.id == "PFC-1" || c.name == "Brake path"), "{:?}", pab.chains.iter().map(|c| &c.name).collect::<Vec<_>>());
+    // A physical capability realization realizes a logical one and involves behaviours and chains.
+    assert_eq!(pa.capability_realizations[0].realizes.as_deref(), Some("LCR-1"));
+    assert!(result.warnings.iter().all(|w| !w.contains("PCR-1")), "{:?}", result.warnings);
+    let cap = set.diagrams.iter().find(|d| d.id == "cap").expect("capabilities drawn");
+    assert!(cap.nodes.iter().any(|n| n.id == "PCR-1"), "{:?}", cap.nodes.iter().map(|n| &n.id).collect::<Vec<_>>());
+}
+
+#[test]
+fn the_system_level_has_component_ports_and_exchanges() {
+    let result = compile(MODEL);
+    let sa = &result.ast.system_analysis[0];
+    assert_eq!(sa.components[0].ports.len(), 2);
+    assert_eq!(sa.external_actors[0].ports.len(), 1);
+    assert_eq!(sa.component_exchanges.len(), 1);
+    let set = build_diagrams(&result.ast);
+    let sab = set.diagrams.iter().find(|d| d.id == "sab").expect("sab drawn");
+    let edge = sab.edges.iter().find(|e| e.label == "pedal").expect("the component exchange is drawn");
+    assert_eq!((edge.source.as_str(), edge.target.as_str()), ("SA-Driver", "SC-AEB"));
+    let aeb = sab.nodes.iter().find(|n| n.id == "SC-AEB").expect("the system component");
+    assert_eq!(aeb.ports.len(), 2);
+}
+
+#[test]
+fn level_functions_are_elements_with_their_kind_and_realizations() {
+    let result = compile(MODEL);
+    let graph = elements::build(&result.ast, &result.semantic_model);
+    let kinds: Vec<(&str, &str)> = graph.elements.iter().map(|e| (e.kind, e.id.as_str())).collect();
+    assert!(kinds.contains(&("LogicalFunction", "LF-Sense")), "{kinds:?}");
+    assert!(kinds.contains(&("LogicalFunction", "LF-Filter")));
+    assert!(kinds.contains(&("LogicalFunction", "LF-Root")));
+    assert!(kinds.contains(&("PhysicalFunction", "PF-Decide")));
+    assert!(kinds.contains(&("BehaviorComponent", "PC-Ctrl")));
+    let sense = graph.elements.iter().find(|e| e.id == "LF-Sense").expect("LF-Sense");
+    let ports = graph.elements.iter().filter(|e| e.kind == "FunctionPort" && e.owner.as_deref() == Some(sense.uuid.as_str())).count();
+    assert_eq!(ports, 1);
+    assert_eq!(sense.attributes.get("realizes").and_then(|v| v.as_string()), Some("SF-Sense"));
+}
+
+#[test]
+fn an_exchange_to_an_unknown_function_is_reported() {
+    let bad = MODEL.replace(r#"to: "LF-Decide.targets" }"#, r#"to: "LF-Nowhere.targets" }"#);
+    let result = compile(&bad);
+    assert!(result.warnings.iter().any(|w| w.contains("LF-Nowhere")), "{:?}", result.warnings);
+}
+
+#[test]
+fn ports_exchanges_states_and_transitions_are_traceable_across_levels() {
+    let result = compile(MODEL);
+    let traces: Vec<(&str, &str)> = result.semantic_model.traces.iter().map(|t| (t.from.as_str(), t.to.as_str())).collect();
+    assert!(traces.contains(&("LF-Sense.targets", "SF-Sense.targets")), "{traces:?}");
+    assert!(traces.contains(&("LA-targets", "SA-targets")), "{traces:?}");
+    assert!(traces.contains(&("ST-On", "ST-Off")) && traces.contains(&("TR-1", "ST-On")), "{traces:?}");
+}
+
+#[test]
+fn a_class_extends_another_and_the_data_view_draws_the_generalization() {
+    let model = r#"model T { name: "t" }
+class "Vehicle" { id: "CL-Vehicle" speed: "Float" }
+class "Car" { id: "CL-Car" extends: "CL-Vehicle" doors: "Integer" }
+system_analysis "SA" {
+    function "A" { id: "SF-A" port out "x" }
+    function "B" { id: "SF-B" port in "x" }
+    functional_exchange "x" { id: "FE-x" from: "SF-A.x" to: "SF-B.x" }
+    system_component "S" { id: "SC-S" port out "bus" }
+    actor "U" { id: "SA-U" port in "bus" }
+    component_exchange "bus" { id: "CE-bus" from_port: "SC-S.bus" to_port: "SA-U.bus" }
+}
+trace "CE-bus" -> "FE-x" { trace_type: "allocates" }
+trace "SC-S.bus" -> "SF-A.x" { trace_type: "allocates" }
+"#;
+    let result = compile(model);
+    let car = result.ast.classes.iter().find(|c| c.id == "CL-Car").expect("Car");
+    assert_eq!(car.extends.as_deref(), Some("CL-Vehicle"));
+    assert_eq!(car.fields.iter().map(|f| f.name.as_str()).collect::<Vec<_>>(), ["doors"], "extends is not a field");
+    let set = build_diagrams(&result.ast);
+    let cdb = set.diagrams.iter().find(|d| d.id == "cdb").expect("cdb");
+    assert!(cdb.edges.iter().any(|e| e.source == "CL-Car" && e.target == "CL-Vehicle"), "{:?}", cdb.edges);
+    let traces: Vec<(&str, &str, &str)> = result.semantic_model.traces.iter().map(|t| (t.from.as_str(), t.trace_type.as_str(), t.to.as_str())).collect();
+    assert!(traces.contains(&("CE-bus", "allocates", "FE-x")) && traces.contains(&("SC-S.bus", "allocates", "SF-A.x")), "{traces:?}");
+}

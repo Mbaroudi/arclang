@@ -4,7 +4,7 @@
 use super::builder::{properties, Builder, Missing, NodeRef};
 use super::{Diagram, EdgeKind, NodeKind, ViewKind};
 use crate::compiler::ast::{DataAttribute, ExchangeItem, Model};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashSet};
 
 pub(super) fn build(model: &Model) -> Option<(Diagram, Vec<String>)> {
     let mut builder = Builder::new(ViewKind::Cdb);
@@ -69,12 +69,45 @@ pub(super) fn build(model: &Model) -> Option<(Diagram, Vec<String>)> {
         return None;
     }
 
+    // The associations declared as elements, with their kind and
+    // multiplicity; the field each one names is drawn by it alone.
+    let mut claimed: HashSet<(String, String)> = HashSet::new();
+    for association in &model.associations {
+        let what = format!("association '{}'", association.name);
+        let ends = (builder.find(&association.from), builder.find(&association.to));
+        let (Ok(source), Ok(target)) = ends else {
+            for (reference, found) in [(&association.from, ends.0), (&association.to, ends.1)] {
+                if let Err(missing) = found {
+                    builder.report_missing(&what, reference, missing, "class");
+                }
+            }
+            continue;
+        };
+        let owner_id = builder.node(source).id.clone();
+        if let Some(role) = &association.role {
+            claimed.insert((owner_id, role.clone()));
+        }
+        let mut edge_properties = BTreeMap::new();
+        edge_properties.insert("kind".to_string(), association.kind.keyword().to_string());
+        if let Some(role) = &association.role {
+            edge_properties.insert("role".to_string(), role.clone());
+        }
+        if let Some(multiplicity) = &association.multiplicity {
+            edge_properties.insert("multiplicity".to_string(), multiplicity.clone());
+        }
+        let (source, target) = (builder.whole(source), builder.whole(target));
+        let edge = builder.add_edge(EdgeKind::Association, &source, &target, &association.id, None, edge_properties);
+        builder.set_edge_label(&edge, association.name.clone());
+    }
     // A field whose type is a declared data element is an association.
     // `float` or `String` name no element and stay text in the box; a type
     // that several elements answer to is reported, not guessed.
     for (owner, owner_name, fields) in owners {
         let owner_id = builder.node(owner).id.clone();
         for field in fields {
+            if claimed.contains(&(owner_id.clone(), field.name.clone())) {
+                continue;
+            }
             let what = format!("field '{owner_name}.{}'", field.name);
             match builder.find(&field.attr_type) {
                 Ok(target) => {
@@ -99,6 +132,19 @@ pub(super) fn build(model: &Model) -> Option<(Diagram, Vec<String>)> {
                 }
                 Err(Missing::Unknown) => {}
             }
+        }
+    }
+    // A class that extends another: a generalization towards its base.
+    for class in &model.classes {
+        let Some(base) = &class.extends else { continue };
+        let what = format!("class '{}' extends", class.name);
+        match (builder.find(&class.id), builder.find(base)) {
+            (Ok(source), Ok(target)) => {
+                let (source, target) = (builder.whole(source), builder.whole(target));
+                builder.add_edge(EdgeKind::Generalization, &source, &target, &format!("{}.extends", class.id), None, BTreeMap::new());
+            }
+            (_, Err(missing)) => builder.report_missing(&what, base, missing, "class"),
+            _ => {}
         }
     }
     for (node, item) in items {

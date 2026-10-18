@@ -56,6 +56,7 @@ TopLevelBlock   ::= RequirementsBlock
                   | Epbs
                   | SafetyAnalysis
                   | TraceDecl
+                  | DiagramDecl
                   | UnmodeledBlock ;          (* warning emitted *)
 
 (* ---- Requirements ---------------------------------------------------------- *)
@@ -73,13 +74,17 @@ OperationalAnalysis ::= "operational_analysis" Name "{" OaElement* "}" ;
 OaElement       ::= "actor" Name AttributeBlock
                   | ( "operational_entity" | "entity" ) Name "{" EntityElement* "}"
                   | OperationalCapabilityDecl
-                  | ( "operational_activity" | "activity" ) Name AttributeBlock
+                  | OperationalActivityDecl
                   | OperationalExchange
                   | TraceDecl
                   | Attribute ;                                (* name: overrides block name *)
 
-EntityElement   ::= ( "operational_activity" | "activity" ) Name AttributeBlock
+EntityElement   ::= OperationalActivityDecl
                   | Attribute ;
+
+OperationalActivityDecl ::= ( "operational_activity" | "activity" ) Name
+                            "{" ( Attribute | FunctionPortDecl | OperationalActivityDecl )* "}" ;
+                            (* an activity carries ports and sub-activities, as a function does *)
 
 OperationalExchange ::= ( "operational_exchange" | "exchange" | "interaction" )
                         ( Name "->" Name AttributeBlock        (* arrow form *)
@@ -91,8 +96,9 @@ SystemAnalysis  ::= "system_analysis" Name "{" SaElement* "}" ;
 
 SaElement       ::= RequirementDecl
                   | ( "function" | "system_function" ) Name "{" FunctionElement* "}"
-                  | "actor" Name AttributeBlock
-                  | "system_component" Name AttributeBlock
+                  | "actor" Name "{" ( Attribute | ComponentPortDecl )* "}"
+                  | "system_component" Name "{" ( Attribute | ComponentPortDecl )* "}"
+                  | "component_exchange" Name AttributeBlock   (* from_port:/to_port: required *)
                   | FunctionalExchange
                   | MissionDecl
                   | CapabilityDecl
@@ -116,8 +122,18 @@ CapabilityDecl      ::= "capability" Name "{" ( Attribute | CapabilityDecl )* "}
                         (* attributes: id:, mission: <ref>, realizes: <ref>,
                            involves: [ <ref>* ] — references resolve by id or
                            unambiguous name; dangling references are ERRORS *)
-FunctionalChainDecl ::= "functional_chain" Name AttributeBlock ;
-                        (* involves: [ <ref>+ ] REQUIRED, ordered *)
+FunctionalChainDecl ::= "functional_chain" Name "{" ( Attribute | ControlNodeDecl | SequenceLinkDecl )* "}" ;
+                        (* involves: [ <ref>* ] ordered: functions, exchanges and
+                           CHAINS (a chain involving a chain references it, as
+                           Capella does); empty is a WARNING (path not described
+                           yet). Control nodes and sequence links branch the
+                           chain; without any, the chain is the order of involves. *)
+ControlNodeDecl     ::= "control" ( "and" | "or" | "iterate" ) Name AttributeBlock? ;
+                        (* id: defaults to <chain id>.<name> *)
+SequenceLinkDecl    ::= "sequence" Name "->" Name AttributeBlock? ;
+                        (* each end a step of the chain (as written in involves)
+                           or one of its control nodes, else an ERROR;
+                           attributes: condition: <text>, id: *)
 
 FunctionElement ::= "function" Name AttributeBlock?            (* nested sub-function *)
                   | FunctionPortDecl
@@ -125,6 +141,17 @@ FunctionElement ::= "function" Name AttributeBlock?            (* nested sub-fun
 
 (* Function ports are strictly input XOR output (Arcadia). *)
 FunctionPortDecl ::= "port" ( "in" | "out" ) Name AttributeBlock? ;
+ComponentPortDecl ::= "port" ( "in" | "out" | "inout" ) Name AttributeBlock? ;
+
+(* A function of the logical or physical level: declared inside the
+   component that performs it (allocation by containment), or at the level
+   when nothing performs it yet (a breakdown's parents). It carries its own
+   ports and sub-functions; `realizes: <ref>` names the function of the
+   level above it realizes. Exchanges between the functions of a level are
+   declared at that level with FunctionalExchange, their ends being
+   functions or `Function.port`. *)
+LevelFunctionDecl ::= "function" Name
+                      ( "{" ( Attribute | FunctionPortDecl | LevelFunctionDecl )* "}" )? ;
                      (* attributes: data_type:, type: data|control|event *)
 
 FunctionalExchange ::= ( "functional_exchange" | "exchange" | "flow" )
@@ -140,6 +167,8 @@ CapabilityRealizationDecl ::= ( "capability_realization" | "capability" ) Name
                               "{" ( Attribute | CapabilityRealizationDecl )* "}" ;
 
 LaElement       ::= Component
+                  | LevelFunctionDecl                         (* a function no component performs *)
+                  | FunctionalExchange                        (* between logical functions *)
                   | "interface" Name "{" InterfaceBody "}"
                   | ConnectionDecl
                   | "component_exchange" Name AttributeBlock   (* from_port:/to_port: required *)
@@ -151,8 +180,8 @@ LaElement       ::= Component
 Component       ::= "component" Name "{" ComponentElement* "}" ;
 
 ComponentElement ::= Component                                  (* nested components *)
-                  | "port" ( "in" | "out" | "inout" ) Name AttributeBlock?
-                  | "function" Name AttributeBlock?
+                  | ComponentPortDecl
+                  | LevelFunctionDecl                           (* the logical functions it performs *)
                   | "interface_in"  ":"? Name "{" InterfaceAttrs "}"
                   | "interface_out" ":"? Name "{" InterfaceAttrs "}"
                   | "provides" "interface"? Name "{" InterfaceAttrs "}"
@@ -171,16 +200,28 @@ PhysicalArchitecture ::= "physical_architecture" Name "{" PaElement* "}"
                        | "architecture" "physical" Name? "{" PaElement* "}" ;
 
 PaElement       ::= "node" Name "{" NodeElement* "}"
+                  | LevelFunctionDecl                         (* a function no behaviour component performs *)
+                  | FunctionalExchange                        (* between physical functions *)
+                  | FunctionalChainDecl                       (* ordered physical functions *)
+                  | CapabilityRealizationDecl                 (* realizes a logical capability realization *)
                   | "component" Name PhysicalComponentBody?
                   | ConnectionDecl
                   | ( "physical_link" | "link" ) Name ( "->" Name )? AttributeBlock
+                                                              (* from:/to: (or connects:) name a node or a
+                                                                 node's port, `Node.port`; the link is drawn
+                                                                 between the ports when they are named *)
                   | "physical_exchange" Name AttributeBlock    (* from:/to: required; via:, message_type:, frequency: *)
                   | "deployment" Name "->" Name AttributeBlock?
                   | Attribute ;
 
 NodeElement     ::= "deploys" Name AttributeBlock?
                   | "port" Name AttributeBlock?               (* physical ports are UNORIENTED *)
-                  | "behavior_component" Name AttributeBlock
+                  | LevelFunctionDecl                         (* the physical functions the node itself performs *)
+                  | "behavior_component" Name "{" ( Attribute | ComponentPortDecl | LevelFunctionDecl )* "}"
+                                                              (* its ports and the physical functions it performs;
+                                                                 allocated_component: <logical component ref> is the
+                                                                 one it realizes, allocated_functions: [...] the
+                                                                 functions it performs by name (legacy form) *)
                   | "hardware_component" Name AttributeBlock?
                   | Attribute ;
 
@@ -239,9 +280,17 @@ UnitSymbol      ::= Identifier ( "/" Identifier )?     (* must be in the unit ta
 (* ---- Data Model (Arcadia: Class, DataType, Enumeration, Exchange Item) -------------------- *)
 
 ClassDecl        ::= "class" Name AttributeBlock ;
-                     (* every attribute but id: and description: is a field,
-                        name -> type. Fields keep their declared order; one
-                        declared twice is an ERROR. *)
+                     (* every attribute but id:, description:, summary:, status:,
+                        constraints: and extends: is a field, name -> type. Fields
+                        keep their declared order; one declared twice is an ERROR.
+                        extends: <class ref> names the class this one specializes. *)
+AssociationDecl  ::= "association" Name AttributeBlock ;
+                     (* an association between two classes, as an element:
+                        from: <class ref> (owns the navigable end), to: <class ref>,
+                        role: <field of from typed by to>, kind: association |
+                        aggregation | composition, multiplicity: <text>, id:.
+                        Unknown classes or role are ERRORS. Declared wherever a
+                        class is. *)
 EnumerationDecl  ::= "enumeration" Name AttributeBlock ;       (* values: [ Name* ] *)
 DataTypeDecl     ::= "data_type" Name AttributeBlock ;
                      (* base:, unit: <UnitSymbol> — a symbol outside the unit
@@ -262,8 +311,9 @@ PhysicalPathDecl ::= "physical_path" Name AttributeBlock ;
 
 (* ---- Operational processes & communication means ------------------------------------------- *)
 
-OperationalProcessDecl ::= "operational_process" Name AttributeBlock ;
-                           (* involves: [ <activity/interaction ref>+ ] REQUIRED *)
+OperationalProcessDecl ::= "operational_process" Name "{" ( Attribute | ControlNodeDecl | SequenceLinkDecl )* "}" ;
+                           (* involves: [ <activity/interaction ref>* ] ordered; empty is a
+                              WARNING; control nodes and sequence links as in a chain *)
 CommunicationMeansDecl ::= "communication_means" Name AttributeBlock ;
                            (* from:, to: REQUIRED (operational entities) *)
 
@@ -322,27 +372,73 @@ Primary         ::= Quantity | Number
                        (exchanges) are not operands; a member lacking the
                        aggregated attribute is an ERROR naming it. *)
 
+(* ---- Diagrams ------------------------------------------------------------- *)
+
+(* A named diagram cut from one view: the elements it names (by id or name),
+   what holds them, and the exchanges between drawn elements. `context: true`
+   adds the elements an exchange ties to a named one. A view the model does
+   not draw, or a name no element answers to, is reported by the viewer. *)
+DiagramDecl     ::= "diagram" Name "{" DiagramAttribute* "}" ;
+DiagramAttribute ::= "view" ":" ( "oab" | "sab" | "lab" | "pab" | "cap" | "cdb" | "pbs" | String )
+                   | "shows" ":" "[" ( Name ( "," Name )* )? "]"
+                   | "context" ":" ( "true" | "false" )
+                   | "description" ":" String ;
+
 (* ---- Modes & States (Arcadia transverse) -------------------------------------------------- *)
 
 StateMachineDecl ::= "state_machine" Name "{" StateMachineElement* "}" ;
-StateMachineElement ::= ( "state" | "mode" ) Name AttributeBlock?
+StateMachineElement ::= ( "state" | "mode" ) Name StateBody?
+                      | "region" Name "{" ( Attribute | ( "state" | "mode" ) Name StateBody?
+                                           | "transition" Name "->" Name AttributeBlock? )* "}"
+                        (* a top-level region of its own, with its initial: ; a
+                           machine with several regions writes one block each.
+                           Its states and transitions are the machine's too. *)
                         (* mode = chosen behaviour, state = undergone (Arcadia) *)
+(* A state holds a region: states, modes and transitions of its own. A
+   transition declared inside a state joins the machine's, and names any
+   state of the machine, at any depth. *)
+StateBody       ::= "{" ( Attribute | ( "state" | "mode" ) Name StateBody?
+                        | "transition" Name "->" Name AttributeBlock? )* "}" ;
                       | "transition" Name "->" Name AttributeBlock?
-                        (* attributes: trigger:, guard:, action:, timing:, priority: ;
+                        (* attributes: trigger:, guard:, action:, timing:, priority:,
+                           events: [...] (every attribute is kept) ;
                            endpoints must be declared states/modes (ERROR otherwise);
-                           unresolved triggers are warnings *)
+                           unresolved triggers are warnings. A state keeps its
+                           attributes too: kind: final|choice|fork|join|terminate...
+                           for a pseudo-state, initial: for the region it opens *)
                       | Attribute ;                            (* initial: "StateName" *)
 
 (* ---- Scenarios (sequence flows) ------------------------------------------------------------ *)
 
 ScenarioDecl    ::= "scenario" Name "{" ScenarioElement* "}" ;
 ScenariosBlock  ::= "scenarios" Name? "{" ScenarioDecl* "}" ;
+(* A combined fragment frames the messages it holds, in their order among
+   the scenario's messages: `alt` and `par` with their operands, `loop`,
+   `opt`, `seq` and `critical` with one body. A fragment with operand
+   blocks holds nothing outside them. Fragments nest. *)
+FragmentDecl    ::= "fragment" FragmentKind String?
+                    "{" ( OperandDecl* | ( MessageDecl | FragmentDecl | InvariantDecl )* ) "}" ;
+FragmentKind    ::= "alt" | "opt" | "loop" | "par" | "seq" | "critical" ;
+OperandDecl     ::= "operand" String? "{" ( MessageDecl | FragmentDecl | InvariantDecl )* "}" ;
 ScenarioElement ::= "participants" ":" "[" Name ( "," Name )* "]"
+                  | FragmentDecl
                     (* participants must resolve to declared elements (ERROR) *)
-                  | "message" Name "->" Name Name? AttributeBlock?
-                    (* endpoints must be scenario participants (ERROR);
-                       attributes: type: sync|async, timing: *)
+                  | MessageDecl
+                  | InvariantDecl
                   | Attribute ;
+(* A state, mode or function asserted on a lifeline (Capella: state fragment):
+   `state "Lifeline" "Armed" { ... }`, `mode ...`, `function "Lifeline" "Sense" { ... }`.
+   It spans the messages written in its body (an instant without any); the
+   lifeline must be a participant and the name a declared state/mode or
+   function, by id or unambiguous name (ERROR). Allowed inside fragments. *)
+InvariantDecl   ::= ( "state" | "mode" | "function" ) Name Name
+                    ( "{" ( Attribute | MessageDecl | FragmentDecl | InvariantDecl )* "}" )? ;
+MessageDecl     ::= "message" Name "->" Name Name? AttributeBlock? ;
+                    (* endpoints must be scenario participants (ERROR);
+                       attributes: type: sync|async, timing:, kind: (Capella's
+                       message kind), exchange: <functional or component
+                       exchange carried; unknown = WARNING>; every attribute is kept.
+                       A scenario's owner: <element> is kept too (unknown = WARNING). *)
 
 (* ---- Unmodeled blocks (accepted, warned, ignored) -------------------------------------- *)
 

@@ -2,9 +2,9 @@
 //! components deployed on them, physical links and physical exchanges.
 
 use super::builder::{identity, properties, text, view_title, Builder};
-use super::functions::{add_functional_exchanges, FunctionTable, Placement};
+use super::functions::{add_functional_exchanges, add_level_function, FunctionTable, Placement};
 use super::{Diagram, EdgeKind, NodeKind, PortDirection, ViewKind};
-use crate::compiler::ast::{LogicalComponent, Model};
+use crate::compiler::ast::{self, LogicalComponent, Model};
 use std::collections::{BTreeMap, HashMap};
 
 const NODE_PROPERTIES: [&str; 6] = [
@@ -22,6 +22,13 @@ pub(super) fn build(model: &Model) -> Option<(Diagram, Vec<String>)> {
     let logical = logical_component_ids(model);
 
     for pa in &model.physical_architecture {
+        functions.know_level(&pa.functions);
+        for node in &pa.nodes {
+            functions.know_level(&node.functions);
+            for behavior in &node.behavior_components {
+                functions.know_level(&behavior.functions);
+            }
+        }
         for node in &pa.nodes {
             let handle = builder.add_node(
                 None,
@@ -41,16 +48,36 @@ pub(super) fn build(model: &Model) -> Option<(Diagram, Vec<String>)> {
                     text(&port.attributes, "protocol").map(str::to_string),
                 );
             }
+            for function in &node.functions {
+                add_level_function(&mut builder, Some(handle), function, &node_id);
+            }
             for behavior in &node.behavior_components {
                 let child = builder.add_node(
                     Some(handle),
                     &behavior.id,
                     &behavior.name,
                     NodeKind::BehaviorComponent,
-                    BTreeMap::new(),
+                    properties(&behavior.attributes, &["description", "safety_level", "asil"]),
                 );
-                // The parser stores `allocated_component` and
-                // `allocated_function(s)` in one list: tell them apart here.
+                for port in &behavior.ports {
+                    let direction = match port.direction {
+                        ast::PortDirection::In => PortDirection::In,
+                        ast::PortDirection::Out => PortDirection::Out,
+                        ast::PortDirection::InOut => PortDirection::InOut,
+                    };
+                    let interface = Some(port.interface_type.clone()).filter(|t| !t.is_empty());
+                    builder.add_port(child, &port.name, &port.name, direction, interface, None);
+                }
+                // The physical functions the component performs, declared inside it.
+                for function in &behavior.functions {
+                    add_level_function(&mut builder, Some(child), function, &behavior.id);
+                }
+                // `allocated_component` is the logical component realized;
+                // a logical component named among the functions counts too
+                // (the legacy form).
+                if let Some(realized) = behavior.allocated_component.as_deref().and_then(|c| logical.get(c)) {
+                    builder.add_realization(child, (*realized).to_string());
+                }
                 for reference in &behavior.allocated_functions {
                     if let Some(realized) = logical.get(reference.as_str()) {
                         builder.add_realization(child, (*realized).to_string());
@@ -99,6 +126,11 @@ pub(super) fn build(model: &Model) -> Option<(Diagram, Vec<String>)> {
                     builder.add_realization(child, (*realized).to_string());
                 }
             }
+        }
+    }
+    for pa in &model.physical_architecture {
+        for function in &pa.functions {
+            add_level_function(&mut builder, None, function, "PA");
         }
     }
     if builder.is_empty() {
@@ -167,9 +199,20 @@ pub(super) fn build(model: &Model) -> Option<(Diagram, Vec<String>)> {
             .flat_map(|sa| sa.functional_exchanges.iter()),
         Some(&functions),
     );
+    add_functional_exchanges(
+        &mut builder,
+        model
+            .physical_architecture
+            .iter()
+            .flat_map(|pa| pa.functional_exchanges.iter()),
+        Some(&functions),
+    );
     for pa in &model.physical_architecture {
         for path in &pa.paths {
             builder.add_chain(&path.id, &path.name, &path.involves);
+        }
+        for chain in &pa.functional_chains {
+            builder.add_chain_graph(&chain.id, &chain.name, &chain.involves, &chain.controls, &chain.sequences);
         }
     }
     builder.finish(view_title(

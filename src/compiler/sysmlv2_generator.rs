@@ -1717,8 +1717,14 @@ fn collect_generic_port_directions<'m>(component: &'m LogicalComponent, out: &mu
 }
 
 fn collect_logical_functions<'m>(component: &'m LogicalComponent, out: &mut Vec<(&'m LogicalFunction, String)>) {
+    fn walk<'m>(function: &'m LogicalFunction, owner: &str, out: &mut Vec<(&'m LogicalFunction, String)>) {
+        out.push((function, owner.to_string()));
+        for sub in &function.sub_functions {
+            walk(sub, owner, out);
+        }
+    }
     for function in &component.functions {
-        out.push((function, component.name.clone()));
+        walk(function, &component.name, out);
     }
     for sub in &component.sub_components {
         collect_logical_functions(sub, out);

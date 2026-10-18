@@ -19,7 +19,7 @@ const OPERATIONAL_TYPES: [&str; 6] = [
 ];
 
 /// Element types a capability can involve: who takes part and what is done.
-const INVOLVABLE_TYPES: [&str; 11] = [
+const INVOLVABLE_TYPES: [&str; 12] = [
     "Actor",
     "Entity",
     "Activity",
@@ -31,6 +31,7 @@ const INVOLVABLE_TYPES: [&str; 11] = [
     "Function",
     "SystemFunction",
     "FunctionalChain",
+    "BehaviorComponent",
 ];
 
 /// Relations that make no sense in a loop: a capability cannot be a special
@@ -43,7 +44,7 @@ struct Source<'a> {
     name: &'a str,
     /// Keyword the author wrote, for messages.
     keyword: &'static str,
-    /// "Operational", "System" or "Realization".
+    /// "Operational", "System", "Realization" (logical) or "PhysicalRealization".
     kind: &'static str,
     involves: &'a [String],
     realizes: Option<&'a str>,
@@ -66,6 +67,7 @@ impl Source<'_> {
         match self.kind {
             "System" => Some("OperationalCapability"),
             "Realization" => Some("SystemCapability"),
+            "PhysicalRealization" => Some("RealizationCapability"),
             _ => None,
         }
     }
@@ -106,7 +108,12 @@ fn sources(ast: &Model) -> Vec<Source<'_>> {
         .iter()
         .flat_map(|la| &la.capability_realizations)
         .map(|c| (c, "Realization"));
-    let declared = system.chain(logical).map(|(c, kind)| Source {
+    let physical = ast
+        .physical_architecture
+        .iter()
+        .flat_map(|pa| &pa.capability_realizations)
+        .map(|c| (c, "PhysicalRealization"));
+    let declared = system.chain(logical).chain(physical).map(|(c, kind)| Source {
         id: &c.id,
         name: &c.name,
         keyword: "capability",

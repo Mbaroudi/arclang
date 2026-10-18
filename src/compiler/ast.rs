@@ -27,6 +27,9 @@ pub struct Model {
     pub data_types: Vec<DataType>,
     #[serde(default)]
     pub classes: Vec<ClassDef>,
+    /// Associations between classes, declared beside them.
+    #[serde(default)]
+    pub associations: Vec<Association>,
     /// Verification cases tracing to requirements (V&V).
     #[serde(default)]
     pub test_cases: Vec<TestCase>,
@@ -36,6 +39,24 @@ pub struct Model {
     /// User-defined types (`type Name extends Base { ... }`).
     #[serde(default)]
     pub types: Vec<TypeDef>,
+    /// Diagrams declared by the author: a named view of chosen elements,
+    /// as Capella diagrams show what was put on them rather than a layer.
+    #[serde(default)]
+    pub diagrams: Vec<DiagramDecl>,
+}
+
+/// `diagram "Name" { view: lab shows: [A, B] context: true }`.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DiagramDecl {
+    pub name: String,
+    /// The view it is cut from: `oab`, `sab`, `lab`, `pab`, `cap`, `cdb`, `pbs`.
+    pub view: String,
+    /// Elements drawn, by id or name; what holds them is drawn around them.
+    pub shows: Vec<String>,
+    /// Also draw the elements an exchange ties to a shown one.
+    pub context: bool,
+    pub description: Option<String>,
+    pub attributes: HashMap<String, AttributeValue>,
 }
 
 impl Model {
@@ -55,9 +76,11 @@ impl Model {
             exchange_items: Vec::new(),
             data_types: Vec::new(),
             classes: Vec::new(),
+            associations: Vec::new(),
             test_cases: Vec::new(),
             constraints: Vec::new(),
             types: Vec::new(),
+            diagrams: Vec::new(),
         }
     }
     
@@ -105,7 +128,12 @@ impl Model {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OperationalAnalysis {
+    /// `id:` of the level block when written (Capella's architecture id).
+    #[serde(default)]
+    pub id: String,
     pub name: String,
+    #[serde(default)]
+    pub attributes: HashMap<String, AttributeValue>,
     pub actors: Vec<Actor>,
     pub entities: Vec<OperationalEntity>,
     pub capabilities: Vec<OperationalCapability>,
@@ -188,6 +216,9 @@ pub struct OperationalActivity {
     pub icon: String,
     pub color: String,
     pub sub_activities: Vec<OperationalActivity>,
+    /// Ports of the activity (Capella gives activities inputs and outputs, as functions).
+    #[serde(default)]
+    pub ports: Vec<FunctionPort>,
     pub attributes: HashMap<String, AttributeValue>,
 }
 
@@ -211,12 +242,20 @@ pub struct CapabilityAssociation {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SystemAnalysis {
+    /// `id:` of the level block when written (Capella's architecture id).
+    #[serde(default)]
+    pub id: String,
     pub name: String,
+    #[serde(default)]
+    pub attributes: HashMap<String, AttributeValue>,
     pub requirements: Vec<Requirement>,
     pub functions: Vec<SystemFunction>,
     pub components: Vec<SystemComponent>,
     pub external_actors: Vec<ExternalActor>,
     pub functional_exchanges: Vec<FunctionalExchange>,
+    /// Exchanges between the ports of the system, its components and its actors.
+    #[serde(default)]
+    pub component_exchanges: Vec<ComponentExchange>,
     #[serde(default)]
     pub missions: Vec<Mission>,
     #[serde(default)]
@@ -257,8 +296,65 @@ pub struct Capability {
 pub struct FunctionalChain {
     pub id: String,
     pub name: String,
-    /// Ordered references to the involved functions/exchanges.
+    /// Ordered references to the involved functions, exchanges and chains
+    /// (a chain involving another chain references it, as Capella does).
     pub involves: Vec<String>,
+    /// Control nodes branching the chain: AND, OR, ITERATE.
+    #[serde(default)]
+    pub controls: Vec<ControlNode>,
+    /// Sequence links between steps and control nodes; without any, the
+    /// chain is the plain order of `involves`.
+    #[serde(default)]
+    pub sequences: Vec<SequenceLink>,
+    pub attributes: HashMap<String, AttributeValue>,
+}
+
+/// A control node of a functional chain (Capella: ControlNode).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ControlNode {
+    /// `id:` when written, else `<chain id>.<name>`.
+    pub id: String,
+    pub name: String,
+    pub kind: ControlKind,
+    pub attributes: HashMap<String, AttributeValue>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ControlKind {
+    And,
+    Or,
+    Iterate,
+}
+
+impl ControlKind {
+    pub fn parse(text: &str) -> Option<ControlKind> {
+        match text {
+            "and" | "AND" => Some(ControlKind::And),
+            "or" | "OR" => Some(ControlKind::Or),
+            "iterate" | "ITERATE" => Some(ControlKind::Iterate),
+            _ => None,
+        }
+    }
+
+    pub fn keyword(self) -> &'static str {
+        match self {
+            ControlKind::And => "and",
+            ControlKind::Or => "or",
+            ControlKind::Iterate => "iterate",
+        }
+    }
+}
+
+/// A sequence link of a functional chain: `sequence "A" -> "B" { condition: "..." }`,
+/// each end a step of the chain or one of its control nodes (Capella: SequenceLink).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SequenceLink {
+    /// `id:` when written, else `<chain id>.<from>-><to>`.
+    pub id: String,
+    pub from: String,
+    pub to: String,
+    pub condition: Option<String>,
     pub attributes: HashMap<String, AttributeValue>,
 }
 
@@ -291,10 +387,16 @@ pub enum FunctionCategory {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FunctionPort {
+    /// `id:` when written (Capella keeps ids on ports), else empty: the
+    /// port is then known as `Owner.name`.
+    #[serde(default)]
+    pub id: String,
     pub name: String,
     pub direction: PortDirection,
     pub port_type: PortType,
     pub data_type: String,
+    #[serde(default)]
+    pub attributes: HashMap<String, AttributeValue>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -316,29 +418,50 @@ pub struct ExternalActor {
     pub id: String,
     pub name: String,
     pub color: String,
+    #[serde(default)]
+    pub ports: Vec<ComponentPort>,
     pub attributes: HashMap<String, AttributeValue>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FunctionalExchange {
+    /// The written `id`, else the label, else `from -> to`.
+    #[serde(default)]
+    pub id: String,
     pub from_port: String,
     pub to_port: String,
     pub data_type: String,
     pub label: Option<String>,
+    /// Every attribute written (exchange items, categories, description...).
+    #[serde(default)]
+    pub attributes: HashMap<String, AttributeValue>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SystemComponent {
     pub name: String,
+    #[serde(default)]
+    pub ports: Vec<ComponentPort>,
     pub attributes: HashMap<String, AttributeValue>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LogicalArchitecture {
+    /// `id:` of the level block when written (Capella's architecture id).
+    #[serde(default)]
+    pub id: String,
     pub name: String,
+    #[serde(default)]
+    pub attributes: HashMap<String, AttributeValue>,
     pub components: Vec<LogicalComponent>,
+    /// Functions of the level that no component performs (a breakdown's parents).
+    #[serde(default)]
+    pub functions: Vec<LogicalFunction>,
     pub interfaces: Vec<LogicalInterface>,
     pub component_exchanges: Vec<ComponentExchange>,
+    /// Exchanges between the functions of this level.
+    #[serde(default)]
+    pub functional_exchanges: Vec<FunctionalExchange>,
     pub unallocated_functions: Vec<String>,
     #[serde(default)]
     pub capability_realizations: Vec<Capability>,
@@ -363,17 +486,28 @@ pub struct LogicalComponent {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ComponentPort {
+    /// `id:` when written, else empty (the port is known as `Owner.name`).
+    #[serde(default)]
+    pub id: String,
     pub name: String,
     pub direction: PortDirection,
     pub interface_type: String,
+    #[serde(default)]
+    pub attributes: HashMap<String, AttributeValue>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ComponentExchange {
+    /// The written `id`, else the label, else `from -> to`.
+    #[serde(default)]
+    pub id: String,
     pub from_port: String,
     pub to_port: String,
     pub exchange_item: String,
     pub label: Option<String>,
+    /// Every attribute written (exchange items, categories, description...).
+    #[serde(default)]
+    pub attributes: HashMap<String, AttributeValue>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -385,8 +519,18 @@ pub struct InterfaceDefinition {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+/// A function of the logical or physical level: declared inside the
+/// component that performs it, with its own ports and sub-functions, and
+/// `realizes:` the function of the level above.
 pub struct LogicalFunction {
+    /// The written `id`, else the name.
+    #[serde(default)]
+    pub id: String,
     pub name: String,
+    #[serde(default)]
+    pub ports: Vec<FunctionPort>,
+    #[serde(default)]
+    pub sub_functions: Vec<LogicalFunction>,
     pub attributes: HashMap<String, AttributeValue>,
 }
 
@@ -400,10 +544,27 @@ pub struct LogicalInterface {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PhysicalArchitecture {
+    /// `id:` of the level block when written (Capella's architecture id).
+    #[serde(default)]
+    pub id: String,
     pub name: String,
+    #[serde(default)]
+    pub attributes: HashMap<String, AttributeValue>,
     pub nodes: Vec<PhysicalNode>,
+    /// Functions of the level that no behaviour component performs.
+    #[serde(default)]
+    pub functions: Vec<LogicalFunction>,
     pub links: Vec<PhysicalLink>,
     pub physical_exchanges: Vec<PhysicalExchange>,
+    /// Exchanges between the functions of this level.
+    #[serde(default)]
+    pub functional_exchanges: Vec<FunctionalExchange>,
+    /// Ordered physical functions realizing one dataflow path.
+    #[serde(default)]
+    pub functional_chains: Vec<FunctionalChain>,
+    /// Realizations of the logical capability realizations by the physical components.
+    #[serde(default)]
+    pub capability_realizations: Vec<Capability>,
     /// Ordered sets of physical links routing behavioural exchanges (Arcadia).
     #[serde(default)]
     pub paths: Vec<PhysicalPath>,
@@ -429,6 +590,9 @@ pub struct PhysicalNode {
     pub memory: Option<String>,
     pub behavior_components: Vec<BehaviorComponent>,
     pub hardware_components: Vec<HardwareComponent>,
+    /// The physical functions the node itself performs.
+    #[serde(default)]
+    pub functions: Vec<LogicalFunction>,
     pub deployments: Vec<Deployment>,
     /// Physical ports are NOT oriented (Arcadia).
     #[serde(default)]
@@ -453,8 +617,21 @@ pub enum NodeType {
 pub struct BehaviorComponent {
     pub id: String,
     pub name: String,
+    /// The logical component this behaviour realizes (`allocated_component:`).
+    #[serde(default)]
+    pub allocated_component: Option<String>,
+    /// The functions it performs by name (`allocated_functions:`), the legacy
+    /// form; functions declared inside it are in `functions`.
     pub allocated_functions: Vec<String>,
     pub color: Option<String>,
+    /// The physical functions the component performs, declared inside it.
+    #[serde(default)]
+    pub functions: Vec<LogicalFunction>,
+    /// Oriented ports, as a logical component has them.
+    #[serde(default)]
+    pub ports: Vec<ComponentPort>,
+    #[serde(default)]
+    pub attributes: HashMap<String, AttributeValue>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -487,17 +664,28 @@ pub struct PhysicalLink {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PhysicalExchange {
+    /// The written `id`, else the label, else `from -> to`.
+    #[serde(default)]
+    pub id: String,
     pub from: String,
     pub to: String,
     pub via: Option<String>,
     pub message_type: String,
     pub frequency: Option<String>,
     pub label: Option<String>,
+    /// Every attribute written (exchange items, categories, description...).
+    #[serde(default)]
+    pub attributes: HashMap<String, AttributeValue>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Epbs {
+    /// `id:` of the block when written (Capella's EPBS architecture id).
+    #[serde(default)]
+    pub id: String,
     pub name: String,
+    #[serde(default)]
+    pub attributes: HashMap<String, AttributeValue>,
     pub systems: Vec<EpbsSystem>,
 }
 
@@ -616,14 +804,42 @@ impl AttributeValue {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StateMachine {
+    /// `id:` when written, else empty: a machine is known by its name.
+    #[serde(default)]
+    pub id: String,
     pub name: String,
+    #[serde(default)]
+    pub attributes: HashMap<String, AttributeValue>,
     pub initial_state: String,
+    /// Every state of the machine, at the top level of any region.
+    pub states: Vec<State>,
+    /// Every transition of the machine, whatever region declares it.
+    pub transitions: Vec<Transition>,
+    /// The top-level regions written as `region` blocks (a machine with
+    /// several, each with its own initial state); their states and
+    /// transitions are in the flat lists too.
+    #[serde(default)]
+    pub regions: Vec<Region>,
+}
+
+/// A top-level region of a state machine written explicitly: `region "Name"
+/// { initial: "A" state "A" {} ... }` (Capella: Region).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Region {
+    /// `id:` when written, else `<machine>.<name>`.
+    pub id: String,
+    pub name: String,
+    pub initial: String,
     pub states: Vec<State>,
     pub transitions: Vec<Transition>,
+    pub attributes: HashMap<String, AttributeValue>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct State {
+    /// The written `id`, when the state has one; a trace names it by it.
+    #[serde(default)]
+    pub id: String,
     pub name: String,
     /// Arcadia distinguishes Mode (chosen behaviour) from State (undergone).
     #[serde(default)]
@@ -632,7 +848,17 @@ pub struct State {
     pub exit_actions: Vec<String>,
     pub internal_transitions: Vec<String>,
     pub sub_states: Vec<State>,
+    /// The transitions declared in the region this state opens; they are
+    /// also in the machine's flat list, which every check and view reads.
+    #[serde(default)]
+    pub transitions: Vec<Transition>,
     pub color: Option<String>,
+    /// The initial state of the region this state opens (`initial:`), when any.
+    #[serde(default)]
+    pub initial: String,
+    /// Every attribute written (`kind:` for a pseudo-state, property values...).
+    #[serde(default)]
+    pub attributes: HashMap<String, AttributeValue>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
@@ -644,6 +870,9 @@ pub enum StateKind {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Transition {
+    /// The written `id`, when the transition has one.
+    #[serde(default)]
+    pub id: String,
     pub from: String,
     pub to: String,
     pub trigger: String,
@@ -651,15 +880,60 @@ pub struct Transition {
     pub action: Option<String>,
     pub timing: Option<String>,
     pub priority: Option<String>,
+    /// Every attribute written (`events:`, property values...).
+    #[serde(default)]
+    pub attributes: HashMap<String, AttributeValue>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Scenario {
+    /// `id:` when written, else empty: a scenario is known by its name.
+    #[serde(default)]
+    pub id: String,
     pub name: String,
+    #[serde(default)]
+    pub attributes: HashMap<String, AttributeValue>,
     pub participants: Vec<Participant>,
     pub messages: Vec<Message>,
     pub fragments: Vec<CombinedFragment>,
+    /// The states, modes and functions asserted on lifelines, in order.
+    #[serde(default)]
+    pub invariants: Vec<StateInvariant>,
     pub timing_constraints: Vec<TimingConstraint>,
+}
+
+/// A state, mode or function asserted on a lifeline between messages
+/// (Capella: StateFragment): `state "Lifeline" "Armed" { ... }`. It spans the
+/// messages written in its body; without any, it is an instant.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct StateInvariant {
+    /// `id:` when written, else `<scenario>.<lifeline>.<name>#<n>`.
+    pub id: String,
+    pub lifeline: String,
+    /// The state, mode or function, by id or unambiguous name.
+    pub name: String,
+    pub kind: InvariantKind,
+    /// First and last message of the span, as indexes into the scenario's
+    /// messages (`end < start` for an instant).
+    pub start: usize,
+    pub end: usize,
+    pub attributes: HashMap<String, AttributeValue>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum InvariantKind {
+    State,
+    Function,
+}
+
+impl InvariantKind {
+    pub fn keyword(self) -> &'static str {
+        match self {
+            InvariantKind::State => "state",
+            InvariantKind::Function => "function",
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -679,6 +953,9 @@ pub enum ParticipantType {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Message {
+    /// `id:` when written, else empty.
+    #[serde(default)]
+    pub id: String,
     pub from: String,
     pub to: String,
     pub label: String,
@@ -686,6 +963,10 @@ pub struct Message {
     pub activation: bool,
     pub timing: Option<String>,
     pub params: Option<String>,
+    /// Every attribute written: `kind:` (Capella's message kind), `exchange:`
+    /// (the functional or component exchange the message carries)...
+    #[serde(default)]
+    pub attributes: HashMap<String, AttributeValue>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -695,26 +976,76 @@ pub enum MessageType {
     Return,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct CombinedFragment {
-    pub fragment_type: FragmentType,
-    pub label: String,
-    pub condition: Option<String>,
-    pub operands: Vec<FragmentOperand>,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
 pub enum FragmentType {
     Par,
     Opt,
     Loop,
     Alt,
+    Seq,
+    Critical,
+}
+
+impl FragmentType {
+    pub fn parse(text: &str) -> Option<FragmentType> {
+        match text {
+            "par" => Some(FragmentType::Par),
+            "opt" => Some(FragmentType::Opt),
+            "loop" => Some(FragmentType::Loop),
+            "alt" => Some(FragmentType::Alt),
+            "seq" => Some(FragmentType::Seq),
+            "critical" => Some(FragmentType::Critical),
+            _ => None,
+        }
+    }
+
+    pub fn keyword(self) -> &'static str {
+        match self {
+            FragmentType::Par => "par",
+            FragmentType::Opt => "opt",
+            FragmentType::Loop => "loop",
+            FragmentType::Alt => "alt",
+            FragmentType::Seq => "seq",
+            FragmentType::Critical => "critical",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CombinedFragment {
+    pub fragment_type: FragmentType,
+    pub label: String,
+    pub condition: Option<String>,
+    /// The operands, in order; a fragment written without `operand` blocks
+    /// has one, unlabelled, holding its body.
+    pub operands: Vec<FragmentOperand>,
+    /// First and last message of the fragment, as indexes into the
+    /// scenario's messages (`end < start` when it holds none).
+    #[serde(default)]
+    pub start: usize,
+    #[serde(default)]
+    pub end: usize,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FragmentOperand {
     pub label: String,
     pub messages: Vec<Message>,
+    /// First and last message of the operand, as indexes into the
+    /// scenario's messages (`end < start` when it holds none).
+    #[serde(default)]
+    pub start: usize,
+    #[serde(default)]
+    pub end: usize,
+    /// Fragments nested in this operand.
+    #[serde(default)]
+    pub fragments: Vec<CombinedFragment>,
+    /// The invariants written in this operand, as indexes into the
+    /// scenario's `invariants` (an invariant outside every operand is at
+    /// the scenario's top level).
+    #[serde(default)]
+    pub invariants: Vec<usize>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -739,6 +1070,10 @@ pub struct ExchangeItem {
     /// References to the data elements (classes) grouped by this item.
     #[serde(default)]
     pub elements: Vec<String>,
+    /// Every attribute written (status, description...); `attributes` are
+    /// the item's fields.
+    #[serde(default)]
+    pub properties: HashMap<String, AttributeValue>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -759,6 +1094,9 @@ pub struct DataType {
     #[serde(default)]
     pub unit: Option<String>,
     pub enumeration_values: Option<Vec<EnumValue>>,
+    /// Every attribute written (status, unit_name, description...).
+    #[serde(default)]
+    pub attributes: HashMap<String, AttributeValue>,
 }
 
 /// A verification case: how one or more requirements are verified.
@@ -807,9 +1145,55 @@ pub struct ClassDef {
     #[serde(default)]
     pub id: String,
     pub name: String,
+    /// The class this one specializes (`extends: Base`), when any.
+    #[serde(default)]
+    pub extends: Option<String>,
     /// Fields: name -> type.
     pub fields: Vec<DataAttribute>,
     pub attributes: HashMap<String, AttributeValue>,
+}
+
+/// An association between two classes, as an element of its own (Arcadia:
+/// Association). `from` owns the navigable end, `role` names the field on
+/// it typed by `to`.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Association {
+    /// `id:` when written, else `<name>:<from>-><to>`.
+    pub id: String,
+    pub name: String,
+    pub from: String,
+    pub to: String,
+    pub role: Option<String>,
+    pub kind: AssociationKind,
+    pub multiplicity: Option<String>,
+    pub attributes: HashMap<String, AttributeValue>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum AssociationKind {
+    Association,
+    Aggregation,
+    Composition,
+}
+
+impl AssociationKind {
+    pub fn parse(text: &str) -> Option<AssociationKind> {
+        match text {
+            "association" | "ASSOCIATION" => Some(AssociationKind::Association),
+            "aggregation" | "AGGREGATION" => Some(AssociationKind::Aggregation),
+            "composition" | "COMPOSITION" => Some(AssociationKind::Composition),
+            _ => None,
+        }
+    }
+
+    pub fn keyword(self) -> &'static str {
+        match self {
+            AssociationKind::Association => "association",
+            AssociationKind::Aggregation => "aggregation",
+            AssociationKind::Composition => "composition",
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

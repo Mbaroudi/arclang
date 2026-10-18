@@ -346,10 +346,15 @@ impl Resolver<'_> {
         let label = component.id.clone();
         self.apply("LogicalComponent", &label, &mut component.attributes, Some(&mut component.ports))?;
         for function in &mut component.functions {
-            let label = function.name.clone();
-            self.apply("LogicalFunction", &label, &mut function.attributes, None)?;
+            self.level_function("LogicalFunction", function)?;
         }
         component.sub_components.iter_mut().try_for_each(|sub| self.component(sub))
+    }
+
+    fn level_function(&mut self, kind: &'static str, function: &mut LogicalFunction) -> Result<(), String> {
+        let label = function.id.clone();
+        self.apply(kind, &label, &mut function.attributes, None)?;
+        function.sub_functions.iter_mut().try_for_each(|sub| self.level_function(kind, sub))
     }
 
     fn model(&mut self, ast: &mut Model) -> Result<(), String> {
@@ -402,6 +407,7 @@ impl Resolver<'_> {
         }
         for la in &mut ast.logical_architecture {
             la.components.iter_mut().try_for_each(|c| self.component(c))?;
+            la.functions.iter_mut().try_for_each(|f| self.level_function("LogicalFunction", f))?;
             for interface in &mut la.interfaces {
                 let label = interface.name.clone();
                 self.apply("LogicalInterface", &label, &mut interface.attributes, None)?;
@@ -412,9 +418,16 @@ impl Resolver<'_> {
             }
         }
         for pa in &mut ast.physical_architecture {
+            pa.functions.iter_mut().try_for_each(|f| self.level_function("PhysicalFunction", f))?;
             for node in &mut pa.nodes {
                 let label = node.id.clone();
                 self.apply("PhysicalNode", &label, &mut node.attributes, None)?;
+                node.functions.iter_mut().try_for_each(|f| self.level_function("PhysicalFunction", f))?;
+                for behavior in &mut node.behavior_components {
+                    let label = behavior.id.clone();
+                    self.apply("BehaviorComponent", &label, &mut behavior.attributes, None)?;
+                    behavior.functions.iter_mut().try_for_each(|f| self.level_function("PhysicalFunction", f))?;
+                }
             }
             for link in &mut pa.links {
                 let label = link.name.clone();
@@ -432,6 +445,14 @@ impl Resolver<'_> {
             for path in &mut pa.paths {
                 let label = path.name.clone();
                 self.apply("PhysicalPath", &label, &mut path.attributes, None)?;
+            }
+            for chain in &mut pa.functional_chains {
+                let label = chain.id.clone();
+                self.apply("FunctionalChain", &label, &mut chain.attributes, None)?;
+            }
+            for capability in &mut pa.capability_realizations {
+                let label = capability.id.clone();
+                self.apply("CapabilityRealization", &label, &mut capability.attributes, None)?;
             }
         }
         for epbs in &mut ast.epbs {

@@ -1,0 +1,54 @@
+{
+  "name": "arclang",
+  "displayName": "ArcLang",
+  "description": "Arcadia MBSE as code: diagnostics with rules, outline, completion from the metamodel, hover, go to definition, rename, and the viewpoint diagrams beside the source — all from the ArcLang compiler.",
+  "version": "4.1.0",
+  "publisher": "arclang",
+  "license": "MIT",
+  "repository": { "type": "git", "url": "https://github.com/Mbaroudi/arclang", "directory": "editors/vscode" },
+  "engines": { "vscode": "^1.85.0" },
+  "categories": ["Programming Languages", "Linters", "Visualization"],
+  "keywords": ["arcadia", "capella", "mbse", "systems engineering", "sysml"],
+  "activationEvents": ["onLanguage:arclang"],
+  "main": "./extension.js",
+  "contributes": {
+    "languages": [
+      {
+        "id": "arclang",
+        "aliases": ["ArcLang", "arclang"],
+        "extensions": [".arc"],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      { "language": "arclang", "scopeName": "source.arclang", "path": "./syntaxes/arclang.tmLanguage.json" }
+    ],
+    "commands": [
+      { "command": "arclang.openDiagrams", "title": "ArcLang: Open diagrams", "icon": "$(graph)" },
+      { "command": "arclang.runGate", "title": "ArcLang: Run the production gate" },
+      { "command": "arclang.transitionPlan", "title": "ArcLang: Transition plan (what each Arcadia step would create)" },
+      { "command": "arclang.restartServer", "title": "ArcLang: Restart the language server" }
+    ],
+    "menus": {
+      "editor/title": [
+        { "command": "arclang.openDiagrams", "when": "resourceLangId == arclang", "group": "navigation" }
+      ]
+    },
+    "configuration": {
+      "title": "ArcLang",
+      "properties": {
+        "arclang.binary": {
+          "type": "string",
+          "default": "arclang",
+          "description": "The arclang executable (on PATH, or an absolute path). The extension runs `arclang lsp --stdio` and `arclang diagram`."
+        }
+      }
+    }
+  },
+  "dependencies": {
+    "vscode-languageclient": "^9.0.1"
+  },
+  "scripts": {
+    "package": "vsce package"
+  }
+}

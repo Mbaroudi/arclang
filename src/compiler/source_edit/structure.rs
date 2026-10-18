@@ -17,6 +17,9 @@ pub enum Container<'a> {
     /// Inside a layer block (`logical_architecture "Name" { }`). The name
     /// may be omitted when the file has a single block of that keyword.
     Layer { keyword: &'a str, name: Option<&'a str> },
+    /// At the end of the file: a class, an exchange item, a state machine,
+    /// a scenario, a diagram.
+    Document,
 }
 
 /// An ArcLang string literal for `text`.
@@ -38,7 +41,9 @@ pub fn string_literal(text: &str) -> String {
 }
 
 fn check_keyword(keyword: &str) -> Result<(), EditError> {
-    let is_keyword = !keyword.is_empty() && keyword.chars().all(|c| c.is_ascii_lowercase() || c == '_');
+    // A port is declared with its direction: `port out "Name"`.
+    let is_port = matches!(keyword, "port in" | "port out" | "port inout");
+    let is_keyword = is_port || (!keyword.is_empty() && keyword.chars().all(|c| c.is_ascii_lowercase() || c == '_'));
     if is_keyword {
         Ok(())
     } else {
@@ -47,7 +52,37 @@ fn check_keyword(keyword: &str) -> Result<(), EditError> {
 }
 
 impl Document {
-    fn find_layer(&self, keyword: &str, name: Option<&str>) -> Result<Block, EditError> {
+    /// A declaration without a block: `keyword Name` alone on its line,
+    /// as a function allocated by name is written. The lexeme indexes of
+    /// its first and last token.
+    fn find_bare_declaration(&self, element: &str) -> Option<(usize, usize)> {
+        // `layer::Name` looks inside that layer only.
+        let (scope, element) = match element.split_once("::") {
+            Some((layer, name)) => (self.find_layer(layer, None).ok(), name),
+            None => (None, element),
+        };
+        let lexemes = &self.lexemes;
+        (0..lexemes.len().saturating_sub(1)).find_map(|index| {
+            let keyword = token(&lexemes[index])?.keyword_text()?;
+            if !matches!(keyword, "function" | "activity" | "operational_activity" | "deploys") {
+                return None;
+            }
+            let name = match token(&lexemes[index + 1])? {
+                Token::StringLiteral(text) => text.as_str(),
+                Token::Identifier(text) => text.as_str(),
+                _ => return None,
+            };
+            if name != element {
+                return None;
+            }
+            let own_line = lexemes[index].newlines_before > 0 || index == 0;
+            let ends_line = lexemes.get(index + 2).is_none_or(|next| next.newlines_before > 0 || matches!(token(next), Some(Token::RightBrace)));
+            let in_scope = scope.as_ref().is_none_or(|layer| index > layer.open && index < layer.close);
+            (own_line && ends_line && in_scope).then_some((index, index + 1))
+        })
+    }
+
+    pub(super) fn find_layer(&self, keyword: &str, name: Option<&str>) -> Result<Block, EditError> {
         let described = match name {
             Some(name) => format!("{keyword} \"{name}\""),
             None => keyword.to_string(),
@@ -137,6 +172,15 @@ fn changed<'v>(before: &'v Value, after: &'v Value, path: String, found: &mut Ve
 }
 
 /// Whether `longer` is `shorter` with exactly one item inserted.
+/// How many values a syntax tree holds, wherever they stand.
+fn count_leaves(value: &Value) -> usize {
+    match value {
+        Value::Array(items) => items.iter().map(count_leaves).sum(),
+        Value::Object(map) => map.values().map(count_leaves).sum(),
+        _ => 1,
+    }
+}
+
 fn one_more(shorter: &[Value], longer: &[Value]) -> bool {
     longer.len() == shorter.len() + 1
         && (0..longer.len()).any(|skipped| {
@@ -207,14 +251,298 @@ pub fn add_element(
         false => format!("{header} {{\n{}\n}}", lines.join("\n")),
     };
 
+    add_declaration(source, container, &declaration)
+}
+
+/// Add `declaration`, written as ArcLang source (one declaration, possibly
+/// several lines), as the last declaration of `container`, or at the end
+/// of the file. The text must lex without a comment, and the edited model
+/// must differ from the original by exactly that one declaration.
+pub fn add_declaration(source: &str, container: Container, declaration: &str) -> Result<String, EditError> {
+    let declaration = declaration.trim();
+    if declaration.is_empty() {
+        return Err(EditError::Invalid("a declaration is not empty".to_string()));
+    }
+    let lexemes = Lexer::new(declaration).tokenize_lossless().map_err(|e| EditError::Invalid(format!("`{declaration}` does not lex: {e}")))?;
+    if lexemes.iter().any(|lexeme| token(lexeme).is_none()) {
+        return Err(EditError::Invalid("a declaration added this way carries no comment".to_string()));
+    }
     let document = Document::read(source)?;
-    let block = match container {
-        Container::Element(element) => document.find_element(element)?,
-        Container::Layer { keyword, name } => document.find_layer(keyword, name)?,
+    let edited = match container {
+        Container::Element(element) => match document.find_element(element) {
+            Ok(block) => document.insert_declaration(&block, declaration),
+            // A bare declaration (`function "X"`) opens a block to hold what is added.
+            Err(EditError::NotFound(_)) => {
+                let (_, name_index) = document.find_bare_declaration(element).ok_or_else(|| EditError::NotFound(element.to_string()))?;
+                let indentation = document.indentation_of(name_index);
+                let body: String = declaration.lines().map(|line| format!("{indentation}{INDENT}{line}\n")).collect();
+                let at = document.end_of(name_index);
+                document.splice(at, at, &format!(" {{\n{body}{indentation}}}"))
+            }
+            Err(error) => return Err(error),
+        },
+        Container::Layer { keyword, name } => document.insert_declaration(&document.find_layer(keyword, name)?, declaration),
+        Container::Document => {
+            let mut text = source.trim_end().to_string();
+            if !text.is_empty() {
+                text.push_str("\n\n");
+            }
+            text.push_str(declaration);
+            text.push('\n');
+            text
+        }
     };
-    let edited = document.insert_declaration(&block, &declaration);
     verify_one_declaration(source, &edited, true)?;
     Ok(edited)
+}
+
+/// Every reference to `name` rewritten as a reference to `id`: a string
+/// equal to the name, or starting with `name.` (a port of it), and a bare
+/// identifier equal to the name where a reference stands (an arrow end, a
+/// list item). The declaration of the element itself, and the `name:` it
+/// writes, are left alone: `rename_element` changes those. Returns the
+/// text and how many references moved.
+pub fn rename_references(source: &str, name: &str, id: &str, element: &str) -> Result<(String, usize), EditError> {
+    let document = Document::read(source)?;
+    let own = document.find_element(element).ok().map(|block| (document.header_start(&block), block.open, block))
+        .or_else(|| document.find_bare_declaration(element).map(|(start, end)| (start, end + 1, Block { open: end, close: end })));
+    let own_name_value = own.as_ref().and_then(|(_, _, block)| document.find_attribute(block, "name").map(|a| a.value_start));
+    let mut edits: Vec<(usize, usize, String)> = Vec::new();
+    let lexemes = &document.lexemes;
+    let qualified = format!("{name}.");
+    for (index, lexeme) in lexemes.iter().enumerate() {
+        if let Some((start, open, _)) = &own {
+            if index >= *start && index < *open {
+                continue;
+            }
+        }
+        if Some(index) == own_name_value {
+            continue;
+        }
+        let replacement = match token(lexeme) {
+            Some(Token::StringLiteral(text)) if text == name => Some(string_literal(id)),
+            Some(Token::StringLiteral(text)) if text.starts_with(&qualified) => Some(string_literal(&format!("{id}.{}", &text[qualified.len()..]))),
+            Some(Token::Identifier(text)) if text == name => {
+                let key = lexemes.get(index + 1).is_some_and(|next| matches!(token(next), Some(Token::Colon)));
+                let declared = index > 0 && token(&lexemes[index - 1]).is_some_and(|t| t.keyword_text().is_some()) && lexemes.get(index + 1).is_some_and(|next| matches!(token(next), Some(Token::LeftBrace)) || next.newlines_before > 0);
+                if key || declared { None } else { Some(string_literal(id)) }
+            }
+            _ => None,
+        };
+        if let Some(replacement) = replacement {
+            edits.push((lexeme.offset, document.end_of(index), replacement));
+        }
+    }
+    let count = edits.len();
+    let mut text = source.to_string();
+    for (start, end, replacement) in edits.into_iter().rev() {
+        let (before, rest) = text.split_at(char_offset(&text, start));
+        let after = &rest[char_offset(rest, end - start)..];
+        text = format!("{before}{replacement}{after}");
+    }
+    Ok((text, count))
+}
+
+/// Byte offset of the `index`th character.
+fn char_offset(text: &str, index: usize) -> usize {
+    text.char_indices().nth(index).map(|(offset, _)| offset).unwrap_or(text.len())
+}
+
+/// Move the declaration of `element`, with everything declared inside it,
+/// into `container`, as its last declaration: a function reallocated to
+/// another component, a behaviour component deployed on another node, a
+/// component nested elsewhere. The text of the declaration is kept as
+/// written. The caller checks on the compiled model that every element
+/// kept its identity.
+pub fn move_element(source: &str, element: &str, container: Container) -> Result<String, EditError> {
+    let document = Document::read(source)?;
+    // A declaration with no block (`function "Name"` on its line) is
+    // moved as that line.
+    let (start, end, block_open) = match document.find_element(element) {
+        Ok(block) => (document.header_start(&block), block.close, block.open),
+        Err(EditError::NotFound(_)) => {
+            let (start, end) = document.find_bare_declaration(element).ok_or_else(|| EditError::NotFound(element.to_string()))?;
+            (start, end, start)
+        }
+        Err(other) => return Err(other),
+    };
+    let block = Block { open: block_open, close: end };
+    let text: String = document.chars[document.lexemes[start].offset..document.end_of(end)].iter().collect();
+    let declaration = text.trim().to_string();
+    let target = match container {
+        Container::Element(other) => document.find_element(other)?,
+        Container::Layer { keyword, name } => document.find_layer(keyword, name)?,
+        Container::Document => return Err(EditError::Invalid("an element moves into an element or a layer".to_string())),
+    };
+    if target.open > block.open && target.close < block.close {
+        return Err(EditError::Unsafe(format!("'{element}' cannot be moved inside something it holds")));
+    }
+    if target.open == block.open {
+        return Err(EditError::Unsafe(format!("'{element}' cannot be moved into itself")));
+    }
+    // Remove first, then find the container again in the shorter text.
+    let removed = document.remove_range(start, end);
+    let shorter = Document::read(&removed)?;
+    let target = match container {
+        Container::Element(other) => shorter.find_element(other)?,
+        Container::Layer { keyword, name } => shorter.find_layer(keyword, name)?,
+        Container::Document => unreachable!("refused above"),
+    };
+    let edited = shorter.insert_declaration(&target, &declaration);
+    // The declarations are the same, one of them elsewhere.
+    let before = syntax_tree(source, "the model")?;
+    let after = syntax_tree(&edited, "the edited model")?;
+    if count_leaves(&before) != count_leaves(&after) {
+        return Err(EditError::Unsafe(format!("moving '{element}' would not keep the model's declarations")));
+    }
+    Ok(edited)
+}
+
+/// Wrap the messages of `scenario` from message `first` to message `last`
+/// (their labels, in order) in a combined fragment: `fragment <kind> "label"
+/// { ... }`. With `operands`, the frame is cut into operands at the messages
+/// named, each with the guard given; the first operand opens at `first`
+/// when no cut names it. The two ends and every cut must be messages of
+/// the same block (the scenario, or one fragment or operand of it), so that
+/// a fragment already there is kept whole. The messages keep their order,
+/// their text and their count; the compiler reads the result.
+pub fn wrap_fragment(
+    source: &str,
+    scenario: &str,
+    kind: &str,
+    label: &str,
+    first: &str,
+    last: &str,
+    operands: &[(String, String)],
+) -> Result<String, EditError> {
+    if !matches!(kind, "alt" | "opt" | "loop" | "par" | "seq" | "critical") {
+        return Err(EditError::Invalid(format!("'{kind}' is not a fragment kind: use alt, opt, loop, par, seq or critical")));
+    }
+    let document = Document::read(source)?;
+    let block = document.find_element(scenario)?;
+    let lexemes = &document.lexemes;
+    let messages = document.message_labels(&block);
+    let at = |name: &str| {
+        messages
+            .iter()
+            .find(|(_, label)| label == name)
+            .map(|(i, _)| *i)
+            .ok_or_else(|| EditError::NotFound(format!("message '{name}' in scenario '{scenario}'")))
+    };
+    let start = at(first)?;
+    let end = at(last)?;
+    if end < start {
+        return Err(EditError::Invalid(format!("message '{last}' comes before '{first}'")));
+    }
+    let home = enclosing_open(lexemes, start);
+    if enclosing_open(lexemes, end) != home {
+        return Err(EditError::Invalid(format!(
+            "messages '{first}' and '{last}' are not in the same block; a fragment wraps messages of one block, so a fragment already there stays whole"
+        )));
+    }
+    let mut cuts: Vec<(usize, &str)> = Vec::new();
+    for (message, guard) in operands {
+        let index = at(message)?;
+        if index < start || index > end {
+            return Err(EditError::Invalid(format!("message '{message}' is outside '{first}' … '{last}'")));
+        }
+        if enclosing_open(lexemes, index) != home {
+            return Err(EditError::Invalid(format!("message '{message}' is inside a fragment; an operand starts at a message of the block wrapped")));
+        }
+        cuts.push((index, guard.as_str()));
+    }
+    cuts.sort_by_key(|(index, _)| *index);
+    cuts.dedup_by_key(|(index, _)| *index);
+    if !cuts.is_empty() && cuts[0].0 != start {
+        cuts.insert(0, (start, ""));
+    }
+
+    let indentation = document.indentation_of(start);
+    let inner = format!("{indentation}{INDENT}");
+    let text_start = lexemes[start].offset;
+    let text_end = document.end_of(line_end(lexemes, end, block.close));
+    let piece = |from: usize, to: usize| -> String { document.chars[from..to].iter().collect() };
+    let reindent = |text: &str, prefix: &str| -> String {
+        text.lines()
+            .filter(|line| !line.trim().is_empty())
+            .map(|line| format!("{prefix}{}\n", line.strip_prefix(indentation.as_str()).unwrap_or(line.trim_start())))
+            .collect()
+    };
+    let tag = if label.is_empty() { String::new() } else { format!(" {}", string_literal(label)) };
+    let mut out = format!("fragment {kind}{tag} {{\n");
+    if cuts.is_empty() {
+        out.push_str(&reindent(&piece(text_start, text_end), &inner));
+    } else {
+        for (n, (index, guard)) in cuts.iter().enumerate() {
+            let from = lexemes[*index].offset;
+            let to = cuts.get(n + 1).map_or(text_end, |(next, _)| lexemes[*next].offset);
+            let guard_tag = if guard.is_empty() { String::new() } else { format!(" {}", string_literal(guard)) };
+            out.push_str(&format!("{inner}operand{guard_tag} {{\n"));
+            out.push_str(&reindent(&piece(from, to), &format!("{inner}{INDENT}")));
+            out.push_str(&format!("{inner}}}\n"));
+        }
+    }
+    out.push_str(&format!("{indentation}}}"));
+    let edited = document.splice(text_start, text_end, &out);
+
+    // The same messages, in the same order, under the same scenario.
+    let after = Document::read(&edited)?;
+    let kept: Vec<String> = after.message_labels(&after.find_element(scenario)?).into_iter().map(|(_, label)| label).collect();
+    let before: Vec<String> = messages.into_iter().map(|(_, label)| label).collect();
+    if kept != before {
+        return Err(EditError::Unsafe("wrapping the messages would change them".to_string()));
+    }
+    syntax_tree(&edited, "the edited model")?;
+    Ok(edited)
+}
+
+/// The index of the `{` that directly encloses lexeme `index`.
+fn enclosing_open(lexemes: &[Lexeme], index: usize) -> usize {
+    let mut depth = 0usize;
+    for j in (0..index).rev() {
+        match token(&lexemes[j]) {
+            Some(Token::RightBrace) => depth += 1,
+            Some(Token::LeftBrace) if depth == 0 => return j,
+            Some(Token::LeftBrace) => depth -= 1,
+            _ => {}
+        }
+    }
+    0
+}
+
+/// The last lexeme of the line that starts at `index`, taking the block
+/// opened on that line with it; never past `limit`.
+fn line_end(lexemes: &[Lexeme], index: usize, limit: usize) -> usize {
+    let mut j = index + 1;
+    while j < limit && lexemes[j].newlines_before == 0 {
+        if matches!(token(&lexemes[j]), Some(Token::LeftBrace)) {
+            if let Some(close) = matching_close(lexemes, j) {
+                return close - 1;
+            }
+        }
+        j += 1;
+    }
+    j - 1
+}
+
+impl Document {
+    /// The messages written directly or in fragments of `block`: the index
+    /// of each `message` keyword with the label that follows the arrow.
+    fn message_labels(&self, block: &Block) -> Vec<(usize, String)> {
+        let lexemes = &self.lexemes;
+        (block.open + 1..block.close)
+            .filter(|&i| matches!(token(&lexemes[i]), Some(Token::Message)))
+            .filter_map(|i| {
+                let label = (i + 4..block.close)
+                    .take_while(|&j| lexemes[j].newlines_before == 0)
+                    .find_map(|j| match token(&lexemes[j]) {
+                        Some(Token::StringLiteral(text)) => Some(text.clone()),
+                        _ => None,
+                    });
+                label.map(|label| (i, label))
+            })
+            .collect()
+    }
 }
 
 /// Remove the declaration of `element`, with everything declared inside it.
@@ -236,8 +564,17 @@ pub fn rename_element(source: &str, element: &str, new_name: &str) -> Result<Str
         return Err(EditError::Invalid("a name is one non-empty line".to_string()));
     }
     let document = Document::read(source)?;
-    let block = document.find_element(element)?;
-    let start = document.header_start(&block);
+    // A declaration with no block (`function "Name"` on its line): its name
+    // is the token after the keyword.
+    let (start, open) = match document.find_element(element) {
+        Ok(block) => (document.header_start(&block), block.open),
+        Err(EditError::NotFound(_)) => {
+            let (keyword, name) = document.find_bare_declaration(element).ok_or_else(|| EditError::NotFound(element.to_string()))?;
+            (keyword, name + 1)
+        }
+        Err(other) => return Err(other),
+    };
+    let block = Block { open, close: open };
     let is_string = |index: &usize| matches!(token(&document.lexemes[*index]), Some(Token::StringLiteral(_)));
     // The name is the first string of the declaration line, else its last word.
     let name = (start..block.open).find(is_string).or_else(|| block.open.checked_sub(1).filter(|last| *last > start));
@@ -395,5 +732,12 @@ trace "LC-001" implements "LC-002" {}
             Err(EditError::NotFound(_))
         ));
         assert!(matches!(remove_element(MODEL, "LC-404"), Err(EditError::NotFound(_))));
+    }
+
+    #[test]
+    fn a_bare_function_opens_a_block_for_what_is_added() {
+        let model = "model T { name: \"t\" }\nlogical_architecture LA {\n    component Fusion {\n        id: \"LC-F\"\n        function \"Fuse data\"\n    }\n}\n";
+        let edited = add_element(model, Container::Element("Fuse data"), "port out", "objects", &[]).unwrap();
+        assert!(edited.contains("        function \"Fuse data\" {\n            port out \"objects\" {}\n        }\n"), "{edited}");
     }
 }

@@ -150,6 +150,8 @@ fn sequence_graph(diagram: &Diagram) -> Value {
             "layout": "sequence",
             "title": diagram.title,
             "chains": diagram.chains,
+            "fragments": diagram.fragments,
+            "invariants": diagram.invariants,
         },
     })
 }
@@ -288,14 +290,16 @@ fn elk_port(port: &Port, size: f64) -> Value {
             "synthesized": port.synthesized,
         },
     });
+    // Inputs on the left, outputs on the right; a port of both or of no
+    // direction goes below, so that a node whose sides are fixed (it has
+    // oriented ports) never leaves ELK a port without a side, which its
+    // size calculator refuses. On a node with free sides the hint is moot.
     let side = match port.direction {
-        PortDirection::In => Some("WEST"),
-        PortDirection::Out => Some("EAST"),
-        PortDirection::InOut | PortDirection::Undirected => None,
+        PortDirection::In => "WEST",
+        PortDirection::Out => "EAST",
+        PortDirection::InOut | PortDirection::Undirected => "SOUTH",
     };
-    if let Some(side) = side {
-        out["layoutOptions"] = json!({ "elk.port.side": side });
-    }
+    out["layoutOptions"] = json!({ "elk.port.side": side });
     out
 }
 

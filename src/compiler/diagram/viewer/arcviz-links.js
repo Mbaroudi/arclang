@@ -38,10 +38,12 @@
   function index(graphs, links) {
     const places = new Map(); // element id -> [{ graph, view, title }]
     const names = new Map(); // element id -> display name
-    const relations = new Map(); // element id -> [{ label, id }]
-    const relate = (id, label, other) => {
+    const relations = new Map(); // element id -> [{ label, id, direction }]
+    // direction: 'out' when `id` names `other` (it realizes, satisfies...),
+    // 'in' when `other` names `id`.
+    const relate = (id, label, other, direction) => {
       const list = relations.get(id) || [];
-      if (!list.some((known) => known.label === label && known.id === other)) list.push({ label, id: other });
+      if (!list.some((known) => known.label === label && known.id === other)) list.push({ label, id: other, direction });
       relations.set(id, list);
     };
 
@@ -72,14 +74,14 @@
     // A component shown on the node hosting it realizes the logical one.
     const realizing = (node) => {
       for (const realized of (node.arc && node.arc.realizes) || []) {
-        relate(node.id, outgoingLabel('realizes'), realized);
-        relate(realized, incomingLabel('realizes'), node.id);
+        relate(node.id, outgoingLabel('realizes'), realized, 'out');
+        relate(realized, incomingLabel('realizes'), node.id, 'in');
       }
       (node.children || []).forEach(realizing);
     };
     for (const link of links || []) {
-      relate(link.source, outgoingLabel(link.kind), link.target);
-      relate(link.target, incomingLabel(link.kind), link.source);
+      relate(link.source, outgoingLabel(link.kind), link.target, 'out');
+      relate(link.target, incomingLabel(link.kind), link.source, 'in');
     }
     for (const graph of graphs) (graph.children || []).forEach(realizing);
 
@@ -92,6 +94,7 @@
       relationsOf: (id) => (relations.get(id) || []).map((relation) => ({
         label: relation.label,
         id: relation.id,
+        direction: relation.direction,
         name: nameOf(relation.id),
         places: placesOf(relation.id),
       })),

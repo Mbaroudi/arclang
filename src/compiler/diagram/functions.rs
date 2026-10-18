@@ -3,7 +3,7 @@
 
 use super::builder::{identity, properties, string_list, Builder, Endpoint, NodeRef, Role};
 use super::{EdgeKind, NodeKind, PortDirection};
-use crate::compiler::ast::{self, FunctionalExchange, Model, SystemFunction};
+use crate::compiler::ast::{self, FunctionalExchange, LogicalFunction, Model, SystemFunction};
 use std::collections::{BTreeMap, HashMap, HashSet};
 
 const FUNCTION_PROPERTIES: [&str; 5] =
@@ -37,6 +37,9 @@ pub(super) struct FunctionTable<'a> {
     /// Reference key -> functions answering to it (several = ambiguous).
     by_key: HashMap<&'a str, Vec<usize>>,
     placed: HashMap<usize, Owner>,
+    /// Functions of the level itself (logical, physical), by id and name:
+    /// an exchange reaching one that is not drawn is left out in silence.
+    level: HashSet<String>,
 }
 
 impl<'a> FunctionTable<'a> {
@@ -46,6 +49,7 @@ impl<'a> FunctionTable<'a> {
             children: Vec::new(),
             by_key: HashMap::new(),
             placed: HashMap::new(),
+            level: HashSet::new(),
         };
         for sa in &model.system_analysis {
             for function in &sa.functions {
@@ -79,9 +83,20 @@ impl<'a> FunctionTable<'a> {
     /// function — drawn in the current diagram or not.
     pub fn knows(&self, reference: &str) -> bool {
         self.by_key.contains_key(reference)
+            || self.level.contains(reference)
             || reference
                 .rsplit_once('.')
-                .is_some_and(|(owner, _)| self.by_key.contains_key(owner))
+                .is_some_and(|(owner, _)| self.by_key.contains_key(owner) || self.level.contains(owner))
+    }
+
+    /// Record the functions of a level (allocated or not), so that their
+    /// exchanges are known even when a function is not drawn.
+    pub fn know_level(&mut self, functions: &[LogicalFunction]) {
+        for function in functions {
+            self.level.insert(function.id.clone());
+            self.level.insert(function.name.clone());
+            self.know_level(&function.sub_functions);
+        }
     }
 
     /// Draw the referenced function under `owner`, once per diagram.
@@ -140,6 +155,41 @@ impl<'a> FunctionTable<'a> {
             }
         }
     }
+}
+
+/// Add a function of the logical or physical level under its component, with
+/// its ports and sub-functions. Its identity is its written id, else its name
+/// qualified by `qualifier` (the component), so that `Init` in two components
+/// stays two elements.
+pub(super) fn add_level_function(
+    builder: &mut Builder,
+    parent: Option<NodeRef>,
+    function: &LogicalFunction,
+    qualifier: &str,
+) -> NodeRef {
+    let has_id = function.attributes.get("id").and_then(|v| v.as_string()).is_some();
+    let qualified = if has_id { function.id.clone() } else { format!("{qualifier}.{}", function.name) };
+    let node = builder.add_node(
+        parent,
+        &qualified,
+        &function.name,
+        NodeKind::Function,
+        properties(&function.attributes, &FUNCTION_PROPERTIES),
+    );
+    for port in &function.ports {
+        let direction = match port.direction {
+            ast::PortDirection::In => PortDirection::In,
+            ast::PortDirection::Out => PortDirection::Out,
+            ast::PortDirection::InOut => PortDirection::InOut,
+        };
+        let data_type = Some(port.data_type.clone()).filter(|t| !t.is_empty());
+        builder.add_port(node, &port_suffix(direction, &port.name), &port.name, direction, data_type, None);
+    }
+    add_flow_ports(builder, node, &function.attributes);
+    for sub in &function.sub_functions {
+        add_level_function(builder, Some(node), sub, &qualified);
+    }
+    node
 }
 
 /// Add a function and all its sub-functions (system view: every function

@@ -22,7 +22,65 @@ use std::path::Path;
 
 mod structure;
 
-pub use structure::{add_element, add_trace, remove_element, remove_trace, rename_element, string_literal, Container};
+pub use structure::{add_declaration, add_element, add_trace, move_element, remove_element, remove_trace, rename_element, rename_references, string_literal, wrap_fragment, Container};
+
+/// One declaration of the source, where it stands: what an outline or a
+/// "go to definition" needs, read from the text itself.
+#[derive(Debug, Clone, PartialEq, serde::Serialize)]
+pub struct Declaration {
+    /// The first word of the declaration line: `component`, `req`, `trace`...
+    pub keyword: String,
+    /// The name on the declaration line (its first string, else its last word).
+    pub name: Option<String>,
+    /// The `id:` written in the block, when there is one.
+    pub id: Option<String>,
+    /// The declaration line as written, up to the brace: `trace "A" satisfies "B"`.
+    pub header: String,
+    /// 1-based line and column of the declaration's first word.
+    pub line: usize,
+    pub column: usize,
+    /// 1-based line of the closing brace.
+    pub end_line: usize,
+    pub children: Vec<Declaration>,
+}
+
+/// Every declaration of the source, nested as the braces nest. Fails only
+/// when the text does not lex.
+pub fn outline(source: &str) -> Result<Vec<Declaration>, EditError> {
+    let document = Document::read(source)?;
+    let blocks = document.blocks();
+    // Blocks come in order of their `{`; a block holds the ones opened
+    // inside it. A stack of open blocks places each one under its parent.
+    let mut roots: Vec<Declaration> = Vec::new();
+    let mut stack: Vec<(Block, Declaration)> = Vec::new();
+    let flush = |stack: &mut Vec<(Block, Declaration)>, roots: &mut Vec<Declaration>, open: usize| {
+        while stack.last().is_some_and(|(block, _)| block.close < open) {
+            let (_, done) = stack.pop().expect("checked");
+            match stack.last_mut() {
+                Some((_, parent)) => parent.children.push(done),
+                None => roots.push(done),
+            }
+        }
+    };
+    for block in blocks {
+        flush(&mut stack, &mut roots, block.open);
+        let header = document.header(&block);
+        let first = header.first();
+        let declaration = Declaration {
+            keyword: first.map(|lexeme| lexeme.text.clone()).unwrap_or_default(),
+            name: document.header_name(&block),
+            id: document.written_id(&block),
+            header: header.iter().map(|lexeme| lexeme.text.as_str()).collect::<Vec<_>>().join(" "),
+            line: first.map(|lexeme| lexeme.span.line).unwrap_or(document.lexemes[block.open].span.line),
+            column: first.map(|lexeme| lexeme.span.column).unwrap_or(document.lexemes[block.open].span.column),
+            end_line: document.lexemes[block.close].span.line,
+            children: Vec::new(),
+        };
+        stack.push((block, declaration));
+    }
+    flush(&mut stack, &mut roots, usize::MAX);
+    Ok(roots)
+}
 
 const INDENT: &str = "    ";
 
@@ -355,7 +413,7 @@ impl Document {
     /// `trace "A" satisfies "B" { }` links two elements; it is not one, and
     /// the names on its line are those of its ends.
     fn is_relationship(&self, block: &Block) -> bool {
-        matches!(self.header(block).first().and_then(token), Some(Token::Trace))
+        matches!(self.header(block).first().and_then(token), Some(Token::Trace | Token::Transition | Token::Message))
     }
 
     /// The name in a block's header: its first string, else its last word.
@@ -377,16 +435,40 @@ impl Document {
         }
     }
 
+    /// The `name:` written in the block, when there is one: the display
+    /// name of an element declared by an identifier.
+    fn written_name(&self, block: &Block) -> Option<String> {
+        let attribute = self.find_attribute(block, "name")?;
+        match token(&self.lexemes[attribute.value_start])? {
+            Token::StringLiteral(text) => Some(text.clone()),
+            _ => None,
+        }
+    }
+
     /// The one block declaring `element`: by its written `id`, and when no
-    /// block carries that id, by name among the blocks that write no id.
+    /// block carries that id, by name among the blocks that write no id —
+    /// the name on the declaration line, or the `name:` written inside.
     fn find_element(&self, element: &str) -> Result<Block, EditError> {
-        let blocks = self.blocks();
+        // `layer::Name` designates the element inside that layer block only:
+        // the same name at two levels is two elements.
+        let (scope, element) = match element.split_once("::") {
+            Some((layer, name)) => (Some(self.find_layer(layer, None)?), name),
+            None => (None, element),
+        };
+        let blocks: Vec<Block> = self
+            .blocks()
+            .into_iter()
+            .filter(|block| scope.as_ref().is_none_or(|layer| block.open > layer.open && block.close < layer.close))
+            .collect();
         let ids: Vec<Option<String>> = blocks.iter().map(|block| self.written_id(block)).collect();
         let by_id: Vec<usize> = (0..blocks.len()).filter(|i| ids[*i].as_deref() == Some(element)).collect();
         let matches = if by_id.is_empty() {
             (0..blocks.len())
                 .filter(|i| ids[*i].is_none() && !self.is_relationship(&blocks[*i]))
-                .filter(|i| self.header_name(&blocks[*i]).as_deref() == Some(element))
+                .filter(|i| {
+                    self.header_name(&blocks[*i]).as_deref() == Some(element)
+                        || self.written_name(&blocks[*i]).as_deref() == Some(element)
+                })
                 .collect()
         } else {
             by_id
@@ -502,7 +584,9 @@ fn verify(original: &str, edited: &str, key: &str) -> Result<(), EditError> {
     let mut found = Vec::new();
     differences(&before, &after, "", &mut found);
 
-    let about_key = |path: &String| path.split('/').any(|segment| segment == key);
+    // A class keeps its fields in one map: an attribute of a class shows
+    // there, under `fields`, not under its own name.
+    let about_key = |path: &String| path.split('/').any(|segment| segment == key || segment == "fields");
     if let Some(stray) = found.iter().find(|path| !about_key(path)) {
         return Err(EditError::Unsafe(format!(
             "it would also change `{}`, not only '{key}'",
@@ -513,7 +597,7 @@ fn verify(original: &str, edited: &str, key: &str) -> Result<(), EditError> {
     // in the element's attribute map: one owner, two places.
     let owner = |path: &String| {
         let segments: Vec<&str> = path.split('/').take_while(|segment| *segment != key).collect();
-        segments.join("/").trim_end_matches("/attributes").to_string()
+        segments.join("/").trim_end_matches("/attributes").trim_end_matches("/fields").to_string()
     };
     let owners: std::collections::BTreeSet<String> = found.iter().map(owner).collect();
     if owners.len() > 1 {

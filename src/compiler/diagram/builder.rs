@@ -1,7 +1,8 @@
 //! Shared construction state for one diagram: a node arena, the reference
 //! index used to resolve exchange endpoints, and the diagnostics collected.
 
-use super::{Chain, Diagram, Edge, EdgeKind, Node, NodeKind, Port, PortDirection, ViewKind};
+use super::{Chain, ChainControl, ChainSequence, Diagram, Edge, EdgeKind, Node, NodeKind, Port, PortDirection, ViewKind};
+use crate::compiler::ast::{ControlNode, SequenceLink};
 use crate::compiler::ast::AttributeValue;
 use crate::compiler::identity::element_uuid;
 use std::collections::{BTreeMap, HashMap, HashSet};
@@ -399,6 +400,12 @@ impl Builder {
     /// path) against the nodes and edges built so far. Each chain is added
     /// by its home viewpoint only, so anything unresolved is reported.
     pub fn add_chain(&mut self, id: &str, name: &str, involves: &[String]) {
+        self.add_chain_graph(id, name, involves, &[], &[]);
+    }
+
+    /// A chain with its control nodes and sequence links: each link end is
+    /// a node or edge drawn here, or a control node of the chain.
+    pub fn add_chain_graph(&mut self, id: &str, name: &str, involves: &[String], controls: &[ControlNode], sequences: &[SequenceLink]) {
         let mut nodes: Vec<String> = Vec::new();
         let mut edges: Vec<String> = Vec::new();
         let mut unresolved: Vec<&str> = Vec::new();
@@ -411,6 +418,18 @@ impl Builder {
                 .find(|e| &e.label == reference || &e.id == reference)
             {
                 edges.push(edge.id.clone());
+            } else if let Some(other) = self.chains.iter().find(|c| &c.id == reference || &c.name == reference) {
+                // A chain involving a chain lights what that chain lights.
+                for node in &other.nodes {
+                    if !nodes.contains(node) {
+                        nodes.push(node.clone());
+                    }
+                }
+                for edge in &other.edges {
+                    if !edges.contains(edge) {
+                        edges.push(edge.clone());
+                    }
+                }
             } else {
                 unresolved.push(reference);
             }
@@ -443,11 +462,40 @@ impl Builder {
             }
         }
         let id = if id.is_empty() { name } else { id };
+        let controls: Vec<ChainControl> = controls
+            .iter()
+            .map(|control| ChainControl { id: control.id.clone(), name: control.name.clone(), kind: control.kind.keyword().to_string() })
+            .collect();
+        let mut drawn: Vec<ChainSequence> = Vec::new();
+        for link in sequences {
+            let end = |builder: &Self, reference: &str| -> Option<String> {
+                if let Some(control) = controls.iter().find(|c| c.name == reference || c.id == reference) {
+                    return Some(control.id.clone());
+                }
+                if let Some(node) = builder.resolve(reference) {
+                    return Some(builder.drafts[node].node.id.clone());
+                }
+                if let Some(edge) = builder.edges.iter().find(|e| e.label == reference || e.id == reference) {
+                    return Some(edge.id.clone());
+                }
+                // A referenced chain stands as a step of its own.
+                builder.chains.iter().find(|c| c.id == reference || c.name == reference).map(|c| c.id.clone())
+            };
+            match (end(self, &link.from), end(self, &link.to)) {
+                (Some(source), Some(target)) => drawn.push(ChainSequence { id: link.id.clone(), source, target, condition: link.condition.clone() }),
+                (source, target) => {
+                    let missing: Vec<&str> = [(&link.from, source), (&link.to, target)].iter().filter(|(_, found)| found.is_none()).map(|(end, _)| end.as_str()).collect();
+                    self.report(format!("chain '{name}': sequence '{}' -> '{}': {} not drawn in this view", link.from, link.to, missing.iter().map(|m| format!("'{m}'")).collect::<Vec<_>>().join(", ")));
+                }
+            }
+        }
         self.chains.push(Chain {
             id: id.to_string(),
             name: name.to_string(),
             nodes,
             edges,
+            controls,
+            sequences: drawn,
         });
     }
 
@@ -492,6 +540,8 @@ impl Builder {
             nodes: nodes.into_iter().flatten().collect(),
             edges: self.edges,
             chains: self.chains,
+            fragments: Vec::new(),
+            invariants: Vec::new(),
         };
         (diagram, self.diagnostics)
     }
@@ -501,7 +551,13 @@ impl Builder {
 fn carries_ports(kind: NodeKind) -> bool {
     matches!(
         kind,
-        NodeKind::Function | NodeKind::LogicalComponent | NodeKind::PhysicalNode
+        NodeKind::Function
+            | NodeKind::LogicalComponent
+            | NodeKind::PhysicalNode
+            | NodeKind::SystemComponent
+            | NodeKind::SystemActor
+            | NodeKind::System
+            | NodeKind::BehaviorComponent
     )
 }
 

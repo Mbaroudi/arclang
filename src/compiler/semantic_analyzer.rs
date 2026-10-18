@@ -736,11 +736,15 @@ mod tests {
         let mut model = ast::Model::new();
         
         model.logical_architecture.push(ast::LogicalArchitecture {
+            id: String::new(),
+            attributes: std::collections::HashMap::new(),
             capability_realizations: Vec::new(),
             functional_chains: Vec::new(),
             name: "Test LA".to_string(),
             components: vec![],
+            functions: vec![],
             component_exchanges: vec![],
+            functional_exchanges: vec![],
             interfaces: vec![],
             unallocated_functions: vec![],
         });

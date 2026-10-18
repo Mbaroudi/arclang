@@ -864,3 +864,20 @@ test_case "Driver warning demonstration" {
   verifies: ["REQ-AEB-005"]
   description: "Visual and audio warning precedes autonomous braking"
 }
+
+// =============================================================================
+// DIAGRAMS: named views cut from a layer, as Capella diagrams show what was
+// put on them. The whole-layer views stay available.
+// =============================================================================
+
+diagram "Braking chain" {
+    view: lab
+    description: "From sensor fusion to the brake actuator"
+    shows: [SensorFusion, ThreatAssessment, BrakeController, BrakeActuator]
+}
+
+diagram "Around the brake ECU" {
+    view: pab
+    shows: [BrakeECU]
+    context: true
+}
