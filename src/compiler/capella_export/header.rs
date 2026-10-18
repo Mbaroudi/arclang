@@ -34,6 +34,8 @@ const HEADER_KEYS: &[&str] = &["id", "name", "description", "summary", "review",
 /// `structural` (what the caller writes as Capella structure) as a property
 /// value of the element.
 pub(super) fn apply(el: El, attributes: &HashMap<String, AttributeValue>, structural: &[&str]) -> El {
+    // Viewpoint attributes are extensions of the element, not property values.
+    let (el, extensions) = super::cyber::extend(el, attributes);
     let text = |key: &str| attributes.get(key).and_then(AttributeValue::as_string);
     let mut el = el.opt("description", text("description")).opt("summary", text("summary")).opt("review", text("review"));
     if let Some(status) = text("capella_status").or_else(|| text("status")) {
@@ -53,7 +55,7 @@ pub(super) fn apply(el: El, attributes: &HashMap<String, AttributeValue>, struct
                 .with(El::new("ownedSpecification", "datavalue:OpaqueExpression", &derived(&format!("{id}:expression"))).with(El::text("bodies", body)).with(El::text("languages", "capella:linkedText"))),
         );
     }
-    let mut keys: Vec<&String> = attributes.keys().filter(|k| !HEADER_KEYS.contains(&k.as_str()) && !structural.contains(&k.as_str())).collect();
+    let mut keys: Vec<&String> = attributes.keys().filter(|k| !HEADER_KEYS.contains(&k.as_str()) && !structural.contains(&k.as_str()) && !extensions.contains(*k)).collect();
     keys.sort();
     for key in keys {
         if let Some(value) = property_value(&owner, key, &attributes[key]) {

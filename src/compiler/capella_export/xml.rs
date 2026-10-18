@@ -4,7 +4,7 @@
 /// The Capella package of a short kind prefix (`ctx` in `ctx:SystemFunction`).
 fn package(prefix: &str) -> String {
     match prefix {
-        "libraries" | "re" | "xmi" | "Requirements" | "CapellaRequirements" | "stpa" => prefix.to_string(),
+        "libraries" | "re" | "xmi" | "Requirements" | "CapellaRequirements" | "stpa" | "cybersecurity" => prefix.to_string(),
         "datatype" | "datavalue" => format!("org.polarsys.capella.core.data.information.{prefix}"),
         "deployment" => "org.polarsys.capella.core.data.pa.deployment".to_string(),
         other => format!("org.polarsys.capella.core.data.{other}"),
@@ -110,6 +110,9 @@ impl El {
     }
     pub(super) fn children(&self) -> &[El] {
         &self.children
+    }
+    pub(super) fn children_mut(&mut self) -> &mut [El] {
+        &mut self.children
     }
     /// The element of this id, at any depth.
     pub(super) fn find(&self, id: &str) -> Option<&El> {
