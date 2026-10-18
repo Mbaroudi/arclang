@@ -10,6 +10,7 @@ compiler printed. The tool definitions live with their handlers in
 import asyncio
 import logging
 import os
+import re
 from pathlib import Path
 from typing import Any, Awaitable, Callable, Dict, List, Optional
 
@@ -19,7 +20,7 @@ from mcp.types import Resource, TextContent, Tool
 
 from .compiler.wrapper import ArcLangCompiler
 from .resources.syntax_guide import get_grammar, get_syntax_rules, reference_model
-from .tools import batch, core, edit, expert, generation, integration, safety
+from .tools import batch, core, edit, expert, generation, integration, safety, transform
 from .tools.batch import BatchTools
 from .tools.common import check_arguments, mime_type
 from .tools.core import CoreTools
@@ -28,6 +29,7 @@ from .tools.expert import ExpertTools
 from .tools.generation import GenerationTools
 from .tools.integration import IntegrationTools
 from .tools.safety import SafetyTools
+from .tools.transform import TransformTools
 from .utils.config import load_config
 
 logger = logging.getLogger(__name__)
@@ -37,10 +39,26 @@ REFERENCE_MODEL_URI = "arclang://reference-model"
 METAMODEL_URI = "arclang://metamodel"
 GRAMMAR_URI = "arclang://grammar"
 SERVER_NAME = "arclang-mcp"
-# Kept in step with the compiler this server is written for.
-__version__ = "4.0.1"
+__version__ = "4.1.0"
+# The oldest `arclang --version` whose command line this server is written
+# for (`check --json`, `rules`, `transition`, `import -f sysml`). An older
+# binary accepts another language and lacks commands: every answer says so.
+MINIMUM_COMPILER_VERSION = "4.0.1"
 
 Handler = Callable[[str, Dict[str, Any]], Awaitable[str]]
+
+
+def version_tuple(printed: str) -> Optional["tuple[int, ...]"]:
+    """The numbers of `arclang 4.1.0` (or of `4.1.0`), or None when there are none."""
+    match = re.search(r"(\d+(?:\.\d+)*)\s*$", printed.strip())
+    return tuple(int(part) for part in match.group(1).split(".")) if match else None
+
+
+def is_at_least(printed: str, minimum: str) -> bool:
+    """Whether what `arclang --version` printed is `minimum` or later. Unreadable is not."""
+    found = version_tuple(printed)
+    wanted = version_tuple(minimum)
+    return found is not None and wanted is not None and found >= wanted
 
 
 class ArcLangMCPServer:
@@ -63,6 +81,7 @@ class ArcLangMCPServer:
         self.generation_tools = GenerationTools(self.compiler, self.config)
         self.safety_tools = SafetyTools(self.compiler, self.config)
         self.integration_tools = IntegrationTools(self.compiler, self.config)
+        self.transform_tools = TransformTools(self.compiler, self.workspace_root)
         self.expert_tools = ExpertTools(self.compiler, self.workspace_root)
         self.batch_tools = BatchTools(self.compiler, self.generation_tools, self.workspace_root)
         self.mbse_expert = self.expert_tools.expert
@@ -70,6 +89,7 @@ class ArcLangMCPServer:
         groups = [
             (core.TOOLS, self.core_tools.execute),
             (edit.TOOLS, self.edit_tools.execute),
+            (transform.TOOLS, self.transform_tools.execute),
             (generation.TOOLS, self.generation_tools.execute),
             (safety.TOOLS, self.safety_tools.execute),
             (integration.TOOLS, self.integration_tools.execute),
@@ -148,10 +168,10 @@ class ArcLangMCPServer:
         return f"{answer}\n\n{note}" if note else answer
 
     async def compiler_note(self) -> str:
-        """A warning when the compiler is not the version this server is written for.
+        """A warning when the compiler is older than the one this server is written for.
 
         An older `arclang` left on the PATH accepts another language and
-        lacks commands: every answer says so rather than let it pass for 4.0.
+        lacks commands: every answer says so rather than let it pass.
         """
         if self._compiler_note is None:
             run = await self.compiler.version()
@@ -160,13 +180,14 @@ class ArcLangMCPServer:
                 # A compiler that cannot run says so in every answer; the
                 # version is asked again next time rather than remembered.
                 return ""
-            if found.split()[-1:] == [__version__]:
+            if is_at_least(found, MINIMUM_COMPILER_VERSION):
                 self._compiler_note = ""
             else:
                 self._compiler_note = (
                     f"WARNING: the compiler at '{self.compiler.binary_path}' is '{found}'; "
-                    f"this server is written for arclang {__version__}. Answers may be those "
-                    "of an older language. Install the current build or set ARCLANG_BINARY."
+                    f"this server is written for arclang {MINIMUM_COMPILER_VERSION} or later. "
+                    "Answers may be those of an older language. Install the current build or "
+                    "set ARCLANG_BINARY."
                 )
         return self._compiler_note
 

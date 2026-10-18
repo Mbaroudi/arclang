@@ -56,10 +56,22 @@ async def test_set_on_an_unknown_element_fails_and_writes_nothing(server, model)
 async def test_unset_removes_the_attribute(server, model):
     answer = await server.call_tool(
         "arclang_unset_attribute",
-        {"model_path": str(model), "element": "LF-002", "key": "latency", "write": True},
+        {"model_path": str(model), "element": "PN-001", "key": "ram", "write": True},
     )
     assert "written" in answer.splitlines()[0]
-    assert "latency: 10 ms" not in model.read_text()
+    assert "ram: 512 MB" not in model.read_text()
+
+
+async def test_unset_of_an_attribute_a_constraint_reads_is_refused(server, model):
+    """The reference constraint reads LF-002.latency: without it the model does not compile."""
+    before = model.read_text()
+    answer = await server.call_tool(
+        "arclang_unset_attribute",
+        {"model_path": str(model), "element": "LF-002", "key": "latency", "write": True},
+    )
+    assert "FAILED" in answer.splitlines()[0]
+    assert "constraint 'Reaction time'" in answer
+    assert model.read_text() == before
 
 
 async def test_rename_keeps_the_identity(server, model):

@@ -64,9 +64,35 @@ jobs:
           name: ${{ matrix.asset }}
           path: ${{ matrix.asset }}.tar.gz
 
+  vscode:
+    name: Build the VS Code extension
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: editors/vscode/package-lock.json
+
+      - name: Package the .vsix
+        working-directory: editors/vscode
+        run: |
+          npm ci
+          npm run typecheck
+          npm run test:unit
+          npx @vscode/vsce package --no-dependencies -o arclang-vscode-${GITHUB_REF_NAME}.vsix
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: arclang-vscode
+          path: editors/vscode/arclang-vscode-*.vsix
+
   release:
     name: Publish release
-    needs: build
+    needs: [build, vscode]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -77,7 +103,7 @@ jobs:
           merge-multiple: true
 
       - name: Checksums
-        run: sha256sum arclang-*.tar.gz > SHA256SUMS
+        run: sha256sum arclang-*.tar.gz arclang-vscode-*.vsix > SHA256SUMS
 
       - name: Create GitHub release
         env:
@@ -86,4 +112,4 @@ jobs:
           gh release create "${GITHUB_REF_NAME}" \
             --title "ArcLang ${GITHUB_REF_NAME}" \
             --generate-notes \
-            arclang-*.tar.gz SHA256SUMS
+            arclang-*.tar.gz arclang-vscode-*.vsix SHA256SUMS

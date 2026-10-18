@@ -18,8 +18,9 @@ tools/*.py           one handler per tool: resolve paths, call the wrapper,
 compiler/wrapper.py  the only place that writes an `arclang` command line
         |  subprocess, argument list, no shell
         v
-arclang 4.0.1        check, build, gate, trace, impact, diff, export, diagram,
-                     format, set, unset, rename, review, metamodel
+arclang (4.0.1+)     check, rules, build, gate, trace, impact, diff, import,
+                     export, diagram, format, set, unset, rename, transition,
+                     review, metamodel
 ```
 
 ## Modules
@@ -29,8 +30,9 @@ arclang 4.0.1        check, build, gate, trace, impact, diff, export, diagram,
 | `server.py` | Builds the tool table from the groups, serves the resources, runs over stdio. Works with the MCP Python SDK 1.x (decorators) and 2.x (handlers passed to the constructor) |
 | `compiler/wrapper.py` | `ArcLangCompiler`: one method per subcommand, returning a `Run` (command, exit code, stdout, stderr). Parsers that read only lines the binary prints |
 | `tools/common.py` | Path resolution, the shape of an answer (`report`) |
-| `tools/core.py` | Check, build, gate, trace, impact, diff, export, metamodel, review |
+| `tools/core.py` | Check (text or JSON findings), rules, build, gate, trace, impact, diff, export, metamodel, review |
 | `tools/edit.py` | Format and the lossless edits, with a diff preview |
+| `tools/transform.py` | Import (writes only at `output_path`, then checks the result) and the Arcadia transition (plan as JSON, or the edited model as a diff until `write: true`) |
 | `tools/generation.py` | Snippets compiled before they are returned; diagrams |
 | `tools/safety.py` | Safety summary; hazards the model declares |
 | `tools/expert.py` + `mbse_expert.py` | Keyword sorting of requirements, skeleton, SVG checks |
@@ -73,8 +75,9 @@ tool's description and its behaviour are read and changed together.
 ## The program that runs
 
 The compiler is `ARCLANG_BINARY`, else `arclang` on the `PATH`. The workspace
-configuration file cannot set it. When that program is not version 4.0.1,
-every answer carries a warning.
+configuration file cannot set it. When that program is older than the
+compiler this server is written for (`MINIMUM_COMPILER_VERSION` in
+`server.py`), every answer carries a warning.
 
 ## Paths
 

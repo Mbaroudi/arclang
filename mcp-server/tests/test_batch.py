@@ -33,7 +33,7 @@ async def test_batch_reads_figures_from_the_compiler(server, model):
     results = [entry["result"] for entry in answer["results"]]
     assert results[0]["compiles"] is True and results[0]["metrics"]["requirements"] == 1
     assert results[1] == {"verdict": "PASS", "blockers": []}
-    assert results[2]["traces"] == 3 and results[2]["traceability_coverage_percent"] == 100.0
+    assert results[2]["traces"] == 4 and results[2]["traceability_coverage_percent"] == 100.0
     assert results[3]["traceability_coverage_percent"] == 100.0
     assert results[4]["hazards"] == 1
     assert results[5]["layer"] == "logical architecture"

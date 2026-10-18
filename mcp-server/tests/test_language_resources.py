@@ -1,5 +1,6 @@
 """What the server tells a client about the language must be true of the compiler."""
 
+import json
 import re
 
 from arclang_mcp.resources.syntax_guide import get_syntax_rules, reference_model
@@ -74,3 +75,80 @@ def test_the_rules_file_of_the_repository_is_the_one_the_server_serves():
 
     written = Path(__file__).resolve().parents[1] / "ARCLANG_SYNTAX_RULES.md"
     assert written.read_text() == rules_document()
+
+
+async def test_reference_model_has_no_finding_of_any_rule(server, model):
+    check = await server.compiler.check(model, as_json=True)
+    document = json.loads(check.stdout)
+    assert document["success"] is True and document["findings"] == [], check.output
+
+
+CONSTRUCTS_NAMED_IN_THE_RULES = (
+    "type ",
+    "extends ",
+    "is: ",
+    "constraint ",
+    "assert: ",
+    "state_machine ",
+    "transition ",
+    "scenario ",
+    "message ",
+    "class ",
+    "enumeration ",
+    "data_type ",
+    "exchange_item ",
+    "exchange_item: ",
+    "physical_path ",
+    "link ",
+    "deploys ",
+    "functional_exchange ",
+    "component_exchange ",
+    "port in ",
+    "port out ",
+    "test_case ",
+    "safety_analysis",
+    "mitigated_by: ",
+    "verifies: ",
+)
+
+
+def test_every_construct_the_rules_teach_is_proven_by_the_reference_model():
+    """A construct named in the rules is written in the model the tests compile and gate."""
+    model = reference_model()
+    for construct in CONSTRUCTS_NAMED_IN_THE_RULES:
+        assert construct in model, construct
+
+
+async def test_every_rule_id_named_in_the_rules_is_in_the_compilers_catalogue(server):
+    rules = get_syntax_rules().split("## A model that compiles")[0]
+    pattern = r"`((?:metamodel|constraint|trace|identity|syntax|method)\.[a-z-]+)`"
+    named = set(re.findall(pattern, rules))
+    assert named, "the rules name no rule id"
+    printed = (await server.compiler.rules(as_json=True)).stdout
+    catalogue = {entry["id"] for entry in json.loads(printed)}
+    assert named <= catalogue, named - catalogue
+
+
+async def test_the_findings_the_rules_promise_are_the_ones_the_compiler_gives(server, workspace):
+    candidate = workspace / "promised.arc"
+    candidate.write_text(
+        "model M {\n architecture logical {\n"
+        '  component "C" { id: "C1" power: 3 ms '
+        'function "F" { id: "F1" latency: 25 } }\n }\n}\n'
+    )
+    check = await server.compiler.check(candidate, as_json=True)
+    rules = {finding["rule"] for finding in json.loads(check.stdout)["findings"]}
+    assert {"metamodel.type", "metamodel.unit"} <= rules, check.output
+
+
+async def test_a_quoted_requirement_id_and_an_unquoted_quantity_compile(server, workspace):
+    candidate = workspace / "quantity.arc"
+    candidate.write_text(
+        "model M {\n architecture logical {\n"
+        '  component "C" { id: "C1" multiplicity: "1..*" '
+        'function "F" { id: "F1" latency: 25 ms } }\n }\n}\n'
+    )
+    check = await server.compiler.check(candidate, as_json=True)
+    assert check.ok
+    findings = json.loads(check.stdout)["findings"]
+    assert not [f for f in findings if f["rule"].startswith("metamodel")]

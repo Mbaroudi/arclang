@@ -8,6 +8,7 @@ import sys
 def main() -> int:
     try:
         from arclang_mcp import ArcLangMCPServer, __version__
+        from arclang_mcp.server import MINIMUM_COMPILER_VERSION, is_at_least
     except Exception as failure:  # an install check reports any import failure
         print(f"FAILED: the server does not import: {failure}")
         return 1
@@ -23,8 +24,9 @@ def main() -> int:
         return 1
     compiler = run.stdout.strip()
     print(f"compiler: {compiler}")
-    if not compiler.endswith(__version__):
-        print(f"FAILED: this server is written for arclang {__version__}, and '{compiler}'")
+    if not is_at_least(compiler, MINIMUM_COMPILER_VERSION):
+        print(f"FAILED: this server is written for arclang {MINIMUM_COMPILER_VERSION} or later,")
+        print(f"and '{compiler}'")
         print(
             f"is the one it would run ({server.compiler.binary_path}). Its tools would be refused"
         )

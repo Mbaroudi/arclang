@@ -2,7 +2,7 @@
 // The test suite compiles it and runs the production gate on it, so every
 // construct shown here is accepted by the compiler this server talks to.
 model EmergencyBraking {
-    version: "4.0.0"
+    version: "4.1.0"
 
     // Operational Analysis: who does what, before any system exists.
     operational_analysis "Emergency braking in traffic" {
@@ -35,6 +35,18 @@ model EmergencyBraking {
             port in tracked_objects { data_type: "ObjectList" }
             port out threat_level { data_type: "ThreatLevel" }
         }
+
+        function CommandBrakes {
+            id: "SF-002"
+            safety_level: "ASIL-D"
+            port in threat_level { data_type: "ThreatLevel" }
+        }
+
+        functional_exchange ThreatFlow {
+            from: "SF-001.threat_level"
+            to: "SF-002.threat_level"
+            exchange_item: "ThreatAssessed"
+        }
     }
 
     // Logical Architecture: how the system is organised.
@@ -42,29 +54,51 @@ model EmergencyBraking {
         component "ThreatAssessor" {
             id: "LC-001"
             safety_level: "ASIL-D"
-            port out threat { data_type: "ThreatLevel" }
+            port out threat { id: "LP-001" data_type: "ThreatLevel" }
             function "Assess threat" { id: "LF-001" latency: 20 ms }
         }
 
         component "BrakeController" {
             id: "LC-002"
+            is: "Periodic task"
             safety_level: "ASIL-D"
-            port in threat { data_type: "ThreatLevel" }
+            port in threat { id: "LP-002" data_type: "ThreatLevel" }
             function "Compute braking force" { id: "LF-002" latency: 10 ms }
         }
 
         component_exchange ThreatToBrake {
             from_port: "LC-001.threat"
             to_port: "LC-002.threat"
+            exchange_item: "ThreatAssessed"
         }
     }
 
     // Physical Architecture: what it runs on.
     architecture physical {
-        node "BrakeECU" {
+        node "SensorECU" {
             id: "PN-001"
+            ram: 512 MB
             deploys "LC-001"
+        }
+
+        node "BrakeECU" {
+            id: "PN-002"
+            is: "Safety ECU"
+            ram: 64 MB
             deploys "LC-002"
+        }
+
+        link "ChassisCAN" {
+            id: "PL-001"
+            from: "PN-001"
+            to: "PN-002"
+            protocol: "CAN FD"
+            bandwidth: 2 Mbps
+        }
+
+        physical_path "ThreatPath" {
+            id: "PP-001"
+            involves: ["ChassisCAN"]
         }
     }
 
@@ -88,7 +122,69 @@ model EmergencyBraking {
     }
 }
 
+// Reusable definitions: `is: "Periodic task"` gives an element these attributes.
+type "Periodic task" {
+    period: 20 ms
+}
+
+type "ECU" {
+    voltage: 12 V
+}
+
+type "Safety ECU" extends "ECU" {
+    safety_level: "ASIL-D"
+}
+
+// Data model: what the exchanges carry.
+enumeration ThreatLevel {
+    id: "EN-001"
+    values: ["None", "Warning", "Critical"]
+}
+
+data_type BrakingForce {
+    id: "DT-001"
+    base: "float"
+    unit: "N"
+}
+
+class ObjectList {
+    id: "CL-001"
+    count: "int"
+    nearest_range: "float"
+}
+
+exchange_item ThreatAssessed {
+    id: "EI-001"
+    mechanism: "EVENT"
+    elements: ["EN-001"]
+}
+
+// Modes and states (Arcadia transverse): mode = chosen, state = undergone.
+state_machine BrakingModes {
+    initial: "Standby"
+    mode Standby { description: "Armed, monitoring" }
+    mode Braking { description: "Autonomous braking active" }
+    state Failed { description: "Sensor or actuator failure" }
+    transition Standby -> Braking { trigger: "LF-001" }
+    transition Braking -> Standby { trigger: "LF-002" }
+    transition Standby -> Failed { trigger: "SF-001" guard: "sensor_fault" }
+}
+
+// Scenario: the messages between participants, in order.
+scenario EmergencyStop {
+    participants: ["LC-001", "LC-002"]
+    message "LC-001" -> "LC-002" "critical threat" { type: "async" exchange: "ThreatToBrake" }
+}
+
+// Constraint: an assertion on the model's values, checked by the gate.
+constraint "Reaction time" {
+    id: "CST-001"
+    description: "Assessment and braking computation fit a 50 ms budget"
+    assert: "LF-001".latency + "LF-002".latency <= 50 ms
+}
+
 // Traces: element, relation, element. The rationale says why.
 trace "LC-002" satisfies "REQ-BRK-001" { rationale: "Computes and commands the braking force" }
 trace "LC-001" satisfies "REQ-BRK-001" { rationale: "Detects the imminent collision" }
 trace "LF-001" realizes "SF-001" { rationale: "Logical realisation of the threat assessment" }
+trace "LF-002" realizes "SF-002" { rationale: "Logical realisation of the braking command" }

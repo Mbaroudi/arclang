@@ -2,10 +2,14 @@
 Wrapper for the ArcLang compiler binary.
 
 This module is the only place where `arclang` command lines are written.
-Every method maps 1:1 to a subcommand of the real CLI (src/cli/mod.rs,
-arclang 4.0.1) and passes only options that the CLI accepts. Nothing is
-invented on the way back: a `Run` holds what the binary printed and its
-exit code, and the parsers below only read lines the binary really prints.
+Every method maps 1:1 to a subcommand of the real CLI (src/cli/mod.rs; the
+options are those `arclang <subcommand> --help` prints) and passes only
+options that the CLI accepts. Nothing is invented on the way back: a `Run`
+holds what the binary printed and its exit code, and the parsers below only
+read lines the binary really prints.
+
+Options the CLI lists but answers "Not implemented" (`safety --fmea`,
+`safety --fta`, `safety --report`, `info --dependencies`) are not offered.
 """
 
 import asyncio
@@ -37,7 +41,22 @@ EXPORT_FORMATS: Tuple[str, ...] = (
     "proto",
 )
 
-# `arclang diagram -f <format>`: one SVG per type.
+# `arclang import -f <format>` values (ImportFormat in src/cli/mod.rs).
+# `sysml` reads a `.sysml` text of the dialect ArcLang exports, or a JSON
+# listing of Systems Modeling API records.
+IMPORT_FORMATS: Tuple[str, ...] = (
+    "capella",
+    "sysml",
+    "mermaid",
+    "plant-uml",
+    "json",
+    "yaml",
+    "xml",
+    "doors",
+    "req-if",
+)
+
+# `arclang diagram -f <format>`: one SVG per type (rendered by the Node service).
 DIAGRAM_TYPES: Tuple[str, ...] = (
     "operational",
     "functional",
@@ -51,13 +70,24 @@ DIAGRAM_TYPES: Tuple[str, ...] = (
     "functional-chain",
 )
 
+# `arclang diagram -f <format>`: one text diagram of the whole model.
+TEXT_DIAGRAM_FORMATS: Tuple[str, ...] = ("mermaid", "plant-uml")
+
 # `arclang diagram -f <format>`: the Arcadia viewpoint diagrams.
 VIEWPOINT_FORMATS: Tuple[str, ...] = ("viewpoints", "elk", "html")
 
 # `arclang diagram --view <view>`.
 VIEWS: Tuple[str, ...] = ("oab", "sab", "lab", "pab", "msm", "es")
 
+# `arclang gate --standard` and `arclang safety --standard`.
 SAFETY_STANDARDS: Tuple[str, ...] = ("iso26262", "do178c", "iec61508")
+
+# `arclang transition --step`.
+TRANSITION_STEPS: Tuple[str, ...] = ("oa-to-sa", "sa-to-la", "la-to-pa")
+
+# `arclang rules --format` and `arclang metamodel --format` (the third value,
+# `sysml-library-probe`, is an input of a repository script, not a document).
+CATALOGUE_FORMATS: Tuple[str, ...] = ("markdown", "json")
 
 # Lines of `build` and `info --metrics` that carry a count.
 METRIC_LABELS: Dict[str, str] = {
@@ -150,9 +180,16 @@ class ArcLangCompiler:
     async def version(self) -> Run:
         return await self.run(["--version"])
 
-    async def check(self, model: Path) -> Run:
-        """`arclang check --lint`: compile, then traceability and methodology advisories."""
-        return await self.run(["check", "--lint", "--", str(model)])
+    async def check(self, model: Path, as_json: bool = False) -> Run:
+        """`arclang check --lint [--json]`: compile, then traceability and methodology advisories.
+
+        With `as_json` the findings come as JSON, each named after its rule
+        (`arclang rules`), with its severity, element and the fix it suggests.
+        """
+        arguments = ["check", "--lint"]
+        if as_json:
+            arguments.append("--json")
+        return await self.run([*arguments, "--", str(model)])
 
     async def build(self, model: Path, output: Optional[Path] = None, release: bool = False) -> Run:
         """`arclang build`: compile to the model's JSON."""
@@ -175,7 +212,7 @@ class ArcLangCompiler:
         return await self.run(["info", "--metrics", "--", str(model)])
 
     async def gate(self, model: Path, standard: str = "iso26262") -> Run:
-        """`arclang gate`: exit 0 on PASS, 1 on FAIL."""
+        """`arclang gate --standard <standard>`: exit 0 on PASS, 1 on FAIL."""
         return await self.run(["gate", "--standard", standard, "--", str(model)])
 
     async def diff(self, old: Path, new: Path, as_json: bool = True) -> Run:
@@ -189,16 +226,46 @@ class ArcLangCompiler:
         """`arclang impact`: what a change to one element reaches."""
         return await self.run(["impact", "--", str(model), element])
 
-    async def safety(self, model: Path, standard: str, report: bool = False) -> Run:
-        """`arclang safety --standard <standard> [--report]`."""
-        arguments = ["safety", "--standard", standard]
-        if report:
-            arguments.append("--report")
-        return await self.run([*arguments, "--", str(model)])
+    async def safety(self, model: Path, standard: str) -> Run:
+        """`arclang safety --standard <standard>`: counts of declared safety content."""
+        return await self.run(["safety", "--standard", standard, "--", str(model)])
 
     async def export(self, model: Path, export_format: str, output: Path) -> Run:
         """`arclang export -f <format> -o <output>`."""
         return await self.run(["export", "-f", export_format, "-o", str(output), "--", str(model)])
+
+    async def import_model(self, source: Path, import_format: str, output: Path) -> Run:
+        """`arclang import -f <format> -o <output>`: writes the .arc model it read.
+
+        The compiler prints what it counted and what it left out or could
+        not resolve; those lines are the import's own account.
+        """
+        return await self.run(["import", "-f", import_format, "-o", str(output), "--", str(source)])
+
+    async def transition(
+        self,
+        model: Path,
+        step: Optional[str] = None,
+        into: Optional[str] = None,
+        plan: bool = False,
+        write: bool = False,
+    ) -> Run:
+        """`arclang transition [--plan] [--step <step>] [--into <element>] [--write]`.
+
+        With `plan` (or without a step) the compiler prints, as JSON, what
+        each step would create and changes nothing. With a step it prints
+        the edited model, or writes it back with `write`.
+        """
+        arguments = ["transition"]
+        if plan or not step:
+            arguments.append("--plan")
+        if step:
+            arguments += ["--step", step]
+        if into:
+            arguments += ["--into", into]
+        if write and step and not plan:
+            arguments.append("--write")
+        return await self.run([*arguments, "--", str(model)])
 
     async def diagram(
         self,
@@ -244,6 +311,7 @@ class ArcLangCompiler:
         send: bool = False,
         suggest: bool = False,
         threshold: Optional[float] = None,
+        suggest_threshold: Optional[float] = None,
         max_questions: Optional[int] = None,
     ) -> Run:
         """`arclang review --json`. Without `send` it is a dry run: nothing leaves the machine."""
@@ -254,6 +322,8 @@ class ArcLangCompiler:
             arguments.append("--suggest")
         if threshold is not None:
             arguments += ["--threshold", str(threshold)]
+        if suggest_threshold is not None:
+            arguments += ["--suggest-threshold", str(suggest_threshold)]
         if max_questions is not None:
             arguments += ["--max-questions", str(max_questions)]
         return await self.run([*arguments, "--", str(model)], timeout=self.review_timeout)
@@ -261,6 +331,10 @@ class ArcLangCompiler:
     async def metamodel(self, as_json: bool = False) -> Run:
         """`arclang metamodel --format markdown|json`."""
         return await self.run(["metamodel", "--format", "json" if as_json else "markdown"])
+
+    async def rules(self, as_json: bool = False) -> Run:
+        """`arclang rules --format markdown|json`: the catalogue of validation rules."""
+        return await self.run(["rules", "--format", "json" if as_json else "markdown"])
 
     @staticmethod
     def _edit(command: str, write: bool) -> List[str]:
@@ -281,6 +355,33 @@ def parse_diff(run: Run) -> Optional[Dict[str, List[Any]]]:
     if not isinstance(changes, dict) or not all(isinstance(v, list) for v in changes.values()):
         return None
     return changes
+
+
+def parse_findings(run: Run) -> Optional[Dict[str, Any]]:
+    """The document printed by `arclang check --json`, or None when it printed none.
+
+    It holds `success`, `errors` (compile errors, as text with line and
+    column), `findings` (each with `rule`, `severity`, `element`, `message`
+    and a `fix`) and, when it compiled, `metrics`.
+    """
+    try:
+        document = json.loads(run.stdout)
+    except json.JSONDecodeError:
+        return None
+    if not isinstance(document, dict) or not isinstance(document.get("findings"), list):
+        return None
+    return document
+
+
+def parse_plan(run: Run) -> Optional[List[Dict[str, Any]]]:
+    """The steps printed by `arclang transition --plan`, or None when it printed none."""
+    try:
+        steps = json.loads(run.stdout)
+    except json.JSONDecodeError:
+        return None
+    if not isinstance(steps, list) or not all(isinstance(step, dict) for step in steps):
+        return None
+    return steps
 
 
 def parse_metrics(output: str) -> Dict[str, int]:

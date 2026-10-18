@@ -2,6 +2,7 @@
 What every tool group shares: path resolution and the shape of a report.
 """
 
+import difflib
 import json
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -34,6 +35,30 @@ def report(title: str, run: Run, verdict: Optional[str] = None) -> str:
     outcome = verdict or ("succeeded" if run.ok else f"FAILED (exit {run.returncode})")
     body = run.output or "(the compiler printed nothing)"
     return f"{title}: {outcome}\n\n{body}"
+
+
+def preview(title: str, source: Path, run: Run) -> str:
+    """A change the compiler printed instead of writing, as a diff against the file.
+
+    The compiler's edits (`set`, `unset`, `rename`, `format`, `transition`)
+    print the edited model on stdout unless told to write: the answer is a
+    unified diff of the file against that text, and says it was NOT written.
+    """
+    if not run.ok:
+        return report(title, run)
+    try:
+        before = source.read_text()
+    except OSError as failure:
+        return f"{title}: cannot read {source}: {failure}"
+    if before == run.stdout:
+        return f"{title}: no change"
+    diff = difflib.unified_diff(
+        before.splitlines(keepends=True),
+        run.stdout.splitlines(keepends=True),
+        fromfile=source.name,
+        tofile=f"{source.name} (not written)",
+    )
+    return f"{title}: accepted, NOT written (pass write: true to apply)\n\n{''.join(diff)}"
 
 
 def input_schema(tool: Any) -> Dict[str, Any]:

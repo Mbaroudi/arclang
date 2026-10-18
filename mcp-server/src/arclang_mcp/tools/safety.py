@@ -2,7 +2,9 @@
 Safety tools: what the compiler reports about the safety content of a model.
 
 Neither tool certifies anything. `arclang_safety_check` returns the output
-of `arclang safety`; the verdict on a model is `arclang_gate`'s.
+of `arclang safety`; the verdict on a model is `arclang_gate`'s. The
+compiler's `--fmea`, `--fta` and `--report` options answer "Not implemented"
+in this version, so they are not offered.
 `arclang_hazard_analysis` lists the hazards the model DECLARES: it derives
 no hazard of its own.
 """
@@ -31,12 +33,7 @@ TOOLS: List[Tool] = [
                 "standard": {
                     "type": "string",
                     "enum": list(SAFETY_STANDARDS),
-                    "description": "Safety standard",
-                },
-                "generate_report": {
-                    "type": "boolean",
-                    "description": "Pass --report",
-                    "default": False,
+                    "description": "Safety standard: iso26262, do178c or iec61508",
                 },
             },
             "model_path",
@@ -77,9 +74,7 @@ class SafetyTools:
     async def _safety_check(self, args: Dict[str, Any]) -> str:
         model = resolve_path(self.workspace_root, args["model_path"])
         standard = args["standard"]
-        run = await self.compiler.safety(
-            model, standard=standard, report=args.get("generate_report", False)
-        )
+        run = await self.compiler.safety(model, standard=standard)
         verdict = "summary printed (not a compliance verdict)" if run.ok else None
         return report(f"Safety content of {model.name} ({standard})", run, verdict)
 

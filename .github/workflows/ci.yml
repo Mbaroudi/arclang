@@ -190,6 +190,73 @@ jobs:
         working-directory: mcp-server
         run: pytest
 
+  vscode-extension:
+    name: VS Code extension
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-vscode-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Build compiler
+        run: cargo build --release
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: editors/vscode/package-lock.json
+
+      - name: Install the extension's dependencies
+        working-directory: editors/vscode
+        run: npm ci
+
+      - name: Audit the runtime dependencies
+        working-directory: editors/vscode
+        run: npm audit --omit=dev --audit-level=high
+
+      - name: Type-check, bundle and unit tests
+        working-directory: editors/vscode
+        run: |
+          npm run typecheck
+          npm run build
+          npm run test:unit
+
+      # The sample model the assistant is shown must compile and pass the gate.
+      - name: The sample model compiles and passes the gate
+        run: |
+          ./target/release/arclang check editors/vscode/media/reference.arc
+          ./target/release/arclang gate editors/vscode/media/reference.arc
+
+      # In a VS Code instance: activation, commands, language model tools,
+      # the language server's diagnostics and the formatter, with the compiler
+      # built above.
+      - name: Integration tests
+        working-directory: editors/vscode
+        env:
+          ARCLANG_BINARY: ${{ github.workspace }}/target/release/arclang
+        run: xvfb-run -a npm run test:integration
+
+      - name: Package the .vsix
+        working-directory: editors/vscode
+        run: npx @vscode/vsce package --no-dependencies -o arclang-vscode.vsix
+
+      - name: Upload the .vsix
+        uses: actions/upload-artifact@v4
+        with:
+          name: arclang-vscode
+          path: editors/vscode/arclang-vscode.vsix
+
   security-audit:
     name: Dependency audit (RustSec)
     runs-on: ubuntu-latest
