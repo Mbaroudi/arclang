@@ -502,21 +502,11 @@ async fn generate_professional_diagram(
                 }
             }
         },
+        // A model that does not compile has no diagram: drawing a sample
+        // instead would show a model that is not the user's.
         Err(e) => {
-            tracing::warn!("Compilation failed: {:?}, using template diagrams", e);
-            eprintln!("❌ Compilation failed: {:?}", e);
-            
-            // Fallback to template diagrams if compilation fails
-            let diagram_file = match payload.dimension.as_str() {
-                "operational" => "/Users/malek/Arclang/mbse_diagrams/01_operational_professional.html",
-                "system" => "/Users/malek/Arclang/mbse_diagrams/05_dataflow_professional.html",
-                "logical" => "/Users/malek/Arclang/mbse_diagrams/03_logical_professional.html",
-                "physical" => "/Users/malek/Arclang/mbse_diagrams/04_physical_professional.html",
-                _ => "/Users/malek/Arclang/mbse_diagrams/03_logical_professional.html",
-            };
-            
-            std::fs::read_to_string(diagram_file)
-                .unwrap_or_else(|_| format!("<html><body><h1>Error loading diagram for {}</h1><pre>{:?}</pre></body></html>", payload.dimension, e))
+            tracing::warn!("Compilation failed: {e}");
+            return Err(AppError::CompilerError(e.to_string()));
         }
     };
     
