@@ -5,18 +5,21 @@ Core tools: each one is a subcommand of the compiler and returns what it printed
 import json
 import tempfile
 from pathlib import Path
-from typing import Any, Awaitable, Callable, Dict, List
+from typing import Any, Awaitable, Callable, Dict, List, Optional
 
 from mcp.types import Tool
 
 from ..compiler.wrapper import (
+    CATALOGUE_FORMATS,
     EXPORT_FORMATS,
     SAFETY_STANDARDS,
     ArcLangCompiler,
-    parse_blockers,
+    Run,
     parse_block,
+    parse_blockers,
     parse_coverage,
     parse_diff,
+    parse_findings,
 )
 from .common import MODEL_PATH, report, resolve_path, schema
 
@@ -26,9 +29,15 @@ INLINE_EXPORT_LIMIT = 20_000
 STANDARD = {
     "type": "string",
     "enum": list(SAFETY_STANDARDS),
-    "description": "Safety standard",
+    "description": (
+        "Safety standard: iso26262 (HARA, ASIL), do178c (DAL, failure conditions), "
+        "iec61508 (SIL)"
+    ),
     "default": "iso26262",
 }
+
+# Findings of `check` whose rule blocks the production gate (see `arclang rules`).
+GATE_BLOCKING_SEVERITY = "error"
 
 TOOLS: List[Tool] = [
     Tool(
@@ -61,11 +70,51 @@ TOOLS: List[Tool] = [
         description=(
             "Check a model without writing anything (`arclang check --lint`): compile "
             "errors, `metamodel:` and `constraint:` warnings, traceability warnings and "
-            "Arcadia methodology advisories. Run it after every edit. A requirement or "
+            "Arcadia methodology advisories. Run it after every edit. With `as_json` the "
+            "answer is the compiler's JSON (`--json`): each finding with its `rule` (see "
+            "arclang_rules), `severity` (error = gate blocker, warning, info), `element` "
+            "and the `fix` it suggests (set an attribute, add a trace). A requirement or "
             "component is listed as having no trace only when no trace reaches it in "
             "either direction; a trace on a function covers its component."
         ),
-        inputSchema=schema({"model_path": MODEL_PATH}, "model_path"),
+        inputSchema=schema(
+            {
+                "model_path": MODEL_PATH,
+                "as_json": {
+                    "type": "boolean",
+                    "description": (
+                        "Return the findings as JSON (rule, severity, element, message, fix)"
+                    ),
+                    "default": False,
+                },
+            },
+            "model_path",
+        ),
+    ),
+    Tool(
+        name="arclang_rules",
+        description=(
+            "The catalogue of validation rules (`arclang rules`): what `check` reports, "
+            "each rule with its severity, meaning and how to answer it, and the names of "
+            "the gate's own checks. Ask for one `rule` (e.g. metamodel.type) to get its "
+            "entry alone. This is the reference for the `rule` of a finding."
+        ),
+        inputSchema=schema(
+            {
+                "format": {
+                    "type": "string",
+                    "enum": list(CATALOGUE_FORMATS),
+                    "description": "markdown (a table) or json (a list of rules)",
+                    "default": "markdown",
+                },
+                "rule": {
+                    "type": "string",
+                    "description": (
+                        "Only this rule, by id (e.g. trace.requirement); the answer is then JSON"
+                    ),
+                },
+            }
+        ),
     ),
     Tool(
         name="arclang_trace_analysis",
@@ -94,11 +143,12 @@ TOOLS: List[Tool] = [
     Tool(
         name="arclang_gate",
         description=(
-            "Production-readiness gate (`arclang gate`): PASS or FAIL against what an "
-            "industrial design review requires (every requirement satisfied and verified "
-            "by a test_case, HARA and ASIL consistency, typed attributes, constraints). "
-            "Returns the verdict and each blocker with its rule. A FAIL is a result, "
-            "not a tool error."
+            "Production-readiness gate (`arclang gate --standard <standard>`): PASS or FAIL "
+            "against what an industrial design review requires (every requirement satisfied "
+            "and verified by a test_case, HARA and ASIL consistency for iso26262, DAL and "
+            "failure conditions for do178c, SIL for iec61508, typed attributes, constraints, "
+            "timing budgets, ICD completeness). Returns the verdict and each blocker with its "
+            "rule. A FAIL is a result, not a tool error."
         ),
         inputSchema=schema({"model_path": MODEL_PATH, "standard": STANDARD}, "model_path"),
     ),
@@ -142,10 +192,13 @@ TOOLS: List[Tool] = [
     Tool(
         name="arclang_export",
         description=(
-            "Export a model (`arclang export`). `sys-ml` is the SysML v2 textual notation, "
-            "`sysml-json` its abstract syntax as KerML/SysML records, `capella` the Capella "
-            "XML, `req-if` the requirements, `c-headers` and `proto` the interface "
-            "contracts. Short results are returned; longer ones are only written to the file."
+            "Export a model (`arclang export -f <format>`). `sys-ml` is the SysML v2 textual "
+            "notation, `sysml-json` its abstract syntax as the JSON records of the Systems "
+            "Modeling API, `capella` the Capella project (.capella, .aird, .afm), `req-if` "
+            "the requirements, `c-headers` and `proto` the interface contracts, `json` the "
+            "compiled model, `markdown`, `mermaid`, `plant-uml`, `html` documents. Short "
+            "results are returned; longer ones are only written to the file. To read a "
+            "SysML, Capella or ReqIF file into ArcLang use arclang_import."
         ),
         inputSchema=schema(
             {
@@ -228,6 +281,12 @@ TOOLS: List[Tool] = [
                     "type": "number",
                     "description": "Report declared traces under this plausibility (default 0.3)",
                 },
+                "suggest_threshold": {
+                    "type": "number",
+                    "description": (
+                        "With suggest: report undeclared pairs over this plausibility (default 0.8)"
+                    ),
+                },
                 "max_questions": {
                     "type": "integer",
                     "description": "Most questions asked (default 200)",
@@ -239,8 +298,46 @@ TOOLS: List[Tool] = [
 ]
 
 
+def check_verdict(run: Run) -> Optional[str]:
+    """One line on what `arclang check --lint` found, or None when it did not run through.
+
+    The counts are those of the blocks the compiler printed; a `metamodel:`
+    or `constraint:` warning is named as a blocker of the gate.
+    """
+    if not run.ok or "No compilation errors" not in run.stdout:
+        return None
+    compilation = parse_block(run.stdout, "Compilation warnings:")
+    traceability = parse_block(run.stdout, "Traceability warnings:")
+    advisories = parse_block(run.stdout, "methodology advisories:")
+    verdict = (
+        f"compiles; {len(compilation)} compilation warning(s), "
+        f"{len(traceability)} traceability warning(s), {len(advisories)} advisor(ies)"
+    )
+    if any(line.startswith(("metamodel:", "constraint:")) for line in compilation):
+        verdict += "; the metamodel/constraint warnings are blockers of the gate"
+    return verdict
+
+
+def findings_verdict(document: Dict[str, Any]) -> str:
+    """One line on the JSON of `arclang check --json`: counts by severity."""
+    if not document.get("success", False):
+        return f"does not compile; {len(document.get('errors', []))} error(s)"
+    counts: Dict[str, int] = {}
+    for finding in document.get("findings", []):
+        severity = str(finding.get("severity", "?"))
+        counts[severity] = counts.get(severity, 0) + 1
+    blockers = counts.get(GATE_BLOCKING_SEVERITY, 0)
+    others = ", ".join(
+        f"{count} {severity}"
+        for severity, count in sorted(counts.items())
+        if severity != GATE_BLOCKING_SEVERITY
+    )
+    verdict = f"compiles; {blockers} finding(s) that block the gate"
+    return f"{verdict}, {others}" if others else verdict
+
+
 class CoreTools:
-    """Compile, check, trace, gate, diff, impact, export, metamodel, review."""
+    """Compile, check, rules, trace, gate, diff, impact, export, metamodel, review."""
 
     def __init__(self, compiler: ArcLangCompiler, workspace_root: Path):
         self.compiler = compiler
@@ -248,6 +345,7 @@ class CoreTools:
         self._handlers: Dict[str, Callable[[Dict[str, Any]], Awaitable[str]]] = {
             "arclang_compile": self._compile,
             "arclang_validate": self._validate,
+            "arclang_rules": self._rules,
             "arclang_trace_analysis": self._trace_analysis,
             "arclang_info": self._info,
             "arclang_gate": self._gate,
@@ -284,19 +382,31 @@ class CoreTools:
 
     async def _validate(self, args: Dict[str, Any]) -> str:
         model = self._model(args)
-        run = await self.compiler.check(model)
-        verdict = None
-        if run.ok and "No compilation errors" in run.stdout:
-            compilation = parse_block(run.stdout, "Compilation warnings:")
-            traceability = parse_block(run.stdout, "Traceability warnings:")
-            advisories = parse_block(run.stdout, "methodology advisories:")
-            verdict = (
-                f"compiles; {len(compilation)} compilation warning(s), "
-                f"{len(traceability)} traceability warning(s), {len(advisories)} advisor(ies)"
-            )
-            if any(line.startswith(("metamodel:", "constraint:")) for line in compilation):
-                verdict += "; the metamodel/constraint warnings are blockers of the gate"
-        return report(f"Check of {model.name}", run, verdict)
+        title = f"Check of {model.name}"
+        if not args.get("as_json", False):
+            run = await self.compiler.check(model)
+            return report(title, run, check_verdict(run))
+        run = await self.compiler.check(model, as_json=True)
+        document = parse_findings(run)
+        if document is None:
+            return report(title, run)
+        # The JSON is the compiler's; only the first line is read from it.
+        verdict = findings_verdict(document)
+        return f"{title}: {verdict}\n\n{run.stdout.rstrip()}"
+
+    async def _rules(self, args: Dict[str, Any]) -> str:
+        wanted = args.get("rule")
+        if not wanted:
+            run = await self.compiler.rules(as_json=args.get("format", "markdown") == "json")
+            return run.stdout if run.ok else report("Validation rules", run)
+        run = await self.compiler.rules(as_json=True)
+        if not run.ok:
+            return report("Validation rules", run)
+        rules = {entry["id"]: entry for entry in json.loads(run.stdout) if "id" in entry}
+        found = next((rules[name] for name in rules if name.lower() == wanted.lower()), None)
+        if found is None:
+            return f"No rule '{wanted}'. Known rules: {', '.join(sorted(rules))}"
+        return json.dumps(found, indent=2)
 
     async def _trace_analysis(self, args: Dict[str, Any]) -> str:
         model = self._model(args)
@@ -315,7 +425,8 @@ class CoreTools:
 
     async def _gate(self, args: Dict[str, Any]) -> str:
         model = self._model(args)
-        run = await self.compiler.gate(model, standard=args.get("standard", "iso26262"))
+        standard = args.get("standard", "iso26262")
+        run = await self.compiler.gate(model, standard=standard)
         if run.ok and "\nPRODUCTION GATE: PASS" in run.stdout:
             verdict = "PASS"
         elif not run.ok and "\nPRODUCTION GATE: FAIL" in run.stdout:
@@ -401,6 +512,7 @@ class CoreTools:
             send=send,
             suggest=args.get("suggest", False),
             threshold=args.get("threshold"),
+            suggest_threshold=args.get("suggest_threshold"),
             max_questions=args.get("max_questions"),
         )
         verdict = None

@@ -15,10 +15,23 @@ from typing import Any, Awaitable, Callable, Dict, List, Optional
 from mcp.types import Tool
 
 from ..ai.generator import COMPONENT_BLOCKS, AIGenerator
-from ..compiler.wrapper import DIAGRAM_TYPES, VIEWPOINT_FORMATS, VIEWS, ArcLangCompiler, Run
+from ..compiler.wrapper import (
+    DIAGRAM_TYPES,
+    TEXT_DIAGRAM_FORMATS,
+    VIEWPOINT_FORMATS,
+    VIEWS,
+    ArcLangCompiler,
+    Run,
+)
 from .common import MODEL_PATH, report, resolve_path, schema
 
 VIEWPOINT_EXTENSIONS = {"viewpoints": "json", "elk": "json", "html": "html"}
+# File extension of each `arclang diagram -f` format arclang_generate_diagram offers.
+DIAGRAM_EXTENSIONS = {
+    **{name: "svg" for name in DIAGRAM_TYPES},
+    "mermaid": "mmd",
+    "plant-uml": "puml",
+}
 
 TOOLS: List[Tool] = [
     Tool(
@@ -129,21 +142,25 @@ TOOLS: List[Tool] = [
     Tool(
         name="arclang_generate_diagram",
         description=(
-            "One SVG diagram of a model (`arclang diagram -f <type>`). A type the model "
-            "has no content for (no scenario, no state machine) fails: the compiler's "
-            "message is returned. For the Arcadia viewpoints prefer arclang_viewpoint_diagrams."
+            "One diagram of a model (`arclang diagram -f <type>`): an SVG for the drawn "
+            "types (they need the Node renderer, ARCLANG_DIAGRAM_SERVICE), a text diagram "
+            "for `mermaid` (.mmd) and `plant-uml` (.puml). A type the model has no content "
+            "for (no scenario, no state machine) fails: the compiler's message is returned. "
+            "For the Arcadia viewpoints prefer arclang_viewpoint_diagrams."
         ),
         inputSchema=schema(
             {
                 "model_path": MODEL_PATH,
                 "diagram_type": {
                     "type": "string",
-                    "enum": list(DIAGRAM_TYPES),
+                    "enum": [*DIAGRAM_TYPES, *TEXT_DIAGRAM_FORMATS],
                     "description": "Type of diagram",
                 },
                 "output_path": {
                     "type": "string",
-                    "description": "Output SVG file (default: <type>.svg in the workspace)",
+                    "description": (
+                        "Output file (default: <type>.svg, .mmd or .puml in the workspace)"
+                    ),
                 },
             },
             "model_path",
@@ -333,10 +350,13 @@ class GenerationTools:
 
     async def _generate_diagram(self, args: Dict[str, Any]) -> str:
         diagram_type = args["diagram_type"]
-        if diagram_type not in DIAGRAM_TYPES:
-            return f"Unknown diagram type '{diagram_type}'. Known: {', '.join(DIAGRAM_TYPES)}"
+        extension = DIAGRAM_EXTENSIONS.get(diagram_type)
+        if extension is None:
+            return f"Unknown diagram type '{diagram_type}'. Known: {', '.join(DIAGRAM_EXTENSIONS)}"
         model = resolve_path(self.workspace_root, args["model_path"])
-        output = resolve_path(self.workspace_root, args.get("output_path") or f"{diagram_type}.svg")
+        output = resolve_path(
+            self.workspace_root, args.get("output_path") or f"{diagram_type}.{extension}"
+        )
         output.parent.mkdir(parents=True, exist_ok=True)
         run = await self.compiler.diagram(model, diagram_type, output)
         return report(f"{diagram_type} diagram of {model.name}", run)

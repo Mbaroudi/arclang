@@ -2,6 +2,7 @@
 
 import json
 import os
+import re
 
 import pytest
 
@@ -371,6 +372,10 @@ async def test_review_asked_to_send_with_nothing_to_review_claims_no_advice(
         ("arclang_gate", {"model_path": "braking.arc", "standard": "--help"}),
         ("arclang_validate", {}),
         ("arclang_validate", {"model_path": "braking.arc", "strict": True}),
+        ("arclang_validate", {"model_path": "braking.arc", "as_json": "yes"}),
+        ("arclang_transition", {"model_path": "braking.arc", "step": "oa-to-sa", "write": "yes"}),
+        ("arclang_import", {"input_path": "braking.arc", "format": "sysml", "output_path": ""}),
+        ("arclang_rules", {"format": "yaml"}),
     ],
 )
 async def test_arguments_of_the_wrong_type_are_refused_before_anything_runs(
@@ -391,3 +396,137 @@ def test_the_workspace_file_cannot_choose_the_program(workspace, binary):
     server = ArcLangMCPServer(workspace)
     assert server.compiler.binary_path == binary
     assert server.compiler.timeout == 7
+
+
+async def test_validate_json_names_the_rule_and_the_fix(server, model):
+    model.write_text(model.read_text().replace('priority: "Critical"', 'priority: "Urgent"'))
+    answer = await server.call_tool(
+        "arclang_validate", {"model_path": str(model), "as_json": True}
+    )
+    first, _, body = answer.partition("\n\n")
+    assert first == "Check of braking.arc: compiles; 1 finding(s) that block the gate"
+    document = json.loads(body)
+    (finding,) = document["findings"]
+    assert finding["rule"] == "metamodel.type" and finding["severity"] == "error"
+    assert finding["element"] == "REQ-BRK-001"
+    assert finding["fix"] == {"element": "REQ-BRK-001", "key": "priority", "kind": "set"}
+    assert document["metrics"]["requirements"] == 1
+
+
+async def test_validate_json_of_the_reference_model_has_no_finding(server, model):
+    answer = await server.call_tool(
+        "arclang_validate", {"model_path": str(model), "as_json": True}
+    )
+    first, _, body = answer.partition("\n\n")
+    assert first == "Check of braking.arc: compiles; 0 finding(s) that block the gate"
+    assert json.loads(body)["findings"] == []
+
+
+async def test_validate_json_of_a_model_that_does_not_compile(server, broken):
+    answer = await server.call_tool(
+        "arclang_validate", {"model_path": str(broken), "as_json": True}
+    )
+    assert answer.splitlines()[0] == "Check of broken.arc: does not compile; 1 error(s)"
+    assert "line 3" in answer and "compiles;" not in answer.splitlines()[0]
+
+
+async def test_rules_are_the_compilers_catalogue(server):
+    markdown = await server.call_tool("arclang_rules", {})
+    assert markdown.startswith("# ArcLang validation rules")
+    assert "`trace.requirement`" in markdown
+    listed = json.loads(await server.call_tool("arclang_rules", {"format": "json"}))
+    ids = {rule["id"] for rule in listed}
+    assert {"metamodel.type", "constraint.violated", "trace.component"} <= ids
+
+
+async def test_rules_of_one_rule(server):
+    rule = json.loads(await server.call_tool("arclang_rules", {"rule": "Metamodel.Type"}))
+    assert rule["id"] == "metamodel.type" and rule["severity"] == "error"
+    assert "fix" in rule
+    answer = await server.call_tool("arclang_rules", {"rule": "nope.rule"})
+    assert answer.startswith("No rule 'nope.rule'") and "trace.requirement" in answer
+
+
+async def test_import_formats_are_those_of_the_cli(server):
+    from arclang_mcp.compiler.wrapper import IMPORT_FORMATS
+
+    help_text = (await server.compiler.run(["import", "--help"])).stdout
+    listed = set(re.findall(r"^\s+- ([a-z-]+)", help_text, flags=re.M))
+    assert set(IMPORT_FORMATS) == listed, help_text
+
+
+async def test_transition_steps_are_those_of_the_cli(server):
+    from arclang_mcp.compiler.wrapper import TRANSITION_STEPS
+
+    help_text = (await server.compiler.run(["transition", "--help"])).stdout
+    for step in TRANSITION_STEPS:
+        assert step in help_text, step
+    assert set(re.findall(r"\b[a-z]{2}-to-[a-z]{2}\b", help_text)) == set(TRANSITION_STEPS)
+
+
+async def test_every_diagram_format_offered_is_one_of_the_cli(server):
+    from arclang_mcp.compiler.wrapper import TEXT_DIAGRAM_FORMATS, VIEWPOINT_FORMATS
+
+    help_text = (await server.compiler.run(["diagram", "--help"])).stdout
+    for diagram_format in (*DIAGRAM_TYPES, *TEXT_DIAGRAM_FORMATS, *VIEWPOINT_FORMATS):
+        assert f"- {diagram_format}" in help_text, diagram_format
+
+
+async def test_gate_standards_are_those_of_the_cli(server):
+    from arclang_mcp.compiler.wrapper import SAFETY_STANDARDS
+
+    help_text = (await server.compiler.run(["gate", "--help"])).stdout
+    assert f"[possible values: {', '.join(SAFETY_STANDARDS)}]" in help_text
+
+
+async def test_gate_against_another_standard_fails_with_its_own_rule(server, model):
+    answer = await server.call_tool(
+        "arclang_gate", {"model_path": str(model), "standard": "do178c"}
+    )
+    assert answer.splitlines()[0] == "Production gate of braking.arc: FAIL, 1 blocker(s)"
+    assert "[safety.dal]" in answer
+
+
+async def test_mermaid_diagram_is_a_text_file(server, model, workspace):
+    answer = await server.call_tool(
+        "arclang_generate_diagram",
+        {"model_path": str(model), "diagram_type": "mermaid", "output_path": "d.mmd"},
+    )
+    assert "succeeded" in answer.splitlines()[0], answer
+    text = (workspace / "d.mmd").read_text()
+    assert text.strip() and "<svg" not in text
+
+
+async def test_options_the_compiler_does_not_implement_are_not_offered(server, model):
+    with pytest.raises(ValueError, match="'generate_report' is not an argument"):
+        await server.call_tool(
+            "arclang_safety_check",
+            {"model_path": str(model), "standard": "iso26262", "generate_report": True},
+        )
+
+
+async def test_review_dry_run_with_suggestions_sends_nothing(server, model):
+    answer = await server.call_tool(
+        "arclang_review",
+        {"model_path": str(model), "suggest": True, "suggest_threshold": 0.9, "threshold": 0.5},
+    )
+    assert "dry run, nothing was sent" in answer.splitlines()[0]
+    assert "undeclared pair(s)" in answer
+
+
+async def test_a_newer_compiler_gets_no_warning(server, workspace):
+    newer = workspace / "newer-arclang"
+    newer.write_text('#!/bin/sh\necho "arclang 9.0.0"\n')
+    newer.chmod(0o755)
+    server.compiler.binary_path = str(newer)
+    assert await server.compiler_note() == ""
+
+
+def test_version_comparison_reads_the_compilers_line():
+    from arclang_mcp.server import is_at_least
+
+    assert is_at_least("arclang 4.0.1", "4.0.1")
+    assert is_at_least("arclang 4.1.0\n", "4.0.1")
+    assert not is_at_least("arclang 4.0.0", "4.0.1")
+    assert not is_at_least("arclang 1.0.0", "4.0.1")
+    assert not is_at_least("something else", "4.0.1")

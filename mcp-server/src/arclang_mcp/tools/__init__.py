@@ -9,6 +9,7 @@ from .expert import ExpertTools
 from .generation import GenerationTools
 from .integration import IntegrationTools
 from .safety import SafetyTools
+from .transform import TransformTools
 
 __all__ = [
     "BatchTools",
@@ -18,4 +19,5 @@ __all__ = [
     "GenerationTools",
     "IntegrationTools",
     "SafetyTools",
+    "TransformTools",
 ]

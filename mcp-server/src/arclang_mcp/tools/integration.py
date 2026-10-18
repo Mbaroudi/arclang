@@ -27,8 +27,8 @@ TOOLS: List[Tool] = [
     Tool(
         name="arclang_git_merge",
         description=(
-            "NOT AVAILABLE in arclang 4.0.1 (no merge subcommand): the tool answers so and "
-            "changes nothing. Use arclang_diff to compare versions by stable identity."
+            "NOT AVAILABLE: the arclang CLI has no merge subcommand, so the tool answers so "
+            "and changes nothing. Use arclang_diff to compare versions by stable identity."
         ),
         inputSchema=schema(
             {

@@ -8,14 +8,13 @@ is written unless the caller passes `write: true`; otherwise the tool
 returns the text the file would have.
 """
 
-import difflib
 from pathlib import Path
 from typing import Any, Awaitable, Callable, Dict, List
 
 from mcp.types import Tool
 
 from ..compiler.wrapper import ArcLangCompiler, Run
-from .common import MODEL_PATH, report, resolve_path, schema
+from .common import MODEL_PATH, preview, report, resolve_path, schema
 
 WRITE = {
     "type": "boolean",
@@ -135,9 +134,7 @@ class EditTools:
                 "all formatted" if run.ok else "some files are not formatted (nothing written)"
             )
             return report(f"Format check of {target.name}", run, verdict)
-        return self._preview(
-            f"Formatting of {target.name}", target, await self.compiler.format(target)
-        )
+        return preview(f"Formatting of {target.name}", target, await self.compiler.format(target))
 
     async def _set(self, args: Dict[str, Any]) -> str:
         model = resolve_path(self.workspace_root, args["model_path"])
@@ -166,23 +163,4 @@ class EditTools:
                 unchanged = run.stdout.strip().endswith("unchanged")
                 verdict = "no change, nothing written" if unchanged else f"written to {model.name}"
             return report(title, run, verdict)
-        return self._preview(title, model, run)
-
-    @staticmethod
-    def _preview(title: str, source: Path, run: Run) -> str:
-        """The change as a diff of the file against the text the compiler printed."""
-        if not run.ok:
-            return report(title, run)
-        try:
-            before = source.read_text()
-        except OSError as failure:
-            return f"{title}: cannot read {source}: {failure}"
-        if before == run.stdout:
-            return f"{title}: no change"
-        diff = difflib.unified_diff(
-            before.splitlines(keepends=True),
-            run.stdout.splitlines(keepends=True),
-            fromfile=source.name,
-            tofile=f"{source.name} (not written)",
-        )
-        return f"{title}: accepted, NOT written (pass write: true to apply)\n\n{''.join(diff)}"
+        return preview(title, model, run)
