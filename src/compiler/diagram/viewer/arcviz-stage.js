@@ -1,8 +1,11 @@
 /*
  * ArcViz stage — the frame the sheet sits in: pan, zoom, fit, full screen,
  * and the gestures on it. A click picks what is under the pointer, a
- * double-click opens it, and in arrange mode a drag moves a box instead of
- * the sheet. What those gestures mean is the viewer's business.
+ * double-click on a box opens it and on the desk zooms in (with Shift,
+ * out), the wheel pans and with Ctrl or ⌘ (a trackpad pinch) zooms about
+ * the pointer, two fingers pinch, a flung sheet glides to a stop, and in
+ * arrange mode a drag moves a box instead of the sheet. What the picking
+ * and opening gestures mean is the viewer's business.
  */
 (function (root) {
   'use strict';
@@ -10,9 +13,18 @@
   const MIN_SCALE = 0.1;
   const MAX_SCALE = 4;
   const ZOOM_STEP = 1.25;
+  const DOUBLE_CLICK_ZOOM = 2;
+  const WHEEL_ZOOM_RATE = 0.0022; // scale = exp(-deltaY * rate): smooth on a trackpad, brisk on a wheel
+  const WHEEL_LINE = 16; // pixels per line when a wheel reports lines
+  const ZOOM_ANIMATION_MS = 180;
   const PAN_STEP = 60;
   const FIT_PADDING = 24;
   const CLICK_SLOP = 4; // pixels a pointer may wander and still be a click
+  const GLIDE_FRICTION = 0.85; // of the velocity kept each frame after a fling: a flick glides about as far as it was dragged
+  const GLIDE_STOP = 0.4; // pixels per frame under which the glide ends
+  const FLING_WINDOW_MS = 90; // how recent the last movement must be to fling
+
+  const easeOut = (t) => 1 - Math.pow(1 - t, 3);
 
   /**
    * @param {object} deps
@@ -20,7 +32,7 @@
    * @param {Element}  deps.canvas     what is panned and zoomed inside it
    * @param {Function} deps.viewSize   () -> Promise<{width, height}|null> of the sheet
    * @param {Function} deps.onPick     (element under the pointer) on a click
-   * @param {Function} deps.onOpen     (element under the pointer) on a double-click
+   * @param {Function} deps.onOpen     (element under the pointer) on a double-click on a box
    * @param {Function} deps.onKey      (event) -> true when the viewer handled the key
    * @param {Function} deps.carried    (node id) -> ids that move with it, [] if it cannot move
    * @param {Function} deps.onMove     (node id, dx, dy) in sheet units, when a box is dropped
@@ -50,9 +62,33 @@
       canvas.style.transform = `translate(${at.x}px, ${at.y}px) scale(${at.scale})`;
     };
 
+    // --- motion: one animation at a time, cancelled by any new gesture ---
+    let motion = null;
+    const stopMotion = () => {
+      if (motion) cancelAnimationFrame(motion);
+      motion = null;
+    };
+    /** Glide from where the sheet is to `target` over a short moment. */
+    function animateTo(target) {
+      stopMotion();
+      const from = { ...at };
+      const started = performance.now();
+      const step = (now) => {
+        const t = Math.min(1, (now - started) / ZOOM_ANIMATION_MS);
+        const k = easeOut(t);
+        at.scale = from.scale + (target.scale - from.scale) * k;
+        at.x = from.x + (target.x - from.x) * k;
+        at.y = from.y + (target.y - from.y) * k;
+        apply();
+        motion = t < 1 ? requestAnimationFrame(step) : null;
+      };
+      motion = requestAnimationFrame(step);
+    }
+
     async function fit() {
       const size = await viewSize();
       if (!size) return;
+      stopMotion();
       const frame = stage.getBoundingClientRect();
       at.scale = Math.max(MIN_SCALE, Math.min((frame.width - FIT_PADDING) / size.width, (frame.height - FIT_PADDING) / size.height, 1.5));
       at.x = (frame.width - size.width * at.scale) / 2;
@@ -60,16 +96,26 @@
       apply();
     }
 
-    function zoomBy(factor, originX, originY) {
+    /** Where the sheet lands when scaled by `factor` about a point of the frame. */
+    function scaledBy(factor, originX, originY) {
       const frame = stage.getBoundingClientRect();
       const ox = originX === undefined ? frame.width / 2 : originX;
       const oy = originY === undefined ? frame.height / 2 : originY;
-      const next = Math.min(MAX_SCALE, Math.max(MIN_SCALE, at.scale * factor));
-      const ratio = next / at.scale;
-      at.x = ox - (ox - at.x) * ratio;
-      at.y = oy - (oy - at.y) * ratio;
-      at.scale = next;
-      apply();
+      const scale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, at.scale * factor));
+      const ratio = scale / at.scale;
+      return { scale, x: ox - (ox - at.x) * ratio, y: oy - (oy - at.y) * ratio };
+    }
+
+    /** Zoom about a point of the frame (its middle by default), at once or animated. */
+    function zoomBy(factor, originX, originY, animated) {
+      const target = scaledBy(factor, originX, originY);
+      if (animated) {
+        animateTo(target);
+      } else {
+        stopMotion();
+        Object.assign(at, target);
+        apply();
+      }
     }
 
     function panBy(dx, dy) {
@@ -78,9 +124,27 @@
       apply();
     }
 
+    /** Let the sheet glide on after a fling, slowing each frame. */
+    function glide(vx, vy) {
+      stopMotion();
+      let [dx, dy] = [vx, vy];
+      const step = () => {
+        dx *= GLIDE_FRICTION;
+        dy *= GLIDE_FRICTION;
+        if (Math.hypot(dx, dy) < GLIDE_STOP) {
+          motion = null;
+          return;
+        }
+        panBy(dx, dy);
+        motion = requestAnimationFrame(step);
+      };
+      motion = requestAnimationFrame(step);
+    }
+
     /** Bring a drawn element to the middle of the frame. */
     function centerOn(element) {
       if (!element) return;
+      stopMotion();
       const box = element.getBoundingClientRect();
       const frame = stage.getBoundingClientRect();
       panBy(frame.left + frame.width / 2 - (box.left + box.width / 2), frame.top + frame.height / 2 - (box.top + box.height / 2));
@@ -90,11 +154,36 @@
     // is the one under the pointer.
     const under = (event) => document.elementFromPoint(event.clientX, event.clientY);
     const groupsOf = (ids) => [...canvas.querySelectorAll('.av-node')].filter((group) => ids.includes(group.dataset.id));
+    const local = (event) => {
+      const frame = stage.getBoundingClientRect();
+      return { x: event.clientX - frame.left, y: event.clientY - frame.top };
+    };
+
+    // --- pointers: one drags or pans, two pinch ---------------------------
+    const pointers = new Map();
+    let pinch = null; // { distance, midX, midY } of the two pointers, in frame coordinates
+    const pinchOf = () => {
+      const [a, b] = [...pointers.values()];
+      return { distance: Math.max(1, Math.hypot(b.x - a.x, b.y - a.y)), midX: (a.x + b.x) / 2, midY: (a.y + b.y) / 2 };
+    };
 
     let drag = null;
     stage.addEventListener('pointerdown', (event) => {
-      if (event.button !== 0) return;
-      drag = { x: event.clientX, y: event.clientY, startX: event.clientX, startY: event.clientY, moved: false, box: null, from: null };
+      if (event.button !== 0 && event.button !== 1) return;
+      stopMotion();
+      pointers.set(event.pointerId, local(event));
+      stage.setPointerCapture(event.pointerId);
+      if (pointers.size === 2) {
+        // A second finger: whatever the first was doing becomes a pinch.
+        if (drag && drag.box) for (const group of drag.box.groups) group.removeAttribute('transform');
+        drag = null;
+        pinch = pinchOf();
+        stage.classList.add('is-panning');
+        return;
+      }
+      if (pointers.size > 2) return;
+      drag = { x: event.clientX, y: event.clientY, startX: event.clientX, startY: event.clientY, moved: false, box: null, from: null, vx: 0, vy: 0, lastAt: performance.now() };
+      if (event.button === 1) return; // the middle button always pans
       const hit = under(event);
       const node = hit && hit.closest ? hit.closest('.av-node') : null;
       if (arranging) {
@@ -103,9 +192,19 @@
       } else if (onDrop && node) {
         drag.from = node;
       }
-      stage.setPointerCapture(event.pointerId);
     });
     stage.addEventListener('pointermove', (event) => {
+      if (pointers.has(event.pointerId)) pointers.set(event.pointerId, local(event));
+      if (pinch && pointers.size === 2) {
+        const now = pinchOf();
+        const target = scaledBy(now.distance / pinch.distance, pinch.midX, pinch.midY);
+        Object.assign(at, target);
+        at.x += now.midX - pinch.midX;
+        at.y += now.midY - pinch.midY;
+        apply();
+        pinch = now;
+        return;
+      }
       if (!drag) return;
       const dx = event.clientX - drag.x;
       const dy = event.clientY - drag.y;
@@ -134,11 +233,19 @@
         return;
       }
       stage.classList.add('is-panning');
+      const now = performance.now();
+      const dt = Math.max(1, now - drag.lastAt);
+      // Velocity in pixels per frame (16 ms), smoothed over the last moves.
+      drag.vx = drag.vx * 0.4 + (dx / dt) * 16 * 0.6;
+      drag.vy = drag.vy * 0.4 + (dy / dt) * 16 * 0.6;
+      drag.lastAt = now;
       drag.x = event.clientX;
       drag.y = event.clientY;
       panBy(dx, dy);
     });
-    const release = () => {
+    const release = (event) => {
+      if (event) pointers.delete(event.pointerId);
+      if (pointers.size < 2) pinch = null;
       drag = null;
       stage.classList.remove('is-panning', 'is-moving', 'is-dragging');
       if (ghost.isConnected) ghost.remove();
@@ -146,26 +253,48 @@
     };
     stage.addEventListener('pointerup', (event) => {
       const done = drag;
-      release();
-      if (!done) return;
-      if (!done.moved) onPick(under(event));
-      else if (done.box) onMove(done.box.id, (event.clientX - done.startX) / at.scale, (event.clientY - done.startY) / at.scale);
-      else if (done.from) {
+      const pinched = pinch !== null;
+      release(event);
+      if (pinched || !done) return;
+      if (!done.moved) {
+        if (event.button === 0) onPick(under(event));
+      } else if (done.box) {
+        onMove(done.box.id, (event.clientX - done.startX) / at.scale, (event.clientY - done.startY) / at.scale);
+      } else if (done.from) {
         const over = under(event);
         const target = over && over.closest ? over.closest('.av-node') : null;
         onDrop(done.from.dataset.id, target && target !== done.from ? target.dataset.id : null);
+      } else if (performance.now() - done.lastAt < FLING_WINDOW_MS && Math.hypot(done.vx, done.vy) > 2) {
+        glide(done.vx, done.vy);
       }
     });
-    stage.addEventListener('pointercancel', () => {
+    stage.addEventListener('pointercancel', (event) => {
       if (drag && drag.box) for (const group of drag.box.groups) group.removeAttribute('transform');
-      release();
+      release(event);
     });
-    stage.addEventListener('dblclick', (event) => onOpen(under(event)));
-    stage.addEventListener('wheel', (event) => {
-      if (!event.ctrlKey && !event.metaKey) return; // leave page scrolling alone
+    stage.addEventListener('dblclick', (event) => {
+      if (event.button !== 0) return;
       event.preventDefault();
-      const frame = stage.getBoundingClientRect();
-      zoomBy(event.deltaY < 0 ? 1.1 : 1 / 1.1, event.clientX - frame.left, event.clientY - frame.top);
+      const hit = under(event);
+      const node = hit && hit.closest ? hit.closest('.av-node') : null;
+      const point = local(event);
+      if (event.shiftKey || event.altKey) zoomBy(1 / DOUBLE_CLICK_ZOOM, point.x, point.y, true);
+      else if (node) onOpen(hit);
+      else zoomBy(DOUBLE_CLICK_ZOOM, point.x, point.y, true);
+    });
+    stage.addEventListener('wheel', (event) => {
+      event.preventDefault();
+      stopMotion();
+      const unit = event.deltaMode === 1 ? WHEEL_LINE : event.deltaMode === 2 ? stage.clientHeight : 1;
+      if (event.ctrlKey || event.metaKey) {
+        // A pinch on a trackpad arrives as a wheel with Ctrl held.
+        const point = local(event);
+        zoomBy(Math.exp(-event.deltaY * unit * WHEEL_ZOOM_RATE), point.x, point.y, false);
+      } else {
+        // Two fingers, or the wheel (Shift turns it sideways), move the sheet.
+        const sideways = event.shiftKey && event.deltaX === 0;
+        panBy(-(sideways ? event.deltaY : event.deltaX) * unit, -(sideways ? 0 : event.deltaY) * unit);
+      }
     }, { passive: false });
     stage.addEventListener('keydown', (event) => {
       if (event.ctrlKey || event.metaKey || event.altKey) return; // browser shortcuts
@@ -174,9 +303,11 @@
         return;
       }
       const pan = { ArrowLeft: [PAN_STEP, 0], ArrowRight: [-PAN_STEP, 0], ArrowUp: [0, PAN_STEP], ArrowDown: [0, -PAN_STEP] }[event.key];
-      if (pan) panBy(pan[0], pan[1]);
-      else if (event.key === '+' || event.key === '=') zoomBy(ZOOM_STEP);
-      else if (event.key === '-') zoomBy(1 / ZOOM_STEP);
+      if (pan) {
+        stopMotion();
+        panBy(pan[0], pan[1]);
+      } else if (event.key === '+' || event.key === '=') zoomBy(ZOOM_STEP, undefined, undefined, true);
+      else if (event.key === '-') zoomBy(1 / ZOOM_STEP, undefined, undefined, true);
       else if (event.key === '0') fit();
       else return;
       event.preventDefault();
@@ -200,13 +331,14 @@
 
     return {
       fit,
-      zoomIn: () => zoomBy(ZOOM_STEP),
-      zoomOut: () => zoomBy(1 / ZOOM_STEP),
+      zoomIn: () => zoomBy(ZOOM_STEP, undefined, undefined, true),
+      zoomOut: () => zoomBy(1 / ZOOM_STEP, undefined, undefined, true),
       centerOn,
       toggleFullscreen,
       /** Where the sheet is: kept across a redraw that does not change its size much. */
       position: () => ({ ...at }),
       restore: (position) => {
+        stopMotion();
         Object.assign(at, position);
         apply();
       },

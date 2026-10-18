@@ -142,3 +142,45 @@ test('an operational process has its own style, not the fallback', async () => {
   const { svg } = renderSvg(laidOut);
   assert.match(svg, /Operational process/);
 });
+
+test('a layout elkjs cannot do with fixed port sides on containers is retried with their ports free', async () => {
+  const { layOut } = require(join(viewer, 'arcviz-render.js'));
+  const calls = [];
+  const fragile = {
+    // elkjs 0.9.3 fails on some deep graphs whose containers fix their port sides.
+    layout: async (g) => {
+      calls.push(JSON.parse(JSON.stringify(g)));
+      const fixed = (n) => (n.children || []).some((c) => (c.children?.length && c.ports?.length && c.layoutOptions['elk.portConstraints'] === 'FIXED_SIDE') || fixed(c));
+      if (fixed(g)) throw new TypeError("Cannot read properties of null (reading 'p')");
+      return new ELK().layout(g);
+    },
+  };
+  const leaf = node('F', { ports: [{ id: 'F::out', width: 8, height: 8, layoutOptions: { 'elk.port.side': 'EAST' } }], layoutOptions: { 'elk.portConstraints': 'FIXED_SIDE' } });
+  const box = node('C', { children: [leaf], ports: [{ id: 'C::p', width: 8, height: 8, layoutOptions: { 'elk.port.side': 'EAST' } }], layoutOptions: { 'elk.portConstraints': 'FIXED_SIDE' } });
+  const laidOut = await layOut(fragile, graph('lab', [box, node('B')], [edge('e', 'F::out', 'B')]));
+  assert.equal(calls.length, 2, 'one retry');
+  assert.equal(calls[1].children[0].layoutOptions['elk.portConstraints'], 'FREE', 'the container frees its ports');
+  assert.equal(calls[1].children[0].children[0].layoutOptions['elk.portConstraints'], 'FIXED_SIDE', 'a leaf keeps its sides');
+  assert.ok(laidOut.edges[0].sections, 'the retry is laid out');
+  await assert.rejects(layOut({ layout: async () => { throw new Error('other'); } }, graph('lab', [node('A')], [])), /other/);
+});
+
+test('a layout that leaves an edge unrouted is redone without edge wrapping', async () => {
+  const { layOut } = require(join(viewer, 'arcviz-render.js'));
+  const calls = [];
+  const dropping = {
+    // elkjs 0.9.3 may drop an edge when MULTI_EDGE wrapping splits the graph.
+    layout: async (g) => {
+      calls.push(JSON.parse(JSON.stringify(g)));
+      const laidOut = await new ELK().layout(g);
+      if (g.layoutOptions['elk.layered.wrapping.strategy']) delete laidOut.edges[0].sections;
+      return laidOut;
+    },
+  };
+  const wrapped = graph('lab', [node('A'), node('B')], [edge('e', 'A', 'B')]);
+  wrapped.layoutOptions['elk.layered.wrapping.strategy'] = 'MULTI_EDGE';
+  const laidOut = await layOut(dropping, wrapped);
+  assert.equal(calls.length, 2, 'one retry');
+  assert.equal(calls[1].layoutOptions['elk.layered.wrapping.strategy'], undefined, 'without wrapping');
+  assert.ok(laidOut.edges[0].sections, 'the edge is routed');
+});

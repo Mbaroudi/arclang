@@ -49,8 +49,11 @@ fn is_type(metaclass: &str) -> bool {
 }
 
 fn is_feature(metaclass: &str) -> bool {
-    metaclass.ends_with("Usage")
+    metaclass.ends_with("Usage") || CONTROL_NODES.contains(&metaclass)
 }
+
+/// The control nodes of an action: action usages of their own metaclass.
+const CONTROL_NODES: &[&str] = &["ForkNode", "JoinNode", "DecisionNode", "MergeNode"];
 
 /// Deterministic identity of each declaration: its place in the model.
 /// A declaration is known by its name, a connector also by what it
@@ -154,6 +157,25 @@ impl<'d> Builder<'d> {
             for name in names {
                 // A redefined feature is one the owner inherits, never a
                 // namesake found further out.
+                // A feature chain (`a.b`) is designated through an anonymous
+                // feature that chains its parts, as KerML does.
+                if name.contains('.') && role != Role::Redefinition {
+                    if let Some(chain) = self.scope.chain(name, declaration.owner) {
+                        let chain_id = element_uuid("sysml-feature-chain", &format!("{}|{}|{}", self.ids[index], metaclass, name));
+                        let chaining: Vec<String> = chain.iter().map(|c| self.ids[*c].clone()).collect();
+                        self.expressions.push(json!({
+                            "@id": chain_id, "@type": "Feature", "elementId": chain_id,
+                            "chainingFeature": references(&chaining), "isLibraryElement": false,
+                        }));
+                        let mut extra = Map::new();
+                        extra.insert(specific_role.into(), reference(&self.ids[index]));
+                        extra.insert("specific".into(), reference(&self.ids[index]));
+                        extra.insert(general_role.into(), reference(&chain_id));
+                        extra.insert("general".into(), reference(&chain_id));
+                        self.relationship(metaclass, name, index, Some(chain_id), extra);
+                        continue;
+                    }
+                }
                 let target = match (role, declaration.owner) {
                     (Role::Redefinition, Some(owner)) => self
                         .scope
@@ -348,6 +370,18 @@ impl<'d> Builder<'d> {
         let declaration = &self.declarations[child];
         let child_id = self.ids[child].clone();
         let mut extra = Map::new();
+        if declaration.membership == "Annotation" {
+            // Metadata of a relationship (`#Trace dependency`): the
+            // relationship is no namespace, it owns an annotation.
+            for key in ["annotatedElement", "owningAnnotatedElement"] {
+                extra.insert(key.into(), reference(&self.ids[owner]));
+            }
+            for key in ["annotatingElement", "ownedAnnotatingElement"] {
+                extra.insert(key.into(), reference(&child_id));
+            }
+            extra.insert("ownedRelatedElement".into(), json!([reference(&child_id)]));
+            return self.relationship("Annotation", &child_id, owner, Some(child_id.clone()), extra);
+        }
         extra.insert("membershipOwningNamespace".into(), reference(&self.ids[owner]));
         extra.insert("memberElement".into(), reference(&child_id));
         extra.insert("ownedMemberElement".into(), reference(&child_id));
@@ -402,10 +436,17 @@ pub fn build(declarations: &[Declaration]) -> Records {
     let mut children: Vec<Vec<usize>> = vec![Vec::new(); declarations.len()];
     let mut memberships: Vec<Option<String>> = vec![None; declarations.len()];
     let mut owned_memberships: Vec<Vec<String>> = vec![Vec::new(); declarations.len()];
+    let mut annotations: Vec<Vec<String>> = vec![Vec::new(); declarations.len()];
+    let mut annotated_by: Vec<Option<String>> = vec![None; declarations.len()];
     for (index, declaration) in declarations.iter().enumerate() {
         if let Some(owner) = declaration.owner {
-            children[owner].push(index);
             let membership = builder.membership(owner, index);
+            if declaration.membership == "Annotation" {
+                annotations[owner].push(membership.clone());
+                annotated_by[index] = Some(membership);
+                continue;
+            }
+            children[owner].push(index);
             owned_memberships[owner].push(membership.clone());
             memberships[index] = Some(membership);
         }
@@ -441,6 +482,13 @@ pub fn build(declarations: &[Declaration]) -> Records {
         let membership = memberships[index].as_deref().map(reference).unwrap_or(Value::Null);
         object.insert("owningMembership".into(), membership.clone());
         object.insert("owningRelationship".into(), membership);
+        if let Some(annotation) = &annotated_by[index] {
+            let annotated = declaration.owner.map(|o| reference(&builder.ids[o])).unwrap_or(Value::Null);
+            object.insert("owningNamespace".into(), Value::Null);
+            object.insert("owningRelationship".into(), reference(annotation));
+            object.insert("annotatedElement".into(), json!([annotated]));
+        }
+        object.insert("ownedAnnotation".into(), references(&annotations[index]));
         object.insert("ownedRelationship".into(), references(&builder.owned_relationships[index]));
         object.insert("ownedMembership".into(), references(&owned_memberships[index]));
         object.insert("ownedMember".into(), references(&child_ids));
@@ -470,7 +518,27 @@ pub fn build(declarations: &[Declaration]) -> Records {
             object.insert("arclang:expression".into(), json!(expression));
         }
         if let Some((source_path, target_path)) = &declaration.ends {
-            let ends = [connector_end(&builder, declaration, source_path), connector_end(&builder, declaration, target_path)];
+            let mut ends = [connector_end(&builder, declaration, source_path), connector_end(&builder, declaration, target_path)];
+            // A flow relates the features that own its output and input: when
+            // that owner is itself reached through a chain (`a.b.out`), the
+            // chain `a.b`, an anonymous feature as KerML has it.
+            if declaration.metaclass == "FlowUsage" {
+                for end in ends.iter_mut() {
+                    let Some((owner_path, _)) = end.path.rsplit_once('.') else { continue };
+                    if !owner_path.contains('.') {
+                        continue;
+                    }
+                    if let Some(chain) = builder.scope.chain(owner_path, declaration.owner) {
+                        let chain_id = element_uuid("sysml-feature-chain", &format!("{}|end|{}", builder.ids[index], end.path));
+                        let chaining: Vec<String> = chain.iter().map(|c| builder.ids[*c].clone()).collect();
+                        builder.expressions.push(json!({
+                            "@id": chain_id, "@type": "Feature", "elementId": chain_id,
+                            "chainingFeature": references(&chaining), "isLibraryElement": false,
+                        }));
+                        end.related = vec![chain_id];
+                    }
+                }
+            }
             let related: Vec<String> = ends.iter().flat_map(|end| end.related.clone()).collect();
             let (source_role, target_role) = match declaration.metaclass {
                 "Dependency" => ("client", "supplier"),

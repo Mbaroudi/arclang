@@ -217,6 +217,7 @@ impl Parser {
         self.expect(Token::LeftBrace)?;
 
         let mut model = Model::new();
+        model.id = model_name.clone();
         model.attributes.insert("name".to_string(), AttributeValue::String(model_name));
 
         while !self.check(&Token::RightBrace) && !self.is_at_end() {

@@ -5,6 +5,10 @@ pub use super::quantity::{Quantity, QuantityError};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Model {
+    /// The header identifier: `model <id> { ... }`. The model's `name:`
+    /// (else the header) is `attributes["name"]`.
+    #[serde(default)]
+    pub id: String,
     /// Model-level metadata (name, version, author, ...) from the model header
     /// and its `metadata` block.
     #[serde(default)]
@@ -70,6 +74,7 @@ pub struct DiagramDecl {
 impl Model {
     pub fn new() -> Self {
         Self {
+            id: String::new(),
             attributes: HashMap::new(),
             imports: Vec::new(),
             operational_analysis: Vec::new(),

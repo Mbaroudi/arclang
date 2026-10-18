@@ -121,6 +121,7 @@ impl CapellaImporter {
         };
         
         Ok(Model {
+            id: String::new(),
             diagrams: Vec::new(),
             classes: Vec::new(),
             associations: Vec::new(),

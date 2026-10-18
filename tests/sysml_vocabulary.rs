@@ -51,21 +51,37 @@ fn expression(by: &HashMap<&str, &Value>, reference: &Value) -> String {
 fn canonical(records: &[Value]) -> Vec<String> {
     let by: HashMap<&str, &Value> = records.iter().map(|r| (r["@id"].as_str().unwrap(), r)).collect();
     let get = |reference: &Value| by[reference["@id"].as_str().unwrap()];
+    // As tools/sysml_abstract_syntax_check.py: a feature chain is spelled by
+    // the names of its features, a path written with short names by the
+    // declared names they stand for.
+    let declared_name: HashMap<&str, &str> =
+        records.iter().filter_map(|r| Some((r["declaredShortName"].as_str()?, r["declaredName"].as_str().unwrap_or("?")))).collect();
     let qualified = |reference: &Value| {
         let element = get(reference);
+        if let Some(chain) = element["chainingFeature"].as_array().filter(|c| !c.is_empty()) {
+            return chain.iter().map(|c| get(c)["declaredName"].as_str().unwrap_or("?").to_string()).collect::<Vec<_>>().join(".");
+        }
         element["qualifiedName"].as_str().map(str::to_string).unwrap_or(format!("<{}>", element["@type"].as_str().unwrap()))
     };
     let end = |element: &Value, role: &str| {
         let related: Vec<String> = element[role].as_array().map(|r| r.iter().map(&qualified).collect()).unwrap_or_default();
-        if related.is_empty() {
-            element[format!("arclang:{role}Path")].as_str().unwrap_or_default().to_string()
-        } else {
-            related.join(",")
+        if !related.is_empty() {
+            return related.join(",");
         }
+        let path = element[format!("arclang:{role}Path")].as_str().unwrap_or_default();
+        if path.is_empty() {
+            return String::new();
+        }
+        let mut segments: Vec<&str> = path.split('.').collect();
+        if segments.len() > 1 {
+            segments[0] = segments[0].rsplit("::").next().unwrap_or(segments[0]);
+        }
+        segments.iter().map(|s| declared_name.get(s).copied().unwrap_or(s)).collect::<Vec<_>>().join(".")
     };
     let line = |element: &Value, is_root: bool| {
         let metaclass = element["@type"].as_str().unwrap();
-        let membership = if is_root { "-" } else { get(&element["owningMembership"])["@type"].as_str().unwrap() };
+        // An annotation is no membership: a relationship's metadata show `-`.
+        let membership = if is_root || element["owningMembership"].is_null() { "-" } else { get(&element["owningMembership"])["@type"].as_str().unwrap() };
         let mut parts = vec![
             metaclass.to_string(),
             format!("name={}", element["declaredName"].as_str().unwrap_or("-")),
@@ -144,7 +160,10 @@ fn canonical(records: &[Value]) -> Vec<String> {
             return;
         }
         lines.push(format!("{}{}", "  ".repeat(depth), line(element, depth == 0)));
-        let members: Vec<&'a Value> = element["ownedMember"].as_array().unwrap().iter().map(|m| get(m)).collect();
+        let mut members: Vec<&'a Value> = element["ownedMember"].as_array().unwrap().iter().map(|m| get(m)).collect();
+        // A relationship's metadata are owned through annotations.
+        let annotations = element["ownedAnnotation"].as_array().into_iter().flatten();
+        members.extend(annotations.map(|a| get(&get(a)["ownedAnnotatingElement"])));
         for member in members.iter().filter(|m| m["@type"] != "Dependency") {
             show(member, depth + 1, lines, get, line);
         }
@@ -294,16 +313,19 @@ async fn the_sysml_base_path_serves_sysml_metaclasses() {
             .unwrap_or_else(|| panic!("no {metaclass} <{short}>"))
     };
 
-    let controller = find("PartDefinition", "LC-1");
-    let requirement = find("RequirementUsage", "REQ-1");
-    let function = find("ActionDefinition", "SF-1");
-    assert_eq!(controller["qualifiedName"], "Brakes::Controller");
+    // Elements are usages, in the package of their Arcadia level.
+    let controller = find("PartUsage", "LC-1");
+    // A requirement whose id is its name is written by its name.
+    let requirement = elements.iter().find(|e| e["@type"] == "RequirementUsage" && e["declaredName"] == "REQ-1").expect("REQ-1");
+    let function = find("ActionUsage", "SF-1");
+    assert_eq!(controller["qualifiedName"], "Brakes::Logical::Controller");
     assert_eq!(function["declaredName"], "Decide");
-    assert_eq!(requirement["name"], "req_REQ_1");
+    assert_eq!(function["qualifiedName"], "Brakes::Braking::Decide");
+    assert_eq!(requirement["declaredShortName"], Value::Null);
 
     // The ArcLang vocabulary has none of these metaclasses.
     let (_, arclang) = get(ARCLANG, &format!("{commit}/elements")).await;
-    assert!(arclang.as_array().unwrap().iter().all(|e| e["@type"] != "PartDefinition"));
+    assert!(arclang.as_array().unwrap().iter().all(|e| e["@type"] != "PartUsage"));
 
     // The root is the model package, and it is the only root.
     let (_, roots) = get(SYSML, &format!("{commit}/roots")).await;
@@ -356,10 +378,12 @@ async fn ownership_typing_and_values_are_navigable() {
     assert_eq!(operands[1]["@type"], "FeatureReferenceExpression");
     assert_eq!(by_id(&operands[1]["referent"])["qualifiedName"], "Brakes::ArcLangUnits::millisecond");
 
-    // The usage is typed by the definition, inside the model.
-    let usage = elements.iter().find(|e| e["@type"] == "ActionUsage" && e["declaredName"] == "a_SF_1").unwrap();
-    let typing = usage["ownedRelationship"].as_array().unwrap().iter().map(by_id).find(|r| r["@type"] == "FeatureTyping").unwrap();
-    assert_eq!(typing["target"], json!([{ "@id": function["@id"] }]));
+    // The function is owned by the package of its level, which carries the level's metadata.
+    let level = by_id(&function["owner"]);
+    assert_eq!((&level["@type"], &level["declaredName"]), (&json!("Package"), &json!("Braking")));
+    let metadata = elements.iter().find(|e| e["@type"] == "MetadataUsage" && e["owner"] == json!({ "@id": level["@id"] })).expect("#SA on the level");
+    let typing = metadata["ownedRelationship"].as_array().unwrap().iter().map(by_id).find(|r| r["@type"] == "FeatureTyping").unwrap();
+    assert_eq!(by_id(&typing["target"][0])["declaredName"], "SA");
 }
 
 #[test]
@@ -382,7 +406,7 @@ async fn relationships_of_an_element_include_what_satisfies_it() {
     let commit = head(SYSML).await;
     let (_, elements) = get(SYSML, &format!("{commit}/elements")).await;
     let elements = elements.as_array().unwrap();
-    let requirement = elements.iter().find(|e| e["declaredShortName"] == "REQ-1").unwrap();
+    let requirement = elements.iter().find(|e| e["declaredName"] == "REQ-1").unwrap();
     let id = requirement["@id"].as_str().unwrap();
 
     let (status, incoming) = get(SYSML, &format!("{commit}/elements/{id}/relationships?direction=in")).await;
@@ -391,7 +415,7 @@ async fn relationships_of_an_element_include_what_satisfies_it() {
     let satisfy = incoming.as_array().unwrap().iter().find(|r| r["@type"] == "SatisfyRequirementUsage").expect("a satisfy");
     assert_eq!(satisfy["satisfiedRequirement"], json!({ "@id": id }));
     let by = elements.iter().find(|e| e["@id"] == satisfy["satisfyingFeature"]["@id"]).unwrap();
-    assert_eq!(by["declaredName"], "p_LC_1");
+    assert_eq!(by["declaredName"], "Controller");
 }
 
 #[tokio::test]

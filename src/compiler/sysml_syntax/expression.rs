@@ -130,6 +130,24 @@ impl<'t> Expressions<'t> {
             Token::Symbol("(") => {
                 self.position += 1;
                 let inner = self.comparison()?;
+                // `(a, b)` and `(a,)`: a sequence, the `,` operator of the notation.
+                if self.operator(&[","]).is_some() {
+                    let mut items = vec![inner];
+                    while self.operator(&[")"]).is_none() {
+                        items.push(self.comparison()?);
+                        if self.operator(&[","]).is_none() {
+                            self.expect(")")?;
+                            break;
+                        }
+                    }
+                    // The notation's `,` is binary and groups to the right:
+                    // `(a, b, c)` is `a, (b, c)`; `(a,)` is `a`.
+                    let mut folded = items.pop().expect("a sequence has an item");
+                    while let Some(item) = items.pop() {
+                        folded = Expr::Operator(",", vec![item, folded]);
+                    }
+                    return Ok(folded);
+                }
                 self.expect(")")?;
                 Ok(inner)
             }

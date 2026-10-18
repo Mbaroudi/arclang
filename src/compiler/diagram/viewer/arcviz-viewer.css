@@ -341,8 +341,8 @@
   height: var(--av-stage-height, clamp(26rem, 68vh, 52rem));
   overflow: hidden;
   position: relative;
-  /* Vertical swipes scroll the page; dragging sideways pans the diagram. */
-  touch-action: pan-y;
+  /* The stage owns its touches: one finger pans, two pinch. */
+  touch-action: none;
   user-select: none;
 }
 
@@ -394,6 +394,8 @@
   position: absolute;
   top: 0;
   transform-origin: 0 0;
+  /* Panned and zoomed on the compositor: no layout while the sheet moves. */
+  will-change: transform;
 }
 
 .arcviz .arcviz-canvas > svg {

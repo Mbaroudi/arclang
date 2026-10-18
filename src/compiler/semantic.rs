@@ -1288,15 +1288,17 @@ impl SemanticAnalyzer {
             }
         }
 
-        // Physical links get identity by name; paths must reference them.
+        // Physical links get identity by their `id:`, else by name; paths
+        // reference them either way.
         for pa in &ast.physical_architecture {
             for link in &pa.links {
                 if !link.name.is_empty() {
+                    let key = link.attributes.get("id").and_then(|v| v.as_string()).map(str::to_string).unwrap_or_else(|| link.name.clone());
                     register_element(
                         &mut all_elements,
                         &mut duplicate_ids,
-                        link.name.clone(),
-                        ElementInfo::new(link.name.clone(), link.name.clone(), "PhysicalLink"),
+                        key.clone(),
+                        ElementInfo::new(key, link.name.clone(), "PhysicalLink"),
                     );
                 }
             }
@@ -1335,7 +1337,10 @@ impl SemanticAnalyzer {
                 .collect();
             for sa in &ast.system_analysis {
                 for exchange in &sa.functional_exchanges {
-                    if !item_names.contains(exchange.data_type.as_str()) {
+                    // Only an item the author named: the default `Data` of an
+                    // exchange written without one is not a reference.
+                    let named = exchange.attributes.contains_key("exchange_item") || exchange.attributes.contains_key("data_type");
+                    if named && !item_names.contains(exchange.data_type.as_str()) {
                         deferred_warnings.push(format!(
                             "functional_exchange '{}': exchange item '{}' is not declared as an exchange_item",
                             exchange.label.as_deref().unwrap_or(""),
@@ -1518,6 +1523,10 @@ impl SemanticAnalyzer {
                 scenario.name.clone(),
                 ElementInfo::new(scenario.name.clone(), scenario.name.clone(), "Scenario"),
             );
+            // A trace may name the scenario by its id as well.
+            if !scenario.id.is_empty() && !all_elements.contains_key(&scenario.id) {
+                register_element(&mut all_elements, &mut duplicate_ids, scenario.id.clone(), ElementInfo::new(scenario.id.clone(), scenario.name.clone(), "Scenario"));
+            }
             let mut participant_ids: std::collections::HashSet<String> =
                 std::collections::HashSet::new();
             for participant in &scenario.participants {

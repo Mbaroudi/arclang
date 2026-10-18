@@ -523,6 +523,52 @@
     return frame(graph, nodes, edges, arrowMarkers(graph.edges || []), graph.width || 0, graph.height || 0);
   }
 
+  /**
+   * Lay a graph out with ELK, working around two failures of elkjs 0.9.3 on
+   * deep graphs: it throws (`Cannot read properties of null (reading 'p')`)
+   * when containers fix the sides of their own ports, and edge wrapping
+   * (`MULTI_EDGE`) may drop an edge's route. The layout is then redone with
+   * those containers' ports free (leaves keep their sides), and without
+   * wrapping when an edge is left unrouted. Any other failure is the caller's.
+   */
+  async function layOut(elk, graph) {
+    const pristine = JSON.stringify(graph);
+    let attempt = graph;
+    let laidOut;
+    try {
+      laidOut = await elk.layout(graph);
+    } catch (error) {
+      attempt = JSON.parse(pristine);
+      if (!freeContainerPorts(attempt)) throw error;
+      const copy = JSON.stringify(attempt);
+      laidOut = await elk.layout(attempt);
+      attempt = JSON.parse(copy);
+    }
+    const wrapping = 'elk.layered.wrapping.strategy';
+    if (!hasUnroutedEdge(laidOut) || !(attempt.layoutOptions || {})[wrapping]) return laidOut;
+    const unwrapped = attempt === graph ? JSON.parse(pristine) : attempt;
+    delete unwrapped.layoutOptions[wrapping];
+    return elk.layout(unwrapped);
+  }
+
+  /** Free the ports of every container that fixes their sides; how many. */
+  function freeContainerPorts(node) {
+    let freed = 0;
+    for (const child of node.children || []) {
+      const options = child.layoutOptions || {};
+      if (child.children?.length && child.ports?.length && options['elk.portConstraints'] === 'FIXED_SIDE') {
+        child.layoutOptions = { ...options, 'elk.portConstraints': 'FREE' };
+        freed += 1;
+      }
+      freed += freeContainerPorts(child);
+    }
+    return freed;
+  }
+
+  function hasUnroutedEdge(node) {
+    return (node.edges || []).some((edge) => !edge.sections?.length) || (node.children || []).some(hasUnroutedEdge);
+  }
+
   /** Ids of everything drawn: used to check a rendering is complete. */
   function drawnIds(graph) {
     const ids = [];
@@ -536,5 +582,5 @@
     return ids;
   }
 
-  return { renderSvg, isSequence, drawnIds, nodeStyle, edgeStyle, esc };
+  return { renderSvg, isSequence, layOut, drawnIds, nodeStyle, edgeStyle, esc };
 });

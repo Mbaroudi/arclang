@@ -165,7 +165,12 @@ struct Generator<'a> {
     units_used: BTreeSet<&'static str>,
 }
 
-pub fn generate_sysmlv2(semantic: &SemanticModel, ast: &Model) -> String {
+pub fn generate_sysmlv2(_semantic: &SemanticModel, ast: &Model) -> String {
+    super::sysml_export::export(ast)
+}
+
+/// The export before the Arcadia profile, kept until `sysml_export` covers it.
+pub fn generate_sysmlv2_legacy(semantic: &SemanticModel, ast: &Model) -> String {
     let mut generator = Generator {
         ast,
         semantic,
@@ -1740,7 +1745,7 @@ mod tests {
 
     fn export(source: &str) -> String {
         let result = Compiler::new(CompilerConfig::default()).compile_string(source).expect("compiles");
-        generate_sysmlv2(&result.semantic_model, &result.ast)
+        generate_sysmlv2_legacy(&result.semantic_model, &result.ast)
     }
 
     #[test]

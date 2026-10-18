@@ -638,11 +638,15 @@ fn sysml_export_keeps_capability_nesting_and_relations() {
         arclang::compiler::sysmlv2_generator::generate_sysmlv2(&result.semantic_model, &result.ast);
 
     for expected in [
-        "use case def <'CAP-2'> Emergency_Brake :> Brake {",
-        "include use case uc_CAP_3 : Warn;",
-        "use case uc_CAP_4 : Detect;",
-        "dependency extends from Emergency_Brake to Brake;",
-        "use case def <'CR-1'> Brake_Logic {",
+        "#Capability use case <'CAP-2'> 'Emergency Brake';",
+        // `specializes` is a reserved word: quoted.
+        "dependency 'specializes' from 'CAP-2' to 'CAP-1';",
+        "dependency includes from 'CAP-2' to 'CAP-3';",
+        "dependency extends from 'CAP-2' to 'CAP-1';",
+        "#Capability use case <'CAP-4'> Detect;",
+        "dependency parent from 'CAP-4' to 'CAP-2';",
+        "#Capability use case <'CR-1'> 'Brake Logic';",
+        "dependency realizes from 'CR-1' to SA::'CAP-1';",
     ] {
         assert!(
             sysml.contains(expected),
@@ -680,12 +684,17 @@ fn sysml_export_keeps_what_a_capability_involves() {
     let sysml =
         arclang::compiler::sysmlv2_generator::generate_sysmlv2(&result.semantic_model, &result.ast);
 
-    assert!(
-        sysml.contains(r#"attribute involves : String = "SF-1, ACT-1";"#),
-        "system capability:\n{sysml}"
-    );
-    assert!(
-        sysml.contains(r#"attribute involves : String = "OA-ACT-1, OE-1, OA-1";"#),
-        "operational capability:\n{sysml}"
-    );
+    // What a capability involves is a relationship to each element, by id.
+    for expected in ["dependency involves from 'CAP-1' to 'SF-1';", "dependency involves from 'CAP-1' to 'ACT-1';"] {
+        assert!(sysml.contains(expected), "system capability: missing `{expected}` in\n{sysml}");
+    }
+    for expected in [
+        "dependency involves from 'OC-1' to 'OA-ACT-1';",
+        "dependency involves from 'OC-1' to 'OE-1';",
+        // The activity the entity holds is reached through it.
+        "dependency involves from 'OC-1' to 'OE-1'::'OA-1';",
+    ] {
+        assert!(sysml.contains(expected), "operational capability: missing `{expected}` in\n{sysml}");
+    }
+    assert!(!sysml.contains("attribute involves"), "a relationship, not text:\n{sysml}");
 }

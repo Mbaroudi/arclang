@@ -29,7 +29,9 @@ fn flagship_sysmlv2_export_matches_golden() {
     // The flagship export must be rich, not a skeleton.
     assert!(generated.contains("port def"), "ports exported");
     assert!(generated.contains("allocate "), "deployments exported");
-    assert!(generated.contains("verification def"), "test cases exported");
+    assert!(generated.contains("verification <"), "test cases exported");
+    assert!(generated.contains("#LA package"), "levels are packages with their metadata");
+    assert!(generated.contains("library package ArcadiaProfile"), "the profile is declared");
     assert!(generated.contains("DurationValue"), "typed latencies exported");
     assert!(generated.contains("connect "), "exchanges exported");
     assert!(!generated.contains("unresolved"), "every endpoint and trace of the flagship resolves");

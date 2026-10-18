@@ -64,18 +64,49 @@ def canonical(elements):
     def kind(ref):
         return by.get(ref["@id"], {}).get("@type", "?")
 
+    # A path written with short names designates what the declared names do.
+    declared_name = {}
+    for x in by.values():
+        if x.get("declaredShortName"):
+            declared_name[x["declaredShortName"]] = x.get("declaredName") or "?"
+
     def qualified(ref):
+        if not ref:
+            return "-"
         element = by.get(ref["@id"], {})
         chain = element.get("chainingFeature") or []
         if chain:  # a feature chain is known by the path it spells
             return ".".join(by.get(c["@id"], {}).get("declaredName") or "?" for c in chain)
-        return element.get("qualifiedName") or "<%s>" % element.get("@type", "?")
+        return element.get("qualifiedName") or spelled(element) or "<%s>" % element.get("@type", "?")
+
+    def quote(name):
+        return name if re.match(r"^[A-Za-z_][A-Za-z0-9_]*$", name) else "'%s'" % name.replace("\\", "\\\\").replace("'", "\\'")
+
+    def spelled(element):
+        # The pilot leaves out the qualified name of an element whose name
+        # its namespace holds twice: spelled from its owners, as ArcLang does.
+        name = element.get("declaredName")
+        if not name:
+            return None
+        owner = by.get((element.get("owningNamespace") or element.get("owner") or {}).get("@id"))
+        if not owner:
+            return quote(name)
+        prefix = owner.get("qualifiedName") or spelled(owner)
+        return "%s::%s" % (prefix, quote(name)) if prefix else None
 
     def end(element, role):
         related = element.get(role) or []
         if related:
             return ",".join(qualified(r) for r in related)
-        return element.get("arclang:%sPath" % role, "")
+        path = element.get("arclang:%sPath" % role, "")
+        if not path:
+            return ""
+        # A chain is spelled by its features: the package that qualifies its
+        # first one is not part of it.
+        segments = path.split(".")
+        if len(segments) > 1:
+            segments[0] = segments[0].split("::")[-1]
+        return ".".join(declared_name.get(segment, segment) for segment in segments)
 
     def expression(ref):
         """An expression as text: kind of each node, operator, referents."""
@@ -163,6 +194,11 @@ def canonical(elements):
             r["@id"] for r in element.get("ownedRelationship", [])
             if by[r["@id"]]["@type"] == "Dependency" and r["@id"] not in members
         ]
+        # A relationship's metadata are owned through annotations.
+        members += [
+            by[r["@id"]]["ownedAnnotatingElement"]["@id"] for r in element.get("ownedRelationship", [])
+            if by[r["@id"]]["@type"] == "Annotation" and by[r["@id"]].get("ownedAnnotatingElement")
+        ]
         dependencies = [m for m in members if by[m]["@type"] == "Dependency"]
         for member in members:
             if member not in dependencies:
@@ -217,11 +253,16 @@ class Pilot:
         return results
 
     def abstract_syntax(self, sysml):
-        package = re.search(r"^package (\S+)", sysml, re.M).group(1)
+        # A quoted name may hold spaces: `package 'AEB model' {`; the short
+        # name before it (`package <AEB> 'AEB model'`) is skipped.
+        quoted = r"'(?:[^'\\]|\\.)*'"
+        package = re.search(r"^package (?:<(?:%s|[^>\s]+)>\s+)?(%s|[^\s{]+)" % (quoted, quoted), sysml, re.M).group(1)
         self.run(sysml)
         if self.errors:
             raise RuntimeError("the pilot rejects the text: " + "; ".join(self.errors[:5]))
-        for data in self.run("%export " + package):
+        # The magic splits its arguments on spaces: a quoted name goes in double quotes.
+        argument = '"%s"' % package if package.startswith("'") else package
+        for data in self.run("%export " + argument):
             found = re.search(r'base64,([^"]+)"', data.get("text/html", ""))
             if found:
                 return json.loads(base64.b64decode(found.group(1)))
@@ -286,7 +327,7 @@ def main():
                 failed += 1
                 print("FAIL %s" % model)
                 for diff in difflib.unified_diff(theirs, ours, "pilot", "arclang", lineterm="", n=0):
-                    print("    " + diff[:240])
+                    print("    " + diff[:2000])
     finally:
         if pilot:
             pilot.close()
