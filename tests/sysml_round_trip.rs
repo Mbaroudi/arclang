@@ -1,10 +1,12 @@
-//! ArcLang -> SysML v2 (API records) -> ArcLang: what comes back. The
+//! ArcLang -> SysML v2 text -> ArcLang: what comes back. The text is read
+//! by the complete parser (`sysml_parser`), as `arclang import -f sysml`
+//! reads any SysML v2 text, and rendered as API records for the import. The
 //! element graph of the model compiled before and after is compared by
 //! (kind, id) for elements and (kind, source, target) for relationships,
 //! kind by kind, so a loss names what the export or the import drops.
 
 use arclang::compiler::elements;
-use arclang::compiler::{sysml_import, sysml_records, sysmlv2_generator, Compiler, CompilerConfig};
+use arclang::compiler::{sysml_import, sysml_parser, sysmlv2_generator, Compiler, CompilerConfig};
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
 
@@ -39,8 +41,8 @@ fn round_trip(path: &Path) -> Measure {
     let source = std::fs::read_to_string(path).unwrap();
     let before = compile(&source);
     let text = sysmlv2_generator::generate_sysmlv2(&before.semantic_model, &before.ast);
-    let records = sysml_records::from_text(&text).expect("the export reads back");
-    let imported = sysml_import::import_records(&records.records).unwrap_or_else(|f| panic!("{}: {}\n{}", path.display(), f.message, f.rejected.unwrap_or_default()));
+    let built = sysml_parser::records(&text).unwrap_or_else(|e| panic!("{}: the export does not parse: {e}", path.display()));
+    let imported = sysml_import::import_records(&built.records).unwrap_or_else(|f| panic!("{}: {}\n{}", path.display(), f.message, f.rejected.unwrap_or_default()));
     let after = compile(&imported.source);
     let (elements_before, relationships_before) = shape(&before);
     let (elements_after, relationships_after) = shape(&after);

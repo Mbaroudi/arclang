@@ -59,6 +59,8 @@ pub struct Element {
     pub function: Option<String>,
     /// The written path of a connector's source end (`Vehicle.MonitorEnvironment`), when the export says it.
     pub source_path: Option<String>,
+    /// The expression's text as written (`arclang:expression`), when the records carry it.
+    pub source_text: Option<String>,
     /// The features a feature chain goes through (`a.b.port`), in order.
     pub chaining: Vec<String>,
     /// Ends of a connector or relationship: source ids, target ids.
@@ -253,6 +255,7 @@ pub fn load(records: &[Value]) -> Result<Graph, String> {
         }
         element.source_path = text(record, "arclang:sourcePath");
         element.target_path = text(record, "arclang:targetPath");
+        element.source_text = text(record, "arclang:expression").or_else(|| text(record, "textualRepresentation"));
         // Connector and relationship ends, in the dialects' order of trust:
         // ArcLang's export names the feature an end lands on (the port) and
         // the element holding it.

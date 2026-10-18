@@ -969,6 +969,7 @@ impl<'g> Mapper<'g> {
         let mut seen: HashSet<String> = HashSet::new();
         let mut references = 0;
         let mut unwritten: Vec<String> = Vec::new();
+        let mut computed: Vec<String> = Vec::new();
         let graph = self.graph;
         for element in elements {
             for child in element.children.iter().filter_map(|c| graph.get(c)) {
@@ -981,12 +982,24 @@ impl<'g> Mapper<'g> {
                 // A value that is not a literal is an expression: a quantity (`30 [ms]`).
                 let value = match (&child.value, &child.value_expression) {
                     (Some(value), _) => value.clone(),
+                    // A value that is not a literal, a quantity or a list (a
+                    // computation, a reference) is kept as text, and counted.
                     (None, Some(expression)) => match self.expression_text(expression) {
-                        Ok(text) => text,
-                        Err(reason) => {
-                            unwritten.push(format!("'{}': attribute '{name}' left out: {reason}", Self::display(element)));
-                            continue;
+                        Ok(text) if expression::is_attribute_value(&text) => text,
+                        Ok(text) => {
+                            computed.push(format!("'{}': attribute '{name}' = {text} kept as text", Self::display(element)));
+                            string_literal(&text)
                         }
+                        Err(_) => match child.source_text.clone() {
+                            Some(source) => {
+                                computed.push(format!("'{}': attribute '{name}' = {source} kept as text", Self::display(element)));
+                                string_literal(&source)
+                            }
+                            None => {
+                                unwritten.push(format!("'{}': attribute '{name}' left out: no value ArcLang can say", Self::display(element)));
+                                continue;
+                            }
+                        },
                     },
                     (None, None) => continue,
                 };
@@ -1012,12 +1025,14 @@ impl<'g> Mapper<'g> {
         }
         self.count_by("reference attributes written as text (left out: a relationship is expected)", references);
         self.count_by("attribute values that are not ArcLang values (left out)", unwritten.len());
-        for note in unwritten {
+        self.count_by("attribute values that are expressions (kept as text)", computed.len());
+        for note in unwritten.into_iter().chain(computed) {
             if self.notes.len() < 40 {
                 self.notes.push(note);
             }
         }
     }
+
 
     /// An expression element as ArcLang text (an attribute value, a
     /// constraint), or why it is not one.
@@ -1031,7 +1046,20 @@ impl<'g> Mapper<'g> {
                 (written, self.chain_steps(chain))
             })
             .collect();
-        expression::render(self.graph, id, &|element| self.element_ref(element).or_else(|| self.intended_id(element)), &chains)
+        // A port is no element of an expression: ArcLang reads attributes of elements.
+        expression::render(
+            self.graph,
+            id,
+            &|element| {
+                let is_end = self.graph.get(element).is_some_and(|e| e.is_end);
+                if is_end || self.port_end(element).is_some() {
+                    None
+                } else {
+                    self.element_ref(element).or_else(|| self.intended_id(element))
+                }
+            },
+            &chains,
+        )
     }
 
     /// The written ids of the functions a chain steps through.

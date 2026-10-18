@@ -289,14 +289,22 @@ impl<'n> Builder<'n> {
                 }
             }
             Detail::Transition { source, trigger, guard, effect, target, is_else } => {
+                // A state named through a chain (`'B'.'C'`, a state of another
+                // region) is that state: the transition relates states.
+                let state_of = |builder: &mut Self, t: &Target, key: &str| -> Option<String> {
+                    match builder.scope.resolve_target(t, context) {
+                        Some(resolved) => resolved.last().map(|i| builder.id(*i)),
+                        None => builder.designate_target(t, context, Role::Value, &id, key),
+                    }
+                };
                 let source_id = match source {
-                    Some(target) => self.designate_target(target, context, Role::Value, &id, "source"),
+                    Some(target) => state_of(self, target, "source"),
                     None => owner.and_then(|o| self.previous_member(o, index)).map(|p| self.id(p)),
                 };
                 if source.is_some() && source_id.is_none() {
                     self.note_unresolved("transition source", &source.as_ref().map(Target::text).unwrap_or_default());
                 }
-                let target_id = target.target.as_ref().and_then(|t| self.designate_target(t, context, Role::Value, &id, "target"));
+                let target_id = target.target.as_ref().and_then(|t| state_of(self, t, "target"));
                 if target_id.is_none() {
                     self.note_unresolved("transition target", &target.target.as_ref().map(Target::text).unwrap_or_default());
                 }

@@ -44,10 +44,19 @@ pub fn import_file(path: &Path) -> Result<Imported, ImportFailure> {
     }
 }
 
-/// Import SysML v2 textual notation (the exported dialect, for now).
+/// Import SysML v2 textual notation, read by the complete parser
+/// (`sysml_parser`): any KerML / SysML v2 text.
 pub fn import_text(text: &str) -> Result<Imported, ImportFailure> {
-    let records = crate::compiler::sysml_records::from_text(text).map_err(|e| format!("SysML text not read: {e}"))?;
-    import_records(&records.records)
+    let built = crate::compiler::sysml_parser::records(text).map_err(|e| format!("SysML text not read: {e}"))?;
+    let mut imported = import_records(&built.records)?;
+    let unresolved = built.unresolved.len();
+    if unresolved > 0 {
+        imported.counts.insert("names designating nothing known (left unresolved)", unresolved);
+        for note in built.unresolved.into_iter().take(20) {
+            imported.notes.push(note);
+        }
+    }
+    Ok(imported)
 }
 
 /// Import a JSON listing of API records.
