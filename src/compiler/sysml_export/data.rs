@@ -24,9 +24,11 @@ pub(super) fn register(e: &mut Exporter<'_>) {
     for class in &model.classes {
         e.register(PACKAGE, id_of(&class.attributes, &class.id), &[&class.name]);
     }
-    for name in undeclared(e) {
-        e.register(PACKAGE, &name, &[]);
+    let names: Vec<String> = undeclared(e).into_iter().collect();
+    for name in &names {
+        e.register(PACKAGE, name, &[]);
     }
+    e.undeclared = names;
 }
 
 /// Types named by ports and exchanges that nothing declares.
@@ -49,11 +51,14 @@ fn undeclared(e: &Exporter<'_>) -> BTreeSet<String> {
     }
     for oa in &model.operational_analysis {
         super::levels::visit_activities(oa, &mut |a| a.ports.iter().for_each(|p| add(&p.data_type)));
+        oa.exchanges.iter().filter(|x| !x.data_type.is_empty()).for_each(|x| add(&x.data_type));
     }
     for la in &model.logical_architecture {
         super::levels::visit_logical_functions(la, &mut |f| f.ports.iter().for_each(|p| add(&p.data_type)));
+        la.functional_exchanges.iter().filter(|x| !x.data_type.is_empty()).for_each(|x| add(&x.data_type));
     }
     for pa in &model.physical_architecture {
+        pa.functional_exchanges.iter().filter(|x| !x.data_type.is_empty()).for_each(|x| add(&x.data_type));
         for f in &pa.functions {
             super::levels::visit_function_tree(f, &mut |f| f.ports.iter().for_each(|p| add(&p.data_type)));
         }
@@ -111,7 +116,7 @@ pub(super) fn direction(direction: &PortDirection) -> &'static str {
 
 pub(super) fn write(e: &mut Exporter<'_>) {
     let model = e.model;
-    let extra = undeclared_written(e);
+    let extra = e.undeclared.clone();
     if model.data_types.is_empty() && model.exchange_items.is_empty() && model.classes.is_empty() && extra.is_empty() {
         return;
     }
@@ -165,7 +170,8 @@ pub(super) fn write(e: &mut Exporter<'_>) {
             let base = class.extends.as_deref().map(|b| format!(" :> {}", type_reference(e, b))).unwrap_or_default();
             e.block(&format!("#Class item def {}{base}", text::declared(id, &class.name)), |e| {
                 // The fields are the class's attributes: written once, typed.
-                let field_names: Vec<&str> = class.fields.iter().map(|f| f.name.as_str()).collect();
+                let mut field_names: Vec<&str> = class.fields.iter().map(|f| f.name.as_str()).collect();
+                field_names.push("extends"); // the `:>` of the declaration
                 e.header("Class", &class.attributes, &field_names);
                 fields(e, &class.fields);
             });
@@ -176,27 +182,18 @@ pub(super) fn write(e: &mut Exporter<'_>) {
     });
 }
 
-/// The types `register` declared for ports and exchanges, in order.
-fn undeclared_written(e: &Exporter<'_>) -> Vec<String> {
-    let model = e.model;
-    let declared: BTreeSet<&str> = model
-        .data_types
-        .iter()
-        .map(|d| id_of(&d.attributes, &d.id))
-        .chain(model.exchange_items.iter().map(|i| if i.id.is_empty() { i.name.as_str() } else { i.id.as_str() }))
-        .chain(model.classes.iter().map(|c| id_of(&c.attributes, &c.id)))
-        .collect();
-    let mut out: Vec<String> = e.targets.iter().filter(|(k, t)| t.package == PACKAGE && *k == &t.id && !declared.contains(t.id.as_str())).map(|(k, _)| k.clone()).collect();
-    out.sort();
-    out
-}
-
 fn fields(e: &mut Exporter<'_>, fields: &[DataAttribute]) {
+    let model = e.model;
     for field in fields {
         let ty = type_reference(e, &field.attr_type);
+        // A field typed by a class or an item is an item, by a value an attribute.
+        let is_item = model.classes.iter().any(|c| id_of(&c.attributes, &c.id) == field.attr_type || c.name == field.attr_type)
+            || model.exchange_items.iter().any(|i| i.id == field.attr_type || i.name == field.attr_type)
+            || e.undeclared.iter().any(|u| *u == field.attr_type);
+        let keyword = if is_item { "item" } else { "attribute" };
         match &field.default_value {
-            Some(value) => e.line(&format!("attribute {} : {ty} default = {};", text::name(&field.name), text::string(value))),
-            None => e.line(&format!("attribute {} : {ty};", text::name(&field.name))),
+            Some(value) => e.line(&format!("{keyword} {} : {ty} default = {};", text::name(&field.name), text::string(value))),
+            None => e.line(&format!("{keyword} {} : {ty};", text::name(&field.name))),
         }
     }
 }

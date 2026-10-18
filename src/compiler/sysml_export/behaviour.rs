@@ -46,7 +46,7 @@ pub(super) fn write(e: &mut Exporter<'_>) {
 
 fn state_machine(e: &mut Exporter<'_>, machine: &StateMachine) {
     let id = if machine.id.is_empty() { machine.name.clone() } else { machine.id.clone() };
-    e.block(&format!("state def {}", text::declared(&id, &machine.name)), |e| {
+    e.block(&format!("state {}", text::declared(&id, &machine.name)), |e| {
         e.header("StateMachine", &machine.attributes, &[]);
         states(e, &machine.states, &machine.initial_state, &machine.transitions);
     });
@@ -116,7 +116,7 @@ fn occurrence(e: &mut Exporter<'_>, scenario: &Scenario) {
         let declared = text::declared(&mid, if message.label.is_empty() { &mid } else { &message.label });
         messages.push(format!("message {declared} from {from}.{sent} to {to}.{received};"));
     }
-    e.block(&format!("occurrence def {}", text::declared(&id, &scenario.name)), |e| {
+    e.block(&format!("occurrence {}", text::declared(&id, &scenario.name)), |e| {
         e.header("Scenario", &scenario.attributes, &[]);
         let mut written: Vec<&String> = Vec::new();
         for p in &scenario.participants {
@@ -125,7 +125,8 @@ fn occurrence(e: &mut Exporter<'_>, scenario: &Scenario) {
                 continue;
             }
             written.push(name);
-            let typing = e.reference(&p.id).or_else(|| e.reference(&p.name)).map(|t| format!(" : {t}")).unwrap_or_default();
+            // A lifeline stands for an element: a subset of its usage.
+            let typing = e.feature(&p.id).or_else(|| e.feature(&p.name)).map(|t| format!(" :> {t}")).unwrap_or_default();
             match events.get(name) {
                 Some(list) => {
                     let list = list.clone();

@@ -1,10 +1,11 @@
 //! The Arcadia levels as packages: `#OA package 'Operational Analysis'`,
-//! `#SA`, `#LA`, `#PA`, `#EPBS`. A function is an `action def` with its
-//! ports as directed item parameters and its sub-functions as nested
-//! actions, performed by the part that holds it; a part is a `part def`
-//! with its ports; the exchanges between them are flows and connections
-//! between package-level usages (`'a_SF-1'`, `'p_LC-1'`), the only features
-//! a connector can end on.
+//! `#SA`, `#LA`, `#PA`, `#EPBS`. Every element is a usage where it sits
+//! (definitions are kept for types): a function is an `action` with its
+//! ports as directed item parameters and its sub-functions nested, a
+//! `perform action` inside the part that holds it, a `perform` of the level's
+//! action in the part it is allocated to; a component is a `part` with its
+//! ports and the components it holds; exchanges are flows and connections
+//! between feature chains (`'SF-1'.raw`, `'LC-1'.'LC-2'.radar`).
 
 use super::{data, id_of, text, Exporter};
 use crate::compiler::ast::*;
@@ -98,7 +99,7 @@ impl Level {
     pub fn qualified(&self) -> String {
         text::name(&self.name)
     }
-    fn head(&self) -> String {
+    pub fn head(&self) -> String {
         format!("#{} package {}", self.metadata, text::declared(&self.id, &self.name))
     }
 }
@@ -119,73 +120,81 @@ pub(super) fn epbs_level(epbs: &Epbs) -> Level {
     Level::new("EPBS", &epbs.id, &epbs.name, "EPBS")
 }
 
-/// The usage name of a function or a part at package level.
-pub(super) fn usage(prefix: &str, id: &str) -> String {
-    text::name(&format!("{prefix}_{id}"))
-}
-
 // --- registration ---------------------------------------------------------
 
-/// Register a function tree: each function by id and name, its usage path
-/// (`'a_SF-1'`, `'a_SF-1'.'SF-1.1'`), and its ports as `Owner.port`.
-pub(super) fn register_functions<F: Function>(e: &mut Exporter<'_>, package: &str, functions: &[&F]) {
-    fn one<F: Function>(e: &mut Exporter<'_>, package: &str, f: &F, path: String) {
-        let id = f.written().to_string();
-        e.register(package, &id, &[f.id(), f.name()]);
-        e.usages.entry(id.clone()).or_insert_with(|| path.clone());
-        e.usages.entry(f.name().to_string()).or_insert_with(|| path.clone());
-        for port in f.ports() {
-            let port_path = format!("{path}.{}", text::name(&port.name));
-            for owner in [id.as_str(), f.id(), f.name()] {
-                if !owner.is_empty() {
-                    e.usages.entry(format!("{owner}.{}", port.name)).or_insert_with(|| port_path.clone());
-                }
-            }
-            if !port.id.is_empty() {
-                e.usages.entry(port.id.clone()).or_insert_with(|| port_path.clone());
-            }
-        }
-        for sub in f.subs() {
-            let sub_path = format!("{path}.{}", text::name(sub.written()));
-            one(e, package, sub, sub_path);
-        }
+/// Register a function tree under `base`: each function by id and name,
+/// its ports as `Owner.port`, its sub-functions under it.
+pub(super) fn register_function<F: Function>(e: &mut Exporter<'_>, package: &str, base: &[String], f: &F) {
+    let id = f.written().to_string();
+    let mut segments = base.to_vec();
+    segments.push(text::name(&id));
+    e.register_at(package, segments.clone(), &id, &[f.id(), f.name()]);
+    for port in f.ports() {
+        let mut path = segments.clone();
+        path.push(text::name(&port.name));
+        let keys: Vec<String> = [id.as_str(), f.id(), f.name()].iter().filter(|o| !o.is_empty()).map(|o| format!("{o}.{}", port.name)).collect();
+        let keys: Vec<&str> = keys.iter().map(String::as_str).collect();
+        e.register_at(package, path, &port.id, &keys);
     }
-    for f in functions {
-        one(e, package, *f, usage("a", f.written()));
+    for sub in f.subs() {
+        register_function(e, package, &segments, sub);
     }
 }
 
-/// Register a part and its ports (`Owner.port`) under its usage path.
-pub(super) fn register_part(e: &mut Exporter<'_>, package: &str, id: &str, name: &str, ports: &[&str], path: &str) {
-    e.register(package, id, &[name]);
-    e.usages.entry(id.to_string()).or_insert_with(|| path.to_string());
-    if !name.is_empty() {
-        e.usages.entry(name.to_string()).or_insert_with(|| path.to_string());
-    }
-    for port in ports {
-        let port_path = format!("{path}.{}", text::name(port));
-        for owner in [id, name] {
-            if !owner.is_empty() {
-                e.usages.entry(format!("{owner}.{port}")).or_insert_with(|| port_path.clone());
+/// Let `Owner.function` name each function a part holds.
+pub(super) fn alias_held<F: Function>(e: &mut Exporter<'_>, owners: &[&str], functions: &[F]) {
+    for f in functions {
+        for owner in owners.iter().filter(|o| !o.is_empty()) {
+            for name in [f.name(), f.written()] {
+                e.alias(&format!("{owner}.{name}"), f.written());
             }
         }
     }
+}
+
+/// Register a part under `base` and its ports; the segments that lead to it.
+pub(super) fn register_part(e: &mut Exporter<'_>, package: &str, base: &[String], id: &str, name: &str, ports: &[(&str, &str)]) -> Vec<String> {
+    let mut segments = base.to_vec();
+    segments.push(text::name(id));
+    e.register_at(package, segments.clone(), id, &[name]);
+    for (port_id, port) in ports {
+        let mut path = segments.clone();
+        path.push(text::name(port));
+        let keys: Vec<String> = [id, name].iter().filter(|o| !o.is_empty()).map(|o| format!("{o}.{port}")).collect();
+        let keys: Vec<&str> = keys.iter().map(String::as_str).collect();
+        e.register_at(package, path, port_id, &keys);
+    }
+    segments
+}
+
+pub(super) fn ports_of(ports: &[ComponentPort]) -> Vec<(&str, &str)> {
+    ports.iter().map(|p| (p.id.as_str(), p.name.as_str())).collect()
 }
 
 pub(super) fn register(e: &mut Exporter<'_>) {
     let model = e.model;
     for oa in &model.operational_analysis {
         let package = oa_level(oa).qualified();
-        let mut activities: Vec<&OperationalActivity> = oa.activities.iter().collect();
-        activities.extend(oa.entities.iter().flat_map(|en| en.activities.iter()));
-        register_functions(e, &package, &activities);
+        for activity in &oa.activities {
+            register_function(e, &package, &[], activity);
+        }
         for entity in &oa.entities {
             let id = id_of(&entity.attributes, &entity.id);
-            register_part(e, &package, id, &entity.name, &[], &usage("p", id));
+            let at = register_part(e, &package, &[], id, &entity.name, &[]);
+            for activity in &entity.activities {
+                register_function(e, &package, &at, activity);
+            }
+            alias_held(e, &[id, &entity.name], &entity.activities);
+            let performed: Vec<&OperationalActivity> = oa.activities.iter().filter(|a| a.performed_by == id || a.performed_by == entity.name).collect();
+            for activity in performed {
+                for owner in [id, entity.name.as_str()] {
+                    e.alias(&format!("{owner}.{}", activity.name), activity.written());
+                }
+            }
         }
         for actor in &oa.actors {
             let id = id_of(&actor.attributes, actor.id.as_deref().unwrap_or(&actor.name));
-            register_part(e, &package, id, &actor.name, &[], &usage("p", id));
+            register_part(e, &package, &[], id, &actor.name, &[]);
         }
         register_capabilities(e, &package, &oa.capabilities);
         for process in &oa.processes {
@@ -194,16 +203,16 @@ pub(super) fn register(e: &mut Exporter<'_>) {
     }
     for sa in &model.system_analysis {
         let package = sa_level(sa).qualified();
-        register_functions(e, &package, &sa.functions.iter().collect::<Vec<_>>());
+        for f in &sa.functions {
+            register_function(e, &package, &[], f);
+        }
         for component in &sa.components {
             let id = id_of(&component.attributes, &component.name);
-            let ports: Vec<&str> = component.ports.iter().map(|p| p.name.as_str()).collect();
-            register_part(e, &package, id, &component.name, &ports, &usage("p", id));
+            register_part(e, &package, &[], id, &component.name, &ports_of(&component.ports));
         }
         for actor in &sa.external_actors {
             let id = id_of(&actor.attributes, &actor.id);
-            let ports: Vec<&str> = actor.ports.iter().map(|p| p.name.as_str()).collect();
-            register_part(e, &package, id, &actor.name, &ports, &usage("p", id));
+            register_part(e, &package, &[], id, &actor.name, &ports_of(&actor.ports));
         }
         for mission in &sa.missions {
             e.register(&package, id_of(&mission.attributes, &mission.id), &[&mission.name]);
@@ -213,6 +222,12 @@ pub(super) fn register(e: &mut Exporter<'_>) {
         }
         for chain in &sa.functional_chains {
             e.register(&package, &chain.id, &[&chain.name]);
+        }
+        for exchange in &sa.functional_exchanges {
+            e.register(&package, &exchange.id, &[]);
+        }
+        for exchange in &sa.component_exchanges {
+            e.register(&package, &exchange.id, &[]);
         }
         for requirement in &sa.requirements {
             let id = id_of(&requirement.attributes, &requirement.id);
@@ -242,10 +257,10 @@ pub(super) fn write(e: &mut Exporter<'_>) {
     super::architecture::write(e);
 }
 
-/// A function as an `action def`: its ports as directed items, its
-/// sub-functions as nested actions with their own ports.
-pub(super) fn function<F: Function>(e: &mut Exporter<'_>, kind: &str, f: &F, nested: bool) {
-    let keyword = if nested { "action" } else { "action def" };
+/// A function as an action usage (`keyword` is `action`, or `perform
+/// action` inside the part that holds it): its ports as directed items,
+/// its sub-functions nested.
+pub(super) fn function<F: Function>(e: &mut Exporter<'_>, kind: &str, f: &F, keyword: &str) {
     e.block(&format!("{keyword} {}", text::declared(f.written(), f.name())), |e| {
         e.header(kind, f.attributes(), &["inputs", "outputs"]);
         for port in f.ports() {
@@ -254,31 +269,23 @@ pub(super) fn function<F: Function>(e: &mut Exporter<'_>, kind: &str, f: &F, nes
             e.line(&format!("{} item {short}{} : {ty};", data::direction(&port.direction), text::name(&port.name)));
         }
         for sub in f.subs() {
-            function(e, kind, sub, true);
+            function(e, kind, sub, "action");
         }
     });
 }
 
-/// A function tree and its package-level usage, the end of its flows.
-pub(super) fn functions<F: Function>(e: &mut Exporter<'_>, kind: &str, list: &[&F]) {
-    for f in list {
-        function(e, kind, *f, false);
-        e.line(&format!("action {} : {};", usage("a", f.written()), text::name(f.written())));
-    }
-}
-
-/// `perform action` of each function a part performs, by reference.
+/// `perform` of each function a part is allocated, by reference.
 pub(super) fn performs(e: &mut Exporter<'_>, functions: &[String]) {
     for f in functions {
-        if let Some(def) = e.reference(f) {
-            let id = e.targets.get(f).map(|t| t.id.clone()).unwrap_or_else(|| f.clone());
-            e.line(&format!("perform action {} : {def};", usage("perform", &id)));
+        match e.feature(f) {
+            Some(action) => e.line(&format!("perform {action};")),
+            None => e.line(&format!("// performs {f}: not exported")),
         }
     }
 }
 
-/// Ports of a part: `in port 'radar' : RadarPort;`, the port def named after
-/// what it carries.
+/// Ports of a part: `in port 'radar' : 'Frame port';`, typed by the port
+/// definition of what it carries.
 pub(super) fn component_ports(e: &mut Exporter<'_>, ports: &[ComponentPort]) {
     for port in ports {
         let short = if port.id.is_empty() { String::new() } else { format!("{} ", text::short(&port.id)) };
@@ -292,7 +299,7 @@ pub(super) fn port_def(interface: &str) -> String {
     if interface.is_empty() { "Port".to_string() } else { text::name(&format!("{interface} port")) }
 }
 
-/// The port definitions a level's ports use.
+/// The port definitions a level's ports use: the types of its ports.
 pub(super) fn port_defs(e: &mut Exporter<'_>, interfaces: impl IntoIterator<Item = String>) {
     let mut seen: Vec<String> = interfaces.into_iter().collect();
     seen.sort();
@@ -308,26 +315,27 @@ pub(super) fn port_defs(e: &mut Exporter<'_>, interfaces: impl IntoIterator<Item
     }
 }
 
-/// A flow between two usages or their ports; left out with a note when an
-/// end is not exported.
-pub(super) fn flow(e: &mut Exporter<'_>, id: &str, label: &str, item: &str, from: &str, to: &str) {
-    let (Some(source), Some(target)) = (e.usages.get(from).cloned(), e.usages.get(to).cloned()) else {
-        e.line(&format!("// flow {} from {from} to {to}: an end is not exported", text::name(label)));
-        return;
-    };
-    let declared = match (id.is_empty(), label.is_empty()) {
+fn connector_head(id: &str, label: &str) -> String {
+    match (id.is_empty(), label.is_empty()) {
         (true, true) => String::new(),
         (true, false) => format!("{} ", text::name(label)),
         (false, _) => format!("{} ", text::declared(id, if label.is_empty() { id } else { label })),
+    }
+}
+
+/// A flow between two features (`'SF-1'.raw`); between two whole functions,
+/// which a flow cannot end on, a connection.
+pub(super) fn flow(e: &mut Exporter<'_>, id: &str, label: &str, item: &str, from: &str, to: &str) {
+    let (Some(source), Some(target)) = (e.feature(from), e.feature(to)) else {
+        e.line(&format!("// flow {} from {from} to {to}: an end is not exported", text::name(label)));
+        return;
     };
-    // A flow ends on features of its ends (`a.port`); between two whole
-    // functions it is a connection.
+    let declared = connector_head(id, label);
     if !source.contains('.') || !target.contains('.') {
-        let mut attributes = HashMap::new();
-        if !item.is_empty() {
-            attributes.insert("exchange_item".to_string(), AttributeValue::String(item.to_string()));
-        }
         e.line(&format!("connection {declared}connect {source} to {target};"));
+        if !item.is_empty() && !id.is_empty() {
+            super::relations::dependency(e, "exchange_item", id, item);
+        }
         return;
     }
     let of = if item.is_empty() { String::new() } else { format!("of {} ", data::type_reference(e, item)) };
@@ -336,27 +344,27 @@ pub(super) fn flow(e: &mut Exporter<'_>, id: &str, label: &str, item: &str, from
 
 /// A connection between two parts or their ports.
 pub(super) fn connection(e: &mut Exporter<'_>, metadata: &str, id: &str, label: &str, from: &str, to: &str, attributes: &HashMap<String, AttributeValue>, kind: &str) {
-    let (Some(source), Some(target)) = (e.usages.get(from).cloned(), e.usages.get(to).cloned()) else {
+    let (Some(source), Some(target)) = (e.feature(from), e.feature(to)) else {
         e.line(&format!("// connection {} from {from} to {to}: an end is not exported", text::name(label)));
         return;
     };
-    let declared = text::declared(id, if label.is_empty() { id } else { label });
-    let head = format!("{metadata}connection {declared} connect {source} to {target}");
+    let head = format!("{metadata}connection {}connect {source} to {target}", connector_head(id, label));
     e.block(&head, |e| e.header(kind, attributes, &["from_port", "to_port", "exchange_item", "via"]));
 }
 
-/// A functional chain as an `action def` of typed steps in sequence; what
-/// it involves that is not a function (an exchange) is a dependency.
-pub(super) fn chain(e: &mut Exporter<'_>, kind: &str, chain: &FunctionalChain) {
+/// A functional chain as an action of steps in sequence, each step a
+/// subset of the function it involves; what it involves that is not a
+/// function (an exchange) is a dependency.
+pub(super) fn chain(e: &mut Exporter<'_>, kind: &str, chain: &FunctionalChain, functions: &[String]) {
     let mut others: Vec<String> = Vec::new();
-    e.block(&format!("#Chain action def {}", text::declared(&chain.id, &chain.name)), |e| {
+    e.block(&format!("#Chain action {}", text::declared(&chain.id, &chain.name)), |e| {
         e.header(kind, &chain.attributes, &[]);
         let mut first = true;
         for (n, step) in chain.involves.iter().enumerate() {
-            match e.reference(step).filter(|_| e.usages.get(step).is_some_and(|u| u.starts_with("'a_") || u.starts_with("a_"))) {
-                Some(def) => {
+            match e.feature(step).filter(|_| functions.iter().any(|f| f == step)) {
+                Some(function) => {
                     let then = if first { "" } else { "then " };
-                    e.line(&format!("{then}action step{} : {def};", n + 1));
+                    e.line(&format!("{then}action step{} :> {function};", n + 1));
                     first = false;
                 }
                 None => others.push(step.clone()),
@@ -368,36 +376,45 @@ pub(super) fn chain(e: &mut Exporter<'_>, kind: &str, chain: &FunctionalChain) {
     }
 }
 
-/// Missions and capabilities as `use case def`s with their kind.
+/// The ids and names of every function of a tree, what a chain's steps name.
+pub(super) fn function_keys<F: Function>(list: &[&F]) -> Vec<String> {
+    let mut keys = Vec::new();
+    for f in list {
+        visit_function_tree(*f, &mut |f: &F| keys.extend([f.written().to_string(), f.id().to_string(), f.name().to_string()]));
+    }
+    keys
+}
+
+/// Missions and capabilities as use cases with their kind.
 pub(super) fn use_case(e: &mut Exporter<'_>, metadata: &str, kind: &str, id: &str, name: &str, attributes: &HashMap<String, AttributeValue>) {
-    e.block(&format!("{metadata} use case def {}", text::declared(id, name)), |e| e.header(kind, attributes, &[]));
+    e.block(&format!("{metadata} use case {}", text::declared(id, name)), |e| e.header(kind, attributes, &[]));
 }
 
 fn operational(e: &mut Exporter<'_>, oa: &OperationalAnalysis) {
     let level = oa_level(oa);
     e.package(&level.head(), &level.qualified(), |e| {
         e.header("OperationalAnalysis", &oa.attributes, &[]);
-        let mut activities: Vec<&OperationalActivity> = oa.activities.iter().collect();
-        activities.extend(oa.entities.iter().flat_map(|en| en.activities.iter()));
-        functions(e, "OperationalActivity", &activities);
+        for activity in &oa.activities {
+            function(e, "OperationalActivity", activity, "action");
+        }
         for entity in &oa.entities {
             let id = id_of(&entity.attributes, &entity.id).to_string();
-            let mut performed: Vec<String> = entity.activities.iter().map(|a| a.written().to_string()).collect();
-            performed.extend(oa.activities.iter().filter(|a| a.performed_by == entity.id || a.performed_by == entity.name).map(|a| a.written().to_string()));
-            e.block(&format!("#Entity part def {}", text::declared(&id, &entity.name)), |e| {
+            let allocated: Vec<String> = oa.activities.iter().filter(|a| a.performed_by == id || a.performed_by == entity.name).map(|a| a.written().to_string()).collect();
+            e.block(&format!("#Entity part {}", text::declared(&id, &entity.name)), |e| {
                 e.header("OperationalEntity", &entity.attributes, &[]);
-                performs(e, &performed);
+                for activity in &entity.activities {
+                    function(e, "OperationalActivity", activity, "perform action");
+                }
+                performs(e, &allocated);
             });
-            e.line(&format!("part {} : {};", usage("p", &id), text::name(&id)));
         }
         for actor in &oa.actors {
             let id = id_of(&actor.attributes, actor.id.as_deref().unwrap_or(&actor.name)).to_string();
-            let performed: Vec<String> = oa.activities.iter().filter(|a| a.performed_by == id || a.performed_by == actor.name).map(|a| a.written().to_string()).collect();
-            e.block(&format!("#Actor part def {}", text::declared(&id, &actor.name)), |e| {
+            let allocated: Vec<String> = oa.activities.iter().filter(|a| a.performed_by == id || a.performed_by == actor.name).map(|a| a.written().to_string()).collect();
+            e.block(&format!("#Actor part {}", text::declared(&id, &actor.name)), |e| {
                 e.header("Actor", &actor.attributes, &[]);
-                performs(e, &performed);
+                performs(e, &allocated);
             });
-            e.line(&format!("part {} : {};", usage("p", &id), text::name(&id)));
         }
         capabilities(e, &oa.capabilities);
         for exchange in &oa.exchanges {
@@ -408,8 +425,11 @@ fn operational(e: &mut Exporter<'_>, oa: &OperationalAnalysis) {
             let id = id_of(&mean.attributes, "").to_string();
             connection(e, "", &id, mean.label.as_deref().unwrap_or(""), &mean.from, &mean.to, &mean.attributes, "CommunicationMean");
         }
+        let mut activities: Vec<&OperationalActivity> = oa.activities.iter().collect();
+        activities.extend(oa.entities.iter().flat_map(|en| en.activities.iter()));
+        let keys = function_keys(&activities);
         for process in &oa.processes {
-            chain(e, "OperationalProcess", process);
+            chain(e, "OperationalProcess", process, &keys);
         }
     });
 }
@@ -434,26 +454,26 @@ fn system(e: &mut Exporter<'_>, sa: &SystemAnalysis) {
         e.header("SystemAnalysis", &sa.attributes, &[]);
         let interfaces = sa.components.iter().flat_map(|c| c.ports.iter()).chain(sa.external_actors.iter().flat_map(|a| a.ports.iter())).map(|p| p.interface_type.clone());
         port_defs(e, interfaces.collect::<Vec<_>>());
-        functions(e, "SystemFunction", &sa.functions.iter().collect::<Vec<_>>());
+        for f in &sa.functions {
+            function(e, "SystemFunction", f, "action");
+        }
         for component in &sa.components {
             let id = id_of(&component.attributes, &component.name).to_string();
-            let performed = super::relations::list(&component.attributes, "allocated_functions");
-            e.block(&format!("part def {}", text::declared(&id, &component.name)), |e| {
+            let allocated = super::relations::list(&component.attributes, "allocated_functions");
+            e.block(&format!("part {}", text::declared(&id, &component.name)), |e| {
                 e.header("SystemComponent", &component.attributes, &[]);
                 component_ports(e, &component.ports);
-                performs(e, &performed);
+                performs(e, &allocated);
             });
-            e.line(&format!("part {} : {};", usage("p", &id), text::name(&id)));
         }
         for actor in &sa.external_actors {
             let id = id_of(&actor.attributes, &actor.id).to_string();
-            let performed = super::relations::list(&actor.attributes, "allocated_functions");
-            e.block(&format!("#Actor part def {}", text::declared(&id, &actor.name)), |e| {
+            let allocated = super::relations::list(&actor.attributes, "allocated_functions");
+            e.block(&format!("#Actor part {}", text::declared(&id, &actor.name)), |e| {
                 e.header("SystemActor", &actor.attributes, &[]);
                 component_ports(e, &actor.ports);
-                performs(e, &performed);
+                performs(e, &allocated);
             });
-            e.line(&format!("part {} : {};", usage("p", &id), text::name(&id)));
         }
         for exchange in &sa.functional_exchanges {
             flow(e, &exchange.id, exchange.label.as_deref().unwrap_or(""), &exchange.data_type, &exchange.from_port, &exchange.to_port);
@@ -476,8 +496,9 @@ fn system(e: &mut Exporter<'_>, sa: &SystemAnalysis) {
                 }
             }
         }
+        let keys = function_keys(&sa.functions.iter().collect::<Vec<_>>());
         for chain_ in &sa.functional_chains {
-            chain(e, "FunctionalChain", chain_);
+            chain(e, "FunctionalChain", chain_, &keys);
         }
         for requirement in &sa.requirements {
             super::relations::requirement(e, requirement);

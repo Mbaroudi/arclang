@@ -29,7 +29,7 @@ pub(super) fn dependency(e: &mut Exporter<'_>, key: &str, from: &str, to: &str) 
 
 /// `allocate` of the usage of `from` to the usage of `to`.
 pub(super) fn allocation(e: &mut Exporter<'_>, from: &str, to: &str) {
-    match (e.usage_reference(from), e.usage_reference(to)) {
+    match (e.feature(from), e.feature(to)) {
         (Some(source), Some(target)) => e.line(&format!("allocate {source} to {target};")),
         _ => e.line(&format!("// {from} allocated to {to}: an end is not exported")),
     }
@@ -81,7 +81,7 @@ pub(super) fn write(e: &mut Exporter<'_>) {
     for test in &model.test_cases {
         let id = if test.id.is_empty() { test.name.clone() } else { test.id.clone() };
         let verified: Vec<String> = test.verifies.iter().filter_map(|r| e.reference(r)).collect();
-        e.block(&format!("verification def {}", text::declared(&id, &test.name)), |e| {
+        e.block(&format!("verification {}", text::declared(&id, &test.name)), |e| {
             e.header("TestCase", &test.attributes, &[]);
             if !test.method.is_empty() {
                 e.line(&format!("attribute method : String = {};", text::string(&test.method)));
@@ -94,7 +94,7 @@ pub(super) fn write(e: &mut Exporter<'_>) {
         });
     }
     for constraint in &model.constraints {
-        e.block(&format!("constraint def {}", text::declared(&constraint.id, &constraint.name)), |e| {
+        e.block(&format!("constraint {}", text::declared(&constraint.id, &constraint.name)), |e| {
             e.header("Constraint", &constraint.attributes, &[]);
             e.line(&format!("attribute expression : String = {};", text::string(&constraint.expression.to_string())));
         });
@@ -113,7 +113,7 @@ fn traces(e: &mut Exporter<'_>) {
         match trace.trace_type.as_str() {
             // A `satisfy` is of a requirement, by a feature; anything else
             // that "satisfies" is a dependency of that name.
-            "satisfies" => match (is_requirement(model, &trace.to).then(|| e.reference(&trace.to)).flatten(), e.usage_reference(&trace.from)) {
+            "satisfies" => match (is_requirement(model, &trace.to).then(|| e.reference(&trace.to)).flatten(), e.feature(&trace.from)) {
                 (Some(requirement), Some(by)) => e.line(&format!("satisfy {requirement} by {by};")),
                 _ => dependency(e, "satisfies", &trace.from, &trace.to),
             },

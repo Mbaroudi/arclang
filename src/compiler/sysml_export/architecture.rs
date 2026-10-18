@@ -1,10 +1,11 @@
-//! The logical and physical architectures and the EPBS. A component is a
-//! `part def` of its level; a component held by another is a `part` usage
-//! in its holder's definition, so `'p_LC-0'.'p_LC-1'.'radar'` is a port a
-//! connection can end on. A physical node holds its behaviour and hardware
-//! components the same way, with its oriented ports and `#PhysicalPort`s.
+//! The logical and physical architectures and the EPBS, as usages: a
+//! component is a `part` of its level, the components it holds `part`s
+//! inside it, so `'LC-1'.'LC-2'.radar` is a port a connection can end on;
+//! a function declared in a component is a `perform action` there. A
+//! physical node holds its behaviour and hardware components the same way,
+//! with its oriented ports and its `#PhysicalPort`s.
 
-use super::levels::{self, component_ports, connection, flow, functions, performs, port_defs, register_functions, register_part, usage, Function};
+use super::levels::{self, alias_held, component_ports, connection, flow, function, function_keys, performs, port_defs, ports_of, register_function, register_part};
 use super::{id_of, text, Exporter};
 use crate::compiler::ast::*;
 
@@ -12,10 +13,13 @@ pub(super) fn register(e: &mut Exporter<'_>) {
     let model = e.model;
     for la in &model.logical_architecture {
         let package = levels::la_level(la).qualified();
-        let mut all: Vec<&LogicalFunction> = la.functions.iter().collect();
-        collect_component_functions(&la.components, &mut all);
-        register_functions(e, &package, &all);
-        register_components(e, &package, &la.components, None);
+        for f in &la.functions {
+            register_function(e, &package, &[], f);
+        }
+        register_components(e, &package, &la.components, &[]);
+        for exchange in la.functional_exchanges.iter().map(|x| &x.id).chain(la.component_exchanges.iter().map(|x| &x.id)) {
+            e.register(&package, exchange, &[]);
+        }
         for realization in &la.capability_realizations {
             e.register(&package, id_of(&realization.attributes, &realization.id), &[&realization.name]);
         }
@@ -25,24 +29,27 @@ pub(super) fn register(e: &mut Exporter<'_>) {
     }
     for pa in &model.physical_architecture {
         let package = levels::pa_level(pa).qualified();
-        let mut all: Vec<&LogicalFunction> = pa.functions.iter().collect();
-        for node in &pa.nodes {
-            all.extend(node.functions.iter());
-            all.extend(node.behavior_components.iter().flat_map(|b| b.functions.iter()));
+        for f in &pa.functions {
+            register_function(e, &package, &[], f);
         }
-        register_functions(e, &package, &all);
         for node in &pa.nodes {
             let id = id_of(&node.attributes, &node.id);
-            let path = usage("p", id);
-            let mut ports: Vec<&str> = node.component_ports.iter().map(|p| p.name.as_str()).collect();
-            ports.extend(node.ports.iter().map(|p| p.name.as_str()));
-            register_part(e, &package, id, &node.name, &ports, &path);
+            let mut ports = ports_of(&node.component_ports);
+            ports.extend(node.ports.iter().map(|p| (id_of(&p.attributes, ""), p.name.as_str())));
+            let at = register_part(e, &package, &[], id, &node.name, &ports);
+            for f in &node.functions {
+                register_function(e, &package, &at, f);
+            }
+            levels::alias_held(e, &[id, &node.name], &node.functions);
             for behaviour in &node.behavior_components {
-                let ports: Vec<&str> = behaviour.ports.iter().map(|p| p.name.as_str()).collect();
-                register_part(e, &package, &behaviour.id, &behaviour.name, &ports, &format!("{path}.{}", usage("p", &behaviour.id)));
+                let inside = register_part(e, &package, &at, &behaviour.id, &behaviour.name, &ports_of(&behaviour.ports));
+                for f in &behaviour.functions {
+                    register_function(e, &package, &inside, f);
+                }
+                levels::alias_held(e, &[&behaviour.id, &behaviour.name], &behaviour.functions);
             }
             for hardware in &node.hardware_components {
-                register_part(e, &package, &hardware.id, &hardware.name, &[], &format!("{path}.{}", usage("p", &hardware.id)));
+                register_part(e, &package, &at, &hardware.id, &hardware.name, &[]);
             }
         }
         for (index, link) in pa.links.iter().enumerate() {
@@ -57,15 +64,18 @@ pub(super) fn register(e: &mut Exporter<'_>) {
         for chain in &pa.functional_chains {
             e.register(&package, &chain.id, &[&chain.name]);
         }
+        for exchange in pa.physical_exchanges.iter().map(|x| &x.id).chain(pa.functional_exchanges.iter().map(|x| &x.id)) {
+            e.register(&package, exchange, &[]);
+        }
     }
     for epbs in &model.epbs {
         let package = levels::epbs_level(epbs).qualified();
         for system in &epbs.systems {
-            e.register(&package, id_of(&system.attributes, &system.name), &[&system.name]);
+            let at = register_part(e, &package, &[], id_of(&system.attributes, &system.name), &system.name, &[]);
             for subsystem in &system.subsystems {
-                e.register(&package, id_of(&subsystem.attributes, &subsystem.name), &[&subsystem.name]);
+                let inside = register_part(e, &package, &at, id_of(&subsystem.attributes, &subsystem.name), &subsystem.name, &[]);
                 for item in &subsystem.items {
-                    e.register(&package, id_of(&item.attributes, &item.name), &[&item.name]);
+                    register_part(e, &package, &inside, id_of(&item.attributes, &item.name), &item.name, &[]);
                 }
             }
         }
@@ -77,23 +87,17 @@ fn link_id(link: &PhysicalLink, index: usize) -> String {
     if id.is_empty() { format!("link-{index}") } else { id.to_string() }
 }
 
-fn collect_component_functions<'a>(components: &'a [LogicalComponent], out: &mut Vec<&'a LogicalFunction>) {
+fn register_components(e: &mut Exporter<'_>, package: &str, components: &[LogicalComponent], base: &[String]) {
     for component in components {
-        out.extend(component.functions.iter());
-        collect_component_functions(&component.sub_components, out);
-    }
-}
-
-fn register_components(e: &mut Exporter<'_>, package: &str, components: &[LogicalComponent], holder: Option<&str>) {
-    for component in components {
-        let id = id_of(&component.attributes, &component.id).to_string();
-        let path = match holder {
-            Some(holder) => format!("{holder}.{}", usage("p", &id)),
-            None => usage("p", &id),
-        };
-        let ports: Vec<&str> = component.ports.iter().map(|p| p.name.as_str()).collect();
-        register_part(e, package, &id, &component.name, &ports, &path);
-        register_components(e, package, &component.sub_components, Some(&path));
+        let id = id_of(&component.attributes, &component.id);
+        let mut ports = ports_of(&component.ports);
+        ports.extend(component.interfaces_in.iter().chain(component.interfaces_out.iter()).map(|i| ("", i.name.as_str())));
+        let at = register_part(e, package, base, id, &component.name, &ports);
+        for f in &component.functions {
+            register_function(e, package, &at, f);
+        }
+        alias_held(e, &[id, &component.name], &component.functions);
+        register_components(e, package, &component.sub_components, &at);
     }
 }
 
@@ -112,18 +116,19 @@ pub(super) fn write(e: &mut Exporter<'_>) {
 
 fn logical(e: &mut Exporter<'_>, la: &LogicalArchitecture) {
     let level = levels::la_level(la);
-    e.package(&format!("#LA package {}", text::declared(&level.id, &level.name)), &level.qualified(), |e| {
+    e.package(&level.head(), &level.qualified(), |e| {
         e.header("LogicalArchitecture", &la.attributes, &[]);
         let mut interfaces: Vec<String> = Vec::new();
         collect_interfaces(&la.components, &mut interfaces);
+        if has_offered_interfaces(&la.components) {
+            interfaces.push(String::new());
+        }
         port_defs(e, interfaces);
-        let mut all: Vec<&LogicalFunction> = la.functions.iter().collect();
-        collect_component_functions(&la.components, &mut all);
-        functions(e, "LogicalFunction", &all);
-        components(e, &la.components);
+        for f in &la.functions {
+            function(e, "LogicalFunction", f, "action");
+        }
         for component in &la.components {
-            let id = id_of(&component.attributes, &component.id).to_string();
-            e.line(&format!("part {} : {};", usage("p", &id), text::name(&id)));
+            logical_component(e, component);
         }
         for exchange in &la.functional_exchanges {
             flow(e, &exchange.id, exchange.label.as_deref().unwrap_or(""), &exchange.data_type, &exchange.from_port, &exchange.to_port);
@@ -136,8 +141,11 @@ fn logical(e: &mut Exporter<'_>, la: &LogicalArchitecture) {
             connection(e, "", &id, &interface.name, &interface.from, &interface.to, &interface.attributes, "LogicalInterface");
         }
         realizations(e, &la.capability_realizations);
+        let mut all: Vec<&LogicalFunction> = la.functions.iter().collect();
+        collect_component_functions(&la.components, &mut all);
+        let keys = function_keys(&all);
         for chain in &la.functional_chains {
-            levels::chain(e, "FunctionalChain", chain);
+            levels::chain(e, "FunctionalChain", chain, &keys);
         }
     });
 }
@@ -149,28 +157,48 @@ fn collect_interfaces(components: &[LogicalComponent], out: &mut Vec<String>) {
     }
 }
 
-/// Every component of the tree as a part def; a held one is a part of its holder.
-fn components(e: &mut Exporter<'_>, list: &[LogicalComponent]) {
-    for component in list {
-        let id = id_of(&component.attributes, &component.id).to_string();
-        let actor = super::flag(&component.attributes, "actor") || component.component_type.eq_ignore_ascii_case("actor");
-        let metadata = if actor { "#Actor " } else { "" };
-        let mut performed: Vec<String> = component.allocated_functions.clone();
-        performed.extend(component.functions.iter().map(|f| f.written().to_string()));
-        e.block(&format!("{metadata}part def {}", text::declared(&id, &component.name)), |e| {
-            e.header("LogicalComponent", &component.attributes, &["actor"]);
-            if !component.component_type.is_empty() && !actor {
-                e.line(&format!("attribute component_type : String = {};", text::string(&component.component_type)));
-            }
-            component_ports(e, &component.ports);
-            for sub in &component.sub_components {
-                let sub_id = id_of(&sub.attributes, &sub.id).to_string();
-                e.line(&format!("part {} : {};", usage("p", &sub_id), text::name(&sub_id)));
-            }
-            performs(e, &performed);
-        });
-        components(e, &component.sub_components);
+fn has_offered_interfaces(components: &[LogicalComponent]) -> bool {
+    components.iter().any(|c| !c.interfaces_in.is_empty() || !c.interfaces_out.is_empty() || has_offered_interfaces(&c.sub_components))
+}
+
+fn collect_component_functions<'a>(components: &'a [LogicalComponent], out: &mut Vec<&'a LogicalFunction>) {
+    for component in components {
+        out.extend(component.functions.iter());
+        collect_component_functions(&component.sub_components, out);
     }
+}
+
+/// A component, the functions it holds and the components inside it.
+fn logical_component(e: &mut Exporter<'_>, component: &LogicalComponent) {
+    let id = id_of(&component.attributes, &component.id).to_string();
+    let actor = super::flag(&component.attributes, "actor") || component.component_type.eq_ignore_ascii_case("actor");
+    let metadata = if actor { "#Actor " } else { "" };
+    e.block(&format!("{metadata}part {}", text::declared(&id, &component.name)), |e| {
+        e.header("LogicalComponent", &component.attributes, &["actor"]);
+        if !component.component_type.is_empty() && !actor {
+            e.line(&format!("attribute component_type : String = {};", text::string(&component.component_type)));
+        }
+        component_ports(e, &component.ports);
+        // `interface_in` / `interface_out`: ports named by the interface they offer.
+        for (direction, interfaces) in [("in", &component.interfaces_in), ("out", &component.interfaces_out)] {
+            for interface in interfaces {
+                let mut attributes = interface.attributes.clone();
+                for (key, value) in [("protocol", &interface.protocol), ("format", &interface.format)] {
+                    if let Some(value) = value {
+                        attributes.entry(key.to_string()).or_insert(AttributeValue::String(value.clone()));
+                    }
+                }
+                e.block(&format!("{direction} port {} : Port", text::name(&interface.name)), |e| e.header("InterfaceDefinition", &attributes, &[]));
+            }
+        }
+        for f in &component.functions {
+            function(e, "LogicalFunction", f, "perform action");
+        }
+        performs(e, &component.allocated_functions);
+        for sub in &component.sub_components {
+            logical_component(e, sub);
+        }
+    });
 }
 
 fn realizations(e: &mut Exporter<'_>, list: &[Capability]) {
@@ -190,30 +218,25 @@ fn realizations(e: &mut Exporter<'_>, list: &[Capability]) {
 
 fn physical(e: &mut Exporter<'_>, pa: &PhysicalArchitecture) {
     let level = levels::pa_level(pa);
-    e.package(&format!("#PA package {}", text::declared(&level.id, &level.name)), &level.qualified(), |e| {
+    e.package(&level.head(), &level.qualified(), |e| {
         e.header("PhysicalArchitecture", &pa.attributes, &[]);
         let interfaces = pa.nodes.iter().flat_map(|n| n.component_ports.iter().chain(n.behavior_components.iter().flat_map(|b| b.ports.iter()))).map(|p| p.interface_type.clone());
         port_defs(e, interfaces.collect::<Vec<_>>());
-        if pa.nodes.iter().any(|n| !n.ports.is_empty()) {
-            e.line("#PhysicalPort port def PhysicalPort;");
-        }
-        let mut all: Vec<&LogicalFunction> = pa.functions.iter().collect();
-        for node in &pa.nodes {
-            all.extend(node.functions.iter());
-            all.extend(node.behavior_components.iter().flat_map(|b| b.functions.iter()));
-        }
-        functions(e, "PhysicalFunction", &all);
-        for node in &pa.nodes {
-            node_defs(e, node);
+        for f in &pa.functions {
+            function(e, "PhysicalFunction", f, "action");
         }
         for node in &pa.nodes {
-            let id = id_of(&node.attributes, &node.id).to_string();
-            e.line(&format!("part {} : {};", usage("p", &id), text::name(&id)));
+            physical_node(e, node);
         }
         for node in &pa.nodes {
             let node_id = id_of(&node.attributes, &node.id).to_string();
             for deployment in &node.deployments {
                 super::relations::allocation(e, &deployment.component, &node_id);
+            }
+            for behaviour in &node.behavior_components {
+                if let Some(component) = &behaviour.allocated_component {
+                    super::relations::dependency(e, "allocated_component", &behaviour.id, component);
+                }
             }
         }
         for (index, link) in pa.links.iter().enumerate() {
@@ -244,47 +267,30 @@ fn physical(e: &mut Exporter<'_>, pa: &PhysicalArchitecture) {
             flow(e, &exchange.id, exchange.label.as_deref().unwrap_or(""), &exchange.data_type, &exchange.from_port, &exchange.to_port);
         }
         for path in &pa.paths {
-            e.block(&format!("#Path part def {}", text::declared(&path.id, &path.name)), |e| e.header("PhysicalPath", &path.attributes, &[]));
+            e.block(&format!("#Path part {}", text::declared(&path.id, &path.name)), |e| e.header("PhysicalPath", &path.attributes, &[]));
             for involved in &path.involves {
                 super::relations::dependency(e, "involves", &path.id, involved);
             }
         }
         realizations(e, &pa.capability_realizations);
+        let mut all: Vec<&LogicalFunction> = pa.functions.iter().collect();
+        for node in &pa.nodes {
+            all.extend(node.functions.iter());
+            all.extend(node.behavior_components.iter().flat_map(|b| b.functions.iter()));
+        }
+        let keys = function_keys(&all);
         for chain in &pa.functional_chains {
-            levels::chain(e, "FunctionalChain", chain);
+            levels::chain(e, "FunctionalChain", chain, &keys);
         }
     });
 }
 
-/// A node, its behaviour and hardware components as part defs; the node holds them.
-fn node_defs(e: &mut Exporter<'_>, node: &PhysicalNode) {
+/// A node with its ports, the functions it holds, and its behaviour and hardware components.
+fn physical_node(e: &mut Exporter<'_>, node: &PhysicalNode) {
     let id = id_of(&node.attributes, &node.id).to_string();
-    for behaviour in &node.behavior_components {
-        let mut performed = behaviour.allocated_functions.clone();
-        performed.extend(behaviour.functions.iter().map(|f| f.written().to_string()));
-        e.block(&format!("#Behaviour part def {}", text::declared(&behaviour.id, &behaviour.name)), |e| {
-            e.header("BehaviorComponent", &behaviour.attributes, &[]);
-            component_ports(e, &behaviour.ports);
-            performs(e, &performed);
-        });
-        if let Some(component) = &behaviour.allocated_component {
-            super::relations::dependency(e, "allocated_component", &behaviour.id, component);
-        }
-    }
-    for hardware in &node.hardware_components {
-        e.block(&format!("#Hardware part def {}", text::declared(&hardware.id, &hardware.name)), |e| {
-            if !hardware.hw_type.is_empty() {
-                e.line(&format!("attribute hw_type : String = {};", text::string(&hardware.hw_type)));
-            }
-            if let Some(specs) = &hardware.specs {
-                e.line(&format!("attribute specs : String = {};", text::string(specs)));
-            }
-        });
-    }
-    let performed: Vec<String> = node.functions.iter().map(|f| f.written().to_string()).collect();
     let actor = super::flag(&node.attributes, "actor");
     let metadata = if actor { "#Node #Actor" } else { "#Node" };
-    e.block(&format!("{metadata} part def {}", text::declared(&id, &node.name)), |e| {
+    e.block(&format!("{metadata} part {}", text::declared(&id, &node.name)), |e| {
         e.header("PhysicalNode", &node.attributes, &["actor"]);
         for (key, value) in [("processor", &node.processor), ("memory", &node.memory)] {
             if let Some(value) = value {
@@ -295,43 +301,48 @@ fn node_defs(e: &mut Exporter<'_>, node: &PhysicalNode) {
         for port in &node.ports {
             let short = id_of(&port.attributes, "");
             let short = if short.is_empty() { String::new() } else { format!("{} ", text::short(short)) };
-            e.line(&format!("port {short}{} : PhysicalPort;", text::name(&port.name)));
+            e.line(&format!("#PhysicalPort port {short}{};", text::name(&port.name)));
+        }
+        for f in &node.functions {
+            function(e, "PhysicalFunction", f, "perform action");
         }
         for behaviour in &node.behavior_components {
-            e.line(&format!("part {} : {};", usage("p", &behaviour.id), text::name(&behaviour.id)));
+            e.block(&format!("#Behaviour part {}", text::declared(&behaviour.id, &behaviour.name)), |e| {
+                e.header("BehaviorComponent", &behaviour.attributes, &[]);
+                component_ports(e, &behaviour.ports);
+                for f in &behaviour.functions {
+                    function(e, "PhysicalFunction", f, "perform action");
+                }
+                performs(e, &behaviour.allocated_functions);
+            });
         }
         for hardware in &node.hardware_components {
-            e.line(&format!("part {} : {};", usage("p", &hardware.id), text::name(&hardware.id)));
+            e.block(&format!("#Hardware part {}", text::declared(&hardware.id, &hardware.name)), |e| {
+                if !hardware.hw_type.is_empty() {
+                    e.line(&format!("attribute hw_type : String = {};", text::string(&hardware.hw_type)));
+                }
+                if let Some(specs) = &hardware.specs {
+                    e.line(&format!("attribute specs : String = {};", text::string(specs)));
+                }
+            });
         }
-        performs(e, &performed);
     });
 }
 
 fn breakdown(e: &mut Exporter<'_>, epbs: &Epbs) {
     let level = levels::epbs_level(epbs);
-    e.package(&format!("#EPBS package {}", text::declared(&level.id, &level.name)), &level.qualified(), |e| {
+    e.package(&level.head(), &level.qualified(), |e| {
         e.header("Epbs", &epbs.attributes, &[]);
         for system in &epbs.systems {
-            for subsystem in &system.subsystems {
-                for item in &subsystem.items {
-                    let id = id_of(&item.attributes, &item.name);
-                    e.block(&format!("part def {}", text::declared(id, &item.name)), |e| e.header("EpbsItem", &item.attributes, &[]));
-                }
-                let id = id_of(&subsystem.attributes, &subsystem.name).to_string();
-                e.block(&format!("part def {}", text::declared(&id, &subsystem.name)), |e| {
-                    e.header("EpbsSubsystem", &subsystem.attributes, &[]);
-                    for item in &subsystem.items {
-                        let item_id = id_of(&item.attributes, &item.name);
-                        e.line(&format!("part {} : {};", usage("p", item_id), text::name(item_id)));
-                    }
-                });
-            }
-            let id = id_of(&system.attributes, &system.name).to_string();
-            e.block(&format!("part def {}", text::declared(&id, &system.name)), |e| {
+            e.block(&format!("part {}", text::declared(id_of(&system.attributes, &system.name), &system.name)), |e| {
                 e.header("EpbsSystem", &system.attributes, &[]);
                 for subsystem in &system.subsystems {
-                    let sub_id = id_of(&subsystem.attributes, &subsystem.name);
-                    e.line(&format!("part {} : {};", usage("p", sub_id), text::name(sub_id)));
+                    e.block(&format!("part {}", text::declared(id_of(&subsystem.attributes, &subsystem.name), &subsystem.name)), |e| {
+                        e.header("EpbsSubsystem", &subsystem.attributes, &[]);
+                        for item in &subsystem.items {
+                            e.block(&format!("part {}", text::declared(id_of(&item.attributes, &item.name), &item.name)), |e| e.header("EpbsItem", &item.attributes, &[]));
+                        }
+                    });
                 }
             });
         }

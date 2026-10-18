@@ -500,9 +500,13 @@ impl Reader {
             declaration.metaclass = "ActionUsage";
             declaration.membership = "StateSubactionMembership";
         } else if head.take_word("perform") {
-            Self::expect_word(&mut head, "action")?;
             declaration.metaclass = "PerformActionUsage";
-            self.named(&mut head, &mut declaration)?;
+            if head.take_word("action") {
+                self.named(&mut head, &mut declaration)?;
+            } else {
+                // `perform a;`: performs the action `a` declared elsewhere.
+                declaration.references = vec![head.path()?];
+            }
         } else if head.take_word("include") {
             Self::expect_word(&mut head, "use")?;
             Self::expect_word(&mut head, "case")?;

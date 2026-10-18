@@ -31,11 +31,13 @@ pub fn export(model: &Model) -> String {
     exporter.finish()
 }
 
-/// Where an element is declared: its package and its short name.
+/// Where an element is declared: its package, and the names that lead to
+/// it from there (`'LC-1'`, then `'LC-2'` for a component it holds, then
+/// `radar` for a port), as written in the text.
 #[derive(Clone)]
 struct Target {
     package: String,
-    id: String,
+    segments: Vec<String>,
 }
 
 pub(crate) struct Exporter<'m> {
@@ -46,16 +48,15 @@ pub(crate) struct Exporter<'m> {
     units: BTreeSet<&'static str>,
     /// Reference (id, name, `Owner.port`) -> where it is declared.
     targets: HashMap<String, Target>,
-    /// Element id -> the usage path that stands for it in its package
-    /// (`'p_LC-1'`, `'p_LC-0'.'p_LC-1'`, `'a_SF-1'`).
-    usages: HashMap<String, String>,
     /// The package being written.
     package: String,
+    /// Types ports and exchanges name that the model does not declare.
+    undeclared: Vec<String>,
 }
 
 impl<'m> Exporter<'m> {
     fn new(model: &'m Model) -> Self {
-        Exporter { model, metamodel: Metamodel::current(), out: String::new(), depth: 0, units: BTreeSet::new(), targets: HashMap::new(), usages: HashMap::new(), package: String::new() }
+        Exporter { model, metamodel: Metamodel::current(), out: String::new(), depth: 0, units: BTreeSet::new(), targets: HashMap::new(), package: String::new(), undeclared: Vec::new() }
     }
 
     fn line(&mut self, text: &str) {
@@ -99,29 +100,53 @@ impl<'m> Exporter<'m> {
         }
     }
 
-    /// Declare that `reference` names the element of short name `id` in the
-    /// package being registered.
+    /// Declare a top-level element of `package`, known by its short name `id`.
     fn register(&mut self, package: &str, id: &str, references: &[&str]) {
-        let target = Target { package: package.to_string(), id: id.to_string() };
+        self.register_at(package, vec![text::name(id)], id, references);
+    }
+
+    /// Declare an element reached from `package` by `segments`, known as
+    /// `id` and by every one of `references`.
+    fn register_at(&mut self, package: &str, segments: Vec<String>, id: &str, references: &[&str]) {
+        let target = Target { package: package.to_string(), segments };
         for reference in references.iter().filter(|r| !r.is_empty()) {
             self.targets.entry(reference.to_string()).or_insert_with(|| target.clone());
         }
-        self.targets.entry(id.to_string()).or_insert(target);
+        if !id.is_empty() {
+            self.targets.entry(id.to_string()).or_insert(target);
+        }
     }
 
-    /// How the package being written names the element `reference` names:
-    /// its short name, qualified when it is declared in another package.
+    /// Let `alias` name what `existing` names (`Owner.function`).
+    fn alias(&mut self, alias: &str, existing: &str) {
+        if let Some(target) = self.targets.get(existing).cloned() {
+            self.targets.entry(alias.to_string()).or_insert(target);
+        }
+    }
+
+    fn qualify(&self, target: &Target, separator: &str) -> String {
+        let path = target.segments.join(separator);
+        if target.package == self.package || target.package.is_empty() {
+            path
+        } else {
+            match separator {
+                "::" => format!("{}::{path}", target.package),
+                // A feature chain starts from a qualified name.
+                _ => format!("{}::{}", target.package, path),
+            }
+        }
+    }
+
+    /// How the package being written names the element `reference` names
+    /// (`'LC-1'::'LC-2'`, qualified by its package when it is another's).
     fn reference(&self, reference: &str) -> Option<String> {
-        let target = self.targets.get(reference)?;
-        Some(if target.package == self.package || target.package.is_empty() { text::name(&target.id) } else { format!("{}::{}", target.package, text::name(&target.id)) })
+        self.targets.get(reference).map(|t| self.qualify(t, "::"))
     }
 
-    /// How the package being written names the usage that stands for the
-    /// element `reference` names (a connector or an allocation ends on it).
-    fn usage_reference(&self, reference: &str) -> Option<String> {
-        let path = self.usages.get(reference)?;
-        let target = self.targets.get(reference).or_else(|| self.targets.get(reference.split('.').next().unwrap_or(reference)))?;
-        Some(if target.package == self.package || target.package.is_empty() { path.clone() } else { format!("{}::{path}", target.package) })
+    /// The feature chain to the element `reference` names, the end of a
+    /// connector: `'LC-1'.'LC-2'.radar`.
+    fn feature(&self, reference: &str) -> Option<String> {
+        self.targets.get(reference).map(|t| self.qualify(t, "."))
     }
 
     fn run(&mut self) {
