@@ -34,6 +34,9 @@ fn items(epbs: &Epbs) -> Vec<Item<'_>> {
 }
 
 pub(super) fn register(context: &mut Context, epbs: &Epbs) {
+    if !epbs.id.is_empty() {
+        context.register(&epbs.id, &epbs.id);
+    }
     for item in items(epbs) {
         context.register(&item.id, &item.id);
         context.register(item.name, &item.id);
@@ -60,7 +63,7 @@ fn element(context: &Context, item: &Item<'_>, children: &HashMap<String, Vec<&I
 
 /// The EPBS architecture, with its realization of the physical one.
 pub(super) fn write(context: &Context, epbs: &Epbs, project_id: &str) -> El {
-    let id = derived(&format!("{project_id}:epbs"));
+    let id = if epbs.id.is_empty() { derived(&format!("{project_id}:epbs")) } else { epbs.id.clone() };
     let mut level = El::new("ownedArchitectures", "epbs:EPBSArchitecture", &id).attr("name", &epbs.name);
     let all = items(epbs);
     let mut children: HashMap<String, Vec<&Item<'_>>> = HashMap::new();

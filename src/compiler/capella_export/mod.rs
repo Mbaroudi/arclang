@@ -174,8 +174,9 @@ pub fn export(model: &Model, file_stem: &str) -> Exported {
     }
     for scenario in &model.scenarios {
         let (owner, name) = scenarios::owner(&context, &engineering, scenario);
-        // A scenario owned by a level belongs to the level's first capability.
-        let owner = owner.map(|o| level_capability(&engineering, &o).unwrap_or(o));
+        // A scenario owned by a level belongs to the level's first capability;
+        // the EPBS has none ArcLang declares: the one its name prefix names is made.
+        let owner = owner.map(|o| level_capability(&engineering, &o).or_else(|| epbs_realization(&mut engineering, &o, &scenario.name)).unwrap_or(o));
         let name = own_name(&engineering, owner.as_deref(), name);
         let Some(el) = scenarios::scenario(&mut context, &engineering, scenario, name) else { continue };
         match owner.and_then(|o| engineering.find_mut(&o)) {
@@ -243,6 +244,24 @@ fn level_capability(engineering: &El, id: &str) -> Option<String> {
         el.children().iter().find_map(first)
     }
     first(level).map(|c| c.id().to_string())
+}
+
+/// In the EPBS architecture `level`, the capability realization a scenario's
+/// `Name / ...` prefix names, made when missing.
+fn epbs_realization(engineering: &mut El, level: &str, scenario: &str) -> Option<String> {
+    let name = scenario.split_once(" / ").map(|(owner, _)| owner).unwrap_or("Capability Realization");
+    let level_el = engineering.find_mut(level).filter(|l| l.kind().ends_with(":EPBSArchitecture"))?;
+    let id = derived(&format!("{level}:capability-realization:{name}"));
+    if level_el.find(&id).is_none() {
+        let pkg_id = derived(&format!("{level}:capabilities"));
+        if level_el.find(&pkg_id).is_none() {
+            level_el.push(El::new("ownedAbstractCapabilityPkg", "la:CapabilityRealizationPkg", &pkg_id).attr("name", "Capabilities"));
+        }
+        if let Some(pkg) = level_el.find_mut(&pkg_id) {
+            pkg.push(El::new("ownedCapabilityRealizations", "la:CapabilityRealization", &id).attr("name", name));
+        }
+    }
+    Some(id)
 }
 
 /// A machine's or scenario's own name: the import names one `Owner / Name`

@@ -81,7 +81,12 @@ fn transition(context: &Context, id: &str, index: usize, t: &crate::compiler::as
         el.set("triggerDescription", &t.trigger);
     }
     // The effect: the functions the action names.
-    let effects: Vec<String> = t.action.as_deref().unwrap_or("").split(", ").filter_map(|f| context.resolve_function(f.trim()).or_else(|| context.resolve_type(f.trim())).or_else(|| context.resolve(f.trim()))).map(|f| format!("#{f}")).collect();
+    // The action is a list of what it names; older sources join it as text.
+    let named: Vec<String> = match t.attributes.get("action") {
+        Some(crate::compiler::ast::AttributeValue::List(_)) => list(&t.attributes, "action"),
+        _ => t.action.as_deref().unwrap_or("").split(", ").map(str::to_string).collect(),
+    };
+    let effects: Vec<String> = named.iter().map(String::as_str).filter_map(|f| context.resolve_function(f.trim()).or_else(|| context.resolve_type(f.trim())).or_else(|| context.resolve(f.trim()))).map(|f| format!("#{f}")).collect();
     if !effects.is_empty() {
         el.set("effect", &effects.join(" "));
     }
