@@ -26,6 +26,8 @@ use super::records::{Element, Graph};
 use crate::compiler::source_edit::string_literal;
 use std::collections::{BTreeMap, HashMap, HashSet};
 
+mod generic;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum Level {
     Oa,
@@ -96,6 +98,9 @@ struct Node<'g> {
     role: Option<Role>,
     /// The ArcLang type the element `is`, when its definition is shared.
     is_type: Option<String>,
+    /// A function written in the component that performs it: the function
+    /// it decomposes (`parent:`), which stays at the level.
+    decomposes: Option<usize>,
 }
 
 struct Mapper<'g> {
@@ -117,6 +122,11 @@ struct Mapper<'g> {
     dependency_attrs: HashMap<String, Vec<(String, String)>>,
     /// (performer element id, performed element id) of every `perform`.
     performances: Vec<(String, String)>,
+    /// Names borne by more than one node: references to them are qualified.
+    shared_names: HashSet<String>,
+    /// The text uses the Arcadia profile (it is an ArcLang export or written
+    /// for it); else it is any SysML v2 model, read with [`generic`] rules.
+    profiled: bool,
 }
 
 pub fn map(graph: &Graph) -> Mapped {
@@ -133,10 +143,15 @@ pub fn map(graph: &Graph) -> Mapped {
         taken: HashSet::new(),
         dependency_attrs: HashMap::new(),
         performances: Vec::new(),
+        shared_names: HashSet::new(),
+        profiled: graph.elements.iter().any(|e| e.name.as_deref() == Some("ArcadiaProfile")),
     };
     mapper.run();
     Mapped { source: mapper.out, counts: mapper.counts, notes: mapper.notes }
 }
+
+/// Connectors written as exchanges.
+const CONNECTOR_KINDS: &[&str] = &["ConnectionUsage", "InterfaceUsage", "FlowUsage", "FlowConnectionUsage", "SuccessionFlowUsage", "BindingConnectorAsUsage"];
 
 const EXPORTED_ROLES: &[&str] = &[
     "actor", "operational entity", "system component", "logical component", "physical node", "behaviour component", "hardware component", "entity", "node",
@@ -289,7 +304,8 @@ impl<'g> Mapper<'g> {
         let children: Vec<&Element> = action.children.iter().filter_map(|c| self.graph.get(c)).collect();
         let typed_steps = children.iter().filter(|c| c.kind == "ActionUsage" && c.types.iter().any(|t| matches!(self.graph.kind_of(t), "ActionDefinition" | "ActionUsage"))).count();
         let successions = children.iter().filter(|c| c.kind == "SuccessionAsUsage" || c.kind == "Succession").count();
-        typed_steps >= 2 || (typed_steps >= 1 && successions >= 1)
+        // Outside the profile, typed sub-actions are a decomposition.
+        (self.profiled && typed_steps >= 2) || (typed_steps >= 1 && successions >= 1)
     }
 
     // --- the structural nodes ---------------------------------------------
@@ -355,7 +371,8 @@ impl<'g> Mapper<'g> {
             // part (`action a : X;` at the level and `perform action p : X`
             // in the part): one element, at home in the part.
             let nested: Vec<&&Element> = group.iter().filter(|u| u.owner.as_deref().map(|o| self.graph.kind_of(o)).is_some_and(|k| k != "Package" && k != "LibraryPackage")).collect();
-            if identified.is_empty() && nested.len() <= 1 {
+            // Outside the profile only a definition's one usage merges with it.
+            if identified.is_empty() && nested.len() <= 1 && (self.profiled || group.len() == 1) {
                 let main = nested.first().copied().unwrap_or(&group[0]);
                 merged_usages.insert(main.id.clone());
                 main_of_def.insert(def_id.to_string(), main.id.clone());
@@ -364,7 +381,9 @@ impl<'g> Mapper<'g> {
                         aliases.insert(u.id.clone(), main.id.clone());
                     }
                 }
-            } else if identified.len() == 1 {
+            } else if identified.len() == 1 && (self.profiled || group.len() == 1) {
+                // The profile's `perform` of a level function; outside it,
+                // several usages of one definition are distinct elements.
                 let main = identified[0];
                 main_of_def.insert(def_id.to_string(), main.id.clone());
                 for u in group {
@@ -389,7 +408,7 @@ impl<'g> Mapper<'g> {
             let def = def_of(usage);
             let is_type = def.and_then(|d| self.types.get(&d.id).cloned());
             let index = self.nodes.len();
-            self.nodes.push(Node { usage: Some(usage), def, merged: merged_usages.contains(&usage.id), shape, id: String::new(), name: String::new(), parent: None, children: Vec::new(), level: Level::La, role: None, is_type });
+            self.nodes.push(Node { usage: Some(usage), def, merged: merged_usages.contains(&usage.id), shape, id: String::new(), name: String::new(), parent: None, children: Vec::new(), level: Level::La, role: None, is_type, decomposes: None });
             self.node_of.insert(usage.id.clone(), index);
             if let Some(def) = def {
                 if main_of_def.get(&def.id) == Some(&usage.id) {
@@ -412,7 +431,7 @@ impl<'g> Mapper<'g> {
         for def in defs {
             let shape = if def.kind == "PartDefinition" { Shape::Part } else { Shape::Action };
             let index = self.nodes.len();
-            self.nodes.push(Node { usage: None, def: Some(def), merged: true, shape, id: String::new(), name: String::new(), parent: None, children: Vec::new(), level: Level::La, role: None, is_type: None });
+            self.nodes.push(Node { usage: None, def: Some(def), merged: true, shape, id: String::new(), name: String::new(), parent: None, children: Vec::new(), level: Level::La, role: None, is_type: None, decomposes: None });
             self.node_of.insert(def.id.clone(), index);
         }
         self.performances = performances;
@@ -435,9 +454,15 @@ impl<'g> Mapper<'g> {
         let performances = self.performances.clone();
         for (performer, performed) in &performances {
             let (Some(part), Some(action)) = (self.node_for(performer), self.node_for(performed)) else { continue };
-            if self.nodes[action].parent.is_none() && part != action && self.nodes[action].shape == Shape::Action {
+            // Outside the profile a function is allocated, not nested (`allocated_functions`).
+            if self.profiled && self.nodes[action].parent.is_none() && part != action && self.nodes[action].shape == Shape::Action {
                 self.nodes[action].parent = Some(part);
             }
+        }
+        if !self.profiled {
+            self.allocate_performed_functions();
+            self.inherit_subsetted_types();
+            self.shared_names = self.names_borne_twice();
         }
         for index in 0..self.nodes.len() {
             if let Some(parent) = self.nodes[index].parent {
@@ -488,7 +513,9 @@ impl<'g> Mapper<'g> {
             match node.parent {
                 Some(parent) if depth < 64 => self.resolve_level(parent, stated, resolved, depth + 1),
                 _ => match (node.shape, node.role) {
-                    (Shape::Action, _) => Level::Sa,
+                    (Shape::Action, _) if self.profiled => Level::Sa,
+                    // Any SysML model: functions sit with the parts that perform them.
+                    (Shape::Action, _) => Level::La,
                     (Shape::Part, Some(Role::Node) | Some(Role::Behaviour) | Some(Role::Hardware)) => Level::Pa,
                     (Shape::Part, Some(Role::Entity)) => Level::Oa,
                     (Shape::Part, _) => Level::La,
@@ -549,6 +576,10 @@ impl<'g> Mapper<'g> {
             return None;
         }
         let element = self.graph.get(id)?;
+        // A feature chain (`perform tree.step;`) stands for its last step.
+        if let Some(last) = element.chaining.last() {
+            return self.node_for_depth(last, depth + 1);
+        }
         // A reference usage (an end, a lifeline) stands for what it subsets or is typed by.
         for target in element.subsets.iter().chain(element.redefines.iter()).chain(element.types.iter()) {
             if let Some(i) = self.node_for_depth(target, depth + 1) {
@@ -578,13 +609,13 @@ impl<'g> Mapper<'g> {
             let last_element = self.graph.get(last)?;
             if self.is_port_like(last_element) {
                 let owner = element.chaining.iter().rev().nth(1).and_then(|o| self.node_for(o)).or_else(|| last_element.owner.as_deref().and_then(|o| self.node_for(o)))?;
-                return Some(format!("{}.{}", self.ids.get(&self.node_key(owner))?, last_element.name.clone()?));
+                return Some(format!("{}.{}", self.written_ref(owner)?, last_element.name.clone()?));
             }
             return self.end_ref_depth(last, depth + 1);
         }
         if self.is_port_like(element) {
             let owner = element.owner.as_deref().and_then(|o| self.node_for(o))?;
-            return Some(format!("{}.{}", self.ids.get(&self.node_key(owner))?, element.name.clone()?));
+            return Some(format!("{}.{}", self.written_ref(owner)?, element.name.clone()?));
         }
         if element.is_end || element.kind == "ReferenceUsage" || element.kind == "Feature" || element.kind == "FlowEnd" {
             for target in element.subsets.iter().chain(element.redefines.iter()) {
@@ -594,7 +625,7 @@ impl<'g> Mapper<'g> {
             }
         }
         let index = self.node_for(id)?;
-        self.ids.get(&self.node_key(index)).cloned()
+        self.written_ref(index)
     }
 
     fn is_port_like(&self, element: &Element) -> bool {
@@ -665,11 +696,14 @@ impl<'g> Mapper<'g> {
             self.level(level);
         }
         self.epbs();
+        self.count_connectors_left_out();
         self.state_machines();
         self.scenarios();
+        self.message_scenarios();
         self.test_cases();
         self.constraints();
         self.traces();
+        self.sysml_views();
     }
 
     // --- constraints ------------------------------------------------------
@@ -1238,6 +1272,16 @@ impl<'g> Mapper<'g> {
                     self.system_part(*part, &performed);
                 }
             }
+            // Outside the profile, functions first: a function written in
+            // the part performing it names its parent, written already.
+            Level::La if !self.profiled => {
+                for action in &actions {
+                    self.function(1, *action, "function");
+                }
+                for part in &parts {
+                    self.logical_component(1, *part);
+                }
+            }
             Level::La => {
                 for part in &parts {
                     self.logical_component(1, *part);
@@ -1344,6 +1388,8 @@ impl<'g> Mapper<'g> {
                         if lower.contains("inout") { Some("inout") } else if lower.contains("out") { Some("out") } else if lower.contains("in") { Some("in") } else { None }
                     });
                     let tagged = if Self::has_metadata(c, &["PhysicalPort"]) { None } else if Self::has_metadata(c, &["ComponentPort"]) { Some("in") } else { direction.or(by_type) };
+                    // A SysML port states no direction: both ways.
+                    let tagged = if self.profiled { tagged } else { tagged.or(Some("inout")) };
                     Some((c, tagged))
                 } else if matches!(c.kind.as_str(), "ItemUsage" | "ReferenceUsage" | "AttributeUsage") && c.direction.is_some() && !c.is_end {
                     Some((c, Some(match c.direction.as_deref() { Some("out") => "out", Some("inout") => "inout", _ => "in" })))
@@ -1409,6 +1455,9 @@ impl<'g> Mapper<'g> {
         let name = self.nodes[index].name.clone();
         self.line(depth, &format!("{keyword} {} {{", string_literal(&name)));
         self.header(depth + 1, index, &id);
+        if let Some(parent) = self.nodes[index].decomposes.and_then(|p| self.ids.get(&self.node_key(p)).cloned()) {
+            self.line(depth + 1, &format!("parent: {}", string_literal(&parent)));
+        }
         self.write_ports(depth + 1, index, false);
         let subs: Vec<usize> = self.nodes[index].children.iter().copied().filter(|&c| self.nodes[c].shape == Shape::Action).collect();
         for sub in subs {
@@ -1652,8 +1701,8 @@ impl<'g> Mapper<'g> {
     /// Connectors whose source lands at the level, outside scenarios.
     fn connectors_at(&self, level: Level) -> Vec<&'g Element> {
         self.graph
-            .of_kinds(&["ConnectionUsage", "InterfaceUsage", "FlowUsage", "FlowConnectionUsage", "SuccessionFlowUsage", "BindingConnectionUsage"])
-            .filter(|c| !self.is_library(c) && !self.inside_occurrence(c))
+            .of_kinds(CONNECTOR_KINDS)
+            .filter(|c| !self.is_library(c) && !self.inside_occurrence(c) && (self.profiled || !self.is_message(c)))
             .filter(|c| c.sources.first().and_then(|s| self.end_node(s)).is_some_and(|n| self.nodes[n].level == level))
             .collect()
     }
@@ -1667,7 +1716,8 @@ impl<'g> Mapper<'g> {
             self.count("connectors without two ends (left out)");
             return;
         };
-        let (Some(from), Some(to)) = (self.end_ref(&source), self.end_ref(&target)) else {
+        let written = self.written_ends(connector).or_else(|| Some((self.end_ref(&source)?, self.end_ref(&target)?)));
+        let Some((from, to)) = written else {
             self.count("connectors to elements not written (left out)");
             return;
         };
@@ -1679,8 +1729,13 @@ impl<'g> Mapper<'g> {
             Level::Oa => source_shape == Some(Shape::Action) || target_shape == Some(Shape::Action),
             _ => source_shape == Some(Shape::Action) && target_shape == Some(Shape::Action),
         };
-        let name = Self::display(connector);
-        let id = self.remember(&connector.id, Self::identity_id(connector), if functional { "FunctionalExchange" } else { "ComponentExchange" });
+        let (name, wanted) = if self.profiled {
+            (Self::display(connector), Self::identity_id(connector))
+        } else {
+            let name = self.connector_name(connector, &from, &to);
+            (name.clone(), connector.short_name.clone().unwrap_or(name))
+        };
+        let id = self.remember(&connector.id, wanted, if functional { "FunctionalExchange" } else { "ComponentExchange" });
         let mut items: Vec<String> = connector.children.iter().filter_map(|c| self.graph.get(c)).filter(|c| c.kind == "ItemUsage" || c.kind == "PayloadFeature").filter_map(|c| c.types.first()).filter_map(|t| self.ids.get(t).cloned()).collect();
         if items.is_empty() {
             items = connector.types.iter().filter_map(|t| self.ids.get(t).cloned()).collect();
@@ -1760,7 +1815,7 @@ impl<'g> Mapper<'g> {
             .iter()
             .filter(|e| (e.kind == "StateDefinition" || e.kind == "StateUsage" || e.kind == "ExhibitStateUsage") && !self.is_library(e))
             .filter(|e| e.children.iter().any(|c| self.graph.kind_of(c) == "StateUsage"))
-            .filter(|e| self.graph.ancestor(e.owner.as_deref().unwrap_or(""), |a| a.kind == "StateDefinition" || a.kind == "StateUsage").is_none())
+            .filter(|e| self.graph.ancestor(e.owner.as_deref().unwrap_or(""), |a| matches!(a.kind.as_str(), "StateDefinition" | "StateUsage" | "ExhibitStateUsage")).is_none())
             .collect();
         for machine in machines {
             let states: Vec<&Element> = machine.children.iter().filter_map(|c| self.graph.get(c)).filter(|c| c.kind == "StateUsage").collect();

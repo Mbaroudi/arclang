@@ -43,6 +43,8 @@ mod tests {
         assert_eq!(v.members[2].kind, "Documentation");
         assert_eq!(package.members[3].metadata.len(), 1);
         assert_eq!(package.members[4].kind, "FlowUsage");
+        // `flow f of Fuel ...`: the payload is a member of the flow.
+        assert_eq!(package.members[4].members[0].kind, "PayloadFeature");
     }
 
     #[test]
@@ -71,5 +73,47 @@ mod tests {
         assert_eq!(s.members[1].kind, "TransitionUsage");
         assert_eq!(s.members[3].kind, "TransitionUsage");
         assert_eq!(s.members.last().unwrap().name.as_deref(), Some("t"));
+    }
+
+    #[test]
+    fn public_imports_are_re_exported() {
+        // The shape of the OMG vehicle model: the root imports `Definitions::*`,
+        // which publicly imports the packages that hold the definitions.
+        let text = "package Model {\n  public import Definitions::*;\n  package Definitions {\n    public import Parts::*;\n    private import Hidden::*;\n    package Parts { part def Wheel; }\n    package Hidden { part def Secret; }\n  }\n  package Config {\n    public import Parts::Wheel;\n    part w : Wheel;\n    part s : Secret;\n  }\n}\n";
+        let built = records(text).unwrap_or_else(|e| panic!("{e}"));
+        let unresolved: Vec<&str> = built.unresolved.iter().map(String::as_str).collect();
+        assert_eq!(unresolved, vec!["FeatureTyping 'Secret' designates nothing known"]);
+    }
+
+    #[test]
+    fn recursive_membership_imports_and_implicit_names() {
+        // `P::**` imports P and everything under it; `perform a.b;` and
+        // `:>> x` are known by the name of the feature they reference.
+        let text = "package M {\n  package Config { package Tree { part v { part e { perform act.step; } } } }\n  action act { action step; }\n  package Alloc {\n    public import Config::Tree::**;\n    connect v.e to Tree.v;\n    connect v.e.step to e;\n  }\n}\n";
+        let built = records(text).unwrap_or_else(|e| panic!("{e}"));
+        assert_eq!(built.unresolved, Vec::<String>::new());
+    }
+
+    #[test]
+    fn a_performed_action_is_reached_through_its_implicit_name() {
+        let text = "package M {\n  action massTests { action weigh; }\n  part context {\n    perform massTests;\n    part scale { perform massTests.weigh; }\n  }\n}\n";
+        let built = records(text).unwrap_or_else(|e| panic!("{e}"));
+        assert_eq!(built.unresolved, Vec::<String>::new());
+    }
+
+    #[test]
+    fn public_imports_that_cycle_are_followed_once() {
+        // Twelve packages publicly importing each other: a name found
+        // nowhere is looked for once in each, not along every path.
+        let mut text = String::from("package M {\n");
+        for i in 0..12 {
+            let imports: String = (0..12).filter(|j| *j != i).map(|j| format!("public import P{j}::*; ")).collect();
+            text.push_str(&format!("  package P{i} {{ {imports} part def D{i}; }}\n"));
+        }
+        text.push_str("  part x : P0::Nowhere;\n  part y : P0::D11;\n}\n");
+        let started = std::time::Instant::now();
+        let built = records(&text).unwrap_or_else(|e| panic!("{e}"));
+        assert!(started.elapsed().as_secs() < 2, "took {:?}", started.elapsed());
+        assert_eq!(built.unresolved, vec!["FeatureTyping 'P0::Nowhere' designates nothing known".to_string()]);
     }
 }

@@ -4,8 +4,11 @@
 //! specializations and typings, boundedly), in what it imports, then in the
 //! enclosing namespaces up to the root; `$::` starts at the root.
 //!
-//! Imported namespaces are resolved once, when the scope is built, without
-//! consulting imports themselves: an import names a declared namespace.
+//! Imported namespaces are resolved once, when the scope is built: first
+//! without consulting imports, then the remaining ones through the imports
+//! already resolved (`import Parts::Wheel` where `Parts` is itself
+//! imported). A public import is re-exported: what `P::*` brings includes
+//! what `P` publicly imports.
 
 use super::syntax::{Detail, Node, QualifiedName, SpecKind, Target};
 use std::cell::RefCell;
@@ -43,6 +46,19 @@ pub fn flatten(roots: &[Node]) -> Vec<Flat<'_>> {
     flat
 }
 
+/// The name an unnamed feature takes from the feature it redefines or
+/// references: the last segment of that name or chain.
+fn implicit_name(node: &Node) -> Option<&str> {
+    if node.name.is_some() || node.short_name.is_some() {
+        return None;
+    }
+    let specialization = node.specializations.iter().find(|s| matches!(s.kind, SpecKind::Redefinition | SpecKind::Reference))?;
+    match &specialization.target {
+        Target::Name(name) => name.segments.last().map(String::as_str),
+        Target::Chain(steps) => steps.last()?.segments.last().map(String::as_str),
+    }
+}
+
 /// The nodes a detail owns, in order.
 pub fn detail_nodes(detail: &Detail) -> Vec<&Node> {
     match detail {
@@ -63,9 +79,15 @@ struct Imported {
     /// `P::*`: every member; else the one member named by the import.
     whole: bool,
     recursive: bool,
+    /// `public import`: re-exported to whoever imports the namespace.
+    public: bool,
     /// For a membership import: the member itself.
     member: Option<usize>,
 }
+
+/// Passes over the imports: an import found through another import waits
+/// for that one.
+const IMPORT_PASSES: usize = 6;
 
 pub struct Scope<'n> {
     pub flat: Vec<Flat<'n>>,
@@ -92,20 +114,23 @@ impl<'n> Scope<'n> {
                 members[owner].entry(name.to_string()).or_insert(index);
             }
         }
+        // Unnamed features are known by the name of what they redefine or
+        // reference (`:>> mass`, `perform a.step`), after the declared names.
+        for (index, element) in flat.iter().enumerate() {
+            let Some(owner) = element.owner else { continue };
+            if let Some(name) = implicit_name(element.node) {
+                members[owner].entry(name.to_string()).or_insert(index);
+            }
+        }
         let mut scope = Scope { flat, members, imports: vec![Vec::new(); n], root_imports: Vec::new(), roots: root_indexes, generals_cache: RefCell::new(HashMap::new()) };
-        // Imports: resolved without imports, outward from the importing namespace.
-        let import_nodes: Vec<(usize, Option<usize>)> = scope.flat.iter().enumerate().filter(|(_, f)| matches!(f.node.detail, Detail::Import { .. })).map(|(i, f)| (i, f.owner)).collect();
-        for (index, owner) in import_nodes {
-            let Detail::Import { target, namespace: whole, recursive, .. } = &scope.flat[index].node.detail else { continue };
-            let found = scope.resolve_without_imports(target, owner);
-            let imported = match (found, *whole) {
-                (Some(ns), true) => Imported { namespace: ns, whole: true, recursive: *recursive, member: None },
-                (Some(member), false) => Imported { namespace: scope.flat[member].owner.unwrap_or(member), whole: false, recursive: false, member: Some(member) },
-                (None, _) => continue,
-            };
-            match owner {
-                Some(owner) => scope.imports[owner].push(imported),
-                None => scope.root_imports.push(imported),
+        // Imports: resolved outward from the importing namespace, first
+        // without imports, then through the imports resolved so far.
+        let mut pending: Vec<(usize, Option<usize>)> = scope.flat.iter().enumerate().filter(|(_, f)| matches!(f.node.detail, Detail::Import { .. })).map(|(i, f)| (i, f.owner)).collect();
+        for pass in 0..IMPORT_PASSES {
+            let before = pending.len();
+            pending.retain(|&(index, owner)| !scope.resolve_import(index, owner, pass > 0));
+            if pending.len() == before && pass > 0 {
+                break;
             }
         }
         // Aliases: another name for a member.
@@ -128,6 +153,29 @@ impl<'n> Scope<'n> {
             }
         }
         scope
+    }
+
+    /// Resolve one import and record it; false when its target is not found.
+    fn resolve_import(&mut self, index: usize, owner: Option<usize>, use_imports: bool) -> bool {
+        let node = self.flat[index].node;
+        let Detail::Import { target, namespace: whole, recursive, .. } = &node.detail else { return true };
+        let found = if use_imports { self.resolve_name(target, owner) } else { self.resolve_without_imports(target, owner) };
+        let Some(found) = found else { return false };
+        let public = node.prefixes.visibility == Some("public");
+        let imported = if *whole {
+            Imported { namespace: found, whole: true, recursive: *recursive, public, member: None }
+        } else {
+            Imported { namespace: self.flat[found].owner.unwrap_or(found), whole: false, recursive: false, public, member: Some(found) }
+        };
+        // `P::**`: P itself, and everything under it.
+        let under = (!*whole && *recursive).then_some(Imported { namespace: found, whole: true, recursive: true, public, member: None });
+        let list = match owner {
+            Some(owner) => &mut self.imports[owner],
+            None => &mut self.root_imports,
+        };
+        list.push(imported);
+        list.extend(under);
+        true
     }
 
     pub fn len(&self) -> usize {
@@ -190,6 +238,9 @@ impl<'n> Scope<'n> {
     }
 
     fn imported_member(&self, imports: &[Imported], name: &str, seen: &mut HashSet<usize>, depth: usize) -> Option<usize> {
+        if depth > 10 {
+            return None;
+        }
         for import in imports {
             if import.whole {
                 if let Some(&found) = self.members[import.namespace].get(name) {
@@ -197,6 +248,16 @@ impl<'n> Scope<'n> {
                 }
                 if let Some(found) = self.member_in(import.namespace, name, seen, depth + 1, false) {
                     return Some(found);
+                }
+                // What the imported namespace publicly imports comes along,
+                // once per lookup: imports that cycle or form diamonds are
+                // followed once (keys past `len` mark followed namespaces).
+                let followed = self.flat.len() + import.namespace;
+                let public: Vec<Imported> = self.imports[import.namespace].iter().copied().filter(|i| i.public).collect();
+                if !public.is_empty() && seen.insert(followed) {
+                    if let Some(found) = self.imported_member(&public, name, seen, depth + 1) {
+                        return Some(found);
+                    }
                 }
                 if import.recursive {
                     if let Some(found) = self.member_recursive(import.namespace, name, depth + 1) {
@@ -239,10 +300,15 @@ impl<'n> Scope<'n> {
         // cycle of specializations ends here.
         self.generals_cache.borrow_mut().insert(index, Vec::new());
         let node = self.flat[index].node;
-        let context = self.flat[index].owner;
         let mut out = Vec::new();
         for specialization in &node.specializations {
+            // Only a feature known by its implicit name can find itself: a
+            // typing or a redefinition is looked up from the owner.
+            let context = if matches!(specialization.kind, SpecKind::Redefinition | SpecKind::Typing) { self.flat[index].owner } else { self.specialization_context(index, &specialization.target) };
             let found = match &specialization.target {
+                Target::Name(name) if specialization.kind == SpecKind::Redefinition && name.segments.len() == 1 => {
+                    self.redefined(index, name.last()).or_else(|| self.resolve_name_from(name, context, &mut HashSet::new(), 4, true))
+                }
                 Target::Name(name) => self.resolve_name_from(name, context, &mut HashSet::new(), 4, true),
                 Target::Chain(steps) => self.resolve_chain(steps, context).and_then(|r| r.last().copied()),
             };
@@ -262,6 +328,37 @@ impl<'n> Scope<'n> {
         }
         self.generals_cache.borrow_mut().insert(index, out.clone());
         out
+    }
+
+    /// The feature a redefinition `:>> name` of `index` redefines: a member
+    /// its owner inherits, never `index` itself (known by that same name).
+    pub fn redefined(&self, index: usize, name: &str) -> Option<usize> {
+        let owner = self.flat[index].owner?;
+        for general in self.generals(owner) {
+            let mut seen = HashSet::new();
+            if let Some(found) = self.member_in(general, name, &mut seen, 1, true).filter(|&f| f != index) {
+                return Some(found);
+            }
+        }
+        None
+    }
+
+    /// Where the target of a specialization of `index` is resolved from: its
+    /// owner, or further out when the name found there is `index` itself
+    /// (`perform massTests;` is known as `massTests` by its implicit name).
+    pub fn specialization_context(&self, index: usize, target: &Target) -> Option<usize> {
+        let mut context = self.flat[index].owner;
+        for _ in 0..64 {
+            let found = match target {
+                Target::Name(name) => self.resolve_name(name, context),
+                Target::Chain(steps) => steps.first().and_then(|first| self.resolve_name(first, context)),
+            };
+            if found != Some(index) {
+                return context;
+            }
+            context = self.flat[context?].owner;
+        }
+        context
     }
 
     /// Whether `general` is a type of `index` (not a subsetted feature).
