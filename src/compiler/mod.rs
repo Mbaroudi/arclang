@@ -56,6 +56,7 @@ pub mod capella_compliant_generator;
 pub mod graph_model;
 pub mod diagram;
 pub mod arcviz_explorer;
+pub mod workbench;
 pub mod terraform_databricks_generator;
 pub mod terraform_aws_complete_generator;
 pub mod terraform_azure_generator;

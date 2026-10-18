@@ -145,3 +145,46 @@ pub fn run(input: &Path, element: &str, key: &str, value: Option<&str>, write: b
     );
     Ok(())
 }
+
+/// `arclang workbench`: the snapshot of one model file as JSON, on stdout.
+pub fn workbench(input: &Path, gate_standard: &str, exports: bool) -> Result<(), CliError> {
+    use crate::compiler::workbench::{snapshot_json, SnapshotOptions};
+    let standard = match gate_standard.to_ascii_uppercase().replace(['-', '_', ' '], "").as_str() {
+        "ISO26262" => "ISO26262",
+        "DO178C" => "DO178C",
+        "IEC61508" => "IEC61508",
+        other => return Err(CliError::Config(format!("unknown gate standard '{other}': use ISO26262, DO178C or IEC61508"))),
+    };
+    let source = std::fs::read_to_string(input)?;
+    let options = SnapshotOptions { gate_standard: standard, exports, explorer_html: false };
+    println!("{}", snapshot_json(&source, &options));
+    Ok(())
+}
+
+/// `arclang edit`: one JSON edit request applied to a model file. The JSON
+/// answer is always printed; a refused edit exits with an error and leaves
+/// the file untouched.
+pub fn apply_request(input: &Path, request: &str, write: bool) -> Result<(), CliError> {
+    use crate::compiler::workbench::edit_json;
+    let request = if request.trim() == "-" {
+        let mut text = String::new();
+        std::io::Read::read_to_string(&mut std::io::stdin(), &mut text)?;
+        text
+    } else {
+        request.to_string()
+    };
+    let source = std::fs::read_to_string(input)?;
+    match edit_json(&source, &request) {
+        Ok(edited) => {
+            if write {
+                std::fs::write(input, &edited)?;
+            }
+            println!("{}", serde_json::json!({ "success": true, "source": edited }));
+            Ok(())
+        }
+        Err(error) => {
+            println!("{}", serde_json::json!({ "success": false, "error": error }));
+            Err(CliError::Compilation(error))
+        }
+    }
+}
