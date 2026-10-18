@@ -234,16 +234,18 @@ pub(super) fn owner<'a>(context: &Context, engineering: &El, s: &'a Scenario) ->
     if let Some((owner, name)) = s.name.split_once(" / ") {
         if let (Some(id), Some(declared)) = (context.resolve(owner), &declared) {
             if id == declared {
-                return (Some(id.to_string()), name);
+                // The name keeps its prefix: the caller removes it with the import's numbering.
+                let _ = name;
+                return (Some(id.to_string()), s.name.as_str());
             }
         }
     }
     if declared.is_some() {
         return (declared, s.name.as_str());
     }
-    if let Some((owner, name)) = s.name.split_once(" / ") {
+    if let Some((owner, _)) = s.name.split_once(" / ") {
         if let Some(id) = context.resolve(owner) {
-            return (Some(id.to_string()), name);
+            return (Some(id.to_string()), s.name.as_str());
         }
     }
     let first = s.participants.iter().find_map(|p| context.resolve(&p.id).or_else(|| context.resolve(&p.name)));

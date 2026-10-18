@@ -14,12 +14,12 @@ pub(super) fn owner_and_name<'a>(context: &Context, machine: &'a StateMachine, f
     let declared = text(&machine.attributes, "owner").and_then(|o| context.resolve(o)).map(str::to_string);
     if let Some(declared) = declared {
         // The import prefixes the owner's name when machines share a name.
-        let name = machine.name.split_once(" / ").filter(|(owner, _)| context.resolve(owner) == Some(declared.as_str())).map(|(_, n)| n).unwrap_or(&machine.name);
-        return (Some(declared), name);
+        // The name keeps its prefix: the caller removes it with the import's numbering.
+        return (Some(declared), machine.name.as_str());
     }
-    if let Some((owner, name)) = machine.name.split_once(" / ") {
+    if let Some((owner, _)) = machine.name.split_once(" / ") {
         if let Some(id) = context.resolve(owner) {
-            return (Some(id.to_string()), name);
+            return (Some(id.to_string()), machine.name.as_str());
         }
     }
     (fallback.map(str::to_string), machine.name.as_str())

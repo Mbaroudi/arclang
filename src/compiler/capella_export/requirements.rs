@@ -33,6 +33,10 @@ pub(super) fn register(context: &mut Context, model: &Model) {
     }
 }
 
+fn enum_value_id(folder: &str, key: &str, value: &str) -> String {
+    derived(&format!("{folder}:enumeration:{key}:{value}"))
+}
+
 /// The kind of value attribute an attribute value is written with.
 fn value_kind(value: &AttributeValue) -> (&'static str, &'static str, String) {
     match value {
@@ -40,6 +44,8 @@ fn value_kind(value: &AttributeValue) -> (&'static str, &'static str, String) {
         AttributeValue::Number(n) if n.fract() == 0.0 => ("Requirements:IntegerValueAttribute", "Integer", format!("{}", *n as i64)),
         AttributeValue::Number(n) => ("Requirements:RealValueAttribute", "Real", n.to_string()),
         AttributeValue::String(s) if s == "true" || s == "false" => ("Requirements:BooleanValueAttribute", "Boolean", s.clone()),
+        // Several values: an enumeration attribute naming its literals.
+        AttributeValue::List(_) => ("Requirements:EnumerationValueAttribute", "Enumeration", String::new()),
         other => ("Requirements:StringValueAttribute", "String", other.as_string().map(str::to_string).unwrap_or_else(|| other.display())),
     }
 }
@@ -80,8 +86,32 @@ pub(super) fn write(context: &Context, model: &Model, level: &str) -> Vec<El> {
         kinds.dedup();
         kinds
     };
+    // The literals of each enumeration attribute, by key.
+    let mut literals: BTreeMap<String, Vec<String>> = BTreeMap::new();
+    for r in &requirements {
+        for (key, value) in &r.attributes {
+            if let AttributeValue::List(items) = value {
+                let known = literals.entry(key.clone()).or_default();
+                for item in items.iter().map(|i| i.display()) {
+                    if !known.contains(&item) {
+                        known.push(item);
+                    }
+                }
+            }
+        }
+    }
     for kind in &data_types {
+        if *kind == "Enumeration" {
+            continue;
+        }
         folder.push(El::new("ownedDefinitionTypes", "Requirements:DataTypeDefinition", &derived(&format!("{folder_id}:data:{kind}"))).attr("ReqIFLongName", kind));
+    }
+    for (key, values) in &literals {
+        let mut enumeration = El::new("ownedDefinitionTypes", "Requirements:EnumerationDataTypeDefinition", &derived(&format!("{folder_id}:enumeration:{key}"))).attr("ReqIFLongName", key);
+        for value in values {
+            enumeration.push(El::new("specifiedValues", "Requirements:EnumValue", &enum_value_id(&folder_id, key, value)).attr("ReqIFLongName", value));
+        }
+        folder.push(enumeration);
     }
     // Each requirement type defines the attributes; a requirement's values
     // name the definitions of its own type.
@@ -94,7 +124,15 @@ pub(super) fn write(context: &Context, model: &Model, level: &str) -> Vec<El> {
     for (name, id) in &all_types {
         let mut t = El::new("ownedTypes", "Requirements:RequirementType", id).attr("ReqIFLongName", name);
         for (key, (_, kind)) in &definitions {
-            t.push(El::new("ownedAttributes", "Requirements:AttributeDefinition", &definition_of(id, key)).attr("ReqIFLongName", key).attr("definitionType", &format!("#{}", derived(&format!("{folder_id}:data:{kind}")))));
+            let el = if *kind == "Enumeration" {
+                El::new("ownedAttributes", "Requirements:AttributeDefinitionEnumeration", &definition_of(id, key))
+                    .attr("ReqIFLongName", key)
+                    .attr("definitionType", &format!("#{}", derived(&format!("{folder_id}:enumeration:{key}"))))
+                    .attr("multiValued", "true")
+            } else {
+                El::new("ownedAttributes", "Requirements:AttributeDefinition", &definition_of(id, key)).attr("ReqIFLongName", key).attr("definitionType", &format!("#{}", derived(&format!("{folder_id}:data:{kind}"))))
+            };
+            t.push(el);
         }
         folder.push(t);
     }
@@ -124,6 +162,11 @@ pub(super) fn write(context: &Context, model: &Model, level: &str) -> Vec<El> {
         for key in keys {
             let (kind, _, value) = value_kind(&r.attributes[key]);
             let definition = definition_of(&type_id, key);
+            if let AttributeValue::List(items) = &r.attributes[key] {
+                let values: Vec<String> = items.iter().map(|i| format!("#{}", enum_value_id(&folder_id, key, &i.display()))).collect();
+                el.push(El::new("ownedAttributes", kind, &derived(&format!("{id}:attribute:{key}"))).attr("definition", &format!("#{definition}")).attr("values", &values.join(" ")));
+                continue;
+            }
             el.push(El::new("ownedAttributes", kind, &derived(&format!("{id}:attribute:{key}"))).attr("definition", &format!("#{definition}")).attr("value", &value));
         }
         // A requirement refining another owns the relation.
