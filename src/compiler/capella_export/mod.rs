@@ -15,6 +15,7 @@
 
 mod behaviour;
 mod context;
+mod cyber;
 mod data;
 mod diagram_drawer;
 mod diagrams;
@@ -202,9 +203,14 @@ pub fn export(model: &Model, file_stem: &str) -> Exported {
             pkg.push(category);
         }
     }
+    cyber::resolve(&mut context, &mut engineering);
+    let with_cybersecurity = cyber::is_used(&engineering);
+    if with_cybersecurity {
+        project.set(cyber::NAMESPACE.0, cyber::NAMESPACE.1);
+    }
     project.push(engineering);
 
-    let afm = afm(&project_id, !requirements::all(model).is_empty(), stpa::is_used(model));
+    let afm = afm(&project_id, !requirements::all(model).is_empty(), stpa::is_used(model), with_cybersecurity);
     let index = diagrams::index(project.children().last().expect("the system engineering"));
     let drawn = diagrams::diagrams(&mut context, &index, &model.diagrams, &format!("{file_stem}.capella"));
     let aird = aird(&project_id, file_stem, drawn);
@@ -359,7 +365,7 @@ pub(super) fn realization(tag: &str, kind: &str, source: &str, target: &str) -> 
 }
 
 /// The viewpoints the model uses: Capella's own.
-fn afm(project_id: &str, with_requirements: bool, with_stpa: bool) -> String {
+fn afm(project_id: &str, with_requirements: bool, with_stpa: bool, with_cybersecurity: bool) -> String {
     let mut root = El::root("metadata:Metadata")
         .attr("xmi:version", "2.0")
         .attr("xmlns:xmi", "http://www.omg.org/XMI")
@@ -368,6 +374,9 @@ fn afm(project_id: &str, with_requirements: bool, with_stpa: bool) -> String {
         .with(El::root("viewpointReferences").attr("id", &derived(&format!("{project_id}:afm:capella"))).attr("vpId", "org.polarsys.capella.core.viewpoint").attr("version", "7.1.0"));
     if with_stpa {
         root.push(El::root("viewpointReferences").attr("id", &derived(&format!("{project_id}:afm:stpa"))).attr("vpId", "com.thalesgroup.mde.capella.stpa").attr("version", "0.1.0.qualifier"));
+    }
+    if with_cybersecurity {
+        root.push(El::root("viewpointReferences").attr("id", &derived(&format!("{project_id}:afm:cybersecurity"))).attr("vpId", "org.polarsys.capella.cybersecurity").attr("version", "2.2.0"));
     }
     if with_requirements {
         for vp in ["org.polarsys.kitalpha.vp.requirements", "org.polarsys.capella.vp.requirements"] {

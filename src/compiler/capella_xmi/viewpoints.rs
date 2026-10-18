@@ -32,7 +32,6 @@ const NOT_PLACED: &[(&str, &str)] = &[
     ("cybersecurity:Threat", "cybersecurity threats"),
     ("cybersecurity:ThreatInvolvement", "components involved in a threat"),
     ("cybersecurity:ThreatApplication", "assets a threat applies to"),
-    ("cybersecurity:ThreatSourceUse", "actors used as a threat source"),
     ("cybersecurity:FunctionalPrimaryAsset", "functional primary assets"),
     ("cybersecurity:InformationPrimaryAsset", "information primary assets"),
     ("cybersecurity:EnterprisePrimaryAsset", "enterprise primary assets"),
@@ -40,22 +39,39 @@ const NOT_PLACED: &[(&str, &str)] = &[
     ("cybersecurity:CybersecurityConfiguration", "the cybersecurity configuration (scales of the needs)"),
 ];
 
-/// A viewpoint attribute of the element it extends: `(Capella attribute, ArcLang key)`.
-const EXTENSIONS: &[(&str, &[(&str, &str)])] = &[
+/// How a viewpoint attribute is written in ArcLang.
+#[derive(Clone, Copy)]
+enum Shape {
+    /// A boolean, a number or a text.
+    Plain,
+    /// References, as a list of ids.
+    Refs,
+    /// A reference, as an id; `true` when the extension is there without it.
+    RefOrPresence,
+}
+
+/// A viewpoint attribute of the element it extends: `(Capella attribute, ArcLang key, shape)`.
+const EXTENSIONS: &[(&str, &[(&str, &str, Shape)])] = &[
     (
         "cybersecurity:SecurityNeeds",
         &[
-            ("confidentialityValue", "security_confidentiality"),
-            ("integrityValue", "security_integrity"),
-            ("availabilityValue", "security_availability"),
-            ("traceabilityValue", "security_traceability"),
+            ("confidentialityValue", "security_confidentiality", Shape::Plain),
+            ("integrityValue", "security_integrity", Shape::Plain),
+            ("availabilityValue", "security_availability", Shape::Plain),
+            ("traceabilityValue", "security_traceability", Shape::Plain),
         ],
     ),
-    ("cybersecurity:FunctionStorage", &[("dataStorage", "data_storage"), ("remanentData", "remanent_data")]),
+    ("cybersecurity:FunctionStorage", &[("exchangedItems", "stored_items", Shape::Refs), ("dataStorage", "data_storage", Shape::Plain), ("remanentData", "remanent_data", Shape::Plain)]),
     (
         "cybersecurity:TrustBoundaryStorage",
-        &[("trusted", "trusted"), ("threatSource", "threat_source"), ("threatSourceProfile", "threat_source_profile"), ("rationale", "trust_rationale")],
+        &[
+            ("trusted", "trusted", Shape::Plain),
+            ("threatSource", "threat_source", Shape::Plain),
+            ("threatSourceProfile", "threat_source_profile", Shape::Plain),
+            ("rationale", "trust_rationale", Shape::Plain),
+        ],
     ),
+    ("cybersecurity:ThreatSourceUse", &[("usedActor", "threat_source_use", Shape::RefOrPresence)]),
 ];
 
 /// The prefixes of Capella's own metamodel, as the importer shortens them.
@@ -94,10 +110,16 @@ pub(super) fn extension_values(project: &Node) -> HashMap<String, Vec<PropertyVa
     for element in project.descendants() {
         for extension in element.tagged("ownedExtensions") {
             let Some((_, keys)) = EXTENSIONS.iter().find(|(kind, _)| is_viewpoint(extension, kind)) else { continue };
-            for (attribute, key) in keys.iter() {
-                if let Some(raw) = extension.attr(attribute) {
-                    values.entry(element.id().to_string()).or_default().push(PropertyValue { key: key.to_string(), literal: literal(raw) });
-                }
+            for (attribute, key, shape) in keys.iter() {
+                let raw = extension.attr(attribute);
+                let literal = match (shape, raw) {
+                    (Shape::Plain, Some(raw)) => literal(raw),
+                    (Shape::Refs, Some(raw)) => list_literal(&refs(Some(raw))),
+                    (Shape::RefOrPresence, Some(raw)) => string_literal(&refs(Some(raw)).join(" ")),
+                    (Shape::RefOrPresence, None) => "true".to_string(),
+                    (_, None) => continue,
+                };
+                values.entry(element.id().to_string()).or_default().push(PropertyValue { key: key.to_string(), literal });
             }
         }
     }
@@ -278,6 +300,27 @@ mod tests {
             vec![("security_confidentiality".into(), "3".into()), ("security_integrity".into(), "2".into()), ("data_storage".into(), "true".into())]
         );
         assert_eq!(pairs("pc1"), vec![("trusted".into(), "true".into()), ("trust_rationale".into(), "\"Hardened\"".into())]);
+    }
+
+    #[test]
+    fn stored_items_and_threat_sources_become_attributes_too() {
+        let xml = r##"<Project xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <ownedFunctions xsi:type="org.polarsys.capella.core.data.pa:PhysicalFunction" id="pf1" name="Record">
+    <ownedExtensions xsi:type="cybersecurity:FunctionStorage" id="fs" exchangedItems="#ei1 #ei2" remanentData="true"/>
+  </ownedFunctions>
+  <ownedComponents xsi:type="org.polarsys.capella.core.data.pa:PhysicalComponent" id="pc1" name="Hacker host">
+    <ownedExtensions xsi:type="cybersecurity:ThreatSourceUse" id="tsu" usedActor="#actor1"/>
+  </ownedComponents>
+  <ownedComponents xsi:type="org.polarsys.capella.core.data.pa:PhysicalComponent" id="pc2" name="Open host">
+    <ownedExtensions xsi:type="cybersecurity:ThreatSourceUse" id="tsu2"/>
+  </ownedComponents>
+</Project>"##;
+        let document = parse(xml).expect("xml");
+        let values = extension_values(&document.children[0]);
+        let pairs = |id: &str| -> Vec<(String, String)> { values[id].iter().map(|v| (v.key.clone(), v.literal.clone())).collect() };
+        assert_eq!(pairs("pf1"), vec![("stored_items".into(), "[\"ei1\", \"ei2\"]".into()), ("remanent_data".into(), "true".into())]);
+        assert_eq!(pairs("pc1"), vec![("threat_source_use".into(), "\"actor1\"".into())]);
+        assert_eq!(pairs("pc2"), vec![("threat_source_use".into(), "true".into())]);
     }
 
     #[test]
