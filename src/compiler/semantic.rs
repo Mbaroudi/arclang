@@ -1355,6 +1355,14 @@ impl SemanticAnalyzer {
                 let name = format!("{} -> {}", transition.from, transition.to);
                 register_element(&mut all_elements, &mut duplicate_ids, id.clone(), ElementInfo::new(id, name, "Transition"));
             }
+            for region in &machine.regions {
+                if !region.initial.is_empty() && !state_names.contains(region.initial.as_str()) {
+                    reference_errors.push(format!(
+                        "state_machine '{}': region '{}': initial state '{}' is not declared",
+                        machine.name, region.name, region.initial
+                    ));
+                }
+            }
             if !machine.initial_state.is_empty() && !state_names.contains(machine.initial_state.as_str()) {
                 reference_errors.push(format!(
                     "state_machine '{}': initial state '{}' is not declared",

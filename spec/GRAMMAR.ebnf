@@ -388,6 +388,11 @@ DiagramAttribute ::= "view" ":" ( "oab" | "sab" | "lab" | "pab" | "cap" | "cdb" 
 
 StateMachineDecl ::= "state_machine" Name "{" StateMachineElement* "}" ;
 StateMachineElement ::= ( "state" | "mode" ) Name StateBody?
+                      | "region" Name "{" ( Attribute | ( "state" | "mode" ) Name StateBody?
+                                           | "transition" Name "->" Name AttributeBlock? )* "}"
+                        (* a top-level region of its own, with its initial: ; a
+                           machine with several regions writes one block each.
+                           Its states and transitions are the machine's too. *)
                         (* mode = chosen behaviour, state = undergone (Arcadia) *)
 (* A state holds a region: states, modes and transitions of its own. A
    transition declared inside a state joins the machine's, and names any

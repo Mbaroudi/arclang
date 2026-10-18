@@ -811,8 +811,28 @@ pub struct StateMachine {
     #[serde(default)]
     pub attributes: HashMap<String, AttributeValue>,
     pub initial_state: String,
+    /// Every state of the machine, at the top level of any region.
+    pub states: Vec<State>,
+    /// Every transition of the machine, whatever region declares it.
+    pub transitions: Vec<Transition>,
+    /// The top-level regions written as `region` blocks (a machine with
+    /// several, each with its own initial state); their states and
+    /// transitions are in the flat lists too.
+    #[serde(default)]
+    pub regions: Vec<Region>,
+}
+
+/// A top-level region of a state machine written explicitly: `region "Name"
+/// { initial: "A" state "A" {} ... }` (Capella: Region).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Region {
+    /// `id:` when written, else `<machine>.<name>`.
+    pub id: String,
+    pub name: String,
+    pub initial: String,
     pub states: Vec<State>,
     pub transitions: Vec<Transition>,
+    pub attributes: HashMap<String, AttributeValue>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -1021,6 +1041,11 @@ pub struct FragmentOperand {
     /// Fragments nested in this operand.
     #[serde(default)]
     pub fragments: Vec<CombinedFragment>,
+    /// The invariants written in this operand, as indexes into the
+    /// scenario's `invariants` (an invariant outside every operand is at
+    /// the scenario's top level).
+    #[serde(default)]
+    pub invariants: Vec<usize>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

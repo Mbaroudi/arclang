@@ -1095,6 +1095,7 @@ impl Parser {
         let mut initial_state = String::new();
         let mut states = Vec::new();
         let mut transitions = Vec::new();
+        let mut regions: Vec<Region> = Vec::new();
         let mut attributes: HashMap<String, AttributeValue> = HashMap::new();
 
         while !self.check(&Token::RightBrace) && !self.is_at_end() {
@@ -1104,6 +1105,17 @@ impl Parser {
                 }
                 Token::Transition => {
                     transitions.push(self.parse_transition()?);
+                }
+                Token::Region if !self.peek_is_colon() => {
+                    // A region of its own: its states and transitions join the
+                    // machine's flat lists, its initial state is its own.
+                    let region = self.parse_region(&name)?;
+                    states.extend(region.states.iter().cloned());
+                    transitions.extend(region.transitions.iter().cloned());
+                    if initial_state.is_empty() {
+                        initial_state = region.initial.clone();
+                    }
+                    regions.push(region);
                 }
                 _ if self.peek_is_colon() => {
                     let (key, value) = self.parse_attribute()?;
@@ -1124,7 +1136,38 @@ impl Parser {
         self.expect(Token::RightBrace)?;
 
         let id = attributes.get("id").and_then(|v| v.as_string()).map(str::to_string).unwrap_or_default();
-        Ok(StateMachine { id, name, attributes, initial_state, states, transitions })
+        Ok(StateMachine { id, name, attributes, initial_state, states, transitions, regions })
+    }
+
+    /// Parse: region "Name" { id: "..." initial: "A" state "A" {} transition A -> B {} }
+    fn parse_region(&mut self, machine: &str) -> Result<Region, String> {
+        self.expect(Token::Region)?;
+        let name = self.expect_name()?;
+        self.expect(Token::LeftBrace)?;
+        let mut states = Vec::new();
+        let mut transitions = Vec::new();
+        let mut attributes: HashMap<String, AttributeValue> = HashMap::new();
+        while !self.check(&Token::RightBrace) && !self.is_at_end() {
+            match self.current() {
+                Token::StateKw | Token::Mode => states.push(self.parse_state(&mut transitions)?),
+                Token::Transition => transitions.push(self.parse_transition()?),
+                _ if self.peek_is_colon() => {
+                    let (key, value) = self.parse_attribute()?;
+                    attributes.insert(key, value);
+                }
+                other => return Err(self.err(format!("Unexpected token in region '{name}' of state_machine '{machine}': {other}"))),
+            }
+        }
+        self.expect(Token::RightBrace)?;
+        let text = |key: &str| attributes.get(key).and_then(|v| v.as_string()).map(str::to_string);
+        Ok(Region {
+            id: text("id").unwrap_or_else(|| format!("{machine}.{name}")),
+            name,
+            initial: text("initial").unwrap_or_default(),
+            states,
+            transitions,
+            attributes,
+        })
     }
 
     /// Parse: diagram "Name" { view: lab shows: [A, B] context: true }
@@ -1271,7 +1314,7 @@ impl Parser {
         self.expect(Token::LeftBrace)?;
         let start = messages.len();
         let mut operands: Vec<FragmentOperand> = Vec::new();
-        let mut implicit = FragmentOperand { label: String::new(), messages: Vec::new(), start: messages.len(), end: 0, fragments: Vec::new() };
+        let mut implicit = FragmentOperand { label: String::new(), messages: Vec::new(), start: messages.len(), end: 0, fragments: Vec::new(), invariants: Vec::new() };
         let mut explicit = false;
         while !self.check(&Token::RightBrace) && !self.is_at_end() {
             match self.current() {
@@ -1283,12 +1326,12 @@ impl Parser {
                         _ => String::new(),
                     };
                     self.expect(Token::LeftBrace)?;
-                    let mut operand = FragmentOperand { label: operand_label, messages: Vec::new(), start: messages.len(), end: 0, fragments: Vec::new() };
+                    let mut operand = FragmentOperand { label: operand_label, messages: Vec::new(), start: messages.len(), end: 0, fragments: Vec::new(), invariants: Vec::new() };
                     while !self.check(&Token::RightBrace) && !self.is_at_end() {
                         match self.current() {
                             Token::Message => { let message = self.parse_message()?; operand.messages.push(message.clone()); messages.push(message); }
                             Token::Fragment => { let nested = self.parse_fragment(messages, invariants)?; operand.fragments.push(nested); }
-                            Token::StateKw | Token::Mode | Token::Function => self.parse_invariant(messages, invariants, &mut operand.fragments)?,
+                            Token::StateKw | Token::Mode | Token::Function => { let at = self.parse_invariant(messages, invariants, &mut operand.fragments)?; operand.invariants.push(at); }
                             other => return Err(self.err(format!("Unexpected token in operand: {other}"))),
                         }
                     }
@@ -1298,7 +1341,7 @@ impl Parser {
                 }
                 Token::Message => { let message = self.parse_message()?; implicit.messages.push(message.clone()); messages.push(message); }
                 Token::Fragment => { let nested = self.parse_fragment(messages, invariants)?; implicit.fragments.push(nested); }
-                Token::StateKw | Token::Mode | Token::Function => self.parse_invariant(messages, invariants, &mut implicit.fragments)?,
+                Token::StateKw | Token::Mode | Token::Function => { let at = self.parse_invariant(messages, invariants, &mut implicit.fragments)?; implicit.invariants.push(at); }
                 other => return Err(self.err(format!("Unexpected token in fragment: {other}"))),
             }
         }
@@ -1317,7 +1360,7 @@ impl Parser {
     /// mode or function asserted on a lifeline. The messages of its body
     /// land in the scenario's flat list; the invariant keeps their rows.
     /// Fragments opened in its body belong to the enclosing frame.
-    fn parse_invariant(&mut self, messages: &mut Vec<Message>, invariants: &mut Vec<StateInvariant>, fragments: &mut Vec<CombinedFragment>) -> Result<(), String> {
+    fn parse_invariant(&mut self, messages: &mut Vec<Message>, invariants: &mut Vec<StateInvariant>, fragments: &mut Vec<CombinedFragment>) -> Result<usize, String> {
         let kind = match self.current() {
             Token::Function => InvariantKind::Function,
             _ => InvariantKind::State,
@@ -1336,7 +1379,7 @@ impl Parser {
                 match self.current() {
                     Token::Message => messages.push(self.parse_message()?),
                     Token::Fragment => { let nested = self.parse_fragment(messages, invariants)?; fragments.push(nested); }
-                    Token::StateKw | Token::Mode | Token::Function => self.parse_invariant(messages, invariants, fragments)?,
+                    Token::StateKw | Token::Mode | Token::Function => { self.parse_invariant(messages, invariants, fragments)?; }
                     _ if self.peek_is_colon() => {
                         let (key, value) = self.parse_attribute()?;
                         attributes.insert(key, value);
@@ -1352,7 +1395,7 @@ impl Parser {
             .map(|s| s.to_string())
             .unwrap_or_else(|| format!("{lifeline}.{name}#{}", at + 1));
         invariants[at] = StateInvariant { id, lifeline, name, kind, start, end: messages.len().wrapping_sub(1), attributes };
-        Ok(())
+        Ok(at)
     }
 
     /// Parse: scenarios [Name] { scenario A { ... } scenario B { ... } }
@@ -1416,7 +1459,7 @@ impl Parser {
                     fragments.push(fragment);
                 }
                 Token::StateKw | Token::Mode | Token::Function => {
-                    self.parse_invariant(&mut messages, &mut invariants, &mut fragments)?;
+                    let _ = self.parse_invariant(&mut messages, &mut invariants, &mut fragments)?;
                 }
                 _ if self.peek_is_colon() => {
                     let (key, value) = self.parse_attribute()?;

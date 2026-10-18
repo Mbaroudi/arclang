@@ -60,10 +60,19 @@ state_machine "Modes" {
     }
     transition "Off" -> "Running" { id: "TR-1" trigger: "power" events: ["power on", "wake"] action: ["SF-Sense", "SF-Decide"] }
 }
+state_machine "Two regions" {
+    id: "SM-2"
+    region "Power" { id: "RG-1" initial: "On" state "On" { id: "ST-On" } state "Off2" { id: "ST-Off2" } transition "On" -> "Off2" { trigger: "" } }
+    region "Link" { initial: "Linked" state "Linked" { id: "ST-Linked" } }
+}
 scenario "Seat use" {
     owner: "SC-AEB"
     participants: ["CI-Seat", "SA-Driver"]
-    message "SA-Driver" -> "CI-Seat" "press" { kind: "CREATE" exchange: "SA-pedal" }
+    state "SA-Driver" "Off"
+    fragment loop "while seated" {
+        state "SA-Driver" "Running"
+        message "SA-Driver" -> "CI-Seat" "press" { kind: "CREATE" exchange: "SA-pedal" }
+    }
 }
 "#;
 
@@ -192,4 +201,27 @@ fn a_region_keeps_the_transitions_declared_in_it() {
     assert_eq!(running.transitions.len(), 1);
     assert_eq!(running.transitions[0].id, "TR-2");
     assert_eq!(machine.transitions.len(), 2, "the flat list still holds every transition");
+}
+
+#[test]
+fn a_machine_may_write_its_regions_each_with_an_initial_state() {
+    let result = compile(MODEL);
+    let machine = result.ast.state_machines.iter().find(|m| m.id == "SM-2").expect("machine");
+    assert_eq!(machine.regions.len(), 2);
+    assert_eq!((machine.regions[0].id.as_str(), machine.regions[0].initial.as_str()), ("RG-1", "On"));
+    assert_eq!(machine.regions[1].id, "Two regions.Link");
+    assert_eq!(machine.states.len(), 3, "the flat list holds the states of every region");
+    assert_eq!(machine.transitions.len(), 1);
+    assert_eq!(machine.initial_state, "On");
+    let bad = MODEL.replace(r#"region "Link" { initial: "Linked""#, r#"region "Link" { initial: "Nowhere""#);
+    assert!(Compiler::new(CompilerConfig::default()).compile_string(&bad).is_err());
+}
+
+#[test]
+fn an_invariant_inside_a_fragment_is_known_by_its_operand() {
+    let result = compile(MODEL);
+    let scenario = &result.ast.scenarios[0];
+    assert_eq!(scenario.invariants.len(), 2);
+    let frame = &scenario.fragments[0];
+    assert_eq!(frame.operands[0].invariants, vec![1], "the second invariant sits in the loop");
 }

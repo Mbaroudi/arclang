@@ -30,10 +30,12 @@ pub(super) fn state_machines(writer: &mut Writer, engineering: &Node) {
     let mut taken: HashSet<String> = HashSet::new();
     let unique = unique_names(writer);
     // The element owning each machine, to tell machines of one name apart.
+    // Whatever holds it: a component (ownedStateMachines), a port's protocol
+    // (ownedProtocols)...
     let mut owners: HashMap<String, String> = HashMap::new();
     let mut owner_ids: HashMap<String, String> = HashMap::new();
     for node in engineering.descendants() {
-        for machine in node.tagged("ownedStateMachines") {
+        for machine in node.children.iter().filter(|c| c.is("capellacommon:StateMachine")) {
             owners.insert(machine.id().to_string(), display_name(node));
             owner_ids.insert(machine.id().to_string(), node.id().to_string());
         }
@@ -93,8 +95,22 @@ pub(super) fn state_machines(writer: &mut Writer, engineering: &Node) {
             .filter(|n| n.kind.ends_with("Event") && n.kind.starts_with("capellacommon:"))
             .map(|e| (e.id().to_string(), display_name(e)))
             .collect();
-        for region in &regions {
-            write_region(writer, 1, region, &state_names, &events, true, &unique);
+        let populated: Vec<&Node> = regions.iter().copied().filter(|r| r.tagged("ownedStates").next().is_some()).collect();
+        if populated.len() > 1 {
+            // Several regions, each with its initial state: `region` blocks.
+            let mut region_names: HashSet<String> = HashSet::new();
+            for region in &populated {
+                writer.count("state machine regions (written as region blocks)");
+                let region_name = data::unique_name(&mut region_names, &display_name(region));
+                writer.line(1, &format!("region {} {{", string_literal(&region_name)));
+                writer.line(2, &format!("id: {}", string_literal(region.id())));
+                write_region(writer, 2, region, &state_names, &events, true, &unique);
+                writer.line(1, "}");
+            }
+        } else {
+            for region in &regions {
+                write_region(writer, 1, region, &state_names, &events, true, &unique);
+            }
         }
         writer.line(0, "}");
         writer.line(0, "");
