@@ -158,19 +158,19 @@ package 'Automotive Emergency Braking System (AEB)' {
         #Actor part <'SA-ACT-Vehicle'> Vehicle {
             doc /* Vehicle platform */
         }
-        connection <SensorToFusion> connect 'SF-AcquireSensorData' to 'SF-FuseData';
+        connection SensorToFusion connect 'SF-AcquireSensorData' to 'SF-FuseData';
         dependency exchange_item from SensorToFusion to Data::'EI-003';
-        connection <FusionToTracking> connect 'SF-FuseData' to 'SF-TrackObjects';
+        connection FusionToTracking connect 'SF-FuseData' to 'SF-TrackObjects';
         dependency exchange_item from FusionToTracking to Data::'EI-004';
-        connection <TrackingToThreat> connect 'SF-TrackObjects' to 'SF-AssessThreat';
+        connection TrackingToThreat connect 'SF-TrackObjects' to 'SF-AssessThreat';
         dependency exchange_item from TrackingToThreat to Data::'EI-005';
-        connection <ThreatToWarning> connect 'SF-AssessThreat' to 'SF-GenerateWarning';
+        connection ThreatToWarning connect 'SF-AssessThreat' to 'SF-GenerateWarning';
         dependency exchange_item from ThreatToWarning to Data::'EI-006';
-        connection <ThreatToBraking> connect 'SF-AssessThreat' to 'SF-ComputeBrakingForce';
+        connection ThreatToBraking connect 'SF-AssessThreat' to 'SF-ComputeBrakingForce';
         dependency exchange_item from ThreatToBraking to Data::'EI-006';
-        connection <VehicleToThreat> connect 'SF-MonitorVehicleState' to 'SF-AssessThreat';
+        connection VehicleToThreat connect 'SF-MonitorVehicleState' to 'SF-AssessThreat';
         dependency exchange_item from VehicleToThreat to Data::'EI-007';
-        connection <VehicleToBraking> connect 'SF-MonitorVehicleState' to 'SF-ComputeBrakingForce';
+        connection VehicleToBraking connect 'SF-MonitorVehicleState' to 'SF-ComputeBrakingForce';
         dependency exchange_item from VehicleToBraking to Data::'EI-007';
         #Mission use case <'MIS-001'> SafeAutonomousBraking {
             doc /* Prevent collisions through autonomous emergency braking */
@@ -231,7 +231,7 @@ package 'Automotive Emergency Braking System (AEB)' {
             out port RadarDataProvider : Port {
                 attribute protocol : String = "CAN";
             }
-            perform action <'Acquire radar frames'>;
+            perform action 'Acquire radar frames';
         }
         part <'LC-CameraSensor'> CameraSensor {
             doc /* Front-facing camera */
@@ -241,7 +241,7 @@ package 'Automotive Emergency Braking System (AEB)' {
             out port CameraDataProvider : Port {
                 attribute protocol : String = "Ethernet";
             }
-            perform action <'Acquire camera frames'>;
+            perform action 'Acquire camera frames';
         }
         part <'LC-SensorFusion'> SensorFusion {
             doc /* Multi-sensor data fusion */
@@ -252,7 +252,7 @@ package 'Automotive Emergency Braking System (AEB)' {
             in port RadarDataConsumer : Port;
             in port CameraDataConsumer : Port;
             out port FusedDataProvider : Port;
-            perform action <'Fuse sensor data'>;
+            perform action 'Fuse sensor data';
         }
         part <'LC-ObjectTracker'> ObjectTracker {
             doc /* Object tracking and prediction */
@@ -262,7 +262,7 @@ package 'Automotive Emergency Braking System (AEB)' {
             attribute type : String = "Processing";
             in port FusedDataConsumer : Port;
             out port TrackedObjectsProvider : Port;
-            perform action <'Track objects'>;
+            perform action 'Track objects';
         }
         part <'LC-ThreatAssessment'> ThreatAssessment {
             doc /* Collision risk assessment */
@@ -273,7 +273,7 @@ package 'Automotive Emergency Braking System (AEB)' {
             in port TrackedObjectsConsumer : Port;
             in port VehicleStateConsumer : Port;
             out port ThreatLevelProvider : Port;
-            perform action <'Assess collision threat'>;
+            perform action 'Assess collision threat';
         }
         part <'LC-BrakeController'> BrakeController {
             doc /* Emergency brake control */
@@ -284,7 +284,7 @@ package 'Automotive Emergency Braking System (AEB)' {
             in port ThreatLevelConsumer : Port;
             in port VehicleSpeedConsumer : Port;
             out port BrakeCommandProvider : Port;
-            perform action <'Compute braking command'>;
+            perform action 'Compute braking command';
         }
         part <'LC-DriverInterface'> DriverInterface {
             doc /* HMI for warnings */
@@ -293,7 +293,7 @@ package 'Automotive Emergency Braking System (AEB)' {
             attribute safety_level : String = "QM";
             attribute type : String = "Interface";
             in port WarningConsumer : Port;
-            perform action <'Warn driver'>;
+            perform action 'Warn driver';
         }
         part <'LC-VehicleCANGateway'> VehicleCANGateway {
             doc /* CAN bus interface */
@@ -303,7 +303,7 @@ package 'Automotive Emergency Braking System (AEB)' {
             attribute type : String = "Gateway";
             out port VehicleStateProvider : Port;
             out port VehicleSpeedProvider : Port;
-            perform action <'Relay vehicle state'>;
+            perform action 'Relay vehicle state';
         }
         part <'LC-BrakeActuator'> BrakeActuator {
             doc /* Physical brake actuator */
@@ -311,30 +311,30 @@ package 'Automotive Emergency Braking System (AEB)' {
             attribute safety_level : String = "ASIL-D";
             attribute type : String = "Actuator";
             in port BrakeCommandConsumer : Port;
-            perform action <'Apply braking force'>;
+            perform action 'Apply braking force';
         }
-        connection <'Radar Data'> connect 'LC-RadarSensor'.RadarDataProvider to 'LC-SensorFusion'.RadarDataConsumer {
+        connection 'Radar Data' connect 'LC-RadarSensor'.RadarDataProvider to 'LC-SensorFusion'.RadarDataConsumer {
             attribute label : String = "Radar Data";
         }
-        connection <'Camera Data'> connect 'LC-CameraSensor'.CameraDataProvider to 'LC-SensorFusion'.CameraDataConsumer {
+        connection 'Camera Data' connect 'LC-CameraSensor'.CameraDataProvider to 'LC-SensorFusion'.CameraDataConsumer {
             attribute label : String = "Camera Data";
         }
-        connection <'Fused Data'> connect 'LC-SensorFusion'.FusedDataProvider to 'LC-ObjectTracker'.FusedDataConsumer {
+        connection 'Fused Data' connect 'LC-SensorFusion'.FusedDataProvider to 'LC-ObjectTracker'.FusedDataConsumer {
             attribute label : String = "Fused Data";
         }
-        connection <'Tracked Objects'> connect 'LC-ObjectTracker'.TrackedObjectsProvider to 'LC-ThreatAssessment'.TrackedObjectsConsumer {
+        connection 'Tracked Objects' connect 'LC-ObjectTracker'.TrackedObjectsProvider to 'LC-ThreatAssessment'.TrackedObjectsConsumer {
             attribute label : String = "Tracked Objects";
         }
-        connection <'Vehicle State'> connect 'LC-VehicleCANGateway'.VehicleStateProvider to 'LC-ThreatAssessment'.VehicleStateConsumer {
+        connection 'Vehicle State' connect 'LC-VehicleCANGateway'.VehicleStateProvider to 'LC-ThreatAssessment'.VehicleStateConsumer {
             attribute label : String = "Vehicle State";
         }
-        connection <'Threat Level'> connect 'LC-ThreatAssessment'.ThreatLevelProvider to 'LC-BrakeController'.ThreatLevelConsumer {
+        connection 'Threat Level' connect 'LC-ThreatAssessment'.ThreatLevelProvider to 'LC-BrakeController'.ThreatLevelConsumer {
             attribute label : String = "Threat Level";
         }
-        connection <'Vehicle Speed'> connect 'LC-VehicleCANGateway'.VehicleSpeedProvider to 'LC-BrakeController'.VehicleSpeedConsumer {
+        connection 'Vehicle Speed' connect 'LC-VehicleCANGateway'.VehicleSpeedProvider to 'LC-BrakeController'.VehicleSpeedConsumer {
             attribute label : String = "Vehicle Speed";
         }
-        connection <'Brake Command'> connect 'LC-BrakeController'.BrakeCommandProvider to 'LC-BrakeActuator'.BrakeCommandConsumer {
+        connection 'Brake Command' connect 'LC-BrakeController'.BrakeCommandProvider to 'LC-BrakeActuator'.BrakeCommandConsumer {
             attribute label : String = "Brake Command";
         }
     }
@@ -437,61 +437,61 @@ package 'Automotive Emergency Braking System (AEB)' {
         dependency allocated_component from 'PN-InstrumentCluster'::'BC-HMI' to 'AEB System - Component Structure'::'LC-DriverInterface';
         allocate 'AEB System - Component Structure'::'LC-VehicleCANGateway' to 'PN-CANGatewayECU';
         dependency allocated_component from 'PN-CANGatewayECU'::'BC-CANInterface' to 'AEB System - Component Structure'::'LC-VehicleCANGateway';
-        #Link connection <CANBus> connect 'PN-FrontRadarECU' to 'PN-CentralADASECU' {
+        #Link connection CANBus connect 'PN-FrontRadarECU' to 'PN-CentralADASECU' {
             attribute bandwidth : BinaryDigitRateValue = 5 ['Mbit/s'];
             attribute protocol : String = "CAN FD";
         }
-        #Link connection <EthernetLink> connect 'PN-FrontCameraECU' to 'PN-CentralADASECU' {
+        #Link connection EthernetLink connect 'PN-FrontCameraECU' to 'PN-CentralADASECU' {
             attribute bandwidth : BinaryDigitRateValue = 1 ['Gbit/s'];
             attribute protocol : String = "Automotive Ethernet";
         }
-        #Link connection <BrakeCAN> connect 'PN-CentralADASECU' to 'PN-BrakeECU' {
+        #Link connection BrakeCAN connect 'PN-CentralADASECU' to 'PN-BrakeECU' {
             attribute bandwidth : BinaryDigitRateValue = 5 ['Mbit/s'];
             attribute protocol : String = "CAN FD";
         }
-        #Link connection <VehicleCAN> connect 'PN-CANGatewayECU' to 'PN-CentralADASECU' {
+        #Link connection VehicleCAN connect 'PN-CANGatewayECU' to 'PN-CentralADASECU' {
             attribute bandwidth : BinaryDigitRateValue = 500 ['kbit/s'];
             attribute protocol : String = "CAN";
         }
-        #Link connection <DisplayLink> connect 'PN-CentralADASECU' to 'PN-InstrumentCluster' {
+        #Link connection DisplayLink connect 'PN-CentralADASECU' to 'PN-InstrumentCluster' {
             attribute bandwidth : BinaryDigitRateValue = 3.2 ['Gbit/s'];
             attribute pixel_clock : String = "135 MHz";
             attribute protocol : String = "LVDS";
         }
-        connection <RadarMessages> connect 'PN-FrontRadarECU' to 'PN-CentralADASECU' {
+        connection RadarMessages connect 'PN-FrontRadarECU' to 'PN-CentralADASECU' {
             attribute frequency : FrequencyValue = 50 [Hz];
             attribute message_type : String = "RadarTargets";
         }
         dependency 'via' from RadarMessages to CANBus;
-        connection <CameraMessages> connect 'PN-FrontCameraECU' to 'PN-CentralADASECU' {
+        connection CameraMessages connect 'PN-FrontCameraECU' to 'PN-CentralADASECU' {
             attribute frequency : FrequencyValue = 30 [Hz];
             attribute message_type : String = "CameraFrame";
         }
         dependency 'via' from CameraMessages to EthernetLink;
-        connection <BrakeCommands> connect 'PN-CentralADASECU' to 'PN-BrakeECU' {
+        connection BrakeCommands connect 'PN-CentralADASECU' to 'PN-BrakeECU' {
             attribute frequency : FrequencyValue = 100 [Hz];
             attribute message_type : String = "BrakeRequest";
         }
         dependency 'via' from BrakeCommands to BrakeCAN;
-        connection <VehicleStatus> connect 'PN-CANGatewayECU' to 'PN-CentralADASECU' {
+        connection VehicleStatus connect 'PN-CANGatewayECU' to 'PN-CentralADASECU' {
             attribute frequency : FrequencyValue = 100 [Hz];
             attribute message_type : String = "VehicleSpeed";
         }
         dependency 'via' from VehicleStatus to VehicleCAN;
     }
     package Behaviours {
-        state <AEBOperatingModes> {
+        state AEBOperatingModes {
             entry; then Standby;
-            #Mode state <Standby> {
+            #Mode state Standby {
                 doc /* System armed, monitoring */
             }
-            #Mode state <Warning> {
+            #Mode state Warning {
                 doc /* Threat detected, driver warned */
             }
-            #Mode state <EmergencyBraking> {
+            #Mode state EmergencyBraking {
                 doc /* Autonomous braking active */
             }
-            state <Failed> {
+            state Failed {
                 doc /* Undergone: sensor or actuator failure */
             }
             transition t1 first Standby then Warning {
@@ -508,7 +508,7 @@ package 'Automotive Emergency Braking System (AEB)' {
                 attribute trigger : String = "MonitorVehicleState";
             }
         }
-        occurrence <EmergencyStop> {
+        occurrence EmergencyStop {
             ref part l_RadarSensor :> 'AEB System - Component Structure'::'LC-RadarSensor' {
                 event occurrence m1_sent;
             }

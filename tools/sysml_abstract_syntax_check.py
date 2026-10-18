@@ -320,7 +320,7 @@ def main():
                 failed += 1
                 print("FAIL %s" % model)
                 for diff in difflib.unified_diff(theirs, ours, "pilot", "arclang", lineterm="", n=0):
-                    print("    " + diff[:240])
+                    print("    " + diff[:2000])
     finally:
         if pilot:
             pilot.close()

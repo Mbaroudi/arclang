@@ -69,7 +69,7 @@ package LevelCrossingProtection {
         }
         part <'LC-LX-001'> 'Train Detector' {
             out port TrainApproach : 'Data port';
-            perform action <'Detect approaching train'> {
+            perform action 'Detect approaching train' {
                 attribute latency : DurationValue = 500 [ms];
             }
         }
@@ -78,37 +78,37 @@ package LevelCrossingProtection {
             in port CrossingStatus : 'Data port';
             out port BarrierCommand : 'Data port';
             out port SignalCommand : 'Data port';
-            perform action <'Sequence the protection cycle'> {
+            perform action 'Sequence the protection cycle' {
                 attribute latency : DurationValue = 200 [ms];
             }
-            perform action <'Enter fail-safe on fault'>;
+            perform action 'Enter fail-safe on fault';
         }
         part <'LC-LX-003'> 'Barrier Machine' {
             in port BarrierCommand : 'Data port';
-            perform action <'Drive the barriers'>;
+            perform action 'Drive the barriers';
         }
         part <'LC-LX-004'> 'Obstacle Detector' {
             out port CrossingStatus : 'Data port';
-            perform action <'Prove crossing clear'> {
+            perform action 'Prove crossing clear' {
                 attribute latency : DurationValue = 300 [ms];
             }
         }
         part <'LC-LX-005'> 'Protecting Signal' {
             in port SignalCommand : 'Data port';
-            perform action <'Display movement authority'>;
+            perform action 'Display movement authority';
         }
-        connection <'train approach'> connect 'LC-LX-001' to 'LC-LX-002';
-        connection <'crossing status'> connect 'LC-LX-004' to 'LC-LX-002';
-        connection <'barrier command'> connect 'LC-LX-002' to 'LC-LX-003';
-        connection <'signal command'> connect 'LC-LX-002' to 'LC-LX-005';
+        connection 'train approach' connect 'LC-LX-001' to 'LC-LX-002';
+        connection 'crossing status' connect 'LC-LX-004' to 'LC-LX-002';
+        connection 'barrier command' connect 'LC-LX-002' to 'LC-LX-003';
+        connection 'signal command' connect 'LC-LX-002' to 'LC-LX-005';
     }
     package Behaviours {
-        state <CrossingModes> {
+        state CrossingModes {
             entry; then Open;
-            #Mode state <Open>;
-            #Mode state <Closing>;
-            #Mode state <Protected>;
-            #Mode state <Failed>;
+            #Mode state Open;
+            #Mode state Closing;
+            #Mode state Protected;
+            #Mode state Failed;
             transition t1 first Open then Closing {
                 attribute trigger : String = "train approach";
             }
@@ -126,28 +126,28 @@ package LevelCrossingProtection {
             }
         }
     }
-    verification <'TC-LX-001'> {
+    verification 'TC-LX-001' {
         attribute method : String = "test";
         attribute method : String = "test";
         objective {
             verify 'Safety Requirements'::'REQ-LX-001';
         }
     }
-    verification <'TC-LX-002'> {
+    verification 'TC-LX-002' {
         attribute method : String = "analysis";
         attribute method : String = "analysis";
         objective {
             verify 'Safety Requirements'::'REQ-LX-002';
         }
     }
-    verification <'TC-LX-003'> {
+    verification 'TC-LX-003' {
         attribute method : String = "demonstration";
         attribute method : String = "demonstration";
         objective {
             verify 'Safety Requirements'::'REQ-LX-003';
         }
     }
-    verification <'TC-LX-004'> {
+    verification 'TC-LX-004' {
         attribute method : String = "test";
         attribute method : String = "test";
         objective {

@@ -52,8 +52,9 @@ pub(super) fn register(e: &mut Exporter<'_>) {
                 register_part(e, &package, &at, &hardware.id, &hardware.name, &[]);
             }
         }
-        for (index, link) in pa.links.iter().enumerate() {
-            e.register(&package, &link_id(link, index), &[&link.name]);
+        for link in pa.links.iter().filter(|l| l.name != l.from) {
+            let id = id_of(&link.attributes, &link.name);
+            e.register(&package, id, &[&link.name]);
         }
         for path in &pa.paths {
             e.register(&package, &path.id, &[&path.name]);
@@ -82,10 +83,6 @@ pub(super) fn register(e: &mut Exporter<'_>) {
     }
 }
 
-fn link_id(link: &PhysicalLink, index: usize) -> String {
-    let id = id_of(&link.attributes, &link.name);
-    if id.is_empty() { format!("link-{index}") } else { id.to_string() }
-}
 
 fn register_components(e: &mut Exporter<'_>, package: &str, components: &[LogicalComponent], base: &[String]) {
     for component in components {
@@ -241,8 +238,10 @@ fn physical(e: &mut Exporter<'_>, pa: &PhysicalArchitecture) {
                 }
             }
         }
-        for (index, link) in pa.links.iter().enumerate() {
-            let id = link_id(link, index);
+        for link in &pa.links {
+            // `link "A" -> "B"` has no name of its own: the parser gives it its source.
+            let name = if link.name == link.from { "" } else { link.name.as_str() };
+            let id = id_of(&link.attributes, "").to_string();
             let mut attributes = link.attributes.clone();
             if !link.protocol.is_empty() {
                 attributes.entry("protocol".into()).or_insert(AttributeValue::String(link.protocol.clone()));
@@ -250,7 +249,7 @@ fn physical(e: &mut Exporter<'_>, pa: &PhysicalArchitecture) {
             if let Some(bandwidth) = &link.bandwidth {
                 attributes.entry("bandwidth".into()).or_insert(AttributeValue::String(bandwidth.clone()));
             }
-            connection(e, "#Link ", &id, &link.name, &link.from, &link.to, &attributes, "PhysicalLink");
+            connection(e, "#Link ", &id, name, &link.from, &link.to, &attributes, "PhysicalLink");
         }
         for exchange in &pa.physical_exchanges {
             let mut attributes = exchange.attributes.clone();

@@ -57,15 +57,15 @@ package LaneKeepingTiming {
             attribute wcet : DurationValue = 12 [ms];
             in item departure : Data::DepartureEstimate;
         }
-        flow <'lane model'> of Data::Data from 'SF-DET'.lane to 'SF-EST'.lane;
-        flow <'departure estimate'> of Data::Data from 'SF-EST'.departure to 'SF-CMD'.departure;
+        flow 'lane model' of Data::Data from 'SF-DET'.lane to 'SF-EST'.lane;
+        flow 'departure estimate' of Data::Data from 'SF-EST'.departure to 'SF-CMD'.departure;
         #Chain action <'FC-LKA'> 'Lane departure reaction' {
             attribute latency_budget : DurationValue = 80 [ms];
             action step1 :> 'SF-DET';
             then action step2 :> 'SF-EST';
             then action step3 :> 'SF-CMD';
         }
-        requirement <'REQ-LKA-001'> {
+        requirement 'REQ-LKA-001' {
             doc /* Steering correction shall be commanded within 80 ms of lane departure detection */
             attribute priority : String = "Critical";
             attribute safety_level : String = "ASIL-B";
@@ -78,16 +78,16 @@ package LaneKeepingTiming {
         part <'LC-CAM'> Camera {
             attribute safety_level : String = "ASIL-B";
             out port lane : 'LaneModel port';
-            perform action <'Capture frame'> {
+            perform action 'Capture frame' {
                 attribute frame_period : DurationValue = 33 [ms];
             }
         }
         part <'LC-CTL'> 'LKA Controller' {
             attribute safety_level : String = "ASIL-B";
             in port lane : 'LaneModel port';
-            perform action <'Plan correction'>;
+            perform action 'Plan correction';
         }
-        connection <LaneFlow> connect 'LC-CAM'.lane to 'LC-CTL'.lane;
+        connection LaneFlow connect 'LC-CAM'.lane to 'LC-CTL'.lane;
     }
     #PA package 'LKA Physical' {
         #Node part <'PN-CAM'> 'Camera ECU' {
@@ -101,14 +101,14 @@ package LaneKeepingTiming {
         }
         allocate 'LKA Logical'::'LC-CAM' to 'PN-CAM';
         allocate 'LKA Logical'::'LC-CTL' to 'PN-CHS';
-        #Link connection <ChassisCAN> connect 'PN-CAM' to 'PN-CHS' {
+        #Link connection ChassisCAN connect 'PN-CAM' to 'PN-CHS' {
             attribute bandwidth : BinaryDigitRateValue = 2 ['Mbit/s'];
             attribute load : BinaryDigitRateValue = 600 ['kbit/s'];
             attribute protocol : String = "CAN FD";
         }
     }
     package Safety {
-        #Hazard requirement <'Late steering correction'> {
+        #Hazard requirement 'Late steering correction' {
             doc /* Correction commanded too late to keep the lane */
             attribute asil : String = "ASIL-B";
             attribute controllability : String = "C2";
@@ -117,7 +117,7 @@ package LaneKeepingTiming {
         }
         dependency mitigated_by from 'Late steering correction' to 'Lane Keeping Assist'::'REQ-LKA-001';
     }
-    verification <'TC-LKA-001'> {
+    verification 'TC-LKA-001' {
         doc /* HIL measurement of departure-to-command latency */
         attribute method : String = "test";
         attribute method : String = "test";

@@ -311,13 +311,13 @@ async fn the_sysml_base_path_serves_sysml_metaclasses() {
 
     // Elements are usages, in the package of their Arcadia level.
     let controller = find("PartUsage", "LC-1");
-    let requirement = find("RequirementUsage", "REQ-1");
+    // A requirement whose id is its name is written by its name.
+    let requirement = elements.iter().find(|e| e["@type"] == "RequirementUsage" && e["declaredName"] == "REQ-1").expect("REQ-1");
     let function = find("ActionUsage", "SF-1");
     assert_eq!(controller["qualifiedName"], "Brakes::Logical::Controller");
     assert_eq!(function["declaredName"], "Decide");
     assert_eq!(function["qualifiedName"], "Brakes::Braking::Decide");
-    // A requirement without a title is known by its id alone.
-    assert_eq!(requirement["declaredName"], Value::Null);
+    assert_eq!(requirement["declaredShortName"], Value::Null);
 
     // The ArcLang vocabulary has none of these metaclasses.
     let (_, arclang) = get(ARCLANG, &format!("{commit}/elements")).await;
@@ -402,7 +402,7 @@ async fn relationships_of_an_element_include_what_satisfies_it() {
     let commit = head(SYSML).await;
     let (_, elements) = get(SYSML, &format!("{commit}/elements")).await;
     let elements = elements.as_array().unwrap();
-    let requirement = elements.iter().find(|e| e["declaredShortName"] == "REQ-1").unwrap();
+    let requirement = elements.iter().find(|e| e["declaredName"] == "REQ-1").unwrap();
     let id = requirement["@id"].as_str().unwrap();
 
     let (status, incoming) = get(SYSML, &format!("{commit}/elements/{id}/relationships?direction=in")).await;

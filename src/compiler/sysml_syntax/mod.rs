@@ -592,13 +592,14 @@ impl Reader {
             *previous = declaration.name.clone();
         }
         // A stated multiplicity is an element of its own, owned by the usage.
+        // Prefix metadata first, as the pilot owns them, then the multiplicity.
         let bounds = declaration.bounds.take();
         let declared = self.push(declaration, owner);
+        self.annotate(declared, metadata);
         if bounds.is_some() {
             let range = Declaration { metaclass: "MultiplicityRange", membership: "OwningMembership", bounds, ..Declaration::default() };
             self.push(range, Some(declared));
         }
-        self.annotate(declared, metadata);
         Ok(Some(declared))
     }
 

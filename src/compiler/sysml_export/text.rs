@@ -43,13 +43,11 @@ pub fn short(id: &str) -> String {
 }
 
 /// A short name and a name, as a declaration writes them: `<'LC-1'> 'Radar'`.
-/// The name is left out when it is the id itself.
+/// An element whose id is its name is written by its name alone: the name
+/// is what a reader takes for the id when there is no short name.
 pub fn declared(id: &str, display: &str) -> String {
-    if id.is_empty() {
+    if id.is_empty() || id == display {
         return name(display);
-    }
-    if id == display {
-        return short(id);
     }
     format!("{} {}", short(id), name(display))
 }
@@ -104,7 +102,7 @@ mod tests {
     #[test]
     fn a_declaration_has_its_id_as_short_name() {
         assert_eq!(declared("LC-1", "Radar Sensor"), "<'LC-1'> 'Radar Sensor'");
-        assert_eq!(declared("Radar", "Radar"), "<Radar>");
+        assert_eq!(declared("Radar", "Radar"), "Radar");
         assert_eq!(declared("", "Radar"), "Radar");
     }
 
