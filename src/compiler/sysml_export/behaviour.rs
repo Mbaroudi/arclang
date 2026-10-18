@@ -72,7 +72,8 @@ fn state_machine(e: &mut Exporter<'_>, machine: &StateMachine) {
     let id = if machine.id.is_empty() { machine.name.clone() } else { machine.id.clone() };
     e.block(&format!("state {}", text::declared(&id, &machine.name)), |e| {
         e.header("StateMachine", &machine.attributes, &[]);
-        states(e, &machine.states, &machine.initial_state, &machine.transitions);
+        let root = Root { name: text::name(&id), states: &machine.states };
+        states(e, &root, &machine.states, &machine.initial_state, &machine.transitions);
     });
     if let Some(owner) = machine.attributes.get("owner").and_then(|o| o.as_string()) {
         dependency(e, "owner", &id, owner);
@@ -81,7 +82,13 @@ fn state_machine(e: &mut Exporter<'_>, machine: &StateMachine) {
 
 /// The states of one region: the entry to its initial state, each state
 /// (its sub-states inside), the transitions between them.
-fn states(e: &mut Exporter<'_>, list: &[State], initial: &str, transitions: &[Transition]) {
+/// The machine a region is in: its name and its top states.
+struct Root<'a> {
+    name: String,
+    states: &'a [State],
+}
+
+fn states(e: &mut Exporter<'_>, root: &Root<'_>, list: &[State], initial: &str, transitions: &[Transition]) {
     let names: HashMap<&str, &str> = list.iter().flat_map(|s| [(s.name.as_str(), state_id(s)), (state_id(s), state_id(s))]).collect();
     if let Some(initial) = names.get(initial) {
         e.line(&format!("entry; then {};", text::name(initial)));
@@ -97,12 +104,12 @@ fn states(e: &mut Exporter<'_>, list: &[State], initial: &str, transitions: &[Tr
                 }
             }
             if !state.sub_states.is_empty() {
-                states(e, &state.sub_states, &state.initial, &state.transitions);
+                states(e, root, &state.sub_states, &state.initial, &state.transitions);
             }
         });
     }
     for (n, transition) in transitions.iter().enumerate() {
-        let (Some(from), Some(to)) = (names.get(transition.from.as_str()), names.get(transition.to.as_str())) else {
+        let (Some(from), Some(to)) = (path_to(list, &transition.from).or_else(|| from_machine(root, &transition.from)), path_to(list, &transition.to).or_else(|| from_machine(root, &transition.to))) else {
             e.line(&format!("// transition {} -> {}: a state is not in this region", transition.from, transition.to));
             continue;
         };
@@ -113,8 +120,23 @@ fn states(e: &mut Exporter<'_>, list: &[State], initial: &str, transitions: &[Tr
                 attributes.entry(key.to_string()).or_insert(AttributeValue::String(value.clone()));
             }
         }
-        e.block(&format!("transition {} first {} then {}", text::name(&id), text::name(from), text::name(to)), |e| e.header("Transition", &attributes, &[]));
+        e.block(&format!("transition {} first {from} then {to}", text::name(&id)), |e| e.header("Transition", &attributes, &[]));
     }
+}
+
+/// A state of this region or nested in one of its states, by id or name:
+/// `A` or `A.B` (a feature chain), the path that names it from the region.
+fn path_to(list: &[State], reference: &str) -> Option<String> {
+    if let Some(state) = list.iter().find(|s| s.name == reference || state_id(s) == reference) {
+        return Some(text::name(state_id(state)));
+    }
+    list.iter().find_map(|s| path_to(&s.sub_states, reference).map(|inner| format!("{}.{inner}", text::name(state_id(s)))))
+}
+
+/// A state of an enclosing region: the chain from the machine, which every
+/// region sees (`M.A.B`).
+fn from_machine(root: &Root<'_>, reference: &str) -> Option<String> {
+    path_to(root.states, reference).map(|path| format!("{}.{path}", root.name))
 }
 
 fn occurrence(e: &mut Exporter<'_>, scenario: &Scenario) {

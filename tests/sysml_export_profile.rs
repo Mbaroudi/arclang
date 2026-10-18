@@ -85,3 +85,10 @@ fn a_state_fragment_is_an_invariant_on_its_lifeline() {
     assert!(text.contains(expected), "an instant on its state");
     assert!(!text.contains("attribute target : String"), "every fragment names a declared state or function");
 }
+
+#[test]
+fn a_transition_into_a_nested_state_names_it_by_its_path() {
+    let text = ife();
+    assert!(text.contains("transition '217b9f27-b9c3-41aa-8c70-4a08cf65938e' first 'ed01d361-f9cb-4c26-a0aa-e9338d4066ff' then 'e1589350-78e9-43b7-b87d-926def3fdddf'.'7104c85d-4fb0-48c6-a16b-2c162fd57a0f' {"));
+    assert!(!text.contains("a state is not in this region"), "every transition is exported");
+}
