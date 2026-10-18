@@ -231,7 +231,7 @@
     const hint = el('p', {
       class: 'arcviz-hint',
       id: 'arcviz-hint',
-      text: 'Drag to pan, or use the arrow keys. Zoom with + and -, or hold Ctrl or ⌘ and scroll. Press 0 to fit. Double-click a container, or select it and press Enter, to fold or unfold it. With Arrange on, drag a box to place it.',
+      text: 'Drag or scroll to pan, or use the arrow keys. Zoom with + and -, with Ctrl or ⌘ and the wheel, by pinching, or by double-clicking the desk (with Shift to zoom out). Press 0 to fit. Double-click a container, or select it and press Enter, to fold or unfold it. With Arrange on, drag a box to place it.',
     });
     // Everything drawn is also listed here, so an element can be chosen
     // without a pointer.
