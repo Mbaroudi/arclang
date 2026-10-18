@@ -30,6 +30,7 @@ package LaneKeepingTiming {
         metadata def Trace;
         metadata def Association;
         metadata def Iterate;
+        metadata def Invariant;
     }
     private import ArcadiaProfile::*;
     doc /* Lane keeping assist: end-to-end timing and bus load constraints */

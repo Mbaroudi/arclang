@@ -30,6 +30,7 @@ package <EmergencyBrakingSystem> 'Automotive Emergency Braking System (AEB)' {
         metadata def Trace;
         metadata def Association;
         metadata def Iterate;
+        metadata def Invariant;
     }
     private import ArcadiaProfile::*;
     doc /* Complete MBSE model with all Arcadia layers */

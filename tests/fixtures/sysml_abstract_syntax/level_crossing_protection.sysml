@@ -30,6 +30,7 @@ package LevelCrossingProtection {
         metadata def Trace;
         metadata def Association;
         metadata def Iterate;
+        metadata def Invariant;
     }
     private import ArcadiaProfile::*;
     attribute version : String = "1.0";

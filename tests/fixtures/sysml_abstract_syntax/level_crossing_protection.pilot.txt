@@ -25,6 +25,7 @@ Package name=LevelCrossingProtection short=- via=-
     MetadataDefinition name=Trace short=- via=OwningMembership
     MetadataDefinition name=Association short=- via=OwningMembership
     MetadataDefinition name=Iterate short=- via=OwningMembership
+    MetadataDefinition name=Invariant short=- via=OwningMembership
   AttributeUsage name=version short=- via=OwningMembership : ScalarValues::String = String("1.0")
   Package name=Data short=- via=OwningMembership
     ItemDefinition name=Data short=- via=OwningMembership

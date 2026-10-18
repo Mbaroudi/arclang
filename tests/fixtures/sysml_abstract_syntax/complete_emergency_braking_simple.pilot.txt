@@ -25,6 +25,7 @@ Package name=Automotive Emergency Braking System (AEB) short=EmergencyBrakingSys
     MetadataDefinition name=Trace short=- via=OwningMembership
     MetadataDefinition name=Association short=- via=OwningMembership
     MetadataDefinition name=Iterate short=- via=OwningMembership
+    MetadataDefinition name=Invariant short=- via=OwningMembership
   Documentation name=- short=- via=OwningMembership body="Complete MBSE model with all Arcadia layers"
   AttributeUsage name=author short=- via=OwningMembership : ScalarValues::String = String("Malek Baroudi")
   AttributeUsage name=safety_standard short=- via=OwningMembership : ScalarValues::String = String("ISO 26262 ASIL-D")

@@ -30,6 +30,7 @@ package ExpressionForms {
         metadata def Trace;
         metadata def Association;
         metadata def Iterate;
+        metadata def Invariant;
     }
     private import ArcadiaProfile::*;
     #SA package Forms {

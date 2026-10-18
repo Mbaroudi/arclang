@@ -25,6 +25,7 @@ Package name=LaneKeepingTiming short=- via=-
     MetadataDefinition name=Trace short=- via=OwningMembership
     MetadataDefinition name=Association short=- via=OwningMembership
     MetadataDefinition name=Iterate short=- via=OwningMembership
+    MetadataDefinition name=Invariant short=- via=OwningMembership
   Documentation name=- short=- via=OwningMembership body="Lane keeping assist: end-to-end timing and bus load constraints"
   AttributeUsage name=version short=- via=OwningMembership : ScalarValues::String = String("1.0")
   Package name=Data short=- via=OwningMembership
