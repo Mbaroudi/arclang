@@ -33,6 +33,7 @@ pub(super) fn register(context: &mut Context, placed: &[Placed<'_>]) {
     for p in placed {
         let f = p.function;
         context.functions.insert(f.id.clone());
+        context.register_function_name(&f.name, &f.id);
         context.register(&f.id, &f.id);
         context.register(&f.name, &f.id);
         for port in &f.ports {

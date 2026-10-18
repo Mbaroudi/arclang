@@ -18,6 +18,7 @@ fn level_id(sa: &SystemAnalysis) -> String {
 
 fn register_function(context: &mut Context, function: &SystemFunction) {
     context.functions.insert(function.id.clone());
+    context.register_function_name(&function.name, &function.id);
     context.register(&function.id, &function.id);
     context.register(&function.name, &function.id);
     for port in &function.ports {
@@ -136,13 +137,15 @@ fn ends(context: &mut Context, what: &str, label: &str, from: &str, to: &str) ->
 }
 
 /// The system analysis element.
-pub(super) fn write(context: &mut Context, sa: &SystemAnalysis, above_root: &str) -> El {
+pub(super) fn write(context: &mut Context, sa: &SystemAnalysis, above_root: Option<&str>) -> El {
     let id = level_id(sa);
     let mut level = El::new("ownedArchitectures", "ctx:SystemAnalysis", &id).attr("name", &sa.name);
 
     let root_id = derived(&format!("{id}:root-function"));
     let mut root = El::new("ownedSystemFunctions", "ctx:SystemFunction", &root_id).attr("name", "Root System Function");
-    root.push(super::realization("ownedFunctionRealizations", "fa:FunctionRealization", &root_id, above_root));
+    if let Some(above) = above_root {
+        root.push(super::realization("ownedFunctionRealizations", "fa:FunctionRealization", &root_id, above));
+    }
     for f in &sa.functions {
         root.push(function(f));
     }
@@ -163,7 +166,10 @@ pub(super) fn write(context: &mut Context, sa: &SystemAnalysis, above_root: &str
         root.push(relations::chain_steps(context, el, chain, &exchange_ends));
     }
     super::functions::place_exchanges(&mut root);
-    level.push(El::new("ownedFunctionPkg", "ctx:SystemFunctionPkg", &derived(&format!("{id}:functions"))).attr("name", "System Functions").with(root));
+    // A level without functions has no root function, as in Capella's empty project.
+    if root.children().iter().any(|c| !c.kind().ends_with("Realization")) {
+        level.push(El::new("ownedFunctionPkg", "ctx:SystemFunctionPkg", &derived(&format!("{id}:functions"))).attr("name", "System Functions").with(root));
+    }
 
     let mut components = El::new("ownedSystemComponentPkg", "ctx:SystemComponentPkg", &derived(&format!("{id}:components"))).attr("name", "Structure");
     let mut parts = Vec::new();
@@ -236,12 +242,7 @@ fn contains_function(function: &SystemFunction, id: &str) -> bool {
 }
 
 /// An empty system analysis, for a model that declares none.
-pub(super) fn empty(project_id: &str, above_root: &str) -> El {
-    let id = derived(&format!("{project_id}:sa"));
-    let root_id = derived(&format!("{id}:root-function"));
-    let root = El::new("ownedSystemFunctions", "ctx:SystemFunction", &root_id).attr("name", "Root System Function");
-    let root = root.with(super::realization("ownedFunctionRealizations", "fa:FunctionRealization", &root_id, above_root));
-    El::new("ownedArchitectures", "ctx:SystemAnalysis", &id)
-        .attr("name", "System Analysis")
-        .with(El::new("ownedFunctionPkg", "ctx:SystemFunctionPkg", &derived(&format!("{id}:functions"))).attr("name", "System Functions").with(root))
+pub(super) fn empty(project_id: &str) -> El {
+    // As Capella's own empty project: no package, no root function.
+    El::new("ownedArchitectures", "ctx:SystemAnalysis", &derived(&format!("{project_id}:sa"))).attr("name", "System Analysis")
 }

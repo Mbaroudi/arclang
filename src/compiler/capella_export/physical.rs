@@ -141,14 +141,14 @@ fn node(context: &Context, n: &PhysicalNode, placed: &[Placed<'_>], link_ports: 
     el
 }
 
-pub(super) fn write(context: &mut Context, pa: &PhysicalArchitecture, above_root: &str) -> El {
+pub(super) fn write(context: &mut Context, pa: &PhysicalArchitecture, above_root: Option<&str>) -> El {
     let id = level_id(pa);
     let mut level = El::new("ownedArchitectures", "pa:PhysicalArchitecture", &id).attr("name", &pa.name);
     let placed = placed(pa);
 
     let root_id = derived(&format!("{id}:root-function"));
     let root = El::new("ownedPhysicalFunctions", "pa:PhysicalFunction", &root_id).attr("name", "Root Physical Function");
-    let mut root = functions::tree(context, "pa:PhysicalFunction", root.with(super::realization("ownedFunctionRealizations", "fa:FunctionRealization", &root_id, above_root)), &placed);
+    let mut root = functions::tree(context, "pa:PhysicalFunction", match above_root { Some(above) => root.with(super::realization("ownedFunctionRealizations", "fa:FunctionRealization", &root_id, above)), None => root }, &placed);
     for exchange in &pa.functional_exchanges {
         if let Some(el) = functional_exchange(context, exchange) {
             root.push(el);
@@ -160,7 +160,10 @@ pub(super) fn write(context: &mut Context, pa: &PhysicalArchitecture, above_root
         root.push(relations::chain_steps(context, el, chain, &ends));
     }
     super::functions::place_exchanges(&mut root);
-    level.push(El::new("ownedFunctionPkg", "pa:PhysicalFunctionPkg", &derived(&format!("{id}:functions"))).attr("name", "Physical Functions").with(root));
+    // A level without functions has no root function, as in Capella's empty project.
+    if root.children().iter().any(|c| !c.kind().ends_with("Realization")) {
+        level.push(El::new("ownedFunctionPkg", "pa:PhysicalFunctionPkg", &derived(&format!("{id}:functions"))).attr("name", "Physical Functions").with(root));
+    }
 
     // Links first: a link between bare nodes gives each node a port.
     let mut link_ports: Vec<(String, String)> = Vec::new();
@@ -208,7 +211,7 @@ pub(super) fn write(context: &mut Context, pa: &PhysicalArchitecture, above_root
             deploy(&mut part, n);
             parts.push(part);
         }
-        for n in systems.iter() {
+        for n in pa.nodes.iter() {
             for b in &n.behavior_components {
                 parts.push(El::new("ownedFeatures", "cs:Part", &part_id(&b.id)).attr("name", &b.name).attr("abstractType", &format!("#{}", b.id)));
             }
@@ -219,7 +222,7 @@ pub(super) fn write(context: &mut Context, pa: &PhysicalArchitecture, above_root
         for n in others {
             system.push(node(context, n, &placed, &link_ports));
         }
-        for n in systems.iter() {
+        for n in pa.nodes.iter() {
             for b in &n.behavior_components {
                 system.push(behaviour(context, b, &placed));
             }
@@ -270,7 +273,16 @@ pub(super) fn write(context: &mut Context, pa: &PhysicalArchitecture, above_root
         }
         pkg.push(El::new("ownedParts", "cs:Part", &part_id(&first.id)).attr("name", &first.name).attr("abstractType", &format!("#{}", first.id)));
         for actor in &actors {
-            pkg.push(El::new("ownedParts", "cs:Part", &part_id(&actor.id)).attr("name", &actor.name).attr("abstractType", &format!("#{}", actor.id)));
+            // An actor's part holds the deployments of the behaviours written in it.
+            let mut part = El::new("ownedParts", "cs:Part", &part_id(&actor.id)).attr("name", &actor.name).attr("abstractType", &format!("#{}", actor.id));
+            for b in &actor.behavior_components {
+                part.push(
+                    El::new("ownedDeploymentLinks", "deployment:PartDeploymentLink", &derived(&format!("{}->{}:deployment", b.id, actor.id)))
+                        .attr("deployedElement", &format!("#{}", part_id(&b.id)))
+                        .attr("location", &format!("#{}", part_id(&actor.id))),
+                );
+            }
+            pkg.push(part);
         }
     } else if !pa.links.is_empty() || !pa.physical_exchanges.is_empty() {
         context.note("physical links and exchanges left out: the physical architecture has no node".to_string());
@@ -287,13 +299,7 @@ pub(super) fn write(context: &mut Context, pa: &PhysicalArchitecture, above_root
 }
 
 /// An empty physical architecture.
-pub(super) fn empty(project_id: &str, above_root: &str) -> El {
-    let id = derived(&format!("{project_id}:pa"));
-    let root_id = derived(&format!("{id}:root-function"));
-    let root = El::new("ownedPhysicalFunctions", "pa:PhysicalFunction", &root_id)
-        .attr("name", "Root Physical Function")
-        .with(super::realization("ownedFunctionRealizations", "fa:FunctionRealization", &root_id, above_root));
-    El::new("ownedArchitectures", "pa:PhysicalArchitecture", &id)
-        .attr("name", "Physical Architecture")
-        .with(El::new("ownedFunctionPkg", "pa:PhysicalFunctionPkg", &derived(&format!("{id}:functions"))).attr("name", "Physical Functions").with(root))
+pub(super) fn empty(project_id: &str) -> El {
+    // As Capella's own empty project: no package, no root function.
+    El::new("ownedArchitectures", "pa:PhysicalArchitecture", &derived(&format!("{project_id}:pa"))).attr("name", "Physical Architecture")
 }

@@ -36,6 +36,8 @@ fn interaction_id(exchange: &crate::compiler::ast::OperationalExchange, index: u
 }
 
 fn register_activity(context: &mut Context, activity: &OperationalActivity) {
+    context.functions.insert(activity.id.clone());
+    context.register_function_name(&activity.name, &activity.id);
     context.register(&activity.id, &activity.id);
     context.register(&activity.name, &activity.id);
     for port in &activity.ports {
@@ -97,7 +99,7 @@ fn performers(context: &Context, activities: &[OperationalActivity], into: &mut 
     }
 }
 
-fn entity_element(context: &Context, entity: &Entity<'_>, performed: &HashMap<String, Vec<String>>, children: &HashMap<String, Vec<&Entity<'_>>>) -> El {
+fn entity_element(entity: &Entity<'_>, performed: &HashMap<String, Vec<String>>, children: &HashMap<String, Vec<&Entity<'_>>>) -> El {
     let mut el = El::new("ownedEntities", "oa:Entity", &entity.id).attr("name", entity.name);
     if entity.actor {
         el.set("actor", "true");
@@ -114,7 +116,7 @@ fn entity_element(context: &Context, entity: &Entity<'_>, performed: &HashMap<St
         el.push(El::new("ownedFeatures", "cs:Part", &derived(&format!("{}:part", child.id))).attr("name", child.name).attr("abstractType", &format!("#{}", child.id)));
     }
     for child in children.get(&entity.id).into_iter().flatten() {
-        el.push(entity_element(context, child, performed, children));
+        el.push(entity_element(child, performed, children));
     }
     el
 }
@@ -156,11 +158,14 @@ pub(super) fn write(context: &mut Context, oa: &OperationalAnalysis) -> El {
         root.push(relations::chain_steps(context, el, process, &ends));
     }
     super::functions::place_exchanges(&mut root);
-    level.push(El::new("ownedFunctionPkg", "oa:OperationalActivityPkg", &derived(&format!("{id}:activities"))).attr("name", "Operational Activities").with(root));
+    // A level without functions has no root function, as in Capella's empty project.
+    if root.children().iter().any(|c| !c.kind().ends_with("Realization")) {
+        level.push(El::new("ownedFunctionPkg", "oa:OperationalActivityPkg", &derived(&format!("{id}:activities"))).attr("name", "Operational Activities").with(root));
+    }
 
     let mut pkg = El::new("ownedEntityPkg", "oa:EntityPkg", &derived(&format!("{id}:entities"))).attr("name", "Operational Entities");
     for entity in &tops {
-        pkg.push(entity_element(context, entity, &performed, &children));
+        pkg.push(entity_element(entity, &performed, &children));
     }
     for (index, mean) in oa.communication_means.iter().enumerate() {
         let mid = interaction_id(mean, index, "communication-means");
@@ -201,10 +206,6 @@ pub(super) fn write(context: &mut Context, oa: &OperationalAnalysis) -> El {
 
 /// An empty operational analysis.
 pub(super) fn empty(project_id: &str) -> El {
-    let id = derived(&format!("{project_id}:oa"));
-    let root_id = derived(&format!("{id}:root-activity"));
-    let root = El::new("ownedOperationalActivities", "oa:OperationalActivity", &root_id).attr("name", "Root Operational Activity");
-    El::new("ownedArchitectures", "oa:OperationalAnalysis", &id)
-        .attr("name", "Operational Analysis")
-        .with(El::new("ownedFunctionPkg", "oa:OperationalActivityPkg", &derived(&format!("{id}:functions"))).attr("name", "Operational Activities").with(root))
+    // As Capella's own empty project: no package, no root function.
+    El::new("ownedArchitectures", "oa:OperationalAnalysis", &derived(&format!("{project_id}:oa"))).attr("name", "Operational Analysis")
 }

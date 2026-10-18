@@ -49,7 +49,7 @@ pub(super) fn scenario(context: &mut Context, engineering: &El, s: &Scenario, na
     // A trace names a scenario by its name.
     context.register(&s.name, &id);
     context.register(&id, &id);
-    let mut el = El::new("ownedScenarios", "interaction:Scenario", &id).attr("name", name);
+    let mut el = super::header::apply(El::new("ownedScenarios", "interaction:Scenario", &id).attr("name", name), &s.attributes, &["kind", "participants"]);
     if let Some(kind) = s.attributes.get("kind").and_then(|v| v.as_string()) {
         el.set("kind", kind);
     }
@@ -86,7 +86,12 @@ pub(super) fn scenario(context: &mut Context, engineering: &El, s: &Scenario, na
     let mut frames: Vec<Frame<'_>> = Vec::new();
     collect(&s.fragments, &id, &mut frames);
     for (index, inv) in s.invariants.iter().enumerate() {
-        let (Some(lifeline), Some(related)) = (role(&inv.lifeline), context.resolve(&inv.name).map(str::to_string)) else { continue };
+        // A function invariant names a function, a state invariant a state or mode.
+        let related = match inv.kind {
+            InvariantKind::Function => context.resolve_function(&inv.name).or_else(|| context.resolve(&inv.name)),
+            InvariantKind::State => context.resolve(&inv.name),
+        };
+        let (Some(lifeline), Some(related)) = (role(&inv.lifeline), related.map(str::to_string)) else { continue };
         let iid = if inv.id.is_empty() { derived(&format!("{id}:invariant:{index}")) } else { inv.id.clone() };
         frames.push(Frame { start: inv.start, end: inv.end, what: What::Invariant { id: iid, lifeline, related, state: inv.kind == InvariantKind::State } });
     }
@@ -116,7 +121,9 @@ pub(super) fn scenario(context: &mut Context, engineering: &El, s: &Scenario, na
     let mut dropped: Vec<String> = Vec::new();
     let mut events: Vec<El> = Vec::new();
     let mut order: Vec<usize> = (0..frames.len()).collect();
-    order.sort_by_key(|i| (frames[*i].start, std::cmp::Reverse(span(&frames[*i]))));
+    // At one position: instants first (they stand before what opens there),
+    // then the outer frames before the inner ones.
+    order.sort_by_key(|i| (frames[*i].start, span(&frames[*i]) != 0, std::cmp::Reverse(span(&frames[*i]))));
     let mut closing: Vec<(usize, usize)> = Vec::new(); // (message index after which it closes, frame)
     let mut opened = vec![false; frames.len()];
     for position in 0..=count {
@@ -138,9 +145,9 @@ pub(super) fn scenario(context: &mut Context, engineering: &El, s: &Scenario, na
             }
         }
         // Operands that start inside an open fragment, at this message.
-        for f in 0..frames.len() {
-            if let What::Fragment(cf, fid) = &frames[f].what {
-                if frames[f].start < position {
+        for frame in &frames {
+            if let What::Fragment(cf, fid) = &frame.what {
+                if frame.start < position {
                     for (n, operand) in cf.operands.iter().enumerate().skip(1) {
                         if operand.start == position && operand.end >= operand.start {
                             fragments.push(El::new("ownedInteractionFragments", "interaction:InteractionOperand", &derived(&format!("{fid}:operand:{n}"))).attr("coveredInstanceRoles", &all_roles));
@@ -166,12 +173,18 @@ pub(super) fn scenario(context: &mut Context, engineering: &El, s: &Scenario, na
         let operation = m.attributes.get("exchange").and_then(|e| e.as_string()).and_then(|e| context.resolve(e)).map(|e| format!("#{e}"));
         events.push(El::new("ownedEvents", "interaction:EventSentOperation", &sent).opt("operation", operation.as_deref()));
         events.push(El::new("ownedEvents", "interaction:EventReceiptOperation", &received).opt("operation", operation.as_deref()));
+        // A message written with neither kind nor type is of no kind in Capella.
+        let typed = m.attributes.contains_key("type");
         let kind = m.attributes.get("kind").and_then(|k| k.as_string()).unwrap_or(match m.message_type {
+            _ if !typed => "UNSET",
             MessageType::Synchronous => "SYNCHRONOUS_CALL",
             MessageType::Asynchronous => "ASYNCHRONOUS_CALL",
             MessageType::Return => "REPLY",
         });
-        messages.push(El::new("ownedMessages", "interaction:SequenceMessage", &mid).attr("name", &m.label).attr("kind", kind).attr("sendingEnd", &format!("#{send}")).attr("receivingEnd", &format!("#{receive}")));
+        let items: Vec<String> = super::context::list(&m.attributes, "exchange_items").iter().filter_map(|i| context.resolve_type(i).or_else(|| context.resolve(i))).map(|i| format!("#{i}")).collect();
+        let message = El::new("ownedMessages", "interaction:SequenceMessage", &mid).attr("name", &m.label).attr("kind", kind).attr("sendingEnd", &format!("#{send}")).attr("receivingEnd", &format!("#{receive}"));
+        let message = if items.is_empty() { message } else { message.attr("exchangedItems", &items.join(" ")) };
+        messages.push(super::header::apply(message, &m.attributes, &["kind", "type", "exchange", "exchange_items"]));
         // Frames ending at this message close, innermost first.
         let mut ending: Vec<usize> = closing.iter().filter(|(end, _)| *end == position).map(|(_, f)| *f).collect();
         ending.sort_by_key(|f| span(&frames[*f]));
@@ -231,21 +244,24 @@ pub(super) fn owner<'a>(context: &Context, engineering: &El, s: &'a Scenario) ->
     if let Some((owner, name)) = s.name.split_once(" / ") {
         if let (Some(id), Some(declared)) = (context.resolve(owner), &declared) {
             if id == declared {
-                return (Some(id.to_string()), name);
+                // The name keeps its prefix: the caller removes it with the import's numbering.
+                let _ = name;
+                return (Some(id.to_string()), s.name.as_str());
             }
         }
     }
     if declared.is_some() {
         return (declared, s.name.as_str());
     }
-    if let Some((owner, name)) = s.name.split_once(" / ") {
+    if let Some((owner, _)) = s.name.split_once(" / ") {
         if let Some(id) = context.resolve(owner) {
-            return (Some(id.to_string()), name);
+            return (Some(id.to_string()), s.name.as_str());
         }
     }
     let first = s.participants.iter().find_map(|p| context.resolve(&p.id).or_else(|| context.resolve(&p.name)));
     let level = first.and_then(|id| engineering.children().iter().find(|level| level.find(id).is_some()));
-    let capability = level.and_then(|level| first_capability(level)).map(str::to_string);
+    // A level without capability (EPBS) lends the scenario to the first capability of the model.
+    let capability = level.and_then(|level| first_capability(level)).or_else(|| first_capability(engineering)).map(str::to_string);
     (capability, s.name.as_str())
 }
 

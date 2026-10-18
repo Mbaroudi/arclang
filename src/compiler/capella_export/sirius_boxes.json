@@ -17,6 +17,50 @@
     "mapping": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/logical.odesign#//@ownedViewpoints[name='Logical%20Architecture']/@ownedRepresentations[name='Logical%20Data%20Flow%20Blank']/@defaultLayer/@containerMappings[name='LDFB_Function']",
     "style": "diagram:FlatContainerStyle",
     "style_description": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/logical.odesign#//@ownedViewpoints[name='Logical%20Architecture']/@ownedRepresentations[name='Logical%20Data%20Flow%20Blank']/@defaultLayer/@containerMappings[name='LDFB_Function']/@style"
+   },
+   {
+    "parent": "diagram",
+    "target": "fa:FunctionalChain",
+    "type": "diagram:DNode",
+    "mapping": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/logical.odesign#//@ownedViewpoints[name='Logical%20Architecture']/@ownedRepresentations[name='Logical%20Data%20Flow%20Blank']/@defaultLayer/@nodeMappings[name='LDFB_FunctionalChainEnd']",
+    "style": "diagram:Square",
+    "style_description": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/logical.odesign#//@ownedViewpoints[name='Logical%20Architecture']/@ownedRepresentations[name='Logical%20Data%20Flow%20Blank']/@defaultLayer/@nodeMappings[name='LDFB_FunctionalChainEnd']/@style"
+   }
+  ],
+  "bordered": [
+   {
+    "parent": "la:LogicalFunction",
+    "target": "fa:FunctionInputPort",
+    "type": "diagram:DNode",
+    "mapping": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/logical.odesign#//@ownedViewpoints[name='Logical%20Architecture']/@ownedRepresentations[name='Logical%20Data%20Flow%20Blank']/@defaultLayer/@containerMappings[name='LDFB_Function']/@borderedNodeMappings[name='LDFB_Pin']",
+    "style": "diagram:WorkspaceImage",
+    "style_description": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/logical.odesign#//@ownedViewpoints[name='Logical%20Architecture']/@ownedRepresentations[name='Logical%20Data%20Flow%20Blank']/@defaultLayer/@containerMappings[name='LDFB_Function']/@borderedNodeMappings[name='LDFB_Pin']/@style"
+   },
+   {
+    "parent": "la:LogicalFunction",
+    "target": "fa:FunctionOutputPort",
+    "type": "diagram:DNode",
+    "mapping": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/logical.odesign#//@ownedViewpoints[name='Logical%20Architecture']/@ownedRepresentations[name='Logical%20Data%20Flow%20Blank']/@defaultLayer/@containerMappings[name='LDFB_Function']/@borderedNodeMappings[name='LDFB_Pin']",
+    "style": "diagram:WorkspaceImage",
+    "style_description": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/logical.odesign#//@ownedViewpoints[name='Logical%20Architecture']/@ownedRepresentations[name='Logical%20Data%20Flow%20Blank']/@defaultLayer/@containerMappings[name='LDFB_Function']/@borderedNodeMappings[name='LDFB_Pin']/@conditionnalStyles.0/@style"
+   }
+  ],
+  "edges": [
+   {
+    "target": "fa:FunctionalChain",
+    "source_kind": "fa:FunctionInputPort",
+    "target_kind": "fa:FunctionOutputPort",
+    "mapping": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/logical.odesign#//@ownedViewpoints[name='Logical%20Architecture']/@ownedRepresentations[name='Logical%20Data%20Flow%20Blank']/@defaultLayer/@edgeMappings[name='LDFB_InternLink']",
+    "style": "diagram:EdgeStyle",
+    "style_description": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/logical.odesign#//@ownedViewpoints[name='Logical%20Architecture']/@ownedRepresentations[name='Logical%20Data%20Flow%20Blank']/@defaultLayer/@edgeMappings[name='LDFB_InternLink']/@style"
+   },
+   {
+    "target": "fa:FunctionalExchange",
+    "source_kind": "fa:FunctionOutputPort",
+    "target_kind": "fa:FunctionInputPort",
+    "mapping": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/logical.odesign#//@ownedViewpoints[name='Logical%20Architecture']/@ownedRepresentations[name='Logical%20Data%20Flow%20Blank']/@defaultLayer/@edgeMappings[name='LDFB_Exchange']",
+    "style": "diagram:EdgeStyle",
+    "style_description": ""
    }
   ]
  },
@@ -38,6 +82,25 @@
     "mapping": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/oa.odesign#//@ownedViewpoints[name='Operational%20Analysis']/@ownedRepresentations[name='Operational%20Activity%20Interaction%20Blank']/@defaultLayer/@containerMappings[name='OAIB%20Operational%20Activity']",
     "style": "diagram:FlatContainerStyle",
     "style_description": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/oa.odesign#//@ownedViewpoints[name='Operational%20Analysis']/@ownedRepresentations[name='Operational%20Activity%20Interaction%20Blank']/@defaultLayer/@containerMappings[name='OAIB%20Operational%20Activity']/@style"
+   },
+   {
+    "parent": "diagram",
+    "target": "oa:OperationalProcess",
+    "type": "diagram:DNode",
+    "mapping": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/oa.odesign#//@ownedViewpoints[name='Operational%20Analysis']/@ownedRepresentations[name='Operational%20Activity%20Interaction%20Blank']/@defaultLayer/@nodeMappings[name='OAIB_OperationalProcessEnd']",
+    "style": "diagram:Square",
+    "style_description": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/oa.odesign#//@ownedViewpoints[name='Operational%20Analysis']/@ownedRepresentations[name='Operational%20Activity%20Interaction%20Blank']/@defaultLayer/@nodeMappings[name='OAIB_OperationalProcessEnd']/@style"
+   }
+  ],
+  "bordered": [],
+  "edges": [
+   {
+    "target": "fa:FunctionalExchange",
+    "source_kind": "oa:OperationalActivity",
+    "target_kind": "oa:OperationalActivity",
+    "mapping": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/oa.odesign#//@ownedViewpoints[name='Operational%20Analysis']/@ownedRepresentations[name='Operational%20Activity%20Interaction%20Blank']/@defaultLayer/@edgeMappings[name='OAIB%20Interaction']",
+    "style": "diagram:EdgeStyle",
+    "style_description": ""
    }
   ]
  },
@@ -67,6 +130,98 @@
     "mapping": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/physical.odesign#//@ownedViewpoints[name='Physical%20Architecture']/@ownedRepresentations[name='Physical%20Architecture%20Blank']/@defaultLayer/@containerMappings[name='PAB_PC']",
     "style": "diagram:FlatContainerStyle",
     "style_description": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/physical.odesign#//@ownedViewpoints[name='Physical%20Architecture']/@ownedRepresentations[name='Physical%20Architecture%20Blank']/@defaultLayer/@containerMappings[name='PAB_PC']/@conditionnalStyles.2/@style"
+   },
+   {
+    "parent": "diagram",
+    "target": "fa:FunctionalChain",
+    "type": "diagram:DNode",
+    "mapping": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/physical.odesign#//@ownedViewpoints[name='Physical%20Architecture']/@ownedRepresentations[name='Physical%20Architecture%20Blank']/@defaultLayer/@nodeMappings[name='PAB_FunctionalChainEnd']",
+    "style": "diagram:Square",
+    "style_description": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/physical.odesign#//@ownedViewpoints[name='Physical%20Architecture']/@ownedRepresentations[name='Physical%20Architecture%20Blank']/@defaultLayer/@nodeMappings[name='PAB_FunctionalChainEnd']/@style"
+   },
+   {
+    "parent": "diagram",
+    "target": "cs:PhysicalPath",
+    "type": "diagram:DNode",
+    "mapping": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/physical.odesign#//@ownedViewpoints[name='Physical%20Architecture']/@ownedRepresentations[name='Physical%20Architecture%20Blank']/@defaultLayer/@nodeMappings[name='PAB_PhysicalPathEnd']",
+    "style": "diagram:Square",
+    "style_description": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/physical.odesign#//@ownedViewpoints[name='Physical%20Architecture']/@ownedRepresentations[name='Physical%20Architecture%20Blank']/@defaultLayer/@nodeMappings[name='PAB_PhysicalPathEnd']/@style"
+   }
+  ],
+  "bordered": [
+   {
+    "parent": "cs:Part",
+    "target": "cs:PhysicalPort",
+    "type": "diagram:DNode",
+    "mapping": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/physical.odesign#//@ownedViewpoints[name='Physical%20Architecture']/@ownedRepresentations[name='Physical%20Architecture%20Blank']/@defaultLayer/@containerMappings[name='PAB_PC']/@borderedNodeMappings[name='PAB_Port']",
+    "style": "diagram:Square",
+    "style_description": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/physical.odesign#//@ownedViewpoints[name='Physical%20Architecture']/@ownedRepresentations[name='Physical%20Architecture%20Blank']/@defaultLayer/@containerMappings[name='PAB_PC']/@borderedNodeMappings[name='PAB_Port']/@conditionnalStyles.0/@style"
+   },
+   {
+    "parent": "cs:Part",
+    "target": "fa:ComponentPort",
+    "type": "diagram:DNode",
+    "mapping": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/physical.odesign#//@ownedViewpoints[name='Physical%20Architecture']/@ownedRepresentations[name='Physical%20Architecture%20Blank']/@defaultLayer/@containerMappings[name='PAB_PC']/@borderedNodeMappings[name='PAB_Port']",
+    "style": "diagram:WorkspaceImage",
+    "style_description": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/physical.odesign#//@ownedViewpoints[name='Physical%20Architecture']/@ownedRepresentations[name='Physical%20Architecture%20Blank']/@defaultLayer/@containerMappings[name='PAB_PC']/@borderedNodeMappings[name='PAB_Port']/@conditionnalStyles.3/@style"
+   },
+   {
+    "parent": "pa:PhysicalFunction",
+    "target": "fa:FunctionInputPort",
+    "type": "diagram:DNode",
+    "mapping": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/physical.odesign#//@ownedViewpoints[name='Physical%20Architecture']/@ownedRepresentations[name='Physical%20Architecture%20Blank']/@defaultLayer/@nodeMappings[name='PAB_PhysicalFunction']/@borderedNodeMappings[name='PAB_Pin']",
+    "style": "diagram:WorkspaceImage",
+    "style_description": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/physical.odesign#//@ownedViewpoints[name='Physical%20Architecture']/@ownedRepresentations[name='Physical%20Architecture%20Blank']/@defaultLayer/@nodeMappings[name='PAB_PhysicalFunction']/@borderedNodeMappings[name='PAB_Pin']/@style"
+   },
+   {
+    "parent": "pa:PhysicalFunction",
+    "target": "fa:FunctionOutputPort",
+    "type": "diagram:DNode",
+    "mapping": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/physical.odesign#//@ownedViewpoints[name='Physical%20Architecture']/@ownedRepresentations[name='Physical%20Architecture%20Blank']/@defaultLayer/@nodeMappings[name='PAB_PhysicalFunction']/@borderedNodeMappings[name='PAB_Pin']",
+    "style": "diagram:WorkspaceImage",
+    "style_description": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/physical.odesign#//@ownedViewpoints[name='Physical%20Architecture']/@ownedRepresentations[name='Physical%20Architecture%20Blank']/@defaultLayer/@nodeMappings[name='PAB_PhysicalFunction']/@borderedNodeMappings[name='PAB_Pin']/@conditionnalStyles.0/@style"
+   }
+  ],
+  "edges": [
+   {
+    "target": "cs:PhysicalLink",
+    "source_kind": "cs:PhysicalPort",
+    "target_kind": "cs:PhysicalPort",
+    "mapping": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/physical.odesign#//@ownedViewpoints[name='Physical%20Architecture']/@ownedRepresentations[name='Physical%20Architecture%20Blank']/@defaultLayer/@edgeMappings[name='PAB_PhysicalLink']",
+    "style": "diagram:EdgeStyle",
+    "style_description": ""
+   },
+   {
+    "target": "cs:PhysicalPath",
+    "source_kind": "cs:PhysicalPort",
+    "target_kind": "cs:PhysicalPort",
+    "mapping": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/physical.odesign#//@ownedViewpoints[name='Physical%20Architecture']/@ownedRepresentations[name='Physical%20Architecture%20Blank']/@defaultLayer/@edgeMappings[name='PAB_InternPhysicalPathLink']",
+    "style": "diagram:EdgeStyle",
+    "style_description": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/physical.odesign#//@ownedViewpoints[name='Physical%20Architecture']/@ownedRepresentations[name='Physical%20Architecture%20Blank']/@defaultLayer/@edgeMappings[name='PAB_InternPhysicalPathLink']/@style"
+   },
+   {
+    "target": "fa:ComponentExchange",
+    "source_kind": "fa:ComponentPort",
+    "target_kind": "fa:ComponentPort",
+    "mapping": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/physical.odesign#//@ownedViewpoints[name='Physical%20Architecture']/@ownedRepresentations[name='Physical%20Architecture%20Blank']/@defaultLayer/@edgeMappings[name='PAB_Exchange']",
+    "style": "diagram:EdgeStyle",
+    "style_description": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/physical.odesign#//@ownedViewpoints[name='Physical%20Architecture']/@ownedRepresentations[name='Physical%20Architecture%20Blank']/@defaultLayer/@edgeMappings[name='PAB_Exchange']/@conditionnalStyles.3/@style"
+   },
+   {
+    "target": "fa:FunctionalChain",
+    "source_kind": "fa:FunctionInputPort",
+    "target_kind": "fa:FunctionOutputPort",
+    "mapping": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/physical.odesign#//@ownedViewpoints[name='Physical%20Architecture']/@ownedRepresentations[name='Physical%20Architecture%20Blank']/@defaultLayer/@edgeMappings[name='PAB_InternLink']",
+    "style": "diagram:EdgeStyle",
+    "style_description": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/physical.odesign#//@ownedViewpoints[name='Physical%20Architecture']/@ownedRepresentations[name='Physical%20Architecture%20Blank']/@defaultLayer/@edgeMappings[name='PAB_InternLink']/@style"
+   },
+   {
+    "target": "fa:FunctionalExchange",
+    "source_kind": "fa:FunctionOutputPort",
+    "target_kind": "fa:FunctionInputPort",
+    "mapping": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/physical.odesign#//@ownedViewpoints[name='Physical%20Architecture']/@ownedRepresentations[name='Physical%20Architecture%20Blank']/@defaultLayer/@edgeMappings[name='PAB_FunctionExchange']",
+    "style": "diagram:EdgeStyle",
+    "style_description": ""
    }
   ]
  },
@@ -129,15 +284,21 @@
     "style": "diagram:FlatContainerStyle",
     "style_description": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/common.odesign#//@ownedViewpoints[name='Common']/@ownedRepresentations[name='Class%20Diagram%20Blank']/@defaultLayer/@containerMappings[name='DT_DataType']/@style"
    }
-  ]
+  ],
+  "bordered": [],
+  "edges": []
  },
  "Logical Component Breakdown": {
   "description": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/logical.odesign#//@ownedViewpoints[name='Logical%20Architecture']/@ownedRepresentations[name='Logical%20Component%20Breakdown']",
-  "boxes": []
+  "boxes": [],
+  "bordered": [],
+  "edges": []
  },
  "Logical Function Breakdown": {
   "description": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/logical.odesign#//@ownedViewpoints[name='Logical%20Architecture']/@ownedRepresentations[name='Logical%20Function%20Breakdown']",
-  "boxes": []
+  "boxes": [],
+  "bordered": [],
+  "edges": []
  },
  "Logical Architecture Blank": {
   "description": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/logical.odesign#//@ownedViewpoints[name='Logical%20Architecture']/@ownedRepresentations[name='Logical%20Architecture%20Blank']",
@@ -165,6 +326,106 @@
     "mapping": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/logical.odesign#//@ownedViewpoints[name='Logical%20Architecture']/@ownedRepresentations[name='Logical%20Architecture%20Blank']/@defaultLayer/@containerMappings[name='LAB%20Logical%20Component']",
     "style": "diagram:FlatContainerStyle",
     "style_description": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/logical.odesign#//@ownedViewpoints[name='Logical%20Architecture']/@ownedRepresentations[name='Logical%20Architecture%20Blank']/@defaultLayer/@containerMappings[name='LAB%20Logical%20Component']/@conditionnalStyles.0/@style"
+   },
+   {
+    "parent": "diagram",
+    "target": "cs:PhysicalPath",
+    "type": "diagram:DNode",
+    "mapping": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/logical.odesign#//@ownedViewpoints[name='Logical%20Architecture']/@ownedRepresentations[name='Logical%20Architecture%20Blank']/@defaultLayer/@nodeMappings[name='LAB_PhysicalPathEnd']",
+    "style": "diagram:Square",
+    "style_description": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/logical.odesign#//@ownedViewpoints[name='Logical%20Architecture']/@ownedRepresentations[name='Logical%20Architecture%20Blank']/@defaultLayer/@nodeMappings[name='LAB_PhysicalPathEnd']/@style"
+   },
+   {
+    "parent": "diagram",
+    "target": "fa:FunctionalChain",
+    "type": "diagram:DNode",
+    "mapping": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/logical.odesign#//@ownedViewpoints[name='Logical%20Architecture']/@ownedRepresentations[name='Logical%20Architecture%20Blank']/@defaultLayer/@nodeMappings[name='LAB_FunctionalChainEnd']",
+    "style": "diagram:Square",
+    "style_description": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/logical.odesign#//@ownedViewpoints[name='Logical%20Architecture']/@ownedRepresentations[name='Logical%20Architecture%20Blank']/@defaultLayer/@nodeMappings[name='LAB_FunctionalChainEnd']/@style"
+   }
+  ],
+  "bordered": [
+   {
+    "parent": "cs:Part",
+    "target": "cs:PhysicalPort",
+    "type": "diagram:DNode",
+    "mapping": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/logical.odesign#//@ownedViewpoints[name='Logical%20Architecture']/@ownedRepresentations[name='Logical%20Architecture%20Blank']/@defaultLayer/@containerMappings[name='LAB%20Logical%20Component']/@borderedNodeMappings[name='LAB_PhysicalPort']",
+    "style": "diagram:Square",
+    "style_description": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/logical.odesign#//@ownedViewpoints[name='Logical%20Architecture']/@ownedRepresentations[name='Logical%20Architecture%20Blank']/@defaultLayer/@containerMappings[name='LAB%20Logical%20Component']/@borderedNodeMappings[name='LAB_PhysicalPort']/@style"
+   },
+   {
+    "parent": "cs:Part",
+    "target": "fa:ComponentPort",
+    "type": "diagram:DNode",
+    "mapping": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/logical.odesign#//@ownedViewpoints[name='Logical%20Architecture']/@ownedRepresentations[name='Logical%20Architecture%20Blank']/@defaultLayer/@containerMappings[name='LAB%20Logical%20Component']/@borderedNodeMappings[name='LAB%20ComponentPort']",
+    "style": "diagram:WorkspaceImage",
+    "style_description": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/logical.odesign#//@ownedViewpoints[name='Logical%20Architecture']/@ownedRepresentations[name='Logical%20Architecture%20Blank']/@defaultLayer/@containerMappings[name='LAB%20Logical%20Component']/@borderedNodeMappings[name='LAB%20ComponentPort']/@conditionnalStyles.2/@style"
+   },
+   {
+    "parent": "ctx:SystemFunction",
+    "target": "fa:FunctionOutputPort",
+    "type": "diagram:DNode",
+    "mapping": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/logical.odesign#//@ownedViewpoints[name='Logical%20Architecture']/@ownedRepresentations[name='Logical%20Architecture%20Blank']/@defaultLayer/@containerMappings[name='LAB%20Logical%20Component']/@subNodeMappings[name='LAB%20Logical%20Function']/@borderedNodeMappings[name='LAB%20Flow%20Port%20on%20Logical%20Function']",
+    "style": "diagram:WorkspaceImage",
+    "style_description": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/logical.odesign#//@ownedViewpoints[name='Logical%20Architecture']/@ownedRepresentations[name='Logical%20Architecture%20Blank']/@defaultLayer/@containerMappings[name='LAB%20Logical%20Component']/@subNodeMappings[name='LAB%20Logical%20Function']/@borderedNodeMappings[name='LAB%20Flow%20Port%20on%20Logical%20Function']/@conditionnalStyles.0/@style"
+   },
+   {
+    "parent": "la:LogicalFunction",
+    "target": "fa:FunctionInputPort",
+    "type": "diagram:DNode",
+    "mapping": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/logical.odesign#//@ownedViewpoints[name='Logical%20Architecture']/@ownedRepresentations[name='Logical%20Architecture%20Blank']/@defaultLayer/@containerMappings[name='LAB%20Logical%20Component']/@subNodeMappings[name='LAB%20Logical%20Function']/@borderedNodeMappings[name='LAB%20Flow%20Port%20on%20Logical%20Function']",
+    "style": "diagram:WorkspaceImage",
+    "style_description": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/logical.odesign#//@ownedViewpoints[name='Logical%20Architecture']/@ownedRepresentations[name='Logical%20Architecture%20Blank']/@defaultLayer/@containerMappings[name='LAB%20Logical%20Component']/@subNodeMappings[name='LAB%20Logical%20Function']/@borderedNodeMappings[name='LAB%20Flow%20Port%20on%20Logical%20Function']/@style"
+   },
+   {
+    "parent": "la:LogicalFunction",
+    "target": "fa:FunctionOutputPort",
+    "type": "diagram:DNode",
+    "mapping": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/logical.odesign#//@ownedViewpoints[name='Logical%20Architecture']/@ownedRepresentations[name='Logical%20Architecture%20Blank']/@defaultLayer/@containerMappings[name='LAB%20Logical%20Component']/@subNodeMappings[name='LAB%20Logical%20Function']/@borderedNodeMappings[name='LAB%20Flow%20Port%20on%20Logical%20Function']",
+    "style": "diagram:WorkspaceImage",
+    "style_description": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/logical.odesign#//@ownedViewpoints[name='Logical%20Architecture']/@ownedRepresentations[name='Logical%20Architecture%20Blank']/@defaultLayer/@containerMappings[name='LAB%20Logical%20Component']/@subNodeMappings[name='LAB%20Logical%20Function']/@borderedNodeMappings[name='LAB%20Flow%20Port%20on%20Logical%20Function']/@conditionnalStyles.0/@style"
+   }
+  ],
+  "edges": [
+   {
+    "target": "cs:PhysicalLink",
+    "source_kind": "cs:PhysicalPort",
+    "target_kind": "cs:PhysicalPort",
+    "mapping": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/logical.odesign#//@ownedViewpoints[name='Logical%20Architecture']/@ownedRepresentations[name='Logical%20Architecture%20Blank']/@defaultLayer/@edgeMappings[name='LAB_PhysicalLink']",
+    "style": "diagram:EdgeStyle",
+    "style_description": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/logical.odesign#//@ownedViewpoints[name='Logical%20Architecture']/@ownedRepresentations[name='Logical%20Architecture%20Blank']/@defaultLayer/@edgeMappings[name='LAB_PhysicalLink']/@style"
+   },
+   {
+    "target": "cs:PhysicalPath",
+    "source_kind": "cs:PhysicalPort",
+    "target_kind": "cs:PhysicalPort",
+    "mapping": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/logical.odesign#//@ownedViewpoints[name='Logical%20Architecture']/@ownedRepresentations[name='Logical%20Architecture%20Blank']/@defaultLayer/@edgeMappings[name='LAB_InternPhysicalPathLink']",
+    "style": "diagram:EdgeStyle",
+    "style_description": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/logical.odesign#//@ownedViewpoints[name='Logical%20Architecture']/@ownedRepresentations[name='Logical%20Architecture%20Blank']/@defaultLayer/@edgeMappings[name='LAB_InternPhysicalPathLink']/@style"
+   },
+   {
+    "target": "fa:ComponentExchange",
+    "source_kind": "fa:ComponentPort",
+    "target_kind": "fa:ComponentPort",
+    "mapping": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/logical.odesign#//@ownedViewpoints[name='Logical%20Architecture']/@ownedRepresentations[name='Logical%20Architecture%20Blank']/@defaultLayer/@edgeMappings[name='LAB%20DataFlow%20between%20Logical%20Components']",
+    "style": "diagram:EdgeStyle",
+    "style_description": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/logical.odesign#//@ownedViewpoints[name='Logical%20Architecture']/@ownedRepresentations[name='Logical%20Architecture%20Blank']/@defaultLayer/@edgeMappings[name='LAB%20DataFlow%20between%20Logical%20Components']/@conditionnalStyles.3/@style"
+   },
+   {
+    "target": "fa:FunctionalChain",
+    "source_kind": "fa:FunctionInputPort",
+    "target_kind": "fa:FunctionOutputPort",
+    "mapping": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/logical.odesign#//@ownedViewpoints[name='Logical%20Architecture']/@ownedRepresentations[name='Logical%20Architecture%20Blank']/@defaultLayer/@edgeMappings[name='LAB_InternLink']",
+    "style": "diagram:EdgeStyle",
+    "style_description": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/logical.odesign#//@ownedViewpoints[name='Logical%20Architecture']/@ownedRepresentations[name='Logical%20Architecture%20Blank']/@defaultLayer/@edgeMappings[name='LAB_InternLink']/@style"
+   },
+   {
+    "target": "fa:FunctionalExchange",
+    "source_kind": "fa:FunctionOutputPort",
+    "target_kind": "fa:FunctionInputPort",
+    "mapping": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/logical.odesign#//@ownedViewpoints[name='Logical%20Architecture']/@ownedRepresentations[name='Logical%20Architecture%20Blank']/@defaultLayer/@edgeMappings[name='LAB%20DataFlow%20between%20Function']",
+    "style": "diagram:EdgeStyle",
+    "style_description": ""
    }
   ]
  },
@@ -179,7 +440,9 @@
     "style": "diagram:Square",
     "style_description": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/oa.odesign#//@ownedViewpoints[name='Operational%20Analysis']/@ownedRepresentations[name='Operational%20Entity%20Breakdown']/@defaultLayer/@nodeMappings[name='OEB_OperationalEntities']/@style"
    }
-  ]
+  ],
+  "bordered": [],
+  "edges": []
  },
  "Operational Entity Blank": {
   "description": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/oa.odesign#//@ownedViewpoints[name='Operational%20Analysis']/@ownedRepresentations[name='Operational%20Entity%20Blank']",
@@ -207,6 +470,33 @@
     "mapping": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/oa.odesign#//@ownedViewpoints[name='Operational%20Analysis']/@ownedRepresentations[name='Operational%20Entity%20Blank']/@defaultLayer/@containerMappings[name='OAB_Entity1']",
     "style": "diagram:FlatContainerStyle",
     "style_description": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/oa.odesign#//@ownedViewpoints[name='Operational%20Analysis']/@ownedRepresentations[name='Operational%20Entity%20Blank']/@defaultLayer/@containerMappings[name='OAB_Entity1']/@style"
+   },
+   {
+    "parent": "diagram",
+    "target": "oa:OperationalProcess",
+    "type": "diagram:DNode",
+    "mapping": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/oa.odesign#//@ownedViewpoints[name='Operational%20Analysis']/@ownedRepresentations[name='Operational%20Entity%20Blank']/@defaultLayer/@nodeMappings[name='OAB_OperationalProcessEnd']",
+    "style": "diagram:Square",
+    "style_description": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/oa.odesign#//@ownedViewpoints[name='Operational%20Analysis']/@ownedRepresentations[name='Operational%20Entity%20Blank']/@defaultLayer/@nodeMappings[name='OAB_OperationalProcessEnd']/@style"
+   }
+  ],
+  "bordered": [],
+  "edges": [
+   {
+    "target": "fa:FunctionalExchange",
+    "source_kind": "oa:OperationalActivity",
+    "target_kind": "oa:OperationalActivity",
+    "mapping": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/oa.odesign#//@ownedViewpoints[name='Operational%20Analysis']/@ownedRepresentations[name='Operational%20Entity%20Blank']/@defaultLayer/@edgeMappings[name='OAB%20Interaction']",
+    "style": "diagram:EdgeStyle",
+    "style_description": ""
+   },
+   {
+    "target": "oa:CommunicationMean",
+    "source_kind": "oa:Entity",
+    "target_kind": "oa:Entity",
+    "mapping": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/oa.odesign#//@ownedViewpoints[name='Operational%20Analysis']/@ownedRepresentations[name='Operational%20Entity%20Blank']/@defaultLayer/@edgeMappings[name='OAB_CommunicationMean']",
+    "style": "diagram:EdgeStyle",
+    "style_description": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/oa.odesign#//@ownedViewpoints[name='Operational%20Analysis']/@ownedRepresentations[name='Operational%20Entity%20Blank']/@defaultLayer/@edgeMappings[name='OAB_CommunicationMean']/@style"
    }
   ]
  },
@@ -221,7 +511,9 @@
     "style": "diagram:Square",
     "style_description": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/oa.odesign#//@ownedViewpoints[name='Operational%20Analysis']/@ownedRepresentations[name='Operational%20Activity%20Breakdown']/@defaultLayer/@nodeMappings[name='OAB_OperationalActivity']/@style"
    }
-  ]
+  ],
+  "bordered": [],
+  "edges": []
  },
  "Operational Capabilities Blank": {
   "description": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/oa.odesign#//@ownedViewpoints[name='Operational%20Analysis']/@ownedRepresentations[name='Operational%20Capabilities%20Blank']",
@@ -250,15 +542,30 @@
     "style": "diagram:FlatContainerStyle",
     "style_description": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/oa.odesign#//@ownedViewpoints[name='Operational%20Analysis']/@ownedRepresentations[name='Operational%20Capabilities%20Blank']/@defaultLayer/@containerMappings[name='COC_OperationalEntities']/@style"
    }
+  ],
+  "bordered": [],
+  "edges": [
+   {
+    "target": "oa:CommunicationMean",
+    "source_kind": "oa:Entity",
+    "target_kind": "oa:Entity",
+    "mapping": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/oa.odesign#//@ownedViewpoints[name='Operational%20Analysis']/@ownedRepresentations[name='Operational%20Capabilities%20Blank']/@defaultLayer/@edgeMappings[name='COC_CommunicationMeans']",
+    "style": "diagram:EdgeStyle",
+    "style_description": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/oa.odesign#//@ownedViewpoints[name='Operational%20Analysis']/@ownedRepresentations[name='Operational%20Capabilities%20Blank']/@defaultLayer/@edgeMappings[name='COC_CommunicationMeans']/@style"
+   }
   ]
  },
  "Physical Component Breakdown": {
   "description": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/physical.odesign#//@ownedViewpoints[name='Physical%20Architecture']/@ownedRepresentations[name='Physical%20Component%20Breakdown']",
-  "boxes": []
+  "boxes": [],
+  "bordered": [],
+  "edges": []
  },
  "Physical Function Breakdown": {
   "description": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/physical.odesign#//@ownedViewpoints[name='Physical%20Architecture']/@ownedRepresentations[name='Physical%20Function%20Breakdown']",
-  "boxes": []
+  "boxes": [],
+  "bordered": [],
+  "edges": []
  },
  "Physical Data Flow Blank": {
   "description": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/physical.odesign#//@ownedViewpoints[name='Physical%20Architecture']/@ownedRepresentations[name='Physical%20Data%20Flow%20Blank']",
@@ -278,6 +585,50 @@
     "mapping": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/physical.odesign#//@ownedViewpoints[name='Physical%20Architecture']/@ownedRepresentations[name='Physical%20Data%20Flow%20Blank']/@defaultLayer/@containerMappings[name='PDFB_Function']",
     "style": "diagram:FlatContainerStyle",
     "style_description": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/physical.odesign#//@ownedViewpoints[name='Physical%20Architecture']/@ownedRepresentations[name='Physical%20Data%20Flow%20Blank']/@defaultLayer/@containerMappings[name='PDFB_Function']/@style"
+   },
+   {
+    "parent": "diagram",
+    "target": "fa:FunctionalChain",
+    "type": "diagram:DNode",
+    "mapping": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/physical.odesign#//@ownedViewpoints[name='Physical%20Architecture']/@ownedRepresentations[name='Physical%20Data%20Flow%20Blank']/@defaultLayer/@nodeMappings[name='PDFB_FunctionalChainEnd']",
+    "style": "diagram:Square",
+    "style_description": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/physical.odesign#//@ownedViewpoints[name='Physical%20Architecture']/@ownedRepresentations[name='Physical%20Data%20Flow%20Blank']/@defaultLayer/@nodeMappings[name='PDFB_FunctionalChainEnd']/@style"
+   }
+  ],
+  "bordered": [
+   {
+    "parent": "pa:PhysicalFunction",
+    "target": "fa:FunctionInputPort",
+    "type": "diagram:DNode",
+    "mapping": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/physical.odesign#//@ownedViewpoints[name='Physical%20Architecture']/@ownedRepresentations[name='Physical%20Data%20Flow%20Blank']/@defaultLayer/@containerMappings[name='PDFB_Function']/@borderedNodeMappings[name='PDFB_Pin']",
+    "style": "diagram:WorkspaceImage",
+    "style_description": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/physical.odesign#//@ownedViewpoints[name='Physical%20Architecture']/@ownedRepresentations[name='Physical%20Data%20Flow%20Blank']/@defaultLayer/@containerMappings[name='PDFB_Function']/@borderedNodeMappings[name='PDFB_Pin']/@style"
+   },
+   {
+    "parent": "pa:PhysicalFunction",
+    "target": "fa:FunctionOutputPort",
+    "type": "diagram:DNode",
+    "mapping": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/physical.odesign#//@ownedViewpoints[name='Physical%20Architecture']/@ownedRepresentations[name='Physical%20Data%20Flow%20Blank']/@defaultLayer/@containerMappings[name='PDFB_Function']/@borderedNodeMappings[name='PDFB_Pin']",
+    "style": "diagram:WorkspaceImage",
+    "style_description": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/physical.odesign#//@ownedViewpoints[name='Physical%20Architecture']/@ownedRepresentations[name='Physical%20Data%20Flow%20Blank']/@defaultLayer/@containerMappings[name='PDFB_Function']/@borderedNodeMappings[name='PDFB_Pin']/@conditionnalStyles.0/@style"
+   }
+  ],
+  "edges": [
+   {
+    "target": "fa:FunctionalChain",
+    "source_kind": "fa:FunctionInputPort",
+    "target_kind": "fa:FunctionOutputPort",
+    "mapping": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/physical.odesign#//@ownedViewpoints[name='Physical%20Architecture']/@ownedRepresentations[name='Physical%20Data%20Flow%20Blank']/@defaultLayer/@edgeMappings[name='PDFB_InternLink']",
+    "style": "diagram:EdgeStyle",
+    "style_description": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/physical.odesign#//@ownedViewpoints[name='Physical%20Architecture']/@ownedRepresentations[name='Physical%20Data%20Flow%20Blank']/@defaultLayer/@edgeMappings[name='PDFB_InternLink']/@style"
+   },
+   {
+    "target": "fa:FunctionalExchange",
+    "source_kind": "fa:FunctionOutputPort",
+    "target_kind": "fa:FunctionInputPort",
+    "mapping": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/physical.odesign#//@ownedViewpoints[name='Physical%20Architecture']/@ownedRepresentations[name='Physical%20Data%20Flow%20Blank']/@defaultLayer/@edgeMappings[name='PDFB_Exchange']",
+    "style": "diagram:EdgeStyle",
+    "style_description": ""
    }
   ]
  },
@@ -292,11 +643,15 @@
     "style": "diagram:WorkspaceImage",
     "style_description": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/context.odesign#//@ownedViewpoints[name='System%20Analysis']/@ownedRepresentations[name='Contextual%20System%20Actors']/@defaultLayer/@nodeMappings[name='SC_System']/@conditionnalStyles.0/@style"
    }
-  ]
+  ],
+  "bordered": [],
+  "edges": []
  },
  "System Function Breakdown": {
   "description": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/context.odesign#//@ownedViewpoints[name='System%20Analysis']/@ownedRepresentations[name='System%20Function%20Breakdown']",
-  "boxes": []
+  "boxes": [],
+  "bordered": [],
+  "edges": []
  },
  "Missions Capabilities Blank": {
   "description": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/context.odesign#//@ownedViewpoints[name='System%20Analysis']/@ownedRepresentations[name='Missions%20Capabilities%20Blank']",
@@ -325,7 +680,9 @@
     "style": "diagram:WorkspaceImage",
     "style_description": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/context.odesign#//@ownedViewpoints[name='System%20Analysis']/@ownedRepresentations[name='Missions%20Capabilities%20Blank']/@defaultLayer/@nodeMappings[name='MissionNode4']/@style"
    }
-  ]
+  ],
+  "bordered": [],
+  "edges": []
  },
  "System Architecture Blank": {
   "description": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/context.odesign#//@ownedViewpoints[name='System%20Analysis']/@ownedRepresentations[name='System%20Architecture%20Blank']",
@@ -353,6 +710,98 @@
     "mapping": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/context.odesign#//@ownedViewpoints[name='System%20Analysis']/@ownedRepresentations[name='System%20Architecture%20Blank']/@defaultLayer/@containerMappings[name='System%20Actors']",
     "style": "diagram:FlatContainerStyle",
     "style_description": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/context.odesign#//@ownedViewpoints[name='System%20Analysis']/@ownedRepresentations[name='System%20Architecture%20Blank']/@defaultLayer/@containerMappings[name='System%20Actors']/@style"
+   },
+   {
+    "parent": "diagram",
+    "target": "cs:PhysicalPath",
+    "type": "diagram:DNode",
+    "mapping": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/context.odesign#//@ownedViewpoints[name='System%20Analysis']/@ownedRepresentations[name='System%20Architecture%20Blank']/@defaultLayer/@nodeMappings[name='SAB_PhysicalPathEnd']",
+    "style": "diagram:Square",
+    "style_description": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/context.odesign#//@ownedViewpoints[name='System%20Analysis']/@ownedRepresentations[name='System%20Architecture%20Blank']/@defaultLayer/@nodeMappings[name='SAB_PhysicalPathEnd']/@style"
+   },
+   {
+    "parent": "diagram",
+    "target": "fa:FunctionalChain",
+    "type": "diagram:DNode",
+    "mapping": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/context.odesign#//@ownedViewpoints[name='System%20Analysis']/@ownedRepresentations[name='System%20Architecture%20Blank']/@defaultLayer/@nodeMappings[name='CA_FunctionalChainEnd']",
+    "style": "diagram:Square",
+    "style_description": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/context.odesign#//@ownedViewpoints[name='System%20Analysis']/@ownedRepresentations[name='System%20Architecture%20Blank']/@defaultLayer/@nodeMappings[name='CA_FunctionalChainEnd']/@style"
+   }
+  ],
+  "bordered": [
+   {
+    "parent": "cs:Part",
+    "target": "cs:PhysicalPort",
+    "type": "diagram:DNode",
+    "mapping": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/context.odesign#//@ownedViewpoints[name='System%20Analysis']/@ownedRepresentations[name='System%20Architecture%20Blank']/@defaultLayer/@containerMappings[name='System%20Actors']/@borderedNodeMappings[name='SAB_PhysicalPort']",
+    "style": "diagram:Square",
+    "style_description": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/context.odesign#//@ownedViewpoints[name='System%20Analysis']/@ownedRepresentations[name='System%20Architecture%20Blank']/@defaultLayer/@containerMappings[name='System%20Actors']/@borderedNodeMappings[name='SAB_PhysicalPort']/@style"
+   },
+   {
+    "parent": "cs:Part",
+    "target": "fa:ComponentPort",
+    "type": "diagram:DNode",
+    "mapping": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/context.odesign#//@ownedViewpoints[name='System%20Analysis']/@ownedRepresentations[name='System%20Architecture%20Blank']/@defaultLayer/@containerMappings[name='System%20Actors']/@borderedNodeMappings[name='CA%20Component%20Port']",
+    "style": "diagram:WorkspaceImage",
+    "style_description": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/context.odesign#//@ownedViewpoints[name='System%20Analysis']/@ownedRepresentations[name='System%20Architecture%20Blank']/@defaultLayer/@containerMappings[name='System%20Actors']/@borderedNodeMappings[name='CA%20Component%20Port']/@conditionnalStyles.2/@style"
+   },
+   {
+    "parent": "ctx:SystemFunction",
+    "target": "fa:FunctionInputPort",
+    "type": "diagram:DNode",
+    "mapping": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/context.odesign#//@ownedViewpoints[name='System%20Analysis']/@ownedRepresentations[name='System%20Architecture%20Blank']/@defaultLayer/@containerMappings[name='System%20Actors']/@subNodeMappings[name='CA%20System%20Function']/@borderedNodeMappings[name='CA%20Flow%20Port%20on%20System%20Function']",
+    "style": "diagram:WorkspaceImage",
+    "style_description": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/context.odesign#//@ownedViewpoints[name='System%20Analysis']/@ownedRepresentations[name='System%20Architecture%20Blank']/@defaultLayer/@containerMappings[name='System%20Actors']/@subNodeMappings[name='CA%20System%20Function']/@borderedNodeMappings[name='CA%20Flow%20Port%20on%20System%20Function']/@style"
+   },
+   {
+    "parent": "ctx:SystemFunction",
+    "target": "fa:FunctionOutputPort",
+    "type": "diagram:DNode",
+    "mapping": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/context.odesign#//@ownedViewpoints[name='System%20Analysis']/@ownedRepresentations[name='System%20Architecture%20Blank']/@defaultLayer/@containerMappings[name='System%20Actors']/@subNodeMappings[name='CA%20System%20Function']/@borderedNodeMappings[name='CA%20Flow%20Port%20on%20System%20Function']",
+    "style": "diagram:WorkspaceImage",
+    "style_description": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/context.odesign#//@ownedViewpoints[name='System%20Analysis']/@ownedRepresentations[name='System%20Architecture%20Blank']/@defaultLayer/@containerMappings[name='System%20Actors']/@subNodeMappings[name='CA%20System%20Function']/@borderedNodeMappings[name='CA%20Flow%20Port%20on%20System%20Function']/@conditionnalStyles.0/@style"
+   }
+  ],
+  "edges": [
+   {
+    "target": "cs:PhysicalLink",
+    "source_kind": "cs:PhysicalPort",
+    "target_kind": "cs:PhysicalPort",
+    "mapping": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/context.odesign#//@ownedViewpoints[name='System%20Analysis']/@ownedRepresentations[name='System%20Architecture%20Blank']/@defaultLayer/@edgeMappings[name='SAB_PhysicalLink']",
+    "style": "diagram:EdgeStyle",
+    "style_description": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/context.odesign#//@ownedViewpoints[name='System%20Analysis']/@ownedRepresentations[name='System%20Architecture%20Blank']/@defaultLayer/@edgeMappings[name='SAB_PhysicalLink']/@style"
+   },
+   {
+    "target": "cs:PhysicalPath",
+    "source_kind": "cs:PhysicalPort",
+    "target_kind": "cs:PhysicalPort",
+    "mapping": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/context.odesign#//@ownedViewpoints[name='System%20Analysis']/@ownedRepresentations[name='System%20Architecture%20Blank']/@defaultLayer/@edgeMappings[name='SAB_InternPhysicalPathLink']",
+    "style": "diagram:EdgeStyle",
+    "style_description": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/context.odesign#//@ownedViewpoints[name='System%20Analysis']/@ownedRepresentations[name='System%20Architecture%20Blank']/@defaultLayer/@edgeMappings[name='SAB_InternPhysicalPathLink']/@style"
+   },
+   {
+    "target": "fa:ComponentExchange",
+    "source_kind": "fa:ComponentPort",
+    "target_kind": "fa:ComponentPort",
+    "mapping": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/context.odesign#//@ownedViewpoints[name='System%20Analysis']/@ownedRepresentations[name='System%20Architecture%20Blank']/@defaultLayer/@edgeMappings[name='CA%20Data%20Flow%20Between%20Actors%20and%20System']",
+    "style": "diagram:EdgeStyle",
+    "style_description": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/context.odesign#//@ownedViewpoints[name='System%20Analysis']/@ownedRepresentations[name='System%20Architecture%20Blank']/@defaultLayer/@edgeMappings[name='CA%20Data%20Flow%20Between%20Actors%20and%20System']/@conditionnalStyles.3/@style"
+   },
+   {
+    "target": "fa:FunctionalChain",
+    "source_kind": "fa:FunctionInputPort",
+    "target_kind": "fa:FunctionOutputPort",
+    "mapping": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/context.odesign#//@ownedViewpoints[name='System%20Analysis']/@ownedRepresentations[name='System%20Architecture%20Blank']/@defaultLayer/@edgeMappings[name='CA_InternLink']",
+    "style": "diagram:EdgeStyle",
+    "style_description": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/context.odesign#//@ownedViewpoints[name='System%20Analysis']/@ownedRepresentations[name='System%20Architecture%20Blank']/@defaultLayer/@edgeMappings[name='CA_InternLink']/@style"
+   },
+   {
+    "target": "fa:FunctionalExchange",
+    "source_kind": "fa:FunctionOutputPort",
+    "target_kind": "fa:FunctionInputPort",
+    "mapping": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/context.odesign#//@ownedViewpoints[name='System%20Analysis']/@ownedRepresentations[name='System%20Architecture%20Blank']/@defaultLayer/@edgeMappings[name='CA%20DataFlow%20between%20Function']",
+    "style": "diagram:EdgeStyle",
+    "style_description": ""
    }
   ]
  },
@@ -374,6 +823,50 @@
     "mapping": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/context.odesign#//@ownedViewpoints[name='System%20Analysis']/@ownedRepresentations[name='System%20Data%20Flow%20Blank']/@defaultLayer/@containerMappings[name='SDFB_Function']",
     "style": "diagram:FlatContainerStyle",
     "style_description": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/context.odesign#//@ownedViewpoints[name='System%20Analysis']/@ownedRepresentations[name='System%20Data%20Flow%20Blank']/@defaultLayer/@containerMappings[name='SDFB_Function']/@style"
+   },
+   {
+    "parent": "diagram",
+    "target": "fa:FunctionalChain",
+    "type": "diagram:DNode",
+    "mapping": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/context.odesign#//@ownedViewpoints[name='System%20Analysis']/@ownedRepresentations[name='System%20Data%20Flow%20Blank']/@defaultLayer/@nodeMappings[name='SDFB_FunctionalChainEnd']",
+    "style": "diagram:Square",
+    "style_description": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/context.odesign#//@ownedViewpoints[name='System%20Analysis']/@ownedRepresentations[name='System%20Data%20Flow%20Blank']/@defaultLayer/@nodeMappings[name='SDFB_FunctionalChainEnd']/@style"
+   }
+  ],
+  "bordered": [
+   {
+    "parent": "ctx:SystemFunction",
+    "target": "fa:FunctionInputPort",
+    "type": "diagram:DNode",
+    "mapping": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/context.odesign#//@ownedViewpoints[name='System%20Analysis']/@ownedRepresentations[name='System%20Data%20Flow%20Blank']/@defaultLayer/@containerMappings[name='SDFB_Function']/@borderedNodeMappings[name='SDFB_Pin']",
+    "style": "diagram:WorkspaceImage",
+    "style_description": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/context.odesign#//@ownedViewpoints[name='System%20Analysis']/@ownedRepresentations[name='System%20Data%20Flow%20Blank']/@defaultLayer/@containerMappings[name='SDFB_Function']/@borderedNodeMappings[name='SDFB_Pin']/@style"
+   },
+   {
+    "parent": "ctx:SystemFunction",
+    "target": "fa:FunctionOutputPort",
+    "type": "diagram:DNode",
+    "mapping": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/context.odesign#//@ownedViewpoints[name='System%20Analysis']/@ownedRepresentations[name='System%20Data%20Flow%20Blank']/@defaultLayer/@containerMappings[name='SDFB_Function']/@borderedNodeMappings[name='SDFB_Pin']",
+    "style": "diagram:WorkspaceImage",
+    "style_description": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/context.odesign#//@ownedViewpoints[name='System%20Analysis']/@ownedRepresentations[name='System%20Data%20Flow%20Blank']/@defaultLayer/@containerMappings[name='SDFB_Function']/@borderedNodeMappings[name='SDFB_Pin']/@conditionnalStyles.0/@style"
+   }
+  ],
+  "edges": [
+   {
+    "target": "fa:FunctionalChain",
+    "source_kind": "fa:FunctionInputPort",
+    "target_kind": "fa:FunctionOutputPort",
+    "mapping": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/context.odesign#//@ownedViewpoints[name='System%20Analysis']/@ownedRepresentations[name='System%20Data%20Flow%20Blank']/@defaultLayer/@edgeMappings[name='SDFB_InternLink']",
+    "style": "diagram:EdgeStyle",
+    "style_description": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/context.odesign#//@ownedViewpoints[name='System%20Analysis']/@ownedRepresentations[name='System%20Data%20Flow%20Blank']/@defaultLayer/@edgeMappings[name='SDFB_InternLink']/@style"
+   },
+   {
+    "target": "fa:FunctionalExchange",
+    "source_kind": "fa:FunctionOutputPort",
+    "target_kind": "fa:FunctionInputPort",
+    "mapping": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/context.odesign#//@ownedViewpoints[name='System%20Analysis']/@ownedRepresentations[name='System%20Data%20Flow%20Blank']/@defaultLayer/@edgeMappings[name='SDFB_Exchange']",
+    "style": "diagram:EdgeStyle",
+    "style_description": ""
    }
   ]
  },
@@ -404,7 +897,9 @@
     "style": "diagram:WorkspaceImage",
     "style_description": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/context.odesign#//@ownedViewpoints[name='System%20Analysis']/@ownedRepresentations[name='Contextual%20Mission']/@defaultLayer/@nodeMappings[name='MissionNode']/@conditionnalStyles.0/@style"
    }
-  ]
+  ],
+  "bordered": [],
+  "edges": []
  },
  "Contextual Capability": {
   "description": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/context.odesign#//@ownedViewpoints[name='System%20Analysis']/@ownedRepresentations[name='Contextual%20Capability']",
@@ -433,7 +928,9 @@
     "style": "diagram:WorkspaceImage",
     "style_description": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/context.odesign#//@ownedViewpoints[name='System%20Analysis']/@ownedRepresentations[name='Contextual%20Capability']/@defaultLayer/@nodeMappings[name='MissionNode3']/@style"
    }
-  ]
+  ],
+  "bordered": [],
+  "edges": []
  },
  "Configuration Items Breakdown": {
   "description": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/EPBS.odesign#//@ownedViewpoints[name='EPBS%20architecture']/@ownedRepresentations[name='Configuration%20Items%20Breakdown']",
@@ -446,7 +943,9 @@
     "style": "diagram:Square",
     "style_description": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/EPBS.odesign#//@ownedViewpoints[name='EPBS%20architecture']/@ownedRepresentations[name='Configuration%20Items%20Breakdown']/@defaultLayer/@nodeMappings[name='CIBD_ConfigurationItem']/@style"
    }
-  ]
+  ],
+  "bordered": [],
+  "edges": []
  },
  "Contextual Operational Capability": {
   "description": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/oa.odesign#//@ownedViewpoints[name='Operational%20Analysis']/@ownedRepresentations[name='Contextual%20Operational%20Capability']",
@@ -467,6 +966,290 @@
     "style": "diagram:FlatContainerStyle",
     "style_description": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/oa.odesign#//@ownedViewpoints[name='Operational%20Analysis']/@ownedRepresentations[name='Contextual%20Operational%20Capability']/@defaultLayer/@containerMappings[name='COC2_Entities']/@style"
    }
-  ]
+  ],
+  "bordered": [],
+  "edges": []
+ },
+ "Contextual Component Detailed Interfaces": {
+  "description": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/common.odesign#//@ownedViewpoints[name='Common']/@ownedRepresentations[name='Contextual%20Component%20Detailed%20Interfaces']",
+  "boxes": [
+   {
+    "parent": "diagram",
+    "target": "cs:Interface",
+    "type": "diagram:DNodeList",
+    "mapping": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/common.odesign#//@ownedViewpoints[name='Common']/@ownedRepresentations[name='Contextual%20Component%20Detailed%20Interfaces']/@defaultLayer/@containerMappings[name='FullInterface1']",
+    "style": "diagram:FlatContainerStyle",
+    "style_description": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/common.odesign#//@ownedViewpoints[name='Common']/@ownedRepresentations[name='Contextual%20Component%20Detailed%20Interfaces']/@defaultLayer/@containerMappings[name='FullInterface1']/@style"
+   },
+   {
+    "parent": "diagram",
+    "target": "information:ExchangeItem",
+    "type": "diagram:DNodeList",
+    "mapping": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/common.odesign#//@ownedViewpoints[name='Common']/@ownedRepresentations[name='Contextual%20Component%20Detailed%20Interfaces']/@defaultLayer/@containerMappings[name='CCDI_ExchangeItem']",
+    "style": "diagram:FlatContainerStyle",
+    "style_description": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/common.odesign#//@ownedViewpoints[name='Common']/@ownedRepresentations[name='Contextual%20Component%20Detailed%20Interfaces']/@defaultLayer/@containerMappings[name='CCDI_ExchangeItem']/@style"
+   },
+   {
+    "parent": "diagram",
+    "target": "pa:PhysicalComponent",
+    "type": "diagram:DNodeContainer",
+    "mapping": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/common.odesign#//@ownedViewpoints[name='Common']/@ownedRepresentations[name='Contextual%20Component%20Detailed%20Interfaces']/@defaultLayer/@containerMappings[name='System%201']",
+    "style": "diagram:FlatContainerStyle",
+    "style_description": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/common.odesign#//@ownedViewpoints[name='Common']/@ownedRepresentations[name='Contextual%20Component%20Detailed%20Interfaces']/@defaultLayer/@containerMappings[name='System%201']/@conditionnalStyles.16/@style"
+   },
+   {
+    "parent": "diagram",
+    "target": "ctx:SystemComponent",
+    "type": "diagram:DNodeContainer",
+    "mapping": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/common.odesign#//@ownedViewpoints[name='Common']/@ownedRepresentations[name='Contextual%20Component%20Detailed%20Interfaces']/@defaultLayer/@containerMappings[name='System%201']",
+    "style": "diagram:FlatContainerStyle",
+    "style_description": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/common.odesign#//@ownedViewpoints[name='Common']/@ownedRepresentations[name='Contextual%20Component%20Detailed%20Interfaces']/@defaultLayer/@containerMappings[name='System%201']/@style"
+   },
+   {
+    "parent": "diagram",
+    "target": "la:LogicalComponent",
+    "type": "diagram:DNodeContainer",
+    "mapping": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/common.odesign#//@ownedViewpoints[name='Common']/@ownedRepresentations[name='Contextual%20Component%20Detailed%20Interfaces']/@defaultLayer/@containerMappings[name='System%201']",
+    "style": "diagram:FlatContainerStyle",
+    "style_description": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/common.odesign#//@ownedViewpoints[name='Common']/@ownedRepresentations[name='Contextual%20Component%20Detailed%20Interfaces']/@defaultLayer/@containerMappings[name='System%201']/@conditionnalStyles.7/@style"
+   }
+  ],
+  "bordered": [],
+  "edges": []
+ },
+ "Contextual Component External Interfaces": {
+  "description": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/common.odesign#//@ownedViewpoints[name='Common']/@ownedRepresentations[name='Contextual%20Component%20External%20Interfaces']",
+  "boxes": [
+   {
+    "parent": "diagram",
+    "target": "cs:Interface",
+    "type": "diagram:DNode",
+    "mapping": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/common.odesign#//@ownedViewpoints[name='Common']/@ownedRepresentations[name='Contextual%20Component%20External%20Interfaces']/@defaultLayer/@nodeMappings[name='CA_Interface']",
+    "style": "diagram:WorkspaceImage",
+    "style_description": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/common.odesign#//@ownedViewpoints[name='Common']/@ownedRepresentations[name='Contextual%20Component%20External%20Interfaces']/@defaultLayer/@nodeMappings[name='CA_Interface']/@conditionnalStyles.2/@style"
+   },
+   {
+    "parent": "diagram",
+    "target": "information:ExchangeItem",
+    "type": "diagram:DNode",
+    "mapping": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/common.odesign#//@ownedViewpoints[name='Common']/@ownedRepresentations[name='Contextual%20Component%20External%20Interfaces']/@defaultLayer/@nodeMappings[name='CCEI_ExchangeItem']",
+    "style": "diagram:Square",
+    "style_description": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/common.odesign#//@ownedViewpoints[name='Common']/@ownedRepresentations[name='Contextual%20Component%20External%20Interfaces']/@defaultLayer/@nodeMappings[name='CCEI_ExchangeItem']/@style"
+   }
+  ],
+  "bordered": [],
+  "edges": []
+ },
+ "Contextual Component Internal Interfaces": {
+  "description": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/common.odesign#//@ownedViewpoints[name='Common']/@ownedRepresentations[name='Contextual%20Component%20Internal%20Interfaces']",
+  "boxes": [
+   {
+    "parent": "la:LogicalComponent",
+    "target": "la:LogicalComponent",
+    "type": "diagram:DNodeContainer",
+    "mapping": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/common.odesign#//@ownedViewpoints[name='Common']/@ownedRepresentations[name='Contextual%20Component%20Internal%20Interfaces']/@defaultLayer/@containerMappings[name='CCII_Component']",
+    "style": "diagram:FlatContainerStyle",
+    "style_description": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/common.odesign#//@ownedViewpoints[name='Common']/@ownedRepresentations[name='Contextual%20Component%20Internal%20Interfaces']/@defaultLayer/@containerMappings[name='CCII_Component']/@conditionnalStyles.8/@style"
+   },
+   {
+    "parent": "diagram",
+    "target": "cs:Interface",
+    "type": "diagram:DNode",
+    "mapping": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/common.odesign#//@ownedViewpoints[name='Common']/@ownedRepresentations[name='Contextual%20Component%20Internal%20Interfaces']/@defaultLayer/@nodeMappings[name='CCII_Interface']",
+    "style": "diagram:WorkspaceImage",
+    "style_description": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/common.odesign#//@ownedViewpoints[name='Common']/@ownedRepresentations[name='Contextual%20Component%20Internal%20Interfaces']/@defaultLayer/@nodeMappings[name='CCII_Interface']/@conditionnalStyles.2/@style"
+   },
+   {
+    "parent": "la:LogicalComponent",
+    "target": "cs:Interface",
+    "type": "diagram:DNode",
+    "mapping": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/common.odesign#//@ownedViewpoints[name='Common']/@ownedRepresentations[name='Contextual%20Component%20Internal%20Interfaces']/@defaultLayer/@nodeMappings[name='CCII_Interface']",
+    "style": "diagram:WorkspaceImage",
+    "style_description": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/common.odesign#//@ownedViewpoints[name='Common']/@ownedRepresentations[name='Contextual%20Component%20Internal%20Interfaces']/@defaultLayer/@nodeMappings[name='CCII_Interface']/@conditionnalStyles.2/@style"
+   },
+   {
+    "parent": "diagram",
+    "target": "information:ExchangeItem",
+    "type": "diagram:DNode",
+    "mapping": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/common.odesign#//@ownedViewpoints[name='Common']/@ownedRepresentations[name='Contextual%20Component%20Internal%20Interfaces']/@defaultLayer/@nodeMappings[name='CCII_ExchangeItem']",
+    "style": "diagram:Square",
+    "style_description": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/common.odesign#//@ownedViewpoints[name='Common']/@ownedRepresentations[name='Contextual%20Component%20Internal%20Interfaces']/@defaultLayer/@nodeMappings[name='CCII_ExchangeItem']/@style"
+   },
+   {
+    "parent": "la:LogicalComponent",
+    "target": "information:ExchangeItem",
+    "type": "diagram:DNode",
+    "mapping": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/common.odesign#//@ownedViewpoints[name='Common']/@ownedRepresentations[name='Contextual%20Component%20Internal%20Interfaces']/@defaultLayer/@nodeMappings[name='CCII_ExchangeItem']",
+    "style": "diagram:Square",
+    "style_description": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/common.odesign#//@ownedViewpoints[name='Common']/@ownedRepresentations[name='Contextual%20Component%20Internal%20Interfaces']/@defaultLayer/@nodeMappings[name='CCII_ExchangeItem']/@style"
+   },
+   {
+    "parent": "diagram",
+    "target": "pa:PhysicalComponent",
+    "type": "diagram:DNodeContainer",
+    "mapping": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/common.odesign#//@ownedViewpoints[name='Common']/@ownedRepresentations[name='Contextual%20Component%20Internal%20Interfaces']/@defaultLayer/@containerMappings[name='CCII_Component']",
+    "style": "diagram:FlatContainerStyle",
+    "style_description": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/common.odesign#//@ownedViewpoints[name='Common']/@ownedRepresentations[name='Contextual%20Component%20Internal%20Interfaces']/@defaultLayer/@containerMappings[name='CCII_Component']/@conditionnalStyles.19/@style"
+   }
+  ],
+  "bordered": [],
+  "edges": []
+ },
+ "Interfaces Diagram Blank": {
+  "description": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/common.odesign#//@ownedViewpoints[name='Common']/@ownedRepresentations[name='Interfaces%20Diagram%20Blank']",
+  "boxes": [
+   {
+    "parent": "diagram",
+    "target": "information:ExchangeItem",
+    "type": "diagram:DNodeList",
+    "mapping": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/common.odesign#//@ownedViewpoints[name='Common']/@ownedRepresentations[name='Interfaces%20Diagram%20Blank']/@defaultLayer/@containerMappings[name='IDB_ExchangeItem']",
+    "style": "diagram:FlatContainerStyle",
+    "style_description": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/common.odesign#//@ownedViewpoints[name='Common']/@ownedRepresentations[name='Interfaces%20Diagram%20Blank']/@defaultLayer/@containerMappings[name='IDB_ExchangeItem']/@style"
+   },
+   {
+    "parent": "diagram",
+    "target": "cs:Interface",
+    "type": "diagram:DNodeList",
+    "mapping": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/common.odesign#//@ownedViewpoints[name='Common']/@ownedRepresentations[name='Interfaces%20Diagram%20Blank']/@defaultLayer/@containerMappings[name='IDB_Interface']",
+    "style": "diagram:FlatContainerStyle",
+    "style_description": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/common.odesign#//@ownedViewpoints[name='Common']/@ownedRepresentations[name='Interfaces%20Diagram%20Blank']/@defaultLayer/@containerMappings[name='IDB_Interface']/@style"
+   },
+   {
+    "parent": "diagram",
+    "target": "ctx:SystemComponent",
+    "type": "diagram:DNodeContainer",
+    "mapping": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/common.odesign#//@ownedViewpoints[name='Common']/@ownedRepresentations[name='Interfaces%20Diagram%20Blank']/@defaultLayer/@containerMappings[name='IDB_Component']",
+    "style": "diagram:FlatContainerStyle",
+    "style_description": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/common.odesign#//@ownedViewpoints[name='Common']/@ownedRepresentations[name='Interfaces%20Diagram%20Blank']/@defaultLayer/@containerMappings[name='IDB_Component']/@conditionnalStyles.5/@style"
+   },
+   {
+    "parent": "la:LogicalComponent",
+    "target": "la:LogicalComponent",
+    "type": "diagram:DNodeContainer",
+    "mapping": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/common.odesign#//@ownedViewpoints[name='Common']/@ownedRepresentations[name='Interfaces%20Diagram%20Blank']/@defaultLayer/@containerMappings[name='IDB_Component']",
+    "style": "diagram:FlatContainerStyle",
+    "style_description": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/common.odesign#//@ownedViewpoints[name='Common']/@ownedRepresentations[name='Interfaces%20Diagram%20Blank']/@defaultLayer/@containerMappings[name='IDB_Component']/@conditionnalStyles.8/@style"
+   },
+   {
+    "parent": "pa:PhysicalComponent",
+    "target": "pa:PhysicalComponent",
+    "type": "diagram:DNodeContainer",
+    "mapping": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/common.odesign#//@ownedViewpoints[name='Common']/@ownedRepresentations[name='Interfaces%20Diagram%20Blank']/@defaultLayer/@containerMappings[name='IDB_Component']",
+    "style": "diagram:FlatContainerStyle",
+    "style_description": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/common.odesign#//@ownedViewpoints[name='Common']/@ownedRepresentations[name='Interfaces%20Diagram%20Blank']/@defaultLayer/@containerMappings[name='IDB_Component']/@conditionnalStyles.14/@style"
+   },
+   {
+    "parent": "ctx:SystemComponent",
+    "target": "ctx:SystemComponent",
+    "type": "diagram:DNodeContainer",
+    "mapping": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/common.odesign#//@ownedViewpoints[name='Common']/@ownedRepresentations[name='Interfaces%20Diagram%20Blank']/@defaultLayer/@containerMappings[name='IDB_Component']",
+    "style": "diagram:FlatContainerStyle",
+    "style_description": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/common.odesign#//@ownedViewpoints[name='Common']/@ownedRepresentations[name='Interfaces%20Diagram%20Blank']/@defaultLayer/@containerMappings[name='IDB_Component']/@conditionnalStyles.5/@style"
+   },
+   {
+    "parent": "diagram",
+    "target": "la:LogicalComponent",
+    "type": "diagram:DNodeContainer",
+    "mapping": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/common.odesign#//@ownedViewpoints[name='Common']/@ownedRepresentations[name='Interfaces%20Diagram%20Blank']/@defaultLayer/@containerMappings[name='IDB_Component']",
+    "style": "diagram:FlatContainerStyle",
+    "style_description": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/common.odesign#//@ownedViewpoints[name='Common']/@ownedRepresentations[name='Interfaces%20Diagram%20Blank']/@defaultLayer/@containerMappings[name='IDB_Component']/@conditionnalStyles.5/@style"
+   },
+   {
+    "parent": "diagram",
+    "target": "pa:PhysicalComponent",
+    "type": "diagram:DNodeContainer",
+    "mapping": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/common.odesign#//@ownedViewpoints[name='Common']/@ownedRepresentations[name='Interfaces%20Diagram%20Blank']/@defaultLayer/@containerMappings[name='IDB_Component']",
+    "style": "diagram:FlatContainerStyle",
+    "style_description": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/common.odesign#//@ownedViewpoints[name='Common']/@ownedRepresentations[name='Interfaces%20Diagram%20Blank']/@defaultLayer/@containerMappings[name='IDB_Component']/@conditionnalStyles.5/@style"
+   }
+  ],
+  "bordered": [],
+  "edges": []
+ },
+ "Contextual Capability Realization Involvement": {
+  "description": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/common.odesign#//@ownedViewpoints[name='Common']/@ownedRepresentations[name='Contextual%20Capability%20Realization%20Involvement']",
+  "boxes": [
+   {
+    "parent": "diagram",
+    "target": "la:LogicalComponent",
+    "type": "diagram:DNode",
+    "mapping": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/common.odesign#//@ownedViewpoints[name='Common']/@ownedRepresentations[name='Contextual%20Capability%20Realization%20Involvement']/@defaultLayer/@nodeMappings[name='CCRI%20Component']",
+    "style": "diagram:WorkspaceImage",
+    "style_description": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/common.odesign#//@ownedViewpoints[name='Common']/@ownedRepresentations[name='Contextual%20Capability%20Realization%20Involvement']/@defaultLayer/@nodeMappings[name='CCRI%20Component']/@conditionnalStyles.2/@style"
+   },
+   {
+    "parent": "diagram",
+    "target": "la:CapabilityRealization",
+    "type": "diagram:DNode",
+    "mapping": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/common.odesign#//@ownedViewpoints[name='Common']/@ownedRepresentations[name='Contextual%20Capability%20Realization%20Involvement']/@defaultLayer/@nodeMappings[name='CCRI%20CapabilityRealization']",
+    "style": "diagram:WorkspaceImage",
+    "style_description": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/common.odesign#//@ownedViewpoints[name='Common']/@ownedRepresentations[name='Contextual%20Capability%20Realization%20Involvement']/@defaultLayer/@nodeMappings[name='CCRI%20CapabilityRealization']/@conditionnalStyles.0/@style"
+   },
+   {
+    "parent": "diagram",
+    "target": "pa:PhysicalComponent",
+    "type": "diagram:DNode",
+    "mapping": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/common.odesign#//@ownedViewpoints[name='Common']/@ownedRepresentations[name='Contextual%20Capability%20Realization%20Involvement']/@defaultLayer/@nodeMappings[name='CCRI%20Component']",
+    "style": "diagram:WorkspaceImage",
+    "style_description": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/common.odesign#//@ownedViewpoints[name='Common']/@ownedRepresentations[name='Contextual%20Capability%20Realization%20Involvement']/@defaultLayer/@nodeMappings[name='CCRI%20Component']/@conditionnalStyles.4/@style"
+   }
+  ],
+  "bordered": [],
+  "edges": []
+ },
+ "Capability Realization Blank": {
+  "description": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/common.odesign#//@ownedViewpoints[name='Common']/@ownedRepresentations[name='Capability%20Realization%20Blank']",
+  "boxes": [
+   {
+    "parent": "diagram",
+    "target": "la:CapabilityRealization",
+    "type": "diagram:DNode",
+    "mapping": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/common.odesign#//@ownedViewpoints[name='Common']/@ownedRepresentations[name='Capability%20Realization%20Blank']/@defaultLayer/@nodeMappings[name='CRB%20CapabilityRealization']",
+    "style": "diagram:WorkspaceImage",
+    "style_description": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/common.odesign#//@ownedViewpoints[name='Common']/@ownedRepresentations[name='Capability%20Realization%20Blank']/@defaultLayer/@nodeMappings[name='CRB%20CapabilityRealization']/@style"
+   },
+   {
+    "parent": "diagram",
+    "target": "la:LogicalComponent",
+    "type": "diagram:DNodeContainer",
+    "mapping": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/common.odesign#//@ownedViewpoints[name='Common']/@ownedRepresentations[name='Capability%20Realization%20Blank']/@defaultLayer/@containerMappings[name='CRB%20Component']",
+    "style": "diagram:FlatContainerStyle",
+    "style_description": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/common.odesign#//@ownedViewpoints[name='Common']/@ownedRepresentations[name='Capability%20Realization%20Blank']/@defaultLayer/@containerMappings[name='CRB%20Component']/@conditionnalStyles.1/@style"
+   },
+   {
+    "parent": "diagram",
+    "target": "pa:PhysicalComponent",
+    "type": "diagram:DNodeContainer",
+    "mapping": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/common.odesign#//@ownedViewpoints[name='Common']/@ownedRepresentations[name='Capability%20Realization%20Blank']/@defaultLayer/@containerMappings[name='CRB%20Component']",
+    "style": "diagram:FlatContainerStyle",
+    "style_description": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/common.odesign#//@ownedViewpoints[name='Common']/@ownedRepresentations[name='Capability%20Realization%20Blank']/@defaultLayer/@containerMappings[name='CRB%20Component']/@conditionnalStyles.1/@style"
+   },
+   {
+    "parent": "la:LogicalComponent",
+    "target": "la:CapabilityRealization",
+    "type": "diagram:DNode",
+    "mapping": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/common.odesign#//@ownedViewpoints[name='Common']/@ownedRepresentations[name='Capability%20Realization%20Blank']/@defaultLayer/@nodeMappings[name='CRB%20CapabilityRealization']",
+    "style": "diagram:WorkspaceImage",
+    "style_description": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/common.odesign#//@ownedViewpoints[name='Common']/@ownedRepresentations[name='Capability%20Realization%20Blank']/@defaultLayer/@nodeMappings[name='CRB%20CapabilityRealization']/@style"
+   },
+   {
+    "parent": "la:LogicalComponent",
+    "target": "la:LogicalComponent",
+    "type": "diagram:DNodeContainer",
+    "mapping": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/common.odesign#//@ownedViewpoints[name='Common']/@ownedRepresentations[name='Capability%20Realization%20Blank']/@defaultLayer/@containerMappings[name='CRB%20Component']",
+    "style": "diagram:FlatContainerStyle",
+    "style_description": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/common.odesign#//@ownedViewpoints[name='Common']/@ownedRepresentations[name='Capability%20Realization%20Blank']/@defaultLayer/@containerMappings[name='CRB%20Component']/@conditionnalStyles.4/@style"
+   },
+   {
+    "parent": "diagram",
+    "target": "epbs:ConfigurationItem",
+    "type": "diagram:DNodeContainer",
+    "mapping": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/common.odesign#//@ownedViewpoints[name='Common']/@ownedRepresentations[name='Capability%20Realization%20Blank']/@defaultLayer/@containerMappings[name='CRB%20Component']",
+    "style": "diagram:FlatContainerStyle",
+    "style_description": "platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/common.odesign#//@ownedViewpoints[name='Common']/@ownedRepresentations[name='Capability%20Realization%20Blank']/@defaultLayer/@containerMappings[name='CRB%20Component']/@conditionnalStyles.7/@style"
+   }
+  ],
+  "bordered": [],
+  "edges": []
  }
 }

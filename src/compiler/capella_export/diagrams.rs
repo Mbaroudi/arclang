@@ -13,21 +13,37 @@ use crate::compiler::ast::DiagramDecl;
 use serde::Deserialize;
 use std::collections::HashMap;
 
+/// How a kind of diagram draws an element under a parent of some kind.
 #[derive(Deserialize)]
-struct Box {
-    parent: String,
-    target: String,
+pub(super) struct Box {
+    pub(super) parent: String,
+    pub(super) target: String,
     #[serde(rename = "type")]
-    kind: String,
-    mapping: String,
-    style: Option<String>,
-    style_description: String,
+    pub(super) kind: String,
+    pub(super) mapping: String,
+    pub(super) style: Option<String>,
+    pub(super) style_description: String,
+}
+
+/// How a kind of diagram draws an exchange, link, chain or path between two ends.
+#[derive(Deserialize)]
+pub(super) struct Edge {
+    pub(super) target: String,
+    pub(super) source_kind: String,
+    pub(super) target_kind: String,
+    pub(super) mapping: String,
+    pub(super) style: Option<String>,
+    pub(super) style_description: String,
 }
 
 #[derive(Deserialize)]
-struct Representation {
-    description: String,
-    boxes: Vec<Box>,
+pub(super) struct Representation {
+    pub(super) description: String,
+    pub(super) boxes: Vec<Box>,
+    #[serde(default)]
+    pub(super) bordered: Vec<Box>,
+    #[serde(default)]
+    pub(super) edges: Vec<Edge>,
 }
 
 fn table() -> HashMap<String, Representation> {
@@ -46,9 +62,14 @@ enum On {
 /// The Capella representation of a diagram: by the `[XXX]` prefix of its
 /// name, else by its view (a view showing functions only is a data flow);
 /// the kind of element it is drawn on, and which one.
-fn representation(diagram: &DiagramDecl, shows_boxes: bool) -> Option<(&'static str, &'static str, On)> {
+fn representation(diagram: &DiagramDecl, shows_boxes: bool, shows_realizations: bool, shows_interfaces: bool) -> Option<(&'static str, &'static str, On)> {
     let prefix = diagram.name.trim_start().strip_prefix('[').and_then(|r| r.split(']').next()).unwrap_or("");
     let by_prefix = match prefix {
+        // An architecture diagram showing functions only is drawn as a data flow:
+        // its functions have no component to stand in.
+        "LAB" if !shows_boxes => "Logical Data Flow Blank",
+        "SAB" if !shows_boxes => "System Data Flow Blank",
+        "PAB" if !shows_boxes => "Physical Data Flow Blank",
         "LAB" => "Logical Architecture Blank",
         "SAB" => "System Architecture Blank",
         "PAB" => "Physical Architecture Blank",
@@ -67,6 +88,11 @@ fn representation(diagram: &DiagramDecl, shows_boxes: bool) -> Option<(&'static 
         "OCB" => "Operational Capabilities Blank",
         "COC" => "Contextual Operational Capability",
         "CIBD" | "EAB" | "CBD" => "Configuration Items Breakdown",
+        "CRB" => "Capability Realization Blank",
+        "CRI" => "Contextual Capability Realization Involvement",
+        "IDB" | "ID" => "Interfaces Diagram Blank",
+        // An architecture view showing interfaces is an interfaces diagram.
+        _ if shows_interfaces && matches!(diagram.view.as_str(), "lab" | "sab" | "pab") => "Interfaces Diagram Blank",
         _ => match (diagram.view.as_str(), shows_boxes) {
             ("lab", true) => "Logical Architecture Blank",
             ("lab", false) => "Logical Data Flow Blank",
@@ -77,6 +103,7 @@ fn representation(diagram: &DiagramDecl, shows_boxes: bool) -> Option<(&'static 
             ("oab", true) => "Operational Entity Blank",
             ("oab", false) => "Operational Activity Interaction Blank",
             ("cdb", _) => "Class Diagram Blank",
+            ("cap", _) if shows_realizations => "Capability Realization Blank",
             ("cap", _) => "Missions Capabilities Blank",
             ("pbs", _) => "Configuration Items Breakdown",
             _ => return None,
@@ -98,6 +125,9 @@ fn representation(diagram: &DiagramDecl, shows_boxes: bool) -> Option<(&'static 
         "Contextual System Actors" => ("ctx:SystemComponent", On::Shown),
         "Operational Capabilities Blank" => ("oa:OperationalCapabilityPkg", On::First),
         "Contextual Operational Capability" => ("oa:OperationalCapability", On::Shown),
+        "Capability Realization Blank" => ("la:CapabilityRealizationPkg", On::First),
+        "Contextual Capability Realization Involvement" => ("la:CapabilityRealization", On::Shown),
+        "Interfaces Diagram Blank" => ("la:LogicalComponent", On::First),
         _ => ("epbs:ConfigurationItemPkg", On::First),
     };
     Some((by_prefix, on, which))
@@ -106,12 +136,16 @@ fn representation(diagram: &DiagramDecl, shows_boxes: bool) -> Option<(&'static 
 /// What the diagrams need to know of the model: the kind and owner of each
 /// element, the part of each component, who performs each function.
 pub(super) struct Index {
-    kind: HashMap<String, String>,
+    pub(super) kind: HashMap<String, String>,
     /// Ids in document order: the first package of a kind is the first met.
-    order: Vec<String>,
-    name: HashMap<String, String>,
-    owner: HashMap<String, String>,
-    performer: HashMap<String, String>,
+    pub(super) order: Vec<String>,
+    pub(super) name: HashMap<String, String>,
+    pub(super) owner: HashMap<String, String>,
+    pub(super) performer: HashMap<String, String>,
+    /// Exchanges and links with their two ends, in document order.
+    pub(super) links: Vec<(String, String, String)>,
+    /// The functions a chain involves, and the links a path involves, in order.
+    pub(super) steps: HashMap<String, Vec<String>>,
 }
 
 /// `org.polarsys.capella.core.data.la:LogicalComponent` -> `la:LogicalComponent`.
@@ -123,7 +157,7 @@ fn short(kind: &str) -> String {
 }
 
 pub(super) fn index(engineering: &El) -> Index {
-    let mut index = Index { kind: HashMap::new(), order: Vec::new(), name: HashMap::new(), owner: HashMap::new(), performer: HashMap::new() };
+    let mut index = Index { kind: HashMap::new(), order: Vec::new(), name: HashMap::new(), owner: HashMap::new(), performer: HashMap::new(), links: Vec::new(), steps: HashMap::new() };
     fn walk(el: &El, owner: Option<&str>, index: &mut Index) {
         let id = el.id().to_string();
         index.kind.insert(id.clone(), short(el.kind()));
@@ -139,6 +173,27 @@ pub(super) fn index(engineering: &El) -> Index {
                 index.performer.insert(function.trim_start_matches('#').to_string(), component.trim_start_matches('#').to_string());
             }
         }
+        let reference = |key: &str| el.get(key).map(|r| r.trim_start_matches('#').to_string());
+        let local = el.kind().rsplit(':').next().unwrap_or("");
+        match local {
+            "FunctionalExchange" | "ComponentExchange" | "CommunicationMean" => {
+                if let (Some(a), Some(b)) = (reference("source"), reference("target")) {
+                    index.links.push((id.clone(), a, b));
+                }
+            }
+            "PhysicalLink" => {
+                let ends: Vec<String> = el.get("linkEnds").unwrap_or("").split_whitespace().map(|e| e.trim_start_matches('#').to_string()).collect();
+                if let [a, b] = ends.as_slice() {
+                    index.links.push((id.clone(), a.clone(), b.clone()));
+                }
+            }
+            "FunctionalChainInvolvementFunction" | "PhysicalPathInvolvement" => {
+                if let (Some(owner), Some(involved)) = (owner, reference("involved")) {
+                    index.steps.entry(owner.to_string()).or_default().push(involved);
+                }
+            }
+            _ => {}
+        }
         for child in el.children() {
             walk(child, Some(&id), index);
         }
@@ -147,7 +202,7 @@ pub(super) fn index(engineering: &El) -> Index {
     index
 }
 
-fn sirius(tag: &str, kind: &str, uid: &str) -> El {
+pub(super) fn sirius(tag: &str, kind: &str, uid: &str) -> El {
     El::root(tag).attr("xmi:type", kind).attr("uid", uid)
 }
 
@@ -155,36 +210,9 @@ fn href(kind: &str, file: &str, id: &str) -> El {
     El::root("").attr("xmi:type", &super::xml::xsi_type(kind)).attr("href", &format!("{}#{id}", file.replace(' ', "%20")))
 }
 
-fn reference(tag: &str, kind: &str, file: &str, id: &str) -> El {
+pub(super) fn reference(tag: &str, kind: &str, file: &str, id: &str) -> El {
     let mut el = href(kind, file, id);
     el.rename(tag);
-    el
-}
-
-/// A box for `id`, drawn as `row` says, holding `children`.
-fn element(row: &Box, file: &str, uid: &str, name: &str, target: (&str, &str), semantic: &[(&str, &str)], children: Vec<El>) -> El {
-    let mut el = sirius("ownedDiagramElements", &row.kind, uid).attr("name", name);
-    el.push(reference("target", target.0, file, target.1));
-    for (kind, id) in semantic {
-        el.push(reference("semanticElements", kind, file, id));
-    }
-    let style = row.style.as_deref().unwrap_or("diagram:Square");
-    let description_kind = match style {
-        "diagram:FlatContainerStyle" => "style:FlatContainerStyleDescription",
-        "diagram:WorkspaceImage" => "style:WorkspaceImageDescription",
-        "diagram:Dot" => "style:DotDescription",
-        "diagram:Ellipse" => "style:EllipseNodeDescription",
-        _ => "style:SquareDescription",
-    };
-    let style_href = if row.style_description.is_empty() { format!("{}/@style", row.mapping) } else { row.style_description.clone() };
-    el.push(sirius("ownedStyle", style, &format!("{uid}-style")).with(El::root("description").attr("xmi:type", description_kind).attr("href", &style_href)));
-    // The mapping's own kind is its last step: `.../@containerMappings[..]/@subNodeMappings[..]` is a node mapping.
-    let last = row.mapping.rsplit("/@").next().unwrap_or("");
-    let mapping_kind = if last.starts_with("containerMappings") || last.starts_with("subContainerMappings") { "description_1:ContainerMapping" } else { "description_1:NodeMapping" };
-    el.push(El::root("actualMapping").attr("xmi:type", mapping_kind).attr("href", &row.mapping));
-    for child in children {
-        el.push(child);
-    }
     el
 }
 
@@ -192,20 +220,21 @@ fn element(row: &Box, file: &str, uid: &str, name: &str, target: (&str, &str), s
 /// representation of each diagram; diagrams Capella has no kind for, or
 /// that show nothing exported, are noted.
 pub(super) fn diagrams(context: &mut Context, index: &Index, diagrams: &[DiagramDecl], file: &str) -> Vec<(String, El, El)> {
-    let names = &index.name;
     let table = table();
     let mut out = Vec::new();
     for (n, diagram) in diagrams.iter().enumerate() {
         let shown: Vec<String> = diagram.shows.iter().filter_map(|s| context.resolve(s).map(str::to_string)).collect();
         let shows_boxes = shown.iter().any(|id| index.kind.get(id).is_some_and(|k| k.ends_with("Component") || k == "oa:Entity"));
-        let Some((rep, target_kind, which)) = representation(diagram, shows_boxes) else {
+        let shows_realizations = shown.iter().any(|id| index.kind.get(id).is_some_and(|k| k == "la:CapabilityRealization"));
+        let shows_interfaces = shown.iter().any(|id| index.kind.get(id).is_some_and(|k| k == "cs:Interface"));
+        let Some((rep, target_kind, which)) = representation(diagram, shows_boxes, shows_realizations, shows_interfaces) else {
             context.note(format!("diagram '{}' left out: Capella has no diagram for the view '{}'", diagram.name, diagram.view));
             continue;
         };
         let Some(representation) = table.get(rep) else { continue };
         let of_kind = |id: &&String| index.kind.get(*id).map(String::as_str) == Some(target_kind);
         let target = match which {
-            On::Shown => shown.iter().find(of_kind).cloned(),
+            On::Shown => shown.iter().find(of_kind).or_else(|| index.order.iter().find(of_kind)).cloned(),
             On::Root => index.kind.keys().filter(of_kind).find(|id| index.name.get(*id).is_some_and(|n| n.starts_with("Root "))).cloned(),
             On::First => index.order.iter().find(of_kind).cloned(),
         };
@@ -218,7 +247,7 @@ pub(super) fn diagrams(context: &mut Context, index: &Index, diagrams: &[Diagram
         // of diagram draws parts (a component in an architecture diagram).
         let rows = &representation.boxes;
         let draws = |parent: Option<&str>, target: &str| rows.iter().any(|r| r.target == target && parent.is_none_or(|p| r.parent == p));
-        let box_of = |id: &str| -> Option<(String, String, Vec<(String, String)>)> {
+        let box_of = |id: &str| -> Option<super::diagram_drawer::Target> {
             let kind = index.kind.get(id)?.clone();
             let part = derived(&format!("{id}:part"));
             if index.kind.contains_key(&part) && !draws(None, &kind) && draws(None, "cs:Part") {
@@ -245,17 +274,25 @@ pub(super) fn diagrams(context: &mut Context, index: &Index, diagrams: &[Diagram
                 None => tops.push(id.clone()),
             }
         }
-        fn build(id: &str, parent: &str, rows: &[Box], uid: &str, file: &str, names: &HashMap<String, String>, children: &HashMap<String, Vec<String>>, box_of: &dyn Fn(&str) -> Option<(String, String, Vec<(String, String)>)>, dropped: &mut usize) -> Option<El> {
-            let Some((target_kind, target, semantic)) = box_of(id) else { *dropped += 1; return None };
-            let Some(row) = rows.iter().find(|r| r.parent == parent && r.target == target_kind) else { *dropped += 1; return None };
-            let inner: Vec<El> = children.get(id).into_iter().flatten().filter_map(|c| build(c, &target_kind, rows, uid, file, names, children, box_of, dropped)).collect();
-            let semantic: Vec<(&str, &str)> = semantic.iter().map(|(k, i)| (k.as_str(), i.as_str())).collect();
-            let name = names.get(id).map(String::as_str).unwrap_or("");
-            Some(element(row, file, &format!("{uid}-{}", derived(id)), name, (&target_kind, &target), &semantic, inner))
+        // What cannot stand at the top of this kind of diagram goes into the
+        // first shown box that can hold it (Capella draws an unallocated
+        // function in a component), and chains and paths are edges.
+        let top_level = |id: &str| target_of(id).is_some_and(|k| rows.iter().any(|r| r.parent == "diagram" && r.target == k));
+        let is_edge = |id: &str| index.kind.get(id).is_some_and(|k| k.ends_with(":FunctionalChain") || k.ends_with(":PhysicalPath")) && !top_level(id);
+        let mut placed: Vec<String> = Vec::new();
+        for id in tops.iter().filter(|id| !top_level(id) && !is_edge(id)) {
+            let Some(child) = target_of(id) else { continue };
+            let host = tops.iter().find(|h| *h != id && top_level(h) && target_of(h).is_some_and(|p| rows.iter().any(|r| r.parent == p && r.target == child)));
+            if let Some(host) = host {
+                children.entry(host.clone()).or_default().push(id.clone());
+                placed.push(id.clone());
+            }
         }
-        let mut dropped = 0;
-
-        let boxes: Vec<El> = tops.iter().filter_map(|id| build(id, "diagram", &representation.boxes, &uid, file, names, &children, &box_of, &mut dropped)).collect();
+        tops.retain(|id| !placed.contains(id) && !is_edge(id));
+        let mut drawer = super::diagram_drawer::Drawer::new(representation, index, file, &uid, &children);
+        let mut boxes: Vec<El> = tops.iter().filter_map(|id| drawer.draw(id, "diagram", &box_of)).collect();
+        boxes.extend(drawer.edges(&shown));
+        let dropped = drawer.dropped;
         if dropped > 0 {
             context.note(format!("diagram '{}': {dropped} shown elements have no box in a Capella {rep} diagram", diagram.name));
         }

@@ -14,12 +14,12 @@ pub(super) fn owner_and_name<'a>(context: &Context, machine: &'a StateMachine, f
     let declared = text(&machine.attributes, "owner").and_then(|o| context.resolve(o)).map(str::to_string);
     if let Some(declared) = declared {
         // The import prefixes the owner's name when machines share a name.
-        let name = machine.name.split_once(" / ").filter(|(owner, _)| context.resolve(owner) == Some(declared.as_str())).map(|(_, n)| n).unwrap_or(&machine.name);
-        return (Some(declared), name);
+        // The name keeps its prefix: the caller removes it with the import's numbering.
+        return (Some(declared), machine.name.as_str());
     }
-    if let Some((owner, name)) = machine.name.split_once(" / ") {
+    if let Some((owner, _)) = machine.name.split_once(" / ") {
         if let Some(id) = context.resolve(owner) {
-            return (Some(id.to_string()), name);
+            return (Some(id.to_string()), machine.name.as_str());
         }
     }
     (fallback.map(str::to_string), machine.name.as_str())
@@ -34,7 +34,10 @@ fn machine_id(machine: &StateMachine) -> String {
 
 /// A state's Capella id: its `id:`, else one made up in its machine.
 fn state_id(machine: &str, state: &State) -> String {
-    if state.id.is_empty() || state.id == state.name {
+    // The parser names an id after the state when none is written; an
+    // unnamed Capella state is named after its id, a uuid.
+    let looks_like_uuid = state.id.len() == 36 && state.id.matches('-').count() == 4;
+    if state.id.is_empty() || (state.id == state.name && !looks_like_uuid) {
         derived(&format!("{machine}:state:{}", state.name))
     } else {
         state.id.clone()
@@ -78,7 +81,12 @@ fn transition(context: &Context, id: &str, index: usize, t: &crate::compiler::as
         el.set("triggerDescription", &t.trigger);
     }
     // The effect: the functions the action names.
-    let effects: Vec<String> = t.action.as_deref().unwrap_or("").split(", ").filter_map(|f| context.resolve(f.trim())).map(|f| format!("#{f}")).collect();
+    // The action is a list of what it names; older sources join it as text.
+    let named: Vec<String> = match t.attributes.get("action") {
+        Some(crate::compiler::ast::AttributeValue::List(_)) => list(&t.attributes, "action"),
+        _ => t.action.as_deref().unwrap_or("").split(", ").map(str::to_string).collect(),
+    };
+    let effects: Vec<String> = named.iter().map(String::as_str).filter_map(|f| context.resolve_function(f.trim()).or_else(|| context.resolve_type(f.trim())).or_else(|| context.resolve(f.trim()))).map(|f| format!("#{f}")).collect();
     if !effects.is_empty() {
         el.set("effect", &effects.join(" "));
     }
@@ -162,7 +170,7 @@ fn state(context: &Context, machine: &str, s: &State, inner: &HashMap<String, Ve
     let mut el = super::header::apply(El::new("ownedStates", kind, &id).attr("name", &s.name), &s.attributes, &["kind", "initial", "entry", "exit", "do", "owner"]);
     // Entry, exit and do activities: the functions they name.
     for (key, attribute) in [("entry", "entry"), ("exit", "exit"), ("do", "doActivity")] {
-        let functions: Vec<String> = list(&s.attributes, key).iter().filter_map(|f| context.resolve(f)).map(|f| format!("#{f}")).collect();
+        let functions: Vec<String> = list(&s.attributes, key).iter().filter_map(|f| context.resolve_function(f).or_else(|| context.resolve_type(f)).or_else(|| context.resolve(f))).map(|f| format!("#{f}")).collect();
         if !functions.is_empty() {
             el.set(attribute, &functions.join(" "));
         }

@@ -24,6 +24,8 @@ pub(super) struct Context {
     types: HashMap<String, String>,
     /// Capella ids of the functions of every level.
     pub(super) functions: std::collections::HashSet<String>,
+    /// Functions by name (empty when two share it), for what names functions.
+    pub(super) function_names: HashMap<String, String>,
     /// Capella ids of the requirements.
     pub(super) requirements: std::collections::HashSet<String>,
     /// Capella ids of the functional chains and operational processes.
@@ -54,6 +56,25 @@ impl Context {
     /// The Capella id an ArcLang reference names, when it names one.
     pub(super) fn resolve(&self, reference: &str) -> Option<&str> {
         self.refs.get(reference).map(String::as_str).filter(|id| !id.is_empty())
+    }
+    /// Record a function under its name among functions.
+    pub(super) fn register_function_name(&mut self, name: &str, id: &str) {
+        match self.function_names.get(name) {
+            Some(existing) if existing != id => {
+                self.function_names.insert(name.to_string(), String::new());
+            }
+            Some(_) => {}
+            None => {
+                self.function_names.insert(name.to_string(), id.to_string());
+            }
+        }
+    }
+    /// A function, by id or by a name only one function has.
+    pub(super) fn resolve_function(&self, reference: &str) -> Option<&str> {
+        if self.functions.contains(reference) {
+            return self.resolve(reference);
+        }
+        self.function_names.get(reference).map(String::as_str).filter(|id| !id.is_empty()).or_else(|| self.resolve(reference).filter(|id| self.functions.contains(*id)))
     }
     /// Record a type (data type, enumeration, class) under its id and name.
     pub(super) fn register_type(&mut self, id: &str, name: &str) {

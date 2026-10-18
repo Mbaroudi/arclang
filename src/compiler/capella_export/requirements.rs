@@ -33,6 +33,10 @@ pub(super) fn register(context: &mut Context, model: &Model) {
     }
 }
 
+fn enum_value_id(folder: &str, key: &str, value: &str) -> String {
+    derived(&format!("{folder}:enumeration:{key}:{value}"))
+}
+
 /// The kind of value attribute an attribute value is written with.
 fn value_kind(value: &AttributeValue) -> (&'static str, &'static str, String) {
     match value {
@@ -40,6 +44,8 @@ fn value_kind(value: &AttributeValue) -> (&'static str, &'static str, String) {
         AttributeValue::Number(n) if n.fract() == 0.0 => ("Requirements:IntegerValueAttribute", "Integer", format!("{}", *n as i64)),
         AttributeValue::Number(n) => ("Requirements:RealValueAttribute", "Real", n.to_string()),
         AttributeValue::String(s) if s == "true" || s == "false" => ("Requirements:BooleanValueAttribute", "Boolean", s.clone()),
+        // Several values: an enumeration attribute naming its literals.
+        AttributeValue::List(_) => ("Requirements:EnumerationValueAttribute", "Enumeration", String::new()),
         other => ("Requirements:StringValueAttribute", "String", other.as_string().map(str::to_string).unwrap_or_else(|| other.display())),
     }
 }
@@ -70,9 +76,6 @@ pub(super) fn write(context: &Context, model: &Model, level: &str) -> Vec<El> {
     let mut relation_types: Vec<String> = model.traces.iter().filter_map(|t| text(&t.attributes, "relation").map(str::to_string)).collect();
     relation_types.sort();
     relation_types.dedup();
-    if relation_types.is_empty() {
-        relation_types.push("Relation".to_string());
-    }
     let mut folder = El::new("ownedExtensions", "CapellaRequirements:CapellaTypesFolder", &folder_id).attr("ReqIFLongName", "Types");
     let data_types: Vec<&str> = {
         let mut kinds: Vec<&str> = definitions.values().map(|(_, k)| *k).collect();
@@ -80,8 +83,32 @@ pub(super) fn write(context: &Context, model: &Model, level: &str) -> Vec<El> {
         kinds.dedup();
         kinds
     };
+    // The literals of each enumeration attribute, by key.
+    let mut literals: BTreeMap<String, Vec<String>> = BTreeMap::new();
+    for r in &requirements {
+        for (key, value) in &r.attributes {
+            if let AttributeValue::List(items) = value {
+                let known = literals.entry(key.clone()).or_default();
+                for item in items.iter().map(|i| i.display()) {
+                    if !known.contains(&item) {
+                        known.push(item);
+                    }
+                }
+            }
+        }
+    }
     for kind in &data_types {
+        if *kind == "Enumeration" {
+            continue;
+        }
         folder.push(El::new("ownedDefinitionTypes", "Requirements:DataTypeDefinition", &derived(&format!("{folder_id}:data:{kind}"))).attr("ReqIFLongName", kind));
+    }
+    for (key, values) in &literals {
+        let mut enumeration = El::new("ownedDefinitionTypes", "Requirements:EnumerationDataTypeDefinition", &derived(&format!("{folder_id}:enumeration:{key}"))).attr("ReqIFLongName", key);
+        for value in values {
+            enumeration.push(El::new("specifiedValues", "Requirements:EnumValue", &enum_value_id(&folder_id, key, value)).attr("ReqIFLongName", value));
+        }
+        folder.push(enumeration);
     }
     // Each requirement type defines the attributes; a requirement's values
     // name the definitions of its own type.
@@ -94,7 +121,15 @@ pub(super) fn write(context: &Context, model: &Model, level: &str) -> Vec<El> {
     for (name, id) in &all_types {
         let mut t = El::new("ownedTypes", "Requirements:RequirementType", id).attr("ReqIFLongName", name);
         for (key, (_, kind)) in &definitions {
-            t.push(El::new("ownedAttributes", "Requirements:AttributeDefinition", &definition_of(id, key)).attr("ReqIFLongName", key).attr("definitionType", &format!("#{}", derived(&format!("{folder_id}:data:{kind}")))));
+            let el = if *kind == "Enumeration" {
+                El::new("ownedAttributes", "Requirements:AttributeDefinitionEnumeration", &definition_of(id, key))
+                    .attr("ReqIFLongName", key)
+                    .attr("definitionType", &format!("#{}", derived(&format!("{folder_id}:enumeration:{key}"))))
+                    .attr("multiValued", "true")
+            } else {
+                El::new("ownedAttributes", "Requirements:AttributeDefinition", &definition_of(id, key)).attr("ReqIFLongName", key).attr("definitionType", &format!("#{}", derived(&format!("{folder_id}:data:{kind}"))))
+            };
+            t.push(el);
         }
         folder.push(t);
     }
@@ -124,14 +159,19 @@ pub(super) fn write(context: &Context, model: &Model, level: &str) -> Vec<El> {
         for key in keys {
             let (kind, _, value) = value_kind(&r.attributes[key]);
             let definition = definition_of(&type_id, key);
+            if let AttributeValue::List(items) = &r.attributes[key] {
+                let values: Vec<String> = items.iter().map(|i| format!("#{}", enum_value_id(&folder_id, key, &i.display()))).collect();
+                el.push(El::new("ownedAttributes", kind, &derived(&format!("{id}:attribute:{key}"))).attr("definition", &format!("#{definition}")).attr("values", &values.join(" ")));
+                continue;
+            }
             el.push(El::new("ownedAttributes", kind, &derived(&format!("{id}:attribute:{key}"))).attr("definition", &format!("#{definition}")).attr("value", &value));
         }
         // A requirement refining another owns the relation.
         for trace in model.traces.iter().filter(|t| t.trace_type == "refines") {
             let (Some(from), Some(to)) = (context.resolve(&trace.from), context.resolve(&trace.to)) else { continue };
             if from == id && context.requirements.contains(to) {
-                let relation_type = relation_type_id(level, text(&trace.attributes, "relation").unwrap_or("Relation"));
-                el.push(El::new("ownedRelations", "Requirements:InternalRelation", &derived(&format!("{from}->{to}:refines"))).attr("relationType", &format!("#{relation_type}")).attr("source", &format!("#{from}")).attr("target", &format!("#{to}")));
+                let relation_type = text(&trace.attributes, "relation").map(|r| format!("#{}", relation_type_id(level, r)));
+                el.push(El::new("ownedRelations", "Requirements:InternalRelation", &derived(&format!("{from}->{to}:refines"))).opt("relationType", relation_type.as_deref()).attr("source", &format!("#{from}")).attr("target", &format!("#{to}")));
             }
         }
         module.push(el);
@@ -153,11 +193,12 @@ pub(super) fn relations(context: &mut Context, engineering: &mut El, model: &Mod
             (true, false) => (to, from),
             _ => continue,
         };
-        let relation_type = relation_type_id(level, text(&trace.attributes, "relation").unwrap_or("Relation"));
+        // A relation of no type stays of no type.
+        let relation_type = text(&trace.attributes, "relation").map(|r| format!("#{}", relation_type_id(level, r)));
         if let Some(owner) = engineering.find_mut(&element) {
             owner.push(
                 El::new("ownedExtensions", "CapellaRequirements:CapellaOutgoingRelation", &derived(&format!("{element}->{requirement}:relation")))
-                    .attr("relationType", &format!("#{relation_type}"))
+                    .opt("relationType", relation_type.as_deref())
                     .attr("source", &format!("#{element}"))
                     .attr("target", &format!("#{requirement}")),
             );
