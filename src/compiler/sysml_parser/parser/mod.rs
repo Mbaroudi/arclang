@@ -847,7 +847,9 @@ impl Parser {
             node.prefixes.is_parallel = true;
         }
         let is_calc = matches!(node.kind, "CalculationUsage" | "ConstraintUsage" | "AssertConstraintUsage" | "CaseUsage" | "AnalysisCaseUsage" | "VerificationCaseUsage" | "UseCaseUsage" | "IncludeUseCaseUsage" | "RequirementUsage" | "ConcernUsage" | "ViewpointUsage" | "SatisfyRequirementUsage");
-        node.members = self.body_in(is_state, is_calc)?;
+        // Members the declaration made (a flow's `of payload`) come first.
+        let body = self.body_in(is_state, is_calc)?;
+        node.members.extend(body);
         Ok(())
     }
 

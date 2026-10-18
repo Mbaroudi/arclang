@@ -468,9 +468,12 @@ impl<'n> Builder<'n> {
             // A redefined feature is one the owner inherits: looked up from the
             // owner's generals before anywhere else.
             let key = format!("{rank}:{}", specialization.target.text());
+            // A redefinition is looked up in the owner; other targets from
+            // where their name does not designate the element itself.
+            let context = if matches!(specialization.kind, SpecKind::Redefinition | SpecKind::Typing) { context } else { self.scope.specialization_context(index, &specialization.target) };
             let target = match (specialization.kind, &specialization.target, context) {
                 (SpecKind::Redefinition, Target::Name(name), Some(owner)) if name.segments.len() == 1 => {
-                    let inherited = self.scope.member(owner, name.last()).filter(|&m| m != index).map(|m| self.id(m));
+                    let inherited = self.scope.redefined(index, name.last()).or_else(|| self.scope.member(owner, name.last()).filter(|&m| m != index)).map(|m| self.id(m));
                     inherited.or_else(|| self.designate(name, context, role))
                 }
                 _ => self.designate_target(&specialization.target, context, role, &id, &key),
