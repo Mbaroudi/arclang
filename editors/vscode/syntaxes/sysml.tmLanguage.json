@@ -1,0 +1,56 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "SysML v2",
+  "scopeName": "source.sysml",
+  "patterns": [
+    { "include": "#comments" },
+    { "include": "#strings" },
+    { "include": "#metadata" },
+    { "include": "#quoted-names" },
+    { "include": "#keywords" },
+    { "include": "#numbers" }
+  ],
+  "repository": {
+    "comments": {
+      "patterns": [
+        { "name": "comment.block.documentation.sysml", "begin": "doc\\s*/\\*", "end": "\\*/" },
+        { "name": "comment.block.sysml", "begin": "/\\*", "end": "\\*/" },
+        { "name": "comment.line.double-slash.sysml", "match": "//.*$" }
+      ]
+    },
+    "strings": {
+      "name": "string.quoted.double.sysml",
+      "begin": "\"",
+      "end": "\"",
+      "patterns": [{ "name": "constant.character.escape.sysml", "match": "\\\\." }]
+    },
+    "quoted-names": {
+      "name": "entity.name.tag.sysml",
+      "match": "'[^']*'"
+    },
+    "metadata": {
+      "name": "entity.other.attribute-name.sysml",
+      "match": "#[A-Za-z_][A-Za-z0-9_:]*"
+    },
+    "numbers": {
+      "name": "constant.numeric.sysml",
+      "match": "\\b[0-9]+(\\.[0-9]+)?([eE][-+]?[0-9]+)?\\b"
+    },
+    "keywords": {
+      "patterns": [
+        {
+          "name": "keyword.declaration.sysml",
+          "match": "\\b(package|library|part|port|item|attribute|action|state|transition|requirement|constraint|concern|case|verification|use|occurrence|connection|interface|flow|allocation|dependency|metadata|enum|calc|analysis|view|viewpoint|rendering|individual|snapshot|timeslice|event|message|succession|binding|comment|doc|rep|language)\\s+(def\\b)?"
+        },
+        {
+          "name": "keyword.control.sysml",
+          "match": "\\b(import|private|public|protected|abstract|readonly|derived|variation|variant|redefines|subsets|specializes|references|in|out|inout|ref|end|then|first|if|else|loop|while|until|for|do|accept|send|assign|perform|exhibit|include|assert|assume|require|satisfy|verify|subject|actor|stakeholder|objective|frame|return|result|from|to|connect|allocate|bind|via|about|defined|by|at|after|when|entry|exit|all|new|null|true|false)\\b"
+        },
+        {
+          "name": "storage.type.sysml",
+          "match": "\\b(Boolean|Integer|Natural|Real|Rational|Complex|String|Positive|ScalarValues|SI|ISQ|MeasurementReferences)\\b"
+        }
+      ]
+    }
+  }
+}

@@ -310,6 +310,21 @@ the long-term goal.
   edit of relationships, and an element declared in an imported file is
   edited in that file.
 
+- **Workbench API**: `arclang workbench model.arc` prints, as one JSON
+  document, everything a modelling workbench shows of a model: the
+  diagrams as the viewer mounts them, the explorer document, every element
+  with its typed attributes and the id the compiler gives it, the findings
+  named after their rule, the production gate (`--gate-standard`, `--exports`
+  adds the SysML v2, ReqIF, C and Protobuf renderings). `arclang edit
+  model.arc --request '{"op": "add", "keyword": "function", "name": "Filter",
+  "container": "LC-001"}'` applies one edit written as JSON (`set`, `unset`,
+  `rename`, `add`, `add_raw`, `remove`, `move`, `add_trace`, `remove_trace`,
+  `wrap_fragment`; `--request -` reads it from stdin, `--write` rewrites the
+  file) under the same guarantees as the scripted edits, and accepts the ids
+  of the snapshot even when the text derives them from names. The VS Code
+  extension, the playground (same code compiled to WebAssembly) and AI agents
+  edit models through these two commands, so none of them can disagree with
+  the compiler.
 - **Advisory review of traces (optional, external service)**:
   `arclang review model.arc` asks a judgment model (TypeSafe's Jev) one
   yes/no question per declared trace, "is this trace plausible, from what

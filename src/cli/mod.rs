@@ -390,6 +390,43 @@ pub enum Commands {
         write: bool,
     },
 
+    /// Everything a modelling workbench shows of one model, as JSON: the
+    /// diagrams as the viewer mounts them, the explorer document, every
+    /// element with its typed attributes, the findings (named after their
+    /// rule) and the production gate. A model that does not compile gives
+    /// `{"success": false, "errors": [...]}`
+    Workbench {
+        #[clap(value_parser)]
+        input: PathBuf,
+
+        /// The standard the gate is run against: ISO26262, DO178C or IEC61508
+        #[clap(long, default_value = "ISO26262")]
+        gate_standard: String,
+
+        /// Also render the interop exports (SysML v2, ReqIF, C headers, Protobuf)
+        #[clap(long)]
+        exports: bool,
+    },
+
+    /// Apply one edit, written as JSON, to a model file: {"op": "set" |
+    /// "unset" | "rename" | "add" | "add_raw" | "remove" | "move" |
+    /// "add_trace" | "remove_trace" | "wrap_fragment", ...}. Comments and
+    /// layout are kept; refused unless the edited model compiles and shows
+    /// what was asked. Prints {"success": true, "source": ...} or
+    /// {"success": false, "error": ...}; --write writes the file back
+    Edit {
+        #[clap(value_parser)]
+        input: PathBuf,
+
+        /// The edit request as JSON, or `-` to read it from stdin
+        #[clap(long, allow_hyphen_values = true)]
+        request: String,
+
+        /// Rewrite the file in place (the JSON answer is still printed)
+        #[clap(long)]
+        write: bool,
+    },
+
     /// Print the language metamodel (element kinds, typed attributes,
     /// enumerations, units, trace rules) as Markdown or JSON
     Metamodel {
@@ -692,6 +729,8 @@ impl CliRunner {
                 };
                 review::run(&input, options, json, dry_run)
             }
+            Commands::Workbench { input, gate_standard, exports } => edit::workbench(&input, &gate_standard, exports),
+            Commands::Edit { input, request, write } => edit::apply_request(&input, &request, write),
             Commands::Metamodel { format } => {
                 let metamodel = crate::compiler::metamodel::Metamodel::current();
                 match format {

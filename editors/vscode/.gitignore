@@ -5,3 +5,4 @@ out/
 *.vsix
 !package-lock.json
 !tsconfig.json
+media/viewer/

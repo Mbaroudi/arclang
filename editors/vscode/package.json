@@ -2,7 +2,7 @@
   "name": "arclang",
   "displayName": "ArcLang",
   "description": "Arcadia MBSE as code: diagnostics with rules, outline, completion from the metamodel, hover, go to definition, rename, formatting, the viewpoint diagrams beside the source, the production gate, Arcadia transitions, the @arclang chat participant and compiler tools for agent mode, the ArcLang MCP server. Everything comes from the ArcLang compiler.",
-  "version": "4.2.0",
+  "version": "4.3.0",
   "publisher": "arclang",
   "license": "MIT",
   "icon": "icon.png",
@@ -56,7 +56,9 @@
     "mcp"
   ],
   "activationEvents": [
-    "onLanguage:arclang"
+    "onLanguage:arclang",
+    "onView:arclangModel",
+    "onLanguage:sysml"
   ],
   "main": "./dist/extension.js",
   "contributes": {
@@ -75,6 +77,17 @@
           "light": "./media/file-icon.svg",
           "dark": "./media/file-icon.svg"
         }
+      },
+      {
+        "id": "sysml",
+        "aliases": [
+          "SysML v2",
+          "sysml"
+        ],
+        "extensions": [
+          ".sysml"
+        ],
+        "configuration": "./language-configuration.json"
       }
     ],
     "grammars": [
@@ -82,6 +95,11 @@
         "language": "arclang",
         "scopeName": "source.arclang",
         "path": "./syntaxes/arclang.tmLanguage.json"
+      },
+      {
+        "language": "sysml",
+        "scopeName": "source.sysml",
+        "path": "./syntaxes/sysml.tmLanguage.json"
       }
     ],
     "commands": [
@@ -155,6 +173,38 @@
         "command": "arclang.installBinary",
         "title": "Install or locate the arclang compiler",
         "category": "ArcLang"
+      },
+      {
+        "command": "arclang.openWorkbench",
+        "title": "Open the workbench (diagrams, palette, properties)",
+        "category": "ArcLang",
+        "icon": "$(layout)"
+      },
+      {
+        "command": "arclang.model.reveal",
+        "title": "Go to source",
+        "category": "ArcLang"
+      },
+      {
+        "command": "arclang.model.rename",
+        "title": "Rename…",
+        "category": "ArcLang"
+      },
+      {
+        "command": "arclang.model.delete",
+        "title": "Delete",
+        "category": "ArcLang"
+      },
+      {
+        "command": "arclang.model.ask",
+        "title": "Ask @arclang about this element",
+        "category": "ArcLang"
+      },
+      {
+        "command": "arclang.model.refresh",
+        "title": "Refresh the model tree",
+        "category": "ArcLang",
+        "icon": "$(refresh)"
       }
     ],
     "menus": {
@@ -163,6 +213,16 @@
           "command": "arclang.openDiagrams",
           "when": "resourceLangId == arclang",
           "group": "navigation"
+        },
+        {
+          "command": "arclang.openWorkbench",
+          "when": "resourceLangId == arclang",
+          "group": "navigation@1"
+        },
+        {
+          "command": "arclang.openWorkbench",
+          "when": "resourceLangId == sysml",
+          "group": "navigation@1"
         }
       ],
       "editor/context": [
@@ -175,6 +235,16 @@
           "command": "arclang.openDiagrams",
           "when": "resourceLangId == arclang",
           "group": "arclang@2"
+        },
+        {
+          "command": "arclang.openWorkbench",
+          "when": "resourceLangId == arclang",
+          "group": "arclang@0"
+        },
+        {
+          "command": "arclang.openWorkbench",
+          "when": "resourceLangId == sysml",
+          "group": "arclang@0"
         }
       ],
       "explorer/context": [
@@ -192,6 +262,21 @@
           "command": "arclang.export",
           "when": "resourceExtname == .arc",
           "group": "arclang@3"
+        },
+        {
+          "command": "arclang.openWorkbench",
+          "when": "resourceExtname == .arc",
+          "group": "arclang@0"
+        },
+        {
+          "command": "arclang.openWorkbench",
+          "when": "resourceExtname == .sysml",
+          "group": "arclang@0"
+        },
+        {
+          "command": "arclang.import",
+          "when": "resourceExtname == .sysml",
+          "group": "arclang@1"
         }
       ],
       "commandPalette": [
@@ -230,6 +315,56 @@
         {
           "command": "arclang.export",
           "when": "resourceLangId == arclang"
+        },
+        {
+          "command": "arclang.model.reveal",
+          "when": "false"
+        },
+        {
+          "command": "arclang.model.rename",
+          "when": "false"
+        },
+        {
+          "command": "arclang.model.delete",
+          "when": "false"
+        },
+        {
+          "command": "arclang.model.ask",
+          "when": "false"
+        }
+      ],
+      "view/title": [
+        {
+          "command": "arclang.model.refresh",
+          "when": "view == arclangModel",
+          "group": "navigation@1"
+        },
+        {
+          "command": "arclang.openWorkbench",
+          "when": "view == arclangModel",
+          "group": "navigation@2"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "arclang.model.reveal",
+          "when": "view == arclangModel && viewItem == arclang.element",
+          "group": "navigation@1"
+        },
+        {
+          "command": "arclang.model.ask",
+          "when": "view == arclangModel && viewItem == arclang.element",
+          "group": "navigation@2"
+        },
+        {
+          "command": "arclang.model.rename",
+          "when": "view == arclangModel && viewItem == arclang.element",
+          "group": "edit@1"
+        },
+        {
+          "command": "arclang.model.delete",
+          "when": "view == arclangModel && viewItem == arclang.element",
+          "group": "edit@2"
         }
       ]
     },
@@ -308,6 +443,10 @@
           {
             "name": "transition",
             "description": "Plan and apply the next Arcadia transition (OA to SA, SA to LA, LA to PA)."
+          },
+          {
+            "name": "agent",
+            "description": "Change the open model step by step through the compiler: read the elements, apply precise edits you confirm, check the result."
           }
         ],
         "disambiguation": [
@@ -529,6 +668,175 @@
             "name"
           ]
         }
+      },
+      {
+        "name": "arclang_model",
+        "displayName": "ArcLang: read the model",
+        "toolReferenceName": "arclangModel",
+        "canBeReferencedInPrompt": true,
+        "icon": "$(list-tree)",
+        "userDescription": "The elements of a model as the compiler sees them, with their ids, kinds, owners and attributes.",
+        "modelDescription": "Reads an open .arc model through the compiler (arclang workbench): counts by kind, the elements (id, kind, name, owner, attributes) filtered by kind, layer or one element (then with its relationships and traces), the findings and the gate. Use it before editing to know the exact ids; the ids it lists are accepted by arclang_edit even when the text writes none.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string",
+              "description": "Absolute path of the .arc file."
+            },
+            "kind": {
+              "type": "string",
+              "description": "Only the elements of this kind (LogicalComponent, SystemFunction, Requirement...)."
+            },
+            "layer": {
+              "type": "string",
+              "description": "Only the elements of this layer: Operational, System, Logical, Physical, Epbs, Data, Transverse."
+            },
+            "element": {
+              "type": "string",
+              "description": "Only this element (id or name), with what it is connected to."
+            }
+          },
+          "required": [
+            "path"
+          ]
+        }
+      },
+      {
+        "name": "arclang_edit",
+        "displayName": "ArcLang: edit the model",
+        "toolReferenceName": "arclangEdit",
+        "canBeReferencedInPrompt": true,
+        "icon": "$(edit)",
+        "userDescription": "Add, remove, move, rename, trace or set elements of a model; refused unless the model still compiles.",
+        "modelDescription": "Applies a list of edits to an open .arc model through the compiler's source editor (arclang edit), in order, as one undoable change in the editor: add an element inside another, in a layer or at the top level (ports with keyword 'port in'/'port out'), add a raw declaration (exchanges, messages, transitions), remove, move, rename (identity kept), set/unset an attribute, add/remove a trace, wrap messages in a fragment. Comments and layout are kept. The whole list is refused, and nothing changes, if any edit would leave a model that does not compile; the answer says which request and why. Prefer this over rewriting the file.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string",
+              "description": "Absolute path of the .arc file."
+            },
+            "requests": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "description": "One edit of the model text. op is one of set, unset, rename, add, add_raw, remove, move, add_trace, remove_trace, wrap_fragment. Elements are designated by the id the model tool lists (or the name when it writes none).",
+                "properties": {
+                  "op": {
+                    "type": "string",
+                    "enum": [
+                      "set",
+                      "unset",
+                      "rename",
+                      "add",
+                      "add_raw",
+                      "remove",
+                      "move",
+                      "add_trace",
+                      "remove_trace",
+                      "wrap_fragment"
+                    ]
+                  },
+                  "element": {
+                    "type": "string",
+                    "description": "set/unset/rename/remove/move: the element."
+                  },
+                  "key": {
+                    "type": "string",
+                    "description": "set/unset: the attribute."
+                  },
+                  "value": {
+                    "type": "string",
+                    "description": "set: the value as ArcLang source: '\"text\"', '25 ms', '[A, B]', 'ASIL-D'."
+                  },
+                  "name": {
+                    "type": "string",
+                    "description": "rename: the new name; add: the name of the new element."
+                  },
+                  "keyword": {
+                    "type": "string",
+                    "description": "add: the declaration keyword: actor, entity, activity, function, component, node, behavior_component, 'port in', 'port out', interface, class, mission, capability, functional_chain, requirement..."
+                  },
+                  "attributes": {
+                    "type": "array",
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      },
+                      "minItems": 2,
+                      "maxItems": 2
+                    },
+                    "description": "add: [key, value] pairs written with the new element, values as ArcLang source."
+                  },
+                  "declaration": {
+                    "type": "string",
+                    "description": "add_raw: one declaration as ArcLang source, e.g. 'component_exchange \"Flow\" { from_port: \"LC-A.p\" to_port: \"LC-B.q\" }' or 'message \"A\" -> \"B\" \"text\"'."
+                  },
+                  "container": {
+                    "type": "string",
+                    "description": "add/add_raw/move: the element the declaration goes into."
+                  },
+                  "layer": {
+                    "type": "string",
+                    "description": "add/add_raw/move: else the layer block: operational_analysis, system_analysis, logical_architecture, physical_architecture, epbs."
+                  },
+                  "layer_name": {
+                    "type": "string",
+                    "description": "add/add_raw/move: the layer's name when several layers of that kind exist."
+                  },
+                  "top_level": {
+                    "type": "boolean",
+                    "description": "add/add_raw: else at the end of the file (classes, data types, traces)."
+                  },
+                  "from": {
+                    "type": "string",
+                    "description": "add_trace/remove_trace: the source element."
+                  },
+                  "kind": {
+                    "type": "string",
+                    "description": "add_trace/remove_trace: satisfies, implements, realizes, allocates, verifies...; wrap_fragment: loop, opt, alt, par, seq, critical."
+                  },
+                  "to": {
+                    "type": "string",
+                    "description": "add_trace/remove_trace: the target element."
+                  },
+                  "scenario": {
+                    "type": "string"
+                  },
+                  "label": {
+                    "type": "string"
+                  },
+                  "first": {
+                    "type": "string"
+                  },
+                  "last": {
+                    "type": "string"
+                  },
+                  "operands": {
+                    "type": "array",
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                },
+                "required": [
+                  "op"
+                ]
+              },
+              "minItems": 1,
+              "description": "The edits, applied in order on one text."
+            }
+          },
+          "required": [
+            "path",
+            "requests"
+          ]
+        }
       }
     ],
     "mcpServerDefinitionProviders": [
@@ -536,13 +844,32 @@
         "id": "arclang.mcp",
         "label": "ArcLang MCP server"
       }
-    ]
+    ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "arclang",
+          "title": "ArcLang",
+          "icon": "media/icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "arclang": [
+        {
+          "id": "arclangModel",
+          "name": "Model",
+          "contextualTitle": "ArcLang model",
+          "icon": "media/icon.svg"
+        }
+      ]
+    }
   },
   "scripts": {
     "build": "node esbuild.mjs",
     "watch": "node esbuild.mjs --watch",
-    "typecheck": "tsc --noEmit",
-    "lint": "tsc --noEmit",
+    "typecheck": "tsc --noEmit && tsc -p webview --noEmit",
+    "lint": "tsc --noEmit && tsc -p webview --noEmit",
     "test:unit": "node --test --import tsx test/unit/*.test.ts",
     "test": "npm run build && npm run test:unit && npm run test:integration",
     "vscode:prepublish": "npm run build -- --production",

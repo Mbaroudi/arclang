@@ -22,6 +22,38 @@ does.
 - **Diagrams** beside the source (**ArcLang: Open diagrams**), the compiler's
   own viewer of the Arcadia views, redrawn on every save.
 
+## The workbench: text or mouse, your choice
+
+**ArcLang: Open the workbench** puts the compiler's diagram viewer beside the
+source, with what a Capella user expects around it. Text and views edit the
+same `.arc` file: type in one, click in the other, the selection follows.
+
+- **Palette**, per view: create actors, entities, activities, functions,
+  components, nodes, ports, classes; connect them by interactions, functional
+  and component exchanges, physical links (two clicks, then a name; ports are
+  declared when the ends have none). Drag a function or a component onto
+  another to move it.
+- **Properties**: a form typed by the metamodel (texts, quantities,
+  enumerations, references, lists); Rename keeps the identity, Delete asks
+  for the id.
+- **Semantic browser**: owner, incoming, outgoing, owned, each a step away.
+- **Findings and gate** at the bottom, each finding a click from its element
+  and its line.
+- **Model tree** in the ArcLang side bar: the elements by layer and
+  ownership, with Go to source, Rename, Delete and Ask @arclang.
+
+Every gesture becomes `arclang edit` requests: the compiler refuses the ones
+that would leave a model that does not compile, and an accepted one lands in
+the editor as a single change that Undo takes back. Comments, order and layout
+of the text are kept.
+
+**SysML v2 files** (`.sysml`) open in the same workbench: the compiler imports
+the text for the tree and the views, and writes an edited model back through
+its SysML v2 export (the Arcadia profile, ids kept). The text is then the
+compiler's rendering of it: comments and layout of the original are not kept,
+unlike `.arc` files. **ArcLang: Import** converts a `.sysml` into a `.arc`
+file when you prefer to continue in ArcLang.
+
 ## From the command line, without leaving VS Code
 
 Every command of the palette is one CLI subcommand:
@@ -51,12 +83,18 @@ so there is no key to configure.
 - `/explain` explains the model, an element or a finding.
 - `/review` reviews the model against `arclang check` and the production gate.
 - `/transition` plans the next Arcadia step and offers to apply it.
+- `/agent` changes the open model step by step: it reads the elements and
+  their ids through the compiler, applies precise edits (add, connect, move,
+  trace, rename, set) that you confirm one gesture at a time, retries what the
+  compiler refuses, and ends with a check and the gate.
 
 **Agent mode and other assistants** get the compiler as tools:
+`#arclangModel` (the elements, ids, relationships and findings of a model),
+`#arclangEdit` (a list of edits applied as one undoable change),
 `#arclangCheck`, `#arclangGate`, `#arclangMetamodel`, `#arclangRules`,
 `#arclangImpact`, `#arclangTransitionPlan`, `#arclangSet`, `#arclangRename`.
-Reading tools run without asking; the two editing tools ask for confirmation
-and apply their change in the editor as an undoable edit, after the compiler
+Reading tools run without asking; the editing tools ask for confirmation and
+apply their change in the editor as an undoable edit, after the compiler
 accepted it. Tools only touch files of the workspace or open in the editor.
 
 **The ArcLang MCP server** (`mcp-server/` of the repository, Python) is
