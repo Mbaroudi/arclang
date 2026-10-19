@@ -442,6 +442,18 @@ window.addEventListener('message', (event: MessageEvent<ToWebview>) => {
       selectElement(element, true);
       return;
     }
+    case 'show': {
+      const viewer = state.viewer;
+      if (!viewer) return;
+      void viewer.ready.then(() => {
+        if (viewer.views?.().some((v) => v.id === message.view)) viewer.show?.(message.view);
+        followView();
+        const element = message.select ? (state.byId.get(message.select) ?? null) : null;
+        if (element) selectElement(element, true);
+        viewer.fit?.();
+      });
+      return;
+    }
     case 'edit-result':
       if (message.ok) showToast(`Applied: ${message.label}. Undo with ⌘Z in the editor.`, 'info');
       else showToast(`Refused: ${message.error ?? ''}`, 'error', [['Show source', () => vscode.postMessage({ type: 'open-text' })]]);

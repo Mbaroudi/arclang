@@ -176,9 +176,9 @@
       },
       {
         "command": "arclang.openWorkbench",
-        "title": "Open the workbench (diagrams, palette, properties)",
+        "title": "Open the workbench beside the source",
         "category": "ArcLang",
-        "icon": "$(layout)"
+        "icon": "$(type-hierarchy)"
       },
       {
         "command": "arclang.model.reveal",
@@ -205,6 +205,37 @@
         "title": "Refresh the model tree",
         "category": "ArcLang",
         "icon": "$(refresh)"
+      },
+      {
+        "command": "arclang.openDiagram",
+        "title": "Open the diagram",
+        "category": "ArcLang"
+      },
+      {
+        "command": "arclang.pickDiagram",
+        "title": "Open a diagram…",
+        "category": "ArcLang",
+        "icon": "$(graph)"
+      },
+      {
+        "command": "arclang.pickElement",
+        "title": "Go to an element…",
+        "category": "ArcLang"
+      },
+      {
+        "command": "arclang.model.select",
+        "title": "Select",
+        "category": "ArcLang"
+      },
+      {
+        "command": "arclang.model.openDiagram",
+        "title": "Open in a diagram",
+        "category": "ArcLang"
+      },
+      {
+        "command": "arclang.model.copyId",
+        "title": "Copy the id",
+        "category": "ArcLang"
       }
     ],
     "menus": {
@@ -218,6 +249,11 @@
           "command": "arclang.openWorkbench",
           "when": "resourceLangId == sysml",
           "group": "navigation@1"
+        },
+        {
+          "command": "arclang.pickDiagram",
+          "when": "resourceLangId == arclang || resourceLangId == sysml",
+          "group": "navigation@2"
         }
       ],
       "editor/context": [
@@ -316,6 +352,22 @@
         {
           "command": "arclang.model.ask",
           "when": "false"
+        },
+        {
+          "command": "arclang.openDiagram",
+          "when": "false"
+        },
+        {
+          "command": "arclang.model.select",
+          "when": "false"
+        },
+        {
+          "command": "arclang.model.openDiagram",
+          "when": "false"
+        },
+        {
+          "command": "arclang.model.copyId",
+          "when": "false"
         }
       ],
       "view/title": [
@@ -328,6 +380,11 @@
           "command": "arclang.openWorkbench",
           "when": "view == arclangModel",
           "group": "navigation@2"
+        },
+        {
+          "command": "arclang.pickDiagram",
+          "when": "view == arclangModel",
+          "group": "navigation@0"
         }
       ],
       "view/item/context": [
@@ -350,6 +407,16 @@
           "command": "arclang.model.delete",
           "when": "view == arclangModel && viewItem == arclang.element",
           "group": "edit@2"
+        },
+        {
+          "command": "arclang.model.openDiagram",
+          "when": "view == arclangModel && viewItem == arclang.element",
+          "group": "navigation@0"
+        },
+        {
+          "command": "arclang.model.copyId",
+          "when": "view == arclangModel && viewItem == arclang.element",
+          "group": "edit@3"
         }
       ]
     },
@@ -848,7 +915,47 @@
           "icon": "media/icon.svg"
         }
       ]
-    }
+    },
+    "customEditors": [
+      {
+        "viewType": "arclang.workbench",
+        "displayName": "ArcLang Workbench",
+        "selector": [
+          {
+            "filenamePattern": "*.arc"
+          },
+          {
+            "filenamePattern": "*.sysml"
+          }
+        ],
+        "priority": "option"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "arclang.pickDiagram",
+        "key": "ctrl+alt+d",
+        "mac": "cmd+alt+d",
+        "when": "resourceLangId == arclang || resourceLangId == sysml || activeCustomEditorId == arclang.workbench"
+      },
+      {
+        "command": "arclang.pickElement",
+        "key": "ctrl+alt+e",
+        "mac": "cmd+alt+e",
+        "when": "resourceLangId == arclang || resourceLangId == sysml || activeCustomEditorId == arclang.workbench"
+      },
+      {
+        "command": "arclang.model.rename",
+        "key": "f2",
+        "when": "focusedView == arclangModel && viewItem == arclang.element"
+      },
+      {
+        "command": "arclang.model.delete",
+        "key": "delete",
+        "mac": "cmd+backspace",
+        "when": "focusedView == arclangModel && viewItem == arclang.element"
+      }
+    ]
   },
   "scripts": {
     "build": "node esbuild.mjs",

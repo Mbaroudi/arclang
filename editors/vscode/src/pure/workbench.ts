@@ -145,6 +145,7 @@ export type EditRequest =
 export type ToWebview =
   | { type: 'snapshot'; snapshot: Snapshot; metamodel: Metamodel | null; file: string; selected: string | null }
   | { type: 'select'; id: string | null }
+  | { type: 'show'; view: string; select: string | null }
   | { type: 'edit-result'; ok: boolean; label: string; error?: string }
   | { type: 'busy'; busy: boolean; label?: string };
 

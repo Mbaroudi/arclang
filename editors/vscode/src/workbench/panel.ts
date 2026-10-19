@@ -2,6 +2,9 @@
 // palette, a properties view and a semantic browser, in a webview that talks
 // to the extension host only through typed messages. Every gesture becomes
 // `arclang edit` requests applied to the text; the text is the model.
+//
+// The page is a custom text editor (`arclang.workbench`, "Reopen Editor
+// With..."): undo, redo, save and the dirty state are the document's own.
 import { randomBytes } from 'node:crypto';
 import * as path from 'node:path';
 import * as vscode from 'vscode';
@@ -9,6 +12,8 @@ import { EditRequest, ElementRecord, FromWebview, Snapshot, ToWebview } from '..
 import { applyRequests, refusalMessage } from './edits';
 import { metamodelJson, onDidChangeSnapshot, snapshotOf } from './snapshot';
 import { elementAt, revealElement } from './tree';
+
+export const VIEW_TYPE = 'arclang.workbench';
 
 /** The viewer's own files, copied from the compiler at build time (esbuild.mjs). */
 const VIEWER_SCRIPTS = [
@@ -27,43 +32,60 @@ const VIEWER_SCRIPTS = [
 /** The commands the webview may ask the host to run on its document. */
 const ALLOWED_COMMANDS = new Set(['arclang.transitionPlan', 'arclang.transitionApply', 'arclang.runGate', 'arclang.check', 'arclang.format']);
 
-const panels = new Map<string, WorkbenchPanel>();
+const panels = new Map<string, Set<WorkbenchPanel>>();
+const selectionEmitter = new vscode.EventEmitter<{ uri: vscode.Uri; id: string | null }>();
+
+/** Fires when the user selects an element in a workbench. */
+export const onDidSelectElement = selectionEmitter.event;
 
 export class WorkbenchPanel {
-  private readonly panel: vscode.WebviewPanel;
   private readonly disposables: vscode.Disposable[] = [];
   private ready = false;
   private selected: string | null = null;
   private busy = 0;
 
-  static open(context: vscode.ExtensionContext, document: vscode.TextDocument): WorkbenchPanel {
-    const key = document.uri.toString();
-    const existing = panels.get(key);
+  /** Open (or reveal) the workbench of a document beside the text. */
+  static async open(document: vscode.TextDocument): Promise<void> {
+    const existing = WorkbenchPanel.for(document.uri);
     if (existing) {
       existing.panel.reveal(undefined, true);
-      return existing;
+      return;
     }
-    const created = new WorkbenchPanel(context, document);
-    panels.set(key, created);
-    return created;
+    await vscode.commands.executeCommand('vscode.openWith', document.uri, VIEW_TYPE, { viewColumn: vscode.ViewColumn.Beside, preserveFocus: true });
   }
 
   static for(uri: vscode.Uri): WorkbenchPanel | undefined {
-    return panels.get(uri.toString());
+    const set = panels.get(uri.toString());
+    return set ? [...set][0] : undefined;
+  }
+
+  /** The custom editor that VS Code opens for `.arc` and `.sysml` files on request. */
+  static register(context: vscode.ExtensionContext): vscode.Disposable {
+    const provider: vscode.CustomTextEditorProvider = {
+      resolveCustomTextEditor(document, webviewPanel) {
+        const created = new WorkbenchPanel(context, document, webviewPanel);
+        const key = document.uri.toString();
+        panels.set(key, new Set([...(panels.get(key) ?? []), created]));
+      },
+    };
+    return vscode.window.registerCustomEditorProvider(VIEW_TYPE, provider, {
+      webviewOptions: { retainContextWhenHidden: true, enableFindWidget: false },
+      supportsMultipleEditorsPerDocument: true,
+    });
   }
 
   private constructor(
     private readonly context: vscode.ExtensionContext,
     private readonly document: vscode.TextDocument,
+    private readonly panel: vscode.WebviewPanel,
   ) {
     const media = vscode.Uri.joinPath(context.extensionUri, 'media');
     const dist = vscode.Uri.joinPath(context.extensionUri, 'dist');
-    this.panel = vscode.window.createWebviewPanel('arclangWorkbench', `Workbench: ${path.basename(document.uri.fsPath)}`, vscode.ViewColumn.Beside, {
+    this.panel.webview.options = {
       enableScripts: true,
-      retainContextWhenHidden: true,
       localResourceRoots: [media, dist],
       enableCommandUris: false,
-    });
+    };
     this.panel.iconPath = vscode.Uri.joinPath(media, 'icon.svg');
     this.panel.webview.html = this.html();
     this.disposables.push(
@@ -78,14 +100,17 @@ export class WorkbenchPanel {
         const element = await elementAt(document, event.selections[0].active, snapshot.elements?.elements ?? []);
         if (element && element.id !== this.selected) this.post({ type: 'select', id: element.id });
       }),
-      vscode.workspace.onDidCloseTextDocument((closed) => {
-        if (closed.uri.toString() === document.uri.toString()) this.panel.dispose();
-      }),
     );
     this.panel.onDidDispose(() => {
-      panels.delete(document.uri.toString());
+      const key = document.uri.toString();
+      const set = panels.get(key);
+      set?.delete(this);
+      if (set && set.size === 0) panels.delete(key);
       for (const d of this.disposables) d.dispose();
     });
+    // The snapshot of the text as it is: the custom editor may open before the
+    // typing pause recomputes it.
+    void snapshotOf(document);
   }
 
   /** The element selected in the views, for commands that act on it. */
@@ -96,6 +121,12 @@ export class WorkbenchPanel {
   select(id: string | null): void {
     this.selected = id;
     this.post({ type: 'select', id });
+  }
+
+  /** Show one diagram of the model (a graph id of the snapshot). */
+  show(view: string, selectId?: string): void {
+    this.post({ type: 'show', view, select: selectId ?? null });
+    this.panel.reveal(undefined, true);
   }
 
   private post(message: ToWebview): void {
@@ -116,10 +147,11 @@ export class WorkbenchPanel {
         return;
       case 'selected':
         this.selected = message.id;
+        selectionEmitter.fire({ uri: this.document.uri, id: message.id });
         return;
       case 'reveal': {
         const element = await this.element(message.id);
-        if (element) await revealElement(this.document, element);
+        if (element) await revealElement(this.document, element, { preserveFocus: true });
         return;
       }
       case 'open-text':
