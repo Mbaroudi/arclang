@@ -261,14 +261,21 @@ pub fn rename_keeping_identity(source: &str, element: &str, name: &str) -> Resul
 /// The element graph as a properties view reads it.
 pub fn elements_json(graph: &ElementGraph) -> serde_json::Value {
     json!({
-        "elements": graph.elements.iter().map(|element| json!({
-            "uuid": element.uuid,
-            "id": element.id,
-            "kind": element.kind,
-            "name": element.name,
-            "owner": element.owner,
-            "attributes": elements::attributes_json(&element.attributes),
-        })).collect::<Vec<_>>(),
+        "elements": graph.elements.iter().map(|element| {
+            let mut record = json!({
+                "uuid": element.uuid,
+                "id": element.id,
+                "kind": element.kind,
+                "name": element.name,
+                "owner": element.owner,
+                "attributes": elements::attributes_json(&element.attributes),
+            });
+            // A port says which way it goes: what a reconnection must respect.
+            if let Some(direction) = element.extra.get("direction") {
+                record["direction"] = direction.clone();
+            }
+            record
+        }).collect::<Vec<_>>(),
         "relationships": graph.relationships.iter().map(|relationship| json!({
             "uuid": relationship.uuid,
             "kind": relationship.kind,

@@ -75,7 +75,9 @@ pub fn duplicate_element(
     let edited = match target {
         CopyTarget::Beside => {
             let indented: Vec<String> = declaration.lines().map(|line| format!("{base}{line}")).collect();
-            let at = document.end_of(end);
+            // After the end of the line: a comment that ends it stays with the original.
+            let trailing = document.lexemes.get(end + 1).filter(|next| next.newlines_before == 0 && token(next).is_none());
+            let at = trailing.map_or(document.end_of(end), |_| document.end_of(end + 1));
             document.splice(at, at, &format!("\n{}", indented.join("\n")))
         }
         CopyTarget::Into(container) => {

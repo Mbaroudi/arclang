@@ -27,8 +27,37 @@ fn keywords_of(kind: &str) -> &'static [&'static str] {
 }
 
 fn graph_of(source: &str, what: &str) -> Result<ElementGraph, String> {
+    Ok(compiled_graph(source, what)?.0)
+}
+
+/// The element graph of a text, with the compiler's warnings about it.
+fn compiled_graph(source: &str, what: &str) -> Result<(ElementGraph, Vec<String>), String> {
     let compiled = compile_text(source).map_err(|e| format!("{what} does not compile: {e}"))?;
-    Ok(elements::build(&compiled.ast, &compiled.semantic_model))
+    Ok((elements::build(&compiled.ast, &compiled.semantic_model), compiled.warnings))
+}
+
+/// The kinds a reconnection names, as the element graph spells them.
+const RECONNECTABLE: &[&str] = &["ComponentExchange", "FunctionalExchange", "OperationalExchange", "PhysicalLink", "PhysicalExchange", "Transition", "Message", "Trace", "Association"];
+
+/// A port's direction as the compiler read it: `in`, `out`, `inout`; None when it has none.
+fn direction_of(element: &ElementRecord) -> Option<&str> {
+    element.extra.get("direction").and_then(|d| d.as_str()).filter(|d| matches!(*d, "in" | "out" | "inout"))
+}
+
+/// The rules a new end of a relationship follows, as when it is created:
+/// a source leaves by an out (or inout) port, a target arrives by an in
+/// (or inout) port, and an exchange joins two different ends.
+fn check_ends(kind: &str, source: &ElementRecord, target: &ElementRecord, moved_source: bool, moved_target: bool) -> Result<(), String> {
+    if source.uuid == target.uuid && !matches!(kind, "Transition" | "Message") {
+        return Err(format!("edit refused: a {kind} does not join '{}' to itself", source.id));
+    }
+    if moved_source && direction_of(source) == Some("in") {
+        return Err(format!("edit refused: '{}' is an in port; the source of a {kind} leaves by an out or inout port", source.id));
+    }
+    if moved_target && direction_of(target) == Some("out") {
+        return Err(format!("edit refused: '{}' is an out port; the target of a {kind} arrives by an in or inout port", target.id));
+    }
+    Ok(())
 }
 
 /// The element a designator names: its id, else its name when only one carries it.
@@ -126,7 +155,10 @@ fn spots_of(graph: &ElementGraph, source: &str, relationship: &RelationshipRecor
 /// Reconnect one relationship: its source to `new_from`, its target to
 /// `new_to` (either or both; both swapped is a reversal).
 pub fn reconnect(source: &str, kind: &str, name: Option<&str>, from: &str, to: &str, new_from: Option<&str>, new_to: Option<&str>) -> Result<String, String> {
-    let graph = graph_of(source, "the model")?;
+    if !RECONNECTABLE.contains(&kind) {
+        return Err(format!("'{kind}' is not a kind of relationship a reconnection changes: use one of {}", RECONNECTABLE.join(", ")));
+    }
+    let (graph, warnings) = compiled_graph(source, "the model")?;
     let (old_from, old_to) = (resolve(&graph, from)?, resolve(&graph, to)?);
     let relationship = find_relationship(&graph, kind, name, old_from, old_to)?;
     let next_from = new_from.map(|d| resolve(&graph, d)).transpose()?;
@@ -134,6 +166,7 @@ pub fn reconnect(source: &str, kind: &str, name: Option<&str>, from: &str, to: &
     if next_from.is_none() && next_to.is_none() {
         return Err("a reconnection names a new source, a new target or both".to_string());
     }
+    check_ends(kind, next_from.unwrap_or(old_from), next_to.unwrap_or(old_to), next_from.is_some(), next_to.is_some())?;
     let spots = spots_of(&graph, source, relationship, old_from, old_to)?;
     let source_options = next_from.map(|e| written_like(&graph, source, &spots.from, old_from, e)).unwrap_or_else(|| vec![String::new()]);
     let target_options = next_to.map(|e| written_like(&graph, source, &spots.to, old_to, e)).unwrap_or_else(|| vec![String::new()]);
@@ -164,7 +197,7 @@ pub fn reconnect(source: &str, kind: &str, name: Option<&str>, from: &str, to: &
                     continue;
                 }
             };
-            match check_relationships(&graph, &edited, &expected, None) {
+            match check_relationships(&graph, &edited, &expected, None).and_then(|()| no_new_warning(&warnings, &edited)) {
                 Ok(()) => return Ok(edited),
                 Err(e) => last = e,
             }
@@ -194,11 +227,22 @@ fn check_relationships(before: &ElementGraph, edited: &str, expected: &BTreeMap<
     Ok(())
 }
 
+/// The edited model draws no warning the original did not (a trace whose
+/// ends break the trace rules, for one).
+fn no_new_warning(before: &[String], edited: &str) -> Result<(), String> {
+    let (_, after) = compiled_graph(edited, "edit refused: the edited model")?;
+    match after.iter().find(|warning| !before.contains(warning)) {
+        Some(warning) => Err(format!("edit refused: {warning}")),
+        None => Ok(()),
+    }
+}
+
 /// Rename a relationship (an exchange, a link, a message): its name where
 /// the text writes it, its ends untouched.
 pub fn rename_relationship(source: &str, designator: &str, new_name: &str) -> Result<String, String> {
     let graph = graph_of(source, "the model")?;
-    let named: Vec<&RelationshipRecord> = graph.relationships.iter().filter(|r| r.name.as_deref() == Some(designator)).collect();
+    let written_id = |r: &RelationshipRecord| matches!(r.attributes.get("id"), Some(crate::compiler::ast::AttributeValue::String(id)) if id == designator);
+    let named: Vec<&RelationshipRecord> = graph.relationships.iter().filter(|r| r.name.as_deref() == Some(designator) || written_id(r)).collect();
     let relationship = match named.as_slice() {
         [one] => *one,
         [] => return Err(format!("no element or relationship with id or name '{designator}'")),
@@ -308,22 +352,35 @@ pub fn duplicate(source: &str, element: &str, container: Option<Container>) -> R
 mod tests {
     use super::*;
 
-    const MODEL: &str = "model T { name: \"t\" }\nlogical_architecture \"L\" {\n    component \"A\" {\n        id: \"LC-A\"\n        port out \"p\"\n    }\n    component \"B\" {\n        id: \"LC-B\"\n        port in \"q\"\n    }\n    component \"C\" {\n        id: \"LC-C\"\n        port in \"r\"\n    }\n    component_exchange \"Flow\" {\n        from_port: \"LC-A.p\"\n        to_port: \"LC-B.q\"\n    }\n}\nstate_machine \"M\" {\n    initial: \"Off\"\n    state Off {}\n    state On {}\n    state Idle {}\n    transition Off -> On { guard: \"go\" }\n}\nscenario \"S\" {\n    participants: [\"LC-A\", \"LC-B\", \"LC-C\"]\n    message \"LC-A\" -> \"LC-B\" \"ping\"\n}\ntrace \"LC-A\" satisfies \"LC-B\" { rationale: \"kept\" }\n";
+    const MODEL: &str = "model T { name: \"t\" }\nlogical_architecture \"L\" {\n    component \"A\" {\n        id: \"LC-A\"\n        port out \"p\"\n    }\n    component \"B\" {\n        id: \"LC-B\"\n        port in \"q\"\n    }\n    component \"C\" {\n        id: \"LC-C\"\n        port in \"r\"\n    }\n    component_exchange \"Flow\" {\n        from_port: \"LC-A.p\"\n        to_port: \"LC-B.q\"\n    }\n}\nstate_machine \"M\" {\n    initial: \"Off\"\n    state Off {}\n    state On {}\n    state Idle {}\n    transition Off -> On { guard: \"go\" }\n}\nscenario \"S\" {\n    participants: [\"LC-A\", \"LC-B\", \"LC-C\"]\n    message \"LC-A\" -> \"LC-B\" \"ping\"\n}\nrequirements {\n    requirement \"REQ-1\" { description: \"one\" }\n    requirement \"REQ-2\" { description: \"two\" }\n}\ntrace \"LC-A\" satisfies \"REQ-1\" { rationale: \"kept\" }\n";
 
     #[test]
     fn an_exchange_a_transition_a_message_and_a_trace_are_reconnected() {
         let flow = reconnect(MODEL, "ComponentExchange", Some("Flow"), "LC-A.p", "LC-B.q", None, Some("LC-C.r")).unwrap();
         assert!(flow.contains("to_port: \"LC-C.r\""), "{flow}");
-        let reversed = reconnect(MODEL, "ComponentExchange", Some("Flow"), "LC-A.p", "LC-B.q", Some("LC-B.q"), Some("LC-A.p")).unwrap();
-        assert!(reversed.contains("from_port: \"LC-B.q\"\n        to_port: \"LC-A.p\""), "{reversed}");
+        let reversed = reconnect(MODEL, "Transition", None, "M.Off", "M.On", Some("M.On"), Some("M.Off")).unwrap();
+        assert!(reversed.contains("transition On -> Off { guard: \"go\" }"), "{reversed}");
         let transition = reconnect(MODEL, "Transition", None, "M.Off", "M.On", None, Some("M.Idle")).unwrap();
         assert!(transition.contains("transition Off -> Idle { guard: \"go\" }"), "{transition}");
         let message = reconnect(MODEL, "Message", Some("ping"), "LC-A", "LC-B", None, Some("LC-C")).unwrap();
         assert!(message.contains("message \"LC-A\" -> \"LC-C\" \"ping\""), "{message}");
-        let trace = reconnect(MODEL, "Trace", None, "LC-A", "LC-B", None, Some("LC-C")).unwrap();
-        assert!(trace.contains("trace \"LC-A\" satisfies \"LC-C\" { rationale: \"kept\" }"), "{trace}");
+        let trace = reconnect(MODEL, "Trace", None, "LC-A", "REQ-1", None, Some("REQ-2")).unwrap();
+        assert!(trace.contains("trace \"LC-A\" satisfies \"REQ-2\" { rationale: \"kept\" }"), "{trace}");
         let refused = reconnect(MODEL, "ComponentExchange", Some("Flow"), "LC-A.p", "LC-B.q", None, Some("Nobody"));
         assert!(refused.is_err());
+    }
+
+    #[test]
+    fn a_reconnection_follows_the_rules_of_creating_the_relationship() {
+        let to_itself = reconnect(MODEL, "ComponentExchange", Some("Flow"), "LC-A.p", "LC-B.q", None, Some("LC-A.p")).unwrap_err();
+        assert!(to_itself.contains("to itself"), "{to_itself}");
+        let wrong_way = reconnect(MODEL, "ComponentExchange", Some("Flow"), "LC-A.p", "LC-B.q", Some("LC-B.q"), Some("LC-A.p")).unwrap_err();
+        assert!(wrong_way.contains("in port"), "{wrong_way}");
+        let model = "model T { name: \"t\" }\nlogical_architecture \"L\" {\n    component \"A\" { id: \"LC-A\" }\n}\nrequirements {\n    requirement \"REQ-1\" { description: \"d\" }\n}\ntrace \"LC-A\" satisfies \"REQ-1\"\n";
+        let reversed = reconnect(model, "Trace", None, "LC-A", "REQ-1", Some("REQ-1"), Some("LC-A")).unwrap_err();
+        assert!(reversed.contains("edit refused") && reversed.contains("requirement"), "{reversed}");
+        let unknown = reconnect(MODEL, "component_exchange", Some("Flow"), "LC-A.p", "LC-B.q", None, Some("LC-C.r")).unwrap_err();
+        assert!(unknown.contains("ComponentExchange, FunctionalExchange"), "{unknown}");
     }
 
     #[test]
@@ -332,6 +389,9 @@ mod tests {
         assert!(renamed.contains("component_exchange \"Main flow\" {"), "{renamed}");
         let relabelled = rename_relationship(MODEL, "ping", "hello").unwrap();
         assert!(relabelled.contains("message \"LC-A\" -> \"LC-B\" \"hello\""), "{relabelled}");
+        let inline = "model T { name: \"t\" }\nlogical_architecture \"L\" {\n    component \"A\" { id: \"LC-A\" port out \"p\" }\n    component \"B\" { id: \"LC-B\" port in \"q\" }\n    component \"C\" { id: \"LC-C\" }\n    component_exchange \"Flow\" { from_port: \"LC-A.p\" to_port: \"LC-B.q\" }\n}\n";
+        let moved_inline = move_port(inline, "LC-B.q", "LC-C").unwrap();
+        assert!(moved_inline.contains("to_port: \"LC-C.q\"") && moved_inline.contains("component \"B\" { id: \"LC-B\" }"), "{moved_inline}");
         let moved = move_port(MODEL, "LC-B.q", "LC-C").unwrap();
         assert!(moved.contains("to_port: \"LC-C.q\""), "{moved}");
         let c = moved.find("component \"C\"").unwrap();
@@ -344,6 +404,9 @@ mod tests {
         assert!(copied.contains("id: \"LC-A-2\""), "{copied}");
         let again = duplicate(&copied, "LC-A", None).unwrap();
         assert!(again.contains("id: \"LC-A-3\""), "{again}");
+        let commented = "model T { name: \"t\" }\nlogical_architecture \"L\" {\n    component \"A\" { id: \"LC-A\" port out \"p\" }   // keep this comment\n}\n";
+        let copy = duplicate(commented, "LC-A", None).unwrap();
+        assert!(copy.contains("component \"A\" { id: \"LC-A\" port out \"p\" }   // keep this comment\n    component \"A\" { id: \"LC-A-2\" port out \"p\" }\n"), "{copy}");
         let into = duplicate(MODEL, "Off", Some(Container::Element("M"))).unwrap();
         assert!(into.contains("state \"Off 2\" {}"), "{into}");
         let taken: std::collections::HashSet<String> = ["LC-X-2".to_string()].into_iter().collect();

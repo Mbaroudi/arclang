@@ -410,10 +410,33 @@ pub enum Commands {
 
     /// Apply one edit, written as JSON, to a model file: {"op": "set" |
     /// "unset" | "rename" | "add" | "add_raw" | "remove" | "move" |
-    /// "add_trace" | "remove_trace" | "wrap_fragment", ...}. Comments and
-    /// layout are kept; refused unless the edited model compiles and shows
-    /// what was asked. Prints {"success": true, "source": ...} or
-    /// {"success": false, "error": ...}; --write writes the file back
+    /// "add_trace" | "remove_trace" | "wrap_fragment" | "reconnect" |
+    /// "duplicate", ...}. Comments and layout are kept; refused unless the
+    /// edited model compiles and shows what was asked. Prints {"success":
+    /// true, "source": ...} or {"success": false, "error": ...}; --write
+    /// writes the file back
+    ///
+    /// Reconnect: {"op": "reconnect", "kind": K, "from": A, "to": B, "name":
+    /// N?, "new_from": C?, "new_to": D?} moves the source and/or the target of
+    /// the relationship of kind K from A to B (named N when several join
+    /// them); both, swapped, reverse it. K is a kind of the element graph:
+    /// ComponentExchange, FunctionalExchange, OperationalExchange,
+    /// PhysicalLink, PhysicalExchange, Transition, Message, Trace or
+    /// Association (`arclang workbench` lists every relationship with its
+    /// kind). Refused when a port goes the wrong way (a source leaves by an
+    /// out or inout port, a target arrives by an in or inout port), when an
+    /// exchange would join an element to itself, or when the compiler warns
+    /// about the result (a trace whose ends break the trace rules of
+    /// `arclang metamodel`).
+    ///
+    /// Duplicate: {"op": "duplicate", "element": E, "container": C?, "layer":
+    /// L?} copies the declaration of E with what it holds, beside it or into
+    /// C or the layer L; every id of the copy is made unique (LC-X becomes
+    /// LC-X-2), an element without id gets a new name.
+    ///
+    /// A move of a port ({"op": "move", "element": "LC-A.p", "container":
+    /// "LC-B"}) takes the ends of its exchanges with it. A rename of a name
+    /// no element has renames the relationship of that name.
     Edit {
         #[clap(value_parser)]
         input: PathBuf,

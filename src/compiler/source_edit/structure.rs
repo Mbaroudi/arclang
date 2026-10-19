@@ -88,7 +88,8 @@ impl Document {
             if name != element {
                 return None;
             }
-            let own_line = lexemes[index].newlines_before > 0 || index == 0;
+            // A port may share the line of its owner (`component "B" { id: "LC-B" port in "q" }`).
+            let own_line = lexemes[index].newlines_before > 0 || index == 0 || is_port;
             let ends_line = lexemes.get(name_index + 1).is_none_or(|next| next.newlines_before > 0 || matches!(token(next), Some(Token::RightBrace)));
             let in_scope = scope.as_ref().is_none_or(|block| index > block.open && index < block.close);
             let directly = !direct || scope.as_ref().is_some_and(|block| enclosing_open(lexemes, index) == block.open);
