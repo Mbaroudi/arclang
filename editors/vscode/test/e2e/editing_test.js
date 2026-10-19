@@ -36,12 +36,13 @@ const rows = []; const report = (name, ok, detail) => { rows.push({ name, ok, de
   const drag = async (from, to, options = {}) => { await page.mouse.move(from.x, from.y); await page.mouse.down(); await page.mouse.move(to.x, to.y, { steps: 12 }); if (options.during) await options.during(); await page.mouse.up(); await page.waitForTimeout(400); };
   const centreOf = (b) => ({ x: b.x + b.width / 2, y: b.y + b.height / 2 });
   const handle = async (end) => { const h = page.locator(`.arcviz-end[data-end="${end}"]`); return (await h.isVisible().catch(() => false)) ? centreOf(await h.boundingBox()) : null; };
+  let shotTaken = false;
   const reconnectByDrag = async (edge, end, targetId) => {
     if (!(await selectEdge(edge))) return { error: `edge ${edge} not found` };
     const from = await handle(end); if (!from) return { error: 'no end handle' };
     const target = await box(targetId); if (!target) return { error: `${targetId} not drawn` };
     const n = await count(); let marked = [];
-    await drag(from, { x: target.x + target.width / 2, y: target.y + Math.min(14, target.height / 2) }, { during: async () => { marked = await page.$$eval('.is-drop-target', (ns) => ns.map((x) => x.dataset.id)); } });
+    await drag(from, { x: target.x + target.width / 2, y: target.y + Math.min(14, target.height / 2) }, { during: async () => { marked = await page.$$eval('.is-drop-target', (ns) => ns.map((x) => x.dataset.id)); if (!shotTaken) { shotTaken = true; await shot('reconnect-handles'); } } });
     return { result: await waitEdit(n), marked };
   };
   const menu = async (x, y) => { await page.mouse.click(x, y, { button: 'right' }); await page.waitForTimeout(300); return page.locator('.wb-menu:not([hidden])'); };
@@ -51,7 +52,7 @@ const rows = []; const report = (name, ok, detail) => { rows.push({ name, ok, de
   // 1. Reconnect a component exchange by dragging its target end onto a box: a port is made there, one edit
   await reset(); r = {}; await layer('Logical');
   r = await reconnectByDrag('ce:LaneFlow', 'target', 'LC-ACT'); let text = await source();
-  await shot('reconnect-handles');
+  await selectEdge('ce:SteerCommand'); await shot('edge-selected');
   report('drag the end of a component exchange to a box reconnects it', !!r.result?.ok && /to_port: "LC-ACT\.lane"/.test(text) && /port in "lane"/.test(text.split('component "Steering Actuator"')[1] || '') && r.result.requests.length === 2, r.error || r.result?.error || '');
   report('the box it would land on is marked during the drag', (r.marked || []).includes('LC-ACT'), (r.marked || []).join(','));
 
@@ -151,16 +152,16 @@ const rows = []; const report = (name, ok, detail) => { rows.push({ name, ok, de
   let before = (await layouts()).length;
   { const b = await box('LC-ACT'); const m = await menu(b.x + 20, b.y + 10); await m.waitFor(); }
   await shot('context-menu-many');
-  await menuItem('Left').click(); await page.waitForTimeout(1500);
-  const lefts = await Promise.all(['LC-CAM', 'LC-CTL', 'LC-ACT'].map(async (id) => Math.round((await box(id)).x)));
-  report('Align left lines the selection up, kept in the layout file', new Set(lefts).size === 1 && (await layouts()).length > before, lefts.join(','));
-  await shot('align-left');
+  await menuItem('Top').click(); await page.waitForTimeout(1500);
+  const tops0 = await Promise.all(['LC-CAM', 'LC-CTL', 'LC-ACT'].map(async (id) => Math.round((await box(id)).y)));
+  report('Align top lines the selection up, kept in the layout file', new Set(tops0).size === 1 && (await layouts()).length > before, tops0.join(','));
   before = (await layouts()).length;
   { const b = await box('LC-ACT'); const m = await menu(b.x + 20, b.y + 10); await m.waitFor(); }
-  await menuItem('Vertically').click(); await page.waitForTimeout(1500);
-  const tops = await Promise.all(['LC-CAM', 'LC-CTL', 'LC-ACT'].map(box)); tops.sort((a, b) => a.y - b.y);
-  const gaps = [tops[1].y - tops[0].y - tops[0].height, tops[2].y - tops[1].y - tops[1].height];
-  report('Distribute vertically leaves equal gaps', Math.abs(gaps[0] - gaps[1]) < 3 && (await layouts()).length > before, gaps.map(Math.round).join(','));
+  await menuItem('Horizontally').click(); await page.waitForTimeout(1500);
+  await shot('align-distribute');
+  const row = await Promise.all(['LC-CAM', 'LC-CTL', 'LC-ACT'].map(box)); row.sort((a, b) => a.x - b.x);
+  const gaps = [row[1].x - row[0].x - row[0].width, row[2].x - row[1].x - row[1].width];
+  report('Distribute horizontally leaves equal gaps', Math.abs(gaps[0] - gaps[1]) < 3 && (await layouts()).length > before, gaps.map(Math.round).join(','));
   await page.keyboard.press('Escape');
 
   // 15. Arrow keys nudge the selection (1, Shift: 10), in the layout file
