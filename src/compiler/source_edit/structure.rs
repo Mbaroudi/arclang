@@ -165,8 +165,50 @@ impl Document {
         if close.newlines_before > 0 {
             return self.splice(start, start, &format!("\n{}", indented.join("\n")));
         }
-        // A block written on one line opens up to take a declaration.
-        self.splice(start, close.offset, &format!("\n{}\n{}", indented.join("\n"), container_indentation))
+        // A block written on one line keeps a one-line declaration on that line.
+        if !declaration.contains('\n') && block.close > block.open + 1 {
+            let at = self.end_of(block.close - 1);
+            return self.splice(at, close.offset, &format!(" {declaration} "));
+        }
+        // Otherwise it opens up: each of its statements on a line of its own, then the declaration.
+        let inside = format!("{container_indentation}{INDENT}");
+        let mut lines: Vec<String> = self.statements(block).into_iter().map(|(first, last)| {
+            let text: String = self.chars[self.lexemes[first].offset..self.end_of(last)].iter().collect();
+            format!("{inside}{text}")
+        }).collect();
+        lines.extend(declaration.lines().map(|line| format!("{inside}{line}")));
+        self.splice(self.end_of(block.open), close.offset, &format!("\n{}\n{}", lines.join("\n"), container_indentation))
+    }
+
+    /// The statements written directly in a one-line block, as lexeme ranges:
+    /// an attribute (`key: value`) or a declaration (`port in "q"`, `function "F" { }`).
+    fn statements(&self, block: &Block) -> Vec<(usize, usize)> {
+        let children = self.children(block);
+        let ends_value = |index: usize| matches!(token(&self.lexemes[index]), Some(Token::StringLiteral(_) | Token::Number(_) | Token::Integer(_) | Token::Identifier(_) | Token::RightBrace | Token::RightBracket | Token::RightParen));
+        let mut starts = Vec::new();
+        for (at, &index) in children.iter().enumerate() {
+            let lexeme = &self.lexemes[index];
+            if token(lexeme).is_none() {
+                continue;
+            }
+            let previous = at.checked_sub(1).map(|p| children[p]);
+            let attribute = is_word(lexeme) && is(&self.lexemes, index + 1, &Token::Colon) && previous.is_none_or(|p| !is(&self.lexemes, p, &Token::Colon));
+            let declaration = token(lexeme).is_some_and(|t| t.keyword_text().is_some()) && previous.is_none_or(ends_value);
+            if previous.is_none() || attribute || declaration {
+                starts.push(at);
+            }
+        }
+        starts
+            .iter()
+            .enumerate()
+            .map(|(n, &at)| {
+                let last_at = starts.get(n + 1).map_or(children.len(), |next| *next) - 1;
+                // A nested block or list ends where its bracket closes.
+                let last = children[last_at];
+                let last = if matches!(token(&self.lexemes[last]), Some(Token::LeftBrace | Token::LeftBracket | Token::LeftParen)) { matching_close(&self.lexemes, last).map_or(last, |end| end - 1) } else { last };
+                (children[at], last)
+            })
+            .collect()
     }
 }
 

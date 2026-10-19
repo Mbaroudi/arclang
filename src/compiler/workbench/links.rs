@@ -274,6 +274,9 @@ pub fn move_port(source: &str, port: &str, owner: &str) -> Result<String, String
     }
     let local = port.id.rsplit_once('.').map_or(port.name.clone(), |(_, local)| local.to_string());
     let new_id = format!("{}.{local}", owner.id);
+    if graph.elements.iter().any(|e| e.id == new_id) {
+        return Err(format!("edit refused: {} already has a port '{local}'", owner.id));
+    }
     let written_new = format!("{}.{local}", written_designator(&graph, source, &owner.id));
     // Every end the port is written as, rewritten to the port of the new owner.
     let mut replacements = Vec::new();
@@ -392,6 +395,14 @@ mod tests {
         let inline = "model T { name: \"t\" }\nlogical_architecture \"L\" {\n    component \"A\" { id: \"LC-A\" port out \"p\" }\n    component \"B\" { id: \"LC-B\" port in \"q\" }\n    component \"C\" { id: \"LC-C\" }\n    component_exchange \"Flow\" { from_port: \"LC-A.p\" to_port: \"LC-B.q\" }\n}\n";
         let moved_inline = move_port(inline, "LC-B.q", "LC-C").unwrap();
         assert!(moved_inline.contains("to_port: \"LC-C.q\"") && moved_inline.contains("component \"B\" { id: \"LC-B\" }"), "{moved_inline}");
+        assert!(moved_inline.contains("component \"C\" { id: \"LC-C\" port in \"q\" }"), "a one-line block stays on its line: {moved_inline}");
+        let twice = move_port(&moved_inline.replace("component \"A\" { id: \"LC-A\" port out \"p\" }", "component \"A\" { id: \"LC-A\" port out \"q\" }").replace("LC-A.p", "LC-A.q"), "LC-A.q", "LC-C").unwrap_err();
+        assert!(twice.contains("LC-C already has a port 'q'"), "{twice}");
+        let expanded = duplicate(inline, "LC-A", Some(Container::Element("LC-C"))).unwrap();
+        assert!(expanded.contains("component \"C\" { id: \"LC-C\" component \"A\" { id: \"LC-A-2\" port out \"p\" } }"), "{expanded}");
+        let multi = "model T { name: \"t\" }\nlogical_architecture \"L\" {\n    component \"A\" {\n        id: \"LC-A\"\n        function \"F\" {\n            id: \"LF-F\"\n        }\n    }\n    component \"C\" { id: \"LC-C\" description: \"d\" port in \"r\" }\n}\n";
+        let opened = duplicate(multi, "LF-F", Some(Container::Element("LC-C"))).unwrap();
+        assert!(opened.contains("component \"C\" {\n        id: \"LC-C\"\n        description: \"d\"\n        port in \"r\"\n        function \"F\" {\n            id: \"LF-F-2\"\n        }\n    }"), "{opened}");
         let moved = move_port(MODEL, "LC-B.q", "LC-C").unwrap();
         assert!(moved.contains("to_port: \"LC-C.q\""), "{moved}");
         let c = moved.find("component \"C\"").unwrap();
