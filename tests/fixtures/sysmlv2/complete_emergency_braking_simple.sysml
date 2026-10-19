@@ -20,6 +20,10 @@ package <EmergencyBrakingSystem> 'Automotive Emergency Braking System (AEB)' {
         metadata def Chain;
         metadata def Link;
         metadata def Hazard;
+        metadata def Security;
+        metadata def PrimaryAsset;
+        metadata def Threat;
+        metadata def SecurityScales;
         metadata def Mode;
         metadata def Class;
         metadata def PhysicalPort;

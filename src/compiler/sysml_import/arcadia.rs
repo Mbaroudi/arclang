@@ -27,6 +27,7 @@ use crate::compiler::source_edit::string_literal;
 use std::collections::{BTreeMap, HashMap, HashSet};
 
 mod generic;
+mod security;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum Level {
@@ -275,7 +276,7 @@ impl<'g> Mapper<'g> {
     /// Whether a usage is structure (a component, a function) rather than a
     /// reference inside a scenario, a requirement, a connector or a chain.
     fn is_structural_usage(&self, usage: &Element) -> bool {
-        if usage.is_end || self.is_library(usage) {
+        if usage.is_end || self.is_library(usage) || Self::has_metadata(usage, security::SECURITY_METADATA) {
             return false;
         }
         let mut current = usage.owner.as_deref().and_then(|o| self.graph.get(o));
@@ -720,6 +721,7 @@ impl<'g> Mapper<'g> {
         self.scenarios();
         self.message_scenarios();
         self.test_cases();
+        self.security();
         self.constraints();
         self.traces();
         self.sysml_views();
@@ -785,7 +787,7 @@ impl<'g> Mapper<'g> {
             self.line(1, &format!("values: {}", list_literal(&values)));
             self.line(0, "}");
         }
-        let data_types: Vec<&Element> = self.graph.of_kinds(&["AttributeDefinition", "DataType"]).filter(|e| !self.is_library(e)).collect();
+        let data_types: Vec<&Element> = self.graph.of_kinds(&["AttributeDefinition", "DataType"]).filter(|e| !self.is_library(e) && !Self::has_metadata(e, security::SECURITY_METADATA)).collect();
         for e in data_types {
             let id = self.remember(&e.id, Self::identity_id(e), "DataType");
             let base = e.specializes.first().and_then(|s| self.graph.get(s)).and_then(|s| s.name.clone()).unwrap_or_else(|| "String".to_string());
