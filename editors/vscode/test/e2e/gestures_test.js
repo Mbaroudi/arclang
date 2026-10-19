@@ -14,7 +14,7 @@ const rows = []; const report = (name, ok, detail) => { rows.push({ name, ok, de
   const last = () => page.evaluate(() => window.__results.at(-1));
   const waitEdit = async (before) => { for (let i = 0; i < 50 && (await count()) === before; i++) await page.waitForTimeout(150); await page.waitForTimeout(900); return (await count()) === before ? null : last(); };
   const layer = async (label) => { await page.locator('.wb-layer', { hasText: label }).first().click(); await page.waitForTimeout(900); };
-  const box = async (id) => { const n = page.locator(`.arcviz-stage [data-id="${id}"]`).first(); return (await n.count()) ? n.boundingBox() : null; };
+  const box = async (id) => { let n = page.locator(`.arcviz-stage [data-id="${id}"]`).first(); if (!(await n.count())) { const e = (await snapshot()).elements.elements.find((x) => x.id === id); if (e) n = page.locator(`.arcviz-stage [data-id="${e.name}"]`).first(); } return (await n.count()) ? n.boundingBox() : null; };
   const click = async (id) => { const b = await box(id); if (!b) return false; await page.mouse.click(b.x + Math.min(30, b.width / 2), b.y + Math.min(10, b.height / 2)); await page.waitForTimeout(300); return true; };
   const activeLayer = () => page.$$eval('.wb-layer.is-active', (b) => b.map((x) => x.textContent.trim())[0]);
   const prompt = async (text, keep) => { const i = page.locator('.wb-prompt input').first(); await i.waitFor({ timeout: 3000 }); if (!keep) await i.fill(text); await i.press('Enter'); };
@@ -95,6 +95,26 @@ const rows = []; const report = (name, ok, detail) => { rows.push({ name, ok, de
     if (await page.locator('.wb-prompt input').count()) { await prompt('Camera to actuator'); r = await waitEdit(n); dragged = true; } }
   text = await source(); report('drag from the handle connects (component exchange)', dragged && !!r?.ok && /component_exchange "Camera to actuator"/.test(text), dragged ? (r?.ok ? '' : r?.error) : 'no handle or no prompt');
 
+  // 10. Multi-selection: Shift+click two components, Delete removes both in one gesture
+  await reset(); await layer('Logical');
+  { const st = await page.locator('.arcviz-stage').boundingBox(); await page.mouse.click(st.x + 8, st.y + 8); await page.waitForTimeout(200); }
+  for (const name of ['Spare A', 'Spare B']) { const k = await count(); await page.locator('.wb-tool', { hasText: 'Component' }).first().click(); await prompt(name); await waitEdit(k); await page.waitForTimeout(500); { const st = await page.locator('.arcviz-stage').boundingBox(); await page.mouse.click(st.x + 8, st.y + 8); await page.waitForTimeout(200); } }
+  const spares = (await snapshot()).elements.elements.filter((e) => e.name.startsWith('Spare'));
+  await page.locator('.wb-viewer-tools button', { hasText: /^Fit$/ }).first().click(); await page.waitForTimeout(800);
+  await click(spares[0].id); const b2 = await box(spares[1].id);
+  await page.keyboard.down('Shift'); await page.mouse.click(b2.x + Math.min(30, b2.width / 2), b2.y + Math.min(10, b2.height / 2)); await page.keyboard.up('Shift'); await page.waitForTimeout(300);
+  const barText = await page.locator('.wb-multibar').textContent().catch(() => '');
+  report('Shift+click selects several elements', /2 selected/.test(barText || ''), barText || 'no bar');
+  n = await count(); await page.keyboard.press('Delete'); r = await waitEdit(n); text = await source();
+  report('Delete removes the whole selection in one gesture', !!r?.ok && !/Spare A/.test(text) && !/Spare B/.test(text) && r.requests.length === 2, r?.ok ? '' : r?.error);
+
+  // 11. Minimap: Shift+M shows it, a click moves the sheet
+  await reset(); await layer('Logical'); await page.keyboard.press('Shift+M'); await page.waitForTimeout(500);
+  const mm = page.locator('.wb-minimap'); const shown = await mm.isVisible();
+  const before = await page.evaluate(() => document.querySelector('.arcviz-canvas')?.style.transform || '');
+  if (shown) { const mb = await mm.boundingBox(); await page.mouse.click(mb.x + mb.width * 0.85, mb.y + mb.height * 0.85); await page.waitForTimeout(300); }
+  const after = await page.evaluate(() => document.querySelector('.arcviz-canvas')?.style.transform || '');
+  report('Shift+M shows the minimap and a click moves the view', shown && before !== after, `${before} -> ${after}`);
   report('no page error', errors.length === 0, errors.slice(0, 2).join(' / '));
   const failed = rows.filter((x) => !x.ok); console.log(`\n${rows.length - failed.length}/${rows.length} gestures work`);
   await browser.close(); process.exit(failed.length ? 1 : 0);

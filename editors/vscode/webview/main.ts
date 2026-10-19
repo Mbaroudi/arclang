@@ -63,7 +63,8 @@ const tabs = el('div', { class: 'wb-tabs wb-hidden' });
 const tools = el('div', { class: 'wb-viewer-tools' });
 const paletteToggle = button('', () => setPalette(!state.layout.paletteOpen), { class: 'wb-icon-button', title: 'Palette' });
 const drawerToggle = button('', () => setDrawer(!state.layout.drawerOpen), { class: 'wb-icon-button', title: 'Properties' });
-toolRow.append(paletteToggle, tools, drawerToggle);
+const minimapToggle = button('', () => toggleMinimap(), { class: 'wb-icon-button wb-minimap-toggle', title: 'Minimap (Shift+M)' });
+toolRow.append(paletteToggle, tools, minimapToggle, drawerToggle);
 bar.append(layerBar, toolRow);
 
 const body = el('div', { class: 'wb-body' });
@@ -218,13 +219,20 @@ function modelId(drawingId: string): string {
   return drawingId.replace(/::(?:in|out|inout)\./, '.').replace('::', '.');
 }
 
-/** The drawing id of a model element, when it has a node. */
+/**
+ * The drawing id of a model element: its id when the drawing uses it, else
+ * its name (an element that writes no id is drawn under its name), ports as
+ * `Owner::port`.
+ */
 function drawingId(id: string): string {
   const element = state.byId.get(id);
   if (element && /Port$/.test(element.kind)) {
     const at = id.lastIndexOf('.');
-    if (at > 0) return `${id.slice(0, at)}::${id.slice(at + 1)}`;
+    if (at > 0) return `${drawingId(id.slice(0, at))}::${id.slice(at + 1)}`;
   }
+  const drawn = (candidate: string) => !!host.querySelector(`[data-id="${CSS.escape(candidate)}"]`);
+  if (drawn(id) || !element) return id;
+  if (element.name && drawn(element.name)) return element.name;
   return id;
 }
 
@@ -263,6 +271,71 @@ function selectElement(element: ElementRecord | null, inViewer: boolean): void {
   if (inViewer && element) selectInViewer(element.id);
 }
 
+// --- Multi-selection (Shift+click) ------------------------------------------
+
+let shiftDown = false;
+host.addEventListener('pointerdown', (event) => (shiftDown = event.shiftKey), true);
+/** The elements selected together, the primary one included; empty when one or none is selected. */
+let multi: ElementRecord[] = [];
+
+function markMulti(): void {
+  for (const node of host.querySelectorAll('.wb-multi')) node.classList.remove('wb-multi');
+  for (const element of multi) host.querySelector(`[data-id="${CSS.escape(drawingId(element.id))}"]`)?.classList.add('wb-multi');
+  multiBar.hidden = multi.length < 2;
+  multiCount.textContent = `${multi.length} selected`;
+}
+
+/** The selected elements without those another selected element owns (removing the owner removes them). */
+function outermost(elements: ElementRecord[]): ElementRecord[] {
+  const uuids = new Set(elements.map((e) => e.uuid));
+  const ownedBySelection = (element: ElementRecord): boolean => {
+    let owner = element.owner ? state.byUuid.get(element.owner) : undefined;
+    while (owner) {
+      if (uuids.has(owner.uuid)) return true;
+      owner = owner.owner ? state.byUuid.get(owner.owner) : undefined;
+    }
+    return false;
+  };
+  return elements.filter((e) => !ownedBySelection(e));
+}
+
+function deleteMany(elements: ElementRecord[]): void {
+  const targets = outermost(elements);
+  submit(targets.map((e) => ({ op: 'remove', element: e.id })), `delete ${targets.length} elements`);
+  multi = [];
+  markMulti();
+}
+
+function hideMany(elements: ElementRecord[]): void {
+  const graph = currentGraph();
+  if (!graph) return;
+  const ids = new Set(elements.map((e) => e.id));
+  const drawnAtTop = topLevelIds(graph).map((id) => elementFor({ view: '', id, name: '', kind: '', isEdge: false })?.id).filter((id): id is string => !!id);
+  const rest = drawnAtTop.filter((id) => !ids.has(id));
+  const named = namedDiagramOf(graph.id, graph.arc.view);
+  if (named) submit([{ op: 'set', element: named, key: 'shows', value: showsLiteral(rest) }], `hide ${ids.size} elements from ${named}`);
+  else {
+    const name = uniqueDiagramName(`${graph.arc.title} (custom)`);
+    pendingView = `${graph.arc.view}:${name}`;
+    submit([{ op: 'add_raw', declaration: `diagram ${JSON.stringify(name)} {\n  view: ${graph.arc.view}\n  shows: ${showsLiteral(rest)}\n}`, top_level: true }], `new diagram ${name} without ${ids.size} elements`);
+  }
+  multi = [];
+  markMulti();
+}
+
+const multiBar = el('div', { class: 'wb-multibar', hidden: true, role: 'toolbar', 'aria-label': 'Selection' });
+const multiCount = el('strong', { text: '' });
+multiBar.append(
+  multiCount,
+  button('Delete all', () => deleteMany(multi), { class: 'wb-danger', title: 'Delete every selected element (one undo)' }),
+  button('Hide all', () => hideMany(multi), { title: 'Hide every selected element from this diagram' }),
+  button('Clear', () => {
+    multi = [];
+    markMulti();
+  }),
+);
+sheet.appendChild(multiBar);
+
 /** A selection the page asks of the viewer: its empty answer while the drawing settles is not the reader's. */
 let programmaticUntil = 0;
 
@@ -279,6 +352,19 @@ function onSelect(selection: ViewerSelection | null): void {
   if (selection === null && Date.now() < programmaticUntil && state.selected) return;
   programmaticUntil = 0;
   const element = elementFor(selection);
+  if (shiftDown && element && !selection?.isEdge) {
+    const primary = state.selected;
+    const base = multi.length ? multi : primary && primary.uuid !== element.uuid ? [primary] : [];
+    multi = base.some((e) => e.uuid === element.uuid) ? base.filter((e) => e.uuid !== element.uuid) : [...base, element];
+    shiftDown = false;
+    setTimeout(markMulti, 0);
+    selectElement(element, false);
+    return;
+  }
+  if (multi.length) {
+    multi = [];
+    setTimeout(markMulti, 0);
+  }
   // A connect tool takes the click as one of its ends.
   if (palette.pick(element ? { id: element.id, kind: element.kind } : null)) return;
   selectElement(element, false);
@@ -443,6 +529,84 @@ findInput.addEventListener('keydown', (event) => {
   if (event.key === 'Enter') runFind(event.shiftKey ? -1 : 1);
   if (event.key === 'Escape') closeFind();
 });
+
+// --- Minimap ----------------------------------------------------------------
+
+const minimap = el('div', { class: 'wb-minimap', hidden: true, 'aria-label': 'Overview of the diagram' });
+const minimapImage = el('img', { alt: '' });
+const minimapView = el('div', { class: 'wb-minimap-view' });
+minimap.append(minimapImage, minimapView);
+sheet.appendChild(minimap);
+let minimapUrl: string | null = null;
+let minimapFor = '';
+
+function toggleMinimap(force?: boolean): void {
+  minimap.hidden = force === undefined ? !minimap.hidden : !force;
+  if (!minimap.hidden) refreshMinimap(true);
+}
+
+/** The drawn sheet and where the frame is on it. */
+function sheetGeometry(): { svg: SVGSVGElement; width: number; height: number; at: { scale: number; x: number; y: number }; frame: DOMRect } | null {
+  const svg = host.querySelector<SVGSVGElement>('.arcviz-stage svg');
+  const stage = host.querySelector<HTMLElement>('.arcviz-stage');
+  const position = state.viewer?.current?.()?.position as { scale: number; x: number; y: number } | undefined;
+  if (!svg || !stage || !position) return null;
+  const width = Number(svg.getAttribute('width')) || svg.viewBox.baseVal.width;
+  const height = Number(svg.getAttribute('height')) || svg.viewBox.baseVal.height;
+  if (!width || !height) return null;
+  return { svg, width, height, at: position, frame: stage.getBoundingClientRect() };
+}
+
+function refreshMinimap(redraw = false): void {
+  if (minimap.hidden) return;
+  const geometry = sheetGeometry();
+  if (!geometry) return;
+  const key = `${currentGraph()?.id}:${geometry.width}x${geometry.height}:${state.snapshot?.elements?.elements.length}`;
+  if (redraw || key !== minimapFor) {
+    minimapFor = key;
+    if (minimapUrl) URL.revokeObjectURL(minimapUrl);
+    minimapUrl = URL.createObjectURL(new Blob([new XMLSerializer().serializeToString(geometry.svg)], { type: 'image/svg+xml' }));
+    minimapImage.src = minimapUrl;
+  }
+  const box = minimap.getBoundingClientRect();
+  const k = Math.min(box.width / geometry.width, box.height / geometry.height);
+  const offsetX = (box.width - geometry.width * k) / 2;
+  const offsetY = (box.height - geometry.height * k) / 2;
+  const { scale, x, y } = geometry.at;
+  minimapView.style.left = `${offsetX + (-x / scale) * k}px`;
+  minimapView.style.top = `${offsetY + (-y / scale) * k}px`;
+  minimapView.style.width = `${(geometry.frame.width / scale) * k}px`;
+  minimapView.style.height = `${(geometry.frame.height / scale) * k}px`;
+}
+
+/** A click or a drag on the minimap puts that point of the sheet in the middle of the frame. */
+function minimapJump(event: PointerEvent): void {
+  const geometry = sheetGeometry();
+  if (!geometry) return;
+  const box = minimap.getBoundingClientRect();
+  const k = Math.min(box.width / geometry.width, box.height / geometry.height);
+  const offsetX = (box.width - geometry.width * k) / 2;
+  const offsetY = (box.height - geometry.height * k) / 2;
+  const sheetX = (event.clientX - box.left - offsetX) / k;
+  const sheetY = (event.clientY - box.top - offsetY) / k;
+  const { scale } = geometry.at;
+  state.viewer?.restore?.({ scale, x: geometry.frame.width / 2 - sheetX * scale, y: geometry.frame.height / 2 - sheetY * scale });
+  refreshMinimap();
+}
+minimap.addEventListener('pointerdown', (event) => {
+  event.preventDefault();
+  event.stopPropagation();
+  minimap.setPointerCapture(event.pointerId);
+  minimapJump(event);
+  const move = (e: PointerEvent) => minimapJump(e);
+  const up = () => {
+    minimap.removeEventListener('pointermove', move);
+    minimap.removeEventListener('pointerup', up);
+  };
+  minimap.addEventListener('pointermove', move);
+  minimap.addEventListener('pointerup', up);
+});
+setInterval(() => refreshMinimap(), 250);
 
 /** Exports go to the host, which asks where to save them (a webview cannot download). */
 function onDownload(blob: Blob, filename: string): void {
@@ -888,6 +1052,11 @@ document.addEventListener('keydown', (event) => {
     return;
   }
   if (editing) return;
+  if (event.shiftKey && !event.metaKey && !event.ctrlKey && event.key === 'M') {
+    event.preventDefault();
+    toggleMinimap();
+    return;
+  }
   if (!event.metaKey && !event.ctrlKey && !event.altKey && (event.key === '[' || event.key === ']')) {
     event.preventDefault();
     stepLayer(event.key === ']' ? 1 : -1);
@@ -902,11 +1071,22 @@ document.addEventListener('keydown', (event) => {
     openFind();
     return;
   }
+  if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'h' && multi.length > 1) {
+    event.preventDefault();
+    hideMany(multi);
+    return;
+  }
   if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'h' && state.selected) {
     event.preventDefault();
     hideFromDiagram(state.selected);
     return;
   }
+  if ((event.key === 'Delete' || event.key === 'Backspace') && multi.length > 1) {
+    event.preventDefault();
+    deleteMany(multi);
+    return;
+  }
+
   if (event.key === 'F2' && state.selected) {
     event.preventDefault();
     renameInPlace(state.selected);

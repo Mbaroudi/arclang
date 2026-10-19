@@ -9,7 +9,7 @@ with a host that edits through `arclang edit` and snapshots through
 - `gestures_test.js`: trace, hide from a diagram (viewpoint and named),
   show related, new diagram around an element, rename in place (F2), find
   (⌘F), properties (set, rename), delete an element and an exchange,
-  connect by dragging from the handle (14 gestures);
+  connect by dragging from the handle, multi-selection and bulk delete, minimap (17 gestures);
 - `toolbar_test.js`: every toolbar tool (exports reach the host as SVG,
   PNG and JSON, full screen, zoom, filters, layers, folding), no console error.
 

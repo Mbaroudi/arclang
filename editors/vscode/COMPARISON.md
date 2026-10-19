@@ -36,7 +36,7 @@ Legend: **yes** · **partial** · **no**.
 | Text and diagram on the same model | yes, side by side, both directions | no (XMI) | yes (textual + graphical) |
 | Every edit checked by the compiler before it lands | yes | partial (validation on demand) | partial |
 | Comments and layout of the text kept on every edit | yes (every text attribute of the corpus, tested) | not applicable | not applicable |
-| Multi-selection and bulk edit | no | yes | yes |
+| Multi-selection and bulk edit | partial: Shift+click, delete or hide the whole selection in one gesture, tested; no bulk property edit yet | yes | yes |
 | Copy, paste of elements | no | yes | partial |
 
 ## Diagram contents and navigation
@@ -53,7 +53,7 @@ Legend: **yes** · **partial** · **no**.
 | Semantic browser | yes (Relations view) | yes | partial |
 | Find in a diagram | yes (⌘F), tested | yes | yes (Ctrl+K) |
 | Open a diagram / go to an element (quick pick) | yes (⌘⌥D, ⌘⌥E) | partial | yes |
-| Minimap | no | yes (outline) | yes |
+| Minimap | yes (Shift+M, click or drag to move the view), tested | yes (outline) | yes |
 | Automatic layout | yes (ELK) and manual arrangement saved in a layout file | yes (Arrange All, mixed results) | yes (Flow, Compact) |
 | Align, distribute, snap | no | yes | partial |
 
@@ -71,10 +71,9 @@ Legend: **yes** · **partial** · **no**.
 
 ## What is left, in order
 
-1. Multi-selection with bulk delete and bulk property edit.
-2. A minimap in the viewer.
-3. Combined fragments and state invariants from the scenario palette.
-4. Align and distribute in the manual arrangement.
-5. Requirements created and traced from a diagram.
-6. Copy and paste of elements within a model.
-7. Notes on diagrams, which needs a language construct first.
+1. Bulk property edit on a multi-selection.
+2. Combined fragments and state invariants from the scenario palette.
+3. Align and distribute in the manual arrangement.
+4. Requirements created and traced from a diagram.
+5. Copy and paste of elements within a model.
+6. Notes on diagrams, which needs a language construct first.

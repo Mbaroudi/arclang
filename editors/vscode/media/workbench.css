@@ -390,3 +390,11 @@ body.wb-focus .wb-left, body.wb-focus .wb-right, body.wb-focus .wb-splitter, bod
 .wb-find input { font: inherit; width: 200px; height: 22px; padding: 0 6px; color: var(--vscode-input-foreground); background: var(--vscode-input-background); border: 1px solid var(--vscode-input-border, transparent); }
 .wb-find-count { font-size: 12px; color: var(--vscode-descriptionForeground); min-width: 60px; }
 #workbench .arcviz .wb-find-hit > rect:first-of-type, #workbench .arcviz .wb-find-hit > path:first-of-type { stroke: var(--vscode-editor-findMatchBorder, #e8a33d) !important; stroke-width: 3px !important; }
+
+/* Multi-selection and minimap */
+#workbench .arcviz .wb-multi > rect:first-of-type, #workbench .arcviz .wb-multi > path:first-of-type { stroke: var(--vscode-focusBorder) !important; stroke-width: 3px !important; stroke-dasharray: 6 3; }
+.wb-multibar { position: absolute; top: 8px; left: 50%; transform: translateX(-50%); z-index: 6; display: flex; align-items: center; gap: 6px; padding: 4px 8px; font-size: 12px; background: var(--vscode-editorWidget-background, var(--vscode-editor-background)); border: 1px solid var(--vscode-focusBorder); border-radius: 4px; box-shadow: 0 2px 8px rgba(0,0,0,.25); }
+.wb-minimap { position: absolute; right: 12px; bottom: 12px; z-index: 5; width: 200px; height: 130px; background: var(--vscode-minimap-background, var(--vscode-editorWidget-background, #fff)); border: 1px solid var(--vscode-panel-border, #8884); border-radius: 3px; box-shadow: 0 2px 8px rgba(0,0,0,.25); overflow: hidden; cursor: pointer; }
+.wb-minimap img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; opacity: .85; pointer-events: none; }
+.wb-minimap-view { position: absolute; border: 2px solid var(--vscode-focusBorder); background: color-mix(in srgb, var(--vscode-focusBorder) 12%, transparent); pointer-events: none; }
+.wb-minimap-toggle::before { content: "▣"; }
