@@ -516,6 +516,11 @@ impl Resolver<'_> {
                 self.apply("PrimaryAsset", &label, &mut asset.attributes, None)?;
             }
         }
+        // A trace typed by an allocation definition carries its attributes.
+        for trace in &mut ast.traces {
+            let label = format!("{} -> {}", trace.from, trace.to);
+            self.apply("Trace", &label, &mut trace.attributes, None)?;
+        }
         for test_case in &mut ast.test_cases {
             let label = test_case.name.clone();
             self.apply("TestCase", &label, &mut test_case.attributes, None)?;

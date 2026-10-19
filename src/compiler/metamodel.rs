@@ -437,10 +437,12 @@ impl Metamodel {
                     attr("version", AttrType::Text, "Model version."),
                     attr("description", AttrType::Text, "Free-text description."),
                 ]),
-            kind("Type", Layer::Transverse, "(extension — closest Capella notion: REC/RPL)", "abstract part def / action def, specialized with :>", "Reusable definition: `type Name extends Base { ... }`. Declares typed attributes, ports and the attributes instances must provide. Redefinitions must keep the dimension. Types have their own namespace.",
+            kind("Type", Layer::Transverse, "(extension — closest Capella notion: REC/RPL)", "abstract part / action / port / connection / allocation def, specialized with :>", "Reusable definition: `type Name extends Base { ... }`. Declares typed attributes, ports and the attributes instances must provide. Redefinitions must keep the dimension. Types have their own namespace. A type with ports typing a port is a port definition (its ports are the ports the port holds); typing an exchange, an interface definition; with `from_kind` and `to_kind`, typing an `allocates` trace, an allocation definition.",
                 vec![
                     attr("required", list(AttrType::Text), "Attributes every instance must provide (declared or inherited)."),
                     attr("description", AttrType::Text, "Free-text description (not inherited)."),
+                    attr("from_kind", AttrType::Text, "For an allocation definition: the kind every allocation of it goes from (`PhysicalNode`)."),
+                    attr("to_kind", AttrType::Text, "For an allocation definition: the kind every allocation of it goes to (`LogicalComponent`)."),
                 ]),
             kind("Constraint", Layer::Transverse, "Constraint", "assert constraint", "Dimension-checked comparison over typed attributes (`assert: <expression>`). Ill-formed is a compile error; violated is a warning and a gate blocker.", common()),
             kind("StateMachine", Layer::Transverse, "StateMachine", "state def", "Modes and states of an element.",

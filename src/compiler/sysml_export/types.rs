@@ -42,6 +42,11 @@ fn types_exchanges(e: &Exporter<'_>, name: &str) -> bool {
         || e.model.system_analysis.iter().any(|sa| sa.functional_exchanges.iter().any(|x| uses(&x.attributes)))
 }
 
+/// Whether allocations are typed by `name`: then it is an allocation definition.
+fn types_allocations(e: &Exporter<'_>, name: &str) -> bool {
+    e.model.traces.iter().any(|t| t.trace_type == "allocates" && types::declared_types(&t.attributes).map(|n| n.contains(&name)).unwrap_or(false))
+}
+
 /// Whether only functions are typed by `name`: then it is an action definition.
 fn types_functions_only(e: &Exporter<'_>, name: &str) -> bool {
     let mut functions = false;
@@ -87,13 +92,14 @@ pub(super) fn write(e: &mut Exporter<'_>) {
             levels::port_defs(e, used);
         }
         for ty in &model.types {
-            let links = types_links(e, &ty.name) || types_exchanges(e, &ty.name);
-            let ports = !links && types_ports(e, &ty.name);
-            let keyword = if links { "connection" } else if ports { "port" } else if types_functions_only(e, &ty.name) { "action" } else { "part" };
+            let allocations = types_allocations(e, &ty.name);
+            let links = !allocations && (types_links(e, &ty.name) || types_exchanges(e, &ty.name));
+            let ports = !links && !allocations && types_ports(e, &ty.name);
+            let keyword = if allocations { "allocation" } else if links { "connection" } else if ports { "port" } else if types_functions_only(e, &ty.name) { "action" } else { "part" };
             let base = ty.extends.as_deref().map(|b| format!(" :> {}", text::name(b))).unwrap_or_default();
             e.block(&format!("abstract {keyword} def {}{base}", text::name(&ty.name)), |e| {
                 // A connection definition has the two ends its links connect.
-                if links && ty.extends.is_none() {
+                if (links || allocations) && ty.extends.is_none() {
                     e.line("end source;");
                     e.line("end target;");
                 }

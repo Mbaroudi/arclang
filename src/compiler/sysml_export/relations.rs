@@ -44,6 +44,19 @@ pub(super) fn allocation(e: &mut Exporter<'_>, from: &str, to: &str) {
     }
 }
 
+/// An allocation, typed by its allocation definition when it `is:` one
+/// (`allocation : 'Software deployment' allocate a to b;`).
+fn typed_allocation(e: &mut Exporter<'_>, trace: &Trace) {
+    let typing = e.typing(&trace.attributes);
+    if typing.is_empty() {
+        return allocation(e, &trace.from, &trace.to);
+    }
+    match (e.feature(&trace.from), e.feature(&trace.to)) {
+        (Some(source), Some(target)) => e.line(&format!("allocation{typing} allocate {source} to {target};")),
+        _ => e.line(&format!("// {} allocated to {}: an end is not exported", trace.from, trace.to)),
+    }
+}
+
 /// A requirement: its id as short name, its title as name, its text as doc.
 pub(super) fn requirement(e: &mut Exporter<'_>, requirement: &Requirement) {
     let id = id_of(&requirement.attributes, &requirement.id).to_string();
@@ -131,7 +144,7 @@ fn traces(e: &mut Exporter<'_>) {
                 (Some(requirement), Some(by)) => e.line(&format!("satisfy {requirement} by {by};")),
                 _ => trace_dependency(e, "satisfies", &trace.from, &trace.to),
             },
-            "allocates" => allocation(e, &trace.from, &trace.to),
+            "allocates" => typed_allocation(e, trace),
             kind => trace_dependency(e, kind, &trace.from, &trace.to),
         }
     }

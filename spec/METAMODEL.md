@@ -950,15 +950,17 @@ The model itself: root of the element graph, owner of every top-level element.
 
 #### Type
 
-Reusable definition: `type Name extends Base { ... }`. Declares typed attributes, ports and the attributes instances must provide. Redefinitions must keep the dimension. Types have their own namespace.
+Reusable definition: `type Name extends Base { ... }`. Declares typed attributes, ports and the attributes instances must provide. Redefinitions must keep the dimension. Types have their own namespace. A type with ports typing a port is a port definition (its ports are the ports the port holds); typing an exchange, an interface definition; with `from_kind` and `to_kind`, typing an `allocates` trace, an allocation definition.
 
 - Arcadia: `(extension — closest Capella notion: REC/RPL)`
-- SysML v2: `abstract part def / action def, specialized with :>`
+- SysML v2: `abstract part / action / port / connection / allocation def, specialized with :>`
 
 | Attribute | Type | Meaning |
 |---|---|---|
 | `required` | `list<text>` | Attributes every instance must provide (declared or inherited). |
 | `description` | `text` | Free-text description (not inherited). |
+| `from_kind` | `text` | For an allocation definition: the kind every allocation of it goes from (`PhysicalNode`). |
+| `to_kind` | `text` | For an allocation definition: the kind every allocation of it goes to (`LogicalComponent`). |
 
 #### Constraint
 

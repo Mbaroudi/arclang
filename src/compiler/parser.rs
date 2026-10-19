@@ -3387,6 +3387,9 @@ impl Parser {
         } else if let Token::Refines = self.current() {
             self.advance();
             ("refines".to_string(), self.expect_name()?)
+        } else if matches!(self.current(), Token::Identifier(ref k) if k == "allocates") {
+            self.advance();
+            ("allocates".to_string(), self.expect_name()?)
         } else {
             return Err(self.err("Expected trace type (satisfies, implements, validates, etc.) or arrow"));
         };

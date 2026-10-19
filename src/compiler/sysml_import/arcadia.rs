@@ -347,7 +347,7 @@ impl<'g> Mapper<'g> {
         // definitions, and those of a package named `Types`.
         let declared_types: Vec<&'g Element> = self
             .graph
-            .of_kinds(&["PartDefinition", "ActionDefinition", "ConnectionDefinition", "InterfaceDefinition", "PortDefinition"])
+            .of_kinds(&["PartDefinition", "ActionDefinition", "ConnectionDefinition", "InterfaceDefinition", "PortDefinition", "AllocationDefinition"])
             .filter(|d| !self.is_library(d) && !self.is_chain(d))
             .filter(|d| d.is_abstract || d.owner.as_deref().and_then(|o| self.graph.get(o)).and_then(|o| o.name.as_deref()) == Some("Types"))
             .collect();
@@ -2269,8 +2269,11 @@ impl<'g> Mapper<'g> {
                 continue;
             }
             self.count("traces");
-            // `allocates` has no keyword form: it is written with an arrow.
-            if TRACE_KINDS.contains(&kind.as_str()) && kind != "allocates" {
+            // An allocation typed by an allocation definition `is:` it.
+            let typed = (relation.kind == "AllocationUsage").then(|| relation.types.iter().find_map(|t| self.types.get(t)).cloned()).flatten();
+            if let Some(definition) = typed {
+                lines.push(format!("trace {} allocates {} {{ is: {} }}", string_literal(&from), string_literal(&to), string_literal(&definition)));
+            } else if TRACE_KINDS.contains(&kind.as_str()) && kind != "allocates" {
                 lines.push(format!("trace {} {kind} {}", string_literal(&from), string_literal(&to)));
             } else {
                 lines.push(format!("trace {} -> {} {{ trace_type: {} }}", string_literal(&from), string_literal(&to), string_literal(&kind)));

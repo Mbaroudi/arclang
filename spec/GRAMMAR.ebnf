@@ -268,7 +268,11 @@ TraceDecl       ::= "trace" AttributeBlock                                (* fro
                   | "trace" Name "->" Name AttributeBlock?
                   | "trace" Name TraceKind Name AttributeBlock? ;
 TraceKind       ::= "satisfies" | "implements" | "validates"
-                  | "realizes" | "refines" ;   (* inter-layer realization *)
+                  | "realizes" | "refines"      (* inter-layer realization *)
+                  | "allocates" ;               (* `is:` an allocation definition: a type
+                                                   with from_kind/to_kind, checked *)
+
+Configuration   ::= "configuration" Name AttributeBlock ;  (* selects: [variant…]; one per variation *)
 
 (* ---- Attributes ---------------------------------------------------------------------- *)
 
