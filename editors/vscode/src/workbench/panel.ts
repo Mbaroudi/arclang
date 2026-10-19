@@ -33,6 +33,7 @@ const VIEWER_SCRIPTS = [
 const ALLOWED_COMMANDS = new Set(['arclang.transitionPlan', 'arclang.transitionApply', 'arclang.runGate', 'arclang.check', 'arclang.format']);
 
 const panels = new Map<string, Set<WorkbenchPanel>>();
+let active: WorkbenchPanel | null = null;
 const selectionEmitter = new vscode.EventEmitter<{ uri: vscode.Uri; id: string | null }>();
 
 /** Fires when the user selects an element in a workbench. */
@@ -52,6 +53,11 @@ export class WorkbenchPanel {
       return;
     }
     await vscode.commands.executeCommand('vscode.openWith', document.uri, VIEW_TYPE, { viewColumn: vscode.ViewColumn.Beside, preserveFocus: true });
+  }
+
+  /** The document of the workbench the user looked at last. */
+  static activeDocument(): vscode.TextDocument | null {
+    return active?.document ?? null;
   }
 
   static for(uri: vscode.Uri): WorkbenchPanel | undefined {
@@ -101,7 +107,14 @@ export class WorkbenchPanel {
         if (element && element.id !== this.selected) this.post({ type: 'select', id: element.id });
       }),
     );
+    active = this;
+    this.disposables.push(
+      this.panel.onDidChangeViewState((event) => {
+        if (event.webviewPanel.active) active = this;
+      }),
+    );
     this.panel.onDidDispose(() => {
+      if (active === this) active = null;
       const key = document.uri.toString();
       const set = panels.get(key);
       set?.delete(this);

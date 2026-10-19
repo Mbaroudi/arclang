@@ -184,6 +184,60 @@ export function registerWorkbench(context: vscode.ExtensionContext): void {
     });
   });
 
+  // The native context menu of the canvas: the argument carries the element's id.
+  const canvasTarget = async (arg: unknown): Promise<{ document: vscode.TextDocument; id: string; name: string; kind: string } | null> => {
+    const context = (typeof arg === 'object' && arg !== null ? arg : {}) as { elementId?: string; elementName?: string; elementKind?: string };
+    const document = WorkbenchPanel.activeDocument() ?? tree.shown;
+    if (!document || !context.elementId) return null;
+    return { document, id: context.elementId, name: context.elementName ?? context.elementId, kind: context.elementKind ?? '' };
+  };
+  register('arclang.canvas.reveal', async (arg?: unknown) => {
+    const target = await canvasTarget(arg);
+    if (target) await revealElement(target.document, { id: target.id, name: target.name });
+  });
+  register('arclang.canvas.tree', async (arg?: unknown) => {
+    const target = await canvasTarget(arg);
+    if (!target) return;
+    tree.follow(target.document);
+    const snapshot = await snapshotOf(target.document);
+    const record = (snapshot.elements?.elements ?? []).find((e) => e.id === target.id);
+    await vscode.commands.executeCommand('arclangModel.focus');
+    const item = record ? tree.itemOf(record.uuid) : undefined;
+    if (item) await view.reveal(item, { select: true, focus: true, expand: true });
+  });
+  register('arclang.canvas.ask', async (arg?: unknown) => {
+    const target = await canvasTarget(arg);
+    if (!target) return;
+    await vscode.commands.executeCommand('workbench.action.chat.open', {
+      query: `@arclang /explain the element ${target.name} (${target.id}, ${target.kind}) of the open model: its role, what it exchanges with, and what the findings say about it.`,
+    });
+  });
+  register('arclang.canvas.copyId', async (arg?: unknown) => {
+    const target = await canvasTarget(arg);
+    if (target) await vscode.env.clipboard.writeText(target.id);
+  });
+  register('arclang.canvas.rename', async (arg?: unknown) => {
+    const target = await canvasTarget(arg);
+    if (!target) return;
+    const name = await vscode.window.showInputBox({ prompt: `New name of ${target.name} (${target.id})`, value: target.name, validateInput: (v) => (v.trim() ? null : 'a name is needed') });
+    if (name === undefined || name.trim() === target.name) return;
+    const outcome = await applyRequests(target.document, [{ op: 'rename', element: target.id, name: name.trim() }]);
+    if (!outcome.ok) vscode.window.showWarningMessage(refusalMessage(`rename ${target.id}`, outcome));
+  });
+  register('arclang.canvas.delete', async (arg?: unknown) => {
+    const target = await canvasTarget(arg);
+    if (!target) return;
+    const snapshot = await snapshotOf(target.document);
+    const record = (snapshot.elements?.elements ?? []).find((e) => e.id === target.id);
+    const owned = record ? (snapshot.elements?.elements ?? []).filter((e) => e.owner === record.uuid).length : 0;
+    if (owned > 0) {
+      const choice = await vscode.window.showWarningMessage(`Delete ${target.name} and the ${owned} element${owned > 1 ? 's' : ''} it owns? Undo takes it back.`, { modal: true }, 'Delete');
+      if (choice !== 'Delete') return;
+    }
+    const outcome = await applyRequests(target.document, [{ op: 'remove', element: target.id }]);
+    if (!outcome.ok) vscode.window.showWarningMessage(refusalMessage(`delete ${target.id}`, outcome));
+  });
+
   // A selection in the views is revealed in the tree, when the tree shows that model.
   context.subscriptions.push(
     onDidSelectElement(async ({ uri, id }) => {

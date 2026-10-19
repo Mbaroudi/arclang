@@ -314,6 +314,8 @@ function mount(snapshot: Snapshot): void {
   state.viewer = viewer;
   fitStage();
   void viewer.ready.then(() => {
+    tagContexts();
+    markFindings();
     if (previous?.view && viewer.show) {
       const known = viewer.views?.().some((v) => v.id === previous.view);
       if (known) viewer.show(previous.view);
@@ -331,6 +333,49 @@ function mount(snapshot: Snapshot): void {
   });
 }
 
+/**
+ * Every drawn element carries its context for VS Code's native context menu
+ * (`webview/context` in the manifest): right-click gives Rename, Delete,
+ * Show in source... with the element's id as the command argument.
+ */
+/** Nodes with findings are marked on the drawing, with the findings as their tooltip. */
+function markFindings(): void {
+  const findings = state.snapshot?.findings ?? [];
+  if (findings.length === 0) return;
+  const byElement = new Map<string, string[]>();
+  for (const finding of findings) {
+    if (!finding.element) continue;
+    const element = state.byId.get(finding.element) ?? state.byName.get(finding.element);
+    const key = element ? drawingId(element.id) : finding.element;
+    byElement.set(key, [...(byElement.get(key) ?? []), `${finding.severity}: ${finding.rule}: ${finding.message}`]);
+  }
+  for (const [id, lines] of byElement) {
+    const node = host.querySelector<SVGGElement>(`[data-id="${CSS.escape(id)}"]`);
+    if (!node || node.classList.contains('wb-has-finding')) continue;
+    node.classList.add('wb-has-finding');
+    if (lines.some((l) => l.startsWith('error'))) node.classList.add('is-error');
+    const title = document.createElementNS('http://www.w3.org/2000/svg', 'title');
+    title.textContent = lines.join('\n');
+    node.prepend(title);
+  }
+}
+
+function tagContexts(): void {
+  for (const node of host.querySelectorAll<HTMLElement>('[data-id]')) {
+    if (node.dataset.vscodeContext) continue;
+    const element = elementFor({ view: '', id: node.dataset.id ?? '', name: '', kind: '', isEdge: false });
+    if (!element) continue;
+    node.dataset.vscodeContext = JSON.stringify({ webviewSection: 'element', elementId: element.id, elementName: element.name, elementKind: element.kind, preventDefaultContextMenuItems: true });
+  }
+}
+host.addEventListener('contextmenu', (event) => {
+  // The right-clicked element becomes the selection, so menu commands and the views agree.
+  const target = (event.target as HTMLElement).closest<HTMLElement>('[data-id]');
+  const element = target ? elementFor({ view: '', id: target.dataset.id ?? '', name: '', kind: '', isEdge: false }) : null;
+  if (element) selectElement(element, false);
+  tagContexts();
+});
+
 let shownGraph: string | null = null;
 
 /** What follows the view on screen: the palette, and a selection that is not drawn there. */
@@ -342,6 +387,10 @@ function followView(): void {
   palette.show(graph?.arc.view ?? '', graph ? graphContainerOf(graph.id, graph.arc.view) : null);
   if (state.selected && graph && !drawn(graph, state.selected)) selectElement(null, false);
   fitStage();
+  setTimeout(() => {
+    tagContexts();
+    markFindings();
+  }, 200);
 }
 
 /** Whether an element has a node, a port or a lifeline on the graph. */

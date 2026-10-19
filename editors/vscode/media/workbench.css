@@ -334,3 +334,14 @@ button.wb-icon-button[aria-pressed='true'] { background: var(--vscode-inputOptio
 .wb-textarea { height: auto; min-height: 3.6em; resize: vertical; font: inherit; padding: 4px 6px; }
 .wb-add { display: flex; gap: 4px; margin-top: 6px; }
 .wb-props-body > .wb-link { margin-top: 6px; padding: 0; }
+
+/* Elements with findings: a warning halo, the findings in the tooltip; errors in red. */
+#workbench .arcviz [data-id].wb-has-finding > rect:first-of-type,
+#workbench .arcviz [data-id].wb-has-finding > path:first-of-type {
+  stroke: var(--vscode-editorWarning-foreground, #cca700) !important;
+  stroke-dasharray: 4 2;
+}
+#workbench .arcviz [data-id].wb-has-finding.is-error > rect:first-of-type,
+#workbench .arcviz [data-id].wb-has-finding.is-error > path:first-of-type {
+  stroke: var(--vscode-editorError-foreground, #f14c4c) !important;
+}

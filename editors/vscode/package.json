@@ -236,6 +236,36 @@
         "command": "arclang.model.copyId",
         "title": "Copy the id",
         "category": "ArcLang"
+      },
+      {
+        "command": "arclang.canvas.rename",
+        "title": "Rename…",
+        "category": "ArcLang"
+      },
+      {
+        "command": "arclang.canvas.delete",
+        "title": "Delete from model",
+        "category": "ArcLang"
+      },
+      {
+        "command": "arclang.canvas.reveal",
+        "title": "Show in source",
+        "category": "ArcLang"
+      },
+      {
+        "command": "arclang.canvas.tree",
+        "title": "Show in model tree",
+        "category": "ArcLang"
+      },
+      {
+        "command": "arclang.canvas.ask",
+        "title": "Ask @arclang about this element",
+        "category": "ArcLang"
+      },
+      {
+        "command": "arclang.canvas.copyId",
+        "title": "Copy the id",
+        "category": "ArcLang"
       }
     ],
     "menus": {
@@ -368,6 +398,30 @@
         {
           "command": "arclang.model.copyId",
           "when": "false"
+        },
+        {
+          "command": "arclang.canvas.rename",
+          "when": "false"
+        },
+        {
+          "command": "arclang.canvas.delete",
+          "when": "false"
+        },
+        {
+          "command": "arclang.canvas.reveal",
+          "when": "false"
+        },
+        {
+          "command": "arclang.canvas.tree",
+          "when": "false"
+        },
+        {
+          "command": "arclang.canvas.ask",
+          "when": "false"
+        },
+        {
+          "command": "arclang.canvas.copyId",
+          "when": "false"
         }
       ],
       "view/title": [
@@ -416,6 +470,38 @@
         {
           "command": "arclang.model.copyId",
           "when": "view == arclangModel && viewItem == arclang.element",
+          "group": "edit@3"
+        }
+      ],
+      "webview/context": [
+        {
+          "command": "arclang.canvas.reveal",
+          "when": "webviewId == 'arclang.workbench' && webviewSection == 'element'",
+          "group": "navigation@1"
+        },
+        {
+          "command": "arclang.canvas.tree",
+          "when": "webviewId == 'arclang.workbench' && webviewSection == 'element'",
+          "group": "navigation@2"
+        },
+        {
+          "command": "arclang.canvas.ask",
+          "when": "webviewId == 'arclang.workbench' && webviewSection == 'element'",
+          "group": "navigation@3"
+        },
+        {
+          "command": "arclang.canvas.rename",
+          "when": "webviewId == 'arclang.workbench' && webviewSection == 'element'",
+          "group": "edit@1"
+        },
+        {
+          "command": "arclang.canvas.delete",
+          "when": "webviewId == 'arclang.workbench' && webviewSection == 'element'",
+          "group": "edit@2"
+        },
+        {
+          "command": "arclang.canvas.copyId",
+          "when": "webviewId == 'arclang.workbench' && webviewSection == 'element'",
           "group": "edit@3"
         }
       ]
