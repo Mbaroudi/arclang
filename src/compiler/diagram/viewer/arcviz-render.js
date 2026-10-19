@@ -290,7 +290,9 @@
     for (const section of edge.sections || []) {
       const d = roundedPath([section.startPoint, ...(section.bendPoints || []), section.endPoint].map(at));
       const dash = style.dash ? ` stroke-dasharray="${style.dash}"` : '';
-      const marker = style.arrow ? ` marker-end="url(#av-arrow-${esc(arc.kind)})"` : '';
+      // A leg of an exchange of more than two ends has no direction.
+      const directed = style.arrow && !(arc.properties && arc.properties.undirected === 'true');
+      const marker = directed ? ` marker-end="url(#av-arrow-${esc(arc.kind)})"` : '';
       body += `<path class="av-hit" d="${d}" fill="none" stroke="#000" stroke-opacity="0" stroke-width="10"/>`;
       body += `<path class="av-line" d="${d}" fill="none" stroke="${style.stroke}" stroke-width="${style.width}" stroke-linejoin="round"${dash}${marker}/>`;
     }

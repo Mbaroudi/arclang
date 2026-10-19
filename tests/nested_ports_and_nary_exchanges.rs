@@ -75,6 +75,7 @@ fn an_exchange_joins_more_than_two_ends_through_a_junction() {
     let junction = lab.nodes.iter().find(|n| format!("{:?}", n.kind) == "Junction").unwrap_or_else(|| panic!("{:?}", lab.nodes));
     let legs: Vec<_> = lab.edges.iter().filter(|e| e.target == junction.id || e.source == junction.id).collect();
     assert_eq!(legs.len(), 3, "{:?}", lab.edges);
+    assert!(legs.iter().all(|e| e.properties.get("undirected").map(String::as_str) == Some("true")), "{legs:?}");
     assert!(set.diagnostics.is_empty(), "{:?}", set.diagnostics);
 }
 

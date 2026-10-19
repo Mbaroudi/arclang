@@ -147,8 +147,10 @@ fn add_junction(builder: &mut Builder, exchange: &ast::ComponentExchange, name: 
     let junction = builder.add_node(container, &format!("{id}#junction"), name, NodeKind::Junction, BTreeMap::new());
     let hub = builder.whole(junction);
     let item = Some(exchange.exchange_item.clone()).filter(|i| !i.is_empty() && i != UNSPECIFIED_ITEM);
+    // The legs of an exchange of n ends have no direction of their own.
+    let undirected = BTreeMap::from([("undirected".to_string(), "true".to_string())]);
     for end in &resolved {
-        builder.add_edge(EdgeKind::ComponentExchange, end, &hub, name, item.clone(), BTreeMap::new());
+        builder.add_edge(EdgeKind::ComponentExchange, end, &hub, name, item.clone(), undirected.clone());
     }
 }
 
