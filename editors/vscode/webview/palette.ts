@@ -58,6 +58,19 @@ export class Palette {
     if (connects.length) this.root.appendChild(this.section('Connect', connects));
   }
 
+  /** A key press on the canvas: V selects, letters arm their tool. */
+  shortcut(key: string): boolean {
+    if (key === 'v' || key === 'V') {
+      this.disarm();
+      return true;
+    }
+    const tool = this.tools.find((t) => SHORTCUTS[t.id] === key.toLowerCase());
+    if (!tool) return false;
+    const node = this.root.querySelector<HTMLButtonElement>(`[data-tool="${tool.id}"]`);
+    if (node) this.use(tool, node);
+    return true;
+  }
+
   /** A click on the diagram while a connect tool is armed: the first or the second end. */
   pick(end: ConnectEnd | null): boolean {
     if (!this.armed || this.armed.kind !== 'connect') return false;
@@ -97,8 +110,10 @@ export class Palette {
   private section(title: string, tools: Tool[]): HTMLElement {
     const list = el('div', { class: 'wb-tools' });
     for (const tool of tools) {
-      const node = button('', () => this.use(tool, node), { class: `wb-tool is-${tool.kind}`, title: `${tool.label}: ${toolTitle(tool)}`, 'aria-label': tool.label });
+      const key = SHORTCUTS[tool.id];
+      const node = button('', () => this.use(tool, node), { class: `wb-tool is-${tool.kind}`, title: `${tool.label}${key ? ` (${key.toUpperCase()})` : ''}: ${toolTitle(tool)}`, 'aria-label': tool.label, 'data-tool': tool.id });
       node.append(el('span', { class: 'wb-tool-glyph', text: glyphOf(tool) }), el('span', { class: 'wb-tool-label', text: tool.label }));
+      if (key) node.appendChild(el('kbd', { class: 'wb-tool-key', text: key.toUpperCase() }));
       list.appendChild(node);
     }
     return el('section', { class: 'wb-palette-section' }, [el('h3', { text: title }), list]);
@@ -168,3 +183,11 @@ function glyphOf(tool: Tool): string {
   };
   return glyphs[tool.id] ?? tool.label.slice(0, 1);
 }
+
+/** One letter per tool, pressed with the canvas focused (V goes back to the pointer). */
+const SHORTCUTS: Record<string, string> = {
+  actor: 'a', entity: 'y', activity: 'f', function: 'f', component: 'c', node: 'n', behavior_component: 'b', hardware_component: 'h',
+  port_in: 'p', port_out: 'o', interface: 'i', mission: 'm', capability: 'k', functional_chain: 'l', state: 's', mode: 'd',
+  class: 'c', enumeration: 'u', data_type: 'd', exchange_item: 'x', interaction: 'e', functional_exchange: 'x', component_exchange: 'e',
+  physical_link: 'e', physical_exchange: 'x', transition: 't', message: 'e', association: 'e', operational_capability: 'k',
+};

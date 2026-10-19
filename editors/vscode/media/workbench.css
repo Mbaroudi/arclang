@@ -320,3 +320,17 @@ button.wb-icon-button[aria-pressed='true'] { background: var(--vscode-inputOptio
 .wb-problems code { font-family: var(--vscode-editor-font-family); font-size: 11px; color: var(--vscode-editorWarning-foreground, inherit); }
 .wb-empty { padding: 2rem; color: var(--vscode-descriptionForeground); text-align: center; }
 .wb-hidden { display: none; }
+
+/* Palette shortcuts and the properties header */
+.wb-tool-key { margin-left: auto; font: 10px var(--vscode-editor-font-family); color: var(--vscode-keybindingLabel-foreground, var(--vscode-descriptionForeground)); background: var(--vscode-keybindingLabel-background, #8882); border: 1px solid var(--vscode-keybindingLabel-border, transparent); border-bottom-color: var(--vscode-keybindingLabel-bottomBorder, transparent); border-radius: 3px; padding: 0 4px; }
+.wb-palette.is-compact .wb-tool-key { display: none; }
+.wb-name-input { font: inherit; font-weight: 600; font-size: 13px; width: 100%; box-sizing: border-box; color: inherit; background: transparent; border: 1px solid transparent; border-radius: 2px; padding: 1px 4px; margin-left: -5px; }
+.wb-name-input:hover { border-color: var(--vscode-input-border, #8884); }
+.wb-name-input:focus { outline: none; border-color: var(--vscode-focusBorder); background: var(--vscode-input-background); }
+.wb-id { cursor: copy; }
+.wb-props-tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--vscode-panel-border, #8884); margin: 4px 0 8px; }
+.wb-props-tab { background: none; border: 0; border-bottom: 1px solid transparent; border-radius: 0; padding: 4px 6px; font-size: 11px; color: var(--vscode-panelTitle-inactiveForeground, var(--vscode-descriptionForeground)); }
+.wb-props-tab.is-active { color: var(--vscode-panelTitle-activeForeground, var(--vscode-foreground)); border-bottom-color: var(--vscode-panelTitle-activeBorder, var(--vscode-focusBorder)); }
+.wb-textarea { height: auto; min-height: 3.6em; resize: vertical; font: inherit; padding: 4px 6px; }
+.wb-add { display: flex; gap: 4px; margin-top: 6px; }
+.wb-props-body > .wb-link { margin-top: 6px; padding: 0; }

@@ -491,6 +491,10 @@ document.addEventListener('keydown', (event) => {
     return;
   }
   if (editing) return;
+  if (!event.metaKey && !event.ctrlKey && !event.altKey && event.key.length === 1 && palette.shortcut(event.key)) {
+    event.preventDefault();
+    return;
+  }
   if (event.key === 'F2' && state.selected) {
     event.preventDefault();
     properties.rename();
