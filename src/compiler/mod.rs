@@ -42,6 +42,7 @@ pub mod sysml_export;
 pub mod sysml_records;
 pub mod sysml_library;
 pub mod simulink_generator;
+mod simulink_stateflow;
 pub mod fmi_generator;
 pub mod reqif;
 pub mod graph_diff;

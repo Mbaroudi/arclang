@@ -1445,6 +1445,10 @@ impl CliRunner {
                     _ => result.output
                 };
                 
+                // `-o dir/file`: the directory is made when missing.
+                if let Some(parent) = output.parent().filter(|p| !p.as_os_str().is_empty()) {
+                    std::fs::create_dir_all(parent).map_err(CliError::Io)?;
+                }
                 std::fs::write(&output, &output_content)
                     .map_err(|e| CliError::Io(e))?;
                 

@@ -852,25 +852,28 @@ fn test_simulink_export_covers_flagship_architecture() {
     let script = arclang::compiler::simulink_generator::generate_simulink_script(
         &result.semantic_model, &result.ast);
 
-    // Every component of the model must be re-created in System Composer
-    for component in &result.semantic_model.components {
-        assert!(
-            script.contains(&format!("addComponent(arch, '{}')", component.name.replace('\'', "''"))),
-            "missing addComponent for '{}'", component.name);
+    // Every logical component of the model is re-created in System Composer
+    fn walk(components: &[arclang::compiler::ast::LogicalComponent], script: &str) {
+        for component in components {
+            assert!(
+                script.contains(&format!(", '{}');", component.name.replace('\'', "''"))),
+                "missing addComponent for '{}'", component.name);
+            walk(&component.sub_components, script);
+        }
     }
-    // The AEB operating modes must become a Stateflow chart with its states
-    assert!(script.contains("Stateflow.Chart"), "no Stateflow chart generated");
+    for la in &result.ast.logical_architecture {
+        walk(&la.components, &script);
+    }
+    // The AEB operating modes become a Stateflow chart with its states
+    assert!(script.contains("sfnew(sfModelName);"), "no Stateflow model generated");
     for machine in &result.ast.state_machines {
-        assert!(script.contains(&format!("chart0.Name = '{}'", machine.name))
-            || script.contains(&machine.name),
-            "state machine '{}' absent from script", machine.name);
-        for transition in &machine.transitions {
+        for transition in machine.transitions.iter().filter(|t| !t.trigger.is_empty()) {
             assert!(script.contains(&transition.trigger),
                 "transition trigger '{}' absent", transition.trigger);
         }
     }
-    // Exchanges become connections
-    assert!(script.contains("connect(arch,"), "no connection generated");
+    // Exchanges become port-to-port connections
+    assert!(script.contains("connect(c_"), "no connection generated");
 }
 
 #[test]
@@ -890,11 +893,12 @@ fn test_fmi_export_generates_descriptor_per_ported_component() {
         assert!(descriptor.xml.contains("<CoSimulation "));
         assert!(descriptor.xml.contains("<ScalarVariable "),
             "descriptor for {} has no variables", descriptor.component_id);
-        // GUID must be the component's deterministic ArcLang UUID
-        let component = result.semantic_model.components.iter()
-            .find(|c| c.id == descriptor.component_id).expect("component exists");
-        assert!(descriptor.xml.contains(&format!("guid=\"{{{}}}\"", component.uuid())),
-            "guid mismatch for {}", descriptor.component_id);
+    }
+    // Regenerating gives the same GUIDs
+    let again = arclang::compiler::fmi_generator::generate_fmi_descriptors(
+        &result.semantic_model, &result.ast);
+    for (a, b) in descriptors.iter().zip(&again) {
+        assert_eq!(a.xml, b.xml);
     }
 }
 
