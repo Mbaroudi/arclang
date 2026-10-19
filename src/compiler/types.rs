@@ -23,7 +23,9 @@
 //! - a redefinition conforms: an attribute that is a quantity in the type
 //!   stays a quantity of the same dimension in the specialization/instance;
 //! - every `required` attribute is provided (declared or inherited);
-//! - ports are inherited by components only.
+//! - ports are inherited by components and by ports (a port definition:
+//!   its ports are the ports the port holds); exchanges inherit an
+//!   interface definition's attributes.
 //!
 //! Types live in their own namespace: a type and an element may share a name.
 
@@ -345,10 +347,27 @@ impl Resolver<'_> {
     fn component(&mut self, component: &mut LogicalComponent) -> Result<(), String> {
         let label = component.id.clone();
         self.apply("LogicalComponent", &label, &mut component.attributes, Some(&mut component.ports))?;
+        component.ports.iter_mut().try_for_each(|port| self.port(&label, port))?;
         for function in &mut component.functions {
             self.level_function("LogicalFunction", function)?;
         }
         component.sub_components.iter_mut().try_for_each(|sub| self.component(sub))
+    }
+
+    /// A port typed by a port definition: the ports of the type are the
+    /// ports it holds, its attributes (`interface`, `protocol`) the port's.
+    fn port(&mut self, owner: &str, port: &mut ComponentPort) -> Result<(), String> {
+        let label = format!("{owner}.{}", port.name);
+        self.apply("ComponentPort", &label, &mut port.attributes, Some(&mut port.ports))?;
+        if let Some(interface) = port.attributes.get("interface").or_else(|| port.attributes.get("protocol")).and_then(|v| v.as_string()) {
+            port.interface_type = interface.to_string();
+        }
+        port.ports.iter_mut().try_for_each(|sub| self.port(&label, sub))
+    }
+
+    /// An exchange typed by an interface definition carries its attributes.
+    fn exchange(&mut self, kind: &'static str, label: &str, attributes: &mut HashMap<String, AttributeValue>) -> Result<(), String> {
+        self.apply(kind, label, attributes, None)
     }
 
     fn level_function(&mut self, kind: &'static str, function: &mut LogicalFunction) -> Result<(), String> {
@@ -384,6 +403,10 @@ impl Resolver<'_> {
                 self.apply("Requirement", &label, &mut requirement.attributes, None)?;
             }
             sa.functions.iter_mut().try_for_each(|f| self.function(f))?;
+            for exchange in &mut sa.functional_exchanges {
+                let label = exchange.id.clone();
+                self.exchange("FunctionalExchange", &label, &mut exchange.attributes)?;
+            }
             for component in &mut sa.components {
                 let label = component.name.clone();
                 self.apply("SystemComponent", &label, &mut component.attributes, None)?;
@@ -411,6 +434,14 @@ impl Resolver<'_> {
             for interface in &mut la.interfaces {
                 let label = interface.name.clone();
                 self.apply("LogicalInterface", &label, &mut interface.attributes, None)?;
+            }
+            for exchange in &mut la.component_exchanges {
+                let label = exchange.id.clone();
+                self.exchange("ComponentExchange", &label, &mut exchange.attributes)?;
+            }
+            for exchange in &mut la.functional_exchanges {
+                let label = exchange.id.clone();
+                self.exchange("FunctionalExchange", &label, &mut exchange.attributes)?;
             }
             for chain in &mut la.functional_chains {
                 let label = chain.id.clone();

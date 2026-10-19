@@ -346,7 +346,7 @@ impl<'g> Mapper<'g> {
         // definitions, and those of a package named `Types`.
         let declared_types: Vec<&'g Element> = self
             .graph
-            .of_kinds(&["PartDefinition", "ActionDefinition", "ConnectionDefinition", "InterfaceDefinition"])
+            .of_kinds(&["PartDefinition", "ActionDefinition", "ConnectionDefinition", "InterfaceDefinition", "PortDefinition"])
             .filter(|d| !self.is_library(d) && !self.is_chain(d))
             .filter(|d| d.is_abstract || d.owner.as_deref().and_then(|o| self.graph.get(o)).and_then(|o| o.name.as_deref()) == Some("Types"))
             .collect();
@@ -903,8 +903,9 @@ impl<'g> Mapper<'g> {
             self.attributes(1, &[def], &["description"]);
             // A type with ports is a component's; a function carries the
             // ports of its type itself.
-            if def.kind == "PartDefinition" {
-                for (port, direction) in self.ports_of(def) {
+            // A port definition gives the ports a port of its type holds.
+            if def.kind == "PartDefinition" || def.kind == "PortDefinition" {
+                for (port, direction) in self.ports_of(def).into_iter().filter(|(p, _)| def.kind == "PartDefinition" || p.kind == "PortUsage") {
                     self.line(1, &format!("port {} {}", direction.unwrap_or("in"), string_literal(&port.name.clone().unwrap_or_else(|| port.id.clone()))));
                 }
             }
@@ -1475,20 +1476,25 @@ impl<'g> Mapper<'g> {
         // The port's short name is its id, when it differs from its name.
         let id_line = port.short_name.as_deref().filter(|s| *s != name).map(|s| format!("id: {}", string_literal(s)));
         let mut subs: Vec<(&'g Element, Option<&'static str>)> = self.ports_of(port).into_iter().filter(|(p, _)| p.kind == "PortUsage").collect();
-        for def in port.types.iter().filter_map(|t| self.graph.get(t)).filter(|d| d.kind == "PortDefinition") {
+        // Typed by an ArcLang type (a port definition): `is:` it, and the
+        // ports the type gives are not written again.
+        let typed: Option<String> = port.types.iter().find_map(|t| self.types.get(t)).cloned();
+        for def in port.types.iter().filter(|t| !self.types.contains_key(*t)).filter_map(|t| self.graph.get(t)).filter(|d| d.kind == "PortDefinition") {
             for (sub, sub_direction) in self.ports_of(def).into_iter().filter(|(p, _)| p.kind == "PortUsage") {
                 if !subs.iter().any(|(s, _)| s.name == sub.name) {
                     subs.push((sub, sub_direction));
                 }
             }
         }
+        let is_line = typed.map(|t| format!("is: {}", string_literal(&t)));
         if subs.is_empty() || nesting > 8 {
-            let id_text = id_line.map(|l| format!(" {{ {l} }}")).unwrap_or_default();
-            self.line(depth, &format!("{head}{id_text}"));
+            let lines: Vec<String> = id_line.into_iter().chain(is_line).collect();
+            let body = if lines.is_empty() { String::new() } else { format!(" {{ {} }}", lines.join(" ")) };
+            self.line(depth, &format!("{head}{body}"));
             return;
         }
         self.line(depth, &format!("{head} {{"));
-        if let Some(line) = id_line {
+        for line in id_line.into_iter().chain(is_line) {
             self.line(depth + 1, &line);
         }
         for (sub, sub_direction) in subs {

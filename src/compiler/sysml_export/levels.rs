@@ -314,14 +314,18 @@ pub(super) fn performs(e: &mut Exporter<'_>, functions: &[String]) {
 pub(super) fn component_ports(e: &mut Exporter<'_>, ports: &[ComponentPort]) {
     for port in ports {
         let short = if port.id.is_empty() { String::new() } else { format!("{} ", text::short(&port.id)) };
-        let def = port_def(&port.interface_type);
+        // A port typed by a port definition (`is:`) is a usage of it, and
+        // holds the ports the definition gives without writing them again.
+        let typing = e.typing(&port.attributes);
+        let given: Vec<String> = e.inherited(&port.attributes).map(|i| i.ports.iter().map(|p| p.name.clone()).collect()).unwrap_or_default();
+        let def = if typing.is_empty() { format!(" : {}", port_def(&port.interface_type)) } else { typing };
         let (bounds, _) = super::multiplicity("ComponentPort", &port.attributes);
-        let head = format!("{} port {short}{} : {def}{bounds}", data::direction(&port.direction), text::name(&port.name));
-        // A port holding ports: they are its features.
-        if port.ports.is_empty() {
+        let head = format!("{} port {short}{}{def}{bounds}", data::direction(&port.direction), text::name(&port.name));
+        let own: Vec<ComponentPort> = port.ports.iter().filter(|p| !given.contains(&p.name)).cloned().collect();
+        if own.is_empty() {
             e.line(&format!("{head};"));
         } else {
-            e.block(&head, |e| component_ports(e, &port.ports));
+            e.block(&head, |e| component_ports(e, &own));
         }
     }
 }
