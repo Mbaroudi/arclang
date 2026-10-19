@@ -27,8 +27,9 @@ async def test_import_reads_the_sysml_text_the_compiler_exports(server, model, w
 
 
 async def test_import_relays_what_the_compiler_left_unresolved(server, model, workspace):
-    """The SysML text imports standard libraries the importer does not know: it says so."""
-    await exported(server, model, workspace, "sys-ml", "m.sysml")
+    """A name of the SysML text designates nothing the importer knows: it says so."""
+    source = await exported(server, model, workspace, "sys-ml", "m.sysml")
+    source.write_text(source.read_text() + "\npackage Extra { part x : NoSuchDefinition; }\n")
     answer = await server.call_tool(
         "arclang_import", {"input_path": "m.sysml", "format": "sysml", "output_path": "b.arc"}
     )
