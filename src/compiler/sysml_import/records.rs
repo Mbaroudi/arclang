@@ -74,6 +74,10 @@ pub struct Element {
     pub children: Vec<String>,
     /// Where the record sat in the file: document order of the model.
     pub order: usize,
+    /// What a view exposes: (element, recursive `::**`, namespace `::*`).
+    pub exposes: Vec<(String, bool, bool)>,
+    /// The metadata a view filters on (`filter @Safety;`): definition ids.
+    pub filters: Vec<String>,
 }
 
 /// The model: elements by id, in document order.
@@ -308,6 +312,18 @@ pub fn load(records: &[Value]) -> Result<Graph, String> {
             "Subclassification" | "Specialization" => link(&mut graph, first_id(record, &["subclassifier", "specific"]), first_id(record, &["superclassifier", "general"]), |e, t| e.specializes.push(t)),
             "Redefinition" => link(&mut graph, first_id(record, &["redefiningFeature", "specific"]), first_id(record, &["redefinedFeature", "general"]), |e, t| e.redefines.push(t)),
             "Subsetting" | "ReferenceSubsetting" => link(&mut graph, first_id(record, &["subsettingFeature", "referencingFeature", "specific"]), first_id(record, &["subsettedFeature", "referencedFeature", "general"]), |e, t| e.subsets.push(t)),
+            "MembershipExpose" | "NamespaceExpose" => {
+                let recursive = record.get("isRecursive").and_then(Value::as_bool).unwrap_or(false);
+                let namespace = kind == "NamespaceExpose";
+                link(&mut graph, first_id(record, &["importOwningNamespace"]), first_id(record, &["importedElement"]), |e, t| e.exposes.push((t, recursive, namespace)));
+            }
+            "ElementFilterMembership" => {
+                // `filter @Meta;`: an `@` expression naming a metadata definition.
+                let condition = first_id(record, &["condition", "memberElement"]).and_then(|c| by_id.get(&c)).map(|(_, r)| r);
+                let metadata = condition.filter(|c| c.get("operator").and_then(Value::as_str) == Some("@")).and_then(|c| first_id(c, &["arclang:type"]));
+                // A filter read as nothing is kept as such: the view is not widened.
+                link(&mut graph, first_id(record, &["membershipOwningNamespace"]), Some(metadata.unwrap_or_default()), |e, t| e.filters.push(t));
+            }
             "FeatureValue" => {
                 let owner = first_id(record, &["featureWithValue", "owner"]);
                 let expression = first_id(record, &["value", "memberElement"]);

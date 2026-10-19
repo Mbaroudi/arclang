@@ -180,3 +180,126 @@ fn lifelines_of_parts_sharing_a_name_are_their_ids() {
     assert_has(&source, "scenario \"Start\"");
     assert_has(&source, "message \"ecu_\" -> \"engine_\" \"go\"");
 }
+
+#[test]
+fn a_flow_between_items_of_ports_is_an_exchange_between_the_ports() {
+    let text = "package Rooms {
+    item def Air;
+    port def Door { out item air : Air; }
+    part def Hall { port outlet : Door; }
+    part def Room { port inlet : ~Door; }
+    part school { part h : Hall; part c : Room; flow HallToRoom from h.outlet.air to c.inlet.air; }
+}
+";
+    let source = imported(text).source;
+    // `h`, the one usage of `Hall`, is named by it; the item is carried.
+    assert_has(&source, "component_exchange \"HallToRoom\" {\n        id: \"HallToRoom\"\n        from_port: \"Hall.outlet\"\n        to_port: \"Room.inlet\"\n        exchange_items: [\"Air\"]");
+}
+
+#[test]
+fn bindings_between_values_are_not_counted_as_lost_connections() {
+    let text = "package C {
+    constraint def Sum { in a : Real; in b : Real; a + b > 0 }
+    part p { attribute x : Real; attribute y : Real; constraint s : Sum { bind a = x; bind b = y; } }
+}
+";
+    let counts = imported(text).counts;
+    assert!(!counts.keys().any(|k| k.starts_with("connectors")), "{counts:?}");
+    assert_eq!(counts.get("bindings between values (not architecture, left out)"), Some(&2), "{counts:?}");
+}
+
+#[test]
+fn accept_and_send_actions_are_functions() {
+    let text = "package Start {
+    item def IgnitionCmd;
+    part car {
+        port ignitionPort;
+        action startVehicle {
+            action trigger accept ignitionCmd : IgnitionCmd via ignitionPort;
+            flow of IgnitionCmd from trigger.ignitionCmd to startEngine.ignitionCmd;
+            action startEngine { in item ignitionCmd : IgnitionCmd; }
+            action report send ignitionCmd via ignitionPort;
+        }
+    }
+}
+";
+    let source = imported(text).source;
+    assert_has(&source, "function \"trigger\"");
+    assert_has(&source, "function \"report\"");
+    assert_has(&source, "from: \"trigger.ignitionCmd\"\n        to: \"startEngine.ignitionCmd\"");
+}
+
+#[test]
+fn a_formula_is_not_written_as_the_quantity_its_key_holds() {
+    let text = "package M { part car { attribute dryMass = 1000 [kg]; attribute cargoMass = 200 [kg]; attribute mass = dryMass + cargoMass; } }";
+    let imported = imported(text);
+    assert_has(&imported.source, "mass_expression: \"dryMass + cargoMass\"");
+    assert!(!imported.notes.iter().any(|n| n.contains("is not a quantity")), "{:?}", imported.notes);
+}
+
+#[test]
+fn the_entry_transition_of_a_region_is_its_initial_state() {
+    let text = "package S {
+    part car {
+        exhibit state carStates parallel {
+            state operating {
+                entry action initial;
+                state off;
+                state on;
+                transition initial then off;
+                transition off_to_on first off then on;
+            }
+            state health {
+                entry; then normal;
+                state normal;
+            }
+        }
+    }
+}
+";
+    let imported = imported(text);
+    assert_has(&imported.source, "state \"on\" { id: \"on\" }\n        initial: \"off\"");
+    assert_has(&imported.source, "state \"normal\" { id: \"normal\" }\n        initial: \"normal\"");
+    assert!(!imported.counts.contains_key("transitions to states not written (left out)"), "{:?}", imported.counts);
+}
+
+#[test]
+fn a_sysml_view_is_a_diagram_of_what_it_exposes() {
+    let text = "package V {
+    metadata def Safety;
+    package Tree { part car { #Safety part brake; part seat; #Safety part airbag; } }
+    view safetyView { expose Tree::**; filter @Safety; }
+    view everything { expose Tree::*; }
+}
+";
+    let source = imported(text).source;
+    assert_has(&source, "diagram \"safetyView\" {\n    view: lab\n    shows: [\"brake\", \"airbag\"]\n}");
+    assert_has(&source, "diagram \"everything\" {\n    view: lab\n    shows: [\"car\"]\n}");
+}
+
+#[test]
+fn a_view_whose_filter_is_not_read_is_left_out_not_widened() {
+    let text = "package V {
+    metadata def A; metadata def B;
+    package Tree { part car { #A part brake; part seat; } }
+    view both { expose Tree::**; filter @A and @B; }
+}
+";
+    let imported = imported(text);
+    assert!(!imported.source.contains("diagram \"both\""), "{}", imported.source);
+    assert_eq!(imported.counts.get("views with a filter not read (left out)"), Some(&1), "{:?}", imported.counts);
+}
+
+#[test]
+fn a_directory_with_a_link_back_to_itself_imports_once() {
+    let dir = std::env::temp_dir().join(format!("arclang-sysml-dir-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(dir.join("defs")).unwrap();
+    std::fs::write(dir.join("defs/Definitions.sysml"), "package Definitions { part def Car; }").unwrap();
+    std::fs::write(dir.join("Usages.sysml"), "package Usages { private import Definitions::*; part car : Car; }").unwrap();
+    #[cfg(unix)]
+    std::os::unix::fs::symlink(&dir, dir.join("loop")).unwrap();
+    let imported = sysml_import::import_file(&dir).unwrap_or_else(|f| panic!("{}", f.message));
+    assert!(!imported.counts.contains_key("names designating nothing known (left unresolved)"), "{:?}", imported.counts);
+    std::fs::remove_dir_all(&dir).unwrap();
+}

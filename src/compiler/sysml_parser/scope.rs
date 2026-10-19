@@ -46,6 +46,35 @@ pub fn flatten(roots: &[Node]) -> Vec<Flat<'_>> {
     flat
 }
 
+/// The library type elements of a kind implicitly specialize, as the
+/// SysML semantics adds them: `start` and `done` of an action, the
+/// `sourceEvent` of a message.
+const IMPLICIT_GENERALS: &[(&str, &str)] = &[
+    ("action", "Actions::Action"),
+    ("state", "States::StateAction"),
+    ("use case", "UseCases::UseCase"),
+    ("flow", "Flows::Message"),
+    ("part", "Parts::Part"),
+    ("item", "Items::Item"),
+    ("port", "Ports::Port"),
+    ("occurrence", "Occurrences::Occurrence"),
+];
+
+/// The family of a metaclass for [`IMPLICIT_GENERALS`].
+fn implicit_kind(kind: &str) -> &'static str {
+    match kind {
+        k if k.starts_with("State") || k == "ExhibitStateUsage" => "state",
+        k if k.contains("UseCase") => "use case",
+        k if k.ends_with("ActionUsage") || k == "ActionDefinition" => "action",
+        "FlowUsage" | "FlowDefinition" | "SuccessionFlowUsage" | "FlowConnectionUsage" => "flow",
+        "PartUsage" | "PartDefinition" => "part",
+        "ItemUsage" | "ItemDefinition" => "item",
+        "PortUsage" | "PortDefinition" => "port",
+        "OccurrenceUsage" | "OccurrenceDefinition" | "EventOccurrenceUsage" => "occurrence",
+        _ => "",
+    }
+}
+
 /// The name an unnamed feature takes from the feature it redefines or
 /// references: the last segment of that name or chain.
 fn implicit_name(node: &Node) -> Option<&str> {
@@ -98,13 +127,26 @@ pub struct Scope<'n> {
     root_imports: Vec<Imported>,
     /// Indexes of the top-level elements.
     roots: Vec<usize>,
+    /// Elements from this index on are the standard library's.
+    library_start: usize,
+    /// The library type each kind of element implicitly specializes
+    /// (`Actions::Action` for an action), by kind.
+    implicit_generals: HashMap<&'static str, usize>,
     /// The generals of each element, once resolved (a cycle resolves to nothing).
     generals_cache: RefCell<HashMap<usize, Vec<usize>>>,
 }
 
 impl<'n> Scope<'n> {
-    pub fn new(roots: &'n [Node]) -> Self {
-        let flat = flatten(roots);
+    /// The scope of a text, its names resolving against the text, then
+    /// against `library` (the standard library), flattened after it.
+    pub fn new(roots: &'n [Node], library: &'n [Node]) -> Self {
+        let mut flat = flatten(roots);
+        let library_start = flat.len();
+        flat.extend(flatten(library).into_iter().map(|mut f| {
+            f.owner = f.owner.map(|o| o + library_start);
+            f.children = f.children.iter().map(|c| c + library_start).collect();
+            f
+        }));
         let n = flat.len();
         let mut members: Vec<HashMap<String, usize>> = vec![HashMap::new(); n];
         let root_indexes: Vec<usize> = flat.iter().enumerate().filter(|(_, f)| f.owner.is_none()).map(|(i, _)| i).collect();
@@ -122,7 +164,7 @@ impl<'n> Scope<'n> {
                 members[owner].entry(name.to_string()).or_insert(index);
             }
         }
-        let mut scope = Scope { flat, members, imports: vec![Vec::new(); n], root_imports: Vec::new(), roots: root_indexes, generals_cache: RefCell::new(HashMap::new()) };
+        let mut scope = Scope { flat, members, imports: vec![Vec::new(); n], root_imports: Vec::new(), roots: root_indexes, library_start, implicit_generals: HashMap::new(), generals_cache: RefCell::new(HashMap::new()) };
         // Imports: resolved outward from the importing namespace, first
         // without imports, then through the imports resolved so far.
         let mut pending: Vec<(usize, Option<usize>)> = scope.flat.iter().enumerate().filter(|(_, f)| matches!(f.node.detail, Detail::Import { .. })).map(|(i, f)| (i, f.owner)).collect();
@@ -133,6 +175,7 @@ impl<'n> Scope<'n> {
                 break;
             }
         }
+        scope.implicit_generals = scope.implicit_general_indexes();
         // Aliases: another name for a member.
         let aliases: Vec<(usize, Vec<String>, QualifiedName)> = scope
             .flat
@@ -176,6 +219,16 @@ impl<'n> Scope<'n> {
         list.push(imported);
         list.extend(under);
         true
+    }
+
+    /// Whether an element is the standard library's.
+    pub fn is_library(&self, index: usize) -> bool {
+        index >= self.library_start
+    }
+
+    /// How many elements the text itself has (the library's come after).
+    pub fn text_len(&self) -> usize {
+        self.library_start
     }
 
     pub fn len(&self) -> usize {
@@ -326,8 +379,29 @@ impl<'n> Scope<'n> {
                 }
             }
         }
+        // What every element of its kind specializes, last.
+        if let Some(&implicit) = self.implicit_generals.get(implicit_kind(node.kind)) {
+            if implicit != index && !out.contains(&implicit) {
+                out.push(implicit);
+            }
+        }
         self.generals_cache.borrow_mut().insert(index, out.clone());
         out
+    }
+
+    /// The library types of [`IMPLICIT_GENERALS`] found in the scope.
+    fn implicit_general_indexes(&self) -> HashMap<&'static str, usize> {
+        IMPLICIT_GENERALS
+            .iter()
+            .filter_map(|(kind, path)| {
+                let mut segments = path.split("::");
+                let mut found = self.root_member(segments.next()?)?;
+                for segment in segments {
+                    found = *self.members[found].get(segment)?;
+                }
+                Some((*kind, found))
+            })
+            .collect()
     }
 
     /// The feature a redefinition `:>> name` of `index` redefines: a member

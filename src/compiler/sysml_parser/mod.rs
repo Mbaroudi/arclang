@@ -4,18 +4,31 @@
 //! API records that `sysml_import` reads like any other listing.
 
 pub mod lexer;
+pub mod library;
 mod parser;
 mod records;
 mod records_expr;
 mod scope;
 pub mod syntax;
 
-pub use parser::parse;
+pub use parser::{parse, parse_kerml, parse_target};
 pub use records::Built;
 
 /// Parse a text and render it as API records.
 pub fn records(text: &str) -> Result<Built, String> {
     let roots = parse(text)?;
+    Ok(records::build(&roots))
+}
+
+/// Parse the files of one model (`name`, text) and render them together:
+/// names resolve across files, as a SysML tool loads a project. A `.kerml`
+/// file is read as KerML.
+pub fn records_of_files(files: &[(&str, &str)]) -> Result<Built, String> {
+    let mut roots = Vec::new();
+    for (name, text) in files {
+        let parsed = if name.to_ascii_lowercase().ends_with(".kerml") { parse_kerml(text) } else { parse(text) };
+        roots.extend(parsed.map_err(|e| if name.is_empty() { e } else { format!("{name}: {e}") })?);
+    }
     Ok(records::build(&roots))
 }
 
@@ -115,5 +128,25 @@ mod tests {
         let built = records(&text).unwrap_or_else(|e| panic!("{e}"));
         assert!(started.elapsed().as_secs() < 2, "took {:?}", started.elapsed());
         assert_eq!(built.unresolved, vec!["FeatureTyping 'P0::Nowhere' designates nothing known".to_string()]);
+    }
+
+    #[test]
+    fn the_files_of_one_model_resolve_against_each_other() {
+        let definitions = "package Definitions { part def Wheel; }";
+        let usages = "package Usages { private import Definitions::*; part w : Wheel; }";
+        let built = records_of_files(&[("Usages.sysml", usages), ("Definitions.sysml", definitions)]).unwrap();
+        assert_eq!(built.unresolved, Vec::<String>::new());
+        let error = records_of_files(&[("Bad.sysml", "package {")]).err().unwrap();
+        assert!(error.starts_with("Bad.sysml: "), "{error}");
+    }
+
+    #[test]
+    fn library_elements_referred_to_have_distinct_ids() {
+        let text = "package M { private import ScalarValues::*; part p { attribute a : Real; attribute b : Integer; attribute c : Boolean; } }";
+        let built = records(text).unwrap();
+        let stubs: Vec<&serde_json::Value> = built.records.iter().filter(|r| r["isLibraryElement"] == true).collect();
+        let ids: std::collections::HashSet<&str> = stubs.iter().filter_map(|r| r["@id"].as_str()).collect();
+        assert!(stubs.len() >= 3, "{stubs:?}");
+        assert_eq!(ids.len(), stubs.len(), "{stubs:?}");
     }
 }

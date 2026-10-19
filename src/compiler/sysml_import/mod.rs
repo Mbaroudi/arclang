@@ -32,9 +32,13 @@ impl From<String> for ImportFailure {
     }
 }
 
-/// Import a `.json` listing of SysML v2 API records, or a `.sysml` text of
-/// the dialect ArcLang exports.
+/// Import a `.json` listing of SysML v2 API records, a `.sysml` or
+/// `.kerml` text, or a directory: the `.sysml` and `.kerml` files under it,
+/// one model.
 pub fn import_file(path: &Path) -> Result<Imported, ImportFailure> {
+    if path.is_dir() {
+        return import_directory(path);
+    }
     let text = std::fs::read_to_string(path).map_err(|e| format!("cannot read {}: {e}", path.display()))?;
     let is_text = path.extension().is_some_and(|e| e.eq_ignore_ascii_case("sysml") || e.eq_ignore_ascii_case("kerml"));
     if is_text {
@@ -44,10 +48,49 @@ pub fn import_file(path: &Path) -> Result<Imported, ImportFailure> {
     }
 }
 
+/// The `.sysml` and `.kerml` files under a directory, in name order, as one model.
+/// A directory that cannot be read fails the import: a part of the model
+/// would be missing. Links to directories are not followed.
+fn import_directory(dir: &Path) -> Result<Imported, ImportFailure> {
+    fn walk(dir: &Path, out: &mut Vec<std::path::PathBuf>) -> Result<(), String> {
+        let entries = std::fs::read_dir(dir).map_err(|e| format!("cannot read {}: {e}", dir.display()))?;
+        for entry in entries {
+            let entry = entry.map_err(|e| format!("cannot read {}: {e}", dir.display()))?;
+            let path = entry.path();
+            let kind = entry.file_type().map_err(|e| format!("cannot read {}: {e}", path.display()))?;
+            if kind.is_dir() {
+                walk(&path, out)?;
+            } else if path.extension().is_some_and(|e| e.eq_ignore_ascii_case("sysml") || e.eq_ignore_ascii_case("kerml")) {
+                out.push(path);
+            }
+        }
+        Ok(())
+    }
+    let mut paths = Vec::new();
+    walk(dir, &mut paths)?;
+    paths.sort();
+    if paths.is_empty() {
+        return Err(format!("no .sysml or .kerml file under {}", dir.display()).into());
+    }
+    let mut files = Vec::new();
+    for path in &paths {
+        let text = std::fs::read_to_string(path).map_err(|e| format!("cannot read {}: {e}", path.display()))?;
+        let name = path.strip_prefix(dir).unwrap_or(path).display().to_string();
+        files.push((name, text));
+    }
+    let borrowed: Vec<(&str, &str)> = files.iter().map(|(n, t)| (n.as_str(), t.as_str())).collect();
+    import_files(&borrowed)
+}
+
 /// Import SysML v2 textual notation, read by the complete parser
 /// (`sysml_parser`): any KerML / SysML v2 text.
 pub fn import_text(text: &str) -> Result<Imported, ImportFailure> {
-    let built = crate::compiler::sysml_parser::records(text).map_err(|e| format!("SysML text not read: {e}"))?;
+    import_files(&[("", text)])
+}
+
+/// Import the files of one model (`name`, text): names resolve across them.
+pub fn import_files(files: &[(&str, &str)]) -> Result<Imported, ImportFailure> {
+    let built = crate::compiler::sysml_parser::records_of_files(files).map_err(|e| format!("SysML text not read: {e}"))?;
     let mut imported = import_records(&built.records)?;
     let unresolved = built.unresolved.len();
     if unresolved > 0 {
