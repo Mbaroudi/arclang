@@ -104,7 +104,14 @@ impl Document {
         let matches: Vec<Block> = self
             .blocks()
             .into_iter()
-            .filter(|block| self.header(block).first().is_some_and(|first| first.text == keyword))
+            .filter(|block| {
+                let header = self.header(block);
+                let first = header.first().map(|lexeme| lexeme.text.as_str());
+                let second = header.get(1).map(|lexeme| lexeme.text.as_str());
+                // `logical_architecture` is also written `architecture logical`.
+                first == Some(keyword)
+                    || matches!((keyword, first, second), ("logical_architecture", Some("architecture"), Some("logical")) | ("physical_architecture", Some("architecture"), Some("physical")))
+            })
             .filter(|block| name.is_none() || self.header_name(block).as_deref() == name)
             .collect();
         match matches.len() {

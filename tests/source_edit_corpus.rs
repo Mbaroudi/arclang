@@ -5,21 +5,57 @@
 use arclang::compiler::ast::AttributeValue;
 use arclang::compiler::elements::{self, ElementGraph, ElementRecord};
 use arclang::compiler::source_edit::{confirm_effect, enumeration_values, set_attribute, EditError};
+use arclang::compiler::workbench::written_designator;
 use arclang::{Compiler, CompilerConfig};
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
 const MARK: &str = "edited by the corpus test";
 
-/// The text to write: a member of the enumeration when the metamodel types
-/// the attribute as one (another than the one written), else the marker.
-fn value_for(element: &ElementRecord, key: &str) -> String {
+/// The value to write: another member of the enumeration when the metamodel
+/// types the attribute as one, another element of the referenced kind for a
+/// reference, another declared kind for a threat; else the marker. A value
+/// the model could not hold says nothing about the editor.
+fn value_for(graph: &ElementGraph, element: &ElementRecord, key: &str) -> String {
     let current = element.attributes.get(key).and_then(AttributeValue::as_string).unwrap_or("");
-    let text = match enumeration_values(element.kind, key) {
-        Some(members) => members.iter().copied().find(|member| !member.eq_ignore_ascii_case(current)).unwrap_or(MARK),
-        None => MARK,
-    };
-    format!("\"{text}\"")
+    if let Some(members) = enumeration_values(&element.kind, key) {
+        return format!("\"{}\"", members.iter().copied().find(|member| !member.eq_ignore_ascii_case(current)).unwrap_or(MARK));
+    }
+    if let Some(target) = reference_kind(&element.kind, key) {
+        // Another element like the one referenced now (same kind, same owner,
+        // so the same level), else another of the kind the metamodel names.
+        let now = graph.elements.iter().find(|e| e.id == current || e.name == current);
+        let like_now = now.and_then(|now| graph.elements.iter().find(|e| e.kind == now.kind && e.owner == now.owner && e.uuid != now.uuid && e.uuid != element.uuid));
+        let of_kind = || graph.elements.iter().find(|e| e.kind == target && e.id != current && e.name != current);
+        if let Some(other) = like_now.or_else(of_kind) {
+            return format!("\"{}\"", other.id);
+        }
+        // The only candidate: the same element, designated the other way.
+        if let Some(same) = graph.elements.iter().find(|e| e.kind == target && (e.id == current || e.name == current)) {
+            let other_way = if same.id == current { &same.name } else { &same.id };
+            if other_way != current {
+                return format!("\"{other_way}\"");
+            }
+        }
+    }
+    if element.kind == "Threat" && key == "kind" {
+        let kinds: Vec<&str> = graph.elements.iter().filter(|e| e.kind == "Threat").filter_map(|e| e.attributes.get("kind").and_then(AttributeValue::as_string)).collect();
+        if let Some(other) = kinds.into_iter().find(|kind| *kind != current) {
+            return format!("\"{other}\"");
+        }
+    }
+    format!("\"{MARK}\"")
+}
+
+/// The kind a reference attribute points to, from the metamodel.
+fn reference_kind(kind: &str, key: &str) -> Option<&'static str> {
+    use arclang::compiler::metamodel::{AttrType, Metamodel};
+    let metamodel = Metamodel::current();
+    let spec = metamodel.kind(kind)?.attributes.iter().find(|attribute| attribute.key == key)?;
+    match spec.ty {
+        AttrType::Reference(target) => Some(target),
+        _ => None,
+    }
 }
 
 fn arc_files(dir: &Path, files: &mut Vec<PathBuf>) {
@@ -106,9 +142,12 @@ fn accepted_edits_change_exactly_the_requested_attribute() {
                 if !is_text || key == "id" || key == "name" || key == "is" {
                     continue;
                 }
-                let value = value_for(element, key);
+                let value = value_for(&before, element, key);
                 // An element that writes no `id` is designated by its name.
-                let attempt = match set_attribute(&source, &element.id, key, &value) {
+                // A name another layer also uses is designated inside its layer.
+                // The element as the text knows it, the way `arclang edit` designates it.
+                let designator = written_designator(&before, &source, &element.id);
+                let attempt = match set_attribute(&source, &designator, key, &value) {
                     Err(EditError::NotFound(_)) => set_attribute(&source, &element.name, key, &value),
                     other => other,
                 };
@@ -138,10 +177,6 @@ fn accepted_edits_change_exactly_the_requested_attribute() {
     let applied = outcomes.get("applied").copied().unwrap_or(0);
     let total: usize = outcomes.values().sum();
     assert!(total >= 1000, "too few attributes to mean anything: {outcomes:?}");
-    // The README states this share. The remainder is the editor refusing what
-    // it cannot do yet (`req "ID" "Title"` titles, `test_case.method` values,
-    // class fields shared by several classes, ports of the same name on two
-    // components) or declining to pretend ("no effect"); the examples of the
-    // 4.3 corpus exercise all of these.
-    assert!(applied * 10 >= total * 9, "under 90% of edits applied: {outcomes:?}");
+    // The README states this: every text attribute of every example edits.
+    assert_eq!(applied, total, "not every edit applied: {outcomes:?}");
 }

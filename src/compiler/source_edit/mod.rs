@@ -145,6 +145,24 @@ impl std::error::Error for EditError {}
 /// are rewritten there: the title of `req "ID" "Title"` (`title`, or `name`,
 /// which reads the same) and the direction of `port in "Name"` (`direction`).
 /// A port declared without a block (`port in "Name"`) is given one.
+/// The keyword of the layer block an element of `kind` is declared in
+/// (`operational_analysis`, `system_analysis`, `logical_architecture`,
+/// `physical_architecture`, `epbs`), from the metamodel; None for the kinds
+/// that live outside the layers. `keyword::Name` designates an element
+/// whose name another layer also uses.
+pub fn layer_keyword_of_kind(kind: &str) -> Option<&'static str> {
+    let metamodel = crate::compiler::metamodel::Metamodel::current();
+    let layer = metamodel.kinds.iter().find(|k| k.name == kind).map(|k| format!("{:?}", k.layer))?;
+    match layer.as_str() {
+        "Operational" => Some("operational_analysis"),
+        "System" => Some("system_analysis"),
+        "Logical" => Some("logical_architecture"),
+        "Physical" => Some("physical_architecture"),
+        "Epbs" => Some("epbs"),
+        _ => None,
+    }
+}
+
 pub fn set_attribute(source: &str, element: &str, key: &str, value: &str) -> Result<String, EditError> {
     let value = value.trim();
     check_key(key)?;
@@ -504,7 +522,14 @@ impl Document {
     /// `trace "A" satisfies "B" { }` links two elements; it is not one, and
     /// the names on its line are those of its ends.
     fn is_relationship(&self, block: &Block) -> bool {
-        matches!(self.header(block).first().and_then(token), Some(Token::Trace | Token::Transition | Token::Message))
+        let header = self.header(block);
+        if matches!(header.first().and_then(token), Some(Token::Trace | Token::Transition | Token::Message)) {
+            return true;
+        }
+        // `connection "A" -> "B"`, `deployment "C" -> "N"`: the strings are the
+        // ends, not a name. A link names itself before its arrow.
+        let names_itself = header.first().is_some_and(|first| first.text == "physical_link" || first.text == "link");
+        !names_itself && header.iter().any(|lexeme| matches!(token(lexeme), Some(Token::Arrow)))
     }
 
     /// The name in a block's header: its first string, else its last word.

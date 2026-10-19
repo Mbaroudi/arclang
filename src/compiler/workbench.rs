@@ -346,16 +346,26 @@ pub fn identities(graph: &ElementGraph) -> Vec<String> {
 /// The designator the text knows for an element: its written id or its name.
 /// An id the compiler derived from the name (nothing in the text spells it)
 /// is translated to the name; anything else is kept as written.
-fn written_designator(graph: &ElementGraph, source: &str, designator: &str) -> String {
-    if appears_as_token(source, designator) || graph.elements.iter().any(|e| e.name == designator) {
+pub fn written_designator(graph: &ElementGraph, source: &str, designator: &str) -> String {
+    if appears_as_token(source, designator) || graph.elements.iter().any(|e| e.name == designator && e.id == designator) {
         return designator.to_string();
     }
-    graph
-        .elements
-        .iter()
-        .find(|e| e.id == designator)
-        .map(|e| e.name.clone())
-        .unwrap_or_else(|| designator.to_string())
+    let Some(element) = graph.elements.iter().find(|e| e.id == designator) else {
+        return designator.to_string();
+    };
+    // A port `Owner.port` whose owner writes no id: the owner as the text knows it.
+    if let Some((owner, port)) = designator.rsplit_once('.') {
+        if graph.elements.iter().any(|e| e.id == owner) && !appears_as_token(source, owner) {
+            return format!("{}.{port}", written_designator(graph, source, owner));
+        }
+    }
+    // A name another element also carries (the same actor in two layers) is
+    // designated inside its layer block.
+    let shared = graph.elements.iter().filter(|e| e.name == element.name).count() > 1;
+    match (shared, source_edit::layer_keyword_of_kind(&element.kind)) {
+        (true, Some(layer)) => format!("{layer}::{}", element.name),
+        _ => element.name.clone(),
+    }
 }
 
 /// Whether `token` occurs in `text` as a whole identifier (not inside a
@@ -560,6 +570,25 @@ requirements system {
         let removed = parse(edit(MODEL, r#"{"op":"remove","element":"LC-Sensor"}"#));
         assert_eq!(removed["success"], true, "{removed}");
         assert!(!removed["source"].as_str().unwrap().contains("Sensor"));
+    }
+
+    #[test]
+    fn a_name_two_layers_share_an_arrow_header_and_a_port_of_an_id_less_owner_all_edit() {
+        // The same actor in two layers, both without id: the derived ids pick the layer.
+        let model = "model T { name: \"t\" }\noperational_analysis \"OA\" {\n    actor \"Driver\" {}\n}\nsystem_analysis \"SA\" {\n    actor \"Driver\" {}\n    function \"Sense\" {\n        port out lane { data_type: \"Lane\" }\n    }\n    function \"Plan\" {\n        port in lane { data_type: \"Lane\" }\n    }\n    functional_exchange \"Sense.lane\" -> \"Plan.lane\" { label: \"lane\" }\n}\n";
+        let snapshot = parse(compile(model));
+        let ids: Vec<String> = snapshot["elements"]["elements"].as_array().unwrap().iter().filter(|e| e["name"] == "Driver").map(|e| e["id"].as_str().unwrap().to_string()).collect();
+        assert_eq!(ids.len(), 2, "{ids:?}");
+        for id in &ids {
+            let edited = parse(edit(model, &format!(r#"{{"op":"set","element":"{id}","key":"description","value":"\"for {id}\""}}"#)));
+            assert_eq!(edited["success"], true, "{id}: {edited}");
+            assert_eq!(edited["source"].as_str().unwrap().matches(&format!("for {id}")).count(), 1);
+        }
+        // `Sense.lane` is the port, not the exchange whose header spells it.
+        let port = snapshot["elements"]["elements"].as_array().unwrap().iter().find(|e| e["kind"] == "FunctionPort" && e["id"].as_str().unwrap().ends_with(".lane") && e["id"].as_str().unwrap().contains("Sense")).expect("the port")["id"].as_str().unwrap().to_string();
+        let edited = parse(edit(model, &format!(r#"{{"op":"set","element":"{port}","key":"data_type","value":"\"LaneModel\""}}"#)));
+        assert_eq!(edited["success"], true, "{edited}");
+        assert!(edited["source"].as_str().unwrap().contains("port out lane { data_type: \"LaneModel\" }"), "{}", edited["source"]);
     }
 
     #[test]
