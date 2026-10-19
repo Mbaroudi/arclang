@@ -383,3 +383,10 @@ button.wb-icon-button[aria-pressed='true'] { background: var(--vscode-inputOptio
 
 /* Full screen inside the editor: the canvas alone, the layer bar kept. */
 body.wb-focus .wb-left, body.wb-focus .wb-right, body.wb-focus .wb-splitter, body.wb-focus .wb-bottom { display: none !important; }
+
+/* Direct edit over a box, find in the diagram */
+.wb-direct-edit { position: absolute; z-index: 7; font: inherit; font-weight: 600; padding: 2px 6px; color: var(--vscode-input-foreground); background: var(--vscode-input-background); border: 1px solid var(--vscode-focusBorder); border-radius: 2px; box-shadow: 0 2px 6px rgba(0,0,0,.25); }
+.wb-find { position: absolute; top: 8px; right: 12px; z-index: 6; display: flex; align-items: center; gap: 6px; padding: 4px 6px; background: var(--vscode-editorWidget-background, var(--vscode-editor-background)); border: 1px solid var(--vscode-editorWidget-border, var(--vscode-panel-border, #8884)); border-radius: 3px; box-shadow: 0 2px 8px rgba(0,0,0,.25); }
+.wb-find input { font: inherit; width: 200px; height: 22px; padding: 0 6px; color: var(--vscode-input-foreground); background: var(--vscode-input-background); border: 1px solid var(--vscode-input-border, transparent); }
+.wb-find-count { font-size: 12px; color: var(--vscode-descriptionForeground); min-width: 60px; }
+#workbench .arcviz .wb-find-hit > rect:first-of-type, #workbench .arcviz .wb-find-hit > path:first-of-type { stroke: var(--vscode-editor-findMatchBorder, #e8a33d) !important; stroke-width: 3px !important; }

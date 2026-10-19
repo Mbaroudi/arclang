@@ -2,7 +2,7 @@
 // row with the palette rail, the canvas and the properties drawer, then one
 // status line. Everything shown comes from the last snapshot the host sent;
 // every change goes back to the host as `arclang edit` requests.
-import { connectTargetKinds, connectToolFor, EditRequest, VIEWPOINTS, ElementRecord, Finding, graphContainerOf, lifelineElement, Metamodel, Snapshot, ToWebview } from '../src/pure/workbench';
+import { connectTargetKinds, connectToolFor, EditRequest, namedDiagramOf, neighbours, showsLiteral, topLevelIds, VIEWPOINTS, ElementRecord, Finding, graphContainerOf, lifelineElement, Metamodel, Snapshot, ToWebview } from '../src/pure/workbench';
 import { SemanticBrowser } from './browser';
 import { button, clear, el } from './dom';
 import type { ViewerApi, ViewerPosition, ViewerSelection } from './globals';
@@ -176,6 +176,7 @@ const properties = new Properties(propertiesPane, {
   submit,
   reveal: (id) => vscode.postMessage({ type: 'reveal', id }),
   ask: (element) => vscode.postMessage({ type: 'ask', id: element.id, name: element.name, kind: element.kind }),
+  diagram: (op, element) => (op === 'hide' ? hideFromDiagram(element) : op === 'related' ? showRelated(element) : newDiagramAround(element)),
 });
 const browser = new SemanticBrowser(browserPane, (element) => selectElement(element, true));
 setPalette(state.layout.paletteOpen);
@@ -245,7 +246,13 @@ function elementFor(selection: ViewerSelection | null): ElementRecord | null {
   }
   // An edge is drawn for a relationship (`ce:LaneFlow`): the model lists it by name.
   const bare = selection.id.replace(/^[a-z]+:/, '');
-  return state.byName.get(bare) ?? state.byId.get(bare) ?? null;
+  const named = state.byName.get(bare) ?? state.byId.get(bare);
+  if (named) return named;
+  if (!selection.isEdge) return null;
+  // Exchanges, links and traces are relationships: selectable by their name.
+  const relationship = (state.snapshot.elements.relationships ?? []).find((r) => r.name === bare || r.name === selection.name);
+  if (!relationship) return null;
+  return { uuid: relationship.uuid, id: relationship.name, kind: relationship.kind, name: relationship.name, owner: null, attributes: {} };
 }
 
 function selectElement(element: ElementRecord | null, inViewer: boolean): void {
@@ -253,10 +260,24 @@ function selectElement(element: ElementRecord | null, inViewer: boolean): void {
   properties.show(element, state.metamodel);
   browser.show(element, state.snapshot);
   vscode.postMessage({ type: 'selected', id: element?.id ?? null, kind: element?.kind, name: element?.name });
-  if (inViewer && element && state.viewer?.select) state.viewer.select(drawingId(element.id));
+  if (inViewer && element) selectInViewer(element.id);
+}
+
+/** A selection the page asks of the viewer: its empty answer while the drawing settles is not the reader's. */
+let programmaticUntil = 0;
+
+// The reader's own clicks and keys always count.
+host.addEventListener('pointerdown', () => (programmaticUntil = 0), true);
+host.addEventListener('keydown', () => (programmaticUntil = 0), true);
+
+function selectInViewer(id: string): void {
+  programmaticUntil = Date.now() + 2000;
+  state.viewer?.select?.(drawingId(id));
 }
 
 function onSelect(selection: ViewerSelection | null): void {
+  if (selection === null && Date.now() < programmaticUntil && state.selected) return;
+  programmaticUntil = 0;
   const element = elementFor(selection);
   // A connect tool takes the click as one of its ends.
   if (palette.pick(element ? { id: element.id, kind: element.kind } : null)) return;
@@ -274,6 +295,154 @@ function onDrop(dragged: string, target: string | null): void {
 function countNodes(nodes: NonNullable<ReturnType<typeof currentGraph>>['children'] & unknown[]): number {
   return nodes.reduce((sum, node) => sum + 1 + countNodes(node.children ?? []), 0);
 }
+
+// --- Diagram contents (Capella's Insert/Remove, SysON's Manage visibility) ---
+
+/** Hide an element from the diagram on screen: out of a named diagram's `shows:`, or a new named diagram without it. */
+function hideFromDiagram(element: ElementRecord): void {
+  const graph = currentGraph();
+  if (!graph) return;
+  const drawnAtTop = topLevelIds(graph).map((id) => elementFor({ view: '', id, name: '', kind: '', isEdge: false })?.id).filter((id): id is string => !!id);
+  if (!drawnAtTop.includes(element.id)) {
+    showToast(`${element.name || element.id} is drawn inside another box: hide that box, or open it as a diagram.`, 'info');
+    return;
+  }
+  const rest = drawnAtTop.filter((id) => id !== element.id);
+  const named = namedDiagramOf(graph.id, graph.arc.view);
+  if (named) {
+    submit([{ op: 'set', element: named, key: 'shows', value: showsLiteral(rest) }], `hide ${element.id} from ${named}`);
+    return;
+  }
+  const name = uniqueDiagramName(`${graph.arc.title} (custom)`);
+  pendingView = `${graph.arc.view}:${name}`;
+  submit([{ op: 'add_raw', declaration: `diagram ${JSON.stringify(name)} {\n  view: ${graph.arc.view}\n  shows: ${showsLiteral(rest)}\n}`, top_level: true }], `new diagram ${name} without ${element.id}`);
+}
+
+/** Add what an element is connected to into the named diagram on screen (or a new one). */
+function showRelated(element: ElementRecord): void {
+  const graph = currentGraph();
+  if (!graph || !state.snapshot) return;
+  const around = neighbours(element, state.snapshot);
+  const related = [...around.incoming, ...around.outgoing].map((n) => n.other?.id).filter((id): id is string => !!id);
+  const named = namedDiagramOf(graph.id, graph.arc.view);
+  const current = named ? topLevelIds(graph).map((id) => elementFor({ view: '', id, name: '', kind: '', isEdge: false })?.id).filter((id): id is string => !!id) : [];
+  const shows = [...new Set([...current, element.id, ...related])];
+  if (named) {
+    if (shows.length === current.length) return showToast('Everything connected to it is already on this diagram.', 'info');
+    submit([{ op: 'set', element: named, key: 'shows', value: showsLiteral(shows) }], `show what ${element.id} is connected to`);
+    return;
+  }
+  newDiagramAround(element);
+}
+
+/** A new named diagram with the element and what it is connected to (Capella's contextual diagram). */
+function newDiagramAround(element: ElementRecord): void {
+  const graph = currentGraph();
+  if (!graph || !state.snapshot) return;
+  const around = neighbours(element, state.snapshot);
+  const related = [...around.incoming, ...around.outgoing].map((n) => n.other?.id).filter((id): id is string => !!id);
+  const view = ['oab', 'sab', 'lab', 'pab', 'cap', 'cdb'].includes(graph.arc.view) ? graph.arc.view : 'lab';
+  const name = uniqueDiagramName(`${element.name || element.id} context`);
+  pendingView = `${view}:${name}`;
+  submit([{ op: 'add_raw', declaration: `diagram ${JSON.stringify(name)} {\n  view: ${view}\n  shows: ${showsLiteral([...new Set([element.id, ...related])])}\n  context: true\n}`, top_level: true }], `new diagram ${name}`);
+}
+
+function uniqueDiagramName(base: string): string {
+  const taken = new Set((state.snapshot?.diagrams?.graphs ?? []).map((g) => g.arc.title));
+  let name = base;
+  for (let n = 2; taken.has(name); n++) name = `${base} ${n}`;
+  return name;
+}
+
+/** The diagram to show once the snapshot that creates it arrives. */
+let pendingView: string | null = null;
+
+// --- Direct edit and find -----------------------------------------------------
+
+/** F2 on the canvas: the name edited in place, over the box. */
+function renameInPlace(element: ElementRecord): void {
+  const node = host.querySelector<SVGGraphicsElement>(`[data-id="${CSS.escape(drawingId(element.id))}"]`);
+  if (!node) return properties.rename();
+  const box = node.getBoundingClientRect();
+  const frame = sheet.getBoundingClientRect();
+  const input = el('input', { type: 'text', class: 'wb-direct-edit', value: element.name || element.id, 'aria-label': `Rename ${element.id}` });
+  input.style.left = `${box.left - frame.left}px`;
+  input.style.top = `${box.top - frame.top + 4}px`;
+  input.style.width = `${Math.max(140, box.width)}px`;
+  sheet.appendChild(input);
+  input.focus();
+  input.select();
+  let done = false;
+  const finish = (commit: boolean) => {
+    if (done) return;
+    done = true;
+    const value = input.value.trim();
+    input.remove();
+    if (commit && value && value !== element.name) submit([{ op: 'rename', element: element.id, name: value }], `rename to ${value}`);
+  };
+  input.addEventListener('keydown', (event) => {
+    event.stopPropagation();
+    if (event.key === 'Enter') finish(true);
+    if (event.key === 'Escape') finish(false);
+  });
+  input.addEventListener('blur', () => finish(true));
+}
+
+const findBox = el('div', { class: 'wb-find', hidden: true, role: 'search' });
+const findInput = el('input', { type: 'text', placeholder: 'Find in this diagram', 'aria-label': 'Find in this diagram' });
+const findCount = el('span', { class: 'wb-find-count' });
+findBox.append(findInput, findCount, button('✕', () => closeFind(), { class: 'wb-icon-button', title: 'Close (Esc)' }));
+sheet.appendChild(findBox);
+let findAt = 0;
+
+function openFind(): void {
+  findBox.hidden = false;
+  findInput.focus();
+  findInput.select();
+}
+
+function closeFind(): void {
+  findBox.hidden = true;
+  for (const node of host.querySelectorAll('.wb-find-hit')) node.classList.remove('wb-find-hit');
+}
+
+function runFind(step: number): void {
+  const query = findInput.value.trim().toLowerCase();
+  for (const node of host.querySelectorAll('.wb-find-hit')) node.classList.remove('wb-find-hit');
+  if (!query) {
+    findCount.textContent = '';
+    return;
+  }
+  const graph = currentGraph();
+  const hits: string[] = [];
+  const walk = (nodes: NonNullable<NonNullable<ReturnType<typeof currentGraph>>['children']>) => {
+    for (const node of nodes) {
+      const element = elementFor({ view: '', id: node.id, name: '', kind: '', isEdge: false });
+      const label = `${element?.name ?? ''} ${element?.id ?? node.id}`.toLowerCase();
+      if (label.includes(query)) hits.push(node.id);
+      walk(node.children ?? []);
+    }
+  };
+  walk(graph?.children ?? []);
+  findAt = hits.length ? (findAt + step + hits.length) % hits.length : 0;
+  findCount.textContent = hits.length ? `${findAt + 1} of ${hits.length}` : 'no match';
+  for (const id of hits) host.querySelector(`[data-id="${CSS.escape(id)}"]`)?.classList.add('wb-find-hit');
+  const target = hits[findAt];
+  if (target) {
+    state.viewer?.select?.(target);
+    const element = elementFor({ view: '', id: target, name: '', kind: '', isEdge: false });
+    if (element) selectElement(element, false);
+  }
+}
+findInput.addEventListener('input', () => {
+  findAt = 0;
+  runFind(0);
+});
+findInput.addEventListener('keydown', (event) => {
+  event.stopPropagation();
+  if (event.key === 'Enter') runFind(event.shiftKey ? -1 : 1);
+  if (event.key === 'Escape') closeFind();
+});
 
 /** Exports go to the host, which asks where to save them (a webview cannot download). */
 function onDownload(blob: Blob, filename: string): void {
@@ -306,6 +475,8 @@ function connectTargets(fromId: string): string[] | null {
   const from = elementFor({ view: '', id: fromId, name: '', kind: '', isEdge: false });
   const graph = currentGraph();
   if (!from || !graph) return [];
+  // An armed Trace tool connects any two elements.
+  if (palette.armedConnectTool()?.connect === 'trace') return null;
   const kinds = connectTargetKinds(graph.arc.view, from.kind);
   if (kinds === null) return null;
   const wanted = new Set(kinds);
@@ -381,6 +552,8 @@ function mount(snapshot: Snapshot): void {
     place: window.ArcVizPlace,
   };
   progress.hidden = false;
+  remounting = true;
+  const generation = ++mountGeneration;
   // Past three seconds (NN/g's limit of attention), the page says what it is doing.
   const graphs = snapshot.diagrams.graphs;
   const boxes = graphs.reduce((sum, g) => sum + countNodes(g.children ?? []), 0);
@@ -401,6 +574,8 @@ function mount(snapshot: Snapshot): void {
   state.viewer = viewer;
   fitStage();
   void viewer.ready.then(() => {
+    // A later snapshot remounted the viewer meanwhile: that mount restores the view.
+    if (generation !== mountGeneration) return;
     tagContexts();
     markFindings();
     if (previous?.view && viewer.show) {
@@ -408,7 +583,8 @@ function mount(snapshot: Snapshot): void {
       if (known) viewer.show(previous.view);
     }
     if (previous?.position && viewer.restore) viewer.restore(previous.position);
-    if (state.selected && viewer.select) viewer.select(drawingId(state.selected.id));
+    if (state.selected) selectInViewer(state.selected.id);
+    remounting = false;
     shownGraph = null;
     followView();
     fitStage();
@@ -510,12 +686,15 @@ function stepLayer(step: number): void {
 }
 
 let shownGraph: string | null = null;
+/** While the viewer is remounted on a new snapshot, the view on screen is not the reader's yet. */
+let remounting = false;
+let mountGeneration = 0;
 
 /** What follows the view on screen: the palette, and a selection that is not drawn there. */
 function followView(): void {
   const graph = currentGraph();
   const key = graph ? graph.id : null;
-  if (key === shownGraph) return;
+  if (remounting || key === shownGraph) return;
   shownGraph = key;
   renderLayers();
   palette.show(graph?.arc.view ?? '', graph ? graphContainerOf(graph.id, graph.arc.view) : null);
@@ -618,6 +797,13 @@ window.addEventListener('message', (event: MessageEvent<ToWebview>) => {
         if (wanted) selectElement(wanted, true);
       }
       if (before && message.snapshot.success) flashChanges(before, message.snapshot);
+      if (pendingView && message.snapshot.success) {
+        const wanted = pendingView;
+        pendingView = null;
+        void state.viewer?.ready.then(() => {
+          if (state.viewer?.views?.().some((v) => v.id === wanted)) showGraph(wanted);
+        });
+      }
       return;
     }
     case 'select': {
@@ -628,6 +814,15 @@ window.addEventListener('message', (event: MessageEvent<ToWebview>) => {
     case 'layer':
       stepLayer(message.step);
       return;
+    case 'diagram-op': {
+      const element = state.byId.get(message.id) ?? null;
+      if (!element) return;
+      if (message.op === 'hide') hideFromDiagram(element);
+      if (message.op === 'related') showRelated(element);
+      if (message.op === 'new') newDiagramAround(element);
+      if (message.op === 'rename') renameInPlace(element);
+      return;
+    }
     case 'show': {
       const viewer = state.viewer;
       if (!viewer) return;
@@ -654,6 +849,21 @@ window.addEventListener('message', (event: MessageEvent<ToWebview>) => {
 
 /** Elements added or changed by the last edit pulse once, so the eye finds them. */
 function flashChanges(before: Snapshot, after: Snapshot): void {
+  // One element created: selected and brought to the middle, as Capella does.
+  const known = new Set((before.elements?.elements ?? []).map((e) => e.uuid));
+  const created = (after.elements?.elements ?? []).filter((e) => !known.has(e.uuid) && !/Port$/.test(e.kind));
+  if (created.length === 1) {
+    const element = created[0];
+    void state.viewer?.ready.then(() =>
+      setTimeout(() => {
+        const view = state.viewer?.current?.()?.view;
+        if (!view) return;
+        programmaticUntil = Date.now() + 2000;
+        void state.viewer?.goTo?.(view, drawingId(element.id));
+        selectElement(element, false);
+      }, 200),
+    );
+  }
   const old = new Map((before.elements?.elements ?? []).map((e) => [e.uuid, JSON.stringify(e.attributes) + e.name + e.owner]));
   const changed = (after.elements?.elements ?? []).filter((e) => old.get(e.uuid) !== JSON.stringify(e.attributes) + e.name + e.owner);
   if (changed.length === 0 || changed.length > 50) return;
@@ -687,9 +897,19 @@ document.addEventListener('keydown', (event) => {
     event.preventDefault();
     return;
   }
+  if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'f') {
+    event.preventDefault();
+    openFind();
+    return;
+  }
+  if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'h' && state.selected) {
+    event.preventDefault();
+    hideFromDiagram(state.selected);
+    return;
+  }
   if (event.key === 'F2' && state.selected) {
     event.preventDefault();
-    properties.rename();
+    renameInPlace(state.selected);
     return;
   }
   if ((event.key === 'Delete' || event.key === 'Backspace') && state.selected) {
@@ -697,7 +917,12 @@ document.addEventListener('keydown', (event) => {
     const element = state.selected;
     const owned = (state.snapshot?.elements?.elements ?? []).filter((e) => e.owner === element.uuid).length;
     if (owned > 0) {
-      showToast(`${element.name || element.id} owns ${owned} element${owned > 1 ? 's' : ''}: delete it from the Properties view.`, 'info');
+      showToast(`${element.name || element.id} owns ${owned} element${owned > 1 ? 's' : ''}.`, 'info', [
+        [`Delete with ${owned === 1 ? 'it' : `all ${owned}`}`, () => {
+          toast.hidden = true;
+          submit([{ op: 'remove', element: element.id }], `delete ${element.id} and what it owns`);
+        }],
+      ], 10000);
       return;
     }
     submit([{ op: 'remove', element: element.id }], `delete ${element.id}`);

@@ -137,6 +137,11 @@ export class WorkbenchPanel {
     this.post({ type: 'select', id });
   }
 
+  /** A diagram operation on an element, done by the page (hide, show related, new diagram, rename in place). */
+  diagramOp(op: 'hide' | 'related' | 'new' | 'rename', id: string): void {
+    this.post({ type: 'diagram-op', op, id });
+  }
+
   /** The next (+1) or previous (-1) Arcadia layer that has a diagram. */
   stepLayer(step: number): void {
     this.post({ type: 'layer', step });

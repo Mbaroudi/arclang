@@ -10,6 +10,7 @@ export interface PropertiesHost {
   submit: (requests: EditRequest[], label: string) => void;
   reveal: (id: string) => void;
   ask: (element: ElementRecord) => void;
+  diagram?: (op: 'hide' | 'related' | 'new', element: ElementRecord) => void;
 }
 
 const HIDDEN = new Set(['id', 'name']);
@@ -104,6 +105,14 @@ export class Properties {
       button('Ask @arclang', () => this.owner.ask(element)),
       button('Delete', () => this.remove(), { class: 'wb-danger', title: 'Delete the declaration (Undo takes it back)' }),
     ]);
+    if (this.owner.diagram) {
+      const diagram = this.owner.diagram;
+      actions.append(
+        button('Hide', () => diagram('hide', element), { title: 'Hide from this diagram (⌘H): out of a named diagram, or a new diagram without it' }),
+        button('Show related', () => diagram('related', element), { title: 'Add what it is connected to' }),
+        button('New diagram', () => diagram('new', element), { title: 'A new diagram with it and what it is connected to' }),
+      );
+    }
     return el('header', { class: 'wb-props-head' }, [
       el('div', { class: 'wb-props-title' }, [name, el('span', { class: 'wb-kind', text: humanise(element.kind.replace(/([a-z])([A-Z])/g, '$1 $2')), title: doc ?? '' })]),
       id,

@@ -68,8 +68,8 @@ export class Palette {
 
   /** Connect two ends with a tool (a drag between them): asks the name, submits the plan. */
   connectWith(tool: Tool, from: ConnectEnd, to: ConnectEnd): void {
-    const ask = tool.connect === 'transition' ? 'guard (optional)' : tool.connect === 'message' ? 'text of the message' : 'name of the exchange';
-    void inlinePrompt(this.owner.anchor(), `${tool.label} from ${from.id} to ${to.id}`, '', ask).then((name) => {
+    const ask = tool.connect === 'transition' ? 'guard (optional)' : tool.connect === 'message' ? 'text of the message' : tool.connect === 'trace' ? 'realizes, satisfies, implements, allocates, verifies, refines' : 'name of the exchange';
+    void inlinePrompt(this.owner.anchor(), `${tool.label} from ${from.id} to ${to.id}`, tool.connect === 'trace' ? 'realizes' : '', ask).then((name) => {
       if (name === null) return this.disarm();
       const plan = connectPlan(tool, from, to, name, this.view, this.graphContainer);
       if ('error' in plan) {
@@ -106,8 +106,8 @@ export class Palette {
     const from = this.firstEnd;
     const tool = this.armed;
     this.firstEnd = null;
-    const ask = tool.connect === 'transition' ? 'guard (optional)' : tool.connect === 'message' ? 'text of the message' : 'name of the exchange';
-    void inlinePrompt(this.owner.anchor(), `${tool.label}`, '', ask).then((name) => {
+    const ask = tool.connect === 'transition' ? 'guard (optional)' : tool.connect === 'message' ? 'text of the message' : tool.connect === 'trace' ? 'realizes, satisfies, implements, allocates, verifies, refines' : 'name of the exchange';
+    void inlinePrompt(this.owner.anchor(), `${tool.label}`, tool.connect === 'trace' ? 'realizes' : '', ask).then((name) => {
       if (name === null) return this.disarm();
       const plan = connectPlan(tool, from, end, name, this.view, this.graphContainer);
       if ('error' in plan) {
@@ -203,6 +203,7 @@ function glyphOf(tool: Tool): string {
     transition: '↷',
     message: '✉',
     association: '—',
+    trace: '⤳',
   };
   return glyphs[tool.id] ?? tool.label.slice(0, 1);
 }
