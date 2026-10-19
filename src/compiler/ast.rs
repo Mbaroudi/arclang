@@ -45,6 +45,9 @@ pub struct Model {
     /// Verification cases tracing to requirements (V&V).
     #[serde(default)]
     pub test_cases: Vec<TestCase>,
+    /// Product-line configurations: the variants each selects.
+    #[serde(default)]
+    pub configurations: Vec<Configuration>,
     /// Dimension-checked assertions over typed attributes.
     #[serde(default)]
     pub constraints: Vec<Constraint>,
@@ -93,6 +96,7 @@ impl Model {
             classes: Vec::new(),
             associations: Vec::new(),
             test_cases: Vec::new(),
+            configurations: Vec::new(),
             constraints: Vec::new(),
             types: Vec::new(),
             diagrams: Vec::new(),
@@ -125,6 +129,7 @@ impl Model {
         self.data_types.extend(other.data_types);
         self.classes.extend(other.classes);
         self.test_cases.extend(other.test_cases);
+        self.configurations.extend(other.configurations);
         self.constraints.extend(other.constraints);
         self.types.extend(other.types);
     }
@@ -1264,6 +1269,17 @@ pub struct TestCase {
     pub verifies: Vec<String>,
     /// Verification method: test | analysis | inspection | demonstration.
     pub method: String,
+    pub attributes: HashMap<String, AttributeValue>,
+}
+
+/// `configuration "City" { selects: ["LC-4CYL", "LC-MANUAL"] }`: one
+/// product of a product line, the variant it selects in each variation
+/// (a component `variation: true` holding components `variant: true`).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Configuration {
+    pub id: String,
+    pub name: String,
+    pub selects: Vec<String>,
     pub attributes: HashMap<String, AttributeValue>,
 }
 

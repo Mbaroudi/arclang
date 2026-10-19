@@ -211,8 +211,15 @@
     if (arc.folded) {
       body += `<rect x="${num(x + 4)}" y="${num(y + 4)}" width="${num(node.width)}" height="${num(node.height)}" rx="${style.round || 3}" fill="${style.fill}" stroke="${style.stroke}" stroke-width="1"/>`;
     }
-    body += `<rect class="av-shape" x="${num(x)}" y="${num(y)}" width="${num(node.width)}" height="${num(node.height)}" rx="${style.round || 3}" fill="${style.fill}" stroke="${style.stroke}" stroke-width="${container ? 1.6 : 1.2}"${arc.context ? ' stroke-dasharray="5 3"' : ''}/>`;
+    // A variant of a product line is one choice among others: dashed.
+    const properties = arc.properties || {};
+    const variant = properties.variant === 'true';
+    const dashed = arc.context || variant;
+    body += `<rect class="av-shape" x="${num(x)}" y="${num(y)}" width="${num(node.width)}" height="${num(node.height)}" rx="${style.round || 3}" fill="${style.fill}" stroke="${style.stroke}" stroke-width="${container ? 1.6 : 1.2}"${dashed ? ' stroke-dasharray="5 3"' : ''}/>`;
     body += glyph(style.glyph, x + 6, y + 6, style.stroke);
+    if (properties.variation === 'true' || variant) {
+      body += `<text x="${num(x + node.width - 6)}" y="${num(y + 11)}" text-anchor="end" font-size="8.5" font-style="italic" fill="#3D4852">${variant ? 'variant' : 'variation'}</text>`;
+    }
 
     const centerX = x + node.width / 2;
     const lines = arc.compartment || [];

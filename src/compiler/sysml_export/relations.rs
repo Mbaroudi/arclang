@@ -65,6 +65,9 @@ pub(super) fn register(e: &mut Exporter<'_>) {
         let id = if test.id.is_empty() { &test.name } else { &test.id };
         e.register("", id, &[&test.name]);
     }
+    for config in &model.configurations {
+        e.register("", &config.id, &[&config.name]);
+    }
 }
 
 pub(super) fn write(e: &mut Exporter<'_>) {
@@ -86,6 +89,13 @@ pub(super) fn write(e: &mut Exporter<'_>) {
                 }
             }
         });
+    }
+    // A configuration of the product line: what it selects, by dependency.
+    for config in &model.configurations {
+        e.block(&format!("#Configuration part {}", text::declared(&config.id, &config.name)), |e| e.header("Configuration", &config.attributes, &["selects"]));
+        for selected in &config.selects {
+            dependency(e, "selects", &config.id, selected);
+        }
     }
     for test in &model.test_cases {
         let id = if test.id.is_empty() { test.name.clone() } else { test.id.clone() };

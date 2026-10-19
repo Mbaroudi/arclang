@@ -330,8 +330,12 @@ impl Metamodel {
             kind("SequenceLink", Layer::System, "SequenceLink", "succession", "`sequence \"A\" -> \"B\" { condition: \"...\" }` inside a chain: each end a step of the chain or one of its control nodes.",
                 concat(vec![common(), vec![attr("condition", AttrType::Text, "Guard of the branch.")]])),
             // ---- Logical Architecture ----
-            kind("LogicalComponent", Layer::Logical, "LogicalComponent", "part def + part", "Behavioural building block, may be nested.",
-                concat(vec![component_attrs(), vec![multiplicity()]])),
+            kind("LogicalComponent", Layer::Logical, "LogicalComponent", "part def + part", "Behavioural building block, may be nested. In a product line, a component `variation: true` holds the components that are its variants (`variant: true`).",
+                concat(vec![component_attrs(), vec![
+                    multiplicity(),
+                    attr("variation", AttrType::Boolean, "A point of variation: the components it holds marked `variant` are the choices."),
+                    attr("variant", AttrType::Boolean, "One variant of the variation holding it."),
+                ]])),
             kind("LogicalFunction", Layer::Logical, "LogicalFunction", "action def (perform)", "Function of the logical level, declared inside the component that performs it (or at the level, unallocated), with its ports and sub-functions; `realizes:` names the system function it realizes.", function_attrs()),
             kind("ComponentPort", Layer::Logical, "ComponentPort", "port", "Oriented port of a component (in, out, inout); it may hold ports, named `Owner.port.sub`.",
                 vec![attr("interface", AttrType::Text, "Interface type carried."), attr("protocol", AttrType::Text, "Protocol."), multiplicity()]),
@@ -419,6 +423,8 @@ impl Metamodel {
                 ]])),
             kind("Trace", Layer::Transverse, "AbstractTrace / Realization", "satisfy / verify / allocate", "Typed link between two elements.",
                 vec![attr("from", AttrType::Reference("Element"), "Source."), attr("to", AttrType::Reference("Element"), "Target."), attr("type", AttrType::Enum("TraceKind"), "Link kind."), attr("rationale", AttrType::Text, "Justification.")]),
+            kind("Configuration", Layer::Transverse, "(product line)", "part (#Configuration)", "One product of a product line: the variant it selects in each variation. Two variants of one variation are an error, a variation left open a warning.",
+                concat(vec![common(), vec![attr("selects", list(AttrType::Reference("LogicalComponent")), "The variants selected, one per variation.")]])),
             kind("TestCase", Layer::Transverse, "(V&V extension)", "verification def", "Verification case covering requirements.",
                 concat(vec![common(), vec![
                     attr("verifies", list(AttrType::Reference("Requirement")), "Requirements verified."),
@@ -453,6 +459,7 @@ impl Metamodel {
                     attr("view", AttrType::Identifier, "The view it is cut from: oab, sab, lab, pab, cap, cdb or pbs."),
                     attr("shows", list(AttrType::Reference("Element")), "Elements drawn, by id or name; their containers are drawn around them."),
                     attr("context", AttrType::Boolean, "Also draw the elements an exchange ties to a shown one."),
+                    attr("configuration", AttrType::Reference("Configuration"), "Draw the view of one configuration: without the variants it does not select."),
                     attr("description", AttrType::Text, "Free-text description."),
                 ]),
             kind("Scenario", Layer::Transverse, "Scenario", "interaction (sequence)", "Sequence of messages between participants.",

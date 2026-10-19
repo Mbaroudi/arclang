@@ -173,8 +173,16 @@ fn logical_component(e: &mut Exporter<'_>, component: &LogicalComponent) {
     let metadata = if actor { "#Actor " } else { "" };
     let (bounds, stated) = super::multiplicity("LogicalComponent", &component.attributes);
     let typing = e.typing(&component.attributes);
-    e.block(&format!("{metadata}part {}{typing}{bounds}", text::declared(&id, &component.name)), |e| {
-        e.header("LogicalComponent", &component.attributes, &["actor", stated.unwrap_or("")]);
+    // A point of variation and its variants, as SysML v2 says them.
+    let variability = if crate::compiler::variability::is_variation(&component.attributes) {
+        "variation "
+    } else if crate::compiler::variability::is_variant(&component.attributes) {
+        "variant "
+    } else {
+        ""
+    };
+    e.block(&format!("{metadata}{variability}part {}{typing}{bounds}", text::declared(&id, &component.name)), |e| {
+        e.header("LogicalComponent", &component.attributes, &["actor", "variation", "variant", stated.unwrap_or("")]);
         // `Logical` is what the parser gives a component that states no type.
         if !component.component_type.is_empty() && component.component_type != "Logical" && !actor {
             e.line(&format!("attribute component_type : String = {};", text::string(&component.component_type)));

@@ -27,6 +27,7 @@ use crate::compiler::source_edit::string_literal;
 use std::collections::{BTreeMap, HashMap, HashSet};
 
 mod generic;
+mod product_line;
 mod security;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -276,7 +277,7 @@ impl<'g> Mapper<'g> {
     /// Whether a usage is structure (a component, a function) rather than a
     /// reference inside a scenario, a requirement, a connector or a chain.
     fn is_structural_usage(&self, usage: &Element) -> bool {
-        if usage.is_end || self.is_library(usage) || Self::has_metadata(usage, security::SECURITY_METADATA) {
+        if usage.is_end || self.is_library(usage) || Self::has_metadata(usage, security::SECURITY_METADATA) || Self::has_metadata(usage, &["Configuration"]) {
             return false;
         }
         let mut current = usage.owner.as_deref().and_then(|o| self.graph.get(o));
@@ -722,6 +723,7 @@ impl<'g> Mapper<'g> {
         self.message_scenarios();
         self.test_cases();
         self.security();
+        self.configurations();
         self.constraints();
         self.traces();
         self.sysml_views();
@@ -1585,6 +1587,7 @@ impl<'g> Mapper<'g> {
         if role == Some(Role::Actor) {
             self.line(depth + 1, "actor: true");
         }
+        self.variability(depth + 1, index);
         self.write_ports(depth + 1, index, false);
         let children = self.nodes[index].children.clone();
         for child in children {
@@ -2284,11 +2287,11 @@ impl<'g> Mapper<'g> {
 const REFERENCE_KEYS: &[&str] = &[
     "involves", "realizes", "mission", "exploits", "extends", "includes", "allocated_functions", "allocated_function", "allocated_component",
     "deploys", "mitigated_by", "verifies", "satisfies", "implements", "refines", "from", "to", "from_port", "to_port", "via", "owner", "parent",
-    "exchange_items", "exchange_item", "categories", "inputs", "outputs", "members", "applies_to", "data_type", "is", "trigger", "capability",
+    "exchange_items", "exchange_item", "categories", "inputs", "outputs", "members", "applies_to", "data_type", "is", "trigger", "capability", "selects",
 ];
 
 /// Reference keys that take a list.
-const LIST_KEYS: &[&str] = &["involves", "mitigated_by", "allocated_functions", "exploits", "includes", "extends", "verifies", "members", "applies_to", "exchange_items", "inputs", "outputs", "categories"];
+const LIST_KEYS: &[&str] = &["selects", "involves", "mitigated_by", "allocated_functions", "exploits", "includes", "extends", "verifies", "members", "applies_to", "exchange_items", "inputs", "outputs", "categories"];
 /// Reference keys that take one element.
 const SINGLE_KEYS: &[&str] = &["mission", "parent", "owner", "via", "allocated_component", "realizes", "capability", "data_type", "exchange_item", "from", "to", "from_port", "to_port", "is", "trigger"];
 /// Dependency names that are traces, not attributes.

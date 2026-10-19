@@ -23,7 +23,7 @@ use std::collections::{BTreeSet, HashMap};
 /// The metadata definitions of the profile: the levels, then the kinds
 /// SysML cannot tell by itself.
 pub const PROFILE: &[&str] = &[
-    "OA", "SA", "LA", "PA", "EPBS", "Actor", "Entity", "Node", "Behaviour", "Hardware", "Mission", "Capability", "Chain", "Link", "Hazard", "Security", "PrimaryAsset", "Threat", "SecurityScales",
+    "OA", "SA", "LA", "PA", "EPBS", "Actor", "Entity", "Node", "Behaviour", "Hardware", "Mission", "Capability", "Chain", "Link", "Hazard", "Security", "PrimaryAsset", "Threat", "SecurityScales", "Configuration",
     "Mode", "Class", "PhysicalPort", "ExchangeItem", "Path", "Fmea", "Interface", "Trace", "Association", "Iterate", "Invariant",
 ];
 

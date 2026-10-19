@@ -14,10 +14,49 @@ use std::collections::HashSet;
 /// declaration that names no view, or a view the model does not draw,
 /// yields diagnostics and no diagram.
 pub(super) fn build(model: &Model, views: &[Diagram]) -> Vec<(Option<Diagram>, Vec<String>)> {
-    model.diagrams.iter().map(|decl| one(decl, views)).collect()
+    model.diagrams.iter().map(|decl| one(model, decl, views)).collect()
 }
 
-fn one(decl: &DiagramDecl, views: &[Diagram]) -> (Option<Diagram>, Vec<String>) {
+fn one(model: &Model, decl: &DiagramDecl, views: &[Diagram]) -> (Option<Diagram>, Vec<String>) {
+    // `configuration: "CFG-1"`: the view of one product, without the
+    // variants it does not select.
+    let configuration = decl.attributes.get("configuration").and_then(|v| v.as_string());
+    if let Some(name) = configuration {
+        if !model.configurations.iter().any(|c| c.id == name || c.name == name) {
+            return (None, vec![format!("[{}:{}] '{name}' is not a declared configuration", decl.view, decl.name)]);
+        }
+    }
+    let excluded = configuration.map(|c| crate::compiler::variability::excluded_by(model, c)).unwrap_or_default();
+    let (diagram, diagnostics) = cut_view(decl, views, configuration.is_some());
+    (diagram.map(|d| without(d, &excluded)), diagnostics)
+}
+
+/// A diagram without the nodes `excluded` names (by id or name), nor the
+/// edges that ended on them.
+fn without(mut diagram: Diagram, excluded: &HashSet<String>) -> Diagram {
+    if excluded.is_empty() {
+        return diagram;
+    }
+    fn prune(nodes: Vec<Node>, excluded: &HashSet<String>) -> Vec<Node> {
+        nodes
+            .into_iter()
+            .filter(|n| !excluded.contains(&n.id) && !excluded.contains(&n.name))
+            .map(|mut n| {
+                n.children = prune(std::mem::take(&mut n.children), excluded);
+                n
+            })
+            .collect()
+    }
+    diagram.nodes = prune(std::mem::take(&mut diagram.nodes), excluded);
+    let mut present = HashSet::new();
+    for node in &diagram.nodes {
+        ids_of(node, &mut present);
+    }
+    diagram.edges.retain(|e| present.contains(&e.source) && present.contains(&e.target));
+    diagram
+}
+
+fn cut_view(decl: &DiagramDecl, views: &[Diagram], whole_when_empty: bool) -> (Option<Diagram>, Vec<String>) {
     let id = format!("{}:{}", decl.view, decl.name);
     let scope = format!("[{id}] ");
     let Some(kind) = ViewKind::parse(&decl.view) else {
@@ -32,6 +71,10 @@ fn one(decl: &DiagramDecl, views: &[Diagram]) -> (Option<Diagram>, Vec<String>) 
 
     let mut diagnostics = Vec::new();
     let mut wanted: HashSet<String> = HashSet::new();
+    // A configuration with nothing named shows its whole view.
+    if whole_when_empty && decl.shows.is_empty() {
+        wanted.extend(source.nodes.iter().map(|n| n.id.clone()));
+    }
     for reference in &decl.shows {
         let found = matching(&source.nodes, reference);
         if found.is_empty() {

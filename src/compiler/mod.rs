@@ -11,6 +11,7 @@ pub mod types;
 pub mod elements;
 pub mod metamodel;
 pub mod metamodel_check;
+pub mod variability;
 pub mod rules;
 pub mod transition;
 pub mod production_gate;
@@ -292,6 +293,15 @@ impl Compiler {
                 .iter()
                 .map(|d| d.to_string()),
         );
+
+        // Product lines: variations, variants and the configurations selecting them.
+        warnings.extend(variability::check(&ast).map_err(CompilerError::Semantic)?);
+        for config in &ast.configurations {
+            semantic_model
+                .all_elements
+                .entry(config.id.clone())
+                .or_insert_with(|| semantic::ElementInfo::new(config.id.clone(), config.name.clone(), "Configuration"));
+        }
 
         // Code generation
         let output = codegen::CodeGenerator::new(&self.config).generate(&semantic_model)?;

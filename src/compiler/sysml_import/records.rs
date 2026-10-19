@@ -39,6 +39,10 @@ pub struct Element {
     pub direction: Option<String>,
     pub is_end: bool,
     pub is_abstract: bool,
+    /// `variation part`: a point of variation.
+    pub is_variation: bool,
+    /// A variant of the variation that owns it (a VariantMembership).
+    pub is_variant: bool,
     /// An element of the standard library the file carries along.
     pub is_library: bool,
     /// The literal bound to the feature, rendered (`"text"`, `12`, `true`);
@@ -244,6 +248,7 @@ pub fn load(records: &[Value]) -> Result<Graph, String> {
             direction: text(record, "direction").map(|d| d.to_ascii_lowercase()),
             is_end: record.get("isEnd").and_then(Value::as_bool).unwrap_or(false),
             is_abstract: record.get("isAbstract").and_then(Value::as_bool).unwrap_or(false),
+            is_variation: record.get("isVariation").and_then(Value::as_bool).unwrap_or(false),
             is_library: record.get("isLibraryElement").and_then(Value::as_bool).unwrap_or(false),
             order,
             ..Element::default()
@@ -312,6 +317,11 @@ pub fn load(records: &[Value]) -> Result<Graph, String> {
             "Subclassification" | "Specialization" => link(&mut graph, first_id(record, &["subclassifier", "specific"]), first_id(record, &["superclassifier", "general"]), |e, t| e.specializes.push(t)),
             "Redefinition" => link(&mut graph, first_id(record, &["redefiningFeature", "specific"]), first_id(record, &["redefinedFeature", "general"]), |e, t| e.redefines.push(t)),
             "Subsetting" | "ReferenceSubsetting" => link(&mut graph, first_id(record, &["subsettingFeature", "referencingFeature", "specific"]), first_id(record, &["subsettedFeature", "referencedFeature", "general"]), |e, t| e.subsets.push(t)),
+            "VariantMembership" => {
+                if let Some(&i) = first_id(record, &["ownedVariantUsage", "ownedMemberElement", "memberElement"]).as_deref().and_then(|v| graph.index.get(v)) {
+                    graph.elements[i].is_variant = true;
+                }
+            }
             "MembershipExpose" | "NamespaceExpose" => {
                 let recursive = record.get("isRecursive").and_then(Value::as_bool).unwrap_or(false);
                 let namespace = kind == "NamespaceExpose";

@@ -352,7 +352,7 @@ Control node of a functional chain: `control and|or|iterate "Name"`, joined to t
 
 #### LogicalComponent
 
-Behavioural building block, may be nested.
+Behavioural building block, may be nested. In a product line, a component `variation: true` holds the components that are its variants (`variant: true`).
 
 - Arcadia: `LogicalComponent`
 - SysML v2: `part def + part`
@@ -377,6 +377,8 @@ Behavioural building block, may be nested.
 | `mass` | `quantity<mass>` | Mass. |
 | `weight` | `quantity<mass>` | Alias of mass. |
 | `multiplicity` | `multiplicity` | How many of the element its owner has: a count (`4`) or a range as text (`"0..1"`, `"1..*"`, `"*"`). One when absent. |
+| `variation` | `boolean` | A point of variation: the components it holds marked `variant` are the choices. |
+| `variant` | `boolean` | One variant of the variation holding it. |
 
 #### LogicalFunction
 
@@ -900,6 +902,21 @@ Typed link between two elements.
 | `type` | `enum TraceKind` | Link kind. |
 | `rationale` | `text` | Justification. |
 
+#### Configuration
+
+One product of a product line: the variant it selects in each variation. Two variants of one variation are an error, a variation left open a warning.
+
+- Arcadia: `(product line)`
+- SysML v2: `part (#Configuration)`
+
+| Attribute | Type | Meaning |
+|---|---|---|
+| `id` | `identifier` | Stable identity; drives the UUIDv5. Defaults to the name. |
+| `name` | `text` | Display name; overrides the block name. |
+| `description` | `text` | Free-text description. |
+| `is` | `ref<Type>` | User-defined type of the element, or a list of types; their attributes (and ports, for components) are inherited. |
+| `selects` | `list<ref<LogicalComponent>>` | The variants selected, one per variation. |
+
 #### TestCase
 
 Verification case covering requirements.
@@ -1013,6 +1030,7 @@ A declared diagram: a named view cut from one Arcadia level, drawing the element
 | `view` | `identifier` | The view it is cut from: oab, sab, lab, pab, cap, cdb or pbs. |
 | `shows` | `list<ref<Element>>` | Elements drawn, by id or name; their containers are drawn around them. |
 | `context` | `boolean` | Also draw the elements an exchange ties to a shown one. |
+| `configuration` | `ref<Configuration>` | Draw the view of one configuration: without the variants it does not select. |
 | `description` | `text` | Free-text description. |
 
 #### Scenario

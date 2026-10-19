@@ -24,6 +24,7 @@ package <EmergencyBrakingSystem> 'Automotive Emergency Braking System (AEB)' {
         metadata def PrimaryAsset;
         metadata def Threat;
         metadata def SecurityScales;
+        metadata def Configuration;
         metadata def Mode;
         metadata def Class;
         metadata def PhysicalPort;
