@@ -311,6 +311,8 @@ impl Metamodel {
                     attr("source", AttrType::Text, "Origin document or stakeholder."),
                     attr("status", AttrType::Text, "Lifecycle status."),
                     attr("verification_method", AttrType::Enum("VerificationMethod"), "Intended verification method."),
+                    attr("parent", AttrType::Reference("Requirement"), "Requirement it sits under in its document (ReqIF SPEC-HIERARCHY); structure, not refinement."),
+                    attr("reqif_id", AttrType::Text, "Identifier the requirement has in the tool it came from (ReqIF IDENTIFIER), given back on export."),
                 ], safety()])),
             kind("Mission", Layer::System, "Mission", "use case def", "High-level goal the system contributes to.", common()),
             kind("Capability", Layer::System, "Capability", "use case def", "Expected ability of the system. May be declared inside another capability.",

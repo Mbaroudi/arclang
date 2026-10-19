@@ -165,6 +165,8 @@ Stakeholder, system or safety requirement.
 | `source` | `text` | Origin document or stakeholder. |
 | `status` | `text` | Lifecycle status. |
 | `verification_method` | `enum VerificationMethod` | Intended verification method. |
+| `parent` | `ref<Requirement>` | Requirement it sits under in its document (ReqIF SPEC-HIERARCHY); structure, not refinement. |
+| `reqif_id` | `text` | Identifier the requirement has in the tool it came from (ReqIF IDENTIFIER), given back on export. |
 | `safety_level` | `enum SafetyLevel` | ASIL, DAL or SIL assigned to the element. |
 | `asil` | `enum Asil` | ISO 26262 ASIL (QM, ASIL-A..D). |
 | `dal` | `enum Dal` | DO-178C design assurance level (DAL-A..E). |
