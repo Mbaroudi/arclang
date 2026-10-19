@@ -98,6 +98,16 @@ pub fn export(model: &Model, file_stem: &str) -> Exported {
     for la in &model.logical_architecture {
         logical::register(&mut context, la);
     }
+    // Capella's core has no product lines: variations and variants are
+    // written as the components they are, configurations not at all.
+    let variations = crate::compiler::variability::variations(model);
+    if !variations.is_empty() || !model.configurations.is_empty() {
+        context.note(format!(
+            "{} variation(s) and {} configuration(s): Capella has no product lines; variants are exported as components, configurations are left out",
+            variations.len(),
+            model.configurations.len()
+        ));
+    }
     for pa in &model.physical_architecture {
         physical::register(&mut context, pa);
     }

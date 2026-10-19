@@ -89,6 +89,8 @@ const KINDS: &[(&[&str], &str, Option<&str>)] = &[
     (&["verification"], "VerificationCaseUsage", Some("VerificationCaseDefinition")),
     (&["occurrence"], "OccurrenceUsage", Some("OccurrenceDefinition")),
     (&["enum"], "EnumerationUsage", Some("EnumerationDefinition")),
+    (&["view"], "ViewUsage", Some("ViewDefinition")),
+    (&["allocation"], "AllocationUsage", Some("AllocationDefinition")),
 ];
 
 /// Control node keywords and their metaclasses.
@@ -307,6 +309,18 @@ impl Reader {
             }
             return Ok(None);
         }
+        // What a view exposes and filters: relations of its namespace, as imports are.
+        if head.take_word("expose") || head.take_word("filter") {
+            return Ok(None);
+        }
+        // `@Safety;`: a metadata usage annotating the namespace it is in.
+        if head.take_symbol("@") {
+            let definition = head.path()?;
+            self.finish(&head)?;
+            let owner = owner.ok_or("metadata outside a declaration")?;
+            self.annotate(owner, vec![definition]);
+            return Ok(None);
+        }
         // `#OA package ...`: prefix metadata, usages of metadata definitions
         // owned by the declaration they annotate.
         let mut metadata: Vec<String> = Vec::new();
@@ -314,6 +328,11 @@ impl Reader {
             metadata.push(head.path()?);
         }
         declaration.is_abstract = head.take_word("abstract");
+        // A variation is abstract; a variant is held by a `VariantMembership`.
+        declaration.is_abstract |= head.take_word("variation");
+        if head.take_word("variant") {
+            declaration.membership = "VariantMembership";
+        }
         let follows = head.take_word("then");
         for direction in ["in", "out", "inout"] {
             if head.take_word(direction) {
@@ -422,9 +441,13 @@ impl Reader {
             declaration.metaclass = "IncludeUseCaseUsage";
             self.named(&mut head, &mut declaration)?;
         } else if head.take_word("assert") {
-            Self::expect_word(&mut head, "constraint")?;
             declaration.metaclass = "AssertConstraintUsage";
-            self.named(&mut head, &mut declaration)?;
+            if head.take_word("constraint") {
+                self.named(&mut head, &mut declaration)?;
+            } else {
+                // `assert c;`: asserts the constraint `c` declared elsewhere.
+                declaration.references = vec![head.path()?];
+            }
         } else if let Some((keywords, usage, definition)) =
             KINDS.iter().find(|(keywords, _, _)| keywords.iter().enumerate().all(|(k, word)| is_word(tokens.get(head.position + k), word)))
         {
@@ -559,6 +582,7 @@ impl Reader {
         let starts_clause = |head: &Head| {
             matches!(head.peek(), Some(Token::Symbol(":" | ":>" | ":>>" | "=")))
                 || is_word(head.peek(), "connect")
+                || is_word(head.peek(), "allocate")
                 || is_word(head.peek(), "default")
         };
         if !head.done() && !starts_clause(head) {
@@ -575,6 +599,9 @@ impl Reader {
                 declaration.bounds = Some(Self::bounds(head)?);
             } else if head.take_word("connect") {
                 Self::connected(head, declaration)?;
+            } else if head.take_word("allocate") {
+                // `allocation : T allocate a to b`: a typed allocation.
+                declaration.ends = Some(Self::ends(head, "to")?);
             } else if is_word(head.peek(), "default") || is_symbol(head.peek(), "=") {
                 declaration.is_default = head.take_word("default");
                 if !head.take_symbol("=") {

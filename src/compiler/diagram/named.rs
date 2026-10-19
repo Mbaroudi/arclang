@@ -7,17 +7,60 @@
 //! drawn too, as a contextual diagram.
 
 use super::{Diagram, Edge, Node, ViewKind};
-use crate::compiler::ast::{DiagramDecl, Model};
+use crate::compiler::ast::{AttributeValue, DiagramDecl, Model};
 use std::collections::HashSet;
 
 /// One (diagram, diagnostics) per declaration, in declared order. A
 /// declaration that names no view, or a view the model does not draw,
 /// yields diagnostics and no diagram.
 pub(super) fn build(model: &Model, views: &[Diagram]) -> Vec<(Option<Diagram>, Vec<String>)> {
-    model.diagrams.iter().map(|decl| one(decl, views)).collect()
+    model.diagrams.iter().map(|decl| one(model, decl, views)).collect()
 }
 
-fn one(decl: &DiagramDecl, views: &[Diagram]) -> (Option<Diagram>, Vec<String>) {
+fn one(model: &Model, decl: &DiagramDecl, views: &[Diagram]) -> (Option<Diagram>, Vec<String>) {
+    // `configuration: "CFG-1"`: the view of one product, without the
+    // variants it does not select.
+    let configuration = decl.attributes.get("configuration").and_then(|v| v.as_string());
+    if let Some(name) = configuration {
+        if !model.configurations.iter().any(|c| c.id == name || c.name == name) {
+            return (None, vec![format!("[{}:{}] '{name}' is not a declared configuration", decl.view, decl.name)]);
+        }
+    }
+    let excluded = configuration.map(|c| crate::compiler::variability::excluded_by(model, c)).unwrap_or_default();
+    // `tagged: ["Safety"]`: the elements carrying a tag, under `under` when named.
+    let tagged_with: Vec<String> = super::tags::texts(&decl.attributes, "tagged");
+    let tagged = (!tagged_with.is_empty()).then(|| super::tags::tagged(model, &tagged_with));
+    let under = decl.attributes.get("under").and_then(|v| v.as_string()).map(str::to_string);
+    let (diagram, diagnostics) = cut_view(decl, views, configuration.is_some(), tagged.as_ref(), under.as_deref());
+    (diagram.map(|d| without(d, &excluded)), diagnostics)
+}
+
+/// A diagram without the nodes `excluded` names (by id or name), nor the
+/// edges that ended on them.
+fn without(mut diagram: Diagram, excluded: &HashSet<String>) -> Diagram {
+    if excluded.is_empty() {
+        return diagram;
+    }
+    fn prune(nodes: Vec<Node>, excluded: &HashSet<String>) -> Vec<Node> {
+        nodes
+            .into_iter()
+            .filter(|n| !excluded.contains(&n.id) && !excluded.contains(&n.name))
+            .map(|mut n| {
+                n.children = prune(std::mem::take(&mut n.children), excluded);
+                n
+            })
+            .collect()
+    }
+    diagram.nodes = prune(std::mem::take(&mut diagram.nodes), excluded);
+    let mut present = HashSet::new();
+    for node in &diagram.nodes {
+        ids_of(node, &mut present);
+    }
+    diagram.edges.retain(|e| present.contains(&e.source) && present.contains(&e.target));
+    diagram
+}
+
+fn cut_view(decl: &DiagramDecl, views: &[Diagram], whole_when_empty: bool, tagged: Option<&HashSet<String>>, under: Option<&str>) -> (Option<Diagram>, Vec<String>) {
     let id = format!("{}:{}", decl.view, decl.name);
     let scope = format!("[{id}] ");
     let Some(kind) = ViewKind::parse(&decl.view) else {
@@ -32,11 +75,44 @@ fn one(decl: &DiagramDecl, views: &[Diagram]) -> (Option<Diagram>, Vec<String>) 
 
     let mut diagnostics = Vec::new();
     let mut wanted: HashSet<String> = HashSet::new();
+    // The nodes under `under` (the whole view when it names nothing).
+    let within: Vec<&Node> = match under {
+        Some(reference) => {
+            let found = find_node(&source.nodes, reference);
+            if found.is_none() {
+                diagnostics.push(format!("{scope}'{reference}' is not drawn in the {} view", kind.label()));
+            }
+            found.map(|n| n.children.iter().collect()).unwrap_or_default()
+        }
+        None => source.nodes.iter().collect(),
+    };
+    match tagged {
+        // The tagged nodes of the scope, and the containers drawn around them.
+        Some(tagged) if decl.shows.is_empty() => {
+            fn collect(nodes: &[&Node], tagged: &HashSet<String>, out: &mut HashSet<String>) {
+                for node in nodes {
+                    if tagged.contains(&node.id) || tagged.contains(&node.name) {
+                        out.insert(node.id.clone());
+                    }
+                    collect(&node.children.iter().collect::<Vec<_>>(), tagged, out);
+                }
+            }
+            collect(&within, tagged, &mut wanted);
+        }
+        // A configuration, or an `under` with nothing named, shows the whole scope.
+        None if decl.shows.is_empty() && (whole_when_empty || under.is_some()) => wanted.extend(within.iter().map(|n| n.id.clone())),
+        _ => {}
+    }
     for reference in &decl.shows {
         let found = matching(&source.nodes, reference);
         if found.is_empty() {
             diagnostics.push(format!("{scope}'{reference}' is not drawn in the {} view", kind.label()));
         }
+        // With `tagged`, what is shown is filtered by the tags, as a SysML v2 view filters what it exposes.
+        let found: Vec<String> = match tagged {
+            Some(tagged) => found.into_iter().filter(|id| tagged.contains(id) || find_node(&source.nodes, id).is_some_and(|n| tagged.contains(&n.name))).collect(),
+            None => found,
+        };
         wanted.extend(found);
     }
     if decl.context {
@@ -91,6 +167,11 @@ fn one(decl: &DiagramDecl, views: &[Diagram]) -> (Option<Diagram>, Vec<String>) 
         invariants: Vec::new(),
     };
     (Some(diagram), diagnostics)
+}
+
+/// The first node answering to `reference`, by id or name, at any depth.
+fn find_node<'n>(nodes: &'n [Node], reference: &str) -> Option<&'n Node> {
+    nodes.iter().find_map(|n| if n.id == reference || n.name == reference { Some(n) } else { find_node(&n.children, reference) })
 }
 
 /// Ids of the nodes answering to `reference`, by id then by name, at any depth.

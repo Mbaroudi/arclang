@@ -72,14 +72,23 @@ fn undeclared(e: &Exporter<'_>) -> BTreeSet<String> {
     for sa in &model.system_analysis {
         sa.components.iter().flat_map(|c| c.ports.iter()).chain(sa.external_actors.iter().flat_map(|a| a.ports.iter())).for_each(|p| interface(&p.interface_type));
     }
+    // A port and the ports it holds.
+    fn port(p: &crate::compiler::ast::ComponentPort, interface: &mut impl FnMut(&str)) {
+        interface(&p.interface_type);
+        p.ports.iter().for_each(|sub| port(sub, interface));
+    }
     fn logical(list: &[crate::compiler::ast::LogicalComponent], interface: &mut impl FnMut(&str)) {
         for c in list {
-            c.ports.iter().for_each(|p| interface(&p.interface_type));
+            c.ports.iter().for_each(|p| port(p, interface));
             logical(&c.sub_components, interface);
         }
     }
     for la in &model.logical_architecture {
         logical(&la.components, &mut interface);
+    }
+    // The ports of a type are written in `Types`, with their port definitions.
+    for ty in &model.types {
+        ty.ports.iter().for_each(|p| port(p, &mut interface));
     }
     for pa in &model.physical_architecture {
         for node in &pa.nodes {

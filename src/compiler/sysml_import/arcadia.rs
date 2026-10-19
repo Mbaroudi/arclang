@@ -27,6 +27,7 @@ use crate::compiler::source_edit::string_literal;
 use std::collections::{BTreeMap, HashMap, HashSet};
 
 mod generic;
+mod product_line;
 mod security;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -130,6 +131,9 @@ struct Mapper<'g> {
     /// The text uses the Arcadia profile (it is an ArcLang export or written
     /// for it); else it is any SysML v2 model, read with [`generic`] rules.
     profiled: bool,
+    /// The model's own tags: metadata definitions without features outside
+    /// any library (`metadata def Safety;`), written back as `tags:`.
+    tags: HashSet<String>,
 }
 
 pub fn map(graph: &Graph) -> Mapped {
@@ -149,7 +153,9 @@ pub fn map(graph: &Graph) -> Mapped {
         shared_names: HashSet::new(),
         lost: HashSet::new(),
         profiled: graph.elements.iter().any(|e| e.name.as_deref() == Some("ArcadiaProfile")),
+        tags: HashSet::new(),
     };
+    mapper.tags = mapper.user_tags();
     mapper.run();
     Mapped { source: mapper.out, counts: mapper.counts, notes: mapper.notes }
 }
@@ -269,6 +275,21 @@ impl<'g> Mapper<'g> {
         None
     }
 
+    fn user_tags(&self) -> HashSet<String> {
+        self.graph
+            .of_kinds(&["MetadataDefinition"])
+            .filter(|d| !self.is_library(d) && d.children.iter().filter_map(|c| self.graph.get(c)).all(|c| c.kind.ends_with("Membership") || c.kind == "Comment" || c.kind == "Documentation"))
+            .filter_map(|d| d.name.clone())
+            .collect()
+    }
+
+    /// The port definition the export gives the ports of a type that name
+    /// no other (`port def 'Data port' { inout item carried : Data; }`).
+    fn is_carrier(&self, def: &Element) -> bool {
+        let features: Vec<&Element> = def.children.iter().filter_map(|c| self.graph.get(c)).filter(|c| c.kind.ends_with("Usage")).collect();
+        def.kind == "PortDefinition" && !def.is_abstract && def.name.as_deref().is_some_and(|n| n.ends_with(" port")) && features.iter().all(|f| f.name.as_deref() == Some("carried"))
+    }
+
     fn is_library(&self, element: &Element) -> bool {
         element.is_library || self.graph.ancestor(&element.id, |e| e.kind == "LibraryPackage" || e.is_library).is_some()
     }
@@ -276,7 +297,7 @@ impl<'g> Mapper<'g> {
     /// Whether a usage is structure (a component, a function) rather than a
     /// reference inside a scenario, a requirement, a connector or a chain.
     fn is_structural_usage(&self, usage: &Element) -> bool {
-        if usage.is_end || self.is_library(usage) || Self::has_metadata(usage, security::SECURITY_METADATA) {
+        if usage.is_end || self.is_library(usage) || Self::has_metadata(usage, security::SECURITY_METADATA) || Self::has_metadata(usage, &["Configuration"]) {
             return false;
         }
         let mut current = usage.owner.as_deref().and_then(|o| self.graph.get(o));
@@ -346,9 +367,10 @@ impl<'g> Mapper<'g> {
         // definitions, and those of a package named `Types`.
         let declared_types: Vec<&'g Element> = self
             .graph
-            .of_kinds(&["PartDefinition", "ActionDefinition", "ConnectionDefinition", "InterfaceDefinition"])
+            .of_kinds(&["PartDefinition", "ActionDefinition", "ConnectionDefinition", "InterfaceDefinition", "PortDefinition", "AllocationDefinition"])
             .filter(|d| !self.is_library(d) && !self.is_chain(d))
             .filter(|d| d.is_abstract || d.owner.as_deref().and_then(|o| self.graph.get(o)).and_then(|o| o.name.as_deref()) == Some("Types"))
+            .filter(|d| !self.is_carrier(d))
             .collect();
         for def in declared_types {
             self.declare_type(def);
@@ -722,6 +744,7 @@ impl<'g> Mapper<'g> {
         self.message_scenarios();
         self.test_cases();
         self.security();
+        self.configurations();
         self.constraints();
         self.traces();
         self.sysml_views();
@@ -733,7 +756,7 @@ impl<'g> Mapper<'g> {
     /// expression over the attributes of written elements. An expression
     /// ArcLang cannot say leaves the constraint out, and says so.
     fn constraints(&mut self) {
-        let constraints: Vec<&'g Element> = self.graph.of_kinds(&["ConstraintUsage", "AssertConstraintUsage"]).filter(|c| !self.is_library(c)).collect();
+        let constraints: Vec<&'g Element> = self.graph.of_kinds(&["ConstraintUsage", "AssertConstraintUsage"]).filter(|c| !self.is_library(c) && !self.is_case_assertion(c)).collect();
         for constraint in constraints {
             let expression = constraint.children.iter().filter_map(|c| self.graph.get(c)).find(|c| c.kind.ends_with("Expression") || c.kind.starts_with("Literal"));
             let text = match expression {
@@ -903,8 +926,9 @@ impl<'g> Mapper<'g> {
             self.attributes(1, &[def], &["description"]);
             // A type with ports is a component's; a function carries the
             // ports of its type itself.
-            if def.kind == "PartDefinition" {
-                for (port, direction) in self.ports_of(def) {
+            // A port definition gives the ports a port of its type holds.
+            if def.kind == "PartDefinition" || def.kind == "PortDefinition" {
+                for (port, direction) in self.ports_of(def).into_iter().filter(|(p, _)| def.kind == "PartDefinition" || p.kind == "PortUsage") {
                     self.line(1, &format!("port {} {}", direction.unwrap_or("in"), string_literal(&port.name.clone().unwrap_or_else(|| port.id.clone()))));
                 }
             }
@@ -1475,20 +1499,25 @@ impl<'g> Mapper<'g> {
         // The port's short name is its id, when it differs from its name.
         let id_line = port.short_name.as_deref().filter(|s| *s != name).map(|s| format!("id: {}", string_literal(s)));
         let mut subs: Vec<(&'g Element, Option<&'static str>)> = self.ports_of(port).into_iter().filter(|(p, _)| p.kind == "PortUsage").collect();
-        for def in port.types.iter().filter_map(|t| self.graph.get(t)).filter(|d| d.kind == "PortDefinition") {
+        // Typed by an ArcLang type (a port definition): `is:` it, and the
+        // ports the type gives are not written again.
+        let typed: Option<String> = port.types.iter().find_map(|t| self.types.get(t)).cloned();
+        for def in port.types.iter().filter(|t| !self.types.contains_key(*t)).filter_map(|t| self.graph.get(t)).filter(|d| d.kind == "PortDefinition") {
             for (sub, sub_direction) in self.ports_of(def).into_iter().filter(|(p, _)| p.kind == "PortUsage") {
                 if !subs.iter().any(|(s, _)| s.name == sub.name) {
                     subs.push((sub, sub_direction));
                 }
             }
         }
+        let is_line = typed.map(|t| format!("is: {}", string_literal(&t)));
         if subs.is_empty() || nesting > 8 {
-            let id_text = id_line.map(|l| format!(" {{ {l} }}")).unwrap_or_default();
-            self.line(depth, &format!("{head}{id_text}"));
+            let lines: Vec<String> = id_line.into_iter().chain(is_line).collect();
+            let body = if lines.is_empty() { String::new() } else { format!(" {{ {} }}", lines.join(" ")) };
+            self.line(depth, &format!("{head}{body}"));
             return;
         }
         self.line(depth, &format!("{head} {{"));
-        if let Some(line) = id_line {
+        for line in id_line.into_iter().chain(is_line) {
             self.line(depth + 1, &line);
         }
         for (sub, sub_direction) in subs {
@@ -1507,6 +1536,15 @@ impl<'g> Mapper<'g> {
             self.line(depth, &format!("is: {}", string_literal(&ty)));
         }
         self.attributes(depth, &sources, &["description"]);
+        let mut tags: Vec<String> = Vec::new();
+        for tag in sources.iter().flat_map(|s| s.metadata.iter()).filter(|m| self.tags.contains(*m)) {
+            if !tags.contains(tag) {
+                tags.push(tag.clone());
+            }
+        }
+        if !tags.is_empty() {
+            self.line(depth, &format!("tags: {}", list_literal(&tags)));
+        }
         let element_ids = self.node_element_ids(index);
         self.reference_attributes(depth, &element_ids);
     }
@@ -1579,6 +1617,7 @@ impl<'g> Mapper<'g> {
         if role == Some(Role::Actor) {
             self.line(depth + 1, "actor: true");
         }
+        self.variability(depth + 1, index);
         self.write_ports(depth + 1, index, false);
         let children = self.nodes[index].children.clone();
         for child in children {
@@ -2156,6 +2195,25 @@ impl<'g> Mapper<'g> {
         None
     }
 
+    /// The constraints a verification case asserts (`assert 'CST-1';`): an analysis.
+    fn asserted_constraints(&self, sources: &[&'g Element]) -> Vec<String> {
+        let mut out: Vec<String> = Vec::new();
+        for assertion in sources.iter().flat_map(|s| s.children.iter().filter_map(|c| self.graph.get(c))).filter(|c| c.kind == "AssertConstraintUsage") {
+            let Some(target) = assertion.subsets.iter().chain(assertion.redefines.iter()).chain(assertion.types.iter()).find_map(|t| self.graph.get(t)).filter(|t| t.kind.ends_with("ConstraintUsage")) else { continue };
+            let id = self.ids.get(&target.id).cloned().unwrap_or_else(|| Self::identity_id(target));
+            if !out.contains(&id) {
+                out.push(id);
+            }
+        }
+        out
+    }
+
+    /// An assertion inside a verification case refers to a constraint; it is not one.
+    fn is_case_assertion(&self, constraint: &Element) -> bool {
+        constraint.kind == "AssertConstraintUsage"
+            && constraint.owner.as_deref().and_then(|o| self.graph.get(o)).is_some_and(|o| o.kind.starts_with("VerificationCase") || o.kind.starts_with("AnalysisCase"))
+    }
+
     fn test_cases(&mut self) {
         let cases = self.declared("VerificationCaseDefinition", "VerificationCaseUsage");
         for (case, def) in cases {
@@ -2190,6 +2248,10 @@ impl<'g> Mapper<'g> {
             let element_ids: Vec<String> = sources.iter().map(|s| s.id.clone()).collect();
             self.reference_attributes(1, &element_ids);
             self.line(1, &format!("verifies: {}", list_literal(&verifies)));
+            let asserts = self.asserted_constraints(&sources);
+            if !asserts.is_empty() {
+                self.line(1, &format!("asserts: {}", list_literal(&asserts)));
+            }
             self.line(0, "}");
             self.line(0, "");
         }
@@ -2260,8 +2322,11 @@ impl<'g> Mapper<'g> {
                 continue;
             }
             self.count("traces");
-            // `allocates` has no keyword form: it is written with an arrow.
-            if TRACE_KINDS.contains(&kind.as_str()) && kind != "allocates" {
+            // An allocation typed by an allocation definition `is:` it.
+            let typed = (relation.kind == "AllocationUsage").then(|| relation.types.iter().find_map(|t| self.types.get(t)).cloned()).flatten();
+            if let Some(definition) = typed {
+                lines.push(format!("trace {} allocates {} {{ is: {} }}", string_literal(&from), string_literal(&to), string_literal(&definition)));
+            } else if TRACE_KINDS.contains(&kind.as_str()) && kind != "allocates" {
                 lines.push(format!("trace {} {kind} {}", string_literal(&from), string_literal(&to)));
             } else {
                 lines.push(format!("trace {} -> {} {{ trace_type: {} }}", string_literal(&from), string_literal(&to), string_literal(&kind)));
@@ -2278,11 +2343,11 @@ impl<'g> Mapper<'g> {
 const REFERENCE_KEYS: &[&str] = &[
     "involves", "realizes", "mission", "exploits", "extends", "includes", "allocated_functions", "allocated_function", "allocated_component",
     "deploys", "mitigated_by", "verifies", "satisfies", "implements", "refines", "from", "to", "from_port", "to_port", "via", "owner", "parent",
-    "exchange_items", "exchange_item", "categories", "inputs", "outputs", "members", "applies_to", "data_type", "is", "trigger", "capability",
+    "exchange_items", "exchange_item", "categories", "inputs", "outputs", "members", "applies_to", "data_type", "is", "trigger", "capability", "selects",
 ];
 
 /// Reference keys that take a list.
-const LIST_KEYS: &[&str] = &["involves", "mitigated_by", "allocated_functions", "exploits", "includes", "extends", "verifies", "members", "applies_to", "exchange_items", "inputs", "outputs", "categories"];
+const LIST_KEYS: &[&str] = &["selects", "involves", "mitigated_by", "allocated_functions", "exploits", "includes", "extends", "verifies", "members", "applies_to", "exchange_items", "inputs", "outputs", "categories"];
 /// Reference keys that take one element.
 const SINGLE_KEYS: &[&str] = &["mission", "parent", "owner", "via", "allocated_component", "realizes", "capability", "data_type", "exchange_item", "from", "to", "from_port", "to_port", "is", "trigger"];
 /// Dependency names that are traces, not attributes.

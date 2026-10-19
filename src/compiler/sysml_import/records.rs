@@ -39,6 +39,10 @@ pub struct Element {
     pub direction: Option<String>,
     pub is_end: bool,
     pub is_abstract: bool,
+    /// `variation part`: a point of variation.
+    pub is_variation: bool,
+    /// A variant of the variation that owns it (a VariantMembership).
+    pub is_variant: bool,
     /// An element of the standard library the file carries along.
     pub is_library: bool,
     /// The literal bound to the feature, rendered (`"text"`, `12`, `true`);
@@ -244,6 +248,7 @@ pub fn load(records: &[Value]) -> Result<Graph, String> {
             direction: text(record, "direction").map(|d| d.to_ascii_lowercase()),
             is_end: record.get("isEnd").and_then(Value::as_bool).unwrap_or(false),
             is_abstract: record.get("isAbstract").and_then(Value::as_bool).unwrap_or(false),
+            is_variation: record.get("isVariation").and_then(Value::as_bool).unwrap_or(false),
             is_library: record.get("isLibraryElement").and_then(Value::as_bool).unwrap_or(false),
             order,
             ..Element::default()
@@ -312,6 +317,11 @@ pub fn load(records: &[Value]) -> Result<Graph, String> {
             "Subclassification" | "Specialization" => link(&mut graph, first_id(record, &["subclassifier", "specific"]), first_id(record, &["superclassifier", "general"]), |e, t| e.specializes.push(t)),
             "Redefinition" => link(&mut graph, first_id(record, &["redefiningFeature", "specific"]), first_id(record, &["redefinedFeature", "general"]), |e, t| e.redefines.push(t)),
             "Subsetting" | "ReferenceSubsetting" => link(&mut graph, first_id(record, &["subsettingFeature", "referencingFeature", "specific"]), first_id(record, &["subsettedFeature", "referencedFeature", "general"]), |e, t| e.subsets.push(t)),
+            "VariantMembership" => {
+                if let Some(&i) = first_id(record, &["ownedVariantUsage", "ownedMemberElement", "memberElement"]).as_deref().and_then(|v| graph.index.get(v)) {
+                    graph.elements[i].is_variant = true;
+                }
+            }
             "MembershipExpose" | "NamespaceExpose" => {
                 let recursive = record.get("isRecursive").and_then(Value::as_bool).unwrap_or(false);
                 let namespace = kind == "NamespaceExpose";
@@ -319,10 +329,31 @@ pub fn load(records: &[Value]) -> Result<Graph, String> {
             }
             "ElementFilterMembership" => {
                 // `filter @Meta;`: an `@` expression naming a metadata definition.
+                // `filter @A or @B;`: either metadata.
+                fn metadata_of(condition: &Value, by_id: &HashMap<String, (String, Value)>, out: &mut Vec<String>) -> bool {
+                    match condition.get("operator").and_then(Value::as_str) {
+                        Some("@") => match first_id(condition, &["arclang:type"]) {
+                            Some(t) => {
+                                out.push(t);
+                                true
+                            }
+                            None => false,
+                        },
+                        Some("or") => ids_of(condition.get("argument")).iter().all(|a| by_id.get(a).is_some_and(|(_, r)| metadata_of(r, by_id, out))),
+                        _ => false,
+                    }
+                }
                 let condition = first_id(record, &["condition", "memberElement"]).and_then(|c| by_id.get(&c)).map(|(_, r)| r);
-                let metadata = condition.filter(|c| c.get("operator").and_then(Value::as_str) == Some("@")).and_then(|c| first_id(c, &["arclang:type"]));
+                let mut metadata = Vec::new();
+                let read = condition.is_some_and(|c| metadata_of(c, &by_id, &mut metadata));
+                let owner = first_id(record, &["membershipOwningNamespace"]);
                 // A filter read as nothing is kept as such: the view is not widened.
-                link(&mut graph, first_id(record, &["membershipOwningNamespace"]), Some(metadata.unwrap_or_default()), |e, t| e.filters.push(t));
+                if !read {
+                    metadata = vec![String::new()];
+                }
+                for t in metadata {
+                    link(&mut graph, owner.clone(), Some(t), |e, t| e.filters.push(t));
+                }
             }
             "FeatureValue" => {
                 let owner = first_id(record, &["featureWithValue", "owner"]);

@@ -200,10 +200,19 @@ pub fn run_gate(ast: &Model, semantic: &SemanticModel, standard: &str) -> GateRe
         .filter(|t| t.trace_type == "satisfies")
         .map(|t| t.to.as_str())
         .collect();
-    let verified: HashSet<&str> = ast
+    // A case that fails verifies nothing: its requirements are only covered.
+    let verdicts: Vec<(&super::ast::TestCase, super::verification::Verdict)> =
+        ast.test_cases.iter().map(|tc| (tc, super::verification::verdict(tc, semantic))).collect();
+    let covered: HashSet<&str> = ast
         .test_cases
         .iter()
         .flat_map(|tc| tc.verifies.iter().map(|r| r.as_str()))
+        .collect();
+    // A case that fails is not hidden by one that passes.
+    let failing: HashSet<&str> = verdicts
+        .iter()
+        .filter(|(_, v)| matches!(v, super::verification::Verdict::Fail(_)))
+        .flat_map(|(tc, _)| tc.verifies.iter().map(|r| r.as_str()))
         .collect();
 
     let mut requirements_satisfied = 0;
@@ -218,14 +227,21 @@ pub fn run_gate(ast: &Model, semantic: &SemanticModel, standard: &str) -> GateRe
                 format!("requirement '{}' is satisfied by no architecture element (no satisfies trace)", requirement.id),
             );
         }
-        let is_verified = verified.contains(requirement.id.as_str())
-            || semantic
-                .all_elements
-                .get(requirement.id.as_str())
-                .map(|e| verified.contains(e.name.as_str()))
-                .unwrap_or(false);
-        if is_verified {
+        let name = semantic.all_elements.get(requirement.id.as_str()).map(|e| e.name.as_str());
+        let within = |set: &HashSet<&str>| set.contains(requirement.id.as_str()) || name.is_some_and(|n| set.contains(n));
+        if within(&covered) && !within(&failing) {
             requirements_verified += 1;
+        } else if within(&covered) {
+            let failed: Vec<&str> = verdicts
+                .iter()
+                .filter(|(tc, v)| matches!(v, super::verification::Verdict::Fail(_)) && tc.verifies.iter().any(|r| r == &requirement.id || Some(r.as_str()) == name))
+                .map(|(tc, _)| tc.name.as_str())
+                .collect();
+            push(
+                "requirements.verification",
+                Severity::Blocker,
+                format!("requirement '{}': verification cases fail ({})", requirement.id, failed.join(", ")),
+            );
         } else {
             push(
                 "requirements.verification",

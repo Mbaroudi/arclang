@@ -24,6 +24,7 @@ package <EmergencyBrakingSystem> 'Automotive Emergency Braking System (AEB)' {
         metadata def PrimaryAsset;
         metadata def Threat;
         metadata def SecurityScales;
+        metadata def Configuration;
         metadata def Mode;
         metadata def Class;
         metadata def PhysicalPort;
@@ -730,6 +731,18 @@ package <EmergencyBrakingSystem> 'Automotive Emergency Braking System (AEB)' {
     #Trace dependency realizes from 'AEB System - Functional View'::'SF-AssessThreat' to 'Emergency Braking - Operational View'::'OE-Vehicle'::'OA-DetectThreat';
     #Trace dependency realizes from 'AEB System - Functional View'::'SF-GenerateWarning' to 'Emergency Braking - Operational View'::'OE-Vehicle'::'OA-AlertDriver';
     #Trace dependency realizes from 'AEB System - Functional View'::'SF-ComputeBrakingForce' to 'Emergency Braking - Operational View'::'OE-Vehicle'::'OA-ApplyBrakes';
+    view 'Braking chain' {
+        attribute 'view' : String = "lab";
+        expose 'AEB System - Component Structure'::'LC-SensorFusion';
+        expose 'AEB System - Component Structure'::'LC-ThreatAssessment';
+        expose 'AEB System - Component Structure'::'LC-BrakeController';
+        expose 'AEB System - Component Structure'::'LC-BrakeActuator';
+    }
+    view 'Around the brake ECU' {
+        attribute 'view' : String = "pab";
+        attribute context : Boolean = true;
+        expose 'AEB System - Hardware Deployment'::'PN-BrakeECU';
+    }
     package ArcLangUnits {
         private import MeasurementReferences::*;
         private import ISQ::*;

@@ -40,7 +40,21 @@ fn trace_dependency(e: &mut Exporter<'_>, key: &str, from: &str, to: &str) {
 pub(super) fn allocation(e: &mut Exporter<'_>, from: &str, to: &str) {
     match (e.feature(from), e.feature(to)) {
         (Some(source), Some(target)) => e.line(&format!("allocate {source} to {target};")),
-        _ => e.line(&format!("// {from} allocated to {to}: an end is not exported")),
+        // An end no feature chain reaches (a variant): a dependency, by name.
+        _ => trace_dependency(e, "allocates", from, to),
+    }
+}
+
+/// An allocation, typed by its allocation definition when it `is:` one
+/// (`allocation : 'Software deployment' allocate a to b;`).
+fn typed_allocation(e: &mut Exporter<'_>, trace: &Trace) {
+    let typing = e.typing(&trace.attributes);
+    if typing.is_empty() {
+        return allocation(e, &trace.from, &trace.to);
+    }
+    match (e.feature(&trace.from), e.feature(&trace.to)) {
+        (Some(source), Some(target)) => e.line(&format!("allocation{typing} allocate {source} to {target};")),
+        _ => trace_dependency(e, "allocates", &trace.from, &trace.to),
     }
 }
 
@@ -65,6 +79,9 @@ pub(super) fn register(e: &mut Exporter<'_>) {
         let id = if test.id.is_empty() { &test.name } else { &test.id };
         e.register("", id, &[&test.name]);
     }
+    for config in &model.configurations {
+        e.register("", &config.id, &[&config.name]);
+    }
 }
 
 pub(super) fn write(e: &mut Exporter<'_>) {
@@ -87,11 +104,18 @@ pub(super) fn write(e: &mut Exporter<'_>) {
             }
         });
     }
+    // A configuration of the product line: what it selects, by dependency.
+    for config in &model.configurations {
+        e.block(&format!("#Configuration part {}", text::declared(&config.id, &config.name)), |e| e.header("Configuration", &config.attributes, &["selects"]));
+        for selected in &config.selects {
+            dependency(e, "selects", &config.id, selected);
+        }
+    }
     for test in &model.test_cases {
         let id = if test.id.is_empty() { test.name.clone() } else { test.id.clone() };
         let verified: Vec<String> = test.verifies.iter().filter_map(|r| e.reference(r)).collect();
         e.block(&format!("verification {}", text::declared(&id, &test.name)), |e| {
-            e.header("TestCase", &test.attributes, &["method"]);
+            e.header("TestCase", &test.attributes, &["method", "asserts"]);
             if !test.method.is_empty() {
                 e.line(&format!("attribute method : String = {};", text::string(&test.method)));
             }
@@ -100,6 +124,11 @@ pub(super) fn write(e: &mut Exporter<'_>) {
                     e.line(&format!("verify {requirement};"));
                 }
             });
+            // An analysis: the constraints whose evaluation is its verdict.
+            for asserted in crate::compiler::verification::asserted(test) {
+                let id = model.constraints.iter().find(|c| c.id == asserted || c.name == asserted).map_or(asserted.clone(), |c| c.id.clone());
+                e.line(&format!("assert {};", text::name(&id)));
+            }
         });
     }
     super::constraints::write(e);
@@ -121,7 +150,7 @@ fn traces(e: &mut Exporter<'_>) {
                 (Some(requirement), Some(by)) => e.line(&format!("satisfy {requirement} by {by};")),
                 _ => trace_dependency(e, "satisfies", &trace.from, &trace.to),
             },
-            "allocates" => allocation(e, &trace.from, &trace.to),
+            "allocates" => typed_allocation(e, trace),
             kind => trace_dependency(e, kind, &trace.from, &trace.to),
         }
     }

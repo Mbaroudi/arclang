@@ -13,6 +13,7 @@ mod data;
 mod levels;
 mod relations;
 mod security;
+mod views;
 mod text;
 mod types;
 
@@ -23,7 +24,7 @@ use std::collections::{BTreeSet, HashMap};
 /// The metadata definitions of the profile: the levels, then the kinds
 /// SysML cannot tell by itself.
 pub const PROFILE: &[&str] = &[
-    "OA", "SA", "LA", "PA", "EPBS", "Actor", "Entity", "Node", "Behaviour", "Hardware", "Mission", "Capability", "Chain", "Link", "Hazard", "Security", "PrimaryAsset", "Threat", "SecurityScales",
+    "OA", "SA", "LA", "PA", "EPBS", "Actor", "Entity", "Node", "Behaviour", "Hardware", "Mission", "Capability", "Chain", "Link", "Hazard", "Security", "PrimaryAsset", "Threat", "SecurityScales", "Configuration",
     "Mode", "Class", "PhysicalPort", "ExchangeItem", "Path", "Fmea", "Interface", "Trace", "Association", "Iterate", "Invariant",
 ];
 
@@ -57,11 +58,14 @@ pub(crate) struct Exporter<'m> {
     undeclared: Vec<String>,
     /// The ArcLang types, their inheritance folded in.
     types: std::collections::BTreeMap<String, crate::compiler::types::EffectiveType>,
+    /// Segments naming a variant: no feature chain goes through one, a
+    /// variant is a choice of its variation, not a feature of it.
+    variants: std::collections::HashSet<String>,
 }
 
 impl<'m> Exporter<'m> {
     fn new(model: &'m Model) -> Self {
-        Exporter { model, metamodel: Metamodel::current(), out: String::new(), depth: 0, units: BTreeSet::new(), targets: HashMap::new(), package: String::new(), undeclared: Vec::new(), types: crate::compiler::types::effective_types(&model.types).unwrap_or_default() }
+        Exporter { model, metamodel: Metamodel::current(), out: String::new(), depth: 0, units: BTreeSet::new(), targets: HashMap::new(), package: String::new(), undeclared: Vec::new(), types: crate::compiler::types::effective_types(&model.types).unwrap_or_default(), variants: crate::compiler::variability::variations(model).iter().flat_map(|v| v.variants.iter().map(|(id, _)| text::name(id))).collect() }
     }
 
     fn line(&mut self, text: &str) {
@@ -100,6 +104,12 @@ impl<'m> Exporter<'m> {
         if let Some(description) = attributes.get("description").and_then(|d| d.as_string()) {
             self.line(&text::doc(description));
         }
+        // Tags are metadata: `@Safety;` annotates the element.
+        for tag in crate::compiler::diagram::tags::tags_of(attributes) {
+            self.line(&format!("@{};", text::name(&tag)));
+        }
+        let skip: Vec<&str> = skip.iter().copied().chain(["tags"]).collect();
+        let skip = skip.as_slice();
         let inherited = self.inherited(attributes).map(|i| i.attributes);
         for line in attributes::lines(&self.metamodel, kind, attributes, skip, inherited.as_ref(), &mut self.units) {
             self.line(&line);
@@ -152,7 +162,7 @@ impl<'m> Exporter<'m> {
     /// The feature chain to the element `reference` names, the end of a
     /// connector: `'LC-1'.'LC-2'.radar`.
     fn feature(&self, reference: &str) -> Option<String> {
-        self.targets.get(reference).map(|t| self.qualify(t, "."))
+        self.targets.get(reference).filter(|t| !t.segments.iter().any(|s| self.variants.contains(s))).map(|t| self.qualify(t, "."))
     }
 
     fn run(&mut self) {
@@ -170,6 +180,7 @@ impl<'m> Exporter<'m> {
             }
             e.profile();
             e.line("private import ArcadiaProfile::*;");
+            views::tags(e);
             let model = e.model;
             e.header("Model", &model.attributes, &["name"]);
             data::write(e);
@@ -178,6 +189,7 @@ impl<'m> Exporter<'m> {
             types::write(e);
             relations::write(e);
             security::write(e);
+            views::write(e);
             e.units();
         });
     }

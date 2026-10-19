@@ -13,7 +13,7 @@ use crate::compiler::ast::{self, InterfaceDefinition, LogicalComponent, Model};
 use crate::compiler::metamodel_check::exchange_ends;
 use std::collections::BTreeMap;
 
-const COMPONENT_PROPERTIES: [&str; 4] = ["description", "type", "safety_level", "asil"];
+const COMPONENT_PROPERTIES: [&str; 6] = ["description", "type", "safety_level", "asil", "variation", "variant"];
 
 pub(super) fn build(model: &Model) -> Option<(Diagram, Vec<String>)> {
     let mut builder = Builder::new(ViewKind::Lab);

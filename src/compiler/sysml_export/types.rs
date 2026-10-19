@@ -23,6 +23,30 @@ fn types_links(e: &Exporter<'_>, name: &str) -> bool {
     e.model.physical_architecture.iter().flat_map(|pa| pa.links.iter()).any(|l| types::declared_types(&l.attributes).map(|n| n.contains(&name)).unwrap_or(false))
 }
 
+/// Whether component ports are typed by `name`: then it is a port definition.
+fn types_ports(e: &Exporter<'_>, name: &str) -> bool {
+    fn any(ports: &[crate::compiler::ast::ComponentPort], name: &str) -> bool {
+        ports.iter().any(|p| types::declared_types(&p.attributes).map(|n| n.contains(&name)).unwrap_or(false) || any(&p.ports, name))
+    }
+    fn components(list: &[crate::compiler::ast::LogicalComponent], name: &str) -> bool {
+        list.iter().any(|c| any(&c.ports, name) || components(&c.sub_components, name))
+    }
+    e.model.logical_architecture.iter().any(|la| components(&la.components, name)) || e.model.types.iter().any(|t| any(&t.ports, name))
+}
+
+/// Whether exchanges are typed by `name`: then it is an interface definition,
+/// written as the connection definition its exchanges are usages of.
+fn types_exchanges(e: &Exporter<'_>, name: &str) -> bool {
+    let uses = |attributes: &HashMap<String, AttributeValue>| types::declared_types(attributes).map(|n| n.contains(&name)).unwrap_or(false);
+    e.model.logical_architecture.iter().any(|la| la.component_exchanges.iter().any(|x| uses(&x.attributes)) || la.functional_exchanges.iter().any(|x| uses(&x.attributes)))
+        || e.model.system_analysis.iter().any(|sa| sa.functional_exchanges.iter().any(|x| uses(&x.attributes)))
+}
+
+/// Whether allocations are typed by `name`: then it is an allocation definition.
+fn types_allocations(e: &Exporter<'_>, name: &str) -> bool {
+    e.model.traces.iter().any(|t| t.trace_type == "allocates" && types::declared_types(&t.attributes).map(|n| n.contains(&name)).unwrap_or(false))
+}
+
 /// Whether only functions are typed by `name`: then it is an action definition.
 fn types_functions_only(e: &Exporter<'_>, name: &str) -> bool {
     let mut functions = false;
@@ -51,13 +75,31 @@ pub(super) fn write(e: &mut Exporter<'_>) {
         return;
     }
     e.package(&format!("package {PACKAGE}"), PACKAGE, |e| {
+        // The port definitions the ports of the types are of.
+        fn interfaces(ports: &[crate::compiler::ast::ComponentPort], out: &mut Vec<String>) {
+            for port in ports {
+                if types::declared_types(&port.attributes).map(|n| n.is_empty()).unwrap_or(true) {
+                    out.push(port.interface_type.clone());
+                }
+                interfaces(&port.ports, out);
+            }
+        }
+        let mut used = Vec::new();
         for ty in &model.types {
-            let links = types_links(e, &ty.name);
-            let keyword = if links { "connection" } else if types_functions_only(e, &ty.name) { "action" } else { "part" };
+            interfaces(&ty.ports, &mut used);
+        }
+        if !used.is_empty() {
+            levels::port_defs(e, used);
+        }
+        for ty in &model.types {
+            let allocations = types_allocations(e, &ty.name);
+            let links = !allocations && (types_links(e, &ty.name) || types_exchanges(e, &ty.name));
+            let ports = !links && !allocations && types_ports(e, &ty.name);
+            let keyword = if allocations { "allocation" } else if links { "connection" } else if ports { "port" } else if types_functions_only(e, &ty.name) { "action" } else { "part" };
             let base = ty.extends.as_deref().map(|b| format!(" :> {}", text::name(b))).unwrap_or_default();
             e.block(&format!("abstract {keyword} def {}{base}", text::name(&ty.name)), |e| {
                 // A connection definition has the two ends its links connect.
-                if links && ty.extends.is_none() {
+                if (links || allocations) && ty.extends.is_none() {
                     e.line("end source;");
                     e.line("end target;");
                 }

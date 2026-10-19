@@ -111,6 +111,9 @@ impl Parser {
                 Token::SecurityAnalysis => {
                     model.security_analysis.push(self.parse_security_analysis()?);
                 }
+                Token::Identifier(ref id) if id == "configuration" && !self.peek_is_colon() => {
+                    model.configurations.push(self.parse_configuration()?);
+                }
                 Token::SecurityScales => {
                     let scales = self.parse_security_scales()?;
                     if model.security_scales.is_some() {
@@ -256,6 +259,9 @@ impl Parser {
                 Token::SecurityAnalysis => {
                     model.security_analysis.push(self.parse_security_analysis()?);
                 }
+                Token::Identifier(ref id) if id == "configuration" && !self.peek_is_colon() => {
+                    model.configurations.push(self.parse_configuration()?);
+                }
                 Token::SecurityScales => {
                     let scales = self.parse_security_scales()?;
                     if model.security_scales.is_some() {
@@ -359,6 +365,9 @@ impl Parser {
                 }
                 Token::SecurityAnalysis => {
                     model.security_analysis.push(self.parse_security_analysis()?);
+                }
+                Token::Identifier(ref id) if id == "configuration" && !self.peek_is_colon() => {
+                    model.configurations.push(self.parse_configuration()?);
                 }
                 Token::SecurityScales => {
                     let scales = self.parse_security_scales()?;
@@ -532,6 +541,9 @@ impl Parser {
                 }
                 Token::SecurityAnalysis => {
                     model.security_analysis.push(self.parse_security_analysis()?);
+                }
+                Token::Identifier(ref id) if id == "configuration" && !self.peek_is_colon() => {
+                    model.configurations.push(self.parse_configuration()?);
                 }
                 Token::SecurityScales => {
                     let scales = self.parse_security_scales()?;
@@ -1818,6 +1830,14 @@ impl Parser {
                 "test_case '{}': method '{}' is not one of test|analysis|inspection|demonstration",
                 name, method
             )));
+        }
+        if let Some(verdict) = attributes.get("verdict").and_then(|v| v.as_string()) {
+            if !super::verification::VERDICTS.contains(&verdict) {
+                return Err(self.err(format!("test_case '{}': verdict '{}' is not one of pass|fail|inconclusive|error", name, verdict)));
+            }
+            if attributes.contains_key("asserts") {
+                return Err(self.err(format!("test_case '{}': its verdict comes from the constraints it asserts, it is not given", name)));
+            }
         }
         Ok(TestCase { id, name, verifies, method, attributes })
     }
@@ -3229,6 +3249,16 @@ impl Parser {
     }
 
     /// `security_scales { confidentiality: ["0", "1"] … threat_kinds: [...] }`.
+    /// `configuration "Name" { id: "CFG-1" selects: ["LC-A", "LC-B"] }`
+    fn parse_configuration(&mut self) -> Result<Configuration, String> {
+        self.advance(); // configuration
+        let name = self.expect_name()?;
+        let mut attributes = self.parse_attributes_block()?;
+        let selects = Self::take_names(&mut attributes, "selects", &name, "configuration").map_err(|e| self.err(e))?;
+        let id = attributes.get("id").and_then(|v| v.as_string()).map(str::to_string).unwrap_or_else(|| name.clone());
+        Ok(Configuration { id, name, selects, attributes })
+    }
+
     fn parse_security_scales(&mut self) -> Result<SecurityScales, String> {
         self.expect(Token::SecurityScales)?;
         let mut attributes = self.parse_attributes_block()?;
@@ -3365,6 +3395,9 @@ impl Parser {
         } else if let Token::Refines = self.current() {
             self.advance();
             ("refines".to_string(), self.expect_name()?)
+        } else if matches!(self.current(), Token::Identifier(ref k) if k == "allocates") {
+            self.advance();
+            ("allocates".to_string(), self.expect_name()?)
         } else {
             return Err(self.err("Expected trace type (satisfies, implements, validates, etc.) or arrow"));
         };
