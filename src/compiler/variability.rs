@@ -72,20 +72,32 @@ pub fn variations(ast: &Model) -> Vec<Variation> {
     out
 }
 
-/// The variants a configuration leaves out: those of its variations it does
-/// not select, by id and by name.
-pub fn excluded_by(ast: &Model, configuration: &str) -> HashSet<String> {
-    let Some(config) = ast.configurations.iter().find(|c| c.id == configuration || c.name == configuration) else { return HashSet::new() };
-    let mut out = HashSet::new();
-    for variation in variations(ast) {
-        for (id, name) in &variation.variants {
-            if !config.selects.iter().any(|s| s == id || s == name) {
-                out.insert(id.clone());
-                out.insert(name.clone());
-            }
+/// The variant a selection names: by id, else by a name only one variant
+/// bears. `Err` lists the variations whose variants bear the name.
+fn resolve(variations: &[Variation], selected: &str) -> Result<Option<(String, String)>, Vec<String>> {
+    for variation in variations {
+        if let Some((id, _)) = variation.variants.iter().find(|(id, _)| id == selected) {
+            return Ok(Some((variation.id.clone(), id.clone())));
         }
     }
-    out
+    let named: Vec<(String, String)> = variations
+        .iter()
+        .flat_map(|v| v.variants.iter().filter(|(_, name)| name == selected).map(move |(id, _)| (v.id.clone(), id.clone())))
+        .collect();
+    match named.as_slice() {
+        [] => Ok(None),
+        [one] => Ok(Some(one.clone())),
+        many => Err(many.iter().map(|(variation, _)| variation.clone()).collect()),
+    }
+}
+
+/// The variants a configuration leaves out, by id: those of its variations
+/// it does not select.
+pub fn excluded_by(ast: &Model, configuration: &str) -> HashSet<String> {
+    let Some(config) = ast.configurations.iter().find(|c| c.id == configuration || c.name == configuration) else { return HashSet::new() };
+    let variations = variations(ast);
+    let selected: HashSet<String> = config.selects.iter().filter_map(|s| resolve(&variations, s).ok().flatten()).map(|(_, id)| id).collect();
+    variations.iter().flat_map(|v| v.variants.iter().map(|(id, _)| id.clone())).filter(|id| !selected.contains(id)).collect()
 }
 
 /// Check variations, variants and configurations: `Err` for what cannot be
@@ -117,11 +129,12 @@ pub fn check(ast: &Model) -> Result<Vec<String>, String> {
             warnings.push(format!("variation '{}' has {} variant(s): a variation chooses between two or more", variation.id, variation.variants.len()));
         }
     }
-    let variation_of = |selected: &str| variations.iter().find(|v| v.variants.iter().any(|(id, name)| id == selected || name == selected)).map(|v| v.id.clone());
     for config in &ast.configurations {
         let mut chosen: HashMap<String, String> = HashMap::new();
         for selected in &config.selects {
-            let variation = variation_of(selected).ok_or_else(|| format!("configuration '{}': '{selected}' is not a variant of any variation", config.name))?;
+            let (variation, _) = resolve(&variations, selected)
+                .map_err(|holders| format!("configuration '{}': '{selected}' names variants of several variations ({}): select it by id", config.name, holders.join(", ")))?
+                .ok_or_else(|| format!("configuration '{}': '{selected}' is not a variant of any variation", config.name))?;
             if let Some(previous) = chosen.insert(variation.clone(), selected.clone()).filter(|previous| previous != selected) {
                 return Err(format!("configuration '{}' selects '{previous}' and '{selected}', two variants of variation '{variation}'", config.name));
             }

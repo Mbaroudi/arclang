@@ -71,3 +71,29 @@ fn every_tag_written_is_declared() {
     assert!(text.contains("@Human;"), "{text}");
     assert!(text.contains("metadata def Human;"), "{text}");
 }
+
+#[test]
+fn an_untagged_element_named_like_a_tagged_one_is_not_drawn() {
+    let source = MODEL.replace("component \"Crash recorder\" {", "component \"Airbag controller\" { id: \"LC-AIRBAG-2\" }\n        component \"Crash recorder\" {");
+    let result = Compiler::new(CompilerConfig::default()).compile_string(&source.replace("under: \"LC-BODY\"\n", "")).unwrap();
+    let set = build_diagrams(&result.ast);
+    let diagram = set.diagrams.iter().find(|d| d.title == "Body safety").unwrap();
+    fn ids(nodes: &[Node], out: &mut Vec<String>) {
+        for n in nodes {
+            out.push(n.id.clone());
+            ids(&n.children, out);
+        }
+    }
+    let mut drawn = Vec::new();
+    ids(&diagram.nodes, &mut drawn);
+    assert!(drawn.contains(&"LC-AIRBAG".to_string()) && !drawn.contains(&"LC-AIRBAG-2".to_string()), "{drawn:?}");
+}
+
+#[test]
+fn a_view_under_no_exported_element_is_said_not_widened() {
+    let source = MODEL.replace("under: \"LC-BODY\"", "under: \"LC-NOWHERE\"");
+    let result = Compiler::new(CompilerConfig::default()).compile_string(&source).unwrap();
+    let text = arclang::compiler::sysmlv2_generator::generate_sysmlv2(&result.semantic_model, &result.ast);
+    assert!(text.contains("// view 'Body safety' left out: under 'LC-NOWHERE' is no exported element"), "{text}");
+    assert!(!text.contains("view 'Body safety' {"), "{text}");
+}
