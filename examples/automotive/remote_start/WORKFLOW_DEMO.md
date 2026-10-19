@@ -32,7 +32,7 @@ This document demonstrates the complete workflow from a natural language prompt 
 
 **Time to complete:** ~2 hours of iterative development  
 **Lines of ArcLang code:** 807 lines  
-**Generated artifacts:** 5 files (ArcLang source, HTML explorer, JSON data, LaTeX doc, SVG diagram)
+**Generated artifacts:** 5 files (ArcLang source, HTML explorer, JSON data, LaTeX doc, SVG diagram). Only the ArcLang source and the SVG are kept in the repository; `arclang explorer` and `arclang export -f json` regenerate the others.
 
 ---
 
