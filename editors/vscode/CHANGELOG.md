@@ -1,5 +1,13 @@
 # Changelog
 
+## 4.3.1
+
+- Full screen and SVG/PNG/layout exports work inside VS Code (native save dialog; full screen is a focus mode that maximizes the editor).
+- Diagram contents: hide from a diagram (⌘H), show related elements, new diagram around an element; Trace tool; rename in place (F2); find in the diagram (⌘F); exchanges selectable and deletable; cascades confirmed; a created element is selected and centered.
+- A visible layer bar with diagram counts; drag-to-connect from a handle; the agent tested end to end.
+- Fixes: the selection survives a new snapshot; the system analysis palette writes `system_component`.
+- `test/e2e`: the page against the real compiler (37 palette tools, 14 gestures, every toolbar tool). `COMPARISON.md`: Capella and SysML v2 tools compared.
+
 ## 4.3.0
 
 - **The workbench** (ArcLang: Open the workbench): the compiler's diagram viewer beside the source with a palette (create actors, functions, components, nodes, ports; connect them by interactions, functional and component exchanges, physical links), a properties view typed by the metamodel, a semantic browser, the findings and the gate. Every gesture is an `arclang edit` request: refused unless the edited model compiles, applied as one undoable change in the editor. Text and views edit the same file; the selection follows from one to the other.

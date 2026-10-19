@@ -38,6 +38,14 @@ the selection follows; Undo, Redo and Save are the editor's own.
   component onto another to move it. `F2` renames, `Delete` removes,
   double-click opens, `Esc` cancels; right-click gives the native menu
   (rename, delete, show in source, show in tree, ask @arclang, copy id).
+- **Diagram contents**: `⌘H` hides an element from the diagram (out of a
+  named diagram's `shows:`, or a new named diagram without it on a layer
+  view), *Show related* adds what it is connected to, *New diagram* opens a
+  diagram around it; a **Trace** tool draws realizes, satisfies, allocates,
+  verifies traces; `F2` renames on the canvas; `⌘F` finds in the diagram;
+  exchanges and links are selectable and deletable, cascades are confirmed.
+  See [COMPARISON.md](COMPARISON.md) for where this stands against Capella
+  and SysML v2 tools.
 - **Properties**, Capella style: General, Description, Resources and All
   tabs, the set attributes first and the others added on demand, the name
   edited in place (the identity never changes).
