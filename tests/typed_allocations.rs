@@ -52,3 +52,18 @@ fn a_typed_allocation_goes_through_sysml_v2_and_back() {
     assert!(back.contains("from_kind: \"PhysicalNode\""), "{back}");
     assert!(back.contains("trace \"PN-ADAS\" allocates \"LC-FUSION\" { is: \"Software deployment\" }"), "{back}");
 }
+
+#[test]
+fn an_allocation_end_named_by_two_elements_is_an_error() {
+    let source = MODEL.replace("component \"Sensor fusion\" { id: \"LC-FUSION\" }", "component \"Sensor fusion\" { id: \"LC-FUSION\" }\n    component \"ADAS ECU\" { id: \"LC-ADAS\" }")
+        .replace("trace \"PN-ADAS\" allocates", "trace \"ADAS ECU\" allocates");
+    let error = compile(&source).err().unwrap_or_default();
+    assert!(error.contains("trace 'allocates' from 'ADAS ECU': ambiguous name, matches ids [\"LC-ADAS\", \"PN-ADAS\"] — use an id"), "{error}");
+}
+
+#[test]
+fn kinds_stated_on_the_trace_itself_are_checked() {
+    let source = MODEL.replace("trace \"PN-ADAS\" allocates \"LC-FUSION\" { is: \"Software deployment\" }", "trace \"LC-FUSION\" allocates \"PN-ADAS\" { from_kind: \"PhysicalNode\" }");
+    let error = compile(&source).err().unwrap_or_default();
+    assert!(error.contains("allocation 'LC-FUSION' -> 'PN-ADAS' is an allocation, which goes from a PhysicalNode: 'LC-FUSION' is a LogicalComponent"), "{error}");
+}

@@ -50,6 +50,19 @@ pub(super) fn tags(e: &mut Exporter<'_>) {
 pub(super) fn write(e: &mut Exporter<'_>) {
     let model = e.model;
     for diagram in &model.diagrams {
+        // A view whose scope is not exported would show more than the diagram: said, not written.
+        if let Some(under) = diagram.attributes.get("under").and_then(|v| v.as_string()).filter(|u| e.reference(u).is_none()) {
+            e.line(&format!("// view {} left out: under '{under}' is no exported element", text::name(&diagram.name)));
+            continue;
+        }
+        let missing: Vec<&String> = diagram.shows.iter().filter(|s| e.reference(s).is_none()).collect();
+        if !missing.is_empty() && missing.len() == diagram.shows.len() {
+            e.line(&format!("// view {} left out: it shows no exported element", text::name(&diagram.name)));
+            continue;
+        }
+        for shown in &missing {
+            e.line(&format!("// view {}: '{shown}' is no exported element", text::name(&diagram.name)));
+        }
         e.block(&format!("view {}", text::name(&diagram.name)), |e| {
             e.line(&format!("attribute 'view' : String = {};", text::string(&diagram.view)));
             if let Some(configuration) = diagram.attributes.get("configuration").and_then(|v| v.as_string()) {

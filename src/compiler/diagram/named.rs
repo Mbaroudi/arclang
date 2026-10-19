@@ -7,7 +7,7 @@
 //! drawn too, as a contextual diagram.
 
 use super::{Diagram, Edge, Node, ViewKind};
-use crate::compiler::ast::{AttributeValue, DiagramDecl, Model};
+use crate::compiler::ast::{DiagramDecl, Model};
 use std::collections::HashSet;
 
 /// One (diagram, diagnostics) per declaration, in declared order. A
@@ -35,7 +35,7 @@ fn one(model: &Model, decl: &DiagramDecl, views: &[Diagram]) -> (Option<Diagram>
     (diagram.map(|d| without(d, &excluded)), diagnostics)
 }
 
-/// A diagram without the nodes `excluded` names (by id or name), nor the
+/// A diagram without the nodes `excluded` names (by id), nor the
 /// edges that ended on them.
 fn without(mut diagram: Diagram, excluded: &HashSet<String>) -> Diagram {
     if excluded.is_empty() {
@@ -44,7 +44,7 @@ fn without(mut diagram: Diagram, excluded: &HashSet<String>) -> Diagram {
     fn prune(nodes: Vec<Node>, excluded: &HashSet<String>) -> Vec<Node> {
         nodes
             .into_iter()
-            .filter(|n| !excluded.contains(&n.id) && !excluded.contains(&n.name))
+            .filter(|n| !excluded.contains(&n.id))
             .map(|mut n| {
                 n.children = prune(std::mem::take(&mut n.children), excluded);
                 n
@@ -91,7 +91,7 @@ fn cut_view(decl: &DiagramDecl, views: &[Diagram], whole_when_empty: bool, tagge
         Some(tagged) if decl.shows.is_empty() => {
             fn collect(nodes: &[&Node], tagged: &HashSet<String>, out: &mut HashSet<String>) {
                 for node in nodes {
-                    if tagged.contains(&node.id) || tagged.contains(&node.name) {
+                    if tagged.contains(&node.id) {
                         out.insert(node.id.clone());
                     }
                     collect(&node.children.iter().collect::<Vec<_>>(), tagged, out);
@@ -110,7 +110,7 @@ fn cut_view(decl: &DiagramDecl, views: &[Diagram], whole_when_empty: bool, tagge
         }
         // With `tagged`, what is shown is filtered by the tags, as a SysML v2 view filters what it exposes.
         let found: Vec<String> = match tagged {
-            Some(tagged) => found.into_iter().filter(|id| tagged.contains(id) || find_node(&source.nodes, id).is_some_and(|n| tagged.contains(&n.name))).collect(),
+            Some(tagged) => found.into_iter().filter(|id| tagged.contains(id)).collect(),
             None => found,
         };
         wanted.extend(found);

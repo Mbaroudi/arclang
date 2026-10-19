@@ -357,7 +357,7 @@ async fn an_element_is_created_in_its_layer_and_inside_another_element() {
     assert_eq!(logger["attributes"]["latency"]["value"], 5.0);
     let decide = elements.iter().find(|e| e["shortName"] == "LF-001").unwrap();
     assert_eq!(decide["owner"], json!({ "@id": controller }));
-    let (_, changes) = call(&app, "GET", &format!("/projects/{project}/commits/{head}/changes"), Some(TOKEN), None).await;
+    let (_, changes) = call(&app, "GET", &format!("/projects/{project}/commits/{head}/changes?extensions=true"), Some(TOKEN), None).await;
     let mut added: Vec<&str> = changes.as_array().unwrap().iter().filter(|c| c["arclang:changeKind"] == "added").map(|c| c["payload"]["name"].as_str().unwrap()).collect();
     added.sort();
     assert_eq!(added, ["Decide", "Logger"], "two elements added, nothing else");
@@ -496,7 +496,7 @@ async fn a_reader_reads_and_only_a_writer_writes() {
     assert_eq!(git(root, &["log", "-1", "--format=%B"]).trim(), "Tighten latency");
     assert_eq!(git(root, &["notes", "--ref", "arclang-user", "show", "HEAD"]).trim(), "malek");
     let restarted = server_with_users(&model);
-    let (_, listed) = call(&restarted, "GET", &commits, Some(READER), None).await;
+    let (_, listed) = call(&restarted, "GET", &format!("{commits}?extensions=true"), Some(READER), None).await;
     assert_eq!(listed[0]["arclang:user"], "malek");
     assert_eq!(listed[1]["arclang:user"], Value::Null, "the initial commit was not made through the API");
 }
@@ -538,7 +538,7 @@ async fn an_element_with_an_id_is_renamed_and_keeps_its_identity() {
     let (new_head, elements) = head_state(&app, &project).await;
     let renamed = elements.iter().find(|e| e["@id"] == element.as_str()).expect("same identity");
     assert_eq!(renamed["name"], "Brake controller");
-    let (_, changes) = call(&app, "GET", &format!("/projects/{project}/commits/{new_head}/changes"), Some(TOKEN), None).await;
+    let (_, changes) = call(&app, "GET", &format!("/projects/{project}/commits/{new_head}/changes?extensions=true"), Some(TOKEN), None).await;
     assert!(changes.as_array().unwrap().iter().all(|c| c["arclang:changeKind"] == "modified"), "nothing added or deleted: {changes}");
 }
 

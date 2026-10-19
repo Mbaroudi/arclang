@@ -108,7 +108,21 @@ pub fn snapshot(source: &str, options: &SnapshotOptions) -> Snapshot {
         optimization_level: 0,
         target: "json".to_string(),
     });
-    match compiler.compile_string(source) {
+    snapshot_of(compiler.compile_string(source), options)
+}
+
+/// The snapshot of a model file, its imports resolved relative to it.
+pub fn snapshot_file_json(path: &std::path::Path, options: &SnapshotOptions) -> String {
+    let mut compiler = Compiler::new(CompilerConfig {
+        optimization_level: 0,
+        target: "json".to_string(),
+    });
+    serde_json::to_string(&snapshot_of(compiler.compile_file(path), options))
+        .unwrap_or_else(|e| format!("{{\"success\":false,\"errors\":[\"serialization: {e}\"]}}"))
+}
+
+fn snapshot_of(compiled: Result<crate::CompilationResult, crate::CompilerError>, options: &SnapshotOptions) -> Snapshot {
+    match compiled {
         Err(e) => Snapshot {
             success: false,
             errors: vec![e.to_string()],

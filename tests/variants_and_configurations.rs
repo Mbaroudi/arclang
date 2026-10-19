@@ -139,3 +139,28 @@ fn a_variation_inside_a_variant_left_out_is_not_open() {
     let result = compile(&source).unwrap();
     assert!(result.warnings.iter().all(|w| !w.contains("LC-TURBO")), "{:?}", result.warnings);
 }
+
+#[test]
+fn a_variant_selected_by_a_name_two_variations_share_is_an_error() {
+    let source = LINE.replace("component \"Manual\" { id: \"LC-MANUAL\"", "component \"Four cylinders\" { id: \"LC-MANUAL\"");
+    let error = compile(&source.replace("[\"LC-4CYL\", \"LC-MANUAL\"]", "[\"Four cylinders\"]")).err().unwrap_or_default();
+    assert!(error.contains("configuration 'City': 'Four cylinders' names variants of several variations (LC-ENGINE, LC-GEARBOX): select it by id"), "{error}");
+}
+
+#[test]
+fn a_configuration_leaves_out_variants_by_id_not_by_name() {
+    // A function named like a left-out variant stays drawn.
+    let source = LINE.replace("component \"Car\" {\n        id: \"LC-CAR\"", "component \"Car\" {\n        id: \"LC-CAR\"\n        component \"Six cylinders\" { id: \"LC-SIX-LABEL\" }");
+    let result = compile(&source.replace("component \"Six cylinders\" { id: \"LC-6CYL\" variant: true }", "component \"Six\" { id: \"LC-6CYL\" variant: true }")).unwrap();
+    let set = build_diagrams(&result.ast);
+    let city = set.diagrams.iter().find(|d| d.title == "City car").unwrap();
+    fn ids(nodes: &[arclang::compiler::diagram::Node], out: &mut Vec<String>) {
+        for n in nodes {
+            out.push(n.id.clone());
+            ids(&n.children, out);
+        }
+    }
+    let mut drawn = Vec::new();
+    ids(&city.nodes, &mut drawn);
+    assert!(drawn.contains(&"LC-SIX-LABEL".to_string()) && !drawn.contains(&"LC-6CYL".to_string()), "{drawn:?}");
+}

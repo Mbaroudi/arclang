@@ -19,13 +19,14 @@ pub fn texts(attributes: &HashMap<String, AttributeValue>, key: &str) -> Vec<Str
     }
 }
 
-/// The ids and names of the elements carrying one of `wanted`.
+/// The ids of the elements carrying one of `wanted` (an element and another
+/// of the same name are told apart).
 pub fn tagged(model: &Model, wanted: &[String]) -> HashSet<String> {
     let mut out = HashSet::new();
-    let mut visit = |id: &str, name: &str, attributes: &HashMap<String, AttributeValue>| {
+    let mut visit = |id: &str, _name: &str, attributes: &HashMap<String, AttributeValue>| {
         if tags_of(attributes).iter().any(|t| wanted.contains(t)) {
             let written = attributes.get("id").and_then(|v| v.as_string()).unwrap_or(id);
-            out.extend([written.to_string(), id.to_string(), name.to_string()]);
+            out.extend([written.to_string(), id.to_string()]);
         }
     };
     fn functions(list: &[LogicalFunction], visit: &mut dyn FnMut(&str, &str, &HashMap<String, AttributeValue>)) {
