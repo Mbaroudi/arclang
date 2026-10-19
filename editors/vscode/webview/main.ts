@@ -70,7 +70,8 @@ const host = el('div', { class: 'wb-host' });
 const modeChip = el('div', { class: 'wb-mode', hidden: true });
 const toast = el('div', { class: 'wb-toast', hidden: true, role: 'status', 'aria-live': 'polite' });
 const progress = el('div', { class: 'wb-progress', hidden: true });
-sheet.append(progress, host, modeChip, toast);
+const layoutNotice = el('div', { class: 'wb-notice', hidden: true, role: 'status' });
+sheet.append(progress, host, modeChip, toast, layoutNotice);
 const splitter = el('div', { class: 'wb-splitter', role: 'separator', 'aria-orientation': 'vertical', title: 'Drag to resize' });
 const right = el('aside', { class: 'wb-right' });
 const bottom = el('footer', { class: 'wb-bottom' });
@@ -263,6 +264,10 @@ function onDrop(dragged: string, target: string | null): void {
   submit([{ op: 'move', element: element.id, container: container.id }], `move ${element.id} into ${container.id}`);
 }
 
+function countNodes(nodes: NonNullable<ReturnType<typeof currentGraph>>['children'] & unknown[]): number {
+  return nodes.reduce((sum, node) => sum + 1 + countNodes(node.children ?? []), 0);
+}
+
 /** The drawn element ids a connection from `fromId` may land on (null: any). */
 function connectTargets(fromId: string): string[] | null {
   const from = elementFor({ view: '', id: fromId, name: '', kind: '', isEdge: false });
@@ -343,6 +348,13 @@ function mount(snapshot: Snapshot): void {
     place: window.ArcVizPlace,
   };
   progress.hidden = false;
+  // Past three seconds (NN/g's limit of attention), the page says what it is doing.
+  const graphs = snapshot.diagrams.graphs;
+  const boxes = graphs.reduce((sum, g) => sum + countNodes(g.children ?? []), 0);
+  const slow = setTimeout(() => {
+    layoutNotice.textContent = `Laying out ${graphs.length} diagram${graphs.length > 1 ? 's' : ''}, ${boxes} boxes…`;
+    layoutNotice.hidden = false;
+  }, 3000);
   const viewer = window.ArcViz.mount(host, snapshot.diagrams, deps, {
     slots: { tabs, tools, tree: hiddenTree, details: detailsSlot, related: relatedSlot, foot: hiddenFoot },
     onSelect,
@@ -366,6 +378,8 @@ function mount(snapshot: Snapshot): void {
     followView();
     fitStage();
     progress.hidden = true;
+    clearTimeout(slow);
+    layoutNotice.hidden = true;
     void viewer.settled?.()?.then(() => {
       followView();
       fitStage();

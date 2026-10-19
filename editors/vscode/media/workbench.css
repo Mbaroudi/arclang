@@ -345,3 +345,5 @@ button.wb-icon-button[aria-pressed='true'] { background: var(--vscode-inputOptio
 #workbench .arcviz [data-id].wb-has-finding.is-error > path:first-of-type {
   stroke: var(--vscode-editorError-foreground, #f14c4c) !important;
 }
+
+.wb-notice { position: absolute; top: 40%; left: 50%; transform: translate(-50%, -50%); z-index: 4; padding: 10px 16px; border-radius: 4px; font-size: 13px; color: var(--vscode-notifications-foreground, var(--vscode-foreground)); background: var(--vscode-notifications-background, var(--vscode-editorWidget-background)); border: 1px solid var(--vscode-notifications-border, #8884); box-shadow: 0 2px 8px rgba(0,0,0,.3); }
