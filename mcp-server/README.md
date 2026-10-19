@@ -2,14 +2,16 @@
 
 A [Model Context Protocol](https://modelcontextprotocol.io) server that gives an
 AI assistant the ArcLang compiler: check a model, run the production gate,
-diff two versions, follow the impact of a change, edit a model without losing
-its comments, declare the next Arcadia level from the current one, import
-SysML v2, Capella or ReqIF, and export (SysML v2, Capella, ReqIF, C headers,
+diff two versions, follow the impact of a change, read a model element by
+element and edit it with precise requests through the compiler's workbench
+API (the one the VS Code extension and its agent use), without losing its
+comments, declare the next Arcadia level from the current one, import SysML
+v2, Capella or ReqIF, and export (SysML v2, Capella, ReqIF, C headers,
 Protobuf).
 
-Version 4.1.0, for the `arclang` compiler built from this repository (4.0.1 or
-later: it needs `check --json`, `rules`, `transition` and `import -f sysml`).
-Python 3.10 or later.
+Version 4.3.0, for the `arclang` compiler built from this repository (4.3.0 or
+later: it needs `workbench` and `edit --request`, on top of `check --json`,
+`rules`, `transition` and `import -f sysml`). Python 3.10 or later.
 
 ## What it guarantees
 
@@ -32,8 +34,11 @@ compiler's rule: it never says more than the compiler did.
   imported model is checked after it is written, and the answer says whether
   it compiles.
 - Nothing is written to a model unless the call says `write: true`
-  (`arclang_set_attribute`, `arclang_unset_attribute`, `arclang_rename`,
-  `arclang_format`, `arclang_transition`); without it the answer is a diff.
+  (`arclang_edit`, `arclang_set_attribute`, `arclang_unset_attribute`,
+  `arclang_rename`, `arclang_format`, `arclang_transition`); without it the
+  answer is a diff. `arclang_edit` applies its requests on a copy in a
+  private temporary directory and refuses the whole list when the compiler
+  refuses one.
   Tools that produce a file (`arclang_compile`, `arclang_export`,
   `arclang_import`, the diagram and report tools) write only where the call
   names an `output_path` or `output_dir`, with one exception that its
@@ -42,7 +47,7 @@ compiler's rule: it never says more than the compiler did.
   checked against each tool's schema, to the leaves, before anything runs, so
   `"false"` (a string) is refused and never read as a yes, and an empty path
   is refused.
-- An answer warns when the `arclang` it runs is older than 4.0.1.
+- An answer warns when the `arclang` it runs is older than 4.3.0.
 - Nothing leaves the machine unless the call says so (`arclang_review` with
   `send: true`), or an `ANTHROPIC_API_KEY` is set for the generation tools.
 - What the compiler cannot do, the server does not pretend to do
@@ -135,10 +140,32 @@ model = "claude-opus-5-5"
 | `arclang_hazard_analysis` | `export -f json` | The hazards and FMEA entries the model declares |
 | `arclang_review` | `review` | Plausibility of each trace, from TypeSafe's Jev. Dry run unless `send: true` |
 
+### Read and edit through the workbench API
+
+The compiler's workbench API is what the VS Code extension and its agent use;
+these two tools give the same picture and the same edits to any MCP client
+(Claude Desktop, Claude Code, Cursor, Copilot).
+
+| Tool | Command | What it does |
+|---|---|---|
+| `arclang_workbench` | `workbench --gate-standard <std> [--exports]` | A compact summary of the model: counts by kind, the elements (`id \| kind \| name \| owner \| attributes`) filtered by `kind`, `layer` or one `element` (then with its relationships and traces), the findings (rule, severity, element, message), the gate verdict, the diagrams (id, view, title). With `raw: true`, one `section` of the compiler's JSON as printed: `elements`, `diagrams`, `findings`, `gate`, `document`, or `sysmlv2`, `reqif`, `c_headers`, `proto` with `exports: true` |
+| `arclang_edit` | `edit --request <json>`, once per request | A list of requests applied in order on one text: `set`, `unset`, `rename`, `add`, `add_raw`, `remove`, `move`, `add_trace`, `remove_trace`, `wrap_fragment` (the schema of `arclang edit`). Elements are designated by the ids `arclang_workbench` lists, even when the text derives them from names. The whole list is refused, and nothing changes, when the compiler refuses one request; the answer names the request and the reason. Without `write: true` the answer is the diff |
+
+```json
+{"path": "braking.arc", "requests": [
+  {"op": "add", "keyword": "function", "name": "Log braking", "container": "LC-002",
+   "attributes": [["id", "\"LF-003\""], ["latency", "2 ms"]]},
+  {"op": "set", "element": "LF-003", "key": "description", "value": "\"Records each braking command\""},
+  {"op": "add_trace", "from": "LF-003", "kind": "realizes", "to": "SF-002"}
+]}
+```
+
 ### Edit and transform
 
 All keep comments, order and layout, and are refused unless the edited model
 compiles. Without `write: true` they return a diff and change nothing.
+`arclang_set_attribute`, `arclang_unset_attribute` and `arclang_rename` are
+kept for existing clients: `arclang_edit` is the general form.
 
 | Tool | Command | What it does |
 |---|---|---|
@@ -191,10 +218,11 @@ pytest
 
 The tests run the real binary (`ARCLANG_BINARY`, else `target/release/arclang`,
 else `target/debug/arclang`, else the `PATH`) and are skipped without one. They
-cover every tool, the resources against the compiler (the format lists of the
-wrapper against the CLI's `--help`, the rule ids and constructs the syntax
-rules name against the catalogue and the reference model), and a session over
-stdio. They pass with the MCP Python SDK 1.x and 2.x.
+cover every tool, the resources against the compiler (the format lists and
+edit ops of the wrapper against the CLI's `--help`, the rule ids and constructs
+the syntax rules name against the catalogue and the reference model), the
+workbench read and the scripted edits on the flagship example, and a session
+over stdio. They pass with the MCP Python SDK 1.x and 2.x.
 
 ## Files
 
@@ -204,6 +232,7 @@ src/arclang_mcp/
   compiler/wrapper.py    the only place that writes arclang command lines
   tools/core.py          check, rules, build, gate, trace, impact, diff, export, metamodel, review
   tools/edit.py          format, set, unset, rename
+  tools/workbench.py     the workbench read and the scripted edits (arclang workbench, arclang edit)
   tools/transform.py     import, transition
   tools/generation.py    snippets (compiled) and diagrams
   tools/safety.py        safety summary, declared hazards

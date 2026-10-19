@@ -376,6 +376,74 @@
   stroke-width: 3.5;
 }
 
+/* Connecting: a round handle on the box or port under the pointer (or on
+   the selected box, so Tab reaches it). Dragged to another box or port, it
+   draws the line; the ends the host rules out fade meanwhile. The handle
+   lives in the frame, not on the sheet, so it keeps its 8 px at any zoom. */
+.arcviz .arcviz-handle {
+  animation: av-handle-in 120ms ease-out;
+  background: var(--av-accent);
+  border: 1.5px solid var(--av-sheet);
+  border-radius: 50%;
+  box-shadow: 0 1px 3px rgba(24, 34, 45, 0.35);
+  box-sizing: border-box;
+  cursor: crosshair;
+  height: 8px;
+  left: -4px;
+  position: absolute;
+  top: -4px;
+  transition: scale 120ms ease-out;
+  width: 8px;
+  z-index: 2;
+}
+
+/* A finger-sized hit area around the dot. */
+.arcviz .arcviz-handle::before {
+  content: '';
+  inset: -7px;
+  position: absolute;
+}
+
+.arcviz .arcviz-handle:hover,
+.arcviz .arcviz-handle:focus-visible,
+.arcviz .arcviz-handle[aria-pressed='true'] {
+  scale: 1.5;
+}
+
+.arcviz .arcviz-handle:focus-visible {
+  outline: 2px solid var(--av-accent);
+  outline-offset: 3px;
+}
+
+@keyframes av-handle-in {
+  from {
+    opacity: 0;
+    scale: 0.5;
+  }
+}
+
+.arcviz .arcviz-stage.is-connecting {
+  cursor: crosshair;
+}
+
+.arcviz .is-connecting .av-node:not(.is-connect-target):not(.is-connect-source) > :not(.av-port),
+.arcviz .is-connecting .av-port:not(.is-connect-target):not(.is-connect-source),
+.arcviz .is-connecting .av-edge {
+  opacity: 0.4;
+}
+
+.arcviz .av-port.is-drop-target rect {
+  stroke: var(--av-accent);
+  stroke-width: 2.5;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .arcviz .arcviz-handle {
+    animation: none;
+    transition: none;
+  }
+}
+
 /* Arrange mode: boxes are what the pointer takes hold of. */
 .arcviz .arcviz-stage.is-arranging .av-node {
   cursor: move;

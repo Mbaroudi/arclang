@@ -136,6 +136,11 @@ export class WorkbenchPanel {
     this.post({ type: 'select', id });
   }
 
+  /** The next (+1) or previous (-1) Arcadia layer that has a diagram. */
+  stepLayer(step: number): void {
+    this.post({ type: 'layer', step });
+  }
+
   /** Show one diagram of the model (a graph id of the snapshot). */
   show(view: string, selectId?: string): void {
     this.post({ type: 'show', view, select: selectId ?? null });

@@ -3,6 +3,8 @@ import { test } from 'node:test';
 import {
   attributeLiteral,
   connectPlan,
+  connectTargetKinds,
+  connectToolFor,
   createRequest,
   elementTree,
   ElementRecord,
@@ -158,6 +160,17 @@ test('states, transitions and messages are declared inside the machine or the sc
     { op: 'add_raw', declaration: 'message "LC-CAM" -> "LC-CTL" "frame ready"', container: 'Lane departure' },
   ]);
   assert.deepEqual(connectPlan(message, { id: 'A', kind: 'X' }, { id: 'B', kind: 'Y' }, '', 'es', 'S'), { error: 'a name is needed' });
+});
+
+test('a drag between two elements means the connect tool their kinds accept on the view', () => {
+  assert.equal(connectToolFor('lab', 'LogicalComponent', 'LogicalComponent')?.id, 'component_exchange');
+  assert.equal(connectToolFor('lab', 'LogicalFunction', 'LogicalFunction')?.id, 'functional_exchange');
+  assert.equal(connectToolFor('lab', 'LogicalComponent', 'LogicalFunction'), null);
+  assert.equal(connectToolFor('msm', 'State', 'State')?.id, 'transition');
+  assert.equal(connectToolFor('es', 'LogicalComponent', 'Actor')?.id, 'message');
+  assert.deepEqual(connectTargetKinds('lab', 'LogicalComponent'), ['LogicalComponent', 'ComponentPort']);
+  assert.deepEqual(connectTargetKinds('lab', 'Requirement'), []);
+  assert.equal(connectTargetKinds('es', 'Anything'), null);
 });
 
 test('the semantic browser lists relationships and traces around an element', () => {

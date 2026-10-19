@@ -284,6 +284,13 @@ impl Scope {
                 scope.add(&chain.id, &chain.name, &chain.attributes);
                 scope.add_members(&chain.id, &chain.name, &chain.involves);
             }
+            // Exchanges, by id or label: `"FE-1".latency`, `"CE-1".bandwidth`.
+            for exchange in &sa.functional_exchanges {
+                scope.add(&exchange.id, exchange.label.as_deref().unwrap_or(""), &exchange.attributes);
+            }
+            for exchange in &sa.component_exchanges {
+                scope.add(&exchange.id, exchange.label.as_deref().unwrap_or(""), &exchange.attributes);
+            }
         }
         for la in &ast.logical_architecture {
             for component in &la.components {
@@ -296,10 +303,23 @@ impl Scope {
                 scope.add(&chain.id, &chain.name, &chain.attributes);
                 scope.add_members(&chain.id, &chain.name, &chain.involves);
             }
+            for exchange in &la.functional_exchanges {
+                scope.add(&exchange.id, exchange.label.as_deref().unwrap_or(""), &exchange.attributes);
+            }
+            for exchange in &la.component_exchanges {
+                scope.add(&exchange.id, exchange.label.as_deref().unwrap_or(""), &exchange.attributes);
+            }
         }
         for pa in &ast.physical_architecture {
             for node in &pa.nodes {
                 scope.add(&node.id, &node.name, &node.attributes);
+            }
+            for exchange in &pa.functional_exchanges {
+                scope.add(&exchange.id, exchange.label.as_deref().unwrap_or(""), &exchange.attributes);
+            }
+            // `via`, `message_type` and `frequency` are in the attributes as written.
+            for exchange in &pa.physical_exchanges {
+                scope.add(&exchange.id, exchange.label.as_deref().unwrap_or(""), &exchange.attributes);
             }
             for link in &pa.links {
                 let mut attributes = link.attributes.clone();
@@ -657,5 +677,48 @@ architecture physical {
             let again = compile(&format!("constraint \"C\" {{ assert: {} }}", first)).unwrap().ast.constraints[0].expression.clone();
             assert_eq!(first, again);
         }
+    }
+
+    #[test]
+    fn exchanges_are_in_scope_by_id_and_by_label() {
+        let source = |px_bandwidth: &str| format!(
+            r#"model T {{}}
+system_analysis "SA" {{
+    function "A" {{ id: "SF-A" port out "x" }}
+    function "B" {{ id: "SF-B" port in "x" }}
+    functional_exchange "targets" {{ id: "FE-1" from: "SF-A.x" to: "SF-B.x" latency: 5 ms }}
+}}
+architecture logical {{
+    component "C" {{ id: "LC-1" port out "p" }}
+    component "D" {{ id: "LC-2" port in "p" }}
+    component_exchange "status" {{ id: "CE-1" from_port: "LC-1.p" to_port: "LC-2.p" bandwidth: 200 kbps }}
+}}
+architecture physical {{
+    node "ECU" {{ id: "PN-1" }}
+    node "ACT" {{ id: "PN-2" }}
+    physical_link "Cable" {{ id: "PL-1" from: "PN-1" to: "PN-2" protocol: "CAN" bandwidth: 1 Mbps }}
+    physical_exchange "Setpoint" {{ id: "PX-1" from: "PN-1" to: "PN-2" via: "PL-1" message_type: "frame" frequency: 100 Hz bandwidth: {px_bandwidth} }}
+}}
+"#
+        );
+        let check_one = |px_bandwidth: &str, assertion: &str| -> Result<Outcome, String> {
+            let result = Compiler::new(CompilerConfig::default())
+                .compile_string(&format!("{}\nconstraint \"C\" {{ assert: {} }}", source(px_bandwidth), assertion))
+                .map_err(|e| e.to_string())?;
+            check(&result.ast.constraints[0].expression, &Scope::from_model(&result.ast))
+        };
+        // A physical exchange against the link that carries it: holds, then fails.
+        let fits = check_one("500 kbps", r#""PX-1".bandwidth <= "PL-1".bandwidth"#).unwrap();
+        assert!(fits.satisfied, "{fits:?}");
+        assert_eq!(fits.left.to_string(), "500000 bit/s");
+        let overflow = check_one("2 Mbps", r#""PX-1".bandwidth <= "PL-1".bandwidth"#).unwrap();
+        assert!(!overflow.satisfied, "{overflow:?}");
+        // By label too, and the written `frequency`.
+        assert!(check_one("500 kbps", r#"Setpoint.frequency <= 1 kHz"#).unwrap().satisfied);
+        // Component and functional exchanges, by id or label.
+        assert!(check_one("500 kbps", r#""CE-1".bandwidth <= "PX-1".bandwidth"#).unwrap().satisfied);
+        assert!(check_one("500 kbps", r#"status.bandwidth == 200 kbps"#).unwrap().satisfied);
+        assert!(check_one("500 kbps", r#""FE-1".latency <= 10 ms"#).unwrap().satisfied);
+        assert!(check_one("500 kbps", r#"targets.latency <= 10 ms"#).unwrap().satisfied);
     }
 }

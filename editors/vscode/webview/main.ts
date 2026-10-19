@@ -2,7 +2,7 @@
 // row with the palette rail, the canvas and the properties drawer, then one
 // status line. Everything shown comes from the last snapshot the host sent;
 // every change goes back to the host as `arclang edit` requests.
-import { EditRequest, ElementRecord, Finding, graphContainerOf, lifelineElement, Metamodel, Snapshot, ToWebview } from '../src/pure/workbench';
+import { connectTargetKinds, connectToolFor, EditRequest, VIEWPOINTS, ElementRecord, Finding, graphContainerOf, lifelineElement, Metamodel, Snapshot, ToWebview } from '../src/pure/workbench';
 import { SemanticBrowser } from './browser';
 import { button, clear, el } from './dom';
 import type { ViewerApi, ViewerPosition, ViewerSelection } from './globals';
@@ -57,11 +57,14 @@ function saveLayout(): void {
 
 const root = document.getElementById('workbench')!;
 const bar = el('header', { class: 'wb-bar' });
-const tabs = el('div', { class: 'wb-tabs' });
+const layerBar = el('nav', { class: 'wb-layers', 'aria-label': 'Arcadia layers' });
+const toolRow = el('div', { class: 'wb-toolrow' });
+const tabs = el('div', { class: 'wb-tabs wb-hidden' });
 const tools = el('div', { class: 'wb-viewer-tools' });
 const paletteToggle = button('', () => setPalette(!state.layout.paletteOpen), { class: 'wb-icon-button', title: 'Palette' });
 const drawerToggle = button('', () => setDrawer(!state.layout.drawerOpen), { class: 'wb-icon-button', title: 'Properties' });
-bar.append(paletteToggle, tabs, tools, drawerToggle);
+toolRow.append(paletteToggle, tools, drawerToggle);
+bar.append(layerBar, toolRow);
 
 const body = el('div', { class: 'wb-body' });
 const left = el('aside', { class: 'wb-left' });
@@ -70,7 +73,8 @@ const host = el('div', { class: 'wb-host' });
 const modeChip = el('div', { class: 'wb-mode', hidden: true });
 const toast = el('div', { class: 'wb-toast', hidden: true, role: 'status', 'aria-live': 'polite' });
 const progress = el('div', { class: 'wb-progress', hidden: true });
-sheet.append(progress, host, modeChip, toast);
+const layoutNotice = el('div', { class: 'wb-notice', hidden: true, role: 'status' });
+sheet.append(progress, host, modeChip, toast, layoutNotice);
 const splitter = el('div', { class: 'wb-splitter', role: 'separator', 'aria-orientation': 'vertical', title: 'Drag to resize' });
 const right = el('aside', { class: 'wb-right' });
 const bottom = el('footer', { class: 'wb-bottom' });
@@ -204,9 +208,13 @@ function submit(requests: EditRequest[], label: string): void {
   vscode.postMessage({ type: 'edit', requests, label });
 }
 
-/** The model id of a node or port of the drawing (`LC-A::p` is the port `LC-A.p`). */
+/**
+ * The model id of a node or port of the drawing: `LC-A::p` (a component port)
+ * and `SF-A::in.p` (a function port, with its direction) are the port `LC-A.p`
+ * and `SF-A.p` of the model.
+ */
 function modelId(drawingId: string): string {
-  return drawingId.replace('::', '.');
+  return drawingId.replace(/::(?:in|out|inout)\./, '.').replace('::', '.');
 }
 
 /** The drawing id of a model element, when it has a node. */
@@ -263,6 +271,48 @@ function onDrop(dragged: string, target: string | null): void {
   submit([{ op: 'move', element: element.id, container: container.id }], `move ${element.id} into ${container.id}`);
 }
 
+function countNodes(nodes: NonNullable<ReturnType<typeof currentGraph>>['children'] & unknown[]): number {
+  return nodes.reduce((sum, node) => sum + 1 + countNodes(node.children ?? []), 0);
+}
+
+/** The drawn element ids a connection from `fromId` may land on (null: any). */
+function connectTargets(fromId: string): string[] | null {
+  const from = elementFor({ view: '', id: fromId, name: '', kind: '', isEdge: false });
+  const graph = currentGraph();
+  if (!from || !graph) return [];
+  const kinds = connectTargetKinds(graph.arc.view, from.kind);
+  if (kinds === null) return null;
+  const wanted = new Set(kinds);
+  const ids: string[] = [];
+  const walk = (nodes: NonNullable<typeof graph.children>) => {
+    for (const node of nodes) {
+      const element = elementFor({ view: '', id: node.id, name: '', kind: '', isEdge: false });
+      if (element && wanted.has(element.kind) && element.id !== from.id) ids.push(node.id);
+      for (const port of node.ports ?? []) {
+        const portElement = elementFor({ view: '', id: port.id, name: '', kind: '', isEdge: false });
+        if (portElement && wanted.has(portElement.kind)) ids.push(port.id);
+      }
+      walk(node.children ?? []);
+    }
+  };
+  walk(graph.children ?? []);
+  return ids;
+}
+
+/** A drag from a handle to another element: the armed connect tool, else the one these kinds mean. */
+function onConnect(fromId: string, toId: string): void {
+  const from = elementFor({ view: '', id: fromId, name: '', kind: '', isEdge: false });
+  const to = elementFor({ view: '', id: toId, name: '', kind: '', isEdge: false });
+  const graph = currentGraph();
+  if (!from || !to || !graph) return;
+  const tool = palette.armedConnectTool() ?? connectToolFor(graph.arc.view, from.kind, to.kind);
+  if (!tool) {
+    showToast(`Nothing connects ${from.kind} to ${to.kind} on this view.`, 'info');
+    return;
+  }
+  palette.connectWith(tool, { id: from.id, kind: from.kind }, { id: to.id, kind: to.kind });
+}
+
 /** Double-click opens the element: its properties, and its declaration in the source. */
 function onOpen(id: string): void {
   const element = elementFor({ view: '', id, name: '', kind: '', isEdge: false });
@@ -305,11 +355,20 @@ function mount(snapshot: Snapshot): void {
     place: window.ArcVizPlace,
   };
   progress.hidden = false;
+  // Past three seconds (NN/g's limit of attention), the page says what it is doing.
+  const graphs = snapshot.diagrams.graphs;
+  const boxes = graphs.reduce((sum, g) => sum + countNodes(g.children ?? []), 0);
+  const slow = setTimeout(() => {
+    layoutNotice.textContent = `Laying out ${graphs.length} diagram${graphs.length > 1 ? 's' : ''}, ${boxes} boxes…`;
+    layoutNotice.hidden = false;
+  }, 3000);
   const viewer = window.ArcViz.mount(host, snapshot.diagrams, deps, {
     slots: { tabs, tools, tree: hiddenTree, details: detailsSlot, related: relatedSlot, foot: hiddenFoot },
     onSelect,
     onDrop,
     onOpen,
+    onConnect,
+    connectTargets,
   });
   state.viewer = viewer;
   fitStage();
@@ -326,6 +385,8 @@ function mount(snapshot: Snapshot): void {
     followView();
     fitStage();
     progress.hidden = true;
+    clearTimeout(slow);
+    layoutNotice.hidden = true;
     void viewer.settled?.()?.then(() => {
       followView();
       fitStage();
@@ -376,6 +437,50 @@ host.addEventListener('contextmenu', (event) => {
   tagContexts();
 });
 
+/** The layers of the model, one big button each, the one on screen pressed; several diagrams of a layer unfold in a list. */
+function renderLayers(): void {
+  clear(layerBar);
+  const graphs = state.snapshot?.diagrams?.graphs ?? [];
+  if (graphs.length === 0) return;
+  const current = state.viewer?.current?.()?.view ?? null;
+  for (const viewpoint of VIEWPOINTS) {
+    const own = graphs.filter((g) => g.arc.view === viewpoint.view);
+    if (own.length === 0) continue;
+    const active = own.some((g) => g.id === current);
+    const item = button('', () => showGraph(own[0].id), { class: `wb-layer${active ? ' is-active' : ''}`, 'aria-pressed': String(active), title: `${viewpoint.label}${own.length > 1 ? ` (${own.length} diagrams)` : ''}` });
+    item.append(el('span', { class: 'wb-layer-name', text: viewpoint.short }));
+    if (own.length > 1) item.appendChild(el('span', { class: 'wb-layer-count', text: String(own.length) }));
+    layerBar.appendChild(item);
+  }
+  const extra = graphs.filter((g) => !VIEWPOINTS.some((v) => v.view === g.arc.view));
+  if (extra.length > 0) {
+    const active = extra.some((g) => g.id === current);
+    layerBar.appendChild(button(`Other (${extra.length})`, () => showGraph(extra[0].id), { class: `wb-layer${active ? ' is-active' : ''}`, 'aria-pressed': String(active) }));
+  }
+}
+
+function showGraph(id: string): void {
+  const viewer = state.viewer;
+  if (!viewer?.show) return;
+  viewer.show(id);
+  setTimeout(() => {
+    followView();
+    viewer.fit?.();
+  }, 0);
+}
+
+/** The next or previous layer that has a diagram (⌘⌥] and ⌘⌥[ in the editor). */
+function stepLayer(step: number): void {
+  const graphs = state.snapshot?.diagrams?.graphs ?? [];
+  const views = VIEWPOINTS.map((v) => v.view).filter((view) => graphs.some((g) => g.arc.view === view));
+  if (views.length === 0) return;
+  const current = currentGraph()?.arc.view ?? views[0];
+  const at = Math.max(0, views.indexOf(current));
+  const next = views[(at + step + views.length) % views.length];
+  const graph = graphs.find((g) => g.arc.view === next);
+  if (graph) showGraph(graph.id);
+}
+
 let shownGraph: string | null = null;
 
 /** What follows the view on screen: the palette, and a selection that is not drawn there. */
@@ -384,6 +489,7 @@ function followView(): void {
   const key = graph ? graph.id : null;
   if (key === shownGraph) return;
   shownGraph = key;
+  renderLayers();
   palette.show(graph?.arc.view ?? '', graph ? graphContainerOf(graph.id, graph.arc.view) : null);
   if (state.selected && graph && !drawn(graph, state.selected)) selectElement(null, false);
   fitStage();
@@ -491,6 +597,9 @@ window.addEventListener('message', (event: MessageEvent<ToWebview>) => {
       selectElement(element, true);
       return;
     }
+    case 'layer':
+      stepLayer(message.step);
+      return;
     case 'show': {
       const viewer = state.viewer;
       if (!viewer) return;
@@ -540,6 +649,11 @@ document.addEventListener('keydown', (event) => {
     return;
   }
   if (editing) return;
+  if (!event.metaKey && !event.ctrlKey && !event.altKey && (event.key === '[' || event.key === ']')) {
+    event.preventDefault();
+    stepLayer(event.key === ']' ? 1 : -1);
+    return;
+  }
   if (!event.metaKey && !event.ctrlKey && !event.altKey && event.key.length === 1 && palette.shortcut(event.key)) {
     event.preventDefault();
     return;

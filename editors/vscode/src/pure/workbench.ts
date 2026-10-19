@@ -146,6 +146,7 @@ export type ToWebview =
   | { type: 'snapshot'; snapshot: Snapshot; metamodel: Metamodel | null; file: string; selected: string | null }
   | { type: 'select'; id: string | null }
   | { type: 'show'; view: string; select: string | null }
+  | { type: 'layer'; step: number }
   | { type: 'edit-result'; ok: boolean; label: string; error?: string }
   | { type: 'busy'; busy: boolean; label?: string };
 
@@ -330,6 +331,22 @@ export function attributeDisplay(value: unknown): string {
 }
 
 // --- The palette ----------------------------------------------------------
+
+/** The viewpoints in method order, with the name the layer bar shows. */
+export const VIEWPOINTS: { view: string; label: string; short: string }[] = [
+  { view: 'oab', label: 'Operational analysis', short: 'Operational' },
+  { view: 'sab', label: 'System analysis', short: 'System' },
+  { view: 'lab', label: 'Logical architecture', short: 'Logical' },
+  { view: 'pab', label: 'Physical architecture', short: 'Physical' },
+  { view: 'pbs', label: 'Product breakdown (EPBS)', short: 'EPBS' },
+  { view: 'cap', label: 'Missions and capabilities', short: 'Capabilities' },
+  { view: 'cdb', label: 'Data model', short: 'Data' },
+  { view: 'msm', label: 'Modes and states', short: 'Modes' },
+  { view: 'es', label: 'Scenarios', short: 'Scenarios' },
+];
+
+/** The viewpoint the layer of the model tree opens. */
+export const VIEW_OF_LAYER: Record<string, string> = { Operational: 'oab', System: 'sab', Logical: 'lab', Physical: 'pab', Epbs: 'pbs', Data: 'cdb', Transverse: 'cap' };
 
 /** The layer block a view's elements are declared in. */
 export const LAYER_OF_VIEW: Record<string, string> = {
@@ -558,6 +575,25 @@ export function graphContainerOf(graphId: string, view: string): string | null {
   if (view !== 'msm' && view !== 'es') return null;
   const at = graphId.indexOf(':');
   return at > 0 ? graphId.slice(at + 1) : null;
+}
+
+/**
+ * The connect tool a drag from one element to another means, on a view: the
+ * first tool of the view whose ends accept both kinds (an exchange between
+ * functions, a component exchange between components, a transition between
+ * states...). Null when nothing connects these two.
+ */
+export function connectToolFor(view: string, fromKind: string, toKind: string): Tool | null {
+  const accepts = (tool: Tool, kind: string) => !tool.endKinds || tool.endKinds.includes(kind);
+  return toolsFor(view).find((tool) => tool.kind === 'connect' && accepts(tool, fromKind) && accepts(tool, toKind)) ?? null;
+}
+
+/** The kinds a drag from `fromKind` may land on, on a view (the union over the connect tools that accept the source). */
+export function connectTargetKinds(view: string, fromKind: string): string[] | null {
+  const tools = toolsFor(view).filter((tool) => tool.kind === 'connect' && (!tool.endKinds || tool.endKinds.includes(fromKind)));
+  if (tools.length === 0) return [];
+  if (tools.some((tool) => !tool.endKinds)) return null;
+  return [...new Set(tools.flatMap((tool) => tool.endKinds ?? []))];
 }
 
 /** The kinds that are functions, for the palette's own checks. */

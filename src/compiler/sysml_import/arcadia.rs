@@ -2040,7 +2040,8 @@ impl<'g> Mapper<'g> {
     }
 
     /// The `#Invariant` states and functions of the lifelines: what state a
-    /// lifeline is in over a span of messages (`start`, `end` indexes).
+    /// lifeline is in over a span of messages (`start`, `endAt` indexes;
+    /// `end` is read too for texts written by hand).
     fn invariants(&self, lifelines: &[(&Element, String)]) -> Vec<Invariant> {
         let mut out = Vec::new();
         for (lifeline, lifeline_id) in lifelines {
@@ -2066,7 +2067,7 @@ impl<'g> Mapper<'g> {
                 } else {
                     "state"
                 };
-                out.push(Invariant { lifeline: lifeline_id.clone(), name, keyword, id: Self::identity_id(child), start: number("start").unwrap_or(0), end: number("end") });
+                out.push(Invariant { lifeline: lifeline_id.clone(), name, keyword, id: Self::identity_id(child), start: number("start").unwrap_or(0), end: number("endAt").or_else(|| number("end")) });
             }
         }
         out

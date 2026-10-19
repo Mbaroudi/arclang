@@ -48,7 +48,8 @@ TOOLS: List[Tool] = [
             "Set one attribute of one element (`arclang set`). The value is ArcLang "
             "source: '\"text\"', '25 ms', '[A, B]'. Refused when the element or the "
             "attribute is unknown or ambiguous, when the edited model does not compile, or "
-            "when the compiled element does not show the value."
+            "when the compiled element does not show the value. Kept for compatibility: "
+            "arclang_edit is the general form (several requests, add, remove, move, traces)."
         ),
         inputSchema=schema(
             {
@@ -67,7 +68,7 @@ TOOLS: List[Tool] = [
     Tool(
         name="arclang_unset_attribute",
         description="Remove one attribute of one element (`arclang unset`). Same guards as "
-        "arclang_set_attribute.",
+        "arclang_set_attribute. Kept for compatibility: arclang_edit is the general form.",
         inputSchema=schema(
             {
                 "model_path": MODEL_PATH,
@@ -84,7 +85,8 @@ TOOLS: List[Tool] = [
         name="arclang_rename",
         description=(
             "Rename one element (`arclang rename`). Refused when the element is known by "
-            "its name elsewhere, because its identity must not change: give it an `id` first."
+            "its name elsewhere, because its identity must not change: give it an `id` first. "
+            "Kept for compatibility: arclang_edit is the general form."
         ),
         inputSchema=schema(
             {

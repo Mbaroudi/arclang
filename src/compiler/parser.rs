@@ -2475,7 +2475,8 @@ impl Parser {
                     let desc = self.expect_string()?;
                     attributes.insert("description".to_string(), AttributeValue::String(desc));
                 }
-                Token::Identifier(_) => {
+                // Any key, keyword or not (`protocol:`, `latency:`, `frequency:`).
+                _ if self.peek_is_colon() => {
                     let (key, value) = self.parse_attribute()?;
                     attributes.insert(key, value);
                 }
@@ -2714,10 +2715,9 @@ impl Parser {
                 .and_then(|v| v.as_string())
                 .unwrap_or("Data")
                 .to_string(),
-            frequency: attributes
-                .get("frequency")
-                .and_then(|v| v.as_string())
-                .map(|s| s.to_string()),
+            // `frequency: 100 Hz` (a quantity) or the legacy `"100 Hz"`: the
+            // typed value stays in `attributes`, this is its text.
+            frequency: attributes.get("frequency").map(|v| v.display()),
             label: Some(name),
             attributes,
         })

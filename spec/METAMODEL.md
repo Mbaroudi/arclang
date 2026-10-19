@@ -825,6 +825,7 @@ HARA entry: hazardous event and its classification.
 | `condition` | `enum FailureCondition` | DO-178C failure condition class. |
 | `asil` | `enum Asil` | Declared ASIL; must match S/E/C. |
 | `dal` | `enum Dal` | Declared DAL; must match the condition. |
+| `sil` | `enum Sil` | IEC 61508 SIL of the hazard (SIL-1..SIL-4); classifies it without S/E/C. |
 | `mitigated_by` | `list<ref<Requirement>>` | Safety requirements mitigating the hazard. |
 
 #### FmeaEntry
@@ -1107,6 +1108,7 @@ Values match ignoring case and the separators `-`, `_` and space.
 | AssetKind | `functional`, `information`, `enterprise` | What a primary asset is (Capella's three PrimaryAsset metaclasses). |
 | Asil | `QM`, `ASIL-A`, `ASIL-B`, `ASIL-C`, `ASIL-D` | ISO 26262 automotive safety integrity level. |
 | Dal | `DAL-A`, `DAL-B`, `DAL-C`, `DAL-D`, `DAL-E` | DO-178C design assurance level. |
+| Sil | `SIL-1`, `SIL-2`, `SIL-3`, `SIL-4` | IEC 61508 safety integrity level. |
 | SafetyLevel | `QM`, `ASIL-A`, `ASIL-B`, `ASIL-C`, `ASIL-D`, `DAL-A`, `DAL-B`, `DAL-C`, `DAL-D`, `DAL-E`, `SIL-1`, `SIL-2`, `SIL-3`, `SIL-4` | Any integrity level: ASIL (ISO 26262), DAL (DO-178C) or SIL (IEC 61508). |
 | Priority | `Critical`, `High`, `Medium`, `Low` | Requirement priority. |
 | HazardSeverity | `S0`, `S1`, `S2`, `S3`, `Catastrophic`, `Hazardous`, `Major`, `Minor`, `No Effect` | ISO 26262 severity class or DO-178C failure condition. |
@@ -1146,12 +1148,15 @@ A quantity is `<number> <unit>` (`latency: 25 ms`). Symbols are case-sensitive. 
 | `Mbit/s` | data rate (bit/s) | 1000000 | `'Mbit/s'` |
 | `Gbps` | data rate (bit/s) | 1000000000 | `'Gbit/s'` |
 | `Gbit/s` | data rate (bit/s) | 1000000000 | `'Gbit/s'` |
+| `Tbps` | data rate (bit/s) | 1000000000000 | `'Tbit/s'` |
+| `Tbit/s` | data rate (bit/s) | 1000000000000 | `'Tbit/s'` |
 | `bit` | data size (bit) | 1 | `bit` |
 | `B` | data size (bit) | 8 | `B` |
 | `kB` | data size (bit) | 8000 | `kB` |
 | `KB` | data size (bit) | 8000 | `kB` |
 | `MB` | data size (bit) | 8000000 | `MB` |
 | `GB` | data size (bit) | 8000000000 | `GB` |
+| `TB` | data size (bit) | 8000000000000 | `TB` |
 | `KiB` | data size (bit) | 8192 | `KiB` |
 | `MiB` | data size (bit) | 8388608 | `MiB` |
 | `GiB` | data size (bit) | 8589934592 | `GiB` |

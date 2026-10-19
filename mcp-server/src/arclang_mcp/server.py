@@ -20,7 +20,17 @@ from mcp.types import Resource, TextContent, Tool
 
 from .compiler.wrapper import ArcLangCompiler
 from .resources.syntax_guide import get_grammar, get_syntax_rules, reference_model
-from .tools import batch, core, edit, expert, generation, integration, safety, transform
+from .tools import (
+    batch,
+    core,
+    edit,
+    expert,
+    generation,
+    integration,
+    safety,
+    transform,
+    workbench,
+)
 from .tools.batch import BatchTools
 from .tools.common import check_arguments, mime_type
 from .tools.core import CoreTools
@@ -30,6 +40,7 @@ from .tools.generation import GenerationTools
 from .tools.integration import IntegrationTools
 from .tools.safety import SafetyTools
 from .tools.transform import TransformTools
+from .tools.workbench import WorkbenchTools
 from .utils.config import load_config
 
 logger = logging.getLogger(__name__)
@@ -39,11 +50,12 @@ REFERENCE_MODEL_URI = "arclang://reference-model"
 METAMODEL_URI = "arclang://metamodel"
 GRAMMAR_URI = "arclang://grammar"
 SERVER_NAME = "arclang-mcp"
-__version__ = "4.1.0"
+__version__ = "4.3.0"
 # The oldest `arclang --version` whose command line this server is written
-# for (`check --json`, `rules`, `transition`, `import -f sysml`). An older
-# binary accepts another language and lacks commands: every answer says so.
-MINIMUM_COMPILER_VERSION = "4.0.1"
+# for (`workbench` and `edit --request`, on top of `check --json`, `rules`,
+# `transition`, `import -f sysml`). An older binary accepts another language
+# and lacks commands: every answer says so.
+MINIMUM_COMPILER_VERSION = "4.3.0"
 
 Handler = Callable[[str, Dict[str, Any]], Awaitable[str]]
 
@@ -78,6 +90,7 @@ class ArcLangMCPServer:
 
         self.core_tools = CoreTools(self.compiler, self.workspace_root)
         self.edit_tools = EditTools(self.compiler, self.workspace_root)
+        self.workbench_tools = WorkbenchTools(self.compiler, self.workspace_root)
         self.generation_tools = GenerationTools(self.compiler, self.config)
         self.safety_tools = SafetyTools(self.compiler, self.config)
         self.integration_tools = IntegrationTools(self.compiler, self.config)
@@ -89,6 +102,7 @@ class ArcLangMCPServer:
         groups = [
             (core.TOOLS, self.core_tools.execute),
             (edit.TOOLS, self.edit_tools.execute),
+            (workbench.TOOLS, self.workbench_tools.execute),
             (transform.TOOLS, self.transform_tools.execute),
             (generation.TOOLS, self.generation_tools.execute),
             (safety.TOOLS, self.safety_tools.execute),

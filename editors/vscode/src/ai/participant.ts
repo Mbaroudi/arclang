@@ -71,8 +71,12 @@ const INSTRUCTIONS: Record<string, string> = {
     'Act as the ArcLang modelling agent on the open model, step by step: (1) read it with arclang_model (the whole model, then the layer or kind concerned) so you know the exact ids; (2) say in two or three lines what you will change and why; (3) apply the changes with arclang_edit, grouping the requests of one intention in one call (ports before the exchange that uses them, elements before the traces to them); (4) after each call, read the answer: a refusal names the request and the reason, fix that request and retry at most twice; (5) finish with arclang_check and, when requirements are involved, arclang_gate, and report what the compiler says, citing findings by their rule. Never claim a change was made unless an arclang_edit answer says it was applied. Do not rewrite the file.',
 };
 
-/** Streams one model answer, running the tools it calls, until it stops calling tools. */
-async function converse(
+/**
+ * Streams one model answer, running the tools it calls, until it stops
+ * calling tools (at most 8 rounds). Exported so the agent loop can be driven
+ * by a scripted model in the integration tests.
+ */
+export async function converse(
   model: vscode.LanguageModelChat,
   messages: vscode.LanguageModelChatMessage[],
   tools: vscode.LanguageModelChatTool[],

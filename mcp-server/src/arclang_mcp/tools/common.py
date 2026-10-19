@@ -50,13 +50,18 @@ def preview(title: str, source: Path, run: Run) -> str:
         before = source.read_text()
     except OSError as failure:
         return f"{title}: cannot read {source}: {failure}"
-    if before == run.stdout:
+    return diff_against(title, source.name, before, run.stdout)
+
+
+def diff_against(title: str, name: str, before: str, after: str) -> str:
+    """The answer for an accepted edit that was not written: `after` as a diff of `before`."""
+    if before == after:
         return f"{title}: no change"
     diff = difflib.unified_diff(
         before.splitlines(keepends=True),
-        run.stdout.splitlines(keepends=True),
-        fromfile=source.name,
-        tofile=f"{source.name} (not written)",
+        after.splitlines(keepends=True),
+        fromfile=name,
+        tofile=f"{name} (not written)",
     )
     return f"{title}: accepted, NOT written (pass write: true to apply)\n\n{''.join(diff)}"
 

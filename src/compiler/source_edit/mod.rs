@@ -15,6 +15,7 @@
 use super::ast::AttributeValue;
 use super::elements::ElementGraph;
 use super::lexer::{Lexeme, LexemeKind, Lexer, Token};
+use super::metamodel::{AttrType, Metamodel};
 use super::parser::Parser;
 use serde_json::Value;
 use std::fmt;
@@ -139,12 +140,42 @@ impl std::error::Error for EditError {}
 /// Set attribute `key` of `element` to `value`, where `value` is ArcLang
 /// source for one value (`"text"`, `25 ms`, `[A, B]`, `{ cpu: 4 }`). The
 /// attribute is replaced where it stands, or added at the end of the block.
+///
+/// Two values live on the declaration line rather than in the block, and
+/// are rewritten there: the title of `req "ID" "Title"` (`title`, or `name`,
+/// which reads the same) and the direction of `port in "Name"` (`direction`).
+/// A port declared without a block (`port in "Name"`) is given one.
 pub fn set_attribute(source: &str, element: &str, key: &str, value: &str) -> Result<String, EditError> {
     let value = value.trim();
     check_key(key)?;
-    parse_value(value)?;
+    let parsed = parse_value(value)?;
     let document = Document::read(source)?;
-    let block = document.find_element(element)?;
+    let block = match document.find_element(element) {
+        Ok(block) => block,
+        Err(EditError::NotFound(_)) => return document.set_on_bare_declaration(source, element, key, value),
+        Err(error) => return Err(error),
+    };
+
+    if let Some(title) = document.header_title(&block).filter(|_| key == "title" || key == "name") {
+        if document.find_attribute(&block, "title").is_some() {
+            return Err(EditError::Unsafe(format!(
+                "'{element}' writes its title both on its declaration line and as `title:` in its block; remove one of them first"
+            )));
+        }
+        let AttributeValue::String(_) = parsed else {
+            return Err(EditError::Invalid(format!("the title of '{element}' is text: write it as \"text\"")));
+        };
+        let edited = document.splice(document.lexemes[title].offset, document.end_of(title), value);
+        verify(source, &edited, "title")?;
+        return Ok(edited);
+    }
+    if key == "direction" {
+        if let Some(direction) = document.header_direction(&block) {
+            let edited = document.set_direction(direction, value)?;
+            verify(source, &edited, key)?;
+            return Ok(edited);
+        }
+    }
 
     let edited = match document.find_attribute(&block, key) {
         Some(attribute) => {
@@ -163,6 +194,18 @@ pub fn remove_attribute(source: &str, element: &str, key: &str) -> Result<String
     check_key(key)?;
     let document = Document::read(source)?;
     let block = document.find_element(element)?;
+    if let Some(title) = document.header_title(&block).filter(|_| key == "title" || key == "name") {
+        return Err(EditError::Unsafe(format!(
+            "the title of '{element}' is written on its declaration line (`req {} {}`) and a requirement keeps a title: set it to another text instead",
+            document.header(&block).get(1).map_or("", |lexeme| lexeme.text.as_str()),
+            document.lexemes[title].text
+        )));
+    }
+    if key == "direction" && document.header_direction(&block).is_some() {
+        return Err(EditError::Unsafe(format!(
+            "the direction of port '{element}' is written on its declaration line and a port keeps one: set it to in, out or inout instead"
+        )));
+    }
     let attribute = document.find_attribute(&block, key).ok_or_else(|| EditError::NoSuchAttribute {
         element: element.to_string(),
         key: key.to_string(),
@@ -222,22 +265,70 @@ pub fn parse_value(value: &str) -> Result<AttributeValue, EditError> {
 /// edit would be a write that changes nothing, and is refused.
 pub fn confirm_effect(graph: &ElementGraph, element: &str, key: &str, value: &str) -> Result<(), EditError> {
     let expected = parse_value(value.trim())?;
+    // A port goes by `Owner.port`; the diagrams write it `Owner::port`.
+    let dotted = element.replace("::", ".");
     let record = graph
         .elements
         .iter()
-        .find(|record| record.id == element)
+        .find(|record| record.id == element || record.id == dotted)
         .or_else(|| graph.elements.iter().find(|record| record.name == element))
         .ok_or_else(|| EditError::NotFound(element.to_string()))?;
     let shown = record.attributes.get(key);
     if shown == Some(&expected) {
-        Ok(())
-    } else {
-        Err(EditError::NoEffect {
-            element: element.to_string(),
-            key: key.to_string(),
-            shown: shown.map(AttributeValue::display),
-        })
+        return Ok(());
     }
+    // What is not an attribute of the compiled element but reads from it
+    // all the same: its display name, and the data of its kind (a port's
+    // direction).
+    let text = match &expected {
+        AttributeValue::String(text) => Some(text.as_str()),
+        _ => None,
+    };
+    let as_name = key == "name" && shown.is_none() && text == Some(record.name.as_str());
+    let as_extra = shown.is_none() && record.extra.get(key).and_then(Value::as_str).is_some_and(|extra| Some(extra) == text);
+    if as_name || as_extra {
+        return Ok(());
+    }
+    Err(EditError::NoEffect {
+        element: element.to_string(),
+        key: key.to_string(),
+        shown: shown.map(AttributeValue::display),
+    })
+}
+
+/// The members of the enumeration the metamodel gives attribute `key` of
+/// elements of `kind`, when it is one.
+pub fn enumeration_values(kind: &str, key: &str) -> Option<&'static [&'static str]> {
+    enumeration_of(&Metamodel::current(), kind, key).map(|(_, members)| members)
+}
+
+/// The enumeration (name, members) behind `key` on `kind`, if any.
+fn enumeration_of(metamodel: &Metamodel, kind: &str, key: &str) -> Option<(&'static str, &'static [&'static str])> {
+    let spec = metamodel.kind(kind)?.attributes.iter().find(|attribute| attribute.key == key)?;
+    match spec.ty {
+        AttrType::Enum(name) => Some((name, metamodel.enumeration(name)?.values)),
+        _ => None,
+    }
+}
+
+/// Refuse a text that is not a member of the enumeration `key` draws from
+/// on elements of `kind` (`method` of a test case, `asil` of a hazard...):
+/// the compiler would keep it as a finding, an edit must not write it.
+pub fn check_enumeration(kind: &str, key: &str, value: &str) -> Result<(), EditError> {
+    let metamodel = Metamodel::current();
+    let Some((name, members)) = enumeration_of(&metamodel, kind, key) else { return Ok(()) };
+    let raw = match parse_value(value.trim())? {
+        AttributeValue::String(text) => text,
+        // Anything else is not a member either; the compiler says so in its own words.
+        _ => return Ok(()),
+    };
+    if metamodel.normalize_enum(name, &raw).is_some() {
+        return Ok(());
+    }
+    Err(EditError::Invalid(format!(
+        "\"{raw}\" is not a {key} of a {kind}: use one of {}",
+        members.iter().map(|member| format!("\"{member}\"")).collect::<Vec<_>>().join(", ")
+    )))
 }
 
 fn token(lexeme: &Lexeme) -> Option<&Token> {
@@ -445,14 +536,113 @@ impl Document {
         }
     }
 
+    /// The title on a `req "ID" "Title"` line: the index of its lexeme.
+    fn header_title(&self, block: &Block) -> Option<usize> {
+        let header = self.header(block);
+        let is_req = matches!(header.first().and_then(token), Some(Token::Req));
+        let titled = is_req && header.len() == 3 && matches!(token(&header[2]), Some(Token::StringLiteral(_)));
+        titled.then(|| block.open - 1)
+    }
+
+    /// The direction on a `port in "Name"` line: the index of its lexeme.
+    fn header_direction(&self, block: &Block) -> Option<usize> {
+        let header = self.header(block);
+        let is_port = matches!(header.first().and_then(token), Some(Token::Port));
+        (is_port && header.len() == 3).then(|| block.open - 2)
+    }
+
+    /// `value` written in place of the direction word at `direction`.
+    fn set_direction(&self, direction: usize, value: &str) -> Result<String, EditError> {
+        if !matches!(value, "in" | "out" | "inout") {
+            return Err(EditError::Invalid(format!("'{value}' is not a port direction: use in, out or inout")));
+        }
+        Ok(self.splice(self.lexemes[direction].offset, self.end_of(direction), value))
+    }
+
+    /// `set` on a declaration that has no block (`port in "Name"` on its
+    /// line): the direction is on the line; any other attribute opens a
+    /// block to hold it.
+    fn set_on_bare_declaration(&self, source: &str, element: &str, key: &str, value: &str) -> Result<String, EditError> {
+        let (keyword, name) = self.find_bare_declaration(element).ok_or_else(|| EditError::NotFound(element.to_string()))?;
+        let is_port = matches!(token(&self.lexemes[keyword]), Some(Token::Port));
+        let edited = if key == "direction" && is_port {
+            self.set_direction(keyword + 1, value)?
+        } else {
+            let at = self.end_of(name);
+            self.splice(at, at, &format!(" {{ {key}: {value} }}"))
+        };
+        verify(source, &edited, key)?;
+        Ok(edited)
+    }
+
+    /// The blocks declared directly inside `owner`: not those nested deeper.
+    fn direct_children(&self, owner: &Block) -> Vec<Block> {
+        let inside: Vec<Block> = self
+            .blocks()
+            .into_iter()
+            .filter(|block| block.open > owner.open && block.close < owner.close)
+            .collect();
+        let mut direct = Vec::new();
+        let mut covered_until = 0;
+        for block in inside {
+            if block.open > covered_until {
+                covered_until = block.close;
+                direct.push(block);
+            }
+        }
+        direct
+    }
+
+    /// `Owner.child` (a port, as the compiler names it) or `Owner::child`
+    /// (as the diagrams write it): the block of `child` directly inside
+    /// the owner's, by its written id, its header name or its `name:`.
+    fn find_nested(&self, element: &str) -> Result<Block, EditError> {
+        let (owner, child) = element
+            .rsplit_once("::")
+            .or_else(|| element.rsplit_once('.'))
+            .ok_or_else(|| EditError::NotFound(element.to_string()))?;
+        let owner = self.find_element(owner).map_err(|_| EditError::NotFound(element.to_string()))?;
+        let matches: Vec<Block> = self
+            .direct_children(&owner)
+            .into_iter()
+            .filter(|block| !self.is_relationship(block))
+            .filter(|block| {
+                self.written_id(block).as_deref() == Some(child)
+                    || self.header_name(block).as_deref() == Some(child)
+                    || self.written_name(block).as_deref() == Some(child)
+            })
+            .collect();
+        match matches.len() {
+            0 => Err(EditError::NotFound(element.to_string())),
+            1 => Ok(matches.into_iter().next().expect("one match")),
+            _ => Err(EditError::Ambiguous {
+                element: element.to_string(),
+                lines: matches.iter().map(|block| self.lexemes[block.open].span.line).collect(),
+            }),
+        }
+    }
+
     /// The one block declaring `element`: by its written `id`, and when no
     /// block carries that id, by name among the blocks that write no id —
     /// the name on the declaration line, or the `name:` written inside.
+    /// `layer::Name` looks inside that layer only; `Owner.port` and
+    /// `Owner::port` inside the owner's block (see [`Self::find_nested`]).
     fn find_element(&self, element: &str) -> Result<Block, EditError> {
+        match self.find_declared(element) {
+            Err(EditError::NotFound(_)) => self.find_nested(element),
+            other => other,
+        }
+    }
+
+    fn find_declared(&self, element: &str) -> Result<Block, EditError> {
         // `layer::Name` designates the element inside that layer block only:
         // the same name at two levels is two elements.
         let (scope, element) = match element.split_once("::") {
-            Some((layer, name)) => (Some(self.find_layer(layer, None)?), name),
+            Some((layer, name)) => match self.find_layer(layer, None) {
+                Ok(layer) => (Some(layer), name),
+                // Not a layer: an owner, which `find_nested` resolves.
+                Err(_) => return Err(EditError::NotFound(element.to_string())),
+            },
             None => (None, element),
         };
         let blocks: Vec<Block> = self
@@ -552,59 +742,55 @@ fn syntax_tree(source: &str, what: &str) -> Result<Value, EditError> {
     serde_json::to_value(&model).map_err(|e| EditError::Unsafe(e.to_string()))
 }
 
-/// Paths at which two JSON trees differ. A list that changed length differs
-/// as a whole: its items cannot be matched one to one.
-fn differences(before: &Value, after: &Value, path: &str, found: &mut Vec<String>) {
-    match (before, after) {
-        (Value::Object(left), Value::Object(right)) => {
-            let keys: std::collections::BTreeSet<&String> = left.keys().chain(right.keys()).collect();
-            for key in keys {
-                let child = format!("{path}/{key}");
-                match (left.get(key), right.get(key)) {
-                    (Some(l), Some(r)) => differences(l, r, &child, found),
-                    _ => found.push(child),
-                }
-            }
-        }
-        (Value::Array(left), Value::Array(right)) if left.len() == right.len() => {
-            for (index, (l, r)) in left.iter().zip(right).enumerate() {
-                differences(l, r, &format!("{path}/{index}"), found);
-            }
-        }
-        _ if before != after => found.push(path.to_string()),
-        _ => {}
-    }
-}
-
 /// The edit must be what was asked and nothing more: both texts parse, and
 /// their syntax trees differ in one element only, on `key`.
+///
+/// One element may show the change in several places: the parser keeps an
+/// attribute both in a field of its element and in the element's attribute
+/// map, a class keeps its fields in a list of their own (`fields`), and a
+/// port's `interface_type` or `port_type` is read off the attribute set.
+/// Those all stand on the one element; anything on another is refused.
 fn verify(original: &str, edited: &str, key: &str) -> Result<(), EditError> {
     let before = syntax_tree(original, "the model")?;
     let after = syntax_tree(edited, "the edited model")?;
     let mut found = Vec::new();
-    differences(&before, &after, "", &mut found);
+    structure::changed(&before, &after, String::new(), &mut found);
 
-    // A class keeps its fields in one map: an attribute of a class shows
-    // there, under `fields`, not under its own name.
-    let about_key = |path: &String| path.split('/').any(|segment| segment == key || segment == "fields");
-    if let Some(stray) = found.iter().find(|path| !about_key(path)) {
-        return Err(EditError::Unsafe(format!(
-            "it would also change `{}`, not only '{key}'",
-            stray.trim_start_matches('/')
-        )));
-    }
-    // The parser may keep an attribute both in a field of its element and
-    // in the element's attribute map: one owner, two places.
-    let owner = |path: &String| {
-        let segments: Vec<&str> = path.split('/').take_while(|segment| *segment != key).collect();
-        segments.join("/").trim_end_matches("/attributes").trim_end_matches("/fields").to_string()
+    let about_key = |path: &str| path.split('/').any(|segment| segment == key || segment == "fields");
+    // The element a change about the key stands on: the path up to the
+    // key, less the attribute map or the field list it is kept in.
+    let owner = |path: &str| {
+        let mut segments: Vec<&str> = path.split('/').take_while(|segment| *segment != key).collect();
+        if let Some(fields) = segments.iter().position(|segment| *segment == "fields") {
+            segments.truncate(fields);
+        }
+        if segments.last() == Some(&"attributes") {
+            segments.pop();
+        }
+        segments.join("/")
     };
-    let owners: std::collections::BTreeSet<String> = found.iter().map(owner).collect();
+    let owners: std::collections::BTreeSet<String> = found.iter().filter(|(path, _, _)| about_key(path)).map(|(path, _, _)| owner(path)).collect();
     if owners.len() > 1 {
         return Err(EditError::Unsafe(format!(
             "'{key}' would change in {} places of the model",
             owners.len()
         )));
+    }
+    let element = owners.into_iter().next();
+    let is_scalar = |value: Option<&Value>| value.is_some_and(|value| !value.is_array() && !value.is_object());
+    for (path, old, new) in &found {
+        if about_key(path) {
+            continue;
+        }
+        // A single value the parser derives from the attribute, on the same element.
+        let parent = path.rsplit_once('/').map_or("", |(parent, _)| parent);
+        let derived = element.as_deref() == Some(parent) && is_scalar(*old) && is_scalar(*new);
+        if !derived {
+            return Err(EditError::Unsafe(format!(
+                "it would also change `{}`, not only '{key}'",
+                path.trim_start_matches('/')
+            )));
+        }
     }
     Ok(())
 }
@@ -737,13 +923,11 @@ logical_architecture "Braking" {
         let edited = set_attribute(source, "R-1", "priority", "Low").unwrap();
         assert_eq!(confirm_effect(&compiled(&edited), "R-1", "priority", "Low"), Ok(()));
 
-        // The title is given on the declaration line: writing `title:` in
-        // the block parses, and changes nothing.
+        // The title is given on the declaration line: the edit rewrites it
+        // there, where the compiler reads it.
         let edited = set_attribute(source, "R-1", "title", "\"Stop sooner\"").unwrap();
-        assert!(matches!(
-            confirm_effect(&compiled(&edited), "R-1", "title", "\"Stop sooner\""),
-            Err(EditError::NoEffect { .. })
-        ));
+        assert!(edited.contains("req \"R-1\" \"Stop sooner\" {"), "{edited}");
+        assert_eq!(confirm_effect(&compiled(&edited), "R-1", "title", "\"Stop sooner\""), Ok(()));
     }
 
     #[test]

@@ -92,6 +92,15 @@
    *   onOpen:   ({ view, id, name, kind }) => boolean, on a double-click on
    *             a box; true means the host took it (an editor opened),
    *             false lets the viewer fold or unfold the container.
+   *   onConnect: (fromId, toId, { fromKind, toKind, view }) => void, when
+   *             a line is drawn from the handle of a box or port to another
+   *             box or port (the kinds are those of the boxes; a port's,
+   *             of the box it sits on). Given, every box and port shows a
+   *             round handle under the pointer, and `c` with a box
+   *             selected starts the line from the keyboard.
+   *   connectTargets: (fromId) => ids | null, asked once as a line starts:
+   *             the boxes and ports it may end on, or null for any of
+   *             them. Left out, any.
    */
   function mount(host, payload, deps, options) {
     const graphs = payload.graphs || [];
@@ -101,6 +110,8 @@
     const onSelect = (options && options.onSelect) || (() => {});
     const onDrop = options && options.onDrop;
     const onOpen = options && options.onOpen;
+    const onConnect = options && options.onConnect;
+    const connectTargets = options && options.connectTargets;
     // The host may take the whole window itself (with its own tools around the sheet).
     const onFullscreen = options && options.onFullscreen;
     const state = { active: null, views: new Map(), layouts: new Map(), arranging: false, chain: null, selected: null, history: [], settled: new Map(), filters: new Map() };
@@ -231,7 +242,8 @@
     const hint = el('p', {
       class: 'arcviz-hint',
       id: 'arcviz-hint',
-      text: 'Drag or scroll to pan, or use the arrow keys. Zoom with + and -, with Ctrl or ⌘ and the wheel, by pinching, or by double-clicking the desk (with Shift to zoom out). Press 0 to fit. Double-click a container, or select it and press Enter, to fold or unfold it. With Arrange on, drag a box to place it.',
+      text: 'Drag or scroll to pan, or use the arrow keys. Zoom with + and -, with Ctrl or ⌘ and the wheel, by pinching, or by double-clicking the desk (with Shift to zoom out). Press 0 to fit. Double-click a container, or select it and press Enter, to fold or unfold it. With Arrange on, drag a box to place it.'
+        + (onConnect ? ' To connect two elements, drag from the round handle at the edge of a box, or on a port, to the other one; or select a box and press c, then choose the target with the arrow keys and Enter.' : ''),
     });
     // Everything drawn is also listed here, so an element can be chosen
     // without a pointer.
@@ -639,6 +651,7 @@
       foldAll.disabled = !foldable;
       arrange.disabled = render.isSequence(graph);
       sheet.setArranging(state.arranging && !render.isSequence(graph));
+      sheet.cancelConnect();
       const nothingPlaced = Object.keys(scope.placedOf(graph.id)).length === 0;
       if (nothingPlaced && document.activeElement === resetPlaces) stage.focus({ preventScroll: true });
       resetPlaces.disabled = nothingPlaced;
@@ -691,7 +704,26 @@
       carried: (id) => carried(id),
       onMove: (id, dx, dy) => moveBy(id, dx, dy),
       onDrop: onDrop ? (from, to) => onDrop({ view: state.active, from, to }) : null,
+      onConnect: onConnect
+        ? (from, to) => onConnect(from.dataset.id, to.dataset.id, { fromKind: kindOf(from), toKind: kindOf(to), view: state.active })
+        : null,
+      connectTargets: connectTargets || null,
+      nameOf: endName,
     });
+    /** The kind of a drawn box, or of the box a drawn port sits on. */
+    function kindOf(end) {
+      const node = end.closest('.av-node');
+      return node ? node.dataset.kind : null;
+    }
+    /** What to call a drawn box or port: `Port of Box` for a port. */
+    function endName(end) {
+      const owner = end.closest('.av-node');
+      const name = owner ? nav.nameOf(owner.dataset.id) : end.dataset.id;
+      if (!end.classList.contains('av-port')) return name;
+      const tip = end.querySelector('title');
+      const port = tip ? tip.textContent.split(' — ')[0] : end.dataset.id;
+      return `${port} of ${name}`;
+    }
     const fit = sheet.fit;
 
     // --- selection and details -----------------------------------------
@@ -728,12 +760,14 @@
         state.selected = null;
         showDetails(null);
         nav.mark(state.active, null);
+        sheet.refreshHandle();
         onSelect(null);
         return;
       }
       const id = group.dataset.id;
       state.selected = id;
       group.classList.add('is-selected');
+      sheet.refreshHandle();
       nav.mark(state.active, group.classList.contains('av-node') ? id : null);
       if (group.classList.contains('av-node')) {
         for (const edge of canvas.querySelectorAll('.av-edge')) {

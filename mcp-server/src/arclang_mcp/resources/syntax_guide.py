@@ -17,7 +17,7 @@ REPOSITORY = RESOURCES.parents[3]
 
 RULES = """# ArcLang syntax rules
 
-For the compiler this server runs (`arclang` 4.1; the `arclang://metamodel`
+For the compiler this server runs (`arclang` 4.3; the `arclang://metamodel`
 resource prints the language version). The compiler is STRICT: any construct
 outside the grammar is a compile error with its line and column. Nothing is
 skipped silently. Do not guess: check with `arclang_validate` after every
@@ -93,6 +93,27 @@ an element kind accepts and with which type.
     declared, a `safety_analysis` with `hazard` entries that are
     `mitigated_by` requirements (for `do178c`, each hazard also states its
     failure condition).
+
+## Editing a model: precise requests, not a rewrite
+
+Do not rewrite a file to change one thing: the compiler edits the text
+itself and keeps comments, order and layout. Call `arclang_workbench` first
+to learn the exact ids (it lists every element as `id | kind | name | owner |
+attributes`, and one `element` with its relationships and traces; the ids it
+lists are accepted even when the text writes none). Then call `arclang_edit`
+with a list of requests, applied in order on one text:
+
+    {"op": "add", "keyword": "function", "name": "Log braking", "container": "LC-002"}
+    {"op": "set", "element": "Log braking", "key": "description", "value": "\"Logs each braking\""}
+    {"op": "add_trace", "from": "LC-002", "kind": "satisfies", "to": "REQ-BRK-001"}
+
+The other ops are `unset`, `rename` (the identity is kept), `add_raw` (one
+declaration as source: an exchange, a message, a transition), `remove`,
+`move` (a function reallocated, a component nested elsewhere),
+`remove_trace` and `wrap_fragment`. The whole list is refused, and nothing
+changes, when any request names an unknown element or would leave a model
+that does not compile; the answer names the request and the reason. Nothing
+is written without `write: true`: the answer is the diff.
 
 ## A model that compiles and passes the gate
 

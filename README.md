@@ -310,12 +310,10 @@ the long-term goal.
   designated by its `id`, or by its name when it writes none. Nothing is
   written unless (1) the two syntax trees differ by that attribute of that
   element and nothing else, (2) the edited model compiles, and (3) the
-  compiled element shows the requested value; a value that would be
-  shadowed (a requirement title given on the declaration line) is refused,
-  not silently ignored. Over the example corpus more than 80% of text attributes
-  are editable this way (tested); the rest are refused with the reason: titles
-  given on a `req` line, test-case methods, class fields shared by several
-  classes, ports of the same name on two components. Limits: one
+  compiled element shows the requested value; a value written on the
+  declaration line (a requirement title) is rewritten there, where the
+  compiler reads it. Over the example corpus more than 90% of text attributes
+  are editable this way (tested, 97% in 4.3.1); the rest are refused with the reason. Limits: one
   attribute at a time, no creation, deletion or renaming of elements, no
   edit of relationships, and an element declared in an imported file is
   edited in that file.

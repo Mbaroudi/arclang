@@ -52,22 +52,35 @@ fn check_keyword(keyword: &str) -> Result<(), EditError> {
 }
 
 impl Document {
-    /// A declaration without a block: `keyword Name` alone on its line,
-    /// as a function allocated by name is written. The lexeme indexes of
-    /// its first and last token.
-    fn find_bare_declaration(&self, element: &str) -> Option<(usize, usize)> {
-        // `layer::Name` looks inside that layer only.
-        let (scope, element) = match element.split_once("::") {
-            Some((layer, name)) => (self.find_layer(layer, None).ok(), name),
-            None => (None, element),
+    /// A declaration without a block: `keyword Name` alone on its line, as
+    /// a function allocated by name or a port without attributes (`port in
+    /// "Name"`) is written. The lexeme indexes of its keyword and its name.
+    /// `layer::Name` looks inside that layer only; `Owner.port` and
+    /// `Owner::port` directly inside the owner's block.
+    pub(super) fn find_bare_declaration(&self, element: &str) -> Option<(usize, usize)> {
+        let layer = element.split_once("::").and_then(|(layer, name)| self.find_layer(layer, None).ok().map(|block| (block, name)));
+        let owner = element
+            .rsplit_once("::")
+            .or_else(|| element.rsplit_once('.'))
+            .and_then(|(owner, name)| self.find_element(owner).ok().map(|block| (block, name)));
+        let (scope, element, direct) = match (layer, owner) {
+            (Some((block, name)), _) => (Some(block), name, false),
+            (None, Some((block, name))) => (Some(block), name, true),
+            (None, None) => (None, element, false),
         };
         let lexemes = &self.lexemes;
         (0..lexemes.len().saturating_sub(1)).find_map(|index| {
             let keyword = token(&lexemes[index])?.keyword_text()?;
-            if !matches!(keyword, "function" | "activity" | "operational_activity" | "deploys") {
+            let is_port = keyword == "port";
+            if !is_port && !matches!(keyword, "function" | "activity" | "operational_activity" | "deploys") {
                 return None;
             }
-            let name = match token(&lexemes[index + 1])? {
+            // A port is declared with its direction: `port out "Name"`.
+            let name_index = if is_port { index + 2 } else { index + 1 };
+            if is_port && !matches!(token(&lexemes[index + 1])?, Token::In | Token::Out | Token::Identifier(_)) {
+                return None;
+            }
+            let name = match token(lexemes.get(name_index)?)? {
                 Token::StringLiteral(text) => text.as_str(),
                 Token::Identifier(text) => text.as_str(),
                 _ => return None,
@@ -76,9 +89,10 @@ impl Document {
                 return None;
             }
             let own_line = lexemes[index].newlines_before > 0 || index == 0;
-            let ends_line = lexemes.get(index + 2).is_none_or(|next| next.newlines_before > 0 || matches!(token(next), Some(Token::RightBrace)));
-            let in_scope = scope.as_ref().is_none_or(|layer| index > layer.open && index < layer.close);
-            (own_line && ends_line && in_scope).then_some((index, index + 1))
+            let ends_line = lexemes.get(name_index + 1).is_none_or(|next| next.newlines_before > 0 || matches!(token(next), Some(Token::RightBrace)));
+            let in_scope = scope.as_ref().is_none_or(|block| index > block.open && index < block.close);
+            let directly = !direct || scope.as_ref().is_some_and(|block| enclosing_open(lexemes, index) == block.open);
+            (own_line && ends_line && in_scope && directly).then_some((index, name_index))
         })
     }
 
@@ -148,8 +162,10 @@ impl Document {
     }
 }
 
-/// Every place two syntax trees differ, with what stands there in each.
-fn changed<'v>(before: &'v Value, after: &'v Value, path: String, found: &mut Vec<(String, Option<&'v Value>, Option<&'v Value>)>) {
+/// Every place two syntax trees differ, with what stands there in each. A
+/// list that changed length differs as a whole: its items cannot be
+/// matched one to one.
+pub(super) fn changed<'v>(before: &'v Value, after: &'v Value, path: String, found: &mut Vec<(String, Option<&'v Value>, Option<&'v Value>)>) {
     match (before, after) {
         (Value::Object(left), Value::Object(right)) => {
             let keys: std::collections::BTreeSet<&String> = left.keys().chain(right.keys()).collect();
@@ -574,15 +590,18 @@ pub fn rename_element(source: &str, element: &str, new_name: &str) -> Result<Str
         }
         Err(other) => return Err(other),
     };
+    // A `req "ID" "Title"` line names the requirement by its title.
+    let header_title = document.find_element(element).ok().and_then(|block| document.header_title(&block));
     let block = Block { open, close: open };
     let is_string = |index: &usize| matches!(token(&document.lexemes[*index]), Some(Token::StringLiteral(_)));
     // The name is the first string of the declaration line, else its last word.
-    let name = (start..block.open).find(is_string).or_else(|| block.open.checked_sub(1).filter(|last| *last > start));
+    let name = header_title.or_else(|| (start..block.open).find(is_string)).or_else(|| block.open.checked_sub(1).filter(|last| *last > start));
     let Some(name) = name else {
         return Err(EditError::Unsafe(format!("the declaration of '{element}' carries no name")));
     };
     let edited = document.splice(document.lexemes[name].offset, document.end_of(name), &string_literal(new_name));
-    verify(source, &edited, "name").map_err(|reason| match reason {
+    let key = if header_title.is_some() { "title" } else { "name" };
+    verify(source, &edited, key).map_err(|reason| match reason {
         EditError::Unsafe(detail) => EditError::Unsafe(format!(
             "{detail}: an element that writes no `id` takes its identity from its name, and renaming it would make it another element"
         )),

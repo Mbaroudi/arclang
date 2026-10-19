@@ -72,17 +72,50 @@ html, body {
 /* Bar: views on the left, the viewer's tools on the right, 35 px like an editor title. */
 .wb-bar {
   display: flex;
-  align-items: center;
-  gap: var(--wb-gap);
-  height: 35px;
-  padding: 0 4px 0 2px;
+  flex-direction: column;
   border-bottom: 1px solid var(--vscode-panel-border, #8884);
   flex: none;
+}
+.wb-layers {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 6px 8px 4px;
+  background: var(--vscode-sideBarSectionHeader-background, var(--vscode-sideBar-background, transparent));
+}
+.wb-layer {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 12px;
+  border: 1px solid var(--vscode-button-border, var(--vscode-panel-border, #8884));
+  border-radius: 14px;
+  background: var(--vscode-button-secondaryBackground, #8883);
+  color: var(--vscode-button-secondaryForeground, var(--vscode-foreground));
+  font-size: 13px;
+  font-weight: 500;
+}
+.wb-layer:hover { background: var(--vscode-button-secondaryHoverBackground, #8885); }
+.wb-layer.is-active {
+  background: var(--vscode-button-background, var(--vscode-focusBorder));
+  color: var(--vscode-button-foreground, #fff);
+  border-color: transparent;
+  font-weight: 600;
+}
+.wb-layer-count { font-size: 11px; font-weight: 600; padding: 0 6px; border-radius: 8px; background: var(--vscode-badge-background, #4d4d4d); color: var(--vscode-badge-foreground, #fff); }
+.wb-layer.is-active .wb-layer-count { background: rgba(255, 255, 255, 0.25); color: inherit; }
+.wb-toolrow {
+  display: flex;
+  align-items: center;
+  gap: var(--wb-gap);
+  height: 30px;
+  padding: 0 4px 0 2px;
   overflow: hidden;
 }
 .wb-tabs { display: flex; gap: 2px; overflow-x: auto; scrollbar-width: none; min-width: 0; flex: 1; }
 .wb-tabs::-webkit-scrollbar { display: none; }
-.wb-viewer-tools { display: flex; gap: 1px; flex: none; overflow: hidden; }
+.wb-viewer-tools { display: flex; gap: 1px; flex: 1; overflow: hidden; }
 
 .wb-body { display: flex; flex: 1; min-height: 0; }
 
@@ -290,8 +323,8 @@ button.wb-link { background: none; color: var(--vscode-textLink-foreground); pad
 button.wb-icon-button { width: 22px; height: 22px; padding: 0; background: none; color: var(--vscode-icon-foreground, inherit); }
 button.wb-icon-button:hover { background: var(--vscode-toolbar-hoverBackground, #8883); }
 button.wb-icon-button[aria-pressed='true'] { background: var(--vscode-inputOption-activeBackground, #8884); }
-.wb-bar > .wb-icon-button:first-child::before { content: "☰"; }
-.wb-bar > .wb-icon-button:last-child::before { content: "☷"; }
+.wb-toolrow > .wb-icon-button:first-child::before { content: "☰"; }
+.wb-toolrow > .wb-icon-button:last-child::before { content: "☷"; }
 
 /* Status line */
 .wb-bottom {
@@ -345,3 +378,5 @@ button.wb-icon-button[aria-pressed='true'] { background: var(--vscode-inputOptio
 #workbench .arcviz [data-id].wb-has-finding.is-error > path:first-of-type {
   stroke: var(--vscode-editorError-foreground, #f14c4c) !important;
 }
+
+.wb-notice { position: absolute; top: 40%; left: 50%; transform: translate(-50%, -50%); z-index: 4; padding: 10px 16px; border-radius: 4px; font-size: 13px; color: var(--vscode-notifications-foreground, var(--vscode-foreground)); background: var(--vscode-notifications-background, var(--vscode-editorWidget-background)); border: 1px solid var(--vscode-notifications-border, #8884); box-shadow: 0 2px 8px rgba(0,0,0,.3); }

@@ -258,6 +258,7 @@ pub fn elements_json(graph: &ElementGraph) -> serde_json::Value {
             "name": relationship.name,
             "source": relationship.source,
             "target": relationship.target,
+            "attributes": elements::attributes_json(&relationship.attributes),
         })).collect::<Vec<_>>(),
     })
 }
