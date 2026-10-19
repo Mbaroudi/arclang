@@ -48,6 +48,9 @@ pub struct Declaration {
     pub references: Vec<String>,
     /// Source and target of a connector, as written (`p_A.out`).
     pub ends: Option<(String, String)>,
+    /// The ends after the second of a connector of more than two
+    /// (`connect (a, b, c)`): targets too.
+    pub more_ends: Vec<String>,
     /// Send and receive events of a message, as written.
     pub events: Option<(String, String)>,
     /// Body of a `doc`.
@@ -324,7 +327,7 @@ impl Reader {
         // Connector and relationship statements that start with their own keyword.
         if head.take_word("connect") {
             declaration.metaclass = "ConnectionUsage";
-            declaration.ends = Some(Self::ends(&mut head, "to")?);
+            Self::connected(&mut head, &mut declaration)?;
         } else if head.take_word("allocate") {
             declaration.metaclass = "AllocationUsage";
             declaration.ends = Some(Self::ends(&mut head, "to")?);
@@ -521,6 +524,24 @@ impl Reader {
         }
     }
 
+    /// `a to b`, or `(a, b, c)`: every end of a connector of more than two.
+    fn connected(head: &mut Head, declaration: &mut Declaration) -> Result<(), String> {
+        if !head.take_symbol("(") {
+            declaration.ends = Some(Self::ends(head, "to")?);
+            return Ok(());
+        }
+        let mut ends = vec![head.path()?];
+        while head.take_symbol(",") {
+            ends.push(head.path()?);
+        }
+        if !head.take_symbol(")") || ends.len() < 2 {
+            return Err(head.unexpected("`)` after two ends or more"));
+        }
+        declaration.more_ends = ends.split_off(2);
+        declaration.ends = Some((ends[0].clone(), ends[1].clone()));
+        Ok(())
+    }
+
     fn ends(head: &mut Head, separator: &str) -> Result<(String, String), String> {
         let source = head.path()?;
         Self::expect_word(head, separator)?;
@@ -553,7 +574,7 @@ impl Reader {
             } else if head.take_symbol("[") {
                 declaration.bounds = Some(Self::bounds(head)?);
             } else if head.take_word("connect") {
-                declaration.ends = Some(Self::ends(head, "to")?);
+                Self::connected(head, declaration)?;
             } else if is_word(head.peek(), "default") || is_symbol(head.peek(), "=") {
                 declaration.is_default = head.take_word("default");
                 if !head.take_symbol("=") {

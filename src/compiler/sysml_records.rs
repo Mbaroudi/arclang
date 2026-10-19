@@ -539,15 +539,21 @@ pub fn build(declarations: &[Declaration]) -> Records {
                     }
                 }
             }
-            let related: Vec<String> = ends.iter().flat_map(|end| end.related.clone()).collect();
+            // The ends after the second are targets too (`connect (a, b, c)`).
+            let more: Vec<_> = declaration.more_ends.iter().map(|path| connector_end(&builder, declaration, path)).collect();
+            let related: Vec<String> = ends.iter().chain(more.iter()).flat_map(|end| end.related.clone()).collect();
             let (source_role, target_role) = match declaration.metaclass {
                 "Dependency" => ("client", "supplier"),
                 _ => ("source", "target"),
             };
             for (end, role, side) in [(&ends[0], source_role, "source"), (&ends[1], target_role, "target")] {
-                object.insert(role.into(), references(&end.related));
+                let mut related = end.related.clone();
+                if side == "target" {
+                    related.extend(more.iter().flat_map(|m| m.related.clone()));
+                }
+                object.insert(role.into(), references(&related));
                 if role != side {
-                    object.insert(side.into(), references(&end.related));
+                    object.insert(side.into(), references(&related));
                 }
                 // The end as written, the element it starts from and the
                 // feature it designates: `p_A.out` is port `out` of `p_A`.
