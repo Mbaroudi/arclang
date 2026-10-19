@@ -187,10 +187,13 @@ pub fn generate_reqif_with_notes(model: &SemanticModel, ast: &Model) -> (String,
         ));
     }
     out.push_str("      </SPEC-RELATIONS>\n      <SPECIFICATIONS>\n");
-    for (name, group) in &groups {
+    let mut seen: HashSet<String> = HashSet::new();
+    for (index, (name, group)) in groups.iter().enumerate() {
+        // Two groups of one name are two specifications: identifiers are unique (xs:ID).
+        let key = if seen.insert(name.clone()) { name.clone() } else { format!("{name}#{index}") };
         out.push_str(&format!(
             "        <SPECIFICATION IDENTIFIER=\"{}\" LONG-NAME=\"{}\" LAST-CHANGE=\"{TIMESTAMP}\">\n          <TYPE><SPECIFICATION-TYPE-REF>ST-DOCUMENT</SPECIFICATION-TYPE-REF></TYPE>\n          <CHILDREN>\n",
-            xml_id(&element_uuid("reqif-spec", name)),
+            xml_id(&element_uuid("reqif-spec", &key)),
             esc(name)
         ));
         let ids: HashSet<&str> = group.iter().map(|e| e.id.as_str()).collect();

@@ -2007,23 +2007,26 @@ impl Parser {
         self.expect(Token::Requirements)?;
         
         // Optional subtype (stakeholder, system, safety, ...)
-        let subtype = match self.current() {
+        let subtype: String = match self.current() {
             Token::Stakeholder => {
                 self.advance();
-                "Stakeholder"
+                "Stakeholder".to_string()
             }
             Token::System => {
                 self.advance();
-                "System"
+                "System".to_string()
             }
-            Token::Identifier(ref id) if id == "safety" => {
+            // `requirements performance { ... }`: the block keeps its name.
+            Token::Identifier(ref id) => {
+                let mut letters = id.chars();
+                let named = letters.next().map(|first| first.to_uppercase().collect::<String>() + letters.as_str()).unwrap_or_default();
                 self.advance();
-                "Safety"
+                named
             }
-            Token::LeftBrace => "Requirements",
+            Token::LeftBrace => "Requirements".to_string(),
             _ => {
                 self.advance();
-                "Requirements"
+                "Requirements".to_string()
             }
         };
 

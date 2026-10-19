@@ -113,3 +113,18 @@ fn an_arclang_model_goes_through_reqif_and_back_unchanged() {
     // Identity: the second export is the first.
     assert_eq!(object_identifiers(&generate_reqif(&back.semantic_model, &back.ast)), object_identifiers(&xml));
 }
+
+#[test]
+fn named_requirement_blocks_are_specifications_of_their_names_with_distinct_identifiers() {
+    let result = compile(
+        "requirements performance { req \"REQ-P\" \"Fast\" { description: \"Fast\" } }\n\
+         requirements security { req \"REQ-S\" \"Safe\" { description: \"Safe\" } }\n\
+         requirements { req \"REQ-A\" \"A\" { description: \"A\" } }\n\
+         requirements { req \"REQ-B\" \"B\" { description: \"B\" } }\n",
+    );
+    let xml = generate_reqif(&result.semantic_model, &result.ast);
+    assert!(xml.contains("LONG-NAME=\"Performance Requirements\"") && xml.contains("LONG-NAME=\"Security Requirements\""), "{xml}");
+    let specifications: Vec<&str> = xml.lines().filter(|l| l.contains("<SPECIFICATION IDENTIFIER=")).collect();
+    let identifiers: std::collections::HashSet<&str> = specifications.iter().map(|l| l.split('"').nth(1).unwrap()).collect();
+    assert_eq!(identifiers.len(), specifications.len(), "{specifications:?}");
+}
