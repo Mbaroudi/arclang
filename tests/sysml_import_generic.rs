@@ -236,3 +236,29 @@ fn a_formula_is_not_written_as_the_quantity_its_key_holds() {
     assert_has(&imported.source, "mass_expression: \"dryMass + cargoMass\"");
     assert!(!imported.notes.iter().any(|n| n.contains("is not a quantity")), "{:?}", imported.notes);
 }
+
+#[test]
+fn the_entry_transition_of_a_region_is_its_initial_state() {
+    let text = "package S {
+    part car {
+        exhibit state carStates parallel {
+            state operating {
+                entry action initial;
+                state off;
+                state on;
+                transition initial then off;
+                transition off_to_on first off then on;
+            }
+            state health {
+                entry; then normal;
+                state normal;
+            }
+        }
+    }
+}
+";
+    let imported = imported(text);
+    assert_has(&imported.source, "state \"on\" { id: \"on\" }\n        initial: \"off\"");
+    assert_has(&imported.source, "state \"normal\" { id: \"normal\" }\n        initial: \"normal\"");
+    assert!(!imported.counts.contains_key("transitions to states not written (left out)"), "{:?}", imported.counts);
+}

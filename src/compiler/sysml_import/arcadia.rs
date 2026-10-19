@@ -1875,7 +1875,9 @@ impl<'g> Mapper<'g> {
             if let Some(initial) = entry.cloned().or_else(|| initial.and_then(|i| state_names.get(&i.id).cloned())).or_else(|| states.first().and_then(|s| state_names.get(&s.id).cloned())) {
                 self.line(1, &format!("initial: {}", string_literal(&initial)));
             }
-            let transitions: Vec<&Element> = machine.children.iter().filter_map(|c| self.graph.get(c)).filter(|c| c.kind == "TransitionUsage").collect();
+            // The transition from the entry action is the initial state, written above.
+            let entry_transition = self.entry_of(machine, &state_names).and_then(|(_, t)| t);
+            let transitions: Vec<&Element> = machine.children.iter().filter_map(|c| self.graph.get(c)).filter(|c| c.kind == "TransitionUsage" && Some(&c.id) != entry_transition.as_ref()).collect();
             for transition in transitions {
                 self.transition(1, transition, &state_names);
             }
@@ -1902,7 +1904,13 @@ impl<'g> Mapper<'g> {
         for inner in &nested {
             self.state(depth + 1, inner, state_names);
         }
-        for transition in transitions {
+        // The region's initial state: where its entry goes.
+        let entry = self.entry_of(state, state_names);
+        if let Some((initial, _)) = &entry {
+            self.line(depth + 1, &format!("initial: {}", string_literal(initial)));
+        }
+        let entry_transition = entry.and_then(|(_, t)| t);
+        for transition in transitions.into_iter().filter(|t| Some(&t.id) != entry_transition.as_ref()) {
             self.transition(depth + 1, transition, state_names);
         }
         self.line(depth, "}");
@@ -1920,6 +1928,20 @@ impl<'g> Mapper<'g> {
         if let Some(effect) = &transition.effect { attributes.push(format!("action: {}", string_literal(effect))); }
         self.count("transitions");
         self.line(depth, &format!("transition {} -> {} {{ {} }}", string_literal(&from), string_literal(&to), attributes.join(" ")));
+    }
+
+    /// Where the entry of a machine or region goes (`entry; then off;`, or
+    /// `entry action initial; transition initial then off;`): the state,
+    /// and the transition that says it when it is one.
+    fn entry_of(&self, container: &Element, state_names: &HashMap<String, String>) -> Option<(String, Option<String>)> {
+        let children: Vec<&Element> = container.children.iter().filter_map(|c| self.graph.get(c)).collect();
+        // `entry;` is an action usage, `entry action initial;` a performed one.
+        let is_entry = |id: &str| children.iter().any(|c| c.id == id && matches!(c.kind.as_str(), "ActionUsage" | "PerformActionUsage"));
+        children
+            .iter()
+            .filter(|c| matches!(c.kind.as_str(), "SuccessionAsUsage" | "Succession" | "TransitionUsage"))
+            .find(|c| c.sources.first().is_some_and(|s| is_entry(s)))
+            .and_then(|t| Some((state_names.get(t.targets.first()?)?.clone(), (t.kind == "TransitionUsage").then(|| t.id.clone()))))
     }
 
     /// The written element that exhibits a state machine: its owner, or the
