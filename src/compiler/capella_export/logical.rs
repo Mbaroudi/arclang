@@ -39,6 +39,13 @@ fn register_components(context: &mut Context, list: &[LogicalComponent]) {
             let id = port_id(&c.id, &port.name, &port.id);
             context.register(&format!("{}.{}", c.id, port.name), &id);
             context.register(&format!("{}.{}", c.name, port.name), &id);
+            // Capella ports do not nest: a port held by this one is it.
+            if !port.ports.is_empty() {
+                context.note(format!("port '{}.{}' holds ports; Capella ports do not nest: exchanges on them are attached to it", c.name, port.name));
+                for owner in [&c.id, &c.name] {
+                    register_sub_ports(context, &format!("{owner}.{}", port.name), &port.ports, &id);
+                }
+            }
         }
         register_components(context, &c.sub_components);
     }
@@ -110,6 +117,39 @@ pub(super) fn functional_exchange(context: &mut Context, exchange: &FunctionalEx
     }
 }
 
+fn register_sub_ports(context: &mut Context, holder: &str, ports: &[crate::compiler::ast::ComponentPort], outer: &str) {
+    for port in ports {
+        let path = format!("{holder}.{}", port.name);
+        context.register(&path, outer);
+        register_sub_ports(context, &path, &port.ports, outer);
+    }
+}
+
+/// The component exchanges of an exchange: itself, or for an exchange of
+/// more than two ends (`ends:`), one from its first end to each other one,
+/// Capella exchanges being binary.
+pub(super) fn component_exchanges(context: &mut Context, exchange: &ComponentExchange) -> Vec<El> {
+    let ends = crate::compiler::metamodel_check::exchange_ends(exchange);
+    if ends.len() <= 2 {
+        return component_exchange(context, exchange).into_iter().collect();
+    }
+    let label = exchange.label.clone().unwrap_or_default();
+    context.note(format!("component exchange '{label}' joins {} ends; Capella exchanges are binary: one from '{}' to each other end", ends.len(), ends[0]));
+    ends[1..]
+        .iter()
+        .enumerate()
+        .filter_map(|(n, end)| {
+            let mut leg = exchange.clone();
+            leg.to_port = end.clone();
+            leg.attributes.remove("ends");
+            if n > 0 {
+                leg.id = derived(&format!("{}:end{}", exchange.id, n + 2));
+            }
+            component_exchange(context, &leg)
+        })
+        .collect()
+}
+
 /// A component exchange between two component ports.
 pub(super) fn component_exchange(context: &mut Context, exchange: &ComponentExchange) -> Option<El> {
     let label = exchange.label.clone().unwrap_or_default();
@@ -163,7 +203,7 @@ pub(super) fn write(context: &mut Context, la: &LogicalArchitecture, above_root:
         pkg.push(component(context, c, &placed));
     }
     for exchange in &la.component_exchanges {
-        if let Some(el) = component_exchange(context, exchange) {
+        for el in component_exchanges(context, exchange) {
             pkg.push(el);
         }
     }

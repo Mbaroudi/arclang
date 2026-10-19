@@ -270,6 +270,12 @@ impl Builder {
         if self.is_ambiguous(owner) {
             return Err(Missing::Ambiguous);
         }
+        let (owner, port_name) = match self.resolve(owner) {
+            Some(_) => (owner, port_name),
+            // `wheel.nuts.lugNut`: a port of a port is drawn at the outer
+            // port of the element (`wheel.nuts`), where the exchange leaves it.
+            None => self.outer_port_of(reference).ok_or(Missing::Unknown)?,
+        };
         let Some(node) = self.resolve(owner) else {
             return Err(Missing::Unknown);
         };
@@ -299,6 +305,36 @@ impl Builder {
             port,
             whole: false,
         })
+    }
+
+    /// For `a.b.port.sub...`: the longest prefix naming a node that carries
+    /// ports, and the port right after it.
+    fn outer_port_of<'r>(&self, reference: &'r str) -> Option<(&'r str, &'r str)> {
+        let dots: Vec<usize> = reference.match_indices('.').map(|(i, _)| i).collect();
+        for (k, &at) in dots.iter().enumerate().rev() {
+            let owner = &reference[..at];
+            let Some(node) = self.resolve(owner) else { continue };
+            if !carries_ports(self.drafts[node].node.kind) {
+                return None;
+            }
+            let end = dots.get(k + 1).copied().unwrap_or(reference.len());
+            return Some((owner, &reference[at + 1..end]));
+        }
+        None
+    }
+
+    /// The innermost node holding every given node (`None`: the diagram).
+    pub fn common_container(&self, nodes: &[NodeRef]) -> Option<NodeRef> {
+        let chain = |mut node: NodeRef| {
+            let mut out = Vec::new();
+            while let Some(parent) = self.drafts[node].parent {
+                out.push(parent);
+                node = parent;
+            }
+            out
+        };
+        let first = chain(*nodes.first()?);
+        first.into_iter().find(|candidate| nodes[1..].iter().all(|&n| chain(n).contains(candidate)))
     }
 
     /// The endpoint standing for a whole node.

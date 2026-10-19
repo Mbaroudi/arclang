@@ -10,7 +10,7 @@
 //! imported). A public import is re-exported: what `P::*` brings includes
 //! what `P` publicly imports.
 
-use super::syntax::{Detail, Node, QualifiedName, SpecKind, Target};
+use super::syntax::{Detail, Expr, Node, QualifiedName, SpecKind, Target};
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 
@@ -176,6 +176,23 @@ impl<'n> Scope<'n> {
             }
         }
         scope.implicit_generals = scope.implicit_general_indexes();
+        // Named ends of a connector (`connect a ::> x.p to b ::> y.q { ... }`)
+        // are members of it: its body refers to them.
+        let ends: Vec<(usize, String, Target)> = scope
+            .flat
+            .iter()
+            .enumerate()
+            .filter_map(|(i, f)| match &f.node.detail {
+                Detail::Connector { ends } => Some(ends.iter().filter_map(move |e| Some((i, e.name.clone()?, e.target.clone()?))).collect::<Vec<_>>()),
+                _ => None,
+            })
+            .flatten()
+            .collect();
+        for (connector, name, target) in ends {
+            if let Some(found) = scope.resolve_target(&target, scope.flat[connector].owner).and_then(|r| r.last().copied()) {
+                scope.members[connector].entry(name).or_insert(found);
+            }
+        }
         // Aliases: another name for a member.
         let aliases: Vec<(usize, Vec<String>, QualifiedName)> = scope
             .flat
@@ -379,6 +396,15 @@ impl<'n> Scope<'n> {
                 }
             }
         }
+        // A semantic metadata (`#systemdd x`) types what it annotates by its
+        // `baseType` (`:>> baseType = SysDD meta SysML::PartUsage`).
+        for metadata in &node.metadata {
+            if let Some(base) = self.semantic_base(metadata, self.flat[index].owner) {
+                if base != index && !out.contains(&base) {
+                    out.push(base);
+                }
+            }
+        }
         // What every element of its kind specializes, last.
         if let Some(&implicit) = self.implicit_generals.get(implicit_kind(node.kind)) {
             if implicit != index && !out.contains(&implicit) {
@@ -387,6 +413,28 @@ impl<'n> Scope<'n> {
         }
         self.generals_cache.borrow_mut().insert(index, out.clone());
         out
+    }
+
+    /// The `baseType` a metadata usage's definition gives: the element its
+    /// value names, resolved where the definition is.
+    fn semantic_base(&self, metadata: &Node, context: Option<usize>) -> Option<usize> {
+        let typing = metadata.specializations.iter().find(|s| s.kind == SpecKind::Typing)?;
+        let Target::Name(name) = &typing.target else { return None };
+        let definition = self.resolve_name(name, context)?;
+        let base = self.flat[definition].children.iter().copied().find(|&c| {
+            let member = self.flat[c].node;
+            member.value.is_some() && member.specializations.iter().any(|s| s.kind == SpecKind::Redefinition && s.target.text().ends_with("baseType"))
+        })?;
+        let value = &self.flat[base].node.value.as_ref()?.expr;
+        let named = match value {
+            Expr::Cast { operand: Some(operand), .. } => match &**operand {
+                Expr::Reference(name) => name,
+                _ => return None,
+            },
+            Expr::Reference(name) => name,
+            _ => return None,
+        };
+        self.resolve_name(named, Some(definition))
     }
 
     /// The library types of [`IMPLICIT_GENERALS`] found in the scope.

@@ -406,7 +406,7 @@ Function of the logical level, declared inside the component that performs it (o
 
 #### ComponentPort
 
-Oriented port of a component (in, out, inout).
+Oriented port of a component (in, out, inout); it may hold ports, named `Owner.port.sub`.
 
 - Arcadia: `ComponentPort`
 - SysML v2: `port`
@@ -415,6 +415,7 @@ Oriented port of a component (in, out, inout).
 |---|---|---|
 | `interface` | `text` | Interface type carried. |
 | `protocol` | `text` | Protocol. |
+| `multiplicity` | `multiplicity` | How many of the element its owner has: a count (`4`) or a range as text (`"0..1"`, `"1..*"`, `"*"`). One when absent. |
 
 #### LogicalInterface
 
@@ -441,7 +442,7 @@ Contract between two components.
 
 #### ComponentExchange
 
-Exchange between component ports.
+Exchange between component ports; with `ends`, between more than two.
 
 - Arcadia: `ComponentExchange`
 - SysML v2: `connect`
@@ -461,6 +462,7 @@ Exchange between component ports.
 | `period` | `quantity<time>` | Message period. |
 | `size` | `quantity<data size>` | Payload size. |
 | `data_type` | `text` | Exchanged data type. |
+| `ends` | `list<ref<Element>>` | Every end of an exchange joining more than two (`connect (a, b, c)`); drawn through a junction. |
 
 #### CapabilityRealization
 

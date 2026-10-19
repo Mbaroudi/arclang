@@ -8,7 +8,7 @@ use std::fmt;
 
 /// Element kinds that can state a multiplicity: those exported as a part
 /// definition and a part usage, the usage carrying the multiplicity.
-pub const KINDS: &[&str] = &["LogicalComponent", "PhysicalNode"];
+pub const KINDS: &[&str] = &["LogicalComponent", "PhysicalNode", "ComponentPort"];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Multiplicity {

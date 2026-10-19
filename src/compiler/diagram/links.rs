@@ -120,6 +120,6 @@ fn undrawn_names(model: &Model) -> HashSet<&str> {
 fn stands_for_an_element(kind: NodeKind) -> bool {
     !matches!(
         kind,
-        NodeKind::Lifeline | NodeKind::DeployedComponent | NodeKind::InitialState
+        NodeKind::Lifeline | NodeKind::DeployedComponent | NodeKind::InitialState | NodeKind::Junction
     )
 }

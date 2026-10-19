@@ -75,6 +75,25 @@ impl<'g> Mapper<'g> {
         }
     }
 
+    /// A chain ending on a port of a port (`wheel.nuts.lugNut`): the part
+    /// and the path of ports from it (`nuts.lugNut`), as ArcLang names a
+    /// port a port holds.
+    pub(super) fn outer_port(&self, chain: &Element) -> Option<(usize, String)> {
+        if chain.chaining.len() < 3 {
+            return None;
+        }
+        let steps: Vec<&Element> = chain.chaining.iter().filter_map(|s| self.graph.get(s)).collect();
+        let n = steps.len();
+        if steps[n - 1].kind != "PortUsage" || steps[n - 2].kind != "PortUsage" {
+            return None;
+        }
+        // The deepest step that is a written part; every step after it a port.
+        let at = steps.iter().rposition(|s| self.node_for(&s.id).is_some_and(|i| self.nodes[i].shape == Shape::Part))?;
+        let ports: Option<Vec<String>> = steps[at + 1..].iter().map(|p| (p.kind == "PortUsage").then(|| p.name.clone()).flatten()).collect();
+        let ports = ports.filter(|p| !p.is_empty())?;
+        Some((self.node_for(&steps[at].id)?, ports.join(".")))
+    }
+
     /// The name of a connector: its own, else what it carries, else its ends.
     pub(super) fn connector_name(&self, connector: &Element, from: &str, to: &str) -> String {
         if let Some(name) = Self::name_of(connector).or_else(|| connector.short_name.clone()) {
@@ -101,7 +120,15 @@ impl<'g> Mapper<'g> {
     /// port of the definition, which the first part of that definition
     /// carries. Flows keep their features (`generateTorque.torque`).
     pub(super) fn written_ends(&self, connector: &Element) -> Option<(String, String)> {
-        if self.profiled || matches!(connector.kind.as_str(), "FlowUsage" | "FlowConnectionUsage" | "SuccessionFlowUsage") {
+        if self.profiled {
+            return None;
+        }
+        self.ends_as_written(connector)
+    }
+
+    /// The ends of a connector read from its end features, in any mode.
+    pub(super) fn ends_as_written(&self, connector: &Element) -> Option<(String, String)> {
+        if matches!(connector.kind.as_str(), "FlowUsage" | "FlowConnectionUsage" | "SuccessionFlowUsage") {
             return None;
         }
         let ends: Vec<&Element> = connector.children.iter().filter_map(|c| self.graph.get(c)).filter(|c| c.is_end && c.kind == "ReferenceUsage").collect();
@@ -155,7 +182,21 @@ impl<'g> Mapper<'g> {
     /// The node a connector is placed by: its source's, or the part holding
     /// the source port of a flow between port items. Known before any id.
     pub(super) fn connector_anchor(&self, connector: &Element) -> Option<usize> {
-        connector.sources.first().and_then(|s| self.end_node(s)).or_else(|| self.flow_port_bases(connector).and_then(|[from, _]| self.end_node(from)))
+        connector
+            .sources
+            .first()
+            .and_then(|s| self.end_node(s))
+            .or_else(|| self.flow_port_bases(connector).and_then(|[from, _]| self.end_node(from)))
+            // An end on a port a port holds: the part of the path written.
+            .or_else(|| {
+                let end = connector.children.iter().filter_map(|c| self.graph.get(c)).find(|c| c.is_end && c.kind == "ReferenceUsage")?;
+                self.end_node(end.subsets.first()?)
+            })
+            // A connection inside a connection is placed by it.
+            .or_else(|| {
+                let outer = self.graph.get(connector.owner.as_deref()?).filter(|o| matches!(o.kind.as_str(), "ConnectionUsage" | "InterfaceUsage"))?;
+                self.connector_anchor(outer)
+            })
     }
 
     /// A connector `exchange` gave up on, counted there.
@@ -171,9 +212,26 @@ impl<'g> Mapper<'g> {
             && connector.sources.iter().chain(connector.targets.iter()).all(|end| matches!(self.graph.kind_of(end), "AttributeUsage" | "ReferenceUsage" | "Feature" | "") && self.end_node(end).is_none())
     }
 
+    /// The ends of a connection of more than two (`connect (a, b, c)`), as
+    /// written; `None` for two ends or when one is not written.
+    pub(super) fn every_end(&self, connector: &Element) -> Option<Vec<String>> {
+        let ends: Vec<&Element> = connector.children.iter().filter_map(|c| self.graph.get(c)).filter(|c| c.is_end && c.kind == "ReferenceUsage").collect();
+        if ends.len() < 3 {
+            return None;
+        }
+        let written: Option<Vec<String>> = ends.iter().map(|end| if self.profiled { self.end_ref(&end.id) } else { self.written_end(connector, end) }).collect();
+        if written.is_none() {
+            return None;
+        }
+        written
+    }
+
     /// One end: a path is read through its steps; a port named alone is
     /// one of the part holding the connector (its own or inherited).
     fn written_end(&self, connector: &Element, end: &Element) -> Option<String> {
+        if let Some(path) = self.end_through_enclosing(connector, end, 0) {
+            return Some(path);
+        }
         let referenced = end.subsets.first().and_then(|r| self.graph.get(r));
         if let Some(port) = referenced.filter(|r| r.chaining.is_empty() && r.kind == "PortUsage") {
             if let Some(holder) = connector.owner.as_deref().and_then(|o| self.enclosing_part(o)) {
@@ -181,6 +239,31 @@ impl<'g> Mapper<'g> {
             }
         }
         self.end_ref(&end.id)
+    }
+
+    /// A connection inside a connection (`interface hub connect nuts ::>
+    /// w.nuts to ... { interface f connect n ::> nuts.lugNut to ... }`)
+    /// names the ends of the one holding it: its path starts there.
+    fn end_through_enclosing(&self, connector: &Element, end: &Element, depth: usize) -> Option<String> {
+        let outer = self.graph.get(connector.owner.as_deref()?).filter(|o| matches!(o.kind.as_str(), "ConnectionUsage" | "InterfaceUsage"))?;
+        if depth > 8 {
+            return None;
+        }
+        let referenced = self.graph.get(end.subsets.first()?)?;
+        let steps: Vec<&str> = if referenced.chaining.is_empty() { vec![referenced.id.as_str()] } else { referenced.chaining.iter().map(String::as_str).collect() };
+        let outer_ends = outer.children.iter().filter_map(|c| self.graph.get(c)).filter(|c| c.is_end && c.kind == "ReferenceUsage");
+        for outer_end in outer_ends {
+            let Some(target) = outer_end.subsets.first().and_then(|t| self.graph.get(t)) else { continue };
+            let target_last = target.chaining.last().map(String::as_str).unwrap_or(target.id.as_str());
+            if steps[0] != target_last && steps[0] != outer_end.id {
+                continue;
+            }
+            let prefix = self.end_through_enclosing(outer, outer_end, depth + 1).or_else(|| self.written_end(outer, outer_end))?;
+            let rest: Option<Vec<String>> = steps[1..].iter().map(|s| self.graph.get(s).and_then(|e| e.name.clone())).collect();
+            let rest = rest?;
+            return Some(if rest.is_empty() { prefix } else { format!("{prefix}.{}", rest.join(".")) });
+        }
+        None
     }
 
     /// The nearest written part at or above an element.

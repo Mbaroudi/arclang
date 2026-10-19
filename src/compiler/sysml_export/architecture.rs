@@ -90,6 +90,7 @@ fn register_components(e: &mut Exporter<'_>, package: &str, components: &[Logica
         let mut ports = ports_of(&component.ports);
         ports.extend(component.interfaces_in.iter().chain(component.interfaces_out.iter()).map(|i| ("", i.name.as_str())));
         let at = register_part(e, package, base, id, &component.name, &ports);
+        levels::register_sub_ports(e, package, &at, &[id, &component.name], &component.ports);
         for f in &component.functions {
             register_function(e, package, &at, f);
         }

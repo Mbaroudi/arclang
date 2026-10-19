@@ -303,3 +303,43 @@ fn a_directory_with_a_link_back_to_itself_imports_once() {
     assert!(!imported.counts.contains_key("names designating nothing known (left unresolved)"), "{:?}", imported.counts);
     std::fs::remove_dir_all(&dir).unwrap();
 }
+
+#[test]
+fn an_end_on_a_port_of_a_port_names_the_port_it_holds() {
+    let text = "package W {
+    port def LugNut;
+    port def Shank;
+    port def LugNutComposite { port lugNut : LugNut [5]; }
+    port def ShankComposite { port shank : Shank [5]; }
+    part assembly {
+        part wheel { port nuts : LugNutComposite; }
+        part hub { port shanks : ShankComposite; }
+        connect wheel.nuts.lugNut to hub.shanks.shank;
+    }
+}
+";
+    let source = imported(text).source;
+    // The ports the composite ports hold come with them, and the exchange names them.
+    assert_has(&source, "port inout \"nuts\" {\n                port inout \"lugNut\"");
+    assert_has(&source, "from_port: \"wheel.nuts.lugNut\"\n        to_port: \"hub.shanks.shank\"");
+}
+
+#[test]
+fn a_connection_inside_a_connection_starts_from_its_ends() {
+    let text = "package W {
+    port def LugNut; port def Shank;
+    port def LugNuts { port lugNut : LugNut [5]; }
+    port def Shanks { port shank : Shank [5]; }
+    part def Wheel { port nuts : LugNuts; }
+    part def Hub { port shanks : Shanks; }
+    part assembly {
+        part wheel1 : Wheel; part hub1 : Hub;
+        interface hubJoint connect nuts ::> wheel1.nuts to shanks ::> hub1.shanks {
+            interface fastening connect [5] lugNut ::> nuts.lugNut to [5] shank ::> shanks.shank;
+        }
+    }
+}
+";
+    let source = imported(text).source;
+    assert_has(&source, "from_port: \"Wheel.nuts.lugNut\"\n        to_port: \"Hub.shanks.shank\"");
+}

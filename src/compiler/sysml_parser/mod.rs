@@ -149,4 +149,18 @@ mod tests {
         assert!(stubs.len() >= 3, "{stubs:?}");
         assert_eq!(ids.len(), stubs.len(), "{stubs:?}");
     }
+
+    #[test]
+    fn named_ends_of_a_connection_are_known_in_its_body() {
+        let text = "package P {\n  port def DriveIF { out item driveTorque; }\n  part car {\n    part transmission { port drive : DriveIF; }\n    part axle { port drive : ~DriveIF; }\n    interface shaft connect transDrive ::> transmission.drive to axleDrive ::> axle.drive {\n      flow transDrive.driveTorque to axleDrive.driveTorque;\n    }\n  }\n}\n";
+        let built = records(text).unwrap();
+        assert_eq!(built.unresolved, Vec::<String>::new());
+    }
+
+    #[test]
+    fn a_semantic_metadata_types_what_it_annotates() {
+        let text = "package P {\n  private import Metaobjects::SemanticMetadata;\n  part def SysDD { action ServiceMethod; }\n  part systems : SysDD [*];\n  metadata def systemdd :> SemanticMetadata { :>> baseType = systems meta SysML::PartUsage; }\n  #systemdd part authorization { action echo :> ServiceMethod; }\n}\n";
+        let built = records(text).unwrap();
+        assert_eq!(built.unresolved, Vec::<String>::new());
+    }
 }

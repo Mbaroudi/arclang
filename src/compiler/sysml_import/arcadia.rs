@@ -607,6 +607,9 @@ impl<'g> Mapper<'g> {
             return None;
         }
         let element = self.graph.get(id)?;
+        if let Some((owner, port)) = self.outer_port(element) {
+            return Some(format!("{}.{}", self.written_ref(owner)?, port));
+        }
         if !element.chaining.is_empty() {
             // `a.b.port`: the last feature on its owner, the deepest usage.
             let last = element.chaining.last()?;
@@ -660,6 +663,9 @@ impl<'g> Mapper<'g> {
             return None;
         }
         let element = self.graph.get(id)?;
+        if let Some((owner, _)) = self.outer_port(element) {
+            return Some(owner);
+        }
         if !element.chaining.is_empty() {
             let last = element.chaining.last()?;
             let last_element = self.graph.get(last)?;
@@ -1442,16 +1448,49 @@ impl<'g> Mapper<'g> {
                 if !written.insert(name.clone()) {
                     continue;
                 }
-                self.ids.insert(port.id.clone(), format!("{owner_id}.{name}"));
-                self.count("ports");
-                // The port's short name is its id, when it differs from its name.
-                let id_text = port.short_name.as_deref().filter(|s| *s != name).map(|s| format!(" {{ id: {} }}", string_literal(s))).unwrap_or_default();
-                match direction {
-                    None if physical => self.line(depth, &format!("port {}{id_text}", string_literal(&name))),
-                    _ => self.line(depth, &format!("port {} {}{id_text}", direction.unwrap_or("in"), string_literal(&name))),
+                if physical && direction.is_none() {
+                    self.ids.insert(port.id.clone(), format!("{owner_id}.{name}"));
+                    self.count("ports");
+                    let id_text = port.short_name.as_deref().filter(|s| *s != name).map(|s| format!(" {{ id: {} }}", string_literal(s))).unwrap_or_default();
+                    self.line(depth, &format!("port {}{id_text}", string_literal(&name)));
+                    continue;
+                }
+                self.component_port(depth, port, direction, &owner_id, 0);
+            }
+        }
+    }
+
+    /// A component port and the ports it holds (its own, and those of its
+    /// port definition), each known as `Owner.port.sub`.
+    fn component_port(&mut self, depth: usize, port: &'g Element, direction: Option<&'static str>, holder: &str, nesting: usize) {
+        let name = port.name.clone().unwrap_or_else(|| port.id.clone());
+        let path = format!("{holder}.{name}");
+        self.ids.insert(port.id.clone(), path.clone());
+        self.count("ports");
+        let head = format!("port {} {}", direction.unwrap_or("in"), string_literal(&name));
+        // The port's short name is its id, when it differs from its name.
+        let id_line = port.short_name.as_deref().filter(|s| *s != name).map(|s| format!("id: {}", string_literal(s)));
+        let mut subs: Vec<(&'g Element, Option<&'static str>)> = self.ports_of(port).into_iter().filter(|(p, _)| p.kind == "PortUsage").collect();
+        for def in port.types.iter().filter_map(|t| self.graph.get(t)).filter(|d| d.kind == "PortDefinition") {
+            for (sub, sub_direction) in self.ports_of(def).into_iter().filter(|(p, _)| p.kind == "PortUsage") {
+                if !subs.iter().any(|(s, _)| s.name == sub.name) {
+                    subs.push((sub, sub_direction));
                 }
             }
         }
+        if subs.is_empty() || nesting > 8 {
+            let id_text = id_line.map(|l| format!(" {{ {l} }}")).unwrap_or_default();
+            self.line(depth, &format!("{head}{id_text}"));
+            return;
+        }
+        self.line(depth, &format!("{head} {{"));
+        if let Some(line) = id_line {
+            self.line(depth + 1, &line);
+        }
+        for (sub, sub_direction) in subs {
+            self.component_port(depth + 1, sub, sub_direction, &path, nesting + 1);
+        }
+        self.line(depth, "}");
     }
 
     fn header(&mut self, depth: usize, index: usize, id: &str) {
@@ -1738,9 +1777,15 @@ impl<'g> Mapper<'g> {
             self.connector_lost(connector, "connectors without two ends (left out)");
             return;
         };
-        let written = self
-            .written_ends(connector)
+        // `connect (a, b, c)`: every end; the first two are `from` and `to`.
+        let every_end = self.every_end(connector);
+        let written = every_end
+            .as_ref()
+            .map(|ends| (ends[0].clone(), ends[1].clone()))
+            .or_else(|| self.written_ends(connector))
             .or_else(|| Some((self.end_ref(&source)?, self.end_ref(&target)?)))
+            // A port a port holds is known through the path written.
+            .or_else(|| self.ends_as_written(connector))
             .or_else(|| self.flow_port_ends(connector).map(|((from, _), (to, _))| (from, to)));
         let Some((from, to)) = written else {
             self.connector_lost(connector, "connectors to elements not written (left out)");
@@ -1786,8 +1831,13 @@ impl<'g> Mapper<'g> {
         let (from, to) = if whole_ends { (strip_port(&from), strip_port(&to)) } else { (from, to) };
         self.line(1, &format!("{keyword} {} {{", string_literal(&name)));
         self.line(2, &format!("id: {}", string_literal(&id)));
-        self.line(2, &format!("{}: {}", end_keys.0, string_literal(&from)));
-        self.line(2, &format!("{}: {}", end_keys.1, string_literal(&to)));
+        match every_end.filter(|_| keyword == "component_exchange") {
+            Some(ends) => self.line(2, &format!("ends: {}", list_literal(&ends))),
+            None => {
+                self.line(2, &format!("{}: {}", end_keys.0, string_literal(&from)));
+                self.line(2, &format!("{}: {}", end_keys.1, string_literal(&to)));
+            }
+        }
         if carries && !items.is_empty() {
             self.line(2, &format!("exchange_items: {}", list_literal(&items)));
         }
@@ -1795,7 +1845,7 @@ impl<'g> Mapper<'g> {
         if let Some(ty) = connector.types.iter().find_map(|t| self.types.get(t)).cloned() {
             self.line(2, &format!("is: {}", string_literal(&ty)));
         }
-        self.attributes(2, &[connector], &["from", "to", "from_port", "to_port", "exchange_items"]);
+        self.attributes(2, &[connector], &["from", "to", "from_port", "to_port", "exchange_items", "ends"]);
         self.line(1, "}");
     }
 

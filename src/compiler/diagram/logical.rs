@@ -3,13 +3,14 @@
 //! exchanges between the allocated functions.
 
 use super::builder::{
-    identity, properties, string_list, text, view_title, Builder, Endpoint, NodeRef,
+    identity, properties, string_list, text, view_title, Builder, Endpoint, NodeRef, Role,
 };
 use super::functions::{
     add_functional_exchanges, add_level_function, dedupe, FunctionTable, Placement, UNSPECIFIED_ITEM,
 };
 use super::{Diagram, EdgeKind, NodeKind, PortDirection, ViewKind};
 use crate::compiler::ast::{self, InterfaceDefinition, LogicalComponent, Model};
+use crate::compiler::metamodel_check::exchange_ends;
 use std::collections::BTreeMap;
 
 const COMPONENT_PROPERTIES: [&str; 4] = ["description", "type", "safety_level", "asil"];
@@ -41,6 +42,11 @@ pub(super) fn build(model: &Model) -> Option<(Diagram, Vec<String>)> {
                 .clone()
                 .unwrap_or_else(|| format!("{} -> {}", exchange.from_port, exchange.to_port));
             let what = format!("component_exchange '{name}'");
+            let ends = exchange_ends(exchange);
+            if ends.len() > 2 {
+                add_junction(&mut builder, exchange, &name, &ends);
+                continue;
+            }
             let Some((source, target)) =
                 builder.resolve_pair(&what, &exchange.from_port, &exchange.to_port, "component")
             else {
@@ -119,6 +125,31 @@ pub(super) fn build(model: &Model) -> Option<(Diagram, Vec<String>)> {
         ViewKind::Lab,
         model.logical_architecture.iter().map(|la| la.name.clone()),
     ))
+}
+
+/// An exchange between more than two ends: a junction, in the innermost
+/// container of its ends, and one line from each end to it.
+fn add_junction(builder: &mut Builder, exchange: &ast::ComponentExchange, name: &str, ends: &[String]) {
+    let what = format!("component_exchange '{name}'");
+    let mut resolved = Vec::new();
+    for end in ends {
+        match builder.resolve_endpoint(&what, end, Role::Source) {
+            Ok(endpoint) => resolved.push(endpoint),
+            Err(missing) => builder.report_missing(&what, end, missing, "component"),
+        }
+    }
+    if resolved.len() < 2 {
+        return;
+    }
+    let nodes: Vec<NodeRef> = resolved.iter().map(|e| e.node).collect();
+    let container = builder.common_container(&nodes);
+    let id = if exchange.id.is_empty() { name.to_string() } else { exchange.id.clone() };
+    let junction = builder.add_node(container, &format!("{id}#junction"), name, NodeKind::Junction, BTreeMap::new());
+    let hub = builder.whole(junction);
+    let item = Some(exchange.exchange_item.clone()).filter(|i| !i.is_empty() && i != UNSPECIFIED_ITEM);
+    for end in &resolved {
+        builder.add_edge(EdgeKind::ComponentExchange, end, &hub, name, item.clone(), BTreeMap::new());
+    }
 }
 
 fn add_component(

@@ -513,6 +513,10 @@ pub struct ComponentPort {
     pub interface_type: String,
     #[serde(default)]
     pub attributes: HashMap<String, AttributeValue>,
+    /// Ports this port holds (`port inout "nuts" { port in "lugNut" }`),
+    /// named `Owner.port.sub` by an exchange.
+    #[serde(default)]
+    pub ports: Vec<ComponentPort>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
