@@ -14,6 +14,8 @@ export interface PaletteHost {
   hint: (text: string) => void;
   /** Where prompts open: on the canvas, near the user's eyes, not in the rail. */
   anchor: () => HTMLElement;
+  /** Tools the page handles itself (requirement, fragment). */
+  special?: (tool: Tool) => void;
 }
 
 export class Palette {
@@ -152,6 +154,10 @@ export class Palette {
       this.owner.hint(`${tool.label}: click the source element, then the target. Esc cancels.`);
       return;
     }
+    if (tool.special) {
+      this.owner.special?.(tool);
+      return;
+    }
     const selected = this.owner.selected();
     const where =
       selected && tool.containerKinds?.includes(selected.kind) ? `inside ${selected.id}` : tool.inGraph ? `in ${this.graphContainer ?? 'this diagram'}` : tool.topLevel ? 'at the top level' : 'in the layer';
@@ -204,6 +210,8 @@ function glyphOf(tool: Tool): string {
     message: '✉',
     association: '—',
     trace: '⤳',
+    requirement: '☑',
+    fragment: '⧉',
   };
   return glyphs[tool.id] ?? tool.label.slice(0, 1);
 }

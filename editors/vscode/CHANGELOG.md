@@ -5,8 +5,9 @@
 - Full screen and SVG/PNG/layout exports work inside VS Code (native save dialog; full screen is a focus mode that maximizes the editor).
 - Diagram contents: hide from a diagram (⌘H), show related elements, new diagram around an element; Trace tool; rename in place (F2); find in the diagram (⌘F); exchanges selectable and deletable; cascades confirmed; a created element is selected and centered.
 - A visible layer bar with diagram counts; drag-to-connect from a handle; the agent tested end to end.
-- Fixes: the selection survives a new snapshot; the system analysis palette writes `system_component`.
-- `test/e2e`: the page against the real compiler (37 palette tools, 14 gestures, every toolbar tool). `COMPARISON.md`: Capella and SysML v2 tools compared.
+- Requirement tool (a new requirement satisfied by the selection) and *Satisfies…* in the properties; Fragment tool around a scenario message; multi-selection with Shift+click to delete, hide or set one attribute on all; a minimap (Shift+M).
+- Fixes: the selection survives a new snapshot; the system analysis palette writes `system_component`; a scenario message is selected as itself, not as an exchange carrying the same text (Delete removed that exchange).
+- `test/e2e`: the page against the real compiler (37 palette tools, 21 gestures, every toolbar tool). `COMPARISON.md`: Capella and SysML v2 tools compared.
 
 ## 4.3.0
 

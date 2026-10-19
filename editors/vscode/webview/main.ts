@@ -2,9 +2,9 @@
 // row with the palette rail, the canvas and the properties drawer, then one
 // status line. Everything shown comes from the last snapshot the host sent;
 // every change goes back to the host as `arclang edit` requests.
-import { connectTargetKinds, connectToolFor, EditRequest, namedDiagramOf, neighbours, showsLiteral, topLevelIds, VIEWPOINTS, ElementRecord, Finding, graphContainerOf, lifelineElement, Metamodel, Snapshot, ToWebview } from '../src/pure/workbench';
+import { connectTargetKinds, connectToolFor, EditRequest, fragmentRequest, namedDiagramOf, nextRequirementId, requirementRequests, Tool, neighbours, showsLiteral, topLevelIds, VIEWPOINTS, ElementRecord, Finding, graphContainerOf, lifelineElement, Metamodel, Snapshot, ToWebview } from '../src/pure/workbench';
 import { SemanticBrowser } from './browser';
-import { button, clear, el } from './dom';
+import { button, clear, el, inlinePrompt } from './dom';
 import type { ViewerApi, ViewerPosition, ViewerSelection } from './globals';
 import { Palette } from './palette';
 import { Properties } from './properties';
@@ -172,12 +172,41 @@ const palette = new Palette(left, {
   submit,
   hint: (text) => showMode(text),
   anchor: () => sheet,
+  special: (tool) => specialTool(tool),
 });
+
+/** A requirement satisfied by the selection; a fragment around the selected message. */
+function specialTool(tool: Tool): void {
+  const records = state.snapshot?.elements?.elements ?? [];
+  if (tool.special === 'requirement') {
+    const id = nextRequirementId(records.filter((e) => e.kind === 'Requirement').map((e) => e.id));
+    const by = state.selected && state.selected.kind !== 'Requirement' ? state.selected : null;
+    void inlinePrompt(sheet, `New requirement ${id}${by ? `, satisfied by ${by.name || by.id}` : ''}`, '', 'The system shall…').then((text) => {
+      if (text === null || !text.trim()) return;
+      const hasBlock = records.some((e) => e.kind === 'Requirement');
+      submit(requirementRequests(id, text.trim(), by?.id ?? null, hasBlock), `requirement ${id}`);
+    });
+    return;
+  }
+  if (tool.special === 'fragment') {
+    const graph = currentGraph();
+    const scenario = graph ? graphContainerOf(graph.id, graph.arc.view) : null;
+    const message = state.selected && state.selected.kind === 'Message' ? state.selected.name : null;
+    if (!scenario || !message) return showMode('Fragment: select a message of the scenario first');
+    void inlinePrompt(sheet, `Fragment around "${message}"`, 'loop', 'loop | opt | alt | par | critical, then a label').then((answer) => {
+      if (answer === null) return;
+      const request = fragmentRequest(scenario, message, answer);
+      if ('error' in request) return showToast(request.error, 'error');
+      submit([request], `${answer.trim().split(/\s+/)[0]} around ${message}`);
+    });
+  }
+}
 const properties = new Properties(propertiesPane, {
   submit,
   reveal: (id) => vscode.postMessage({ type: 'reveal', id }),
   ask: (element) => vscode.postMessage({ type: 'ask', id: element.id, name: element.name, kind: element.kind }),
   diagram: (op, element) => (op === 'hide' ? hideFromDiagram(element) : op === 'related' ? showRelated(element) : newDiagramAround(element)),
+  requirements: () => (state.snapshot?.elements?.elements ?? []).filter((e) => e.kind === 'Requirement'),
 });
 const browser = new SemanticBrowser(browserPane, (element) => selectElement(element, true));
 setPalette(state.layout.paletteOpen);
@@ -243,6 +272,11 @@ function currentGraph() {
 
 function elementFor(selection: ViewerSelection | null): ElementRecord | null {
   if (!selection || !state.snapshot?.elements) return null;
+  // A message of a scenario (`msg:1`) is its Message, even when an exchange carries the same text.
+  if (selection.isEdge && selection.id.startsWith('msg:')) {
+    const message = (state.snapshot.elements.relationships ?? []).find((r) => r.kind === 'Message' && r.name === selection.name);
+    if (message) return { uuid: message.uuid, id: message.name, kind: message.kind, name: message.name, owner: null, attributes: {} };
+  }
   const id = modelId(selection.id);
   const found = state.byId.get(id) ?? (selection.name ? state.byName.get(selection.name) : undefined);
   if (found) return found;
@@ -283,6 +317,7 @@ function markMulti(): void {
   for (const element of multi) host.querySelector(`[data-id="${CSS.escape(drawingId(element.id))}"]`)?.classList.add('wb-multi');
   multiBar.hidden = multi.length < 2;
   multiCount.textContent = `${multi.length} selected`;
+  if (multi.length > 1) properties.showMany(multi, state.metamodel);
 }
 
 /** The selected elements without those another selected element owns (removing the owner removes them). */

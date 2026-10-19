@@ -20,8 +20,8 @@ Legend: **yes** · **partial** · **no**.
 | Traces (realizes, satisfies, allocates…) from the canvas | yes, Trace tool, tested | yes (allocation and realization tools) | partial |
 | Move an element into another (reallocate) by drag | yes | yes | yes |
 | States, transitions, messages in machines and scenarios | yes, tested | yes | yes |
-| Combined fragments in scenarios | partial (in the source editor and the API, not yet in the palette) | yes | yes |
-| Create a requirement from a diagram | no (text, tree or agent) | yes (requirements add-on) | yes |
+| Combined fragments in scenarios | yes, Fragment tool around the selected message (loop, opt, alt, par, critical), tested | yes | yes |
+| Create a requirement from a diagram | yes, Requirement tool (satisfied by the selection) and *Satisfies…* in the properties, tested | yes (requirements add-on) | yes |
 | Notes and annotations on a diagram | no (the language has no note construct) | yes | yes |
 
 ## Editing
@@ -36,7 +36,7 @@ Legend: **yes** · **partial** · **no**.
 | Text and diagram on the same model | yes, side by side, both directions | no (XMI) | yes (textual + graphical) |
 | Every edit checked by the compiler before it lands | yes | partial (validation on demand) | partial |
 | Comments and layout of the text kept on every edit | yes (every text attribute of the corpus, tested) | not applicable | not applicable |
-| Multi-selection and bulk edit | partial: Shift+click, delete or hide the whole selection in one gesture, tested; no bulk property edit yet | yes | yes |
+| Multi-selection and bulk edit | yes: Shift+click, delete or hide the whole selection, set one attribute on all of it, tested | yes | yes |
 | Copy, paste of elements | no | yes | partial |
 
 ## Diagram contents and navigation
@@ -71,9 +71,7 @@ Legend: **yes** · **partial** · **no**.
 
 ## What is left, in order
 
-1. Bulk property edit on a multi-selection.
-2. Combined fragments and state invariants from the scenario palette.
-3. Align and distribute in the manual arrangement.
-4. Requirements created and traced from a diagram.
-5. Copy and paste of elements within a model.
-6. Notes on diagrams, which needs a language construct first.
+1. Align and distribute in the manual arrangement.
+2. Copy and paste of elements within a model.
+3. State invariants from the scenario palette.
+4. Notes on diagrams, which needs a language construct first.

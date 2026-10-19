@@ -18,8 +18,7 @@ import {
   portNameFrom,
   Snapshot,
   toolsFor,
-  treeByLayer,
-} from '../../src/pure/workbench';
+  treeByLayer, nextRequirementId, requirementRequests, fragmentRequest } from '../../src/pure/workbench';
 
 const metamodel: Metamodel = {
   kinds: [
@@ -197,4 +196,24 @@ test('the semantic browser lists relationships and traces around an element', ()
     ],
   );
   assert.deepEqual(neighbours(b, snapshot).incoming.map((e) => [e.kind, e.other?.id]), [['ComponentExchange', 'LC-A']]);
+});
+
+test('the next requirement id follows the highest one, keeping prefix and width', () => {
+  assert.equal(nextRequirementId(['REQ-LKA-001', 'REQ-LKA-002']), 'REQ-LKA-003');
+  assert.equal(nextRequirementId(['REQ-9', 'LC-CAM']), 'REQ-10');
+  assert.equal(nextRequirementId([]), 'REQ-001');
+});
+
+test('a requirement goes into the requirements block, or a new one, and is traced when asked', () => {
+  const inBlock = requirementRequests('REQ-1', 'Shall "stop"', 'LC-CTL', true);
+  assert.deepEqual(inBlock[0], { op: 'add_raw', declaration: 'requirement "REQ-1" {\n  description: "Shall \\"stop\\""\n}', layer: 'requirements' });
+  assert.deepEqual(inBlock[1], { op: 'add_trace', from: 'LC-CTL', kind: 'satisfies', to: 'REQ-1' });
+  const alone = requirementRequests('REQ-1', 'x', null, false);
+  assert.equal(alone.length, 1);
+  assert.match((alone[0] as { declaration: string }).declaration, /^requirements \{\n  requirement "REQ-1" \{/);
+});
+
+test('a fragment request names its kind and label, and refuses an unknown kind', () => {
+  assert.deepEqual(fragmentRequest('Lane departure', 'lane model', 'loop every cycle'), { op: 'wrap_fragment', scenario: 'Lane departure', kind: 'loop', label: 'every cycle', first: 'lane model', last: 'lane model' });
+  assert.ok('error' in fragmentRequest('S', 'm', 'repeat'));
 });

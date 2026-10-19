@@ -376,6 +376,8 @@ export interface Tool {
   topLevel?: boolean;
   /** create: declared inside the element the diagram is about (a state machine, a scenario). */
   inGraph?: boolean;
+  /** special gestures handled by the page: a requirement (with a satisfies trace), a fragment around a message. */
+  special?: 'requirement' | 'fragment';
   /** connect: the keyword of the relationship and how its ends are written. */
   connect?: 'interaction' | 'functional_exchange' | 'component_exchange' | 'physical_link' | 'physical_exchange' | 'association' | 'transition' | 'message' | 'trace';
   /** connect: the kinds the two ends may have. */
@@ -403,6 +405,7 @@ export const PALETTE: Record<string, Tool[]> = {
     { id: 'mission', label: 'Mission', kind: 'create', keyword: 'mission' },
     { id: 'capability', label: 'Capability', kind: 'create', keyword: 'capability' },
     { id: 'functional_chain', label: 'Functional chain', kind: 'create', keyword: 'functional_chain' },
+    { id: 'requirement', label: 'Requirement', kind: 'create', special: 'requirement' },
     { id: 'functional_exchange', label: 'Functional exchange', kind: 'connect', connect: 'functional_exchange', endKinds: ['SystemFunction', 'FunctionPort'] },
     { id: 'component_exchange', label: 'Component exchange', kind: 'connect', connect: 'component_exchange', endKinds: ['SystemComponent', 'SystemActor', 'ComponentPort'] },
     { id: 'trace', label: 'Trace', kind: 'connect', connect: 'trace' },
@@ -439,7 +442,10 @@ export const PALETTE: Record<string, Tool[]> = {
     { id: 'mode', label: 'Mode', kind: 'create', keyword: 'mode', inGraph: true, containerKinds: ['State'] },
     { id: 'transition', label: 'Transition', kind: 'connect', connect: 'transition', endKinds: ['State'] },
   ],
-  es: [{ id: 'message', label: 'Message', kind: 'connect', connect: 'message' }],
+  es: [
+    { id: 'message', label: 'Message', kind: 'connect', connect: 'message' },
+    { id: 'fragment', label: 'Fragment', kind: 'create', special: 'fragment' },
+  ],
   cdb: [
     { id: 'class', label: 'Class', kind: 'create', keyword: 'class', topLevel: true },
     { id: 'enumeration', label: 'Enumeration', kind: 'create', keyword: 'enumeration', topLevel: true },
@@ -660,4 +666,38 @@ export function neighbours(
     if (link.target === element.id) incoming.push({ kind: link.kind, name: '', other: byId.get(link.source) ?? null });
   }
   return { incoming, outgoing };
+}
+
+/** The id after the highest `REQ-…-n` of the model: `REQ-LKA-003` after `REQ-LKA-002`. */
+export function nextRequirementId(ids: string[]): string {
+  let prefix = 'REQ-';
+  let highest = 0;
+  for (const id of ids) {
+    const match = /^(.*?)(\d+)$/.exec(id);
+    if (!match || !/^REQ/i.test(id)) continue;
+    const n = Number(match[2]);
+    if (n >= highest) {
+      highest = n;
+      prefix = match[1];
+    }
+  }
+  const width = ids.find((id) => /^REQ/i.test(id))?.match(/(\d+)$/)?.[1].length ?? 3;
+  return `${prefix}${String(highest + 1).padStart(width, '0')}`;
+}
+
+/** The requests that create a requirement and, when given, trace an element to it. */
+export function requirementRequests(id: string, text: string, satisfiedBy: string | null, hasRequirementsBlock: boolean): EditRequest[] {
+  const declaration = `requirement ${stringLiteral(id)} {\n  description: ${stringLiteral(text)}\n}`;
+  const create: EditRequest = hasRequirementsBlock
+    ? { op: 'add_raw', declaration, layer: 'requirements' }
+    : { op: 'add_raw', declaration: `requirements {\n  ${declaration.replace(/\n/g, '\n  ')}\n}`, top_level: true };
+  return satisfiedBy ? [create, { op: 'add_trace', from: satisfiedBy, kind: 'satisfies', to: id }] : [create];
+}
+
+/** A combined fragment around one message: `loop "every cycle"`, `opt`, `alt`, `par`, `critical`. */
+export function fragmentRequest(scenario: string, message: string, answer: string): EditRequest | { error: string } {
+  const [kind, ...rest] = answer.trim().split(/\s+/);
+  const kinds = ['loop', 'opt', 'alt', 'par', 'seq', 'critical'];
+  if (!kinds.includes((kind ?? '').toLowerCase())) return { error: `a fragment is one of ${kinds.join(', ')}, then an optional label` };
+  return { op: 'wrap_fragment', scenario, kind: kind.toLowerCase(), label: rest.join(' '), first: message, last: message };
 }

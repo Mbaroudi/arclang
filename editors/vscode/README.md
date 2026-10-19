@@ -44,6 +44,11 @@ the selection follows; Undo, Redo and Save are the editor's own.
   diagram around it; a **Trace** tool draws realizes, satisfies, allocates,
   verifies traces; `F2` renames on the canvas; `⌘F` finds in the diagram;
   exchanges and links are selectable and deletable, cascades are confirmed.
+  A **Requirement** tool creates a requirement satisfied by the selection,
+  *Satisfies…* traces an element to an existing one; a **Fragment** tool
+  wraps the selected message of a scenario in a loop, opt, alt, par or
+  critical fragment; Shift+click selects several elements, to delete, hide
+  or set one attribute on all of them.
   See [COMPARISON.md](COMPARISON.md) for where this stands against Capella
   and SysML v2 tools.
 - **Properties**, Capella style: General, Description, Resources and All

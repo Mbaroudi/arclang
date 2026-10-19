@@ -115,6 +115,38 @@ const rows = []; const report = (name, ok, detail) => { rows.push({ name, ok, de
   if (shown) { const mb = await mm.boundingBox(); await page.mouse.click(mb.x + mb.width * 0.85, mb.y + mb.height * 0.85); await page.waitForTimeout(300); }
   const after = await page.evaluate(() => document.querySelector('.arcviz-canvas')?.style.transform || '');
   report('Shift+M shows the minimap and a click moves the view', shown && before !== after, `${before} -> ${after}`);
+  const clickEdge = async (id) => { const edge = page.locator(`.arcviz-stage [data-id="${id}"]`).first(); if (!(await edge.count())) return false; const pt = await edge.evaluate((g) => { const path = g.querySelector('path'); const len = path.getTotalLength(); const p = path.getPointAtLength(len / 2); const m = path.getScreenCTM(); return { x: p.x * m.a + p.y * m.c + m.e, y: p.x * m.b + p.y * m.d + m.f }; }); await page.mouse.click(pt.x, pt.y); await page.waitForTimeout(300); return true; };
+
+  // 12. Requirement tool: a new requirement satisfied by the selected system element
+  await reset(); await layer('System');
+  const sysElement = (await snapshot()).elements.elements.find((e) => e.kind === 'System' || e.kind === 'SystemComponent');
+  if (sysElement) await click(sysElement.id);
+  n = await count(); await page.locator('.wb-tool', { hasText: 'Requirement' }).first().click(); await prompt('The system shall warn the driver');
+  r = await waitEdit(n); text = await source();
+  const reqOk = /requirement "REQ-LKA-003" \{\s*description: "The system shall warn the driver"/.test(text);
+  const satOk = !sysElement || new RegExp(`trace "${sysElement.id}" satisfies "REQ-LKA-003"`).test(text);
+  report('Requirement tool creates and traces a requirement', !!r?.ok && reqOk && satOk, r?.ok ? (reqOk ? (satOk ? '' : 'no trace') : 'no requirement') : r?.error);
+
+  // 13. Satisfies… in the properties
+  await reset(); await layer('Logical'); await click('LC-CTL');
+  const satisfies = page.locator('.wb-actions button', { hasText: 'Satisfies' });
+  if (await satisfies.count()) { await satisfies.click(); n = await count(); await page.locator('select[aria-label="Requirement satisfied"]').selectOption('REQ-LKA-002'); r = await waitEdit(n); }
+  text = await source(); report('Satisfies… traces the element to a requirement', !!r?.ok && /trace "LC-CTL" satisfies "REQ-LKA-002"/.test(text), (await satisfies.count()) ? (r?.ok ? '' : r?.error) : 'no button');
+
+  // 14. Fragment around a message of a scenario
+  await reset();
+  await page.evaluate(() => window.postMessage({ type: 'show', view: 'es:Lane departure', select: null }, '*')); await page.waitForTimeout(1200);
+  const edgeClicked = await clickEdge('msg:1'); n = await count();
+  await page.locator('.wb-tool', { hasText: 'Fragment' }).first().click(); const fragPrompt = await page.locator('.wb-prompt input').count();
+  if (fragPrompt) { await prompt('loop every cycle'); r = await waitEdit(n); }
+  text = await source(); report('Fragment tool wraps the selected message', edgeClicked && !!r?.ok && /loop "every cycle"/.test(text), !edgeClicked ? 'edge not found' : !fragPrompt ? 'no prompt' : (r?.ok ? '' : r?.error));
+
+  // 15. Bulk property edit on a multi-selection
+  await reset(); await layer('Logical'); await click('LC-CAM'); { const b3 = await box('LC-ACT'); await page.keyboard.down('Shift'); await page.mouse.click(b3.x + Math.min(30, b3.width / 2), b3.y + Math.min(10, b3.height / 2)); await page.keyboard.up('Shift'); await page.waitForTimeout(300); }
+  const many = await page.locator('.wb-props-title', { hasText: 'elements selected' }).count();
+  if (many) { await page.locator('select[aria-label="Attribute"]').selectOption('description'); await page.locator('input[placeholder="value for all of them"]').fill('Checked in bulk'); n = await count(); await page.locator('button', { hasText: 'Set on all' }).click(); r = await waitEdit(n); }
+  text = await source(); const bulkCount = (text.match(/Checked in bulk/g) || []).length;
+  report('bulk edit sets one attribute on the whole selection', many > 0 && !!r?.ok && bulkCount === 2, many ? (r?.ok ? `${bulkCount} written` : r?.error) : 'no bulk panel');
   report('no page error', errors.length === 0, errors.slice(0, 2).join(' / '));
   const failed = rows.filter((x) => !x.ok); console.log(`\n${rows.length - failed.length}/${rows.length} gestures work`);
   await browser.close(); process.exit(failed.length ? 1 : 0);
