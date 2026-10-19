@@ -337,3 +337,79 @@ Check of braking.arc: compiles; 0 finding(s) that block the gate
 A finding would carry its `rule` (the id `arclang_rules` explains), its
 `severity` (`error` blocks the gate), the `element` and the `fix` the compiler
 suggests.
+
+The two sections below were recorded with `arclang 4.3.0`, on a fresh copy of
+the reference model: they use the workbench API that this compiler added.
+
+## 13. "What is LC-002 connected to?"
+
+`arclang_workbench` `{"path": "braking.arc", "element": "LC-002"}`
+
+```text
+Workbench of braking.arc: compiles; 34 element(s), 0 finding(s), gate PASS, 1/1 requirements verified
+
+Elements by kind: Model 1, Type 3, Actor 1, OperationalEntity 1, OperationalActivity 1, Requirement 1, SystemFunction 2, FunctionPort 3, LogicalComponent 2, ComponentPort 2, LogicalFunction 2, PhysicalNode 2, PhysicalPath 1, Class 1, Enumeration 1, DataType 1, ExchangeItem 1, Hazard 1, TestCase 1, Constraint 1, StateMachine 1, State 3, Scenario 1.
+1 element: id | kind | name | owner | attributes
+LC-002 | LogicalComponent | BrakeController | EmergencyBraking | is="Periodic task" period={"@type": "Quantity", "canonicalUnit": "s", "canonicalValue": 0.02, "dimension": "time", "unit": "ms", "value": 20.0} safety_level="ASIL-D"
+Incoming: Message critical threat from LC-001
+Outgoing: Typing to Periodic task; Deployment to PN-002; Trace to REQ-BRK-001; satisfies to REQ-BRK-001
+Findings: 0
+Gate: PASS, 1/1 requirements verified.
+Diagrams: 7 (id | view | title)
+  oab | oab | Emergency braking in traffic
+  sab | sab | Safety Requirements
+  lab | lab | Logical Architecture
+  pab | pab | Physical Architecture
+  cdb | cdb | Data model
+  msm:BrakingModes | msm | BrakingModes
+  es:EmergencyStop | es | EmergencyStop
+```
+
+Without `element` the answer lists every element the same way (`id | kind |
+name | owner | attributes`); `kind` or `layer` narrow it. The ids are the
+compiler's, and `arclang_edit` accepts them even when the text writes none.
+With `raw: true` and a `section` the answer is that part of the compiler's
+JSON instead.
+
+## 14. "Add a logging function to the brake controller, 2 ms, with a description."
+
+`arclang_edit` `{"path": "braking.arc", "requests": [{"op": "add", "keyword": "function", "name": "Log braking", "container": "LC-002", "attributes": [["id", "\"LF-003\""], ["latency", "2 ms"]]}, {"op": "set", "element": "LF-003", "key": "description", "value": "\"Records each braking command\""}]}`
+
+```text
+Edit of braking.arc (2 requests): accepted, NOT written (pass write: true to apply)
+
+--- braking.arc
++++ braking.arc (not written)
+@@ -64,6 +64,11 @@
+             safety_level: "ASIL-D"
+             port in threat { id: "LP-002" data_type: "ThreatLevel" }
+             function "Compute braking force" { id: "LF-002" latency: 10 ms }
++            function "Log braking" {
++                id: "LF-003"
++                latency: 2 ms
++                description: "Records each braking command"
++            }
+         }
+ 
+         component_exchange ThreatToBrake {
+
+Applied in order:
+1. add function "Log braking" inside LC-002
+2. set `description: "Records each braking command"` on LF-003
+```
+
+The second request names `LF-003`, an element that exists only after the
+first one: the requests run in order on one text. As with every edit, the
+file is written only when the call says `write: true`.
+
+Had one request been refused, nothing would have changed and the answer would
+have named it. The same list with a trace to an unknown element, written:
+
+`arclang_edit` `{"path": "braking.arc", "requests": [{"op": "add", ...}, {"op": "add_trace", "from": "LF-003", "kind": "realizes", "to": "SF-999"}], "write": true}`
+
+```text
+Edit of braking.arc (2 requests): refused at request 2 (trace LF-003 realizes SF-999): edit refused: the edited model does not compile: Semantic error: 1 unresolved trace reference(s):
+  trace 'LF-003 realizes SF-999': unknown element 'SF-999' (to) — declare it or fix the reference
+
+Nothing was changed.
+```

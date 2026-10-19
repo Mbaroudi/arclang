@@ -82,6 +82,37 @@ VIEWS: Tuple[str, ...] = ("oab", "sab", "lab", "pab", "msm", "es")
 # `arclang gate --standard` and `arclang safety --standard`.
 SAFETY_STANDARDS: Tuple[str, ...] = ("iso26262", "do178c", "iec61508")
 
+# `arclang workbench --gate-standard` (as its help spells them).
+WORKBENCH_GATE_STANDARDS: Tuple[str, ...] = ("ISO26262", "DO178C", "IEC61508")
+
+# `arclang edit --request {"op": ...}` (EditRequest in src/compiler/workbench.rs).
+EDIT_OPS: Tuple[str, ...] = (
+    "set",
+    "unset",
+    "rename",
+    "add",
+    "add_raw",
+    "remove",
+    "move",
+    "add_trace",
+    "remove_trace",
+    "wrap_fragment",
+)
+
+# The sections of the document `arclang workbench` prints; the last four
+# are filled only with `--exports`.
+WORKBENCH_SECTIONS: Tuple[str, ...] = (
+    "elements",
+    "diagrams",
+    "findings",
+    "gate",
+    "document",
+    "sysmlv2",
+    "reqif",
+    "c_headers",
+    "proto",
+)
+
 # `arclang transition --step`.
 TRANSITION_STEPS: Tuple[str, ...] = ("oa-to-sa", "sa-to-la", "la-to-pa")
 
@@ -305,6 +336,35 @@ class ArcLangCompiler:
         """`arclang rename`."""
         return await self.run([*self._edit("rename", write), str(model), element, name])
 
+    async def workbench(
+        self, model: Path, gate_standard: str = "ISO26262", exports: bool = False
+    ) -> Run:
+        """`arclang workbench --gate-standard <standard> [--exports]`.
+
+        Everything a modelling workbench shows of one model, as one JSON
+        document: `elements` (with `relationships`), `diagrams`, the
+        explorer `document`, `findings`, `gate`, and with `exports` the
+        interop texts. A model that does not compile gives
+        `{"success": false, "errors": [...]}` with exit 0.
+        """
+        arguments = ["workbench", "--gate-standard", gate_standard]
+        if exports:
+            arguments.append("--exports")
+        return await self.run([*arguments, "--", str(model)])
+
+    async def edit(self, model: Path, request: Dict[str, Any], write: bool = False) -> Run:
+        """`arclang edit --request <json> [--write]`: one edit of the model text.
+
+        The request travels as one argument, never through a shell. The
+        compiler prints `{"success": true, "source": ...}` or
+        `{"success": false, "error": ...}` (exit 1), and writes the file
+        back only with `write`.
+        """
+        arguments = ["edit", "--request", json.dumps(request)]
+        if write:
+            arguments.append("--write")
+        return await self.run([*arguments, "--", str(model)])
+
     async def review(
         self,
         model: Path,
@@ -371,6 +431,37 @@ def parse_findings(run: Run) -> Optional[Dict[str, Any]]:
     if not isinstance(document, dict) or not isinstance(document.get("findings"), list):
         return None
     return document
+
+
+def parse_workbench(run: Run) -> Optional[Dict[str, Any]]:
+    """The document printed by `arclang workbench`, or None when it printed none.
+
+    It holds `success`, `errors`, `stats`, `elements`, `diagrams`,
+    `document`, `findings` and `gate` (the last five null when the model
+    does not compile).
+    """
+    try:
+        document = json.loads(run.stdout)
+    except json.JSONDecodeError:
+        return None
+    if not isinstance(document, dict) or "success" not in document:
+        return None
+    return document
+
+
+def parse_edit(run: Run) -> Optional[Dict[str, Any]]:
+    """The answer printed by `arclang edit`, or None when it printed none.
+
+    `{"success": true, "source": <the edited text>}`, or
+    `{"success": false, "error": <why the edit was refused>}`.
+    """
+    try:
+        answer = json.loads(run.stdout)
+    except json.JSONDecodeError:
+        return None
+    if not isinstance(answer, dict) or "success" not in answer:
+        return None
+    return answer
 
 
 def parse_plan(run: Run) -> Optional[List[Dict[str, Any]]]:

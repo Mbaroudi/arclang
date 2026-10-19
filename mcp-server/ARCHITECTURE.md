@@ -18,9 +18,9 @@ tools/*.py           one handler per tool: resolve paths, call the wrapper,
 compiler/wrapper.py  the only place that writes an `arclang` command line
         |  subprocess, argument list, no shell
         v
-arclang (4.0.1+)     check, rules, build, gate, trace, impact, diff, import,
+arclang (4.3.0+)     check, rules, build, gate, trace, impact, diff, import,
                      export, diagram, format, set, unset, rename, transition,
-                     review, metamodel
+                     review, metamodel, workbench, edit
 ```
 
 ## Modules
@@ -32,6 +32,7 @@ arclang (4.0.1+)     check, rules, build, gate, trace, impact, diff, import,
 | `tools/common.py` | Path resolution, the shape of an answer (`report`) |
 | `tools/core.py` | Check (text or JSON findings), rules, build, gate, trace, impact, diff, export, metamodel, review |
 | `tools/edit.py` | Format and the lossless edits, with a diff preview |
+| `tools/workbench.py` | The compiler's workbench API, as the VS Code extension uses it: `arclang workbench` reduced to the picture its agent reads (counts, elements by id, one element with its relationships, findings, gate, diagrams) or one raw section; `arclang edit` applied request by request on a copy in a private temporary directory, the whole list refused when one request is, the file written only with `write: true` |
 | `tools/transform.py` | Import (writes only at `output_path`, then checks the result) and the Arcadia transition (plan as JSON, or the edited model as a diff until `write: true`) |
 | `tools/generation.py` | Snippets compiled before they are returned; diagrams |
 | `tools/safety.py` | Safety summary; hazards the model declares |
@@ -64,7 +65,10 @@ tool's description and its behaviour are read and changed together.
    returned as a refusal, with the compiler's message.
 5. **Writes and network calls are explicit.** Arguments are checked against
    the tool's schema in `server.py` before a handler runs (not every MCP SDK
-   does it), so a flag is a real boolean. Edits need `write: true`.
+   does it), so a flag is a real boolean. Edits need `write: true`, and
+   `arclang_edit` changes nothing at all when one of its requests is refused:
+   the requests run on a temporary copy, and the file is written once, with
+   the final text.
    `arclang_review` is a dry run without `send: true`. The generation tools
    call a Claude model only when a key is configured, and say which wrote the
    text.

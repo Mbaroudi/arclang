@@ -10,6 +10,7 @@ from .generation import GenerationTools
 from .integration import IntegrationTools
 from .safety import SafetyTools
 from .transform import TransformTools
+from .workbench import WorkbenchTools
 
 __all__ = [
     "BatchTools",
@@ -20,4 +21,5 @@ __all__ = [
     "IntegrationTools",
     "SafetyTools",
     "TransformTools",
+    "WorkbenchTools",
 ]

@@ -68,7 +68,7 @@ def test_a_client_can_list_and_call_tools_over_stdio(workspace, model):
             },
         )
         assert started["serverInfo"]["name"] == "arclang-mcp"
-        assert started["serverInfo"]["version"] == "4.1.0"
+        assert started["serverInfo"]["version"] == "4.3.0"
         client.notify("notifications/initialized")
 
         tools = {tool["name"] for tool in client.request("tools/list", {})["tools"]}
