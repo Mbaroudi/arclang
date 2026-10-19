@@ -407,10 +407,11 @@ struct ConnectorEnd {
 }
 
 fn connector_end(builder: &Builder, declaration: &Declaration, path: &str) -> ConnectorEnd {
-    let first = path.split('.').next().unwrap_or(path);
+    let parts = super::sysml_syntax::split_path(path, ".");
+    let first = parts[0];
     let element = builder.scope.resolve(first, declaration.owner).map(|e| builder.ids[e].clone());
     let feature = builder.scope.resolve(path, declaration.owner).map(|f| builder.ids[f].clone());
-    let is_chain = path.contains('.');
+    let is_chain = parts.len() > 1;
     // A flow relates the features that own its output and input.
     let related = match (is_chain, declaration.metaclass) {
         (false, _) | (true, "FlowUsage") => element.clone().into_iter().collect(),
@@ -560,6 +561,11 @@ pub fn build(declarations: &[Declaration]) -> Records {
                 object.insert(format!("arclang:{}Path", side), json!(end.path));
                 object.insert(format!("arclang:{}Element", side), end.element.as_deref().map(reference).unwrap_or(Value::Null));
                 object.insert(format!("arclang:{}Feature", side), end.feature.as_deref().map(reference).unwrap_or(Value::Null));
+            }
+            // Every target of a connector of more than two ends, as written.
+            if !more.is_empty() {
+                let paths: Vec<&str> = std::iter::once(ends[1].path.as_str()).chain(more.iter().map(|m| m.path.as_str())).collect();
+                object.insert("arclang:targetPaths".into(), json!(paths));
             }
             if declaration.metaclass == "SatisfyRequirementUsage" {
                 object.insert("satisfyingFeature".into(), ends[0].feature.as_deref().map(reference).unwrap_or(Value::Null));

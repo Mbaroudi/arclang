@@ -1,5 +1,5 @@
 //! The cybersecurity analysis of the profile, read back: a
-//! `#SecurityScales` attribute definition is `security_scales`, a
+//! `#SecurityScales` package (an enumeration per scale) is `security_scales`, a
 //! `#Security` package a `security_analysis`, its `#PrimaryAsset` and
 //! `#Threat` parts its assets and threats, with what they name.
 
@@ -12,12 +12,16 @@ pub(super) const SECURITY_METADATA: &[&str] = &["PrimaryAsset", "Threat", "Secur
 
 impl<'g> Mapper<'g> {
     pub(super) fn security(&mut self) {
-        let scales: Vec<&'g Element> = self.graph.of_kinds(&["AttributeDefinition"]).filter(|d| !self.is_library(d) && Self::has_metadata(d, &["SecurityScales"])).collect();
-        for def in scales {
-            let id = self.remember(&def.id, Self::identity_id(def), "SecurityScales");
+        let scales: Vec<&'g Element> = self.graph.of_kinds(&["Package"]).filter(|d| !self.is_library(d) && Self::has_metadata(d, &["SecurityScales"])).collect();
+        for package in scales {
+            let id = self.remember(&package.id, Self::identity_id(package), "SecurityScales");
             self.line(0, "security_scales {");
             self.line(1, &format!("id: {}", string_literal(&id)));
-            self.attributes(1, &[def], &["description", "id"]);
+            for scale in package.children.iter().filter_map(|c| self.graph.get(c)).filter(|c| c.kind == "EnumerationDefinition") {
+                let Some(key) = scale.name.clone() else { continue };
+                let literals: Vec<String> = scale.children.iter().filter_map(|c| self.graph.get(c)).filter(|c| c.kind == "EnumerationUsage").filter_map(|c| c.name.clone()).collect();
+                self.line(1, &format!("{key}: {}", super::list_literal(&literals)));
+            }
             self.line(0, "}");
             self.line(0, "");
         }

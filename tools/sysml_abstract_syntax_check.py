@@ -98,9 +98,16 @@ def canonical(elements):
         related = element.get(role) or []
         if related:
             return ",".join(qualified(r) for r in related)
+        paths = element.get("arclang:%sPaths" % role)
+        if paths:
+            # A connector of more than two ends: every target, in order.
+            return ",".join(spelled_path(p) for p in paths)
         path = element.get("arclang:%sPath" % role, "")
         if not path:
             return ""
+        return spelled_path(path)
+
+    def spelled_path(path):
         # A chain is spelled by its features: the package that qualifies its
         # first one is not part of it.
         segments = path.split(".")
@@ -122,7 +129,7 @@ def canonical(elements):
             target = node.get("targetFeature")
             written = node.get("arclang:targetPath", "")
             # A multi-step path is an anonymous chain feature for the pilot.
-            path = written if "." in written else (qualified(target) if target else "?" + written)
+            path = spelled_path(written) if "." in written else (qualified(target) if target else "?" + written)
             return "chain(%s, %s)" % (arguments[0], path)
         if metaclass == "InvocationExpression":
             function = node.get("instantiatedType")

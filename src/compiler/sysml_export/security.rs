@@ -2,7 +2,8 @@
 //! package (its level an attribute), each primary asset a `#PrimaryAsset`
 //! part, each threat a `#Threat` part, and what they name (`members`,
 //! `applies_to`, `involves`) dependencies named by their key. The scales
-//! are a `#SecurityScales` attribute definition.
+//! are a `#SecurityScales` package holding one enumeration per scale, its
+//! literals in order.
 
 use super::relations::dependency;
 use super::{id_of, text, Exporter};
@@ -38,8 +39,20 @@ pub(super) fn register(e: &mut Exporter<'_>) {
 pub(super) fn write(e: &mut Exporter<'_>) {
     let model = e.model;
     if let Some(scales) = &model.security_scales {
-        let id = if scales.id.is_empty() { "SecurityScales" } else { scales.id.as_str() };
-        e.block(&format!("#SecurityScales attribute def {}", text::declared(id, "SecurityScales")), |e| e.header("SecurityScales", &scales.attributes, &[]));
+        // No short name when none is written: it would hide the metadata.
+        let head = if scales.id.is_empty() { text::name("Security scales") } else { text::declared(&scales.id, "Security scales") };
+        e.block(&format!("#SecurityScales package {head}"), |e| {
+            let mut keys: Vec<&String> = scales.attributes.keys().filter(|k| k.as_str() != "id").collect();
+            keys.sort();
+            for key in keys {
+                let literals = scales.scale(key).unwrap_or_default();
+                e.block(&format!("enum def {}", text::name(key)), |e| {
+                    for literal in &literals {
+                        e.line(&format!("{};", text::name(literal)));
+                    }
+                });
+            }
+        });
     }
     for (rank, analysis) in model.security_analysis.iter().enumerate() {
         let package = package_name(analysis, rank);

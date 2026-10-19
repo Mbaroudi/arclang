@@ -204,3 +204,12 @@ fn a_connection_of_more_than_two_ends_keeps_them_all() {
     assert_eq!(declarations[2].ends, Some(("x".to_string(), "y".to_string())));
     assert!(declarations[2].more_ends.is_empty());
 }
+
+#[test]
+fn a_quoted_name_holding_a_dot_is_one_segment_of_a_path() {
+    assert_eq!(super::split_path("'FC-1.Boundary approached?'.x", "."), vec!["'FC-1.Boundary approached?'", "x"]);
+    assert_eq!(super::split_path("P::'a::b'.c", "::"), vec!["P", "'a::b'.c"]);
+    assert_eq!(super::unquoted("'FC-1.B'"), "FC-1.B");
+    let declarations = read_ok("package M {\n  action c {\n    merge <'C.1'> 'Done?';\n    succession first x then 'C.1';\n  }\n}\n");
+    assert_eq!(declarations.last().unwrap().ends.as_ref().map(|e| e.1.as_str()), Some("'C.1'"));
+}

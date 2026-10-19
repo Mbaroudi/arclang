@@ -777,7 +777,9 @@ impl<'g> Mapper<'g> {
     // --- data -------------------------------------------------------------
 
     fn data_model(&mut self) {
-        let enumerations: Vec<&Element> = self.graph.of_kinds(&["EnumerationDefinition"]).filter(|e| !self.is_library(e)).collect();
+        // The enumerations of the security scales are scales, not data.
+        let is_scale = |e: &Element| e.owner.as_deref().and_then(|o| self.graph.get(o)).is_some_and(|o| Self::has_metadata(o, security::SECURITY_METADATA));
+        let enumerations: Vec<&Element> = self.graph.of_kinds(&["EnumerationDefinition"]).filter(|e| !self.is_library(e) && !is_scale(e)).collect();
         for e in enumerations {
             let id = self.remember(&e.id, Self::identity_id(e), "Enumeration");
             let values: Vec<String> = e.children.iter().filter_map(|c| self.graph.get(c)).filter(|c| c.kind == "EnumerationUsage").filter_map(|c| c.name.clone()).collect();
