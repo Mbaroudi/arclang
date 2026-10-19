@@ -1393,7 +1393,11 @@ impl CliRunner {
                     }
                     ExportFormat::ReqIF => {
                         // Requirements exchange with DOORS/Polarion/Jama
-                        crate::compiler::reqif::generate_reqif(&result.semantic_model, &result.ast)
+                        let (text, notes) = crate::compiler::reqif::generate_reqif_with_notes(&result.semantic_model, &result.ast);
+                        for note in notes {
+                            eprintln!("warning: {note}");
+                        }
+                        text
                     }
                     ExportFormat::Simulink => {
                         // MATLAB script rebuilding the architecture in System Composer
