@@ -114,7 +114,8 @@ suite('ArcLang workbench', () => {
     tree.follow(document);
     const layers = await tree.getChildren();
     const logical = layers.find((item: ModelItem) => item.type === 'layer' && item.layer === 'Logical');
-    assert.ok(layers[0].type === 'layer' && layers[0].layer === 'Model', 'the model heads the tree');
+    assert.ok(layers[0].type === 'diagrams', 'the diagrams head the tree');
+    assert.ok(layers.some((item: ModelItem) => item.type === 'layer' && item.layer === 'Model'), 'the model has its own entry');
     assert.ok(logical, JSON.stringify(layers.map((l: ModelItem) => (l.type === 'layer' ? l.layer : l.type))));
     const components = await tree.getChildren(logical);
     assert.deepEqual(
@@ -175,10 +176,12 @@ suite('ArcLang workbench', () => {
     const document = await openCopy();
     await vscode.commands.executeCommand('arclang.openWorkbench', document.uri);
     // The extension runs from its bundle, so its panel registry is not this
-    // module's: the panel shows as a tab named after the file.
-    const labels = () => vscode.window.tabGroups.all.flatMap((group) => group.tabs.map((tab) => tab.label));
-    const wanted = `Workbench: ${path.basename(document.uri.fsPath)}`;
-    assert.ok(await until(() => labels().includes(wanted)), labels().join(' | '));
+    // module's: the workbench shows as a custom editor tab on the document.
+    const customTabs = () =>
+      vscode.window.tabGroups.all.flatMap((group) =>
+        group.tabs.filter((tab) => tab.input instanceof vscode.TabInputCustom && tab.input.viewType === 'arclang.workbench' && tab.input.uri.toString() === document.uri.toString()),
+      );
+    assert.ok(await until(() => customTabs().length > 0), vscode.window.tabGroups.all.flatMap((g) => g.tabs.map((t) => t.label)).join(' | '));
     void WorkbenchPanel;
   });
 });

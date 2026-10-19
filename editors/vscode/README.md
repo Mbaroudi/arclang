@@ -24,23 +24,30 @@ does.
 
 ## The workbench: text or mouse, your choice
 
-**ArcLang: Open the workbench** puts the compiler's diagram viewer beside the
-source, with what a Capella user expects around it. Text and views edit the
-same `.arc` file: type in one, click in the other, the selection follows.
+**ArcLang: Open the workbench beside the source** (the icon in the editor
+title, or *Reopen Editor With… → ArcLang Workbench*) puts the compiler's
+diagram viewer next to the text, with what a Capella user expects around it.
+Text and views edit the same `.arc` file: type in one, click in the other,
+the selection follows; Undo, Redo and Save are the editor's own.
 
-- **Palette**, per view: create actors, entities, activities, functions,
-  components, nodes, ports, classes; connect them by interactions, functional
-  and component exchanges, physical links (two clicks, then a name; ports are
-  declared when the ends have none). Drag a function or a component onto
-  another to move it.
-- **Properties**: a form typed by the metamodel (texts, quantities,
-  enumerations, references, lists); Rename keeps the identity, Delete asks
-  for the id.
-- **Semantic browser**: owner, incoming, outgoing, owned, each a step away.
-- **Findings and gate** at the bottom, each finding a click from its element
-  and its line.
-- **Model tree** in the ArcLang side bar: the elements by layer and
-  ownership, with Go to source, Rename, Delete and Ask @arclang.
+- **Palette** per view, in a rail with one-letter shortcuts: create actors,
+  entities, activities, functions, components, nodes, ports, classes, states
+  and modes; connect them by interactions, functional and component
+  exchanges, physical links, transitions and messages (two clicks, then a
+  name; ports are declared when the ends have none). Drag a function or a
+  component onto another to move it. `F2` renames, `Delete` removes,
+  double-click opens, `Esc` cancels; right-click gives the native menu
+  (rename, delete, show in source, show in tree, ask @arclang, copy id).
+- **Properties**, Capella style: General, Description, Resources and All
+  tabs, the set attributes first and the others added on demand, the name
+  edited in place (the identity never changes).
+- **Model tree** and **Relations** views in the ArcLang side bar: the
+  diagrams, then the elements by layer and ownership; owner, incoming,
+  outgoing, traces and owned of the selection, each a step away.
+- **Navigation at scale**: *Open a diagram…* (`⌘⌥D`) and *Go to an element…*
+  (`⌘⌥E`) quick picks; the status bar shows the gate verdict and the number
+  of findings; findings are marked on the drawn elements, with their text as
+  tooltip.
 
 Every gesture becomes `arclang edit` requests: the compiler refuses the ones
 that would leave a model that does not compile, and an accepted one lands in
@@ -111,7 +118,7 @@ offered to agent mode when `arclang-mcp` is on the PATH or the setting
 
 ## Requirements
 
-The `arclang` compiler, 4.0.1 or later: a
+The `arclang` compiler, 4.3.0 or later: a
 [release](https://github.com/Mbaroudi/arclang/releases) on the PATH, or its
 path in the setting `arclang.binary`. **ArcLang: Install or locate the
 arclang compiler** helps. Chat features need a language model provider in

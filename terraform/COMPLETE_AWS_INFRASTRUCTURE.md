@@ -2,7 +2,7 @@
 
 **Generated**: 2025-10-21  
 **Source**: `/Users/malek/Arclang/src/compiler/terraform_aws_complete_generator.rs`  
-**Model**: `examples/data_platform_migration.arc`  
+**Model**: `examples/business/data_platform_migration/data_platform_migration.arc`  
 **Status**: ✅ **PRODUCTION READY**
 
 ---
@@ -274,7 +274,7 @@ API Gateway → Step Functions → {
 cd /Users/malek/Arclang
 
 # Option 1: Generate to file
-cargo run --release -- export examples/data_platform_migration.arc \
+cargo run --release -- export examples/business/data_platform_migration/data_platform_migration.arc \
   -f terraform-aws-complete \
   -o terraform/aws_complete.tf
 
@@ -434,7 +434,7 @@ name: Deploy Infrastructure
 on:
   push:
     paths:
-      - 'examples/data_platform_migration.arc'
+      - 'examples/business/data_platform_migration/data_platform_migration.arc'
 
 jobs:
   deploy:
@@ -444,7 +444,7 @@ jobs:
       
       - name: Generate Terraform
         run: |
-          arclang export examples/data_platform_migration.arc \
+          arclang export examples/business/data_platform_migration/data_platform_migration.arc \
             -f terraform-aws-complete \
             -o terraform/aws.tf
       

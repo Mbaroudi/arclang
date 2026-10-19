@@ -1,90 +1,275 @@
 /* The workbench page, in the editor's own colours. The viewer brings its own
-   stylesheet; its variables are mapped to the theme here. */
+   stylesheet; its variables are mapped to the theme here. Layout: a 35 px
+   bar, a row (palette rail, canvas, properties drawer), one status line. */
 :root {
-  --av-ink: var(--vscode-editor-foreground);
+  --av-stage-height: 480px;
+  --wb-gap: 8px;
+  --wb-dot: color-mix(in srgb, var(--vscode-editor-foreground) 16%, transparent);
+  --wb-rail: 40px;
+  --wb-rail-open: 168px;
+}
+
+/* The viewer defines its palette on .arcviz: the theme is mapped there, so
+   light and dark themes both reach the tabs, the desk and the sheet. */
+#workbench .arcviz {
+  --av-ink: var(--vscode-foreground, var(--vscode-editor-foreground));
   --av-muted: var(--vscode-descriptionForeground);
   --av-rule: var(--vscode-panel-border, var(--vscode-widget-border, #8884));
   --av-sheet: var(--vscode-editor-background);
-  --av-desk: var(--vscode-sideBar-background, var(--vscode-editor-background));
+  --av-desk: var(--vscode-editor-background);
   --av-accent: var(--vscode-focusBorder, #0b5cad);
-  --av-stage-height: calc(100vh - 11.5rem);
-  --wb-gap: 0.5rem;
 }
+#workbench .arcviz .arcviz-stage {
+  background-image: radial-gradient(circle, var(--wb-dot) 1px, transparent 1px);
+}
+#workbench .arcviz .arcviz-tab {
+  color: var(--vscode-panelTitle-inactiveForeground, var(--vscode-descriptionForeground));
+  border-bottom-width: 1px;
+  padding: 0.45rem 0.1rem;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+#workbench .arcviz .arcviz-tab:hover,
+#workbench .arcviz .arcviz-tab[aria-selected='true'] {
+  color: var(--vscode-panelTitle-activeForeground, var(--vscode-foreground));
+  border-bottom-color: var(--vscode-panelTitle-activeBorder, var(--vscode-focusBorder));
+}
+#workbench .arcviz .arcviz-pick select,
+#workbench .arcviz select {
+  color: var(--vscode-input-foreground);
+  background: var(--vscode-input-background);
+  border-color: var(--vscode-input-border, transparent);
+}
+/* The viewer's toolbar buttons take the editor's toolbar look. */
+#workbench .wb-viewer-tools button {
+  font-size: 11px;
+  padding: 0.15rem 0.45rem;
+  background: transparent;
+  color: var(--vscode-foreground);
+  border: 1px solid transparent;
+}
+#workbench .wb-viewer-tools button:hover { background: var(--vscode-toolbar-hoverBackground, #8883); }
+#workbench .wb-viewer-tools button[disabled] { opacity: 0.4; }
 
 html, body {
   margin: 0;
   padding: 0;
   height: 100%;
+  overflow: hidden;
   background: var(--vscode-editor-background);
-  color: var(--vscode-editor-foreground);
+  color: var(--vscode-foreground, var(--vscode-editor-foreground));
   font-family: var(--vscode-font-family);
-  font-size: var(--vscode-font-size);
+  font-size: var(--vscode-font-size, 13px);
 }
 
 #workbench {
-  display: grid;
-  grid-template-columns: 11rem minmax(0, 1fr) 20rem;
-  grid-template-rows: auto minmax(0, 1fr) auto;
-  grid-template-areas:
-    "bar bar bar"
-    "left sheet right"
-    "bottom bottom bottom";
+  display: flex;
+  flex-direction: column;
   height: 100vh;
 }
 
+/* Bar: views on the left, the viewer's tools on the right, 35 px like an editor title. */
 .wb-bar {
-  grid-area: bar;
   display: flex;
   align-items: center;
   gap: var(--wb-gap);
-  padding: 0.25rem 0.5rem;
-  border-bottom: 1px solid var(--av-rule);
-  min-height: 2rem;
-  flex-wrap: wrap;
+  height: 35px;
+  padding: 0 4px 0 2px;
+  border-bottom: 1px solid var(--vscode-panel-border, #8884);
+  flex: none;
+  overflow: hidden;
 }
-.wb-title { font-weight: 600; margin-right: 0.5rem; }
-.wb-tabs { display: flex; gap: 0.25rem; flex-wrap: wrap; }
-.wb-viewer-tools { display: flex; gap: 0.25rem; margin-left: auto; flex-wrap: wrap; }
-.wb-hint { color: var(--vscode-descriptionForeground); font-style: italic; }
-.wb-hint.is-error { color: var(--vscode-errorForeground); font-style: normal; }
-.wb-busy { color: var(--vscode-descriptionForeground); }
+.wb-tabs { display: flex; gap: 2px; overflow-x: auto; scrollbar-width: none; min-width: 0; flex: 1; }
+.wb-tabs::-webkit-scrollbar { display: none; }
+.wb-viewer-tools { display: flex; gap: 1px; flex: none; overflow: hidden; }
 
+.wb-body { display: flex; flex: 1; min-height: 0; }
+
+/* Palette rail */
 .wb-left {
-  grid-area: left;
-  border-right: 1px solid var(--av-rule);
-  overflow: auto;
-  padding: 0.5rem;
+  width: var(--wb-rail-open);
+  flex: none;
+  border-right: 1px solid var(--vscode-panel-border, #8884);
+  overflow-y: auto;
+  overflow-x: hidden;
   background: var(--vscode-sideBar-background, transparent);
+  transition: width 120ms ease-out;
 }
-.wb-sheet { grid-area: sheet; min-width: 0; min-height: 0; overflow: hidden; position: relative; }
-.wb-sheet.is-stale::after {
-  content: "from the last compiling version";
+.wb-left.is-collapsed { width: var(--wb-rail); }
+.wb-palette { padding: 4px 0; }
+.wb-palette h3 {
+  margin: 8px 0 2px;
+  padding: 0 8px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--vscode-sideBarSectionHeader-foreground, var(--vscode-descriptionForeground));
+  white-space: nowrap;
+  overflow: hidden;
+}
+.wb-palette.is-compact h3 { font-size: 0; height: 1px; margin: 6px 8px; background: var(--vscode-panel-border, #8884); }
+.wb-tools { display: flex; flex-direction: column; }
+.wb-tool {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 26px;
+  padding: 0 8px;
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  color: var(--vscode-foreground);
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+}
+.wb-tool:hover { background: var(--vscode-list-hoverBackground, #8882); }
+.wb-tool.is-armed { background: var(--vscode-inputOption-activeBackground, #8884); box-shadow: inset 0 0 0 1px var(--vscode-inputOption-activeBorder, var(--vscode-focusBorder)); outline: none; }
+.wb-tool-glyph { width: 16px; text-align: center; font-size: 14px; flex: none; color: var(--vscode-icon-foreground, inherit); }
+.wb-tool.is-connect .wb-tool-glyph { color: var(--vscode-textLink-foreground); }
+.wb-palette.is-compact .wb-tool { justify-content: center; padding: 0; }
+.wb-palette.is-compact .wb-tool-label, .wb-palette.is-compact .wb-muted { display: none; }
+.wb-muted { color: var(--vscode-descriptionForeground); padding: 0 8px; font-size: 12px; }
+
+/* Canvas */
+.wb-sheet { flex: 1; min-width: 0; min-height: 0; position: relative; display: flex; flex-direction: column; overflow: hidden; }
+.wb-host { flex: 1; min-height: 0; }
+.wb-sheet.is-stale::before {
+  content: "drawn from the last compiling version";
   position: absolute;
-  top: 0.4rem;
-  left: 0.6rem;
-  background: var(--vscode-inputValidation-warningBackground, #b8860b);
-  color: var(--vscode-editor-foreground);
-  padding: 0.1rem 0.5rem;
-  border-radius: 3px;
-  font-size: 0.85em;
+  top: 6px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 3;
+  color: var(--vscode-editorWarning-foreground, #b8860b);
+  background: var(--vscode-editorWidget-background, var(--vscode-editor-background));
+  border: 1px solid var(--vscode-editorWarning-foreground, #b8860b);
+  padding: 1px 8px;
+  border-radius: 10px;
+  font-size: 11px;
 }
-.wb-host { height: 100%; }
+.wb-progress {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  z-index: 4;
+  background: linear-gradient(90deg, transparent, var(--vscode-progressBar-background, var(--vscode-focusBorder)), transparent);
+  background-size: 40% 100%;
+  animation: wb-progress 1.2s linear infinite;
+}
+@keyframes wb-progress { from { background-position: -40% 0; } to { background-position: 140% 0; } }
+@media (prefers-reduced-motion: reduce) { .wb-progress { animation: none; background: var(--vscode-progressBar-background, var(--vscode-focusBorder)); } }
+.wb-mode {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: 3;
+  padding: 2px 8px;
+  border-radius: 3px;
+  font-size: 12px;
+  color: var(--vscode-badge-foreground, #fff);
+  background: var(--vscode-badge-background, #4d4d4d);
+  pointer-events: none;
+}
+.wb-toast {
+  position: absolute;
+  bottom: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: min(560px, calc(100% - 24px));
+  padding: 6px 8px 6px 12px;
+  border-radius: 4px;
+  font-size: 12px;
+  color: var(--vscode-notifications-foreground, var(--vscode-foreground));
+  background: var(--vscode-notifications-background, var(--vscode-editorWidget-background));
+  border: 1px solid var(--vscode-notifications-border, var(--vscode-widget-border, #8884));
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+.wb-toast.is-error { border-color: var(--vscode-inputValidation-errorBorder, var(--vscode-errorForeground)); }
+.wb-toast.is-error .wb-toast-text::before { content: "⚠ "; color: var(--vscode-errorForeground); }
+.wb-toast-text { flex: 1; }
+.wb-prompt {
+  position: absolute;
+  top: 44px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 6;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: min(320px, calc(100% - 24px));
+  padding: 8px;
+  border: 1px solid var(--vscode-focusBorder);
+  border-radius: 4px;
+  background: var(--vscode-editorWidget-background, var(--vscode-editor-background));
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+.wb-prompt label { font-size: 12px; }
+.wb-prompt button { align-self: flex-end; }
+.wb-prompt button + button { margin-left: 4px; }
+.wb-flash { animation: wb-flash 900ms ease-out; }
+@keyframes wb-flash { 0% { filter: drop-shadow(0 0 6px var(--vscode-focusBorder)); } 100% { filter: none; } }
+@media (prefers-reduced-motion: reduce) { .wb-flash { animation: none; outline: 2px solid var(--vscode-focusBorder); } }
+
+/* Properties drawer */
+.wb-splitter { width: 4px; flex: none; cursor: col-resize; background: transparent; }
+.wb-splitter:hover { background: var(--vscode-sash-hoverBorder, var(--vscode-focusBorder)); }
 .wb-right {
-  grid-area: right;
-  border-left: 1px solid var(--av-rule);
+  width: 280px;
+  flex: none;
+  min-width: 0;
+  border-left: 1px solid var(--vscode-panel-border, #8884);
   overflow: auto;
-  padding: 0.5rem;
   background: var(--vscode-sideBar-background, transparent);
 }
-.wb-bottom {
-  grid-area: bottom;
-  border-top: 1px solid var(--av-rule);
-  max-height: 9rem;
-  overflow: auto;
-  padding: 0.25rem 0.5rem;
-  font-size: 0.92em;
+.wb-right-tabs { display: flex; height: 28px; border-bottom: 1px solid var(--vscode-panel-border, #8884); padding: 0 8px; }
+.wb-right-tab {
+  background: none;
+  border: 0;
+  border-bottom: 1px solid transparent;
+  border-radius: 0;
+  padding: 0 8px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--vscode-panelTitle-inactiveForeground, var(--vscode-descriptionForeground));
 }
-.wb-hidden { display: none; }
+.wb-right-tab.is-active { color: var(--vscode-panelTitle-activeForeground, var(--vscode-foreground)); border-bottom-color: var(--vscode-panelTitle-activeBorder, var(--vscode-focusBorder)); outline: none; }
+.wb-pane { display: none; padding: 8px; }
+.wb-pane.is-active { display: block; }
+.wb-props-head { margin-bottom: 6px; }
+.wb-props-title { display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; }
+.wb-kind { color: var(--vscode-descriptionForeground); font-size: 11px; }
+.wb-id { font-family: var(--vscode-editor-font-family); font-size: 11px; color: var(--vscode-descriptionForeground); }
+.wb-actions { display: flex; flex-wrap: wrap; gap: 4px; margin: 6px 0 8px; }
+table.wb-props { width: 100%; border-collapse: collapse; }
+table.wb-props th { text-align: right; font-weight: 400; color: var(--vscode-descriptionForeground); padding: 0 8px 0 0; vertical-align: middle; white-space: nowrap; width: 40%; font-size: 12px; }
+table.wb-props td { padding: 2px 0; }
+.wb-field, input.wb-prompt-input {
+  font: inherit;
+  height: 24px;
+  color: var(--vscode-settings-textInputForeground, var(--vscode-input-foreground));
+  background: var(--vscode-settings-textInputBackground, var(--vscode-input-background));
+  border: 1px solid var(--vscode-settings-textInputBorder, var(--vscode-input-border, transparent));
+  border-radius: 2px;
+  padding: 0 6px;
+  width: 100%;
+  box-sizing: border-box;
+}
+.wb-field:focus, input.wb-prompt-input:focus { outline: 1px solid var(--vscode-focusBorder); outline-offset: -1px; }
+.wb-browser h3 { margin: 8px 0 2px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: var(--vscode-descriptionForeground); }
+.wb-browser-list { list-style: none; margin: 0; padding: 0; }
+.wb-browser-list li { padding: 1px 0; font-size: 12px; }
+.wb-details, .wb-related { margin-bottom: 8px; }
 
 /* Buttons share the editor's look. */
 button {
@@ -92,84 +277,71 @@ button {
   color: var(--vscode-button-secondaryForeground, inherit);
   background: var(--vscode-button-secondaryBackground, #8883);
   border: 1px solid transparent;
-  border-radius: 3px;
-  padding: 0.2rem 0.55rem;
+  border-radius: 2px;
+  padding: 2px 8px;
   cursor: pointer;
+  font-size: 12px;
 }
 button:hover { background: var(--vscode-button-secondaryHoverBackground, #8885); }
 button:focus-visible { outline: 1px solid var(--vscode-focusBorder); outline-offset: 1px; }
 button.wb-primary { color: var(--vscode-button-foreground); background: var(--vscode-button-background); }
 button.wb-danger { color: var(--vscode-errorForeground); }
-button.wb-link {
-  background: none;
-  color: var(--vscode-textLink-foreground);
-  padding: 0 0.2rem;
-  text-decoration: underline;
-}
-button.is-armed, .wb-right-tab.is-active { outline: 2px solid var(--vscode-focusBorder); }
+button.wb-link { background: none; color: var(--vscode-textLink-foreground); padding: 0 2px; text-decoration: underline; }
+button.wb-icon-button { width: 22px; height: 22px; padding: 0; background: none; color: var(--vscode-icon-foreground, inherit); }
+button.wb-icon-button:hover { background: var(--vscode-toolbar-hoverBackground, #8883); }
+button.wb-icon-button[aria-pressed='true'] { background: var(--vscode-inputOption-activeBackground, #8884); }
+.wb-bar > .wb-icon-button:first-child::before { content: "☰"; }
+.wb-bar > .wb-icon-button:last-child::before { content: "☷"; }
 
-/* Palette */
-.wb-palette h3, .wb-browser h3 { font-size: 0.8em; text-transform: uppercase; letter-spacing: 0.04em; color: var(--vscode-descriptionForeground); margin: 0.6rem 0 0.3rem; }
-.wb-tools { display: flex; flex-direction: column; gap: 0.25rem; }
-.wb-tool { text-align: left; }
-.wb-muted { color: var(--vscode-descriptionForeground); }
-.wb-prompt {
-  display: flex;
-  flex-direction: column;
-  gap: 0.3rem;
-  padding: 0.4rem;
-  margin-bottom: 0.5rem;
-  border: 1px solid var(--vscode-focusBorder);
-  border-radius: 3px;
-  background: var(--vscode-editorWidget-background, var(--vscode-editor-background));
+/* Status line */
+.wb-bottom {
+  flex: none;
+  max-height: 22px;
+  overflow: hidden;
+  border-top: 1px solid var(--vscode-panel-border, #8884);
+  padding: 0 8px;
+  font-size: 12px;
+  background: var(--vscode-sideBar-background, transparent);
+  transition: max-height 150ms ease-out;
 }
-.wb-prompt label { font-size: 0.9em; }
-input.wb-prompt-input, .wb-field {
-  font: inherit;
-  color: var(--vscode-input-foreground);
-  background: var(--vscode-input-background);
-  border: 1px solid var(--vscode-input-border, transparent);
-  border-radius: 2px;
-  padding: 0.2rem 0.35rem;
-  width: 100%;
-  box-sizing: border-box;
-}
-.wb-field:focus, input.wb-prompt-input:focus { outline: 1px solid var(--vscode-focusBorder); }
-
-/* Right column */
-.wb-right-tabs { display: flex; gap: 0.25rem; margin-bottom: 0.5rem; }
-.wb-pane { display: none; }
-.wb-pane.is-active { display: block; }
-.wb-props-head { margin-bottom: 0.4rem; }
-.wb-props-title { display: flex; align-items: baseline; gap: 0.4rem; flex-wrap: wrap; }
-.wb-kind { color: var(--vscode-descriptionForeground); font-size: 0.85em; }
-.wb-id { font-size: 0.85em; color: var(--vscode-descriptionForeground); }
-.wb-actions { display: flex; flex-wrap: wrap; gap: 0.25rem; margin-bottom: 0.5rem; }
-table.wb-props { width: 100%; border-collapse: collapse; }
-table.wb-props th { text-align: left; font-weight: 500; padding: 0.2rem 0.4rem 0.2rem 0; vertical-align: middle; white-space: nowrap; width: 38%; }
-table.wb-props td { padding: 0.15rem 0; }
-.wb-browser-list { list-style: none; margin: 0; padding: 0; }
-.wb-browser-list li { padding: 0.1rem 0; }
-.wb-details, .wb-related { margin-bottom: 0.5rem; }
-
-/* Problems */
-.wb-problems-head { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
-.wb-gate { padding: 0 0.4rem; border-radius: 3px; font-weight: 600; }
+.wb-bottom.is-open { max-height: 11rem; overflow: auto; }
+.wb-problems-head { display: flex; align-items: center; gap: 8px; height: 22px; white-space: nowrap; overflow: hidden; }
+.wb-problems-head button { padding: 0 6px; font-size: 11px; height: 18px; }
+.wb-problems-head strong { font-weight: 500; }
+.wb-problems-head strong.is-error { color: var(--vscode-errorForeground); }
+.wb-spacer { flex: 1; }
+.wb-toggle { padding: 0 4px; background: none; }
+.wb-gate { font-weight: 600; }
 .wb-gate.is-pass { color: var(--vscode-testing-iconPassed, #2a2); }
 .wb-gate.is-fail { color: var(--vscode-errorForeground); }
-.wb-problems { list-style: none; margin: 0.25rem 0 0; padding: 0; }
-.wb-problems li { padding: 0.05rem 0; }
+.wb-problems { list-style: none; margin: 2px 0 4px; padding: 0; }
+.wb-problems li { padding: 1px 0; }
 .wb-problems li.is-error { color: var(--vscode-errorForeground); }
-.wb-problems li.is-warning code { color: var(--vscode-editorWarning-foreground, inherit); }
-.wb-problems code { font-family: var(--vscode-editor-font-family); font-size: 0.9em; }
+.wb-problems code { font-family: var(--vscode-editor-font-family); font-size: 11px; color: var(--vscode-editorWarning-foreground, inherit); }
 .wb-empty { padding: 2rem; color: var(--vscode-descriptionForeground); text-align: center; }
+.wb-hidden { display: none; }
 
-@media (max-width: 900px) {
-  #workbench {
-    grid-template-columns: minmax(0, 1fr);
-    grid-template-areas: "bar" "left" "sheet" "right" "bottom";
-    grid-template-rows: auto auto minmax(0, 1fr) auto auto;
-  }
-  .wb-left, .wb-right { border: 0; border-bottom: 1px solid var(--av-rule); max-height: 10rem; }
-  .wb-tools { flex-direction: row; flex-wrap: wrap; }
+/* Palette shortcuts and the properties header */
+.wb-tool-key { margin-left: auto; font: 10px var(--vscode-editor-font-family); color: var(--vscode-keybindingLabel-foreground, var(--vscode-descriptionForeground)); background: var(--vscode-keybindingLabel-background, #8882); border: 1px solid var(--vscode-keybindingLabel-border, transparent); border-bottom-color: var(--vscode-keybindingLabel-bottomBorder, transparent); border-radius: 3px; padding: 0 4px; }
+.wb-palette.is-compact .wb-tool-key { display: none; }
+.wb-name-input { font: inherit; font-weight: 600; font-size: 13px; width: 100%; box-sizing: border-box; color: inherit; background: transparent; border: 1px solid transparent; border-radius: 2px; padding: 1px 4px; margin-left: -5px; }
+.wb-name-input:hover { border-color: var(--vscode-input-border, #8884); }
+.wb-name-input:focus { outline: none; border-color: var(--vscode-focusBorder); background: var(--vscode-input-background); }
+.wb-id { cursor: copy; }
+.wb-props-tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--vscode-panel-border, #8884); margin: 4px 0 8px; }
+.wb-props-tab { background: none; border: 0; border-bottom: 1px solid transparent; border-radius: 0; padding: 4px 6px; font-size: 11px; color: var(--vscode-panelTitle-inactiveForeground, var(--vscode-descriptionForeground)); }
+.wb-props-tab.is-active { color: var(--vscode-panelTitle-activeForeground, var(--vscode-foreground)); border-bottom-color: var(--vscode-panelTitle-activeBorder, var(--vscode-focusBorder)); }
+.wb-textarea { height: auto; min-height: 3.6em; resize: vertical; font: inherit; padding: 4px 6px; }
+.wb-add { display: flex; gap: 4px; margin-top: 6px; }
+.wb-props-body > .wb-link { margin-top: 6px; padding: 0; }
+
+/* Elements with findings: a warning halo, the findings in the tooltip; errors in red. */
+#workbench .arcviz [data-id].wb-has-finding > rect:first-of-type,
+#workbench .arcviz [data-id].wb-has-finding > path:first-of-type {
+  stroke: var(--vscode-editorWarning-foreground, #cca700) !important;
+  stroke-dasharray: 4 2;
+}
+#workbench .arcviz [data-id].wb-has-finding.is-error > rect:first-of-type,
+#workbench .arcviz [data-id].wb-has-finding.is-error > path:first-of-type {
+  stroke: var(--vscode-editorError-foreground, #f14c4c) !important;
 }

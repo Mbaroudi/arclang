@@ -6,6 +6,8 @@ import {
   createRequest,
   elementTree,
   ElementRecord,
+  graphContainerOf,
+  lifelineElement,
   Metamodel,
   neighbours,
   ownerOfPort,
@@ -130,6 +132,32 @@ test('connecting two components declares the ports and the exchange; links name 
   assert.deepEqual(connectPlan(link, { id: 'PN-1', kind: 'PhysicalNode' }, { id: 'PN-1', kind: 'PhysicalNode' }, 'x', 'pab'), { error: 'an element is not connected to itself' });
   assert.equal(ownerOfPort('LC-A.lane'), 'LC-A');
   assert.equal(portNameFrom('steering correction!'), 'steering_correction');
+});
+
+test('states, transitions and messages are declared inside the machine or the scenario of the diagram', () => {
+  assert.equal(graphContainerOf('msm:LKA modes', 'msm'), 'LKA modes');
+  assert.equal(graphContainerOf('es:Lane departure', 'es'), 'Lane departure');
+  assert.equal(graphContainerOf('lab', 'lab'), null);
+  assert.equal(lifelineElement('Lane departure.LC-CAM', 'Lane departure'), 'LC-CAM');
+  const state = toolsFor('msm').find((t) => t.id === 'state')!;
+  assert.deepEqual(createRequest(state, { view: 'msm', name: 'Fault', selected: null, graphContainer: 'LKA modes' }), { op: 'add', keyword: 'state', name: 'Fault', container: 'LKA modes' });
+  assert.deepEqual(createRequest(state, { view: 'msm', name: 'Sub', selected: { id: 'LKA modes.Off', kind: 'State' }, graphContainer: 'LKA modes' }), {
+    op: 'add',
+    keyword: 'state',
+    name: 'Sub',
+    container: 'LKA modes.Off',
+  });
+  assert.deepEqual(createRequest(state, { view: 'msm', name: 'X', selected: null, graphContainer: null }), { error: 'State: this diagram is not about one state machine or scenario' });
+  const transition = toolsFor('msm').find((t) => t.id === 'transition')!;
+  const plan = connectPlan(transition, { id: 'LKA modes.Off', kind: 'State' }, { id: 'LKA modes.Armed', kind: 'State' }, '', 'msm', 'LKA modes');
+  assert.deepEqual(plan, [{ op: 'add_raw', declaration: 'transition Off -> Armed { }', container: 'LKA modes' }]);
+  const guarded = connectPlan(transition, { id: 'LKA modes.Off', kind: 'State' }, { id: 'LKA modes.Armed', kind: 'State' }, 'lane lost', 'msm', 'LKA modes');
+  assert.deepEqual(guarded, [{ op: 'add_raw', declaration: 'transition Off -> Armed { guard: "lane lost" }', container: 'LKA modes' }]);
+  const message = toolsFor('es').find((t) => t.id === 'message')!;
+  assert.deepEqual(connectPlan(message, { id: 'LC-CAM', kind: 'LogicalComponent' }, { id: 'LC-CTL', kind: 'LogicalComponent' }, 'frame ready', 'es', 'Lane departure'), [
+    { op: 'add_raw', declaration: 'message "LC-CAM" -> "LC-CTL" "frame ready"', container: 'Lane departure' },
+  ]);
+  assert.deepEqual(connectPlan(message, { id: 'A', kind: 'X' }, { id: 'B', kind: 'Y' }, '', 'es', 'S'), { error: 'a name is needed' });
 });
 
 test('the semantic browser lists relationships and traces around an element', () => {

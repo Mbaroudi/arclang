@@ -13,7 +13,7 @@ review them in pull requests, compile them to JSON and diagrams.
 [playground](https://arclang.fr/playground/) runs this compiler in WebAssembly;
 nothing is uploaded.
 
-> **Version 4.0.1.** Upgrading from 3.0: see
+> **Version 4.3.0.** Upgrading from 3.0: see
 > [docs/MIGRATION_4.0.md](docs/MIGRATION_4.0.md).
 > This README only claims what the test suite verifies. Anything not listed under
 > *Works today* should be assumed absent. See the [Roadmap](#roadmap).
@@ -52,7 +52,15 @@ the long-term goal.
   viewpoint diagrams described below, in one self-contained file.
 - **Traceability analysis computed from the model** (`arclang trace --validate
   --matrix`): real coverage numbers, real gap warnings.
-- **MCP server** (`mcp-server/`, version 4.0.1) giving LLM agents the compiler's
+- **VS Code extension** (`editors/vscode/`, on the
+  [Marketplace](https://marketplace.visualstudio.com/items?itemName=arclang.arclang)
+  and [Open VSX](https://open-vsx.org/extension/arclang/arclang)): a model
+  workbench beside the text, like Capella: diagrams edited with a palette, a
+  model tree, properties typed by the metamodel, a semantic browser, the gate,
+  the `@arclang` assistant and agent on VS Code's language models, SysML v2
+  files in the same workbench. Every gesture is an `arclang edit` request the
+  compiler may refuse; text and views edit the same file.
+- **MCP server** (`mcp-server/`, version 4.1.0) giving LLM agents the compiler's
   commands, 1:1 with the CLI: check, gate, diff, impact, lossless edits
   (`set`/`unset`/`rename`/`format`), exports (SysML v2, Capella, ReqIF), viewpoint
   diagrams and the metamodel as the reference. Tested against the real binary.
@@ -304,8 +312,10 @@ the long-term goal.
   element and nothing else, (2) the edited model compiles, and (3) the
   compiled element shows the requested value; a value that would be
   shadowed (a requirement title given on the declaration line) is refused,
-  not silently ignored. Over the example corpus more than 90% of text attributes
-  are editable this way (tested); the rest are refused with the reason. Limits: one
+  not silently ignored. Over the example corpus more than 80% of text attributes
+  are editable this way (tested); the rest are refused with the reason: titles
+  given on a `req` line, test-case methods, class fields shared by several
+  classes, ports of the same name on two components. Limits: one
   attribute at a time, no creation, deletion or renaming of elements, no
   edit of relationships, and an element declared in an imported file is
   edited in that file.

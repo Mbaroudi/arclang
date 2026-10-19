@@ -1,698 +1,379 @@
 // ===========================================================================
-// COMPLETE MBSE EXAMPLE: Automotive Emergency Braking System
+// Automotive Emergency Braking System: the five Arcadia levels
 // ===========================================================================
-// 
-// This example demonstrates ALL 5 Arcadia layers with proper methodology:
-// 1. OA (Operational Analysis) - What users need
-// 2. SA (System Analysis) - What the system must do
-// 3. LA (Logical Architecture) - How the system is structured (logical)
-// 4. PA (Physical Architecture) - How it's deployed (hardware/software)
-// 5. EPBS (End Product Breakdown Structure) - Physical products
 //
-// Compliance: ISO 26262 ASIL-D (Automotive Safety)
+// The same AEB as complete_emergency_braking_simple.arc, written as the
+// Arcadia method unfolds it, with the fifth level the flagship leaves out:
+//   1. OA   - Operational analysis: what the users need
+//   2. SA   - System analysis: what the system must do
+//   3. LA   - Logical architecture: how the system is structured
+//   4. PA   - Physical architecture: how it is deployed
+//   5. EPBS - End product breakdown structure: what is bought and built
+//
+// Compliance: ISO 26262, ASIL-D on the braking path.
+//
+//   arclang check examples/complete_emergency_braking_mbse.arc
+//   arclang gate  examples/complete_emergency_braking_mbse.arc
 // ===========================================================================
 
-model EmergencyBrakingSystem {
-  name: "Automotive Emergency Braking System (AEB)"
-  description: "Complete MBSE model with all Arcadia layers"
-  version: "2.0.0"
-  author: "Malek Baroudi"
-  safety_standard: "ISO 26262 ASIL-D"
+model EmergencyBrakingSystemEpbs {
+    name: "Automotive Emergency Braking System (AEB), five levels"
+    description: "AEB model down to the end product breakdown structure"
+    version: "2.1.0"
+    author: "Malek Baroudi"
+    safety_standard: "ISO 26262 ASIL-D"
 }
 
 // ===========================================================================
-// LAYER 1: OPERATIONAL ANALYSIS (OA)
-// What do users/operators need to do?
+// 1. Operational analysis
 // ===========================================================================
 
 operational_analysis OA_EmergencyBraking {
-  name: "Emergency Braking - Operational View"
-  
-  // External actors (people/systems interacting with the vehicle)
-  actor Driver {
-    description: "Vehicle driver"
-    type: "human"
-  }
-  
-  actor Pedestrian {
-    description: "Vulnerable road user"
-    type: "human"
-  }
-  
-  actor TrafficEnvironment {
-    description: "Road conditions, weather, other vehicles"
-    type: "environment"
-  }
-  
-  // Operational entities (conceptual groupings)
-  entity Vehicle {
-    description: "The vehicle being controlled"
-    
-    // Operational activities (what happens operationally)
-    activity MonitorEnvironment {
-      description: "Continuously observe surroundings"
+    name: "Emergency Braking - Operational View"
+
+    actor Driver { description: "Vehicle driver" type: "human" }
+    actor Pedestrian { description: "Vulnerable road user" type: "human" }
+    actor TrafficEnvironment { description: "Road conditions, weather, other vehicles" type: "environment" }
+
+    entity Vehicle {
+        description: "The vehicle being controlled"
+        activity MonitorEnvironment { description: "Continuously observe the surroundings" }
+        activity DetectThreat { description: "Identify a potential collision" }
+        activity AlertDriver { description: "Warn the driver of the imminent danger" }
+        activity ApplyBrakes { description: "Execute the emergency braking" }
     }
-    
-    activity DetectThreat {
-      description: "Identify potential collision hazards"
+
+    operational_capability "Avoid Collisions" {
+        id: "OC-001"
+        involves: ["Driver", "Pedestrian", "TrafficEnvironment", "Vehicle"]
     }
-    
-    activity AlertDriver {
-      description: "Warn driver of imminent danger"
-    }
-    
-    activity ApplyBrakes {
-      description: "Execute emergency braking"
-    }
-  }
-  
-  // Operational interactions (how activities interact)
-  interaction DriverCommands {
-    from: Driver
-    to: Vehicle.MonitorEnvironment
-    description: "Driver provides driving inputs"
-  }
-  
-  interaction EnvironmentData {
-    from: TrafficEnvironment
-    to: Vehicle.MonitorEnvironment
-    description: "Environmental conditions"
-  }
-  
-  interaction ThreatDetection {
-    from: Vehicle.MonitorEnvironment
-    to: Vehicle.DetectThreat
-    description: "Sensor data for analysis"
-  }
-  
-  interaction DriverWarning {
-    from: Vehicle.AlertDriver
-    to: Driver
-    description: "Visual/audio warning"
-  }
-  
-  interaction BrakingAction {
-    from: Vehicle.ApplyBrakes
-    to: Vehicle
-    description: "Physical braking force"
-  }
-  
-  interaction PedestrianProtection {
-    from: Vehicle.ApplyBrakes
-    to: Pedestrian
-    description: "Collision avoidance"
-  }
+
+    interaction DriverCommands { from: Driver to: Vehicle.MonitorEnvironment description: "Driving inputs" }
+    interaction EnvironmentData { from: TrafficEnvironment to: Vehicle.MonitorEnvironment description: "Environmental conditions" }
+    interaction ThreatDetection { from: Vehicle.MonitorEnvironment to: Vehicle.DetectThreat description: "Observations to analyse" }
+    interaction DriverWarning { from: Vehicle.AlertDriver to: Driver description: "Visual and audio warning" }
+    interaction BrakingAction { from: Vehicle.ApplyBrakes to: Vehicle description: "Braking force" }
+    interaction PedestrianProtection { from: Vehicle.ApplyBrakes to: Pedestrian description: "Collision avoided" }
 }
 
 // ===========================================================================
-// LAYER 2: SYSTEM ANALYSIS (SA)
-// What must the system do to satisfy operational needs?
+// 2. System analysis
 // ===========================================================================
 
 system_analysis SA_EmergencyBraking {
-  name: "AEB System - Functional View"
-  
-  // External actors at system level
-  actor Driver {
-    description: "Vehicle operator"
-  }
-  
-  actor Vehicle {
-    description: "Vehicle platform"
-  }
-  
-  // System functions (what the system does)
-  function AcquireSensorData {
-    description: "Collect data from radar and camera"
-    inputs: ["radar_signal", "camera_image"]
-    outputs: ["raw_sensor_data"]
-    color: "#ADD8E6"  // Capella System Function blue
-    safety_level: "ASIL-D"
-  }
-  
-  function FuseData {
-    description: "Combine multiple sensor inputs"
-    inputs: ["raw_sensor_data"]
-    outputs: ["fused_data"]
-    color: "#ADD8E6"
-    safety_level: "ASIL-D"
-  }
-  
-  function TrackObjects {
-    description: "Track detected objects over time"
-    inputs: ["fused_data"]
-    outputs: ["tracked_objects"]
-    color: "#ADD8E6"
-    safety_level: "ASIL-D"
-  }
-  
-  function AssessThreat {
-    description: "Determine collision risk"
-    inputs: ["tracked_objects", "vehicle_speed"]
-    outputs: ["threat_level"]
-    color: "#ADD8E6"
-    safety_level: "ASIL-D"
-  }
-  
-  function GenerateWarning {
-    description: "Create driver warning signals"
-    inputs: ["threat_level"]
-    outputs: ["warning_signal"]
-    color: "#ADD8E6"
-    safety_level: "ASIL-B"
-  }
-  
-  function ComputeBrakingForce {
-    description: "Calculate required braking force"
-    inputs: ["threat_level", "vehicle_speed"]
-    outputs: ["brake_command"]
-    color: "#ADD8E6"
-    safety_level: "ASIL-D"
-  }
-  
-  function MonitorVehicleState {
-    description: "Track vehicle speed, steering, etc."
-    inputs: ["vehicle_can_bus"]
-    outputs: ["vehicle_speed", "vehicle_state"]
-    color: "#ADD8E6"
-    safety_level: "ASIL-B"
-  }
-  
-  // Functional exchanges (data flows between functions)
-  functional_exchange SensorToFusion {
-    from: AcquireSensorData
-    to: FuseData
-    exchange_item: "raw_sensor_data"
-    kind: "DATA"
-  }
-  
-  functional_exchange FusionToTracking {
-    from: FuseData
-    to: TrackObjects
-    exchange_item: "fused_data"
-    kind: "DATA"
-  }
-  
-  functional_exchange TrackingToThreat {
-    from: TrackObjects
-    to: AssessThreat
-    exchange_item: "tracked_objects"
-    kind: "DATA"
-  }
-  
-  functional_exchange ThreatToWarning {
-    from: AssessThreat
-    to: GenerateWarning
-    exchange_item: "threat_level"
-    kind: "EVENT"
-  }
-  
-  functional_exchange ThreatToBraking {
-    from: AssessThreat
-    to: ComputeBrakingForce
-    exchange_item: "threat_level"
-    kind: "DATA"
-  }
-  
-  functional_exchange VehicleToThreat {
-    from: MonitorVehicleState
-    to: AssessThreat
-    exchange_item: "vehicle_speed"
-    kind: "DATA"
-  }
-  
-  functional_exchange VehicleToBraking {
-    from: MonitorVehicleState
-    to: ComputeBrakingForce
-    exchange_item: "vehicle_speed"
-    kind: "DATA"
-  }
+    name: "AEB System - Functional View"
+
+    actor Driver { description: "Vehicle operator" }
+    actor Vehicle { description: "Vehicle platform" }
+
+    capability EmergencyBraking {
+        id: "CAP-001"
+        realizes: "OC-001"
+        involves: ["AcquireSensorData", "FuseData", "TrackObjects", "AssessThreat", "ComputeBrakingForce"]
+    }
+    functional_chain EmergencyBrakingChain {
+        id: "FC-001"
+        latency_budget: 100 ms
+        involves: ["AcquireSensorData", "FuseData", "TrackObjects", "AssessThreat", "ComputeBrakingForce"]
+    }
+
+    function AcquireSensorData { latency: 20 ms description: "Collect the radar and camera data" safety_level: "ASIL-D" port out "raw_sensor_data" }
+    function FuseData { latency: 25 ms description: "Combine the sensor inputs" safety_level: "ASIL-D" port in "raw_sensor_data" port out "fused_data" }
+    function TrackObjects { latency: 15 ms description: "Track the detected objects over time" safety_level: "ASIL-D" port in "fused_data" port out "tracked_objects" }
+    function AssessThreat { latency: 20 ms description: "Determine the collision risk" safety_level: "ASIL-D" port in "tracked_objects" port in "vehicle_speed" port out "threat_level" }
+    function GenerateWarning { description: "Create the driver warning signals" safety_level: "ASIL-B" port in "threat_level" }
+    function ComputeBrakingForce { latency: 10 ms description: "Calculate the braking force" safety_level: "ASIL-D" port in "threat_level" port in "vehicle_speed" port out "brake_command" }
+    function MonitorVehicleState { description: "Track the vehicle speed, steering and pedals" safety_level: "ASIL-B" port out "vehicle_speed" }
+
+    functional_exchange SensorToFusion { from: "AcquireSensorData.raw_sensor_data" to: "FuseData.raw_sensor_data" }
+    functional_exchange FusionToTracking { from: "FuseData.fused_data" to: "TrackObjects.fused_data" }
+    functional_exchange TrackingToThreat { from: "TrackObjects.tracked_objects" to: "AssessThreat.tracked_objects" }
+    functional_exchange ThreatToWarning { from: "AssessThreat.threat_level" to: "GenerateWarning.threat_level" }
+    functional_exchange ThreatToBraking { from: "AssessThreat.threat_level" to: "ComputeBrakingForce.threat_level" }
+    functional_exchange VehicleToThreat { from: "MonitorVehicleState.vehicle_speed" to: "AssessThreat.vehicle_speed" }
+    functional_exchange VehicleToBraking { from: "MonitorVehicleState.vehicle_speed" to: "ComputeBrakingForce.vehicle_speed" }
 }
 
 // ===========================================================================
-// LAYER 3: LOGICAL ARCHITECTURE (LA)
-// How is the system structured (component-based)?
+// 3. Logical architecture
 // ===========================================================================
 
 logical_architecture LA_EmergencyBraking {
-  name: "AEB System - Component Structure"
-  
-  // Logical components (software/logical modules)
-  component RadarSensor {
-    description: "Front-facing radar sensor"
-    type: "Sensor"
-    color: "#6495ED"  // Capella Logical Component blue
-    safety_level: "ASIL-D"
-    
-    // Provided interfaces (what this component offers)
-    interface_out RadarDataProvider {
-      name: "IRadarData"
-      protocol: "CAN"
+    name: "AEB System - Component Structure"
+
+    component RadarSensor {
+        description: "Front-facing radar sensor"
+        type: "Sensor"
+        safety_level: "ASIL-D"
+        port out RadarDataProvider { interface: "IRadarData" protocol: "CAN FD" }
+        function "Acquire radar frames" { realizes: "AcquireSensorData" }
     }
-  }
-  
-  component CameraSensor {
-    description: "Front-facing camera"
-    type: "Sensor"
-    color: "#6495ED"
-    safety_level: "ASIL-D"
-    
-    interface_out CameraDataProvider {
-      name: "ICameraData"
-      protocol: "Ethernet"
+    component CameraSensor {
+        description: "Front-facing camera"
+        type: "Sensor"
+        safety_level: "ASIL-D"
+        port out CameraDataProvider { interface: "ICameraData" protocol: "Ethernet" }
+        function "Acquire camera frames" { realizes: "AcquireSensorData" }
     }
-  }
-  
-  component SensorFusion {
-    description: "Multi-sensor data fusion"
-    type: "Processing"
-    color: "#6495ED"
-    safety_level: "ASIL-D"
-    
-    // Required interfaces (what this component needs)
-    interface_in RadarDataConsumer {
-      name: "IRadarData"
+    component SensorFusion {
+        description: "Multi-sensor data fusion"
+        type: "Processing"
+        safety_level: "ASIL-D"
+        port in RadarDataConsumer { interface: "IRadarData" }
+        port in CameraDataConsumer { interface: "ICameraData" }
+        port out FusedDataProvider { interface: "IFusedData" }
+        function "Fuse sensor data" { realizes: "FuseData" }
     }
-    
-    interface_in CameraDataConsumer {
-      name: "ICameraData"
+    component ObjectTracker {
+        description: "Object tracking and prediction"
+        type: "Processing"
+        safety_level: "ASIL-D"
+        port in FusedDataConsumer { interface: "IFusedData" }
+        port out TrackedObjectsProvider { interface: "ITrackedObjects" }
+        function "Track objects" { realizes: "TrackObjects" }
     }
-    
-    interface_out FusedDataProvider {
-      name: "IFusedData"
+    component ThreatAssessment {
+        description: "Collision risk assessment"
+        type: "Decision"
+        safety_level: "ASIL-D"
+        port in TrackedObjectsConsumer { interface: "ITrackedObjects" }
+        port in VehicleStateConsumer { interface: "IVehicleState" }
+        port out ThreatLevelProvider { interface: "IThreatLevel" }
+        port out WarningProvider { interface: "IWarning" }
+        function "Assess collision threat" { realizes: "AssessThreat" }
     }
-    
-    // Allocated functions (from SA layer)
-    allocated_function: "FuseData"
-  }
-  
-  component ObjectTracker {
-    description: "Object tracking and prediction"
-    type: "Processing"
-    color: "#6495ED"
-    safety_level: "ASIL-D"
-    
-    interface_in FusedDataConsumer {
-      name: "IFusedData"
+    component BrakeController {
+        description: "Emergency brake control"
+        type: "Controller"
+        safety_level: "ASIL-D"
+        port in ThreatLevelConsumer { interface: "IThreatLevel" }
+        port in VehicleSpeedConsumer { interface: "IVehicleSpeed" }
+        port out BrakeCommandProvider { interface: "IBrakeCommand" }
+        function "Compute braking command" { realizes: "ComputeBrakingForce" }
     }
-    
-    interface_out TrackedObjectsProvider {
-      name: "ITrackedObjects"
+    component DriverInterface {
+        description: "HMI for the warnings"
+        type: "Interface"
+        safety_level: "QM"
+        port in WarningConsumer { interface: "IWarning" }
+        function "Warn driver" { realizes: "GenerateWarning" }
     }
-    
-    allocated_function: "TrackObjects"
-  }
-  
-  component ThreatAssessment {
-    description: "Collision risk assessment"
-    type: "Decision"
-    color: "#6495ED"
-    safety_level: "ASIL-D"
-    
-    interface_in TrackedObjectsConsumer {
-      name: "ITrackedObjects"
+    component VehicleCANGateway {
+        description: "CAN bus interface"
+        type: "Gateway"
+        safety_level: "ASIL-B"
+        port out VehicleStateProvider { interface: "IVehicleState" }
+        port out VehicleSpeedProvider { interface: "IVehicleSpeed" }
+        function "Relay vehicle state" { realizes: "MonitorVehicleState" }
     }
-    
-    interface_in VehicleStateConsumer {
-      name: "IVehicleState"
+    component BrakeActuator {
+        description: "Brake actuation on the hydraulic unit"
+        type: "Actuator"
+        safety_level: "ASIL-D"
+        port in BrakeCommandConsumer { interface: "IBrakeCommand" }
+        function "Apply braking force" { realizes: "ComputeBrakingForce" }
     }
-    
-    interface_out ThreatLevelProvider {
-      name: "IThreatLevel"
-    }
-    
-    allocated_function: "AssessThreat"
-  }
-  
-  component BrakeController {
-    description: "Emergency brake control"
-    type: "Controller"
-    color: "#6495ED"
-    safety_level: "ASIL-D"
-    
-    interface_in ThreatLevelConsumer {
-      name: "IThreatLevel"
-    }
-    
-    interface_in VehicleSpeedConsumer {
-      name: "IVehicleSpeed"
-    }
-    
-    interface_out BrakeCommandProvider {
-      name: "IBrakeCommand"
-    }
-    
-    allocated_function: "ComputeBrakingForce"
-  }
-  
-  component DriverInterface {
-    description: "HMI for warnings"
-    type: "Interface"
-    color: "#6495ED"
-    safety_level: "QM"  // Quality Management (non-safety-critical)
-    
-    interface_in WarningConsumer {
-      name: "IWarning"
-    }
-    
-    allocated_function: "GenerateWarning"
-  }
-  
-  component VehicleCANGateway {
-    description: "CAN bus interface"
-    type: "Gateway"
-    color: "#6495ED"
-    safety_level: "ASIL-B"
-    
-    interface_out VehicleStateProvider {
-      name: "IVehicleState"
-    }
-    
-    interface_out VehicleSpeedProvider {
-      name: "IVehicleSpeed"
-    }
-    
-    allocated_function: "MonitorVehicleState"
-  }
-  
-  component BrakeActuator {
-    description: "Physical brake actuator"
-    type: "Actuator"
-    color: "#6495ED"
-    safety_level: "ASIL-D"
-    
-    interface_in BrakeCommandConsumer {
-      name: "IBrakeCommand"
-    }
-  }
-  
-  // Component exchanges (connections between components)
-  component_exchange "RadarToFusion" {
-    from_port: "RadarSensor.RadarDataProvider"
-    to_port: "SensorFusion.RadarDataConsumer"
-    exchange_item: "radar_data"
-    label: "Radar Data"
-  }
-  
-  component_exchange "CameraToFusion" {
-    from_port: "CameraSensor.CameraDataProvider"
-    to_port: "SensorFusion.CameraDataConsumer"
-    exchange_item: "camera_data"
-    label: "Camera Data"
-  }
-  
-  component_exchange "FusionToTracker" {
-    from_port: "SensorFusion.FusedDataProvider"
-    to_port: "ObjectTracker.FusedDataConsumer"
-    exchange_item: "fused_sensor_data"
-    label: "Fused Data"
-  }
-  
-  component_exchange "TrackerToThreat" {
-    from_port: "ObjectTracker.TrackedObjectsProvider"
-    to_port: "ThreatAssessment.TrackedObjectsConsumer"
-    exchange_item: "tracked_objects"
-    label: "Tracked Objects"
-  }
-  
-  component_exchange "VehicleStateToThreat" {
-    from_port: "VehicleCANGateway.VehicleStateProvider"
-    to_port: "ThreatAssessment.VehicleStateConsumer"
-    exchange_item: "vehicle_state"
-    label: "Vehicle State"
-  }
-  
-  component_exchange "ThreatToBrake" {
-    from_port: "ThreatAssessment.ThreatLevelProvider"
-    to_port: "BrakeController.ThreatLevelConsumer"
-    exchange_item: "threat_level"
-    label: "Threat Level"
-  }
-  
-  component_exchange "VehicleSpeedToBrake" {
-    from_port: "VehicleCANGateway.VehicleSpeedProvider"
-    to_port: "BrakeController.VehicleSpeedConsumer"
-    exchange_item: "vehicle_speed"
-    label: "Vehicle Speed"
-  }
-  
-  component_exchange "BrakeToActuator" {
-    from_port: "BrakeController.BrakeCommandProvider"
-    to_port: "BrakeActuator.BrakeCommandConsumer"
-    exchange_item: "brake_command"
-    label: "Brake Command"
-  }
+
+    component_exchange "RadarToFusion" { from_port: "RadarSensor.RadarDataProvider" to_port: "SensorFusion.RadarDataConsumer" label: "Radar Data" }
+    component_exchange "CameraToFusion" { from_port: "CameraSensor.CameraDataProvider" to_port: "SensorFusion.CameraDataConsumer" label: "Camera Data" }
+    component_exchange "FusionToTracker" { from_port: "SensorFusion.FusedDataProvider" to_port: "ObjectTracker.FusedDataConsumer" label: "Fused Data" }
+    component_exchange "TrackerToThreat" { from_port: "ObjectTracker.TrackedObjectsProvider" to_port: "ThreatAssessment.TrackedObjectsConsumer" label: "Tracked Objects" }
+    component_exchange "VehicleStateToThreat" { from_port: "VehicleCANGateway.VehicleStateProvider" to_port: "ThreatAssessment.VehicleStateConsumer" label: "Vehicle State" }
+    component_exchange "ThreatToBrake" { from_port: "ThreatAssessment.ThreatLevelProvider" to_port: "BrakeController.ThreatLevelConsumer" label: "Threat Level" }
+    component_exchange "ThreatToDriver" { from_port: "ThreatAssessment.WarningProvider" to_port: "DriverInterface.WarningConsumer" label: "Warning" }
+    component_exchange "VehicleSpeedToBrake" { from_port: "VehicleCANGateway.VehicleSpeedProvider" to_port: "BrakeController.VehicleSpeedConsumer" label: "Vehicle Speed" }
+    component_exchange "BrakeToActuator" { from_port: "BrakeController.BrakeCommandProvider" to_port: "BrakeActuator.BrakeCommandConsumer" label: "Brake Command" }
 }
 
 // ===========================================================================
-// LAYER 4: PHYSICAL ARCHITECTURE (PA)
-// How is it deployed on hardware?
+// 4. Physical architecture
 // ===========================================================================
 
 physical_architecture PA_EmergencyBraking {
-  name: "AEB System - Hardware Deployment"
-  
-  // Physical nodes (hardware)
-  node FrontRadarECU {
-    node_type: "ECU"
-    description: "Radar sensor ECU"
-    processor: "ARM Cortex-M4"
-    memory: "512KB Flash, 128KB RAM"
-    safety_level: "ASIL-D"
-    
-    // Behavioral components deployed on this hardware
-    behavior_component RadarProcessing {
-      name: "Radar Signal Processing"
-      description: "Radar data acquisition and preprocessing"
-      component_type: "Behavior"
-      safety_level: "ASIL-D"
-      allocated_component: "RadarSensor"
+    name: "AEB System - Hardware Deployment"
+
+    node FrontRadarECU {
+        description: "Radar sensor ECU"
+        processor: "ARM Cortex-M4"
+        memory: "512 KB Flash, 128 KB RAM"
+        safety_level: "ASIL-D"
+        behavior_component RadarProcessing { name: "Radar Signal Processing" safety_level: "ASIL-D" allocated_component: "RadarSensor" }
     }
-  }
-  
-  node FrontCameraECU {
-    node_type: "ECU"
-    description: "Camera sensor ECU"
-    processor: "ARM Cortex-A53"
-    memory: "2GB DDR4"
-    safety_level: "ASIL-D"
-    
-    behavior_component CameraProcessing {
-      name: "Image Processing"
-      description: "Camera image processing and object detection"
-      component_type: "Behavior"
-      safety_level: "ASIL-D"
-      allocated_component: "CameraSensor"
+    node FrontCameraECU {
+        description: "Camera sensor ECU"
+        processor: "ARM Cortex-A53"
+        ram: 2 GB
+        safety_level: "ASIL-D"
+        behavior_component CameraProcessing { name: "Image Processing" safety_level: "ASIL-D" allocated_component: "CameraSensor" }
     }
-  }
-  
-  node CentralADASECU {
-    node_type: "ECU"
-    description: "Central ADAS processing unit"
-    processor: "Intel Atom x5-E3940"
-    memory: "8GB DDR4, 64GB eMMC"
-    safety_level: "ASIL-D"
-    
-    behavior_component FusionModule {
-      name: "Sensor Fusion"
-      component_type: "Behavior"
-      safety_level: "ASIL-D"
-      allocated_component: "SensorFusion"
+    node CentralADASECU {
+        description: "Central ADAS processing unit"
+        processor: "Intel Atom x5-E3940"
+        ram: 8 GB
+        storage: 64 GB
+        safety_level: "ASIL-D"
+        behavior_component FusionModule { name: "Sensor Fusion" safety_level: "ASIL-D" allocated_component: "SensorFusion" }
+        behavior_component TrackingModule { name: "Object Tracking" safety_level: "ASIL-D" allocated_component: "ObjectTracker" }
+        behavior_component ThreatModule { name: "Threat Assessment" safety_level: "ASIL-D" allocated_component: "ThreatAssessment" }
+        behavior_component BrakingModule { name: "Brake Control" safety_level: "ASIL-D" allocated_component: "BrakeController" }
     }
-    
-    behavior_component TrackingModule {
-      name: "Object Tracking"
-      component_type: "Behavior"
-      safety_level: "ASIL-D"
-      allocated_component: "ObjectTracker"
+    node BrakeECU {
+        description: "Electronic brake control unit"
+        processor: "Infineon AURIX TC397"
+        memory: "8 MB Flash, 3 MB RAM"
+        safety_level: "ASIL-D"
+        behavior_component BrakeActuation { name: "Brake Actuator Control" safety_level: "ASIL-D" allocated_component: "BrakeActuator" }
     }
-    
-    behavior_component ThreatModule {
-      name: "Threat Assessment"
-      component_type: "Behavior"
-      safety_level: "ASIL-D"
-      allocated_component: "ThreatAssessment"
+    node InstrumentCluster {
+        description: "Driver display and HMI"
+        processor: "NXP i.MX 8M"
+        ram: 4 GB
+        safety_level: "QM"
+        behavior_component HMI { name: "Warning Display" safety_level: "QM" allocated_component: "DriverInterface" }
     }
-    
-    behavior_component BrakingModule {
-      name: "Brake Control"
-      component_type: "Behavior"
-      safety_level: "ASIL-D"
-      allocated_component: "BrakeController"
+    node CANGatewayECU {
+        description: "Vehicle CAN gateway"
+        processor: "Renesas RH850"
+        flash: 2 MB
+        safety_level: "ASIL-B"
+        behavior_component CANInterface { name: "CAN Bus Interface" safety_level: "ASIL-B" allocated_component: "VehicleCANGateway" }
     }
-  }
-  
-  node BrakeECU {
-    node_type: "ECU"
-    description: "Electronic Brake Control Unit"
-    processor: "Infineon AURIX TC397"
-    memory: "8MB Flash, 3MB RAM"
-    safety_level: "ASIL-D"
-    
-    behavior_component BrakeActuation {
-      name: "Brake Actuator Control"
-      component_type: "Behavior"
-      safety_level: "ASIL-D"
-      allocated_component: "BrakeActuator"
-    }
-  }
-  
-  node InstrumentCluster {
-    node_type: "ECU"
-    description: "Driver display and HMI"
-    processor: "NXP i.MX 8M"
-    memory: "4GB DDR4"
-    safety_level: "QM"
-    
-    behavior_component HMI {
-      name: "Warning Display"
-      component_type: "Behavior"
-      safety_level: "QM"
-      allocated_component: "DriverInterface"
-    }
-  }
-  
-  node CANGatewayECU {
-    node_type: "Gateway"
-    description: "Vehicle CAN gateway"
-    processor: "Renesas RH850"
-    memory: "2MB Flash"
-    safety_level: "ASIL-B"
-    
-    behavior_component CANInterface {
-      name: "CAN Bus Interface"
-      component_type: "Behavior"
-      safety_level: "ASIL-B"
-      allocated_component: "VehicleCANGateway"
-    }
-  }
-  
-  // Physical links (hardware connections)
-  link CANBus {
-    protocol: "CAN FD"
-    from: "FrontRadarECU"
-    to: "CentralADASECU"
-    bandwidth: "5 Mbps"
-  }
-  
-  link EthernetLink {
-    protocol: "Automotive Ethernet"
-    from: "FrontCameraECU"
-    to: "CentralADASECU"
-    bandwidth: "1 Gbps"
-  }
-  
-  link BrakeCAN {
-    protocol: "CAN FD"
-    from: "CentralADASECU"
-    to: "BrakeECU"
-    bandwidth: "5 Mbps"
-  }
-  
-  link VehicleCAN {
-    protocol: "CAN"
-    from: "CANGatewayECU"
-    to: "CentralADASECU"
-    bandwidth: "500 Kbps"
-  }
-  
-  link DisplayLink {
-    protocol: "LVDS"
-    from: "CentralADASECU"
-    to: "InstrumentCluster"
-    bandwidth: "3.2 Gbps"
-    pixel_clock: "135 MHz"
-  }
-  
-  // Physical exchanges (messages on physical links)
-  physical_exchange RadarMessages {
-    from: "FrontRadarECU"
-    to: "CentralADASECU"
-    via: "CANBus"
-    message_type: "RadarTargets"
-    frequency: "50 Hz"
-  }
-  
-  physical_exchange CameraMessages {
-    from: "FrontCameraECU"
-    to: "CentralADASECU"
-    via: "EthernetLink"
-    message_type: "CameraFrame"
-    frequency: "30 Hz"
-  }
-  
-  physical_exchange BrakeCommands {
-    from: "CentralADASECU"
-    to: "BrakeECU"
-    via: "BrakeCAN"
-    message_type: "BrakeRequest"
-    frequency: "100 Hz"
-  }
-  
-  physical_exchange VehicleStatus {
-    from: "CANGatewayECU"
-    to: "CentralADASECU"
-    via: "VehicleCAN"
-    message_type: "VehicleSpeed"
-    frequency: "100 Hz"
-  }
+
+    link CANBus { protocol: "CAN FD" from: "FrontRadarECU" to: "CentralADASECU" bandwidth: 5 Mbps }
+    link EthernetLink { protocol: "Automotive Ethernet" from: "FrontCameraECU" to: "CentralADASECU" bandwidth: 1 Gbps }
+    link BrakeCAN { protocol: "CAN FD" from: "CentralADASECU" to: "BrakeECU" bandwidth: 5 Mbps }
+    link VehicleCAN { protocol: "CAN" from: "CANGatewayECU" to: "CentralADASECU" bandwidth: 500 kbps }
+    link DisplayLink { protocol: "LVDS" from: "CentralADASECU" to: "InstrumentCluster" bandwidth: 3.2 Gbps }
+
+    physical_exchange RadarMessages { from: "FrontRadarECU" to: "CentralADASECU" via: "CANBus" message_type: "RadarTargets" frequency: "50 Hz" }
+    physical_exchange CameraMessages { from: "FrontCameraECU" to: "CentralADASECU" via: "EthernetLink" message_type: "CameraFrame" frequency: "30 Hz" }
+    physical_exchange BrakeCommands { from: "CentralADASECU" to: "BrakeECU" via: "BrakeCAN" message_type: "BrakeRequest" frequency: "100 Hz" }
+    physical_exchange VehicleStatus { from: "CANGatewayECU" to: "CentralADASECU" via: "VehicleCAN" message_type: "VehicleSpeed" frequency: "100 Hz" }
+
+    deployment RadarSensor -> FrontRadarECU
+    deployment CameraSensor -> FrontCameraECU
+    deployment SensorFusion -> CentralADASECU
+    deployment ObjectTracker -> CentralADASECU
+    deployment ThreatAssessment -> CentralADASECU
+    deployment BrakeController -> CentralADASECU
+    deployment BrakeActuator -> BrakeECU
+    deployment DriverInterface -> InstrumentCluster
+    deployment VehicleCANGateway -> CANGatewayECU
 }
 
 // ===========================================================================
-// REQUIREMENTS TRACEABILITY
-// Link requirements to design elements
+// 5. End product breakdown structure
+// ===========================================================================
+
+epbs "AEB Product Breakdown" {
+    system "Emergency Braking System" {
+        id: "EPBS-001"
+        subsystem "Perception" {
+            id: "EPBS-101"
+            item "Front radar unit" { id: "EPBS-1001" part_number: "ARS540-2022" supplier: "Continental" }
+            item "Front camera unit" { id: "EPBS-1002" part_number: "EQ5-2021" supplier: "Mobileye" }
+        }
+        subsystem "Decision" {
+            id: "EPBS-102"
+            item "Central ADAS ECU" { id: "EPBS-1003" part_number: "ADAS-ECU-003" }
+            item "AEB software" { id: "EPBS-1004" part_number: "SW-AEB-2.1.0" certification: "ISO 26262 ASIL-D" }
+        }
+        subsystem "Actuation and HMI" {
+            id: "EPBS-103"
+            item "Brake ECU" { id: "EPBS-1005" part_number: "EBCU-397" supplier: "Bosch" }
+            item "Instrument cluster" { id: "EPBS-1006" part_number: "IC-IMX8-02" }
+            item "CAN gateway" { id: "EPBS-1007" part_number: "CGW-RH850" }
+        }
+    }
+}
+
+// ===========================================================================
+// Requirements, traces, HARA, verification, modes
 // ===========================================================================
 
 requirements {
-  requirement REQ_AEB_001 {
-    text: "System shall detect obstacles at 150m range"
-    type: "Functional"
-    safety_level: "ASIL-D"
-    satisfied_by: ["RadarSensor", "CameraSensor"]
-  }
-  
-  requirement REQ_AEB_002 {
-    text: "System shall activate brakes within 200ms of threat detection"
-    type: "Performance"
-    safety_level: "ASIL-D"
-    satisfied_by: ["ThreatAssessment", "BrakeController"]
-  }
-  
-  requirement REQ_AEB_003 {
-    text: "System shall warn driver before automatic braking"
-    type: "Functional"
-    safety_level: "ASIL-B"
-    satisfied_by: ["DriverInterface"]
-  }
-  
-  requirement REQ_AEB_004 {
-    text: "System shall operate in all weather conditions"
-    type: "Environmental"
-    safety_level: "ASIL-D"
-    satisfied_by: ["SensorFusion", "ObjectTracker"]
-  }
+    requirement REQ_AEB_001 {
+        description: "The system shall detect obstacles at a range of 150 m"
+        category: "Functional"
+        safety_level: "ASIL-D"
+        priority: "High"
+    }
+    requirement REQ_AEB_002 {
+        description: "The system shall activate the brakes within 200 ms of the threat detection"
+        category: "Performance"
+        safety_level: "ASIL-D"
+        priority: "High"
+    }
+    requirement REQ_AEB_003 {
+        description: "The system shall warn the driver before the automatic braking"
+        category: "Functional"
+        safety_level: "ASIL-B"
+        priority: "Medium"
+    }
+    requirement REQ_AEB_004 {
+        description: "The system shall keep its detection performance in rain, fog and at night"
+        category: "Environmental"
+        safety_level: "ASIL-D"
+        priority: "High"
+    }
 }
 
-// ===========================================================================
-// SAFETY ANALYSIS
-// ===========================================================================
+trace "RadarSensor" satisfies "REQ_AEB_001"
+trace "CameraSensor" satisfies "REQ_AEB_001"
+trace "ThreatAssessment" satisfies "REQ_AEB_002"
+trace "BrakeController" satisfies "REQ_AEB_002"
+trace "BrakeActuator" satisfies "REQ_AEB_002"
+trace "VehicleCANGateway" satisfies "REQ_AEB_002" { rationale: "Vehicle speed delivered within the budget" }
+trace "DriverInterface" satisfies "REQ_AEB_003"
+trace "SensorFusion" satisfies "REQ_AEB_004"
+trace "ObjectTracker" satisfies "REQ_AEB_004"
+trace "AcquireSensorData" realizes "MonitorEnvironment"
+trace "AssessThreat" realizes "DetectThreat"
+trace "GenerateWarning" realizes "AlertDriver"
+trace "ComputeBrakingForce" realizes "ApplyBrakes"
 
 safety_analysis {
-  hazard HAZ_001 {
-    description: "Unintended braking activation"
-    asil_level: "ASIL-D"
-    mitigation: ["ThreatAssessment redundancy", "Driver override capability"]
-  }
-  
-  hazard HAZ_002 {
-    description: "Failure to brake when needed"
-    asil_level: "ASIL-D"
-    mitigation: ["Redundant sensors", "Watchdog monitoring"]
-  }
-  
-  hazard HAZ_003 {
-    description: "Sensor degradation in bad weather"
-    asil_level: "ASIL-C"
-    mitigation: ["Multi-sensor fusion", "Graceful degradation"]
-  }
+    hazard HAZ_001 {
+        description: "Unintended braking activation"
+        severity: "S3"
+        exposure: "E4"
+        controllability: "C3"
+        asil: "ASIL-D"
+        mitigated_by: ["REQ_AEB_002", "REQ_AEB_003"]
+    }
+    hazard HAZ_002 {
+        description: "Failure to brake when needed"
+        severity: "S3"
+        exposure: "E3"
+        controllability: "C3"
+        asil: "ASIL-C"
+        mitigated_by: ["REQ_AEB_001", "REQ_AEB_002"]
+    }
+    hazard HAZ_003 {
+        description: "Sensor degradation in bad weather"
+        severity: "S3"
+        exposure: "E2"
+        controllability: "C3"
+        asil: "ASIL-B"
+        mitigated_by: ["REQ_AEB_004"]
+    }
 }
+
+test_case "TC-001" { verifies: ["REQ_AEB_001"] method: "test" description: "Detection range on the proving ground" }
+test_case "TC-002" { verifies: ["REQ_AEB_002"] method: "test" description: "Threat to brake pressure latency on the HIL bench" }
+test_case "TC-003" { verifies: ["REQ_AEB_003"] method: "demonstration" description: "Warning precedes the braking" }
+test_case "TC-004" { verifies: ["REQ_AEB_004"] method: "test" description: "Rain, fog and night campaigns on the test track" }
+
+constraint "Braking chain within budget" { id: "CST-001" assert: sum("FC-001", latency) <= "FC-001".latency_budget }
+
+state_machine AEBOperatingModes {
+    initial: "Standby"
+    mode Standby { description: "System armed, monitoring" }
+    mode Warning { description: "Threat detected, driver warned" }
+    mode EmergencyBraking { description: "Autonomous braking active" }
+    transition Standby -> Warning { trigger: "AssessThreat" }
+    transition Warning -> EmergencyBraking { trigger: "ComputeBrakingForce" }
+    transition EmergencyBraking -> Standby { trigger: "MonitorVehicleState" }
+}
+
+diagram "Product breakdown" { view: pbs shows: ["EPBS-001"] }

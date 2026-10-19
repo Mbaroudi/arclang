@@ -33,10 +33,10 @@ package <EmergencyBrakingSystem> 'Automotive Emergency Braking System (AEB)' {
         metadata def Invariant;
     }
     private import ArcadiaProfile::*;
-    doc /* Complete MBSE model with all Arcadia layers */
+    doc /* Detects an imminent collision, warns the driver and brakes autonomously */
     attribute author : String = "Malek Baroudi";
     attribute safety_standard : String = "ISO 26262 ASIL-D";
-    attribute version : String = "2.0.0";
+    attribute version : String = "2.1.0";
     package Data {
         enum def <'EN-001'> ThreatLevel {
             None;
@@ -64,6 +64,7 @@ package <EmergencyBrakingSystem> 'Automotive Emergency Braking System (AEB)' {
         }
         #ExchangeItem item def <'EI-005'> tracked_objects {
             attribute mechanism : String = "FLOW";
+            ref item 'element_CL-002' : 'CL-002';
         }
         #ExchangeItem item def <'EI-006'> threat_level {
             attribute mechanism : String = "EVENT";
@@ -72,35 +73,66 @@ package <EmergencyBrakingSystem> 'Automotive Emergency Braking System (AEB)' {
         #ExchangeItem item def <'EI-007'> vehicle_speed {
             attribute mechanism : String = "FLOW";
         }
+        #ExchangeItem item def <'EI-008'> radar_data {
+            attribute mechanism : String = "FLOW";
+            ref item 'element_CL-001' : 'CL-001';
+        }
+        #ExchangeItem item def <'EI-009'> camera_data {
+            attribute mechanism : String = "FLOW";
+        }
+        #ExchangeItem item def <'EI-010'> vehicle_state {
+            attribute mechanism : String = "FLOW";
+        }
+        #ExchangeItem item def <'EI-011'> warning_signal {
+            attribute mechanism : String = "EVENT";
+        }
+        #ExchangeItem item def <'EI-012'> brake_command {
+            attribute mechanism : String = "FLOW";
+            attribute 'element_DT-001' : 'DT-001';
+        }
         #Class item def <'CL-001'> RadarFrame {
             attribute range_m : Real;
             attribute azimuth_deg : Real;
             attribute velocity_mps : Real;
         }
+        #Class item def <'CL-002'> TrackedObject {
+            attribute track_id : Integer;
+            attribute time_to_collision_s : Real;
+            attribute threat : 'EN-001';
+        }
         item def Data;
+        item def IBrakeCommand;
+        item def ICameraData;
+        item def IFusedData;
+        item def IRadarData;
+        item def IThreatLevel;
+        item def ITrackedObjects;
+        item def IVehicleSpeed;
+        item def IVehicleState;
+        item def IWarning;
     }
     #OA package 'Emergency Braking - Operational View' {
         #Entity part <'OE-Vehicle'> Vehicle {
             doc /* The vehicle being controlled */
             perform action <'OA-MonitorEnvironment'> MonitorEnvironment {
-                doc /* Continuously observe surroundings */
+                doc /* Continuously observe the surroundings */
             }
             perform action <'OA-DetectThreat'> DetectThreat {
-                doc /* Identify potential collision hazards */
+                doc /* Identify a potential collision */
             }
             perform action <'OA-AlertDriver'> AlertDriver {
-                doc /* Warn driver of imminent danger */
+                doc /* Warn the driver of the imminent danger */
             }
             perform action <'OA-ApplyBrakes'> ApplyBrakes {
-                doc /* Execute emergency braking */
+                doc /* Brake hard enough to avoid or mitigate the collision */
             }
         }
         #Actor part <'OA-ACT-001'> Driver {
-            doc /* Vehicle driver */
+            doc /* Drives the vehicle and keeps the authority over the braking */
             attribute type : String = "human";
         }
         #Actor part <'OA-ACT-002'> Pedestrian {
-            doc /* Vulnerable road user */
+            doc /* Vulnerable road user the vehicle must not hit */
             attribute type : String = "human";
         }
         #Actor part <'OA-ACT-003'> TrafficEnvironment {
@@ -108,8 +140,12 @@ package <EmergencyBrakingSystem> 'Automotive Emergency Braking System (AEB)' {
             attribute type : String = "environment";
         }
         #Capability use case <'OC-001'> 'Avoid Collisions' {
-            doc /* Ability to avoid collisions with obstacles and vulnerable road users */
+            doc /* Avoid collisions with obstacles and vulnerable road users */
         }
+        dependency involves from 'OC-001' to 'OA-ACT-001';
+        dependency involves from 'OC-001' to 'OA-ACT-002';
+        dependency involves from 'OC-001' to 'OA-ACT-003';
+        dependency involves from 'OC-001' to 'OE-Vehicle';
         connection DriverCommands connect 'OA-ACT-001' to 'OE-Vehicle'.'OA-MonitorEnvironment';
         connection EnvironmentData connect 'OA-ACT-003' to 'OE-Vehicle'.'OA-MonitorEnvironment';
         flow ThreatDetection of Data::Data from 'OE-Vehicle'.'OA-MonitorEnvironment' to 'OE-Vehicle'.'OA-DetectThreat';
@@ -119,65 +155,78 @@ package <EmergencyBrakingSystem> 'Automotive Emergency Braking System (AEB)' {
     }
     #SA package 'AEB System - Functional View' {
         action <'SF-AcquireSensorData'> AcquireSensorData {
-            doc /* Collect data from radar and camera */
-            attribute color : String = "#ADD8E6";
+            doc /* Collect the radar and camera data */
             attribute latency : DurationValue = 20 [ms];
             attribute safety_level : String = "ASIL-D";
+            in item radar_signal : Data::Data;
+            in item camera_image : Data::Data;
+            out item raw_sensor_data : Data::Data;
+            action <'SF-Read_radar'> 'Read radar' {
+                doc /* Range, azimuth and relative speed of the echoes */
+            }
+            action <'SF-Read_camera'> 'Read camera' {
+                doc /* Frames of the forward camera */
+            }
         }
         action <'SF-FuseData'> FuseData {
-            doc /* Combine multiple sensor inputs */
-            attribute color : String = "#ADD8E6";
+            doc /* Combine the radar and camera detections */
             attribute latency : DurationValue = 25 [ms];
             attribute safety_level : String = "ASIL-D";
+            in item raw_sensor_data : Data::Data;
+            out item fused_data : Data::Data;
         }
         action <'SF-TrackObjects'> TrackObjects {
-            doc /* Track detected objects over time */
-            attribute color : String = "#ADD8E6";
+            doc /* Track the detected objects over time */
             attribute latency : DurationValue = 15 [ms];
             attribute safety_level : String = "ASIL-D";
+            in item fused_data : Data::Data;
+            out item tracked_objects : Data::Data;
         }
         action <'SF-AssessThreat'> AssessThreat {
-            doc /* Determine collision risk */
-            attribute color : String = "#ADD8E6";
+            doc /* Compute the time to collision and the threat level */
             attribute latency : DurationValue = 20 [ms];
             attribute safety_level : String = "ASIL-D";
+            in item tracked_objects : Data::Data;
+            in item vehicle_speed : Data::Data;
+            out item threat_level : Data::Data;
         }
         action <'SF-GenerateWarning'> GenerateWarning {
-            doc /* Create driver warning signals */
-            attribute color : String = "#ADD8E6";
+            doc /* Create the driver warning signals */
             attribute safety_level : String = "ASIL-B";
+            in item threat_level : Data::Data;
+            out item warning_signal : Data::Data;
         }
         action <'SF-ComputeBrakingForce'> ComputeBrakingForce {
-            doc /* Calculate required braking force */
-            attribute color : String = "#ADD8E6";
+            doc /* Calculate the braking force to apply */
             attribute latency : DurationValue = 10 [ms];
             attribute safety_level : String = "ASIL-D";
+            in item threat_level : Data::Data;
+            in item vehicle_speed : Data::Data;
+            out item brake_command : Data::Data;
         }
         action <'SF-MonitorVehicleState'> MonitorVehicleState {
-            doc /* Track vehicle speed, steering, etc. */
-            attribute color : String = "#ADD8E6";
+            doc /* Track the vehicle speed, the pedals and the steering */
             attribute safety_level : String = "ASIL-B";
+            in item vehicle_can_bus : Data::Data;
+            out item vehicle_speed : Data::Data;
+        }
+        action <'SF-MonitorSystemHealth'> MonitorSystemHealth {
+            doc /* Check the sensors and the controller, fall back to a safe state on a fault */
+            attribute safety_level : String = "ASIL-D";
         }
         #Actor part <'SA-ACT-Driver'> Driver {
             doc /* Vehicle operator */
         }
         #Actor part <'SA-ACT-Vehicle'> Vehicle {
-            doc /* Vehicle platform */
+            doc /* Vehicle platform: brakes, bus, cluster */
         }
-        connection SensorToFusion connect 'SF-AcquireSensorData' to 'SF-FuseData';
-        dependency exchange_item from SensorToFusion to Data::'EI-003';
-        connection FusionToTracking connect 'SF-FuseData' to 'SF-TrackObjects';
-        dependency exchange_item from FusionToTracking to Data::'EI-004';
-        connection TrackingToThreat connect 'SF-TrackObjects' to 'SF-AssessThreat';
-        dependency exchange_item from TrackingToThreat to Data::'EI-005';
-        connection ThreatToWarning connect 'SF-AssessThreat' to 'SF-GenerateWarning';
-        dependency exchange_item from ThreatToWarning to Data::'EI-006';
-        connection ThreatToBraking connect 'SF-AssessThreat' to 'SF-ComputeBrakingForce';
-        dependency exchange_item from ThreatToBraking to Data::'EI-006';
-        connection VehicleToThreat connect 'SF-MonitorVehicleState' to 'SF-AssessThreat';
-        dependency exchange_item from VehicleToThreat to Data::'EI-007';
-        connection VehicleToBraking connect 'SF-MonitorVehicleState' to 'SF-ComputeBrakingForce';
-        dependency exchange_item from VehicleToBraking to Data::'EI-007';
+        flow SensorToFusion of Data::'EI-003' from 'SF-AcquireSensorData'.raw_sensor_data to 'SF-FuseData'.raw_sensor_data;
+        flow FusionToTracking of Data::'EI-004' from 'SF-FuseData'.fused_data to 'SF-TrackObjects'.fused_data;
+        flow TrackingToThreat of Data::'EI-005' from 'SF-TrackObjects'.tracked_objects to 'SF-AssessThreat'.tracked_objects;
+        flow ThreatToWarning of Data::'EI-006' from 'SF-AssessThreat'.threat_level to 'SF-GenerateWarning'.threat_level;
+        flow ThreatToBraking of Data::'EI-006' from 'SF-AssessThreat'.threat_level to 'SF-ComputeBrakingForce'.threat_level;
+        flow VehicleToThreat of Data::'EI-007' from 'SF-MonitorVehicleState'.vehicle_speed to 'SF-AssessThreat'.vehicle_speed;
+        flow VehicleToBraking of Data::'EI-007' from 'SF-MonitorVehicleState'.vehicle_speed to 'SF-ComputeBrakingForce'.vehicle_speed;
         #Mission use case <'MIS-001'> SafeAutonomousBraking {
             doc /* Prevent collisions through autonomous emergency braking */
         }
@@ -212,12 +261,12 @@ package <EmergencyBrakingSystem> 'Automotive Emergency Braking System (AEB)' {
             attribute safety_level : String = "ASIL-D";
         }
         requirement <'REQ-AEB-003'> 'Collision risk assessment' {
-            doc /* The system shall compute time-to-collision for every tracked object */
+            doc /* The system shall compute the time to collision of every tracked object */
             attribute priority : String = "High";
             attribute safety_level : String = "ASIL-D";
         }
         requirement <'REQ-AEB-004'> 'Emergency braking activation' {
-            doc /* Full braking force shall be commanded within 100 ms of critical threat detection */
+            doc /* Full braking force shall be commanded within 100 ms of a critical threat detection */
             attribute priority : String = "High";
             attribute safety_level : String = "ASIL-D";
         }
@@ -226,98 +275,130 @@ package <EmergencyBrakingSystem> 'Automotive Emergency Braking System (AEB)' {
             attribute priority : String = "Medium";
             attribute safety_level : String = "ASIL-B";
         }
+        requirement <'REQ-AEB-006'> 'Driver override' {
+            doc /* An accelerator kick-down by the driver shall cancel the autonomous braking */
+            attribute priority : String = "High";
+            attribute safety_level : String = "ASIL-B";
+        }
+        requirement <'REQ-AEB-007'> 'Health monitoring' {
+            doc /* A sensor or controller fault shall switch the AEB off and request a driver takeover within 200 ms */
+            attribute priority : String = "High";
+            attribute safety_level : String = "ASIL-D";
+        }
     }
     #LA package 'AEB System - Component Structure' {
-        port def Port;
+        port def 'IBrakeCommand port' {
+            inout item carried : Data::IBrakeCommand;
+        }
+        port def 'ICameraData port' {
+            inout item carried : Data::ICameraData;
+        }
+        port def 'IFusedData port' {
+            inout item carried : Data::IFusedData;
+        }
+        port def 'IRadarData port' {
+            inout item carried : Data::IRadarData;
+        }
+        port def 'IThreatLevel port' {
+            inout item carried : Data::IThreatLevel;
+        }
+        port def 'ITrackedObjects port' {
+            inout item carried : Data::ITrackedObjects;
+        }
+        port def 'IVehicleSpeed port' {
+            inout item carried : Data::IVehicleSpeed;
+        }
+        port def 'IVehicleState port' {
+            inout item carried : Data::IVehicleState;
+        }
+        port def 'IWarning port' {
+            inout item carried : Data::IWarning;
+        }
         part <'LC-RadarSensor'> RadarSensor {
             doc /* Front-facing radar sensor */
-            attribute color : String = "#6495ED";
             attribute safety_level : String = "ASIL-D";
             attribute type : String = "Sensor";
-            out port RadarDataProvider : Port {
-                attribute protocol : String = "CAN";
-            }
+            out port RadarDataProvider : 'IRadarData port';
             perform action 'Acquire radar frames';
         }
         part <'LC-CameraSensor'> CameraSensor {
             doc /* Front-facing camera */
-            attribute color : String = "#6495ED";
             attribute safety_level : String = "ASIL-D";
             attribute type : String = "Sensor";
-            out port CameraDataProvider : Port {
-                attribute protocol : String = "Ethernet";
-            }
+            out port CameraDataProvider : 'ICameraData port';
             perform action 'Acquire camera frames';
         }
         part <'LC-SensorFusion'> SensorFusion {
             doc /* Multi-sensor data fusion */
-            attribute allocated_function : String = "FuseData";
-            attribute color : String = "#6495ED";
             attribute safety_level : String = "ASIL-D";
             attribute type : String = "Processing";
-            in port RadarDataConsumer : Port;
-            in port CameraDataConsumer : Port;
-            out port FusedDataProvider : Port;
+            in port RadarDataConsumer : 'IRadarData port';
+            in port CameraDataConsumer : 'ICameraData port';
+            out port FusedDataProvider : 'IFusedData port';
             perform action 'Fuse sensor data';
         }
         part <'LC-ObjectTracker'> ObjectTracker {
-            doc /* Object tracking and prediction */
-            attribute allocated_function : String = "TrackObjects";
-            attribute color : String = "#6495ED";
+            doc /* Object tracking and motion prediction */
             attribute safety_level : String = "ASIL-D";
             attribute type : String = "Processing";
-            in port FusedDataConsumer : Port;
-            out port TrackedObjectsProvider : Port;
+            in port FusedDataConsumer : 'IFusedData port';
+            out port TrackedObjectsProvider : 'ITrackedObjects port';
             perform action 'Track objects';
         }
         part <'LC-ThreatAssessment'> ThreatAssessment {
             doc /* Collision risk assessment */
-            attribute allocated_function : String = "AssessThreat";
-            attribute color : String = "#6495ED";
             attribute safety_level : String = "ASIL-D";
             attribute type : String = "Decision";
-            in port TrackedObjectsConsumer : Port;
-            in port VehicleStateConsumer : Port;
-            out port ThreatLevelProvider : Port;
+            in port TrackedObjectsConsumer : 'ITrackedObjects port';
+            in port VehicleStateConsumer : 'IVehicleState port';
+            out port ThreatLevelProvider : 'IThreatLevel port';
+            out port WarningProvider : 'IWarning port';
             perform action 'Assess collision threat';
+            perform action 'Request the warning';
         }
         part <'LC-BrakeController'> BrakeController {
             doc /* Emergency brake control */
-            attribute allocated_function : String = "ComputeBrakingForce";
-            attribute color : String = "#6495ED";
             attribute safety_level : String = "ASIL-D";
             attribute type : String = "Controller";
-            in port ThreatLevelConsumer : Port;
-            in port VehicleSpeedConsumer : Port;
-            out port BrakeCommandProvider : Port;
+            in port ThreatLevelConsumer : 'IThreatLevel port';
+            in port VehicleSpeedConsumer : 'IVehicleSpeed port';
+            out port BrakeCommandProvider : 'IBrakeCommand port';
             perform action 'Compute braking command';
+            perform action 'Release on driver override' {
+                doc /* Accelerator kick-down cancels the autonomous braking */
+            }
         }
         part <'LC-DriverInterface'> DriverInterface {
-            doc /* HMI for warnings */
-            attribute allocated_function : String = "GenerateWarning";
-            attribute color : String = "#6495ED";
+            doc /* HMI for the warnings */
             attribute safety_level : String = "QM";
             attribute type : String = "Interface";
-            in port WarningConsumer : Port;
+            in port WarningConsumer : 'IWarning port';
             perform action 'Warn driver';
         }
         part <'LC-VehicleCANGateway'> VehicleCANGateway {
-            doc /* CAN bus interface */
-            attribute allocated_function : String = "MonitorVehicleState";
-            attribute color : String = "#6495ED";
+            doc /* Interface to the vehicle CAN bus: speed, pedals, steering */
             attribute safety_level : String = "ASIL-B";
             attribute type : String = "Gateway";
-            out port VehicleStateProvider : Port;
-            out port VehicleSpeedProvider : Port;
+            out port VehicleStateProvider : 'IVehicleState port';
+            out port VehicleSpeedProvider : 'IVehicleSpeed port';
             perform action 'Relay vehicle state';
         }
         part <'LC-BrakeActuator'> BrakeActuator {
-            doc /* Physical brake actuator */
-            attribute color : String = "#6495ED";
+            doc /* Brake actuation on the hydraulic unit */
             attribute safety_level : String = "ASIL-D";
             attribute type : String = "Actuator";
-            in port BrakeCommandConsumer : Port;
+            in port BrakeCommandConsumer : 'IBrakeCommand port';
             perform action 'Apply braking force';
+        }
+        part <'LC-SystemSupervisor'> SystemSupervisor {
+            doc /* Health monitoring of the sensors and the controller */
+            attribute safety_level : String = "ASIL-D";
+            attribute type : String = "Supervisor";
+            in port FusedDataConsumer : 'IFusedData port';
+            perform action 'Monitor system health';
+            perform action 'Handle faults' {
+                doc /* Switch the AEB off and request a takeover */
+            }
         }
         connection 'Radar Data' connect 'LC-RadarSensor'.RadarDataProvider to 'LC-SensorFusion'.RadarDataConsumer {
             attribute label : String = "Radar Data";
@@ -328,6 +409,9 @@ package <EmergencyBrakingSystem> 'Automotive Emergency Braking System (AEB)' {
         connection 'Fused Data' connect 'LC-SensorFusion'.FusedDataProvider to 'LC-ObjectTracker'.FusedDataConsumer {
             attribute label : String = "Fused Data";
         }
+        connection 'Fused Data (monitoring)' connect 'LC-SensorFusion'.FusedDataProvider to 'LC-SystemSupervisor'.FusedDataConsumer {
+            attribute label : String = "Fused Data (monitoring)";
+        }
         connection 'Tracked Objects' connect 'LC-ObjectTracker'.TrackedObjectsProvider to 'LC-ThreatAssessment'.TrackedObjectsConsumer {
             attribute label : String = "Tracked Objects";
         }
@@ -336,6 +420,9 @@ package <EmergencyBrakingSystem> 'Automotive Emergency Braking System (AEB)' {
         }
         connection 'Threat Level' connect 'LC-ThreatAssessment'.ThreatLevelProvider to 'LC-BrakeController'.ThreatLevelConsumer {
             attribute label : String = "Threat Level";
+        }
+        connection Warning connect 'LC-ThreatAssessment'.WarningProvider to 'LC-DriverInterface'.WarningConsumer {
+            attribute label : String = "Warning";
         }
         connection 'Vehicle Speed' connect 'LC-VehicleCANGateway'.VehicleSpeedProvider to 'LC-BrakeController'.VehicleSpeedConsumer {
             attribute label : String = "Vehicle Speed";
@@ -347,81 +434,76 @@ package <EmergencyBrakingSystem> 'Automotive Emergency Braking System (AEB)' {
     #PA package 'AEB System - Hardware Deployment' {
         #Node part <'PN-FrontRadarECU'> FrontRadarECU {
             doc /* Radar sensor ECU */
-            attribute memory : String = "512KB Flash, 128KB RAM";
+            attribute memory : String = "512 KB Flash, 128 KB RAM";
             attribute node_type : String = "ECU";
             attribute processor : String = "ARM Cortex-M4";
             attribute safety_level : String = "ASIL-D";
             #Behaviour part <'BC-RadarProcessing'> RadarProcessing {
                 doc /* Radar data acquisition and preprocessing */
-                attribute component_type : String = "Behavior";
                 attribute safety_level : String = "ASIL-D";
             }
         }
         #Node part <'PN-FrontCameraECU'> FrontCameraECU {
             doc /* Camera sensor ECU */
-            attribute memory : String = "2GB DDR4";
             attribute node_type : String = "ECU";
             attribute processor : String = "ARM Cortex-A53";
+            attribute ram : StorageCapacityValue = 2 [GB];
             attribute safety_level : String = "ASIL-D";
             #Behaviour part <'BC-CameraProcessing'> CameraProcessing {
                 doc /* Camera image processing and object detection */
-                attribute component_type : String = "Behavior";
                 attribute safety_level : String = "ASIL-D";
             }
         }
         #Node part <'PN-CentralADASECU'> CentralADASECU {
             doc /* Central ADAS processing unit */
-            attribute memory : String = "8GB DDR4, 64GB eMMC";
             attribute node_type : String = "ECU";
             attribute processor : String = "Intel Atom x5-E3940";
+            attribute ram : StorageCapacityValue = 8 [GB];
             attribute safety_level : String = "ASIL-D";
+            attribute storage : StorageCapacityValue = 64 [GB];
             #Behaviour part <'BC-FusionModule'> FusionModule {
-                attribute component_type : String = "Behavior";
                 attribute safety_level : String = "ASIL-D";
             }
             #Behaviour part <'BC-TrackingModule'> TrackingModule {
-                attribute component_type : String = "Behavior";
                 attribute safety_level : String = "ASIL-D";
             }
             #Behaviour part <'BC-ThreatModule'> ThreatModule {
-                attribute component_type : String = "Behavior";
                 attribute safety_level : String = "ASIL-D";
             }
             #Behaviour part <'BC-BrakingModule'> BrakingModule {
-                attribute component_type : String = "Behavior";
+                attribute safety_level : String = "ASIL-D";
+            }
+            #Behaviour part <'BC-SupervisorModule'> SupervisorModule {
                 attribute safety_level : String = "ASIL-D";
             }
         }
         #Node part <'PN-BrakeECU'> BrakeECU {
-            doc /* Electronic Brake Control Unit */
-            attribute memory : String = "8MB Flash, 3MB RAM";
+            doc /* Electronic brake control unit */
+            attribute memory : String = "8 MB Flash, 3 MB RAM";
             attribute node_type : String = "ECU";
             attribute processor : String = "Infineon AURIX TC397";
             attribute safety_level : String = "ASIL-D";
             #Behaviour part <'BC-BrakeActuation'> BrakeActuation {
-                attribute component_type : String = "Behavior";
                 attribute safety_level : String = "ASIL-D";
             }
         }
         #Node part <'PN-InstrumentCluster'> InstrumentCluster {
             doc /* Driver display and HMI */
-            attribute memory : String = "4GB DDR4";
             attribute node_type : String = "ECU";
             attribute processor : String = "NXP i.MX 8M";
+            attribute ram : StorageCapacityValue = 4 [GB];
             attribute safety_level : String = "QM";
             #Behaviour part <'BC-HMI'> HMI {
-                attribute component_type : String = "Behavior";
                 attribute safety_level : String = "QM";
             }
         }
         #Node part <'PN-CANGatewayECU'> CANGatewayECU {
             doc /* Vehicle CAN gateway */
-            attribute memory : String = "2MB Flash";
+            attribute flash : StorageCapacityValue = 2 [MB];
             attribute node_type : String = "Gateway";
             attribute processor : String = "Renesas RH850";
             attribute safety_level : String = "ASIL-B";
             #Behaviour part <'BC-CANInterface'> CANInterface {
-                attribute component_type : String = "Behavior";
                 attribute safety_level : String = "ASIL-B";
             }
         }
@@ -433,10 +515,12 @@ package <EmergencyBrakingSystem> 'Automotive Emergency Braking System (AEB)' {
         allocate 'AEB System - Component Structure'::'LC-ObjectTracker' to 'PN-CentralADASECU';
         allocate 'AEB System - Component Structure'::'LC-ThreatAssessment' to 'PN-CentralADASECU';
         allocate 'AEB System - Component Structure'::'LC-BrakeController' to 'PN-CentralADASECU';
+        allocate 'AEB System - Component Structure'::'LC-SystemSupervisor' to 'PN-CentralADASECU';
         dependency allocated_component from 'PN-CentralADASECU'::'BC-FusionModule' to 'AEB System - Component Structure'::'LC-SensorFusion';
         dependency allocated_component from 'PN-CentralADASECU'::'BC-TrackingModule' to 'AEB System - Component Structure'::'LC-ObjectTracker';
         dependency allocated_component from 'PN-CentralADASECU'::'BC-ThreatModule' to 'AEB System - Component Structure'::'LC-ThreatAssessment';
         dependency allocated_component from 'PN-CentralADASECU'::'BC-BrakingModule' to 'AEB System - Component Structure'::'LC-BrakeController';
+        dependency allocated_component from 'PN-CentralADASECU'::'BC-SupervisorModule' to 'AEB System - Component Structure'::'LC-SystemSupervisor';
         allocate 'AEB System - Component Structure'::'LC-BrakeActuator' to 'PN-BrakeECU';
         dependency allocated_component from 'PN-BrakeECU'::'BC-BrakeActuation' to 'AEB System - Component Structure'::'LC-BrakeActuator';
         allocate 'AEB System - Component Structure'::'LC-DriverInterface' to 'PN-InstrumentCluster';
@@ -461,7 +545,6 @@ package <EmergencyBrakingSystem> 'Automotive Emergency Braking System (AEB)' {
         }
         #Link connection DisplayLink connect 'PN-CentralADASECU' to 'PN-InstrumentCluster' {
             attribute bandwidth : BinaryDigitRateValue = 3.2 ['Gbit/s'];
-            attribute pixel_clock : String = "135 MHz";
             attribute protocol : String = "LVDS";
         }
         connection RadarMessages connect 'PN-FrontRadarECU' to 'PN-CentralADASECU' {
@@ -498,7 +581,7 @@ package <EmergencyBrakingSystem> 'Automotive Emergency Braking System (AEB)' {
                 doc /* Autonomous braking active */
             }
             state Failed {
-                doc /* Undergone: sensor or actuator failure */
+                doc /* Undergone: sensor or actuator failure, driver takeover requested */
             }
             transition t1 first Standby then Warning {
                 attribute trigger : String = "AssessThreat";
@@ -507,11 +590,16 @@ package <EmergencyBrakingSystem> 'Automotive Emergency Braking System (AEB)' {
                 attribute trigger : String = "ComputeBrakingForce";
             }
             transition t3 first EmergencyBraking then Standby {
+                attribute guard : String = "vehicle stopped or threat gone";
                 attribute trigger : String = "MonitorVehicleState";
             }
-            transition t4 first Standby then Failed {
-                attribute guard : String = "sensor_fault";
-                attribute trigger : String = "MonitorVehicleState";
+            transition t4 first EmergencyBraking then Standby {
+                attribute guard : String = "accelerator kick-down";
+                attribute trigger : String = "Release on driver override";
+            }
+            transition t5 first Standby then Failed {
+                attribute guard : String = "sensor fault";
+                attribute trigger : String = "Handle faults";
             }
         }
         occurrence EmergencyStop {
@@ -525,18 +613,23 @@ package <EmergencyBrakingSystem> 'Automotive Emergency Braking System (AEB)' {
             ref part l_ThreatAssessment :> 'AEB System - Component Structure'::'LC-ThreatAssessment' {
                 event occurrence m2_received;
                 then event occurrence m3_sent;
-            }
-            ref part l_BrakeController :> 'AEB System - Component Structure'::'LC-BrakeController' {
-                event occurrence m3_received;
                 then event occurrence m4_sent;
             }
-            ref part l_BrakeActuator :> 'AEB System - Component Structure'::'LC-BrakeActuator' {
+            ref part l_DriverInterface :> 'AEB System - Component Structure'::'LC-DriverInterface' {
+                event occurrence m3_received;
+            }
+            ref part l_BrakeController :> 'AEB System - Component Structure'::'LC-BrakeController' {
                 event occurrence m4_received;
+                then event occurrence m5_sent;
+            }
+            ref part l_BrakeActuator :> 'AEB System - Component Structure'::'LC-BrakeActuator' {
+                event occurrence m5_received;
             }
             message <m1> 'raw radar targets' from l_RadarSensor.m1_sent to l_SensorFusion.m1_received;
             message <m2> 'fused object list' from l_SensorFusion.m2_sent to l_ThreatAssessment.m2_received;
-            message <m3> 'critical threat' from l_ThreatAssessment.m3_sent to l_BrakeController.m3_received;
-            message <m4> 'full braking force' from l_BrakeController.m4_sent to l_BrakeActuator.m4_received;
+            message <m3> 'collision warning' from l_ThreatAssessment.m3_sent to l_DriverInterface.m3_received;
+            message <m4> 'critical threat' from l_ThreatAssessment.m4_sent to l_BrakeController.m4_received;
+            message <m5> 'full braking force' from l_BrakeController.m5_sent to l_BrakeActuator.m5_received;
         }
     }
     package Safety {
@@ -548,6 +641,7 @@ package <EmergencyBrakingSystem> 'Automotive Emergency Braking System (AEB)' {
         }
         dependency mitigated_by from 'HAZ-001' to 'Safety Requirements'::'REQ-AEB-003';
         dependency mitigated_by from 'HAZ-001' to 'Safety Requirements'::'REQ-AEB-004';
+        dependency mitigated_by from 'HAZ-001' to 'Safety Requirements'::'REQ-AEB-006';
         #Hazard requirement <'HAZ-002'> 'No braking on imminent collision' {
             attribute asil : String = "ASIL-C";
             attribute controllability : String = "C3";
@@ -556,6 +650,7 @@ package <EmergencyBrakingSystem> 'Automotive Emergency Braking System (AEB)' {
         }
         dependency mitigated_by from 'HAZ-002' to 'Safety Requirements'::'REQ-AEB-001';
         dependency mitigated_by from 'HAZ-002' to 'Safety Requirements'::'REQ-AEB-002';
+        dependency mitigated_by from 'HAZ-002' to 'Safety Requirements'::'REQ-AEB-007';
         #Hazard requirement <'HAZ-003'> 'Late driver warning' {
             attribute asil : String = "ASIL-B";
             attribute controllability : String = "C2";
@@ -572,7 +667,7 @@ package <EmergencyBrakingSystem> 'Automotive Emergency Braking System (AEB)' {
         }
     }
     verification <'TC-002'> 'Fusion latency measurement' {
-        doc /* Measure radar+camera fusion latency under full bus load */
+        doc /* Measure the radar and camera fusion latency under full bus load */
         attribute method : String = "test";
         objective {
             verify 'Safety Requirements'::'REQ-AEB-002';
@@ -586,27 +681,50 @@ package <EmergencyBrakingSystem> 'Automotive Emergency Braking System (AEB)' {
         }
     }
     verification <'TC-004'> 'Emergency braking activation test' {
-        doc /* Full braking force commanded within 100 ms on target dummy */
+        doc /* Full braking force commanded within 100 ms on the target dummy */
         attribute method : String = "test";
         objective {
             verify 'Safety Requirements'::'REQ-AEB-004';
         }
     }
     verification <'TC-005'> 'Driver warning demonstration' {
-        doc /* Visual and audio warning precedes autonomous braking */
+        doc /* Visual and audio warning precedes the autonomous braking */
         attribute method : String = "demonstration";
         objective {
             verify 'Safety Requirements'::'REQ-AEB-005';
         }
     }
+    verification <'TC-006'> 'Driver override demonstration' {
+        doc /* Kick-down during autonomous braking releases the brakes */
+        attribute method : String = "demonstration";
+        objective {
+            verify 'Safety Requirements'::'REQ-AEB-006';
+        }
+    }
+    verification <'TC-007'> 'Fault injection campaign' {
+        doc /* Radar and controller faults injected on the HIL bench, takeover requested within 200 ms */
+        attribute method : String = "test";
+        objective {
+            verify 'Safety Requirements'::'REQ-AEB-007';
+        }
+    }
+    assert constraint <'CST-001'> 'Braking chain within budget' {
+        ('AEB System - Functional View'::'SF-AcquireSensorData'.latency + 'AEB System - Functional View'::'SF-FuseData'.latency + 'AEB System - Functional View'::'SF-TrackObjects'.latency + 'AEB System - Functional View'::'SF-AssessThreat'.latency + 'AEB System - Functional View'::'SF-ComputeBrakingForce'.latency) <= 'AEB System - Functional View'::'FC-001'.latency_budget
+    }
     satisfy 'Safety Requirements'::'REQ-AEB-001' by 'AEB System - Component Structure'::'LC-RadarSensor';
     satisfy 'Safety Requirements'::'REQ-AEB-001' by 'AEB System - Component Structure'::'LC-CameraSensor';
     satisfy 'Safety Requirements'::'REQ-AEB-002' by 'AEB System - Component Structure'::'LC-SensorFusion';
+    satisfy 'Safety Requirements'::'REQ-AEB-003' by 'AEB System - Component Structure'::'LC-ObjectTracker';
     satisfy 'Safety Requirements'::'REQ-AEB-003' by 'AEB System - Component Structure'::'LC-ThreatAssessment';
     satisfy 'Safety Requirements'::'REQ-AEB-004' by 'AEB System - Component Structure'::'LC-BrakeController';
+    satisfy 'Safety Requirements'::'REQ-AEB-004' by 'AEB System - Component Structure'::'LC-BrakeActuator';
     satisfy 'Safety Requirements'::'REQ-AEB-005' by 'AEB System - Component Structure'::'LC-DriverInterface';
+    satisfy 'Safety Requirements'::'REQ-AEB-006' by 'AEB System - Component Structure'::'LC-VehicleCANGateway';
+    satisfy 'Safety Requirements'::'REQ-AEB-006' by 'AEB System - Component Structure'::'LC-BrakeController';
+    satisfy 'Safety Requirements'::'REQ-AEB-007' by 'AEB System - Component Structure'::'LC-SystemSupervisor';
     #Trace dependency realizes from 'AEB System - Functional View'::'SF-AcquireSensorData' to 'Emergency Braking - Operational View'::'OE-Vehicle'::'OA-MonitorEnvironment';
     #Trace dependency realizes from 'AEB System - Functional View'::'SF-AssessThreat' to 'Emergency Braking - Operational View'::'OE-Vehicle'::'OA-DetectThreat';
+    #Trace dependency realizes from 'AEB System - Functional View'::'SF-GenerateWarning' to 'Emergency Braking - Operational View'::'OE-Vehicle'::'OA-AlertDriver';
     #Trace dependency realizes from 'AEB System - Functional View'::'SF-ComputeBrakingForce' to 'Emergency Braking - Operational View'::'OE-Vehicle'::'OA-ApplyBrakes';
     package ArcLangUnits {
         private import MeasurementReferences::*;
@@ -615,6 +733,8 @@ package <EmergencyBrakingSystem> 'Automotive Emergency Braking System (AEB)' {
         attribute <'Gbit/s'> 'gigabit per second' : BinaryDigitRateUnit { :>> unitConversion: ConversionByPrefix { :>> prefix = giga; :>> referenceUnit = 'bit/s'; } }
         attribute <'Mbit/s'> 'megabit per second' : BinaryDigitRateUnit { :>> unitConversion: ConversionByPrefix { :>> prefix = mega; :>> referenceUnit = 'bit/s'; } }
         attribute <'kbit/s'> 'kilobit per second' : BinaryDigitRateUnit { :>> unitConversion: ConversionByPrefix { :>> prefix = kilo; :>> referenceUnit = 'bit/s'; } }
+        attribute <GB> gigabyte : StorageCapacityUnit { :>> unitConversion: ConversionByPrefix { :>> prefix = giga; :>> referenceUnit = B; } }
+        attribute <MB> megabyte : StorageCapacityUnit { :>> unitConversion: ConversionByPrefix { :>> prefix = mega; :>> referenceUnit = B; } }
         attribute <ms> millisecond : DurationUnit { :>> unitConversion: ConversionByPrefix { :>> prefix = milli; :>> referenceUnit = s; } }
     }
     private import ArcLangUnits::*;

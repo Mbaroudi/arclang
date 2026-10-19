@@ -1,14 +1,16 @@
-// The workbench: the model tree in the side bar, the panel beside the
-// source, and the commands of both. Wired here, in one place.
+// The workbench: the model tree in the side bar, the custom editor beside
+// the source, the status bar item, and the commands of all three.
 import * as vscode from 'vscode';
-import { elementLabel } from '../pure/workbench';
+import { elementLabel, ViewerGraph } from '../pure/workbench';
 import { applyRequests, refusalMessage } from './edits';
-import { WorkbenchPanel } from './panel';
+import { onDidSelectElement, WorkbenchPanel } from './panel';
 import { forgetSnapshot, registerSnapshotRefresh, snapshotOf } from './snapshot';
 import { isModelDocument } from './source';
-import { ModelItem, ModelTreeProvider, revealElement } from './tree';
+import { RelationItem, RelationsProvider } from './relations';
+import { registerStatusBar } from './status';
+import { graphsDrawing, ModelItem, ModelTreeProvider, revealElement } from './tree';
 
-/** The document to work on: the one given, the active .arc editor's, else the tree's. */
+/** The document to work on: the one given, the active model editor's, else the tree's. */
 async function documentFrom(uri: unknown, tree: ModelTreeProvider): Promise<vscode.TextDocument | null> {
   if (uri instanceof vscode.Uri) return vscode.workspace.openTextDocument(uri);
   const active = vscode.window.activeTextEditor;
@@ -25,11 +27,28 @@ function elementItem(item: unknown): Extract<ModelItem, { type: 'element' }> | n
   return null;
 }
 
+const VIEW_ORDER = ['oab', 'sab', 'lab', 'pab', 'cap', 'cdb', 'pbs', 'msm', 'es'];
+
+/** The diagrams of a document as quick pick items, viewpoints in method order. */
+function diagramPicks(graphs: ViewerGraph[]): (vscode.QuickPickItem & { graph: ViewerGraph })[] {
+  const order = (g: ViewerGraph) => {
+    const at = VIEW_ORDER.indexOf(g.arc.view);
+    return at < 0 ? VIEW_ORDER.length : at;
+  };
+  return [...graphs]
+    .sort((a, b) => order(a) - order(b) || a.arc.title.localeCompare(b.arc.title))
+    .map((graph) => ({ label: `$(graph) ${graph.arc.title}`, description: graph.arc.view.toUpperCase(), detail: graph.id, graph }));
+}
+
 export function registerWorkbench(context: vscode.ExtensionContext): void {
   registerSnapshotRefresh(context);
+  registerStatusBar(context);
+  context.subscriptions.push(WorkbenchPanel.register(context));
   const tree = new ModelTreeProvider(context);
   const view = vscode.window.createTreeView('arclangModel', { treeDataProvider: tree, showCollapseAll: true });
-  context.subscriptions.push(view);
+  const relations = new RelationsProvider(context);
+  const relationsView = vscode.window.createTreeView('arclangRelations', { treeDataProvider: relations });
+  context.subscriptions.push(view, relationsView);
 
   const register = (command: string, callback: (...args: unknown[]) => unknown) =>
     context.subscriptions.push(vscode.commands.registerCommand(command, callback));
@@ -38,7 +57,46 @@ export function registerWorkbench(context: vscode.ExtensionContext): void {
     const document = await documentFrom(uri, tree);
     if (!document) return;
     tree.follow(document);
-    WorkbenchPanel.open(context, document);
+    await WorkbenchPanel.open(document);
+  });
+
+  register('arclang.openDiagram', async (item?: unknown) => {
+    const picked = item as Extract<ModelItem, { type: 'diagram' }> | undefined;
+    if (!picked || picked.type !== 'diagram') return;
+    const document = await vscode.workspace.openTextDocument(picked.uri);
+    await WorkbenchPanel.open(document);
+    WorkbenchPanel.for(document.uri)?.show(picked.graph.id);
+  });
+
+  register('arclang.pickDiagram', async (uri?: unknown) => {
+    const document = await documentFrom(uri, tree);
+    if (!document) return;
+    const snapshot = await snapshotOf(document);
+    const graphs = snapshot.diagrams?.graphs ?? [];
+    if (graphs.length === 0) {
+      vscode.window.showInformationMessage('ArcLang: this model has no diagram yet (does it compile?).');
+      return;
+    }
+    const choice = await vscode.window.showQuickPick(diagramPicks(graphs), { placeHolder: `Open a diagram of ${document.uri.path.split('/').pop()} (${graphs.length})`, matchOnDescription: true, matchOnDetail: true });
+    if (!choice) return;
+    await WorkbenchPanel.open(document);
+    WorkbenchPanel.for(document.uri)?.show(choice.graph.id);
+  });
+
+  register('arclang.pickElement', async (uri?: unknown) => {
+    const document = await documentFrom(uri, tree);
+    if (!document) return;
+    const snapshot = await snapshotOf(document);
+    const records = snapshot.elements?.elements ?? [];
+    const items = records.map((e) => ({ label: e.name || e.id, description: e.kind, detail: e.id, element: e }));
+    const choice = await vscode.window.showQuickPick(items, { placeHolder: `Go to an element of ${document.uri.path.split('/').pop()} (${records.length})`, matchOnDescription: true, matchOnDetail: true });
+    if (!choice) return;
+    const drawn = graphsDrawing(snapshot.diagrams?.graphs ?? [], choice.element);
+    await revealElement(document, choice.element, { preserveFocus: drawn.length > 0 });
+    if (drawn.length > 0) {
+      await WorkbenchPanel.open(document);
+      WorkbenchPanel.for(document.uri)?.show(drawn[0].id, choice.element.id);
+    }
   });
 
   register('arclang.model.refresh', () => {
@@ -47,12 +105,41 @@ export function registerWorkbench(context: vscode.ExtensionContext): void {
     tree.refresh();
   });
 
+  // A click in the tree: the element is selected in the views and shown in the text, focus kept.
+  register('arclang.model.select', async (item?: unknown) => {
+    const element = elementItem(item);
+    if (!element) return;
+    const document = await vscode.workspace.openTextDocument(element.uri);
+    relations.show(document, element.node.element);
+    const panel = WorkbenchPanel.for(element.uri);
+    if (panel) {
+      const snapshot = await snapshotOf(document);
+      const drawn = graphsDrawing(snapshot.diagrams?.graphs ?? [], element.node.element);
+      if (drawn.length > 0) panel.show(drawn[0].id, element.node.element.id);
+      else panel.select(element.node.element.id);
+    }
+    await revealElement(document, element.node.element, { preserveFocus: true });
+  });
+
   register('arclang.model.reveal', async (item?: unknown) => {
     const element = elementItem(item);
     if (!element) return;
     const document = await vscode.workspace.openTextDocument(element.uri);
     await revealElement(document, element.node.element);
-    WorkbenchPanel.for(element.uri)?.select(element.node.element.id);
+  });
+
+  register('arclang.model.openDiagram', async (item?: unknown) => {
+    const element = elementItem(item);
+    if (!element) return;
+    const document = await vscode.workspace.openTextDocument(element.uri);
+    const snapshot = await snapshotOf(document);
+    const drawn = graphsDrawing(snapshot.diagrams?.graphs ?? [], element.node.element);
+    if (drawn.length === 0) {
+      vscode.window.showInformationMessage(`ArcLang: ${elementLabel(element.node.element)} is drawn on no diagram.`);
+      return;
+    }
+    await WorkbenchPanel.open(document);
+    WorkbenchPanel.for(document.uri)?.show(drawn[0].id, element.node.element.id);
   });
 
   register('arclang.model.rename', async (item?: unknown) => {
@@ -71,15 +158,25 @@ export function registerWorkbench(context: vscode.ExtensionContext): void {
     if (!element) return;
     const record = element.node.element;
     const owned = element.node.children.length;
-    const choice = await vscode.window.showWarningMessage(
-      `Delete ${elementLabel(record)}${owned ? ` and the ${owned} element${owned > 1 ? 's' : ''} it owns` : ''}? The compiler refuses it when something else still refers to it. Undo takes it back.`,
-      { modal: true },
-      'Delete',
-    );
-    if (choice !== 'Delete') return;
     const document = await vscode.workspace.openTextDocument(element.uri);
+    if (owned > 0) {
+      const choice = await vscode.window.showWarningMessage(
+        `Delete ${elementLabel(record)} and the ${owned} element${owned > 1 ? 's' : ''} it owns? The compiler refuses it when something else still refers to it. Undo takes it back.`,
+        { modal: true },
+        'Delete',
+      );
+      if (choice !== 'Delete') return;
+    }
     const outcome = await applyRequests(document, [{ op: 'remove', element: record.id }]);
     if (!outcome.ok) vscode.window.showWarningMessage(refusalMessage(`delete ${record.id}`, outcome));
+    else vscode.window.setStatusBarMessage(`ArcLang: deleted ${elementLabel(record)} (Undo in the editor takes it back)`, 8000);
+  });
+
+  register('arclang.model.copyId', async (item?: unknown) => {
+    const element = elementItem(item);
+    if (!element) return;
+    await vscode.env.clipboard.writeText(element.node.element.id);
+    vscode.window.setStatusBarMessage(`ArcLang: copied ${element.node.element.id}`, 3000);
   });
 
   register('arclang.model.ask', async (item?: unknown) => {
@@ -89,5 +186,90 @@ export function registerWorkbench(context: vscode.ExtensionContext): void {
     await vscode.commands.executeCommand('workbench.action.chat.open', {
       query: `@arclang /explain the element ${record.name} (${record.id}, ${record.kind}) of the open model: its role, what it exchanges with, and what the findings say about it.`,
     });
+  });
+
+  // The native context menu of the canvas: the argument carries the element's id.
+  const canvasTarget = async (arg: unknown): Promise<{ document: vscode.TextDocument; id: string; name: string; kind: string } | null> => {
+    const context = (typeof arg === 'object' && arg !== null ? arg : {}) as { elementId?: string; elementName?: string; elementKind?: string };
+    const document = WorkbenchPanel.activeDocument() ?? tree.shown;
+    if (!document || !context.elementId) return null;
+    return { document, id: context.elementId, name: context.elementName ?? context.elementId, kind: context.elementKind ?? '' };
+  };
+  register('arclang.canvas.reveal', async (arg?: unknown) => {
+    const target = await canvasTarget(arg);
+    if (target) await revealElement(target.document, { id: target.id, name: target.name });
+  });
+  register('arclang.canvas.tree', async (arg?: unknown) => {
+    const target = await canvasTarget(arg);
+    if (!target) return;
+    tree.follow(target.document);
+    const snapshot = await snapshotOf(target.document);
+    const record = (snapshot.elements?.elements ?? []).find((e) => e.id === target.id);
+    await vscode.commands.executeCommand('arclangModel.focus');
+    const item = record ? tree.itemOf(record.uuid) : undefined;
+    if (item) await view.reveal(item, { select: true, focus: true, expand: true });
+  });
+  register('arclang.canvas.ask', async (arg?: unknown) => {
+    const target = await canvasTarget(arg);
+    if (!target) return;
+    await vscode.commands.executeCommand('workbench.action.chat.open', {
+      query: `@arclang /explain the element ${target.name} (${target.id}, ${target.kind}) of the open model: its role, what it exchanges with, and what the findings say about it.`,
+    });
+  });
+  register('arclang.canvas.copyId', async (arg?: unknown) => {
+    const target = await canvasTarget(arg);
+    if (target) await vscode.env.clipboard.writeText(target.id);
+  });
+  register('arclang.canvas.rename', async (arg?: unknown) => {
+    const target = await canvasTarget(arg);
+    if (!target) return;
+    const name = await vscode.window.showInputBox({ prompt: `New name of ${target.name} (${target.id})`, value: target.name, validateInput: (v) => (v.trim() ? null : 'a name is needed') });
+    if (name === undefined || name.trim() === target.name) return;
+    const outcome = await applyRequests(target.document, [{ op: 'rename', element: target.id, name: name.trim() }]);
+    if (!outcome.ok) vscode.window.showWarningMessage(refusalMessage(`rename ${target.id}`, outcome));
+  });
+  register('arclang.canvas.delete', async (arg?: unknown) => {
+    const target = await canvasTarget(arg);
+    if (!target) return;
+    const snapshot = await snapshotOf(target.document);
+    const record = (snapshot.elements?.elements ?? []).find((e) => e.id === target.id);
+    const owned = record ? (snapshot.elements?.elements ?? []).filter((e) => e.owner === record.uuid).length : 0;
+    if (owned > 0) {
+      const choice = await vscode.window.showWarningMessage(`Delete ${target.name} and the ${owned} element${owned > 1 ? 's' : ''} it owns? Undo takes it back.`, { modal: true }, 'Delete');
+      if (choice !== 'Delete') return;
+    }
+    const outcome = await applyRequests(target.document, [{ op: 'remove', element: target.id }]);
+    if (!outcome.ok) vscode.window.showWarningMessage(refusalMessage(`delete ${target.id}`, outcome));
+  });
+
+  // A selection in the views is revealed in the tree, when the tree shows that model.
+  context.subscriptions.push(
+    onDidSelectElement(async ({ uri, id }) => {
+      const document = vscode.workspace.textDocuments.find((d) => d.uri.toString() === uri.toString());
+      if (!document) return;
+      const snapshot = await snapshotOf(document);
+      const record = id ? (snapshot.elements?.elements ?? []).find((e) => e.id === id) : undefined;
+      relations.show(document, record ?? null);
+      if (!record || !tree.shown || tree.shown.uri.toString() !== uri.toString() || !view.visible) return;
+      const item = tree.itemOf(record.uuid);
+      if (item) await view.reveal(item, { select: true, focus: false, expand: false });
+    }),
+  );
+
+  // A step in the relations view: the related element becomes the selection everywhere.
+  register('arclang.relations.step', async (item?: unknown) => {
+    const picked = item as RelationItem | undefined;
+    if (!picked || picked.type !== 'entry' || !picked.entry.other) return;
+    const document = await vscode.workspace.openTextDocument(picked.entry.uri);
+    const other = picked.entry.other;
+    relations.show(document, other);
+    const panel = WorkbenchPanel.for(document.uri);
+    if (panel) {
+      const snapshot = await snapshotOf(document);
+      const drawn = graphsDrawing(snapshot.diagrams?.graphs ?? [], other);
+      if (drawn.length > 0) panel.show(drawn[0].id, other.id);
+      else panel.select(other.id);
+    }
+    await revealElement(document, other, { preserveFocus: true });
   });
 }

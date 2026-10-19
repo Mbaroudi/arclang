@@ -2,7 +2,13 @@
 
 ## What You Have
 
-`remote_start_architecture_explorer.html` is a **self-contained, standalone file** (109KB) that includes:
+Generate the explorer first (it is not kept in the repository):
+
+```bash
+arclang explorer examples/automotive/remote_start/remote_start_architecture.arc
+```
+
+`remote_start_architecture_explorer.html` is a **self-contained, standalone file** (about 110 KB) that includes:
 - Complete architecture data embedded as JSON
 - All JavaScript code (Dagre, D3, visualization engine)
 - All CSS styling
@@ -39,8 +45,9 @@
 
 **What to do:**
 ```bash
-# Already created for you:
-remote_start_explorer_package.zip (42KB)
+cd examples/automotive/remote_start
+arclang explorer remote_start_architecture.arc
+zip remote_start_explorer_package.zip remote_start_architecture_explorer.html remote_start_architecture.arc
 ```
 
 **Contents:**

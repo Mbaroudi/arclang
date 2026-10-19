@@ -1,466 +1,176 @@
-# ArcLang Examples
+# ArcLang examples
 
-Complete architecture examples demonstrating the ArcLang Domain-Specific Language for Model-Based Systems Engineering (MBSE) using the Arcadia methodology.
+Models written in ArcLang, the Arcadia method as code. Every example under
+this directory (except `legacy/`) compiles with the strict parser, reports
+zero findings with `arclang check`, and passes the production gate of its
+standard; CI compiles them all (`tests/examples_compile.rs`, workflow
+`Compile all active examples`). The generated outputs (explorer pages, JSON
+exports) are not kept here: `arclang explorer <file>` and
+`arclang export <file> -f json -o <out>` regenerate them.
 
-## 📁 Directory Structure
-
-```
-examples/
-├── automotive/                    # Automotive domain architectures
-│   ├── remote_start/             # Complete remote start system (ISO 26262 ASIL B)
-│   ├── acc_*.arc                 # Adaptive Cruise Control examples
-│   └── adaptive_cruise_control.arc
-├── aerospace/                     # Aerospace domain architectures
-│   └── flight_control_system.arc
-├── defense/                       # Defense domain architectures
-│   └── mission_computer.arc
-└── business/                      # Business domain architectures
-    ├── data_platform_migration/  # Enterprise data platform migration
-    └── pluxee_analytics.arc
-```
-
----
-
-## 🚗 Automotive Examples
-
-### Remote Start System (Complete Architecture)
-
-**Location:** `automotive/remote_start/`
-
-A complete, production-ready architecture for a Vehicle Remote Start System demonstrating:
-- ✅ Full Arcadia methodology (4 layers: Operational, System, Logical, Physical)
-- ✅ 33 requirements with complete traceability
-- ✅ 25 logical components across 4 layers
-- ✅ ISO 26262 ASIL B safety compliance
-- ✅ ISO/SAE 21434 cybersecurity compliance
-- ✅ Multi-powertrain support (ICE, Hybrid, Electric)
-
-**Files:**
-- `remote_start_architecture.arc` (807 lines) - Complete ArcLang source
-- `remote_start_architecture_explorer.html` (109 KB) - Interactive web viewer
-- `remote_start_diagram.svg` - Capella-compliant architecture diagram
-- `remote_start_explorer_package.zip` - Shareable package
-- `WORKFLOW_DEMO.md` - Complete workflow from prompt to architecture
-- `README_SHARING.md` - Instructions for sharing the explorer
-
-**Generate Explorer:**
-```bash
-cargo run --bin arclang -- explorer examples/automotive/remote_start/remote_start_architecture.arc
-```
-
-**Key Features:**
-- Cryptographic authentication (AES-256)
-- Safety interlocks (parking brake, transmission, doors)
-- 10-minute auto-shutdown timer
-- Climate pre-conditioning
-- Audit trail logging
-- Replay attack protection
-
-**Standards Compliance:**
-- ISO 26262:2018 (Functional Safety - ASIL B)
-- ISO/SAE 21434:2021 (Cybersecurity)
-- UNECE R100 (Electric Vehicle Safety)
-- FCC Part 15 (Radiated Emissions)
-- GDPR (Data Privacy)
-
----
-
-### Adaptive Cruise Control (ACC)
-
-**Files:**
-- `automotive/acc_complete_architecture.arc` (14 KB) - Complete ACC system
-- `automotive/acc_from_capella.arc` - Imported from Eclipse Capella
-- `automotive/acc_minimal.arc` - Minimal ACC example
-- `automotive/adaptive_cruise_control.arc` (12 KB) - Full implementation
-
-**Features:**
-- Radar-based distance measurement
-- Speed control algorithms
-- Safety interlocks
-- ASIL D components
-
-**Generate:**
-```bash
-cargo run --bin arclang -- explorer examples/automotive/acc_complete_architecture.arc
-```
-
----
-
-## ✈️ Aerospace Examples
-
-### Flight Control System
-
-**File:** `aerospace/flight_control_system.arc` (10 KB)
-
-**Features:**
-- Primary flight controls (elevator, aileron, rudder)
-- Autopilot modes
-- Sensor fusion
-- DO-178C compliance
-- Redundancy management
-
-**Generate:**
-```bash
-cargo run --bin arclang -- explorer examples/aerospace/flight_control_system.arc
-```
-
----
-
-## 🛡️ Defense Examples
-
-### Mission Computer
-
-**File:** `defense/mission_computer.arc` (17 KB)
-
-**Features:**
-- Multi-domain operations
-- Tactical data links
-- Weapon systems integration
-- Classified data handling
-- MIL-STD compliance
-
-**Generate:**
-```bash
-cargo run --bin arclang -- explorer examples/defense/mission_computer.arc
-```
-
----
-
-## 💼 Business Examples
-
-### Data Platform Migration (Complete Architecture)
-
-**Location:** `business/data_platform_migration/`
-
-Enterprise-grade data platform migration from Oracle/Snowflake to Databricks demonstrating:
-- ✅ Complete migration architecture (868 lines)
-- ✅ 27 requirements with traceability
-- ✅ 24 components across 8 architectural layers
-- ✅ Bidirectional sync and data validation
-- ✅ Zero-downtime migration strategy
-- ✅ GDPR/CCPA compliance
-
-**Files:**
-- `data_platform_migration.arc` (868 lines) - Complete ArcLang source
-- `data_platform_migration_explorer.html` (98 KB) - Interactive web viewer
-- `data_platform_migration_explorer.json` - Architecture data
-
-**Generate Explorer:**
-```bash
-cargo run --bin arclang -- explorer examples/business/data_platform_migration/data_platform_migration.arc
-```
-
-**Key Features:**
-- 8 migration layers (Source, Target, Processing, Governance, etc.)
-- Automated schema mapping
-- Data validation framework
-- Rollback procedures
-- Incremental migration waves
-
----
-
-### Pluxee Analytics Platform
-
-**File:** `business/pluxee_analytics.arc` (18 KB)
-
-**Features:**
-- Data ingestion pipelines
-- Real-time analytics
-- Business intelligence
-- GDPR compliance
-- Microservices architecture
-
-**Generate:**
-```bash
-cargo run --bin arclang -- explorer examples/business/pluxee_analytics.arc
-```
-
----
-
-## 🚀 Quick Start
-
-### 1. Compile an Example
+To open a model in the workbench:
 
 ```bash
-cd /path/to/Arclang
-cargo run --bin arclang -- explorer examples/automotive/remote_start/remote_start_architecture.arc
+arclang workbench examples/complete_emergency_braking_simple.arc
+arclang check --json examples/automotive/adaptive_cruise_control.arc
+arclang gate --standard iso26262 examples/automotive/adaptive_cruise_control.arc
 ```
 
-### 2. Open in Browser
+## Automotive
+
+`complete_emergency_braking_simple.arc` (657 lines) is the flagship: an
+autonomous emergency braking system through the four Arcadia levels, with the
+mission and capability, a functional chain with its latency budget, logical
+components with ports and exchanges, ECUs, buses and deployments, ISO 26262
+HARA, modes, a scenario, a data model, test cases on every requirement and
+declared diagrams. The tests, the golden files and the playground are built
+on it. `arclang workbench examples/complete_emergency_braking_simple.arc`
+
+`complete_emergency_braking_mbse.arc` (379 lines) is the same system written
+down to the fifth level, the end product breakdown structure, with a product
+breakdown diagram. `arclang workbench examples/complete_emergency_braking_mbse.arc`
+
+`emergency_braking_logical.arc` (203 lines) looks at the logical architecture
+of the braking function in depth: a three-sensor perception chain (radar,
+camera, lidar) and the degraded modes that keep the function alive when one
+sensor fails. `arclang workbench examples/emergency_braking_logical.arc`
+
+`automotive/adaptive_cruise_control.arc` (528 lines) is the complete adaptive
+cruise control: perception, fusion, target selection, longitudinal control,
+driver override and safety monitoring, from the operational need to the ECUs
+and the product breakdown, with two functional chains checked by constraints,
+HARA, FMEA, modes, scenarios and a data model.
+`arclang workbench examples/automotive/adaptive_cruise_control.arc`
+
+`automotive/acc_minimal.arc` (106 lines) is the starter: one capability
+followed through the four levels, three requirements, one hazard, three test
+cases. Read this one first. `arclang workbench examples/automotive/acc_minimal.arc`
+
+`automotive/acc_complete_architecture.arc` (279 lines) details the logical
+architecture of the ACC: nine components, twenty-five logical functions and
+the dataflow between them as functional exchanges.
+`arclang workbench examples/automotive/acc_complete_architecture.arc`
+
+`automotive/acc_from_capella.arc` (91 lines) shows what a Capella import looks
+like after the first edit pass: the imported requirements, components and
+traces, completed with the operational need, the functions and the test cases.
+`arclang trace examples/automotive/acc_from_capella.arc --validate --matrix`
+
+`automotive/timing_constraints.arc` (155 lines) demonstrates typed quantities,
+user-defined types with required attributes and specialization, and
+constraints over chains and links (sums, maxima, bus load), evaluated by the
+gate. `arclang gate examples/automotive/timing_constraints.arc`
+
+`automotive/remote_start/remote_start_architecture.arc` (769 lines) is a
+vehicle remote start function for ICE, hybrid and electric powertrains:
+stakeholder, system, safety, security and regulatory requirements refined and
+traced, sixteen logical components on nine nodes, ISO 26262 HARA and an
+ISO/SAE 21434 security analysis (assets, threats, scales), a scenario with an
+`alt` fragment. `WORKFLOW_DEMO.md` and `README_SHARING.md` in the same
+directory describe the workflow it came from and how to share its explorer.
+`arclang workbench examples/automotive/remote_start/remote_start_architecture.arc`
+
+## Aerospace
+
+`aerospace/flight_control_system.arc` (329 lines) is a fly-by-wire primary
+flight control system with two dissimilar flight control computers: DAL on
+every element, a functional hazard assessment with the failure conditions, an
+ICD on every ARINC 664 link, the channel switchover modes and the EPBS.
+`arclang gate --standard do178c examples/aerospace/flight_control_system.arc`
+
+## Rail
+
+`rail/level_crossing_protection.arc` (270 lines) is a level crossing
+protection system: train detection, road warning, barrier closure, clear
+proving and the fail-safe state, with SIL levels, a risk graph read in the
+gate's classes, modes with function triggers, a scenario and a constraint on
+the protection cycle.
+`arclang gate --standard iec61508 examples/rail/level_crossing_protection.arc`
+
+## Defense
+
+`defense/mission_computer.arc` (368 lines) is the tactical mission computer
+of a two-seat combat aircraft: radar and electronic warfare data fused into
+tracks, threat evaluation, and a weapon release that needs both operators,
+with DAL levels, hazards classified by failure condition, the release state
+machine and an engagement scenario.
+`arclang gate --standard do178c examples/defense/mission_computer.arc`
+
+### Tactical ISR drone
+
+**File:** `defense/isr_drone.arc`
+
+A tactical ISR unmanned aircraft system: air vehicle, ground control station and 150 km line-of-sight datalink, modelled through every Arcadia level and written to pass the production gate as it stands. Operational analysis (commander, pilot, payload operator, ATC, maintainer, an ISR sortie process), system functions with ports, exchanges and three functional chains with latency budgets (lost-link return to base within 10 s, sensor-to-screen video within 500 ms, geofence hold), 17 requirements each satisfied by a component and verified by a test case, a logical architecture with DAL B flight control and DAL C mission system, physical nodes typed through reusable `type`s with power, mass and memory in units, RF and avionics links with a complete ICD, configuration items, a data model (waypoints, flight plan, sensor frames, tracks, C2 messages, classification marking), two state machines, two scenarios with fragments, a HARA that passes the DO-178C, ISO 26262 and IEC 61508 gates, FMEA lines, and a cybersecurity analysis (jamming, GNSS spoofing, datalink hijack, payload exfiltration) on declared scales. Zero findings; three named diagrams.
 
 ```bash
-# Generated file opens automatically, or:
-open examples/automotive/remote_start/remote_start_architecture_explorer.html
+arclang check examples/defense/isr_drone.arc
+arclang gate --standard do178c examples/defense/isr_drone.arc
+arclang workbench examples/defense/isr_drone.arc
 ```
 
-### 3. Export Diagram
+## Energy
 
-- Click **"📄 Export SVG"** button in the web interface
-- SVG file downloads automatically
-- Use in documentation, presentations, reports
+### DC fast-charging station
 
----
+**File:** `energy/ev_charging_station.arc`
 
-## 📊 Architecture Visualization
+A public 350 kW DC fast-charging station and its charge point operator back end: CCS2 liquid-cooled connector at 1000 V / 500 A, ISO 15118-2 plug-and-charge, OCPP 2.0.1 to the CSMS over TLS 1.3, a 630 kVA grid connection shared by eight chargers under load management, an EMV payment terminal and RFID fallback. The model runs through every Arcadia level: operational actors and process, system functions with ports and three latency-budgeted functional chains (emergency stop in 100 ms, protection trip, session start in 10 s), logical components with interfaces and `realizes` traces, physical nodes with CAN FD, Ethernet, control-pilot PLC, DC bus and cellular links carrying ICD-complete exchanges, EPBS configuration items, plus a data model (charging session, signed meter values, tariff, fault record), the OCPP connector state machine with function-triggered transitions, two scenarios, a HARA with FMEA entries, and a cybersecurity analysis (payment data, firmware, session records against OCPP spoofing, skimming and firmware tampering). It showcases typed attributes with units (`power: 350 kW`, `efficiency: 97 %`, `rated_current: 500 A`), user-defined types, and five compiler-evaluated constraints including `voltage * current >= power`. Zero findings; passes `arclang gate --standard iec61508`; round-trips through the SysML v2 exporter and importer.
 
-All examples generate interactive Architecture Explorers with:
-
-### Capella Standards Compliance
-- ✅ Port distribution (IN=left/green, OUT=right/orange)
-- ✅ Layer swimlanes with dashed borders
-- ✅ ASIL safety badges (B/C/D)
-- ✅ Exchange item labels (protocols: CAN, LIN, HTTPS, etc.)
-- ✅ Stereotype icons (Controller, ECU, Gateway, etc.)
-- ✅ Zero text overlaps (intelligent spacing)
-- ✅ Auto-sizing components based on content
-
-### Interactive Features
-- 🖱️ Click and drag to pan
-- 🔍 Mouse wheel to zoom
-- 📄 Export SVG for documentation
-- 📊 Layer filtering
-- 🔗 Requirement traceability view
-
----
-
-## 📝 ArcLang Syntax Examples
-
-### Basic Component
-```arclang
-component "Engine Control Unit" {
-    id: "LA-VHC-001"
-    layer: "Vehicle"
-    stereotype: "ECU"
-    safety_level: "ASIL_B"
-    
-    interface_in: "StartCommand" {
-        protocol: "CAN"
-        format: "Binary"
-    }
-    
-    interface_out: "EngineStatus" {
-        protocol: "CAN"
-        format: "Binary"
-    }
-    
-    function "crankEngine" {
-        description: "Crank engine via starter motor"
-    }
-}
-```
-
-### Requirements with Traceability
-```arclang
-requirements stakeholder {
-    req "STK-RS-001" "Remote Start from Smartphone" {
-        description: "User must be able to remotely start vehicle"
-        priority: Critical
-    }
-}
-
-requirements system {
-    req "SYS-RS-001" "Cryptographic Authentication" {
-        description: "Authenticate using cryptographic tokens"
-        priority: Critical
-        safety_level: ASIL_B
-    }
-}
-
-trace "STK-RS-001" satisfies "SYS-RS-001" {}
-```
-
-### Interface Connections
-```arclang
-interface "TCU to Remote Start Controller" {
-    from: "LA-CONN-001"
-    to: "LA-CTRL-001"
-    description: "Validated start command"
-}
-```
-
----
-
-## 🎯 Use Cases
-
-### Educational
-- **University Courses:** MBSE, Systems Engineering, Automotive Engineering
-- **Workshops:** Arcadia methodology training
-- **Tutorials:** Model-based design patterns
-
-### Professional
-- **Requirements Management:** Traceability from stakeholders to implementation
-- **Safety Analysis:** ISO 26262 compliance documentation
-- **Architecture Reviews:** Visual communication with stakeholders
-- **Documentation:** Auto-generate architecture diagrams and reports
-
-### Research
-- **Methodology Development:** Experiment with MBSE approaches
-- **Tool Comparison:** Benchmark against Eclipse Capella, IBM Rhapsody
-- **AI-Powered MBSE:** Natural language to architecture generation
-
----
-
-## 📚 Documentation
-
-### Included Documentation
-- **WORKFLOW_DEMO.md** - Complete workflow from prompt to architecture
-- **README_SHARING.md** - How to share Architecture Explorers
-- **LaTeX Reports** - Publication-ready technical documentation
-
-### External Resources
-- [ArcLang Language Specification](https://github.com/arclang/spec)
-- [Arcadia Methodology](https://www.eclipse.org/capella/arcadia.html)
-- [ISO 26262 Standard](https://www.iso.org/standard/68383.html)
-
----
-
-## 🛠️ Development Workflow
-
-### 1. Write ArcLang
 ```bash
-vim examples/automotive/my_architecture.arc
+arclang check examples/energy/ev_charging_station.arc
+arclang gate --standard iec61508 examples/energy/ev_charging_station.arc
+arclang workbench examples/energy/ev_charging_station.arc
 ```
 
-### 2. Validate Syntax
+## Semiconductor
+
+### AI accelerator platform
+
+**File:** `semiconductor/ai_accelerator_platform.arc`
+
+A data-center compute tray of eight AI accelerators (tensor cores, 141 GB HBM3e per device at 4.8 TB/s, 700 W TDP, a 900 GB/s GPU-to-GPU fabric, a PCIe Gen5 x16 host link, liquid cooling at a 308 K inlet), modelled from operational analysis to physical architecture and EPBS: ML platform engineer, operator, security officer and tenant; system functions and chains with latency budgets (all-reduce step 2.5 ms, thermal throttling 100 ms, power brake 1 ms, attested boot 30 s); compute die, HBM, fabric, host interface, power delivery, thermal manager and security processor inside the accelerator, a fabric switch, a BMC with firmware attestation, the host runtime and the orchestration agent; OAM modules, baseboard, host server, power shelf and CDU with typed links and ICD-complete physical exchanges. It adds a data model (tensor descriptors, kernel launches, telemetry, attestation reports), a power and thermal mode machine whose transitions are triggered by declared functions, three scenarios, a HARA with FMEA, a cybersecurity analysis (model weights, tenant data, firmware; firmware tampering, side channel, fabric eavesdropping), 16 requirements each satisfied and verified, 5 dimension-checked constraints and three named diagrams. Zero findings; passes the production gate under ISO 26262, DO-178C and IEC 61508; round-trips through the SysML v2 export.
+
 ```bash
-cargo run --bin arclang -- validate examples/automotive/my_architecture.arc
+arclang check examples/semiconductor/ai_accelerator_platform.arc
+arclang gate --standard iso26262 examples/semiconductor/ai_accelerator_platform.arc
+arclang workbench examples/semiconductor/ai_accelerator_platform.arc
 ```
 
-### 3. Generate Explorer
-```bash
-cargo run --bin arclang -- explorer examples/automotive/my_architecture.arc
-```
+## Business
 
-### 4. Review in Browser
-```bash
-open examples/automotive/my_architecture_explorer.html
-```
+`business/data_platform_migration/data_platform_migration.arc` (783 lines)
+applies Arcadia to an IT programme: the migration of a media company's data
+estate from Oracle and Snowflake to a Databricks lakehouse. Stakeholder and
+system requirements refined and traced, the data teams' operational need,
+twenty-four logical components grouped by layer, the cloud deployment with one
+link per pair of nodes, a migration wave chain checked against its nightly
+window, migration wave states and acceptance tests. No integrity levels: the
+gate checks coverage, ICDs and methodology.
+`arclang workbench examples/business/data_platform_migration/data_platform_migration.arc`
 
-### 5. Export Artifacts
-- Click "Export SVG" for diagrams
-- Generate LaTeX documentation
-- Export JSON for tool integration
+## Layout demo
 
----
+`elk_advanced_demo.arc` (141 lines) is a small cruise control model written to
+exercise the diagram layout: components with many ports on both sides, a
+nested component, exchanges that fan in and out.
+`arclang diagram examples/elk_advanced_demo.arc -f elk -o graphs.json`
 
-## 🔧 Customization
+## Capella import
 
-### ArcViz Configuration
+`capella/in_flight_entertainment.arc` (4950 lines) is the in-flight
+entertainment system imported from the Capella sample model, kept as the
+importer wrote it. It is the round-trip corpus of the Capella and SysML v2
+exports; its findings are those of the source model and are left as they are.
+`arclang workbench examples/capella/in_flight_entertainment.arc`
 
-All examples use the centralized `ARCVIZ_CONFIG` object for visualization:
+## Multifile
 
-```javascript
-const ARCVIZ_CONFIG = {
-    layout: {
-        nodesep: 350,    // Horizontal spacing
-        ranksep: 200,    // Vertical spacing
-    },
-    port: {
-        spacing: 50,     // Port vertical spacing
-        colors: {
-            inFill: '#4caf50',   // Green for IN
-            outFill: '#ff9800'   // Orange for OUT
-        }
-    },
-    safety: {
-        colors: {
-            ASIL_B: '#ff9800',
-            ASIL_C: '#f44336',
-            ASIL_D: '#d32f2f'
-        }
-    }
-};
-```
+`multifile/main.arc` imports `requirements.arc` and `logical.arc`: each team
+owns its fragment, the root file assembles them, and the traces of the root
+resolve across the fragments only after the merge. The fragments report
+findings when checked alone, by design. `arclang check examples/multifile/main.arc`
 
-Modify these values in the template to customize visualization.
+## Legacy
 
----
-
-## 📈 Statistics
-
-### Remote Start Architecture
-| Metric | Value |
-|--------|-------|
-| ArcLang Lines of Code | 807 |
-| Requirements | 33 |
-| Logical Components | 25 |
-| Physical Components | 9 |
-| Interfaces | 16 |
-| Functions | 32 |
-| Trace Links | 8 |
-| ASIL B Components | 10 |
-| Protocols | 7 |
-
-### Development Time
-- **Traditional MBSE tools:** 2-3 weeks
-- **ArcLang + Claude AI:** ~2 hours
-- **Efficiency gain:** 60-80x faster
-
----
-
-## 🤝 Contributing
-
-### Adding New Examples
-
-1. Choose appropriate domain folder (`automotive/`, `aerospace/`, etc.)
-2. Create subdirectory for complex projects
-3. Follow naming convention: `lowercase_with_underscores.arc`
-4. Include metadata block with standards compliance
-5. Add comprehensive requirements and traceability
-6. Test compilation and explorer generation
-
-### Example Template
-
-```arclang
-model MySystem {
-    metadata {
-        version: "1.0.0"
-        description: "Brief description"
-        domain: "automotive|aerospace|defense|business"
-        safety_standard: "ISO_26262|DO_178C|MIL_STD"
-        project_phase: "concept|system_design|detailed_design"
-    }
-}
-
-requirements stakeholder { /* ... */ }
-requirements system { /* ... */ }
-architecture logical { /* ... */ }
-trace /* ... */ {}
-```
-
----
-
-## 📞 Support
-
-For questions or issues:
-- **GitHub Issues:** [arclang/issues](https://github.com/arclang/issues)
-- **Documentation:** [docs.arclang.org](https://docs.arclang.org)
-- **Community:** [arclang.slack.com](https://arclang.slack.com)
-
----
-
-## 📄 License
-
-All examples are provided under the MIT License. See [LICENSE](../LICENSE) for details.
-
----
-
-## 🎓 Citation
-
-If you use these examples in academic work:
-
-```bibtex
-@software{arclang_examples,
-  title = {ArcLang Architecture Examples},
-  author = {ArcLang Contributors},
-  year = {2025},
-  url = {https://github.com/arclang/arclang},
-  note = {Domain-Specific Language for Arcadia MBSE}
-}
-```
-
----
-
-**Last Updated:** October 23, 2025  
-**ArcLang Version:** 1.0.0  
-**Examples Count:** 9 architectures across 4 domains
+`legacy/` holds files written for syntax versions that were never implemented.
+They do not compile and are excluded from the test corpus.

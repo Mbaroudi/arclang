@@ -1,150 +1,106 @@
-operational_analysis "Adaptive Cruise Control Operations" {
-    actor "Driver" {
-        id: "ACT-001"
-        description: "Vehicle operator"
+// Adaptive Cruise Control, the starter: one capability followed through the
+// four Arcadia levels, with the requirements, the hazard and the test cases
+// a design review asks for. The complete model is adaptive_cruise_control.arc.
+//
+//   arclang check examples/automotive/acc_minimal.arc
+//   arclang gate  examples/automotive/acc_minimal.arc
+
+model AccMinimal {
+    name: "Adaptive Cruise Control (starter)"
+    version: "2.0"
+}
+
+requirements {
+    requirement "SYS-ACC-001" {
+        description: "The ACC shall keep a time gap of at least 2 s to the lead vehicle"
+        priority: "Critical"
+        safety_level: "ASIL-B"
+    }
+    requirement "SYS-ACC-002" {
+        description: "A vehicle cutting into the lane shall be detected within 500 ms"
+        priority: "High"
+        safety_level: "ASIL-B"
+    }
+    requirement "SYS-ACC-003" {
+        description: "A brake pedal input by the driver shall override the ACC at once"
+        priority: "Critical"
+        safety_level: "ASIL-C"
+    }
+}
+
+operational_analysis "Driving in traffic" {
+    actor "Driver" { id: "OA-DRV" description: "Sets the cruise speed and keeps the authority to brake" }
+    entity "Ego vehicle" {
+        id: "OA-VEH"
+        activity "Follow the lead vehicle" { id: "OA-FOLLOW" }
+    }
+    operational_capability "Keep a safe following distance" {
+        id: "OC-001"
+        involves: ["OA-DRV", "OA-VEH"]
     }
 }
 
 system_analysis "ACC System" {
-    requirement "SYS-ACC-001" {
-        description: "The ACC system shall maintain minimum 2-second following distance"
-        priority: "Critical"
-        safety_level: "ASIL_B"
-    }
-    
-    requirement "SYS-ACC-002" {
-        description: "Driver brake input shall override ACC"
-        priority: "Critical"
-        safety_level: "ASIL_C"
-    }
-    
-    requirement "SYS-ACC-003" {
-        description: "System shall detect cut-in vehicles within 500ms"
-        priority: "High"
-        safety_level: "ASIL_B"
-    }
+    actor "Driver" { id: "SA-DRV" }
+    capability "Adaptive cruise" { id: "CAP-001" realizes: "OC-001" involves: ["SF-SENSE", "SF-PLAN", "SF-ACT"] }
+    function "Sense the traffic ahead" { id: "SF-SENSE" latency: 50 ms port out "targets" }
+    function "Plan the speed" { id: "SF-PLAN" latency: 20 ms port in "targets" port out "accel" }
+    function "Actuate throttle and brake" { id: "SF-ACT" latency: 10 ms port in "accel" }
+    functional_exchange "targets" { from: "SF-SENSE.targets" to: "SF-PLAN.targets" }
+    functional_exchange "acceleration demand" { from: "SF-PLAN.accel" to: "SF-ACT.accel" }
+    functional_chain "Cut-in reaction" { id: "FC-001" involves: ["SF-SENSE", "SF-PLAN", "SF-ACT"] latency_budget: 500 ms }
 }
 
 logical_architecture "ACC Logical Architecture" {
     component "Radar Sensor" {
         id: "LC-001"
-        type: "Logical"
-        description: "77 GHz long-range radar"
-        
-        function "Detect Objects" {
-            id: "LF-001"
-        }
+        safety_level: "ASIL-B"
+        port out "targets"
+        function "Detect objects" { id: "LF-001" realizes: "SF-SENSE" }
     }
-    
-    component "Vision Camera" {
-        id: "LC-002"
-        type: "Logical"
-        description: "Forward-facing camera"
-        
-        function "Classify Objects" {
-            id: "LF-003"
-        }
-    }
-    
-    component "Sensor Fusion" {
-        id: "LC-003"
-        type: "Logical"
-        safety_level: "ASIL_B"
-        
-        function "Fuse Detections" {
-            id: "LF-005"
-        }
-    }
-    
     component "ACC Controller" {
-        id: "LC-004"
-        type: "Logical"
-        safety_level: "ASIL_B"
-        
-        function "Compute Speed Profile" {
-            id: "LF-008"
-        }
+        id: "LC-002"
+        safety_level: "ASIL-B"
+        port in "targets"
+        port in "pedals"
+        port out "accel"
+        function "Compute the speed profile" { id: "LF-002" realizes: "SF-PLAN" }
+        function "Release control on brake pedal" { id: "LF-003" }
     }
+    component "Powertrain Interface" {
+        id: "LC-003"
+        safety_level: "ASIL-C"
+        port in "accel"
+        function "Command throttle and brake" { id: "LF-004" realizes: "SF-ACT" }
+    }
+    component_exchange "Targets" { from_port: "LC-001.targets" to_port: "LC-002.targets" }
+    component_exchange "Acceleration" { from_port: "LC-002.accel" to_port: "LC-003.accel" }
 }
 
 physical_architecture "ACC Physical Architecture" {
-    node "Radar ECU" {
-        id: "PN-001"
-        processor: "Infineon AURIX TC397"
-        
-        deploys "LC-001"
-    }
-    
-    node "Camera ECU" {
-        id: "PN-002"
-        processor: "Mobileye EyeQ5"
-        
-        deploys "LC-002"
-    }
-    
-    node "ADAS ECU" {
-        id: "PN-003"
-        processor: "NVIDIA Xavier"
-        
-        deploys "LC-003"
-        deploys "LC-004"
-    }
-}
-
-epbs "ACC Product Breakdown" {
-    system "Adaptive Cruise Control" {
-        id: "SYS-001"
-        
-        subsystem "Sensing Subsystem" {
-            id: "SS-001"
-            
-            item "Radar Sensor Unit" {
-                id: "ITEM-001"
-                part_number: "77GHZ-RADAR-001"
-            }
-            
-            item "Camera Module" {
-                id: "ITEM-002"
-                part_number: "CAM-FWD-001"
-            }
-        }
-        
-        subsystem "Control Subsystem" {
-            id: "SS-002"
-            
-            item "ADAS Controller" {
-                id: "ITEM-003"
-                part_number: "ADAS-ECU-001"
-            }
-        }
-    }
+    node "Radar ECU" { id: "PN-001" processor: "Infineon AURIX TC397" deploys "LC-001" }
+    node "ADAS ECU" { id: "PN-002" processor: "NVIDIA Orin" deploys "LC-002" deploys "LC-003" }
+    physical_link "Sensor CAN FD" { id: "PL-001" from: "PN-001" to: "PN-002" protocol: "CAN FD" bandwidth: 2 Mbps }
 }
 
 safety_analysis {
-    hazard "Unintended Acceleration" {
+    hazard "Unintended acceleration" {
         id: "HAZ-001"
-        description: "Vehicle accelerates when it should decelerate"
+        description: "The vehicle accelerates towards the lead vehicle"
         severity: "S3"
-        asil: "ASIL_C"
-    }
-    
-    fmea "Sensor Fusion FMEA" {
-        target: "Sensor Fusion"
-        failure_mode: "False target detection"
-        effects: "Unnecessary braking"
-        severity: "S2"
-        rpn: 36
+        exposure: "E4"
+        controllability: "C2"
+        asil: "ASIL-C"
+        mitigated_by: ["SYS-ACC-001", "SYS-ACC-003"]
     }
 }
 
-trace "LC-001" satisfies "SYS-ACC-001" {
-    rationale: "Radar provides target detection for distance control"
-}
+test_case "TC-ACC-001" { verifies: ["SYS-ACC-001"] method: "test" description: "Time gap measured on the track behind a lead vehicle" }
+test_case "TC-ACC-002" { verifies: ["SYS-ACC-002"] method: "test" description: "Cut-in detection latency on the HIL bench" }
+test_case "TC-ACC-003" { verifies: ["SYS-ACC-003"] method: "demonstration" description: "Brake pedal override demonstrated at every speed" }
 
-trace "LC-003" satisfies "SYS-ACC-002" {
-    rationale: "Sensor fusion enables reliable tracking"
-}
-
-trace "LC-004" satisfies "SYS-ACC-003" {
-    rationale: "Controller computes safe following profile"
-}
+trace "LC-001" satisfies "SYS-ACC-002" { rationale: "The radar sees the cut-in vehicle within one cycle" }
+trace "LC-002" satisfies "SYS-ACC-001" { rationale: "The controller plans the time gap" }
+trace "LC-002" satisfies "SYS-ACC-003" { rationale: "The controller releases control on the pedal signal" }
+trace "LC-003" satisfies "SYS-ACC-003" { rationale: "The brake request of the driver wins over the ACC demand" }
+trace "SF-SENSE" realizes "OA-FOLLOW"

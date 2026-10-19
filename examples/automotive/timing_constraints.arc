@@ -152,3 +152,4 @@ safety_analysis {
 }
 
 trace "LC-CTL" satisfies "REQ-LKA-001" { rationale: "The controller commands the correction" }
+trace "LC-CAM" satisfies "REQ-LKA-001" { rationale: "The camera delivers the lane model within its frame period" }

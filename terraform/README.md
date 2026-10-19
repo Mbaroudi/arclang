@@ -1,7 +1,7 @@
 # 🚀 Terraform Infrastructure - Generated from ArcLang Model
 
 **Generated**: 2025-10-21  
-**Source Model**: `examples/data_platform_migration.arc`  
+**Source Model**: `examples/business/data_platform_migration/data_platform_migration.arc`  
 **Target Platform**: Databricks + AWS  
 **Terraform Provider**: databricks/databricks v1.86+
 
@@ -475,13 +475,13 @@ If you update the ArcLang model, regenerate Terraform:
 cd /Users/malek/Arclang
 
 # Update the model
-vi examples/data_platform_migration.arc
+vi examples/business/data_platform_migration/data_platform_migration.arc
 
 # Recompile and validate
-cargo run --release -- build examples/data_platform_migration.arc
+cargo run --release -- build examples/business/data_platform_migration/data_platform_migration.arc
 
 # Regenerate Terraform
-cargo run --release -- export examples/data_platform_migration.arc \
+cargo run --release -- export examples/business/data_platform_migration/data_platform_migration.arc \
   -f terraform -o terraform/databricks_v2.tf
 
 # Review changes

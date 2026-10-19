@@ -47,8 +47,8 @@ const EXAMPLES = [
     minEdges: 2
   },
   {
-    name: 'Pluxee Analytics',
-    path: '/Users/malek/Arclang/examples/business/pluxee_analytics.arc',
+    name: 'EV charging station',
+    path: 'examples/energy/ev_charging_station.arc',
     minNodes: 2,
     minEdges: 1
   },

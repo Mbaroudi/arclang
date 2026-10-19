@@ -1,18 +1,22 @@
-// The model tree in the side bar: the elements of the active model nested
-// by ownership and grouped by Arcadia layer, from the compiler's snapshot.
-// A click reveals the declaration in the source; the context menu renames,
-// deletes, shows properties or asks the assistant.
+// The model tree in the side bar: the diagrams of the active model, then its
+// elements nested by ownership and grouped by Arcadia layer, from the
+// compiler's snapshot. A click selects the element in the views and the
+// text; a double-click opens the diagram that draws it; the context menu
+// renames, deletes, goes to the source or asks the assistant.
 import * as vscode from 'vscode';
-import { ElementRecord, elementLabel, Metamodel, Snapshot, TreeNode, treeByLayer } from '../pure/workbench';
+import { ElementRecord, elementLabel, Metamodel, Snapshot, TreeNode, treeByLayer, ViewerGraph } from '../pure/workbench';
 import { metamodelJson, onDidChangeSnapshot, snapshotOf } from './snapshot';
 import { isModelDocument } from './source';
 
 export type ModelItem =
+  | { type: 'diagrams'; uri: vscode.Uri; graphs: ViewerGraph[] }
+  | { type: 'diagram'; uri: vscode.Uri; graph: ViewerGraph }
   | { type: 'layer'; layer: string; label: string; roots: TreeNode[]; uri: vscode.Uri }
-  | { type: 'element'; node: TreeNode; uri: vscode.Uri }
+  | { type: 'element'; node: TreeNode; uri: vscode.Uri; parent: ModelItem }
   | { type: 'message'; text: string };
 
 const ICONS: Record<string, string> = {
+  Model: 'file',
   Operational: 'organization',
   System: 'symbol-method',
   Logical: 'symbol-class',
@@ -57,11 +61,26 @@ const KIND_ICONS: Record<string, string> = {
   Type: 'symbol-ruler',
 };
 
+/** The viewpoints in method order, with their names. */
+const VIEW_NAMES: Record<string, string> = {
+  oab: 'Operational',
+  sab: 'System',
+  lab: 'Logical',
+  pab: 'Physical',
+  cap: 'Capabilities',
+  cdb: 'Data',
+  pbs: 'Product breakdown',
+  msm: 'Modes and states',
+  es: 'Scenarios',
+};
+
 export class ModelTreeProvider implements vscode.TreeDataProvider<ModelItem> {
   private readonly changed = new vscode.EventEmitter<ModelItem | undefined>();
   readonly onDidChangeTreeData = this.changed.event;
   private document: vscode.TextDocument | null = null;
   private metamodel: Metamodel | null = null;
+  /** The items of the last build, by element uuid, so the tree can reveal one. */
+  private items = new Map<string, Extract<ModelItem, { type: 'element' }>>();
 
   constructor(context: vscode.ExtensionContext) {
     context.subscriptions.push(
@@ -94,6 +113,7 @@ export class ModelTreeProvider implements vscode.TreeDataProvider<ModelItem> {
   follow(document: vscode.TextDocument): void {
     if (this.document && this.document.uri.toString() === document.uri.toString()) return;
     this.document = document;
+    this.items.clear();
     this.changed.fire(undefined);
   }
 
@@ -101,31 +121,63 @@ export class ModelTreeProvider implements vscode.TreeDataProvider<ModelItem> {
     this.changed.fire(undefined);
   }
 
+  /** The tree item of an element, once the tree has built it. */
+  itemOf(uuid: string): Extract<ModelItem, { type: 'element' }> | undefined {
+    return this.items.get(uuid);
+  }
+
+  getParent(item: ModelItem): ModelItem | undefined {
+    return item.type === 'element' ? item.parent : undefined;
+  }
+
   getTreeItem(item: ModelItem): vscode.TreeItem {
-    if (item.type === 'message') {
-      const tree = new vscode.TreeItem(item.text, vscode.TreeItemCollapsibleState.None);
-      tree.iconPath = new vscode.ThemeIcon('info');
-      return tree;
+    switch (item.type) {
+      case 'message': {
+        const tree = new vscode.TreeItem(item.text, vscode.TreeItemCollapsibleState.None);
+        tree.iconPath = new vscode.ThemeIcon('info');
+        return tree;
+      }
+      case 'diagrams': {
+        const tree = new vscode.TreeItem('Diagrams', vscode.TreeItemCollapsibleState.Collapsed);
+        tree.iconPath = new vscode.ThemeIcon('type-hierarchy');
+        tree.description = `${item.graphs.length}`;
+        tree.contextValue = 'arclang.diagrams';
+        return tree;
+      }
+      case 'diagram': {
+        const view = item.graph.arc.view;
+        const tree = new vscode.TreeItem(item.graph.arc.title, vscode.TreeItemCollapsibleState.None);
+        tree.description = VIEW_NAMES[view] ?? view;
+        tree.iconPath = new vscode.ThemeIcon('graph');
+        tree.contextValue = 'arclang.diagram';
+        tree.command = { command: 'arclang.openDiagram', title: 'Open the diagram', arguments: [item] };
+        return tree;
+      }
+      case 'layer': {
+        const tree = new vscode.TreeItem(item.label, item.layer === 'Model' ? vscode.TreeItemCollapsibleState.None : vscode.TreeItemCollapsibleState.Expanded);
+        tree.iconPath = new vscode.ThemeIcon(ICONS[item.layer] ?? 'folder');
+        tree.contextValue = 'arclang.layer';
+        tree.description = item.layer === 'Model' ? '' : `${countNodes(item.roots)}`;
+        if (item.layer === 'Model' && item.roots[0]) {
+          tree.command = { command: 'arclang.model.select', title: 'Select', arguments: [{ type: 'element', node: item.roots[0], uri: item.uri, parent: item }] };
+        }
+        return tree;
+      }
+      case 'element': {
+        const element = item.node.element;
+        const tree = new vscode.TreeItem(
+          element.name || element.id,
+          item.node.children.length > 0 ? vscode.TreeItemCollapsibleState.Collapsed : vscode.TreeItemCollapsibleState.None,
+        );
+        tree.id = `${item.uri.toString()}#${element.uuid}`;
+        tree.description = element.name && element.name !== element.id ? element.id : element.kind;
+        tree.tooltip = new vscode.MarkdownString(`**${element.kind}** \`${element.id}\`\n\n${String(element.attributes.description ?? '')}`);
+        tree.iconPath = new vscode.ThemeIcon(KIND_ICONS[element.kind] ?? 'symbol-misc');
+        tree.contextValue = 'arclang.element';
+        tree.command = { command: 'arclang.model.select', title: 'Select', arguments: [item] };
+        return tree;
+      }
     }
-    if (item.type === 'layer') {
-      const tree = new vscode.TreeItem(item.label, vscode.TreeItemCollapsibleState.Expanded);
-      tree.iconPath = new vscode.ThemeIcon(ICONS[item.layer] ?? 'folder');
-      tree.contextValue = 'arclang.layer';
-      tree.description = `${countNodes(item.roots)}`;
-      return tree;
-    }
-    const element = item.node.element;
-    const tree = new vscode.TreeItem(
-      element.name || element.id,
-      item.node.children.length > 0 ? vscode.TreeItemCollapsibleState.Collapsed : vscode.TreeItemCollapsibleState.None,
-    );
-    tree.id = `${item.uri.toString()}#${element.uuid}`;
-    tree.description = element.name && element.name !== element.id ? element.id : element.kind;
-    tree.tooltip = new vscode.MarkdownString(`**${element.kind}** \`${element.id}\`\n\n${String(element.attributes.description ?? '')}`);
-    tree.iconPath = new vscode.ThemeIcon(KIND_ICONS[element.kind] ?? 'symbol-misc');
-    tree.contextValue = 'arclang.element';
-    tree.command = { command: 'arclang.model.reveal', title: 'Go to source', arguments: [item] };
-    return tree;
   }
 
   async getChildren(item?: ModelItem): Promise<ModelItem[]> {
@@ -138,17 +190,26 @@ export class ModelTreeProvider implements vscode.TreeDataProvider<ModelItem> {
         return [{ type: 'message', text: `No model: ${firstLine(reason)}` }];
       }
       const uri = this.document.uri;
-      return treeByLayer(snapshot.elements.elements, this.metamodel).map((group) => ({
+      this.items.clear();
+      const graphs = snapshot.diagrams?.graphs ?? [];
+      const layers: ModelItem[] = treeByLayer(snapshot.elements.elements, this.metamodel).map((group) => ({
         type: 'layer' as const,
         layer: group.layer,
         label: group.label,
         roots: group.roots,
         uri,
       }));
+      return graphs.length ? [{ type: 'diagrams', uri, graphs }, ...layers] : layers;
     }
-    if (item.type === 'layer') return item.roots.map((node) => ({ type: 'element' as const, node, uri: this.document!.uri }));
-    if (item.type === 'element') return item.node.children.map((node) => ({ type: 'element' as const, node, uri: item.uri }));
+    if (item.type === 'diagrams') return item.graphs.map((graph) => ({ type: 'diagram' as const, uri: item.uri, graph }));
+    if (item.type === 'layer') return item.roots.map((node) => this.remember({ type: 'element' as const, node, uri: item.uri, parent: item }));
+    if (item.type === 'element') return item.node.children.map((node) => this.remember({ type: 'element' as const, node, uri: item.uri, parent: item }));
     return [];
+  }
+
+  private remember(item: Extract<ModelItem, { type: 'element' }>): Extract<ModelItem, { type: 'element' }> {
+    this.items.set(item.node.element.uuid, item);
+    return item;
   }
 
   /** The element records of the shown model, for commands. */
@@ -181,6 +242,12 @@ async function documentSymbols(uri: vscode.Uri): Promise<vscode.DocumentSymbol[]
   return flat;
 }
 
+/** The id a symbol's detail carries (`component LC-001`), when it writes one. */
+function symbolId(symbol: vscode.DocumentSymbol): string | null {
+  const at = symbol.detail.indexOf(' ');
+  return at > 0 ? symbol.detail.slice(at + 1) : null;
+}
+
 /** The range of an element's declaration in its document, when the server or the text knows it. */
 export async function locateElement(document: vscode.TextDocument, element: Pick<ElementRecord, 'id' | 'name'>): Promise<vscode.Range | null> {
   const symbols = await documentSymbols(document.uri);
@@ -189,8 +256,8 @@ export async function locateElement(document: vscode.TextDocument, element: Pick
   const found = symbols.find(matches);
   if (found) return found.selectionRange ?? found.range;
   // Without a symbol: the first line that spells the id or the name in quotes.
-  const text = document.getText();
   // ArcLang quotes with ", the SysML v2 export writes <'id'> and 'name'.
+  const text = document.getText();
   for (const needle of [`"${element.id}"`, `<'${element.id}'>`, `"${element.name}"`, `'${element.name}'`, element.id]) {
     const at = needle ? text.indexOf(needle) : -1;
     if (at >= 0) return new vscode.Range(document.positionAt(at), document.positionAt(at + needle.length));
@@ -199,14 +266,18 @@ export async function locateElement(document: vscode.TextDocument, element: Pick
 }
 
 /** Show the element's declaration in a text editor beside the views. */
-export async function revealElement(document: vscode.TextDocument, element: Pick<ElementRecord, 'id' | 'name'>): Promise<boolean> {
+export async function revealElement(
+  document: vscode.TextDocument,
+  element: Pick<ElementRecord, 'id' | 'name'>,
+  options: { preserveFocus?: boolean } = {},
+): Promise<boolean> {
   const range = await locateElement(document, element);
   if (!range) {
     vscode.window.setStatusBarMessage(`ArcLang: ${elementLabel({ ...element, kind: '' })} is not declared in this file (it may come from an import)`, 4000);
     return false;
   }
   const column = vscode.window.visibleTextEditors.find((e) => e.document.uri.toString() === document.uri.toString())?.viewColumn ?? vscode.ViewColumn.One;
-  const editor = await vscode.window.showTextDocument(document, { viewColumn: column, preserveFocus: false, preview: false });
+  const editor = await vscode.window.showTextDocument(document, { viewColumn: column, preserveFocus: options.preserveFocus ?? false, preview: false });
   editor.selection = new vscode.Selection(range.start, range.end);
   editor.revealRange(range, vscode.TextEditorRevealType.InCenterIfOutsideViewport);
   return true;
@@ -223,11 +294,29 @@ export async function elementAt(document: vscode.TextDocument, position: vscode.
     const found = elements.find((e) => e.id === symbol.name || e.name === symbol.name || (id !== null && e.id === id));
     if (found) return found;
   }
+  if (symbols.length > 0) return null;
+  // Without a language server (SysML v2 text): the nearest declaration above
+  // the cursor that spells an id `<'ID'>` or a name `'Name'` of the model.
+  const byId = new Map(elements.map((e) => [e.id, e]));
+  const byName = new Map(elements.map((e) => [e.name, e]));
+  for (let line = position.line; line >= 0 && line > position.line - 400; line--) {
+    const text = document.lineAt(line).text;
+    for (const match of text.matchAll(/<'([^']+)'>/g)) {
+      const found = byId.get(match[1]);
+      if (found) return found;
+    }
+    for (const match of text.matchAll(/\b(?:part|port|action|item|attribute|requirement|state|package|connection|interface|flow|allocation|use case|occurrence)\s+(?:def\s+)?(?:<'[^']+'>\s+)?(?:'([^']+)'|([A-Za-z_][A-Za-z0-9_]*))/g)) {
+      const found = byName.get(match[1] ?? match[2]) ?? byId.get(match[1] ?? match[2]);
+      if (found) return found;
+    }
+  }
   return null;
 }
 
-/** The id a symbol's detail carries (`component LC-001`), when it writes one. */
-function symbolId(symbol: vscode.DocumentSymbol): string | null {
-  const at = symbol.detail.indexOf(' ');
-  return at > 0 ? symbol.detail.slice(at + 1) : null;
+/** The graphs that draw an element, by its id (nodes, ports, lifelines). */
+export function graphsDrawing(graphs: ViewerGraph[], element: Pick<ElementRecord, 'id'>): ViewerGraph[] {
+  const wanted = new Set([element.id, element.id.replace(/\.([^.]+)$/, '::$1')]);
+  const walk = (nodes: ViewerGraph['children']): boolean =>
+    (nodes ?? []).some((node) => wanted.has(node.id) || node.id.endsWith(`.${element.id}`) || (node.ports ?? []).some((p) => wanted.has(p.id)) || walk(node.children));
+  return graphs.filter((graph) => walk(graph.children));
 }
