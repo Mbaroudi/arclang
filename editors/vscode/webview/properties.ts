@@ -111,7 +111,8 @@ export class Properties {
     return found?.values ?? [];
   }
 
-  private rename(): void {
+  /** Rename the shown element (F2 on the canvas opens the same field). */
+  rename(): void {
     const element = this.element;
     if (!element) return;
     void inlinePrompt(this.root, `Rename ${element.name || element.id}`, element.name, 'new name').then((name) => {

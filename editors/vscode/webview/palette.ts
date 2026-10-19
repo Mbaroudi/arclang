@@ -10,8 +10,10 @@ export interface PaletteHost {
   selected: () => { id: string; kind: string } | null;
   /** Send a gesture to the compiler. */
   submit: (requests: EditRequest[], label: string) => void;
-  /** Tell the user what the palette waits for. */
+  /** Tell the user what the palette waits for (the mode chip on the canvas). */
   hint: (text: string) => void;
+  /** Where prompts open: on the canvas, near the user's eyes, not in the rail. */
+  anchor: () => HTMLElement;
 }
 
 export class Palette {
@@ -20,6 +22,8 @@ export class Palette {
   private graphContainer: string | null = null;
   private armed: Tool | null = null;
   private firstEnd: ConnectEnd | null = null;
+  private compact = false;
+  private tools: Tool[] = [];
 
   constructor(host: HTMLElement, private readonly owner: PaletteHost) {
     this.root = el('div', { class: 'wb-palette' });
@@ -30,15 +34,26 @@ export class Palette {
   show(view: string, graphContainer: string | null = null): void {
     this.view = view;
     this.graphContainer = graphContainer;
+    this.tools = toolsFor(view);
     this.disarm();
+    this.render();
+  }
+
+  /** The rail shows icons only when compact, icons and labels otherwise. */
+  setCompact(compact: boolean): void {
+    this.compact = compact;
+    this.root.classList.toggle('is-compact', compact);
+    this.render();
+  }
+
+  private render(): void {
     clear(this.root);
-    const tools = toolsFor(view);
-    if (tools.length === 0) {
-      this.root.appendChild(el('p', { class: 'wb-muted', text: 'This view is drawn from the model; edit it in the source or with the properties.' }));
+    if (this.tools.length === 0) {
+      if (!this.compact) this.root.appendChild(el('p', { class: 'wb-muted', text: 'This view is drawn from the model; edit it in the source or with the properties.' }));
       return;
     }
-    const creates = tools.filter((t) => t.kind === 'create');
-    const connects = tools.filter((t) => t.kind === 'connect');
+    const creates = this.tools.filter((t) => t.kind === 'create');
+    const connects = this.tools.filter((t) => t.kind === 'connect');
     if (creates.length) this.root.appendChild(this.section('Create', creates));
     if (connects.length) this.root.appendChild(this.section('Connect', connects));
   }
@@ -56,7 +71,7 @@ export class Palette {
     const tool = this.armed;
     this.firstEnd = null;
     const ask = tool.connect === 'transition' ? 'guard (optional)' : tool.connect === 'message' ? 'text of the message' : 'name of the exchange';
-    void inlinePrompt(this.root, `${tool.label}`, '', ask).then((name) => {
+    void inlinePrompt(this.owner.anchor(), `${tool.label}`, '', ask).then((name) => {
       if (name === null) return this.disarm();
       const plan = connectPlan(tool, from, end, name, this.view, this.graphContainer);
       if ('error' in plan) {
@@ -72,14 +87,18 @@ export class Palette {
   disarm(): void {
     this.armed = null;
     this.firstEnd = null;
-    for (const node of this.root.querySelectorAll('.is-armed')) node.classList.remove('is-armed');
+    for (const node of this.root.querySelectorAll('.is-armed')) {
+      node.classList.remove('is-armed');
+      node.removeAttribute('aria-pressed');
+    }
     this.owner.hint('');
   }
 
   private section(title: string, tools: Tool[]): HTMLElement {
     const list = el('div', { class: 'wb-tools' });
     for (const tool of tools) {
-      const node = button(tool.label, () => this.use(tool, node), { class: 'wb-tool', title: toolTitle(tool) });
+      const node = button('', () => this.use(tool, node), { class: `wb-tool is-${tool.kind}`, title: `${tool.label}: ${toolTitle(tool)}`, 'aria-label': tool.label });
+      node.append(el('span', { class: 'wb-tool-glyph', text: glyphOf(tool) }), el('span', { class: 'wb-tool-label', text: tool.label }));
       list.appendChild(node);
     }
     return el('section', { class: 'wb-palette-section' }, [el('h3', { text: title }), list]);
@@ -91,13 +110,14 @@ export class Palette {
       this.disarm();
       this.armed = tool;
       node.classList.add('is-armed');
-      this.owner.hint(`${tool.label}: click the source element`);
+      node.setAttribute('aria-pressed', 'true');
+      this.owner.hint(`${tool.label}: click the source element, then the target. Esc cancels.`);
       return;
     }
     const selected = this.owner.selected();
     const where =
       selected && tool.containerKinds?.includes(selected.kind) ? `inside ${selected.id}` : tool.inGraph ? `in ${this.graphContainer ?? 'this diagram'}` : tool.topLevel ? 'at the top level' : 'in the layer';
-    void inlinePrompt(this.root, `New ${tool.label.toLowerCase()} ${where}`, '', 'name').then((name) => {
+    void inlinePrompt(this.owner.anchor(), `New ${tool.label.toLowerCase()} ${where}`, '', 'name').then((name) => {
       if (name === null) return;
       const request = createRequest(tool, { view: this.view, name, selected, graphContainer: this.graphContainer });
       if ('error' in request) return this.owner.hint(request.error);
@@ -111,4 +131,40 @@ function toolTitle(tool: Tool): string {
   if (tool.needsContainer) return `Declared inside the selected ${(tool.containerKinds ?? []).join(' or ')}`;
   if (tool.containerKinds?.length) return `Declared inside the selected ${tool.containerKinds.join(' or ')}, else in the layer`;
   return tool.topLevel ? 'Declared at the top level of the file' : 'Declared in the layer of this view';
+}
+
+/** A two-letter glyph per tool, until the viewer's own icons are reused. */
+function glyphOf(tool: Tool): string {
+  const glyphs: Record<string, string> = {
+    actor: '☺',
+    entity: '▣',
+    activity: '⚙',
+    operational_capability: '★',
+    function: 'ƒ',
+    component: '▭',
+    node: '▤',
+    behavior_component: '▦',
+    hardware_component: '▧',
+    port_in: '▸',
+    port_out: '▹',
+    interface: '◇',
+    mission: '◎',
+    capability: '★',
+    functional_chain: '⛓',
+    state: '◯',
+    mode: '◉',
+    class: '▥',
+    enumeration: '≡',
+    data_type: '#',
+    exchange_item: '✉',
+    interaction: '→',
+    functional_exchange: '⇢',
+    component_exchange: '⇒',
+    physical_link: '═',
+    physical_exchange: '⇉',
+    transition: '↷',
+    message: '✉',
+    association: '—',
+  };
+  return glyphs[tool.id] ?? tool.label.slice(0, 1);
 }
