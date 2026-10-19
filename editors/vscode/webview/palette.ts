@@ -17,6 +17,7 @@ export interface PaletteHost {
 export class Palette {
   private readonly root: HTMLElement;
   private view = '';
+  private graphContainer: string | null = null;
   private armed: Tool | null = null;
   private firstEnd: ConnectEnd | null = null;
 
@@ -26,8 +27,9 @@ export class Palette {
   }
 
   /** Redraw for a view (oab, sab, lab, pab, cdb...). */
-  show(view: string): void {
+  show(view: string, graphContainer: string | null = null): void {
     this.view = view;
+    this.graphContainer = graphContainer;
     this.disarm();
     clear(this.root);
     const tools = toolsFor(view);
@@ -53,9 +55,10 @@ export class Palette {
     const from = this.firstEnd;
     const tool = this.armed;
     this.firstEnd = null;
-    void inlinePrompt(this.root, `${tool.label} name`, '', 'name of the exchange').then((name) => {
+    const ask = tool.connect === 'transition' ? 'guard (optional)' : tool.connect === 'message' ? 'text of the message' : 'name of the exchange';
+    void inlinePrompt(this.root, `${tool.label}`, '', ask).then((name) => {
       if (name === null) return this.disarm();
-      const plan = connectPlan(tool, from, end, name, this.view);
+      const plan = connectPlan(tool, from, end, name, this.view, this.graphContainer);
       if ('error' in plan) {
         this.owner.hint(plan.error);
         return this.disarm();
@@ -92,10 +95,11 @@ export class Palette {
       return;
     }
     const selected = this.owner.selected();
-    const where = selected && tool.containerKinds?.includes(selected.kind) ? `inside ${selected.id}` : tool.topLevel ? 'at the top level' : 'in the layer';
+    const where =
+      selected && tool.containerKinds?.includes(selected.kind) ? `inside ${selected.id}` : tool.inGraph ? `in ${this.graphContainer ?? 'this diagram'}` : tool.topLevel ? 'at the top level' : 'in the layer';
     void inlinePrompt(this.root, `New ${tool.label.toLowerCase()} ${where}`, '', 'name').then((name) => {
       if (name === null) return;
-      const request = createRequest(tool, { view: this.view, name, selected });
+      const request = createRequest(tool, { view: this.view, name, selected, graphContainer: this.graphContainer });
       if ('error' in request) return this.owner.hint(request.error);
       this.owner.submit([request], `${tool.label} ${name}`);
     });

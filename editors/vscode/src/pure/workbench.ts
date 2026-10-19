@@ -353,6 +353,8 @@ export interface Tool {
   needsContainer?: boolean;
   /** create: declared at the top level of the file (data model). */
   topLevel?: boolean;
+  /** create: declared inside the element the diagram is about (a state machine, a scenario). */
+  inGraph?: boolean;
   /** connect: the keyword of the relationship and how its ends are written. */
   connect?: 'interaction' | 'functional_exchange' | 'component_exchange' | 'physical_link' | 'physical_exchange' | 'association' | 'transition' | 'message';
   /** connect: the kinds the two ends may have. */
@@ -406,6 +408,12 @@ export const PALETTE: Record<string, Tool[]> = {
     { id: 'mission', label: 'Mission', kind: 'create', keyword: 'mission' },
     { id: 'capability', label: 'Capability', kind: 'create', keyword: 'capability' },
   ],
+  msm: [
+    { id: 'state', label: 'State', kind: 'create', keyword: 'state', inGraph: true, containerKinds: ['State'] },
+    { id: 'mode', label: 'Mode', kind: 'create', keyword: 'mode', inGraph: true, containerKinds: ['State'] },
+    { id: 'transition', label: 'Transition', kind: 'connect', connect: 'transition', endKinds: ['State'] },
+  ],
+  es: [{ id: 'message', label: 'Message', kind: 'connect', connect: 'message' }],
   cdb: [
     { id: 'class', label: 'Class', kind: 'create', keyword: 'class', topLevel: true },
     { id: 'enumeration', label: 'Enumeration', kind: 'create', keyword: 'enumeration', topLevel: true },
@@ -425,6 +433,8 @@ export interface CreateContext {
   name: string;
   /** The element clicked, if any, with its kind. */
   selected?: { id: string; kind: string } | null;
+  /** The element the diagram is about (the state machine of an msm view, the scenario of an es view). */
+  graphContainer?: string | null;
 }
 
 /** Where a created element goes: inside the selected element, in the layer, or at the top. */
@@ -437,6 +447,10 @@ export function createRequest(tool: Tool, context: CreateContext): EditRequest |
     return { error: `${tool.label}: select ${(tool.containerKinds ?? []).join(', ')} first` };
   }
   if (container) return { op: 'add', keyword: tool.keyword, name, container };
+  if (tool.inGraph) {
+    if (!context.graphContainer) return { error: `${tool.label}: this diagram is not about one state machine or scenario` };
+    return { op: 'add', keyword: tool.keyword, name, container: context.graphContainer };
+  }
   if (tool.topLevel) return { op: 'add', keyword: tool.keyword, name, top_level: true };
   const layer = LAYER_OF_VIEW[context.view];
   if (!layer) return { error: `${tool.label}: no layer for the ${context.view} view` };
@@ -468,9 +482,9 @@ export function portNameFrom(name: string): string {
  * go through ports, created when the ends are not ports already; links and
  * interactions name the elements directly. Applied in order on one text.
  */
-export function connectPlan(tool: Tool, from: ConnectEnd, to: ConnectEnd, name: string, view: string): EditRequest[] | { error: string } {
+export function connectPlan(tool: Tool, from: ConnectEnd, to: ConnectEnd, name: string, view: string, graphContainer?: string | null): EditRequest[] | { error: string } {
   const label = name.trim();
-  if (!label) return { error: 'a name is needed' };
+  if (!label && tool.connect !== 'transition') return { error: 'a name is needed' };
   if (tool.endKinds && (!tool.endKinds.includes(from.kind) || !tool.endKinds.includes(to.kind))) {
     return { error: `${tool.label} connects ${tool.endKinds.join(', ')}; not ${from.kind} to ${to.kind}` };
   }
@@ -506,9 +520,43 @@ export function connectPlan(tool: Tool, from: ConnectEnd, to: ConnectEnd, name: 
       return direct('physical_link');
     case 'association':
       return [{ op: 'add_raw', declaration: `association ${quoted} {\n  from: ${stringLiteral(from.id)}\n  to: ${stringLiteral(to.id)}\n}`, top_level: true }];
+    case 'transition': {
+      // States are declared inside their machine: `transition Off -> Armed { guard: "..." }`.
+      if (!graphContainer) return { error: 'a transition is drawn in the diagram of one state machine' };
+      const guard = label ? ` guard: ${quoted} ` : ' ';
+      const declaration = `transition ${bareOrQuoted(localName(from.id, graphContainer))} -> ${bareOrQuoted(localName(to.id, graphContainer))} {${guard}}`;
+      return [{ op: 'add_raw', declaration, container: graphContainer }];
+    }
+    case 'message': {
+      if (!graphContainer) return { error: 'a message is drawn in the diagram of one scenario' };
+      const declaration = `message ${stringLiteral(from.id)} -> ${stringLiteral(to.id)} ${quoted}`;
+      return [{ op: 'add_raw', declaration, container: graphContainer }];
+    }
     default:
       return { error: `${tool.label} connects nothing` };
   }
+}
+
+/** The part of an id after its owner's prefix (`LKA modes.Off` in `LKA modes` is `Off`). */
+export function localName(id: string, owner: string): string {
+  return id.startsWith(`${owner}.`) ? id.slice(owner.length + 1) : id;
+}
+
+/** A name written bare when it is an identifier, quoted otherwise. */
+export function bareOrQuoted(name: string): string {
+  return /^[A-Za-z_][A-Za-z0-9_]*$/.test(name) ? name : stringLiteral(name);
+}
+
+/** The element a lifeline of a scenario stands for (`Lane departure.LC-CAM` is `LC-CAM`). */
+export function lifelineElement(nodeId: string, scenario: string | null): string {
+  return scenario ? localName(nodeId, scenario) : nodeId;
+}
+
+/** The element a diagram is about, from its graph id (`msm:LKA modes`, `es:Lane departure`). */
+export function graphContainerOf(graphId: string, view: string): string | null {
+  if (view !== 'msm' && view !== 'es') return null;
+  const at = graphId.indexOf(':');
+  return at > 0 ? graphId.slice(at + 1) : null;
 }
 
 /** The kinds that are functions, for the palette's own checks. */

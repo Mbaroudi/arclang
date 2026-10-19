@@ -2,7 +2,7 @@
 // properties and the semantic browser on the right, problems at the bottom.
 // Everything shown comes from the last snapshot the host sent; every change
 // goes back to the host as `arclang edit` requests.
-import { EditRequest, ElementRecord, Finding, Metamodel, Snapshot, ToWebview } from '../src/pure/workbench';
+import { EditRequest, ElementRecord, Finding, graphContainerOf, lifelineElement, Metamodel, Snapshot, ToWebview } from '../src/pure/workbench';
 import { SemanticBrowser } from './browser';
 import { button, clear, el } from './dom';
 import type { ViewerApi, ViewerPosition, ViewerSelection } from './globals';
@@ -103,6 +103,14 @@ function elementFor(selection: ViewerSelection | null): ElementRecord | null {
   const id = modelId(selection.id);
   const found = records.find((e) => e.id === id) ?? records.find((e) => e.name === selection.name);
   if (found) return found;
+  // A lifeline of a scenario stands for its participant.
+  const current = state.viewer?.current?.();
+  const graph = state.snapshot.diagrams?.graphs.find((g) => g.id === current?.view);
+  if (graph) {
+    const participant = lifelineElement(id, graphContainerOf(graph.id, graph.arc.view));
+    const byParticipant = records.find((e) => e.id === participant);
+    if (byParticipant) return byParticipant;
+  }
   // An edge is drawn for a relationship (`ce:LaneFlow`): the model lists it by name.
   const bare = selection.id.replace(/^[a-z]+:/, '');
   return records.find((e) => e.name === bare || e.id === bare) ?? null;
@@ -175,7 +183,7 @@ function mount(snapshot: Snapshot): void {
 function refreshPalette(): void {
   const current = state.viewer?.current?.();
   const graph = state.snapshot?.diagrams?.graphs.find((g) => g.id === current?.view);
-  palette.show(graph?.arc.view ?? '');
+  palette.show(graph?.arc.view ?? '', graph ? graphContainerOf(graph.id, graph.arc.view) : null);
 }
 
 // --- Problems ---------------------------------------------------------------

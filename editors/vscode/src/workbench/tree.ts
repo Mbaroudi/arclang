@@ -223,6 +223,22 @@ export async function elementAt(document: vscode.TextDocument, position: vscode.
     const found = elements.find((e) => e.id === symbol.name || e.name === symbol.name || (id !== null && e.id === id));
     if (found) return found;
   }
+  if (symbols.length > 0) return null;
+  // Without a language server (SysML v2 text): the nearest declaration above
+  // the cursor that spells an id `<'ID'>` or a name `'Name'` of the model.
+  const byId = new Map(elements.map((e) => [e.id, e]));
+  const byName = new Map(elements.map((e) => [e.name, e]));
+  for (let line = position.line; line >= 0 && line > position.line - 400; line--) {
+    const text = document.lineAt(line).text;
+    for (const match of text.matchAll(/<'([^']+)'>/g)) {
+      const found = byId.get(match[1]);
+      if (found) return found;
+    }
+    for (const match of text.matchAll(/\b(?:part|port|action|item|attribute|requirement|state|package|connection|interface|flow|allocation|use case|occurrence)\s+(?:def\s+)?(?:<'[^']+'>\s+)?(?:'([^']+)'|([A-Za-z_][A-Za-z0-9_]*))/g)) {
+      const found = byName.get(match[1] ?? match[2]) ?? byId.get(match[1] ?? match[2]);
+      if (found) return found;
+    }
+  }
   return null;
 }
 
