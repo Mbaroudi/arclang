@@ -36,6 +36,19 @@
     // Layout key -> { node id: { dx, dy } }: a placement belongs to one
     // layout, so each fold or open container has its own.
     const places = new Map();
+    // Layout key -> { edge id: [{ x, y }] }: the exchanges bent by hand.
+    const routes = new Map();
+    const edges = new Map(graphs.map((graph) => {
+      const ids = new Set();
+      const walk = (holder) => {
+        for (const edge of holder.edges || []) ids.add(edge.id);
+        (holder.children || []).forEach(walk);
+      };
+      walk(graph);
+      return [graph.id, ids];
+    }));
+    const isPoint = (point) => Boolean(point) && Number.isFinite(point.x) && Number.isFinite(point.y) && Math.abs(point.x) <= 100000 && Math.abs(point.y) <= 100000;
+    const isRoute = (points) => Array.isArray(points) && points.length > 0 && points.every(isPoint);
     const nodes = new Map(graphs.map((graph) => {
       const ids = new Set();
       const walk = (node) => {
@@ -76,10 +89,15 @@
         const scope = scopes.get(id);
         if (scope.folded.size > 0 || scope.focus) views[id] = { folded: [...scope.folded].sort(), open: scope.focus };
       }
-      const arrangements = [...places.keys()].sort().map((key) => {
+      const keys = [...new Set([...places.keys(), ...routes.keys()])].sort();
+      const arrangements = keys.map((key) => {
         const [view, open, ...folded] = JSON.parse(key);
-        const placed = places.get(key);
-        return { view, open, folded, places: Object.fromEntries(Object.keys(placed).sort().map((node) => [node, placed[node]])) };
+        const placed = places.get(key) || {};
+        const bent = routes.get(key);
+        const entry = { view, open, folded, places: Object.fromEntries(Object.keys(placed).sort().map((node) => [node, placed[node]])) };
+        // Written only when an exchange was bent: files without bends stay as they were.
+        if (bent) entry.edges = Object.fromEntries(Object.keys(bent).sort().map((edge) => [edge, { points: bent[edge] }]));
+        return entry;
       });
       return { arclang_layout: LAYOUT_VERSION, views, arrangements };
     }
@@ -88,6 +106,7 @@
     function load(file) {
       scopes.clear();
       places.clear();
+      routes.clear();
       const own = (object, key) => (object && typeof object === 'object' && Object.prototype.hasOwnProperty.call(object, key) ? object[key] : undefined);
       const containersIn = (id, list) => (Array.isArray(list) ? list.filter((node) => isContainer(id, node)) : []);
       const views = own(file, 'views');
@@ -101,8 +120,8 @@
       const arrangements = own(file, 'arrangements');
       for (const entry of Array.isArray(arrangements) ? arrangements : []) {
         const view = own(entry, 'view');
-        const placed = own(entry, 'places');
-        if (!nodes.has(view) || !placed || typeof placed !== 'object') continue;
+        const placed = own(entry, 'places') || {};
+        if (!nodes.has(view) || typeof placed !== 'object') continue;
         const open = own(entry, 'open');
         if (open && !isContainer(view, open)) continue; // made in a container that is gone
         const kept = {};
@@ -111,6 +130,13 @@
         }
         const key = keyOf(view, { focus: open || null, folded: new Set(containersIn(view, entry.folded)) });
         if (Object.keys(kept).length > 0) places.set(key, kept);
+        const bent = own(entry, 'edges');
+        const keptRoutes = {};
+        for (const edge of bent && typeof bent === 'object' ? Object.keys(bent) : []) {
+          const points = own(bent[edge], 'points');
+          if (edge !== '__proto__' && edges.get(view).has(edge) && isRoute(points)) keptRoutes[edge] = points.map(({ x, y }) => ({ x, y }));
+        }
+        if (Object.keys(keptRoutes).length > 0) routes.set(key, keptRoutes);
       }
     }
 
@@ -203,6 +229,21 @@
       },
       resetPlaces(id) {
         places.delete(keyOf(id, of(id)));
+        routes.delete(keyOf(id, of(id)));
+        remember();
+      },
+      /** The points an exchange of the layout on screen was bent through, [] when none. */
+      routeOf: (id, edge, scope = of(id)) => ((routes.get(keyOf(id, scope)) || {})[edge] || []).map(({ x, y }) => ({ x, y })),
+      /** Where the reader bent exchanges in a layout: { edge id: [{ x, y }] }. */
+      routesOf: (id, scope = of(id)) => ({ ...(routes.get(keyOf(id, scope)) || {}) }),
+      /** Bend an exchange of the layout on screen through `points`; none (or []) straightens it. */
+      setRoute(id, edge, points) {
+        if (!edges.has(id) || !edges.get(id).has(edge)) return;
+        const key = keyOf(id, of(id));
+        const { [edge]: was, ...others } = routes.get(key) || {};
+        const next = isRoute(points) ? { ...others, [edge]: points.map(({ x, y }) => ({ x, y })) } : others;
+        if (Object.keys(next).length > 0) routes.set(key, next);
+        else routes.delete(key);
         remember();
       },
       setFolded(id, folded) {

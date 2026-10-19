@@ -107,6 +107,17 @@
    *             where it was let go.
    *   onLayout: (layout file) => void, whenever the arrangement (places,
    *             folds, open containers) changes: the host keeps it.
+   *   edit:     a host that edits the model from the drawing (with
+   *             deps.edit, ArcVizEdit): { onEdit({ view, id, isEdge }) ->
+   *             true when a double-click edits the box or exchange;
+   *             onReconnect({ view, edge, end, to }) when an end of the
+   *             selected exchange is dragged to another box or port, and
+   *             reconnectTargets({ view, edge, end }) -> ids | null, the ends
+   *             it may move to; onMarquee({ view, ids, additive }) after a
+   *             drag on the empty sheet; onQuick({ view, id, side }) when an
+   *             arrow on the side of a box is tapped (dragged, it connects
+   *             through onConnect); bends: true to bend exchanges by their
+   *             middle, kept in the layout; snap: true for smart guides }.
    */
   function mount(host, payload, deps, options) {
     const graphs = payload.graphs || [];
@@ -416,7 +427,7 @@
         state.layouts.set(key, render.isSequence(graph) ? Promise.resolve(copy) : render.layOut(new deps.ELK(), copy));
       }
       const pending = state.layouts.get(key).then((laidOut) => {
-        const placed = render.isSequence(graph) ? laidOut : deps.place.place(laidOut, scope.placedOf(graph.id, shown));
+        const placed = render.isSequence(graph) ? laidOut : deps.place.place(laidOut, scope.placedOf(graph.id, shown), scope.routesOf(graph.id, shown));
         return { graph: placed, index: indexGraph(placed), ...render.renderSvg(placed) };
       });
       state.views.set(key, pending);
@@ -707,7 +718,7 @@
       arrange.disabled = render.isSequence(graph);
       sheet.setArranging(state.arranging && !render.isSequence(graph));
       sheet.cancelConnect();
-      const nothingPlaced = Object.keys(scope.placedOf(graph.id)).length === 0;
+      const nothingPlaced = Object.keys(scope.placedOf(graph.id)).length === 0 && Object.keys(scope.routesOf(graph.id)).length === 0;
       if (nothingPlaced && document.activeElement === resetPlaces) stage.focus({ preventScroll: true });
       resetPlaces.disabled = nothingPlaced;
       unfoldAll.disabled = nothingFolded;
@@ -716,6 +727,7 @@
         if (state.turn !== turn) return;
         canvas.innerHTML = view.svg; // escaped by ArcVizRender
         fit();
+        if (editor) editor.refresh();
         drawChains(graph);
         drawCrumbs(graph);
         drawFilterMenu(graph);
@@ -737,7 +749,10 @@
 
     // --- the stage: pan, zoom and gestures ------------------------------
     const nodeUnder = (element) => (element && element.closest ? element.closest('.av-node') : null);
+    const edit = options && options.edit && deps.edit ? options.edit : null;
+    const editingHooks = {};
     const sheet = deps.stage.create({
+      editing: edit ? editingHooks : null,
       stage,
       canvas,
       viewSize: activeView,
@@ -781,6 +796,29 @@
       return `${port} of ${name}`;
     }
     const fit = sheet.fit;
+    const editor = edit
+      ? deps.edit.create({
+          stage,
+          canvas,
+          sheet,
+          hooks: editingHooks,
+          pick: (element) => select(element),
+          carried: (id) => carried(id),
+          routeOf: (edge) => scope.routeOf(state.active, edge),
+          onBend: edit.bends ? (edge, points) => replace(() => scope.setRoute(state.active, edge, points)).then(() => announce('Exchange bent.')) : null,
+          onReconnect: edit.onReconnect ? (edge, end, to) => edit.onReconnect({ view: state.active, edge, end, to }) : null,
+          reconnectTargets: edit.reconnectTargets ? (edge, end) => edit.reconnectTargets({ view: state.active, edge, end }) : null,
+          onMarquee: edit.onMarquee ? (ids, additive) => edit.onMarquee({ view: state.active, ids, additive }) : null,
+          onQuick: edit.onQuick && onConnect ? (id, side) => edit.onQuick({ view: state.active, id, side }) : null,
+          onEdit: edit.onEdit
+            ? (hit) => {
+                const group = hit.closest ? hit.closest('.av-edge, .av-node') : null;
+                return Boolean(group) && Boolean(edit.onEdit({ view: state.active, id: group.dataset.id, isEdge: group.classList.contains('av-edge') }));
+              }
+            : null,
+          snap: Boolean(edit.snap),
+        })
+      : null;
 
     // --- selection and details -----------------------------------------
     function drawPicker(view) {
@@ -812,6 +850,8 @@
       const group = target && target.closest ? target.closest('.av-edge, .av-node') : null;
       picker.value = group ? group.dataset.id : '';
       for (const marked of canvas.querySelectorAll('.is-selected, .is-linked')) marked.classList.remove('is-selected', 'is-linked');
+      if (group) group.classList.add('is-selected');
+      if (editor) editor.refresh();
       if (!group) {
         state.selected = null;
         showDetails(null);
@@ -1143,6 +1183,17 @@
       current: () => ({ view: state.active, selected: state.selected, position: sheet.position() }),
       /** Put the sheet back where `current()` saw it. */
       restore: (position) => sheet.restore(position),
+      /** Move several boxes of the view on screen at once, in sheet units: one redraw, one layout change. */
+      moveMany: (moves) =>
+        replace(() => {
+          for (const { id, dx, dy } of moves || []) if (carried(id).length > 0) scope.moveBy(state.active, id, dx, dy);
+        }),
+      /** The zoom of the sheet: screen pixels per sheet unit. */
+      scale: () => sheet.scale(),
+      /** The points an exchange of the view on screen is bent through ([] when straight). */
+      routeOf: (edge) => scope.routeOf(state.active, edge),
+      /** Bend an exchange of the view on screen through `points`; [] straightens it. */
+      setRoute: (edge, points) => replace(() => scope.setRoute(state.active, edge, points)),
       views: () => graphs.map((graph) => ({ id: graph.id, view: graph.arc.view, title: graph.arc.title })),
       svgOf: (id) => (state.settled.get(id) || {}).svg || null,
       buildPrintPages,

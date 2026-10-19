@@ -26,6 +26,7 @@ const VIEWER_SCRIPTS = [
   'arcviz-export.js',
   'arcviz-stage.js',
   'arcviz-place.js',
+  'arcviz-edit.js',
   'arcviz-viewer.js',
 ];
 

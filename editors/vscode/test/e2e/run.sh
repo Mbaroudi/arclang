@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # The workbench page in a browser, against the real compiler: every palette
-# tool of every view, the editing gestures, every toolbar tool.
+# tool of every view, the editing gestures, the changes of what is drawn,
+# every toolbar tool.
 # Needs Playwright (PLAYWRIGHT=/path/to/node_modules/playwright if not resolvable)
 # and a release build of the compiler (cargo build --release at the repo root).
 set -euo pipefail
@@ -18,4 +19,5 @@ PORT=${PORT:-8766} node "$here/server.js" "$root" "$ext/media/reference.arc" & s
 sleep 1
 PORT=${PORT:-8766} node "$here/palette_test.js"
 PORT=${PORT:-8766} node "$here/gestures_test.js"
+PORT=${PORT:-8766} node "$here/editing_test.js"
 node "$here/toolbar_test.js" "$root"

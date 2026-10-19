@@ -161,3 +161,18 @@ test('an absurd offset is ignored rather than drawn', async () => {
     assert.equal(place(graph, { D: offset }), graph, JSON.stringify(offset));
   }
 });
+
+test('a bent exchange passes through its points, from one end to the other; the others keep their route', async () => {
+  const graph = await laidOut();
+  const was = absolute(graph);
+  const c = was.rects.get('C');
+  const bend = { x: c.x + c.width + 40, y: c.y - 60 };
+  const placed = place(graph, {}, { plain: [bend], nowhere: [{ x: 1, y: 1 }], far: [{ x: Number.NaN, y: 0 }] });
+  const now = absolute(placed);
+  const points = now.edges.get('plain');
+  assert.ok(points.some((p) => p.x === bend.x && p.y === bend.y), JSON.stringify(points));
+  assert.ok(rectilinear(points), `a bent exchange keeps right angles: ${JSON.stringify(points)}`);
+  assert.ok(onBorder(points[0], now.rects.get('C')) && onBorder(points[points.length - 1], now.rects.get('D')), JSON.stringify(points));
+  assert.deepEqual(now.edges.get('far'), was.edges.get('far'), 'an unsound route is ignored');
+  assert.equal(place(graph, {}, {}), graph);
+});

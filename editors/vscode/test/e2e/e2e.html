@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><title>workbench e2e</title>
+<link rel="stylesheet" href="viewer/arcviz-viewer.css"><link rel="stylesheet" href="workbench.css">
+<style>:root{--vscode-editor-background:#fff;--vscode-editor-foreground:#1f1f1f;--vscode-font-family:system-ui;--vscode-font-size:13px;--vscode-descriptionForeground:#616161;--vscode-focusBorder:#005fb8;--vscode-errorForeground:#d00;--vscode-sideBar-background:#f8f8f8;--vscode-panel-border:#e5e5e5;--vscode-input-background:#fff;--vscode-input-foreground:#333;--vscode-button-background:#005fb8;--vscode-button-foreground:#fff;--vscode-button-secondaryBackground:#e5e5e5;--vscode-textLink-foreground:#005fb8}</style>
+<script>
+  window.__posted = []; window.__results = [];
+  let metamodel = null;
+  async function push(selected) {
+    const [snapshot, mm] = await Promise.all([fetch('/snapshot').then(r => r.json()), metamodel ? metamodel : fetch('metamodel.json').then(r => r.json())]);
+    metamodel = mm; window.postMessage({ type: 'snapshot', snapshot, metamodel: mm, file: 'model.arc', selected: selected ?? null }, '*');
+  }
+  window.__push = push;
+  window.acquireVsCodeApi = () => ({
+    postMessage: async (m) => {
+      window.__posted.push(m);
+      if (m.type === 'ready') push();
+      if (m.type === 'edit') {
+        const result = await fetch('/edit', { method: 'POST', body: JSON.stringify({ requests: m.requests }) }).then(r => r.json());
+        window.__results.push({ label: m.label, ...result, requests: m.requests });
+        window.postMessage({ type: 'edit-result', ok: result.ok, label: m.label, error: result.error }, '*');
+        if (result.ok) push();
+      }
+    },
+    getState: () => undefined, setState: () => undefined,
+  });
+</script></head><body>
+<div id="workbench" data-file="model.arc"></div>
+<script src="viewer/vendor/elk.bundled.js"></script>
+<script src="viewer/arcviz-render.js"></script><script src="viewer/arcviz-links.js"></script><script src="viewer/arcviz-navigation.js"></script><script src="viewer/arcviz-collapse.js"></script><script src="viewer/arcviz-scope.js"></script><script src="viewer/arcviz-export.js"></script><script src="viewer/arcviz-stage.js"></script><script src="viewer/arcviz-place.js"></script><script src="viewer/arcviz-edit.js"></script><script src="viewer/arcviz-viewer.js"></script>
+<script src="webview.js"></script>
+</body></html>

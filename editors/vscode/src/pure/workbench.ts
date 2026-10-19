@@ -13,6 +13,8 @@ export interface ElementRecord {
   /** The uuid of the owning element, null at the top. */
   owner: string | null;
   attributes: Record<string, unknown>;
+  /** A port's direction: `in`, `out`, `inout`. */
+  direction?: string;
 }
 
 export interface RelationshipRecord {
@@ -22,6 +24,7 @@ export interface RelationshipRecord {
   /** uuids of the two ends */
   source: string;
   target: string;
+  attributes?: Record<string, unknown>;
 }
 
 export interface Finding {
@@ -131,6 +134,8 @@ export type EditRequest =
   | { op: 'move'; element: string; container?: string; layer?: string; layer_name?: string }
   | { op: 'add_trace'; from: string; kind: string; to: string }
   | { op: 'remove_trace'; from: string; kind: string; to: string }
+  | { op: 'reconnect'; kind: string; name?: string; from: string; to: string; new_from?: string; new_to?: string }
+  | { op: 'duplicate'; element: string; container?: string; layer?: string; layer_name?: string }
   | {
       op: 'wrap_fragment';
       scenario: string;

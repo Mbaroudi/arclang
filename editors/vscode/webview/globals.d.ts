@@ -26,6 +26,11 @@ export interface ViewerApi {
   restore?: (position: unknown) => void;
   views?: () => { id: string; view: string; title: string }[];
   svgOf: (id: string) => SVGSVGElement | null;
+  /** Several boxes moved at once, in sheet units: one redraw, one layout change. */
+  moveMany?: (moves: { id: string; dx: number; dy: number }[]) => Promise<void>;
+  scale?: () => number;
+  routeOf?: (edge: string) => { x: number; y: number }[];
+  setRoute?: (edge: string, points: { x: number; y: number }[]) => Promise<void>;
 }
 
 export interface ViewerOptions {
@@ -39,6 +44,8 @@ export interface ViewerOptions {
   onDownload?: (blob: Blob, filename: string) => void;
   arrange?: boolean;
   onLayout?: (file: unknown) => void;
+  /** Editing from the drawing (ArcVizEdit): see the viewer's `mount`. */
+  edit?: Record<string, unknown>;
 }
 
 declare global {
@@ -53,6 +60,7 @@ declare global {
     ArcVizExport: unknown;
     ArcVizStage: unknown;
     ArcVizPlace: unknown;
+    ArcVizEdit: unknown;
   }
   function acquireVsCodeApi(): { postMessage: (message: FromWebview) => void; getState: () => unknown; setState: (state: unknown) => void };
 }

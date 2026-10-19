@@ -5,7 +5,9 @@
  * exactly where it was dropped; what it holds moves with it; only the
  * exchanges that reach it are redrawn, at right angles, straight from one
  * end to the other. They do not steer around other boxes: that is the
- * reader's arrangement to make. The input is never modified.
+ * reader's arrangement to make. An exchange the reader bent passes through
+ * the points they gave it, in sheet units, from one end to the other. The
+ * input is never modified.
  */
 (function (root, factory) {
   const api = factory();
@@ -22,6 +24,9 @@
   const sound = (value) => value === undefined || (Number.isFinite(value) && Math.abs(value) <= FARTHEST);
   const isOffset = (value) => Boolean(value) && Number.isFinite(value.dx) && Number.isFinite(value.dy) && Math.abs(value.dx) <= FARTHEST && Math.abs(value.dy) <= FARTHEST && sound(value.dw) && sound(value.dh);
   const MIN = { width: 48, height: 28 }; // the smallest a box may be made
+
+  const isPoint = (point) => Boolean(point) && Number.isFinite(point.x) && Number.isFinite(point.y) && Math.abs(point.x) <= FARTHEST && Math.abs(point.y) <= FARTHEST;
+  const isRoute = (points) => Array.isArray(points) && points.length > 0 && points.every(isPoint);
 
   const NORMAL = { east: { x: 1, y: 0 }, west: { x: -1, y: 0 }, north: { x: 0, y: -1 }, south: { x: 0, y: 1 } };
 
@@ -88,16 +93,60 @@
     });
   }
 
+  /** Drop repeats and points in the middle of a straight run. */
+  function simplify(points) {
+    return points.filter((point, index) => {
+      const before = points[index - 1];
+      const after = points[index + 1];
+      if (!before || !after) return true;
+      if (point.x === before.x && point.y === before.y) return false;
+      return !((before.x === point.x && point.x === after.x) || (before.y === point.y && point.y === after.y));
+    });
+  }
+
+  /**
+   * Right-angled path from one anchor to another through the reader's
+   * points: it leaves square to its side, turns at each point (each run
+   * crosses the previous one), and comes in square to the other side.
+   */
+  function routeThrough(from, points, to) {
+    const a = { x: from.x + NORMAL[from.side].x * STUB, y: from.y + NORMAL[from.side].y * STUB };
+    const b = { x: to.x + NORMAL[to.side].x * STUB, y: to.y + NORMAL[to.side].y * STUB };
+    const horizontal = (side) => side === 'east' || side === 'west';
+    const path = [{ x: from.x, y: from.y }, a];
+    let along = horizontal(from.side); // the way the last run went
+    const reach = (point, last) => {
+      const at = path[path.length - 1];
+      if (at.x === point.x || at.y === point.y) {
+        along = at.y === point.y;
+      } else {
+        // Cross the last run: after a horizontal run go vertical first, and the other way.
+        // The final point is reached square to the side it comes in by.
+        const verticalFirst = last ? horizontal(to.side) : along;
+        path.push(verticalFirst ? { x: at.x, y: point.y } : { x: point.x, y: at.y });
+        along = verticalFirst;
+      }
+      path.push({ x: point.x, y: point.y });
+    };
+    points.forEach((point) => reach(point, false));
+    reach(b, true);
+    path.push({ x: to.x, y: to.y });
+    return simplify(path);
+  }
+
   /**
    * The layout with the reader's placement applied.
    * @param {object} layout  a graph laid out by ELK
    * @param {Object<string, {dx: number, dy: number, dw?: number, dh?: number}>} offsets  per node id:
    *        the move, and how much wider and taller the box was made
+   * @param {Object<string, Array<{x: number, y: number}>>} [routes]  per edge id: the points
+   *        the reader bent it through, in sheet units
    */
-  function place(layout, offsets) {
+  function place(layout, offsets, routes) {
     const before = survey(layout);
     const wanted = Object.keys(offsets || {}).filter((id) => before.nodes.has(id) && isOffset(offsets[id]) && (offsets[id].dx || offsets[id].dy || offsets[id].dw || offsets[id].dh));
-    if (wanted.length === 0) return layout;
+    const bent = new Map(Object.keys(routes || {}).filter((id) => id !== '__proto__' && isRoute(routes[id])).map((id) => [id, routes[id].map(({ x, y }) => ({ x, y }))]));
+    if (wanted.length === 0 && bent.size === 0) return layout;
 
     const graph = JSON.parse(JSON.stringify(layout));
     const start = survey(graph);
@@ -169,6 +218,18 @@
     const redraw = (holder) => {
       for (const edge of holder.edges || []) {
         const ends = [edge.sources[0], edge.targets[0]];
+        if (bent.has(edge.id)) {
+          // Bent by the reader: from its source, through the points, to its target.
+          const points = bent.get(edge.id);
+          const from = anchor(ends[0], points[0], map);
+          const to = anchor(ends[1], points[points.length - 1], map);
+          if (from && to) {
+            const all = routeThrough(from, points, to);
+            all.forEach(stretch);
+            redrawn.push({ edge, points: all });
+            continue;
+          }
+        }
         if (!ends.some((end) => displaced(end, edge.container))) continue;
         const owner = (end) => (map.ports.has(end) ? map.ports.get(end).owner : end);
         if (owner(ends[0]) === owner(ends[1])) {

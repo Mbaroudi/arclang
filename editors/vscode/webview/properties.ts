@@ -13,6 +13,10 @@ export interface PropertiesHost {
   diagram?: (op: 'hide' | 'related' | 'new', element: ElementRecord) => void;
   /** The requirements of the model, for "Satisfies…". */
   requirements?: () => ElementRecord[];
+  /** The two ends of a relationship (an exchange, a link, a transition), null for an element. */
+  ends?: (element: ElementRecord) => { from: ElementRecord; to: ElementRecord } | null;
+  /** Turn a relationship around. */
+  reverse?: (element: ElementRecord) => void;
 }
 
 const HIDDEN = new Set(['id', 'name']);
@@ -119,9 +123,21 @@ export class Properties {
         button('New diagram', () => diagram('new', element), { title: 'A new diagram with it and what it is connected to' }),
       );
     }
+    const ends = this.owner.ends?.(element) ?? null;
+    const linked = ends
+      ? el('p', { class: 'wb-ends' }, [
+          el('span', { text: endLabel(ends.from), title: ends.from.id }),
+          el('span', { class: 'wb-muted', text: ' → ' }),
+          el('span', { text: endLabel(ends.to), title: ends.to.id }),
+          ' ',
+          button('⇄ Reverse', () => this.owner.reverse?.(element), { class: 'wb-link', title: 'Swap the source and the target (one undo)' }),
+        ])
+      : null;
+    if (ends) actions.querySelectorAll('button').forEach((b) => ['Satisfies…', 'Hide', 'Show related', 'New diagram'].includes(b.textContent ?? '') && b.remove());
     return el('header', { class: 'wb-props-head' }, [
       el('div', { class: 'wb-props-title' }, [name, el('span', { class: 'wb-kind', text: humanise(element.kind.replace(/([a-z])([A-Z])/g, '$1 $2')), title: doc ?? '' })]),
       id,
+      linked,
       actions,
     ]);
   }
@@ -312,6 +328,11 @@ export class Properties {
     if (!element) return;
     this.owner.submit([{ op: 'remove', element: element.id }], `delete ${element.id}`);
   }
+}
+
+/** An end as the reader knows it: a port with its owner (`LC-CAM.lane`), anything else by name. */
+function endLabel(end: ElementRecord): string {
+  return /Port$/.test(end.kind) ? end.id : end.name || end.id;
 }
 
 function placeholderFor(attribute: MetamodelAttribute): string {

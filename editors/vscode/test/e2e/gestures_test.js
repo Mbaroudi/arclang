@@ -89,7 +89,8 @@ const rows = []; const report = (name, ok, detail) => { rows.push({ name, ok, de
   await reset(); await layer('Logical'); await page.mouse.move(10, 10);
   const from = await box('LC-CAM'); const to = await box('LC-ACT');
   await page.mouse.move(from.x + from.width / 2, from.y + 10); await page.waitForTimeout(250);
-  const handle = page.locator('.arcviz-handle').first(); let dragged = false;
+  // Boxes connect from the arrow on their side (ports keep the round handle).
+  const handle = page.locator('.arcviz-quick.is-east:not([hidden]), .arcviz-handle:not([hidden])').first(); let dragged = false;
   if (await handle.count() && await handle.isVisible()) { const hb = await handle.boundingBox(); n = await count();
     await page.mouse.move(hb.x + hb.width / 2, hb.y + hb.height / 2); await page.mouse.down(); await page.mouse.move(to.x + to.width / 2, to.y + 10, { steps: 10 }); await page.mouse.up(); await page.waitForTimeout(300);
     if (await page.locator('.wb-prompt input').count()) { await prompt('Camera to actuator'); r = await waitEdit(n); dragged = true; } }

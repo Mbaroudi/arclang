@@ -2,12 +2,17 @@
 // row with the palette rail, the canvas and the properties drawer, then one
 // status line. Everything shown comes from the last snapshot the host sent;
 // every change goes back to the host as `arclang edit` requests.
-import { connectTargetKinds, connectToolFor, EditRequest, fragmentRequest, namedDiagramOf, nextRequirementId, requirementRequests, Tool, neighbours, showsLiteral, topLevelIds, VIEWPOINTS, ElementRecord, Finding, graphContainerOf, lifelineElement, Metamodel, Snapshot, ToWebview } from '../src/pure/workbench';
+import { connectTargetKinds, connectToolFor, EditRequest, RelationshipRecord, fragmentRequest, namedDiagramOf, nextRequirementId, requirementRequests, Tool, neighbours, showsLiteral, topLevelIds, VIEWPOINTS, ElementRecord, Finding, graphContainerOf, lifelineElement, Metamodel, Snapshot, ToWebview } from '../src/pure/workbench';
 import { SemanticBrowser } from './browser';
 import { button, clear, el, inlinePrompt } from './dom';
 import type { ViewerApi, ViewerPosition, ViewerSelection } from './globals';
 import { Palette } from './palette';
 import { Properties } from './properties';
+import { createFind } from './find';
+import { createMinimap } from './minimap';
+import { Editing } from './editing';
+import { createHelp } from './help';
+import { modelIdOf, relationshipOfEdge } from '../src/pure/editing';
 
 const vscode = acquireVsCodeApi();
 
@@ -23,6 +28,8 @@ interface State {
   metamodel: Metamodel | null;
   viewer: ViewerApi | null;
   selected: ElementRecord | null;
+  /** The drawing id of what the viewer has selected: a box, a port or an exchange. */
+  selectedDrawing: string | null;
   lastPosition: ViewerPosition | null;
   byId: Map<string, ElementRecord>;
   byName: Map<string, ElementRecord>;
@@ -37,6 +44,7 @@ const state: State = {
   metamodel: null,
   viewer: null,
   selected: null,
+  selectedDrawing: null,
   lastPosition: null,
   byId: new Map(),
   byName: new Map(),
@@ -207,8 +215,10 @@ const properties = new Properties(propertiesPane, {
   ask: (element) => vscode.postMessage({ type: 'ask', id: element.id, name: element.name, kind: element.kind }),
   diagram: (op, element) => (op === 'hide' ? hideFromDiagram(element) : op === 'related' ? showRelated(element) : newDiagramAround(element)),
   requirements: () => (state.snapshot?.elements?.elements ?? []).filter((e) => e.kind === 'Requirement'),
+  ends: (element) => editing.endsOf(element),
+  reverse: (element) => editing.reverse(element),
 });
-const browser = new SemanticBrowser(browserPane, (element) => selectElement(element, true));
+const browser = new SemanticBrowser(browserPane, (element) => selectElement(element, true), (element, other, outgoing) => editing.retargetTrace(element, other, outgoing));
 setPalette(state.layout.paletteOpen);
 setDrawer(state.layout.drawerOpen);
 
@@ -239,14 +249,7 @@ function submit(requests: EditRequest[], label: string): void {
   vscode.postMessage({ type: 'edit', requests, label });
 }
 
-/**
- * The model id of a node or port of the drawing: `LC-A::p` (a component port)
- * and `SF-A::in.p` (a function port, with its direction) are the port `LC-A.p`
- * and `SF-A.p` of the model.
- */
-function modelId(drawingId: string): string {
-  return drawingId.replace(/::(?:in|out|inout)\./, '.').replace('::', '.');
-}
+const modelId = modelIdOf;
 
 /**
  * The drawing id of a model element: its id when the drawing uses it, else
@@ -272,11 +275,10 @@ function currentGraph() {
 
 function elementFor(selection: ViewerSelection | null): ElementRecord | null {
   if (!selection || !state.snapshot?.elements) return null;
-  // A message of a scenario (`msg:1`) is its Message, even when an exchange carries the same text.
-  if (selection.isEdge && selection.id.startsWith('msg:')) {
-    const message = (state.snapshot.elements.relationships ?? []).find((r) => r.kind === 'Message' && r.name === selection.name);
-    if (message) return { uuid: message.uuid, id: message.name, kind: message.kind, name: message.name, owner: null, attributes: {} };
-  }
+  // An edge is the relationship of its kind between its two ends (a message, a transition, an exchange).
+  const edgeGraph = currentGraph();
+  const drawn = edgeGraph && (edgeGraph.edges ?? []).some((e) => e.id === selection.id) ? relationshipOfEdge(selection.id, edgeGraph, state.snapshot, selection.name || undefined) : null;
+  if (drawn) return relationshipElement(drawn);
   const id = modelId(selection.id);
   const found = state.byId.get(id) ?? (selection.name ? state.byName.get(selection.name) : undefined);
   if (found) return found;
@@ -293,8 +295,14 @@ function elementFor(selection: ViewerSelection | null): ElementRecord | null {
   if (!selection.isEdge) return null;
   // Exchanges, links and traces are relationships: selectable by their name.
   const relationship = (state.snapshot.elements.relationships ?? []).find((r) => r.name === bare || r.name === selection.name);
-  if (!relationship) return null;
-  return { uuid: relationship.uuid, id: relationship.name, kind: relationship.kind, name: relationship.name, owner: null, attributes: {} };
+  return relationship ? relationshipElement(relationship) : null;
+}
+
+/** A relationship as the views show an element: designated by its written id, else its name. */
+function relationshipElement(r: RelationshipRecord): ElementRecord {
+  const attributes = r.attributes ?? {};
+  const id = typeof attributes.id === 'string' ? attributes.id : r.name || r.kind;
+  return { uuid: r.uuid, id, kind: r.kind, name: r.name ?? '', owner: null, attributes };
 }
 
 function selectElement(element: ElementRecord | null, inViewer: boolean): void {
@@ -380,12 +388,15 @@ host.addEventListener('keydown', () => (programmaticUntil = 0), true);
 
 function selectInViewer(id: string): void {
   programmaticUntil = Date.now() + 2000;
-  state.viewer?.select?.(drawingId(id));
+  // A relationship is drawn under its edge id, kept from the reader's click.
+  const edge = state.selected?.id === id && !state.byId.has(id) ? state.selectedDrawing : null;
+  state.viewer?.select?.(edge ?? drawingId(id));
 }
 
 function onSelect(selection: ViewerSelection | null): void {
   if (selection === null && Date.now() < programmaticUntil && state.selected) return;
   programmaticUntil = 0;
+  state.selectedDrawing = selection?.id ?? null;
   const element = elementFor(selection);
   if (shiftDown && element && !selection?.isEdge) {
     const primary = state.selected;
@@ -481,168 +492,46 @@ let pendingView: string | null = null;
 
 // --- Direct edit and find -----------------------------------------------------
 
-/** F2 on the canvas: the name edited in place, over the box. */
-function renameInPlace(element: ElementRecord): void {
-  const node = host.querySelector<SVGGraphicsElement>(`[data-id="${CSS.escape(drawingId(element.id))}"]`);
-  if (!node) return properties.rename();
-  const box = node.getBoundingClientRect();
-  const frame = sheet.getBoundingClientRect();
-  const input = el('input', { type: 'text', class: 'wb-direct-edit', value: element.name || element.id, 'aria-label': `Rename ${element.id}` });
-  input.style.left = `${box.left - frame.left}px`;
-  input.style.top = `${box.top - frame.top + 4}px`;
-  input.style.width = `${Math.max(140, box.width)}px`;
-  sheet.appendChild(input);
-  input.focus();
-  input.select();
-  let done = false;
-  const finish = (commit: boolean) => {
-    if (done) return;
-    done = true;
-    const value = input.value.trim();
-    input.remove();
-    if (commit && value && value !== element.name) submit([{ op: 'rename', element: element.id, name: value }], `rename to ${value}`);
-  };
-  input.addEventListener('keydown', (event) => {
-    event.stopPropagation();
-    if (event.key === 'Enter') finish(true);
-    if (event.key === 'Escape') finish(false);
-  });
-  input.addEventListener('blur', () => finish(true));
-}
 
-const findBox = el('div', { class: 'wb-find', hidden: true, role: 'search' });
-const findInput = el('input', { type: 'text', placeholder: 'Find in this diagram', 'aria-label': 'Find in this diagram' });
-const findCount = el('span', { class: 'wb-find-count' });
-findBox.append(findInput, findCount, button('✕', () => closeFind(), { class: 'wb-icon-button', title: 'Close (Esc)' }));
-sheet.appendChild(findBox);
-let findAt = 0;
-
-function openFind(): void {
-  findBox.hidden = false;
-  findInput.focus();
-  findInput.select();
-}
-
-function closeFind(): void {
-  findBox.hidden = true;
-  for (const node of host.querySelectorAll('.wb-find-hit')) node.classList.remove('wb-find-hit');
-}
-
-function runFind(step: number): void {
-  const query = findInput.value.trim().toLowerCase();
-  for (const node of host.querySelectorAll('.wb-find-hit')) node.classList.remove('wb-find-hit');
-  if (!query) {
-    findCount.textContent = '';
-    return;
-  }
-  const graph = currentGraph();
-  const hits: string[] = [];
-  const walk = (nodes: NonNullable<NonNullable<ReturnType<typeof currentGraph>>['children']>) => {
-    for (const node of nodes) {
-      const element = elementFor({ view: '', id: node.id, name: '', kind: '', isEdge: false });
-      const label = `${element?.name ?? ''} ${element?.id ?? node.id}`.toLowerCase();
-      if (label.includes(query)) hits.push(node.id);
-      walk(node.children ?? []);
-    }
-  };
-  walk(graph?.children ?? []);
-  findAt = hits.length ? (findAt + step + hits.length) % hits.length : 0;
-  findCount.textContent = hits.length ? `${findAt + 1} of ${hits.length}` : 'no match';
-  for (const id of hits) host.querySelector(`[data-id="${CSS.escape(id)}"]`)?.classList.add('wb-find-hit');
-  const target = hits[findAt];
-  if (target) {
-    state.viewer?.select?.(target);
-    const element = elementFor({ view: '', id: target, name: '', kind: '', isEdge: false });
+const finder = createFind(sheet, host, {
+  graph: () => currentGraph(),
+  elementFor: (id) => elementFor({ view: '', id, name: '', kind: '', isEdge: false }),
+  select: (id, element) => {
+    state.viewer?.select?.(id);
     if (element) selectElement(element, false);
-  }
-}
-findInput.addEventListener('input', () => {
-  findAt = 0;
-  runFind(0);
+  },
 });
-findInput.addEventListener('keydown', (event) => {
-  event.stopPropagation();
-  if (event.key === 'Enter') runFind(event.shiftKey ? -1 : 1);
-  if (event.key === 'Escape') closeFind();
+const minimap = createMinimap(sheet, host, { viewer: () => state.viewer, key: () => `${currentGraph()?.id}:${state.snapshot?.elements?.elements.length}` });
+const toggleMinimap = (force?: boolean) => minimap.toggle(force);
+const openFind = () => finder.open();
+const help = createHelp(sheet);
+const editing = new Editing({
+  host,
+  sheet,
+  snapshot: () => state.snapshot,
+  viewer: () => state.viewer,
+  graph: () => currentGraph(),
+  selected: () => state.selected,
+  selectedDrawing: () => state.selectedDrawing,
+  multi: () => multi,
+  setMulti: (elements) => {
+    multi = elements;
+    if (elements.length) selectElement(elements[elements.length - 1], false);
+    markMulti();
+  },
+  elementFor: (id, isEdge = false, name = '') => elementFor({ view: '', id, name, kind: '', isEdge }),
+  drawingId,
+  outermost,
+  submit,
+  toast: (text, kind) => showToast(text, kind),
+  select: selectElement,
+  remove: (elements) => (elements.length > 1 ? deleteMany(elements) : elements[0] && deleteOne(elements[0])),
+  hide: (elements) => (elements.length > 1 ? hideMany(elements) : elements[0] && hideFromDiagram(elements[0])),
+  related: showRelated,
+  newDiagram: newDiagramAround,
+  reveal: (element) => vscode.postMessage({ type: 'reveal', id: element.id }),
+  help: () => help.toggle(),
 });
-
-// --- Minimap ----------------------------------------------------------------
-
-const minimap = el('div', { class: 'wb-minimap', hidden: true, 'aria-label': 'Overview of the diagram' });
-const minimapImage = el('img', { alt: '' });
-const minimapView = el('div', { class: 'wb-minimap-view' });
-minimap.append(minimapImage, minimapView);
-sheet.appendChild(minimap);
-let minimapUrl: string | null = null;
-let minimapFor = '';
-
-function toggleMinimap(force?: boolean): void {
-  minimap.hidden = force === undefined ? !minimap.hidden : !force;
-  if (!minimap.hidden) refreshMinimap(true);
-}
-
-/** The drawn sheet and where the frame is on it. */
-function sheetGeometry(): { svg: SVGSVGElement; width: number; height: number; at: { scale: number; x: number; y: number }; frame: DOMRect } | null {
-  const svg = host.querySelector<SVGSVGElement>('.arcviz-stage svg');
-  const stage = host.querySelector<HTMLElement>('.arcviz-stage');
-  const position = state.viewer?.current?.()?.position as { scale: number; x: number; y: number } | undefined;
-  if (!svg || !stage || !position) return null;
-  const width = Number(svg.getAttribute('width')) || svg.viewBox.baseVal.width;
-  const height = Number(svg.getAttribute('height')) || svg.viewBox.baseVal.height;
-  if (!width || !height) return null;
-  return { svg, width, height, at: position, frame: stage.getBoundingClientRect() };
-}
-
-function refreshMinimap(redraw = false): void {
-  if (minimap.hidden) return;
-  const geometry = sheetGeometry();
-  if (!geometry) return;
-  const key = `${currentGraph()?.id}:${geometry.width}x${geometry.height}:${state.snapshot?.elements?.elements.length}`;
-  if (redraw || key !== minimapFor) {
-    minimapFor = key;
-    if (minimapUrl) URL.revokeObjectURL(minimapUrl);
-    minimapUrl = URL.createObjectURL(new Blob([new XMLSerializer().serializeToString(geometry.svg)], { type: 'image/svg+xml' }));
-    minimapImage.src = minimapUrl;
-  }
-  const box = minimap.getBoundingClientRect();
-  const k = Math.min(box.width / geometry.width, box.height / geometry.height);
-  const offsetX = (box.width - geometry.width * k) / 2;
-  const offsetY = (box.height - geometry.height * k) / 2;
-  const { scale, x, y } = geometry.at;
-  minimapView.style.left = `${offsetX + (-x / scale) * k}px`;
-  minimapView.style.top = `${offsetY + (-y / scale) * k}px`;
-  minimapView.style.width = `${(geometry.frame.width / scale) * k}px`;
-  minimapView.style.height = `${(geometry.frame.height / scale) * k}px`;
-}
-
-/** A click or a drag on the minimap puts that point of the sheet in the middle of the frame. */
-function minimapJump(event: PointerEvent): void {
-  const geometry = sheetGeometry();
-  if (!geometry) return;
-  const box = minimap.getBoundingClientRect();
-  const k = Math.min(box.width / geometry.width, box.height / geometry.height);
-  const offsetX = (box.width - geometry.width * k) / 2;
-  const offsetY = (box.height - geometry.height * k) / 2;
-  const sheetX = (event.clientX - box.left - offsetX) / k;
-  const sheetY = (event.clientY - box.top - offsetY) / k;
-  const { scale } = geometry.at;
-  state.viewer?.restore?.({ scale, x: geometry.frame.width / 2 - sheetX * scale, y: geometry.frame.height / 2 - sheetY * scale });
-  refreshMinimap();
-}
-minimap.addEventListener('pointerdown', (event) => {
-  event.preventDefault();
-  event.stopPropagation();
-  minimap.setPointerCapture(event.pointerId);
-  minimapJump(event);
-  const move = (e: PointerEvent) => minimapJump(e);
-  const up = () => {
-    minimap.removeEventListener('pointermove', move);
-    minimap.removeEventListener('pointerup', up);
-  };
-  minimap.addEventListener('pointermove', move);
-  minimap.addEventListener('pointerup', up);
-});
-setInterval(() => refreshMinimap(), 250);
 
 /** Exports go to the host, which asks where to save them (a webview cannot download). */
 function onDownload(blob: Blob, filename: string): void {
@@ -750,6 +639,7 @@ function mount(snapshot: Snapshot): void {
     exporter: window.ArcVizExport,
     stage: window.ArcVizStage,
     place: window.ArcVizPlace,
+    edit: window.ArcVizEdit,
   };
   progress.hidden = false;
   remounting = true;
@@ -773,6 +663,8 @@ function mount(snapshot: Snapshot): void {
     // Boxes go where they are dragged (into another box when let go on it), kept next to the model.
     arrange: true,
     onLayout: (file: unknown) => vscode.postMessage({ type: 'layout', file }),
+    // Editing from the drawing: double-click renames, ends reconnect, bands select, arrows connect.
+    edit: editing.viewerOptions(),
   };
   let viewer: ReturnType<typeof window.ArcViz.mount>;
   try {
@@ -788,7 +680,6 @@ function mount(snapshot: Snapshot): void {
   void viewer.ready.then(() => {
     // A later snapshot remounted the viewer meanwhile: that mount restores the view.
     if (generation !== mountGeneration) return;
-    tagContexts();
     markFindings();
     if (previous?.view && viewer.show) {
       const known = viewer.views?.().some((v) => v.id === previous.view);
@@ -810,11 +701,6 @@ function mount(snapshot: Snapshot): void {
   });
 }
 
-/**
- * Every drawn element carries its context for VS Code's native context menu
- * (`webview/context` in the manifest): right-click gives Rename, Delete,
- * Show in source... with the element's id as the command argument.
- */
 /** Nodes with findings are marked on the drawing, with the findings as their tooltip. */
 function markFindings(): void {
   const findings = state.snapshot?.findings ?? [];
@@ -837,21 +723,6 @@ function markFindings(): void {
   }
 }
 
-function tagContexts(): void {
-  for (const node of host.querySelectorAll<HTMLElement>('[data-id]')) {
-    if (node.dataset.vscodeContext) continue;
-    const element = elementFor({ view: '', id: node.dataset.id ?? '', name: '', kind: '', isEdge: false });
-    if (!element) continue;
-    node.dataset.vscodeContext = JSON.stringify({ webviewSection: 'element', elementId: element.id, elementName: element.name, elementKind: element.kind, preventDefaultContextMenuItems: true });
-  }
-}
-host.addEventListener('contextmenu', (event) => {
-  // The right-clicked element becomes the selection, so menu commands and the views agree.
-  const target = (event.target as HTMLElement).closest<HTMLElement>('[data-id]');
-  const element = target ? elementFor({ view: '', id: target.dataset.id ?? '', name: '', kind: '', isEdge: false }) : null;
-  if (element) selectElement(element, false);
-  tagContexts();
-});
 
 /** The layers of the model, one big button each, the one on screen pressed; several diagrams of a layer unfold in a list. */
 function renderLayers(): void {
@@ -913,13 +784,13 @@ function followView(): void {
   if (state.selected && graph && !drawn(graph, state.selected)) selectElement(null, false);
   fitStage();
   setTimeout(() => {
-    tagContexts();
     markFindings();
   }, 200);
 }
 
 /** Whether an element has a node, a port or a lifeline on the graph. */
 function drawn(graph: NonNullable<ReturnType<typeof currentGraph>>, element: ElementRecord): boolean {
+  if (!state.byUuid.has(element.uuid)) return (graph.edges ?? []).some((e) => e.id === state.selectedDrawing);
   const wanted = new Set([element.id, drawingId(element.id)]);
   const container = graphContainerOf(graph.id, graph.arc.view);
   if (container) wanted.add(`${container}.${element.id}`);
@@ -1002,7 +873,8 @@ window.addEventListener('message', (event: MessageEvent<ToWebview>) => {
       // A model that stopped compiling keeps its last drawing, marked as such.
       sheet.classList.toggle('is-stale', !message.snapshot.success);
       showProblems(message.snapshot);
-      const stillThere = state.selected ? (state.byUuid.get(state.selected.uuid) ?? null) : null;
+      const relationship = (message.snapshot.elements?.relationships ?? []).find((r) => r.uuid === state.selected?.uuid);
+      const stillThere = state.selected ? (state.byUuid.get(state.selected.uuid) ?? (relationship ? relationshipElement(relationship) : null)) : null;
       selectElement(stillThere, false);
       if (message.selected && !stillThere) {
         const wanted = state.byId.get(message.selected) ?? null;
@@ -1032,7 +904,7 @@ window.addEventListener('message', (event: MessageEvent<ToWebview>) => {
       if (message.op === 'hide') hideFromDiagram(element);
       if (message.op === 'related') showRelated(element);
       if (message.op === 'new') newDiagramAround(element);
-      if (message.op === 'rename') renameInPlace(element);
+      if (message.op === 'rename') editing.rename(element, drawingId(element.id));
       return;
     }
     case 'show': {
@@ -1092,7 +964,7 @@ function flashChanges(before: Snapshot, after: Snapshot): void {
 }
 
 document.addEventListener('keydown', (event) => {
-  const editing = event.target instanceof HTMLInputElement || event.target instanceof HTMLSelectElement || event.target instanceof HTMLTextAreaElement;
+  const typing = event.target instanceof HTMLInputElement || event.target instanceof HTMLSelectElement || event.target instanceof HTMLTextAreaElement;
   if (event.key === 'Escape') {
     // Esc first cancels what is under way (a tool, a selection); then it leaves full screen.
     const busy = palette.isArmed() || !!state.selected || multi.length > 0;
@@ -1101,7 +973,8 @@ document.addEventListener('keydown', (event) => {
     toast.hidden = true;
     return;
   }
-  if (editing) return;
+  if (typing) return;
+  if (editing.key(event)) return;
   if (event.shiftKey && !event.metaKey && !event.ctrlKey && event.key === 'M') {
     event.preventDefault();
     toggleMinimap();
@@ -1139,24 +1012,28 @@ document.addEventListener('keydown', (event) => {
 
   if (event.key === 'F2' && state.selected) {
     event.preventDefault();
-    renameInPlace(state.selected);
+    editing.rename(state.selected);
     return;
   }
   if ((event.key === 'Delete' || event.key === 'Backspace') && state.selected) {
     event.preventDefault();
-    const element = state.selected;
-    const owned = (state.snapshot?.elements?.elements ?? []).filter((e) => e.owner === element.uuid).length;
-    if (owned > 0) {
-      showToast(`${element.name || element.id} owns ${owned} element${owned > 1 ? 's' : ''}.`, 'info', [
-        [`Delete with ${owned === 1 ? 'it' : `all ${owned}`}`, () => {
-          toast.hidden = true;
-          submit([{ op: 'remove', element: element.id }], `delete ${element.id} and what it owns`);
-        }],
-      ], 10000);
-      return;
-    }
-    submit([{ op: 'remove', element: element.id }], `delete ${element.id}`);
+    deleteOne(state.selected);
   }
 });
+
+/** Delete one element; one that owns others says so first. */
+function deleteOne(element: ElementRecord): void {
+  const owned = (state.snapshot?.elements?.elements ?? []).filter((e) => e.owner === element.uuid).length;
+  if (owned > 0) {
+    showToast(`${element.name || element.id} owns ${owned} element${owned > 1 ? 's' : ''}.`, 'info', [
+      [`Delete with ${owned === 1 ? 'it' : `all ${owned}`}`, () => {
+        toast.hidden = true;
+        submit([{ op: 'remove', element: element.id }], `delete ${element.id} and what it owns`);
+      }],
+    ], 10000);
+    return;
+  }
+  submit([{ op: 'remove', element: element.id }], `delete ${element.id}`);
+}
 
 vscode.postMessage({ type: 'ready' });
