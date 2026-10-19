@@ -272,6 +272,21 @@
         "command": "arclang.relations.step",
         "title": "Go to the related element",
         "category": "ArcLang"
+      },
+      {
+        "command": "arclang.layer.next",
+        "title": "Next layer (diagram)",
+        "category": "ArcLang"
+      },
+      {
+        "command": "arclang.layer.previous",
+        "title": "Previous layer (diagram)",
+        "category": "ArcLang"
+      },
+      {
+        "command": "arclang.openLayer",
+        "title": "Open the diagram of this layer",
+        "category": "ArcLang"
       }
     ],
     "menus": {
@@ -431,6 +446,10 @@
         },
         {
           "command": "arclang.relations.step",
+          "when": "false"
+        },
+        {
+          "command": "arclang.openLayer",
           "when": "false"
         }
       ],
@@ -1056,6 +1075,18 @@
         "key": "delete",
         "mac": "cmd+backspace",
         "when": "focusedView == arclangModel && viewItem == arclang.element"
+      },
+      {
+        "command": "arclang.layer.next",
+        "key": "ctrl+alt+]",
+        "mac": "cmd+alt+]",
+        "when": "activeCustomEditorId == arclang.workbench"
+      },
+      {
+        "command": "arclang.layer.previous",
+        "key": "ctrl+alt+[",
+        "mac": "cmd+alt+[",
+        "when": "activeCustomEditorId == arclang.workbench"
       }
     ]
   },

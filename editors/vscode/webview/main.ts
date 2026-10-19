@@ -2,7 +2,7 @@
 // row with the palette rail, the canvas and the properties drawer, then one
 // status line. Everything shown comes from the last snapshot the host sent;
 // every change goes back to the host as `arclang edit` requests.
-import { connectTargetKinds, connectToolFor, EditRequest, ElementRecord, Finding, graphContainerOf, lifelineElement, Metamodel, Snapshot, ToWebview } from '../src/pure/workbench';
+import { connectTargetKinds, connectToolFor, EditRequest, VIEWPOINTS, ElementRecord, Finding, graphContainerOf, lifelineElement, Metamodel, Snapshot, ToWebview } from '../src/pure/workbench';
 import { SemanticBrowser } from './browser';
 import { button, clear, el } from './dom';
 import type { ViewerApi, ViewerPosition, ViewerSelection } from './globals';
@@ -57,11 +57,14 @@ function saveLayout(): void {
 
 const root = document.getElementById('workbench')!;
 const bar = el('header', { class: 'wb-bar' });
-const tabs = el('div', { class: 'wb-tabs' });
+const layerBar = el('nav', { class: 'wb-layers', 'aria-label': 'Arcadia layers' });
+const toolRow = el('div', { class: 'wb-toolrow' });
+const tabs = el('div', { class: 'wb-tabs wb-hidden' });
 const tools = el('div', { class: 'wb-viewer-tools' });
 const paletteToggle = button('', () => setPalette(!state.layout.paletteOpen), { class: 'wb-icon-button', title: 'Palette' });
 const drawerToggle = button('', () => setDrawer(!state.layout.drawerOpen), { class: 'wb-icon-button', title: 'Properties' });
-bar.append(paletteToggle, tabs, tools, drawerToggle);
+toolRow.append(paletteToggle, tools, drawerToggle);
+bar.append(layerBar, toolRow);
 
 const body = el('div', { class: 'wb-body' });
 const left = el('aside', { class: 'wb-left' });
@@ -430,6 +433,50 @@ host.addEventListener('contextmenu', (event) => {
   tagContexts();
 });
 
+/** The layers of the model, one big button each, the one on screen pressed; several diagrams of a layer unfold in a list. */
+function renderLayers(): void {
+  clear(layerBar);
+  const graphs = state.snapshot?.diagrams?.graphs ?? [];
+  if (graphs.length === 0) return;
+  const current = state.viewer?.current?.()?.view ?? null;
+  for (const viewpoint of VIEWPOINTS) {
+    const own = graphs.filter((g) => g.arc.view === viewpoint.view);
+    if (own.length === 0) continue;
+    const active = own.some((g) => g.id === current);
+    const item = button('', () => showGraph(own[0].id), { class: `wb-layer${active ? ' is-active' : ''}`, 'aria-pressed': String(active), title: `${viewpoint.label}${own.length > 1 ? ` (${own.length} diagrams)` : ''}` });
+    item.append(el('span', { class: 'wb-layer-name', text: viewpoint.short }));
+    if (own.length > 1) item.appendChild(el('span', { class: 'wb-layer-count', text: String(own.length) }));
+    layerBar.appendChild(item);
+  }
+  const extra = graphs.filter((g) => !VIEWPOINTS.some((v) => v.view === g.arc.view));
+  if (extra.length > 0) {
+    const active = extra.some((g) => g.id === current);
+    layerBar.appendChild(button(`Other (${extra.length})`, () => showGraph(extra[0].id), { class: `wb-layer${active ? ' is-active' : ''}`, 'aria-pressed': String(active) }));
+  }
+}
+
+function showGraph(id: string): void {
+  const viewer = state.viewer;
+  if (!viewer?.show) return;
+  viewer.show(id);
+  setTimeout(() => {
+    followView();
+    viewer.fit?.();
+  }, 0);
+}
+
+/** The next or previous layer that has a diagram (⌘⌥] and ⌘⌥[ in the editor). */
+function stepLayer(step: number): void {
+  const graphs = state.snapshot?.diagrams?.graphs ?? [];
+  const views = VIEWPOINTS.map((v) => v.view).filter((view) => graphs.some((g) => g.arc.view === view));
+  if (views.length === 0) return;
+  const current = currentGraph()?.arc.view ?? views[0];
+  const at = Math.max(0, views.indexOf(current));
+  const next = views[(at + step + views.length) % views.length];
+  const graph = graphs.find((g) => g.arc.view === next);
+  if (graph) showGraph(graph.id);
+}
+
 let shownGraph: string | null = null;
 
 /** What follows the view on screen: the palette, and a selection that is not drawn there. */
@@ -438,6 +485,7 @@ function followView(): void {
   const key = graph ? graph.id : null;
   if (key === shownGraph) return;
   shownGraph = key;
+  renderLayers();
   palette.show(graph?.arc.view ?? '', graph ? graphContainerOf(graph.id, graph.arc.view) : null);
   if (state.selected && graph && !drawn(graph, state.selected)) selectElement(null, false);
   fitStage();
@@ -545,6 +593,9 @@ window.addEventListener('message', (event: MessageEvent<ToWebview>) => {
       selectElement(element, true);
       return;
     }
+    case 'layer':
+      stepLayer(message.step);
+      return;
     case 'show': {
       const viewer = state.viewer;
       if (!viewer) return;
@@ -594,6 +645,11 @@ document.addEventListener('keydown', (event) => {
     return;
   }
   if (editing) return;
+  if (!event.metaKey && !event.ctrlKey && !event.altKey && (event.key === '[' || event.key === ']')) {
+    event.preventDefault();
+    stepLayer(event.key === ']' ? 1 : -1);
+    return;
+  }
   if (!event.metaKey && !event.ctrlKey && !event.altKey && event.key.length === 1 && palette.shortcut(event.key)) {
     event.preventDefault();
     return;

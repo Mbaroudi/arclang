@@ -1,7 +1,7 @@
 // The workbench: the model tree in the side bar, the custom editor beside
 // the source, the status bar item, and the commands of all three.
 import * as vscode from 'vscode';
-import { elementLabel, ViewerGraph } from '../pure/workbench';
+import { elementLabel, VIEW_OF_LAYER, ViewerGraph } from '../pure/workbench';
 import { applyRequests, refusalMessage } from './edits';
 import { onDidSelectElement, WorkbenchPanel } from './panel';
 import { forgetSnapshot, registerSnapshotRefresh, snapshotOf } from './snapshot';
@@ -97,6 +97,21 @@ export function registerWorkbench(context: vscode.ExtensionContext): void {
       await WorkbenchPanel.open(document);
       WorkbenchPanel.for(document.uri)?.show(drawn[0].id, choice.element.id);
     }
+  });
+
+  register('arclang.layer.next', () => WorkbenchPanel.activeDocument() && WorkbenchPanel.for(WorkbenchPanel.activeDocument()!.uri)?.stepLayer(1));
+  register('arclang.layer.previous', () => WorkbenchPanel.activeDocument() && WorkbenchPanel.for(WorkbenchPanel.activeDocument()!.uri)?.stepLayer(-1));
+
+  // A layer of the tree opens the diagram of that layer.
+  register('arclang.openLayer', async (item?: unknown) => {
+    const layer = item as Extract<ModelItem, { type: 'layer' }> | undefined;
+    if (!layer || layer.type !== 'layer') return;
+    const document = await vscode.workspace.openTextDocument(layer.uri);
+    const snapshot = await snapshotOf(document);
+    const view = VIEW_OF_LAYER[layer.layer];
+    const graph = (snapshot.diagrams?.graphs ?? []).find((g) => g.arc.view === view);
+    await WorkbenchPanel.open(document);
+    if (graph) WorkbenchPanel.for(document.uri)?.show(graph.id);
   });
 
   register('arclang.model.refresh', () => {

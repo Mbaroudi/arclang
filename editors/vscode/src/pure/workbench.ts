@@ -146,6 +146,7 @@ export type ToWebview =
   | { type: 'snapshot'; snapshot: Snapshot; metamodel: Metamodel | null; file: string; selected: string | null }
   | { type: 'select'; id: string | null }
   | { type: 'show'; view: string; select: string | null }
+  | { type: 'layer'; step: number }
   | { type: 'edit-result'; ok: boolean; label: string; error?: string }
   | { type: 'busy'; busy: boolean; label?: string };
 
@@ -330,6 +331,22 @@ export function attributeDisplay(value: unknown): string {
 }
 
 // --- The palette ----------------------------------------------------------
+
+/** The viewpoints in method order, with the name the layer bar shows. */
+export const VIEWPOINTS: { view: string; label: string; short: string }[] = [
+  { view: 'oab', label: 'Operational analysis', short: 'Operational' },
+  { view: 'sab', label: 'System analysis', short: 'System' },
+  { view: 'lab', label: 'Logical architecture', short: 'Logical' },
+  { view: 'pab', label: 'Physical architecture', short: 'Physical' },
+  { view: 'pbs', label: 'Product breakdown (EPBS)', short: 'EPBS' },
+  { view: 'cap', label: 'Missions and capabilities', short: 'Capabilities' },
+  { view: 'cdb', label: 'Data model', short: 'Data' },
+  { view: 'msm', label: 'Modes and states', short: 'Modes' },
+  { view: 'es', label: 'Scenarios', short: 'Scenarios' },
+];
+
+/** The viewpoint the layer of the model tree opens. */
+export const VIEW_OF_LAYER: Record<string, string> = { Operational: 'oab', System: 'sab', Logical: 'lab', Physical: 'pab', Epbs: 'pbs', Data: 'cdb', Transverse: 'cap' };
 
 /** The layer block a view's elements are declared in. */
 export const LAYER_OF_VIEW: Record<string, string> = {

@@ -158,8 +158,11 @@ export class ModelTreeProvider implements vscode.TreeDataProvider<ModelItem> {
         tree.iconPath = new vscode.ThemeIcon(ICONS[item.layer] ?? 'folder');
         tree.contextValue = 'arclang.layer';
         tree.description = item.layer === 'Model' ? '' : `${countNodes(item.roots)}`;
+        tree.tooltip = item.layer === 'Model' ? 'The model' : `${item.label}: click opens its diagram`;
         if (item.layer === 'Model' && item.roots[0]) {
           tree.command = { command: 'arclang.model.select', title: 'Select', arguments: [{ type: 'element', node: item.roots[0], uri: item.uri, parent: item }] };
+        } else {
+          tree.command = { command: 'arclang.openLayer', title: 'Open the diagram of this layer', arguments: [item] };
         }
         return tree;
       }
