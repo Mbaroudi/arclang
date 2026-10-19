@@ -564,8 +564,8 @@ pub enum ExportFormat {
 #[derive(Debug, clap::ValueEnum, Clone)]
 pub enum ImportFormat {
     Capella,
-    /// SysML v2: a JSON listing of Systems Modeling API records, or a .sysml
-    /// text of the dialect ArcLang exports
+    /// SysML v2: a .sysml or .kerml text, a directory of them (one model),
+    /// or a JSON listing of Systems Modeling API records
     #[clap(name = "sysml")]
     SysML,
     Mermaid,

@@ -43,6 +43,28 @@ pub fn import_sysml(text: &str) -> String {
     output.to_string()
 }
 
+/// Import the files of one SysML v2 model together, given as a JSON array
+/// of `{name, text}`: names resolve across the files (a `.kerml` file is
+/// read as KerML). Same result as [`import_sysml`].
+#[wasm_bindgen]
+pub fn import_sysml_files(files: &str) -> String {
+    #[derive(serde::Deserialize)]
+    struct File {
+        name: String,
+        text: String,
+    }
+    let files: Vec<File> = match serde_json::from_str(files) {
+        Ok(files) => files,
+        Err(e) => return json!({ "success": false, "error": format!("not a list of {{name, text}}: {e}") }).to_string(),
+    };
+    let borrowed: Vec<(&str, &str)> = files.iter().map(|f| (f.name.as_str(), f.text.as_str())).collect();
+    let output = match arclang::compiler::sysml_import::import_files(&borrowed) {
+        Ok(imported) => json!({ "success": true, "source": imported.source, "counts": imported.counts, "notes": imported.notes }),
+        Err(failure) => json!({ "success": false, "error": failure.message, "rejected": failure.rejected }),
+    };
+    output.to_string()
+}
+
 /// Version of the underlying compiler crate.
 #[wasm_bindgen]
 pub fn version() -> String {
@@ -134,6 +156,19 @@ mod tests {
         let source = output["source"].as_str().unwrap();
         assert!(Compiler::new(CompilerConfig::default()).compile_string(source).is_ok(), "{source}");
         assert!(output["counts"].as_object().is_some_and(|c| !c.is_empty()), "{output}");
+    }
+
+    #[test]
+    fn the_files_of_one_model_import_together() {
+        let files = json!([
+            { "name": "Usages.sysml", "text": "package Usages { private import Definitions::*; part car : Car; }" },
+            { "name": "Definitions.sysml", "text": "package Definitions { part def Car { port fuel; } }" },
+        ]);
+        let output: serde_json::Value = serde_json::from_str(&import_sysml_files(&files.to_string())).unwrap();
+        assert_eq!(output["success"], true, "{output}");
+        assert!(output["counts"].get("names designating nothing known (left unresolved)").is_none(), "{output}");
+        let bad: serde_json::Value = serde_json::from_str(&import_sysml_files("{}")).unwrap();
+        assert_eq!(bad["success"], false);
     }
 
     #[test]

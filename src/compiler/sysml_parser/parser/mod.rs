@@ -4,6 +4,7 @@
 
 mod behavior;
 mod expr;
+mod kerml;
 
 use super::lexer::{tokenize, Kind, Token};
 use super::syntax::*;
@@ -28,14 +29,37 @@ pub struct Parser {
     pub(super) in_state: bool,
     /// Whether the body may end with a result expression (calculations, constraints, cases).
     pub(super) in_calculation: bool,
+    /// The words that cannot be bare names: SysML's, or KerML's for a `.kerml` text.
+    pub(super) reserved: &'static [&'static str],
 }
 
 pub type Parsed<T> = Result<T, String>;
 
 /// Parse a whole text: the members of the root namespace.
 pub fn parse(text: &str) -> Parsed<Vec<Node>> {
+    parse_with(text, RESERVED)
+}
+
+/// Parse a text of the KerML textual notation (`.kerml`), whose reserved
+/// words are KerML's: `frame` or `entry` are names there.
+pub fn parse_kerml(text: &str) -> Parsed<Vec<Node>> {
+    parse_with(text, kerml::KERML_RESERVED)
+}
+
+/// Read one target as written (`A::B`, `a.b.c`, `'bit per second'`).
+pub fn parse_target(text: &str) -> Parsed<Target> {
     let tokens = tokenize(text)?;
-    let mut parser = Parser { tokens, position: 0, in_state: false, in_calculation: false };
+    let mut parser = Parser { tokens, position: 0, in_state: false, in_calculation: false, reserved: kerml::KERML_RESERVED };
+    let target = parser.target()?;
+    match parser.peek() {
+        None => Ok(target),
+        Some(_) => Err(parser.error("the end of the target")),
+    }
+}
+
+fn parse_with(text: &str, reserved: &'static [&'static str]) -> Parsed<Vec<Node>> {
+    let tokens = tokenize(text)?;
+    let mut parser = Parser { tokens, position: 0, in_state: false, in_calculation: false, reserved };
     let mut members = Vec::new();
     while parser.peek().is_some() {
         members.push(parser.statement()?);
@@ -122,7 +146,7 @@ impl Parser {
     /// Whether the token at `ahead` can start a name (an unreserved word or a quoted name).
     pub(super) fn is_name_at(&self, ahead: usize) -> bool {
         match self.peek_at(ahead) {
-            Some(Kind::Word(w)) => !RESERVED.contains(&w.as_str()),
+            Some(Kind::Word(w)) => !self.reserved.contains(&w.as_str()),
             Some(Kind::Name(_)) => true,
             _ => false,
         }
@@ -134,7 +158,7 @@ impl Parser {
 
     pub(super) fn name(&mut self) -> Parsed<String> {
         match self.peek() {
-            Some(Kind::Word(w)) if !RESERVED.contains(&w.as_str()) => {
+            Some(Kind::Word(w)) if !self.reserved.contains(&w.as_str()) => {
                 let w = w.clone();
                 self.position += 1;
                 Ok(w)
@@ -295,7 +319,7 @@ impl Parser {
                 Kind::Symbol("]") => {
                     depth -= 1;
                     if depth == 0 {
-                        return matches!(self.tokens.get(i + 1).map(|t| &t.kind), Some(Kind::Word(w)) if RESERVED.contains(&w.as_str()) && !matches!(w.as_str(), "ordered" | "nonunique" | "defined" | "subsets" | "redefines" | "references" | "crosses" | "default"));
+                        return matches!(self.tokens.get(i + 1).map(|t| &t.kind), Some(Kind::Word(w)) if self.reserved.contains(&w.as_str()) && !matches!(w.as_str(), "ordered" | "nonunique" | "defined" | "subsets" | "redefines" | "references" | "crosses" | "default"));
                     }
                 }
                 Kind::Symbol(";") | Kind::Symbol("{") => return false,
@@ -326,7 +350,7 @@ impl Parser {
     /// Whether what follows at `ahead` opens a declaration rather than a reference.
     fn is_declaration_start(&self, ahead: usize) -> bool {
         match self.peek_at(ahead) {
-            Some(Kind::Word(w)) => RESERVED.contains(&w.as_str()) && !matches!(w.as_str(), "then" | "to" | "else" | "if"),
+            Some(Kind::Word(w)) => self.reserved.contains(&w.as_str()) && !matches!(w.as_str(), "then" | "to" | "else" | "if"),
             Some(Kind::Symbol(s)) => matches!(*s, "#" | "@" | "<" | ":" | ":>" | "::>" | ":>>" | "=>" | "["),
             _ => false,
         }
@@ -601,7 +625,9 @@ impl Parser {
                         self.position += 1;
                         // `end [0..1] item x`, `end inCart [0..1] item x`: a crossing
                         // feature, with a name when a usage keyword follows its multiplicity.
-                        if self.is_symbol("[") || (self.is_name() && self.is_symbol_at(1, "[") && self.usage_keyword_follows_multiplicity()) {
+                        // KerML: `end crossName [m] subsets x feature f ...`.
+                        let kerml_cross = self.reserved == kerml::KERML_RESERVED && self.is_name() && self.statement_has_word_here(&["feature"]);
+                        if self.is_symbol("[") || kerml_cross || (self.is_name() && self.is_symbol_at(1, "[") && self.usage_keyword_follows_multiplicity()) {
                             let mut cross = Node::new("ReferenceUsage", "OwningMembership");
                             cross.membership_kind = Some("cross");
                             if self.is_name() {
@@ -613,6 +639,8 @@ impl Parser {
                         continue;
                     }
                     "individual" => node.prefixes.is_individual = true,
+                    // KerML prefixes, before a keyword or a name.
+                    w if kerml::KERML_PREFIXES.contains(&w) && matches!(self.peek_at(1), Some(Kind::Word(_)) | Some(Kind::Name(_))) => {}
                     "snapshot" => node.prefixes.portion = Some("snapshot"),
                     "timeslice" => node.prefixes.portion = Some("timeslice"),
                     _ => return Ok(()),
@@ -653,6 +681,13 @@ impl Parser {
         if matches!(word.as_str(), "redefines" | "subsets" | "references" | "crosses" | "defined") {
             node.kind = "ReferenceUsage";
             return self.finish_usage(node);
+        }
+        // In a KerML text, `flow` and relationship statements are KerML's.
+        if self.reserved == kerml::KERML_RESERVED && matches!(word.as_str(), "flow" | "disjoint" | "subset" | "specialization" | "subclassifier" | "subtype" | "redefinition" | "conjugation" | "conjugate" | "disjoining" | "featuring" | "inverting" | "typing") {
+            match self.kerml_declaration(node) {
+                Ok(parsed) => return parsed,
+                Err(back) => node = back,
+            }
         }
         let is_def = self.is_word_at(1, "def") || (word == "use" && self.is_word_at(1, "case") && self.is_word_at(2, "def"));
         let def_kind: Option<&'static str> = match word.as_str() {
@@ -774,6 +809,10 @@ impl Parser {
                 Err(self.error("a usage keyword"))
             }
             _ => {
+                let mut node = match self.kerml_declaration(node) {
+                    Ok(parsed) => return parsed,
+                    Err(node) => node,
+                };
                 if !node.metadata.is_empty() {
                     // `#meta x : T;`: an extended usage.
                     node.kind = "Usage";
@@ -1100,11 +1139,12 @@ impl Parser {
     /// `[binding [decl]] bind a = b body`
     fn binding(&mut self, mut node: Node) -> Parsed<Node> {
         node.kind = "BindingConnectorAsUsage";
-        if self.take_word("binding") {
+        // KerML `binding a.b = c;` starts with its first end: no declaration.
+        if self.take_word("binding") && (self.reserved != kerml::KERML_RESERVED || self.statement_has_word_here(&["of", "bind"])) {
             self.usage_declaration(&mut node)?;
         }
-        self.expect_word("bind")?;
-        let first = self.connector_end()?;
+        // KerML: `binding x of a = b`, or `binding a = b` (the name read was the end).
+        let first = if self.take_word("bind") || self.take_word("of") { self.connector_end()? } else { self.end_from_name(&mut node).map_or_else(|| self.connector_end(), Ok)? };
         self.expect_symbol("=")?;
         let second = self.connector_end()?;
         node.detail = Detail::Connector { ends: vec![first, second] };
@@ -1117,10 +1157,13 @@ impl Parser {
     fn succession(&mut self, mut node: Node) -> Parsed<Node> {
         node.kind = "SuccessionAsUsage";
         if self.take_word("succession") {
-            self.usage_declaration(&mut node)?;
+            self.take_word("all");
+            if self.reserved != kerml::KERML_RESERVED || self.statement_has_word_here(&["first"]) {
+                self.usage_declaration(&mut node)?;
+            }
         }
-        self.expect_word("first")?;
-        let first = self.connector_end()?;
+        // KerML: `succession a then b` (the name read was the first end).
+        let first = if self.take_word("first") { self.connector_end()? } else { self.end_from_name(&mut node).map_or_else(|| self.connector_end(), Ok)? };
         if self.take_word("if") {
             let guard = self.expression()?;
             self.expect_word("then")?;

@@ -38,7 +38,7 @@ impl Parser {
     fn is_declaration_start_here(&self) -> bool {
         match self.peek() {
             Some(Kind::Word(w)) => {
-                super::RESERVED.contains(&w.as_str())
+                self.reserved.contains(&w.as_str())
                     && !matches!(w.as_str(), "to" | "then" | "else" | "if")
             }
             Some(Kind::Symbol(s)) => matches!(*s, "#" | "@"),
@@ -222,7 +222,7 @@ impl Parser {
                 Kind::Symbol("[") => depth += 1,
                 Kind::Symbol("]") => depth -= 1,
                 Kind::Symbol(";") | Kind::Symbol("{") | Kind::Symbol("}") | Kind::Symbol("=") => return false,
-                Kind::Word(w) if depth == 0 && super::RESERVED.contains(&w.as_str()) && !matches!(w.as_str(), "ordered" | "nonunique" | "defined" | "by" | "subsets" | "redefines" | "references") => return false,
+                Kind::Word(w) if depth == 0 && self.reserved.contains(&w.as_str()) && !matches!(w.as_str(), "ordered" | "nonunique" | "defined" | "by" | "subsets" | "redefines" | "references") => return false,
                 _ => {}
             }
             i += 1;
