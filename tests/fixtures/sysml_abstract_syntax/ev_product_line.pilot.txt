@@ -1,0 +1,119 @@
+Package name=EV product line short=- via=-
+  LibraryPackage name=ArcadiaProfile short=- via=OwningMembership
+    MetadataDefinition name=OA short=- via=OwningMembership
+    MetadataDefinition name=SA short=- via=OwningMembership
+    MetadataDefinition name=LA short=- via=OwningMembership
+    MetadataDefinition name=PA short=- via=OwningMembership
+    MetadataDefinition name=EPBS short=- via=OwningMembership
+    MetadataDefinition name=Actor short=- via=OwningMembership
+    MetadataDefinition name=Entity short=- via=OwningMembership
+    MetadataDefinition name=Node short=- via=OwningMembership
+    MetadataDefinition name=Behaviour short=- via=OwningMembership
+    MetadataDefinition name=Hardware short=- via=OwningMembership
+    MetadataDefinition name=Mission short=- via=OwningMembership
+    MetadataDefinition name=Capability short=- via=OwningMembership
+    MetadataDefinition name=Chain short=- via=OwningMembership
+    MetadataDefinition name=Link short=- via=OwningMembership
+    MetadataDefinition name=Hazard short=- via=OwningMembership
+    MetadataDefinition name=Security short=- via=OwningMembership
+    MetadataDefinition name=PrimaryAsset short=- via=OwningMembership
+    MetadataDefinition name=Threat short=- via=OwningMembership
+    MetadataDefinition name=SecurityScales short=- via=OwningMembership
+    MetadataDefinition name=Configuration short=- via=OwningMembership
+    MetadataDefinition name=Mode short=- via=OwningMembership
+    MetadataDefinition name=Class short=- via=OwningMembership
+    MetadataDefinition name=PhysicalPort short=- via=OwningMembership
+    MetadataDefinition name=ExchangeItem short=- via=OwningMembership
+    MetadataDefinition name=Path short=- via=OwningMembership
+    MetadataDefinition name=Fmea short=- via=OwningMembership
+    MetadataDefinition name=Interface short=- via=OwningMembership
+    MetadataDefinition name=Trace short=- via=OwningMembership
+    MetadataDefinition name=Association short=- via=OwningMembership
+    MetadataDefinition name=Iterate short=- via=OwningMembership
+    MetadataDefinition name=Invariant short=- via=OwningMembership
+  Package name=Tags short=- via=OwningMembership
+    MetadataDefinition name=Safety short=- via=OwningMembership
+  Documentation name=- short=- via=OwningMembership body="Two batteries, two chargers, one architecture"
+  Package name=Data short=- via=OwningMembership
+    ItemDefinition name=Data short=- via=OwningMembership
+    ItemDefinition name=HVIL 800 V short=- via=OwningMembership
+  Package name=Vehicle needs short=- via=OwningMembership
+    MetadataUsage name=- short=- via=OwningMembership : 'EV product line'::ArcadiaProfile::SA
+    RequirementUsage name=REQ-RANGE short=- via=OwningMembership
+      Documentation name=- short=- via=OwningMembership body="Enough energy on board for the range of the line"
+    RequirementUsage name=REQ-ISO short=- via=OwningMembership
+      Documentation name=- short=- via=OwningMembership body="High voltage is monitored for isolation faults"
+  Package name=EV short=- via=OwningMembership
+    MetadataUsage name=- short=- via=OwningMembership : 'EV product line'::ArcadiaProfile::LA
+    PortDefinition name=HVIL 800 V port short=- via=OwningMembership
+      ItemUsage name=carried short=- via=FeatureMembership dir=inout : 'EV product line'::Data::'HVIL 800 V'
+    PartUsage name=Vehicle short=LC-EV via=OwningMembership
+      AttributeUsage name=energy short=- via=FeatureMembership : ISQThermodynamics::EnergyValue = op([, Integer(60), ref('EV product line'::ArcLangUnits::'kilowatt hour'))
+      PartDefinition name=Battery variation short=- via=OwningMembership
+        MetadataUsage name=- short=- via=OwningMembership : 'EV product line'::Tags::Safety
+        PortUsage name=hv short=- via=FeatureMembership dir=inout : 'EV product line'::Types::'HV connector'
+      PartUsage name=Battery short=LC-BATT via=FeatureMembership abstract : 'EV product line'::EV::Vehicle::'Battery variation'
+        PartUsage name=Standard pack short=LC-PACK-STD via=VariantMembership
+          AttributeUsage name=energy short=- via=FeatureMembership : ISQThermodynamics::EnergyValue = op([, Integer(64), ref('EV product line'::ArcLangUnits::'kilowatt hour'))
+        PartUsage name=Long range pack short=LC-PACK-LR via=VariantMembership
+          AttributeUsage name=energy short=- via=FeatureMembership : ISQThermodynamics::EnergyValue = op([, Integer(82), ref('EV product line'::ArcLangUnits::'kilowatt hour'))
+      PartDefinition name=Charger variation short=- via=OwningMembership
+        PortUsage name=hv short=- via=FeatureMembership dir=inout : 'EV product line'::Types::'HV connector'
+      PartUsage name=Charger short=LC-CHG via=FeatureMembership abstract : 'EV product line'::EV::Vehicle::'Charger variation'
+        PartUsage name=11 kW onboard charger short=LC-OBC-11 via=VariantMembership
+        PartUsage name=22 kW onboard charger short=LC-OBC-22 via=VariantMembership
+      PartUsage name=Battery management short=LC-BMS via=FeatureMembership
+        MetadataUsage name=- short=- via=OwningMembership : 'EV product line'::Tags::Safety
+      PartUsage name=Infotainment short=LC-INFO via=FeatureMembership
+    ConnectionUsage name=Charging power short=- via=OwningMembership : 'EV product line'::Types::'HV power' src=Vehicle.Charger.hv.pole tgt=Vehicle.Battery.hv.pole
+  Package name=EV hardware short=- via=OwningMembership
+    MetadataUsage name=- short=- via=OwningMembership : 'EV product line'::ArcadiaProfile::PA
+    PartUsage name=Battery ECU short=PN-BECU via=OwningMembership
+      MetadataUsage name=- short=- via=OwningMembership : 'EV product line'::ArcadiaProfile::Node
+  Package name=Types short=- via=OwningMembership
+    PortDefinition name=Data port short=- via=OwningMembership
+      ItemUsage name=carried short=- via=FeatureMembership dir=inout : 'EV product line'::Data::Data
+    PortDefinition name=HV connector short=- via=OwningMembership abstract
+      AttributeUsage name=interface short=- via=FeatureMembership : ScalarValues::String default= String("HVIL 800 V")
+      PortUsage name=pole short=- via=FeatureMembership dir=inout : 'EV product line'::Types::'Data port'
+        MultiplicityRange name=- short=- via=OwningMembership bounds=Integer(2)
+    ConnectionDefinition name=HV power short=- via=OwningMembership abstract
+      ReferenceUsage name=source short=- via=FeatureMembership
+      ReferenceUsage name=target short=- via=FeatureMembership
+      AttributeUsage name=protocol short=- via=FeatureMembership : ScalarValues::String default= String("DC 800 V")
+    AllocationDefinition name=Software deployment short=- via=OwningMembership abstract
+      ReferenceUsage name=source short=- via=FeatureMembership
+      ReferenceUsage name=target short=- via=FeatureMembership
+      AttributeUsage name=from_kind short=- via=FeatureMembership : ScalarValues::String default= String("PhysicalNode")
+      AttributeUsage name=partition short=- via=FeatureMembership : ScalarValues::String default= String("ASIL-C partition")
+      AttributeUsage name=to_kind short=- via=FeatureMembership : ScalarValues::String default= String("LogicalComponent")
+  PartUsage name=City short=CFG-CITY via=OwningMembership
+    MetadataUsage name=- short=- via=OwningMembership : 'EV product line'::ArcadiaProfile::Configuration
+  PartUsage name=Touring short=CFG-TOURING via=OwningMembership
+    MetadataUsage name=- short=- via=OwningMembership : 'EV product line'::ArcadiaProfile::Configuration
+  VerificationCaseUsage name=Range analysis short=TC-RANGE via=OwningMembership
+    AttributeUsage name=method short=- via=FeatureMembership : ScalarValues::String = String("analysis")
+    RequirementUsage name=- short=- via=ObjectiveMembership
+      RequirementUsage name=- short=- via=RequirementVerificationMembership references 'EV product line'::'Vehicle needs'::'REQ-RANGE'
+    AssertConstraintUsage name=- short=- via=FeatureMembership references 'EV product line'::'Smallest pack covers the range'
+  VerificationCaseUsage name=Isolation fault injection short=TC-ISO via=OwningMembership
+    AttributeUsage name=verdict short=- via=FeatureMembership : ScalarValues::String = String("pass")
+    AttributeUsage name=method short=- via=FeatureMembership : ScalarValues::String = String("test")
+    RequirementUsage name=- short=- via=ObjectiveMembership
+      RequirementUsage name=- short=- via=RequirementVerificationMembership references 'EV product line'::'Vehicle needs'::'REQ-ISO'
+  ConstraintUsage name=Smallest pack covers the range short=CST-RANGE via=OwningMembership
+    AttributeUsage name=expression short=- via=FeatureMembership : ScalarValues::String = String("\"LC-PACK-STD\".energy >= \"LC-EV\".energy")
+  AllocationUsage name=- short=- via=OwningMembership : 'EV product line'::Types::'Software deployment' src='EV product line'::'EV hardware'::'Battery ECU' tgt=Vehicle.Battery management
+  SatisfyRequirementUsage name=- short=- via=OwningMembership references 'EV product line'::'Vehicle needs'::'REQ-RANGE' req='EV product line'::'Vehicle needs'::'REQ-RANGE' by='EV product line'::EV::Vehicle::Battery
+  SatisfyRequirementUsage name=- short=- via=OwningMembership references 'EV product line'::'Vehicle needs'::'REQ-ISO' req='EV product line'::'Vehicle needs'::'REQ-ISO' by='EV product line'::EV::Vehicle::'Battery management'
+  ViewUsage name=Touring car short=- via=OwningMembership
+    AttributeUsage name=view short=- via=FeatureMembership : ScalarValues::String = String("lab")
+    AttributeUsage name=configuration short=- via=FeatureMembership : ScalarValues::String = String("CFG-TOURING")
+  ViewUsage name=Safety relevant short=- via=OwningMembership
+    AttributeUsage name=view short=- via=FeatureMembership : ScalarValues::String = String("lab")
+  Package name=ArcLangUnits short=- via=OwningMembership
+    AttributeUsage name=kilowatt hour short=kW*h via=OwningMembership : ISQThermodynamics::EnergyUnit
+  Dependency name=selects short=- via=OwningMembership client='EV product line'::City supplier='EV product line'::EV::Vehicle::Battery::'Standard pack'
+  Dependency name=selects short=- via=OwningMembership client='EV product line'::City supplier='EV product line'::EV::Vehicle::Charger::'11 kW onboard charger'
+  Dependency name=selects short=- via=OwningMembership client='EV product line'::Touring supplier='EV product line'::EV::Vehicle::Battery::'Long range pack'
+  Dependency name=selects short=- via=OwningMembership client='EV product line'::Touring supplier='EV product line'::EV::Vehicle::Charger::'22 kW onboard charger'

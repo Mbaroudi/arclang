@@ -166,48 +166,77 @@ fn collect_component_functions<'a>(components: &'a [LogicalComponent], out: &mut
     }
 }
 
-/// A component, the functions it holds and the components inside it.
+/// A component, the functions it holds and the components inside it. A
+/// variation holds nothing but its variants (SysML v2): what it has of its
+/// own (attributes, ports, functions) is a definition typing it.
 fn logical_component(e: &mut Exporter<'_>, component: &LogicalComponent) {
     let id = id_of(&component.attributes, &component.id).to_string();
     let actor = super::flag(&component.attributes, "actor") || component.component_type.eq_ignore_ascii_case("actor");
     let metadata = if actor { "#Actor " } else { "" };
     let (bounds, stated) = super::multiplicity("LogicalComponent", &component.attributes);
     let typing = e.typing(&component.attributes);
-    // A point of variation and its variants, as SysML v2 says them.
-    let variability = if crate::compiler::variability::is_variation(&component.attributes) {
-        "variation "
-    } else if crate::compiler::variability::is_variant(&component.attributes) {
-        "variant "
-    } else {
-        ""
-    };
-    e.block(&format!("{metadata}{variability}part {}{typing}{bounds}", text::declared(&id, &component.name)), |e| {
-        e.header("LogicalComponent", &component.attributes, &["actor", "variation", "variant", stated.unwrap_or("")]);
-        // `Logical` is what the parser gives a component that states no type.
-        if !component.component_type.is_empty() && component.component_type != "Logical" && !actor {
-            e.line(&format!("attribute component_type : String = {};", text::string(&component.component_type)));
+    let skip = ["actor", "variation", "variant", stated.unwrap_or("")];
+    if crate::compiler::variability::is_variation(&component.attributes) {
+        let mut typing = typing;
+        if has_own_features(component, &skip) {
+            let definition = text::name(&format!("{} variation", component.name));
+            let specializes = typing.replacen(" : ", " :> ", 1);
+            e.block(&format!("{metadata}part def {definition}{specializes}"), |e| own_features(e, component, &skip));
+            typing = format!(" : {definition}");
         }
-        levels::owned_ports(e, &component.ports, &component.attributes);
-        // `interface_in` / `interface_out`: ports named by the interface they offer.
-        for (direction, interfaces) in [("in", &component.interfaces_in), ("out", &component.interfaces_out)] {
-            for interface in interfaces {
-                let mut attributes = interface.attributes.clone();
-                for (key, value) in [("protocol", &interface.protocol), ("format", &interface.format)] {
-                    if let Some(value) = value {
-                        attributes.entry(key.to_string()).or_insert(AttributeValue::String(value.clone()));
-                    }
-                }
-                e.block(&format!("{direction} port {} : Port", text::name(&interface.name)), |e| e.header("InterfaceDefinition", &attributes, &[]));
+        e.block(&format!("variation part {}{typing}{bounds}", text::declared(&id, &component.name)), |e| {
+            for sub in &component.sub_components {
+                logical_component(e, sub);
             }
-        }
-        for f in &component.functions {
-            function(e, "LogicalFunction", f, "perform action");
-        }
-        performs(e, &component.allocated_functions);
+        });
+        return;
+    }
+    let variant = if crate::compiler::variability::is_variant(&component.attributes) { "variant " } else { "" };
+    e.block(&format!("{metadata}{variant}part {}{typing}{bounds}", text::declared(&id, &component.name)), |e| {
+        own_features(e, component, &skip);
         for sub in &component.sub_components {
             logical_component(e, sub);
         }
     });
+}
+
+/// Whether a component has more than its identity and its subcomponents.
+fn has_own_features(component: &LogicalComponent, skip: &[&str]) -> bool {
+    let identity = ["id", "name", "is"];
+    component.attributes.keys().any(|k| !identity.contains(&k.as_str()) && !skip.contains(&k.as_str()))
+        || (!component.component_type.is_empty() && component.component_type != "Logical")
+        || !component.ports.is_empty()
+        || !component.interfaces_in.is_empty()
+        || !component.interfaces_out.is_empty()
+        || !component.functions.is_empty()
+        || !component.allocated_functions.is_empty()
+}
+
+/// What a component has of its own: header, ports, offered interfaces, functions.
+fn own_features(e: &mut Exporter<'_>, component: &LogicalComponent, skip: &[&str]) {
+    let actor = super::flag(&component.attributes, "actor") || component.component_type.eq_ignore_ascii_case("actor");
+    e.header("LogicalComponent", &component.attributes, skip);
+    // `Logical` is what the parser gives a component that states no type.
+    if !component.component_type.is_empty() && component.component_type != "Logical" && !actor {
+        e.line(&format!("attribute component_type : String = {};", text::string(&component.component_type)));
+    }
+    levels::owned_ports(e, &component.ports, &component.attributes);
+    // `interface_in` / `interface_out`: ports named by the interface they offer.
+    for (direction, interfaces) in [("in", &component.interfaces_in), ("out", &component.interfaces_out)] {
+        for interface in interfaces {
+            let mut attributes = interface.attributes.clone();
+            for (key, value) in [("protocol", &interface.protocol), ("format", &interface.format)] {
+                if let Some(value) = value {
+                    attributes.entry(key.to_string()).or_insert(AttributeValue::String(value.clone()));
+                }
+            }
+            e.block(&format!("{direction} port {} : Port", text::name(&interface.name)), |e| e.header("InterfaceDefinition", &attributes, &[]));
+        }
+    }
+    for f in &component.functions {
+        function(e, "LogicalFunction", f, "perform action");
+    }
+    performs(e, &component.allocated_functions);
 }
 
 fn realizations(e: &mut Exporter<'_>, list: &[Capability]) {

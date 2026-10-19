@@ -188,7 +188,7 @@ fn fixtures() -> PathBuf {
 #[test]
 fn the_abstract_syntax_agrees_with_the_omg_pilot_on_the_frozen_references() {
     let mut checked = 0;
-    for name in ["expression_forms", "timing_constraints", "complete_emergency_braking_simple", "level_crossing_protection"] {
+    for name in ["expression_forms", "timing_constraints", "complete_emergency_braking_simple", "level_crossing_protection", "ev_product_line"] {
         let text = std::fs::read_to_string(fixtures().join(format!("{name}.sysml"))).unwrap();
         let pilot = std::fs::read_to_string(fixtures().join(format!("{name}.pilot.txt"))).unwrap();
         let rendered = sysml_records::from_text(&text).unwrap_or_else(|e| panic!("{name}: {e}"));

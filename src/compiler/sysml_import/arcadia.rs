@@ -283,6 +283,13 @@ impl<'g> Mapper<'g> {
             .collect()
     }
 
+    /// The port definition the export gives the ports of a type that name
+    /// no other (`port def 'Data port' { inout item carried : Data; }`).
+    fn is_carrier(&self, def: &Element) -> bool {
+        let features: Vec<&Element> = def.children.iter().filter_map(|c| self.graph.get(c)).filter(|c| c.kind.ends_with("Usage")).collect();
+        def.kind == "PortDefinition" && !def.is_abstract && def.name.as_deref().is_some_and(|n| n.ends_with(" port")) && features.iter().all(|f| f.name.as_deref() == Some("carried"))
+    }
+
     fn is_library(&self, element: &Element) -> bool {
         element.is_library || self.graph.ancestor(&element.id, |e| e.kind == "LibraryPackage" || e.is_library).is_some()
     }
@@ -363,6 +370,7 @@ impl<'g> Mapper<'g> {
             .of_kinds(&["PartDefinition", "ActionDefinition", "ConnectionDefinition", "InterfaceDefinition", "PortDefinition", "AllocationDefinition"])
             .filter(|d| !self.is_library(d) && !self.is_chain(d))
             .filter(|d| d.is_abstract || d.owner.as_deref().and_then(|o| self.graph.get(o)).and_then(|o| o.name.as_deref()) == Some("Types"))
+            .filter(|d| !self.is_carrier(d))
             .collect();
         for def in declared_types {
             self.declare_type(def);

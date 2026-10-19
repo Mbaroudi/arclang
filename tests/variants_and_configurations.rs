@@ -99,3 +99,32 @@ fn variants_go_through_sysml_v2_and_back() {
     assert!(back.contains("configuration \"City\""), "{back}");
     assert!(back.contains("selects: [\"LC-4CYL\", \"LC-MANUAL\"]"), "{back}");
 }
+
+#[test]
+fn a_variation_holds_only_its_variants() {
+    let error = compile(&LINE.replace("component \"Manual\" { id: \"LC-MANUAL\" variant: true }", "component \"Manual\" { id: \"LC-MANUAL\" variant: true }\n            component \"Oil pump\" { id: \"LC-PUMP\" }")).err().unwrap_or_default();
+    assert!(error.contains("'LC-PUMP' is in a variation but is not a variant"), "{error}");
+}
+
+/// SysML v2 lets a variation own nothing but its variants: what it has of
+/// its own is a definition typing it, and no feature chain reaches a variant.
+#[test]
+fn what_a_variation_has_of_its_own_is_its_definition() {
+    let source = LINE
+        .replace("            variation: true\n            component \"Four", "            variation: true\n            tags: [\"Powertrain\"]\n            port out \"torque\"\n            component \"Four")
+        .replace("component \"Four cylinders\" { id: \"LC-4CYL\" variant: true }", "component \"Four cylinders\" { id: \"LC-4CYL\" variant: true power: 90 kW }")
+        + "constraint \"Enough power\" { id: \"CST-P\" assert: \"LC-4CYL\".power >= 80 kW }\n";
+    let result = compile(&source).unwrap();
+    let text = arclang::compiler::sysmlv2_generator::generate_sysmlv2(&result.semantic_model, &result.ast);
+    assert!(text.contains("part def 'Engine variation' {\n                @Powertrain;\n                out port torque"), "{text}");
+    assert!(text.contains("variation part <'LC-ENGINE'> Engine : 'Engine variation' {\n                variant part"), "{text}");
+    assert!(text.contains("// not an expression of the export: 'LC-4CYL' is a variant or in one"), "{text}");
+    let back = arclang::compiler::sysml_import::import_text(&text).unwrap_or_else(|f| panic!("{}\n{text}", f.message)).source;
+    assert!(back.contains("port out \"torque\""), "{back}");
+    assert!(back.contains("tags: [\"Powertrain\"]"), "{back}");
+    assert!(back.contains("assert: \"LC-4CYL\".power >= 80 kW"), "{back}");
+    assert!(!back.contains("type \"Engine variation\""), "{back}");
+    compile(&back).unwrap_or_else(|e| panic!("{e}\n{back}"));
+    // The reader of the API abstract syntax knows variations too.
+    arclang::compiler::sysml_records::from_text(&text).unwrap_or_else(|e| panic!("{e}"));
+}

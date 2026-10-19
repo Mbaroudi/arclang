@@ -49,7 +49,10 @@ fn expression(e: &mut Exporter<'_>, expr: &Expr, scope: &Scope, top: bool) -> Re
 }
 
 fn path(e: &Exporter<'_>, element: &str) -> Result<String, String> {
-    e.feature(element).ok_or_else(|| format!("no exported element '{element}'"))
+    e.feature(element).ok_or_else(|| match e.reference(element) {
+        Some(_) => format!("'{element}' is a variant or in one, which SysML v2 reaches only inside its variation"),
+        None => format!("no exported element '{element}'"),
+    })
 }
 
 pub(super) fn write(e: &mut Exporter<'_>) {

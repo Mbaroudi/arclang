@@ -40,7 +40,8 @@ fn trace_dependency(e: &mut Exporter<'_>, key: &str, from: &str, to: &str) {
 pub(super) fn allocation(e: &mut Exporter<'_>, from: &str, to: &str) {
     match (e.feature(from), e.feature(to)) {
         (Some(source), Some(target)) => e.line(&format!("allocate {source} to {target};")),
-        _ => e.line(&format!("// {from} allocated to {to}: an end is not exported")),
+        // An end no feature chain reaches (a variant): a dependency, by name.
+        _ => trace_dependency(e, "allocates", from, to),
     }
 }
 
@@ -53,7 +54,7 @@ fn typed_allocation(e: &mut Exporter<'_>, trace: &Trace) {
     }
     match (e.feature(&trace.from), e.feature(&trace.to)) {
         (Some(source), Some(target)) => e.line(&format!("allocation{typing} allocate {source} to {target};")),
-        _ => e.line(&format!("// {} allocated to {}: an end is not exported", trace.from, trace.to)),
+        _ => trace_dependency(e, "allocates", &trace.from, &trace.to),
     }
 }
 

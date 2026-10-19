@@ -58,11 +58,14 @@ pub(crate) struct Exporter<'m> {
     undeclared: Vec<String>,
     /// The ArcLang types, their inheritance folded in.
     types: std::collections::BTreeMap<String, crate::compiler::types::EffectiveType>,
+    /// Segments naming a variant: no feature chain goes through one, a
+    /// variant is a choice of its variation, not a feature of it.
+    variants: std::collections::HashSet<String>,
 }
 
 impl<'m> Exporter<'m> {
     fn new(model: &'m Model) -> Self {
-        Exporter { model, metamodel: Metamodel::current(), out: String::new(), depth: 0, units: BTreeSet::new(), targets: HashMap::new(), package: String::new(), undeclared: Vec::new(), types: crate::compiler::types::effective_types(&model.types).unwrap_or_default() }
+        Exporter { model, metamodel: Metamodel::current(), out: String::new(), depth: 0, units: BTreeSet::new(), targets: HashMap::new(), package: String::new(), undeclared: Vec::new(), types: crate::compiler::types::effective_types(&model.types).unwrap_or_default(), variants: crate::compiler::variability::variations(model).iter().flat_map(|v| v.variants.iter().map(|(id, _)| text::name(id))).collect() }
     }
 
     fn line(&mut self, text: &str) {
@@ -159,7 +162,7 @@ impl<'m> Exporter<'m> {
     /// The feature chain to the element `reference` names, the end of a
     /// connector: `'LC-1'.'LC-2'.radar`.
     fn feature(&self, reference: &str) -> Option<String> {
-        self.targets.get(reference).map(|t| self.qualify(t, "."))
+        self.targets.get(reference).filter(|t| !t.segments.iter().any(|s| self.variants.contains(s))).map(|t| self.qualify(t, "."))
     }
 
     fn run(&mut self) {

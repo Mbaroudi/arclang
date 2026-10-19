@@ -13,7 +13,7 @@
 //! it holds marked `variant: true` are its variants. A configuration is one
 //! product: it selects one variant of every variation.
 //!
-//! Errors: a variant outside a variation; a configuration selecting what is
+//! Errors: a variant outside a variation, anything else inside one; a configuration selecting what is
 //! not a variant, or two variants of one variation. Warnings: a variation
 //! with fewer than two variants; a configuration leaving a variation open.
 
@@ -89,7 +89,10 @@ pub fn check(ast: &Model) -> Result<Vec<String>, String> {
     fn misplaced(components: &[LogicalComponent], in_variation: bool) -> Option<String> {
         for component in components {
             if is_variant(&component.attributes) && !in_variation {
-                return Some(written_id(component));
+                return Some(format!("'{}' is a variant outside a variation: put it in a component `variation: true`", written_id(component)));
+            }
+            if !is_variant(&component.attributes) && in_variation {
+                return Some(format!("'{}' is in a variation but is not a variant: a variation holds only its variants (`variant: true`)", written_id(component)));
             }
             if let Some(found) = misplaced(&component.sub_components, is_variation(&component.attributes)) {
                 return Some(found);
@@ -98,8 +101,8 @@ pub fn check(ast: &Model) -> Result<Vec<String>, String> {
         None
     }
     for la in &ast.logical_architecture {
-        if let Some(variant) = misplaced(&la.components, false) {
-            return Err(format!("'{variant}' is a variant outside a variation: put it in a component `variation: true`"));
+        if let Some(error) = misplaced(&la.components, false) {
+            return Err(error);
         }
     }
     let variations = variations(ast);

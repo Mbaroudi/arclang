@@ -90,6 +90,7 @@ const KINDS: &[(&[&str], &str, Option<&str>)] = &[
     (&["occurrence"], "OccurrenceUsage", Some("OccurrenceDefinition")),
     (&["enum"], "EnumerationUsage", Some("EnumerationDefinition")),
     (&["view"], "ViewUsage", Some("ViewDefinition")),
+    (&["allocation"], "AllocationUsage", Some("AllocationDefinition")),
 ];
 
 /// Control node keywords and their metaclasses.
@@ -327,6 +328,11 @@ impl Reader {
             metadata.push(head.path()?);
         }
         declaration.is_abstract = head.take_word("abstract");
+        // A variation is abstract; a variant is held by a `VariantMembership`.
+        declaration.is_abstract |= head.take_word("variation");
+        if head.take_word("variant") {
+            declaration.membership = "VariantMembership";
+        }
         let follows = head.take_word("then");
         for direction in ["in", "out", "inout"] {
             if head.take_word(direction) {
@@ -576,6 +582,7 @@ impl Reader {
         let starts_clause = |head: &Head| {
             matches!(head.peek(), Some(Token::Symbol(":" | ":>" | ":>>" | "=")))
                 || is_word(head.peek(), "connect")
+                || is_word(head.peek(), "allocate")
                 || is_word(head.peek(), "default")
         };
         if !head.done() && !starts_clause(head) {
@@ -592,6 +599,9 @@ impl Reader {
                 declaration.bounds = Some(Self::bounds(head)?);
             } else if head.take_word("connect") {
                 Self::connected(head, declaration)?;
+            } else if head.take_word("allocate") {
+                // `allocation : T allocate a to b`: a typed allocation.
+                declaration.ends = Some(Self::ends(head, "to")?);
             } else if is_word(head.peek(), "default") || is_symbol(head.peek(), "=") {
                 declaration.is_default = head.take_word("default");
                 if !head.take_symbol("=") {
