@@ -597,6 +597,15 @@
       ]
     },
     {
+      "qualifiedName": "SIPrefixes::tera",
+      "metaclass": "AttributeUsage",
+      "name": "tera",
+      "shortName": null,
+      "roles": [
+        "value"
+      ]
+    },
+    {
       "qualifiedName": "ScalarValues::Boolean",
       "metaclass": "DataType",
       "name": "Boolean",

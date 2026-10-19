@@ -199,7 +199,8 @@ fn occurrence(e: &mut Exporter<'_>, scenario: &Scenario) {
 
 /// `#Invariant state 'id' :> S { attribute start : Integer = 0; }`: a
 /// state (or `ref action`, a function) asserted on its lifeline from the
-/// message `start` to the message `end`; without `end`, an instant.
+/// message `start` to the message `endAt`; without `endAt`, an instant.
+/// (`end` is a reserved word of SysML v2: `attribute end` does not parse.)
 fn state_invariant(e: &mut Exporter<'_>, invariant: &StateInvariant) {
     let keyword = match invariant.kind {
         InvariantKind::State => "state",
@@ -215,7 +216,7 @@ fn state_invariant(e: &mut Exporter<'_>, invariant: &StateInvariant) {
         e.line(&format!("attribute start : Integer = {};", invariant.start));
         // An instant has no end: `end < start`, or no message at all to end on.
         if invariant.end >= invariant.start && invariant.end != usize::MAX {
-            e.line(&format!("attribute end : Integer = {};", invariant.end));
+            e.line(&format!("attribute endAt : Integer = {};", invariant.end));
         }
     });
 }

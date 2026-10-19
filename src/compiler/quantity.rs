@@ -288,6 +288,8 @@ pub const UNITS: &[UnitSpec] = &[
     unit("Mbit/s", Dimension::DataRate, 1e6, "'Mbit/s'"),
     unit("Gbps", Dimension::DataRate, 1e9, "'Gbit/s'"),
     unit("Gbit/s", Dimension::DataRate, 1e9, "'Gbit/s'"),
+    unit("Tbps", Dimension::DataRate, 1e12, "'Tbit/s'"),
+    unit("Tbit/s", Dimension::DataRate, 1e12, "'Tbit/s'"),
     // Information
     unit("bit", Dimension::Information, 1.0, "bit"),
     unit("B", Dimension::Information, 8.0, "B"),
@@ -295,6 +297,7 @@ pub const UNITS: &[UnitSpec] = &[
     unit("KB", Dimension::Information, 8e3, "kB"),
     unit("MB", Dimension::Information, 8e6, "MB"),
     unit("GB", Dimension::Information, 8e9, "GB"),
+    unit("TB", Dimension::Information, 8e12, "TB"),
     unit("KiB", Dimension::Information, 8.0 * 1024.0, "KiB"),
     unit("MiB", Dimension::Information, 8.0 * 1024.0 * 1024.0, "MiB"),
     unit("GiB", Dimension::Information, 8.0 * 1024.0 * 1024.0 * 1024.0, "GiB"),
@@ -529,5 +532,18 @@ mod tests {
     fn serializes_as_value_and_unit() {
         let json = serde_json::to_string(&Quantity::new(25.0, "ms").unwrap()).unwrap();
         assert_eq!(json, r#"{"value":25.0,"unit":"ms"}"#);
+    }
+
+    #[test]
+    fn terabit_rates_and_terabytes_follow_the_gigabit_spellings() {
+        assert_eq!(Quantity::parse("1 Tbps").unwrap().canonical(), 1e12);
+        assert_eq!(Quantity::parse("1 Tbit/s").unwrap().canonical(), 1e12);
+        assert_eq!(Quantity::parse("1 Tbps").unwrap().dimension(), Dimension::DataRate);
+        assert_eq!(Quantity::parse("1 TB").unwrap().canonical(), 8e12);
+        assert_eq!(Quantity::parse("1000 GB").unwrap().canonical(), Quantity::parse("1 TB").unwrap().canonical());
+        assert_eq!(lookup_unit("Tbps").unwrap().sysml, "'Tbit/s'");
+        // Temperatures are absolute only: a Celsius offset is not a factor.
+        assert!(lookup_unit("degC").is_none());
+        assert!(lookup_unit("°C").is_none());
     }
 }

@@ -111,6 +111,73 @@ fn attr<'a>(attributes: &'a HashMap<String, AttributeValue>, key: &str) -> Optio
     attributes.get(key).and_then(|v| v.as_string())
 }
 
+/// What a chain's timing can be made of: (keyword, id, name, attributes) of
+/// every function of every level, sub-functions included, and of every
+/// functional exchange.
+type Timed<'a> = (&'a str, &'a str, &'a str, &'a HashMap<String, AttributeValue>);
+
+fn timed_elements(ast: &Model) -> Vec<Timed<'_>> {
+    use super::ast::{FunctionalExchange, LogicalComponent, LogicalFunction, SystemFunction};
+    fn system_function<'a>(function: &'a SystemFunction, out: &mut Vec<Timed<'a>>) {
+        out.push(("function", &function.id, &function.name, &function.attributes));
+        for sub in &function.sub_functions {
+            system_function(sub, out);
+        }
+    }
+    fn level_function<'a>(function: &'a LogicalFunction, out: &mut Vec<Timed<'a>>) {
+        out.push(("function", &function.id, &function.name, &function.attributes));
+        for sub in &function.sub_functions {
+            level_function(sub, out);
+        }
+    }
+    fn component_functions<'a>(component: &'a LogicalComponent, out: &mut Vec<Timed<'a>>) {
+        for function in &component.functions {
+            level_function(function, out);
+        }
+        for sub in &component.sub_components {
+            component_functions(sub, out);
+        }
+    }
+    fn exchanges<'a>(exchanges: &'a [FunctionalExchange], out: &mut Vec<Timed<'a>>) {
+        for exchange in exchanges {
+            out.push(("functional_exchange", &exchange.id, exchange.label.as_deref().unwrap_or(""), &exchange.attributes));
+        }
+    }
+    let mut out = Vec::new();
+    for sa in &ast.system_analysis {
+        for function in &sa.functions {
+            system_function(function, &mut out);
+        }
+        exchanges(&sa.functional_exchanges, &mut out);
+    }
+    for la in &ast.logical_architecture {
+        for function in &la.functions {
+            level_function(function, &mut out);
+        }
+        for component in &la.components {
+            component_functions(component, &mut out);
+        }
+        exchanges(&la.functional_exchanges, &mut out);
+    }
+    for pa in &ast.physical_architecture {
+        for function in &pa.functions {
+            level_function(function, &mut out);
+        }
+        for node in &pa.nodes {
+            for function in &node.functions {
+                level_function(function, &mut out);
+            }
+            for behaviour in &node.behavior_components {
+                for function in &behaviour.functions {
+                    level_function(function, &mut out);
+                }
+            }
+        }
+        exchanges(&pa.functional_exchanges, &mut out);
+    }
+    out
+}
+
 fn level_digit(attributes: &HashMap<String, AttributeValue>, key: &str) -> Option<u8> {
     attr(attributes, key).and_then(|v| {
         v.trim_start_matches(|c: char| c.is_ascii_alphabetic())
@@ -232,6 +299,10 @@ pub fn run_gate(ast: &Model, semantic: &SemanticModel, standard: &str) -> GateRe
                         ),
                     }
                 }
+                // IEC 61508: the risk graph of part 5 is not the ISO 26262
+                // table; a hazard classified by its `sil` needs no S/E/C
+                // (the value is checked against the Sil enumeration in 5b).
+                "IEC61508" if attr(&hazard.attributes, "sil").is_some() => {}
                 _ => {
                     // ISO 26262: S/E/C must be present and consistent
                     let s = level_digit(&hazard.attributes, "severity");
@@ -256,11 +327,14 @@ pub fn run_gate(ast: &Model, semantic: &SemanticModel, standard: &str) -> GateRe
                                 format!("hazard '{}': S{}/E{}/C{} outside the ISO 26262 ranges (S1-3, E1-4, C1-3)", hazard.name, s, e, c),
                             ),
                         },
-                        _ => push(
-                            "safety.hara",
-                            Severity::Blocker,
-                            format!("hazard '{}': missing severity/exposure/controllability (ISO 26262 HARA)", hazard.name),
-                        ),
+                        _ => {
+                            let expected = if standard == "IEC61508" {
+                                "sil (IEC 61508 SIL-1..SIL-4) or severity/exposure/controllability"
+                            } else {
+                                "severity/exposure/controllability (ISO 26262 HARA)"
+                            };
+                            push("safety.hara", Severity::Blocker, format!("hazard '{}': missing {expected}", hazard.name))
+                        }
                     }
                 }
             }
@@ -290,38 +364,39 @@ pub fn run_gate(ast: &Model, semantic: &SemanticModel, standard: &str) -> GateRe
     // ---- 3. Timing budgets on functional chains --------------------------
     // Latencies are TYPED: a function whose latency is not a time quantity
     // (wrong dimension, free text) is a blocker, a unitless number a warning.
+    // The functions of every level count (a chain of the logical or physical
+    // architecture sums its own functions), and a functional exchange that
+    // declares a latency adds it; an exchange without one is skipped.
     let mut function_latency: HashMap<&str, f64> = HashMap::new();
-    for function in ast.system_analysis.iter().flat_map(|sa| sa.functions.iter()) {
-        let read = match read_time(&function.attributes, "latency") {
-            TimeRead::Absent => read_time(&function.attributes, "execution_time"),
+    let mut function_names: HashMap<&str, &str> = HashMap::new();
+    for (keyword, id, name, attributes) in timed_elements(ast) {
+        if !name.is_empty() {
+            function_names.entry(name).or_insert(id);
+        }
+        let read = match read_time(attributes, "latency") {
+            TimeRead::Absent => read_time(attributes, "execution_time"),
             other => other,
         };
         match read {
             TimeRead::Absent => {}
             TimeRead::Millis(ms) => {
-                function_latency.insert(function.id.as_str(), ms);
+                function_latency.insert(id, ms);
             }
             TimeRead::UnitlessMillis(ms) => {
-                function_latency.insert(function.id.as_str(), ms);
+                function_latency.insert(id, ms);
                 push(
                     "timing.units",
                     Severity::Warning,
-                    format!("function '{}': latency {} has no unit — assumed milliseconds; write `latency: {} ms`", function.id, ms, ms),
+                    format!("{keyword} '{}': latency {} has no unit — assumed milliseconds; write `latency: {} ms`", id, ms, ms),
                 );
             }
             TimeRead::Invalid(reason) => push(
                 "timing.units",
                 Severity::Blocker,
-                format!("function '{}': latency is not a time quantity ({})", function.id, reason),
+                format!("{keyword} '{}': latency is not a time quantity ({})", id, reason),
             ),
         }
     }
-    let function_names: HashMap<&str, &str> = ast
-        .system_analysis
-        .iter()
-        .flat_map(|sa| sa.functions.iter())
-        .map(|f| (f.name.as_str(), f.id.as_str()))
-        .collect();
 
     for chain in &semantic.functional_chains {
         let ast_chain = ast
@@ -329,6 +404,7 @@ pub fn run_gate(ast: &Model, semantic: &SemanticModel, standard: &str) -> GateRe
             .iter()
             .flat_map(|sa| sa.functional_chains.iter())
             .chain(ast.logical_architecture.iter().flat_map(|la| la.functional_chains.iter()))
+            .chain(ast.physical_architecture.iter().flat_map(|pa| pa.functional_chains.iter()))
             .find(|c| c.id == chain.id);
         let budget = match ast_chain.map(|c| read_time(&c.attributes, "latency_budget")) {
             None | Some(TimeRead::Absent) => None,
@@ -364,11 +440,13 @@ pub fn run_gate(ast: &Model, semantic: &SemanticModel, standard: &str) -> GateRe
                     match function_latency.get(key) {
                         Some(ms) => total += ms,
                         None => {
-                            // Only functions count; exchanges without latency are skipped
+                            // Only functions must declare one (SystemFunction,
+                            // Function, LogicalFunction, PhysicalFunction);
+                            // a FunctionalExchange without latency is skipped.
                             if semantic
                                 .all_elements
                                 .get(involved.as_str())
-                                .map(|e| e.element_type.contains("Function"))
+                                .map(|e| e.element_type.ends_with("Function"))
                                 .unwrap_or(false)
                             {
                                 missing.push(involved.clone());
@@ -628,5 +706,65 @@ system_analysis "SA" {
         let units: Vec<_> = report.findings.iter().filter(|f| f.check == "timing.units").collect();
         assert!(units.iter().any(|f| f.severity == Severity::Blocker && f.message.contains("F-A") && f.message.contains("frequency, not a time")), "{:?}", units);
         assert!(units.iter().any(|f| f.severity == Severity::Warning && f.message.contains("F-B") && f.message.contains("assumed milliseconds")), "{:?}", units);
+    }
+
+    #[test]
+    fn gate_skips_exchanges_without_latency_in_a_chain_and_adds_those_with_one() {
+        let source = |fe_latency: &str| format!(
+            r#"
+model T {{}}
+system_analysis "SA" {{
+    function "A" {{ id: "F-A" latency: 40 ms port out "x" }}
+    function "B" {{ id: "F-B" latency: 50 ms port in "x" }}
+    functional_exchange "FE-X" {{ id: "FE-X" from: "F-A.x" to: "F-B.x" {fe_latency} }}
+    functional_chain "Chain" {{ id: "FC-1" involves: ["F-A", "FE-X", "F-B"] latency_budget: 100 ms }}
+}}
+"#
+        );
+        // An exchange without latency is not a function that must declare one.
+        let (ast, semantic) = compile(&source(""));
+        let report = run_gate(&ast, &semantic, "ISO26262");
+        assert!(!report.findings.iter().any(|f| f.check == "timing.latency"), "{:?}", report.findings);
+        assert!(!report.findings.iter().any(|f| f.check == "timing.budget"), "{:?}", report.findings);
+        // One that declares a latency adds it to the chain.
+        let (ast, semantic) = compile(&source("latency: 15 ms"));
+        let report = run_gate(&ast, &semantic, "ISO26262");
+        assert!(
+            report.findings.iter().any(|f| f.check == "timing.budget" && f.message.contains("105.0 ms exceeds the 100.0 ms budget")),
+            "{:?}",
+            report.findings
+        );
+    }
+
+    #[test]
+    fn gate_sums_the_latencies_of_logical_and_physical_functions() {
+        let source = |budget: &str| format!(
+            r#"
+model T {{}}
+architecture logical {{
+    component "C" {{ id: "LC-1" function "Compute" {{ id: "LF-1" latency: 30 ms function "Filter" {{ id: "LF-1a" latency: 5 ms }} }} }}
+    component "D" {{ id: "LC-2" function "Act" {{ id: "LF-2" latency: 40 ms }} }}
+    functional_chain "Logical chain" {{ id: "FC-L" involves: ["LF-1", "LF-1a", "LF-2"] latency_budget: {budget} }}
+}}
+architecture physical {{
+    node "ECU" {{ id: "PN-1" behavior_component "Firmware" {{ id: "BC-1" function "Drive" {{ id: "PF-1" latency: 20 ms }} }} }}
+    function "Log" {{ id: "PF-2" latency: 3 ms }}
+    functional_chain "Physical chain" {{ id: "FC-P" involves: ["PF-1", "PF-2"] latency_budget: 25 ms }}
+}}
+"#
+        );
+        let (ast, semantic) = compile(&source("100 ms"));
+        let report = run_gate(&ast, &semantic, "ISO26262");
+        let timing: Vec<_> = report.findings.iter().filter(|f| f.check.starts_with("timing.")).collect();
+        assert!(timing.is_empty(), "{timing:?}");
+
+        let (ast, semantic) = compile(&source("50 ms"));
+        let report = run_gate(&ast, &semantic, "ISO26262");
+        assert!(
+            report.findings.iter().any(|f| f.check == "timing.budget" && f.message.contains("'Logical chain'") && f.message.contains("75.0 ms exceeds the 50.0 ms budget")),
+            "{:?}",
+            report.findings
+        );
+        assert!(!report.findings.iter().any(|f| f.check == "timing.latency"), "{:?}", report.findings);
     }
 }
