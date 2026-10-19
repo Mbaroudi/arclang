@@ -10,6 +10,9 @@ export interface PropertiesHost {
   submit: (requests: EditRequest[], label: string) => void;
   reveal: (id: string) => void;
   ask: (element: ElementRecord) => void;
+  diagram?: (op: 'hide' | 'related' | 'new', element: ElementRecord) => void;
+  /** The requirements of the model, for "Satisfies…". */
+  requirements?: () => ElementRecord[];
 }
 
 const HIDDEN = new Set(['id', 'name']);
@@ -104,6 +107,18 @@ export class Properties {
       button('Ask @arclang', () => this.owner.ask(element)),
       button('Delete', () => this.remove(), { class: 'wb-danger', title: 'Delete the declaration (Undo takes it back)' }),
     ]);
+    const requirements = this.owner.requirements?.() ?? [];
+    if (element.kind !== 'Requirement' && requirements.length) {
+      actions.appendChild(button('Satisfies…', () => this.satisfies(element, requirements), { title: 'Trace it to a requirement it satisfies' }));
+    }
+    if (this.owner.diagram) {
+      const diagram = this.owner.diagram;
+      actions.append(
+        button('Hide', () => diagram('hide', element), { title: 'Hide from this diagram (⌘H): out of a named diagram, or a new diagram without it' }),
+        button('Show related', () => diagram('related', element), { title: 'Add what it is connected to' }),
+        button('New diagram', () => diagram('new', element), { title: 'A new diagram with it and what it is connected to' }),
+      );
+    }
     return el('header', { class: 'wb-props-head' }, [
       el('div', { class: 'wb-props-title' }, [name, el('span', { class: 'wb-kind', text: humanise(element.kind.replace(/([a-z])([A-Z])/g, '$1 $2')), title: doc ?? '' })]),
       id,
@@ -246,6 +261,50 @@ export class Properties {
     if (!name || !Array.isArray(enums)) return [];
     const found = (enums as { name: string; values: string[] }[]).find((e) => e.name === name);
     return found?.values ?? [];
+  }
+
+  private satisfies(element: ElementRecord, requirements: ElementRecord[]): void {
+    const picker = el('select', { class: 'wb-field', 'aria-label': 'Requirement satisfied' });
+    picker.appendChild(el('option', { value: '', text: 'Requirement it satisfies…' }));
+    for (const requirement of requirements) {
+      const text = String(requirement.attributes.description ?? requirement.attributes.title ?? requirement.name);
+      picker.appendChild(el('option', { value: requirement.id, text: `${requirement.id}: ${text.slice(0, 60)}` }));
+    }
+    picker.addEventListener('change', () => {
+      if (!picker.value) return;
+      this.owner.submit([{ op: 'add_trace', from: element.id, kind: 'satisfies', to: picker.value }], `${element.id} satisfies ${picker.value}`);
+    });
+    this.root.querySelector('.wb-actions')?.after(picker);
+    picker.focus();
+  }
+
+  /** Several elements: one attribute set on all of them at once. */
+  showMany(elements: ElementRecord[], metamodel: Metamodel | null): void {
+    this.element = null;
+    this.metamodel = metamodel;
+    clear(this.root);
+    this.root.appendChild(el('p', { class: 'wb-props-title', text: `${elements.length} elements selected` }));
+    const keys = new Map<string, MetamodelAttribute>();
+    const kinds = new Set(elements.map((e) => e.kind));
+    for (const kind of kinds) {
+      for (const attribute of metamodel?.kinds.find((k) => k.name === kind)?.attributes ?? []) {
+        if (!HIDDEN.has(attribute.key) && [...kinds].every((other) => metamodel?.kinds.find((k) => k.name === other)?.attributes.some((a) => a.key === attribute.key))) keys.set(attribute.key, attribute);
+      }
+    }
+    if (keys.size === 0) {
+      this.root.appendChild(el('p', { class: 'wb-muted', text: 'These elements share no attribute.' }));
+      return;
+    }
+    const key = el('select', { class: 'wb-field', 'aria-label': 'Attribute' });
+    for (const [name] of keys) key.appendChild(el('option', { value: name, text: humanise(name) }));
+    const value = el('input', { type: 'text', class: 'wb-field', placeholder: 'value for all of them' });
+    const apply = button('Set on all', () => {
+      const attribute = keys.get(key.value);
+      if (!attribute || !value.value.trim()) return;
+      const literal = attributeLiteral(attribute.type, value.value);
+      this.owner.submit(elements.map((e) => ({ op: 'set', element: e.id, key: attribute.key, value: literal })), `${humanise(attribute.key)} = ${value.value} on ${elements.length} elements`);
+    }, { class: 'wb-primary' });
+    this.root.append(el('table', { class: 'wb-props' }, [el('tr', {}, [el('th', { text: 'Attribute' }), el('td', {}, [key])]), el('tr', {}, [el('th', { text: 'Value' }), el('td', {}, [value])])]), apply);
   }
 
   private remove(): void {

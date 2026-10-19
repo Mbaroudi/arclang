@@ -13,7 +13,7 @@
 //!   "views": { "lab": { "folded": ["LC-2"], "open": null } },
 //!   "arrangements": [
 //!     { "view": "lab", "open": null, "folded": ["LC-2"],
-//!       "places": { "LC-1": { "dx": 40.0, "dy": -12.5 } } }
+//!       "places": { "LC-1": { "dx": 40.0, "dy": -12.5, "dw": 60.0 } } }
 //!   ]
 //! }
 //! ```
@@ -21,7 +21,8 @@
 //! `views` says what each view shows when opened. `arrangements` holds the
 //! manual placement, one per layout: moving a box in the whole view and in
 //! an opened container are two arrangements. Offsets are in sheet units,
-//! relative to where the automatic layout puts the box.
+//! relative to where the automatic layout puts the box; `dw` and `dh`, when
+//! written, are how much wider and taller the reader made it.
 
 use super::{DiagramSet, Node};
 use serde::{Deserialize, Serialize};
@@ -72,6 +73,16 @@ pub struct Arrangement {
 pub struct Offset {
     pub dx: f64,
     pub dy: f64,
+    /// How much wider the reader made the box than the automatic layout did.
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub dw: f64,
+    /// How much taller the reader made the box.
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub dh: f64,
+}
+
+fn is_zero(value: &f64) -> bool {
+    *value == 0.0
 }
 
 /// Where the layout of a model is kept: `braking.arc` -> `braking.layout.json`.
@@ -94,6 +105,12 @@ impl LayoutFile {
         for arrangement in &layout.arrangements {
             for (node, offset) in &arrangement.places {
                 let sound = |value: f64| value.is_finite() && value.abs() <= FARTHEST;
+                if !sound(offset.dw) || !sound(offset.dh) {
+                    return Err(format!(
+                        "layout file: '{node}' is resized beyond what a sheet can hold ({}, {})",
+                        offset.dw, offset.dh
+                    ));
+                }
                 if !sound(offset.dx) || !sound(offset.dy) {
                     return Err(format!(
                         "layout file: '{node}' is placed farther than a sheet can be ({}, {})",

@@ -34,10 +34,28 @@ the selection follows; Undo, Redo and Save are the editor's own.
   entities, activities, functions, components, nodes, ports, classes, states
   and modes; connect them by interactions, functional and component
   exchanges, physical links, transitions and messages (two clicks, then a
-  name; ports are declared when the ends have none). Drag a function or a
-  component onto another to move it. `F2` renames, `Delete` removes,
+  name; ports are declared when the ends have none). **Drag a box anywhere
+  on the diagram, resize it by the grip on its corner**: the arrangement is
+  kept in `<model>.layout.json` beside the model. Let a box go on another
+  to move it inside. `F2` renames, `Delete` removes,
   double-click opens, `Esc` cancels; right-click gives the native menu
   (rename, delete, show in source, show in tree, ask @arclang, copy id).
+  **Full screen** gives the workbench the whole screen with all its tools
+  (Esc gives the window back); **Save SVG** and **Save PNG** export the
+  diagram as arranged, through the save dialog.
+- **Diagram contents**: `⌘H` hides an element from the diagram (out of a
+  named diagram's `shows:`, or a new named diagram without it on a layer
+  view), *Show related* adds what it is connected to, *New diagram* opens a
+  diagram around it; a **Trace** tool draws realizes, satisfies, allocates,
+  verifies traces; `F2` renames on the canvas; `⌘F` finds in the diagram;
+  exchanges and links are selectable and deletable, cascades are confirmed.
+  A **Requirement** tool creates a requirement satisfied by the selection,
+  *Satisfies…* traces an element to an existing one; a **Fragment** tool
+  wraps the selected message of a scenario in a loop, opt, alt, par or
+  critical fragment; Shift+click selects several elements, to delete, hide
+  or set one attribute on all of them.
+  See [COMPARISON.md](COMPARISON.md) for where this stands against Capella
+  and SysML v2 tools.
 - **Properties**, Capella style: General, Description, Resources and All
   tabs, the set attributes first and the others added on demand, the name
   edited in place (the identity never changes).

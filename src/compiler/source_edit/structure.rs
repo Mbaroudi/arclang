@@ -104,7 +104,14 @@ impl Document {
         let matches: Vec<Block> = self
             .blocks()
             .into_iter()
-            .filter(|block| self.header(block).first().is_some_and(|first| first.text == keyword))
+            .filter(|block| {
+                let header = self.header(block);
+                let first = header.first().map(|lexeme| lexeme.text.as_str());
+                let second = header.get(1).map(|lexeme| lexeme.text.as_str());
+                // `logical_architecture` is also written `architecture logical`.
+                first == Some(keyword)
+                    || matches!((keyword, first, second), ("logical_architecture", Some("architecture"), Some("logical")) | ("physical_architecture", Some("architecture"), Some("physical")))
+            })
             .filter(|block| name.is_none() || self.header_name(block).as_deref() == name)
             .collect();
         match matches.len() {
@@ -384,7 +391,16 @@ pub fn move_element(source: &str, element: &str, container: Container) -> Result
     };
     let block = Block { open: block_open, close: end };
     let text: String = document.chars[document.lexemes[start].offset..document.end_of(end)].iter().collect();
-    let declaration = text.trim().to_string();
+    // The lines after the first lose the indentation the declaration had
+    // where it was: the container's own indentation is put in their place.
+    let base = document.indentation_of(start);
+    let declaration = text
+        .trim()
+        .lines()
+        .enumerate()
+        .map(|(index, line)| if index == 0 { line } else { line.strip_prefix(base.as_str()).unwrap_or(line) })
+        .collect::<Vec<_>>()
+        .join("\n");
     let target = match container {
         Container::Element(other) => document.find_element(other)?,
         Container::Layer { keyword, name } => document.find_layer(keyword, name)?,

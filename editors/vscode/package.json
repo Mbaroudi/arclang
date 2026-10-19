@@ -287,6 +287,21 @@
         "command": "arclang.openLayer",
         "title": "Open the diagram of this layer",
         "category": "ArcLang"
+      },
+      {
+        "command": "arclang.canvas.hide",
+        "title": "Hide from this diagram",
+        "category": "ArcLang"
+      },
+      {
+        "command": "arclang.canvas.related",
+        "title": "Show related elements",
+        "category": "ArcLang"
+      },
+      {
+        "command": "arclang.canvas.newDiagram",
+        "title": "New diagram from this element",
+        "category": "ArcLang"
       }
     ],
     "menus": {
@@ -451,6 +466,18 @@
         {
           "command": "arclang.openLayer",
           "when": "false"
+        },
+        {
+          "command": "arclang.canvas.hide",
+          "when": "false"
+        },
+        {
+          "command": "arclang.canvas.related",
+          "when": "false"
+        },
+        {
+          "command": "arclang.canvas.newDiagram",
+          "when": "false"
         }
       ],
       "view/title": [
@@ -532,6 +559,21 @@
           "command": "arclang.canvas.copyId",
           "when": "webviewId == 'arclang.workbench' && webviewSection == 'element'",
           "group": "edit@3"
+        },
+        {
+          "command": "arclang.canvas.hide",
+          "when": "webviewId == 'arclang.workbench' && webviewSection == 'element'",
+          "group": "diagram@1"
+        },
+        {
+          "command": "arclang.canvas.related",
+          "when": "webviewId == 'arclang.workbench' && webviewSection == 'element'",
+          "group": "diagram@2"
+        },
+        {
+          "command": "arclang.canvas.newDiagram",
+          "when": "webviewId == 'arclang.workbench' && webviewSection == 'element'",
+          "group": "diagram@3"
         }
       ]
     },

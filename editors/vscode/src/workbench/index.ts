@@ -237,12 +237,14 @@ export function registerWorkbench(context: vscode.ExtensionContext): void {
   });
   register('arclang.canvas.rename', async (arg?: unknown) => {
     const target = await canvasTarget(arg);
-    if (!target) return;
-    const name = await vscode.window.showInputBox({ prompt: `New name of ${target.name} (${target.id})`, value: target.name, validateInput: (v) => (v.trim() ? null : 'a name is needed') });
-    if (name === undefined || name.trim() === target.name) return;
-    const outcome = await applyRequests(target.document, [{ op: 'rename', element: target.id, name: name.trim() }]);
-    if (!outcome.ok) vscode.window.showWarningMessage(refusalMessage(`rename ${target.id}`, outcome));
+    if (target) WorkbenchPanel.for(target.document.uri)?.diagramOp('rename', target.id);
   });
+  for (const [command, op] of [['arclang.canvas.hide', 'hide'], ['arclang.canvas.related', 'related'], ['arclang.canvas.newDiagram', 'new']] as const) {
+    register(command, async (arg?: unknown) => {
+      const target = await canvasTarget(arg);
+      if (target) WorkbenchPanel.for(target.document.uri)?.diagramOp(op, target.id);
+    });
+  }
   register('arclang.canvas.delete', async (arg?: unknown) => {
     const target = await canvasTarget(arg);
     if (!target) return;

@@ -135,15 +135,16 @@ async def test_transition_into_names_the_node_that_receives_the_components(serve
     assert "realizes LC-001 in PN-002" in answer
 
 
-async def test_transition_without_a_receiver_relays_the_compilers_refusal(server, model):
-    """The reference model's `architecture physical { }` has no name: the compiler
-    cannot create a container in it and says so."""
-    before = model.read_text()
+async def test_transition_without_a_receiver_creates_one_in_the_unnamed_physical_architecture(server, model):
+    """The reference model's `architecture physical { }` has no name: the
+    compiler finds it all the same and creates the receiving node there."""
     answer = await server.call_tool(
         "arclang_transition", {"model_path": str(model), "step": "la-to-pa", "write": True}
     )
-    assert "FAILED" in answer.splitlines()[0]
-    assert model.read_text() == before
+    assert "written to" in answer.splitlines()[0], answer
+    text = model.read_text()
+    assert 'node "Physical System"' in text or "PN-Physical-System" in text, text
+    assert 'behavior_component "ThreatAssessor"' in text
 
 
 async def test_transition_write_needs_a_step(server, model):

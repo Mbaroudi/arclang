@@ -380,6 +380,30 @@
    the selected box, so Tab reaches it). Dragged to another box or port, it
    draws the line; the ends the host rules out fade meanwhile. The handle
    lives in the frame, not on the sheet, so it keeps its 8 px at any zoom. */
+/* The grip that resizes the selected box, and the outline it draws. */
+.arcviz .arcviz-grip {
+  background: var(--av-sheet);
+  border: 1.5px solid var(--av-accent);
+  border-radius: 2px;
+  box-sizing: border-box;
+  cursor: nwse-resize;
+  height: 10px;
+  left: -5px;
+  position: absolute;
+  top: -5px;
+  width: 10px;
+  z-index: 3;
+}
+.arcviz .arcviz-grip:hover { background: var(--av-accent); }
+.arcviz .arcviz-resize-outline {
+  border: 1.5px dashed var(--av-accent);
+  border-radius: 3px;
+  pointer-events: none;
+  position: absolute;
+  z-index: 2;
+}
+.arcviz .is-resizing { cursor: nwse-resize; }
+
 .arcviz .arcviz-handle {
   animation: av-handle-in 120ms ease-out;
   background: var(--av-accent);

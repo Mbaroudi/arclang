@@ -147,6 +147,7 @@ export type ToWebview =
   | { type: 'select'; id: string | null }
   | { type: 'show'; view: string; select: string | null }
   | { type: 'layer'; step: number }
+  | { type: 'diagram-op'; op: 'hide' | 'related' | 'new' | 'rename'; id: string }
   | { type: 'edit-result'; ok: boolean; label: string; error?: string }
   | { type: 'busy'; busy: boolean; label?: string };
 
@@ -158,7 +159,10 @@ export type FromWebview =
   | { type: 'ask'; id: string; name: string; kind: string }
   | { type: 'selected'; id: string | null; kind?: string; name?: string }
   | { type: 'open-text' }
-  | { type: 'command'; command: string };
+  | { type: 'command'; command: string }
+  | { type: 'save'; name: string; mime: string; data: string }
+  | { type: 'layout'; file: unknown }
+  | { type: 'focus-mode'; on: boolean };
 
 /** `arclang workbench` output, read leniently: a broken answer is a failed snapshot. */
 export function parseSnapshot(text: string): Snapshot {
@@ -373,8 +377,10 @@ export interface Tool {
   topLevel?: boolean;
   /** create: declared inside the element the diagram is about (a state machine, a scenario). */
   inGraph?: boolean;
+  /** special gestures handled by the page: a requirement (with a satisfies trace), a fragment around a message. */
+  special?: 'requirement' | 'fragment';
   /** connect: the keyword of the relationship and how its ends are written. */
-  connect?: 'interaction' | 'functional_exchange' | 'component_exchange' | 'physical_link' | 'physical_exchange' | 'association' | 'transition' | 'message';
+  connect?: 'interaction' | 'functional_exchange' | 'component_exchange' | 'physical_link' | 'physical_exchange' | 'association' | 'transition' | 'message' | 'trace';
   /** connect: the kinds the two ends may have. */
   endKinds?: string[];
 }
@@ -389,18 +395,21 @@ export const PALETTE: Record<string, Tool[]> = {
     { id: 'activity', label: 'Activity', kind: 'create', keyword: 'activity', containerKinds: ['OperationalEntity', 'Actor'] },
     { id: 'operational_capability', label: 'Capability', kind: 'create', keyword: 'operational_capability' },
     { id: 'interaction', label: 'Interaction', kind: 'connect', connect: 'interaction', endKinds: ['Actor', 'OperationalEntity', 'OperationalActivity'] },
+    { id: 'trace', label: 'Trace', kind: 'connect', connect: 'trace' },
   ],
   sab: [
     { id: 'actor', label: 'Actor', kind: 'create', keyword: 'actor' },
     { id: 'function', label: 'Function', kind: 'create', keyword: 'function', containerKinds: ['SystemFunction', 'SystemComponent', 'SystemActor'] },
-    { id: 'component', label: 'Component', kind: 'create', keyword: 'component' },
+    { id: 'component', label: 'Component', kind: 'create', keyword: 'system_component' },
     { id: 'port_in', label: 'Port in', kind: 'create', keyword: 'port in', containerKinds: PORTED, needsContainer: true },
     { id: 'port_out', label: 'Port out', kind: 'create', keyword: 'port out', containerKinds: PORTED, needsContainer: true },
     { id: 'mission', label: 'Mission', kind: 'create', keyword: 'mission' },
     { id: 'capability', label: 'Capability', kind: 'create', keyword: 'capability' },
     { id: 'functional_chain', label: 'Functional chain', kind: 'create', keyword: 'functional_chain' },
+    { id: 'requirement', label: 'Requirement', kind: 'create', special: 'requirement' },
     { id: 'functional_exchange', label: 'Functional exchange', kind: 'connect', connect: 'functional_exchange', endKinds: ['SystemFunction', 'FunctionPort'] },
     { id: 'component_exchange', label: 'Component exchange', kind: 'connect', connect: 'component_exchange', endKinds: ['SystemComponent', 'SystemActor', 'ComponentPort'] },
+    { id: 'trace', label: 'Trace', kind: 'connect', connect: 'trace' },
   ],
   lab: [
     { id: 'component', label: 'Component', kind: 'create', keyword: 'component', containerKinds: ['LogicalComponent'] },
@@ -410,6 +419,7 @@ export const PALETTE: Record<string, Tool[]> = {
     { id: 'interface', label: 'Interface', kind: 'create', keyword: 'interface' },
     { id: 'component_exchange', label: 'Component exchange', kind: 'connect', connect: 'component_exchange', endKinds: ['LogicalComponent', 'ComponentPort'] },
     { id: 'functional_exchange', label: 'Functional exchange', kind: 'connect', connect: 'functional_exchange', endKinds: ['LogicalFunction', 'FunctionPort'] },
+    { id: 'trace', label: 'Trace', kind: 'connect', connect: 'trace' },
   ],
   pab: [
     { id: 'node', label: 'Node', kind: 'create', keyword: 'node', containerKinds: ['PhysicalNode'] },
@@ -421,17 +431,22 @@ export const PALETTE: Record<string, Tool[]> = {
     { id: 'physical_link', label: 'Physical link', kind: 'connect', connect: 'physical_link', endKinds: ['PhysicalNode'] },
     { id: 'physical_exchange', label: 'Physical exchange', kind: 'connect', connect: 'physical_exchange', endKinds: ['PhysicalNode', 'BehaviorComponent', 'ComponentPort', 'PhysicalPort'] },
     { id: 'functional_exchange', label: 'Functional exchange', kind: 'connect', connect: 'functional_exchange', endKinds: ['PhysicalFunction', 'FunctionPort'] },
+    { id: 'trace', label: 'Trace', kind: 'connect', connect: 'trace' },
   ],
   cap: [
     { id: 'mission', label: 'Mission', kind: 'create', keyword: 'mission' },
     { id: 'capability', label: 'Capability', kind: 'create', keyword: 'capability' },
+    { id: 'trace', label: 'Trace', kind: 'connect', connect: 'trace' },
   ],
   msm: [
     { id: 'state', label: 'State', kind: 'create', keyword: 'state', inGraph: true, containerKinds: ['State'] },
     { id: 'mode', label: 'Mode', kind: 'create', keyword: 'mode', inGraph: true, containerKinds: ['State'] },
     { id: 'transition', label: 'Transition', kind: 'connect', connect: 'transition', endKinds: ['State'] },
   ],
-  es: [{ id: 'message', label: 'Message', kind: 'connect', connect: 'message' }],
+  es: [
+    { id: 'message', label: 'Message', kind: 'connect', connect: 'message' },
+    { id: 'fragment', label: 'Fragment', kind: 'create', special: 'fragment' },
+  ],
   cdb: [
     { id: 'class', label: 'Class', kind: 'create', keyword: 'class', topLevel: true },
     { id: 'enumeration', label: 'Enumeration', kind: 'create', keyword: 'enumeration', topLevel: true },
@@ -545,6 +560,12 @@ export function connectPlan(tool: Tool, from: ConnectEnd, to: ConnectEnd, name: 
       const declaration = `transition ${bareOrQuoted(localName(from.id, graphContainer))} -> ${bareOrQuoted(localName(to.id, graphContainer))} {${guard}}`;
       return [{ op: 'add_raw', declaration, container: graphContainer }];
     }
+    case 'trace': {
+      // The name asked is the kind of the trace.
+      const kind = label.toLowerCase();
+      if (!TRACE_KINDS.includes(kind)) return { error: `a trace is one of ${TRACE_KINDS.join(', ')}` };
+      return [{ op: 'add_trace', from: from.id, kind, to: to.id }];
+    }
     case 'message': {
       if (!graphContainer) return { error: 'a message is drawn in the diagram of one scenario' };
       const declaration = `message ${stringLiteral(from.id)} -> ${stringLiteral(to.id)} ${quoted}`;
@@ -553,6 +574,26 @@ export function connectPlan(tool: Tool, from: ConnectEnd, to: ConnectEnd, name: 
     default:
       return { error: `${tool.label} connects nothing` };
   }
+}
+
+/** The kinds of traces the language knows (TraceKind of the metamodel). */
+export const TRACE_KINDS = ['realizes', 'satisfies', 'implements', 'allocates', 'verifies', 'refines', 'validates'];
+
+/** The name of a named diagram from its graph id (`lab:Lane keeping chain`), null for a viewpoint, a machine or a scenario. */
+export function namedDiagramOf(graphId: string, view: string): string | null {
+  if (view === 'msm' || view === 'es') return null;
+  const at = graphId.indexOf(':');
+  return at > 0 ? graphId.slice(at + 1) : null;
+}
+
+/** The ids drawn at the top of a graph (what a diagram's `shows:` lists). */
+export function topLevelIds(graph: ViewerGraph): string[] {
+  return (graph.children ?? []).map((node) => node.id);
+}
+
+/** A `shows:` list as ArcLang source. */
+export function showsLiteral(ids: string[]): string {
+  return `[${ids.map((id) => stringLiteral(id)).join(', ')}]`;
 }
 
 /** The part of an id after its owner's prefix (`LKA modes.Off` in `LKA modes` is `Off`). */
@@ -585,12 +626,13 @@ export function graphContainerOf(graphId: string, view: string): string | null {
  */
 export function connectToolFor(view: string, fromKind: string, toKind: string): Tool | null {
   const accepts = (tool: Tool, kind: string) => !tool.endKinds || tool.endKinds.includes(kind);
-  return toolsFor(view).find((tool) => tool.kind === 'connect' && accepts(tool, fromKind) && accepts(tool, toKind)) ?? null;
+  // A trace is chosen, never guessed: it is left to the armed Trace tool.
+  return toolsFor(view).find((tool) => tool.kind === 'connect' && tool.connect !== 'trace' && accepts(tool, fromKind) && accepts(tool, toKind)) ?? null;
 }
 
 /** The kinds a drag from `fromKind` may land on, on a view (the union over the connect tools that accept the source). */
 export function connectTargetKinds(view: string, fromKind: string): string[] | null {
-  const tools = toolsFor(view).filter((tool) => tool.kind === 'connect' && (!tool.endKinds || tool.endKinds.includes(fromKind)));
+  const tools = toolsFor(view).filter((tool) => tool.kind === 'connect' && tool.connect !== 'trace' && (!tool.endKinds || tool.endKinds.includes(fromKind)));
   if (tools.length === 0) return [];
   if (tools.some((tool) => !tool.endKinds)) return null;
   return [...new Set(tools.flatMap((tool) => tool.endKinds ?? []))];
@@ -625,4 +667,52 @@ export function neighbours(
     if (link.target === element.id) incoming.push({ kind: link.kind, name: '', other: byId.get(link.source) ?? null });
   }
   return { incoming, outgoing };
+}
+
+/** The id after the highest `REQ-…-n` of the model: `REQ-LKA-003` after `REQ-LKA-002`. */
+export function nextRequirementId(ids: string[]): string {
+  let prefix = 'REQ-';
+  let highest = 0;
+  for (const id of ids) {
+    const match = /^(.*?)(\d+)$/.exec(id);
+    if (!match || !/^REQ/i.test(id)) continue;
+    const n = Number(match[2]);
+    if (n >= highest) {
+      highest = n;
+      prefix = match[1];
+    }
+  }
+  const width = ids.find((id) => /^REQ/i.test(id))?.match(/(\d+)$/)?.[1].length ?? 3;
+  return `${prefix}${String(highest + 1).padStart(width, '0')}`;
+}
+
+/** The requests that create a requirement and, when given, trace an element to it. */
+export function requirementRequests(id: string, text: string, satisfiedBy: string | null, hasRequirementsBlock: boolean): EditRequest[] {
+  const declaration = `requirement ${stringLiteral(id)} {\n  description: ${stringLiteral(text)}\n}`;
+  const create: EditRequest = hasRequirementsBlock
+    ? { op: 'add_raw', declaration, layer: 'requirements' }
+    : { op: 'add_raw', declaration: `requirements {\n  ${declaration.replace(/\n/g, '\n  ')}\n}`, top_level: true };
+  return satisfiedBy ? [create, { op: 'add_trace', from: satisfiedBy, kind: 'satisfies', to: id }] : [create];
+}
+
+/** A combined fragment around one message: `loop "every cycle"`, `opt`, `alt`, `par`, `critical`. */
+export function fragmentRequest(scenario: string, message: string, answer: string): EditRequest | { error: string } {
+  const [kind, ...rest] = answer.trim().split(/\s+/);
+  const kinds = ['loop', 'opt', 'alt', 'par', 'seq', 'critical'];
+  if (!kinds.includes((kind ?? '').toLowerCase())) return { error: `a fragment is one of ${kinds.join(', ')}, then an optional label` };
+  return { op: 'wrap_fragment', scenario, kind: kind.toLowerCase(), label: rest.join(' '), first: message, last: message };
+}
+
+/** Where the arrangement of a model is kept, as the compiler reads it: `braking.arc` -> `braking.layout.json`. */
+export function layoutPathOf(modelPath: string): string {
+  const dot = modelPath.lastIndexOf('.');
+  const slash = Math.max(modelPath.lastIndexOf('/'), modelPath.lastIndexOf('\\'));
+  return `${dot > slash ? modelPath.slice(0, dot) : modelPath}.layout.json`;
+}
+
+/** A layout file as the viewer writes it: an object carrying `arclang_layout`. */
+export function isLayoutFile(value: unknown): value is { arclang_layout: string | number } {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
+  const version = (value as { arclang_layout?: unknown }).arclang_layout;
+  return typeof version === 'string' || typeof version === 'number';
 }
