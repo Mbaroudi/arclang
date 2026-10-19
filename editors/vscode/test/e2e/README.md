@@ -11,6 +11,13 @@ with a host that edits through `arclang edit` and snapshots through
   (⌘F), properties (set, rename), delete an element and an exchange,
   connect by dragging from the handle, multi-selection and bulk delete, minimap, requirement, satisfies, fragment,
   bulk attribute edit (21 gestures);
+- `editing_test.js`: changing what is drawn: reconnect component and
+  functional exchanges, interactions, transitions and messages by their end
+  handles, reverse, retarget a trace, rename exchanges and boxes in place,
+  edit a link's attributes, move a port, copy, cut, paste, duplicate, a
+  refused paste with its reason, band selection, align, distribute, nudge,
+  smart guides, bends, quick connect, the context menu, the shortcuts list
+  (33 checks; `SHOTS=dir` saves pictures);
 - `toolbar_test.js`: every toolbar tool (exports reach the host as SVG,
   PNG and JSON, full screen, zoom, filters, layers, folding), no console error.
 
@@ -19,7 +26,9 @@ with a host that edits through `arclang edit` and snapshots through
   where it is let go, a box is resized by its grip, both are written to
   `model.layout.json` and back when the model reopens, PNG and SVG exports
   go through the save dialog, full screen keeps every tool and Esc leaves
-  it, a box let go on a component moves into it (16 checks).
+  it, a box let go on a component moves into it, the end of an exchange
+  dragged onto a box reconnects it, right-click opens the canvas's menu,
+  Align bottom lines two boxes up (19 checks).
 
 Run `./run.sh` from this folder after `cargo build --release` at the root.
 The VS Code test runs on its own, with the compiler on the PATH (or

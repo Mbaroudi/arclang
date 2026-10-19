@@ -1,5 +1,20 @@
 # Changelog
 
+## 4.4.0
+
+- **Change what is already drawn**, draw.io style but on the model, every change checked by the compiler and one undo:
+  - **Reconnect** an exchange by dragging an end of the selected line to another box or port (valid targets highlighted, port directions kept, a port made where it lands on a box), or with *Reconnect the source/target…*: component and functional exchanges, interactions, physical links, transitions, scenario messages; a trace is retargeted from the Relations view, its rationale kept.
+  - **Reverse** an exchange (floating toolbar, menu, properties); its ports turn around with it when they carry nothing else.
+  - **Rename in place** by double-click, on boxes and on the label of an exchange or message; F2 as before. A double-click no longer jumps to the source (*Go to source* is in the menu).
+  - **Move to…** for any element, ports included: a port takes the ends of its exchanges with it.
+  - **Copy, cut, paste, duplicate** (⌘C ⌘X ⌘V ⌘D): paste goes into the selected box, cut then paste is a move, ids made unique (`LC-X` becomes `LC-X-2`).
+  - **Align** (left, centre, right, top, middle, bottom) and **distribute** a selection; **smart guides** while moving or resizing (Alt moves freely); **arrow keys** move the selection by 1, Shift by 10; **band selection** by dragging on the empty sheet (Space+drag pans); **bend** an exchange by its middle, a double-click on a bend removes it. All kept in `<model>.layout.json`.
+  - **Quick connect**: an arrow on each side of the box under the pointer; dragged it connects, clicked it creates a connected element of the same kind.
+  - **A context menu** on boxes, ports, exchanges, selections and the sheet, in place of VS Code's; **a floating toolbar** by the selection; **`?`** lists the shortcuts.
+  - The properties of an exchange show its ends and its attributes (protocol, bandwidth, data type…), editable.
+- Needs a compiler built from this repository after 4.3.0 (with an older one these gestures are refused with "unknown variant"): `arclang edit` learns `reconnect` (refused when a port goes the wrong way, an exchange would join an element to itself, or the compiler warns about the result) and `duplicate`; a rename falls back to a relationship of that name; a move of a port rewrites its exchanges; the layout file keeps bent exchanges (`edges` with `points`).
+- `test/e2e/editing_test.js`: 33 checks of these gestures against the real compiler; `vscode_real_test.js` reconnects, opens the menu and aligns in VS Code itself (19 checks).
+
 ## 4.3.1
 
 - **Free editing of the diagrams**, tested in VS Code itself: drag a box anywhere, resize it by the grip on its corner, let it go on another box to move it inside. The arrangement is written to `<model>.layout.json` beside the model (the file the CLI and the site read) and comes back when the model opens.
