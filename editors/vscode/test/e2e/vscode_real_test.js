@@ -108,6 +108,46 @@ async function launch(dir, model) {
     await win.keyboard.press('Meta+s'); await win.waitForTimeout(800);
     const text = fs.readFileSync(model, 'utf8');
     report('let go on a component, it is moved into it', /component "LKA Controller" \{[\s\S]*?\n    component "Steering Actuator" \{\n      id: "LC-ACT"/.test(text));
+
+    // 7. Reconnect: the end of the selected exchange dragged onto another box
+    const shots = process.env.SHOTS || null;
+    const middle = (id) => page.locator(`.arcviz-stage [data-id="${id}"]`).first().evaluate((g) => { const line = g.querySelector('.av-line'); const len = line.getTotalLength(); const p = line.getPointAtLength(len / 2); const m = line.getScreenCTM(); return { x: p.x * m.a + p.y * m.c + m.e, y: p.x * m.b + p.y * m.d + m.f }; });
+    // Frame coordinates of the webview are window coordinates offset by the frame's position.
+    const offset = await (await page.frameElement()).boundingBox().catch(() => ({ x: 0, y: 0 }));
+    const inWindow = (p) => ({ x: p.x + (offset?.x ?? 0), y: p.y + (offset?.y ?? 0) });
+    const frameBox = async (locator) => { const b = await locator.boundingBox(); return b; };
+    let m = inWindow(await middle('ce:LaneFlow')); await win.mouse.click(m.x, m.y); await win.waitForTimeout(800);
+    const end = page.locator('.arcviz-end[data-end="target"]');
+    const endShown = await end.isVisible().catch(() => false);
+    if (endShown) {
+      const e = await frameBox(end); const actuator = await box('LC-ACT');
+      await win.mouse.move(e.x + e.width / 2, e.y + e.height / 2); await win.mouse.down();
+      await win.mouse.move(actuator.x + actuator.width / 2, actuator.y + 12, { steps: 15 });
+      if (shots) await win.screenshot({ path: path.join(shots, 'vscode-reconnect.png') });
+      await win.mouse.up(); await win.waitForTimeout(3500);
+    }
+    await win.keyboard.press('Meta+s'); await win.waitForTimeout(800);
+    report('the end of an exchange dragged onto a box reconnects it', endShown && /to_port: "LC-ACT\.lane"/.test(fs.readFileSync(model, 'utf8')), endShown ? '' : 'no end handle');
+
+    // 8. The context menu of a box
+    const cam = await box('LC-CAM');
+    await win.mouse.click(cam.x + cam.width / 2, cam.y + 10, { button: 'right' }); await win.waitForTimeout(600);
+    const items = await page.locator('.wb-menu:not([hidden]) .wb-menu-item').allTextContents();
+    if (shots) await win.screenshot({ path: path.join(shots, 'vscode-context-menu.png') });
+    report('right-click on a box opens its menu, not VS Code\'s', ['Rename', 'Move to', 'Duplicate', 'Delete'].every((w) => items.some((t) => t.includes(w))), items.length + ' items');
+    await win.keyboard.press('Escape'); await win.waitForTimeout(300);
+
+    // 9. Align: two boxes selected (click, Shift+click), Align top in the menu, kept in the layout file
+    const ctl = await box('LC-CTL');
+    await win.mouse.click(cam.x + cam.width / 2, cam.y + 10); await win.waitForTimeout(400);
+    await win.keyboard.down('Shift'); await win.mouse.click(ctl.x + ctl.width / 2, ctl.y + 10); await win.keyboard.up('Shift'); await win.waitForTimeout(500);
+    await win.mouse.click(ctl.x + ctl.width / 2, ctl.y + 10, { button: 'right' }); await win.waitForTimeout(600);
+    const top = page.locator('.wb-menu:not([hidden]) .wb-menu-chip', { hasText: 'Bottom' }).first();
+    const hasAlign = await top.count();
+    if (hasAlign) { await top.click(); await win.waitForTimeout(2500); }
+    if (shots) await win.screenshot({ path: path.join(shots, 'vscode-align.png') });
+    const [a1, a2] = [await page.locator('.arcviz-stage [data-id="LC-CAM"] > .av-shape').first().boundingBox(), await page.locator('.arcviz-stage [data-id="LC-CTL"] > .av-shape').first().boundingBox()];
+    report('Align bottom in the menu lines two boxes up, in the layout file', hasAlign > 0 && Math.abs(a1.y + a1.height - a2.y - a2.height) < 2 && /"LC-CAM"|"LC-CTL"/.test(fs.readFileSync(layout, 'utf8')), `${Math.round(a1.y + a1.height)} / ${Math.round(a2.y + a2.height)}`);
   } catch (error) {
     report('no error', false, String(error));
   } finally {
