@@ -208,9 +208,13 @@ function submit(requests: EditRequest[], label: string): void {
   vscode.postMessage({ type: 'edit', requests, label });
 }
 
-/** The model id of a node or port of the drawing (`LC-A::p` is the port `LC-A.p`). */
+/**
+ * The model id of a node or port of the drawing: `LC-A::p` (a component port)
+ * and `SF-A::in.p` (a function port, with its direction) are the port `LC-A.p`
+ * and `SF-A.p` of the model.
+ */
 function modelId(drawingId: string): string {
-  return drawingId.replace('::', '.');
+  return drawingId.replace(/::(?:in|out|inout)\./, '.').replace('::', '.');
 }
 
 /** The drawing id of a model element, when it has a node. */
