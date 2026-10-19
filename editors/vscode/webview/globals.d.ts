@@ -36,6 +36,7 @@ export interface ViewerOptions {
   onFullscreen?: () => void;
   onConnect?: (fromId: string, toId: string, ends?: { fromKind?: string; toKind?: string; view?: string }) => void;
   connectTargets?: (fromId: string) => string[] | null;
+  onDownload?: (blob: Blob, filename: string) => void;
 }
 
 declare global {

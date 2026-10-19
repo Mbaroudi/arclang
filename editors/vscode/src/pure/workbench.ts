@@ -158,7 +158,9 @@ export type FromWebview =
   | { type: 'ask'; id: string; name: string; kind: string }
   | { type: 'selected'; id: string | null; kind?: string; name?: string }
   | { type: 'open-text' }
-  | { type: 'command'; command: string };
+  | { type: 'command'; command: string }
+  | { type: 'save'; name: string; mime: string; data: string }
+  | { type: 'focus-mode'; on: boolean };
 
 /** `arclang workbench` output, read leniently: a broken answer is a failed snapshot. */
 export function parseSnapshot(text: string): Snapshot {

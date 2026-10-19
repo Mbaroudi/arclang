@@ -44,6 +44,7 @@ export class WorkbenchPanel {
   private ready = false;
   private selected: string | null = null;
   private busy = 0;
+  private maximized = false;
 
   /** Open (or reveal) the workbench of a document beside the text. */
   static async open(document: vscode.TextDocument): Promise<void> {
@@ -186,6 +187,16 @@ export class WorkbenchPanel {
       case 'edit':
         await this.edit(message.requests, message.label);
         return;
+      case 'save':
+        await this.save(message.name, message.data);
+        return;
+      case 'focus-mode':
+        // The editor group takes the window (and gives it back).
+        if (message.on !== this.maximized) {
+          this.maximized = message.on;
+          await vscode.commands.executeCommand('workbench.action.toggleMaximizeEditorGroup');
+        }
+        return;
       default:
         return;
     }
@@ -208,6 +219,20 @@ export class WorkbenchPanel {
       this.busy -= 1;
       if (this.busy === 0) this.post({ type: 'busy', busy: false });
     }
+  }
+
+  /** An export of the viewer (SVG, PNG, layout): saved where the user says, next to the model by default. */
+  private async save(name: string, base64: string): Promise<void> {
+    const safe = path.basename(name).replace(/[^A-Za-z0-9._-]+/g, '-') || 'diagram';
+    const folder = this.document.uri.scheme === 'file' ? vscode.Uri.file(path.dirname(this.document.uri.fsPath)) : undefined;
+    const extension = path.extname(safe).slice(1).toLowerCase();
+    const filters: Record<string, string[]> = extension === 'png' ? { 'PNG image': ['png'] } : extension === 'svg' ? { 'SVG drawing': ['svg'] } : extension === 'json' ? { 'Layout': ['json'] } : {};
+    const target = await vscode.window.showSaveDialog({ defaultUri: folder ? vscode.Uri.joinPath(folder, safe) : undefined, filters, saveLabel: 'Save' });
+    if (!target) return;
+    await vscode.workspace.fs.writeFile(target, Buffer.from(base64, 'base64'));
+    const open = await vscode.window.showInformationMessage(`ArcLang: saved ${path.basename(target.fsPath)}`, 'Open', 'Reveal');
+    if (open === 'Open') await vscode.commands.executeCommand('vscode.open', target);
+    if (open === 'Reveal') await vscode.commands.executeCommand('revealFileInOS', target);
   }
 
   private async element(id: string): Promise<ElementRecord | null> {

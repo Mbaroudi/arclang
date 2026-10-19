@@ -275,6 +275,32 @@ function countNodes(nodes: NonNullable<ReturnType<typeof currentGraph>>['childre
   return nodes.reduce((sum, node) => sum + 1 + countNodes(node.children ?? []), 0);
 }
 
+/** Exports go to the host, which asks where to save them (a webview cannot download). */
+function onDownload(blob: Blob, filename: string): void {
+  const reader = new FileReader();
+  reader.onload = () => {
+    const url = String(reader.result);
+    const data = url.slice(url.indexOf(',') + 1);
+    vscode.postMessage({ type: 'save', name: filename, mime: blob.type, data });
+  };
+  reader.onerror = () => showToast(`The export ${filename} could not be read.`, 'error');
+  reader.readAsDataURL(blob);
+}
+
+/**
+ * Full screen in an editor: the canvas takes the page (palette, drawer and
+ * status line hidden) and the host maximizes the editor; Esc or the button leaves.
+ */
+function setFocusMode(on: boolean): void {
+  document.body.classList.toggle('wb-focus', on);
+  vscode.postMessage({ type: 'focus-mode', on });
+  fitStage();
+  setTimeout(() => {
+    fitStage();
+    state.viewer?.fit?.();
+  }, 250);
+}
+
 /** The drawn element ids a connection from `fromId` may land on (null: any). */
 function connectTargets(fromId: string): string[] | null {
   const from = elementFor({ view: '', id: fromId, name: '', kind: '', isEdge: false });
@@ -369,6 +395,8 @@ function mount(snapshot: Snapshot): void {
     onOpen,
     onConnect,
     connectTargets,
+    onDownload,
+    onFullscreen: () => setFocusMode(!document.body.classList.contains('wb-focus')),
   });
   state.viewer = viewer;
   fitStage();
@@ -644,6 +672,7 @@ function flashChanges(before: Snapshot, after: Snapshot): void {
 document.addEventListener('keydown', (event) => {
   const editing = event.target instanceof HTMLInputElement || event.target instanceof HTMLSelectElement || event.target instanceof HTMLTextAreaElement;
   if (event.key === 'Escape') {
+    if (document.body.classList.contains('wb-focus')) setFocusMode(false);
     palette.disarm();
     toast.hidden = true;
     return;

@@ -114,6 +114,9 @@
     const connectTargets = options && options.connectTargets;
     // The host may take the whole window itself (with its own tools around the sheet).
     const onFullscreen = options && options.onFullscreen;
+    // The host may save files itself (an editor's webview cannot download):
+    // (blob, filename) -> void. Without it, the browser downloads them.
+    const save = (options && options.onDownload) || download;
     const state = { active: null, views: new Map(), layouts: new Map(), arranging: false, chain: null, selected: null, history: [], settled: new Map(), filters: new Map() };
 
     host.textContent = '';
@@ -1044,7 +1047,7 @@
 
     const exporter = deps.exporter.create({
       el,
-      download,
+      download: save,
       filename,
       activeView,
       onFailure: (message) => notes.appendChild(el('p', { class: 'arcviz-note', role: 'status', text: message })),
