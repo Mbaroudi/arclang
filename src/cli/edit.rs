@@ -148,16 +148,16 @@ pub fn run(input: &Path, element: &str, key: &str, value: Option<&str>, write: b
 
 /// `arclang workbench`: the snapshot of one model file as JSON, on stdout.
 pub fn workbench(input: &Path, gate_standard: &str, exports: bool) -> Result<(), CliError> {
-    use crate::compiler::workbench::{snapshot_json, SnapshotOptions};
+    use crate::compiler::workbench::{snapshot_file_json, SnapshotOptions};
     let standard = match gate_standard.to_ascii_uppercase().replace(['-', '_', ' '], "").as_str() {
         "ISO26262" => "ISO26262",
         "DO178C" => "DO178C",
         "IEC61508" => "IEC61508",
         other => return Err(CliError::Config(format!("unknown gate standard '{other}': use ISO26262, DO178C or IEC61508"))),
     };
-    let source = std::fs::read_to_string(input)?;
     let options = SnapshotOptions { gate_standard: standard, exports, explorer_html: false };
-    println!("{}", snapshot_json(&source, &options));
+    // From the file, so that a model of several files is read whole.
+    println!("{}", snapshot_file_json(input, &options));
     Ok(())
 }
 

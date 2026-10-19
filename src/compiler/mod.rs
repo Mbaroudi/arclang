@@ -12,6 +12,7 @@ pub mod elements;
 pub mod metamodel;
 pub mod metamodel_check;
 pub mod allocations;
+pub mod identity_sites;
 pub mod verification;
 pub mod variability;
 pub mod rules;
@@ -131,8 +132,30 @@ impl Compiler {
     pub fn compile_file<P: AsRef<Path>>(&mut self, path: P) -> Result<CompilationResult, CompilerError> {
         let path = path.as_ref();
         let mut import_stack = Vec::new();
-        let (ast, warnings) = Self::parse_file_with_imports(path, &mut import_stack)?;
-        self.finish(ast, warnings)
+        let mut files = Vec::new();
+        let (ast, warnings) = Self::parse_file_with_imports(path, &mut import_stack, &mut files)?;
+        self.finish_located(ast, warnings, &files)
+    }
+
+    /// The files a model is read from: the file itself, then every file it
+    /// imports (transitively), each once, as canonical paths.
+    pub fn files_of<P: AsRef<Path>>(path: P) -> Result<Vec<std::path::PathBuf>, CompilerError> {
+        let mut files = Vec::new();
+        Self::parse_file_with_imports(path.as_ref(), &mut Vec::new(), &mut files)?;
+        files.iter().map(|file| Path::new(&file.label).canonicalize().map_err(CompilerError::Io)).collect()
+    }
+
+    /// Finish, with the places of duplicate identities named.
+    fn finish_located(
+        &mut self,
+        ast: ast::Model,
+        warnings: Vec<String>,
+        files: &[identity_sites::SourceFile],
+    ) -> Result<CompilationResult, CompilerError> {
+        identity_sites::check_requirements(&ast, files).map_err(CompilerError::Semantic)?;
+        let mut result = self.finish(ast, warnings)?;
+        result.warnings = std::mem::take(&mut result.warnings).into_iter().map(|w| identity_sites::locate_duplicate(w, files)).collect();
+        Ok(result)
     }
 
     pub fn compile_string(&mut self, source: &str) -> Result<CompilationResult, CompilerError> {
@@ -144,7 +167,8 @@ impl Compiler {
                 ast.imports.len()
             )));
         }
-        self.finish(ast, warnings)
+        let files = [identity_sites::SourceFile { label: String::new(), text: source.to_string() }];
+        self.finish_located(ast, warnings, &files)
     }
 
     /// Lex + parse one source text. No filesystem access.
@@ -165,6 +189,7 @@ impl Compiler {
     fn parse_file_with_imports(
         path: &Path,
         import_stack: &mut Vec<std::path::PathBuf>,
+        files: &mut Vec<identity_sites::SourceFile>,
     ) -> Result<(ast::Model, Vec<String>), CompilerError> {
         let canonical = path.canonicalize().map_err(|e| {
             CompilerError::Io(std::io::Error::new(
@@ -183,9 +208,14 @@ impl Compiler {
                 chain.join(" -> ")
             )));
         }
+        // A file imported along two paths (a diamond) is read once.
+        if files.iter().any(|file| Path::new(&file.label).canonicalize().ok().as_ref() == Some(&canonical)) {
+            return Ok((ast::Model::new(), Vec::new()));
+        }
         import_stack.push(canonical.clone());
 
         let source = std::fs::read_to_string(&canonical)?;
+        files.push(identity_sites::SourceFile { label: path.display().to_string(), text: source.clone() });
         let (mut root, mut warnings) = Self::parse_source(&source).map_err(|e| match e {
             // Localize parse errors to the file they came from.
             CompilerError::Parser(msg) => {
@@ -210,7 +240,7 @@ impl Compiler {
                 )));
             }
             let (fragment, fragment_warnings) =
-                Self::parse_file_with_imports(&target, import_stack)?;
+                Self::parse_file_with_imports(&target, import_stack, files)?;
             root.merge(fragment);
             warnings.extend(fragment_warnings);
         }

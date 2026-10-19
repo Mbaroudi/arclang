@@ -82,6 +82,24 @@ pub(super) fn locate(path: &FsPath) -> Result<Tracked, String> {
     Ok(Tracked { root, relative })
 }
 
+/// The files of the model, relative to the repository: the file itself and
+/// every file it imports, as the working tree has them.
+pub(super) fn model_files(path: &FsPath, tracked: &Tracked) -> Result<Vec<String>, String> {
+    let files = crate::Compiler::files_of(path).map_err(|e| format!("{}: {}", path.display(), e))?;
+    let mut relative = Vec::new();
+    for file in files {
+        let inside = file.strip_prefix(&tracked.root).map_err(|_| format!("{} is outside the git repository of the model", file.display()))?;
+        let text = inside.to_string_lossy().replace('\\', "/");
+        if !relative.contains(&text) {
+            relative.push(text);
+        }
+    }
+    if !relative.contains(&tracked.relative) {
+        relative.insert(0, tracked.relative.clone());
+    }
+    Ok(relative)
+}
+
 /// Identity of the API commit standing for git commit `sha` of a file.
 pub(super) fn commit_id(key: &str, sha: &str) -> String {
     element_uuid("commit", &format!("git|{}|{}", key, sha))
@@ -89,14 +107,19 @@ pub(super) fn commit_id(key: &str, sha: &str) -> String {
 
 /// The file's history key and its snapshots, oldest first.
 pub(super) fn snapshots(path: &FsPath, depth: usize) -> Result<(String, Vec<Snapshot>), String> {
-    let Tracked { root, relative: relative_text } = locate(path)?;
+    let tracked = locate(path)?;
+    // A commit that touched only an imported file changed the model too.
+    let files = model_files(path, &tracked)?;
+    let Tracked { root, relative: relative_text } = tracked;
     let relative = PathBuf::from(&relative_text);
 
     let depth_text = depth.max(1).to_string();
     // One record per commit, ended by a record separator: a note ends
     // with a line break of its own.
     let notes = format!("--notes={}", USER_NOTES);
-    let log = git(&root, &["log", "-n", &depth_text, &notes, "--format=%H%x1f%cI%x1f%s%x1f%N%x1e", "--", &relative_text])?;
+    let mut arguments: Vec<&str> = vec!["log", "-n", &depth_text, &notes, "--format=%H%x1f%cI%x1f%s%x1f%N%x1e", "--"];
+    arguments.extend(files.iter().map(String::as_str));
+    let log = git(&root, &arguments)?;
     let mut revisions: Vec<(String, DateTime<Utc>, String, Option<String>)> = Vec::new();
     for record in log.split('\u{1e}') {
         let mut fields = record.trim_start_matches('\n').split('\u{1f}');

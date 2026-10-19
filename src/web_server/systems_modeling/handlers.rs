@@ -2,14 +2,28 @@
 
 use super::*;
 
+/// The largest page a request gets: a larger `page[size]` is clamped to it.
+pub const MAX_PAGE_SIZE: usize = 10_000;
+
+/// A query string value, percent-encoded but for what URLs leave as is.
+fn encoded(text: &str) -> String {
+    text.bytes()
+        .map(|byte| match byte {
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' | b'[' | b']' => (byte as char).to_string(),
+            other => format!("%{:02X}", other),
+        })
+        .collect()
+}
+
 /// Cursor pagination of the specification: `page[size]` items after
 /// `page[after]` or before `page[before]` (cursors are `@id` values), with
-/// `Link` headers to the next and previous pages.
+/// `Link` headers to the next and previous pages that keep the request's
+/// other parameters.
 fn paginate(items: Vec<&Value>, params: &HashMap<String, String>, uri: &OriginalUri) -> Response {
     let size = match params.get("page[size]") {
         None => None,
-        Some(raw) => match raw.parse::<usize>() {
-            Ok(size) if size > 0 => Some(size),
+        Some(raw) => match raw.parse::<u128>() {
+            Ok(size) if size > 0 => Some(usize::try_from(size).unwrap_or(usize::MAX).min(MAX_PAGE_SIZE)),
             _ => return bad_request(format!("page[size] must be a positive integer, got '{}'", raw)),
         },
     };
@@ -17,7 +31,7 @@ fn paginate(items: Vec<&Value>, params: &HashMap<String, String>, uri: &Original
     let (start, end) = match (params.get("page[after]"), params.get("page[before]")) {
         (Some(_), Some(_)) => return bad_request("page[after] and page[before] are mutually exclusive".to_string()),
         (Some(after), None) => match position(after) {
-            Some(index) => (index + 1, size.map_or(items.len(), |size| (index + 1 + size).min(items.len()))),
+            Some(index) => (index + 1, size.map_or(items.len(), |size| (index + 1).saturating_add(size).min(items.len()))),
             None => return bad_request(format!("page[after]: unknown cursor '{}'", after)),
         },
         (None, Some(before)) => match position(before) {
@@ -31,14 +45,17 @@ fn paginate(items: Vec<&Value>, params: &HashMap<String, String>, uri: &Original
     let mut links = Vec::new();
     if let Some(size) = size {
         let path = uri.0.path();
+        let mut kept: Vec<(&String, &String)> = params.iter().filter(|(key, _)| !key.starts_with("page[")).collect();
+        kept.sort();
+        let others: String = kept.iter().map(|(key, value)| format!("&{}={}", encoded(key), encoded(value))).collect();
         if end < items.len() {
             if let Some(last) = page.last().and_then(|item| item["@id"].as_str()) {
-                links.push(format!("<{}?page[after]={}&page[size]={}>; rel=\"next\"", path, last, size));
+                links.push(format!("<{}?page[after]={}&page[size]={}{}>; rel=\"next\"", path, last, size, others));
             }
         }
         if start > 0 {
             if let Some(first) = page.first().and_then(|item| item["@id"].as_str()) {
-                links.push(format!("<{}?page[before]={}&page[size]={}>; rel=\"prev\"", path, first, size));
+                links.push(format!("<{}?page[before]={}&page[size]={}{}>; rel=\"prev\"", path, first, size, others));
             }
         }
     }
@@ -52,6 +69,12 @@ fn paginate(items: Vec<&Value>, params: &HashMap<String, String>, uri: &Original
 }
 
 type Params = Query<HashMap<String, String>>;
+
+/// Whether the request asks for the ArcLang extensions (`arclang:*` keys),
+/// which the specification's shapes do not allow: `?extensions=true`.
+fn extended(params: &HashMap<String, String>) -> bool {
+    params.get("extensions").is_some_and(|value| value == "true")
+}
 
 /// What a router serves: a workspace, read in one vocabulary.
 #[derive(Clone)]
@@ -82,8 +105,10 @@ pub async fn authenticate(
         .headers()
         .get(header::AUTHORIZATION)
         .and_then(|value| value.to_str().ok())
-        .and_then(|value| value.strip_prefix("Bearer "))
-        .and_then(|token| access.authenticate(token.trim()));
+        // The scheme is case-insensitive (RFC 7235).
+        .and_then(|value| value.split_once(' '))
+        .filter(|(scheme, _)| scheme.eq_ignore_ascii_case("bearer"))
+        .and_then(|(_, token)| access.authenticate(token.trim()));
     match presented {
         Some(principal) => {
             request.extensions_mut().insert(principal);
@@ -136,17 +161,17 @@ async fn list_commits(State(api): Shared, Path(project_id): Path<String>, Query(
     let workspace = read(&api.workspace);
     match workspace.project(&project_id) {
         Ok(project) => {
-            let commits: Vec<Value> = (0..project.commits.len()).rev().map(|position| project.commit_json(position)).collect();
+            let commits: Vec<Value> = (0..project.commits.len()).rev().map(|position| project.commit_json(position, extended(&params))).collect();
             paginate(commits.iter().collect(), &params, &uri)
         }
         Err(response) => response,
     }
 }
 
-async fn get_commit(State(api): Shared, Path((project_id, commit_id)): Path<(String, String)>) -> Response {
+async fn get_commit(State(api): Shared, Path((project_id, commit_id)): Path<(String, String)>, Query(params): Params) -> Response {
     let workspace = read(&api.workspace);
     match workspace.commit(&project_id, &commit_id) {
-        Ok((project, position)) => Json(project.commit_json(position)).into_response(),
+        Ok((project, position)) => Json(project.commit_json(position, extended(&params))).into_response(),
         Err(response) => response,
     }
 }
@@ -161,7 +186,7 @@ async fn list_changes(
     let workspace = read(&api.workspace);
     match workspace.commit(&project_id, &commit_id) {
         Ok((project, position)) => {
-            match project.changes(position, api.vocabulary) {
+            match project.changes(position, api.vocabulary, extended(&params)) {
                 Ok(changes) => paginate(changes.iter().collect(), &params, &uri),
                 Err(response) => response,
             }
@@ -285,7 +310,20 @@ fn satisfies(record: &Value, constraint: &Value) -> Result<bool, String> {
             let operator = constraint["operator"].as_str().ok_or("PrimitiveConstraint needs an 'operator'")?;
             let expected = constraint.get("value").ok_or("PrimitiveConstraint needs a 'value'")?;
             let path = if operator == "instanceOf" { "@type" } else { path };
-            let result = compare(operator, property(record, path), expected)?;
+            let actual = property(record, path);
+            // The specification's value is an array: the constraint holds for
+            // any of its values (`in` takes the whole array). A single value
+            // is read as an array of one.
+            let result = match expected {
+                Value::Array(values) if operator != "in" => {
+                    let mut any = false;
+                    for value in values {
+                        any |= compare(operator, actual, value)?;
+                    }
+                    any
+                }
+                single => compare(operator, actual, single)?,
+            };
             Ok(result != constraint["inverse"].as_bool().unwrap_or(false))
         }
         Some("CompositeConstraint") => {
@@ -320,6 +358,7 @@ async fn query_results(
     State(api): Shared,
     Path(project_id): Path<String>,
     Query(params): Params,
+    uri: OriginalUri,
     Json(query): Json<Value>,
 ) -> Response {
     let workspace = read(&api.workspace);
@@ -365,7 +404,32 @@ async fn query_results(
             }
         });
     }
-    Json(Value::Array(results)).into_response()
+    paginate(results.iter().collect(), &params, &uri)
+}
+
+/// Errors as the specification's `Error` (`{"@type": "Error", "description"}`):
+/// a failure that the framework answered in plain text (a malformed JSON
+/// body, an unparsable path or query, an unknown route) is rewrapped.
+pub async fn json_errors(response: Response) -> Response {
+    let status = response.status();
+    let is_json = response
+        .headers()
+        .get(header::CONTENT_TYPE)
+        .and_then(|value| value.to_str().ok())
+        .is_some_and(|value| value.starts_with("application/json"));
+    if !(status.is_client_error() || status.is_server_error()) || is_json {
+        return response;
+    }
+    let (parts, body) = response.into_parts();
+    let text = axum::body::to_bytes(body, 64 * 1024).await.map(|bytes| String::from_utf8_lossy(&bytes).trim().to_string()).unwrap_or_default();
+    let description = if text.is_empty() { status.canonical_reason().unwrap_or("error").to_string() } else { text };
+    let mut wrapped = error(status, description);
+    for name in [header::WWW_AUTHENTICATE, header::ALLOW] {
+        if let Some(value) = parts.headers.get(&name) {
+            wrapped.headers_mut().insert(name, value.clone());
+        }
+    }
+    wrapped
 }
 
 /// The Systems Modeling API router, to be nested under a base path.

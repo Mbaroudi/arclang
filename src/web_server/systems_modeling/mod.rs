@@ -319,6 +319,7 @@ impl Project {
         json!({
             "@id": self.id,
             "@type": "Project",
+            "alias": [],
             "name": self.name,
             "description": self.description,
             "defaultBranch": reference(&self.branch_id),
@@ -330,6 +331,9 @@ impl Project {
         json!({
             "@id": self.branch_id,
             "@type": "Branch",
+            "alias": [],
+            "deleted": Value::Null,
+            "description": Value::Null,
             "name": BRANCH_NAME,
             "owningProject": reference(&self.id),
             "head": reference(&self.head().id),
@@ -338,30 +342,47 @@ impl Project {
         })
     }
 
-    fn commit_json(&self, position: usize) -> Value {
+    /// A commit in the specification's shape; with `extended`, the ArcLang
+    /// extensions too (`arclang:*`), which that shape does not allow. A
+    /// revision that does not compile says so in its description either way.
+    fn commit_json(&self, position: usize, extended: bool) -> Value {
         let commit = &self.commits[position];
         let previous: Vec<Value> = position.checked_sub(1).map(|p| reference(&self.commits[p].id)).into_iter().collect();
-        json!({
+        let description = match &commit.compile_error {
+            Some(error) => format!("{} (this revision does not compile: {})", commit.description, error),
+            None => commit.description.clone(),
+        };
+        let mut object = json!({
             "@id": commit.id,
             "@type": "Commit",
-            "description": commit.description,
+            "alias": [],
+            "name": Value::Null,
+            "description": description,
             "owningProject": reference(&self.id),
             "previousCommit": previous,
             "created": commit.created,
+        });
+        if extended {
             // ArcLang extensions: nothing the compiler knows is hidden.
-            "arclang:contentDigest": commit.digest,
-            "arclang:gitCommit": commit.git_commit,
-            "arclang:user": commit.user,
-            "arclang:compileError": commit.compile_error,
-            "arclang:warnings": commit.warnings,
-            "arclang:unresolvedRelationships": commit.unresolved,
-        })
+            let extensions = json!({
+                "arclang:contentDigest": commit.digest,
+                "arclang:gitCommit": commit.git_commit,
+                "arclang:user": commit.user,
+                "arclang:compileError": commit.compile_error,
+                "arclang:warnings": commit.warnings,
+                "arclang:unresolvedRelationships": commit.unresolved,
+            });
+            if let (Some(object), Value::Object(extensions)) = (object.as_object_mut(), extensions) {
+                object.extend(extensions);
+            }
+        }
+        object
     }
 
     /// What changed in commit `position` relative to the one before it, by
     /// element identity: added and modified records carry their payload, a
     /// deleted record has a null payload. The first commit adds everything.
-    fn changes(&self, position: usize, vocabulary: Vocabulary) -> Result<Vec<Value>, Response> {
+    fn changes(&self, position: usize, vocabulary: Vocabulary, extended: bool) -> Result<Vec<Value>, Response> {
         let commit = &self.commits[position];
         let view = commit.view(vocabulary)?;
         let previous = match position.checked_sub(1) {
@@ -369,13 +390,19 @@ impl Project {
             None => None,
         };
         let version = |identity: &str, kind: &str, payload: Value| {
-            json!({
+            let mut version = json!({
                 "@id": element_uuid("version", &format!("{}|{}", commit.id, identity)),
                 "@type": "DataVersion",
-                "identity": { "@id": identity, "@type": "DataIdentity" },
+                "alias": [],
+                "name": Value::Null,
+                "description": Value::Null,
+                "identity": { "@id": identity, "@type": "DataIdentity", "alias": [], "name": Value::Null, "description": Value::Null },
                 "payload": payload,
-                "arclang:changeKind": kind,
-            })
+            });
+            if extended {
+                version["arclang:changeKind"] = json!(kind);
+            }
+            version
         };
         let mut changes = Vec::new();
         for record in &view.records {
@@ -521,4 +548,4 @@ mod sysml_view;
 mod write;
 
 pub use access::{Access, Principal, Role, MIN_TOKEN_LENGTH};
-pub use handlers::{authenticate, router};
+pub use handlers::{authenticate, json_errors, router, MAX_PAGE_SIZE};
