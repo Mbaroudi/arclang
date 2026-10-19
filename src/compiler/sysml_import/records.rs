@@ -321,7 +321,8 @@ pub fn load(records: &[Value]) -> Result<Graph, String> {
                 // `filter @Meta;`: an `@` expression naming a metadata definition.
                 let condition = first_id(record, &["condition", "memberElement"]).and_then(|c| by_id.get(&c)).map(|(_, r)| r);
                 let metadata = condition.filter(|c| c.get("operator").and_then(Value::as_str) == Some("@")).and_then(|c| first_id(c, &["arclang:type"]));
-                link(&mut graph, first_id(record, &["membershipOwningNamespace"]), metadata, |e, t| e.filters.push(t));
+                // A filter read as nothing is kept as such: the view is not widened.
+                link(&mut graph, first_id(record, &["membershipOwningNamespace"]), Some(metadata.unwrap_or_default()), |e, t| e.filters.push(t));
             }
             "FeatureValue" => {
                 let owner = first_id(record, &["featureWithValue", "owner"]);

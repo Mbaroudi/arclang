@@ -424,6 +424,13 @@ impl<'g> Mapper<'g> {
         let mut out = Vec::new();
         for view in views {
             let filters: Vec<&str> = view.filters.iter().filter_map(|f| self.graph.get(f)).filter_map(|f| f.name.as_deref()).collect();
+            let name = Self::display(view);
+            // A filter the import does not read (`@A and @B`) would widen the view.
+            if filters.len() < view.filters.len() {
+                self.notes.push(format!("view '{name}' filters on a condition the import does not read: left out"));
+                self.count("views with a filter not read (left out)");
+                continue;
+            }
             let shows: Vec<String> = (0..self.nodes.len())
                 .filter(|&n| {
                     let Some(element) = self.nodes[n].usage.or(self.nodes[n].def) else { return false };
@@ -432,7 +439,6 @@ impl<'g> Mapper<'g> {
                 })
                 .filter_map(|n| self.ids.get(&self.node_key(n)).cloned())
                 .collect();
-            let name = Self::display(view);
             if shows.is_empty() {
                 self.notes.push(format!("view '{name}' shows no element the import wrote: left out"));
                 self.count("views showing nothing written (left out)");

@@ -110,14 +110,29 @@ fn read(text: &str) -> Vec<Node> {
             }
         }
     };
+    // Below a line that does not read, its whole subtree is skipped.
+    let mut skipping: Option<usize> = None;
     for line in text.lines() {
         let fields: Vec<&str> = line.split('\t').collect();
-        let [depth, kind, name, short, flags, relationships @ ..] = fields.as_slice() else { continue };
-        let Ok(depth) = depth.parse::<usize>() else { continue };
+        let depth = fields.first().and_then(|d| d.parse::<usize>().ok());
+        if let (Some(skip), Some(depth)) = (skipping, depth) {
+            if depth > skip {
+                continue;
+            }
+            skipping = None;
+        }
+        let ([_, kind, name, short, flags, relationships @ ..], Some(depth)) = (fields.as_slice(), depth) else {
+            if let Some(depth) = depth {
+                skipping = Some(depth);
+            }
+            continue;
+        };
         if depth > stack.len() {
+            skipping = Some(depth);
             continue;
         }
         close(&mut stack, &mut roots, depth);
+        // One leaked string per distinct metaclass, once (the roots are read once).
         let kind: &'static str = kinds.entry(kind.to_string()).or_insert_with(|| Box::leak(kind.to_string().into_boxed_str()));
         stack.push(node_of(kind, name, short, flags, relationships));
     }

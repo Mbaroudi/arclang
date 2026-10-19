@@ -139,4 +139,14 @@ mod tests {
         let error = records_of_files(&[("Bad.sysml", "package {")]).err().unwrap();
         assert!(error.starts_with("Bad.sysml: "), "{error}");
     }
+
+    #[test]
+    fn library_elements_referred_to_have_distinct_ids() {
+        let text = "package M { private import ScalarValues::*; part p { attribute a : Real; attribute b : Integer; attribute c : Boolean; } }";
+        let built = records(text).unwrap();
+        let stubs: Vec<&serde_json::Value> = built.records.iter().filter(|r| r["isLibraryElement"] == true).collect();
+        let ids: std::collections::HashSet<&str> = stubs.iter().filter_map(|r| r["@id"].as_str()).collect();
+        assert!(stubs.len() >= 3, "{stubs:?}");
+        assert_eq!(ids.len(), stubs.len(), "{stubs:?}");
+    }
 }

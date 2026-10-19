@@ -84,7 +84,16 @@ fn identities(scope: &Scope) -> Vec<String> {
             None => own,
         });
     }
-    let library = (scope.text_len()..scope.len()).map(|index| element_uuid("sysml-library", &scope.qualified_name(index).unwrap_or_default()));
+    // A library element is known by its qualified name, the id the library
+    // index gives it; one without a name of its own, or sharing its name
+    // with a sibling, by its place in the skeleton.
+    let mut taken: std::collections::HashSet<String> = std::collections::HashSet::new();
+    let library: Vec<String> = (scope.text_len()..scope.len())
+        .map(|index| match scope.qualified_name(index).filter(|name| taken.insert(name.clone())) {
+            Some(name) => element_uuid("sysml-library", &name),
+            None => element_uuid("sysml-library", &format!("#{}", index - scope.text_len())),
+        })
+        .collect();
     paths.iter().map(|path| element_uuid("sysml", path)).chain(library).collect()
 }
 

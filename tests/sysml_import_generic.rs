@@ -276,3 +276,30 @@ fn a_sysml_view_is_a_diagram_of_what_it_exposes() {
     assert_has(&source, "diagram \"safetyView\" {\n    view: lab\n    shows: [\"brake\", \"airbag\"]\n}");
     assert_has(&source, "diagram \"everything\" {\n    view: lab\n    shows: [\"car\"]\n}");
 }
+
+#[test]
+fn a_view_whose_filter_is_not_read_is_left_out_not_widened() {
+    let text = "package V {
+    metadata def A; metadata def B;
+    package Tree { part car { #A part brake; part seat; } }
+    view both { expose Tree::**; filter @A and @B; }
+}
+";
+    let imported = imported(text);
+    assert!(!imported.source.contains("diagram \"both\""), "{}", imported.source);
+    assert_eq!(imported.counts.get("views with a filter not read (left out)"), Some(&1), "{:?}", imported.counts);
+}
+
+#[test]
+fn a_directory_with_a_link_back_to_itself_imports_once() {
+    let dir = std::env::temp_dir().join(format!("arclang-sysml-dir-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(dir.join("defs")).unwrap();
+    std::fs::write(dir.join("defs/Definitions.sysml"), "package Definitions { part def Car; }").unwrap();
+    std::fs::write(dir.join("Usages.sysml"), "package Usages { private import Definitions::*; part car : Car; }").unwrap();
+    #[cfg(unix)]
+    std::os::unix::fs::symlink(&dir, dir.join("loop")).unwrap();
+    let imported = sysml_import::import_file(&dir).unwrap_or_else(|f| panic!("{}", f.message));
+    assert!(!imported.counts.contains_key("names designating nothing known (left unresolved)"), "{:?}", imported.counts);
+    std::fs::remove_dir_all(&dir).unwrap();
+}
