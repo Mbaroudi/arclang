@@ -3,11 +3,43 @@
 // `arclang` on the PATH answers to --version.
 import * as assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
+import * as fs from 'node:fs';
+import * as os from 'node:os';
 import * as path from 'node:path';
 import * as vscode from 'vscode';
 
 const EXTENSION_ROOT = path.resolve(__dirname, '../../..');
-const EXAMPLE = path.resolve(EXTENSION_ROOT, '../../examples/complete_emergency_braking_simple.arc');
+// A small model with one deliberate finding (a requirement nothing satisfies),
+// written where the examples cannot move under the test.
+const EXAMPLE = writeExample();
+
+function writeExample(): string {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'arclang-ext-'));
+  const file = path.join(dir, 'example.arc');
+  fs.writeFileSync(
+    file,
+    [
+      'model "Extension test" {',
+      '  version: "1.0.0"',
+      '}',
+      '',
+      'logical_architecture "LA" {',
+      '  component "Controller" {',
+      '    id: "LC-CTL"',
+      '    function "Compute" {}',
+      '  }',
+      '}',
+      '',
+      'requirements system {',
+      '  req "REQ-1" "Shall compute" {',
+      '    description: "The system shall compute."',
+      '  }',
+      '}',
+      '',
+    ].join('\n'),
+  );
+  return file;
+}
 
 function compilerAvailable(): boolean {
   const binary = process.env.ARCLANG_BINARY || 'arclang';
