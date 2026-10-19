@@ -122,6 +122,11 @@ export class Palette {
     return true;
   }
 
+  /** Whether a tool waits for its click (Esc then cancels it, nothing else). */
+  isArmed(): boolean {
+    return this.armed !== null;
+  }
+
   disarm(): void {
     this.armed = null;
     this.firstEnd = null;

@@ -405,7 +405,8 @@ function onSelect(selection: ViewerSelection | null): void {
   selectElement(element, false);
 }
 
-function onDrop(dragged: string, target: string | null): void {
+/** A box let go on another box: it goes into it (the viewer places it otherwise). */
+function onDrop({ from: dragged, to: target }: { view: string; from: string; to: string | null }): void {
   const element = elementFor({ view: '', id: dragged, name: '', kind: '', isEdge: false });
   if (!element) return;
   const container = target ? elementFor({ view: '', id: target, name: '', kind: '', isEdge: false }) : null;
@@ -769,6 +770,9 @@ function mount(snapshot: Snapshot): void {
     connectTargets,
     onDownload,
     onFullscreen: () => setFocusMode(!document.body.classList.contains('wb-focus')),
+    // Boxes go where they are dragged (into another box when let go on it), kept next to the model.
+    arrange: true,
+    onLayout: (file: unknown) => vscode.postMessage({ type: 'layout', file }),
   });
   state.viewer = viewer;
   fitStage();
@@ -1081,7 +1085,9 @@ function flashChanges(before: Snapshot, after: Snapshot): void {
 document.addEventListener('keydown', (event) => {
   const editing = event.target instanceof HTMLInputElement || event.target instanceof HTMLSelectElement || event.target instanceof HTMLTextAreaElement;
   if (event.key === 'Escape') {
-    if (document.body.classList.contains('wb-focus')) setFocusMode(false);
+    // Esc first cancels what is under way (a tool, a selection); then it leaves full screen.
+    const busy = palette.isArmed() || !!state.selected || multi.length > 0;
+    if (!busy && document.body.classList.contains('wb-focus')) setFocusMode(false);
     palette.disarm();
     toast.hidden = true;
     return;

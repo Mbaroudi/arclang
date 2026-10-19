@@ -31,12 +31,14 @@ export interface ViewerApi {
 export interface ViewerOptions {
   slots?: Record<string, HTMLElement>;
   onSelect?: (selection: ViewerSelection | null) => void;
-  onDrop?: (dragged: string, target: string | null) => void;
+  onDrop?: (drop: { view: string; from: string; to: string | null }) => void;
   onOpen?: (id: string) => void;
   onFullscreen?: () => void;
   onConnect?: (fromId: string, toId: string, ends?: { fromKind?: string; toKind?: string; view?: string }) => void;
   connectTargets?: (fromId: string) => string[] | null;
   onDownload?: (blob: Blob, filename: string) => void;
+  arrange?: boolean;
+  onLayout?: (file: unknown) => void;
 }
 
 declare global {

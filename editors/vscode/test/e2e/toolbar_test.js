@@ -35,9 +35,9 @@ const results = []; const ok = (name, cond, detail = '') => { results.push([cond
   // Full screen
   await tool('Full screen').click(); await page.waitForTimeout(400);
   const focusOn = await page.evaluate(() => document.body.classList.contains('wb-focus'));
-  const paletteHidden = await page.evaluate(() => getComputedStyle(document.querySelector('.wb-left')).display === 'none');
+  const paletteKept = await page.evaluate(() => getComputedStyle(document.querySelector('.wb-left')).display !== 'none');
   const fsMsg = (await posted()).filter((m) => m.type === 'focus-mode');
-  ok('Full screen enters focus mode (canvas alone) and asks the host to maximize', focusOn && paletteHidden && fsMsg.at(-1)?.on === true);
+  ok('Full screen keeps the palette and asks the host for the whole screen', focusOn && paletteKept && fsMsg.at(-1)?.on === true);
   await page.keyboard.press('Escape'); await page.waitForTimeout(300);
   ok('Esc leaves full screen', !(await page.evaluate(() => document.body.classList.contains('wb-focus'))) && (await posted()).filter((m) => m.type === 'focus-mode').at(-1)?.on === false);
   // Zoom and fit change the sheet transform

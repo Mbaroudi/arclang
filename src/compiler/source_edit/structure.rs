@@ -391,7 +391,16 @@ pub fn move_element(source: &str, element: &str, container: Container) -> Result
     };
     let block = Block { open: block_open, close: end };
     let text: String = document.chars[document.lexemes[start].offset..document.end_of(end)].iter().collect();
-    let declaration = text.trim().to_string();
+    // The lines after the first lose the indentation the declaration had
+    // where it was: the container's own indentation is put in their place.
+    let base = document.indentation_of(start);
+    let declaration = text
+        .trim()
+        .lines()
+        .enumerate()
+        .map(|(index, line)| if index == 0 { line } else { line.strip_prefix(base.as_str()).unwrap_or(line) })
+        .collect::<Vec<_>>()
+        .join("\n");
     let target = match container {
         Container::Element(other) => document.find_element(other)?,
         Container::Layer { keyword, name } => document.find_layer(keyword, name)?,

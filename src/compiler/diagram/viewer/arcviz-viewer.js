@@ -101,6 +101,12 @@
    *   connectTargets: (fromId) => ids | null, asked once as a line starts:
    *             the boxes and ports it may end on, or null for any of
    *             them. Left out, any.
+   *   arrange:  true to start with boxes placed by dragging (an editor).
+   *             With onDrop, a box let go on another box that is not its
+   *             container goes into it (onDrop); anywhere else, it stays
+   *             where it was let go.
+   *   onLayout: (layout file) => void, whenever the arrangement (places,
+   *             folds, open containers) changes: the host keeps it.
    */
   function mount(host, payload, deps, options) {
     const graphs = payload.graphs || [];
@@ -117,7 +123,8 @@
     // The host may save files itself (an editor's webview cannot download):
     // (blob, filename) -> void. Without it, the browser downloads them.
     const save = (options && options.onDownload) || download;
-    const state = { active: null, views: new Map(), layouts: new Map(), arranging: false, chain: null, selected: null, history: [], settled: new Map(), filters: new Map() };
+    const onLayout = options && options.onLayout;
+    const state = { active: null, views: new Map(), layouts: new Map(), arranging: Boolean(options && options.arrange), chain: null, selected: null, history: [], settled: new Map(), filters: new Map() };
 
     host.textContent = '';
     host.classList.add('arcviz');
@@ -191,7 +198,7 @@
     const treeToggle = tool('Model tree', 'Show or hide the model tree', () => toggleTree());
     treeToggle.setAttribute('aria-pressed', 'true');
     const arrange = tool('Arrange', 'Move boxes by hand: drag one, or select it and press Shift with an arrow key', () => toggleArrange());
-    arrange.setAttribute('aria-pressed', 'false');
+    arrange.setAttribute('aria-pressed', String(state.arranging));
     const resetPlaces = tool('Reset layout', 'Put every box of this view back where the automatic layout placed it', () => replace(() => scope.resetPlaces(state.active)).then(() => announce('Layout reset.')));
     const layoutName = payload.layout_name || `${slug(payload.title)}.layout.json`;
     const saveLayout = tool('Save layout', `Download the folds, the open containers and the placement as ${layoutName}. Kept next to the model, it is what everyone sees.`, () => exporter.saveLayout(scope.toFile(), layoutName));
@@ -511,6 +518,7 @@
       sheet.restore(where);
       const shown = await activeView();
       if (shown && shown.graph.arc.placed) scope.settle(view, shown.graph.arc.placed);
+      reportLayout();
       // Print pages show each view whole, as the reader arranged it.
       try {
         state.settled.set(view, await layout(graphs.find((graph) => graph.id === view), scope.WHOLE));
@@ -522,6 +530,43 @@
     async function moveBy(id, dx, dy) {
       await replace(() => scope.moveBy(state.active, id, dx, dy));
       announce(`${nav.nameOf(id)} moved.`);
+    }
+
+    /** The box that holds another in the view on screen, or null at the top. */
+    function containerOf(id) {
+      const graph = activeGraph();
+      let found = null;
+      const walk = (node, parent) => {
+        if (node.id === id) found = parent;
+        (node.children || []).forEach((child) => walk(child, node.id));
+      };
+      if (graph) (scope.shape(graph).children || []).forEach((node) => walk(node, null));
+      return found;
+    }
+
+    /** A box let go: into the box under it when that is a new container, else placed there. */
+    async function placeOrDrop(id, dx, dy, into) {
+      const view = state.active;
+      if (onDrop && into && into !== containerOf(id) && !carried(id).includes(into)) {
+        await replace(() => {}); // back where it was until the model says otherwise
+        onDrop({ view, from: id, to: into });
+        return;
+      }
+      await moveBy(id, dx, dy);
+    }
+
+    let lastLayout = null;
+    /** Tell the host the arrangement when it changed. */
+    function reportLayout() {
+      if (!onLayout) return;
+      const now = JSON.stringify(scope.toFile());
+      if (lastLayout === null) {
+        lastLayout = now; // what the page was built with is not a change
+        return;
+      }
+      if (now === lastLayout) return;
+      lastLayout = now;
+      onLayout(JSON.parse(now));
     }
 
     function toggleArrange() {
@@ -644,6 +689,7 @@
         which.appendChild(el('option', { value: sibling.id, text: sibling.arc.title, selected: sibling.id === graph.id }));
       }
       clearViewChrome();
+      reportLayout();
       // A mark on the button while the arrangement differs from the file.
       saveLayout.textContent = scope.dirty() ? 'Save layout •' : 'Save layout';
       saveLayout.setAttribute('aria-label', scope.dirty() ? 'Save layout, changed since the layout file' : 'Save layout');
@@ -705,7 +751,7 @@
         return true;
       },
       carried: (id) => carried(id),
-      onMove: (id, dx, dy) => moveBy(id, dx, dy),
+      onMove: (id, dx, dy, into) => placeOrDrop(id, dx, dy, into),
       onDrop: onDrop ? (from, to) => onDrop({ view: state.active, from, to }) : null,
       onConnect: onConnect
         ? (from, to) => onConnect(from.dataset.id, to.dataset.id, { fromKind: kindOf(from), toKind: kindOf(to), view: state.active })

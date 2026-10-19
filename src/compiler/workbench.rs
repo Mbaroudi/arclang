@@ -607,6 +607,15 @@ requirements system {
     }
 
     #[test]
+    fn a_moved_block_takes_the_indentation_of_its_new_container() {
+        let model = "model T { name: \"t\" }\nlogical_architecture \"L\" {\n  component \"A\" {\n    id: \"LC-A\"\n    function \"F\" { id: \"LF-F\" }\n  }\n  component \"B\" {\n    id: \"LC-B\"\n    function \"G\" {\n      id: \"LF-G\"\n    }\n  }\n}\n";
+        let edited = parse(edit(model, r#"{"op":"move","element":"LC-B","container":"LC-A"}"#));
+        assert_eq!(edited["success"], true, "{edited}");
+        let source = edited["source"].as_str().unwrap();
+        assert!(source.contains("    component \"B\" {\n      id: \"LC-B\"\n      function \"G\" {\n        id: \"LF-G\"\n      }\n    }\n  }"), "{source}");
+    }
+
+    #[test]
     fn compile_reports_diagrams_document_and_elements() {
         let output = parse(compile(MODEL));
         assert_eq!(output["success"], true);

@@ -107,15 +107,19 @@ html, body {
 .wb-layer.is-active .wb-layer-count { background: rgba(255, 255, 255, 0.25); color: inherit; }
 .wb-toolrow {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: var(--wb-gap);
-  height: 30px;
-  padding: 0 4px 0 2px;
-  overflow: hidden;
+  min-height: 30px;
+  padding: 3px 4px 3px 2px;
+  flex: none;
+  border-bottom: 1px solid var(--vscode-panel-border, #8884);
 }
 .wb-tabs { display: flex; gap: 2px; overflow-x: auto; scrollbar-width: none; min-width: 0; flex: 1; }
 .wb-tabs::-webkit-scrollbar { display: none; }
-.wb-viewer-tools { display: flex; gap: 1px; flex: 1; overflow: hidden; }
+.wb-viewer-tools { display: flex; gap: 1px; flex: 1; min-width: 0; }
+/* The viewer's tools wrap onto as many rows as the panel needs: none is ever cut. */
+.wb-viewer-tools .arcviz-tools { display: flex; flex-wrap: wrap; row-gap: 2px; column-gap: 6px; align-items: center; }
+.wb-viewer-tools .arcviz-tool-group + .arcviz-tool-group { border-left: 1px solid var(--vscode-panel-border, #8884); padding-left: 6px; }
 
 .wb-body { display: flex; flex: 1; min-height: 0; }
 
@@ -382,7 +386,8 @@ button.wb-icon-button[aria-pressed='true'] { background: var(--vscode-inputOptio
 .wb-notice { position: absolute; top: 40%; left: 50%; transform: translate(-50%, -50%); z-index: 4; padding: 10px 16px; border-radius: 4px; font-size: 13px; color: var(--vscode-notifications-foreground, var(--vscode-foreground)); background: var(--vscode-notifications-background, var(--vscode-editorWidget-background)); border: 1px solid var(--vscode-notifications-border, #8884); box-shadow: 0 2px 8px rgba(0,0,0,.3); }
 
 /* Full screen inside the editor: the canvas alone, the layer bar kept. */
-body.wb-focus .wb-left, body.wb-focus .wb-right, body.wb-focus .wb-splitter, body.wb-focus .wb-bottom { display: none !important; }
+/* Full screen keeps every tool: palette, properties, toolbar and status line stay where they are. */
+body.wb-focus .wb-viewer-tools button[aria-label='Full screen'], body.wb-focus .wb-viewer-tools button[title^='Full screen'] { background: var(--vscode-button-background); color: var(--vscode-button-foreground); }
 
 /* Direct edit over a box, find in the diagram */
 .wb-direct-edit { position: absolute; z-index: 7; font: inherit; font-weight: 600; padding: 2px 6px; color: var(--vscode-input-foreground); background: var(--vscode-input-background); border: 1px solid var(--vscode-focusBorder); border-radius: 2px; box-shadow: 0 2px 6px rgba(0,0,0,.25); }
@@ -398,3 +403,6 @@ body.wb-focus .wb-left, body.wb-focus .wb-right, body.wb-focus .wb-splitter, bod
 .wb-minimap img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; opacity: .85; pointer-events: none; }
 .wb-minimap-view { position: absolute; border: 2px solid var(--vscode-focusBorder); background: color-mix(in srgb, var(--vscode-focusBorder) 12%, transparent); pointer-events: none; }
 .wb-minimap-toggle::before { content: "▣"; }
+
+/* An element marked hidden stays hidden, whatever display a rule gives its class. */
+[hidden] { display: none !important; }

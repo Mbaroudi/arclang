@@ -8,7 +8,7 @@
 import { randomBytes } from 'node:crypto';
 import * as path from 'node:path';
 import * as vscode from 'vscode';
-import { EditRequest, ElementRecord, FromWebview, Snapshot, ToWebview } from '../pure/workbench';
+import { EditRequest, ElementRecord, FromWebview, isLayoutFile, layoutPathOf, Snapshot, ToWebview } from '../pure/workbench';
 import { applyRequests, refusalMessage } from './edits';
 import { metamodelJson, onDidChangeSnapshot, snapshotOf } from './snapshot';
 import { elementAt, revealElement } from './tree';
@@ -116,6 +116,11 @@ export class WorkbenchPanel {
     );
     this.panel.onDidDispose(() => {
       if (active === this) active = null;
+      // Closed in full screen: the window comes back as it was.
+      if (this.maximized) {
+        void vscode.commands.executeCommand('workbench.action.toggleZenMode');
+        void vscode.commands.executeCommand('workbench.action.toggleMaximizeEditorGroup');
+      }
       const key = document.uri.toString();
       const set = panels.get(key);
       set?.delete(this);
@@ -159,7 +164,11 @@ export class WorkbenchPanel {
 
   private async push(): Promise<void> {
     if (!this.ready) return;
-    const [snapshot, metamodel] = await Promise.all([snapshotOf(this.document), metamodelJson()]);
+    const [snapshot, metamodel, layout] = await Promise.all([snapshotOf(this.document), metamodelJson(), this.readLayout()]);
+    if (snapshot.diagrams && this.layoutUri()) {
+      // The arrangement kept next to the model: what the views show, as the CLI draws them.
+      snapshot.diagrams = { ...snapshot.diagrams, layout: layout ?? undefined, layout_name: path.basename(this.layoutUri()!.fsPath) };
+    }
     this.post({ type: 'snapshot', snapshot, metamodel, file: path.basename(this.document.uri.fsPath), selected: this.selected });
   }
 
@@ -195,11 +204,23 @@ export class WorkbenchPanel {
       case 'save':
         await this.save(message.name, message.data);
         return;
+      case 'layout':
+        this.writeLayout(message.file);
+        return;
       case 'focus-mode':
-        // The editor group takes the window (and gives it back).
+        // The workbench takes the whole screen, its tools with it: its editor
+        // group fills the window and Zen mode puts the window full screen,
+        // without side bars, panel or status bar. And gives it all back.
         if (message.on !== this.maximized) {
           this.maximized = message.on;
+          this.panel.reveal(undefined, false);
           await vscode.commands.executeCommand('workbench.action.toggleMaximizeEditorGroup');
+          await vscode.commands.executeCommand('workbench.action.toggleZenMode');
+          // Zen mode centers the editor by default: the diagram wants the full width.
+          // Leaving Zen mode puts the centering back as it was.
+          if (message.on && vscode.workspace.getConfiguration('zenMode').get<boolean>('centerLayout', true)) {
+            await vscode.commands.executeCommand('workbench.action.toggleCenteredLayout');
+          }
         }
         return;
       default:
@@ -224,6 +245,36 @@ export class WorkbenchPanel {
       this.busy -= 1;
       if (this.busy === 0) this.post({ type: 'busy', busy: false });
     }
+  }
+
+  /** `<model>.layout.json` beside a model on disk; none for an unsaved one. */
+  private layoutUri(): vscode.Uri | null {
+    return this.document.uri.scheme === 'file' ? vscode.Uri.file(layoutPathOf(this.document.uri.fsPath)) : null;
+  }
+
+  private async readLayout(): Promise<unknown> {
+    const uri = this.layoutUri();
+    if (!uri) return null;
+    try {
+      const parsed: unknown = JSON.parse(Buffer.from(await vscode.workspace.fs.readFile(uri)).toString('utf8'));
+      return isLayoutFile(parsed) ? parsed : null;
+    } catch {
+      return null; // no arrangement yet, or one that is not a layout file: the automatic layout
+    }
+  }
+
+  private layoutTimer: NodeJS.Timeout | undefined;
+  /** Boxes placed by hand: kept next to the model, a moment after the last move. */
+  private writeLayout(file: unknown): void {
+    const uri = this.layoutUri();
+    if (!uri || !isLayoutFile(file)) return;
+    clearTimeout(this.layoutTimer);
+    this.layoutTimer = setTimeout(() => {
+      vscode.workspace.fs.writeFile(uri, Buffer.from(`${JSON.stringify(file, null, 2)}\n`, 'utf8')).then(
+        () => vscode.window.setStatusBarMessage(`ArcLang: layout kept in ${path.basename(uri.fsPath)}`, 2500),
+        (error: unknown) => void vscode.window.showErrorMessage(`ArcLang: the layout could not be written to ${uri.fsPath}: ${error instanceof Error ? error.message : String(error)}`),
+      );
+    }, 400);
   }
 
   /** An export of the viewer (SVG, PNG, layout): saved where the user says, next to the model by default. */

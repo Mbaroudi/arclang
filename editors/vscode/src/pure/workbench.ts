@@ -161,6 +161,7 @@ export type FromWebview =
   | { type: 'open-text' }
   | { type: 'command'; command: string }
   | { type: 'save'; name: string; mime: string; data: string }
+  | { type: 'layout'; file: unknown }
   | { type: 'focus-mode'; on: boolean };
 
 /** `arclang workbench` output, read leniently: a broken answer is a failed snapshot. */
@@ -700,4 +701,18 @@ export function fragmentRequest(scenario: string, message: string, answer: strin
   const kinds = ['loop', 'opt', 'alt', 'par', 'seq', 'critical'];
   if (!kinds.includes((kind ?? '').toLowerCase())) return { error: `a fragment is one of ${kinds.join(', ')}, then an optional label` };
   return { op: 'wrap_fragment', scenario, kind: kind.toLowerCase(), label: rest.join(' '), first: message, last: message };
+}
+
+/** Where the arrangement of a model is kept, as the compiler reads it: `braking.arc` -> `braking.layout.json`. */
+export function layoutPathOf(modelPath: string): string {
+  const dot = modelPath.lastIndexOf('.');
+  const slash = Math.max(modelPath.lastIndexOf('/'), modelPath.lastIndexOf('\\'));
+  return `${dot > slash ? modelPath.slice(0, dot) : modelPath}.layout.json`;
+}
+
+/** A layout file as the viewer writes it: an object carrying `arclang_layout`. */
+export function isLayoutFile(value: unknown): value is { arclang_layout: string | number } {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
+  const version = (value as { arclang_layout?: unknown }).arclang_layout;
+  return typeof version === 'string' || typeof version === 'number';
 }

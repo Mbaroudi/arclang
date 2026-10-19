@@ -39,7 +39,7 @@
    * @param {Function} deps.onOpen     (element under the pointer) on a double-click on a box
    * @param {Function} deps.onKey      (event) -> true when the viewer handled the key
    * @param {Function} deps.carried    (node id) -> ids that move with it, [] if it cannot move
-   * @param {Function} deps.onMove     (node id, dx, dy) in sheet units, when a box is dropped
+   * @param {Function} deps.onMove     (node id, dx, dy, id of the box under it or null) in sheet units, when a box is dropped
    * @param {Function} deps.onDrop     optional: (node id, node id under the pointer or null)
    *                                   when a box is dragged and let go outside arrange mode;
    *                                   given, a drag on a box is that gesture, not a pan
@@ -169,6 +169,14 @@
     // is the one under the pointer.
     const under = (event) => document.elementFromPoint(event.clientX, event.clientY);
     const groupsOf = (ids) => [...canvas.querySelectorAll('.av-node')].filter((group) => ids.includes(group.dataset.id));
+    /** The box under the pointer while boxes are carried: the carried ones let the pointer through. */
+    const boxUnder = (event, carriedGroups) => {
+      for (const group of carriedGroups) group.style.pointerEvents = 'none';
+      const over = under(event);
+      for (const group of carriedGroups) group.style.pointerEvents = '';
+      const node = over && over.closest ? over.closest('.av-node') : null;
+      return node && !carriedGroups.includes(node) ? node : null;
+    };
     const local = (event) => {
       const frame = stage.getBoundingClientRect();
       return { x: event.clientX - frame.left, y: event.clientY - frame.top };
@@ -389,6 +397,8 @@
         const shift = `translate(${(event.clientX - drag.startX) / at.scale} ${(event.clientY - drag.startY) / at.scale})`;
         for (const group of drag.box.groups) group.setAttribute('transform', shift);
         stage.classList.add('is-moving');
+        // With a host that moves elements, the box it would go into is marked.
+        if (onDrop) markTarget(boxUnder(event, drag.box.groups));
         return;
       }
       stage.classList.add('is-panning');
@@ -426,7 +436,8 @@
       if (!done.moved) {
         if (event.button === 0) onPick(under(event));
       } else if (done.box) {
-        onMove(done.box.id, (event.clientX - done.startX) / at.scale, (event.clientY - done.startY) / at.scale);
+        const into = onDrop ? boxUnder(event, done.box.groups) : null;
+        onMove(done.box.id, (event.clientX - done.startX) / at.scale, (event.clientY - done.startY) / at.scale, into ? into.dataset.id : null);
       } else if (done.from) {
         const over = under(event);
         const target = over && over.closest ? over.closest('.av-node') : null;
