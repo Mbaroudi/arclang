@@ -208,9 +208,10 @@ pub fn run_gate(ast: &Model, semantic: &SemanticModel, standard: &str) -> GateRe
         .iter()
         .flat_map(|tc| tc.verifies.iter().map(|r| r.as_str()))
         .collect();
-    let verified: HashSet<&str> = verdicts
+    // A case that fails is not hidden by one that passes.
+    let failing: HashSet<&str> = verdicts
         .iter()
-        .filter(|(_, v)| !matches!(v, super::verification::Verdict::Fail(_)))
+        .filter(|(_, v)| matches!(v, super::verification::Verdict::Fail(_)))
         .flat_map(|(tc, _)| tc.verifies.iter().map(|r| r.as_str()))
         .collect();
 
@@ -228,18 +229,18 @@ pub fn run_gate(ast: &Model, semantic: &SemanticModel, standard: &str) -> GateRe
         }
         let name = semantic.all_elements.get(requirement.id.as_str()).map(|e| e.name.as_str());
         let within = |set: &HashSet<&str>| set.contains(requirement.id.as_str()) || name.is_some_and(|n| set.contains(n));
-        if within(&verified) {
+        if within(&covered) && !within(&failing) {
             requirements_verified += 1;
         } else if within(&covered) {
-            let failing: Vec<&str> = verdicts
+            let failed: Vec<&str> = verdicts
                 .iter()
-                .filter(|(tc, _)| tc.verifies.iter().any(|r| r == &requirement.id || Some(r.as_str()) == name))
+                .filter(|(tc, v)| matches!(v, super::verification::Verdict::Fail(_)) && tc.verifies.iter().any(|r| r == &requirement.id || Some(r.as_str()) == name))
                 .map(|(tc, _)| tc.name.as_str())
                 .collect();
             push(
                 "requirements.verification",
                 Severity::Blocker,
-                format!("requirement '{}': its verification cases fail ({})", requirement.id, failing.join(", ")),
+                format!("requirement '{}': verification cases fail ({})", requirement.id, failed.join(", ")),
             );
         } else {
             push(

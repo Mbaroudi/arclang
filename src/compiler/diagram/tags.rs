@@ -7,7 +7,12 @@ use std::collections::{HashMap, HashSet};
 
 /// The tags an element carries.
 pub fn tags_of(attributes: &HashMap<String, AttributeValue>) -> Vec<String> {
-    match attributes.get("tags") {
+    texts(attributes, "tags")
+}
+
+/// A list of texts (`["Safety"]`), or one text (`"Safety"`).
+pub fn texts(attributes: &HashMap<String, AttributeValue>, key: &str) -> Vec<String> {
+    match attributes.get(key) {
         Some(AttributeValue::List(items)) => items.iter().filter_map(|v| v.as_string()).map(str::to_string).collect(),
         Some(AttributeValue::String(one)) => vec![one.clone()],
         _ => Vec::new(),

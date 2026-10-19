@@ -978,7 +978,7 @@ Verification case covering requirements.
 | `procedure` | `text` | Procedure. |
 | `expected` | `text` | Expected result. |
 | `asserts` | `list<ref<Constraint>>` | An analysis: the constraints whose evaluation is its verdict (pass when they all hold). |
-| `verdict` | `enum Verdict` | Outcome of a test run elsewhere; computed, not given, when the case `asserts:` constraints. A requirement whose cases all fail is not verified. |
+| `verdict` | `enum Verdict` | Outcome of a test run elsewhere; computed, not given, when the case `asserts:` constraints. A requirement with a failing case is not verified. |
 
 #### Model
 

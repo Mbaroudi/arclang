@@ -128,3 +128,14 @@ fn what_a_variation_has_of_its_own_is_its_definition() {
     // The reader of the API abstract syntax knows variations too.
     arclang::compiler::sysml_records::from_text(&text).unwrap_or_else(|e| panic!("{e}"));
 }
+
+#[test]
+fn a_variation_inside_a_variant_left_out_is_not_open() {
+    let source = LINE.replace(
+        "component \"Six cylinders\" { id: \"LC-6CYL\" variant: true }",
+        "component \"Six cylinders\" {\n                id: \"LC-6CYL\"\n                variant: true\n                component \"Turbo\" {\n                    id: \"LC-TURBO\"\n                    variation: true\n                    component \"Single\" { id: \"LC-T1\" variant: true }\n                    component \"Twin\" { id: \"LC-T2\" variant: true }\n                }\n            }",
+    ).replace("selects: [\"LC-6CYL\", \"LC-AUTO\"]", "selects: [\"LC-6CYL\", \"LC-AUTO\", \"LC-T2\"]")
+        .replace("selects: [\"LC-4CYL\", \"LC-MANUAL\"]", "selects: [\"LC-4CYL\", \"LC-MANUAL\", \"LC-MANUAL\"]");
+    let result = compile(&source).unwrap();
+    assert!(result.warnings.iter().all(|w| !w.contains("LC-TURBO")), "{:?}", result.warnings);
+}

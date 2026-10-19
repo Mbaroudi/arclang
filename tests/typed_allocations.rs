@@ -38,7 +38,7 @@ fn a_typed_allocation_carries_its_definition() {
 #[test]
 fn an_allocation_whose_ends_are_not_of_its_kinds_is_an_error() {
     let error = compile(&MODEL.replace("trace \"PN-ADAS\" allocates \"LC-FUSION\"", "trace \"LC-FUSION\" allocates \"PN-ADAS\"")).err().unwrap_or_default();
-    assert!(error.contains("allocation 'LC-FUSION' -> 'PN-ADAS' is a 'Software deployment': it goes from a PhysicalNode, not a LogicalComponent"), "{error}");
+    assert!(error.contains("allocation 'LC-FUSION' -> 'PN-ADAS' is a 'Software deployment', which goes from a PhysicalNode: 'LC-FUSION' is a LogicalComponent"), "{error}");
 }
 
 #[test]

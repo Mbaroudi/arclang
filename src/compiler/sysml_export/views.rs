@@ -5,37 +5,30 @@
 
 use super::{text, Exporter};
 use crate::compiler::ast::AttributeValue;
+use std::collections::HashMap;
 use crate::compiler::diagram::tags;
 
-/// Every tag the model's elements carry, sorted.
+/// Every tag the model's elements carry, sorted: whatever the element, as
+/// the header writes `@Tag;` for any of them.
 fn all_tags(e: &Exporter<'_>) -> Vec<String> {
-    let mut found = std::collections::BTreeSet::new();
-    let model = e.model;
-    let mut every = |attributes: &std::collections::HashMap<String, AttributeValue>| found.extend(tags::tags_of(attributes));
-    fn components(list: &[crate::compiler::ast::LogicalComponent], every: &mut dyn FnMut(&std::collections::HashMap<String, AttributeValue>)) {
-        for c in list {
-            every(&c.attributes);
-            for f in &c.functions {
-                every(&f.attributes);
+    fn walk(value: &serde_json::Value, found: &mut std::collections::BTreeSet<String>) {
+        match value {
+            serde_json::Value::Object(object) => {
+                if let Some(attributes) = object.get("attributes") {
+                    if let Ok(attributes) = serde_json::from_value::<HashMap<String, AttributeValue>>(attributes.clone()) {
+                        found.extend(tags::tags_of(&attributes));
+                        found.extend(tags::texts(&attributes, "tagged"));
+                    }
+                }
+                object.values().for_each(|v| walk(v, found));
             }
-            components(&c.sub_components, every);
+            serde_json::Value::Array(items) => items.iter().for_each(|v| walk(v, found)),
+            _ => {}
         }
     }
-    for la in &model.logical_architecture {
-        components(&la.components, &mut every);
-        la.functions.iter().for_each(|f| every(&f.attributes));
-    }
-    for sa in &model.system_analysis {
-        sa.functions.iter().for_each(|f| every(&f.attributes));
-        sa.components.iter().for_each(|c| every(&c.attributes));
-    }
-    for pa in &model.physical_architecture {
-        pa.nodes.iter().for_each(|n| every(&n.attributes));
-    }
-    for diagram in &model.diagrams {
-        if let Some(AttributeValue::List(items)) = diagram.attributes.get("tagged") {
-            found.extend(items.iter().filter_map(|v| v.as_string()).map(str::to_string));
-        }
+    let mut found = std::collections::BTreeSet::new();
+    if let Ok(model) = serde_json::to_value(e.model) {
+        walk(&model, &mut found);
     }
     found.into_iter().collect()
 }
@@ -73,10 +66,7 @@ pub(super) fn write(e: &mut Exporter<'_>) {
                     e.line(&format!("expose {reference};"));
                 }
             }
-            let tagged: Vec<String> = match diagram.attributes.get("tagged") {
-                Some(AttributeValue::List(items)) => items.iter().filter_map(|v| v.as_string()).map(|t| format!("@{}", text::name(t))).collect(),
-                _ => Vec::new(),
-            };
+            let tagged: Vec<String> = tags::texts(&diagram.attributes, "tagged").iter().map(|t| format!("@{}", text::name(t))).collect();
             if !tagged.is_empty() {
                 e.line(&format!("filter {};", tagged.join(" or ")));
             }

@@ -28,11 +28,7 @@ fn one(model: &Model, decl: &DiagramDecl, views: &[Diagram]) -> (Option<Diagram>
     }
     let excluded = configuration.map(|c| crate::compiler::variability::excluded_by(model, c)).unwrap_or_default();
     // `tagged: ["Safety"]`: the elements carrying a tag, under `under` when named.
-    let tagged_with: Vec<String> = match decl.attributes.get("tagged") {
-        Some(AttributeValue::List(items)) => items.iter().filter_map(|v| v.as_string()).map(str::to_string).collect(),
-        Some(AttributeValue::String(one)) => vec![one.clone()],
-        _ => Vec::new(),
-    };
+    let tagged_with: Vec<String> = super::tags::texts(&decl.attributes, "tagged");
     let tagged = (!tagged_with.is_empty()).then(|| super::tags::tagged(model, &tagged_with));
     let under = decl.attributes.get("under").and_then(|v| v.as_string()).map(str::to_string);
     let (diagram, diagnostics) = cut_view(decl, views, configuration.is_some(), tagged.as_ref(), under.as_deref());
@@ -92,7 +88,7 @@ fn cut_view(decl: &DiagramDecl, views: &[Diagram], whole_when_empty: bool, tagge
     };
     match tagged {
         // The tagged nodes of the scope, and the containers drawn around them.
-        Some(tagged) => {
+        Some(tagged) if decl.shows.is_empty() => {
             fn collect(nodes: &[&Node], tagged: &HashSet<String>, out: &mut HashSet<String>) {
                 for node in nodes {
                     if tagged.contains(&node.id) || tagged.contains(&node.name) {
@@ -105,13 +101,18 @@ fn cut_view(decl: &DiagramDecl, views: &[Diagram], whole_when_empty: bool, tagge
         }
         // A configuration, or an `under` with nothing named, shows the whole scope.
         None if decl.shows.is_empty() && (whole_when_empty || under.is_some()) => wanted.extend(within.iter().map(|n| n.id.clone())),
-        None => {}
+        _ => {}
     }
     for reference in &decl.shows {
         let found = matching(&source.nodes, reference);
         if found.is_empty() {
             diagnostics.push(format!("{scope}'{reference}' is not drawn in the {} view", kind.label()));
         }
+        // With `tagged`, what is shown is filtered by the tags, as a SysML v2 view filters what it exposes.
+        let found: Vec<String> = match tagged {
+            Some(tagged) => found.into_iter().filter(|id| tagged.contains(id) || find_node(&source.nodes, id).is_some_and(|n| tagged.contains(&n.name))).collect(),
+            None => found,
+        };
         wanted.extend(found);
     }
     if decl.context {

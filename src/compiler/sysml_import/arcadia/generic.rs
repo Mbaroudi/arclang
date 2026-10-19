@@ -528,6 +528,8 @@ impl<'g> Mapper<'g> {
             if let Some(under) = under {
                 lines.push(format!("under: {}", string_literal(&under)));
                 lines.push(format!("tagged: {}", list_literal(&filters)));
+            } else if view.exposes.is_empty() && !filters.is_empty() {
+                lines.push(format!("tagged: {}", list_literal(&filters)));
             } else if members_only && !view.exposes.is_empty() {
                 let shows: Vec<String> = view.exposes.iter().filter_map(|(target, _, _)| self.intended_id(target)).collect();
                 lines.push(format!("shows: {}", list_literal(&shows)));

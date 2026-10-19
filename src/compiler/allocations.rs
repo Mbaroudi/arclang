@@ -32,7 +32,7 @@ pub fn check(ast: &Model, semantic: &SemanticModel) -> Result<(), String> {
             let Some(actual) = kind_of(end) else { continue };
             if actual != expected {
                 return Err(format!(
-                    "allocation '{}' -> '{}' is a '{}': it goes {side} a {expected}, not a {actual}",
+                    "allocation '{}' -> '{}' is a '{}', which goes {side} a {expected}: '{end}' is a {actual}",
                     trace.from,
                     trace.to,
                     definition.trim_matches('"')

@@ -433,7 +433,7 @@ impl Metamodel {
                     attr("procedure", AttrType::Text, "Procedure."),
                     attr("expected", AttrType::Text, "Expected result."),
                     attr("asserts", list(AttrType::Reference("Constraint")), "An analysis: the constraints whose evaluation is its verdict (pass when they all hold)."),
-                    attr("verdict", AttrType::Enum("Verdict"), "Outcome of a test run elsewhere; computed, not given, when the case `asserts:` constraints. A requirement whose cases all fail is not verified."),
+                    attr("verdict", AttrType::Enum("Verdict"), "Outcome of a test run elsewhere; computed, not given, when the case `asserts:` constraints. A requirement with a failing case is not verified."),
                 ]])),
             kind("Model", Layer::Transverse, "Project / SystemEngineering", "package", "The model itself: root of the element graph, owner of every top-level element.", vec![
                     attr("name", AttrType::Text, "Model name."),

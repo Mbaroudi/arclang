@@ -2,8 +2,8 @@
 //! constraints is an analysis: its verdict is theirs, pass when they all
 //! hold, fail otherwise. Any other case may say the verdict of a test run
 //! elsewhere (`verdict: "fail"`), with the SysML v2 verdicts; a case saying
-//! none is pending. A requirement whose verification cases all fail is not
-//! verified, for the production gate.
+//! none is pending. A requirement with a failing verification case is not
+//! verified, for the production gate, even when another case passes.
 
 use super::ast::{AttributeValue, Model, TestCase};
 use super::semantic::{ConstraintInfo, SemanticModel};

@@ -25,6 +25,9 @@ use std::collections::{HashMap, HashSet};
 pub struct Variation {
     pub id: String,
     pub variants: Vec<(String, String)>,
+    /// The components holding it, outermost first: a variation inside a
+    /// variant is open only in a product that selects that variant.
+    pub within: Vec<String>,
 }
 
 fn flag(attributes: &HashMap<String, AttributeValue>, key: &str) -> bool {
@@ -51,18 +54,20 @@ fn written_id(component: &LogicalComponent) -> String {
 
 /// Every variation of the logical architecture, with its variants.
 pub fn variations(ast: &Model) -> Vec<Variation> {
-    fn walk(components: &[LogicalComponent], out: &mut Vec<Variation>) {
+    fn walk(components: &[LogicalComponent], within: &mut Vec<String>, out: &mut Vec<Variation>) {
         for component in components {
             if is_variation(&component.attributes) {
                 let variants = component.sub_components.iter().filter(|c| is_variant(&c.attributes)).map(|c| (written_id(c), c.name.clone())).collect();
-                out.push(Variation { id: written_id(component), variants });
+                out.push(Variation { id: written_id(component), variants, within: within.clone() });
             }
-            walk(&component.sub_components, out);
+            within.push(written_id(component));
+            walk(&component.sub_components, within, out);
+            within.pop();
         }
     }
     let mut out = Vec::new();
     for la in &ast.logical_architecture {
-        walk(&la.components, &mut out);
+        walk(&la.components, &mut Vec::new(), &mut out);
     }
     out
 }
@@ -117,12 +122,13 @@ pub fn check(ast: &Model) -> Result<Vec<String>, String> {
         let mut chosen: HashMap<String, String> = HashMap::new();
         for selected in &config.selects {
             let variation = variation_of(selected).ok_or_else(|| format!("configuration '{}': '{selected}' is not a variant of any variation", config.name))?;
-            if let Some(previous) = chosen.insert(variation.clone(), selected.clone()) {
+            if let Some(previous) = chosen.insert(variation.clone(), selected.clone()).filter(|previous| previous != selected) {
                 return Err(format!("configuration '{}' selects '{previous}' and '{selected}', two variants of variation '{variation}'", config.name));
             }
         }
+        let excluded = excluded_by(ast, &config.id);
         for variation in &variations {
-            if !chosen.contains_key(&variation.id) {
+            if !chosen.contains_key(&variation.id) && !variation.within.iter().any(|holder| excluded.contains(holder)) {
                 warnings.push(format!("configuration '{}' leaves variation '{}' open", config.name, variation.id));
             }
         }

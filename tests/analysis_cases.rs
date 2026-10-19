@@ -1,7 +1,7 @@
 //! Verification and analysis cases tied to requirements: a `test_case`
 //! `asserts:` constraints, and its verdict is theirs (pass when they all
 //! hold, fail otherwise); a test run elsewhere says its `verdict:`. A
-//! requirement whose only cases fail is not verified, for the production
+//! requirement with a failing case is not verified, for the production
 //! gate. In SysML v2, a verification case asserting the constraints.
 
 use arclang::compiler::production_gate::run_gate;
@@ -59,14 +59,14 @@ fn an_analysis_whose_constraint_fails_leaves_its_requirement_unverified() {
     let gate = run_gate(&result.ast, &result.semantic_model, "iso26262");
     assert_eq!(gate.requirements_verified, 0);
     let findings = verification_findings(&failing);
-    assert!(findings.iter().any(|f| f == "requirement 'REQ-MEM': its verification cases fail (Memory sizing)"), "{findings:?}");
+    assert!(findings.iter().any(|f| f == "requirement 'REQ-MEM': verification cases fail (Memory sizing)"), "{findings:?}");
 }
 
 #[test]
 fn a_declared_failing_verdict_leaves_its_requirement_unverified() {
     let failing = MODEL.replace("method: \"analysis\"\n    asserts: [\"CST-HBM\"]", "method: \"test\"\n    verdict: \"fail\"");
     let findings = verification_findings(&failing);
-    assert!(findings.iter().any(|f| f == "requirement 'REQ-MEM': its verification cases fail (Memory sizing)"), "{findings:?}");
+    assert!(findings.iter().any(|f| f == "requirement 'REQ-MEM': verification cases fail (Memory sizing)"), "{findings:?}");
 }
 
 #[test]
@@ -97,4 +97,11 @@ fn an_analysis_case_goes_through_sysml_v2_and_back() {
     assert!(back.contains("asserts: [\"CST-HBM\"]"), "{back}");
     assert!(back.contains("verifies: [\"REQ-MEM\"]"), "{back}");
     compile(&back).unwrap_or_else(|e| panic!("{e}\n{back}"));
+}
+
+#[test]
+fn a_passing_case_does_not_hide_a_failing_one() {
+    let source = MODEL.replace("ram: 24 GB", "ram: 12 GB") + "\ntest_case \"Memory review\" { id: \"TC-REVIEW\" verifies: [\"REQ-MEM\"] method: \"inspection\" verdict: \"pass\" }\n";
+    let findings = verification_findings(&source);
+    assert!(findings.iter().any(|f| f == "requirement 'REQ-MEM': verification cases fail (Memory sizing)"), "{findings:?}");
 }

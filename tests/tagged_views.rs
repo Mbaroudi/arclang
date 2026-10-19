@@ -52,3 +52,22 @@ fn tags_and_tagged_views_go_through_sysml_v2_and_back() {
     assert!(back.contains("tags: [\"Safety\", \"Comfort\"]") || back.contains("tags: [\"Comfort\", \"Safety\"]"), "{back}");
     assert!(back.contains("diagram \"Body safety\" {\n    view: lab\n    under: \"LC-BODY\"\n    tagged: [\"Safety\"]\n}"), "{back}");
 }
+
+#[test]
+fn a_tagged_view_of_a_whole_level_and_a_single_tag_go_through_sysml_v2() {
+    let source = MODEL.replace("diagram \"Body safety\" {", "diagram \"All safety\" { view: lab tagged: \"Safety\" }\ndiagram \"Body safety\" {");
+    let result = Compiler::new(CompilerConfig::default()).compile_string(&source).unwrap();
+    let text = arclang::compiler::sysmlv2_generator::generate_sysmlv2(&result.semantic_model, &result.ast);
+    assert!(text.contains("view 'All safety' {\n        attribute 'view' : String = \"lab\";\n        filter @Safety;"), "{text}");
+    let back = arclang::compiler::sysml_import::import_text(&text).unwrap_or_else(|f| panic!("{}\n{text}", f.message)).source;
+    assert!(back.contains("diagram \"All safety\" {\n    view: lab\n    tagged: [\"Safety\"]\n}"), "{back}");
+}
+
+#[test]
+fn every_tag_written_is_declared() {
+    let source = format!("{MODEL}\noperational_analysis \"Need\" {{ entity \"Driver\" {{ tags: [\"Human\"] }} }}\n");
+    let result = Compiler::new(CompilerConfig::default()).compile_string(&source).unwrap();
+    let text = arclang::compiler::sysmlv2_generator::generate_sysmlv2(&result.semantic_model, &result.ast);
+    assert!(text.contains("@Human;"), "{text}");
+    assert!(text.contains("metadata def Human;"), "{text}");
+}
