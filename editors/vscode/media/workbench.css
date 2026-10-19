@@ -1,14 +1,30 @@
 /* The workbench page, in the editor's own colours. The viewer brings its own
    stylesheet; its variables are mapped to the theme here. */
 :root {
+  --av-stage-height: calc(100vh - 11.5rem);
+  --wb-gap: 0.5rem;
+  --wb-dot: color-mix(in srgb, var(--vscode-editor-foreground) 18%, transparent);
+}
+
+/* The viewer defines its palette on .arcviz: the theme is mapped there, so
+   light and dark themes both reach the tabs, the desk and the sheet. */
+.arcviz {
   --av-ink: var(--vscode-editor-foreground);
   --av-muted: var(--vscode-descriptionForeground);
   --av-rule: var(--vscode-panel-border, var(--vscode-widget-border, #8884));
   --av-sheet: var(--vscode-editor-background);
   --av-desk: var(--vscode-sideBar-background, var(--vscode-editor-background));
   --av-accent: var(--vscode-focusBorder, #0b5cad);
-  --av-stage-height: calc(100vh - 11.5rem);
-  --wb-gap: 0.5rem;
+}
+.arcviz .arcviz-stage {
+  background-image: radial-gradient(circle, var(--wb-dot) 1px, transparent 1px);
+}
+.arcviz .arcviz-tab { color: var(--vscode-descriptionForeground); }
+.arcviz .arcviz-tab:hover, .arcviz .arcviz-tab[aria-selected='true'] { color: var(--vscode-editor-foreground); }
+.arcviz .arcviz-pick select, .arcviz select {
+  color: var(--vscode-input-foreground);
+  background: var(--vscode-input-background);
+  border-color: var(--vscode-input-border, transparent);
 }
 
 html, body {
@@ -153,7 +169,12 @@ table.wb-props td { padding: 0.15rem 0; }
 .wb-details, .wb-related { margin-bottom: 0.5rem; }
 
 /* Problems */
-.wb-problems-head { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+.wb-bottom { max-height: 2.2rem; transition: max-height 150ms ease-out; }
+.wb-bottom.is-open { max-height: 11rem; }
+.wb-problems-head { display: flex; align-items: center; gap: 0.5rem; flex-wrap: nowrap; white-space: nowrap; overflow: hidden; }
+.wb-problems-head strong.is-error { color: var(--vscode-errorForeground); }
+.wb-spacer { flex: 1; }
+.wb-toggle { padding: 0 0.3rem; background: none; }
 .wb-gate { padding: 0 0.4rem; border-radius: 3px; font-weight: 600; }
 .wb-gate.is-pass { color: var(--vscode-testing-iconPassed, #2a2); }
 .wb-gate.is-fail { color: var(--vscode-errorForeground); }

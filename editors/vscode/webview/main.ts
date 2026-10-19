@@ -176,35 +176,63 @@ function mount(snapshot: Snapshot): void {
     if (previous?.position && viewer.restore) viewer.restore(previous.position);
     if (state.selected && viewer.select) viewer.select(drawingId(state.selected.id));
     refreshPalette();
+    void viewer.settled?.()?.then(() => refreshPalette());
   });
-  tabs.addEventListener('click', () => setTimeout(refreshPalette, 0));
 }
 
+let shownGraph: string | null = null;
+
+/** The palette follows the view on screen; the viewer changes it on tabs, the diagram list and navigation. */
 function refreshPalette(): void {
   const current = state.viewer?.current?.();
   const graph = state.snapshot?.diagrams?.graphs.find((g) => g.id === current?.view);
+  const key = graph ? `${graph.id}\u0000${state.snapshot?.diagrams?.title ?? ''}` : null;
+  if (key === shownGraph && graph) return;
+  shownGraph = key;
   palette.show(graph?.arc.view ?? '', graph ? graphContainerOf(graph.id, graph.arc.view) : null);
 }
 
+// The viewer has no event for a change of view: the palette checks the view on
+// screen after any interaction with the viewer's chrome, and once a second.
+for (const node of [tabs, tools, sheet]) node.addEventListener('click', () => setTimeout(refreshPalette, 0));
+sheet.addEventListener('change', () => setTimeout(refreshPalette, 0));
+setInterval(refreshPalette, 1000);
+
 // --- Problems ---------------------------------------------------------------
 
+let problemsOpen = false;
+
+/** One line of status; the list of findings unfolds on demand (errors unfold by themselves). */
 function showProblems(snapshot: Snapshot): void {
   clear(bottom);
   const errors = snapshot.errors.length;
   const findings = snapshot.findings;
   const gate = snapshot.gate;
+  const bySeverity = new Map<string, number>();
+  for (const finding of findings) bySeverity.set(finding.severity, (bySeverity.get(finding.severity) ?? 0) + 1);
+  const counts = [...bySeverity.entries()].map(([severity, n]) => `${n} ${severity}${n > 1 ? 's' : ''}`).join(', ');
+  const open = problemsOpen || errors > 0;
+  const toggle = button(open ? '▾' : '▸', () => {
+    problemsOpen = !problemsOpen;
+    showProblems(snapshot);
+  }, { class: 'wb-toggle', title: open ? 'Hide the findings' : 'Show the findings' });
   const summary = el('div', { class: 'wb-problems-head' }, [
-    el('strong', { text: errors ? `${errors} error${errors > 1 ? 's' : ''}` : `${findings.length} finding${findings.length === 1 ? '' : 's'}` }),
-    gate ? el('span', { class: `wb-gate ${gate.passed ? 'is-pass' : 'is-fail'}`, text: gate.passed ? 'gate PASS' : 'gate FAIL' }) : null,
+    toggle,
+    el('strong', { class: errors ? 'is-error' : '', text: errors ? `${errors} error${errors > 1 ? 's' : ''}: the model does not compile` : findings.length ? counts : 'no findings' }),
+    gate ? el('span', { class: `wb-gate ${gate.passed ? 'is-pass' : 'is-fail'}`, text: gate.passed ? 'gate PASS' : `gate FAIL (${gate.requirements_verified}/${gate.requirements_total} requirements verified)` }) : null,
+    el('span', { class: 'wb-spacer' }),
     button('Check', () => vscode.postMessage({ type: 'command', command: 'arclang.check' })),
     button('Gate', () => vscode.postMessage({ type: 'command', command: 'arclang.runGate' })),
     button('Transition plan', () => vscode.postMessage({ type: 'command', command: 'arclang.transitionPlan' })),
     button('Source', () => vscode.postMessage({ type: 'open-text' })),
   ]);
   bottom.appendChild(summary);
+  bottom.classList.toggle('is-open', open);
+  if (!open) return;
   const list = el('ul', { class: 'wb-problems' });
   for (const error of snapshot.errors) list.appendChild(el('li', { class: 'is-error', text: error }));
   for (const finding of findings.slice(0, 200)) list.appendChild(problemItem(finding));
+  if (findings.length > 200) list.appendChild(el('li', { class: 'wb-muted', text: `… ${findings.length - 200} more in the Problems view` }));
   bottom.appendChild(list);
 }
 
