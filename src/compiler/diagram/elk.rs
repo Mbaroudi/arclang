@@ -206,7 +206,7 @@ fn elk_node(node: &Node, wired: &HashSet<&str>) -> Value {
     } else {
         0.0
     };
-    let (width, height) = if node.kind == NodeKind::InitialState {
+    let (width, height) = if node.kind == NodeKind::InitialState || node.kind == NodeKind::Junction {
         (INITIAL_STATE_SIZE, INITIAL_STATE_SIZE)
     } else if !node.compartment.is_empty() {
         let widest_line = node

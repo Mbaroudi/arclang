@@ -100,7 +100,8 @@ SaElement       ::= RequirementDecl
                   | ( "function" | "system_function" ) Name "{" FunctionElement* "}"
                   | "actor" Name "{" ( Attribute | ComponentPortDecl )* "}"
                   | "system_component" Name "{" ( Attribute | ComponentPortDecl )* "}"
-                  | "component_exchange" Name AttributeBlock   (* from_port:/to_port: required *)
+                  | "component_exchange" Name AttributeBlock   (* from_port:/to_port:, or ends: [...]
+                                                                for more than two ends *)
                   | FunctionalExchange
                   | MissionDecl
                   | CapabilityDecl
@@ -143,7 +144,10 @@ FunctionElement ::= "function" Name AttributeBlock?            (* nested sub-fun
 
 (* Function ports are strictly input XOR output (Arcadia). *)
 FunctionPortDecl ::= "port" ( "in" | "out" ) Name AttributeBlock? ;
-ComponentPortDecl ::= "port" ( "in" | "out" | "inout" ) Name AttributeBlock? ;
+ComponentPortDecl ::= "port" ( "in" | "out" | "inout" ) Name
+                      ( "{" ( Attribute | ComponentPortDecl )* "}" )? ;
+                      (* a port may hold ports; an exchange names one
+                         as Owner.port.sub, drawn at the outer port *)
 
 (* A function of the logical or physical level: declared inside the
    component that performs it (allocation by containment), or at the level
@@ -173,7 +177,8 @@ LaElement       ::= Component
                   | FunctionalExchange                        (* between logical functions *)
                   | "interface" Name "{" InterfaceBody "}"
                   | ConnectionDecl
-                  | "component_exchange" Name AttributeBlock   (* from_port:/to_port: required *)
+                  | "component_exchange" Name AttributeBlock   (* from_port:/to_port:, or ends: [...]
+                                                                for more than two ends *)
                   | CapabilityRealizationDecl
                   | FunctionalChainDecl
                   | TraceDecl

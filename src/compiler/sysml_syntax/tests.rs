@@ -195,3 +195,21 @@ fn a_chain_reads_its_control_nodes_and_successions() {
     assert_eq!((links[0].short_name.as_deref(), links[0].name.as_deref()), (Some("s1"), None));
     assert_eq!(links[1].ends, Some(("n1".to_string(), "step1".to_string())));
 }
+
+#[test]
+fn a_connection_of_more_than_two_ends_keeps_them_all() {
+    let declarations = read_ok("package M {\n  connection bus connect ('LC-a'.p, 'LC-b'.q, 'LC-c'.r);\n  connect (x, y);\n}\n");
+    assert_eq!(declarations[1].ends, Some(("LC-a.p".to_string(), "LC-b.q".to_string())));
+    assert_eq!(declarations[1].more_ends, vec!["LC-c.r".to_string()]);
+    assert_eq!(declarations[2].ends, Some(("x".to_string(), "y".to_string())));
+    assert!(declarations[2].more_ends.is_empty());
+}
+
+#[test]
+fn a_quoted_name_holding_a_dot_is_one_segment_of_a_path() {
+    assert_eq!(super::split_path("'FC-1.Boundary approached?'.x", "."), vec!["'FC-1.Boundary approached?'", "x"]);
+    assert_eq!(super::split_path("P::'a::b'.c", "::"), vec!["P", "'a::b'.c"]);
+    assert_eq!(super::unquoted("'FC-1.B'"), "FC-1.B");
+    let declarations = read_ok("package M {\n  action c {\n    merge <'C.1'> 'Done?';\n    succession first x then 'C.1';\n  }\n}\n");
+    assert_eq!(declarations.last().unwrap().ends.as_ref().map(|e| e.1.as_str()), Some("'C.1'"));
+}

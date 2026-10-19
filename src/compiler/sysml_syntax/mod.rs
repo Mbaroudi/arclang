@@ -48,6 +48,9 @@ pub struct Declaration {
     pub references: Vec<String>,
     /// Source and target of a connector, as written (`p_A.out`).
     pub ends: Option<(String, String)>,
+    /// The ends after the second of a connector of more than two
+    /// (`connect (a, b, c)`): targets too.
+    pub more_ends: Vec<String>,
     /// Send and receive events of a message, as written.
     pub events: Option<(String, String)>,
     /// Body of a `doc`.
@@ -152,7 +155,7 @@ impl<'t> Head<'t> {
 
     /// `A`, `A::B` or a feature chain `a.b.c`, as written.
     fn path(&mut self) -> Result<String, String> {
-        let mut path = self.name().ok_or_else(|| self.unexpected("a name"))?;
+        let mut path = keep_whole(self.name().ok_or_else(|| self.unexpected("a name"))?);
         loop {
             let separator = match self.peek() {
                 Some(Token::Symbol(".")) => ".",
@@ -162,7 +165,7 @@ impl<'t> Head<'t> {
             self.position += 1;
             let segment = self.name().ok_or_else(|| self.unexpected("a name"))?;
             path.push_str(separator);
-            path.push_str(&segment);
+            path.push_str(&keep_whole(segment));
         }
     }
 
@@ -324,7 +327,7 @@ impl Reader {
         // Connector and relationship statements that start with their own keyword.
         if head.take_word("connect") {
             declaration.metaclass = "ConnectionUsage";
-            declaration.ends = Some(Self::ends(&mut head, "to")?);
+            Self::connected(&mut head, &mut declaration)?;
         } else if head.take_word("allocate") {
             declaration.metaclass = "AllocationUsage";
             declaration.ends = Some(Self::ends(&mut head, "to")?);
@@ -521,6 +524,24 @@ impl Reader {
         }
     }
 
+    /// `a to b`, or `(a, b, c)`: every end of a connector of more than two.
+    fn connected(head: &mut Head, declaration: &mut Declaration) -> Result<(), String> {
+        if !head.take_symbol("(") {
+            declaration.ends = Some(Self::ends(head, "to")?);
+            return Ok(());
+        }
+        let mut ends = vec![head.path()?];
+        while head.take_symbol(",") {
+            ends.push(head.path()?);
+        }
+        if !head.take_symbol(")") || ends.len() < 2 {
+            return Err(head.unexpected("`)` after two ends or more"));
+        }
+        declaration.more_ends = ends.split_off(2);
+        declaration.ends = Some((ends[0].clone(), ends[1].clone()));
+        Ok(())
+    }
+
     fn ends(head: &mut Head, separator: &str) -> Result<(String, String), String> {
         let source = head.path()?;
         Self::expect_word(head, separator)?;
@@ -553,7 +574,7 @@ impl Reader {
             } else if head.take_symbol("[") {
                 declaration.bounds = Some(Self::bounds(head)?);
             } else if head.take_word("connect") {
-                declaration.ends = Some(Self::ends(head, "to")?);
+                Self::connected(head, declaration)?;
             } else if is_word(head.peek(), "default") || is_symbol(head.peek(), "=") {
                 declaration.is_default = head.take_word("default");
                 if !head.take_symbol("=") {
@@ -708,11 +729,11 @@ impl<'d> Scope<'d> {
     /// The declarations a feature chain `A.b.c` (or `P::A.b.c`) goes
     /// through: what its first part names, then each feature in turn.
     pub fn chain(&self, path: &str, from: Option<usize>) -> Option<Vec<usize>> {
-        let mut parts = path.split('.');
+        let mut parts = split_path(path, ".").into_iter();
         let mut current = self.resolve(parts.next()?, from)?;
         let mut chain = vec![current];
         for part in parts {
-            current = self.member(current, part, 0)?;
+            current = self.member(current, unquoted(part), 0)?;
             chain.push(current);
         }
         Some(chain)
@@ -730,7 +751,7 @@ impl<'d> Scope<'d> {
 
     /// The package a path names, looked up outwards without imports.
     fn resolve_package(&self, path: &str, from: Option<usize>) -> Option<usize> {
-        let mut segments = path.split("::");
+        let mut segments = split_path(path, "::").into_iter().map(unquoted);
         let first = segments.next()?;
         let mut scope = from;
         let mut current = loop {
@@ -752,7 +773,7 @@ impl<'d> Scope<'d> {
     /// The declaration a written path designates, seen from inside `from`.
     /// `None` when it is not declared in the model (a library element).
     pub fn resolve(&self, path: &str, from: Option<usize>) -> Option<usize> {
-        let mut segments = path.split("::").flat_map(|part| part.split('.'));
+        let mut segments = split_path(path, "::").into_iter().flat_map(|part| split_path(part, ".")).map(unquoted);
         let mut current = self.lexical(segments.next()?, from)?;
         for segment in segments {
             current = self.member(current, segment, 0)?;
@@ -770,6 +791,37 @@ impl<'d> Scope<'d> {
             Some(owner) => Some(format!("{}::{}", self.qualified_name(owner)?, name)),
         }
     }
+}
+
+/// A name holding a separator (`'FC-1.Boundary approached?'`) stays
+/// quoted in a path, so that the path splits where the text does.
+fn keep_whole(name: String) -> String {
+    if name.contains('.') || name.contains("::") { format!("'{name}'") } else { name }
+}
+
+/// The parts of a path between `separator`s outside quotes.
+pub fn split_path<'p>(path: &'p str, separator: &str) -> Vec<&'p str> {
+    let mut parts = Vec::new();
+    let (mut start, mut quoted, mut i) = (0, false, 0);
+    let bytes = path.as_bytes();
+    while i < bytes.len() {
+        if bytes[i] == b'\'' {
+            quoted = !quoted;
+        } else if !quoted && path[i..].starts_with(separator) {
+            parts.push(&path[start..i]);
+            i += separator.len();
+            start = i;
+            continue;
+        }
+        i += 1;
+    }
+    parts.push(&path[start..]);
+    parts
+}
+
+/// A path segment without the quotes [`keep_whole`] put around it.
+pub fn unquoted(segment: &str) -> &str {
+    segment.strip_prefix('\'').and_then(|s| s.strip_suffix('\'')).unwrap_or(segment)
 }
 
 #[cfg(test)]

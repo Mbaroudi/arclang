@@ -353,6 +353,16 @@ impl Builder {
         }
     }
 
+    /// The ports a port holds, known as `Owner.port.sub` and owned by the port.
+    fn sub_ports(&mut self, owner_id: &str, owner_name: &str, port: &ComponentPort) {
+        let Some(port_uuid) = self.lookup.get(&format!("{owner_id}.{}", port.name)).cloned() else { return };
+        let (id_key, name_key) = (format!("{owner_id}.{}", port.name), format!("{owner_name}.{}", port.name));
+        for sub in &port.ports {
+            self.port("ComponentPort", &port_uuid, [&id_key, &name_key], &sub.id, &sub.name, &sub.attributes, vec![("direction", json!(direction_text(&sub.direction))), ("interface", json!(sub.interface_type))]);
+            self.sub_ports(&id_key, &name_key, sub);
+        }
+    }
+
     fn component(&mut self, component: &LogicalComponent, owner: &str) {
         let uuid = self.typed_element("LogicalComponent", &component.id, &component.name, owner, &component.attributes);
         let id = component.attributes.get("id").and_then(|v| v.as_string()).unwrap_or(&component.id).to_string();
@@ -366,6 +376,7 @@ impl Builder {
                 &port.attributes,
                 vec![("direction", json!(direction_text(&port.direction))), ("interface", json!(port.interface_type))],
             );
+            self.sub_ports(&id, &component.name, port);
         }
         for (interfaces, direction) in [(&component.interfaces_in, "in"), (&component.interfaces_out, "out")] {
             for interface in interfaces {

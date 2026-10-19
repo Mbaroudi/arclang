@@ -1104,10 +1104,11 @@ impl Parser {
             }
         };
         let name = self.expect_name()?;
-        let attributes = if self.check(&Token::LeftBrace) {
-            self.parse_attributes_block()?
+        // The body holds attributes and the ports this port holds.
+        let (attributes, ports) = if self.check(&Token::LeftBrace) {
+            self.parse_ported_block()?
         } else {
-            HashMap::new()
+            (HashMap::new(), Vec::new())
         };
         let interface_type = attributes
             .get("interface")
@@ -1116,7 +1117,7 @@ impl Parser {
             .unwrap_or("Data")
             .to_string();
         let id = attributes.get("id").and_then(|v| v.as_string()).map(str::to_string).unwrap_or_default();
-        Ok(ComponentPort { id, name, direction, interface_type, attributes })
+        Ok(ComponentPort { id, name, direction, interface_type, attributes, ports })
     }
 
     /// Parse an UNORIENTED physical port: `port Name { ... }` (Arcadia).
@@ -2303,11 +2304,25 @@ impl Parser {
         let name = self.expect_name()?;
         let attributes = self.parse_attributes_block()?;
 
+        // `ends: [a, b, c]`: an exchange between more than two ends; its
+        // first two are its `from_port` and `to_port`.
+        let ends: Vec<String> = match attributes.get("ends") {
+            Some(AttributeValue::List(items)) => items.iter().filter_map(|v| v.as_string()).map(str::to_string).collect(),
+            Some(_) => return Err(self.err(format!("component_exchange '{}': 'ends' is a list of ports or components", name))),
+            None => Vec::new(),
+        };
+        if attributes.contains_key("ends") && ["from_port", "to_port", "from", "to"].iter().any(|k| attributes.contains_key(*k)) {
+            return Err(self.err(format!("component_exchange '{}': 'ends' names every end; it goes without 'from_port' and 'to_port'", name)));
+        }
+        if attributes.contains_key("ends") && ends.len() < 2 {
+            return Err(self.err(format!("component_exchange '{}': 'ends' names at least two ends", name)));
+        }
         let from_port = attributes
             .get("from_port")
             .or_else(|| attributes.get("from"))
             .and_then(|v| v.as_string())
             .map(|s| s.to_string())
+            .or_else(|| ends.first().cloned())
             .ok_or_else(|| {
                 self.err(format!("component_exchange '{}' is missing 'from_port'", name))
             })?;
@@ -2316,6 +2331,7 @@ impl Parser {
             .or_else(|| attributes.get("to"))
             .and_then(|v| v.as_string())
             .map(|s| s.to_string())
+            .or_else(|| ends.get(1).cloned())
             .ok_or_else(|| {
                 self.err(format!("component_exchange '{}' is missing 'to_port'", name))
             })?;

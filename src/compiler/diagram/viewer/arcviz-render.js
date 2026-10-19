@@ -39,6 +39,7 @@
     mode: { fill: '#E3EEFB', stroke: '#2A62A8', label: 'Mode', glyph: 'none', round: 14 },
     state: { fill: '#EEF0F2', stroke: '#4A545E', label: 'State', glyph: 'none', round: 14 },
     initial_state: { fill: '#18222D', stroke: '#18222D', label: 'Initial state', glyph: 'none' },
+    junction: { fill: '#1F4E8C', stroke: '#1F4E8C', label: 'Junction', glyph: 'none' },
     lifeline: { fill: '#EEF0F2', stroke: '#66717D', label: 'Participant', glyph: 'box' },
     mission: { fill: '#FFE9B8', stroke: '#9A6400', label: 'Mission', glyph: 'mission', round: 16 },
     operational_capability: { fill: '#F3E8D3', stroke: '#8A6A2E', label: 'Operational capability', glyph: 'capability', round: 16 },
@@ -199,9 +200,10 @@
     const realizes = (arc.realizes || []).join(', ');
     const safety = safetyOf(node);
 
-    if (arc.kind === 'initial_state') {
+    // A notation mark: a dot where a machine starts or an exchange meets.
+    if (arc.kind === 'initial_state' || arc.kind === 'junction') {
       const r = node.width / 2;
-      out.push(`<g class="av-node" data-id="${esc(node.id)}" data-kind="initial_state"><title>Initial state</title><circle class="av-shape" cx="${num(x + r)}" cy="${num(y + r)}" r="${num(r)}" fill="${style.fill}" stroke="${style.stroke}"/></g>`);
+      out.push(`<g class="av-node" data-id="${esc(node.id)}" data-kind="${arc.kind}"><title>${esc(style.label)}${arc.kind === 'junction' ? ': ' + esc(name) : ''}</title><circle class="av-shape" cx="${num(x + r)}" cy="${num(y + r)}" r="${num(r)}" fill="${style.fill}" stroke="${style.stroke}"/></g>`);
       return;
     }
     let body = `<title>${esc(style.label)}: ${esc(name)}${description ? ' — ' + esc(description) : ''}</title>`;
@@ -288,7 +290,9 @@
     for (const section of edge.sections || []) {
       const d = roundedPath([section.startPoint, ...(section.bendPoints || []), section.endPoint].map(at));
       const dash = style.dash ? ` stroke-dasharray="${style.dash}"` : '';
-      const marker = style.arrow ? ` marker-end="url(#av-arrow-${esc(arc.kind)})"` : '';
+      // A leg of an exchange of more than two ends has no direction.
+      const directed = style.arrow && !(arc.properties && arc.properties.undirected === 'true');
+      const marker = directed ? ` marker-end="url(#av-arrow-${esc(arc.kind)})"` : '';
       body += `<path class="av-hit" d="${d}" fill="none" stroke="#000" stroke-opacity="0" stroke-width="10"/>`;
       body += `<path class="av-line" d="${d}" fill="none" stroke="${style.stroke}" stroke-width="${style.width}" stroke-linejoin="round"${dash}${marker}/>`;
     }

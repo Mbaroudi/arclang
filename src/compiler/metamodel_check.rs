@@ -296,6 +296,9 @@ impl<'a> Checker<'a> {
                 for (key, endpoint) in [("from_port", &exchange.from_port), ("to_port", &exchange.to_port)] {
                     self.check_port_endpoint("ComponentExchange", &label, key, endpoint, &component_ports, "port or interface");
                 }
+                for end in exchange_ends(exchange).iter().skip(2) {
+                    self.check_port_endpoint("ComponentExchange", &label, "ends", end, &component_ports, "port or interface");
+                }
             }
         }
         for sa in &ast.system_analysis {
@@ -521,11 +524,32 @@ fn collect_component_ports(component: &LogicalComponent, out: &mut HashMap<Strin
     ports.extend(component.interfaces_in.iter().map(|i| i.name.clone()));
     ports.extend(component.interfaces_out.iter().map(|i| i.name.clone()));
     out.insert(component.name.clone(), ports.clone());
-    if let Some(id) = component.attributes.get("id").and_then(|v| v.as_string()) {
+    let id = component.attributes.get("id").and_then(|v| v.as_string());
+    if let Some(id) = id {
         out.insert(id.to_string(), ports);
+    }
+    // A port holding ports is the owner of those: `wheel.nuts.lugNut`.
+    for owner in std::iter::once(component.name.as_str()).chain(id) {
+        collect_sub_ports(owner, &component.ports, out);
     }
     for sub in &component.sub_components {
         collect_component_ports(sub, out);
+    }
+}
+
+/// The ends of an exchange written with `ends: [...]`; empty otherwise.
+pub fn exchange_ends(exchange: &ComponentExchange) -> Vec<String> {
+    match exchange.attributes.get("ends") {
+        Some(AttributeValue::List(items)) => items.iter().filter_map(|v| v.as_string()).map(str::to_string).collect(),
+        _ => Vec::new(),
+    }
+}
+
+fn collect_sub_ports(owner: &str, ports: &[ComponentPort], out: &mut HashMap<String, Vec<String>>) {
+    for port in ports.iter().filter(|p| !p.ports.is_empty()) {
+        let path = format!("{owner}.{}", port.name);
+        out.insert(path.clone(), port.ports.iter().map(|p| p.name.clone()).collect());
+        collect_sub_ports(&path, &port.ports, out);
     }
 }
 

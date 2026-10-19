@@ -12,6 +12,7 @@ mod constraints;
 mod data;
 mod levels;
 mod relations;
+mod security;
 mod text;
 mod types;
 
@@ -22,7 +23,7 @@ use std::collections::{BTreeSet, HashMap};
 /// The metadata definitions of the profile: the levels, then the kinds
 /// SysML cannot tell by itself.
 pub const PROFILE: &[&str] = &[
-    "OA", "SA", "LA", "PA", "EPBS", "Actor", "Entity", "Node", "Behaviour", "Hardware", "Mission", "Capability", "Chain", "Link", "Hazard",
+    "OA", "SA", "LA", "PA", "EPBS", "Actor", "Entity", "Node", "Behaviour", "Hardware", "Mission", "Capability", "Chain", "Link", "Hazard", "Security", "PrimaryAsset", "Threat", "SecurityScales",
     "Mode", "Class", "PhysicalPort", "ExchangeItem", "Path", "Fmea", "Interface", "Trace", "Association", "Iterate", "Invariant",
 ];
 
@@ -176,6 +177,7 @@ impl<'m> Exporter<'m> {
             behaviour::write(e);
             types::write(e);
             relations::write(e);
+            security::write(e);
             e.units();
         });
     }
@@ -194,6 +196,7 @@ impl<'m> Exporter<'m> {
         types::register(self);
         levels::register(self);
         behaviour::register(self);
+        security::register(self);
     }
 
     /// Units the SI library does not declare, declared locally as the

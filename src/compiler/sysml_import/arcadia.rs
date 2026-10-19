@@ -27,6 +27,7 @@ use crate::compiler::source_edit::string_literal;
 use std::collections::{BTreeMap, HashMap, HashSet};
 
 mod generic;
+mod security;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum Level {
@@ -275,7 +276,7 @@ impl<'g> Mapper<'g> {
     /// Whether a usage is structure (a component, a function) rather than a
     /// reference inside a scenario, a requirement, a connector or a chain.
     fn is_structural_usage(&self, usage: &Element) -> bool {
-        if usage.is_end || self.is_library(usage) {
+        if usage.is_end || self.is_library(usage) || Self::has_metadata(usage, security::SECURITY_METADATA) {
             return false;
         }
         let mut current = usage.owner.as_deref().and_then(|o| self.graph.get(o));
@@ -607,6 +608,9 @@ impl<'g> Mapper<'g> {
             return None;
         }
         let element = self.graph.get(id)?;
+        if let Some((owner, port)) = self.outer_port(element) {
+            return Some(format!("{}.{}", self.written_ref(owner)?, port));
+        }
         if !element.chaining.is_empty() {
             // `a.b.port`: the last feature on its owner, the deepest usage.
             let last = element.chaining.last()?;
@@ -660,6 +664,9 @@ impl<'g> Mapper<'g> {
             return None;
         }
         let element = self.graph.get(id)?;
+        if let Some((owner, _)) = self.outer_port(element) {
+            return Some(owner);
+        }
         if !element.chaining.is_empty() {
             let last = element.chaining.last()?;
             let last_element = self.graph.get(last)?;
@@ -714,6 +721,7 @@ impl<'g> Mapper<'g> {
         self.scenarios();
         self.message_scenarios();
         self.test_cases();
+        self.security();
         self.constraints();
         self.traces();
         self.sysml_views();
@@ -769,7 +777,9 @@ impl<'g> Mapper<'g> {
     // --- data -------------------------------------------------------------
 
     fn data_model(&mut self) {
-        let enumerations: Vec<&Element> = self.graph.of_kinds(&["EnumerationDefinition"]).filter(|e| !self.is_library(e)).collect();
+        // The enumerations of the security scales are scales, not data.
+        let is_scale = |e: &Element| e.owner.as_deref().and_then(|o| self.graph.get(o)).is_some_and(|o| Self::has_metadata(o, security::SECURITY_METADATA));
+        let enumerations: Vec<&Element> = self.graph.of_kinds(&["EnumerationDefinition"]).filter(|e| !self.is_library(e) && !is_scale(e)).collect();
         for e in enumerations {
             let id = self.remember(&e.id, Self::identity_id(e), "Enumeration");
             let values: Vec<String> = e.children.iter().filter_map(|c| self.graph.get(c)).filter(|c| c.kind == "EnumerationUsage").filter_map(|c| c.name.clone()).collect();
@@ -779,7 +789,7 @@ impl<'g> Mapper<'g> {
             self.line(1, &format!("values: {}", list_literal(&values)));
             self.line(0, "}");
         }
-        let data_types: Vec<&Element> = self.graph.of_kinds(&["AttributeDefinition", "DataType"]).filter(|e| !self.is_library(e)).collect();
+        let data_types: Vec<&Element> = self.graph.of_kinds(&["AttributeDefinition", "DataType"]).filter(|e| !self.is_library(e) && !Self::has_metadata(e, security::SECURITY_METADATA)).collect();
         for e in data_types {
             let id = self.remember(&e.id, Self::identity_id(e), "DataType");
             let base = e.specializes.first().and_then(|s| self.graph.get(s)).and_then(|s| s.name.clone()).unwrap_or_else(|| "String".to_string());
@@ -1442,16 +1452,49 @@ impl<'g> Mapper<'g> {
                 if !written.insert(name.clone()) {
                     continue;
                 }
-                self.ids.insert(port.id.clone(), format!("{owner_id}.{name}"));
-                self.count("ports");
-                // The port's short name is its id, when it differs from its name.
-                let id_text = port.short_name.as_deref().filter(|s| *s != name).map(|s| format!(" {{ id: {} }}", string_literal(s))).unwrap_or_default();
-                match direction {
-                    None if physical => self.line(depth, &format!("port {}{id_text}", string_literal(&name))),
-                    _ => self.line(depth, &format!("port {} {}{id_text}", direction.unwrap_or("in"), string_literal(&name))),
+                if physical && direction.is_none() {
+                    self.ids.insert(port.id.clone(), format!("{owner_id}.{name}"));
+                    self.count("ports");
+                    let id_text = port.short_name.as_deref().filter(|s| *s != name).map(|s| format!(" {{ id: {} }}", string_literal(s))).unwrap_or_default();
+                    self.line(depth, &format!("port {}{id_text}", string_literal(&name)));
+                    continue;
+                }
+                self.component_port(depth, port, direction, &owner_id, 0);
+            }
+        }
+    }
+
+    /// A component port and the ports it holds (its own, and those of its
+    /// port definition), each known as `Owner.port.sub`.
+    fn component_port(&mut self, depth: usize, port: &'g Element, direction: Option<&'static str>, holder: &str, nesting: usize) {
+        let name = port.name.clone().unwrap_or_else(|| port.id.clone());
+        let path = format!("{holder}.{name}");
+        self.ids.insert(port.id.clone(), path.clone());
+        self.count("ports");
+        let head = format!("port {} {}", direction.unwrap_or("in"), string_literal(&name));
+        // The port's short name is its id, when it differs from its name.
+        let id_line = port.short_name.as_deref().filter(|s| *s != name).map(|s| format!("id: {}", string_literal(s)));
+        let mut subs: Vec<(&'g Element, Option<&'static str>)> = self.ports_of(port).into_iter().filter(|(p, _)| p.kind == "PortUsage").collect();
+        for def in port.types.iter().filter_map(|t| self.graph.get(t)).filter(|d| d.kind == "PortDefinition") {
+            for (sub, sub_direction) in self.ports_of(def).into_iter().filter(|(p, _)| p.kind == "PortUsage") {
+                if !subs.iter().any(|(s, _)| s.name == sub.name) {
+                    subs.push((sub, sub_direction));
                 }
             }
         }
+        if subs.is_empty() || nesting > 8 {
+            let id_text = id_line.map(|l| format!(" {{ {l} }}")).unwrap_or_default();
+            self.line(depth, &format!("{head}{id_text}"));
+            return;
+        }
+        self.line(depth, &format!("{head} {{"));
+        if let Some(line) = id_line {
+            self.line(depth + 1, &line);
+        }
+        for (sub, sub_direction) in subs {
+            self.component_port(depth + 1, sub, sub_direction, &path, nesting + 1);
+        }
+        self.line(depth, "}");
     }
 
     fn header(&mut self, depth: usize, index: usize, id: &str) {
@@ -1738,9 +1781,15 @@ impl<'g> Mapper<'g> {
             self.connector_lost(connector, "connectors without two ends (left out)");
             return;
         };
-        let written = self
-            .written_ends(connector)
+        // `connect (a, b, c)`: every end; the first two are `from` and `to`.
+        let every_end = self.every_end(connector);
+        let written = every_end
+            .as_ref()
+            .map(|ends| (ends[0].clone(), ends[1].clone()))
+            .or_else(|| self.written_ends(connector))
             .or_else(|| Some((self.end_ref(&source)?, self.end_ref(&target)?)))
+            // A port a port holds is known through the path written.
+            .or_else(|| self.ends_as_written(connector))
             .or_else(|| self.flow_port_ends(connector).map(|((from, _), (to, _))| (from, to)));
         let Some((from, to)) = written else {
             self.connector_lost(connector, "connectors to elements not written (left out)");
@@ -1786,8 +1835,17 @@ impl<'g> Mapper<'g> {
         let (from, to) = if whole_ends { (strip_port(&from), strip_port(&to)) } else { (from, to) };
         self.line(1, &format!("{keyword} {} {{", string_literal(&name)));
         self.line(2, &format!("id: {}", string_literal(&id)));
-        self.line(2, &format!("{}: {}", end_keys.0, string_literal(&from)));
-        self.line(2, &format!("{}: {}", end_keys.1, string_literal(&to)));
+        // Only a component exchange takes more than two ends in ArcLang.
+        if every_end.is_some() && keyword != "component_exchange" {
+            self.count("ends beyond the second of a connection that is not a component exchange (left out)");
+        }
+        match every_end.filter(|_| keyword == "component_exchange") {
+            Some(ends) => self.line(2, &format!("ends: {}", list_literal(&ends))),
+            None => {
+                self.line(2, &format!("{}: {}", end_keys.0, string_literal(&from)));
+                self.line(2, &format!("{}: {}", end_keys.1, string_literal(&to)));
+            }
+        }
         if carries && !items.is_empty() {
             self.line(2, &format!("exchange_items: {}", list_literal(&items)));
         }
@@ -1795,7 +1853,7 @@ impl<'g> Mapper<'g> {
         if let Some(ty) = connector.types.iter().find_map(|t| self.types.get(t)).cloned() {
             self.line(2, &format!("is: {}", string_literal(&ty)));
         }
-        self.attributes(2, &[connector], &["from", "to", "from_port", "to_port", "exchange_items"]);
+        self.attributes(2, &[connector], &["from", "to", "from_port", "to_port", "exchange_items", "ends"]);
         self.line(1, "}");
     }
 

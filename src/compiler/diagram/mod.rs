@@ -224,6 +224,8 @@ pub enum NodeKind {
     Mode,
     /// Pseudo-state marking where a machine starts.
     InitialState,
+    /// Where an exchange between more than two ends meets (`ends: [...]`).
+    Junction,
     /// A participant of a scenario.
     Lifeline,
     Mission,

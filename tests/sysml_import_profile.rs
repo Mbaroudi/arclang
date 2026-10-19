@@ -86,3 +86,16 @@ fn chain_controls_come_back() {
     assert_has(&source, "sequence \"SF-1\" -> \"AND 1\" { id: \"L-1\" }");
     assert_has(&source, "sequence \"AND 1\" -> \"SF-2\" { id: \"L-2\" condition: \"Condition A\" }");
 }
+
+#[test]
+fn the_cybersecurity_analysis_comes_back_with_its_scales_assets_and_threats() {
+    let source = imported(&exported_example("examples/defense/isr_drone.arc"));
+    assert_has(&source, "security_scales {\n    id: \"SEC-SCALES\"");
+    assert_has(&source, "threat_kinds: [\"Jamming\", \"Spoofing\", \"Hijack\", \"Exfiltration\", \"Tampering\"]");
+    assert_has(&source, "security_analysis {\n    id: \"SEC-SA\"\n    level: \"sa\"");
+    assert_has(&source, "asset \"Command and control of the air vehicle\" {\n        id: \"AS-C2\"");
+    assert_has(&source, "members: [\"SF-CMD\", \"SF-AUTH\", \"SF-LMON\", \"EI-C2\", \"CL-C2\"]");
+    assert_has(&source, "threat \"Jamming of the C2 channel\" {\n        id: \"TH-JAM\"");
+    assert_has(&source, "applies_to: [\"AS-C2\"]");
+    assert_has(&source, "involves: [\"SA-ACT-PILOT\", \"SA-ACT-GNSS\"]");
+}

@@ -383,7 +383,7 @@
       }
       if (kinds.nodes.length > 0) filterList.appendChild(el('p', { class: 'arcviz-filter-title', text: 'Boxes' }));
       for (const kind of kinds.nodes) {
-        if (kind === 'lifeline' || kind === 'initial_state') continue;
+        if (kind === 'lifeline' || kind === 'initial_state' || kind === 'junction') continue;
         filterList.appendChild(check(render.nodeStyle(kind).label, !filters.nodes.has(kind), (on) => { if (on) filters.nodes.delete(kind); else filters.nodes.add(kind); apply(); }));
       }
       if (kinds.edges.length > 0) filterList.appendChild(el('p', { class: 'arcviz-filter-title', text: 'Lines' }));

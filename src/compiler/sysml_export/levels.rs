@@ -315,7 +315,32 @@ pub(super) fn component_ports(e: &mut Exporter<'_>, ports: &[ComponentPort]) {
     for port in ports {
         let short = if port.id.is_empty() { String::new() } else { format!("{} ", text::short(&port.id)) };
         let def = port_def(&port.interface_type);
-        e.line(&format!("{} port {short}{} : {def};", data::direction(&port.direction), text::name(&port.name)));
+        let (bounds, _) = super::multiplicity("ComponentPort", &port.attributes);
+        let head = format!("{} port {short}{} : {def}{bounds}", data::direction(&port.direction), text::name(&port.name));
+        // A port holding ports: they are its features.
+        if port.ports.is_empty() {
+            e.line(&format!("{head};"));
+        } else {
+            e.block(&head, |e| component_ports(e, &port.ports));
+        }
+    }
+}
+
+/// The ports held by ports, known as `Owner.port.sub`, reached through the port.
+pub(super) fn register_sub_ports(e: &mut Exporter<'_>, package: &str, at: &[String], owners: &[&str], ports: &[ComponentPort]) {
+    for port in ports.iter().filter(|p| !p.ports.is_empty()) {
+        let mut path = at.to_vec();
+        path.push(text::name(&port.name));
+        let holders: Vec<String> = owners.iter().filter(|o| !o.is_empty()).map(|o| format!("{o}.{}", port.name)).collect();
+        for sub in &port.ports {
+            let mut sub_path = path.clone();
+            sub_path.push(text::name(&sub.name));
+            let keys: Vec<String> = holders.iter().map(|h| format!("{h}.{}", sub.name)).collect();
+            let keys: Vec<&str> = keys.iter().map(String::as_str).collect();
+            e.register_at(package, sub_path, &sub.id, &keys);
+        }
+        let holders: Vec<&str> = holders.iter().map(String::as_str).collect();
+        register_sub_ports(e, package, &path, &holders, &port.ports);
     }
 }
 
@@ -376,15 +401,26 @@ pub(super) fn flow(e: &mut Exporter<'_>, id: &str, label: &str, item: &str, from
 
 /// A connection between two parts or their ports.
 pub(super) fn connection(e: &mut Exporter<'_>, metadata: &str, id: &str, label: &str, from: &str, to: &str, attributes: &HashMap<String, AttributeValue>, kind: &str) {
-    let (Some(source), Some(target)) = (e.feature(from), e.feature(to)) else {
+    // `ends: [a, b, c]`: a connection of every end, `connect (a, b, c)`.
+    let ends: Vec<String> = match attributes.get("ends") {
+        Some(AttributeValue::List(items)) => items.iter().filter_map(|v| v.as_string()).map(str::to_string).collect(),
+        _ => Vec::new(),
+    };
+    let connected = if ends.len() > 2 {
+        let features: Option<Vec<String>> = ends.iter().map(|end| e.feature(end)).collect();
+        features.map(|f| format!("({})", f.join(", ")))
+    } else {
+        e.feature(from).zip(e.feature(to)).map(|(source, target)| format!("{source} to {target}"))
+    };
+    let Some(connected) = connected else {
         e.line(&format!("// connection {} from {from} to {to}: an end is not exported", text::name(label)));
         return;
     };
     let typing = e.typing(attributes);
     let declared = format!("{}{typing}", connector_head(id, label).trim_end());
     let declared = if declared.is_empty() { String::new() } else { format!("{} ", declared.trim_start()) };
-    let head = format!("{metadata}connection {declared}connect {source} to {target}");
-    e.block(&head, |e| e.header(kind, attributes, &["from_port", "to_port", "exchange_item", "via"]));
+    let head = format!("{metadata}connection {declared}connect {connected}");
+    e.block(&head, |e| e.header(kind, attributes, &["from_port", "to_port", "exchange_item", "via", "ends"]));
 }
 
 /// A functional chain as an action of steps in sequence, each step a
