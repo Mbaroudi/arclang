@@ -389,7 +389,7 @@ impl<'g> Mapper<'g> {
         if self.profiled {
             return;
         }
-        let mut views: Vec<(String, Vec<String>, Option<usize>)> = Vec::new();
+        let mut views: Vec<(String, Vec<String>, Option<usize>)> = self.declared_views();
         for index in 0..self.nodes.len() {
             if let Some(shows) = self.interconnection(index) {
                 views.push((format!("{} interconnection", self.nodes[index].name), shows, self.nodes[index].parent));
@@ -414,6 +414,44 @@ impl<'g> Mapper<'g> {
             self.line(0, "}");
             self.line(0, "");
             titles.push(title);
+        }
+    }
+
+    /// The views the model declares (`view v { expose P::**; filter @M; }`):
+    /// what they expose, filtered by metadata, as written elements.
+    fn declared_views(&mut self) -> Vec<(String, Vec<String>, Option<usize>)> {
+        let views: Vec<&'g Element> = self.graph.of_kinds(&["ViewUsage"]).filter(|v| !self.is_library(v) && !v.exposes.is_empty()).collect();
+        let mut out = Vec::new();
+        for view in views {
+            let filters: Vec<&str> = view.filters.iter().filter_map(|f| self.graph.get(f)).filter_map(|f| f.name.as_deref()).collect();
+            let shows: Vec<String> = (0..self.nodes.len())
+                .filter(|&n| {
+                    let Some(element) = self.nodes[n].usage.or(self.nodes[n].def) else { return false };
+                    view.exposes.iter().any(|(target, recursive, namespace)| self.exposed(element, target, *recursive, *namespace))
+                        && (filters.is_empty() || element.metadata.iter().any(|m| filters.contains(&m.as_str())))
+                })
+                .filter_map(|n| self.ids.get(&self.node_key(n)).cloned())
+                .collect();
+            let name = Self::display(view);
+            if shows.is_empty() {
+                self.notes.push(format!("view '{name}' shows no element the import wrote: left out"));
+                self.count("views showing nothing written (left out)");
+                continue;
+            }
+            out.push((name, shows, None));
+        }
+        out
+    }
+
+    /// Whether `element` is what `expose target` shows: the member itself
+    /// (`P`), what is in it (`P::*`), or everything under it (`::**`).
+    fn exposed(&self, element: &Element, target: &str, recursive: bool, namespace: bool) -> bool {
+        let owner = element.owner.as_deref().unwrap_or("");
+        match (namespace, recursive) {
+            (false, false) => element.id == target,
+            (true, false) => owner == target,
+            (false, true) => element.id == target || self.graph.ancestor(owner, |a| a.id == target).is_some(),
+            (true, true) => self.graph.ancestor(owner, |a| a.id == target).is_some(),
         }
     }
 

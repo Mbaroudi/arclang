@@ -262,3 +262,17 @@ fn the_entry_transition_of_a_region_is_its_initial_state() {
     assert_has(&imported.source, "state \"normal\" { id: \"normal\" }\n        initial: \"normal\"");
     assert!(!imported.counts.contains_key("transitions to states not written (left out)"), "{:?}", imported.counts);
 }
+
+#[test]
+fn a_sysml_view_is_a_diagram_of_what_it_exposes() {
+    let text = "package V {
+    metadata def Safety;
+    package Tree { part car { #Safety part brake; part seat; #Safety part airbag; } }
+    view safetyView { expose Tree::**; filter @Safety; }
+    view everything { expose Tree::*; }
+}
+";
+    let source = imported(text).source;
+    assert_has(&source, "diagram \"safetyView\" {\n    view: lab\n    shows: [\"brake\", \"airbag\"]\n}");
+    assert_has(&source, "diagram \"everything\" {\n    view: lab\n    shows: [\"car\"]\n}");
+}
