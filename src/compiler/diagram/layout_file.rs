@@ -22,7 +22,9 @@
 //! manual placement, one per layout: moving a box in the whole view and in
 //! an opened container are two arrangements. Offsets are in sheet units,
 //! relative to where the automatic layout puts the box; `dw` and `dh`, when
-//! written, are how much wider and taller the reader made it.
+//! written, are how much wider and taller the reader made it. `edges`,
+//! when written, gives an exchange the waypoints the reader bent it
+//! through, in sheet units: `{ "ce:Flow": { "points": [{ "x": 120, "y": 40 }] } }`.
 
 use super::{DiagramSet, Node};
 use serde::{Deserialize, Serialize};
@@ -65,7 +67,25 @@ pub struct Arrangement {
     pub open: Option<String>,
     #[serde(default)]
     pub folded: Vec<String>,
+    #[serde(default)]
     pub places: BTreeMap<String, Offset>,
+    /// Exchanges bent by hand: the points they pass through, by edge id.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub edges: BTreeMap<String, EdgeRoute>,
+}
+
+/// The waypoints of one exchange, from its source to its target.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct EdgeRoute {
+    pub points: Vec<Point>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Point {
+    pub x: f64,
+    pub y: f64,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
@@ -118,6 +138,15 @@ impl LayoutFile {
                     ));
                 }
             }
+            for (edge, route) in &arrangement.edges {
+                let sound = |value: f64| value.is_finite() && value.abs() <= FARTHEST;
+                if let Some(point) = route.points.iter().find(|point| !sound(point.x) || !sound(point.y)) {
+                    return Err(format!(
+                        "layout file: '{edge}' bends farther than a sheet can be ({}, {})",
+                        point.x, point.y
+                    ));
+                }
+            }
         }
         Ok(layout.normalized())
     }
@@ -152,13 +181,15 @@ impl LayoutFile {
 struct Drawn<'a> {
     nodes: BTreeSet<&'a str>,
     containers: BTreeSet<&'a str>,
+    edges: BTreeSet<&'a str>,
 }
 
 impl<'a> Drawn<'a> {
-    fn of(nodes: &'a [Node]) -> Self {
+    fn of(nodes: &'a [Node], edges: &'a [super::Edge]) -> Self {
         let mut drawn = Drawn {
             nodes: BTreeSet::new(),
             containers: BTreeSet::new(),
+            edges: edges.iter().map(|edge| edge.id.as_str()).collect(),
         };
         let mut stack: Vec<&Node> = nodes.iter().collect();
         while let Some(node) = stack.pop() {
@@ -182,7 +213,7 @@ impl DiagramSet {
         let drawn: BTreeMap<&str, Drawn<'_>> = self
             .diagrams
             .iter()
-            .map(|diagram| (diagram.id.as_str(), Drawn::of(&diagram.nodes)))
+            .map(|diagram| (diagram.id.as_str(), Drawn::of(&diagram.nodes, &diagram.edges)))
             .collect();
         let mut warnings: Vec<String> = Vec::new();
         let mut kept = LayoutFile {
@@ -263,12 +294,26 @@ impl DiagramSet {
                     is_drawn
                 })
                 .collect();
-            if !places.is_empty() {
+            let edges: BTreeMap<String, EdgeRoute> = arrangement
+                .edges
+                .into_iter()
+                .filter(|(edge, route)| {
+                    let is_drawn = known.edges.contains(edge.as_str());
+                    if !is_drawn {
+                        warnings.push(format!(
+                            "[{view}] layout file: bent '{edge}' is not drawn in this view"
+                        ));
+                    }
+                    is_drawn && !route.points.is_empty()
+                })
+                .collect();
+            if !places.is_empty() || !edges.is_empty() {
                 kept.arrangements.push(Arrangement {
                     view,
                     open: arrangement.open,
                     folded,
                     places,
+                    edges,
                 });
             }
         }

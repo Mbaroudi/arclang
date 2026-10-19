@@ -22,7 +22,11 @@ use std::fmt;
 use std::path::Path;
 
 mod structure;
+mod relink;
+mod duplicate;
 
+pub use relink::{relationship_spots, replace_lexemes, spelled_like, RelationshipEnds, RelationshipSpots, Spot};
+pub use duplicate::{duplicate_element, CopyTarget};
 pub use structure::{add_declaration, add_element, add_trace, move_element, remove_element, remove_trace, rename_element, rename_references, string_literal, wrap_fragment, Container};
 
 /// One declaration of the source, where it stands: what an outline or a

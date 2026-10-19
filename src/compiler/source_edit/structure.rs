@@ -125,13 +125,13 @@ impl Document {
     }
 
     /// Index of the first lexeme of a block's declaration line.
-    fn header_start(&self, block: &Block) -> usize {
+    pub(super) fn header_start(&self, block: &Block) -> usize {
         block.open - self.header(block).len()
     }
 
     /// Remove lexemes `first..=last` with the line they stand on, when they
     /// have it to themselves.
-    fn remove_range(&self, first: usize, last: usize) -> String {
+    pub(super) fn remove_range(&self, first: usize, last: usize) -> String {
         let starts_line = first == 0 || self.lexemes[first].newlines_before > 0;
         let next = self.lexemes.get(last + 1);
         let ends_line = next.map_or(true, |next| next.newlines_before > 0);
@@ -151,7 +151,7 @@ impl Document {
 
     /// Add `declaration` (one or several lines, not indented) as the last
     /// thing in the block.
-    fn insert_declaration(&self, block: &Block, declaration: &str) -> String {
+    pub(super) fn insert_declaration(&self, block: &Block, declaration: &str) -> String {
         let close = &self.lexemes[block.close];
         let container_indentation = self.indentation_of(block.open);
         let first_line = (block.open + 1..block.close).find(|i| self.lexemes[*i].newlines_before > 0);

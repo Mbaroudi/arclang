@@ -1,0 +1,353 @@
+//! Edits of what connects elements, and copies: an exchange, a link, a
+//! transition, a message or a trace reconnected or turned around; a
+//! relationship renamed; a port moved to another owner with what it
+//! carries; an element copied with new identities. Each one is checked on
+//! the compiled model: every element keeps its identity, and the
+//! relationships are those of the original with exactly the asked change.
+
+use super::{compile_text, identities, written_designator};
+use crate::compiler::elements::{self, ElementGraph, ElementRecord, RelationshipRecord};
+use crate::compiler::source_edit::{self, Container, CopyTarget, RelationshipEnds, RelationshipSpots, Spot};
+use std::collections::BTreeMap;
+
+/// The keywords a relationship of `kind` may be declared with.
+fn keywords_of(kind: &str) -> &'static [&'static str] {
+    match kind {
+        "FunctionalExchange" => &["functional_exchange", "exchange"],
+        "ComponentExchange" => &["component_exchange", "connection"],
+        "OperationalExchange" => &["interaction", "operational_exchange", "exchange"],
+        "PhysicalLink" => &["physical_link", "link"],
+        "PhysicalExchange" => &["physical_exchange"],
+        "Transition" => &["transition"],
+        "Message" => &["message"],
+        "Trace" => &["trace"],
+        "Association" => &["association"],
+        _ => &[],
+    }
+}
+
+fn graph_of(source: &str, what: &str) -> Result<ElementGraph, String> {
+    let compiled = compile_text(source).map_err(|e| format!("{what} does not compile: {e}"))?;
+    Ok(elements::build(&compiled.ast, &compiled.semantic_model))
+}
+
+/// The element a designator names: its id, else its name when only one carries it.
+fn resolve<'g>(graph: &'g ElementGraph, designator: &str) -> Result<&'g ElementRecord, String> {
+    if let Some(found) = graph.elements.iter().find(|e| e.id == designator) {
+        return Ok(found);
+    }
+    let named: Vec<&ElementRecord> = graph.elements.iter().filter(|e| e.name == designator).collect();
+    match named.as_slice() {
+        [one] => Ok(one),
+        [] => Err(format!("no element with id or name '{designator}'")),
+        _ => Err(format!("'{designator}' names {} elements: use its id", named.len())),
+    }
+}
+
+/// Every way the text may write an element: its id, its name, what the
+/// text knows it by, and for an element inside another (a port, a state)
+/// its owner's name or id before its own.
+fn spellings(graph: &ElementGraph, source: &str, element: &ElementRecord) -> Vec<String> {
+    let mut all = vec![element.id.clone(), element.name.clone(), written_designator(graph, source, &element.id)];
+    if let Some(owner) = element.owner.as_ref().and_then(|uuid| graph.elements.iter().find(|e| &e.uuid == uuid)) {
+        if let Some(local) = element.id.strip_prefix(&format!("{}.", owner.id)) {
+            all.push(local.to_string());
+            all.push(format!("{}.{local}", owner.name));
+            all.push(format!("{}.{local}", written_designator(graph, source, &owner.id)));
+        }
+    }
+    all.retain(|s| !s.is_empty());
+    all.dedup();
+    all
+}
+
+/// How `new` is written where `spot` wrote `old`: like it, by name when
+/// the old end was written by its name or its local part, by what the text
+/// knows it by otherwise.
+fn written_like(graph: &ElementGraph, source: &str, spot: &Spot, old: &ElementRecord, new: &ElementRecord) -> Vec<String> {
+    let full = written_designator(graph, source, &new.id);
+    let mut options = Vec::new();
+    let by_name = spot.text == old.name && old.name != old.id;
+    let local = old.owner.as_ref().and_then(|uuid| graph.elements.iter().find(|e| &e.uuid == uuid)).and_then(|owner| old.id.strip_prefix(&format!("{}.", owner.id)).map(str::to_string));
+    if by_name || local.as_deref() == Some(spot.text.as_str()) {
+        let new_local = new.owner.as_ref().and_then(|uuid| graph.elements.iter().find(|e| &e.uuid == uuid)).and_then(|owner| new.id.strip_prefix(&format!("{}.", owner.id)).map(str::to_string));
+        options.extend(new_local);
+        options.push(new.name.clone());
+    }
+    options.push(full);
+    options.push(new.id.clone());
+    options.dedup();
+    options.into_iter().map(|text| source_edit::spelled_like(spot, &text)).collect()
+}
+
+type Edge = (String, Option<String>, String, String);
+
+fn edges(graph: &ElementGraph) -> BTreeMap<Edge, usize> {
+    let mut all = BTreeMap::new();
+    for r in &graph.relationships {
+        *all.entry((r.kind.to_string(), r.name.clone(), r.source.clone(), r.target.clone())).or_insert(0) += 1;
+    }
+    all
+}
+
+fn element_uuids(graph: &ElementGraph) -> Vec<String> {
+    let mut all: Vec<String> = graph.elements.iter().map(|e| e.uuid.clone()).collect();
+    all.sort();
+    all
+}
+
+/// The relationship of `kind` from `from` to `to` (named `name`, when given).
+fn find_relationship<'g>(graph: &'g ElementGraph, kind: &str, name: Option<&str>, from: &ElementRecord, to: &ElementRecord) -> Result<&'g RelationshipRecord, String> {
+    let found: Vec<&RelationshipRecord> = graph
+        .relationships
+        .iter()
+        .filter(|r| r.kind == kind && r.source == from.uuid && r.target == to.uuid)
+        .filter(|r| name.is_none_or(|name| r.name.as_deref() == Some(name)))
+        .collect();
+    match found.as_slice() {
+        [one] => Ok(one),
+        [] => Err(format!("no {kind}{} from '{}' to '{}'", name.map(|n| format!(" '{n}'")).unwrap_or_default(), from.id, to.id)),
+        _ => Err(format!("{} relationships {kind} go from '{}' to '{}': give the name", found.len(), from.id, to.id)),
+    }
+}
+
+fn spots_of(graph: &ElementGraph, source: &str, relationship: &RelationshipRecord, from: &ElementRecord, to: &ElementRecord) -> Result<RelationshipSpots, String> {
+    let mut designators = Vec::new();
+    if let Some(crate::compiler::ast::AttributeValue::String(id)) = relationship.attributes.get("id") {
+        designators.push(id.clone());
+    }
+    designators.extend(relationship.name.clone());
+    let from_spellings = spellings(graph, source, from);
+    let to_spellings = spellings(graph, source, to);
+    let ends = RelationshipEnds { keywords: keywords_of(relationship.kind), designators: &designators, name: relationship.name.as_deref(), from: &from_spellings, to: &to_spellings };
+    source_edit::relationship_spots(source, &ends).map_err(|e| e.to_string())
+}
+
+/// Reconnect one relationship: its source to `new_from`, its target to
+/// `new_to` (either or both; both swapped is a reversal).
+pub fn reconnect(source: &str, kind: &str, name: Option<&str>, from: &str, to: &str, new_from: Option<&str>, new_to: Option<&str>) -> Result<String, String> {
+    let graph = graph_of(source, "the model")?;
+    let (old_from, old_to) = (resolve(&graph, from)?, resolve(&graph, to)?);
+    let relationship = find_relationship(&graph, kind, name, old_from, old_to)?;
+    let next_from = new_from.map(|d| resolve(&graph, d)).transpose()?;
+    let next_to = new_to.map(|d| resolve(&graph, d)).transpose()?;
+    if next_from.is_none() && next_to.is_none() {
+        return Err("a reconnection names a new source, a new target or both".to_string());
+    }
+    let spots = spots_of(&graph, source, relationship, old_from, old_to)?;
+    let source_options = next_from.map(|e| written_like(&graph, source, &spots.from, old_from, e)).unwrap_or_else(|| vec![String::new()]);
+    let target_options = next_to.map(|e| written_like(&graph, source, &spots.to, old_to, e)).unwrap_or_else(|| vec![String::new()]);
+
+    let mut expected = edges(&graph);
+    let old: Edge = (relationship.kind.to_string(), relationship.name.clone(), relationship.source.clone(), relationship.target.clone());
+    if let Some(count) = expected.get_mut(&old) {
+        *count -= 1;
+    }
+    expected.retain(|_, count| *count > 0);
+    let new_edge: Edge = (old.0.clone(), old.1.clone(), next_from.map_or(old.2.clone(), |e| e.uuid.clone()), next_to.map_or(old.3.clone(), |e| e.uuid.clone()));
+    *expected.entry(new_edge).or_insert(0) += 1;
+
+    let mut last = String::from("edit refused: the reconnection could not be written");
+    for source_text in &source_options {
+        for target_text in &target_options {
+            let mut replacements = Vec::new();
+            if next_from.is_some() {
+                replacements.push((spots.from.index, source_text.clone()));
+            }
+            if next_to.is_some() {
+                replacements.push((spots.to.index, target_text.clone()));
+            }
+            let edited = match source_edit::replace_lexemes(source, &replacements) {
+                Ok(edited) => edited,
+                Err(e) => {
+                    last = e.to_string();
+                    continue;
+                }
+            };
+            match check_relationships(&graph, &edited, &expected, None) {
+                Ok(()) => return Ok(edited),
+                Err(e) => last = e,
+            }
+        }
+    }
+    Err(last)
+}
+
+/// The edited model keeps every element (or the same ones, `renamed` aside)
+/// and holds exactly the `expected` relationships.
+fn check_relationships(before: &ElementGraph, edited: &str, expected: &BTreeMap<Edge, usize>, port: Option<(&str, &str)>) -> Result<(), String> {
+    let after = graph_of(edited, "edit refused: the edited model")?;
+    let mut was = element_uuids(before);
+    if let Some((old, new)) = port {
+        was = was.into_iter().map(|uuid| if uuid == old { new.to_string() } else { uuid }).collect();
+        was.sort();
+    }
+    if was != element_uuids(&after) {
+        return Err("edit refused: it would change the identity of an element".to_string());
+    }
+    if &edges(&after) != expected {
+        return Err("edit refused: the edited model would not connect exactly what was asked".to_string());
+    }
+    if after.unresolved.len() > before.unresolved.len() {
+        return Err("edit refused: it would leave a reference without an end".to_string());
+    }
+    Ok(())
+}
+
+/// Rename a relationship (an exchange, a link, a message): its name where
+/// the text writes it, its ends untouched.
+pub fn rename_relationship(source: &str, designator: &str, new_name: &str) -> Result<String, String> {
+    let graph = graph_of(source, "the model")?;
+    let named: Vec<&RelationshipRecord> = graph.relationships.iter().filter(|r| r.name.as_deref() == Some(designator)).collect();
+    let relationship = match named.as_slice() {
+        [one] => *one,
+        [] => return Err(format!("no element or relationship with id or name '{designator}'")),
+        _ => return Err(format!("'{designator}' names {} relationships: rename it in the text", named.len())),
+    };
+    let by_uuid = |uuid: &str| graph.elements.iter().find(|e| e.uuid == uuid).ok_or_else(|| format!("an end of '{designator}' is not an element"));
+    let (from, to) = (by_uuid(&relationship.source)?, by_uuid(&relationship.target)?);
+    let spots = spots_of(&graph, source, relationship, from, to)?;
+    let name = spots.name.ok_or_else(|| format!("'{designator}' writes no name this edit can change"))?;
+    let edited = source_edit::replace_lexemes(source, &[(name.index, source_edit::spelled_like(&Spot { quoted: true, ..name.clone() }, new_name))]).map_err(|e| e.to_string())?;
+    let mut expected = edges(&graph);
+    let old: Edge = (relationship.kind.to_string(), relationship.name.clone(), relationship.source.clone(), relationship.target.clone());
+    if let Some(count) = expected.get_mut(&old) {
+        *count -= 1;
+    }
+    expected.retain(|_, count| *count > 0);
+    *expected.entry((old.0, Some(new_name.to_string()), old.2, old.3)).or_insert(0) += 1;
+    check_relationships(&graph, &edited, &expected, None)?;
+    Ok(edited)
+}
+
+/// Move a port to another owner: the exchanges it carries follow it.
+pub fn move_port(source: &str, port: &str, owner: &str) -> Result<String, String> {
+    let graph = graph_of(source, "the model")?;
+    let port = resolve(&graph, port)?;
+    let owner = resolve(&graph, owner)?;
+    if port.owner.as_deref() == Some(owner.uuid.as_str()) {
+        return Err(format!("'{}' is already a port of '{}'", port.id, owner.id));
+    }
+    let local = port.id.rsplit_once('.').map_or(port.name.clone(), |(_, local)| local.to_string());
+    let new_id = format!("{}.{local}", owner.id);
+    let written_new = format!("{}.{local}", written_designator(&graph, source, &owner.id));
+    // Every end the port is written as, rewritten to the port of the new owner.
+    let mut replacements = Vec::new();
+    let mut touching = Vec::new();
+    for relationship in graph.relationships.iter().filter(|r| r.source == port.uuid || r.target == port.uuid) {
+        let by_uuid = |uuid: &str| graph.elements.iter().find(|e| e.uuid == uuid).ok_or_else(|| "an end is not an element".to_string());
+        let (from, to) = (by_uuid(&relationship.source)?, by_uuid(&relationship.target)?);
+        let spots = spots_of(&graph, source, relationship, from, to)?;
+        if relationship.source == port.uuid {
+            replacements.push((spots.from.index, source_edit::spelled_like(&spots.from, &written_new)));
+        }
+        if relationship.target == port.uuid {
+            replacements.push((spots.to.index, source_edit::spelled_like(&spots.to, &written_new)));
+        }
+        touching.push(relationship);
+    }
+    let rewritten = if replacements.is_empty() { source.to_string() } else { source_edit::replace_lexemes(source, &replacements).map_err(|e| e.to_string())? };
+    let edited = source_edit::move_element(&rewritten, &written_designator(&graph, source, &port.id), Container::Element(&written_designator(&graph, source, &owner.id))).map_err(|e| e.to_string())?;
+    let after = graph_of(&edited, "edit refused: the edited model")?;
+    let moved = after.elements.iter().find(|e| e.id == new_id).ok_or_else(|| format!("edit refused: '{new_id}' would not be a port once compiled"))?;
+    let follow = |uuid: &String| if uuid == &port.uuid { moved.uuid.clone() } else { uuid.clone() };
+    let mut expected = BTreeMap::new();
+    for r in &graph.relationships {
+        *expected.entry((r.kind.to_string(), r.name.clone(), follow(&r.source), follow(&r.target))).or_insert(0) += 1;
+    }
+    check_relationships(&graph, &edited, &expected, Some((&port.uuid, &moved.uuid)))?;
+    Ok(edited)
+}
+
+/// A new id like `id`: `LC-X` -> `LC-X-2`, `LC-X-2` -> `LC-X-3`, never one in `taken`.
+pub fn fresh_id(id: &str, taken: &std::collections::HashSet<String>) -> String {
+    let (base, mut n, width) = match id.rsplit_once('-') {
+        Some((base, digits)) if !digits.is_empty() && digits.chars().all(|c| c.is_ascii_digit()) && !base.is_empty() => (base.to_string(), digits.parse::<u64>().unwrap_or(1) + 1, digits.len()),
+        _ => (id.to_string(), 2, 1),
+    };
+    loop {
+        let candidate = format!("{base}-{n:0width$}");
+        if !taken.contains(&candidate) {
+            return candidate;
+        }
+        n += 1;
+    }
+}
+
+/// Copy an element with everything inside it: beside the original, or into
+/// a container. Ids are made unique; an element without id gets a new name.
+pub fn duplicate(source: &str, element: &str, container: Option<Container>) -> Result<String, String> {
+    let graph = graph_of(source, "the model")?;
+    let record = resolve(&graph, element)?;
+    let mut taken: std::collections::HashSet<String> = graph.elements.iter().flat_map(|e| [e.id.clone(), e.name.clone()]).collect();
+    let mut fresh = |id: &str| {
+        let next = fresh_id(id, &taken);
+        taken.insert(next.clone());
+        next
+    };
+    let names: std::collections::HashSet<&str> = graph.elements.iter().map(|e| e.name.as_str()).collect();
+    let new_name = (2..).map(|n| format!("{} {n}", record.name)).find(|name| !names.contains(name.as_str())).expect("an unused name");
+    let target = container.map_or(CopyTarget::Beside, CopyTarget::Into);
+    let edited = source_edit::duplicate_element(source, &written_designator(&graph, source, &record.id), target, &mut fresh, &new_name).map_err(|e| e.to_string())?;
+    let after = graph_of(&edited, "edit refused: the model with the copy")?;
+    let before_ids = identities(&graph);
+    let after_ids: std::collections::BTreeSet<String> = identities(&after).into_iter().collect();
+    if !before_ids.iter().all(|uuid| after_ids.contains(uuid)) {
+        return Err("edit refused: the copy would change the identity of another element".to_string());
+    }
+    if after.elements.len() <= graph.elements.len() {
+        return Err(format!("edit refused: the copy of '{element}' would not be a new element"));
+    }
+    if after.unresolved.len() > graph.unresolved.len() {
+        return Err("edit refused: the copy would leave a reference without an end".to_string());
+    }
+    Ok(edited)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const MODEL: &str = "model T { name: \"t\" }\nlogical_architecture \"L\" {\n    component \"A\" {\n        id: \"LC-A\"\n        port out \"p\"\n    }\n    component \"B\" {\n        id: \"LC-B\"\n        port in \"q\"\n    }\n    component \"C\" {\n        id: \"LC-C\"\n        port in \"r\"\n    }\n    component_exchange \"Flow\" {\n        from_port: \"LC-A.p\"\n        to_port: \"LC-B.q\"\n    }\n}\nstate_machine \"M\" {\n    initial: \"Off\"\n    state Off {}\n    state On {}\n    state Idle {}\n    transition Off -> On { guard: \"go\" }\n}\nscenario \"S\" {\n    participants: [\"LC-A\", \"LC-B\", \"LC-C\"]\n    message \"LC-A\" -> \"LC-B\" \"ping\"\n}\ntrace \"LC-A\" satisfies \"LC-B\" { rationale: \"kept\" }\n";
+
+    #[test]
+    fn an_exchange_a_transition_a_message_and_a_trace_are_reconnected() {
+        let flow = reconnect(MODEL, "ComponentExchange", Some("Flow"), "LC-A.p", "LC-B.q", None, Some("LC-C.r")).unwrap();
+        assert!(flow.contains("to_port: \"LC-C.r\""), "{flow}");
+        let reversed = reconnect(MODEL, "ComponentExchange", Some("Flow"), "LC-A.p", "LC-B.q", Some("LC-B.q"), Some("LC-A.p")).unwrap();
+        assert!(reversed.contains("from_port: \"LC-B.q\"\n        to_port: \"LC-A.p\""), "{reversed}");
+        let transition = reconnect(MODEL, "Transition", None, "M.Off", "M.On", None, Some("M.Idle")).unwrap();
+        assert!(transition.contains("transition Off -> Idle { guard: \"go\" }"), "{transition}");
+        let message = reconnect(MODEL, "Message", Some("ping"), "LC-A", "LC-B", None, Some("LC-C")).unwrap();
+        assert!(message.contains("message \"LC-A\" -> \"LC-C\" \"ping\""), "{message}");
+        let trace = reconnect(MODEL, "Trace", None, "LC-A", "LC-B", None, Some("LC-C")).unwrap();
+        assert!(trace.contains("trace \"LC-A\" satisfies \"LC-C\" { rationale: \"kept\" }"), "{trace}");
+        let refused = reconnect(MODEL, "ComponentExchange", Some("Flow"), "LC-A.p", "LC-B.q", None, Some("Nobody"));
+        assert!(refused.is_err());
+    }
+
+    #[test]
+    fn a_relationship_is_renamed_and_a_port_moves_with_its_exchanges() {
+        let renamed = rename_relationship(MODEL, "Flow", "Main flow").unwrap();
+        assert!(renamed.contains("component_exchange \"Main flow\" {"), "{renamed}");
+        let relabelled = rename_relationship(MODEL, "ping", "hello").unwrap();
+        assert!(relabelled.contains("message \"LC-A\" -> \"LC-B\" \"hello\""), "{relabelled}");
+        let moved = move_port(MODEL, "LC-B.q", "LC-C").unwrap();
+        assert!(moved.contains("to_port: \"LC-C.q\""), "{moved}");
+        let c = moved.find("component \"C\"").unwrap();
+        assert!(moved.find("port in \"q\"").unwrap() > c, "{moved}");
+    }
+
+    #[test]
+    fn a_copy_takes_unique_ids() {
+        let copied = duplicate(MODEL, "LC-A", None).unwrap();
+        assert!(copied.contains("id: \"LC-A-2\""), "{copied}");
+        let again = duplicate(&copied, "LC-A", None).unwrap();
+        assert!(again.contains("id: \"LC-A-3\""), "{again}");
+        let into = duplicate(MODEL, "Off", Some(Container::Element("M"))).unwrap();
+        assert!(into.contains("state \"Off 2\" {}"), "{into}");
+        let taken: std::collections::HashSet<String> = ["LC-X-2".to_string()].into_iter().collect();
+        assert_eq!(fresh_id("LC-X", &taken), "LC-X-3");
+        assert_eq!(fresh_id("REQ-007", &Default::default()), "REQ-008");
+    }
+}

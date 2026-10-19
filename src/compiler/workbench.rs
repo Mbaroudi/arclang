@@ -13,6 +13,9 @@ use crate::compiler::{CompilationResult, Compiler, CompilerConfig};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 
+mod links;
+pub use links::fresh_id;
+
 /// What a snapshot computes besides the model itself.
 #[derive(Debug, Clone)]
 pub struct SnapshotOptions<'a> {
@@ -328,6 +331,23 @@ pub enum EditRequest {
     Move { element: String, container: Option<String>, layer: Option<String>, layer_name: Option<String> },
     AddTrace { from: String, kind: String, to: String },
     RemoveTrace { from: String, kind: String, to: String },
+    /// Reconnect the relationship of `kind` from `from` to `to` (named
+    /// `name` when several join them): its source to `new_from`, its target
+    /// to `new_to`. Both, swapped, turn it around.
+    Reconnect {
+        kind: String,
+        #[serde(default)]
+        name: Option<String>,
+        from: String,
+        to: String,
+        #[serde(default)]
+        new_from: Option<String>,
+        #[serde(default)]
+        new_to: Option<String>,
+    },
+    /// A copy of an element with what it holds, ids made unique: beside
+    /// the original, or into an element or a layer.
+    Duplicate { element: String, container: Option<String>, layer: Option<String>, layer_name: Option<String> },
 }
 
 pub fn compile_text(source: &str) -> Result<CompilationResult, String> {
@@ -430,7 +450,40 @@ impl EditRequest {
             },
             EditRequest::AddTrace { from, kind, to } => EditRequest::AddTrace { from: w(from), kind: kind.clone(), to: w(to) },
             EditRequest::RemoveTrace { from, kind, to } => EditRequest::RemoveTrace { from: w(from), kind: kind.clone(), to: w(to) },
+            // Resolved on the compiled model by the edit itself.
+            EditRequest::Reconnect { .. } | EditRequest::Duplicate { .. } => self.clone(),
         }
+    }
+}
+
+/// The edits checked on relationships and identities (see [`links`]): a
+/// rename (of an element, else of a relationship), a port moved with its
+/// exchanges, a reconnection, a copy. None for the others.
+fn edit_links(source: &str, request: &EditRequest) -> Option<Result<String, String>> {
+    match request {
+        EditRequest::Rename { element, name } => Some(rename_keeping_identity(source, element, name).or_else(|error| {
+            if error.starts_with("no element with id or name") {
+                links::rename_relationship(source, element, name)
+            } else {
+                Err(error)
+            }
+        })),
+        EditRequest::Move { element, container: Some(owner), .. } => {
+            let compiled = compile_text(source).ok()?;
+            let graph = elements::build(&compiled.ast, &compiled.semantic_model);
+            let port = graph.elements.iter().find(|e| &e.id == element || &e.name == element).filter(|e| e.kind.ends_with("Port"))?;
+            Some(links::move_port(source, &port.id.clone(), owner))
+        }
+        EditRequest::Reconnect { kind, name, from, to, new_from, new_to } => Some(links::reconnect(source, kind, name.as_deref(), from, to, new_from.as_deref(), new_to.as_deref())),
+        EditRequest::Duplicate { element, container, layer, layer_name } => {
+            let target = match (container, layer) {
+                (Some(other), _) => Some(Container::Element(other)),
+                (None, Some(layer)) => Some(Container::Layer { keyword: layer, name: layer_name.as_deref() }),
+                (None, None) => None,
+            };
+            Some(links::duplicate(source, element, target))
+        }
+        _ => None,
     }
 }
 
@@ -452,8 +505,8 @@ pub fn edit(source: &str, request: &EditRequest) -> Result<String, String> {
         Err(_) => request.clone(),
     };
     let request = &resolved;
-    if let EditRequest::Rename { element, name } = request {
-        return rename_keeping_identity(source, element, name);
+    if let Some(outcome) = edit_links(source, request) {
+        return outcome;
     }
     let edited = match &request {
         EditRequest::Set { element, key, value } => source_edit::set_attribute(source, element, key, value),
@@ -491,6 +544,7 @@ pub fn edit(source: &str, request: &EditRequest) -> Result<String, String> {
         }
         EditRequest::AddTrace { from, kind, to } => source_edit::add_trace(source, from, kind, to),
         EditRequest::RemoveTrace { from, kind, to } => source_edit::remove_trace(source, &[from.as_str()], kind, &[to.as_str()]),
+        EditRequest::Reconnect { .. } | EditRequest::Duplicate { .. } => unreachable!("handled by edit_links"),
     }
     .map_err(|e| e.to_string())?;
 

@@ -251,3 +251,31 @@ fn a_resized_box_keeps_its_size_in_the_file_and_an_absurd_size_is_refused() {
     let absurd = resized.replace("\"dw\": 60", "\"dw\": 1e9");
     assert!(LayoutFile::parse(&absurd).unwrap_err().contains("resized beyond"));
 }
+
+#[test]
+fn a_bent_exchange_keeps_its_waypoints_and_a_stale_one_is_reported() {
+    let model = r#"
+logical_architecture "LA" {
+    component "A" { id: "LC-A" port out "p" }
+    component "B" { id: "LC-B" port in "q" }
+    component_exchange "Flow" { from_port: "LC-A.p" to_port: "LC-B.q" }
+}
+"#;
+    let result = Compiler::new(CompilerConfig::default()).compile_string(model).expect("compiles");
+    let mut set = build_diagrams(&result.ast);
+    let layout = r#"{
+  "arclang_layout": "1",
+  "arrangements": [
+    { "view": "lab", "edges": { "ce:Flow": { "points": [{ "x": 120, "y": 40 }] }, "ce:Gone": { "points": [{ "x": 1, "y": 2 }] } } }
+  ]
+}"#;
+    let parsed = LayoutFile::parse(layout).expect("parses");
+    assert_eq!(LayoutFile::parse(&parsed.to_json()).expect("round trip"), parsed);
+    let warnings = set.apply_layout(parsed);
+    assert!(warnings.iter().any(|w| w.contains("ce:Gone")), "{warnings:?}");
+    let kept = set.layout.as_ref().expect("kept");
+    assert_eq!(kept.arrangements[0].edges["ce:Flow"].points.len(), 1);
+    assert!(!kept.arrangements[0].edges.contains_key("ce:Gone"));
+    let absurd = layout.replace("120", "1e9");
+    assert!(LayoutFile::parse(&absurd).unwrap_err().contains("bends farther"));
+}
