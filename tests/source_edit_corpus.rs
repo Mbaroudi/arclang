@@ -47,6 +47,12 @@ fn value_for(graph: &ElementGraph, element: &ElementRecord, key: &str) -> String
     format!("\"{MARK}\"")
 }
 
+/// Whether the metamodel types this attribute as a Boolean.
+fn is_boolean(kind: &str, key: &str) -> bool {
+    use arclang::compiler::metamodel::{AttrType, Metamodel};
+    Metamodel::current().kind(kind).and_then(|k| k.attributes.iter().find(|a| a.key == key)).is_some_and(|a| matches!(a.ty, AttrType::Boolean))
+}
+
 /// The kind a reference attribute points to, from the metamodel.
 fn reference_kind(kind: &str, key: &str) -> Option<&'static str> {
     use arclang::compiler::metamodel::{AttrType, Metamodel};
@@ -99,6 +105,13 @@ fn outcome_once_compiled(
     // Text is not a valid value everywhere (a reference, an enumeration):
     // the compiler then rejects the edited model.
     let Some(after) = graph(edited) else {
+        // The kinds an allocation definition names are checked against the
+        // allocations typed by it: any other kind breaks them, and the
+        // compiler says so. The edit itself landed where it should.
+        let error = Compiler::new(CompilerConfig::default()).compile_string(edited).err().map(|e| e.to_string()).unwrap_or_default();
+        if element.kind == "Type" && key.ends_with("_kind") && error.contains("allocation") {
+            return "refused: breaks a typed allocation";
+        }
         return "rejected by the compiler";
     };
     assert_eq!(after.elements.len(), before.elements.len(), "{}", path.display());
@@ -136,7 +149,8 @@ fn accepted_edits_change_exactly_the_requested_attribute() {
             let mut keys: Vec<&String> = element.attributes.keys().collect();
             keys.sort();
             for key in keys {
-                let is_text = matches!(element.attributes[key], AttributeValue::String(_));
+                // A Boolean (`variation: true`) reads as a string in the graph but is not text.
+                let is_text = matches!(element.attributes[key], AttributeValue::String(_)) && !is_boolean(&element.kind, key);
                 // `id` and `name` carry identity: changing them renames the
                 // element, which is not the edit under test here.
                 if !is_text || key == "id" || key == "name" || key == "is" {
@@ -177,6 +191,8 @@ fn accepted_edits_change_exactly_the_requested_attribute() {
     let applied = outcomes.get("applied").copied().unwrap_or(0);
     let total: usize = outcomes.values().sum();
     assert!(total >= 1000, "too few attributes to mean anything: {outcomes:?}");
-    // The README states this: every text attribute of every example edits.
-    assert_eq!(applied, total, "not every edit applied: {outcomes:?}");
+    // The README states this: every text attribute of every example edits,
+    // except a kind an allocation definition names while allocations use it.
+    let typed = outcomes.get("refused: breaks a typed allocation").copied().unwrap_or(0);
+    assert_eq!(applied + typed, total, "not every edit applied: {outcomes:?}");
 }

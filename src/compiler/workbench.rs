@@ -353,10 +353,15 @@ pub fn written_designator(graph: &ElementGraph, source: &str, designator: &str) 
     let Some(element) = graph.elements.iter().find(|e| e.id == designator) else {
         return designator.to_string();
     };
-    // A port `Owner.port` whose owner writes no id: the owner as the text knows it.
+    // A port `Owner.port`: kept when the owner writes its id (two owners may
+    // both have an `hv` port), the owner as the text knows it otherwise.
     if let Some((owner, port)) = designator.rsplit_once('.') {
-        if graph.elements.iter().any(|e| e.id == owner) && !appears_as_token(source, owner) {
-            return format!("{}.{port}", written_designator(graph, source, owner));
+        if graph.elements.iter().any(|e| e.id == owner) {
+            return if appears_as_token(source, owner) {
+                designator.to_string()
+            } else {
+                format!("{}.{port}", written_designator(graph, source, owner))
+            };
         }
     }
     // A name another element also carries (the same actor in two layers) is
@@ -589,6 +594,16 @@ requirements system {
         let edited = parse(edit(model, &format!(r#"{{"op":"set","element":"{port}","key":"data_type","value":"\"LaneModel\""}}"#)));
         assert_eq!(edited["success"], true, "{edited}");
         assert!(edited["source"].as_str().unwrap().contains("port out lane { data_type: \"LaneModel\" }"), "{}", edited["source"]);
+    }
+
+    #[test]
+    fn a_port_of_an_owner_with_an_id_is_designated_through_its_owner() {
+        // Two components with ids, both with an `hv` port: `LC-A.hv` is the first only.
+        let model = "model T { name: \"t\" }\nlogical_architecture \"L\" {\n    component \"A\" {\n        id: \"LC-A\"\n        port inout \"hv\" { protocol: \"x\" }\n    }\n    component \"B\" {\n        id: \"LC-B\"\n        port inout \"hv\" { protocol: \"y\" }\n    }\n}\n";
+        let edited = parse(edit(model, r#"{"op":"set","element":"LC-A.hv","key":"protocol","value":"\"z\""}"#));
+        assert_eq!(edited["success"], true, "{edited}");
+        let source = edited["source"].as_str().unwrap();
+        assert!(source.contains("protocol: \"z\"") && source.contains("protocol: \"y\"") && !source.contains("protocol: \"x\""), "{source}");
     }
 
     #[test]

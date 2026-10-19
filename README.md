@@ -313,7 +313,9 @@ the long-term goal.
   compiled element shows the requested value; a value written on the
   declaration line (a requirement title) is rewritten there, where the
   compiler reads it. Every text attribute of the example corpus
-  is editable this way (tested: 4,132 of 4,132). Limits: one
+  is editable this way (tested: 4,143 of 4,145; the other two are the
+  kinds an allocation definition names, which the compiler refuses to
+  change while allocations are typed by it). Limits: one
   attribute at a time, no creation, deletion or renaming of elements, no
   edit of relationships, and an element declared in an imported file is
   edited in that file.
