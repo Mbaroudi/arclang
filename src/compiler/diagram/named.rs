@@ -7,7 +7,7 @@
 //! drawn too, as a contextual diagram.
 
 use super::{Diagram, Edge, Node, ViewKind};
-use crate::compiler::ast::{DiagramDecl, Model};
+use crate::compiler::ast::{AttributeValue, DiagramDecl, Model};
 use std::collections::HashSet;
 
 /// One (diagram, diagnostics) per declaration, in declared order. A
@@ -27,7 +27,15 @@ fn one(model: &Model, decl: &DiagramDecl, views: &[Diagram]) -> (Option<Diagram>
         }
     }
     let excluded = configuration.map(|c| crate::compiler::variability::excluded_by(model, c)).unwrap_or_default();
-    let (diagram, diagnostics) = cut_view(decl, views, configuration.is_some());
+    // `tagged: ["Safety"]`: the elements carrying a tag, under `under` when named.
+    let tagged_with: Vec<String> = match decl.attributes.get("tagged") {
+        Some(AttributeValue::List(items)) => items.iter().filter_map(|v| v.as_string()).map(str::to_string).collect(),
+        Some(AttributeValue::String(one)) => vec![one.clone()],
+        _ => Vec::new(),
+    };
+    let tagged = (!tagged_with.is_empty()).then(|| super::tags::tagged(model, &tagged_with));
+    let under = decl.attributes.get("under").and_then(|v| v.as_string()).map(str::to_string);
+    let (diagram, diagnostics) = cut_view(decl, views, configuration.is_some(), tagged.as_ref(), under.as_deref());
     (diagram.map(|d| without(d, &excluded)), diagnostics)
 }
 
@@ -56,7 +64,7 @@ fn without(mut diagram: Diagram, excluded: &HashSet<String>) -> Diagram {
     diagram
 }
 
-fn cut_view(decl: &DiagramDecl, views: &[Diagram], whole_when_empty: bool) -> (Option<Diagram>, Vec<String>) {
+fn cut_view(decl: &DiagramDecl, views: &[Diagram], whole_when_empty: bool, tagged: Option<&HashSet<String>>, under: Option<&str>) -> (Option<Diagram>, Vec<String>) {
     let id = format!("{}:{}", decl.view, decl.name);
     let scope = format!("[{id}] ");
     let Some(kind) = ViewKind::parse(&decl.view) else {
@@ -71,9 +79,33 @@ fn cut_view(decl: &DiagramDecl, views: &[Diagram], whole_when_empty: bool) -> (O
 
     let mut diagnostics = Vec::new();
     let mut wanted: HashSet<String> = HashSet::new();
-    // A configuration with nothing named shows its whole view.
-    if whole_when_empty && decl.shows.is_empty() {
-        wanted.extend(source.nodes.iter().map(|n| n.id.clone()));
+    // The nodes under `under` (the whole view when it names nothing).
+    let within: Vec<&Node> = match under {
+        Some(reference) => {
+            let found = find_node(&source.nodes, reference);
+            if found.is_none() {
+                diagnostics.push(format!("{scope}'{reference}' is not drawn in the {} view", kind.label()));
+            }
+            found.map(|n| n.children.iter().collect()).unwrap_or_default()
+        }
+        None => source.nodes.iter().collect(),
+    };
+    match tagged {
+        // The tagged nodes of the scope, and the containers drawn around them.
+        Some(tagged) => {
+            fn collect(nodes: &[&Node], tagged: &HashSet<String>, out: &mut HashSet<String>) {
+                for node in nodes {
+                    if tagged.contains(&node.id) || tagged.contains(&node.name) {
+                        out.insert(node.id.clone());
+                    }
+                    collect(&node.children.iter().collect::<Vec<_>>(), tagged, out);
+                }
+            }
+            collect(&within, tagged, &mut wanted);
+        }
+        // A configuration, or an `under` with nothing named, shows the whole scope.
+        None if decl.shows.is_empty() && (whole_when_empty || under.is_some()) => wanted.extend(within.iter().map(|n| n.id.clone())),
+        None => {}
     }
     for reference in &decl.shows {
         let found = matching(&source.nodes, reference);
@@ -134,6 +166,11 @@ fn cut_view(decl: &DiagramDecl, views: &[Diagram], whole_when_empty: bool) -> (O
         invariants: Vec::new(),
     };
     (Some(diagram), diagnostics)
+}
+
+/// The first node answering to `reference`, by id or name, at any depth.
+fn find_node<'n>(nodes: &'n [Node], reference: &str) -> Option<&'n Node> {
+    nodes.iter().find_map(|n| if n.id == reference || n.name == reference { Some(n) } else { find_node(&n.children, reference) })
 }
 
 /// Ids of the nodes answering to `reference`, by id then by name, at any depth.

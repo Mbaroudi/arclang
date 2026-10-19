@@ -21,6 +21,7 @@ Human or external system interacting with the system.
 | `name` | `text` | Display name; overrides the block name. |
 | `description` | `text` | Free-text description. |
 | `is` | `ref<Type>` | User-defined type of the element, or a list of types; their attributes (and ports, for components) are inherited. |
+| `tags` | `list<text>` | Tags the element carries (`["Safety"]`): a declared diagram draws what carries one with `tagged:`. In SysML v2, metadata usages of definitions in a `Tags` package. |
 | `category` | `text` | Actor category. |
 | `safety_level` | `enum SafetyLevel` | ASIL, DAL or SIL assigned to the element. |
 | `asil` | `enum Asil` | ISO 26262 ASIL (QM, ASIL-A..D). |
@@ -39,6 +40,7 @@ Organisation or system of the operational world.
 | `name` | `text` | Display name; overrides the block name. |
 | `description` | `text` | Free-text description. |
 | `is` | `ref<Type>` | User-defined type of the element, or a list of types; their attributes (and ports, for components) are inherited. |
+| `tags` | `list<text>` | Tags the element carries (`["Safety"]`): a declared diagram draws what carries one with `tagged:`. In SysML v2, metadata usages of definitions in a `Tags` package. |
 | `type` | `text` | Component category (free text). |
 | `layer` | `text` | Overrides the architectural layer label. |
 | `safety_level` | `enum SafetyLevel` | ASIL, DAL or SIL assigned to the element. |
@@ -66,6 +68,7 @@ Expected ability of the operational world. May be declared inside another operat
 | `name` | `text` | Display name; overrides the block name. |
 | `description` | `text` | Free-text description. |
 | `is` | `ref<Type>` | User-defined type of the element, or a list of types; their attributes (and ports, for components) are inherited. |
+| `tags` | `list<text>` | Tags the element carries (`["Safety"]`): a declared diagram draws what carries one with `tagged:`. In SysML v2, metadata usages of definitions in a `Tags` package. |
 | `involves` | `list<ref<Element>>` | Actors, entities, activities and processes involved. |
 | `extends` | `list<ref<OperationalCapability>>` | Capabilities of the same level this one extends. |
 | `includes` | `list<ref<OperationalCapability>>` | Capabilities of the same level this one includes. |
@@ -84,6 +87,7 @@ Activity performed by an entity or actor.
 | `name` | `text` | Display name; overrides the block name. |
 | `description` | `text` | Free-text description. |
 | `is` | `ref<Type>` | User-defined type of the element, or a list of types; their attributes (and ports, for components) are inherited. |
+| `tags` | `list<text>` | Tags the element carries (`["Safety"]`): a declared diagram draws what carries one with `tagged:`. In SysML v2, metadata usages of definitions in a `Tags` package. |
 | `category` | `text` | Functional category (free text). |
 | `inputs` | `list<text>` | Input data names. |
 | `outputs` | `list<text>` | Output data names. |
@@ -110,6 +114,7 @@ Interaction between operational entities.
 | `name` | `text` | Display name; overrides the block name. |
 | `description` | `text` | Free-text description. |
 | `is` | `ref<Type>` | User-defined type of the element, or a list of types; their attributes (and ports, for components) are inherited. |
+| `tags` | `list<text>` | Tags the element carries (`["Safety"]`): a declared diagram draws what carries one with `tagged:`. In SysML v2, metadata usages of definitions in a `Tags` package. |
 | `from` | `ref<Element>` | Source element or port. |
 | `to` | `ref<Element>` | Target element or port. |
 | `protocol` | `text` | Transport protocol (CAN FD, Ethernet, ARINC 429...). |
@@ -133,6 +138,7 @@ Ordered path of activities fulfilling a capability.
 | `name` | `text` | Display name; overrides the block name. |
 | `description` | `text` | Free-text description. |
 | `is` | `ref<Type>` | User-defined type of the element, or a list of types; their attributes (and ports, for components) are inherited. |
+| `tags` | `list<text>` | Tags the element carries (`["Safety"]`): a declared diagram draws what carries one with `tagged:`. In SysML v2, metadata usages of definitions in a `Tags` package. |
 | `involves` | `list<ref<Element>>` | Ordered functions, exchanges and chains of the chain. |
 | `latency_budget` | `quantity<time>` | End-to-end budget checked by the gate. |
 | `capability` | `ref<Capability>` | Capability this chain exemplifies. |
@@ -152,6 +158,7 @@ Stakeholder, system or safety requirement.
 | `name` | `text` | Display name; overrides the block name. |
 | `description` | `text` | Free-text description. |
 | `is` | `ref<Type>` | User-defined type of the element, or a list of types; their attributes (and ports, for components) are inherited. |
+| `tags` | `list<text>` | Tags the element carries (`["Safety"]`): a declared diagram draws what carries one with `tagged:`. In SysML v2, metadata usages of definitions in a `Tags` package. |
 | `priority` | `enum Priority` | Business priority. |
 | `category` | `text` | Requirement category (functional, performance, safety...). |
 | `rationale` | `text` | Why the requirement exists. |
@@ -175,6 +182,7 @@ High-level goal the system contributes to.
 | `name` | `text` | Display name; overrides the block name. |
 | `description` | `text` | Free-text description. |
 | `is` | `ref<Type>` | User-defined type of the element, or a list of types; their attributes (and ports, for components) are inherited. |
+| `tags` | `list<text>` | Tags the element carries (`["Safety"]`): a declared diagram draws what carries one with `tagged:`. In SysML v2, metadata usages of definitions in a `Tags` package. |
 
 #### Capability
 
@@ -189,6 +197,7 @@ Expected ability of the system. May be declared inside another capability.
 | `name` | `text` | Display name; overrides the block name. |
 | `description` | `text` | Free-text description. |
 | `is` | `ref<Type>` | User-defined type of the element, or a list of types; their attributes (and ports, for components) are inherited. |
+| `tags` | `list<text>` | Tags the element carries (`["Safety"]`): a declared diagram draws what carries one with `tagged:`. In SysML v2, metadata usages of definitions in a `Tags` package. |
 | `mission` | `ref<Mission>` | Mission this capability contributes to. |
 | `realizes` | `ref<OperationalCapability>` | Operational capability realized. |
 | `involves` | `list<ref<Element>>` | Functions, actors and chains involved. |
@@ -209,6 +218,7 @@ Function the system performs.
 | `name` | `text` | Display name; overrides the block name. |
 | `description` | `text` | Free-text description. |
 | `is` | `ref<Type>` | User-defined type of the element, or a list of types; their attributes (and ports, for components) are inherited. |
+| `tags` | `list<text>` | Tags the element carries (`["Safety"]`): a declared diagram draws what carries one with `tagged:`. In SysML v2, metadata usages of definitions in a `Tags` package. |
 | `category` | `text` | Functional category (free text). |
 | `inputs` | `list<text>` | Input data names. |
 | `outputs` | `list<text>` | Output data names. |
@@ -247,6 +257,7 @@ Data flow between function ports.
 | `name` | `text` | Display name; overrides the block name. |
 | `description` | `text` | Free-text description. |
 | `is` | `ref<Type>` | User-defined type of the element, or a list of types; their attributes (and ports, for components) are inherited. |
+| `tags` | `list<text>` | Tags the element carries (`["Safety"]`): a declared diagram draws what carries one with `tagged:`. In SysML v2, metadata usages of definitions in a `Tags` package. |
 | `from` | `ref<Element>` | Source element or port. |
 | `to` | `ref<Element>` | Target element or port. |
 | `protocol` | `text` | Transport protocol (CAN FD, Ethernet, ARINC 429...). |
@@ -270,6 +281,7 @@ External actor at system level.
 | `name` | `text` | Display name; overrides the block name. |
 | `description` | `text` | Free-text description. |
 | `is` | `ref<Type>` | User-defined type of the element, or a list of types; their attributes (and ports, for components) are inherited. |
+| `tags` | `list<text>` | Tags the element carries (`["Safety"]`): a declared diagram draws what carries one with `tagged:`. In SysML v2, metadata usages of definitions in a `Tags` package. |
 | `safety_level` | `enum SafetyLevel` | ASIL, DAL or SIL assigned to the element. |
 | `asil` | `enum Asil` | ISO 26262 ASIL (QM, ASIL-A..D). |
 | `dal` | `enum Dal` | DO-178C design assurance level (DAL-A..E). |
@@ -287,6 +299,7 @@ The system or one of its external components.
 | `name` | `text` | Display name; overrides the block name. |
 | `description` | `text` | Free-text description. |
 | `is` | `ref<Type>` | User-defined type of the element, or a list of types; their attributes (and ports, for components) are inherited. |
+| `tags` | `list<text>` | Tags the element carries (`["Safety"]`): a declared diagram draws what carries one with `tagged:`. In SysML v2, metadata usages of definitions in a `Tags` package. |
 | `type` | `text` | Component category (free text). |
 | `layer` | `text` | Overrides the architectural layer label. |
 | `safety_level` | `enum SafetyLevel` | ASIL, DAL or SIL assigned to the element. |
@@ -314,6 +327,7 @@ Ordered functions, exchanges and chains realizing one dataflow path; `control` n
 | `name` | `text` | Display name; overrides the block name. |
 | `description` | `text` | Free-text description. |
 | `is` | `ref<Type>` | User-defined type of the element, or a list of types; their attributes (and ports, for components) are inherited. |
+| `tags` | `list<text>` | Tags the element carries (`["Safety"]`): a declared diagram draws what carries one with `tagged:`. In SysML v2, metadata usages of definitions in a `Tags` package. |
 | `involves` | `list<ref<Element>>` | Ordered functions, exchanges and chains of the chain. |
 | `latency_budget` | `quantity<time>` | End-to-end budget checked by the gate. |
 | `capability` | `ref<Capability>` | Capability this chain exemplifies. |
@@ -331,6 +345,7 @@ Control node of a functional chain: `control and|or|iterate "Name"`, joined to t
 | `name` | `text` | Display name; overrides the block name. |
 | `description` | `text` | Free-text description. |
 | `is` | `ref<Type>` | User-defined type of the element, or a list of types; their attributes (and ports, for components) are inherited. |
+| `tags` | `list<text>` | Tags the element carries (`["Safety"]`): a declared diagram draws what carries one with `tagged:`. In SysML v2, metadata usages of definitions in a `Tags` package. |
 | `kind` | `enum ControlKind` | and | or | iterate (from the keyword). |
 
 #### SequenceLink
@@ -346,6 +361,7 @@ Control node of a functional chain: `control and|or|iterate "Name"`, joined to t
 | `name` | `text` | Display name; overrides the block name. |
 | `description` | `text` | Free-text description. |
 | `is` | `ref<Type>` | User-defined type of the element, or a list of types; their attributes (and ports, for components) are inherited. |
+| `tags` | `list<text>` | Tags the element carries (`["Safety"]`): a declared diagram draws what carries one with `tagged:`. In SysML v2, metadata usages of definitions in a `Tags` package. |
 | `condition` | `text` | Guard of the branch. |
 
 ### Logical Architecture
@@ -363,6 +379,7 @@ Behavioural building block, may be nested. In a product line, a component `varia
 | `name` | `text` | Display name; overrides the block name. |
 | `description` | `text` | Free-text description. |
 | `is` | `ref<Type>` | User-defined type of the element, or a list of types; their attributes (and ports, for components) are inherited. |
+| `tags` | `list<text>` | Tags the element carries (`["Safety"]`): a declared diagram draws what carries one with `tagged:`. In SysML v2, metadata usages of definitions in a `Tags` package. |
 | `type` | `text` | Component category (free text). |
 | `layer` | `text` | Overrides the architectural layer label. |
 | `safety_level` | `enum SafetyLevel` | ASIL, DAL or SIL assigned to the element. |
@@ -393,6 +410,7 @@ Function of the logical level, declared inside the component that performs it (o
 | `name` | `text` | Display name; overrides the block name. |
 | `description` | `text` | Free-text description. |
 | `is` | `ref<Type>` | User-defined type of the element, or a list of types; their attributes (and ports, for components) are inherited. |
+| `tags` | `list<text>` | Tags the element carries (`["Safety"]`): a declared diagram draws what carries one with `tagged:`. In SysML v2, metadata usages of definitions in a `Tags` package. |
 | `category` | `text` | Functional category (free text). |
 | `inputs` | `list<text>` | Input data names. |
 | `outputs` | `list<text>` | Output data names. |
@@ -432,6 +450,7 @@ Contract between two components.
 | `name` | `text` | Display name; overrides the block name. |
 | `description` | `text` | Free-text description. |
 | `is` | `ref<Type>` | User-defined type of the element, or a list of types; their attributes (and ports, for components) are inherited. |
+| `tags` | `list<text>` | Tags the element carries (`["Safety"]`): a declared diagram draws what carries one with `tagged:`. In SysML v2, metadata usages of definitions in a `Tags` package. |
 | `from` | `ref<LogicalComponent>` | Provider. |
 | `to` | `ref<LogicalComponent>` | Consumer. |
 | `protocol` | `text` | Transport protocol (CAN FD, Ethernet, ARINC 429...). |
@@ -455,6 +474,7 @@ Exchange between component ports; with `ends`, between more than two.
 | `name` | `text` | Display name; overrides the block name. |
 | `description` | `text` | Free-text description. |
 | `is` | `ref<Type>` | User-defined type of the element, or a list of types; their attributes (and ports, for components) are inherited. |
+| `tags` | `list<text>` | Tags the element carries (`["Safety"]`): a declared diagram draws what carries one with `tagged:`. In SysML v2, metadata usages of definitions in a `Tags` package. |
 | `from` | `ref<Element>` | Source element or port. |
 | `to` | `ref<Element>` | Target element or port. |
 | `protocol` | `text` | Transport protocol (CAN FD, Ethernet, ARINC 429...). |
@@ -479,6 +499,7 @@ Realization of a system capability by components. May be declared inside another
 | `name` | `text` | Display name; overrides the block name. |
 | `description` | `text` | Free-text description. |
 | `is` | `ref<Type>` | User-defined type of the element, or a list of types; their attributes (and ports, for components) are inherited. |
+| `tags` | `list<text>` | Tags the element carries (`["Safety"]`): a declared diagram draws what carries one with `tagged:`. In SysML v2, metadata usages of definitions in a `Tags` package. |
 | `realizes` | `ref<Capability>` | Capability realized. |
 | `involves` | `list<ref<Element>>` | Components and chains involved. |
 | `extends` | `list<ref<CapabilityRealization>>` | Capabilities of the same level this one extends. |
@@ -500,6 +521,7 @@ Hardware node hosting behaviour components.
 | `name` | `text` | Display name; overrides the block name. |
 | `description` | `text` | Free-text description. |
 | `is` | `ref<Type>` | User-defined type of the element, or a list of types; their attributes (and ports, for components) are inherited. |
+| `tags` | `list<text>` | Tags the element carries (`["Safety"]`): a declared diagram draws what carries one with `tagged:`. In SysML v2, metadata usages of definitions in a `Tags` package. |
 | `type` | `text` | Component category (free text). |
 | `layer` | `text` | Overrides the architectural layer label. |
 | `safety_level` | `enum SafetyLevel` | ASIL, DAL or SIL assigned to the element. |
@@ -542,6 +564,7 @@ Software/behaviour deployed on a node; declares the physical functions it perfor
 | `name` | `text` | Display name; overrides the block name. |
 | `description` | `text` | Free-text description. |
 | `is` | `ref<Type>` | User-defined type of the element, or a list of types; their attributes (and ports, for components) are inherited. |
+| `tags` | `list<text>` | Tags the element carries (`["Safety"]`): a declared diagram draws what carries one with `tagged:`. In SysML v2, metadata usages of definitions in a `Tags` package. |
 | `safety_level` | `enum SafetyLevel` | ASIL, DAL or SIL assigned to the element. |
 | `asil` | `enum Asil` | ISO 26262 ASIL (QM, ASIL-A..D). |
 | `dal` | `enum Dal` | DO-178C design assurance level (DAL-A..E). |
@@ -559,6 +582,7 @@ Function of the physical level, declared inside the behaviour component that per
 | `name` | `text` | Display name; overrides the block name. |
 | `description` | `text` | Free-text description. |
 | `is` | `ref<Type>` | User-defined type of the element, or a list of types; their attributes (and ports, for components) are inherited. |
+| `tags` | `list<text>` | Tags the element carries (`["Safety"]`): a declared diagram draws what carries one with `tagged:`. In SysML v2, metadata usages of definitions in a `Tags` package. |
 | `category` | `text` | Functional category (free text). |
 | `inputs` | `list<text>` | Input data names. |
 | `outputs` | `list<text>` | Output data names. |
@@ -585,6 +609,7 @@ Hardware part of a node.
 | `name` | `text` | Display name; overrides the block name. |
 | `description` | `text` | Free-text description. |
 | `is` | `ref<Type>` | User-defined type of the element, or a list of types; their attributes (and ports, for components) are inherited. |
+| `tags` | `list<text>` | Tags the element carries (`["Safety"]`): a declared diagram draws what carries one with `tagged:`. In SysML v2, metadata usages of definitions in a `Tags` package. |
 | `memory` | `text` | Memory configuration, descriptive (`"2 GB DDR4, 64 GB eMMC"`). Use `ram`/`flash`/`storage` for typed sizes. |
 | `ram` | `quantity<data size>` | RAM capacity. |
 | `flash` | `quantity<data size>` | Flash capacity. |
@@ -607,6 +632,7 @@ Physical medium between nodes or ports.
 | `name` | `text` | Display name; overrides the block name. |
 | `description` | `text` | Free-text description. |
 | `is` | `ref<Type>` | User-defined type of the element, or a list of types; their attributes (and ports, for components) are inherited. |
+| `tags` | `list<text>` | Tags the element carries (`["Safety"]`): a declared diagram draws what carries one with `tagged:`. In SysML v2, metadata usages of definitions in a `Tags` package. |
 | `from` | `ref<Element>` | Source element or port. |
 | `to` | `ref<Element>` | Target element or port. |
 | `protocol` | `text` | Transport protocol (CAN FD, Ethernet, ARINC 429...). |
@@ -630,6 +656,7 @@ Message routed over a link.
 | `name` | `text` | Display name; overrides the block name. |
 | `description` | `text` | Free-text description. |
 | `is` | `ref<Type>` | User-defined type of the element, or a list of types; their attributes (and ports, for components) are inherited. |
+| `tags` | `list<text>` | Tags the element carries (`["Safety"]`): a declared diagram draws what carries one with `tagged:`. In SysML v2, metadata usages of definitions in a `Tags` package. |
 | `from` | `ref<Element>` | Source element or port. |
 | `to` | `ref<Element>` | Target element or port. |
 | `protocol` | `text` | Transport protocol (CAN FD, Ethernet, ARINC 429...). |
@@ -655,6 +682,7 @@ Allocation of a logical component to a node.
 | `name` | `text` | Display name; overrides the block name. |
 | `description` | `text` | Free-text description. |
 | `is` | `ref<Type>` | User-defined type of the element, or a list of types; their attributes (and ports, for components) are inherited. |
+| `tags` | `list<text>` | Tags the element carries (`["Safety"]`): a declared diagram draws what carries one with `tagged:`. In SysML v2, metadata usages of definitions in a `Tags` package. |
 
 #### PhysicalPath
 
@@ -669,6 +697,7 @@ Ordered links routing an exchange.
 | `name` | `text` | Display name; overrides the block name. |
 | `description` | `text` | Free-text description. |
 | `is` | `ref<Type>` | User-defined type of the element, or a list of types; their attributes (and ports, for components) are inherited. |
+| `tags` | `list<text>` | Tags the element carries (`["Safety"]`): a declared diagram draws what carries one with `tagged:`. In SysML v2, metadata usages of definitions in a `Tags` package. |
 | `involves` | `list<ref<PhysicalLink>>` | Ordered links. |
 
 ### EPBS
@@ -686,6 +715,7 @@ Top configuration item.
 | `name` | `text` | Display name; overrides the block name. |
 | `description` | `text` | Free-text description. |
 | `is` | `ref<Type>` | User-defined type of the element, or a list of types; their attributes (and ports, for components) are inherited. |
+| `tags` | `list<text>` | Tags the element carries (`["Safety"]`): a declared diagram draws what carries one with `tagged:`. In SysML v2, metadata usages of definitions in a `Tags` package. |
 
 #### EpbsSubsystem
 
@@ -700,6 +730,7 @@ Subsystem configuration item.
 | `name` | `text` | Display name; overrides the block name. |
 | `description` | `text` | Free-text description. |
 | `is` | `ref<Type>` | User-defined type of the element, or a list of types; their attributes (and ports, for components) are inherited. |
+| `tags` | `list<text>` | Tags the element carries (`["Safety"]`): a declared diagram draws what carries one with `tagged:`. In SysML v2, metadata usages of definitions in a `Tags` package. |
 
 #### EpbsItem
 
@@ -714,6 +745,7 @@ Leaf configuration item or assembly.
 | `name` | `text` | Display name; overrides the block name. |
 | `description` | `text` | Free-text description. |
 | `is` | `ref<Type>` | User-defined type of the element, or a list of types; their attributes (and ports, for components) are inherited. |
+| `tags` | `list<text>` | Tags the element carries (`["Safety"]`): a declared diagram draws what carries one with `tagged:`. In SysML v2, metadata usages of definitions in a `Tags` package. |
 | `part_number` | `text` | Part number. |
 | `supplier` | `text` | Supplier. |
 | `memory` | `text` | Memory configuration, descriptive (`"2 GB DDR4, 64 GB eMMC"`). Use `ram`/`flash`/`storage` for typed sizes. |
@@ -740,6 +772,7 @@ Structured data element; every attribute but `id`, `description` and `extends` i
 | `name` | `text` | Display name; overrides the block name. |
 | `description` | `text` | Free-text description. |
 | `is` | `ref<Type>` | User-defined type of the element, or a list of types; their attributes (and ports, for components) are inherited. |
+| `tags` | `list<text>` | Tags the element carries (`["Safety"]`): a declared diagram draws what carries one with `tagged:`. In SysML v2, metadata usages of definitions in a `Tags` package. |
 | `extends` | `ref<Class>` | The class this one specializes. |
 
 #### Association
@@ -755,6 +788,7 @@ Association between two classes, as an element of its own; `from` owns the navig
 | `name` | `text` | Display name; overrides the block name. |
 | `description` | `text` | Free-text description. |
 | `is` | `ref<Type>` | User-defined type of the element, or a list of types; their attributes (and ports, for components) are inherited. |
+| `tags` | `list<text>` | Tags the element carries (`["Safety"]`): a declared diagram draws what carries one with `tagged:`. In SysML v2, metadata usages of definitions in a `Tags` package. |
 | `from` | `ref<Class>` | The class owning the navigable end. |
 | `to` | `ref<Class>` | The class at the navigable end. |
 | `role` | `text` | The field of `from` typed by `to` (the navigable end). |
@@ -774,6 +808,7 @@ Enumerated data type.
 | `name` | `text` | Display name; overrides the block name. |
 | `description` | `text` | Free-text description. |
 | `is` | `ref<Type>` | User-defined type of the element, or a list of types; their attributes (and ports, for components) are inherited. |
+| `tags` | `list<text>` | Tags the element carries (`["Safety"]`): a declared diagram draws what carries one with `tagged:`. In SysML v2, metadata usages of definitions in a `Tags` package. |
 | `values` | `list<text>` | Literals. |
 
 #### DataType
@@ -789,6 +824,7 @@ Primitive data type.
 | `name` | `text` | Display name; overrides the block name. |
 | `description` | `text` | Free-text description. |
 | `is` | `ref<Type>` | User-defined type of the element, or a list of types; their attributes (and ports, for components) are inherited. |
+| `tags` | `list<text>` | Tags the element carries (`["Safety"]`): a declared diagram draws what carries one with `tagged:`. In SysML v2, metadata usages of definitions in a `Tags` package. |
 | `base` | `text` | Base type. |
 | `unit` | `enum Unit` | Unit symbol of the values. |
 
@@ -805,6 +841,7 @@ Set of data elements exchanged together.
 | `name` | `text` | Display name; overrides the block name. |
 | `description` | `text` | Free-text description. |
 | `is` | `ref<Type>` | User-defined type of the element, or a list of types; their attributes (and ports, for components) are inherited. |
+| `tags` | `list<text>` | Tags the element carries (`["Safety"]`): a declared diagram draws what carries one with `tagged:`. In SysML v2, metadata usages of definitions in a `Tags` package. |
 | `mechanism` | `enum ExchangeMechanism` | Exchange mechanism. |
 | `elements` | `list<ref<Class>>` | Grouped data elements. |
 
@@ -823,6 +860,7 @@ HARA entry: hazardous event and its classification.
 | `name` | `text` | Display name; overrides the block name. |
 | `description` | `text` | Free-text description. |
 | `is` | `ref<Type>` | User-defined type of the element, or a list of types; their attributes (and ports, for components) are inherited. |
+| `tags` | `list<text>` | Tags the element carries (`["Safety"]`): a declared diagram draws what carries one with `tagged:`. In SysML v2, metadata usages of definitions in a `Tags` package. |
 | `severity` | `enum HazardSeverity` | ISO 26262 S0-S3 or DO-178C failure condition. |
 | `exposure` | `enum Exposure` | ISO 26262 E0-E4. |
 | `controllability` | `enum Controllability` | ISO 26262 C0-C3. |
@@ -845,6 +883,7 @@ FMEA line: failure mode with S/O/D rating.
 | `name` | `text` | Display name; overrides the block name. |
 | `description` | `text` | Free-text description. |
 | `is` | `ref<Type>` | User-defined type of the element, or a list of types; their attributes (and ports, for components) are inherited. |
+| `tags` | `list<text>` | Tags the element carries (`["Safety"]`): a declared diagram draws what carries one with `tagged:`. In SysML v2, metadata usages of definitions in a `Tags` package. |
 | `failure_mode` | `text` | Failure mode. |
 | `effect` | `text` | Effect. |
 | `cause` | `text` | Cause. |
@@ -866,6 +905,7 @@ Threat of a cybersecurity analysis: what an attacker may achieve, applied to pri
 | `name` | `text` | Display name; overrides the block name. |
 | `description` | `text` | Free-text description. |
 | `is` | `ref<Type>` | User-defined type of the element, or a list of types; their attributes (and ports, for components) are inherited. |
+| `tags` | `list<text>` | Tags the element carries (`["Safety"]`): a declared diagram draws what carries one with `tagged:`. In SysML v2, metadata usages of definitions in a `Tags` package. |
 | `kind` | `text` | Threat kind: one of `security_scales.threat_kinds` when declared. |
 | `level` | `number` | Criticality level of the threat (an integer). |
 | `rationale` | `text` | Why the threat is assessed so. |
@@ -885,6 +925,7 @@ Primary asset of a cybersecurity analysis: a service, information or business co
 | `name` | `text` | Display name; overrides the block name. |
 | `description` | `text` | Free-text description. |
 | `is` | `ref<Type>` | User-defined type of the element, or a list of types; their attributes (and ports, for components) are inherited. |
+| `tags` | `list<text>` | Tags the element carries (`["Safety"]`): a declared diagram draws what carries one with `tagged:`. In SysML v2, metadata usages of definitions in a `Tags` package. |
 | `kind` | `enum AssetKind` | What the asset is. |
 | `members` | `list<ref<Element>>` | Functions, exchange items or classes making up the asset. |
 
@@ -915,6 +956,7 @@ One product of a product line: the variant it selects in each variation. Two var
 | `name` | `text` | Display name; overrides the block name. |
 | `description` | `text` | Free-text description. |
 | `is` | `ref<Type>` | User-defined type of the element, or a list of types; their attributes (and ports, for components) are inherited. |
+| `tags` | `list<text>` | Tags the element carries (`["Safety"]`): a declared diagram draws what carries one with `tagged:`. In SysML v2, metadata usages of definitions in a `Tags` package. |
 | `selects` | `list<ref<LogicalComponent>>` | The variants selected, one per variation. |
 
 #### TestCase
@@ -930,10 +972,13 @@ Verification case covering requirements.
 | `name` | `text` | Display name; overrides the block name. |
 | `description` | `text` | Free-text description. |
 | `is` | `ref<Type>` | User-defined type of the element, or a list of types; their attributes (and ports, for components) are inherited. |
+| `tags` | `list<text>` | Tags the element carries (`["Safety"]`): a declared diagram draws what carries one with `tagged:`. In SysML v2, metadata usages of definitions in a `Tags` package. |
 | `verifies` | `list<ref<Requirement>>` | Requirements verified. |
 | `method` | `enum VerificationMethod` | Verification method. |
 | `procedure` | `text` | Procedure. |
 | `expected` | `text` | Expected result. |
+| `asserts` | `list<ref<Constraint>>` | An analysis: the constraints whose evaluation is its verdict (pass when they all hold). |
+| `verdict` | `enum Verdict` | Outcome of a test run elsewhere; computed, not given, when the case `asserts:` constraints. A requirement whose cases all fail is not verified. |
 
 #### Model
 
@@ -975,6 +1020,7 @@ Dimension-checked comparison over typed attributes (`assert: <expression>`). Ill
 | `name` | `text` | Display name; overrides the block name. |
 | `description` | `text` | Free-text description. |
 | `is` | `ref<Type>` | User-defined type of the element, or a list of types; their attributes (and ports, for components) are inherited. |
+| `tags` | `list<text>` | Tags the element carries (`["Safety"]`): a declared diagram draws what carries one with `tagged:`. In SysML v2, metadata usages of definitions in a `Tags` package. |
 
 #### StateMachine
 
@@ -989,6 +1035,7 @@ Modes and states of an element.
 | `name` | `text` | Display name; overrides the block name. |
 | `description` | `text` | Free-text description. |
 | `is` | `ref<Type>` | User-defined type of the element, or a list of types; their attributes (and ports, for components) are inherited. |
+| `tags` | `list<text>` | Tags the element carries (`["Safety"]`): a declared diagram draws what carries one with `tagged:`. In SysML v2, metadata usages of definitions in a `Tags` package. |
 | `initial` | `ref<State>` | Initial state. |
 
 #### State
@@ -1004,6 +1051,7 @@ State (undergone) or mode (chosen behaviour).
 | `name` | `text` | Display name; overrides the block name. |
 | `description` | `text` | Free-text description. |
 | `is` | `ref<Type>` | User-defined type of the element, or a list of types; their attributes (and ports, for components) are inherited. |
+| `tags` | `list<text>` | Tags the element carries (`["Safety"]`): a declared diagram draws what carries one with `tagged:`. In SysML v2, metadata usages of definitions in a `Tags` package. |
 
 #### Transition
 
@@ -1032,6 +1080,8 @@ A declared diagram: a named view cut from one Arcadia level, drawing the element
 | `view` | `identifier` | The view it is cut from: oab, sab, lab, pab, cap, cdb or pbs. |
 | `shows` | `list<ref<Element>>` | Elements drawn, by id or name; their containers are drawn around them. |
 | `context` | `boolean` | Also draw the elements an exchange ties to a shown one. |
+| `under` | `ref<Element>` | Draw what is under this element (instead of `shows`). |
+| `tagged` | `list<text>` | Draw only the elements carrying one of these tags (`tags:`), with what holds them. |
 | `configuration` | `ref<Configuration>` | Draw the view of one configuration: without the variants it does not select. |
 | `description` | `text` | Free-text description. |
 
@@ -1048,6 +1098,7 @@ Sequence of messages between participants.
 | `name` | `text` | Display name; overrides the block name. |
 | `description` | `text` | Free-text description. |
 | `is` | `ref<Type>` | User-defined type of the element, or a list of types; their attributes (and ports, for components) are inherited. |
+| `tags` | `list<text>` | Tags the element carries (`["Safety"]`): a declared diagram draws what carries one with `tagged:`. In SysML v2, metadata usages of definitions in a `Tags` package. |
 | `participants` | `list<ref<Element>>` | Lifelines. |
 
 #### Fragment
@@ -1074,6 +1125,7 @@ A state, mode or function asserted on a lifeline: `state "Lifeline" "Armed" { ..
 | `name` | `text` | Display name; overrides the block name. |
 | `description` | `text` | Free-text description. |
 | `is` | `ref<Type>` | User-defined type of the element, or a list of types; their attributes (and ports, for components) are inherited. |
+| `tags` | `list<text>` | Tags the element carries (`["Safety"]`): a declared diagram draws what carries one with `tagged:`. In SysML v2, metadata usages of definitions in a `Tags` package. |
 
 #### Message
 
@@ -1138,6 +1190,7 @@ Values match ignoring case and the separators `-`, `_` and space.
 | Controllability | `C0`, `C1`, `C2`, `C3` | ISO 26262 controllability class. |
 | FailureCondition | `Catastrophic`, `Hazardous`, `Major`, `Minor`, `No Effect` | DO-178C failure condition classification. |
 | VerificationMethod | `test`, `analysis`, `inspection`, `demonstration` | Verification method. |
+| Verdict | `pass`, `fail`, `inconclusive`, `error` | Verdict of a verification case (SysML v2 `VerdictKind`). |
 | ExchangeMechanism | `EVENT`, `FLOW`, `OPERATION`, `DATA`, `SHARED_DATA` | Arcadia exchange item mechanism. |
 | TraceKind | `satisfies`, `implements`, `validates`, `verifies`, `realizes`, `refines`, `allocates` | Traceability link kinds. |
 | PortKind | `data`, `control`, `event` | Function port nature. |

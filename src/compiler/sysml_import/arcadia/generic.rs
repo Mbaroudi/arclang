@@ -465,44 +465,52 @@ impl<'g> Mapper<'g> {
     /// configuration (a root part) or holds connections, and the dataflow
     /// of each action tree over the parts that perform its leaves.
     pub(super) fn sysml_views(&mut self) {
-        if self.profiled {
-            return;
-        }
+        // The views the model declares, in any mode; those a SysML tool
+        // draws of any model, outside the profile.
         let mut views: Vec<(String, Vec<String>, Option<usize>)> = self.declared_views();
-        for index in 0..self.nodes.len() {
-            if let Some(shows) = self.interconnection(index) {
-                views.push((format!("{} interconnection", self.nodes[index].name), shows, self.nodes[index].parent));
+        if !self.profiled {
+            for index in 0..self.nodes.len() {
+                if let Some(shows) = self.interconnection(index) {
+                    views.push((format!("{} interconnection", self.nodes[index].name), vec!["view: lab".to_string(), format!("shows: {}", list_literal(&shows))], self.nodes[index].parent));
+                }
             }
-        }
-        for index in 0..self.nodes.len() {
-            if self.nodes[index].shape != Shape::Action || self.function_root(index) != index {
-                continue;
-            }
-            let leaves = self.leaves_of(index);
-            if leaves.len() >= 2 {
-                views.push((format!("{} dataflow", self.nodes[index].name), leaves, None));
+            for index in 0..self.nodes.len() {
+                if self.nodes[index].shape != Shape::Action || self.function_root(index) != index {
+                    continue;
+                }
+                let leaves = self.leaves_of(index);
+                if leaves.len() >= 2 {
+                    views.push((format!("{} dataflow", self.nodes[index].name), vec!["view: lab".to_string(), format!("shows: {}", list_literal(&leaves))], None));
+                }
             }
         }
         let mut titles: Vec<String> = Vec::new();
-        for (title, shows, parent) in views {
+        for (title, lines, parent) in views {
             let title = self.distinct_title(&titles, title, parent);
             self.count("views");
             self.line(0, &format!("diagram {} {{", string_literal(&title)));
-            self.line(1, "view: lab");
-            self.line(1, &format!("shows: {}", list_literal(&shows)));
+            for line in &lines {
+                self.line(1, line);
+            }
             self.line(0, "}");
             self.line(0, "");
             titles.push(title);
         }
     }
 
-    /// The views the model declares (`view v { expose P::**; filter @M; }`):
-    /// what they expose, filtered by metadata, as written elements.
+    /// A text attribute of a view (`attribute 'view' : String = "lab";`).
+    fn view_attribute(&self, view: &Element, key: &str) -> Option<String> {
+        view.children.iter().filter_map(|c| self.graph.get(c)).find(|c| c.kind == "AttributeUsage" && c.name.as_deref() == Some(key)).and_then(|c| c.value.clone()).map(|v| v.trim_matches('"').to_string())
+    }
+
+    /// The views the model declares (`view v { expose P::**; filter @M; }`),
+    /// as diagram declarations: `under` and `tagged` for a view of what is
+    /// under one element filtered by tags, `shows` otherwise.
     fn declared_views(&mut self) -> Vec<(String, Vec<String>, Option<usize>)> {
-        let views: Vec<&'g Element> = self.graph.of_kinds(&["ViewUsage"]).filter(|v| !self.is_library(v) && !v.exposes.is_empty()).collect();
+        let views: Vec<&'g Element> = self.graph.of_kinds(&["ViewUsage"]).filter(|v| !self.is_library(v) && (!v.exposes.is_empty() || self.view_attribute(v, "view").is_some())).collect();
         let mut out = Vec::new();
         for view in views {
-            let filters: Vec<&str> = view.filters.iter().filter_map(|f| self.graph.get(f)).filter_map(|f| f.name.as_deref()).collect();
+            let filters: Vec<String> = view.filters.iter().filter_map(|f| self.graph.get(f)).filter_map(|f| f.name.clone()).collect();
             let name = Self::display(view);
             // A filter the import does not read (`@A and @B`) would widen the view.
             if filters.len() < view.filters.len() {
@@ -510,20 +518,42 @@ impl<'g> Mapper<'g> {
                 self.count("views with a filter not read (left out)");
                 continue;
             }
-            let shows: Vec<String> = (0..self.nodes.len())
-                .filter(|&n| {
-                    let Some(element) = self.nodes[n].usage.or(self.nodes[n].def) else { return false };
-                    view.exposes.iter().any(|(target, recursive, namespace)| self.exposed(element, target, *recursive, *namespace))
-                        && (filters.is_empty() || element.metadata.iter().any(|m| filters.contains(&m.as_str())))
-                })
-                .filter_map(|n| self.ids.get(&self.node_key(n)).cloned())
-                .collect();
-            if shows.is_empty() {
-                self.notes.push(format!("view '{name}' shows no element the import wrote: left out"));
-                self.count("views showing nothing written (left out)");
-                continue;
+            let mut lines = vec![format!("view: {}", self.view_attribute(view, "view").unwrap_or_else(|| "lab".to_string()))];
+            let under = match view.exposes.as_slice() {
+                // Under a written element; a package is not one, its members are listed.
+                [(target, true, false)] if !filters.is_empty() => self.end_node(target).and_then(|n| self.ids.get(&self.node_key(n)).cloned()),
+                _ => None,
+            };
+            let members_only = filters.is_empty() && view.exposes.iter().all(|(_, recursive, namespace)| !recursive && !namespace);
+            if let Some(under) = under {
+                lines.push(format!("under: {}", string_literal(&under)));
+                lines.push(format!("tagged: {}", list_literal(&filters)));
+            } else if members_only && !view.exposes.is_empty() {
+                let shows: Vec<String> = view.exposes.iter().filter_map(|(target, _, _)| self.intended_id(target)).collect();
+                lines.push(format!("shows: {}", list_literal(&shows)));
+            } else if !view.exposes.is_empty() {
+                let shows: Vec<String> = (0..self.nodes.len())
+                    .filter(|&n| {
+                        let Some(element) = self.nodes[n].usage.or(self.nodes[n].def) else { return false };
+                        view.exposes.iter().any(|(target, recursive, namespace)| self.exposed(element, target, *recursive, *namespace))
+                            && (filters.is_empty() || element.metadata.iter().any(|m| filters.contains(m)))
+                    })
+                    .filter_map(|n| self.ids.get(&self.node_key(n)).cloned())
+                    .collect();
+                if shows.is_empty() {
+                    self.notes.push(format!("view '{name}' shows no element the import wrote: left out"));
+                    self.count("views showing nothing written (left out)");
+                    continue;
+                }
+                lines.push(format!("shows: {}", list_literal(&shows)));
             }
-            out.push((name, shows, None));
+            if let Some(configuration) = self.view_attribute(view, "configuration") {
+                lines.push(format!("configuration: {}", string_literal(&configuration)));
+            }
+            if self.view_attribute(view, "context").as_deref() == Some("true") {
+                lines.push("context: true".to_string());
+            }
+            out.push((name, lines, None));
         }
         out
     }

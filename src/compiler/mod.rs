@@ -12,6 +12,7 @@ pub mod elements;
 pub mod metamodel;
 pub mod metamodel_check;
 pub mod allocations;
+pub mod verification;
 pub mod variability;
 pub mod rules;
 pub mod transition;
@@ -297,6 +298,9 @@ impl Compiler {
 
         // Typed allocations: their ends are of the kinds their definition says.
         allocations::check(&ast, &semantic_model).map_err(CompilerError::Semantic)?;
+
+        // Verification cases: the verdict of each, from the constraints it asserts.
+        warnings.extend(verification::check(&ast, &semantic_model).map_err(CompilerError::Semantic)?);
 
         // Product lines: variations, variants and the configurations selecting them.
         warnings.extend(variability::check(&ast).map_err(CompilerError::Semantic)?);

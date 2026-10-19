@@ -329,10 +329,31 @@ pub fn load(records: &[Value]) -> Result<Graph, String> {
             }
             "ElementFilterMembership" => {
                 // `filter @Meta;`: an `@` expression naming a metadata definition.
+                // `filter @A or @B;`: either metadata.
+                fn metadata_of(condition: &Value, by_id: &HashMap<String, (String, Value)>, out: &mut Vec<String>) -> bool {
+                    match condition.get("operator").and_then(Value::as_str) {
+                        Some("@") => match first_id(condition, &["arclang:type"]) {
+                            Some(t) => {
+                                out.push(t);
+                                true
+                            }
+                            None => false,
+                        },
+                        Some("or") => ids_of(condition.get("argument")).iter().all(|a| by_id.get(a).is_some_and(|(_, r)| metadata_of(r, by_id, out))),
+                        _ => false,
+                    }
+                }
                 let condition = first_id(record, &["condition", "memberElement"]).and_then(|c| by_id.get(&c)).map(|(_, r)| r);
-                let metadata = condition.filter(|c| c.get("operator").and_then(Value::as_str) == Some("@")).and_then(|c| first_id(c, &["arclang:type"]));
+                let mut metadata = Vec::new();
+                let read = condition.is_some_and(|c| metadata_of(c, &by_id, &mut metadata));
+                let owner = first_id(record, &["membershipOwningNamespace"]);
                 // A filter read as nothing is kept as such: the view is not widened.
-                link(&mut graph, first_id(record, &["membershipOwningNamespace"]), Some(metadata.unwrap_or_default()), |e, t| e.filters.push(t));
+                if !read {
+                    metadata = vec![String::new()];
+                }
+                for t in metadata {
+                    link(&mut graph, owner.clone(), Some(t), |e, t| e.filters.push(t));
+                }
             }
             "FeatureValue" => {
                 let owner = first_id(record, &["featureWithValue", "owner"]);

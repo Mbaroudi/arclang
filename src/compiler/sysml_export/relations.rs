@@ -114,7 +114,7 @@ pub(super) fn write(e: &mut Exporter<'_>) {
         let id = if test.id.is_empty() { test.name.clone() } else { test.id.clone() };
         let verified: Vec<String> = test.verifies.iter().filter_map(|r| e.reference(r)).collect();
         e.block(&format!("verification {}", text::declared(&id, &test.name)), |e| {
-            e.header("TestCase", &test.attributes, &["method"]);
+            e.header("TestCase", &test.attributes, &["method", "asserts"]);
             if !test.method.is_empty() {
                 e.line(&format!("attribute method : String = {};", text::string(&test.method)));
             }
@@ -123,6 +123,11 @@ pub(super) fn write(e: &mut Exporter<'_>) {
                     e.line(&format!("verify {requirement};"));
                 }
             });
+            // An analysis: the constraints whose evaluation is its verdict.
+            for asserted in crate::compiler::verification::asserted(test) {
+                let id = model.constraints.iter().find(|c| c.id == asserted || c.name == asserted).map_or(asserted.clone(), |c| c.id.clone());
+                e.line(&format!("assert {};", text::name(&id)));
+            }
         });
     }
     super::constraints::write(e);

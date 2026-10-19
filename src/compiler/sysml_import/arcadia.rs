@@ -131,6 +131,9 @@ struct Mapper<'g> {
     /// The text uses the Arcadia profile (it is an ArcLang export or written
     /// for it); else it is any SysML v2 model, read with [`generic`] rules.
     profiled: bool,
+    /// The model's own tags: metadata definitions without features outside
+    /// any library (`metadata def Safety;`), written back as `tags:`.
+    tags: HashSet<String>,
 }
 
 pub fn map(graph: &Graph) -> Mapped {
@@ -150,7 +153,9 @@ pub fn map(graph: &Graph) -> Mapped {
         shared_names: HashSet::new(),
         lost: HashSet::new(),
         profiled: graph.elements.iter().any(|e| e.name.as_deref() == Some("ArcadiaProfile")),
+        tags: HashSet::new(),
     };
+    mapper.tags = mapper.user_tags();
     mapper.run();
     Mapped { source: mapper.out, counts: mapper.counts, notes: mapper.notes }
 }
@@ -268,6 +273,14 @@ impl<'g> Mapper<'g> {
             current = owner.owner.as_deref().and_then(|o| self.graph.get(o));
         }
         None
+    }
+
+    fn user_tags(&self) -> HashSet<String> {
+        self.graph
+            .of_kinds(&["MetadataDefinition"])
+            .filter(|d| !self.is_library(d) && d.children.iter().filter_map(|c| self.graph.get(c)).all(|c| c.kind.ends_with("Membership") || c.kind == "Comment" || c.kind == "Documentation"))
+            .filter_map(|d| d.name.clone())
+            .collect()
     }
 
     fn is_library(&self, element: &Element) -> bool {
@@ -735,7 +748,7 @@ impl<'g> Mapper<'g> {
     /// expression over the attributes of written elements. An expression
     /// ArcLang cannot say leaves the constraint out, and says so.
     fn constraints(&mut self) {
-        let constraints: Vec<&'g Element> = self.graph.of_kinds(&["ConstraintUsage", "AssertConstraintUsage"]).filter(|c| !self.is_library(c)).collect();
+        let constraints: Vec<&'g Element> = self.graph.of_kinds(&["ConstraintUsage", "AssertConstraintUsage"]).filter(|c| !self.is_library(c) && !self.is_case_assertion(c)).collect();
         for constraint in constraints {
             let expression = constraint.children.iter().filter_map(|c| self.graph.get(c)).find(|c| c.kind.ends_with("Expression") || c.kind.starts_with("Literal"));
             let text = match expression {
@@ -1515,6 +1528,15 @@ impl<'g> Mapper<'g> {
             self.line(depth, &format!("is: {}", string_literal(&ty)));
         }
         self.attributes(depth, &sources, &["description"]);
+        let mut tags: Vec<String> = Vec::new();
+        for tag in sources.iter().flat_map(|s| s.metadata.iter()).filter(|m| self.tags.contains(*m)) {
+            if !tags.contains(tag) {
+                tags.push(tag.clone());
+            }
+        }
+        if !tags.is_empty() {
+            self.line(depth, &format!("tags: {}", list_literal(&tags)));
+        }
         let element_ids = self.node_element_ids(index);
         self.reference_attributes(depth, &element_ids);
     }
@@ -2165,6 +2187,25 @@ impl<'g> Mapper<'g> {
         None
     }
 
+    /// The constraints a verification case asserts (`assert 'CST-1';`): an analysis.
+    fn asserted_constraints(&self, sources: &[&'g Element]) -> Vec<String> {
+        let mut out: Vec<String> = Vec::new();
+        for assertion in sources.iter().flat_map(|s| s.children.iter().filter_map(|c| self.graph.get(c))).filter(|c| c.kind == "AssertConstraintUsage") {
+            let Some(target) = assertion.subsets.iter().chain(assertion.redefines.iter()).chain(assertion.types.iter()).find_map(|t| self.graph.get(t)).filter(|t| t.kind.ends_with("ConstraintUsage")) else { continue };
+            let id = self.ids.get(&target.id).cloned().unwrap_or_else(|| Self::identity_id(target));
+            if !out.contains(&id) {
+                out.push(id);
+            }
+        }
+        out
+    }
+
+    /// An assertion inside a verification case refers to a constraint; it is not one.
+    fn is_case_assertion(&self, constraint: &Element) -> bool {
+        constraint.kind == "AssertConstraintUsage"
+            && constraint.owner.as_deref().and_then(|o| self.graph.get(o)).is_some_and(|o| o.kind.starts_with("VerificationCase") || o.kind.starts_with("AnalysisCase"))
+    }
+
     fn test_cases(&mut self) {
         let cases = self.declared("VerificationCaseDefinition", "VerificationCaseUsage");
         for (case, def) in cases {
@@ -2199,6 +2240,10 @@ impl<'g> Mapper<'g> {
             let element_ids: Vec<String> = sources.iter().map(|s| s.id.clone()).collect();
             self.reference_attributes(1, &element_ids);
             self.line(1, &format!("verifies: {}", list_literal(&verifies)));
+            let asserts = self.asserted_constraints(&sources);
+            if !asserts.is_empty() {
+                self.line(1, &format!("asserts: {}", list_literal(&asserts)));
+            }
             self.line(0, "}");
             self.line(0, "");
         }

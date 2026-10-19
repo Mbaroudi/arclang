@@ -13,6 +13,7 @@ mod data;
 mod levels;
 mod relations;
 mod security;
+mod views;
 mod text;
 mod types;
 
@@ -100,6 +101,12 @@ impl<'m> Exporter<'m> {
         if let Some(description) = attributes.get("description").and_then(|d| d.as_string()) {
             self.line(&text::doc(description));
         }
+        // Tags are metadata: `@Safety;` annotates the element.
+        for tag in crate::compiler::diagram::tags::tags_of(attributes) {
+            self.line(&format!("@{};", text::name(&tag)));
+        }
+        let skip: Vec<&str> = skip.iter().copied().chain(["tags"]).collect();
+        let skip = skip.as_slice();
         let inherited = self.inherited(attributes).map(|i| i.attributes);
         for line in attributes::lines(&self.metamodel, kind, attributes, skip, inherited.as_ref(), &mut self.units) {
             self.line(&line);
@@ -170,6 +177,7 @@ impl<'m> Exporter<'m> {
             }
             e.profile();
             e.line("private import ArcadiaProfile::*;");
+            views::tags(e);
             let model = e.model;
             e.header("Model", &model.attributes, &["name"]);
             data::write(e);
@@ -178,6 +186,7 @@ impl<'m> Exporter<'m> {
             types::write(e);
             relations::write(e);
             security::write(e);
+            views::write(e);
             e.units();
         });
     }

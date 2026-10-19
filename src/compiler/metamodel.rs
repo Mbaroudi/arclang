@@ -162,6 +162,7 @@ fn common() -> Vec<AttrSpec> {
         attr("name", AttrType::Text, "Display name; overrides the block name."),
         attr("description", AttrType::Text, "Free-text description."),
         attr("is", AttrType::Reference("Type"), "User-defined type of the element, or a list of types; their attributes (and ports, for components) are inherited."),
+        attr("tags", list(AttrType::Text), "Tags the element carries (`[\"Safety\"]`): a declared diagram draws what carries one with `tagged:`. In SysML v2, metadata usages of definitions in a `Tags` package."),
     ]
 }
 
@@ -431,6 +432,8 @@ impl Metamodel {
                     attr("method", AttrType::Enum("VerificationMethod"), "Verification method."),
                     attr("procedure", AttrType::Text, "Procedure."),
                     attr("expected", AttrType::Text, "Expected result."),
+                    attr("asserts", list(AttrType::Reference("Constraint")), "An analysis: the constraints whose evaluation is its verdict (pass when they all hold)."),
+                    attr("verdict", AttrType::Enum("Verdict"), "Outcome of a test run elsewhere; computed, not given, when the case `asserts:` constraints. A requirement whose cases all fail is not verified."),
                 ]])),
             kind("Model", Layer::Transverse, "Project / SystemEngineering", "package", "The model itself: root of the element graph, owner of every top-level element.", vec![
                     attr("name", AttrType::Text, "Model name."),
@@ -461,6 +464,8 @@ impl Metamodel {
                     attr("view", AttrType::Identifier, "The view it is cut from: oab, sab, lab, pab, cap, cdb or pbs."),
                     attr("shows", list(AttrType::Reference("Element")), "Elements drawn, by id or name; their containers are drawn around them."),
                     attr("context", AttrType::Boolean, "Also draw the elements an exchange ties to a shown one."),
+                    attr("under", AttrType::Reference("Element"), "Draw what is under this element (instead of `shows`)."),
+                    attr("tagged", list(AttrType::Text), "Draw only the elements carrying one of these tags (`tags:`), with what holds them."),
                     attr("configuration", AttrType::Reference("Configuration"), "Draw the view of one configuration: without the variants it does not select."),
                     attr("description", AttrType::Text, "Free-text description."),
                 ]),
@@ -487,6 +492,7 @@ impl Metamodel {
             EnumSpec { name: "Controllability", values: &["C0", "C1", "C2", "C3"], doc: "ISO 26262 controllability class." },
             EnumSpec { name: "FailureCondition", values: &["Catastrophic", "Hazardous", "Major", "Minor", "No Effect"], doc: "DO-178C failure condition classification." },
             EnumSpec { name: "VerificationMethod", values: &["test", "analysis", "inspection", "demonstration"], doc: "Verification method." },
+            EnumSpec { name: "Verdict", values: &["pass", "fail", "inconclusive", "error"], doc: "Verdict of a verification case (SysML v2 `VerdictKind`)." },
             EnumSpec { name: "ExchangeMechanism", values: &["EVENT", "FLOW", "OPERATION", "DATA", "SHARED_DATA"], doc: "Arcadia exchange item mechanism." },
             EnumSpec { name: "TraceKind", values: &["satisfies", "implements", "validates", "verifies", "realizes", "refines", "allocates"], doc: "Traceability link kinds." },
             EnumSpec { name: "PortKind", values: &["data", "control", "event"], doc: "Function port nature." },

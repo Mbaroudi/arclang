@@ -89,6 +89,7 @@ const KINDS: &[(&[&str], &str, Option<&str>)] = &[
     (&["verification"], "VerificationCaseUsage", Some("VerificationCaseDefinition")),
     (&["occurrence"], "OccurrenceUsage", Some("OccurrenceDefinition")),
     (&["enum"], "EnumerationUsage", Some("EnumerationDefinition")),
+    (&["view"], "ViewUsage", Some("ViewDefinition")),
 ];
 
 /// Control node keywords and their metaclasses.
@@ -307,6 +308,18 @@ impl Reader {
             }
             return Ok(None);
         }
+        // What a view exposes and filters: relations of its namespace, as imports are.
+        if head.take_word("expose") || head.take_word("filter") {
+            return Ok(None);
+        }
+        // `@Safety;`: a metadata usage annotating the namespace it is in.
+        if head.take_symbol("@") {
+            let definition = head.path()?;
+            self.finish(&head)?;
+            let owner = owner.ok_or("metadata outside a declaration")?;
+            self.annotate(owner, vec![definition]);
+            return Ok(None);
+        }
         // `#OA package ...`: prefix metadata, usages of metadata definitions
         // owned by the declaration they annotate.
         let mut metadata: Vec<String> = Vec::new();
@@ -422,9 +435,13 @@ impl Reader {
             declaration.metaclass = "IncludeUseCaseUsage";
             self.named(&mut head, &mut declaration)?;
         } else if head.take_word("assert") {
-            Self::expect_word(&mut head, "constraint")?;
             declaration.metaclass = "AssertConstraintUsage";
-            self.named(&mut head, &mut declaration)?;
+            if head.take_word("constraint") {
+                self.named(&mut head, &mut declaration)?;
+            } else {
+                // `assert c;`: asserts the constraint `c` declared elsewhere.
+                declaration.references = vec![head.path()?];
+            }
         } else if let Some((keywords, usage, definition)) =
             KINDS.iter().find(|(keywords, _, _)| keywords.iter().enumerate().all(|(k, word)| is_word(tokens.get(head.position + k), word)))
         {

@@ -1831,6 +1831,14 @@ impl Parser {
                 name, method
             )));
         }
+        if let Some(verdict) = attributes.get("verdict").and_then(|v| v.as_string()) {
+            if !super::verification::VERDICTS.contains(&verdict) {
+                return Err(self.err(format!("test_case '{}': verdict '{}' is not one of pass|fail|inconclusive|error", name, verdict)));
+            }
+            if attributes.contains_key("asserts") {
+                return Err(self.err(format!("test_case '{}': its verdict comes from the constraints it asserts, it is not given", name)));
+            }
+        }
         Ok(TestCase { id, name, verifies, method, attributes })
     }
 
