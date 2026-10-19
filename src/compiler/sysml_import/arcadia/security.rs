@@ -18,7 +18,11 @@ impl<'g> Mapper<'g> {
             self.line(0, "security_scales {");
             self.line(1, &format!("id: {}", string_literal(&id)));
             for scale in package.children.iter().filter_map(|c| self.graph.get(c)).filter(|c| c.kind == "EnumerationDefinition") {
-                let Some(key) = scale.name.clone() else { continue };
+                // A scale is an ArcLang key: one that is not an identifier is left out.
+                let Some(key) = scale.name.clone().filter(|k| k.chars().next().is_some_and(|c| c.is_ascii_alphabetic() || c == '_') && k.chars().all(|c| c.is_ascii_alphanumeric() || c == '_')) else {
+                    self.count("security scales whose name is not an ArcLang key (left out)");
+                    continue;
+                };
                 let literals: Vec<String> = scale.children.iter().filter_map(|c| self.graph.get(c)).filter(|c| c.kind == "EnumerationUsage").filter_map(|c| c.name.clone()).collect();
                 self.line(1, &format!("{key}: {}", super::list_literal(&literals)));
             }

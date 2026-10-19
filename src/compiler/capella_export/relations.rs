@@ -94,7 +94,7 @@ pub(super) fn chain_steps(context: &Context, mut el: El, chain: &FunctionalChain
 /// What an exchange carries besides its ends: its exchange items, its
 /// categories (kept for the function package), its header.
 pub(super) fn exchange(context: &mut Context, el: El, attributes: &HashMap<String, AttributeValue>) -> El {
-    let mut el = apply(el, attributes, &["from", "to", "from_port", "to_port", "exchange_items", "category", "categories", "label", "via"]);
+    let mut el = apply(el, attributes, &["from", "to", "from_port", "to_port", "ends", "exchange_items", "category", "categories", "label", "via"]);
     let items: Vec<String> = list(attributes, "exchange_items").iter().filter_map(|i| context.resolve_type(i).or_else(|| context.resolve(i)).map(|t| format!("#{t}"))).collect();
     if !items.is_empty() {
         el.set("exchangedItems", &items.join(" "));

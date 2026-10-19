@@ -1835,6 +1835,10 @@ impl<'g> Mapper<'g> {
         let (from, to) = if whole_ends { (strip_port(&from), strip_port(&to)) } else { (from, to) };
         self.line(1, &format!("{keyword} {} {{", string_literal(&name)));
         self.line(2, &format!("id: {}", string_literal(&id)));
+        // Only a component exchange takes more than two ends in ArcLang.
+        if every_end.is_some() && keyword != "component_exchange" {
+            self.count("ends beyond the second of a connection that is not a component exchange (left out)");
+        }
         match every_end.filter(|_| keyword == "component_exchange") {
             Some(ends) => self.line(2, &format!("ends: {}", list_literal(&ends))),
             None => {

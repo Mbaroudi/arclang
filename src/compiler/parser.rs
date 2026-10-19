@@ -2311,6 +2311,9 @@ impl Parser {
             Some(_) => return Err(self.err(format!("component_exchange '{}': 'ends' is a list of ports or components", name))),
             None => Vec::new(),
         };
+        if attributes.contains_key("ends") && ["from_port", "to_port", "from", "to"].iter().any(|k| attributes.contains_key(*k)) {
+            return Err(self.err(format!("component_exchange '{}': 'ends' names every end; it goes without 'from_port' and 'to_port'", name)));
+        }
         if attributes.contains_key("ends") && ends.len() < 2 {
             return Err(self.err(format!("component_exchange '{}': 'ends' names at least two ends", name)));
         }

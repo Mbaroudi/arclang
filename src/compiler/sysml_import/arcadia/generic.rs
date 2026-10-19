@@ -219,11 +219,7 @@ impl<'g> Mapper<'g> {
         if ends.len() < 3 {
             return None;
         }
-        let written: Option<Vec<String>> = ends.iter().map(|end| if self.profiled { self.end_ref(&end.id) } else { self.written_end(connector, end) }).collect();
-        if written.is_none() {
-            return None;
-        }
-        written
+        ends.iter().map(|end| if self.profiled { self.end_ref(&end.id) } else { self.written_end(connector, end) }).collect()
     }
 
     /// One end: a path is read through its steps; a port named alone is

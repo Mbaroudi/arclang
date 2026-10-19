@@ -102,3 +102,20 @@ fn both_come_back_from_their_sysml_v2_export() {
         }
     }
 }
+
+#[test]
+fn ends_go_without_from_port_and_to_port() {
+    let source = BUS.replace("ends: [", "from_port: \"a.p\"\n        ends: [");
+    let error = Compiler::new(CompilerConfig::default()).compile_string(&source).err().map(|e| e.to_string()).unwrap_or_default();
+    assert!(error.contains("'ends' names every end"), "{error}");
+}
+
+#[test]
+fn a_port_a_port_holds_is_an_element_of_its_own() {
+    let result = compiled(WHEELS);
+    let graph = arclang::compiler::elements::build(&result.ast, &result.semantic_model);
+    let nuts = graph.elements.iter().find(|e| e.name == "nuts").expect("the outer port");
+    let lug = graph.elements.iter().find(|e| e.name == "lugNut").expect("the held port");
+    assert_eq!(lug.owner.as_deref(), Some(nuts.uuid.as_str()));
+    assert_eq!(lug.kind, "ComponentPort");
+}

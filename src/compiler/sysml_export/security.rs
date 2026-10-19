@@ -42,7 +42,11 @@ pub(super) fn write(e: &mut Exporter<'_>) {
         // No short name when none is written: it would hide the metadata.
         let head = if scales.id.is_empty() { text::name("Security scales") } else { text::declared(&scales.id, "Security scales") };
         e.block(&format!("#SecurityScales package {head}"), |e| {
-            let mut keys: Vec<&String> = scales.attributes.keys().filter(|k| k.as_str() != "id").collect();
+            // The scales are lists of literals; anything else is an attribute.
+            let is_list = |k: &String| matches!(scales.attributes.get(k), Some(AttributeValue::List(_)));
+            let others: Vec<&str> = scales.attributes.keys().filter(|k| is_list(k)).map(String::as_str).collect();
+            e.header("SecurityScales", &scales.attributes, &others);
+            let mut keys: Vec<&String> = scales.attributes.keys().filter(|k| k.as_str() != "id" && is_list(k)).collect();
             keys.sort();
             for key in keys {
                 let literals = scales.scale(key).unwrap_or_default();
