@@ -560,6 +560,25 @@ export function graphContainerOf(graphId: string, view: string): string | null {
   return at > 0 ? graphId.slice(at + 1) : null;
 }
 
+/**
+ * The connect tool a drag from one element to another means, on a view: the
+ * first tool of the view whose ends accept both kinds (an exchange between
+ * functions, a component exchange between components, a transition between
+ * states...). Null when nothing connects these two.
+ */
+export function connectToolFor(view: string, fromKind: string, toKind: string): Tool | null {
+  const accepts = (tool: Tool, kind: string) => !tool.endKinds || tool.endKinds.includes(kind);
+  return toolsFor(view).find((tool) => tool.kind === 'connect' && accepts(tool, fromKind) && accepts(tool, toKind)) ?? null;
+}
+
+/** The kinds a drag from `fromKind` may land on, on a view (the union over the connect tools that accept the source). */
+export function connectTargetKinds(view: string, fromKind: string): string[] | null {
+  const tools = toolsFor(view).filter((tool) => tool.kind === 'connect' && (!tool.endKinds || tool.endKinds.includes(fromKind)));
+  if (tools.length === 0) return [];
+  if (tools.some((tool) => !tool.endKinds)) return null;
+  return [...new Set(tools.flatMap((tool) => tool.endKinds ?? []))];
+}
+
 /** The kinds that are functions, for the palette's own checks. */
 export function isFunctionKind(kind: string): boolean {
   return FUNCTION_KINDS.includes(kind);

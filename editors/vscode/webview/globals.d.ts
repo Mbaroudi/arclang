@@ -34,6 +34,8 @@ export interface ViewerOptions {
   onDrop?: (dragged: string, target: string | null) => void;
   onOpen?: (id: string) => void;
   onFullscreen?: () => void;
+  onConnect?: (fromId: string, toId: string, ends?: { fromKind?: string; toKind?: string; view?: string }) => void;
+  connectTargets?: (fromId: string) => string[] | null;
 }
 
 declare global {

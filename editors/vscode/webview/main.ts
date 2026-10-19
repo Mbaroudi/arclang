@@ -2,7 +2,7 @@
 // row with the palette rail, the canvas and the properties drawer, then one
 // status line. Everything shown comes from the last snapshot the host sent;
 // every change goes back to the host as `arclang edit` requests.
-import { EditRequest, ElementRecord, Finding, graphContainerOf, lifelineElement, Metamodel, Snapshot, ToWebview } from '../src/pure/workbench';
+import { connectTargetKinds, connectToolFor, EditRequest, ElementRecord, Finding, graphContainerOf, lifelineElement, Metamodel, Snapshot, ToWebview } from '../src/pure/workbench';
 import { SemanticBrowser } from './browser';
 import { button, clear, el } from './dom';
 import type { ViewerApi, ViewerPosition, ViewerSelection } from './globals';
@@ -263,6 +263,44 @@ function onDrop(dragged: string, target: string | null): void {
   submit([{ op: 'move', element: element.id, container: container.id }], `move ${element.id} into ${container.id}`);
 }
 
+/** The drawn element ids a connection from `fromId` may land on (null: any). */
+function connectTargets(fromId: string): string[] | null {
+  const from = elementFor({ view: '', id: fromId, name: '', kind: '', isEdge: false });
+  const graph = currentGraph();
+  if (!from || !graph) return [];
+  const kinds = connectTargetKinds(graph.arc.view, from.kind);
+  if (kinds === null) return null;
+  const wanted = new Set(kinds);
+  const ids: string[] = [];
+  const walk = (nodes: NonNullable<typeof graph.children>) => {
+    for (const node of nodes) {
+      const element = elementFor({ view: '', id: node.id, name: '', kind: '', isEdge: false });
+      if (element && wanted.has(element.kind) && element.id !== from.id) ids.push(node.id);
+      for (const port of node.ports ?? []) {
+        const portElement = elementFor({ view: '', id: port.id, name: '', kind: '', isEdge: false });
+        if (portElement && wanted.has(portElement.kind)) ids.push(port.id);
+      }
+      walk(node.children ?? []);
+    }
+  };
+  walk(graph.children ?? []);
+  return ids;
+}
+
+/** A drag from a handle to another element: the armed connect tool, else the one these kinds mean. */
+function onConnect(fromId: string, toId: string): void {
+  const from = elementFor({ view: '', id: fromId, name: '', kind: '', isEdge: false });
+  const to = elementFor({ view: '', id: toId, name: '', kind: '', isEdge: false });
+  const graph = currentGraph();
+  if (!from || !to || !graph) return;
+  const tool = palette.armedConnectTool() ?? connectToolFor(graph.arc.view, from.kind, to.kind);
+  if (!tool) {
+    showToast(`Nothing connects ${from.kind} to ${to.kind} on this view.`, 'info');
+    return;
+  }
+  palette.connectWith(tool, { id: from.id, kind: from.kind }, { id: to.id, kind: to.kind });
+}
+
 /** Double-click opens the element: its properties, and its declaration in the source. */
 function onOpen(id: string): void {
   const element = elementFor({ view: '', id, name: '', kind: '', isEdge: false });
@@ -310,6 +348,8 @@ function mount(snapshot: Snapshot): void {
     onSelect,
     onDrop,
     onOpen,
+    onConnect,
+    connectTargets,
   });
   state.viewer = viewer;
   fitStage();

@@ -54,8 +54,31 @@ export class Palette {
     }
     const creates = this.tools.filter((t) => t.kind === 'create');
     const connects = this.tools.filter((t) => t.kind === 'connect');
+    const select = button('', () => this.disarm(), { class: 'wb-tool is-select', title: 'Select (V): the pointer; Esc returns to it', 'aria-label': 'Select' });
+    select.append(el('span', { class: 'wb-tool-glyph', text: '↖' }), el('span', { class: 'wb-tool-label', text: 'Select' }), el('kbd', { class: 'wb-tool-key', text: 'V' }));
+    this.root.appendChild(el('div', { class: 'wb-tools wb-tools-select' }, [select]));
     if (creates.length) this.root.appendChild(this.section('Create', creates));
     if (connects.length) this.root.appendChild(this.section('Connect', connects));
+  }
+
+  /** The connect tool currently armed, if any. */
+  armedConnectTool(): Tool | null {
+    return this.armed && this.armed.kind === 'connect' ? this.armed : null;
+  }
+
+  /** Connect two ends with a tool (a drag between them): asks the name, submits the plan. */
+  connectWith(tool: Tool, from: ConnectEnd, to: ConnectEnd): void {
+    const ask = tool.connect === 'transition' ? 'guard (optional)' : tool.connect === 'message' ? 'text of the message' : 'name of the exchange';
+    void inlinePrompt(this.owner.anchor(), `${tool.label} from ${from.id} to ${to.id}`, '', ask).then((name) => {
+      if (name === null) return this.disarm();
+      const plan = connectPlan(tool, from, to, name, this.view, this.graphContainer);
+      if ('error' in plan) {
+        this.owner.hint(plan.error);
+        return this.disarm();
+      }
+      this.owner.submit(plan, `${tool.label} ${name || `${from.id} -> ${to.id}`}`);
+      this.disarm();
+    });
   }
 
   /** A key press on the canvas: V selects, letters arm their tool. */
