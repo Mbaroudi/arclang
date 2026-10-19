@@ -27,6 +27,15 @@ const CREATABLE: &[(&str, Option<&str>, &str, &[&str])] = &[
     ("PhysicalNode", Some("physical_architecture"), "node", &[]),
 ];
 
+/// The other blocks a layer may be written as (`requirements safety`,
+/// `architecture logical`), tried when the file has no block of the
+/// layer's own keyword: (layer keyword, block keyword, block name).
+const LAYER_FORMS: &[(&str, &str, Option<&str>)] = &[
+    ("system_analysis", "requirements", None),
+    ("logical_architecture", "architecture", Some("logical")),
+    ("physical_architecture", "architecture", Some("physical")),
+];
+
 /// Where a created element is declared.
 enum Place {
     Layer { keyword: &'static str, name: Option<String> },
@@ -281,7 +290,20 @@ impl Operation {
             }
             Operation::Create { keyword, place: Place::Layer { keyword: layer, name: layer_name }, name, attributes, .. } => {
                 let container = Container::Layer { keyword: layer, name: layer_name.as_deref() };
-                source_edit::add_element(source, container, keyword, name, attributes)
+                let first = source_edit::add_element(source, container, keyword, name, attributes);
+                if !matches!(first, Err(EditError::NotFound(_))) {
+                    return first;
+                }
+                // The layer written in another form; a named container names that block.
+                for (_, block, block_name) in LAYER_FORMS.iter().filter(|(of, ..)| of == layer) {
+                    let wanted = layer_name.as_deref().or(*block_name);
+                    let container = Container::Layer { keyword: block, name: wanted };
+                    match source_edit::add_element(source, container, keyword, name, attributes) {
+                        Err(EditError::NotFound(_)) => continue,
+                        other => return other,
+                    }
+                }
+                first
             }
             Operation::Create { keyword, place: Place::Inside(owners), name, attributes, .. } => with_each(owners, |owner| {
                 source_edit::add_element(source, Container::Element(owner), keyword, name, attributes)

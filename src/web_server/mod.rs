@@ -817,6 +817,7 @@ pub fn build_router_with(workspace: systems_modeling::Workspace) -> Router {
         .nest(SYSTEMS_MODELING_BASE, systems_modeling::router(workspace.clone(), Vocabulary::ArcLang))
         .nest(SYSML_V2_BASE, systems_modeling::router(workspace.clone(), Vocabulary::SysML))
         .layer(axum::middleware::from_fn_with_state(workspace, systems_modeling::authenticate))
+        .layer(axum::middleware::map_response(systems_modeling::json_errors))
 }
 
 pub async fn serve(port: u16, workspace: systems_modeling::Workspace) -> Result<(), Box<dyn std::error::Error>> {

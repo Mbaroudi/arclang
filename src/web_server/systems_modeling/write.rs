@@ -75,12 +75,17 @@ fn commit(
 
     // The file must be exactly what git and the head commit say it is:
     // the commit to come must hold this request's edits and nothing else.
+    // Every file of the model counts: the commit is the state of all of them.
     let tracked = history::locate(&path).map_err(refused)?;
-    let status = history::git(&tracked.root, &["status", "--porcelain", "--", &tracked.relative]).map_err(refused)?;
+    let files = history::model_files(&path, &tracked).map_err(refused)?;
+    let mut arguments: Vec<&str> = vec!["status", "--porcelain", "--"];
+    arguments.extend(files.iter().map(String::as_str));
+    let status = history::git(&tracked.root, &arguments).map_err(refused)?;
     if !status.trim().is_empty() {
+        let dirty: Vec<&str> = status.lines().map(|line| line.get(3..).unwrap_or(line).trim()).collect();
         return Err(conflict(format!(
             "{} has uncommitted changes or is not tracked by git; commit it first",
-            tracked.relative
+            dirty.join(", ")
         )));
     }
     let on_disk = compile_file(&path).map_err(conflict)?;
@@ -159,7 +164,7 @@ fn commit(
     snapshot.warnings.extend(warnings);
     project.commits.push(snapshot);
 
-    let created = project.commit_json(project.commits.len() - 1);
+    let created = project.commit_json(project.commits.len() - 1, true);
     Ok((StatusCode::CREATED, Json(created)).into_response())
 }
 

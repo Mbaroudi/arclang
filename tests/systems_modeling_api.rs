@@ -89,7 +89,8 @@ async fn project_branch_and_commit_follow_the_resource_model() {
     assert_eq!(branch["owningProject"]["@id"], project_id);
 
     let commit_id = branch["head"]["@id"].as_str().unwrap();
-    let commit = get(&format!("/projects/{project_id}/commits/{commit_id}")).await;
+    // The ArcLang extensions are served when asked for.
+    let commit = get(&format!("/projects/{project_id}/commits/{commit_id}?extensions=true")).await;
     assert_eq!(commit["@type"], "Commit");
     assert_eq!(commit["previousCommit"], json!([]));
     assert_eq!(commit["arclang:unresolvedRelationships"], json!([]));
@@ -433,7 +434,7 @@ mod history {
         // Imports are resolved at each revision.
         assert!(project.commits[0].compile_error.is_none());
 
-        let commits = fetch(served(&model, 50), &format!("/projects/{project_id}/commits")).await;
+        let commits = fetch(served(&model, 50), &format!("/projects/{project_id}/commits?extensions=true")).await;
         let commits = commits.as_array().unwrap();
         assert_eq!(commits.len(), 5);
         assert!(commits[0]["description"].as_str().unwrap().starts_with("Working tree"), "newest first");
@@ -445,7 +446,8 @@ mod history {
         }
         // The broken revision is an honest, empty commit.
         let broken = &commits[2];
-        assert_eq!(broken["description"], "broken unit");
+        // Its description says it does not compile, extensions or not.
+        assert!(broken["description"].as_str().unwrap().starts_with("broken unit (this revision does not compile: "), "{broken}");
         assert!(broken["arclang:compileError"].as_str().unwrap().contains("unknown unit 'furlongs'"), "{broken}");
         let elements = fetch(served(&model, 50), &format!("/projects/{project_id}/commits/{}/elements", broken["@id"].as_str().unwrap())).await;
         assert_eq!(elements, json!([]));
@@ -463,7 +465,7 @@ mod history {
         let changes = |position: usize| {
             let (model, project_id, commit) = (model.clone(), project_id.clone(), commit_ids[position].clone());
             async move {
-                let changes = fetch(served(&model, 50), &format!("/projects/{project_id}/commits/{commit}/changes")).await;
+                let changes = fetch(served(&model, 50), &format!("/projects/{project_id}/commits/{commit}/changes?extensions=true")).await;
                 let mut summary: Vec<(String, String)> = changes
                     .as_array()
                     .unwrap()
