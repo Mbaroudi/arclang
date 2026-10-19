@@ -25,13 +25,13 @@ const results = []; const ok = (name, cond, detail = '') => { results.push([cond
   // Exports
   await tool('Save SVG').click(); await page.waitForTimeout(500);
   await tool('Save PNG').click(); await page.waitForTimeout(2500);
-  await tool('Save layout').click(); await page.waitForTimeout(500);
+  // No Save layout in the workbench: placing a box keeps the arrangement (the host writes it).
+  ok('no Save layout button: the arrangement keeps itself', (await page.locator('.wb-viewer-tools button', { hasText: /^Save layout/ }).count()) === 0);
   const saves = (await posted()).filter((m) => m.type === 'save');
-  const svg = saves.find((m) => m.name.endsWith('.svg')); const png = saves.find((m) => m.name.endsWith('.png')); const layout = saves.find((m) => m.name.endsWith('.json'));
+  const svg = saves.find((m) => m.name.endsWith('.svg')); const png = saves.find((m) => m.name.endsWith('.png'));
   const svgText = svg ? await page.evaluate((n) => atob(window.__posted.find((m) => m.type === 'save' && m.name === n).data).slice(0, 200), svg.name) : '';
   ok('Save SVG reaches the host as an SVG document', !!svg && /<svg/.test(svgText), svg ? `${svg.name} ${svg.size} b64 chars` : 'no message');
   ok('Save PNG reaches the host as a PNG image', !!png && png.head.startsWith('iVBORw0KGgo'), png ? `${png.name} ${png.size} b64 chars` : 'no message');
-  ok('Save layout reaches the host as JSON', !!layout && layout.mime.startsWith('application/json'), layout ? layout.name : 'no message');
   // Full screen
   await tool('Full screen').click(); await page.waitForTimeout(400);
   const focusOn = await page.evaluate(() => document.body.classList.contains('wb-focus'));

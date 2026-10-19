@@ -56,6 +56,18 @@ async function launch(dir, model) {
     const kept = fs.existsSync(layout) && /"LC-ACT"/.test(fs.readFileSync(layout, 'utf8'));
     report('the arrangement is written to model.layout.json', kept);
 
+    // 2b. Resize: the grip on the corner of the selected box
+    const shape = () => page.locator('.arcviz-stage [data-id="LC-CAM"] > .av-shape').first().boundingBox();
+    const small = await shape(); await win.mouse.click(small.x + 20, small.y + 8); await win.waitForTimeout(800);
+    const grip = page.locator('.arcviz-grip');
+    const gripShown = await grip.isVisible().catch(() => false);
+    if (gripShown) { const g = await grip.boundingBox(); await win.mouse.move(g.x + g.width / 2, g.y + g.height / 2); await win.mouse.down(); await win.mouse.move(g.x + 90, g.y + 50, { steps: 10 }); await win.mouse.up(); await win.waitForTimeout(2500); }
+    const big = await shape();
+    report('the grip of the selected box resizes it', gripShown && big.width > small.width * 1.5 && big.height > small.height * 1.3, `${Math.round(small.width)}x${Math.round(small.height)} -> ${Math.round(big.width)}x${Math.round(big.height)}`);
+    report('the size is written to model.layout.json', /"LC-CAM":\s*\{[^}]*"dw"/.test(fs.readFileSync(layout, 'utf8')));
+    report('no Save layout button: the arrangement saves itself', !(await page.locator('.wb-viewer-tools button', { hasText: 'Save layout' }).count()));
+    await win.keyboard.press('Escape');
+
     // 3. Exports through the save dialog
     for (const [label, file, magic] of [['Save PNG', 'out.png', '\x89PNG'], ['Save SVG', 'out.svg', '<svg']]) {
       await tool(label).click(); await win.waitForTimeout(1200);
@@ -76,10 +88,16 @@ async function launch(dir, model) {
 
     // 5. Reopened: the arrangement is back
     await app.close();
+    // VS Code lets go of its profile a moment after its window closes.
+    for (let i = 0; i < 40 && fs.existsSync(path.join(dir, 'u', 'code.lock')); i++) await new Promise((r) => setTimeout(r, 250));
+    await new Promise((r) => setTimeout(r, 1500));
     ({ app, win, page } = await launch(dir, model));
+    if (!page) { await win.screenshot({ path: path.join(os.tmpdir(), 'arcvs-reopen.png') }); throw new Error('the workbench did not open again'); }
     await page.locator('.wb-layer', { hasText: 'Logical' }).first().click(); await win.waitForTimeout(1500);
     const camera = await box('LC-CAM'); const actuator = await box('LC-ACT');
     report('a reopened model shows the boxes where they were left', actuator.y - camera.y > 120, `${Math.round(actuator.y - camera.y)}`);
+    const reopened = await shape();
+    report('a reopened model shows the boxes at the size they were left', Math.abs(reopened.width / reopened.height - big.width / big.height) < 0.2, `${Math.round(reopened.width)}x${Math.round(reopened.height)}`);
 
     // 6. A box let go on another goes into it (the text changes)
     const from = await box('LC-ACT'); const to = await box('LC-CTL');

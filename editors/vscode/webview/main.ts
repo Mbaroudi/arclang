@@ -761,7 +761,7 @@ function mount(snapshot: Snapshot): void {
     layoutNotice.textContent = `Laying out ${graphs.length} diagram${graphs.length > 1 ? 's' : ''}, ${boxes} boxes…`;
     layoutNotice.hidden = false;
   }, 3000);
-  const viewer = window.ArcViz.mount(host, snapshot.diagrams, deps, {
+  const options = {
     slots: { tabs, tools, tree: hiddenTree, details: detailsSlot, related: relatedSlot, foot: hiddenFoot },
     onSelect,
     onDrop,
@@ -773,7 +773,16 @@ function mount(snapshot: Snapshot): void {
     // Boxes go where they are dragged (into another box when let go on it), kept next to the model.
     arrange: true,
     onLayout: (file: unknown) => vscode.postMessage({ type: 'layout', file }),
-  });
+  };
+  let viewer: ReturnType<typeof window.ArcViz.mount>;
+  try {
+    viewer = window.ArcViz.mount(host, snapshot.diagrams, deps, options);
+  } catch (error) {
+    if (!snapshot.diagrams.layout) throw error;
+    // A layout file this page cannot use: the automatic layout, and the reason.
+    viewer = window.ArcViz.mount(host, { ...snapshot.diagrams, layout: undefined }, deps, options);
+    showToast(`The layout file next to the model could not be used (${error instanceof Error ? error.message : String(error)}): the automatic layout is shown.`, 'error');
+  }
   state.viewer = viewer;
   fitStage();
   void viewer.ready.then(() => {

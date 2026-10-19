@@ -239,3 +239,15 @@ fn the_open_container_is_not_part_of_what_is_folded_around_it() {
     assert!(warnings.is_empty(), "got {warnings:?}");
     assert_eq!(set.layout.as_ref().unwrap().arrangements[0].folded, vec!["LC-2"]);
 }
+
+#[test]
+fn a_resized_box_keeps_its_size_in_the_file_and_an_absurd_size_is_refused() {
+    let resized = r#"{ "arclang_layout": "1", "arrangements": [ { "view": "lab", "places": { "LC-1": { "dx": 0, "dy": 0, "dw": 60, "dh": 24.5 } } } ] }"#;
+    let layout = LayoutFile::parse(resized).expect("a resize is part of a placement");
+    let text = layout.to_json();
+    assert!(text.contains("\"dw\": 60.0") && text.contains("\"dh\": 24.5"), "{text}");
+    // A placement without a resize writes no size.
+    assert!(!LayoutFile::parse(LAYOUT).unwrap().to_json().contains("\"dw\""));
+    let absurd = resized.replace("\"dw\": 60", "\"dw\": 1e9");
+    assert!(LayoutFile::parse(&absurd).unwrap_err().contains("resized beyond"));
+}

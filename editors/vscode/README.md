@@ -34,10 +34,15 @@ the selection follows; Undo, Redo and Save are the editor's own.
   entities, activities, functions, components, nodes, ports, classes, states
   and modes; connect them by interactions, functional and component
   exchanges, physical links, transitions and messages (two clicks, then a
-  name; ports are declared when the ends have none). Drag a function or a
-  component onto another to move it. `F2` renames, `Delete` removes,
+  name; ports are declared when the ends have none). **Drag a box anywhere
+  on the diagram, resize it by the grip on its corner**: the arrangement is
+  kept in `<model>.layout.json` beside the model. Let a box go on another
+  to move it inside. `F2` renames, `Delete` removes,
   double-click opens, `Esc` cancels; right-click gives the native menu
   (rename, delete, show in source, show in tree, ask @arclang, copy id).
+  **Full screen** gives the workbench the whole screen with all its tools
+  (Esc gives the window back); **Save SVG** and **Save PNG** export the
+  diagram as arranged, through the save dialog.
 - **Diagram contents**: `⌘H` hides an element from the diagram (out of a
   named diagram's `shows:`, or a new named diagram without it on a layer
   view), *Show related* adds what it is connected to, *New diagram* opens a

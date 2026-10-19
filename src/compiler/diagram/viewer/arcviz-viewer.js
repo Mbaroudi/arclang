@@ -217,7 +217,8 @@
       group('Navigation', [treeToggle, back]),
       group('Filters', [filterMenu]),
       group('Folding', [foldAll, unfoldAll]),
-      group('Arrangement', [arrange, resetPlaces, saveLayout]),
+      // A host that keeps the arrangement itself (onLayout) needs no download of it.
+      group('Arrangement', onLayout ? [arrange, resetPlaces] : [arrange, resetPlaces, saveLayout]),
       group('Zoom', [
         tool('Fit', 'Fit the diagram to the frame (0)', () => fit()),
         tool('−', 'Zoom out (-)', () => sheet.zoomOut()),
@@ -532,6 +533,11 @@
       announce(`${nav.nameOf(id)} moved.`);
     }
 
+    async function resizeBy(id, dw, dh) {
+      await replace(() => scope.resizeBy(state.active, id, dw, dh));
+      announce(`${nav.nameOf(id)} resized.`);
+    }
+
     /** The box that holds another in the view on screen, or null at the top. */
     function containerOf(id) {
       const graph = activeGraph();
@@ -752,6 +758,7 @@
       },
       carried: (id) => carried(id),
       onMove: (id, dx, dy, into) => placeOrDrop(id, dx, dy, into),
+      onResize: (id, dw, dh) => resizeBy(id, dw, dh),
       onDrop: onDrop ? (from, to) => onDrop({ view: state.active, from, to }) : null,
       onConnect: onConnect
         ? (from, to) => onConnect(from.dataset.id, to.dataset.id, { fromKind: kindOf(from), toKind: kindOf(to), view: state.active })

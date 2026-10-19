@@ -49,7 +49,11 @@
     // of what tells one layout from another.
     const keyOf = (id, scope) => JSON.stringify([id, scope.focus, ...[...scope.folded].filter((node) => node !== scope.focus).sort()]);
     const FARTHEST = 100000; // sheet units: beyond this an offset is not a placement
-    const isOffset = (value) => Boolean(value) && Number.isFinite(value.dx) && Number.isFinite(value.dy) && Math.abs(value.dx) <= FARTHEST && Math.abs(value.dy) <= FARTHEST;
+    const sound = (value) => value === undefined || (Number.isFinite(value) && Math.abs(value) <= FARTHEST);
+    const isOffset = (value) => Boolean(value) && Number.isFinite(value.dx) && Number.isFinite(value.dy) && Math.abs(value.dx) <= FARTHEST && Math.abs(value.dy) <= FARTHEST && sound(value.dw) && sound(value.dh);
+    /** A placement as kept: the move, and the resize only when there is one. */
+    const asPlacement = ({ dx, dy, dw, dh }) => ({ dx, dy, ...(dw ? { dw } : {}), ...(dh ? { dh } : {}) });
+    const nothing = (value) => !value.dx && !value.dy && !value.dw && !value.dh;
 
     const of = (id) => scopes.get(id) || whole();
     const isContainer = (id, node) => Boolean(node) && containers.has(id) && containers.get(id).has(node);
@@ -103,7 +107,7 @@
         if (open && !isContainer(view, open)) continue; // made in a container that is gone
         const kept = {};
         for (const node of Object.keys(placed)) {
-          if (node !== '__proto__' && nodes.get(view).has(node) && isOffset(placed[node])) kept[node] = { dx: placed[node].dx, dy: placed[node].dy };
+          if (node !== '__proto__' && nodes.get(view).has(node) && isOffset(placed[node])) kept[node] = asPlacement(placed[node]);
         }
         const key = keyOf(view, { focus: open || null, folded: new Set(containersIn(view, entry.folded)) });
         if (Object.keys(kept).length > 0) places.set(key, kept);
@@ -163,9 +167,21 @@
         if (!nodes.has(id) || !nodes.get(id).has(node) || !isOffset({ dx, dy })) return;
         const key = keyOf(id, of(id));
         const { [node]: was = { dx: 0, dy: 0 }, ...others } = places.get(key) || {};
-        const now = { dx: was.dx + dx, dy: was.dy + dy };
+        const now = asPlacement({ ...was, dx: was.dx + dx, dy: was.dy + dy });
         if (!isOffset(now)) return;
-        const next = now.dx === 0 && now.dy === 0 ? others : { ...others, [node]: now };
+        const next = nothing(now) ? others : { ...others, [node]: now };
+        if (Object.keys(next).length > 0) places.set(key, next);
+        else places.delete(key);
+        remember();
+      },
+      /** Make a box of the layout on screen wider and taller (negative: smaller). */
+      resizeBy(id, node, dw, dh) {
+        if (!nodes.has(id) || !nodes.get(id).has(node) || !Number.isFinite(dw) || !Number.isFinite(dh)) return;
+        const key = keyOf(id, of(id));
+        const { [node]: was = { dx: 0, dy: 0 }, ...others } = places.get(key) || {};
+        const now = asPlacement({ ...was, dw: (was.dw || 0) + dw, dh: (was.dh || 0) + dh });
+        if (!isOffset(now)) return;
+        const next = nothing(now) ? others : { ...others, [node]: now };
         if (Object.keys(next).length > 0) places.set(key, next);
         else places.delete(key);
         remember();
@@ -179,7 +195,7 @@
         const key = keyOf(id, of(id));
         const kept = {};
         for (const node of Object.keys(actual || {})) {
-          if (nodes.get(id).has(node) && isOffset(actual[node]) && (actual[node].dx || actual[node].dy)) kept[node] = { dx: actual[node].dx, dy: actual[node].dy };
+          if (nodes.get(id).has(node) && isOffset(actual[node]) && !nothing(actual[node])) kept[node] = asPlacement(actual[node]);
         }
         if (Object.keys(kept).length > 0) places.set(key, kept);
         else places.delete(key);

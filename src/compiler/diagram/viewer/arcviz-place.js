@@ -19,7 +19,9 @@
   const INSET = { top: 34, side: 18, bottom: 20 }; // room a container keeps around its content
   const FARTHEST = 100000; // sheet units: beyond this an offset is not a placement
 
-  const isOffset = (value) => Boolean(value) && Number.isFinite(value.dx) && Number.isFinite(value.dy) && Math.abs(value.dx) <= FARTHEST && Math.abs(value.dy) <= FARTHEST;
+  const sound = (value) => value === undefined || (Number.isFinite(value) && Math.abs(value) <= FARTHEST);
+  const isOffset = (value) => Boolean(value) && Number.isFinite(value.dx) && Number.isFinite(value.dy) && Math.abs(value.dx) <= FARTHEST && Math.abs(value.dy) <= FARTHEST && sound(value.dw) && sound(value.dh);
+  const MIN = { width: 48, height: 28 }; // the smallest a box may be made
 
   const NORMAL = { east: { x: 1, y: 0 }, west: { x: -1, y: 0 }, north: { x: 0, y: -1 }, south: { x: 0, y: 1 } };
 
@@ -89,17 +91,44 @@
   /**
    * The layout with the reader's placement applied.
    * @param {object} layout  a graph laid out by ELK
-   * @param {Object<string, {dx: number, dy: number}>} offsets  per node id
+   * @param {Object<string, {dx: number, dy: number, dw?: number, dh?: number}>} offsets  per node id:
+   *        the move, and how much wider and taller the box was made
    */
   function place(layout, offsets) {
     const before = survey(layout);
-    const wanted = Object.keys(offsets || {}).filter((id) => before.nodes.has(id) && isOffset(offsets[id]) && (offsets[id].dx || offsets[id].dy));
+    const wanted = Object.keys(offsets || {}).filter((id) => before.nodes.has(id) && isOffset(offsets[id]) && (offsets[id].dx || offsets[id].dy || offsets[id].dw || offsets[id].dh));
     if (wanted.length === 0) return layout;
 
     const graph = JSON.parse(JSON.stringify(layout));
     const start = survey(graph);
     const moved = new Set();
     const placed = {}; // where each box really went, once held inside its container
+    // Sizes first, inner boxes before the boxes that hold them, so a
+    // container never shrinks over what it holds.
+    const depth = (id) => {
+      let d = 0;
+      for (let at = start.nodes.get(id).parent; at; at = start.nodes.get(at).parent) d += 1;
+      return d;
+    };
+    for (const id of [...wanted].sort((a, b) => depth(b) - depth(a))) {
+      const { dw = 0, dh = 0 } = offsets[id];
+      if (!dw && !dh) continue;
+      const { node } = start.nodes.get(id);
+      const content = (node.children || []).reduce((room, child) => ({ width: Math.max(room.width, child.x + child.width + INSET.side), height: Math.max(room.height, child.y + child.height + INSET.bottom) }), { width: 0, height: 0 });
+      const width = Math.max(MIN.width, content.width, node.width + dw);
+      const height = Math.max(MIN.height, content.height, node.height + dh);
+      // Ports on the right and bottom sides stay on their side.
+      for (const port of node.ports || []) {
+        if (port.x + port.width >= node.width - 0.5) port.x += width - node.width;
+        if (port.y + port.height >= node.height - 0.5) port.y += height - node.height;
+      }
+      if (width !== node.width || height !== node.height) {
+        moved.add(id);
+        placed[id] = { dx: 0, dy: 0, dw: width - before.nodes.get(id).node.width, dh: height - before.nodes.get(id).node.height };
+      }
+      node.width = width;
+      node.height = height;
+    }
     for (const id of wanted) {
       const { node, parent } = start.nodes.get(id);
       const holder = parent ? start.nodes.get(parent).node : null;
@@ -112,7 +141,7 @@
       }
       if (x !== node.x || y !== node.y) {
         moved.add(id);
-        placed[id] = { dx: x - node.x, dy: y - node.y };
+        placed[id] = { ...(placed[id] || {}), dx: x - node.x, dy: y - node.y };
       }
       node.x = x;
       node.y = y;

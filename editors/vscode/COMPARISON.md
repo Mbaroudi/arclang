@@ -4,7 +4,8 @@ What a modeller does in a diagram, and where each tool stands. Capella is
 Eclipse Capella 7 (Sirius diagrams); SysML v2 tools are SysON 2026.1 (Obeo,
 open source, web) and the textual SysML v2 editors (pilot implementation,
 VS Code language extensions). "Tested" means covered by `test/e2e` against
-the real compiler, or by the extension's integration tests.
+the real compiler, or by the extension's integration tests; "tested in VS
+Code" means driven in VS Code itself (`test/e2e/vscode_real_test.js`).
 
 Legend: **yes** · **partial** · **no**.
 
@@ -18,7 +19,9 @@ Legend: **yes** · **partial** · **no**.
 | Connect by dragging from a handle | yes, with valid targets highlighted, tested | yes | yes |
 | Connect by keyboard | yes (`c`, arrows, Enter) | no | no |
 | Traces (realizes, satisfies, allocates…) from the canvas | yes, Trace tool, tested | yes (allocation and realization tools) | partial |
-| Move an element into another (reallocate) by drag | yes | yes | yes |
+| Move a box freely on the diagram | yes, drag it anywhere; kept in `<model>.layout.json` next to the model, tested in VS Code | yes (kept in the .aird) | yes |
+| Resize a box | yes, grip on the corner of the selected box, kept in the layout file, tested in VS Code | yes | yes |
+| Move an element into another (reallocate) by drag | yes, let go on the container (marked during the drag), tested in VS Code | yes | yes |
 | States, transitions, messages in machines and scenarios | yes, tested | yes | yes |
 | Combined fragments in scenarios | yes, Fragment tool around the selected message (loop, opt, alt, par, critical), tested | yes | yes |
 | Create a requirement from a diagram | yes, Requirement tool (satisfied by the selection) and *Satisfies…* in the properties, tested | yes (requirements add-on) | yes |
@@ -54,7 +57,7 @@ Legend: **yes** · **partial** · **no**.
 | Find in a diagram | yes (⌘F), tested | yes | yes (Ctrl+K) |
 | Open a diagram / go to an element (quick pick) | yes (⌘⌥D, ⌘⌥E) | partial | yes |
 | Minimap | yes (Shift+M, click or drag to move the view), tested | yes (outline) | yes |
-| Automatic layout | yes (ELK) and manual arrangement saved in a layout file | yes (Arrange All, mixed results) | yes (Flow, Compact) |
+| Automatic layout | yes (ELK), with the manual arrangement on top of it (Reset layout goes back) | yes (Arrange All, mixed results) | yes (Flow, Compact) |
 | Align, distribute, snap | no | yes | partial |
 
 ## Checking, exporting, AI
@@ -63,7 +66,7 @@ Legend: **yes** · **partial** · **no**.
 |---|---|---|---|
 | Validation markers on diagram elements | yes, findings on the boxes and in Problems | yes | partial |
 | Production gate (ISO 26262, DO-178C, IEC 61508) | yes, status bar and report | no | no |
-| Export SVG, PNG | yes, tested | yes (SVG, PNG, JPG) | yes |
+| Export SVG, PNG | yes, through the save dialog, as arranged, tested in VS Code | yes (SVG, PNG, JPG) | yes |
 | Export Capella, SysML v2, ReqIF | yes | Capella native | SysML v2 native |
 | Semantic diff against git | yes | partial (diff/merge add-on) | no |
 | AI assistant and agent editing through the compiler | yes (`@arclang`, `/agent`, tools, MCP) | no | no |

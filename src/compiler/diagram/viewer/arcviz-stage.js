@@ -40,6 +40,8 @@
    * @param {Function} deps.onKey      (event) -> true when the viewer handled the key
    * @param {Function} deps.carried    (node id) -> ids that move with it, [] if it cannot move
    * @param {Function} deps.onMove     (node id, dx, dy, id of the box under it or null) in sheet units, when a box is dropped
+   * @param {Function} deps.onResize   optional: (node id, dw, dh) in sheet units, when the grip of
+   *                                   the selected box is dragged in arrange mode
    * @param {Function} deps.onDrop     optional: (node id, node id under the pointer or null)
    *                                   when a box is dragged and let go outside arrange mode;
    *                                   given, a drag on a box is that gesture, not a pan
@@ -54,7 +56,7 @@
    *                                   for the handle's accessible name
    */
   function create(deps) {
-    const { stage, canvas, viewSize, onPick, onOpen, onKey, carried, onMove, onDrop, onConnect, connectTargets } = deps;
+    const { stage, canvas, viewSize, onPick, onOpen, onKey, carried, onMove, onDrop, onConnect, connectTargets, onResize } = deps;
     const nameOf = deps.nameOf || ((element) => element.dataset.id);
     // The line drawn from a dragged box to the pointer.
     const ghost = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
@@ -75,7 +77,34 @@
     const apply = () => {
       canvas.style.transform = `translate(${at.x}px, ${at.y}px) scale(${at.scale})`;
       placeHandle();
+      placeGrip();
     };
+
+    // --- resizing: a grip on the corner of the selected box ---------------
+    // In arrange mode, the selected box shows a grip at its bottom-right
+    // corner; dragging it draws the new outline, letting go resizes the box.
+    const grip = document.createElement('div');
+    grip.className = 'arcviz-grip';
+    grip.hidden = true;
+    grip.setAttribute('aria-hidden', 'true');
+    grip.title = 'Drag to resize the box';
+    const outline = document.createElement('div');
+    outline.className = 'arcviz-resize-outline';
+    let gripped = null; // the box the grip sits on
+    const shapeOf = (node) => node.querySelector(':scope > .av-shape') || node;
+    function placeGrip() {
+      const node = onResize && arranging ? canvas.querySelector('.av-node.is-selected') : null;
+      gripped = node && node.isConnected && carried(node.dataset.id).length > 0 ? node : null;
+      if (!gripped) {
+        grip.hidden = true;
+        return;
+      }
+      const frame = stage.getBoundingClientRect();
+      const box = shapeOf(gripped).getBoundingClientRect();
+      grip.style.translate = `${box.right - frame.left}px ${box.bottom - frame.top}px`;
+      grip.hidden = false;
+    }
+    if (onResize) stage.append(grip);
 
     // --- motion: one animation at a time, cancelled by any new gesture ---
     let motion = null;
@@ -328,6 +357,12 @@
       drag = { x: event.clientX, y: event.clientY, startX: event.clientX, startY: event.clientY, moved: false, box: null, from: null, connect: false, vx: 0, vy: 0, lastAt: performance.now() };
       if (event.button === 1) return; // the middle button always pans
       const hit = under(event);
+      if (gripped && (hit === grip || grip.contains(hit))) {
+        const frame = stage.getBoundingClientRect();
+        const box = shapeOf(gripped).getBoundingClientRect();
+        drag.resize = { id: gripped.dataset.id, left: box.left - frame.left, top: box.top - frame.top, width: box.width, height: box.height };
+        return;
+      }
       if (onConnect && onHandle(hit) && anchor && !connect) {
         // From the handle: a drag draws the line, a tap waits for the target.
         beginConnect(anchor, false);
@@ -371,6 +406,15 @@
       const dy = event.clientY - drag.y;
       if (!drag.moved && Math.hypot(event.clientX - drag.startX, event.clientY - drag.startY) < CLICK_SLOP) return;
       drag.moved = true;
+      if (drag.resize) {
+        const r = drag.resize;
+        const width = Math.max(8, r.width + event.clientX - drag.startX);
+        const height = Math.max(8, r.height + event.clientY - drag.startY);
+        Object.assign(outline.style, { left: `${r.left}px`, top: `${r.top}px`, width: `${width}px`, height: `${height}px` });
+        if (!outline.isConnected) stage.appendChild(outline);
+        stage.classList.add('is-resizing');
+        return;
+      }
       if (drag.connect) {
         if (!connect) return;
         drawBand(local(event));
@@ -416,7 +460,8 @@
       if (event) pointers.delete(event.pointerId);
       if (pointers.size < 2) pinch = null;
       drag = null;
-      stage.classList.remove('is-panning', 'is-moving', 'is-dragging');
+      stage.classList.remove('is-panning', 'is-moving', 'is-dragging', 'is-resizing');
+      if (outline.isConnected) outline.remove();
       if (connect) return; // the line waits for its end
       if (ghost.isConnected) ghost.remove();
       markTarget(null);
@@ -431,6 +476,10 @@
         const hit = under(event);
         if (done.moved || connect.armed) finishConnect(onHandle(hit) ? null : endOf(hit));
         else connect.armed = true; // a tap on the handle: the next tap names the end
+        return;
+      }
+      if (done.resize) {
+        if (done.moved) onResize(done.resize.id, (event.clientX - done.startX) / at.scale, (event.clientY - done.startY) / at.scale);
         return;
       }
       if (!done.moved) {
@@ -541,9 +590,13 @@
       setArranging: (on) => {
         arranging = on;
         stage.classList.toggle('is-arranging', on);
+        placeGrip();
       },
-      /** Put the handle where it belongs after the selection changed. */
-      refreshHandle,
+      /** Put the handle and the grip where they belong after the selection changed. */
+      refreshHandle: () => {
+        refreshHandle();
+        placeGrip();
+      },
       /** Drop a line under way, as before a redraw. */
       cancelConnect,
     };
