@@ -58,7 +58,8 @@
   "activationEvents": [
     "onLanguage:arclang",
     "onView:arclangModel",
-    "onLanguage:sysml"
+    "onLanguage:sysml",
+    "onView:arclangRelations"
   ],
   "main": "./dist/extension.js",
   "contributes": {
@@ -266,6 +267,11 @@
         "command": "arclang.canvas.copyId",
         "title": "Copy the id",
         "category": "ArcLang"
+      },
+      {
+        "command": "arclang.relations.step",
+        "title": "Go to the related element",
+        "category": "ArcLang"
       }
     ],
     "menus": {
@@ -421,6 +427,10 @@
         },
         {
           "command": "arclang.canvas.copyId",
+          "when": "false"
+        },
+        {
+          "command": "arclang.relations.step",
           "when": "false"
         }
       ],
@@ -998,6 +1008,12 @@
           "id": "arclangModel",
           "name": "Model",
           "contextualTitle": "ArcLang model",
+          "icon": "media/icon.svg"
+        },
+        {
+          "id": "arclangRelations",
+          "name": "Relations",
+          "contextualTitle": "ArcLang relations",
           "icon": "media/icon.svg"
         }
       ]

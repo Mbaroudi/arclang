@@ -6,6 +6,7 @@ import { applyRequests, refusalMessage } from './edits';
 import { onDidSelectElement, WorkbenchPanel } from './panel';
 import { forgetSnapshot, registerSnapshotRefresh, snapshotOf } from './snapshot';
 import { isModelDocument } from './source';
+import { RelationItem, RelationsProvider } from './relations';
 import { registerStatusBar } from './status';
 import { graphsDrawing, ModelItem, ModelTreeProvider, revealElement } from './tree';
 
@@ -45,7 +46,9 @@ export function registerWorkbench(context: vscode.ExtensionContext): void {
   context.subscriptions.push(WorkbenchPanel.register(context));
   const tree = new ModelTreeProvider(context);
   const view = vscode.window.createTreeView('arclangModel', { treeDataProvider: tree, showCollapseAll: true });
-  context.subscriptions.push(view);
+  const relations = new RelationsProvider(context);
+  const relationsView = vscode.window.createTreeView('arclangRelations', { treeDataProvider: relations });
+  context.subscriptions.push(view, relationsView);
 
   const register = (command: string, callback: (...args: unknown[]) => unknown) =>
     context.subscriptions.push(vscode.commands.registerCommand(command, callback));
@@ -107,6 +110,7 @@ export function registerWorkbench(context: vscode.ExtensionContext): void {
     const element = elementItem(item);
     if (!element) return;
     const document = await vscode.workspace.openTextDocument(element.uri);
+    relations.show(document, element.node.element);
     const panel = WorkbenchPanel.for(element.uri);
     if (panel) {
       const snapshot = await snapshotOf(document);
@@ -241,11 +245,31 @@ export function registerWorkbench(context: vscode.ExtensionContext): void {
   // A selection in the views is revealed in the tree, when the tree shows that model.
   context.subscriptions.push(
     onDidSelectElement(async ({ uri, id }) => {
-      if (!id || !tree.shown || tree.shown.uri.toString() !== uri.toString() || !view.visible) return;
-      const snapshot = await snapshotOf(tree.shown);
-      const record = (snapshot.elements?.elements ?? []).find((e) => e.id === id);
-      const item = record ? tree.itemOf(record.uuid) : undefined;
+      const document = vscode.workspace.textDocuments.find((d) => d.uri.toString() === uri.toString());
+      if (!document) return;
+      const snapshot = await snapshotOf(document);
+      const record = id ? (snapshot.elements?.elements ?? []).find((e) => e.id === id) : undefined;
+      relations.show(document, record ?? null);
+      if (!record || !tree.shown || tree.shown.uri.toString() !== uri.toString() || !view.visible) return;
+      const item = tree.itemOf(record.uuid);
       if (item) await view.reveal(item, { select: true, focus: false, expand: false });
     }),
   );
+
+  // A step in the relations view: the related element becomes the selection everywhere.
+  register('arclang.relations.step', async (item?: unknown) => {
+    const picked = item as RelationItem | undefined;
+    if (!picked || picked.type !== 'entry' || !picked.entry.other) return;
+    const document = await vscode.workspace.openTextDocument(picked.entry.uri);
+    const other = picked.entry.other;
+    relations.show(document, other);
+    const panel = WorkbenchPanel.for(document.uri);
+    if (panel) {
+      const snapshot = await snapshotOf(document);
+      const drawn = graphsDrawing(snapshot.diagrams?.graphs ?? [], other);
+      if (drawn.length > 0) panel.show(drawn[0].id, other.id);
+      else panel.select(other.id);
+    }
+    await revealElement(document, other, { preserveFocus: true });
+  });
 }
