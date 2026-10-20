@@ -1,32 +1,45 @@
 // The workbench inside the real VS Code (not a browser imitation of it):
 // what the user sees and does. Needs Playwright and a VS Code application:
 //   VSCODE_APP="/Applications/Visual Studio Code.app" PLAYWRIGHT=/path/to/playwright node vscode_real_test.js
-// The compiler is the `arclang` on the PATH, or ARCLANG_BINARY.
+// The compiler is the `arclang` on the PATH, or ARCLANG_BINARY. The keys of
+// the draw.io checks are typed as on a French (AZERTY) Mac keyboard (azerty.js);
+// SHOTS=/dir keeps pictures of the themes, the narrow panel and the gestures.
 const { _electron } = require(process.env.PLAYWRIGHT || 'playwright');
 const fs = require('fs'); const os = require('os'); const path = require('path');
 
 const APP = process.env.VSCODE_APP || '/Applications/Visual Studio Code.app';
+const { azerty } = require('./azerty');
 const EXT = path.resolve(__dirname, '../..');
 const rows = []; const report = (name, ok, detail) => { rows.push({ name, ok }); console.log(`${ok ? 'ok  ' : 'FAIL'} ${name.padEnd(56)} ${detail || ''}`); };
 
-async function launch(dir, model) {
-  const settings = { 'files.simpleDialog.enable': true, 'workbench.startupEditor': 'none', 'security.workspace.trust.enabled': false, ...(process.env.ARCLANG_BINARY ? { 'arclang.binary': process.env.ARCLANG_BINARY } : {}) };
+async function launch(dir, models, extra = {}) {
+  const files = [].concat(models);
+  const settings = { 'files.simpleDialog.enable': true, 'workbench.startupEditor': 'none', 'security.workspace.trust.enabled': false, 'window.restoreWindows': 'none', ...(process.env.ARCLANG_BINARY ? { 'arclang.binary': process.env.ARCLANG_BINARY } : {}), ...extra };
   fs.mkdirSync(path.join(dir, 'u', 'User'), { recursive: true });
   fs.writeFileSync(path.join(dir, 'u', 'User', 'settings.json'), JSON.stringify(settings));
-  const app = await _electron.launch({ executablePath: path.join(APP, 'Contents/MacOS/Electron'), args: [`--user-data-dir=${dir}/u`, `--extensions-dir=${dir}/x`, `--extensionDevelopmentPath=${EXT}`, '--skip-welcome', '--skip-release-notes', model] });
+  const app = await _electron.launch({ executablePath: path.join(APP, 'Contents/MacOS/Electron'), args: [`--user-data-dir=${dir}/u`, `--extensions-dir=${dir}/x`, `--extensionDevelopmentPath=${EXT}`, '--skip-welcome', '--skip-release-notes', ...files] });
   const win = await app.firstWindow();
   await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setBounds({ x: 0, y: 0, width: 1600, height: 1000 }));
   await win.waitForTimeout(4000);
   const command = async (name) => { await win.keyboard.press('Meta+Shift+P'); await win.waitForTimeout(300); await win.keyboard.type(name); await win.waitForTimeout(500); await win.keyboard.press('Enter'); await win.waitForTimeout(500); };
   await command('View: Close Secondary Side Bar');
   await command('ArcLang: Open the workbench');
-  let page = null;
-  for (let i = 0; i < 60 && !page; i++) { await win.waitForTimeout(500); for (const f of win.frames()) { try { if (await f.$('.arcviz-stage svg')) page = f; } catch { /* a frame going away */ } } }
+  const page = await workbenchPage(win);
   await win.waitForTimeout(1200);
-  return { app, win, page };
+  return { app, win, page, command };
 }
 
-(async () => {
+/** The frame of a workbench page (not one of `not`), once its drawing is there. */
+async function workbenchPage(win, not = []) {
+  for (let i = 0; i < 60; i++) {
+    await win.waitForTimeout(500);
+    for (const f of win.frames()) { try { if (!not.includes(f) && await f.$('.arcviz-stage svg')) return f; } catch { /* a frame going away */ } }
+  }
+  return null;
+}
+
+/** Placing, the arrangement kept, exports, full screen, drop, reconnect, menus, align. */
+async function basics() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'arcvs-'));
   const model = path.join(dir, 'model.arc'); const layout = path.join(dir, 'model.layout.json');
   fs.copyFileSync(path.join(EXT, 'media', 'reference.arc'), model);
@@ -150,18 +163,280 @@ async function launch(dir, model) {
     report('Align bottom in the menu lines two boxes up, in the layout file', hasAlign > 0 && Math.abs(a1.y + a1.height - a2.y - a2.height) < 2 && /"LC-CAM"|"LC-CTL"/.test(fs.readFileSync(layout, 'utf8')), `${Math.round(a1.y + a1.height)} / ${Math.round(a2.y + a2.height)}`);
 
     // 10. Two gestures in quick succession both land: ⌘D twice without waiting
-    await win.keyboard.press('Escape'); const cam2 = await box('LC-CAM');
+    // The align stacked the two boxes: ⌘Z (typed as on an AZERTY Mac) puts them back first.
+    await win.keyboard.press('Escape'); await (await azerty(win))('Meta+z'); await win.waitForTimeout(3000); const cam2 = await box('LC-CAM');
     await win.mouse.click(cam2.x + cam2.width / 2, cam2.y + 10); await win.waitForTimeout(500);
     await win.keyboard.press('Meta+d'); await win.keyboard.press('Meta+d'); await win.waitForTimeout(6000);
     await win.keyboard.press('Meta+s'); await win.waitForTimeout(800);
     const twice = fs.readFileSync(model, 'utf8');
-    report('⌘D twice in a row makes two copies, neither lost', /id: "LC-CAM-2"/.test(twice) && /id: "LC-CAM-3"/.test(twice), `${(twice.match(/LC-CAM-\d/g) || []).join(',')}`);
+    report('⌘D twice in a row makes two copies, neither lost', /id: "LC-CAM-2"/.test(twice) && /id: "LC-CAM-3"/.test(twice), `${(twice.match(/LC-CAM-\d/g) || []).join(',')} ${await page.evaluate(() => `${document.activeElement?.tagName}.${document.activeElement?.className} | ${document.querySelector('.wb-toast')?.textContent} | ${document.querySelector('.wb-multibar')?.hidden}`)}`);
   } catch (error) {
     report('no error', false, String(error));
   } finally {
     await app.close().catch(() => {});
     fs.rmSync(dir, { recursive: true, force: true });
   }
+}
+
+/** Helpers on one workbench page of a launched VS Code, keys typed as on an AZERTY Mac. */
+function on(ctx) {
+  const { win } = ctx;
+  const h = {
+    shape: (id) => ctx.page.locator(`.arcviz-stage [data-id="${id}"] > .av-shape`).first().boundingBox({ timeout: 4000 }).catch(() => null),
+    key: async (k, wait = 2500) => { await ctx.press(k); await win.waitForTimeout(wait); },
+    save: async () => { await ctx.press('Meta+s'); await win.waitForTimeout(900); },
+    stage: () => ctx.page.locator('.arcviz-stage').boundingBox(),
+    blank: async () => { const s = await h.stage(); return { x: s.x + 24, y: s.y + s.height - 24 }; },
+    deselect: async () => { const b = await h.blank(); await win.mouse.click(b.x, b.y); await win.waitForTimeout(400); },
+    click: async (id, options = {}) => { const b = await h.shape(id); if (!b) return null; await win.mouse.click(b.x + Math.min(30, b.width / 2), b.y + Math.min(9, b.height / 2), options); await win.waitForTimeout(500); return b; },
+    shiftClick: async (id) => { await win.keyboard.down('Shift'); const b = await h.click(id); await win.keyboard.up('Shift'); await win.waitForTimeout(300); return b; },
+    drag: async (from, to, wait = 2500) => { await win.mouse.move(from.x, from.y); await win.mouse.down(); await win.mouse.move(to.x, to.y, { steps: 15 }); await win.mouse.up(); await win.waitForTimeout(wait); },
+    scale: () => ctx.page.evaluate(() => Number(/matrix\(([\d.]+)/.exec(getComputedStyle(document.querySelector('.arcviz-canvas')).transform)?.[1] || 1)),
+    menu: async (x, y, label) => {
+      await win.mouse.click(x, y, { button: 'right' }); await win.waitForTimeout(600);
+      const item = ctx.page.locator('.wb-menu:not([hidden]) .wb-menu-item, .wb-menu:not([hidden]) .wb-menu-chip', { hasText: label }).first();
+      if (!(await item.count())) { await ctx.press('Escape'); return false; }
+      await item.click(); await win.waitForTimeout(3500); return true;
+    },
+    layer: async (name) => { await ctx.page.locator('.wb-layer', { hasText: name }).first().click(); await win.waitForTimeout(1800); },
+    middle: async (id) => {
+      const o = (await (await ctx.page.frameElement()).boundingBox()) ?? { x: 0, y: 0 };
+      const p = await ctx.page.locator(`.arcviz-stage [data-id="${id}"]`).first().evaluate((g) => { const line = g.querySelector('.av-line'); const len = line.getTotalLength(); const q = line.getPointAtLength(len / 2); const m = line.getScreenCTM(); return { x: q.x * m.a + q.y * m.c + m.e, y: q.x * m.b + q.y * m.d + m.f }; });
+      return { x: p.x + o.x, y: p.y + o.y };
+    },
+    clipboard: () => ctx.app.evaluate(({ clipboard }) => clipboard.readText()),
+    shot: async (name) => { if (process.env.SHOTS) await win.screenshot({ path: path.join(process.env.SHOTS, `${name}.png`) }); },
+  };
+  return h;
+}
+
+/** draw.io's habits: one history, real keybindings, paste where asked, copies across models, Alt+drag, group moves. */
+async function drawio() {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'arcvs-drawio-'));
+  const model = path.join(dir, 'model.arc'); const layout = path.join(dir, 'model.layout.json'); const other = path.join(dir, 'other.arc');
+  fs.copyFileSync(path.join(EXT, 'media', 'reference.arc'), model);
+  fs.copyFileSync(path.join(EXT, '..', '..', 'examples', 'automotive', 'ev_product_line.arc'), other);
+  const ctx = await launch(dir, model);
+  const { app, win } = ctx;
+  try {
+    report('the workbench opens on the model (draw.io checks)', !!ctx.page && (await ctx.page.evaluate(() => document.getElementById('workbench')?.dataset.file)) === 'model.arc');
+    if (!ctx.page) throw new Error('no workbench page');
+    ctx.press = await azerty(win);
+    const h = on(ctx);
+    const src = () => fs.readFileSync(model, 'utf8');
+    const lay = () => (fs.existsSync(layout) ? fs.readFileSync(layout, 'utf8') : '');
+    const near = (a, b, tolerance) => Math.abs(a - b) <= tolerance;
+    await h.layer('Logical'); await h.deselect();
+
+    // 1. One history for the model and the arrangement, ⌘Z / ⌘⇧Z / ⌘Y on an AZERTY keyboard
+    await h.save(); const s0 = src(); const l0 = lay();
+    const act = await h.shape('LC-ACT');
+    await h.drag({ x: act.x + 20, y: act.y + 10 }, { x: act.x + 120, y: act.y + 90 });
+    const l1 = lay();
+    const ctl = await h.shape('LC-CTL'); await win.mouse.dblclick(ctl.x + ctl.width / 2, ctl.y + 12); await win.waitForTimeout(700);
+    await ctx.press('Meta+a'); await win.keyboard.type('Brain'); await ctx.press('Enter'); await win.waitForTimeout(3500); await h.save();
+    const renamed = /component "Brain"/.test(src());
+    await h.key('Meta+z'); await h.save();
+    const undo1 = { renamed: /component "Brain"/.test(src()), moved: lay() === l1 };
+    await h.key('Meta+z'); await h.save();
+    const back = await h.shape('LC-ACT');
+    report('⌘Z takes back a rename, then the move made before it', l1 !== l0 && renamed && !undo1.renamed && undo1.moved && src() === s0 && lay() === l0 && near(back.x, act.x, 4) && near(back.y, act.y, 4), JSON.stringify(undo1));
+    await h.key('Meta+Shift+z'); await h.save(); const redo1 = lay() === l1 && src() === s0;
+    await h.key('Meta+y'); await h.save(); const redo2 = /component "Brain"/.test(src());
+    report('⌘⇧Z redoes the move, ⌘Y the rename', redo1 && redo2);
+    await h.key('Meta+z'); await h.save();
+    await h.click('LC-CAM'); await h.key('ArrowDown', 1500);
+    await h.key('Meta+Shift+z'); await h.save();
+    report('after a new step, ⌘⇧Z brings back nothing older', !/component "Brain"/.test(src()));
+    await h.key('Meta+z'); await h.deselect();
+
+    // 2. Every change of the arrangement is undone by one ⌘Z
+    const undoes = async (name, gesture) => {
+      await h.save(); const before = lay(); const text = src();
+      const done = await gesture(); await win.waitForTimeout(1500);
+      const changed = lay() !== before;
+      await h.key('Meta+z', 3000); await h.save();
+      report(`⌘Z undoes ${name}`, done !== false && changed && lay() === before && src() === text, done === false ? 'no gesture' : changed ? '' : 'nothing changed');
+      await h.deselect();
+    };
+    await undoes('a nudge burst (Shift+arrows)', async () => { await h.click('LC-CAM'); await ctx.press('Shift+ArrowDown'); await ctx.press('Shift+ArrowDown'); });
+    await undoes('a resize', async () => {
+      const s = await h.shape('LC-CTL'); await win.mouse.click(s.x + 20, s.y + 8); await win.waitForTimeout(700);
+      const g = await ctx.page.locator('.arcviz-grip').boundingBox().catch(() => null); if (!g) return false;
+      await h.drag({ x: g.x + g.width / 2, y: g.y + g.height / 2 }, { x: g.x + 70, y: g.y + 40 });
+    });
+    await undoes('an alignment', async () => { const c = await h.click('LC-CAM'); await h.shiftClick('LC-ACT'); const t = await h.shape('LC-ACT'); return c && h.menu(t.x + t.width / 2, t.y + 10, 'Top'); });
+    await undoes('a bend', async () => {
+      const m = await h.middle('ce:LaneFlow'); await win.mouse.click(m.x, m.y); await win.waitForTimeout(700);
+      const b = await ctx.page.locator('.arcviz-bend.is-new').first().boundingBox().catch(() => null); if (!b) return false;
+      await h.drag({ x: b.x + b.width / 2, y: b.y + b.height / 2 }, { x: b.x + 10, y: b.y + 80 });
+    });
+
+    // 3. The text editor's ⌘Z is the text's
+    await ctx.command('View: Focus First Editor Group'); await win.waitForTimeout(600);
+    await ctx.press('Meta+ArrowDown'); await win.keyboard.type('// typed here'); await win.waitForTimeout(400); await ctx.press('Meta+s'); await win.waitForTimeout(800);
+    const typed = /\/\/ typed here/.test(src());
+    await ctx.press('Meta+z'); await win.waitForTimeout(600); await ctx.press('Meta+s'); await win.waitForTimeout(800);
+    report('⌘Z in the text editor undoes the typing there', typed && !/\/\/ typed here/.test(src()));
+    await h.deselect();
+
+    // 4. Zoom keys zoom the sheet, not the window; ⌘0 and Shift+1 fit
+    const zoomOf = () => app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].webContents.getZoomLevel());
+    const z0 = await zoomOf(); const k0 = await h.scale();
+    await h.key('Meta+=', 900); const k1 = await h.scale();
+    await h.key('Meta+-', 900); const k2 = await h.scale();
+    report('⌘= and ⌘− zoom the sheet, not the VS Code window', k1 > k0 * 1.05 && k2 < k1 * 0.95 && (await zoomOf()) === z0, `${k0.toFixed(2)} ${k1.toFixed(2)} ${k2.toFixed(2)}, window ${z0} -> ${await zoomOf()}`);
+    await h.key('Meta+=', 600); await h.key('Meta+=', 900); await h.key('Meta+0', 1500); const fitted = await h.scale();
+    await h.key('Meta+=', 900); await h.key('Shift+1', 1500); const again = await h.scale();
+    report('⌘0 and Shift+1 fit the diagram (no Shift needed for ⌘0)', near(again, fitted, 0.01) && (await zoomOf()) === z0, `${fitted.toFixed(3)} ${again.toFixed(3)}`);
+
+    // 5. Copy puts the source on the clipboard; paste lands 20,20 from the original; one ⌘Z takes both back
+    await h.click('LC-ACT'); await h.key('Meta+c', 800);
+    report('⌘C puts the ArcLang source of the selection on the clipboard', /^component "Steering Actuator" \{\n  id: "LC-ACT"/.test(await h.clipboard()));
+    await h.key('Meta+v', 5000); await h.save();
+    const scale = await h.scale(); const original = await h.shape('LC-ACT'); const copy = await h.shape('LC-ACT-2');
+    const off = copy && original ? [Math.round((copy.x - original.x) / scale), Math.round((copy.y - original.y) / scale)] : null;
+    await h.shot('drawio-paste');
+    report('⌘V pastes the copy 20,20 from its original, kept in the layout file', !!off && near(off[0], 20, 3) && near(off[1], 20, 3) && /"LC-ACT-2"/.test(lay()), JSON.stringify(off));
+    await h.key('Meta+z', 3000); await h.save();
+    report('one ⌘Z takes back the paste and its place', !/LC-ACT-2/.test(src()) && !/"LC-ACT-2"/.test(lay()));
+    const st = await h.stage(); const at = { x: st.x + st.width * 0.7, y: st.y + st.height * 0.82 };
+    const menuPaste = await h.menu(at.x, at.y, 'Paste here'); await win.waitForTimeout(2000);
+    const there = await h.shape('LC-ACT-2');
+    report('Paste here in the menu puts the copy at the mouse', menuPaste && !!there && near(there.x, at.x, 6) && near(there.y, at.y, 6), there ? `${Math.round(there.x - at.x)},${Math.round(there.y - at.y)}` : 'no copy');
+    await h.key('Meta+z', 3000); await h.deselect();
+
+    // 6. Several pasted together keep what joins them; a cut pasted on the sheet goes to the layer
+    await h.click('LC-CAM'); await h.shiftClick('LC-CTL'); await h.key('Meta+c', 800); await h.key('Meta+v', 6000); await h.save();
+    report('a multi-selection pasted keeps its exchange, joined to the copies', /component_exchange "LaneFlow 2" \{\n    from_port: "LC-CAM-2\.lane"\n    to_port: "LC-CTL-2\.lane"/.test(src()));
+    await h.shot('drawio-multipaste');
+    await h.key('Meta+z', 3000); await h.deselect();
+    await h.click('LF-CAP'); await h.key('Meta+x', 800); await h.deselect(); await h.key('Meta+v', 5000); await h.save();
+    const camera = /component "Camera" \{[\s\S]*?\n  \}/.exec(src())?.[0] ?? '';
+    report('a cut pasted on the empty sheet moves the element to the layer', !camera.includes('Capture frame') && (src().match(/function "Capture frame"/g) || []).length === 1);
+    await h.key('Meta+z', 3000); await h.deselect();
+
+    // 7. ArcLang copied in the text editor pastes on the canvas, with fresh ids
+    await h.save(); const lines = src().split('\n'); const first = lines.findIndex((l) => l.includes('component "Steering Actuator"'));
+    const last = lines.findIndex((l, i) => i > first && l === '  }');
+    await ctx.command('View: Focus First Editor Group'); await win.waitForTimeout(500);
+    await ctx.press('Control+g'); await win.waitForTimeout(400); await win.keyboard.type(String(first + 1)); await ctx.press('Enter'); await win.waitForTimeout(300);
+    await ctx.press('Home'); await ctx.press('Home');
+    for (let i = first; i <= last; i++) await ctx.press('Shift+ArrowDown');
+    await ctx.press('Meta+c'); await win.waitForTimeout(400);
+    const fromText = await h.clipboard();
+    await h.deselect(); await h.key('Meta+v', 5000); await h.save();
+    report('ArcLang copied from the text editor pastes with fresh ids', /^\s*component "Steering Actuator" \{/.test(fromText) && /component "Steering Actuator 2" \{\n    id: "LC-ACT-2"/.test(src()) && /id: "LF-ACT-2"/.test(src()), JSON.stringify(fromText.slice(0, 60)) + ' ' + (await ctx.page.locator('.wb-toast').textContent().catch(() => '')).slice(0, 120));
+    await h.key('Meta+z', 3000); await h.deselect();
+
+    // 8. Alt+drag drops a copy where it is let go
+    const a0 = await h.shape('LC-ACT');
+    await win.keyboard.down('Alt'); await h.drag({ x: a0.x + 20, y: a0.y + 10 }, { x: a0.x + 20, y: a0.y + 190 }, 300); await win.keyboard.up('Alt'); await win.waitForTimeout(5000); await h.save();
+    const a1 = await h.shape('LC-ACT'); const a2 = await h.shape('LC-ACT-2'); const s1 = await h.scale();
+    await h.shot('drawio-altdrag');
+    report('Alt+drag drops a copy where it is let go', !!a2 && near(a2.x - a1.x, 0, 8) && near(a2.y - a1.y, 180, 14) && /id: "LC-ACT"/.test(src()), a2 ? `${Math.round(a2.x - a1.x)},${Math.round(a2.y - a1.y)} px; before ${Math.round(a0.x)},${Math.round(a0.y)} original ${Math.round(a1.x)},${Math.round(a1.y)} copy ${Math.round(a2.x)},${Math.round(a2.y)}; placed ${/"LC-ACT-2"/.test(lay())}` : 'no copy');
+    await h.key('Meta+z', 3000); await h.deselect();
+
+    // 9. Dragging one of several selected boxes moves them all, one ⌘Z puts them back
+    await h.save(); const lb = lay();
+    const c0 = await h.click('LC-CAM'); await h.shiftClick('LC-CTL'); const t0 = await h.shape('LC-CTL');
+    await h.drag({ x: c0.x + 30, y: c0.y + 9 }, { x: c0.x + 30, y: c0.y + 129 }, 3500); await h.save();
+    const c1 = await h.shape('LC-CAM'); const t1 = await h.shape('LC-CTL');
+    await h.shot('drawio-groupdrag');
+    report('dragging one of the selected boxes moves them all', near(c1.y - c0.y, 120, 12) && near(t1.y - t0.y, 120, 12), `${Math.round(c1.y - c0.y)} / ${Math.round(t1.y - t0.y)}`);
+    await h.key('Meta+z', 3000); await h.save();
+    const c2 = await h.shape('LC-CAM'); const t2 = await h.shape('LC-CTL');
+    report('one ⌘Z puts the whole group back', near(c2.y, c0.y, 4) && near(t2.y, t0.y, 4) && lay() === lb);
+    await h.deselect();
+
+    // 10. A new diagram from the selection
+    await h.click('LC-CAM'); await h.shiftClick('LC-ACT'); const ab = await h.shape('LC-ACT');
+    const made = await h.menu(ab.x + ab.width / 2, ab.y + 10, 'New diagram from the selection'); await win.waitForTimeout(2000); await h.save();
+    const diagram = /diagram "2 elements diagram" \{\n  view: lab\n  shows: \[([^\]]*)\]/.exec(src());
+    report('New diagram from the selection shows the selected elements', made && !!diagram && /LC-CAM/.test(diagram[1]) && /LC-ACT/.test(diagram[1]) && !/LC-CTL/.test(diagram[1]), diagram ? diagram[1] : 'no diagram');
+    await h.key('Meta+z', 3000); await h.layer('Logical');
+
+    // 11. The box under the pointer is outlined, and only it
+    const hovered = async (id, top) => { const b = await h.shape(id); await win.mouse.move(b.x + b.width / 2, top ? b.y + 8 : b.y + b.height / 2, { steps: 4 }); await win.waitForTimeout(300); return ctx.page.evaluate(() => [...document.querySelectorAll('.wb-hover')].map((n) => n.dataset.id).join(',')); };
+    await ctx.press('Escape'); await h.deselect();
+    const over = [await hovered('LC-ACT', true), await hovered('LF-CAP')];
+    await h.shot('drawio-hover');
+    report('the box under the pointer is outlined, not its container', over[0] === 'LC-ACT' && over[1] === 'LF-CAP', over.join(' / '));
+
+    // 12. Across models: a copy here pastes into another model's workbench
+    await h.click('LC-CAM'); await h.key('Meta+c', 800);
+    await win.keyboard.press('Meta+p'); await win.waitForTimeout(500); await win.keyboard.type(other); await win.waitForTimeout(1200); await win.keyboard.press('Enter'); await win.waitForTimeout(2000);
+    await ctx.command('ArcLang: Open the workbench');
+    const second = await workbenchPage(win, [ctx.page]);
+    report('another model opens its own workbench', !!second);
+    if (second) {
+      const before = fs.readFileSync(other, 'utf8');
+      ctx.page = second; await h.layer('Logical'); await h.deselect();
+      await h.key('Meta+v', 5000); await h.save();
+      const after = fs.readFileSync(other, 'utf8');
+      await h.shot('drawio-crossmodel');
+      report('the copy pastes into the other model with its declarations', after !== before && /component "Camera" \{\n\s+id: "LC-CAM"/.test(after) && /function "Capture frame"/.test(after));
+    }
+  } catch (error) {
+    report('no error (draw.io checks)', false, String(error).slice(0, 300));
+  } finally {
+    await app.close().catch(() => {});
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+/** The themes (Light, Dark, High Contrast) and a narrow editor, with pictures. */
+async function looks() {
+  const themes = [['Default Light Modern', 'vscode-light', 'none'], ['Default Dark Modern', 'vscode-dark', 'invert'], ['Default High Contrast', 'vscode-high-contrast', 'invert']];
+  for (const [theme, bodyClass, filter] of themes) {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'arcvs-look-'));
+    const model = path.join(dir, 'model.arc'); fs.copyFileSync(path.join(EXT, 'media', 'reference.arc'), model);
+    const ctx = await launch(dir, model, { 'workbench.colorTheme': theme });
+    const { app, win } = ctx;
+    try {
+      if (!ctx.page) throw new Error('no workbench page');
+      ctx.press = await azerty(win); const h = on(ctx);
+      await h.layer('Logical');
+      const look = await ctx.page.evaluate(() => ({ body: document.body.className, filter: getComputedStyle(document.querySelector('.arcviz-stage svg.av-svg')).filter }));
+      const slug = bodyClass.replace('vscode-', '');
+      await h.shot(`theme-${slug}`);
+      report(`${theme}: the sheet and the boxes follow the theme`, look.body.includes(bodyClass) && (filter === 'none' ? look.filter === 'none' : /invert/.test(look.filter)), `${look.body} | ${look.filter}`);
+      if (bodyClass !== 'vscode-light') continue;
+      // A narrow editor: the canvas keeps the width, the properties float over it.
+      await ctx.command('View: Close Primary Side Bar'); await h.deselect();
+      await ctx.command('View: Single Column Editor Layout'); await win.waitForTimeout(1500);
+      for (const width of [600, 1240]) {
+        // The window is sized until the webview is as wide as asked (the editor chrome takes the rest).
+        let inner = 0;
+        for (let attempt = 0; attempt < 3 && Math.abs(inner - width) > 20; attempt++) {
+          inner = await ctx.page.evaluate(() => innerWidth);
+          const bounds = await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].getBounds());
+          await app.evaluate(({ BrowserWindow }, w) => BrowserWindow.getAllWindows()[0].setBounds({ x: 0, y: 0, width: w, height: 900 }), bounds.width + width - inner);
+          await win.waitForTimeout(2000);
+          inner = await ctx.page.evaluate(() => innerWidth);
+        }
+        if (await ctx.page.locator('.wb-right').isHidden()) { await ctx.page.evaluate(() => document.querySelector('.wb-icon-button[title="Properties"]').click()); await win.waitForTimeout(800); }
+        await h.click('LC-CAM');
+        const panes = await ctx.page.evaluate(() => ({ stage: document.querySelector('.arcviz-stage').getBoundingClientRect().width, right: getComputedStyle(document.querySelector('.wb-right')).position, scroll: document.documentElement.scrollWidth > innerWidth }));
+        await h.shot(`narrow-${width}`);
+        report(`at ${width} px the canvas keeps the width${width < 900 ? ', the properties float over it' : ''}`, !panes.scroll && (width < 900 ? panes.right === 'absolute' && panes.stage > inner * 0.8 : panes.right !== 'absolute'), `${inner}px: stage ${Math.round(panes.stage)}, drawer ${panes.right}`);
+      }
+    } catch (error) {
+      report(`no error (${theme})`, false, String(error).slice(0, 300));
+    } finally {
+      await app.close().catch(() => {});
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  }
+}
+
+// ONLY=basics|drawio|looks runs one part.
+(async () => {
+  const only = process.env.ONLY;
+  if (!only || only === 'basics') await basics();
+  if (!only || only === 'drawio') await drawio();
+  if (!only || only === 'looks') await looks();
   const failed = rows.filter((r) => !r.ok); console.log(`\n${rows.length - failed.length}/${rows.length} checks in VS Code`);
   process.exit(failed.length ? 1 : 0);
 })();
+
