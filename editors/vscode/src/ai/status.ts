@@ -3,7 +3,7 @@
 import * as vscode from 'vscode';
 import { broadcastStatus } from './bridge';
 import { currentConfig } from './settings';
-import { describeConfig, missingPiece } from './providers';
+import { describeConfig, displayUrl, missingPiece } from './providers';
 
 export function registerAiStatus(context: vscode.ExtensionContext): void {
   const item = vscode.window.createStatusBarItem('arclang.ai', vscode.StatusBarAlignment.Right, 99);
@@ -13,7 +13,7 @@ export function registerAiStatus(context: vscode.ExtensionContext): void {
     const config = await currentConfig(context);
     const problem = missingPiece(config);
     item.text = config.provider === 'off' ? '$(circle-slash) AI off' : `$(sparkle) ${describeConfig(config).replace('VS Code language models (Copilot…)', 'VS Code LM')}`;
-    item.tooltip = new vscode.MarkdownString(`**ArcLang AI**: ${describeConfig(config)}${config.endpoint && config.provider !== 'vscode-lm' ? `\n\nEndpoint: \`${config.endpoint}\`` : ''}${problem ? `\n\n$(warning) ${problem}` : ''}\n\nClick to configure.`, true);
+    item.tooltip = new vscode.MarkdownString(`**ArcLang AI**: ${describeConfig(config)}${config.endpoint && config.provider !== 'vscode-lm' ? `\n\nEndpoint: \`${displayUrl(config.endpoint)}\`` : ''}${problem ? `\n\n$(warning) ${problem}` : ''}\n\nClick to configure.`, true);
     item.backgroundColor = problem && config.provider !== 'off' ? new vscode.ThemeColor('statusBarItem.warningBackground') : undefined;
     const tab = vscode.window.tabGroups.activeTabGroup.activeTab?.input;
     const onModel = (vscode.window.activeTextEditor && ['arclang', 'sysml'].includes(vscode.window.activeTextEditor.document.languageId)) || (tab instanceof vscode.TabInputCustom && tab.viewType === 'arclang.workbench');

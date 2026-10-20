@@ -111,7 +111,7 @@ function ollamaLines(reply) {
 /**
  * Starts the server. `script(request)` returns the reply: `{ text, toolCalls:
  * [{name, input}], status, errorBody, delayMs (before answering), chunkDelayMs,
- * hang (never answer) }`.
+ * hang (never answer), redirectTo (a 302 there), flood: {bytes, newlines} }`.
  */
 function startFakeServer(script, port = 0) {
   const requests = [];
@@ -132,6 +132,24 @@ function startFakeServer(script, port = 0) {
       const reply = script(request) || { text: 'OK' };
       const answer = () => {
         if (reply.hang) return; // the client's timeout or cancellation ends it
+        if (reply.redirectTo) {
+          res.writeHead(reply.redirectStatus || 302, { location: reply.redirectTo });
+          return res.end();
+        }
+        if (reply.flood) {
+          // A server gone wrong: `bytes` of text, one endless line unless `newlines`.
+          res.writeHead(200, { 'content-type': 'text/event-stream' });
+          const piece = (reply.flood.newlines ? 'data: {"x":1}\n\n' : 'x').repeat(64 * 1024 / (reply.flood.newlines ? 16 : 1));
+          let sent = 0;
+          const next = () => {
+            if (res.destroyed) return;
+            if (sent >= reply.flood.bytes) return res.end();
+            sent += piece.length;
+            if (res.write(piece)) setImmediate(next);
+            else res.once('drain', next);
+          };
+          return next();
+        }
         if (reply.status && reply.status >= 400) {
           res.writeHead(reply.status, { 'content-type': 'application/json' });
           return res.end(reply.errorBody || JSON.stringify({ error: { message: 'scripted failure' } }));

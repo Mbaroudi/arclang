@@ -1,6 +1,11 @@
 // What every HTTP provider shares: a POST that streams, with a timeout, the
 // caller's cancellation, and errors that never carry a key.
 
+/** The most an answer may carry: past it the stream is cut (a server gone wrong, not a model). */
+export const MAX_RESPONSE_BYTES = 10 * 1024 * 1024;
+/** The most one line or one event of a stream may hold before its end comes. */
+export const MAX_EVENT_CHARS = 4 * 1024 * 1024;
+
 export type ErrorKind = 'http' | 'timeout' | 'cancelled' | 'network' | 'protocol' | 'config';
 
 export class ProviderError extends Error {
@@ -34,15 +39,41 @@ export function redact(text: string, secrets: (string | undefined | null)[] = []
   return out;
 }
 
-/** A URL without its query string's secrets (Gemini can take `?key=`), for logs. */
+/** A URL without its user and password (`https://u:p@host`) nor its query string's secrets (Gemini can take `?key=`), for logs and the consent. */
 export function displayUrl(url: string): string {
   try {
     const parsed = new URL(url);
+    parsed.username = '';
+    parsed.password = '';
     for (const name of [...parsed.searchParams.keys()]) if (/key|token|sig/i.test(name)) parsed.searchParams.set(name, 'redacted');
     return parsed.toString();
   } catch {
-    return redact(url);
+    return redact(url.replace(/\/\/[^/@\s]*@/, '//'));
   }
+}
+
+/** Whether a host is the local machine. */
+export function isLocalHost(hostname: string): boolean {
+  return hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1' || hostname === '[::1]';
+}
+
+/**
+ * Why an endpoint must not be called, or null. Keys and models travel in
+ * clear over http: it is allowed for the local machine only.
+ */
+export function endpointProblem(endpoint: string): string | null {
+  let parsed: URL;
+  try {
+    parsed = new URL(endpoint);
+  } catch {
+    return `the endpoint ${displayUrl(endpoint)} is not a URL`;
+  }
+  if (parsed.protocol === 'https:') return null;
+  if (parsed.protocol === 'http:' && isLocalHost(parsed.hostname)) return null;
+  if (parsed.protocol === 'http:') {
+    return `the endpoint ${displayUrl(endpoint)} uses http:// to another machine: the key and the model would travel unencrypted. Use https:// (http:// is accepted for localhost, 127.0.0.1 and ::1 only)`;
+  }
+  return `the endpoint ${displayUrl(endpoint)} must be an https:// URL`;
 }
 
 export interface StreamRequest {
@@ -96,6 +127,8 @@ export async function* postStream(request: StreamRequest): AsyncGenerator<string
     const message = error instanceof Error ? `${error.message}${error.cause instanceof Error ? ` (${error.cause.message})` : ''}` : String(error);
     return new ProviderError(`${request.label}: ${redact(message, request.secrets)}`, 'network');
   };
+  const problem = endpointProblem(request.url);
+  if (problem) throw new ProviderError(`${request.label}: ${problem}`, 'config');
   try {
     arm();
     let response: Response;
@@ -105,14 +138,22 @@ export async function* postStream(request: StreamRequest): AsyncGenerator<string
         headers: { 'content-type': 'application/json', accept: 'text/event-stream, application/x-ndjson, application/json', ...request.headers },
         body: JSON.stringify(request.body),
         signal: controller.signal,
+        // A redirect would carry the key headers to wherever it points: never followed.
+        redirect: 'error',
       });
     } catch (error) {
+      if (!timedOut && !request.signal?.aborted && /redirect/i.test(causeText(error))) {
+        throw new ProviderError(`${request.label}: the server answered with a redirect, which is not followed (the key would go along); set the final address in arclang.ai.endpoint`, 'http');
+      }
       throw fail(error);
+    }
+    if (response.status >= 300 && response.status < 400) {
+      throw new ProviderError(`${request.label}: the server answered with a redirect (${response.status}), which is not followed; set the final address in arclang.ai.endpoint`, 'http', response.status);
     }
     if (!response.ok) {
       let body = '';
       try {
-        body = await response.text();
+        body = await readCapped(response, 64 * 1024);
       } catch {
         // the status alone
       }
@@ -121,6 +162,7 @@ export async function* postStream(request: StreamRequest): AsyncGenerator<string
     if (!response.body) throw new ProviderError(`${request.label}: the answer has no body`, 'protocol');
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
+    let received = 0;
     try {
       for (;;) {
         arm();
@@ -131,6 +173,8 @@ export async function* postStream(request: StreamRequest): AsyncGenerator<string
           throw fail(error);
         }
         if (chunk.done) break;
+        received += chunk.value?.byteLength ?? 0;
+        if (received > MAX_RESPONSE_BYTES) throw new ProviderError(`${request.label}: the answer is larger than ${MAX_RESPONSE_BYTES / (1024 * 1024)} MB and was cut`, 'protocol');
         const text = chunk.value ? decoder.decode(chunk.value, { stream: true }) : '';
         if (text) yield text;
       }
@@ -144,6 +188,36 @@ export async function* postStream(request: StreamRequest): AsyncGenerator<string
     request.signal?.removeEventListener('abort', onAbort);
   }
 }
+
+/** The message of an error and of its causes. */
+function causeText(error: unknown): string {
+  const parts: string[] = [];
+  for (let e: unknown = error, depth = 0; e instanceof Error && depth < 4; e = e.cause, depth += 1) parts.push(e.message);
+  return parts.join(' ');
+}
+
+/** The body as text, at most `limit` bytes of it. */
+async function readCapped(response: Response, limit: number): Promise<string> {
+  if (!response.body) return '';
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let text = '';
+  let size = 0;
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done || !value) break;
+      size += value.byteLength;
+      text += decoder.decode(value.subarray(0, Math.max(0, value.byteLength - Math.max(0, size - limit))), { stream: true });
+      if (size >= limit) break;
+    }
+  } finally {
+    reader.cancel().catch(() => undefined);
+  }
+  return text;
+}
+
+const tooLong = (what: string): ProviderError => new ProviderError(`the provider sent ${what} longer than ${MAX_EVENT_CHARS / (1024 * 1024)} M characters without its end`, 'protocol');
 
 export interface SseEvent {
   event?: string;
@@ -191,9 +265,15 @@ export async function* sseEvents(chunks: AsyncIterable<string>): AsyncGenerator<
     if (field === 'event') event = value;
     else if (field === 'data') data.push(value);
   };
+  let pending = 0;
   for await (const chunk of chunks) {
     buffer += chunk;
-    for (const line of lines(false)) yield* handle(line);
+    for (const line of lines(false)) {
+      pending = line === '' ? 0 : pending + line.length;
+      if (pending > MAX_EVENT_CHARS) throw tooLong('an event');
+      yield* handle(line);
+    }
+    if (buffer.length > MAX_EVENT_CHARS) throw tooLong('a line');
   }
   for (const line of lines(true)) yield* handle(line);
   if (buffer) yield* handle(buffer);
@@ -212,6 +292,7 @@ export async function* ndjsonLines(chunks: AsyncIterable<string>): AsyncGenerato
       buffer = buffer.slice(at + 1);
       if (line) yield parseJson(line);
     }
+    if (buffer.length > MAX_EVENT_CHARS) throw tooLong('a line');
   }
   if (buffer.trim()) yield parseJson(buffer.trim());
 }

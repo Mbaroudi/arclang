@@ -850,6 +850,7 @@
           "description": "The longest wait for the provider's first byte, and between two parts of its answer."
         },
         "arclang.ai.suggestOnEdit": {
+          "scope": "machine",
           "type": "string",
           "default": "onRequest",
           "enum": [
@@ -865,6 +866,7 @@
           "description": "Impact-driven AI suggestions while editing in the workbench."
         },
         "arclang.ai.contextScope": {
+          "scope": "machine",
           "type": "string",
           "default": "selectionAndNeighbours",
           "enum": [

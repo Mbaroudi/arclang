@@ -3,7 +3,7 @@
 // setting, a log or a message.
 import * as vscode from 'vscode';
 import type { ContextScope } from './core/context';
-import { AiSettings, describeConfig, needsConsent, ProviderConfig, ProviderId, providerInfo, redact, resolveConfig } from './providers';
+import { AiSettings, describeConfig, displayUrl, needsConsent, ProviderConfig, ProviderId, providerInfo, redact, resolveConfig } from './providers';
 
 export type SuggestMode = 'off' | 'onRequest' | 'afterEachEdit';
 
@@ -87,12 +87,12 @@ export async function ensureConsent(context: vscode.ExtensionContext, config: Pr
   const label = describeConfig(config);
   const choice = await vscode.window.showWarningMessage(
     `ArcLang AI: send model content to ${label}?`,
-    { modal: true, detail: `${what}\n\nIt goes to ${config.endpoint}. Keys stay in VS Code's secret storage; each request is listed in the "ArcLang AI" output. Nothing is applied to the model without your Apply.` },
+    { modal: true, detail: `${what}\n\nIt goes to ${displayUrl(config.endpoint)}. Keys stay in VS Code's secret storage; each request is listed in the "ArcLang AI" output. Nothing is applied to the model without your Apply.` },
     'Send',
     'Send and do not ask again',
   );
   if (choice === 'Send and do not ask again') await context.globalState.update(CONSENT_KEY, [...given, consentId(config)]);
-  logLine(`consent for ${label} at ${config.endpoint}: ${choice ?? 'refused'}`);
+  logLine(`consent for ${label} at ${displayUrl(config.endpoint)}: ${choice ?? 'refused'}`);
   return choice === 'Send' || choice === 'Send and do not ask again';
 }
 
@@ -154,7 +154,7 @@ export async function configure(context: vscode.ExtensionContext): Promise<void>
     { label: '$(symbol-class) Model', description: config.model || '(default)', run: () => pickModel(context) },
   ];
   if (config.provider !== 'vscode-lm' && config.provider !== 'off') {
-    items.push({ label: '$(link) Endpoint', description: config.endpoint || '(none)', run: () => vscode.commands.executeCommand('workbench.action.openSettings', 'arclang.ai.endpoint') });
+    items.push({ label: '$(link) Endpoint', description: (config.endpoint && displayUrl(config.endpoint)) || '(none)', run: () => vscode.commands.executeCommand('workbench.action.openSettings', 'arclang.ai.endpoint') });
     items.push({ label: '$(key) Set API key', description: config.apiKey ? 'stored' : info?.needsKey ? 'missing' : 'optional', run: () => setApiKey(context, config.provider) });
   }
   items.push(

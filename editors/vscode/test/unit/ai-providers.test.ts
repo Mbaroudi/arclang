@@ -3,8 +3,10 @@
 // error, timeouts and cancellation. No network, no real key.
 import assert from 'node:assert/strict';
 import { after, before, test } from 'node:test';
-import { createHttpProvider, isLocalEndpoint, missingPiece, needsConsent, redact, resolveConfig, AiSettings, ChatEvent, ChatMessage, ProviderConfig, ProviderId, ToolSpec } from '../../src/ai/providers';
-import { sseEvents, ndjsonLines, ProviderError } from '../../src/ai/providers/http';
+import { createHttpProvider, displayUrl, endpointProblem, isLocalEndpoint, missingPiece, needsConsent, redact, resolveConfig, AiSettings, ChatEvent, ChatMessage, ProviderConfig, ProviderId, ToolSpec } from '../../src/ai/providers';
+import { sseEvents, ndjsonLines, MAX_EVENT_CHARS, MAX_RESPONSE_BYTES, ProviderError } from '../../src/ai/providers/http';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
 import { converse } from '../../src/ai/core/conversation';
 import { FakeReply, FakeRequest, FakeServer, startFakeServer } from '../ai/fake-llm-server';
 
@@ -252,4 +254,66 @@ test('server-sent events survive chunks cut anywhere, \\r\\n and comments', asyn
   const lines = [];
   for await (const l of ndjsonLines((async function* () { yield '{"a":'; yield '1}\n{"b"'; yield ':2}'; })())) lines.push(l);
   assert.deepEqual(lines, [{ a: 1 }, { b: 2 }]);
+});
+
+test('a redirect is never followed: the key headers stay with the endpoint', async () => {
+  let elsewhere = 0;
+  const other = await startFakeServer(() => {
+    elsewhere += 1;
+    return { text: 'OK' };
+  });
+  try {
+    for (const provider of ['anthropic', 'openai', 'azure-openai', 'google'] as ProviderId[]) {
+      reply = (request) => ({ redirectTo: `${other.url.replace('127.0.0.1', 'localhost')}${request.url}` });
+      await assert.rejects(collect(createHttpProvider(configFor(provider)).chat(MESSAGES)), (error: unknown) => {
+        assert.ok(error instanceof ProviderError, String(error));
+        assert.match(error.message, /redirect/);
+        assert.ok(!error.message.includes(KEY), error.message);
+        return true;
+      });
+    }
+    assert.equal(elsewhere, 0, 'nothing reached the address the redirect named');
+  } finally {
+    await other.close();
+  }
+});
+
+test('http:// is refused for another machine, accepted for the local one', async () => {
+  assert.equal(endpointProblem('https://api.example.com/v1'), null);
+  for (const local of ['http://localhost:11434', 'http://127.0.0.1:8080/v1', 'http://[::1]:1234/v1']) assert.equal(endpointProblem(local), null, local);
+  for (const remote of ['http://llm.example.com/v1', 'http://192.168.1.20:11434', 'http://localhost.example.com', 'ftp://x.example.com', 'file:///etc/passwd', 'not a url']) {
+    assert.ok(endpointProblem(remote), remote);
+  }
+  assert.match(endpointProblem('http://llm.example.com/v1') ?? '', /https:\/\//);
+  const remote = resolveConfig(settings('openai-compatible', { endpoint: 'http://llm.example.com/v1', model: 'm' }), KEY);
+  assert.match(missingPiece(remote) ?? '', /unencrypted/);
+  assert.throws(() => createHttpProvider(remote), (error: unknown) => error instanceof ProviderError && error.kind === 'config');
+  const ollama = resolveConfig(settings('ollama', { endpoint: 'http://10.0.0.5:11434' }));
+  assert.match(missingPiece(ollama) ?? '', /https/);
+  assert.equal(missingPiece(resolveConfig(settings('ollama'))), null, 'the local Ollama is fine');
+});
+
+test('the user and password of an endpoint never show in the log or the consent', () => {
+  const shown = displayUrl('https://alice:s3cretpass@llm.example.com/v1?key=AIzaSyA1234567890123456789012345');
+  assert.ok(!shown.includes('alice') && !shown.includes('s3cretpass') && !shown.includes('AIzaSy'), shown);
+  assert.match(shown, /^https:\/\/llm\.example\.com\/v1/);
+  assert.ok(!displayUrl('https://bob:pw@[bad').includes('bob'));
+});
+
+test('an answer past 10 MB is cut, and so is a line that never ends', async () => {
+  assert.equal(MAX_RESPONSE_BYTES, 10 * 1024 * 1024);
+  reply = () => ({ flood: { bytes: MAX_RESPONSE_BYTES + 1024 * 1024, newlines: true } });
+  await assert.rejects(collect(createHttpProvider(configFor('openai')).chat(MESSAGES)), (error: unknown) => error instanceof ProviderError && error.kind === 'protocol' && /larger than 10 MB/.test(error.message));
+  reply = () => ({ flood: { bytes: MAX_EVENT_CHARS + 1024 * 1024 } });
+  await assert.rejects(collect(createHttpProvider(configFor('anthropic')).chat(MESSAGES)), (error: unknown) => error instanceof ProviderError && error.kind === 'protocol' && /without its end/.test(error.message));
+  reply = () => ({ flood: { bytes: MAX_EVENT_CHARS + 1024 * 1024 } });
+  await assert.rejects(collect(createHttpProvider(configFor('ollama')).chat(MESSAGES)), (error: unknown) => error instanceof ProviderError && /without its end|larger than/.test(error.message));
+});
+
+test('the settings that widen what is sent, or where, are user (machine) settings only', () => {
+  const manifest = JSON.parse(fs.readFileSync(path.join(__dirname, '..', '..', 'package.json'), 'utf8'));
+  const properties = manifest.contributes.configuration.properties ?? Object.assign({}, ...manifest.contributes.configuration.map((c: { properties: object }) => c.properties));
+  for (const key of ['arclang.ai.provider', 'arclang.ai.endpoint', 'arclang.ai.azureDeployment', 'arclang.ai.apiVersion', 'arclang.ai.confirmBeforeSending', 'arclang.ai.suggestOnEdit', 'arclang.ai.contextScope']) {
+    assert.equal(properties[key].scope, 'machine', key);
+  }
 });

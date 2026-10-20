@@ -1,13 +1,13 @@
 // The providers the settings can name, their defaults, and the factory.
 import { AnthropicProvider } from './anthropic';
 import { GoogleProvider } from './google';
-import { ProviderError } from './http';
+import { endpointProblem, isLocalHost, ProviderError } from './http';
 import { OllamaProvider } from './ollama';
 import { OpenAiProvider } from './openai';
 import { ChatProvider, ProviderConfig, ProviderId } from './types';
 
 export * from './types';
-export { ProviderError, redact, displayUrl } from './http';
+export { ProviderError, redact, displayUrl, endpointProblem } from './http';
 
 export interface ProviderInfo {
   id: ProviderId;
@@ -74,8 +74,7 @@ export function resolveConfig(settings: AiSettings, apiKey?: string): ProviderCo
 /** Whether requests go to the local machine (no consent asked: nothing leaves it). */
 export function isLocalEndpoint(endpoint: string): boolean {
   try {
-    const host = new URL(endpoint).hostname;
-    return host === 'localhost' || host === '127.0.0.1' || host === '::1' || host === '[::1]';
+    return isLocalHost(new URL(endpoint).hostname);
   } catch {
     return false;
   }
@@ -96,6 +95,8 @@ export function missingPiece(config: ProviderConfig): string | null {
   if (info?.needsKey && !config.apiKey) return `${info.label} needs an API key: run "ArcLang: Set AI API key"`;
   if (!config.model) return `${info?.label ?? config.provider} needs a model (arclang.ai.model${config.provider === 'azure-openai' ? ' or arclang.ai.azureDeployment' : ''})`;
   if (!config.endpoint) return `${info?.label ?? config.provider} needs an endpoint (arclang.ai.endpoint)`;
+  const problem = endpointProblem(config.endpoint);
+  if (problem) return `${info?.label ?? config.provider}: ${problem}`;
   return null;
 }
 

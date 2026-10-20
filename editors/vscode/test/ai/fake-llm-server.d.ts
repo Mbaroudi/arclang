@@ -14,6 +14,9 @@ export interface FakeReply {
   delayMs?: number;
   chunkDelayMs?: number;
   hang?: boolean;
+  redirectTo?: string;
+  redirectStatus?: number;
+  flood?: { bytes: number; newlines?: boolean };
 }
 export interface FakeServer {
   url: string;
