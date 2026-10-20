@@ -837,7 +837,7 @@ mod tests {
         let good = dir.join("good.json");
         std::fs::write(&good, r#"{"version":1,"name":"Ours","extends":"print-grayscale"}"#).unwrap();
         let theme = resolve(good.to_str().unwrap()).unwrap();
-        assert_eq!(theme["concepts"]["physical_node"]["fill"], "#7D7D7D");
+        assert_eq!(theme["concepts"]["system_actor"]["fill"], "#808080");
         assert!(theme.get("extends").is_none());
         assert!(resolve("no-such-theme").unwrap_err().contains("name a preset"));
         std::fs::remove_dir_all(&dir).ok();
