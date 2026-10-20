@@ -48,7 +48,8 @@
       return [graph.id, ids];
     }));
     const isPoint = (point) => Boolean(point) && Number.isFinite(point.x) && Number.isFinite(point.y) && Math.abs(point.x) <= 100000 && Math.abs(point.y) <= 100000;
-    const isRoute = (points) => Array.isArray(points) && points.length > 0 && points.every(isPoint);
+    const MAX_BENDS = 64; // points a bent exchange may pass through
+    const isRoute = (points) => Array.isArray(points) && points.length > 0 && points.length <= MAX_BENDS && points.every(isPoint);
     const nodes = new Map(graphs.map((graph) => {
       const ids = new Set();
       const walk = (node) => {
@@ -96,7 +97,9 @@
         const bent = routes.get(key);
         const entry = { view, open, folded, places: Object.fromEntries(Object.keys(placed).sort().map((node) => [node, placed[node]])) };
         // Written only when an exchange was bent: files without bends stay as they were.
-        if (bent) entry.edges = Object.fromEntries(Object.keys(bent).sort().map((edge) => [edge, { points: bent[edge] }]));
+        // Only exchanges the view draws: a renamed or removed one leaves nothing behind.
+        const drawn = bent ? Object.keys(bent).filter((edge) => edges.has(view) && edges.get(view).has(edge)).sort() : [];
+        if (drawn.length) entry.edges = Object.fromEntries(drawn.map((edge) => [edge, { points: bent[edge] }]));
         return entry;
       });
       return { arclang_layout: LAYOUT_VERSION, views, arrangements };

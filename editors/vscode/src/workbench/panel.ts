@@ -9,7 +9,7 @@ import { randomBytes } from 'node:crypto';
 import * as path from 'node:path';
 import * as vscode from 'vscode';
 import { EditRequest, ElementRecord, FromWebview, isLayoutFile, layoutPathOf, Snapshot, ToWebview } from '../pure/workbench';
-import { applyRequests, refusalMessage } from './edits';
+import { applyRequests, EditQueue, refusalMessage } from './edits';
 import { metamodelJson, onDidChangeSnapshot, snapshotOf } from './snapshot';
 import { elementAt, revealElement } from './tree';
 
@@ -46,6 +46,8 @@ export class WorkbenchPanel {
   private selected: string | null = null;
   private busy = 0;
   private maximized = false;
+  /** One edit at a time: two quick gestures both land, the second on the text the first left. */
+  private readonly edits = new EditQueue();
 
   /** Open (or reveal) the workbench of a document beside the text. */
   static async open(document: vscode.TextDocument): Promise<void> {
@@ -200,7 +202,7 @@ export class WorkbenchPanel {
         if (ALLOWED_COMMANDS.has(message.command)) await vscode.commands.executeCommand(message.command, this.document.uri);
         return;
       case 'edit':
-        await this.edit(message.requests, message.label);
+        await this.edits.run(() => this.edit(message.requests, message.label));
         return;
       case 'save':
         await this.save(message.name, message.data);

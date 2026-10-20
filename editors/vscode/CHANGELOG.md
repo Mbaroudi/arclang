@@ -13,7 +13,8 @@
   - **A context menu** on boxes, ports, exchanges, selections and the sheet, in place of VS Code's; **a floating toolbar** by the selection; **`?`** lists the shortcuts.
   - The properties of an exchange show its ends and its attributes (protocol, bandwidth, data type…), editable.
 - Needs a compiler built from this repository after 4.3.0 (with an older one these gestures are refused with "unknown variant"): `arclang edit` learns `reconnect` (refused when a port goes the wrong way, an exchange would join an element to itself, or the compiler warns about the result) and `duplicate`; a rename falls back to a relationship of that name; a move of a port rewrites its exchanges; the layout file keeps bent exchanges (`edges` with `points`).
-- `test/e2e/editing_test.js`: 33 checks of these gestures against the real compiler; `vscode_real_test.js` reconnects, opens the menu and aligns in VS Code itself (19 checks).
+- Edits from the workbench run one after the other, each on the text the previous one left (two quick gestures both land), and are written only onto the text they were computed from.
+- `test/e2e/editing_test.js`: 43 checks of these gestures against the real compiler; `vscode_real_test.js` reconnects, opens the menu, aligns and duplicates twice in a row in VS Code itself (20 checks).
 
 ## 4.3.1
 

@@ -148,6 +148,14 @@ async function launch(dir, model) {
     if (shots) await win.screenshot({ path: path.join(shots, 'vscode-align.png') });
     const [a1, a2] = [await page.locator('.arcviz-stage [data-id="LC-CAM"] > .av-shape').first().boundingBox(), await page.locator('.arcviz-stage [data-id="LC-CTL"] > .av-shape').first().boundingBox()];
     report('Align bottom in the menu lines two boxes up, in the layout file', hasAlign > 0 && Math.abs(a1.y + a1.height - a2.y - a2.height) < 2 && /"LC-CAM"|"LC-CTL"/.test(fs.readFileSync(layout, 'utf8')), `${Math.round(a1.y + a1.height)} / ${Math.round(a2.y + a2.height)}`);
+
+    // 10. Two gestures in quick succession both land: ⌘D twice without waiting
+    await win.keyboard.press('Escape'); const cam2 = await box('LC-CAM');
+    await win.mouse.click(cam2.x + cam2.width / 2, cam2.y + 10); await win.waitForTimeout(500);
+    await win.keyboard.press('Meta+d'); await win.keyboard.press('Meta+d'); await win.waitForTimeout(6000);
+    await win.keyboard.press('Meta+s'); await win.waitForTimeout(800);
+    const twice = fs.readFileSync(model, 'utf8');
+    report('⌘D twice in a row makes two copies, neither lost', /id: "LC-CAM-2"/.test(twice) && /id: "LC-CAM-3"/.test(twice), `${(twice.match(/LC-CAM-\d/g) || []).join(',')}`);
   } catch (error) {
     report('no error', false, String(error));
   } finally {

@@ -26,7 +26,7 @@
   const MIN = { width: 48, height: 28 }; // the smallest a box may be made
 
   const isPoint = (point) => Boolean(point) && Number.isFinite(point.x) && Number.isFinite(point.y) && Math.abs(point.x) <= FARTHEST && Math.abs(point.y) <= FARTHEST;
-  const isRoute = (points) => Array.isArray(points) && points.length > 0 && points.every(isPoint);
+  const isRoute = (points) => Array.isArray(points) && points.length > 0 && points.length <= 64 && points.every(isPoint);
 
   const NORMAL = { east: { x: 1, y: 0 }, west: { x: -1, y: 0 }, north: { x: 0, y: -1 }, south: { x: 0, y: 1 } };
 

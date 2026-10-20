@@ -265,3 +265,13 @@ test('a bent exchange is kept in the file only when there is one, and an unknown
   scope.moveBy('lab', 'C', 5, 5);
   assert.equal(scope.toFile().arrangements.length, 1, 'places and bends of one layout share one arrangement');
 });
+
+test('a route has at most 64 points, and only exchanges the view draws are written', () => {
+  const withEdge = () => [{ ...graphs()[0], edges: [{ id: 'ce:AB', sources: ['A1'], targets: ['B1'] }] }, graphs()[1]];
+  const scope = create({ graphs: withEdge(), collapse, storage: null, storageKey: 'arcviz:cap' });
+  scope.setRoute('lab', 'ce:AB', Array.from({ length: 65 }, (_, i) => ({ x: i, y: i })));
+  assert.deepEqual(scope.routeOf('lab', 'ce:AB'), []);
+  const file = { arclang_layout: '1', views: {}, arrangements: [{ view: 'lab', open: null, folded: [], places: {}, edges: { 'ce:AB': { points: [{ x: 1, y: 2 }] }, 'ce:Old': { points: [{ x: 3, y: 4 }] } } }] };
+  const loaded = create({ graphs: withEdge(), collapse, storage: null, storageKey: 'arcviz:cap2', initial: file });
+  assert.deepEqual(Object.keys(loaded.toFile().arrangements[0].edges), ['ce:AB']);
+});

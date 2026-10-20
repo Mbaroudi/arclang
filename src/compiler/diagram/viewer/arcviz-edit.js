@@ -183,12 +183,14 @@
           const now = performance.now();
           const twice = !adding && lastTap.index === index && now - lastTap.at < DOUBLE_TAP_MS;
           lastTap = { at: now, index: adding ? -1 : index };
-          if (twice) deps.onBend(id, route.filter((_, at) => at !== index));
+          if (twice) deps.onBend(id, deps.routeOf(id).filter((_, at) => at !== index));
           return;
         }
         const point = toSheet(event.clientX, event.clientY);
         if (!point) return placeEdge();
-        const next = adding ? [...route.slice(0, index), point, ...route.slice(index)] : route.map((p, at) => (at === index ? point : p));
+        // The route as it is now: another bend may have landed since these handles were drawn.
+        const now = deps.routeOf(id);
+        const next = adding ? [...now.slice(0, index), point, ...now.slice(index)] : now.map((p, at) => (at === index ? point : p));
         deps.onBend(id, next);
       });
     }
@@ -390,5 +392,57 @@
     };
   }
 
-  root.ArcVizEdit = { create };
+  /**
+   * Mount the editing gestures on a viewer (ArcViz.mount with options.edit):
+   *   options.edit = { onEdit({ view, id, isEdge }) -> true when a double-click
+   *   edits the box or exchange; onReconnect({ view, edge, end, to }) when an
+   *   end of the selected exchange is dragged to another box or port, and
+   *   reconnectTargets({ view, edge, end }) -> ids | null, the ends it may move
+   *   to; onMarquee({ view, ids, additive }) after a drag on the empty sheet;
+   *   onQuick({ view, id, side }) when an arrow on the side of a box is tapped
+   *   (dragged, it connects through onConnect); bends: true to bend exchanges
+   *   by their middle, kept in the layout; snap: true for smart guides }.
+   * `viewer` lends what the gestures act through: the stage, the sheet, the
+   * scope of the views, the active view, select, carried, replace, announce.
+   * Returns the editor, with `api`: what the viewer's own API gains
+   * (moveMany, routeOf, setRoute).
+   */
+  function attach(viewer) {
+    const { options: edit, scope, replace, carried, view } = viewer;
+    const editor = create({
+      stage: viewer.stage,
+      canvas: viewer.canvas,
+      sheet: viewer.sheet,
+      hooks: viewer.hooks,
+      pick: (element) => viewer.select(element),
+      carried,
+      routeOf: (edge) => scope.routeOf(view(), edge),
+      onBend: edit.bends ? (edge, points) => replace(() => scope.setRoute(view(), edge, points)).then(() => viewer.announce('Exchange bent.')) : null,
+      onReconnect: edit.onReconnect ? (edge, end, to) => edit.onReconnect({ view: view(), edge, end, to }) : null,
+      reconnectTargets: edit.reconnectTargets ? (edge, end) => edit.reconnectTargets({ view: view(), edge, end }) : null,
+      onMarquee: edit.onMarquee ? (ids, additive) => edit.onMarquee({ view: view(), ids, additive }) : null,
+      onQuick: edit.onQuick && viewer.connects ? (id, side) => edit.onQuick({ view: view(), id, side }) : null,
+      onEdit: edit.onEdit
+        ? (hit) => {
+            const group = hit.closest ? hit.closest('.av-edge, .av-node') : null;
+            return Boolean(group) && Boolean(edit.onEdit({ view: view(), id: group.dataset.id, isEdge: group.classList.contains('av-edge') }));
+          }
+        : null,
+      snap: Boolean(edit.snap),
+    });
+    editor.api = {
+      /** Move several boxes of the view on screen at once, in sheet units: one redraw, one layout change. */
+      moveMany: (moves) =>
+        replace(() => {
+          for (const { id, dx, dy } of moves || []) if (carried(id).length > 0) scope.moveBy(view(), id, dx, dy);
+        }),
+      /** The points an exchange of the view on screen is bent through ([] when straight). */
+      routeOf: (edge) => scope.routeOf(view(), edge),
+      /** Bend an exchange of the view on screen through `points`; [] straightens it. */
+      setRoute: (edge, points) => replace(() => scope.setRoute(view(), edge, points)),
+    };
+    return editor;
+  }
+
+  root.ArcVizEdit = { create, attach };
 })(typeof globalThis !== 'undefined' ? globalThis : this);

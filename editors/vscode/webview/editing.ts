@@ -43,6 +43,14 @@ const NUDGE_BIG = 10;
 
 export class Editing {
   private clip: Clip | null = null;
+  /** What follows a gesture once the compiler applied it, by label (the route of a reversed line...). */
+  private readonly onApplied = new Map<string, () => void>();
+  /** What follows once the viewer is mounted on the snapshot of that gesture. */
+  private afterMount: (() => void)[] = [];
+  /** The field or list open on the canvas, closed when the model changes under it. */
+  private open: { model: string; close: () => void } | null = null;
+  /** The model the context menu was opened on. */
+  private menuModel = '';
   readonly menu: ContextMenu;
   private readonly mini: MiniToolbar;
 
@@ -53,6 +61,53 @@ export class Editing {
     // Arrows move the selection before the viewer pans with them.
     ctx.host.addEventListener('keydown', (event) => this.nudge(event), true);
     setInterval(() => this.placeToolbar(), 200);
+  }
+
+  /** Submit a gesture; `then` runs once the compiler applied it. */
+  private submit(requests: EditRequest[], label: string, then?: () => void): void {
+    if (then) this.onApplied.set(label, then);
+    this.ctx.submit(requests, label);
+  }
+
+  /** The host's answer to a gesture. */
+  editResult(label: string, ok: boolean): void {
+    const then = this.onApplied.get(label);
+    this.onApplied.delete(label);
+    if (ok && then) then();
+  }
+
+  /** The viewer is mounted on a new snapshot: what waited for it runs. */
+  mounted(): void {
+    const waiting = this.afterMount;
+    this.afterMount = [];
+    for (const run of waiting) run();
+  }
+
+  /** What the model is, for an open field to know it changed. */
+  private modelKey(): string {
+    return (this.ctx.snapshot()?.elements?.elements ?? []).map((e) => `${e.uuid}:${e.id}:${e.name}`).join('|');
+  }
+
+  /** A new snapshot: a field or list opened on another model is closed, it would act on stale ids. */
+  snapshotArrived(): void {
+    if (this.menu.isOpen && this.menuModel !== this.modelKey()) this.menu.close();
+    if (this.open && this.open.model !== this.modelKey()) {
+      this.open.close();
+      this.open = null;
+      this.ctx.toast('The model changed while a field was open: it was closed, nothing was written.', 'info');
+    }
+  }
+
+  /** A bent line keeps its bends when it turns around (reversed), straightens when it moves (reconnected). */
+  private reroute(edge: string, change: (points: { x: number; y: number }[]) => { x: number; y: number }[], to = edge): () => void {
+    const points = this.ctx.viewer()?.routeOf?.(edge) ?? [];
+    return () => {
+      if (points.length === 0) return;
+      this.afterMount.push(() => {
+        if (to !== edge) void this.ctx.viewer()?.setRoute?.(edge, []);
+        void this.ctx.viewer()?.setRoute?.(to, change(points));
+      });
+    };
   }
 
   // --- the viewer's edit options --------------------------------------------
@@ -110,10 +165,16 @@ export class Editing {
     const finish = (commit: boolean) => {
       if (done) return;
       done = true;
+      if (this.open?.close === cancel) this.open = null;
       const value = input.value.trim();
       input.remove();
-      if (commit && value && value !== element.name) this.ctx.submit([{ op: 'rename', element: element.id, name: value }], `rename to ${value}`);
+      if (!commit || !value || value === element.name) return;
+      // A line is drawn under its name (`ce:Name`): its bends follow it.
+      const renamed = relationship && /^[a-z]+:/.test(drawing) ? drawing.replace(/^([a-z]+:).*$/, `$1${value}`) : null;
+      this.submit([{ op: 'rename', element: element.id, name: value }], `rename to ${value}`, renamed ? this.reroute(drawing, (p) => p, renamed) : undefined);
     };
+    const cancel = () => finish(false);
+    this.open = { model: this.modelKey(), close: cancel };
     input.addEventListener('keydown', (event) => {
       event.stopPropagation();
       if (event.key === 'Enter') finish(true);
@@ -171,7 +232,8 @@ export class Editing {
     if (!relationship) return this.ctx.toast('This line stands for no relationship the page can reconnect.', 'error');
     const plan = reconnectPlan(relationship, end, target, elements);
     if ('error' in plan) return this.ctx.toast(plan.error, 'info');
-    this.ctx.submit(plan, `reconnect the ${end} of ${relationship.name || relationship.kind} to ${target.name || target.id}`);
+    // Its bends were for the old ends: the line is drawn afresh.
+    this.submit(plan, `reconnect the ${end} of ${relationship.name || relationship.kind} to ${target.name || target.id}`, this.reroute(edge, () => []));
   }
 
   /** From the menu: the end to reconnect, then the element, from a list. */
@@ -191,7 +253,10 @@ export class Editing {
     if (!relationship) return;
     const plan = reversePlan(relationship, this.ctx.snapshot()?.elements?.elements ?? [], this.ctx.snapshot()?.elements?.relationships ?? []);
     if ('error' in plan) return this.ctx.toast(plan.error, 'error');
-    this.ctx.submit(plan, `reverse ${relationship.name || relationship.kind}`);
+    // The bends are kept from source to target: turned around with the line.
+    const edge = this.ctx.selectedDrawing();
+    const drawnHere = edge && this.relationshipOf(this.ctx.selected())?.uuid === relationship.uuid ? edge : null;
+    this.submit(plan, `reverse ${relationship.name || relationship.kind}`, drawnHere ? this.reroute(drawnHere, (p) => [...p].reverse()) : undefined);
   }
 
   /** Move a trace's other end to another element of the same kind, chosen from a list. */
@@ -202,7 +267,7 @@ export class Editing {
     this.pick(`Trace ${outgoing ? 'to' : 'from'}…`, choices, (id) => {
       const from = outgoing ? element.id : other.id;
       const to = outgoing ? other.id : element.id;
-      this.ctx.submit([{ op: 'reconnect', kind: 'Trace', from, to, ...(outgoing ? { new_to: id } : { new_from: id }) }], `trace ${outgoing ? `${from} to ${id}` : `${id} to ${to}`}`);
+      this.submit([{ op: 'reconnect', kind: 'Trace', from, to, ...(outgoing ? { new_to: id } : { new_from: id }) }], `trace ${outgoing ? `${from} to ${id}` : `${id} to ${to}`}`);
     });
   }
 
@@ -227,7 +292,7 @@ export class Editing {
       if (name === null) return;
       const plan = quickConnectPlan(graph.arc.view, from, name, snapshot.elements!.elements, container);
       if ('error' in plan) return this.ctx.toast(plan.error, 'info');
-      this.ctx.submit(plan.requests, `${name.trim()} connected to ${from.name || from.id}`);
+      this.submit(plan.requests, `${name.trim()} connected to ${from.name || from.id}`);
     });
   }
 
@@ -241,8 +306,13 @@ export class Editing {
     return one && !this.relationshipOf(one) ? [one] : [];
   }
 
+  /** What copy, cut and duplicate take: the selection without its ports (they move with Move to…). */
+  private copyable(): ElementRecord[] {
+    return this.ctx.outermost(this.selection()).filter((e) => !/Port$/.test(e.kind));
+  }
+
   copy(cut: boolean): void {
-    const elements = this.ctx.outermost(this.selection());
+    const elements = this.copyable();
     if (elements.length === 0) return;
     this.clip = { ids: elements.map((e) => e.id), cut };
     for (const node of this.ctx.host.querySelectorAll('.wb-cut')) node.classList.remove('wb-cut');
@@ -255,14 +325,19 @@ export class Editing {
     const plan = pasteRequests(this.clip, this.ctx.selected());
     if ('error' in plan) return this.ctx.toast(plan.error, 'info');
     const into = this.ctx.selected();
-    this.ctx.submit(plan, `${this.clip.cut ? 'move' : 'paste'} ${this.clip.ids.join(', ')}${into && !this.clip.ids.includes(into.id) ? ` into ${into.name || into.id}` : ''}`);
-    if (this.clip.cut) this.clip = null;
+    const clip = this.clip;
+    // A cut is used up only when the move is applied: refused, it can be pasted elsewhere.
+    this.submit(plan, `${clip.cut ? 'move' : 'paste'} ${clip.ids.join(', ')}${into && !clip.ids.includes(into.id) ? ` into ${into.name || into.id}` : ''}`, () => {
+      if (!clip.cut || this.clip !== clip) return;
+      this.clip = null;
+      for (const node of this.ctx.host.querySelectorAll('.wb-cut')) node.classList.remove('wb-cut');
+    });
   }
 
   duplicate(): void {
-    const elements = this.ctx.outermost(this.selection());
+    const elements = this.copyable();
     if (elements.length === 0) return;
-    this.ctx.submit(elements.map((e) => ({ op: 'duplicate', element: e.id })), `duplicate ${elements.map((e) => e.name || e.id).join(', ')}`);
+    this.submit(elements.map((e) => ({ op: 'duplicate', element: e.id })), `duplicate ${elements.map((e) => e.name || e.id).join(', ')}`);
   }
 
   moveTo(element: ElementRecord): void {
@@ -274,8 +349,8 @@ export class Editing {
     if (layer && !('error' in layer) && element.owner && elements.find((e) => e.uuid === element.owner)?.kind !== 'Model') choices.unshift(['', 'Out of its container, into the layer']);
     if (choices.length === 0) return this.ctx.toast(`Nothing on this view can hold ${element.name || element.id}.`, 'info');
     this.pick(`Move ${element.name || element.id} to…`, choices, (id) => {
-      if (id === '' && layer && !('error' in layer)) return this.ctx.submit([layer], `move ${element.id} to the layer`);
-      this.ctx.submit([{ op: 'move', element: element.id, container: id }], `move ${element.id} into ${id}`);
+      if (id === '' && layer && !('error' in layer)) return this.submit([layer], `move ${element.id} to the layer`);
+      this.submit([{ op: 'move', element: element.id, container: id }], `move ${element.id} into ${id}`);
     });
   }
 
@@ -286,7 +361,11 @@ export class Editing {
     select.appendChild(el('option', { value: '\u0000', text: label }));
     for (const [id, text] of choices) select.appendChild(el('option', { value: id, text }));
     const form = el('div', { class: 'wb-prompt wb-pick' }, [el('label', { text: label }), select]);
-    const done = () => form.remove();
+    const done = () => {
+      form.remove();
+      if (this.open?.close === done) this.open = null;
+    };
+    this.open = { model: this.modelKey(), close: done };
     select.addEventListener('change', () => {
       const value = select.value;
       done();
@@ -347,15 +426,20 @@ export class Editing {
 
   /** ⌘C ⌘X ⌘V ⌘D ⌘A and ?: true when the key was taken. */
   key(event: KeyboardEvent): boolean {
+    // The canvas's keys only: text selected or focused elsewhere keeps the browser's (and VS Code's) own.
+    const target = event.target as Node;
+    const onCanvas = target === document.body || this.ctx.host.contains(target);
+    if (!onCanvas || (window.getSelection()?.toString() ?? '') !== '') return false;
     const command = event.metaKey || event.ctrlKey;
     const letter = event.key.toLowerCase();
     if (!command && event.key === '?') return this.run(event, () => this.ctx.help());
     if (!command || event.altKey || event.shiftKey) return false;
-    if (letter === 'c') return this.run(event, () => this.copy(false));
-    if (letter === 'x') return this.run(event, () => this.copy(true));
-    if (letter === 'v') return this.run(event, () => this.paste());
-    if (letter === 'd') return this.run(event, () => this.duplicate());
-    if (letter === 'a') return this.run(event, () => this.selectAll());
+    const some = this.copyable().length > 0;
+    if (letter === 'c' && some) return this.run(event, () => this.copy(false));
+    if (letter === 'x' && some) return this.run(event, () => this.copy(true));
+    if (letter === 'v' && this.clip) return this.run(event, () => this.paste());
+    if (letter === 'd' && some) return this.run(event, () => this.duplicate());
+    if (letter === 'a' && this.ctx.graph()) return this.run(event, () => this.selectAll());
     return false;
   }
 
@@ -379,6 +463,7 @@ export class Editing {
       this.ctx.viewer()?.select?.(target!.dataset.id ?? null);
       this.ctx.select(element, false);
     }
+    this.menuModel = this.modelKey();
     this.menu.open(event.clientX, event.clientY, this.menuItems(element, target?.dataset.id ?? null));
   }
 

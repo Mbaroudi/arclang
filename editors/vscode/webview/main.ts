@@ -2,7 +2,7 @@
 // row with the palette rail, the canvas and the properties drawer, then one
 // status line. Everything shown comes from the last snapshot the host sent;
 // every change goes back to the host as `arclang edit` requests.
-import { connectTargetKinds, connectToolFor, EditRequest, RelationshipRecord, fragmentRequest, namedDiagramOf, nextRequirementId, requirementRequests, Tool, neighbours, showsLiteral, topLevelIds, VIEWPOINTS, ElementRecord, Finding, graphContainerOf, lifelineElement, Metamodel, Snapshot, ToWebview } from '../src/pure/workbench';
+import { connectTargetKinds, connectToolFor, EditRequest, RelationshipRecord, fragmentRequest, nextRequirementId, requirementRequests, Tool, VIEWPOINTS, ElementRecord, graphContainerOf, lifelineElement, Metamodel, Snapshot, ToWebview } from '../src/pure/workbench';
 import { SemanticBrowser } from './browser';
 import { button, clear, el, inlinePrompt } from './dom';
 import type { ViewerApi, ViewerPosition, ViewerSelection } from './globals';
@@ -12,6 +12,10 @@ import { createFind } from './find';
 import { createMinimap } from './minimap';
 import { Editing } from './editing';
 import { createHelp } from './help';
+import { createShell } from './shell';
+import { DiagramContents } from './diagram-contents';
+import { createStatusLine } from './status-line';
+import { changesOf, markFindings as markFindings_, pulse, renderLayers as renderLayers_ } from './marks';
 import { modelIdOf, relationshipOfEdge } from '../src/pure/editing';
 
 const vscode = acquireVsCodeApi();
@@ -64,116 +68,8 @@ function saveLayout(): void {
 // --- Layout -----------------------------------------------------------------
 
 const root = document.getElementById('workbench')!;
-const bar = el('header', { class: 'wb-bar' });
-const layerBar = el('nav', { class: 'wb-layers', 'aria-label': 'Arcadia layers' });
-const toolRow = el('div', { class: 'wb-toolrow' });
-const tabs = el('div', { class: 'wb-tabs wb-hidden' });
-const tools = el('div', { class: 'wb-viewer-tools' });
-const paletteToggle = button('', () => setPalette(!state.layout.paletteOpen), { class: 'wb-icon-button', title: 'Palette' });
-const drawerToggle = button('', () => setDrawer(!state.layout.drawerOpen), { class: 'wb-icon-button', title: 'Properties' });
-const minimapToggle = button('', () => toggleMinimap(), { class: 'wb-icon-button wb-minimap-toggle', title: 'Minimap (Shift+M)' });
-toolRow.append(paletteToggle, tools, minimapToggle, drawerToggle);
-bar.append(layerBar, toolRow);
-
-const body = el('div', { class: 'wb-body' });
-const left = el('aside', { class: 'wb-left' });
-const sheet = el('main', { class: 'wb-sheet' });
-const host = el('div', { class: 'wb-host' });
-const modeChip = el('div', { class: 'wb-mode', hidden: true });
-const toast = el('div', { class: 'wb-toast', hidden: true, role: 'status', 'aria-live': 'polite' });
-const progress = el('div', { class: 'wb-progress', hidden: true });
-const layoutNotice = el('div', { class: 'wb-notice', hidden: true, role: 'status' });
-sheet.append(progress, host, modeChip, toast, layoutNotice);
-const splitter = el('div', { class: 'wb-splitter', role: 'separator', 'aria-orientation': 'vertical', title: 'Drag to resize' });
-const right = el('aside', { class: 'wb-right' });
-const bottom = el('footer', { class: 'wb-bottom' });
-const hiddenTree = el('div', { class: 'wb-hidden' });
-const hiddenFoot = el('div', { class: 'wb-hidden' });
-const detailsSlot = el('div', { class: 'wb-details' });
-const relatedSlot = el('div', { class: 'wb-related' });
-
-const rightTabs = el('div', { class: 'wb-right-tabs', role: 'tablist' });
-const propertiesPane = el('div', { class: 'wb-pane' });
-const browserPane = el('div', { class: 'wb-pane' });
-const detailsPane = el('div', { class: 'wb-pane' }, [detailsSlot, relatedSlot]);
-const panes: [string, HTMLElement][] = [
-  ['Properties', propertiesPane],
-  ['Relations', browserPane],
-  ['Details', detailsPane],
-];
-panes.forEach(([label, pane], index) => {
-  const tab = button(label, () => showRightTab(index), { class: 'wb-right-tab', role: 'tab' });
-  rightTabs.appendChild(tab);
-  pane.setAttribute('role', 'tabpanel');
-});
-function showRightTab(index: number): void {
-  state.layout.rightTab = index;
-  panes.forEach(([, pane], i) => pane.classList.toggle('is-active', i === index));
-  [...rightTabs.children].forEach((tab, i) => {
-    tab.classList.toggle('is-active', i === index);
-    tab.setAttribute('aria-selected', String(i === index));
-  });
-  saveLayout();
-}
-right.append(rightTabs, propertiesPane, browserPane, detailsPane);
-body.append(left, sheet, splitter, right);
-root.append(bar, body, bottom, hiddenTree, hiddenFoot);
-showRightTab(state.layout.rightTab);
-
-function setPalette(open: boolean): void {
-  state.layout.paletteOpen = open;
-  left.classList.toggle('is-collapsed', !open);
-  paletteToggle.setAttribute('aria-pressed', String(open));
-  palette.setCompact(!open);
-  saveLayout();
-  fitStage();
-}
-
-function setDrawer(open: boolean): void {
-  state.layout.drawerOpen = open;
-  right.hidden = !open;
-  splitter.hidden = !open;
-  right.style.width = `${state.layout.drawerWidth}px`;
-  drawerToggle.setAttribute('aria-pressed', String(open));
-  saveLayout();
-  fitStage();
-}
-
-// The drawer is resized by dragging the splitter; the width is remembered.
-splitter.addEventListener('pointerdown', (down) => {
-  down.preventDefault();
-  splitter.setPointerCapture(down.pointerId);
-  const startX = down.clientX;
-  const startWidth = state.layout.drawerWidth;
-  const move = (event: PointerEvent) => {
-    state.layout.drawerWidth = Math.min(480, Math.max(240, startWidth - (event.clientX - startX)));
-    right.style.width = `${state.layout.drawerWidth}px`;
-    fitStage();
-  };
-  const up = () => {
-    splitter.removeEventListener('pointermove', move);
-    splitter.removeEventListener('pointerup', up);
-    saveLayout();
-  };
-  splitter.addEventListener('pointermove', move);
-  splitter.addEventListener('pointerup', up);
-});
-
-/** The viewer sizes its stage from a variable: it gets what the sheet has left under its own chrome. */
-function fitStage(): void {
-  const stage = host.querySelector<HTMLElement>('.arcviz-stage');
-  if (!stage) return;
-  const above = stage.getBoundingClientRect().top - sheet.getBoundingClientRect().top;
-  let below = 0;
-  let after = stage.nextElementSibling as HTMLElement | null;
-  while (after) {
-    if (!after.hidden) below += after.getBoundingClientRect().height;
-    after = after.nextElementSibling as HTMLElement | null;
-  }
-  const height = Math.max(160, sheet.clientHeight - above - below);
-  root.style.setProperty('--av-stage-height', `${Math.floor(height)}px`);
-}
-new ResizeObserver(() => fitStage()).observe(sheet);
+const shell = createShell(root, state.layout, { save: saveLayout, palette: (open) => palette.setCompact(!open), minimap: () => toggleMinimap() });
+const { layerBar, tabs, tools, left, sheet, host, modeChip, toast, progress, layoutNotice, bottom, hiddenTree, hiddenFoot, detailsSlot, relatedSlot, propertiesPane, browserPane, showRightTab, setPalette, setDrawer, fitStage } = shell;
 
 const palette = new Palette(left, {
   selected: () => (state.selected ? { id: state.selected.id, kind: state.selected.kind } : null),
@@ -350,18 +246,7 @@ function deleteMany(elements: ElementRecord[]): void {
 }
 
 function hideMany(elements: ElementRecord[]): void {
-  const graph = currentGraph();
-  if (!graph) return;
-  const ids = new Set(elements.map((e) => e.id));
-  const drawnAtTop = topLevelIds(graph).map((id) => elementFor({ view: '', id, name: '', kind: '', isEdge: false })?.id).filter((id): id is string => !!id);
-  const rest = drawnAtTop.filter((id) => !ids.has(id));
-  const named = namedDiagramOf(graph.id, graph.arc.view);
-  if (named) submit([{ op: 'set', element: named, key: 'shows', value: showsLiteral(rest) }], `hide ${ids.size} elements from ${named}`);
-  else {
-    const name = uniqueDiagramName(`${graph.arc.title} (custom)`);
-    pendingView = `${graph.arc.view}:${name}`;
-    submit([{ op: 'add_raw', declaration: `diagram ${JSON.stringify(name)} {\n  view: ${graph.arc.view}\n  shows: ${showsLiteral(rest)}\n}`, top_level: true }], `new diagram ${name} without ${ids.size} elements`);
-  }
+  contents.hideMany(elements);
   multi = [];
   markMulti();
 }
@@ -429,66 +314,21 @@ function countNodes(nodes: NonNullable<ReturnType<typeof currentGraph>>['childre
   return nodes.reduce((sum, node) => sum + 1 + countNodes(node.children ?? []), 0);
 }
 
-// --- Diagram contents (Capella's Insert/Remove, SysON's Manage visibility) ---
-
-/** Hide an element from the diagram on screen: out of a named diagram's `shows:`, or a new named diagram without it. */
-function hideFromDiagram(element: ElementRecord): void {
-  const graph = currentGraph();
-  if (!graph) return;
-  const drawnAtTop = topLevelIds(graph).map((id) => elementFor({ view: '', id, name: '', kind: '', isEdge: false })?.id).filter((id): id is string => !!id);
-  if (!drawnAtTop.includes(element.id)) {
-    showToast(`${element.name || element.id} is drawn inside another box: hide that box, or open it as a diagram.`, 'info');
-    return;
-  }
-  const rest = drawnAtTop.filter((id) => id !== element.id);
-  const named = namedDiagramOf(graph.id, graph.arc.view);
-  if (named) {
-    submit([{ op: 'set', element: named, key: 'shows', value: showsLiteral(rest) }], `hide ${element.id} from ${named}`);
-    return;
-  }
-  const name = uniqueDiagramName(`${graph.arc.title} (custom)`);
-  pendingView = `${graph.arc.view}:${name}`;
-  submit([{ op: 'add_raw', declaration: `diagram ${JSON.stringify(name)} {\n  view: ${graph.arc.view}\n  shows: ${showsLiteral(rest)}\n}`, top_level: true }], `new diagram ${name} without ${element.id}`);
-}
-
-/** Add what an element is connected to into the named diagram on screen (or a new one). */
-function showRelated(element: ElementRecord): void {
-  const graph = currentGraph();
-  if (!graph || !state.snapshot) return;
-  const around = neighbours(element, state.snapshot);
-  const related = [...around.incoming, ...around.outgoing].map((n) => n.other?.id).filter((id): id is string => !!id);
-  const named = namedDiagramOf(graph.id, graph.arc.view);
-  const current = named ? topLevelIds(graph).map((id) => elementFor({ view: '', id, name: '', kind: '', isEdge: false })?.id).filter((id): id is string => !!id) : [];
-  const shows = [...new Set([...current, element.id, ...related])];
-  if (named) {
-    if (shows.length === current.length) return showToast('Everything connected to it is already on this diagram.', 'info');
-    submit([{ op: 'set', element: named, key: 'shows', value: showsLiteral(shows) }], `show what ${element.id} is connected to`);
-    return;
-  }
-  newDiagramAround(element);
-}
-
-/** A new named diagram with the element and what it is connected to (Capella's contextual diagram). */
-function newDiagramAround(element: ElementRecord): void {
-  const graph = currentGraph();
-  if (!graph || !state.snapshot) return;
-  const around = neighbours(element, state.snapshot);
-  const related = [...around.incoming, ...around.outgoing].map((n) => n.other?.id).filter((id): id is string => !!id);
-  const view = ['oab', 'sab', 'lab', 'pab', 'cap', 'cdb'].includes(graph.arc.view) ? graph.arc.view : 'lab';
-  const name = uniqueDiagramName(`${element.name || element.id} context`);
-  pendingView = `${view}:${name}`;
-  submit([{ op: 'add_raw', declaration: `diagram ${JSON.stringify(name)} {\n  view: ${view}\n  shows: ${showsLiteral([...new Set([element.id, ...related])])}\n  context: true\n}`, top_level: true }], `new diagram ${name}`);
-}
-
-function uniqueDiagramName(base: string): string {
-  const taken = new Set((state.snapshot?.diagrams?.graphs ?? []).map((g) => g.arc.title));
-  let name = base;
-  for (let n = 2; taken.has(name); n++) name = `${base} ${n}`;
-  return name;
-}
+// --- Diagram contents ---------------------------------------------------------
 
 /** The diagram to show once the snapshot that creates it arrives. */
 let pendingView: string | null = null;
+const contents = new DiagramContents({
+  graph: () => currentGraph(),
+  snapshot: () => state.snapshot,
+  idOf: (id) => elementFor({ view: '', id, name: '', kind: '', isEdge: false })?.id ?? null,
+  submit,
+  toast: (text, kind) => showToast(text, kind),
+  showLater: (view) => (pendingView = view),
+});
+const hideFromDiagram = (element: ElementRecord) => contents.hide(element);
+const showRelated = (element: ElementRecord) => contents.related(element);
+const newDiagramAround = (element: ElementRecord) => contents.around(element);
 
 // --- Direct edit and find -----------------------------------------------------
 
@@ -688,6 +528,7 @@ function mount(snapshot: Snapshot): void {
     if (previous?.position && viewer.restore) viewer.restore(previous.position);
     if (state.selected) selectInViewer(state.selected.id);
     remounting = false;
+    editing.mounted();
     shownGraph = null;
     followView();
     fitStage();
@@ -703,47 +544,15 @@ function mount(snapshot: Snapshot): void {
 
 /** Nodes with findings are marked on the drawing, with the findings as their tooltip. */
 function markFindings(): void {
-  const findings = state.snapshot?.findings ?? [];
-  if (findings.length === 0) return;
-  const byElement = new Map<string, string[]>();
-  for (const finding of findings) {
-    if (!finding.element) continue;
-    const element = state.byId.get(finding.element) ?? state.byName.get(finding.element);
-    const key = element ? drawingId(element.id) : finding.element;
-    byElement.set(key, [...(byElement.get(key) ?? []), `${finding.severity}: ${finding.rule}: ${finding.message}`]);
-  }
-  for (const [id, lines] of byElement) {
-    const node = host.querySelector<SVGGElement>(`[data-id="${CSS.escape(id)}"]`);
-    if (!node || node.classList.contains('wb-has-finding')) continue;
-    node.classList.add('wb-has-finding');
-    if (lines.some((l) => l.startsWith('error'))) node.classList.add('is-error');
-    const title = document.createElementNS('http://www.w3.org/2000/svg', 'title');
-    title.textContent = lines.join('\n');
-    node.prepend(title);
-  }
+  markFindings_(host, state.snapshot?.findings ?? [], (id) => {
+    const element = state.byId.get(id) ?? state.byName.get(id);
+    return element ? drawingId(element.id) : id;
+  });
 }
 
 
-/** The layers of the model, one big button each, the one on screen pressed; several diagrams of a layer unfold in a list. */
 function renderLayers(): void {
-  clear(layerBar);
-  const graphs = state.snapshot?.diagrams?.graphs ?? [];
-  if (graphs.length === 0) return;
-  const current = state.viewer?.current?.()?.view ?? null;
-  for (const viewpoint of VIEWPOINTS) {
-    const own = graphs.filter((g) => g.arc.view === viewpoint.view);
-    if (own.length === 0) continue;
-    const active = own.some((g) => g.id === current);
-    const item = button('', () => showGraph(own[0].id), { class: `wb-layer${active ? ' is-active' : ''}`, 'aria-pressed': String(active), title: `${viewpoint.label}${own.length > 1 ? ` (${own.length} diagrams)` : ''}` });
-    item.append(el('span', { class: 'wb-layer-name', text: viewpoint.short }));
-    if (own.length > 1) item.appendChild(el('span', { class: 'wb-layer-count', text: String(own.length) }));
-    layerBar.appendChild(item);
-  }
-  const extra = graphs.filter((g) => !VIEWPOINTS.some((v) => v.view === g.arc.view));
-  if (extra.length > 0) {
-    const active = extra.some((g) => g.id === current);
-    layerBar.appendChild(button(`Other (${extra.length})`, () => showGraph(extra[0].id), { class: `wb-layer${active ? ' is-active' : ''}`, 'aria-pressed': String(active) }));
-  }
+  renderLayers_(layerBar, state.snapshot?.diagrams?.graphs ?? [], state.viewer?.current?.()?.view ?? null, showGraph);
 }
 
 function showGraph(id: string): void {
@@ -808,55 +617,14 @@ setInterval(followView, 1000);
 
 // --- Status line --------------------------------------------------------------
 
-let problemsOpen = false;
-
-/** One line of status; the list of findings unfolds on demand (errors unfold by themselves). */
-function showProblems(snapshot: Snapshot): void {
-  clear(bottom);
-  const errors = snapshot.errors.length;
-  const findings = snapshot.findings;
-  const gate = snapshot.gate;
-  const bySeverity = new Map<string, number>();
-  for (const finding of findings) bySeverity.set(finding.severity, (bySeverity.get(finding.severity) ?? 0) + 1);
-  const counts = [...bySeverity.entries()].map(([severity, n]) => `${n} ${severity}${n > 1 ? 's' : ''}`).join(', ');
-  const open = problemsOpen || errors > 0;
-  const toggle = button(open ? '▾' : '▸', () => {
-    problemsOpen = !problemsOpen;
-    showProblems(snapshot);
-  }, { class: 'wb-toggle', title: open ? 'Hide the findings' : 'Show the findings' });
-  const summary = el('div', { class: 'wb-problems-head' }, [
-    toggle,
-    el('strong', { class: errors ? 'is-error' : '', text: errors ? `${errors} error${errors > 1 ? 's' : ''}: the model does not compile` : findings.length ? counts : 'no findings' }),
-    gate ? el('span', { class: `wb-gate ${gate.passed ? 'is-pass' : 'is-fail'}`, text: gate.passed ? 'gate PASS' : `gate FAIL (${gate.requirements_verified}/${gate.requirements_total} requirements verified)` }) : null,
-    el('span', { class: 'wb-spacer' }),
-    button('Check', () => vscode.postMessage({ type: 'command', command: 'arclang.check' })),
-    button('Gate', () => vscode.postMessage({ type: 'command', command: 'arclang.runGate' })),
-    button('Transition plan', () => vscode.postMessage({ type: 'command', command: 'arclang.transitionPlan' })),
-    button('Source', () => vscode.postMessage({ type: 'open-text' })),
-  ]);
-  bottom.appendChild(summary);
-  bottom.classList.toggle('is-open', open);
-  fitStage();
-  if (!open) return;
-  const list = el('ul', { class: 'wb-problems' });
-  for (const error of snapshot.errors) list.appendChild(el('li', { class: 'is-error', text: error }));
-  for (const finding of findings.slice(0, 200)) list.appendChild(problemItem(finding));
-  if (findings.length > 200) list.appendChild(el('li', { class: 'wb-muted', text: `… ${findings.length - 200} more in the Problems view` }));
-  bottom.appendChild(list);
-}
-
-function problemItem(finding: Finding): HTMLElement {
-  const item = el('li', { class: `is-${finding.severity}` }, [el('code', { text: finding.rule }), ' ', finding.message]);
-  if (finding.element) {
-    const id = finding.element;
-    item.appendChild(button(id, () => {
-      const element = state.byId.get(id) ?? state.byName.get(id) ?? null;
-      if (element) selectElement(element, true);
-      vscode.postMessage({ type: 'reveal', id });
-    }, { class: 'wb-link' }));
-  }
-  return item;
-}
+const showProblems = createStatusLine(bottom, {
+  post: (message) => vscode.postMessage(message),
+  select: (id) => {
+    const element = state.byId.get(id) ?? state.byName.get(id) ?? null;
+    if (element) selectElement(element, true);
+  },
+  resized: fitStage,
+});
 
 // --- Messages from the host -------------------------------------------------
 
@@ -868,6 +636,7 @@ window.addEventListener('message', (event: MessageEvent<ToWebview>) => {
       state.snapshot = message.snapshot;
       state.metamodel = message.metamodel;
       index(message.snapshot);
+      editing.snapshotArrived();
       if (message.snapshot.success) mount(message.snapshot);
       else if (!state.viewer) mount(message.snapshot);
       // A model that stopped compiling keeps its last drawing, marked as such.
@@ -920,6 +689,7 @@ window.addEventListener('message', (event: MessageEvent<ToWebview>) => {
       return;
     }
     case 'edit-result':
+      editing.editResult(message.label, message.ok);
       if (message.ok) showToast(`Applied: ${message.label}. Undo with ⌘Z in the editor.`, 'info');
       else showToast(`Refused: ${message.error ?? ''}`, 'error', [['Show source', () => vscode.postMessage({ type: 'open-text' })]]);
       return;
@@ -931,41 +701,27 @@ window.addEventListener('message', (event: MessageEvent<ToWebview>) => {
   }
 });
 
-/** Elements added or changed by the last edit pulse once, so the eye finds them. */
+/** Elements added or changed by the last edit pulse once; one created is selected and centred, as Capella does. */
 function flashChanges(before: Snapshot, after: Snapshot): void {
-  // One element created: selected and brought to the middle, as Capella does.
-  const known = new Set((before.elements?.elements ?? []).map((e) => e.uuid));
-  const created = (after.elements?.elements ?? []).filter((e) => !known.has(e.uuid) && !/Port$/.test(e.kind));
-  if (created.length === 1) {
-    const element = created[0];
-    void state.viewer?.ready.then(() =>
+  const { created, changed } = changesOf(before, after);
+  void state.viewer?.ready.then(() => {
+    if (created) {
       setTimeout(() => {
         const view = state.viewer?.current?.()?.view;
         if (!view) return;
         programmaticUntil = Date.now() + 2000;
-        void state.viewer?.goTo?.(view, drawingId(element.id));
-        selectElement(element, false);
-      }, 200),
-    );
-  }
-  const old = new Map((before.elements?.elements ?? []).map((e) => [e.uuid, JSON.stringify(e.attributes) + e.name + e.owner]));
-  const changed = (after.elements?.elements ?? []).filter((e) => old.get(e.uuid) !== JSON.stringify(e.attributes) + e.name + e.owner);
-  if (changed.length === 0 || changed.length > 50) return;
-  void state.viewer?.ready.then(() => {
-    setTimeout(() => {
-      for (const element of changed) {
-        const node = host.querySelector<HTMLElement>(`[data-id="${CSS.escape(drawingId(element.id))}"]`);
-        if (!node) continue;
-        node.classList.add('wb-flash');
-        setTimeout(() => node.classList.remove('wb-flash'), 900);
-      }
-    }, 300);
+        void state.viewer?.goTo?.(view, drawingId(created.id));
+        selectElement(created, false);
+      }, 200);
+    }
+    if (changed.length) setTimeout(() => pulse(host, changed.map((e) => drawingId(e.id))), 300);
   });
 }
 
 document.addEventListener('keydown', (event) => {
   const typing = event.target instanceof HTMLInputElement || event.target instanceof HTMLSelectElement || event.target instanceof HTMLTextAreaElement;
-  if (event.key === 'Escape') {
+  // Esc in a field is the field's (it puts the value back), not the canvas's.
+  if (event.key === 'Escape' && !typing) {
     // Esc first cancels what is under way (a tool, a selection); then it leaves full screen.
     const busy = palette.isArmed() || !!state.selected || multi.length > 0;
     if (!busy && document.body.classList.contains('wb-focus')) setFocusMode(false);

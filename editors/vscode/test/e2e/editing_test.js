@@ -227,6 +227,54 @@ const rows = []; const report = (name, ok, detail) => { rows.push({ name, ok, de
   const helpShown = await page.locator('.wb-help:not([hidden])').count(); const helpText = await page.locator('.wb-help').textContent();
   report('? lists the shortcuts', helpShown > 0 && /⌘D/.test(helpText) && /Double-click/.test(helpText));
   await page.keyboard.press('Escape');
+  // 20. A refused cut keeps the clipboard: the same cut pastes elsewhere afterwards
+  await reset(); r = {}; await layer('Logical'); await click('LC-CAM'); await page.keyboard.press('Meta+x'); await click('LF-ACT'); n = await count(); await page.keyboard.press('Meta+v'); r = { result: await waitEdit(n) };
+  const refusedFirst = r.result && !r.result.ok;
+  await click('LC-CTL'); n = await count(); await page.keyboard.press('Meta+v'); r = { result: await waitEdit(n) }; text = await source();
+  report('a refused paste keeps the cut, which then pastes elsewhere', !!refusedFirst && !!r.result?.ok && text.indexOf('component "Camera"') > text.indexOf('component "LKA Controller"'), refusedFirst ? r.result?.error : 'the first paste was not refused');
+  report('the cut marker goes once the cut is pasted', (await page.locator('.wb-cut').count()) === 0);
+
+  // 21. The canvas keys leave other text alone; ports are not copied by the keyboard either
+  await reset(); r = {}; await layer('Logical'); await click('LC-CTL');
+  const swallowed = await page.evaluate(() => { const input = document.querySelector('.wb-name-input'); input.focus(); input.select(); const keys = ['c', 'a', 'd', 'x'].map((key) => { const e = new KeyboardEvent('keydown', { key, metaKey: true, bubbles: true, cancelable: true }); input.dispatchEvent(e); return e.defaultPrevented; }); input.blur(); return keys; });
+  report('⌘C ⌘A ⌘D ⌘X in a properties field are the field\'s', swallowed.every((x) => !x), swallowed.join(','));
+  { const port = await node('LC-CTL::lane').boundingBox(); await page.mouse.click(port.x + port.width / 2, port.y + port.height / 2); await page.waitForTimeout(300); }
+  const portCopy = await page.evaluate(() => { const e = new KeyboardEvent('keydown', { key: 'c', metaKey: true, bubbles: true, cancelable: true }); document.querySelector('.arcviz-stage').dispatchEvent(e); return e.defaultPrevented; });
+  report('⌘C on a port is not taken (ports move with Move to…)', !portCopy && !/Copied/.test(await page.locator('.wb-toast').textContent().catch(() => '')));
+
+  // 22. Esc in a field is the field's: an armed tool stays armed
+  await click('LC-CTL'); await page.locator('.wb-palette .wb-tool', { hasText: 'Component exchange' }).first().click();
+  const armedBefore = await page.locator('.wb-tool.is-armed').count();
+  await page.locator('.wb-name-input').focus(); await page.keyboard.press('Escape');
+  report('Esc in a properties field leaves the armed tool armed', armedBefore > 0 && (await page.locator('.wb-tool.is-armed').count()) > 0);
+  await page.locator('.arcviz-stage').focus(); await page.keyboard.press('Escape');
+
+  // 23. Bends follow the line: two bends both kept; reversed with it; renamed with it; dropped on reconnect
+  await reset(); r = {}; await layer('Logical');
+  const bend = async (edge, dy) => { await selectEdge(edge); const d = page.locator('.arcviz-bend.is-new').first(); if (!(await d.isVisible().catch(() => false))) return false; const c = centreOf(await d.boundingBox()); await drag(c, { x: c.x + 30, y: c.y + dy }); await page.waitForTimeout(1200); return true; };
+  const routeIn = (file, edge) => file?.arrangements?.find((a) => a.view === 'lab' && !a.open)?.edges?.[edge]?.points ?? [];
+  await bend('ce:SteerCommand', 60); await bend('ce:SteerCommand', 40);
+  const two = routeIn((await layouts()).at(-1), 'ce:SteerCommand');
+  report('two bends in a row are both kept', two.length === 2, JSON.stringify(two));
+  await selectEdge('ce:SteerCommand'); n = await count(); await page.locator('.wb-ends button', { hasText: 'Reverse' }).click(); r = { result: await waitEdit(n) }; await page.waitForTimeout(1500);
+  const reversed = routeIn((await layouts()).at(-1), 'ce:SteerCommand');
+  report('a reversed line keeps its bends, from its new source', !!r.result?.ok && reversed.length === 2 && reversed[0].x === two[1].x && reversed[0].y === two[1].y, JSON.stringify(reversed));
+  await bend('ce:LaneFlow', 50);
+  const labelBox = await node('ce:LaneFlow').locator('.av-edge-label').boundingBox(); await page.mouse.dblclick(labelBox.x + labelBox.width / 2, labelBox.y + labelBox.height / 2); await page.waitForTimeout(300);
+  n = await count(); await page.locator('.wb-direct-edit').fill('Lane data'); await page.locator('.wb-direct-edit').press('Enter'); r = { result: await waitEdit(n) }; await page.waitForTimeout(1500);
+  const renamedFile = (await layouts()).at(-1);
+  report('a renamed line keeps its bends under its new name, none under the old', !!r.result?.ok && routeIn(renamedFile, 'ce:Lane data').length === 1 && routeIn(renamedFile, 'ce:LaneFlow').length === 0, JSON.stringify(renamedFile?.arrangements?.map((a) => Object.keys(a.edges || {}))));
+  r = await reconnectByDrag('ce:Lane data', 'target', 'LC-ACT'); await page.waitForTimeout(1500);
+  report('a reconnected line is drawn afresh, its bends dropped', !!r.result?.ok && routeIn((await layouts()).at(-1), 'ce:Lane data').length === 0, r.error || r.result?.error || '');
+
+  // 24. A rename field open when the model changes underneath is closed, nothing written
+  await reset(); r = {}; await layer('Logical'); await click('LC-CAM'); await page.keyboard.press('F2'); await page.waitForTimeout(200);
+  const opened = await page.locator('.wb-direct-edit').count(); n = await count();
+  await page.evaluate(() => fetch('/edit', { method: 'POST', body: JSON.stringify({ requests: [{ op: 'rename', element: 'LC-ACT', name: 'Elsewhere' }] }) }).then(() => window.__push()));
+  await page.waitForTimeout(1500);
+  const closed = (await page.locator('.wb-direct-edit').count()) === 0;
+  report('a rename field is closed when the model changes under it', opened > 0 && closed && (await count()) === n && /closed/.test(await page.locator('.wb-toast').textContent().catch(() => '')));
+
   report('no page error', errors.length === 0, errors.slice(0, 2).join(' / '));
   const failed = rows.filter((x) => !x.ok); console.log(`\n${rows.length - failed.length}/${rows.length} editing gestures work`);
   await browser.close(); process.exit(failed.length ? 1 : 0);
