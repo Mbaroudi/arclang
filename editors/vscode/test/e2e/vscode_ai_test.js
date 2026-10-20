@@ -59,6 +59,8 @@ const until = async (win, test, ms = 20000) => { const end = Date.now() + ms; wh
   const command = async (name) => { await press('Meta+Shift+p'); await win.waitForTimeout(400); await win.keyboard.type(name); await win.waitForTimeout(700); await win.keyboard.press('Enter'); await win.waitForTimeout(700); };
   const source = () => fs.readFileSync(model, 'utf8');
   try {
+    // The extension has started (its AI status item shows) before its commands are asked for.
+    await until(win, () => win.evaluate(() => [...document.querySelectorAll('.statusbar-item')].some((n) => /OpenAI-compatible/.test(n.textContent))), 30000);
     // 0. A key for the provider, through the command: it reaches the server, never the log.
     await command('ArcLang: Set AI API key');
     await win.keyboard.type('OpenAI-compatible'); await win.waitForTimeout(400); await win.keyboard.press('Enter'); await win.waitForTimeout(500);
