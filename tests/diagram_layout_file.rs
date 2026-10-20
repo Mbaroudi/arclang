@@ -279,3 +279,62 @@ logical_architecture "LA" {
     let absurd = layout.replace("120", "1e9");
     assert!(LayoutFile::parse(&absurd).unwrap_err().contains("bends farther"));
 }
+
+#[test]
+fn line_styles_names_ports_and_stacking_are_kept_and_what_is_stale_is_reported() {
+    let model = r#"
+logical_architecture "LA" {
+    component "A" { id: "LC-A" port out "p" }
+    component "B" { id: "LC-B" port in "q" }
+    component_exchange "Flow" { from_port: "LC-A.p" to_port: "LC-B.q" }
+}
+"#;
+    let result = Compiler::new(CompilerConfig::default()).compile_string(model).expect("compiles");
+    let mut set = build_diagrams(&result.ast);
+    let lab = set.diagrams.iter().find(|d| d.id == "lab").expect("logical view");
+    let port = lab.nodes.iter().find(|n| n.id == "LC-A").expect("A").ports[0].id.clone();
+    let layout = format!(
+        r#"{{
+  "arclang_layout": "1",
+  "arrangements": [
+    {{ "view": "lab",
+       "edges": {{ "ce:Flow": {{ "style": "curved", "label": {{ "dx": 12, "dy": -8 }} }}, "ce:Odd": {{ "style": "zigzag" }} }},
+       "ports": {{ "{port}": {{ "dx": 0, "dy": 24 }}, "LC-A::gone": {{ "dx": 1, "dy": 1 }} }},
+       "order": {{ "LC-B": 1, "LC-A": -1, "LC-Gone": 2 }} }}
+  ]
+}}"#
+    );
+    let parsed = LayoutFile::parse(&layout).expect("parses");
+    let text = parsed.to_json();
+    assert_eq!(LayoutFile::parse(&text).expect("round trip"), parsed);
+    assert!(!text.contains("\"points\""), "an exchange that is not bent writes no points: {text}");
+    let warnings = set.apply_layout(parsed);
+    for stale in ["ce:Odd", "LC-A::gone", "LC-Gone"] {
+        assert!(warnings.iter().any(|w| w.contains(stale)), "{stale} reported: {warnings:?}");
+    }
+    let kept = &set.layout.as_ref().expect("kept").arrangements[0];
+    assert_eq!(kept.edges["ce:Flow"].style.as_deref(), Some("curved"));
+    assert_eq!(kept.edges["ce:Flow"].label.map(|l| (l.dx, l.dy)), Some((12.0, -8.0)));
+    assert_eq!(kept.ports.keys().collect::<Vec<_>>(), vec![&port]);
+    assert_eq!(kept.order.get("LC-B"), Some(&1));
+    assert_eq!(kept.order.get("LC-A"), Some(&-1));
+    assert!(!kept.order.contains_key("LC-Gone"));
+    // The standalone page receives all of it.
+    let page = html::standalone_html(&set, "LA");
+    assert!(page.contains("\"style\":\"curved\"") && page.contains("\"order\""), "the page carries the arrangement");
+    // Absurd values are refused with the reason.
+    let far = layout.replace("\"dy\": 24", "\"dy\": 1e9");
+    assert!(LayoutFile::parse(&far).unwrap_err().contains("moved farther"));
+    let deep = layout.replace("\"LC-B\": 1", "\"LC-B\": 1000000");
+    assert!(LayoutFile::parse(&deep).unwrap_err().contains("stacked deeper"));
+}
+
+#[test]
+fn a_file_without_the_new_arrangements_is_written_as_before() {
+    // Styles, names, ports and stacking are written only when used: a file
+    // made without them keeps the shape earlier builds read.
+    let text = LayoutFile::parse(LAYOUT).unwrap().to_json();
+    for key in ["\"ports\"", "\"order\"", "\"style\"", "\"label\""] {
+        assert!(!text.contains(key), "{key} in {text}");
+    }
+}
