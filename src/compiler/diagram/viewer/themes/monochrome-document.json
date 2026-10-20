@@ -1,0 +1,155 @@
+{
+  "version": 1,
+  "id": "monochrome-document",
+  "name": "Monochrome document",
+  "description": "One ink, slate blue, in tints: a sober drawing for a specification or a report, concepts told apart by lightness and shape.",
+  "background": "#FFFFFF",
+  "text": "#14202E",
+  "muted": "#1A2533",
+  "concepts": {
+    "operational_entity": {
+      "fill": "#9FB0C3",
+      "stroke": "#2F4A66"
+    },
+    "operational_activity": {
+      "fill": "#EDF1F5",
+      "stroke": "#2F4A66"
+    },
+    "operational_capability": {
+      "fill": "#9DAEC0",
+      "stroke": "#2F4A66"
+    },
+    "system_actor": {
+      "fill": "#CDD7E2",
+      "stroke": "#2F4A66"
+    },
+    "system_component": {
+      "fill": "#9FB0C3",
+      "stroke": "#2F4A66"
+    },
+    "logical_component": {
+      "fill": "#9FB0C3",
+      "stroke": "#2F4A66"
+    },
+    "behaviour_component": {
+      "fill": "#9FB0C3",
+      "stroke": "#2F4A66"
+    },
+    "system_function": {
+      "fill": "#FFFFFF",
+      "stroke": "#2F4A66"
+    },
+    "logical_function": {
+      "fill": "#FFFFFF",
+      "stroke": "#2F4A66"
+    },
+    "physical_function": {
+      "fill": "#FFFFFF",
+      "stroke": "#2F4A66"
+    },
+    "physical_node": {
+      "fill": "#7B8FA6",
+      "stroke": "#2F4A66"
+    },
+    "capability": {
+      "fill": "#C8D3DF",
+      "stroke": "#2F4A66"
+    },
+    "mission": {
+      "fill": "#FFFFFF",
+      "stroke": "#2F4A66"
+    },
+    "functional_chain": {
+      "fill": "#7B8FA6",
+      "stroke": "#2F4A66"
+    },
+    "data_type": {
+      "fill": "#EEF2F6",
+      "stroke": "#2F4A66"
+    },
+    "exchange_item": {
+      "fill": "#BAC7D4",
+      "stroke": "#2F4A66"
+    },
+    "state_mode": {
+      "fill": "#E8EDF2",
+      "stroke": "#2F4A66"
+    },
+    "requirement": {
+      "fill": "#AEBCCB",
+      "stroke": "#2F4A66"
+    },
+    "configuration_item": {
+      "fill": "#E3E9EF",
+      "stroke": "#2F4A66"
+    }
+  },
+  "exchanges": {
+    "functional_exchange": {
+      "line": "#14202E",
+      "width": 1.4,
+      "style": "solid"
+    },
+    "component_exchange": {
+      "line": "#4A5560",
+      "width": 2.4,
+      "style": "solid"
+    },
+    "physical_exchange": {
+      "line": "#4A5560",
+      "width": 1.4,
+      "style": "dashed"
+    },
+    "interaction": {
+      "line": "#14202E",
+      "width": 1.4,
+      "style": "solid"
+    },
+    "communication_mean": {
+      "line": "#4A5560",
+      "width": 1.4,
+      "style": "dashed"
+    },
+    "physical_link": {
+      "line": "#14202E",
+      "width": 3.4,
+      "style": "solid"
+    },
+    "physical_path": {
+      "line": "#14202E",
+      "width": 2.2,
+      "style": "dotted"
+    },
+    "transition": {
+      "line": "#14202E",
+      "width": 1.4,
+      "style": "solid"
+    },
+    "message": {
+      "line": "#14202E",
+      "width": 1.4,
+      "style": "solid"
+    },
+    "trace": {
+      "line": "#6F8399",
+      "width": 1.2,
+      "style": "dashed",
+      "text": "#4A5560"
+    },
+    "relation": {
+      "line": "#2C3A4A",
+      "width": 1.2,
+      "style": "solid"
+    }
+  },
+  "markings": {
+    "variant": {
+      "style": "dashed"
+    },
+    "tag": {
+      "fill": "#FFFFFF",
+      "stroke": "#2F4A66",
+      "text": "#14202E"
+    }
+  }
+}

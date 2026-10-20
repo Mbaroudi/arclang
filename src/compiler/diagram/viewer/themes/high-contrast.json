@@ -1,0 +1,154 @@
+{
+  "version": 1,
+  "id": "high-contrast",
+  "name": "High contrast",
+  "description": "Strong fills, black ink and heavier lines for projectors, bright rooms and low vision.",
+  "background": "#FFFFFF",
+  "text": "#000000",
+  "muted": "#000000",
+  "concepts": {
+    "operational_entity": {
+      "fill": "#999999",
+      "stroke": "#000000"
+    },
+    "operational_activity": {
+      "fill": "#FFB347",
+      "stroke": "#000000"
+    },
+    "operational_capability": {
+      "fill": "#FFC98A",
+      "stroke": "#000000"
+    },
+    "system_actor": {
+      "fill": "#FFE45C",
+      "stroke": "#000000"
+    },
+    "system_component": {
+      "fill": "#5AAEF5",
+      "stroke": "#000000"
+    },
+    "logical_component": {
+      "fill": "#5AAEF5",
+      "stroke": "#000000"
+    },
+    "behaviour_component": {
+      "fill": "#5AAEF5",
+      "stroke": "#000000"
+    },
+    "system_function": {
+      "fill": "#7EDB7E",
+      "stroke": "#000000"
+    },
+    "logical_function": {
+      "fill": "#7EDB7E",
+      "stroke": "#000000"
+    },
+    "physical_function": {
+      "fill": "#7EDB7E",
+      "stroke": "#000000"
+    },
+    "physical_node": {
+      "fill": "#E06C12",
+      "stroke": "#000000"
+    },
+    "capability": {
+      "fill": "#79BFF5",
+      "stroke": "#000000"
+    },
+    "mission": {
+      "fill": "#FFF06B",
+      "stroke": "#000000"
+    },
+    "functional_chain": {
+      "fill": "#FF8FB0",
+      "stroke": "#000000"
+    },
+    "data_type": {
+      "fill": "#E0E0E0",
+      "stroke": "#000000"
+    },
+    "exchange_item": {
+      "fill": "#9BE29B",
+      "stroke": "#000000"
+    },
+    "state_mode": {
+      "fill": "#E0E0E0",
+      "stroke": "#000000"
+    },
+    "requirement": {
+      "fill": "#FFC2E0",
+      "stroke": "#000000"
+    },
+    "configuration_item": {
+      "fill": "#BDBDBD",
+      "stroke": "#000000"
+    }
+  },
+  "exchanges": {
+    "functional_exchange": {
+      "line": "#006400",
+      "width": 2,
+      "style": "solid"
+    },
+    "component_exchange": {
+      "line": "#000066",
+      "width": 2.4,
+      "style": "solid"
+    },
+    "physical_exchange": {
+      "line": "#000066",
+      "width": 2,
+      "style": "dashed"
+    },
+    "interaction": {
+      "line": "#7A3B00",
+      "width": 2,
+      "style": "solid"
+    },
+    "communication_mean": {
+      "line": "#000000",
+      "width": 2,
+      "style": "dashed"
+    },
+    "physical_link": {
+      "line": "#B00000",
+      "width": 3.6,
+      "style": "solid"
+    },
+    "physical_path": {
+      "line": "#B00000",
+      "width": 2.6,
+      "style": "dotted"
+    },
+    "transition": {
+      "line": "#000000",
+      "width": 2,
+      "style": "solid"
+    },
+    "message": {
+      "line": "#000000",
+      "width": 2,
+      "style": "solid"
+    },
+    "trace": {
+      "line": "#404040",
+      "width": 1.6,
+      "style": "dotted"
+    },
+    "relation": {
+      "line": "#000000",
+      "width": 1.6,
+      "style": "solid"
+    }
+  },
+  "markings": {
+    "variant": {
+      "style": "dashed"
+    },
+    "tag": {
+      "fill": "#FFFFFF",
+      "stroke": "#000000",
+      "text": "#000000"
+    }
+  }
+}

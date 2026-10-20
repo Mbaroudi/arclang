@@ -1,0 +1,5 @@
+{
+  "description": "An actor outlined in the error red the tool keeps for its findings.",
+  "expect": { "ok": false, "rules": ["reserved"], "errors": ["actor stroke #E51400 is the error red the tool keeps for its own meaning"] },
+  "theme": { "version": 1, "name": "Red actors", "extends": "capella-classic", "concepts": { "system_actor": { "stroke": "#E51400" } } }
+}

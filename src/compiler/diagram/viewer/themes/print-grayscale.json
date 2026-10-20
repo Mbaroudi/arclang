@@ -1,0 +1,155 @@
+{
+  "version": 1,
+  "id": "print-grayscale",
+  "name": "Print / grayscale",
+  "description": "For a black-and-white printer: concepts told apart by lightness and by the notation's shapes, exchanges by line style and width.",
+  "background": "#FFFFFF",
+  "text": "#000000",
+  "muted": "#000000",
+  "concepts": {
+    "operational_entity": {
+      "fill": "#A0A0A0",
+      "stroke": "#000000"
+    },
+    "operational_activity": {
+      "fill": "#EDEDED",
+      "stroke": "#000000"
+    },
+    "operational_capability": {
+      "fill": "#969696",
+      "stroke": "#000000"
+    },
+    "system_actor": {
+      "fill": "#CFCFCF",
+      "stroke": "#000000"
+    },
+    "system_component": {
+      "fill": "#A3A3A3",
+      "stroke": "#000000"
+    },
+    "logical_component": {
+      "fill": "#A3A3A3",
+      "stroke": "#000000"
+    },
+    "behaviour_component": {
+      "fill": "#A3A3A3",
+      "stroke": "#000000"
+    },
+    "system_function": {
+      "fill": "#FFFFFF",
+      "stroke": "#000000"
+    },
+    "logical_function": {
+      "fill": "#FFFFFF",
+      "stroke": "#000000"
+    },
+    "physical_function": {
+      "fill": "#FFFFFF",
+      "stroke": "#000000"
+    },
+    "physical_node": {
+      "fill": "#7D7D7D",
+      "stroke": "#000000"
+    },
+    "capability": {
+      "fill": "#C7C7C7",
+      "stroke": "#000000"
+    },
+    "mission": {
+      "fill": "#FFFFFF",
+      "stroke": "#000000"
+    },
+    "functional_chain": {
+      "fill": "#7D7D7D",
+      "stroke": "#000000"
+    },
+    "data_type": {
+      "fill": "#F0F0F0",
+      "stroke": "#000000"
+    },
+    "exchange_item": {
+      "fill": "#BEBEBE",
+      "stroke": "#000000"
+    },
+    "state_mode": {
+      "fill": "#EBEBEB",
+      "stroke": "#000000"
+    },
+    "requirement": {
+      "fill": "#B0B0B0",
+      "stroke": "#000000"
+    },
+    "configuration_item": {
+      "fill": "#E6E6E6",
+      "stroke": "#000000"
+    }
+  },
+  "exchanges": {
+    "functional_exchange": {
+      "line": "#000000",
+      "width": 1.4,
+      "style": "solid"
+    },
+    "component_exchange": {
+      "line": "#4D4D4D",
+      "width": 2.4,
+      "style": "solid"
+    },
+    "physical_exchange": {
+      "line": "#4D4D4D",
+      "width": 1.4,
+      "style": "dashed"
+    },
+    "interaction": {
+      "line": "#000000",
+      "width": 1.4,
+      "style": "solid"
+    },
+    "communication_mean": {
+      "line": "#4D4D4D",
+      "width": 1.4,
+      "style": "dashed"
+    },
+    "physical_link": {
+      "line": "#000000",
+      "width": 3.4,
+      "style": "solid"
+    },
+    "physical_path": {
+      "line": "#000000",
+      "width": 2.2,
+      "style": "dotted"
+    },
+    "transition": {
+      "line": "#000000",
+      "width": 1.4,
+      "style": "solid"
+    },
+    "message": {
+      "line": "#000000",
+      "width": 1.4,
+      "style": "solid"
+    },
+    "trace": {
+      "line": "#808080",
+      "width": 1.2,
+      "style": "dashed",
+      "text": "#4D4D4D"
+    },
+    "relation": {
+      "line": "#262626",
+      "width": 1.2,
+      "style": "solid"
+    }
+  },
+  "markings": {
+    "variant": {
+      "style": "dashed"
+    },
+    "tag": {
+      "fill": "#FFFFFF",
+      "stroke": "#000000",
+      "text": "#000000"
+    }
+  }
+}

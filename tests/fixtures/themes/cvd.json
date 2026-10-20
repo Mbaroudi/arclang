@@ -1,0 +1,5 @@
+{
+  "description": "Interactions red and communication means green, same line: one line for a deuteranope.",
+  "expect": { "ok": false, "rules": ["cvd"], "errors": ["interaction and communication mean look alike with deuteranopia"] },
+  "theme": { "version": 1, "name": "Red and green", "extends": "arclang-default", "exchanges": { "interaction": { "line": "#B8442F", "width": 1.4, "style": "solid" }, "communication_mean": { "line": "#4E7F2E", "width": 1.4, "style": "solid" } } }
+}

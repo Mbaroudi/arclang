@@ -1,0 +1,5 @@
+{
+  "description": "A file of another version, with a misspelt concept and a colour that is not one.",
+  "expect": { "ok": false, "rules": ["structure"], "errors": ["version must be 1 (found 2)", "unknown concept \"logical_fonction\" in concepts", "concepts.mission.fill is not a colour: \"orange\" (write #RRGGBB)"] },
+  "theme": { "version": 2, "name": "Broken", "concepts": { "logical_fonction": { "fill": "#FFFFFF" }, "mission": { "fill": "orange", "stroke": "#000000" } } }
+}
