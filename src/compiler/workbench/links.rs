@@ -377,6 +377,161 @@ pub fn duplicate(source: &str, element: &str, container: Option<Container>) -> R
     Ok(edited)
 }
 
+/// The relationships a copy of several elements takes with it when both
+/// their ends are copied: exchanges, links and traces.
+const COPIED_WITH_ENDS: &[&str] = &["ComponentExchange", "FunctionalExchange", "OperationalExchange", "PhysicalLink", "PhysicalExchange", "Trace", "Association"];
+
+/// Whether `element` is `ancestor` or inside it.
+fn within(graph: &ElementGraph, element: &ElementRecord, ancestor: &str) -> bool {
+    let mut at = Some(element);
+    while let Some(current) = at {
+        if current.uuid == ancestor {
+            return true;
+        }
+        at = current.owner.as_ref().and_then(|uuid| graph.elements.iter().find(|e| &e.uuid == uuid));
+    }
+    false
+}
+
+/// Copy several elements at once, each with what it holds, beside its
+/// original or into one container, as [`duplicate`] copies one. An
+/// exchange, a link or a trace declared outside them whose two ends are
+/// both copied is copied too, joined to the copies; one between an original
+/// and anything else is not. The same identity checks as [`duplicate`].
+pub fn duplicate_many(source: &str, elements: &[String], container: Option<Container>) -> Result<String, String> {
+    if elements.is_empty() {
+        return Err("nothing to copy".to_string());
+    }
+    let graph = graph_of(source, "the model")?;
+    let mut picked: Vec<&ElementRecord> = Vec::new();
+    for designator in elements {
+        let record = resolve(&graph, designator)?;
+        if !picked.iter().any(|p| p.uuid == record.uuid) {
+            picked.push(record);
+        }
+    }
+    // An element inside another one copied comes with it.
+    let tops: Vec<&ElementRecord> = picked.iter().copied().filter(|r| !picked.iter().any(|o| o.uuid != r.uuid && within(&graph, r, &o.uuid))).collect();
+    let old: std::collections::HashSet<&str> = graph.elements.iter().map(|e| e.uuid.as_str()).collect();
+    let mut taken: std::collections::HashSet<String> = graph.elements.iter().flat_map(|e| [e.id.clone(), e.name.clone()]).collect();
+    let mut renamed: BTreeMap<String, String> = BTreeMap::new();
+    let mut names: std::collections::HashSet<String> = graph.elements.iter().map(|e| e.name.clone()).collect();
+    let mut new_names: Vec<String> = Vec::new();
+    let mut text = source.to_string();
+    for record in &tops {
+        let new_name = (2..).map(|n| format!("{} {n}", record.name)).find(|name| !names.contains(name)).expect("an unused name");
+        names.insert(new_name.clone());
+        let mut fresh = |id: &str| {
+            let next = fresh_id(id, &taken);
+            taken.insert(next.clone());
+            renamed.insert(id.to_string(), next.clone());
+            next
+        };
+        let target = container.map_or(CopyTarget::Beside, CopyTarget::Into);
+        text = source_edit::duplicate_element(&text, &written_designator(&graph, source, &record.id), target, &mut fresh, &new_name).map_err(|e| e.to_string())?;
+        new_names.push(new_name);
+    }
+    let copied = graph_of(&text, "edit refused: the model with the copies")?;
+    // Each copied element and its copy.
+    let mut copies: BTreeMap<String, String> = BTreeMap::new();
+    let fresh_in = |kind: &str, owner: Option<&str>, matches: &dyn Fn(&ElementRecord) -> bool| -> Option<String> {
+        let found: Vec<&ElementRecord> = copied.elements.iter().filter(|e| !old.contains(e.uuid.as_str()) && e.kind == kind && owner.is_none_or(|o| e.owner.as_deref() == Some(o)) && matches(e)).collect();
+        (found.len() == 1).then(|| found[0].uuid.clone())
+    };
+    for (record, new_name) in tops.iter().zip(&new_names) {
+        if let Some(copy) = fresh_in(record.kind, None, &|e: &ElementRecord| &e.name == new_name) {
+            copies.insert(record.uuid.clone(), copy);
+        }
+    }
+    // Inside a copy, owner first: the order of the graph lists owners before what they hold.
+    loop {
+        let before = copies.len();
+        for element in &graph.elements {
+            if copies.contains_key(&element.uuid) {
+                continue;
+            }
+            let Some(owner_copy) = element.owner.as_ref().and_then(|owner| copies.get(owner)).cloned() else { continue };
+            let wanted_id = renamed.get(&element.id).cloned();
+            let copy = fresh_in(element.kind, Some(&owner_copy), &|e: &ElementRecord| match &wanted_id {
+                Some(id) => &e.id == id,
+                None => e.name == element.name,
+            });
+            if let Some(copy) = copy {
+                copies.insert(element.uuid.clone(), copy);
+            }
+        }
+        if copies.len() == before {
+            break;
+        }
+    }
+    // The copied blocks join nothing that was already there.
+    let between_old = |g: &ElementGraph| -> BTreeMap<Edge, usize> {
+        let mut all = BTreeMap::new();
+        for r in g.relationships.iter().filter(|r| old.contains(r.source.as_str()) && old.contains(r.target.as_str())) {
+            *all.entry((r.kind.to_string(), r.name.clone(), r.source.clone(), r.target.clone())).or_insert(0) += 1;
+        }
+        all
+    };
+    let kept = edges(&graph);
+    if between_old(&copied) != kept {
+        return Err("edit refused: a copied block declares a relationship between elements that are not copied; copy what it joins with it, or write it again for the copy".to_string());
+    }
+    // The relationships declared outside, both ends copied: copied, joined to the copies.
+    let mut relationship_names: std::collections::HashSet<String> = graph.relationships.iter().filter_map(|r| r.name.clone()).chain(names.iter().cloned()).collect();
+    let mut current = copied;
+    for relationship in graph.relationships.iter().filter(|r| COPIED_WITH_ENDS.contains(&r.kind)) {
+        let (Some(from_copy), Some(to_copy)) = (copies.get(&relationship.source), copies.get(&relationship.target)) else { continue };
+        let count = |g: &ElementGraph| g.relationships.iter().filter(|r| r.kind == relationship.kind && &r.source == from_copy && &r.target == to_copy).count();
+        if count(&current) > 0 {
+            continue; // declared inside a copied block, it came with it
+        }
+        let element = |g: &ElementGraph, uuid: &str| g.elements.iter().find(|e| e.uuid == uuid).cloned();
+        let (Some(from), Some(to), Some(new_from), Some(new_to)) = (element(&current, &relationship.source), element(&current, &relationship.target), element(&current, from_copy), element(&current, to_copy)) else { continue };
+        let Some(written) = current.relationships.iter().find(|r| r.uuid == relationship.uuid).cloned() else { continue };
+        let spots = spots_of(&current, &text, &written, &from, &to)?;
+        let mut renaming = Vec::new();
+        if let (Some(spot), Some(name)) = (&spots.name, &relationship.name) {
+            let new_name = (2..).map(|n| format!("{name} {n}")).find(|candidate| !relationship_names.contains(candidate)).expect("an unused name");
+            relationship_names.insert(new_name.clone());
+            renaming.push((spot.index, source_edit::spelled_like(&Spot { quoted: true, ..spot.clone() }, &new_name)));
+        }
+        let wanted = count(&current) + 1;
+        let mut done = None;
+        'spellings: for from_text in written_like(&current, &text, &spots.from, &from, &new_from) {
+            for to_text in written_like(&current, &text, &spots.to, &to, &new_to) {
+                let mut changes = vec![(spots.from.index, from_text.clone()), (spots.to.index, to_text)];
+                changes.extend(renaming.iter().cloned());
+                let mut fresh = |id: &str| {
+                    let next = fresh_id(id, &taken);
+                    taken.insert(next.clone());
+                    next
+                };
+                let Ok(edited) = source_edit::duplicate_relationship(&text, spots.from.index, &changes, &mut fresh) else { continue };
+                let Ok(after) = graph_of(&edited, "the copy") else { continue };
+                if count(&after) == wanted && between_old(&after) == kept {
+                    done = Some((edited, after));
+                    break 'spellings;
+                }
+            }
+        }
+        let (edited, after) = done.ok_or_else(|| format!("edit refused: the {} between '{}' and '{}' could not be copied with them", relationship.kind, from.id, to.id))?;
+        text = edited;
+        current = after;
+    }
+    let before_ids = identities(&graph);
+    let after_ids: std::collections::BTreeSet<String> = identities(&current).into_iter().collect();
+    if !before_ids.iter().all(|uuid| after_ids.contains(uuid)) {
+        return Err("edit refused: the copy would change the identity of another element".to_string());
+    }
+    if current.elements.len() < graph.elements.len() + tops.len() {
+        return Err("edit refused: the copies would not all be new elements".to_string());
+    }
+    if current.unresolved.len() > graph.unresolved.len() {
+        return Err("edit refused: the copy would leave a reference without an end".to_string());
+    }
+    Ok(text)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -458,4 +613,23 @@ mod tests {
         assert_eq!(fresh_id("LC-X", &taken), "LC-X-3");
         assert_eq!(fresh_id("REQ-007", &Default::default()), "REQ-008");
     }
+    #[test]
+    fn several_copies_take_the_exchanges_between_them() {
+        let copied = duplicate_many(MODEL, &["LC-A".to_string(), "LC-B".to_string()], None).unwrap();
+        assert!(copied.contains("id: \"LC-A-2\"") && copied.contains("id: \"LC-B-2\""), "{copied}");
+        assert!(copied.contains("component_exchange \"Flow 2\" {\n        from_port: \"LC-A-2.p\"\n        to_port: \"LC-B-2.q\"\n    }"), "{copied}");
+        assert_eq!(copied.matches("component_exchange").count(), 2, "{copied}");
+        // One end only copied: the exchange stays with the originals.
+        let alone = duplicate_many(MODEL, &["LC-A".to_string(), "LC-C".to_string()], None).unwrap();
+        assert_eq!(alone.matches("component_exchange").count(), 1, "{alone}");
+        // A trace between two copied elements is copied too.
+        let traced = duplicate_many(MODEL, &["LC-A".to_string(), "REQ-1".to_string()], None).unwrap();
+        assert!(traced.contains("trace \"LC-A-2\" satisfies \"REQ-1 2\"") || traced.contains("trace \"LC-A-2\" satisfies \"REQ-2\""), "{traced}");
+        // Into a container, the exchange follows the copies there.
+        let into = duplicate_many(MODEL, &["LC-A".to_string(), "LC-B".to_string()], Some(Container::Element("LC-C"))).unwrap();
+        assert!(into.contains("from_port: \"LC-A-2.p\"") && into.contains("to_port: \"LC-B-2.q\""), "{into}");
+        // A scenario still refuses: its messages join participants that are not copied.
+        assert!(duplicate_many(MODEL, &["S".to_string()], None).is_err());
+    }
+
 }

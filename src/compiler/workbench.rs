@@ -355,6 +355,15 @@ pub enum EditRequest {
     /// A copy of an element with what it holds, ids made unique: beside
     /// the original, or into an element or a layer.
     Duplicate { element: String, container: Option<String>, layer: Option<String>, layer_name: Option<String> },
+    /// Copies of several elements at once (a multi-selection pasted): each
+    /// as `duplicate` copies one, and the exchanges, links and traces
+    /// declared between two of them copied too, joined to the copies.
+    DuplicateMany {
+        elements: Vec<String>,
+        container: Option<String>,
+        layer: Option<String>,
+        layer_name: Option<String>,
+    },
 }
 
 pub fn compile_text(source: &str) -> Result<CompilationResult, String> {
@@ -458,7 +467,7 @@ impl EditRequest {
             EditRequest::AddTrace { from, kind, to } => EditRequest::AddTrace { from: w(from), kind: kind.clone(), to: w(to) },
             EditRequest::RemoveTrace { from, kind, to } => EditRequest::RemoveTrace { from: w(from), kind: kind.clone(), to: w(to) },
             // Resolved on the compiled model by the edit itself.
-            EditRequest::Reconnect { .. } | EditRequest::Duplicate { .. } => self.clone(),
+            EditRequest::Reconnect { .. } | EditRequest::Duplicate { .. } | EditRequest::DuplicateMany { .. } => self.clone(),
         }
     }
 }
@@ -489,6 +498,14 @@ fn edit_links(source: &str, request: &EditRequest) -> Option<Result<String, Stri
                 (None, None) => None,
             };
             Some(links::duplicate(source, element, target))
+        }
+        EditRequest::DuplicateMany { elements, container, layer, layer_name } => {
+            let target = match (container, layer) {
+                (Some(other), _) => Some(Container::Element(other)),
+                (None, Some(layer)) => Some(Container::Layer { keyword: layer, name: layer_name.as_deref() }),
+                (None, None) => None,
+            };
+            Some(links::duplicate_many(source, elements, target))
         }
         _ => None,
     }
@@ -551,7 +568,7 @@ pub fn edit(source: &str, request: &EditRequest) -> Result<String, String> {
         }
         EditRequest::AddTrace { from, kind, to } => source_edit::add_trace(source, from, kind, to),
         EditRequest::RemoveTrace { from, kind, to } => source_edit::remove_trace(source, &[from.as_str()], kind, &[to.as_str()]),
-        EditRequest::Reconnect { .. } | EditRequest::Duplicate { .. } => unreachable!("handled by edit_links"),
+        EditRequest::Reconnect { .. } | EditRequest::Duplicate { .. } | EditRequest::DuplicateMany { .. } => unreachable!("handled by edit_links"),
     }
     .map_err(|e| e.to_string())?;
 

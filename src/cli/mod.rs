@@ -411,7 +411,7 @@ pub enum Commands {
     /// Apply one edit, written as JSON, to a model file: {"op": "set" |
     /// "unset" | "rename" | "add" | "add_raw" | "remove" | "move" |
     /// "add_trace" | "remove_trace" | "wrap_fragment" | "reconnect" |
-    /// "duplicate", ...}. Comments and layout are kept; refused unless the
+    /// "duplicate" | "duplicate_many", ...}. Comments and layout are kept; refused unless the
     /// edited model compiles and shows what was asked. Prints {"success":
     /// true, "source": ...} or {"success": false, "error": ...}; --write
     /// writes the file back
@@ -432,7 +432,10 @@ pub enum Commands {
     /// Duplicate: {"op": "duplicate", "element": E, "container": C?, "layer":
     /// L?} copies the declaration of E with what it holds, beside it or into
     /// C or the layer L; every id of the copy is made unique (LC-X becomes
-    /// LC-X-2), an element without id gets a new name.
+    /// LC-X-2), an element without id gets a new name. {"op":
+    /// "duplicate_many", "elements": [E, ...], "container": C?} copies
+    /// several at once, with the exchanges, links and traces declared
+    /// between two of them, joined to the copies.
     ///
     /// A move of a port ({"op": "move", "element": "LC-A.p", "container":
     /// "LC-B"}) takes the ends of its exchanges with it. A rename of a name

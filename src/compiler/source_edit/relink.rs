@@ -59,7 +59,7 @@ impl Document {
 
     /// The lexemes of a declaration line starting at `start`: up to its `{`,
     /// the end of the line or a comment.
-    fn line_from(&self, start: usize) -> Vec<usize> {
+    pub(super) fn line_from(&self, start: usize) -> Vec<usize> {
         let mut line = Vec::new();
         for index in start + 1..self.lexemes.len() {
             let lexeme = &self.lexemes[index];
@@ -72,7 +72,7 @@ impl Document {
     }
 
     /// The block that opens right after a declaration line, if any.
-    fn block_after(&self, line: &[usize], start: usize) -> Option<Block> {
+    pub(super) fn block_after(&self, line: &[usize], start: usize) -> Option<Block> {
         let next = line.last().copied().unwrap_or(start) + 1;
         let opens = self.lexemes.get(next).is_some_and(|lexeme| token(lexeme) == Some(&Token::LeftBrace) && lexeme.newlines_before == 0);
         if !opens {
