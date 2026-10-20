@@ -39,6 +39,16 @@ type Section = { id: string; label: string; count?: string; tone?: 'error' | 'wa
 
 const VALIDATION_TIMEOUT = 5000;
 
+/**
+ * A header action: a glyph and its name. A narrow drawer shows the glyphs
+ * alone, in one row, the name in the tooltip and to assistive technology.
+ */
+function action(glyph: string, label: string, onClick: () => void, attributes: Record<string, string> = {}): HTMLButtonElement {
+  const node = button('', onClick, { ...attributes, 'aria-label': label, title: `${label}: ${attributes.title ?? label}` });
+  node.append(el('span', { class: 'wb-action-glyph', 'aria-hidden': 'true', text: glyph }), el('span', { class: 'wb-action-label', text: label }));
+  return node;
+}
+
 export class Properties {
   private readonly root: HTMLElement;
   private element: ElementRecord | null = null;
@@ -169,20 +179,20 @@ export class Properties {
     });
     const chip = el('span', { class: 'wb-kind', text: kindLabel(element.kind), title: kind?.doc ?? element.kind });
     const actions = el('div', { class: 'wb-actions', role: 'toolbar', 'aria-label': 'Element actions' }, [
-      button('Ask @arclang', () => this.owner.ask(element), { title: 'Ask the assistant about this element' }),
+      action('✦', 'Ask @arclang', () => this.owner.ask(element), { title: 'Ask the assistant about this element' }),
     ]);
     const ends = this.owner.ends?.(element) ?? null;
     const requirements = this.owner.requirements?.() ?? [];
-    if (!ends && element.kind !== 'Requirement' && requirements.length) actions.appendChild(button('Satisfies…', () => this.satisfies(element, requirements), { title: 'Trace it to a requirement it satisfies' }));
+    if (!ends && element.kind !== 'Requirement' && requirements.length) actions.appendChild(action('⊨', 'Satisfies…', () => this.satisfies(element, requirements), { title: 'Trace it to a requirement it satisfies' }));
     if (!ends && this.owner.diagram) {
       const diagram = this.owner.diagram;
       actions.append(
-        button('Hide', () => diagram('hide', element), { title: 'Hide from this diagram (⌘H)' }),
-        button('Show related', () => diagram('related', element), { title: 'Add what it is connected to' }),
-        button('New diagram', () => diagram('new', element), { title: 'A new diagram with it and what it is connected to' }),
+        action('◌', 'Hide', () => diagram('hide', element), { title: 'Hide from this diagram (⌘H)' }),
+        action('⇆', 'Show related', () => diagram('related', element), { title: 'Add what it is connected to' }),
+        action('⊞', 'New diagram', () => diagram('new', element), { title: 'A new diagram with it and what it is connected to' }),
       );
     }
-    actions.appendChild(button('Delete', () => this.owner.submit([{ op: 'remove', element: element.id }], `delete ${element.id}`), { class: 'wb-danger', title: 'Delete the declaration (⌘Z takes it back)' }));
+    actions.appendChild(action('⌫', 'Delete', () => this.owner.submit([{ op: 'remove', element: element.id }], `delete ${element.id}`), { class: 'wb-danger', title: 'Delete the declaration (⌘Z takes it back)' }));
     const linked = ends
       ? el('p', { class: 'wb-ends' }, [
           this.link(ends.from),
@@ -318,7 +328,8 @@ export class Properties {
   }
 
   private label(text: string, doc: string): HTMLTableCellElement {
-    const th = el('th', { scope: 'row' }, [el('span', { class: 'wb-label-text', text })]);
+    // The full name on hover: a narrow drawer cuts a long label with an ellipsis.
+    const th = el('th', { scope: 'row' }, [el('span', { class: 'wb-label-text', text, title: text })]);
     if (doc) {
       const tipId = `wb-tip-${Math.random().toString(36).slice(2)}`;
       const info = el('button', { type: 'button', class: 'wb-info', 'aria-label': `About ${text}`, 'aria-describedby': tipId, text: 'i' });
@@ -412,7 +423,7 @@ export class Properties {
       table.appendChild(
         el('tr', { 'data-key': item.key, class: 'is-inherited' }, [
           this.label(humanise(item.key), [attribute.doc ?? '', `Inherited from ${from}`].filter(Boolean).join('\n')),
-          el('td', { class: 'wb-value' }, [el('span', { class: 'wb-inherited-value', text: displayValue(item.value) }), el('span', { class: 'wb-from', text: ` from ${from}` })]),
+          el('td', { class: 'wb-value' }, [el('span', { class: 'wb-inherited-value', text: displayValue(item.value) }), el('span', { class: 'wb-from', text: ` from ${from}`, title: `from ${from}` })]),
           el('td', { class: 'wb-row-tools' }, [redefine]),
         ]),
       );
