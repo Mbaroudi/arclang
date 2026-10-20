@@ -21,3 +21,10 @@ PORT=${PORT:-8766} node "$here/palette_test.js"
 PORT=${PORT:-8766} node "$here/gestures_test.js"
 PORT=${PORT:-8766} node "$here/editing_test.js"
 node "$here/toolbar_test.js" "$root"
+# tables hook: the table view, on tables the compiler computed.
+cp "$ext/dist/tables.js" "$ext/media/tables.css" "$here/tables.html" "$root/"
+fixture="$here/../../../../tests/fixtures/tables/braking.arc"
+for t in "Requirement coverage:coverage" "Satisfaction:satisfaction" "Interfaces:interfaces" "ICD:icd"; do
+  "$here/../../../../target/release/arclang" table "$fixture" --name "${t%%:*}" > "$root/${t##*:}.json"
+done
+node "$here/tables_test.js" "$root"
