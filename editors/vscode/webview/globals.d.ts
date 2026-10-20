@@ -31,6 +31,19 @@ export interface ViewerApi {
   scale?: () => number;
   routeOf?: (edge: string) => { x: number; y: number }[];
   setRoute?: (edge: string, points: { x: number; y: number }[]) => Promise<void>;
+  /** Read the host's history and selection into the toolbar again. */
+  refreshTools?: () => void;
+}
+
+export interface ToolbarHookItem {
+  id: string;
+  label: string;
+  title?: string;
+  /** As 'Mod+Shift+C': written ⇧⌘C on a Mac, Ctrl+Shift+C elsewhere. */
+  shortcut?: string;
+  /** A theme item: ticked when it is the one in use. */
+  checked?: boolean;
+  run: () => void;
 }
 
 export interface ViewerOptions {
@@ -46,6 +59,15 @@ export interface ViewerOptions {
   onLayout?: (file: unknown) => void;
   /** Editing from the drawing (ArcVizEdit): see the viewer's `mount`. */
   edit?: Record<string, unknown>;
+  /** What the toolbar adds for this host: undo and redo, align, the arrange switch. */
+  toolbar?: {
+    history?: { undo: () => void; redo: () => void; labels: () => { undo: string | null; redo: string | null } };
+    align?: { count: () => number; align: (how: string) => void; distribute: (axis: 'horizontal' | 'vertical') => void };
+    arrangeToggle?: boolean;
+  };
+  /** More entries in Export, above SVG and PNG; a Theme menu when not empty. */
+  exportItems?: ToolbarHookItem[] | (() => ToolbarHookItem[]);
+  themeItems?: ToolbarHookItem[] | (() => ToolbarHookItem[]);
 }
 
 declare global {
@@ -61,6 +83,12 @@ declare global {
     ArcVizStage: unknown;
     ArcVizPlace: unknown;
     ArcVizEdit: unknown;
+    ArcVizToolbar: {
+      icon: (name: string, size?: number) => SVGSVGElement;
+      isMac: () => boolean;
+      tooltip: (label: string, keys: string, mac: boolean) => string;
+      shortcutLabel: (keys: string, mac: boolean) => string;
+    };
   }
   function acquireVsCodeApi(): { postMessage: (message: FromWebview) => void; getState: () => unknown; setState: (state: unknown) => void };
 }

@@ -19,15 +19,27 @@ export interface ShellHooks {
   minimap: () => void;
 }
 
+/**
+ * A panel toggle of the bar: the viewer's icon set, a pressed state, the
+ * name beside the icon when the bar has room (workbench.css), the shortcut
+ * in the tooltip.
+ */
+function toggle(icon: string, label: string, keys: string, onClick: () => void, className: string): HTMLButtonElement {
+  const kit = window.ArcVizToolbar;
+  const node = el('button', { type: 'button', class: `wb-icon-button wb-bar-toggle ${className}`, 'aria-label': label, 'aria-pressed': 'false', title: kit.tooltip(label, keys, kit.isMac()) }, [kit.icon(icon), el('span', { class: 'wb-toggle-label', text: label })]);
+  node.addEventListener('click', onClick);
+  return node;
+}
+
 export function createShell(root: HTMLElement, layout: ShellLayout, hooks: ShellHooks) {
   const bar = el('header', { class: 'wb-bar' });
   const layerBar = el('nav', { class: 'wb-layers', 'aria-label': 'Arcadia layers' });
   const toolRow = el('div', { class: 'wb-toolrow' });
   const tabs = el('div', { class: 'wb-tabs wb-hidden' });
   const tools = el('div', { class: 'wb-viewer-tools' });
-  const paletteToggle = button('', () => setPalette(!layout.paletteOpen), { class: 'wb-icon-button', title: 'Palette' });
-  const drawerToggle = button('', () => setDrawer(!layout.drawerOpen), { class: 'wb-icon-button', title: 'Properties' });
-  const minimapToggle = button('', () => hooks.minimap(), { class: 'wb-icon-button wb-minimap-toggle', title: 'Minimap (Shift+M)' });
+  const paletteToggle = toggle('palette', 'Palette', '', () => setPalette(!layout.paletteOpen), 'wb-palette-toggle');
+  const minimapToggle = toggle('minimap', 'Minimap', 'Shift+M', () => hooks.minimap(), 'wb-minimap-toggle');
+  const drawerToggle = toggle('properties', 'Properties', '', () => setDrawer(!layout.drawerOpen), 'wb-drawer-toggle');
   toolRow.append(paletteToggle, tools, minimapToggle, drawerToggle);
   bar.append(layerBar, toolRow);
 
@@ -130,5 +142,10 @@ export function createShell(root: HTMLElement, layout: ShellLayout, hooks: Shell
   }
   new ResizeObserver(() => fitStage()).observe(sheet);
 
-  return { layerBar, tabs, tools, left, sheet, host, modeChip, toast, progress, layoutNotice, right, bottom, hiddenTree, hiddenFoot, detailsSlot, relatedSlot, propertiesPane, browserPane, showRightTab, setPalette, setDrawer, fitStage };
+  /** The minimap shows (or not): its toggle says so. */
+  function setMinimapShown(shown: boolean): void {
+    minimapToggle.setAttribute('aria-pressed', String(shown));
+  }
+
+  return { setMinimapShown, layerBar, tabs, tools, left, sheet, host, modeChip, toast, progress, layoutNotice, right, bottom, hiddenTree, hiddenFoot, detailsSlot, relatedSlot, propertiesPane, browserPane, showRightTab, setPalette, setDrawer, fitStage };
 }

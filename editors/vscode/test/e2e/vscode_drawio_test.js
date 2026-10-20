@@ -88,7 +88,7 @@ async function launch(dir, model) {
     }, edge);
 
     await page.locator('.wb-layer', { hasText: 'Logical' }).first().click(); await settle(1500);
-    await page.locator('.wb-viewer-tools button', { hasText: 'Full screen' }).first().click(); await settle(3500);
+    await page.locator('#arcviz-fullscreen').click(); await settle(3500);
     await calibrate();
     await shot('drawio-00-start');
 
@@ -211,7 +211,7 @@ async function launch(dir, model) {
     await shot('drawio-08-port-moved');
 
     // 9. Reset layout: back to the automatic layout, every arrangement gone from the file
-    await page.locator('button', { hasText: 'Reset layout' }).first().click().catch(() => {});
+    await page.locator('#arcviz-layout-menu').click().catch(() => {}); await page.locator('.arcviz-menu-pop:not([hidden]) [data-action="reset-layout"]').click().catch(() => {});
     await settle(2500);
     const reset = layout();
     report('Reset layout drops the arrangement of the view', !/"LC-CTL"/.test(reset) && !/"ports"/.test(reset) && !/"label"/.test(reset), reset.slice(0, 120).replace(/\s+/g, ' '));

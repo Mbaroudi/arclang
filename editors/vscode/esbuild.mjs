@@ -26,6 +26,7 @@ const VIEWER_FILES = [
   'arcviz-place.js',
   'arcviz-route.js',
   'arcviz-edit.js',
+  'arcviz-toolbar.js',
   'arcviz-viewer.js',
   'arcviz-viewer.css',
 ];

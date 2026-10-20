@@ -41,16 +41,53 @@
   background: var(--vscode-input-background);
   border-color: var(--vscode-input-border, transparent);
 }
-/* The viewer's toolbar buttons take the editor's toolbar look. */
-#workbench .wb-viewer-tools button {
-  font-size: 11px;
-  padding: 0.15rem 0.45rem;
-  background: transparent;
-  color: var(--vscode-foreground);
-  border: 1px solid transparent;
+/* The viewer's tool row and its menus take the editor's toolbar and menu
+   look: the same hover, pressed and focus colours as VS Code's own. */
+#workbench .arcviz {
+  --av-tool-fg: var(--vscode-icon-foreground, var(--vscode-foreground));
+  --av-tool-hover: var(--vscode-toolbar-hoverBackground, rgba(90, 93, 94, 0.31));
+  --av-tool-active: var(--vscode-toolbar-activeBackground, rgba(99, 102, 103, 0.31));
+  --av-tool-pressed: var(--vscode-inputOption-activeBackground, rgba(0, 144, 241, 0.2));
+  --av-tool-pressed-fg: var(--vscode-inputOption-activeForeground, var(--vscode-foreground));
+  --av-tool-pressed-border: var(--vscode-inputOption-activeBorder, transparent);
+  --av-tool-separator: var(--vscode-menu-separatorBackground, var(--vscode-panel-border, #8884));
+  --av-focus: var(--vscode-focusBorder, #0078d4);
+  --av-badge-bg: var(--vscode-badge-background, #616161);
+  --av-badge-fg: var(--vscode-badge-foreground, #fff);
+  --av-menu-bg: var(--vscode-menu-background, var(--vscode-editorWidget-background, var(--vscode-editor-background)));
+  --av-menu-fg: var(--vscode-menu-foreground, var(--vscode-foreground));
+  --av-menu-border: var(--vscode-menu-border, var(--vscode-editorWidget-border, var(--vscode-panel-border, #8884)));
+  --av-menu-hover-bg: var(--vscode-menu-selectionBackground, var(--vscode-list-activeSelectionBackground, #0060c0));
+  --av-menu-hover-fg: var(--vscode-menu-selectionForeground, var(--vscode-list-activeSelectionForeground, #fff));
+  --av-menu-hover-border: var(--vscode-menu-selectionBorder, transparent);
+  --av-menu-shadow: 0 2px 8px var(--vscode-widget-shadow, rgba(0, 0, 0, 0.36));
 }
-#workbench .wb-viewer-tools button:hover { background: var(--vscode-toolbar-hoverBackground, #8883); }
-#workbench .wb-viewer-tools button[disabled] { opacity: 0.4; }
+#workbench .arcviz .arcviz-tool { font-size: 12px; }
+#workbench .arcviz .arcviz-menu-pop { font-size: 12px; }
+#workbench .arcviz .arcviz-menu-heading { color: var(--vscode-descriptionForeground); }
+/* High contrast: outlines instead of fills, as VS Code draws them. */
+body.vscode-high-contrast #workbench .arcviz .arcviz-tool:hover:not([aria-disabled='true']):not(:disabled),
+body.vscode-high-contrast-light #workbench .arcviz .arcviz-tool:hover:not([aria-disabled='true']):not(:disabled),
+body.vscode-high-contrast .wb-bar-toggle:hover,
+body.vscode-high-contrast-light .wb-bar-toggle:hover {
+  outline: 1px dashed var(--vscode-contrastActiveBorder, #f38518);
+  outline-offset: -1px;
+}
+body.vscode-high-contrast #workbench .arcviz .arcviz-tool[aria-pressed='true'],
+body.vscode-high-contrast #workbench .arcviz .arcviz-menu.is-open > .arcviz-tool,
+body.vscode-high-contrast-light #workbench .arcviz .arcviz-tool[aria-pressed='true'],
+body.vscode-high-contrast .wb-bar-toggle[aria-pressed='true'],
+body.vscode-high-contrast-light .wb-bar-toggle[aria-pressed='true'] {
+  border-color: var(--vscode-inputOption-activeBorder, var(--vscode-contrastActiveBorder, #f38518));
+}
+body.vscode-high-contrast #workbench .arcviz .arcviz-menu-pop,
+body.vscode-high-contrast-light #workbench .arcviz .arcviz-menu-pop { box-shadow: none; border-color: var(--vscode-contrastBorder, #6fc3df); }
+body.vscode-high-contrast #workbench .arcviz .arcviz-menu-item:hover:not([aria-disabled='true']),
+body.vscode-high-contrast #workbench .arcviz .arcviz-menu-item:focus-visible,
+body.vscode-high-contrast-light #workbench .arcviz .arcviz-menu-item:hover:not([aria-disabled='true']),
+body.vscode-high-contrast-light #workbench .arcviz .arcviz-menu-item:focus-visible {
+  outline: 1px dashed var(--vscode-contrastActiveBorder, #f38518);
+}
 
 html, body {
   margin: 0;
@@ -107,19 +144,29 @@ html, body {
 .wb-layer.is-active .wb-layer-count { background: rgba(255, 255, 255, 0.25); color: inherit; }
 .wb-toolrow {
   display: flex;
-  align-items: flex-start;
-  gap: var(--wb-gap);
-  min-height: 30px;
-  padding: 3px 4px 3px 2px;
+  align-items: center;
+  gap: 4px;
+  min-height: 36px;
+  padding: 2px 6px 2px 4px;
   flex: none;
   border-bottom: 1px solid var(--vscode-panel-border, #8884);
 }
 .wb-tabs { display: flex; gap: 2px; overflow-x: auto; scrollbar-width: none; min-width: 0; flex: 1; }
 .wb-tabs::-webkit-scrollbar { display: none; }
-.wb-viewer-tools { display: flex; gap: 1px; flex: 1; min-width: 0; }
-/* The viewer's tools wrap onto as many rows as the panel needs: none is ever cut. */
-.wb-viewer-tools .arcviz-tools { display: flex; flex-wrap: wrap; row-gap: 2px; column-gap: 6px; align-items: center; }
-.wb-viewer-tools .arcviz-tool-group + .arcviz-tool-group { border-left: 1px solid var(--vscode-panel-border, #8884); padding-left: 6px; }
+/* The viewer's tools take the row between the panel toggles; one line,
+   what does not fit goes into their "⋯" menu (the viewer's toolbar). */
+.wb-viewer-tools { display: flex; align-items: center; flex: 1; min-width: 0; padding-right: 4px; border-right: 1px solid var(--vscode-menu-separatorBackground, var(--vscode-panel-border, #8884)); }
+.wb-viewer-tools .arcviz-tools { flex: 1; }
+/* The panel toggles: an icon, its name beside it when the bar has room. */
+button.wb-icon-button.wb-bar-toggle { display: inline-flex; align-items: center; justify-content: center; gap: 4px; flex: none; width: auto; min-width: 28px; height: 28px; padding: 0 6px; border: 1px solid transparent; border-radius: 5px; font-size: 12px; color: var(--vscode-icon-foreground, var(--vscode-foreground)); background: transparent; }
+button.wb-icon-button.wb-bar-toggle:hover { background: var(--vscode-toolbar-hoverBackground, #8883); }
+button.wb-icon-button.wb-bar-toggle:active { background: var(--vscode-toolbar-activeBackground, #8884); }
+button.wb-icon-button.wb-bar-toggle[aria-pressed='true'] { color: var(--vscode-inputOption-activeForeground, var(--vscode-foreground)); background: var(--vscode-inputOption-activeBackground, #8884); border-color: var(--vscode-inputOption-activeBorder, transparent); }
+button.wb-icon-button.wb-bar-toggle:focus-visible { outline: 1px solid var(--vscode-focusBorder); outline-offset: -1px; }
+.wb-bar-toggle .wb-toggle-label { display: none; }
+@media (min-width: 1000px) {
+  .wb-bar-toggle:not(.wb-palette-toggle) .wb-toggle-label { display: inline; }
+}
 
 .wb-body { display: flex; flex: 1; min-height: 0; }
 
@@ -327,8 +374,6 @@ button.wb-link { background: none; color: var(--vscode-textLink-foreground); pad
 button.wb-icon-button { width: 22px; height: 22px; padding: 0; background: none; color: var(--vscode-icon-foreground, inherit); }
 button.wb-icon-button:hover { background: var(--vscode-toolbar-hoverBackground, #8883); }
 button.wb-icon-button[aria-pressed='true'] { background: var(--vscode-inputOption-activeBackground, #8884); }
-.wb-toolrow > .wb-icon-button:first-child::before { content: "☰"; }
-.wb-toolrow > .wb-icon-button:last-child::before { content: "☷"; }
 
 /* Status line */
 .wb-bottom {
@@ -387,7 +432,7 @@ button.wb-icon-button[aria-pressed='true'] { background: var(--vscode-inputOptio
 
 /* Full screen inside the editor: the canvas alone, the layer bar kept. */
 /* Full screen keeps every tool: palette, properties, toolbar and status line stay where they are. */
-body.wb-focus .wb-viewer-tools button[aria-label='Full screen'], body.wb-focus .wb-viewer-tools button[title^='Full screen'] { background: var(--vscode-button-background); color: var(--vscode-button-foreground); }
+body.wb-focus #workbench .arcviz #arcviz-fullscreen { color: var(--vscode-inputOption-activeForeground, var(--vscode-foreground)); background: var(--vscode-inputOption-activeBackground, #8884); border-color: var(--vscode-inputOption-activeBorder, transparent); }
 
 /* Direct edit over a box, find in the diagram */
 .wb-direct-edit { position: absolute; z-index: 7; font: inherit; font-weight: 600; padding: 2px 6px; color: var(--vscode-input-foreground); background: var(--vscode-input-background); border: 1px solid var(--vscode-focusBorder); border-radius: 2px; box-shadow: 0 2px 6px rgba(0,0,0,.25); }
@@ -402,7 +447,6 @@ body.wb-focus .wb-viewer-tools button[aria-label='Full screen'], body.wb-focus .
 .wb-minimap { position: absolute; right: 12px; bottom: 12px; z-index: 5; width: 200px; height: 130px; background: var(--vscode-minimap-background, var(--vscode-editorWidget-background, #fff)); border: 1px solid var(--vscode-panel-border, #8884); border-radius: 3px; box-shadow: 0 2px 8px rgba(0,0,0,.25); overflow: hidden; cursor: pointer; }
 .wb-minimap img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; opacity: .85; pointer-events: none; }
 .wb-minimap-view { position: absolute; border: 2px solid var(--vscode-focusBorder); background: color-mix(in srgb, var(--vscode-focusBorder) 12%, transparent); pointer-events: none; }
-.wb-minimap-toggle::before { content: "▣"; }
 
 /* An element marked hidden stays hidden, whatever display a rule gives its class. */
 [hidden] { display: none !important; }
