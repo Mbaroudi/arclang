@@ -101,7 +101,7 @@ const rows = []; const report = (name, ok, detail) => { rows.push({ name, ok, de
   { const st = await page.locator('.arcviz-stage').boundingBox(); await page.mouse.click(st.x + 8, st.y + 8); await page.waitForTimeout(200); }
   for (const name of ['Spare A', 'Spare B']) { const k = await count(); await page.locator('.wb-tool', { hasText: 'Component' }).first().click(); await prompt(name); await waitEdit(k); await page.waitForTimeout(500); { const st = await page.locator('.arcviz-stage').boundingBox(); await page.mouse.click(st.x + 8, st.y + 8); await page.waitForTimeout(200); } }
   const spares = (await snapshot()).elements.elements.filter((e) => e.name.startsWith('Spare'));
-  await page.locator('.wb-viewer-tools button', { hasText: /^Fit$/ }).first().click(); await page.waitForTimeout(800);
+  await page.locator('#arcviz-fit').click(); await page.waitForTimeout(800);
   await click(spares[0].id); const b2 = await box(spares[1].id);
   await page.keyboard.down('Shift'); await page.mouse.click(b2.x + Math.min(30, b2.width / 2), b2.y + Math.min(10, b2.height / 2)); await page.keyboard.up('Shift'); await page.waitForTimeout(300);
   const barText = await page.locator('.wb-multibar').textContent().catch(() => '');

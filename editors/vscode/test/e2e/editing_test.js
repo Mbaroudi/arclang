@@ -18,7 +18,7 @@ const rows = []; const report = (name, ok, detail) => { rows.push({ name, ok, de
   const source = () => page.evaluate(() => fetch('/source').then((r) => r.text()));
   const reset = async () => { await page.evaluate(() => fetch('/reset')); await page.evaluate(() => window.__push()); await page.waitForTimeout(1000); await page.keyboard.press('Escape'); };
   // Boxes back where the automatic layout puts them, so each check starts from the same drawing.
-  const resetLayout = async () => { const b = page.locator('.wb-viewer-tools button', { hasText: 'Reset layout' }).first(); if (await b.count() && await b.isEnabled()) { await b.click(); await page.waitForTimeout(900); } };
+  const resetLayout = async () => { await page.locator('#arcviz-layout-menu').click(); const b = page.locator('.arcviz-menu-pop:not([hidden]) [data-action="reset-layout"]'); if (await b.count() && (await b.getAttribute('aria-disabled')) !== 'true') { await b.click(); await page.waitForTimeout(900); } else await page.keyboard.press('Escape'); };
   const count = () => page.evaluate(() => window.__results.length);
   const last = () => page.evaluate(() => window.__results.at(-1));
   const waitEdit = async (before) => { for (let i = 0; i < 60 && (await count()) === before; i++) await page.waitForTimeout(150); await page.waitForTimeout(900); return (await count()) === before ? null : last(); };

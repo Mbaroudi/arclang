@@ -9,7 +9,7 @@ export interface MinimapHost {
   key: () => string;
 }
 
-export function createMinimap(sheet: HTMLElement, host: HTMLElement, owner: MinimapHost): { toggle: (force?: boolean) => void } {
+export function createMinimap(sheet: HTMLElement, host: HTMLElement, owner: MinimapHost): { toggle: (force?: boolean) => boolean } {
   const minimap = el('div', { class: 'wb-minimap', hidden: true, 'aria-label': 'Overview of the diagram' });
   const image = el('img', { alt: '' });
   const frameBox = el('div', { class: 'wb-minimap-view' });
@@ -18,9 +18,11 @@ export function createMinimap(sheet: HTMLElement, host: HTMLElement, owner: Mini
   let url: string | null = null;
   let drawnFor = '';
 
-  function toggle(force?: boolean): void {
+  /** Show or hide it; true when it shows. */
+  function toggle(force?: boolean): boolean {
     minimap.hidden = force === undefined ? !minimap.hidden : !force;
     if (!minimap.hidden) refresh(true);
+    return !minimap.hidden;
   }
 
   /** The drawn sheet and where the frame is on it. */

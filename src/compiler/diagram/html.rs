@@ -27,6 +27,7 @@ const SCOPE_JS: &str = include_str!("viewer/arcviz-scope.js");
 const EXPORT_JS: &str = include_str!("viewer/arcviz-export.js");
 const STAGE_JS: &str = include_str!("viewer/arcviz-stage.js");
 const PLACE_JS: &str = include_str!("viewer/arcviz-place.js");
+const TOOLBAR_JS: &str = include_str!("viewer/arcviz-toolbar.js");
 const VIEWER_JS: &str = include_str!("viewer/arcviz-viewer.js");
 const COLOR_JS: &str = include_str!("viewer/arcviz-color.js");
 const THEME_JS: &str = include_str!("viewer/arcviz-theme.js");
@@ -94,6 +95,7 @@ pub fn viewer_parts_themed(set: &DiagramSet, title: &str, theme: Option<&serde_j
          <script>{presets}</script>\n\
          <script>{color}</script>\n\
          <script>{theme}</script>\n\
+         <script>{toolbar}</script>\n\
          <script>{viewer}</script>\n\
          <script>window.arcvizViewer = ArcViz.mount(\
          document.getElementById('{HOST_ID}'), \
@@ -101,7 +103,7 @@ pub fn viewer_parts_themed(set: &DiagramSet, title: &str, theme: Option<&serde_j
          {{ ELK: ELK, render: ArcVizRender, links: ArcVizLinks, \
          navigation: ArcVizNavigation, collapse: ArcVizCollapse, \
          scope: ArcVizScope, exporter: ArcVizExport, stage: ArcVizStage, \
-         place: ArcVizPlace, theme: ArcVizTheme }});</script>",
+         place: ArcVizPlace, toolbar: ArcVizToolbar, theme: ArcVizTheme }});</script>",
         data = json_for_script(&payload),
         engine = engine_script(),
         render = inline_script(RENDER_JS),
@@ -115,6 +117,7 @@ pub fn viewer_parts_themed(set: &DiagramSet, title: &str, theme: Option<&serde_j
         presets = inline_script(&presets),
         color = inline_script(COLOR_JS),
         theme = inline_script(THEME_JS),
+        toolbar = inline_script(TOOLBAR_JS),
         viewer = inline_script(VIEWER_JS),
     );
     ViewerParts {

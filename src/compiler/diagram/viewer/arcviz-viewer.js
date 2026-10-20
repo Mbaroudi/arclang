@@ -111,6 +111,13 @@
    *             where it was let go.
    *   onLayout: (layout file) => void, whenever the arrangement (places,
    *             folds, open containers) changes: the host keeps it.
+   *   toolbar:  { history, align, arrangeToggle } — undo and redo from the
+   *             host's history ({ undo(), redo(), labels() }), Align on its
+   *             selection ({ count(), align(how), distribute(axis) }), and
+   *             false to leave out the Arrange switch (always arranging).
+   *   exportItems, themeItems: [{ id, label, title, shortcut?, checked?, run }]
+   *             — more entries in Export (above SVG and PNG) and a Theme
+   *             menu (shown only when given); see "extension hooks".
    *   edit:     a host that edits the model from the drawing, with
    *             deps.edit (ArcVizEdit): see `attach` in arcviz-edit.js.
    */
@@ -227,49 +234,173 @@
       goTo: (graph, id) => goTo(graph, id),
     });
 
-    const tool = (label, title, action) => el('button', { type: 'button', class: 'arcviz-tool', title, text: label, onclick: action });
-    const back = tool('Back', 'Return to the element you came from', () => goBack());
+    // --- the tool row (arcviz-toolbar.js) ---------------------------------
+    // Moving about | undo, redo | zoom | layout, align, filters | export,
+    // full screen. A narrow frame drops the words of the menus first, then
+    // moves whole tools into "⋯", the least used first.
+    const toolkit = deps.toolbar || root.ArcVizToolbar;
+    const kit = toolkit.create({ el });
+    const extra = (options && options.toolbar) || {};
+    // A host with a history of its own: { undo(), redo(), labels() -> { undo, redo } }.
+    const history = extra.history || null;
+    // A host that aligns its selection: { count(), align(how), distribute(axis) }.
+    const aligner = extra.align || null;
+    // What the Layout menu may do in the view on screen (set as it is drawn).
+    const can = { fold: false, unfold: false, reset: false, arrange: true };
+
+    const back = kit.iconButton({ id: 'arcviz-back', icon: 'back', label: 'Back', hint: 'Back to the element you came from', run: () => goBack() });
     back.disabled = true;
-    const treeToggle = tool('Model tree', 'Show or hide the model tree', () => toggleTree());
-    treeToggle.setAttribute('aria-pressed', 'true');
-    const arrange = tool('Arrange', 'Move boxes by hand: drag one, or select it and press Shift with an arrow key', () => toggleArrange());
-    arrange.setAttribute('aria-pressed', String(state.arranging));
-    const resetPlaces = tool('Reset layout', 'Put every box of this view back where the automatic layout placed it', () => replace(() => scope.resetPlaces(state.active)).then(() => announce('Layout reset.')));
-    const layoutName = payload.layout_name || `${slug(payload.title)}.layout.json`;
-    const saveLayout = tool('Save layout', `Download the folds, the open containers and the placement as ${layoutName}. Kept next to the model, it is what everyone sees.`, () => exporter.saveLayout(scope.toFile(), layoutName));
-    const foldAll = tool('Fold all', 'Show every container as a single box', () => refold(new Set(scope.foldable(state.active))));
-    const unfoldAll = tool('Unfold all', 'Show what every container holds', () => refold(new Set()));
-    // Tools come in groups: moving about, folding, arranging, zooming, saving.
-    const group = (label, items) => el('span', { class: 'arcviz-tool-group', role: 'group', 'aria-label': label }, items);
-    // Filters, as a diagram has them in Capella: kinds of boxes and lines
-    // left out of the drawing, ports and labels hidden.
-    const filterList = el('div', { class: 'arcviz-filter-list' });
-    const filterMenu = el('details', { class: 'arcviz-filters' }, [
-      el('summary', { class: 'arcviz-tool', text: 'Filters' }),
-      el('div', { class: 'arcviz-filter-pop' }, [filterList]),
-    ]);
-    const toolbar = el('div', { class: 'arcviz-tools', role: 'toolbar', 'aria-label': 'Diagram tools' }, [
-      group('Navigation', [treeToggle, back]),
-      group('Filters', [filterMenu]),
-      group('Folding', [foldAll, unfoldAll]),
-      // A host that keeps the arrangement itself (onLayout) needs no download of it.
-      group('Arrangement', onLayout ? [arrange, resetPlaces] : [arrange, resetPlaces, saveLayout]),
-      group('Zoom', [
-        tool('Fit', 'Fit the diagram to the frame (0)', () => fit()),
-        tool('−', 'Zoom out (-)', () => sheet.zoomOut()),
-        tool('+', 'Zoom in (+)', () => sheet.zoomIn()),
-        onFullscreen
-          ? tool('Full screen', 'Edit the diagram full screen, with the palette (Esc to leave)', () => onFullscreen())
-          : tool('Full screen', 'Show the diagram full screen', () => sheet.toggleFullscreen()),
-      ]),
-      group('Export', [
-        tool('Save SVG', 'Download this view as drawn, folded containers included, as an SVG file', () => saveSvg()),
-        tool('Save PNG', 'Download this view as drawn, folded containers included, as a PNG image', () => savePng()),
-      ]),
-    ]);
+    const treeToggle = kit.iconButton({ id: 'arcviz-tree-toggle', icon: 'tree', label: 'Model tree', hint: 'Show or hide the model tree', pressed: true, run: () => toggleTree() });
     // The tree lives in the project explorer of a workbench host: the
     // button that hides it would hide a panel that is not the viewer's.
     if (slots.tree) treeToggle.hidden = true;
+    const undo = history ? kit.iconButton({ id: 'arcviz-undo', icon: 'undo', label: 'Undo', keys: 'Mod+Z', run: () => history.undo() }) : null;
+    const redo = history ? kit.iconButton({ id: 'arcviz-redo', icon: 'redo', label: 'Redo', keys: kit.mac ? 'Mod+Shift+Z' : 'Ctrl+Y', run: () => history.redo() }) : null;
+
+    const zoomOut = kit.iconButton({ id: 'arcviz-zoom-out', icon: 'zoom-out', label: 'Zoom out', keys: '-', run: () => sheet.zoomOut() });
+    const zoomIn = kit.iconButton({ id: 'arcviz-zoom-in', icon: 'zoom-in', label: 'Zoom in', keys: '+', run: () => sheet.zoomIn() });
+    const fitButton = kit.iconButton({ id: 'arcviz-fit', icon: 'fit', label: 'Fit to window', keys: '0', run: () => fit() });
+    const ZOOM_PRESETS = [0.5, 0.75, 1, 1.5, 2];
+    const zoomLevel = kit.menuButton({
+      id: 'arcviz-zoom-level',
+      label: toolkit.formatZoom(1),
+      heading: (label) => `Zoom · ${label}`,
+      title: 'Zoom level: choose one',
+      describe: (label) => `Zoom ${label}`,
+      className: 'arcviz-zoom',
+      keepLabel: true,
+      items: () => [
+        { label: 'Fit to window', keys: '0', action: 'zoom-fit', run: () => fit() },
+        'separator',
+        ...ZOOM_PRESETS.map((scale) => ({
+          label: toolkit.formatZoom(scale),
+          action: `zoom-${Math.round(scale * 100)}`,
+          radio: true,
+          checked: Math.abs(sheet.scale() - scale) < 0.005,
+          run: () => sheet.zoomTo(scale),
+        })),
+      ],
+    });
+    const showZoom = (scale) => {
+      const text = toolkit.formatZoom(scale);
+      if (zoomLevel.button.textContent !== text) zoomLevel.setLabel(text);
+    };
+
+    const layoutName = payload.layout_name || `${slug(payload.title)}.layout.json`;
+    const arrangeToggle = extra.arrangeToggle !== false;
+    const layoutMenu = kit.menuButton({
+      id: 'arcviz-layout-menu',
+      icon: 'layout',
+      label: 'Layout',
+      className: 'arcviz-layout',
+      items: () => [
+        { label: 'Re-arrange automatically', action: 'reset-layout', title: 'Put every box of this view back where the automatic layout placed it', disabled: !can.reset, reason: 'No box of this view was placed by hand', run: () => resetLayout() },
+        'separator',
+        { label: 'Fold all', action: 'fold-all', title: 'Show every container as a single box', disabled: !can.fold, reason: 'This view has no container to fold', run: () => refold(new Set(scope.foldable(state.active))) },
+        { label: 'Unfold all', action: 'unfold-all', title: 'Show what every container holds', disabled: !can.unfold, reason: 'No container is folded', run: () => refold(new Set()) },
+        // An editor places boxes by dragging all the time: no mode to switch.
+        ...(arrangeToggle ? ['separator', { label: 'Arrange by hand', action: 'arrange', checked: state.arranging, title: 'Move boxes by hand: drag one, or select it and press Shift with an arrow key', disabled: !can.arrange, reason: 'A scenario is drawn as declared', run: () => toggleArrange() }] : []),
+      ],
+    });
+    const SELECT_MORE = 'select two or more boxes (Shift+click) to align them';
+    const alignMenu = aligner ? kit.menuButton({
+      id: 'arcviz-align-menu',
+      icon: 'align',
+      label: 'Align',
+      className: 'arcviz-align',
+      items: () => {
+        const few = aligner.count() < 3;
+        const align = (label, how) => ({ label, action: `align-${how}`, run: () => aligner.align(how) });
+        const spread = (label, axis) => ({ label, action: `distribute-${axis}`, disabled: few, reason: 'Select three or more boxes to distribute them', run: () => aligner.distribute(axis) });
+        return [
+          align('Align left', 'left'), align('Align centre', 'center'), align('Align right', 'right'),
+          'separator',
+          align('Align top', 'top'), align('Align middle', 'middle'), align('Align bottom', 'bottom'),
+          'separator',
+          spread('Distribute horizontally', 'horizontal'), spread('Distribute vertically', 'vertical'),
+        ];
+      },
+    }) : null;
+    if (alignMenu) alignMenu.setDisabled(true, SELECT_MORE);
+    // Filters, as a diagram has them in Capella: kinds of boxes and lines
+    // left out of the drawing, ports and labels hidden.
+    const filterList = el('div', { class: 'arcviz-filter-list' });
+    const filterMenu = kit.menuButton({ id: 'arcviz-filters-menu', icon: 'filter', label: 'Filters', title: 'Filters: what this view leaves out', className: 'arcviz-filters', panel: () => filterList });
+    // --- extension hooks: more exports, a theme chooser ------------------
+    // options.exportItems and options.themeItems: [{ id, label, title,
+    // shortcut?, checked?, run }] (or a function returning that list, read
+    // each time the menu opens). The export items come first in Export,
+    // above a rule; Theme ▾ is shown only when its list is not empty. The
+    // toolbar draws them; what they do is the host's.
+    const listOf = (items) => (typeof items === 'function' ? items() : items) || [];
+    const hookItems = (items) => listOf(items).map((item) => ({
+      label: item.label,
+      title: item.title,
+      keys: item.shortcut,
+      action: item.id,
+      checked: item.checked,
+      radio: item.checked !== undefined,
+      run: () => item.run(),
+    }));
+    const exportHooks = (options && options.exportItems) || [];
+    const themeHooks = (options && options.themeItems) || [];
+    const themeMenu = listOf(themeHooks).length > 0 ? kit.menuButton({
+      id: 'arcviz-theme-menu',
+      icon: 'theme',
+      label: 'Theme',
+      className: 'arcviz-theme',
+      items: () => hookItems(themeHooks),
+    }) : null;
+    // --- end of the extension hooks ----------------------------------------
+
+    const exportMenu = kit.menuButton({
+      id: 'arcviz-export-menu',
+      icon: 'export',
+      label: 'Export',
+      className: 'arcviz-export',
+      items: () => [
+        ...(() => { const extra = hookItems(exportHooks); return extra.length ? [...extra, 'separator'] : []; })(),
+        { label: 'Save as SVG', action: 'save-svg', title: 'This view as drawn, folded containers included, as an SVG file', run: () => saveSvg() },
+        { label: 'Save as PNG', action: 'save-png', title: 'This view as drawn, folded containers included, as a PNG image', run: () => savePng() },
+        // A host that keeps the arrangement itself (onLayout) needs no download of it.
+        ...(onLayout ? [] : ['separator', { label: scope.dirty() ? 'Save layout •' : 'Save layout', action: 'save-layout', title: `Download the folds, the open containers and the placement as ${layoutName}. Kept next to the model, it is what everyone sees.`, run: () => exporter.saveLayout(scope.toFile(), layoutName) }]),
+      ],
+    });
+    const fullscreen = onFullscreen
+      ? kit.iconButton({ id: 'arcviz-fullscreen', icon: 'fullscreen', label: 'Full screen', hint: 'Full screen, with the palette and every tool (Esc to leave)', run: () => onFullscreen() })
+      : kit.iconButton({ id: 'arcviz-fullscreen', icon: 'fullscreen', label: 'Full screen', hint: 'Full screen (Esc to leave)', pressed: false, run: () => sheet.toggleFullscreen() });
+    if (!onFullscreen) document.addEventListener('fullscreenchange', () => fullscreen.setAttribute('aria-pressed', String(document.fullscreenElement === stage)));
+
+    const drop = (node, rank) => { node.dataset.drop = String(rank); return node; };
+    const menus = [zoomLevel, layoutMenu, alignMenu, filterMenu, exportMenu, themeMenu].filter(Boolean);
+    const menuOf = new Map(menus.map((menu) => [menu.root, menu]));
+    const tools = kit.row([
+      kit.group('Navigation', [treeToggle, back]),
+      history ? kit.group('History', [undo, redo]) : null,
+      kit.group('Zoom', [zoomOut, drop(zoomLevel.root, 1), zoomIn, fitButton]),
+      kit.group('Arrangement', [drop(layoutMenu.root, 4), alignMenu ? drop(alignMenu.root, 6) : null, drop(filterMenu.root, 5)]),
+      kit.group('Output', [drop(exportMenu.root, 7), themeMenu ? drop(themeMenu.root, 8) : null, drop(fullscreen, 3)]),
+    ].filter(Boolean), menus, (tool) => (menuOf.has(tool)
+      ? menuOf.get(tool).entries()
+      : [{ label: tool.getAttribute('aria-label'), keys: tool.dataset.keys, disabled: kit.isOff(tool), run: () => tool.click() }]));
+    const toolbar = tools.toolbar;
+
+    /** Put the history and the selection the host has into the buttons. */
+    function refreshTools() {
+      if (history) {
+        const labels = history.labels() || {};
+        undo.disabled = !labels.undo;
+        kit.setLabel(undo, labels.undo ? `Undo ${labels.undo}` : 'Undo');
+        redo.disabled = !labels.redo;
+        kit.setLabel(redo, labels.redo ? `Redo ${labels.redo}` : 'Redo');
+      }
+      if (alignMenu) alignMenu.setDisabled(aligner.count() < 2, SELECT_MORE);
+    }
+    refreshTools();
+
+    function resetLayout() {
+      return replace(() => scope.resetPlaces(state.active)).then(() => announce('Layout reset.'));
+    }
 
     const title = el('p', { class: 'arcviz-title' });
     const which = el('select', { id: 'arcviz-which', onchange: (event) => show(event.currentTarget.value) });
@@ -439,7 +570,7 @@
         filterList.appendChild(check(render.edgeStyle(kind).label, !filters.edges.has(kind), (on) => { if (on) filters.edges.delete(kind); else filters.edges.add(kind); apply(); }));
       }
       const active = filters.nodes.size + filters.edges.size + (filters.ports ? 1 : 0) + (filters.labels ? 1 : 0);
-      filterMenu.querySelector('summary').textContent = active > 0 ? `Filters (${active})` : 'Filters';
+      filterMenu.setBadge(active > 0 ? active : '');
       canvas.classList.toggle('hide-ports', filters.ports);
       canvas.classList.toggle('hide-labels', filters.labels);
     }
@@ -603,7 +734,6 @@
     function toggleArrange() {
       state.arranging = !state.arranging;
       sheet.setArranging(state.arranging);
-      arrange.setAttribute('aria-pressed', String(state.arranging));
       announce(state.arranging ? 'Arrange mode: drag a box, or select it and press Shift with an arrow key.' : 'Arrange mode off.');
     }
 
@@ -721,21 +851,15 @@
       }
       clearViewChrome();
       reportLayout();
-      // A mark on the button while the arrangement differs from the file.
-      saveLayout.textContent = scope.dirty() ? 'Save layout •' : 'Save layout';
-      saveLayout.setAttribute('aria-label', scope.dirty() ? 'Save layout, changed since the layout file' : 'Save layout');
+      // A mark on Export while the arrangement differs from the file it saves.
+      exportMenu.setBadge(!onLayout && scope.dirty() ? '•' : '');
       const foldable = scope.foldable(graph.id).length > 0;
-      const nothingFolded = !foldable || foldedOf(graph.id).size === 0;
-      // A button about to be disabled must not keep the focus.
-      if (nothingFolded && document.activeElement === unfoldAll) stage.focus({ preventScroll: true });
-      foldAll.disabled = !foldable;
-      arrange.disabled = render.isSequence(graph);
+      can.fold = foldable;
+      can.unfold = foldable && foldedOf(graph.id).size > 0;
+      can.arrange = !render.isSequence(graph);
+      can.reset = Boolean(scope.arranged(graph.id));
       sheet.setArranging(state.arranging && !render.isSequence(graph));
       sheet.cancelConnect();
-      const nothingPlaced = !scope.arranged(graph.id);
-      if (nothingPlaced && document.activeElement === resetPlaces) stage.focus({ preventScroll: true });
-      resetPlaces.disabled = nothingPlaced;
-      unfoldAll.disabled = nothingFolded;
       try {
         const view = await layout(graph);
         if (state.turn !== turn) return;
@@ -771,6 +895,7 @@
       editing: edit ? editingHooks : null,
       stage,
       canvas,
+      onZoom: showZoom,
       viewSize: activeView,
       onPick: (element) => select(element),
       onOpen: (element) => {
@@ -1250,6 +1375,8 @@
       restore: (position) => sheet.restore(position),
       /** The zoom of the sheet: screen pixels per sheet unit. */
       scale: () => sheet.scale(),
+      /** Read the host's history and selection into the toolbar again (after either changed). */
+      refreshTools,
       // moveMany, routeOf, setRoute: an editing host's (arcviz-edit.js).
       ...(editor ? editor.api : {}),
       views: () => graphs.map((graph) => ({ id: graph.id, view: graph.arc.view, title: graph.arc.title })),

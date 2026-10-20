@@ -18,6 +18,7 @@ node --test "$(dirname "$0")/scope.test.mjs" >/dev/null || { echo "✗ scope uni
 node --test "$(dirname "$0")/place.test.mjs" >/dev/null || { echo "✗ placement unit tests failed (node --test tools/diagram_render/place.test.mjs)" >&2; status=1; }
 node --test "$(dirname "$0")/route.test.mjs" >/dev/null || { echo "✗ routing unit tests failed (node --test tools/diagram_render/route.test.mjs)" >&2; status=1; }
 node --test "$(dirname "$0")/theme.test.mjs" >/dev/null || { echo "✗ theme unit tests failed (node --test tools/diagram_render/theme.test.mjs)" >&2; status=1; }
+node --test "$(dirname "$0")/toolbar.test.mjs" >/dev/null || { echo "✗ toolbar unit tests failed (node --test tools/diagram_render/toolbar.test.mjs)" >&2; status=1; }
 while IFS= read -r model; do
   graphs="$WORK/graphs.json"
   if ! "$ARCLANG" diagram "$model" -f elk -o "$graphs" >/dev/null; then

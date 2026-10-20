@@ -16,7 +16,7 @@ import { createShell } from './shell';
 import { DiagramContents } from './diagram-contents';
 import { createStatusLine } from './status-line';
 import { changesOf, markFindings as markFindings_, pulse, renderLayers as renderLayers_ } from './marks';
-import { modelIdOf, relationshipOfEdge } from '../src/pure/editing';
+import { Alignment, modelIdOf, relationshipOfEdge } from '../src/pure/editing';
 import { installAi } from './ask-ai'; // ai-design hook
 import { installKeys } from './keys';
 
@@ -223,6 +223,7 @@ function markMulti(): void {
   for (const node of host.querySelectorAll('.wb-multi')) node.classList.remove('wb-multi');
   for (const element of multi) host.querySelector(`[data-id="${CSS.escape(drawingId(element.id))}"]`)?.classList.add('wb-multi');
   multiBar.hidden = multi.length < 2;
+  state.viewer?.refreshTools?.();
   multiCount.textContent = `${multi.length} selected`;
   if (multi.length > 1) properties.showMany(multi, state.metamodel);
 }
@@ -351,7 +352,7 @@ const finder = createFind(sheet, host, {
   },
 });
 const minimap = createMinimap(sheet, host, { viewer: () => state.viewer, key: () => `${currentGraph()?.id}:${state.snapshot?.elements?.elements.length}` });
-const toggleMinimap = (force?: boolean) => minimap.toggle(force);
+const toggleMinimap = (force?: boolean) => shell.setMinimapShown(minimap.toggle(force));
 const openFind = () => finder.open();
 const help = createHelp(sheet);
 const editing = new Editing({
@@ -544,6 +545,12 @@ function mount(snapshot: Snapshot): void {
     onLayout: (file: unknown) => vscode.postMessage({ type: 'layout', file, join: joining > 0 }),
     // Editing from the drawing: double-click renames, ends reconnect, bands select, arrows connect.
     edit: editing.viewerOptions(),
+    // Undo and redo from the host's history, align on the multi-selection; boxes are always placed by dragging.
+    toolbar: {
+      history: { undo: () => vscode.postMessage({ type: 'history', op: 'undo' }), redo: () => vscode.postMessage({ type: 'history', op: 'redo' }), labels: () => historyLabels },
+      align: { count: () => multi.length, align: (how: string) => editing.align(how as Alignment), distribute: (axis: 'horizontal' | 'vertical') => editing.distribute(axis) },
+      arrangeToggle: false,
+    },
   };
   let viewer: ReturnType<typeof window.ArcViz.mount>;
   try {
@@ -754,6 +761,7 @@ window.addEventListener('message', (event: MessageEvent<ToWebview>) => {
       return;
     case 'history':
       historyLabels = { undo: message.undo, redo: message.redo };
+      state.viewer?.refreshTools?.();
       if (message.done) showToast(`${message.done[0].toUpperCase()}${message.done.slice(1)}.`, 'info');
       return;
     default:
