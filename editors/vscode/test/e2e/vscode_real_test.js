@@ -385,6 +385,45 @@ async function drawio() {
   }
 }
 
+/** Two models open, the other one's text editor focused last: ⌘Z on the workbench changes only its own document. */
+async function twoModels() {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'arcvs-two-'));
+  const model = path.join(dir, 'model.arc'); const other = path.join(dir, 'other.arc');
+  fs.copyFileSync(path.join(EXT, 'media', 'reference.arc'), model);
+  fs.copyFileSync(path.join(EXT, 'media', 'reference.arc'), other);
+  const ctx = await launch(dir, model);
+  const { app, win } = ctx;
+  try {
+    if (!ctx.page) throw new Error('no workbench page');
+    ctx.press = await azerty(win);
+    const h = on(ctx);
+    const src = () => fs.readFileSync(model, 'utf8'); const otherText = () => fs.readFileSync(other, 'utf8');
+    await h.layer('Logical'); await h.deselect(); await h.save();
+    const s0 = src();
+    // An edit of the model on the canvas.
+    const ctl = await h.shape('LC-CTL'); await win.mouse.dblclick(ctl.x + ctl.width / 2, ctl.y + 12); await win.waitForTimeout(700);
+    await ctx.press('Meta+a'); await win.keyboard.type('Brain'); await ctx.press('Enter'); await win.waitForTimeout(3500); await h.save();
+    const renamed = /component "Brain"/.test(src());
+    // The other model's text editor, typed in and saved, focused last.
+    await ctx.command('View: Focus First Editor Group'); await win.waitForTimeout(500);
+    await win.keyboard.press('Meta+p'); await win.waitForTimeout(500); await win.keyboard.type(other); await win.waitForTimeout(1200); await win.keyboard.press('Enter'); await win.waitForTimeout(1500);
+    await ctx.press('Meta+ArrowDown'); await win.keyboard.type('// typed in the other model'); await win.waitForTimeout(400); await ctx.press('Meta+s'); await win.waitForTimeout(800);
+    const o0 = otherText();
+    await h.shot('two-models-before-undo');
+    // ⌘Z twice on the workbench: its rename, then nothing of its own.
+    await h.deselect(); await h.key('Meta+z', 3000); await h.deselect(); await h.key('Meta+z', 3000);
+    await ctx.command('File: Save All'); await win.waitForTimeout(1200);
+    report('two models: the edit was made on the canvas, the other typed in', renamed && /typed in the other model/.test(o0), JSON.stringify({ renamed, typed: /typed in the other model/.test(o0) }));
+    report('⌘Z on the workbench takes back its own edit', src() === s0, src() === s0 ? '' : /component "Brain"/.test(src()) ? 'still renamed' : 'other change');
+    report('⌘Z on the workbench never touches the other model', otherText() === o0, otherText() === o0 ? '' : /typed in the other model/.test(otherText()) ? 'changed otherwise' : 'its typing was undone');
+  } catch (error) {
+    report('no error (two models)', false, String(error).slice(0, 300));
+  } finally {
+    await app.close().catch(() => {});
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+}
+
 /** The themes (Light, Dark, High Contrast) and a narrow editor, with pictures. */
 async function looks() {
   const themes = [['Default Light Modern', 'vscode-light', 'none'], ['Default Dark Modern', 'vscode-dark', 'invert'], ['Default High Contrast', 'vscode-high-contrast', 'invert']];
@@ -430,11 +469,12 @@ async function looks() {
   }
 }
 
-// ONLY=basics|drawio|looks runs one part.
+// ONLY=basics|drawio|two|looks runs one part.
 (async () => {
   const only = process.env.ONLY;
   if (!only || only === 'basics') await basics();
   if (!only || only === 'drawio') await drawio();
+  if (!only || only === 'two') await twoModels();
   if (!only || only === 'looks') await looks();
   const failed = rows.filter((r) => !r.ok); console.log(`\n${rows.length - failed.length}/${rows.length} checks in VS Code`);
   process.exit(failed.length ? 1 : 0);

@@ -17,21 +17,53 @@ export type HistoryEntry =
       layout?: { before: LayoutState; after: LayoutState };
       at: number;
     }
-  | { kind: 'layout'; label: string; before: LayoutState; after: LayoutState; at: number }
-  /** A document undo the canvas ran with nothing of its own to undo: redone by the document. */
-  | { kind: 'native'; label: string; at: number };
+  | { kind: 'layout'; label: string; before: LayoutState; after: LayoutState; at: number };
 
 /** Layout changes closer than this are one step (a burst of arrow nudges). */
 export const COALESCE_MS = 700;
 /** A placement joins the edit it follows for this long (the remount in between). */
 export const JOIN_MS = 15000;
 const LIMIT = 300;
+/** The memory the steps may take together (two bytes a character): past it the oldest go. */
+export const MAX_BYTES = 50 * 1024 * 1024;
+
+const layoutBytes = (state: LayoutState): number => (state === undefined || state === null ? 0 : 2 * JSON.stringify(state).length);
 
 const same = (a: LayoutState, b: LayoutState): boolean => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
 
 export class History {
   private undoable: HistoryEntry[] = [];
   private redoable: HistoryEntry[] = [];
+  private readonly sizes = new WeakMap<HistoryEntry, number>();
+
+  constructor(private readonly maxBytes = MAX_BYTES) {}
+
+  /** The bytes a step holds, measured once. */
+  private bytes(entry: HistoryEntry): number {
+    const known = this.sizes.get(entry);
+    if (known !== undefined) return known;
+    const own = entry.kind === 'model' ? 2 * (entry.before.length + entry.after.length) : layoutBytes(entry.before) + layoutBytes(entry.after);
+    const extra = entry.kind === 'model' && entry.layout ? layoutBytes(entry.layout.before) + layoutBytes(entry.layout.after) : 0;
+    this.sizes.set(entry, own + extra);
+    return own + extra;
+  }
+
+  /** The bytes all the steps hold. */
+  get totalBytes(): number {
+    return [...this.undoable, ...this.redoable].reduce((sum, entry) => sum + this.bytes(entry), 0);
+  }
+
+  /** Drop the oldest steps until the history fits its memory (the newest step is always kept). */
+  private fit(): void {
+    let total = this.totalBytes;
+    let drop = 0;
+    while (total > this.maxBytes && drop < this.undoable.length - 1) {
+      total -= this.bytes(this.undoable[drop]);
+      drop += 1;
+    }
+    if (drop > 0) this.undoable = this.undoable.slice(drop);
+    if (total > this.maxBytes && this.redoable.length > 0) this.redoable = [];
+  }
 
   get canUndo(): boolean {
     return this.undoable.length > 0;
@@ -50,6 +82,7 @@ export class History {
     this.undoable = [...this.undoable, entry].slice(-LIMIT);
     // A new step forgets what was undone: redo never brings back an older edit.
     this.redoable = [];
+    this.fit();
   }
 
   recordModel(label: string, before: string, after: string, at: number): void {
@@ -66,13 +99,14 @@ export class History {
   recordLayout(label: string, before: LayoutState, after: LayoutState, at: number, join = false): void {
     if (same(before, after)) return;
     const top = this.undoable.at(-1);
-    if (top && join && at - top.at <= JOIN_MS && top.kind !== 'native') {
+    if (top && join && at - top.at <= JOIN_MS) {
       const merged: HistoryEntry =
         top.kind === 'model'
           ? { ...top, layout: { before: top.layout ? top.layout.before : before, after } }
           : { ...top, after, at };
       this.undoable = [...this.undoable.slice(0, -1), merged];
       this.redoable = [];
+      this.fit();
       return;
     }
     if (top && top.kind === 'layout' && at - top.at <= COALESCE_MS && same(top.after, before)) {
@@ -80,6 +114,7 @@ export class History {
       this.undoable = [...this.undoable.slice(0, -1), merged];
       this.redoable = [];
       if (same(merged.before, merged.after)) this.undoable = this.undoable.slice(0, -1);
+      this.fit();
       return;
     }
     this.push({ kind: 'layout', label, before, after, at });
@@ -100,11 +135,6 @@ export class History {
     this.redoable = this.redoable.slice(0, -1);
     this.undoable = [...this.undoable, entry];
     return entry;
-  }
-
-  /** A document undo run from the canvas with nothing to undo here: its redo is the document's. */
-  recordNative(at: number): void {
-    this.redoable = [...this.redoable, { kind: 'native', label: 'the last edit of the text', at }];
   }
 
   /** The text changed outside the workbench: its steps no longer apply. */

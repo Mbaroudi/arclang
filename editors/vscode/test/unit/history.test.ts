@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { COALESCE_MS, History } from '../../src/pure/history';
+import { COALESCE_MS, History, MAX_BYTES } from '../../src/pure/history';
 
 test('model and layout steps are undone and redone in the order they were made', () => {
   const h = new History();
@@ -40,11 +40,23 @@ test('nudges in a burst are one step; a placement joins the edit it follows', ()
   assert.equal(h.canUndo, false, 'a change to the same arrangement is no step');
 });
 
-test('the text changed elsewhere: the history is dropped, a document undo is redone by the document', () => {
+test('the text changed elsewhere: the history is dropped', () => {
   const h = new History();
   h.recordModel('rename', 'v0', 'v1', 0);
   h.clear();
   assert.equal(h.canUndo || h.canRedo, false);
-  h.recordNative(1);
-  assert.equal(h.redo()?.kind, 'native');
+});
+
+test('the history keeps to its memory: the oldest steps go first, the newest is kept', () => {
+  const big = 'x'.repeat(1000); // 2 000 bytes a text, 4 000 a step
+  const h = new History(10000);
+  for (let i = 0; i < 5; i += 1) h.recordModel(`edit ${i}`, `${big}${i}`, `${big}${i + 1}`, i * 1000);
+  assert.ok(h.totalBytes <= 10000, `${h.totalBytes} bytes`);
+  assert.equal(h.undo()?.label, 'edit 4');
+  assert.equal(h.undo()?.label, 'edit 3');
+  assert.equal(h.undo(), null, 'the older edits were dropped');
+  const huge = new History(100);
+  huge.recordModel('one big edit', big, `${big}!`, 0);
+  assert.equal(huge.undo()?.label, 'one big edit', 'a single step over the limit is still kept');
+  assert.equal(MAX_BYTES, 50 * 1024 * 1024);
 });

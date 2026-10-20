@@ -7,6 +7,7 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 import * as vscode from 'vscode';
 import { applyRequests } from '../../src/workbench/edits';
+import { CanvasHistory } from '../../src/workbench/canvas-history';
 import { WorkbenchPanel } from '../../src/workbench/panel';
 import { metamodelJson, snapshotOf } from '../../src/workbench/snapshot';
 import { locateElement, ModelItem, ModelTreeProvider } from '../../src/workbench/tree';
@@ -170,6 +171,41 @@ suite('ArcLang workbench', () => {
     const again = await snapshotOf(document);
     const controller = (again.elements?.elements ?? []).find((e: { id: string }) => e.id === 'LC-CTL') as { attributes: Record<string, unknown> } | undefined;
     assert.equal(controller?.attributes.description, 'Controls the brakes');
+  });
+
+  test('undo on the canvas changes its own document only, whatever text editor is active', async () => {
+    const document = await openCopy();
+    const other = await openCopy();
+    const host = { document, restoreLayout: async () => undefined, post: () => undefined };
+    const history = new CanvasHistory(host);
+    try {
+      // An edit of the model recorded by the canvas.
+      const before = document.getText();
+      const outcome = await history.ownChange(() => applyRequests(document, [{ op: 'set', element: 'LC-Sensor', key: 'description', value: '"Radar"' }]));
+      assert.ok(outcome.ok && outcome.applied, JSON.stringify(outcome));
+      history.recordModel('describe', before, document.getText());
+      // The other model typed in, its editor the active one.
+      const editor = await vscode.window.showTextDocument(other);
+      await editor.edit((b) => b.insert(new vscode.Position(0, 0), '// typed in the other model\n'));
+      const otherText = other.getText();
+      assert.equal(vscode.window.activeTextEditor?.document, other);
+      await history.undo();
+      assert.equal(document.getText(), before, 'its own edit is taken back');
+      assert.equal(other.getText(), otherText, 'the other model is untouched');
+      await history.redo();
+      assert.match(document.getText(), /"Radar"/, 'and redone on its own document');
+      assert.equal(other.getText(), otherText);
+      // Changed elsewhere since: refused, nothing written.
+      await history.undo();
+      const edit = new vscode.WorkspaceEdit();
+      edit.insert(document.uri, new vscode.Position(0, 0), '// changed in the text\n');
+      await vscode.workspace.applyEdit(edit);
+      const changed = document.getText();
+      await history.redo();
+      assert.equal(document.getText(), changed, 'a step whose text is gone is refused');
+    } finally {
+      history.dispose();
+    }
   });
 
   test('the workbench panel opens beside the source', async () => {
