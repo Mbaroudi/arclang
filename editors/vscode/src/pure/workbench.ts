@@ -2,6 +2,7 @@
 // `arclang edit` exchange, the model tree, the palette of gestures and the
 // edits each gesture writes. Pure functions, tested with node:test; the
 // extension host and the webview both import from here.
+import { tableLayer } from './tables'; // tables hook
 
 /** One element of the compiled model, as `arclang workbench` lists it. */
 export interface ElementRecord {
@@ -282,7 +283,7 @@ export function treeByLayer(elements: ElementRecord[], metamodel: Metamodel | nu
   const tops = roots.flatMap((r) => (r.element.kind === 'Model' ? r.children : [r]));
   const groups = new Map<string, TreeNode[]>();
   for (const top of tops) {
-    const layer = layerOfKind(top.element.kind, metamodel);
+    const layer = top.element.kind === 'Table' ? tableLayer(top.element.attributes) : layerOfKind(top.element.kind, metamodel); // tables hook
     groups.set(layer, [...(groups.get(layer) ?? []), top]);
   }
   const order = [...LAYERS, ...[...groups.keys()].filter((l) => !(LAYERS as readonly string[]).includes(l))];

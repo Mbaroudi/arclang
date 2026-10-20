@@ -1,0 +1,5 @@
+,Radar,Controller,Brake,Logger
+Detect obstacles,satisfies,,,
+Brake in time,,satisfies,satisfies,
+Warn the driver,,satisfies,,
+Log faults,,,,

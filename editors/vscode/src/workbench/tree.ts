@@ -55,6 +55,7 @@ const KIND_ICONS: Record<string, string> = {
   State: 'circle-outline',
   Scenario: 'list-ordered',
   Diagram: 'graph',
+  Table: 'table', // tables hook
   Hazard: 'warning',
   Threat: 'shield',
   Model: 'file',

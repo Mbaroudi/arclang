@@ -29,6 +29,7 @@ use std::collections::{BTreeMap, HashMap, HashSet};
 mod generic;
 mod product_line;
 mod security;
+mod tables; // tables hook
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum Level {
@@ -748,6 +749,7 @@ impl<'g> Mapper<'g> {
         self.constraints();
         self.traces();
         self.sysml_views();
+        self.sysml_tables(); // tables hook
     }
 
     // --- constraints ------------------------------------------------------

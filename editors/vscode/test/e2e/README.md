@@ -48,6 +48,19 @@ with a host that edits through `arclang edit` and snapshots through
   ask on a text selection applied from its notification; a suggestion after
   an edit that removes a trace, applied; the log without the key (28 checks).
 
+- `tables_test.js` (run by `run.sh`): the table view in a browser, on tables
+  the compiler computed from `tests/fixtures/tables/braking.arc`: rows,
+  sorting, the filter bar and the column filters, only gaps, a cell edited
+  (text and enumeration), links, Copy and exports reaching the host, the
+  column picker, dark and high-contrast themes, matrix clicks (create,
+  remove), the N² diagonal, 6000 rows drawn only where the view is.
+- `vscode_tables_test.js`: the tables in VS Code itself on a copy of the
+  flagship example: the coverage table in its own tab, the filter, a cell
+  edited (the source changes, ⌘Z typed on AZERTY takes it back), CSV and
+  Excel through the save dialog (the workbook read back with openpyxl when
+  `OPENPYXL_PYTHON` names a Python that has it), Copy as TSV (`pbpaste`), a
+  trace created from a matrix and removed after the confirmation.
+
 Run `./run.sh` from this folder after `cargo build --release` at the root.
 The VS Code test runs on its own, with the compiler on the PATH (or
 `ARCLANG_BINARY`):

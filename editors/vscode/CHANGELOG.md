@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- **Live tables and matrices**, computed by the compiler on every change of the model (debounced), each in its own editor tab that sits beside a diagram and moves into a new window: *Requirement coverage* (text, satisfied by, verified by with each test case's computed verdict, the gate's blockers, a status per row), *Traceability matrix*, *Allocation matrix* (functions x components or nodes), *N² interfaces*, *ICD* (one row per exchange: ends, ports, items, protocol, bandwidth, latency) and *Elements* (any kind, columns picked among its attributes). Open them from the model tree (declared tables sit under their layer), *ArcLang: Open a table of the model*, *ArcLang: New table…* or *Requirement coverage table*.
+- A filter bar (words, `column:text`, `column=text`, `column!=text`, `is:gap`, `-term`), a filter per column, scope and row type, *Only gaps*; sortable columns, sticky headers, rows drawn only where the view is (thousands scroll smoothly); a health bar and the gate badge in the header.
+- Cells link to elements (a click shows them in the source and in the open diagram, a double-click opens the diagram); text, priority, protocol and other attributes are edited in the cell through `arclang edit`, checked by the compiler, one ⌘Z; in a matrix a click on an empty cell creates a trace of the chosen kind, a click on a filled one removes it after asking.
+- Export CSV and Excel (`.xlsx`, written by the compiler), Copy (TSV and an HTML table: a table when pasted into Excel, PowerPoint or Word), *Save as table…* adds the `table` declaration to the model. Dark, light and high-contrast themes.
+
 ## 4.5.0
 
 - **One history for the model and the arrangement**, as in draw.io: ⌘Z / ⌘⇧Z (⌘Y; Ctrl+Z, Ctrl+Y, Ctrl+Shift+Z elsewhere) on the canvas undo and redo moves, resizes, alignments, nudges and bends as well as model edits, in the order they were made; redo never brings back an older step. Real VS Code keybindings for the canvas (undo, redo, clipboard, select all, delete, zoom: ⌘= ⌘− zoom the sheet, ⌘0 and Shift+1 fit), so they work on every keyboard layout, AZERTY included.

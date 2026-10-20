@@ -13,6 +13,7 @@ import { registerFormatter } from './format';
 import { registerMcpProvider } from './mcp';
 import { workspaceTrusted } from './cli';
 import { registerWorkbench } from './workbench';
+import { registerTables } from './tables'; // tables hook
 
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
   const register = (command: string, callback: (...args: unknown[]) => unknown) =>
@@ -43,6 +44,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   registerFormatter(context);
   registerDiagramRefresh(context);
   registerWorkbench(context);
+  registerTables(context); // tables hook
   registerTools(context);
   registerParticipant(context);
   registerAi(context); // ai-design hook

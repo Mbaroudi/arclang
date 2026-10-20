@@ -1,0 +1,5 @@
+Req id,Name,Requirement text,Priority,Satisfied by,Verified by,Verdict,Gate,Status
+REQ-1,Detect obstacles,Detect obstacles at 150 m,High,Radar,Range test (pass),pass,pass,Covered
+REQ-2,Brake in time,Brake within 100 ms,High,"Controller, Brake",Timing test (fail),fail,1 blocker,Failing
+REQ-3,Warn the driver,Warn before braking,Medium,Controller,Warning demo (pending),pending,pass,Verdict pending
+REQ-4,Log faults,Log every fault,Low,,,none,2 blockers,Not covered
