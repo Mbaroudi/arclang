@@ -381,7 +381,8 @@
    draws the line; the ends the host rules out fade meanwhile. The handle
    lives in the frame, not on the sheet, so it keeps its 8 px at any zoom. */
 /* The grip that resizes the selected box, and the outline it draws. */
-.arcviz .arcviz-grip {
+.arcviz .arcviz-grip,
+.arcviz .arcviz-resize {
   background: var(--av-sheet);
   border: 1.5px solid var(--av-accent);
   border-radius: 2px;
@@ -394,7 +395,10 @@
   width: 10px;
   z-index: 3;
 }
-.arcviz .arcviz-grip:hover { background: var(--av-accent); }
+.arcviz .arcviz-grip:hover,
+.arcviz .arcviz-resize:hover { background: var(--av-accent); }
+.arcviz .arcviz-resize[hidden] { display: none; }
+.arcviz .arcviz-resize:not(.is-se) { height: 8px; left: -4px; top: -4px; width: 8px; }
 .arcviz .arcviz-resize-outline {
   border: 1.5px dashed var(--av-accent);
   border-radius: 3px;
@@ -402,7 +406,7 @@
   position: absolute;
   z-index: 2;
 }
-.arcviz .is-resizing { cursor: nwse-resize; }
+.arcviz .is-resizing { cursor: var(--av-resize-cursor, nwse-resize); }
 
 .arcviz .arcviz-handle {
   animation: av-handle-in 120ms ease-out;
@@ -1073,3 +1077,45 @@
 @media (prefers-reduced-motion: reduce) {
   .arcviz .arcviz-quick { transition: none; }
 }
+
+/* draw.io's gestures for an editor host: the box an end would land on is
+   outlined while a port of it, or the box itself, is the target; a port
+   slides along its border; a name is dragged off its line; the selected
+   exchange offers its line styles. */
+.arcviz .av-node.is-snap-box > .av-shape {
+  stroke: var(--av-accent);
+  stroke-width: 3;
+}
+.arcviz .arcviz-stage.is-arranging .av-port { cursor: move; }
+.arcviz .av-port.is-selected rect { stroke: var(--av-accent); stroke-width: 2.5; }
+.arcviz .arcviz-stage.is-arranging .av-edge-label { cursor: move; }
+.arcviz .is-moving-port { cursor: move; }
+.arcviz .arcviz-edge-style {
+  background: var(--av-sheet);
+  border: 1px solid var(--av-accent);
+  border-radius: 6px;
+  box-shadow: 0 1px 4px rgba(24, 34, 45, 0.25);
+  display: flex;
+  gap: 1px;
+  left: 0;
+  padding: 2px;
+  position: absolute;
+  top: 0;
+  transform: translate(-50%, -100%);
+  z-index: 4;
+}
+.arcviz .arcviz-edge-style[hidden] { display: none; }
+.arcviz .arcviz-edge-style-option {
+  background: transparent;
+  border: 0;
+  border-radius: 4px;
+  color: var(--av-accent);
+  cursor: pointer;
+  font: 600 12px/1 system-ui, sans-serif;
+  height: 22px;
+  padding: 0;
+  width: 24px;
+}
+.arcviz .arcviz-edge-style-option:hover { background: color-mix(in srgb, var(--av-accent) 14%, transparent); }
+.arcviz .arcviz-edge-style-option[aria-pressed='true'] { background: var(--av-accent); color: var(--av-sheet); }
+.arcviz .arcviz-edge-style-option:focus-visible { outline: 2px solid var(--av-accent); outline-offset: 1px; }

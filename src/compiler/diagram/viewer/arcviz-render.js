@@ -283,6 +283,19 @@
     return `${d}L${num(last.x)} ${num(last.y)}`;
   }
 
+  /** A smooth line whose corners pull it along (draw.io's curved style): each corner a control point. */
+  function curvedPath(points) {
+    if (points.length < 3) return roundedPath(points);
+    let d = `M${num(points[0].x)} ${num(points[0].y)}`;
+    for (let i = 1; i < points.length - 1; i += 1) {
+      const here = points[i];
+      const next = points[i + 1];
+      const end = i === points.length - 2 ? next : { x: (here.x + next.x) / 2, y: (here.y + next.y) / 2 };
+      d += `Q${num(here.x)} ${num(here.y)} ${num(end.x)} ${num(end.y)}`;
+    }
+    return d;
+  }
+
   // ELK reports an edge's route relative to the node that contains it (the
   // lowest common ancestor of its ends), named in `edge.container`.
   function drawEdge(edge, origins, rootId) {
@@ -295,7 +308,9 @@
     const tip = `${style.label}: ${name}${arc.exchange_item ? ' — carries ' + arc.exchange_item : ''}`;
     let body = `<title>${esc(tip)}</title>`;
     for (const section of edge.sections || []) {
-      const d = roundedPath([section.startPoint, ...(section.bendPoints || []), section.endPoint].map(at));
+      const points = [section.startPoint, ...(section.bendPoints || []), section.endPoint].map(at);
+      // A line the reader styled: curved through its corners, or straight from end to end.
+      const d = edge.lineStyle === 'curved' ? curvedPath(points) : roundedPath(points);
       const dash = style.dash ? ` stroke-dasharray="${style.dash}"` : '';
       // A leg of an exchange of more than two ends has no direction.
       const directed = style.arrow && !(arc.properties && arc.properties.undirected === 'true');
@@ -307,7 +322,8 @@
       if (label.x === undefined || !label.text) continue;
       body += `<text class="av-edge-label" x="${num(label.x + origin.x)}" y="${num(label.y + origin.y + 9.5)}" font-size="10" fill="${style.stroke}" stroke="#FFFFFF" stroke-width="3" paint-order="stroke" stroke-linejoin="round">${esc(label.text)}</text>`;
     }
-    return `<g class="av-edge" data-id="${esc(edge.id)}" data-kind="${esc(arc.kind)}" data-source="${esc(arc.source_node)}" data-target="${esc(arc.target_node)}">${body}</g>`;
+    const styled = edge.lineStyle === 'curved' || edge.lineStyle === 'straight' ? ` data-style="${edge.lineStyle}"` : '';
+    return `<g class="av-edge" data-id="${esc(edge.id)}"${styled} data-kind="${esc(arc.kind)}" data-source="${esc(arc.source_node)}" data-target="${esc(arc.target_node)}">${body}</g>`;
   }
 
   function arrowMarkers(edges) {

@@ -40,8 +40,9 @@
    * @param {Function} deps.onKey      (event) -> true when the viewer handled the key
    * @param {Function} deps.carried    (node id) -> ids that move with it, [] if it cannot move
    * @param {Function} deps.onMove     (node id, dx, dy, id of the box under it or null) in sheet units, when a box is dropped
-   * @param {Function} deps.onResize   optional: (node id, dw, dh) in sheet units, when the grip of
-   *                                   the selected box is dragged in arrange mode
+   * @param {Function} deps.onResize   optional: (node id, dw, dh, dx, dy) in sheet units, when a
+   *                                   handle of the selected box is dragged in arrange mode (dx, dy:
+   *                                   how far its left or top side moved, for those handles)
    * @param {Function} deps.onDrop     optional: (node id, node id under the pointer or null)
    *                                   when a box is dragged and let go outside arrange mode;
    *                                   given, a drag on a box is that gesture, not a pan
@@ -92,31 +93,47 @@
       if (editing && editing.onFrame) editing.onFrame();
     };
 
-    // --- resizing: a grip on the corner of the selected box ---------------
-    // In arrange mode, the selected box shows a grip at its bottom-right
-    // corner; dragging it draws the new outline, letting go resizes the box.
-    const grip = document.createElement('div');
-    grip.className = 'arcviz-grip';
-    grip.hidden = true;
-    grip.setAttribute('aria-hidden', 'true');
-    grip.title = 'Drag to resize the box';
+    // --- resizing: handles on the sides and corners of the selected box ---
+    // In arrange mode, the selected box shows a handle on each corner and in
+    // the middle of each side (the bottom-right one is the grip); dragging
+    // one draws the new outline, letting go resizes the box from that side.
+    const RESIZE_DIRS = ['se', 'nw', 'n', 'ne', 'e', 's', 'sw', 'w'];
+    const CURSORS = { n: 'ns-resize', s: 'ns-resize', e: 'ew-resize', w: 'ew-resize', ne: 'nesw-resize', sw: 'nesw-resize', nw: 'nwse-resize', se: 'nwse-resize' };
+    const grips = RESIZE_DIRS.map((dir) => {
+      const handle = document.createElement('div');
+      handle.className = dir === 'se' ? 'arcviz-grip arcviz-resize is-se' : `arcviz-resize is-${dir}`;
+      handle.dataset.dir = dir;
+      handle.hidden = true;
+      handle.setAttribute('aria-hidden', 'true');
+      handle.title = 'Drag to resize the box';
+      handle.style.cursor = CURSORS[dir];
+      return handle;
+    });
+    const gripOf = (element) => grips.find((handle) => handle === element || handle.contains(element)) || null;
     const outline = document.createElement('div');
     outline.className = 'arcviz-resize-outline';
-    let gripped = null; // the box the grip sits on
+    let gripped = null; // the box the handles sit on
     const shapeOf = (node) => node.querySelector(':scope > .av-shape') || node;
     function placeGrip() {
       const node = onResize && arranging ? canvas.querySelector('.av-node.is-selected') : null;
       gripped = node && node.isConnected && carried(node.dataset.id).length > 0 ? node : null;
       if (!gripped) {
-        grip.hidden = true;
+        for (const handle of grips) handle.hidden = true;
         return;
       }
       const frame = stage.getBoundingClientRect();
       const box = shapeOf(gripped).getBoundingClientRect();
-      grip.style.translate = `${box.right - frame.left}px ${box.bottom - frame.top}px`;
-      grip.hidden = false;
+      const xs = { w: box.left, e: box.right, '': (box.left + box.right) / 2 };
+      const ys = { n: box.top, s: box.bottom, '': (box.top + box.bottom) / 2 };
+      for (const handle of grips) {
+        const dir = handle.dataset.dir;
+        const x = xs[dir.replace(/[ns]/, '')];
+        const y = ys[dir.replace(/[ew]/, '')];
+        handle.style.translate = `${x - frame.left}px ${y - frame.top}px`;
+        handle.hidden = false;
+      }
     }
-    if (onResize) stage.append(grip);
+    if (onResize) stage.append(...grips);
 
     // --- motion: one animation at a time, cancelled by any new gesture ---
     let motion = null;
@@ -197,6 +214,26 @@
       motion = requestAnimationFrame(step);
     }
 
+    /** The outline of a box resized by a handle (frame pixels), never smaller than a few pixels. */
+    function resized(r, by) {
+      const dir = r.dir || 'se';
+      const MIN_PX = 8;
+      let { left, top, width, height } = r;
+      if (dir.includes('e')) width = Math.max(MIN_PX, width + by.dx);
+      if (dir.includes('s')) height = Math.max(MIN_PX, height + by.dy);
+      if (dir.includes('w')) {
+        const dx = Math.min(by.dx, width - MIN_PX);
+        left += dx;
+        width -= dx;
+      }
+      if (dir.includes('n')) {
+        const dy = Math.min(by.dy, height - MIN_PX);
+        top += dy;
+        height -= dy;
+      }
+      return { left, top, width, height };
+    }
+
     /** Bring a drawn element to the middle of the frame. */
     function centerOn(element) {
       if (!element) return;
@@ -240,12 +277,27 @@
     const endUnder = (event) => endOf(under(event));
     const onHandle = (element) => element === handle || handle.contains(element);
 
-    /** Where a line leaves a box or port, in frame coordinates: the middle of the box's right edge, the middle of the port. */
+    /**
+     * Where a line leaves a box or port, in frame coordinates: the middle of
+     * the box's right edge, the middle of the port. A host that edits the
+     * drawing drags ports by their body: the handle sits just outside the
+     * port, on the side it faces, its hit area touching the port.
+     */
     function spotOf(element) {
       const frame = stage.getBoundingClientRect();
       const box = element.getBoundingClientRect();
-      const x = element.classList.contains('av-port') ? box.left + box.width / 2 : box.right;
-      return { x: x - frame.left, y: box.top + box.height / 2 - frame.top };
+      const isPort = element.classList.contains('av-port');
+      const x = isPort ? box.left + box.width / 2 : box.right;
+      const spot = { x: x - frame.left, y: box.top + box.height / 2 - frame.top };
+      const owner = isPort && editing && editing.portsOnly ? element.closest('.av-node') : null;
+      if (!owner) return spot;
+      const shape = shapeOf(owner).getBoundingClientRect();
+      const cx = box.left + box.width / 2;
+      const cy = box.top + box.height / 2;
+      const sides = [[Math.abs(cx - shape.left), -1, 0], [Math.abs(shape.right - cx), 1, 0], [Math.abs(cy - shape.top), 0, -1], [Math.abs(shape.bottom - cy), 0, 1]];
+      const [, nx, ny] = sides.reduce((a, b) => (b[0] < a[0] ? b : a));
+      const reach = (nx ? box.width : box.height) / 2 + 8;
+      return { x: spot.x + nx * reach, y: spot.y + ny * reach };
     }
     function placeHandle() {
       if (!anchor) return;
@@ -371,11 +423,14 @@
       drag = { x: event.clientX, y: event.clientY, startX: event.clientX, startY: event.clientY, moved: false, box: null, from: null, connect: false, vx: 0, vy: 0, lastAt: performance.now() };
       if (event.button === 1) return; // the middle button always pans
       const hit = under(event);
-      if (gripped && (hit === grip || grip.contains(hit))) {
+      const handleHit = gripped ? gripOf(hit) : null;
+      if (handleHit) {
         const frame = stage.getBoundingClientRect();
         const box = shapeOf(gripped).getBoundingClientRect();
-        drag.resize = { id: gripped.dataset.id, left: box.left - frame.left, top: box.top - frame.top, width: box.width, height: box.height };
-        snapStart(gripped.dataset.id, 'resize');
+        const dir = handleHit.dataset.dir;
+        drag.resize = { id: gripped.dataset.id, dir, left: box.left - frame.left, top: box.top - frame.top, width: box.width, height: box.height };
+        stage.style.setProperty('--av-resize-cursor', CURSORS[dir]);
+        snapStart(gripped.dataset.id, `resize:${dir}`);
         return;
       }
       if (onConnect && onHandle(hit) && anchor && !connect) {
@@ -428,9 +483,8 @@
         const r = drag.resize;
         const grown = snapped(event.clientX - drag.startX, event.clientY - drag.startY, event);
         drag.snapped = grown;
-        const width = Math.max(8, r.width + grown.dx);
-        const height = Math.max(8, r.height + grown.dy);
-        Object.assign(outline.style, { left: `${r.left}px`, top: `${r.top}px`, width: `${width}px`, height: `${height}px` });
+        const outlined = resized(r, grown);
+        Object.assign(outline.style, { left: `${outlined.left}px`, top: `${outlined.top}px`, width: `${outlined.width}px`, height: `${outlined.height}px` });
         if (!outline.isConnected) stage.appendChild(outline);
         stage.classList.add('is-resizing');
         return;
@@ -484,6 +538,7 @@
       drag = null;
       snapEnd();
       stage.classList.remove('is-panning', 'is-moving', 'is-dragging', 'is-resizing');
+      stage.style.removeProperty('--av-resize-cursor');
       if (outline.isConnected) outline.remove();
       if (connect) return; // the line waits for its end
       if (ghost.isConnected) ghost.remove();
@@ -510,7 +565,14 @@
       }
       if (done.resize) {
         const grown = done.snapped || { dx: event.clientX - done.startX, dy: event.clientY - done.startY };
-        if (done.moved) onResize(done.resize.id, grown.dx / at.scale, grown.dy / at.scale);
+        const dir = done.resize.dir || 'se';
+        const k = 1 / at.scale;
+        // A handle on the left or top moves that side: the box moves as much as it shrinks.
+        const dx = dir.includes('w') ? grown.dx * k : 0;
+        const dy = dir.includes('n') ? grown.dy * k : 0;
+        const dw = dir.includes('e') ? grown.dx * k : -dx;
+        const dh = dir.includes('s') ? grown.dy * k : -dy;
+        if (done.moved) onResize(done.resize.id, dw, dh, dx, dy);
         return;
       }
       if (!done.moved) {

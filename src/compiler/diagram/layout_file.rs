@@ -24,7 +24,15 @@
 //! relative to where the automatic layout puts the box; `dw` and `dh`, when
 //! written, are how much wider and taller the reader made it. `edges`,
 //! when written, gives an exchange the waypoints the reader bent it
-//! through, in sheet units: `{ "ce:Flow": { "points": [{ "x": 120, "y": 40 }] } }`.
+//! through, in sheet units: `{ "ce:Flow": { "points": [{ "x": 120, "y": 40 }] } }`,
+//! and, when set, how it is drawn (`"style": "straight"` or `"curved"`;
+//! right angles otherwise) and how far its name was dragged off it
+//! (`"label": { "dx": 12, "dy": -8 }`). `ports`, when written, moves a
+//! port along the border of its box, from where the automatic layout puts
+//! it: `{ "LC-1::out": { "dx": 0, "dy": 24 } }`. `order`, when written,
+//! stacks boxes among the boxes beside them: above 0 in front, below 0
+//! behind: `{ "LC-1": 1 }`. Each is written only when used, so a file
+//! without them reads in earlier builds.
 
 use super::{DiagramSet, Node};
 use serde::{Deserialize, Serialize};
@@ -69,16 +77,49 @@ pub struct Arrangement {
     pub folded: Vec<String>,
     #[serde(default)]
     pub places: BTreeMap<String, Offset>,
-    /// Exchanges bent by hand: the points they pass through, by edge id.
+    /// Exchanges bent, styled or with their name moved by hand, by edge id.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub edges: BTreeMap<String, EdgeRoute>,
+    /// Ports moved along the border of their box, by port id.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub ports: BTreeMap<String, Shift>,
+    /// Boxes brought to the front (above 0) or sent to the back (below 0).
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub order: BTreeMap<String, i64>,
 }
 
-/// The waypoints of one exchange, from its source to its target.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+/// How one exchange was arranged: the waypoints it passes through, from
+/// its source to its target, its line style and the offset of its name.
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct EdgeRoute {
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub points: Vec<Point>,
+    /// `straight` or `curved`; right angles when absent.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub style: Option<String>,
+    /// How far the name of the exchange was dragged from where it sits.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub label: Option<Shift>,
+}
+
+impl EdgeRoute {
+    fn is_empty(&self) -> bool {
+        self.points.is_empty() && self.style.is_none() && self.label.is_none()
+    }
+}
+
+/// Line styles an exchange may be drawn in besides right angles.
+pub const EDGE_STYLES: [&str; 2] = ["straight", "curved"];
+/// The furthest a box may be stacked in front of or behind the others.
+const DEEPEST: i64 = 100_000;
+
+/// A move in sheet units.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Shift {
+    pub dx: f64,
+    pub dy: f64,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
@@ -138,13 +179,32 @@ impl LayoutFile {
                     ));
                 }
             }
+            let sound = |value: f64| value.is_finite() && value.abs() <= FARTHEST;
             for (edge, route) in &arrangement.edges {
-                let sound = |value: f64| value.is_finite() && value.abs() <= FARTHEST;
                 if let Some(point) = route.points.iter().find(|point| !sound(point.x) || !sound(point.y)) {
                     return Err(format!(
                         "layout file: '{edge}' bends farther than a sheet can be ({}, {})",
                         point.x, point.y
                     ));
+                }
+                if let Some(label) = route.label.filter(|label| !sound(label.dx) || !sound(label.dy)) {
+                    return Err(format!(
+                        "layout file: the name of '{edge}' is moved farther than a sheet can be ({}, {})",
+                        label.dx, label.dy
+                    ));
+                }
+            }
+            for (port, shift) in &arrangement.ports {
+                if !sound(shift.dx) || !sound(shift.dy) {
+                    return Err(format!(
+                        "layout file: port '{port}' is moved farther than a sheet can be ({}, {})",
+                        shift.dx, shift.dy
+                    ));
+                }
+            }
+            for (node, z) in &arrangement.order {
+                if z.abs() > DEEPEST {
+                    return Err(format!("layout file: '{node}' is stacked deeper than {DEEPEST} ({z})"));
                 }
             }
         }
@@ -182,6 +242,7 @@ struct Drawn<'a> {
     nodes: BTreeSet<&'a str>,
     containers: BTreeSet<&'a str>,
     edges: BTreeSet<&'a str>,
+    ports: BTreeSet<&'a str>,
 }
 
 impl<'a> Drawn<'a> {
@@ -190,10 +251,12 @@ impl<'a> Drawn<'a> {
             nodes: BTreeSet::new(),
             containers: BTreeSet::new(),
             edges: edges.iter().map(|edge| edge.id.as_str()).collect(),
+            ports: BTreeSet::new(),
         };
         let mut stack: Vec<&Node> = nodes.iter().collect();
         while let Some(node) = stack.pop() {
             drawn.nodes.insert(&node.id);
+            drawn.ports.extend(node.ports.iter().map(|port| port.id.as_str()));
             if !node.children.is_empty() {
                 drawn.containers.insert(&node.id);
             }
@@ -297,23 +360,58 @@ impl DiagramSet {
             let edges: BTreeMap<String, EdgeRoute> = arrangement
                 .edges
                 .into_iter()
-                .filter(|(edge, route)| {
-                    let is_drawn = known.edges.contains(edge.as_str());
-                    if !is_drawn {
+                .filter_map(|(edge, mut route)| {
+                    if !known.edges.contains(edge.as_str()) {
                         warnings.push(format!(
                             "[{view}] layout file: bent '{edge}' is not drawn in this view"
                         ));
+                        return None;
                     }
-                    is_drawn && !route.points.is_empty()
+                    if let Some(style) = route.style.as_deref().filter(|style| !EDGE_STYLES.contains(style)) {
+                        warnings.push(format!(
+                            "[{view}] layout file: '{edge}' has the line style '{style}', which is not one of {}",
+                            EDGE_STYLES.join(", ")
+                        ));
+                        route.style = None;
+                    }
+                    (!route.is_empty()).then_some((edge, route))
                 })
                 .collect();
-            if !places.is_empty() || !edges.is_empty() {
+            let ports: BTreeMap<String, Shift> = arrangement
+                .ports
+                .into_iter()
+                .filter(|(port, _)| {
+                    let is_drawn = known.ports.contains(port.as_str());
+                    if !is_drawn {
+                        warnings.push(format!(
+                            "[{view}] layout file: moved port '{port}' is not drawn in this view"
+                        ));
+                    }
+                    is_drawn
+                })
+                .collect();
+            let order: BTreeMap<String, i64> = arrangement
+                .order
+                .into_iter()
+                .filter(|(node, z)| {
+                    let is_drawn = known.nodes.contains(node.as_str());
+                    if !is_drawn {
+                        warnings.push(format!(
+                            "[{view}] layout file: stacked '{node}' is not drawn in this view"
+                        ));
+                    }
+                    is_drawn && *z != 0
+                })
+                .collect();
+            if !places.is_empty() || !edges.is_empty() || !ports.is_empty() || !order.is_empty() {
                 kept.arrangements.push(Arrangement {
                     view,
                     open: arrangement.open,
                     folded,
                     places,
                     edges,
+                    ports,
+                    order,
                 });
             }
         }
