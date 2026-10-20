@@ -13,8 +13,7 @@ pub enum CopyTarget<'a> {
 }
 
 /// Copy the declaration of `element` to `target`. `fresh_id` gives the new
-/// value of every `id:` of the copy; `new_name`, the name of the copy when
-/// its declaration writes no id. The text must parse; the caller checks
+/// value of every `id:` of the copy; `new_name`, the name of the copy. The text must parse; the caller checks
 /// the compiled model.
 pub fn duplicate_element(
     source: &str,
@@ -44,9 +43,9 @@ pub fn duplicate_element(
             replacements.push((index + 2, string_literal(&fresh_id(id))));
         }
     }
-    let writes_id = block.as_ref().is_some_and(|block| document.written_id(block).is_some());
-    if !writes_id {
-        // The name is the identity: the first string (or the last word) of the declaration line.
+    // The copy is told apart by its name as well as by its ids ("Camera 2").
+    {
+        // The name: the first string (or the last word) of the declaration line.
         let line_end = block.as_ref().map_or(end + 1, |block| block.open);
         let name_at = (start + 1..line_end)
             .find(|index| matches!(token(&document.lexemes[*index]), Some(Token::StringLiteral(_))))
@@ -107,9 +106,9 @@ mod tests {
         let source = "logical_architecture L {\n    component \"A\" {\n        id: \"LC-A\" // the first\n        function \"F\" { id: \"LF-F\" }\n        port out p\n    }\n    component \"B\" { id: \"LC-B\" }\n}\n";
         let mut fresh = |id: &str| format!("{id}-2");
         let beside = duplicate_element(source, "LC-A", CopyTarget::Beside, &mut fresh, "A 2").unwrap();
-        assert!(beside.contains("id: \"LC-A-2\" // the first") && beside.contains("function \"F\" { id: \"LF-F-2\" }") && beside.contains("id: \"LC-A\" // the first"), "{beside}");
+        assert!(beside.contains("component \"A 2\" {\n        id: \"LC-A-2\" // the first") && beside.contains("function \"F\" { id: \"LF-F-2\" }") && beside.contains("id: \"LC-A\" // the first"), "{beside}");
         let into = duplicate_element(source, "LF-F", CopyTarget::Into(Container::Element("LC-B")), &mut fresh, "F 2").unwrap();
-        assert!(into.find("function \"F\" { id: \"LF-F-2\" }").unwrap() > into.find("component \"B\"").unwrap(), "{into}");
+        assert!(into.find("function \"F 2\" { id: \"LF-F-2\" }").unwrap() > into.find("component \"B\"").unwrap(), "{into}");
         let unnamed = "logical_architecture L {\n    component \"A\" {}\n}\n";
         let renamed = duplicate_element(unnamed, "A", CopyTarget::Beside, &mut fresh, "A 2").unwrap();
         assert!(renamed.contains("component \"A\" {}\n    component \"A 2\" {}"), "{renamed}");

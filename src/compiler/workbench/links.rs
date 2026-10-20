@@ -348,6 +348,32 @@ pub fn duplicate(source: &str, element: &str, container: Option<Container>) -> R
     if after.unresolved.len() > graph.unresolved.len() {
         return Err("edit refused: the copy would leave a reference without an end".to_string());
     }
+    // The relationships are those of the original, plus the copy's own: one
+    // that joins two elements already there (an exchange written inside the
+    // copied block between the originals) is a second exchange, refused.
+    let old: std::collections::HashSet<&str> = graph.elements.iter().map(|e| e.uuid.as_str()).collect();
+    let mut kept = edges(&graph);
+    for r in &after.relationships {
+        if !(old.contains(r.source.as_str()) && old.contains(r.target.as_str())) {
+            continue;
+        }
+        let key: Edge = (r.kind.to_string(), r.name.clone(), r.source.clone(), r.target.clone());
+        match kept.get_mut(&key) {
+            Some(count) if *count > 0 => *count -= 1,
+            _ => {
+                let name = |uuid: &str| graph.elements.iter().find(|e| e.uuid == uuid).map_or(uuid.to_string(), |e| e.id.clone());
+                return Err(format!(
+                    "edit refused: the copy of '{element}' would add a {} between '{}' and '{}', which are not copied; copy what it joins with it, or write it again for the copy",
+                    r.kind,
+                    name(&r.source),
+                    name(&r.target)
+                ));
+            }
+        }
+    }
+    if kept.values().any(|count| *count > 0) {
+        return Err(format!("edit refused: the copy of '{element}' would lose a relationship of the model"));
+    }
     Ok(edited)
 }
 
@@ -399,10 +425,10 @@ mod tests {
         let twice = move_port(&moved_inline.replace("component \"A\" { id: \"LC-A\" port out \"p\" }", "component \"A\" { id: \"LC-A\" port out \"q\" }").replace("LC-A.p", "LC-A.q"), "LC-A.q", "LC-C").unwrap_err();
         assert!(twice.contains("LC-C already has a port 'q'"), "{twice}");
         let expanded = duplicate(inline, "LC-A", Some(Container::Element("LC-C"))).unwrap();
-        assert!(expanded.contains("component \"C\" { id: \"LC-C\" component \"A\" { id: \"LC-A-2\" port out \"p\" } }"), "{expanded}");
+        assert!(expanded.contains("component \"C\" { id: \"LC-C\" component \"A 2\" { id: \"LC-A-2\" port out \"p\" } }"), "{expanded}");
         let multi = "model T { name: \"t\" }\nlogical_architecture \"L\" {\n    component \"A\" {\n        id: \"LC-A\"\n        function \"F\" {\n            id: \"LF-F\"\n        }\n    }\n    component \"C\" { id: \"LC-C\" description: \"d\" port in \"r\" }\n}\n";
         let opened = duplicate(multi, "LF-F", Some(Container::Element("LC-C"))).unwrap();
-        assert!(opened.contains("component \"C\" {\n        id: \"LC-C\"\n        description: \"d\"\n        port in \"r\"\n        function \"F\" {\n            id: \"LF-F-2\"\n        }\n    }"), "{opened}");
+        assert!(opened.contains("component \"C\" {\n        id: \"LC-C\"\n        description: \"d\"\n        port in \"r\"\n        function \"F 2\" {\n            id: \"LF-F-2\"\n        }\n    }"), "{opened}");
         let moved = move_port(MODEL, "LC-B.q", "LC-C").unwrap();
         assert!(moved.contains("to_port: \"LC-C.q\""), "{moved}");
         let c = moved.find("component \"C\"").unwrap();
@@ -417,7 +443,15 @@ mod tests {
         assert!(again.contains("id: \"LC-A-3\""), "{again}");
         let commented = "model T { name: \"t\" }\nlogical_architecture \"L\" {\n    component \"A\" { id: \"LC-A\" port out \"p\" }   // keep this comment\n}\n";
         let copy = duplicate(commented, "LC-A", None).unwrap();
-        assert!(copy.contains("component \"A\" { id: \"LC-A\" port out \"p\" }   // keep this comment\n    component \"A\" { id: \"LC-A-2\" port out \"p\" }\n"), "{copy}");
+        assert!(copy.contains("component \"A\" { id: \"LC-A\" port out \"p\" }   // keep this comment\n    component \"A 2\" { id: \"LC-A-2\" port out \"p\" }\n"), "{copy}");
+        // A scenario's messages join its participants, which are not copied: a second message each.
+        let second = duplicate(MODEL, "S", None).unwrap_err();
+        assert!(second.contains("would add a Message between 'LC-A' and 'LC-B'"), "{second}");
+        // A machine's transitions join its own states: copied with them, rewired to the copy.
+        let machine = duplicate(MODEL, "M", None).unwrap();
+        assert!(machine.contains("state_machine \"M 2\"") && machine.matches("transition Off -> On").count() == 2, "{machine}");
+        let named = duplicate(MODEL, "LC-A", None).unwrap();
+        assert!(named.contains("component \"A 2\" {\n        id: \"LC-A-2\""), "the copy has a name of its own: {named}");
         let into = duplicate(MODEL, "Off", Some(Container::Element("M"))).unwrap();
         assert!(into.contains("state \"Off 2\" {}"), "{into}");
         let taken: std::collections::HashSet<String> = ["LC-X-2".to_string()].into_iter().collect();
