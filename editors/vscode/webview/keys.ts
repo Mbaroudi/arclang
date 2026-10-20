@@ -73,7 +73,7 @@ export function installKeys(d: KeyDeps): { canvasCommand(command: CanvasCommand,
       case 'zoom-in':
       case 'zoom-out':
         // The viewer's own buttons: the zoom it animates, around the middle of the frame.
-        d.tools.querySelector<HTMLButtonElement>(`button[title^="${command === 'zoom-in' ? 'Zoom in' : 'Zoom out'}"]`)?.click();
+        d.tools.querySelector<HTMLButtonElement>(command === 'zoom-in' ? '#arcviz-zoom-in' : '#arcviz-zoom-out')?.click();
         return;
       case 'fit':
         d.viewer()?.fit?.();

@@ -53,6 +53,8 @@
    *                                   shows the handle
    * @param {Function} deps.connectTargets optional: (node or port id) -> ids a line from
    *                                   it may end on, or null for any; absent, any
+   * @param {Function} deps.onZoom     optional: (scale) -> void after every pan or zoom
+   *                                   (the zoom level shown in the toolbar)
    * @param {Function} deps.nameOf     optional: (element) -> what to call a box or port,
    *                                   for the handle's accessible name
    * @param {object}   deps.editing    optional hooks of a host that edits the drawing
@@ -86,8 +88,10 @@
     const at = { scale: 1, x: 0, y: 0 };
     let arranging = false;
 
+    const onZoom = deps.onZoom || (() => {});
     const apply = () => {
       canvas.style.transform = `translate(${at.x}px, ${at.y}px) scale(${at.scale})`;
+      onZoom(at.scale);
       placeHandle();
       placeGrip();
       if (editing && editing.onFrame) editing.onFrame();
@@ -673,6 +677,8 @@
       fit,
       zoomIn: () => zoomBy(ZOOM_STEP, undefined, undefined, true),
       zoomOut: () => zoomBy(1 / ZOOM_STEP, undefined, undefined, true),
+      /** Zoom to `scale` (1: a sheet unit per pixel) about the middle of the frame. */
+      zoomTo: (scale) => zoomBy(scale / at.scale, undefined, undefined, true),
       centerOn,
       toggleFullscreen,
       /** Where the sheet is: kept across a redraw that does not change its size much. */

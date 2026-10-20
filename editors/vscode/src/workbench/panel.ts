@@ -32,6 +32,7 @@ const VIEWER_SCRIPTS = [
   'arcviz-place.js',
   'arcviz-route.js',
   'arcviz-edit.js',
+  'arcviz-toolbar.js',
   'arcviz-viewer.js',
 ];
 

@@ -14,7 +14,7 @@ const rows = []; const report = (name, ok, detail) => { rows.push({ name, ok });
 
 async function launch(dir, models, extra = {}) {
   const files = [].concat(models);
-  const settings = { 'files.simpleDialog.enable': true, 'workbench.startupEditor': 'none', 'security.workspace.trust.enabled': false, 'window.restoreWindows': 'none', ...(process.env.ARCLANG_BINARY ? { 'arclang.binary': process.env.ARCLANG_BINARY } : {}), ...extra };
+  const settings = { 'files.simpleDialog.enable': true, 'update.mode': 'none', 'extensions.autoCheckUpdates': false, 'extensions.autoUpdate': false, 'telemetry.telemetryLevel': 'off', 'workbench.startupEditor': 'none', 'security.workspace.trust.enabled': false, 'window.restoreWindows': 'none', ...(process.env.ARCLANG_BINARY ? { 'arclang.binary': process.env.ARCLANG_BINARY } : {}), ...extra };
   fs.mkdirSync(path.join(dir, 'u', 'User'), { recursive: true });
   fs.writeFileSync(path.join(dir, 'u', 'User', 'settings.json'), JSON.stringify(settings));
   const app = await _electron.launch({ executablePath: path.join(APP, 'Contents/MacOS/Electron'), args: [`--user-data-dir=${dir}/u`, `--extensions-dir=${dir}/x`, `--extensionDevelopmentPath=${EXT}`, '--skip-welcome', '--skip-release-notes', ...files] });
@@ -48,13 +48,13 @@ async function basics() {
     report('the workbench opens with its diagram', !!page);
     if (!page) throw new Error('no workbench page');
     const box = (id) => page.locator(`.arcviz-stage [data-id="${id}"]`).first().boundingBox();
-    const tool = (label) => page.locator('.wb-viewer-tools button', { hasText: label }).first();
+    const tool = (id) => page.locator(`#${id}`);
     await page.locator('.wb-layer', { hasText: 'Logical' }).first().click(); await win.waitForTimeout(1500);
 
     // 1. Nothing hidden that should show, nothing shown that should hide
     const chrome = await page.evaluate(() => {
       const row = document.querySelector('.wb-toolrow').getBoundingClientRect();
-      const cut = [...document.querySelectorAll('.wb-viewer-tools button')].filter((b) => { const r = b.getBoundingClientRect(); return r.width > 0 && (r.top < row.top - 1 || r.bottom > row.bottom + 1); }).map((b) => b.textContent.trim());
+      const cut = [...document.querySelectorAll('.wb-toolrow button')].filter((b) => { const r = b.getBoundingClientRect(); return r.width > 0 && (r.top < row.top - 1 || r.bottom > row.bottom + 1 || r.left < row.left - 1 || r.right > row.right + 1); }).map((b) => b.id || b.getAttribute('aria-label'));
       return { cut, findShown: getComputedStyle(document.querySelector('.wb-find')).display !== 'none' };
     });
     report('every toolbar button is fully visible', chrome.cut.length === 0, chrome.cut.join(', '));
@@ -78,12 +78,15 @@ async function basics() {
     const big = await shape();
     report('the grip of the selected box resizes it', gripShown && big.width > small.width * 1.5 && big.height > small.height * 1.3, `${Math.round(small.width)}x${Math.round(small.height)} -> ${Math.round(big.width)}x${Math.round(big.height)}`);
     report('the size is written to model.layout.json', /"LC-CAM":\s*\{[^}]*"dw"/.test(fs.readFileSync(layout, 'utf8')));
-    report('no Save layout button: the arrangement saves itself', !(await page.locator('.wb-viewer-tools button', { hasText: 'Save layout' }).count()));
+    await tool('arcviz-export-menu').click(); await win.waitForTimeout(300);
+    report('no Save layout in Export: the arrangement saves itself', !(await page.locator('.arcviz-menu-pop:not([hidden]) [data-action="save-layout"]').count()));
+    await win.keyboard.press('Escape');
     await win.keyboard.press('Escape');
 
     // 3. Exports through the save dialog
-    for (const [label, file, magic] of [['Save PNG', 'out.png', '\x89PNG'], ['Save SVG', 'out.svg', '<svg']]) {
-      await tool(label).click(); await win.waitForTimeout(1200);
+    for (const [label, file, magic] of [['save-png', 'out.png', '\x89PNG'], ['save-svg', 'out.svg', '<svg']]) {
+      await tool('arcviz-export-menu').click(); await win.waitForTimeout(300);
+      await page.locator(`.arcviz-menu-pop:not([hidden]) [data-action="${label}"]`).click(); await win.waitForTimeout(1200);
       const input = win.locator('.quick-input-widget input').first();
       if (await input.isVisible().catch(() => false)) { await input.fill(path.join(dir, file)); await input.press('Enter'); await win.waitForTimeout(1800); }
       const written = fs.existsSync(path.join(dir, file)) && fs.readFileSync(path.join(dir, file)).subarray(0, 4).toString('latin1').startsWith(magic.slice(0, 4));
@@ -93,7 +96,7 @@ async function basics() {
 
     // 4. Full screen with every tool, Esc gives the window back
     const narrow = await page.evaluate(() => innerWidth);
-    await tool('Full screen').click(); await win.waitForTimeout(2500);
+    await tool('arcviz-fullscreen').click(); await win.waitForTimeout(2500);
     const full = await page.evaluate(() => ({ w: innerWidth, palette: getComputedStyle(document.querySelector('.wb-left')).display, tools: getComputedStyle(document.querySelector('.wb-toolrow')).display }));
     report('full screen gives the workbench the window, tools kept', full.w > narrow * 1.5 && full.palette !== 'none' && full.tools !== 'none', `${narrow} -> ${full.w}`);
     await page.locator('.arcviz-stage').click({ position: { x: 4, y: 4 } }); await win.keyboard.press('Escape'); await win.waitForTimeout(2000);
@@ -469,13 +472,128 @@ async function looks() {
   }
 }
 
-// ONLY=basics|drawio|two|looks runs one part.
+/** The window sized until the webview is `width` px wide (the editor chrome takes the rest). */
+async function sizeTo(ctx, width) {
+  const { app, win } = ctx;
+  let inner = 0;
+  for (let attempt = 0; attempt < 4 && Math.abs(inner - width) > 12; attempt++) {
+    inner = await ctx.page.evaluate(() => innerWidth);
+    const bounds = await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].getBounds());
+    await app.evaluate(({ BrowserWindow }, w) => BrowserWindow.getAllWindows()[0].setBounds({ x: 0, y: 0, width: w, height: 900 }), bounds.width + width - inner);
+    await win.waitForTimeout(1800);
+    inner = await ctx.page.evaluate(() => innerWidth);
+  }
+  return inner;
+}
+
+/** The toolbar in every theme and width: one line, nothing cut, menus by mouse and keyboard, the zoom level, undo and redo. */
+async function toolbar() {
+  const themes = [['Default Light Modern', 'light'], ['Default Dark Modern', 'dark'], ['Default High Contrast', 'hc']];
+  // THEMES=light,dark,hc runs some of them.
+  for (const [theme, slug] of themes.filter(([, s]) => !process.env.THEMES || process.env.THEMES.split(',').includes(s))) {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'arcvs-tools-'));
+    const model = path.join(dir, 'model.arc'); fs.copyFileSync(path.join(EXT, 'media', 'reference.arc'), model);
+    const ctx = await launch(dir, model, { 'workbench.colorTheme': theme });
+    const { win } = ctx;
+    try {
+      if (!ctx.page) throw new Error('no workbench page');
+      ctx.press = await azerty(win); const h = on(ctx); const page = ctx.page;
+      const id = (name) => page.locator(`#${name}`);
+      const open = () => page.locator('.arcviz-menu-pop:not([hidden])');
+      const action = (name) => page.locator(`.arcviz-menu-pop:not([hidden]) [data-action="${name}"]`);
+      const crop = async (name, height = 140) => {
+        if (!process.env.SHOTS) return;
+        const frame = await (await page.frameElement()).boundingBox();
+        await win.screenshot({ path: path.join(process.env.SHOTS, `${name}.png`), clip: { x: frame.x, y: frame.y, width: frame.width, height } });
+      };
+      await h.layer('Logical');
+      await ctx.command('View: Close Primary Side Bar'); await h.deselect();
+      await ctx.command('View: Single Column Editor Layout'); await win.waitForTimeout(1500);
+      for (const width of [1240, 800, 600, 420]) {
+        const inner = await sizeTo(ctx, width);
+        const row = await page.evaluate(() => {
+          const bar = document.querySelector('.wb-toolrow').getBoundingClientRect();
+          const shown = [...document.querySelectorAll('.wb-toolrow button')].filter((b) => b.getBoundingClientRect().width > 0);
+          const cut = shown.filter((b) => { const r = b.getBoundingClientRect(); return r.top < bar.top - 1 || r.bottom > bar.bottom + 1 || r.left < bar.left - 1 || r.right > bar.right + 1; }).map((b) => b.id || b.getAttribute('aria-label'));
+          const more = document.getElementById('arcviz-more');
+          return { cut, rows: new Set(shown.map((b) => Math.round(b.getBoundingClientRect().top))).size, more: !more.closest('.arcviz-menu').hidden, compact: document.querySelector('.arcviz-tools').classList.contains('is-compact') };
+        });
+        report(`${slug} ${width}: the toolbar is one line, every button fully visible`, row.cut.length === 0 && row.rows === 1 && (width > 900 ? !row.more : true), `${inner}px ${row.cut.join(',')} compact ${row.compact} more ${row.more}`);
+        await crop(`vscode-${slug}-${width}`);
+        if (width === 420) {
+          await id('arcviz-more').click(); await win.waitForTimeout(400);
+          report(`${slug} 420: the tools that do not fit are in "⋯"`, (await action('save-svg').count()) === 1 && (await action('fold-all').count()) === 1);
+          await crop(`vscode-${slug}-420-more`, 560);
+          await ctx.press('Escape'); await win.waitForTimeout(300);
+        }
+      }
+      await sizeTo(ctx, 1240);
+      // Menus by mouse: Layout, Align (two boxes selected), Export
+      await id('arcviz-layout-menu').click(); await win.waitForTimeout(400);
+      report(`${slug}: Layout opens by mouse`, (await action('reset-layout').count()) === 1 && (await action('arrange').count()) === 0);
+      await crop(`vscode-${slug}-menu-layout`, 300);
+      await action('fold-all').click(); await win.waitForTimeout(1500);
+      report(`${slug}: a Layout item runs and closes the menu`, (await open().count()) === 0 && (await page.locator('.arcviz-stage .av-node').count()) > 0);
+      await id('arcviz-layout-menu').click(); await win.waitForTimeout(300); await action('unfold-all').click(); await win.waitForTimeout(1500);
+      report(`${slug}: Align is off until two boxes are selected`, (await id('arcviz-align-menu').getAttribute('aria-disabled')) === 'true');
+      // Camera and actuator sit on different rows: Align top puts them on one.
+      const gap = async () => { const [p, q] = [await h.shape('LC-CAM'), await h.shape('LC-ACT')]; return p && q ? Math.round(q.y - p.y) : NaN; };
+      const before = await gap();
+      await h.click('LC-CAM'); await h.shiftClick('LC-ACT');
+      await id('arcviz-align-menu').click(); await win.waitForTimeout(400);
+      report(`${slug}: Align opens with two boxes selected`, (await action('align-top').count()) === 1);
+      await crop(`vscode-${slug}-menu-align`, 380);
+      await action('align-top').click(); await win.waitForTimeout(2500);
+      const aligned = await gap();
+      report(`${slug}: Align top lines the boxes up`, Math.abs(before) > 20 && Math.abs(aligned) < 2, `${before} -> ${aligned}`);
+      // Undo and redo buttons: the history's labels, then the gesture undone and redone
+      const undoTitle = await id('arcviz-undo').getAttribute('title');
+      report(`${slug}: Undo names the last change, with its shortcut`, !(await id('arcviz-undo').isDisabled()) && /^Undo .+ \(⌘Z\)$/.test(undoTitle), undoTitle);
+      await id('arcviz-undo').click(); await win.waitForTimeout(3500);
+      const undone = await gap();
+      report(`${slug}: the Undo button puts the boxes back`, Math.abs(undone - before) < 3 && !(await id('arcviz-redo').isDisabled()), `${undone} | ${await id('arcviz-redo').getAttribute('title')}`);
+      await id('arcviz-redo').click(); await win.waitForTimeout(3500);
+      const redone = await gap();
+      report(`${slug}: the Redo button aligns them again`, Math.abs(redone) < 2, `${redone}`);
+      await h.deselect();
+      // Export by keyboard: Enter opens on the first item, arrows move, Esc closes and gives the focus back
+      await id('arcviz-export-menu').focus(); await ctx.press('Enter'); await win.waitForTimeout(400);
+      const first = await page.evaluate(() => document.activeElement?.dataset.action);
+      await ctx.press('ArrowDown'); const second = await page.evaluate(() => document.activeElement?.dataset.action);
+      await crop(`vscode-${slug}-menu-export`, 260);
+      await ctx.press('Escape'); await win.waitForTimeout(300);
+      const back = await page.evaluate(() => document.activeElement?.id);
+      report(`${slug}: Export by keyboard (Enter, arrows, Esc)`, first === 'save-svg' && second === 'save-png' && (await open().count()) === 0 && back === 'arcviz-export-menu', `${first} ${second} -> ${back}`);
+      // The zoom level follows the buttons, the presets and the keys
+      const level = async () => (await id('arcviz-zoom-level').textContent()).replace(/\s/g, ' ').trim();
+      await id('arcviz-zoom-level').click(); await win.waitForTimeout(300); await action('zoom-75').click(); await win.waitForTimeout(600);
+      const l75 = await level();
+      await id('arcviz-zoom-in').click(); await win.waitForTimeout(600);
+      const lIn = await level();
+      await page.locator('.arcviz-stage').click({ position: { x: 6, y: 6 } }); await h.key('-', 800);
+      const lKey = await level();
+      report(`${slug}: the zoom level shows the zoom (preset, +, the - key)`, l75 === '75 %' && lIn === '94 %' && lKey === '75 %', `${l75} ${lIn} ${lKey}`);
+      // The panel toggles: a pressed state, the shortcut in the tooltip
+      await page.locator('.wb-minimap-toggle').click(); await win.waitForTimeout(500);
+      report(`${slug}: the minimap toggle shows it is on, Shift+M in its tooltip`, (await page.locator('.wb-minimap-toggle').getAttribute('aria-pressed')) === 'true' && /⇧M|Shift\+M/.test(await page.locator('.wb-minimap-toggle').getAttribute('title')));
+      await page.locator('.wb-minimap-toggle').click();
+    } catch (error) {
+      report(`no error (toolbar, ${theme})`, false, String(error).slice(0, 300));
+    } finally {
+      await ctx.app.close().catch(() => {});
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  }
+}
+
+// ONLY=basics|drawio|two|looks|toolbar runs one part.
 (async () => {
   const only = process.env.ONLY;
   if (!only || only === 'basics') await basics();
   if (!only || only === 'drawio') await drawio();
   if (!only || only === 'two') await twoModels();
   if (!only || only === 'looks') await looks();
+  if (!only || only === 'toolbar') await toolbar();
   const failed = rows.filter((r) => !r.ok); console.log(`\n${rows.length - failed.length}/${rows.length} checks in VS Code`);
   process.exit(failed.length ? 1 : 0);
 })();

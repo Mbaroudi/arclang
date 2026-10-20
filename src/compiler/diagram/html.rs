@@ -27,6 +27,7 @@ const SCOPE_JS: &str = include_str!("viewer/arcviz-scope.js");
 const EXPORT_JS: &str = include_str!("viewer/arcviz-export.js");
 const STAGE_JS: &str = include_str!("viewer/arcviz-stage.js");
 const PLACE_JS: &str = include_str!("viewer/arcviz-place.js");
+const TOOLBAR_JS: &str = include_str!("viewer/arcviz-toolbar.js");
 const VIEWER_JS: &str = include_str!("viewer/arcviz-viewer.js");
 const VIEWER_CSS: &str = include_str!("viewer/arcviz-viewer.css");
 #[cfg(feature = "native")]
@@ -76,6 +77,7 @@ pub fn viewer_parts(set: &DiagramSet, title: &str) -> ViewerParts {
          <script>{export}</script>\n\
          <script>{stage}</script>\n\
          <script>{place}</script>\n\
+         <script>{toolbar}</script>\n\
          <script>{viewer}</script>\n\
          <script>window.arcvizViewer = ArcViz.mount(\
          document.getElementById('{HOST_ID}'), \
@@ -83,7 +85,7 @@ pub fn viewer_parts(set: &DiagramSet, title: &str) -> ViewerParts {
          {{ ELK: ELK, render: ArcVizRender, links: ArcVizLinks, \
          navigation: ArcVizNavigation, collapse: ArcVizCollapse, \
          scope: ArcVizScope, exporter: ArcVizExport, stage: ArcVizStage, \
-         place: ArcVizPlace }});</script>",
+         place: ArcVizPlace, toolbar: ArcVizToolbar }});</script>",
         data = json_for_script(&payload),
         engine = engine_script(),
         render = inline_script(RENDER_JS),
@@ -94,6 +96,7 @@ pub fn viewer_parts(set: &DiagramSet, title: &str) -> ViewerParts {
         export = inline_script(EXPORT_JS),
         stage = inline_script(STAGE_JS),
         place = inline_script(PLACE_JS),
+        toolbar = inline_script(TOOLBAR_JS),
         viewer = inline_script(VIEWER_JS),
     );
     ViewerParts {
