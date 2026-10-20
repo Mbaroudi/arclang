@@ -1,7 +1,7 @@
 // Where boxes go on the sheet, draw.io style: a pasted or duplicated copy
 // lands where it was asked (at the mouse, or beside its original), several
-// selected boxes move together when one of them is dragged, Alt+drag (or
-// ⌘/Ctrl+drag) drops a copy where it is let go, and the box under the
+// selected boxes move together when one of them is dragged, ⌘+drag
+// (Ctrl+drag elsewhere) drops a copy where it is let go, and the box under the
 // pointer is outlined. Positions are in sheet units (the drawing's own),
 // so they hold across a redraw, a pan or a zoom.
 import type { ElementRecord, Snapshot } from '../src/pure/workbench';
@@ -24,7 +24,7 @@ export interface PlacementContext {
   outermost: (elements: ElementRecord[]) => ElementRecord[];
   /** Run a change of the arrangement as part of the step before it (one undo). */
   joinLayout: (run: () => Promise<void> | undefined) => Promise<void>;
-  /** Copies of `elements` dropped this far from them (Alt+drag). */
+  /** Copies of `elements` dropped this far from them (⌘/Ctrl+drag). */
   copyBy: (elements: ElementRecord[], by: Point) => void;
   /** Select a box as a click would. */
   select: (drawingId: string) => void;
@@ -160,7 +160,8 @@ export class Placement {
     const node = this.nodeAt(event);
     const element = node ? this.ctx.elementFor(node.dataset.id ?? '') : null;
     if (!node || !element) return;
-    const copying = event.altKey || (isMac ? event.metaKey : event.ctrlKey);
+    // As in draw.io: ⌘+drag (Ctrl+drag elsewhere) copies; Alt+drag moves without the grid (the viewer's).
+    const copying = isMac ? event.metaKey : event.ctrlKey;
     if (copying && !event.shiftKey) return this.copyDrag(event, node, element);
     if (event.shiftKey || event.metaKey || event.ctrlKey || event.altKey) return;
     const multi = this.ctx.multi();
@@ -215,7 +216,7 @@ export class Placement {
     this.ctx.remark();
   }
 
-  /** Alt+drag (⌘+drag on a Mac, Ctrl+drag elsewhere): a copy follows the pointer and is made where it is let go. */
+  /** ⌘+drag on a Mac, Ctrl+drag elsewhere: a copy follows the pointer and is made where it is let go. */
   private copyDrag(down: PointerEvent, node: SVGGElement, element: ElementRecord): void {
     down.preventDefault();
     down.stopImmediatePropagation();

@@ -329,12 +329,12 @@ async function drawio() {
     report('ArcLang copied from the text editor pastes with fresh ids', /^\s*component "Steering Actuator" \{/.test(fromText) && /component "Steering Actuator 2" \{\n    id: "LC-ACT-2"/.test(src()) && /id: "LF-ACT-2"/.test(src()), JSON.stringify(fromText.slice(0, 60)) + ' ' + (await ctx.page.locator('.wb-toast').textContent().catch(() => '')).slice(0, 120));
     await h.key('Meta+z', 3000); await h.deselect();
 
-    // 8. Alt+drag drops a copy where it is let go
+    // 8. ⌘+drag drops a copy where it is let go (draw.io; Alt+drag moves off the grid)
     const a0 = await h.shape('LC-ACT');
-    await win.keyboard.down('Alt'); await h.drag({ x: a0.x + 20, y: a0.y + 10 }, { x: a0.x + 20, y: a0.y + 190 }, 300); await win.keyboard.up('Alt'); await win.waitForTimeout(5000); await h.save();
+    await win.keyboard.down('Meta'); await h.drag({ x: a0.x + 20, y: a0.y + 10 }, { x: a0.x + 20, y: a0.y + 190 }, 300); await win.keyboard.up('Meta'); await win.waitForTimeout(5000); await h.save();
     const a1 = await h.shape('LC-ACT'); const a2 = await h.shape('LC-ACT-2'); const s1 = await h.scale();
     await h.shot('drawio-altdrag');
-    report('Alt+drag drops a copy where it is let go', !!a2 && near(a2.x - a1.x, 0, 8) && near(a2.y - a1.y, 180, 14) && /id: "LC-ACT"/.test(src()), a2 ? `${Math.round(a2.x - a1.x)},${Math.round(a2.y - a1.y)} px; before ${Math.round(a0.x)},${Math.round(a0.y)} original ${Math.round(a1.x)},${Math.round(a1.y)} copy ${Math.round(a2.x)},${Math.round(a2.y)}; placed ${/"LC-ACT-2"/.test(lay())}` : 'no copy');
+    report('⌘+drag drops a copy where it is let go', !!a2 && near(a2.x - a1.x, 0, 8) && near(a2.y - a1.y, 180, 14) && /id: "LC-ACT"/.test(src()), a2 ? `${Math.round(a2.x - a1.x)},${Math.round(a2.y - a1.y)} px; before ${Math.round(a0.x)},${Math.round(a0.y)} original ${Math.round(a1.x)},${Math.round(a1.y)} copy ${Math.round(a2.x)},${Math.round(a2.y)}; placed ${/"LC-ACT-2"/.test(lay())}` : 'no copy');
     await h.key('Meta+z', 3000); await h.deselect();
 
     // 9. Dragging one of several selected boxes moves them all, one ⌘Z puts them back

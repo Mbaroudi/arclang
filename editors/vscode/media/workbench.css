@@ -462,6 +462,34 @@ body.wb-focus .wb-viewer-tools button[aria-label='Full screen'], body.wb-focus .
   border-radius: 5px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.22);
 }
+.wb-mini .arcviz-edge-style {
+  position: static;
+  display: flex;
+  gap: 1px;
+  margin-left: 2px;
+  padding: 0 0 0 3px;
+  border: 0;
+  border-left: 1px solid var(--vscode-editorWidget-border, var(--vscode-panel-border, #8884));
+  border-radius: 0;
+  box-shadow: none;
+  background: transparent;
+  transform: none;
+  translate: none;
+}
+.wb-mini .arcviz-edge-style[hidden] { display: none; }
+.wb-mini .arcviz-edge-style-option {
+  min-width: 24px;
+  height: 22px;
+  padding: 0 4px;
+  color: var(--vscode-icon-foreground, var(--vscode-editor-foreground));
+  background: transparent;
+  border: 0;
+  border-radius: 3px;
+  cursor: pointer;
+}
+.wb-mini .arcviz-edge-style-option:hover { background: var(--vscode-toolbar-hoverBackground, #8882); }
+.wb-mini .arcviz-edge-style-option[aria-pressed='true'] { background: var(--vscode-button-background); color: var(--vscode-button-foreground); }
+.wb-mini .arcviz-edge-style-option:focus-visible { outline: 1px solid var(--vscode-focusBorder); outline-offset: 1px; }
 .wb-mini-button {
   min-width: 24px;
   height: 22px;

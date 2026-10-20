@@ -459,7 +459,7 @@ export class Editing {
     this.submit([{ op: 'duplicate_many', elements: elements.map((e) => e.id) }], `duplicate ${elements.map((e) => e.name || e.id).join(', ')}`, this.placeAfter(this.originals(elements), target, false));
   }
 
-  /** Alt+drag: copies where the originals were dragged to. */
+  /** ⌘/Ctrl+drag: copies where the originals were dragged to. */
   private copyBy(elements: ElementRecord[], by: Point): void {
     // As far from the originals as it was dragged, wherever the drawing puts them once the copy is in.
     this.submit([{ op: 'duplicate_many', elements: elements.map((e) => e.id) }], `copy ${elements.map((e) => e.name || e.id).join(', ')}`, this.placeAfter(this.originals(elements), { by }, false));
@@ -699,6 +699,8 @@ export class Editing {
           more,
           { glyph: '⌫', label: 'Delete', shortcut: '⌫', danger: true, run: () => this.ctx.remove([one]) },
         ];
-    this.mini.show(around, withAiMini(actions), `${one.uuid}:${drawing}`); // ai-design hook: the Ask AI button
+    // A line's style options (the viewer's) ride in the toolbar: one floating bar, never two over each other.
+    const styles = relationship ? document.querySelector<HTMLElement>('.arcviz-edge-style') : null;
+    this.mini.show(around, withAiMini(actions), `${one.uuid}:${drawing}`, styles ?? undefined); // ai-design hook: the Ask AI button
   }
 }

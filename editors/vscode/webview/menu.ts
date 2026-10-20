@@ -105,8 +105,8 @@ export class MiniToolbar {
     host.appendChild(this.root);
   }
 
-  /** Show `actions` above `around` (window coordinates), or below when there is no room. */
-  show(around: DOMRect | null, actions: (MenuAction & { glyph: string })[], selection: string): void {
+  /** Show `actions` above `around` (window coordinates), or below when there is no room; `extra` (a group of controls) after them. */
+  show(around: DOMRect | null, actions: (MenuAction & { glyph: string })[], selection: string, extra?: HTMLElement): void {
     if (!around || actions.length === 0) return this.hide();
     const key = `${selection}:${actions.map((a) => `${a.label}${a.disabled ? '-' : ''}`).join('|')}`;
     if (this.root.dataset.key !== key) {
@@ -117,6 +117,8 @@ export class MiniToolbar {
       }
       this.root.dataset.key = key;
     }
+    if (extra && extra.parentElement !== this.root) this.root.appendChild(extra);
+    for (const other of [...this.root.children]) if (other !== extra && !other.classList.contains('wb-mini-button')) other.remove();
     this.root.hidden = false;
     const frame = this.host.getBoundingClientRect();
     const box = this.root.getBoundingClientRect();

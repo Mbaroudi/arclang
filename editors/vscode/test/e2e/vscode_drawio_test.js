@@ -142,6 +142,8 @@ async function launch(dir, model) {
     const bar = page.locator('.arcviz-edge-style:not([hidden])');
     report('a selected exchange offers its line styles', (await bar.count()) === 1, JSON.stringify(await page.evaluate(() => ({ selected: [...document.querySelectorAll('.is-selected')].map((n) => n.dataset.id), ends: document.querySelectorAll('.arcviz-end:not([hidden])').length, bars: document.querySelectorAll('.arcviz-edge-style').length }))));
     await shot('drawio-04-selected');
+    const inToolbar = await page.evaluate(() => { const b = document.querySelector('.arcviz-edge-style:not([hidden])'); return !!b && !!b.closest('.wb-mini') && !document.querySelector('.wb-mini').hidden; });
+    report('the line styles ride in the selection toolbar, not under it', inToolbar);
     await page.locator('.arcviz-edge-style-option[data-style="curved"]').click(); await settle();
     report('curved: the line is drawn as a curve', (await page.locator('.arcviz-stage [data-id="ce:SteerCommand"][data-style="curved"]').count()) === 1);
     report('the style is kept in the layout file', /"ce:SteerCommand":\s*\{[^}]*"style": "curved"/.test(layout()));
@@ -214,7 +216,7 @@ async function launch(dir, model) {
     const reset = layout();
     report('Reset layout drops the arrangement of the view', !/"LC-CTL"/.test(reset) && !/"ports"/.test(reset) && !/"label"/.test(reset), reset.slice(0, 120).replace(/\s+/g, ' '));
   } catch (error) {
-    report('the run completes', false, String(error).slice(0, 300));
+    report('the run completes', false, String(error).slice(0, 300)); await shot('drawio-failure').catch(() => {});
   } finally {
     await app.close().catch(() => {});
     const failed = rows.filter((r) => !r.ok);
