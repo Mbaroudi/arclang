@@ -276,6 +276,9 @@ export function elementsInRange(text: string, records: ElementRecord[], start: n
   const spans = records.map((e) => ({ e, span: declarationSpan(text, e, mask) })).filter((x): x is { e: ElementRecord; span: Span } => !!x.span && x.e.kind !== 'Model');
   const inside = spans.filter((x) => x.span.start >= lineStart(text, start) && x.span.end <= Math.max(end, lineEnd(text, start)));
   const around = spans.filter((x) => x.span.start <= start && x.span.end >= end).sort((a, b) => a.span.end - a.span.start - (b.span.end - b.span.start));
-  const chosen = inside.length ? inside.filter((x) => !inside.some((o) => o !== x && o.span.start <= x.span.start && o.span.end >= x.span.end && (o.span.start !== x.span.start || o.span.end !== x.span.end))) : around.slice(0, 1);
+  // A selection that starts on a declaration's first line is about that element.
+  const startsOn = around.filter((x) => x.span.startLine === lineOf(text, start));
+  const pool = startsOn.length ? [...inside, startsOn[0]] : inside;
+  const chosen = pool.length ? pool.filter((x) => !pool.some((o) => o !== x && o.span.start <= x.span.start && o.span.end >= x.span.end && (o.span.start !== x.span.start || o.span.end !== x.span.end))) : around.slice(0, 1);
   return [...new Map(chosen.map((x) => [x.e.uuid, x.e])).values()];
 }

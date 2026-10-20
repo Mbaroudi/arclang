@@ -86,6 +86,12 @@ function toolRunner(document: vscode.TextDocument, text: string, snapshot: Snaps
   };
 }
 
+/** The id of an owner (by uuid) in either snapshot; none for the model itself. */
+function ownerId(before: Snapshot, after: Snapshot, uuid: string): string | null {
+  const owner = (before.elements?.elements ?? []).find((e) => e.uuid === uuid) ?? (after.elements?.elements ?? []).find((e) => e.uuid === uuid);
+  return owner && owner.kind !== 'Model' ? owner.id : null;
+}
+
 /** The preview of a proposal: the diff, the marked elements, the findings it adds. */
 export async function proposalView(document: vscode.TextDocument, before: Snapshot, current: string, explanation: string, requests: EditRequest[], proposed: string | null): Promise<Omit<Proposal, 'requests' | 'source'>> {
   if (proposed === null || proposed === current) {
@@ -102,7 +108,8 @@ export async function proposalView(document: vscode.TextDocument, before: Snapsh
       diff: diff.lines.slice(0, 400),
       added: diff.added,
       removed: diff.removed,
-      changed: change.changed.map((e) => e.id),
+      // A box gains a port or loses one: the box is what changes on the drawing.
+      changed: [...new Set([...change.changed, ...change.created, ...change.removed].map((e) => (e.owner ? ownerId(before, after, e.owner) : null)).filter((id): id is string => !!id).concat(change.changed.map((e) => e.id)))],
       created: change.created.map((e) => `${e.kind} ${e.id}`),
       removedIds: change.removed.map((e) => e.id),
       newFindings: findings,

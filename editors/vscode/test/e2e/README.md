@@ -34,6 +34,13 @@ with a host that edits through `arclang edit` and snapshots through
   Align bottom lines two boxes up, ⌘D twice in a row makes two copies
   (20 checks).
 
+- `vscode_ai_test.js`: the AI features in VS Code itself, against the local
+  fake provider `../ai/fake-llm-server.js` set as an OpenAI-compatible server
+  (no network, no key): the key command, the status bar, ⌘I on two boxes, a
+  proposal previewed (diff, marks), applied, compiled and undone with ⌘Z; an
+  ask on a text selection applied from its notification; a suggestion after
+  an edit that removes a trace, applied; the log without the key (28 checks).
+
 Run `./run.sh` from this folder after `cargo build --release` at the root.
 The VS Code test runs on its own, with the compiler on the PATH (or
 `ARCLANG_BINARY`):

@@ -78,7 +78,21 @@ Legend: **yes** · **partial** · **no**.
 | Export Capella, SysML v2, ReqIF | yes | Capella native | SysML v2 native |
 | Semantic diff against git | yes | partial (diff/merge add-on) | no |
 | AI assistant and agent editing through the compiler | yes (`@arclang`, `/agent`, tools, MCP) | no | no |
+| Ask AI on a diagram selection, proposal previewed and compiled before Apply | yes (⌘I, quick actions, diff, marks on the diagram, one undo), tested in VS Code | no | no |
+| AI proposals from the impact of an edit | yes (broken traces, requirements, findings, gate; 1 to 3 compiled proposals) | no | no |
+| AI provider of your choice | yes (Copilot and VS Code models, Anthropic, OpenAI, Azure, Mistral, Gemini, Ollama, any OpenAI-compatible server) | no | no |
 | Runs in the editor developers already use | yes (VS Code, VSCodium, Cursor) | no (Eclipse) | no (browser) |
+
+## AI on the model, compared with AI on code
+
+| Capability | ArcLang VS Code | Cursor | GitHub Copilot |
+|---|---|---|---|
+| Select, ask, preview a diff, apply (⌘K / ⌘I) | yes, on diagram boxes and lines as on `.arc` text (⌘I) | yes, on code (⌘K) | yes, on code (inline chat, ⌘I) |
+| The change checked before you see it | yes: every edit run by the compiler on a copy, refusals sent back to the AI | no (lint or tests afterwards) | no |
+| The change shown on the diagram | yes: changed boxes marked, new elements listed | no | no |
+| Suggestions from the consequences of your last edit | yes: broken traces, unsatisfied requirements, findings, gate blockers, `arclang impact` | partial (tab completion of the next edit) | partial (next edit suggestions) |
+| Context it is given | the selection's declarations, relationships, neighbours, findings, metamodel, gate | open files, codebase index | open files, workspace index |
+| Provider and model of your choice, keys in the OS keychain, local models | yes (8 providers, Ollama and OpenAI-compatible servers) | partial (its own models, some keys) | partial (Copilot's models, BYOK in some plans) |
 
 ## What is left, in order
 

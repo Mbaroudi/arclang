@@ -90,6 +90,9 @@ test('a text selection designates the elements it declares, else the innermost o
   assert.deepEqual(elementsInRange(REFERENCE, records, start, end).map((e) => e.id), ['LC-CAM', 'LC-CTL', 'LC-ACT']);
   const inside = REFERENCE.indexOf('safety_level: "ASIL-B"', REFERENCE.indexOf('"LC-CTL"'));
   assert.deepEqual(elementsInRange(REFERENCE, records, inside, inside + 5).map((e) => e.id), ['LC-CTL']);
+  // From the first line of a block over part of it: the block's element, not its first port.
+  const head = REFERENCE.indexOf('  component "Camera"');
+  assert.deepEqual(elementsInRange(REFERENCE, records, head, REFERENCE.indexOf('function "Capture frame"')).map((e) => e.id), ['LC-CAM']);
 });
 
 test('answers: a propose_edits call, a json block, a whole model, or prose only', () => {

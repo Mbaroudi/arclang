@@ -303,7 +303,7 @@ class AskController {
     if (!panel) return;
     clear(panel);
     this.renderHeader();
-    panel.append(el('p', { class: 'wb-ai-badge', text: `AI proposal from ${provider}: ${proposal.explainOnly ? 'an answer, nothing to apply' : proposal.ok ? 'compiled on a copy, not applied' : 'refused by the compiler'}` }));
+    panel.append(el('p', { class: 'wb-ai-badge', title: `From ${provider}`, text: `AI proposal · ${proposal.explainOnly ? 'an answer, nothing to apply' : proposal.ok ? 'compiled on a copy · not applied' : 'refused by the compiler'}` }));
     if (proposal.explanation) panel.append(el('p', { class: 'wb-ai-explanation', text: proposal.explanation }));
     if (!proposal.ok) panel.append(el('p', { class: 'wb-ai-note is-error', text: proposal.error ?? 'refused' }));
     if (proposal.edits.length) panel.append(el('ol', { class: 'wb-ai-edits' }, proposal.edits.map((e) => el('li', { text: e }))));

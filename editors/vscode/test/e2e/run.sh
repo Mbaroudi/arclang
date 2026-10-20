@@ -11,7 +11,7 @@ root="$(mktemp -d)"
 trap 'kill "${server:-0}" 2>/dev/null || true; rm -rf "$root"' EXIT
 (cd "$ext" && npm run -s build)
 cp -R "$ext/media/viewer" "$root/viewer"
-cp "$ext/dist/webview.js" "$ext/media/workbench.css" "$here/e2e.html" "$root/"
+cp "$ext/dist/webview.js" "$ext/media/workbench.css" "$ext/media/ai.css" "$here/e2e.html" "$root/"
 "$here/../../../../target/release/arclang" metamodel --format json > "$root/metamodel.json"
 "$here/../../../../target/release/arclang" workbench "$ext/media/reference.arc" > "$root/snapshot.json"
 cp "$here/static.html" "$root/index.html"

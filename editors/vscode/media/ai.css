@@ -17,7 +17,8 @@
   position: absolute;
   z-index: 40;
   width: min(440px, calc(100% - 16px));
-  max-height: calc(100% - 16px);
+  /* The drawing stays in sight: the panel scrolls rather than covering the sheet. */
+  max-height: min(calc(100% - 16px), max(260px, 62%));
   overflow: auto;
   display: flex;
   flex-direction: column;
@@ -109,7 +110,7 @@ button.wb-ai-chip:focus-visible, button.wb-ai-provider:focus-visible { outline: 
   color: var(--wb-ai);
 }
 .wb-ai-explanation { margin: 0; line-height: 1.45; font-size: 12.5px; }
-.wb-ai-edits { margin: 0; padding-left: 18px; font-family: var(--vscode-editor-font-family, monospace); font-size: 11.5px; line-height: 1.5; }
+.wb-ai-edits { overflow-wrap: anywhere; margin: 0; padding-left: 18px; font-family: var(--vscode-editor-font-family, monospace); font-size: 11.5px; line-height: 1.5; }
 .wb-ai-created { margin: 0; color: var(--vscode-gitDecoration-addedResourceForeground, #3fb950); }
 .wb-ai-note { margin: 0; padding: 6px 8px; border-radius: 4px; border-left: 3px solid; line-height: 1.4; }
 .wb-ai-note.is-warning { border-color: var(--vscode-editorWarning-foreground, #cca700); background: color-mix(in srgb, var(--vscode-editorWarning-foreground, #cca700) 10%, transparent); }
@@ -148,7 +149,7 @@ button.wb-ai-apply { font-weight: 600; }
 @keyframes wb-ai-march { to { stroke-dashoffset: -18; } }
 
 /* --- The Suggestions pane ------------------------------------------------- */
-.wb-ai-tab { display: inline-flex; align-items: center; gap: 4px; }
+.wb-ai-tab { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
 .wb-ai-count {
   min-width: 14px;
   padding: 0 4px;
@@ -159,10 +160,11 @@ button.wb-ai-apply { font-weight: 600; }
   color: var(--vscode-badge-foreground, #fff);
   background: var(--wb-ai);
 }
-.wb-ai-pane { font-size: 12px; }
+.wb-ai-pane { font-size: 12px; min-width: 0; overflow-wrap: anywhere; }
+.wb-right-tabs { overflow: hidden; }
 .wb-ai-pane.is-active { display: flex; flex-direction: column; gap: 8px; }
 .wb-ai-pane-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-.wb-ai-pane-head strong { color: var(--wb-ai); }
+.wb-ai-pane-head strong { color: var(--wb-ai); white-space: nowrap; }
 .wb-ai-hint, .wb-ai-empty { margin: 0; color: var(--vscode-descriptionForeground); line-height: 1.4; }
 button.wb-ai-analyse { align-self: stretch; text-align: left; font-size: 12px; padding: 4px 8px; }
 .wb-ai-trigger { margin: 4px 0 0; font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--vscode-descriptionForeground); }

@@ -21,7 +21,7 @@ export function createSuggestions(hooks: AiPageHooks): SuggestionsPane {
   const right = document.querySelector<HTMLElement>('.wb-right');
   const pane = el('div', { class: 'wb-pane wb-ai-pane', role: 'tabpanel', 'aria-label': 'AI suggestions' });
   const count = el('span', { class: 'wb-ai-count', hidden: true });
-  const tab = el('button', { type: 'button', class: 'wb-right-tab wb-ai-tab', role: 'tab', title: 'AI proposals from the impact of your edits' }, ['Suggestions', count]);
+  const tab = el('button', { type: 'button', class: 'wb-right-tab wb-ai-tab', role: 'tab', title: 'AI suggestions: proposals from the impact of your edits', 'aria-label': 'AI suggestions' }, ['✦ AI', count]);
   const pill = button('', () => reveal(), { class: 'wb-ai-pill', hidden: true, title: 'Show the AI suggestions' });
   hooks.sheet.appendChild(pill);
   let status: AiStatus = { configured: false, label: '', suggestOnEdit: 'onRequest' };
