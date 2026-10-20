@@ -142,6 +142,8 @@ export function registerPanes(context: vscode.ExtensionContext, tree: ModelTreeP
       // The page the selection came from already holds it; the others follow.
       for (const other of panels) if (other.selectedId !== id) other.select(id);
       if (!id || panels.length === 0) return;
+      // A selection made in the text (the cursor) stays the reader's: the text is followed only from a page.
+      if (vscode.window.activeTextEditor?.document.uri.toString() === uri.toString()) return;
       const editor = vscode.window.visibleTextEditors.find((e) => e.document.uri.toString() === uri.toString());
       if (!editor) return;
       const element = await elementOf(panels[0].documentOf, id);
