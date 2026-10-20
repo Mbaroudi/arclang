@@ -50,7 +50,7 @@ class LoggedProvider implements ChatProvider {
  * The configured provider for one purpose, or why there is none. Nothing is
  * sent when the provider is off, a key is missing, or the consent is refused.
  */
-export async function openProvider(context: vscode.ExtensionContext, purpose: string, what: string): Promise<Opened> {
+export async function openProvider(context: vscode.ExtensionContext, purpose: string, what: string, options: { automatic?: boolean } = {}): Promise<Opened> {
   const config = await currentConfig(context);
   const missing = missingPiece(config);
   if (missing) return { ok: false, error: missing, fix: /API key/.test(missing) ? 'key' : 'configure' };
@@ -66,7 +66,7 @@ export async function openProvider(context: vscode.ExtensionContext, purpose: st
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : String(error), fix: 'configure' };
   }
-  if (!(await ensureConsent(context, config, what))) return { ok: false, error: 'not sent: the consent was refused' };
+  if (!(await ensureConsent(context, config, what, options))) return { ok: false, error: 'not sent: the consent was refused' };
   const label = config.provider === 'vscode-lm' ? `VS Code · ${provider.model}` : describeConfig(config);
   return { ok: true, provider: new LoggedProvider(provider, purpose, [config.apiKey]), config, label };
 }

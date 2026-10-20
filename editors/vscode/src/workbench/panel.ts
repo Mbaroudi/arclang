@@ -15,7 +15,7 @@ import { applyRequests, EditQueue, refusalMessage } from './edits';
 import { metamodelJson, onDidChangeSnapshot, snapshotOf } from './snapshot';
 import { arcTextOf } from './source';
 import { elementAt, revealElement } from './tree';
-import { handlePageMessage } from '../ai'; // ai-design hook
+import { handlePageMessage, pageClosed } from '../ai'; // ai-design hook
 
 export const VIEW_TYPE = 'arclang.workbench';
 
@@ -62,6 +62,8 @@ export class WorkbenchPanel {
   /** The arrangement the page shows: kept here, the layout file is written a moment later. */
   private layoutNow: unknown = undefined;
   private readonly history: CanvasHistory;
+  /** How the AI side answers this page: one function for the page's whole life. */
+  private readonly aiPost = (message: unknown): void => this.post(message as ToWebview);
 
   /** Open (or reveal) the workbench of a document beside the text. */
   static async open(document: vscode.TextDocument): Promise<void> {
@@ -152,6 +154,7 @@ export class WorkbenchPanel {
       set?.delete(this);
       if (set && set.size === 0) panels.delete(key);
       for (const d of this.disposables) d.dispose();
+      pageClosed(document, this.aiPost);
     });
     // The snapshot of the text as it is: the custom editor may open before the
     // typing pause recomputes it.
@@ -269,7 +272,7 @@ export class WorkbenchPanel {
         return;
       default:
         // ai-design hook: the AI's messages (ask, apply, suggestions) go to src/ai.
-        handlePageMessage(this.document, (m) => this.post(m as unknown as ToWebview), message);
+        handlePageMessage(this.document, this.aiPost, message);
         return;
     }
   }

@@ -136,7 +136,7 @@ export class SuggestionEngine {
       return;
     }
     logLine(`suggestions: ${consequences.length} consequence(s) of the edit of ${document.uri.path.split('/').pop()}: ${analysis.consequences.join('; ')}`);
-    if (suggestMode() === 'afterEachEdit') return this.ask(document, analysis, controller);
+    if (suggestMode() === 'afterEachEdit') return this.ask(document, analysis, controller, true);
     this.publish(document, { state: 'ready', trigger: analysis.trigger, consequences: analysis.consequences, suggestions: [], provider, change: analysis.change, impact, canPropose: true });
   }
 
@@ -185,9 +185,10 @@ export class SuggestionEngine {
     await this.ask(document, analysis, controller);
   }
 
-  private async ask(document: vscode.TextDocument, analysis: Analysis, controller: AbortController): Promise<void> {
+  /** Ask the AI for proposals; `automatic` after an edit (a refused consent is not asked again). */
+  private async ask(document: vscode.TextDocument, analysis: Analysis, controller: AbortController, automatic = false): Promise<void> {
     const base = { trigger: analysis.trigger, consequences: analysis.consequences, change: analysis.change, impact: analysis.impact };
-    const opened = await openProvider(this.context, `suggestions (${analysis.trigger})`, `The edit just made, its consequences found by the compiler, \`arclang impact\` and the source of the elements concerned (${analysis.ids.slice(0, 8).join(', ')}).`);
+    const opened = await openProvider(this.context, `suggestions (${analysis.trigger})`, `The edit just made, its consequences found by the compiler, \`arclang impact\` and the source of the elements concerned (${analysis.ids.slice(0, 8).join(', ')}).`, { automatic });
     if (!opened.ok) {
       this.publish(document, { ...base, state: opened.error.includes('off') ? 'off' : 'error', suggestions: [], provider: '', error: opened.error, canPropose: true });
       return;

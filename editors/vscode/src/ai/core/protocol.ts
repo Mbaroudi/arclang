@@ -82,6 +82,56 @@ export type ToPageAi =
       dropped?: string[];
     };
 
-export function isFromPageAi(message: unknown): message is FromPageAi {
+/** Whether a message of the page is meant for the AI side (its type starts with `ai-`). */
+export function isAiMessage(message: unknown): boolean {
   return !!message && typeof message === 'object' && typeof (message as { type?: unknown }).type === 'string' && (message as { type: string }).type.startsWith('ai-');
+}
+
+/** Bounds of what a page may send: a page is not trusted with the host's memory. */
+const MAX_ID = 300;
+const MAX_IDS = 1000;
+const MAX_PROMPT = 20000;
+
+const isText = (value: unknown, max: number): value is string => typeof value === 'string' && value.length <= max;
+const isSession = (value: unknown): value is string => typeof value === 'string' && value.length > 0 && value.length <= MAX_ID;
+const isIds = (value: unknown): value is string[] => Array.isArray(value) && value.length <= MAX_IDS && value.every((id) => isText(id, MAX_ID));
+const ACTIONS = new Set<string>(QUICK_ACTIONS.map((a) => a.id));
+const SUGGESTION_ACTIONS = new Set(['apply', 'dismiss', 'diff']);
+
+/**
+ * A message of the page as the host may act on it, every field checked
+ * (types, arrays, sizes, the known values), copied without anything else;
+ * null when it is not a valid AI message.
+ */
+export function parseFromPageAi(message: unknown): FromPageAi | null {
+  if (!isAiMessage(message)) return null;
+  const m = message as Record<string, unknown>;
+  switch (m.type) {
+    case 'ai-hello':
+    case 'ai-propose':
+    case 'ai-configure':
+      return { type: m.type };
+    case 'ai-ask':
+      if (!isSession(m.session) || !isIds(m.ids) || !isText(m.prompt, MAX_PROMPT)) return null;
+      if (m.action !== undefined && !(typeof m.action === 'string' && ACTIONS.has(m.action))) return null;
+      return { type: 'ai-ask', session: m.session, ids: [...m.ids], prompt: m.prompt, ...(m.action !== undefined ? { action: m.action as QuickAction } : {}) };
+    case 'ai-refine':
+      return isSession(m.session) && isText(m.prompt, MAX_PROMPT) ? { type: 'ai-refine', session: m.session, prompt: m.prompt } : null;
+    case 'ai-apply':
+    case 'ai-reject':
+    case 'ai-diff':
+    case 'ai-cancel':
+      return isSession(m.session) ? { type: m.type, session: m.session } : null;
+    case 'ai-impact':
+      return isIds(m.ids) ? { type: 'ai-impact', ids: [...m.ids] } : null;
+    case 'ai-suggestion':
+      return isSession(m.id) && typeof m.action === 'string' && SUGGESTION_ACTIONS.has(m.action) ? { type: 'ai-suggestion', id: m.id, action: m.action as 'apply' | 'dismiss' | 'diff' } : null;
+    default:
+      return null;
+  }
+}
+
+/** Whether the message is a valid AI message of the page. */
+export function isFromPageAi(message: unknown): message is FromPageAi {
+  return parseFromPageAi(message) !== null;
 }

@@ -13,7 +13,7 @@ import { buildSelectionContext, declarationSpan, elementsInRange } from '../../s
 import { lineDiff } from '../../src/ai/core/diff';
 import { consequencesOf, diffSnapshots, touchedIds } from '../../src/ai/core/impact';
 import { describeEdit, validateRequests } from '../../src/ai/core/requests';
-import { isFromPageAi } from '../../src/ai/core/protocol';
+import { isAiMessage, isFromPageAi, parseFromPageAi } from '../../src/ai/core/protocol';
 import { Metamodel, parseSnapshot, Snapshot } from '../../src/pure/workbench';
 
 const REFERENCE = fs.readFileSync(path.join(__dirname, '..', '..', 'media', 'reference.arc'), 'utf8');
@@ -172,4 +172,27 @@ test('only ai- messages of the page are the AI\'s', () => {
   assert.equal(isFromPageAi({ type: 'edit' }), false);
   assert.equal(isFromPageAi(null), false);
   assert.equal(isFromPageAi('ai-ask'), false);
+});
+
+test('every field of a page message is checked, and only the known fields are kept', () => {
+  assert.deepEqual(parseFromPageAi({ type: 'ai-ask', session: 's1', ids: ['LC-1'], prompt: 'why', action: 'explain', extra: { evil: 1 } }), { type: 'ai-ask', session: 's1', ids: ['LC-1'], prompt: 'why', action: 'explain' });
+  for (const bad of [
+    { type: 'ai-ask', session: 's1', ids: 'LC-1', prompt: 'x' },
+    { type: 'ai-ask', session: 's1', ids: [1, 2], prompt: 'x' },
+    { type: 'ai-ask', session: 's1', ids: [], prompt: { toString: 'x' } },
+    { type: 'ai-ask', session: 's1', ids: [], prompt: 'x', action: 'rm' },
+    { type: 'ai-ask', session: '', ids: [], prompt: 'x' },
+    { type: 'ai-ask', session: 's1', ids: new Array(5000).fill('a'), prompt: 'x' },
+    { type: 'ai-ask', session: 's1', ids: [], prompt: 'x'.repeat(30000) },
+    { type: 'ai-refine', session: 's1' },
+    { type: 'ai-apply', session: 42 },
+    { type: 'ai-impact', ids: [null] },
+    { type: 'ai-suggestion', id: 'x', action: 'delete-everything' },
+    { type: 'ai-unknown' },
+  ]) {
+    assert.equal(parseFromPageAi(bad), null, JSON.stringify(bad).slice(0, 80));
+    assert.equal(isAiMessage(bad), true, 'still an AI message: dropped, not handed to the workbench');
+  }
+  assert.deepEqual(parseFromPageAi({ type: 'ai-suggestion', id: 'p1', action: 'diff' }), { type: 'ai-suggestion', id: 'p1', action: 'diff' });
+  assert.deepEqual(parseFromPageAi({ type: 'ai-hello', anything: 1 }), { type: 'ai-hello' });
 });

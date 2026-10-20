@@ -75,25 +75,39 @@ function consentId(config: ProviderConfig): string {
   return `${config.provider}|${config.endpoint}`;
 }
 
+/** Refusals of this session (per provider and endpoint): automatic requests do not ask again. */
+const refusedInSession = new Set<string>();
+
 /**
  * The first time the model goes to a provider (per provider and endpoint),
  * the user says yes: what is sent, to whom. Local providers are not asked.
+ * Once refused, an `automatic` request (suggestions after each edit) is not
+ * sent and does not ask again until VS Code restarts; a request the user
+ * makes asks again.
  */
-export async function ensureConsent(context: vscode.ExtensionContext, config: ProviderConfig, what: string): Promise<boolean> {
+export async function ensureConsent(context: Pick<vscode.ExtensionContext, 'globalState'>, config: ProviderConfig, what: string, options: { automatic?: boolean } = {}): Promise<boolean> {
   const ask = vscode.workspace.getConfiguration(SECTION).get<boolean>('confirmBeforeSending', true);
   if (!ask || !needsConsent(config)) return true;
   const given = context.globalState.get<string[]>(CONSENT_KEY, []);
-  if (given.includes(consentId(config))) return true;
+  const id = consentId(config);
+  if (given.includes(id)) return true;
   const label = describeConfig(config);
+  if (options.automatic && refusedInSession.has(id)) {
+    logLine(`not sent to ${label}: the consent was refused in this session (suggestions are proposed on request only)`);
+    return false;
+  }
   const choice = await vscode.window.showWarningMessage(
     `ArcLang AI: send model content to ${label}?`,
     { modal: true, detail: `${what}\n\nIt goes to ${displayUrl(config.endpoint)}. Keys stay in VS Code's secret storage; each request is listed in the "ArcLang AI" output. Nothing is applied to the model without your Apply.` },
     'Send',
     'Send and do not ask again',
   );
-  if (choice === 'Send and do not ask again') await context.globalState.update(CONSENT_KEY, [...given, consentId(config)]);
+  if (choice === 'Send and do not ask again') await context.globalState.update(CONSENT_KEY, [...given, id]);
   logLine(`consent for ${label} at ${displayUrl(config.endpoint)}: ${choice ?? 'refused'}`);
-  return choice === 'Send' || choice === 'Send and do not ask again';
+  const granted = choice === 'Send' || choice === 'Send and do not ask again';
+  if (granted) refusedInSession.delete(id);
+  else refusedInSession.add(id);
+  return granted;
 }
 
 // --- Commands: keys, test, quick configuration ------------------------------------

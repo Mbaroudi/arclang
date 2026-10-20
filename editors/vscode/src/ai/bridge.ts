@@ -2,17 +2,41 @@
 // and a way to reach every page that shows a document. The panel hands
 // over the messages it does not know (one hook in panel.ts).
 import * as vscode from 'vscode';
-import { applySession, diffSession, dropSession, runAsk } from './assist';
+import { applySession, diffSession, dropSession, dropSessionsOf, runAsk } from './assist';
 import { showOpenFailure } from './client';
 import type { FromPageAi, ToPageAi } from './core/protocol';
-import { isFromPageAi } from './core/protocol';
+import { isAiMessage, parseFromPageAi } from './core/protocol';
 import { describeConfig, missingPiece } from './providers';
-import { currentConfig, suggestMode } from './settings';
+import { currentConfig, logLine, suggestMode } from './settings';
 import type { SuggestionEngine } from './suggest';
 
 type Post = (message: ToPageAi) => void;
 
 const pages = new Map<string, Set<Post>>();
+/** The ask sessions each page started: dropped with the page. */
+const pageSessions = new Map<Post, Set<string>>();
+
+/** A page went away (its panel closed): its sessions and its place in the pages go with it. */
+export function pageClosed(document: vscode.TextDocument, post: Post): void {
+  for (const id of pageSessions.get(post) ?? []) dropSession(id);
+  pageSessions.delete(post);
+  const key = document.uri.toString();
+  const set = pages.get(key);
+  set?.delete(post);
+  if (set && set.size === 0) pages.delete(key);
+}
+
+/** A document closed: every session on it, and every page left on it, go. */
+export function documentClosed(document: vscode.TextDocument): void {
+  for (const post of [...(pages.get(document.uri.toString()) ?? [])]) pageClosed(document, post);
+  pages.delete(document.uri.toString());
+  dropSessionsOf(document.uri);
+}
+
+/** How many pages and sessions are kept (for the tests). */
+export function bridgeSizes(): { pages: number; sessions: number } {
+  return { pages: [...pages.values()].reduce((n, s) => n + s.size, 0), sessions: [...pageSessions.values()].reduce((n, s) => n + s.size, 0) };
+}
 
 /** Every page showing the document (a page says hello when its AI side starts). */
 export function postTo(uri: vscode.Uri, message: ToPageAi): void {
@@ -46,6 +70,7 @@ let extension: vscode.ExtensionContext | null = null;
 export function connectBridge(context: vscode.ExtensionContext, suggestions: SuggestionEngine): void {
   extension = context;
   engine = suggestions;
+  context.subscriptions.push(vscode.workspace.onDidCloseTextDocument(documentClosed));
 }
 
 /**
@@ -54,8 +79,23 @@ export function connectBridge(context: vscode.ExtensionContext, suggestions: Sug
  * messages it does not handle.
  */
 export function handlePageMessage(document: vscode.TextDocument, post: Post, message: unknown): boolean {
-  if (!isFromPageAi(message)) return false;
-  void handle(document, post, message);
+  if (!isAiMessage(message)) return false;
+  const valid = parseFromPageAi(message);
+  if (!valid) {
+    logLine(`a page message was dropped: ${String((message as { type: string }).type).slice(0, 40)} with fields of the wrong type`);
+    return true;
+  }
+  handle(document, post, valid).catch((error: unknown) => {
+    const text = error instanceof Error ? error.message : String(error);
+    logLine(`${valid.type} failed: ${text}`);
+    if ('session' in valid) {
+      try {
+        post({ type: 'ai-error', session: valid.session, error: text });
+      } catch {
+        // the page went away
+      }
+    }
+  });
   return true;
 }
 
@@ -72,6 +112,7 @@ async function handle(document: vscode.TextDocument, post: Post, message: FromPa
     }
     case 'ai-ask':
     case 'ai-refine': {
+      pageSessions.set(post, new Set([...(pageSessions.get(post) ?? []), message.session]));
       const request = message.type === 'ai-ask' ? { document, ids: message.ids, prompt: message.prompt, action: message.action } : { refine: message.prompt };
       const outcome = await runAsk(message.session, request, context, (text, chars) => post({ type: 'ai-progress', session: message.session, text, chars }));
       if (!outcome.ok) {
@@ -93,6 +134,7 @@ async function handle(document: vscode.TextDocument, post: Post, message: FromPa
     case 'ai-reject':
     case 'ai-cancel':
       dropSession(message.session);
+      pageSessions.get(post)?.delete(message.session);
       return;
     case 'ai-impact':
       await engine?.analyseSelection(document, message.ids);

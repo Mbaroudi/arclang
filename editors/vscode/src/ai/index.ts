@@ -9,7 +9,7 @@ import { registerAiStatus } from './status';
 import { SuggestionEngine } from './suggest';
 import { askAboutSelection, AskCodeActions, idsInSelection } from './textAsk';
 
-export { handlePageMessage } from './bridge';
+export { handlePageMessage, pageClosed } from './bridge';
 
 let engine: SuggestionEngine | null = null;
 

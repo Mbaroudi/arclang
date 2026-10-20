@@ -40,6 +40,8 @@ export interface Proposal {
   source: string | null;
   /** The proposed ArcLang text (for the diff), null when nothing changes. */
   proposedText: string | null;
+  /** The version of the document the proposal was computed on. */
+  version?: number;
 }
 
 export interface AskSession {
@@ -66,6 +68,16 @@ export function dropSession(id: string): void {
   cancelSession(id);
   sessions.delete(id);
   forgetPreview(id);
+}
+
+/** Drop every session on a document (it closed). */
+export function dropSessionsOf(uri: vscode.Uri): void {
+  for (const [id, live] of [...sessions]) if (live.document.uri.toString() === uri.toString()) dropSession(id);
+}
+
+/** How many sessions are open (for the tests). */
+export function sessionCount(): number {
+  return sessions.size;
 }
 
 /** The prompt of a quick action, the user's words after it. */
@@ -134,6 +146,8 @@ export async function runAsk(
   let current = sessions.get(sessionId);
   if ('refine' in request && !current) return { ok: false, error: 'this question is no longer open: ask again' };
   const document = 'refine' in request ? current!.document : request.document;
+  // The version the proposal is computed on: a whole text is applied only on it.
+  const version = document.version;
   const source = await arcText(document);
   if (!source.ok) return { ok: false, error: source.error };
   const [snapshot, metamodel] = await Promise.all([snapshotOf(document), metamodelJson()]);
@@ -201,7 +215,7 @@ export async function runAsk(
         return { ok: true, session: live };
       }
       const view = await proposalView(document, snapshot, source.text, answer.explanation, answer.requests, proposed);
-      live.proposal = { ...view, requests: answer.requests, source: answer.source && !answer.requests.length ? proposed : null };
+      live.proposal = { ...view, requests: answer.requests, source: answer.source && !answer.requests.length ? proposed : null, version };
       logLine(`ask ${sessionId}: ${answer.requests.length} request(s) accepted by the compiler on a copy; +${view.view.added} -${view.view.removed} lines; waiting for Apply`);
       return { ok: true, session: live };
     }
@@ -220,6 +234,10 @@ export async function applySession(sessionId: string): Promise<{ ok: boolean; er
     const outcome = await applyRequests(live.document, proposal.requests);
     if (!outcome.ok) return { ok: false, error: outcome.error };
   } else if (proposal.source) {
+    // A whole text replaces the document: only on the text it was computed on.
+    if (proposal.version !== undefined && live.document.version !== proposal.version) {
+      return { ok: false, error: 'the model changed since this proposal was made: it would undo those changes, so it is not applied. Ask again.' };
+    }
     const back = await documentTextFor(live.document, proposal.source);
     if (!back.ok) return { ok: false, error: back.error };
     if (!(await replaceWhole(live.document, back.text))) return { ok: false, error: 'VS Code did not apply the edit' };
