@@ -2,7 +2,7 @@
 // row with the palette rail, the canvas and the properties drawer, then one
 // status line. Everything shown comes from the last snapshot the host sent;
 // every change goes back to the host as `arclang edit` requests.
-import { connectTargetKinds, connectToolFor, EditRequest, RelationshipRecord, fragmentRequest, nextRequirementId, requirementRequests, Tool, VIEWPOINTS, ElementRecord, graphContainerOf, lifelineElement, Metamodel, Snapshot, ToWebview } from '../src/pure/workbench';
+import { CanvasCommand, connectTargetKinds, connectToolFor, EditRequest, RelationshipRecord, fragmentRequest, nextRequirementId, requirementRequests, Tool, VIEWPOINTS, ElementRecord, graphContainerOf, lifelineElement, Metamodel, Snapshot, ToWebview } from '../src/pure/workbench';
 import { SemanticBrowser } from './browser';
 import { button, clear, el, inlinePrompt } from './dom';
 import type { ViewerApi, ViewerPosition, ViewerSelection } from './globals';
@@ -55,7 +55,8 @@ const state: State = {
   byUuid: new Map(),
   layout: {
     paletteOpen: savedLayout.paletteOpen ?? wide,
-    drawerOpen: savedLayout.drawerOpen ?? window.innerWidth >= 760,
+    // Under 900 px the drawer floats over the canvas: closed until asked for.
+    drawerOpen: savedLayout.drawerOpen ?? window.innerWidth >= 900,
     drawerWidth: Math.min(480, Math.max(240, savedLayout.drawerWidth ?? 280)),
     rightTab: savedLayout.rightTab ?? 0,
   },
@@ -292,6 +293,12 @@ function onSelect(selection: ViewerSelection | null): void {
     selectElement(element, false);
     return;
   }
+  // A box of the selection dragged with the others: the selection stays.
+  if (editing.placement.holds(element)) {
+    selectElement(element, false);
+    setTimeout(markMulti, 0);
+    return;
+  }
   if (multi.length) {
     multi = [];
     setTimeout(markMulti, 0);
@@ -371,7 +378,30 @@ const editing = new Editing({
   newDiagram: newDiagramAround,
   reveal: (element) => vscode.postMessage({ type: 'reveal', id: element.id }),
   help: () => help.toggle(),
+  copied: (elements, relationships) => vscode.postMessage({ type: 'copied', elements: elements.map((e) => ({ id: e.id, name: e.name })), relationships }),
+  joinLayout,
+  diagramOf: (elements) => contents.fromSelection(elements),
+  history: {
+    undo: () => vscode.postMessage({ type: 'history', op: 'undo' }),
+    redo: () => vscode.postMessage({ type: 'history', op: 'redo' }),
+    labels: () => historyLabels,
+  },
+  remark: () => markMulti(),
 });
+
+/** What ⌘Z and ⌘⇧Z would undo and redo, as the host keeps the history. */
+let historyLabels: { undo: string | null; redo: string | null } = { undo: null, redo: null };
+
+/** Changes of the arrangement made while this is above zero belong to the step before them. */
+let joining = 0;
+async function joinLayout(run: () => Promise<void> | undefined): Promise<void> {
+  joining += 1;
+  try {
+    await run();
+  } finally {
+    joining -= 1;
+  }
+}
 
 /** Exports go to the host, which asks where to save them (a webview cannot download). */
 function onDownload(blob: Blob, filename: string): void {
@@ -457,7 +487,9 @@ function index(snapshot: Snapshot): void {
 }
 
 function mount(snapshot: Snapshot): void {
-  const previous = state.viewer?.current?.() ?? state.lastPosition;
+  // A remount while the last one is still restoring the view: the view the reader had is the one it kept.
+  const previous = remounting && state.lastPosition ? state.lastPosition : (state.viewer?.current?.() ?? state.lastPosition);
+  state.lastPosition = previous;
   clear(tabs);
   clear(tools);
   clear(hiddenTree);
@@ -481,6 +513,8 @@ function mount(snapshot: Snapshot): void {
     place: window.ArcVizPlace,
     edit: window.ArcVizEdit,
   };
+  // A host that keeps the arrangement next to the model (VS Code) is its memory.
+  if (snapshot.diagrams.layout_name) forgetStoredArrangement();
   progress.hidden = false;
   remounting = true;
   const generation = ++mountGeneration;
@@ -502,7 +536,7 @@ function mount(snapshot: Snapshot): void {
     onFullscreen: () => setFocusMode(!document.body.classList.contains('wb-focus')),
     // Boxes go where they are dragged (into another box when let go on it), kept next to the model.
     arrange: true,
-    onLayout: (file: unknown) => vscode.postMessage({ type: 'layout', file }),
+    onLayout: (file: unknown) => vscode.postMessage({ type: 'layout', file, join: joining > 0 }),
     // Editing from the drawing: double-click renames, ends reconnect, bands select, arrows connect.
     edit: editing.viewerOptions(),
   };
@@ -540,6 +574,20 @@ function mount(snapshot: Snapshot): void {
       fitStage();
     });
   });
+}
+
+/**
+ * The arrangement is the host's (the layout file, and the history that
+ * restores it): the viewer's own memory of it in the page's storage would
+ * put back a state the history undid.
+ */
+function forgetStoredArrangement(): void {
+  try {
+    const keys = Array.from({ length: localStorage.length }, (_, i) => localStorage.key(i)).filter((key): key is string => !!key && key.startsWith('arcviz:'));
+    for (const key of keys) localStorage.removeItem(key);
+  } catch {
+    // No storage in this page: nothing remembered.
+  }
 }
 
 /** Nodes with findings are marked on the drawing, with the findings as their tooltip. */
@@ -690,11 +738,18 @@ window.addEventListener('message', (event: MessageEvent<ToWebview>) => {
     }
     case 'edit-result':
       editing.editResult(message.label, message.ok);
-      if (message.ok) showToast(`Applied: ${message.label}. Undo with ⌘Z in the editor.`, 'info');
+      if (message.ok) showToast(`Applied: ${message.label}. ⌘Z undoes it.`, 'info');
       else showToast(`Refused: ${message.error ?? ''}`, 'error', [['Show source', () => vscode.postMessage({ type: 'open-text' })]]);
       return;
     case 'busy':
       progress.hidden = !message.busy;
+      return;
+    case 'key':
+      canvasCommand(message.command, message.text);
+      return;
+    case 'history':
+      historyLabels = { undo: message.undo, redo: message.redo };
+      if (message.done) showToast(`${message.done[0].toUpperCase()}${message.done.slice(1)}.`, 'info');
       return;
     default:
       return;
@@ -718,6 +773,68 @@ function flashChanges(before: Snapshot, after: Snapshot): void {
   });
 }
 
+/** Inside VS Code (not the test page), whose keybindings run the canvas's commands. */
+const inVsCode = (): boolean => /\bvscode-(light|dark|high-contrast)/.test(document.body.className);
+
+/**
+ * The keys package.json binds for the workbench: VS Code resolves them on
+ * the keyboard's layout and sends the command back ('key'); the page lets
+ * them through instead of acting on them twice.
+ */
+function boundInVsCode(event: KeyboardEvent): boolean {
+  const command = event.metaKey || event.ctrlKey;
+  const key = event.key.toLowerCase();
+  if (command && !event.altKey) return ['z', 'y', 'c', 'x', 'v', 'd', 'a', '=', '+', '-', '0'].includes(key) || event.code === 'Digit0';
+  if (!event.altKey && (event.key === 'Delete' || event.key === 'Backspace')) return true;
+  return event.shiftKey && !event.altKey && event.code === 'Digit1';
+}
+
+/** A command of the canvas, from a key VS Code resolved (or the page's own key outside VS Code). */
+function canvasCommand(command: CanvasCommand, text?: string): void {
+  const selection = window.getSelection()?.toString() ?? '';
+  switch (command) {
+    case 'copy':
+    case 'cut':
+      // Text selected on the page (a property, a finding) is copied as text.
+      if (selection) return vscode.postMessage({ type: 'clipboard-text', text: selection });
+      return editing.copy(command === 'cut');
+    case 'paste':
+      return editing.paste();
+    case 'paste-text':
+      return text ? editing.pasteText(text) : editing.paste();
+    case 'duplicate':
+      return editing.duplicate();
+    case 'select-all':
+      return editing.selectAll();
+    case 'delete':
+      if (multi.length > 1) return deleteMany(multi);
+      if (state.selected) return deleteOne(state.selected);
+      return;
+    case 'zoom-in':
+    case 'zoom-out':
+      // The viewer's own buttons: the zoom it animates, around the middle of the frame.
+      tools.querySelector<HTMLButtonElement>(`button[title^="${command === 'zoom-in' ? 'Zoom in' : 'Zoom out'}"]`)?.click();
+      return;
+    case 'fit':
+      state.viewer?.fit?.();
+      return;
+    default:
+      return;
+  }
+}
+
+// A field of the page has the keyboard: VS Code's keys go to it (⌘C copies its text, ⌘Z undoes its typing).
+const isField = (node: EventTarget | null): boolean => node instanceof HTMLInputElement || node instanceof HTMLSelectElement || node instanceof HTMLTextAreaElement || (node instanceof HTMLElement && node.isContentEditable);
+let typingReported = false;
+const reportTyping = () => {
+  const typing = isField(document.activeElement);
+  if (typing === typingReported) return;
+  typingReported = typing;
+  vscode.postMessage({ type: 'typing', on: typing });
+};
+document.addEventListener('focusin', reportTyping);
+document.addEventListener('focusout', () => setTimeout(reportTyping, 0));
+
 document.addEventListener('keydown', (event) => {
   const typing = event.target instanceof HTMLInputElement || event.target instanceof HTMLSelectElement || event.target instanceof HTMLTextAreaElement;
   // Esc in a field is the field's (it puts the value back), not the canvas's.
@@ -730,6 +847,7 @@ document.addEventListener('keydown', (event) => {
     return;
   }
   if (typing) return;
+  if (inVsCode() && boundInVsCode(event)) return;
   if (editing.key(event)) return;
   if (event.shiftKey && !event.metaKey && !event.ctrlKey && event.key === 'M') {
     event.preventDefault();

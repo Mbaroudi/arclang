@@ -8,9 +8,12 @@
 import { randomBytes } from 'node:crypto';
 import * as path from 'node:path';
 import * as vscode from 'vscode';
-import { EditRequest, ElementRecord, FromWebview, isLayoutFile, layoutPathOf, Snapshot, ToWebview } from '../pure/workbench';
+import { CanvasCommand, EditRequest, ElementRecord, FromWebview, isLayoutFile, layoutPathOf, Snapshot, ToWebview } from '../pure/workbench';
+import { looksLikeArcLang, selectionSource } from '../pure/clipboard';
+import { CanvasHistory } from './canvas-history';
 import { applyRequests, EditQueue, refusalMessage } from './edits';
 import { metamodelJson, onDidChangeSnapshot, snapshotOf } from './snapshot';
+import { arcTextOf } from './source';
 import { elementAt, revealElement } from './tree';
 
 export const VIEW_TYPE = 'arclang.workbench';
@@ -40,6 +43,12 @@ const selectionEmitter = new vscode.EventEmitter<{ uri: vscode.Uri; id: string |
 /** Fires when the user selects an element in a workbench. */
 export const onDidSelectElement = selectionEmitter.event;
 
+/** What a workbench last put on the system clipboard: pasted back in the same model, it is that workbench's own copy. */
+let lastCopied: { text: string; uri: string } | null = null;
+
+/** The context key that tells VS Code a field of the workbench has the keyboard. */
+const TYPING = 'arclang.workbenchTyping';
+
 export class WorkbenchPanel {
   private readonly disposables: vscode.Disposable[] = [];
   private ready = false;
@@ -48,6 +57,9 @@ export class WorkbenchPanel {
   private maximized = false;
   /** One edit at a time: two quick gestures both land, the second on the text the first left. */
   private readonly edits = new EditQueue();
+  /** The arrangement the page shows: kept here, the layout file is written a moment later. */
+  private layoutNow: unknown = undefined;
+  private readonly history: CanvasHistory;
 
   /** Open (or reveal) the workbench of a document beside the text. */
   static async open(document: vscode.TextDocument): Promise<void> {
@@ -62,6 +74,11 @@ export class WorkbenchPanel {
   /** The document of the workbench the user looked at last. */
   static activeDocument(): vscode.TextDocument | null {
     return active?.document ?? null;
+  }
+
+  /** The workbench the user looked at last. */
+  static activePanel(): WorkbenchPanel | null {
+    return active;
   }
 
   static for(uri: vscode.Uri): WorkbenchPanel | undefined {
@@ -98,7 +115,9 @@ export class WorkbenchPanel {
     };
     this.panel.iconPath = vscode.Uri.joinPath(media, 'icon.svg');
     this.panel.webview.html = this.html();
+    this.history = new CanvasHistory({ document, restoreLayout: (state, show) => this.restoreLayout(state, show), post: (message) => this.post(message) });
     this.disposables.push(
+      this.history,
       this.panel.webview.onDidReceiveMessage((message: unknown) => void this.handle(message as FromWebview)),
       onDidChangeSnapshot((uri) => {
         if (uri.toString() === document.uri.toString()) void this.push();
@@ -115,6 +134,8 @@ export class WorkbenchPanel {
     this.disposables.push(
       this.panel.onDidChangeViewState((event) => {
         if (event.webviewPanel.active) active = this;
+        // A field left open in a workbench that is no longer in front does not hold VS Code's keys.
+        else void vscode.commands.executeCommand('setContext', TYPING, false);
       }),
     );
     this.panel.onDidDispose(() => {
@@ -167,7 +188,8 @@ export class WorkbenchPanel {
 
   private async push(): Promise<void> {
     if (!this.ready) return;
-    const [snapshot, metamodel, layout] = await Promise.all([snapshotOf(this.document), metamodelJson(), this.readLayout()]);
+    const [snapshot, metamodel, layout] = await Promise.all([snapshotOf(this.document), metamodelJson(), this.layoutNow !== undefined ? this.layoutNow : this.readLayout()]);
+    this.layoutNow = layout ?? null;
     if (snapshot.diagrams && this.layoutUri()) {
       // The arrangement kept next to the model: what the views show, as the CLI draws them.
       snapshot.diagrams = { ...snapshot.diagrams, layout: layout ?? undefined, layout_name: path.basename(this.layoutUri()!.fsPath) };
@@ -207,8 +229,25 @@ export class WorkbenchPanel {
       case 'save':
         await this.save(message.name, message.data);
         return;
-      case 'layout':
+      case 'layout': {
+        if (!isLayoutFile(message.file)) return;
+        const before = this.layoutNow ?? null;
+        this.layoutNow = message.file;
+        this.history.recordLayout(before, message.file, message.join === true);
         this.writeLayout(message.file);
+        return;
+      }
+      case 'history':
+        await this.edits.run(() => (message.op === 'undo' ? this.history.undo() : this.history.redo()));
+        return;
+      case 'copied':
+        await this.copied(message.elements, message.relationships);
+        return;
+      case 'clipboard-text':
+        await vscode.env.clipboard.writeText(message.text);
+        return;
+      case 'typing':
+        await vscode.commands.executeCommand('setContext', TYPING, message.on);
         return;
       case 'focus-mode':
         // The workbench takes the whole screen, its tools with it: its editor
@@ -235,12 +274,13 @@ export class WorkbenchPanel {
     this.busy += 1;
     this.post({ type: 'busy', busy: true, label });
     try {
-      const outcome = await applyRequests(this.document, requests);
+      const outcome = await this.history.ownChange(() => applyRequests(this.document, requests));
       if (!outcome.ok) {
         this.post({ type: 'edit-result', ok: false, label, error: outcome.error });
         vscode.window.setStatusBarMessage(refusalMessage(label, outcome), 6000);
         return;
       }
+      if (outcome.applied && outcome.before !== undefined && outcome.after !== undefined) this.history.recordModel(label, outcome.before, outcome.after);
       this.post({ type: 'edit-result', ok: true, label });
       // The edited document gets its snapshot right away, not after the typing pause.
       void snapshotOf(this.document);
@@ -278,6 +318,51 @@ export class WorkbenchPanel {
         (error: unknown) => void vscode.window.showErrorMessage(`ArcLang: the layout could not be written to ${uri.fsPath}: ${error instanceof Error ? error.message : String(error)}`),
       );
     }, 400);
+  }
+
+  /** Show an arrangement now (an undo, a redo): written at once, the page redrawn with it. */
+  private async restoreLayout(state: unknown, show: boolean): Promise<void> {
+    const uri = this.layoutUri();
+    clearTimeout(this.layoutTimer);
+    this.layoutNow = state ?? null;
+    if (uri) {
+      try {
+        if (state) await vscode.workspace.fs.writeFile(uri, Buffer.from(`${JSON.stringify(state, null, 2)}\n`, 'utf8'));
+        else await vscode.workspace.fs.delete(uri);
+      } catch (error) {
+        if (state) void vscode.window.showErrorMessage(`ArcLang: the layout could not be written to ${uri.fsPath}: ${error instanceof Error ? error.message : String(error)}`);
+      }
+    }
+    if (show) await this.push();
+  }
+
+  /** ⌘Z on the canvas: the last edit of the model or of the arrangement. */
+  undo(): Promise<void> {
+    return this.edits.run(() => this.history.undo());
+  }
+
+  redo(): Promise<void> {
+    return this.edits.run(() => this.history.redo());
+  }
+
+  /** A key of the canvas bound in VS Code: the page runs it; a paste looks at the system clipboard first. */
+  async canvas(command: CanvasCommand): Promise<void> {
+    if (command !== 'paste') return this.post({ type: 'key', command });
+    const text = await vscode.env.clipboard.readText();
+    // This workbench's own copy (its clip knows what was cut), or ArcLang text from elsewhere.
+    const own = lastCopied !== null && lastCopied.text === text && lastCopied.uri === this.document.uri.toString();
+    if (!own && text.trim() && looksLikeArcLang(text)) return this.post({ type: 'key', command: 'paste-text', text });
+    this.post({ type: 'key', command: 'paste' });
+  }
+
+  /** A copy on the canvas: the source of what it took, on the system clipboard. */
+  private async copied(elements: { id: string; name: string }[], relationships: string[]): Promise<void> {
+    const source = await arcTextOf(this.document);
+    if (!source.ok) return;
+    const { text } = selectionSource(source.text, elements, relationships);
+    if (!text) return;
+    lastCopied = { text, uri: this.document.uri.toString() };
+    await vscode.env.clipboard.writeText(text);
   }
 
   /** An export of the viewer (SVG, PNG, layout): saved where the user says, next to the model by default. */

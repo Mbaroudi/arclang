@@ -136,6 +136,7 @@ export type EditRequest =
   | { op: 'remove_trace'; from: string; kind: string; to: string }
   | { op: 'reconnect'; kind: string; name?: string; from: string; to: string; new_from?: string; new_to?: string }
   | { op: 'duplicate'; element: string; container?: string; layer?: string; layer_name?: string }
+  | { op: 'duplicate_many'; elements: string[]; container?: string; layer?: string; layer_name?: string }
   | {
       op: 'wrap_fragment';
       scenario: string;
@@ -154,7 +155,14 @@ export type ToWebview =
   | { type: 'layer'; step: number }
   | { type: 'diagram-op'; op: 'hide' | 'related' | 'new' | 'rename'; id: string }
   | { type: 'edit-result'; ok: boolean; label: string; error?: string }
-  | { type: 'busy'; busy: boolean; label?: string };
+  | { type: 'busy'; busy: boolean; label?: string }
+  /** A key of the canvas, bound in VS Code (so it follows the keyboard layout) and run by the page. */
+  | { type: 'key'; command: CanvasCommand; text?: string }
+  /** What ⌘Z and ⌘⇧Z would take back and bring back; `done` names the step just undone or redone. */
+  | { type: 'history'; undo: string | null; redo: string | null; done?: string };
+
+/** The canvas commands VS Code's keybindings run on the workbench. */
+export type CanvasCommand = 'copy' | 'cut' | 'paste' | 'paste-text' | 'duplicate' | 'select-all' | 'delete' | 'zoom-in' | 'zoom-out' | 'fit';
 
 /** What the webview sends to the extension host. */
 export type FromWebview =
@@ -166,7 +174,15 @@ export type FromWebview =
   | { type: 'open-text' }
   | { type: 'command'; command: string }
   | { type: 'save'; name: string; mime: string; data: string }
-  | { type: 'layout'; file: unknown }
+  /** The arrangement changed; `join` makes it part of the step before it (a pasted copy placed). */
+  | { type: 'layout'; file: unknown; join?: boolean }
+  | { type: 'history'; op: 'undo' | 'redo' }
+  /** What a copy took, for the host to put its source on the system clipboard. */
+  | { type: 'copied'; elements: { id: string; name: string }[]; relationships: string[] }
+  /** Text selected on the page, copied by ⌘C. */
+  | { type: 'clipboard-text'; text: string }
+  /** A field of the page has the keyboard: VS Code's keys are its own. */
+  | { type: 'typing'; on: boolean }
   | { type: 'focus-mode'; on: boolean };
 
 /** `arclang workbench` output, read leniently: a broken answer is a failed snapshot. */

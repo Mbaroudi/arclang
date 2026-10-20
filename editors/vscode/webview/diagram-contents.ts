@@ -77,6 +77,17 @@ export class DiagramContents {
     this.host.submit([{ op: 'add_raw', declaration: `diagram ${JSON.stringify(name)} {\n  view: ${view}\n  shows: ${shows}\n  context: true\n}`, top_level: true }], `new diagram ${name}`);
   }
 
+  /** A new named diagram that shows the selected elements (and what they hold), on the view on screen. */
+  fromSelection(elements: ElementRecord[]): void {
+    const graph = this.host.graph();
+    if (!graph || elements.length === 0) return;
+    const view = ['oab', 'sab', 'lab', 'pab', 'cap', 'cdb'].includes(graph.arc.view) ? graph.arc.view : 'lab';
+    const name = this.uniqueName(`${elements.length === 1 ? elements[0].name || elements[0].id : `${elements.length} elements`} diagram`);
+    this.host.showLater(`${view}:${name}`);
+    const shows = showsLiteral([...new Set(elements.map((e) => e.id))]);
+    this.host.submit([{ op: 'add_raw', declaration: `diagram ${JSON.stringify(name)} {\n  view: ${view}\n  shows: ${shows}\n}`, top_level: true }], `new diagram ${name}`);
+  }
+
   private uniqueName(base: string): string {
     const taken = new Set((this.host.snapshot()?.diagrams?.graphs ?? []).map((g) => g.arc.title));
     let name = base;

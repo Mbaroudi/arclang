@@ -504,3 +504,42 @@ body.wb-focus .wb-viewer-tools button[aria-label='Full screen'], body.wb-focus .
 .wb-retarget { margin-left: 4px; }
 #workbench .arcviz .wb-cut { opacity: 0.45; }
 @media (prefers-reduced-motion: reduce) { .wb-menu, .wb-mini { box-shadow: none; } }
+
+/* The box under the pointer is outlined (draw.io): the innermost one only. */
+#workbench .arcviz .av-node.wb-hover:not(.is-selected) > .av-shape { stroke: var(--vscode-focusBorder, #0b5cad); stroke-width: 2.4; }
+/* A copy dragged with Alt (⌘ on a Mac): its outline follows the pointer. */
+.wb-ghost { position: absolute; z-index: 7; pointer-events: none; border: 1.5px dashed var(--vscode-focusBorder, #0b5cad); border-radius: 3px; background: color-mix(in srgb, var(--vscode-focusBorder, #0b5cad) 10%, transparent); }
+
+/* Dark and high-contrast themes: the drawing is turned to the dark side the
+   way the editor is, light paper becoming a dark sheet and dark ink light;
+   the hue is turned back so a function stays green and a component blue.
+   The exports (SVG, PNG) are written from the drawing itself, light. */
+body.vscode-dark #workbench .arcviz-stage svg.av-svg,
+body.vscode-dark #workbench .wb-minimap svg {
+  filter: invert(0.88) hue-rotate(180deg);
+}
+body.vscode-high-contrast:not(.vscode-high-contrast-light) #workbench .arcviz-stage svg.av-svg,
+body.vscode-high-contrast:not(.vscode-high-contrast-light) #workbench .wb-minimap svg {
+  filter: invert(1) hue-rotate(180deg) contrast(1.35);
+}
+body.vscode-high-contrast-light #workbench .arcviz-stage svg.av-svg { filter: contrast(1.2); }
+body.vscode-high-contrast #workbench .arcviz .av-node > .av-shape { stroke-width: 2; }
+body.vscode-high-contrast #workbench .arcviz .av-edge .av-line { stroke-width: 2; }
+body.vscode-high-contrast #workbench .arcviz .av-node.is-selected > .av-shape,
+body.vscode-high-contrast #workbench .arcviz .av-node.wb-hover > .av-shape { stroke-width: 3.2; }
+
+/* A narrow editor (under 900 px): the properties drawer floats over the
+   canvas instead of taking its width, and opens on demand. */
+@media (max-width: 899px) {
+  .wb-body { position: relative; }
+  .wb-splitter { display: none; }
+  .wb-right {
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 20;
+    width: min(300px, 85vw) !important;
+    box-shadow: -6px 0 18px rgba(0, 0, 0, 0.28);
+  }
+}

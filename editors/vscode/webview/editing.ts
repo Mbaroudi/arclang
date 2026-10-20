@@ -6,11 +6,13 @@
 // floating toolbar that list all of it. Every change of the model is one
 // request list for the compiler (one undo); the arrangement goes to the
 // layout file through the viewer.
-import { alignMoves, Alignment, Box, Clip, distributeMoves, moveTargets, moveToLayerRequest, pasteRequests, quickConnectPlan, reconnectKinds, reconnectPlan, relationshipOfEdge, reversePlan } from '../src/pure/editing';
-import { EditRequest, ElementRecord, graphContainerOf, RelationshipRecord, Snapshot, ViewerGraph } from '../src/pure/workbench';
+import { alignMoves, Alignment, Box, Clip, distributeMoves, moveTargets, moveToLayerRequest, quickConnectPlan, reconnectKinds, reconnectPlan, relationshipOfEdge, reversePlan } from '../src/pure/editing';
+import { pasteTextRequests } from '../src/pure/clipboard';
+import { EditRequest, ElementRecord, graphContainerOf, LAYER_OF_VIEW, RelationshipRecord, Snapshot, ViewerGraph } from '../src/pure/workbench';
 import { el, inlinePrompt } from './dom';
 import type { ViewerApi } from './globals';
 import { ContextMenu, MenuAction, MenuItem, MiniToolbar } from './menu';
+import { Original, PASTE_OFFSET, PlaceTarget, Placement, Point, sheetCorner, sheetPoint } from './placement';
 
 /** What the page lends the editing gestures. */
 export interface WorkbenchContext {
@@ -36,6 +38,16 @@ export interface WorkbenchContext {
   newDiagram: (element: ElementRecord) => void;
   reveal: (element: ElementRecord) => void;
   help: () => void;
+  /** A copy was made: its source goes on the system clipboard (VS Code). */
+  copied: (elements: ElementRecord[], relationships: string[]) => void;
+  /** Run a change of the arrangement as part of the step before it (one undo). */
+  joinLayout: (run: () => Promise<void> | undefined) => Promise<void>;
+  /** A new named diagram that shows these elements. */
+  diagramOf: (elements: ElementRecord[]) => void;
+  /** ⌘Z and ⌘⇧Z of the canvas, and what they would undo and redo. */
+  history: { undo: () => void; redo: () => void; labels: () => { undo: string | null; redo: string | null } };
+  /** The selection marks are drawn again. */
+  remark: () => void;
 }
 
 const NUDGE = 1;
@@ -43,6 +55,13 @@ const NUDGE_BIG = 10;
 
 export class Editing {
   private clip: Clip | null = null;
+  /** Where the copied boxes were, for the copies to land beside them. */
+  private clipOriginals: Original[] = [];
+  /** Pastes of the same copy by the keyboard: each one a step further. */
+  private pastes = 0;
+  /** Where the context menu was opened, in sheet units: a paste from it lands there. */
+  private menuPoint: Point | null = null;
+  readonly placement: Placement;
   /** What follows a gesture once the compiler applied it, by label (the route of a reversed line...). */
   private readonly onApplied = new Map<string, () => void>();
   /** What follows once the viewer is mounted on the snapshot of that gesture. */
@@ -57,6 +76,25 @@ export class Editing {
   constructor(private readonly ctx: WorkbenchContext) {
     this.menu = new ContextMenu(ctx.sheet);
     this.mini = new MiniToolbar(ctx.sheet);
+    this.placement = new Placement({
+      host: ctx.host,
+      sheet: ctx.sheet,
+      viewer: ctx.viewer,
+      snapshot: ctx.snapshot,
+      drawingId: ctx.drawingId,
+      elementFor: (id) => ctx.elementFor(id),
+      multi: ctx.multi,
+      outermost: ctx.outermost,
+      joinLayout: ctx.joinLayout,
+      copyBy: (elements, by) => this.copyBy(elements, by),
+      select: (id) => ctx.viewer()?.select?.(id),
+      remark: ctx.remark,
+      selectOnly: (id) => {
+        const element = ctx.elementFor(id);
+        ctx.setMulti([]);
+        if (element) ctx.select(element, true);
+      },
+    });
     ctx.host.addEventListener('contextmenu', (event) => this.contextMenu(event));
     // Arrows move the selection before the viewer pans with them.
     ctx.host.addEventListener('keydown', (event) => this.nudge(event), true);
@@ -104,8 +142,10 @@ export class Editing {
     return () => {
       if (points.length === 0) return;
       this.afterMount.push(() => {
-        if (to !== edge) void this.ctx.viewer()?.setRoute?.(edge, []);
-        void this.ctx.viewer()?.setRoute?.(to, change(points));
+        void this.ctx.joinLayout(async () => {
+          if (to !== edge) await this.ctx.viewer()?.setRoute?.(edge, []);
+          await this.ctx.viewer()?.setRoute?.(to, change(points));
+        });
       });
     };
   }
@@ -311,33 +351,117 @@ export class Editing {
     return this.ctx.outermost(this.selection()).filter((e) => !/Port$/.test(e.kind));
   }
 
+  /** The uuids of elements and of everything they hold. */
+  private subtree(elements: ElementRecord[]): Set<string> {
+    const all = this.ctx.snapshot()?.elements?.elements ?? [];
+    const inside = new Set(elements.map((e) => e.uuid));
+    for (let grew = true; grew; ) {
+      grew = false;
+      for (const e of all) if (e.owner && inside.has(e.owner) && !inside.has(e.uuid)) grew = !!inside.add(e.uuid);
+    }
+    return inside;
+  }
+
+  /** The named relationships declared between elements of the selection: copied with it. */
+  private relationshipsWithin(elements: ElementRecord[]): string[] {
+    const inside = this.subtree(elements);
+    return (this.ctx.snapshot()?.elements?.relationships ?? []).filter((r) => r.name && inside.has(r.source) && inside.has(r.target)).map((r) => r.name);
+  }
+
+  private originals(elements: ElementRecord[]): Original[] {
+    return elements.map((element) => ({ element, at: sheetCorner(this.ctx.host, this.ctx.drawingId(element.id)) }));
+  }
+
+  private known(): Set<string> {
+    return new Set((this.ctx.snapshot()?.elements?.elements ?? []).map((e) => e.uuid));
+  }
+
   copy(cut: boolean): void {
     const elements = this.copyable();
     if (elements.length === 0) return;
     this.clip = { ids: elements.map((e) => e.id), cut };
+    this.clipOriginals = this.originals(elements);
+    this.pastes = 0;
     for (const node of this.ctx.host.querySelectorAll('.wb-cut')) node.classList.remove('wb-cut');
     if (cut) for (const e of elements) this.ctx.host.querySelector(`[data-id="${CSS.escape(this.ctx.drawingId(e.id))}"]`)?.classList.add('wb-cut');
-    this.ctx.toast(`${cut ? 'Cut' : 'Copied'}: ${elements.map((e) => e.name || e.id).join(', ')}. Select where it goes, then ⌘V.`, 'info');
+    this.ctx.copied(elements, this.relationshipsWithin(elements));
+    this.ctx.toast(`${cut ? 'Cut' : 'Copied'}: ${elements.map((e) => e.name || e.id).join(', ')}. ⌘V pastes it, at the mouse from the menu.`, 'info');
   }
 
-  paste(): void {
+  /** Once the edit is applied and drawn: the copies placed where they were asked, and selected. */
+  private placeAfter(originals: Original[], target: PlaceTarget | null, cut: boolean): () => void {
+    const known = this.known();
+    return () => {
+      if (!target) return;
+      let tries = 2;
+      const run = () => {
+        const fresh = (this.ctx.snapshot()?.elements?.elements ?? []).some((e) => !known.has(e.uuid));
+        // The snapshot of this edit is not drawn yet: the next drawing is.
+        if (!fresh && !cut && tries-- > 0) return void this.afterMount.push(run);
+        void this.placement.place(originals, known, target, cut).then((copies) => {
+          if (copies.length > 1) this.ctx.setMulti(copies);
+        });
+      };
+      this.afterMount.push(run);
+    };
+  }
+
+  /** Where a paste by the keyboard puts the copies: a step further from the originals each time. */
+  private nextOffset(): PlaceTarget {
+    this.pastes += 1;
+    return { by: { x: PASTE_OFFSET * this.pastes, y: PASTE_OFFSET * this.pastes } };
+  }
+
+  /** Paste the copy: into the selected element, else on the sheet, at `at` (the mouse) or beside the originals. */
+  paste(at: Point | null = null): void {
     if (!this.clip) return this.ctx.toast('Nothing copied yet: select elements, then ⌘C or ⌘X.', 'info');
-    const plan = pasteRequests(this.clip, this.ctx.selected());
-    if ('error' in plan) return this.ctx.toast(plan.error, 'info');
-    const into = this.ctx.selected();
     const clip = this.clip;
-    // A cut is used up only when the move is applied: refused, it can be pasted elsewhere.
-    this.submit(plan, `${clip.cut ? 'move' : 'paste'} ${clip.ids.join(', ')}${into && !clip.ids.includes(into.id) ? ` into ${into.name || into.id}` : ''}`, () => {
+    const selected = this.ctx.selected();
+    const into = selected && !this.relationshipOf(selected) && !clip.ids.includes(selected.id) && !at ? selected : null;
+    const elements = this.ctx.snapshot()?.elements?.elements ?? [];
+    const view = this.ctx.graph()?.arc.view ?? '';
+    let plan: EditRequest[];
+    if (clip.cut && into) plan = clip.ids.map((id) => ({ op: 'move', element: id, container: into.id }));
+    else if (clip.cut) {
+      // On the sheet: out of its container, into the layer of the view.
+      const moves = clip.ids.map((id) => elements.find((e) => e.id === id)).filter((e): e is ElementRecord => !!e).map((e) => moveToLayerRequest(e, view));
+      const refused = moves.find((m): m is { error: string } => 'error' in m);
+      if (refused) return this.ctx.toast(refused.error, 'info');
+      plan = moves as EditRequest[];
+    } else plan = [{ op: 'duplicate_many', elements: clip.ids, ...(into ? { container: into.id } : {}) }];
+    const target: PlaceTarget | null = into ? null : at ? { to: at } : this.nextOffset();
+    const placed = this.placeAfter(this.clipOriginals, target, clip.cut);
+    this.submit(plan, `${clip.cut ? 'move' : 'paste'} ${clip.ids.join(', ')}${into ? ` into ${into.name || into.id}` : ''}`, () => {
+      placed();
+      // A cut is used up only when the move is applied: refused, it can be pasted elsewhere.
       if (!clip.cut || this.clip !== clip) return;
       this.clip = null;
       for (const node of this.ctx.host.querySelectorAll('.wb-cut')) node.classList.remove('wb-cut');
     });
   }
 
+  /** ArcLang text from the system clipboard (another model, a text editor): new declarations here. */
+  pasteText(text: string, at: Point | null = null): void {
+    const selected = this.ctx.selected();
+    const into = selected && !this.relationshipOf(selected) && !at ? selected : null;
+    const layer = LAYER_OF_VIEW[this.ctx.graph()?.arc.view ?? ''];
+    const plan = pasteTextRequests(text, this.ctx.snapshot()?.elements?.elements ?? [], into ? { container: into.id } : { layer });
+    if ('error' in plan) return this.ctx.toast(plan.error, 'info');
+    this.submit(plan.requests, `paste ${plan.ids.length ? plan.ids.join(', ') : 'from the clipboard'}${into ? ` into ${into.name || into.id}` : ''}`, this.placeAfter([], at ? { to: at } : null, false));
+  }
+
+  /** Copies beside the originals, a step down and right, as draw.io duplicates. */
   duplicate(): void {
     const elements = this.copyable();
     if (elements.length === 0) return;
-    this.submit(elements.map((e) => ({ op: 'duplicate', element: e.id })), `duplicate ${elements.map((e) => e.name || e.id).join(', ')}`);
+    const target = { by: { x: PASTE_OFFSET, y: PASTE_OFFSET } };
+    this.submit([{ op: 'duplicate_many', elements: elements.map((e) => e.id) }], `duplicate ${elements.map((e) => e.name || e.id).join(', ')}`, this.placeAfter(this.originals(elements), target, false));
+  }
+
+  /** Alt+drag: copies where the originals were dragged to. */
+  private copyBy(elements: ElementRecord[], by: Point): void {
+    // As far from the originals as it was dragged, wherever the drawing puts them once the copy is in.
+    this.submit([{ op: 'duplicate_many', elements: elements.map((e) => e.id) }], `copy ${elements.map((e) => e.name || e.id).join(', ')}`, this.placeAfter(this.originals(elements), { by }, false));
   }
 
   moveTo(element: ElementRecord): void {
@@ -464,13 +588,19 @@ export class Editing {
       this.ctx.select(element, false);
     }
     this.menuModel = this.modelKey();
+    this.menuPoint = sheetPoint(this.ctx.host, event.clientX, event.clientY);
     this.menu.open(event.clientX, event.clientY, this.menuItems(element, target?.dataset.id ?? null));
   }
 
   /** The actions on an element (or on the sheet when none), in the order a modeller looks for them. */
   menuItems(element: ElementRecord | null, drawing: string | null): MenuItem[] {
     const many = this.ctx.multi().length > 1 ? this.ctx.multi() : [];
-    const paste: MenuAction = { label: this.clip?.cut ? 'Paste (move here)' : 'Paste', shortcut: '⌘V', run: () => this.paste(), disabled: !this.clip };
+    const paste: MenuAction = { label: this.clip?.cut ? 'Paste (move here)' : 'Paste here', shortcut: '⌘V', run: () => this.paste(this.menuPoint), disabled: !this.clip };
+    const labels = this.ctx.history.labels();
+    const history: MenuItem[] = [
+      { label: labels.undo ? `Undo ${labels.undo}` : 'Undo', shortcut: '⌘Z', run: () => this.ctx.history.undo(), disabled: !labels.undo },
+      { label: labels.redo ? `Redo ${labels.redo}` : 'Redo', shortcut: '⇧⌘Z', run: () => this.ctx.history.redo(), disabled: !labels.redo },
+    ];
     if (many.length) {
       return [
         { title: 'Align', row: [['Left', 'left'], ['Centre', 'center'], ['Right', 'right'], ['Top', 'top'], ['Middle', 'middle'], ['Bottom', 'bottom']].map(([label, how]) => ({ label, run: () => this.align(how as Alignment) })) },
@@ -480,12 +610,13 @@ export class Editing {
         { label: 'Cut', shortcut: '⌘X', run: () => this.copy(true) },
         { label: 'Duplicate', shortcut: '⌘D', run: () => this.duplicate() },
         'separator',
+        { label: 'New diagram from the selection', run: () => this.ctx.diagramOf(this.ctx.outermost(many)) },
         { label: `Hide ${many.length} from this diagram`, shortcut: '⌘H', run: () => this.ctx.hide(many) },
         { label: `Delete ${many.length} elements`, shortcut: '⌫', danger: true, run: () => this.ctx.remove(many) },
       ];
     }
     if (!element) {
-      return [paste, { label: 'Select all', shortcut: '⌘A', run: () => this.selectAll() }, 'separator', { label: 'Fit the diagram', shortcut: '0', run: () => this.ctx.viewer()?.fit?.() }, { label: 'Keyboard shortcuts', shortcut: '?', run: () => this.ctx.help() }];
+      return [...history, 'separator', paste, { label: 'Select all', shortcut: '⌘A', run: () => this.selectAll() }, 'separator', { label: 'Fit the diagram', shortcut: '⌘0', run: () => this.ctx.viewer()?.fit?.() }, { label: 'Keyboard shortcuts', shortcut: '?', run: () => this.ctx.help() }];
     }
     const relationship = this.relationshipOf(element);
     const source: MenuAction = { label: 'Go to source', run: () => this.ctx.reveal(element) };
@@ -510,7 +641,7 @@ export class Editing {
       'separator',
       { label: 'Copy', shortcut: '⌘C', run: () => this.copy(false), disabled: isPort },
       { label: 'Cut', shortcut: '⌘X', run: () => this.copy(true), disabled: isPort },
-      { ...paste, label: this.clip ? `${paste.label} into ${element.name || element.id}` : 'Paste into' },
+      { ...paste, run: () => this.paste(), label: this.clip ? `${this.clip.cut ? 'Paste (move)' : 'Paste'} into ${element.name || element.id}` : 'Paste into' },
       { label: 'Duplicate', shortcut: '⌘D', run: () => this.duplicate(), disabled: isPort },
       'separator',
       { label: 'Show related', run: () => this.ctx.related(element), disabled: isPort },

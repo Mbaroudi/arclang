@@ -9,7 +9,7 @@ import { run, withTempFile, workspaceTrusted, UNTRUSTED_MESSAGE } from '../cli';
 import { EditRequest, parseEditAnswer } from '../pure/workbench';
 import { arcTextOf, documentDir, documentTextFor, replaceWhole } from './source';
 
-export type EditOutcome = { ok: true; source: string; applied: boolean } | { ok: false; error: string; at: number };
+export type EditOutcome = { ok: true; source: string; applied: boolean; before?: string; after?: string } | { ok: false; error: string; at: number };
 
 /** Run the requests on `source`, each on the result of the previous one. */
 export async function editText(source: string, requests: EditRequest[], fileName: string, cwd?: string): Promise<EditOutcome> {
@@ -45,10 +45,11 @@ export async function applyRequests(document: vscode.TextDocument, requests: Edi
     const back = await documentTextFor(document, outcome.source);
     if (!back.ok) return { ok: false, error: back.error, at: requests.length };
     if (document.version !== version) continue;
-    if (back.text === document.getText()) return { ...outcome, applied: false };
+    const before = document.getText();
+    if (back.text === before) return { ...outcome, applied: false };
     const applied = await replaceWhole(document, back.text);
     if (!applied) return { ok: false, error: 'VS Code did not apply the edit', at: requests.length };
-    return { ...outcome, applied: true };
+    return { ...outcome, applied: true, before, after: document.getText() };
   }
   return { ok: false, error: 'the text kept changing while the edit was computed: try again', at: 0 };
 }

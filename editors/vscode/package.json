@@ -2,7 +2,7 @@
   "name": "arclang",
   "displayName": "ArcLang",
   "description": "Arcadia MBSE as code: diagnostics with rules, outline, completion from the metamodel, hover, go to definition, rename, formatting, the viewpoint diagrams beside the source, the production gate, Arcadia transitions, the @arclang chat participant and compiler tools for agent mode, the ArcLang MCP server. Everything comes from the ArcLang compiler.",
-  "version": "4.4.0",
+  "version": "4.5.0",
   "publisher": "arclang",
   "license": "MIT",
   "icon": "icon.png",
@@ -302,6 +302,61 @@
         "command": "arclang.canvas.newDiagram",
         "title": "New diagram from this element",
         "category": "ArcLang"
+      },
+      {
+        "command": "arclang.workbench.undo",
+        "title": "Undo on the canvas",
+        "category": "ArcLang"
+      },
+      {
+        "command": "arclang.workbench.redo",
+        "title": "Redo on the canvas",
+        "category": "ArcLang"
+      },
+      {
+        "command": "arclang.workbench.copy",
+        "title": "Copy the selection",
+        "category": "ArcLang"
+      },
+      {
+        "command": "arclang.workbench.cut",
+        "title": "Cut the selection",
+        "category": "ArcLang"
+      },
+      {
+        "command": "arclang.workbench.paste",
+        "title": "Paste on the canvas",
+        "category": "ArcLang"
+      },
+      {
+        "command": "arclang.workbench.duplicate",
+        "title": "Duplicate the selection",
+        "category": "ArcLang"
+      },
+      {
+        "command": "arclang.workbench.selectAll",
+        "title": "Select every box",
+        "category": "ArcLang"
+      },
+      {
+        "command": "arclang.workbench.delete",
+        "title": "Delete the selection",
+        "category": "ArcLang"
+      },
+      {
+        "command": "arclang.workbench.zoomIn",
+        "title": "Zoom in on the sheet",
+        "category": "ArcLang"
+      },
+      {
+        "command": "arclang.workbench.zoomOut",
+        "title": "Zoom out of the sheet",
+        "category": "ArcLang"
+      },
+      {
+        "command": "arclang.workbench.fit",
+        "title": "Fit the diagram",
+        "category": "ArcLang"
       }
     ],
     "menus": {
@@ -478,6 +533,50 @@
         {
           "command": "arclang.canvas.newDiagram",
           "when": "false"
+        },
+        {
+          "command": "arclang.workbench.undo",
+          "when": "activeCustomEditorId == arclang.workbench"
+        },
+        {
+          "command": "arclang.workbench.redo",
+          "when": "activeCustomEditorId == arclang.workbench"
+        },
+        {
+          "command": "arclang.workbench.copy",
+          "when": "activeCustomEditorId == arclang.workbench"
+        },
+        {
+          "command": "arclang.workbench.cut",
+          "when": "activeCustomEditorId == arclang.workbench"
+        },
+        {
+          "command": "arclang.workbench.paste",
+          "when": "activeCustomEditorId == arclang.workbench"
+        },
+        {
+          "command": "arclang.workbench.duplicate",
+          "when": "activeCustomEditorId == arclang.workbench"
+        },
+        {
+          "command": "arclang.workbench.selectAll",
+          "when": "activeCustomEditorId == arclang.workbench"
+        },
+        {
+          "command": "arclang.workbench.delete",
+          "when": "activeCustomEditorId == arclang.workbench"
+        },
+        {
+          "command": "arclang.workbench.zoomIn",
+          "when": "activeCustomEditorId == arclang.workbench"
+        },
+        {
+          "command": "arclang.workbench.zoomOut",
+          "when": "activeCustomEditorId == arclang.workbench"
+        },
+        {
+          "command": "arclang.workbench.fit",
+          "when": "activeCustomEditorId == arclang.workbench"
         }
       ],
       "view/title": [
@@ -1129,6 +1228,102 @@
         "key": "ctrl+alt+[",
         "mac": "cmd+alt+[",
         "when": "activeCustomEditorId == arclang.workbench"
+      },
+      {
+        "command": "arclang.workbench.undo",
+        "key": "ctrl+z",
+        "mac": "cmd+z",
+        "when": "activeCustomEditorId == arclang.workbench && focusedView == '' && !inputFocus && !arclang.workbenchTyping"
+      },
+      {
+        "command": "arclang.workbench.redo",
+        "key": "ctrl+y",
+        "mac": "cmd+shift+z",
+        "when": "activeCustomEditorId == arclang.workbench && focusedView == '' && !inputFocus && !arclang.workbenchTyping"
+      },
+      {
+        "command": "arclang.workbench.redo",
+        "key": "ctrl+shift+z",
+        "mac": "cmd+y",
+        "when": "activeCustomEditorId == arclang.workbench && focusedView == '' && !inputFocus && !arclang.workbenchTyping"
+      },
+      {
+        "command": "arclang.workbench.copy",
+        "key": "ctrl+c",
+        "mac": "cmd+c",
+        "when": "activeCustomEditorId == arclang.workbench && focusedView == '' && !inputFocus && !arclang.workbenchTyping"
+      },
+      {
+        "command": "arclang.workbench.cut",
+        "key": "ctrl+x",
+        "mac": "cmd+x",
+        "when": "activeCustomEditorId == arclang.workbench && focusedView == '' && !inputFocus && !arclang.workbenchTyping"
+      },
+      {
+        "command": "arclang.workbench.paste",
+        "key": "ctrl+v",
+        "mac": "cmd+v",
+        "when": "activeCustomEditorId == arclang.workbench && focusedView == '' && !inputFocus && !arclang.workbenchTyping"
+      },
+      {
+        "command": "arclang.workbench.duplicate",
+        "key": "ctrl+d",
+        "mac": "cmd+d",
+        "when": "activeCustomEditorId == arclang.workbench && focusedView == '' && !inputFocus && !arclang.workbenchTyping"
+      },
+      {
+        "command": "arclang.workbench.selectAll",
+        "key": "ctrl+a",
+        "mac": "cmd+a",
+        "when": "activeCustomEditorId == arclang.workbench && focusedView == '' && !inputFocus && !arclang.workbenchTyping"
+      },
+      {
+        "command": "arclang.workbench.delete",
+        "key": "delete",
+        "mac": "delete",
+        "when": "activeCustomEditorId == arclang.workbench && focusedView == '' && !inputFocus && !arclang.workbenchTyping"
+      },
+      {
+        "command": "arclang.workbench.delete",
+        "key": "backspace",
+        "mac": "backspace",
+        "when": "activeCustomEditorId == arclang.workbench && focusedView == '' && !inputFocus && !arclang.workbenchTyping"
+      },
+      {
+        "command": "arclang.workbench.zoomIn",
+        "key": "ctrl+=",
+        "mac": "cmd+=",
+        "when": "activeCustomEditorId == arclang.workbench && focusedView == '' && !inputFocus && !arclang.workbenchTyping"
+      },
+      {
+        "command": "arclang.workbench.zoomIn",
+        "key": "ctrl+numpad_add",
+        "mac": "cmd+numpad_add",
+        "when": "activeCustomEditorId == arclang.workbench && focusedView == '' && !inputFocus && !arclang.workbenchTyping"
+      },
+      {
+        "command": "arclang.workbench.zoomOut",
+        "key": "ctrl+-",
+        "mac": "cmd+-",
+        "when": "activeCustomEditorId == arclang.workbench && focusedView == '' && !inputFocus && !arclang.workbenchTyping"
+      },
+      {
+        "command": "arclang.workbench.zoomOut",
+        "key": "ctrl+numpad_subtract",
+        "mac": "cmd+numpad_subtract",
+        "when": "activeCustomEditorId == arclang.workbench && focusedView == '' && !inputFocus && !arclang.workbenchTyping"
+      },
+      {
+        "command": "arclang.workbench.fit",
+        "key": "ctrl+0",
+        "mac": "cmd+0",
+        "when": "activeCustomEditorId == arclang.workbench && focusedView == '' && !inputFocus && !arclang.workbenchTyping"
+      },
+      {
+        "command": "arclang.workbench.fit",
+        "key": "shift+1",
+        "mac": "shift+1",
+        "when": "activeCustomEditorId == arclang.workbench && focusedView == '' && !inputFocus && !arclang.workbenchTyping"
       }
     ]
   },

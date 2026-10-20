@@ -1,7 +1,7 @@
 // The workbench: the model tree in the side bar, the custom editor beside
 // the source, the status bar item, and the commands of all three.
 import * as vscode from 'vscode';
-import { elementLabel, VIEW_OF_LAYER, ViewerGraph } from '../pure/workbench';
+import { CanvasCommand, elementLabel, VIEW_OF_LAYER, ViewerGraph } from '../pure/workbench';
 import { applyRequests, refusalMessage } from './edits';
 import { onDidSelectElement, WorkbenchPanel } from './panel';
 import { forgetSnapshot, registerSnapshotRefresh, snapshotOf } from './snapshot';
@@ -98,6 +98,12 @@ export function registerWorkbench(context: vscode.ExtensionContext): void {
       WorkbenchPanel.for(document.uri)?.show(drawn[0].id, choice.element.id);
     }
   });
+
+  // The canvas's keys, bound in VS Code so they follow the keyboard layout (⌘Z on AZERTY is ⌘Z).
+  register('arclang.workbench.undo', () => WorkbenchPanel.activePanel()?.undo());
+  register('arclang.workbench.redo', () => WorkbenchPanel.activePanel()?.redo());
+  const canvasKeys: [string, CanvasCommand][] = [['copy', 'copy'], ['cut', 'cut'], ['paste', 'paste'], ['duplicate', 'duplicate'], ['selectAll', 'select-all'], ['delete', 'delete'], ['zoomIn', 'zoom-in'], ['zoomOut', 'zoom-out'], ['fit', 'fit']];
+  for (const [name, command] of canvasKeys) register(`arclang.workbench.${name}`, () => WorkbenchPanel.activePanel()?.canvas(command));
 
   register('arclang.layer.next', () => WorkbenchPanel.activeDocument() && WorkbenchPanel.for(WorkbenchPanel.activeDocument()!.uri)?.stepLayer(1));
   register('arclang.layer.previous', () => WorkbenchPanel.activeDocument() && WorkbenchPanel.for(WorkbenchPanel.activeDocument()!.uri)?.stepLayer(-1));
