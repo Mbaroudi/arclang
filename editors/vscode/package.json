@@ -401,6 +401,39 @@
         "command": "arclang.workbench.fit",
         "title": "Fit the diagram",
         "category": "ArcLang"
+      },
+      {
+        "command": "arclang.table.open",
+        "title": "Open a table of the model",
+        "category": "ArcLang",
+        "icon": "$(table)"
+      },
+      {
+        "command": "arclang.table.new",
+        "title": "New table…",
+        "category": "ArcLang",
+        "icon": "$(add)"
+      },
+      {
+        "command": "arclang.table.coverage",
+        "title": "Requirement coverage table",
+        "category": "ArcLang",
+        "icon": "$(checklist)"
+      },
+      {
+        "command": "arclang.table.undo",
+        "title": "Undo the last edit made from the table",
+        "category": "ArcLang"
+      },
+      {
+        "command": "arclang.table.redo",
+        "title": "Redo the edit made from the table",
+        "category": "ArcLang"
+      },
+      {
+        "command": "arclang.table.refresh",
+        "title": "Compute the table again",
+        "category": "ArcLang"
       }
     ],
     "menus": {
@@ -626,6 +659,18 @@
         {
           "command": "arclang.workbench.fit",
           "when": "activeCustomEditorId == arclang.workbench"
+        },
+        {
+          "command": "arclang.table.undo",
+          "when": "false"
+        },
+        {
+          "command": "arclang.table.redo",
+          "when": "false"
+        },
+        {
+          "command": "arclang.table.refresh",
+          "when": "activeWebviewPanelId == arclang.table"
         }
       ],
       "view/title": [
@@ -643,6 +688,11 @@
           "command": "arclang.pickDiagram",
           "when": "view == arclangModel",
           "group": "navigation@0"
+        },
+        {
+          "command": "arclang.table.open",
+          "when": "view == arclangModel",
+          "group": "navigation@3"
         }
       ],
       "view/item/context": [
@@ -675,6 +725,16 @@
           "command": "arclang.model.copyId",
           "when": "view == arclangModel && viewItem == arclang.element",
           "group": "edit@3"
+        },
+        {
+          "command": "arclang.table.new",
+          "when": "view == arclangModel && viewItem == arclang.layer",
+          "group": "navigation@5"
+        },
+        {
+          "command": "arclang.table.coverage",
+          "when": "view == arclangModel && viewItem == arclang.layer",
+          "group": "navigation@6"
         }
       ],
       "webview/context": [
@@ -1510,6 +1570,23 @@
         "key": "shift+1",
         "mac": "shift+1",
         "when": "activeCustomEditorId == arclang.workbench && focusedView == '' && !inputFocus && !arclang.workbenchTyping"
+      },
+      {
+        "command": "arclang.table.undo",
+        "key": "ctrl+z",
+        "mac": "cmd+z",
+        "when": "activeWebviewPanelId == arclang.table && !arclang.tableTyping"
+      },
+      {
+        "command": "arclang.table.redo",
+        "key": "ctrl+shift+z",
+        "mac": "cmd+shift+z",
+        "when": "activeWebviewPanelId == arclang.table && !arclang.tableTyping"
+      },
+      {
+        "command": "arclang.table.redo",
+        "key": "ctrl+y",
+        "when": "activeWebviewPanelId == arclang.table && !arclang.tableTyping"
       }
     ]
   },

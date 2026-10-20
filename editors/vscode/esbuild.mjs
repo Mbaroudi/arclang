@@ -77,9 +77,19 @@ const page = await esbuild.context({
   outfile: 'dist/webview.js',
 });
 
+// tables hook: the table view's page.
+const tables = await esbuild.context({
+  ...common,
+  entryPoints: ['webview/tables/main.ts'],
+  format: 'iife',
+  platform: 'browser',
+  target: 'es2022',
+  outfile: 'dist/tables.js',
+});
+
 if (watch) {
-  await Promise.all([host.watch(), page.watch()]);
+  await Promise.all([host.watch(), page.watch(), tables.watch()]);
 } else {
-  await Promise.all([host.rebuild(), page.rebuild()]);
-  await Promise.all([host.dispose(), page.dispose()]);
+  await Promise.all([host.rebuild(), page.rebuild(), tables.rebuild()]);
+  await Promise.all([host.dispose(), page.dispose(), tables.dispose()]);
 }

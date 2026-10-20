@@ -130,6 +130,7 @@ export function registerWorkbench(context: vscode.ExtensionContext): void {
   register('arclang.model.select', async (item?: unknown) => {
     const element = elementItem(item);
     if (!element) return;
+    if (element.node.element.kind === 'Table') return vscode.commands.executeCommand('arclang.table.open', element); // tables hook
     const document = await vscode.workspace.openTextDocument(element.uri);
     relations.show(document, element.node.element);
     const panel = WorkbenchPanel.for(element.uri);
