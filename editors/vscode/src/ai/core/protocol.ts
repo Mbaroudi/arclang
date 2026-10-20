@@ -54,6 +54,7 @@ export type FromPageAi =
   | { type: 'ai-cancel'; session: string }
   | { type: 'ai-impact'; ids: string[] }
   | { type: 'ai-suggestion'; id: string; action: 'apply' | 'dismiss' | 'diff' }
+  | { type: 'ai-propose' }
   | { type: 'ai-configure' };
 
 /** Host → page. */
@@ -71,6 +72,14 @@ export type ToPageAi =
       suggestions: SuggestionView[];
       provider: string;
       error?: string;
+      /** What changed, in words. */
+      change?: string[];
+      /** `arclang impact` on the changed or selected elements, a line each. */
+      impact?: string[];
+      /** Consequences shown, the AI not asked yet (suggestOnEdit: onRequest). */
+      canPropose?: boolean;
+      /** Proposals the compiler refused, with the reason. */
+      dropped?: string[];
     };
 
 export function isFromPageAi(message: unknown): message is FromPageAi {

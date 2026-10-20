@@ -12,6 +12,7 @@ import { EditRequest, ElementRecord, FromWebview, isLayoutFile, layoutPathOf, Sn
 import { applyRequests, EditQueue, refusalMessage } from './edits';
 import { metamodelJson, onDidChangeSnapshot, snapshotOf } from './snapshot';
 import { elementAt, revealElement } from './tree';
+import { handlePageMessage } from '../ai'; // ai-design hook
 
 export const VIEW_TYPE = 'arclang.workbench';
 
@@ -227,6 +228,8 @@ export class WorkbenchPanel {
         }
         return;
       default:
+        // ai-design hook: the AI's messages (ask, apply, suggestions) go to src/ai.
+        handlePageMessage(this.document, (m) => this.post(m as unknown as ToWebview), message);
         return;
     }
   }

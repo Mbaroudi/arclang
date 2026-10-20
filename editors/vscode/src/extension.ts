@@ -2,6 +2,7 @@
 // language server for what the editor shows, the CLI for commands and tools,
 // the diagram viewer, and the compiler's verdict on what the assistant writes.
 import * as vscode from 'vscode';
+import { registerAi } from './ai'; // ai-design hook
 import { registerParticipant } from './ai/participant';
 import { registerTools } from './ai/tools';
 import { installBinary, warnIfMissing } from './binary';
@@ -44,6 +45,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   registerWorkbench(context);
   registerTools(context);
   registerParticipant(context);
+  registerAi(context); // ai-design hook
   registerMcpProvider(context);
 
   // The language server starts with the first .arc document, not at startup.

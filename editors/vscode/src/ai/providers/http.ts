@@ -124,14 +124,14 @@ export async function* postStream(request: StreamRequest): AsyncGenerator<string
     try {
       for (;;) {
         arm();
-        let chunk: ReadableStreamReadResult<Uint8Array>;
+        let chunk: { done: boolean; value?: Uint8Array };
         try {
           chunk = await reader.read();
         } catch (error) {
           throw fail(error);
         }
         if (chunk.done) break;
-        const text = decoder.decode(chunk.value, { stream: true });
+        const text = chunk.value ? decoder.decode(chunk.value, { stream: true }) : '';
         if (text) yield text;
       }
       const rest = decoder.decode();

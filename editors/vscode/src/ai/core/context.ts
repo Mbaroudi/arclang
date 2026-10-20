@@ -85,6 +85,26 @@ function closerOf(text: string, mask: Uint8Array, open: number): number {
   return text.length - 1;
 }
 
+/** The top-level block around an offset: `logical_architecture "Logical Architecture"`. */
+export function topBlockAt(text: string, offset: number, mask: Uint8Array = codeMask(text)): string | null {
+  let open = openerBefore(text, mask, offset);
+  let outer = -1;
+  while (open >= 0) {
+    outer = open;
+    open = openerBefore(text, mask, open);
+  }
+  if (outer < 0) return null;
+  const line = text.slice(lineStart(text, outer), outer).trim();
+  return line || null;
+}
+
+/** The blocks at the top of the model text (the layers, requirements, safety…), as they are written. */
+export function topBlocks(text: string): string[] {
+  const out: string[] = [];
+  for (const match of text.matchAll(/^([a-z_]+)((?:[ \t]+[A-Za-z_]+)?(?:[ \t]+"[^"\n]*")?)[ \t]*\{/gm)) out.push(`${match[1]}${match[2]}`.trim());
+  return out;
+}
+
 function spanOf(text: string, start: number, end: number): Span {
   return { start, end, startLine: lineOf(text, start), endLine: lineOf(text, end), text: text.slice(start, end) };
 }
@@ -210,7 +230,8 @@ export function buildSelectionContext(input: ContextInput): BuiltContext {
   for (const e of elements) {
     const span = declarationSpan(text, e, mask);
     const owner = e.owner ? byUuid.get(e.owner) : undefined;
-    const head = `### ${e.kind} ${label(e)}${owner && owner.kind !== 'Model' ? `, owned by ${label(owner)} (${owner.kind})` : ''}${span ? `, lines ${span.startLine + 1}-${span.endLine + 1}` : ''}`;
+    const block = span ? topBlockAt(text, span.start, mask) : null;
+    const head = `### ${e.kind} ${label(e)}${owner && owner.kind !== 'Model' ? `, owned by ${label(owner)} (${owner.kind})` : ''}${block && !(owner && owner.kind !== 'Model') ? `, in \`${block}\`` : ''}${span ? `, lines ${span.startLine + 1}-${span.endLine + 1}` : ''}`;
     const attributes = Object.entries(e.attributes).filter(([k]) => k !== 'id' && k !== 'name').map(([k, v]) => `${k}=${attributeText(v)}`).join(', ');
     declared.push(`${head}\n${span ? `\`\`\`arc\n${clipText(span.text, 6000)}\n\`\`\`` : `(not declared in this file)${attributes ? `\nattributes: ${attributes}` : ''}`}`);
   }
@@ -243,8 +264,8 @@ export function buildSelectionContext(input: ContextInput): BuiltContext {
   const kinds = [...new Set([...elements, ...neighbours].map((e) => e.kind))];
   const excerpt = kinds.map((k) => kindExcerpt(input.metamodel, k)).filter((l): l is string => !!l);
   if (excerpt.length) sections.push(`## Metamodel of these kinds (from \`arclang metamodel\`)\n${excerpt.join('\n')}`);
-  const layers = (snapshot.elements?.elements ?? []).filter((e) => byUuid.get(e.owner ?? '')?.kind === 'Model').map((e) => `${e.kind} ${label(e)}`);
-  if (layers.length) sections.push(`## Top-level blocks of the model\n${layers.slice(0, 40).map((l) => `- ${l}`).join('\n')}`);
+  const blocks = topBlocks(text);
+  if (blocks.length) sections.push(`## Top-level blocks of the model (the \`layer\` of an add is the first word)\n${blocks.slice(0, 40).map((l) => `- ${l}`).join('\n')}`);
   if (scope === 'wholeModel') sections.push(`## The whole model\n\`\`\`arc\n${clipText(text, Math.floor(max * 0.6))}\n\`\`\``);
   return { text: clipText(sections.join('\n\n'), max), elements, neighbours };
 }

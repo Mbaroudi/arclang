@@ -11,6 +11,7 @@ import { EditRequest, ElementRecord, graphContainerOf, RelationshipRecord, Snaps
 import { el, inlinePrompt } from './dom';
 import type { ViewerApi } from './globals';
 import { ContextMenu, MenuAction, MenuItem, MiniToolbar } from './menu';
+import { withAi, withAiMini } from './ask-ai'; // ai-design hook
 
 /** What the page lends the editing gestures. */
 export interface WorkbenchContext {
@@ -464,7 +465,7 @@ export class Editing {
       this.ctx.select(element, false);
     }
     this.menuModel = this.modelKey();
-    this.menu.open(event.clientX, event.clientY, this.menuItems(element, target?.dataset.id ?? null));
+    this.menu.open(event.clientX, event.clientY, withAi(this.menuItems(element, target?.dataset.id ?? null))); // ai-design hook: Ask AI first
   }
 
   /** The actions on an element (or on the sheet when none), in the order a modeller looks for them. */
@@ -538,12 +539,12 @@ export class Editing {
       if (rects.length === 0) return this.mini.hide();
       const around = new DOMRect(Math.min(...rects.map((r) => r.left)), Math.min(...rects.map((r) => r.top)), 0, 0);
       const union = new DOMRect(around.x, around.y, Math.max(...rects.map((r) => r.right)) - around.x, Math.max(...rects.map((r) => r.bottom)) - around.y);
-      return this.mini.show(union, [
+      return this.mini.show(union, withAiMini([ // ai-design hook: the Ask AI button
         { glyph: '⫷', label: 'Align left', run: () => this.align('left') },
         { glyph: '⫠', label: 'Align top', run: () => this.align('top') },
         { glyph: '⋯', label: 'More: align, distribute, copy…', run: () => this.menu.open(union.left, union.top, this.menuItems(null, null)) },
         { glyph: '⌫', label: 'Delete all', shortcut: '⌫', danger: true, run: () => this.ctx.remove(many) },
-      ], `multi:${many.map((e) => e.uuid).join(',')}`);
+      ]), `multi:${many.map((e) => e.uuid).join(',')}`);
     }
     if (!one || !drawing) return this.mini.hide();
     const relationship = this.relationshipOf(one);
@@ -567,6 +568,6 @@ export class Editing {
           more,
           { glyph: '⌫', label: 'Delete', shortcut: '⌫', danger: true, run: () => this.ctx.remove([one]) },
         ];
-    this.mini.show(around, actions, `${one.uuid}:${drawing}`);
+    this.mini.show(around, withAiMini(actions), `${one.uuid}:${drawing}`); // ai-design hook: the Ask AI button
   }
 }
