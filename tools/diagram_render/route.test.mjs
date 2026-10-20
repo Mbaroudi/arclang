@@ -54,6 +54,24 @@ test('routing is the same for the same input, and fast enough for a hundred boxe
   assert.ok(elapsed < 1500, `${Math.round(elapsed)} ms`);
 });
 
+test('five hundred boxes never freeze the page: the search is bounded, a route or null in under 200 ms', () => {
+  const boxes = [];
+  // Staggered boxes: every side on its own line, the worst case for the grid (about 16 N² cells).
+  for (let i = 0; i < 25; i += 1) for (let j = 0; j < 20; j += 1) boxes.push({ x: i * 120 + j * 3.7, y: j * 90 + i * 2.3, width: 80 + (i % 7), height: 50 + (j % 5) });
+  const specs = [
+    { from: { x: -40, y: 25, side: 'west' }, to: { x: 3000, y: 1765, side: 'east' }, obstacles: boxes },
+    { from: { x: 80, y: 25, side: 'east' }, to: { x: 2880, y: 1735, side: 'west' }, obstacles: boxes },
+    { from: { x: 1240, y: 925, side: 'south' }, to: { x: 1440, y: 1015, side: 'north' }, obstacles: boxes },
+  ];
+  for (const spec of specs) {
+    const started = performance.now();
+    const points = route(spec);
+    const elapsed = performance.now() - started;
+    assert.ok(elapsed < 200, `${Math.round(elapsed)} ms for ${boxes.length} boxes`);
+    if (points) assert.ok(rectilinear(points) && clear(points.slice(1, -1), boxes), JSON.stringify(points));
+  }
+});
+
 // --- the placement, with routing around boxes (an editor's) ---------------
 
 const leaf = (id, ports = [], size = [120, 44]) => ({ id, width: size[0], height: size[1], labels: [{ text: id }], ports: ports.map((port) => ({ id: port, width: 8, height: 8, arc: { name: port } })), arc: { kind: 'logical_component', realizes: [], properties: {} }, layoutOptions: { 'elk.portConstraints': 'FREE' } });

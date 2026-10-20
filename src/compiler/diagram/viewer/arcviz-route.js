@@ -22,6 +22,9 @@
   const OUTSIDE = 30; // the outermost lines lie this far beyond everything // first search: obstacles this far around the ends only
   const DIRS = [{ x: 1, y: 0 }, { x: 0, y: 1 }, { x: -1, y: 0 }, { x: 0, y: -1 }]; // east, south, west, north
   const SIDE_DIR = { east: 0, south: 1, west: 2, north: 3 };
+  // Bounds of one search: past them the caller keeps its plain route, the page never freezes.
+  const MAX_CELLS = 250000;
+  const MAX_EXPANSIONS = 400000;
 
   /** A small binary heap of [cost, value] pairs. */
   function heap() {
@@ -93,9 +96,16 @@
     const iy = new Map(ys.map((v, i) => [v, i]));
     const key = (v) => Math.round(v * 100) / 100;
     const W = xs.length;
-    const inside = (x, y) => rects.some((r) => x > r.x && x < r.x + r.width && y > r.y && y < r.y + r.height);
+    if (W * ys.length > MAX_CELLS) return null;
     const blocked = new Uint8Array(W * ys.length);
-    for (let j = 0; j < ys.length; j += 1) for (let i = 0; i < W; i += 1) blocked[j * W + i] = inside(xs[i], ys[j]) ? 1 : 0;
+    // Each rectangle blocks the lines strictly inside it: a span of columns by a span of rows.
+    for (const r of rects) {
+      const i0 = firstAbove(xs, r.x);
+      const i1 = firstAtOrAbove(xs, r.x + r.width);
+      const j0 = firstAbove(ys, r.y);
+      const j1 = firstAtOrAbove(ys, r.y + r.height);
+      for (let j = j0; j < j1; j += 1) blocked.fill(1, j * W + i0, j * W + Math.max(i0, i1));
+    }
     const start = iy.get(key(a.y)) * W + ix.get(key(a.x));
     const goal = iy.get(key(b.y)) * W + ix.get(key(b.x));
     if (blocked[start] || blocked[goal]) return null;
@@ -110,7 +120,9 @@
       open.push(h(start), order++, start * 4 + d);
     }
     let reached = -1;
+    let expansions = 0;
     while (open.size > 0) {
+      if ((expansions += 1) > MAX_EXPANSIONS) return null;
       const state = open.pop();
       const cell = state >> 2;
       const dir = state & 3;
@@ -146,6 +158,30 @@
     cells.reverse();
     const points = cells.map((cell) => ({ x: xs[cell % W], y: ys[Math.floor(cell / W)] }));
     return { points: simplify(points), dir: reached & 3 };
+  }
+
+  /** The index of the first sorted value greater than `v` (binary search). */
+  function firstAbove(sorted, v) {
+    let lo = 0;
+    let hi = sorted.length;
+    while (lo < hi) {
+      const mid = (lo + hi) >> 1;
+      if (sorted[mid] > v) hi = mid;
+      else lo = mid + 1;
+    }
+    return lo;
+  }
+
+  /** The index of the first sorted value greater than or equal to `v`. */
+  function firstAtOrAbove(sorted, v) {
+    let lo = 0;
+    let hi = sorted.length;
+    while (lo < hi) {
+      const mid = (lo + hi) >> 1;
+      if (sorted[mid] >= v) hi = mid;
+      else lo = mid + 1;
+    }
+    return lo;
   }
 
   /** Drop repeats and points in the middle of a straight run. */
@@ -273,5 +309,5 @@
     return false;
   }
 
-  return { route, crosses, MARGIN };
+  return { route, crosses, MARGIN, MAX_CELLS };
 });
