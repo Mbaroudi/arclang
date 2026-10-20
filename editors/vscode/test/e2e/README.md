@@ -33,6 +33,13 @@ with a host that edits through `arclang edit` and snapshots through
   dragged onto a box reconnects it, right-click opens the canvas's menu,
   Align bottom lines two boxes up, ⌘D twice in a row makes two copies
   (20 checks).
+- `vscode_drawio_test.js`: draw.io's gestures inside VS Code: lines go
+  around the boxes after a move and stay on their ports, the grid (Alt to
+  place freely), eight resize handles keeping what a box holds in place,
+  straight and curved lines kept in the layout file, a port slid along its
+  box, a name dragged off its line, an end snapping onto a box near the
+  pointer or over its body, a port let go on another box moved there, Reset
+  layout (28 checks; keys sent as an AZERTY Mac sends them).
 
 Run `./run.sh` from this folder after `cargo build --release` at the root.
 The VS Code test runs on its own, with the compiler on the PATH (or
