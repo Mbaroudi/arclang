@@ -51,7 +51,7 @@ export async function snapshotOfText(document: vscode.TextDocument, text: string
 /** What `arclang impact` says about an element of the text. */
 export async function impactOf(document: vscode.TextDocument, text: string, element: string, token?: vscode.CancellationToken): Promise<string> {
   return withTempFile(text, modelFileName(document), async (file, dir) => {
-    const result = await run(['impact', file, element], { cwd: dir, token });
+    const result = await run(['impact', '--', file, element], { cwd: dir, token });
     return result.code === 0 ? result.stdout.trim() : `impact ${element}: ${failureText(result)}`;
   });
 }
