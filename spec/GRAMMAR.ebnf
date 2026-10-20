@@ -59,6 +59,7 @@ TopLevelBlock   ::= RequirementsBlock
                   | SecurityScales
                   | TraceDecl
                   | DiagramDecl
+                  | TableDecl
                   | UnmodeledBlock ;          (* warning emitted *)
 
 (* ---- Requirements ---------------------------------------------------------- *)
@@ -404,6 +405,22 @@ DiagramAttribute ::= "view" ":" ( "oab" | "sab" | "lab" | "pab" | "cap" | "cdb" 
                    | "shows" ":" "[" ( Name ( "," Name )* )? "]"
                    | "context" ":" ( "true" | "false" )
                    | "description" ":" String ;
+
+(* ---- Tables ---------------------------------------------------------------- *)
+
+(* A live table or matrix, computed by the compiler on every change (see
+   spec/METAMODEL.md, kind Table). For a matrix, `columns` names the kinds
+   (or layers) of its columns; for a table, the columns shown. *)
+TableDecl       ::= "table" Name "{" TableAttribute* "}" ;
+TableAttribute  ::= "kind" ":" ( "requirements_coverage" | "traceability_matrix" | "allocation_matrix"
+                               | "interface_n2" | "icd" | "elements" )
+                  | "id" ":" String
+                  | "scope" ":" String                       (* OA, SA, LA, PA, EPBS or an element *)
+                  | "row_type" ":" String
+                  | ( "columns" | "rows" | "kinds" ) ":" "[" ( String ( "," String )* )? "]"
+                  | "filter" ":" String                      (* words, col:text, col=text, col!=text, is:gap, -term *)
+                  | "gaps_only" ":" ( "true" | "false" )
+                  | "description" ":" String ;
 
 (* ---- Modes & States (Arcadia transverse) -------------------------------------------------- *)
 

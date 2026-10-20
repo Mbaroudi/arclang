@@ -295,6 +295,7 @@ fn symbol_kind(keyword: &str) -> SymbolKind {
         "class" | "data_type" | "exchange_item" | "type" => SymbolKind::STRUCT,
         "enumeration" => SymbolKind::ENUM,
         "diagram" => SymbolKind::FILE,
+        "table" => SymbolKind::ARRAY, // tables hook
         _ => SymbolKind::VARIABLE,
     }
 }
@@ -385,6 +386,7 @@ fn kinds_of(keyword: &str) -> &'static [&'static str] {
         "scenario" => &["Scenario"],
         "message" => &["Message"],
         "diagram" => &["Diagram"],
+        "table" => &["Table"], // tables hook
         _ => &[],
     }
 }
@@ -394,6 +396,7 @@ const TOP_LEVEL: &[&str] = &[
     "model", "import", "operational_analysis", "system_analysis", "logical_architecture", "physical_architecture", "epbs",
     "architecture", "requirements", "safety_analysis", "security_analysis", "security_scales", "trace", "state_machine", "scenario", "scenarios", "class", "enumeration",
     "data_type", "exchange_item", "test_case", "constraint", "type", "diagram",
+    "table", // tables hook
 ];
 fn inside(keyword: &str) -> &'static [&'static str] {
     match keyword {

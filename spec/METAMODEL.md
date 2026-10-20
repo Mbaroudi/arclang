@@ -1087,6 +1087,25 @@ A declared diagram: a named view cut from one Arcadia level, drawing the element
 | `configuration` | `ref<Configuration>` | Draw the view of one configuration: without the variants it does not select. |
 | `description` | `text` | Free-text description. |
 
+#### Table
+
+A live table or matrix, computed by the compiler on every change: `requirements_coverage` (text, satisfied by, verified by with verdicts, gate status), `traceability_matrix`, `allocation_matrix`, `interface_n2`, `icd` or `elements`. It belongs to the layer its `scope` names. `arclang table` writes it as JSON, CSV, TSV, Markdown, HTML or Excel.
+
+- Arcadia: `(extension; Siemens/Cameo: generic or coverage table)`
+- SysML v2: `view (render asElementTable)`
+
+| Attribute | Type | Meaning |
+|---|---|---|
+| `kind` | `identifier` | requirements_coverage, traceability_matrix, allocation_matrix, interface_n2, icd or elements. |
+| `scope` | `text` | What the rows are taken from: a layer (OA, SA, LA, PA, EPBS) or an element, by id or name. |
+| `row_type` | `text` | The kind of the rows (`elements`: any kind of this metamodel; several separated by commas). |
+| `columns` | `list<text>` | The columns shown, in order; for a matrix, the kinds (or layers) of its columns. |
+| `rows` | `list<text>` | For a matrix: the kinds (or layers) of its rows. |
+| `kinds` | `list<text>` | For a traceability matrix: the trace kinds shown and created. |
+| `filter` | `text` | Rows kept: words, `column:text`, `column=text`, `column!=text`, `is:gap`, `-term` (all must match). |
+| `gaps_only` | `boolean` | Keep only the rows with a gap or a failure. |
+| `description` | `text` | Free-text description. |
+
 #### Scenario
 
 Sequence of messages between participants.

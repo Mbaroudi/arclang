@@ -58,6 +58,10 @@ pub struct Model {
     /// as Capella diagrams show what was put on them rather than a layer.
     #[serde(default)]
     pub diagrams: Vec<DiagramDecl>,
+    /// Tables declared by the author (`table "Name" { kind: ... }`): live
+    /// views computed by the compiler (see `compiler::tables`). // tables hook
+    #[serde(default)]
+    pub tables: Vec<super::tables::TableDecl>, // tables hook
 }
 
 /// `diagram "Name" { view: lab shows: [A, B] context: true }`.
@@ -100,6 +104,7 @@ impl Model {
             constraints: Vec::new(),
             types: Vec::new(),
             diagrams: Vec::new(),
+            tables: Vec::new(), // tables hook
         }
     }
     
@@ -132,6 +137,7 @@ impl Model {
         self.configurations.extend(other.configurations);
         self.constraints.extend(other.constraints);
         self.types.extend(other.types);
+        self.tables.extend(other.tables); // tables hook
     }
 
     /// Export the model to JSON string for diagram rendering

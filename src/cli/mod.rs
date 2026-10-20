@@ -1,5 +1,6 @@
 pub mod diagram_service;
 pub mod edit;
+pub mod table; // tables hook
 pub mod review;
 pub mod repl;
 pub mod language_server;
@@ -453,6 +454,11 @@ pub enum Commands {
         write: bool,
     },
 
+    /// Live tables and matrices of a model (requirement coverage,
+    /// traceability, allocation, N², ICD, elements), computed by the
+    /// compiler: JSON with ids and UUIDs, CSV, TSV, Markdown, HTML or Excel
+    Table(table::TableArgs), // tables hook
+
     /// Print the language metamodel (element kinds, typed attributes,
     /// enumerations, units, trace rules) as Markdown or JSON
     Metamodel {
@@ -757,6 +763,7 @@ impl CliRunner {
             }
             Commands::Workbench { input, gate_standard, exports } => edit::workbench(&input, &gate_standard, exports),
             Commands::Edit { input, request, write } => edit::apply_request(&input, &request, write),
+            Commands::Table(args) => table::run(&args), // tables hook
             Commands::Metamodel { format } => {
                 let metamodel = crate::compiler::metamodel::Metamodel::current();
                 match format {
