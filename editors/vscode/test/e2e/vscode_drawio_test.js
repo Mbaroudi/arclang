@@ -119,7 +119,11 @@ async function launch(dir, model) {
 
     // 3. Resize from every side: eight handles; the left one keeps what the box holds in place
     await blank();
+    const wide0 = await page.evaluate(() => innerWidth);
     let s = await shape('LC-CTL'); await win.mouse.click(s.x + 30, s.y + 8); await win.waitForTimeout(800);
+    // The selection follows into the text only out of full screen: shown, the text would take half the window.
+    const wide1 = await page.evaluate(() => innerWidth);
+    report('a box selected in full screen keeps the full screen', wide1 === wide0, `${wide0} -> ${wide1}`);
     const handles = await page.locator('.arcviz-resize:not([hidden])').count();
     report('the selected box shows eight resize handles', handles === 8, `${handles}`);
     const inner0 = await shape('LF-PLAN'); const ref0 = await shape('LC-ACT');

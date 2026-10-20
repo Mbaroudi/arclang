@@ -47,7 +47,7 @@ with a host that edits through `arclang edit` and snapshots through
   straight and curved lines kept in the layout file, a port slid along its
   box, a name dragged off its line, an end snapping onto a box near the
   pointer or over its body, a port let go on another box moved there, Reset
-  layout (28 checks; keys sent as an AZERTY Mac sends them).
+  layout, the full screen kept when a box is selected (29 checks; keys sent as an AZERTY Mac sends them).
 
 - `vscode_panes_test.js`: the panes in VS Code itself: quantity, enumeration
   and reference edited in the pane, refusals as they are typed, ⌘Z (AZERTY),
@@ -62,7 +62,7 @@ with a host that edits through `arclang edit` and snapshots through
   (no network, no key): the key command, the status bar, ⌘I on two boxes, a
   proposal previewed (diff, marks), applied, compiled and undone with ⌘Z; an
   ask on a text selection applied from its notification; a suggestion after
-  an edit that removes a trace, applied; the log without the key (28 checks).
+  an edit that removes a trace, applied; the log without the key (30 checks).
 
 - `tables_test.js` (run by `run.sh`): the table view in a browser, on tables
   the compiler computed from `tests/fixtures/tables/braking.arc`: rows,

@@ -340,8 +340,18 @@ export async function revealElement(
   if (!range) {
     vscode.window.setStatusBarMessage(`ArcLang: ${elementLabel({ ...element, kind: '' })} is not declared in this file (it may come from an import)`, 4000);
     return false;
+/**
+ * The text editor that shows the document in an editor group of its own. The
+ * side of a diff editor (an AI proposal, say) is visible too but has no column:
+ * revealing there would put the text in the first group, over the workbench.
+ */
+export function shownTextEditor(document: vscode.TextDocument): vscode.TextEditor | undefined {
+  const uri = document.uri.toString();
+  return vscode.window.visibleTextEditors.find((e) => e.document.uri.toString() === uri && e.viewColumn !== undefined);
+}
+
   }
-  const column = vscode.window.visibleTextEditors.find((e) => e.document.uri.toString() === document.uri.toString())?.viewColumn ?? vscode.ViewColumn.One;
+  const column = shownTextEditor(document)?.viewColumn ?? vscode.ViewColumn.One;
   const editor = await vscode.window.showTextDocument(document, { viewColumn: column, preserveFocus: options.preserveFocus ?? false, preview: false });
   editor.selection = new vscode.Selection(range.start, range.end);
   editor.revealRange(range, vscode.TextEditorRevealType.InCenterIfOutsideViewport);

@@ -197,6 +197,10 @@ export class WorkbenchPanel {
   get selectedId(): string | null {
     return this.selected;
   }
+  /** In full screen, its editor group fills the window: nothing else may be shown beside it. */
+  get fullScreen(): boolean {
+    return this.maximized;
+  }
 
   select(id: string | null): void {
     this.selected = id;

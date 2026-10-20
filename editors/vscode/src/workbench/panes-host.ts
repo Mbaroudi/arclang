@@ -11,7 +11,7 @@ import { applyRequests, editText, refusalMessage } from './edits';
 import { onDidSelectElement, WorkbenchPanel } from './panel';
 import { snapshotOf } from './snapshot';
 import { arcTextOf, documentDir } from './source';
-import { locateElement, ModelItem, ModelTreeProvider, revealElement } from './tree';
+import { locateElement, ModelItem, ModelTreeProvider, revealElement, shownTextEditor } from './tree';
 
 export { isPanesMessage };
 
@@ -142,10 +142,12 @@ export function registerPanes(context: vscode.ExtensionContext, tree: ModelTreeP
       // The page the selection came from already holds it; the others follow.
       for (const other of panels) if (other.selectedId !== id) other.select(id);
       if (!id || panels.length === 0) return;
+      // In full screen the text is hidden behind the maximized group: showing it there would
+      // bring the other groups back and take the full screen away from under the pointer.
+      if (panels.some((panel) => panel.fullScreen)) return;
       // A selection made in the text (the cursor) stays the reader's: the text is followed only from a page.
       if (vscode.window.activeTextEditor?.document.uri.toString() === uri.toString()) return;
-      const editor = vscode.window.visibleTextEditors.find((e) => e.document.uri.toString() === uri.toString());
-      if (!editor) return;
+      if (!shownTextEditor(panels[0].documentOf)) return;
       const element = await elementOf(panels[0].documentOf, id);
       if (element) await revealElement(panels[0].documentOf, element, { preserveFocus: true });
     }),
