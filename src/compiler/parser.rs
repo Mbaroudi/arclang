@@ -2043,7 +2043,8 @@ impl Parser {
             }
         };
 
-        let name = format!("{} Requirements", subtype);
+        // `requirements { }` is "Requirements", `requirements safety { }` "Safety Requirements".
+        let name = if subtype == "Requirements" { subtype.clone() } else { format!("{} Requirements", subtype) };
         self.expect(Token::LeftBrace)?;
         
         let mut requirements = Vec::new();
