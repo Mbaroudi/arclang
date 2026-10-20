@@ -59,8 +59,10 @@ test('every preset colours every concept and every exchange', () => {
 
 test('Capella classic keeps Capella colours where its code is', () => {
   const capella = Theme.preset('capella-classic');
-  assert.equal(capella.concepts.system_function.fill, '#C5FFA6'); // _CAP_xAB_Function_Green
   assert.equal(capella.concepts.logical_component.fill, '#96B1DA'); // _CAP_Component_Blue
+  assert.equal(capella.concepts.physical_node.fill, '#FFFCB7'); // _CAP_Node_Yellow
+  // Functions are one step darker than _CAP_xAB_Function_Green, to stay apart from nodes for a deuteranope.
+  assert.ok(Color.deltaE(Color.parse(capella.concepts.system_function.fill), Color.parse('#C5FFA6')) < 6);
   assert.equal(capella.concepts.operational_activity.fill, '#F7DA74'); // _CAP_Activity_Orange
   assert.equal(capella.exchanges.physical_link.line, '#EF2929'); // Sirius red
   assert.equal(capella.exchanges.functional_exchange.line, '#095C2E'); // _CAP_xAB_Function_Border_Green
@@ -105,7 +107,7 @@ test('a theme colours the boxes, the lines, the text and the sheet', () => {
   const palette = Theme.palette(Theme.preset('capella-classic'));
   const edge = { id: 'E1', sources: ['A'], targets: ['B'], container: 'lab', labels: [{ text: 'data', x: 40, y: 40 }], sections: [{ startPoint: { x: 130, y: 30 }, endPoint: { x: 200, y: 30 } }], arc: { kind: 'functional_exchange', source_node: 'A', target_node: 'B', properties: {} } };
   const { svg } = Render.renderSvg(view('lab', [box('A', 'function'), box('B', 'logical_component', { x: 200 })], [edge]), { theme: palette });
-  assert.equal(fillOf(svg, 'A'), '#C5FFA6');
+  assert.equal(fillOf(svg, 'A'), '#B8F396');
   assert.equal(strokeOf(svg, 'A'), '#095C2E');
   assert.equal(fillOf(svg, 'B'), '#96B1DA');
   assert.match(svg, /class="av-line"[^>]*stroke="#095C2E"/);

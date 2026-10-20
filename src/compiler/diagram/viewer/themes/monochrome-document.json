@@ -8,11 +8,11 @@
   "muted": "#1A2533",
   "concepts": {
     "operational_entity": {
-      "fill": "#9FB0C3",
+      "fill": "#FFFFFF",
       "stroke": "#2F4A66"
     },
     "operational_activity": {
-      "fill": "#EDF1F5",
+      "fill": "#CDD7E2",
       "stroke": "#2F4A66"
     },
     "operational_capability": {
@@ -20,7 +20,7 @@
       "stroke": "#2F4A66"
     },
     "system_actor": {
-      "fill": "#CDD7E2",
+      "fill": "#7B8FA6",
       "stroke": "#2F4A66"
     },
     "system_component": {
@@ -36,19 +36,19 @@
       "stroke": "#2F4A66"
     },
     "system_function": {
-      "fill": "#FFFFFF",
+      "fill": "#CDD7E2",
       "stroke": "#2F4A66"
     },
     "logical_function": {
-      "fill": "#FFFFFF",
+      "fill": "#CDD7E2",
       "stroke": "#2F4A66"
     },
     "physical_function": {
-      "fill": "#FFFFFF",
+      "fill": "#CDD7E2",
       "stroke": "#2F4A66"
     },
     "physical_node": {
-      "fill": "#7B8FA6",
+      "fill": "#FFFFFF",
       "stroke": "#2F4A66"
     },
     "capability": {
@@ -60,7 +60,7 @@
       "stroke": "#2F4A66"
     },
     "functional_chain": {
-      "fill": "#7B8FA6",
+      "fill": "#9FB0C3",
       "stroke": "#2F4A66"
     },
     "data_type": {

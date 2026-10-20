@@ -3,7 +3,7 @@
   "id": "capella-classic",
   "name": "Capella classic",
   "description": "Capella's own colour code: functions green, components blue, actors light blue, nodes yellow, operational entities grey and activities orange, physical links red.",
-  "source": "Eclipse Capella 7.1, plugin org.polarsys.capella.core.sirius.analysis: description/common.odesign, user palette \"Migration Palette\" (_CAP_* colours); edge styles of oa, context, logical and physical.odesign; Sirius system colours (red 239,41,41; dark_red 164,0,0; dark_gray 85,85,85). Capabilities, missions and requirements, drawn by Capella with icons on white, take tints of that palette.",
+  "source": "Eclipse Capella 7.1, plugin org.polarsys.capella.core.sirius.analysis: description/common.odesign, user palette \"Migration Palette\" (_CAP_* colours); edge styles of oa, context, logical and physical.odesign; Sirius system colours (red 239,41,41; dark_red 164,0,0; dark_gray 85,85,85). Kept as Capella has them: components 150,177,218, nodes 255,252,183, activities 247,218,116, the borders and lines. Moved one step, each to pass a rule: functions 184,243,150 for 197,255,166 and actors 178,216,246 for 198,230,255 (apart in grayscale and for deuteranopes on the Physical view), entities 196,196,168 for 221,221,200 (apart from activities in grayscale), component exchanges 2.5 px wide (apart from functional exchanges in grayscale). Capabilities, missions, functional chains and requirements, drawn by Capella with icons, take tints of that palette.",
   "background": "#FFFFFF",
   "text": "#000000",
   "muted": "#333333",
@@ -21,7 +21,7 @@
       "stroke": "#5B4040"
     },
     "system_actor": {
-      "fill": "#BFDFFA",
+      "fill": "#B2D8F6",
       "stroke": "#4A4A97"
     },
     "system_component": {
@@ -37,22 +37,22 @@
       "stroke": "#4A4A97"
     },
     "system_function": {
-      "fill": "#C5FFA6",
+      "fill": "#B8F396",
       "stroke": "#095C2E",
       "text": "#000000"
     },
     "logical_function": {
-      "fill": "#C5FFA6",
+      "fill": "#B8F396",
       "stroke": "#095C2E",
       "text": "#000000"
     },
     "physical_function": {
-      "fill": "#C5FFA6",
+      "fill": "#B8F396",
       "stroke": "#095C2E",
       "text": "#000000"
     },
     "physical_node": {
-      "fill": "#E0C650",
+      "fill": "#FFFCB7",
       "stroke": "#7B694F"
     },
     "capability": {

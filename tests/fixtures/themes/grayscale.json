@@ -1,5 +1,5 @@
 {
   "description": "Functions as light as the components: apart in colour, alike once printed in gray.",
-  "expect": { "ok": false, "rules": ["grayscale"], "errors": ["logical component and logical function are too close in grayscale (ΔL 4.3) on the Logical view; vary lightness"] },
-  "theme": { "version": 1, "name": "Flat lightness", "extends": "arclang-default", "concepts": { "system_function": { "fill": "#AACF96" }, "logical_function": { "fill": "#AACF96" }, "physical_function": { "fill": "#AACF96" } } }
+  "expect": { "ok": false, "rules": ["grayscale"], "errors": ["logical component and logical function are too close in grayscale (ΔL 4.6) on the Logical view; vary lightness"] },
+  "theme": { "version": 1, "name": "Flat lightness", "extends": "arclang-default", "concepts": { "system_function": { "fill": "#98BE83" }, "logical_function": { "fill": "#98BE83" }, "physical_function": { "fill": "#98BE83" } } }
 }

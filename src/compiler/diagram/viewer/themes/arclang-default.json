@@ -2,13 +2,13 @@
   "version": 1,
   "id": "arclang-default",
   "name": "ArcLang default",
-  "description": "The colours ArcLang has always drawn with, Capella's code in softer tints: functions green, components blue, nodes yellow, operational analysis orange and grey.",
+  "description": "Capella's code in ArcLang's tints: functions green, components blue, nodes yellow, operational analysis orange and grey. The colours ArcLang drew with before themes, moved where they broke a rule (component outlines were the selection blue; actors, components and functions too close in grayscale).",
   "background": "#FFFFFF",
   "text": "#18222D",
   "muted": "#2E3742",
   "concepts": {
     "operational_entity": {
-      "fill": "#BCC2C9",
+      "fill": "#C4C2B8",
       "stroke": "#4F5A66"
     },
     "operational_activity": {
@@ -20,19 +20,19 @@
       "stroke": "#8A6A2E"
     },
     "system_actor": {
-      "fill": "#F2F7FD",
+      "fill": "#B9D5F4",
       "stroke": "#43437A"
     },
     "system_component": {
-      "fill": "#9DBBE3",
+      "fill": "#86A9DA",
       "stroke": "#27466F"
     },
     "logical_component": {
-      "fill": "#9DBBE3",
+      "fill": "#86A9DA",
       "stroke": "#27466F"
     },
     "behaviour_component": {
-      "fill": "#9DBBE3",
+      "fill": "#86A9DA",
       "stroke": "#27466F"
     },
     "system_function": {
@@ -48,7 +48,7 @@
       "stroke": "#3C8A3F"
     },
     "physical_node": {
-      "fill": "#F2D25E",
+      "fill": "#FFF6B8",
       "stroke": "#7A6800"
     },
     "capability": {

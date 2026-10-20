@@ -484,6 +484,13 @@ pub enum Commands {
         #[clap(long, value_parser)]
         layout: Option<PathBuf>,
 
+        /// Colour theme of the HTML viewer (-f html): a preset
+        /// (arclang-default, capella-classic, colorblind-safe,
+        /// print-grayscale, high-contrast, monochrome-document) or an
+        /// arclang-theme.json file. A file that breaks a colour rule is refused
+        #[clap(long)]
+        theme: Option<String>,
+
         #[clap(long)]
         open: bool,
     },
@@ -725,15 +732,27 @@ impl CliRunner {
             Commands::Diagram {
                 input,
                 output,
-                format: format @ (DiagramFormat::Viewpoints | DiagramFormat::Elk | DiagramFormat::Html),
+                format: format @ DiagramFormat::Html,
+                view,
+                layout,
+                theme,
+                ..
+            } => self.run_viewpoint_diagrams(input, output, view, format, layout, theme),
+            Commands::Diagram { theme: Some(_), format, .. } => Err(CliError::Compilation(format!(
+                "--theme colours the HTML viewer (-f html), not {format:?}"
+            ))),
+            Commands::Diagram {
+                input,
+                output,
+                format: format @ (DiagramFormat::Viewpoints | DiagramFormat::Elk),
                 view,
                 layout,
                 ..
-            } => self.run_viewpoint_diagrams(input, output, view, format, layout),
+            } => self.run_viewpoint_diagrams(input, output, view, format, layout, None),
             Commands::Diagram { layout: Some(_), format, .. } => Err(CliError::Compilation(format!(
                 "--layout applies to the viewpoint diagrams (-f html, viewpoints or elk), not to {format:?}"
             ))),
-            Commands::Diagram { input, output, format, title, open, view: _, layout: None } => {
+            Commands::Diagram { input, output, format, title, open, view: _, layout: None, theme: None } => {
                 self.run_diagram(input, output, format, title, open)
             }
             Commands::Set { input, element, key, value, write } => {
@@ -1888,8 +1907,12 @@ impl CliRunner {
         view: Option<String>,
         format: DiagramFormat,
         layout: Option<PathBuf>,
+        theme: Option<String>,
     ) -> Result<(), CliError> {
-        use crate::compiler::diagram::{build_diagrams, elk, html, layout_file, ViewKind};
+        use crate::compiler::diagram::{build_diagrams, elk, html, layout_file, theme as themes, ViewKind};
+
+        // A theme is checked before anything is compiled: a refused one stops here.
+        let theme = theme.as_deref().map(themes::resolve).transpose().map_err(CliError::Config)?;
 
         let selected = match view.as_deref() {
             None => None,
@@ -1930,7 +1953,7 @@ impl CliRunner {
                     Some(crate::compiler::ast::AttributeValue::String(name)) => name.clone(),
                     _ => input.file_stem().map(|s| s.to_string_lossy().into_owned()).unwrap_or_default(),
                 };
-                Ok(html::standalone_html(&set, &title))
+                Ok(html::standalone_html_themed(&set, &title, theme.as_ref()))
             }
             _ => serde_json::to_string_pretty(&set).map(|json| format!("{json}\n")),
         }
@@ -1945,6 +1968,9 @@ impl CliRunner {
         }
         if set.layout.is_some() {
             println!("  Layout: {}", layout.unwrap_or_else(|| layout_file::sidecar_path(&input)).display());
+        }
+        if let Some(theme) = &theme {
+            println!("  Theme: {}", theme["name"].as_str().unwrap_or("custom"));
         }
         println!("  Output: {}", output.display());
         Ok(())
