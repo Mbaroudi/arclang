@@ -110,12 +110,16 @@ async function saveTo(win, file) {
     await table.click('.tb-button:has-text("Excel")');
     await saveTo(win, path.join(dir, 'coverage.xlsx'));
     const book = path.join(dir, 'coverage.xlsx');
-    let read = null;
-    if (fs.existsSync(book) && process.env.OPENPYXL_PYTHON) {
+    // The Python that reads it back: OPENPYXL_PYTHON, else python3 when it has openpyxl.
+    const python = process.env.OPENPYXL_PYTHON || (() => { try { execFileSync('python3', ['-I', '-c', 'import openpyxl']); return 'python3'; } catch { return null; } })();
+    let read = null; let why = '';
+    if (!fs.existsSync(book)) why = 'no workbook written (the save dialog or the writer)';
+    else if (!python) why = 'no Python with openpyxl: set OPENPYXL_PYTHON';
+    else {
       const script = 'import json,sys,openpyxl\nwb=openpyxl.load_workbook(sys.argv[1])\nws=wb.active\nprint(json.dumps({"title":ws.title,"rows":ws.max_row,"cols":ws.max_column,"head":[c.value for c in ws[1]],"a2":ws["A2"].value,"frozen":ws.freeze_panes,"filter":ws.auto_filter.ref}))';
-      read = JSON.parse(execFileSync(process.env.OPENPYXL_PYTHON, ['-I', '-c', script, book]).toString());
+      try { read = JSON.parse(execFileSync(python, ['-I', '-c', script, book]).toString()); } catch (error) { why = `openpyxl refused it: ${String(error).slice(0, 160)}`; }
     }
-    report('Export Excel writes a workbook openpyxl reads', !!read && read.title === 'Requirement coverage' && read.rows === 8 && read.head[0] === 'Req id' && read.a2 === 'REQ-AEB-001' && read.frozen === 'A2' && !!read.filter, JSON.stringify(read));
+    report('Export Excel writes a workbook openpyxl reads', !!read && read.title === 'Requirement coverage' && read.rows === 8 && read.head[0] === 'Req id' && read.a2 === 'REQ-AEB-001' && read.frozen === 'A2' && !!read.filter, why || JSON.stringify(read));
 
     // 5. Copy: TSV on the clipboard
     execFileSync('/bin/sh', ['-c', 'printf nothing | pbcopy']);

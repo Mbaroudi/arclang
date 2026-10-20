@@ -73,8 +73,8 @@ with a host that edits through `arclang edit` and snapshots through
 - `vscode_tables_test.js`: the tables in VS Code itself on a copy of the
   flagship example: the coverage table in its own tab, the filter, a cell
   edited (the source changes, ⌘Z typed on AZERTY takes it back), CSV and
-  Excel through the save dialog (the workbook read back with openpyxl when
-  `OPENPYXL_PYTHON` names a Python that has it), Copy as TSV (`pbpaste`), a
+  Excel through the save dialog (the workbook read back with openpyxl, by
+  `OPENPYXL_PYTHON` or else `python3` when it has it), Copy as TSV (`pbpaste`), a
   trace created from a matrix and removed after the confirmation.
 
 Run `./run.sh` from this folder after `cargo build --release` at the root.

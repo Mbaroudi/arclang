@@ -429,7 +429,7 @@ async function twoModels() {
 
 /** The themes (Light, Dark, High Contrast) and a narrow editor, with pictures. */
 async function looks() {
-  const themes = [['Default Light Modern', 'vscode-light', 'none'], ['Default Dark Modern', 'vscode-dark', 'invert'], ['Default High Contrast', 'vscode-high-contrast', 'invert']];
+  const themes = [['Default Light Modern', 'vscode-light', 'none'], ['Default Dark Modern', 'vscode-dark', 'dark'], ['Default High Contrast', 'vscode-high-contrast', 'dark']];
   for (const [theme, bodyClass, filter] of themes) {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'arcvs-look-'));
     const model = path.join(dir, 'model.arc'); fs.copyFileSync(path.join(EXT, 'media', 'reference.arc'), model);
@@ -439,10 +439,16 @@ async function looks() {
       if (!ctx.page) throw new Error('no workbench page');
       ctx.press = await azerty(win); const h = on(ctx);
       await h.layer('Logical');
-      const look = await ctx.page.evaluate(() => ({ body: document.body.className, filter: getComputedStyle(document.querySelector('.arcviz-stage svg.av-svg')).filter }));
+      // A dark theme: the colour theme's own dark variant, else the light drawing inverted.
+      const look = await ctx.page.evaluate(() => {
+        const shape = document.querySelector('.arcviz-stage .av-node > .av-shape');
+        const rgb = (getComputedStyle(shape).fill.match(/\d+(\.\d+)?/g) || ['255', '255', '255']).slice(0, 3).map(Number);
+        return { body: document.body.className, filter: getComputedStyle(document.querySelector('.arcviz-stage svg.av-svg')).filter, boxLuma: Math.round((0.2126 * rgb[0] + 0.7152 * rgb[1] + 0.0722 * rgb[2]) / 2.55) };
+      });
       const slug = bodyClass.replace('vscode-', '');
       await h.shot(`theme-${slug}`);
-      report(`${theme}: the sheet and the boxes follow the theme`, look.body.includes(bodyClass) && (filter === 'none' ? look.filter === 'none' : /invert/.test(look.filter)), `${look.body} | ${look.filter}`);
+      const darkDrawn = /invert/.test(look.filter) || (/wb-theme-own-dark/.test(look.body) && look.filter === 'none' && look.boxLuma < 50);
+      report(`${theme}: the sheet and the boxes follow the theme`, look.body.includes(bodyClass) && (filter === 'none' ? look.filter === 'none' : darkDrawn), `${look.body} | ${look.filter} | box ${look.boxLuma}% light`);
       if (bodyClass !== 'vscode-light') continue;
       // A narrow editor: the canvas keeps the width, the properties float over it.
       await ctx.command('View: Close Primary Side Bar'); await h.deselect();
