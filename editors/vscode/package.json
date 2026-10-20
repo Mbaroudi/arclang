@@ -141,6 +141,50 @@
         "category": "ArcLang"
       },
       {
+        "command": "arclang.ai.askSelection",
+        "title": "Ask AI about the selection",
+        "category": "ArcLang",
+        "icon": "$(sparkle)"
+      },
+      {
+        "command": "arclang.ai.analyseImpact",
+        "title": "Analyse impact with AI",
+        "category": "ArcLang",
+        "icon": "$(lightbulb)"
+      },
+      {
+        "command": "arclang.ai.configure",
+        "title": "Configure AI (provider, model, suggestions)",
+        "category": "ArcLang",
+        "icon": "$(settings-gear)"
+      },
+      {
+        "command": "arclang.ai.setApiKey",
+        "title": "Set AI API key",
+        "category": "ArcLang",
+        "icon": "$(key)"
+      },
+      {
+        "command": "arclang.ai.clearApiKey",
+        "title": "Clear AI API key",
+        "category": "ArcLang"
+      },
+      {
+        "command": "arclang.ai.testConnection",
+        "title": "Test AI connection",
+        "category": "ArcLang"
+      },
+      {
+        "command": "arclang.ai.pickModel",
+        "title": "Choose the AI model",
+        "category": "ArcLang"
+      },
+      {
+        "command": "arclang.ai.showLog",
+        "title": "Show the AI log",
+        "category": "ArcLang"
+      },
+      {
         "command": "arclang.diffWithHead",
         "title": "Semantic diff against the committed version",
         "category": "ArcLang"
@@ -381,6 +425,11 @@
         {
           "command": "arclang.impact",
           "when": "resourceLangId == arclang",
+          "group": "arclang@1"
+        },
+        {
+          "command": "arclang.ai.askSelection",
+          "when": "resourceLangId == arclang && editorHasSelection",
           "group": "arclang@1"
         },
         {
@@ -705,7 +754,136 @@
           "default": 2,
           "minimum": 0,
           "maximum": 5,
-          "markdownDescription": "When a model written by `@arclang` does not compile, how many times the compiler's errors are sent back to the model before the answer is shown as is."
+          "markdownDescription": "When what an AI wrote does not compile (a model of `@arclang`, the edits of **Ask AI**), how many times the compiler's errors are sent back to it before the answer is shown as refused."
+        },
+        "arclang.ai.provider": {
+          "type": "string",
+          "default": "vscode-lm",
+          "enum": [
+            "vscode-lm",
+            "anthropic",
+            "openai",
+            "azure-openai",
+            "mistral",
+            "google",
+            "ollama",
+            "openai-compatible",
+            "off"
+          ],
+          "enumDescriptions": [
+            "The language models VS Code offers (GitHub Copilot or any other extension's); pick one with arclang.ai.vscodeModel.",
+            "Anthropic Claude (key: ArcLang: Set AI API key).",
+            "OpenAI (key: ArcLang: Set AI API key).",
+            "Azure OpenAI: arclang.ai.endpoint, arclang.ai.azureDeployment and arclang.ai.apiVersion, and a key.",
+            "Mistral AI (key: ArcLang: Set AI API key).",
+            "Google Gemini (key: ArcLang: Set AI API key).",
+            "Ollama on this machine: no key, nothing leaves it.",
+            "Any server with the OpenAI chat completions API (LM Studio, vLLM, llama.cpp, LiteLLM…) at arclang.ai.endpoint; key optional.",
+            "No AI: nothing is ever sent."
+          ],
+          "markdownDescription": "The AI behind **Ask AI** (⌘I on a selection), the impact suggestions and `@arclang`. API keys are never settings: run **ArcLang: Set AI API key** (stored in the OS keychain through VS Code's secret storage). User setting only: a workspace cannot redirect the requests.",
+          "scope": "machine"
+        },
+        "arclang.ai.model": {
+          "type": "string",
+          "default": "",
+          "examples": [
+            "claude-opus-5-5",
+            "claude-sonnet-5-5",
+            "claude-haiku-5-5",
+            "gpt-5",
+            "gpt-5-mini",
+            "mistral-large-latest",
+            "codestral-latest",
+            "gemini-2.5-pro",
+            "gemini-2.5-flash",
+            "llama3.1",
+            "qwen2.5-coder"
+          ],
+          "markdownDescription": "The model, as the provider spells it. Empty: the provider's default (`claude-opus-5-5` for Anthropic, `gpt-5` for OpenAI, `mistral-large-latest`, `gemini-2.5-pro`, `llama3.1` for Ollama; the deployment for Azure). **ArcLang: Choose the AI model** lists them."
+        },
+        "arclang.ai.vscodeModel": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "With the `vscode-lm` provider: the VS Code language model to use, by id or family (for example `gpt-4.1`, `claude-sonnet-4`). Empty: the first Copilot model. **ArcLang: Choose the AI model** picks it from the list."
+        },
+        "arclang.ai.endpoint": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "The base URL of the provider. Empty: its public API (`https://api.anthropic.com`, `https://api.openai.com/v1`, `https://api.mistral.ai/v1`, `https://generativelanguage.googleapis.com/v1beta`, `http://localhost:11434` for Ollama). Required for `azure-openai` (`https://<resource>.openai.azure.com`) and `openai-compatible` (for example `http://localhost:1234/v1`). User setting only.",
+          "scope": "machine"
+        },
+        "arclang.ai.azureDeployment": {
+          "type": "string",
+          "default": "",
+          "description": "Azure OpenAI: the name of the deployment to call.",
+          "scope": "machine"
+        },
+        "arclang.ai.apiVersion": {
+          "type": "string",
+          "default": "2024-10-21",
+          "description": "Azure OpenAI: the api-version of the requests.",
+          "scope": "machine"
+        },
+        "arclang.ai.maxTokens": {
+          "type": "integer",
+          "default": 4096,
+          "minimum": 256,
+          "maximum": 200000,
+          "description": "The longest answer, in tokens."
+        },
+        "arclang.ai.temperature": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "default": null,
+          "minimum": 0,
+          "maximum": 2,
+          "markdownDescription": "Sampling temperature. `null`: the provider's default (some models accept no other)."
+        },
+        "arclang.ai.timeoutSeconds": {
+          "type": "integer",
+          "default": 90,
+          "minimum": 5,
+          "maximum": 600,
+          "description": "The longest wait for the provider's first byte, and between two parts of its answer."
+        },
+        "arclang.ai.suggestOnEdit": {
+          "type": "string",
+          "default": "onRequest",
+          "enum": [
+            "off",
+            "onRequest",
+            "afterEachEdit"
+          ],
+          "enumDescriptions": [
+            "No impact analysis after edits.",
+            "After an edit, the compiler's consequences (broken traces, new findings, gate blockers) show in the Suggestions pane; the AI is asked when you click \"Propose changes with AI\" or \"Analyse impact\".",
+            "After an edit with consequences, the AI proposes one to three changes in the Suggestions pane, each checked by the compiler. Nothing is applied without your click."
+          ],
+          "description": "Impact-driven AI suggestions while editing in the workbench."
+        },
+        "arclang.ai.contextScope": {
+          "type": "string",
+          "default": "selectionAndNeighbours",
+          "enum": [
+            "selection",
+            "selectionAndNeighbours",
+            "wholeModel"
+          ],
+          "enumDescriptions": [
+            "The source of the selected elements, their relationships and findings.",
+            "Also the source of their neighbours (the other ends of their relationships, their owners).",
+            "Also the whole model text (clipped to a size the model takes)."
+          ],
+          "description": "What the AI is shown around a selection, besides the metamodel of its kinds and the gate state."
+        },
+        "arclang.ai.confirmBeforeSending": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Ask before the first request to a cloud provider (per provider and endpoint), saying what is sent and where. Local servers (`localhost`, Ollama) are not asked. User setting only.",
+          "scope": "machine"
         },
         "arclang.mcp.command": {
           "type": "string",
@@ -1194,6 +1372,12 @@
       }
     ],
     "keybindings": [
+      {
+        "command": "arclang.ai.askSelection",
+        "key": "ctrl+i",
+        "mac": "cmd+i",
+        "when": "editorTextFocus && editorLangId == arclang && editorHasSelection"
+      },
       {
         "command": "arclang.pickDiagram",
         "key": "ctrl+alt+d",

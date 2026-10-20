@@ -17,6 +17,7 @@ import { DiagramContents } from './diagram-contents';
 import { createStatusLine } from './status-line';
 import { changesOf, markFindings as markFindings_, pulse, renderLayers as renderLayers_ } from './marks';
 import { modelIdOf, relationshipOfEdge } from '../src/pure/editing';
+import { installAi } from './ask-ai'; // ai-design hook
 
 const vscode = acquireVsCodeApi();
 
@@ -402,6 +403,9 @@ async function joinLayout(run: () => Promise<void> | undefined): Promise<void> {
     joining -= 1;
   }
 }
+
+// ai-design hook: Ask AI on the selection (⌘I) and the Suggestions pane (webview/ask-ai.ts).
+installAi({ post: (m) => vscode.postMessage(m as never), sheet, host, selection: () => (multi.length > 1 ? multi : state.selected ? [state.selected] : []), drawingId, toast: (text, kind) => showToast(text, kind), openDrawer: () => setDrawer(true), snapshot: () => state.snapshot });
 
 /** Exports go to the host, which asks where to save them (a webview cannot download). */
 function onDownload(blob: Blob, filename: string): void {
