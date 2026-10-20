@@ -125,7 +125,11 @@
         const [view, open, ...folded] = JSON.parse(key);
         const placed = places.get(key) || {};
         const bent = routes.get(key);
-        const entry = { view, open, folded, places: Object.fromEntries(Object.keys(placed).sort().map((node) => [node, placed[node]])) };
+        // Only what the view draws: an element removed or renamed since leaves nothing behind.
+        const drawsNode = (node) => nodes.has(view) && nodes.get(view).has(node);
+        const drawsPort = (port) => portIds.has(view) && portIds.get(view).has(port);
+        const only = (object, keep) => Object.fromEntries(Object.keys(object).filter(keep).sort().map((k) => [k, object[k]]));
+        const entry = { view, open, folded, places: only(placed, drawsNode) };
         // Written only when an exchange was bent: files without bends stay as they were.
         // Only exchanges the view draws: a renamed or removed one leaves nothing behind.
         // A line's style and the offset of its name go with its points, each written only when set.
@@ -140,10 +144,12 @@
             ...(named[edge] ? { label: named[edge] } : {}),
           }]));
         }
-        if (ports.has(key)) entry.ports = sorted(ports.get(key));
-        if (order.has(key)) entry.order = sorted(order.get(key));
+        const moved = ports.has(key) ? only(ports.get(key), drawsPort) : {};
+        const stacked = order.has(key) ? only(order.get(key), drawsNode) : {};
+        if (Object.keys(moved).length) entry.ports = moved;
+        if (Object.keys(stacked).length) entry.order = stacked;
         return entry;
-      });
+      }).filter((entry) => Object.keys(entry.places).length || entry.edges || entry.ports || entry.order);
       return { arclang_layout: LAYOUT_VERSION, views, arrangements };
     }
 

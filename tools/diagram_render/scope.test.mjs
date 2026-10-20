@@ -275,3 +275,12 @@ test('a route has at most 64 points, and only exchanges the view draws are writt
   const loaded = create({ graphs: withEdge(), collapse, storage: null, storageKey: 'arcviz:cap2', initial: file });
   assert.deepEqual(Object.keys(loaded.toFile().arrangements[0].edges), ['ce:AB']);
 });
+
+test('what the view no longer draws is left out when the file is written', () => {
+  const scope = scopeOf(memory());
+  scope.moveBy('lab', 'C', 5, 5);
+  scope.moveBy('lab', 'Gone', 7, 7);
+  scope.moveBy('cdb', 'Removed', 1, 1);
+  const file = scope.toFile();
+  assert.deepEqual(file.arrangements, [{ view: 'lab', open: null, folded: [], places: { C: { dx: 5, dy: 5 } } }], JSON.stringify(file));
+});

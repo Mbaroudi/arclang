@@ -43,6 +43,12 @@ use std::path::{Path, PathBuf};
 pub const LAYOUT_VERSION: &str = "1";
 /// Sheet units beyond which an offset is not a placement.
 const FARTHEST: f64 = 100_000.0;
+/// The most arrangements a file may hold (views times opened containers).
+pub const MAX_ARRANGEMENTS: usize = 2_000;
+/// The most entries one map of a layout may hold (places, edges, ports, order, folded).
+pub const MAX_ENTRIES: usize = 50_000;
+/// The most points one bent exchange may pass through.
+pub const MAX_BENDS: usize = 1_000;
 
 #[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -163,7 +169,36 @@ impl LayoutFile {
                 layout.arclang_layout
             ));
         }
+        if layout.arrangements.len() > MAX_ARRANGEMENTS || layout.views.len() > MAX_ENTRIES {
+            return Err(format!(
+                "layout file: {} arrangements and {} views, more than a layout holds ({MAX_ARRANGEMENTS} and {MAX_ENTRIES})",
+                layout.arrangements.len(),
+                layout.views.len()
+            ));
+        }
+        if let Some((view, _)) = layout.views.iter().find(|(_, shown)| shown.folded.len() > MAX_ENTRIES) {
+            return Err(format!("layout file: view '{view}' folds more than {MAX_ENTRIES} containers"));
+        }
         for arrangement in &layout.arrangements {
+            let sizes = [
+                ("placed boxes", arrangement.places.len()),
+                ("arranged exchanges", arrangement.edges.len()),
+                ("moved ports", arrangement.ports.len()),
+                ("stacked boxes", arrangement.order.len()),
+                ("folded containers", arrangement.folded.len()),
+            ];
+            if let Some((what, size)) = sizes.iter().find(|(_, size)| *size > MAX_ENTRIES) {
+                return Err(format!(
+                    "layout file: an arrangement of '{}' has {size} {what}, more than {MAX_ENTRIES}",
+                    arrangement.view
+                ));
+            }
+            if let Some((edge, route)) = arrangement.edges.iter().find(|(_, route)| route.points.len() > MAX_BENDS) {
+                return Err(format!(
+                    "layout file: '{edge}' bends through {} points, more than {MAX_BENDS}",
+                    route.points.len()
+                ));
+            }
             for (node, offset) in &arrangement.places {
                 let sound = |value: f64| value.is_finite() && value.abs() <= FARTHEST;
                 if !sound(offset.dw) || !sound(offset.dh) {

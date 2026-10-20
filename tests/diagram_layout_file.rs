@@ -116,6 +116,30 @@ fn layout_file_that_is_not_one_is_refused_with_a_reason() {
 }
 
 #[test]
+fn layout_file_too_large_for_a_layout_is_refused() {
+    use arclang::compiler::diagram::layout_file::{MAX_ARRANGEMENTS, MAX_BENDS, MAX_ENTRIES};
+    let places: Vec<String> = (0..=MAX_ENTRIES).map(|i| format!(r#""N{i}":{{"dx":1,"dy":0}}"#)).collect();
+    let many_places = format!(
+        r#"{{"arclang_layout":"1","arrangements":[{{"view":"lab","places":{{{}}}}}]}}"#,
+        places.join(",")
+    );
+    let error = LayoutFile::parse(&many_places).expect_err("too many places");
+    assert!(error.contains("placed boxes"), "{error}");
+    let arrangements: Vec<String> = (0..=MAX_ARRANGEMENTS)
+        .map(|i| format!(r#"{{"view":"v{i}","places":{{"A":{{"dx":1,"dy":0}}}}}}"#))
+        .collect();
+    let many = format!(r#"{{"arclang_layout":"1","arrangements":[{}]}}"#, arrangements.join(","));
+    assert!(LayoutFile::parse(&many).expect_err("too many arrangements").contains("arrangements"));
+    let points: Vec<&str> = (0..=MAX_BENDS).map(|_| r#"{"x":1,"y":2}"#).collect();
+    let bent = format!(
+        r#"{{"arclang_layout":"1","arrangements":[{{"view":"lab","edges":{{"ce:F":{{"points":[{}]}}}}}}]}}"#,
+        points.join(",")
+    );
+    assert!(LayoutFile::parse(&bent).expect_err("too many bends").contains("bends through"));
+    LayoutFile::parse(LAYOUT).expect("a layout of normal size still reads");
+}
+
+#[test]
 fn viewer_receives_the_layout_and_the_name_to_save_it_under() {
     let mut set = diagrams();
     set.apply_layout(LayoutFile::parse(LAYOUT).unwrap());
