@@ -418,7 +418,9 @@
         state.layouts.set(key, render.isSequence(graph) ? Promise.resolve(copy) : render.layOut(new deps.ELK(), copy));
       }
       const pending = state.layouts.get(key).then((laidOut) => {
-        const placed = render.isSequence(graph) ? laidOut : deps.place.place(laidOut, scope.placedOf(graph.id, shown), scope.routesOf(graph.id, shown));
+        // An editor (options.edit) also routes redrawn exchanges around the boxes.
+        const extras = { ...scope.extrasOf(graph.id, shown), avoid: Boolean(options && options.edit && deps.edit) };
+        const placed = render.isSequence(graph) ? laidOut : deps.place.place(laidOut, scope.placedOf(graph.id, shown), scope.routesOf(graph.id, shown), extras);
         return { graph: placed, index: indexGraph(placed), ...render.renderSvg(placed) };
       });
       state.views.set(key, pending);
@@ -535,8 +537,29 @@
       announce(`${nav.nameOf(id)} moved.`);
     }
 
-    async function resizeBy(id, dw, dh) {
-      await replace(() => scope.resizeBy(state.active, id, dw, dh));
+    /**
+     * Resize a box; `dx`/`dy` move its left or top side (a handle on that
+     * side), what it holds staying where it is, and the box never smaller
+     * than what it holds.
+     */
+    async function resizeBy(id, dw, dh, dx = 0, dy = 0) {
+      const shown = (dx || dy) && (await activeView());
+      const entry = shown && shown.index.nodes.get(id);
+      const children = entry ? entry.node.children || [] : [];
+      if (entry && deps.place.INSET) {
+        const { INSET, MIN } = deps.place;
+        const roomX = Math.min(entry.node.width - MIN.width, ...children.map((child) => child.x - INSET.side));
+        const roomY = Math.min(entry.node.height - MIN.height, ...children.map((child) => child.y - INSET.top));
+        if (dx) [dx, dw] = [Math.min(dx, roomX), -Math.min(dx, roomX)];
+        if (dy) [dy, dh] = [Math.min(dy, roomY), -Math.min(dy, roomY)];
+      }
+      await replace(() => {
+        if (dx || dy) {
+          scope.moveBy(state.active, id, dx, dy);
+          for (const child of children) scope.moveBy(state.active, child.id, -dx, -dy);
+        }
+        scope.resizeBy(state.active, id, dw, dh);
+      });
       announce(`${nav.nameOf(id)} resized.`);
     }
 
@@ -709,7 +732,7 @@
       arrange.disabled = render.isSequence(graph);
       sheet.setArranging(state.arranging && !render.isSequence(graph));
       sheet.cancelConnect();
-      const nothingPlaced = Object.keys(scope.placedOf(graph.id)).length === 0 && Object.keys(scope.routesOf(graph.id)).length === 0;
+      const nothingPlaced = !scope.arranged(graph.id);
       if (nothingPlaced && document.activeElement === resetPlaces) stage.focus({ preventScroll: true });
       resetPlaces.disabled = nothingPlaced;
       unfoldAll.disabled = nothingFolded;
@@ -764,7 +787,7 @@
       },
       carried: (id) => carried(id),
       onMove: (id, dx, dy, into) => placeOrDrop(id, dx, dy, into),
-      onResize: (id, dw, dh) => resizeBy(id, dw, dh),
+      onResize: (id, dw, dh, dx, dy) => resizeBy(id, dw, dh, dx, dy),
       onDrop: onDrop ? (from, to) => onDrop({ view: state.active, from, to }) : null,
       onConnect: onConnect
         ? (from, to) => onConnect(from.dataset.id, to.dataset.id, { fromKind: kindOf(from), toKind: kindOf(to), view: state.active })
@@ -787,7 +810,7 @@
       return `${port} of ${name}`;
     }
     const fit = sheet.fit;
-    const editor = edit ? deps.edit.attach({ stage, canvas, sheet, hooks: editingHooks, options: edit, connects: Boolean(onConnect), view: () => state.active, select, carried, scope, replace, announce }) : null;
+    const editor = edit ? deps.edit.attach({ stage, canvas, sheet, hooks: editingHooks, options: edit, connects: Boolean(onConnect), view: () => state.active, select, carried, scope, replace, announce, drop: onDrop ? (from, to) => onDrop({ view: state.active, from, to }) : null }) : null;
 
     // --- selection and details -----------------------------------------
     function drawPicker(view) {
@@ -808,7 +831,8 @@
     }
 
     function selectById(id) {
-      const match = [...canvas.querySelectorAll('.av-node, .av-edge')].find((item) => item.dataset.id === id);
+      // An editor selects ports too (a port is dragged, and has properties of its own).
+      const match = [...canvas.querySelectorAll(editor ? '.av-node, .av-edge, .av-port' : '.av-node, .av-edge')].find((item) => item.dataset.id === id);
       return select(match || null);
     }
 
@@ -816,9 +840,24 @@
       const asked = state.active;
       const view = await activeView();
       if (!view || state.active !== asked) return; // the view changed meanwhile
-      const group = target && target.closest ? target.closest('.av-edge, .av-node') : null;
+      const port = editor && target && target.closest ? target.closest('.av-port') : null;
+      const group = !port && target && target.closest ? target.closest('.av-edge, .av-node') : null;
       picker.value = group ? group.dataset.id : '';
       for (const marked of canvas.querySelectorAll('.is-selected, .is-linked')) marked.classList.remove('is-selected', 'is-linked');
+      if (port) {
+        // A port: the host shows its properties; the drawing marks it and the lines through it.
+        port.classList.add('is-selected');
+        for (const edge of canvas.querySelectorAll('.av-edge')) {
+          const ends = view.index.edges.get(edge.dataset.id);
+          if (ends && [...(ends.sources || []), ...(ends.targets || [])].includes(port.dataset.id)) edge.classList.add('is-linked');
+        }
+        state.selected = null;
+        editor.refresh();
+        sheet.refreshHandle();
+        showDetails(null);
+        onSelect({ view: state.active, id: port.dataset.id, name: endName(port), kind: 'port', isEdge: false });
+        return;
+      }
       if (group) group.classList.add('is-selected');
       if (editor) editor.refresh();
       if (!group) {

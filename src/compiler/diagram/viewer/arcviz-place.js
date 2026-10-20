@@ -10,10 +10,12 @@
  * input is never modified.
  */
 (function (root, factory) {
-  const api = factory();
+  // The router is optional: without it, redrawn exchanges keep the plain right-angled route.
+  const router = typeof module === 'object' && module.exports ? require('./arcviz-route.js') : () => root.ArcVizRoute || null;
+  const api = factory(typeof router === 'function' ? router : () => router);
   if (typeof module === 'object' && module.exports) module.exports = api;
   else root.ArcVizPlace = api;
-})(typeof self !== 'undefined' ? self : this, function () {
+})(typeof self !== 'undefined' ? self : this, function (router) {
   'use strict';
 
   const MARGIN = 12; // free sheet around the drawing
@@ -63,6 +65,67 @@
     const side = towards.x >= x + width ? 'east' : towards.x <= x ? 'west' : towards.y < cy ? 'north' : 'south';
     return { side, x: side === 'west' ? x : side === 'east' ? x + width : cx, y: side === 'north' ? y : side === 'south' ? y + height : cy };
   }
+
+  const STYLES = new Set(['straight', 'curved']); // orthogonal is the default, never kept
+  const isShift = (value) => Boolean(value) && Number.isFinite(value.dx) && Number.isFinite(value.dy) && Math.abs(value.dx) <= FARTHEST && Math.abs(value.dy) <= FARTHEST;
+  /** The entries of a map given by id that pass `ok`, as a Map. */
+  const entries = (object, ok) => new Map(Object.keys(object && typeof object === 'object' ? object : {}).filter((id) => id !== '__proto__' && ok(object[id])).map((id) => [id, object[id]]));
+
+  /** The side of its box a port sits on, as the renderer reads it. */
+  const sideOf = (port, width, height) => (port.x <= 0 ? 'west' : port.x + port.width >= width ? 'east' : port.y <= 0 ? 'north' : 'south');
+  /** How far a port sticks out of its box. */
+  function protrusion(port, width, height) {
+    const side = sideOf(port, width, height);
+    const out = side === 'west' ? -port.x : side === 'east' ? port.x + port.width - width : side === 'north' ? -port.y : port.y + port.height - height;
+    return Math.max(0, out);
+  }
+  /**
+   * The nearest place on the border of a box (width × height) to a port
+   * centred at (cx, cy): its side and how far along it from the top or the
+   * left, in sheet units (so a resize from the bottom or the right leaves
+   * it where it is, as it leaves the other ports).
+   */
+  function onBorder(cx, cy, width, height) {
+    const x = Math.min(Math.max(cx, 0), width);
+    const y = Math.min(Math.max(cy, 0), height);
+    const distances = [['west', x], ['east', width - x], ['north', y], ['south', height - y]];
+    const [side] = distances.reduce((a, b) => (b[1] < a[1] ? b : a));
+    return { side, along: side === 'west' || side === 'east' ? y : x };
+  }
+  /** Put a port on a side of a box, `along` from its top or left, sticking out by `out`. */
+  function seat(port, width, height, { side, along, out }) {
+    const keep = 2; // away from the corners, so the side reads unambiguously
+    if (side === 'west' || side === 'east') {
+      const cy = Math.min(Math.max(along, port.height / 2 + keep), Math.max(port.height / 2 + keep, height - port.height / 2 - keep));
+      port.y = cy - port.height / 2;
+      port.x = side === 'west' ? -out : width - port.width + out;
+    } else {
+      const cx = Math.min(Math.max(along, port.width / 2 + keep), Math.max(port.width / 2 + keep, width - port.width / 2 - keep));
+      port.x = cx - port.width / 2;
+      port.y = side === 'north' ? -out : height - port.height + out;
+    }
+  }
+
+  /** Where a straight line from the centre of a box towards a point leaves the box. */
+  function floating(box, towards) {
+    const cx = box.x + box.width / 2;
+    const cy = box.y + box.height / 2;
+    const dx = towards.x - cx;
+    const dy = towards.y - cy;
+    if (!dx && !dy) return { x: cx, y: box.y, side: 'north' };
+    const sx = dx ? box.width / 2 / Math.abs(dx) : Infinity;
+    const sy = dy ? box.height / 2 / Math.abs(dy) : Infinity;
+    const s = Math.min(sx, sy);
+    const side = sx < sy ? (dx > 0 ? 'east' : 'west') : dy > 0 ? 'south' : 'north';
+    return { x: cx + dx * s, y: cy + dy * s, side };
+  }
+
+  /** Smooth a corner of a straight end: the middle of the overlap of two ranges, else null. */
+  const overlapMiddle = (lo1, hi1, lo2, hi2, inset) => {
+    const lo = Math.max(lo1, lo2) + inset;
+    const hi = Math.min(hi1, hi2) - inset;
+    return hi >= lo ? (lo + hi) / 2 : null;
+  };
 
   /** Right-angled path from one anchor to another. */
   function route(from, to) {
@@ -142,16 +205,43 @@
    * @param {Object<string, Array<{x: number, y: number}>>} [routes]  per edge id: the points
    *        the reader bent it through, in sheet units
    */
-  function place(layout, offsets, routes) {
+  function place(layout, offsets, routes, extras) {
+    const more = extras || {};
     const before = survey(layout);
     const wanted = Object.keys(offsets || {}).filter((id) => before.nodes.has(id) && isOffset(offsets[id]) && (offsets[id].dx || offsets[id].dy || offsets[id].dw || offsets[id].dh));
     const bent = new Map(Object.keys(routes || {}).filter((id) => id !== '__proto__' && isRoute(routes[id])).map((id) => [id, routes[id].map(({ x, y }) => ({ x, y }))]));
-    if (wanted.length === 0 && bent.size === 0) return layout;
+    const styles = entries(more.styles, (style) => STYLES.has(style));
+    const labelShifts = entries(more.labels, isShift);
+    const portShifts = entries(more.ports, isShift);
+    const order = entries(more.order, (z) => Number.isFinite(z) && Math.abs(z) <= FARTHEST);
+    for (const id of [...portShifts.keys()]) if (!before.ports.has(id)) portShifts.delete(id);
+    const avoid = Boolean(more.avoid) && Boolean(router());
+    if (wanted.length === 0 && bent.size === 0 && styles.size === 0 && labelShifts.size === 0 && portShifts.size === 0 && order.size === 0) return layout;
 
     const graph = JSON.parse(JSON.stringify(layout));
+    // Brought to the front or sent to the back: among its siblings, drawn later or earlier.
+    if (order.size > 0) {
+      const restack = (holder) => {
+        if (!holder.children) return;
+        const rank = (node) => (order.has(node.id) ? order.get(node.id) : 0);
+        holder.children = holder.children.map((node, index) => ({ node, index })).sort((a, b) => rank(a.node) - rank(b.node) || a.index - b.index).map(({ node }) => node);
+        holder.children.forEach(restack);
+      };
+      restack(graph);
+    }
     const start = survey(graph);
     const moved = new Set();
     const placed = {}; // where each box really went, once held inside its container
+    // Ports dragged along the border: their side and how far along, kept through a resize.
+    const seated = new Map();
+    for (const [id, shift] of portShifts) {
+      const { port, owner } = start.ports.get(id);
+      const { node } = start.nodes.get(owner);
+      const out = protrusion(port, node.width, node.height);
+      const spot = onBorder(port.x + port.width / 2 + shift.dx, port.y + port.height / 2 + shift.dy, node.width, node.height);
+      seated.set(id, { ...spot, out });
+      seat(port, node.width, node.height, seated.get(id));
+    }
     // Sizes first, inner boxes before the boxes that hold them, so a
     // container never shrinks over what it holds.
     const depth = (id) => {
@@ -168,6 +258,10 @@
       const height = Math.max(MIN.height, content.height, node.height + dh);
       // Ports on the right and bottom sides stay on their side.
       for (const port of node.ports || []) {
+        if (seated.has(port.id)) {
+          seat(port, width, height, seated.get(port.id));
+          continue;
+        }
         if (port.x + port.width >= node.width - 0.5) port.x += width - node.width;
         if (port.y + port.height >= node.height - 0.5) port.y += height - node.height;
       }
@@ -198,8 +292,10 @@
 
     const map = survey(graph);
     // An end has moved, as its container sees it, when a moved box is the
-    // end itself or holds it, below that container.
+    // end itself or holds it, below that container, or when it is a port
+    // dragged along its border.
     const displaced = (end, container) => {
+      if (seated.has(end)) return true;
       const port = map.ports.get(end);
       for (let id = port ? port.owner : end; id && id !== container; id = map.nodes.get(id) && map.nodes.get(id).parent) {
         if (moved.has(id)) return true;
@@ -214,24 +310,117 @@
       low.x = Math.min(low.x, point.x);
       low.y = Math.min(low.y, point.y);
     };
+    const owner = (end) => (map.ports.has(end) ? map.ports.get(end).owner : end);
+    const rectOf = (id) => {
+      const box = map.nodes.get(id);
+      return box ? { x: box.x, y: box.y, width: box.node.width, height: box.node.height } : null;
+    };
+    /** The boxes an exchange must go around: all but those that hold one of its ends. */
+    const obstaclesOf = (ends) => {
+      const holding = new Set();
+      for (const end of ends) {
+        for (let id = map.nodes.get(owner(end)) && map.nodes.get(owner(end)).parent; id; id = map.nodes.get(id).parent) holding.add(id);
+      }
+      const ends2 = ends.map(owner);
+      if (holding.has(ends2[0]) || holding.has(ends2[1])) for (const id of ends2) holding.add(id);
+      const rects = [];
+      const walk = (node) => {
+        if (holding.has(node.id)) (node.children || []).forEach(walk);
+        else rects.push({ id: node.id, ...rectOf(node.id) });
+      };
+      (graph.children || []).forEach(walk);
+      return rects;
+    };
+    /** Absolute points of an exchange as it is drawn now. */
+    const drawnPoints = (edge) => {
+      const base = edge.container && edge.container !== graph.id && map.nodes.has(edge.container) ? map.nodes.get(edge.container) : { x: 0, y: 0 };
+      return (edge.sections || []).flatMap((section) => [section.startPoint, ...(section.bendPoints || []), section.endPoint]).map((p) => ({ x: p.x + base.x, y: p.y + base.y }));
+    };
+    /**
+     * Where the exchange meets its two ends: a port where it has one; on a
+     * box, the side facing the other end, level with it when the two face
+     * each other (draw.io's floating end), recomputed whenever a box moves.
+     */
+    const anchors = (ends, firstPoint, lastPoint) => {
+      const centre = (end) => {
+        const r = rectOf(owner(end));
+        return r ? { x: r.x + r.width / 2, y: r.y + r.height / 2 } : null;
+      };
+      const [sourceCentre, targetCentre] = ends.map(centre);
+      if (!sourceCentre || !targetCentre) return null;
+      const from = anchor(ends[0], firstPoint || targetCentre, map);
+      const to = anchor(ends[1], lastPoint || sourceCentre, map);
+      if (!from || !to || !avoid) return from && to ? [from, to] : null;
+      // Two plain boxes facing each other: both ends level, so the line runs straight.
+      const [a, b] = ends.map((end) => (map.ports.has(end) ? null : rectOf(end)));
+      const level = (end, other, here, there) => {
+        if (!here) return end;
+        const horizontal = end.side === 'east' || end.side === 'west';
+        const towards = there || { x: other.x, y: other.y, width: 0, height: 0 };
+        const middle = horizontal ? overlapMiddle(here.y, here.y + here.height, towards.y, towards.y + towards.height, 6) : overlapMiddle(here.x, here.x + here.width, towards.x, towards.x + towards.width, 6);
+        if (middle === null) return end;
+        return horizontal ? { ...end, y: middle } : { ...end, x: middle };
+      };
+      if (!firstPoint) Object.assign(from, level(from, to, a, b));
+      if (!lastPoint) Object.assign(to, level(to, from, b, a));
+      return [from, to];
+    };
+    /** A route around the other boxes, or null when the router finds none. */
+    const around = (ends, from, to, via) => {
+      if (!avoid) return null;
+      return router().route({ from, to, via, obstacles: obstaclesOf(ends), stub: STUB });
+    };
+    /** A straight line from end to end, through the reader's points. */
+    const straight = (ends, via) => {
+      const at = (end, towards) => {
+        if (map.ports.has(end)) return anchor(end, towards, map);
+        const r = rectOf(end);
+        return r ? floating(r, towards) : null;
+      };
+      const centre = (end) => {
+        const r = rectOf(owner(end));
+        return r ? { x: r.x + r.width / 2, y: r.y + r.height / 2 } : null;
+      };
+      const from = at(ends[0], via[0] || centre(ends[1]));
+      const to = at(ends[1], via[via.length - 1] || centre(ends[0]));
+      return from && to ? [{ x: from.x, y: from.y }, ...via, { x: to.x, y: to.y }] : null;
+    };
+    // Boxes that moved, for the exchanges they now lie across.
+    const movedRects = [...moved].map((id) => ({ id, ...rectOf(id) }));
     const redrawn = [];
     const redraw = (holder) => {
       for (const edge of holder.edges || []) {
         const ends = [edge.sources[0], edge.targets[0]];
+        const style = styles.get(edge.id);
+        if (style) edge.lineStyle = style;
+        if (style === 'straight' && owner(ends[0]) !== owner(ends[1])) {
+          const points = straight(ends, bent.get(edge.id) || []);
+          if (points) {
+            points.forEach(stretch);
+            redrawn.push({ edge, points });
+            continue;
+          }
+        }
         if (bent.has(edge.id)) {
           // Bent by the reader: from its source, through the points, to its target.
           const points = bent.get(edge.id);
-          const from = anchor(ends[0], points[0], map);
-          const to = anchor(ends[1], points[points.length - 1], map);
-          if (from && to) {
-            const all = routeThrough(from, points, to);
+          const ends2 = anchors(ends, points[0], points[points.length - 1]);
+          if (ends2) {
+            const [from, to] = ends2;
+            const all = around(ends, from, to, points) || routeThrough(from, points, to);
             all.forEach(stretch);
             redrawn.push({ edge, points: all });
             continue;
           }
         }
-        if (!ends.some((end) => displaced(end, edge.container))) continue;
-        const owner = (end) => (map.ports.has(end) ? map.ports.get(end).owner : end);
+        const moving = ends.some((end) => displaced(end, edge.container));
+        // With routing around boxes, an exchange a moved box now lies across is redrawn too.
+        const crossed = !moving && avoid && movedRects.length > 0 && owner(ends[0]) !== owner(ends[1]) && (() => {
+          const points = drawnPoints(edge);
+          const others = new Set(obstaclesOf(ends).map((r) => r.id));
+          return movedRects.some((r) => others.has(r.id) && router().crosses(points, r));
+        })();
+        if (!moving && !crossed) continue;
         if (owner(ends[0]) === owner(ends[1])) {
           // A loop keeps its shape: it follows the box it loops on.
           const now = map.nodes.get(owner(ends[0]));
@@ -252,16 +441,10 @@
           }
           continue;
         }
-        const centre = (end) => {
-          const port = map.ports.get(end);
-          const box = map.nodes.get(port ? port.owner : end);
-          return box ? { x: box.x + box.node.width / 2, y: box.y + box.node.height / 2 } : null;
-        };
-        const [sourceCentre, targetCentre] = ends.map(centre);
-        if (!sourceCentre || !targetCentre) continue;
-        const from = anchor(ends[0], targetCentre, map);
-        const to = anchor(ends[1], sourceCentre, map);
-        const points = route(from, to);
+        const ends2 = anchors(ends);
+        if (!ends2) continue;
+        const [from, to] = ends2;
+        const points = around(ends, from, to, []) || route(from, to);
         points.forEach(stretch);
         redrawn.push({ edge, points });
       }
@@ -304,7 +487,7 @@
       let longest = 0;
       let at = local[0];
       for (let i = 1; i < local.length; i += 1) {
-        const length = Math.abs(local[i].x - local[i - 1].x) + Math.abs(local[i].y - local[i - 1].y);
+        const length = Math.hypot(local[i].x - local[i - 1].x, local[i].y - local[i - 1].y);
         if (length > longest) {
           longest = length;
           at = { x: (local[i].x + local[i - 1].x) / 2, y: (local[i].y + local[i - 1].y) / 2 };
@@ -314,6 +497,22 @@
         label.x = at.x - (label.width || 0) / 2;
         label.y = at.y + 3;
       }
+    }
+    // A name dragged off its line keeps that offset from where it would sit.
+    if (labelShifts.size > 0) {
+      const walk = (holder) => {
+        for (const edge of holder.edges || []) {
+          const by = labelShifts.get(edge.id);
+          if (!by) continue;
+          for (const label of edge.labels || []) {
+            if (label.x === undefined) continue;
+            label.x += by.dx;
+            label.y += by.dy;
+          }
+        }
+        (holder.children || []).forEach(walk);
+      };
+      walk(graph);
     }
 
     let width = reach.x + shift.x;
@@ -330,6 +529,11 @@
           height = Math.max(height, point.y);
         }
       }
+      for (const label of labelShifts.has(edge.id) ? edge.labels || [] : []) {
+        if (label.x === undefined) continue;
+        width = Math.max(width, label.x + (label.width || 0));
+        height = Math.max(height, label.y + (label.height || 0));
+      }
     }
     graph.width = Math.max(layout.width || 0, width + MARGIN);
     graph.height = Math.max(layout.height || 0, height + MARGIN);
@@ -337,5 +541,5 @@
     return graph;
   }
 
-  return { place };
+  return { place, INSET, MIN };
 });
