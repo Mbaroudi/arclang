@@ -25,10 +25,13 @@ export interface KeyDeps {
   openFind(): void;
   showToast(text: string, kind: 'info' | 'error', actions?: [string, () => void][], ms?: number): void;
   submit(requests: EditRequest[], label: string): void;
+  /** ⇧⌘C outside VS Code (VS Code binds it itself): the diagram as an image on the clipboard. */
+  copyImage(): void;
 }
 
 /** Inside VS Code (not the test page), whose keybindings run the canvas's commands. */
-const inVsCode = (): boolean => /\bvscode-(light|dark|high-contrast)/.test(document.body.className);
+// The browser test page wears VS Code's body class for its themes; it binds no keys (__arclangHarness).
+const inVsCode = (): boolean => !(window as { __arclangHarness?: boolean }).__arclangHarness && /\bvscode-(light|dark|high-contrast)/.test(document.body.className);
 
 /**
  * The keys package.json binds for the workbench: VS Code resolves them on
@@ -133,6 +136,7 @@ export function installKeys(d: KeyDeps): { canvasCommand(command: CanvasCommand,
     if (event.shiftKey && !event.metaKey && !event.ctrlKey && event.key === 'M') d.toggleMinimap();
     else if (plain && (event.key === '[' || event.key === ']')) d.stepLayer(event.key === ']' ? 1 : -1);
     else if (plain && event.key.length === 1 && d.palette.shortcut(event.key)) { /* the palette armed its tool */ }
+    else if (command && event.shiftKey && lower === 'c') d.copyImage();
     else if (command && lower === 'f') d.openFind();
     else if (command && lower === 'h' && multi.length > 1) d.hideMany(multi);
     else if (command && lower === 'h' && selected) d.hideFromDiagram(selected);

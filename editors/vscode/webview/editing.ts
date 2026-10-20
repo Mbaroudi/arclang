@@ -49,6 +49,8 @@ export interface WorkbenchContext {
   history: { undo: () => void; redo: () => void; labels: () => { undo: string | null; redo: string | null } };
   /** The selection marks are drawn again. */
   remark: () => void;
+  /** More entries at the end of the canvas menu (copy as image, PowerPoint, theme). */
+  extraMenu?: () => MenuItem[];
 }
 
 const NUDGE = 1;
@@ -590,7 +592,8 @@ export class Editing {
     }
     this.menuModel = this.modelKey();
     this.menuPoint = sheetPoint(this.ctx.host, event.clientX, event.clientY);
-    this.menu.open(event.clientX, event.clientY, withAi(this.menuItems(element, target?.dataset.id ?? null))); // ai-design hook: Ask AI first
+    const extra = this.ctx.extraMenu?.() ?? [];
+    this.menu.open(event.clientX, event.clientY, [...withAi(this.menuItems(element, target?.dataset.id ?? null)), ...(extra.length ? ['separator' as const, ...extra] : [])]); // ai-design hook: Ask AI first
   }
 
   /** The actions on an element (or on the sheet when none), in the order a modeller looks for them. */

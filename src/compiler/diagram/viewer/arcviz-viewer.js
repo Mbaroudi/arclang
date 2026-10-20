@@ -118,6 +118,9 @@
    *   exportItems, themeItems: [{ id, label, title, shortcut?, checked?, run }]
    *             — more entries in Export (above SVG and PNG) and a Theme
    *             menu (shown only when given); see "extension hooks".
+   *   theme:    { theme, dark } — the colour theme to draw with (deps.theme
+   *             checks it), its dark variant on screen when `dark`; it wins
+   *             over payload.theme. See setTheme for later changes.
    *   edit:     a host that edits the model from the drawing, with
    *             deps.edit (ArcVizEdit): see `attach` in arcviz-edit.js.
    */
@@ -141,19 +144,23 @@
       const given = typeof theme === 'string' ? themes.preset(theme) : theme;
       if (!given) return { ok: false, errors: [{ rule: 'structure', message: `no preset "${theme}"` }], warnings: [] };
       const checked = themes.validate(given);
-      if (!checked.ok) {
+      // A draft (a theme being edited) is previewed whatever it breaks; it is never the theme kept.
+      const draft = Boolean(settings && settings.draft && checked.theme);
+      if (!checked.ok && !draft) {
         themeState.refused = checked.errors;
         return checked;
       }
       Object.assign(themeState, {
-        screen: themes.palette(checked.theme, { dark: Boolean(settings && settings.dark) }),
-        exports: themes.palette(checked.theme),
-        theme: checked.theme,
+        screen: themes.palette(checked.theme, { dark: Boolean(settings && settings.dark), draft }),
+        exports: themes.palette(checked.theme, { draft }),
+        theme: draft ? themeState.theme : checked.theme,
         refused: null,
       });
       return checked;
     }
-    if (payload.theme) adoptTheme(payload.theme);
+    // options.theme: { theme, dark } — the host's theme, in its dark variant on a dark editor.
+    if (options && options.theme && options.theme.theme) adoptTheme(options.theme.theme, options.theme);
+    else if (payload.theme) adoptTheme(payload.theme);
     const slots = (options && options.slots) || {};
     const onSelect = (options && options.onSelect) || (() => {});
     const onDrop = options && options.onDrop;
@@ -1285,11 +1292,13 @@
     /**
      * Colour every view with `theme` (a theme object, a preset id, or null
      * for the built-in colours); `settings.dark` draws its dark variant on
-     * screen. A refused theme changes nothing. Returns the validator's verdict.
+     * screen, `settings.draft` previews a theme being edited even when the
+     * validator refuses it. A refused theme changes nothing otherwise.
+     * Returns the validator's verdict.
      */
     async function setTheme(theme, settings) {
       const verdict = adoptTheme(theme, settings);
-      if (!verdict.ok) return verdict;
+      if (!verdict.ok && !(settings && settings.draft && verdict.theme)) return verdict;
       drawLegendNow();
       state.views.clear(); // the layouts stay: only the colours change
       for (const [id, entry] of state.settled) state.settled.set(id, { ...entry, ...render.renderSvg(entry.graph, themeOptions('screen')) });

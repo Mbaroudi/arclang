@@ -19,6 +19,8 @@ import { changesOf, markFindings as markFindings_, pulse, renderLayers as render
 import { Alignment, modelIdOf, relationshipOfEdge } from '../src/pure/editing';
 import { installAi } from './ask-ai'; // ai-design hook
 import { installKeys } from './keys';
+import { DiagramExports } from './diagram-export';
+import { ThemeEditor } from './theme-editor';
 
 const vscode = acquireVsCodeApi();
 
@@ -390,6 +392,27 @@ const editing = new Editing({
     labels: () => historyLabels,
   },
   remark: () => markMulti(),
+  extraMenu: () => exportsUi.menuItems(),
+});
+
+// --- Exports and colour themes (diagram-export.ts, theme-editor.ts) --------------
+
+const exportsUi = new DiagramExports({
+  post: (message) => vscode.postMessage(message as never),
+  viewer: () => state.viewer,
+  selection: () => (multi.length > 1 ? multi.map((e) => drawingId(e.id)) : state.selectedDrawing ? [state.selectedDrawing] : []),
+  toast: (text, kind) => showToast(text, kind),
+  file: () => root.dataset.file ?? 'diagrams',
+  openEditor: () => themeEditor.open(),
+});
+const themeEditor = new ThemeEditor({
+  host: sheet,
+  post: (message) => vscode.postMessage(message as never),
+  viewer: () => state.viewer,
+  entries: () => exportsUi.entries,
+  active: () => exportsUi.activeEntry(),
+  dark: (theme) => document.body.classList.contains('vscode-dark') && typeof theme.dark === 'object' && theme.dark !== null,
+  restore: () => exportsUi.reapply(),
 });
 
 /** What ⌘Z and ⌘⇧Z would undo and redo, as the host keeps the history. */
@@ -518,6 +541,7 @@ function mount(snapshot: Snapshot): void {
     stage: window.ArcVizStage,
     place: window.ArcVizPlace,
     edit: window.ArcVizEdit,
+    theme: window.ArcVizTheme,
   };
   // A host that keeps the arrangement next to the model (VS Code) is its memory.
   if (snapshot.diagrams.layout_name) forgetStoredArrangement();
@@ -551,6 +575,10 @@ function mount(snapshot: Snapshot): void {
       align: { count: () => multi.length, align: (how: string) => editing.align(how as Alignment), distribute: (axis: 'horizontal' | 'vertical') => editing.distribute(axis) },
       arrangeToggle: false,
     },
+    // Copy as image, as SVG, PowerPoint in Export; the theme chooser and editor in Theme.
+    exportItems: () => exportsUi.exportItems(),
+    themeItems: () => exportsUi.themeItems(),
+    theme: exportsUi.mountTheme(),
   };
   let viewer: ReturnType<typeof window.ArcViz.mount>;
   try {
@@ -690,6 +718,7 @@ const showProblems = createStatusLine(bottom, {
 
 window.addEventListener('message', (event: MessageEvent<ToWebview>) => {
   const message = event.data;
+  if (exportsUi.handle(message) || themeEditor.handle(message)) return;
   switch (message.type) {
     case 'snapshot': {
       const before = state.snapshot;
@@ -791,7 +820,7 @@ function flashChanges(before: Snapshot, after: Snapshot): void {
 const keys = installKeys({
   post: (message) => vscode.postMessage(message as never), editing, palette, tools, toast,
   multi: () => multi, selected: () => state.selected, viewer: () => state.viewer, snapshot: () => state.snapshot,
-  deleteMany, hideMany, hideFromDiagram, setFocusMode, toggleMinimap: () => toggleMinimap(), stepLayer, openFind, showToast, submit,
+  deleteMany, hideMany, hideFromDiagram, setFocusMode, toggleMinimap: () => toggleMinimap(), stepLayer, openFind, showToast, submit, copyImage: () => void exportsUi.copyImage(),
 });
 const canvasCommand = keys.canvasCommand;
 const deleteOne = keys.deleteOne;

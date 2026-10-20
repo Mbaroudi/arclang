@@ -16,6 +16,8 @@ import { metamodelJson, onDidChangeSnapshot, snapshotOf } from './snapshot';
 import { arcTextOf } from './source';
 import { elementAt, revealElement } from './tree';
 import { handlePageMessage, pageClosed } from '../ai'; // ai-design hook
+import { DiagramExports, ExportArgs, themeStore } from './diagram-export';
+import type { DiagramAction } from '../pure/workbench';
 
 export const VIEW_TYPE = 'arclang.workbench';
 
@@ -33,6 +35,9 @@ const VIEWER_SCRIPTS = [
   'arcviz-route.js',
   'arcviz-edit.js',
   'arcviz-toolbar.js',
+  'arcviz-theme-presets.js',
+  'arcviz-color.js',
+  'arcviz-theme.js',
   'arcviz-viewer.js',
 ];
 
@@ -63,6 +68,8 @@ export class WorkbenchPanel {
   /** The arrangement the page shows: kept here, the layout file is written a moment later. */
   private layoutNow: unknown = undefined;
   private readonly history: CanvasHistory;
+  /** Copy as image, PowerPoint, the colour themes. */
+  private readonly exports: DiagramExports;
   /** How the AI side answers this page: one function for the page's whole life. */
   private readonly aiPost = (message: unknown): void => this.post(message as ToWebview);
 
@@ -121,8 +128,10 @@ export class WorkbenchPanel {
     this.panel.iconPath = vscode.Uri.joinPath(media, 'icon.svg');
     this.panel.webview.html = this.html();
     this.history = new CanvasHistory({ document, restoreLayout: (state, show) => this.restoreLayout(state, show), post: (message) => this.post(message) });
+    this.exports = new DiagramExports(themeStore(context), document, (message) => this.post(message));
     this.disposables.push(
       this.history,
+      this.exports,
       this.panel.webview.onDidReceiveMessage((message: unknown) => void this.handle(message as FromWebview)),
       onDidChangeSnapshot((uri) => {
         if (uri.toString() === document.uri.toString()) void this.push();
@@ -203,10 +212,19 @@ export class WorkbenchPanel {
     this.post({ type: 'snapshot', snapshot, metamodel, file: path.basename(this.document.uri.fsPath), selected: this.selected });
   }
 
+  /** A diagram command (copy as image, PowerPoint, theme), run by the page. */
+  diagramAction(action: DiagramAction, args?: ExportArgs): void {
+    this.panel.reveal(undefined, false);
+    this.exports.run(action, args);
+  }
+
   private async handle(message: FromWebview): Promise<void> {
+    if (await this.exports.handle(message)) return;
     switch (message.type) {
       case 'ready':
         this.ready = true;
+        // The theme first: the first drawing is already in its colours.
+        await this.exports.pushThemes();
         await this.push();
         return;
       case 'selected':

@@ -399,11 +399,14 @@
   /**
    * What the renderer draws with: a complete theme turned into functions of
    * the kinds it meets. `dark` picks the dark variant when the theme has one.
-   * A theme that fails validation is refused here too (throws).
+   * A theme that fails validation is refused here too (throws), unless
+   * `draft` asks for the preview of a theme being edited: a complete one is
+   * then drawn whatever its colours break, to show what is wrong.
    */
   function palette(theme, options) {
     const checked = validate(theme);
-    if (!checked.ok) throw new Error(`theme refused: ${checked.errors.map((e) => e.message).join('; ')}`);
+    const draft = Boolean(options && options.draft && checked.theme);
+    if (!checked.ok && !draft) throw new Error(`theme refused: ${checked.errors.map((e) => e.message).join('; ')}`);
     const full = (options && options.dark && darkOf(checked.theme)) || checked.theme;
     const variant = (full.markings && full.markings.variant) || {};
     const tag = (full.markings && full.markings.tag) || {};
