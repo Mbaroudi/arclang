@@ -65,10 +65,9 @@ const rows = []; const report = (name, ok, detail) => { rows.push({ name, ok, de
 
   // 7. Properties: set an attribute, rename by the name field
   await reset(); await layer('Logical'); await click('LC-CTL');
-  const general = page.locator('.wb-props-tab', { hasText: 'All' }); await general.click(); await page.waitForTimeout(200);
-  n = await count(); const desc = page.locator('table.wb-props tr', { hasText: 'Description' }).locator('textarea, input').first();
-  if (await desc.count()) { await desc.fill('Plans the steering correction'); await desc.evaluate((e) => e.blur()); r = await waitEdit(n); }
-  else { await page.locator('.wb-props-body .wb-link', { hasText: 'Add property' }).click(); await page.locator('.wb-add select').selectOption('description'); const f = page.locator('table.wb-props textarea').last(); await f.fill('Plans the steering correction'); await f.evaluate((e) => e.blur()); r = await waitEdit(n); }
+  n = await count(); const desc = page.locator('.wb-desc-block[data-key="description"] textarea');
+  if (await desc.isHidden()) await page.locator('.wb-desc-block[data-key="description"] .wb-preview-toggle').click();
+  await desc.fill('Plans the steering correction'); await desc.evaluate((e) => e.blur()); r = await waitEdit(n);
   text = await source(); report('Properties sets an attribute', !!r?.ok && /Plans the steering correction/.test(text), r?.ok ? '' : r?.error);
   n = await count(); const nameField = page.locator('.wb-name-input'); await nameField.fill('Lane controller'); await nameField.press('Enter'); r = await waitEdit(n);
   text = await source(); report('Properties renames by the name field', !!r?.ok && /component "Lane controller"/.test(text), r?.ok ? '' : r?.error);
@@ -145,7 +144,7 @@ const rows = []; const report = (name, ok, detail) => { rows.push({ name, ok, de
   // 15. Bulk property edit on a multi-selection
   await reset(); await layer('Logical'); await click('LC-CAM'); { const b3 = await box('LC-ACT'); await page.keyboard.down('Shift'); await page.mouse.click(b3.x + Math.min(30, b3.width / 2), b3.y + Math.min(10, b3.height / 2)); await page.keyboard.up('Shift'); await page.waitForTimeout(300); }
   const many = await page.locator('.wb-props-title', { hasText: 'elements selected' }).count();
-  if (many) { await page.locator('select[aria-label="Attribute"]').selectOption('description'); await page.locator('input[placeholder="value for all of them"]').fill('Checked in bulk'); n = await count(); await page.locator('button', { hasText: 'Set on all' }).click(); r = await waitEdit(n); }
+  if (many) { const all = page.locator('.wb-bulk tr[data-key="description"] input'); await all.fill('Checked in bulk'); n = await count(); await all.press('Enter'); r = await waitEdit(n); }
   text = await source(); const bulkCount = (text.match(/Checked in bulk/g) || []).length;
   report('bulk edit sets one attribute on the whole selection', many > 0 && !!r?.ok && bulkCount === 2, many ? (r?.ok ? `${bulkCount} written` : r?.error) : 'no bulk panel');
   report('no page error', errors.length === 0, errors.slice(0, 2).join(' / '));

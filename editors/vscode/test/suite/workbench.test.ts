@@ -115,12 +115,14 @@ suite('ArcLang workbench', () => {
     tree.follow(document);
     const layers = await tree.getChildren();
     const logical = layers.find((item: ModelItem) => item.type === 'layer' && item.layer === 'Logical');
-    assert.ok(layers[0].type === 'diagrams', 'the diagrams head the tree');
+    assert.ok(layers[0].type === 'layer' && layers[0].layer === 'Model', 'the model heads the tree');
     assert.ok(layers.some((item: ModelItem) => item.type === 'layer' && item.layer === 'Model'), 'the model has its own entry');
     assert.ok(logical, JSON.stringify(layers.map((l: ModelItem) => (l.type === 'layer' ? l.layer : l.type))));
     const components = await tree.getChildren(logical);
+    // The layer lists its diagrams first, then its elements.
+    assert.ok(components.some((c: ModelItem) => c.type === 'diagram'), 'the layer lists its diagrams');
     assert.deepEqual(
-      components.map((c: ModelItem) => (c.type === 'element' ? c.node.element.id : c.type)),
+      components.filter((c: ModelItem) => c.type === 'element').map((c: ModelItem) => (c.type === 'element' ? c.node.element.id : c.type)),
       ['LC-CTL', 'LC-Sensor'],
     );
     const range = await locateElement(document, { id: 'LC-Sensor', name: 'Sensor' });

@@ -8,6 +8,7 @@ import { forgetSnapshot, registerSnapshotRefresh, snapshotOf } from './snapshot'
 import { isModelDocument } from './source';
 import { RelationItem, RelationsProvider } from './relations';
 import { registerStatusBar } from './status';
+import { registerPanes } from './panes-host'; // panes hook
 import { graphsDrawing, ModelItem, ModelTreeProvider, revealElement } from './tree';
 
 /** The document to work on: the one given, the active model editor's, else the tree's. */
@@ -45,10 +46,11 @@ export function registerWorkbench(context: vscode.ExtensionContext): void {
   registerStatusBar(context);
   context.subscriptions.push(WorkbenchPanel.register(context));
   const tree = new ModelTreeProvider(context);
-  const view = vscode.window.createTreeView('arclangModel', { treeDataProvider: tree, showCollapseAll: true });
+  const view = vscode.window.createTreeView('arclangModel', { treeDataProvider: tree, showCollapseAll: true, dragAndDropController: tree }); // panes hook: drag to a diagram
   const relations = new RelationsProvider(context);
   const relationsView = vscode.window.createTreeView('arclangRelations', { treeDataProvider: relations });
   context.subscriptions.push(view, relationsView);
+  registerPanes(context, tree, view); // panes hook
 
   const register = (command: string, callback: (...args: unknown[]) => unknown) =>
     context.subscriptions.push(vscode.commands.registerCommand(command, callback));

@@ -19,6 +19,7 @@ import { changesOf, markFindings as markFindings_, pulse, renderLayers as render
 import { Alignment, modelIdOf, relationshipOfEdge } from '../src/pure/editing';
 import { installAi } from './ask-ai'; // ai-design hook
 import { installKeys } from './keys';
+import { installPanes } from './panes'; // panes hook
 
 const vscode = acquireVsCodeApi();
 
@@ -116,6 +117,10 @@ const properties = new Properties(propertiesPane, {
   requirements: () => (state.snapshot?.elements?.elements ?? []).filter((e) => e.kind === 'Requirement'),
   ends: (element) => editing.endsOf(element),
   reverse: (element) => editing.reverse(element),
+  // panes hook: the model, the links and the host's answers of the properties pane.
+  snapshot: () => state.snapshot,
+  select: (element) => selectElement(element, true),
+  post: (message) => vscode.postMessage(message as never),
 });
 const browser = new SemanticBrowser(browserPane, (element) => selectElement(element, true), (element, other, outgoing) => editing.retargetTrace(element, other, outgoing));
 setPalette(state.layout.paletteOpen);
@@ -795,5 +800,8 @@ const keys = installKeys({
 });
 const canvasCommand = keys.canvasCommand;
 const deleteOne = keys.deleteOne;
+
+// panes hook: tree drops, a diagram's own tab, "Open in a new tab" on the layers (webview/panes.ts).
+installPanes({ sheet, layerBar, viewer: () => state.viewer, graph: () => currentGraph(), snapshot: () => state.snapshot, idOf: (id) => elementFor({ view: '', id, name: '', kind: '', isEdge: false })?.id ?? null, select: (element) => selectElement(element, false), submit, toast: (text, kind) => showToast(text, kind), post: (message) => vscode.postMessage(message as never), showGraph });
 
 vscode.postMessage({ type: 'ready' });
