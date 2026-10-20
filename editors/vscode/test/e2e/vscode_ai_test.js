@@ -42,7 +42,7 @@ const until = async (win, test, ms = 20000) => { const end = Date.now() + ms; wh
   const model = path.join(dir, 'model.arc');
   fs.copyFileSync(path.join(EXT, 'media', 'reference.arc'), model);
   const settings = {
-    'files.simpleDialog.enable': true, 'workbench.startupEditor': 'none', 'security.workspace.trust.enabled': false, 'window.restoreWindows': 'none',
+    'files.simpleDialog.enable': true, 'update.mode': 'none', 'extensions.autoCheckUpdates': false, 'extensions.autoUpdate': false, 'telemetry.telemetryLevel': 'off', 'workbench.startupEditor': 'none', 'security.workspace.trust.enabled': false, 'window.restoreWindows': 'none',
     'arclang.binary': ARCLANG,
     'arclang.ai.provider': 'openai-compatible', 'arclang.ai.endpoint': `${fake.url}/v1`, 'arclang.ai.model': 'fake-arclang',
     'arclang.ai.suggestOnEdit': 'afterEachEdit', 'arclang.ai.contextScope': 'selectionAndNeighbours',
