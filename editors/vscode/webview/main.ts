@@ -2,7 +2,7 @@
 // row with the palette rail, the canvas and the properties drawer, then one
 // status line. Everything shown comes from the last snapshot the host sent;
 // every change goes back to the host as `arclang edit` requests.
-import { CanvasCommand, connectTargetKinds, connectToolFor, EditRequest, RelationshipRecord, fragmentRequest, nextRequirementId, requirementRequests, Tool, VIEWPOINTS, ElementRecord, graphContainerOf, lifelineElement, Metamodel, Snapshot, ToWebview } from '../src/pure/workbench';
+import { connectTargetKinds, connectToolFor, EditRequest, RelationshipRecord, fragmentRequest, nextRequirementId, requirementRequests, Tool, VIEWPOINTS, ElementRecord, graphContainerOf, lifelineElement, Metamodel, Snapshot, ToWebview } from '../src/pure/workbench';
 import { SemanticBrowser } from './browser';
 import { button, clear, el, inlinePrompt } from './dom';
 import type { ViewerApi, ViewerPosition, ViewerSelection } from './globals';
@@ -18,6 +18,7 @@ import { createStatusLine } from './status-line';
 import { changesOf, markFindings as markFindings_, pulse, renderLayers as renderLayers_ } from './marks';
 import { modelIdOf, relationshipOfEdge } from '../src/pure/editing';
 import { installAi } from './ask-ai'; // ai-design hook
+import { installKeys } from './keys';
 
 const vscode = acquireVsCodeApi();
 
@@ -777,141 +778,14 @@ function flashChanges(before: Snapshot, after: Snapshot): void {
   });
 }
 
-/** Inside VS Code (not the test page), whose keybindings run the canvas's commands. */
-const inVsCode = (): boolean => /\bvscode-(light|dark|high-contrast)/.test(document.body.className);
+// --- Keyboard (keys.ts) ---------------------------------------------------------
 
-/**
- * The keys package.json binds for the workbench: VS Code resolves them on
- * the keyboard's layout and sends the command back ('key'); the page lets
- * them through instead of acting on them twice.
- */
-function boundInVsCode(event: KeyboardEvent): boolean {
-  const command = event.metaKey || event.ctrlKey;
-  const key = event.key.toLowerCase();
-  if (command && !event.altKey) return ['z', 'y', 'c', 'x', 'v', 'd', 'a', '=', '+', '-', '0'].includes(key) || event.code === 'Digit0';
-  if (!event.altKey && (event.key === 'Delete' || event.key === 'Backspace')) return true;
-  return event.shiftKey && !event.altKey && event.code === 'Digit1';
-}
-
-/** A command of the canvas, from a key VS Code resolved (or the page's own key outside VS Code). */
-function canvasCommand(command: CanvasCommand, text?: string): void {
-  const selection = window.getSelection()?.toString() ?? '';
-  switch (command) {
-    case 'copy':
-    case 'cut':
-      // Text selected on the page (a property, a finding) is copied as text.
-      if (selection) return vscode.postMessage({ type: 'clipboard-text', text: selection });
-      return editing.copy(command === 'cut');
-    case 'paste':
-      return editing.paste();
-    case 'paste-text':
-      return text ? editing.pasteText(text) : editing.paste();
-    case 'duplicate':
-      return editing.duplicate();
-    case 'select-all':
-      return editing.selectAll();
-    case 'delete':
-      if (multi.length > 1) return deleteMany(multi);
-      if (state.selected) return deleteOne(state.selected);
-      return;
-    case 'zoom-in':
-    case 'zoom-out':
-      // The viewer's own buttons: the zoom it animates, around the middle of the frame.
-      tools.querySelector<HTMLButtonElement>(`button[title^="${command === 'zoom-in' ? 'Zoom in' : 'Zoom out'}"]`)?.click();
-      return;
-    case 'fit':
-      state.viewer?.fit?.();
-      return;
-    default:
-      return;
-  }
-}
-
-// A field of the page has the keyboard: VS Code's keys go to it (⌘C copies its text, ⌘Z undoes its typing).
-const isField = (node: EventTarget | null): boolean => node instanceof HTMLInputElement || node instanceof HTMLSelectElement || node instanceof HTMLTextAreaElement || (node instanceof HTMLElement && node.isContentEditable);
-let typingReported = false;
-const reportTyping = () => {
-  const typing = isField(document.activeElement);
-  if (typing === typingReported) return;
-  typingReported = typing;
-  vscode.postMessage({ type: 'typing', on: typing });
-};
-document.addEventListener('focusin', reportTyping);
-document.addEventListener('focusout', () => setTimeout(reportTyping, 0));
-
-document.addEventListener('keydown', (event) => {
-  const typing = event.target instanceof HTMLInputElement || event.target instanceof HTMLSelectElement || event.target instanceof HTMLTextAreaElement;
-  // Esc in a field is the field's (it puts the value back), not the canvas's.
-  if (event.key === 'Escape' && !typing) {
-    // Esc first cancels what is under way (a tool, a selection); then it leaves full screen.
-    const busy = palette.isArmed() || !!state.selected || multi.length > 0;
-    if (!busy && document.body.classList.contains('wb-focus')) setFocusMode(false);
-    palette.disarm();
-    toast.hidden = true;
-    return;
-  }
-  if (typing) return;
-  if (inVsCode() && boundInVsCode(event)) return;
-  if (editing.key(event)) return;
-  if (event.shiftKey && !event.metaKey && !event.ctrlKey && event.key === 'M') {
-    event.preventDefault();
-    toggleMinimap();
-    return;
-  }
-  if (!event.metaKey && !event.ctrlKey && !event.altKey && (event.key === '[' || event.key === ']')) {
-    event.preventDefault();
-    stepLayer(event.key === ']' ? 1 : -1);
-    return;
-  }
-  if (!event.metaKey && !event.ctrlKey && !event.altKey && event.key.length === 1 && palette.shortcut(event.key)) {
-    event.preventDefault();
-    return;
-  }
-  if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'f') {
-    event.preventDefault();
-    openFind();
-    return;
-  }
-  if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'h' && multi.length > 1) {
-    event.preventDefault();
-    hideMany(multi);
-    return;
-  }
-  if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'h' && state.selected) {
-    event.preventDefault();
-    hideFromDiagram(state.selected);
-    return;
-  }
-  if ((event.key === 'Delete' || event.key === 'Backspace') && multi.length > 1) {
-    event.preventDefault();
-    deleteMany(multi);
-    return;
-  }
-
-  if (event.key === 'F2' && state.selected) {
-    event.preventDefault();
-    editing.rename(state.selected);
-    return;
-  }
-  if ((event.key === 'Delete' || event.key === 'Backspace') && state.selected) {
-    event.preventDefault();
-    deleteOne(state.selected);
-  }
+const keys = installKeys({
+  post: (message) => vscode.postMessage(message as never), editing, palette, tools, toast,
+  multi: () => multi, selected: () => state.selected, viewer: () => state.viewer, snapshot: () => state.snapshot,
+  deleteMany, hideMany, hideFromDiagram, setFocusMode, toggleMinimap: () => toggleMinimap(), stepLayer, openFind, showToast, submit,
 });
-
-/** Delete one element; one that owns others says so first. */
-function deleteOne(element: ElementRecord): void {
-  const owned = (state.snapshot?.elements?.elements ?? []).filter((e) => e.owner === element.uuid).length;
-  if (owned > 0) {
-    showToast(`${element.name || element.id} owns ${owned} element${owned > 1 ? 's' : ''}.`, 'info', [
-      [`Delete with ${owned === 1 ? 'it' : `all ${owned}`}`, () => {
-        toast.hidden = true;
-        submit([{ op: 'remove', element: element.id }], `delete ${element.id} and what it owns`);
-      }],
-    ], 10000);
-    return;
-  }
-  submit([{ op: 'remove', element: element.id }], `delete ${element.id}`);
-}
+const canvasCommand = keys.canvasCommand;
+const deleteOne = keys.deleteOne;
 
 vscode.postMessage({ type: 'ready' });

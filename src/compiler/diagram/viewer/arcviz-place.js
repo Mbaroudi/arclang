@@ -541,5 +541,72 @@
     return graph;
   }
 
-  return { place, INSET, MIN };
+  // --- what an editing viewer asks of the placement (arcviz-viewer.js) -------
+
+  /**
+   * A resize by a side handle: `dx`/`dy` move the left or top side, the
+   * width or height changing the other way, never past what the box holds
+   * (its children keep their place on the sheet).
+   */
+  function sideResize(node, dw, dh, dx = 0, dy = 0) {
+    const children = node ? node.children || [] : [];
+    if (!node || (!dx && !dy)) return { dw, dh, dx, dy, children };
+    const roomX = Math.min(node.width - MIN.width, ...children.map((child) => child.x - INSET.side));
+    const roomY = Math.min(node.height - MIN.height, ...children.map((child) => child.y - INSET.top));
+    const x = dx ? Math.min(dx, roomX) : 0;
+    const y = dy ? Math.min(dy, roomY) : 0;
+    return { dx: x, dy: y, dw: dx ? -x : dw, dh: dy ? -y : dh, children };
+  }
+
+  /** The id of the box holding `id` in a laid-out shape, or null at the top. */
+  function parentOf(shape, id) {
+    let found = null;
+    const walk = (node, parent) => {
+      if (node.id === id) found = parent;
+      (node.children || []).forEach((child) => walk(child, node.id));
+    };
+    (shape && shape.children ? shape.children : []).forEach((node) => walk(node, null));
+    return found;
+  }
+
+  /** The kind of a drawn box, or of the box a drawn port sits on. */
+  function endKind(end) {
+    const node = end.closest('.av-node');
+    return node ? node.dataset.kind : null;
+  }
+
+  /** What to call a drawn box or port (`Port of Box` for a port), boxes named by `nameOf`. */
+  function endName(end, nameOf) {
+    const owner = end.closest('.av-node');
+    const name = owner ? nameOf(owner.dataset.id) : end.dataset.id;
+    if (!end.classList.contains('av-port')) return name;
+    const tip = end.querySelector('title');
+    const port = tip ? tip.textContent.split(' — ')[0] : end.dataset.id;
+    return `${port} of ${name}`;
+  }
+
+  /** Marks the lines of `edges` (an index) that pass through the port `id`. */
+  function markPortLines(canvas, edges, id) {
+    for (const edge of canvas.querySelectorAll('.av-edge')) {
+      const ends = edges.get(edge.dataset.id);
+      if (ends && [...(ends.sources || []), ...(ends.targets || [])].includes(id)) edge.classList.add('is-linked');
+    }
+  }
+
+  /** A function telling `onLayout` the layout file whenever it changed (not the one the page was built with). */
+  function layoutReporter(toFile, onLayout) {
+    let last = null;
+    return () => {
+      if (!onLayout) return;
+      const now = JSON.stringify(toFile());
+      if (last === null || now === last) {
+        last = now;
+        return;
+      }
+      last = now;
+      onLayout(JSON.parse(now));
+    };
+  }
+
+  return { place, INSET, MIN, sideResize, parentOf, endKind, endName, markPortLines, layoutReporter };
 });

@@ -322,6 +322,8 @@
       // Storage is refused: folds hold for this visit only.
     }
     const scope = deps.scope.create({ graphs, collapse: deps.collapse, storage, storageKey: `arcviz:${payload.title}`, initial: payload.layout || null });
+    /** Tell the host the arrangement when it changed. */
+    const reportLayout = deps.place.layoutReporter(() => scope.toFile(), onLayout);
     const foldedOf = scope.foldedOf;
 
     // A view is laid out once per scope: what is folded, what is open.
@@ -537,22 +539,11 @@
       announce(`${nav.nameOf(id)} moved.`);
     }
 
-    /**
-     * Resize a box; `dx`/`dy` move its left or top side (a handle on that
-     * side), what it holds staying where it is, and the box never smaller
-     * than what it holds.
-     */
-    async function resizeBy(id, dw, dh, dx = 0, dy = 0) {
-      const shown = (dx || dy) && (await activeView());
+    /** Resize a box; by a side handle, what it holds stays where it is (arcviz-place.js). */
+    async function resizeBy(id, dw0, dh0, dx0 = 0, dy0 = 0) {
+      const shown = (dx0 || dy0) && (await activeView());
       const entry = shown && shown.index.nodes.get(id);
-      const children = entry ? entry.node.children || [] : [];
-      if (entry && deps.place.INSET) {
-        const { INSET, MIN } = deps.place;
-        const roomX = Math.min(entry.node.width - MIN.width, ...children.map((child) => child.x - INSET.side));
-        const roomY = Math.min(entry.node.height - MIN.height, ...children.map((child) => child.y - INSET.top));
-        if (dx) [dx, dw] = [Math.min(dx, roomX), -Math.min(dx, roomX)];
-        if (dy) [dy, dh] = [Math.min(dy, roomY), -Math.min(dy, roomY)];
-      }
+      const { dw, dh, dx, dy, children } = deps.place.sideResize ? deps.place.sideResize(entry && entry.node, dw0, dh0, dx0, dy0) : { dw: dw0, dh: dh0, dx: 0, dy: 0, children: [] };
       await replace(() => {
         if (dx || dy) {
           scope.moveBy(state.active, id, dx, dy);
@@ -563,41 +554,17 @@
       announce(`${nav.nameOf(id)} resized.`);
     }
 
-    /** The box that holds another in the view on screen, or null at the top. */
-    function containerOf(id) {
-      const graph = activeGraph();
-      let found = null;
-      const walk = (node, parent) => {
-        if (node.id === id) found = parent;
-        (node.children || []).forEach((child) => walk(child, node.id));
-      };
-      if (graph) (scope.shape(graph).children || []).forEach((node) => walk(node, null));
-      return found;
-    }
-
     /** A box let go: into the box under it when that is a new container, else placed there. */
     async function placeOrDrop(id, dx, dy, into) {
       const view = state.active;
-      if (onDrop && into && into !== containerOf(id) && !carried(id).includes(into)) {
+      const graph = activeGraph();
+      const parent = graph ? deps.place.parentOf(scope.shape(graph), id) : null;
+      if (onDrop && into && into !== parent && !carried(id).includes(into)) {
         await replace(() => {}); // back where it was until the model says otherwise
         onDrop({ view, from: id, to: into });
         return;
       }
       await moveBy(id, dx, dy);
-    }
-
-    let lastLayout = null;
-    /** Tell the host the arrangement when it changed. */
-    function reportLayout() {
-      if (!onLayout) return;
-      const now = JSON.stringify(scope.toFile());
-      if (lastLayout === null) {
-        lastLayout = now; // what the page was built with is not a change
-        return;
-      }
-      if (now === lastLayout) return;
-      lastLayout = now;
-      onLayout(JSON.parse(now));
     }
 
     function toggleArrange() {
@@ -765,6 +732,8 @@
     const nodeUnder = (element) => (element && element.closest ? element.closest('.av-node') : null);
     const edit = options && options.edit && deps.edit ? options.edit : null;
     const editingHooks = {};
+    const kindOf = (end) => deps.place.endKind(end);
+    const endName = (end) => deps.place.endName(end, nav.nameOf);
     const sheet = deps.stage.create({
       editing: edit ? editingHooks : null,
       stage,
@@ -795,20 +764,6 @@
       connectTargets: connectTargets || null,
       nameOf: endName,
     });
-    /** The kind of a drawn box, or of the box a drawn port sits on. */
-    function kindOf(end) {
-      const node = end.closest('.av-node');
-      return node ? node.dataset.kind : null;
-    }
-    /** What to call a drawn box or port: `Port of Box` for a port. */
-    function endName(end) {
-      const owner = end.closest('.av-node');
-      const name = owner ? nav.nameOf(owner.dataset.id) : end.dataset.id;
-      if (!end.classList.contains('av-port')) return name;
-      const tip = end.querySelector('title');
-      const port = tip ? tip.textContent.split(' — ')[0] : end.dataset.id;
-      return `${port} of ${name}`;
-    }
     const fit = sheet.fit;
     const editor = edit ? deps.edit.attach({ stage, canvas, sheet, hooks: editingHooks, options: edit, connects: Boolean(onConnect), view: () => state.active, select, carried, scope, replace, announce, drop: onDrop ? (from, to) => onDrop({ view: state.active, from, to }) : null }) : null;
 
@@ -847,10 +802,7 @@
       if (port) {
         // A port: the host shows its properties; the drawing marks it and the lines through it.
         port.classList.add('is-selected');
-        for (const edge of canvas.querySelectorAll('.av-edge')) {
-          const ends = view.index.edges.get(edge.dataset.id);
-          if (ends && [...(ends.sources || []), ...(ends.targets || [])].includes(port.dataset.id)) edge.classList.add('is-linked');
-        }
+        deps.place.markPortLines(canvas, view.index.edges, port.dataset.id);
         state.selected = null;
         editor.refresh();
         sheet.refreshHandle();
