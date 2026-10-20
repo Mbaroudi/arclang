@@ -54,8 +54,9 @@ with a host that edits through `arclang edit` and snapshots through
   redefine and reset of an inherited value, the tree's kind icons, diagrams
   under their layer, the filter, "Show in the diagram", a diagram opened in
   a tab of its own ("<model> — <diagram>") beside the workbench, the
-  selection shared by both (20 checks; whether VS Code hands a tree drag to
-  the webview is printed as a note).
+  selection shared by both, a tree drop in the form VS Code hands a webview
+  (the item's resource URI, Shift held) (21 checks; whether Playwright's
+  synthetic drag from the tree reaches the webview is printed as a note).
 
 - `vscode_ai_test.js`: the AI features in VS Code itself, against the local
   fake provider `../ai/fake-llm-server.js` set as an OpenAI-compatible server

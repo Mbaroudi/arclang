@@ -7,7 +7,7 @@
 import * as fs from 'node:fs';
 import * as vscode from 'vscode';
 import { familyOf } from '../pure/kind-icons';
-import { Counts, countsBadge, diagramsByLayer, dropPayload, filterNodes, findingCounts, subtreeCounts, TREE_MIME } from '../pure/panes';
+import { Counts, countsBadge, diagramsByLayer, DROP_HINT, dropPayload, ELEMENT_FRAGMENT, filterNodes, findingCounts, subtreeCounts, TREE_MIME } from '../pure/panes';
 import { ElementRecord, elementLabel, LAYER_LABELS, LAYERS, Metamodel, Snapshot, TreeNode, treeByLayer, ViewerGraph } from '../pure/workbench';
 import { metamodelJson, onDidChangeSnapshot, snapshotOf } from './snapshot';
 import { isModelDocument } from './source';
@@ -210,9 +210,9 @@ export class ModelTreeProvider implements vscode.TreeDataProvider<ModelItem>, vs
         const own = this.counts.get(element.uuid) ?? { errors: 0, warnings: 0, infos: 0 };
         const below = subtreeCounts(item.node, this.counts);
         const findings = own.errors + own.warnings ? `\n\n$(warning) ${own.errors} error(s), ${own.warnings} warning(s)` : '';
-        tree.tooltip = new vscode.MarkdownString(`**${element.kind}** \`${element.id}\`\n\n${String(element.attributes.description ?? '')}${findings}`, true);
+        tree.tooltip = new vscode.MarkdownString(`**${element.kind}** \`${element.id}\`\n\n${String(element.attributes.description ?? '')}${findings}\n\n_${DROP_HINT}_`, true);
         tree.iconPath = this.icons.of(element.kind);
-        tree.resourceUri = decorationUri(element.uuid, own.errors + own.warnings ? own : below, own.errors + own.warnings > 0);
+        tree.resourceUri = decorationUri(element.uuid, own.errors + own.warnings ? own : below, own.errors + own.warnings > 0, element.id);
         tree.contextValue = 'arclang.element';
         tree.command = { command: 'arclang.model.select', title: 'Select', arguments: [item] };
         return tree;
@@ -281,8 +281,18 @@ function add(a: Counts, b: Counts): Counts {
   return { errors: a.errors + b.errors, warnings: a.warnings + b.warnings, infos: a.infos + b.infos };
 }
 
-function decorationUri(key: string, counts: Counts, own: boolean): vscode.Uri {
-  return vscode.Uri.from({ scheme: DECORATION_SCHEME, path: `/${key}`, query: `e=${counts.errors}&w=${counts.warnings}&i=${counts.infos}&own=${own ? 1 : 0}` });
+/**
+ * The tree item's resource: it carries the findings badge and, for an element,
+ * its id in the fragment. VS Code puts that URI in the drag of the item, which
+ * is all a webview receives of a drag from a view (the drop needs Shift held).
+ */
+function decorationUri(key: string, counts: Counts, own: boolean, elementId?: string): vscode.Uri {
+  return vscode.Uri.from({
+    scheme: DECORATION_SCHEME,
+    path: `/${key}`,
+    query: `e=${counts.errors}&w=${counts.warnings}&i=${counts.infos}&own=${own ? 1 : 0}`,
+    fragment: elementId === undefined ? '' : `${ELEMENT_FRAGMENT}${encodeURIComponent(elementId)}`,
+  });
 }
 
 function countNodes(nodes: TreeNode[]): number {
@@ -330,16 +340,6 @@ export async function locateElement(document: vscode.TextDocument, element: Pick
   return null;
 }
 
-/** Show the element's declaration in a text editor beside the views. */
-export async function revealElement(
-  document: vscode.TextDocument,
-  element: Pick<ElementRecord, 'id' | 'name'>,
-  options: { preserveFocus?: boolean } = {},
-): Promise<boolean> {
-  const range = await locateElement(document, element);
-  if (!range) {
-    vscode.window.setStatusBarMessage(`ArcLang: ${elementLabel({ ...element, kind: '' })} is not declared in this file (it may come from an import)`, 4000);
-    return false;
 /**
  * The text editor that shows the document in an editor group of its own. The
  * side of a diff editor (an AI proposal, say) is visible too but has no column:
@@ -350,6 +350,16 @@ export function shownTextEditor(document: vscode.TextDocument): vscode.TextEdito
   return vscode.window.visibleTextEditors.find((e) => e.document.uri.toString() === uri && e.viewColumn !== undefined);
 }
 
+/** Show the element's declaration in a text editor beside the views. */
+export async function revealElement(
+  document: vscode.TextDocument,
+  element: Pick<ElementRecord, 'id' | 'name'>,
+  options: { preserveFocus?: boolean } = {},
+): Promise<boolean> {
+  const range = await locateElement(document, element);
+  if (!range) {
+    vscode.window.setStatusBarMessage(`ArcLang: ${elementLabel({ ...element, kind: '' })} is not declared in this file (it may come from an import)`, 4000);
+    return false;
   }
   const column = shownTextEditor(document)?.viewColumn ?? vscode.ViewColumn.One;
   const editor = await vscode.window.showTextDocument(document, { viewColumn: column, preserveFocus: options.preserveFocus ?? false, preview: false });

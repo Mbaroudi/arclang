@@ -153,7 +153,23 @@ async function workbenchPage(win, not = []) {
     if (hasShow) { await show.click(); await win.waitForTimeout(3500); await command('File: Save All'); } else await press('Escape');
     report('"Show in the diagram" on a tree node adds it to the declared diagram', hasShow > 0 && shows('PN-CAM'));
     if (SHOTS) await win.screenshot({ path: path.join(SHOTS, 'vscode-shown.png') });
-    // 7b. A drag from the tree onto the page. VS Code decides whether a webview
+    // 7b. What VS Code hands the webview of a tree drag with Shift held: the item's resource
+    // URI (its fragment encoded again) in its list of resources. The page reads the element from it.
+    {
+      await second.evaluate(() => {
+        const sheet = document.querySelector('.wb-sheet');
+        const data = new DataTransfer();
+        data.setData('ResourceURLs', JSON.stringify(['arclang-node:/uuid?e%3D0%26w%3D0%26i%3D0%26own%3D0#arclang-element%3DPN-CHS']));
+        data.setData('application/vnd.code.tree.arclang.model', JSON.stringify({ id: 'arclang.model', itemHandles: ['0/0:Chassis ECU'] }));
+        sheet.dispatchEvent(new DragEvent('dragover', { bubbles: true, cancelable: true, dataTransfer: data }));
+        sheet.dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: data }));
+      });
+      await win.waitForTimeout(3500);
+      await command('File: Save All'); await win.waitForTimeout(1000);
+    }
+    const said = await second.evaluate(() => [...document.querySelectorAll('.wb-toast-text')].map((n) => n.textContent).join(' | ')).catch(() => '');
+    report('a tree drop as VS Code delivers it (Shift held) adds the node to the declared diagram', shows('PN-CHS'), shows('PN-CHS') ? '' : said + ' / ' + ((text().match(/diagram "Lane keeping chain" \{[^}]*\}/) || [''])[0]).replace(/\s+/g, ' '));
+    // 7c. A drag from the tree onto the page, last (a drag VS Code keeps may hold the keys). VS Code decides whether a webview
     // receives a drag from a view: what happens is said, not counted.
     const from = await win.locator('.monaco-list-row', { hasText: 'Chassis ECU' }).first().boundingBox();
     const stage = await second.locator('.arcviz-stage').boundingBox();
@@ -163,8 +179,8 @@ async function workbenchPage(win, not = []) {
       await win.mouse.move(stage.x + stage.width / 2, stage.y + stage.height / 2, { steps: 20 }); await win.waitForTimeout(400);
       await win.mouse.up(); await win.keyboard.up('Shift'); await win.waitForTimeout(3500);
     }
-    await command('File: Save All');
-    console.log(`note a tree node dragged onto the page (Shift held): ${shows('PN-CHS') ? 'added to the diagram' : 'not delivered to the webview by this drag'}`);
+    const delivered = await second.evaluate(() => [...document.querySelectorAll('.wb-toast-text')].some((n) => /Chassis ECU is on this diagram/.test(n.textContent || ''))).catch(() => false);
+    console.log(`note a tree node dragged onto the page (Shift held): ${delivered ? 'delivered to the webview' : 'not delivered to the webview by this synthetic drag'}`);
   } catch (error) {
     report('the run went through', false, String(error).slice(0, 200));
     if (SHOTS) await win.screenshot({ path: path.join(SHOTS, 'vscode-panes-error.png') }).catch(() => undefined);

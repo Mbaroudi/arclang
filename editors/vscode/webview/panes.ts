@@ -41,10 +41,12 @@ export function installPanes(d: PanesDeps): void {
     else d.toast(plan.reason, 'info');
   }
 
-  // A drag from the tree: VS Code hands the page the tree's own type, or a uri list.
+  // A drag from the tree (Shift held: VS Code hands an editor's webview a drag only so):
+  // the tree item's resource URI, as a uri list or VS Code's own list of resources.
+  const PAYLOAD_TYPES = [TREE_MIME, 'text/uri-list', 'resourceurls', 'codeeditors', 'text/plain'];
   const accepts = (event: DragEvent) => {
-    const types = [...(event.dataTransfer?.types ?? [])];
-    return types.includes(TREE_MIME) || types.includes('text/uri-list') || types.includes('text/plain');
+    const types = [...(event.dataTransfer?.types ?? [])].map((type) => type.toLowerCase());
+    return types.some((type) => PAYLOAD_TYPES.includes(type) || type.startsWith('application/vnd.code.tree.'));
   };
   d.sheet.addEventListener('dragover', (event) => {
     if (!accepts(event)) return;
@@ -57,10 +59,11 @@ export function installPanes(d: PanesDeps): void {
     d.sheet.classList.remove('wb-drop-over');
     const data = event.dataTransfer;
     if (!data) return;
-    const text = [TREE_MIME, 'text/uri-list', 'text/plain'].map((type) => data.getData(type)).find((value) => value && idOfPayload(value));
+    const types = [...new Set([...PAYLOAD_TYPES, ...data.types])];
+    const text = types.map((type) => data.getData(type)).find((value) => value && idOfPayload(value));
     const id = text ? idOfPayload(text) : null;
-    if (!id) return;
     event.preventDefault();
+    if (!id) return d.toast('This drag does not name an element of the model: right-click the node in the tree › Show in the diagram.', 'info');
     drop(id);
   });
 

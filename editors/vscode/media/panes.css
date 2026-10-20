@@ -196,6 +196,7 @@ body.wb-pinned .wb-layers { display: none; }
 body.vscode-high-contrast .wb-sec, body.vscode-high-contrast .wb-props-filterbar { border-color: var(--vscode-contrastBorder, #6fc3df); }
 body.vscode-high-contrast .wb-chip, body.vscode-high-contrast .wb-sec-count { outline: 1px solid var(--vscode-contrastBorder, #6fc3df); }
 body.vscode-high-contrast .wb-info { opacity: 1; }
+.wb-sheet.wb-drop-over::after { content: 'Drop to show it on this diagram'; position: absolute; left: 50%; top: 12px; transform: translateX(-50%); padding: 3px 10px; font-size: 12px; border-radius: 3px; color: var(--vscode-editorHoverWidget-foreground, var(--vscode-foreground)); background: var(--vscode-editorHoverWidget-background, var(--vscode-editorWidget-background)); border: 1px solid var(--wb-accent); pointer-events: none; z-index: 30; }
 body.vscode-high-contrast .wb-row-tools .wb-clear, body.vscode-high-contrast .wb-rel-remove { opacity: 1; }
 body.vscode-high-contrast tr.is-inherited .wb-inherited-value { font-style: italic; text-decoration: underline dotted; }
 @media (prefers-reduced-motion: reduce) {

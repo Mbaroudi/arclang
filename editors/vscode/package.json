@@ -456,7 +456,8 @@
       {
         "command": "arclang.model.showInDiagram",
         "title": "Show in the diagram",
-        "category": "ArcLang"
+        "category": "ArcLang",
+        "icon": "$(target)"
       },
       {
         "command": "arclang.model.references",
@@ -848,6 +849,11 @@
         {
           "command": "arclang.diagram.openInNewTab",
           "when": "view == arclangModel && viewItem == arclang.diagram",
+          "group": "inline"
+        },
+        {
+          "command": "arclang.model.showInDiagram",
+          "when": "view == arclangModel && viewItem == arclang.element",
           "group": "inline"
         },
         {

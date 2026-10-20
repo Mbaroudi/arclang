@@ -188,20 +188,46 @@ export function dropPlan(element: ElementRecord, graph: ViewerGraph, topIds: str
 export const TREE_MIME = 'application/vnd.code.tree.arclangmodel';
 
 export function dropPayload(uri: string, id: string): string {
-  return `${uri}#arclang-element=${encodeURIComponent(id)}`;
+  return `${uri}#${ELEMENT_FRAGMENT}${encodeURIComponent(id)}`;
 }
 
-/** The element id of a drag payload (the tree's own MIME, or a `text/uri-list` line). */
+/** How a tree node reaches a diagram: VS Code drops into an editor or a webview only with Shift held. */
+export const DROP_HINT = 'Hold Shift while dragging it onto a diagram (VS Code drops into an editor only with Shift), or right-click › Show in the diagram.';
+
+/** The fragment that names an element in a drag payload's URI. */
+export const ELEMENT_FRAGMENT = 'arclang-element=';
+
+/**
+ * The element id of a drag payload: a `text/uri-list` line, VS Code's list of
+ * resources (a JSON array) or the tree's own JSON. VS Code writes a tree
+ * item's `resourceUri` into the drag itself (the extension's own data stays
+ * in the extension host), with its fragment encoded: `#arclang-element%3D…`.
+ * VS Code's tree payload `{ id: <view>, itemHandles }` names the view, not an element.
+ */
 export function idOfPayload(text: string): string | null {
-  for (const line of text.split(/\r?\n/)) {
-    const match = /#arclang-element=([^&\s]+)/.exec(line);
-    if (match) return decodeURIComponent(match[1]);
-  }
+  const match = /#arclang-element(?:=|%3D)([^&\s"',\]]+)/i.exec(text);
+  if (match) return decodeFully(match[1]);
   try {
     const parsed = JSON.parse(text) as { id?: unknown; itemHandles?: unknown };
-    if (typeof parsed.id === 'string') return parsed.id;
+    if (typeof parsed.id === 'string' && parsed.itemHandles === undefined) return parsed.id;
   } catch {
     // not JSON
   }
   return null;
+}
+
+/** Undo every layer of percent-encoding (a URI's toString encodes the `%` of an encoded id again). */
+function decodeFully(text: string): string {
+  let current = text;
+  for (let i = 0; i < 4; i++) {
+    let next: string;
+    try {
+      next = decodeURIComponent(current);
+    } catch {
+      return current;
+    }
+    if (next === current) return current;
+    current = next;
+  }
+  return current;
 }

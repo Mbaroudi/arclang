@@ -221,6 +221,11 @@ test('drag payloads and messages', () => {
   assert.equal(idOfPayload(dropPayload('file:///m.arc', 'Periodic task')), 'Periodic task');
   assert.equal(idOfPayload(JSON.stringify({ id: 'LC-CAM' })), 'LC-CAM');
   assert.equal(idOfPayload('file:///other'), null);
+  // What VS Code puts in a tree drag: the item's resource URI, its fragment encoded once more.
+  assert.equal(idOfPayload('arclang-node:/u1?e%3D0%26w%3D0#arclang-element%3DPeriodic%2520task'), 'Periodic task');
+  assert.equal(idOfPayload(JSON.stringify(['arclang-node:/u1?e%3D0#arclang-element%3DLC-CAM.steer'])), 'LC-CAM.steer');
+  // VS Code's own tree payload names the view, not an element.
+  assert.equal(idOfPayload(JSON.stringify({ id: 'arclang.model', itemHandles: ['0/0:Camera'] })), null);
   assert.ok(isPanesMessage({ type: 'panes-validate' }));
   assert.ok(!isPanesMessage({ type: 'edit' }));
 });

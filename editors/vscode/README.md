@@ -61,7 +61,10 @@ the selection follows; Undo, Redo and Save are the editor's own.
   edited in place (the identity never changes).
 - **Model tree** and **Relations** views in the ArcLang side bar: the
   diagrams, then the elements by layer and ownership; owner, incoming,
-  outgoing, traces and owned of the selection, each a step away.
+  outgoing, traces and owned of the selection, each a step away. To put a
+  tree node on a diagram, right-click it › **Show in the diagram**, or drag
+  it onto the diagram **with Shift held**: VS Code drops into an editor or a
+  webview only while Shift is pressed.
 - **Navigation at scale**: *Open a diagram…* (`⌘⌥D`) and *Go to an element…*
   (`⌘⌥E`) quick picks; the status bar shows the gate verdict and the number
   of findings; findings are marked on the drawn elements, with their text as
