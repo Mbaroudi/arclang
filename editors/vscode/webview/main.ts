@@ -19,6 +19,7 @@ import { changesOf, markFindings as markFindings_, pulse, renderLayers as render
 import { Alignment, modelIdOf, relationshipOfEdge } from '../src/pure/editing';
 import { installAi } from './ask-ai'; // ai-design hook
 import { installKeys } from './keys';
+import { MultiSelection } from './multi-select';
 import { installPanes } from './panes'; // panes hook
 import { DiagramExports } from './diagram-export';
 import { ThemeEditor } from './theme-editor';
@@ -219,61 +220,22 @@ function selectElement(element: ElementRecord | null, inViewer: boolean): void {
   if (inViewer && element) selectInViewer(element.id);
 }
 
-// --- Multi-selection (Shift+click) ------------------------------------------
+// --- Multi-selection (Shift+click, multi-select.ts) ---------------------------
 
-let shiftDown = false;
-host.addEventListener('pointerdown', (event) => (shiftDown = event.shiftKey), true);
-/** The elements selected together, the primary one included; empty when one or none is selected. */
-let multi: ElementRecord[] = [];
-
-function markMulti(): void {
-  for (const node of host.querySelectorAll('.wb-multi')) node.classList.remove('wb-multi');
-  for (const element of multi) host.querySelector(`[data-id="${CSS.escape(drawingId(element.id))}"]`)?.classList.add('wb-multi');
-  multiBar.hidden = multi.length < 2;
-  state.viewer?.refreshTools?.();
-  multiCount.textContent = `${multi.length} selected`;
-  if (multi.length > 1) properties.showMany(multi, state.metamodel);
-}
-
-/** The selected elements without those another selected element owns (removing the owner removes them). */
-function outermost(elements: ElementRecord[]): ElementRecord[] {
-  const uuids = new Set(elements.map((e) => e.uuid));
-  const ownedBySelection = (element: ElementRecord): boolean => {
-    let owner = element.owner ? state.byUuid.get(element.owner) : undefined;
-    while (owner) {
-      if (uuids.has(owner.uuid)) return true;
-      owner = owner.owner ? state.byUuid.get(owner.owner) : undefined;
-    }
-    return false;
-  };
-  return elements.filter((e) => !ownedBySelection(e));
-}
-
-function deleteMany(elements: ElementRecord[]): void {
-  const targets = outermost(elements);
-  submit(targets.map((e) => ({ op: 'remove', element: e.id })), `delete ${targets.length} elements`);
-  multi = [];
-  markMulti();
-}
-
-function hideMany(elements: ElementRecord[]): void {
-  contents.hideMany(elements);
-  multi = [];
-  markMulti();
-}
-
-const multiBar = el('div', { class: 'wb-multibar', hidden: true, role: 'toolbar', 'aria-label': 'Selection' });
-const multiCount = el('strong', { text: '' });
-multiBar.append(
-  multiCount,
-  button('Delete all', () => deleteMany(multi), { class: 'wb-danger', title: 'Delete every selected element (one undo)' }),
-  button('Hide all', () => hideMany(multi), { title: 'Hide every selected element from this diagram' }),
-  button('Clear', () => {
-    multi = [];
-    markMulti();
-  }),
-);
-sheet.appendChild(multiBar);
+const multiSelection = new MultiSelection({
+  host,
+  sheet,
+  drawingId,
+  byUuid: () => state.byUuid,
+  refreshTools: () => state.viewer?.refreshTools?.(),
+  showMany: (elements) => properties.showMany(elements, state.metamodel),
+  submit,
+  hide: (elements) => contents.hideMany(elements),
+});
+const markMulti = () => multiSelection.mark();
+const outermost = (elements: ElementRecord[]) => multiSelection.outermost(elements);
+const deleteMany = (elements: ElementRecord[]) => multiSelection.deleteMany(elements);
+const hideMany = (elements: ElementRecord[]) => multiSelection.hideMany(elements);
 
 /** A selection the page asks of the viewer: its empty answer while the drawing settles is not the reader's. */
 let programmaticUntil = 0;
@@ -289,17 +251,12 @@ function selectInViewer(id: string): void {
   state.viewer?.select?.(edge ?? drawingId(id));
 }
 
-function onSelect(selection: ViewerSelection | null): void {
-  if (selection === null && Date.now() < programmaticUntil && state.selected) return;
+function onSelect(picked: ViewerSelection | null): void {
+  if (picked === null && Date.now() < programmaticUntil && state.selected) return;
   programmaticUntil = 0;
-  state.selectedDrawing = selection?.id ?? null;
-  const element = elementFor(selection);
-  if (shiftDown && element && !selection?.isEdge) {
-    const primary = state.selected;
-    const base = multi.length ? multi : primary && primary.uuid !== element.uuid ? [primary] : [];
-    multi = base.some((e) => e.uuid === element.uuid) ? base.filter((e) => e.uuid !== element.uuid) : [...base, element];
-    shiftDown = false;
-    setTimeout(markMulti, 0);
+  state.selectedDrawing = picked?.id ?? null;
+  const element = elementFor(picked);
+  if (multiSelection.shiftClick(element, state.selected, !!picked?.isEdge)) {
     selectElement(element, false);
     return;
   }
@@ -309,8 +266,8 @@ function onSelect(selection: ViewerSelection | null): void {
     setTimeout(markMulti, 0);
     return;
   }
-  if (multi.length) {
-    multi = [];
+  if (multiSelection.elements.length) {
+    multiSelection.elements = [];
     setTimeout(markMulti, 0);
   }
   // A connect tool takes the click as one of its ends.
@@ -370,9 +327,9 @@ const editing = new Editing({
   graph: () => currentGraph(),
   selected: () => state.selected,
   selectedDrawing: () => state.selectedDrawing,
-  multi: () => multi,
+  multi: () => multiSelection.elements,
   setMulti: (elements) => {
-    multi = elements;
+    multiSelection.elements = elements;
     if (elements.length) selectElement(elements[elements.length - 1], false);
     markMulti();
   },
@@ -405,7 +362,7 @@ const editing = new Editing({
 const exportsUi = new DiagramExports({
   post: (message) => vscode.postMessage(message as never),
   viewer: () => state.viewer,
-  selection: () => (multi.length > 1 ? multi.map((e) => drawingId(e.id)) : state.selectedDrawing ? [state.selectedDrawing] : []),
+  selection: () => (multiSelection.elements.length > 1 ? multiSelection.elements.map((e) => drawingId(e.id)) : state.selectedDrawing ? [state.selectedDrawing] : []),
   toast: (text, kind) => showToast(text, kind),
   file: () => root.dataset.file ?? 'diagrams',
   openEditor: () => themeEditor.open(),
@@ -435,7 +392,7 @@ async function joinLayout(run: () => Promise<void> | undefined): Promise<void> {
 }
 
 // ai-design hook: Ask AI on the selection (⌘I) and the Suggestions pane (webview/ask-ai.ts).
-installAi({ post: (m) => vscode.postMessage(m as never), sheet, host, selection: () => (multi.length > 1 ? multi : state.selected ? [state.selected] : []), drawingId, toast: (text, kind) => showToast(text, kind), openDrawer: () => setDrawer(true), snapshot: () => state.snapshot });
+installAi({ post: (m) => vscode.postMessage(m as never), sheet, host, selection: () => (multiSelection.elements.length > 1 ? multiSelection.elements : state.selected ? [state.selected] : []), drawingId, toast: (text, kind) => showToast(text, kind), openDrawer: () => setDrawer(true), snapshot: () => state.snapshot });
 
 /** Exports go to the host, which asks where to save them (a webview cannot download). */
 function onDownload(blob: Blob, filename: string): void {
@@ -577,7 +534,7 @@ function mount(snapshot: Snapshot): void {
     // Undo and redo from the host's history, align on the multi-selection; boxes are always placed by dragging.
     toolbar: {
       history: { undo: () => vscode.postMessage({ type: 'history', op: 'undo' }), redo: () => vscode.postMessage({ type: 'history', op: 'redo' }), labels: () => historyLabels },
-      align: { count: () => multi.length, align: (how: string) => editing.align(how as Alignment), distribute: (axis: 'horizontal' | 'vertical') => editing.distribute(axis) },
+      align: { count: () => multiSelection.elements.length, align: (how: string) => editing.align(how as Alignment), distribute: (axis: 'horizontal' | 'vertical') => editing.distribute(axis) },
       arrangeToggle: false,
     },
     // Copy as image, as SVG, PowerPoint in Export; the theme chooser and editor in Theme.
@@ -824,7 +781,7 @@ function flashChanges(before: Snapshot, after: Snapshot): void {
 
 const keys = installKeys({
   post: (message) => vscode.postMessage(message as never), editing, palette, tools, toast,
-  multi: () => multi, selected: () => state.selected, viewer: () => state.viewer, snapshot: () => state.snapshot,
+  multi: () => multiSelection.elements, selected: () => state.selected, viewer: () => state.viewer, snapshot: () => state.snapshot,
   deleteMany, hideMany, hideFromDiagram, setFocusMode, toggleMinimap: () => toggleMinimap(), stepLayer, openFind, showToast, submit, copyImage: () => void exportsUi.copyImage(),
 });
 const canvasCommand = keys.canvasCommand;
