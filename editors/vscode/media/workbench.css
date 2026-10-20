@@ -585,13 +585,16 @@ body.wb-focus #workbench .arcviz #arcviz-fullscreen { color: var(--vscode-inputO
 /* Dark and high-contrast themes: the drawing is turned to the dark side the
    way the editor is, light paper becoming a dark sheet and dark ink light;
    the hue is turned back so a function stays green and a component blue.
-   The exports (SVG, PNG) are written from the drawing itself, light. */
-body.vscode-dark #workbench .arcviz-stage svg.av-svg,
-body.vscode-dark #workbench .wb-minimap svg {
+   Every drawing of the page, at every width and on every view. A colour
+   theme with a dark variant of its own (wb-theme-own-dark) is drawn as it
+   is. The exports (SVG, PNG, the clipboard, PowerPoint) are always drawn in
+   the theme's own light colours. */
+body.vscode-dark:not(.wb-theme-own-dark) #workbench svg.av-svg,
+body.vscode-dark:not(.wb-theme-own-dark) #workbench .wb-minimap svg {
   filter: invert(0.88) hue-rotate(180deg);
 }
-body.vscode-high-contrast:not(.vscode-high-contrast-light) #workbench .arcviz-stage svg.av-svg,
-body.vscode-high-contrast:not(.vscode-high-contrast-light) #workbench .wb-minimap svg {
+body.vscode-high-contrast:not(.vscode-high-contrast-light):not(.wb-theme-own-dark) #workbench svg.av-svg,
+body.vscode-high-contrast:not(.vscode-high-contrast-light):not(.wb-theme-own-dark) #workbench .wb-minimap svg {
   filter: invert(1) hue-rotate(180deg) contrast(1.35);
 }
 body.vscode-high-contrast-light #workbench .arcviz-stage svg.av-svg { filter: contrast(1.2); }
@@ -615,3 +618,47 @@ body.vscode-high-contrast #workbench .arcviz .av-node.wb-hover > .av-shape { str
     box-shadow: -6px 0 18px rgba(0, 0, 0, 0.28);
   }
 }
+
+/* The theme editor: a panel over the right of the canvas, the diagram it
+   previews still in sight on the left; the whole canvas when it is narrow. */
+.wb-theme-editor {
+  position: absolute; z-index: 9; top: 8px; right: 8px; bottom: 8px; width: min(400px, calc(100% - 16px));
+  display: flex; flex-direction: column; gap: 8px; padding: 10px 12px;
+  background: var(--vscode-editorWidget-background, var(--vscode-editor-background));
+  color: var(--vscode-editorWidget-foreground, var(--vscode-foreground));
+  border: 1px solid var(--vscode-editorWidget-border, var(--vscode-panel-border, #8884));
+  border-radius: 6px; box-shadow: 0 8px 24px rgb(0 0 0 / 0.28); overflow: hidden; font-size: 12px;
+}
+.wb-theme-editor[hidden] { display: none; }
+.wb-te-head { display: flex; align-items: center; justify-content: space-between; }
+.wb-te-head h2 { margin: 0; font-size: 13px; font-weight: 600; letter-spacing: 0.01em; }
+.wb-te-close { border: 0; background: transparent; color: inherit; font-size: 18px; line-height: 1; cursor: pointer; padding: 2px 6px; border-radius: 4px; }
+.wb-te-close:hover { background: var(--vscode-toolbar-hoverBackground, #8882); }
+.wb-te-start, .wb-te-row, .wb-te-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.wb-te-start label, .wb-te-row label { color: var(--vscode-descriptionForeground); }
+.wb-te-base, .wb-te-name { flex: 1; min-width: 120px; }
+.wb-theme-editor select, .wb-theme-editor input[type="text"] {
+  background: var(--vscode-input-background); color: var(--vscode-input-foreground);
+  border: 1px solid var(--vscode-input-border, #8886); border-radius: 3px; padding: 3px 5px; font: inherit;
+}
+.wb-theme-editor button { font: inherit; padding: 3px 9px; border-radius: 3px; cursor: pointer; border: 1px solid var(--vscode-button-border, transparent); background: var(--vscode-button-secondaryBackground, #8883); color: var(--vscode-button-secondaryForeground, inherit); }
+.wb-theme-editor button.wb-primary { background: var(--vscode-button-background); color: var(--vscode-button-foreground); }
+.wb-theme-editor button:disabled { opacity: 0.45; cursor: not-allowed; }
+.wb-theme-editor button:focus-visible, .wb-theme-editor input:focus-visible, .wb-theme-editor select:focus-visible { outline: 1px solid var(--vscode-focusBorder); outline-offset: 1px; }
+.wb-te-verdict { border-left: 3px solid var(--vscode-testing-iconPassed, #388a34); padding: 4px 8px; background: color-mix(in srgb, var(--vscode-testing-iconPassed, #388a34) 9%, transparent); border-radius: 0 3px 3px 0; max-height: 34%; overflow: auto; }
+.wb-te-verdict.is-refused { border-left-color: var(--vscode-errorForeground, #e51400); background: color-mix(in srgb, var(--vscode-errorForeground, #e51400) 9%, transparent); }
+.wb-te-title { margin: 2px 0; font-weight: 600; }
+.wb-te-errors, .wb-te-warnings ul { margin: 4px 0 2px; padding-left: 18px; }
+.wb-te-errors li { color: var(--vscode-errorForeground, #e51400); margin: 2px 0; }
+.wb-te-warnings summary { cursor: pointer; color: var(--vscode-editorWarning-foreground, #bf8803); }
+.wb-te-saved { margin: 2px 0 6px; color: var(--vscode-testing-iconPassed, #388a34); }
+.wb-te-fields { flex: 1; min-height: 0; overflow: auto; padding-right: 4px; }
+.wb-te-group { border: 0; margin: 0 0 10px; padding: 0; }
+.wb-te-group legend { font-weight: 600; text-transform: uppercase; font-size: 10.5px; letter-spacing: 0.06em; color: var(--vscode-descriptionForeground); padding: 4px 0; }
+.wb-te-line { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 6px; padding: 2px 0; border-bottom: 1px solid color-mix(in srgb, var(--vscode-foreground) 7%, transparent); }
+.wb-te-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wb-te-colour { display: inline-flex; align-items: center; gap: 3px; }
+.wb-te-swatch { inline-size: 22px; block-size: 20px; padding: 0; border: 1px solid var(--vscode-input-border, #8886); border-radius: 3px; background: none; cursor: pointer; }
+.wb-theme-editor input.wb-te-hex { width: 7ch; font-family: var(--vscode-editor-font-family, monospace); font-size: 11px; padding: 2px 4px; }
+.wb-te-hex.is-invalid { border-color: var(--vscode-inputValidation-errorBorder, #e51400); }
+.wb-te-style { font-size: 11px; }

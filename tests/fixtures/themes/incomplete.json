@@ -1,0 +1,5 @@
+{
+  "description": "A theme of its own (no preset under it) that forgets most concepts.",
+  "expect": { "ok": false, "rules": ["complete"], "errors": ["physical node has no fill and stroke (concepts.physical_node)", "physical link has no line colour (exchanges.physical_link)"] },
+  "theme": { "version": 1, "name": "Half done", "background": "#FFFFFF", "text": "#000000", "muted": "#333333", "concepts": { "system_function": { "fill": "#C5FFA6", "stroke": "#095C2E" } } }
+}

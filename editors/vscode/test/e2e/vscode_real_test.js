@@ -563,7 +563,7 @@ async function toolbar() {
       await crop(`vscode-${slug}-menu-export`, 260);
       await ctx.press('Escape'); await win.waitForTimeout(300);
       const back = await page.evaluate(() => document.activeElement?.id);
-      report(`${slug}: Export by keyboard (Enter, arrows, Esc)`, first === 'save-svg' && second === 'save-png' && (await open().count()) === 0 && back === 'arcviz-export-menu', `${first} ${second} -> ${back}`);
+      report(`${slug}: Export by keyboard (Enter, arrows, Esc)`, first === 'copy-image' && second === 'copy-svg' && (await open().count()) === 0 && back === 'arcviz-export-menu', `${first} ${second} -> ${back}`);
       // The zoom level follows the buttons, the presets and the keys
       const level = async () => (await id('arcviz-zoom-level').textContent()).replace(/\s/g, ' ').trim();
       await id('arcviz-zoom-level').click(); await win.waitForTimeout(300); await action('zoom-75').click(); await win.waitForTimeout(600);

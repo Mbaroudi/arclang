@@ -5,6 +5,11 @@
  * Pure: no DOM, no globals, same output in a browser and under Node, so the
  * drawing can be checked headless (tools/diagram_render). Every dynamic
  * string goes through `esc` before it reaches the markup.
+ *
+ * Colours come from a theme (ArcVizTheme.palette, see arcviz-theme.js):
+ * the one given to `renderSvg`, else the one set by `setTheme`, else the
+ * built-in colours below. The notation (glyphs, corners, arrows) is not
+ * the theme's.
  */
 (function (root, factory) {
   if (typeof module === 'object' && module.exports) module.exports = factory();
@@ -93,12 +98,36 @@
     return Math.round(value * 100) / 100;
   }
 
-  function nodeStyle(kind) {
-    return NODE_STYLE[kind] || FALLBACK_NODE;
+  // The theme set for every drawing, and the one of the drawing under way
+  // (a render is synchronous: `current` holds only while it runs).
+  let active = null;
+  let current = null;
+  let currentView = null;
+  const themeOf = () => (current === undefined ? null : current || active);
+  const INK = { text: '#18222D', muted: '#3D4852', background: '#FFFFFF' };
+  const ink = (part) => (themeOf() && themeOf()[part]) || INK[part];
+
+  /** Colour every later drawing with `palette` (ArcVizTheme.palette), or with the built-in colours (null). */
+  function setTheme(palette) {
+    active = palette || null;
+  }
+
+  function nodeStyle(kind, view) {
+    const base = NODE_STYLE[kind] || FALLBACK_NODE;
+    const theme = themeOf();
+    const themed = theme && theme.node(kind, view || currentView);
+    if (themed) return { ...base, fill: themed.fill, stroke: themed.stroke, text: themed.text, dash: themed.dash };
+    // A notation mark (start of a machine, a junction) is drawn in ink.
+    if (theme && (kind === 'initial_state' || kind === 'junction')) return { ...base, fill: theme.text, stroke: theme.text };
+    return base;
   }
 
   function edgeStyle(kind) {
-    return EDGE_STYLE[kind] || FALLBACK_EDGE;
+    const base = EDGE_STYLE[kind] || FALLBACK_EDGE;
+    const theme = themeOf();
+    const themed = theme && theme.edge(kind);
+    if (!themed) return base;
+    return { ...base, stroke: themed.stroke, text: themed.text, width: themed.width || base.width, dash: themed.dash === undefined ? base.dash : themed.dash || base.dash };
   }
 
   function safetyColor(level) {
@@ -191,6 +220,8 @@
   function drawNode(node, ox, oy, out, origins) {
     const arc = node.arc || {};
     const style = nodeStyle(arc.kind);
+    const text = style.text || ink('text');
+    const muted = ink('muted');
     const x = ox + node.x;
     const y = oy + node.y;
     origins.set(node.id, { x, y });
@@ -214,42 +245,45 @@
     // A variant of a product line is one choice among others: dashed.
     const properties = arc.properties || {};
     const variant = properties.variant === 'true';
-    const dashed = arc.context || variant;
-    body += `<rect class="av-shape" x="${num(x)}" y="${num(y)}" width="${num(node.width)}" height="${num(node.height)}" rx="${style.round || 3}" fill="${style.fill}" stroke="${style.stroke}" stroke-width="${container ? 1.6 : 1.2}"${dashed ? ' stroke-dasharray="5 3"' : ''}/>`;
+    const theme = themeOf();
+    const marking = theme && theme.variant;
+    const dash = variant && marking ? marking.dash : arc.context || variant ? '5 3' : style.dash;
+    const outline = variant && marking && marking.stroke ? marking.stroke : style.stroke;
+    body += `<rect class="av-shape" x="${num(x)}" y="${num(y)}" width="${num(node.width)}" height="${num(node.height)}" rx="${style.round || 3}" fill="${style.fill}" stroke="${outline}" stroke-width="${container ? 1.6 : 1.2}"${dash ? ` stroke-dasharray="${dash}"` : ''}/>`;
     body += glyph(style.glyph, x + 6, y + 6, style.stroke);
     if (properties.variation === 'true' || variant) {
-      body += `<text x="${num(x + node.width - 6)}" y="${num(y + 11)}" text-anchor="end" font-size="8.5" font-style="italic" fill="#3D4852">${variant ? 'variant' : 'variation'}</text>`;
+      body += `<text x="${num(x + node.width - 6)}" y="${num(y + 11)}" text-anchor="end" font-size="8.5" font-style="italic" fill="${muted}">${variant ? 'variant' : 'variation'}</text>`;
     }
 
     const centerX = x + node.width / 2;
     const lines = arc.compartment || [];
     if (lines.length > 0) {
-      body += `<text x="${num(centerX)}" y="${num(y + 19)}" text-anchor="middle" font-size="12" font-weight="700" fill="#18222D">${esc(name)}</text>`;
+      body += `<text x="${num(centerX)}" y="${num(y + 19)}" text-anchor="middle" font-size="12" font-weight="700" fill="${text}">${esc(name)}</text>`;
       body += `<line x1="${num(x)}" y1="${num(y + COMPARTMENT.top - 8)}" x2="${num(x + node.width)}" y2="${num(y + COMPARTMENT.top - 8)}" stroke="${style.stroke}" stroke-width="1"/>`;
       lines.forEach((line, index) => {
-        body += `<text x="${num(x + COMPARTMENT.inset)}" y="${num(y + COMPARTMENT.top + 4 + index * COMPARTMENT.line)}" font-size="10.5" fill="#26313C">${esc(line)}</text>`;
+        body += `<text x="${num(x + COMPARTMENT.inset)}" y="${num(y + COMPARTMENT.top + 4 + index * COMPARTMENT.line)}" font-size="10.5" fill="${text}">${esc(line)}</text>`;
       });
     } else if (container) {
-      body += `<text x="${num(centerX)}" y="${num(y + 20)}" text-anchor="middle" font-size="12" font-weight="700" fill="#18222D">${esc(name)}</text>`;
+      body += `<text x="${num(centerX)}" y="${num(y + 20)}" text-anchor="middle" font-size="12" font-weight="700" fill="${text}">${esc(name)}</text>`;
       if (realizes) {
-        body += `<text x="${num(centerX)}" y="${num(y + 33)}" text-anchor="middle" font-size="9.5" font-style="italic" fill="#3D4852">realizes ${esc(realizes)}</text>`;
+        body += `<text x="${num(centerX)}" y="${num(y + 33)}" text-anchor="middle" font-size="9.5" font-style="italic" fill="${muted}">realizes ${esc(realizes)}</text>`;
       }
     } else {
       // Under the name: what the element realizes, and what a folded
       // container hides.
       const notes = [realizes ? `realizes ${realizes}` : '', arc.folded ? `${arc.folded} inside` : ''].filter(Boolean).join(' · ');
       const baseline = y + node.height / 2 + (notes ? -2 : 4);
-      body += `<text x="${num(centerX)}" y="${num(baseline)}" text-anchor="middle" font-size="12" font-weight="600" fill="#18222D">${esc(name)}</text>`;
+      body += `<text x="${num(centerX)}" y="${num(baseline)}" text-anchor="middle" font-size="12" font-weight="600" fill="${text}">${esc(name)}</text>`;
       if (notes) {
-        body += `<text x="${num(centerX)}" y="${num(baseline + 13)}" text-anchor="middle" font-size="9.5" font-style="italic" fill="#3D4852">${esc(notes)}</text>`;
+        body += `<text x="${num(centerX)}" y="${num(baseline + 13)}" text-anchor="middle" font-size="9.5" font-style="italic" fill="${muted}">${esc(notes)}</text>`;
       }
     }
     if (safety) {
       const width = safety.length * 5.2 + 8;
       const bx = x + node.width - width - 4;
       const by = y + node.height - 15;
-      body += `<rect x="${num(bx)}" y="${num(by)}" width="${num(width)}" height="11" rx="2" fill="#FFFFFF" stroke="${safetyColor(safety)}" stroke-width=".8"/>`;
-      body += `<text x="${num(bx + width / 2)}" y="${num(by + 8.3)}" text-anchor="middle" font-size="8" font-weight="700" fill="${safetyColor(safety)}">${esc(safety)}</text>`;
+      body += `<rect x="${num(bx)}" y="${num(by)}" width="${num(width)}" height="11" rx="2" fill="${(theme && theme.tag.fill) || '#FFFFFF'}" stroke="${(theme && theme.tag.stroke) || safetyColor(safety)}" stroke-width=".8"/>`;
+      body += `<text x="${num(bx + width / 2)}" y="${num(by + 8.3)}" text-anchor="middle" font-size="8" font-weight="700" fill="${(theme && theme.tag.text) || safetyColor(safety)}">${esc(safety)}</text>`;
     }
     for (const port of node.ports || []) body += drawPort(port, node, x, y);
 
@@ -320,7 +354,7 @@
     }
     for (const label of edge.labels || []) {
       if (label.x === undefined || !label.text) continue;
-      body += `<text class="av-edge-label" x="${num(label.x + origin.x)}" y="${num(label.y + origin.y + 9.5)}" font-size="10" fill="${style.stroke}" stroke="#FFFFFF" stroke-width="3" paint-order="stroke" stroke-linejoin="round">${esc(label.text)}</text>`;
+      body += `<text class="av-edge-label" x="${num(label.x + origin.x)}" y="${num(label.y + origin.y + 9.5)}" font-size="10" fill="${style.text || style.stroke}" stroke="${ink('background')}" stroke-width="3" paint-order="stroke" stroke-linejoin="round">${esc(label.text)}</text>`;
     }
     const styled = edge.lineStyle === 'curved' || edge.lineStyle === 'straight' ? ` data-style="${edge.lineStyle}"` : '';
     return `<g class="av-edge" data-id="${esc(edge.id)}"${styled} data-kind="${esc(arc.kind)}" data-source="${esc(arc.source_node)}" data-target="${esc(arc.target_node)}">${body}</g>`;
@@ -333,7 +367,7 @@
         const style = edgeStyle(kind);
         // UML generalization: a hollow triangle on the general element.
         const head = style.hollow
-          ? `<path d="M1 1L10 5L1 9z" fill="#FFFFFF" stroke="${style.stroke}" stroke-width="1.1" stroke-linejoin="round"/>`
+          ? `<path d="M1 1L10 5L1 9z" fill="${ink('background')}" stroke="${style.stroke}" stroke-width="1.1" stroke-linejoin="round"/>`
           : `<path d="M0 1L10 5L0 9z" fill="${style.stroke}"/>`;
         const size = style.hollow ? 12 : 9;
         return `<marker id="av-arrow-${esc(kind)}" viewBox="0 0 11 10" refX="${style.hollow ? 10 : 9}" refY="5" markerUnits="userSpaceOnUse" markerWidth="${size}" markerHeight="${size}" orient="auto">${head}</marker>`;
@@ -413,10 +447,10 @@
       return (
         `<g class="av-node" data-id="${esc(lifeline.id)}" data-kind="lifeline">` +
         `<title>${esc(represents ? style.label : 'Participant')}: ${esc(name)}</title>` +
-        `<line x1="${num(cx)}" y1="${SEQ.head}" x2="${num(cx)}" y2="${num(bottom)}" stroke="#66717D" stroke-width="1" stroke-dasharray="5 4"/>` +
+        `<line x1="${num(cx)}" y1="${SEQ.head}" x2="${num(cx)}" y2="${num(bottom)}" stroke="${ink('muted')}" stroke-width="1" stroke-dasharray="5 4"/>` +
         `<rect class="av-shape" x="${num(x)}" y="0" width="${num(headWidth)}" height="${SEQ.head}" rx="3" fill="${style.fill}" stroke="${style.stroke}" stroke-width="1.3"/>` +
         glyph(style.glyph, x + 6, 6, style.stroke) +
-        `<text x="${num(cx)}" y="${SEQ.head / 2 + 4}" text-anchor="middle" font-size="12" font-weight="600" fill="#18222D">${esc(name)}</text>` +
+        `<text x="${num(cx)}" y="${SEQ.head / 2 + 4}" text-anchor="middle" font-size="12" font-weight="600" fill="${style.text || ink('text')}">${esc(name)}</text>` +
         '</g>'
       );
     });
@@ -439,7 +473,7 @@
       let body =
         `<rect x="${num(left)}" y="${num(top)}" width="${num(right - left)}" height="${num(bottomY - top)}" fill="none" stroke="#5A6672" stroke-width="1.2"/>` +
         `<path d="M${num(left)} ${num(top)}H${num(left + tagWidth)}V${num(top + 12)}L${num(left + tagWidth - 6)} ${num(top + 18)}H${num(left)}Z" fill="#E9EDF1" stroke="#5A6672" stroke-width="1.2"/>` +
-        `<text x="${num(left + 6)}" y="${num(top + 13)}" font-size="10.5" font-weight="700" fill="#18222D">${esc(title)}</text>`;
+        `<text x="${num(left + 6)}" y="${num(top + 13)}" font-size="10.5" font-weight="700" fill="${ink('text')}">${esc(title)}</text>`;
       fragment.operands.forEach((operand, index) => {
         if (index > 0 && operand.end >= operand.start) {
           const y = rowY(operand.start) - SEPARATOR - 10;
@@ -449,7 +483,7 @@
           // The guard: right of the tag for the first operand, under the separator for the others.
           const y = index > 0 ? rowY(operand.start) - SEPARATOR + 2 : top + 13;
           const x = index > 0 ? left + 8 : left + tagWidth + 8;
-          body += `<text x="${num(x)}" y="${num(y)}" font-size="10" font-style="italic" fill="#3D4852">[${esc(operand.label)}]</text>`;
+          body += `<text x="${num(x)}" y="${num(y)}" font-size="10" font-style="italic" fill="${ink('muted')}">[${esc(operand.label)}]</text>`;
         }
         (operand.fragments || []).forEach((nested) => drawFragment(nested, depth + 1));
       });
@@ -499,12 +533,12 @@
       if (x1 === x2) {
         d = `M${num(x1)} ${num(y)}H${num(x1 + SEQ.selfReach)}V${num(y + SEQ.selfDrop)}H${num(x1)}`;
         arrow = head(x1, y + SEQ.selfDrop, -1);
-        label = `<text class="av-edge-label" x="${num(x1 + SEQ.selfReach + 8)}" y="${num(y + SEQ.selfDrop / 2 + 3.5)}" font-size="10" fill="${style.stroke}">${esc(text)}</text>`;
+        label = `<text class="av-edge-label" x="${num(x1 + SEQ.selfReach + 8)}" y="${num(y + SEQ.selfDrop / 2 + 3.5)}" font-size="10" fill="${style.text || style.stroke}">${esc(text)}</text>`;
       } else {
         const dir = x2 > x1 ? 1 : -1;
         d = `M${num(x1)} ${num(y)}H${num(x2)}`;
         arrow = head(x2, y, dir);
-        label = `<text class="av-edge-label" x="${num((x1 + x2) / 2)}" y="${num(y - 6)}" text-anchor="middle" font-size="10" fill="${style.stroke}" stroke="#FFFFFF" stroke-width="3" paint-order="stroke" stroke-linejoin="round">${esc(text)}</text>`;
+        label = `<text class="av-edge-label" x="${num((x1 + x2) / 2)}" y="${num(y - 6)}" text-anchor="middle" font-size="10" fill="${style.text || style.stroke}" stroke="${ink('background')}" stroke-width="3" paint-order="stroke" stroke-linejoin="round">${esc(text)}</text>`;
       }
       const tip = `Message ${index + 1}: ${message.labels[0].text} — ${kind === 'async' ? 'asynchronous' : kind === 'return' ? 'return' : 'synchronous'}`;
       return (
@@ -527,7 +561,7 @@
       `<svg xmlns="http://www.w3.org/2000/svg" class="av-svg" role="img" aria-label="${esc(title)}" ` +
       `width="${width}" height="${height}" viewBox="${-MARGIN} ${-MARGIN} ${width} ${height}" font-family="${FONT}">` +
       `<defs>${defs}</defs>` +
-      `<rect x="${-MARGIN}" y="${-MARGIN}" width="${width}" height="${height}" fill="#FFFFFF"/>` +
+      `<rect class="av-paper" x="${-MARGIN}" y="${-MARGIN}" width="${width}" height="${height}" fill="${ink('background')}"/>` +
       `<g class="av-nodes">${nodes.join('')}</g><g class="av-edges">${edges.join('')}</g></svg>`;
     return { svg, width, height };
   }
@@ -541,8 +575,19 @@
    * Draw a graph: a laid-out ELK graph, or a scenario (see `isSequence`).
    * Returns the standalone SVG markup and its size.
    */
-  function renderSvg(graph) {
-    if (isSequence(graph)) return renderSequence(graph);
+  function renderSvg(graph, options) {
+    const before = [current, currentView];
+    // `options.theme`: a palette, or null for the built-in colours; left out, the one set by setTheme.
+    current = options && 'theme' in options ? options.theme || undefined : null;
+    currentView = graph.arc ? graph.arc.view : null;
+    try {
+      return isSequence(graph) ? renderSequence(graph) : renderGraph(graph);
+    } finally {
+      [current, currentView] = before;
+    }
+  }
+
+  function renderGraph(graph) {
     const nodes = [];
     const origins = new Map();
     for (const child of graph.children || []) drawNode(child, 0, 0, nodes, origins);
@@ -609,5 +654,5 @@
     return ids;
   }
 
-  return { renderSvg, isSequence, layOut, drawnIds, nodeStyle, edgeStyle, esc };
+  return { renderSvg, isSequence, layOut, drawnIds, nodeStyle, edgeStyle, esc, setTheme, theme: () => active };
 });

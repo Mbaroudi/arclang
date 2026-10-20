@@ -1,0 +1,5 @@
+{
+  "description": "Logical functions coloured unlike system and physical functions.",
+  "expect": { "ok": false, "rules": ["same-concept"], "errors": ["logical function and system function are one concept on two layers: give them one fill"] },
+  "theme": { "version": 1, "name": "Pink logical functions", "extends": "arclang-default", "concepts": { "logical_function": { "fill": "#FFD6E0" } } }
+}

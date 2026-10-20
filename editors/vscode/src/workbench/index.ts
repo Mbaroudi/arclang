@@ -10,6 +10,7 @@ import { RelationItem, RelationsProvider } from './relations';
 import { registerStatusBar } from './status';
 import { registerPanes } from './panes-host'; // panes hook
 import { graphsDrawing, ModelItem, ModelTreeProvider, revealElement } from './tree';
+import { ExportArgs, pickerItems, themeStore } from './diagram-export';
 
 /** The document to work on: the one given, the active model editor's, else the tree's. */
 async function documentFrom(uri: unknown, tree: ModelTreeProvider): Promise<vscode.TextDocument | null> {
@@ -106,6 +107,30 @@ export function registerWorkbench(context: vscode.ExtensionContext): void {
   register('arclang.workbench.redo', () => WorkbenchPanel.activePanel()?.redo());
   const canvasKeys: [string, CanvasCommand][] = [['copy', 'copy'], ['cut', 'cut'], ['paste', 'paste'], ['duplicate', 'duplicate'], ['selectAll', 'select-all'], ['delete', 'delete'], ['zoomIn', 'zoom-in'], ['zoomOut', 'zoom-out'], ['fit', 'fit']];
   for (const [name, command] of canvasKeys) register(`arclang.workbench.${name}`, () => WorkbenchPanel.activePanel()?.canvas(command));
+
+  // The diagram on screen as an image or SVG on the clipboard, as slides, and its colour theme.
+  const activeOr = (verb: string) => {
+    const panel = WorkbenchPanel.activePanel();
+    if (!panel) void vscode.window.showInformationMessage(`ArcLang: open a workbench to ${verb}.`);
+    return panel;
+  };
+  register('arclang.diagram.copyImage', () => activeOr('copy its diagram')?.diagramAction('copy-image'));
+  register('arclang.diagram.copySvg', () => activeOr('copy its diagram')?.diagramAction('copy-svg'));
+  register('arclang.diagram.exportPowerPoint', (args?: unknown) => activeOr('export its diagrams')?.diagramAction('export-pptx', (args ?? undefined) as ExportArgs | undefined));
+  register('arclang.diagram.editTheme', () => activeOr('edit a theme on its diagram')?.diagramAction('edit-theme'));
+  register('arclang.diagram.chooseTheme', async (key?: unknown) => {
+    const store = themeStore(context);
+    const entries = await store.list();
+    const { entry: current } = await store.active(entries);
+    const wanted = typeof key === 'string' ? entries.find((e) => e.key === key || e.id === key) : undefined;
+    const picked = wanted ? { entry: wanted } : await vscode.window.showQuickPick(pickerItems(entries, current.key), { placeHolder: 'Colour theme of every diagram, on every layer' });
+    if (!picked) return;
+    if (!picked.entry.ok) {
+      void vscode.window.showErrorMessage(`ArcLang: the theme "${picked.entry.name}" is refused: ${picked.entry.errors.join('; ')}`);
+      return;
+    }
+    await store.choose(picked.entry);
+  });
 
   register('arclang.layer.next', () => WorkbenchPanel.activeDocument() && WorkbenchPanel.for(WorkbenchPanel.activeDocument()!.uri)?.stepLayer(1));
   register('arclang.layer.previous', () => WorkbenchPanel.activeDocument() && WorkbenchPanel.for(WorkbenchPanel.activeDocument()!.uri)?.stepLayer(-1));

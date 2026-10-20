@@ -29,6 +29,8 @@ const STAGE_JS: &str = include_str!("viewer/arcviz-stage.js");
 const PLACE_JS: &str = include_str!("viewer/arcviz-place.js");
 const TOOLBAR_JS: &str = include_str!("viewer/arcviz-toolbar.js");
 const VIEWER_JS: &str = include_str!("viewer/arcviz-viewer.js");
+const COLOR_JS: &str = include_str!("viewer/arcviz-color.js");
+const THEME_JS: &str = include_str!("viewer/arcviz-theme.js");
 const VIEWER_CSS: &str = include_str!("viewer/arcviz-viewer.css");
 #[cfg(feature = "native")]
 const ELK_JS: &str = include_str!("viewer/vendor/elk.bundled.js");
@@ -64,7 +66,20 @@ pub fn viewer_payload(set: &DiagramSet, title: &str) -> serde_json::Value {
 /// Build the viewer for a model's diagrams. `title` names the model in
 /// exported file names.
 pub fn viewer_parts(set: &DiagramSet, title: &str) -> ViewerParts {
-    let payload = viewer_payload(set, title);
+    viewer_parts_themed(set, title, None)
+}
+
+/// The same, coloured with `theme` (a complete theme the validator passed,
+/// see [`super::theme::resolve`]); `None` keeps the built-in colours.
+pub fn viewer_parts_themed(set: &DiagramSet, title: &str, theme: Option<&serde_json::Value>) -> ViewerParts {
+    let mut payload = viewer_payload(set, title);
+    if let Some(theme) = theme {
+        payload["theme"] = theme.clone();
+    }
+    let presets = format!(
+        "globalThis.ArcVizThemePresets = [{}];",
+        super::theme::PRESETS.iter().map(|(_, text)| text.trim()).collect::<Vec<_>>().join(",")
+    );
     let body = format!(
         "<div id=\"{HOST_ID}\"></div>\n\
          <script type=\"application/json\" id=\"arcviz-data\">{data}</script>\n\
@@ -77,6 +92,9 @@ pub fn viewer_parts(set: &DiagramSet, title: &str) -> ViewerParts {
          <script>{export}</script>\n\
          <script>{stage}</script>\n\
          <script>{place}</script>\n\
+         <script>{presets}</script>\n\
+         <script>{color}</script>\n\
+         <script>{theme}</script>\n\
          <script>{toolbar}</script>\n\
          <script>{viewer}</script>\n\
          <script>window.arcvizViewer = ArcViz.mount(\
@@ -85,7 +103,7 @@ pub fn viewer_parts(set: &DiagramSet, title: &str) -> ViewerParts {
          {{ ELK: ELK, render: ArcVizRender, links: ArcVizLinks, \
          navigation: ArcVizNavigation, collapse: ArcVizCollapse, \
          scope: ArcVizScope, exporter: ArcVizExport, stage: ArcVizStage, \
-         place: ArcVizPlace, toolbar: ArcVizToolbar }});</script>",
+         place: ArcVizPlace, toolbar: ArcVizToolbar, theme: ArcVizTheme }});</script>",
         data = json_for_script(&payload),
         engine = engine_script(),
         render = inline_script(RENDER_JS),
@@ -96,6 +114,9 @@ pub fn viewer_parts(set: &DiagramSet, title: &str) -> ViewerParts {
         export = inline_script(EXPORT_JS),
         stage = inline_script(STAGE_JS),
         place = inline_script(PLACE_JS),
+        presets = inline_script(&presets),
+        color = inline_script(COLOR_JS),
+        theme = inline_script(THEME_JS),
         toolbar = inline_script(TOOLBAR_JS),
         viewer = inline_script(VIEWER_JS),
     );
@@ -107,7 +128,12 @@ pub fn viewer_parts(set: &DiagramSet, title: &str) -> ViewerParts {
 
 /// A complete, self-contained HTML page showing a model's diagrams.
 pub fn standalone_html(set: &DiagramSet, title: &str) -> String {
-    let parts = viewer_parts(set, title);
+    standalone_html_themed(set, title, None)
+}
+
+/// The same page, coloured with `theme` (see [`viewer_parts_themed`]).
+pub fn standalone_html_themed(set: &DiagramSet, title: &str, theme: Option<&serde_json::Value>) -> String {
+    let parts = viewer_parts_themed(set, title, theme);
     format!(
         "<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n<meta charset=\"utf-8\">\n\
          <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n\
@@ -191,6 +217,19 @@ mod tests {
             .compile_string(source)
             .expect("compiles");
         build_diagrams(&result.ast)
+    }
+
+    #[test]
+    fn a_themed_page_carries_its_theme_and_the_validator() {
+        let set = set_of("logical_architecture LA { component A { } }");
+        let theme = super::super::theme::preset("print-grayscale").unwrap();
+        let page = standalone_html_themed(&set, "T", Some(&theme));
+        assert!(page.contains("\"theme\":{"), "the payload names the theme");
+        assert!(page.contains("\"name\":\"Print / grayscale\""));
+        assert!(page.contains("root.ArcVizTheme = factory"), "the validator is in the page");
+        assert!(page.contains("theme: ArcVizTheme"), "and given to the viewer");
+        assert!(page.contains("globalThis.ArcVizThemePresets = [{"));
+        assert!(!standalone_html(&set, "T").contains("\"theme\":{"));
     }
 
     #[test]

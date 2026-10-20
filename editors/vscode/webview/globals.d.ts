@@ -33,6 +33,35 @@ export interface ViewerApi {
   setRoute?: (edge: string, points: { x: number; y: number }[]) => Promise<void>;
   /** Read the host's history and selection into the toolbar again. */
   refreshTools?: () => void;
+  /** Colour every view with a theme (null: the built-in colours); see the viewer's setTheme. */
+  setTheme?: (theme: unknown, settings?: { dark?: boolean; draft?: boolean }) => Promise<ThemeVerdict>;
+  /** The view (or `view`), or the box around `ids`, as SVG drawn with the export colours. */
+  exportSvg?: (options?: ExportOptions) => Promise<ExportedDrawing | null>;
+  /** The same as a PNG blob, `scale` pixels per unit. */
+  exportImage?: (options?: ExportOptions & { scale?: number }) => Promise<(ExportedDrawing & { blob: Blob }) | null>;
+}
+
+export interface ThemeVerdict {
+  ok: boolean;
+  errors: { rule: string; message: string }[];
+  warnings: { rule: string; message: string }[];
+  theme: Record<string, unknown> | null;
+}
+
+export interface ExportOptions {
+  view?: string;
+  ids?: string[] | true;
+  transparent?: boolean;
+}
+
+export interface ExportedDrawing {
+  svg: string;
+  width: number;
+  height: number;
+  cropped: boolean;
+  title: string;
+  view: string;
+  elements: { id: string; name: string; kind: string; line?: boolean }[];
 }
 
 export interface ToolbarHookItem {
@@ -68,6 +97,8 @@ export interface ViewerOptions {
   /** More entries in Export, above SVG and PNG; a Theme menu when not empty. */
   exportItems?: ToolbarHookItem[] | (() => ToolbarHookItem[]);
   themeItems?: ToolbarHookItem[] | (() => ToolbarHookItem[]);
+  /** The colour theme to draw with, in its dark variant when `dark`. */
+  theme?: { theme: Record<string, unknown>; dark: boolean };
 }
 
 declare global {
@@ -83,6 +114,7 @@ declare global {
     ArcVizStage: unknown;
     ArcVizPlace: unknown;
     ArcVizEdit: unknown;
+    ArcVizTheme: unknown;
     ArcVizToolbar: {
       icon: (name: string, size?: number) => SVGSVGElement;
       isMac: () => boolean;

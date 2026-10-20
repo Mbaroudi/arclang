@@ -467,6 +467,31 @@
         "command": "arclang.model.newChild",
         "title": "New child…",
         "category": "ArcLang"
+      },
+      {
+        "command": "arclang.diagram.copyImage",
+        "title": "Copy the diagram as an image (for PowerPoint, Keynote, Word)",
+        "category": "ArcLang"
+      },
+      {
+        "command": "arclang.diagram.copySvg",
+        "title": "Copy the diagram as SVG",
+        "category": "ArcLang"
+      },
+      {
+        "command": "arclang.diagram.exportPowerPoint",
+        "title": "Export the diagrams to PowerPoint (.pptx)…",
+        "category": "ArcLang"
+      },
+      {
+        "command": "arclang.diagram.chooseTheme",
+        "title": "Choose the diagram colour theme…",
+        "category": "ArcLang"
+      },
+      {
+        "command": "arclang.diagram.editTheme",
+        "title": "Edit or create a diagram colour theme…",
+        "category": "ArcLang"
       }
     ],
     "menus": {
@@ -720,6 +745,26 @@
         {
           "command": "arclang.model.clearFilter",
           "when": "arclang.treeFiltered"
+        },
+        {
+          "command": "arclang.diagram.copyImage",
+          "when": "activeCustomEditorId == arclang.workbench"
+        },
+        {
+          "command": "arclang.diagram.copySvg",
+          "when": "activeCustomEditorId == arclang.workbench"
+        },
+        {
+          "command": "arclang.diagram.exportPowerPoint",
+          "when": "activeCustomEditorId == arclang.workbench"
+        },
+        {
+          "command": "arclang.diagram.chooseTheme",
+          "when": "activeCustomEditorId == arclang.workbench"
+        },
+        {
+          "command": "arclang.diagram.editTheme",
+          "when": "activeCustomEditorId == arclang.workbench"
         }
       ],
       "view/title": [
@@ -866,6 +911,21 @@
           "command": "arclang.canvas.newDiagram",
           "when": "webviewId == 'arclang.workbench' && webviewSection == 'element'",
           "group": "diagram@3"
+        },
+        {
+          "command": "arclang.diagram.copyImage",
+          "when": "webviewId == 'arclang.workbench'",
+          "group": "export@1"
+        },
+        {
+          "command": "arclang.diagram.copySvg",
+          "when": "webviewId == 'arclang.workbench'",
+          "group": "export@2"
+        },
+        {
+          "command": "arclang.diagram.exportPowerPoint",
+          "when": "webviewId == 'arclang.workbench'",
+          "group": "export@3"
         }
       ]
     },
@@ -1045,6 +1105,24 @@
           "default": [],
           "description": "Arguments of the MCP server command.",
           "scope": "machine"
+        },
+        "arclang.diagram.theme": {
+          "type": "string",
+          "default": "arclang-default",
+          "markdownDescription": "The colour theme of every diagram, on every layer: a preset (`arclang-default`, `capella-classic`, `colorblind-safe`, `print-grayscale`, `high-contrast`, `monochrome-document`), the `id` of a team theme (`.arclang/themes/*.json` in the workspace, versioned with the model) or of one of yours (**ArcLang: Edit or create a diagram colour theme…**), or the path of an `arclang-theme.json` file. A theme that breaks a colour rule is refused and the default is drawn, with the reasons. In a dark VS Code theme, a colour theme with a dark variant draws it; any other is turned dark by inverting it."
+        },
+        "arclang.diagram.copyBackground": {
+          "type": "string",
+          "enum": [
+            "white",
+            "transparent"
+          ],
+          "default": "white",
+          "enumDescriptions": [
+            "The image keeps the sheet of its theme (white for every light theme): what a slide expects.",
+            "No sheet: the boxes and lines only, for a coloured slide."
+          ],
+          "description": "The background of the diagram copied as an image (Copy as image, ⇧⌘C / Ctrl+Shift+C on the canvas)."
         }
       }
     },
@@ -1785,6 +1863,12 @@
         "key": "ctrl+alt+f",
         "mac": "cmd+alt+f",
         "when": "focusedView == arclangModel"
+      },
+      {
+        "command": "arclang.diagram.copyImage",
+        "key": "ctrl+shift+c",
+        "mac": "cmd+shift+c",
+        "when": "activeCustomEditorId == arclang.workbench && focusedView == '' && !inputFocus && !arclang.workbenchTyping"
       }
     ]
   },

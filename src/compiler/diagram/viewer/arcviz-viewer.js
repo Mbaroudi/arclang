@@ -73,8 +73,12 @@
    * Mount the viewer in `host`.
    * payload: { title, graphs: [ELK graph], diagnostics: [string] }
    * deps:    { ELK, render, links, navigation, collapse, scope, exporter,
-   *          stage, place } — the layout engine constructor and the other
-   *          ArcViz modules, each one named after its file.
+   *          stage, place, theme } — the layout engine constructor and the
+   *          other ArcViz modules, each one named after its file (`theme`,
+   *          ArcVizTheme, is optional: without it the built-in colours).
+   *          payload.theme, a theme (arclang-theme.json) or a preset id,
+   *          colours every view; one the validator refuses is not applied
+   *          and the notes say why.
    * options: optional. A host that is a workbench of its own, with a
    *          project explorer and a properties view, places the chrome
    *          where it wants it:
@@ -114,6 +118,9 @@
    *   exportItems, themeItems: [{ id, label, title, shortcut?, checked?, run }]
    *             — more entries in Export (above SVG and PNG) and a Theme
    *             menu (shown only when given); see "extension hooks".
+   *   theme:    { theme, dark } — the colour theme to draw with (deps.theme
+   *             checks it), its dark variant on screen when `dark`; it wins
+   *             over payload.theme. See setTheme for later changes.
    *   edit:     a host that edits the model from the drawing, with
    *             deps.edit (ArcVizEdit): see `attach` in arcviz-edit.js.
    */
@@ -121,6 +128,39 @@
     const graphs = payload.graphs || [];
     const diagnostics = payload.diagnostics || [];
     const render = deps.render;
+    // --- theme ----------------------------------------------------------
+    // The colours of the screen and those of the exports: the same theme,
+    // the screen in its dark variant when the host asks for one.
+    const themes = deps.theme || null;
+    const themeState = { screen: undefined, exports: undefined, theme: null, refused: null };
+    const themeOptions = (purpose) => (themeState[purpose] === undefined ? {} : { theme: themeState[purpose] });
+    /** Check a theme and make it the one drawn; { ok, errors, warnings }. */
+    function adoptTheme(theme, settings) {
+      if (theme === null) {
+        Object.assign(themeState, { screen: undefined, exports: undefined, theme: null, refused: null });
+        return { ok: true, errors: [], warnings: [] };
+      }
+      if (!themes) return { ok: false, errors: [{ rule: 'structure', message: 'this page has no theme support (ArcVizTheme)' }], warnings: [] };
+      const given = typeof theme === 'string' ? themes.preset(theme) : theme;
+      if (!given) return { ok: false, errors: [{ rule: 'structure', message: `no preset "${theme}"` }], warnings: [] };
+      const checked = themes.validate(given);
+      // A draft (a theme being edited) is previewed whatever it breaks; it is never the theme kept.
+      const draft = Boolean(settings && settings.draft && checked.theme);
+      if (!checked.ok && !draft) {
+        themeState.refused = checked.errors;
+        return checked;
+      }
+      Object.assign(themeState, {
+        screen: themes.palette(checked.theme, { dark: Boolean(settings && settings.dark), draft }),
+        exports: themes.palette(checked.theme, { draft }),
+        theme: draft ? themeState.theme : checked.theme,
+        refused: null,
+      });
+      return checked;
+    }
+    // options.theme: { theme, dark } — the host's theme, in its dark variant on a dark editor.
+    if (options && options.theme && options.theme.theme) adoptTheme(options.theme.theme, options.theme);
+    else if (payload.theme) adoptTheme(payload.theme);
     const slots = (options && options.slots) || {};
     const onSelect = (options && options.onSelect) || (() => {});
     const onDrop = options && options.onDrop;
@@ -554,7 +594,7 @@
         // An editor (options.edit) also routes redrawn exchanges around the boxes.
         const extras = { ...scope.extrasOf(graph.id, shown), avoid: Boolean(options && options.edit && deps.edit) };
         const placed = render.isSequence(graph) ? laidOut : deps.place.place(laidOut, scope.placedOf(graph.id, shown), scope.routesOf(graph.id, shown), extras);
-        return { graph: placed, index: indexGraph(placed), ...render.renderSvg(placed) };
+        return { graph: placed, index: indexGraph(placed), ...render.renderSvg(placed, themeOptions('screen')) };
       });
       state.views.set(key, pending);
       return pending;
@@ -1228,6 +1268,7 @@
       download: save,
       filename,
       activeView,
+      svgFor: (view) => render.renderSvg(view.graph, themeOptions('exports')),
       onFailure: (message) => notes.appendChild(el('p', { class: 'arcviz-note', role: 'status', text: message })),
     });
     const saveSvg = exporter.saveSvg;
@@ -1238,11 +1279,84 @@
     function buildPrintPages() {
       const pages = graphs
         .filter((graph) => state.settled.has(graph.id))
-        .map((graph) => ({ title: graph.arc.title, svg: state.settled.get(graph.id).svg }));
+        .map((graph) => ({ title: graph.arc.title, svg: render.renderSvg(state.settled.get(graph.id).graph, themeOptions('exports')).svg }));
       exporter.printPages(printHost, pages);
     }
     window.addEventListener('beforeprint', buildPrintPages);
     window.addEventListener('afterprint', () => { printHost.textContent = ''; });
+
+    if (themeState.refused) {
+      notes.appendChild(el('p', { class: 'arcviz-note', role: 'status', text: `The theme was refused, the built-in colours are shown: ${themeState.refused.map((e) => e.message).join('; ')}` }));
+    }
+
+    /**
+     * Colour every view with `theme` (a theme object, a preset id, or null
+     * for the built-in colours); `settings.dark` draws its dark variant on
+     * screen, `settings.draft` previews a theme being edited even when the
+     * validator refuses it. A refused theme changes nothing otherwise.
+     * Returns the validator's verdict.
+     */
+    async function setTheme(theme, settings) {
+      const verdict = adoptTheme(theme, settings);
+      if (!verdict.ok && !(settings && settings.draft && verdict.theme)) return verdict;
+      drawLegendNow();
+      state.views.clear(); // the layouts stay: only the colours change
+      for (const [id, entry] of state.settled) state.settled.set(id, { ...entry, ...render.renderSvg(entry.graph, themeOptions('screen')) });
+      await redraw();
+      return verdict;
+    }
+    function drawLegendNow() {
+      // The legend's swatches come from the renderer's own theme.
+      if (render.setTheme) render.setTheme(themeState.screen || null);
+    }
+    drawLegendNow();
+
+    /** The laid-out view `id` (the one on screen when left out), drawn for export. */
+    async function exportDrawing(id) {
+      const graph = id ? graphs.find((candidate) => candidate.id === id) : activeGraph();
+      if (!graph) return null;
+      const view = id && id !== state.active ? await layout(graph) : await activeView();
+      if (!view) return null;
+      return { view, graph, drawn: render.renderSvg(view.graph, themeOptions('exports')) };
+    }
+
+    /** What a view draws, for the notes of a slide: [{ id, name, kind }], boxes then lines. */
+    function contentsOf(view) {
+      const items = [];
+      for (const { node } of view.index.nodes.values()) {
+        const kind = (node.arc || {}).kind;
+        if (kind === 'initial_state' || kind === 'junction') continue;
+        items.push({ id: node.id, name: displayName(node, render.nodeStyle(kind).label), kind: render.nodeStyle(kind).label });
+      }
+      for (const edge of view.index.edges.values()) {
+        const kind = (edge.arc || {}).kind;
+        items.push({ id: edge.id, name: displayName(edge, render.edgeStyle(kind).label), kind: render.edgeStyle(kind).label, line: true });
+      }
+      return items;
+    }
+
+    /**
+     * The view on screen (or `options.view`) as an SVG for the clipboard
+     * or a file: only the box around `options.ids` (the selection when
+     * true) when given and drawn. { svg, width, height, cropped }.
+     */
+    async function exportSvg(options) {
+      const found = await exportDrawing(options && options.view);
+      if (!found) return null;
+      const ids = options && options.ids === true ? (state.selected ? [state.selected] : []) : (options && options.ids) || [];
+      const box = ids.length ? deps.exporter.boundsOf(found.view.graph, ids) : null;
+      const drawn = box ? deps.exporter.crop(found.drawn, box) : found.drawn;
+      const svg = options && options.transparent ? deps.exporter.withoutPaper(drawn.svg) : drawn.svg;
+      return { svg, width: drawn.width, height: drawn.height, cropped: Boolean(box), title: found.graph.arc.title, view: found.graph.id, elements: contentsOf(found.view) };
+    }
+
+    /** The same as a PNG blob, `options.scale` pixels per unit (2 by default). */
+    async function exportImage(options) {
+      const drawing = await exportSvg(options);
+      if (!drawing) return null;
+      const blob = await exporter.rasterize(drawing, { scale: (options && options.scale) || 2, transparent: Boolean(options && options.transparent) });
+      return { ...drawing, blob };
+    }
 
     const ready = show(graphs[0].id).then(async () => {
       for (const graph of graphs) {
@@ -1277,6 +1391,11 @@
       views: () => graphs.map((graph) => ({ id: graph.id, view: graph.arc.view, title: graph.arc.title })),
       svgOf: (id) => (state.settled.get(id) || {}).svg || null,
       buildPrintPages,
+      setTheme,
+      /** The theme drawn (complete), null for the built-in colours; and the reasons the last one was refused. */
+      theme: () => ({ theme: themeState.theme, refused: themeState.refused }),
+      exportSvg,
+      exportImage,
     };
   }
 

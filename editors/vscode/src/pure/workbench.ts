@@ -160,7 +160,46 @@ export type ToWebview =
   /** A key of the canvas, bound in VS Code (so it follows the keyboard layout) and run by the page. */
   | { type: 'key'; command: CanvasCommand; text?: string }
   /** What ⌘Z and ⌘⇧Z would take back and bring back; `done` names the step just undone or redone. */
-  | { type: 'history'; undo: string | null; redo: string | null; done?: string };
+  | { type: 'history'; undo: string | null; redo: string | null; done?: string }
+  /** The colour themes on offer and the one drawn (`problem`: why the one asked for is not). */
+  | { type: 'themes'; entries: ThemeEntry[]; active: string; problem: string | null; dark: boolean; copyBackground: 'white' | 'transparent' }
+  /** A command of the diagram, run by the page (copy as image, PowerPoint, the theme editor). */
+  | { type: 'diagram-action'; action: DiagramAction }
+  /** Draw these views for the slides of a PowerPoint file; `target`, where the host writes it. */
+  | { type: 'pptx-render'; ids: string[]; target?: string }
+  /** A theme saved by the host, or one read from a file the user chose. */
+  | { type: 'theme-saved'; entry: ThemeEntry }
+  | { type: 'theme-imported'; theme: unknown; errors: string[]; name: string };
+
+/** Where a colour theme comes from. */
+export type ThemeSource = 'preset' | 'team' | 'user' | 'file';
+
+/** A colour theme on offer, as the host read and checked it. */
+export interface ThemeEntry {
+  /** `preset:<id>`, `team:<id>`, `user:<id>` or `file:<id>`. */
+  key: string;
+  id: string;
+  name: string;
+  source: ThemeSource;
+  path?: string;
+  description?: string;
+  theme: Record<string, unknown> | null;
+  ok: boolean;
+  errors: string[];
+  warnings: string[];
+}
+
+/** The diagram commands the host asks the page to run. */
+export type DiagramAction = 'copy-image' | 'copy-svg' | 'export-pptx' | 'choose-theme' | 'edit-theme';
+
+/** One slide of a PowerPoint export, as the page draws it: the PNG in base64. */
+export interface SlideData {
+  title: string;
+  data: string;
+  width: number;
+  height: number;
+  notes: string[];
+}
 
 /** The canvas commands VS Code's keybindings run on the workbench. */
 export type CanvasCommand = 'copy' | 'cut' | 'paste' | 'paste-text' | 'duplicate' | 'select-all' | 'delete' | 'zoom-in' | 'zoom-out' | 'fit';
@@ -184,7 +223,19 @@ export type FromWebview =
   | { type: 'clipboard-text'; text: string }
   /** A field of the page has the keyboard: VS Code's keys are its own. */
   | { type: 'typing'; on: boolean }
-  | { type: 'focus-mode'; on: boolean };
+  | { type: 'focus-mode'; on: boolean }
+  /** A PNG (base64) the page could not put on the clipboard itself: the host does. */
+  | { type: 'clipboard-image'; data: string; width: number; height: number; cropped: boolean }
+  | { type: 'clipboard-svg'; text: string }
+  /** A line for the status bar (an export done), or an error to show. */
+  | { type: 'notify'; text: string; error?: boolean }
+  /** The views a PowerPoint export may take, for the host to ask which. */
+  | { type: 'pptx-request'; views: { id: string; title: string; view: string }[]; current: string | null }
+  | { type: 'pptx'; slides: SlideData[]; title: string; target?: string }
+  | { type: 'theme-choose'; key: string }
+  | { type: 'theme-save'; scope: 'team' | 'user'; theme: Record<string, unknown> }
+  | { type: 'theme-export'; theme: Record<string, unknown> }
+  | { type: 'theme-import' };
 
 /** `arclang workbench` output, read leniently: a broken answer is a failed snapshot. */
 export function parseSnapshot(text: string): Snapshot {

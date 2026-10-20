@@ -1,0 +1,5 @@
+{
+  "description": "Dark function fills under the default dark text.",
+  "expect": { "ok": false, "rules": ["contrast"], "errors": ["system function: text on its fill reaches", "under 4.5:1 (WCAG AA)"] },
+  "theme": { "version": 1, "name": "Dark functions", "extends": "arclang-default", "concepts": { "system_function": { "fill": "#3C4A5A" }, "logical_function": { "fill": "#3C4A5A" }, "physical_function": { "fill": "#3C4A5A" } } }
+}
