@@ -401,6 +401,39 @@
         "command": "arclang.workbench.fit",
         "title": "Fit the diagram",
         "category": "ArcLang"
+      },
+      {
+        "command": "arclang.diagram.openInNewTab",
+        "title": "Open in a new tab",
+        "category": "ArcLang",
+        "icon": "$(link-external)"
+      },
+      {
+        "command": "arclang.model.filter",
+        "title": "Filter the model tree…",
+        "category": "ArcLang",
+        "icon": "$(filter)"
+      },
+      {
+        "command": "arclang.model.clearFilter",
+        "title": "Clear the filter of the model tree",
+        "category": "ArcLang",
+        "icon": "$(filter-filled)"
+      },
+      {
+        "command": "arclang.model.showInDiagram",
+        "title": "Show in the diagram",
+        "category": "ArcLang"
+      },
+      {
+        "command": "arclang.model.references",
+        "title": "Find references",
+        "category": "ArcLang"
+      },
+      {
+        "command": "arclang.model.newChild",
+        "title": "New child…",
+        "category": "ArcLang"
       }
     ],
     "menus": {
@@ -626,6 +659,22 @@
         {
           "command": "arclang.workbench.fit",
           "when": "activeCustomEditorId == arclang.workbench"
+        },
+        {
+          "command": "arclang.model.showInDiagram",
+          "when": "false"
+        },
+        {
+          "command": "arclang.model.references",
+          "when": "false"
+        },
+        {
+          "command": "arclang.model.newChild",
+          "when": "false"
+        },
+        {
+          "command": "arclang.model.clearFilter",
+          "when": "arclang.treeFiltered"
         }
       ],
       "view/title": [
@@ -642,6 +691,16 @@
         {
           "command": "arclang.pickDiagram",
           "when": "view == arclangModel",
+          "group": "navigation@0"
+        },
+        {
+          "command": "arclang.model.filter",
+          "when": "view == arclangModel && !arclang.treeFiltered",
+          "group": "navigation@0"
+        },
+        {
+          "command": "arclang.model.clearFilter",
+          "when": "view == arclangModel && arclang.treeFiltered",
           "group": "navigation@0"
         }
       ],
@@ -675,6 +734,31 @@
           "command": "arclang.model.copyId",
           "when": "view == arclangModel && viewItem == arclang.element",
           "group": "edit@3"
+        },
+        {
+          "command": "arclang.diagram.openInNewTab",
+          "when": "view == arclangModel && viewItem == arclang.diagram",
+          "group": "navigation@1"
+        },
+        {
+          "command": "arclang.diagram.openInNewTab",
+          "when": "view == arclangModel && viewItem == arclang.diagram",
+          "group": "inline"
+        },
+        {
+          "command": "arclang.model.showInDiagram",
+          "when": "view == arclangModel && viewItem == arclang.element",
+          "group": "navigation@3"
+        },
+        {
+          "command": "arclang.model.references",
+          "when": "view == arclangModel && viewItem == arclang.element",
+          "group": "navigation@4"
+        },
+        {
+          "command": "arclang.model.newChild",
+          "when": "view == arclangModel && viewItem == arclang.element",
+          "group": "edit@0"
         }
       ],
       "webview/context": [
@@ -1510,6 +1594,120 @@
         "key": "shift+1",
         "mac": "shift+1",
         "when": "activeCustomEditorId == arclang.workbench && focusedView == '' && !inputFocus && !arclang.workbenchTyping"
+      },
+      {
+        "command": "arclang.layer.next",
+        "key": "ctrl+alt+]",
+        "mac": "cmd+alt+]",
+        "when": "activeWebviewPanelId == 'arclang.workbench.diagram'"
+      },
+      {
+        "command": "arclang.layer.previous",
+        "key": "ctrl+alt+[",
+        "mac": "cmd+alt+[",
+        "when": "activeWebviewPanelId == 'arclang.workbench.diagram'"
+      },
+      {
+        "command": "arclang.workbench.undo",
+        "key": "ctrl+z",
+        "mac": "cmd+z",
+        "when": "activeWebviewPanelId == 'arclang.workbench.diagram' && focusedView == '' && !inputFocus && !arclang.workbenchTyping"
+      },
+      {
+        "command": "arclang.workbench.redo",
+        "key": "ctrl+y",
+        "mac": "cmd+shift+z",
+        "when": "activeWebviewPanelId == 'arclang.workbench.diagram' && focusedView == '' && !inputFocus && !arclang.workbenchTyping"
+      },
+      {
+        "command": "arclang.workbench.redo",
+        "key": "ctrl+shift+z",
+        "mac": "cmd+y",
+        "when": "activeWebviewPanelId == 'arclang.workbench.diagram' && focusedView == '' && !inputFocus && !arclang.workbenchTyping"
+      },
+      {
+        "command": "arclang.workbench.copy",
+        "key": "ctrl+c",
+        "mac": "cmd+c",
+        "when": "activeWebviewPanelId == 'arclang.workbench.diagram' && focusedView == '' && !inputFocus && !arclang.workbenchTyping"
+      },
+      {
+        "command": "arclang.workbench.cut",
+        "key": "ctrl+x",
+        "mac": "cmd+x",
+        "when": "activeWebviewPanelId == 'arclang.workbench.diagram' && focusedView == '' && !inputFocus && !arclang.workbenchTyping"
+      },
+      {
+        "command": "arclang.workbench.paste",
+        "key": "ctrl+v",
+        "mac": "cmd+v",
+        "when": "activeWebviewPanelId == 'arclang.workbench.diagram' && focusedView == '' && !inputFocus && !arclang.workbenchTyping"
+      },
+      {
+        "command": "arclang.workbench.duplicate",
+        "key": "ctrl+d",
+        "mac": "cmd+d",
+        "when": "activeWebviewPanelId == 'arclang.workbench.diagram' && focusedView == '' && !inputFocus && !arclang.workbenchTyping"
+      },
+      {
+        "command": "arclang.workbench.selectAll",
+        "key": "ctrl+a",
+        "mac": "cmd+a",
+        "when": "activeWebviewPanelId == 'arclang.workbench.diagram' && focusedView == '' && !inputFocus && !arclang.workbenchTyping"
+      },
+      {
+        "command": "arclang.workbench.delete",
+        "key": "delete",
+        "mac": "delete",
+        "when": "activeWebviewPanelId == 'arclang.workbench.diagram' && focusedView == '' && !inputFocus && !arclang.workbenchTyping"
+      },
+      {
+        "command": "arclang.workbench.delete",
+        "key": "backspace",
+        "mac": "backspace",
+        "when": "activeWebviewPanelId == 'arclang.workbench.diagram' && focusedView == '' && !inputFocus && !arclang.workbenchTyping"
+      },
+      {
+        "command": "arclang.workbench.zoomIn",
+        "key": "ctrl+=",
+        "mac": "cmd+=",
+        "when": "activeWebviewPanelId == 'arclang.workbench.diagram' && focusedView == '' && !inputFocus && !arclang.workbenchTyping"
+      },
+      {
+        "command": "arclang.workbench.zoomIn",
+        "key": "ctrl+numpad_add",
+        "mac": "cmd+numpad_add",
+        "when": "activeWebviewPanelId == 'arclang.workbench.diagram' && focusedView == '' && !inputFocus && !arclang.workbenchTyping"
+      },
+      {
+        "command": "arclang.workbench.zoomOut",
+        "key": "ctrl+-",
+        "mac": "cmd+-",
+        "when": "activeWebviewPanelId == 'arclang.workbench.diagram' && focusedView == '' && !inputFocus && !arclang.workbenchTyping"
+      },
+      {
+        "command": "arclang.workbench.zoomOut",
+        "key": "ctrl+numpad_subtract",
+        "mac": "cmd+numpad_subtract",
+        "when": "activeWebviewPanelId == 'arclang.workbench.diagram' && focusedView == '' && !inputFocus && !arclang.workbenchTyping"
+      },
+      {
+        "command": "arclang.workbench.fit",
+        "key": "ctrl+0",
+        "mac": "cmd+0",
+        "when": "activeWebviewPanelId == 'arclang.workbench.diagram' && focusedView == '' && !inputFocus && !arclang.workbenchTyping"
+      },
+      {
+        "command": "arclang.workbench.fit",
+        "key": "shift+1",
+        "mac": "shift+1",
+        "when": "activeWebviewPanelId == 'arclang.workbench.diagram' && focusedView == '' && !inputFocus && !arclang.workbenchTyping"
+      },
+      {
+        "command": "arclang.model.filter",
+        "key": "ctrl+alt+f",
+        "mac": "cmd+alt+f",
+        "when": "focusedView == arclangModel"
       }
     ]
   },
@@ -1523,7 +1721,8 @@
     "vscode:prepublish": "npm run build -- --production",
     "package": "vsce package --no-dependencies",
     "publish": "vsce publish --no-dependencies",
-    "test:integration": "tsc -p ./ && vscode-test"
+    "test:integration": "tsc -p ./ && vscode-test",
+    "icons": "node --import tsx scripts/write-kind-icons.ts"
   },
   "dependencies": {
     "vscode-languageclient": "^10.1.2"

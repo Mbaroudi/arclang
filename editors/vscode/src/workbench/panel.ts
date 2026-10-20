@@ -16,6 +16,7 @@ import { metamodelJson, onDidChangeSnapshot, snapshotOf } from './snapshot';
 import { arcTextOf } from './source';
 import { elementAt, revealElement } from './tree';
 import { handlePageMessage, pageClosed } from '../ai'; // ai-design hook
+import { handlePanesMessage, isPanesMessage } from './panes-host'; // panes hook
 
 export const VIEW_TYPE = 'arclang.workbench';
 
@@ -161,6 +162,27 @@ export class WorkbenchPanel {
     void snapshotOf(document);
   }
 
+  // panes hook: a diagram in a tab of its own, the pages of a document, the panes' messages (src/workbench/panes-host.ts).
+  static adopt(context: vscode.ExtensionContext, document: vscode.TextDocument, panel: vscode.WebviewPanel): WorkbenchPanel {
+    const created = new WorkbenchPanel(context, document, panel);
+    const key = document.uri.toString();
+    panels.set(key, new Set([...(panels.get(key) ?? []), created]));
+    return created;
+  }
+  static all(uri: vscode.Uri): WorkbenchPanel[] {
+    return [...(panels.get(uri.toString()) ?? [])];
+  }
+  get documentOf(): vscode.TextDocument {
+    return this.document;
+  }
+  postPanes(message: unknown): void {
+    this.post(message as ToWebview);
+  }
+  submitEdit(requests: EditRequest[], label: string): Promise<void> {
+    return this.edits.run(() => this.edit(requests, label));
+  }
+  // end panes hook
+
   /** The element selected in the views, for commands that act on it. */
   get selectedId(): string | null {
     return this.selected;
@@ -271,6 +293,7 @@ export class WorkbenchPanel {
         }
         return;
       default:
+        if (isPanesMessage(message)) return void handlePanesMessage(this, message); // panes hook
         // ai-design hook: the AI's messages (ask, apply, suggestions) go to src/ai.
         handlePageMessage(this.document, this.aiPost, message, { asStep: (label, change) => this.asStep(label, change) });
         return;
@@ -429,6 +452,7 @@ export class WorkbenchPanel {
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="stylesheet" href="${uri('media', 'viewer', 'arcviz-viewer.css')}">
 <link rel="stylesheet" href="${uri('media', 'workbench.css')}">
+<link rel="stylesheet" href="${uri('media', 'panes.css')}"><!-- panes hook -->
 <title>ArcLang workbench</title>
 </head>
 <body>
