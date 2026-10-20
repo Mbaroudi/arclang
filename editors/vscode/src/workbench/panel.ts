@@ -272,7 +272,7 @@ export class WorkbenchPanel {
         return;
       default:
         // ai-design hook: the AI's messages (ask, apply, suggestions) go to src/ai.
-        handlePageMessage(this.document, this.aiPost, message);
+        handlePageMessage(this.document, this.aiPost, message, { asStep: (label, change) => this.asStep(label, change) });
         return;
     }
   }
@@ -325,6 +325,15 @@ export class WorkbenchPanel {
         (error: unknown) => void vscode.window.showErrorMessage(`ArcLang: the layout could not be written to ${uri.fsPath}: ${error instanceof Error ? error.message : String(error)}`),
       );
     }, 400);
+  }
+
+  /** A change of the text made for the page (an AI proposal applied): one step of the canvas's history. */
+  private async asStep<T>(label: string, change: () => Promise<T>): Promise<T> {
+    const before = this.document.getText();
+    const result = await this.history.ownChange(change);
+    const after = this.document.getText();
+    if (after !== before) this.history.recordModel(label, before, after);
+    return result;
   }
 
   /** Show an arrangement now (an undo, a redo): written at once, the page redrawn with it. */

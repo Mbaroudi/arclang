@@ -159,7 +159,14 @@ const until = async (win, test, ms = 20000) => { const end = Date.now() + ms; wh
     await win.locator('.tab', { hasText: 'model.arc' }).filter({ has: win.locator('.codicon, .file-icon') }).first().click().catch(() => {});
     for (const t of await win.locator('.tabs-container .tab').all()) { if (/workbench|model\.arc/i.test((await t.getAttribute('aria-label')) || '') && (await t.getAttribute('aria-label')).includes('ArcLang')) await t.click(); }
     await command('ArcLang: Open the workbench'); await win.waitForTimeout(1500);
-    await page.locator('.wb-ai-tab').click().catch(() => {});
+    // A narrow workbench keeps the drawer closed over the canvas: the chip on the sheet opens it on the AI tab.
+    const narrow = await page.evaluate(() => innerWidth < 900);
+    const chip = page.locator('.wb-ai-pill:not([hidden])');
+    await until(win, async () => (await chip.count()) > 0 || (await page.locator('.wb-ai-tab').isVisible()), 30000);
+    if (await page.locator('.wb-ai-tab').isVisible()) await page.locator('.wb-ai-tab').click();
+    else await chip.first().click();
+    await win.waitForTimeout(600);
+    report(`${narrow ? 'narrow' : 'wide'} workbench: the AI pane is shown on the AI tab`, await page.locator('.wb-ai-pane.is-active').isVisible().catch(() => false), `${await page.evaluate(() => innerWidth)} px`);
     const cut = await page.evaluate(() => { const r = document.querySelector('.wb-right'); return r ? r.scrollWidth - r.clientWidth : 0; });
     report('the drawer with the AI tab fits its width', cut <= 1, `${cut}px over`);
     const card = page.locator('.wb-ai-card', { hasText: 'Trace the camera' });
@@ -170,6 +177,17 @@ const until = async (win, test, ms = 20000) => { const end = Date.now() + ms; wh
     await shot('ai-6-suggestion');
     await card.locator('.wb-ai-apply').first().click(); await win.waitForTimeout(2500);
     await page.locator('.arcviz-stage').click({ position: { x: 6, y: 6 } }); await press('Meta+s'); await win.waitForTimeout(1200);
+    // The same pane in a wide workbench: the drawer beside the canvas, the AI tab chosen in it.
+    const bounds = await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].getBounds());
+    await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setBounds({ x: 0, y: 0, width: 3000, height: 1000 }));
+    await win.waitForTimeout(2000);
+    if (await page.locator('.wb-right').isHidden()) await page.evaluate(() => document.querySelector('.wb-icon-button[title="Properties"]').click());
+    await page.locator('.wb-ai-tab').click().catch(() => {}); await win.waitForTimeout(600);
+    const wideShown = await page.locator('.wb-ai-pane.is-active').isVisible().catch(() => false);
+    const wideFloat = await page.evaluate(() => getComputedStyle(document.querySelector('.wb-right')).position);
+    report('wide workbench: the AI pane sits in the drawer beside the canvas', wideShown && wideFloat !== 'absolute', `${await page.evaluate(() => innerWidth)} px, ${wideFloat}`);
+    await shot('ai-6c-wide');
+    await app.evaluate(({ BrowserWindow }, b) => BrowserWindow.getAllWindows()[0].setBounds(b), bounds); await win.waitForTimeout(1500);
     report('applying the suggestion puts the trace back', /trace "LC-CAM" satisfies "REQ-LKA-001"/.test(source()) && compiles(model));
     const suggestRequest = fake.requests.find((r) => /propose_changes/.test(r.all));
     report('the suggestion request carried the consequences and impact', !!suggestRequest && /Its consequences found by the compiler/.test(suggestRequest.all) && /arclang impact/.test(suggestRequest.all));

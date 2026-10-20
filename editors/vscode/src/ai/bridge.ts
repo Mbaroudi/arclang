@@ -12,6 +12,13 @@ import type { SuggestionEngine } from './suggest';
 
 type Post = (message: ToPageAi) => void;
 
+/** What the page's host lends the AI: a change of the text that is one step of the canvas's history. */
+export interface PageHost {
+  asStep<T>(label: string, change: () => Promise<T>): Promise<T>;
+}
+
+const direct: PageHost = { asStep: (_label, change) => change() };
+
 const pages = new Map<string, Set<Post>>();
 /** The ask sessions each page started: dropped with the page. */
 const pageSessions = new Map<Post, Set<string>>();
@@ -78,14 +85,14 @@ export function connectBridge(context: vscode.ExtensionContext, suggestions: Sug
  * page that sent it. Hook: `WorkbenchPanel.handle` calls this for the
  * messages it does not handle.
  */
-export function handlePageMessage(document: vscode.TextDocument, post: Post, message: unknown): boolean {
+export function handlePageMessage(document: vscode.TextDocument, post: Post, message: unknown, host: PageHost = direct): boolean {
   if (!isAiMessage(message)) return false;
   const valid = parseFromPageAi(message);
   if (!valid) {
     logLine(`a page message was dropped: ${String((message as { type: string }).type).slice(0, 40)} with fields of the wrong type`);
     return true;
   }
-  handle(document, post, valid).catch((error: unknown) => {
+  handle(document, post, valid, host).catch((error: unknown) => {
     const text = error instanceof Error ? error.message : String(error);
     logLine(`${valid.type} failed: ${text}`);
     if ('session' in valid) {
@@ -99,7 +106,7 @@ export function handlePageMessage(document: vscode.TextDocument, post: Post, mes
   return true;
 }
 
-async function handle(document: vscode.TextDocument, post: Post, message: FromPageAi): Promise<void> {
+async function handle(document: vscode.TextDocument, post: Post, message: FromPageAi, host: PageHost): Promise<void> {
   const context = extension;
   if (!context) return;
   switch (message.type) {
@@ -124,7 +131,8 @@ async function handle(document: vscode.TextDocument, post: Post, message: FromPa
       return;
     }
     case 'ai-apply': {
-      const result = await applySession(message.session);
+      // One step of the canvas's history: ⌘Z on the workbench takes the whole change back.
+      const result = await host.asStep('the AI proposal', () => applySession(message.session));
       post({ type: 'ai-applied', session: message.session, ok: result.ok, error: result.error });
       return;
     }
@@ -140,7 +148,8 @@ async function handle(document: vscode.TextDocument, post: Post, message: FromPa
       await engine?.analyseSelection(document, message.ids);
       return;
     case 'ai-suggestion':
-      await engine?.act(document, message.id, message.action);
+      if (message.action === 'apply') await host.asStep('the AI suggestion', async () => engine?.act(document, message.id, message.action));
+      else await engine?.act(document, message.id, message.action);
       return;
     case 'ai-propose':
       await engine?.propose(document);
