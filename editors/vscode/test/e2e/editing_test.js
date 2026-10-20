@@ -116,7 +116,6 @@ const rows = []; const report = (name, ok, detail) => { rows.push({ name, ok, de
 
   // 10. An attribute of an exchange from the properties
   await reset(); r = {}; await layer('Physical'); await selectEdge('pl:ChassisCAN');
-  await page.locator('.wb-props-tab', { hasText: 'All' }).click(); await page.waitForTimeout(200);
   const protocol = page.locator('table.wb-props tr', { hasText: 'Protocol' }).locator('input').first(); n = await count();
   if (await protocol.count()) { await protocol.fill('Ethernet'); await protocol.press('Enter'); r = { result: await waitEdit(n) }; }
   text = await source();

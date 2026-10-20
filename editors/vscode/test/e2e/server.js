@@ -8,7 +8,7 @@ let source = fs.readFileSync(MODEL, 'utf8');
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'wb-e2e-'));
 const file = path.join(dir, 'model.arc');
 function snapshot() { fs.writeFileSync(file, source); return execFileSync(BIN, ['workbench', file], { maxBuffer: 1 << 28 }).toString(); }
-function edit(requests) {
+function edit(requests, dry = false) {
   let text = source;
   for (const [i, r] of requests.entries()) {
     fs.writeFileSync(file, text);
@@ -19,12 +19,18 @@ function edit(requests) {
     if (!answer.success) return { ok: false, error: answer.error, at: i };
     text = answer.source;
   }
-  source = text; return { ok: true };
+  if (!dry) source = text; return { ok: true };
 }
 http.createServer((req, res) => {
   if (req.method === 'POST' && req.url === '/edit') {
     let body = ''; req.on('data', (c) => (body += c)); req.on('end', () => {
       const { requests } = JSON.parse(body); const result = edit(requests);
+      res.writeHead(200, { 'content-type': 'application/json' }); res.end(JSON.stringify(result));
+    }); return;
+  }
+  if (req.method === 'POST' && req.url === '/validate') {
+    let body = ''; req.on('data', (c) => (body += c)); req.on('end', () => {
+      const { requests } = JSON.parse(body); const result = edit(requests, true);
       res.writeHead(200, { 'content-type': 'application/json' }); res.end(JSON.stringify(result));
     }); return;
   }

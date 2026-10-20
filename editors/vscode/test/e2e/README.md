@@ -21,6 +21,14 @@ with a host that edits through `arclang edit` and snapshots through
   or reconnected line, a refused cut kept, keys left to the fields, Esc in a
   field, a rename field closed on a model change) (43 checks; `SHOTS=dir`
   saves pictures);
+- `panes_test.js`: the properties pane: a quantity of the wrong dimension
+  refused as it is typed, the unit picker, an enumeration, a reference
+  picker (kind checked, jump link, keyboard), the compiler's refusal shown
+  before anything is written, Redefine and Reset to inherited, a refusal on
+  apply kept on its field, relationships, traces with verdicts, findings
+  with their fix, the Markdown preview, the common attributes of a
+  multi-selection, a tree element dropped on a diagram, the section keys
+  (33 checks);
 - `toolbar_test.js`: every toolbar tool (exports reach the host as SVG,
   PNG and JSON, full screen, zoom, filters, layers, folding), no console error.
 
@@ -40,6 +48,14 @@ with a host that edits through `arclang edit` and snapshots through
   box, a name dragged off its line, an end snapping onto a box near the
   pointer or over its body, a port let go on another box moved there, Reset
   layout (28 checks; keys sent as an AZERTY Mac sends them).
+
+- `vscode_panes_test.js`: the panes in VS Code itself: quantity, enumeration
+  and reference edited in the pane, refusals as they are typed, ⌘Z (AZERTY),
+  redefine and reset of an inherited value, the tree's kind icons, diagrams
+  under their layer, the filter, "Show in the diagram", a diagram opened in
+  a tab of its own ("<model> — <diagram>") beside the workbench, the
+  selection shared by both (20 checks; whether VS Code hands a tree drag to
+  the webview is printed as a note).
 
 - `vscode_ai_test.js`: the AI features in VS Code itself, against the local
   fake provider `../ai/fake-llm-server.js` set as an OpenAI-compatible server
