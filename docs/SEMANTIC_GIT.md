@@ -44,7 +44,7 @@ Consequences:
 
 ## `arclang history <file> <element> [--limit N] [--json]`
 
-The commits (hash, author, date, subject) that changed one element, with what changed in each. They are found by the semantic diff between **successive revisions of the model and of what it imports**, not by line blame: a commit that only reformatted the file, or moved the element, says so and a commit that did not touch the element is not listed. The element is an id or a unique name; a rename is followed (the identity is the id).
+The commits (hash, author, date, subject) that changed one element, with what changed in each. They are found by the semantic diff between **successive revisions of the model and of what it imports**, not by line blame: a commit that only reformatted the file, or did not touch the element, is not listed. The element is an id or a unique name; a rename is followed (the identity is the id).
 
 ## `arclang merge <base> <ours> <theirs> [-o out]`: the merge driver
 
@@ -121,5 +121,5 @@ and creates the annotated tag `baseline/<name>` on the commit. It never pushes. 
 - The merge keeps the text; it does not reformat. `import` lines are ordinary lines (adding different imports in the same place conflicts).
 - `arclang diff --from` needs the file to be in a git repository; the models at both revisions must compile (a revision that does not is named and refused).
 - `history` compiles one revision per commit: on a long history use `--limit`.
-- A baseline of a dirty tree is refused; `--allow-dirty` exists but the result is not reproducible and `verify` will say so.
+- A baseline of a dirty tree is refused; `--allow-dirty` exists but the baseline then describes files that are not in the tagged commit.
 - Layout merge takes theirs on a same-entry conflict by design: a layout never changes what the model means.
