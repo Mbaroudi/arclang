@@ -17,6 +17,7 @@ export function readSettings(): AiSettings & { vscodeModel: string } {
     endpoint: config.get<string>('endpoint', ''),
     azureDeployment: config.get<string>('azureDeployment', ''),
     apiVersion: config.get<string>('apiVersion', ''),
+    hostedEndpoint: config.get<string>('hostedEndpoint', ''),
     maxTokens: config.get<number>('maxTokens', 4096),
     temperature: config.get<number | null>('temperature', null),
     timeoutSeconds: config.get<number>('timeoutSeconds', 90),
@@ -114,6 +115,27 @@ export async function ensureConsent(context: Pick<vscode.ExtensionContext, 'glob
 
 const HTTP_PROVIDERS: ProviderId[] = ['anthropic', 'openai', 'azure-openai', 'mistral', 'google', 'ollama', 'openai-compatible'];
 
+/** The providers a visitor can pick: no VS Code language models in a browser (no Copilot there). */
+function providerChoices(): ProviderId[] { // web hook
+  const web = vscode.env.uiKind === vscode.UIKind.Web;
+  return [...(web ? [] : (['vscode-lm'] as ProviderId[])), 'arclang-hosted', ...HTTP_PROVIDERS, 'off'];
+}
+
+/**
+ * In the web playground the page's content security policy lets the browser
+ * reach ONE provider: the one the visitor configured. The page remembers it
+ * (a cookie the server reads when it serves the page again) when this command
+ * is there; on the desktop there is nothing to tell.
+ */
+export async function allowProviderInBrowser(provider: ProviderId): Promise<void> { // web hook
+  if (vscode.env.uiKind !== vscode.UIKind.Web) return;
+  try {
+    await vscode.commands.executeCommand('arclangWeb.allowProvider', provider);
+  } catch {
+    // not the playground page: no such command
+  }
+}
+
 async function pickProvider(placeHolder: string, only: ProviderId[] = HTTP_PROVIDERS): Promise<ProviderId | undefined> {
   const current = resolveConfig(readSettings()).provider;
   const items = only.map((id) => ({ label: providerInfo(id)?.label ?? id, description: id === current ? 'current' : id, id }));
@@ -135,6 +157,7 @@ export async function setApiKey(context: vscode.ExtensionContext, providerArg?: 
   if (!key) return;
   await context.secrets.store(keyName(provider), key.trim());
   logLine(`API key stored for ${info?.label ?? provider}`);
+  await allowProviderInBrowser(provider); // web hook
   vscode.window.showInformationMessage(`ArcLang: the API key for ${info?.label ?? provider} is stored in the secret storage.`);
 }
 
@@ -157,17 +180,18 @@ export async function configure(context: vscode.ExtensionContext): Promise<void>
   type Item = vscode.QuickPickItem & { run?: () => Thenable<unknown> | Promise<unknown> };
   const items: Item[] = [
     { label: '$(server) Provider', description: config.provider === 'off' ? 'off' : (info?.label ?? config.provider), run: async () => {
-      const id = await pickProvider('The AI provider of ArcLang', ['vscode-lm', ...HTTP_PROVIDERS, 'off']);
+      const id = await pickProvider('The AI provider of ArcLang', providerChoices());
       if (!id) return;
       await update('provider', id);
       await update('model', '');
+      await allowProviderInBrowser(id); // web hook
       const chosen = providerInfo(id);
       if (chosen?.needsKey && !(await apiKey(context, id))) await setApiKey(context, id);
       if ((id === 'openai-compatible' || id === 'azure-openai') && !readSettings().endpoint) await vscode.commands.executeCommand('workbench.action.openSettings', 'arclang.ai.endpoint');
     } },
     { label: '$(symbol-class) Model', description: config.model || '(default)', run: () => pickModel(context) },
   ];
-  if (config.provider !== 'vscode-lm' && config.provider !== 'off') {
+  if (config.provider !== 'vscode-lm' && config.provider !== 'off' && config.provider !== 'arclang-hosted') {
     items.push({ label: '$(link) Endpoint', description: (config.endpoint && displayUrl(config.endpoint)) || '(none)', run: () => vscode.commands.executeCommand('workbench.action.openSettings', 'arclang.ai.endpoint') });
     items.push({ label: '$(key) Set API key', description: config.apiKey ? 'stored' : info?.needsKey ? 'missing' : 'optional', run: () => setApiKey(context, config.provider) });
   }

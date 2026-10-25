@@ -60,7 +60,10 @@
     "onLanguage:arclang",
     "onView:arclangModel",
     "onLanguage:sysml",
-    "onView:arclangRelations"
+    "onView:arclangRelations",
+    "onLanguage:modelica",
+    "onView:arclangChat",
+    "onCommand:arclang.chat.open"
   ],
   "main": "./dist/extension.js",
   "contributes": {
@@ -90,6 +93,21 @@
           ".sysml"
         ],
         "configuration": "./language-configuration.json"
+      },
+      {
+        "id": "modelica",
+        "aliases": [
+          "Modelica",
+          "modelica"
+        ],
+        "extensions": [
+          ".mo"
+        ],
+        "configuration": "./modelica-language-configuration.json",
+        "icon": {
+          "light": "./media/modelica-icon.svg",
+          "dark": "./media/modelica-icon.svg"
+        }
       }
     ],
     "grammars": [
@@ -102,6 +120,11 @@
         "language": "sysml",
         "scopeName": "source.sysml",
         "path": "./syntaxes/sysml.tmLanguage.json"
+      },
+      {
+        "language": "modelica",
+        "scopeName": "source.modelica.arclang",
+        "path": "./syntaxes/modelica.tmLanguage.json"
       }
     ],
     "commands": [
@@ -577,6 +600,11 @@
         "title": "Save the model as… (SysML v2, Capella, ReqIF, ArcLang copy)",
         "category": "ArcLang",
         "icon": "$(save-as)"
+      },
+      {
+        "command": "arclang.chat.open",
+        "title": "Open the AI chat (ArcLang and Modelica)",
+        "category": "ArcLang"
       }
     ],
     "menus": {
@@ -1147,6 +1175,7 @@
           "default": "vscode-lm",
           "enum": [
             "vscode-lm",
+            "arclang-hosted",
             "anthropic",
             "openai",
             "azure-openai",
@@ -1158,6 +1187,7 @@
           ],
           "enumDescriptions": [
             "The language models VS Code offers (GitHub Copilot or any other extension's); pick one with arclang.ai.vscodeModel.",
+            "ArcLang hosted: the site's own assistant (arclang.fr), free and limited; no key. The default of the web playground.",
             "Anthropic Claude (key: ArcLang: Set AI API key).",
             "OpenAI (key: ArcLang: Set AI API key).",
             "Azure OpenAI: arclang.ai.endpoint, arclang.ai.azureDeployment and arclang.ai.apiVersion, and a key.",
@@ -1305,6 +1335,12 @@
             "No sheet: the boxes and lines only, for a coloured slide."
           ],
           "description": "The background of the diagram copied as an image (Copy as image, ⇧⌘C / Ctrl+Shift+C on the canvas)."
+        },
+        "arclang.ai.hostedEndpoint": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "Where the `arclang-hosted` provider goes: the address of the ArcLang AI gateway. Empty: https://arclang.fr/api/ai. User setting only.",
+          "scope": "machine"
         }
       }
     },
@@ -1744,6 +1780,13 @@
           "title": "ArcLang",
           "icon": "media/icon.svg"
         }
+      ],
+      "secondarySidebar": [
+        {
+          "id": "arclangChat",
+          "title": "ArcLang Chat",
+          "icon": "media/chat.svg"
+        }
       ]
     },
     "views": {
@@ -1759,6 +1802,15 @@
           "name": "Relations",
           "contextualTitle": "ArcLang relations",
           "icon": "media/icon.svg"
+        }
+      ],
+      "arclangChat": [
+        {
+          "type": "webview",
+          "id": "arclang.chat",
+          "name": "AI chat",
+          "contextualTitle": "ArcLang AI chat",
+          "icon": "media/chat.svg"
         }
       ]
     },

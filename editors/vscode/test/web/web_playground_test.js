@@ -25,6 +25,7 @@ const shot = async (page, name) => { if (SHOTS) await page.screenshot({ path: `$
   const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
   const page = await context.newPage();
   const errors = []; page.on('pageerror', (e) => errors.push(String(e)));
+  const violations = []; page.on('console', (m) => { if (/Content[- ]Security[- ]Policy/i.test(m.text())) violations.push(m.text().slice(0, 220)); });
   const foreign = new Set(); const origin = new URL(BASE).origin;
   page.on('request', (r) => { const u = new URL(r.url()); // vscode-cdn.net names are the webviews' virtual resource origin, answered by the page's own service worker (the browser below cannot resolve them).
     if (/^https?:$/.test(u.protocol) && u.origin !== origin && !u.hostname.endsWith('.vscode-cdn.net')) foreign.add(u.origin); });
@@ -91,6 +92,7 @@ const shot = async (page, name) => { if (SHOTS) await page.screenshot({ path: `$
   report('the warm reload shows the diagram again', !!frame2, `ready ${warmReady} ms, first diagram ${warmDiagram} ms`);
 
   report('no request left for another host', foreign.size === 0, [...foreign].join(', '));
+  report('no content security policy violation', violations.length === 0, violations.slice(0, 3).join(' | '));
   report('no page error', errors.length === 0, errors.slice(0, 2).join(' | ').slice(0, 200));
   const raw = downloads.reduce((a, d) => a + d.raw, 0); const gz = downloads.reduce((a, d) => a + d.gz, 0);
   console.log(`cold: ready ${ready} ms, first diagram ${firstDiagram} ms; warm reload: ready ${warmReady} ms, first diagram ${warmDiagram} ms`);

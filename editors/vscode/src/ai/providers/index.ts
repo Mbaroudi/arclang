@@ -24,6 +24,7 @@ export interface ProviderInfo {
 
 export const PROVIDERS: ProviderInfo[] = [
   { id: 'vscode-lm', label: 'VS Code language models (Copilot…)', models: [], endpoint: 'vscode.lm', needsKey: false, cloud: false },
+  { id: 'arclang-hosted', label: 'ArcLang hosted (free, limited)', models: ['claude-haiku-5-5', 'claude-sonnet-5-5'], endpoint: 'https://arclang.fr/api/ai', needsKey: false, cloud: true }, // web hook
   { id: 'anthropic', label: 'Anthropic Claude', models: ['claude-opus-5-5', 'claude-sonnet-5-5', 'claude-haiku-5-5'], endpoint: 'https://api.anthropic.com', needsKey: true, cloud: true, keyHelp: 'console.anthropic.com → API keys' },
   { id: 'openai', label: 'OpenAI', models: ['gpt-5', 'gpt-5-mini', 'gpt-4.1'], endpoint: 'https://api.openai.com/v1', needsKey: true, cloud: true, keyHelp: 'platform.openai.com → API keys' },
   { id: 'azure-openai', label: 'Azure OpenAI', models: [], endpoint: '', needsKey: true, cloud: true, keyHelp: 'Azure portal → your OpenAI resource → Keys and Endpoint' },
@@ -48,6 +49,8 @@ export interface AiSettings {
   endpoint: string;
   azureDeployment: string;
   apiVersion: string;
+  /** Where `arclang-hosted` goes (the site's gateway); empty: the provider's default. */
+  hostedEndpoint?: string;
   maxTokens: number;
   temperature: number | null;
   timeoutSeconds: number;
@@ -61,7 +64,7 @@ export function resolveConfig(settings: AiSettings, apiKey?: string): ProviderCo
   return {
     provider,
     model,
-    endpoint: settings.endpoint.trim() || info?.endpoint || '',
+    endpoint: provider === 'arclang-hosted' ? settings.hostedEndpoint?.trim() || info?.endpoint || '' : settings.endpoint.trim() || info?.endpoint || '',
     apiKey: apiKey || undefined,
     azureDeployment: settings.azureDeployment.trim() || undefined,
     apiVersion: settings.apiVersion.trim() || undefined,
@@ -106,6 +109,7 @@ export function createHttpProvider(config: ProviderConfig): ChatProvider {
   if (missing) throw new ProviderError(missing, 'config');
   switch (config.provider) {
     case 'anthropic':
+    case 'arclang-hosted':
       return new AnthropicProvider(config);
     case 'google':
       return new GoogleProvider(config);

@@ -1,6 +1,6 @@
 // Anthropic's Messages API, streamed, with its native tool use.
-import { displayUrl, joinUrl, parseArguments, parseJson, postStream, ProviderError, sseEvents } from './http';
-import { ChatEvent, ChatMessage, ChatOptions, ChatProvider, ProviderConfig } from './types';
+import { displayUrl, joinUrl, parseArguments, parseJson, postStream, ProviderError, runsInBrowser, sseEvents } from './http';
+import { ChatEvent, ChatMessage, ChatOptions, ChatProvider, ProviderConfig, ProviderId } from './types';
 
 type Block =
   | { type: 'text'; text: string }
@@ -42,19 +42,22 @@ interface StreamEvent {
 }
 
 export class AnthropicProvider implements ChatProvider {
-  readonly id = 'anthropic' as const;
+  readonly id: ProviderId;
   readonly model: string;
   readonly endpoint: string;
   private readonly url: string;
 
   constructor(private readonly config: ProviderConfig) {
+    this.id = config.provider === 'arclang-hosted' ? 'arclang-hosted' : 'anthropic';
     this.model = config.model;
     this.url = joinUrl(config.endpoint || 'https://api.anthropic.com', '/v1/messages');
     this.endpoint = displayUrl(this.url);
   }
 
   async *chat(messages: ChatMessage[], options: ChatOptions = {}): AsyncGenerator<ChatEvent> {
-    if (!this.config.apiKey) throw new ProviderError('Anthropic needs an API key: run "ArcLang: Set AI API key"', 'config');
+    // The hosted provider is the site's gateway: it holds the key, the request carries none.
+    const hosted = this.id === 'arclang-hosted';
+    if (!hosted && !this.config.apiKey) throw new ProviderError('Anthropic needs an API key: run "ArcLang: Set AI API key"', 'config');
     const wire = toAnthropic(messages);
     const body: Record<string, unknown> = { model: this.model, max_tokens: options.maxTokens ?? this.config.maxTokens ?? 4096, messages: wire.messages, stream: true };
     if (wire.system) body.system = wire.system;
@@ -63,12 +66,12 @@ export class AnthropicProvider implements ChatProvider {
     if (options.tools?.length) body.tools = options.tools.map((t) => ({ name: t.name, description: t.description, input_schema: t.parameters }));
     const chunks = postStream({
       url: this.url,
-      headers: { 'x-api-key': this.config.apiKey, 'anthropic-version': '2023-06-01' },
+      headers: hosted ? {} : { 'x-api-key': this.config.apiKey!, 'anthropic-version': '2023-06-01', ...(runsInBrowser() ? { 'anthropic-dangerous-direct-browser-access': 'true' } : {}) }, // web hook
       body,
       signal: options.signal,
       timeoutMs: this.config.timeoutMs,
       secrets: [this.config.apiKey],
-      label: 'Anthropic',
+      label: hosted ? 'ArcLang hosted AI' : 'Anthropic',
     });
     const tools = new Map<number, { id: string; name: string; json: string }>();
     let stopReason: string | undefined;

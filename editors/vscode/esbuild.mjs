@@ -139,6 +139,16 @@ const tables = await esbuild.context({
   outfile: 'dist/tables.js',
 });
 
+// web hook: the AI chat's page (the same in the desktop and the web build).
+const chat = await esbuild.context({
+  ...common,
+  entryPoints: ['webview/chat/main.ts'],
+  format: 'iife',
+  platform: 'browser',
+  target: 'es2022',
+  outfile: 'dist/chat.js',
+});
+
 // impact hook: the impact analysis view's page.
 const impact = await esbuild.context({
   ...common,
@@ -150,9 +160,9 @@ const impact = await esbuild.context({
 });
 
 if (watch) {
-  await Promise.all([host.watch(), web.watch(), page.watch(), tables.watch(), impact.watch()]);
+  await Promise.all([host.watch(), web.watch(), chat.watch(), page.watch(), tables.watch(), impact.watch()]);
 } else {
-  await Promise.all([host.rebuild(), web.rebuild(), page.rebuild(), tables.rebuild(), impact.rebuild()]);
+  await Promise.all([host.rebuild(), web.rebuild(), chat.rebuild(), page.rebuild(), tables.rebuild(), impact.rebuild()]);
   copyWasm();
-  await Promise.all([host.dispose(), web.dispose(), page.dispose(), tables.dispose(), impact.dispose()]);
+  await Promise.all([host.dispose(), web.dispose(), chat.dispose(), page.dispose(), tables.dispose(), impact.dispose()]);
 }

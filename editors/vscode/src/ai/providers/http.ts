@@ -52,6 +52,11 @@ export function displayUrl(url: string): string {
   }
 }
 
+/** Whether this code runs in a browser's worker (the web extension): calls to a provider are then cross-origin requests. */
+export function runsInBrowser(): boolean { // web hook
+  return typeof (globalThis as { importScripts?: unknown }).importScripts === 'function';
+}
+
 /** Whether a host is the local machine. */
 export function isLocalHost(hostname: string): boolean {
   return hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1' || hostname === '[::1]';
