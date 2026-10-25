@@ -99,8 +99,19 @@ const page = await esbuild.context({
 // (the WebAssembly backend answers every compiler call), and the compiler's
 // module is copied beside it.
 const shims = path.join(here, 'src', 'web', 'shims');
+// The compiler's WebAssembly glue (wasm/pkg, built by wasm-pack, not committed). Without it the web
+// bundle still builds, with a module that says so when the web extension starts; the desktop
+// extension is unaffected. The site build (tools/build_vscode_web.sh) builds wasm first.
+const wasmGlue = path.resolve(here, '..', '..', 'wasm', 'pkg', 'arclang_wasm.js');
+const wasmFallback = {
+  name: 'wasm-fallback',
+  setup(build) {
+    build.onResolve({ filter: /wasm\/pkg\/arclang_wasm\.js$/ }, () => (fs.existsSync(wasmGlue) ? { path: wasmGlue } : { path: path.join(here, 'src', 'web', 'wasm-missing.ts') }));
+  },
+};
 const web = await esbuild.context({
   ...common,
+  plugins: [wasmFallback],
   entryPoints: ['src/web/extension.ts'],
   format: 'cjs',
   platform: 'browser',
