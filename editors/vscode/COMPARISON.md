@@ -64,6 +64,8 @@ Legend: **yes** · **partial** · **no**.
 | Semantic browser | yes (Relations view) | yes | partial |
 | Find in a diagram | yes (⌘F), tested | yes | yes (Ctrl+K) |
 | Open a diagram / go to an element (quick pick) | yes (⌘⌥D, ⌘⌥E) | partial | yes |
+| Single click selects only; the text follows by a highlight, a double-click goes to the source beside the diagram | yes: `followSelection` and `doubleClick` settings (draw.io renames on a double-click: `rename` gives that back), tested in VS Code | yes (the editor is separate) | partial |
+| New model / new layer / new diagram / open a diagram by layer | yes: quick picks, the tree's New menu, a welcome view and the workbench's New menu; the compiler checks what is written, one undo, tested in VS Code | yes (wizards) | yes |
 | Minimap | yes (Shift+M, click or drag to move the view), tested | yes (outline) | yes |
 | Automatic layout | yes (ELK), with the manual arrangement on top of it (Reset layout goes back) | yes (Arrange All, mixed results) | yes (Flow, Compact) |
 | Align, distribute, snap | yes: align left, centre, right, top, middle, bottom and distribute for a selection; smart guides while moving or resizing (Alt moves freely), tested (and in VS Code) | yes | partial |

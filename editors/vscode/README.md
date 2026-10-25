@@ -38,7 +38,7 @@ the selection follows; Undo, Redo and Save are the editor's own.
   on the diagram, resize it by the grip on its corner**: the arrangement is
   kept in `<model>.layout.json` beside the model. Let a box go on another
   to move it inside. `F2` renames, `Delete` removes,
-  double-click opens, `Esc` cancels; right-click gives the native menu
+  double-click goes to the source (see below), `Esc` cancels; right-click gives the native menu
   (rename, delete, show in source, show in tree, ask @arclang, copy id).
   **Full screen** gives the workbench the whole screen with all its tools
   (Esc gives the window back); **Save SVG** and **Save PNG** export the
@@ -69,6 +69,45 @@ the selection follows; Undo, Redo and Save are the editor's own.
   (`⌘⌥E`) quick picks; the status bar shows the gate verdict and the number
   of findings; findings are marked on the drawn elements, with their text as
   tooltip.
+
+### Diagram and text side by side
+
+A **single click** on a box, a line, a port or a table row only selects: the
+properties, the tree and the other tabs follow, and nothing else moves. It
+never opens, replaces or focuses an editor and never touches the text's cursor
+or scroll position. When the model's text is already on screen in its own
+editor group, the element's declaration is **highlighted** there (scrolled into
+view only if it is out of the viewport); `arclang.workbench.followSelection`
+set to `off` leaves the text alone.
+
+A **double-click** on a box or a line goes to the source: the declaration is
+selected in the text editor, which takes the focus. When the text is not on
+screen it opens **beside** the workbench, in an editor group of its own (one is
+created when the workbench is alone), never over the workbench's tab. The
+*Source* button, *Go to source* of the properties, the tree and the tables use
+the same rule. In full screen the selection does not follow into the text.
+
+draw.io renames in place on a double-click; ArcLang goes to the source because
+the text is the model. Set `arclang.workbench.doubleClick` to `rename` for
+draw.io's gesture. `F2` and the menu always rename, and **Go to source** is
+always in the context menu.
+
+### New and Open
+
+- **New model…** (command palette, the model tree's *New* menu, the empty
+  tree's welcome view, the workbench's *New* menu): a blank model (a header),
+  the Arcadia skeleton (the four levels, empty) or an example; it asks for the
+  name and place, writes the `.arc` and opens the text and the workbench side
+  by side.
+- **New layer…**: Operational, System, Logical, Physical, EPBS, Requirements
+  or Safety, among those the model does not hold yet. Written through
+  `arclang edit` (checked by the compiler, one undo); a new level appears as an
+  empty tab with its palette.
+- **New diagram…**: a view kind, the starting elements (the selection, or ones
+  you pick), a name; the `diagram` declaration is written and opens as a tab.
+- **Open a diagram…** (also *Diagrams…* in the layer bar): the model's diagrams
+  by layer, the declared and the automatic ones; the button of a row opens it in
+  a tab of its own. **Open model…** opens a `.arc` or `.sysml` file.
 
 Every gesture becomes `arclang edit` requests: the compiler refuses the ones
 that would leave a model that does not compile, and an accepted one lands in
@@ -244,6 +283,8 @@ VS Code (GitHub Copilot, for instance); the rest works without.
 |---|---|---|
 | `arclang.binary` | `arclang` | The executable |
 | `arclang.diagrams.refreshOnSave` | `true` | Redraw open diagrams on save |
+| `arclang.workbench.followSelection` | `highlight` | A click on the diagram highlights the declaration in the visible text (`off`: nothing) |
+| `arclang.workbench.doubleClick` | `source` | A double-click goes to the source (`rename`: rename in place, as draw.io) |
 | `arclang.gate.standard` | `iso26262` | `iso26262`, `do178c` or `iec61508` |
 | `arclang.ai.provider` | `vscode-lm` | The AI: `vscode-lm`, `anthropic`, `openai`, `azure-openai`, `mistral`, `google`, `ollama`, `openai-compatible`, `off` (user setting) |
 | `arclang.ai.model`, `arclang.ai.vscodeModel` | provider's default | The model |
