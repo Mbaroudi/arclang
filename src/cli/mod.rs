@@ -1,6 +1,7 @@
 pub mod diagram_service;
 pub mod edit;
 pub mod table; // tables hook
+pub mod impact; // impact hook
 pub mod review;
 pub mod repl;
 pub mod language_server;
@@ -171,16 +172,9 @@ pub enum Commands {
         json: bool,
     },
 
-    /// Change-impact analysis: everything transitively affected when an
-    /// element (requirement, component, function) changes
-    Impact {
-        #[clap(value_parser)]
-        input: PathBuf,
-
-        /// Element id or unambiguous name (e.g. "REQ-AEB-004")
-        #[clap(value_parser)]
-        element: String,
-    },
+    /// Change-impact analysis: what a change to elements, a proposed edit
+    /// (what-if) or the changes since a git revision reach, and why
+    Impact(impact::ImpactArgs), // impact hook
     
     Export {
         #[clap(value_parser)]
@@ -699,9 +693,7 @@ impl CliRunner {
             Commands::Trace { input, from, to, validate, matrix } => {
                 self.run_trace(input, from, to, validate, matrix)
             }
-            Commands::Impact { input, element } => {
-                self.run_impact(input, element)
-            }
+            Commands::Impact(args) => impact::run(&args), // impact hook
             Commands::Diff { old, new, json } => {
                 self.run_diff(old, new, json)
             }
@@ -1296,45 +1288,6 @@ impl CliRunner {
         } else {
             Err(CliError::DiffFound)
         }
-    }
-
-    fn run_impact(&self, input: PathBuf, element: String) -> Result<(), CliError> {
-        let config = crate::CompilerConfig::default();
-        let mut compiler = crate::Compiler::new(config);
-        let result = compiler
-            .compile_file(&input)
-            .map_err(|e| CliError::Compilation(e.to_string()))?;
-
-        let entries = result
-            .semantic_model
-            .impact_of(&element)
-            .ok_or_else(|| {
-                CliError::Compilation(format!(
-                    "element '{}' not found (or its name is ambiguous — use an id)",
-                    element
-                ))
-            })?;
-
-        println!("Impact analysis for '{}':", element);
-        if entries.is_empty() {
-            println!("  No connected elements — changing it affects nothing traced.");
-            return Ok(());
-        }
-
-        let mut current_depth = 0;
-        for entry in &entries {
-            if entry.depth != current_depth {
-                current_depth = entry.depth;
-                let label = if current_depth == 1 { "directly affected" } else { "transitively affected" };
-                println!("\n  Distance {} ({}):", current_depth, label);
-            }
-            println!(
-                "    {} '{}' [{}] — via {} from '{}'",
-                entry.element_type, entry.name, entry.id, entry.via, entry.via_element
-            );
-        }
-        println!("\n  Total affected elements: {}", entries.len());
-        Ok(())
     }
 
     fn run_export(
