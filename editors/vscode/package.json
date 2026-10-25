@@ -2163,9 +2163,7 @@
           "id": "arclang",
           "title": "ArcLang",
           "icon": "media/icon.svg"
-        }
-      ],
-      "secondarySidebar": [
+        },
         {
           "id": "arclangChat",
           "title": "ArcLang Chat",

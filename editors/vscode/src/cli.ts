@@ -76,7 +76,7 @@ function runNative(args: string[], options: RunOptions): Promise<RunResult> {
     const child = execFile(
       binary(),
       args,
-      { cwd: options.cwd, maxBuffer: 256 * 1024 * 1024, env: process.env },
+      { cwd: options.cwd, maxBuffer: 256 * 1024 * 1024, env: options.cwd ? { ...process.env, ARCLANG_MODEL_DIR: options.cwd } : process.env },
       (error, stdout, stderr) => {
         if (error && (error as NodeJS.ErrnoException).code === 'ENOENT') {
           resolve({ code: 127, stdout: '', stderr: `${binary()}: command not found` });
