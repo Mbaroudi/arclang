@@ -348,7 +348,7 @@ fn openmodelica_checks_the_package_and_verifies_the_demo() {
     let partials = export.text.lines().filter(|l| l.trim().starts_with("partial model ")).count();
     assert_eq!(partials, paths.len(), "every generated model is checked");
     for path in paths {
-        script.push_str(&format!("print(\"@@check {path}\\n\" + String(checkModel({path})) + \"\\n\" + getErrorString() + \"\\n\");\n"));
+        script.push_str(&format!("print(\"@@check {path}\\n\" + checkModel({path}) + \"\\n\" + getErrorString() + \"\\n\");\n"));
     }
     std::fs::write(work.join("check.mos"), script).unwrap();
     let run = tool::run(&omc, &work, "check.mos", None).unwrap();

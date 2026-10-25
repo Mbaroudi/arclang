@@ -12,6 +12,7 @@ model "EV range simulation" {
 
 type "HV plus" { physics: electrical }
 type "HV minus" { physics: electrical pole: negative }
+type "Signal" { physics: signal }
 
 // --- Requirements ----------------------------------------------------------
 
@@ -58,7 +59,7 @@ physical_architecture "EV hardware" {
         port "hv_p" { is: "HV plus" }
         port "hv_n" { is: "HV minus" }
         port "shaft" { physics: mechanical_rotational flange: b }
-        port in "torque_cmd" { physics: signal }
+        port in "torque_cmd" { is: "Signal" }
     }
     node "Vehicle body" {
         id: "PN-BODY"
@@ -69,18 +70,18 @@ physical_architecture "EV hardware" {
         ambient: 263.15 K
         deploys "LC-BODY"
         port "wheel" { physics: mechanical_rotational }
-        port out "speed" { physics: signal }
+        port out "speed" { is: "Signal" }
     }
     node "Vehicle control unit" {
         id: "PN-VCU"
-        port in "speed" { physics: signal }
-        port out "torque_cmd" { physics: signal }
+        port in "speed" { is: "Signal" }
+        port out "torque_cmd" { is: "Signal" }
         behavior_component "Speed controller" {
             id: "BC-SPD"
             allocated_component: "LC-SPD"
             target_speed: 100 km/h
-            port in "speed" { physics: signal }
-            port out "torque_cmd" { physics: signal }
+            port in "speed" { is: "Signal" }
+            port out "torque_cmd" { is: "Signal" }
         }
     }
     physical_link "HV plus line" { id: "PL-HVP" from: "PN-BATT.hv_p" to: "PN-DRIVE.hv_p" protocol: "HV DC 400 V" }

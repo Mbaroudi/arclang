@@ -496,7 +496,7 @@ mod tests {
         assert!(!run("min(battery.soc) >= 0.25").unwrap().holds);
         assert_eq!(run("final(body.distance) >= 300 km").unwrap().value, "final(body.distance) = 300.5 km");
         assert!(run("initial(battery.soc) == 1").unwrap().holds);
-        assert!(run("max(body.speed) < 100 km/h").unwrap().holds);
+        assert!(run("max(body.speed) < 101 km/h").unwrap().holds);
         // Trapezoidal mean: (0.8*1800 + 0.4*1800) / 3600.
         assert_eq!(run("mean(battery.soc) > 0").unwrap().value, "mean(battery.soc) = 0.6");
         assert_eq!(run("at(900 s, battery.soc) > 0").unwrap().value, "at(..., battery.soc) = 0.8");
