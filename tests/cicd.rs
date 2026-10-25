@@ -659,3 +659,31 @@ fn the_report_needs_a_git_repository_and_a_known_base() {
     let outside = Command::new(arclang()).current_dir(dir.path()).args(["report", "--pr", "--from", "main"]).output().unwrap();
     assert!(!outside.status.success() && text(&outside).contains("git repository"), "{}", text(&outside));
 }
+
+// ------------------------------------------------------------- simulations
+
+#[test]
+fn ci_run_without_openmodelica_reports_the_simulations_as_inconclusive_never_as_passed() {
+    let repo = Repo::new();
+    let root = Path::new(env!("CARGO_MANIFEST_DIR"));
+    repo.write("ev.arc", &std::fs::read_to_string(root.join("examples/automotive/ev_range_simulation.arc")).unwrap());
+    repo.write("physics/EVPhysics.mo", &std::fs::read_to_string(root.join("examples/automotive/physics/EVPhysics.mo")).unwrap());
+    repo.commit("ev");
+    let out = Command::new(arclang())
+        .current_dir(repo.path())
+        .env("ARCLANG_OMC", "/nonexistent/omc")
+        .args(["ci", "run", "--sarif", "out/a.sarif"])
+        .output()
+        .unwrap();
+    let said = text(&out);
+    assert!(said.contains("verification.inconclusive"), "{said}");
+    let log: Value = serde_json::from_str(&repo.read("out/a.sarif")).unwrap();
+    assert_valid_sarif(&log);
+    let inconclusive: Vec<&Value> = log["runs"][0]["results"].as_array().unwrap().iter().filter(|r| r["ruleId"] == "verification.inconclusive").collect();
+    assert!(!inconclusive.is_empty(), "an unrun simulation is a result, not silence");
+    assert!(inconclusive.iter().all(|r| r["level"] == "warning"));
+    assert!(inconclusive[0]["message"]["text"].as_str().unwrap().contains("OpenModelica not available"));
+    // With --verify never nothing is simulated and nothing is claimed about it.
+    let never = Command::new(arclang()).current_dir(repo.path()).env("ARCLANG_OMC", "/nonexistent/omc").args(["ci", "run", "--verify", "never"]).output().unwrap();
+    assert!(!text(&never).contains("verification.inconclusive: "));
+}
