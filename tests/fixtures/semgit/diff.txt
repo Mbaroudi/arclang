@@ -1,0 +1,21 @@
+Semantic diff (by stable identity): HEAD~1 -> HEAD
+  Model: model.arc
+
+System Analysis (SA): +1 -1 ~1
+  ~ modified Requirement 'REQ-001' [REQ-001]
+      description: "Detect at 150 m" -> "Detect at 200 m"
+  - removed  Requirement 'REQ-002' [REQ-002]
+  + added    SystemFunction 'Act' [SF-ACT]
+
+Logical Architecture (LA): +0 -0 ~1
+  ~ renamed  LogicalComponent 'Radar Sensor' [LC-002]
+      renamed: "Sensor" -> "Radar Sensor"
+
+Consequences:
+  Production gate: FAIL (ISO26262) -> FAIL (4 blocker(s) -> 2)
+    - blocker resolved: requirement 'REQ-002' is satisfied by no architecture element (no satisfies trace)
+    - blocker resolved: requirement 'REQ-002' has no verification case (test_case verifies: [...])
+  Coverage: 1/1 satisfied, 0/1 verified (was 1/2, 0/2)
+  Impact: 2 element(s) reached, 0 blocker(s)
+
+  Total: 1 added, 1 removed, 2 modified (1 renamed, 0 moved); 0 relationship(s) added, 0 removed, 0 changed
