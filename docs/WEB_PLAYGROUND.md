@@ -56,7 +56,7 @@ unresolvable: everything still works); nothing is fetched from Microsoft.
 ## 2. The extension as a web extension
 
 `editors/vscode/package.json`: `browser: ./dist/web/extension.js`,
-`extensionKind: [workspace, web]`, `capabilities.virtualWorkspaces.supported: true`.
+`main` and `browser` together (no `extensionKind`: vsce accepts only `ui` and `workspace`, and VS Code runs an extension that has both on the desktop and on the web), `capabilities.virtualWorkspaces.supported: true`.
 The desktop build (`main`, `dist/extension.js`) is unchanged.
 
 Every compiler call of the extension goes through `src/cli.ts`, `run(args)`.
