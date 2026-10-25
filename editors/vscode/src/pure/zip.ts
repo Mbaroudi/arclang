@@ -102,7 +102,7 @@ export function zip(entries: ZipEntry[], deflate?: Deflate): Uint8Array {
   return out;
 }
 
-/** The entries of a ZIP this writer made (stored or deflated by `inflate`): for tests and checks. */
+/** The entries of a ZIP (stored or deflated, inflated by `inflate`): this writer's, or a ReqIF archive (.reqifz). */
 export function unzip(data: Uint8Array, inflate: (data: Uint8Array) => Uint8Array): ZipEntry[] {
   const view = new DataView(data.buffer, data.byteOffset, data.byteLength);
   let endAt = data.length - 22;
@@ -126,6 +126,7 @@ export function unzip(data: Uint8Array, inflate: (data: Uint8Array) => Uint8Arra
     const localExtra = view.getUint16(local + 28, true);
     const start = local + 30 + localName + localExtra;
     const body = data.subarray(start, start + size);
+    if (method !== 0 && method !== 8) throw new Error(`${name}: compression method ${method} is not read (only stored or deflated)`);
     const content = method === 8 ? inflate(body) : body.slice();
     if (crc32(content) !== crc) throw new Error(`CRC mismatch in ${name}`);
     out.push({ name, data: content });
