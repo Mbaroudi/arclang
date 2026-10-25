@@ -1085,7 +1085,11 @@ impl<'g> Mapper<'g> {
                             }
                         },
                     },
-                    (None, None) => continue,
+                    // Nested attributes (a location, a shape, a route): an ArcLang block.
+                    (None, None) => match self.nested_value(child) {
+                        Some(text) => text,
+                        None => continue,
+                    },
                 };
                 let key = field_key(&name);
                 // A formula for a typed key (`mass = dryMass + cargoMass`) is
@@ -1120,6 +1124,41 @@ impl<'g> Mapper<'g> {
         }
     }
 
+
+    /// The nested attributes of an attribute usage as an ArcLang block
+    /// (`{ lat: 48.85 deg lon: 2.35 deg }`); items named `point_1`,
+    /// `point_2`... are a list, in their order. None when a nested value is
+    /// not an ArcLang value, so nothing is half-written.
+    fn nested_value(&self, usage: &Element) -> Option<String> {
+        let mut entries: Vec<(String, String)> = Vec::new();
+        for child in usage.children.iter().filter_map(|c| self.graph.get(c)) {
+            if child.kind != "AttributeUsage" {
+                continue;
+            }
+            let name = child.name.clone()?;
+            let value = match (&child.value, &child.value_expression) {
+                (Some(value), _) => value.clone(),
+                (None, Some(expression)) => {
+                    let text = self.expression_text(expression).ok()?;
+                    if !expression::is_attribute_value(&text) {
+                        return None;
+                    }
+                    text
+                }
+                (None, None) => self.nested_value(child)?,
+            };
+            entries.push((name, value));
+        }
+        if entries.is_empty() {
+            return None;
+        }
+        let points: Option<Vec<(usize, &String)>> = entries.iter().map(|(name, value)| name.strip_prefix("point_").and_then(|n| n.parse().ok()).map(|n| (n, value))).collect();
+        if let Some(mut points) = points {
+            points.sort_by_key(|(n, _)| *n);
+            return Some(format!("[{}]", points.iter().map(|(_, v)| v.as_str()).collect::<Vec<_>>().join(", ")));
+        }
+        Some(format!("{{ {} }}", entries.iter().map(|(k, v)| format!("{}: {v}", field_key(k))).collect::<Vec<_>>().join(" ")))
+    }
 
     /// An expression element as ArcLang text (an attribute value, a
     /// constraint), or why it is not one.

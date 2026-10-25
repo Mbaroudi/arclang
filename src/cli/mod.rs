@@ -559,6 +559,11 @@ pub enum ExportFormat {
     ReqIF,
     CHeaders,
     Proto,
+    /// The located elements and physical links on a map (RFC 7946 GeoJSON)
+    #[clap(name = "geojson")]
+    GeoJSON,
+    /// The product structure and the shapes for CAD (STEP AP242, ISO 10303-242)
+    Step,
 }
 
 #[derive(Debug, clap::ValueEnum, Clone)]
@@ -1314,6 +1319,8 @@ impl CliRunner {
             ExportFormat::ReqIF => "json".to_string(),
             ExportFormat::CHeaders => "json".to_string(),
             ExportFormat::Proto => "json".to_string(),
+            ExportFormat::GeoJSON => "json".to_string(),
+            ExportFormat::Step => "json".to_string(),
         };
         
         let mut compiler = crate::Compiler::new(config);
@@ -1386,6 +1393,23 @@ impl CliRunner {
                     ExportFormat::CHeaders => {
                         crate::compiler::c_header_generator::generate_c_headers(
                             &result.semantic_model, &result.ast)
+                    }
+                    ExportFormat::GeoJSON => {
+                        let (text, notes) = crate::compiler::spatial::geojson::export(&result.ast);
+                        for note in notes {
+                            eprintln!("note: {note}");
+                        }
+                        text
+                    }
+                    ExportFormat::Step => {
+                        let stamp = chrono::Utc::now().format("%Y-%m-%dT%H:%M:%S").to_string();
+                        let exported = crate::compiler::spatial::step::export(&result.ast, &stamp)
+                            .map_err(CliError::Compilation)?;
+                        for note in &exported.notes {
+                            eprintln!("note: {note}");
+                        }
+                        eprintln!("STEP AP242: {} solid(s)", exported.solids);
+                        exported.text
                     }
                     ExportFormat::Proto => {
                         crate::compiler::proto_generator::generate_proto(

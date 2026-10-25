@@ -323,9 +323,17 @@ function placeholderFor(attribute: MetamodelAttribute): string {
     case 'Reference':
       return attribute.type.of ? `id of a ${attribute.type.of}` : 'id';
     case 'List':
-      return 'a, b, c';
+      return (attribute.type.of as unknown as { type?: string } | undefined)?.type === 'Location' ? '[{ lat: 47.79 deg lon: 3.66 deg }, { lat: 47.54 deg lon: 3.94 deg }]' : 'a, b, c';
     case 'Multiplicity':
       return '1, 0..1, 0..*';
+    case 'Location':
+      return '{ lat: 48.8566 deg lon: 2.3522 deg alt: 35 m }';
+    case 'Position':
+      return '{ x: 1.2 m y: 0 m z: 0.4 m }';
+    case 'Orientation':
+      return '{ yaw: 90 deg }';
+    case 'Shape':
+      return '{ box: [2 m, 1 m, 0.5 m] }';
     default:
       return '';
   }

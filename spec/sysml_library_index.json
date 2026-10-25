@@ -201,6 +201,15 @@
       ]
     },
     {
+      "qualifiedName": "ISQSpaceTime::AngularMeasureValue",
+      "metaclass": "AttributeDefinition",
+      "name": "AngularMeasureValue",
+      "shortName": null,
+      "roles": [
+        "type"
+      ]
+    },
+    {
       "qualifiedName": "ISQSpaceTime::FrequencyUnit",
       "metaclass": "AttributeDefinition",
       "name": "FrequencyUnit",
@@ -390,6 +399,15 @@
       ]
     },
     {
+      "qualifiedName": "SI::degree",
+      "metaclass": "AttributeUsage",
+      "name": "degree",
+      "shortName": "°",
+      "roles": [
+        "value"
+      ]
+    },
+    {
       "qualifiedName": "SI::gram",
       "metaclass": "AttributeUsage",
       "name": "gram",
@@ -511,6 +529,15 @@
       "metaclass": "AttributeUsage",
       "name": "pascal",
       "shortName": "Pa",
+      "roles": [
+        "value"
+      ]
+    },
+    {
+      "qualifiedName": "SI::radian",
+      "metaclass": "AttributeUsage",
+      "name": "radian",
+      "shortName": "rad",
       "roles": [
         "value"
       ]

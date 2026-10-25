@@ -35,6 +35,8 @@ export const EXPORT_FORMATS: ReadonlyArray<{ format: string; label: string; exte
   { format: 'sysml-json', label: 'SysML v2 API records (abstract syntax)', extension: 'json' },
   { format: 'capella', label: 'Capella project', extension: 'capella' },
   { format: 'req-if', label: 'ReqIF requirements interchange', extension: 'reqif' },
+  { format: 'step', label: 'CAD: STEP AP242 (ISO 10303-242), the product structure and its shapes', extension: 'step' },
+  { format: 'geojson', label: 'Map: GeoJSON (RFC 7946), the located elements and the physical links', extension: 'geojson' },
   { format: 'c-headers', label: 'C interface headers', extension: 'h' },
   { format: 'proto', label: 'Protocol Buffers interface', extension: 'proto' },
   { format: 'markdown', label: 'Markdown report', extension: 'md' },

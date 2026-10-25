@@ -213,3 +213,10 @@ fn a_quoted_name_holding_a_dot_is_one_segment_of_a_path() {
     let declarations = read_ok("package M {\n  action c {\n    merge <'C.1'> 'Done?';\n    succession first x then 'C.1';\n  }\n}\n");
     assert_eq!(declarations.last().unwrap().ends.as_ref().map(|e| e.1.as_str()), Some("'C.1'"));
 }
+
+#[test]
+fn a_path_with_a_character_beyond_ascii_splits_whole() {
+    // `SI::'°'` (the degree) once cut the `°` in two and panicked.
+    assert_eq!(super::split_path("SI::'°'", "::"), ["SI", "'°'"]);
+    assert_eq!(super::split_path("Café.Résumé", "."), ["Café", "Résumé"]);
+}

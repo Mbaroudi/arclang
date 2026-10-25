@@ -273,7 +273,12 @@ fn text(expr: &Expr, top: bool) -> String {
         Expr::Unit(unit) => unit.clone(),
         Expr::List(items) => format!("[{}]", items.iter().map(|i| text(i, true)).collect::<Vec<_>>().join(", ")),
         Expr::Call(function, args) => format!("{function}({})", args.iter().map(|a| text(a, true)).collect::<Vec<_>>().join(", ")),
-        Expr::Neg(inner) => format!("-({})", text(inner, true)),
+        // A negative number or quantity is written as one (`-33.45 deg`).
+        Expr::Neg(inner) => match inner.as_ref() {
+            Expr::Literal(value) if !value.starts_with('-') => format!("-{value}"),
+            Expr::Quantity(number, unit) if !number.starts_with('-') => format!("-{number} {unit}"),
+            _ => format!("-({})", text(inner, true)),
+        },
         Expr::Binary(op, lhs, rhs) => {
             let written = format!("{} {op} {}", text(lhs, false), text(rhs, false));
             if top { written } else { format!("({written})") }

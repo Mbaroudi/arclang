@@ -1,0 +1,51 @@
+name: STEP export read by Open CASCADE
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'src/compiler/spatial/**'
+      - 'src/compiler/quantity.rs'
+      - 'examples/spatial/**'
+      - 'tools/step_validate.py'
+      - '.github/workflows/step-occ.yml'
+  pull_request:
+    paths:
+      - 'src/compiler/spatial/**'
+      - 'examples/spatial/**'
+      - 'tools/step_validate.py'
+      - '.github/workflows/step-occ.yml'
+
+jobs:
+  occ:
+    name: Every solid of the STEP export is valid, with the declared volume
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash -el {0}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install Open CASCADE (pythonocc-core)
+        uses: conda-incubator/setup-miniconda@v3
+        with:
+          activate-environment: occ
+          channels: conda-forge
+          python-version: "3.11"
+
+      - name: Install pythonocc
+        run: conda install -y -c conda-forge "pythonocc-core>=7.7"
+
+      - name: Build compiler
+        run: cargo build --release
+
+      - name: Export the corridor example and read it back
+        run: |
+          ./target/release/arclang export examples/spatial/charging_corridor.arc -f step -o corridor.step
+          # 4 hub boxes (6 x 2.5 x 2.6 m), 2 power cabinets, 1 controller, 2 transformers.
+          python tools/step_validate.py corridor.step --expect-solids 9 \
+            --expect-volume 39 39 39 39 8.448 8.448 0.576 1.71059 1.71059

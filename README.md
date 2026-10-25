@@ -251,6 +251,28 @@ the long-term goal.
   component (causality from exchange direction, GUID = the component's
   deterministic ArcLang UUID). Interface contracts only — behaviour stays in
   the simulation tool.
+- **Spatial modelling, to maps and to CAD**: where elements stand on the
+  Earth (`location: { lat: 47.795 deg lon: 3.661 deg alt: 180 m }`, WGS 84),
+  where they stand in their owner (`position: { x: 0.3 m y: 0.3 m }`), how
+  they are turned (`orientation: { yaw: 90 deg }`), their envelope
+  (`shape: { box: [6 m, 2.5 m, 2.6 m] }` or `{ cylinder: [diameter, height] }`)
+  and the way a physical link takes (`route: [{ lat: .. lon: .. }, ...]`).
+  The compiler reads them with their units (angles in `deg` or `rad`) and
+  refuses what cannot be (a latitude beyond the poles, an angle given as a
+  length). It checks the geometry against the links: a `length` shorter
+  than the route or than the distance between located ends
+  (`spatial.length`), beyond `max_length` (`spatial.max-length`), a
+  `latency` faster than light over that length (`spatial.latency`); each is
+  a gate blocker. `arclang export -f geojson` puts the located elements
+  and the links on a map (RFC 7946: QGIS, kepler.gl, GitHub);
+  `arclang export -f step` writes the product structure (levels, nodes,
+  behaviour components, EPBS) with its shapes as STEP AP242
+  (ISO 10303-242), read by CATIA, SOLIDWORKS, NX, Creo and FreeCAD. The
+  STEP output is checked with Open CASCADE (`tools/step_validate.py`):
+  valid closed solids, volumes and placements as declared. In SysML v2 the
+  values are nested attributes typed `LengthValue` and
+  `AngularMeasureValue`, accepted by the OMG pilot and read back exactly.
+  Example: [`examples/spatial/charging_corridor.arc`](examples/spatial/charging_corridor.arc).
 - **Diagrams**, compiled from the model and drawn in Arcadia notation:
   - one per architecture viewpoint (OAB, SAB, LAB, PAB): functions nested
     in the component they are allocated to, exchanges bound to the ports
