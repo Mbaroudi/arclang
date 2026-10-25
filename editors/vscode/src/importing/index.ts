@@ -342,21 +342,7 @@ export async function importModel(context: vscode.ExtensionContext, options: Imp
   }
 }
 
-const NEW_MODEL = (name: string) => `// A new ArcLang model. Add an operational analysis, a system analysis, a logical
-// architecture… — or import one (ArcLang: Import).
-model ${name.replace(/[^A-Za-z0-9_]+/g, '_').replace(/^(\d)/, '_$1') || 'NewModel'} {
-  version: "0.1"
-}
-`;
-
-async function newModel(): Promise<void> {
-  const folder = workspaceFolder();
-  const target = await vscode.window.showSaveDialog({ defaultUri: folder ? vscode.Uri.file(path.join(folder, 'model.arc')) : undefined, filters: { 'ArcLang model': ['arc'] }, saveLabel: 'Create', title: 'New ArcLang model' });
-  if (!target) return;
-  const file = target.fsPath.endsWith('.arc') ? target : vscode.Uri.file(`${target.fsPath}.arc`);
-  await vscode.workspace.fs.writeFile(file, Buffer.from(NEW_MODEL(path.basename(file.fsPath, '.arc')), 'utf8'));
-  await vscode.window.showTextDocument(file, { preview: false });
-}
+// "New model" lives in src/workbench/create.ts (blank, Arcadia skeleton or an example, opened beside the workbench).
 
 /** A command argument that is a file URI (the explorer gives the clicked one and the selection). */
 const fileUri = (value: unknown): vscode.Uri | undefined => (value instanceof vscode.Uri && value.scheme === 'file' ? value : undefined);
@@ -376,5 +362,4 @@ export function registerImport(context: vscode.ExtensionContext): void {
   register('arclang.import.api', async () => after(await importModel(context, { kind: 'sysml-api' })));
   register('arclang.import.sysmlFolder', async (uri?: unknown) => after(await importModel(context, { path: fileUri(uri)?.fsPath, kind: 'sysml' })));
   register('arclang.import.capellaProject', async (uri?: unknown) => after(await importModel(context, { path: fileUri(uri)?.fsPath, kind: 'capella' })));
-  register('arclang.newModel', async () => { await newModel(); rescan(); });
 }

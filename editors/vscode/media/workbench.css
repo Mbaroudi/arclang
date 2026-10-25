@@ -671,3 +671,7 @@ button.wb-icon-button.wb-bar-toggle.wb-save.is-dirty { color: var(--vscode-butto
 button.wb-icon-button.wb-bar-toggle.wb-save.is-dirty:hover { background: var(--vscode-button-hoverBackground, #1177bb); }
 .wb-save .wb-dirty-dot { font-size: 10px; line-height: 1; margin-left: 1px; }
 @media (max-width: 620px) { .wb-file .wb-file-label { display: none; } }
+/* nav hook: New ▾ and the Diagrams… button of the layer bar */
+.wb-nav-button .wb-nav-plus { font-weight: 600; margin-right: 2px; }
+.wb-layer.wb-layer-more { margin-left: auto; opacity: 0.85; font-style: italic; }
+@media (max-width: 620px) { .wb-nav-button .wb-toggle-label { display: none; } }

@@ -41,7 +41,7 @@ export function pulse(host: HTMLElement, ids: string[]): void {
 }
 
 /** The layers of the model, one big button each, the one on screen pressed. */
-export function renderLayers(bar: HTMLElement, graphs: ViewerGraph[], current: string | null, show: (id: string) => void): void {
+export function renderLayers(bar: HTMLElement, graphs: ViewerGraph[], current: string | null, show: (id: string) => void, more?: () => void): void {
   clear(bar);
   for (const viewpoint of VIEWPOINTS) {
     const own = graphs.filter((g) => g.arc.view === viewpoint.view);
@@ -57,4 +57,6 @@ export function renderLayers(bar: HTMLElement, graphs: ViewerGraph[], current: s
     const active = extra.some((g) => g.id === current);
     bar.appendChild(button(`Other (${extra.length})`, () => show(extra[0].id), { class: `wb-layer${active ? ' is-active' : ''}`, 'aria-pressed': String(active) }));
   }
+  // nav hook: every diagram of the model, by layer, in a list
+  if (more) bar.appendChild(button('Diagrams…', more, { class: 'wb-layer wb-layer-more', title: 'Open a diagram by layer, here or in a tab of its own' }));
 }

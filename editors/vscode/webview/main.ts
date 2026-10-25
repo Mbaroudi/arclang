@@ -20,6 +20,7 @@ import { Alignment, modelIdOf, relationshipOfEdge } from '../src/pure/editing';
 import { installAi } from './ask-ai'; // ai-design hook
 import { installKeys } from './keys';
 import { MultiSelection } from './multi-select';
+import { installNavMenu } from './nav-menu'; // nav hook
 import { installPanes } from './panes'; // panes hook
 import { installImpact } from './impact-marks'; // impact hook
 import { installFileMenu } from './file-menu';
@@ -347,6 +348,7 @@ const editing = new Editing({
   related: showRelated,
   newDiagram: newDiagramAround,
   reveal: (element) => vscode.postMessage({ type: 'reveal', id: element.id }),
+  activate: (element, drawing) => vscode.postMessage({ type: 'activate', id: element.id, name: element.name, drawing }), // nav hook
   help: () => help.toggle(),
   copied: (elements, relationships) => vscode.postMessage({ type: 'copied', elements: elements.map((e) => ({ id: e.id, name: e.name })), relationships }),
   joinLayout,
@@ -470,7 +472,7 @@ function onOpen(id: string): void {
   selectElement(element, false);
   if (!state.layout.drawerOpen) setDrawer(true);
   showRightTab(0);
-  vscode.postMessage({ type: 'reveal', id: element.id });
+  vscode.postMessage({ type: 'activate', id: element.id }); // nav hook
 }
 
 function index(snapshot: Snapshot): void {
@@ -607,7 +609,7 @@ function markFindings(): void {
 
 
 function renderLayers(): void {
-  renderLayers_(layerBar, state.snapshot?.diagrams?.graphs ?? [], state.viewer?.current?.()?.view ?? null, showGraph);
+  renderLayers_(layerBar, state.snapshot?.diagrams?.graphs ?? [], state.viewer?.current?.()?.view ?? null, showGraph, () => vscode.postMessage({ type: 'command', command: 'arclang.pickDiagram' })); // nav hook: Diagrams…
 }
 
 function showGraph(id: string): void {
@@ -724,12 +726,12 @@ window.addEventListener('message', (event: MessageEvent<ToWebview>) => {
       stepLayer(message.step);
       return;
     case 'diagram-op': {
-      const element = state.byId.get(message.id) ?? null;
+      const element = state.byId.get(message.id) ?? (message.drawing ? elementFor({ view: '', id: message.drawing, name: '', kind: '', isEdge: message.drawing.includes(':') }) : null);
       if (!element) return;
       if (message.op === 'hide') hideFromDiagram(element);
       if (message.op === 'related') showRelated(element);
       if (message.op === 'new') newDiagramAround(element);
-      if (message.op === 'rename') editing.rename(element, drawingId(element.id));
+      if (message.op === 'rename') editing.rename(element, message.drawing ?? drawingId(element.id));
       return;
     }
     case 'show': {
@@ -793,6 +795,7 @@ const canvasCommand = keys.canvasCommand;
 const deleteOne = keys.deleteOne;
 
 // panes hook: tree drops, a diagram's own tab, "Open in a new tab" on the layers (webview/panes.ts).
+installNavMenu({ toolRow: document.querySelector<HTMLElement>('.wb-toolrow'), sheet, post: (message) => vscode.postMessage(message) }); // nav hook
 installPanes({ sheet, layerBar, viewer: () => state.viewer, graph: () => currentGraph(), snapshot: () => state.snapshot, idOf: (id) => elementFor({ view: '', id, name: '', kind: '', isEdge: false })?.id ?? null, select: (element) => selectElement(element, false), submit, toast: (text, kind) => showToast(text, kind), post: (message) => vscode.postMessage(message as never), showGraph });
 
 installImpact({ post: (m) => vscode.postMessage(m as never), host, layerBar, drawingId, selection: () => (multiSelection.elements.length > 1 ? multiSelection.elements : state.selected ? [state.selected] : []) }); // impact hook

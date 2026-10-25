@@ -14,7 +14,9 @@ import { CanvasHistory } from './canvas-history';
 import { applyRequests, EditQueue, refusalMessage } from './edits';
 import { metamodelJson, onDidChangeSnapshot, snapshotOf } from './snapshot';
 import { arcTextOf } from './source';
-import { elementAt, revealElement } from './tree';
+import { elementAt } from './tree';
+import { emptyLayerGraphs } from '../pure/creation'; // nav hook
+import { doubleClickSetting, goToSource, openSource, setWorkbenchColumns } from './go-to-source'; // nav hook
 import { handlePageMessage, pageClosed } from '../ai'; // ai-design hook
 import { handlePanesMessage, isPanesMessage } from './panes-host'; // panes hook
 import { handleImpactMessage, isImpactMessage } from '../impact'; // impact hook
@@ -48,6 +50,8 @@ const VIEWER_SCRIPTS = [
 
 /** The commands the webview may ask the host to run on its document. */
 const ALLOWED_COMMANDS = new Set(['arclang.transitionPlan', 'arclang.transitionApply', 'arclang.runGate', 'arclang.check', 'arclang.format']);
+/** nav hook: the New ▾ menu's commands (src/workbench/create.ts) */
+for (const command of ['arclang.newModel', 'arclang.newLayer', 'arclang.newDiagram', 'arclang.pickDiagram', 'arclang.openModel']) ALLOWED_COMMANDS.add(command);
 
 const panels = new Map<string, Set<WorkbenchPanel>>();
 let active: WorkbenchPanel | null = null;
@@ -108,6 +112,12 @@ export class WorkbenchPanel {
 
   /** The custom editor that VS Code opens for `.arc` and `.sysml` files on request. */
   static register(context: vscode.ExtensionContext): vscode.Disposable {
+    // nav hook: where the workbench pages of a document are, for opening the text in another group
+    setWorkbenchColumns((uri) => {
+      const all = WorkbenchPanel.all(uri);
+      const front = all.filter((p) => p.panel.active).concat(all.filter((p) => !p.panel.active));
+      return front.map((p) => p.panel.viewColumn);
+    });
     const provider: vscode.CustomTextEditorProvider = {
       resolveCustomTextEditor(document, webviewPanel) {
         const created = new WorkbenchPanel(context, document, webviewPanel);
@@ -283,6 +293,14 @@ export class WorkbenchPanel {
     if (!this.ready) return;
     const [snapshot, metamodel, layout] = await Promise.all([snapshotOf(this.document), metamodelJson(), this.layoutNow !== undefined ? this.layoutNow : this.readLayout()]);
     this.layoutNow = layout ?? null;
+    if (snapshot.diagrams) {
+      // nav hook: a layer just declared and still empty has a tab of its own, with its palette
+      const source = await arcTextOf(this.document);
+      if (source.ok) {
+        const empty = emptyLayerGraphs(source.text, snapshot.diagrams.graphs ?? []);
+        if (empty.length > 0) snapshot.diagrams = { ...snapshot.diagrams, graphs: [...(snapshot.diagrams.graphs ?? []), ...empty] };
+      }
+    }
     if (snapshot.diagrams && this.layoutUri()) {
       // The arrangement kept next to the model: what the views show, as the CLI draws them.
       snapshot.diagrams = { ...snapshot.diagrams, layout: layout ?? undefined, layout_name: path.basename(this.layoutUri()!.fsPath) };
@@ -313,11 +331,23 @@ export class WorkbenchPanel {
         return;
       case 'reveal': {
         const element = await this.element(message.id);
-        if (element) await revealElement(this.document, element, { preserveFocus: true });
+        if (element) await goToSource(this.document, element); // nav hook
+        return;
+      }
+      case 'activate': { // nav hook
+        // A relationship (an exchange, a message) is not always a record of the snapshot: the page names it.
+        const element = (await this.element(message.id)) ?? { id: message.id, name: message.name ?? message.id };
+        if (doubleClickSetting() === 'rename') this.post({ type: 'diagram-op', op: 'rename', id: element.id, drawing: message.drawing });
+        else await goToSource(this.document, element);
         return;
       }
       case 'open-text':
-        await vscode.window.showTextDocument(this.document, { viewColumn: vscode.ViewColumn.One, preserveFocus: false });
+        // nav hook: the declaration of the selected element when there is one, else the text
+        if (this.selected) {
+          const element = await this.element(this.selected);
+          if (element && (await goToSource(this.document, element))) return;
+        }
+        await openSource(this.document);
         return;
       case 'ask':
         await vscode.commands.executeCommand('workbench.action.chat.open', {

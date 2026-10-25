@@ -8,7 +8,7 @@ import * as fs from 'node:fs';
 import * as vscode from 'vscode';
 import { familyOf } from '../pure/kind-icons';
 import { Counts, countsBadge, diagramsByLayer, DROP_HINT, dropPayload, ELEMENT_FRAGMENT, filterNodes, findingCounts, subtreeCounts, TREE_MIME } from '../pure/panes';
-import { ElementRecord, elementLabel, LAYER_LABELS, LAYERS, Metamodel, Snapshot, TreeNode, treeByLayer, ViewerGraph } from '../pure/workbench';
+import { ElementRecord, LAYER_LABELS, LAYERS, Metamodel, Snapshot, TreeNode, treeByLayer, ViewerGraph } from '../pure/workbench';
 import { metamodelJson, onDidChangeSnapshot, snapshotOf } from './snapshot';
 import { isModelDocument } from './source';
 
@@ -349,24 +349,6 @@ export async function locateElement(document: vscode.TextDocument, element: Pick
 export function shownTextEditor(document: vscode.TextDocument): vscode.TextEditor | undefined {
   const uri = document.uri.toString();
   return vscode.window.visibleTextEditors.find((e) => e.document.uri.toString() === uri && e.viewColumn !== undefined);
-}
-
-/** Show the element's declaration in a text editor beside the views. */
-export async function revealElement(
-  document: vscode.TextDocument,
-  element: Pick<ElementRecord, 'id' | 'name'>,
-  options: { preserveFocus?: boolean } = {},
-): Promise<boolean> {
-  const range = await locateElement(document, element);
-  if (!range) {
-    vscode.window.setStatusBarMessage(`ArcLang: ${elementLabel({ ...element, kind: '' })} is not declared in this file (it may come from an import)`, 4000);
-    return false;
-  }
-  const column = shownTextEditor(document)?.viewColumn ?? vscode.ViewColumn.One;
-  const editor = await vscode.window.showTextDocument(document, { viewColumn: column, preserveFocus: options.preserveFocus ?? false, preview: false });
-  editor.selection = new vscode.Selection(range.start, range.end);
-  editor.revealRange(range, vscode.TextEditorRevealType.InCenterIfOutsideViewport);
-  return true;
 }
 
 /** The element whose declaration contains the position, by the server's symbols. */

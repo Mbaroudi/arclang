@@ -1,7 +1,7 @@
 // The workbench: the model tree in the side bar, the custom editor beside
 // the source, the status bar item, and the commands of all three.
 import * as vscode from 'vscode';
-import { CanvasCommand, elementLabel, VIEW_OF_LAYER, ViewerGraph } from '../pure/workbench';
+import { CanvasCommand, elementLabel, VIEW_OF_LAYER } from '../pure/workbench';
 import { applyRequests, refusalMessage } from './edits';
 import { onDidSelectElement, WorkbenchPanel } from './panel';
 import { forgetSnapshot, registerSnapshotRefresh, snapshotOf } from './snapshot';
@@ -10,7 +10,10 @@ import { RelationItem, RelationsProvider } from './relations';
 import { registerStatusBar } from './status';
 import { registerPanes } from './panes-host'; // panes hook
 import { ARRANGE_COMMANDS, ARRANGE_KEYS } from '../pure/arrange'; // zorder hook
-import { graphsDrawing, ModelItem, ModelTreeProvider, revealElement } from './tree';
+import { graphsDrawing, ModelItem, ModelTreeProvider } from './tree';
+import { goToSource } from './go-to-source'; // nav hook
+import { registerNavProbe } from './probe'; // nav hook
+import { registerCreation } from './create'; // nav hook
 import { ExportArgs, pickerItems, themeStore } from './diagram-export';
 import { saveModelAs } from './model-file';
 
@@ -31,19 +34,6 @@ function elementItem(item: unknown): Extract<ModelItem, { type: 'element' }> | n
   return null;
 }
 
-const VIEW_ORDER = ['oab', 'sab', 'lab', 'pab', 'cap', 'cdb', 'pbs', 'msm', 'es'];
-
-/** The diagrams of a document as quick pick items, viewpoints in method order. */
-function diagramPicks(graphs: ViewerGraph[]): (vscode.QuickPickItem & { graph: ViewerGraph })[] {
-  const order = (g: ViewerGraph) => {
-    const at = VIEW_ORDER.indexOf(g.arc.view);
-    return at < 0 ? VIEW_ORDER.length : at;
-  };
-  return [...graphs]
-    .sort((a, b) => order(a) - order(b) || a.arc.title.localeCompare(b.arc.title))
-    .map((graph) => ({ label: `$(graph) ${graph.arc.title}`, description: graph.arc.view.toUpperCase(), detail: graph.id, graph }));
-}
-
 export function registerWorkbench(context: vscode.ExtensionContext): void {
   registerSnapshotRefresh(context);
   registerStatusBar(context);
@@ -54,6 +44,7 @@ export function registerWorkbench(context: vscode.ExtensionContext): void {
   const relationsView = vscode.window.createTreeView('arclangRelations', { treeDataProvider: relations });
   context.subscriptions.push(view, relationsView);
   registerPanes(context, tree, view); // panes hook
+  registerNavProbe(context); // nav hook
 
   const register = (command: string, callback: (...args: unknown[]) => unknown) =>
     context.subscriptions.push(vscode.commands.registerCommand(command, callback));
@@ -73,20 +64,8 @@ export function registerWorkbench(context: vscode.ExtensionContext): void {
     WorkbenchPanel.for(document.uri)?.show(picked.graph.id);
   });
 
-  register('arclang.pickDiagram', async (uri?: unknown) => {
-    const document = await documentFrom(uri, tree);
-    if (!document) return;
-    const snapshot = await snapshotOf(document);
-    const graphs = snapshot.diagrams?.graphs ?? [];
-    if (graphs.length === 0) {
-      vscode.window.showInformationMessage('ArcLang: this model has no diagram yet (does it compile?).');
-      return;
-    }
-    const choice = await vscode.window.showQuickPick(diagramPicks(graphs), { placeHolder: `Open a diagram of ${document.uri.path.split('/').pop()} (${graphs.length})`, matchOnDescription: true, matchOnDetail: true });
-    if (!choice) return;
-    await WorkbenchPanel.open(document);
-    WorkbenchPanel.for(document.uri)?.show(choice.graph.id);
-  });
+  // arclang.pickDiagram, newModel, newLayer, newDiagram, openModel: src/workbench/create.ts // nav hook
+  registerCreation(context, tree); // nav hook
 
   register('arclang.pickElement', async (uri?: unknown) => {
     const document = await documentFrom(uri, tree);
@@ -97,7 +76,7 @@ export function registerWorkbench(context: vscode.ExtensionContext): void {
     const choice = await vscode.window.showQuickPick(items, { placeHolder: `Go to an element of ${document.uri.path.split('/').pop()} (${records.length})`, matchOnDescription: true, matchOnDetail: true });
     if (!choice) return;
     const drawn = graphsDrawing(snapshot.diagrams?.graphs ?? [], choice.element);
-    await revealElement(document, choice.element, { preserveFocus: drawn.length > 0 });
+    await goToSource(document, choice.element, { preserveFocus: drawn.length > 0 }); // nav hook
     if (drawn.length > 0) {
       await WorkbenchPanel.open(document);
       WorkbenchPanel.for(document.uri)?.show(drawn[0].id, choice.element.id);
@@ -179,14 +158,14 @@ export function registerWorkbench(context: vscode.ExtensionContext): void {
       if (drawn.length > 0) panel.show(drawn[0].id, element.node.element.id);
       else panel.select(element.node.element.id);
     }
-    await revealElement(document, element.node.element, { preserveFocus: true });
+    await goToSource(document, element.node.element, { preserveFocus: true, open: !panel }); // nav hook: the text follows if it is shown, opens beside only when no workbench is
   });
 
   register('arclang.model.reveal', async (item?: unknown) => {
     const element = elementItem(item);
     if (!element) return;
     const document = await vscode.workspace.openTextDocument(element.uri);
-    await revealElement(document, element.node.element);
+    await goToSource(document, element.node.element); // nav hook
   });
 
   register('arclang.model.openDiagram', async (item?: unknown) => {
@@ -258,7 +237,7 @@ export function registerWorkbench(context: vscode.ExtensionContext): void {
   };
   register('arclang.canvas.reveal', async (arg?: unknown) => {
     const target = await canvasTarget(arg);
-    if (target) await revealElement(target.document, { id: target.id, name: target.name });
+    if (target) await goToSource(target.document, { id: target.id, name: target.name }); // nav hook
   });
   register('arclang.canvas.tree', async (arg?: unknown) => {
     const target = await canvasTarget(arg);
@@ -333,6 +312,6 @@ export function registerWorkbench(context: vscode.ExtensionContext): void {
       if (drawn.length > 0) panel.show(drawn[0].id, other.id);
       else panel.select(other.id);
     }
-    await revealElement(document, other, { preserveFocus: true });
+    await goToSource(document, other, { preserveFocus: true, open: !panel }); // nav hook
   });
 }

@@ -13,7 +13,8 @@ import { applyRequests, EditQueue, refusalMessage } from '../workbench/edits';
 import { WorkbenchPanel } from '../workbench/panel';
 import { snapshotOf } from '../workbench/snapshot';
 import { arcTextOf, documentDir } from '../workbench/source';
-import { graphsDrawing, revealElement } from '../workbench/tree';
+import { graphsDrawing } from '../workbench/tree';
+import { goToSource } from '../workbench/go-to-source'; // nav hook: the one way to the source
 import { statusMessage } from '../ai/bridge';
 
 export const IMPACT_VIEW_TYPE = 'arclang.impact';
@@ -266,7 +267,7 @@ export class ImpactPanel implements vscode.Disposable {
     const snapshot = await snapshotOf(this.document);
     const records = snapshot.elements?.elements ?? [];
     const record = records.find((e) => e.id === id) ?? records.find((e) => e.name === id);
-    if (record) await revealElement(this.document, { id: record.id, name: record.name }, { preserveFocus: true });
+    if (record) await goToSource(this.document, { id: record.id, name: record.name }, { preserveFocus: true });
     const drawn = record ? graphsDrawing(snapshot.diagrams?.graphs ?? [], record) : [];
     let workbench = WorkbenchPanel.for(this.document.uri);
     if (!workbench && open && drawn.length) {

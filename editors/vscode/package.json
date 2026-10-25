@@ -63,6 +63,25 @@
   ],
   "main": "./dist/extension.js",
   "contributes": {
+    "submenus": [
+      {
+        "id": "arclang.newMenu",
+        "label": "New",
+        "icon": "$(add)"
+      }
+    ],
+    "viewsWelcome": [
+      {
+        "view": "arclangModel",
+        "contents": "No ArcLang model in this workspace yet. Bring one in from Capella, SysML v2 or ReqIF, or start a new one.\n[Import a Capella model](command:arclang.import.capella)\n[Import SysML v2](command:arclang.import.sysml)\n[Import requirements (ReqIF)](command:arclang.import.reqif)\n[New model](command:arclang.newModel)\nAlso: [from a SysML v2 API server](command:arclang.import.api), [from DOORS](command:arclang.import.doors).",
+        "when": "arclang.noModelFiles"
+      },
+      {
+        "view": "arclangModel",
+        "contents": "Open a .arc or .sysml file to see its model, or bring one in.\n[Import a model…](command:arclang.import)\n[New model](command:arclang.newModel)",
+        "when": "!arclang.noModelFiles"
+      }
+    ],
     "languages": [
       {
         "id": "arclang",
@@ -104,6 +123,35 @@
       }
     ],
     "commands": [
+      {
+        "command": "arclang.newModel",
+        "title": "New model…",
+        "category": "ArcLang",
+        "icon": "$(new-file)"
+      },
+      {
+        "command": "arclang.openModel",
+        "title": "Open model…",
+        "category": "ArcLang",
+        "icon": "$(folder-opened)"
+      },
+      {
+        "command": "arclang.newLayer",
+        "title": "New layer…",
+        "category": "ArcLang",
+        "icon": "$(layers)"
+      },
+      {
+        "command": "arclang.newDiagram",
+        "title": "New diagram…",
+        "category": "ArcLang",
+        "icon": "$(add)"
+      },
+      {
+        "command": "arclang.debug.navState",
+        "title": "ArcLang: Dump the editor layout (test)",
+        "category": "ArcLang"
+      },
       {
         "command": "arclang.openDiagrams",
         "title": "Open the read-only diagram page (legacy)",
@@ -560,12 +608,6 @@
         "category": "ArcLang"
       },
       {
-        "command": "arclang.newModel",
-        "title": "New model…",
-        "category": "ArcLang",
-        "icon": "$(new-file)"
-      },
-      {
         "command": "arclang.workbench.save",
         "title": "Save the model",
         "category": "ArcLang",
@@ -634,6 +676,28 @@
       }
     ],
     "menus": {
+      "arclang.newMenu": [
+        {
+          "command": "arclang.newModel",
+          "group": "1_new@1"
+        },
+        {
+          "command": "arclang.newLayer",
+          "group": "1_new@2"
+        },
+        {
+          "command": "arclang.newDiagram",
+          "group": "1_new@3"
+        },
+        {
+          "command": "arclang.pickDiagram",
+          "group": "2_open@1"
+        },
+        {
+          "command": "arclang.openModel",
+          "group": "2_open@2"
+        }
+      ],
       "editor/title": [
         {
           "command": "arclang.openWorkbench",
@@ -731,6 +795,10 @@
         }
       ],
       "commandPalette": [
+        {
+          "command": "arclang.debug.navState",
+          "when": "arclang.testProbe"
+        },
         {
           "command": "arclang.openDiagrams",
           "when": "resourceLangId == arclang"
@@ -1014,6 +1082,11 @@
       ],
       "view/title": [
         {
+          "submenu": "arclang.newMenu",
+          "when": "view == arclangModel",
+          "group": "navigation@4"
+        },
+        {
           "command": "arclang.model.refresh",
           "when": "view == arclangModel",
           "group": "navigation@1"
@@ -1217,6 +1290,32 @@
           "default": "arclang",
           "markdownDescription": "The `arclang` executable: a name on the PATH or an absolute path. The extension runs `arclang lsp --stdio`, `arclang diagram`, `arclang check`, `arclang gate`, `arclang transition`, `arclang export`, `arclang import`, `arclang set`, `arclang rename`. User setting only: a workspace cannot choose the executable the extension runs.",
           "scope": "machine"
+        },
+        "arclang.workbench.followSelection": {
+          "type": "string",
+          "enum": [
+            "highlight",
+            "off"
+          ],
+          "enumDescriptions": [
+            "A click on the diagram highlights the element's declaration in the text editor when it is already on screen (scrolled into view only if outside it). The cursor, the focus and the editors are not touched.",
+            "A click on the diagram does nothing in the text."
+          ],
+          "default": "highlight",
+          "markdownDescription": "How the text follows a single click on a box, an edge, a port or a table row of the workbench. A single click never opens, replaces or focuses an editor and never moves the text editor's cursor."
+        },
+        "arclang.workbench.doubleClick": {
+          "type": "string",
+          "enum": [
+            "source",
+            "rename"
+          ],
+          "enumDescriptions": [
+            "Go to the source: the declaration is selected in the text editor (opened beside the workbench when it is not on screen). F2 and the menu rename.",
+            "Rename in place, as draw.io does. 'Go to source' stays in the context menu."
+          ],
+          "default": "source",
+          "markdownDescription": "What a double-click on a box or an edge of the workbench does. draw.io renames in place on a double-click; ArcLang goes to the source by default, because the text is the model. F2 and the context menu always rename, and **Go to source** is always in the context menu."
         },
         "arclang.diagrams.refreshOnSave": {
           "type": "boolean",
@@ -2293,18 +2392,6 @@
         "key": "ctrl+shift+a",
         "mac": "cmd+shift+a",
         "when": "activeWebviewPanelId == 'arclang.workbench.diagram' && focusedView == '' && !inputFocus && !arclang.workbenchTyping"
-      }
-    ],
-    "viewsWelcome": [
-      {
-        "view": "arclangModel",
-        "contents": "No ArcLang model in this workspace yet. Bring one in from Capella, SysML v2 or ReqIF, or start a new one.\n[Import a Capella model](command:arclang.import.capella)\n[Import SysML v2](command:arclang.import.sysml)\n[Import requirements (ReqIF)](command:arclang.import.reqif)\n[New model](command:arclang.newModel)\nAlso: [from a SysML v2 API server](command:arclang.import.api), [from DOORS](command:arclang.import.doors).",
-        "when": "arclang.noModelFiles"
-      },
-      {
-        "view": "arclangModel",
-        "contents": "Open a .arc or .sysml file to see its model, or bring one in.\n[Import a model…](command:arclang.import)\n[New model](command:arclang.newModel)",
-        "when": "!arclang.noModelFiles"
       }
     ]
   },
