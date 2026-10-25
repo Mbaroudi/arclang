@@ -11,6 +11,7 @@ pub mod types;
 pub mod elements;
 pub mod metamodel;
 pub mod metamodel_check;
+pub mod spatial;
 pub mod allocations;
 pub mod identity_sites;
 pub mod verification;

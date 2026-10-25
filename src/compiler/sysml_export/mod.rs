@@ -70,11 +70,14 @@ impl<'m> Exporter<'m> {
     }
 
     fn line(&mut self, text: &str) {
-        for _ in 0..self.depth {
-            self.out.push_str("    ");
+        // A block of nested attributes spans several lines: each is indented.
+        for line in text.split('\n') {
+            for _ in 0..self.depth {
+                self.out.push_str("    ");
+            }
+            self.out.push_str(line);
+            self.out.push('\n');
         }
-        self.out.push_str(text);
-        self.out.push('\n');
     }
 
     /// `head {`, the body written by `body`, then `}`; `head;` when the body is empty.

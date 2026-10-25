@@ -3,6 +3,7 @@
 // before the compiler is asked, what an element inherits from its type,
 // what it is related and traced to, and what the findings propose. Pure
 // functions, tested with node:test; the page builds its controls on them.
+import { attributeDisplay } from './workbench';
 import type { AttributeType, EditRequest, ElementRecord, Finding, Metamodel, MetamodelAttribute, Snapshot } from './workbench';
 
 // --- Groups -------------------------------------------------------------------
@@ -127,11 +128,13 @@ export function quantityOf(value: unknown): { value: string; unit: string } | nu
 /** The value as the pane shows it: lists joined, quantities with their unit, texts bare. */
 export function displayValue(value: unknown): string {
   if (value === null || value === undefined) return '';
-  if (Array.isArray(value)) return value.map((v) => displayValue(v)).join(', ');
+  const isBlock = (v: unknown): boolean => typeof v === 'object' && v !== null && !Array.isArray(v) && quantityOf(v) === null;
+  // A block (a location, a position, a shape) or a route is ArcLang as typed, not JSON.
+  if (Array.isArray(value)) return value.some(isBlock) ? attributeDisplay(value) : value.map((v) => displayValue(v)).join(', ');
   if (typeof value === 'object') {
     const quantity = quantityOf(value);
     if (quantity) return `${Number(quantity.value)} ${quantity.unit}`.trim();
-    return JSON.stringify(value);
+    return attributeDisplay(value);
   }
   return String(value);
 }
@@ -152,6 +155,8 @@ const isIdentifier = (text: string): boolean => /^[A-Za-z_][A-Za-z0-9_]*$/.test(
 
 /** What a control writes, as ArcLang source for `set`: texts, references and enumeration members with a dash are quoted. */
 export function fieldLiteral(type: AttributeType | undefined, raw: string | string[]): string {
+  // A block (a location, a position, a shape) or a route is ArcLang as typed.
+  if (typeof raw === 'string' && (/^\{[\s\S]*\}$/.test(raw.trim()) || /^\[\s*\{[\s\S]*\}\s*\]$/.test(raw.trim()))) return raw.trim();
   const shape = valueShape(type);
   const item = (text: string): string => {
     const t = text.trim();
@@ -159,6 +164,10 @@ export function fieldLiteral(type: AttributeType | undefined, raw: string | stri
       case 'Number':
       case 'Integer':
       case 'Boolean':
+      case 'Location':
+      case 'Position':
+      case 'Orientation':
+      case 'Shape':
         return t;
       case 'Quantity': {
         const q = quantityOf(t);

@@ -4,7 +4,7 @@
 // its preview. Each says what is wrong as the reader types (the page's own
 // check, then the compiler's, nothing written), and commits on Enter or on
 // leaving the field: one edit the compiler checks, one undo.
-import { checkValue, CheckContext, enumValues, listItems, markdownBlocks, quantityOf, referenceCandidates, resolveReference, unitsOf, valueShape } from '../src/pure/properties';
+import { checkValue, CheckContext, displayValue, enumValues, listItems, markdownBlocks, quantityOf, referenceCandidates, resolveReference, unitsOf, valueShape } from '../src/pure/properties';
 import type { ElementRecord, MetamodelAttribute } from '../src/pure/workbench';
 import { button, el } from './dom';
 import { iconNode } from './icons';
@@ -122,8 +122,12 @@ function keys(input: HTMLInputElement | HTMLTextAreaElement, original: string, c
   });
 }
 
+/** Spatial values are blocks written as ArcLang (`{ lat: 48.85 deg lon: 2.35 deg }`): one text field, a route included. */
+const BLOCK_ITEMS = new Set(['Location', 'Position', 'Orientation', 'Shape']);
+
 export function createField(host: FieldHost): Field {
   const shape = valueShape(host.attribute.type);
+  if (BLOCK_ITEMS.has(shape.item)) return textField(host);
   if (shape.list && shape.item === 'Reference') return listField(host, true);
   if (shape.list) return listField(host, false);
   switch (shape.item) {
@@ -142,7 +146,7 @@ export function createField(host: FieldHost): Field {
 }
 
 function textField(host: FieldHost): Field {
-  const current = host.value === undefined || host.value === null ? '' : String(host.value);
+  const current = host.value === undefined || host.value === null ? '' : typeof host.value === 'object' ? displayValue(host.value) : String(host.value);
   const input = el('input', { type: 'text', class: 'wb-field', value: host.draft ?? current, placeholder: host.mixed ? 'several values' : placeholderOf(host), 'aria-label': host.attribute.key });
   const message = messageNode();
   const check = liveCheck(host, input, message);
@@ -156,11 +160,21 @@ function textField(host: FieldHost): Field {
 }
 
 function placeholderOf(host: FieldHost): string {
-  switch (valueShape(host.attribute.type).item) {
+  const shape = valueShape(host.attribute.type);
+  switch (shape.item) {
     case 'Number':
       return 'number';
     case 'Multiplicity':
       return '1, 0..1, 1..*';
+    // Spatial values (`Location`, `Position`, `Orientation`, `Shape`), as the language writes them.
+    case 'Location':
+      return shape.list ? '[{ lat: 47.79 deg lon: 3.66 deg }, { lat: 47.54 deg lon: 3.94 deg }]' : '{ lat: 48.8566 deg lon: 2.3522 deg alt: 35 m }';
+    case 'Position':
+      return '{ x: 1.2 m y: 0 m z: 0.4 m }';
+    case 'Orientation':
+      return '{ yaw: 90 deg }';
+    case 'Shape':
+      return '{ box: [2 m, 1 m, 0.5 m] }';
     default:
       return '—';
   }

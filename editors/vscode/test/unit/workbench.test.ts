@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
+  attributeDisplay,
   attributeLiteral,
   connectPlan,
   connectTargetKinds,
@@ -216,4 +217,15 @@ test('a requirement goes into the requirements block, or a new one, and is trace
 test('a fragment request names its kind and label, and refuses an unknown kind', () => {
   assert.deepEqual(fragmentRequest('Lane departure', 'lane model', 'loop every cycle'), { op: 'wrap_fragment', scenario: 'Lane departure', kind: 'loop', label: 'every cycle', first: 'lane model', last: 'lane model' });
   assert.ok('error' in fragmentRequest('S', 'm', 'repeat'));
+});
+
+test('spatial blocks show and edit as ArcLang text', () => {
+  const location = { lat: { value: 47.795, unit: 'deg' }, alt: { value: 180, unit: 'm' }, lon: { value: 3.661, unit: 'deg' } };
+  assert.equal(attributeDisplay(location), '{ lat: 47.795 deg lon: 3.661 deg alt: 180 m }');
+  assert.equal(attributeDisplay({ box: [{ value: 6, unit: 'm' }, { value: 2.5, unit: 'm' }, { value: 2.6, unit: 'm' }] }), '{ box: [6 m, 2.5 m, 2.6 m] }');
+  const route = [{ lat: { value: 1, unit: 'deg' }, lon: { value: 2, unit: 'deg' } }, { lat: { value: 3, unit: 'deg' }, lon: { value: 4, unit: 'deg' } }];
+  assert.equal(attributeDisplay(route), '[{ lat: 1 deg lon: 2 deg }, { lat: 3 deg lon: 4 deg }]');
+  assert.equal(attributeLiteral({ type: 'Location' }, '{ lat: 1 deg lon: 2 deg }'), '{ lat: 1 deg lon: 2 deg }');
+  assert.equal(attributeLiteral({ type: 'List', of: 'Location' }, attributeDisplay(route)), attributeDisplay(route), 'a route is not split at its commas');
+  assert.equal(attributeDisplay(['a', 'b']), 'a, b', 'plain lists stay joined');
 });

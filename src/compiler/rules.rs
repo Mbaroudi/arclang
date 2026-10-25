@@ -81,6 +81,15 @@ const RULES: &[Rule] = &[
     rule!("identity.duplicate", Severity::Error, "Two elements share one identity",
         "Two declarations resolve to the same id: traces and exchanges could not tell them apart.",
         "Give one of them an explicit, unique `id`."),
+    rule!("spatial.length", Severity::Error, "Link shorter than the ground it covers",
+        "A physical link's `length` is shorter than its `route`, or than the distance between its located ends: the medium cannot be that short.",
+        "Correct the `length`, the `route` or the `location` of an end."),
+    rule!("spatial.max-length", Severity::Error, "Link beyond its maximum length",
+        "A physical link is longer than its `max_length` (a cable or bus limit): by its length, its route or the distance between its ends.",
+        "Shorten the route, move an end, or choose a medium that reaches that far."),
+    rule!("spatial.latency", Severity::Error, "Latency faster than light",
+        "A physical link's `latency` is shorter than the time light takes to cover its length: no medium carries a signal that fast.",
+        "Correct the `latency` or the length of the link."),
     rule!("constraint.violated", Severity::Warning, "Constraint violated",
         "A declared `constraint` compares as false on the model's values. The production gate blocks on it.",
         "Change the values the constraint compares, or the constraint, so that the model holds what it claims."),
@@ -136,7 +145,13 @@ pub fn classify_warning(message: &str) -> Finding {
         let after_element = element.and_then(|e| rest.find(&format!("'{e}'")).map(|at| &rest[at + e.len() + 2..]));
         let attribute = after_element.and_then(|tail| tail.strip_prefix('.')).and_then(|tail| tail.split(':').next()).map(str::trim);
         let text = after_element.and_then(|tail| tail.find(": ").map(|at| &tail[at + 2..])).unwrap_or(rest);
-        let rule_id = if text.contains("no unit") || text.contains("unit is assumed") || text.contains("without a unit") {
+        let rule_id = if text.contains("faster than light") {
+            "spatial.latency"
+        } else if text.contains("is shorter than its route") || text.contains("is shorter than the distance between its ends") {
+            "spatial.length"
+        } else if text.contains("is beyond its max_length") {
+            "spatial.max-length"
+        } else if text.contains("no unit") || text.contains("unit is assumed") || text.contains("without a unit") {
             "metamodel.unit"
         } else if text.contains("expected a") && text.contains(" is a ") && !text.contains("(e.g.") {
             // `'X' is a Kind, expected a Kind` names an element of the wrong

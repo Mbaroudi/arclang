@@ -1520,6 +1520,59 @@ namespace pa::bom {
 
 ---
 
+### 6.5 Spatial attributes
+
+Where elements stand, how big they are and what a link covers are
+ordinary attribute blocks with units, so they format, edit and diff like
+any attribute. The compiler reads each with its units and refuses what
+cannot be, with the reason.
+
+| Attribute | On | Value |
+|---|---|---|
+| `location` | operational entities and actors, system actors, physical nodes, behaviour components, EPBS items | `{ lat: 47.795 deg lon: 3.661 deg alt: 180 m }`, WGS 84; `alt` optional |
+| `position` | physical nodes, behaviour components, EPBS items | `{ x: 0.3 m y: 0.3 m z: 0 m }` in the owner's frame (x east, y north, z up); a missing axis is 0 |
+| `orientation` | same | `{ yaw: 90 deg pitch: 0 deg roll: 0 deg }`, about z, then y, then x |
+| `shape` | same | `{ box: [length, width, height] }` or `{ cylinder: [diameter, height] }` |
+| `route` | physical links | `[{ lat: .. lon: .. }, { lat: .. lon: .. }, ...]`, at least two points |
+| `length`, `max_length` | physical links | lengths |
+
+Angles are written in `deg` or `rad`, lengths in `mm`, `cm`, `m` or `km`.
+
+```arclang
+physical_architecture "Physical Architecture" {
+  node "Hub Venoy" {
+    id: "PN-VEN"
+    location: { lat: 47.7950 deg lon: 3.6610 deg alt: 180 m }
+    shape: { box: [6 m, 2.5 m, 2.6 m] }
+    behavior_component "Charge controller" {
+      id: "PB-VEN-CTL"
+      position: { x: 4.2 m y: 0.6 m z: 0.8 m }
+      orientation: { yaw: 90 deg }
+      shape: { box: [0.8 m, 0.6 m, 1.2 m] }
+    }
+  }
+  physical_link "Fibre" {
+    from: "PN-VEN.fibre"  to: "PN-MDI.fibre"
+    route: [{ lat: 47.7950 deg lon: 3.6610 deg }, { lat: 47.5370 deg lon: 3.9350 deg }]
+    length: 36 km  max_length: 80 km  latency: 0.5 ms
+  }
+}
+```
+
+What the compiler checks (each a gate blocker): a link's `length` is not
+shorter than its route nor than the distance between its located ends
+(`spatial.length`), the link keeps within `max_length`
+(`spatial.max-length`), and its `latency` is not shorter than the time light
+takes over its length (`spatial.latency`). Distances are great-circle
+distances on the mean Earth sphere; every comparison allows 0.5 % in the
+model's favour, the most that sphere and the WGS 84 ellipsoid differ.
+
+Exports: `arclang export -f geojson` (RFC 7946: points for located
+elements, lines for links) and `arclang export -f step` (STEP AP242,
+ISO 10303-242: the product structure with its shapes as B-rep solids, in
+millimetres; a top-level element with a location and no position is placed
+by its distance from the first located one).
+
 ## 7. Requirements Management
 
 ### 7.1 Requirements Declaration

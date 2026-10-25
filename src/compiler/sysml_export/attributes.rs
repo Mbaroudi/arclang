@@ -30,6 +30,11 @@ pub fn lines(metamodel: &Metamodel, kind: &str, attributes: &HashMap<String, Att
             Some(same) if same == value => continue,
             Some(_) => {
                 let written = line(metamodel, kind, key, value, units);
+                // A block (a location, a shape) redefines with its body.
+                if written.contains('\n') {
+                    out.push(written.replacen("attribute ", "attribute :>> ", 1));
+                    continue;
+                }
                 let literal = written.split_once(" = ").map(|(_, l)| l).unwrap_or(";");
                 out.push(format!("attribute :>> {} = {literal}", text::name(key)));
             }
@@ -51,6 +56,10 @@ fn line(metamodel: &Metamodel, kind: &str, key: &str, value: &AttributeValue, un
             // Not a quantity of its dimension: kept as written.
             _ => ("String".to_string(), text::string(&value.display())),
         },
+        // A location, a position, an orientation, a shape, a route: nested
+        // attributes, each typed by its quantity (`attribute lat : AngularMeasureValue = 48.85 ['°'];`).
+        (Some(AttrType::Location | AttrType::Position | AttrType::Orientation | AttrType::Shape), AttributeValue::Map(_)) => return block(&name, value, units),
+        (Some(AttrType::List(inner)), AttributeValue::List(items)) if *inner == AttrType::Location && items.iter().all(|i| matches!(i, AttributeValue::Map(_))) => return block(&name, value, units),
         (Some(AttrType::Enum(enumeration)), value) => {
             let raw = value.display();
             let canonical = metamodel.normalize_enum(enumeration, &raw).map(str::to_string).unwrap_or(raw);
@@ -59,6 +68,44 @@ fn line(metamodel: &Metamodel, kind: &str, key: &str, value: &AttributeValue, un
         (_, value) => scalar(value, units),
     };
     format!("attribute {name} : {ty} = {literal};")
+}
+
+/// A block of nested attributes: a map, one attribute per key; a list of
+/// maps, one block per item, named `point_1`, `point_2`... in order.
+fn block(name: &str, value: &AttributeValue, units: &mut BTreeSet<&'static str>) -> String {
+    let mut body = Vec::new();
+    match value {
+        AttributeValue::Map(map) => {
+            // The order a reader expects (lat, lon, alt; x, y, z; yaw, pitch, roll), then the rest by name.
+            const ORDER: [&str; 9] = ["lat", "lon", "alt", "x", "y", "z", "yaw", "pitch", "roll"];
+            let rank = |k: &str| ORDER.iter().position(|o| *o == k).unwrap_or(ORDER.len());
+            let mut keys: Vec<&String> = map.keys().collect();
+            keys.sort_by(|a, b| rank(a).cmp(&rank(b)).then(a.cmp(b)));
+            for key in keys {
+                let item = &map[key];
+                let inner = text::name(key);
+                body.push(match item {
+                    AttributeValue::Map(_) => block(&inner, item, units),
+                    AttributeValue::List(items) if items.iter().any(|i| matches!(i, AttributeValue::Map(_))) => block(&inner, item, units),
+                    _ => {
+                        let (ty, literal) = scalar(item, units);
+                        format!("attribute {inner} : {ty} = {literal};")
+                    }
+                });
+            }
+        }
+        AttributeValue::List(items) => {
+            for (i, item) in items.iter().enumerate() {
+                body.push(block(&format!("point_{}", i + 1), item, units));
+            }
+        }
+        other => {
+            let (ty, literal) = scalar(other, units);
+            return format!("attribute {name} : {ty} = {literal};");
+        }
+    }
+    let indented: Vec<String> = body.iter().flat_map(|b| b.lines().map(|l| format!("    {l}")).collect::<Vec<_>>()).collect();
+    format!("attribute {name} {{\n{}\n}}", indented.join("\n"))
 }
 
 /// The type and literal of a value the metamodel does not type.

@@ -71,6 +71,14 @@ pub fn check_model_with(metamodel: &Metamodel, ast: &Model, semantic: &SemanticM
     );
     let mut checker = Checker { metamodel, semantic, requirement_keys, out: Vec::new() };
     checker.walk(ast);
+    // What the geometry contradicts: errors, the production gate blocks on them.
+    checker.out.extend(super::spatial::checks::check(ast).into_iter().map(|f| Diagnostic {
+        level: Level::Error,
+        kind: f.kind,
+        element: f.element,
+        attribute: Some(f.attribute.to_string()),
+        message: f.message,
+    }));
     checker.out
 }
 
@@ -472,6 +480,10 @@ impl<'a> Checker<'a> {
                 other => self.push(Level::Error, kind, element, Some(key),
                     format!("expected a reference to a {}, got '{}'", target_kind, other.display())),
             },
+            AttrType::Location => self.spatial(kind, element, key, super::spatial::location(value).map(|_| ())),
+            AttrType::Position => self.spatial(kind, element, key, super::spatial::position(value).map(|_| ())),
+            AttrType::Orientation => self.spatial(kind, element, key, super::spatial::orientation(value).map(|_| ())),
+            AttrType::Shape => self.spatial(kind, element, key, super::spatial::shape(value).map(|_| ())),
             AttrType::List(inner) => match value {
                 AttributeValue::List(items) => {
                     for item in items {
@@ -484,6 +496,13 @@ impl<'a> Checker<'a> {
                     self.check_value(kind, element, key, inner, scalar);
                 }
             },
+        }
+    }
+
+    /// A spatial value the compiler cannot read is an error, with the reason.
+    fn spatial(&mut self, kind: &'static str, element: &str, key: &str, outcome: Result<(), String>) {
+        if let Err(reason) = outcome {
+            self.push(Level::Error, kind, element, Some(key), reason);
         }
     }
 

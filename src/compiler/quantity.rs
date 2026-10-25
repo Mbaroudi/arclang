@@ -46,6 +46,9 @@ pub enum Dimension {
     Speed,
     /// canonical: one (ratio); percent is 0.01
     Ratio,
+    /// canonical: radian (rad); a degree is pi/180 rad. Latitude, longitude,
+    /// headings: geometry needs angles.
+    Angle,
 }
 
 impl Dimension {
@@ -67,6 +70,7 @@ impl Dimension {
             Dimension::Temperature => "K",
             Dimension::Speed => "m/s",
             Dimension::Ratio => "one",
+            Dimension::Angle => "rad",
         }
     }
 
@@ -88,6 +92,7 @@ impl Dimension {
             Dimension::Temperature => "temperature",
             Dimension::Speed => "speed",
             Dimension::Ratio => "ratio",
+            Dimension::Angle => "angle",
         }
     }
 
@@ -109,6 +114,7 @@ impl Dimension {
             Dimension::Temperature => "ThermodynamicTemperatureValue",
             Dimension::Speed => "SpeedValue",
             Dimension::Ratio => "DimensionOneValue",
+            Dimension::Angle => "AngularMeasureValue",
         }
     }
 }
@@ -126,14 +132,19 @@ pub struct DimVec {
     pub current: i8,
     pub temperature: i8,
     pub information: i8,
+    /// The plane angle, kept apart although SI counts it dimensionless, so
+    /// a heading is never compared with a ratio.
+    pub angle: i8,
 }
 
 impl DimVec {
-    pub const NONE: DimVec = DimVec { time: 0, length: 0, mass: 0, current: 0, temperature: 0, information: 0 };
+    pub const NONE: DimVec = DimVec { time: 0, length: 0, mass: 0, current: 0, temperature: 0, information: 0, angle: 0 };
 
     const fn new(time: i8, length: i8, mass: i8, current: i8, temperature: i8, information: i8) -> Self {
-        DimVec { time, length, mass, current, temperature, information }
+        DimVec { time, length, mass, current, temperature, information, angle: 0 }
     }
+
+    const ANGLE: DimVec = DimVec { angle: 1, ..DimVec::NONE };
 
     pub fn is_dimensionless(self) -> bool {
         self == DimVec::NONE
@@ -148,6 +159,7 @@ impl DimVec {
             self.temperature + other.temperature,
             self.information + other.information,
         )
+        .with_angle(self.angle + other.angle)
     }
 
     pub fn divide(self, other: DimVec) -> DimVec {
@@ -159,6 +171,11 @@ impl DimVec {
             self.temperature - other.temperature,
             self.information - other.information,
         )
+        .with_angle(self.angle - other.angle)
+    }
+
+    const fn with_angle(self, angle: i8) -> DimVec {
+        DimVec { angle, ..self }
     }
 
     /// The named dimension with exactly these exponents, if any. A
@@ -203,7 +220,7 @@ impl DimVec {
     }
 }
 
-const ALL_DIMENSIONS: [Dimension; 15] = [
+const ALL_DIMENSIONS: [Dimension; 16] = [
     Dimension::Time,
     Dimension::Frequency,
     Dimension::DataRate,
@@ -219,6 +236,7 @@ const ALL_DIMENSIONS: [Dimension; 15] = [
     Dimension::Temperature,
     Dimension::Speed,
     Dimension::Ratio,
+    Dimension::Angle,
 ];
 
 impl Dimension {
@@ -241,6 +259,7 @@ impl Dimension {
             Dimension::Temperature => DimVec::new(0, 0, 0, 0, 1, 0),
             Dimension::Speed => DimVec::new(-1, 1, 0, 0, 0, 0),
             Dimension::Ratio => DimVec::NONE,
+            Dimension::Angle => DimVec::ANGLE,
         }
     }
 }
@@ -339,6 +358,9 @@ pub const UNITS: &[UnitSpec] = &[
     // Ratio
     unit("percent", Dimension::Ratio, 0.01, "'%'"),
     unit("%", Dimension::Ratio, 0.01, "'%'"),
+    // Angle (SysML v2: SI::degree '°', SI::radian rad)
+    unit("deg", Dimension::Angle, std::f64::consts::PI / 180.0, "'°'"),
+    unit("rad", Dimension::Angle, 1.0, "rad"),
 ];
 
 /// Look a unit symbol up in the table.

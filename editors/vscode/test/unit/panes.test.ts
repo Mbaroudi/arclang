@@ -234,3 +234,14 @@ test('a diagram\'s own tab is titled "<model> — <diagram>"', () => {
   assert.equal(tabTitle(modelName(snapshot(), 'x.arc'), 'Lane keeping chain'), 'Lane Keeping Assist — Lane keeping chain');
   assert.equal(modelName(null, 'braking.sysml'), 'braking');
 });
+
+test('spatial blocks show and are written as ArcLang in the properties pane', () => {
+  const location = { lat: { value: 48.8566, unit: 'deg' }, lon: { value: 2.3522, unit: 'deg' } };
+  assert.equal(displayValue(location), '{ lat: 48.8566 deg lon: 2.3522 deg }');
+  assert.equal(displayValue([location, location]), '[{ lat: 48.8566 deg lon: 2.3522 deg }, { lat: 48.8566 deg lon: 2.3522 deg }]');
+  const type = { type: 'Location' } as never;
+  assert.equal(fieldLiteral(type, '{ lat: 48.8566 deg lon: 2.3522 deg }'), '{ lat: 48.8566 deg lon: 2.3522 deg }');
+  const route = { type: 'List', of: { type: 'Location' } } as never;
+  assert.equal(fieldLiteral(route, '[{ lat: 47.79 deg lon: 3.66 deg }, { lat: 47.54 deg lon: 3.94 deg }]'), '[{ lat: 47.79 deg lon: 3.66 deg }, { lat: 47.54 deg lon: 3.94 deg }]');
+  assert.equal(displayValue({ value: 25, unit: 'ms' }), '25 ms');
+});
