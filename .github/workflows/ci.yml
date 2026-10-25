@@ -198,6 +198,8 @@ jobs:
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
 
       - name: Cache dependencies
         uses: actions/cache@v4
@@ -206,10 +208,17 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             target
+            wasm/target
           key: ${{ runner.os }}-cargo-vscode-${{ hashFiles('**/Cargo.lock') }}
 
       - name: Build compiler
         run: cargo build --release
+
+      # The extension also runs in the browser, on the compiler built to WebAssembly (wasm/pkg).
+      - name: Build the compiler for the browser
+        run: |
+          cargo install wasm-pack --locked --version 0.15.0
+          cd wasm && wasm-pack build --target web --release
 
       - uses: actions/setup-node@v4
         with:
