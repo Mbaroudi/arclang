@@ -70,6 +70,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # The extension also runs in the browser (VS Code for the Web, the playground), on the
+      # compiler built to WebAssembly: the .vsix carries it.
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - name: Build the compiler for the browser
+        run: |
+          cargo install wasm-pack --locked --version 0.15.0
+          cd wasm && wasm-pack build --target web --release
+
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
