@@ -1,6 +1,7 @@
 // ArcLang for VS Code. Everything comes from the `arclang` binary: the
 // language server for what the editor shows, the CLI for commands and tools,
 // the diagram viewer, and the compiler's verdict on what the assistant writes.
+import { disposeHighlight } from './workbench/go-to-source'; // nav hook
 import * as vscode from 'vscode';
 import { registerAi } from './ai'; // ai-design hook
 import { registerParticipant } from './ai/participant';
@@ -73,5 +74,6 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 }
 
 export async function deactivate(): Promise<void> {
+  disposeHighlight(); // nav hook
   await stopClient();
 }

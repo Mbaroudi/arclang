@@ -11,7 +11,8 @@ import { applyRequests, editText, refusalMessage } from './edits';
 import { onDidSelectElement, WorkbenchPanel } from './panel';
 import { snapshotOf } from './snapshot';
 import { arcTextOf, documentDir } from './source';
-import { locateElement, ModelItem, ModelTreeProvider, revealElement, shownTextEditor } from './tree';
+import { locateElement, ModelItem, ModelTreeProvider } from './tree';
+import { clearHighlight, highlightElement } from './go-to-source'; // nav hook
 
 export { isPanesMessage };
 
@@ -141,15 +142,17 @@ export function registerPanes(context: vscode.ExtensionContext, tree: ModelTreeP
       const panels = WorkbenchPanel.all(uri);
       // The page the selection came from already holds it; the others follow.
       for (const other of panels) if (other.selectedId !== id) other.select(id);
-      if (!id || panels.length === 0) return;
+      if (!id || panels.length === 0) {
+        clearHighlight(); // nav hook: the highlight goes with the selection
+        return;
+      }
       // In full screen the text is hidden behind the maximized group: showing it there would
       // bring the other groups back and take the full screen away from under the pointer.
       if (panels.some((panel) => panel.fullScreen)) return;
       // A selection made in the text (the cursor) stays the reader's: the text is followed only from a page.
       if (vscode.window.activeTextEditor?.document.uri.toString() === uri.toString()) return;
-      if (!shownTextEditor(panels[0].documentOf)) return;
-      const element = await elementOf(panels[0].documentOf, id);
-      if (element) await revealElement(panels[0].documentOf, element, { preserveFocus: true });
+      // nav hook: a click only selects. The text follows by a highlight when it is on screen, and is never opened, focused or selected.
+      await highlightElement(panels[0].documentOf, await elementOf(panels[0].documentOf, id));
     }),
   );
 

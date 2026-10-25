@@ -105,6 +105,11 @@
     ],
     "commands": [
       {
+        "command": "arclang.debug.navState",
+        "title": "ArcLang: Dump the editor layout (test)",
+        "category": "ArcLang"
+      },
+      {
         "command": "arclang.openDiagrams",
         "title": "Open the read-only diagram page (legacy)",
         "category": "ArcLang",
@@ -564,6 +569,10 @@
       ],
       "commandPalette": [
         {
+          "command": "arclang.debug.navState",
+          "when": "arclang.testProbe"
+        },
+        {
           "command": "arclang.openDiagrams",
           "when": "resourceLangId == arclang"
         },
@@ -943,6 +952,32 @@
           "default": "arclang",
           "markdownDescription": "The `arclang` executable: a name on the PATH or an absolute path. The extension runs `arclang lsp --stdio`, `arclang diagram`, `arclang check`, `arclang gate`, `arclang transition`, `arclang export`, `arclang import`, `arclang set`, `arclang rename`. User setting only: a workspace cannot choose the executable the extension runs.",
           "scope": "machine"
+        },
+        "arclang.workbench.followSelection": {
+          "type": "string",
+          "enum": [
+            "highlight",
+            "off"
+          ],
+          "enumDescriptions": [
+            "A click on the diagram highlights the element's declaration in the text editor when it is already on screen (scrolled into view only if outside it). The cursor, the focus and the editors are not touched.",
+            "A click on the diagram does nothing in the text."
+          ],
+          "default": "highlight",
+          "markdownDescription": "How the text follows a single click on a box, an edge, a port or a table row of the workbench. A single click never opens, replaces or focuses an editor and never moves the text editor's cursor."
+        },
+        "arclang.workbench.doubleClick": {
+          "type": "string",
+          "enum": [
+            "source",
+            "rename"
+          ],
+          "enumDescriptions": [
+            "Go to the source: the declaration is selected in the text editor (opened beside the workbench when it is not on screen). F2 and the menu rename.",
+            "Rename in place, as draw.io does. 'Go to source' stays in the context menu."
+          ],
+          "default": "source",
+          "markdownDescription": "What a double-click on a box or an edge of the workbench does. draw.io renames in place on a double-click; ArcLang goes to the source by default, because the text is the model. F2 and the context menu always rename, and **Go to source** is always in the context menu."
         },
         "arclang.diagrams.refreshOnSave": {
           "type": "boolean",

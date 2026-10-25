@@ -38,6 +38,8 @@ export interface WorkbenchContext {
   related: (element: ElementRecord) => void;
   newDiagram: (element: ElementRecord) => void;
   reveal: (element: ElementRecord) => void;
+  /** nav hook: a double-click on an element: the host goes to its source or renames it, by the setting. */
+  activate: (element: ElementRecord) => void;
   help: () => void;
   /** A copy was made: its source goes on the system clipboard (VS Code). */
   copied: (elements: ElementRecord[], relationships: string[]) => void;
@@ -164,7 +166,7 @@ export class Editing {
         const element = this.ctx.elementFor(id, isEdge);
         if (!element) return false;
         this.ctx.select(element, false);
-        this.rename(element, id);
+        this.ctx.activate(element); // nav hook: go to source (default) or rename, by arclang.workbench.doubleClick
         return true;
       },
       reconnectTargets: ({ edge, end }: { edge: string; end: 'source' | 'target' }) => this.reconnectTargets(edge, end),

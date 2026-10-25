@@ -209,6 +209,8 @@ export type FromWebview =
   | { type: 'ready' }
   | { type: 'edit'; requests: EditRequest[]; label: string }
   | { type: 'reveal'; id: string }
+  /** nav hook: a double-click on an element (the host goes to its source or asks for a rename, by the setting). */
+  | { type: 'activate'; id: string }
   | { type: 'ask'; id: string; name: string; kind: string }
   | { type: 'selected'; id: string | null; kind?: string; name?: string }
   | { type: 'open-text' }

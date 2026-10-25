@@ -344,6 +344,7 @@ const editing = new Editing({
   related: showRelated,
   newDiagram: newDiagramAround,
   reveal: (element) => vscode.postMessage({ type: 'reveal', id: element.id }),
+  activate: (element) => vscode.postMessage({ type: 'activate', id: element.id }), // nav hook
   help: () => help.toggle(),
   copied: (elements, relationships) => vscode.postMessage({ type: 'copied', elements: elements.map((e) => ({ id: e.id, name: e.name })), relationships }),
   joinLayout,
@@ -467,7 +468,7 @@ function onOpen(id: string): void {
   selectElement(element, false);
   if (!state.layout.drawerOpen) setDrawer(true);
   showRightTab(0);
-  vscode.postMessage({ type: 'reveal', id: element.id });
+  vscode.postMessage({ type: 'activate', id: element.id }); // nav hook
 }
 
 function index(snapshot: Snapshot): void {

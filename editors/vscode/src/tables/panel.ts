@@ -15,7 +15,8 @@ import { applyRequests, EditQueue, refusalMessage } from '../workbench/edits';
 import { WorkbenchPanel } from '../workbench/panel';
 import { snapshotOf } from '../workbench/snapshot';
 import { arcTextOf, documentDir, replaceWhole } from '../workbench/source';
-import { graphsDrawing, revealElement } from '../workbench/tree';
+import { graphsDrawing } from '../workbench/tree';
+import { goToSource, highlightElement } from '../workbench/go-to-source'; // nav hook
 
 export const TABLE_VIEW_TYPE = 'arclang.table';
 const REFRESH_MS = 250;
@@ -314,7 +315,9 @@ export class TablePanel implements vscode.Disposable {
 
   /** Show an element in the text and, when the workbench is open, in its diagram; `open` opens the workbench. */
   private async reveal(id: string, name: string, open: boolean): Promise<void> {
-    await revealElement(this.document, { id, name }, { preserveFocus: true });
+    // nav hook: a click on a row only selects (the text is highlighted if shown); a double-click goes to the source
+    if (open) await goToSource(this.document, { id, name });
+    else await highlightElement(this.document, { id, name });
     const snapshot = await snapshotOf(this.document);
     const record = (snapshot.elements?.elements ?? []).find((e) => e.id === id);
     const drawn = record ? graphsDrawing(snapshot.diagrams?.graphs ?? [], record) : [];

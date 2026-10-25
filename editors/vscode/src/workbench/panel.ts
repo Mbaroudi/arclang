@@ -14,7 +14,8 @@ import { CanvasHistory } from './canvas-history';
 import { applyRequests, EditQueue, refusalMessage } from './edits';
 import { metamodelJson, onDidChangeSnapshot, snapshotOf } from './snapshot';
 import { arcTextOf } from './source';
-import { elementAt, revealElement } from './tree';
+import { elementAt } from './tree';
+import { doubleClickSetting, goToSource, openSource, setWorkbenchColumns } from './go-to-source'; // nav hook
 import { handlePageMessage, pageClosed } from '../ai'; // ai-design hook
 import { handlePanesMessage, isPanesMessage } from './panes-host'; // panes hook
 import { DiagramExports, ExportArgs, themeStore } from './diagram-export';
@@ -101,6 +102,12 @@ export class WorkbenchPanel {
 
   /** The custom editor that VS Code opens for `.arc` and `.sysml` files on request. */
   static register(context: vscode.ExtensionContext): vscode.Disposable {
+    // nav hook: where the workbench pages of a document are, for opening the text in another group
+    setWorkbenchColumns((uri) => {
+      const all = WorkbenchPanel.all(uri);
+      const front = all.filter((p) => p.panel.active).concat(all.filter((p) => !p.panel.active));
+      return front.map((p) => p.panel.viewColumn);
+    });
     const provider: vscode.CustomTextEditorProvider = {
       resolveCustomTextEditor(document, webviewPanel) {
         const created = new WorkbenchPanel(context, document, webviewPanel);
@@ -259,11 +266,23 @@ export class WorkbenchPanel {
         return;
       case 'reveal': {
         const element = await this.element(message.id);
-        if (element) await revealElement(this.document, element, { preserveFocus: true });
+        if (element) await goToSource(this.document, element); // nav hook
+        return;
+      }
+      case 'activate': { // nav hook
+        const element = await this.element(message.id);
+        if (!element) return;
+        if (doubleClickSetting() === 'rename') this.diagramOp('rename', element.id);
+        else await goToSource(this.document, element);
         return;
       }
       case 'open-text':
-        await vscode.window.showTextDocument(this.document, { viewColumn: vscode.ViewColumn.One, preserveFocus: false });
+        // nav hook: the declaration of the selected element when there is one, else the text
+        if (this.selected) {
+          const element = await this.element(this.selected);
+          if (element && (await goToSource(this.document, element))) return;
+        }
+        await openSource(this.document);
         return;
       case 'ask':
         await vscode.commands.executeCommand('workbench.action.chat.open', {
