@@ -61,7 +61,7 @@ Per model, base against head: the **gate before and after** with the **new block
 
 `.github/workflows/arclang.yml`, one job named **`ArcLang gate`**: checkout with full history, install, restore the simulation cache, `ci run`, job summary, SARIF upload (`github/codeql-action/upload-sarif`, `category: arclang`), the report and its comment on pull requests, upload of `arclang-results/`. Permissions: `contents: read`, `pull-requests: write`, `security-events: write`, `actions: read`. The token is `github.token`; nothing else is read.
 
-For a pull request from a fork GitHub gives the token read access only: the SARIF upload and the comment fail and are allowed to (`continue-on-error` for the upload; the comment step is the one to look at); the gate itself still runs and decides.
+For a pull request from a fork GitHub gives the token read access only: the SARIF upload and the comment fail and are allowed to (`continue-on-error` on both steps); the gate itself still runs and decides.
 
 ### SARIF in code scanning
 

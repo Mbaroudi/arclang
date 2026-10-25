@@ -199,6 +199,7 @@ jobs:
 
       - name: Pull-request report
         if: ${{ !cancelled() && github.event_name == 'pull_request' }}
+        continue-on-error: true
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
