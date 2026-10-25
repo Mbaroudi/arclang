@@ -362,3 +362,61 @@ fn a_file_without_the_new_arrangements_is_written_as_before() {
         assert!(!text.contains(key), "{key} in {text}");
     }
 }
+
+// zorder: layers, groups and locks (draw.io's Arrange), kept beside the placement.
+const ARRANGED: &str = r#"{
+  "arclang_layout": "1",
+  "views": {},
+  "arrangements": [],
+  "layers": { "order": ["Safety", "", "Safety"], "hidden": ["Comms"], "locked": ["Safety"] },
+  "groups": {
+    "lab": [
+      { "id": "g1", "members": ["LC-1", "LC-2", "LC-9"], "label": "Pair", "collapsed": true },
+      { "id": "g2", "members": ["group:g1", "group:g7"] },
+      { "id": "g1", "members": ["LC-1"] },
+      { "id": "g3", "members": ["group:g4"] },
+      { "id": "g4", "members": ["group:g3"] }
+    ],
+    "nope": [{ "id": "g1", "members": ["LC-1"] }]
+  },
+  "locked": ["LC-1", "LF-2", "GONE"]
+}"#;
+
+#[test]
+fn layers_groups_and_locks_are_kept_and_what_is_stale_is_reported() {
+    let layout = LayoutFile::parse(ARRANGED).expect("parses");
+    assert_eq!(layout.layers.order, vec!["Safety".to_string(), String::new()], "the first place of a layer stays");
+    let mut set = diagrams();
+    let warnings = set.apply_layout(layout);
+    let kept = set.layout.as_ref().unwrap();
+    assert_eq!(kept.layers.hidden, vec!["Comms".to_string()]);
+    let groups = &kept.groups["lab"];
+    assert_eq!(groups.iter().map(|g| g.id.as_str()).collect::<Vec<_>>(), vec!["g1", "g2"]);
+    assert_eq!(groups[0].members, vec!["LC-1".to_string(), "LC-2".to_string()]);
+    assert!(groups[0].collapsed);
+    assert_eq!(groups[1].members, vec!["group:g1".to_string()]);
+    assert_eq!(kept.locked, vec!["LC-1".to_string(), "LF-2".to_string()]);
+    for said in ["'LC-9' of group 'g1'", "'group:g7' of group 'g2'", "two groups are named 'g1'", "group 'g3' is inside itself", "groups of view 'nope'", "locked 'GONE'"] {
+        assert!(warnings.iter().any(|w| w.contains(said)), "{said} in {warnings:?}");
+    }
+    let again = LayoutFile::parse(&kept.to_json()).expect("written as read");
+    assert_eq!(&again, kept);
+}
+
+#[test]
+fn an_arrange_section_past_its_bounds_is_refused() {
+    let many = (0..1001).map(|n| format!("\"t{n}\"")).collect::<Vec<_>>().join(",");
+    let error = LayoutFile::parse(&format!(r#"{{ "arclang_layout": "1", "layers": {{ "hidden": [{many}] }} }}"#)).unwrap_err();
+    assert!(error.contains("1001 hidden layers"), "{error}");
+    let error = LayoutFile::parse(r#"{ "arclang_layout": "1", "groups": { "lab": [{ "id": "", "members": ["LC-1"] }] } }"#).unwrap_err();
+    assert!(error.contains("empty or too long id"), "{error}");
+    assert!(LayoutFile::parse(r#"{ "arclang_layout": "1", "layers": { "shown": [] } }"#).is_err(), "unknown fields are refused");
+}
+
+#[test]
+fn a_file_without_layers_groups_or_locks_writes_none_of_them() {
+    let written = LayoutFile::parse(LAYOUT).unwrap().to_json();
+    for key in ["\"layers\"", "\"groups\"", "\"locked\""] {
+        assert!(!written.contains(key), "{key} in {written}");
+    }
+}

@@ -33,6 +33,14 @@
 //! stacks boxes among the boxes beside them: above 0 in front, below 0
 //! behind: `{ "LC-1": 1 }`. Each is written only when used, so a file
 //! without them reads in earlier builds.
+//!
+//! Three sections hold draw.io's Arrange state, also only when used:
+//! `layers` (layers made of the elements' tags, the first tag of an
+//! element being its layer, `""` the elements without one: their `order`
+//! top first, those `hidden` and those `locked`), `groups` (per view,
+//! frames around sibling boxes: `{ "id": "g1", "members": ["LC-1",
+//! "group:g2"], "label": "Sensing", "collapsed": true }`) and `locked`
+//! (elements locked on the canvas, by drawing id).
 
 use super::{DiagramSet, Node};
 use serde::{Deserialize, Serialize};
@@ -59,7 +67,57 @@ pub struct LayoutFile {
     pub views: BTreeMap<String, ViewLayout>,
     #[serde(default)]
     pub arrangements: Vec<Arrangement>,
+    /// Layers made of tags: order (top first), hidden, locked.
+    #[serde(default, skip_serializing_if = "Layers::is_empty")]
+    pub layers: Layers,
+    /// Per diagram id: groups of sibling boxes, framed and moved together.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub groups: BTreeMap<String, Vec<Group>>,
+    /// Elements locked on the canvas, by drawing id.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub locked: Vec<String>,
 }
+
+/// The layers of the drawing: each a tag (`""`: the elements without one).
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Layers {
+    /// Drawn top first; empty, no layer is drawn above another.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub order: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub hidden: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub locked: Vec<String>,
+}
+
+impl Layers {
+    fn is_empty(&self) -> bool {
+        self.order.is_empty() && self.hidden.is_empty() && self.locked.is_empty()
+    }
+}
+
+/// A frame around sibling boxes of one view; a member is a drawn box or
+/// another group (`group:<id>`).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Group {
+    pub id: String,
+    pub members: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub label: Option<String>,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub collapsed: bool,
+}
+
+/// The most layers, groups of a view and members of a group a file may hold.
+pub const MAX_LAYERS: usize = 1_000;
+pub const MAX_GROUPS: usize = 2_000;
+pub const MAX_MEMBERS: usize = 5_000;
+/// The longest layer name, group id or group label.
+pub const MAX_NAME: usize = 200;
+/// How a group is named among the members of another.
+pub const GROUP_PREFIX: &str = "group:";
 
 #[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -179,6 +237,7 @@ impl LayoutFile {
         if let Some((view, _)) = layout.views.iter().find(|(_, shown)| shown.folded.len() > MAX_ENTRIES) {
             return Err(format!("layout file: view '{view}' folds more than {MAX_ENTRIES} containers"));
         }
+        layout.check_arrange_sections()?;
         for arrangement in &layout.arrangements {
             let sizes = [
                 ("placed boxes", arrangement.places.len()),
@@ -246,6 +305,37 @@ impl LayoutFile {
         Ok(layout.normalized())
     }
 
+    /// Bounds of the layers, groups and locks: a file past them is refused.
+    fn check_arrange_sections(&self) -> Result<(), String> {
+        let layers = &self.layers;
+        for (what, list) in [("ordered", &layers.order), ("hidden", &layers.hidden), ("locked", &layers.locked)] {
+            if list.len() > MAX_LAYERS {
+                return Err(format!("layout file: {} {what} layers, more than {MAX_LAYERS}", list.len()));
+            }
+            if let Some(name) = list.iter().find(|name| name.chars().count() > MAX_NAME) {
+                return Err(format!("layout file: the layer name '{}…' is longer than {MAX_NAME} characters", name.chars().take(20).collect::<String>()));
+            }
+        }
+        if self.groups.len() > MAX_ENTRIES || self.locked.len() > MAX_ENTRIES {
+            return Err(format!("layout file: groups in {} views and {} locked elements, more than {MAX_ENTRIES}", self.groups.len(), self.locked.len()));
+        }
+        for (view, groups) in &self.groups {
+            if groups.len() > MAX_GROUPS {
+                return Err(format!("layout file: view '{view}' has {} groups, more than {MAX_GROUPS}", groups.len()));
+            }
+            for group in groups {
+                if group.members.len() > MAX_MEMBERS {
+                    return Err(format!("layout file: group '{}' of '{view}' has {} members, more than {MAX_MEMBERS}", group.id, group.members.len()));
+                }
+                let long = |text: &str| text.chars().count() > MAX_NAME;
+                if group.id.is_empty() || long(&group.id) || group.label.as_deref().is_some_and(long) {
+                    return Err(format!("layout file: a group of '{view}' has an empty or too long id or label (at most {MAX_NAME} characters)"));
+                }
+            }
+        }
+        Ok(())
+    }
+
     /// The file as text: sorted, so the same arrangement is always the same
     /// bytes.
     pub fn to_json(&self) -> String {
@@ -265,6 +355,12 @@ impl LayoutFile {
         for arrangement in &mut self.arrangements {
             sorted(&mut arrangement.folded);
         }
+        sorted(&mut self.layers.hidden);
+        sorted(&mut self.layers.locked);
+        sorted(&mut self.locked);
+        // The order is the reader's: repeats go, the first place stays.
+        let mut seen = BTreeSet::new();
+        self.layers.order.retain(|name| seen.insert(name.clone()));
         self.arrangements.sort_by(|a, b| {
             (&a.view, &a.open, &a.folded).cmp(&(&b.view, &b.open, &b.folded))
         });
@@ -316,8 +412,22 @@ impl DiagramSet {
         let mut warnings: Vec<String> = Vec::new();
         let mut kept = LayoutFile {
             arclang_layout: layout.arclang_layout,
+            // Layers are tags, which an element may carry without being drawn: kept as written.
+            layers: layout.layers,
             ..LayoutFile::default()
         };
+        kept.groups = keep_groups(layout.groups, &drawn, &mut warnings);
+        kept.locked = layout
+            .locked
+            .into_iter()
+            .filter(|id| {
+                let is_drawn = drawn.values().any(|view| view.nodes.contains(id.as_str()) || view.edges.contains(id.as_str()) || view.ports.contains(id.as_str()));
+                if !is_drawn {
+                    warnings.push(format!("[layout] layout file: locked '{id}' is not drawn by this model"));
+                }
+                is_drawn
+            })
+            .collect();
 
         let keep_containers = |view: &str, what: &str, ids: Vec<String>, warnings: &mut Vec<String>| {
             ids.into_iter()
@@ -457,6 +567,71 @@ impl DiagramSet {
         self.layout = Some(kept.normalized());
         warnings
     }
+}
+
+/// The groups that still frame what a view draws: members not drawn, groups
+/// of no drawn view, repeated ids and groups held in a circle are left out
+/// and said; a group left with no member goes.
+fn keep_groups(groups: BTreeMap<String, Vec<Group>>, drawn: &BTreeMap<&str, Drawn<'_>>, warnings: &mut Vec<String>) -> BTreeMap<String, Vec<Group>> {
+    let mut out = BTreeMap::new();
+    for (view, list) in groups {
+        let Some(known) = drawn.get(view.as_str()) else {
+            warnings.push(format!("[layout] layout file: groups of view '{view}', which this model does not draw"));
+            continue;
+        };
+        let mut seen = BTreeSet::new();
+        let list: Vec<Group> = list
+            .into_iter()
+            .filter(|group| {
+                let fresh = seen.insert(group.id.clone());
+                if !fresh {
+                    warnings.push(format!("[{view}] layout file: two groups are named '{}' — only the first is kept", group.id));
+                }
+                fresh
+            })
+            .collect();
+        let ids: BTreeSet<String> = list.iter().map(|group| group.id.clone()).collect();
+        // A group inside itself, directly or through others, frames nothing.
+        let inner = |group: &Group| -> Vec<String> { group.members.iter().filter_map(|m| m.strip_prefix(GROUP_PREFIX)).map(str::to_string).collect() };
+        let by_id: BTreeMap<String, Vec<String>> = list.iter().map(|group| (group.id.clone(), inner(group))).collect();
+        let circular = |start: &str| {
+            let mut stack: Vec<String> = by_id.get(start).cloned().unwrap_or_default();
+            let mut met = BTreeSet::new();
+            while let Some(at) = stack.pop() {
+                if at == start {
+                    return true;
+                }
+                if met.insert(at.clone()) {
+                    stack.extend(by_id.get(&at).cloned().unwrap_or_default());
+                }
+            }
+            false
+        };
+        let mut kept = Vec::new();
+        for mut group in list {
+            if circular(&group.id) {
+                warnings.push(format!("[{view}] layout file: group '{}' is inside itself", group.id));
+                continue;
+            }
+            group.members.retain(|member| {
+                let ok = match member.strip_prefix(GROUP_PREFIX) {
+                    Some(id) => ids.contains(id),
+                    None => known.nodes.contains(member.as_str()),
+                };
+                if !ok {
+                    warnings.push(format!("[{view}] layout file: '{member}' of group '{}' is not drawn in this view", group.id));
+                }
+                ok
+            });
+            if !group.members.is_empty() {
+                kept.push(group);
+            }
+        }
+        if !kept.is_empty() {
+            out.insert(view, kept);
+        }
+    }
+    out
 }
 
 /// Read the layout of a model and attach it to its diagrams.

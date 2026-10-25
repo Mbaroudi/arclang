@@ -120,7 +120,7 @@
     const shapeOf = (node) => node.querySelector(':scope > .av-shape') || node;
     function placeGrip() {
       const node = onResize && arranging ? canvas.querySelector('.av-node.is-selected') : null;
-      gripped = node && node.isConnected && carried(node.dataset.id).length > 0 ? node : null;
+      gripped = node && node.isConnected && node.dataset.kind !== 'diagram_group' && carried(node.dataset.id).length > 0 ? node : null; // zorder hook: a group frame is not resized
       if (!gripped) {
         for (const handle of grips) handle.hidden = true;
         return;
