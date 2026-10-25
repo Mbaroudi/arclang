@@ -71,6 +71,14 @@ pub enum AttrType {
     /// string names the expected kind, or `"Element"` for any kind.
     Reference(&'static str),
     List(Box<AttrType>),
+    /// A point on the Earth, WGS 84: `{ lat: 48.85 deg lon: 2.35 deg alt: 35 m }`.
+    Location,
+    /// An offset in the owner's frame: `{ x: 1.2 m y: 0 m z: 0.4 m }`.
+    Position,
+    /// A rotation: `{ yaw: 90 deg pitch: 0 deg roll: 0 deg }`.
+    Orientation,
+    /// An envelope: `{ box: [l, w, h] }` or `{ cylinder: [diameter, height] }`.
+    Shape,
 }
 
 impl AttrType {
@@ -86,6 +94,10 @@ impl AttrType {
             AttrType::Enum(name) => format!("enum {}", name),
             AttrType::Reference(kind) => format!("ref<{}>", kind),
             AttrType::List(inner) => format!("list<{}>", inner.notation()),
+            AttrType::Location => "location {lat, lon[, alt]}".into(),
+            AttrType::Position => "position {x, y, z}".into(),
+            AttrType::Orientation => "orientation {yaw, pitch, roll}".into(),
+            AttrType::Shape => "shape {box | cylinder}".into(),
         }
     }
 }
@@ -205,6 +217,30 @@ fn communication() -> Vec<AttrSpec> {
     ]
 }
 
+/// Where an element stands on the Earth.
+fn located() -> AttrSpec {
+    attr("location", AttrType::Location, "Where it stands on the Earth, WGS 84: `{ lat: 48.8566 deg lon: 2.3522 deg alt: 35 m }` (`alt` optional). Drawn on maps (`arclang export -f geojson`).")
+}
+
+/// Where an element stands in its owner, how it is turned and how big it is.
+fn spatial() -> Vec<AttrSpec> {
+    vec![
+        located(),
+        attr("position", AttrType::Position, "Where it stands in its owner (the model at the top), in lengths: `{ x: 1.2 m y: 0 m z: 0.4 m }`, a missing axis being 0. Placed so in CAD (`arclang export -f step`)."),
+        attr("orientation", AttrType::Orientation, "How it is turned in its owner: `{ yaw: 90 deg pitch: 0 deg roll: 0 deg }`, about z, then y, then x."),
+        attr("shape", AttrType::Shape, "Its envelope: `{ box: [length, width, height] }` or `{ cylinder: [diameter, height] }`. Exported as a solid to CAD (`arclang export -f step`)."),
+    ]
+}
+
+/// What a physical link covers on the ground.
+fn routed() -> Vec<AttrSpec> {
+    vec![
+        attr("route", list(AttrType::Location), "The way the link takes on the Earth, at least two points: `[{ lat: .. lon: .. }, { lat: .. lon: .. }]`. Its length is measured; a declared `length` may not be shorter."),
+        attr("length", AttrType::Quantity(Dimension::Length), "Length of the medium. Not shorter than its route, nor than the distance between located ends; with `latency`, light must cover it in that time."),
+        attr("max_length", AttrType::Quantity(Dimension::Length), "Longest the medium may be (a cable or bus limit): the route and the length must keep within it."),
+    ]
+}
+
 fn resources() -> Vec<AttrSpec> {
     vec![
         attr("memory", AttrType::Text, "Memory configuration, descriptive (`\"2 GB DDR4, 64 GB eMMC\"`). Use `ram`/`flash`/`storage` for typed sizes."),
@@ -293,8 +329,8 @@ impl Metamodel {
         let kinds = vec![
             // ---- Operational Analysis ----
             kind("Actor", Layer::Operational, "OperationalActor", "part def (actor)", "Human or external system interacting with the system.",
-                concat(vec![common(), vec![attr("category", AttrType::Text, "Actor category.")], safety()])),
-            kind("OperationalEntity", Layer::Operational, "Entity", "part def", "Organisation or system of the operational world.", component_attrs()),
+                concat(vec![common(), vec![attr("category", AttrType::Text, "Actor category.")], safety(), vec![located()]])),
+            kind("OperationalEntity", Layer::Operational, "Entity", "part def", "Organisation or system of the operational world.", concat(vec![component_attrs(), vec![located()]])),
             kind("OperationalCapability", Layer::Operational, "OperationalCapability", "use case def", "Expected ability of the operational world. May be declared inside another operational capability.",
                 concat(vec![common(), vec![
                     attr("involves", list(AttrType::Reference("Element")), "Actors, entities, activities and processes involved."),
@@ -325,7 +361,7 @@ impl Metamodel {
             kind("FunctionPort", Layer::System, "FunctionInputPort / FunctionOutputPort", "in/out item", "Oriented port of a function (strictly in XOR out).",
                 vec![attr("data_type", AttrType::Text, "Exchanged data type."), attr("type", AttrType::Enum("PortKind"), "data | control | event.")]),
             kind("FunctionalExchange", Layer::System, "FunctionalExchange", "flow", "Data flow between function ports.", exchange_attrs()),
-            kind("SystemActor", Layer::System, "SystemActor", "part def (actor)", "External actor at system level.", concat(vec![common(), safety()])),
+            kind("SystemActor", Layer::System, "SystemActor", "part def (actor)", "External actor at system level.", concat(vec![common(), safety(), vec![located()]])),
             kind("SystemComponent", Layer::System, "SystemComponent", "part def", "The system or one of its external components.", component_attrs()),
             kind("FunctionalChain", Layer::System, "FunctionalChain", "action def (sequence)", "Ordered functions, exchanges and chains realizing one dataflow path; `control` nodes and `sequence` links branch it.", chain_attrs()),
             kind("ControlNode", Layer::System, "ControlNode", "fork / join / decision / loop node", "Control node of a functional chain: `control and|or|iterate \"Name\"`, joined to the chain's steps by sequence links.",
@@ -356,22 +392,22 @@ impl Metamodel {
                 concat(vec![common(), vec![attr("realizes", AttrType::Reference("Capability"), "Capability realized."), attr("involves", list(AttrType::Reference("Element")), "Components and chains involved.")], capability_relations("CapabilityRealization")])),
             // ---- Physical Architecture ----
             kind("PhysicalNode", Layer::Physical, "PhysicalComponent (NODE)", "part def + part", "Hardware node hosting behaviour components.",
-                concat(vec![component_attrs(), vec![multiplicity(), attr("processor", AttrType::Text, "Processor."), attr("cpu", AttrType::Text, "CPU description."), attr("redundancy", AttrType::Text, "Redundancy scheme.")]])),
+                concat(vec![component_attrs(), spatial(), vec![multiplicity(), attr("processor", AttrType::Text, "Processor."), attr("cpu", AttrType::Text, "CPU description."), attr("redundancy", AttrType::Text, "Redundancy scheme.")]])),
             kind("PhysicalPort", Layer::Physical, "PhysicalPort", "port", "Unoriented physical connector.", vec![attr("connector", AttrType::Text, "Connector type.")]),
-            kind("BehaviorComponent", Layer::Physical, "PhysicalComponent (BEHAVIOR)", "part", "Software/behaviour deployed on a node; declares the physical functions it performs.", concat(vec![common(), safety()])),
+            kind("BehaviorComponent", Layer::Physical, "PhysicalComponent (BEHAVIOR)", "part", "Software/behaviour deployed on a node; declares the physical functions it performs.", concat(vec![common(), safety(), spatial()])),
             kind("PhysicalFunction", Layer::Physical, "PhysicalFunction", "action def (perform)", "Function of the physical level, declared inside the behaviour component that performs it (or at the level, unallocated), with its ports and sub-functions; `realizes:` names the logical function it realizes.", function_attrs()),
             kind("HardwareComponent", Layer::Physical, "PhysicalComponent (NODE, nested)", "part", "Hardware part of a node.", concat(vec![common(), resources()])),
-            kind("PhysicalLink", Layer::Physical, "PhysicalLink", "connect (binding)", "Physical medium between nodes or ports.", exchange_attrs()),
+            kind("PhysicalLink", Layer::Physical, "PhysicalLink", "connect (binding)", "Physical medium between nodes or ports.", concat(vec![exchange_attrs(), routed()])),
             kind("PhysicalExchange", Layer::Physical, "ComponentExchange (physical)", "flow", "Message routed over a link.",
                 concat(vec![exchange_attrs(), vec![attr("via", AttrType::Reference("PhysicalLink"), "Carrying link."), attr("message_type", AttrType::Text, "Message/frame type.")]])),
             kind("Deployment", Layer::Physical, "ComponentDeploymentLink", "allocate", "Allocation of a logical component to a node.", common()),
             kind("PhysicalPath", Layer::Physical, "PhysicalPath", "connect (sequence)", "Ordered links routing an exchange.",
                 concat(vec![common(), vec![attr("involves", list(AttrType::Reference("PhysicalLink")), "Ordered links.")]])),
             // ---- EPBS ----
-            kind("EpbsSystem", Layer::Epbs, "ConfigurationItem (SYSTEM)", "part def", "Top configuration item.", common()),
-            kind("EpbsSubsystem", Layer::Epbs, "ConfigurationItem (CS)", "part def", "Subsystem configuration item.", common()),
+            kind("EpbsSystem", Layer::Epbs, "ConfigurationItem (SYSTEM)", "part def", "Top configuration item.", concat(vec![common(), spatial()])),
+            kind("EpbsSubsystem", Layer::Epbs, "ConfigurationItem (CS)", "part def", "Subsystem configuration item.", concat(vec![common(), spatial()])),
             kind("EpbsItem", Layer::Epbs, "ConfigurationItem (HW/SW)", "part def", "Leaf configuration item or assembly.",
-                concat(vec![common(), vec![attr("part_number", AttrType::Text, "Part number."), attr("supplier", AttrType::Text, "Supplier.")], resources()])),
+                concat(vec![common(), vec![attr("part_number", AttrType::Text, "Part number."), attr("supplier", AttrType::Text, "Supplier.")], resources(), spatial()])),
             // ---- Data ----
             kind("Class", Layer::Data, "Class", "attribute def", "Structured data element; every attribute but `id`, `description` and `extends` is a field, kept in declared order.",
                 concat(vec![common(), vec![attr("extends", AttrType::Reference("Class"), "The class this one specializes.")]])),

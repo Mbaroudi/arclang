@@ -26,6 +26,7 @@ Human or external system interacting with the system.
 | `safety_level` | `enum SafetyLevel` | ASIL, DAL or SIL assigned to the element. |
 | `asil` | `enum Asil` | ISO 26262 ASIL (QM, ASIL-A..D). |
 | `dal` | `enum Dal` | DO-178C design assurance level (DAL-A..E). |
+| `location` | `location {lat, lon[, alt]}` | Where it stands on the Earth, WGS 84: `{ lat: 48.8566 deg lon: 2.3522 deg alt: 35 m }` (`alt` optional). Drawn on maps (`arclang export -f geojson`). |
 
 #### OperationalEntity
 
@@ -54,6 +55,7 @@ Organisation or system of the operational world.
 | `voltage` | `quantity<voltage>` | Supply voltage. |
 | `mass` | `quantity<mass>` | Mass. |
 | `weight` | `quantity<mass>` | Alias of mass. |
+| `location` | `location {lat, lon[, alt]}` | Where it stands on the Earth, WGS 84: `{ lat: 48.8566 deg lon: 2.3522 deg alt: 35 m }` (`alt` optional). Drawn on maps (`arclang export -f geojson`). |
 
 #### OperationalCapability
 
@@ -287,6 +289,7 @@ External actor at system level.
 | `safety_level` | `enum SafetyLevel` | ASIL, DAL or SIL assigned to the element. |
 | `asil` | `enum Asil` | ISO 26262 ASIL (QM, ASIL-A..D). |
 | `dal` | `enum Dal` | DO-178C design assurance level (DAL-A..E). |
+| `location` | `location {lat, lon[, alt]}` | Where it stands on the Earth, WGS 84: `{ lat: 48.8566 deg lon: 2.3522 deg alt: 35 m }` (`alt` optional). Drawn on maps (`arclang export -f geojson`). |
 
 #### SystemComponent
 
@@ -537,6 +540,10 @@ Hardware node hosting behaviour components.
 | `voltage` | `quantity<voltage>` | Supply voltage. |
 | `mass` | `quantity<mass>` | Mass. |
 | `weight` | `quantity<mass>` | Alias of mass. |
+| `location` | `location {lat, lon[, alt]}` | Where it stands on the Earth, WGS 84: `{ lat: 48.8566 deg lon: 2.3522 deg alt: 35 m }` (`alt` optional). Drawn on maps (`arclang export -f geojson`). |
+| `position` | `position {x, y, z}` | Where it stands in its owner (the model at the top), in lengths: `{ x: 1.2 m y: 0 m z: 0.4 m }`, a missing axis being 0. Placed so in CAD (`arclang export -f step`). |
+| `orientation` | `orientation {yaw, pitch, roll}` | How it is turned in its owner: `{ yaw: 90 deg pitch: 0 deg roll: 0 deg }`, about z, then y, then x. |
+| `shape` | `shape {box | cylinder}` | Its envelope: `{ box: [length, width, height] }` or `{ cylinder: [diameter, height] }`. Exported as a solid to CAD (`arclang export -f step`). |
 | `multiplicity` | `multiplicity` | How many of the element its owner has: a count (`4`) or a range as text (`"0..1"`, `"1..*"`, `"*"`). One when absent. |
 | `processor` | `text` | Processor. |
 | `cpu` | `text` | CPU description. |
@@ -570,6 +577,10 @@ Software/behaviour deployed on a node; declares the physical functions it perfor
 | `safety_level` | `enum SafetyLevel` | ASIL, DAL or SIL assigned to the element. |
 | `asil` | `enum Asil` | ISO 26262 ASIL (QM, ASIL-A..D). |
 | `dal` | `enum Dal` | DO-178C design assurance level (DAL-A..E). |
+| `location` | `location {lat, lon[, alt]}` | Where it stands on the Earth, WGS 84: `{ lat: 48.8566 deg lon: 2.3522 deg alt: 35 m }` (`alt` optional). Drawn on maps (`arclang export -f geojson`). |
+| `position` | `position {x, y, z}` | Where it stands in its owner (the model at the top), in lengths: `{ x: 1.2 m y: 0 m z: 0.4 m }`, a missing axis being 0. Placed so in CAD (`arclang export -f step`). |
+| `orientation` | `orientation {yaw, pitch, roll}` | How it is turned in its owner: `{ yaw: 90 deg pitch: 0 deg roll: 0 deg }`, about z, then y, then x. |
+| `shape` | `shape {box | cylinder}` | Its envelope: `{ box: [length, width, height] }` or `{ cylinder: [diameter, height] }`. Exported as a solid to CAD (`arclang export -f step`). |
 
 #### PhysicalFunction
 
@@ -644,6 +655,9 @@ Physical medium between nodes or ports.
 | `period` | `quantity<time>` | Message period. |
 | `size` | `quantity<data size>` | Payload size. |
 | `data_type` | `text` | Exchanged data type. |
+| `route` | `list<location {lat, lon[, alt]}>` | The way the link takes on the Earth, at least two points: `[{ lat: .. lon: .. }, { lat: .. lon: .. }]`. Its length is measured; a declared `length` may not be shorter. |
+| `length` | `quantity<length>` | Length of the medium. Not shorter than its route, nor than the distance between located ends; with `latency`, light must cover it in that time. |
+| `max_length` | `quantity<length>` | Longest the medium may be (a cable or bus limit): the route and the length must keep within it. |
 
 #### PhysicalExchange
 
@@ -718,6 +732,10 @@ Top configuration item.
 | `description` | `text` | Free-text description. |
 | `is` | `ref<Type>` | User-defined type of the element, or a list of types; their attributes (and ports, for components) are inherited. |
 | `tags` | `list<text>` | Tags the element carries (`["Safety"]`): a declared diagram draws what carries one with `tagged:`. In SysML v2, metadata usages of definitions in a `Tags` package. |
+| `location` | `location {lat, lon[, alt]}` | Where it stands on the Earth, WGS 84: `{ lat: 48.8566 deg lon: 2.3522 deg alt: 35 m }` (`alt` optional). Drawn on maps (`arclang export -f geojson`). |
+| `position` | `position {x, y, z}` | Where it stands in its owner (the model at the top), in lengths: `{ x: 1.2 m y: 0 m z: 0.4 m }`, a missing axis being 0. Placed so in CAD (`arclang export -f step`). |
+| `orientation` | `orientation {yaw, pitch, roll}` | How it is turned in its owner: `{ yaw: 90 deg pitch: 0 deg roll: 0 deg }`, about z, then y, then x. |
+| `shape` | `shape {box | cylinder}` | Its envelope: `{ box: [length, width, height] }` or `{ cylinder: [diameter, height] }`. Exported as a solid to CAD (`arclang export -f step`). |
 
 #### EpbsSubsystem
 
@@ -733,6 +751,10 @@ Subsystem configuration item.
 | `description` | `text` | Free-text description. |
 | `is` | `ref<Type>` | User-defined type of the element, or a list of types; their attributes (and ports, for components) are inherited. |
 | `tags` | `list<text>` | Tags the element carries (`["Safety"]`): a declared diagram draws what carries one with `tagged:`. In SysML v2, metadata usages of definitions in a `Tags` package. |
+| `location` | `location {lat, lon[, alt]}` | Where it stands on the Earth, WGS 84: `{ lat: 48.8566 deg lon: 2.3522 deg alt: 35 m }` (`alt` optional). Drawn on maps (`arclang export -f geojson`). |
+| `position` | `position {x, y, z}` | Where it stands in its owner (the model at the top), in lengths: `{ x: 1.2 m y: 0 m z: 0.4 m }`, a missing axis being 0. Placed so in CAD (`arclang export -f step`). |
+| `orientation` | `orientation {yaw, pitch, roll}` | How it is turned in its owner: `{ yaw: 90 deg pitch: 0 deg roll: 0 deg }`, about z, then y, then x. |
+| `shape` | `shape {box | cylinder}` | Its envelope: `{ box: [length, width, height] }` or `{ cylinder: [diameter, height] }`. Exported as a solid to CAD (`arclang export -f step`). |
 
 #### EpbsItem
 
@@ -758,6 +780,10 @@ Leaf configuration item or assembly.
 | `voltage` | `quantity<voltage>` | Supply voltage. |
 | `mass` | `quantity<mass>` | Mass. |
 | `weight` | `quantity<mass>` | Alias of mass. |
+| `location` | `location {lat, lon[, alt]}` | Where it stands on the Earth, WGS 84: `{ lat: 48.8566 deg lon: 2.3522 deg alt: 35 m }` (`alt` optional). Drawn on maps (`arclang export -f geojson`). |
+| `position` | `position {x, y, z}` | Where it stands in its owner (the model at the top), in lengths: `{ x: 1.2 m y: 0 m z: 0.4 m }`, a missing axis being 0. Placed so in CAD (`arclang export -f step`). |
+| `orientation` | `orientation {yaw, pitch, roll}` | How it is turned in its owner: `{ yaw: 90 deg pitch: 0 deg roll: 0 deg }`, about z, then y, then x. |
+| `shape` | `shape {box | cylinder}` | Its envelope: `{ box: [length, width, height] }` or `{ cylinder: [diameter, height] }`. Exported as a solid to CAD (`arclang export -f step`). |
 
 ### Data model
 
@@ -1266,6 +1292,8 @@ A quantity is `<number> <unit>` (`latency: 25 ms`). Symbols are case-sensitive. 
 | `km/h` | speed (m/s) | 0.2777777777777778 | `'km/h'` |
 | `percent` | ratio (one) | 0.01 | `'%'` |
 | `%` | ratio (one) | 0.01 | `'%'` |
+| `deg` | angle (rad) | 0.017453292519943295 | `'°'` |
+| `rad` | angle (rad) | 1 | `rad` |
 
 ## Traceability rules
 

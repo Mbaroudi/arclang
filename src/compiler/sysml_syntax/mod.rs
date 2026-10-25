@@ -834,7 +834,8 @@ pub fn split_path<'p>(path: &'p str, separator: &str) -> Vec<&'p str> {
     while i < bytes.len() {
         if bytes[i] == b'\'' {
             quoted = !quoted;
-        } else if !quoted && path[i..].starts_with(separator) {
+        // Bytes, not text: `path[i..]` would cut a character such as `°` in two.
+        } else if !quoted && bytes[i..].starts_with(separator.as_bytes()) {
             parts.push(&path[start..i]);
             i += separator.len();
             start = i;

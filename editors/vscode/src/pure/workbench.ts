@@ -294,7 +294,14 @@ export function attributeLiteral(type: AttributeType | undefined, raw: string): 
     if (/^[A-Za-z_][A-Za-z0-9_]*$/.test(t)) return t;
     return stringLiteral(t);
   };
+  // A block (a location, a position, a shape) or a list of blocks (a route) is ArcLang as typed.
+  if (/^\{[\s\S]*\}$/.test(text) || /^\[\s*\{[\s\S]*\}\s*\]$/.test(text)) return text;
   switch (kind) {
+    case 'Location':
+    case 'Position':
+    case 'Orientation':
+    case 'Shape':
+      return text;
     case 'Text':
     case 'Identifier':
       return /^".*"$/.test(text) ? text : stringLiteral(text);
@@ -322,15 +329,29 @@ export function attributeLiteral(type: AttributeType | undefined, raw: string): 
   }
 }
 
-/** The attribute as the properties view shows it: lists joined, texts bare. */
+const isQuantity = (value: unknown): value is { value: number; unit: string } => typeof value === 'object' && value !== null && 'value' in value && 'unit' in value;
+const isBlock = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value) && !isQuantity(value);
+/** The order a reader expects in a block, then the other keys by name. */
+const BLOCK_ORDER = ['lat', 'lon', 'alt', 'x', 'y', 'z', 'yaw', 'pitch', 'roll'];
+
+/** A value as ArcLang writes it inside a block: texts quoted, quantities with their unit. */
+function arcValue(value: unknown): string {
+  if (isQuantity(value)) return `${value.value} ${value.unit}`;
+  if (Array.isArray(value)) return `[${value.map(arcValue).join(', ')}]`;
+  if (isBlock(value)) {
+    const rank = (k: string) => (BLOCK_ORDER.includes(k) ? BLOCK_ORDER.indexOf(k) : BLOCK_ORDER.length);
+    const keys = Object.keys(value).sort((a, b) => rank(a) - rank(b) || a.localeCompare(b));
+    return `{ ${keys.map((k) => `${k}: ${arcValue(value[k])}`).join(' ')} }`;
+  }
+  return typeof value === 'string' ? stringLiteral(value) : String(value);
+}
+
+/** The attribute as the properties view shows it: lists joined, texts bare, blocks as ArcLang (`{ lat: 48.85 deg lon: 2.35 deg }`). */
 export function attributeDisplay(value: unknown): string {
   if (value === null || value === undefined) return '';
-  if (Array.isArray(value)) return value.map((v) => attributeDisplay(v)).join(', ');
-  if (typeof value === 'object') {
-    const record = value as Record<string, unknown>;
-    if ('value' in record && 'unit' in record) return `${record.value} ${record.unit}`;
-    return JSON.stringify(value);
-  }
+  if (Array.isArray(value)) return value.some(isBlock) ? arcValue(value) : value.map((v) => attributeDisplay(v)).join(', ');
+  if (isQuantity(value)) return `${value.value} ${value.unit}`;
+  if (isBlock(value)) return arcValue(value);
   return String(value);
 }
 
