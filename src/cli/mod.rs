@@ -182,6 +182,22 @@ pub enum Commands {
         element: String,
     },
     
+    /// Verification by simulation: run the test cases that `simulate:` in
+    /// OpenModelica (ARCLANG_OMC, or Docker with ARCLANG_OMC_DOCKER), check
+    /// their `expects:` and cache the verdicts for `check`, `gate` and tables
+    Verify {
+        #[clap(value_parser)]
+        input: PathBuf,
+
+        /// Only this test case (id or name)
+        #[clap(long)]
+        test: Option<String>,
+
+        /// Print each outcome as JSON
+        #[clap(long)]
+        json: bool,
+    },
+
     Export {
         #[clap(value_parser)]
         input: PathBuf,
@@ -714,6 +730,9 @@ impl CliRunner {
             Commands::Export { input, output, format } => {
                 self.run_export(input, output, format)
             }
+            Commands::Verify { input, test, json } => {
+                self.run_verify(input, test, json)
+            }
             Commands::Import { input, format, output } => {
                 self.run_import(input, format, output)
             }
@@ -1202,6 +1221,47 @@ impl CliRunner {
         }
     }
     
+    fn run_verify(&self, input: PathBuf, test: Option<String>, json: bool) -> Result<(), CliError> {
+        use crate::compiler::simulation::{run, tool::ToolConfig};
+        let result = crate::Compiler::new(crate::CompilerConfig::default())
+            .compile_file(&input)
+            .map_err(|e| CliError::Compilation(e.to_string()))?;
+        let outcomes = run::verify(&result, &input, test.as_deref(), &ToolConfig::from_env()).map_err(CliError::Compilation)?;
+        if json {
+            println!("{}", serde_json::to_string_pretty(&outcomes).map_err(|e| CliError::Compilation(e.to_string()))?);
+        } else {
+            println!("Verification by simulation — {}", input.display());
+            if let Some(first) = outcomes.iter().find(|o| !o.tool.is_empty()) {
+                println!("  Tool: {}{}", first.tool, if first.omc_version.is_empty() { String::new() } else { format!(", {}", first.omc_version) });
+            }
+            for outcome in &outcomes {
+                let mark = match outcome.verdict.as_str() {
+                    "pass" => "✓",
+                    "fail" => "✗",
+                    _ => "?",
+                };
+                let configuration = outcome.configuration.as_deref().map(|c| format!(" [{c}]")).unwrap_or_default();
+                println!("\n{mark} {} — {}{configuration}: {}", outcome.test_case, outcome.model, outcome.verdict.to_uppercase());
+                for value in &outcome.values {
+                    println!("    {} {}   ({})", if value.holds { "ok  " } else { "FAIL" }, value.value, value.expect);
+                }
+                if !outcome.reason.is_empty() && outcome.verdict != "fail" {
+                    println!("    {}", outcome.reason);
+                }
+            }
+            let cached = outcomes.iter().filter(|o| o.verdict != "inconclusive").count();
+            if cached > 0 {
+                println!("\n  {cached} verdict(s) cached in {}", crate::compiler::simulation::cache::dir(&input).display());
+            }
+        }
+        let failed = outcomes.iter().filter(|o| o.verdict != "pass").count();
+        if failed == 0 {
+            Ok(())
+        } else {
+            Err(CliError::Compilation(format!("{failed} of {} simulated case(s) do not pass", outcomes.len())))
+        }
+    }
+
     fn run_gate(&self, input: PathBuf, standard: SafetyStandard) -> Result<(), CliError> {
         let config = crate::CompilerConfig::default();
         let mut compiler = crate::Compiler::new(config);

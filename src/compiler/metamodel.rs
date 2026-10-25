@@ -71,6 +71,8 @@ pub enum AttrType {
     /// string names the expected kind, or `"Element"` for any kind.
     Reference(&'static str),
     List(Box<AttrType>),
+    /// A nested block of the given keys (`simulate: { model: "P.M" ... }`).
+    Record(&'static [&'static str]),
 }
 
 impl AttrType {
@@ -86,6 +88,7 @@ impl AttrType {
             AttrType::Enum(name) => format!("enum {}", name),
             AttrType::Reference(kind) => format!("ref<{}>", kind),
             AttrType::List(inner) => format!("list<{}>", inner.notation()),
+            AttrType::Record(keys) => format!("{{{}}}", keys.join(", ")),
         }
     }
 }
@@ -444,7 +447,9 @@ impl Metamodel {
                     attr("procedure", AttrType::Text, "Procedure."),
                     attr("expected", AttrType::Text, "Expected result."),
                     attr("asserts", list(AttrType::Reference("Constraint")), "An analysis: the constraints whose evaluation is its verdict (pass when they all hold)."),
-                    attr("verdict", AttrType::Enum("Verdict"), "Outcome of a test run elsewhere; computed, not given, when the case `asserts:` constraints. A requirement with a failing case is not verified."),
+                    attr("verdict", AttrType::Enum("Verdict"), "Outcome of a test run elsewhere; computed, not given, when the case `asserts:` constraints or `simulate:`s. A requirement with a failing case is not verified."),
+                    attr("simulate", AttrType::Record(&crate::compiler::simulation::SIMULATE_KEYS), "Verified by simulation: the `backend` (`openmodelica`, the default; `fmu` and `command` are declared, not built yet), the Modelica `model` to simulate (extending a system model of `arclang export -f modelica`), the `configuration` it is, `stop_time` (and `start_time`), the hand-written Modelica `sources` (paths from the model file), `tolerance`, `intervals`. Run by `arclang verify`; the verdict is cached, and inconclusive when stale or never run."),
+                    attr("expects", list(AttrType::Text), "What the simulation result must show: comparisons over its variables read with `min`, `max`, `final`, `initial`, `mean` or `at(t, var)`, with units (`final(vehicle.distance) >= 300 km`)."),
                 ]])),
             kind("Model", Layer::Transverse, "Project / SystemEngineering", "package", "The model itself: root of the element graph, owner of every top-level element.", vec![
                     attr("name", AttrType::Text, "Model name."),

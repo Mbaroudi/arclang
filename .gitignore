@@ -90,3 +90,4 @@ __pycache__/
 !editors/vscode/package.json
 !editors/vscode/language-configuration.json
 !editors/vscode/syntaxes/*.json
+.arclang/

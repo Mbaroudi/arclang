@@ -944,6 +944,21 @@ impl AttributeValue {
     }
 
     /// Human-readable rendering used by exporters and the explorer.
+    /// The value as ArcLang source, as it reads back: strings quoted,
+    /// blocks `{ key: value ... }` with sorted keys.
+    pub fn source(&self) -> String {
+        match self {
+            AttributeValue::String(s) => format!("\"{}\"", s.replace('\\', "\\\\").replace('"', "\\\"")),
+            AttributeValue::List(items) => format!("[{}]", items.iter().map(|v| v.source()).collect::<Vec<_>>().join(", ")),
+            AttributeValue::Map(map) => {
+                let mut keys: Vec<_> = map.keys().collect();
+                keys.sort();
+                format!("{{ {} }}", keys.iter().map(|k| format!("{}: {}", k, map[*k].source())).collect::<Vec<_>>().join(" "))
+            }
+            other => other.display(),
+        }
+    }
+
     pub fn display(&self) -> String {
         match self {
             AttributeValue::String(s) => s.clone(),

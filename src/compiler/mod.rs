@@ -46,6 +46,7 @@ pub mod simulink_generator;
 mod simulink_stateflow;
 pub mod fmi_generator;
 pub mod modelica;
+pub mod simulation;
 pub mod reqif;
 pub mod graph_diff;
 pub mod semantic_diff;
@@ -136,7 +137,10 @@ impl Compiler {
         let mut import_stack = Vec::new();
         let mut files = Vec::new();
         let (ast, warnings) = Self::parse_file_with_imports(path, &mut import_stack, &mut files)?;
-        self.finish_located(ast, warnings, &files)
+        let mut result = self.finish_located(ast, warnings, &files)?;
+        // The cached verdicts of the simulated cases: nothing is simulated.
+        simulation::run::attach(&mut result, path);
+        Ok(result)
     }
 
     /// The files a model is read from: the file itself, then every file it

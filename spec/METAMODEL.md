@@ -986,7 +986,9 @@ Verification case covering requirements.
 | `procedure` | `text` | Procedure. |
 | `expected` | `text` | Expected result. |
 | `asserts` | `list<ref<Constraint>>` | An analysis: the constraints whose evaluation is its verdict (pass when they all hold). |
-| `verdict` | `enum Verdict` | Outcome of a test run elsewhere; computed, not given, when the case `asserts:` constraints. A requirement with a failing case is not verified. |
+| `verdict` | `enum Verdict` | Outcome of a test run elsewhere; computed, not given, when the case `asserts:` constraints or `simulate:`s. A requirement with a failing case is not verified. |
+| `simulate` | `{backend, model, configuration, stop_time, start_time, sources, tolerance, intervals}` | Verified by simulation: the `backend` (`openmodelica`, the default; `fmu` and `command` are declared, not built yet), the Modelica `model` to simulate (extending a system model of `arclang export -f modelica`), the `configuration` it is, `stop_time` (and `start_time`), the hand-written Modelica `sources` (paths from the model file), `tolerance`, `intervals`. Run by `arclang verify`; the verdict is cached, and inconclusive when stale or never run. |
+| `expects` | `list<text>` | What the simulation result must show: comparisons over its variables read with `min`, `max`, `final`, `initial`, `mean` or `at(t, var)`, with units (`final(vehicle.distance) >= 300 km`). |
 
 #### Model
 
