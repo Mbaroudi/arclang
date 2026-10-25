@@ -27,15 +27,15 @@ export class LayersPanel {
 
   constructor(private readonly host: HTMLElement, private readonly d: LayersDeps) {
     loadStyles();
-    this.list = el('ul', { class: 'wb-layers-list', role: 'list' });
-    this.root = el('section', { class: 'wb-layers', role: 'dialog', 'aria-label': 'Layers', hidden: true }, [
-      el('header', { class: 'wb-layers-head' }, [
+    this.list = el('ul', { class: 'wb-tl-list', role: 'list' });
+    this.root = el('section', { class: 'wb-tl', role: 'dialog', 'aria-label': 'Layers', hidden: true }, [
+      el('header', { class: 'wb-tl-head' }, [
         el('h2', { text: 'Layers' }),
         button('✕', () => this.toggle(false), { class: 'wb-icon-button', title: 'Close (⇧⌘L)' }),
       ]),
-      el('p', { class: 'wb-layers-hint', text: 'A layer is a tag; the first tag of an element is its layer. Drag a row to draw its layer over or under the others.' }),
+      el('p', { class: 'wb-tl-hint', text: 'A layer is a tag; the first tag of an element is its layer. Drag a row to draw its layer over or under the others.' }),
       this.list,
-      el('footer', { class: 'wb-layers-foot' }, [
+      el('footer', { class: 'wb-tl-foot' }, [
         button('New layer…', () => this.newLayer(false), { class: 'wb-link', title: 'A new tag: the layer exists once an element carries it' }),
       ]),
     ]);
@@ -78,7 +78,7 @@ export class LayersPanel {
     const api = this.d.api();
     clear(this.list);
     if (!api) {
-      this.list.appendChild(el('li', { class: 'wb-layers-empty', text: 'No diagram on screen.' }));
+      this.list.appendChild(el('li', { class: 'wb-tl-empty', text: 'No diagram on screen.' }));
       return;
     }
     const state = api.layerState();
@@ -87,14 +87,14 @@ export class LayersPanel {
     rows.forEach((row, index) => {
       const hidden = state.hidden.includes(row.name);
       const locked = state.locked.includes(row.name);
-      const item = el('li', { class: `wb-layer-row${hidden ? ' is-hidden' : ''}${locked ? ' is-locked' : ''}`, draggable: 'true', 'data-layer': row.name, title: row.name === DEFAULT_LAYER ? 'The elements that carry no tag' : `The elements whose first tag is "${row.name}"` }, [
-        button(hidden ? '◌' : '◉', () => void this.act(api.setLayerHidden(row.name, !hidden)), { class: 'wb-layer-eye', 'aria-pressed': String(!hidden), 'aria-label': `${hidden ? 'Show' : 'Hide'} ${row.label}`, title: hidden ? 'Hidden: not drawn, not exported. Click to show.' : 'Shown. Click to hide (and leave out of exports).' }),
-        button(locked ? '🔒' : '🔓', () => void this.act(api.setLayerLocked(row.name, !locked)), { class: 'wb-layer-lock', 'aria-pressed': String(locked), 'aria-label': `${locked ? 'Unlock' : 'Lock'} ${row.label}`, title: locked ? 'Locked on the canvas. Click to unlock.' : 'Click to lock: no move, resize, reconnect, delete or rename on the canvas.' }),
-        el('span', { class: 'wb-layer-name', text: row.label }),
-        el('span', { class: 'wb-layer-count', text: String(row.count), title: `${row.count} element${row.count === 1 ? '' : 's'} on it` }),
-        button('▲', () => void this.order(stepLayer(names, row.name, -1)), { class: 'wb-layer-step', 'aria-label': `Move ${row.label} up`, disabled: index === 0 }),
-        button('▼', () => void this.order(stepLayer(names, row.name, 1)), { class: 'wb-layer-step', 'aria-label': `Move ${row.label} down`, disabled: index === rows.length - 1 }),
-        button('⇥', () => this.d.moveHere(row.name), { class: 'wb-layer-move', 'aria-label': `Move the selection to ${row.label}`, title: 'Move the selection to this layer (sets its tag)' }),
+      const item = el('li', { class: `wb-tl-row${hidden ? ' is-hidden' : ''}${locked ? ' is-locked' : ''}`, draggable: 'true', 'data-layer': row.name, title: row.name === DEFAULT_LAYER ? 'The elements that carry no tag' : `The elements whose first tag is "${row.name}"` }, [
+        button(hidden ? '◌' : '◉', () => void this.act(api.setLayerHidden(row.name, !hidden)), { class: 'wb-tl-eye', 'aria-pressed': String(!hidden), 'aria-label': `${hidden ? 'Show' : 'Hide'} ${row.label}`, title: hidden ? 'Hidden: not drawn, not exported. Click to show.' : 'Shown. Click to hide (and leave out of exports).' }),
+        button(locked ? '🔒' : '🔓', () => void this.act(api.setLayerLocked(row.name, !locked)), { class: 'wb-tl-lock', 'aria-pressed': String(locked), 'aria-label': `${locked ? 'Unlock' : 'Lock'} ${row.label}`, title: locked ? 'Locked on the canvas. Click to unlock.' : 'Click to lock: no move, resize, reconnect, delete or rename on the canvas.' }),
+        el('span', { class: 'wb-tl-name', text: row.label }),
+        el('span', { class: 'wb-tl-count', text: String(row.count), title: `${row.count} element${row.count === 1 ? '' : 's'} on it` }),
+        button('▲', () => void this.order(stepLayer(names, row.name, -1)), { class: 'wb-tl-step', 'aria-label': `Move ${row.label} up`, disabled: index === 0 }),
+        button('▼', () => void this.order(stepLayer(names, row.name, 1)), { class: 'wb-tl-step', 'aria-label': `Move ${row.label} down`, disabled: index === rows.length - 1 }),
+        button('⇥', () => this.d.moveHere(row.name), { class: 'wb-tl-move', 'aria-label': `Move the selection to ${row.label}`, title: 'Move the selection to this layer (sets its tag)' }),
       ]);
       item.addEventListener('dragstart', (event) => {
         this.dragged = row.name;

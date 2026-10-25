@@ -98,31 +98,31 @@ const rows = []; const report = (name, ok, detail) => { rows.push({ name, ok, de
 
   // 6. Layers: a new one, the selection moved onto it (its tag), hidden, locked, ordered
   await blank(); await press('Meta+Shift+KeyL');
-  report('shift-cmd-L opens the Layers panel with Default', (await page.locator('.wb-layers:not([hidden]) .wb-layer-row[data-layer=""]').count()) === 1);
-  await page.locator('.wb-layers button', { hasText: 'New layer' }).click(); await prompt('Safety');
+  report('shift-cmd-L opens the Layers panel with Default', (await page.locator('.wb-tl:not([hidden]) .wb-tl-row[data-layer=""]').count()) === 1);
+  await page.locator('.wb-tl button', { hasText: 'New layer' }).click(); await prompt('Safety');
   await click('LC-ACT');
-  let n = await count(); await page.locator('.wb-layer-row[data-layer="Safety"] .wb-layer-move').click();
+  let n = await count(); await page.locator('.wb-tl-row[data-layer="Safety"] .wb-tl-move').click();
   const moved = await waitEdit(n); const tagged = await source();
   report('Move the selection to a layer sets its tag (one edit)', !!moved?.ok && /id: "LC-ACT"[\s\S]{0,200}tags: \["Safety"\]/.test(tagged), moved?.label || moved?.error || '');
   await page.waitForTimeout(600);
-  const counted = await page.locator('.wb-layer-row[data-layer="Safety"] .wb-layer-count').textContent();
+  const counted = await page.locator('.wb-tl-row[data-layer="Safety"] .wb-tl-count').textContent();
   report('the layer counts its elements', counted === '1', counted);
   await shot('arrange-04-layers');
-  await page.locator('.wb-layer-row[data-layer="Safety"] .wb-layer-eye').click(); await page.waitForTimeout(1200);
+  await page.locator('.wb-tl-row[data-layer="Safety"] .wb-tl-eye').click(); await page.waitForTimeout(1200);
   report('a hidden layer: its box and its lines are not drawn', (await node('LC-ACT').count()) === 0 && (await node('ce:SteerCommand').count()) === 0 && (await node('LC-CAM').count()) === 1);
   const exportTitle = await (async () => { await page.locator('#arcviz-export-menu').click(); await page.waitForTimeout(200); const t = await page.locator('.arcviz-menu-pop:not([hidden]) [data-action="save-png"]').getAttribute('title'); await page.keyboard.press('Escape'); return t; })();
   report('the export menu says hidden layers are left out', /hidden layers are left out/.test(exportTitle || ''), exportTitle);
   await shot('arrange-05-hidden');
-  await page.locator('.wb-layer-row[data-layer="Safety"] .wb-layer-eye').click(); await page.waitForTimeout(1200);
-  await page.locator('.wb-layer-row[data-layer="Safety"] .wb-layer-lock').click(); await page.waitForTimeout(900);
+  await page.locator('.wb-tl-row[data-layer="Safety"] .wb-tl-eye').click(); await page.waitForTimeout(1200);
+  await page.locator('.wb-tl-row[data-layer="Safety"] .wb-tl-lock').click(); await page.waitForTimeout(900);
   const a0 = await rel('LC-ACT', 'LC-CTL'); const ab = await shape('LC-ACT'); await drag({ x: ab.x + ab.width - 30, y: ab.y + 8 }, { x: ab.x + ab.width + 50, y: ab.y + 70 }); const a1 = await rel('LC-ACT', 'LC-CTL');
   report('a box on a locked layer does not move', Math.abs(a1.x - a0.x) < 1 && Math.abs(a1.y - a0.y) < 1);
-  await page.locator('.wb-layer-row[data-layer="Safety"] .wb-layer-lock').click(); await page.waitForTimeout(900);
+  await page.locator('.wb-tl-row[data-layer="Safety"] .wb-tl-lock').click(); await page.waitForTimeout(900);
   await click('LC-ACT'); await press('Meta+Shift+KeyF');
   const onTop = await above('LC-ACT', 'LC-CAM');
-  await page.locator('.wb-layer-row[data-layer="Safety"] button[aria-label^="Move Safety down"]').click(); await page.waitForTimeout(1200);
+  await page.locator('.wb-tl-row[data-layer="Safety"] button[aria-label^="Move Safety down"]').click(); await page.waitForTimeout(1200);
   report('a layer moved under Default draws its box under the others', onTop && !(await above('LC-ACT', 'LC-CAM')) && JSON.stringify((await lastLayout()).layers || {}).includes('"order"'), JSON.stringify((await lastLayout()).layers));
-  await page.locator('.wb-layers button[title^="Close"]').click();
+  await page.locator('.wb-tl button[title^="Close"]').click();
 
   await fit();
   // 7. Same size as the last selected; clear waypoints; select lines and boxes

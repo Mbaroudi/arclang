@@ -2,59 +2,59 @@
    sheet, the lines selected together, a locked element, a group open for
    editing. The editor's own colours; the focus colour marks what is chosen. */
 :root {
-  --wb-layers-width: 272px;
-  --wb-layers-radius: 6px;
-  --wb-layers-row: 28px;
-  --wb-layers-fast: 120ms;
-  --wb-layers-muted: var(--vscode-descriptionForeground, #8889);
+  --wb-tl-width: 272px;
+  --wb-tl-radius: 6px;
+  --wb-tl-row: 28px;
+  --wb-tl-fast: 120ms;
+  --wb-tl-muted: var(--vscode-descriptionForeground, #8889);
 }
 
-.wb-layers {
+.wb-tl {
   position: absolute;
   z-index: 30;
   top: 44px;
   right: 10px;
-  width: min(var(--wb-layers-width), calc(100% - 20px));
+  width: min(var(--wb-tl-width), calc(100% - 20px));
   max-height: calc(100% - 64px);
   display: flex;
   flex-direction: column;
   color: var(--vscode-editorWidget-foreground, var(--vscode-foreground));
   background: var(--vscode-editorWidget-background, var(--vscode-editor-background));
   border: 1px solid var(--vscode-editorWidget-border, var(--vscode-widget-border, #8886));
-  border-radius: var(--wb-layers-radius);
+  border-radius: var(--wb-tl-radius);
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28);
   font-size: 12px;
 }
-.wb-layers[hidden] { display: none; }
-.wb-layers-head { display: flex; align-items: center; justify-content: space-between; padding: 6px 8px 2px 12px; }
-.wb-layers-head h2 { margin: 0; font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
-.wb-layers-hint { margin: 0 12px 6px; color: var(--wb-layers-muted); line-height: 1.35; }
-.wb-layers-list { list-style: none; margin: 0; padding: 0 4px; overflow-y: auto; }
-.wb-layer-row {
+.wb-tl[hidden] { display: none; }
+.wb-tl-head { display: flex; align-items: center; justify-content: space-between; padding: 6px 8px 2px 12px; }
+.wb-tl-head h2 { margin: 0; font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
+.wb-tl-hint { margin: 0 12px 6px; color: var(--wb-tl-muted); line-height: 1.35; }
+.wb-tl-list { list-style: none; margin: 0; padding: 0 4px; overflow-y: auto; }
+.wb-tl-row {
   display: grid;
   grid-template-columns: 24px 24px 1fr auto 20px 20px 22px;
   align-items: center;
-  min-height: var(--wb-layers-row);
+  min-height: var(--wb-tl-row);
   padding: 0 4px;
   border-radius: 4px;
   border-top: 2px solid transparent;
   cursor: grab;
-  transition: background var(--wb-layers-fast) ease-out;
+  transition: background var(--wb-tl-fast) ease-out;
 }
-.wb-layer-row:hover { background: var(--vscode-list-hoverBackground, #8881); }
-.wb-layer-row.is-drop { border-top-color: var(--vscode-focusBorder); }
-.wb-layer-row.is-dragged { opacity: 0.5; }
-.wb-layer-row.is-hidden .wb-layer-name { color: var(--wb-layers-muted); text-decoration: line-through; }
-.wb-layer-row button { min-width: 0; height: 22px; padding: 0; color: inherit; background: transparent; border: 0; border-radius: 3px; cursor: pointer; }
-.wb-layer-row button:hover:not([disabled]) { background: var(--vscode-toolbar-hoverBackground, #8882); }
-.wb-layer-row button:focus-visible { outline: 1px solid var(--vscode-focusBorder); outline-offset: -1px; }
-.wb-layer-row button[disabled] { opacity: 0.3; cursor: default; }
-.wb-layer-eye[aria-pressed="false"], .wb-layer-lock[aria-pressed="false"] { color: var(--wb-layers-muted); }
-.wb-layer-lock[aria-pressed="true"] { color: var(--vscode-editorWarning-foreground, #cca700); }
-.wb-layer-name { padding: 0 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
-.wb-layer-count { min-width: 18px; padding: 0 5px; text-align: center; font-variant-numeric: tabular-nums; color: var(--vscode-badge-foreground, inherit); background: var(--vscode-badge-background, #8883); border-radius: 9px; }
-.wb-layers-foot { display: flex; gap: 12px; padding: 6px 12px 8px; border-top: 1px solid var(--vscode-editorWidget-border, #8883); }
-.wb-layers-empty { padding: 8px; color: var(--wb-layers-muted); }
+.wb-tl-row:hover { background: var(--vscode-list-hoverBackground, #8881); }
+.wb-tl-row.is-drop { border-top-color: var(--vscode-focusBorder); }
+.wb-tl-row.is-dragged { opacity: 0.5; }
+.wb-tl-row.is-hidden .wb-tl-name { color: var(--wb-tl-muted); text-decoration: line-through; }
+.wb-tl-row button { min-width: 0; height: 22px; padding: 0; color: inherit; background: transparent; border: 0; border-radius: 3px; cursor: pointer; }
+.wb-tl-row button:hover:not([disabled]) { background: var(--vscode-toolbar-hoverBackground, #8882); }
+.wb-tl-row button:focus-visible { outline: 1px solid var(--vscode-focusBorder); outline-offset: -1px; }
+.wb-tl-row button[disabled] { opacity: 0.3; cursor: default; }
+.wb-tl-eye[aria-pressed="false"], .wb-tl-lock[aria-pressed="false"] { color: var(--wb-tl-muted); }
+.wb-tl-lock[aria-pressed="true"] { color: var(--vscode-editorWarning-foreground, #cca700); }
+.wb-tl-name { padding: 0 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+.wb-tl-count { min-width: 18px; padding: 0 5px; text-align: center; font-variant-numeric: tabular-nums; color: var(--vscode-badge-foreground, inherit); background: var(--vscode-badge-background, #8883); border-radius: 9px; }
+.wb-tl-foot { display: flex; gap: 12px; padding: 6px 12px 8px; border-top: 1px solid var(--vscode-editorWidget-border, #8883); }
+.wb-tl-empty { padding: 8px; color: var(--wb-tl-muted); }
 
 /* The drawing. */
 #workbench .arcviz .av-edge.wb-multi .av-line { stroke: var(--vscode-focusBorder) !important; stroke-width: 2.6px; }
@@ -63,5 +63,5 @@
 #workbench .arcviz .av-group.is-entered > .av-shape { stroke: var(--vscode-focusBorder); stroke-width: 2px; }
 #workbench .arcviz .av-group.is-selected > .av-shape { stroke: var(--vscode-focusBorder); stroke-width: 2px; stroke-dasharray: none; }
 @media (prefers-reduced-motion: reduce) {
-  .wb-layer-row { transition: none; }
+  .wb-tl-row { transition: none; }
 }

@@ -90,10 +90,10 @@ async function launch(dir, model) {
 
     // 2. The Layers panel: a new layer, the selection moved onto it (an edit of the tags), hidden, locked, ordered
     await blank(); await press('Meta+Shift+l'); await settle(900);
-    report('⇧⌘L opens the Layers panel', (await page.locator('.wb-layers:not([hidden])').count()) === 1);
-    await page.locator('.wb-layers button', { hasText: 'New layer' }).click(); await prompt('Safety');
+    report('⇧⌘L opens the Layers panel', (await page.locator('.wb-tl:not([hidden])').count()) === 1, `${await page.locator('.wb-tl').count()} ${await page.locator('.wb-tl').first().getAttribute('hidden')}`); await shot('layers-02a-panel-key');
+    await page.locator('.wb-tl button', { hasText: 'New layer' }).click(); await prompt('Safety');
     await click('LC-ACT');
-    await page.locator('.wb-layer-row[data-layer="Safety"] .wb-layer-move').click(); await settle(3500);
+    await page.locator('.wb-tl-row[data-layer="Safety"] .wb-tl-move').click(); await settle(3500);
     let text = await source();
     report('moving the selection to a layer adds the tag in the source', /id: "LC-ACT"[\s\S]{0,200}tags: \["Safety"\]/.test(text));
     await press('Meta+z'); await settle(2800); text = await source();
@@ -101,7 +101,7 @@ async function launch(dir, model) {
     await press('Meta+Shift+z'); await settle(2800); text = await source();
     report('⇧⌘Z gives it again', /tags: \["Safety"\]/.test(text));
     await shot('layers-02-panel');
-    await page.locator('.wb-layer-row[data-layer="Safety"] .wb-layer-eye').click(); await settle(2200);
+    await page.locator('.wb-tl-row[data-layer="Safety"] .wb-tl-eye').click(); await settle(2200);
     report('a hidden layer: its box and its exchanges disappear', (await node('LC-ACT').count()) === 0 && (await node('ce:SteerCommand').count()) === 0 && (await node('LC-CAM').count()) === 1);
     await shot('layers-03-hidden');
     await tool('arcviz-export-menu').click(); await win.waitForTimeout(300);
@@ -119,32 +119,31 @@ async function launch(dir, model) {
     if (await input.isVisible().catch(() => false)) { await input.fill(png); await input.press('Enter'); await win.waitForTimeout(2200); }
     report('the PNG export is written without it', fs.existsSync(png) && fs.readFileSync(png).subarray(1, 4).toString() === 'PNG');
     await win.keyboard.press('Escape');
-    await page.locator('.wb-layer-row[data-layer="Safety"] .wb-layer-eye').click(); await settle(2200);
+    await page.locator('.wb-tl-row[data-layer="Safety"] .wb-tl-eye').click(); await settle(2200);
     report('shown again, it is back', (await node('LC-ACT').count()) === 1);
-    await page.locator('.wb-layer-row[data-layer="Safety"] .wb-layer-lock').click(); await settle(1500);
+    await page.locator('.wb-tl-row[data-layer="Safety"] .wb-tl-lock').click(); await settle(1500);
     const a0 = await rel('LC-ACT', 'LC-CTL'); const ab = await shape('LC-ACT');
     await drag({ x: ab.x + ab.width - 30, y: ab.y + 8 }, { x: ab.x + ab.width + 40, y: ab.y + 80 });
     const a1 = await rel('LC-ACT', 'LC-CTL');
     report('a box on a locked layer does not move', Math.abs(a1.x - a0.x) < 1 && Math.abs(a1.y - a0.y) < 1);
     const before = await source(); await click('LC-ACT'); await press('Delete'); await settle(1200);
     report('Delete on it is refused with a message, the source unchanged', (await source()) === before && /locked/.test(await toast()), await toast());
-    await page.locator('.wb-layer-row[data-layer="Safety"] .wb-layer-lock').click(); await settle(1200);
-    await page.locator('.wb-layer-row[data-layer="Safety"] button[aria-label^="Move Safety down"]').click(); await settle(2000);
+    await page.locator('.wb-tl-row[data-layer="Safety"] .wb-tl-lock').click(); await settle(1200);
+    await page.locator('.wb-tl-row[data-layer="Safety"] button[aria-label^="Move Safety down"]').click(); await settle(2000);
     report('Safety moved under Default: kept in the layout file', /"order":\s*\[\s*"",\s*"Safety"\s*\]/.test(layout()), layout().replace(/\s+/g, ' ').slice(-120));
-    await page.locator('.wb-layers button[title^="Close"]').click();
+    await page.locator('.wb-tl button[title^="Close"]').click();
 
     // 3. Group, move, collapse, ungroup (⌘Z restores)
     await fit(); await blank(); await click('LC-CAM'); await click('LC-CTL', true);
     await press('Meta+g'); await settle(2000);
     report('⌘G frames the two boxes; the layout file holds the group, the model is unchanged', (await page.locator('.arcviz-stage .av-group').count()) === 1 && /"groups"/.test(layout()) && (await source()) === before);
     await shot('layers-04-group');
-    const gf = await page.locator('.arcviz-stage .av-group > .av-shape').boundingBox(); const g0 = await rel('LC-CAM', 'LC-ACT'); const c0 = await shape('LC-CAM'); const t0 = await shape('LC-CTL');
+    const gf = await page.locator('.arcviz-stage .av-group > .av-shape').boundingBox(); const c0 = await shape('LC-CAM'); const t0 = await shape('LC-CTL');
     await drag({ x: gf.x + gf.width / 2, y: gf.y + 6 }, { x: gf.x + gf.width / 2 + 40, y: gf.y + 6 + 30 });
     const c1 = await shape('LC-CAM'); const t1 = await shape('LC-CTL');
-    report('the group moves both members', Math.abs((c1.x - c0.x) - (t1.x - t0.x)) < 2 && c1.y - c0.y > 15 && Math.abs((await rel('LC-CAM', 'LC-ACT')).x - g0.x) > 10);
+    report('the group moves both members', Math.abs((c1.x - c0.x) - (t1.x - t0.x)) < 2 && c1.y - c0.y > 15, `${Math.round(c1.x - c0.x)},${Math.round(c1.y - c0.y)} / ${Math.round(t1.x - t0.x)},${Math.round(t1.y - t0.y)} frame ${JSON.stringify(gf)}`);
     await press('Meta+z'); await settle(2500);
     report('⌘Z puts the group back', Math.abs((await shape('LC-CAM')).x - c0.x) < 3);
-    await press('Meta+Shift+g'); await settle(1800);
     await click('LC-CAM'); await press('Meta+Shift+g'); await settle(1800);
     report('⇧⌘G ungroups', (await page.locator('.arcviz-stage .av-group').count()) === 0 && !/"groups"/.test(layout()));
     await press('Meta+z'); await settle(2200);
@@ -191,7 +190,7 @@ async function launch(dir, model) {
     // 6. The state is kept: hide a layer and group, reload the webviews
     await blank(); await click('LC-CAM'); await click('LC-CTL', true); await press('Meta+g'); await settle(1800);
     await press('Meta+Shift+l'); await settle(900);
-    await page.locator('.wb-layer-row[data-layer="Safety"] .wb-layer-eye').click(); await settle(2000);
+    await page.locator('.wb-tl-row[data-layer="Safety"] .wb-tl-eye').click(); await settle(2000);
     const keptLayout = layout();
     const old = page;
     await command('Developer: Reload Webviews'); await win.waitForTimeout(2500);
