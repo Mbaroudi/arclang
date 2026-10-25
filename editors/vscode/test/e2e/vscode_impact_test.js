@@ -24,7 +24,7 @@ const report = (name, ok, detail = '') => { results.push(ok); console.log(`${ok 
 async function launch(dir, model, extra = {}) {
   const settings = {
     'files.simpleDialog.enable': true, 'window.dialogStyle': 'custom', 'update.mode': 'none', 'extensions.autoCheckUpdates': false, 'extensions.autoUpdate': false,
-    'telemetry.telemetryLevel': 'off', 'workbench.startupEditor': 'none', 'security.workspace.trust.enabled': false, 'window.restoreWindows': 'none',
+    'telemetry.telemetryLevel': 'off', 'workbench.startupEditor': 'none', 'security.workspace.trust.enabled': false, 'git.enabled': false, 'git.openRepositoryInParentFolders': 'never', 'window.restoreWindows': 'none',
     ...(process.env.ARCLANG_BINARY ? { 'arclang.binary': process.env.ARCLANG_BINARY } : {}), ...extra,
   };
   fs.mkdirSync(path.join(dir, 'u', 'User'), { recursive: true });
@@ -34,15 +34,24 @@ async function launch(dir, model, extra = {}) {
   await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setBounds({ x: 0, y: 0, width: 1700, height: 1000 }));
   await win.waitForTimeout(4000);
   const palette = async (name) => {
+    // Focus in the text: a key typed in a webview reaches the page, not always the palette.
+    await win.locator('.tab', { hasText: 'aeb.arc' }).first().click().catch(() => undefined); await win.waitForTimeout(300);
     await win.keyboard.press('Meta+Shift+P'); await win.waitForTimeout(300); await win.keyboard.type(name); await win.waitForTimeout(700); await win.keyboard.press('Enter'); await win.waitForTimeout(800);
+  };
+  /** A picker is open and has its items (a command may compute before it asks). */
+  const ready = async () => {
+    for (let i = 0; i < 40; i++) {
+      if (await win.locator('.quick-input-widget .quick-input-list .monaco-list-row').count().catch(() => 0)) return;
+      await win.waitForTimeout(250);
+    }
   };
   /** A command, then each pick typed and confirmed. */
   const command = async (name, picks = []) => {
     await palette(name);
-    for (const pick of picks) { await win.keyboard.type(pick); await win.waitForTimeout(600); await win.keyboard.press('Enter'); await win.waitForTimeout(800); }
+    for (const pick of picks) { await ready(); await win.keyboard.type(pick); await win.waitForTimeout(600); await win.keyboard.press('Enter'); await win.waitForTimeout(800); }
   };
   await command('View: Close Secondary Side Bar');
-  return { app, win, command, palette };
+  return { app, win, command, palette, ready };
 }
 
 /** The frame of the impact view (not one of `not`), once its rows are there. */
@@ -93,11 +102,11 @@ function openpyxl(book, script) {
   const original = fs.readFileSync(model, 'utf8');
   const git = (...args) => execFileSync('git', ['-C', dir, '-c', 'user.name=t', '-c', 'user.email=t@t', '-c', 'commit.gpgsign=false', ...args]);
   git('init', '-q'); git('add', 'aeb.arc'); git('commit', '-q', '-m', 'model');
-  const { app, win, command, palette } = await launch(dir, model);
+  const { app, win, command, palette, ready } = await launch(dir, model);
   const press = await azerty(win);
   try {
     // 1. A sensor component analysed from the command palette
-    await command('ArcLang: Analyse impact', ['RadarSensor']);
+    await command('Impact analysis: analyse an element', ['RadarSensor']);
     const view = await impactFrame(win);
     report('the impact view opens in its own tab', !!view);
     if (!view) throw new Error('no impact view');
@@ -135,8 +144,8 @@ function openpyxl(book, script) {
     if (SHOTS) await win.screenshot({ path: path.join(SHOTS, 'impact-highlight.png') });
 
     // 3. What if: delete, then Discard
-    await command('ArcLang: What if', ['SystemSupervisor']);
-    await win.keyboard.type('Delete'); await win.waitForTimeout(500); await win.keyboard.press('Enter');
+    await command('Impact analysis: what if', ['SystemSupervisor']);
+    await ready(); await win.keyboard.type('Delete'); await win.waitForTimeout(500); await win.keyboard.press('Enter');
     const whatif = await impactFrame(win);
     await titled(whatif, /What if SystemSupervisor|What if LC-SystemSupervisor/);
     for (let i = 0; i < 40 && !(await whatif.$('.ip-whatif')); i++) await win.waitForTimeout(300);
@@ -153,11 +162,11 @@ function openpyxl(book, script) {
     report('and the whatif panel is gone', !(await whatif.$('.ip-whatif')));
 
     // 4. What if the latency of a function of the chain is 80 ms
-    await palette('ArcLang: What if');
-    await win.keyboard.type('FuseData'); await win.waitForTimeout(700); await win.keyboard.press('Enter'); await win.waitForTimeout(800);
-    await win.keyboard.type('Change an attribute'); await win.waitForTimeout(500); await win.keyboard.press('Enter'); await win.waitForTimeout(800);
-    await win.keyboard.type('latency'); await win.waitForTimeout(500); await win.keyboard.press('Enter'); await win.waitForTimeout(800);
-    await press('Meta+a'); await win.keyboard.type('80 ms'); await win.waitForTimeout(300); await win.keyboard.press('Enter');
+    await palette('Impact analysis: what if'); await win.waitForTimeout(1500);
+    await ready(); await win.keyboard.type('FuseData'); await win.waitForTimeout(700); await win.keyboard.press('Enter'); await win.waitForTimeout(800);
+    await ready(); await win.keyboard.type('Change an attribute'); await win.waitForTimeout(500); await win.keyboard.press('Enter'); await win.waitForTimeout(800);
+    await ready(); await win.keyboard.type('latency'); await win.waitForTimeout(500); await win.keyboard.press('Enter'); await win.waitForTimeout(800);
+    await win.waitForTimeout(1200); await press('Meta+a'); await win.keyboard.type('80 ms'); await win.waitForTimeout(300); await win.keyboard.press('Enter');
     await titled(whatif, /latency = 80 ms/);
     for (let i = 0; i < 40 && !(await whatif.$('.ip-bar.is-over')); i++) await win.waitForTimeout(300);
     const gate2 = await whatif.textContent('.ip-gate').catch(() => '');
@@ -186,10 +195,11 @@ function openpyxl(book, script) {
     await command('File: Save All');
     const applied = fs.readFileSync(model, 'utf8');
     report('Apply writes the change to the model', /function AcquireSensorData[\s\S]*function FuseData \{\s*latency: 80 ms/.test(applied) && applied !== original);
-    report('the view says it was applied', /Applied/.test(await whatif.textContent('.ip-whatif-actions').catch(() => '')));
+    const afterApply = await titled(whatif, /applied change/);
+    report('the view turns to the impact of the applied change', /Impact of the applied change/.test(afterApply) && !(await whatif.$('.ip-whatif')), afterApply);
 
     // 7. Impact of my changes since HEAD
-    await command('ArcLang: Impact of my changes', ['Since HEAD']);
+    await command('Impact analysis: my changes', ['Since HEAD']);
     await titled(whatif, /since HEAD/);
     for (let i = 0; i < 40 && !(await whatif.$('.ip-seed')); i++) await win.waitForTimeout(300);
     const seeds = await whatif.$$eval('.ip-seed', (s) => s.map((x) => x.textContent));

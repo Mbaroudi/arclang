@@ -496,25 +496,25 @@
       },
       {
         "command": "arclang.impact.analyze",
-        "title": "Analyse impact…",
+        "title": "Impact analysis: analyse an element…",
         "category": "ArcLang",
         "icon": "$(pulse)"
       },
       {
         "command": "arclang.impact.whatIf",
-        "title": "What if… (change impact without writing)",
+        "title": "Impact analysis: what if… (computed on a copy, nothing written)",
         "category": "ArcLang",
         "icon": "$(beaker)"
       },
       {
         "command": "arclang.impact.mine",
-        "title": "Impact of my changes (since HEAD or main)",
+        "title": "Impact analysis: my changes (since HEAD or main)",
         "category": "ArcLang",
         "icon": "$(git-compare)"
       },
       {
         "command": "arclang.impact.refresh",
-        "title": "Refresh the impact analysis",
+        "title": "Impact analysis: refresh",
         "category": "ArcLang",
         "icon": "$(refresh)"
       }
