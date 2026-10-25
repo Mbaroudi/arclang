@@ -114,7 +114,7 @@ impl Repo {
     }
 
     fn arclang(&self, args: &[&str]) -> Output {
-        Command::new(arclang()).current_dir(self.path()).args(args).output().expect("arclang runs")
+        Command::new(arclang()).current_dir(self.path()).envs([("GIT_AUTHOR_NAME", "ArcLang Test"), ("GIT_AUTHOR_EMAIL", "test@arclang.invalid"), ("GIT_COMMITTER_NAME", "ArcLang Test"), ("GIT_COMMITTER_EMAIL", "test@arclang.invalid")]).args(args).output().expect("arclang runs")
     }
 
     fn ok(&self, args: &[&str]) -> String {
