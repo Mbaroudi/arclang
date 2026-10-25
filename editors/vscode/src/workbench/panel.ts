@@ -42,6 +42,7 @@ const VIEWER_SCRIPTS = [
   'arcviz-theme-presets.js',
   'arcviz-color.js',
   'arcviz-theme.js',
+  'arcviz-layers.js', // zorder hook
   'arcviz-viewer.js',
 ];
 

@@ -29,6 +29,8 @@ const STAGE_JS: &str = include_str!("viewer/arcviz-stage.js");
 const PLACE_JS: &str = include_str!("viewer/arcviz-place.js");
 const TOOLBAR_JS: &str = include_str!("viewer/arcviz-toolbar.js");
 const VIEWER_JS: &str = include_str!("viewer/arcviz-viewer.js");
+// zorder hook: layers, groups and locks, applied when the layout file has them.
+const LAYERS_JS: &str = include_str!("viewer/arcviz-layers.js");
 const COLOR_JS: &str = include_str!("viewer/arcviz-color.js");
 const THEME_JS: &str = include_str!("viewer/arcviz-theme.js");
 const VIEWER_CSS: &str = include_str!("viewer/arcviz-viewer.css");
@@ -96,6 +98,7 @@ pub fn viewer_parts_themed(set: &DiagramSet, title: &str, theme: Option<&serde_j
          <script>{color}</script>\n\
          <script>{theme}</script>\n\
          <script>{toolbar}</script>\n\
+         <script>{layers}</script>\n\
          <script>{viewer}</script>\n\
          <script>window.arcvizViewer = ArcViz.mount(\
          document.getElementById('{HOST_ID}'), \
@@ -119,6 +122,7 @@ pub fn viewer_parts_themed(set: &DiagramSet, title: &str, theme: Option<&serde_j
         theme = inline_script(THEME_JS),
         toolbar = inline_script(TOOLBAR_JS),
         viewer = inline_script(VIEWER_JS),
+        layers = inline_script(LAYERS_JS),
     );
     ViewerParts {
         style: format!("<style>{VIEWER_CSS}</style>"),
@@ -278,7 +282,7 @@ logical_architecture LA {
 
     #[test]
     fn inlined_scripts_contain_no_closing_script_tag() {
-        for source in [RENDER_JS, LINKS_JS, NAVIGATION_JS, COLLAPSE_JS, SCOPE_JS, EXPORT_JS, STAGE_JS, PLACE_JS, VIEWER_JS] {
+        for source in [RENDER_JS, LINKS_JS, NAVIGATION_JS, COLLAPSE_JS, SCOPE_JS, EXPORT_JS, STAGE_JS, PLACE_JS, VIEWER_JS, LAYERS_JS] {
             assert!(!inline_script(source).to_lowercase().contains("</script"));
         }
     }

@@ -35,6 +35,8 @@
     palette: [['rect', { x: 2, y: 2.5, width: 12, height: 11, rx: 1 }], ['path', { d: 'M6.5 2.5v11' }]],
     properties: [['rect', { x: 2, y: 2.5, width: 12, height: 11, rx: 1 }], ['path', { d: 'M9.5 2.5v11M11 5.5h1.5M11 8h1.5' }]],
     minimap: [['rect', { x: 2, y: 2.5, width: 12, height: 11, rx: 1 }], ['rect', { x: 7.5, y: 7, width: 4.5, height: 4.5, rx: 0.5 }]],
+    // zorder hook: the Layers panel (two sheets, one over the other).
+    layers: [['path', { d: 'M8 2.5 13.5 5.5 8 8.5 2.5 5.5z' }], ['path', { d: 'M2.5 8.25 8 11.25l5.5-3' }], ['path', { d: 'M2.5 10.75 8 13.75l5.5-3' }]],
   };
 
   /** An icon of the set, as an SVG element hidden from assistive technology. */

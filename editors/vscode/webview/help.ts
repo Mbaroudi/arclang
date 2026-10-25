@@ -1,6 +1,7 @@
 // The keyboard shortcuts of the canvas, one key away (?): what can be done
 // to an element without hunting for the menu that does it.
 import { button, el } from './dom';
+import { ARRANGE_HELP } from '../src/pure/arrange'; // zorder hook
 
 const SHORTCUTS: [string, string][] = [
   ['Double-click, F2', 'Rename the box or exchange in place'],
@@ -24,6 +25,7 @@ const SHORTCUTS: [string, string][] = [
   ['+  −  0', 'Zoom in, out, fit'],
   ['⌘Z  ⇧⌘Z', 'Undo, redo (each gesture is one step)'],
   ['Esc', 'Cancel, clear the selection, leave full screen'],
+  ...ARRANGE_HELP, // zorder hook: order, groups, locks, layers, select
   ['?', 'This list'],
 ];
 

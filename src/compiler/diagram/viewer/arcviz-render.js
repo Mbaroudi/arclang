@@ -231,6 +231,16 @@
     const realizes = (arc.realizes || []).join(', ');
     const safety = safetyOf(node);
 
+    // zorder hook: a group frame (arcviz-layers.js), dashed with its label at the top left; collapsed, one box saying how many it holds.
+    if (arc.kind === 'diagram_group') {
+      const line = ink('muted');
+      const tip = `<title>Group${name ? ': ' + esc(name) : ''}${arc.collapsed ? ` (${arc.folded} inside, double-click to expand)` : ''}</title>`;
+      const shape = arc.collapsed
+        ? `<rect x="${num(x + 4)}" y="${num(y + 4)}" width="${num(node.width)}" height="${num(node.height)}" rx="6" fill="${ink('background')}" stroke="${line}"/><rect class="av-shape" x="${num(x)}" y="${num(y)}" width="${num(node.width)}" height="${num(node.height)}" rx="6" fill="${ink('background')}" stroke="${line}" stroke-width="1.2"/><text x="${num(x + node.width / 2)}" y="${num(y + node.height / 2 - 2)}" text-anchor="middle" font-size="12" font-weight="600" fill="${text}">${esc(name)}</text><text x="${num(x + node.width / 2)}" y="${num(y + node.height / 2 + 12)}" text-anchor="middle" font-size="9.5" font-style="italic" fill="${muted}">${esc(arc.folded)} inside</text>`
+        : `<rect class="av-shape" x="${num(x)}" y="${num(y)}" width="${num(node.width)}" height="${num(node.height)}" rx="6" fill="#000" fill-opacity="0" stroke="${line}" stroke-width="1" stroke-dasharray="5 3"/>${name ? `<text x="${num(x + 8)}" y="${num(y + 15)}" font-size="10.5" font-weight="600" fill="${muted}">${esc(name)}</text>` : ''}`;
+      out.push(`<g class="av-node av-group${arc.collapsed ? ' is-collapsed' : ''}" data-id="${esc(node.id)}" data-kind="diagram_group">${tip}${shape}</g>`);
+      return;
+    }
     // A notation mark: a dot where a machine starts or an exchange meets.
     if (arc.kind === 'initial_state' || arc.kind === 'junction') {
       const r = node.width / 2;

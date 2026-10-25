@@ -173,6 +173,10 @@
     // (blob, filename) -> void. Without it, the browser downloads them.
     const save = (options && options.onDownload) || download;
     const onLayout = options && options.onLayout;
+    // zorder hook: layers (tags), groups and locks (arcviz-layers.js); options.layers = { tagsOf(view, id, isEdge) -> [tag] }.
+    const layersKit = deps.layers || root.ArcVizLayers || null;
+    const layerStore = layersKit ? layersKit.create({ tagsOf: (options && options.layers && options.layers.tagsOf) || null }) : null;
+    const viewSigs = new Map();
     const state = { active: null, views: new Map(), layouts: new Map(), arranging: Boolean(options && options.arrange), chain: null, selected: null, history: [], settled: new Map(), filters: new Map() };
 
     host.textContent = '';
@@ -306,6 +310,7 @@
         { label: 'Fold all', action: 'fold-all', title: 'Show every container as a single box', disabled: !can.fold, reason: 'This view has no container to fold', run: () => refold(new Set(scope.foldable(state.active))) },
         { label: 'Unfold all', action: 'unfold-all', title: 'Show what every container holds', disabled: !can.unfold, reason: 'No container is folded', run: () => refold(new Set()) },
         // An editor places boxes by dragging all the time: no mode to switch.
+        ...(extra.layoutItems ? ['separator', ...extra.layoutItems()] : []), // zorder hook: Order, Group, Size, Lock, Waypoints, Select
         ...(arrangeToggle ? ['separator', { label: 'Arrange by hand', action: 'arrange', checked: state.arranging, title: 'Move boxes by hand: drag one, or select it and press Shift with an arrow key', disabled: !can.arrange, reason: 'A scenario is drawn as declared', run: () => toggleArrange() }] : []),
       ],
     });
@@ -360,6 +365,8 @@
     }) : null;
     // --- end of the extension hooks ----------------------------------------
 
+    // zorder hook: exports follow the layers shown.
+    const hiddenNote = () => (layerStore && layerStore.state().hidden.length ? ` (hidden layers are left out: ${layerStore.state().hidden.map((n) => n || 'Default').join(', ')})` : '');
     const exportMenu = kit.menuButton({
       id: 'arcviz-export-menu',
       icon: 'export',
@@ -367,8 +374,8 @@
       className: 'arcviz-export',
       items: () => [
         ...(() => { const extra = hookItems(exportHooks); return extra.length ? [...extra, 'separator'] : []; })(),
-        { label: 'Save as SVG', action: 'save-svg', title: 'This view as drawn, folded containers included, as an SVG file', run: () => saveSvg() },
-        { label: 'Save as PNG', action: 'save-png', title: 'This view as drawn, folded containers included, as a PNG image', run: () => savePng() },
+        { label: 'Save as SVG', action: 'save-svg', title: `This view as drawn, folded containers included, as an SVG file${hiddenNote()}`, run: () => saveSvg() },
+        { label: 'Save as PNG', action: 'save-png', title: `This view as drawn, folded containers included, as a PNG image${hiddenNote()}`, run: () => savePng() },
         // A host that keeps the arrangement itself (onLayout) needs no download of it.
         ...(onLayout ? [] : ['separator', { label: scope.dirty() ? 'Save layout •' : 'Save layout', action: 'save-layout', title: `Download the folds, the open containers and the placement as ${layoutName}. Kept next to the model, it is what everyone sees.`, run: () => exporter.saveLayout(scope.toFile(), layoutName) }]),
       ],
@@ -385,7 +392,7 @@
       kit.group('Navigation', [treeToggle, back]),
       history ? kit.group('History', [undo, redo]) : null,
       kit.group('Zoom', [zoomOut, drop(zoomLevel.root, 1), zoomIn, fitButton]),
-      kit.group('Arrangement', [drop(layoutMenu.root, 4), alignMenu ? drop(alignMenu.root, 6) : null, drop(filterMenu.root, 5)]),
+      kit.group('Arrangement', [drop(layoutMenu.root, 4), alignMenu ? drop(alignMenu.root, 6) : null, drop(filterMenu.root, 5), ...(extra.tools || []).map((spec) => drop(kit.iconButton(spec), spec.rank || 6))]), // zorder hook: host tools (Layers)
       kit.group('Output', [drop(exportMenu.root, 7), themeMenu ? drop(themeMenu.root, 8) : null, drop(fullscreen, 3)]),
     ].filter(Boolean), menus, (tool) => (menuOf.has(tool)
       ? menuOf.get(tool).entries()
@@ -492,7 +499,7 @@
     } catch (error) {
       // Storage is refused: folds hold for this visit only.
     }
-    const scope = deps.scope.create({ graphs, collapse: deps.collapse, storage, storageKey: `arcviz:${payload.title}`, initial: payload.layout || null });
+    const scope = deps.scope.create({ graphs, collapse: deps.collapse, storage, storageKey: `arcviz:${payload.title}`, initial: payload.layout || null, sections: layerStore }); // zorder hook: sections
     /** Tell the host the arrangement when it changed. */
     const reportLayout = deps.place.layoutReporter(() => scope.toFile(), onLayout);
     const foldedOf = scope.foldedOf;
@@ -584,7 +591,8 @@
 
     function layout(graph, shown) {
       const key = scope.key(graph.id, shown) + filterSignature(graph.id);
-      if (state.views.has(key)) return state.views.get(key);
+      const sig = layerStore ? layerStore.signature(graph.id) : ''; // zorder hook: a drawing per layer and group state
+      if (state.views.has(key) && viewSigs.get(key) === sig) return state.views.get(key);
       if (!state.layouts.has(key)) {
         // Scenarios are drawn as declared; everything else goes through ELK.
         const copy = applyFilters(JSON.parse(JSON.stringify(scope.shape(graph, shown))), filtersOf(graph.id));
@@ -593,10 +601,12 @@
       const pending = state.layouts.get(key).then((laidOut) => {
         // An editor (options.edit) also routes redrawn exchanges around the boxes.
         const extras = { ...scope.extrasOf(graph.id, shown), avoid: Boolean(options && options.edit && deps.edit) };
-        const placed = render.isSequence(graph) ? laidOut : deps.place.place(laidOut, scope.placedOf(graph.id, shown), scope.routesOf(graph.id, shown), extras);
+        const arranged = render.isSequence(graph) ? laidOut : deps.place.place(laidOut, scope.placedOf(graph.id, shown), scope.routesOf(graph.id, shown), extras);
+        const placed = layerStore && !render.isSequence(graph) ? layerStore.apply(arranged, graph.id) : arranged; // zorder hook
         return { graph: placed, index: indexGraph(placed), ...render.renderSvg(placed, themeOptions('screen')) };
       });
       state.views.set(key, pending);
+      viewSigs.set(key, sig); // zorder hook
       return pending;
     }
 
@@ -672,9 +682,18 @@
 
     // --- manual placement ----------------------------------------------
     /** What moves with a box: itself and what it holds. Lifelines stay put. */
-    function carried(id) {
+    function carried(id, raw) {
       const graph = activeGraph();
       if (!graph || render.isSequence(graph)) return [];
+      // zorder hook: a locked box stays; a member of a group moves with it; a group carries its members and what they hold.
+      if (layerStore && layerStore.isLocked(graph.id, id, false)) return [];
+      const standsFor = layerStore && !raw ? layersKit.redirect(layerStore, graph.id, id) : id;
+      if (standsFor !== id) return carried(standsFor);
+      if (layersKit && layersKit.isGroupId(id)) {
+        const members = layersApi ? layersApi.membersDeep(id) : [];
+        if (members.some((member) => layerStore.isLocked(graph.id, member, false))) return [];
+        return [...new Set([id, ...layersApi.framesDeep(id), ...members.flatMap((member) => carried(member, true))])];
+      }
       const held = [];
       const collect = (node, inside) => {
         const here = inside || node.id === id;
@@ -728,6 +747,14 @@
     /** A box let go: into the box under it when that is a new container, else placed there. */
     async function placeOrDrop(id, dx, dy, into) {
       const view = state.active;
+      // zorder hook: a group moves its members (a member dragged drags its group); a box let go on a group frame stays where it is let go.
+      if (layerStore) id = layersKit.redirect(layerStore, view, id);
+      if (layersKit && layersKit.isGroupId(id)) {
+        await replace(() => layersApi.membersDeep(id).forEach((member) => scope.moveBy(view, member, dx, dy)));
+        announce('Group moved.');
+        return;
+      }
+      if (layersKit && into && layersKit.isGroupId(into)) into = null;
       const graph = activeGraph();
       const parent = graph ? deps.place.parentOf(scope.shape(graph), id) : null;
       if (onDrop && into && into !== parent && !carried(id).includes(into)) {
@@ -871,6 +898,7 @@
         const view = await layout(graph);
         if (state.turn !== turn) return;
         canvas.innerHTML = view.svg; // escaped by ArcVizRender
+        if (layerStore) layersKit.decorate(canvas, layerStore, graph.id); // zorder hook
         fit();
         if (editor) editor.refresh();
         drawChains(graph);
@@ -908,12 +936,14 @@
       onOpen: (element) => {
         const node = nodeUnder(element);
         if (!node) return;
+        if (layersApi && layersApi.open(node.dataset.id)) return; // zorder hook: enter a group
         if (onOpen && onOpen({ view: state.active, id: node.dataset.id, name: nav.nameOf(node.dataset.id), kind: node.dataset.kind })) return;
         toggleFold(node.dataset.id);
       },
       onKey: (event) => {
         const step = { ArrowLeft: [-NUDGE, 0], ArrowRight: [NUDGE, 0], ArrowUp: [0, -NUDGE], ArrowDown: [0, NUDGE] }[event.key];
-        if (event.key === 'Escape') select(null);
+        if (event.key === 'Escape' && layersApi && layersApi.enteredGroup()) layersApi.exit(); // zorder hook
+        else if (event.key === 'Escape') select(null);
         else if (event.key === 'Enter' && state.selected && canFold(state.selected)) toggleFold(state.selected);
         else if (state.arranging && event.shiftKey && step && state.selected && carried(state.selected).length > 0) moveBy(state.selected, step[0], step[1]);
         else return false;
@@ -931,6 +961,53 @@
     });
     const fit = sheet.fit;
     const editor = edit ? deps.edit.attach({ stage, canvas, sheet, hooks: editingHooks, options: edit, connects: Boolean(onConnect), view: () => state.active, select, carried, scope, replace, announce, drop: onDrop ? (from, to) => onDrop({ view: state.active, from, to }) : null }) : null;
+    // zorder hook: the Arrange commands (arcviz-layers.js) on this viewer, and what the host's API gains.
+    const layersApi = layerStore ? (() => {
+      const commands = layersKit.attach({ store: layerStore, scope, replace, view: () => state.active, shown: activeView, announce });
+      const isGroup = layersKit.isGroupId;
+      const framesDeep = (id) => {
+        const group = layerStore.groupById(state.active, id);
+        return group ? group.members.filter(isGroup).flatMap((inner) => [inner, ...framesDeep(inner)]) : [];
+      };
+      const redecorate = () => layersKit.decorate(canvas, layerStore, state.active);
+      return {
+        ...commands,
+        framesDeep,
+        /** A double-click: into the group under it (a collapsed one opens); false when it is not in one. */
+        open(id) {
+          const to = layersKit.redirect(layerStore, state.active, id);
+          if (!isGroup(to)) return false;
+          const group = layerStore.groupById(state.active, to);
+          if (group && group.collapsed) {
+            commands.collapseGroup(to, false);
+            return true;
+          }
+          layerStore.enter(state.active, to);
+          redecorate();
+          announce('Editing inside the group: Esc leaves it.');
+          return true;
+        },
+        exit() {
+          layerStore.enter(state.active, null);
+          redecorate();
+          select(null);
+          announce('Left the group.');
+        },
+        api: {
+          arrange: { ...commands, enterGroup: (id) => { const done = commands.enterGroup(id); redecorate(); return done; }, exitGroup: () => { commands.exitGroup(); redecorate(); } },
+          bringToFront: commands.bringToFront,
+          sendToBack: commands.sendToBack,
+          bringForward: commands.bringForward,
+          sendBackward: commands.sendBackward,
+          /** Several boxes moved at once: a group moves its members, a locked box stays. */
+          moveMany: (moves) => replace(() => {
+            for (const { id, dx, dy } of moves || []) {
+              for (const member of isGroup(id) ? commands.membersDeep(id) : [id]) if (carried(member, true).length > 0) scope.moveBy(state.active, member, dx, dy);
+            }
+          }),
+        },
+      };
+    })() : null;
 
     // --- selection and details -----------------------------------------
     function drawPicker(view) {
@@ -961,7 +1038,12 @@
       const view = await activeView();
       if (!view || state.active !== asked) return; // the view changed meanwhile
       const port = editor && target && target.closest ? target.closest('.av-port') : null;
-      const group = !port && target && target.closest ? target.closest('.av-edge, .av-node') : null;
+      let group = !port && target && target.closest ? target.closest('.av-edge, .av-node') : null;
+      // zorder hook: a member of a group stands for its group, unless the group is entered.
+      if (group && layerStore && group.classList.contains('av-node')) {
+        const to = layersKit.redirect(layerStore, state.active, group.dataset.id);
+        if (to !== group.dataset.id) group = [...canvas.querySelectorAll('.av-node')].find((item) => item.dataset.id === to) || group;
+      }
       picker.value = group ? group.dataset.id : '';
       for (const marked of canvas.querySelectorAll('.is-selected, .is-linked')) marked.classList.remove('is-selected', 'is-linked');
       if (port) {
@@ -1388,6 +1470,8 @@
       refreshTools,
       // moveMany, routeOf, setRoute: an editing host's (arcviz-edit.js).
       ...(editor ? editor.api : {}),
+      // zorder hook: front, back, forward, backward, groups, locks, layers (arcviz-layers.js).
+      ...(layersApi ? layersApi.api : {}),
       views: () => graphs.map((graph) => ({ id: graph.id, view: graph.arc.view, title: graph.arc.title })),
       svgOf: (id) => (state.settled.get(id) || {}).svg || null,
       buildPrintPages,

@@ -576,6 +576,61 @@
         "title": "Save the model as… (SysML v2, Capella, ReqIF, ArcLang copy)",
         "category": "ArcLang",
         "icon": "$(save-as)"
+      },
+      {
+        "command": "arclang.workbench.bringToFront",
+        "title": "Bring to front on the canvas",
+        "category": "ArcLang"
+      },
+      {
+        "command": "arclang.workbench.sendToBack",
+        "title": "Send to back on the canvas",
+        "category": "ArcLang"
+      },
+      {
+        "command": "arclang.workbench.bringForward",
+        "title": "Bring forward on the canvas",
+        "category": "ArcLang"
+      },
+      {
+        "command": "arclang.workbench.sendBackward",
+        "title": "Send backward on the canvas",
+        "category": "ArcLang"
+      },
+      {
+        "command": "arclang.workbench.group",
+        "title": "Group on the canvas",
+        "category": "ArcLang"
+      },
+      {
+        "command": "arclang.workbench.ungroup",
+        "title": "Ungroup on the canvas",
+        "category": "ArcLang"
+      },
+      {
+        "command": "arclang.workbench.lock",
+        "title": "Lock / unlock on the canvas",
+        "category": "ArcLang"
+      },
+      {
+        "command": "arclang.workbench.layers",
+        "title": "Layers on the canvas",
+        "category": "ArcLang"
+      },
+      {
+        "command": "arclang.workbench.selectVertices",
+        "title": "Select boxes on the canvas",
+        "category": "ArcLang"
+      },
+      {
+        "command": "arclang.workbench.selectEdges",
+        "title": "Select lines on the canvas",
+        "category": "ArcLang"
+      },
+      {
+        "command": "arclang.workbench.selectNone",
+        "title": "Select none on the canvas",
+        "category": "ArcLang"
       }
     ],
     "menus": {
@@ -911,6 +966,50 @@
         {
           "command": "arclang.workbench.saveAs",
           "when": "activeCustomEditorId == arclang.workbench || activeWebviewPanelId == 'arclang.workbench.diagram' || resourceLangId == arclang || resourceLangId == sysml"
+        },
+        {
+          "command": "arclang.workbench.bringToFront",
+          "when": "activeCustomEditorId == arclang.workbench"
+        },
+        {
+          "command": "arclang.workbench.sendToBack",
+          "when": "activeCustomEditorId == arclang.workbench"
+        },
+        {
+          "command": "arclang.workbench.bringForward",
+          "when": "activeCustomEditorId == arclang.workbench"
+        },
+        {
+          "command": "arclang.workbench.sendBackward",
+          "when": "activeCustomEditorId == arclang.workbench"
+        },
+        {
+          "command": "arclang.workbench.group",
+          "when": "activeCustomEditorId == arclang.workbench"
+        },
+        {
+          "command": "arclang.workbench.ungroup",
+          "when": "activeCustomEditorId == arclang.workbench"
+        },
+        {
+          "command": "arclang.workbench.lock",
+          "when": "activeCustomEditorId == arclang.workbench"
+        },
+        {
+          "command": "arclang.workbench.layers",
+          "when": "activeCustomEditorId == arclang.workbench"
+        },
+        {
+          "command": "arclang.workbench.selectVertices",
+          "when": "activeCustomEditorId == arclang.workbench"
+        },
+        {
+          "command": "arclang.workbench.selectEdges",
+          "when": "activeCustomEditorId == arclang.workbench"
+        },
+        {
+          "command": "arclang.workbench.selectNone",
+          "when": "activeCustomEditorId == arclang.workbench"
         }
       ],
       "view/title": [
@@ -2062,6 +2161,138 @@
         "key": "ctrl+s",
         "mac": "cmd+s",
         "when": "activeWebviewPanelId == 'arclang.workbench.diagram' && focusedView == ''"
+      },
+      {
+        "command": "arclang.workbench.bringToFront",
+        "key": "ctrl+shift+f",
+        "mac": "cmd+shift+f",
+        "when": "activeCustomEditorId == arclang.workbench && focusedView == '' && !inputFocus && !arclang.workbenchTyping"
+      },
+      {
+        "command": "arclang.workbench.sendToBack",
+        "key": "ctrl+shift+b",
+        "mac": "cmd+shift+b",
+        "when": "activeCustomEditorId == arclang.workbench && focusedView == '' && !inputFocus && !arclang.workbenchTyping"
+      },
+      {
+        "command": "arclang.workbench.bringForward",
+        "key": "ctrl+alt+shift+f",
+        "mac": "cmd+alt+shift+f",
+        "when": "activeCustomEditorId == arclang.workbench && focusedView == '' && !inputFocus && !arclang.workbenchTyping"
+      },
+      {
+        "command": "arclang.workbench.sendBackward",
+        "key": "ctrl+alt+shift+b",
+        "mac": "cmd+alt+shift+b",
+        "when": "activeCustomEditorId == arclang.workbench && focusedView == '' && !inputFocus && !arclang.workbenchTyping"
+      },
+      {
+        "command": "arclang.workbench.group",
+        "key": "ctrl+g",
+        "mac": "cmd+g",
+        "when": "activeCustomEditorId == arclang.workbench && focusedView == '' && !inputFocus && !arclang.workbenchTyping"
+      },
+      {
+        "command": "arclang.workbench.ungroup",
+        "key": "ctrl+shift+g",
+        "mac": "cmd+shift+g",
+        "when": "activeCustomEditorId == arclang.workbench && focusedView == '' && !inputFocus && !arclang.workbenchTyping"
+      },
+      {
+        "command": "arclang.workbench.lock",
+        "key": "ctrl+l",
+        "mac": "cmd+l",
+        "when": "activeCustomEditorId == arclang.workbench && focusedView == '' && !inputFocus && !arclang.workbenchTyping"
+      },
+      {
+        "command": "arclang.workbench.layers",
+        "key": "ctrl+shift+l",
+        "mac": "cmd+shift+l",
+        "when": "activeCustomEditorId == arclang.workbench && focusedView == '' && !inputFocus && !arclang.workbenchTyping"
+      },
+      {
+        "command": "arclang.workbench.selectVertices",
+        "key": "ctrl+shift+i",
+        "mac": "cmd+shift+i",
+        "when": "activeCustomEditorId == arclang.workbench && focusedView == '' && !inputFocus && !arclang.workbenchTyping"
+      },
+      {
+        "command": "arclang.workbench.selectEdges",
+        "key": "ctrl+shift+e",
+        "mac": "cmd+shift+e",
+        "when": "activeCustomEditorId == arclang.workbench && focusedView == '' && !inputFocus && !arclang.workbenchTyping"
+      },
+      {
+        "command": "arclang.workbench.selectNone",
+        "key": "ctrl+shift+a",
+        "mac": "cmd+shift+a",
+        "when": "activeCustomEditorId == arclang.workbench && focusedView == '' && !inputFocus && !arclang.workbenchTyping"
+      },
+      {
+        "command": "arclang.workbench.bringToFront",
+        "key": "ctrl+shift+f",
+        "mac": "cmd+shift+f",
+        "when": "activeWebviewPanelId == 'arclang.workbench.diagram' && focusedView == '' && !inputFocus && !arclang.workbenchTyping"
+      },
+      {
+        "command": "arclang.workbench.sendToBack",
+        "key": "ctrl+shift+b",
+        "mac": "cmd+shift+b",
+        "when": "activeWebviewPanelId == 'arclang.workbench.diagram' && focusedView == '' && !inputFocus && !arclang.workbenchTyping"
+      },
+      {
+        "command": "arclang.workbench.bringForward",
+        "key": "ctrl+alt+shift+f",
+        "mac": "cmd+alt+shift+f",
+        "when": "activeWebviewPanelId == 'arclang.workbench.diagram' && focusedView == '' && !inputFocus && !arclang.workbenchTyping"
+      },
+      {
+        "command": "arclang.workbench.sendBackward",
+        "key": "ctrl+alt+shift+b",
+        "mac": "cmd+alt+shift+b",
+        "when": "activeWebviewPanelId == 'arclang.workbench.diagram' && focusedView == '' && !inputFocus && !arclang.workbenchTyping"
+      },
+      {
+        "command": "arclang.workbench.group",
+        "key": "ctrl+g",
+        "mac": "cmd+g",
+        "when": "activeWebviewPanelId == 'arclang.workbench.diagram' && focusedView == '' && !inputFocus && !arclang.workbenchTyping"
+      },
+      {
+        "command": "arclang.workbench.ungroup",
+        "key": "ctrl+shift+g",
+        "mac": "cmd+shift+g",
+        "when": "activeWebviewPanelId == 'arclang.workbench.diagram' && focusedView == '' && !inputFocus && !arclang.workbenchTyping"
+      },
+      {
+        "command": "arclang.workbench.lock",
+        "key": "ctrl+l",
+        "mac": "cmd+l",
+        "when": "activeWebviewPanelId == 'arclang.workbench.diagram' && focusedView == '' && !inputFocus && !arclang.workbenchTyping"
+      },
+      {
+        "command": "arclang.workbench.layers",
+        "key": "ctrl+shift+l",
+        "mac": "cmd+shift+l",
+        "when": "activeWebviewPanelId == 'arclang.workbench.diagram' && focusedView == '' && !inputFocus && !arclang.workbenchTyping"
+      },
+      {
+        "command": "arclang.workbench.selectVertices",
+        "key": "ctrl+shift+i",
+        "mac": "cmd+shift+i",
+        "when": "activeWebviewPanelId == 'arclang.workbench.diagram' && focusedView == '' && !inputFocus && !arclang.workbenchTyping"
+      },
+      {
+        "command": "arclang.workbench.selectEdges",
+        "key": "ctrl+shift+e",
+        "mac": "cmd+shift+e",
+        "when": "activeWebviewPanelId == 'arclang.workbench.diagram' && focusedView == '' && !inputFocus && !arclang.workbenchTyping"
+      },
+      {
+        "command": "arclang.workbench.selectNone",
+        "key": "ctrl+shift+a",
+        "mac": "cmd+shift+a",
+        "when": "activeWebviewPanelId == 'arclang.workbench.diagram' && focusedView == '' && !inputFocus && !arclang.workbenchTyping"
       }
     ],
     "viewsWelcome": [

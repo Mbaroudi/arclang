@@ -5,6 +5,8 @@ import type { CanvasCommand, EditRequest, ElementRecord, Snapshot } from '../src
 import type { Editing } from './editing';
 import type { ViewerApi } from './globals';
 import type { Palette } from './palette';
+import { arrangeAllows, arrangeKey, runArrange } from './arrange'; // zorder hook
+import { arrangeCommandOf } from '../src/pure/arrange'; // zorder hook
 
 export interface KeyDeps {
   post(message: unknown): void;
@@ -41,6 +43,7 @@ const inVsCode = (): boolean => !(window as { __arclangHarness?: boolean }).__ar
 function boundInVsCode(event: KeyboardEvent): boolean {
   const command = event.metaKey || event.ctrlKey;
   const key = event.key.toLowerCase();
+  if (arrangeCommandOf(event)) return true; // zorder hook: Arrange's keys are VS Code's
   if (command && !event.altKey) return ['z', 'y', 'c', 'x', 'v', 'd', 'a', '=', '+', '-', '0'].includes(key) || event.code === 'Digit0';
   if (!event.altKey && (event.key === 'Delete' || event.key === 'Backspace')) return true;
   return event.shiftKey && !event.altKey && event.code === 'Digit1';
@@ -70,6 +73,7 @@ export function installKeys(d: KeyDeps): { canvasCommand(command: CanvasCommand,
       case 'select-all':
         return d.editing.selectAll();
       case 'delete':
+        if (!arrangeAllows(multi.length > 1 ? multi : selected ? [selected] : [], 'delete')) return; // zorder hook
         if (multi.length > 1) return d.deleteMany(multi);
         if (selected) return deleteOne(selected);
         return;
@@ -82,12 +86,14 @@ export function installKeys(d: KeyDeps): { canvasCommand(command: CanvasCommand,
         d.viewer()?.fit?.();
         return;
       default:
+        runArrange(command); // zorder hook: front, back, forward, backward, group, lock, layers, select
         return;
     }
   }
 
   /** Delete one element; one that owns others says so first. */
   function deleteOne(element: ElementRecord): void {
+    if (!arrangeAllows([element], 'delete')) return; // zorder hook
     const owned = (d.snapshot()?.elements?.elements ?? []).filter((e) => e.owner === element.uuid).length;
     if (owned > 0) {
       d.showToast(`${element.name || element.id} owns ${owned} element${owned > 1 ? 's' : ''}.`, 'info', [
@@ -129,6 +135,7 @@ export function installKeys(d: KeyDeps): { canvasCommand(command: CanvasCommand,
     if (typing) return;
     if (inVsCode() && boundInVsCode(event)) return;
     if (d.editing.key(event)) return;
+    if (arrangeKey(event)) return; // zorder hook: outside VS Code, the page's own Arrange keys
     const plain = !event.metaKey && !event.ctrlKey && !event.altKey;
     const command = event.metaKey || event.ctrlKey;
     const lower = event.key.toLowerCase();
@@ -140,7 +147,7 @@ export function installKeys(d: KeyDeps): { canvasCommand(command: CanvasCommand,
     else if (command && lower === 'f') d.openFind();
     else if (command && lower === 'h' && multi.length > 1) d.hideMany(multi);
     else if (command && lower === 'h' && selected) d.hideFromDiagram(selected);
-    else if ((event.key === 'Delete' || event.key === 'Backspace') && multi.length > 1) d.deleteMany(multi);
+    else if ((event.key === 'Delete' || event.key === 'Backspace') && multi.length > 1) { if (arrangeAllows(multi, 'delete')) d.deleteMany(multi); } // zorder hook
     else if (event.key === 'F2' && selected) d.editing.rename(selected);
     else if ((event.key === 'Delete' || event.key === 'Backspace') && selected) deleteOne(selected);
     else done = false;

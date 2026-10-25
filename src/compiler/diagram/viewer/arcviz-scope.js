@@ -25,9 +25,11 @@
    * @param {?Storage} deps.storage          where to remember, or null
    * @param {string} deps.storageKey         one key per model
    * @param {?object} deps.initial           the layout file of the model, if any
+   * @param {?object} deps.sections          more of the file kept elsewhere: { toFile() -> object, load(file) } (layers, groups, locks)
    */
   function create(deps) {
     const { graphs, collapse, storage, storageKey, initial } = deps;
+    const sections = deps.sections || null; // zorder hook
     const whole = () => ({ folded: new Set(), focus: null });
     const WHOLE = Object.freeze(whole());
     const byId = new Map(graphs.map((graph) => [graph.id, graph]));
@@ -150,7 +152,7 @@
         if (Object.keys(stacked).length) entry.order = stacked;
         return entry;
       }).filter((entry) => Object.keys(entry.places).length || entry.edges || entry.ports || entry.order);
-      return { arclang_layout: LAYOUT_VERSION, views, arrangements };
+      return { arclang_layout: LAYOUT_VERSION, views, arrangements, ...(sections ? sections.toFile() : {}) }; // zorder hook
     }
 
     /** Replace the arrangement by what a layout says, piece by valid piece. */
@@ -162,6 +164,7 @@
       labels.clear();
       ports.clear();
       order.clear();
+      if (sections) sections.load(file); // zorder hook
       const own = (object, key) => (object && typeof object === 'object' && Object.prototype.hasOwnProperty.call(object, key) ? object[key] : undefined);
       const containersIn = (id, list) => (Array.isArray(list) ? list.filter((node) => isContainer(id, node)) : []);
       const views = own(file, 'views');
@@ -345,6 +348,21 @@
         const values = Object.values(all);
         const z = front ? Math.max(0, ...values) + 1 : Math.min(0, ...values) - 1;
         setIn(order, id, node, Math.abs(z) <= MAX_Z ? z : undefined);
+      },
+      // zorder hook: the stacking of several boxes at once ({ node: z }, 0 or none: where the layout put it).
+      setStacking(id, zs) {
+        if (!nodes.has(id)) return;
+        const key = keyOf(id, of(id));
+        const next = { ...(order.get(key) || {}) };
+        for (const node of Object.keys(zs || {})) {
+          if (node === '__proto__' || !nodes.get(id).has(node)) continue;
+          const z = zs[node];
+          if (Number.isInteger(z) && z !== 0 && Math.abs(z) <= MAX_Z) next[node] = z;
+          else delete next[node];
+        }
+        if (Object.keys(next).length > 0) order.set(key, next);
+        else order.delete(key);
+        remember();
       },
       /** The points an exchange of the layout on screen was bent through, [] when none. */
       routeOf: (id, edge, scope = of(id)) => ((routes.get(keyOf(id, scope)) || {})[edge] || []).map(({ x, y }) => ({ x, y })),
