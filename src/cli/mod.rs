@@ -2,6 +2,7 @@ pub mod diagram_service;
 pub mod edit;
 pub mod table; // tables hook
 pub mod impact; // impact hook
+pub mod semgit; // semgit hook
 pub mod review;
 pub mod repl;
 pub mod language_server;
@@ -159,18 +160,53 @@ pub enum Commands {
     /// identity (UUID), so moving blocks is no change and renaming an
     /// element is a modification, not a remove+add
     Diff {
-        /// The old version of the model
+        /// The old version of the model (or, with --from, the model file)
         #[clap(value_parser)]
         old: PathBuf,
 
-        /// The new version of the model
+        /// The new version of the model (omit with --from)
         #[clap(value_parser)]
-        new: PathBuf,
+        new: Option<PathBuf>,
 
         /// Output as JSON (for CI pipelines)
         #[clap(long)]
         json: bool,
+
+        /// Compare the file as committed at this git revision...
+        #[clap(long)] // semgit hook
+        from: Option<String>,
+
+        /// ...with the file at this revision (default: the working tree, WORKTREE)
+        #[clap(long)] // semgit hook
+        to: Option<String>,
+
+        /// text, json, md or html: the rich report with layers, consequences and layout
+        #[clap(short, long, value_enum)] // semgit hook
+        format: Option<semgit::DiffFormat>,
+
+        /// Write the report to this file
+        #[clap(short, long)] // semgit hook
+        output: Option<PathBuf>,
+
+        /// The standard of the gate in the consequences: ISO26262, DO178C or IEC61508
+        #[clap(long, default_value = "ISO26262")] // semgit hook
+        gate_standard: String,
     },
+
+    /// The commits that changed one element, found by the semantic diff
+    /// between successive revisions of the model
+    History(semgit::HistoryArgs), // semgit hook
+
+    /// Semantic three-way merge by element identity: a git merge driver for
+    /// .arc and .layout.json files (`arclang merge --install`)
+    Merge(semgit::MergeArgs), // semgit hook
+
+    /// Baselines an auditor accepts: the gate, the coverage and the exports,
+    /// bound to a git tag by a manifest
+    Baseline {
+        #[clap(subcommand)]
+        command: semgit::BaselineCommand,
+    }, // semgit hook
 
     /// Change-impact analysis: what a change to elements, a proposed edit
     /// (what-if) or the changes since a git revision reach, and why
@@ -718,9 +754,18 @@ impl CliRunner {
                 self.run_trace(input, from, to, validate, matrix)
             }
             Commands::Impact(args) => impact::run(&args), // impact hook
-            Commands::Diff { old, new, json } => {
-                self.run_diff(old, new, json)
+            Commands::Diff { old, new, json, from, to, format, output, gate_standard } => {
+                if from.is_some() || format.is_some() || output.is_some() { // semgit hook
+                    let format = format.map(Into::into).unwrap_or(if json { crate::compiler::semgit::render::Format::Json } else { crate::compiler::semgit::render::Format::Text });
+                    semgit::run_diff(old, new, from, to, format, output, &gate_standard)
+                } else {
+                    let new = new.ok_or_else(|| CliError::Config("give two model files, or one with --from <revision>".into()))?;
+                    self.run_diff(old, new, json)
+                }
             }
+            Commands::History(args) => semgit::run_history(&args), // semgit hook
+            Commands::Merge(args) => semgit::run_merge(&args), // semgit hook
+            Commands::Baseline { command } => semgit::run_baseline(&command), // semgit hook
             Commands::Gate { input, standard } => {
                 self.run_gate(input, standard)
             }
@@ -2358,6 +2403,10 @@ pub enum CliError {
     /// Not a failure: the two models differ (diff(1) convention, exit 1).
     #[error("semantic differences found")]
     DiffFound,
+
+    /// A merge left conflicts, or a result that does not compile.
+    #[error("{0}")] // semgit hook
+    MergeConflict(String),
 }
 
 fn count_nodes(nodes: &[crate::compiler::diagram::Node]) -> usize {
