@@ -290,13 +290,13 @@ class Simulation implements vscode.Disposable {
         out.appendLine(outcomesLog(outcomes));
         out.appendLine(summaryText(counts));
         out.appendLine('');
-        if (!missingTool) await this.announce(file, counts);
       }
     } finally {
       this.model = { ...this.model, running: false, last: counts ?? this.model.last };
       this.render();
     }
     if (missingTool) await this.showSetup('OpenModelica could not be started. Here is what to fix.');
+    else if (counts) await this.announce(file, counts);
   }
 
   private async announce(file: string, counts: Counts): Promise<void> {
