@@ -19,6 +19,8 @@ import { handlePageMessage, pageClosed } from '../ai'; // ai-design hook
 import { handlePanesMessage, isPanesMessage } from './panes-host'; // panes hook
 import { DiagramExports, ExportArgs, themeStore } from './diagram-export';
 import type { DiagramAction } from '../pure/workbench';
+import { fileStateOf, saveModel, saveModelAs } from './model-file';
+import { droppedModelFiles } from '../pure/importing';
 
 export const VIEW_TYPE = 'arclang.workbench';
 
@@ -71,6 +73,9 @@ export class WorkbenchPanel {
   private readonly history: CanvasHistory;
   /** Copy as image, PowerPoint, the colour themes. */
   private readonly exports: DiagramExports;
+  /** A diagram in a tab of its own (a webview panel, not the custom editor): its title shows the unsaved changes. */
+  private ownTab = false;
+  private ownTitle: string | null = null;
   /** How the AI side answers this page: one function for the page's whole life. */
   private readonly aiPost = (message: unknown): void => this.post(message as ToWebview);
 
@@ -137,6 +142,16 @@ export class WorkbenchPanel {
       onDidChangeSnapshot((uri) => {
         if (uri.toString() === document.uri.toString()) void this.push();
       }),
+      // The Save button follows the document: unsaved changes, saved, auto save switched.
+      vscode.workspace.onDidChangeTextDocument((event) => {
+        if (event.document === document) this.postFileState();
+      }),
+      vscode.workspace.onDidSaveTextDocument((saved) => {
+        if (saved === document) this.postFileState();
+      }),
+      vscode.workspace.onDidChangeConfiguration((event) => {
+        if (event.affectsConfiguration('files.autoSave')) this.postFileState();
+      }),
       vscode.window.onDidChangeTextEditorSelection(async (event) => {
         if (event.textEditor.document.uri.toString() !== document.uri.toString()) return;
         if (event.kind !== vscode.TextEditorSelectionChangeKind.Mouse && event.kind !== vscode.TextEditorSelectionChangeKind.Keyboard) return;
@@ -175,6 +190,7 @@ export class WorkbenchPanel {
   // panes hook: a diagram in a tab of its own, the pages of a document, the panes' messages (src/workbench/panes-host.ts).
   static adopt(context: vscode.ExtensionContext, document: vscode.TextDocument, panel: vscode.WebviewPanel): WorkbenchPanel {
     const created = new WorkbenchPanel(context, document, panel);
+    created.ownTab = true;
     const key = document.uri.toString();
     panels.set(key, new Set([...(panels.get(key) ?? []), created]));
     return created;
@@ -223,6 +239,40 @@ export class WorkbenchPanel {
     this.panel.reveal(undefined, true);
   }
 
+  private lastFileState = '';
+  /** What the Save button shows; a diagram's own tab also says it in its title. */
+  private postFileState(): void {
+    const state = fileStateOf(this.document);
+    const key = JSON.stringify(state);
+    if (key === this.lastFileState) return;
+    this.lastFileState = key;
+    this.post({ type: 'file-state', ...state });
+    if (this.ownTab) {
+      this.ownTitle ??= this.panel.title.replace(/^● /, '');
+      this.panel.title = state.dirty && !state.autoSave ? `● ${this.ownTitle}` : this.ownTitle;
+    }
+  }
+
+  /** Save the model (⌘S on the canvas, the Save button). */
+  saveFile(): Promise<boolean> {
+    return saveModel(this.document);
+  }
+
+  /** The model in another format (Save as…). */
+  saveAs(format?: string): Promise<string | null> {
+    return saveModelAs(this.document, format);
+  }
+
+  /** Model files dropped on the sheet: offered for import. */
+  private async offerImport(uris: string[]): Promise<void> {
+    const files = droppedModelFiles(uris).map((u) => vscode.Uri.parse(u, true)).filter((u) => u.scheme === 'file');
+    if (files.length === 0) return;
+    const names = files.map((f) => path.basename(f.fsPath)).join(', ');
+    const choice = await vscode.window.showInformationMessage(`ArcLang: import ${names} as an ArcLang model?`, 'Import');
+    if (choice !== 'Import') return;
+    await vscode.commands.executeCommand('arclang.import', files[0], files);
+  }
+
   private post(message: ToWebview): void {
     void this.panel.webview.postMessage(message);
   }
@@ -251,6 +301,8 @@ export class WorkbenchPanel {
         this.ready = true;
         // The theme first: the first drawing is already in its colours.
         await this.exports.pushThemes();
+        this.lastFileState = '';
+        this.postFileState();
         await this.push();
         return;
       case 'selected':
@@ -287,6 +339,14 @@ export class WorkbenchPanel {
         this.writeLayout(message.file);
         return;
       }
+      case 'model-file':
+        if (message.op === 'save') await this.saveFile();
+        else if (message.op === 'save-as') await this.saveAs(message.format);
+        else await vscode.commands.executeCommand('arclang.import');
+        return;
+      case 'import-drop':
+        await this.offerImport(message.uris);
+        return;
       case 'history':
         await this.edits.run(() => (message.op === 'undo' ? this.history.undo() : this.history.redo()));
         return;

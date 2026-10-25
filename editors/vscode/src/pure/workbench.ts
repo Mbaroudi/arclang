@@ -169,7 +169,9 @@ export type ToWebview =
   | { type: 'pptx-render'; ids: string[]; target?: string }
   /** A theme saved by the host, or one read from a file the user chose. */
   | { type: 'theme-saved'; entry: ThemeEntry }
-  | { type: 'theme-imported'; theme: unknown; errors: string[]; name: string };
+  | { type: 'theme-imported'; theme: unknown; errors: string[]; name: string }
+  /** The model's file: unsaved changes, auto save on, and its language (a .sysml saves as SysML v2). */
+  | { type: 'file-state'; dirty: boolean; autoSave: boolean; language: 'arclang' | 'sysml' };
 
 /** Where a colour theme comes from. */
 export type ThemeSource = 'preset' | 'team' | 'user' | 'file';
@@ -235,7 +237,11 @@ export type FromWebview =
   | { type: 'theme-choose'; key: string }
   | { type: 'theme-save'; scope: 'team' | 'user'; theme: Record<string, unknown> }
   | { type: 'theme-export'; theme: Record<string, unknown> }
-  | { type: 'theme-import' };
+  | { type: 'theme-import' }
+  /** The File menu: save the model, save it as another format, import one. */
+  | { type: 'model-file'; op: 'save' | 'save-as' | 'import'; format?: string }
+  /** Model files dropped on the sheet (with Shift): the host offers to import them. */
+  | { type: 'import-drop'; uris: string[] };
 
 /** `arclang workbench` output, read leniently: a broken answer is a failed snapshot. */
 export function parseSnapshot(text: string): Snapshot {

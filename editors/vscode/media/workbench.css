@@ -662,3 +662,12 @@ body.vscode-high-contrast #workbench .arcviz .av-node.wb-hover > .av-shape { str
 .wb-theme-editor input.wb-te-hex { width: 7ch; font-family: var(--vscode-editor-font-family, monospace); font-size: 11px; padding: 2px 4px; }
 .wb-te-hex.is-invalid { border-color: var(--vscode-inputValidation-errorBorder, #e51400); }
 .wb-te-style { font-size: 11px; }
+
+/* The model's file at the head of the tool row: Save (● while unsaved), File ▾. */
+.wb-file { display: flex; align-items: center; gap: 2px; flex: none; padding-right: 4px; margin-right: 2px; border-right: 1px solid var(--vscode-menu-separatorBackground, var(--vscode-panel-border, #8884)); }
+.wb-file .wb-file-label { font-size: 12px; }
+button.wb-icon-button.wb-bar-toggle.wb-save:disabled { opacity: 0.6; cursor: default; background: transparent; }
+button.wb-icon-button.wb-bar-toggle.wb-save.is-dirty { color: var(--vscode-button-foreground, #fff); background: var(--vscode-button-background, #0e639c); }
+button.wb-icon-button.wb-bar-toggle.wb-save.is-dirty:hover { background: var(--vscode-button-hoverBackground, #1177bb); }
+.wb-save .wb-dirty-dot { font-size: 10px; line-height: 1; margin-left: 1px; }
+@media (max-width: 620px) { .wb-file .wb-file-label { display: none; } }

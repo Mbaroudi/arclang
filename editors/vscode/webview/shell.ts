@@ -37,10 +37,12 @@ export function createShell(root: HTMLElement, layout: ShellLayout, hooks: Shell
   const toolRow = el('div', { class: 'wb-toolrow' });
   const tabs = el('div', { class: 'wb-tabs wb-hidden' });
   const tools = el('div', { class: 'wb-viewer-tools' });
+  // The model's file (Save, File ▾): webview/file-menu.ts fills it.
+  const fileSlot = el('div', { class: 'wb-file', role: 'group', 'aria-label': 'Model file' });
   const paletteToggle = toggle('palette', 'Palette', '', () => setPalette(!layout.paletteOpen), 'wb-palette-toggle');
   const minimapToggle = toggle('minimap', 'Minimap', 'Shift+M', () => hooks.minimap(), 'wb-minimap-toggle');
   const drawerToggle = toggle('properties', 'Properties', '', () => setDrawer(!layout.drawerOpen), 'wb-drawer-toggle');
-  toolRow.append(paletteToggle, tools, minimapToggle, drawerToggle);
+  toolRow.append(fileSlot, paletteToggle, tools, minimapToggle, drawerToggle);
   bar.append(layerBar, toolRow);
 
   const body = el('div', { class: 'wb-body' });
@@ -147,5 +149,5 @@ export function createShell(root: HTMLElement, layout: ShellLayout, hooks: Shell
     minimapToggle.setAttribute('aria-pressed', String(shown));
   }
 
-  return { setMinimapShown, layerBar, tabs, tools, left, sheet, host, modeChip, toast, progress, layoutNotice, right, bottom, hiddenTree, hiddenFoot, detailsSlot, relatedSlot, propertiesPane, browserPane, showRightTab, setPalette, setDrawer, fitStage };
+  return { setMinimapShown, fileSlot, layerBar, tabs, tools, left, sheet, host, modeChip, toast, progress, layoutNotice, right, bottom, hiddenTree, hiddenFoot, detailsSlot, relatedSlot, propertiesPane, browserPane, showRightTab, setPalette, setDrawer, fitStage };
 }

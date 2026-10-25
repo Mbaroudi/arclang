@@ -161,7 +161,7 @@ const results = []; const ok = (name, cond, detail = '') => { results.push([cond
   const node = page.locator('.arcviz-stage [data-id="LC-CTL"]').first();
   const box = await node.boundingBox(); await page.mouse.click(box.x + box.width / 2, box.y + 12); await page.waitForTimeout(300);
   ok('click selects the element in Properties', (await page.locator('.wb-name-input').inputValue().catch(() => '')) === 'LKA Controller');
-  await page.locator('.wb-toolrow .wb-icon-button').first().click(); await page.waitForTimeout(200);
+  await page.locator('.wb-toolrow .wb-palette-toggle').click(); await page.waitForTimeout(200);
   ok('palette rail collapses', await page.evaluate(() => document.querySelector('.wb-left').classList.contains('is-collapsed')));
   await page.locator('.wb-toolrow .wb-icon-button').last().click(); await page.waitForTimeout(200);
   ok('properties drawer hides', await page.evaluate(() => document.querySelector('.wb-right').hidden));

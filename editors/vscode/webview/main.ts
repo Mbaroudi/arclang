@@ -21,6 +21,7 @@ import { installAi } from './ask-ai'; // ai-design hook
 import { installKeys } from './keys';
 import { MultiSelection } from './multi-select';
 import { installPanes } from './panes'; // panes hook
+import { installFileMenu } from './file-menu';
 import { DiagramExports } from './diagram-export';
 import { ThemeEditor } from './theme-editor';
 
@@ -791,3 +792,5 @@ const deleteOne = keys.deleteOne;
 installPanes({ sheet, layerBar, viewer: () => state.viewer, graph: () => currentGraph(), snapshot: () => state.snapshot, idOf: (id) => elementFor({ view: '', id, name: '', kind: '', isEdge: false })?.id ?? null, select: (element) => selectElement(element, false), submit, toast: (text, kind) => showToast(text, kind), post: (message) => vscode.postMessage(message as never), showGraph });
 
 vscode.postMessage({ type: 'ready' });
+// Save, Save as, Import at the head of the tool row; a model file dropped on the sheet.
+installFileMenu({ slot: shell.fileSlot, sheet, post: (message) => vscode.postMessage(message), toast: (text, kind) => showToast(text, kind) });
