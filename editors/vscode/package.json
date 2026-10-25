@@ -63,6 +63,19 @@
   ],
   "main": "./dist/extension.js",
   "contributes": {
+    "submenus": [
+      {
+        "id": "arclang.newMenu",
+        "label": "New",
+        "icon": "$(add)"
+      }
+    ],
+    "viewsWelcome": [
+      {
+        "view": "arclangModel",
+        "contents": "No ArcLang model is open.\n[New model…](command:arclang.newModel)\n[Open model…](command:arclang.openModel)\nA model is a .arc text file: the views, the tree and the diagrams come from it."
+      }
+    ],
     "languages": [
       {
         "id": "arclang",
@@ -104,6 +117,30 @@
       }
     ],
     "commands": [
+      {
+        "command": "arclang.newModel",
+        "title": "New model…",
+        "category": "ArcLang",
+        "icon": "$(new-file)"
+      },
+      {
+        "command": "arclang.openModel",
+        "title": "Open model…",
+        "category": "ArcLang",
+        "icon": "$(folder-opened)"
+      },
+      {
+        "command": "arclang.newLayer",
+        "title": "New layer…",
+        "category": "ArcLang",
+        "icon": "$(layers)"
+      },
+      {
+        "command": "arclang.newDiagram",
+        "title": "New diagram…",
+        "category": "ArcLang",
+        "icon": "$(add)"
+      },
       {
         "command": "arclang.debug.navState",
         "title": "ArcLang: Dump the editor layout (test)",
@@ -501,6 +538,28 @@
       }
     ],
     "menus": {
+      "arclang.newMenu": [
+        {
+          "command": "arclang.newModel",
+          "group": "1_new@1"
+        },
+        {
+          "command": "arclang.newLayer",
+          "group": "1_new@2"
+        },
+        {
+          "command": "arclang.newDiagram",
+          "group": "1_new@3"
+        },
+        {
+          "command": "arclang.pickDiagram",
+          "group": "2_open@1"
+        },
+        {
+          "command": "arclang.openModel",
+          "group": "2_open@2"
+        }
+      ],
       "editor/title": [
         {
           "command": "arclang.openWorkbench",
@@ -778,6 +837,11 @@
         }
       ],
       "view/title": [
+        {
+          "submenu": "arclang.newMenu",
+          "when": "view == arclangModel",
+          "group": "navigation@4"
+        },
         {
           "command": "arclang.model.refresh",
           "when": "view == arclangModel",

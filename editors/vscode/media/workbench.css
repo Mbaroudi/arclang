@@ -662,3 +662,8 @@ body.vscode-high-contrast #workbench .arcviz .av-node.wb-hover > .av-shape { str
 .wb-theme-editor input.wb-te-hex { width: 7ch; font-family: var(--vscode-editor-font-family, monospace); font-size: 11px; padding: 2px 4px; }
 .wb-te-hex.is-invalid { border-color: var(--vscode-inputValidation-errorBorder, #e51400); }
 .wb-te-style { font-size: 11px; }
+
+/* nav hook: New ▾ and the Diagrams… button of the layer bar */
+.wb-nav-button .wb-nav-plus { font-weight: 600; margin-right: 2px; }
+.wb-layer.wb-layer-more { margin-left: auto; opacity: 0.85; font-style: italic; }
+@media (max-width: 620px) { .wb-nav-button .wb-toggle-label { display: none; } }

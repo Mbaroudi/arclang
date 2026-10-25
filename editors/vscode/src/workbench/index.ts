@@ -1,7 +1,7 @@
 // The workbench: the model tree in the side bar, the custom editor beside
 // the source, the status bar item, and the commands of all three.
 import * as vscode from 'vscode';
-import { CanvasCommand, elementLabel, VIEW_OF_LAYER, ViewerGraph } from '../pure/workbench';
+import { CanvasCommand, elementLabel, VIEW_OF_LAYER } from '../pure/workbench';
 import { applyRequests, refusalMessage } from './edits';
 import { onDidSelectElement, WorkbenchPanel } from './panel';
 import { forgetSnapshot, registerSnapshotRefresh, snapshotOf } from './snapshot';
@@ -12,6 +12,7 @@ import { registerPanes } from './panes-host'; // panes hook
 import { graphsDrawing, ModelItem, ModelTreeProvider } from './tree';
 import { goToSource } from './go-to-source'; // nav hook
 import { registerNavProbe } from './probe'; // nav hook
+import { registerCreation } from './create'; // nav hook
 import { ExportArgs, pickerItems, themeStore } from './diagram-export';
 
 /** The document to work on: the one given, the active model editor's, else the tree's. */
@@ -29,19 +30,6 @@ async function documentFrom(uri: unknown, tree: ModelTreeProvider): Promise<vsco
 function elementItem(item: unknown): Extract<ModelItem, { type: 'element' }> | null {
   if (typeof item === 'object' && item !== null && (item as ModelItem).type === 'element') return item as Extract<ModelItem, { type: 'element' }>;
   return null;
-}
-
-const VIEW_ORDER = ['oab', 'sab', 'lab', 'pab', 'cap', 'cdb', 'pbs', 'msm', 'es'];
-
-/** The diagrams of a document as quick pick items, viewpoints in method order. */
-function diagramPicks(graphs: ViewerGraph[]): (vscode.QuickPickItem & { graph: ViewerGraph })[] {
-  const order = (g: ViewerGraph) => {
-    const at = VIEW_ORDER.indexOf(g.arc.view);
-    return at < 0 ? VIEW_ORDER.length : at;
-  };
-  return [...graphs]
-    .sort((a, b) => order(a) - order(b) || a.arc.title.localeCompare(b.arc.title))
-    .map((graph) => ({ label: `$(graph) ${graph.arc.title}`, description: graph.arc.view.toUpperCase(), detail: graph.id, graph }));
 }
 
 export function registerWorkbench(context: vscode.ExtensionContext): void {
@@ -74,20 +62,8 @@ export function registerWorkbench(context: vscode.ExtensionContext): void {
     WorkbenchPanel.for(document.uri)?.show(picked.graph.id);
   });
 
-  register('arclang.pickDiagram', async (uri?: unknown) => {
-    const document = await documentFrom(uri, tree);
-    if (!document) return;
-    const snapshot = await snapshotOf(document);
-    const graphs = snapshot.diagrams?.graphs ?? [];
-    if (graphs.length === 0) {
-      vscode.window.showInformationMessage('ArcLang: this model has no diagram yet (does it compile?).');
-      return;
-    }
-    const choice = await vscode.window.showQuickPick(diagramPicks(graphs), { placeHolder: `Open a diagram of ${document.uri.path.split('/').pop()} (${graphs.length})`, matchOnDescription: true, matchOnDetail: true });
-    if (!choice) return;
-    await WorkbenchPanel.open(document);
-    WorkbenchPanel.for(document.uri)?.show(choice.graph.id);
-  });
+  // arclang.pickDiagram, newModel, newLayer, newDiagram, openModel: src/workbench/create.ts // nav hook
+  registerCreation(context, tree); // nav hook
 
   register('arclang.pickElement', async (uri?: unknown) => {
     const document = await documentFrom(uri, tree);

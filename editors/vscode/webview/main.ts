@@ -20,6 +20,7 @@ import { Alignment, modelIdOf, relationshipOfEdge } from '../src/pure/editing';
 import { installAi } from './ask-ai'; // ai-design hook
 import { installKeys } from './keys';
 import { MultiSelection } from './multi-select';
+import { installNavMenu } from './nav-menu'; // nav hook
 import { installPanes } from './panes'; // panes hook
 import { DiagramExports } from './diagram-export';
 import { ThemeEditor } from './theme-editor';
@@ -603,7 +604,7 @@ function markFindings(): void {
 
 
 function renderLayers(): void {
-  renderLayers_(layerBar, state.snapshot?.diagrams?.graphs ?? [], state.viewer?.current?.()?.view ?? null, showGraph);
+  renderLayers_(layerBar, state.snapshot?.diagrams?.graphs ?? [], state.viewer?.current?.()?.view ?? null, showGraph, () => vscode.postMessage({ type: 'command', command: 'arclang.pickDiagram' })); // nav hook: Diagrams…
 }
 
 function showGraph(id: string): void {
@@ -789,6 +790,7 @@ const canvasCommand = keys.canvasCommand;
 const deleteOne = keys.deleteOne;
 
 // panes hook: tree drops, a diagram's own tab, "Open in a new tab" on the layers (webview/panes.ts).
+installNavMenu({ toolRow: document.querySelector<HTMLElement>('.wb-toolrow'), sheet, post: (message) => vscode.postMessage(message) }); // nav hook
 installPanes({ sheet, layerBar, viewer: () => state.viewer, graph: () => currentGraph(), snapshot: () => state.snapshot, idOf: (id) => elementFor({ view: '', id, name: '', kind: '', isEdge: false })?.id ?? null, select: (element) => selectElement(element, false), submit, toast: (text, kind) => showToast(text, kind), post: (message) => vscode.postMessage(message as never), showGraph });
 
 vscode.postMessage({ type: 'ready' });
