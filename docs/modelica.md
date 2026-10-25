@@ -16,7 +16,9 @@ pack does not.
 
 | Command | What it does |
 |---|---|
-| `arclang export model.arc -f modelica -o out/` | Writes `out/<Package>.mo`, the structure of the physical architecture. Notes what is not exported. |
+| `arclang export model.arc -f modelica -o out/` | Writes `out/<Package>.mo`, the structure of the physical architecture, drawn (see below). Notes what is not exported. |
+| `arclang export model.arc -f modelica -o out/ --split` | The same package as one file per class in an `out/<Package>/` folder (a Modelica library): what Modex browses. |
+| `arclang export model.arc -f modelica -o out/ --no-placement` | The structure alone, with no drawing: the text `arclang verify` simulates. |
 | `arclang verify model.arc [--test TC-ID] [--json]` | Exports to a temporary directory, runs OpenModelica on every case that `simulate:`s (or one), reads the result, evaluates `expects:`, prints the values and caches the verdicts. Exits non-zero unless every case passes. |
 | `arclang check model.arc` | Never simulates. Reads the cache: a fail, a stale or a missing verdict is a `verification:` warning. |
 | `arclang gate model.arc` | Never simulates. A failing simulated case is a blocker; so is one whose verdict is stale or missing (inconclusive), with the command to run. |
@@ -45,6 +47,73 @@ in seconds); a container that outlives it is removed.
 When no tool is found the verdict is **inconclusive**, with the reason
 (`OpenModelica not available: ...`), and is not cached: a missing tool is
 never a pass.
+
+## Drawing the architecture in Modex and OMEdit
+
+Graphical Modelica editors draw from annotations. Without them the canvas is
+blank, so the export writes them by default:
+
+- `Placement` on every component instance (a node in a system model, a
+  behaviour component in a node), on a layered layout: inputs and
+  upstream parts on the left, outputs and downstream parts on the right,
+  boxes that do not overlap, the same text every run;
+- a `Line` on every `connect`, in right angles and coloured by what it
+  carries: electrical blue `{0,0,255}`, signal dark blue `{0,0,127}`,
+  mechanical grey `{95,95,95}`, thermal red `{191,0,0}`;
+- a `Diagram(coordinateSystem(extent=...))` on every model, sized to fit
+  its boxes and wires;
+- on a model that is itself a component (every node and behaviour
+  component), an `Icon`: a rectangle with its name, over the same extent as
+  its diagram, with its connectors placed on the left (inputs, positive
+  pins, `_a` flanges) or the right (outputs, negative pins, `_b` flanges).
+  A pin or flange with no direction goes where the connections written in
+  the model leave it (the source of a link on the right, its target on the
+  left), one side per class whatever diagram draws it. The icon is the
+  diagram, so a box in a parent diagram shows each connector where it is
+  in the model.
+
+The `__ArcLang(id=...)` annotations are untouched and stay beside them.
+`--no-placement` writes the previous text, byte for byte. `arclang verify`
+always simulates that text, never the drawn one: the annotations are
+comments to the compiler, but keeping them out means a drawing change can
+neither alter a verdict nor invalidate the simulation cache (the cache key
+hashes the package). A layout file or a different drawing therefore leaves
+the cached verdicts fresh; a change of the model still makes them stale.
+
+If `<model>.layout.json` (the workbench layout file) sits next to the model,
+the offsets it holds for the physical view (`pab`) move the boxes from where
+the automatic layout puts them, 10 sheet units for one Modelica unit, the
+y axis flipped (sheet down, Modelica up). A system model reads the whole
+view, a node the arrangement opened on it. Wires are re-routed around the
+boxes; waypoints bent by hand are not carried over.
+
+### Opening it
+
+- **Modex** (VS Code): use `--split` and add the folder that holds the
+  package folders to `modex.libraryRoots` in the settings. Modex browses a
+  package by its folders and resolves the icons of a model's components
+  only for packages it knows as libraries; a single `<Package>.mo` file
+  opens, but its nested models cannot be reached, and a component whose
+  class Modex does not know is a plain box with the class name. Open
+  `<Package>/Systems/<Configuration>.mo` for the whole architecture, a file
+  of `Physical/` for the inside of a node. The first start offers to
+  install the Modelica Standard Library (network needed once): the
+  connectors are `Modelica.*` classes, and accept it.
+- **OMEdit** (OpenModelica): it reads the same annotations from either
+  layout (open `<Package>.mo` or `<Package>/package.mo`, with the Modelica
+  Standard Library 4.1.0 installed). OMEdit itself was not run for this
+  page; the check is `omc`, which OMEdit uses to read them:
+
+The package loads in `omc` with both layouts, and `getNthComponentAnnotation`,
+`getNthConnectionAnnotation` and `getDiagramAnnotation` return the
+placements, lines and diagram extent written here.
+
+Known limits: the layout is layered and simple, so a model with many
+unconnected parts is wrapped into columns of four and a dense model has
+long wires routed round the outside; the colours cover the physics
+ArcLang exports (fluid ports are not exported); a long name is shrunk to
+the box by the editor; offsets from a layout file place boxes but their
+size changes (`dw`, `dh`) and bent edges are ignored.
 
 ## The convention: generated structure, hand-written physics
 

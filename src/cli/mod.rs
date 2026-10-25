@@ -258,6 +258,17 @@ pub enum Commands {
         
         #[clap(short, long)]
         format: ExportFormat,
+
+        /// Modelica only: write the structure without the Placement, Line,
+        /// Icon and Diagram annotations that make Modex and OMEdit draw it
+        #[clap(long)]
+        no_placement: bool,
+
+        /// Modelica only: one file per class in a `<Package>/` folder (the
+        /// structured layout of a Modelica library) instead of one file;
+        /// Modex browses a package by its folders
+        #[clap(long)]
+        split: bool,
     },
     
     Import {
@@ -803,8 +814,11 @@ impl CliRunner {
             Commands::Gate { input, standard, format: _ } => {
                 self.run_gate(input, standard)
             }
-            Commands::Export { input, output, format } => {
-                self.run_export(input, output, format)
+            Commands::Export { input, output, format, no_placement, split } => {
+                if (no_placement || split) && !matches!(format, ExportFormat::Modelica) {
+                    return Err(CliError::Compilation("--no-placement and --split apply to the Modelica export (-f modelica)".to_string()));
+                }
+                self.run_export(input, output, format, no_placement, split)
             }
             Commands::Verify { input, test, json } => {
                 self.run_verify(input, test, json)
@@ -1440,11 +1454,38 @@ impl CliRunner {
         }
     }
 
+    /// Drawn unless `--no-placement`; the workbench layout next to the model,
+    /// when there is one, moves the boxes (a layout that cannot be read is
+    /// reported and left out: the drawing is automatic then).
+    fn modelica_options(&self, input: &std::path::Path, no_placement: bool) -> crate::compiler::modelica::Options {
+        use crate::compiler::diagram::layout_file::{sidecar_path, LayoutFile};
+        if no_placement {
+            return crate::compiler::modelica::Options::default();
+        }
+        let path = sidecar_path(input);
+        let layout = match std::fs::read_to_string(&path) {
+            Ok(text) => match LayoutFile::parse(&text) {
+                Ok(layout) => {
+                    println!("  layout: {}", path.display());
+                    Some(layout)
+                }
+                Err(error) => {
+                    eprintln!("warning: {}: {error}: the automatic layout is used", path.display());
+                    None
+                }
+            },
+            Err(_) => None,
+        };
+        crate::compiler::modelica::Options { placement: true, layout }
+    }
+
     fn run_export(
         &self,
         input: PathBuf,
         output: PathBuf,
         format: ExportFormat,
+        no_placement: bool,
+        split: bool,
     ) -> Result<(), CliError> {
         println!("Exporting {} to {:?} format...", input.display(), format);
         
@@ -1583,10 +1624,23 @@ impl CliRunner {
                     }
                     ExportFormat::Modelica => {
                         // One package file: `output` is a DIRECTORY here.
-                        let export = crate::compiler::modelica::export(&result.ast).map_err(CliError::Compilation)?;
+                        let options = self.modelica_options(&input, no_placement);
+                        let export = crate::compiler::modelica::export_with(&result.ast, &options).map_err(CliError::Compilation)?;
                         std::fs::create_dir_all(&output).map_err(CliError::Io)?;
-                        let path = output.join(&export.file_name);
-                        std::fs::write(&path, &export.text).map_err(CliError::Io)?;
+                        let path = if split {
+                            for (file, text) in &export.files {
+                                let target = output.join(file);
+                                if let Some(parent) = target.parent() {
+                                    std::fs::create_dir_all(parent).map_err(CliError::Io)?;
+                                }
+                                std::fs::write(&target, text).map_err(CliError::Io)?;
+                            }
+                            output.join(&export.package)
+                        } else {
+                            let path = output.join(&export.file_name);
+                            std::fs::write(&path, &export.text).map_err(CliError::Io)?;
+                            path
+                        };
                         for note in &export.notes {
                             println!("  note: {note}");
                         }

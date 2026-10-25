@@ -280,7 +280,10 @@ the long-term goal.
   per configuration); a `test_case` that says `simulate: { ... }` and
   `expects: ["final(vehicle.distance) >= 300 km"]` is run by `arclang
   verify` (a local `omc` or the official Docker image), and its cached
-  verdict feeds the production gate and the coverage table — see
+  verdict feeds the production gate and the coverage table; the package
+  carries `Placement`, `Line`, `Icon` and `Diagram` annotations (`--split`
+  for one file per class, `--no-placement` for none) so Modex and OMEdit
+  draw the architecture instead of an empty canvas — see
   [docs/modelica.md](docs/modelica.md).
 - **Diagrams**, compiled from the model and drawn in Arcadia notation:
   - one per architecture viewpoint (OAB, SAB, LAB, PAB): functions nested
