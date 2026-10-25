@@ -687,3 +687,22 @@ fn ci_run_without_openmodelica_reports_the_simulations_as_inconclusive_never_as_
     let never = Command::new(arclang()).current_dir(repo.path()).env("ARCLANG_OMC", "/nonexistent/omc").args(["ci", "run", "--verify", "never"]).output().unwrap();
     assert!(!text(&never).contains("verification.inconclusive: "));
 }
+
+// ------------------------------------------------------ required status check
+
+#[test]
+fn the_required_check_script_prints_the_command_and_runs_nothing_without_apply() {
+    let script = Path::new(env!("CARGO_MANIFEST_DIR")).join("tools/ci/require-arclang-gate.sh");
+    let out = Command::new("bash").arg(&script).args(["acme/rocket", "release"]).env("PATH", "/usr/bin:/bin").output().unwrap();
+    assert!(out.status.success(), "{}", text(&out));
+    let shown = String::from_utf8_lossy(&out.stdout);
+    assert!(shown.contains("gh api --method PUT repos/acme/rocket/branches/release/protection"), "{shown}");
+    assert!(shown.contains("\"contexts\": [\"ArcLang gate\"]"));
+    // The context is the job name the generated workflow has.
+    let repo = Repo::with_model();
+    repo.ok(&["ci", "init", "--provider", "github"]);
+    assert_eq!(yaml(&repo.read(".github/workflows/arclang.yml"))["jobs"]["gate"]["name"].as_str(), Some("ArcLang gate"));
+    for bad in [vec!["not-a-repo"], vec!["a/b", "--evil"], vec!["a/b", "x;rm"]] {
+        assert!(!Command::new("bash").arg(&script).args(&bad).output().unwrap().status.success(), "{bad:?}");
+    }
+}
