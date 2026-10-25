@@ -26,7 +26,7 @@ pub fn attach(result: &mut CompilationResult, model_path: &Path) {
         return;
     }
     let dir = cache::dir(model_path);
-    let base = model_path.parent().map(Path::to_path_buf).unwrap_or_default();
+    let base = cache::model_dir(model_path);
     let export = modelica::export(&result.ast);
     let mut statuses = std::collections::HashMap::new();
     let mut warnings = Vec::new();
@@ -70,7 +70,7 @@ pub fn verify(result: &CompilationResult, model_path: &Path, only: Option<&str>,
         });
     }
     let export = modelica::export(&result.ast)?;
-    let base = model_path.parent().map(Path::to_path_buf).unwrap_or_default();
+    let base = cache::model_dir(model_path);
     let dir = cache::dir(model_path);
     let tool = tool::locate(config);
     // A backend that is not built answers before looking for OpenModelica.
