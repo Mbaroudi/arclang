@@ -19,12 +19,13 @@
     "vscode": "^1.104.0"
   },
   "extensionKind": [
-    "workspace"
+    "workspace",
+    "web"
   ],
   "capabilities": {
     "virtualWorkspaces": {
-      "supported": false,
-      "description": "The extension runs the arclang compiler on files of the local file system."
+      "supported": true,
+      "description": "In a virtual workspace (the web playground) the compiler runs in WebAssembly on the open files."
     },
     "untrustedWorkspaces": {
       "supported": "limited",
@@ -2096,13 +2097,17 @@
   "devDependencies": {
     "@types/mocha": "^10.0.10",
     "@types/node": "^22.0.0",
+    "@types/path-browserify": "^1.0.3",
     "@types/vscode": "^1.104.0",
     "@vscode/test-cli": "^0.0.15",
     "@vscode/test-electron": "^3.1.0",
     "@vscode/vsce": "^4.0.0",
+    "buffer": "^6.0.3",
     "esbuild": "^0.28.2",
     "mocha": "^11.0.0",
+    "path-browserify": "^1.0.1",
     "tsx": "^4.20.0",
     "typescript": "^5.9.0"
-  }
+  },
+  "browser": "./dist/web/extension.js"
 }

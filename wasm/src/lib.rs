@@ -130,6 +130,72 @@ pub fn edit(source: &str, request: &str) -> String {
     value.to_string()
 }
 
+/// The snapshot of a model for the workbench (what `arclang workbench`
+/// prints): diagrams as the viewer mounts them, elements, findings and the
+/// gate, against `gate_standard` (`ISO26262`, `DO178C` or `IEC61508`).
+// web hook
+#[wasm_bindgen]
+pub fn workbench(source: &str, gate_standard: &str, exports: bool) -> String {
+    let standard = match gate_standard.to_ascii_uppercase().replace(['-', '_', ' '], "").as_str() {
+        "DO178C" => "DO178C",
+        "IEC61508" => "IEC61508",
+        _ => "ISO26262",
+    };
+    workbench::snapshot_json(source, &SnapshotOptions { gate_standard: standard, exports, explorer_html: false })
+}
+
+/// What `arclang check --json` prints: `{success, errors, findings, metrics}`.
+// web hook
+#[wasm_bindgen]
+pub fn check_json(source: &str) -> String {
+    let document = match compile_text(source) {
+        Ok(result) => {
+            let findings = arclang::compiler::rules::findings(&result);
+            json!({
+                "success": true,
+                "errors": [],
+                "findings": findings,
+                "metrics": {
+                    "requirements": result.semantic_model.requirements.len(),
+                    "components": result.semantic_model.components.len(),
+                    "functions": result.semantic_model.functions.len(),
+                    "traces": result.semantic_model.traces.len(),
+                },
+            })
+        }
+        Err(error) => json!({ "success": false, "errors": [error], "findings": [] }),
+    };
+    document.to_string()
+}
+
+/// `arclang export -f sys-ml`: the model as SysML v2 text; `{success, text}`
+/// or `{success: false, error}`.
+// web hook
+#[wasm_bindgen]
+pub fn export_sysml(source: &str) -> String {
+    match compile_text(source) {
+        Ok(result) => {
+            let text = arclang::compiler::sysmlv2_generator::generate_sysmlv2(&result.semantic_model, &result.ast);
+            json!({ "success": true, "text": text }).to_string()
+        }
+        Err(error) => json!({ "success": false, "error": error }).to_string(),
+    }
+}
+
+/// The metamodel as Markdown (`arclang metamodel`).
+// web hook
+#[wasm_bindgen]
+pub fn metamodel_markdown() -> String {
+    arclang::compiler::metamodel::Metamodel::current().to_markdown()
+}
+
+/// The validation rules as Markdown (`arclang rules`).
+// web hook
+#[wasm_bindgen]
+pub fn rules_markdown() -> String {
+    arclang::compiler::rules::to_markdown()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -176,5 +242,19 @@ mod tests {
         let output: serde_json::Value = serde_json::from_str(&import_sysml("package { part")).unwrap();
         assert_eq!(output["success"], false);
         assert!(!output["error"].as_str().unwrap().is_empty());
+    }
+
+    #[test]
+    fn the_workbench_check_and_sysml_export_answer_like_the_cli() {
+        let model = "model M { name: \"M\" }\nlogical_architecture LA {\n    component \"Controller\" { id: \"LC-001\" }\n}\n";
+        let snapshot: serde_json::Value = serde_json::from_str(&workbench(model, "iso-26262", false)).unwrap();
+        assert_eq!(snapshot["success"], true, "{snapshot}");
+        let check: serde_json::Value = serde_json::from_str(&check_json(model)).unwrap();
+        assert_eq!(check["success"], true, "{check}");
+        let broken: serde_json::Value = serde_json::from_str(&check_json("model M {")).unwrap();
+        assert_eq!(broken["success"], false);
+        let sysml: serde_json::Value = serde_json::from_str(&export_sysml(model)).unwrap();
+        assert!(sysml["text"].as_str().unwrap().contains("Controller"), "{sysml}");
+        assert!(!metamodel_markdown().is_empty() && !rules_markdown().is_empty());
     }
 }
