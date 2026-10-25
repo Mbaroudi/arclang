@@ -15,6 +15,7 @@ import { ContextMenu, MenuAction, MenuItem, MiniToolbar } from './menu';
 import { Original, PASTE_OFFSET, PlaceTarget, Placement, Point, sheetCorner, sheetPoint } from './placement';
 import { withAi, withAiMini } from './ask-ai'; // ai-design hook
 import { withImpact, withImpactMini } from './impact-marks'; // impact hook
+import { withHistory } from './compare'; // semgit hook
 import { arrangeAllows, arrangeAllowsIds, withArrange, withArrangeMini } from './arrange'; // zorder hook
 
 /** What the page lends the editing gestures. */
@@ -599,7 +600,7 @@ export class Editing {
     this.menuModel = this.modelKey();
     this.menuPoint = sheetPoint(this.ctx.host, event.clientX, event.clientY);
     const extra = this.ctx.extraMenu?.() ?? [];
-    this.menu.open(event.clientX, event.clientY, [...withArrange(withAi(withImpact(this.menuItems(element, target?.dataset.id ?? null))), element), ...(extra.length ? ['separator' as const, ...extra] : [])]); // ai-design hook: Ask AI first; zorder hook: Arrange after
+    this.menu.open(event.clientX, event.clientY, [...withArrange(withAi(withHistory(withImpact(this.menuItems(element, target?.dataset.id ?? null)))), element), ...(extra.length ? ['separator' as const, ...extra] : [])]); // ai-design hook: Ask AI first; zorder hook: Arrange after
   }
 
   /** The actions on an element (or on the sheet when none), in the order a modeller looks for them. */

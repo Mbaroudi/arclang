@@ -20,6 +20,7 @@ import { doubleClickSetting, goToSource, openSource, setWorkbenchColumns } from 
 import { handlePageMessage, pageClosed } from '../ai'; // ai-design hook
 import { handlePanesMessage, isPanesMessage } from './panes-host'; // panes hook
 import { handleImpactMessage, isImpactMessage } from '../impact'; // impact hook
+import { applyCompare, compareActive, handleSemgitMessage, isSemgitMessage } from '../semgit'; // semgit hook
 import { DiagramExports, ExportArgs, themeStore } from './diagram-export';
 import type { DiagramAction } from '../pure/workbench';
 import { fileStateOf, saveModel, saveModelAs } from './model-file';
@@ -305,7 +306,14 @@ export class WorkbenchPanel {
       // The arrangement kept next to the model: what the views show, as the CLI draws them.
       snapshot.diagrams = { ...snapshot.diagrams, layout: layout ?? undefined, layout_name: path.basename(this.layoutUri()!.fsPath) };
     }
-    this.post({ type: 'snapshot', snapshot, metamodel, file: path.basename(this.document.uri.fsPath), selected: this.selected });
+    const compare = applyCompare(this.document, snapshot); // semgit hook: the comparison's ghosts and marks
+    this.post({ type: 'snapshot', snapshot: compare.snapshot, metamodel, file: path.basename(this.document.uri.fsPath), selected: this.selected });
+    for (const message of compare.messages) this.post(message as ToWebview); // semgit hook
+  }
+
+  /** Draw the page again from the snapshot (semgit hook: a comparison started or ended). */
+  refreshView(): Promise<void> {
+    return this.push();
   }
 
   /** A diagram command (copy as image, PowerPoint, theme), run by the page. */
@@ -316,6 +324,11 @@ export class WorkbenchPanel {
 
   private async handle(message: FromWebview): Promise<void> {
     if (await this.exports.handle(message)) return;
+    // semgit hook: a comparison is read-only
+    if (compareActive(this.document) && (message.type === 'edit' || message.type === 'layout' || message.type === 'history')) {
+      if (message.type === 'edit') vscode.window.setStatusBarMessage('ArcLang: leave the comparison to edit the model', 4000);
+      return;
+    }
     switch (message.type) {
       case 'ready':
         this.ready = true;
@@ -410,6 +423,7 @@ export class WorkbenchPanel {
       default:
         if (isPanesMessage(message)) return void handlePanesMessage(this, message); // panes hook
         if (isImpactMessage(message)) return void handleImpactMessage(this.document, message); // impact hook
+        if (isSemgitMessage(message)) return void handleSemgitMessage(this, message); // semgit hook
         // ai-design hook: the AI's messages (ask, apply, suggestions) go to src/ai.
         handlePageMessage(this.document, this.aiPost, message, { asStep: (label, change) => this.asStep(label, change) });
         return;

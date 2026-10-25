@@ -698,6 +698,75 @@
         "command": "arclang.chat.open",
         "title": "Open the AI chat (ArcLang and Modelica)",
         "category": "ArcLang"
+      },
+      {
+        "command": "arclang.compare",
+        "title": "Compare the model with a branch, tag, baseline or HEAD…",
+        "category": "ArcLang",
+        "icon": "$(git-compare)"
+      },
+      {
+        "command": "arclang.compare.baseline",
+        "title": "Compare the model with a baseline…",
+        "category": "ArcLang",
+        "icon": "$(verified)"
+      },
+      {
+        "command": "arclang.compare.exit",
+        "title": "Exit the comparison",
+        "category": "ArcLang"
+      },
+      {
+        "command": "arclang.compare.openDiff",
+        "title": "Open VS Code's diff of the model against a revision",
+        "category": "ArcLang"
+      },
+      {
+        "command": "arclang.history",
+        "title": "History of an element (the commits that changed it)…",
+        "category": "ArcLang",
+        "icon": "$(history)"
+      },
+      {
+        "command": "arclang.baseline.create",
+        "title": "Create baseline…",
+        "category": "ArcLang",
+        "icon": "$(verified)"
+      },
+      {
+        "command": "arclang.baseline.verify",
+        "title": "Verify a baseline…",
+        "category": "ArcLang"
+      },
+      {
+        "command": "arclang.merge.install",
+        "title": "Install the semantic merge driver",
+        "category": "ArcLang",
+        "icon": "$(git-merge)"
+      },
+      {
+        "command": "arclang.conflicts.refresh",
+        "title": "Resolve conflicts: refresh",
+        "category": "ArcLang",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "arclang.conflict.acceptOurs",
+        "title": "Accept ours",
+        "category": "ArcLang",
+        "icon": "$(arrow-left)"
+      },
+      {
+        "command": "arclang.conflict.acceptTheirs",
+        "title": "Accept theirs",
+        "category": "ArcLang",
+        "icon": "$(arrow-right)"
+      },
+      {
+        "command": "arclang.conflict.edit",
+        "title": "Edit the conflict",
+        "category": "ArcLang",
+        "icon": "$(edit)"
       }
     ],
     "menus": {
@@ -738,6 +807,16 @@
           "command": "arclang.pickDiagram",
           "when": "resourceLangId == arclang || resourceLangId == sysml",
           "group": "navigation@2"
+        },
+        {
+          "command": "arclang.compare",
+          "when": "resourceLangId == arclang",
+          "group": "navigation@7"
+        },
+        {
+          "command": "arclang.compare.exit",
+          "when": "arclang.comparing && resourceLangId == arclang",
+          "group": "navigation@8"
         }
       ],
       "editor/context": [
@@ -1103,6 +1182,50 @@
         {
           "command": "arclang.workbench.selectNone",
           "when": "activeCustomEditorId == arclang.workbench"
+        },
+        {
+          "command": "arclang.compare",
+          "when": "resourceLangId == arclang || resourceLangId == sysml || activeCustomEditorId == arclang.workbench"
+        },
+        {
+          "command": "arclang.compare.baseline",
+          "when": "resourceLangId == arclang || resourceLangId == sysml || activeCustomEditorId == arclang.workbench"
+        },
+        {
+          "command": "arclang.history",
+          "when": "resourceLangId == arclang || resourceLangId == sysml || activeCustomEditorId == arclang.workbench"
+        },
+        {
+          "command": "arclang.baseline.create",
+          "when": "resourceLangId == arclang || resourceLangId == sysml || activeCustomEditorId == arclang.workbench"
+        },
+        {
+          "command": "arclang.baseline.verify",
+          "when": "resourceLangId == arclang || resourceLangId == sysml || activeCustomEditorId == arclang.workbench"
+        },
+        {
+          "command": "arclang.merge.install",
+          "when": "true"
+        },
+        {
+          "command": "arclang.compare.exit",
+          "when": "arclang.comparing"
+        },
+        {
+          "command": "arclang.compare.openDiff",
+          "when": "resourceLangId == arclang"
+        },
+        {
+          "command": "arclang.conflict.acceptOurs",
+          "when": "false"
+        },
+        {
+          "command": "arclang.conflict.acceptTheirs",
+          "when": "false"
+        },
+        {
+          "command": "arclang.conflict.edit",
+          "when": "false"
         }
       ],
       "view/title": [
@@ -1150,6 +1273,11 @@
           "command": "arclang.import",
           "when": "view == arclangModel",
           "group": "navigation@4"
+        },
+        {
+          "command": "arclang.conflicts.refresh",
+          "when": "view == arclangConflicts",
+          "group": "navigation"
         }
       ],
       "view/item/context": [
@@ -1232,6 +1360,21 @@
           "command": "arclang.impact.whatIf",
           "when": "view == arclangModel && viewItem == arclang.element",
           "group": "navigation@4"
+        },
+        {
+          "command": "arclang.conflict.acceptOurs",
+          "when": "view == arclangConflicts && viewItem == arclangConflict",
+          "group": "inline@1"
+        },
+        {
+          "command": "arclang.conflict.acceptTheirs",
+          "when": "view == arclangConflicts && viewItem == arclangConflict",
+          "group": "inline@2"
+        },
+        {
+          "command": "arclang.conflict.edit",
+          "when": "view == arclangConflicts && viewItem == arclangConflict",
+          "group": "inline@3"
         }
       ],
       "webview/context": [
@@ -1996,6 +2139,13 @@
           "name": "Relations",
           "contextualTitle": "ArcLang relations",
           "icon": "media/icon.svg"
+        },
+        {
+          "id": "arclangConflicts",
+          "name": "Resolve conflicts",
+          "contextualTitle": "ArcLang merge conflicts",
+          "icon": "media/icon.svg",
+          "when": "arclang.hasConflicts"
         }
       ],
       "arclangChat": [

@@ -189,6 +189,8 @@ export interface CompareState {
   /** The element ids drawn as ghosts (removed in the model now). */
   ghosts: string[];
   changed: boolean;
+  /** The drawing ids of the ghosts on the page (set by the host once the old diagrams are put back). */
+  ghostDrawn?: string[];
 }
 
 export function compareState(diff: RichDiff, ref: string, label: string): CompareState {
