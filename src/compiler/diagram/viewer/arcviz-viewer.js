@@ -682,17 +682,17 @@
 
     // --- manual placement ----------------------------------------------
     /** What moves with a box: itself and what it holds. Lifelines stay put. */
-    function carried(id) {
+    function carried(id, raw) {
       const graph = activeGraph();
       if (!graph || render.isSequence(graph)) return [];
       // zorder hook: a locked box stays; a member of a group moves with it; a group carries its members and what they hold.
       if (layerStore && layerStore.isLocked(graph.id, id, false)) return [];
-      const standsFor = layerStore ? layersKit.redirect(layerStore, graph.id, id) : id;
+      const standsFor = layerStore && !raw ? layersKit.redirect(layerStore, graph.id, id) : id;
       if (standsFor !== id) return carried(standsFor);
       if (layersKit && layersKit.isGroupId(id)) {
         const members = layersApi ? layersApi.membersDeep(id) : [];
         if (members.some((member) => layerStore.isLocked(graph.id, member, false))) return [];
-        return [...new Set([id, ...layersApi.framesDeep(id), ...members.flatMap((member) => carried(member))])];
+        return [...new Set([id, ...layersApi.framesDeep(id), ...members.flatMap((member) => carried(member, true))])];
       }
       const held = [];
       const collect = (node, inside) => {
@@ -1002,7 +1002,7 @@
           /** Several boxes moved at once: a group moves its members, a locked box stays. */
           moveMany: (moves) => replace(() => {
             for (const { id, dx, dy } of moves || []) {
-              for (const member of isGroup(id) ? commands.membersDeep(id) : [id]) if (carried(member).length > 0) scope.moveBy(state.active, member, dx, dy);
+              for (const member of isGroup(id) ? commands.membersDeep(id) : [id]) if (carried(member, true).length > 0) scope.moveBy(state.active, member, dx, dy);
             }
           }),
         },
