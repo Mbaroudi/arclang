@@ -8,8 +8,18 @@ use std::path::{Path, PathBuf};
 /// Bumped when the meaning of a cached verdict changes.
 const FORMAT: &str = "arclang-sim-cache-1";
 
+/// The directory a model lives in: that of its path, or the one named by
+/// `ARCLANG_MODEL_DIR` when the model is read from a temporary copy (the VS
+/// Code extension computes on the text of an editor, not on the saved file).
+pub fn model_dir(model_path: &Path) -> PathBuf {
+    match std::env::var_os("ARCLANG_MODEL_DIR") {
+        Some(dir) if !dir.is_empty() => PathBuf::from(dir),
+        _ => model_path.parent().map(Path::to_path_buf).unwrap_or_default(),
+    }
+}
+
 pub fn dir(model_path: &Path) -> PathBuf {
-    model_path.parent().map(Path::to_path_buf).unwrap_or_default().join(".arclang").join("sim-cache")
+    model_dir(model_path).join(".arclang").join("sim-cache")
 }
 
 fn file(dir: &Path, test_id: &str) -> PathBuf {
