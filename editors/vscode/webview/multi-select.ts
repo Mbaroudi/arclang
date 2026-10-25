@@ -3,6 +3,7 @@
 // one gesture. The page keeps the primary selection; this keeps the others.
 import { EditRequest, ElementRecord } from '../src/pure/workbench';
 import { button, el } from './dom';
+import { arrangeAllows } from './arrange'; // zorder hook
 
 export interface MultiSelectionDeps {
   host: HTMLElement;
@@ -82,6 +83,7 @@ export class MultiSelection {
   }
 
   deleteMany(elements: ElementRecord[]): void {
+    if (!arrangeAllows(elements, 'delete')) return; // zorder hook
     const targets = this.outermost(elements);
     this.d.submit(targets.map((e) => ({ op: 'remove', element: e.id })), `delete ${targets.length} elements`);
     this.elements = [];

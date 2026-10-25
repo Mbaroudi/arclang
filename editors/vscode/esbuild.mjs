@@ -29,6 +29,7 @@ const VIEWER_FILES = [
   'arcviz-toolbar.js',
   'arcviz-color.js',
   'arcviz-theme.js',
+  'arcviz-layers.js', // zorder hook
   'arcviz-viewer.js',
   'arcviz-viewer.css',
 ];

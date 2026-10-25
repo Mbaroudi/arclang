@@ -23,6 +23,7 @@ import { MultiSelection } from './multi-select';
 import { installPanes } from './panes'; // panes hook
 import { DiagramExports } from './diagram-export';
 import { ThemeEditor } from './theme-editor';
+import { arrangeOptions, arrangeToolbar, installArrange, withLayersNote } from './arrange'; // zorder hook
 
 const vscode = acquireVsCodeApi();
 
@@ -531,14 +532,16 @@ function mount(snapshot: Snapshot): void {
     onLayout: (file: unknown) => vscode.postMessage({ type: 'layout', file, join: joining > 0 }),
     // Editing from the drawing: double-click renames, ends reconnect, bands select, arrows connect.
     edit: editing.viewerOptions(),
+    ...arrangeOptions((id, isEdge) => elementFor({ view: '', id, name: '', kind: '', isEdge: Boolean(isEdge) })), // zorder hook: the layer of what is drawn
     // Undo and redo from the host's history, align on the multi-selection; boxes are always placed by dragging.
     toolbar: {
       history: { undo: () => vscode.postMessage({ type: 'history', op: 'undo' }), redo: () => vscode.postMessage({ type: 'history', op: 'redo' }), labels: () => historyLabels },
       align: { count: () => multiSelection.elements.length, align: (how: string) => editing.align(how as Alignment), distribute: (axis: 'horizontal' | 'vertical') => editing.distribute(axis) },
       arrangeToggle: false,
+      ...arrangeToolbar(), // zorder hook: Arrange in Layout ▾, the Layers button
     },
     // Copy as image, as SVG, PowerPoint in Export; the theme chooser and editor in Theme.
-    exportItems: () => exportsUi.exportItems(),
+    exportItems: () => withLayersNote(exportsUi.exportItems()), // zorder hook: hidden layers are not exported
     themeItems: () => exportsUi.themeItems(),
     theme: exportsUi.mountTheme(),
   };
@@ -789,5 +792,8 @@ const deleteOne = keys.deleteOne;
 
 // panes hook: tree drops, a diagram's own tab, "Open in a new tab" on the layers (webview/panes.ts).
 installPanes({ sheet, layerBar, viewer: () => state.viewer, graph: () => currentGraph(), snapshot: () => state.snapshot, idOf: (id) => elementFor({ view: '', id, name: '', kind: '', isEdge: false })?.id ?? null, select: (element) => selectElement(element, false), submit, toast: (text, kind) => showToast(text, kind), post: (message) => vscode.postMessage(message as never), showGraph });
+
+// zorder hook: Arrange (stacking, groups, locks, layers) on the canvas (webview/arrange.ts).
+installArrange({ host, sheet, viewer: () => state.viewer, graph: () => currentGraph(), snapshot: () => state.snapshot, selected: () => state.selected, selectedDrawing: () => state.selectedDrawing, multi: () => multiSelection.elements, setMulti: (elements) => { multiSelection.elements = elements; if (elements.length) selectElement(elements[elements.length - 1], false); markMulti(); }, select: selectElement, elementFor: (id, isEdge = false) => elementFor({ view: '', id, name: '', kind: '', isEdge }), drawingId, submit, toast: (text, kind) => showToast(text, kind) });
 
 vscode.postMessage({ type: 'ready' });

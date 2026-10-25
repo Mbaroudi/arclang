@@ -9,6 +9,7 @@ import { isModelDocument } from './source';
 import { RelationItem, RelationsProvider } from './relations';
 import { registerStatusBar } from './status';
 import { registerPanes } from './panes-host'; // panes hook
+import { ARRANGE_COMMANDS, ARRANGE_KEYS } from '../pure/arrange'; // zorder hook
 import { graphsDrawing, ModelItem, ModelTreeProvider, revealElement } from './tree';
 import { ExportArgs, pickerItems, themeStore } from './diagram-export';
 
@@ -107,6 +108,8 @@ export function registerWorkbench(context: vscode.ExtensionContext): void {
   register('arclang.workbench.redo', () => WorkbenchPanel.activePanel()?.redo());
   const canvasKeys: [string, CanvasCommand][] = [['copy', 'copy'], ['cut', 'cut'], ['paste', 'paste'], ['duplicate', 'duplicate'], ['selectAll', 'select-all'], ['delete', 'delete'], ['zoomIn', 'zoom-in'], ['zoomOut', 'zoom-out'], ['fit', 'fit']];
   for (const [name, command] of canvasKeys) register(`arclang.workbench.${name}`, () => WorkbenchPanel.activePanel()?.canvas(command));
+  // zorder hook: Arrange's keys (front, back, forward, backward, group, ungroup, lock, layers, select).
+  for (const command of ARRANGE_COMMANDS) register(`arclang.workbench.${ARRANGE_KEYS[command].name}`, () => WorkbenchPanel.activePanel()?.canvas(command));
 
   // The diagram on screen as an image or SVG on the clipboard, as slides, and its colour theme.
   const activeOr = (verb: string) => {

@@ -3,6 +3,7 @@
 // edits each gesture writes. Pure functions, tested with node:test; the
 // extension host and the webview both import from here.
 import { tableLayer } from './tables'; // tables hook
+import type { ArrangeCommand } from './arrange'; // zorder hook
 
 /** One element of the compiled model, as `arclang workbench` lists it. */
 export interface ElementRecord {
@@ -202,7 +203,7 @@ export interface SlideData {
 }
 
 /** The canvas commands VS Code's keybindings run on the workbench. */
-export type CanvasCommand = 'copy' | 'cut' | 'paste' | 'paste-text' | 'duplicate' | 'select-all' | 'delete' | 'zoom-in' | 'zoom-out' | 'fit';
+export type CanvasCommand = 'copy' | 'cut' | 'paste' | 'paste-text' | 'duplicate' | 'select-all' | 'delete' | 'zoom-in' | 'zoom-out' | 'fit' | ArrangeCommand; // zorder hook: ArrangeCommand
 
 /** What the webview sends to the extension host. */
 export type FromWebview =

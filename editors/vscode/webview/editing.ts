@@ -14,6 +14,7 @@ import type { ViewerApi } from './globals';
 import { ContextMenu, MenuAction, MenuItem, MiniToolbar } from './menu';
 import { Original, PASTE_OFFSET, PlaceTarget, Placement, Point, sheetCorner, sheetPoint } from './placement';
 import { withAi, withAiMini } from './ask-ai'; // ai-design hook
+import { arrangeAllows, arrangeAllowsIds, withArrange, withArrangeMini } from './arrange'; // zorder hook
 
 /** What the page lends the editing gestures. */
 export interface WorkbenchContext {
@@ -190,6 +191,7 @@ export class Editing {
 
   /** The name edited over the box, or over the label of the exchange. */
   rename(element: ElementRecord, drawing = this.ctx.selectedDrawing() ?? this.ctx.drawingId(element.id)): void {
+    if (!arrangeAllows([element], 'rename')) return; // zorder hook: a lock refuses it on the canvas
     const relationship = this.relationshipOf(element);
     if (relationship && !relationship.name) return this.ctx.toast(`A ${relationship.kind.toLowerCase()} has no name to edit: its guard and trigger are in the properties.`, 'info');
     const node = this.ctx.host.querySelector<SVGGraphicsElement>(`[data-id="${CSS.escape(drawing)}"]`);
@@ -270,6 +272,7 @@ export class Editing {
   }
 
   private reconnect(edge: string, end: 'source' | 'target', target: ElementRecord): void {
+    if (!arrangeAllowsIds([edge], 'reconnect')) return; // zorder hook
     const relationship = this.relationshipOfEdge(edge);
     const elements = this.ctx.snapshot()?.elements?.elements ?? [];
     if (!relationship) return this.ctx.toast('This line stands for no relationship the page can reconnect.', 'error');
@@ -593,7 +596,7 @@ export class Editing {
     this.menuModel = this.modelKey();
     this.menuPoint = sheetPoint(this.ctx.host, event.clientX, event.clientY);
     const extra = this.ctx.extraMenu?.() ?? [];
-    this.menu.open(event.clientX, event.clientY, [...withAi(this.menuItems(element, target?.dataset.id ?? null)), ...(extra.length ? ['separator' as const, ...extra] : [])]); // ai-design hook: Ask AI first
+    this.menu.open(event.clientX, event.clientY, [...withArrange(withAi(this.menuItems(element, target?.dataset.id ?? null)), element), ...(extra.length ? ['separator' as const, ...extra] : [])]); // ai-design hook: Ask AI first; zorder hook: Arrange after
   }
 
   /** The actions on an element (or on the sheet when none), in the order a modeller looks for them. */
@@ -673,12 +676,12 @@ export class Editing {
       if (rects.length === 0) return this.mini.hide();
       const around = new DOMRect(Math.min(...rects.map((r) => r.left)), Math.min(...rects.map((r) => r.top)), 0, 0);
       const union = new DOMRect(around.x, around.y, Math.max(...rects.map((r) => r.right)) - around.x, Math.max(...rects.map((r) => r.bottom)) - around.y);
-      return this.mini.show(union, withAiMini([ // ai-design hook: the Ask AI button
+      return this.mini.show(union, withArrangeMini(withAiMini([ // ai-design hook: the Ask AI button; zorder hook: Order
         { glyph: '⫷', label: 'Align left', run: () => this.align('left') },
         { glyph: '⫠', label: 'Align top', run: () => this.align('top') },
         { glyph: '⋯', label: 'More: align, distribute, copy…', run: () => this.menu.open(union.left, union.top, this.menuItems(null, null)) },
         { glyph: '⌫', label: 'Delete all', shortcut: '⌫', danger: true, run: () => this.ctx.remove(many) },
-      ]), `multi:${many.map((e) => e.uuid).join(',')}`);
+      ])), `multi:${many.map((e) => e.uuid).join(',')}`);
     }
     if (!one || !drawing) return this.mini.hide();
     const relationship = this.relationshipOf(one);
@@ -704,6 +707,6 @@ export class Editing {
         ];
     // A line's style options (the viewer's) ride in the toolbar: one floating bar, never two over each other.
     const styles = relationship ? document.querySelector<HTMLElement>('.arcviz-edge-style') : null;
-    this.mini.show(around, withAiMini(actions), `${one.uuid}:${drawing}`, styles ?? undefined); // ai-design hook: the Ask AI button
+    this.mini.show(around, relationship ? withAiMini(actions) : withArrangeMini(withAiMini(actions)), `${one.uuid}:${drawing}`, styles ?? undefined); // ai-design hook: the Ask AI button; zorder hook: Order
   }
 }

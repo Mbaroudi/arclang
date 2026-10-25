@@ -28,6 +28,10 @@ Legend: **yes** · **partial** · **no**.
 | Reverse an exchange | yes: floating toolbar, menu, properties; ports turned around with it, tested | partial (reconnect both ends) | partial |
 | Bend an exchange | yes: drag its middle; double-click a bend to remove it; kept in the layout file, tested | yes (bend points) | yes |
 | States, transitions, messages in machines and scenarios | yes, tested | yes | yes |
+| Stacking order (front, back, forward, backward) | yes: ⇧⌘F ⇧⌘B ⌥⇧⌘F ⌥⇧⌘B, menu, floating toolbar, Layout ▾; per container, a selection keeps its order; kept in the layout file, one undo, tested in VS Code | partial (z-order of a diagram element, no step past overlapping ones) | no |
+| Layers (show, hide, lock, order) | yes: one per tag and Default, counts, hidden left out of every export, locked refused on the canvas, rows dragged to reorder, the selection moved to a layer as an edit of its tags, tested in VS Code | partial (layers are diagram filters and extensions, fixed by the viewpoint) | no |
+| Group, ungroup, nested and collapsible groups | yes: a frame in the layout file, the model unchanged; ⌘G ⇧⌘G, enter with a double-click, collapse to one box; *Group into a new component* as a model edit, tested in VS Code | partial (containers only, as model elements) | partial (containers) |
+| Lock an element, same size, clear waypoints, select boxes / lines / none | yes: ⌘L (padlock, refusals with the reason), last selected gives the size, ⇧⌘I ⇧⌘E ⇧⌘A, tested in VS Code | partial (pin, same size, reset routing) | partial |
 | Combined fragments in scenarios | yes, Fragment tool around the selected message (loop, opt, alt, par, critical), tested | yes | yes |
 | Create a requirement from a diagram | yes, Requirement tool (satisfied by the selection) and *Satisfies…* in the properties, tested | yes (requirements add-on) | yes |
 | Notes and annotations on a diagram | no (the language has no note construct) | yes | yes |
