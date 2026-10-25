@@ -6,9 +6,9 @@ package EVRangeSimulation "EV range simulation"
     package VehicleControlUnit "Behaviour components of Vehicle control unit"
       partial model SpeedController "Speed controller"
         parameter Modelica.Units.SI.Velocity target_speed = 27.77777777777778 "100 km/h";
-        Modelica.Blocks.Interfaces.RealInput speed "signal port speed" annotation(Placement(transformation(origin={-62,0}, extent={{-7,-7},{7,7}})), __ArcLang(id="BC-SPD.speed"));
-        Modelica.Blocks.Interfaces.RealOutput torque_cmd "signal port torque_cmd" annotation(Placement(transformation(origin={62,0}, extent={{-7,-7},{7,7}})), __ArcLang(id="BC-SPD.torque_cmd"));
-        annotation(Icon(coordinateSystem(extent={{-70,-48},{70,48}}), graphics={Rectangle(extent={{-70,-48},{70,48}}, lineColor={0,0,0}, fillColor={255,255,255}, fillPattern=FillPattern.Solid), Text(extent={{-42,-19.2},{42,19.2}}, textString="Speed controller", textColor={0,0,0}), Text(extent={{-70,50},{70,72}}, textString="%name", textColor={0,0,255})}), Diagram(coordinateSystem(extent={{-70,-48},{70,48}})), Documentation(info="<html><p>Behaviour component 'Speed controller' (BC-SPD).</p><p>Realizes LC-SPD.</p></html>"), __ArcLang(id="BC-SPD", kind="BehaviorComponent"));
+        Modelica.Blocks.Interfaces.RealInput speed "signal port speed" annotation(Placement(transformation(origin={-61,0}, extent={{-8,-8},{8,8}})), __ArcLang(id="BC-SPD.speed"));
+        Modelica.Blocks.Interfaces.RealOutput torque_cmd "signal port torque_cmd" annotation(Placement(transformation(origin={61,0}, extent={{-8,-8},{8,8}})), __ArcLang(id="BC-SPD.torque_cmd"));
+        annotation(Icon(coordinateSystem(extent={{-70,-48},{70,48}}), graphics={Rectangle(extent={{-70,-48},{70,48}}, lineColor={0,0,0}, fillColor={255,255,255}, fillPattern=FillPattern.Solid), Text(extent={{-32.2,-19.2},{32.2,19.2}}, textString="Speed controller", textColor={0,0,0}), Text(extent={{-70,50},{70,72}}, textString="%name", textColor={0,0,255})}), Diagram(coordinateSystem(extent={{-70,-48},{70,48}})), Documentation(info="<html><p>Behaviour component 'Speed controller' (BC-SPD).</p><p>Realizes LC-SPD.</p></html>"), __ArcLang(id="BC-SPD", kind="BehaviorComponent"));
       end SpeedController;
     end VehicleControlUnit;
   end Behaviour;
@@ -17,18 +17,18 @@ package EVRangeSimulation "EV range simulation"
       parameter Modelica.Units.SI.Power auxiliary_load = 2500 "2.5 kW";
       parameter Modelica.Units.SI.Voltage voltage = 400 "400 V";
       parameter Modelica.Units.SI.Energy energy "set by the variant of Battery each configuration selects";
-      Modelica.Electrical.Analog.Interfaces.PositivePin hv_p "electrical port hv_p" annotation(Placement(transformation(origin={62,20}, extent={{-7,-7},{7,7}})), __ArcLang(id="PN-BATT.hv_p"));
-      Modelica.Electrical.Analog.Interfaces.NegativePin hv_n "electrical port hv_n" annotation(Placement(transformation(origin={62,-20}, extent={{-7,-7},{7,7}})), __ArcLang(id="PN-BATT.hv_n"));
-      annotation(Icon(coordinateSystem(extent={{-70,-48},{70,48}}), graphics={Rectangle(extent={{-70,-48},{70,48}}, lineColor={0,0,0}, fillColor={255,255,255}, fillPattern=FillPattern.Solid), Text(extent={{-42,-19.2},{42,19.2}}, textString="Battery pack", textColor={0,0,0}), Text(extent={{-70,50},{70,72}}, textString="%name", textColor={0,0,255})}), Diagram(coordinateSystem(extent={{-70,-48},{70,48}})), Documentation(info="<html><p>Physical node 'Battery pack' (PN-BATT).</p><p>Realizes LC-BATT.</p></html>"), __ArcLang(id="PN-BATT", kind="PhysicalNode"));
+      Modelica.Electrical.Analog.Interfaces.PositivePin hv_p "electrical port hv_p" annotation(Placement(transformation(origin={61,20}, extent={{-8,-8},{8,8}})), __ArcLang(id="PN-BATT.hv_p"));
+      Modelica.Electrical.Analog.Interfaces.NegativePin hv_n "electrical port hv_n" annotation(Placement(transformation(origin={61,-20}, extent={{-8,-8},{8,8}})), __ArcLang(id="PN-BATT.hv_n"));
+      annotation(Icon(coordinateSystem(extent={{-70,-48},{70,48}}), graphics={Rectangle(extent={{-70,-48},{70,48}}, lineColor={0,0,0}, fillColor={255,255,255}, fillPattern=FillPattern.Solid), Text(extent={{-32.2,-19.2},{32.2,19.2}}, textString="Battery pack", textColor={0,0,0}), Text(extent={{-70,50},{70,72}}, textString="%name", textColor={0,0,255})}), Diagram(coordinateSystem(extent={{-70,-48},{70,48}})), Documentation(info="<html><p>Physical node 'Battery pack' (PN-BATT).</p><p>Realizes LC-BATT.</p></html>"), __ArcLang(id="PN-BATT", kind="PhysicalNode"));
     end BatteryPack;
     partial model DriveUnit "Drive unit"
       parameter Real efficiency(unit="1") = 0.9 "90 %";
       parameter Real gear_ratio = 9;
-      Modelica.Electrical.Analog.Interfaces.PositivePin hv_p "electrical port hv_p" annotation(Placement(transformation(origin={-62,26.7}, extent={{-7,-7},{7,7}})), __ArcLang(id="PN-DRIVE.hv_p"));
-      Modelica.Electrical.Analog.Interfaces.NegativePin hv_n "electrical port hv_n" annotation(Placement(transformation(origin={-62,0}, extent={{-7,-7},{7,7}})), __ArcLang(id="PN-DRIVE.hv_n"));
-      Modelica.Mechanics.Rotational.Interfaces.Flange_b shaft "mechanical_rotational port shaft" annotation(Placement(transformation(origin={62,0}, extent={{-7,-7},{7,7}})), __ArcLang(id="PN-DRIVE.shaft"));
-      Modelica.Blocks.Interfaces.RealInput torque_cmd "signal port torque_cmd" annotation(Placement(transformation(origin={-62,-26.7}, extent={{-7,-7},{7,7}})), __ArcLang(id="PN-DRIVE.torque_cmd"));
-      annotation(Icon(coordinateSystem(extent={{-70,-48},{70,48}}), graphics={Rectangle(extent={{-70,-48},{70,48}}, lineColor={0,0,0}, fillColor={255,255,255}, fillPattern=FillPattern.Solid), Text(extent={{-42,-19.2},{42,19.2}}, textString="Drive unit", textColor={0,0,0}), Text(extent={{-70,50},{70,72}}, textString="%name", textColor={0,0,255})}), Diagram(coordinateSystem(extent={{-70,-48},{70,48}})), Documentation(info="<html><p>Physical node 'Drive unit' (PN-DRIVE).</p><p>Realizes LC-DRIVE.</p></html>"), __ArcLang(id="PN-DRIVE", kind="PhysicalNode"));
+      Modelica.Electrical.Analog.Interfaces.PositivePin hv_p "electrical port hv_p" annotation(Placement(transformation(origin={-61,26.7}, extent={{-8,-8},{8,8}})), __ArcLang(id="PN-DRIVE.hv_p"));
+      Modelica.Electrical.Analog.Interfaces.NegativePin hv_n "electrical port hv_n" annotation(Placement(transformation(origin={-61,0}, extent={{-8,-8},{8,8}})), __ArcLang(id="PN-DRIVE.hv_n"));
+      Modelica.Mechanics.Rotational.Interfaces.Flange_b shaft "mechanical_rotational port shaft" annotation(Placement(transformation(origin={61,0}, extent={{-8,-8},{8,8}})), __ArcLang(id="PN-DRIVE.shaft"));
+      Modelica.Blocks.Interfaces.RealInput torque_cmd "signal port torque_cmd" annotation(Placement(transformation(origin={-61,-26.7}, extent={{-8,-8},{8,8}})), __ArcLang(id="PN-DRIVE.torque_cmd"));
+      annotation(Icon(coordinateSystem(extent={{-70,-48},{70,48}}), graphics={Rectangle(extent={{-70,-48},{70,48}}, lineColor={0,0,0}, fillColor={255,255,255}, fillPattern=FillPattern.Solid), Text(extent={{-32.2,-19.2},{32.2,19.2}}, textString="Drive unit", textColor={0,0,0}), Text(extent={{-70,50},{70,72}}, textString="%name", textColor={0,0,255})}), Diagram(coordinateSystem(extent={{-70,-48},{70,48}})), Documentation(info="<html><p>Physical node 'Drive unit' (PN-DRIVE).</p><p>Realizes LC-DRIVE.</p></html>"), __ArcLang(id="PN-DRIVE", kind="PhysicalNode"));
     end DriveUnit;
     partial model VehicleBody "Vehicle body"
       parameter Modelica.Units.SI.Temperature ambient = 263.15 "263.15 K";
@@ -36,46 +36,46 @@ package EVRangeSimulation "EV range simulation"
       parameter Modelica.Units.SI.Mass mass = 2100 "2100 kg";
       parameter Real rolling_resistance = 0.011;
       parameter Modelica.Units.SI.Length wheel_radius = 0.34 "0.34 m";
-      Modelica.Mechanics.Rotational.Interfaces.Flange_a wheel "mechanical_rotational port wheel" annotation(Placement(transformation(origin={-62,0}, extent={{-7,-7},{7,7}})), __ArcLang(id="PN-BODY.wheel"));
-      Modelica.Blocks.Interfaces.RealOutput speed "signal port speed" annotation(Placement(transformation(origin={62,0}, extent={{-7,-7},{7,7}})), __ArcLang(id="PN-BODY.speed"));
-      annotation(Icon(coordinateSystem(extent={{-70,-48},{70,48}}), graphics={Rectangle(extent={{-70,-48},{70,48}}, lineColor={0,0,0}, fillColor={255,255,255}, fillPattern=FillPattern.Solid), Text(extent={{-42,-19.2},{42,19.2}}, textString="Vehicle body", textColor={0,0,0}), Text(extent={{-70,50},{70,72}}, textString="%name", textColor={0,0,255})}), Diagram(coordinateSystem(extent={{-70,-48},{70,48}})), Documentation(info="<html><p>Physical node 'Vehicle body' (PN-BODY).</p><p>Realizes LC-BODY.</p></html>"), __ArcLang(id="PN-BODY", kind="PhysicalNode"));
+      Modelica.Mechanics.Rotational.Interfaces.Flange_a wheel "mechanical_rotational port wheel" annotation(Placement(transformation(origin={-61,0}, extent={{-8,-8},{8,8}})), __ArcLang(id="PN-BODY.wheel"));
+      Modelica.Blocks.Interfaces.RealOutput speed "signal port speed" annotation(Placement(transformation(origin={61,0}, extent={{-8,-8},{8,8}})), __ArcLang(id="PN-BODY.speed"));
+      annotation(Icon(coordinateSystem(extent={{-70,-48},{70,48}}), graphics={Rectangle(extent={{-70,-48},{70,48}}, lineColor={0,0,0}, fillColor={255,255,255}, fillPattern=FillPattern.Solid), Text(extent={{-32.2,-19.2},{32.2,19.2}}, textString="Vehicle body", textColor={0,0,0}), Text(extent={{-70,50},{70,72}}, textString="%name", textColor={0,0,255})}), Diagram(coordinateSystem(extent={{-70,-48},{70,48}})), Documentation(info="<html><p>Physical node 'Vehicle body' (PN-BODY).</p><p>Realizes LC-BODY.</p></html>"), __ArcLang(id="PN-BODY", kind="PhysicalNode"));
     end VehicleBody;
     partial model VehicleControlUnit "Vehicle control unit"
-      Modelica.Blocks.Interfaces.RealInput speed "signal port speed" annotation(Placement(transformation(origin={-42,0}, extent={{-7,-7},{7,7}})), __ArcLang(id="PN-VCU.speed"));
-      Modelica.Blocks.Interfaces.RealOutput torque_cmd "signal port torque_cmd" annotation(Placement(transformation(origin={42,0}, extent={{-7,-7},{7,7}})), __ArcLang(id="PN-VCU.torque_cmd"));
-      replaceable EVRangeSimulation.Behaviour.VehicleControlUnit.SpeedController speedController constrainedby EVRangeSimulation.Behaviour.VehicleControlUnit.SpeedController "Speed controller" annotation(Placement(transformation(origin={0,0}, extent={{-20,-13.7},{20,13.7}})), __ArcLang(id="BC-SPD"));
+      Modelica.Blocks.Interfaces.RealInput speed "signal port speed" annotation(Placement(transformation(origin={-21,0}, extent={{-8,-8},{8,8}})), __ArcLang(id="PN-VCU.speed"));
+      Modelica.Blocks.Interfaces.RealOutput torque_cmd "signal port torque_cmd" annotation(Placement(transformation(origin={81,0}, extent={{-8,-8},{8,8}})), __ArcLang(id="PN-VCU.torque_cmd"));
+      replaceable EVRangeSimulation.Behaviour.VehicleControlUnit.SpeedController speedController constrainedby EVRangeSimulation.Behaviour.VehicleControlUnit.SpeedController "Speed controller" annotation(Placement(transformation(origin={30,0}, extent={{-30,-13.7},{30,13.7}})), __ArcLang(id="BC-SPD"));
     equation
-      connect(speed, speedController.speed) annotation(Line(points={{-42,0},{-17.7,0}}, color={0,0,127}), __ArcLang(id="PL-SPEED-IN"));
-      connect(speedController.torque_cmd, torque_cmd) annotation(Line(points={{17.7,0},{42,0}}, color={0,0,127}), __ArcLang(id="PL-TORQUE-OUT"));
-      annotation(Icon(coordinateSystem(extent={{-50,-32},{50,32}}), graphics={Rectangle(extent={{-50,-32},{50,32}}, lineColor={0,0,0}, fillColor={255,255,255}, fillPattern=FillPattern.Solid), Text(extent={{-30,-12.8},{30,12.8}}, textString="Vehicle control unit", textColor={0,0,0}), Text(extent={{-50,34},{50,48}}, textString="%name", textColor={0,0,255})}), Diagram(coordinateSystem(extent={{-50,-32},{50,32}})), Documentation(info="<html><p>Physical node 'Vehicle control unit' (PN-VCU).</p></html>"), __ArcLang(id="PN-VCU", kind="PhysicalNode"));
+      connect(speed, speedController.speed) annotation(Line(points={{-21,0},{3.9,0}}, color={0,0,127}), __ArcLang(id="PL-SPEED-IN"));
+      connect(speedController.torque_cmd, torque_cmd) annotation(Line(points={{56.1,0},{81,0}}, color={0,0,127}), __ArcLang(id="PL-TORQUE-OUT"));
+      annotation(Icon(coordinateSystem(extent={{-30,-32},{90,32}}), graphics={Rectangle(extent={{-30,-32},{90,32}}, lineColor={0,0,0}, fillColor={255,255,255}, fillPattern=FillPattern.Solid), Text(extent={{2.4,-12.8},{57.6,12.8}}, textString="Vehicle control unit", textColor={0,0,0}), Text(extent={{-30,34},{90,48}}, textString="%name", textColor={0,0,255})}), Diagram(coordinateSystem(extent={{-30,-32},{90,32}})), Documentation(info="<html><p>Physical node 'Vehicle control unit' (PN-VCU).</p></html>"), __ArcLang(id="PN-VCU", kind="PhysicalNode"));
     end VehicleControlUnit;
   end Physical;
   package Systems "One system model per configuration"
     partial model City "Configuration City (CFG-CITY)"
-      replaceable EVRangeSimulation.Physical.BatteryPack batteryPack constrainedby EVRangeSimulation.Physical.BatteryPack(energy=2.304e8) "Battery pack" annotation(Placement(transformation(origin={0,0}, extent={{-20,-13.7},{20,13.7}})), __ArcLang(id="PN-BATT"));
-      replaceable EVRangeSimulation.Physical.DriveUnit driveUnit constrainedby EVRangeSimulation.Physical.DriveUnit "Drive unit" annotation(Placement(transformation(origin={76,0}, extent={{-20,-13.7},{20,13.7}})), __ArcLang(id="PN-DRIVE"));
-      replaceable EVRangeSimulation.Physical.VehicleBody vehicleBody constrainedby EVRangeSimulation.Physical.VehicleBody "Vehicle body" annotation(Placement(transformation(origin={152,0}, extent={{-20,-13.7},{20,13.7}})), __ArcLang(id="PN-BODY"));
-      replaceable EVRangeSimulation.Physical.VehicleControlUnit vehicleControlUnit constrainedby EVRangeSimulation.Physical.VehicleControlUnit "Vehicle control unit" annotation(Placement(transformation(origin={228,0}, extent={{-20,-12.7},{20,12.7}})), __ArcLang(id="PN-VCU"));
+      replaceable EVRangeSimulation.Physical.BatteryPack batteryPack constrainedby EVRangeSimulation.Physical.BatteryPack(energy=2.304e8) "Battery pack" annotation(Placement(transformation(origin={25,0}, extent={{-25,-13.7},{25,13.7}})), __ArcLang(id="PN-BATT"));
+      replaceable EVRangeSimulation.Physical.DriveUnit driveUnit constrainedby EVRangeSimulation.Physical.DriveUnit "Drive unit" annotation(Placement(transformation(origin={108.5,0}, extent={{-22.5,-13.7},{22.5,13.7}})), __ArcLang(id="PN-DRIVE"));
+      replaceable EVRangeSimulation.Physical.VehicleBody vehicleBody constrainedby EVRangeSimulation.Physical.VehicleBody "Vehicle body" annotation(Placement(transformation(origin={192,0}, extent={{-25,-13.7},{25,13.7}})), __ArcLang(id="PN-BODY"));
+      replaceable EVRangeSimulation.Physical.VehicleControlUnit vehicleControlUnit constrainedby EVRangeSimulation.Physical.VehicleControlUnit "Vehicle control unit" annotation(Placement(transformation(origin={285.5,0}, extent={{-32.5,-12},{32.5,12}})), __ArcLang(id="PN-VCU"));
     equation
-      connect(batteryPack.hv_p, driveUnit.hv_p) annotation(Line(points={{17.7,5.7},{38,5.7},{38,7.6},{58.3,7.6}}, color={0,0,255}), __ArcLang(id="PL-HVP"));
-      connect(batteryPack.hv_n, driveUnit.hv_n) annotation(Line(points={{17.7,-5.7},{41,-5.7},{41,0},{58.3,0}}, color={0,0,255}), __ArcLang(id="PL-HVN"));
-      connect(driveUnit.shaft, vehicleBody.wheel) annotation(Line(points={{93.7,0},{134.3,0}}, color={95,95,95}), __ArcLang(id="PL-SHAFT"));
-      connect(vehicleBody.speed, vehicleControlUnit.speed) annotation(Line(points={{169.7,0},{211.2,0}}, color={0,0,127}), __ArcLang(id="PX-SPEED"));
-      connect(vehicleControlUnit.torque_cmd, driveUnit.torque_cmd) annotation(Line(points={{244.8,0},{249.8,0},{249.8,27.7},{53.3,27.7},{53.3,-7.6},{58.3,-7.6}}, color={0,0,127}), __ArcLang(id="PX-TORQUE"));
-      annotation(Diagram(coordinateSystem(extent={{-50,-32},{278,36}})), Documentation(info="<html><p>Configuration City (CFG-CITY)</p><p>Selects LC-PACK-STD.</p><p>Extend it, redeclaring each part with the model of its physics, to simulate it.</p></html>"), __ArcLang(id="CFG-CITY", kind="Configuration"));
+      connect(batteryPack.hv_p, driveUnit.hv_p) annotation(Line(points={{46.8,5.7},{67.8,5.7},{67.8,7.6},{88.9,7.6}}, color={0,0,255}), __ArcLang(id="PL-HVP"));
+      connect(batteryPack.hv_n, driveUnit.hv_n) annotation(Line(points={{46.8,-5.7},{70.8,-5.7},{70.8,0},{88.9,0}}, color={0,0,255}), __ArcLang(id="PL-HVN"));
+      connect(driveUnit.shaft, vehicleBody.wheel) annotation(Line(points={{128.1,0},{170.2,0}}, color={95,95,95}), __ArcLang(id="PL-SHAFT"));
+      connect(vehicleBody.speed, vehicleControlUnit.speed) annotation(Line(points={{213.8,0},{257.9,0}}, color={0,0,127}), __ArcLang(id="PX-SPEED"));
+      connect(vehicleControlUnit.torque_cmd, driveUnit.torque_cmd) annotation(Line(points={{313.1,0},{318.1,0},{318.1,27.7},{83.9,27.7},{83.9,-7.6},{88.9,-7.6}}, color={0,0,127}), __ArcLang(id="PX-TORQUE"));
+      annotation(Diagram(coordinateSystem(extent={{-46,-32},{364,36}})), Documentation(info="<html><p>Configuration City (CFG-CITY)</p><p>Selects LC-PACK-STD.</p><p>Extend it, redeclaring each part with the model of its physics, to simulate it.</p></html>"), __ArcLang(id="CFG-CITY", kind="Configuration"));
     end City;
     partial model Touring "Configuration Touring (CFG-TOURING)"
-      replaceable EVRangeSimulation.Physical.BatteryPack batteryPack constrainedby EVRangeSimulation.Physical.BatteryPack(energy=2.952e8) "Battery pack" annotation(Placement(transformation(origin={0,0}, extent={{-20,-13.7},{20,13.7}})), __ArcLang(id="PN-BATT"));
-      replaceable EVRangeSimulation.Physical.DriveUnit driveUnit constrainedby EVRangeSimulation.Physical.DriveUnit "Drive unit" annotation(Placement(transformation(origin={76,0}, extent={{-20,-13.7},{20,13.7}})), __ArcLang(id="PN-DRIVE"));
-      replaceable EVRangeSimulation.Physical.VehicleBody vehicleBody constrainedby EVRangeSimulation.Physical.VehicleBody "Vehicle body" annotation(Placement(transformation(origin={152,0}, extent={{-20,-13.7},{20,13.7}})), __ArcLang(id="PN-BODY"));
-      replaceable EVRangeSimulation.Physical.VehicleControlUnit vehicleControlUnit constrainedby EVRangeSimulation.Physical.VehicleControlUnit "Vehicle control unit" annotation(Placement(transformation(origin={228,0}, extent={{-20,-12.7},{20,12.7}})), __ArcLang(id="PN-VCU"));
+      replaceable EVRangeSimulation.Physical.BatteryPack batteryPack constrainedby EVRangeSimulation.Physical.BatteryPack(energy=2.952e8) "Battery pack" annotation(Placement(transformation(origin={25,0}, extent={{-25,-13.7},{25,13.7}})), __ArcLang(id="PN-BATT"));
+      replaceable EVRangeSimulation.Physical.DriveUnit driveUnit constrainedby EVRangeSimulation.Physical.DriveUnit "Drive unit" annotation(Placement(transformation(origin={108.5,0}, extent={{-22.5,-13.7},{22.5,13.7}})), __ArcLang(id="PN-DRIVE"));
+      replaceable EVRangeSimulation.Physical.VehicleBody vehicleBody constrainedby EVRangeSimulation.Physical.VehicleBody "Vehicle body" annotation(Placement(transformation(origin={192,0}, extent={{-25,-13.7},{25,13.7}})), __ArcLang(id="PN-BODY"));
+      replaceable EVRangeSimulation.Physical.VehicleControlUnit vehicleControlUnit constrainedby EVRangeSimulation.Physical.VehicleControlUnit "Vehicle control unit" annotation(Placement(transformation(origin={285.5,0}, extent={{-32.5,-12},{32.5,12}})), __ArcLang(id="PN-VCU"));
     equation
-      connect(batteryPack.hv_p, driveUnit.hv_p) annotation(Line(points={{17.7,5.7},{38,5.7},{38,7.6},{58.3,7.6}}, color={0,0,255}), __ArcLang(id="PL-HVP"));
-      connect(batteryPack.hv_n, driveUnit.hv_n) annotation(Line(points={{17.7,-5.7},{41,-5.7},{41,0},{58.3,0}}, color={0,0,255}), __ArcLang(id="PL-HVN"));
-      connect(driveUnit.shaft, vehicleBody.wheel) annotation(Line(points={{93.7,0},{134.3,0}}, color={95,95,95}), __ArcLang(id="PL-SHAFT"));
-      connect(vehicleBody.speed, vehicleControlUnit.speed) annotation(Line(points={{169.7,0},{211.2,0}}, color={0,0,127}), __ArcLang(id="PX-SPEED"));
-      connect(vehicleControlUnit.torque_cmd, driveUnit.torque_cmd) annotation(Line(points={{244.8,0},{249.8,0},{249.8,27.7},{53.3,27.7},{53.3,-7.6},{58.3,-7.6}}, color={0,0,127}), __ArcLang(id="PX-TORQUE"));
-      annotation(Diagram(coordinateSystem(extent={{-50,-32},{278,36}})), Documentation(info="<html><p>Configuration Touring (CFG-TOURING)</p><p>Selects LC-PACK-LR.</p><p>Extend it, redeclaring each part with the model of its physics, to simulate it.</p></html>"), __ArcLang(id="CFG-TOURING", kind="Configuration"));
+      connect(batteryPack.hv_p, driveUnit.hv_p) annotation(Line(points={{46.8,5.7},{67.8,5.7},{67.8,7.6},{88.9,7.6}}, color={0,0,255}), __ArcLang(id="PL-HVP"));
+      connect(batteryPack.hv_n, driveUnit.hv_n) annotation(Line(points={{46.8,-5.7},{70.8,-5.7},{70.8,0},{88.9,0}}, color={0,0,255}), __ArcLang(id="PL-HVN"));
+      connect(driveUnit.shaft, vehicleBody.wheel) annotation(Line(points={{128.1,0},{170.2,0}}, color={95,95,95}), __ArcLang(id="PL-SHAFT"));
+      connect(vehicleBody.speed, vehicleControlUnit.speed) annotation(Line(points={{213.8,0},{257.9,0}}, color={0,0,127}), __ArcLang(id="PX-SPEED"));
+      connect(vehicleControlUnit.torque_cmd, driveUnit.torque_cmd) annotation(Line(points={{313.1,0},{318.1,0},{318.1,27.7},{83.9,27.7},{83.9,-7.6},{88.9,-7.6}}, color={0,0,127}), __ArcLang(id="PX-TORQUE"));
+      annotation(Diagram(coordinateSystem(extent={{-46,-32},{364,36}})), Documentation(info="<html><p>Configuration Touring (CFG-TOURING)</p><p>Selects LC-PACK-LR.</p><p>Extend it, redeclaring each part with the model of its physics, to simulate it.</p></html>"), __ArcLang(id="CFG-TOURING", kind="Configuration"));
     end Touring;
   end Systems;
   annotation(uses(Modelica(version="4.1.0")), Documentation(info="<html><p>One drivetrain, two battery packs, a range requirement checked by simulation</p><p>Generated by ArcLang from the physical architecture: the structure only. Every model is partial: a hand-written package extends them with the physics and redeclares their parts, so regenerating never overwrites it.</p></html>"), __ArcLang(name="EV range simulation"));

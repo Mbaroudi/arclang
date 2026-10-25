@@ -28,10 +28,15 @@ const ROW_GAP: f64 = 16.0;
 /// Boxes in a column before it wraps to a new one.
 const MAX_ROWS: usize = 4;
 /// Room between the boxes and the border connectors of the model.
-const BORDER: f64 = 30.0;
+const BORDER_GAP: f64 = 14.0;
+/// Width a box gains per character of its name, and its bounds.
+const WIDTH_PER_CHAR: f64 = 1.7;
+const MAX_BOX_W: f64 = 90.0;
 /// The size (half) of a border connector on the diagram and on an icon.
-pub const DIAGRAM_PORT: f64 = 7.0;
-const BORDER_PORT_PITCH: f64 = 16.0;
+/// Half the side of a connector on a diagram: a twentieth of the content's
+/// width, between these, so its name stays readable beside wide boxes.
+const MIN_PORT: f64 = 8.0;
+const MAX_PORT: f64 = 16.0;
 const STUB_CHILD: f64 = 5.0;
 const STUB_BORDER: f64 = 16.0;
 const LANE_PITCH: f64 = 4.0;
@@ -190,6 +195,8 @@ pub struct Plan {
     pub wires: BTreeMap<usize, Vec<(f64, f64)>>,
     /// left, bottom, right, top.
     pub extent: [f64; 4],
+    /// Half the side of the connectors on the border.
+    pub port_half: f64,
 }
 
 type Point = (f64, f64);
@@ -206,12 +213,13 @@ impl Plan {
     }
 }
 
-/// The box a model is drawn as in a parent diagram: as wide as it is for
-/// all of them, as high as the aspect of its own diagram says.
-pub fn box_size(own: &Plan) -> (f64, f64) {
+/// The box a model is drawn as in a parent diagram: as wide as its name
+/// needs (bounded), as high as the aspect of its own diagram says.
+pub fn box_size(own: &Plan, name: &str) -> (f64, f64) {
     let [l, b, r, t] = own.extent;
     let aspect = if r > l { (t - b) / (r - l) } else { 1.0 };
-    (BOX_W, (BOX_W * aspect).clamp(MIN_BOX_H, MAX_BOX_H))
+    let width = (28.0 + WIDTH_PER_CHAR * name.chars().count() as f64).clamp(BOX_W, MAX_BOX_W);
+    ((width / 5.0).ceil() * 5.0, (BOX_W * aspect).clamp(MIN_BOX_H, MAX_BOX_H))
 }
 
 /// The boxes, the connectors on the border and the lines of a model.
@@ -224,19 +232,22 @@ pub fn plan(parts: &[Part], sides: &Sides, plans: &[Plan], holder: Option<usize>
     let mut plan = Plan::default();
     place_boxes(&mut plan, parts, plans, children, conns, moves);
     let (min_x, min_y, max_x, max_y) = bounds(&plan);
-    let left = min_x - BORDER;
-    let right = max_x + BORDER;
+    let port_half = ((max_x - min_x) * 0.05).clamp(MIN_PORT, MAX_PORT);
+    let border = 2.0 * port_half + BORDER_GAP;
+    plan.port_half = port_half;
+    let left = min_x - border;
+    let right = max_x + border;
     let mut bottom = min_y - 10.0;
     let mut top = max_y + 10.0;
     if let Some(holder) = holder {
         let (left_ports, right_ports) = sides.lists(holder);
-        let needed = BORDER_PORT_PITCH * left_ports.len().max(right_ports.len()) as f64;
+        let needed = (2.0 * port_half + 6.0) * left_ports.len().max(right_ports.len()) as f64;
         if top - bottom < needed {
             let middle = (top + bottom) / 2.0;
             bottom = middle - needed / 2.0;
             top = middle + needed / 2.0;
         }
-        for (list, x) in [(&left_ports, left + DIAGRAM_PORT + 1.0), (&right_ports, right - DIAGRAM_PORT - 1.0)] {
+        for (list, x) in [(&left_ports, left + port_half + 1.0), (&right_ports, right - port_half - 1.0)] {
             for (i, &port) in list.iter().enumerate() {
                 let y = top - (i as f64 + 0.5) * (top - bottom) / list.len() as f64;
                 plan.own_ports.insert(port, (x, y));
@@ -350,15 +361,18 @@ fn visit(v: usize, edges: &[(usize, usize)], state: &mut [u8], order: &mut Vec<u
 }
 
 fn place_boxes(plan: &mut Plan, parts: &[Part], plans: &[Plan], children: &[usize], conns: &[&Connection], moves: &BTreeMap<usize, Point>) {
-    for (c, column) in columns(parts, children, conns).iter().enumerate() {
-        let sizes: Vec<(f64, f64)> = column.iter().map(|&p| box_size(&plans[p])).collect();
+    let mut left = 0.0;
+    for column in columns(parts, children, conns).iter() {
+        let sizes: Vec<(f64, f64)> = column.iter().map(|&p| box_size(&plans[p], &parts[p].name)).collect();
+        let width = sizes.iter().map(|s| s.0).fold(0.0, f64::max);
         let total: f64 = sizes.iter().map(|s| s.1).sum::<f64>() + ROW_GAP * (column.len() as f64 - 1.0);
         let mut y = total / 2.0;
         for (&part, &(w, h)) in column.iter().zip(&sizes) {
             let (dx, dy) = moves.get(&part).copied().unwrap_or((0.0, 0.0));
-            plan.boxes.insert(part, Placed { x: c as f64 * (BOX_W + COLUMN_GAP) + dx, y: y - h / 2.0 + dy, w, h });
+            plan.boxes.insert(part, Placed { x: left + width / 2.0 + dx, y: y - h / 2.0 + dy, w, h });
             y -= h + ROW_GAP;
         }
+        left += width + COLUMN_GAP;
     }
 }
 

@@ -146,8 +146,8 @@ fn component_placement(placed: &placement::Placed) -> String {
 /// A connector of a model, on the border of its diagram. The icon of the
 /// model is its diagram, so there is no `iconTransformation`: the connector
 /// sits at the same place on both.
-fn port_annotation(at: (f64, f64), id: &str) -> String {
-    let r = placement::DIAGRAM_PORT;
+fn port_annotation(at: (f64, f64), half: f64, id: &str) -> String {
+    let r = half;
     format!(
         "annotation(Placement(transformation(origin={{{},{}}}, extent={{{{{},{}}},{{{},{}}}}})), __ArcLang(id=\"{}\"))",
         placement::num(at.0), placement::num(at.1), placement::num(-r), placement::num(-r), placement::num(r), placement::num(r),
@@ -168,7 +168,7 @@ fn icon(name: &str, extent: [f64; 4]) -> String {
     let (w, h) = (r - l, t - b);
     let (cx, cy) = ((l + r) / 2.0, (b + t) / 2.0);
     let rectangle = format!("{{{{{},{}}},{{{},{}}}}}", l, b, r, t);
-    let label = format!("{{{{{},{}}},{{{},{}}}}}", placement::num(l + w * 0.2), placement::num(cy - h * 0.2), placement::num(r - w * 0.2), placement::num(cy + h * 0.2));
+    let label = format!("{{{{{},{}}},{{{},{}}}}}", placement::num(l + w * 0.27), placement::num(cy - h * 0.2), placement::num(r - w * 0.27), placement::num(cy + h * 0.2));
     let instance = format!("{{{{{},{}}},{{{},{}}}}}", l, placement::num(t + 2.0), r, placement::num(t + h * 0.25));
     let _ = cx;
     format!(
@@ -221,7 +221,7 @@ impl Writer<'_> {
         let drawn = self.options.placement.then(|| &self.plans[index.unwrap_or(0)]);
         for (number, port) in part.ports.iter().enumerate() {
             let note = match &drawn {
-                Some(plan) => port_annotation(plan.own_ports.get(&number).copied().unwrap_or((0.0, 0.0)), &port.id),
+                Some(plan) => port_annotation(plan.own_ports.get(&number).copied().unwrap_or((0.0, 0.0)), plan.port_half, &port.id),
                 None => annotation(&port.id),
             };
             let _ = writeln!(out, "{indent}  {} {} \"{} port {}\" {note};", port.connector, port.member, port.physics.label(), names::string(&port.name));
