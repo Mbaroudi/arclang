@@ -121,6 +121,15 @@ compiler's rendering of it: comments and layout of the original are not kept,
 unlike `.arc` files. **ArcLang: Import** converts a `.sysml` into a `.arc`
 file when you prefer to continue in ArcLang.
 
+## Semantic git: compare, history, baselines, merge
+
+A model is versioned like code but reviewed and merged like a model (`docs/SEMANTIC_GIT.md`).
+
+- **Compare ▾** (tool row of the workbench, or *ArcLang: Compare the model with a branch, tag, baseline or HEAD…*): the diagrams are drawn with the changes marked: added green, modified amber, removed ghosted (dashed red) where they were, moved and renamed with a badge. The layer tabs count the changes; a panel lists them by layer with the gate before and after, the new blockers and the requirements left unsatisfied or unverified; a click selects the element, with *Source*, *Diff* and *History*. The comparison is read-only; *Exit* goes back to editing.
+- **History…** on an element (context menu, Properties): the commits that changed it, and the model at one of them beside the current one.
+- **Create baseline…** (the gate result first), **Compare with a baseline…**, **Verify a baseline…**: `baselines/<name>/` with the gate report, the coverage table, the exports and a manifest of SHA-256 hashes, and an annotated tag `baseline/<name>`.
+- **Install the semantic merge driver**: `git merge` then merges `.arc` and `.layout.json` files by element: different elements, or different attributes, never conflict; a real conflict is marked around the element and listed in the **Resolve conflicts** view (*Accept ours*, *Accept theirs*, *Edit*).
+
 ## Importing a model
 
 Bring a model in from the model view's **Import** button (cloud icon), its welcome when the workspace has no `.arc` file, the Explorer's context menu, or *File ▾ › Import a model…* in the workbench. One quick pick asks what you import:
