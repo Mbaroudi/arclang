@@ -221,7 +221,8 @@ export class ModelTreeProvider implements vscode.TreeDataProvider<ModelItem>, vs
   }
 
   async getChildren(item?: ModelItem): Promise<ModelItem[]> {
-    if (!this.document) return [{ type: 'message', text: 'Open a .arc or .sysml file to see its model.' }];
+    // No model shown: the view's welcome says what to do (open one, import one, start one).
+    if (!this.document) return [];
     if (!item) {
       if (!this.roots) this.roots = await this.build(this.document);
       return this.roots;

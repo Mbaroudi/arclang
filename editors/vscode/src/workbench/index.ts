@@ -11,6 +11,7 @@ import { registerStatusBar } from './status';
 import { registerPanes } from './panes-host'; // panes hook
 import { graphsDrawing, ModelItem, ModelTreeProvider, revealElement } from './tree';
 import { ExportArgs, pickerItems, themeStore } from './diagram-export';
+import { saveModelAs } from './model-file';
 
 /** The document to work on: the one given, the active model editor's, else the tree's. */
 async function documentFrom(uri: unknown, tree: ModelTreeProvider): Promise<vscode.TextDocument | null> {
@@ -104,6 +105,14 @@ export function registerWorkbench(context: vscode.ExtensionContext): void {
 
   // The canvas's keys, bound in VS Code so they follow the keyboard layout (⌘Z on AZERTY is ⌘Z).
   register('arclang.workbench.undo', () => WorkbenchPanel.activePanel()?.undo());
+  // The model's file from the workbench: ⌘S on the canvas, the Save button, Save as another format.
+  register('arclang.workbench.save', () => WorkbenchPanel.activePanel()?.saveFile());
+  register('arclang.workbench.saveAs', async (format?: unknown) => {
+    const panel = WorkbenchPanel.activePanel();
+    if (panel) return panel.saveAs(typeof format === 'string' ? format : undefined);
+    const document = await documentFrom(undefined, tree);
+    return document ? saveModelAs(document, typeof format === 'string' ? format : undefined) : null;
+  });
   register('arclang.workbench.redo', () => WorkbenchPanel.activePanel()?.redo());
   const canvasKeys: [string, CanvasCommand][] = [['copy', 'copy'], ['cut', 'cut'], ['paste', 'paste'], ['duplicate', 'duplicate'], ['selectAll', 'select-all'], ['delete', 'delete'], ['zoomIn', 'zoom-in'], ['zoomOut', 'zoom-out'], ['fit', 'fit']];
   for (const [name, command] of canvasKeys) register(`arclang.workbench.${name}`, () => WorkbenchPanel.activePanel()?.canvas(command));

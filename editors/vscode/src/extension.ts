@@ -13,6 +13,7 @@ import { registerFormatter } from './format';
 import { registerMcpProvider } from './mcp';
 import { workspaceTrusted } from './cli';
 import { registerWorkbench } from './workbench';
+import { registerImport } from './importing';
 import { registerTables } from './tables'; // tables hook
 import { registerImpact } from './impact'; // impact hook
 
@@ -36,7 +37,6 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   );
   register('arclang.diffWithHead', (uri?: unknown) => commands.diffWithHead(uri instanceof vscode.Uri ? uri : undefined));
   register('arclang.export', (uri?: unknown) => commands.exportModel(uri instanceof vscode.Uri ? uri : undefined));
-  register('arclang.import', () => commands.importModel());
   register('arclang.showMetamodel', () => commands.showMetamodel());
   register('arclang.showRules', () => commands.showRules());
   register('arclang.restartServer', () => restartClient(context));
@@ -45,6 +45,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   registerFormatter(context);
   registerDiagramRefresh(context);
   registerWorkbench(context);
+  registerImport(context);
   registerTables(context); // tables hook
   registerImpact(context); // impact hook
   registerTools(context);

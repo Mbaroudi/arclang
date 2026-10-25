@@ -22,6 +22,7 @@ import { installKeys } from './keys';
 import { MultiSelection } from './multi-select';
 import { installPanes } from './panes'; // panes hook
 import { installImpact } from './impact-marks'; // impact hook
+import { installFileMenu } from './file-menu';
 import { DiagramExports } from './diagram-export';
 import { ThemeEditor } from './theme-editor';
 
@@ -794,3 +795,5 @@ installPanes({ sheet, layerBar, viewer: () => state.viewer, graph: () => current
 installImpact({ post: (m) => vscode.postMessage(m as never), host, layerBar, drawingId, selection: () => (multiSelection.elements.length > 1 ? multiSelection.elements : state.selected ? [state.selected] : []) }); // impact hook
 
 vscode.postMessage({ type: 'ready' });
+// Save, Save as, Import at the head of the tool row; a model file dropped on the sheet.
+installFileMenu({ slot: shell.fileSlot, sheet, post: (message) => vscode.postMessage(message), toast: (text, kind) => showToast(text, kind) });

@@ -82,6 +82,23 @@ compiler's rendering of it: comments and layout of the original are not kept,
 unlike `.arc` files. **ArcLang: Import** converts a `.sysml` into a `.arc`
 file when you prefer to continue in ArcLang.
 
+## Importing a model
+
+Bring a model in from the model view's **Import** button (cloud icon), its welcome when the workspace has no `.arc` file, the Explorer's context menu, or *File ▾ › Import a model…* in the workbench. One quick pick asks what you import:
+
+| Source | What is read |
+|--------|--------------|
+| Capella model | a `.capella` (or `.melodymodeller`), its `.aird` (read through the `.capella` beside it), or a project folder; every layer, the requirements, the diagrams |
+| SysML v2 file(s) or folder | one `.sysml`/`.kerml`, several selected together, or a folder, as one model; a `.json` listing of API records |
+| SysML v2 API server | base address (https, or http on this machine), optional token (kept in the secret storage), then the project and the commit; every element is read page by page |
+| ReqIF / DOORS | a `.reqif` or `.reqifz`; into the open model (one undoable edit, checked with it) or a new `.arc` |
+
+A `.capella`, `.sysml` or `.reqif` file dropped on the workbench sheet (Shift held) is offered for import too. The **import report** says what was imported and what was left out and why, whether the written model compiles, or the refusal and the `.rejected.arc` the compiler kept; it has *Open workbench*, *Open model* and *Run check*.
+
+## Saving and saving as
+
+The workbench toolbar has a **Save** button: a ● shows while the model has unsaved changes (also in the tab's title), ⌘S / Ctrl+S on the canvas saves it without touching the canvas's undo history, and a `.sysml` is written back as SysML v2. With `files.autoSave` on it reads *Saved*. **File ▾ › Save as…** writes SysML v2, Capella, ReqIF or a copy as `.arc` through `arclang export`.
+
 ## From the command line, without leaving VS Code
 
 Every command of the palette is one CLI subcommand:
@@ -94,7 +111,7 @@ Every command of the palette is one CLI subcommand:
 | ArcLang: Change impact of an element | `arclang impact` |
 | ArcLang: Semantic diff against the committed version | `arclang diff` between `git HEAD` and the file |
 | ArcLang: Export | `arclang export -f sys-ml`, `sysml-json`, `capella`, `req-if`, `c-headers`, `proto`, ... |
-| ArcLang: Import | `arclang import -f sysml`, `capella`, `req-if`, ... (any SysML v2 text or API records) |
+| ArcLang: Import | `arclang import -f sysml`, `capella`, `req-if`, ... (see *Importing a model*) |
 | ArcLang: Show the language metamodel | `arclang metamodel` |
 
 ## With AI
