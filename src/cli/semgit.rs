@@ -329,3 +329,24 @@ pub fn run_baseline(command: &BaselineCommand) -> Result<(), CliError> {
         }
     }
 }
+
+/// `arclang workbench <file> --rev <revision>`: the snapshot of the model as
+/// committed, its layout file included, for the workbench's compare mode and
+/// its element history.
+pub fn run_workbench_at(input: &std::path::Path, revision: &str, gate_standard: &str, exports: bool) -> Result<(), CliError> {
+    use crate::compiler::workbench::{snapshot_file_json, SnapshotOptions};
+    let standard = match gate_standard.to_ascii_uppercase().replace(['-', '_', ' '], "").as_str() {
+        "DO178C" => "DO178C",
+        "IEC61508" => "IEC61508",
+        _ => "ISO26262",
+    };
+    let loaded = rich::load(input, &Source::Git(revision.to_string())).map_err(failure)?;
+    let mut json: serde_json::Value = serde_json::from_str(&snapshot_file_json(&loaded.path, &SnapshotOptions { gate_standard: standard, exports, explorer_html: false })).map_err(|e| failure(e.to_string()))?;
+    if let (Some(layout), Some(diagrams)) = (loaded.layout.clone(), json.get_mut("diagrams").and_then(|d| d.as_object_mut())) {
+        diagrams.insert("layout".into(), layout);
+        let name = crate::compiler::diagram::layout_file::sidecar_path(&loaded.path);
+        diagrams.insert("layout_name".into(), serde_json::json!(name.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default()));
+    }
+    println!("{json}");
+    Ok(())
+}

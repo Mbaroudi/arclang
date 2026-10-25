@@ -453,6 +453,10 @@ pub enum Commands {
         /// Also render the interop exports (SysML v2, ReqIF, C headers, Protobuf)
         #[clap(long)]
         exports: bool,
+
+        /// The model as committed at this git revision, with its layout file
+        #[clap(long)] // semgit hook
+        rev: Option<String>,
     },
 
     /// Apply one edit, written as JSON, to a model file: {"op": "set" |
@@ -844,7 +848,10 @@ impl CliRunner {
                 };
                 review::run(&input, options, json, dry_run)
             }
-            Commands::Workbench { input, gate_standard, exports } => edit::workbench(&input, &gate_standard, exports),
+            Commands::Workbench { input, gate_standard, exports, rev } => match rev { // semgit hook
+                Some(rev) => semgit::run_workbench_at(&input, &rev, &gate_standard, exports),
+                None => edit::workbench(&input, &gate_standard, exports),
+            },
             Commands::Edit { input, request, write } => edit::apply_request(&input, &request, write),
             Commands::Table(args) => table::run(&args), // tables hook
             Commands::Metamodel { format } => {
