@@ -1,0 +1,14 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>ArcLang pull-request report</title>
+<style>body{font:14px/1.5 system-ui,sans-serif;max-width:60rem;margin:2rem auto;padding:0 1rem}code{background:#eee;padding:0 .25em;border-radius:3px}.pass{color:#1a7f37}.fail{color:#c62828}small{font-size:.6em}img{max-width:48%}</style></head>
+<body>
+<!-- arclang-pr-report -->
+<h1>ArcLang gate: <span class="fail">FAIL</span></h1>
+<p>Base <code>main</code> (<commit>) &rarr; head <code>WORKTREE</code>, ISO26262 gate, ArcLang <version></p>
+<h2><code>model.arc</code> <small class="fail">FAIL</small></h2>
+<p>Production gate: <b>PASS</b> &rarr; <b>FAIL (1 blocker)</b>. Requirements: 2/2 -&gt; 2/2 satisfied, 2/2 -&gt; 2/2 verified. Changes: +0 -0 ~1.</p>
+<h3>New blockers</h3><ul><li>[timing.budget] functional_chain 'Reaction': sum of function latencies 230.0 ms exceeds the 100.0 ms budget</li></ul>
+<h3>Regressions</h3><ul><li>budget Reaction is exceeded (230 ms for 100 ms)</li></ul>
+<p>Semantic diff: 0 added, 0 removed, 1 modified (0 renamed, 0 moved); 0 relationship(s) added, 0 removed, 0 changed</p>
+<h3>System Analysis (SA): +0 -0 ~1</h3><ul><li>modified SystemFunction <code>SF-SENSE</code> Sense</li></ul>
+</body></html>

@@ -217,7 +217,8 @@ fn model_report(options: &Options, model: &Path, label: &str, from: &Source, to:
     let mut diff = None;
     let mut images = None;
     if let (Some(base), Some(head)) = (&base, &head) {
-        let d = rich::compare(model, base, head, standard)?;
+        let mut d = rich::compare(model, base, head, standard)?;
+        d.model = label.to_string();
         images = write_images(options, label, base, head, &d, standard)?;
         diff = Some(d);
     }
