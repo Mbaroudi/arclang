@@ -3,7 +3,9 @@
     "module": "Node16",
     "moduleResolution": "Node16",
     "target": "ES2022",
-    "lib": ["ES2022"],
+    "lib": [
+      "ES2022"
+    ],
     "strict": true,
     "noImplicitOverride": true,
     "noUnusedLocals": true,
@@ -14,6 +16,14 @@
     "outDir": "out",
     "rootDir": "."
   },
-  "include": ["src", "test"],
-  "exclude": ["node_modules", "dist", "out"]
+  "include": [
+    "src",
+    "test"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "out",
+    "src/web"
+  ]
 }

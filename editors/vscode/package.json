@@ -19,12 +19,13 @@
     "vscode": "^1.104.0"
   },
   "extensionKind": [
-    "workspace"
+    "workspace",
+    "web"
   ],
   "capabilities": {
     "virtualWorkspaces": {
-      "supported": false,
-      "description": "The extension runs the arclang compiler on files of the local file system."
+      "supported": true,
+      "description": "In a virtual workspace (the web playground) the compiler runs in WebAssembly on the open files."
     },
     "untrustedWorkspaces": {
       "supported": "limited",
@@ -59,7 +60,10 @@
     "onLanguage:arclang",
     "onView:arclangModel",
     "onLanguage:sysml",
-    "onView:arclangRelations"
+    "onView:arclangRelations",
+    "onLanguage:modelica",
+    "onView:arclangChat",
+    "onCommand:arclang.chat.open"
   ],
   "main": "./dist/extension.js",
   "contributes": {
@@ -108,6 +112,21 @@
           ".sysml"
         ],
         "configuration": "./language-configuration.json"
+      },
+      {
+        "id": "modelica",
+        "aliases": [
+          "Modelica",
+          "modelica"
+        ],
+        "extensions": [
+          ".mo"
+        ],
+        "configuration": "./modelica-language-configuration.json",
+        "icon": {
+          "light": "./media/modelica-icon.svg",
+          "dark": "./media/modelica-icon.svg"
+        }
       }
     ],
     "grammars": [
@@ -120,6 +139,11 @@
         "language": "sysml",
         "scopeName": "source.sysml",
         "path": "./syntaxes/sysml.tmLanguage.json"
+      },
+      {
+        "language": "modelica",
+        "scopeName": "source.modelica.arclang",
+        "path": "./syntaxes/modelica.tmLanguage.json"
       }
     ],
     "commands": [
@@ -672,6 +696,11 @@
       {
         "command": "arclang.workbench.selectNone",
         "title": "Select none on the canvas",
+        "category": "ArcLang"
+      },
+      {
+        "command": "arclang.chat.open",
+        "title": "Open the AI chat (ArcLang and Modelica)",
         "category": "ArcLang"
       }
     ],
@@ -1351,7 +1380,8 @@
             "google",
             "ollama",
             "openai-compatible",
-            "off"
+            "off",
+            "arclang-hosted"
           ],
           "enumDescriptions": [
             "The language models VS Code offers (GitHub Copilot or any other extension's); pick one with arclang.ai.vscodeModel.",
@@ -1362,7 +1392,8 @@
             "Google Gemini (key: ArcLang: Set AI API key).",
             "Ollama on this machine: no key, nothing leaves it.",
             "Any server with the OpenAI chat completions API (LM Studio, vLLM, llama.cpp, LiteLLM…) at arclang.ai.endpoint; key optional.",
-            "No AI: nothing is ever sent."
+            "No AI: nothing is ever sent.",
+            "ArcLang hosted: the site's own assistant (arclang.fr), free and limited; no key. The default of the web playground."
           ],
           "markdownDescription": "The AI behind **Ask AI** (⌘I on a selection), the impact suggestions and `@arclang`. API keys are never settings: run **ArcLang: Set AI API key** (stored in the OS keychain through VS Code's secret storage). User setting only: a workspace cannot redirect the requests.",
           "scope": "machine"
@@ -1502,6 +1533,12 @@
             "No sheet: the boxes and lines only, for a coloured slide."
           ],
           "description": "The background of the diagram copied as an image (Copy as image, ⇧⌘C / Ctrl+Shift+C on the canvas)."
+        },
+        "arclang.ai.hostedEndpoint": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "Where the `arclang-hosted` provider goes: the address of the ArcLang AI gateway. Empty: https://arclang.fr/api/ai. User setting only.",
+          "scope": "machine"
         }
       }
     },
@@ -1941,6 +1978,13 @@
           "title": "ArcLang",
           "icon": "media/icon.svg"
         }
+      ],
+      "secondarySidebar": [
+        {
+          "id": "arclangChat",
+          "title": "ArcLang Chat",
+          "icon": "media/chat.svg"
+        }
       ]
     },
     "views": {
@@ -1956,6 +2000,15 @@
           "name": "Relations",
           "contextualTitle": "ArcLang relations",
           "icon": "media/icon.svg"
+        }
+      ],
+      "arclangChat": [
+        {
+          "type": "webview",
+          "id": "arclang.chat",
+          "name": "AI chat",
+          "contextualTitle": "ArcLang AI chat",
+          "icon": "media/chat.svg"
         }
       ]
     },
@@ -2406,7 +2459,8 @@
     "package": "vsce package --no-dependencies",
     "publish": "vsce publish --no-dependencies",
     "test:integration": "tsc -p ./ && vscode-test",
-    "icons": "node --import tsx scripts/write-kind-icons.ts"
+    "icons": "node --import tsx scripts/write-kind-icons.ts",
+    "typecheck:web": "tsc -p tsconfig.web.json"
   },
   "dependencies": {
     "vscode-languageclient": "^10.1.2"
@@ -2421,6 +2475,10 @@
     "esbuild": "^0.28.2",
     "mocha": "^11.0.0",
     "tsx": "^4.20.0",
-    "typescript": "^5.9.0"
-  }
+    "typescript": "^5.9.0",
+    "@types/path-browserify": "^1.0.3",
+    "buffer": "^6.0.3",
+    "path-browserify": "^1.0.1"
+  },
+  "browser": "./dist/web/extension.js"
 }

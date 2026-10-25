@@ -1,0 +1,116 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "Modelica",
+  "scopeName": "source.modelica.arclang",
+  "patterns": [
+    { "include": "#comments" },
+    { "include": "#strings" },
+    { "include": "#annotation" },
+    { "include": "#class-definitions" },
+    { "include": "#end-of-class" },
+    { "include": "#section-keywords" },
+    { "include": "#control-keywords" },
+    { "include": "#prefixes" },
+    { "include": "#types" },
+    { "include": "#builtin-functions" },
+    { "include": "#constants" },
+    { "include": "#numbers" },
+    { "include": "#operators" }
+  ],
+  "repository": {
+    "comments": {
+      "patterns": [
+        { "name": "comment.line.double-slash.modelica", "match": "//.*$" },
+        { "name": "comment.block.modelica", "begin": "/\\*", "end": "\\*/" }
+      ]
+    },
+    "strings": {
+      "name": "string.quoted.double.modelica",
+      "begin": "\"",
+      "end": "\"",
+      "patterns": [{ "name": "constant.character.escape.modelica", "match": "\\\\(?:['\"?\\\\abfnrtv])" }]
+    },
+    "annotation": {
+      "begin": "\\b(annotation)\\s*(\\()",
+      "beginCaptures": {
+        "1": { "name": "keyword.other.annotation.modelica" },
+        "2": { "name": "punctuation.section.annotation.begin.modelica" }
+      },
+      "end": "\\)",
+      "endCaptures": { "0": { "name": "punctuation.section.annotation.end.modelica" } },
+      "name": "meta.annotation.modelica",
+      "patterns": [
+        { "include": "#comments" },
+        { "include": "#strings" },
+        { "include": "#nested-parens" },
+        { "include": "#numbers" },
+        { "include": "#constants" },
+        { "name": "variable.parameter.annotation.modelica", "match": "\\b[A-Za-z_][A-Za-z0-9_]*(?=\\s*=)" },
+        { "name": "support.function.annotation.modelica", "match": "\\b[A-Z][A-Za-z0-9_]*(?=\\s*\\()" }
+      ]
+    },
+    "nested-parens": {
+      "begin": "\\(",
+      "end": "\\)",
+      "patterns": [
+        { "include": "#comments" },
+        { "include": "#strings" },
+        { "include": "#nested-parens" },
+        { "include": "#numbers" },
+        { "include": "#constants" },
+        { "name": "variable.parameter.annotation.modelica", "match": "\\b[A-Za-z_][A-Za-z0-9_]*(?=\\s*=)" },
+        { "name": "support.function.annotation.modelica", "match": "\\b[A-Z][A-Za-z0-9_]*(?=\\s*\\()" }
+      ]
+    },
+    "class-definitions": {
+      "match": "\\b(?:(partial|encapsulated|expandable|pure|impure)\\s+)*(model|block|connector|package|function|record|class|type|operator\\s+function|operator\\s+record|operator)\\s+([A-Za-z_][A-Za-z0-9_]*)",
+      "captures": {
+        "1": { "name": "storage.modifier.modelica" },
+        "2": { "name": "storage.type.class.modelica" },
+        "3": { "name": "entity.name.type.class.modelica" }
+      }
+    },
+    "end-of-class": {
+      "match": "\\b(end)\\s+([A-Za-z_][A-Za-z0-9_]*)\\s*;",
+      "captures": {
+        "1": { "name": "keyword.control.end.modelica" },
+        "2": { "name": "entity.name.type.class.modelica" }
+      }
+    },
+    "section-keywords": {
+      "name": "keyword.control.section.modelica",
+      "match": "\\b(initial\\s+equation|initial\\s+algorithm|equation|algorithm|protected|public|external|extends|import|within|constrainedby|redeclare|replaceable|final|inner|outer|each)\\b"
+    },
+    "control-keywords": {
+      "name": "keyword.control.modelica",
+      "match": "\\b(if|then|else|elseif|for|in|loop|while|when|elsewhen|break|return|connect|and|or|not)\\b"
+    },
+    "prefixes": {
+      "name": "storage.modifier.modelica",
+      "match": "\\b(parameter|constant|discrete|input|output|flow|stream|der|stateSelect)\\b"
+    },
+    "types": {
+      "name": "support.type.modelica",
+      "match": "\\b(Real|Integer|Boolean|String|Clock|StateSelect|AssertionLevel|ExternalObject)\\b"
+    },
+    "builtin-functions": {
+      "name": "support.function.builtin.modelica",
+      "match": "\\b(der|pre|edge|change|sample|reinit|assert|terminate|initial|terminal|noEvent|smooth|delay|spatialDistribution|abs|sign|sqrt|sin|cos|tan|asin|acos|atan|atan2|sinh|cosh|tanh|exp|log|log10|min|max|sum|product|size|ndims|fill|zeros|ones|linspace|identity|diagonal|cat|transpose|floor|ceil|integer|mod|rem|div)(?=\\s*\\()"
+    },
+    "constants": {
+      "name": "constant.language.modelica",
+      "match": "\\b(true|false|time)\\b"
+    },
+    "numbers": {
+      "name": "constant.numeric.modelica",
+      "match": "(?<![A-Za-z_])(?:\\d+\\.?\\d*|\\.\\d+)(?:[eE][+-]?\\d+)?"
+    },
+    "operators": {
+      "patterns": [
+        { "name": "keyword.operator.assignment.modelica", "match": ":=|=" },
+        { "name": "keyword.operator.comparison.modelica", "match": "<>|<=|>=|==|<|>" },
+        { "name": "keyword.operator.arithmetic.modelica", "match": "\\.\\^|\\.\\*|\\./|\\^|\\+|-|\\*|/" }
+      ]
+    }
+  }
+}

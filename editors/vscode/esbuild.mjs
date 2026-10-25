@@ -93,6 +93,43 @@ const page = await esbuild.context({
   outfile: 'dist/webview.js',
 });
 
+// web hook: the web extension (dist/web/extension.js), for the extension host
+// worker of a browser. Node's modules are replaced by small shims on an
+// in-memory file system, `child_process` by a stub that is never reached
+// (the WebAssembly backend answers every compiler call), and the compiler's
+// module is copied beside it.
+const shims = path.join(here, 'src', 'web', 'shims');
+const web = await esbuild.context({
+  ...common,
+  entryPoints: ['src/web/extension.ts'],
+  format: 'cjs',
+  platform: 'browser',
+  target: 'es2022',
+  outfile: 'dist/web/extension.js',
+  external: ['vscode'],
+  inject: [path.join(shims, 'buffer-global.ts')],
+  define: { 'import.meta.url': '""', 'process.platform': '"browser"', 'process.env': '{}', global: 'globalThis' },
+  alias: {
+    'node:fs': path.join(shims, 'fs.ts'),
+    'node:fs/promises': path.join(shims, 'fs-promises.ts'),
+    'node:os': path.join(shims, 'os.ts'),
+    'node:crypto': path.join(shims, 'crypto.ts'),
+    'node:child_process': path.join(shims, 'child-process.ts'),
+    'node:zlib': path.join(shims, 'zlib.ts'),
+    'node:path': 'path-browserify',
+  },
+});
+
+function copyWasm() {
+  const source = path.resolve(here, '..', '..', 'wasm', 'pkg', 'arclang_wasm_bg.wasm');
+  if (!fs.existsSync(source)) {
+    console.log('wasm: not built (wasm/pkg is missing), the web extension will not start; see docs/WEB_PLAYGROUND.md');
+    return;
+  }
+  fs.mkdirSync(path.join(here, 'dist', 'web'), { recursive: true });
+  fs.copyFileSync(source, path.join(here, 'dist', 'web', 'arclang_wasm_bg.wasm'));
+}
+
 // tables hook: the table view's page.
 const tables = await esbuild.context({
   ...common,
@@ -101,6 +138,16 @@ const tables = await esbuild.context({
   platform: 'browser',
   target: 'es2022',
   outfile: 'dist/tables.js',
+});
+
+// web hook: the AI chat's page (the same in the desktop and the web build).
+const chat = await esbuild.context({
+  ...common,
+  entryPoints: ['webview/chat/main.ts'],
+  format: 'iife',
+  platform: 'browser',
+  target: 'es2022',
+  outfile: 'dist/chat.js',
 });
 
 // impact hook: the impact analysis view's page.
@@ -114,8 +161,9 @@ const impact = await esbuild.context({
 });
 
 if (watch) {
-  await Promise.all([host.watch(), page.watch(), tables.watch(), impact.watch()]);
+  await Promise.all([host.watch(), web.watch(), chat.watch(), page.watch(), tables.watch(), impact.watch()]);
 } else {
-  await Promise.all([host.rebuild(), page.rebuild(), tables.rebuild(), impact.rebuild()]);
-  await Promise.all([host.dispose(), page.dispose(), tables.dispose(), impact.dispose()]);
+  await Promise.all([host.rebuild(), web.rebuild(), chat.rebuild(), page.rebuild(), tables.rebuild(), impact.rebuild()]);
+  copyWasm();
+  await Promise.all([host.dispose(), web.dispose(), chat.dispose(), page.dispose(), tables.dispose(), impact.dispose()]);
 }

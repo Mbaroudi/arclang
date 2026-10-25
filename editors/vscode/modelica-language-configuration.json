@@ -1,0 +1,23 @@
+{
+  "comments": { "lineComment": "//", "blockComment": ["/*", "*/"] },
+  "brackets": [["{", "}"], ["[", "]"], ["(", ")"]],
+  "autoClosingPairs": [
+    { "open": "{", "close": "}" },
+    { "open": "[", "close": "]" },
+    { "open": "(", "close": ")" },
+    { "open": "\"", "close": "\"", "notIn": ["string", "comment"] },
+    { "open": "/*", "close": " */", "notIn": ["string"] }
+  ],
+  "surroundingPairs": [["{", "}"], ["[", "]"], ["(", ")"], ["\"", "\""]],
+  "indentationRules": {
+    "increaseIndentPattern": "^\\s*(model|block|connector|package|function|record|class|type|operator|equation|algorithm|initial\\s+equation|initial\\s+algorithm|protected|public|if\\b.*\\bthen|for\\b.*\\bloop|while\\b.*\\bloop|when\\b.*\\bthen|else|elseif\\b.*\\bthen|elsewhen\\b.*\\bthen)\\b[^;]*$",
+    "decreaseIndentPattern": "^\\s*(end\\b|else\\b|elseif\\b|elsewhen\\b)"
+  },
+  "folding": {
+    "markers": {
+      "start": "^\\s*(model|block|connector|package|function|record|class|operator)\\b[^;]*$",
+      "end": "^\\s*end\\s+\\w+\\s*;"
+    }
+  },
+  "wordPattern": "[A-Za-z_][A-Za-z0-9_]*"
+}

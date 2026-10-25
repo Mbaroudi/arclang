@@ -2,6 +2,7 @@
 // Ask AI on a selection (workbench and text), impact-driven suggestions.
 import * as vscode from 'vscode';
 import { connectBridge } from './bridge';
+import { registerChat } from './chat';
 import { testConnection } from './client';
 import { registerPreviews } from './preview';
 import { aiLog, clearApiKey, configure, pickModel, setApiKey } from './settings';
@@ -15,6 +16,7 @@ let engine: SuggestionEngine | null = null;
 
 export function registerAi(context: vscode.ExtensionContext): void {
   registerPreviews(context);
+  registerChat(context);
   engine = new SuggestionEngine(context);
   connectBridge(context, engine);
   registerAiStatus(context);

@@ -28,6 +28,12 @@ export const DEFAULT_THEME = 'arclang-default';
 const TEAM_FOLDER = ['.arclang', 'themes'];
 const MAX_FILE = 256 * 1024;
 
+/** How the viewer's theme module is loaded; the web build bundles it instead of reading it. */
+let themeModuleLoader: ((context: vscode.ExtensionContext) => ThemeModule) | null = null; // web hook
+export function setThemeModuleLoader(loader: (context: vscode.ExtensionContext) => ThemeModule): void { // web hook
+  themeModuleLoader = loader;
+}
+
 export class ThemeStore implements vscode.Disposable {
   private readonly module: ThemeModule;
   private readonly emitter = new vscode.EventEmitter<void>();
@@ -37,8 +43,10 @@ export class ThemeStore implements vscode.Disposable {
 
   constructor(private readonly context: vscode.ExtensionContext) {
     // The viewer's own module, copied with the viewer at build time: one validator for page, host and CLI.
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    this.module = require(path.join(context.extensionPath, 'media', 'viewer', 'arcviz-theme.js')) as ThemeModule;
+    this.module = themeModuleLoader
+      ? themeModuleLoader(context)
+      : // eslint-disable-next-line @typescript-eslint/no-require-imports
+        (require(path.join(context.extensionPath, 'media', 'viewer', 'arcviz-theme.js')) as ThemeModule);
     const watcher = vscode.workspace.createFileSystemWatcher(`**/${TEAM_FOLDER.join('/')}/*.json`);
     this.disposables.push(
       watcher,

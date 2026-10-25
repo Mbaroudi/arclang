@@ -3,7 +3,7 @@
 // provider's own wire format. Nothing here imports VS Code, so the unit
 // tests run the providers against a local fake server.
 
-export type ProviderId = 'off' | 'vscode-lm' | 'anthropic' | 'openai' | 'azure-openai' | 'mistral' | 'google' | 'ollama' | 'openai-compatible';
+export type ProviderId = 'off' | 'vscode-lm' | 'arclang-hosted' | 'anthropic' | 'openai' | 'azure-openai' | 'mistral' | 'google' | 'ollama' | 'openai-compatible';
 
 export type Role = 'system' | 'user' | 'assistant' | 'tool';
 

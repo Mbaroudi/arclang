@@ -116,6 +116,14 @@ function ollamaLines(reply) {
 function startFakeServer(script, port = 0) {
   const requests = [];
   const server = http.createServer((req, res) => {
+    // Cross-origin by design: the browser tests call it from the page of another origin.
+    res.setHeader('access-control-allow-origin', '*');
+    res.setHeader('access-control-allow-headers', '*');
+    res.setHeader('access-control-allow-methods', 'GET, POST, OPTIONS');
+    if (req.method === 'OPTIONS') {
+      res.writeHead(204);
+      return res.end();
+    }
     let raw = '';
     req.on('data', (c) => (raw += c));
     req.on('end', () => {
