@@ -130,6 +130,13 @@ A model is versioned like code but reviewed and merged like a model (`docs/SEMAN
 - **Create baseline…** (the gate result first), **Compare with a baseline…**, **Verify a baseline…**: `baselines/<name>/` with the gate report, the coverage table, the exports and a manifest of SHA-256 hashes, and an annotated tag `baseline/<name>`.
 - **Install the semantic merge driver**: `git merge` then merges `.arc` and `.layout.json` files by element: different elements, or different attributes, never conflict; a real conflict is marked around the element and listed in the **Resolve conflicts** view (*Accept ours*, *Accept theirs*, *Edit*).
 
+## CI/CD: the gate in your pipeline
+
+The compiler runs in your pipeline (`docs/CI_CD.md`): every model compiled, the production gate, the simulations that simulate, a SARIF file for code scanning, and on a pull request one comment (semantic diff, impact, the gate before and after, new blockers) that is updated on each push.
+
+- **ArcLang: Configure CI**: pick the CI systems (GitHub Actions, GitLab CI, Azure DevOps, Jenkins; the one the git remote points at is ticked), read each file in a preview, then write them with `arclang ci init`. Nothing is written until you choose *Write*; a file that exists is replaced only after a second confirmation. The files are not run against the provider by ArcLang: the first pipeline run is their test.
+- **A status item** in the status bar for a repository with the GitHub workflow: the latest run of the current branch (passed, failed, running, or `?` when it was cancelled or skipped: only a success is shown as passing). It is read with the GitHub CLI (`gh`), with its own login: ArcLang stores no token, and says in words when `gh` is missing or not logged in. Nothing is read in an untrusted workspace. Settings: `arclang.ci.statusBar`, `arclang.ci.pollSeconds`, `arclang.ci.gh`.
+
 ## Importing a model
 
 Bring a model in from the model view's **Import** button (cloud icon), its welcome when the workspace has no `.arc` file, the Explorer's context menu, or *File ▾ › Import a model…* in the workbench. One quick pick asks what you import:
