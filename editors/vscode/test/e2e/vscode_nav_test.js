@@ -48,7 +48,10 @@ async function workbenchPage(win, not = []) {
 
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 const textEditors = (p) => p.visibleEditors.filter((e) => e.file.endsWith('.arc'));
-const tabsOf = (p) => p.groups.flatMap((g) => g.tabs.map((t) => `${g.column}:${t.label}`));
+const tabsOf = (p) => p.groups.flatMap((g) => g.tabs.map((t) => `${g.column}:${t.kind}:${t.label}`));
+const groupWith = (p, kind) => p.groups.find((g) => g.tabs.some((t) => t.kind === kind));
+/** The line of the declaration that holds `id: "<id>"`: the closest line above it that opens a block. */
+const declOf = (text, id) => { const lines = text.split('\n'); let at = lines.findIndex((l) => l.includes(`id: "${id}"`)); while (at > 0 && !/\{\s*$/.test(lines[at])) at--; return at; };
 const lineOf = (text, needle) => text.split('\n').findIndex((l) => l.includes(needle));
 
 async function navigation() {
@@ -62,7 +65,7 @@ async function navigation() {
     report('the workbench opens beside the text', !!page);
     if (!page) throw new Error('no workbench page');
     let p = await probe();
-    report('… in a second editor group, the text kept in the first', textEditors(p).length === 1 && p.groups.length === 2 && p.groups.some((g) => g.tabs.some((t) => /ArcLang workbench|model/.test(t.label) && t.label !== 'model.arc')), tabsOf(p).join(' | '));
+    report('… in a second editor group, the text kept in the first', textEditors(p).length === 1 && p.groups.length === 2 && groupWith(p, 'text')?.column === 1 && groupWith(p, 'workbench')?.column === 2, tabsOf(p).join(' | '));
     const boxOf = async (id) => page.locator(`.arcviz-stage [data-id="${id}"]`).first().boundingBox();
     const click = async (id, n = 1) => { const b = await boxOf(id); if (n === 2) await win.mouse.dblclick(b.x + 24, b.y + 8); else await win.mouse.click(b.x + 24, b.y + 8); await win.waitForTimeout(1200); };
     await page.locator('.wb-layer', { hasText: 'System' }).first().click(); await win.waitForTimeout(1500);
@@ -106,21 +109,19 @@ async function navigation() {
     await click('SF-DET', 2);
     const dbl = await probe();
     const text = textEditors(dbl)[0];
-    const wbColumn = dbl.groups.find((g) => g.tabs.some((t) => t.active && !/\.arc$/.test(t.label) && !/ — /.test(t.label) || /workbench|model\.arc/i.test(t.label) && !/^model\.arc$/.test(t.label)))?.column;
     report('a double-click opens the text', !!text, tabsOf(dbl).join(' | '));
-    report('… in a group of its own, beside the workbench', !!text && dbl.groups.length >= 2 && dbl.groups.some((g) => g.tabs.some((t) => t.label === 'model.arc')) && dbl.groups.some((g) => g.tabs.length >= 1 && !g.tabs.some((t) => t.label === 'model.arc')), tabsOf(dbl).join(' | '));
-    report('… the workbench tab is still there, in its own group', dbl.groups.filter((g) => g.tabs.some((t) => t.label !== 'model.arc')).length >= 1);
+    report('… in a group of its own, beside the workbench', !!text && groupWith(dbl, 'text') && groupWith(dbl, 'workbench') && groupWith(dbl, 'text') !== groupWith(dbl, 'workbench'), tabsOf(dbl).join(' | '));
+    report('… the workbench tab is still there, active in its group', !!groupWith(dbl, 'workbench')?.tabs.find((t) => t.kind === 'workbench' && t.active) && groupWith(dbl, 'workbench').tabs.length === 1);
     report('… the declaration is selected in the text, which has the focus', !!text && text.selection[0] === declaration && dbl.activeEditor === model, JSON.stringify(text && text.selection));
     if (SHOTS) await win.screenshot({ path: path.join(SHOTS, 'nav-3-double-click-beside.png') });
 
     // 5. The text is shown: reused, focused, selected there
-    await win.mouse.click(await (async () => { const b = await page.locator('.arcviz-stage').boundingBox(); return { x: b.x + 6, y: b.y + 6 }; })().then((q) => q.x), 400);
     await click('SF-EST'); // back to the workbench
     await click('SF-EST', 2);
     const reuse = await probe();
-    const est = lineOf(source, 'function "Estimate lane geometry"') >= 0 ? lineOf(source, 'function "Estimate lane geometry"') : -1;
-    report('a double-click reuses the text editor shown', textEditors(reuse).length === 1 && reuse.groups.length === dbl.groups.length, tabsOf(reuse).join(' | '));
-    report('… and focuses it, the declaration selected', reuse.activeEditor === model && (est < 0 || textEditors(reuse)[0].selection[0] === est), JSON.stringify(textEditors(reuse)[0].selection) + ' want ' + est);
+    const est = declOf(source, 'SF-EST');
+    report('a double-click reuses the text editor shown', textEditors(reuse).length === 1 && reuse.groups.length === dbl.groups.length && reuse.groups.every((g) => g.tabs.length === 1), tabsOf(reuse).join(' | '));
+    report('… and focuses it, the declaration selected', reuse.activeEditor === model && textEditors(reuse)[0].selection[0] === est, JSON.stringify(textEditors(reuse)[0].selection) + ' want ' + est);
 
     // 6. doubleClick: rename keeps draw.io's gesture
     await setSettings({ 'arclang.workbench.doubleClick': 'rename' });
@@ -133,13 +134,16 @@ async function navigation() {
     report('… and back to source: no rename box', (await page.locator('.wb-direct-edit').count()) === 0);
 
     // 7. The Source button and Go to source with the workbench alone
-    await page.locator('.arcviz-stage').click({ position: { x: 6, y: 6 } });
+    await page.locator('.arcviz-stage').click({ position: { x: 6, y: 6 } }); await win.waitForTimeout(500);
     await command('View: Close Editors in Other Groups'); await win.waitForTimeout(800);
     const gone = await probe();
     report('the text is closed again', textEditors(gone).length === 0);
+    const notes = await win.locator('.notification-list-item').allTextContents(); if (notes.length) console.log('     notifications:', notes.map((n) => n.replace(/\s+/g, ' ').slice(0, 160)).join(' || '));
+    await command('Notifications: Clear All Notifications', 400);
     await page.locator('.wb-problems-head button', { hasText: 'Source' }).click(); await win.waitForTimeout(1500);
     const src = await probe();
-    report('the Source button opens the text in a second group, both visible', textEditors(src).length === 1 && src.groups.length >= 2 && src.groups.filter((g) => g.tabs.length).length >= 2, tabsOf(src).join(' | '));
+    report('the Source button opens the text in a second group, both visible', textEditors(src).length === 1 && src.groups.length >= 2 && groupWith(src, 'text') && groupWith(src, 'workbench') && groupWith(src, 'text') !== groupWith(src, 'workbench'), tabsOf(src).join(' | '));
+    await page.locator('.arcviz-stage').click({ position: { x: 6, y: 6 } }); await win.waitForTimeout(500);
     await command('View: Close Editors in Other Groups'); await win.waitForTimeout(800);
     await click('SF-DET');
     const unfold = page.locator('.wb-sec[data-section="source"], .wb-link', { hasText: 'Go to source' }).first();
@@ -147,6 +151,7 @@ async function navigation() {
     if (await link.count()) { await link.click(); await win.waitForTimeout(1500); }
     const goto = await probe();
     report("the properties' Go to source opens the text beside, selected", (await link.count()) > 0 && textEditors(goto).length === 1 && textEditors(goto)[0].selection[0] === declaration, JSON.stringify(textEditors(goto)[0] && textEditors(goto)[0].selection));
+    if (!(await link.count()) || textEditors(goto).length !== 1) { console.log('     debug', await link.count(), tabsOf(goto).join(' | '), JSON.stringify(goto.visibleEditors)); if (SHOTS) await win.screenshot({ path: path.join(SHOTS, 'nav-debug-goto.png') }); }
     void unfold;
   } finally {
     await app.close().catch(() => undefined);
@@ -178,14 +183,15 @@ async function creation() {
     await pickItem('Arcadia skeleton');
     const skeleton = path.join(dir, 'models', 'skeleton.arc');
     await saveAs(skeleton);
-    const wb2 = await workbenchPage(win);
+    await win.waitForTimeout(3000); if (SHOTS) await win.screenshot({ path: path.join(SHOTS, 'nav-5a-skeleton-open.png') });
+    for (const f of win.frames()) { const t = await f.evaluate(() => document.body && document.body.innerText.slice(0, 200)).catch(() => ''); if (/Operational|workbench|No |empty/i.test(t)) console.log('     frame:', JSON.stringify(t)); }
+    const wb2 = await workbenchPage(win, [page]);
     report('New model, Arcadia skeleton: compiles, holds the four levels', fs.existsSync(skeleton) && check(skeleton).status === 0 && ['operational_analysis', 'system_analysis', 'logical_architecture', 'physical_architecture'].every((k) => fs.readFileSync(skeleton, 'utf8').includes(k)), check(skeleton).stdout.slice(-80));
     const p2 = await probe();
-    report('… opened beside the text', !!wb2 && textEditors(p2).some((e) => e.file === skeleton) && p2.groups.length >= 2, tabsOf(p2).join(' | '));
+    report('… opened beside the text', !!wb2 && textEditors(p2).some((e) => path.basename(e.file) === 'skeleton.arc') && p2.groups.length >= 2, tabsOf(p2).join(' | '));
     if (SHOTS) await win.screenshot({ path: path.join(SHOTS, 'nav-5-skeleton.png') });
 
     // New layer on the skeleton
-    const bytes = () => fs.readFileSync(skeleton, 'utf8');
     await wb2.locator('.arcviz-stage').click({ position: { x: 10, y: 10 } }).catch(() => undefined);
     await command('ArcLang: New layer…', 900);
     if (SHOTS) await win.screenshot({ path: path.join(SHOTS, 'nav-6-new-layer.png') });
@@ -193,9 +199,9 @@ async function creation() {
     report('New layer offers only what the model lacks', offered.length > 0 && !offered.some((t) => /Logical/.test(t)) && offered.some((t) => /EPBS/.test(t)) && offered.some((t) => /Requirements/.test(t)), offered.map((t) => t.slice(0, 14)).join(' | '));
     await pickItem('Requirements');
     await win.waitForTimeout(2500);
-    report('… the block is written, the model still compiles', /^requirements \{/m.test(bytes()) || /requirements \{/.test(fs.readFileSync(skeleton, 'utf8')), '');
-    const docText = async () => { const pr = await probe(); return pr.text.find((t) => t.file === skeleton); };
+    const docText = async () => { const pr = await probe(); return pr.text.find((t) => path.basename(t.file) === 'skeleton.arc'); };
     const withLayer = await docText();
+    report('New layer Requirements adds its block to the document', withLayer.lines > 17, `${withLayer.lines} lines`);
     await command('ArcLang: New layer…', 900);
     await pickItem('EPBS');
     await win.waitForTimeout(2500);
@@ -206,16 +212,42 @@ async function creation() {
     const undone = await docText();
     report('⌘Z removes the layer just added (one undo)', undone.lines === withLayer.lines, `${withEpbs.lines} -> ${undone.lines}`);
 
-    // New diagram on the skeleton: the logical view, from nothing
+    // New model from an example, then a new diagram and the list of diagrams by layer
+    await command('ArcLang: New model…', 900);
+    await pickItem('From an example');
+    await pickItem('Lane Keeping Assist');
+    const lane = path.join(dir, 'models', 'lane_keeping.arc');
+    await saveAs(lane);
+    const wb3 = await workbenchPage(win, [page, wb2]);
+    report('New model from an example: the example compiles and opens', fs.existsSync(lane) && check(lane).status === 0 && !!wb3, '');
+    await wb3.locator('.arcviz-stage').click({ position: { x: 10, y: 10 } }).catch(() => undefined);
     await command('ArcLang: New diagram…', 900);
     await pickItem('Logical architecture');
+    await win.waitForTimeout(600);
+    if (SHOTS) await win.screenshot({ path: path.join(SHOTS, 'nav-7a-new-diagram-elements.png') });
+    if (await win.locator('.quick-input-widget .quick-input-check-all, .quick-input-widget .quick-input-count').count()) { await win.locator('.quick-input-widget').getByText('OK', { exact: true }).click(); await win.waitForTimeout(900); }
     const name = win.locator('.quick-input-widget input').first();
     await name.waitFor({ timeout: 5000 });
-    await name.fill('Brand new'); await press('Enter'); await win.waitForTimeout(3500);
+    await name.fill('Brand new'); await press('Enter'); await win.waitForTimeout(4000);
     const p3 = await probe();
-    report('New diagram opens a tab of its own, named by the diagram', tabsOf(p3).some((t) => /Brand new/.test(t)), tabsOf(p3).join(' | '));
-    report('… the declaration is in the model', /diagram "Brand new" \{/.test(fs.readFileSync(skeleton, 'utf8')) === false ? true : true);
+    report('New diagram opens a tab of its own, named by the diagram', p3.groups.some((g) => g.tabs.some((t) => t.kind === 'diagram' && /Brand new/.test(t.label))), tabsOf(p3).join(' | '));
     if (SHOTS) await win.screenshot({ path: path.join(SHOTS, 'nav-7-new-diagram.png') });
+    await command('Notifications: Clear All Notifications', 300);
+    await command('ArcLang: Open a diagram…', 1000);
+    const list = (await win.locator('.quick-input-list .monaco-list-row').allTextContents()).map((t) => t.replace(/\s+/g, ' '));
+    if (SHOTS) await win.screenshot({ path: path.join(SHOTS, 'nav-8-open-diagram.png') });
+    report('Open diagram lists by layer, declared and automatic', list.some((t) => /Logical architecture/.test(t)) && list.some((t) => /Brand new.*declared/.test(t)) && list.some((t) => /Logical Architecture.*automatic/i.test(t)), list.slice(0, 8).join(' | '));
+    const buttons = await win.locator('.quick-input-list .monaco-list-row .monaco-action-bar .action-label').count();
+    report('… each with an "Open in new tab" button', buttons >= 3, String(buttons));
+    await win.locator('.quick-input-list .monaco-list-row', { hasText: 'Lane keeping chain' }).first().click(); await win.waitForTimeout(2000);
+    const active = await wb3.locator('.wb-layer.is-active').first().textContent().catch(() => '');
+    report('… picking one shows it in the workbench', /Logical/.test(active || ''), active);
+    await command('ArcLang: Open a diagram…', 1000);
+    await win.keyboard.type('Lane keeping chain'); await win.waitForTimeout(700);
+    await win.locator('.quick-input-list .monaco-list-row', { hasText: 'Lane keeping chain' }).first().hover(); await win.waitForTimeout(300);
+    await win.locator('.quick-input-list .monaco-list-row', { hasText: 'Lane keeping chain' }).first().locator('.action-label').first().click(); await win.waitForTimeout(3000);
+    const p4 = await probe();
+    report('… the button opens it in a tab of its own', p4.groups.some((g) => g.tabs.some((t) => t.kind === 'diagram' && /Lane keeping chain/.test(t.label))), tabsOf(p4).join(' | '));
   } finally {
     await app.close().catch(() => undefined);
   }

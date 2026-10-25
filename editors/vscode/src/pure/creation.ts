@@ -1,7 +1,7 @@
 // The text of what the "New ..." commands write: a model header, the Arcadia
 // skeleton, a layer block, a diagram declaration. No VS Code here: the
 // compiler is the judge of all of it (`arclang check`, `arclang edit`).
-import { stringLiteral } from './workbench';
+import { stringLiteral, ViewerGraph } from './workbench';
 
 /** A model name taken from a file name: `lane_keeping.arc` is `lane_keeping`. */
 export function modelNameOf(fileName: string): string {
@@ -86,4 +86,25 @@ export function uniqueName(base: string, taken: Iterable<string>): string {
 export function arcFileName(name: string): string {
   const trimmed = name.trim();
   return /\.arc$/i.test(trimmed) ? trimmed : `${trimmed}.arc`;
+}
+
+/** The view each layer block is drawn in. */
+const VIEW_OF_BLOCK: Record<string, string> = { operational_analysis: 'oab', system_analysis: 'sab', logical_architecture: 'lab', physical_architecture: 'pab', epbs: 'pbs' };
+
+/**
+ * An empty drawing for each layer the source declares and the compiler
+ * draws nothing for (a new, empty layer): its tab shows, with its palette,
+ * and the first element can be created on it.
+ */
+export function emptyLayerGraphs(source: string, graphs: ViewerGraph[]): ViewerGraph[] {
+  const drawn = new Set(graphs.map((g) => g.arc.view));
+  const made: ViewerGraph[] = [];
+  for (const match of source.matchAll(/^([a-z_]+)(?:\s+"([^"\n]*)")?\s*\{/gm)) {
+    const view = VIEW_OF_BLOCK[match[1]];
+    if (!view || drawn.has(view)) continue;
+    drawn.add(view);
+    const title = match[2] || LAYER_CHOICES.find((c) => c.keyword === match[1])?.title || view.toUpperCase();
+    made.push({ id: view, arc: { view, title, chains: [] }, children: [], edges: [] });
+  }
+  return made;
 }

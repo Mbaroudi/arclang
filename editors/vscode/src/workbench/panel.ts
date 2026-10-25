@@ -15,6 +15,7 @@ import { applyRequests, EditQueue, refusalMessage } from './edits';
 import { metamodelJson, onDidChangeSnapshot, snapshotOf } from './snapshot';
 import { arcTextOf } from './source';
 import { elementAt } from './tree';
+import { emptyLayerGraphs } from '../pure/creation'; // nav hook
 import { doubleClickSetting, goToSource, openSource, setWorkbenchColumns } from './go-to-source'; // nav hook
 import { handlePageMessage, pageClosed } from '../ai'; // ai-design hook
 import { handlePanesMessage, isPanesMessage } from './panes-host'; // panes hook
@@ -240,6 +241,14 @@ export class WorkbenchPanel {
     if (!this.ready) return;
     const [snapshot, metamodel, layout] = await Promise.all([snapshotOf(this.document), metamodelJson(), this.layoutNow !== undefined ? this.layoutNow : this.readLayout()]);
     this.layoutNow = layout ?? null;
+    if (snapshot.diagrams) {
+      // nav hook: a layer just declared and still empty has a tab of its own, with its palette
+      const source = await arcTextOf(this.document);
+      if (source.ok) {
+        const empty = emptyLayerGraphs(source.text, snapshot.diagrams.graphs ?? []);
+        if (empty.length > 0) snapshot.diagrams = { ...snapshot.diagrams, graphs: [...(snapshot.diagrams.graphs ?? []), ...empty] };
+      }
+    }
     if (snapshot.diagrams && this.layoutUri()) {
       // The arrangement kept next to the model: what the views show, as the CLI draws them.
       snapshot.diagrams = { ...snapshot.diagrams, layout: layout ?? undefined, layout_name: path.basename(this.layoutUri()!.fsPath) };

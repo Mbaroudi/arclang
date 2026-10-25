@@ -6,13 +6,13 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 import * as vscode from 'vscode';
 import { arcadiaSkeleton, arcFileName, blankModel, diagramDeclaration, LayerChoice, layerBlock, missingLayers, modelNameOf, uniqueName } from '../pure/creation';
-import { VIEW_OF_LAYER, VIEWPOINTS, ViewerGraph } from '../pure/workbench';
+import { Snapshot, VIEW_OF_LAYER, VIEWPOINTS, ViewerGraph } from '../pure/workbench';
 import { applyRequests, refusalMessage } from './edits';
 import { WorkbenchPanel } from './panel';
 import { openDiagramTab } from './panes-host';
 import { forgetSnapshot, snapshotOf } from './snapshot';
 import { arcTextOf, isModelDocument } from './source';
-import { ModelTreeProvider } from './tree';
+import { graphsDrawing, ModelTreeProvider } from './tree';
 
 /** The views a new diagram may be cut from. */
 const DIAGRAM_VIEWS = ['oab', 'sab', 'lab', 'pab', 'cap', 'cdb'];
@@ -116,6 +116,11 @@ async function showLayerTab(document: vscode.TextDocument, choice: LayerChoice):
   if (graph) page.show(graph.id);
 }
 
+function elementNameOf(snapshot: Snapshot, id: string): string {
+  const record = (snapshot.elements?.elements ?? []).find((e) => e.id === id);
+  return record?.name || id;
+}
+
 /** A named diagram of a chosen view, starting from the selected element. */
 export async function createDiagram(document: vscode.TextDocument): Promise<void> {
   const snapshot = await snapshotOf(document);
@@ -128,15 +133,26 @@ export async function createDiagram(document: vscode.TextDocument): Promise<void
   if (!pick) return;
   const page = WorkbenchPanel.for(document.uri);
   const selected = page?.selectedId ? (snapshot.elements?.elements ?? []).find((e) => e.id === page.selectedId) : undefined;
-  const proposed = uniqueName(selected ? `${selected.name || selected.id} diagram` : `${pick.label} diagram`, graphs.map((g) => g.arc.title));
+  // A diagram needs something to show: the selection when the view draws it, else elements picked among the view's.
+  const view = graphs.find((g) => g.arc.view === pick.view);
+  const atTop = (view?.children ?? []).map((node) => ({ id: node.id, label: elementNameOf(snapshot, node.id) }));
+  if (atTop.length === 0) return void vscode.window.showInformationMessage(`ArcLang: the ${pick.label.toLowerCase()} has nothing drawn yet: create an element on it first.`);
+  const start = selected && graphsDrawing(view ? [view] : [], selected).length > 0 ? selected : undefined;
+  let shows = start ? [start.id] : [];
+  if (!start) {
+    const chosen = await vscode.window.showQuickPick(atTop.map((n) => ({ label: n.label, description: n.id, picked: true })), { canPickMany: true, placeHolder: 'Which elements does the diagram start from? (all are kept by default)', title: 'ArcLang: New diagram' });
+    if (!chosen) return;
+    shows = (chosen.length > 0 ? chosen : atTop.map((n) => ({ description: n.id }))).map((c) => c.description as string);
+  }
+  const proposed = uniqueName(start ? `${start.name || start.id} diagram` : `${pick.label} diagram`, graphs.map((g) => g.arc.title));
   const name = await vscode.window.showInputBox({
-    prompt: selected ? `Name of the new diagram (it starts from ${selected.name || selected.id})` : 'Name of the new diagram',
+    prompt: start ? `Name of the new diagram (it starts from ${start.name || start.id})` : 'Name of the new diagram',
     value: proposed,
     validateInput: (value) => (!value.trim() ? 'a name is needed' : graphs.some((g) => g.arc.title === value.trim()) ? 'a diagram of that name exists' : null),
   });
   if (!name) return;
   const title = name.trim();
-  const declaration = diagramDeclaration(title, pick.view, selected ? [selected.id] : []);
+  const declaration = diagramDeclaration(title, pick.view, shows);
   if (!(await submit(document, [{ op: 'add_raw', declaration, top_level: true }], `new diagram ${title}`))) return;
   forgetSnapshot(document.uri);
   const made = ((await snapshotOf(document)).diagrams?.graphs ?? []).find((g) => g.arc.view === pick.view && g.arc.title === title);
