@@ -7,7 +7,9 @@ use super::{label_of, Cell, Column, Link, Row, TableSpec};
 use std::collections::{BTreeMap, BTreeSet};
 
 pub const DEFAULT_COLUMNS: [&str; 8] = ["id", "name", "text", "priority", "satisfied_by", "verified_by", "verdict", "status"];
-const COMPUTED: [(&str, &str); 12] = [
+/// Shown by default when a verification case has evidence (a simulation).
+const EVIDENCE: &str = "evidence";
+const COMPUTED: [(&str, &str); 13] = [
     ("id", "text"),
     ("name", "text"),
     ("text", "text"),
@@ -16,6 +18,7 @@ const COMPUTED: [(&str, &str); 12] = [
     ("satisfied_by", "links"),
     ("verified_by", "links"),
     ("verdict", "status"),
+    ("evidence", "text"),
     ("refined_by", "links"),
     ("mitigates", "links"),
     ("gate", "status"),
@@ -28,6 +31,7 @@ fn column(key: &str, ty: &str) -> Column {
         "name" => "Name".to_string(),
         "text" => "Requirement text".to_string(),
         "verdict" => "Verdict".to_string(),
+        "evidence" => "Key values".to_string(),
         "gate" => "Gate".to_string(),
         other => label_of(other),
     };
@@ -47,7 +51,15 @@ pub fn compute(context: &Context, spec: &TableSpec) -> Result<(Vec<Column>, Vec<
     }
     let mut available: Vec<Column> = COMPUTED.iter().map(|(k, t)| column(k, t)).collect();
     available.extend(extra.iter().filter(|k| !COMPUTED.iter().any(|(c, _)| c == k)).map(|k| column(k, "text")));
-    let keys: Vec<String> = if spec.columns.is_empty() { DEFAULT_COLUMNS.iter().map(|s| s.to_string()).collect() } else { spec.columns.clone() };
+    let keys: Vec<String> = if spec.columns.is_empty() {
+        let mut keys: Vec<String> = DEFAULT_COLUMNS.iter().map(|s| s.to_string()).collect();
+        if !context.evidence.is_empty() {
+            keys.insert(keys.iter().position(|k| k == "verdict").map(|i| i + 1).unwrap_or(keys.len()), EVIDENCE.to_string());
+        }
+        keys
+    } else {
+        spec.columns.clone()
+    };
     let columns: Vec<Column> = keys.iter().map(|k| available.iter().find(|c| &c.key == k).cloned().unwrap_or_else(|| column(k, "text"))).collect();
     let rows = requirements.iter().map(|&r| row(context, r, &keys)).collect();
     Ok((columns, available, rows))
@@ -85,6 +97,8 @@ fn row(context: &Context, index: usize, keys: &[String]) -> Row {
         ("none", "gap")
     } else if verdicts.contains(&"fail") {
         ("fail", "fail")
+    } else if verdicts.contains(&"inconclusive") {
+        ("inconclusive", "warn")
     } else if verdicts.iter().all(|v| *v == "pass") {
         ("pass", "ok")
     } else {
@@ -103,8 +117,12 @@ fn row(context: &Context, index: usize, keys: &[String]) -> Row {
         let why = context.verdicts.get(&link.id).and_then(|(_, why)| why.clone()).map(|w| format!(": {w}")).unwrap_or_default();
         issues.push(format!("{} fails{why}", link.name));
     }
+    for link in test_links.iter().filter(|l| l.verdict.as_deref() == Some("inconclusive")) {
+        let why = context.verdicts.get(&link.id).and_then(|(_, why)| why.clone()).map(|w| format!(": {w}")).unwrap_or_default();
+        issues.push(format!("{} is inconclusive{why}", link.name));
+    }
     for blocker in &blockers {
-        if !issues.iter().any(|i| blocker.contains(i.as_str())) && !blocker.contains("satisfied by no") && !blocker.contains("no verification case") && !blocker.contains("cases fail") {
+        if !issues.iter().any(|i| blocker.contains(i.as_str())) && !blocker.contains("satisfied by no") && !blocker.contains("no verification case") && !blocker.contains("cases fail") && !blocker.contains("cases are inconclusive") {
             issues.push(blocker.clone());
         }
     }
@@ -146,6 +164,9 @@ fn row(context: &Context, index: usize, keys: &[String]) -> Row {
                 if tests.is_empty() { cell.with_status("gap") } else { cell }
             }
             "verdict" => Cell::text(verdict_text).with_status(verdict_status),
+            "evidence" => Cell::text(
+                test_links.iter().filter_map(|l| context.evidence.get(&l.id).map(|e| format!("{}: {e}", l.id))).collect::<Vec<_>>().join(" | "),
+            ),
             "refined_by" => Cell::links(traced_to(context, &uuid, "refines").iter().map(|&s| context.link(s)).collect()),
             "mitigates" => Cell::links(
                 context.relationships("Mitigation").filter(|m| m.source == uuid).filter_map(|m| context.index_of_uuid(&m.target)).map(|h| context.link(h)).collect(),

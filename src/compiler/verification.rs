@@ -2,8 +2,11 @@
 //! constraints is an analysis: its verdict is theirs, pass when they all
 //! hold, fail otherwise. Any other case may say the verdict of a test run
 //! elsewhere (`verdict: "fail"`), with the SysML v2 verdicts; a case saying
-//! none is pending. A requirement with a failing verification case is not
-//! verified, for the production gate, even when another case passes.
+//! none is pending. A case that `simulate:`s takes its verdict from the
+//! cached simulation (`compiler::simulation`): inconclusive when it was
+//! never run, or was run on another version of the model. A requirement
+//! with a failing or inconclusive verification case is not verified, for
+//! the production gate, even when another case passes.
 
 use super::ast::{AttributeValue, Model, TestCase};
 use super::semantic::{ConstraintInfo, SemanticModel};
@@ -18,6 +21,9 @@ pub enum Verdict {
     Pass,
     /// Failed, with why: the constraints that do not hold, or the verdict given.
     Fail(String),
+    /// Not known to hold or fail: a simulation not run, stale, or a tool
+    /// that is not available. Never a pass.
+    Inconclusive(String),
 }
 
 /// The constraints a case asserts, by id or name.
@@ -34,6 +40,17 @@ fn constraint<'s>(semantic: &'s SemanticModel, reference: &str) -> Option<&'s Co
 }
 
 pub fn verdict(test: &TestCase, semantic: &SemanticModel) -> Verdict {
+    if super::simulation::is_simulated(test) {
+        return match semantic.simulations.get(&test.id) {
+            None => Verdict::Inconclusive("no simulation verdict: run `arclang verify` on the model file".to_string()),
+            Some(status) => match status.verdict.as_str() {
+                "pass" => Verdict::Pass,
+                "fail" => Verdict::Fail(status.reason.clone()),
+                "error" => Verdict::Fail(format!("the simulation is in error: {}", status.reason)),
+                _ => Verdict::Inconclusive(status.reason.clone()),
+            },
+        };
+    }
     let asserts = asserted(test);
     if !asserts.is_empty() {
         let failing: Vec<&str> = asserts.iter().filter_map(|a| constraint(semantic, a)).filter(|c| !c.satisfied).map(|c| c.name.as_str()).collect();
@@ -54,9 +71,14 @@ pub fn verdict(test: &TestCase, semantic: &SemanticModel) -> Verdict {
 /// `verification:` warning.
 pub fn check(model: &Model, semantic: &SemanticModel) -> Result<Vec<String>, String> {
     let mut warnings = Vec::new();
+    super::simulation::check(model)?;
     for test in &model.test_cases {
         if let Some(unknown) = asserted(test).into_iter().find(|a| constraint(semantic, a).is_none()) {
             return Err(format!("test_case '{}' asserts '{unknown}', which is no constraint", test.name));
+        }
+        // A simulated case is reported with its cached verdict, on the file.
+        if super::simulation::is_simulated(test) {
+            continue;
         }
         if let Verdict::Fail(reason) = verdict(test, semantic) {
             warnings.push(format!("verification: test_case '{}' fails: {reason}", test.name));

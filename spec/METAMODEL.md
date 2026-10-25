@@ -441,6 +441,9 @@ Oriented port of a component (in, out, inout); it may hold ports, named `Owner.p
 | `interface` | `text` | Interface type carried. |
 | `protocol` | `text` | Protocol. |
 | `multiplicity` | `multiplicity` | How many of the element its owner has: a count (`4`) or a range as text (`"0..1"`, `"1..*"`, `"*"`). One when absent. |
+| `physics` | `enum Physics` | What the port carries, for `arclang export -f modelica`: the Modelica Standard Library connector it becomes (a signal by its direction). A port saying none is not exported. |
+| `pole` | `enum Pole` | For an electrical port: the pin it is (positive when absent). |
+| `flange` | `enum Flange` | For a mechanical or thermal port: the flange it is (`b` for an out port, `a` otherwise, when absent). |
 
 #### LogicalInterface
 
@@ -559,6 +562,9 @@ Unoriented physical connector.
 | Attribute | Type | Meaning |
 |---|---|---|
 | `connector` | `text` | Connector type. |
+| `physics` | `enum Physics` | What the port carries, for `arclang export -f modelica`: the Modelica Standard Library connector it becomes (a signal by its direction). A port saying none is not exported. |
+| `pole` | `enum Pole` | For an electrical port: the pin it is (positive when absent). |
+| `flange` | `enum Flange` | For a mechanical or thermal port: the flange it is (`b` for an out port, `a` otherwise, when absent). |
 
 #### BehaviorComponent
 
@@ -1006,7 +1012,9 @@ Verification case covering requirements.
 | `procedure` | `text` | Procedure. |
 | `expected` | `text` | Expected result. |
 | `asserts` | `list<ref<Constraint>>` | An analysis: the constraints whose evaluation is its verdict (pass when they all hold). |
-| `verdict` | `enum Verdict` | Outcome of a test run elsewhere; computed, not given, when the case `asserts:` constraints. A requirement with a failing case is not verified. |
+| `verdict` | `enum Verdict` | Outcome of a test run elsewhere; computed, not given, when the case `asserts:` constraints or `simulate:`s. A requirement with a failing case is not verified. |
+| `simulate` | `{backend, model, configuration, stop_time, start_time, sources, tolerance, intervals}` | Verified by simulation: the `backend` (`openmodelica`, the default; `fmu` and `command` are declared, not built yet), the Modelica `model` to simulate (extending a system model of `arclang export -f modelica`), the `configuration` it is, `stop_time` (and `start_time`), the hand-written Modelica `sources` (paths from the model file), `tolerance`, `intervals`. Run by `arclang verify`; the verdict is cached, and inconclusive when stale or never run. |
+| `expects` | `list<text>` | What the simulation result must show: comparisons over its variables read with `min`, `max`, `final`, `initial`, `mean` or `at(t, var)`, with units (`final(vehicle.distance) >= 300 km`). |
 
 #### Model
 
@@ -1034,6 +1042,7 @@ Reusable definition: `type Name extends Base { ... }`. Declares typed attributes
 | `description` | `text` | Free-text description (not inherited). |
 | `from_kind` | `text` | For an allocation definition: the kind every allocation of it goes from (`PhysicalNode`). |
 | `to_kind` | `text` | For an allocation definition: the kind every allocation of it goes to (`LogicalComponent`). |
+| `physics` | `enum Physics` | For a port definition: what the ports it types carry, for the Modelica export. |
 
 #### Constraint
 
@@ -1237,6 +1246,9 @@ Values match ignoring case and the separators `-`, `_` and space.
 | Controllability | `C0`, `C1`, `C2`, `C3` | ISO 26262 controllability class. |
 | FailureCondition | `Catastrophic`, `Hazardous`, `Major`, `Minor`, `No Effect` | DO-178C failure condition classification. |
 | VerificationMethod | `test`, `analysis`, `inspection`, `demonstration` | Verification method. |
+| Physics | `signal`, `electrical`, `mechanical_translational`, `mechanical_rotational`, `thermal`, `fluid` | What a port carries, for the Modelica export: the Modelica Standard Library connector it becomes (`fluid` is not exported yet). |
+| Pole | `positive`, `negative` | The pin an electrical port is (`PositivePin`, `NegativePin`). |
+| Flange | `a`, `b` | The flange (or heat port) a mechanical or thermal port is (`Flange_a`, `Flange_b`). |
 | Verdict | `pass`, `fail`, `inconclusive`, `error` | Verdict of a verification case (SysML v2 `VerdictKind`). |
 | ExchangeMechanism | `EVENT`, `FLOW`, `OPERATION`, `DATA`, `SHARED_DATA` | Arcadia exchange item mechanism. |
 | TraceKind | `satisfies`, `implements`, `validates`, `verifies`, `realizes`, `refines`, `allocates` | Traceability link kinds. |

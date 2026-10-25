@@ -1852,6 +1852,7 @@ impl Parser {
                 return Err(self.err(format!("test_case '{}': its verdict comes from the constraints it asserts, it is not given", name)));
             }
         }
+        super::simulation::validate(&attributes).map_err(|e| self.err(format!("test_case '{}': {e}", name)))?;
         Ok(TestCase { id, name, verifies, method, attributes })
     }
 

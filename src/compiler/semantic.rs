@@ -24,6 +24,10 @@ pub struct SemanticModel {
     #[serde(default)]
     pub types: Vec<TypeInfo>,
     pub all_elements: HashMap<String, ElementInfo>,
+    /// The cached verdict of each simulated test case, by id (attached by
+    /// `Compiler::compile_file`; empty for a model compiled from a string).
+    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
+    pub simulations: HashMap<String, crate::compiler::simulation::Status>,
 }
 
 /// A user-defined type as seen by API consumers.
@@ -108,6 +112,7 @@ impl Default for SemanticModel {
             constraints: Vec::new(),
             types: Vec::new(),
             all_elements: HashMap::new(),
+            simulations: HashMap::new(),
         }
     }
 }
@@ -1640,6 +1645,7 @@ impl SemanticAnalyzer {
                 constraints: Vec::new(),
                 types: Vec::new(),
                 all_elements,
+                simulations: HashMap::new(),
             },
             warnings,
         ))

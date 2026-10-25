@@ -18,6 +18,8 @@ pub struct Context<'a> {
     by_name: HashMap<String, Vec<usize>>,
     /// Test case id -> `pass`, `fail` (with why) or `pending`.
     pub verdicts: HashMap<String, (String, Option<String>)>,
+    /// Test case id -> the values its simulation evaluated to.
+    pub evidence: HashMap<String, String>,
     pub gate_standard: String,
     pub gate_passed: bool,
     /// The gate's blockers, each with the message naming its element.
@@ -72,9 +74,17 @@ impl<'a> Context<'a> {
                     Verdict::Pass => ("pass".to_string(), None),
                     Verdict::Pending => ("pending".to_string(), None),
                     Verdict::Fail(why) => ("fail".to_string(), Some(why)),
+                    Verdict::Inconclusive(why) => ("inconclusive".to_string(), Some(why)),
                 };
                 (tc.id.clone(), verdict)
             })
+            .collect();
+        let evidence = result
+            .semantic_model
+            .simulations
+            .iter()
+            .filter(|(_, status)| !status.evidence.is_empty())
+            .map(|(id, status)| (id.clone(), status.evidence.clone()))
             .collect();
         let standard = normalize_standard(gate_standard);
         let gate = crate::compiler::production_gate::run_gate(&result.ast, &result.semantic_model, &standard);
@@ -92,6 +102,7 @@ impl<'a> Context<'a> {
             by_id,
             by_name,
             verdicts,
+            evidence,
             gate_standard: standard,
             gate_passed: gate.passed,
             gate_blockers,

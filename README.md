@@ -273,6 +273,15 @@ the long-term goal.
   values are nested attributes typed `LengthValue` and
   `AngularMeasureValue`, accepted by the OMG pilot and read back exactly.
   Example: [`examples/spatial/charging_corridor.arc`](examples/spatial/charging_corridor.arc).
+- **Requirements verified by simulation (OpenModelica)**: `arclang export -f
+  modelica` writes the physical architecture as a Modelica package (one
+  partial model per node and behaviour component, MSL connectors from the
+  ports' `physics:`, SI parameters from typed quantities, one system model
+  per configuration); a `test_case` that says `simulate: { ... }` and
+  `expects: ["final(vehicle.distance) >= 300 km"]` is run by `arclang
+  verify` (a local `omc` or the official Docker image), and its cached
+  verdict feeds the production gate and the coverage table — see
+  [docs/modelica.md](docs/modelica.md).
 - **Diagrams**, compiled from the model and drawn in Arcadia notation:
   - one per architecture viewpoint (OAB, SAB, LAB, PAB): functions nested
     in the component they are allocated to, exchanges bound to the ports

@@ -1110,6 +1110,11 @@ impl<'g> Mapper<'g> {
                     }
                     continue;
                 }
+                // A block written as its ArcLang source (`simulate: { ... }`).
+                let value = match record_source(&value) {
+                    Some(block) if RECORD_KEYS.contains(&key.as_str()) => block,
+                    _ => value,
+                };
                 lines.push(format!("{key}: {value}"));
             }
         }
@@ -2420,6 +2425,24 @@ struct Invariant {
     id: String,
     start: usize,
     end: Option<usize>,
+}
+
+/// Keys whose value is a block, carried in SysML as its ArcLang source.
+const RECORD_KEYS: &[&str] = &["simulate"];
+
+/// The content of a string literal that is an ArcLang block `{ ... }`.
+fn record_source(literal: &str) -> Option<String> {
+    let inner = literal.strip_prefix('"')?.strip_suffix('"')?;
+    let mut out = String::new();
+    let mut chars = inner.chars();
+    while let Some(c) = chars.next() {
+        match c {
+            '\\' => out.push(chars.next()?),
+            c => out.push(c),
+        }
+    }
+    let trimmed = out.trim();
+    (trimmed.starts_with('{') && trimmed.ends_with('}')).then(|| trimmed.to_string())
 }
 
 fn list_literal(items: &[String]) -> String {

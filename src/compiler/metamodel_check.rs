@@ -484,6 +484,16 @@ impl<'a> Checker<'a> {
             AttrType::Position => self.spatial(kind, element, key, super::spatial::position(value).map(|_| ())),
             AttrType::Orientation => self.spatial(kind, element, key, super::spatial::orientation(value).map(|_| ())),
             AttrType::Shape => self.spatial(kind, element, key, super::spatial::shape(value).map(|_| ())),
+            AttrType::Record(keys) => match value {
+                AttributeValue::Map(map) => {
+                    let mut written: Vec<&String> = map.keys().collect();
+                    written.sort();
+                    for key_written in written.into_iter().filter(|k| !keys.contains(&k.as_str())) {
+                        self.push(Level::Error, kind, element, Some(key), format!("'{key_written}' is not one of {}", keys.join(", ")));
+                    }
+                }
+                other => self.push(Level::Error, kind, element, Some(key), format!("expected a block `{{ ... }}`, got '{}'", other.display())),
+            },
             AttrType::List(inner) => match value {
                 AttributeValue::List(items) => {
                     for item in items {
