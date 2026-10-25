@@ -21,6 +21,7 @@ import { installAi } from './ask-ai'; // ai-design hook
 import { installKeys } from './keys';
 import { MultiSelection } from './multi-select';
 import { installPanes } from './panes'; // panes hook
+import { installImpact } from './impact-marks'; // impact hook
 import { DiagramExports } from './diagram-export';
 import { ThemeEditor } from './theme-editor';
 
@@ -789,5 +790,7 @@ const deleteOne = keys.deleteOne;
 
 // panes hook: tree drops, a diagram's own tab, "Open in a new tab" on the layers (webview/panes.ts).
 installPanes({ sheet, layerBar, viewer: () => state.viewer, graph: () => currentGraph(), snapshot: () => state.snapshot, idOf: (id) => elementFor({ view: '', id, name: '', kind: '', isEdge: false })?.id ?? null, select: (element) => selectElement(element, false), submit, toast: (text, kind) => showToast(text, kind), post: (message) => vscode.postMessage(message as never), showGraph });
+
+installImpact({ post: (m) => vscode.postMessage(m as never), host, layerBar, drawingId, selection: () => (multiSelection.elements.length > 1 ? multiSelection.elements : state.selected ? [state.selected] : []) }); // impact hook
 
 vscode.postMessage({ type: 'ready' });

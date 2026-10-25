@@ -17,6 +17,7 @@ import { arcTextOf } from './source';
 import { elementAt, revealElement } from './tree';
 import { handlePageMessage, pageClosed } from '../ai'; // ai-design hook
 import { handlePanesMessage, isPanesMessage } from './panes-host'; // panes hook
+import { handleImpactMessage, isImpactMessage } from '../impact'; // impact hook
 import { DiagramExports, ExportArgs, themeStore } from './diagram-export';
 import type { DiagramAction } from '../pure/workbench';
 
@@ -317,6 +318,7 @@ export class WorkbenchPanel {
         return;
       default:
         if (isPanesMessage(message)) return void handlePanesMessage(this, message); // panes hook
+        if (isImpactMessage(message)) return void handleImpactMessage(this.document, message); // impact hook
         // ai-design hook: the AI's messages (ask, apply, suggestions) go to src/ai.
         handlePageMessage(this.document, this.aiPost, message, { asStep: (label, change) => this.asStep(label, change) });
         return;

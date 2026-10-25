@@ -1,0 +1,30 @@
+Impact analysis for 'LC-RadarSensor':
+  18 impacted: 2 blockers, 10 majors, 6 minors · gate ISO26262 PASS
+
+  Distance 1 (directly affected):
+    [minor] LogicalFunction 'Acquire radar frames' [Acquire radar frames] (LA, architecture) — LC-RadarSensor --performs--> Acquire radar frames
+    [major] ComponentPort 'RadarDataProvider' [LC-RadarSensor.RadarDataProvider] (LA, interface) — LC-RadarSensor --has port--> LC-RadarSensor.RadarDataProvider
+    [major] LogicalComponent 'SensorFusion' [LC-SensorFusion] (LA, architecture) — LC-RadarSensor --sends 'raw radar targets' to--> LC-SensorFusion
+    [major] ComponentExchange 'Radar Data' [Radar Data] (LA, interface) — LC-RadarSensor --sends--> Radar Data
+    [major] BehaviorComponent 'RadarProcessing' [BC-RadarProcessing] (PA, architecture) — LC-RadarSensor --realized by--> BC-RadarProcessing
+    [major] PhysicalNode 'FrontRadarECU' [PN-FrontRadarECU] (PA, architecture) — LC-RadarSensor --deployed on--> PN-FrontRadarECU
+    [blocker] Requirement 'Obstacle detection range' [REQ-AEB-001] (SA, requirement) — LC-RadarSensor --satisfies--> REQ-AEB-001
+
+  Distance 2 (transitively affected):
+    [major] ComponentPort 'RadarDataConsumer' [LC-SensorFusion.RadarDataConsumer] (LA, interface) — LC-RadarSensor --sends--> Radar Data --received by--> LC-SensorFusion.RadarDataConsumer
+    [major] SystemFunction 'AcquireSensorData' [SF-AcquireSensorData] (SA, architecture) — LC-RadarSensor --performs--> Acquire radar frames --realizes--> SF-AcquireSensorData
+    [blocker] Hazard 'No braking on imminent collision' [HAZ-002] (Transverse, safety) — LC-RadarSensor --satisfies--> REQ-AEB-001 --mitigates--> HAZ-002
+    [major] TestCase 'Radar range verification' [TC-001] (Transverse, test) — LC-RadarSensor --satisfies--> REQ-AEB-001 --verified by--> TC-001
+
+  Distance 3 (transitively affected):
+    [minor] OperationalActivity 'MonitorEnvironment' [OA-MonitorEnvironment] (OA, architecture) — LC-RadarSensor --performs--> Acquire radar frames --realizes--> SF-AcquireSensorData --realizes--> OA-MonitorEnvironment
+    [minor] Capability 'EmergencyBraking' [CAP-001] (SA, architecture) — LC-RadarSensor --performs--> Acquire radar frames --realizes--> SF-AcquireSensorData --involved in--> CAP-001
+    [major] FunctionalChain 'EmergencyBrakingChain' [FC-001] (SA, budget) — LC-RadarSensor --performs--> Acquire radar frames --realizes--> SF-AcquireSensorData --involved in--> FC-001
+
+  Distance 4 (transitively affected):
+    [minor] OperationalCapability 'Avoid Collisions' [OC-001] (OA, architecture) — LC-RadarSensor --performs--> Acquire radar frames --realizes--> SF-AcquireSensorData --involved in--> CAP-001 --realizes--> OC-001
+    [minor] OperationalEntity 'Vehicle' [OE-Vehicle] (OA, architecture) — LC-RadarSensor --performs--> Acquire radar frames --realizes--> SF-AcquireSensorData --realizes--> OA-MonitorEnvironment --performed by--> OE-Vehicle
+    [minor] Mission 'SafeAutonomousBraking' [MIS-001] (SA, architecture) — LC-RadarSensor --performs--> Acquire radar frames --realizes--> SF-AcquireSensorData --involved in--> CAP-001 --contributes to--> MIS-001
+    [major] Constraint 'Braking chain within budget' [CST-001] (Transverse, budget) — LC-RadarSensor --performs--> Acquire radar frames --realizes--> SF-AcquireSensorData --involved in--> FC-001 --constrained by--> CST-001
+
+  Total affected elements: 18

@@ -493,6 +493,30 @@
         "command": "arclang.diagram.editTheme",
         "title": "Edit or create a diagram colour theme…",
         "category": "ArcLang"
+      },
+      {
+        "command": "arclang.impact.analyze",
+        "title": "Impact analysis: analyse an element…",
+        "category": "ArcLang",
+        "icon": "$(pulse)"
+      },
+      {
+        "command": "arclang.impact.whatIf",
+        "title": "Impact analysis: what if… (computed on a copy, nothing written)",
+        "category": "ArcLang",
+        "icon": "$(beaker)"
+      },
+      {
+        "command": "arclang.impact.mine",
+        "title": "Impact analysis: my changes (since HEAD or main)",
+        "category": "ArcLang",
+        "icon": "$(git-compare)"
+      },
+      {
+        "command": "arclang.impact.refresh",
+        "title": "Impact analysis: refresh",
+        "category": "ArcLang",
+        "icon": "$(refresh)"
       }
     ],
     "menus": {
@@ -533,6 +557,16 @@
           "command": "arclang.openWorkbench",
           "when": "resourceLangId == sysml",
           "group": "arclang@0"
+        },
+        {
+          "command": "arclang.impact.analyze",
+          "when": "resourceLangId == arclang",
+          "group": "arclang@1"
+        },
+        {
+          "command": "arclang.impact.whatIf",
+          "when": "resourceLangId == arclang",
+          "group": "arclang@1"
         }
       ],
       "explorer/context": [
@@ -766,6 +800,22 @@
         {
           "command": "arclang.diagram.editTheme",
           "when": "activeCustomEditorId == arclang.workbench"
+        },
+        {
+          "command": "arclang.impact.analyze",
+          "when": "resourceLangId == arclang || resourceLangId == sysml"
+        },
+        {
+          "command": "arclang.impact.whatIf",
+          "when": "resourceLangId == arclang || resourceLangId == sysml"
+        },
+        {
+          "command": "arclang.impact.mine",
+          "when": "resourceLangId == arclang || resourceLangId == sysml"
+        },
+        {
+          "command": "arclang.impact.refresh",
+          "when": "activeWebviewPanelId == arclang.impact"
         }
       ],
       "view/title": [
@@ -798,6 +848,11 @@
           "command": "arclang.model.clearFilter",
           "when": "view == arclangModel && arclang.treeFiltered",
           "group": "navigation@0"
+        },
+        {
+          "command": "arclang.impact.mine",
+          "when": "view == arclangModel",
+          "group": "navigation@4"
         }
       ],
       "view/item/context": [
@@ -870,6 +925,16 @@
           "command": "arclang.model.newChild",
           "when": "view == arclangModel && viewItem == arclang.element",
           "group": "edit@0"
+        },
+        {
+          "command": "arclang.impact.analyze",
+          "when": "view == arclangModel && viewItem == arclang.element",
+          "group": "navigation@3"
+        },
+        {
+          "command": "arclang.impact.whatIf",
+          "when": "view == arclangModel && viewItem == arclang.element",
+          "group": "navigation@4"
         }
       ],
       "webview/context": [

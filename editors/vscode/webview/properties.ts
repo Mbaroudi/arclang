@@ -7,6 +7,7 @@
 // with a Markdown preview. Every field explains itself (its metamodel
 // documentation), says what is wrong before anything is written, and
 // applies on Enter or on leaving it as one compiler-checked edit (one undo).
+import { openImpact } from './impact-marks'; // impact hook
 import { attributeGroups, commonAttributes, DESCRIPTION_KEYS, displayValue, fieldLiteral, findingsOf, humanise, inheritedOf, kindLabel, quickFixes, relationsOf, RelationRow, sharedValue, tracesOf, valueShape } from '../src/pure/properties';
 import { childTools, PanesToHost, PanesToPage } from '../src/pure/panes';
 import { EditRequest, ElementRecord, Finding, LAYER_LABELS, layerOfKind, Metamodel, MetamodelAttribute, Snapshot, TRACE_KINDS } from '../src/pure/workbench';
@@ -192,6 +193,7 @@ export class Properties {
         action('⊞', 'New diagram', () => diagram('new', element), { title: 'A new diagram with it and what it is connected to' }),
       );
     }
+    actions.appendChild(action('⚡', 'Impact', () => openImpact(element.id), { title: 'Analyse the impact of a change to it, or ask what if…' })); // impact hook
     actions.appendChild(action('⌫', 'Delete', () => this.owner.submit([{ op: 'remove', element: element.id }], `delete ${element.id}`), { class: 'wb-danger', title: 'Delete the declaration (⌘Z takes it back)' }));
     const linked = ends
       ? el('p', { class: 'wb-ends' }, [
