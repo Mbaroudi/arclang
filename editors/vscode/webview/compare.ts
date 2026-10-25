@@ -49,7 +49,7 @@ export function installCompare(h: CompareHooks): void {
   hooks = h;
   loadStyles();
   const menu = new ContextMenu(h.sheet);
-  const open = el('button', { type: 'button', class: 'wb-icon-button wb-bar-toggle wb-compare-button', id: 'wb-compare-menu', 'aria-haspopup': 'menu', 'aria-label': 'Compare with a revision, history, baselines', title: 'Compare the model with main, a branch, a tag, a baseline or HEAD; history; baselines' }, [el('span', { class: 'wb-toggle-label', text: 'Compare ▾' })]);
+  const open = el('button', { type: 'button', class: 'wb-icon-button wb-bar-toggle wb-compare-button', id: 'wb-compare-menu', 'aria-haspopup': 'menu', 'aria-label': 'Compare ▾: with a revision, history, baselines', title: 'Compare the model with main, a branch, a tag, a baseline or HEAD; history; baselines' }, [glyph()]);
   h.slot.appendChild(open);
   open.addEventListener('click', () => {
     if (menu.isOpen) return menu.close();
@@ -61,13 +61,14 @@ export function installCompare(h: CompareHooks): void {
     const message = event.data as { type?: string; state?: CompareState | null; history?: ElementHistory; error?: string; hash?: string; diagrams?: ViewerPayload; id?: string; name?: string } | undefined;
     if (!message) return;
     if (message.type === 'compare') {
+      const was = state?.ref ?? null;
       state = message.state ?? null;
-      selectedRow = null;
+      if (was !== (state?.ref ?? null)) selectedRow = null;
       document.body.classList.toggle('wb-comparing', state !== null);
       renderPanel();
       paint();
-      // The panel takes room: the drawing is fitted to what is left.
-      setTimeout(() => h.viewer()?.fit?.(), 450);
+      // The panel takes room: the drawing is fitted to what is left (only when the comparison starts or ends, never on each edit).
+      if (was !== (state?.ref ?? null)) setTimeout(() => h.viewer()?.fit?.(), 450);
     } else if (message.type === 'history') {
       if (message.error) h.toast(`History: ${message.error}`, 'error');
       else if (message.history) showHistory(message.history);
@@ -88,6 +89,18 @@ export function installCompare(h: CompareHooks): void {
   const observer = new MutationObserver(again);
   observer.observe(h.host, { childList: true, subtree: true });
   observer.observe(h.layerBar, { childList: true });
+}
+
+/** A 16 × 16 outline in the toolbar's style: two branches and an arrow between them (the label is the tooltip, the toolbar is tight). */
+function glyph(): SVGSVGElement {
+  const svg = document.createElementNS(SVG, 'svg');
+  for (const [key, value] of Object.entries({ viewBox: '0 0 16 16', width: '16', height: '16', fill: 'none', stroke: 'currentColor', 'stroke-width': '1.5', 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'aria-hidden': 'true', focusable: 'false', class: 'arcviz-icon wb-compare-icon' })) svg.setAttribute(key, value);
+  for (const d of ['M4 5.5v5', 'M12 10.5v-5', 'M10 7.5l2-2 2 2', 'M2.5 4a1.5 1.5 0 103 0 1.5 1.5 0 10-3 0z', 'M10.5 12a1.5 1.5 0 103 0 1.5 1.5 0 10-3 0z']) {
+    const path = document.createElementNS(SVG, 'path');
+    path.setAttribute('d', d);
+    svg.appendChild(path);
+  }
+  return svg;
 }
 
 function loadStyles(): void {
