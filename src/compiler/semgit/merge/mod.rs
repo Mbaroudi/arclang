@@ -58,6 +58,58 @@ fn short(lines: &[String]) -> String {
     }
 }
 
+/// The words of a line, a quoted string being one word.
+fn words(line: &str) -> Vec<String> {
+    let mut out: Vec<String> = Vec::new();
+    let mut current = String::new();
+    let (mut quoted, mut escaped) = (false, false);
+    for c in line.chars() {
+        if quoted {
+            current.push(c);
+            if escaped {
+                escaped = false;
+            } else if c == '\\' {
+                escaped = true;
+            } else if c == '"' {
+                quoted = false;
+            }
+        } else if c == '"' {
+            quoted = true;
+            current.push(c);
+        } else if c.is_whitespace() {
+            if !current.is_empty() {
+                out.push(std::mem::take(&mut current));
+            }
+        } else {
+            current.push(c);
+        }
+    }
+    if !current.is_empty() {
+        out.push(current);
+    }
+    out
+}
+
+/// Two attributes of one element written on one line, changed one on each
+/// side: merged word by word.
+fn merge_words(base: &[String], ours: &[String], theirs: &[String]) -> Option<Vec<String>> {
+    let [b] = base else { return None };
+    let [o] = ours else { return None };
+    let [t] = theirs else { return None };
+    let strip = |l: &String| l.strip_prefix("L:").map(str::to_string);
+    let (b, o, t) = (strip(b)?, strip(o)?, strip(t)?);
+    let (bw, ow, tw) = (words(&b), words(&o), words(&t));
+    let mut merged = Vec::new();
+    for chunk in merge3(&bw, &ow, &tw) {
+        match chunk {
+            Chunk::Text(words) => merged.extend(words),
+            Chunk::Region { .. } => return None,
+        }
+    }
+    let indent: String = o.chars().take_while(|c| c.is_whitespace()).collect();
+    Some(vec![format!("L:{indent}{}", merged.join(" "))])
+}
+
 fn tokens_of(node: &Node) -> Vec<String> {
     node.items
         .iter()
@@ -206,6 +258,8 @@ fn merge_node_with(base: &Node, ours: &Node, theirs: &Node, ctx: &mut Ctx) -> Re
                 if only_children {
                     let lines = resolve_children(&b, &o, &t, &versions, ctx, &mut emitted_keys);
                     out.extend(lines);
+                } else if let Some(tokens) = merge_words(&b, &o, &t) {
+                    out.extend(tokens.iter().flat_map(|x| emit(x, &versions)));
                 } else {
                     failure.get_or_insert_with(|| format!("{} (ours) vs {} (theirs)", short_or(&plain(&o)), short_or(&plain(&t))));
                     let chosen = if ctx.policy == Policy::Theirs { &t } else { &o };
