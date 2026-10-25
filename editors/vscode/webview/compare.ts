@@ -22,7 +22,7 @@ export interface CompareHooks {
   /** Select an element of the model now (null when it is not in it: a ghost). */
   select: (id: string) => boolean;
   selection: () => ElementRecord | null;
-  viewer: () => { select?: (id: string | null) => void; current?: () => { view?: string | null } | undefined } | null;
+  viewer: () => { fit?: () => void; select?: (id: string | null) => void; current?: () => { view?: string | null } | undefined } | null;
   /** Mount a second viewer, read-only, in an element. */
   mountRevision: (into: HTMLElement, diagrams: ViewerPayload, view: string | null) => void;
   toast: (text: string, kind: 'info' | 'error') => void;
@@ -32,6 +32,7 @@ const STATUS_CLASSES: MarkStatus[] = ['added', 'removed', 'modified', 'moved', '
 const GLYPH: Record<MarkStatus, string> = { added: '+', removed: '×', modified: '~', moved: '⇄', renamed: 'Aa' };
 const WORD: Record<MarkStatus, string> = { added: 'Added', removed: 'Removed', modified: 'Modified', moved: 'Moved', renamed: 'Renamed' };
 const SVG = 'http://www.w3.org/2000/svg';
+const LAYER_NAMES: Record<string, string> = { OA: 'Operational Analysis', SA: 'System Analysis', LA: 'Logical Architecture', PA: 'Physical Architecture', EPBS: 'EPBS', Data: 'Data model', Transverse: 'Requirements, safety, tests' };
 
 let hooks: CompareHooks | null = null;
 let state: CompareState | null = null;
@@ -65,6 +66,8 @@ export function installCompare(h: CompareHooks): void {
       document.body.classList.toggle('wb-comparing', state !== null);
       renderPanel();
       paint();
+      // The panel takes room: the drawing is fitted to what is left.
+      setTimeout(() => h.viewer()?.fit?.(), 450);
     } else if (message.type === 'history') {
       if (message.error) h.toast(`History: ${message.error}`, 'error');
       else if (message.history) showHistory(message.history);
@@ -264,7 +267,7 @@ function renderPanel(): void {
   const byLayer = new Map<string, CompareMark[]>();
   for (const mark of s.marks) byLayer.set(mark.layer, [...(byLayer.get(mark.layer) ?? []), mark]);
   for (const [layer, marks] of byLayer) {
-    list.appendChild(el('h4', { class: 'wb-cmp-layer', text: `${layer} · ${marks.length}` }));
+    list.appendChild(el('h4', { class: 'wb-cmp-layer', text: `${LAYER_NAMES[layer] ?? layer} · ${marks.length}` }));
     for (const mark of marks) list.appendChild(row(mark));
   }
   if (s.relationships.length) {
@@ -334,6 +337,7 @@ function showHistory(history: ElementHistory): void {
   const h = hooks!;
   closeHistory();
   document.body.classList.add('wb-history');
+  setTimeout(() => h.viewer()?.fit?.(), 450);
   const root = el('aside', { class: 'wb-hist-panel', 'aria-label': `History of ${history.name || history.id}` });
   root.appendChild(el('div', { class: 'wb-cmp-head' }, [el('div', { class: 'wb-cmp-title' }, [el('strong', { text: 'History of ' }), el('code', { text: history.name && history.name !== history.id ? `${history.name} (${history.id})` : history.id })]), button('Close', closeHistory, { class: 'wb-cmp-exit' })]));
   const list = el('div', { class: 'wb-cmp-list', role: 'list' });
@@ -391,6 +395,7 @@ function showRevision(hash: string, diagrams: ViewerPayload): void {
   h.sheet.appendChild(pane);
   revisionPane = pane;
   document.body.classList.add('wb-rev-open');
+  setTimeout(() => h.viewer()?.fit?.(), 450);
   h.mountRevision(stage, diagrams, view);
   if (pendingElement) {
     const id = pendingElement;

@@ -828,7 +828,10 @@ installCompare({
   mountRevision: (into, diagrams, view) => {
     const deps = { ELK: window.ELK, render: window.ArcVizRender, links: window.ArcVizLinks, navigation: window.ArcVizNavigation, collapse: window.ArcVizCollapse, scope: window.ArcVizScope, exporter: window.ArcVizExport, stage: window.ArcVizStage, place: window.ArcVizPlace, edit: window.ArcVizEdit, theme: window.ArcVizTheme };
     try {
-      const viewer = window.ArcViz.mount(into, diagrams, deps, { onSelect: () => undefined, theme: exportsUi.mountTheme() }) as unknown as { ready?: Promise<unknown>; show?: (view: string) => void };
+      // Only the drawing and its tabs: the tree and the details are not wanted beside the current model.
+      const unused = () => into.parentElement?.appendChild(el('div', { hidden: true })) ?? el('div');
+      const slots = { tree: unused(), details: unused(), related: unused(), foot: unused() };
+      const viewer = window.ArcViz.mount(into, diagrams, deps, { slots, onSelect: () => undefined, theme: exportsUi.mountTheme() }) as unknown as { ready?: Promise<unknown>; show?: (view: string) => void };
       if (view) void Promise.resolve(viewer.ready).then(() => viewer.show?.(view));
     } catch (error) {
       showToast(`That revision could not be drawn: ${error instanceof Error ? error.message : String(error)}`, 'error');
