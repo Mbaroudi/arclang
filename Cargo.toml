@@ -67,6 +67,8 @@ criterion = { version = "0.5", features = ["html_reports"] }
 tempfile = "3.8"
 mockall = "0.12"
 proptest = "1.4"
+jsonschema = { version = "0.60.1", default-features = false }
+serde_yaml = "0.9.34"
 
 [profile.release]
 opt-level = 3
