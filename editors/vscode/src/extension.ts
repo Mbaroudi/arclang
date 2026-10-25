@@ -1,7 +1,9 @@
 // ArcLang for VS Code. Everything comes from the `arclang` binary: the
 // language server for what the editor shows, the CLI for commands and tools,
 // the diagram viewer, and the compiler's verdict on what the assistant writes.
+import { disposeHighlight } from './workbench/go-to-source'; // nav hook
 import * as vscode from 'vscode';
+import { registerAi } from './ai'; // ai-design hook
 import { registerParticipant } from './ai/participant';
 import { registerTools } from './ai/tools';
 import { installBinary, warnIfMissing } from './binary';
@@ -12,6 +14,9 @@ import { registerFormatter } from './format';
 import { registerMcpProvider } from './mcp';
 import { workspaceTrusted } from './cli';
 import { registerWorkbench } from './workbench';
+import { registerImport } from './importing';
+import { registerTables } from './tables'; // tables hook
+import { registerImpact } from './impact'; // impact hook
 
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
   const register = (command: string, callback: (...args: unknown[]) => unknown) =>
@@ -33,7 +38,6 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   );
   register('arclang.diffWithHead', (uri?: unknown) => commands.diffWithHead(uri instanceof vscode.Uri ? uri : undefined));
   register('arclang.export', (uri?: unknown) => commands.exportModel(uri instanceof vscode.Uri ? uri : undefined));
-  register('arclang.import', () => commands.importModel());
   register('arclang.showMetamodel', () => commands.showMetamodel());
   register('arclang.showRules', () => commands.showRules());
   register('arclang.restartServer', () => restartClient(context));
@@ -42,8 +46,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   registerFormatter(context);
   registerDiagramRefresh(context);
   registerWorkbench(context);
+  registerImport(context);
+  registerTables(context); // tables hook
+  registerImpact(context); // impact hook
   registerTools(context);
   registerParticipant(context);
+  registerAi(context); // ai-design hook
   registerMcpProvider(context);
 
   // The language server starts with the first .arc document, not at startup.
@@ -69,5 +77,6 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 }
 
 export async function deactivate(): Promise<void> {
+  disposeHighlight(); // nav hook
   await stopClient();
 }

@@ -3,7 +3,10 @@ import * as path from 'node:path';
 import * as vscode from 'vscode';
 import { failureText, run, withTempFile } from '../cli';
 import { clip, extractArcFence, parseCheckReport, renderTransitionPlan, summarizeCheck, TransitionPlan } from '../pure/arc';
+import { providerChatModel } from './chatModel';
+import { openProvider } from './client';
 import { documentExcerpt, HOUSE_RULES, metamodelReference, sampleModel } from './context';
+import { currentConfig } from './settings';
 
 interface ArcChatResult extends vscode.ChatResult {
   metadata: { command: string; hasModel: boolean; compiles: boolean };
@@ -187,9 +190,28 @@ async function applyPending(id: string, mode: 'replace' | 'new'): Promise<void> 
   await vscode.window.showTextDocument(document, { preview: false });
 }
 
+/**
+ * The model that answers: the chat's own with the `vscode-lm` provider (as
+ * before), else the provider of the settings behind the same interface.
+ */
+async function answeringModel(context: vscode.ExtensionContext, request: vscode.ChatRequest): Promise<{ model: vscode.LanguageModelChat } | { error: string }> {
+  const config = await currentConfig(context);
+  if (config.provider === 'vscode-lm') return { model: request.model };
+  if (config.provider === 'off') return { error: 'ArcLang AI is off (`arclang.ai.provider`): nothing is sent. Choose a provider with **ArcLang: Configure AI**.' };
+  const opened = await openProvider(context, `@arclang /${request.command ?? 'chat'}`, 'The open model, its diagnostics and your request are sent.');
+  if (!opened.ok) return { error: `ArcLang AI: ${opened.error}.` };
+  return { model: providerChatModel(opened.provider, opened.label) };
+}
+
 function handler(context: vscode.ExtensionContext): vscode.ChatRequestHandler {
   return async (request, chatContext, stream, token): Promise<ArcChatResult> => {
     const command = request.command ?? 'chat';
+    const answering = await answeringModel(context, request);
+    if ('error' in answering) {
+      stream.markdown(answering.error);
+      return { metadata: { command, hasModel: false, compiles: false } };
+    }
+    const chatModel = answering.model;
     const target = await targetDocument(request);
     const messages: vscode.LanguageModelChatMessage[] = [];
     const reference = await metamodelReference();
@@ -233,11 +255,11 @@ function handler(context: vscode.ExtensionContext): vscode.ChatRequestHandler {
       .filter((tool) => (tool.name.startsWith('arclang_') && command !== 'model' && command !== 'fix') || wanted.has(tool.name))
       .map((tool) => ({ name: tool.name, description: tool.description, inputSchema: tool.inputSchema }));
 
-    const answer = await converse(request.model, messages, tools, stream, token, request.toolInvocationToken);
+    const answer = await converse(chatModel, messages, tools, stream, token, request.toolInvocationToken);
     const fence = extractArcFence(answer);
     let compiles = false;
     if (fence && (command === 'model' || command === 'fix' || command === 'chat')) {
-      compiles = await verifyAndOffer(fence, answer, target, request.model, messages, stream, token, request.toolInvocationToken);
+      compiles = await verifyAndOffer(fence, answer, target, chatModel, messages, stream, token, request.toolInvocationToken);
     }
     if (command === 'transition' && plans && target) {
       for (const plan of plans) {

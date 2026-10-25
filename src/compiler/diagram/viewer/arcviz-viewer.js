@@ -73,8 +73,12 @@
    * Mount the viewer in `host`.
    * payload: { title, graphs: [ELK graph], diagnostics: [string] }
    * deps:    { ELK, render, links, navigation, collapse, scope, exporter,
-   *          stage, place } — the layout engine constructor and the other
-   *          ArcViz modules, each one named after its file.
+   *          stage, place, theme } — the layout engine constructor and the
+   *          other ArcViz modules, each one named after its file (`theme`,
+   *          ArcVizTheme, is optional: without it the built-in colours).
+   *          payload.theme, a theme (arclang-theme.json) or a preset id,
+   *          colours every view; one the validator refuses is not applied
+   *          and the notes say why.
    * options: optional. A host that is a workbench of its own, with a
    *          project explorer and a properties view, places the chrome
    *          where it wants it:
@@ -107,11 +111,56 @@
    *             where it was let go.
    *   onLayout: (layout file) => void, whenever the arrangement (places,
    *             folds, open containers) changes: the host keeps it.
+   *   toolbar:  { history, align, arrangeToggle } — undo and redo from the
+   *             host's history ({ undo(), redo(), labels() }), Align on its
+   *             selection ({ count(), align(how), distribute(axis) }), and
+   *             false to leave out the Arrange switch (always arranging).
+   *   exportItems, themeItems: [{ id, label, title, shortcut?, checked?, run }]
+   *             — more entries in Export (above SVG and PNG) and a Theme
+   *             menu (shown only when given); see "extension hooks".
+   *   theme:    { theme, dark } — the colour theme to draw with (deps.theme
+   *             checks it), its dark variant on screen when `dark`; it wins
+   *             over payload.theme. See setTheme for later changes.
+   *   edit:     a host that edits the model from the drawing, with
+   *             deps.edit (ArcVizEdit): see `attach` in arcviz-edit.js.
    */
   function mount(host, payload, deps, options) {
     const graphs = payload.graphs || [];
     const diagnostics = payload.diagnostics || [];
     const render = deps.render;
+    // --- theme ----------------------------------------------------------
+    // The colours of the screen and those of the exports: the same theme,
+    // the screen in its dark variant when the host asks for one.
+    const themes = deps.theme || null;
+    const themeState = { screen: undefined, exports: undefined, theme: null, refused: null };
+    const themeOptions = (purpose) => (themeState[purpose] === undefined ? {} : { theme: themeState[purpose] });
+    /** Check a theme and make it the one drawn; { ok, errors, warnings }. */
+    function adoptTheme(theme, settings) {
+      if (theme === null) {
+        Object.assign(themeState, { screen: undefined, exports: undefined, theme: null, refused: null });
+        return { ok: true, errors: [], warnings: [] };
+      }
+      if (!themes) return { ok: false, errors: [{ rule: 'structure', message: 'this page has no theme support (ArcVizTheme)' }], warnings: [] };
+      const given = typeof theme === 'string' ? themes.preset(theme) : theme;
+      if (!given) return { ok: false, errors: [{ rule: 'structure', message: `no preset "${theme}"` }], warnings: [] };
+      const checked = themes.validate(given);
+      // A draft (a theme being edited) is previewed whatever it breaks; it is never the theme kept.
+      const draft = Boolean(settings && settings.draft && checked.theme);
+      if (!checked.ok && !draft) {
+        themeState.refused = checked.errors;
+        return checked;
+      }
+      Object.assign(themeState, {
+        screen: themes.palette(checked.theme, { dark: Boolean(settings && settings.dark), draft }),
+        exports: themes.palette(checked.theme, { draft }),
+        theme: draft ? themeState.theme : checked.theme,
+        refused: null,
+      });
+      return checked;
+    }
+    // options.theme: { theme, dark } — the host's theme, in its dark variant on a dark editor.
+    if (options && options.theme && options.theme.theme) adoptTheme(options.theme.theme, options.theme);
+    else if (payload.theme) adoptTheme(payload.theme);
     const slots = (options && options.slots) || {};
     const onSelect = (options && options.onSelect) || (() => {});
     const onDrop = options && options.onDrop;
@@ -124,6 +173,10 @@
     // (blob, filename) -> void. Without it, the browser downloads them.
     const save = (options && options.onDownload) || download;
     const onLayout = options && options.onLayout;
+    // zorder hook: layers (tags), groups and locks (arcviz-layers.js); options.layers = { tagsOf(view, id, isEdge) -> [tag] }.
+    const layersKit = deps.layers || root.ArcVizLayers || null;
+    const layerStore = layersKit ? layersKit.create({ tagsOf: (options && options.layers && options.layers.tagsOf) || null }) : null;
+    const viewSigs = new Map();
     const state = { active: null, views: new Map(), layouts: new Map(), arranging: Boolean(options && options.arrange), chain: null, selected: null, history: [], settled: new Map(), filters: new Map() };
 
     host.textContent = '';
@@ -192,49 +245,176 @@
       goTo: (graph, id) => goTo(graph, id),
     });
 
-    const tool = (label, title, action) => el('button', { type: 'button', class: 'arcviz-tool', title, text: label, onclick: action });
-    const back = tool('Back', 'Return to the element you came from', () => goBack());
+    // --- the tool row (arcviz-toolbar.js) ---------------------------------
+    // Moving about | undo, redo | zoom | layout, align, filters | export,
+    // full screen. A narrow frame drops the words of the menus first, then
+    // moves whole tools into "⋯", the least used first.
+    const toolkit = deps.toolbar || root.ArcVizToolbar;
+    const kit = toolkit.create({ el });
+    const extra = (options && options.toolbar) || {};
+    // A host with a history of its own: { undo(), redo(), labels() -> { undo, redo } }.
+    const history = extra.history || null;
+    // A host that aligns its selection: { count(), align(how), distribute(axis) }.
+    const aligner = extra.align || null;
+    // What the Layout menu may do in the view on screen (set as it is drawn).
+    const can = { fold: false, unfold: false, reset: false, arrange: true };
+
+    const back = kit.iconButton({ id: 'arcviz-back', icon: 'back', label: 'Back', hint: 'Back to the element you came from', run: () => goBack() });
     back.disabled = true;
-    const treeToggle = tool('Model tree', 'Show or hide the model tree', () => toggleTree());
-    treeToggle.setAttribute('aria-pressed', 'true');
-    const arrange = tool('Arrange', 'Move boxes by hand: drag one, or select it and press Shift with an arrow key', () => toggleArrange());
-    arrange.setAttribute('aria-pressed', String(state.arranging));
-    const resetPlaces = tool('Reset layout', 'Put every box of this view back where the automatic layout placed it', () => replace(() => scope.resetPlaces(state.active)).then(() => announce('Layout reset.')));
-    const layoutName = payload.layout_name || `${slug(payload.title)}.layout.json`;
-    const saveLayout = tool('Save layout', `Download the folds, the open containers and the placement as ${layoutName}. Kept next to the model, it is what everyone sees.`, () => exporter.saveLayout(scope.toFile(), layoutName));
-    const foldAll = tool('Fold all', 'Show every container as a single box', () => refold(new Set(scope.foldable(state.active))));
-    const unfoldAll = tool('Unfold all', 'Show what every container holds', () => refold(new Set()));
-    // Tools come in groups: moving about, folding, arranging, zooming, saving.
-    const group = (label, items) => el('span', { class: 'arcviz-tool-group', role: 'group', 'aria-label': label }, items);
-    // Filters, as a diagram has them in Capella: kinds of boxes and lines
-    // left out of the drawing, ports and labels hidden.
-    const filterList = el('div', { class: 'arcviz-filter-list' });
-    const filterMenu = el('details', { class: 'arcviz-filters' }, [
-      el('summary', { class: 'arcviz-tool', text: 'Filters' }),
-      el('div', { class: 'arcviz-filter-pop' }, [filterList]),
-    ]);
-    const toolbar = el('div', { class: 'arcviz-tools', role: 'toolbar', 'aria-label': 'Diagram tools' }, [
-      group('Navigation', [treeToggle, back]),
-      group('Filters', [filterMenu]),
-      group('Folding', [foldAll, unfoldAll]),
-      // A host that keeps the arrangement itself (onLayout) needs no download of it.
-      group('Arrangement', onLayout ? [arrange, resetPlaces] : [arrange, resetPlaces, saveLayout]),
-      group('Zoom', [
-        tool('Fit', 'Fit the diagram to the frame (0)', () => fit()),
-        tool('−', 'Zoom out (-)', () => sheet.zoomOut()),
-        tool('+', 'Zoom in (+)', () => sheet.zoomIn()),
-        onFullscreen
-          ? tool('Full screen', 'Edit the diagram full screen, with the palette (Esc to leave)', () => onFullscreen())
-          : tool('Full screen', 'Show the diagram full screen', () => sheet.toggleFullscreen()),
-      ]),
-      group('Export', [
-        tool('Save SVG', 'Download this view as drawn, folded containers included, as an SVG file', () => saveSvg()),
-        tool('Save PNG', 'Download this view as drawn, folded containers included, as a PNG image', () => savePng()),
-      ]),
-    ]);
+    const treeToggle = kit.iconButton({ id: 'arcviz-tree-toggle', icon: 'tree', label: 'Model tree', hint: 'Show or hide the model tree', pressed: true, run: () => toggleTree() });
     // The tree lives in the project explorer of a workbench host: the
     // button that hides it would hide a panel that is not the viewer's.
     if (slots.tree) treeToggle.hidden = true;
+    const undo = history ? kit.iconButton({ id: 'arcviz-undo', icon: 'undo', label: 'Undo', keys: 'Mod+Z', run: () => history.undo() }) : null;
+    const redo = history ? kit.iconButton({ id: 'arcviz-redo', icon: 'redo', label: 'Redo', keys: kit.mac ? 'Mod+Shift+Z' : 'Ctrl+Y', run: () => history.redo() }) : null;
+
+    const zoomOut = kit.iconButton({ id: 'arcviz-zoom-out', icon: 'zoom-out', label: 'Zoom out', keys: '-', run: () => sheet.zoomOut() });
+    const zoomIn = kit.iconButton({ id: 'arcviz-zoom-in', icon: 'zoom-in', label: 'Zoom in', keys: '+', run: () => sheet.zoomIn() });
+    const fitButton = kit.iconButton({ id: 'arcviz-fit', icon: 'fit', label: 'Fit to window', keys: '0', run: () => fit() });
+    const ZOOM_PRESETS = [0.5, 0.75, 1, 1.5, 2];
+    const zoomLevel = kit.menuButton({
+      id: 'arcviz-zoom-level',
+      label: toolkit.formatZoom(1),
+      heading: (label) => `Zoom · ${label}`,
+      title: 'Zoom level: choose one',
+      describe: (label) => `Zoom ${label}`,
+      className: 'arcviz-zoom',
+      keepLabel: true,
+      items: () => [
+        { label: 'Fit to window', keys: '0', action: 'zoom-fit', run: () => fit() },
+        'separator',
+        ...ZOOM_PRESETS.map((scale) => ({
+          label: toolkit.formatZoom(scale),
+          action: `zoom-${Math.round(scale * 100)}`,
+          radio: true,
+          checked: Math.abs(sheet.scale() - scale) < 0.005,
+          run: () => sheet.zoomTo(scale),
+        })),
+      ],
+    });
+    const showZoom = (scale) => {
+      const text = toolkit.formatZoom(scale);
+      if (zoomLevel.button.textContent !== text) zoomLevel.setLabel(text);
+    };
+
+    const layoutName = payload.layout_name || `${slug(payload.title)}.layout.json`;
+    const arrangeToggle = extra.arrangeToggle !== false;
+    const layoutMenu = kit.menuButton({
+      id: 'arcviz-layout-menu',
+      icon: 'layout',
+      label: 'Layout',
+      className: 'arcviz-layout',
+      items: () => [
+        { label: 'Re-arrange automatically', action: 'reset-layout', title: 'Put every box of this view back where the automatic layout placed it', disabled: !can.reset, reason: 'No box of this view was placed by hand', run: () => resetLayout() },
+        'separator',
+        { label: 'Fold all', action: 'fold-all', title: 'Show every container as a single box', disabled: !can.fold, reason: 'This view has no container to fold', run: () => refold(new Set(scope.foldable(state.active))) },
+        { label: 'Unfold all', action: 'unfold-all', title: 'Show what every container holds', disabled: !can.unfold, reason: 'No container is folded', run: () => refold(new Set()) },
+        // An editor places boxes by dragging all the time: no mode to switch.
+        ...(extra.layoutItems ? ['separator', ...extra.layoutItems()] : []), // zorder hook: Order, Group, Size, Lock, Waypoints, Select
+        ...(arrangeToggle ? ['separator', { label: 'Arrange by hand', action: 'arrange', checked: state.arranging, title: 'Move boxes by hand: drag one, or select it and press Shift with an arrow key', disabled: !can.arrange, reason: 'A scenario is drawn as declared', run: () => toggleArrange() }] : []),
+      ],
+    });
+    const SELECT_MORE = 'select two or more boxes (Shift+click) to align them';
+    const alignMenu = aligner ? kit.menuButton({
+      id: 'arcviz-align-menu',
+      icon: 'align',
+      label: 'Align',
+      className: 'arcviz-align',
+      items: () => {
+        const few = aligner.count() < 3;
+        const align = (label, how) => ({ label, action: `align-${how}`, run: () => aligner.align(how) });
+        const spread = (label, axis) => ({ label, action: `distribute-${axis}`, disabled: few, reason: 'Select three or more boxes to distribute them', run: () => aligner.distribute(axis) });
+        return [
+          align('Align left', 'left'), align('Align centre', 'center'), align('Align right', 'right'),
+          'separator',
+          align('Align top', 'top'), align('Align middle', 'middle'), align('Align bottom', 'bottom'),
+          'separator',
+          spread('Distribute horizontally', 'horizontal'), spread('Distribute vertically', 'vertical'),
+        ];
+      },
+    }) : null;
+    if (alignMenu) alignMenu.setDisabled(true, SELECT_MORE);
+    // Filters, as a diagram has them in Capella: kinds of boxes and lines
+    // left out of the drawing, ports and labels hidden.
+    const filterList = el('div', { class: 'arcviz-filter-list' });
+    const filterMenu = kit.menuButton({ id: 'arcviz-filters-menu', icon: 'filter', label: 'Filters', title: 'Filters: what this view leaves out', className: 'arcviz-filters', panel: () => filterList });
+    // --- extension hooks: more exports, a theme chooser ------------------
+    // options.exportItems and options.themeItems: [{ id, label, title,
+    // shortcut?, checked?, run }] (or a function returning that list, read
+    // each time the menu opens). The export items come first in Export,
+    // above a rule; Theme ▾ is shown only when its list is not empty. The
+    // toolbar draws them; what they do is the host's.
+    const listOf = (items) => (typeof items === 'function' ? items() : items) || [];
+    const hookItems = (items) => listOf(items).map((item) => ({
+      label: item.label,
+      title: item.title,
+      keys: item.shortcut,
+      action: item.id,
+      checked: item.checked,
+      radio: item.checked !== undefined,
+      run: () => item.run(),
+    }));
+    const exportHooks = (options && options.exportItems) || [];
+    const themeHooks = (options && options.themeItems) || [];
+    const themeMenu = listOf(themeHooks).length > 0 ? kit.menuButton({
+      id: 'arcviz-theme-menu',
+      icon: 'theme',
+      label: 'Theme',
+      className: 'arcviz-theme',
+      items: () => hookItems(themeHooks),
+    }) : null;
+    // --- end of the extension hooks ----------------------------------------
+
+    // zorder hook: exports follow the layers shown.
+    const hiddenNote = () => (layerStore && layerStore.state().hidden.length ? ` (hidden layers are left out: ${layerStore.state().hidden.map((n) => n || 'Default').join(', ')})` : '');
+    const exportMenu = kit.menuButton({
+      id: 'arcviz-export-menu',
+      icon: 'export',
+      label: 'Export',
+      className: 'arcviz-export',
+      items: () => [
+        ...(() => { const extra = hookItems(exportHooks); return extra.length ? [...extra, 'separator'] : []; })(),
+        { label: 'Save as SVG', action: 'save-svg', title: `This view as drawn, folded containers included, as an SVG file${hiddenNote()}`, run: () => saveSvg() },
+        { label: 'Save as PNG', action: 'save-png', title: `This view as drawn, folded containers included, as a PNG image${hiddenNote()}`, run: () => savePng() },
+        // A host that keeps the arrangement itself (onLayout) needs no download of it.
+        ...(onLayout ? [] : ['separator', { label: scope.dirty() ? 'Save layout •' : 'Save layout', action: 'save-layout', title: `Download the folds, the open containers and the placement as ${layoutName}. Kept next to the model, it is what everyone sees.`, run: () => exporter.saveLayout(scope.toFile(), layoutName) }]),
+      ],
+    });
+    const fullscreen = onFullscreen
+      ? kit.iconButton({ id: 'arcviz-fullscreen', icon: 'fullscreen', label: 'Full screen', hint: 'Full screen, with the palette and every tool (Esc to leave)', run: () => onFullscreen() })
+      : kit.iconButton({ id: 'arcviz-fullscreen', icon: 'fullscreen', label: 'Full screen', hint: 'Full screen (Esc to leave)', pressed: false, run: () => sheet.toggleFullscreen() });
+    if (!onFullscreen) document.addEventListener('fullscreenchange', () => fullscreen.setAttribute('aria-pressed', String(document.fullscreenElement === stage)));
+
+    const drop = (node, rank) => { node.dataset.drop = String(rank); return node; };
+    const menus = [zoomLevel, layoutMenu, alignMenu, filterMenu, exportMenu, themeMenu].filter(Boolean);
+    const menuOf = new Map(menus.map((menu) => [menu.root, menu]));
+    const tools = kit.row([
+      kit.group('Navigation', [treeToggle, back]),
+      history ? kit.group('History', [undo, redo]) : null,
+      kit.group('Zoom', [zoomOut, drop(zoomLevel.root, 1), zoomIn, fitButton]),
+      kit.group('Arrangement', [drop(layoutMenu.root, 4), alignMenu ? drop(alignMenu.root, 6) : null, drop(filterMenu.root, 5), ...(extra.tools || []).map((spec) => drop(kit.iconButton(spec), spec.rank || 6))]), // zorder hook: host tools (Layers)
+      kit.group('Output', [drop(exportMenu.root, 7), themeMenu ? drop(themeMenu.root, 8) : null, drop(fullscreen, 3)]),
+    ].filter(Boolean), menus, (tool) => (menuOf.has(tool)
+      ? menuOf.get(tool).entries()
+      : [{ label: tool.getAttribute('aria-label'), keys: tool.dataset.keys, disabled: kit.isOff(tool), run: () => tool.click() }]));
+    const toolbar = tools.toolbar;
+
+    /** Put the history and the selection the host has into the buttons. */
+    function refreshTools() {
+      if (history) {
+        const labels = history.labels() || {};
+        undo.disabled = !labels.undo;
+        kit.setLabel(undo, labels.undo ? `Undo ${labels.undo}` : 'Undo');
+        redo.disabled = !labels.redo;
+        kit.setLabel(redo, labels.redo ? `Redo ${labels.redo}` : 'Redo');
+      }
+      if (alignMenu) alignMenu.setDisabled(aligner.count() < 2, SELECT_MORE);
+    }
+    refreshTools();
+
+    function resetLayout() {
+      return replace(() => scope.resetPlaces(state.active)).then(() => announce('Layout reset.'));
+    }
 
     const title = el('p', { class: 'arcviz-title' });
     const which = el('select', { id: 'arcviz-which', onchange: (event) => show(event.currentTarget.value) });
@@ -319,7 +499,9 @@
     } catch (error) {
       // Storage is refused: folds hold for this visit only.
     }
-    const scope = deps.scope.create({ graphs, collapse: deps.collapse, storage, storageKey: `arcviz:${payload.title}`, initial: payload.layout || null });
+    const scope = deps.scope.create({ graphs, collapse: deps.collapse, storage, storageKey: `arcviz:${payload.title}`, initial: payload.layout || null, sections: layerStore }); // zorder hook: sections
+    /** Tell the host the arrangement when it changed. */
+    const reportLayout = deps.place.layoutReporter(() => scope.toFile(), onLayout);
     const foldedOf = scope.foldedOf;
 
     // A view is laid out once per scope: what is folded, what is open.
@@ -402,24 +584,29 @@
         filterList.appendChild(check(render.edgeStyle(kind).label, !filters.edges.has(kind), (on) => { if (on) filters.edges.delete(kind); else filters.edges.add(kind); apply(); }));
       }
       const active = filters.nodes.size + filters.edges.size + (filters.ports ? 1 : 0) + (filters.labels ? 1 : 0);
-      filterMenu.querySelector('summary').textContent = active > 0 ? `Filters (${active})` : 'Filters';
+      filterMenu.setBadge(active > 0 ? active : '');
       canvas.classList.toggle('hide-ports', filters.ports);
       canvas.classList.toggle('hide-labels', filters.labels);
     }
 
     function layout(graph, shown) {
       const key = scope.key(graph.id, shown) + filterSignature(graph.id);
-      if (state.views.has(key)) return state.views.get(key);
+      const sig = layerStore ? layerStore.signature(graph.id) : ''; // zorder hook: a drawing per layer and group state
+      if (state.views.has(key) && viewSigs.get(key) === sig) return state.views.get(key);
       if (!state.layouts.has(key)) {
         // Scenarios are drawn as declared; everything else goes through ELK.
         const copy = applyFilters(JSON.parse(JSON.stringify(scope.shape(graph, shown))), filtersOf(graph.id));
         state.layouts.set(key, render.isSequence(graph) ? Promise.resolve(copy) : render.layOut(new deps.ELK(), copy));
       }
       const pending = state.layouts.get(key).then((laidOut) => {
-        const placed = render.isSequence(graph) ? laidOut : deps.place.place(laidOut, scope.placedOf(graph.id, shown));
-        return { graph: placed, index: indexGraph(placed), ...render.renderSvg(placed) };
+        // An editor (options.edit) also routes redrawn exchanges around the boxes.
+        const extras = { ...scope.extrasOf(graph.id, shown), avoid: Boolean(options && options.edit && deps.edit) };
+        const arranged = render.isSequence(graph) ? laidOut : deps.place.place(laidOut, scope.placedOf(graph.id, shown), scope.routesOf(graph.id, shown), extras);
+        const placed = layerStore && !render.isSequence(graph) ? layerStore.apply(arranged, graph.id) : arranged; // zorder hook
+        return { graph: placed, index: indexGraph(placed), ...render.renderSvg(placed, themeOptions('screen')) };
       });
       state.views.set(key, pending);
+      viewSigs.set(key, sig); // zorder hook
       return pending;
     }
 
@@ -495,9 +682,18 @@
 
     // --- manual placement ----------------------------------------------
     /** What moves with a box: itself and what it holds. Lifelines stay put. */
-    function carried(id) {
+    function carried(id, raw) {
       const graph = activeGraph();
       if (!graph || render.isSequence(graph)) return [];
+      // zorder hook: a locked box stays; a member of a group moves with it; a group carries its members and what they hold.
+      if (layerStore && layerStore.isLocked(graph.id, id, false)) return [];
+      const standsFor = layerStore && !raw ? layersKit.redirect(layerStore, graph.id, id) : id;
+      if (standsFor !== id) return carried(standsFor);
+      if (layersKit && layersKit.isGroupId(id)) {
+        const members = layersApi ? layersApi.membersDeep(id) : [];
+        if (members.some((member) => layerStore.isLocked(graph.id, member, false))) return [];
+        return [...new Set([id, ...layersApi.framesDeep(id), ...members.flatMap((member) => carried(member, true))])];
+      }
       const held = [];
       const collect = (node, inside) => {
         const here = inside || node.id === id;
@@ -533,27 +729,35 @@
       announce(`${nav.nameOf(id)} moved.`);
     }
 
-    async function resizeBy(id, dw, dh) {
-      await replace(() => scope.resizeBy(state.active, id, dw, dh));
+    /** Resize a box; by a side handle, what it holds stays where it is (arcviz-place.js). */
+    async function resizeBy(id, dw0, dh0, dx0 = 0, dy0 = 0) {
+      const shown = (dx0 || dy0) && (await activeView());
+      const entry = shown && shown.index.nodes.get(id);
+      const { dw, dh, dx, dy, children } = deps.place.sideResize ? deps.place.sideResize(entry && entry.node, dw0, dh0, dx0, dy0) : { dw: dw0, dh: dh0, dx: 0, dy: 0, children: [] };
+      await replace(() => {
+        if (dx || dy) {
+          scope.moveBy(state.active, id, dx, dy);
+          for (const child of children) scope.moveBy(state.active, child.id, -dx, -dy);
+        }
+        scope.resizeBy(state.active, id, dw, dh);
+      });
       announce(`${nav.nameOf(id)} resized.`);
-    }
-
-    /** The box that holds another in the view on screen, or null at the top. */
-    function containerOf(id) {
-      const graph = activeGraph();
-      let found = null;
-      const walk = (node, parent) => {
-        if (node.id === id) found = parent;
-        (node.children || []).forEach((child) => walk(child, node.id));
-      };
-      if (graph) (scope.shape(graph).children || []).forEach((node) => walk(node, null));
-      return found;
     }
 
     /** A box let go: into the box under it when that is a new container, else placed there. */
     async function placeOrDrop(id, dx, dy, into) {
       const view = state.active;
-      if (onDrop && into && into !== containerOf(id) && !carried(id).includes(into)) {
+      // zorder hook: a group moves its members (a member dragged drags its group); a box let go on a group frame stays where it is let go.
+      if (layerStore) id = layersKit.redirect(layerStore, view, id);
+      if (layersKit && layersKit.isGroupId(id)) {
+        await replace(() => layersApi.membersDeep(id).forEach((member) => scope.moveBy(view, member, dx, dy)));
+        announce('Group moved.');
+        return;
+      }
+      if (layersKit && into && layersKit.isGroupId(into)) into = null;
+      const graph = activeGraph();
+      const parent = graph ? deps.place.parentOf(scope.shape(graph), id) : null;
+      if (onDrop && into && into !== parent && !carried(id).includes(into)) {
         await replace(() => {}); // back where it was until the model says otherwise
         onDrop({ view, from: id, to: into });
         return;
@@ -561,24 +765,9 @@
       await moveBy(id, dx, dy);
     }
 
-    let lastLayout = null;
-    /** Tell the host the arrangement when it changed. */
-    function reportLayout() {
-      if (!onLayout) return;
-      const now = JSON.stringify(scope.toFile());
-      if (lastLayout === null) {
-        lastLayout = now; // what the page was built with is not a change
-        return;
-      }
-      if (now === lastLayout) return;
-      lastLayout = now;
-      onLayout(JSON.parse(now));
-    }
-
     function toggleArrange() {
       state.arranging = !state.arranging;
       sheet.setArranging(state.arranging);
-      arrange.setAttribute('aria-pressed', String(state.arranging));
       announce(state.arranging ? 'Arrange mode: drag a box, or select it and press Shift with an arrow key.' : 'Arrange mode off.');
     }
 
@@ -696,26 +885,22 @@
       }
       clearViewChrome();
       reportLayout();
-      // A mark on the button while the arrangement differs from the file.
-      saveLayout.textContent = scope.dirty() ? 'Save layout •' : 'Save layout';
-      saveLayout.setAttribute('aria-label', scope.dirty() ? 'Save layout, changed since the layout file' : 'Save layout');
+      // A mark on Export while the arrangement differs from the file it saves.
+      exportMenu.setBadge(!onLayout && scope.dirty() ? '•' : '');
       const foldable = scope.foldable(graph.id).length > 0;
-      const nothingFolded = !foldable || foldedOf(graph.id).size === 0;
-      // A button about to be disabled must not keep the focus.
-      if (nothingFolded && document.activeElement === unfoldAll) stage.focus({ preventScroll: true });
-      foldAll.disabled = !foldable;
-      arrange.disabled = render.isSequence(graph);
+      can.fold = foldable;
+      can.unfold = foldable && foldedOf(graph.id).size > 0;
+      can.arrange = !render.isSequence(graph);
+      can.reset = Boolean(scope.arranged(graph.id));
       sheet.setArranging(state.arranging && !render.isSequence(graph));
       sheet.cancelConnect();
-      const nothingPlaced = Object.keys(scope.placedOf(graph.id)).length === 0;
-      if (nothingPlaced && document.activeElement === resetPlaces) stage.focus({ preventScroll: true });
-      resetPlaces.disabled = nothingPlaced;
-      unfoldAll.disabled = nothingFolded;
       try {
         const view = await layout(graph);
         if (state.turn !== turn) return;
         canvas.innerHTML = view.svg; // escaped by ArcVizRender
+        if (layerStore) layersKit.decorate(canvas, layerStore, graph.id); // zorder hook
         fit();
+        if (editor) editor.refresh();
         drawChains(graph);
         drawCrumbs(graph);
         drawFilterMenu(graph);
@@ -737,20 +922,28 @@
 
     // --- the stage: pan, zoom and gestures ------------------------------
     const nodeUnder = (element) => (element && element.closest ? element.closest('.av-node') : null);
+    const edit = options && options.edit && deps.edit ? options.edit : null;
+    const editingHooks = {};
+    const kindOf = (end) => deps.place.endKind(end);
+    const endName = (end) => deps.place.endName(end, nav.nameOf);
     const sheet = deps.stage.create({
+      editing: edit ? editingHooks : null,
       stage,
       canvas,
+      onZoom: showZoom,
       viewSize: activeView,
       onPick: (element) => select(element),
       onOpen: (element) => {
         const node = nodeUnder(element);
         if (!node) return;
+        if (layersApi && layersApi.open(node.dataset.id)) return; // zorder hook: enter a group
         if (onOpen && onOpen({ view: state.active, id: node.dataset.id, name: nav.nameOf(node.dataset.id), kind: node.dataset.kind })) return;
         toggleFold(node.dataset.id);
       },
       onKey: (event) => {
         const step = { ArrowLeft: [-NUDGE, 0], ArrowRight: [NUDGE, 0], ArrowUp: [0, -NUDGE], ArrowDown: [0, NUDGE] }[event.key];
-        if (event.key === 'Escape') select(null);
+        if (event.key === 'Escape' && layersApi && layersApi.enteredGroup()) layersApi.exit(); // zorder hook
+        else if (event.key === 'Escape') select(null);
         else if (event.key === 'Enter' && state.selected && canFold(state.selected)) toggleFold(state.selected);
         else if (state.arranging && event.shiftKey && step && state.selected && carried(state.selected).length > 0) moveBy(state.selected, step[0], step[1]);
         else return false;
@@ -758,7 +951,7 @@
       },
       carried: (id) => carried(id),
       onMove: (id, dx, dy, into) => placeOrDrop(id, dx, dy, into),
-      onResize: (id, dw, dh) => resizeBy(id, dw, dh),
+      onResize: (id, dw, dh, dx, dy) => resizeBy(id, dw, dh, dx, dy),
       onDrop: onDrop ? (from, to) => onDrop({ view: state.active, from, to }) : null,
       onConnect: onConnect
         ? (from, to) => onConnect(from.dataset.id, to.dataset.id, { fromKind: kindOf(from), toKind: kindOf(to), view: state.active })
@@ -766,21 +959,55 @@
       connectTargets: connectTargets || null,
       nameOf: endName,
     });
-    /** The kind of a drawn box, or of the box a drawn port sits on. */
-    function kindOf(end) {
-      const node = end.closest('.av-node');
-      return node ? node.dataset.kind : null;
-    }
-    /** What to call a drawn box or port: `Port of Box` for a port. */
-    function endName(end) {
-      const owner = end.closest('.av-node');
-      const name = owner ? nav.nameOf(owner.dataset.id) : end.dataset.id;
-      if (!end.classList.contains('av-port')) return name;
-      const tip = end.querySelector('title');
-      const port = tip ? tip.textContent.split(' — ')[0] : end.dataset.id;
-      return `${port} of ${name}`;
-    }
     const fit = sheet.fit;
+    const editor = edit ? deps.edit.attach({ stage, canvas, sheet, hooks: editingHooks, options: edit, connects: Boolean(onConnect), view: () => state.active, select, carried, scope, replace, announce, drop: onDrop ? (from, to) => onDrop({ view: state.active, from, to }) : null }) : null;
+    // zorder hook: the Arrange commands (arcviz-layers.js) on this viewer, and what the host's API gains.
+    const layersApi = layerStore ? (() => {
+      const commands = layersKit.attach({ store: layerStore, scope, replace, view: () => state.active, shown: activeView, announce });
+      const isGroup = layersKit.isGroupId;
+      const framesDeep = (id) => {
+        const group = layerStore.groupById(state.active, id);
+        return group ? group.members.filter(isGroup).flatMap((inner) => [inner, ...framesDeep(inner)]) : [];
+      };
+      const redecorate = () => layersKit.decorate(canvas, layerStore, state.active);
+      return {
+        ...commands,
+        framesDeep,
+        /** A double-click: into the group under it (a collapsed one opens); false when it is not in one. */
+        open(id) {
+          const to = layersKit.redirect(layerStore, state.active, id);
+          if (!isGroup(to)) return false;
+          const group = layerStore.groupById(state.active, to);
+          if (group && group.collapsed) {
+            commands.collapseGroup(to, false);
+            return true;
+          }
+          layerStore.enter(state.active, to);
+          redecorate();
+          announce('Editing inside the group: Esc leaves it.');
+          return true;
+        },
+        exit() {
+          layerStore.enter(state.active, null);
+          redecorate();
+          select(null);
+          announce('Left the group.');
+        },
+        api: {
+          arrange: { ...commands, enterGroup: (id) => { const done = commands.enterGroup(id); redecorate(); return done; }, exitGroup: () => { commands.exitGroup(); redecorate(); } },
+          bringToFront: commands.bringToFront,
+          sendToBack: commands.sendToBack,
+          bringForward: commands.bringForward,
+          sendBackward: commands.sendBackward,
+          /** Several boxes moved at once: a group moves its members, a locked box stays. */
+          moveMany: (moves) => replace(() => {
+            for (const { id, dx, dy } of moves || []) {
+              for (const member of isGroup(id) ? commands.membersDeep(id) : [id]) if (carried(member, true).length > 0) scope.moveBy(state.active, member, dx, dy);
+            }
+          }),
+        },
+      };
+    })() : null;
 
     // --- selection and details -----------------------------------------
     function drawPicker(view) {
@@ -801,7 +1028,8 @@
     }
 
     function selectById(id) {
-      const match = [...canvas.querySelectorAll('.av-node, .av-edge')].find((item) => item.dataset.id === id);
+      // An editor selects ports too (a port is dragged, and has properties of its own).
+      const match = [...canvas.querySelectorAll(editor ? '.av-node, .av-edge, .av-port' : '.av-node, .av-edge')].find((item) => item.dataset.id === id);
       return select(match || null);
     }
 
@@ -809,9 +1037,28 @@
       const asked = state.active;
       const view = await activeView();
       if (!view || state.active !== asked) return; // the view changed meanwhile
-      const group = target && target.closest ? target.closest('.av-edge, .av-node') : null;
+      const port = editor && target && target.closest ? target.closest('.av-port') : null;
+      let group = !port && target && target.closest ? target.closest('.av-edge, .av-node') : null;
+      // zorder hook: a member of a group stands for its group, unless the group is entered.
+      if (group && layerStore && group.classList.contains('av-node')) {
+        const to = layersKit.redirect(layerStore, state.active, group.dataset.id);
+        if (to !== group.dataset.id) group = [...canvas.querySelectorAll('.av-node')].find((item) => item.dataset.id === to) || group;
+      }
       picker.value = group ? group.dataset.id : '';
       for (const marked of canvas.querySelectorAll('.is-selected, .is-linked')) marked.classList.remove('is-selected', 'is-linked');
+      if (port) {
+        // A port: the host shows its properties; the drawing marks it and the lines through it.
+        port.classList.add('is-selected');
+        deps.place.markPortLines(canvas, view.index.edges, port.dataset.id);
+        state.selected = null;
+        editor.refresh();
+        sheet.refreshHandle();
+        showDetails(null);
+        onSelect({ view: state.active, id: port.dataset.id, name: endName(port), kind: 'port', isEdge: false });
+        return;
+      }
+      if (group) group.classList.add('is-selected');
+      if (editor) editor.refresh();
       if (!group) {
         state.selected = null;
         showDetails(null);
@@ -1103,6 +1350,7 @@
       download: save,
       filename,
       activeView,
+      svgFor: (view) => render.renderSvg(view.graph, themeOptions('exports')),
       onFailure: (message) => notes.appendChild(el('p', { class: 'arcviz-note', role: 'status', text: message })),
     });
     const saveSvg = exporter.saveSvg;
@@ -1113,11 +1361,84 @@
     function buildPrintPages() {
       const pages = graphs
         .filter((graph) => state.settled.has(graph.id))
-        .map((graph) => ({ title: graph.arc.title, svg: state.settled.get(graph.id).svg }));
+        .map((graph) => ({ title: graph.arc.title, svg: render.renderSvg(state.settled.get(graph.id).graph, themeOptions('exports')).svg }));
       exporter.printPages(printHost, pages);
     }
     window.addEventListener('beforeprint', buildPrintPages);
     window.addEventListener('afterprint', () => { printHost.textContent = ''; });
+
+    if (themeState.refused) {
+      notes.appendChild(el('p', { class: 'arcviz-note', role: 'status', text: `The theme was refused, the built-in colours are shown: ${themeState.refused.map((e) => e.message).join('; ')}` }));
+    }
+
+    /**
+     * Colour every view with `theme` (a theme object, a preset id, or null
+     * for the built-in colours); `settings.dark` draws its dark variant on
+     * screen, `settings.draft` previews a theme being edited even when the
+     * validator refuses it. A refused theme changes nothing otherwise.
+     * Returns the validator's verdict.
+     */
+    async function setTheme(theme, settings) {
+      const verdict = adoptTheme(theme, settings);
+      if (!verdict.ok && !(settings && settings.draft && verdict.theme)) return verdict;
+      drawLegendNow();
+      state.views.clear(); // the layouts stay: only the colours change
+      for (const [id, entry] of state.settled) state.settled.set(id, { ...entry, ...render.renderSvg(entry.graph, themeOptions('screen')) });
+      await redraw();
+      return verdict;
+    }
+    function drawLegendNow() {
+      // The legend's swatches come from the renderer's own theme.
+      if (render.setTheme) render.setTheme(themeState.screen || null);
+    }
+    drawLegendNow();
+
+    /** The laid-out view `id` (the one on screen when left out), drawn for export. */
+    async function exportDrawing(id) {
+      const graph = id ? graphs.find((candidate) => candidate.id === id) : activeGraph();
+      if (!graph) return null;
+      const view = id && id !== state.active ? await layout(graph) : await activeView();
+      if (!view) return null;
+      return { view, graph, drawn: render.renderSvg(view.graph, themeOptions('exports')) };
+    }
+
+    /** What a view draws, for the notes of a slide: [{ id, name, kind }], boxes then lines. */
+    function contentsOf(view) {
+      const items = [];
+      for (const { node } of view.index.nodes.values()) {
+        const kind = (node.arc || {}).kind;
+        if (kind === 'initial_state' || kind === 'junction') continue;
+        items.push({ id: node.id, name: displayName(node, render.nodeStyle(kind).label), kind: render.nodeStyle(kind).label });
+      }
+      for (const edge of view.index.edges.values()) {
+        const kind = (edge.arc || {}).kind;
+        items.push({ id: edge.id, name: displayName(edge, render.edgeStyle(kind).label), kind: render.edgeStyle(kind).label, line: true });
+      }
+      return items;
+    }
+
+    /**
+     * The view on screen (or `options.view`) as an SVG for the clipboard
+     * or a file: only the box around `options.ids` (the selection when
+     * true) when given and drawn. { svg, width, height, cropped }.
+     */
+    async function exportSvg(options) {
+      const found = await exportDrawing(options && options.view);
+      if (!found) return null;
+      const ids = options && options.ids === true ? (state.selected ? [state.selected] : []) : (options && options.ids) || [];
+      const box = ids.length ? deps.exporter.boundsOf(found.view.graph, ids) : null;
+      const drawn = box ? deps.exporter.crop(found.drawn, box) : found.drawn;
+      const svg = options && options.transparent ? deps.exporter.withoutPaper(drawn.svg) : drawn.svg;
+      return { svg, width: drawn.width, height: drawn.height, cropped: Boolean(box), title: found.graph.arc.title, view: found.graph.id, elements: contentsOf(found.view) };
+    }
+
+    /** The same as a PNG blob, `options.scale` pixels per unit (2 by default). */
+    async function exportImage(options) {
+      const drawing = await exportSvg(options);
+      if (!drawing) return null;
+      const blob = await exporter.rasterize(drawing, { scale: (options && options.scale) || 2, transparent: Boolean(options && options.transparent) });
+      return { ...drawing, blob };
+    }
 
     const ready = show(graphs[0].id).then(async () => {
       for (const graph of graphs) {
@@ -1143,9 +1464,22 @@
       current: () => ({ view: state.active, selected: state.selected, position: sheet.position() }),
       /** Put the sheet back where `current()` saw it. */
       restore: (position) => sheet.restore(position),
+      /** The zoom of the sheet: screen pixels per sheet unit. */
+      scale: () => sheet.scale(),
+      /** Read the host's history and selection into the toolbar again (after either changed). */
+      refreshTools,
+      // moveMany, routeOf, setRoute: an editing host's (arcviz-edit.js).
+      ...(editor ? editor.api : {}),
+      // zorder hook: front, back, forward, backward, groups, locks, layers (arcviz-layers.js).
+      ...(layersApi ? layersApi.api : {}),
       views: () => graphs.map((graph) => ({ id: graph.id, view: graph.arc.view, title: graph.arc.title })),
       svgOf: (id) => (state.settled.get(id) || {}).svg || null,
       buildPrintPages,
+      setTheme,
+      /** The theme drawn (complete), null for the built-in colours; and the reasons the last one was refused. */
+      theme: () => ({ theme: themeState.theme, refused: themeState.refused }),
+      exportSvg,
+      exportImage,
     };
   }
 

@@ -1,0 +1,5 @@
+{
+  "description": "A dark variant whose text vanishes on its sheet.",
+  "expect": { "ok": false, "rules": ["contrast"], "errors": ["dark variant: text on the background reaches"] },
+  "theme": { "version": 1, "name": "Dim", "extends": "arclang-default", "dark": { "text": "#2A2C30" } }
+}

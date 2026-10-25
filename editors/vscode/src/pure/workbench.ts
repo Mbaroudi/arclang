@@ -2,6 +2,8 @@
 // `arclang edit` exchange, the model tree, the palette of gestures and the
 // edits each gesture writes. Pure functions, tested with node:test; the
 // extension host and the webview both import from here.
+import { tableLayer } from './tables'; // tables hook
+import type { ArrangeCommand } from './arrange'; // zorder hook
 
 /** One element of the compiled model, as `arclang workbench` lists it. */
 export interface ElementRecord {
@@ -13,6 +15,8 @@ export interface ElementRecord {
   /** The uuid of the owning element, null at the top. */
   owner: string | null;
   attributes: Record<string, unknown>;
+  /** A port's direction: `in`, `out`, `inout`. */
+  direction?: string;
 }
 
 export interface RelationshipRecord {
@@ -22,6 +26,7 @@ export interface RelationshipRecord {
   /** uuids of the two ends */
   source: string;
   target: string;
+  attributes?: Record<string, unknown>;
 }
 
 export interface Finding {
@@ -131,6 +136,9 @@ export type EditRequest =
   | { op: 'move'; element: string; container?: string; layer?: string; layer_name?: string }
   | { op: 'add_trace'; from: string; kind: string; to: string }
   | { op: 'remove_trace'; from: string; kind: string; to: string }
+  | { op: 'reconnect'; kind: string; name?: string; from: string; to: string; new_from?: string; new_to?: string }
+  | { op: 'duplicate'; element: string; container?: string; layer?: string; layer_name?: string }
+  | { op: 'duplicate_many'; elements: string[]; container?: string; layer?: string; layer_name?: string }
   | {
       op: 'wrap_fragment';
       scenario: string;
@@ -147,22 +155,96 @@ export type ToWebview =
   | { type: 'select'; id: string | null }
   | { type: 'show'; view: string; select: string | null }
   | { type: 'layer'; step: number }
-  | { type: 'diagram-op'; op: 'hide' | 'related' | 'new' | 'rename'; id: string }
+  | { type: 'diagram-op'; op: 'hide' | 'related' | 'new' | 'rename'; id: string; drawing?: string }
   | { type: 'edit-result'; ok: boolean; label: string; error?: string }
-  | { type: 'busy'; busy: boolean; label?: string };
+  | { type: 'busy'; busy: boolean; label?: string }
+  /** A key of the canvas, bound in VS Code (so it follows the keyboard layout) and run by the page. */
+  | { type: 'key'; command: CanvasCommand; text?: string }
+  /** What ⌘Z and ⌘⇧Z would take back and bring back; `done` names the step just undone or redone. */
+  | { type: 'history'; undo: string | null; redo: string | null; done?: string }
+  /** The colour themes on offer and the one drawn (`problem`: why the one asked for is not). */
+  | { type: 'themes'; entries: ThemeEntry[]; active: string; problem: string | null; dark: boolean; copyBackground: 'white' | 'transparent' }
+  /** A command of the diagram, run by the page (copy as image, PowerPoint, the theme editor). */
+  | { type: 'diagram-action'; action: DiagramAction }
+  /** Draw these views for the slides of a PowerPoint file; `target`, where the host writes it. */
+  | { type: 'pptx-render'; ids: string[]; target?: string }
+  /** A theme saved by the host, or one read from a file the user chose. */
+  | { type: 'theme-saved'; entry: ThemeEntry }
+  | { type: 'theme-imported'; theme: unknown; errors: string[]; name: string }
+  /** The model's file: unsaved changes, auto save on, and its language (a .sysml saves as SysML v2). */
+  | { type: 'file-state'; dirty: boolean; autoSave: boolean; language: 'arclang' | 'sysml' };
+
+/** Where a colour theme comes from. */
+export type ThemeSource = 'preset' | 'team' | 'user' | 'file';
+
+/** A colour theme on offer, as the host read and checked it. */
+export interface ThemeEntry {
+  /** `preset:<id>`, `team:<id>`, `user:<id>` or `file:<id>`. */
+  key: string;
+  id: string;
+  name: string;
+  source: ThemeSource;
+  path?: string;
+  description?: string;
+  theme: Record<string, unknown> | null;
+  ok: boolean;
+  errors: string[];
+  warnings: string[];
+}
+
+/** The diagram commands the host asks the page to run. */
+export type DiagramAction = 'copy-image' | 'copy-svg' | 'export-pptx' | 'choose-theme' | 'edit-theme';
+
+/** One slide of a PowerPoint export, as the page draws it: the PNG in base64. */
+export interface SlideData {
+  title: string;
+  data: string;
+  width: number;
+  height: number;
+  notes: string[];
+}
+
+/** The canvas commands VS Code's keybindings run on the workbench. */
+export type CanvasCommand = 'copy' | 'cut' | 'paste' | 'paste-text' | 'duplicate' | 'select-all' | 'delete' | 'zoom-in' | 'zoom-out' | 'fit' | ArrangeCommand; // zorder hook: ArrangeCommand
 
 /** What the webview sends to the extension host. */
 export type FromWebview =
   | { type: 'ready' }
   | { type: 'edit'; requests: EditRequest[]; label: string }
   | { type: 'reveal'; id: string }
+  /** nav hook: a double-click on an element (the host goes to its source or asks for a rename, by the setting). */
+  | { type: 'activate'; id: string; name?: string; drawing?: string }
   | { type: 'ask'; id: string; name: string; kind: string }
   | { type: 'selected'; id: string | null; kind?: string; name?: string }
   | { type: 'open-text' }
   | { type: 'command'; command: string }
   | { type: 'save'; name: string; mime: string; data: string }
-  | { type: 'layout'; file: unknown }
-  | { type: 'focus-mode'; on: boolean };
+  /** The arrangement changed; `join` makes it part of the step before it (a pasted copy placed). */
+  | { type: 'layout'; file: unknown; join?: boolean }
+  | { type: 'history'; op: 'undo' | 'redo' }
+  /** What a copy took, for the host to put its source on the system clipboard. */
+  | { type: 'copied'; elements: { id: string; name: string }[]; relationships: string[] }
+  /** Text selected on the page, copied by ⌘C. */
+  | { type: 'clipboard-text'; text: string }
+  /** A field of the page has the keyboard: VS Code's keys are its own. */
+  | { type: 'typing'; on: boolean }
+  | { type: 'focus-mode'; on: boolean }
+  /** A PNG (base64) the page could not put on the clipboard itself: the host does. */
+  | { type: 'clipboard-image'; data: string; width: number; height: number; cropped: boolean }
+  | { type: 'clipboard-svg'; text: string }
+  /** A line for the status bar (an export done), or an error to show. */
+  | { type: 'notify'; text: string; error?: boolean }
+  /** The views a PowerPoint export may take, for the host to ask which. */
+  | { type: 'pptx-request'; views: { id: string; title: string; view: string }[]; current: string | null }
+  | { type: 'pptx'; slides: SlideData[]; title: string; target?: string }
+  | { type: 'theme-choose'; key: string }
+  | { type: 'theme-save'; scope: 'team' | 'user'; theme: Record<string, unknown> }
+  | { type: 'theme-export'; theme: Record<string, unknown> }
+  | { type: 'theme-import' }
+  /** The File menu: save the model, save it as another format, import one. */
+  | { type: 'model-file'; op: 'save' | 'save-as' | 'import'; format?: string }
+  /** Model files dropped on the sheet (with Shift): the host offers to import them. */
+  | { type: 'import-drop'; uris: string[] };
 
 /** `arclang workbench` output, read leniently: a broken answer is a failed snapshot. */
 export function parseSnapshot(text: string): Snapshot {
@@ -261,7 +343,7 @@ export function treeByLayer(elements: ElementRecord[], metamodel: Metamodel | nu
   const tops = roots.flatMap((r) => (r.element.kind === 'Model' ? r.children : [r]));
   const groups = new Map<string, TreeNode[]>();
   for (const top of tops) {
-    const layer = layerOfKind(top.element.kind, metamodel);
+    const layer = top.element.kind === 'Table' ? tableLayer(top.element.attributes) : layerOfKind(top.element.kind, metamodel); // tables hook
     groups.set(layer, [...(groups.get(layer) ?? []), top]);
   }
   const order = [...LAYERS, ...[...groups.keys()].filter((l) => !(LAYERS as readonly string[]).includes(l))];

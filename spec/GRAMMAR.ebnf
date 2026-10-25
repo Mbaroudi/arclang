@@ -59,6 +59,7 @@ TopLevelBlock   ::= RequirementsBlock
                   | SecurityScales
                   | TraceDecl
                   | DiagramDecl
+                  | TableDecl
                   | UnmodeledBlock ;          (* warning emitted *)
 
 (* ---- Requirements ---------------------------------------------------------- *)
@@ -146,6 +147,12 @@ FunctionElement ::= "function" Name AttributeBlock?            (* nested sub-fun
 FunctionPortDecl ::= "port" ( "in" | "out" ) Name AttributeBlock? ;
 ComponentPortDecl ::= "port" ( "in" | "out" | "inout" ) Name
                       ( "{" ( Attribute | ComponentPortDecl )* "}" )? ;
+                    (* physics: signal|electrical|mechanical_translational|
+                       mechanical_rotational|thermal|fluid (on a port, a physical
+                       port, or the type a port `is:`) — the Modelica connector of
+                       `arclang export -f modelica`; pole: positive|negative;
+                       flange: a|b. Ends of one link must have the same physics
+                       (ERROR otherwise). *)
                       (* a port may hold ports; an exchange names one
                          as Owner.port.sub, drawn at the outer port *)
 
@@ -344,7 +351,35 @@ TestCaseDecl    ::= "test_case" Name AttributeBlock ;
                     (* verifies: [ <requirement id>+ ] REQUIRED;
                        method: test|analysis|inspection|demonstration (ERROR otherwise).
                        The production gate (arclang gate) requires every
-                       requirement to be verified by at least one test_case. *)
+                       requirement to be verified by at least one test_case.
+                       The verdict comes from ONE of:
+                         asserts: [ <constraint ref>+ ]       (an analysis);
+                         verdict: pass|fail|inconclusive|error (a run elsewhere);
+                         simulate: SimulateBlock  with  expects: [ Expect+ ]
+                           (a simulation, run by `arclang verify`, cached;
+                            inconclusive while stale or never run). *)
+SimulateBlock   ::= "{" SimulateKey ":" AttributeValue ( SimulateKey ":" AttributeValue )* "}" ;
+SimulateKey     ::= "backend"         (* openmodelica (default) | fmu | command: the last two
+                                         are declared, answer inconclusive until built *)
+                  | "model"           (* REQUIRED: Modelica class name, Package.Model *)
+                  | "stop_time"       (* REQUIRED: a time quantity *)
+                  | "start_time"      (* a time quantity, 0 s when absent *)
+                  | "configuration"   (* configuration ref: the model extends its system model *)
+                  | "sources"         (* [ <Modelica file path, from the model file>* ] *)
+                  | "tolerance"       (* positive number *)
+                  | "intervals" ;     (* whole number of output intervals *)
+(* Each Expect is a string holding:                                                  *)
+Expect          ::= Sum ( ">=" | "<=" | ">" | "<" | "==" | "!=" ) Sum ;
+Sum             ::= Product ( ( "+" | "-" ) Product )* ;
+Product         ::= Unary ( ( "*" | "/" ) Unary )* ;
+Unary           ::= "-" Unary | Number Unit? | "(" Sum ")"
+                  | ( "min" | "max" | "final" | "initial" | "mean" ) "(" Variable ")"
+                  | "at" "(" Sum "," Variable ")" ;
+Variable        ::= ModelicaName | '"' <ArcLang id or name> '"' ( "." ModelicaName )? ;
+                    (* a variable of the simulation result; a quoted ArcLang
+                       element is replaced by the instance it became. Values
+                       are compared in SI units, dimension-checked when the
+                       unit of the variable is known. *)
 
 (* ---- User-defined types ------------------------------------------------------------------------ *)
 
@@ -404,6 +439,22 @@ DiagramAttribute ::= "view" ":" ( "oab" | "sab" | "lab" | "pab" | "cap" | "cdb" 
                    | "shows" ":" "[" ( Name ( "," Name )* )? "]"
                    | "context" ":" ( "true" | "false" )
                    | "description" ":" String ;
+
+(* ---- Tables ---------------------------------------------------------------- *)
+
+(* A live table or matrix, computed by the compiler on every change (see
+   spec/METAMODEL.md, kind Table). For a matrix, `columns` names the kinds
+   (or layers) of its columns; for a table, the columns shown. *)
+TableDecl       ::= "table" Name "{" TableAttribute* "}" ;
+TableAttribute  ::= "kind" ":" ( "requirements_coverage" | "traceability_matrix" | "allocation_matrix"
+                               | "interface_n2" | "icd" | "elements" )
+                  | "id" ":" String
+                  | "scope" ":" String                       (* OA, SA, LA, PA, EPBS or an element *)
+                  | "row_type" ":" String
+                  | ( "columns" | "rows" | "kinds" ) ":" "[" ( String ( "," String )* )? "]"
+                  | "filter" ":" String                      (* words, col:text, col=text, col!=text, is:gap, -term *)
+                  | "gaps_only" ":" ( "true" | "false" )
+                  | "description" ":" String ;
 
 (* ---- Modes & States (Arcadia transverse) -------------------------------------------------- *)
 

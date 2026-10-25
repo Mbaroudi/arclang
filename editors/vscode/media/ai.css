@@ -1,0 +1,211 @@
+/* The AI on the workbench: the Ask panel by the selection, the marks of a
+   proposal on the drawing, the Suggestions pane. The editor's colours, with
+   one accent of its own (the charts' purple) for what comes from an AI, so
+   a proposal is never mistaken for the model. */
+:root {
+  --wb-ai: var(--vscode-charts-purple, #8a5cf5);
+  --wb-ai-soft: color-mix(in srgb, var(--wb-ai) 12%, transparent);
+  --wb-ai-line: color-mix(in srgb, var(--wb-ai) 55%, transparent);
+  --wb-ai-add: var(--vscode-diffEditor-insertedTextBackground, #2ea04333);
+  --wb-ai-del: var(--vscode-diffEditor-removedTextBackground, #f8514933);
+  --wb-ai-radius: 6px;
+  --wb-ai-fast: 140ms;
+}
+
+/* --- The Ask panel -------------------------------------------------------- */
+.wb-ai {
+  position: absolute;
+  z-index: 40;
+  width: min(440px, calc(100% - 16px));
+  /* The drawing stays in sight: the panel scrolls rather than covering the sheet. */
+  max-height: min(calc(100% - 16px), max(260px, 62%));
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px 12px;
+  color: var(--vscode-editorWidget-foreground, var(--vscode-foreground));
+  background: var(--vscode-editorWidget-background, var(--vscode-editor-background));
+  border: 1px solid var(--vscode-editorWidget-border, var(--vscode-widget-border, #8886));
+  border-top: 2px solid var(--wb-ai);
+  border-radius: var(--wb-ai-radius);
+  box-shadow: 0 8px 28px var(--vscode-widget-shadow, #0005);
+  font-size: 12px;
+  animation: wb-ai-in var(--wb-ai-fast) ease-out;
+}
+@keyframes wb-ai-in { from { opacity: 0; transform: translateY(4px); } }
+.wb-ai-head { display: flex; align-items: center; gap: 8px; }
+.wb-ai-glyph { color: var(--wb-ai); font-size: 15px; line-height: 1; }
+.wb-ai-title { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+.wb-ai-title strong { font-size: 12px; letter-spacing: 0.02em; }
+.wb-ai-about { color: var(--vscode-descriptionForeground); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+button.wb-ai-provider {
+  font-size: 10.5px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  color: var(--wb-ai);
+  background: var(--wb-ai-soft);
+  border: 1px solid var(--wb-ai-line);
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+button.wb-ai-provider:hover { background: color-mix(in srgb, var(--wb-ai) 22%, transparent); }
+.wb-ai-input {
+  width: 100%;
+  box-sizing: border-box;
+  resize: vertical;
+  min-height: 44px;
+  font: inherit;
+  font-size: 12.5px;
+  padding: 6px 8px;
+  color: var(--vscode-input-foreground);
+  background: var(--vscode-input-background);
+  border: 1px solid var(--vscode-input-border, transparent);
+  border-radius: 4px;
+}
+.wb-ai-input:focus { outline: 1px solid var(--wb-ai); outline-offset: -1px; }
+.wb-ai-row { display: flex; align-items: flex-end; gap: 8px; }
+.wb-ai-chips { display: flex; flex-wrap: wrap; gap: 4px; flex: 1; }
+button.wb-ai-chip {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  color: var(--vscode-foreground);
+  background: transparent;
+  border: 1px solid var(--vscode-panel-border, #8885);
+  transition: border-color var(--wb-ai-fast), background-color var(--wb-ai-fast);
+}
+button.wb-ai-chip:hover { border-color: var(--wb-ai); background: var(--wb-ai-soft); }
+button.wb-ai-chip:active { transform: translateY(1px); }
+button.wb-ai-chip:focus-visible, button.wb-ai-provider:focus-visible { outline: 1px solid var(--wb-ai); outline-offset: 1px; }
+.wb-ai-asked { margin: 0; color: var(--vscode-descriptionForeground); font-style: italic; }
+.wb-ai-progress { display: flex; align-items: center; gap: 8px; color: var(--vscode-descriptionForeground); }
+.wb-ai-spinner {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 2px solid var(--wb-ai-line);
+  border-top-color: var(--wb-ai);
+  animation: wb-ai-spin 0.8s linear infinite;
+  flex: none;
+}
+@keyframes wb-ai-spin { to { transform: rotate(360deg); } }
+.wb-ai-stream {
+  margin: 0;
+  max-height: 120px;
+  overflow: auto;
+  white-space: pre-wrap;
+  font: inherit;
+  color: var(--vscode-foreground);
+  opacity: 0.85;
+}
+.wb-ai-badge {
+  margin: 0;
+  align-self: flex-start;
+  font-size: 10.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--wb-ai);
+}
+.wb-ai-explanation { margin: 0; line-height: 1.45; font-size: 12.5px; }
+.wb-ai-edits { overflow-wrap: anywhere; margin: 0; padding-left: 18px; font-family: var(--vscode-editor-font-family, monospace); font-size: 11.5px; line-height: 1.5; }
+.wb-ai-created { margin: 0; color: var(--vscode-gitDecoration-addedResourceForeground, #3fb950); }
+.wb-ai-note { margin: 0; padding: 6px 8px; border-radius: 4px; border-left: 3px solid; line-height: 1.4; }
+.wb-ai-note.is-warning { border-color: var(--vscode-editorWarning-foreground, #cca700); background: color-mix(in srgb, var(--vscode-editorWarning-foreground, #cca700) 10%, transparent); }
+.wb-ai-note.is-error { border-color: var(--vscode-errorForeground, #f14c4c); background: color-mix(in srgb, var(--vscode-errorForeground, #f14c4c) 10%, transparent); }
+.wb-ai-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.wb-ai-actions button { font-size: 12px; padding: 3px 10px; }
+button.wb-ai-apply { font-weight: 600; }
+
+/* The diff of the source */
+.wb-ai-diff-wrap { border: 1px solid var(--vscode-panel-border, #8884); border-radius: 4px; overflow: hidden; }
+.wb-ai-diff-head { display: flex; gap: 8px; padding: 2px 8px; font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--vscode-descriptionForeground); background: var(--vscode-sideBarSectionHeader-background, #8881); }
+.wb-ai-diff-head span:first-child { flex: 1; }
+.wb-ai-plus { color: var(--vscode-gitDecoration-addedResourceForeground, #3fb950); }
+.wb-ai-minus { color: var(--vscode-gitDecoration-deletedResourceForeground, #f85149); }
+.wb-ai-diff { margin: 0; max-height: 220px; overflow: auto; font-family: var(--vscode-editor-font-family, monospace); font-size: 11px; line-height: 1.45; }
+.wb-ai-line { display: block; padding: 0 8px; white-space: pre; }
+.wb-ai-line.is-add { background: var(--wb-ai-add); }
+.wb-ai-line.is-del { background: var(--wb-ai-del); }
+.wb-ai-line.is-hunk { color: var(--vscode-descriptionForeground); background: #8881; }
+.wb-ai-line.is-more { color: var(--vscode-textLink-foreground); }
+
+/* --- What a proposal touches, on the drawing ------------------------------ */
+#workbench .wb-ai-mark > .av-shape,
+#workbench .wb-ai-mark > .av-line {
+  stroke: var(--wb-ai) !important;
+  stroke-width: 2.5px !important;
+  stroke-dasharray: 6 3;
+  animation: wb-ai-march 1.2s linear infinite;
+}
+#workbench .wb-ai-mark-removed > .av-shape,
+#workbench .wb-ai-mark-removed > .av-line {
+  stroke: var(--vscode-errorForeground, #f14c4c) !important;
+  stroke-dasharray: 3 3;
+  opacity: 0.6;
+}
+@keyframes wb-ai-march { to { stroke-dashoffset: -18; } }
+
+/* --- The Suggestions pane ------------------------------------------------- */
+.wb-ai-tab { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+.wb-ai-count {
+  min-width: 14px;
+  padding: 0 4px;
+  border-radius: 999px;
+  font-size: 9.5px;
+  line-height: 14px;
+  text-align: center;
+  color: var(--vscode-badge-foreground, #fff);
+  background: var(--wb-ai);
+}
+.wb-ai-pane { font-size: 12px; min-width: 0; overflow-wrap: anywhere; }
+.wb-right-tabs { overflow: hidden; }
+.wb-ai-pane.is-active { display: flex; flex-direction: column; gap: 8px; }
+.wb-ai-pane-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.wb-ai-pane-head strong { color: var(--wb-ai); white-space: nowrap; }
+.wb-ai-hint, .wb-ai-empty { margin: 0; color: var(--vscode-descriptionForeground); line-height: 1.4; }
+button.wb-ai-analyse { align-self: stretch; text-align: left; font-size: 12px; padding: 4px 8px; }
+.wb-ai-trigger { margin: 4px 0 0; font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--vscode-descriptionForeground); }
+.wb-ai-consequences { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 4px; }
+.wb-ai-consequences li { padding: 4px 8px; border-left: 3px solid var(--vscode-editorWarning-foreground, #cca700); background: color-mix(in srgb, var(--vscode-editorWarning-foreground, #cca700) 8%, transparent); border-radius: 0 4px 4px 0; line-height: 1.35; }
+.wb-ai-state { display: flex; align-items: center; gap: 8px; margin: 0; color: var(--vscode-descriptionForeground); }
+.wb-ai-state.is-error, .wb-ai-state.is-off { color: var(--vscode-errorForeground); }
+button.wb-ai-propose { align-self: flex-start; }
+.wb-ai-details summary { cursor: pointer; color: var(--vscode-descriptionForeground); }
+.wb-ai-details ul { margin: 4px 0 0; padding-left: 16px; font-size: 11.5px; }
+.wb-ai-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 10px;
+  border: 1px solid var(--vscode-panel-border, #8885);
+  border-left: 3px solid var(--wb-ai);
+  border-radius: var(--wb-ai-radius);
+  background: var(--wb-ai-soft);
+  transition: box-shadow var(--wb-ai-fast);
+}
+.wb-ai-card:hover { box-shadow: 0 2px 10px var(--vscode-widget-shadow, #0003); }
+.wb-ai-card h4 { margin: 0; font-size: 12.5px; }
+.wb-ai-resolves { margin: 0; font-size: 11px; color: var(--vscode-gitDecoration-addedResourceForeground, #3fb950); }
+.wb-ai-rationale { margin: 0; line-height: 1.4; }
+.wb-ai-pill {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  z-index: 30;
+  font-size: 11.5px;
+  padding: 4px 12px;
+  border-radius: 999px;
+  color: var(--vscode-button-foreground);
+  background: var(--wb-ai);
+  border: none;
+  box-shadow: 0 4px 14px var(--vscode-widget-shadow, #0004);
+}
+.wb-ai-pill:hover { filter: brightness(1.1); }
+.wb-ai-pill:focus-visible { outline: 2px solid var(--vscode-focusBorder); outline-offset: 2px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .wb-ai, #workbench .wb-ai-mark > .av-shape, #workbench .wb-ai-mark > .av-line, .wb-ai-spinner { animation: none; }
+}

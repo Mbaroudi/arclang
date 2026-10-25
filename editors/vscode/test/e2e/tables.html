@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><title>table view harness</title>
+<link rel="stylesheet" href="tables.css">
+<style>
+:root{--vscode-editor-background:#ffffff;--vscode-editor-foreground:#1f1f1f;--vscode-font-family:-apple-system,system-ui,sans-serif;--vscode-font-size:13px;--vscode-descriptionForeground:#616161;--vscode-focusBorder:#005fb8;--vscode-input-background:#ffffff;--vscode-input-foreground:#3b3b3b;--vscode-input-border:#cecece;--vscode-button-background:#005fb8;--vscode-button-foreground:#ffffff;--vscode-button-secondaryBackground:#e5e5e5;--vscode-button-secondaryForeground:#3b3b3b;--vscode-button-secondaryHoverBackground:#cccccc;--vscode-textLink-foreground:#005fb8;--vscode-editorWidget-background:#f8f8f8;--vscode-editor-font-family:Menlo,monospace;--vscode-list-hoverBackground:#f2f2f2}
+:root.dark{--vscode-editor-background:#1f1f1f;--vscode-editor-foreground:#cccccc;--vscode-descriptionForeground:#9d9d9d;--vscode-focusBorder:#0078d4;--vscode-input-background:#313131;--vscode-input-foreground:#cccccc;--vscode-input-border:#3c3c3c;--vscode-button-background:#0078d4;--vscode-button-foreground:#ffffff;--vscode-button-secondaryBackground:#313131;--vscode-button-secondaryForeground:#cccccc;--vscode-button-secondaryHoverBackground:#3c3c3c;--vscode-textLink-foreground:#4daafc;--vscode-editorWidget-background:#202020;--vscode-list-hoverBackground:#2a2d2e}
+</style>
+<script>
+  const params = new URLSearchParams(location.search);
+  const theme = params.get('theme') || 'light';
+  window.__posted = [];
+  window.__table = null;
+  window.acquireVsCodeApi = () => ({
+    postMessage: (m) => {
+      window.__posted.push(m);
+      if (m.type === 'ready') fetch((params.get('table') || 'coverage') + '.json').then((r) => r.json()).then((table) => {
+        window.__table = table;
+        window.postMessage({ type: 'table', table, computedMs: 31, file: 'braking.arc', history: { undo: null, redo: null } }, '*');
+      });
+    },
+    getState: () => undefined, setState: () => undefined,
+  });
+  document.addEventListener('DOMContentLoaded', () => {
+    document.body.classList.add(theme === 'dark' ? 'vscode-dark' : theme === 'hc' ? 'vscode-high-contrast' : 'vscode-light');
+    if (theme === 'dark' || theme === 'hc') document.documentElement.classList.add('dark');
+  });
+</script>
+</head><body>
+<div id="tables"></div>
+<script src="tables.js"></script>
+</body></html>

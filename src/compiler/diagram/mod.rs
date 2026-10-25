@@ -38,6 +38,7 @@ mod functions;
 pub mod html;
 mod named;
 pub mod tags;
+pub mod theme;
 pub mod layout_file;
 mod links;
 mod logical;

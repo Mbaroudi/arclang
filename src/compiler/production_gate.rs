@@ -208,10 +208,12 @@ pub fn run_gate(ast: &Model, semantic: &SemanticModel, standard: &str) -> GateRe
         .iter()
         .flat_map(|tc| tc.verifies.iter().map(|r| r.as_str()))
         .collect();
-    // A case that fails is not hidden by one that passes.
+    // A case that fails, or whose outcome is not known, is not hidden by
+    // one that passes.
+    use super::verification::Verdict;
     let failing: HashSet<&str> = verdicts
         .iter()
-        .filter(|(_, v)| matches!(v, super::verification::Verdict::Fail(_)))
+        .filter(|(_, v)| matches!(v, Verdict::Fail(_) | Verdict::Inconclusive(_)))
         .flat_map(|(tc, _)| tc.verifies.iter().map(|r| r.as_str()))
         .collect();
 
@@ -232,16 +234,29 @@ pub fn run_gate(ast: &Model, semantic: &SemanticModel, standard: &str) -> GateRe
         if within(&covered) && !within(&failing) {
             requirements_verified += 1;
         } else if within(&covered) {
-            let failed: Vec<&str> = verdicts
+            let verifying = |tc: &super::ast::TestCase| tc.verifies.iter().any(|r| r == &requirement.id || Some(r.as_str()) == name);
+            let failed: Vec<String> = verdicts
                 .iter()
-                .filter(|(tc, v)| matches!(v, super::verification::Verdict::Fail(_)) && tc.verifies.iter().any(|r| r == &requirement.id || Some(r.as_str()) == name))
-                .map(|(tc, _)| tc.name.as_str())
+                .filter(|(tc, v)| matches!(v, Verdict::Fail(_)) && verifying(tc))
+                .map(|(tc, v)| match (super::simulation::is_simulated(tc), v) {
+                    (true, Verdict::Fail(why)) => format!("{}: {why}", tc.name),
+                    _ => tc.name.clone(),
+                })
                 .collect();
-            push(
-                "requirements.verification",
-                Severity::Blocker,
-                format!("requirement '{}': verification cases fail ({})", requirement.id, failed.join(", ")),
-            );
+            let unknown: Vec<String> = verdicts
+                .iter()
+                .filter(|(tc, _)| verifying(tc))
+                .filter_map(|(tc, v)| match v {
+                    Verdict::Inconclusive(why) => Some(format!("{}: {why}", tc.name)),
+                    _ => None,
+                })
+                .collect();
+            if !failed.is_empty() {
+                push("requirements.verification", Severity::Blocker, format!("requirement '{}': verification cases fail ({})", requirement.id, failed.join(", ")));
+            }
+            if !unknown.is_empty() {
+                push("requirements.verification", Severity::Blocker, format!("requirement '{}': verification cases are inconclusive ({})", requirement.id, unknown.join(", ")));
+            }
         } else {
             push(
                 "requirements.verification",

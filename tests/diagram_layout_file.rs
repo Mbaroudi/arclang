@@ -116,6 +116,30 @@ fn layout_file_that_is_not_one_is_refused_with_a_reason() {
 }
 
 #[test]
+fn layout_file_too_large_for_a_layout_is_refused() {
+    use arclang::compiler::diagram::layout_file::{MAX_ARRANGEMENTS, MAX_BENDS, MAX_ENTRIES};
+    let places: Vec<String> = (0..=MAX_ENTRIES).map(|i| format!(r#""N{i}":{{"dx":1,"dy":0}}"#)).collect();
+    let many_places = format!(
+        r#"{{"arclang_layout":"1","arrangements":[{{"view":"lab","places":{{{}}}}}]}}"#,
+        places.join(",")
+    );
+    let error = LayoutFile::parse(&many_places).expect_err("too many places");
+    assert!(error.contains("placed boxes"), "{error}");
+    let arrangements: Vec<String> = (0..=MAX_ARRANGEMENTS)
+        .map(|i| format!(r#"{{"view":"v{i}","places":{{"A":{{"dx":1,"dy":0}}}}}}"#))
+        .collect();
+    let many = format!(r#"{{"arclang_layout":"1","arrangements":[{}]}}"#, arrangements.join(","));
+    assert!(LayoutFile::parse(&many).expect_err("too many arrangements").contains("arrangements"));
+    let points: Vec<&str> = (0..=MAX_BENDS).map(|_| r#"{"x":1,"y":2}"#).collect();
+    let bent = format!(
+        r#"{{"arclang_layout":"1","arrangements":[{{"view":"lab","edges":{{"ce:F":{{"points":[{}]}}}}}}]}}"#,
+        points.join(",")
+    );
+    assert!(LayoutFile::parse(&bent).expect_err("too many bends").contains("bends through"));
+    LayoutFile::parse(LAYOUT).expect("a layout of normal size still reads");
+}
+
+#[test]
 fn viewer_receives_the_layout_and_the_name_to_save_it_under() {
     let mut set = diagrams();
     set.apply_layout(LayoutFile::parse(LAYOUT).unwrap());
@@ -250,4 +274,149 @@ fn a_resized_box_keeps_its_size_in_the_file_and_an_absurd_size_is_refused() {
     assert!(!LayoutFile::parse(LAYOUT).unwrap().to_json().contains("\"dw\""));
     let absurd = resized.replace("\"dw\": 60", "\"dw\": 1e9");
     assert!(LayoutFile::parse(&absurd).unwrap_err().contains("resized beyond"));
+}
+
+#[test]
+fn a_bent_exchange_keeps_its_waypoints_and_a_stale_one_is_reported() {
+    let model = r#"
+logical_architecture "LA" {
+    component "A" { id: "LC-A" port out "p" }
+    component "B" { id: "LC-B" port in "q" }
+    component_exchange "Flow" { from_port: "LC-A.p" to_port: "LC-B.q" }
+}
+"#;
+    let result = Compiler::new(CompilerConfig::default()).compile_string(model).expect("compiles");
+    let mut set = build_diagrams(&result.ast);
+    let layout = r#"{
+  "arclang_layout": "1",
+  "arrangements": [
+    { "view": "lab", "edges": { "ce:Flow": { "points": [{ "x": 120, "y": 40 }] }, "ce:Gone": { "points": [{ "x": 1, "y": 2 }] } } }
+  ]
+}"#;
+    let parsed = LayoutFile::parse(layout).expect("parses");
+    assert_eq!(LayoutFile::parse(&parsed.to_json()).expect("round trip"), parsed);
+    let warnings = set.apply_layout(parsed);
+    assert!(warnings.iter().any(|w| w.contains("ce:Gone")), "{warnings:?}");
+    let kept = set.layout.as_ref().expect("kept");
+    assert_eq!(kept.arrangements[0].edges["ce:Flow"].points.len(), 1);
+    assert!(!kept.arrangements[0].edges.contains_key("ce:Gone"));
+    let absurd = layout.replace("120", "1e9");
+    assert!(LayoutFile::parse(&absurd).unwrap_err().contains("bends farther"));
+}
+
+#[test]
+fn line_styles_names_ports_and_stacking_are_kept_and_what_is_stale_is_reported() {
+    let model = r#"
+logical_architecture "LA" {
+    component "A" { id: "LC-A" port out "p" }
+    component "B" { id: "LC-B" port in "q" }
+    component_exchange "Flow" { from_port: "LC-A.p" to_port: "LC-B.q" }
+}
+"#;
+    let result = Compiler::new(CompilerConfig::default()).compile_string(model).expect("compiles");
+    let mut set = build_diagrams(&result.ast);
+    let lab = set.diagrams.iter().find(|d| d.id == "lab").expect("logical view");
+    let port = lab.nodes.iter().find(|n| n.id == "LC-A").expect("A").ports[0].id.clone();
+    let layout = format!(
+        r#"{{
+  "arclang_layout": "1",
+  "arrangements": [
+    {{ "view": "lab",
+       "edges": {{ "ce:Flow": {{ "style": "curved", "label": {{ "dx": 12, "dy": -8 }} }}, "ce:Odd": {{ "style": "zigzag" }} }},
+       "ports": {{ "{port}": {{ "dx": 0, "dy": 24 }}, "LC-A::gone": {{ "dx": 1, "dy": 1 }} }},
+       "order": {{ "LC-B": 1, "LC-A": -1, "LC-Gone": 2 }} }}
+  ]
+}}"#
+    );
+    let parsed = LayoutFile::parse(&layout).expect("parses");
+    let text = parsed.to_json();
+    assert_eq!(LayoutFile::parse(&text).expect("round trip"), parsed);
+    assert!(!text.contains("\"points\""), "an exchange that is not bent writes no points: {text}");
+    let warnings = set.apply_layout(parsed);
+    for stale in ["ce:Odd", "LC-A::gone", "LC-Gone"] {
+        assert!(warnings.iter().any(|w| w.contains(stale)), "{stale} reported: {warnings:?}");
+    }
+    let kept = &set.layout.as_ref().expect("kept").arrangements[0];
+    assert_eq!(kept.edges["ce:Flow"].style.as_deref(), Some("curved"));
+    assert_eq!(kept.edges["ce:Flow"].label.map(|l| (l.dx, l.dy)), Some((12.0, -8.0)));
+    assert_eq!(kept.ports.keys().collect::<Vec<_>>(), vec![&port]);
+    assert_eq!(kept.order.get("LC-B"), Some(&1));
+    assert_eq!(kept.order.get("LC-A"), Some(&-1));
+    assert!(!kept.order.contains_key("LC-Gone"));
+    // The standalone page receives all of it.
+    let page = html::standalone_html(&set, "LA");
+    assert!(page.contains("\"style\":\"curved\"") && page.contains("\"order\""), "the page carries the arrangement");
+    // Absurd values are refused with the reason.
+    let far = layout.replace("\"dy\": 24", "\"dy\": 1e9");
+    assert!(LayoutFile::parse(&far).unwrap_err().contains("moved farther"));
+    let deep = layout.replace("\"LC-B\": 1", "\"LC-B\": 1000000");
+    assert!(LayoutFile::parse(&deep).unwrap_err().contains("stacked deeper"));
+}
+
+#[test]
+fn a_file_without_the_new_arrangements_is_written_as_before() {
+    // Styles, names, ports and stacking are written only when used: a file
+    // made without them keeps the shape earlier builds read.
+    let text = LayoutFile::parse(LAYOUT).unwrap().to_json();
+    for key in ["\"ports\"", "\"order\"", "\"style\"", "\"label\""] {
+        assert!(!text.contains(key), "{key} in {text}");
+    }
+}
+
+// zorder: layers, groups and locks (draw.io's Arrange), kept beside the placement.
+const ARRANGED: &str = r#"{
+  "arclang_layout": "1",
+  "views": {},
+  "arrangements": [],
+  "layers": { "order": ["Safety", "", "Safety"], "hidden": ["Comms"], "locked": ["Safety"] },
+  "groups": {
+    "lab": [
+      { "id": "g1", "members": ["LC-1", "LC-2", "LC-9"], "label": "Pair", "collapsed": true },
+      { "id": "g2", "members": ["group:g1", "group:g7"] },
+      { "id": "g1", "members": ["LC-1"] },
+      { "id": "g3", "members": ["group:g4"] },
+      { "id": "g4", "members": ["group:g3"] }
+    ],
+    "nope": [{ "id": "g1", "members": ["LC-1"] }]
+  },
+  "locked": ["LC-1", "LF-2", "GONE"]
+}"#;
+
+#[test]
+fn layers_groups_and_locks_are_kept_and_what_is_stale_is_reported() {
+    let layout = LayoutFile::parse(ARRANGED).expect("parses");
+    assert_eq!(layout.layers.order, vec!["Safety".to_string(), String::new()], "the first place of a layer stays");
+    let mut set = diagrams();
+    let warnings = set.apply_layout(layout);
+    let kept = set.layout.as_ref().unwrap();
+    assert_eq!(kept.layers.hidden, vec!["Comms".to_string()]);
+    let groups = &kept.groups["lab"];
+    assert_eq!(groups.iter().map(|g| g.id.as_str()).collect::<Vec<_>>(), vec!["g1", "g2"]);
+    assert_eq!(groups[0].members, vec!["LC-1".to_string(), "LC-2".to_string()]);
+    assert!(groups[0].collapsed);
+    assert_eq!(groups[1].members, vec!["group:g1".to_string()]);
+    assert_eq!(kept.locked, vec!["LC-1".to_string(), "LF-2".to_string()]);
+    for said in ["'LC-9' of group 'g1'", "'group:g7' of group 'g2'", "two groups are named 'g1'", "group 'g3' is inside itself", "groups of view 'nope'", "locked 'GONE'"] {
+        assert!(warnings.iter().any(|w| w.contains(said)), "{said} in {warnings:?}");
+    }
+    let again = LayoutFile::parse(&kept.to_json()).expect("written as read");
+    assert_eq!(&again, kept);
+}
+
+#[test]
+fn an_arrange_section_past_its_bounds_is_refused() {
+    let many = (0..1001).map(|n| format!("\"t{n}\"")).collect::<Vec<_>>().join(",");
+    let error = LayoutFile::parse(&format!(r#"{{ "arclang_layout": "1", "layers": {{ "hidden": [{many}] }} }}"#)).unwrap_err();
+    assert!(error.contains("1001 hidden layers"), "{error}");
+    let error = LayoutFile::parse(r#"{ "arclang_layout": "1", "groups": { "lab": [{ "id": "", "members": ["LC-1"] }] } }"#).unwrap_err();
+    assert!(error.contains("empty or too long id"), "{error}");
+    assert!(LayoutFile::parse(r#"{ "arclang_layout": "1", "layers": { "shown": [] } }"#).is_err(), "unknown fields are refused");
+}
+
+#[test]
+fn a_file_without_layers_groups_or_locks_writes_none_of_them() {
+    let written = LayoutFile::parse(LAYOUT).unwrap().to_json();
+    for key in ["\"layers\"", "\"groups\"", "\"locked\""] {
+        assert!(!written.contains(key), "{key} in {written}");
+    }
 }

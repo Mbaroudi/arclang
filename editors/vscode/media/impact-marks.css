@@ -1,0 +1,44 @@
+/* The impact analysis on the workbench diagrams: the elements it reaches are
+   outlined by severity, the changed ones apart, and the layer tabs carry a
+   count. The colours are the impact view's. */
+.wb-impact { --wb-impact: #6b6b6b; }
+.wb-impact-seed { --wb-impact: #6a3fb5; }
+.wb-impact-blocker { --wb-impact: #b3261e; }
+.wb-impact-major { --wb-impact: #a35a00; }
+.wb-impact-minor { --wb-impact: #3a6ea5; }
+body.vscode-dark .wb-impact-seed { --wb-impact: #b693ff; }
+body.vscode-dark .wb-impact-blocker { --wb-impact: #ff7b72; }
+body.vscode-dark .wb-impact-major { --wb-impact: #e9b64e; }
+body.vscode-dark .wb-impact-minor { --wb-impact: #7fb1e6; }
+
+.wb-impact > .av-shape,
+.wb-impact > .av-line,
+.wb-impact > rect,
+.wb-impact > path,
+.wb-impact > line {
+  stroke: var(--wb-impact) !important;
+  stroke-width: 3px !important;
+  stroke-dasharray: none !important;
+  filter: drop-shadow(0 0 4px color-mix(in srgb, var(--wb-impact) 70%, transparent));
+}
+.wb-impact-seed > .av-shape,
+.wb-impact-seed > rect { stroke-dasharray: 7 4 !important; }
+
+.wb-impact-count {
+  display: inline-block;
+  min-width: 17px;
+  margin-left: 6px;
+  padding: 0 5px;
+  border-radius: 9px;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 16px;
+  text-align: center;
+  color: #fff;
+  background: #3a6ea5;
+}
+.wb-impact-count.is-major { background: #a35a00; }
+.wb-impact-count.is-blocker { background: #b3261e; }
+body.vscode-dark .wb-impact-count { color: #1b1b1b; background: #7fb1e6; }
+body.vscode-dark .wb-impact-count.is-major { background: #e9b64e; }
+body.vscode-dark .wb-impact-count.is-blocker { background: #ff7b72; }

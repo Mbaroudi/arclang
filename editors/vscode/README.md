@@ -38,7 +38,7 @@ the selection follows; Undo, Redo and Save are the editor's own.
   on the diagram, resize it by the grip on its corner**: the arrangement is
   kept in `<model>.layout.json` beside the model. Let a box go on another
   to move it inside. `F2` renames, `Delete` removes,
-  double-click opens, `Esc` cancels; right-click gives the native menu
+  double-click goes to the source (see below), `Esc` cancels; right-click gives the native menu
   (rename, delete, show in source, show in tree, ask @arclang, copy id).
   **Full screen** gives the workbench the whole screen with all its tools
   (Esc gives the window back); **Save SVG** and **Save PNG** export the
@@ -61,11 +61,53 @@ the selection follows; Undo, Redo and Save are the editor's own.
   edited in place (the identity never changes).
 - **Model tree** and **Relations** views in the ArcLang side bar: the
   diagrams, then the elements by layer and ownership; owner, incoming,
-  outgoing, traces and owned of the selection, each a step away.
+  outgoing, traces and owned of the selection, each a step away. To put a
+  tree node on a diagram, right-click it › **Show in the diagram**, or drag
+  it onto the diagram **with Shift held**: VS Code drops into an editor or a
+  webview only while Shift is pressed.
 - **Navigation at scale**: *Open a diagram…* (`⌘⌥D`) and *Go to an element…*
   (`⌘⌥E`) quick picks; the status bar shows the gate verdict and the number
   of findings; findings are marked on the drawn elements, with their text as
   tooltip.
+
+### Diagram and text side by side
+
+A **single click** on a box, a line, a port or a table row only selects: the
+properties, the tree and the other tabs follow, and nothing else moves. It
+never opens, replaces or focuses an editor and never touches the text's cursor
+or scroll position. When the model's text is already on screen in its own
+editor group, the element's declaration is **highlighted** there (scrolled into
+view only if it is out of the viewport); `arclang.workbench.followSelection`
+set to `off` leaves the text alone.
+
+A **double-click** on a box or a line goes to the source: the declaration is
+selected in the text editor, which takes the focus. When the text is not on
+screen it opens **beside** the workbench, in an editor group of its own (one is
+created when the workbench is alone), never over the workbench's tab. The
+*Source* button, *Go to source* of the properties, the tree and the tables use
+the same rule. In full screen the selection does not follow into the text.
+
+draw.io renames in place on a double-click; ArcLang goes to the source because
+the text is the model. Set `arclang.workbench.doubleClick` to `rename` for
+draw.io's gesture. `F2` and the menu always rename, and **Go to source** is
+always in the context menu.
+
+### New and Open
+
+- **New model…** (command palette, the model tree's *New* menu, the empty
+  tree's welcome view, the workbench's *New* menu): a blank model (a header),
+  the Arcadia skeleton (the four levels, empty) or an example; it asks for the
+  name and place, writes the `.arc` and opens the text and the workbench side
+  by side.
+- **New layer…**: Operational, System, Logical, Physical, EPBS, Requirements
+  or Safety, among those the model does not hold yet. Written through
+  `arclang edit` (checked by the compiler, one undo); a new level appears as an
+  empty tab with its palette.
+- **New diagram…**: a view kind, the starting elements (the selection, or ones
+  you pick), a name; the `diagram` declaration is written and opens as a tab.
+- **Open a diagram…** (also *Diagrams…* in the layer bar): the model's diagrams
+  by layer, the declared and the automatic ones; the button of a row opens it in
+  a tab of its own. **Open model…** opens a `.arc` or `.sysml` file.
 
 Every gesture becomes `arclang edit` requests: the compiler refuses the ones
 that would leave a model that does not compile, and an accepted one lands in
@@ -79,6 +121,23 @@ compiler's rendering of it: comments and layout of the original are not kept,
 unlike `.arc` files. **ArcLang: Import** converts a `.sysml` into a `.arc`
 file when you prefer to continue in ArcLang.
 
+## Importing a model
+
+Bring a model in from the model view's **Import** button (cloud icon), its welcome when the workspace has no `.arc` file, the Explorer's context menu, or *File ▾ › Import a model…* in the workbench. One quick pick asks what you import:
+
+| Source | What is read |
+|--------|--------------|
+| Capella model | a `.capella` (or `.melodymodeller`), its `.aird` (read through the `.capella` beside it), or a project folder; every layer, the requirements, the diagrams |
+| SysML v2 file(s) or folder | one `.sysml`/`.kerml`, several selected together, or a folder, as one model; a `.json` listing of API records |
+| SysML v2 API server | base address (https, or http on this machine), optional token (kept in the secret storage), then the project and the commit; every element is read page by page |
+| ReqIF / DOORS | a `.reqif` or `.reqifz`; into the open model (one undoable edit, checked with it) or a new `.arc` |
+
+A `.capella`, `.sysml` or `.reqif` file dropped on the workbench sheet (Shift held) is offered for import too. The **import report** says what was imported and what was left out and why, whether the written model compiles, or the refusal and the `.rejected.arc` the compiler kept; it has *Open workbench*, *Open model* and *Run check*.
+
+## Saving and saving as
+
+The workbench toolbar has a **Save** button: a ● shows while the model has unsaved changes (also in the tab's title), ⌘S / Ctrl+S on the canvas saves it without touching the canvas's undo history, and a `.sysml` is written back as SysML v2. With `files.autoSave` on it reads *Saved*. **File ▾ › Save as…** writes SysML v2, Capella, ReqIF or a copy as `.arc` through `arclang export`.
+
 ## From the command line, without leaving VS Code
 
 Every command of the palette is one CLI subcommand:
@@ -91,14 +150,107 @@ Every command of the palette is one CLI subcommand:
 | ArcLang: Change impact of an element | `arclang impact` |
 | ArcLang: Semantic diff against the committed version | `arclang diff` between `git HEAD` and the file |
 | ArcLang: Export | `arclang export -f sys-ml`, `sysml-json`, `capella`, `req-if`, `c-headers`, `proto`, ... |
-| ArcLang: Import | `arclang import -f sysml`, `capella`, `req-if`, ... (any SysML v2 text or API records) |
+| ArcLang: Import | `arclang import -f sysml`, `capella`, `req-if`, ... (see *Importing a model*) |
 | ArcLang: Show the language metamodel | `arclang metamodel` |
 
 ## With AI
 
-**`@arclang` in the chat view** answers with the compiler at hand. It runs on
-the language models VS Code gives it (GitHub Copilot or another provider),
-so there is no key to configure.
+MBSE as code with an AI at hand, the way Cursor works on source code: select
+part of a diagram (or of the text), ask, look at the proposed change, apply
+it or not. The AI proposes; **the compiler decides**: every proposed change
+is a list of `arclang edit` requests run on a copy of the model first, and
+nothing changes until you click Apply (one undoable edit).
+
+### Ask AI on a selection (⌘I)
+
+- In the workbench, select one or more boxes or lines (click, Shift+click, or
+  a band), then **⌘I** (Ctrl+I), **✦** in the floating toolbar, or **Ask AI…**
+  in the context menu. A prompt opens by the selection, with quick actions:
+  *Explain*, *Fix the findings*, *Complete* (missing ports, exchanges,
+  traces), *Refine* (into sub-components or functions), *Check against
+  requirements*.
+- The AI is shown the source of the selected elements, their relationships
+  and neighbours (`arclang.ai.contextScope`), the findings on them, the
+  metamodel of their kinds and the gate. It may read more elements and run
+  `arclang impact` itself (read-only tools).
+- Its answer comes back as a **proposal**: an explanation, the edits in
+  words, the diff of the source, the changed boxes marked on the diagram and
+  the findings the change would add. **Apply** (one ⌘Z undoes it), **Open
+  diff** (VS Code's diff view), **Refine…** (a follow-up question on the same
+  proposal), **Reject**. When the compiler refuses an edit, its error goes
+  back to the AI (`arclang.ai.repairAttempts`) before anything is shown.
+- In the `.arc` text editor: select some lines, then **⌘I** (when the
+  selection is in an ArcLang file), the light bulb (**Ask ArcLang AI about
+  the selection…**, and **Fix with ArcLang AI** on a diagnostic), the context
+  menu, or **ArcLang: Ask AI about the selection**. The proposal opens in
+  the diff view with Apply / Refine / Reject.
+
+⌘I is VS Code's inline chat key; in an `.arc` file with a selection ArcLang
+takes it (rebind `arclang.ai.askSelection` in Keyboard Shortcuts to give it
+back). ⌘K is left alone: VS Code uses it for its chords.
+
+### Impact-driven suggestions while editing
+
+The workbench's **✦ AI** tab (beside Properties, Relations, Details) shows
+what your last edit touched and broke, as the compiler sees it: traces that
+went away, requirements no longer satisfied, new findings (latency budget,
+interfaces, missing traces…), new gate blockers, and `arclang impact` on the
+changed elements. Then, by `arclang.ai.suggestOnEdit`:
+
+- `onRequest` (default): the consequences are shown; **Propose changes with
+  AI** asks for proposals. **Analyse the impact** of a selection (the tab, the
+  context menu, or **ArcLang: Analyse impact with AI**) does the same for any
+  element.
+- `afterEachEdit`: when an edit has consequences, the AI proposes one to
+  three architecture changes, each with its rationale and the consequence it
+  resolves, each compiled on a copy before it is shown.
+- `off`: nothing.
+
+Analyses wait for a pause in editing, a newer edit cancels an older one, and
+nothing blocks the editor. Suggestions are labelled as AI proposals: Preview,
+Apply or Dismiss.
+
+### Choosing the AI
+
+**ArcLang: Configure AI** (or the ✦ item of the status bar) chooses the
+provider, the model, the suggestions and the context. Keys are never
+settings: **ArcLang: Set AI API key** stores them in VS Code's secret storage
+(the OS keychain), **ArcLang: Clear AI API key** removes one, **ArcLang:
+Test AI connection** sends one short sentence and shows the answer.
+
+| `arclang.ai.provider` | Setup |
+|---|---|
+| `vscode-lm` (default) | Nothing: the models VS Code offers (GitHub Copilot, or another extension's). **ArcLang: Choose the AI model** picks one (`arclang.ai.vscodeModel`). |
+| `anthropic` | A key from console.anthropic.com. Model `claude-opus-5-5` by default; `claude-sonnet-5-5`, `claude-haiku-5-5`. |
+| `openai` | A key from platform.openai.com. Model `gpt-5` by default. |
+| `azure-openai` | `arclang.ai.endpoint` = `https://<resource>.openai.azure.com`, `arclang.ai.azureDeployment`, `arclang.ai.apiVersion` (`2024-10-21`), and the resource's key. |
+| `mistral` | A key from console.mistral.ai. Model `mistral-large-latest` by default; `codestral-latest`. |
+| `google` | A key from aistudio.google.com. Model `gemini-2.5-pro` by default. |
+| `ollama` | Ollama running locally (`ollama pull llama3.1`); no key; nothing leaves the machine. `arclang.ai.endpoint` for another host. |
+| `openai-compatible` | `arclang.ai.endpoint` = the server's base URL (`http://localhost:1234/v1` for LM Studio, vLLM, llama.cpp, LiteLLM…), `arclang.ai.model`; a key only if the server wants one. |
+| `off` | No AI: nothing is ever sent, by any feature. |
+
+Tool calling uses each provider's own format (Anthropic tool use, OpenAI and
+Mistral function calling, Gemini function declarations, Ollama tools, VS
+Code's language model tools); answers stream. No SDK: plain HTTPS requests,
+with a timeout (`arclang.ai.timeoutSeconds`) and cancellation. `@arclang`
+and `/agent` run on the configured provider too (with `vscode-lm`, on the
+model chosen in the chat, as before).
+
+**What is sent, and to whom.** The first request to a cloud provider (per
+provider and endpoint) asks first, saying what is sent and where
+(`arclang.ai.confirmBeforeSending`); local servers are not asked. The
+**ArcLang AI** output (**ArcLang: Show the AI log**) lists every request:
+provider, model, endpoint, purpose, size, tool calls, time; never a key, and
+keys are removed from every error message. The provider, the endpoint and
+the consent are user settings only: a repository's settings cannot redirect
+your requests or your key.
+
+### @arclang in the chat view
+
+**`@arclang` in the chat view** answers with the compiler at hand. With the
+default provider it runs on the language models VS Code gives it (GitHub
+Copilot or another provider), so there is no key to configure.
 
 - `/model` writes or extends a model from a description. The answer is
   compiled before it is shown; when the compiler refuses it, the errors go
@@ -148,8 +300,18 @@ VS Code (GitHub Copilot, for instance); the rest works without.
 |---|---|---|
 | `arclang.binary` | `arclang` | The executable |
 | `arclang.diagrams.refreshOnSave` | `true` | Redraw open diagrams on save |
+| `arclang.workbench.followSelection` | `highlight` | A click on the diagram highlights the declaration in the visible text (`off`: nothing) |
+| `arclang.workbench.doubleClick` | `source` | A double-click goes to the source (`rename`: rename in place, as draw.io) |
 | `arclang.gate.standard` | `iso26262` | `iso26262`, `do178c` or `iec61508` |
-| `arclang.ai.repairAttempts` | `2` | Corrections asked when a written model does not compile |
+| `arclang.ai.provider` | `vscode-lm` | The AI: `vscode-lm`, `anthropic`, `openai`, `azure-openai`, `mistral`, `google`, `ollama`, `openai-compatible`, `off` (user setting) |
+| `arclang.ai.model`, `arclang.ai.vscodeModel` | provider's default | The model |
+| `arclang.ai.endpoint` | provider's API | Base URL; required for Azure and OpenAI-compatible servers (user setting) |
+| `arclang.ai.azureDeployment`, `arclang.ai.apiVersion` | | Azure OpenAI |
+| `arclang.ai.maxTokens`, `arclang.ai.temperature`, `arclang.ai.timeoutSeconds` | `4096`, provider's, `90` | Answers |
+| `arclang.ai.suggestOnEdit` | `onRequest` | `off`, `onRequest`, `afterEachEdit` |
+| `arclang.ai.contextScope` | `selectionAndNeighbours` | `selection`, `selectionAndNeighbours`, `wholeModel` |
+| `arclang.ai.confirmBeforeSending` | `true` | Ask before the first request to a cloud provider (user setting) |
+| `arclang.ai.repairAttempts` | `2` | Corrections asked when what an AI wrote does not compile |
 | `arclang.mcp.command`, `arclang.mcp.args` | | How to start the MCP server |
 
 ## Security
@@ -172,11 +334,18 @@ VS Code (GitHub Copilot, for instance); the rest works without.
   and compiler outputs is data, not instructions.
 - **Temporary files** live in private directories (mode 0700, unguessable
   names) removed after use.
-- **Nothing leaves the machine** through the extension itself. With
-  `@arclang`, the open model, its diagnostics and the compiler outputs are
-  sent to the language model provider you configured in VS Code, and only
-  then. The extension has no telemetry and makes no network request; its
-  only external link is the GitHub releases page, opened on request.
+- **Nothing leaves the machine unless you ask an AI.** With Ask AI, the
+  suggestions or `@arclang`, the context described above goes to the
+  provider of `arclang.ai.provider`, and only then; with `off`, never. The
+  first request to a cloud provider is confirmed, every request is listed in
+  the ArcLang AI output, keys live in the secret storage and are removed from
+  every error and log. The extension has no telemetry; otherwise its only
+  external link is the GitHub releases page, opened on request.
+- **An AI's answer is data.** Only edit requests of known shapes are taken
+  from it, each run by the compiler on a copy; nothing it says is executed,
+  and nothing is applied without your Apply. The model's text is sent to it
+  as data, with the instruction to ignore anything in it that reads as an
+  order.
 - **Supply chain.** One runtime dependency (`vscode-languageclient`), a
   committed lockfile, `npm audit` in CI, Dependabot updates.
 

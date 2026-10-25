@@ -161,3 +161,37 @@ test('an absurd offset is ignored rather than drawn', async () => {
     assert.equal(place(graph, { D: offset }), graph, JSON.stringify(offset));
   }
 });
+
+test('a bent exchange passes through its points, from one end to the other; the others keep their route', async () => {
+  const graph = await laidOut();
+  const was = absolute(graph);
+  const c = was.rects.get('C');
+  const bend = { x: c.x + c.width + 40, y: c.y - 60 };
+  const placed = place(graph, {}, { plain: [bend], nowhere: [{ x: 1, y: 1 }], far: [{ x: Number.NaN, y: 0 }] });
+  const now = absolute(placed);
+  const points = now.edges.get('plain');
+  assert.ok(points.some((p) => p.x === bend.x && p.y === bend.y), JSON.stringify(points));
+  assert.ok(rectilinear(points), `a bent exchange keeps right angles: ${JSON.stringify(points)}`);
+  assert.ok(onBorder(points[0], now.rects.get('C')) && onBorder(points[points.length - 1], now.rects.get('D')), JSON.stringify(points));
+  assert.deepEqual(now.edges.get('far'), was.edges.get('far'), 'an unsound route is ignored');
+  assert.equal(place(graph, {}, {}), graph);
+});
+
+test('what an editing viewer asks of the placement: side resizes, parents, layout reports', () => {
+  const place = require(join(viewer, 'arcviz-place.js'));
+  const box = { id: 'B', width: 200, height: 120, children: [{ id: 'C', x: 40, y: 50, width: 60, height: 30 }] };
+  // The left side pulled in by 100: it stops where the child needs its inset.
+  assert.deepEqual(place.sideResize(box, 0, 0, 100, 0).dx, 40 - place.INSET.side);
+  assert.equal(place.sideResize(box, 0, 0, 100, 0).dw, -(40 - place.INSET.side));
+  assert.deepEqual(place.sideResize(box, 30, 20), { dw: 30, dh: 20, dx: 0, dy: 0, children: box.children });
+  assert.equal(place.parentOf({ children: [box] }, 'C'), 'B');
+  assert.equal(place.parentOf({ children: [box] }, 'B'), null);
+  const told = [];
+  let file = { a: 1 };
+  const report = place.layoutReporter(() => file, (f) => told.push(f));
+  report();
+  report();
+  file = { a: 2 };
+  report();
+  assert.deepEqual(told, [{ a: 2 }], 'the first layout is not a change, the same one is not told twice');
+});

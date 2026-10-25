@@ -1,0 +1,5 @@
+{
+  "description": "Component exchanges drawn in the selection accent.",
+  "expect": { "ok": false, "rules": ["reserved"], "errors": ["component exchange line #0B5CAD is the selection accent"] },
+  "theme": { "version": 1, "name": "Accent lines", "extends": "arclang-default", "exchanges": { "component_exchange": { "line": "#0B5CAD" } } }
+}

@@ -1,0 +1,213 @@
+/* The panes: the properties inspector (sections that fold, typed controls,
+   live checks), the drop target of the tree, a diagram's own tab. In the
+   editor's own colours, so light, dark and high contrast themes all hold. */
+:root {
+  --wb-row: 24px;
+  --wb-label: clamp(100px, 42%, 160px);
+  --wb-hair: var(--vscode-panel-border, #8883);
+  --wb-soft: color-mix(in srgb, var(--vscode-foreground, #888) 6%, transparent);
+  --wb-invalid: var(--vscode-inputValidation-errorBorder, var(--vscode-errorForeground, #e51400));
+  --wb-invalid-bg: var(--vscode-inputValidation-errorBackground, color-mix(in srgb, var(--wb-invalid) 10%, transparent));
+  --wb-accent: var(--vscode-focusBorder, #0078d4);
+  --wb-warn: var(--vscode-editorWarning-foreground, #bf8803);
+  --wb-ok: var(--vscode-testing-iconPassed, #388a34);
+}
+
+.wb-pane:has(.wb-properties) { padding: 0; }
+.wb-properties { font-size: 12px; line-height: 1.35; padding-bottom: 24px; }
+.wb-props-empty { padding: 12px; }
+
+/* Header: icon, name, kind; then the actions. */
+.wb-properties .wb-props-head { padding: 10px 10px 6px; margin: 0; border-bottom: 1px solid var(--wb-hair); background: var(--vscode-sideBarSectionHeader-background, transparent); }
+.wb-properties .wb-props-title { display: flex; align-items: flex-start; gap: 8px; flex-wrap: nowrap; }
+.wb-properties .wb-props-title > .wb-kind-icon { flex: none; margin-top: 3px; }
+.wb-properties .wb-props-name { flex: 1 1 auto; min-width: 0; }
+.wb-properties .wb-name-input { width: 100%; font-size: 14px; margin-left: -5px; }
+.wb-properties .wb-props-sub { display: flex; align-items: baseline; gap: 6px; margin-top: 1px; min-width: 0; }
+.wb-properties .wb-props-sub .wb-kind { font-size: 11px; white-space: nowrap; }
+.wb-properties .wb-props-sub-id { font-family: var(--vscode-editor-font-family); font-size: 10.5px; color: var(--vscode-descriptionForeground); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wb-properties .wb-props-head { container-type: inline-size; container-name: props-head; }
+.wb-properties .wb-actions { display: flex; flex-wrap: wrap; gap: 3px; margin-top: 8px; }
+.wb-properties .wb-actions button { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; line-height: 16px; padding: 1px 6px; border-radius: 3px; border: 1px solid var(--vscode-button-border, var(--wb-hair)); background: transparent; color: var(--vscode-foreground); cursor: pointer; }
+.wb-properties .wb-actions button:hover { background: var(--vscode-toolbar-hoverBackground, var(--wb-soft)); }
+.wb-properties .wb-actions button:focus-visible { outline: 1px solid var(--wb-accent); outline-offset: 0; }
+.wb-properties .wb-action-glyph { font-size: 12px; line-height: 16px; opacity: 0.8; }
+/* A narrow drawer (the default 280 px): the actions in one row, as glyphs named by their tooltip. */
+@container props-head (max-width: 400px) {
+  .wb-properties .wb-actions { flex-wrap: nowrap; }
+  .wb-properties .wb-actions button { flex: 1 1 0; justify-content: center; min-width: 0; padding: 2px 0; }
+  .wb-properties .wb-action-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .wb-properties .wb-action-glyph { font-size: 13px; opacity: 1; }
+}
+.wb-properties .wb-actions button.wb-danger { color: var(--vscode-errorForeground); border-color: color-mix(in srgb, var(--vscode-errorForeground) 40%, transparent); }
+.wb-properties .wb-ends { margin: 6px 0 0; display: flex; align-items: center; flex-wrap: wrap; gap: 2px; }
+
+.wb-props-filterbar { padding: 6px 10px; border-bottom: 1px solid var(--wb-hair); position: sticky; top: 0; z-index: 2; background: var(--vscode-sideBar-background, var(--vscode-editor-background)); }
+.wb-props-filterbar .wb-props-filter { width: 100%; box-sizing: border-box; height: 22px; }
+
+/* Sections. */
+.wb-sec { border-bottom: 1px solid var(--wb-hair); }
+.wb-sec-title { margin: 0; font: inherit; }
+.wb-sec-head { all: unset; box-sizing: border-box; display: flex; align-items: center; gap: 6px; width: 100%; height: 26px; padding: 0 10px 0 6px; cursor: pointer; font-size: 11px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--vscode-sideBarSectionHeader-foreground, var(--vscode-foreground)); }
+.wb-sec-head.is-static { cursor: default; padding-left: 10px; }
+.wb-sec-head:hover { background: var(--vscode-list-hoverBackground, var(--wb-soft)); }
+.wb-sec-head:focus-visible { outline: 1px solid var(--wb-accent); outline-offset: -1px; }
+.wb-chevron { width: 12px; height: 12px; flex: none; position: relative; }
+.wb-chevron::before { content: ''; position: absolute; left: 3px; top: 2px; width: 5px; height: 5px; border-right: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor; transform: rotate(45deg); transition: transform var(--wb-fast, 120ms) ease; }
+.wb-sec.is-folded .wb-chevron::before { transform: rotate(-45deg); left: 1px; top: 3px; }
+.wb-sec-label { flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wb-sec-count { flex: none; font-weight: 500; letter-spacing: 0; min-width: 16px; text-align: center; padding: 0 5px; border-radius: 8px; font-size: 10px; line-height: 15px; color: var(--vscode-badge-foreground, inherit); background: var(--vscode-badge-background, var(--wb-soft)); }
+.wb-sec-count.is-error { background: var(--vscode-errorForeground); color: var(--vscode-editor-background); }
+.wb-sec-count.is-warning { background: var(--wb-warn); color: var(--vscode-editor-background); }
+.wb-sec-body { padding: 2px 0 6px; }
+
+/* Rows: label | control | tools. */
+.wb-properties col.wb-col-label { width: var(--wb-label); }
+.wb-properties col.wb-col-tools { width: 26px; }
+.wb-properties .wb-inherited col.wb-col-tools { width: 64px; }
+.wb-properties table.wb-props { width: 100%; border-collapse: collapse; table-layout: fixed; }
+.wb-properties table.wb-props th { width: var(--wb-label); position: relative; text-align: left; font-weight: 400; color: var(--vscode-descriptionForeground); padding: 3px 14px 3px 8px; vertical-align: top; white-space: nowrap; overflow: visible; font-size: 12px; line-height: 18px; }
+.wb-properties table.wb-props td { padding: 2px 0; vertical-align: top; min-width: 0; }
+.wb-properties table.wb-props td.wb-row-tools { width: 26px; text-align: center; padding-right: 4px; }
+.wb-properties table.wb-props tr.is-static td { padding: 3px 10px 3px 0; line-height: 18px; overflow-wrap: anywhere; }
+.wb-properties table.wb-props tr:hover th { color: var(--vscode-foreground); }
+.wb-properties tr.is-unset th .wb-label-text { opacity: 0.75; }
+.wb-properties tr.is-unset .wb-field:not(:focus) { background: transparent; border-color: transparent; }
+.wb-properties tr.is-unset .wb-field:not(:focus):hover { border-color: var(--vscode-input-border, var(--wb-hair)); }
+.wb-label-text { display: inline-block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; vertical-align: top; }
+
+/* The info mark: the metamodel's documentation of the attribute. */
+.wb-info { all: unset; position: absolute; right: 1px; top: 6px; display: inline-flex; align-items: center; justify-content: center; width: 12px; height: 12px; border-radius: 50%; font: italic 600 9px/1 Georgia, serif; color: var(--vscode-descriptionForeground); border: 1px solid currentColor; opacity: 0; cursor: help; }
+tr:hover .wb-info, .wb-info:focus-visible { opacity: 0.85; }
+.wb-info:focus-visible { outline: 1px solid var(--wb-accent); outline-offset: 1px; }
+.wb-tip { display: none; position: absolute; z-index: 20; left: 8px; top: calc(100% + 2px); width: 240px; padding: 6px 8px; white-space: pre-line; text-align: left; font-size: 11px; line-height: 1.4; color: var(--vscode-editorHoverWidget-foreground, var(--vscode-foreground)); background: var(--vscode-editorHoverWidget-background, var(--vscode-editorWidget-background)); border: 1px solid var(--vscode-editorHoverWidget-border, var(--wb-hair)); border-radius: 3px; box-shadow: 0 2px 8px var(--vscode-widget-shadow, #0003); }
+.wb-info:hover + .wb-tip, .wb-info:focus-visible + .wb-tip { display: block; }
+
+/* Controls. */
+.wb-properties .wb-field { height: 22px; box-sizing: border-box; width: 100%; font-size: 12px; }
+.wb-properties textarea.wb-field { height: auto; min-height: 64px; resize: vertical; line-height: 1.4; }
+.wb-control { position: relative; min-width: 0; padding-right: 2px; }
+.wb-quantity-row, .wb-reference-row { display: flex; gap: 3px; align-items: center; }
+.wb-quantity-row .wb-quantity-value { flex: 1 1 auto; min-width: 0; font-variant-numeric: tabular-nums; }
+.wb-quantity-row .wb-unit { flex: 0 0 62px; width: 62px; }
+.wb-reference-row .wb-picker-input { flex: 1 1 auto; min-width: 0; }
+.wb-jump { flex: none; width: 20px; height: 20px; padding: 0; }
+.wb-field-msg { margin: 2px 0 2px; padding: 3px 6px; font-size: 11px; line-height: 1.35; color: var(--vscode-inputValidation-errorForeground, var(--vscode-foreground)); background: var(--wb-invalid-bg); border-left: 2px solid var(--wb-invalid); overflow-wrap: anywhere; }
+tr.is-checking .wb-field-msg { color: var(--vscode-descriptionForeground); background: transparent; border-left-color: var(--wb-hair); }
+tr.is-invalid .wb-field, tr.is-invalid .wb-chips { border-color: var(--wb-invalid) !important; outline-color: var(--wb-invalid); }
+tr.is-invalid th .wb-label-text { color: var(--wb-invalid); }
+
+/* The switch of a boolean. */
+.wb-switch-row { display: flex; align-items: center; gap: 6px; height: 22px; }
+.wb-switch { all: unset; position: relative; width: 26px; height: 14px; border-radius: 7px; cursor: pointer; background: var(--vscode-input-background); border: 1px solid var(--vscode-input-border, var(--wb-hair)); }
+.wb-switch .wb-switch-knob { position: absolute; top: 1px; left: 1px; width: 10px; height: 10px; border-radius: 50%; background: var(--vscode-descriptionForeground); transition: transform var(--wb-fast, 120ms) ease; }
+.wb-switch.is-on { background: var(--vscode-button-background); border-color: var(--vscode-button-background); }
+.wb-switch.is-on .wb-switch-knob { transform: translateX(12px); background: var(--vscode-button-foreground, #fff); }
+.wb-switch.is-unset { opacity: 0.6; }
+.wb-switch:focus-visible { outline: 1px solid var(--wb-accent); outline-offset: 2px; }
+.wb-switch-label { color: var(--vscode-descriptionForeground); font-size: 11px; }
+
+/* The reference picker. */
+.wb-picker-list { position: absolute; z-index: 30; left: 0; right: 0; top: 24px; max-height: 220px; overflow: auto; margin: 0; padding: 2px 0; list-style: none; background: var(--vscode-quickInput-background, var(--vscode-editorWidget-background)); border: 1px solid var(--vscode-widget-border, var(--wb-hair)); border-radius: 3px; box-shadow: 0 4px 12px var(--vscode-widget-shadow, #0004); }
+.wb-picker-option { display: grid; grid-template-columns: 16px 1fr auto; align-items: center; gap: 6px; padding: 2px 8px; cursor: pointer; white-space: nowrap; }
+.wb-picker-option[aria-selected='true'] { color: var(--vscode-quickInputList-focusForeground, var(--vscode-list-activeSelectionForeground)); background: var(--vscode-quickInputList-focusBackground, var(--vscode-list-activeSelectionBackground)); }
+.wb-picker-name { overflow: hidden; text-overflow: ellipsis; }
+.wb-picker-id { font-family: var(--vscode-editor-font-family); font-size: 10.5px; opacity: 0.7; }
+.wb-picker-empty { padding: 4px 8px; color: var(--vscode-descriptionForeground); }
+
+/* Lists as chips. */
+.wb-chips { display: flex; flex-wrap: wrap; gap: 3px; margin: 0 0 3px; padding: 0; list-style: none; border: 1px solid transparent; border-radius: 2px; }
+.wb-chips:empty { display: none; }
+.wb-chip { display: inline-flex; align-items: center; gap: 3px; max-width: 100%; padding: 0 2px 0 5px; height: 18px; border-radius: 9px; font-size: 11px; background: var(--vscode-badge-background, var(--wb-soft)); color: var(--vscode-badge-foreground, inherit); }
+.wb-chip.is-unresolved { outline: 1px dashed var(--wb-invalid); }
+.wb-chip-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wb-chip .wb-chip-label.wb-link { color: inherit; text-decoration: none; padding: 0; }
+.wb-chip .wb-chip-label.wb-link:hover { text-decoration: underline; }
+.wb-chip-remove { all: unset; width: 14px; height: 14px; line-height: 13px; text-align: center; border-radius: 50%; cursor: pointer; opacity: 0.7; }
+.wb-chip-remove:hover, .wb-chip-remove:focus-visible { opacity: 1; background: var(--wb-soft); outline: none; }
+.wb-many { margin-top: 6px; }
+
+/* Links to elements: icon then name. */
+.wb-properties button.wb-link.wb-elem-link { display: inline-flex; align-items: center; gap: 4px; text-decoration: none; padding: 0 2px; max-width: 100%; }
+.wb-properties button.wb-link.wb-elem-link:hover { text-decoration: underline; }
+.wb-crumbs { display: flex; flex-wrap: wrap; align-items: center; gap: 1px 2px; }
+.wb-crumb-sep { color: var(--vscode-descriptionForeground); padding: 0 1px; }
+.wb-crumb-self { font-weight: 600; }
+.wb-source-line { display: inline-flex; gap: 8px; align-items: baseline; }
+
+/* Inherited and redefined values. */
+tr.is-inherited .wb-inherited-value { display: inline-block; padding: 2px 4px; color: var(--vscode-disabledForeground, var(--vscode-descriptionForeground)); font-style: italic; }
+tr.is-inherited .wb-from { color: var(--vscode-descriptionForeground); font-size: 11px; overflow-wrap: anywhere; }
+tr.is-redefined th { box-shadow: inset 2px 0 0 var(--wb-accent); }
+.wb-redefines { font-size: 10.5px; color: var(--vscode-descriptionForeground); padding: 1px 2px 0; }
+.wb-row-tools .wb-icon-button, .wb-row-tools .wb-link { font-size: 11px; }
+.wb-row-tools .wb-clear { opacity: 0; }
+tr:hover .wb-row-tools .wb-clear, .wb-row-tools .wb-clear:focus-visible { opacity: 0.8; }
+.wb-mixed { font-size: 10px; color: var(--vscode-descriptionForeground); }
+
+/* Relationships and traces. */
+.wb-rels { padding: 0 10px; }
+.wb-rel-head { display: flex; align-items: center; justify-content: space-between; gap: 6px; margin: 6px 0 2px; font-size: 11px; font-weight: 600; color: var(--vscode-descriptionForeground); }
+.wb-rel-head .wb-add-child { width: auto; max-width: 55%; height: 20px; font-weight: 400; }
+.wb-rel-list { list-style: none; margin: 0; padding: 0; }
+.wb-rel { display: flex; align-items: center; gap: 6px; min-height: 20px; padding: 0 0 0 6px; border-left: 1px solid var(--wb-hair); }
+.wb-rel:hover { background: var(--vscode-list-hoverBackground, var(--wb-soft)); }
+.wb-rel > .wb-elem-link { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wb-rel-kind { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--vscode-descriptionForeground); font-size: 11px; text-align: right; }
+.wb-rel-remove { flex: none; opacity: 0; }
+.wb-rel:hover .wb-rel-remove, .wb-rel-remove:focus-visible { opacity: 0.8; }
+.wb-rel-list > .wb-muted { padding-left: 6px; font-size: 11px; }
+.wb-verdict { flex: none; padding: 0 6px; border-radius: 8px; font-size: 10px; line-height: 15px; text-transform: uppercase; letter-spacing: 0.03em; border: 1px solid currentColor; }
+.wb-verdict.is-pass { color: var(--wb-ok); }
+.wb-verdict.is-fail, .wb-verdict.is-error { color: var(--vscode-errorForeground); }
+.wb-verdict.is-inconclusive { color: var(--wb-warn); }
+.wb-trace-add { display: grid; grid-template-columns: auto 92px 1fr; gap: 4px; align-items: start; margin-top: 8px; position: relative; }
+.wb-trace-add > .wb-muted { line-height: 22px; font-size: 11px; }
+.wb-trace-add .wb-trace-kind { height: 22px; }
+
+/* Findings. */
+.wb-findings { list-style: none; margin: 0; padding: 0 10px; }
+.wb-finding { display: grid; grid-template-columns: 14px 1fr; gap: 2px 6px; padding: 4px 0; border-bottom: 1px dotted var(--wb-hair); }
+.wb-finding:last-child { border-bottom: 0; }
+.wb-finding-mark { font-size: 10px; line-height: 16px; }
+.wb-finding.is-error .wb-finding-mark { color: var(--vscode-errorForeground); }
+.wb-finding.is-warning .wb-finding-mark { color: var(--wb-warn); }
+.wb-finding-text code { font-size: 10.5px; color: var(--vscode-descriptionForeground); }
+.wb-finding .wb-fix { grid-column: 2; justify-self: start; font-size: 11px; }
+.wb-sec.is-error { box-shadow: inset 2px 0 0 var(--vscode-errorForeground); }
+.wb-sec.is-warning { box-shadow: inset 2px 0 0 var(--wb-warn); }
+
+/* Description and its preview: the whole width. */
+.wb-descriptions { padding: 2px 10px 0; display: grid; gap: 8px; }
+.wb-description-bar { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 2px; }
+.wb-description-title { font-size: 11px; color: var(--vscode-descriptionForeground); }
+.wb-desc-block.is-invalid .wb-field { border-color: var(--wb-invalid) !important; }
+.wb-trace-add.is-invalid .wb-field { border-color: var(--wb-invalid) !important; }
+.wb-trace-add .wb-field-msg { grid-column: 1 / -1; }
+.wb-preview-toggle { font-size: 11px; }
+.wb-markdown { padding: 4px 6px; min-height: 22px; border-radius: 2px; border: 1px solid transparent; cursor: text; overflow-wrap: anywhere; }
+.wb-markdown:hover { border-color: var(--vscode-input-border, var(--wb-hair)); }
+.wb-markdown:focus-visible { outline: 1px solid var(--wb-accent); }
+.wb-markdown p, .wb-markdown ul, .wb-markdown pre, .wb-markdown h4 { margin: 0 0 4px; }
+.wb-markdown ul { padding-left: 16px; }
+.wb-markdown h4 { font-size: 12px; }
+.wb-markdown code, .wb-markdown pre { font-family: var(--vscode-editor-font-family); font-size: 11px; background: var(--vscode-textCodeBlock-background, var(--wb-soft)); border-radius: 2px; padding: 0 3px; }
+.wb-markdown pre { padding: 4px 6px; white-space: pre-wrap; }
+
+/* A tree node dragged over the diagram. */
+.wb-sheet.wb-drop-over { outline: 2px dashed var(--wb-accent); outline-offset: -4px; }
+.wb-sheet.wb-drop-over::after { content: 'Drop to show it on this diagram'; position: absolute; left: 50%; top: 12px; transform: translateX(-50%); padding: 3px 10px; font-size: 12px; border-radius: 3px; color: var(--vscode-editorHoverWidget-foreground, var(--vscode-foreground)); background: var(--vscode-editorHoverWidget-background, var(--vscode-editorWidget-background)); border: 1px solid var(--wb-accent); pointer-events: none; z-index: 30; }
+
+/* A diagram's own tab: its title, no layer bar. */
+.wb-pin-title { display: flex; align-items: center; height: 28px; padding: 0 12px; font-weight: 600; font-size: 12px; border-bottom: 1px solid var(--wb-hair); }
+body.wb-pinned .wb-layers { display: none; }
+
+/* High contrast: rules and marks drawn, not tinted. */
+body.vscode-high-contrast .wb-sec, body.vscode-high-contrast .wb-props-filterbar { border-color: var(--vscode-contrastBorder, #6fc3df); }
+body.vscode-high-contrast .wb-chip, body.vscode-high-contrast .wb-sec-count { outline: 1px solid var(--vscode-contrastBorder, #6fc3df); }
+body.vscode-high-contrast .wb-info { opacity: 1; }
+body.vscode-high-contrast .wb-row-tools .wb-clear, body.vscode-high-contrast .wb-rel-remove { opacity: 1; }
+body.vscode-high-contrast tr.is-inherited .wb-inherited-value { font-style: italic; text-decoration: underline dotted; }
+@media (prefers-reduced-motion: reduce) {
+  .wb-chevron::before, .wb-switch .wb-switch-knob { transition: none; }
+}

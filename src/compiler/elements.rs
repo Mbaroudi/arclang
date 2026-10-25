@@ -936,6 +936,11 @@ pub fn build(ast: &Model, semantic: &SemanticModel) -> ElementGraph {
             builder.relate("Message", Some(&message.label), &message.from, &message.to, &empty(), extra);
         }
     }
+    // Declared tables are elements of the model: versioned, identified, exported. // tables hook
+    for table in &ast.tables {
+        let uuid = builder.unique_uuid("table", "Table", &table.id); // tables hook
+        builder.graph.elements.push(ElementRecord { uuid, id: table.id.clone(), kind: "Table", name: table.name.clone(), owner: Some(root.clone()), attributes: table.attributes.clone(), extra: BTreeMap::new() }); // tables hook
+    }
 
     builder.graph
 }

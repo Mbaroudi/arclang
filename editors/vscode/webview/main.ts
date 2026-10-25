@@ -2,12 +2,31 @@
 // row with the palette rail, the canvas and the properties drawer, then one
 // status line. Everything shown comes from the last snapshot the host sent;
 // every change goes back to the host as `arclang edit` requests.
-import { connectTargetKinds, connectToolFor, EditRequest, fragmentRequest, namedDiagramOf, nextRequirementId, requirementRequests, Tool, neighbours, showsLiteral, topLevelIds, VIEWPOINTS, ElementRecord, Finding, graphContainerOf, lifelineElement, Metamodel, Snapshot, ToWebview } from '../src/pure/workbench';
+import { connectTargetKinds, connectToolFor, EditRequest, RelationshipRecord, fragmentRequest, nextRequirementId, requirementRequests, Tool, VIEWPOINTS, ElementRecord, graphContainerOf, lifelineElement, Metamodel, Snapshot, ToWebview } from '../src/pure/workbench';
 import { SemanticBrowser } from './browser';
 import { button, clear, el, inlinePrompt } from './dom';
 import type { ViewerApi, ViewerPosition, ViewerSelection } from './globals';
 import { Palette } from './palette';
 import { Properties } from './properties';
+import { createFind } from './find';
+import { createMinimap } from './minimap';
+import { Editing } from './editing';
+import { createHelp } from './help';
+import { createShell } from './shell';
+import { DiagramContents } from './diagram-contents';
+import { createStatusLine } from './status-line';
+import { changesOf, markFindings as markFindings_, pulse, renderLayers as renderLayers_ } from './marks';
+import { Alignment, modelIdOf, relationshipOfEdge } from '../src/pure/editing';
+import { installAi } from './ask-ai'; // ai-design hook
+import { installKeys } from './keys';
+import { MultiSelection } from './multi-select';
+import { installNavMenu } from './nav-menu'; // nav hook
+import { installPanes } from './panes'; // panes hook
+import { installImpact } from './impact-marks'; // impact hook
+import { installFileMenu } from './file-menu';
+import { DiagramExports } from './diagram-export';
+import { ThemeEditor } from './theme-editor';
+import { arrangeOptions, arrangeToolbar, installArrange, withLayersNote } from './arrange'; // zorder hook
 
 const vscode = acquireVsCodeApi();
 
@@ -23,6 +42,8 @@ interface State {
   metamodel: Metamodel | null;
   viewer: ViewerApi | null;
   selected: ElementRecord | null;
+  /** The drawing id of what the viewer has selected: a box, a port or an exchange. */
+  selectedDrawing: string | null;
   lastPosition: ViewerPosition | null;
   byId: Map<string, ElementRecord>;
   byName: Map<string, ElementRecord>;
@@ -37,13 +58,15 @@ const state: State = {
   metamodel: null,
   viewer: null,
   selected: null,
+  selectedDrawing: null,
   lastPosition: null,
   byId: new Map(),
   byName: new Map(),
   byUuid: new Map(),
   layout: {
     paletteOpen: savedLayout.paletteOpen ?? wide,
-    drawerOpen: savedLayout.drawerOpen ?? window.innerWidth >= 760,
+    // Under 900 px the drawer floats over the canvas: closed until asked for.
+    drawerOpen: savedLayout.drawerOpen ?? window.innerWidth >= 900,
     drawerWidth: Math.min(480, Math.max(240, savedLayout.drawerWidth ?? 280)),
     rightTab: savedLayout.rightTab ?? 0,
   },
@@ -56,116 +79,8 @@ function saveLayout(): void {
 // --- Layout -----------------------------------------------------------------
 
 const root = document.getElementById('workbench')!;
-const bar = el('header', { class: 'wb-bar' });
-const layerBar = el('nav', { class: 'wb-layers', 'aria-label': 'Arcadia layers' });
-const toolRow = el('div', { class: 'wb-toolrow' });
-const tabs = el('div', { class: 'wb-tabs wb-hidden' });
-const tools = el('div', { class: 'wb-viewer-tools' });
-const paletteToggle = button('', () => setPalette(!state.layout.paletteOpen), { class: 'wb-icon-button', title: 'Palette' });
-const drawerToggle = button('', () => setDrawer(!state.layout.drawerOpen), { class: 'wb-icon-button', title: 'Properties' });
-const minimapToggle = button('', () => toggleMinimap(), { class: 'wb-icon-button wb-minimap-toggle', title: 'Minimap (Shift+M)' });
-toolRow.append(paletteToggle, tools, minimapToggle, drawerToggle);
-bar.append(layerBar, toolRow);
-
-const body = el('div', { class: 'wb-body' });
-const left = el('aside', { class: 'wb-left' });
-const sheet = el('main', { class: 'wb-sheet' });
-const host = el('div', { class: 'wb-host' });
-const modeChip = el('div', { class: 'wb-mode', hidden: true });
-const toast = el('div', { class: 'wb-toast', hidden: true, role: 'status', 'aria-live': 'polite' });
-const progress = el('div', { class: 'wb-progress', hidden: true });
-const layoutNotice = el('div', { class: 'wb-notice', hidden: true, role: 'status' });
-sheet.append(progress, host, modeChip, toast, layoutNotice);
-const splitter = el('div', { class: 'wb-splitter', role: 'separator', 'aria-orientation': 'vertical', title: 'Drag to resize' });
-const right = el('aside', { class: 'wb-right' });
-const bottom = el('footer', { class: 'wb-bottom' });
-const hiddenTree = el('div', { class: 'wb-hidden' });
-const hiddenFoot = el('div', { class: 'wb-hidden' });
-const detailsSlot = el('div', { class: 'wb-details' });
-const relatedSlot = el('div', { class: 'wb-related' });
-
-const rightTabs = el('div', { class: 'wb-right-tabs', role: 'tablist' });
-const propertiesPane = el('div', { class: 'wb-pane' });
-const browserPane = el('div', { class: 'wb-pane' });
-const detailsPane = el('div', { class: 'wb-pane' }, [detailsSlot, relatedSlot]);
-const panes: [string, HTMLElement][] = [
-  ['Properties', propertiesPane],
-  ['Relations', browserPane],
-  ['Details', detailsPane],
-];
-panes.forEach(([label, pane], index) => {
-  const tab = button(label, () => showRightTab(index), { class: 'wb-right-tab', role: 'tab' });
-  rightTabs.appendChild(tab);
-  pane.setAttribute('role', 'tabpanel');
-});
-function showRightTab(index: number): void {
-  state.layout.rightTab = index;
-  panes.forEach(([, pane], i) => pane.classList.toggle('is-active', i === index));
-  [...rightTabs.children].forEach((tab, i) => {
-    tab.classList.toggle('is-active', i === index);
-    tab.setAttribute('aria-selected', String(i === index));
-  });
-  saveLayout();
-}
-right.append(rightTabs, propertiesPane, browserPane, detailsPane);
-body.append(left, sheet, splitter, right);
-root.append(bar, body, bottom, hiddenTree, hiddenFoot);
-showRightTab(state.layout.rightTab);
-
-function setPalette(open: boolean): void {
-  state.layout.paletteOpen = open;
-  left.classList.toggle('is-collapsed', !open);
-  paletteToggle.setAttribute('aria-pressed', String(open));
-  palette.setCompact(!open);
-  saveLayout();
-  fitStage();
-}
-
-function setDrawer(open: boolean): void {
-  state.layout.drawerOpen = open;
-  right.hidden = !open;
-  splitter.hidden = !open;
-  right.style.width = `${state.layout.drawerWidth}px`;
-  drawerToggle.setAttribute('aria-pressed', String(open));
-  saveLayout();
-  fitStage();
-}
-
-// The drawer is resized by dragging the splitter; the width is remembered.
-splitter.addEventListener('pointerdown', (down) => {
-  down.preventDefault();
-  splitter.setPointerCapture(down.pointerId);
-  const startX = down.clientX;
-  const startWidth = state.layout.drawerWidth;
-  const move = (event: PointerEvent) => {
-    state.layout.drawerWidth = Math.min(480, Math.max(240, startWidth - (event.clientX - startX)));
-    right.style.width = `${state.layout.drawerWidth}px`;
-    fitStage();
-  };
-  const up = () => {
-    splitter.removeEventListener('pointermove', move);
-    splitter.removeEventListener('pointerup', up);
-    saveLayout();
-  };
-  splitter.addEventListener('pointermove', move);
-  splitter.addEventListener('pointerup', up);
-});
-
-/** The viewer sizes its stage from a variable: it gets what the sheet has left under its own chrome. */
-function fitStage(): void {
-  const stage = host.querySelector<HTMLElement>('.arcviz-stage');
-  if (!stage) return;
-  const above = stage.getBoundingClientRect().top - sheet.getBoundingClientRect().top;
-  let below = 0;
-  let after = stage.nextElementSibling as HTMLElement | null;
-  while (after) {
-    if (!after.hidden) below += after.getBoundingClientRect().height;
-    after = after.nextElementSibling as HTMLElement | null;
-  }
-  const height = Math.max(160, sheet.clientHeight - above - below);
-  root.style.setProperty('--av-stage-height', `${Math.floor(height)}px`);
-}
-new ResizeObserver(() => fitStage()).observe(sheet);
+const shell = createShell(root, state.layout, { save: saveLayout, palette: (open) => palette.setCompact(!open), minimap: () => toggleMinimap() });
+const { layerBar, tabs, tools, left, sheet, host, modeChip, toast, progress, layoutNotice, bottom, hiddenTree, hiddenFoot, detailsSlot, relatedSlot, propertiesPane, browserPane, showRightTab, setPalette, setDrawer, fitStage } = shell;
 
 const palette = new Palette(left, {
   selected: () => (state.selected ? { id: state.selected.id, kind: state.selected.kind } : null),
@@ -207,8 +122,14 @@ const properties = new Properties(propertiesPane, {
   ask: (element) => vscode.postMessage({ type: 'ask', id: element.id, name: element.name, kind: element.kind }),
   diagram: (op, element) => (op === 'hide' ? hideFromDiagram(element) : op === 'related' ? showRelated(element) : newDiagramAround(element)),
   requirements: () => (state.snapshot?.elements?.elements ?? []).filter((e) => e.kind === 'Requirement'),
+  ends: (element) => editing.endsOf(element),
+  reverse: (element) => editing.reverse(element),
+  // panes hook: the model, the links and the host's answers of the properties pane.
+  snapshot: () => state.snapshot,
+  select: (element) => selectElement(element, true),
+  post: (message) => vscode.postMessage(message as never),
 });
-const browser = new SemanticBrowser(browserPane, (element) => selectElement(element, true));
+const browser = new SemanticBrowser(browserPane, (element) => selectElement(element, true), (element, other, outgoing) => editing.retargetTrace(element, other, outgoing));
 setPalette(state.layout.paletteOpen);
 setDrawer(state.layout.drawerOpen);
 
@@ -239,14 +160,7 @@ function submit(requests: EditRequest[], label: string): void {
   vscode.postMessage({ type: 'edit', requests, label });
 }
 
-/**
- * The model id of a node or port of the drawing: `LC-A::p` (a component port)
- * and `SF-A::in.p` (a function port, with its direction) are the port `LC-A.p`
- * and `SF-A.p` of the model.
- */
-function modelId(drawingId: string): string {
-  return drawingId.replace(/::(?:in|out|inout)\./, '.').replace('::', '.');
-}
+const modelId = modelIdOf;
 
 /**
  * The drawing id of a model element: its id when the drawing uses it, else
@@ -272,11 +186,10 @@ function currentGraph() {
 
 function elementFor(selection: ViewerSelection | null): ElementRecord | null {
   if (!selection || !state.snapshot?.elements) return null;
-  // A message of a scenario (`msg:1`) is its Message, even when an exchange carries the same text.
-  if (selection.isEdge && selection.id.startsWith('msg:')) {
-    const message = (state.snapshot.elements.relationships ?? []).find((r) => r.kind === 'Message' && r.name === selection.name);
-    if (message) return { uuid: message.uuid, id: message.name, kind: message.kind, name: message.name, owner: null, attributes: {} };
-  }
+  // An edge is the relationship of its kind between its two ends (a message, a transition, an exchange).
+  const edgeGraph = currentGraph();
+  const drawn = edgeGraph && (edgeGraph.edges ?? []).some((e) => e.id === selection.id) ? relationshipOfEdge(selection.id, edgeGraph, state.snapshot, selection.name || undefined) : null;
+  if (drawn) return relationshipElement(drawn);
   const id = modelId(selection.id);
   const found = state.byId.get(id) ?? (selection.name ? state.byName.get(selection.name) : undefined);
   if (found) return found;
@@ -293,8 +206,14 @@ function elementFor(selection: ViewerSelection | null): ElementRecord | null {
   if (!selection.isEdge) return null;
   // Exchanges, links and traces are relationships: selectable by their name.
   const relationship = (state.snapshot.elements.relationships ?? []).find((r) => r.name === bare || r.name === selection.name);
-  if (!relationship) return null;
-  return { uuid: relationship.uuid, id: relationship.name, kind: relationship.kind, name: relationship.name, owner: null, attributes: {} };
+  return relationship ? relationshipElement(relationship) : null;
+}
+
+/** A relationship as the views show an element: designated by its written id, else its name. */
+function relationshipElement(r: RelationshipRecord): ElementRecord {
+  const attributes = r.attributes ?? {};
+  const id = typeof attributes.id === 'string' ? attributes.id : r.name || r.kind;
+  return { uuid: r.uuid, id, kind: r.kind, name: r.name ?? '', owner: null, attributes };
 }
 
 function selectElement(element: ElementRecord | null, inViewer: boolean): void {
@@ -305,71 +224,22 @@ function selectElement(element: ElementRecord | null, inViewer: boolean): void {
   if (inViewer && element) selectInViewer(element.id);
 }
 
-// --- Multi-selection (Shift+click) ------------------------------------------
+// --- Multi-selection (Shift+click, multi-select.ts) ---------------------------
 
-let shiftDown = false;
-host.addEventListener('pointerdown', (event) => (shiftDown = event.shiftKey), true);
-/** The elements selected together, the primary one included; empty when one or none is selected. */
-let multi: ElementRecord[] = [];
-
-function markMulti(): void {
-  for (const node of host.querySelectorAll('.wb-multi')) node.classList.remove('wb-multi');
-  for (const element of multi) host.querySelector(`[data-id="${CSS.escape(drawingId(element.id))}"]`)?.classList.add('wb-multi');
-  multiBar.hidden = multi.length < 2;
-  multiCount.textContent = `${multi.length} selected`;
-  if (multi.length > 1) properties.showMany(multi, state.metamodel);
-}
-
-/** The selected elements without those another selected element owns (removing the owner removes them). */
-function outermost(elements: ElementRecord[]): ElementRecord[] {
-  const uuids = new Set(elements.map((e) => e.uuid));
-  const ownedBySelection = (element: ElementRecord): boolean => {
-    let owner = element.owner ? state.byUuid.get(element.owner) : undefined;
-    while (owner) {
-      if (uuids.has(owner.uuid)) return true;
-      owner = owner.owner ? state.byUuid.get(owner.owner) : undefined;
-    }
-    return false;
-  };
-  return elements.filter((e) => !ownedBySelection(e));
-}
-
-function deleteMany(elements: ElementRecord[]): void {
-  const targets = outermost(elements);
-  submit(targets.map((e) => ({ op: 'remove', element: e.id })), `delete ${targets.length} elements`);
-  multi = [];
-  markMulti();
-}
-
-function hideMany(elements: ElementRecord[]): void {
-  const graph = currentGraph();
-  if (!graph) return;
-  const ids = new Set(elements.map((e) => e.id));
-  const drawnAtTop = topLevelIds(graph).map((id) => elementFor({ view: '', id, name: '', kind: '', isEdge: false })?.id).filter((id): id is string => !!id);
-  const rest = drawnAtTop.filter((id) => !ids.has(id));
-  const named = namedDiagramOf(graph.id, graph.arc.view);
-  if (named) submit([{ op: 'set', element: named, key: 'shows', value: showsLiteral(rest) }], `hide ${ids.size} elements from ${named}`);
-  else {
-    const name = uniqueDiagramName(`${graph.arc.title} (custom)`);
-    pendingView = `${graph.arc.view}:${name}`;
-    submit([{ op: 'add_raw', declaration: `diagram ${JSON.stringify(name)} {\n  view: ${graph.arc.view}\n  shows: ${showsLiteral(rest)}\n}`, top_level: true }], `new diagram ${name} without ${ids.size} elements`);
-  }
-  multi = [];
-  markMulti();
-}
-
-const multiBar = el('div', { class: 'wb-multibar', hidden: true, role: 'toolbar', 'aria-label': 'Selection' });
-const multiCount = el('strong', { text: '' });
-multiBar.append(
-  multiCount,
-  button('Delete all', () => deleteMany(multi), { class: 'wb-danger', title: 'Delete every selected element (one undo)' }),
-  button('Hide all', () => hideMany(multi), { title: 'Hide every selected element from this diagram' }),
-  button('Clear', () => {
-    multi = [];
-    markMulti();
-  }),
-);
-sheet.appendChild(multiBar);
+const multiSelection = new MultiSelection({
+  host,
+  sheet,
+  drawingId,
+  byUuid: () => state.byUuid,
+  refreshTools: () => state.viewer?.refreshTools?.(),
+  showMany: (elements) => properties.showMany(elements, state.metamodel),
+  submit,
+  hide: (elements) => contents.hideMany(elements),
+});
+const markMulti = () => multiSelection.mark();
+const outermost = (elements: ElementRecord[]) => multiSelection.outermost(elements);
+const deleteMany = (elements: ElementRecord[]) => multiSelection.deleteMany(elements);
+const hideMany = (elements: ElementRecord[]) => multiSelection.hideMany(elements);
 
 /** A selection the page asks of the viewer: its empty answer while the drawing settles is not the reader's. */
 let programmaticUntil = 0;
@@ -380,24 +250,28 @@ host.addEventListener('keydown', () => (programmaticUntil = 0), true);
 
 function selectInViewer(id: string): void {
   programmaticUntil = Date.now() + 2000;
-  state.viewer?.select?.(drawingId(id));
+  // A relationship is drawn under its edge id, kept from the reader's click.
+  const edge = state.selected?.id === id && !state.byId.has(id) ? state.selectedDrawing : null;
+  state.viewer?.select?.(edge ?? drawingId(id));
 }
 
-function onSelect(selection: ViewerSelection | null): void {
-  if (selection === null && Date.now() < programmaticUntil && state.selected) return;
+function onSelect(picked: ViewerSelection | null): void {
+  if (picked === null && Date.now() < programmaticUntil && state.selected) return;
   programmaticUntil = 0;
-  const element = elementFor(selection);
-  if (shiftDown && element && !selection?.isEdge) {
-    const primary = state.selected;
-    const base = multi.length ? multi : primary && primary.uuid !== element.uuid ? [primary] : [];
-    multi = base.some((e) => e.uuid === element.uuid) ? base.filter((e) => e.uuid !== element.uuid) : [...base, element];
-    shiftDown = false;
-    setTimeout(markMulti, 0);
+  state.selectedDrawing = picked?.id ?? null;
+  const element = elementFor(picked);
+  if (multiSelection.shiftClick(element, state.selected, !!picked?.isEdge)) {
     selectElement(element, false);
     return;
   }
-  if (multi.length) {
-    multi = [];
+  // A box of the selection dragged with the others: the selection stays.
+  if (editing.placement.holds(element)) {
+    selectElement(element, false);
+    setTimeout(markMulti, 0);
+    return;
+  }
+  if (multiSelection.elements.length) {
+    multiSelection.elements = [];
     setTimeout(markMulti, 0);
   }
   // A connect tool takes the click as one of its ends.
@@ -418,231 +292,112 @@ function countNodes(nodes: NonNullable<ReturnType<typeof currentGraph>>['childre
   return nodes.reduce((sum, node) => sum + 1 + countNodes(node.children ?? []), 0);
 }
 
-// --- Diagram contents (Capella's Insert/Remove, SysON's Manage visibility) ---
-
-/** Hide an element from the diagram on screen: out of a named diagram's `shows:`, or a new named diagram without it. */
-function hideFromDiagram(element: ElementRecord): void {
-  const graph = currentGraph();
-  if (!graph) return;
-  const drawnAtTop = topLevelIds(graph).map((id) => elementFor({ view: '', id, name: '', kind: '', isEdge: false })?.id).filter((id): id is string => !!id);
-  if (!drawnAtTop.includes(element.id)) {
-    showToast(`${element.name || element.id} is drawn inside another box: hide that box, or open it as a diagram.`, 'info');
-    return;
-  }
-  const rest = drawnAtTop.filter((id) => id !== element.id);
-  const named = namedDiagramOf(graph.id, graph.arc.view);
-  if (named) {
-    submit([{ op: 'set', element: named, key: 'shows', value: showsLiteral(rest) }], `hide ${element.id} from ${named}`);
-    return;
-  }
-  const name = uniqueDiagramName(`${graph.arc.title} (custom)`);
-  pendingView = `${graph.arc.view}:${name}`;
-  submit([{ op: 'add_raw', declaration: `diagram ${JSON.stringify(name)} {\n  view: ${graph.arc.view}\n  shows: ${showsLiteral(rest)}\n}`, top_level: true }], `new diagram ${name} without ${element.id}`);
-}
-
-/** Add what an element is connected to into the named diagram on screen (or a new one). */
-function showRelated(element: ElementRecord): void {
-  const graph = currentGraph();
-  if (!graph || !state.snapshot) return;
-  const around = neighbours(element, state.snapshot);
-  const related = [...around.incoming, ...around.outgoing].map((n) => n.other?.id).filter((id): id is string => !!id);
-  const named = namedDiagramOf(graph.id, graph.arc.view);
-  const current = named ? topLevelIds(graph).map((id) => elementFor({ view: '', id, name: '', kind: '', isEdge: false })?.id).filter((id): id is string => !!id) : [];
-  const shows = [...new Set([...current, element.id, ...related])];
-  if (named) {
-    if (shows.length === current.length) return showToast('Everything connected to it is already on this diagram.', 'info');
-    submit([{ op: 'set', element: named, key: 'shows', value: showsLiteral(shows) }], `show what ${element.id} is connected to`);
-    return;
-  }
-  newDiagramAround(element);
-}
-
-/** A new named diagram with the element and what it is connected to (Capella's contextual diagram). */
-function newDiagramAround(element: ElementRecord): void {
-  const graph = currentGraph();
-  if (!graph || !state.snapshot) return;
-  const around = neighbours(element, state.snapshot);
-  const related = [...around.incoming, ...around.outgoing].map((n) => n.other?.id).filter((id): id is string => !!id);
-  const view = ['oab', 'sab', 'lab', 'pab', 'cap', 'cdb'].includes(graph.arc.view) ? graph.arc.view : 'lab';
-  const name = uniqueDiagramName(`${element.name || element.id} context`);
-  pendingView = `${view}:${name}`;
-  submit([{ op: 'add_raw', declaration: `diagram ${JSON.stringify(name)} {\n  view: ${view}\n  shows: ${showsLiteral([...new Set([element.id, ...related])])}\n  context: true\n}`, top_level: true }], `new diagram ${name}`);
-}
-
-function uniqueDiagramName(base: string): string {
-  const taken = new Set((state.snapshot?.diagrams?.graphs ?? []).map((g) => g.arc.title));
-  let name = base;
-  for (let n = 2; taken.has(name); n++) name = `${base} ${n}`;
-  return name;
-}
+// --- Diagram contents ---------------------------------------------------------
 
 /** The diagram to show once the snapshot that creates it arrives. */
 let pendingView: string | null = null;
+const contents = new DiagramContents({
+  graph: () => currentGraph(),
+  snapshot: () => state.snapshot,
+  idOf: (id) => elementFor({ view: '', id, name: '', kind: '', isEdge: false })?.id ?? null,
+  submit,
+  toast: (text, kind) => showToast(text, kind),
+  showLater: (view) => (pendingView = view),
+});
+const hideFromDiagram = (element: ElementRecord) => contents.hide(element);
+const showRelated = (element: ElementRecord) => contents.related(element);
+const newDiagramAround = (element: ElementRecord) => contents.around(element);
 
 // --- Direct edit and find -----------------------------------------------------
 
-/** F2 on the canvas: the name edited in place, over the box. */
-function renameInPlace(element: ElementRecord): void {
-  const node = host.querySelector<SVGGraphicsElement>(`[data-id="${CSS.escape(drawingId(element.id))}"]`);
-  if (!node) return properties.rename();
-  const box = node.getBoundingClientRect();
-  const frame = sheet.getBoundingClientRect();
-  const input = el('input', { type: 'text', class: 'wb-direct-edit', value: element.name || element.id, 'aria-label': `Rename ${element.id}` });
-  input.style.left = `${box.left - frame.left}px`;
-  input.style.top = `${box.top - frame.top + 4}px`;
-  input.style.width = `${Math.max(140, box.width)}px`;
-  sheet.appendChild(input);
-  input.focus();
-  input.select();
-  let done = false;
-  const finish = (commit: boolean) => {
-    if (done) return;
-    done = true;
-    const value = input.value.trim();
-    input.remove();
-    if (commit && value && value !== element.name) submit([{ op: 'rename', element: element.id, name: value }], `rename to ${value}`);
-  };
-  input.addEventListener('keydown', (event) => {
-    event.stopPropagation();
-    if (event.key === 'Enter') finish(true);
-    if (event.key === 'Escape') finish(false);
-  });
-  input.addEventListener('blur', () => finish(true));
-}
 
-const findBox = el('div', { class: 'wb-find', hidden: true, role: 'search' });
-const findInput = el('input', { type: 'text', placeholder: 'Find in this diagram', 'aria-label': 'Find in this diagram' });
-const findCount = el('span', { class: 'wb-find-count' });
-findBox.append(findInput, findCount, button('✕', () => closeFind(), { class: 'wb-icon-button', title: 'Close (Esc)' }));
-sheet.appendChild(findBox);
-let findAt = 0;
-
-function openFind(): void {
-  findBox.hidden = false;
-  findInput.focus();
-  findInput.select();
-}
-
-function closeFind(): void {
-  findBox.hidden = true;
-  for (const node of host.querySelectorAll('.wb-find-hit')) node.classList.remove('wb-find-hit');
-}
-
-function runFind(step: number): void {
-  const query = findInput.value.trim().toLowerCase();
-  for (const node of host.querySelectorAll('.wb-find-hit')) node.classList.remove('wb-find-hit');
-  if (!query) {
-    findCount.textContent = '';
-    return;
-  }
-  const graph = currentGraph();
-  const hits: string[] = [];
-  const walk = (nodes: NonNullable<NonNullable<ReturnType<typeof currentGraph>>['children']>) => {
-    for (const node of nodes) {
-      const element = elementFor({ view: '', id: node.id, name: '', kind: '', isEdge: false });
-      const label = `${element?.name ?? ''} ${element?.id ?? node.id}`.toLowerCase();
-      if (label.includes(query)) hits.push(node.id);
-      walk(node.children ?? []);
-    }
-  };
-  walk(graph?.children ?? []);
-  findAt = hits.length ? (findAt + step + hits.length) % hits.length : 0;
-  findCount.textContent = hits.length ? `${findAt + 1} of ${hits.length}` : 'no match';
-  for (const id of hits) host.querySelector(`[data-id="${CSS.escape(id)}"]`)?.classList.add('wb-find-hit');
-  const target = hits[findAt];
-  if (target) {
-    state.viewer?.select?.(target);
-    const element = elementFor({ view: '', id: target, name: '', kind: '', isEdge: false });
+const finder = createFind(sheet, host, {
+  graph: () => currentGraph(),
+  elementFor: (id) => elementFor({ view: '', id, name: '', kind: '', isEdge: false }),
+  select: (id, element) => {
+    state.viewer?.select?.(id);
     if (element) selectElement(element, false);
+  },
+});
+const minimap = createMinimap(sheet, host, { viewer: () => state.viewer, key: () => `${currentGraph()?.id}:${state.snapshot?.elements?.elements.length}` });
+const toggleMinimap = (force?: boolean) => shell.setMinimapShown(minimap.toggle(force));
+const openFind = () => finder.open();
+const help = createHelp(sheet);
+const editing = new Editing({
+  host,
+  sheet,
+  snapshot: () => state.snapshot,
+  viewer: () => state.viewer,
+  graph: () => currentGraph(),
+  selected: () => state.selected,
+  selectedDrawing: () => state.selectedDrawing,
+  multi: () => multiSelection.elements,
+  setMulti: (elements) => {
+    multiSelection.elements = elements;
+    if (elements.length) selectElement(elements[elements.length - 1], false);
+    markMulti();
+  },
+  elementFor: (id, isEdge = false, name = '') => elementFor({ view: '', id, name, kind: '', isEdge }),
+  drawingId,
+  outermost,
+  submit,
+  toast: (text, kind) => showToast(text, kind),
+  select: selectElement,
+  remove: (elements) => (elements.length > 1 ? deleteMany(elements) : elements[0] && deleteOne(elements[0])),
+  hide: (elements) => (elements.length > 1 ? hideMany(elements) : elements[0] && hideFromDiagram(elements[0])),
+  related: showRelated,
+  newDiagram: newDiagramAround,
+  reveal: (element) => vscode.postMessage({ type: 'reveal', id: element.id }),
+  activate: (element, drawing) => vscode.postMessage({ type: 'activate', id: element.id, name: element.name, drawing }), // nav hook
+  help: () => help.toggle(),
+  copied: (elements, relationships) => vscode.postMessage({ type: 'copied', elements: elements.map((e) => ({ id: e.id, name: e.name })), relationships }),
+  joinLayout,
+  diagramOf: (elements) => contents.fromSelection(elements),
+  history: {
+    undo: () => vscode.postMessage({ type: 'history', op: 'undo' }),
+    redo: () => vscode.postMessage({ type: 'history', op: 'redo' }),
+    labels: () => historyLabels,
+  },
+  remark: () => markMulti(),
+  extraMenu: () => exportsUi.menuItems(),
+});
+
+// --- Exports and colour themes (diagram-export.ts, theme-editor.ts) --------------
+
+const exportsUi = new DiagramExports({
+  post: (message) => vscode.postMessage(message as never),
+  viewer: () => state.viewer,
+  selection: () => (multiSelection.elements.length > 1 ? multiSelection.elements.map((e) => drawingId(e.id)) : state.selectedDrawing ? [state.selectedDrawing] : []),
+  toast: (text, kind) => showToast(text, kind),
+  file: () => root.dataset.file ?? 'diagrams',
+  openEditor: () => themeEditor.open(),
+});
+const themeEditor = new ThemeEditor({
+  host: sheet,
+  post: (message) => vscode.postMessage(message as never),
+  viewer: () => state.viewer,
+  entries: () => exportsUi.entries,
+  active: () => exportsUi.activeEntry(),
+  dark: (theme) => document.body.classList.contains('vscode-dark') && typeof theme.dark === 'object' && theme.dark !== null,
+  restore: () => exportsUi.reapply(),
+});
+
+/** What ⌘Z and ⌘⇧Z would undo and redo, as the host keeps the history. */
+let historyLabels: { undo: string | null; redo: string | null } = { undo: null, redo: null };
+
+/** Changes of the arrangement made while this is above zero belong to the step before them. */
+let joining = 0;
+async function joinLayout(run: () => Promise<void> | undefined): Promise<void> {
+  joining += 1;
+  try {
+    await run();
+  } finally {
+    joining -= 1;
   }
 }
-findInput.addEventListener('input', () => {
-  findAt = 0;
-  runFind(0);
-});
-findInput.addEventListener('keydown', (event) => {
-  event.stopPropagation();
-  if (event.key === 'Enter') runFind(event.shiftKey ? -1 : 1);
-  if (event.key === 'Escape') closeFind();
-});
 
-// --- Minimap ----------------------------------------------------------------
-
-const minimap = el('div', { class: 'wb-minimap', hidden: true, 'aria-label': 'Overview of the diagram' });
-const minimapImage = el('img', { alt: '' });
-const minimapView = el('div', { class: 'wb-minimap-view' });
-minimap.append(minimapImage, minimapView);
-sheet.appendChild(minimap);
-let minimapUrl: string | null = null;
-let minimapFor = '';
-
-function toggleMinimap(force?: boolean): void {
-  minimap.hidden = force === undefined ? !minimap.hidden : !force;
-  if (!minimap.hidden) refreshMinimap(true);
-}
-
-/** The drawn sheet and where the frame is on it. */
-function sheetGeometry(): { svg: SVGSVGElement; width: number; height: number; at: { scale: number; x: number; y: number }; frame: DOMRect } | null {
-  const svg = host.querySelector<SVGSVGElement>('.arcviz-stage svg');
-  const stage = host.querySelector<HTMLElement>('.arcviz-stage');
-  const position = state.viewer?.current?.()?.position as { scale: number; x: number; y: number } | undefined;
-  if (!svg || !stage || !position) return null;
-  const width = Number(svg.getAttribute('width')) || svg.viewBox.baseVal.width;
-  const height = Number(svg.getAttribute('height')) || svg.viewBox.baseVal.height;
-  if (!width || !height) return null;
-  return { svg, width, height, at: position, frame: stage.getBoundingClientRect() };
-}
-
-function refreshMinimap(redraw = false): void {
-  if (minimap.hidden) return;
-  const geometry = sheetGeometry();
-  if (!geometry) return;
-  const key = `${currentGraph()?.id}:${geometry.width}x${geometry.height}:${state.snapshot?.elements?.elements.length}`;
-  if (redraw || key !== minimapFor) {
-    minimapFor = key;
-    if (minimapUrl) URL.revokeObjectURL(minimapUrl);
-    minimapUrl = URL.createObjectURL(new Blob([new XMLSerializer().serializeToString(geometry.svg)], { type: 'image/svg+xml' }));
-    minimapImage.src = minimapUrl;
-  }
-  const box = minimap.getBoundingClientRect();
-  const k = Math.min(box.width / geometry.width, box.height / geometry.height);
-  const offsetX = (box.width - geometry.width * k) / 2;
-  const offsetY = (box.height - geometry.height * k) / 2;
-  const { scale, x, y } = geometry.at;
-  minimapView.style.left = `${offsetX + (-x / scale) * k}px`;
-  minimapView.style.top = `${offsetY + (-y / scale) * k}px`;
-  minimapView.style.width = `${(geometry.frame.width / scale) * k}px`;
-  minimapView.style.height = `${(geometry.frame.height / scale) * k}px`;
-}
-
-/** A click or a drag on the minimap puts that point of the sheet in the middle of the frame. */
-function minimapJump(event: PointerEvent): void {
-  const geometry = sheetGeometry();
-  if (!geometry) return;
-  const box = minimap.getBoundingClientRect();
-  const k = Math.min(box.width / geometry.width, box.height / geometry.height);
-  const offsetX = (box.width - geometry.width * k) / 2;
-  const offsetY = (box.height - geometry.height * k) / 2;
-  const sheetX = (event.clientX - box.left - offsetX) / k;
-  const sheetY = (event.clientY - box.top - offsetY) / k;
-  const { scale } = geometry.at;
-  state.viewer?.restore?.({ scale, x: geometry.frame.width / 2 - sheetX * scale, y: geometry.frame.height / 2 - sheetY * scale });
-  refreshMinimap();
-}
-minimap.addEventListener('pointerdown', (event) => {
-  event.preventDefault();
-  event.stopPropagation();
-  minimap.setPointerCapture(event.pointerId);
-  minimapJump(event);
-  const move = (e: PointerEvent) => minimapJump(e);
-  const up = () => {
-    minimap.removeEventListener('pointermove', move);
-    minimap.removeEventListener('pointerup', up);
-  };
-  minimap.addEventListener('pointermove', move);
-  minimap.addEventListener('pointerup', up);
-});
-setInterval(() => refreshMinimap(), 250);
+// ai-design hook: Ask AI on the selection (⌘I) and the Suggestions pane (webview/ask-ai.ts).
+installAi({ post: (m) => vscode.postMessage(m as never), sheet, host, selection: () => (multiSelection.elements.length > 1 ? multiSelection.elements : state.selected ? [state.selected] : []), drawingId, toast: (text, kind) => showToast(text, kind), openDrawer: () => setDrawer(true), snapshot: () => state.snapshot });
 
 /** Exports go to the host, which asks where to save them (a webview cannot download). */
 function onDownload(blob: Blob, filename: string): void {
@@ -717,7 +472,7 @@ function onOpen(id: string): void {
   selectElement(element, false);
   if (!state.layout.drawerOpen) setDrawer(true);
   showRightTab(0);
-  vscode.postMessage({ type: 'reveal', id: element.id });
+  vscode.postMessage({ type: 'activate', id: element.id }); // nav hook
 }
 
 function index(snapshot: Snapshot): void {
@@ -728,7 +483,9 @@ function index(snapshot: Snapshot): void {
 }
 
 function mount(snapshot: Snapshot): void {
-  const previous = state.viewer?.current?.() ?? state.lastPosition;
+  // A remount while the last one is still restoring the view: the view the reader had is the one it kept.
+  const previous = remounting && state.lastPosition ? state.lastPosition : (state.viewer?.current?.() ?? state.lastPosition);
+  state.lastPosition = previous;
   clear(tabs);
   clear(tools);
   clear(hiddenTree);
@@ -750,7 +507,11 @@ function mount(snapshot: Snapshot): void {
     exporter: window.ArcVizExport,
     stage: window.ArcVizStage,
     place: window.ArcVizPlace,
+    edit: window.ArcVizEdit,
+    theme: window.ArcVizTheme,
   };
+  // A host that keeps the arrangement next to the model (VS Code) is its memory.
+  if (snapshot.diagrams.layout_name) forgetStoredArrangement();
   progress.hidden = false;
   remounting = true;
   const generation = ++mountGeneration;
@@ -772,7 +533,21 @@ function mount(snapshot: Snapshot): void {
     onFullscreen: () => setFocusMode(!document.body.classList.contains('wb-focus')),
     // Boxes go where they are dragged (into another box when let go on it), kept next to the model.
     arrange: true,
-    onLayout: (file: unknown) => vscode.postMessage({ type: 'layout', file }),
+    onLayout: (file: unknown) => vscode.postMessage({ type: 'layout', file, join: joining > 0 }),
+    // Editing from the drawing: double-click renames, ends reconnect, bands select, arrows connect.
+    edit: editing.viewerOptions(),
+    ...arrangeOptions((id, isEdge) => elementFor({ view: '', id, name: '', kind: '', isEdge: Boolean(isEdge) })), // zorder hook: the layer of what is drawn
+    // Undo and redo from the host's history, align on the multi-selection; boxes are always placed by dragging.
+    toolbar: {
+      history: { undo: () => vscode.postMessage({ type: 'history', op: 'undo' }), redo: () => vscode.postMessage({ type: 'history', op: 'redo' }), labels: () => historyLabels },
+      align: { count: () => multiSelection.elements.length, align: (how: string) => editing.align(how as Alignment), distribute: (axis: 'horizontal' | 'vertical') => editing.distribute(axis) },
+      arrangeToggle: false,
+      ...arrangeToolbar(), // zorder hook: Arrange in Layout ▾, the Layers button
+    },
+    // Copy as image, as SVG, PowerPoint in Export; the theme chooser and editor in Theme.
+    exportItems: () => withLayersNote(exportsUi.exportItems()), // zorder hook: hidden layers are not exported
+    themeItems: () => exportsUi.themeItems(),
+    theme: exportsUi.mountTheme(),
   };
   let viewer: ReturnType<typeof window.ArcViz.mount>;
   try {
@@ -788,7 +563,6 @@ function mount(snapshot: Snapshot): void {
   void viewer.ready.then(() => {
     // A later snapshot remounted the viewer meanwhile: that mount restores the view.
     if (generation !== mountGeneration) return;
-    tagContexts();
     markFindings();
     if (previous?.view && viewer.show) {
       const known = viewer.views?.().some((v) => v.id === previous.view);
@@ -797,6 +571,7 @@ function mount(snapshot: Snapshot): void {
     if (previous?.position && viewer.restore) viewer.restore(previous.position);
     if (state.selected) selectInViewer(state.selected.id);
     remounting = false;
+    editing.mounted();
     shownGraph = null;
     followView();
     fitStage();
@@ -811,68 +586,30 @@ function mount(snapshot: Snapshot): void {
 }
 
 /**
- * Every drawn element carries its context for VS Code's native context menu
- * (`webview/context` in the manifest): right-click gives Rename, Delete,
- * Show in source... with the element's id as the command argument.
+ * The arrangement is the host's (the layout file, and the history that
+ * restores it): the viewer's own memory of it in the page's storage would
+ * put back a state the history undid.
  */
+function forgetStoredArrangement(): void {
+  try {
+    const keys = Array.from({ length: localStorage.length }, (_, i) => localStorage.key(i)).filter((key): key is string => !!key && key.startsWith('arcviz:'));
+    for (const key of keys) localStorage.removeItem(key);
+  } catch {
+    // No storage in this page: nothing remembered.
+  }
+}
+
 /** Nodes with findings are marked on the drawing, with the findings as their tooltip. */
 function markFindings(): void {
-  const findings = state.snapshot?.findings ?? [];
-  if (findings.length === 0) return;
-  const byElement = new Map<string, string[]>();
-  for (const finding of findings) {
-    if (!finding.element) continue;
-    const element = state.byId.get(finding.element) ?? state.byName.get(finding.element);
-    const key = element ? drawingId(element.id) : finding.element;
-    byElement.set(key, [...(byElement.get(key) ?? []), `${finding.severity}: ${finding.rule}: ${finding.message}`]);
-  }
-  for (const [id, lines] of byElement) {
-    const node = host.querySelector<SVGGElement>(`[data-id="${CSS.escape(id)}"]`);
-    if (!node || node.classList.contains('wb-has-finding')) continue;
-    node.classList.add('wb-has-finding');
-    if (lines.some((l) => l.startsWith('error'))) node.classList.add('is-error');
-    const title = document.createElementNS('http://www.w3.org/2000/svg', 'title');
-    title.textContent = lines.join('\n');
-    node.prepend(title);
-  }
+  markFindings_(host, state.snapshot?.findings ?? [], (id) => {
+    const element = state.byId.get(id) ?? state.byName.get(id);
+    return element ? drawingId(element.id) : id;
+  });
 }
 
-function tagContexts(): void {
-  for (const node of host.querySelectorAll<HTMLElement>('[data-id]')) {
-    if (node.dataset.vscodeContext) continue;
-    const element = elementFor({ view: '', id: node.dataset.id ?? '', name: '', kind: '', isEdge: false });
-    if (!element) continue;
-    node.dataset.vscodeContext = JSON.stringify({ webviewSection: 'element', elementId: element.id, elementName: element.name, elementKind: element.kind, preventDefaultContextMenuItems: true });
-  }
-}
-host.addEventListener('contextmenu', (event) => {
-  // The right-clicked element becomes the selection, so menu commands and the views agree.
-  const target = (event.target as HTMLElement).closest<HTMLElement>('[data-id]');
-  const element = target ? elementFor({ view: '', id: target.dataset.id ?? '', name: '', kind: '', isEdge: false }) : null;
-  if (element) selectElement(element, false);
-  tagContexts();
-});
 
-/** The layers of the model, one big button each, the one on screen pressed; several diagrams of a layer unfold in a list. */
 function renderLayers(): void {
-  clear(layerBar);
-  const graphs = state.snapshot?.diagrams?.graphs ?? [];
-  if (graphs.length === 0) return;
-  const current = state.viewer?.current?.()?.view ?? null;
-  for (const viewpoint of VIEWPOINTS) {
-    const own = graphs.filter((g) => g.arc.view === viewpoint.view);
-    if (own.length === 0) continue;
-    const active = own.some((g) => g.id === current);
-    const item = button('', () => showGraph(own[0].id), { class: `wb-layer${active ? ' is-active' : ''}`, 'aria-pressed': String(active), title: `${viewpoint.label}${own.length > 1 ? ` (${own.length} diagrams)` : ''}` });
-    item.append(el('span', { class: 'wb-layer-name', text: viewpoint.short }));
-    if (own.length > 1) item.appendChild(el('span', { class: 'wb-layer-count', text: String(own.length) }));
-    layerBar.appendChild(item);
-  }
-  const extra = graphs.filter((g) => !VIEWPOINTS.some((v) => v.view === g.arc.view));
-  if (extra.length > 0) {
-    const active = extra.some((g) => g.id === current);
-    layerBar.appendChild(button(`Other (${extra.length})`, () => showGraph(extra[0].id), { class: `wb-layer${active ? ' is-active' : ''}`, 'aria-pressed': String(active) }));
-  }
+  renderLayers_(layerBar, state.snapshot?.diagrams?.graphs ?? [], state.viewer?.current?.()?.view ?? null, showGraph, () => vscode.postMessage({ type: 'command', command: 'arclang.pickDiagram' })); // nav hook: Diagrams…
 }
 
 function showGraph(id: string): void {
@@ -913,13 +650,13 @@ function followView(): void {
   if (state.selected && graph && !drawn(graph, state.selected)) selectElement(null, false);
   fitStage();
   setTimeout(() => {
-    tagContexts();
     markFindings();
   }, 200);
 }
 
 /** Whether an element has a node, a port or a lifeline on the graph. */
 function drawn(graph: NonNullable<ReturnType<typeof currentGraph>>, element: ElementRecord): boolean {
+  if (!state.byUuid.has(element.uuid)) return (graph.edges ?? []).some((e) => e.id === state.selectedDrawing);
   const wanted = new Set([element.id, drawingId(element.id)]);
   const container = graphContainerOf(graph.id, graph.arc.view);
   if (container) wanted.add(`${container}.${element.id}`);
@@ -937,72 +674,34 @@ setInterval(followView, 1000);
 
 // --- Status line --------------------------------------------------------------
 
-let problemsOpen = false;
-
-/** One line of status; the list of findings unfolds on demand (errors unfold by themselves). */
-function showProblems(snapshot: Snapshot): void {
-  clear(bottom);
-  const errors = snapshot.errors.length;
-  const findings = snapshot.findings;
-  const gate = snapshot.gate;
-  const bySeverity = new Map<string, number>();
-  for (const finding of findings) bySeverity.set(finding.severity, (bySeverity.get(finding.severity) ?? 0) + 1);
-  const counts = [...bySeverity.entries()].map(([severity, n]) => `${n} ${severity}${n > 1 ? 's' : ''}`).join(', ');
-  const open = problemsOpen || errors > 0;
-  const toggle = button(open ? '▾' : '▸', () => {
-    problemsOpen = !problemsOpen;
-    showProblems(snapshot);
-  }, { class: 'wb-toggle', title: open ? 'Hide the findings' : 'Show the findings' });
-  const summary = el('div', { class: 'wb-problems-head' }, [
-    toggle,
-    el('strong', { class: errors ? 'is-error' : '', text: errors ? `${errors} error${errors > 1 ? 's' : ''}: the model does not compile` : findings.length ? counts : 'no findings' }),
-    gate ? el('span', { class: `wb-gate ${gate.passed ? 'is-pass' : 'is-fail'}`, text: gate.passed ? 'gate PASS' : `gate FAIL (${gate.requirements_verified}/${gate.requirements_total} requirements verified)` }) : null,
-    el('span', { class: 'wb-spacer' }),
-    button('Check', () => vscode.postMessage({ type: 'command', command: 'arclang.check' })),
-    button('Gate', () => vscode.postMessage({ type: 'command', command: 'arclang.runGate' })),
-    button('Transition plan', () => vscode.postMessage({ type: 'command', command: 'arclang.transitionPlan' })),
-    button('Source', () => vscode.postMessage({ type: 'open-text' })),
-  ]);
-  bottom.appendChild(summary);
-  bottom.classList.toggle('is-open', open);
-  fitStage();
-  if (!open) return;
-  const list = el('ul', { class: 'wb-problems' });
-  for (const error of snapshot.errors) list.appendChild(el('li', { class: 'is-error', text: error }));
-  for (const finding of findings.slice(0, 200)) list.appendChild(problemItem(finding));
-  if (findings.length > 200) list.appendChild(el('li', { class: 'wb-muted', text: `… ${findings.length - 200} more in the Problems view` }));
-  bottom.appendChild(list);
-}
-
-function problemItem(finding: Finding): HTMLElement {
-  const item = el('li', { class: `is-${finding.severity}` }, [el('code', { text: finding.rule }), ' ', finding.message]);
-  if (finding.element) {
-    const id = finding.element;
-    item.appendChild(button(id, () => {
-      const element = state.byId.get(id) ?? state.byName.get(id) ?? null;
-      if (element) selectElement(element, true);
-      vscode.postMessage({ type: 'reveal', id });
-    }, { class: 'wb-link' }));
-  }
-  return item;
-}
+const showProblems = createStatusLine(bottom, {
+  post: (message) => vscode.postMessage(message),
+  select: (id) => {
+    const element = state.byId.get(id) ?? state.byName.get(id) ?? null;
+    if (element) selectElement(element, true);
+  },
+  resized: fitStage,
+});
 
 // --- Messages from the host -------------------------------------------------
 
 window.addEventListener('message', (event: MessageEvent<ToWebview>) => {
   const message = event.data;
+  if (exportsUi.handle(message) || themeEditor.handle(message)) return;
   switch (message.type) {
     case 'snapshot': {
       const before = state.snapshot;
       state.snapshot = message.snapshot;
       state.metamodel = message.metamodel;
       index(message.snapshot);
+      editing.snapshotArrived();
       if (message.snapshot.success) mount(message.snapshot);
       else if (!state.viewer) mount(message.snapshot);
       // A model that stopped compiling keeps its last drawing, marked as such.
       sheet.classList.toggle('is-stale', !message.snapshot.success);
       showProblems(message.snapshot);
-      const stillThere = state.selected ? (state.byUuid.get(state.selected.uuid) ?? null) : null;
+      const relationship = (message.snapshot.elements?.relationships ?? []).find((r) => r.uuid === state.selected?.uuid);
+      const stillThere = state.selected ? (state.byUuid.get(state.selected.uuid) ?? (relationship ? relationshipElement(relationship) : null)) : null;
       selectElement(stillThere, false);
       if (message.selected && !stillThere) {
         const wanted = state.byId.get(message.selected) ?? null;
@@ -1027,12 +726,12 @@ window.addEventListener('message', (event: MessageEvent<ToWebview>) => {
       stepLayer(message.step);
       return;
     case 'diagram-op': {
-      const element = state.byId.get(message.id) ?? null;
+      const element = state.byId.get(message.id) ?? (message.drawing ? elementFor({ view: '', id: message.drawing, name: '', kind: '', isEdge: message.drawing.includes(':') }) : null);
       if (!element) return;
       if (message.op === 'hide') hideFromDiagram(element);
       if (message.op === 'related') showRelated(element);
       if (message.op === 'new') newDiagramAround(element);
-      if (message.op === 'rename') renameInPlace(element);
+      if (message.op === 'rename') editing.rename(element, message.drawing ?? drawingId(element.id));
       return;
     }
     case 'show': {
@@ -1048,115 +747,61 @@ window.addEventListener('message', (event: MessageEvent<ToWebview>) => {
       return;
     }
     case 'edit-result':
-      if (message.ok) showToast(`Applied: ${message.label}. Undo with ⌘Z in the editor.`, 'info');
+      editing.editResult(message.label, message.ok);
+      if (message.ok) showToast(`Applied: ${message.label}. ⌘Z undoes it.`, 'info');
       else showToast(`Refused: ${message.error ?? ''}`, 'error', [['Show source', () => vscode.postMessage({ type: 'open-text' })]]);
       return;
     case 'busy':
       progress.hidden = !message.busy;
+      return;
+    case 'key':
+      canvasCommand(message.command, message.text);
+      return;
+    case 'history':
+      historyLabels = { undo: message.undo, redo: message.redo };
+      state.viewer?.refreshTools?.();
+      if (message.done) showToast(`${message.done[0].toUpperCase()}${message.done.slice(1)}.`, 'info');
       return;
     default:
       return;
   }
 });
 
-/** Elements added or changed by the last edit pulse once, so the eye finds them. */
+/** Elements added or changed by the last edit pulse once; one created is selected and centred, as Capella does. */
 function flashChanges(before: Snapshot, after: Snapshot): void {
-  // One element created: selected and brought to the middle, as Capella does.
-  const known = new Set((before.elements?.elements ?? []).map((e) => e.uuid));
-  const created = (after.elements?.elements ?? []).filter((e) => !known.has(e.uuid) && !/Port$/.test(e.kind));
-  if (created.length === 1) {
-    const element = created[0];
-    void state.viewer?.ready.then(() =>
+  const { created, changed } = changesOf(before, after);
+  void state.viewer?.ready.then(() => {
+    if (created) {
       setTimeout(() => {
         const view = state.viewer?.current?.()?.view;
         if (!view) return;
         programmaticUntil = Date.now() + 2000;
-        void state.viewer?.goTo?.(view, drawingId(element.id));
-        selectElement(element, false);
-      }, 200),
-    );
-  }
-  const old = new Map((before.elements?.elements ?? []).map((e) => [e.uuid, JSON.stringify(e.attributes) + e.name + e.owner]));
-  const changed = (after.elements?.elements ?? []).filter((e) => old.get(e.uuid) !== JSON.stringify(e.attributes) + e.name + e.owner);
-  if (changed.length === 0 || changed.length > 50) return;
-  void state.viewer?.ready.then(() => {
-    setTimeout(() => {
-      for (const element of changed) {
-        const node = host.querySelector<HTMLElement>(`[data-id="${CSS.escape(drawingId(element.id))}"]`);
-        if (!node) continue;
-        node.classList.add('wb-flash');
-        setTimeout(() => node.classList.remove('wb-flash'), 900);
-      }
-    }, 300);
+        void state.viewer?.goTo?.(view, drawingId(created.id));
+        selectElement(created, false);
+      }, 200);
+    }
+    if (changed.length) setTimeout(() => pulse(host, changed.map((e) => drawingId(e.id))), 300);
   });
 }
 
-document.addEventListener('keydown', (event) => {
-  const editing = event.target instanceof HTMLInputElement || event.target instanceof HTMLSelectElement || event.target instanceof HTMLTextAreaElement;
-  if (event.key === 'Escape') {
-    // Esc first cancels what is under way (a tool, a selection); then it leaves full screen.
-    const busy = palette.isArmed() || !!state.selected || multi.length > 0;
-    if (!busy && document.body.classList.contains('wb-focus')) setFocusMode(false);
-    palette.disarm();
-    toast.hidden = true;
-    return;
-  }
-  if (editing) return;
-  if (event.shiftKey && !event.metaKey && !event.ctrlKey && event.key === 'M') {
-    event.preventDefault();
-    toggleMinimap();
-    return;
-  }
-  if (!event.metaKey && !event.ctrlKey && !event.altKey && (event.key === '[' || event.key === ']')) {
-    event.preventDefault();
-    stepLayer(event.key === ']' ? 1 : -1);
-    return;
-  }
-  if (!event.metaKey && !event.ctrlKey && !event.altKey && event.key.length === 1 && palette.shortcut(event.key)) {
-    event.preventDefault();
-    return;
-  }
-  if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'f') {
-    event.preventDefault();
-    openFind();
-    return;
-  }
-  if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'h' && multi.length > 1) {
-    event.preventDefault();
-    hideMany(multi);
-    return;
-  }
-  if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'h' && state.selected) {
-    event.preventDefault();
-    hideFromDiagram(state.selected);
-    return;
-  }
-  if ((event.key === 'Delete' || event.key === 'Backspace') && multi.length > 1) {
-    event.preventDefault();
-    deleteMany(multi);
-    return;
-  }
+// --- Keyboard (keys.ts) ---------------------------------------------------------
 
-  if (event.key === 'F2' && state.selected) {
-    event.preventDefault();
-    renameInPlace(state.selected);
-    return;
-  }
-  if ((event.key === 'Delete' || event.key === 'Backspace') && state.selected) {
-    event.preventDefault();
-    const element = state.selected;
-    const owned = (state.snapshot?.elements?.elements ?? []).filter((e) => e.owner === element.uuid).length;
-    if (owned > 0) {
-      showToast(`${element.name || element.id} owns ${owned} element${owned > 1 ? 's' : ''}.`, 'info', [
-        [`Delete with ${owned === 1 ? 'it' : `all ${owned}`}`, () => {
-          toast.hidden = true;
-          submit([{ op: 'remove', element: element.id }], `delete ${element.id} and what it owns`);
-        }],
-      ], 10000);
-      return;
-    }
-    submit([{ op: 'remove', element: element.id }], `delete ${element.id}`);
-  }
+const keys = installKeys({
+  post: (message) => vscode.postMessage(message as never), editing, palette, tools, toast,
+  multi: () => multiSelection.elements, selected: () => state.selected, viewer: () => state.viewer, snapshot: () => state.snapshot,
+  deleteMany, hideMany, hideFromDiagram, setFocusMode, toggleMinimap: () => toggleMinimap(), stepLayer, openFind, showToast, submit, copyImage: () => void exportsUi.copyImage(),
 });
+const canvasCommand = keys.canvasCommand;
+const deleteOne = keys.deleteOne;
+
+// panes hook: tree drops, a diagram's own tab, "Open in a new tab" on the layers (webview/panes.ts).
+installNavMenu({ toolRow: document.querySelector<HTMLElement>('.wb-toolrow'), sheet, post: (message) => vscode.postMessage(message) }); // nav hook
+installPanes({ sheet, layerBar, viewer: () => state.viewer, graph: () => currentGraph(), snapshot: () => state.snapshot, idOf: (id) => elementFor({ view: '', id, name: '', kind: '', isEdge: false })?.id ?? null, select: (element) => selectElement(element, false), submit, toast: (text, kind) => showToast(text, kind), post: (message) => vscode.postMessage(message as never), showGraph });
+
+installImpact({ post: (m) => vscode.postMessage(m as never), host, layerBar, drawingId, selection: () => (multiSelection.elements.length > 1 ? multiSelection.elements : state.selected ? [state.selected] : []) }); // impact hook
+// zorder hook: Arrange (stacking, groups, locks, layers) on the canvas (webview/arrange.ts).
+installArrange({ host, sheet, viewer: () => state.viewer, graph: () => currentGraph(), snapshot: () => state.snapshot, selected: () => state.selected, selectedDrawing: () => state.selectedDrawing, multi: () => multiSelection.elements, setMulti: (elements) => { multiSelection.elements = elements; if (elements.length) selectElement(elements[elements.length - 1], false); markMulti(); }, select: selectElement, elementFor: (id, isEdge = false) => elementFor({ view: '', id, name: '', kind: '', isEdge }), drawingId, submit, toast: (text, kind) => showToast(text, kind) });
 
 vscode.postMessage({ type: 'ready' });
+// Save, Save as, Import at the head of the tool row; a model file dropped on the sheet.
+installFileMenu({ slot: shell.fileSlot, sheet, post: (message) => vscode.postMessage(message), toast: (text, kind) => showToast(text, kind) });

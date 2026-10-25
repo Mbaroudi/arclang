@@ -109,6 +109,7 @@ SysML says most Arcadia kinds by itself; metadata names the rest.
 | trace | `satisfy`, `allocate`, `dependency` named after the trace kind (`realizes`, `refines`, `implements`, `verifies`, `validates`, or any `trace_type`) | `#Trace` on a dependency whose name is also a reference key (`realizes`, `includes`...): without it the import reads the dependency as the source's attribute (`realizes: ...`) |
 | deployment | `allocate` of a logical component to a node | |
 | diagram | `metadata` on the level package: `@Diagram { view; shows }` (not yet) | |
+| table (`table` declaration) | `view <'id'> 'Name' { attribute table : String = "requirements_coverage"; attribute scope : String = "SA"; attribute columns : String = "id, text"; ... render Views::asElementTable; }`: a view rendered as an element table (the standard `Views::asElementTable` rendering), its kind and parameters as attributes, lists comma separated. What the table shows is not written: it is computed from the model, after the import as before. A view without `attribute table` is a diagram, not a table. | |
 
 ## What the import does with a SysML model
 

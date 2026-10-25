@@ -3,6 +3,7 @@ use super::lexer::{Span, Token};
 use std::collections::HashMap;
 
 mod declarations;
+mod tables; // tables hook
 
 /// Result of a parse, including non-fatal warnings (e.g. constructs that are
 /// syntactically accepted but not yet represented in the model).
@@ -136,6 +137,9 @@ impl Parser {
                 }
                 Token::DiagramKw if !self.peek_is_colon() => {
                     model.diagrams.push(self.parse_diagram()?);
+                }
+                Token::Identifier(ref id) if id == "table" && !self.peek_is_colon() => {
+                    model.tables.push(self.parse_table()?); // tables hook
                 }
                 Token::Class => {
                     model.classes.push(self.parse_class()?);
@@ -285,6 +289,9 @@ impl Parser {
                 Token::DiagramKw if !self.peek_is_colon() => {
                     model.diagrams.push(self.parse_diagram()?);
                 }
+                Token::Identifier(ref id) if id == "table" && !self.peek_is_colon() => {
+                    model.tables.push(self.parse_table()?); // tables hook
+                }
                 Token::Class => {
                     model.classes.push(self.parse_class()?);
                 }
@@ -391,6 +398,9 @@ impl Parser {
                 }
                 Token::DiagramKw if !self.peek_is_colon() => {
                     model.diagrams.push(self.parse_diagram()?);
+                }
+                Token::Identifier(ref id) if id == "table" && !self.peek_is_colon() => {
+                    model.tables.push(self.parse_table()?); // tables hook
                 }
                 Token::Class => {
                     model.classes.push(self.parse_class()?);
@@ -567,6 +577,9 @@ impl Parser {
                 }
                 Token::DiagramKw if !self.peek_is_colon() => {
                     model.diagrams.push(self.parse_diagram()?);
+                }
+                Token::Identifier(ref id) if id == "table" && !self.peek_is_colon() => {
+                    model.tables.push(self.parse_table()?); // tables hook
                 }
                 Token::Class => {
                     model.classes.push(self.parse_class()?);
@@ -1839,6 +1852,7 @@ impl Parser {
                 return Err(self.err(format!("test_case '{}': its verdict comes from the constraints it asserts, it is not given", name)));
             }
         }
+        super::simulation::validate(&attributes).map_err(|e| self.err(format!("test_case '{}': {e}", name)))?;
         Ok(TestCase { id, name, verifies, method, attributes })
     }
 
@@ -2030,7 +2044,8 @@ impl Parser {
             }
         };
 
-        let name = format!("{} Requirements", subtype);
+        // `requirements { }` is "Requirements", `requirements safety { }` "Safety Requirements".
+        let name = if subtype == "Requirements" { subtype.clone() } else { format!("{} Requirements", subtype) };
         self.expect(Token::LeftBrace)?;
         
         let mut requirements = Vec::new();

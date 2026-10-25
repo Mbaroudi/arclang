@@ -17,6 +17,8 @@ compiler when the site is built.
 
 ## In this directory
 
+- [modelica.md](modelica.md): the Modelica export and requirements verified
+  by simulation in OpenModelica (`arclang export -f modelica`, `arclang verify`).
 - [MIGRATION_4.0.md](MIGRATION_4.0.md): moving a model from 3.x to 4.0.
 - [VERSIONING.md](VERSIONING.md): what a major, minor and patch release may change.
 - [qualification/](qualification/): tool-qualification support kit.

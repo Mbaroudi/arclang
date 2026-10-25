@@ -4,9 +4,9 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import * as vscode from 'vscode';
-import { failureText, output, report, run } from './cli';
+import { failureText, output, refusedHere, report, run } from './cli';
 import { shownDiagramFile } from './diagrams';
-import { EXPORT_FORMATS, IMPORT_FORMATS, importFormatFor, parseCheckReport, renderTransitionPlan, summarizeCheck, TransitionPlan } from './pure/arc';
+import { EXPORT_FORMATS, parseCheckReport, renderTransitionPlan, summarizeCheck, TransitionPlan } from './pure/arc';
 
 /** The .arc file to act on: the active editor's, else the one the diagrams show. */
 export async function activeArcFile(): Promise<string | null> {
@@ -50,6 +50,7 @@ export async function check(uri?: vscode.Uri): Promise<void> {
 }
 
 export async function runGate(uri?: vscode.Uri): Promise<void> {
+  if (refusedHere(['gate'])) return; // web hook
   const file = await fileFrom(uri);
   if (!file) return;
   const standard = vscode.workspace.getConfiguration('arclang').get<string>('gate.standard', 'iso26262');
@@ -137,6 +138,7 @@ export async function transitionApply(uri?: vscode.Uri, presetStep?: string): Pr
 }
 
 export async function impact(uri?: vscode.Uri, element?: string): Promise<void> {
+  if (refusedHere(['impact'])) return; // web hook
   const file = await fileFrom(uri);
   if (!file) return;
   let target = element;
@@ -161,6 +163,7 @@ function git(args: string[], cwd: string): Promise<{ code: number; stdout: strin
 
 /** `arclang diff` between the committed version (git HEAD) and the file on disk. */
 export async function diffWithHead(uri?: vscode.Uri): Promise<void> {
+  if (refusedHere(['diff'])) return; // web hook
   const file = await fileFrom(uri);
   if (!file) return;
   const dir = path.dirname(file);
@@ -196,6 +199,7 @@ export async function exportModel(uri?: vscode.Uri): Promise<void> {
     { placeHolder: 'Export format' },
   );
   if (!picked) return;
+  if (refusedHere(['export', '-f', picked.format.format])) return; // web hook
   const base = path.basename(file, path.extname(file));
   const target = await vscode.window.showSaveDialog({
     defaultUri: vscode.Uri.file(path.join(path.dirname(file), `${base}.${picked.format.extension}`)),
@@ -212,32 +216,6 @@ export async function exportModel(uri?: vscode.Uri): Promise<void> {
   if (choice === 'Open' && fs.existsSync(target.fsPath) && fs.statSync(target.fsPath).isFile()) {
     await vscode.commands.executeCommand('vscode.open', target);
   }
-}
-
-export async function importModel(): Promise<void> {
-  const sources = await vscode.window.showOpenDialog({ canSelectMany: false, openLabel: 'Import', title: 'Model to import (SysML v2 .sysml or API .json, Capella, ReqIF, ...)' });
-  const source = sources?.[0];
-  if (!source) return;
-  let format = importFormatFor(source.fsPath);
-  if (!format) {
-    const picked = await vscode.window.showQuickPick(
-      IMPORT_FORMATS.map((f) => ({ label: f, description: f === 'sysml' ? 'SysML v2 text or API records' : undefined })),
-      { placeHolder: `Format of ${path.basename(source.fsPath)}` },
-    );
-    if (!picked) return;
-    format = picked.label;
-  }
-  const base = path.basename(source.fsPath, path.extname(source.fsPath));
-  const target = await vscode.window.showSaveDialog({ defaultUri: vscode.Uri.file(path.join(path.dirname(source.fsPath), `${base}.arc`)), saveLabel: 'Write the ArcLang model' });
-  if (!target) return;
-  const result = await run(['import', source.fsPath, '-f', format, '-o', target.fsPath], { cwd: path.dirname(source.fsPath) });
-  // The compiler says what it counted and what it left out: worth showing even on success.
-  report(`arclang import ${path.basename(source.fsPath)} -f ${format} -o ${target.fsPath}`, result);
-  if (result.code !== 0) {
-    vscode.window.showErrorMessage(`ArcLang: import failed. ${failureText(result).split('\n')[0]}`);
-    return;
-  }
-  if (fs.existsSync(target.fsPath)) await vscode.window.showTextDocument(target, { preview: false });
 }
 
 async function showMarkdown(title: string, args: string[]): Promise<void> {

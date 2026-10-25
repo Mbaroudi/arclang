@@ -1,0 +1,54 @@
+<?xml version = "1.0" encoding="UTF-8"?>
+<!-- Excerpt of the arclang_sim_init.xml OpenModelica 1.27.1 wrote for EVPhysics.CityRange -->
+<fmiModelDescription>
+<ModelVariables>
+  <ScalarVariable
+    name = "vehicleBody.car.v"
+    valueReference = "1002"
+    description = "Absolute velocity of component"
+    variability = "continuous" isDiscrete = "false"
+    causality = "local" isValueChangeable = "true"
+    alias = "noAlias"
+    classIndex = "2" classType = "rSta"
+    isProtected = "false" hideResult = "" isEncrypted = "false" initNonlinear = "false"
+    fileName = "/root/.openmodelica/libraries/Modelica 4.1.0+maint.om/Mechanics/Translational/Components/Mass.mo" startLine = "8" startColumn = "3" endLine = "9" endColumn = "37" fileWritable = "true">
+    <Real start="0.0" fixed="true" useNominal="false" unit="m/s" />
+  </ScalarVariable>
+  <ScalarVariable
+    name = "batteryPack.soc"
+    valueReference = "1019"
+    description = "State of charge"
+    variability = "continuous" isDiscrete = "false"
+    causality = "local" isValueChangeable = "false"
+    alias = "noAlias"
+    classIndex = "11" classType = "rAlg"
+    isProtected = "false" hideResult = "" isEncrypted = "false" initNonlinear = "false"
+    fileName = "/work/EVPhysics.mo" startLine = "14" startColumn = "5" endLine = "14" endColumn = "41" fileWritable = "true">
+    <Real start="1.0" fixed="false" useNominal="false" unit="1" />
+  </ScalarVariable>
+  <ScalarVariable
+    name = "driveUnit.electrical"
+    valueReference = "1020"
+    description = "Power drawn from the bus"
+    variability = "continuous" isDiscrete = "false"
+    causality = "local" isValueChangeable = "false"
+    alias = "noAlias"
+    classIndex = "12" classType = "rAlg"
+    isProtected = "false" hideResult = "" isEncrypted = "false" initNonlinear = "false"
+    fileName = "/work/EVPhysics.mo" startLine = "31" startColumn = "5" endLine = "31" endColumn = "66" fileWritable = "true">
+    <Real fixed="false" useNominal="false" unit="W" />
+  </ScalarVariable>
+  <ScalarVariable
+    name = "vehicleBody.distance"
+    valueReference = "1140"
+    description = "Distance driven"
+    variability = "continuous" isDiscrete = "false"
+    causality = "local" isValueChangeable = "false"
+    alias = "alias" aliasVariable="vehicleBody.car.s" aliasVariableId="1"
+    classIndex = "36" classType = "rAli"
+    isProtected = "false" hideResult = "" isEncrypted = "false" initNonlinear = "false"
+    fileName = "/work/EVPhysics.mo" startLine = "51" startColumn = "5" endLine = "51" endColumn = "64" fileWritable = "true">
+    <Real fixed="false" useNominal="false" unit="m" />
+  </ScalarVariable>
+</ModelVariables>
+</fmiModelDescription>

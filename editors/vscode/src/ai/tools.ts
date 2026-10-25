@@ -4,6 +4,7 @@ import * as path from 'node:path';
 import * as vscode from 'vscode';
 import { failureText, run, RunResult, withTempFile } from '../cli';
 import { clip, exitLine, parseCheckReport, renderTransitionPlan, summarizeCheck, TransitionPlan } from '../pure/arc';
+import { confirmEdits, mdText } from '../pure/confirm';
 import { EditRequest, layerOfKind, Metamodel, neighbours, Snapshot } from '../pure/workbench';
 import { applyRequests } from '../workbench/edits';
 import { metamodelJson, snapshotOf } from '../workbench/snapshot';
@@ -14,25 +15,41 @@ function answer(lines: Array<string | undefined>): vscode.LanguageModelToolResul
   return new vscode.LanguageModelToolResult([new vscode.LanguageModelTextPart(lines.filter((l): l is string => !!l).join('\n'))]);
 }
 
-/** A path the tools may touch: inside a workspace folder, or open in the editor. */
+const realPath = (p: string): string | null => {
+  try {
+    return fs.realpathSync.native(p);
+  } catch {
+    return null;
+  }
+};
+
+/**
+ * A path the tools may touch: inside a workspace folder, or open in the
+ * editor. The answer is the real path (symbolic links resolved), the one
+ * that was checked: what is read or written is what was allowed.
+ */
 export function allowedPath(candidate: string | undefined): string | null {
   if (!candidate || typeof candidate !== 'string') return null;
-  const resolved = path.resolve(candidate);
-  const real = (p: string) => {
-    try {
-      return fs.realpathSync.native(p);
-    } catch {
-      return null;
-    }
-  };
-  const target = real(resolved);
+  const target = realPath(path.resolve(candidate));
   if (!target) return null;
   // Symbolic links are followed before the comparison: a link inside the
   // workspace to a file outside it does not pass.
-  const folders = (vscode.workspace.workspaceFolders ?? []).map((f) => real(f.uri.fsPath)).filter((f): f is string => f !== null);
+  const folders = (vscode.workspace.workspaceFolders ?? []).map((f) => realPath(f.uri.fsPath)).filter((f): f is string => f !== null);
   const inWorkspace = folders.some((f) => target === f || target.startsWith(f + path.sep));
-  const open = vscode.workspace.textDocuments.some((d) => d.uri.scheme === 'file' && real(d.uri.fsPath) === target);
-  return inWorkspace || open ? resolved : null;
+  const open = vscode.workspace.textDocuments.some((d) => d.uri.scheme === 'file' && realPath(d.uri.fsPath) === target);
+  return inWorkspace || open ? target : null;
+}
+
+/** The path a confirmation shows: relative to the workspace, whole, or why it is refused. */
+function shownPath(candidate: string | undefined): string {
+  const file = allowedPath(candidate);
+  if (!file) return `${candidate ?? '(no path)'} (outside the workspace: it will be refused)`;
+  return vscode.workspace.asRelativePath(file, (vscode.workspace.workspaceFolders ?? []).length > 1);
+}
+
+/** The open document of a file, whatever path (link or real) it was opened by. */
+function openDocument(file: string): vscode.TextDocument | undefined {
+  return vscode.workspace.textDocuments.find((d) => d.uri.scheme === 'file' && (d.uri.fsPath === file || realPath(d.uri.fsPath) === file));
 }
 
 function refused(candidate: string | undefined): vscode.LanguageModelToolResult {
@@ -41,7 +58,7 @@ function refused(candidate: string | undefined): vscode.LanguageModelToolResult 
 
 /** Runs the compiler on the model, on the editor's buffer when the file is open with unsaved changes. */
 async function runOnModel(file: string, args: (model: string) => string[], token: vscode.CancellationToken): Promise<RunResult> {
-  const open = vscode.workspace.textDocuments.find((d) => d.uri.scheme === 'file' && d.uri.fsPath === file);
+  const open = openDocument(file);
   if (open && open.isDirty) {
     return withTempFile(open.getText(), path.basename(file), (tmp) => run(args(tmp), { cwd: path.dirname(file), token }));
   }
@@ -56,7 +73,7 @@ function checkAnswer(label: string, result: RunResult): vscode.LanguageModelTool
 
 /** Replaces the whole text of the document at `file` with `text`, as an undoable edit. */
 async function replaceDocument(file: string, text: string): Promise<void> {
-  const document = await vscode.workspace.openTextDocument(vscode.Uri.file(file));
+  const document = openDocument(file) ?? (await vscode.workspace.openTextDocument(vscode.Uri.file(file)));
   const edit = new vscode.WorkspaceEdit();
   edit.replace(document.uri, new vscode.Range(document.positionAt(0), document.positionAt(document.getText().length)), text);
   await vscode.workspace.applyEdit(edit);
@@ -99,7 +116,7 @@ export function registerTools(context: vscode.ExtensionContext): void {
         const file = allowedPath(options.input.path);
         if (!file) return refused(options.input.path);
         const standard = options.input.standard ?? vscode.workspace.getConfiguration('arclang').get<string>('gate.standard', 'iso26262');
-        const result = await runOnModel(file, (m) => ['gate', '--standard', standard, m], token);
+        const result = await runOnModel(file, (m) => ['gate', `--standard=${standard}`, '--', m], token);
         return answer([exitLine(`gate --standard ${standard} ${path.basename(file)}`, result.code), result.code === 0 ? 'Verdict: PASS' : 'Verdict: FAIL', clip(result.stdout + (result.stderr ? `\n${result.stderr}` : ''), MAX_RESULT)]);
       },
     }),
@@ -127,7 +144,7 @@ export function registerTools(context: vscode.ExtensionContext): void {
       async invoke(options, token) {
         const file = allowedPath(options.input.path);
         if (!file) return refused(options.input.path);
-        const result = await runOnModel(file, (m) => ['impact', m, options.input.element], token);
+        const result = await runOnModel(file, (m) => ['impact', '--', m, options.input.element], token);
         return answer([exitLine(`impact ${path.basename(file)} ${options.input.element}`, result.code), clip(result.code === 0 ? result.stdout : failureText(result), MAX_RESULT)]);
       },
     }),
@@ -137,7 +154,7 @@ export function registerTools(context: vscode.ExtensionContext): void {
       async invoke(options, token) {
         const file = allowedPath(options.input.path);
         if (!file) return refused(options.input.path);
-        const args = (m: string) => ['transition', m, '--plan', ...(options.input.step ? ['--step', options.input.step] : [])];
+        const args = (m: string) => ['transition', '--plan', ...(options.input.step ? [`--step=${options.input.step}`] : []), '--', m];
         const result = await runOnModel(file, args, token);
         if (result.code !== 0) return answer([exitLine('transition --plan', result.code), failureText(result)]);
         let rendered = result.stdout;
@@ -155,14 +172,14 @@ export function registerTools(context: vscode.ExtensionContext): void {
         invocationMessage: `Setting ${options.input.key} on ${options.input.element}`,
         confirmationMessages: {
           title: 'ArcLang: set an attribute',
-          message: new vscode.MarkdownString(`Set \`${options.input.key}: ${options.input.value}\` on **${options.input.element}** in \`${path.basename(options.input.path ?? '')}\`? The compiler refuses the edit unless the model still compiles; the change is applied in the editor and not saved.`),
+          message: new vscode.MarkdownString(`Set **${mdText(options.input.key)}** to ${mdText(options.input.value)} on ${mdText(options.input.element)} in ${mdText(shownPath(options.input.path))}? The compiler refuses the edit unless the model still compiles; the change is applied in the editor and not saved.`),
         },
       }),
       async invoke(options, token) {
         const { element, key, value } = options.input;
         const file = allowedPath(options.input.path);
         if (!file) return refused(options.input.path);
-        const result = await runOnModel(file, (m) => ['set', m, element, key, value], token);
+        const result = await runOnModel(file, (m) => ['set', '--', m, element, key, value], token);
         const label = `set ${path.basename(file)} ${element} ${key} ${value}`;
         if (result.code !== 0) return answer([exitLine(label, result.code), failureText(result)]);
         await replaceDocument(file, result.stdout);
@@ -175,14 +192,14 @@ export function registerTools(context: vscode.ExtensionContext): void {
         invocationMessage: `Renaming ${options.input.element}`,
         confirmationMessages: {
           title: 'ArcLang: rename an element',
-          message: new vscode.MarkdownString(`Rename **${options.input.element}** to \`${options.input.name}\` in \`${path.basename(options.input.path ?? '')}\`? Refused if the element is known by its name elsewhere. Applied in the editor, not saved.`),
+          message: new vscode.MarkdownString(`Rename ${mdText(options.input.element)} to ${mdText(`"${options.input.name}"`)} in ${mdText(shownPath(options.input.path))}? Refused if the element is known by its name elsewhere. Applied in the editor, not saved.`),
         },
       }),
       async invoke(options, token) {
         const { element, name } = options.input;
         const file = allowedPath(options.input.path);
         if (!file) return refused(options.input.path);
-        const result = await runOnModel(file, (m) => ['rename', m, element, name], token);
+        const result = await runOnModel(file, (m) => ['rename', '--', m, element, name], token);
         const label = `rename ${path.basename(file)} ${element} ${name}`;
         if (result.code !== 0) return answer([exitLine(label, result.code), failureText(result)]);
         await replaceDocument(file, result.stdout);
@@ -195,7 +212,7 @@ export function registerTools(context: vscode.ExtensionContext): void {
       async invoke(options) {
         const file = allowedPath(options.input.path);
         if (!file) return refused(options.input.path);
-        const document = await vscode.workspace.openTextDocument(vscode.Uri.file(file));
+        const document = openDocument(file) ?? (await vscode.workspace.openTextDocument(vscode.Uri.file(file)));
         const label = `workbench ${path.basename(file)}`;
         const snapshot = await snapshotOf(document);
         if (!snapshot.success || !snapshot.elements) return answer([exitLine(label, 1), snapshot.errors.join('\n') || 'the model does not compile']);
@@ -209,9 +226,7 @@ export function registerTools(context: vscode.ExtensionContext): void {
         invocationMessage: `Editing ${path.basename(options.input.path ?? '')} (${(options.input.requests ?? []).length} request${(options.input.requests ?? []).length === 1 ? '' : 's'})`,
         confirmationMessages: {
           title: 'ArcLang: edit the model',
-          message: new vscode.MarkdownString(
-            `Apply to \`${path.basename(options.input.path ?? '')}\`:\n\n${(options.input.requests ?? []).map((r) => `- ${describeRequest(r)}`).join('\n')}\n\nThe compiler refuses the gesture unless the edited model compiles; it is applied in the editor as one undoable change, not saved.`,
-          ),
+          message: new vscode.MarkdownString(confirmEdits(shownPath(options.input.path), Array.isArray(options.input.requests) ? options.input.requests : [])),
         },
       }),
       async invoke(options) {
@@ -219,7 +234,7 @@ export function registerTools(context: vscode.ExtensionContext): void {
         if (!file) return refused(options.input.path);
         const requests = Array.isArray(options.input.requests) ? options.input.requests : [];
         if (requests.length === 0) return answer(['Refused: no request. Give a list of edit requests ({"op": "add", ...}).']);
-        const document = await vscode.workspace.openTextDocument(vscode.Uri.file(file));
+        const document = openDocument(file) ?? (await vscode.workspace.openTextDocument(vscode.Uri.file(file)));
         const outcome = await applyRequests(document, requests);
         const label = `edit ${path.basename(file)} (${requests.length})`;
         if (!outcome.ok) {

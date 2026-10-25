@@ -1,0 +1,6 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": { "module": "ESNext", "moduleResolution": "Bundler", "lib": ["ES2022", "WebWorker"], "noEmit": true, "rootDir": "../..", "types": ["node"] },
+  "include": ["src/web"],
+  "exclude": ["node_modules", "dist", "out"]
+}

@@ -22,7 +22,11 @@ use std::fmt;
 use std::path::Path;
 
 mod structure;
+mod relink;
+mod duplicate;
 
+pub use relink::{relationship_spots, replace_lexemes, spelled_like, RelationshipEnds, RelationshipSpots, Spot};
+pub use duplicate::{duplicate_element, duplicate_relationship, CopyTarget};
 pub use structure::{add_declaration, add_element, add_trace, move_element, remove_element, remove_trace, rename_element, rename_references, string_literal, wrap_fragment, Container};
 
 /// One declaration of the source, where it stands: what an outline or a
@@ -166,7 +170,11 @@ pub fn layer_keyword_of_kind(kind: &str) -> Option<&'static str> {
 pub fn set_attribute(source: &str, element: &str, key: &str, value: &str) -> Result<String, EditError> {
     let value = value.trim();
     check_key(key)?;
-    let parsed = parse_value(value)?;
+    // A port's direction is a word of its declaration line, not a value.
+    let parsed = match (key, value) {
+        ("direction", "in" | "out" | "inout") => AttributeValue::String(value.to_string()),
+        _ => parse_value(value)?,
+    };
     let document = Document::read(source)?;
     let block = match document.find_element(element) {
         Ok(block) => block,
@@ -282,7 +290,10 @@ pub fn parse_value(value: &str) -> Result<AttributeValue, EditError> {
 /// shadowed by the declaration line (`req "ID" "Title" { ... }`); such an
 /// edit would be a write that changes nothing, and is refused.
 pub fn confirm_effect(graph: &ElementGraph, element: &str, key: &str, value: &str) -> Result<(), EditError> {
-    let expected = parse_value(value.trim())?;
+    let expected = match (key, value.trim()) {
+        ("direction", word @ ("in" | "out" | "inout")) => AttributeValue::String(word.to_string()),
+        (_, value) => parse_value(value)?,
+    };
     // A port goes by `Owner.port`; the diagrams write it `Owner::port`.
     let dotted = element.replace("::", ".");
     let record = graph
@@ -838,6 +849,16 @@ logical_architecture "Braking" {
     component "Logger" {}
 }
 "#;
+
+    #[test]
+    fn a_port_turns_around_on_its_declaration_line() {
+        let source = "logical_architecture L {\n    component \"A\" {\n        port out \"p\"\n        port in \"q\" { protocol: \"x\" }\n    }\n}\n";
+        let turned = set_attribute(source, "A.p", "direction", "in").unwrap();
+        assert!(turned.contains("port in \"p\""), "{turned}");
+        let again = set_attribute(&turned, "A.q", "direction", "out").unwrap();
+        assert!(again.contains("port out \"q\" { protocol: \"x\" }"), "{again}");
+        assert!(set_attribute(source, "A.p", "direction", "sideways").is_err());
+    }
 
     #[test]
     fn replaces_a_value_and_nothing_else() {

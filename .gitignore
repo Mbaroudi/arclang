@@ -24,6 +24,9 @@
 !src/compiler/capella_export/*.json
 # The figures the Capella bench must keep.
 !tools/capella_bench/baseline.json
+# The built-in diagram themes (include_str!) and the fixtures of their validator.
+!src/compiler/diagram/viewer/themes/*.json
+!tests/fixtures/themes/*.json
 *.xml
 !examples/**/*.xml
 
@@ -87,3 +90,7 @@ __pycache__/
 !editors/vscode/package.json
 !editors/vscode/language-configuration.json
 !editors/vscode/syntaxes/*.json
+.arclang/
+
+# Test fixtures may be XML (a simulation init file, ReqIF, a Capella model)
+!tests/fixtures/**/*.xml

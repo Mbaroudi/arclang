@@ -65,6 +65,8 @@ fn line(metamodel: &Metamodel, kind: &str, key: &str, value: &AttributeValue, un
             let canonical = metamodel.normalize_enum(enumeration, &raw).map(str::to_string).unwrap_or(raw);
             ("String".to_string(), text::string(&canonical))
         }
+        // A block ArcLang reads back (`simulate: { ... }`): its source, as text.
+        (Some(AttrType::Record(_)), AttributeValue::Map(_)) => ("String".to_string(), text::string(&value.source())),
         (_, value) => scalar(value, units),
     };
     format!("attribute {name} : {ty} = {literal};")

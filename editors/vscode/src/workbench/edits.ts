@@ -9,7 +9,7 @@ import { run, withTempFile, workspaceTrusted, UNTRUSTED_MESSAGE } from '../cli';
 import { EditRequest, parseEditAnswer } from '../pure/workbench';
 import { arcTextOf, documentDir, documentTextFor, replaceWhole } from './source';
 
-export type EditOutcome = { ok: true; source: string; applied: boolean } | { ok: false; error: string; at: number };
+export type EditOutcome = { ok: true; source: string; applied: boolean; before?: string; after?: string } | { ok: false; error: string; at: number };
 
 /** Run the requests on `source`, each on the result of the previous one. */
 export async function editText(source: string, requests: EditRequest[], fileName: string, cwd?: string): Promise<EditOutcome> {
@@ -32,17 +32,39 @@ export async function editText(source: string, requests: EditRequest[], fileName
  * compiler's result in one workspace edit, so one Undo takes the gesture back.
  */
 export async function applyRequests(document: vscode.TextDocument, requests: EditRequest[]): Promise<EditOutcome> {
-  const source = await arcTextOf(document);
-  if (!source.ok) return { ok: false, error: source.error, at: 0 };
   const name = path.basename(document.uri.fsPath).replace(/\.sysml$/i, '.arc') || 'model.arc';
-  const outcome = await editText(source.text, requests, name, documentDir(document));
-  if (!outcome.ok) return outcome;
-  const back = await documentTextFor(document, outcome.source);
-  if (!back.ok) return { ok: false, error: back.error, at: requests.length };
-  if (back.text === document.getText()) return { ...outcome, applied: false };
-  const applied = await replaceWhole(document, back.text);
-  if (!applied) return { ok: false, error: 'VS Code did not apply the edit', at: requests.length };
-  return { ...outcome, applied: true };
+  // The text may change while the compiler works (a keystroke, another
+  // edit): the result is written only onto the text it was computed from,
+  // else computed again on the new text.
+  for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+    const version = document.version;
+    const source = await arcTextOf(document);
+    if (!source.ok) return { ok: false, error: source.error, at: 0 };
+    const outcome = await editText(source.text, requests, name, documentDir(document));
+    if (!outcome.ok) return outcome;
+    const back = await documentTextFor(document, outcome.source);
+    if (!back.ok) return { ok: false, error: back.error, at: requests.length };
+    if (document.version !== version) continue;
+    const before = document.getText();
+    if (back.text === before) return { ...outcome, applied: false };
+    const applied = await replaceWhole(document, back.text);
+    if (!applied) return { ok: false, error: 'VS Code did not apply the edit', at: requests.length };
+    return { ...outcome, applied: true, before, after: document.getText() };
+  }
+  return { ok: false, error: 'the text kept changing while the edit was computed: try again', at: 0 };
+}
+
+const MAX_ATTEMPTS = 3;
+
+/** Run tasks one after the other, each on what the previous one left. */
+export class EditQueue {
+  private last: Promise<unknown> = Promise.resolve();
+
+  run<T>(task: () => Promise<T>): Promise<T> {
+    const next = this.last.then(task, task);
+    this.last = next.catch(() => undefined);
+    return next;
+  }
 }
 
 /** A human line for a refused gesture. */

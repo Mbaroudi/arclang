@@ -247,3 +247,40 @@ test('placement made in an open container is found whether or not that container
   scope.setFolded('lab', new Set());
   assert.deepEqual(scope.placedOf('lab'), { A1: { dx: 5, dy: 5 } });
 });
+
+test('a bent exchange is kept in the file only when there is one, and an unknown edge is left out', () => {
+  const withEdge = () => [{ ...graphs()[0], edges: [{ id: 'ce:AB', sources: ['A1'], targets: ['B1'] }] }, graphs()[1]];
+  const scope = create({ graphs: withEdge(), collapse, storage: memory(), storageKey: 'arcviz:bend' });
+  assert.equal(scope.toFile().arrangements.length, 0);
+  scope.setRoute('lab', 'ce:AB', [{ x: 10, y: 20 }]);
+  scope.setRoute('lab', 'ce:gone', [{ x: 1, y: 2 }]);
+  assert.deepEqual(scope.routeOf('lab', 'ce:AB'), [{ x: 10, y: 20 }]);
+  const file = scope.toFile();
+  assert.deepEqual(file.arrangements[0].edges, { 'ce:AB': { points: [{ x: 10, y: 20 }] } });
+  assert.deepEqual(file.arrangements[0].places, {});
+  const again = create({ graphs: withEdge(), collapse, storage: null, storageKey: 'arcviz:bend2', initial: file });
+  assert.deepEqual(again.routeOf('lab', 'ce:AB'), [{ x: 10, y: 20 }]);
+  again.setRoute('lab', 'ce:AB', []);
+  assert.equal(again.toFile().arrangements.length, 0);
+  scope.moveBy('lab', 'C', 5, 5);
+  assert.equal(scope.toFile().arrangements.length, 1, 'places and bends of one layout share one arrangement');
+});
+
+test('a route has at most 64 points, and only exchanges the view draws are written', () => {
+  const withEdge = () => [{ ...graphs()[0], edges: [{ id: 'ce:AB', sources: ['A1'], targets: ['B1'] }] }, graphs()[1]];
+  const scope = create({ graphs: withEdge(), collapse, storage: null, storageKey: 'arcviz:cap' });
+  scope.setRoute('lab', 'ce:AB', Array.from({ length: 65 }, (_, i) => ({ x: i, y: i })));
+  assert.deepEqual(scope.routeOf('lab', 'ce:AB'), []);
+  const file = { arclang_layout: '1', views: {}, arrangements: [{ view: 'lab', open: null, folded: [], places: {}, edges: { 'ce:AB': { points: [{ x: 1, y: 2 }] }, 'ce:Old': { points: [{ x: 3, y: 4 }] } } }] };
+  const loaded = create({ graphs: withEdge(), collapse, storage: null, storageKey: 'arcviz:cap2', initial: file });
+  assert.deepEqual(Object.keys(loaded.toFile().arrangements[0].edges), ['ce:AB']);
+});
+
+test('what the view no longer draws is left out when the file is written', () => {
+  const scope = scopeOf(memory());
+  scope.moveBy('lab', 'C', 5, 5);
+  scope.moveBy('lab', 'Gone', 7, 7);
+  scope.moveBy('cdb', 'Removed', 1, 1);
+  const file = scope.toFile();
+  assert.deepEqual(file.arrangements, [{ view: 'lab', open: null, folded: [], places: { C: { dx: 5, dy: 5 } } }], JSON.stringify(file));
+});

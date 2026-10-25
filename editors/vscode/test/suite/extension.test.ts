@@ -7,6 +7,7 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import * as vscode from 'vscode';
+import { allowedPath } from '../../src/ai/tools';
 
 const EXTENSION_ROOT = path.resolve(__dirname, '../../..');
 // A small model with one deliberate finding (a requirement nothing satisfies),
@@ -106,7 +107,11 @@ suite('ArcLang extension', () => {
     }
     assert.equal(manifest.capabilities.untrustedWorkspaces.supported, 'limited');
     assert.deepEqual(manifest.capabilities.untrustedWorkspaces.restrictedConfigurations, ['arclang.binary', 'arclang.mcp.command', 'arclang.mcp.args']);
-    assert.equal(manifest.capabilities.virtualWorkspaces.supported, false);
+    // The web playground opens a virtual workspace: the compiler then runs in WebAssembly on the open files.
+    assert.equal(manifest.capabilities.virtualWorkspaces.supported, true);
+    // `main` and `browser` together make it run on the desktop and on the web: no extensionKind to state.
+    assert.equal(manifest.browser, './dist/web/extension.js');
+    assert.equal(manifest.extensionKind, undefined);
   });
 
   test('the check tool answers with the compiler verdict', async function () {
@@ -118,6 +123,18 @@ suite('ArcLang extension', () => {
   test('the check tool refuses a path outside the workspace', async () => {
     const result = await vscode.lm.invokeTool('arclang_check', { input: { path: '/etc/hosts' }, toolInvocationToken: undefined });
     assert.match(textOf(result), /^Refused/);
+  });
+
+  test('an allowed path is answered as its real path, the one that was checked', async () => {
+    const dir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'arclang-real-')));
+    const file = path.join(dir, 'model.arc');
+    fs.writeFileSync(file, 'model "M" {\n  version: "1"\n}\n');
+    const link = path.join(dir, 'link.arc');
+    fs.symlinkSync(file, link);
+    assert.equal(allowedPath(link), null, 'a file neither in the workspace nor open is refused');
+    await vscode.workspace.openTextDocument(vscode.Uri.file(file));
+    assert.equal(allowedPath(link), file, 'the link resolves to the open file it points to');
+    assert.equal(allowedPath(file), file);
   });
 
   test('the language server reports the findings of the example', async function () {

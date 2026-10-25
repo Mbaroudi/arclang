@@ -41,16 +41,53 @@
   background: var(--vscode-input-background);
   border-color: var(--vscode-input-border, transparent);
 }
-/* The viewer's toolbar buttons take the editor's toolbar look. */
-#workbench .wb-viewer-tools button {
-  font-size: 11px;
-  padding: 0.15rem 0.45rem;
-  background: transparent;
-  color: var(--vscode-foreground);
-  border: 1px solid transparent;
+/* The viewer's tool row and its menus take the editor's toolbar and menu
+   look: the same hover, pressed and focus colours as VS Code's own. */
+#workbench .arcviz {
+  --av-tool-fg: var(--vscode-icon-foreground, var(--vscode-foreground));
+  --av-tool-hover: var(--vscode-toolbar-hoverBackground, rgba(90, 93, 94, 0.31));
+  --av-tool-active: var(--vscode-toolbar-activeBackground, rgba(99, 102, 103, 0.31));
+  --av-tool-pressed: var(--vscode-inputOption-activeBackground, rgba(0, 144, 241, 0.2));
+  --av-tool-pressed-fg: var(--vscode-inputOption-activeForeground, var(--vscode-foreground));
+  --av-tool-pressed-border: var(--vscode-inputOption-activeBorder, transparent);
+  --av-tool-separator: var(--vscode-menu-separatorBackground, var(--vscode-panel-border, #8884));
+  --av-focus: var(--vscode-focusBorder, #0078d4);
+  --av-badge-bg: var(--vscode-badge-background, #616161);
+  --av-badge-fg: var(--vscode-badge-foreground, #fff);
+  --av-menu-bg: var(--vscode-menu-background, var(--vscode-editorWidget-background, var(--vscode-editor-background)));
+  --av-menu-fg: var(--vscode-menu-foreground, var(--vscode-foreground));
+  --av-menu-border: var(--vscode-menu-border, var(--vscode-editorWidget-border, var(--vscode-panel-border, #8884)));
+  --av-menu-hover-bg: var(--vscode-menu-selectionBackground, var(--vscode-list-activeSelectionBackground, #0060c0));
+  --av-menu-hover-fg: var(--vscode-menu-selectionForeground, var(--vscode-list-activeSelectionForeground, #fff));
+  --av-menu-hover-border: var(--vscode-menu-selectionBorder, transparent);
+  --av-menu-shadow: 0 2px 8px var(--vscode-widget-shadow, rgba(0, 0, 0, 0.36));
 }
-#workbench .wb-viewer-tools button:hover { background: var(--vscode-toolbar-hoverBackground, #8883); }
-#workbench .wb-viewer-tools button[disabled] { opacity: 0.4; }
+#workbench .arcviz .arcviz-tool { font-size: 12px; }
+#workbench .arcviz .arcviz-menu-pop { font-size: 12px; }
+#workbench .arcviz .arcviz-menu-heading { color: var(--vscode-descriptionForeground); }
+/* High contrast: outlines instead of fills, as VS Code draws them. */
+body.vscode-high-contrast #workbench .arcviz .arcviz-tool:hover:not([aria-disabled='true']):not(:disabled),
+body.vscode-high-contrast-light #workbench .arcviz .arcviz-tool:hover:not([aria-disabled='true']):not(:disabled),
+body.vscode-high-contrast .wb-bar-toggle:hover,
+body.vscode-high-contrast-light .wb-bar-toggle:hover {
+  outline: 1px dashed var(--vscode-contrastActiveBorder, #f38518);
+  outline-offset: -1px;
+}
+body.vscode-high-contrast #workbench .arcviz .arcviz-tool[aria-pressed='true'],
+body.vscode-high-contrast #workbench .arcviz .arcviz-menu.is-open > .arcviz-tool,
+body.vscode-high-contrast-light #workbench .arcviz .arcviz-tool[aria-pressed='true'],
+body.vscode-high-contrast .wb-bar-toggle[aria-pressed='true'],
+body.vscode-high-contrast-light .wb-bar-toggle[aria-pressed='true'] {
+  border-color: var(--vscode-inputOption-activeBorder, var(--vscode-contrastActiveBorder, #f38518));
+}
+body.vscode-high-contrast #workbench .arcviz .arcviz-menu-pop,
+body.vscode-high-contrast-light #workbench .arcviz .arcviz-menu-pop { box-shadow: none; border-color: var(--vscode-contrastBorder, #6fc3df); }
+body.vscode-high-contrast #workbench .arcviz .arcviz-menu-item:hover:not([aria-disabled='true']),
+body.vscode-high-contrast #workbench .arcviz .arcviz-menu-item:focus-visible,
+body.vscode-high-contrast-light #workbench .arcviz .arcviz-menu-item:hover:not([aria-disabled='true']),
+body.vscode-high-contrast-light #workbench .arcviz .arcviz-menu-item:focus-visible {
+  outline: 1px dashed var(--vscode-contrastActiveBorder, #f38518);
+}
 
 html, body {
   margin: 0;
@@ -107,19 +144,29 @@ html, body {
 .wb-layer.is-active .wb-layer-count { background: rgba(255, 255, 255, 0.25); color: inherit; }
 .wb-toolrow {
   display: flex;
-  align-items: flex-start;
-  gap: var(--wb-gap);
-  min-height: 30px;
-  padding: 3px 4px 3px 2px;
+  align-items: center;
+  gap: 4px;
+  min-height: 36px;
+  padding: 2px 6px 2px 4px;
   flex: none;
   border-bottom: 1px solid var(--vscode-panel-border, #8884);
 }
 .wb-tabs { display: flex; gap: 2px; overflow-x: auto; scrollbar-width: none; min-width: 0; flex: 1; }
 .wb-tabs::-webkit-scrollbar { display: none; }
-.wb-viewer-tools { display: flex; gap: 1px; flex: 1; min-width: 0; }
-/* The viewer's tools wrap onto as many rows as the panel needs: none is ever cut. */
-.wb-viewer-tools .arcviz-tools { display: flex; flex-wrap: wrap; row-gap: 2px; column-gap: 6px; align-items: center; }
-.wb-viewer-tools .arcviz-tool-group + .arcviz-tool-group { border-left: 1px solid var(--vscode-panel-border, #8884); padding-left: 6px; }
+/* The viewer's tools take the row between the panel toggles; one line,
+   what does not fit goes into their "⋯" menu (the viewer's toolbar). */
+.wb-viewer-tools { display: flex; align-items: center; flex: 1; min-width: 0; padding-right: 4px; border-right: 1px solid var(--vscode-menu-separatorBackground, var(--vscode-panel-border, #8884)); }
+.wb-viewer-tools .arcviz-tools { flex: 1; }
+/* The panel toggles: an icon, its name beside it when the bar has room. */
+button.wb-icon-button.wb-bar-toggle { display: inline-flex; align-items: center; justify-content: center; gap: 4px; flex: none; width: auto; min-width: 28px; height: 28px; padding: 0 6px; border: 1px solid transparent; border-radius: 5px; font-size: 12px; color: var(--vscode-icon-foreground, var(--vscode-foreground)); background: transparent; }
+button.wb-icon-button.wb-bar-toggle:hover { background: var(--vscode-toolbar-hoverBackground, #8883); }
+button.wb-icon-button.wb-bar-toggle:active { background: var(--vscode-toolbar-activeBackground, #8884); }
+button.wb-icon-button.wb-bar-toggle[aria-pressed='true'] { color: var(--vscode-inputOption-activeForeground, var(--vscode-foreground)); background: var(--vscode-inputOption-activeBackground, #8884); border-color: var(--vscode-inputOption-activeBorder, transparent); }
+button.wb-icon-button.wb-bar-toggle:focus-visible { outline: 1px solid var(--vscode-focusBorder); outline-offset: -1px; }
+.wb-bar-toggle .wb-toggle-label { display: none; }
+@media (min-width: 1000px) {
+  .wb-bar-toggle:not(.wb-palette-toggle) .wb-toggle-label { display: inline; }
+}
 
 .wb-body { display: flex; flex: 1; min-height: 0; }
 
@@ -327,8 +374,6 @@ button.wb-link { background: none; color: var(--vscode-textLink-foreground); pad
 button.wb-icon-button { width: 22px; height: 22px; padding: 0; background: none; color: var(--vscode-icon-foreground, inherit); }
 button.wb-icon-button:hover { background: var(--vscode-toolbar-hoverBackground, #8883); }
 button.wb-icon-button[aria-pressed='true'] { background: var(--vscode-inputOption-activeBackground, #8884); }
-.wb-toolrow > .wb-icon-button:first-child::before { content: "☰"; }
-.wb-toolrow > .wb-icon-button:last-child::before { content: "☷"; }
 
 /* Status line */
 .wb-bottom {
@@ -387,7 +432,7 @@ button.wb-icon-button[aria-pressed='true'] { background: var(--vscode-inputOptio
 
 /* Full screen inside the editor: the canvas alone, the layer bar kept. */
 /* Full screen keeps every tool: palette, properties, toolbar and status line stay where they are. */
-body.wb-focus .wb-viewer-tools button[aria-label='Full screen'], body.wb-focus .wb-viewer-tools button[title^='Full screen'] { background: var(--vscode-button-background); color: var(--vscode-button-foreground); }
+body.wb-focus #workbench .arcviz #arcviz-fullscreen { color: var(--vscode-inputOption-activeForeground, var(--vscode-foreground)); background: var(--vscode-inputOption-activeBackground, #8884); border-color: var(--vscode-inputOption-activeBorder, transparent); }
 
 /* Direct edit over a box, find in the diagram */
 .wb-direct-edit { position: absolute; z-index: 7; font: inherit; font-weight: 600; padding: 2px 6px; color: var(--vscode-input-foreground); background: var(--vscode-input-background); border: 1px solid var(--vscode-focusBorder); border-radius: 2px; box-shadow: 0 2px 6px rgba(0,0,0,.25); }
@@ -402,7 +447,231 @@ body.wb-focus .wb-viewer-tools button[aria-label='Full screen'], body.wb-focus .
 .wb-minimap { position: absolute; right: 12px; bottom: 12px; z-index: 5; width: 200px; height: 130px; background: var(--vscode-minimap-background, var(--vscode-editorWidget-background, #fff)); border: 1px solid var(--vscode-panel-border, #8884); border-radius: 3px; box-shadow: 0 2px 8px rgba(0,0,0,.25); overflow: hidden; cursor: pointer; }
 .wb-minimap img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; opacity: .85; pointer-events: none; }
 .wb-minimap-view { position: absolute; border: 2px solid var(--vscode-focusBorder); background: color-mix(in srgb, var(--vscode-focusBorder) 12%, transparent); pointer-events: none; }
-.wb-minimap-toggle::before { content: "▣"; }
 
 /* An element marked hidden stays hidden, whatever display a rule gives its class. */
 [hidden] { display: none !important; }
+
+/* Context menu, floating toolbar, shortcuts: VS Code's own menu look, so
+   the canvas feels like part of the editor rather than a page in it. */
+.wb-menu {
+  position: absolute;
+  z-index: 9;
+  min-width: 220px;
+  max-width: min(320px, calc(100% - 8px));
+  max-height: calc(100% - 8px);
+  overflow-y: auto;
+  padding: 4px;
+  color: var(--vscode-menu-foreground, var(--vscode-editor-foreground));
+  background: var(--vscode-menu-background, var(--vscode-editorWidget-background, var(--vscode-editor-background)));
+  border: 1px solid var(--vscode-menu-border, var(--vscode-editorWidget-border, var(--vscode-panel-border, #8884)));
+  border-radius: 5px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.28);
+  outline: none;
+}
+.wb-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  width: 100%;
+  padding: 4px 10px;
+  text-align: left;
+  color: inherit;
+  background: transparent;
+  border: 0;
+  border-radius: 3px;
+}
+.wb-menu-item:hover:not([disabled]), .wb-menu-item:focus-visible, .wb-menu-chip:hover:not([disabled]), .wb-menu-chip:focus-visible {
+  color: var(--vscode-menu-selectionForeground, var(--vscode-list-activeSelectionForeground, inherit));
+  background: var(--vscode-menu-selectionBackground, var(--vscode-list-activeSelectionBackground, #0060c0));
+  outline: none;
+}
+.wb-menu-item[disabled], .wb-menu-chip[disabled] { opacity: 0.45; }
+.wb-menu-item.is-danger .wb-menu-label { color: var(--vscode-errorForeground); }
+.wb-menu-item.is-danger:hover .wb-menu-label, .wb-menu-item.is-danger:focus-visible .wb-menu-label { color: inherit; }
+.wb-menu-label { flex: 1; }
+.wb-menu-key { font: 11px var(--vscode-editor-font-family, monospace); opacity: 0.7; }
+.wb-menu-rule { height: 1px; margin: 4px 6px; background: var(--vscode-menu-separatorBackground, var(--vscode-panel-border, #8884)); }
+.wb-menu-row { display: flex; flex-wrap: wrap; align-items: center; gap: 3px; padding: 3px 6px 3px 10px; }
+.wb-menu-title { width: 100%; font-size: 11px; color: var(--vscode-descriptionForeground); }
+.wb-menu-chip { padding: 2px 7px; color: inherit; background: var(--vscode-button-secondaryBackground, #8883); border: 0; border-radius: 3px; font-size: 12px; }
+
+.wb-mini {
+  position: absolute;
+  z-index: 6;
+  display: flex;
+  gap: 1px;
+  padding: 2px;
+  background: var(--vscode-editorWidget-background, var(--vscode-editor-background));
+  border: 1px solid var(--vscode-editorWidget-border, var(--vscode-panel-border, #8884));
+  border-radius: 5px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.22);
+}
+.wb-mini .arcviz-edge-style {
+  position: static;
+  display: flex;
+  gap: 1px;
+  margin-left: 2px;
+  padding: 0 0 0 3px;
+  border: 0;
+  border-left: 1px solid var(--vscode-editorWidget-border, var(--vscode-panel-border, #8884));
+  border-radius: 0;
+  box-shadow: none;
+  background: transparent;
+  transform: none;
+  translate: none;
+}
+.wb-mini .arcviz-edge-style[hidden] { display: none; }
+.wb-mini .arcviz-edge-style-option {
+  min-width: 24px;
+  height: 22px;
+  padding: 0 4px;
+  color: var(--vscode-icon-foreground, var(--vscode-editor-foreground));
+  background: transparent;
+  border: 0;
+  border-radius: 3px;
+  cursor: pointer;
+}
+.wb-mini .arcviz-edge-style-option:hover { background: var(--vscode-toolbar-hoverBackground, #8882); }
+.wb-mini .arcviz-edge-style-option[aria-pressed='true'] { background: var(--vscode-button-background); color: var(--vscode-button-foreground); }
+.wb-mini .arcviz-edge-style-option:focus-visible { outline: 1px solid var(--vscode-focusBorder); outline-offset: 1px; }
+.wb-mini-button {
+  min-width: 24px;
+  height: 22px;
+  padding: 0 4px;
+  color: var(--vscode-icon-foreground, var(--vscode-editor-foreground));
+  background: transparent;
+  border: 0;
+  border-radius: 3px;
+  font-size: 13px;
+  line-height: 1;
+}
+.wb-mini-button:hover:not([disabled]) { background: var(--vscode-toolbar-hoverBackground, #8883); }
+.wb-mini-button:active:not([disabled]) { background: var(--vscode-toolbar-activeBackground, #8885); }
+.wb-mini-button.is-danger { color: var(--vscode-errorForeground); }
+.wb-mini-button[disabled] { opacity: 0.35; }
+
+.wb-help {
+  position: absolute;
+  z-index: 9;
+  top: 8px;
+  right: 8px;
+  bottom: 8px;
+  width: min(420px, calc(100% - 16px));
+  overflow-y: auto;
+  padding: 10px 14px;
+  background: var(--vscode-editorWidget-background, var(--vscode-editor-background));
+  border: 1px solid var(--vscode-editorWidget-border, var(--vscode-panel-border, #8884));
+  border-radius: 5px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.28);
+  outline: none;
+}
+.wb-help header { display: flex; align-items: center; justify-content: space-between; }
+.wb-help h2 { margin: 0 0 6px; font-size: 13px; }
+.wb-help-list { display: grid; grid-template-columns: minmax(110px, auto) 1fr; gap: 5px 12px; margin: 0; font-size: 12px; }
+.wb-help-list dt { margin: 0; }
+.wb-help-list dd { margin: 0; color: var(--vscode-descriptionForeground); }
+.wb-help kbd { font: 11px var(--vscode-editor-font-family, monospace); padding: 1px 4px; border: 1px solid var(--vscode-panel-border, #8886); border-radius: 3px; white-space: nowrap; }
+
+.wb-ends { margin: 4px 0; font-size: 12px; }
+.wb-retarget { margin-left: 4px; }
+#workbench .arcviz .wb-cut { opacity: 0.45; }
+@media (prefers-reduced-motion: reduce) { .wb-menu, .wb-mini { box-shadow: none; } }
+
+/* The box under the pointer is outlined (draw.io): the innermost one only. */
+#workbench .arcviz .av-node.wb-hover:not(.is-selected) > .av-shape { stroke: var(--vscode-focusBorder, #0b5cad); stroke-width: 2.4; }
+/* A copy dragged with Alt (⌘ on a Mac): its outline follows the pointer. */
+.wb-ghost { position: absolute; z-index: 7; pointer-events: none; border: 1.5px dashed var(--vscode-focusBorder, #0b5cad); border-radius: 3px; background: color-mix(in srgb, var(--vscode-focusBorder, #0b5cad) 10%, transparent); }
+
+/* Dark and high-contrast themes: the drawing is turned to the dark side the
+   way the editor is, light paper becoming a dark sheet and dark ink light;
+   the hue is turned back so a function stays green and a component blue.
+   Every drawing of the page, at every width and on every view. A colour
+   theme with a dark variant of its own (wb-theme-own-dark) is drawn as it
+   is. The exports (SVG, PNG, the clipboard, PowerPoint) are always drawn in
+   the theme's own light colours. */
+body.vscode-dark:not(.wb-theme-own-dark) #workbench svg.av-svg,
+body.vscode-dark:not(.wb-theme-own-dark) #workbench .wb-minimap svg {
+  filter: invert(0.88) hue-rotate(180deg);
+}
+body.vscode-high-contrast:not(.vscode-high-contrast-light):not(.wb-theme-own-dark) #workbench svg.av-svg,
+body.vscode-high-contrast:not(.vscode-high-contrast-light):not(.wb-theme-own-dark) #workbench .wb-minimap svg {
+  filter: invert(1) hue-rotate(180deg) contrast(1.35);
+}
+body.vscode-high-contrast-light #workbench .arcviz-stage svg.av-svg { filter: contrast(1.2); }
+body.vscode-high-contrast #workbench .arcviz .av-node > .av-shape { stroke-width: 2; }
+body.vscode-high-contrast #workbench .arcviz .av-edge .av-line { stroke-width: 2; }
+body.vscode-high-contrast #workbench .arcviz .av-node.is-selected > .av-shape,
+body.vscode-high-contrast #workbench .arcviz .av-node.wb-hover > .av-shape { stroke-width: 3.2; }
+
+/* A narrow editor (under 900 px): the properties drawer floats over the
+   canvas instead of taking its width, and opens on demand. */
+@media (max-width: 899px) {
+  .wb-body { position: relative; }
+  .wb-splitter { display: none; }
+  .wb-right {
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 20;
+    width: min(300px, 85vw) !important;
+    box-shadow: -6px 0 18px rgba(0, 0, 0, 0.28);
+  }
+}
+
+/* The theme editor: a panel over the right of the canvas, the diagram it
+   previews still in sight on the left; the whole canvas when it is narrow. */
+.wb-theme-editor {
+  position: absolute; z-index: 9; top: 8px; right: 8px; bottom: 8px; width: min(400px, calc(100% - 16px));
+  display: flex; flex-direction: column; gap: 8px; padding: 10px 12px;
+  background: var(--vscode-editorWidget-background, var(--vscode-editor-background));
+  color: var(--vscode-editorWidget-foreground, var(--vscode-foreground));
+  border: 1px solid var(--vscode-editorWidget-border, var(--vscode-panel-border, #8884));
+  border-radius: 6px; box-shadow: 0 8px 24px rgb(0 0 0 / 0.28); overflow: hidden; font-size: 12px;
+}
+.wb-theme-editor[hidden] { display: none; }
+.wb-te-head { display: flex; align-items: center; justify-content: space-between; }
+.wb-te-head h2 { margin: 0; font-size: 13px; font-weight: 600; letter-spacing: 0.01em; }
+.wb-te-close { border: 0; background: transparent; color: inherit; font-size: 18px; line-height: 1; cursor: pointer; padding: 2px 6px; border-radius: 4px; }
+.wb-te-close:hover { background: var(--vscode-toolbar-hoverBackground, #8882); }
+.wb-te-start, .wb-te-row, .wb-te-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.wb-te-start label, .wb-te-row label { color: var(--vscode-descriptionForeground); }
+.wb-te-base, .wb-te-name { flex: 1; min-width: 120px; }
+.wb-theme-editor select, .wb-theme-editor input[type="text"] {
+  background: var(--vscode-input-background); color: var(--vscode-input-foreground);
+  border: 1px solid var(--vscode-input-border, #8886); border-radius: 3px; padding: 3px 5px; font: inherit;
+}
+.wb-theme-editor button { font: inherit; padding: 3px 9px; border-radius: 3px; cursor: pointer; border: 1px solid var(--vscode-button-border, transparent); background: var(--vscode-button-secondaryBackground, #8883); color: var(--vscode-button-secondaryForeground, inherit); }
+.wb-theme-editor button.wb-primary { background: var(--vscode-button-background); color: var(--vscode-button-foreground); }
+.wb-theme-editor button:disabled { opacity: 0.45; cursor: not-allowed; }
+.wb-theme-editor button:focus-visible, .wb-theme-editor input:focus-visible, .wb-theme-editor select:focus-visible { outline: 1px solid var(--vscode-focusBorder); outline-offset: 1px; }
+.wb-te-verdict { border-left: 3px solid var(--vscode-testing-iconPassed, #388a34); padding: 4px 8px; background: color-mix(in srgb, var(--vscode-testing-iconPassed, #388a34) 9%, transparent); border-radius: 0 3px 3px 0; max-height: 34%; overflow: auto; }
+.wb-te-verdict.is-refused { border-left-color: var(--vscode-errorForeground, #e51400); background: color-mix(in srgb, var(--vscode-errorForeground, #e51400) 9%, transparent); }
+.wb-te-title { margin: 2px 0; font-weight: 600; }
+.wb-te-errors, .wb-te-warnings ul { margin: 4px 0 2px; padding-left: 18px; }
+.wb-te-errors li { color: var(--vscode-errorForeground, #e51400); margin: 2px 0; }
+.wb-te-warnings summary { cursor: pointer; color: var(--vscode-editorWarning-foreground, #bf8803); }
+.wb-te-saved { margin: 2px 0 6px; color: var(--vscode-testing-iconPassed, #388a34); }
+.wb-te-fields { flex: 1; min-height: 0; overflow: auto; padding-right: 4px; }
+.wb-te-group { border: 0; margin: 0 0 10px; padding: 0; }
+.wb-te-group legend { font-weight: 600; text-transform: uppercase; font-size: 10.5px; letter-spacing: 0.06em; color: var(--vscode-descriptionForeground); padding: 4px 0; }
+.wb-te-line { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 6px; padding: 2px 0; border-bottom: 1px solid color-mix(in srgb, var(--vscode-foreground) 7%, transparent); }
+.wb-te-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wb-te-colour { display: inline-flex; align-items: center; gap: 3px; }
+.wb-te-swatch { inline-size: 22px; block-size: 20px; padding: 0; border: 1px solid var(--vscode-input-border, #8886); border-radius: 3px; background: none; cursor: pointer; }
+.wb-theme-editor input.wb-te-hex { width: 7ch; font-family: var(--vscode-editor-font-family, monospace); font-size: 11px; padding: 2px 4px; }
+.wb-te-hex.is-invalid { border-color: var(--vscode-inputValidation-errorBorder, #e51400); }
+.wb-te-style { font-size: 11px; }
+
+/* The model's file at the head of the tool row: Save (● while unsaved), File ▾. */
+.wb-file { display: flex; align-items: center; gap: 2px; flex: none; padding-right: 4px; margin-right: 2px; border-right: 1px solid var(--vscode-menu-separatorBackground, var(--vscode-panel-border, #8884)); }
+.wb-file .wb-file-label { font-size: 12px; }
+button.wb-icon-button.wb-bar-toggle.wb-save:disabled { opacity: 0.6; cursor: default; background: transparent; }
+button.wb-icon-button.wb-bar-toggle.wb-save.is-dirty { color: var(--vscode-button-foreground, #fff); background: var(--vscode-button-background, #0e639c); }
+button.wb-icon-button.wb-bar-toggle.wb-save.is-dirty:hover { background: var(--vscode-button-hoverBackground, #1177bb); }
+.wb-save .wb-dirty-dot { font-size: 10px; line-height: 1; margin-left: 1px; }
+@media (max-width: 620px) { .wb-file .wb-file-label { display: none; } }
+/* nav hook: New ▾ and the Diagrams… button of the layer bar */
+.wb-nav-button .wb-nav-plus { font-weight: 600; margin-right: 2px; }
+.wb-layer.wb-layer-more { margin-left: auto; opacity: 0.85; font-style: italic; }
+@media (max-width: 620px) { .wb-nav-button .wb-toggle-label { display: none; } }

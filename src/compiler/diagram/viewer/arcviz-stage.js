@@ -40,8 +40,9 @@
    * @param {Function} deps.onKey      (event) -> true when the viewer handled the key
    * @param {Function} deps.carried    (node id) -> ids that move with it, [] if it cannot move
    * @param {Function} deps.onMove     (node id, dx, dy, id of the box under it or null) in sheet units, when a box is dropped
-   * @param {Function} deps.onResize   optional: (node id, dw, dh) in sheet units, when the grip of
-   *                                   the selected box is dragged in arrange mode
+   * @param {Function} deps.onResize   optional: (node id, dw, dh, dx, dy) in sheet units, when a
+   *                                   handle of the selected box is dragged in arrange mode (dx, dy:
+   *                                   how far its left or top side moved, for those handles)
    * @param {Function} deps.onDrop     optional: (node id, node id under the pointer or null)
    *                                   when a box is dragged and let go outside arrange mode;
    *                                   given, a drag on a box is that gesture, not a pan
@@ -52,12 +53,25 @@
    *                                   shows the handle
    * @param {Function} deps.connectTargets optional: (node or port id) -> ids a line from
    *                                   it may end on, or null for any; absent, any
+   * @param {Function} deps.onZoom     optional: (scale) -> void after every pan or zoom
+   *                                   (the zoom level shown in the toolbar)
    * @param {Function} deps.nameOf     optional: (element) -> what to call a box or port,
    *                                   for the handle's accessible name
+   * @param {object}   deps.editing    optional hooks of a host that edits the drawing
+   *                                   (ArcVizEdit): { onEdit(element) -> true when a
+   *                                   double-click edits it, snapStart(id, mode),
+   *                                   snap(dx, dy, event) -> {dx, dy} in frame pixels,
+   *                                   snapEnd(), onFrame() after every pan or zoom,
+   *                                   portsOnly: the round handle on ports only }.
+   *                                   Absent, none of this happens.
    */
   function create(deps) {
     const { stage, canvas, viewSize, onPick, onOpen, onKey, carried, onMove, onDrop, onConnect, connectTargets, onResize } = deps;
     const nameOf = deps.nameOf || ((element) => element.dataset.id);
+    const editing = deps.editing || null;
+    const snapStart = (id, mode) => editing && editing.snapStart && editing.snapStart(id, mode);
+    const snapped = (dx, dy, event) => (editing && editing.snap ? editing.snap(dx, dy, event) : { dx, dy });
+    const snapEnd = () => editing && editing.snapEnd && editing.snapEnd();
     // The line drawn from a dragged box to the pointer.
     const ghost = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
     ghost.setAttribute('class', 'arcviz-ghost');
@@ -74,37 +88,56 @@
     const at = { scale: 1, x: 0, y: 0 };
     let arranging = false;
 
+    const onZoom = deps.onZoom || (() => {});
     const apply = () => {
       canvas.style.transform = `translate(${at.x}px, ${at.y}px) scale(${at.scale})`;
+      onZoom(at.scale);
       placeHandle();
       placeGrip();
+      if (editing && editing.onFrame) editing.onFrame();
     };
 
-    // --- resizing: a grip on the corner of the selected box ---------------
-    // In arrange mode, the selected box shows a grip at its bottom-right
-    // corner; dragging it draws the new outline, letting go resizes the box.
-    const grip = document.createElement('div');
-    grip.className = 'arcviz-grip';
-    grip.hidden = true;
-    grip.setAttribute('aria-hidden', 'true');
-    grip.title = 'Drag to resize the box';
+    // --- resizing: handles on the sides and corners of the selected box ---
+    // In arrange mode, the selected box shows a handle on each corner and in
+    // the middle of each side (the bottom-right one is the grip); dragging
+    // one draws the new outline, letting go resizes the box from that side.
+    const RESIZE_DIRS = ['se', 'nw', 'n', 'ne', 'e', 's', 'sw', 'w'];
+    const CURSORS = { n: 'ns-resize', s: 'ns-resize', e: 'ew-resize', w: 'ew-resize', ne: 'nesw-resize', sw: 'nesw-resize', nw: 'nwse-resize', se: 'nwse-resize' };
+    const grips = RESIZE_DIRS.map((dir) => {
+      const handle = document.createElement('div');
+      handle.className = dir === 'se' ? 'arcviz-grip arcviz-resize is-se' : `arcviz-resize is-${dir}`;
+      handle.dataset.dir = dir;
+      handle.hidden = true;
+      handle.setAttribute('aria-hidden', 'true');
+      handle.title = 'Drag to resize the box';
+      handle.style.cursor = CURSORS[dir];
+      return handle;
+    });
+    const gripOf = (element) => grips.find((handle) => handle === element || handle.contains(element)) || null;
     const outline = document.createElement('div');
     outline.className = 'arcviz-resize-outline';
-    let gripped = null; // the box the grip sits on
+    let gripped = null; // the box the handles sit on
     const shapeOf = (node) => node.querySelector(':scope > .av-shape') || node;
     function placeGrip() {
       const node = onResize && arranging ? canvas.querySelector('.av-node.is-selected') : null;
-      gripped = node && node.isConnected && carried(node.dataset.id).length > 0 ? node : null;
+      gripped = node && node.isConnected && node.dataset.kind !== 'diagram_group' && carried(node.dataset.id).length > 0 ? node : null; // zorder hook: a group frame is not resized
       if (!gripped) {
-        grip.hidden = true;
+        for (const handle of grips) handle.hidden = true;
         return;
       }
       const frame = stage.getBoundingClientRect();
       const box = shapeOf(gripped).getBoundingClientRect();
-      grip.style.translate = `${box.right - frame.left}px ${box.bottom - frame.top}px`;
-      grip.hidden = false;
+      const xs = { w: box.left, e: box.right, '': (box.left + box.right) / 2 };
+      const ys = { n: box.top, s: box.bottom, '': (box.top + box.bottom) / 2 };
+      for (const handle of grips) {
+        const dir = handle.dataset.dir;
+        const x = xs[dir.replace(/[ns]/, '')];
+        const y = ys[dir.replace(/[ew]/, '')];
+        handle.style.translate = `${x - frame.left}px ${y - frame.top}px`;
+        handle.hidden = false;
+      }
     }
-    if (onResize) stage.append(grip);
+    if (onResize) stage.append(...grips);
 
     // --- motion: one animation at a time, cancelled by any new gesture ---
     let motion = null;
@@ -185,6 +218,26 @@
       motion = requestAnimationFrame(step);
     }
 
+    /** The outline of a box resized by a handle (frame pixels), never smaller than a few pixels. */
+    function resized(r, by) {
+      const dir = r.dir || 'se';
+      const MIN_PX = 8;
+      let { left, top, width, height } = r;
+      if (dir.includes('e')) width = Math.max(MIN_PX, width + by.dx);
+      if (dir.includes('s')) height = Math.max(MIN_PX, height + by.dy);
+      if (dir.includes('w')) {
+        const dx = Math.min(by.dx, width - MIN_PX);
+        left += dx;
+        width -= dx;
+      }
+      if (dir.includes('n')) {
+        const dy = Math.min(by.dy, height - MIN_PX);
+        top += dy;
+        height -= dy;
+      }
+      return { left, top, width, height };
+    }
+
     /** Bring a drawn element to the middle of the frame. */
     function centerOn(element) {
       if (!element) return;
@@ -228,12 +281,27 @@
     const endUnder = (event) => endOf(under(event));
     const onHandle = (element) => element === handle || handle.contains(element);
 
-    /** Where a line leaves a box or port, in frame coordinates: the middle of the box's right edge, the middle of the port. */
+    /**
+     * Where a line leaves a box or port, in frame coordinates: the middle of
+     * the box's right edge, the middle of the port. A host that edits the
+     * drawing drags ports by their body: the handle sits just outside the
+     * port, on the side it faces, its hit area touching the port.
+     */
     function spotOf(element) {
       const frame = stage.getBoundingClientRect();
       const box = element.getBoundingClientRect();
-      const x = element.classList.contains('av-port') ? box.left + box.width / 2 : box.right;
-      return { x: x - frame.left, y: box.top + box.height / 2 - frame.top };
+      const isPort = element.classList.contains('av-port');
+      const x = isPort ? box.left + box.width / 2 : box.right;
+      const spot = { x: x - frame.left, y: box.top + box.height / 2 - frame.top };
+      const owner = isPort && editing && editing.portsOnly ? element.closest('.av-node') : null;
+      if (!owner) return spot;
+      const shape = shapeOf(owner).getBoundingClientRect();
+      const cx = box.left + box.width / 2;
+      const cy = box.top + box.height / 2;
+      const sides = [[Math.abs(cx - shape.left), -1, 0], [Math.abs(shape.right - cx), 1, 0], [Math.abs(cy - shape.top), 0, -1], [Math.abs(shape.bottom - cy), 0, 1]];
+      const [, nx, ny] = sides.reduce((a, b) => (b[0] < a[0] ? b : a));
+      const reach = (nx ? box.width : box.height) / 2 + 8;
+      return { x: spot.x + nx * reach, y: spot.y + ny * reach };
     }
     function placeHandle() {
       if (!anchor) return;
@@ -249,7 +317,9 @@
     /** The handle on the box or port under the pointer, else on the selected box, else away. */
     function refreshHandle() {
       if (!onConnect || connect) return;
-      const next = (hovered && hovered.isConnected ? hovered : null) || canvas.querySelector('.av-node.is-selected');
+      let next = (hovered && hovered.isConnected ? hovered : null) || canvas.querySelector('.av-node.is-selected');
+      // A host with arrows on the sides of boxes keeps the round handle for ports.
+      if (next && editing && editing.portsOnly && !next.classList.contains('av-port')) next = null;
       if (next !== anchor) {
         anchor = next;
         if (anchor) handle.setAttribute('aria-label', `Connect from ${nameOf(anchor)}`);
@@ -357,10 +427,14 @@
       drag = { x: event.clientX, y: event.clientY, startX: event.clientX, startY: event.clientY, moved: false, box: null, from: null, connect: false, vx: 0, vy: 0, lastAt: performance.now() };
       if (event.button === 1) return; // the middle button always pans
       const hit = under(event);
-      if (gripped && (hit === grip || grip.contains(hit))) {
+      const handleHit = gripped ? gripOf(hit) : null;
+      if (handleHit) {
         const frame = stage.getBoundingClientRect();
         const box = shapeOf(gripped).getBoundingClientRect();
-        drag.resize = { id: gripped.dataset.id, left: box.left - frame.left, top: box.top - frame.top, width: box.width, height: box.height };
+        const dir = handleHit.dataset.dir;
+        drag.resize = { id: gripped.dataset.id, dir, left: box.left - frame.left, top: box.top - frame.top, width: box.width, height: box.height };
+        stage.style.setProperty('--av-resize-cursor', CURSORS[dir]);
+        snapStart(gripped.dataset.id, `resize:${dir}`);
         return;
       }
       if (onConnect && onHandle(hit) && anchor && !connect) {
@@ -377,7 +451,10 @@
       const node = hit && hit.closest ? hit.closest('.av-node') : null;
       if (arranging) {
         const ids = node ? carried(node.dataset.id) : [];
-        if (ids.length > 0) drag.box = { id: node.dataset.id, groups: groupsOf(ids) };
+        if (ids.length > 0) {
+          drag.box = { id: node.dataset.id, groups: groupsOf(ids) };
+          snapStart(node.dataset.id, 'move');
+        }
       } else if (onDrop && node) {
         drag.from = node;
       }
@@ -408,9 +485,10 @@
       drag.moved = true;
       if (drag.resize) {
         const r = drag.resize;
-        const width = Math.max(8, r.width + event.clientX - drag.startX);
-        const height = Math.max(8, r.height + event.clientY - drag.startY);
-        Object.assign(outline.style, { left: `${r.left}px`, top: `${r.top}px`, width: `${width}px`, height: `${height}px` });
+        const grown = snapped(event.clientX - drag.startX, event.clientY - drag.startY, event);
+        drag.snapped = grown;
+        const outlined = resized(r, grown);
+        Object.assign(outline.style, { left: `${outlined.left}px`, top: `${outlined.top}px`, width: `${outlined.width}px`, height: `${outlined.height}px` });
         if (!outline.isConnected) stage.appendChild(outline);
         stage.classList.add('is-resizing');
         return;
@@ -438,7 +516,9 @@
       }
       if (drag.box) {
         // The box follows the pointer; its exchanges are redrawn on drop.
-        const shift = `translate(${(event.clientX - drag.startX) / at.scale} ${(event.clientY - drag.startY) / at.scale})`;
+        const moved = snapped(event.clientX - drag.startX, event.clientY - drag.startY, event);
+        drag.snapped = moved;
+        const shift = `translate(${moved.dx / at.scale} ${moved.dy / at.scale})`;
         for (const group of drag.box.groups) group.setAttribute('transform', shift);
         stage.classList.add('is-moving');
         // With a host that moves elements, the box it would go into is marked.
@@ -460,7 +540,9 @@
       if (event) pointers.delete(event.pointerId);
       if (pointers.size < 2) pinch = null;
       drag = null;
+      snapEnd();
       stage.classList.remove('is-panning', 'is-moving', 'is-dragging', 'is-resizing');
+      stage.style.removeProperty('--av-resize-cursor');
       if (outline.isConnected) outline.remove();
       if (connect) return; // the line waits for its end
       if (ghost.isConnected) ghost.remove();
@@ -473,20 +555,36 @@
       if (pinched || !done) return;
       if (done.connect) {
         if (!connect) return;
+        if (done.onTap && !done.moved) {
+          // A tap on an arrow of a box: the host's own gesture, not a line.
+          const from = connect.from;
+          cancelConnect();
+          done.onTap(from);
+          return;
+        }
         const hit = under(event);
         if (done.moved || connect.armed) finishConnect(onHandle(hit) ? null : endOf(hit));
         else connect.armed = true; // a tap on the handle: the next tap names the end
         return;
       }
       if (done.resize) {
-        if (done.moved) onResize(done.resize.id, (event.clientX - done.startX) / at.scale, (event.clientY - done.startY) / at.scale);
+        const grown = done.snapped || { dx: event.clientX - done.startX, dy: event.clientY - done.startY };
+        const dir = done.resize.dir || 'se';
+        const k = 1 / at.scale;
+        // A handle on the left or top moves that side: the box moves as much as it shrinks.
+        const dx = dir.includes('w') ? grown.dx * k : 0;
+        const dy = dir.includes('n') ? grown.dy * k : 0;
+        const dw = dir.includes('e') ? grown.dx * k : -dx;
+        const dh = dir.includes('s') ? grown.dy * k : -dy;
+        if (done.moved) onResize(done.resize.id, dw, dh, dx, dy);
         return;
       }
       if (!done.moved) {
         if (event.button === 0) onPick(under(event));
       } else if (done.box) {
         const into = onDrop ? boxUnder(event, done.box.groups) : null;
-        onMove(done.box.id, (event.clientX - done.startX) / at.scale, (event.clientY - done.startY) / at.scale, into ? into.dataset.id : null);
+        const moved = done.snapped || { dx: event.clientX - done.startX, dy: event.clientY - done.startY };
+        onMove(done.box.id, moved.dx / at.scale, moved.dy / at.scale, into ? into.dataset.id : null);
       } else if (done.from) {
         const over = under(event);
         const target = over && over.closest ? over.closest('.av-node') : null;
@@ -505,6 +603,7 @@
       const hit = under(event);
       const node = hit && hit.closest ? hit.closest('.av-node') : null;
       const point = local(event);
+      if (!event.shiftKey && !event.altKey && editing && editing.onEdit && hit && editing.onEdit(hit)) return;
       if (event.shiftKey || event.altKey) zoomBy(1 / DOUBLE_CLICK_ZOOM, point.x, point.y, true);
       else if (node) onOpen(hit);
       else zoomBy(DOUBLE_CLICK_ZOOM, point.x, point.y, true);
@@ -578,6 +677,8 @@
       fit,
       zoomIn: () => zoomBy(ZOOM_STEP, undefined, undefined, true),
       zoomOut: () => zoomBy(1 / ZOOM_STEP, undefined, undefined, true),
+      /** Zoom to `scale` (1: a sheet unit per pixel) about the middle of the frame. */
+      zoomTo: (scale) => zoomBy(scale / at.scale, undefined, undefined, true),
       centerOn,
       toggleFullscreen,
       /** Where the sheet is: kept across a redraw that does not change its size much. */
@@ -599,6 +700,20 @@
       },
       /** Drop a line under way, as before a redraw. */
       cancelConnect,
+      /**
+       * Start a line from a box as the handle does, from a press elsewhere
+       * (an arrow on its side): dragged, it connects; tapped, `onTap(box)`.
+       */
+      connectFrom: (element, event, onTap) => {
+        if (!onConnect || !element || !element.isConnected) return;
+        stopMotion();
+        pointers.set(event.pointerId, local(event));
+        stage.setPointerCapture(event.pointerId);
+        beginConnect(element, false);
+        drag = { x: event.clientX, y: event.clientY, startX: event.clientX, startY: event.clientY, moved: false, box: null, from: null, connect: true, onTap, vx: 0, vy: 0, lastAt: performance.now() };
+      },
+      /** The zoom of the sheet: frame pixels per sheet unit. */
+      scale: () => at.scale,
     };
   }
 

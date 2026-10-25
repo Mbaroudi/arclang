@@ -123,6 +123,7 @@ impl CapellaImporter {
         Ok(Model {
             id: String::new(),
             diagrams: Vec::new(),
+            tables: Vec::new(), // tables hook
             classes: Vec::new(),
             associations: Vec::new(),
             test_cases: Vec::new(),

@@ -1,0 +1,5 @@
+{
+  "description": "Actors and components in almost the same blue.",
+  "expect": { "ok": false, "rules": ["distinct"], "errors": ["actor and system component are too close on the System view"] },
+  "theme": { "version": 1, "name": "One blue", "extends": "arclang-default", "concepts": { "system_actor": { "fill": "#A2BFE5" } } }
+}

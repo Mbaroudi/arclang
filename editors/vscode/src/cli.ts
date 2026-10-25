@@ -28,11 +28,50 @@ export function workspaceTrusted(): boolean {
 }
 
 /**
+ * Where the compiler runs: the native `arclang` binary (desktop), or the
+ * WebAssembly build in a web worker (the browser). Every compiler call of
+ * the extension goes through one of these via `run`.
+ */
+export interface Backend {
+  readonly name: 'native' | 'wasm';
+  run(args: string[], options: RunOptions): Promise<RunResult>;
+  /** Why this subcommand cannot run on this backend, or null (the native one runs them all). */
+  unavailable?(args: string[]): string | null; // web hook
+}
+
+let backend: Backend | null = null; // web hook
+
+/** Replaces the native backend (the web entry installs the WebAssembly one). */
+export function setBackend(next: Backend): void { // web hook
+  backend = next;
+}
+
+/**
+ * Tells the user, and returns true, when `args` cannot run on the backend in
+ * use (a browser build that does not carry the subcommand yet): commands call
+ * it before they ask anything, so none of them half-runs and then fails.
+ */
+export function refusedHere(args: string[]): boolean { // web hook
+  const reason = currentBackend().unavailable?.(args) ?? null;
+  if (reason) void vscode.window.showInformationMessage(`ArcLang: ${reason}`);
+  return reason !== null;
+}
+
+/** The backend in use: the native binary unless the web entry set another. */
+export function currentBackend(): Backend { // web hook
+  return backend ?? nativeBackend;
+}
+
+/**
  * Runs `arclang <args>`, never through a shell; a missing binary is exit
  * code 127 and an untrusted workspace exit code 126, never a throw.
  */
 export function run(args: string[], options: RunOptions = {}): Promise<RunResult> {
   if (!workspaceTrusted()) return Promise.resolve({ code: 126, stdout: '', stderr: UNTRUSTED_MESSAGE });
+  return currentBackend().run(args, options);
+}
+
+function runNative(args: string[], options: RunOptions): Promise<RunResult> {
   return new Promise((resolve) => {
     const child = execFile(
       binary(),
@@ -50,6 +89,8 @@ export function run(args: string[], options: RunOptions = {}): Promise<RunResult
     options.token?.onCancellationRequested(() => child.kill());
   });
 }
+
+const nativeBackend: Backend = { name: 'native', run: runNative };
 
 /**
  * Writes `text` in a fresh private temporary directory (mode 0700, unguessable

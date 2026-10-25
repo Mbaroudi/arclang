@@ -11,6 +11,26 @@
   --av-space-1: 0.375rem;
   --av-space-2: 0.75rem;
   --av-space-3: 1.25rem;
+  /* The tool row and its menus; a host maps these to its own theme. */
+  --av-tool-size: 28px;
+  --av-tool-gap: 4px;
+  --av-tool-fg: var(--av-ink);
+  --av-tool-hover: rgba(24, 34, 45, 0.08);
+  --av-tool-active: rgba(24, 34, 45, 0.14);
+  --av-tool-pressed: rgba(11, 92, 173, 0.12);
+  --av-tool-pressed-fg: var(--av-accent);
+  --av-tool-pressed-border: rgba(11, 92, 173, 0.35);
+  --av-tool-separator: var(--av-rule);
+  --av-focus: var(--av-accent);
+  --av-badge-bg: var(--av-accent);
+  --av-badge-fg: #ffffff;
+  --av-menu-bg: var(--av-sheet);
+  --av-menu-fg: var(--av-ink);
+  --av-menu-border: var(--av-rule);
+  --av-menu-hover-bg: var(--av-accent);
+  --av-menu-hover-fg: #ffffff;
+  --av-menu-hover-border: transparent;
+  --av-menu-shadow: 0 6px 18px rgba(24, 34, 45, 0.16);
   color: var(--av-ink);
   font-size: 0.875rem;
   line-height: 1.45;
@@ -64,78 +84,255 @@
   color: var(--av-ink);
 }
 
+/* The tool row: 28 px icon buttons and drop-downs in groups between thin
+   separators, one line always. A narrow row drops the words of its menus,
+   then moves tools into "⋯" (arcviz-toolbar.js); it never wraps or cuts. */
 .arcviz .arcviz-tools {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--av-space-1);
-  padding-bottom: var(--av-space-1);
-}
-
-/* Tools come in groups: one bordered strip per group, no gap inside it. */
-.arcviz .arcviz-tool-group {
-  display: inline-flex;
-}
-
-.arcviz .arcviz-tool-group .arcviz-tool {
-  border-radius: 0;
-  margin-left: -1px;
-}
-
-.arcviz .arcviz-tool-group .arcviz-tool:first-child {
-  border-radius: 3px 0 0 3px;
-  margin-left: 0;
-}
-
-.arcviz .arcviz-tool-group .arcviz-tool:last-child {
-  border-radius: 0 3px 3px 0;
-}
-
-.arcviz .arcviz-tool-group .arcviz-tool:only-child {
-  border-radius: 3px;
-}
-
-.arcviz .arcviz-tool-group .arcviz-tool:hover,
-.arcviz .arcviz-tool-group .arcviz-tool[aria-pressed='true'] {
-  position: relative;
-  z-index: 1;
-}
-
-.arcviz .arcviz-tool[hidden] {
-  display: none;
-}
-
-/* The filter menu: a popover under its button. */
-.arcviz .arcviz-filters {
-  position: relative;
-}
-
-.arcviz .arcviz-filters > summary {
-  display: inline-flex;
   align-items: center;
-  list-style: none;
+  display: flex;
+  flex: 1 1 auto;
+  flex-wrap: nowrap;
+  gap: var(--av-tool-gap);
+  min-width: 0;
+  overflow: hidden;
+  padding: 2px;
 }
 
-.arcviz .arcviz-filters > summary::-webkit-details-marker {
+/* On the standalone page the row shares the bar with the tabs: it takes
+   the room left beside them (or a line of its own) and keeps to the right. */
+.arcviz .arcviz-bar > .arcviz-tools {
+  flex: 1 1 32rem;
+}
+
+.arcviz .arcviz-bar > .arcviz-tools > .arcviz-tool-group:first-child {
+  margin-left: auto;
+}
+
+.arcviz .arcviz-tool-group {
+  align-items: center;
+  display: flex;
+  flex: none;
+  gap: var(--av-tool-gap);
+}
+
+.arcviz .arcviz-tool-group:not([hidden]) ~ .arcviz-tool-group::before {
+  align-self: center;
+  background: var(--av-tool-separator);
+  content: '';
+  height: 16px;
+  margin-right: var(--av-tool-gap);
+  width: 1px;
+}
+
+.arcviz .arcviz-tool {
+  align-items: center;
+  appearance: none;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  box-shadow: none;
+  color: var(--av-tool-fg);
+  cursor: pointer;
+  display: inline-flex;
+  flex: none;
+  font: inherit;
+  font-size: 0.8125rem;
+  font-weight: 400;
+  gap: 4px;
+  height: var(--av-tool-size);
+  justify-content: center;
+  line-height: 1;
+  min-width: var(--av-tool-size);
+  padding: 0 6px;
+  transform: none;
+  white-space: nowrap;
+}
+
+.arcviz .arcviz-tool.arcviz-icon-tool {
+  padding: 0;
+  width: var(--av-tool-size);
+}
+
+.arcviz .arcviz-tool .arcviz-icon {
+  flex: none;
+}
+
+.arcviz .arcviz-tool:hover {
+  background: var(--av-tool-hover);
+  filter: none;
+}
+
+.arcviz .arcviz-tool:active {
+  background: var(--av-tool-active);
+}
+
+.arcviz .arcviz-tool[aria-pressed='true'],
+.arcviz .arcviz-menu.is-open > .arcviz-tool {
+  background: var(--av-tool-pressed);
+  border-color: var(--av-tool-pressed-border);
+  color: var(--av-tool-pressed-fg);
+}
+
+.arcviz .arcviz-tool:disabled,
+.arcviz .arcviz-tool[aria-disabled='true'] {
+  background: transparent;
+  cursor: default;
+  opacity: 0.4;
+}
+
+.arcviz .arcviz-tool:focus-visible {
+  outline: 1px solid var(--av-focus);
+  outline-offset: -1px;
+}
+
+.arcviz .arcviz-tool[hidden],
+.arcviz .arcviz-tools .is-overflowed {
   display: none;
 }
 
-.arcviz .arcviz-filters[open] > summary {
-  background: var(--av-desk);
+.arcviz .arcviz-menu {
+  display: inline-flex;
+  flex: none;
 }
 
-.arcviz .arcviz-filter-pop {
-  background: var(--av-sheet);
-  border: 1px solid var(--av-rule);
-  border-radius: 3px;
-  box-shadow: 0 6px 18px rgba(24, 34, 45, 0.16);
-  left: 0;
+.arcviz .arcviz-menu-button {
+  padding: 0 4px 0 6px;
+}
+
+.arcviz .arcviz-menu-button .arcviz-icon-caret {
+  margin-left: -2px;
+  opacity: 0.75;
+}
+
+/* The zoom level: figures that do not jiggle the row as they change. */
+.arcviz .arcviz-menu-button.is-text {
+  font-variant-numeric: tabular-nums;
+  justify-content: space-between;
+  min-width: 4.5rem;
+  padding-left: 8px;
+}
+
+.arcviz .arcviz-tools.is-compact .arcviz-menu:not(.keeps-label) .arcviz-tool-label {
+  display: none;
+}
+
+.arcviz .arcviz-badge {
+  align-items: center;
+  background: var(--av-badge-bg);
+  border-radius: 8px;
+  color: var(--av-badge-fg);
+  display: inline-flex;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  height: 16px;
+  justify-content: center;
+  min-width: 16px;
+  padding: 0 4px;
+}
+
+.arcviz .arcviz-badge[hidden] {
+  display: none;
+}
+
+/* Menus open under their button, above everything, never cut by the row. */
+.arcviz .arcviz-menu-pop {
+  background: var(--av-menu-bg);
+  border: 1px solid var(--av-menu-border);
+  border-radius: 6px;
+  box-shadow: var(--av-menu-shadow);
+  color: var(--av-menu-fg);
+  font-size: 0.8125rem;
+  max-width: min(22rem, calc(100vw - 8px));
+  min-width: 12rem;
+  outline: none;
+  overflow: auto;
+  padding: 4px;
+  position: fixed;
+  z-index: 1000;
+}
+
+.arcviz .arcviz-menu-pop[hidden] {
+  display: none;
+}
+
+.arcviz .arcviz-menu-item {
+  align-items: center;
+  appearance: none;
+  background: transparent;
+  border: 0;
+  border-radius: 4px;
+  color: inherit;
+  cursor: pointer;
+  display: flex;
+  font: inherit;
+  gap: 6px;
+  min-height: 26px;
+  padding: 2px 12px 2px 4px;
+  text-align: left;
+  white-space: nowrap;
+  width: 100%;
+}
+
+.arcviz .arcviz-menu-item:hover,
+.arcviz .arcviz-menu-item:focus-visible {
+  background: var(--av-menu-hover-bg);
+  color: var(--av-menu-hover-fg);
+  outline: 1px solid var(--av-menu-hover-border);
+  outline-offset: -1px;
+}
+
+.arcviz .arcviz-menu-item[aria-disabled='true'] {
+  cursor: default;
+  opacity: 0.45;
+}
+
+.arcviz .arcviz-menu-item[aria-disabled='true']:hover {
+  background: transparent;
+  color: inherit;
+  outline: 0;
+}
+
+.arcviz .arcviz-menu-item[aria-disabled='true']:focus-visible {
+  outline: 1px dotted currentColor;
+}
+
+.arcviz .arcviz-menu-check {
+  display: inline-flex;
+  flex: none;
+  justify-content: center;
+  width: 18px;
+}
+
+.arcviz .arcviz-menu-label {
+  flex: 1;
+}
+
+.arcviz .arcviz-menu-keys {
+  font-size: 0.75rem;
+  margin-left: 24px;
+  opacity: 0.7;
+}
+
+.arcviz .arcviz-menu-rule {
+  background: var(--av-menu-border);
+  height: 1px;
+  margin: 4px 6px;
+}
+
+.arcviz .arcviz-menu-heading {
+  color: var(--av-muted);
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  padding: 2px 12px 2px 28px;
+  text-transform: uppercase;
+}
+
+/* The filter menu: kinds of boxes and lines, ticked when shown. */
+.arcviz .arcviz-filters-pop {
   max-height: 24rem;
   min-width: 14rem;
-  overflow: auto;
   padding: var(--av-space-1) var(--av-space-2);
-  position: absolute;
-  top: calc(100% + 2px);
-  z-index: 20;
 }
 
 .arcviz .arcviz-filter-title {
@@ -236,7 +433,6 @@
   }
 }
 
-.arcviz .arcviz-tool,
 .arcviz .arcviz-chain {
   appearance: none;
   background: var(--av-sheet);
@@ -253,14 +449,9 @@
   transform: none;
 }
 
-.arcviz .arcviz-tool:hover,
 .arcviz .arcviz-chain:hover {
   border-color: var(--av-ink);
   filter: none;
-}
-
-.arcviz .arcviz-tool:active {
-  background: var(--av-desk);
 }
 
 .arcviz button:focus-visible,
@@ -381,7 +572,8 @@
    draws the line; the ends the host rules out fade meanwhile. The handle
    lives in the frame, not on the sheet, so it keeps its 8 px at any zoom. */
 /* The grip that resizes the selected box, and the outline it draws. */
-.arcviz .arcviz-grip {
+.arcviz .arcviz-grip,
+.arcviz .arcviz-resize {
   background: var(--av-sheet);
   border: 1.5px solid var(--av-accent);
   border-radius: 2px;
@@ -394,7 +586,10 @@
   width: 10px;
   z-index: 3;
 }
-.arcviz .arcviz-grip:hover { background: var(--av-accent); }
+.arcviz .arcviz-grip:hover,
+.arcviz .arcviz-resize:hover { background: var(--av-accent); }
+.arcviz .arcviz-resize[hidden] { display: none; }
+.arcviz .arcviz-resize:not(.is-se) { height: 8px; left: -4px; top: -4px; width: 8px; }
 .arcviz .arcviz-resize-outline {
   border: 1.5px dashed var(--av-accent);
   border-radius: 3px;
@@ -402,7 +597,7 @@
   position: absolute;
   z-index: 2;
 }
-.arcviz .is-resizing { cursor: nwse-resize; }
+.arcviz .is-resizing { cursor: var(--av-resize-cursor, nwse-resize); }
 
 .arcviz .arcviz-handle {
   animation: av-handle-in 120ms ease-out;
@@ -834,20 +1029,6 @@
   font-weight: 600;
 }
 
-.arcviz .arcviz-tool:disabled {
-  color: #8b95a0;
-  cursor: default;
-}
-
-.arcviz .arcviz-tool:disabled:hover {
-  border-color: var(--av-rule);
-}
-
-.arcviz .arcviz-tool[aria-pressed='true'] {
-  background: var(--av-desk);
-  border-color: var(--av-muted);
-}
-
 .arcviz .arcviz-related {
   border-bottom: 1px solid var(--av-rule);
   margin-bottom: var(--av-space-2);
@@ -972,3 +1153,156 @@
 .arcviz .av-chain-graph .av-control rect, .arcviz .av-chain-graph .av-control polygon { fill: #C2410C; stroke: #7C2D12; stroke-width: 1; }
 .arcviz .av-chain-graph .av-control-label { font-size: 9px; font-weight: 700; fill: #7C2D12; }
 .arcviz .av-invariant text { pointer-events: none; }
+
+/* Editing from the drawing (ArcVizEdit, for an editor host only). The ends
+   of the selected exchange are discs to drag onto another box or port; its
+   runs carry a diamond that adds a bend, its bends a square that moves or,
+   double-clicked, removes them. Guides show the edge or centre a moved box
+   snaps to; a dashed band encloses what a drag on the sheet selects; the
+   box under the pointer shows an arrow on each side to connect from. */
+.arcviz .arcviz-end,
+.arcviz .arcviz-bend,
+.arcviz .arcviz-quick {
+  box-sizing: border-box;
+  position: absolute;
+  touch-action: none;
+  z-index: 3;
+}
+.arcviz .arcviz-end {
+  background: var(--av-sheet);
+  border: 2px solid var(--av-accent);
+  border-radius: 50%;
+  cursor: move;
+  height: 12px;
+  left: -6px;
+  top: -6px;
+  width: 12px;
+}
+.arcviz .arcviz-end::before,
+.arcviz .arcviz-bend::before {
+  content: '';
+  inset: -5px;
+  position: absolute;
+}
+.arcviz .arcviz-bend::before { inset: -3px; }
+.arcviz .arcviz-end:hover { background: var(--av-accent); }
+.arcviz .arcviz-bend {
+  background: var(--av-sheet);
+  border: 1.5px solid var(--av-accent);
+  height: 9px;
+  left: -4.5px;
+  top: -4.5px;
+  width: 9px;
+}
+.arcviz .arcviz-bend.is-new {
+  border-radius: 1px;
+  cursor: grab;
+  opacity: 0.75;
+  rotate: 45deg;
+}
+.arcviz .arcviz-bend.is-waypoint {
+  background: var(--av-accent);
+  cursor: move;
+}
+.arcviz .arcviz-bend:hover { opacity: 1; scale: 1.3; }
+.arcviz .arcviz-guide {
+  background: var(--av-chain);
+  left: 0;
+  pointer-events: none;
+  position: absolute;
+  top: 0;
+  z-index: 2;
+}
+.arcviz .arcviz-guide.is-vertical { height: 100%; width: 1px; }
+.arcviz .arcviz-guide.is-horizontal { height: 1px; width: 100%; }
+.arcviz .arcviz-marquee {
+  background: color-mix(in srgb, var(--av-accent) 10%, transparent);
+  border: 1px dashed var(--av-accent);
+  pointer-events: none;
+  position: absolute;
+  z-index: 2;
+}
+.arcviz .arcviz-quick {
+  align-items: center;
+  background: var(--av-sheet);
+  border: 1.5px solid var(--av-accent);
+  border-radius: 50%;
+  box-shadow: 0 1px 3px rgba(24, 34, 45, 0.3);
+  color: var(--av-accent);
+  cursor: crosshair;
+  display: flex;
+  font: 600 11px/1 system-ui, sans-serif;
+  height: 18px;
+  justify-content: center;
+  left: -9px;
+  top: -9px;
+  transition: scale 100ms ease-out, background 100ms ease-out;
+  width: 18px;
+}
+.arcviz .arcviz-quick[hidden],
+.arcviz .arcviz-end[hidden] { display: none; }
+.arcviz .arcviz-quick.is-north { margin-top: -12px; }
+.arcviz .arcviz-quick.is-south { margin-top: 12px; }
+.arcviz .arcviz-quick.is-east { margin-left: 12px; }
+.arcviz .arcviz-quick.is-west { margin-left: -12px; }
+.arcviz .arcviz-quick:hover { background: var(--av-accent); color: var(--av-sheet); scale: 1.15; }
+.arcviz .is-reconnecting { cursor: crosshair; }
+.arcviz .is-reconnecting .av-node:not(.is-connect-target) > :not(.av-port),
+.arcviz .is-reconnecting .av-port:not(.is-connect-target) {
+  opacity: 0.4;
+}
+@media (prefers-reduced-motion: reduce) {
+  .arcviz .arcviz-quick { transition: none; }
+}
+
+/* draw.io's gestures for an editor host: the box an end would land on is
+   outlined while a port of it, or the box itself, is the target; a port
+   slides along its border; a name is dragged off its line; the selected
+   exchange offers its line styles. */
+.arcviz .av-node.is-snap-box > .av-shape {
+  stroke: var(--av-accent);
+  stroke-width: 3;
+}
+.arcviz .arcviz-stage.is-arranging .av-port { cursor: move; }
+.arcviz .av-port.is-selected rect { stroke: var(--av-accent); stroke-width: 2.5; }
+.arcviz .arcviz-stage.is-arranging .av-edge-label { cursor: move; }
+.arcviz .is-moving-port { cursor: move; }
+.arcviz .arcviz-edge-style {
+  background: var(--av-sheet);
+  border: 1px solid var(--av-accent);
+  border-radius: 6px;
+  box-shadow: 0 1px 4px rgba(24, 34, 45, 0.25);
+  display: flex;
+  gap: 1px;
+  left: 0;
+  padding: 2px;
+  position: absolute;
+  top: 0;
+  transform: translate(-50%, -100%);
+  z-index: 4;
+}
+.arcviz .arcviz-edge-style[hidden] { display: none; }
+.arcviz .arcviz-edge-style-option {
+  background: transparent;
+  border: 0;
+  border-radius: 4px;
+  color: var(--av-accent);
+  cursor: pointer;
+  font: 600 12px/1 system-ui, sans-serif;
+  height: 22px;
+  padding: 0;
+  width: 24px;
+}
+.arcviz .arcviz-edge-style-option:hover { background: color-mix(in srgb, var(--av-accent) 14%, transparent); }
+.arcviz .arcviz-edge-style-option[aria-pressed='true'] { background: var(--av-accent); color: var(--av-sheet); }
+.arcviz .arcviz-edge-style-option:focus-visible { outline: 2px solid var(--av-accent); outline-offset: 1px; }
+
+/* "⋯" is a menu of its own: no caret beside the dots. */
+.arcviz .arcviz-more .arcviz-icon-caret {
+  display: none;
+}
+
+.arcviz .arcviz-more > .arcviz-menu-button {
+  padding: 0;
+  width: var(--av-tool-size);
+}

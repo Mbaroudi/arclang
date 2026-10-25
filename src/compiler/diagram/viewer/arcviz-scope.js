@@ -25,9 +25,11 @@
    * @param {?Storage} deps.storage          where to remember, or null
    * @param {string} deps.storageKey         one key per model
    * @param {?object} deps.initial           the layout file of the model, if any
+   * @param {?object} deps.sections          more of the file kept elsewhere: { toFile() -> object, load(file) } (layers, groups, locks)
    */
   function create(deps) {
     const { graphs, collapse, storage, storageKey, initial } = deps;
+    const sections = deps.sections || null; // zorder hook
     const whole = () => ({ folded: new Set(), focus: null });
     const WHOLE = Object.freeze(whole());
     const byId = new Map(graphs.map((graph) => [graph.id, graph]));
@@ -36,6 +38,31 @@
     // Layout key -> { node id: { dx, dy } }: a placement belongs to one
     // layout, so each fold or open container has its own.
     const places = new Map();
+    // Layout key -> { edge id: [{ x, y }] }: the exchanges bent by hand.
+    const routes = new Map();
+    // Layout key -> { edge id: 'straight' | 'curved' }: lines drawn otherwise than at right angles.
+    const styles = new Map();
+    // Layout key -> { edge id: { dx, dy } }: names dragged off their line.
+    const labels = new Map();
+    // Layout key -> { port id: { dx, dy } }: ports dragged along the border of their box.
+    const ports = new Map();
+    // Layout key -> { node id: z }: boxes brought to the front (z > 0) or sent to the back (z < 0).
+    const order = new Map();
+    const STYLES = new Set(['straight', 'curved']);
+    const MAX_Z = 100000;
+    const isShift = (value) => Boolean(value) && Number.isFinite(value.dx) && Number.isFinite(value.dy) && Math.abs(value.dx) <= 100000 && Math.abs(value.dy) <= 100000;
+    const edges = new Map(graphs.map((graph) => {
+      const ids = new Set();
+      const walk = (holder) => {
+        for (const edge of holder.edges || []) ids.add(edge.id);
+        (holder.children || []).forEach(walk);
+      };
+      walk(graph);
+      return [graph.id, ids];
+    }));
+    const isPoint = (point) => Boolean(point) && Number.isFinite(point.x) && Number.isFinite(point.y) && Math.abs(point.x) <= 100000 && Math.abs(point.y) <= 100000;
+    const MAX_BENDS = 64; // points a bent exchange may pass through
+    const isRoute = (points) => Array.isArray(points) && points.length > 0 && points.length <= MAX_BENDS && points.every(isPoint);
     const nodes = new Map(graphs.map((graph) => {
       const ids = new Set();
       const walk = (node) => {
@@ -45,6 +72,25 @@
       (graph.children || []).forEach(walk);
       return [graph.id, ids];
     }));
+    const portIds = new Map(graphs.map((graph) => {
+      const ids = new Set();
+      const walk = (node) => {
+        for (const port of node.ports || []) ids.add(port.id);
+        (node.children || []).forEach(walk);
+      };
+      (graph.children || []).forEach(walk);
+      return [graph.id, ids];
+    }));
+    /** Change one entry of a per-layout map of the view on screen; `value` undefined removes it. */
+    const setIn = (map, id, item, value) => {
+      const key = keyOf(id, of(id));
+      const { [item]: was, ...others } = map.get(key) || {};
+      const next = value === undefined ? others : { ...others, [item]: value };
+      if (Object.keys(next).length > 0) map.set(key, next);
+      else map.delete(key);
+      remember();
+    };
+    const sorted = (object) => Object.fromEntries(Object.keys(object).sort().map((k) => [k, object[k]]));
     // The open container is not folded in its own diagram: it is not part
     // of what tells one layout from another.
     const keyOf = (id, scope) => JSON.stringify([id, scope.focus, ...[...scope.folded].filter((node) => node !== scope.focus).sort()]);
@@ -76,18 +122,49 @@
         const scope = scopes.get(id);
         if (scope.folded.size > 0 || scope.focus) views[id] = { folded: [...scope.folded].sort(), open: scope.focus };
       }
-      const arrangements = [...places.keys()].sort().map((key) => {
+      const keys = [...new Set([...places.keys(), ...routes.keys(), ...styles.keys(), ...labels.keys(), ...ports.keys(), ...order.keys()])].sort();
+      const arrangements = keys.map((key) => {
         const [view, open, ...folded] = JSON.parse(key);
-        const placed = places.get(key);
-        return { view, open, folded, places: Object.fromEntries(Object.keys(placed).sort().map((node) => [node, placed[node]])) };
-      });
-      return { arclang_layout: LAYOUT_VERSION, views, arrangements };
+        const placed = places.get(key) || {};
+        const bent = routes.get(key);
+        // Only what the view draws: an element removed or renamed since leaves nothing behind.
+        const drawsNode = (node) => nodes.has(view) && nodes.get(view).has(node);
+        const drawsPort = (port) => portIds.has(view) && portIds.get(view).has(port);
+        const only = (object, keep) => Object.fromEntries(Object.keys(object).filter(keep).sort().map((k) => [k, object[k]]));
+        const entry = { view, open, folded, places: only(placed, drawsNode) };
+        // Written only when an exchange was bent: files without bends stay as they were.
+        // Only exchanges the view draws: a renamed or removed one leaves nothing behind.
+        // A line's style and the offset of its name go with its points, each written only when set.
+        const drawsEdge = (edge) => edges.has(view) && edges.get(view).has(edge);
+        const styled = styles.get(key) || {};
+        const named = labels.get(key) || {};
+        const drawn = [...new Set([...Object.keys(bent || {}), ...Object.keys(styled), ...Object.keys(named)])].filter(drawsEdge).sort();
+        if (drawn.length) {
+          entry.edges = Object.fromEntries(drawn.map((edge) => [edge, {
+            ...(bent && bent[edge] ? { points: bent[edge] } : {}),
+            ...(styled[edge] ? { style: styled[edge] } : {}),
+            ...(named[edge] ? { label: named[edge] } : {}),
+          }]));
+        }
+        const moved = ports.has(key) ? only(ports.get(key), drawsPort) : {};
+        const stacked = order.has(key) ? only(order.get(key), drawsNode) : {};
+        if (Object.keys(moved).length) entry.ports = moved;
+        if (Object.keys(stacked).length) entry.order = stacked;
+        return entry;
+      }).filter((entry) => Object.keys(entry.places).length || entry.edges || entry.ports || entry.order);
+      return { arclang_layout: LAYOUT_VERSION, views, arrangements, ...(sections ? sections.toFile() : {}) }; // zorder hook
     }
 
     /** Replace the arrangement by what a layout says, piece by valid piece. */
     function load(file) {
       scopes.clear();
       places.clear();
+      routes.clear();
+      styles.clear();
+      labels.clear();
+      ports.clear();
+      order.clear();
+      if (sections) sections.load(file); // zorder hook
       const own = (object, key) => (object && typeof object === 'object' && Object.prototype.hasOwnProperty.call(object, key) ? object[key] : undefined);
       const containersIn = (id, list) => (Array.isArray(list) ? list.filter((node) => isContainer(id, node)) : []);
       const views = own(file, 'views');
@@ -101,8 +178,8 @@
       const arrangements = own(file, 'arrangements');
       for (const entry of Array.isArray(arrangements) ? arrangements : []) {
         const view = own(entry, 'view');
-        const placed = own(entry, 'places');
-        if (!nodes.has(view) || !placed || typeof placed !== 'object') continue;
+        const placed = own(entry, 'places') || {};
+        if (!nodes.has(view) || typeof placed !== 'object') continue;
         const open = own(entry, 'open');
         if (open && !isContainer(view, open)) continue; // made in a container that is gone
         const kept = {};
@@ -111,6 +188,36 @@
         }
         const key = keyOf(view, { focus: open || null, folded: new Set(containersIn(view, entry.folded)) });
         if (Object.keys(kept).length > 0) places.set(key, kept);
+        const bent = own(entry, 'edges');
+        const keptRoutes = {};
+        const keptStyles = {};
+        const keptLabels = {};
+        for (const edge of bent && typeof bent === 'object' ? Object.keys(bent) : []) {
+          if (edge === '__proto__' || !edges.get(view).has(edge)) continue;
+          const points = own(bent[edge], 'points');
+          if (isRoute(points)) keptRoutes[edge] = points.map(({ x, y }) => ({ x, y }));
+          const style = own(bent[edge], 'style');
+          if (STYLES.has(style)) keptStyles[edge] = style;
+          const label = own(bent[edge], 'label');
+          if (isShift(label) && (label.dx || label.dy)) keptLabels[edge] = { dx: label.dx, dy: label.dy };
+        }
+        if (Object.keys(keptRoutes).length > 0) routes.set(key, keptRoutes);
+        if (Object.keys(keptStyles).length > 0) styles.set(key, keptStyles);
+        if (Object.keys(keptLabels).length > 0) labels.set(key, keptLabels);
+        const moved = own(entry, 'ports');
+        const keptPorts = {};
+        for (const port of moved && typeof moved === 'object' ? Object.keys(moved) : []) {
+          const shift = moved[port];
+          if (port !== '__proto__' && portIds.get(view).has(port) && isShift(shift) && (shift.dx || shift.dy)) keptPorts[port] = { dx: shift.dx, dy: shift.dy };
+        }
+        if (Object.keys(keptPorts).length > 0) ports.set(key, keptPorts);
+        const stacked = own(entry, 'order');
+        const keptOrder = {};
+        for (const node of stacked && typeof stacked === 'object' ? Object.keys(stacked) : []) {
+          const z = stacked[node];
+          if (node !== '__proto__' && nodes.get(view).has(node) && Number.isInteger(z) && z !== 0 && Math.abs(z) <= MAX_Z) keptOrder[node] = z;
+        }
+        if (Object.keys(keptOrder).length > 0) order.set(key, keptOrder);
       }
     }
 
@@ -201,8 +308,74 @@
         else places.delete(key);
         remember();
       },
+      /** Back to the automatic layout: boxes, bends, styles, names, ports and stacking. */
       resetPlaces(id) {
-        places.delete(keyOf(id, of(id)));
+        const key = keyOf(id, of(id));
+        for (const map of [places, routes, styles, labels, ports, order]) map.delete(key);
+        remember();
+      },
+      /** Whether anything of the layout on screen was arranged by hand. */
+      arranged: (id, scope = of(id)) => [places, routes, styles, labels, ports, order].some((map) => map.has(keyOf(id, scope))),
+      /** What else the reader arranged in a layout, as ArcVizPlace takes it: { styles, labels, ports, order }. */
+      extrasOf: (id, scope = of(id)) => {
+        const key = keyOf(id, scope);
+        return { styles: { ...(styles.get(key) || {}) }, labels: { ...(labels.get(key) || {}) }, ports: { ...(ports.get(key) || {}) }, order: { ...(order.get(key) || {}) } };
+      },
+      /** How an exchange of the layout on screen is drawn: 'orthogonal' (the default), 'straight' or 'curved'. */
+      styleOf: (id, edge) => (styles.get(keyOf(id, of(id))) || {})[edge] || 'orthogonal',
+      setStyle(id, edge, style) {
+        if (!edges.has(id) || !edges.get(id).has(edge)) return;
+        setIn(styles, id, edge, STYLES.has(style) ? style : undefined);
+      },
+      /** Move the name of an exchange off its line, on top of earlier moves. */
+      moveLabelBy(id, edge, dx, dy) {
+        if (!edges.has(id) || !edges.get(id).has(edge) || !isShift({ dx, dy })) return;
+        const was = (labels.get(keyOf(id, of(id))) || {})[edge] || { dx: 0, dy: 0 };
+        const now = { dx: was.dx + dx, dy: was.dy + dy };
+        setIn(labels, id, edge, isShift(now) && (now.dx || now.dy) ? now : undefined);
+      },
+      /** Move a port along the border of its box (the placement puts it back on the border). */
+      movePortBy(id, port, dx, dy) {
+        if (!portIds.has(id) || !portIds.get(id).has(port) || !isShift({ dx, dy })) return;
+        const was = (ports.get(keyOf(id, of(id))) || {})[port] || { dx: 0, dy: 0 };
+        const now = { dx: was.dx + dx, dy: was.dy + dy };
+        setIn(ports, id, port, isShift(now) && (now.dx || now.dy) ? now : undefined);
+      },
+      /** Bring a box in front of the others (`front`), or behind them. */
+      restack(id, node, front) {
+        if (!nodes.has(id) || !nodes.get(id).has(node)) return;
+        const all = order.get(keyOf(id, of(id))) || {};
+        const values = Object.values(all);
+        const z = front ? Math.max(0, ...values) + 1 : Math.min(0, ...values) - 1;
+        setIn(order, id, node, Math.abs(z) <= MAX_Z ? z : undefined);
+      },
+      // zorder hook: the stacking of several boxes at once ({ node: z }, 0 or none: where the layout put it).
+      setStacking(id, zs) {
+        if (!nodes.has(id)) return;
+        const key = keyOf(id, of(id));
+        const next = { ...(order.get(key) || {}) };
+        for (const node of Object.keys(zs || {})) {
+          if (node === '__proto__' || !nodes.get(id).has(node)) continue;
+          const z = zs[node];
+          if (Number.isInteger(z) && z !== 0 && Math.abs(z) <= MAX_Z) next[node] = z;
+          else delete next[node];
+        }
+        if (Object.keys(next).length > 0) order.set(key, next);
+        else order.delete(key);
+        remember();
+      },
+      /** The points an exchange of the layout on screen was bent through, [] when none. */
+      routeOf: (id, edge, scope = of(id)) => ((routes.get(keyOf(id, scope)) || {})[edge] || []).map(({ x, y }) => ({ x, y })),
+      /** Where the reader bent exchanges in a layout: { edge id: [{ x, y }] }. */
+      routesOf: (id, scope = of(id)) => ({ ...(routes.get(keyOf(id, scope)) || {}) }),
+      /** Bend an exchange of the layout on screen through `points`; none (or []) straightens it. */
+      setRoute(id, edge, points) {
+        if (!edges.has(id) || !edges.get(id).has(edge)) return;
+        const key = keyOf(id, of(id));
+        const { [edge]: was, ...others } = routes.get(key) || {};
+        const next = isRoute(points) ? { ...others, [edge]: points.map(({ x, y }) => ({ x, y })) } : others;
+        if (Object.keys(next).length > 0) routes.set(key, next);
+        else routes.delete(key);
         remember();
       },
       setFolded(id, folded) {

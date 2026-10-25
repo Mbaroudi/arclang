@@ -1,5 +1,7 @@
 pub mod diagram_service;
 pub mod edit;
+pub mod table; // tables hook
+pub mod impact; // impact hook
 pub mod review;
 pub mod repl;
 pub mod language_server;
@@ -170,17 +172,26 @@ pub enum Commands {
         json: bool,
     },
 
-    /// Change-impact analysis: everything transitively affected when an
-    /// element (requirement, component, function) changes
-    Impact {
+    /// Change-impact analysis: what a change to elements, a proposed edit
+    /// (what-if) or the changes since a git revision reach, and why
+    Impact(impact::ImpactArgs), // impact hook
+    
+    /// Verification by simulation: run the test cases that `simulate:` in
+    /// OpenModelica (ARCLANG_OMC, or Docker with ARCLANG_OMC_DOCKER), check
+    /// their `expects:` and cache the verdicts for `check`, `gate` and tables
+    Verify {
         #[clap(value_parser)]
         input: PathBuf,
 
-        /// Element id or unambiguous name (e.g. "REQ-AEB-004")
-        #[clap(value_parser)]
-        element: String,
+        /// Only this test case (id or name)
+        #[clap(long)]
+        test: Option<String>,
+
+        /// Print each outcome as JSON
+        #[clap(long)]
+        json: bool,
     },
-    
+
     Export {
         #[clap(value_parser)]
         input: PathBuf,
@@ -410,10 +421,36 @@ pub enum Commands {
 
     /// Apply one edit, written as JSON, to a model file: {"op": "set" |
     /// "unset" | "rename" | "add" | "add_raw" | "remove" | "move" |
-    /// "add_trace" | "remove_trace" | "wrap_fragment", ...}. Comments and
-    /// layout are kept; refused unless the edited model compiles and shows
-    /// what was asked. Prints {"success": true, "source": ...} or
-    /// {"success": false, "error": ...}; --write writes the file back
+    /// "add_trace" | "remove_trace" | "wrap_fragment" | "reconnect" |
+    /// "duplicate" | "duplicate_many", ...}. Comments and layout are kept; refused unless the
+    /// edited model compiles and shows what was asked. Prints {"success":
+    /// true, "source": ...} or {"success": false, "error": ...}; --write
+    /// writes the file back
+    ///
+    /// Reconnect: {"op": "reconnect", "kind": K, "from": A, "to": B, "name":
+    /// N?, "new_from": C?, "new_to": D?} moves the source and/or the target of
+    /// the relationship of kind K from A to B (named N when several join
+    /// them); both, swapped, reverse it. K is a kind of the element graph:
+    /// ComponentExchange, FunctionalExchange, OperationalExchange,
+    /// PhysicalLink, PhysicalExchange, Transition, Message, Trace or
+    /// Association (`arclang workbench` lists every relationship with its
+    /// kind). Refused when a port goes the wrong way (a source leaves by an
+    /// out or inout port, a target arrives by an in or inout port), when an
+    /// exchange would join an element to itself, or when the compiler warns
+    /// about the result (a trace whose ends break the trace rules of
+    /// `arclang metamodel`).
+    ///
+    /// Duplicate: {"op": "duplicate", "element": E, "container": C?, "layer":
+    /// L?} copies the declaration of E with what it holds, beside it or into
+    /// C or the layer L; every id of the copy is made unique (LC-X becomes
+    /// LC-X-2), an element without id gets a new name. {"op":
+    /// "duplicate_many", "elements": [E, ...], "container": C?} copies
+    /// several at once, with the exchanges, links and traces declared
+    /// between two of them, joined to the copies.
+    ///
+    /// A move of a port ({"op": "move", "element": "LC-A.p", "container":
+    /// "LC-B"}) takes the ends of its exchanges with it. A rename of a name
+    /// no element has renames the relationship of that name.
     Edit {
         #[clap(value_parser)]
         input: PathBuf,
@@ -426,6 +463,11 @@ pub enum Commands {
         #[clap(long)]
         write: bool,
     },
+
+    /// Live tables and matrices of a model (requirement coverage,
+    /// traceability, allocation, N², ICD, elements), computed by the
+    /// compiler: JSON with ids and UUIDs, CSV, TSV, Markdown, HTML or Excel
+    Table(table::TableArgs), // tables hook
 
     /// Print the language metamodel (element kinds, typed attributes,
     /// enumerations, units, trace rules) as Markdown or JSON
@@ -457,6 +499,13 @@ pub enum Commands {
         /// model, when it exists
         #[clap(long, value_parser)]
         layout: Option<PathBuf>,
+
+        /// Colour theme of the HTML viewer (-f html): a preset
+        /// (arclang-default, capella-classic, colorblind-safe,
+        /// print-grayscale, high-contrast, monochrome-document) or an
+        /// arclang-theme.json file. A file that breaks a colour rule is refused
+        #[clap(long)]
+        theme: Option<String>,
 
         #[clap(long)]
         open: bool,
@@ -564,6 +613,9 @@ pub enum ExportFormat {
     GeoJSON,
     /// The product structure and the shapes for CAD (STEP AP242, ISO 10303-242)
     Step,
+    /// A Modelica package of the physical architecture (OpenModelica):
+    /// `output` is a DIRECTORY
+    Modelica,
 }
 
 #[derive(Debug, clap::ValueEnum, Clone)]
@@ -665,9 +717,7 @@ impl CliRunner {
             Commands::Trace { input, from, to, validate, matrix } => {
                 self.run_trace(input, from, to, validate, matrix)
             }
-            Commands::Impact { input, element } => {
-                self.run_impact(input, element)
-            }
+            Commands::Impact(args) => impact::run(&args), // impact hook
             Commands::Diff { old, new, json } => {
                 self.run_diff(old, new, json)
             }
@@ -676,6 +726,9 @@ impl CliRunner {
             }
             Commands::Export { input, output, format } => {
                 self.run_export(input, output, format)
+            }
+            Commands::Verify { input, test, json } => {
+                self.run_verify(input, test, json)
             }
             Commands::Import { input, format, output } => {
                 self.run_import(input, format, output)
@@ -704,15 +757,27 @@ impl CliRunner {
             Commands::Diagram {
                 input,
                 output,
-                format: format @ (DiagramFormat::Viewpoints | DiagramFormat::Elk | DiagramFormat::Html),
+                format: format @ DiagramFormat::Html,
+                view,
+                layout,
+                theme,
+                ..
+            } => self.run_viewpoint_diagrams(input, output, view, format, layout, theme),
+            Commands::Diagram { theme: Some(_), format, .. } => Err(CliError::Compilation(format!(
+                "--theme colours the HTML viewer (-f html), not {format:?}"
+            ))),
+            Commands::Diagram {
+                input,
+                output,
+                format: format @ (DiagramFormat::Viewpoints | DiagramFormat::Elk),
                 view,
                 layout,
                 ..
-            } => self.run_viewpoint_diagrams(input, output, view, format, layout),
+            } => self.run_viewpoint_diagrams(input, output, view, format, layout, None),
             Commands::Diagram { layout: Some(_), format, .. } => Err(CliError::Compilation(format!(
                 "--layout applies to the viewpoint diagrams (-f html, viewpoints or elk), not to {format:?}"
             ))),
-            Commands::Diagram { input, output, format, title, open, view: _, layout: None } => {
+            Commands::Diagram { input, output, format, title, open, view: _, layout: None, theme: None } => {
                 self.run_diagram(input, output, format, title, open)
             }
             Commands::Set { input, element, key, value, write } => {
@@ -736,6 +801,7 @@ impl CliRunner {
             }
             Commands::Workbench { input, gate_standard, exports } => edit::workbench(&input, &gate_standard, exports),
             Commands::Edit { input, request, write } => edit::apply_request(&input, &request, write),
+            Commands::Table(args) => table::run(&args), // tables hook
             Commands::Metamodel { format } => {
                 let metamodel = crate::compiler::metamodel::Metamodel::current();
                 match format {
@@ -1152,6 +1218,47 @@ impl CliRunner {
         }
     }
     
+    fn run_verify(&self, input: PathBuf, test: Option<String>, json: bool) -> Result<(), CliError> {
+        use crate::compiler::simulation::{run, tool::ToolConfig};
+        let result = crate::Compiler::new(crate::CompilerConfig::default())
+            .compile_file(&input)
+            .map_err(|e| CliError::Compilation(e.to_string()))?;
+        let outcomes = run::verify(&result, &input, test.as_deref(), &ToolConfig::from_env()).map_err(CliError::Compilation)?;
+        if json {
+            println!("{}", serde_json::to_string_pretty(&outcomes).map_err(|e| CliError::Compilation(e.to_string()))?);
+        } else {
+            println!("Verification by simulation — {}", input.display());
+            if let Some(first) = outcomes.iter().find(|o| !o.tool.is_empty()) {
+                println!("  Tool: {}{}", first.tool, if first.omc_version.is_empty() { String::new() } else { format!(", {}", first.omc_version) });
+            }
+            for outcome in &outcomes {
+                let mark = match outcome.verdict.as_str() {
+                    "pass" => "✓",
+                    "fail" => "✗",
+                    _ => "?",
+                };
+                let configuration = outcome.configuration.as_deref().map(|c| format!(" [{c}]")).unwrap_or_default();
+                println!("\n{mark} {} — {}{configuration}: {}", outcome.test_case, outcome.model, outcome.verdict.to_uppercase());
+                for value in &outcome.values {
+                    println!("    {} {}   ({})", if value.holds { "ok  " } else { "FAIL" }, value.value, value.expect);
+                }
+                if !outcome.reason.is_empty() && outcome.verdict != "fail" {
+                    println!("    {}", outcome.reason);
+                }
+            }
+            let cached = outcomes.iter().filter(|o| o.verdict != "inconclusive").count();
+            if cached > 0 {
+                println!("\n  {cached} verdict(s) cached in {}", crate::compiler::simulation::cache::dir(&input).display());
+            }
+        }
+        let failed = outcomes.iter().filter(|o| o.verdict != "pass").count();
+        if failed == 0 {
+            Ok(())
+        } else {
+            Err(CliError::Compilation(format!("{failed} of {} simulated case(s) do not pass", outcomes.len())))
+        }
+    }
+
     fn run_gate(&self, input: PathBuf, standard: SafetyStandard) -> Result<(), CliError> {
         let config = crate::CompilerConfig::default();
         let mut compiler = crate::Compiler::new(config);
@@ -1251,45 +1358,6 @@ impl CliRunner {
         }
     }
 
-    fn run_impact(&self, input: PathBuf, element: String) -> Result<(), CliError> {
-        let config = crate::CompilerConfig::default();
-        let mut compiler = crate::Compiler::new(config);
-        let result = compiler
-            .compile_file(&input)
-            .map_err(|e| CliError::Compilation(e.to_string()))?;
-
-        let entries = result
-            .semantic_model
-            .impact_of(&element)
-            .ok_or_else(|| {
-                CliError::Compilation(format!(
-                    "element '{}' not found (or its name is ambiguous — use an id)",
-                    element
-                ))
-            })?;
-
-        println!("Impact analysis for '{}':", element);
-        if entries.is_empty() {
-            println!("  No connected elements — changing it affects nothing traced.");
-            return Ok(());
-        }
-
-        let mut current_depth = 0;
-        for entry in &entries {
-            if entry.depth != current_depth {
-                current_depth = entry.depth;
-                let label = if current_depth == 1 { "directly affected" } else { "transitively affected" };
-                println!("\n  Distance {} ({}):", current_depth, label);
-            }
-            println!(
-                "    {} '{}' [{}] — via {} from '{}'",
-                entry.element_type, entry.name, entry.id, entry.via, entry.via_element
-            );
-        }
-        println!("\n  Total affected elements: {}", entries.len());
-        Ok(())
-    }
-
     fn run_export(
         &self,
         input: PathBuf,
@@ -1321,6 +1389,7 @@ impl CliRunner {
             ExportFormat::Proto => "json".to_string(),
             ExportFormat::GeoJSON => "json".to_string(),
             ExportFormat::Step => "json".to_string(),
+            ExportFormat::Modelica => "json".to_string(),
         };
         
         let mut compiler = crate::Compiler::new(config);
@@ -1429,6 +1498,23 @@ impl CliRunner {
                             &result.semantic_model,
                             &result.ast,
                         )
+                    }
+                    ExportFormat::Modelica => {
+                        // One package file: `output` is a DIRECTORY here.
+                        let export = crate::compiler::modelica::export(&result.ast).map_err(CliError::Compilation)?;
+                        std::fs::create_dir_all(&output).map_err(CliError::Io)?;
+                        let path = output.join(&export.file_name);
+                        std::fs::write(&path, &export.text).map_err(CliError::Io)?;
+                        for note in &export.notes {
+                            println!("  note: {note}");
+                        }
+                        println!("✓ Export successful — package {} ({} system model(s))", export.package, export.systems.len());
+                        for system in export.systems.values() {
+                            println!("  system model: {system}");
+                        }
+                        println!("  Output: {}", path.display());
+                        println!("  The physics goes in a package of its own extending these models (see docs/modelica.md).");
+                        return Ok(());
                     }
                     ExportFormat::FMI => {
                         // One modelDescription.xml per component: `output` is a
@@ -1886,8 +1972,12 @@ impl CliRunner {
         view: Option<String>,
         format: DiagramFormat,
         layout: Option<PathBuf>,
+        theme: Option<String>,
     ) -> Result<(), CliError> {
-        use crate::compiler::diagram::{build_diagrams, elk, html, layout_file, ViewKind};
+        use crate::compiler::diagram::{build_diagrams, elk, html, layout_file, theme as themes, ViewKind};
+
+        // A theme is checked before anything is compiled: a refused one stops here.
+        let theme = theme.as_deref().map(themes::resolve).transpose().map_err(CliError::Config)?;
 
         let selected = match view.as_deref() {
             None => None,
@@ -1928,7 +2018,7 @@ impl CliRunner {
                     Some(crate::compiler::ast::AttributeValue::String(name)) => name.clone(),
                     _ => input.file_stem().map(|s| s.to_string_lossy().into_owned()).unwrap_or_default(),
                 };
-                Ok(html::standalone_html(&set, &title))
+                Ok(html::standalone_html_themed(&set, &title, theme.as_ref()))
             }
             _ => serde_json::to_string_pretty(&set).map(|json| format!("{json}\n")),
         }
@@ -1943,6 +2033,9 @@ impl CliRunner {
         }
         if set.layout.is_some() {
             println!("  Layout: {}", layout.unwrap_or_else(|| layout_file::sidecar_path(&input)).display());
+        }
+        if let Some(theme) = &theme {
+            println!("  Theme: {}", theme["name"].as_str().unwrap_or("custom"));
         }
         println!("  Output: {}", output.display());
         Ok(())
