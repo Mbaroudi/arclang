@@ -1,0 +1,367 @@
+// Simulation with OpenModelica, without the editor: what `arclang verify
+// --check-tools --json` says, the checklist and the one-click fixes that come
+// out of it, the state of the status bar item, and the verdicts of `arclang
+// verify --json`. The compiler is the one place that knows how OpenModelica
+// is found; nothing here repeats that.
+
+/** `arclang verify --check-tools --json`. */
+export interface Diagnosis {
+  tool: 'local' | 'docker' | null;
+  detail: string;
+  docker_installed: boolean;
+  docker_running: boolean;
+  image: string;
+  image_pulled: boolean | null;
+  library_volume: string;
+  msl_version: string;
+  library_installed: boolean | null;
+  local_omc: boolean;
+}
+
+export const DOCKER_DOWNLOAD_URL = 'https://www.docker.com/products/docker-desktop/';
+export const DOCS_URL = 'https://github.com/Mbaroudi/arclang/blob/main/docs/modelica.md';
+export const MODEX_ID = 'modexai.modex-vscode';
+
+const isBoolOrNull = (v: unknown): v is boolean | null => v === null || typeof v === 'boolean';
+
+/** The diagnosis in the compiler's JSON, or null when it is anything else. */
+export function parseDiagnosis(text: string): Diagnosis | null {
+  let value: unknown;
+  try {
+    value = JSON.parse(text);
+  } catch {
+    return null;
+  }
+  if (typeof value !== 'object' || value === null) return null;
+  const d = value as Record<string, unknown>;
+  const tool = d.tool === 'local' || d.tool === 'docker' ? d.tool : d.tool === null ? null : undefined;
+  if (tool === undefined || typeof d.detail !== 'string' || typeof d.image !== 'string') return null;
+  if (typeof d.docker_installed !== 'boolean' || typeof d.docker_running !== 'boolean' || typeof d.local_omc !== 'boolean') return null;
+  if (!isBoolOrNull(d.image_pulled) || !isBoolOrNull(d.library_installed)) return null;
+  return {
+    tool,
+    detail: d.detail,
+    docker_installed: d.docker_installed,
+    docker_running: d.docker_running,
+    image: d.image,
+    image_pulled: d.image_pulled,
+    library_volume: typeof d.library_volume === 'string' ? d.library_volume : 'arclang-openmodelica-libraries',
+    msl_version: typeof d.msl_version === 'string' ? d.msl_version : '4.1.0',
+    library_installed: d.library_installed,
+    local_omc: d.local_omc,
+  };
+}
+
+/** A Docker image name that cannot be taken for an option or a second argument. */
+export function safeImageName(image: string): boolean {
+  return /^[A-Za-z0-9][A-Za-z0-9._/:@-]{0,200}$/.test(image);
+}
+
+// ---- Settings -> environment ---------------------------------------------------
+
+export interface SimulationSettings {
+  image: string;
+  omc: string;
+  timeout: number;
+}
+
+/** The environment variables the compiler reads, from the settings that are set. */
+export function simulationEnv(settings: SimulationSettings): Record<string, string> {
+  const env: Record<string, string> = {};
+  if (settings.image.trim()) env.ARCLANG_OMC_DOCKER = settings.image.trim();
+  if (settings.omc.trim()) env.ARCLANG_OMC = settings.omc.trim();
+  if (Number.isFinite(settings.timeout) && settings.timeout > 0) env.ARCLANG_OMC_TIMEOUT = String(Math.floor(settings.timeout));
+  return env;
+}
+
+// ---- The checklist and its fixes -----------------------------------------------
+
+export type Fix =
+  | { kind: 'installCompiler'; label: string }
+  | { kind: 'openUrl'; label: string; url: string }
+  | { kind: 'startDocker'; label: string }
+  | { kind: 'pullImage'; label: string; image: string }
+  | { kind: 'installLibrary'; label: string; image: string; volume: string; msl: string }
+  | { kind: 'installExtension'; label: string; id: string }
+  | { kind: 'terminal'; label: string; command: string };
+
+/** ok: done; todo: to do; optional: not needed, can help; unknown: cannot be told yet; na: not needed here. */
+export type ItemState = 'ok' | 'todo' | 'optional' | 'unknown' | 'na';
+
+export interface ChecklistItem {
+  id: string;
+  title: string;
+  state: ItemState;
+  detail: string;
+  /** What blocks a simulation if not done. */
+  blocking: boolean;
+  fixes: Fix[];
+}
+
+export interface Checklist {
+  /** A simulation can start now. */
+  ready: boolean;
+  /** The first run installs the Modelica library (minutes). */
+  firstRun: boolean;
+  headline: string;
+  items: ChecklistItem[];
+}
+
+export interface Environment {
+  platform: string;
+  modexInstalled: boolean;
+}
+
+/** `compilerMissing`: the `arclang` binary itself was not found (no diagnosis can be had). */
+export function checklist(diagnosis: Diagnosis | null, env: Environment): Checklist {
+  const items: ChecklistItem[] = [];
+  if (!diagnosis) {
+    items.push({
+      id: 'compiler',
+      title: 'ArcLang compiler',
+      state: 'todo',
+      detail: 'The arclang program was not found, or it is too old to check the simulation tools.',
+      blocking: true,
+      fixes: [{ kind: 'installCompiler', label: 'Install the ArcLang compiler' }],
+    });
+    return { ready: false, firstRun: false, headline: 'Simulation needs the ArcLang compiler first.', items: [...items, modexItem(env)] };
+  }
+  const localOk = diagnosis.tool === 'local';
+  const dockerOk = diagnosis.tool === 'docker';
+  const usesDocker = !localOk;
+
+  items.push({
+    id: 'omc',
+    title: 'OpenModelica on this computer (optional)',
+    state: diagnosis.local_omc ? 'ok' : 'optional',
+    detail: diagnosis.local_omc ? 'A local omc runs; simulations use it.' : 'Not found. You do not need it when Docker is set up below.',
+    blocking: false,
+    fixes: [],
+  });
+
+  const dockerNote = (text: string) => (usesDocker ? text : 'Not needed: a local OpenModelica is used.');
+  const na = (state: ItemState): ItemState => (usesDocker ? state : 'na');
+  items.push({
+    id: 'docker',
+    title: 'Docker is installed',
+    state: diagnosis.docker_installed ? 'ok' : na('todo'),
+    detail: diagnosis.docker_installed ? 'Docker was found.' : dockerNote('Docker runs OpenModelica for you; nothing else to install by hand.'),
+    blocking: usesDocker && !diagnosis.docker_installed,
+    fixes: diagnosis.docker_installed || !usesDocker ? [] : [{ kind: 'openUrl', label: 'Download Docker Desktop', url: DOCKER_DOWNLOAD_URL }],
+  });
+  items.push({
+    id: 'daemon',
+    title: 'Docker is running',
+    state: diagnosis.docker_running ? 'ok' : !diagnosis.docker_installed ? na('unknown') : na('todo'),
+    detail: diagnosis.docker_running ? 'Docker answers.' : !diagnosis.docker_installed ? 'Install Docker first.' : dockerNote('Docker is installed but not started.'),
+    blocking: usesDocker && diagnosis.docker_installed && !diagnosis.docker_running,
+    fixes: diagnosis.docker_running || !diagnosis.docker_installed || !usesDocker ? [] : startDockerFixes(env.platform),
+  });
+  const pulled = diagnosis.image_pulled;
+  items.push({
+    id: 'image',
+    title: `OpenModelica image (${diagnosis.image})`,
+    state: pulled === true ? 'ok' : pulled === false ? na('todo') : na('unknown'),
+    detail: pulled === true ? 'The image is on this computer.' : pulled === false ? dockerNote('Downloaded once, about 1 GB.') : dockerNote('Start Docker to tell.'),
+    blocking: usesDocker && pulled === false,
+    fixes: pulled === false && usesDocker && safeImageName(diagnosis.image)
+      ? [
+          { kind: 'pullImage', label: 'Download the image', image: diagnosis.image },
+          { kind: 'terminal', label: 'Show the command in a terminal', command: `docker pull ${diagnosis.image}` },
+        ]
+      : [],
+  });
+  const lib = diagnosis.library_installed;
+  items.push({
+    id: 'library',
+    title: `Modelica library ${diagnosis.msl_version}`,
+    state: lib === true ? 'ok' : lib === false ? na('todo') : na('unknown'),
+    detail: lib === true ? 'Installed: simulations start at once.' : lib === false ? dockerNote('The first simulation downloads it; this takes a few minutes, once. Later runs are cached.') : dockerNote('Known once the image is on this computer.'),
+    blocking: false,
+    fixes: lib === false && usesDocker && pulled === true && safeImageName(diagnosis.image)
+      ? [{ kind: 'installLibrary', label: 'Install it now', image: diagnosis.image, volume: diagnosis.library_volume, msl: diagnosis.msl_version }]
+      : [],
+  });
+  items.push(modexItem(env));
+
+  const ready = diagnosis.tool !== null;
+  const firstRun = dockerOk && lib !== true;
+  const headline = !ready
+    ? 'Simulation needs setup: OpenModelica is not available yet.'
+    : localOk
+      ? 'Ready: simulations run with the OpenModelica on this computer.'
+      : firstRun
+        ? 'Ready. The first simulation installs the Modelica library (a few minutes); later runs are cached.'
+        : 'Ready: simulations run in Docker.';
+  return { ready, firstRun, headline, items };
+}
+
+function startDockerFixes(platform: string): Fix[] {
+  if (platform === 'darwin') return [{ kind: 'startDocker', label: 'Start Docker Desktop' }];
+  if (platform === 'win32') return [{ kind: 'startDocker', label: 'Start Docker Desktop' }];
+  return [{ kind: 'terminal', label: 'Show the command in a terminal', command: 'sudo systemctl start docker' }];
+}
+
+function modexItem(env: Environment): ChecklistItem {
+  return {
+    id: 'modex',
+    title: 'Modelica drawing (Modex extension, optional)',
+    state: env.modexInstalled ? 'ok' : 'optional',
+    detail: env.modexInstalled ? 'Modex is installed: .mo files open as drawings.' : 'Lets you draw and read .mo files as diagrams.',
+    blocking: false,
+    fixes: env.modexInstalled ? [] : [{ kind: 'installExtension', label: 'Install Modex', id: MODEX_ID }],
+  };
+}
+
+/** The first blocking item with a fix, then the first todo with a fix: the next step of the guided setup. */
+export function nextStep(list: Checklist): { item: ChecklistItem; fix: Fix } | null {
+  for (const wantBlocking of [true, false]) {
+    for (const item of list.items) {
+      if (item.state === 'todo' && item.blocking === wantBlocking && item.fixes.length) return { item, fix: item.fixes[0] };
+    }
+  }
+  return null;
+}
+
+// ---- The status bar item -------------------------------------------------------
+
+export type SimState = 'hidden' | 'checking' | 'ready' | 'setup' | 'running' | 'result';
+
+export interface Counts {
+  pass: number;
+  fail: number;
+  other: number;
+}
+
+export interface SimModel {
+  /** There is something to simulate or draw in the workspace, in a trusted desktop window. */
+  relevant: boolean;
+  checking: boolean;
+  running: boolean;
+  /** The checklist of the last diagnosis, null before the first. */
+  list: Checklist | null;
+  toolLabel: string | null;
+  last: Counts | null;
+}
+
+export interface SimView {
+  state: SimState;
+  text: string;
+  tooltip: string;
+  warning: boolean;
+  error: boolean;
+}
+
+export function toolLabel(diagnosis: Diagnosis | null): string | null {
+  if (!diagnosis || !diagnosis.tool) return null;
+  return diagnosis.tool === 'docker' ? 'OpenModelica (Docker)' : 'OpenModelica (local)';
+}
+
+export function countsText(counts: Counts): string {
+  const parts: string[] = [];
+  if (counts.fail) parts.push(`${counts.fail} fail`);
+  if (counts.other) parts.push(`${counts.other} inconclusive`);
+  if (counts.pass) parts.push(`${counts.pass} pass`);
+  return parts.join(', ') || 'no case';
+}
+
+export function simView(model: SimModel): SimView {
+  const none = { warning: false, error: false };
+  if (!model.relevant) return { state: 'hidden', text: '', tooltip: '', ...none };
+  if (model.running) return { state: 'running', text: '$(sync~spin) Simulating…', tooltip: 'ArcLang is running the simulations. Click for the menu.', ...none };
+  if (model.checking && !model.list) return { state: 'checking', text: '$(sync~spin) Simulation', tooltip: 'Looking for OpenModelica…', ...none };
+  if (model.list && !model.list.ready) {
+    return { state: 'setup', text: '$(warning) Simulation: needs setup', tooltip: `${model.list.headline} Click to set it up.`, warning: true, error: false };
+  }
+  if (model.last) {
+    const bad = model.last.fail > 0 || model.last.other > 0;
+    return {
+      state: 'result',
+      text: `${bad ? '$(error)' : '$(pass)'} Simulation: ${countsText(model.last)}`,
+      tooltip: `Last run: ${countsText(model.last)}. Click for the menu.`,
+      warning: false,
+      error: model.last.fail > 0,
+    };
+  }
+  const label = model.toolLabel ?? 'OpenModelica';
+  return { state: 'ready', text: `$(play-circle) Simulation: ${label}`, tooltip: `${model.list?.headline ?? ''} Click for the simulation menu.`.trim(), ...none };
+}
+
+// ---- Which files call for the item ---------------------------------------------
+
+/** Whether the text of a model simulates (`simulate:` in a test case) or has a physics port. */
+export function simulates(text: string): boolean {
+  const code = text.replace(/\/\/[^\n]*/g, '');
+  return /\bsimulate\s*:/.test(code) || /\bphysics\s*:/.test(code);
+}
+
+// ---- The verdicts of `arclang verify --json` -----------------------------------
+
+export interface Outcome {
+  test_case: string;
+  model: string;
+  verdict: string;
+  reason: string;
+  configuration?: string | null;
+  values: { value: string; expect: string; holds: boolean }[];
+}
+
+export function parseOutcomes(text: string): Outcome[] | null {
+  let value: unknown;
+  try {
+    value = JSON.parse(text);
+  } catch {
+    return null;
+  }
+  if (!Array.isArray(value)) return null;
+  const out: Outcome[] = [];
+  for (const raw of value) {
+    if (typeof raw !== 'object' || raw === null) return null;
+    const o = raw as Record<string, unknown>;
+    if (typeof o.test_case !== 'string' || typeof o.verdict !== 'string') return null;
+    out.push({
+      test_case: o.test_case,
+      model: typeof o.model === 'string' ? o.model : '',
+      verdict: o.verdict,
+      reason: typeof o.reason === 'string' ? o.reason : '',
+      configuration: typeof o.configuration === 'string' ? o.configuration : null,
+      values: Array.isArray(o.values) ? (o.values as Outcome['values']).filter((v) => v && typeof v.value === 'string') : [],
+    });
+  }
+  return out;
+}
+
+export function countOutcomes(outcomes: Outcome[]): Counts {
+  const counts: Counts = { pass: 0, fail: 0, other: 0 };
+  for (const o of outcomes) {
+    if (o.verdict === 'pass') counts.pass += 1;
+    else if (o.verdict === 'fail') counts.fail += 1;
+    else counts.other += 1;
+  }
+  return counts;
+}
+
+/** Whether the reason of a run says that OpenModelica itself was not there. */
+export function toolMissing(outcomes: Outcome[], stderr: string): boolean {
+  return /OpenModelica not available/i.test(stderr) || outcomes.some((o) => /OpenModelica not available/i.test(o.reason));
+}
+
+/** The log of a run, for the output channel. */
+export function outcomesLog(outcomes: Outcome[]): string {
+  const lines: string[] = [];
+  for (const o of outcomes) {
+    const mark = o.verdict === 'pass' ? 'PASS' : o.verdict === 'fail' ? 'FAIL' : o.verdict.toUpperCase();
+    lines.push(`${mark}  ${o.test_case}${o.configuration ? ` [${o.configuration}]` : ''}`);
+    for (const v of o.values) lines.push(`      ${v.holds ? 'ok  ' : 'FAIL'} ${v.value}   (${v.expect})`);
+    if (o.reason && o.verdict !== 'fail') lines.push(`      ${o.reason}`);
+  }
+  return lines.join('\n');
+}
+
+/** The sentence a run ends on. */
+export function summaryText(counts: Counts): string {
+  const total = counts.pass + counts.fail + counts.other;
+  if (total === 0) return 'No test case in this model simulates.';
+  if (counts.fail === 0 && counts.other === 0) return `All ${total} simulated case${total > 1 ? 's' : ''} pass.`;
+  return `${countsText(counts)}.`;
+}

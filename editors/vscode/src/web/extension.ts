@@ -10,6 +10,7 @@ import { registerFormatter } from '../format';
 import { registerImport } from '../importing';
 import { registerImpact } from '../impact';
 import { registerTables } from '../tables';
+import { registerSimulationWeb } from '../simulation/web';
 import { registerWorkbench } from '../workbench';
 import { setThemeModuleLoader } from '../workbench/themes';
 import { registerWebDiagnostics } from './diagnostics';
@@ -59,6 +60,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   attempt('import', () => registerImport(context));
   attempt('tables', () => registerTables(context));
   attempt('impact analysis', () => registerImpact(context));
+  attempt('simulation', () => registerSimulationWeb(context));
   attempt('the AI assistant', () => registerAi(context)); // ai-design hook
 }
 
