@@ -97,7 +97,7 @@ const rows = []; const report = (name, ok, detail) => { rows.push({ name, ok, de
   // 8. Rename an exchange in place: double-click its label; F2 on a selected message
   await reset(); r = {}; await layer('Logical');
   const label = node('ce:LaneFlow').locator('.av-edge-label');
-  const lb = await label.boundingBox(); await page.mouse.dblclick(lb.x + lb.width / 2, lb.y + lb.height / 2); await page.waitForTimeout(300);
+  const lb = await label.boundingBox(); await page.mouse.dblclick(lb.x + lb.width / 2, lb.y + lb.height / 2); await page.waitForTimeout(900);
   let field = page.locator('.wb-direct-edit'); let hasField = await field.count(); n = await count();
   if (hasField) { await field.fill('Lane data'); await field.press('Enter'); r = { result: await waitEdit(n) }; }
   text = await source();
@@ -109,7 +109,7 @@ const rows = []; const report = (name, ok, detail) => { rows.push({ name, ok, de
   report('F2 on a selected message renames it', hasField > 0 && !!r.result?.ok && /message "LC-CTL" -> "LC-ACT" "torque request"/.test(text), hasField ? r.result?.error : 'no field');
 
   // 9. Double-click on a box renames it (no more jump to the source)
-  await reset(); r = {}; await layer('Logical'); { const b = await box('LC-ACT'); await page.mouse.dblclick(b.x + b.width / 2, b.y + 12); await page.waitForTimeout(300); }
+  await reset(); r = {}; await layer('Logical'); { const b = await box('LC-ACT'); await page.mouse.dblclick(b.x + b.width / 2, b.y + 12); await page.waitForTimeout(900); }
   field = page.locator('.wb-direct-edit'); hasField = await field.count(); n = await count();
   if (hasField) { await field.fill('Steering motor'); await field.press('Enter'); r = { result: await waitEdit(n) }; }
   text = await source(); report('double-click on a box renames it in place', hasField > 0 && !!r.result?.ok && /component "Steering motor"/.test(text), hasField ? r.result?.error : 'no field');

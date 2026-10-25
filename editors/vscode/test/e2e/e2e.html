@@ -14,6 +14,8 @@
     postMessage: async (m) => {
       window.__posted.push(m);
       if (m.type === 'ready') push();
+      // nav hook: the host with arclang.workbench.doubleClick = rename answers a double-click so
+      if (m.type === 'activate') window.postMessage({ type: 'diagram-op', op: 'rename', id: m.id, drawing: m.drawing }, '*');
       if (m.type === 'edit') {
         const result = await fetch('/edit', { method: 'POST', body: JSON.stringify({ requests: m.requests }) }).then(r => r.json());
         window.__results.push({ label: m.label, ...result, requests: m.requests });

@@ -154,7 +154,7 @@ export type ToWebview =
   | { type: 'select'; id: string | null }
   | { type: 'show'; view: string; select: string | null }
   | { type: 'layer'; step: number }
-  | { type: 'diagram-op'; op: 'hide' | 'related' | 'new' | 'rename'; id: string }
+  | { type: 'diagram-op'; op: 'hide' | 'related' | 'new' | 'rename'; id: string; drawing?: string }
   | { type: 'edit-result'; ok: boolean; label: string; error?: string }
   | { type: 'busy'; busy: boolean; label?: string }
   /** A key of the canvas, bound in VS Code (so it follows the keyboard layout) and run by the page. */
@@ -210,7 +210,7 @@ export type FromWebview =
   | { type: 'edit'; requests: EditRequest[]; label: string }
   | { type: 'reveal'; id: string }
   /** nav hook: a double-click on an element (the host goes to its source or asks for a rename, by the setting). */
-  | { type: 'activate'; id: string }
+  | { type: 'activate'; id: string; name?: string; drawing?: string }
   | { type: 'ask'; id: string; name: string; kind: string }
   | { type: 'selected'; id: string | null; kind?: string; name?: string }
   | { type: 'open-text' }

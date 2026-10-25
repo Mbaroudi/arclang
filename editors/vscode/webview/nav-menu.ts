@@ -7,7 +7,7 @@ import { el } from './dom';
 import { ContextMenu, MenuItem } from './menu';
 
 export interface NavMenuDeps {
-  /** The tool row the button goes into, first. */
+  /** The tool row the button goes into, after the palette toggle. */
   toolRow: HTMLElement | null;
   sheet: HTMLElement;
   post: (message: FromWebview) => void;
@@ -27,7 +27,9 @@ export function installNavMenu(d: NavMenuDeps): { open: () => void } {
     el('span', { class: 'wb-nav-plus', 'aria-hidden': 'true', text: '＋' }),
     el('span', { class: 'wb-toggle-label', text: 'New' }),
   ]);
-  d.toolRow?.prepend(button);
+  const palette = d.toolRow?.querySelector('.wb-palette-toggle');
+  if (palette) palette.after(button);
+  else d.toolRow?.append(button);
   const menu = new ContextMenu(d.sheet);
   const ask = (command: string) => () => d.post({ type: 'command', command });
   const open = (): void => {

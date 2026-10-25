@@ -345,7 +345,7 @@ const editing = new Editing({
   related: showRelated,
   newDiagram: newDiagramAround,
   reveal: (element) => vscode.postMessage({ type: 'reveal', id: element.id }),
-  activate: (element) => vscode.postMessage({ type: 'activate', id: element.id }), // nav hook
+  activate: (element, drawing) => vscode.postMessage({ type: 'activate', id: element.id, name: element.name, drawing }), // nav hook
   help: () => help.toggle(),
   copied: (elements, relationships) => vscode.postMessage({ type: 'copied', elements: elements.map((e) => ({ id: e.id, name: e.name })), relationships }),
   joinLayout,
@@ -721,12 +721,12 @@ window.addEventListener('message', (event: MessageEvent<ToWebview>) => {
       stepLayer(message.step);
       return;
     case 'diagram-op': {
-      const element = state.byId.get(message.id) ?? null;
+      const element = state.byId.get(message.id) ?? (message.drawing ? elementFor({ view: '', id: message.drawing, name: '', kind: '', isEdge: message.drawing.includes(':') }) : null);
       if (!element) return;
       if (message.op === 'hide') hideFromDiagram(element);
       if (message.op === 'related') showRelated(element);
       if (message.op === 'new') newDiagramAround(element);
-      if (message.op === 'rename') editing.rename(element, drawingId(element.id));
+      if (message.op === 'rename') editing.rename(element, message.drawing ?? drawingId(element.id));
       return;
     }
     case 'show': {

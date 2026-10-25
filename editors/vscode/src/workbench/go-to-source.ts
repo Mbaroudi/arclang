@@ -82,7 +82,7 @@ let decorated: { editor: vscode.TextEditor; range: vscode.Range } | null = null;
 
 function decorationType(): vscode.TextEditorDecorationType {
   decoration ??= vscode.window.createTextEditorDecorationType({
-    isWholeLine: false,
+    isWholeLine: true,
     backgroundColor: new vscode.ThemeColor('editor.findMatchHighlightBackground'),
     borderRadius: '2px',
     overviewRulerColor: new vscode.ThemeColor('editorOverviewRuler.findMatchForeground'),

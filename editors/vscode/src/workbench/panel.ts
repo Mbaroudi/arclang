@@ -281,9 +281,9 @@ export class WorkbenchPanel {
         return;
       }
       case 'activate': { // nav hook
-        const element = await this.element(message.id);
-        if (!element) return;
-        if (doubleClickSetting() === 'rename') this.diagramOp('rename', element.id);
+        // A relationship (an exchange, a message) is not always a record of the snapshot: the page names it.
+        const element = (await this.element(message.id)) ?? { id: message.id, name: message.name ?? message.id };
+        if (doubleClickSetting() === 'rename') this.post({ type: 'diagram-op', op: 'rename', id: element.id, drawing: message.drawing });
         else await goToSource(this.document, element);
         return;
       }
