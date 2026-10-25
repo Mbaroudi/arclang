@@ -4,7 +4,7 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import * as vscode from 'vscode';
-import { failureText, output, report, run } from './cli';
+import { failureText, output, refusedHere, report, run } from './cli';
 import { shownDiagramFile } from './diagrams';
 import { EXPORT_FORMATS, parseCheckReport, renderTransitionPlan, summarizeCheck, TransitionPlan } from './pure/arc';
 
@@ -50,6 +50,7 @@ export async function check(uri?: vscode.Uri): Promise<void> {
 }
 
 export async function runGate(uri?: vscode.Uri): Promise<void> {
+  if (refusedHere(['gate'])) return; // web hook
   const file = await fileFrom(uri);
   if (!file) return;
   const standard = vscode.workspace.getConfiguration('arclang').get<string>('gate.standard', 'iso26262');
@@ -137,6 +138,7 @@ export async function transitionApply(uri?: vscode.Uri, presetStep?: string): Pr
 }
 
 export async function impact(uri?: vscode.Uri, element?: string): Promise<void> {
+  if (refusedHere(['impact'])) return; // web hook
   const file = await fileFrom(uri);
   if (!file) return;
   let target = element;
@@ -161,6 +163,7 @@ function git(args: string[], cwd: string): Promise<{ code: number; stdout: strin
 
 /** `arclang diff` between the committed version (git HEAD) and the file on disk. */
 export async function diffWithHead(uri?: vscode.Uri): Promise<void> {
+  if (refusedHere(['diff'])) return; // web hook
   const file = await fileFrom(uri);
   if (!file) return;
   const dir = path.dirname(file);
@@ -196,6 +199,7 @@ export async function exportModel(uri?: vscode.Uri): Promise<void> {
     { placeHolder: 'Export format' },
   );
   if (!picked) return;
+  if (refusedHere(['export', '-f', picked.format.format])) return; // web hook
   const base = path.basename(file, path.extname(file));
   const target = await vscode.window.showSaveDialog({
     defaultUri: vscode.Uri.file(path.join(path.dirname(file), `${base}.${picked.format.extension}`)),

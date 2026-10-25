@@ -50,7 +50,20 @@ async function readModel(path: string | undefined): Promise<{ ok: true; text: st
   }
 }
 
+/** What this build answers: the subcommands, and for export and import the formats. */
+const SUPPORTED = new Set(['--version', 'workbench', 'check', 'edit', 'format', 'metamodel', 'rules', 'transition']);
+
 export function createWasmBackend(wasm: Wasm): Backend {
+  function unavailable(args: string[]): string | null {
+    const [command, ...rest] = args;
+    if (command === 'export' || command === 'import') {
+      const format = option(rest, '-f', '--format');
+      const known = command === 'export' ? format === 'sys-ml' || format === 'sysml' : format === 'sysml';
+      return known ? null : NOT_AVAILABLE(`'arclang ${command} -f ${format ?? '…'}'`);
+    }
+    return SUPPORTED.has(command ?? '') ? null : NOT_AVAILABLE(`'arclang ${command ?? ''}'`);
+  }
+
   async function run(args: string[], _options: RunOptions): Promise<RunResult> {
     const [command, ...rest] = args;
     try {
@@ -83,7 +96,7 @@ export function createWasmBackend(wasm: Wasm): Backend {
         case 'export': {
           const format = option(rest, '-f', '--format');
           const out = option(rest, '-o', '--output');
-          if (format !== 'sys-ml' && format !== 'sysml') return failed(NOT_AVAILABLE(`export to ${format ?? 'this format'}`), 2);
+          if (format !== 'sys-ml' && format !== 'sysml') return failed(unavailable(args) ?? '', 78);
           const model = await readModel(positionals(rest, ['-f', '--format', '-o', '--output'])[0]);
           if (!model.ok) return model.result;
           const answer = JSON.parse(wasm.export_sysml(model.text)) as { success: boolean; text?: string; error?: string };
@@ -94,7 +107,7 @@ export function createWasmBackend(wasm: Wasm): Backend {
         case 'import': {
           const format = option(rest, '-f', '--format');
           const out = option(rest, '-o', '--output');
-          if (format !== 'sysml') return failed(NOT_AVAILABLE(`import from ${format ?? 'this format'}`), 2);
+          if (format !== 'sysml') return failed(unavailable(args) ?? '', 78);
           const model = await readModel(positionals(rest, ['-f', '--format', '-o', '--output'])[0]);
           if (!model.ok) return model.result;
           const answer = JSON.parse(wasm.import_sysml(model.text)) as { success: boolean; source?: string; error?: string; notes?: string[] };
@@ -102,16 +115,24 @@ export function createWasmBackend(wasm: Wasm): Backend {
           if (out) vfs.write(out, answer.source ?? '');
           return done((answer.notes ?? []).map((note) => `  note: ${note}\n`).join(''));
         }
+        case 'transition': {
+          const model = await readModel(positionals(rest, ['--step', '--into'])[0]);
+          if (!model.ok) return model.result;
+          const plan = rest.includes('--plan');
+          const answer = JSON.parse(wasm.transition(model.text, option(rest, '--step') ?? '', option(rest, '--into') ?? '', plan)) as { success: boolean; plans?: unknown; source?: string; error?: string };
+          if (!answer.success) return failed(answer.error ?? 'the transition was refused');
+          return done(plan ? JSON.stringify(answer.plans) : (answer.source ?? ''));
+        }
         case 'metamodel':
           return done(option(rest, '--format') === 'json' ? wasm.metamodel() : wasm.metamodel_markdown());
         case 'rules':
           return done(option(rest, '--format') === 'json' ? wasm.rules() : wasm.rules_markdown());
         default:
-          return failed(NOT_AVAILABLE(`'arclang ${command ?? ''}'`).trim(), 2);
+          return failed(unavailable(args) ?? NOT_AVAILABLE(`'arclang ${command ?? ''}'`), 78);
       }
     } catch (error) {
       return failed(`the WebAssembly compiler failed on '${command}': ${error instanceof Error ? error.message : String(error)}`, 70);
     }
   }
-  return { name: 'wasm', run };
+  return { name: 'wasm', run, unavailable };
 }

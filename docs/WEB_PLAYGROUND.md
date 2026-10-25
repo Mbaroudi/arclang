@@ -80,8 +80,8 @@ would only matter for a compiler that reads several files.
 
 | `arclang ...` | in the browser |
 |---|---|
-| `workbench` (snapshot with the diagram payload), `check --json`, `edit`, `format`, `export -f sys-ml`, `import -f sysml`, `metamodel`, `rules` | yes (new wasm exports: `workbench`, `check_json`, `export_sysml`, `metamodel_markdown`, `rules_markdown`) |
-| `gate`, `table`/tables view, `impact`, `diff`, `transition` (command), `export` to other formats, capella import, `verify`, `diagram -f html` | "not available in the browser yet" (a clear message, exit code 2, never a crash) |
+| `workbench` (snapshot with the diagram payload), `check --json`, `edit`, `format`, `export -f sys-ml`, `import -f sysml`, `metamodel`, `rules`, `transition` (plan and step) | yes (new wasm exports: `workbench`, `check_json`, `export_sysml`, `metamodel_markdown`, `rules_markdown`; `transition` and `import_sysml` existed) |
+| `gate`, `table`/tables view, `impact`, `diff`, `export` to other formats, capella import, `verify`, `diagram -f html` | "not available in the browser yet": the command says so before it asks anything (`refusedHere` in `src/cli.ts`), the backend answers exit code 78 with the same sentence; never a crash |
 
 What is missing, with an estimate each (the compiler core is already linked
 in the wasm; the work is the export and the glue):
@@ -91,7 +91,6 @@ in the wasm; the work is the export and the glue):
 | `gate` (production gate report) | 0.5 day: `compiler::production_gate` is in the snapshot already, only the text report is missing |
 | tables (`table`, views of requirements, traces...) | 1 day: `compiler::tables`, one export per spec and a JSON in |
 | `impact` and `diff` | 1 day each: both take two models; the diff needs the old text (VS Code's git is absent in the browser: compare with the saved copy) |
-| `transition` command | 0.5 day: the export exists (`transition`), only the arguments need mapping |
 | exports (ReqIF, C headers, Protobuf, HTML dossier, Mermaid, PlantUML, json/yaml/xml) | 0.5 day for the ones the snapshot already renders (`exports: true`), 1 day for the rest |
 | `diagram -f html` standalone page | 0.5 day: not needed, the workbench replaces it (the command opens the workbench) |
 | Capella import (`.capella`, XMI) | 2 days: needs a zip/deflate in the worker, and `capella_importer` on text |
@@ -127,7 +126,111 @@ session.
 `web/tools/vscode-web` is served by the site's nginx in Docker for the test
 (`test/web/web_playground_test.js` runs against it too).
 
-## 4. Risks
+## 4. The AI chat
+
+The web VS Code has no Copilot chat, so the extension carries its own: a
+webview view of the secondary side bar (`arclang.chat`, `src/ai/chat/`), in
+the desktop and in the web build. It reuses the layers of `src/ai/`: the
+providers over `fetch`, the context builder, `runAsk`/`applySession` (the
+compiler checks each edit on a copy, the answer is a diff, Apply is one
+undoable edit), `SecretStorage` for the keys, the log.
+
+- It sees the active file and the selection (and the model of the active
+  workbench tab). The header shows what it sees: language, file, selected
+  lines and elements.
+- On `.arc`: the question goes through the engine of Ask AI. The compiler
+  refuses what does not compile and sends its refusal back to the AI up to
+  `arclang.ai.repairAttempts` times; the card shows the checked edits, the new
+  findings and the diff, with Apply, Undo, Open diff, Refine, Reject. On a
+  model that does not compile the AI answers in words and says so.
+- On `.mo`: the AI explains, writes and fixes. Every answer carries
+  "Not verified: there is no Modelica compiler in the browser. Checking and
+  simulating the model (OpenModelica) will run in the full workspace tier,
+  later." Code blocks offer Copy, Replace selection, Insert at cursor, Replace
+  file (one undoable edit).
+- Modelica support in the extension: language `modelica` for `*.mo`, a
+  TextMate grammar and a language configuration written for this repository
+  (`syntaxes/modelica.tmLanguage.json`, `modelica-language-configuration.json`;
+  keywords from the language specification, no third-party grammar).
+  `battery.mo` is in the sample workspace.
+
+### Providers in a browser
+
+`arclang-hosted` (the page's default) goes to the site's gateway; the others
+go straight from the visitor's browser to the provider. CORS, tested with
+preflight requests from `Origin: https://arclang.fr` (October 2026):
+
+| Provider | From a browser | Note |
+|---|---|---|
+| ArcLang hosted | yes | same origin, `/api/ai`, no key in the request |
+| Anthropic | yes | the request adds `anthropic-dangerous-direct-browser-access: true` (added only in a worker) |
+| OpenAI | yes | `access-control-allow-origin` echoes the origin |
+| Google Gemini | yes | key in `x-goog-api-key` |
+| Mistral | yes | `access-control-allow-origin: *` |
+| Azure OpenAI | only if the resource's CORS rules allow the site | not testable without a resource |
+| Ollama (local) | only with `OLLAMA_ORIGINS=https://arclang.fr` set on the visitor's machine, and Chrome's local-network permission prompt | not tested with a real Ollama |
+| OpenAI-compatible (LM Studio, vLLM...) | only if that server answers CORS preflights | the fake LLM of the tests does |
+| VS Code language models | no | no Copilot in a browser; hidden from the provider list |
+
+Keys: `ArcLang: Set AI API key` stores a key in `SecretStorage` (the browser's
+secret storage: IndexedDB, not in settings, not in a workspace file; it
+survives a reload, checked), never in a setting. The test checks that the key
+reaches the provider only, and is in no request to another host.
+
+CSP: the page may reach its own origin and ONE provider, the one the visitor
+configured. When a key is set or a provider chosen, the page sets a
+`SameSite=Strict` cookie `arclang_ai=<provider>` (path of the page);
+nginx maps the cookie to one origin of a fixed list (`map $cookie_arclang_ai
+$ai_connect`) and adds it to `connect-src` when it serves the page; the page
+offers a reload, since a policy applies to the next load. An unknown cookie
+adds nothing (checked on the container). Limit: a provider whose address is
+not in the list (Azure, a custom server) cannot be reached from the hosted
+page; the desktop extension has no such limit.
+
+### The gateway of the hosted AI
+
+`site/gateway/server.mjs` (Node 20, no dependency; `server.test.mjs`, 8 tests),
+started beside nginx in the same container (`gateway/start.sh` in
+`/docker-entrypoint.d`), so one Fly app serves the site and the AI. nginx
+proxies `/api/ai` to it, unbuffered (SSE).
+
+| Guardrail | How |
+|---|---|
+| fixed models | `claude-haiku-5-5` (default) and `claude-sonnet-5-5`; the first playground's `claude-sonnet-5` is an alias; anything else is a 400 |
+| caps | `max_tokens` at most 4096 (2048 if absent); body at most 200 kB (nginx 256 kB); at most 8 tools; only `model`, `max_tokens`, `messages`, `stream`, `system`, `tools`, `tool_choice`, `temperature`, `stop_sequences` go upstream |
+| topic | the request must mention ArcLang, Arcadia, Modelica, `.arc`, `.mo` or have their shapes (equations, `parameter Real`, `end X;`, `component "..."`); the chat's own system prompts always do; else 422 |
+| rate | nginx `limit_req` 10 requests a minute, burst 5, per client (`Fly-Client-IP`), and the same token bucket in the gateway; a friendly JSON 429 |
+| spend | a daily counter, UTC day, kept in memory and in a file; a worst-case reservation before each request (input bytes as tokens, the whole output allowance), settled with the real usage read from the stream; at `AI_DAILY_BUDGET_USD` (default 25) every request is a 429 `kind: budget` with a friendly message that points to the visitor's own key; prices per model in `AI_PRICES` (defaults are assumptions: 1/5 and 3/15 USD per million tokens) |
+| privacy | nothing of a prompt or an answer is logged or stored; the log line is status, model, token counts, duration, day; the upstream's error text is not forwarded |
+| key | `ANTHROPIC_API_KEY` from the environment (`fly secrets set`); never in a file; empty: the gateway says the shared AI is off |
+
+Limits: the counter lives in the machine's `/tmp` (a new machine starts the
+day at zero; with `min_machines_running = 0` and auto-stop, set a volume or
+accept it, or put the counter in Redis/Upstash when there is more than one
+machine); the per-client buckets are per machine too.
+
+## 5. Tests
+
+All in `editors/vscode/test/web/`, Chromium through Playwright:
+
+- `web_playground_test.js`: load, extension active in the worker, the sample
+  in the workbench with its diagram, a palette tool edits the text, undo,
+  `check` on a broken model, the workspace survives a reload, no request to
+  another host, no CSP violation. Run against Vite's output and against the
+  site's nginx image.
+- `web_ai_test.js`: with the fake LLM (`test/ai/fake-llm-server.js`, now with
+  CORS) as an OpenAI-compatible provider: a key typed in the workbench's
+  input, a selection in the `.arc`, a compiler-checked proposal and its diff,
+  Apply, the keyboard undo (typed as a French keyboard sends it, `azerty.js`:
+  the page follows the visitor's real layout), a `.mo` file with the
+  not-verified label, the key only at the provider.
+- `web_hosted_test.js`: the hosted path on the Docker image with the gateway
+  and a fake Anthropic behind it.
+- `timing.js`: cold and warm load.
+- Unit: `test/unit/chat.test.ts` (Modelica prompt, code blocks, the page's
+  message checks, the hosted provider); the gateway's `server.test.mjs`.
+
+## 6. Risks
 
 - `'unsafe-eval'` in the CSP of `/playground/vscode/`: the workbench compiles a
   few functions at run time. The rest of the site keeps its strict policy.
@@ -142,3 +245,22 @@ session.
   Entertainment model) blocks that worker, not the page.
 - monaco-vscode-api follows VS Code monthly: the version is pinned; each update
   needs the test suite re-run.
+- The secret storage of a browser is not a keychain: the key sits in the
+  visitor's IndexedDB, readable by any script of the origin. The CSP and the
+  absence of third-party scripts are what protect it; say so in the UI.
+- The Anthropic prices in the gateway are assumptions: set `AI_PRICES`.
+- The hosted AI is public: the daily cap bounds the loss, not the abuse; watch
+  the one log line per request.
+- The French (or any non-US) keyboard: VS Code reads the real layout; the
+  tests send the keys as that layout does.
+
+## 7. Deploy
+
+1. `tools/build_vscode_web.sh` (needs the arclang checkout beside: wasm-pack,
+   binaryen, node 20); `site/playground/vscode/` is not committed.
+2. `fly secrets set ANTHROPIC_API_KEY=...`, check `AI_DAILY_BUDGET_USD` in
+   `fly.toml`, `fly deploy` from `site/`. The image is nginx plus Node
+   (`apk add nodejs`, about 50 MB more).
+3. Check `/api/ai/status` (`enabled: true`), then the page.
+4. Cloudflare or another CDN in front: cache `/playground/vscode/assets/*`
+   (immutable) and let `/api/ai` through unbuffered.

@@ -6,7 +6,7 @@ const { chromium } = require('/Users/malek/node_modules/playwright');
   async function diagram() { const end = Date.now() + 60000; while (Date.now() < end) { for (const f of page.frames()) { try { if (await f.$('.arcviz-stage svg')) return; } catch {} } await page.waitForTimeout(100); } }
   for (let i = 0; i < 4; i++) {
     const t = Date.now();
-    if (i === 0) await page.goto('http://localhost:8765/'); else await page.reload();
+    if (i === 0) await page.goto((process.env.BASE || 'http://localhost:8790/playground/vscode/')); else await page.reload();
     await page.waitForFunction(() => window.arclangPlayground && window.arclangPlayground.ready);
     const ready = Date.now() - t; await diagram();
     console.log(i === 0 ? 'cold' : 'warm', 'ready', ready, 'diagram', Date.now() - t, JSON.stringify(await page.evaluate(() => window.arclangPlayground.timing)));

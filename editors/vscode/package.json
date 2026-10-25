@@ -2141,7 +2141,8 @@
     "package": "vsce package --no-dependencies",
     "publish": "vsce publish --no-dependencies",
     "test:integration": "tsc -p ./ && vscode-test",
-    "icons": "node --import tsx scripts/write-kind-icons.ts"
+    "icons": "node --import tsx scripts/write-kind-icons.ts",
+    "typecheck:web": "tsc -p tsconfig.web.json"
   },
   "dependencies": {
     "vscode-languageclient": "^10.1.2"
