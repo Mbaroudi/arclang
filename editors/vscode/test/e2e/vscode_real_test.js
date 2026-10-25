@@ -78,14 +78,14 @@ async function basics() {
     const big = await shape();
     report('the grip of the selected box resizes it', gripShown && big.width > small.width * 1.5 && big.height > small.height * 1.3, `${Math.round(small.width)}x${Math.round(small.height)} -> ${Math.round(big.width)}x${Math.round(big.height)}`);
     report('the size is written to model.layout.json', /"LC-CAM":\s*\{[^}]*"dw"/.test(fs.readFileSync(layout, 'utf8')));
-    await tool('arcviz-export-menu').click(); await win.waitForTimeout(300);
+    await openExport(page); await win.waitForTimeout(300);
     report('no Save layout in Export: the arrangement saves itself', !(await page.locator('.arcviz-menu-pop:not([hidden]) [data-action="save-layout"]').count()));
     await win.keyboard.press('Escape');
     await win.keyboard.press('Escape');
 
     // 3. Exports through the save dialog
     for (const [label, file, magic] of [['save-png', 'out.png', '\x89PNG'], ['save-svg', 'out.svg', '<svg']]) {
-      await tool('arcviz-export-menu').click(); await win.waitForTimeout(300);
+      await openExport(page); await win.waitForTimeout(300);
       await page.locator(`.arcviz-menu-pop:not([hidden]) [data-action="${label}"]`).click(); await win.waitForTimeout(1200);
       const input = win.locator('.quick-input-widget input').first();
       if (await input.isVisible().catch(() => false)) { await input.fill(path.join(dir, file)); await input.press('Enter'); await win.waitForTimeout(1800); }
@@ -604,3 +604,9 @@ async function toolbar() {
   process.exit(failed.length ? 1 : 0);
 })();
 
+/** Export is in the toolbar, or in its "⋯" menu when the row is too narrow for it (the entries are the same). */
+async function openExport(page) {
+  const direct = page.locator('#arcviz-export-menu');
+  if (await direct.isVisible().catch(() => false)) await direct.click();
+  else await page.locator('#arcviz-more').click();
+}

@@ -205,14 +205,14 @@ async function editorAndExports() {
     void frame;
 
     // 3. Copy as SVG
-    await page.locator('#arcviz-export-menu').click(); await win.waitForTimeout(300);
+    await openExport(page); await win.waitForTimeout(300);
     await page.locator('.arcviz-menu-pop:not([hidden]) [data-action="copy-svg"]').click(); await win.waitForTimeout(1500);
     const svgText = await ctx.app.evaluate(({ clipboard }) => clipboard.readText());
     report('Copy as SVG puts the SVG markup on the clipboard, in the theme\'s colours', /^<svg /.test(svgText) && /#8DA8D6/i.test(svgText), svgText.slice(0, 40));
 
     // 4. Export PowerPoint: every diagram, one slide each
     const pptx = path.join(work, 'deck.pptx');
-    await page.locator('#arcviz-export-menu').click(); await win.waitForTimeout(300);
+    await openExport(page); await win.waitForTimeout(300);
     await page.locator('.arcviz-menu-pop:not([hidden]) [data-action="export-pptx"]').click(); await win.waitForTimeout(1200);
     const quick = win.locator('.quick-input-widget input').first();
     await quick.fill('Every diagram'); await win.waitForTimeout(400); await quick.press('Enter');
@@ -254,3 +254,10 @@ async function editorAndExports() {
   const failed = rows.filter((r) => !r.ok); console.log(`\n${rows.length - failed.length}/${rows.length} checks in VS Code`);
   process.exit(failed.length ? 1 : 0);
 })();
+
+/** Export is in the toolbar, or in its "⋯" menu when the row is too narrow for it (the entries are the same). */
+async function openExport(page) {
+  const direct = page.locator('#arcviz-export-menu');
+  if (await direct.isVisible().catch(() => false)) await direct.click();
+  else await page.locator('#arcviz-more').click();
+}

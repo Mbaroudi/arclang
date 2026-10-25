@@ -104,7 +104,7 @@ async function launch(dir, model) {
     await page.locator('.wb-tl-row[data-layer="Safety"] .wb-tl-eye').click(); await settle(2200);
     report('a hidden layer: its box and its exchanges disappear', (await node('LC-ACT').count()) === 0 && (await node('ce:SteerCommand').count()) === 0 && (await node('LC-CAM').count()) === 1);
     await shot('layers-03-hidden');
-    await tool('arcviz-export-menu').click(); await win.waitForTimeout(300);
+    await openExport(page); await win.waitForTimeout(300);
     const tip = await page.locator('.arcviz-menu-pop:not([hidden]) [data-action="save-png"]').getAttribute('title');
     await page.locator('.arcviz-menu-pop:not([hidden]) [data-action="save-svg"]').click(); await win.waitForTimeout(1200);
     const input = win.locator('.quick-input-widget input').first();
@@ -114,7 +114,7 @@ async function launch(dir, model) {
     report('the export menu says so', /hidden layers are left out/.test(tip || ''), tip);
     await win.keyboard.press('Escape');
     const png = path.join(dir, 'hidden.png');
-    await tool('arcviz-export-menu').click(); await win.waitForTimeout(300);
+    await openExport(page); await win.waitForTimeout(300);
     await page.locator('.arcviz-menu-pop:not([hidden]) [data-action="save-png"]').click(); await win.waitForTimeout(1200);
     if (await input.isVisible().catch(() => false)) { await input.fill(png); await input.press('Enter'); await win.waitForTimeout(2200); }
     report('the PNG export is written without it', fs.existsSync(png) && fs.readFileSync(png).subarray(1, 4).toString() === 'PNG');
@@ -208,3 +208,10 @@ async function launch(dir, model) {
     process.exit(failed.length ? 1 : 0);
   }
 })();
+
+/** Export is in the toolbar, or in its "⋯" menu when the row is too narrow for it (the entries are the same). */
+async function openExport(page) {
+  const direct = page.locator('#arcviz-export-menu');
+  if (await direct.isVisible().catch(() => false)) await direct.click();
+  else await page.locator('#arcviz-more').click();
+}
