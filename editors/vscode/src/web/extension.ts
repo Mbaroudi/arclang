@@ -11,6 +11,7 @@ import { registerImport } from '../importing';
 import { registerImpact } from '../impact';
 import { registerTables } from '../tables';
 import { registerWorkbench } from '../workbench';
+import { setThemeModuleLoader } from '../workbench/themes';
 import { registerWebDiagnostics } from './diagnostics';
 import { createWasmBackend, NOT_AVAILABLE } from './wasm-backend';
 import { loadWasm } from './wasm';
@@ -27,6 +28,9 @@ function attempt(name: string, start: () => void): void {
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
   const wasm = await loadWasm(context);
   setBackend(createWasmBackend(wasm));
+  // The viewer's theme validator is bundled here: a worker cannot require a file of the extension.
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  setThemeModuleLoader(() => require('../../media/viewer/arcviz-theme.js'));
 
   const register = (command: string, callback: (...args: unknown[]) => unknown) =>
     context.subscriptions.push(vscode.commands.registerCommand(command, callback));
