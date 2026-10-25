@@ -102,9 +102,19 @@ const tables = await esbuild.context({
   outfile: 'dist/tables.js',
 });
 
+// impact hook: the impact analysis view's page.
+const impact = await esbuild.context({
+  ...common,
+  entryPoints: ['webview/impact/main.ts'],
+  format: 'iife',
+  platform: 'browser',
+  target: 'es2022',
+  outfile: 'dist/impact.js',
+});
+
 if (watch) {
-  await Promise.all([host.watch(), page.watch(), tables.watch()]);
+  await Promise.all([host.watch(), page.watch(), tables.watch(), impact.watch()]);
 } else {
-  await Promise.all([host.rebuild(), page.rebuild(), tables.rebuild()]);
-  await Promise.all([host.dispose(), page.dispose(), tables.dispose()]);
+  await Promise.all([host.rebuild(), page.rebuild(), tables.rebuild(), impact.rebuild()]);
+  await Promise.all([host.dispose(), page.dispose(), tables.dispose(), impact.dispose()]);
 }

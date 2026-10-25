@@ -14,6 +14,7 @@ import type { ViewerApi } from './globals';
 import { ContextMenu, MenuAction, MenuItem, MiniToolbar } from './menu';
 import { Original, PASTE_OFFSET, PlaceTarget, Placement, Point, sheetCorner, sheetPoint } from './placement';
 import { withAi, withAiMini } from './ask-ai'; // ai-design hook
+import { withImpact, withImpactMini } from './impact-marks'; // impact hook
 
 /** What the page lends the editing gestures. */
 export interface WorkbenchContext {
@@ -593,7 +594,7 @@ export class Editing {
     this.menuModel = this.modelKey();
     this.menuPoint = sheetPoint(this.ctx.host, event.clientX, event.clientY);
     const extra = this.ctx.extraMenu?.() ?? [];
-    this.menu.open(event.clientX, event.clientY, [...withAi(this.menuItems(element, target?.dataset.id ?? null)), ...(extra.length ? ['separator' as const, ...extra] : [])]); // ai-design hook: Ask AI first
+    this.menu.open(event.clientX, event.clientY, [...withAi(withImpact(this.menuItems(element, target?.dataset.id ?? null))), ...(extra.length ? ['separator' as const, ...extra] : [])]); // ai-design hook: Ask AI first
   }
 
   /** The actions on an element (or on the sheet when none), in the order a modeller looks for them. */
@@ -704,6 +705,6 @@ export class Editing {
         ];
     // A line's style options (the viewer's) ride in the toolbar: one floating bar, never two over each other.
     const styles = relationship ? document.querySelector<HTMLElement>('.arcviz-edge-style') : null;
-    this.mini.show(around, withAiMini(actions), `${one.uuid}:${drawing}`, styles ?? undefined); // ai-design hook: the Ask AI button
+    this.mini.show(around, withImpactMini(withAiMini(actions)), `${one.uuid}:${drawing}`, styles ?? undefined); // ai-design hook: the Ask AI button; impact hook: the impact button
   }
 }

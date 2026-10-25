@@ -1,0 +1,205 @@
+/* The impact analysis view: an instrument panel for a change. Colour carries
+   one meaning, severity (red blocker, amber major, steel blue minor, the
+   change itself in the accent); everything else follows the VS Code theme
+   (dark, light, high contrast). */
+:root {
+  --ip-bg: var(--vscode-editor-background, #ffffff);
+  --ip-fg: var(--vscode-editor-foreground, #1f1f1f);
+  --ip-muted: var(--vscode-descriptionForeground, #6b6b6b);
+  --ip-line: color-mix(in srgb, var(--ip-fg) 12%, transparent);
+  --ip-line-strong: color-mix(in srgb, var(--ip-fg) 24%, transparent);
+  --ip-panel: color-mix(in srgb, var(--ip-fg) 4%, var(--ip-bg));
+  --ip-hover: var(--vscode-list-hoverBackground, color-mix(in srgb, var(--ip-fg) 7%, transparent));
+  --ip-select: var(--vscode-list-activeSelectionBackground, color-mix(in srgb, var(--ip-accent) 22%, transparent));
+  --ip-focus: var(--vscode-focusBorder, #005fb8);
+  --ip-link: var(--vscode-textLink-foreground, #005fb8);
+  --ip-accent: var(--vscode-button-background, #005fb8);
+  --ip-accent-fg: var(--vscode-button-foreground, #ffffff);
+  --ip-blocker: #b3261e;
+  --ip-major: #a35a00;
+  --ip-minor: #3a6ea5;
+  --ip-ok: #1d7a4b;
+  --ip-seed: #6a3fb5;
+  --ip-tint: 12%;
+  --ip-mono: var(--vscode-editor-font-family, "SF Mono", Menlo, monospace);
+  --ip-sans: var(--vscode-font-family, system-ui, sans-serif);
+  color-scheme: light dark;
+}
+body.vscode-dark {
+  --ip-blocker: #ff7b72;
+  --ip-major: #e9b64e;
+  --ip-minor: #7fb1e6;
+  --ip-ok: #5fd39a;
+  --ip-seed: #b693ff;
+  --ip-tint: 18%;
+}
+body.vscode-high-contrast,
+body.vscode-high-contrast-light {
+  --ip-line: var(--vscode-contrastBorder, #6fc3df);
+  --ip-line-strong: var(--vscode-contrastBorder, #6fc3df);
+  --ip-panel: var(--ip-bg);
+  --ip-tint: 0%;
+}
+body.vscode-high-contrast { --ip-blocker: #ff9e97; --ip-major: #ffd166; --ip-minor: #9ecbff; --ip-ok: #89f0b5; --ip-seed: #d2b8ff; }
+body.vscode-high-contrast-light { --ip-blocker: #8f0f08; --ip-major: #6b3b00; --ip-minor: #1d4f84; --ip-ok: #005c2e; --ip-seed: #4a2390; }
+
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body { margin: 0; background: var(--ip-bg); color: var(--ip-fg); font: 13px/1.45 var(--ip-sans); }
+#impact { min-height: 100%; display: flex; flex-direction: column; padding: 0 0 8px; transition: opacity .15s; }
+#impact.is-stale .ip-body, #impact.is-stale .ip-whatif-slot { opacity: .55; }
+button { font: inherit; color: inherit; }
+button:focus-visible, summary:focus-visible, input:focus-visible, select:focus-visible, tr:focus-visible, .ip-node:focus-visible { outline: 2px solid var(--ip-focus); outline-offset: 1px; }
+.ip-muted { color: var(--ip-muted); }
+.is-worse { color: var(--ip-blocker); }
+.is-better { color: var(--ip-ok); }
+
+/* Header */
+.ip-header { padding: 16px 16px 10px; border-bottom: 1px solid var(--ip-line); display: grid; gap: 10px; background: linear-gradient(to bottom, var(--ip-panel), var(--ip-bg)); }
+.ip-title-row { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+.ip-title { margin: 0; font-size: 19px; font-weight: 650; letter-spacing: -.01em; }
+.ip-fresh { color: var(--ip-muted); font-size: 12px; }
+.ip-fresh.is-stale { color: var(--ip-major); animation: ip-pulse 1s ease-in-out infinite; }
+@keyframes ip-pulse { 50% { opacity: .45; } }
+.ip-seeds { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.ip-seed { display: inline-flex; align-items: center; gap: 6px; border: 1px solid color-mix(in srgb, var(--ip-seed) 55%, transparent); background: color-mix(in srgb, var(--ip-seed) var(--ip-tint), transparent); border-radius: 6px; padding: 2px 9px 2px 3px; cursor: pointer; font-weight: 600; }
+.ip-seed:hover { background: color-mix(in srgb, var(--ip-seed) 24%, transparent); }
+.ip-seed-layer { background: var(--ip-seed); color: var(--ip-bg); border-radius: 4px; padding: 0 5px; font-size: 10px; font-weight: 700; letter-spacing: .04em; }
+.ip-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.ip-chip { display: inline-flex; align-items: center; border: 1px solid var(--ip-line-strong); border-radius: 999px; padding: 1px 12px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.ip-chip.tone-blocker { color: var(--ip-blocker); border-color: currentColor; background: color-mix(in srgb, var(--ip-blocker) var(--ip-tint), transparent); }
+.ip-chip.tone-major { color: var(--ip-major); border-color: currentColor; background: color-mix(in srgb, var(--ip-major) var(--ip-tint), transparent); }
+.ip-chip.tone-minor { color: var(--ip-minor); border-color: currentColor; background: color-mix(in srgb, var(--ip-minor) var(--ip-tint), transparent); }
+.ip-chip.tone-ok { color: var(--ip-ok); border-color: currentColor; background: color-mix(in srgb, var(--ip-ok) var(--ip-tint), transparent); }
+.ip-chip.tone-plain { color: var(--ip-muted); font-weight: 500; }
+.ip-tools { display: flex; flex-wrap: wrap; gap: 6px; }
+.ip-btn, .ip-toggle { border: 1px solid var(--ip-line-strong); background: transparent; border-radius: 5px; padding: 2px 10px; cursor: pointer; }
+.ip-btn:hover, .ip-toggle:hover { background: var(--ip-hover); }
+.ip-btn.is-on { border-color: var(--ip-accent); background: color-mix(in srgb, var(--ip-accent) 14%, transparent); }
+.ip-btn.ip-ai { border-color: var(--ip-seed); color: var(--ip-seed); }
+.ip-primary { background: var(--ip-accent); color: var(--ip-accent-fg); border: 1px solid var(--ip-accent); border-radius: 5px; padding: 3px 14px; font-weight: 600; cursor: pointer; }
+.ip-primary:hover { filter: brightness(1.1); }
+.ip-secondary { background: transparent; border: 1px solid var(--ip-line-strong); border-radius: 5px; padding: 3px 14px; cursor: pointer; }
+.ip-secondary:hover { background: var(--ip-hover); }
+
+/* Filters */
+.ip-filters { display: flex; flex-wrap: wrap; gap: 8px 18px; align-items: center; padding: 8px 16px; border-bottom: 1px solid var(--ip-line); position: sticky; top: 0; z-index: 3; background: var(--ip-bg); }
+.ip-group { display: inline-flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+.ip-group-label { color: var(--ip-muted); font-size: 11px; text-transform: uppercase; letter-spacing: .06em; margin-right: 2px; }
+.ip-toggle { padding: 0 9px; font-size: 12px; line-height: 20px; list-style: none; }
+.ip-toggle.is-on { background: color-mix(in srgb, var(--ip-accent) 18%, transparent); border-color: var(--ip-accent); }
+.ip-toggle.is-on.tone-blocker { background: color-mix(in srgb, var(--ip-blocker) 20%, transparent); border-color: var(--ip-blocker); }
+.ip-toggle.is-on.tone-major { background: color-mix(in srgb, var(--ip-major) 20%, transparent); border-color: var(--ip-major); }
+.ip-toggle.is-on.tone-minor { background: color-mix(in srgb, var(--ip-minor) 20%, transparent); border-color: var(--ip-minor); }
+.ip-depth { width: 96px; accent-color: var(--ip-accent); }
+.ip-depth-value { font-variant-numeric: tabular-nums; min-width: 1ch; }
+.ip-select, .ip-search { background: var(--vscode-input-background, transparent); color: inherit; border: 1px solid var(--vscode-input-border, var(--ip-line-strong)); border-radius: 4px; padding: 1px 6px; height: 22px; font: inherit; }
+.ip-search { width: 190px; margin-left: auto; }
+.ip-menu { position: relative; }
+.ip-menu > summary { cursor: pointer; }
+.ip-menu-list { position: absolute; z-index: 5; top: 26px; left: 0; min-width: 240px; background: var(--vscode-menu-background, var(--ip-bg)); border: 1px solid var(--ip-line-strong); border-radius: 6px; padding: 6px; box-shadow: 0 6px 22px rgb(0 0 0 / 28%); display: grid; gap: 2px; }
+.ip-menu-item { display: flex; align-items: center; gap: 4px; padding: 2px 4px; border-radius: 3px; cursor: pointer; }
+.ip-menu-item:hover { background: var(--ip-hover); }
+.ip-link-button { background: none; border: 0; color: var(--ip-link); cursor: pointer; text-align: left; padding: 2px 4px; }
+
+/* Body: graph | table */
+.ip-body { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0; flex: 1; min-height: 360px; }
+.ip-body.has-graph { grid-template-columns: minmax(300px, 42%) minmax(0, 1fr); }
+@media (max-width: 860px) { .ip-body.has-graph { grid-template-columns: minmax(0, 1fr); } }
+.ip-graph { position: relative; min-height: 380px; border-right: 1px solid var(--ip-line); background: radial-gradient(circle at 50% 50%, color-mix(in srgb, var(--ip-fg) 5%, transparent), transparent 70%); }
+.ip-graph-svg { width: 100%; height: 100%; min-height: 380px; display: block; cursor: grab; touch-action: none; user-select: none; }
+.ip-graph-svg.is-panning { cursor: grabbing; }
+.ip-ring { fill: none; stroke: var(--ip-line-strong); stroke-dasharray: 2 6; }
+.ip-ring-label { fill: var(--ip-muted); font-size: 11px; }
+.ip-edge { stroke: color-mix(in srgb, var(--ip-fg) 28%, transparent); stroke-width: 1.2; }
+.ip-edge.is-path { stroke: var(--ip-focus); stroke-width: 2.6; }
+.ip-node { cursor: pointer; }
+.ip-disc { stroke: var(--ip-bg); stroke-width: 2; }
+.ip-node.sev-blocker .ip-disc { fill: var(--ip-blocker); }
+.ip-node.sev-major .ip-disc { fill: var(--ip-major); }
+.ip-node.sev-minor .ip-disc { fill: var(--ip-minor); }
+.ip-node.sev-seed .ip-disc { fill: var(--ip-seed); }
+.ip-layer { fill: var(--ip-bg); font-size: 8.5px; font-weight: 700; pointer-events: none; }
+.ip-label { fill: var(--ip-fg); font-size: 10px; pointer-events: none; paint-order: stroke; stroke: var(--ip-bg); stroke-width: 3px; stroke-linejoin: round; }
+.ip-node:hover .ip-disc, .ip-node.is-selected .ip-disc { stroke: var(--ip-focus); stroke-width: 3; }
+.ip-graph-tools { position: absolute; top: 10px; right: 10px; display: grid; gap: 4px; }
+.ip-tool { width: 26px; height: 26px; border: 1px solid var(--ip-line-strong); border-radius: 5px; background: var(--ip-bg); cursor: pointer; font-size: 14px; line-height: 1; }
+.ip-tool:hover { background: var(--ip-hover); }
+.ip-legend { position: absolute; left: 10px; bottom: 8px; display: flex; flex-wrap: wrap; gap: 4px 10px; font-size: 11px; color: var(--ip-muted); pointer-events: none; }
+.ip-key::before { content: ""; display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 4px; background: var(--ip-muted); }
+.ip-key.sev-seed::before { background: var(--ip-seed); }
+.ip-key.sev-blocker::before { background: var(--ip-blocker); }
+.ip-key.sev-major::before { background: var(--ip-major); }
+.ip-key.sev-minor::before { background: var(--ip-minor); }
+
+/* Table */
+.ip-list { min-width: 0; display: flex; flex-direction: column; }
+.ip-caption { padding: 6px 14px; color: var(--ip-muted); font-size: 12px; border-bottom: 1px solid var(--ip-line); }
+.ip-table-wrap { overflow: auto; flex: 1; }
+.ip-table { width: 100%; border-collapse: collapse; }
+.ip-table th { position: sticky; top: 0; background: var(--ip-panel); text-align: left; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; color: var(--ip-muted); padding: 5px 10px; border-bottom: 1px solid var(--ip-line-strong); white-space: nowrap; }
+.ip-sort { background: none; border: 0; padding: 0; cursor: pointer; text-transform: inherit; letter-spacing: inherit; font-weight: inherit; color: inherit; }
+.ip-sort:hover { color: var(--ip-fg); }
+.ip-table td { padding: 6px 10px; border-bottom: 1px solid var(--ip-line); vertical-align: top; }
+.ip-row { cursor: pointer; border-left: 3px solid transparent; }
+.ip-row.sev-blocker { border-left-color: var(--ip-blocker); }
+.ip-row.sev-major { border-left-color: var(--ip-major); }
+.ip-row.sev-minor { border-left-color: var(--ip-minor); }
+.ip-row:hover { background: var(--ip-hover); }
+.ip-row.is-selected { background: var(--ip-select); }
+.ip-row.is-removed .ip-name { text-decoration: line-through; }
+.c-sev { width: 74px; } .c-layer { width: 54px; } .c-cat { width: 96px; color: var(--ip-muted); } .c-dist { width: 40px; text-align: right; font-variant-numeric: tabular-nums; } .c-act { width: 58px; white-space: nowrap; }
+.ip-pill { display: inline-block; border-radius: 4px; padding: 0 7px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; }
+.ip-pill.sev-blocker { background: var(--ip-blocker); color: var(--ip-bg); }
+.ip-pill.sev-major { background: color-mix(in srgb, var(--ip-major) 24%, transparent); color: var(--ip-major); border: 1px solid var(--ip-major); }
+.ip-pill.sev-minor { background: color-mix(in srgb, var(--ip-minor) 18%, transparent); color: var(--ip-minor); border: 1px solid color-mix(in srgb, var(--ip-minor) 60%, transparent); }
+.ip-name { font-weight: 600; }
+.ip-id { font: 11px var(--ip-mono); color: var(--ip-muted); }
+.ip-reason { font-size: 12px; margin-bottom: 2px; }
+.ip-path { font: 11px/1.7 var(--ip-mono); color: var(--ip-muted); display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 4px; }
+.ip-seg { background: none; border: 0; padding: 0 1px; font: inherit; color: var(--ip-link); cursor: pointer; text-decoration: none; }
+.ip-seg:hover { text-decoration: underline; }
+.ip-rel { color: var(--ip-muted); }
+.ip-act { background: none; border: 1px solid transparent; border-radius: 4px; width: 24px; height: 22px; cursor: pointer; color: var(--ip-muted); }
+.ip-act:hover { border-color: var(--ip-line-strong); color: var(--ip-fg); background: var(--ip-hover); }
+.ip-empty, .ip-error { padding: 24px 16px; color: var(--ip-muted); }
+.ip-error { color: var(--ip-blocker); grid-column: 1 / -1; }
+.ip-error h2 { margin: 0 0 6px; font-size: 15px; }
+.ip-error p { margin: 0; white-space: pre-wrap; font-family: var(--ip-mono); }
+
+/* What-if */
+.ip-whatif { padding: 12px 16px 14px; border-bottom: 1px solid var(--ip-line); background: color-mix(in srgb, var(--ip-seed) 5%, var(--ip-bg)); }
+.ip-whatif-head { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 14px; margin-bottom: 10px; }
+.ip-whatif-title { margin: 0; font-size: 14px; }
+.ip-whatif-actions { margin-left: auto; display: flex; gap: 8px; align-items: center; }
+.ip-applied { color: var(--ip-ok); font-weight: 600; }
+.ip-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(270px, 1fr)); gap: 10px; }
+.ip-card { border: 1px solid var(--ip-line-strong); border-radius: 7px; padding: 8px 12px 10px; background: var(--ip-bg); }
+.ip-card.tone-bad { border-color: var(--ip-blocker); box-shadow: inset 3px 0 0 var(--ip-blocker); }
+.ip-card.tone-ok { border-color: var(--ip-ok); box-shadow: inset 3px 0 0 var(--ip-ok); }
+.ip-card.tone-warn { border-color: var(--ip-major); box-shadow: inset 3px 0 0 var(--ip-major); }
+.ip-card-title { margin: 0 0 6px; font-size: 11px; text-transform: uppercase; letter-spacing: .07em; color: var(--ip-muted); font-weight: 600; }
+.ip-card p { margin: 4px 0 0; }
+.ip-gate { display: flex; align-items: center; gap: 8px; font-size: 18px; font-weight: 700; margin-bottom: 6px; }
+.ip-gate-state.is-pass { color: var(--ip-ok); }
+.ip-gate-state.is-fail { color: var(--ip-blocker); }
+.ip-gate-arrow { color: var(--ip-muted); font-weight: 400; }
+.ip-gate-std { margin-left: auto; font-size: 11px; font-weight: 500; color: var(--ip-muted); }
+.ip-blockers, .ip-deltas { margin: 0; padding: 0; list-style: none; display: grid; gap: 3px; font-size: 12px; }
+.ip-blockers li.is-new b { color: var(--ip-blocker); }
+.ip-blockers li.is-cleared b { color: var(--ip-ok); }
+.ip-stats { display: flex; gap: 22px; margin-bottom: 6px; }
+.ip-stat-label { color: var(--ip-muted); font-size: 11px; }
+.ip-stat-value { font-size: 20px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.ip-budget { margin-bottom: 8px; }
+.ip-budget-name { font-weight: 600; margin-bottom: 3px; }
+.ip-bar-row { display: grid; grid-template-columns: 44px 1fr 64px; align-items: center; gap: 8px; font-size: 12px; }
+.ip-bar-label { color: var(--ip-muted); }
+.ip-bar-track { position: relative; height: 12px; background: color-mix(in srgb, var(--ip-fg) 8%, transparent); border-radius: 3px; overflow: visible; }
+.ip-bar { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 3px; background: var(--ip-ok); }
+.ip-bar.is-over { background: var(--ip-blocker); }
+.ip-bar-limit { position: absolute; top: -3px; bottom: -3px; width: 2px; background: var(--ip-fg); }
+.ip-bar-value { text-align: right; font-variant-numeric: tabular-nums; }
+
+.ip-status { padding: 6px 16px 0; font-size: 12px; min-height: 22px; }
+.ip-status .is-error { color: var(--ip-blocker); }
