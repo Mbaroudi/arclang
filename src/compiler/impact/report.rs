@@ -256,11 +256,25 @@ pub fn tables(report: &ImpactReport) -> Vec<Table> {
     out
 }
 
+fn md_table(table: &Table) -> String {
+    let escape = |t: &str| t.replace('|', "\\|").replace('\n', " ");
+    let grid = tables::export::grid(table);
+    let mut out = format!("## {}\n\n", table.name);
+    if let Some((header, body)) = grid.split_first() {
+        out.push_str(&format!("| {} |\n", header.iter().map(|h| escape(h)).collect::<Vec<_>>().join(" | ")));
+        out.push_str(&format!("|{}\n", header.iter().map(|_| " --- |").collect::<String>()));
+        for line in body {
+            out.push_str(&format!("| {} |\n", line.iter().map(|h| escape(h)).collect::<Vec<_>>().join(" | ")));
+        }
+    }
+    out
+}
+
 pub fn markdown(report: &ImpactReport) -> String {
     let mut out = format!("# Change impact: {}\n\n", seeds_text(report));
     out.push_str(&format!("{}  \nModel: `{}` · depth {} · links: {}\n\n", headline(report), report.model, report.depth, report.kinds.join(", ")));
     for t in tables(report).iter().skip(1) {
-        out.push_str(&tables::export::markdown(t));
+        out.push_str(&md_table(t));
         out.push('\n');
     }
     out
