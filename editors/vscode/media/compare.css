@@ -1,0 +1,148 @@
+/* Semantic git on the workbench page: the comparison drawn on the diagrams
+   (added green, modified amber, removed ghosted red, moved and renamed with a
+   badge), the counts on the layer tabs, the panel of changes and the history. */
+:root {
+  --cmp-added: #1a7f37;
+  --cmp-modified: #b26a00;
+  --cmp-removed: #c62828;
+  --cmp-moved: #6a3fb5;
+  --cmp-renamed: #0b6fa5;
+}
+body.vscode-dark {
+  --cmp-added: #56d364;
+  --cmp-modified: #e9b64e;
+  --cmp-removed: #ff7b72;
+  --cmp-moved: #b693ff;
+  --cmp-renamed: #7fb1e6;
+}
+.wb-cmp-added { --wb-cmp: var(--cmp-added); }
+.wb-cmp-modified { --wb-cmp: var(--cmp-modified); }
+.wb-cmp-removed { --wb-cmp: var(--cmp-removed); }
+.wb-cmp-moved { --wb-cmp: var(--cmp-moved); }
+.wb-cmp-renamed { --wb-cmp: var(--cmp-renamed); }
+
+.wb-cmp > .av-shape,
+.wb-cmp > .av-line,
+.wb-cmp > rect,
+.wb-cmp > path,
+.wb-cmp > line {
+  stroke: var(--wb-cmp) !important;
+  stroke-width: 3px !important;
+  filter: drop-shadow(0 0 4px color-mix(in srgb, var(--wb-cmp) 60%, transparent));
+}
+.wb-cmp-removed { opacity: 0.62; }
+.wb-cmp-removed > .av-shape,
+.wb-cmp-removed > .av-line,
+.wb-cmp-removed > rect,
+.wb-cmp-removed > path,
+.wb-cmp-removed > line {
+  stroke-dasharray: 7 4 !important;
+  fill: color-mix(in srgb, var(--cmp-removed) 10%, transparent) !important;
+}
+.wb-cmp-removed text { text-decoration: line-through; }
+.wb-cmp-moved > .av-shape,
+.wb-cmp-moved > rect { stroke-dasharray: 2 3 !important; }
+
+.wb-cmp-badge circle { fill: var(--wb-cmp, var(--cmp-modified)); stroke: var(--vscode-editor-background, #fff); stroke-width: 2; }
+.wb-cmp-badge text { fill: #fff; font: 700 11px var(--vscode-font-family, sans-serif); text-decoration: none !important; }
+body.vscode-dark .wb-cmp-badge text { fill: #1b1b1b; }
+.wb-cmp-badge.is-added { --wb-cmp: var(--cmp-added); }
+.wb-cmp-badge.is-modified { --wb-cmp: var(--cmp-modified); }
+.wb-cmp-badge.is-removed { --wb-cmp: var(--cmp-removed); }
+.wb-cmp-badge.is-moved { --wb-cmp: var(--cmp-moved); }
+.wb-cmp-badge.is-renamed { --wb-cmp: var(--cmp-renamed); }
+
+/* The tabs */
+.wb-cmp-count { display: inline-flex; gap: 3px; margin-left: 6px; font-size: 10px; font-weight: 700; line-height: 16px; }
+.wb-cmp-count > span { padding: 0 4px; border-radius: 8px; color: #fff; }
+.wb-cmp-count .is-added { background: var(--cmp-added); }
+.wb-cmp-count .is-removed { background: var(--cmp-removed); }
+.wb-cmp-count .is-modified { background: var(--cmp-modified); }
+body.vscode-dark .wb-cmp-count > span { color: #1b1b1b; }
+
+/* Read-only while comparing */
+body.wb-comparing .wb-left,
+body.wb-comparing .wb-palette { opacity: 0.35; pointer-events: none; }
+body.wb-comparing #wb-compare-menu { color: var(--cmp-modified); }
+
+/* The panels */
+body.wb-comparing .wb-sheet,
+body.wb-history .wb-sheet { padding-right: 348px; }
+.wb-cmp-panel,
+.wb-hist-panel {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  width: 340px;
+  overflow: hidden;
+  color: var(--vscode-foreground);
+  background: var(--vscode-editorWidget-background, var(--vscode-editor-background));
+  border: 1px solid var(--vscode-editorWidget-border, var(--vscode-panel-border, #8886));
+  border-radius: 6px;
+  box-shadow: 0 6px 22px rgba(0, 0, 0, 0.28);
+  font-size: 12px;
+}
+.wb-cmp-panel { border-top: 3px solid var(--cmp-modified); }
+.wb-hist-panel { border-top: 3px solid var(--cmp-renamed); }
+body.wb-history .wb-cmp-panel { display: none; }
+.wb-cmp-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 10px 4px; }
+.wb-cmp-title code { padding: 0 4px; border-radius: 3px; background: var(--vscode-textCodeBlock-background, #8882); }
+.wb-cmp-exit { padding: 2px 10px; color: var(--vscode-button-secondaryForeground, inherit); background: var(--vscode-button-secondaryBackground, #8883); border: 0; border-radius: 3px; cursor: pointer; }
+.wb-cmp-exit:hover { background: var(--vscode-button-secondaryHoverBackground, #8885); }
+.wb-cmp-note { margin: 0; padding: 0 10px 4px; color: var(--vscode-descriptionForeground); }
+.wb-cmp-summary { display: flex; flex-wrap: wrap; gap: 4px; padding: 2px 10px 8px; border-bottom: 1px solid var(--vscode-panel-border, #8884); }
+.wb-cmp-gate, .wb-cmp-chip { padding: 1px 7px; border-radius: 9px; font-size: 11px; background: var(--vscode-badge-background, #6163); color: var(--vscode-badge-foreground, inherit); }
+.wb-cmp-gate.is-pass, .wb-cmp-chip.is-pass { color: #fff; background: var(--cmp-added); }
+.wb-cmp-gate.is-fail, .wb-cmp-chip.is-fail { color: #fff; background: var(--cmp-removed); }
+.wb-cmp-chip.is-warn { color: #fff; background: var(--cmp-modified); }
+body.vscode-dark .wb-cmp-gate.is-pass, body.vscode-dark .wb-cmp-chip.is-pass, body.vscode-dark .wb-cmp-gate.is-fail, body.vscode-dark .wb-cmp-chip.is-fail, body.vscode-dark .wb-cmp-chip.is-warn { color: #1b1b1b; }
+.wb-cmp-list { flex: 1; overflow: auto; padding: 4px 0 8px; }
+.wb-cmp-layer { margin: 10px 10px 3px; font-size: 10px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--vscode-descriptionForeground); }
+.wb-cmp-empty { margin: 14px 10px; color: var(--vscode-descriptionForeground); }
+.wb-cmp-row { position: relative; display: flex; gap: 8px; padding: 5px 10px 5px 8px; cursor: pointer; border-left: 3px solid transparent; }
+.wb-cmp-row:hover, .wb-cmp-row:focus-visible { background: var(--vscode-list-hoverBackground, #8882); outline: none; }
+.wb-cmp-row.is-selected { background: var(--vscode-list-activeSelectionBackground, #0060c0); color: var(--vscode-list-activeSelectionForeground, #fff); }
+.wb-cmp-row.is-added { border-left-color: var(--cmp-added); }
+.wb-cmp-row.is-modified { border-left-color: var(--cmp-modified); }
+.wb-cmp-row.is-removed { border-left-color: var(--cmp-removed); }
+.wb-cmp-row.is-moved { border-left-color: var(--cmp-moved); }
+.wb-cmp-row.is-renamed { border-left-color: var(--cmp-renamed); }
+.wb-cmp-glyph { flex: none; width: 18px; height: 18px; margin-top: 1px; border-radius: 9px; font-size: 11px; font-weight: 700; line-height: 18px; text-align: center; color: #fff; background: var(--cmp-modified); }
+.wb-cmp-glyph.is-added { background: var(--cmp-added); }
+.wb-cmp-glyph.is-removed { background: var(--cmp-removed); }
+.wb-cmp-glyph.is-moved { background: var(--cmp-moved); }
+.wb-cmp-glyph.is-renamed { background: var(--cmp-renamed); font-size: 9px; }
+body.vscode-dark .wb-cmp-glyph { color: #1b1b1b; }
+.wb-cmp-body { flex: 1; min-width: 0; }
+.wb-cmp-name { display: flex; gap: 6px; align-items: baseline; font-weight: 600; }
+.wb-cmp-name span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wb-cmp-name code { flex: none; font-weight: 400; opacity: 0.75; }
+.wb-cmp-kind { color: var(--vscode-descriptionForeground); font-size: 11px; }
+.wb-cmp-row.is-selected .wb-cmp-kind { color: inherit; opacity: 0.8; }
+.wb-cmp-detail { margin-top: 1px; font-family: var(--vscode-editor-font-family, monospace); font-size: 11px; word-break: break-word; }
+.wb-cmp-actions { position: absolute; top: 3px; right: 6px; display: none; gap: 6px; padding: 0 4px; border-radius: 4px; background: var(--vscode-editorWidget-background, var(--vscode-editor-background)); }
+.wb-cmp-row:hover .wb-cmp-actions, .wb-cmp-row:focus-within .wb-cmp-actions, .wb-cmp-row.is-selected .wb-cmp-actions { display: flex; }
+.wb-cmp-actions .wb-link { padding: 0; color: var(--vscode-textLink-foreground); background: none; border: 0; cursor: pointer; font-size: 11px; }
+
+/* The model at a past revision, beside the current one */
+body.wb-rev-open .wb-host { margin-left: calc(50% + 4px); }
+.wb-rev-pane {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 25;
+  display: flex;
+  flex-direction: column;
+  width: calc((100% - 348px) / 2 - 4px);
+  min-width: 240px;
+  background: var(--vscode-editor-background);
+  border: 1px solid var(--vscode-panel-border, #8886);
+  border-top: 3px solid var(--cmp-renamed);
+  border-radius: 6px;
+}
+.wb-rev-stage { position: relative; flex: 1; min-height: 0; overflow: auto; --av-stage-height: 520px; }

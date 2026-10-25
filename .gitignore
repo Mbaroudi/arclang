@@ -94,3 +94,6 @@ __pycache__/
 
 # Test fixtures may be XML (a simulation init file, ReqIF, a Capella model)
 !tests/fixtures/**/*.xml
+!tests/fixtures/semgit/*
+# The CI/CD goldens (Markdown, JSON, HTML, SVG) and the vendored SARIF schema.
+!tests/fixtures/cicd/*

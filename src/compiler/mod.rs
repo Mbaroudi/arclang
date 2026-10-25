@@ -65,6 +65,8 @@ pub mod graph_model;
 pub mod diagram;
 pub mod tables; // tables hook
 pub mod impact; // impact hook
+pub mod semgit; // semgit hook
+pub mod cicd; // cicd hook
 pub mod arcviz_explorer;
 pub mod workbench;
 pub mod terraform_databricks_generator;

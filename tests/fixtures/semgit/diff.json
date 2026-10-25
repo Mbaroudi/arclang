@@ -1,0 +1,161 @@
+{
+  "consequences": {
+    "budgets": [],
+    "constraints": [],
+    "coverage": [
+      {
+        "after": {
+          "satisfied_by": [],
+          "status": "absent",
+          "verified_by": []
+        },
+        "before": {
+          "satisfied_by": [],
+          "status": "unsatisfied",
+          "verified_by": []
+        },
+        "name": "REQ-002",
+        "requirement": "REQ-002"
+      }
+    ],
+    "coverage_after": {
+      "requirements": 1,
+      "satisfied": 1,
+      "verified": 0
+    },
+    "coverage_before": {
+      "requirements": 2,
+      "satisfied": 1,
+      "verified": 0
+    },
+    "gate_after": {
+      "blockers": [
+        "requirement 'REQ-001' has no verification case (test_case verifies: [...])",
+        "elements declare ASIL/DAL levels but the model contains no hazard analysis (safety_analysis { hazard ... })"
+      ],
+      "passed": false,
+      "standard": "ISO26262"
+    },
+    "gate_before": {
+      "blockers": [
+        "requirement 'REQ-001' has no verification case (test_case verifies: [...])",
+        "requirement 'REQ-002' is satisfied by no architecture element (no satisfies trace)",
+        "requirement 'REQ-002' has no verification case (test_case verifies: [...])",
+        "elements declare ASIL/DAL levels but the model contains no hazard analysis (safety_analysis { hazard ... })"
+      ],
+      "passed": false,
+      "standard": "ISO26262"
+    },
+    "impacted": 2,
+    "impacted_blockers": 0,
+    "new_blockers": [],
+    "newly_unsatisfied": [],
+    "newly_unverified": [],
+    "removed_blockers": [
+      "requirement 'REQ-002' is satisfied by no architecture element (no satisfies trace)",
+      "requirement 'REQ-002' has no verification case (test_case verifies: [...])"
+    ],
+    "verdicts": []
+  },
+  "from": "HEAD~1",
+  "from_commit": "<c>",
+  "layers": [
+    {
+      "counts": {
+        "added": 1,
+        "modified": 1,
+        "removed": 1
+      },
+      "kinds": [
+        {
+          "elements": [
+            {
+              "changes": [
+                {
+                  "field": "description",
+                  "new": "Detect at 200 m",
+                  "old": "Detect at 150 m"
+                }
+              ],
+              "id": "REQ-001",
+              "kind": "Requirement",
+              "name": "REQ-001",
+              "status": "modified",
+              "uuid": "0b35d5d6-1099-58bc-aa05-7a2228b28324"
+            },
+            {
+              "changes": [],
+              "id": "REQ-002",
+              "kind": "Requirement",
+              "name": "REQ-002",
+              "status": "removed",
+              "uuid": "16e551e4-c561-5d03-a12e-bcdb8c6e79b1"
+            }
+          ],
+          "kind": "Requirement"
+        },
+        {
+          "elements": [
+            {
+              "changes": [],
+              "id": "SF-ACT",
+              "kind": "SystemFunction",
+              "name": "Act",
+              "status": "added",
+              "uuid": "5bd6a95a-f57a-5308-aa8f-63d72e1c0dc5"
+            }
+          ],
+          "kind": "SystemFunction"
+        }
+      ],
+      "label": "System Analysis",
+      "layer": "SA"
+    },
+    {
+      "counts": {
+        "added": 0,
+        "modified": 1,
+        "removed": 0
+      },
+      "kinds": [
+        {
+          "elements": [
+            {
+              "changes": [],
+              "id": "LC-002",
+              "kind": "LogicalComponent",
+              "name": "Radar Sensor",
+              "renamed": {
+                "from": "Sensor",
+                "to": "Radar Sensor"
+              },
+              "status": "modified",
+              "uuid": "cce0f290-1665-518c-91fe-096b2bad263a"
+            }
+          ],
+          "kind": "LogicalComponent"
+        }
+      ],
+      "label": "Logical Architecture",
+      "layer": "LA"
+    }
+  ],
+  "layout": [],
+  "layout_only": false,
+  "model": "<repo>",
+  "model_changed": true,
+  "relationships": [],
+  "summary": {
+    "elements_added": 1,
+    "elements_modified": 2,
+    "elements_removed": 1,
+    "layout_entries": 0,
+    "moved": 0,
+    "relationships_added": 0,
+    "relationships_changed": 0,
+    "relationships_removed": 0,
+    "renamed": 1
+  },
+  "to": "HEAD",
+  "to_commit": "<c>"
+}

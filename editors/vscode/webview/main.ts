@@ -23,6 +23,7 @@ import { MultiSelection } from './multi-select';
 import { installNavMenu } from './nav-menu'; // nav hook
 import { installPanes } from './panes'; // panes hook
 import { installImpact } from './impact-marks'; // impact hook
+import { comparing, installCompare } from './compare'; // semgit hook
 import { installFileMenu } from './file-menu';
 import { DiagramExports } from './diagram-export';
 import { ThemeEditor } from './theme-editor';
@@ -157,6 +158,7 @@ function showToast(text: string, kind: 'info' | 'error', actions: [string, () =>
 // --- Snapshot and viewer ----------------------------------------------------
 
 function submit(requests: EditRequest[], label: string): void {
+  if (comparing()) return showToast('Comparing with a revision: leave the comparison to edit the model.', 'info'); // semgit hook
   vscode.postMessage({ type: 'edit', requests, label });
 }
 
@@ -805,3 +807,34 @@ installArrange({ host, sheet, viewer: () => state.viewer, graph: () => currentGr
 vscode.postMessage({ type: 'ready' });
 // Save, Save as, Import at the head of the tool row; a model file dropped on the sheet.
 installFileMenu({ slot: shell.fileSlot, sheet, post: (message) => vscode.postMessage(message), toast: (text, kind) => showToast(text, kind) });
+
+// semgit hook: Compare ▾, the compare mode's marks and panel, the history of an element.
+installCompare({
+  slot: shell.fileSlot,
+  sheet,
+  host,
+  layerBar,
+  post: (m) => vscode.postMessage(m as never),
+  drawingId,
+  select: (id) => {
+    const element = state.byId.get(id);
+    if (!element) return false;
+    selectElement(element, true);
+    return true;
+  },
+  selection: () => state.selected,
+  viewer: () => state.viewer,
+  toast: (text, kind) => showToast(text, kind),
+  mountRevision: (into, diagrams, view) => {
+    const deps = { ELK: window.ELK, render: window.ArcVizRender, links: window.ArcVizLinks, navigation: window.ArcVizNavigation, collapse: window.ArcVizCollapse, scope: window.ArcVizScope, exporter: window.ArcVizExport, stage: window.ArcVizStage, place: window.ArcVizPlace, edit: window.ArcVizEdit, theme: window.ArcVizTheme };
+    try {
+      // Only the drawing and its tabs: the tree and the details are not wanted beside the current model.
+      const unused = () => into.parentElement?.appendChild(el('div', { hidden: true })) ?? el('div');
+      const slots = { tree: unused(), details: unused(), related: unused(), foot: unused() };
+      const viewer = window.ArcViz.mount(into, diagrams, deps, { slots, onSelect: () => undefined, theme: exportsUi.mountTheme() }) as unknown as { ready?: Promise<unknown>; show?: (view: string) => void };
+      if (view) void Promise.resolve(viewer.ready).then(() => viewer.show?.(view));
+    } catch (error) {
+      showToast(`That revision could not be drawn: ${error instanceof Error ? error.message : String(error)}`, 'error');
+    }
+  },
+});

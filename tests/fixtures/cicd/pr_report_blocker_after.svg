@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="914" height="258" viewBox="0 0 914 258" role="img" aria-label="model.arc - after (WORKTREE)">
+<style>text{font-family:system-ui,-apple-system,Segoe UI,sans-serif}.title{font-size:14px;font-weight:600;fill:#1f2328}.layer{font-size:12px;font-weight:600;fill:#57606a}.name{font-size:12px;fill:#1f2328}.kind{font-size:10px;fill:#57606a}</style>
+<rect width="100%" height="100%" fill="#ffffff"/>
+<text x="12" y="28" class="title">model.arc - after (WORKTREE)</text>
+<text x="12" y="46" class="kind">Elements by Arcadia layer; what the change touched is marked.</text>
+<text x="12" y="68" class="layer">System Analysis (SA)</text>
+<g><title>SystemFunction Sense [SF-SENSE] (modified)</title><rect x="12" y="78" width="168" height="40" rx="5" fill="#fff4e0" stroke="#b26a00" stroke-width="2"/><text x="20" y="95" class="name">~ Sense</text><text x="20" y="110" class="kind">SystemFunction</text></g>
+<g><title>FunctionalChain Reaction [FC-1]</title><rect x="190" y="78" width="168" height="40" rx="5" fill="#f6f8fa" stroke="#8c959f" stroke-width="1"/><text x="198" y="95" class="name">Reaction</text><text x="198" y="110" class="kind">FunctionalChain</text></g>
+<g><title>SystemFunction Plan [SF-PLAN]</title><rect x="368" y="78" width="168" height="40" rx="5" fill="#f6f8fa" stroke="#8c959f" stroke-width="1"/><text x="376" y="95" class="name">Plan</text><text x="376" y="110" class="kind">SystemFunction</text></g>
+<text x="12" y="150" class="layer">Logical Architecture (LA)</text>
+<g><title>LogicalComponent Controller [LC-001]</title><rect x="12" y="160" width="168" height="40" rx="5" fill="#f6f8fa" stroke="#8c959f" stroke-width="1"/><text x="20" y="177" class="name">Controller</text><text x="20" y="192" class="kind">LogicalComponent</text></g>
+<g><title>LogicalFunction Compute [LF-001]</title><rect x="190" y="160" width="168" height="40" rx="5" fill="#f6f8fa" stroke="#8c959f" stroke-width="1"/><text x="198" y="177" class="name">Compute</text><text x="198" y="192" class="kind">LogicalFunction</text></g>
+<rect x="12" y="232" width="14" height="14" rx="3" fill="#e6f4ea" stroke="#1a7f37"/><text x="32" y="243" class="kind">added</text><rect x="132" y="232" width="14" height="14" rx="3" fill="#fff4e0" stroke="#b26a00"/><text x="152" y="243" class="kind">modified</text><rect x="252" y="232" width="14" height="14" rx="3" fill="#fdecea" stroke="#c62828" stroke-dasharray="5 3"/><text x="272" y="243" class="kind">removed</text><rect x="372" y="232" width="14" height="14" rx="3" fill="#f6f8fa" stroke="#8c959f"/><text x="392" y="243" class="kind">unchanged</text>
+</svg>

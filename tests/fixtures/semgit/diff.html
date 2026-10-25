@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Semantic diff</title>
+<style>body{font:14px/1.5 system-ui,sans-serif;max-width:60rem;margin:2rem auto;padding:0 1rem}code{background:#eee;padding:0 .25em;border-radius:3px}small{color:#666;font-weight:400}li.added>b{color:#1a7f37}li.removed>b{color:#c62828}li.modified>b{color:#b26a00}li.added{color:#1a7f37}li.removed{color:#c62828}</style></head>
+<body>
+<h1>Semantic diff <code>HEAD~1</code> &rarr; <code>HEAD</code></h1>
+<p class="meta">Model <code>model.arc</code></p>
+<p class="sum">1 added, 1 removed, 2 modified (1 renamed, 0 moved); 0 relationship(s) added, 0 removed, 0 changed</p>
+<h2>System Analysis <small>SA: +1 -1 ~1</small></h2>
+<ul>
+<li class="modified"><b>modified</b> Requirement <code>REQ-001</code> REQ-001<ul><li>description: &quot;Detect at 150 m&quot; -&gt; &quot;Detect at 200 m&quot;</li></ul></li>
+<li class="removed"><b>removed</b> Requirement <code>REQ-002</code> REQ-002</li>
+<li class="added"><b>added</b> SystemFunction <code>SF-ACT</code> Act</li>
+</ul>
+<h2>Logical Architecture <small>LA: +0 -0 ~1</small></h2>
+<ul>
+<li class="modified"><b>modified</b> LogicalComponent <code>LC-002</code> Radar Sensor<ul><li>renamed: &quot;Sensor&quot; -&gt; &quot;Radar Sensor&quot;</li></ul></li>
+</ul>
+<h2>Consequences</h2>
+<ul>
+<li>Production gate: <b>FAIL (ISO26262) -&gt; FAIL (4 blocker(s) -&gt; 2)</b></li>
+<li class="added">blocker resolved: requirement 'REQ-002' is satisfied by no architecture element (no satisfies trace)</li>
+<li class="added">blocker resolved: requirement 'REQ-002' has no verification case (test_case verifies: [...])</li>
+<li>Impact: 2 element(s) reached, 0 blocker(s)</li>
+</ul>
+</body></html>

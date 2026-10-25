@@ -2,6 +2,8 @@ pub mod diagram_service;
 pub mod edit;
 pub mod table; // tables hook
 pub mod impact; // impact hook
+pub mod semgit; // semgit hook
+pub mod cicd; // cicd hook
 pub mod review;
 pub mod repl;
 pub mod language_server;
@@ -67,6 +69,10 @@ pub enum Commands {
         /// Print the findings as JSON, each named after its rule (see `arclang rules`)
         #[clap(long)]
         json: bool,
+
+        /// text (default) or sarif: the diagnostics as a SARIF 2.1.0 log
+        #[clap(long, value_enum)] // cicd hook
+        format: Option<cicd::DiagnosticFormat>,
     },
 
     /// Arcadia transition: declare on the next level what realizes the elements of this one
@@ -153,24 +159,75 @@ pub enum Commands {
 
         #[clap(long, default_value = "iso26262")]
         standard: SafetyStandard,
+
+        /// text (default) or sarif: the gate's findings as a SARIF 2.1.0 log
+        #[clap(long, value_enum)] // cicd hook
+        format: Option<cicd::DiagnosticFormat>,
     },
 
     /// Semantic diff between two model versions: compares by stable
     /// identity (UUID), so moving blocks is no change and renaming an
     /// element is a modification, not a remove+add
     Diff {
-        /// The old version of the model
+        /// The old version of the model (or, with --from, the model file)
         #[clap(value_parser)]
         old: PathBuf,
 
-        /// The new version of the model
+        /// The new version of the model (omit with --from)
         #[clap(value_parser)]
-        new: PathBuf,
+        new: Option<PathBuf>,
 
         /// Output as JSON (for CI pipelines)
         #[clap(long)]
         json: bool,
+
+        /// Compare the file as committed at this git revision...
+        #[clap(long)] // semgit hook
+        from: Option<String>,
+
+        /// ...with the file at this revision (default: the working tree, WORKTREE)
+        #[clap(long)] // semgit hook
+        to: Option<String>,
+
+        /// text, json, md or html: the rich report with layers, consequences and layout
+        #[clap(short, long, value_enum)] // semgit hook
+        format: Option<semgit::DiffFormat>,
+
+        /// Write the report to this file
+        #[clap(short, long)] // semgit hook
+        output: Option<PathBuf>,
+
+        /// The standard of the gate in the consequences: ISO26262, DO178C or IEC61508
+        #[clap(long, default_value = "ISO26262")] // semgit hook
+        gate_standard: String,
     },
+
+    /// The commits that changed one element, found by the semantic diff
+    /// between successive revisions of the model
+    History(semgit::HistoryArgs), // semgit hook
+
+    /// Semantic three-way merge by element identity: a git merge driver for
+    /// .arc and .layout.json files (`arclang merge --install`)
+    Merge(semgit::MergeArgs), // semgit hook
+
+    /// Baselines an auditor accepts: the gate, the coverage and the exports,
+    /// bound to a git tag by a manifest
+    Baseline {
+        #[clap(subcommand)]
+        command: semgit::BaselineCommand,
+    }, // semgit hook
+
+    /// CI/CD: write the pipelines (`ci init`), run what a pipeline runs (`ci run`)
+    Ci {
+        #[clap(subcommand)]
+        command: cicd::CiCommand,
+    }, // cicd hook
+
+    /// The pull-request report: semantic diff, impact, gate before and after
+    Report(cicd::ReportArgs), // cicd hook
+
+    /// Compiler diagnostics and gate blockers as a SARIF 2.1.0 log
+    Sarif(cicd::SarifArgs), // cicd hook
 
     /// Change-impact analysis: what a change to elements, a proposed edit
     /// (what-if) or the changes since a git revision reach, and why
@@ -428,6 +485,10 @@ pub enum Commands {
         /// Also render the interop exports (SysML v2, ReqIF, C headers, Protobuf)
         #[clap(long)]
         exports: bool,
+
+        /// The model as committed at this git revision, with its layout file
+        #[clap(long)] // semgit hook
+        rev: Option<String>,
     },
 
     /// Apply one edit, written as JSON, to a model file: {"op": "set" |
@@ -693,7 +754,16 @@ impl CliRunner {
             Commands::Build { input, output, incremental, release, target } => {
                 self.run_build(input, output, incremental, release, target)
             }
-            Commands::Check { input, lint, safety, json } => {
+            Commands::Check { input, format: Some(cicd::DiagnosticFormat::Sarif), .. } => { // cicd hook
+                cicd::run_scoped_sarif(&input, crate::compiler::cicd::diag::Scope::Check, &SafetyStandard::ISO26262)
+            }
+            Commands::Gate { input, standard, format: Some(cicd::DiagnosticFormat::Sarif) } => { // cicd hook
+                cicd::run_scoped_sarif(&input, crate::compiler::cicd::diag::Scope::Gate, &standard)
+            }
+            Commands::Ci { command } => cicd::run_ci(&command), // cicd hook
+            Commands::Report(args) => cicd::run_report(&args), // cicd hook
+            Commands::Sarif(args) => cicd::run_sarif(&args), // cicd hook
+            Commands::Check { input, lint, safety, json, format: _ } => {
                 if json {
                     self.run_check_json(input)
                 } else {
@@ -729,10 +799,19 @@ impl CliRunner {
                 self.run_trace(input, from, to, validate, matrix)
             }
             Commands::Impact(args) => impact::run(&args), // impact hook
-            Commands::Diff { old, new, json } => {
-                self.run_diff(old, new, json)
+            Commands::Diff { old, new, json, from, to, format, output, gate_standard } => {
+                if from.is_some() || format.is_some() || output.is_some() { // semgit hook
+                    let format = format.map(Into::into).unwrap_or(if json { crate::compiler::semgit::render::Format::Json } else { crate::compiler::semgit::render::Format::Text });
+                    semgit::run_diff(old, new, from, to, format, output, &gate_standard)
+                } else {
+                    let new = new.ok_or_else(|| CliError::Config("give two model files, or one with --from <revision>".into()))?;
+                    self.run_diff(old, new, json)
+                }
             }
-            Commands::Gate { input, standard } => {
+            Commands::History(args) => semgit::run_history(&args), // semgit hook
+            Commands::Merge(args) => semgit::run_merge(&args), // semgit hook
+            Commands::Baseline { command } => semgit::run_baseline(&command), // semgit hook
+            Commands::Gate { input, standard, format: _ } => {
                 self.run_gate(input, standard)
             }
             Commands::Export { input, output, format, no_placement, split } => {
@@ -813,7 +892,10 @@ impl CliRunner {
                 };
                 review::run(&input, options, json, dry_run)
             }
-            Commands::Workbench { input, gate_standard, exports } => edit::workbench(&input, &gate_standard, exports),
+            Commands::Workbench { input, gate_standard, exports, rev } => match rev { // semgit hook
+                Some(rev) => semgit::run_workbench_at(&input, &rev, &gate_standard, exports),
+                None => edit::workbench(&input, &gate_standard, exports),
+            },
             Commands::Edit { input, request, write } => edit::apply_request(&input, &request, write),
             Commands::Table(args) => table::run(&args), // tables hook
             Commands::Metamodel { format } => {
@@ -2412,6 +2494,14 @@ pub enum CliError {
     /// Not a failure: the two models differ (diff(1) convention, exit 1).
     #[error("semantic differences found")]
     DiffFound,
+
+    /// A CI/CD command found the model, or the pull request, not fit to go.
+    #[error("{0}")] // cicd hook
+    CiFailed(String),
+
+    /// A merge left conflicts, or a result that does not compile.
+    #[error("{0}")] // semgit hook
+    MergeConflict(String),
 }
 
 fn count_nodes(nodes: &[crate::compiler::diagram::Node]) -> usize {

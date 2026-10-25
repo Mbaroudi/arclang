@@ -17,6 +17,8 @@ import { registerWorkbench } from './workbench';
 import { registerImport } from './importing';
 import { registerTables } from './tables'; // tables hook
 import { registerImpact } from './impact'; // impact hook
+import { registerSemgit } from './semgit'; // semgit hook
+import { registerCi } from './cicd'; // cicd hook
 
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
   const register = (command: string, callback: (...args: unknown[]) => unknown) =>
@@ -49,6 +51,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   registerImport(context);
   registerTables(context); // tables hook
   registerImpact(context); // impact hook
+  registerSemgit(context); // semgit hook
+  registerCi(context); // cicd hook
   registerTools(context);
   registerParticipant(context);
   registerAi(context); // ai-design hook
