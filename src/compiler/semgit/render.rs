@@ -1,4 +1,5 @@
 //! The rich diff as text, Markdown, HTML or JSON.
+// cicd hook: field_line, element_details, relation_line, truth and ms are pub(crate): the PR report writes with them.
 
 use super::rich::{ElementChange, RelationChange, RichDiff};
 use crate::compiler::impact::whatif::CoverageDelta;
@@ -25,7 +26,7 @@ fn quote(text: &str) -> String {
     format!("\"{text}\"")
 }
 
-fn field_line(c: &FieldChange) -> String {
+pub(crate) fn field_line(c: &FieldChange) -> String {
     match (c.old.is_empty(), c.new.is_empty()) {
         (true, _) => format!("{} = {}", c.field, quote(&c.new)),
         (_, true) => format!("{} removed (was {})", c.field, quote(&c.old)),
@@ -44,7 +45,7 @@ fn element_headline(e: &ElementChange) -> String {
     format!("{mark} {} '{}' [{}]", e.kind, e.name, e.id)
 }
 
-fn element_details(e: &ElementChange) -> Vec<String> {
+pub(crate) fn element_details(e: &ElementChange) -> Vec<String> {
     let mut lines = Vec::new();
     if let Some(r) = &e.renamed {
         lines.push(format!("renamed: {} -> {}", quote(&r.from), quote(&r.to)));
@@ -56,7 +57,7 @@ fn element_details(e: &ElementChange) -> Vec<String> {
     lines
 }
 
-fn relation_line(r: &RelationChange) -> String {
+pub(crate) fn relation_line(r: &RelationChange) -> String {
     let name = if r.name.is_empty() { String::new() } else { format!(" '{}'", r.name) };
     let ends = format!("{} -> {}", r.source, r.target);
     match r.status {
@@ -159,7 +160,7 @@ pub fn text(d: &RichDiff) -> String {
     out
 }
 
-fn truth(value: Option<bool>) -> &'static str {
+pub(crate) fn truth(value: Option<bool>) -> &'static str {
     match value {
         Some(true) => "holds",
         Some(false) => "violated",
@@ -167,7 +168,7 @@ fn truth(value: Option<bool>) -> &'static str {
     }
 }
 
-fn ms(value: Option<f64>) -> String {
+pub(crate) fn ms(value: Option<f64>) -> String {
     value.map(|v| format!("{v:.0}")).unwrap_or_else(|| "-".to_string())
 }
 

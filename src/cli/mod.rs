@@ -3,6 +3,7 @@ pub mod edit;
 pub mod table; // tables hook
 pub mod impact; // impact hook
 pub mod semgit; // semgit hook
+pub mod cicd; // cicd hook
 pub mod review;
 pub mod repl;
 pub mod language_server;
@@ -68,6 +69,10 @@ pub enum Commands {
         /// Print the findings as JSON, each named after its rule (see `arclang rules`)
         #[clap(long)]
         json: bool,
+
+        /// text (default) or sarif: the diagnostics as a SARIF 2.1.0 log
+        #[clap(long, value_enum)] // cicd hook
+        format: Option<cicd::DiagnosticFormat>,
     },
 
     /// Arcadia transition: declare on the next level what realizes the elements of this one
@@ -154,6 +159,10 @@ pub enum Commands {
 
         #[clap(long, default_value = "iso26262")]
         standard: SafetyStandard,
+
+        /// text (default) or sarif: the gate's findings as a SARIF 2.1.0 log
+        #[clap(long, value_enum)] // cicd hook
+        format: Option<cicd::DiagnosticFormat>,
     },
 
     /// Semantic diff between two model versions: compares by stable
@@ -207,6 +216,18 @@ pub enum Commands {
         #[clap(subcommand)]
         command: semgit::BaselineCommand,
     }, // semgit hook
+
+    /// CI/CD: write the pipelines (`ci init`), run what a pipeline runs (`ci run`)
+    Ci {
+        #[clap(subcommand)]
+        command: cicd::CiCommand,
+    }, // cicd hook
+
+    /// The pull-request report: semantic diff, impact, gate before and after
+    Report(cicd::ReportArgs), // cicd hook
+
+    /// Compiler diagnostics and gate blockers as a SARIF 2.1.0 log
+    Sarif(cicd::SarifArgs), // cicd hook
 
     /// Change-impact analysis: what a change to elements, a proposed edit
     /// (what-if) or the changes since a git revision reach, and why
@@ -722,7 +743,16 @@ impl CliRunner {
             Commands::Build { input, output, incremental, release, target } => {
                 self.run_build(input, output, incremental, release, target)
             }
-            Commands::Check { input, lint, safety, json } => {
+            Commands::Check { input, format: Some(cicd::DiagnosticFormat::Sarif), .. } => { // cicd hook
+                cicd::run_scoped_sarif(&input, crate::compiler::cicd::diag::Scope::Check, &SafetyStandard::ISO26262)
+            }
+            Commands::Gate { input, standard, format: Some(cicd::DiagnosticFormat::Sarif) } => { // cicd hook
+                cicd::run_scoped_sarif(&input, crate::compiler::cicd::diag::Scope::Gate, &standard)
+            }
+            Commands::Ci { command } => cicd::run_ci(&command), // cicd hook
+            Commands::Report(args) => cicd::run_report(&args), // cicd hook
+            Commands::Sarif(args) => cicd::run_sarif(&args), // cicd hook
+            Commands::Check { input, lint, safety, json, format: _ } => {
                 if json {
                     self.run_check_json(input)
                 } else {
@@ -770,7 +800,7 @@ impl CliRunner {
             Commands::History(args) => semgit::run_history(&args), // semgit hook
             Commands::Merge(args) => semgit::run_merge(&args), // semgit hook
             Commands::Baseline { command } => semgit::run_baseline(&command), // semgit hook
-            Commands::Gate { input, standard } => {
+            Commands::Gate { input, standard, format: _ } => {
                 self.run_gate(input, standard)
             }
             Commands::Export { input, output, format } => {
@@ -2410,6 +2440,10 @@ pub enum CliError {
     /// Not a failure: the two models differ (diff(1) convention, exit 1).
     #[error("semantic differences found")]
     DiffFound,
+
+    /// A CI/CD command found the model, or the pull request, not fit to go.
+    #[error("{0}")] // cicd hook
+    CiFailed(String),
 
     /// A merge left conflicts, or a result that does not compile.
     #[error("{0}")] // semgit hook

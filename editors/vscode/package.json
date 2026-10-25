@@ -28,6 +28,7 @@
       "description": "In an untrusted workspace the compiler is not run on its files: no diagnostics, commands, diagrams or tools until the workspace is trusted. The executable and the MCP server command can only be set in user settings.",
       "restrictedConfigurations": [
         "arclang.binary",
+        "arclang.ci.gh",
         "arclang.mcp.command",
         "arclang.mcp.args"
       ]
@@ -59,7 +60,8 @@
     "onView:arclangRelations",
     "onLanguage:modelica",
     "onView:arclangChat",
-    "onCommand:arclang.chat.open"
+    "onCommand:arclang.chat.open",
+    "workspaceContains:.github/workflows/arclang.yml"
   ],
   "main": "./dist/extension.js",
   "contributes": {
@@ -739,6 +741,22 @@
         "category": "ArcLang"
       },
       {
+        "command": "arclang.ci.configure",
+        "title": "Configure CI",
+        "category": "ArcLang",
+        "icon": "$(rocket)"
+      },
+      {
+        "command": "arclang.ci.status",
+        "title": "Show the CI pipeline status",
+        "category": "ArcLang"
+      },
+      {
+        "command": "arclang.ci.refresh",
+        "title": "Refresh the CI pipeline status",
+        "category": "ArcLang"
+      },
+      {
         "command": "arclang.merge.install",
         "title": "Install the semantic merge driver",
         "category": "ArcLang",
@@ -1208,6 +1226,18 @@
           "when": "true"
         },
         {
+          "command": "arclang.ci.configure",
+          "when": "!isWeb"
+        },
+        {
+          "command": "arclang.ci.status",
+          "when": "!isWeb"
+        },
+        {
+          "command": "arclang.ci.refresh",
+          "when": "!isWeb"
+        },
+        {
           "command": "arclang.compare.exit",
           "when": "arclang.comparing"
         },
@@ -1489,6 +1519,23 @@
           "type": "boolean",
           "default": true,
           "description": "Redraw the open diagrams every time their model is saved."
+        },
+        "arclang.ci.statusBar": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Show the status of the latest GitHub Actions run of the current branch in the status bar, for a repository with the workflow written by *ArcLang: Configure CI*. It is read with the GitHub CLI (`gh`) and its own login: ArcLang stores no token. Nothing is read in an untrusted workspace."
+        },
+        "arclang.ci.pollSeconds": {
+          "type": "number",
+          "default": 120,
+          "minimum": 30,
+          "markdownDescription": "Seconds between two reads of the CI status (30 while a run is in progress at least)."
+        },
+        "arclang.ci.gh": {
+          "type": "string",
+          "default": "gh",
+          "scope": "machine",
+          "markdownDescription": "The GitHub CLI executable the CI status runs: a name on the PATH or an absolute path. User setting only."
         },
         "arclang.gate.standard": {
           "type": "string",

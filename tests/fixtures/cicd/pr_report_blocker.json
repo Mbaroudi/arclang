@@ -1,0 +1,157 @@
+{
+  "fail_on": "blocker",
+  "fails_the_check": true,
+  "from": "main",
+  "from_commit": "<commit>",
+  "marker": "<!-- arclang-pr-report -->",
+  "models": [
+    {
+      "base": {
+        "compiled": true,
+        "error": null,
+        "gate": {
+          "blockers": [],
+          "passed": true,
+          "requirements_satisfied": 2,
+          "requirements_total": 2,
+          "requirements_verified": 2,
+          "standard": "ISO26262"
+        },
+        "present": true
+      },
+      "diff": {
+        "consequences": {
+          "budgets": [
+            {
+              "after_ms": 230.0,
+              "before_ms": 50.0,
+              "budget_ms": 100.0,
+              "chain": "FC-1",
+              "missing": [],
+              "name": "Reaction",
+              "ok_after": false,
+              "ok_before": true
+            }
+          ],
+          "constraints": [],
+          "coverage": [],
+          "coverage_after": {
+            "requirements": 2,
+            "satisfied": 2,
+            "verified": 2
+          },
+          "coverage_before": {
+            "requirements": 2,
+            "satisfied": 2,
+            "verified": 2
+          },
+          "gate_after": {
+            "blockers": [
+              "functional_chain 'Reaction': sum of function latencies 230.0 ms exceeds the 100.0 ms budget"
+            ],
+            "passed": false,
+            "standard": "ISO26262"
+          },
+          "gate_before": {
+            "blockers": [],
+            "passed": true,
+            "standard": "ISO26262"
+          },
+          "impacted": 1,
+          "impacted_blockers": 1,
+          "new_blockers": [
+            "functional_chain 'Reaction': sum of function latencies 230.0 ms exceeds the 100.0 ms budget"
+          ],
+          "newly_unsatisfied": [],
+          "newly_unverified": [],
+          "removed_blockers": [],
+          "verdicts": []
+        },
+        "from": "main",
+        "from_commit": "<commit>",
+        "layers": [
+          {
+            "counts": {
+              "added": 0,
+              "modified": 1,
+              "removed": 0
+            },
+            "kinds": [
+              {
+                "elements": [
+                  {
+                    "changes": [
+                      {
+                        "field": "latency",
+                        "new": "200 ms",
+                        "old": "20 ms"
+                      }
+                    ],
+                    "id": "SF-SENSE",
+                    "kind": "SystemFunction",
+                    "name": "Sense",
+                    "status": "modified",
+                    "uuid": "44d1234a-3414-5243-a4f5-7abf712eb6d5"
+                  }
+                ],
+                "kind": "SystemFunction"
+              }
+            ],
+            "label": "System Analysis",
+            "layer": "SA"
+          }
+        ],
+        "layout": [],
+        "layout_only": false,
+        "model": "model.arc",
+        "model_changed": true,
+        "relationships": [],
+        "summary": {
+          "elements_added": 0,
+          "elements_modified": 1,
+          "elements_removed": 0,
+          "layout_entries": 0,
+          "moved": 0,
+          "relationships_added": 0,
+          "relationships_changed": 0,
+          "relationships_removed": 0,
+          "renamed": 0
+        },
+        "to": "WORKTREE"
+      },
+      "fails_the_check": true,
+      "head": {
+        "compiled": true,
+        "error": null,
+        "gate": {
+          "blockers": [
+            "[timing.budget] functional_chain 'Reaction': sum of function latencies 230.0 ms exceeds the 100.0 ms budget"
+          ],
+          "passed": false,
+          "requirements_satisfied": 2,
+          "requirements_total": 2,
+          "requirements_verified": 2,
+          "standard": "ISO26262"
+        },
+        "present": true
+      },
+      "images": null,
+      "model": "model.arc",
+      "new_blockers": [
+        "[timing.budget] functional_chain 'Reaction': sum of function latencies 230.0 ms exceeds the 100.0 ms budget"
+      ],
+      "regressions": [
+        "budget Reaction is exceeded (230 ms for 100 ms)"
+      ],
+      "resolved_blockers": [],
+      "status": "fail"
+    }
+  ],
+  "note": null,
+  "removed_files": [],
+  "standard": "ISO26262",
+  "status": "fail",
+  "to": "WORKTREE",
+  "to_commit": null,
+  "tool_version": "<version>"
+}
