@@ -304,7 +304,8 @@ class Arrange {
   menuItems(element: ElementRecord | null): MenuItem[] {
     const api = this.api();
     if (!api) return [];
-    const ids = this.ids();
+    // The menu opens before the viewer reports its selection: the element under the pointer is the one.
+    const ids = this.ids().length || !element ? this.ids() : [this.d.selectedDrawing() ?? this.d.drawingId(element.id)];
     const many = this.d.multi();
     const edges = this.edgeIds();
     const boxes = ids.filter((id) => !edges.has(id));
