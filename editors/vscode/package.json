@@ -18,10 +18,6 @@
   "engines": {
     "vscode": "^1.104.0"
   },
-  "extensionKind": [
-    "workspace",
-    "web"
-  ],
   "capabilities": {
     "virtualWorkspaces": {
       "supported": true,

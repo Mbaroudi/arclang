@@ -109,7 +109,9 @@ suite('ArcLang extension', () => {
     assert.deepEqual(manifest.capabilities.untrustedWorkspaces.restrictedConfigurations, ['arclang.binary', 'arclang.mcp.command', 'arclang.mcp.args']);
     // The web playground opens a virtual workspace: the compiler then runs in WebAssembly on the open files.
     assert.equal(manifest.capabilities.virtualWorkspaces.supported, true);
-    assert.deepEqual(manifest.extensionKind, ['workspace', 'web']);
+    // `main` and `browser` together make it run on the desktop and on the web: no extensionKind to state.
+    assert.equal(manifest.browser, './dist/web/extension.js');
+    assert.equal(manifest.extensionKind, undefined);
   });
 
   test('the check tool answers with the compiler verdict', async function () {
