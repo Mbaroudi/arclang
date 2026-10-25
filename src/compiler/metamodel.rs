@@ -174,6 +174,15 @@ fn multiplicity() -> AttrSpec {
     )
 }
 
+/// What a port carries for the Modelica export (`compiler::modelica`).
+fn physics() -> Vec<AttrSpec> {
+    vec![
+        attr("physics", AttrType::Enum("Physics"), "What the port carries, for `arclang export -f modelica`: the Modelica Standard Library connector it becomes (a signal by its direction). A port saying none is not exported."),
+        attr("pole", AttrType::Enum("Pole"), "For an electrical port: the pin it is (positive when absent)."),
+        attr("flange", AttrType::Enum("Flange"), "For a mechanical or thermal port: the flange it is (`b` for an out port, `a` otherwise, when absent)."),
+    ]
+}
+
 fn safety() -> Vec<AttrSpec> {
     vec![
         attr("safety_level", AttrType::Enum("SafetyLevel"), "ASIL, DAL or SIL assigned to the element."),
@@ -341,7 +350,7 @@ impl Metamodel {
                 ]])),
             kind("LogicalFunction", Layer::Logical, "LogicalFunction", "action def (perform)", "Function of the logical level, declared inside the component that performs it (or at the level, unallocated), with its ports and sub-functions; `realizes:` names the system function it realizes.", function_attrs()),
             kind("ComponentPort", Layer::Logical, "ComponentPort", "port", "Oriented port of a component (in, out, inout); it may hold ports, named `Owner.port.sub`.",
-                vec![attr("interface", AttrType::Text, "Interface type carried."), attr("protocol", AttrType::Text, "Protocol."), multiplicity()]),
+                concat(vec![vec![attr("interface", AttrType::Text, "Interface type carried."), attr("protocol", AttrType::Text, "Protocol."), multiplicity()], physics()])),
             kind("LogicalInterface", Layer::Logical, "Interface", "interface def", "Contract between two components.",
                 concat(vec![common(), vec![attr("from", AttrType::Reference("LogicalComponent"), "Provider."), attr("to", AttrType::Reference("LogicalComponent"), "Consumer.")], communication()])),
             kind(
@@ -357,7 +366,7 @@ impl Metamodel {
             // ---- Physical Architecture ----
             kind("PhysicalNode", Layer::Physical, "PhysicalComponent (NODE)", "part def + part", "Hardware node hosting behaviour components.",
                 concat(vec![component_attrs(), vec![multiplicity(), attr("processor", AttrType::Text, "Processor."), attr("cpu", AttrType::Text, "CPU description."), attr("redundancy", AttrType::Text, "Redundancy scheme.")]])),
-            kind("PhysicalPort", Layer::Physical, "PhysicalPort", "port", "Unoriented physical connector.", vec![attr("connector", AttrType::Text, "Connector type.")]),
+            kind("PhysicalPort", Layer::Physical, "PhysicalPort", "port", "Unoriented physical connector.", concat(vec![vec![attr("connector", AttrType::Text, "Connector type.")], physics()])),
             kind("BehaviorComponent", Layer::Physical, "PhysicalComponent (BEHAVIOR)", "part", "Software/behaviour deployed on a node; declares the physical functions it performs.", concat(vec![common(), safety()])),
             kind("PhysicalFunction", Layer::Physical, "PhysicalFunction", "action def (perform)", "Function of the physical level, declared inside the behaviour component that performs it (or at the level, unallocated), with its ports and sub-functions; `realizes:` names the logical function it realizes.", function_attrs()),
             kind("HardwareComponent", Layer::Physical, "PhysicalComponent (NODE, nested)", "part", "Hardware part of a node.", concat(vec![common(), resources()])),
@@ -448,6 +457,7 @@ impl Metamodel {
                     attr("description", AttrType::Text, "Free-text description (not inherited)."),
                     attr("from_kind", AttrType::Text, "For an allocation definition: the kind every allocation of it goes from (`PhysicalNode`)."),
                     attr("to_kind", AttrType::Text, "For an allocation definition: the kind every allocation of it goes to (`LogicalComponent`)."),
+                    attr("physics", AttrType::Enum("Physics"), "For a port definition: what the ports it types carry, for the Modelica export."),
                 ]),
             kind("Constraint", Layer::Transverse, "Constraint", "assert constraint", "Dimension-checked comparison over typed attributes (`assert: <expression>`). Ill-formed is a compile error; violated is a warning and a gate blocker.", common()),
             kind("StateMachine", Layer::Transverse, "StateMachine", "state def", "Modes and states of an element.",
@@ -507,6 +517,9 @@ impl Metamodel {
             EnumSpec { name: "Controllability", values: &["C0", "C1", "C2", "C3"], doc: "ISO 26262 controllability class." },
             EnumSpec { name: "FailureCondition", values: &["Catastrophic", "Hazardous", "Major", "Minor", "No Effect"], doc: "DO-178C failure condition classification." },
             EnumSpec { name: "VerificationMethod", values: &["test", "analysis", "inspection", "demonstration"], doc: "Verification method." },
+            EnumSpec { name: "Physics", values: &crate::compiler::modelica::connector::PHYSICS, doc: "What a port carries, for the Modelica export: the Modelica Standard Library connector it becomes (`fluid` is not exported yet)." },
+            EnumSpec { name: "Pole", values: &["positive", "negative"], doc: "The pin an electrical port is (`PositivePin`, `NegativePin`)." },
+            EnumSpec { name: "Flange", values: &["a", "b"], doc: "The flange (or heat port) a mechanical or thermal port is (`Flange_a`, `Flange_b`)." },
             EnumSpec { name: "Verdict", values: &["pass", "fail", "inconclusive", "error"], doc: "Verdict of a verification case (SysML v2 `VerdictKind`)." },
             EnumSpec { name: "ExchangeMechanism", values: &["EVENT", "FLOW", "OPERATION", "DATA", "SHARED_DATA"], doc: "Arcadia exchange item mechanism." },
             EnumSpec { name: "TraceKind", values: &["satisfies", "implements", "validates", "verifies", "realizes", "refines", "allocates"], doc: "Traceability link kinds." },

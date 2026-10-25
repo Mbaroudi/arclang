@@ -45,6 +45,7 @@ pub mod sysml_library;
 pub mod simulink_generator;
 mod simulink_stateflow;
 pub mod fmi_generator;
+pub mod modelica;
 pub mod reqif;
 pub mod graph_diff;
 pub mod semantic_diff;
@@ -336,6 +337,9 @@ impl Compiler {
 
         // Product lines: variations, variants and the configurations selecting them.
         warnings.extend(variability::check(&ast).map_err(CompilerError::Semantic)?);
+
+        // Ports that declare physics are connected to ports of the same physics.
+        modelica::check(&ast).map_err(CompilerError::Semantic)?;
         for config in &ast.configurations {
             semantic_model
                 .all_elements

@@ -598,6 +598,9 @@ pub enum ExportFormat {
     ReqIF,
     CHeaders,
     Proto,
+    /// A Modelica package of the physical architecture (OpenModelica):
+    /// `output` is a DIRECTORY
+    Modelica,
 }
 
 #[derive(Debug, clap::ValueEnum, Clone)]
@@ -1366,6 +1369,7 @@ impl CliRunner {
             ExportFormat::ReqIF => "json".to_string(),
             ExportFormat::CHeaders => "json".to_string(),
             ExportFormat::Proto => "json".to_string(),
+            ExportFormat::Modelica => "json".to_string(),
         };
         
         let mut compiler = crate::Compiler::new(config);
@@ -1457,6 +1461,23 @@ impl CliRunner {
                             &result.semantic_model,
                             &result.ast,
                         )
+                    }
+                    ExportFormat::Modelica => {
+                        // One package file: `output` is a DIRECTORY here.
+                        let export = crate::compiler::modelica::export(&result.ast).map_err(CliError::Compilation)?;
+                        std::fs::create_dir_all(&output).map_err(CliError::Io)?;
+                        let path = output.join(&export.file_name);
+                        std::fs::write(&path, &export.text).map_err(CliError::Io)?;
+                        for note in &export.notes {
+                            println!("  note: {note}");
+                        }
+                        println!("✓ Export successful — package {} ({} system model(s))", export.package, export.systems.len());
+                        for system in export.systems.values() {
+                            println!("  system model: {system}");
+                        }
+                        println!("  Output: {}", path.display());
+                        println!("  The physics goes in a package of its own extending these models (see docs/modelica.md).");
+                        return Ok(());
                     }
                     ExportFormat::FMI => {
                         // One modelDescription.xml per component: `output` is a
