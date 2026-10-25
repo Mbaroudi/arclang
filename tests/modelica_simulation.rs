@@ -371,3 +371,40 @@ fn openmodelica_checks_the_package_and_verifies_the_demo() {
     assert_eq!(result.semantic_model.simulations["TC-RANGE-LR"].verdict, "pass");
     assert_eq!(result.semantic_model.simulations["TC-RANGE-STD"].verdict, "fail");
 }
+
+// ---- Diagnosis of the tools (`verify --check-tools`) ----------------------
+
+fn check_tools(args: &[&str], envs: &[(&str, &str)]) -> std::process::Output {
+    let mut command = std::process::Command::new(env!("CARGO_BIN_EXE_arclang"));
+    command.arg("verify").arg("--check-tools").args(args).env_remove("ARCLANG_OMC").env_remove("ARCLANG_OMC_DOCKER");
+    for (k, v) in envs {
+        command.env(k, v);
+    }
+    command.output().expect("arclang runs")
+}
+
+#[test]
+fn check_tools_needs_no_model_and_reports_json() {
+    let out = check_tools(&["--json"], &[("ARCLANG_OMC", "/nonexistent/arclang/omc"), ("ARCLANG_OMC_DOCKER", "example/om:1")]);
+    assert!(out.status.success(), "{}", String::from_utf8_lossy(&out.stderr));
+    let json: serde_json::Value = serde_json::from_slice(&out.stdout).expect("json on stdout");
+    assert!(json["tool"].is_null());
+    assert_eq!(json["image"], "example/om:1");
+    assert_eq!(json["library_volume"], simulation::tool::LIBRARY_VOLUME);
+    assert!(json["detail"].as_str().unwrap().starts_with("OpenModelica not available"));
+    assert!(json["docker_installed"].is_boolean() && json["local_omc"] == false);
+}
+
+#[test]
+fn check_tools_prints_a_summary_without_json() {
+    let out = check_tools(&[], &[("ARCLANG_OMC", "/nonexistent/arclang/omc")]);
+    assert!(out.status.success());
+    let text = String::from_utf8_lossy(&out.stdout);
+    assert!(text.contains("OpenModelica not available") && text.contains("Docker installed"), "{text}");
+}
+
+#[test]
+fn verify_without_a_model_nor_check_tools_is_a_usage_error() {
+    let out = std::process::Command::new(env!("CARGO_BIN_EXE_arclang")).arg("verify").output().unwrap();
+    assert!(!out.status.success());
+}

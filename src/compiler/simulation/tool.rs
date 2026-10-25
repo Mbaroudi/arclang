@@ -86,6 +86,78 @@ pub fn locate(config: &ToolConfig) -> Result<Tool, String> {
     Err("OpenModelica not available: no omc on the PATH (ARCLANG_OMC), and no Docker daemon to run it (ARCLANG_OMC_DOCKER)".to_string())
 }
 
+/// What is installed to run OpenModelica, for a human or a program (the
+/// editor reads it as JSON): the single source of truth for discovery.
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct Diagnosis {
+    /// `local`, `docker` or null: the tool a simulation would use now.
+    pub tool: Option<String>,
+    /// The tool described (`docker image ...`, `omc (...)`), or why there is none.
+    pub detail: String,
+    pub docker_installed: bool,
+    pub docker_running: bool,
+    /// The image a simulation would run.
+    pub image: String,
+    /// Null when Docker is not running (cannot tell).
+    pub image_pulled: Option<bool>,
+    pub library_volume: String,
+    /// The Modelica Standard Library version a simulation loads.
+    pub msl_version: String,
+    /// Whether the Modelica Standard Library is in the volume; null when it cannot be told.
+    pub library_installed: Option<bool>,
+    /// `omc` on the PATH or `ARCLANG_OMC` runs.
+    pub local_omc: bool,
+}
+
+impl Diagnosis {
+    pub fn summary(&self) -> String {
+        let yes = |b: Option<bool>| match b { Some(true) => "yes", Some(false) => "no", None => "unknown" };
+        format!(
+            "OpenModelica: {}\n  local omc: {}\n  Docker installed: {}\n  Docker running: {}\n  image {}: pulled {}\n  Modelica library ({}): installed {}",
+            self.detail,
+            if self.local_omc { "yes" } else { "no" },
+            if self.docker_installed { "yes" } else { "no" },
+            if self.docker_running { "yes" } else { "no" },
+            self.image,
+            yes(self.image_pulled),
+            self.library_volume,
+            yes(self.library_installed),
+        )
+    }
+}
+
+/// Look at the machine: what [`locate`] would pick and what is missing.
+pub fn diagnose(config: &ToolConfig) -> Diagnosis {
+    let located = locate(config);
+    let image = config.docker_image.clone().unwrap_or_else(|| DEFAULT_IMAGE.to_string());
+    let docker_installed = runs("docker", &["--version"]);
+    let docker_running = docker_installed && docker_ready();
+    let local_omc = match &config.omc {
+        Some(omc) => runs(omc, &["--version"]),
+        None => runs("omc", &["--version"]),
+    };
+    let image_pulled = docker_running.then(|| runs("docker", &["image", "inspect", &image]));
+    let library_installed = match image_pulled {
+        Some(true) => Command::new("docker")
+            .args(["run", "--rm", "-v"])
+            .arg(format!("{LIBRARY_VOLUME}:/l:ro"))
+            .args(["--entrypoint", "ls", &image, "/l"])
+            .stdin(Stdio::null())
+            .stderr(Stdio::null())
+            .output()
+            .ok()
+            .filter(|o| o.status.success())
+            .map(|o| String::from_utf8_lossy(&o.stdout).lines().any(|l| l.starts_with("Modelica "))),
+        _ => None,
+    };
+    let (tool, detail) = match &located {
+        Ok(Tool::Local(_)) => (Some("local".to_string()), located.as_ref().unwrap().describe()),
+        Ok(Tool::Docker(_)) => (Some("docker".to_string()), located.as_ref().unwrap().describe()),
+        Err(error) => (None, error.clone()),
+    };
+    Diagnosis { tool, detail, docker_installed, docker_running, image, image_pulled, library_volume: LIBRARY_VOLUME.to_string(), msl_version: crate::compiler::modelica::MSL_VERSION.to_string(), library_installed, local_omc }
+}
+
 /// What a run printed.
 #[derive(Debug)]
 pub struct Run {
@@ -156,5 +228,20 @@ mod tests {
         let config = ToolConfig { omc: Some("/nonexistent/arclang/omc".into()), ..ToolConfig::default() };
         let error = locate(&config).unwrap_err();
         assert!(error.starts_with("OpenModelica not available"), "{error}");
+    }
+
+    #[test]
+    fn the_diagnosis_of_an_explicit_omc_that_does_not_run_names_no_tool() {
+        let config = ToolConfig { omc: Some("/nonexistent/arclang/omc".into()), docker_image: Some("example/om:1".into()), ..ToolConfig::default() };
+        let d = diagnose(&config);
+        assert_eq!(d.tool, None);
+        assert!(!d.local_omc);
+        assert_eq!(d.image, "example/om:1");
+        assert_eq!(d.library_volume, LIBRARY_VOLUME);
+        let json = serde_json::to_value(&d).unwrap();
+        for key in ["tool", "detail", "docker_installed", "docker_running", "image", "image_pulled", "library_volume", "msl_version", "library_installed", "local_omc"] {
+            assert!(json.get(key).is_some(), "{key}");
+        }
+        assert!(d.summary().starts_with("OpenModelica: OpenModelica not available"));
     }
 }
