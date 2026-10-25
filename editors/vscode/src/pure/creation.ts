@@ -47,7 +47,6 @@ export const LAYER_CHOICES: LayerChoice[] = [
   { keyword: 'physical_architecture', label: 'Physical', detail: 'nodes, behaviour components, physical links', title: 'Physical Architecture' },
   { keyword: 'epbs', label: 'EPBS', detail: 'the end product breakdown: systems, subsystems, configuration items', title: 'EPBS' },
   { keyword: 'requirements', label: 'Requirements', detail: 'the requirements the architecture answers' },
-  { keyword: 'scenarios', label: 'Scenarios', detail: 'exchanges between lifelines, over time' },
   { keyword: 'safety_analysis', label: 'Safety', detail: 'hazards, failure modes, safety goals' },
 ];
 
