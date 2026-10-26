@@ -18,6 +18,8 @@ export function binary(): string {
 export interface RunOptions {
   cwd?: string;
   token?: vscode.CancellationToken;
+  /** Extra environment variables for the compiler (native backend only). */
+  env?: Record<string, string>;
 }
 
 export const UNTRUSTED_MESSAGE = 'ArcLang does not run the compiler on the files of an untrusted workspace. Trust the workspace (Workspaces: Manage Workspace Trust) to get diagnostics, commands, diagrams and tools.';
@@ -76,7 +78,7 @@ function runNative(args: string[], options: RunOptions): Promise<RunResult> {
     const child = execFile(
       binary(),
       args,
-      { cwd: options.cwd, maxBuffer: 256 * 1024 * 1024, env: options.cwd ? { ...process.env, ARCLANG_MODEL_DIR: options.cwd } : process.env },
+      { cwd: options.cwd, maxBuffer: 256 * 1024 * 1024, env: { ...process.env, ...(options.cwd ? { ARCLANG_MODEL_DIR: options.cwd } : {}), ...options.env } },
       (error, stdout, stderr) => {
         if (error && (error as NodeJS.ErrnoException).code === 'ENOENT') {
           resolve({ code: 127, stdout: '', stderr: `${binary()}: command not found` });

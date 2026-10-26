@@ -102,11 +102,11 @@ suite('ArcLang extension', () => {
   test('the executable and the MCP command are user settings, and untrusted workspaces are limited', () => {
     const manifest = vscode.extensions.getExtension('arclang.arclang')?.packageJSON;
     assert.ok(manifest);
-    for (const key of ['arclang.binary', 'arclang.ci.gh', 'arclang.mcp.command', 'arclang.mcp.args']) {
+    for (const key of ['arclang.binary', 'arclang.ci.gh', 'arclang.mcp.command', 'arclang.mcp.args', 'arclang.simulation.image', 'arclang.simulation.omc']) {
       assert.equal(manifest.contributes.configuration.properties[key].scope, 'machine', `${key} is machine-scoped`);
     }
     assert.equal(manifest.capabilities.untrustedWorkspaces.supported, 'limited');
-    assert.deepEqual(manifest.capabilities.untrustedWorkspaces.restrictedConfigurations, ['arclang.binary', 'arclang.ci.gh', 'arclang.mcp.command', 'arclang.mcp.args']);
+    assert.deepEqual(manifest.capabilities.untrustedWorkspaces.restrictedConfigurations, ['arclang.binary', 'arclang.ci.gh', 'arclang.mcp.command', 'arclang.mcp.args', 'arclang.simulation.image', 'arclang.simulation.omc']);
     // The web playground opens a virtual workspace: the compiler then runs in WebAssembly on the open files.
     assert.equal(manifest.capabilities.virtualWorkspaces.supported, true);
     // `main` and `browser` together make it run on the desktop and on the web: no extensionKind to state.

@@ -30,7 +30,9 @@
         "arclang.binary",
         "arclang.ci.gh",
         "arclang.mcp.command",
-        "arclang.mcp.args"
+        "arclang.mcp.args",
+        "arclang.simulation.image",
+        "arclang.simulation.omc"
       ]
     }
   },
@@ -61,7 +63,8 @@
     "onLanguage:modelica",
     "onView:arclangChat",
     "onCommand:arclang.chat.open",
-    "workspaceContains:.github/workflows/arclang.yml"
+    "workspaceContains:.github/workflows/arclang.yml",
+    "workspaceContains:**/*.{arc,mo}"
   ],
   "main": "./dist/extension.js",
   "contributes": {
@@ -785,6 +788,43 @@
         "title": "Edit the conflict",
         "category": "ArcLang",
         "icon": "$(edit)"
+      },
+      {
+        "command": "arclang.simulation.menu",
+        "title": "Simulation",
+        "category": "ArcLang",
+        "icon": "$(beaker)"
+      },
+      {
+        "command": "arclang.simulation.run",
+        "title": "Run simulations",
+        "category": "ArcLang",
+        "icon": "$(play)"
+      },
+      {
+        "command": "arclang.simulation.check",
+        "title": "Check simulation setup",
+        "category": "ArcLang"
+      },
+      {
+        "command": "arclang.simulation.setup",
+        "title": "Set up OpenModelica",
+        "category": "ArcLang"
+      },
+      {
+        "command": "arclang.simulation.export",
+        "title": "Export Modelica",
+        "category": "ArcLang"
+      },
+      {
+        "command": "arclang.simulation.drawing",
+        "title": "Open the Modelica drawing",
+        "category": "ArcLang"
+      },
+      {
+        "command": "arclang.simulation.docs",
+        "title": "Open the simulation documentation",
+        "category": "ArcLang"
       }
     ],
     "menus": {
@@ -835,6 +875,11 @@
           "command": "arclang.compare.exit",
           "when": "arclang.comparing && resourceLangId == arclang",
           "group": "navigation@8"
+        },
+        {
+          "command": "arclang.simulation.run",
+          "when": "resourceLangId == arclang && arclang.simulatesHere && !isWeb",
+          "group": "navigation@3"
         }
       ],
       "editor/context": [
@@ -1256,6 +1301,34 @@
         {
           "command": "arclang.conflict.edit",
           "when": "false"
+        },
+        {
+          "command": "arclang.simulation.menu",
+          "when": "!isWeb"
+        },
+        {
+          "command": "arclang.simulation.run",
+          "when": "!isWeb"
+        },
+        {
+          "command": "arclang.simulation.check",
+          "when": "!isWeb"
+        },
+        {
+          "command": "arclang.simulation.setup",
+          "when": "!isWeb"
+        },
+        {
+          "command": "arclang.simulation.export",
+          "when": "!isWeb"
+        },
+        {
+          "command": "arclang.simulation.drawing",
+          "when": "!isWeb"
+        },
+        {
+          "command": "arclang.simulation.docs",
+          "when": "!isWeb"
         }
       ],
       "view/title": [
@@ -1725,6 +1798,24 @@
           "default": "",
           "markdownDescription": "Where the `arclang-hosted` provider goes: the address of the ArcLang AI gateway. Empty: https://arclang.fr/api/ai. User setting only.",
           "scope": "machine"
+        },
+        "arclang.simulation.image": {
+          "type": "string",
+          "default": "",
+          "scope": "machine",
+          "markdownDescription": "The Docker image that runs OpenModelica, passed to the compiler as `ARCLANG_OMC_DOCKER`. Empty: the compiler's default (`openmodelica/openmodelica:v1.27.1-minimal`). User setting only."
+        },
+        "arclang.simulation.omc": {
+          "type": "string",
+          "default": "",
+          "scope": "machine",
+          "markdownDescription": "The path of a local OpenModelica `omc` executable, passed to the compiler as `ARCLANG_OMC`. Empty: an `omc` on the PATH if there is one, else Docker. User setting only."
+        },
+        "arclang.simulation.timeout": {
+          "type": "number",
+          "default": 900,
+          "minimum": 10,
+          "markdownDescription": "Seconds a simulation may take before it is stopped (`ARCLANG_OMC_TIMEOUT`). The first run installs the Modelica library and can take several minutes."
         }
       }
     },

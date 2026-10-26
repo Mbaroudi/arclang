@@ -50,7 +50,7 @@ const VIEWER_SCRIPTS = [
 ];
 
 /** The commands the webview may ask the host to run on its document. */
-const ALLOWED_COMMANDS = new Set(['arclang.transitionPlan', 'arclang.transitionApply', 'arclang.runGate', 'arclang.check', 'arclang.format']);
+const ALLOWED_COMMANDS = new Set(['arclang.transitionPlan', 'arclang.transitionApply', 'arclang.runGate', 'arclang.check', 'arclang.format', 'arclang.simulation.run']);
 /** nav hook: the New ▾ menu's commands (src/workbench/create.ts) */
 for (const command of ['arclang.newModel', 'arclang.newLayer', 'arclang.newDiagram', 'arclang.pickDiagram', 'arclang.openModel']) ALLOWED_COMMANDS.add(command);
 

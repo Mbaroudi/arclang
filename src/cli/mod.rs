@@ -237,8 +237,14 @@ pub enum Commands {
     /// OpenModelica (ARCLANG_OMC, or Docker with ARCLANG_OMC_DOCKER), check
     /// their `expects:` and cache the verdicts for `check`, `gate` and tables
     Verify {
-        #[clap(value_parser)]
-        input: PathBuf,
+        #[clap(value_parser, required_unless_present = "check_tools")]
+        input: Option<PathBuf>,
+
+        /// Do not simulate: report what is installed to run OpenModelica
+        /// (Docker, the image, the Modelica library, a local omc); with
+        /// --json, as a machine-readable diagnosis
+        #[clap(long)]
+        check_tools: bool,
 
         /// Only this test case (id or name)
         #[clap(long)]
@@ -820,7 +826,11 @@ impl CliRunner {
                 }
                 self.run_export(input, output, format, no_placement, split)
             }
-            Commands::Verify { input, test, json } => {
+            Commands::Verify { input, test, json, check_tools } => {
+                if check_tools {
+                    return self.run_check_tools(json);
+                }
+                let input = input.ok_or_else(|| CliError::Config("give a model file to verify".into()))?;
                 self.run_verify(input, test, json)
             }
             Commands::Import { input, format, output } => {
@@ -1314,6 +1324,17 @@ impl CliRunner {
         }
     }
     
+    fn run_check_tools(&self, json: bool) -> Result<(), CliError> {
+        use crate::compiler::simulation::tool::{diagnose, ToolConfig};
+        let diagnosis = diagnose(&ToolConfig::from_env());
+        if json {
+            println!("{}", serde_json::to_string_pretty(&diagnosis).map_err(|e| CliError::Compilation(e.to_string()))?);
+        } else {
+            println!("{}", diagnosis.summary());
+        }
+        Ok(())
+    }
+
     fn run_verify(&self, input: PathBuf, test: Option<String>, json: bool) -> Result<(), CliError> {
         use crate::compiler::simulation::{run, tool::ToolConfig};
         let result = crate::Compiler::new(crate::CompilerConfig::default())

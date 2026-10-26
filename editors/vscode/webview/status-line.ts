@@ -44,6 +44,7 @@ export function createStatusLine(bottom: HTMLElement, owner: StatusHost): (snaps
       el('span', { class: 'wb-spacer' }),
       button('Check', command('arclang.check')),
       button('Gate', command('arclang.runGate')),
+      button('Simulate', command('arclang.simulation.run'), { title: 'Run the simulations of this model in OpenModelica' }),
       button('Transition plan', command('arclang.transitionPlan')),
       button('Source', () => owner.post({ type: 'open-text' })),
     ]));

@@ -48,6 +48,48 @@ When no tool is found the verdict is **inconclusive**, with the reason
 (`OpenModelica not available: ...`), and is not cached: a missing tool is
 never a pass.
 
+`arclang verify --check-tools [--json]` simulates nothing: it reports what
+this machine has (the tool a simulation would use, whether Docker is
+installed and running, whether the image is pulled, whether the Modelica
+library is in the volume, whether a local `omc` runs). The VS Code
+extension reads it, so discovery stays the compiler's.
+
+## Simulation from VS Code
+
+Open a folder with a model that simulates (a test case with `simulate:`, or
+a `physics:` port) or a `.mo` file: a **Simulation** item appears in the
+status bar. Its text says where things stand: `OpenModelica (Docker)` or
+`(local)` when a tool is found, `needs setup` when none is, `Simulating…`
+during a run, then the verdicts of the last run (`1 fail, 1 pass`). Click it
+for the menu (also *ArcLang: Simulation* in the command palette):
+
+- **Run simulations on this model** (also the play button in the editor
+  title and *Simulate* in the workbench): runs `arclang verify`, with a
+  progress notification that can be cancelled; the result offers *Show the
+  verdicts* (the requirement coverage table) and *Show the log*.
+- **Check my setup**: a checklist of Docker installed, Docker running, the
+  OpenModelica image, the Modelica library, a local `omc`, and the Modex
+  extension (to draw `.mo` files), each missing item with a button: open the
+  Docker Desktop download page, start Docker Desktop, download the image
+  (about 1 GB, with progress), install the library now, install Modex, or
+  show the exact command in a terminal (typed, not run).
+- **Set up OpenModelica (guided)**: the same fixes, one step at a time.
+- **Export Modelica**, **Open the Modelica drawing**, **Open the
+  documentation**.
+
+When you run simulations and nothing is available, the checklist opens
+instead of an error. The first run with Docker installs the Modelica library
+into the volume (a few minutes, once); later runs reuse it, and unchanged
+cases are answered from the verdict cache.
+
+Settings (user settings only, ignored in an untrusted workspace for the two
+that name a program): `arclang.simulation.image` (`ARCLANG_OMC_DOCKER`),
+`arclang.simulation.omc` (`ARCLANG_OMC`), `arclang.simulation.timeout`
+(`ARCLANG_OMC_TIMEOUT`, seconds). Nothing runs in an untrusted workspace; in
+the browser build the item is hidden and the commands say that simulation
+needs the desktop extension. Cancelling a run stops `arclang`; a Docker
+container already started may finish on its own.
+
 ## Drawing the architecture in Modex and OMEdit
 
 Graphical Modelica editors draw from annotations. Without them the canvas is

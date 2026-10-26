@@ -137,6 +137,10 @@ The compiler runs in your pipeline (`docs/CI_CD.md`): every model compiled, the 
 - **ArcLang: Configure CI**: pick the CI systems (GitHub Actions, GitLab CI, Azure DevOps, Jenkins; the one the git remote points at is ticked), read each file in a preview, then write them with `arclang ci init`. Nothing is written until you choose *Write*; a file that exists is replaced only after a second confirmation. The files are not run against the provider by ArcLang: the first pipeline run is their test.
 - **A status item** in the status bar for a repository with the GitHub workflow: the latest run of the current branch (passed, failed, running, or `?` when it was cancelled or skipped: only a success is shown as passing). It is read with the GitHub CLI (`gh`), with its own login: ArcLang stores no token, and says in words when `gh` is missing or not logged in. Nothing is read in an untrusted workspace. Settings: `arclang.ci.statusBar`, `arclang.ci.pollSeconds`, `arclang.ci.gh`.
 
+## Simulation with OpenModelica
+
+A **Simulation** status item (when the workspace has a model that simulates or a `.mo` file) shows whether OpenModelica is ready (`OpenModelica (Docker)`), needs setup, or the verdicts of the last run. Its menu (*ArcLang: Simulation*): run the simulations (progress, cancel, then the verdict table), *Check my setup* (a checklist with a one-click fix for Docker, the image, the Modelica library and Modex), a guided setup, export Modelica, open the Modelica drawing, the documentation. Running with nothing installed opens the guided setup rather than an error. The first run installs the Modelica library (minutes, once). Settings: `arclang.simulation.image`, `arclang.simulation.omc`, `arclang.simulation.timeout`. Needs the compiler's `verify --check-tools`. See `docs/modelica.md`. Desktop only.
+
 ## Importing a model
 
 Bring a model in from the model view's **Import** button (cloud icon), its welcome when the workspace has no `.arc` file, the Explorer's context menu, or *File ▾ › Import a model…* in the workbench. One quick pick asks what you import:
@@ -329,6 +333,8 @@ VS Code (GitHub Copilot, for instance); the rest works without.
 | `arclang.ai.confirmBeforeSending` | `true` | Ask before the first request to a cloud provider (user setting) |
 | `arclang.ai.repairAttempts` | `2` | Corrections asked when what an AI wrote does not compile |
 | `arclang.mcp.command`, `arclang.mcp.args` | | How to start the MCP server |
+| `arclang.simulation.image`, `arclang.simulation.omc` | empty | Docker image / local `omc` for simulations (user settings) |
+| `arclang.simulation.timeout` | `900` | Seconds a simulation may take |
 
 ## Security
 
