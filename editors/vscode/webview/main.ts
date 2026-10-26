@@ -16,7 +16,7 @@ import { createShell } from './shell';
 import { DiagramContents } from './diagram-contents';
 import { createStatusLine } from './status-line';
 import { changesOf, markFindings as markFindings_, pulse, renderLayers as renderLayers_ } from './marks';
-import { Alignment, modelIdOf, relationshipOfEdge } from '../src/pure/editing';
+import { Alignment, modelIdOf, relationshipOfEdge, writtenRef } from '../src/pure/editing';
 import { installAi } from './ask-ai'; // ai-design hook
 import { installKeys } from './keys';
 import { MultiSelection } from './multi-select';
@@ -273,7 +273,7 @@ function onSelect(picked: ViewerSelection | null): void {
     setTimeout(markMulti, 0);
   }
   // A connect tool takes the click as one of its ends.
-  if (palette.pick(element ? { id: element.id, kind: element.kind } : null)) return;
+  if (palette.pick(element ? { id: writtenRef(element, state.byUuid), kind: element.kind } : null)) return;
   selectElement(element, false);
 }
 
@@ -459,7 +459,7 @@ function onConnect(fromId: string, toId: string): void {
     showToast(`Nothing connects ${from.kind} to ${to.kind} on this view.`, 'info');
     return;
   }
-  palette.connectWith(tool, { id: from.id, kind: from.kind }, { id: to.id, kind: to.kind });
+  palette.connectWith(tool, { id: writtenRef(from, state.byUuid), kind: from.kind }, { id: writtenRef(to, state.byUuid), kind: to.kind });
 }
 
 /** Double-click opens the element: its properties, and its declaration in the source. */
