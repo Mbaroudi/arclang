@@ -14,6 +14,8 @@ export interface PaletteHost {
   hint: (text: string) => void;
   /** Where prompts open: on the canvas, near the user's eyes, not in the rail. */
   anchor: () => HTMLElement;
+  /** A gesture the compiler's rules refuse: said where it stays on screen (a toast), with the reason. */
+  error?: (text: string) => void;
   /** Tools the page handles itself (requirement, fragment). */
   special?: (tool: Tool) => void;
 }
@@ -75,8 +77,10 @@ export class Palette {
       if (name === null) return this.disarm();
       const plan = connectPlan(tool, from, to, name, this.view, this.graphContainer);
       if ('error' in plan) {
-        this.owner.hint(plan.error);
-        return this.disarm();
+        this.disarm();
+        if (this.owner.error) this.owner.error(plan.error);
+        else this.owner.hint(plan.error);
+        return;
       }
       this.owner.submit(plan, `${tool.label} ${name || `${from.id} -> ${to.id}`}`);
       this.disarm();

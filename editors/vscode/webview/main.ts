@@ -83,6 +83,7 @@ const palette = new Palette(left, {
   selected: () => (state.selected ? { id: state.selected.id, kind: state.selected.kind } : null),
   submit,
   hint: (text) => showMode(text),
+  error: (text) => showToast(`Refused: ${text}`, 'error'),
   anchor: () => sheet,
   special: (tool) => specialTool(tool),
 });
