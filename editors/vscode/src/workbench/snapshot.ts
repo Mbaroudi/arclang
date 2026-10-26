@@ -28,6 +28,20 @@ function gateStandard(): string {
   return vscode.workspace.getConfiguration('arclang').get<string>('gate.standard', 'iso26262');
 }
 
+async function compute(document: vscode.TextDocument): Promise<Snapshot> {
+  if (!workspaceTrusted()) return failed(UNTRUSTED_MESSAGE);
+  // A SysML v2 document is imported first; the snapshot is of the imported model.
+  const source = await arcTextOf(document);
+  if (!source.ok) return failed(source.error);
+  const dir = documentDir(document);
+  const name = path.basename(document.uri.fsPath).replace(/\.sysml$/i, '.arc') || 'model.arc';
+  return withTempFile(source.text, name, async (file) => {
+    const result = await run(['workbench', file, '--gate-standard', gateStandard()], { cwd: dir });
+    if (result.code !== 0 && !result.stdout.trim()) return failed(result.stderr.trim() || `arclang exited with ${result.code}`);
+    return parseSnapshot(result.stdout);
+  });
+}
+
 /** The snapshot of the document's current text; cached by document version. */
 export function snapshotOf(document: vscode.TextDocument): Promise<Snapshot> {
   const key = document.uri.toString();
@@ -36,18 +50,10 @@ export function snapshotOf(document: vscode.TextDocument): Promise<Snapshot> {
   const running = pending.get(key);
   if (running) return running;
   const version = document.version;
+  // Every outcome is cached for the version, a refusal too: the views refresh
+  // when a snapshot arrives, and one that is never cached is asked again, and again.
   const work = (async () => {
-    if (!workspaceTrusted()) return failed(UNTRUSTED_MESSAGE);
-    // A SysML v2 document is imported first; the snapshot is of the imported model.
-    const source = await arcTextOf(document);
-    if (!source.ok) return failed(source.error);
-    const dir = documentDir(document);
-    const name = path.basename(document.uri.fsPath).replace(/\.sysml$/i, '.arc') || 'model.arc';
-    const snapshot = await withTempFile(source.text, name, async (file) => {
-      const result = await run(['workbench', file, '--gate-standard', gateStandard()], { cwd: dir });
-      if (result.code !== 0 && !result.stdout.trim()) return failed(result.stderr.trim() || `arclang exited with ${result.code}`);
-      return parseSnapshot(result.stdout);
-    });
+    const snapshot = await compute(document);
     cache.set(key, { version, snapshot });
     return snapshot;
   })();
@@ -104,6 +110,12 @@ export function registerSnapshotRefresh(context: vscode.ExtensionContext, delayM
       );
     }),
     vscode.workspace.onDidCloseTextDocument((document) => forgetSnapshot(document.uri)),
+    // What was refused while the workspace was restricted is asked again once it is trusted.
+    vscode.workspace.onDidGrantWorkspaceTrust(() => {
+      const uris = [...cache.keys()].map((key) => vscode.Uri.parse(key));
+      cache.clear();
+      for (const uri of uris) emitter.fire(uri);
+    }),
     vscode.workspace.onDidChangeConfiguration((event) => {
       if (event.affectsConfiguration('arclang.binary')) metamodelCache = null;
       if (event.affectsConfiguration('arclang')) cache.clear();
