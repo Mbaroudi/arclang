@@ -308,7 +308,7 @@ offered to agent mode when `arclang-mcp` is on the PATH or the setting
 
 ## Requirements
 
-The `arclang` compiler, 4.5.0 or later: a
+The `arclang` compiler, 4.6.0 or later: a
 [release](https://github.com/Mbaroudi/arclang/releases) on the PATH, or its
 path in the setting `arclang.binary`. **ArcLang: Install or locate the
 arclang compiler** helps. Chat features need a language model provider in
