@@ -106,3 +106,26 @@ Legend: **yes** · **partial** · **no**.
 2. Drag a port along or across boxes (it moves with *Move to…*).
 3. State invariants from the scenario palette.
 4. Notes on diagrams, which needs a language construct first.
+
+## Against Cameo / CATIA Magic and SysON, with sources
+
+Checked on 2026-10-29 from vendor and project pages. Vendor claims are marked as
+such; ArcLang's column comes from this repository, not from a fresh test.
+
+| Capability | ArcLang | Cameo / CATIA Magic 2026x | SysON 2026.11 |
+|---|---|---|---|
+| SysML v2 coverage | import and export, validated against the pilot | claims 100% of the standard (vendor claim) | native; metamodel follows the 2025-04 specification |
+| Diagram types | Arcadia viewpoints, 9 views | graphical, tabular and textual views | General, Interconnection, Action Flow, State transition |
+| Requirement derivation on a diagram | no | yes | yes (`derive` edges, 2026.9) |
+| Production gate (ISO 26262, DO-178C, IEC 61508) | yes | no (validation suites and custom rules) | no |
+| Simulation | OpenModelica bridge, verdict in the gate | SysML v2 Simulation Plugin, technology preview | listed in the features index, not checked |
+| Version control | semantic git: diff, history, merge, baselines | branching and patch reintegration, Teamwork Cloud | listed in the features index, not checked |
+| Concurrent editing without locks | no | yes (Teamwork Cloud) | not found |
+| REST API for SysML v2 | Systems Modeling API (`arclang serve`) | yes; Open API in technology preview | not found in the release notes |
+| Role-based access, SSO, audit | read / write roles in the API | yes | not found |
+| AI assistant that compiles its edits | yes | generative AI features, unspecified | no |
+
+Sources: 3ds.com/products/catia/catia-magic/sysmlv2, the 2026x Refresh1 announcement
+on 3dswym.3dexperience.3ds.com, webel.com.au/node/4389 (third-party limits),
+doc.mbse-syson.org (release notes 2026.7 to 2026.11), docs.obeosoft.com
+(features index 2026.1).

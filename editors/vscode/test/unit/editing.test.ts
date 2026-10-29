@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { alignMoves, distributeMoves, edgeEndIds, freshIdLike, modelIdOf, moveTargets, pasteRequests, quickConnectPlan, reconnectKinds, reconnectPlan, relationshipOfEdge, reversePlan } from '../../src/pure/editing';
+import { writtenRef, alignMoves, distributeMoves, edgeEndIds, freshIdLike, modelIdOf, moveTargets, pasteRequests, quickConnectPlan, reconnectKinds, reconnectPlan, relationshipOfEdge, reversePlan } from '../../src/pure/editing';
 import { ElementRecord, RelationshipRecord, Snapshot, ViewerGraph } from '../../src/pure/workbench';
 
 const element = (uuid: string, id: string, kind: string, owner: string | null = 'm', name = id): ElementRecord => ({ uuid, id, kind, name, owner, attributes: {} });
@@ -97,4 +97,17 @@ test('quick connect creates an element like the box, with a fresh id, and connec
   const state = quickConnectPlan('msm', elements.find((e) => e.id === 'M.Off')!, 'Standby', elements, 'M');
   assert.ok(!('error' in state) && state.requests.some((r) => r.op === 'add_raw' && /transition Off -> Standby/.test(r.declaration)));
   assert.ok('error' in (quickConnectPlan('cdb', elements.find((e) => e.id === 'LC-A')!, 'X', elements, null) as object));
+});
+
+test('a declaration designates an element by its written id, else by its name', () => {
+  const byUuid = new Map<string, ElementRecord>();
+  const add = (e: ElementRecord) => byUuid.set(e.uuid, e) && e;
+  const written = add({ uuid: 'w', id: 'LC-W', kind: 'LogicalComponent', name: 'Written', owner: null, attributes: { id: 'LC-W' } });
+  const derived = add({ uuid: 'd', id: 'LC-Batterie', kind: 'LogicalComponent', name: 'Batterie', owner: null, attributes: {} });
+  const port = add({ uuid: 'p', id: 'LC-Batterie.out', kind: 'ComponentPort', name: 'out', owner: 'd', attributes: {} });
+  const writtenPort = add({ uuid: 'q', id: 'LC-W.out', kind: 'ComponentPort', name: 'out', owner: 'w', attributes: {} });
+  assert.equal(writtenRef(written, byUuid), 'LC-W');
+  assert.equal(writtenRef(derived, byUuid), 'Batterie');
+  assert.equal(writtenRef(port, byUuid), 'Batterie.out');
+  assert.equal(writtenRef(writtenPort, byUuid), 'LC-W.out');
 });

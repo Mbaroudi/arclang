@@ -36,6 +36,21 @@ const THROUGH_PORTS = new Set(['FunctionalExchange', 'ComponentExchange', 'Physi
 export const isPortKind = (kind: string): boolean => /Port$/.test(kind);
 
 /**
+ * How a declaration written in the source designates an element: its written
+ * id, else its name (a port: its owner's reference, a dot, its name). The id
+ * the compiler derives for an element that writes none (`LC-Batterie`) is for
+ * the tools: in `from_port: "LC-Batterie.out"` it does not resolve.
+ */
+export function writtenRef(element: ElementRecord, byUuid: Map<string, ElementRecord>): string {
+  if (isPortKind(element.kind)) {
+    const owner = element.owner ? byUuid.get(element.owner) : undefined;
+    return owner ? `${writtenRef(owner, byUuid)}.${element.name}` : element.id;
+  }
+  const written = element.attributes?.id;
+  return typeof written === 'string' && written ? element.id : element.name || element.id;
+}
+
+/**
  * The model id of a node or port of the drawing: `LC-A::p` (a component port)
  * and `SF-A::in.p` (a function port, with its direction) are `LC-A.p` and `SF-A.p`.
  */
