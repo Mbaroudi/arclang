@@ -131,7 +131,8 @@ fn find_relationship<'g>(graph: &'g ElementGraph, kind: &str, name: Option<&str>
         .relationships
         .iter()
         .filter(|r| r.kind == kind && r.source == from.uuid && r.target == to.uuid)
-        .filter(|r| name.is_none_or(|name| r.name.as_deref() == Some(name)))
+        // A trace is named by its type (`satisfies`): it has no name of its own.
+        .filter(|r| name.is_none_or(|name| r.name.as_deref() == Some(name) || (r.kind == "Trace" && r.extra.get("traceKind").and_then(|k| k.as_str()) == Some(name))))
         .collect();
     match found.as_slice() {
         [one] => Ok(one),
@@ -148,7 +149,7 @@ fn spots_of(graph: &ElementGraph, source: &str, relationship: &RelationshipRecor
     designators.extend(relationship.name.clone());
     let from_spellings = spellings(graph, source, from);
     let to_spellings = spellings(graph, source, to);
-    let ends = RelationshipEnds { keywords: keywords_of(relationship.kind), designators: &designators, name: relationship.name.as_deref(), from: &from_spellings, to: &to_spellings };
+    let ends = RelationshipEnds { keywords: keywords_of(relationship.kind), designators: &designators, name: relationship.name.as_deref(), verb: relationship.extra.get("traceKind").and_then(|k| k.as_str()), from: &from_spellings, to: &to_spellings };
     source_edit::relationship_spots(source, &ends).map_err(|e| e.to_string())
 }
 
@@ -552,6 +553,18 @@ mod tests {
         assert!(trace.contains("trace \"LC-A\" satisfies \"REQ-2\" { rationale: \"kept\" }"), "{trace}");
         let refused = reconnect(MODEL, "ComponentExchange", Some("Flow"), "LC-A.p", "LC-B.q", None, Some("Nobody"));
         assert!(refused.is_err());
+    }
+
+    #[test]
+    fn a_trace_is_told_apart_by_its_type() {
+        let model = "model T { name: \"t\" }\nlogical_architecture \"L\" {\n    component \"A\" { id: \"LC-A\" }\n    component \"B\" { id: \"LC-B\" }\n    component \"C\" { id: \"LC-C\" }\n}\ntrace \"LC-A\" allocates \"LC-B\"\ntrace \"LC-A\" implements \"LC-B\" { rationale: \"kept\" }\n";
+        let both = reconnect(model, "Trace", None, "LC-A", "LC-B", None, Some("LC-C")).unwrap_err();
+        assert!(both.contains("give the name"), "{both}");
+        let moved = reconnect(model, "Trace", Some("implements"), "LC-A", "LC-B", None, Some("LC-C")).unwrap();
+        assert!(moved.contains("trace \"LC-A\" allocates \"LC-B\"\n"), "{moved}");
+        assert!(moved.contains("trace \"LC-A\" implements \"LC-C\" { rationale: \"kept\" }"), "{moved}");
+        let one_line = reconnect(model, "Trace", Some("allocates"), "LC-A", "LC-B", Some("LC-C"), None).unwrap();
+        assert!(one_line.contains("trace \"LC-C\" allocates \"LC-B\"\n"), "{one_line}");
     }
 
     #[test]

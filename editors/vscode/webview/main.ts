@@ -214,7 +214,8 @@ function elementFor(selection: ViewerSelection | null): ElementRecord | null {
 
 /** A relationship as the views show an element: designated by its written id, else its name. */
 function relationshipElement(r: RelationshipRecord): ElementRecord {
-  const attributes = r.attributes ?? {};
+  // A trace shows its type, which it writes between its ends.
+  const attributes = r.traceKind ? { type: r.traceKind, ...(r.attributes ?? {}) } : r.attributes ?? {};
   const id = typeof attributes.id === 'string' ? attributes.id : r.name || r.kind;
   return { uuid: r.uuid, id, kind: r.kind, name: r.name ?? '', owner: null, attributes };
 }
@@ -238,6 +239,7 @@ const multiSelection = new MultiSelection({
   showMany: (elements) => properties.showMany(elements, state.metamodel),
   submit,
   hide: (elements) => contents.hideMany(elements),
+  snapshot: () => state.snapshot,
 });
 const markMulti = () => multiSelection.mark();
 const outermost = (elements: ElementRecord[]) => multiSelection.outermost(elements);

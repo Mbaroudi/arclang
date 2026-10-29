@@ -19,6 +19,8 @@ pub struct RelationshipEnds<'a> {
     pub designators: &'a [String],
     /// Its name, when it has one: tells two relationships between the same ends apart.
     pub name: Option<&'a str>,
+    /// The word between its ends, when it must be that one (`satisfies` of a trace).
+    pub verb: Option<&'a str>,
     pub from: &'a [String],
     pub to: &'a [String],
 }
@@ -96,6 +98,12 @@ impl Document {
             let Some(to_at) = spots.iter().skip(from_at + 1).position(|spot| ends.to.contains(&spot.text)).map(|at| at + from_at + 1) else { continue };
             let from = spots[from_at].clone();
             let to = spots[to_at].clone();
+            if let Some(verb) = ends.verb {
+                let between = (from.index + 1..to.index).any(|at| self.lexemes.get(at).is_some_and(|l| is_word(l) && l.text == verb));
+                if !between {
+                    continue;
+                }
+            }
             let mut name = spots.iter().enumerate().find(|(at, spot)| *at != from_at && *at != to_at && spot.quoted && Some(spot.text.as_str()) == ends.name).map(|(_, spot)| spot.clone());
             if name.is_none() {
                 if let Some(block) = self.block_after(&line, start) {
@@ -213,15 +221,15 @@ mod tests {
     #[test]
     fn ends_are_found_on_the_line_and_in_the_block() {
         let source = "state_machine M {\n    state Off {}\n    state On {}\n    transition Off -> On { guard: \"go\" }\n}\nscenario S {\n    message \"A\" -> \"B\" \"ping\"\n    message \"A\" -> \"B\" \"pong\"\n}\nlogical_architecture L {\n    component_exchange \"Flow\" { from_port: \"A.p\" to_port: \"B.q\" }\n}\n";
-        let transition = relationship_spots(source, &RelationshipEnds { keywords: &["transition"], designators: &[], name: None, from: &strings(&["Off"]), to: &strings(&["On"]) }).unwrap();
+        let transition = relationship_spots(source, &RelationshipEnds { keywords: &["transition"], designators: &[], name: None, verb: None, from: &strings(&["Off"]), to: &strings(&["On"]) }).unwrap();
         assert_eq!((transition.from.text.as_str(), transition.to.text.as_str(), transition.from.quoted), ("Off", "On", false));
-        let pong = relationship_spots(source, &RelationshipEnds { keywords: &["message"], designators: &[], name: Some("pong"), from: &strings(&["A"]), to: &strings(&["B"]) }).unwrap();
+        let pong = relationship_spots(source, &RelationshipEnds { keywords: &["message"], designators: &[], name: Some("pong"), verb: None, from: &strings(&["A"]), to: &strings(&["B"]) }).unwrap();
         assert_eq!(pong.name.as_ref().map(|s| s.text.as_str()), Some("pong"));
         let edited = replace_lexemes(source, &[(pong.to.index, spelled_like(&pong.to, "C"))]).unwrap();
         assert!(edited.contains("message \"A\" -> \"C\" \"pong\"") && edited.contains("message \"A\" -> \"B\" \"ping\""), "{edited}");
-        let none = relationship_spots(source, &RelationshipEnds { keywords: &["message"], designators: &[], name: None, from: &strings(&["A"]), to: &strings(&["B"]) });
+        let none = relationship_spots(source, &RelationshipEnds { keywords: &["message"], designators: &[], name: None, verb: None, from: &strings(&["A"]), to: &strings(&["B"]) });
         assert!(matches!(none, Err(EditError::Ambiguous { .. })));
-        let flow = relationship_spots(source, &RelationshipEnds { keywords: &["component_exchange"], designators: &strings(&["Flow"]), name: Some("Flow"), from: &strings(&["A.p"]), to: &strings(&["B.q"]) }).unwrap();
+        let flow = relationship_spots(source, &RelationshipEnds { keywords: &["component_exchange"], designators: &strings(&["Flow"]), name: Some("Flow"), verb: None, from: &strings(&["A.p"]), to: &strings(&["B.q"]) }).unwrap();
         assert_eq!(flow.name.as_ref().map(|s| s.text.as_str()), Some("Flow"));
         let swapped = replace_lexemes(source, &[(flow.from.index, spelled_like(&flow.from, "B.q")), (flow.to.index, spelled_like(&flow.to, "A.p"))]).unwrap();
         assert!(swapped.contains("from_port: \"B.q\" to_port: \"A.p\""), "{swapped}");

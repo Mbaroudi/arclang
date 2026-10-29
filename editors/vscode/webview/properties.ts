@@ -13,6 +13,7 @@ import { attributeGroups, commonAttributes, DESCRIPTION_KEYS, displayValue, fiel
 import { childTools, PanesToHost, PanesToPage } from '../src/pure/panes';
 import { EditRequest, ElementRecord, Finding, LAYER_LABELS, layerOfKind, Metamodel, MetamodelAttribute, Snapshot, TRACE_KINDS } from '../src/pure/workbench';
 import { button, clear, el, inlinePrompt } from './dom';
+import { removalOf } from '../src/pure/editing';
 import { createField, descriptionField, FieldHost } from './fields';
 import { iconNode } from './icons';
 
@@ -196,7 +197,7 @@ export class Properties {
     }
     actions.appendChild(action('⏱', 'History', () => openHistory(element.id), { title: 'The commits that changed it, found by the semantic diff between revisions' })); // semgit hook
     actions.appendChild(action('⚡', 'Impact', () => openImpact(element.id), { title: 'Analyse the impact of a change to it, or ask what if…' })); // impact hook
-    actions.appendChild(action('⌫', 'Delete', () => this.owner.submit([{ op: 'remove', element: element.id }], `delete ${element.id}`), { class: 'wb-danger', title: 'Delete the declaration (⌘Z takes it back)' }));
+    actions.appendChild(action('⌫', 'Delete', () => this.owner.submit([removalOf(element, this.owner.snapshot?.())], `delete ${element.name || element.id}`), { class: 'wb-danger', title: 'Delete the declaration (⌘Z takes it back)' }));
     const linked = ends
       ? el('p', { class: 'wb-ends' }, [
           this.link(ends.from),

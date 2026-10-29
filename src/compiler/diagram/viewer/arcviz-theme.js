@@ -77,7 +77,7 @@
     { key: 'physical_path', label: 'physical path', kinds: ['physical_path'] },
     { key: 'transition', label: 'transition', kinds: ['transition'] },
     { key: 'message', label: 'message', kinds: ['message'] },
-    { key: 'trace', label: 'trace', kinds: ['realization'] },
+    { key: 'trace', label: 'trace', kinds: ['realization', 'trace'] },
     { key: 'relation', label: 'relation', kinds: ['exploitation', 'involvement', 'capability_association', 'generalization', 'association', 'item_element', 'breakdown'] },
   ];
 

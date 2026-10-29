@@ -3,6 +3,7 @@
 // the page has the keyboard. Split from main.ts, behaviour unchanged.
 import type { CanvasCommand, EditRequest, ElementRecord, Snapshot } from '../src/pure/workbench';
 import type { Editing } from './editing';
+import { removalOf } from '../src/pure/editing';
 import type { ViewerApi } from './globals';
 import type { Palette } from './palette';
 import { arrangeAllows, arrangeKey, runArrange } from './arrange'; // zorder hook
@@ -104,7 +105,7 @@ export function installKeys(d: KeyDeps): { canvasCommand(command: CanvasCommand,
       ], 10000);
       return;
     }
-    d.submit([{ op: 'remove', element: element.id }], `delete ${element.id}`);
+    d.submit([removalOf(element, d.snapshot())], `delete ${element.name || element.id}`);
   }
 
   let typingReported = false;

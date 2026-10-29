@@ -27,6 +27,8 @@ export interface RelationshipRecord {
   source: string;
   target: string;
   attributes?: Record<string, unknown>;
+  /** A trace's type (`satisfies`): a trace has no name of its own. */
+  traceKind?: string;
 }
 
 export interface Finding {
@@ -53,7 +55,7 @@ export interface ViewerNode {
 
 export interface ViewerEdge {
   id: string;
-  arc: { kind: string; source_node?: string; target_node?: string };
+  arc: { kind: string; source_node?: string; target_node?: string; properties?: Record<string, string> };
   sources: string[];
   targets: string[];
 }

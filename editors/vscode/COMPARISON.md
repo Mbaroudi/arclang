@@ -19,7 +19,7 @@ Legend: **yes** · **partial** · **no**.
 | Connect by dragging from a handle | yes, with valid targets highlighted, tested | yes | yes |
 | Connect by keyboard | yes (`c`, arrows, Enter) | no | no |
 | Quick connect from the side of a box | yes: an arrow on each side of the box under the pointer; dragged it connects, clicked it creates a connected element of the same kind, tested | no | partial |
-| Traces (realizes, satisfies, allocates…) from the canvas | yes, Trace tool, tested | yes (allocation and realization tools) | partial |
+| Traces (realizes, satisfies, allocates…) from the canvas | yes, Trace tool; a trace whose two ends a view draws is a dashed line labelled by its type, selected, reconnected by dragging an end, deleted with Delete, tested in VS Code | yes (allocation and realization tools) | partial |
 | Move a box freely on the diagram | yes, drag it anywhere; kept in `<model>.layout.json` next to the model, tested in VS Code | yes (kept in the .aird) | yes |
 | Resize a box | yes, grip on the corner of the selected box, kept in the layout file, tested in VS Code | yes | yes |
 | Move an element into another (reallocate) by drag | yes, let go on the container (marked during the drag), tested in VS Code | yes | yes |
@@ -102,10 +102,9 @@ Legend: **yes** · **partial** · **no**.
 
 ## What is left, in order
 
-1. Reconnect a trace drawn on a diagram (traces are retargeted from the Relations view today).
-2. Drag a port along or across boxes (it moves with *Move to…*).
-3. State invariants from the scenario palette.
-4. Notes on diagrams, which needs a language construct first.
+1. Drag a port along or across boxes (it moves with *Move to…*).
+2. State invariants from the scenario palette.
+3. Notes on diagrams, which needs a language construct first.
 
 ## Against Cameo / CATIA Magic and SysON, with sources
 

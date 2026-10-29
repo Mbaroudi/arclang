@@ -325,6 +325,9 @@ pub enum EdgeKind {
     ItemElement,
     /// A configuration item is made of another.
     Breakdown,
+    /// A trace (`realizes`, `satisfies`...) between two elements the
+    /// diagram draws; its type is the label and the `trace` property.
+    Trace,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
@@ -442,6 +445,7 @@ pub fn build_diagrams(model: &Model) -> DiagramSet {
         diagrams.push(diagram);
     }
 
+    links::draw_traces(model, &mut diagrams);
     let links = links::cross_links(model, &diagrams);
     DiagramSet {
         schema_version: SCHEMA_VERSION,
