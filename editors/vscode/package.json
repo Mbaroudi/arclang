@@ -194,6 +194,11 @@
         "category": "ArcLang"
       },
       {
+        "command": "arclang.safetyReport",
+        "title": "Safety report (hazards, FMEA, fault trees)",
+        "category": "ArcLang"
+      },
+      {
         "command": "arclang.format",
         "title": "Format the model",
         "category": "ArcLang"
@@ -917,6 +922,11 @@
       "explorer/context": [
         {
           "command": "arclang.runGate",
+          "when": "resourceExtname == .arc",
+          "group": "arclang@2"
+        },
+        {
+          "command": "arclang.safetyReport",
           "when": "resourceExtname == .arc",
           "group": "arclang@2"
         },

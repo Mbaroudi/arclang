@@ -34,6 +34,7 @@ Legend: **yes** · **partial** · **no**.
 | Lock an element, same size, clear waypoints, select boxes / lines / none | yes: ⌘L (padlock, refusals with the reason), last selected gives the size, ⇧⌘I ⇧⌘E ⇧⌘A, tested in VS Code | partial (pin, same size, reset routing) | partial |
 | Combined fragments in scenarios | yes, Fragment tool around the selected message (loop, opt, alt, par, critical), tested | yes | yes |
 | State invariants in scenarios | yes: State tool on the selected messages (a state, `mode X`, `function X`, or `Lifeline: state`), the box drawn on the lifeline, an unknown state refused with the reason, tested in VS Code | yes (state fragments) | partial (no sequence view) |
+| Fault trees and a safety report | yes: a tree per hazard from the FMEA (`leads_to`, `fit`, OR or AND gate), its rate held to the budget of its ASIL, failure condition, DAL or SIL (a warning beyond it), single points of failure; `arclang safety --fta`, `--report` (Markdown, Mermaid trees) and *ArcLang: Safety report* in VS Code, tested | yes (Safety and Reliability Analyzer, FTA diagrams) | no |
 | Create a requirement from a diagram | yes, Requirement tool (satisfied by the selection) and *Satisfies…* in the properties, tested | yes (requirements add-on) | yes |
 | Notes and annotations on a diagram | yes: `note "…" { about: [...] }` in the language, drawn on every view of an element it is about and tied to it; the Note tool writes one about the selection; renamed, deleted, undone; a SysML v2 `comment about`, read back as a note, tested in VS Code | yes | yes |
 
@@ -103,7 +104,7 @@ Legend: **yes** · **partial** · **no**.
 
 ## What is left, in order
 
-1. Fault trees (FTA) and safety reports, `arclang safety --fta --report`.
+The five items planned after 4.6.0 (drawn traces, ports, notes, state invariants, fault trees) are done. What the sourced comparison below still lists is next.
 
 ## Against Cameo / CATIA Magic and SysON, with sources
 

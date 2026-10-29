@@ -31,6 +31,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   });
   register('arclang.check', (uri?: unknown) => commands.check(uri instanceof vscode.Uri ? uri : undefined));
   register('arclang.runGate', (uri?: unknown) => commands.runGate(uri instanceof vscode.Uri ? uri : undefined));
+  register('arclang.safetyReport', (uri?: unknown) => commands.safetyReport(uri instanceof vscode.Uri ? uri : undefined));
   register('arclang.format', () => commands.formatActive());
   register('arclang.transitionPlan', (uri?: unknown) => commands.transitionPlan(uri instanceof vscode.Uri ? uri : undefined));
   register('arclang.transitionApply', (uri?: unknown, step?: unknown) =>

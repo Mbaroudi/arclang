@@ -903,6 +903,9 @@ HARA entry: hazardous event and its classification.
 | `dal` | `enum Dal` | Declared DAL; must match the condition. |
 | `sil` | `enum Sil` | IEC 61508 SIL of the hazard (SIL-1..SIL-4); classifies it without S/E/C. |
 | `mitigated_by` | `list<ref<Requirement>>` | Safety requirements mitigating the hazard. |
+| `gate` | `text` | Fault tree: `or` (default, one failure mode leading to it suffices) or `and` (all of them, a redundancy). |
+| `budget_fit` | `number` | Fault tree: the most its rate may be, in FIT; else the target of its ASIL, failure condition, DAL or SIL. |
+| `mission_time` | `quantity<time>` | Fault tree: the exposure the probability is computed over (1 h by default). |
 
 #### FmeaEntry
 
@@ -925,6 +928,9 @@ FMEA line: failure mode with S/O/D rating.
 | `occurrence` | `text` | Occurrence: rating, class or rate description. |
 | `detection` | `text` | Detection: rating, class or detection means. |
 | `rpn` | `number` | Risk priority number. |
+| `element` | `ref<Element>` | The element that fails. |
+| `leads_to` | `list<ref<Hazard>>` | The hazards this failure mode leads to: the fault trees it is a basic event of. |
+| `fit` | `number` | Failure rate in FIT (failures per 10^9 hours). |
 
 #### Threat
 
