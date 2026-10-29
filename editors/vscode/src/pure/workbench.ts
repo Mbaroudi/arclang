@@ -135,6 +135,7 @@ export type EditRequest =
     }
   | { op: 'add_raw'; declaration: string; container?: string; layer?: string; layer_name?: string; top_level?: boolean }
   | { op: 'remove'; element: string }
+  | { op: 'wrap_invariant'; scenario: string; keyword: string; lifeline: string; name: string; first: string; last: string }
   | { op: 'move'; element: string; container?: string; layer?: string; layer_name?: string }
   | { op: 'add_trace'; from: string; kind: string; to: string }
   | { op: 'remove_trace'; from: string; kind: string; to: string }
@@ -483,7 +484,7 @@ export interface Tool {
   /** create: declared inside the element the diagram is about (a state machine, a scenario). */
   inGraph?: boolean;
   /** special gestures handled by the page: a requirement (with a satisfies trace), a fragment around a message. */
-  special?: 'requirement' | 'fragment' | 'note';
+  special?: 'requirement' | 'fragment' | 'note' | 'invariant';
   /** connect: the keyword of the relationship and how its ends are written. */
   connect?: 'interaction' | 'functional_exchange' | 'component_exchange' | 'physical_link' | 'physical_exchange' | 'association' | 'transition' | 'message' | 'trace';
   /** connect: the kinds the two ends may have. */
@@ -556,6 +557,7 @@ export const PALETTE: Record<string, Tool[]> = {
   es: [
     { id: 'message', label: 'Message', kind: 'connect', connect: 'message' },
     { id: 'fragment', label: 'Fragment', kind: 'create', special: 'fragment' },
+    { id: 'invariant', label: 'State', kind: 'create', special: 'invariant' },
   ],
   cdb: [
     { id: 'class', label: 'Class', kind: 'create', keyword: 'class', topLevel: true },
@@ -810,6 +812,28 @@ export function noteRequest(text: string, about: string[]): EditRequest | { erro
   if (!text.trim()) return { error: 'a note has a text' };
   if (about.length === 0) return { error: 'select the elements the note is about first' };
   return { op: 'add_raw', declaration: `note ${stringLiteral(text.trim())} { about: [${about.map(stringLiteral).join(', ')}] }`, top_level: true };
+}
+
+/**
+ * A state, mode or function asserted on a lifeline while messages happen:
+ * `Armed` (a state on the lifeline offered), `mode Cruise`, `function Plan`,
+ * or `Driver: Armed` for another lifeline of the scenario.
+ */
+export function invariantRequest(scenario: string, first: string, last: string, lifeline: string, lifelines: string[], answer: string): Extract<EditRequest, { op: 'wrap_invariant' }> | { error: string } {
+  let text = answer.trim();
+  let on = lifeline;
+  const colon = text.indexOf(':');
+  if (colon > 0) {
+    const named = text.slice(0, colon).trim();
+    if (!lifelines.includes(named)) return { error: `'${named}' is no lifeline of the scenario: use one of ${lifelines.join(', ')}` };
+    on = named;
+    text = text.slice(colon + 1).trim();
+  }
+  const [head, ...rest] = text.split(/\s+/);
+  const keyword = ['state', 'mode', 'function'].includes(head) && rest.length > 0 ? head : 'state';
+  const name = keyword === head && rest.length > 0 ? rest.join(' ') : text;
+  if (!name) return { error: 'name the state, mode or function the lifeline is in' };
+  return { op: 'wrap_invariant', scenario, keyword, lifeline: on, name, first, last };
 }
 
 /** A combined fragment around one message: `loop "every cycle"`, `opt`, `alt`, `par`, `critical`. */

@@ -101,6 +101,7 @@ fn designators(request: &EditRequest) -> Vec<String> {
         EditRequest::Set { element, .. } | EditRequest::Unset { element, .. } | EditRequest::Rename { element, .. } | EditRequest::Remove { element } | EditRequest::Move { element, .. } | EditRequest::Duplicate { element, .. } => vec![element.clone()],
         EditRequest::Add { container, .. } | EditRequest::AddRaw { container, .. } => container.iter().cloned().collect(),
         EditRequest::WrapFragment { scenario, .. } => vec![scenario.clone()],
+        EditRequest::WrapInvariant { scenario, lifeline, name, .. } => vec![scenario.clone(), lifeline.clone(), name.clone()],
         EditRequest::AddTrace { from, to, .. } | EditRequest::RemoveTrace { from, to, .. } => vec![from.clone(), to.clone()],
         EditRequest::Reconnect { from, to, new_from, new_to, .. } => [Some(from), Some(to), new_from.as_ref(), new_to.as_ref()].into_iter().flatten().cloned().collect(),
         EditRequest::DuplicateMany { elements, .. } => elements.clone(),
