@@ -2,7 +2,7 @@
   "name": "arclang",
   "displayName": "ArcLang",
   "description": "Arcadia MBSE as code: diagnostics with rules, outline, completion from the metamodel, hover, go to definition, rename, formatting, the viewpoint diagrams beside the source, the production gate, Arcadia transitions, the @arclang chat participant and compiler tools for agent mode, the ArcLang MCP server. Everything comes from the ArcLang compiler.",
-  "version": "4.5.0",
+  "version": "4.6.0",
   "publisher": "arclang",
   "license": "MIT",
   "icon": "icon.png",
