@@ -15,6 +15,7 @@ pub mod spatial;
 pub mod allocations;
 pub mod identity_sites;
 pub mod verification;
+pub mod notes;
 pub mod variability;
 pub mod rules;
 pub mod transition;
@@ -364,6 +365,9 @@ impl Compiler {
 
         // Product lines: variations, variants and the configurations selecting them.
         warnings.extend(variability::check(&ast).map_err(CompilerError::Semantic)?);
+
+        // Notes on the diagrams: about elements the model declares.
+        warnings.extend(notes::check(&ast, &mut semantic_model).map_err(CompilerError::Semantic)?);
 
         // Ports that declare physics are connected to ports of the same physics.
         modelica::check(&ast).map_err(CompilerError::Semantic)?;

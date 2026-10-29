@@ -56,6 +56,7 @@
     data_type: { fill: '#EEF0F2', stroke: '#4A545E', label: 'Data type', glyph: 'none' },
     exchange_item: { fill: '#E4F3E0', stroke: '#3C8A3F', label: 'Exchange item', glyph: 'none' },
     configuration_item: { fill: '#E9ECEF', stroke: '#3D4852', label: 'Configuration item', glyph: 'node' },
+    note: { fill: '#FFF6C9', stroke: '#A8902E', label: 'Note', glyph: 'none' },
   };
   const FALLBACK_NODE = { fill: '#FFFFFF', stroke: '#444B52', label: 'Element', glyph: 'box' };
 
@@ -77,6 +78,7 @@
     item_element: { stroke: '#3C8A3F', width: 1.3, dash: '5 3', label: 'Groups', arrow: true },
     breakdown: { stroke: '#3D4852', width: 1.4, label: 'Made of', arrow: false },
     trace: { stroke: '#6B5B95', width: 1.3, dash: '3 3', label: 'Trace', arrow: true },
+    annotation: { stroke: '#A8902E', width: 1, dash: '2 3', label: 'About', arrow: false },
   };
   const FALLBACK_EDGE = { stroke: '#444B52', width: 1.4, label: 'Link', arrow: true };
 
@@ -268,7 +270,15 @@
 
     const centerX = x + node.width / 2;
     const lines = arc.compartment || [];
-    if (lines.length > 0) {
+    if (arc.kind === 'note') {
+      // A note: its text, its top right corner folded.
+      const fold = 10;
+      body += `<path d="M${num(x + node.width - fold)},${num(y)} L${num(x + node.width - fold)},${num(y + fold)} L${num(x + node.width)},${num(y + fold)}" fill="none" stroke="${style.stroke}" stroke-width="1"/>`;
+      // Dark ink on the pale paper of the note, whatever the theme of the page.
+      lines.forEach((line, index) => {
+        body += `<text x="${num(x + COMPARTMENT.inset)}" y="${num(y + COMPARTMENT.inset + 10 + index * COMPARTMENT.line)}" font-size="10.5" fill="#3B3214">${esc(line)}</text>`;
+      });
+    } else if (lines.length > 0) {
       body += `<text x="${num(centerX)}" y="${num(y + 19)}" text-anchor="middle" font-size="12" font-weight="700" fill="${text}">${esc(name)}</text>`;
       body += `<line x1="${num(x)}" y1="${num(y + COMPARTMENT.top - 8)}" x2="${num(x + node.width)}" y2="${num(y + COMPARTMENT.top - 8)}" stroke="${style.stroke}" stroke-width="1"/>`;
       lines.forEach((line, index) => {

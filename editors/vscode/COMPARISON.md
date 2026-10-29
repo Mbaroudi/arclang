@@ -23,7 +23,7 @@ Legend: **yes** · **partial** · **no**.
 | Move a box freely on the diagram | yes, drag it anywhere; kept in `<model>.layout.json` next to the model, tested in VS Code | yes (kept in the .aird) | yes |
 | Resize a box | yes, grip on the corner of the selected box, kept in the layout file, tested in VS Code | yes | yes |
 | Move an element into another (reallocate) by drag | yes, let go on the container (marked during the drag), tested in VS Code | yes | yes |
-| Move an element or a port with *Move to…* | yes: a port takes its exchanges with it; out of a container into the layer, tested | yes (drag and drop) | partial |
+| Move an element or a port with *Move to…* | yes: a port takes its exchanges with it; out of a container into the layer; a port dragged along the border of its box (kept in the layout file) or let go on another box (moved there in the model), tested in VS Code | yes (drag and drop) | partial |
 | Reconnect an existing exchange | yes: drag an end of the selected exchange to another box or port (valid targets highlighted, port directions kept), or *Reconnect the source/target…* in the menu; component and functional exchanges, interactions, links, transitions, messages; traces from the Relations view, tested (and in VS Code) | yes | yes |
 | Reverse an exchange | yes: floating toolbar, menu, properties; ports turned around with it, tested | partial (reconnect both ends) | partial |
 | Bend an exchange | yes: drag its middle; double-click a bend to remove it; kept in the layout file, tested | yes (bend points) | yes |
@@ -34,7 +34,7 @@ Legend: **yes** · **partial** · **no**.
 | Lock an element, same size, clear waypoints, select boxes / lines / none | yes: ⌘L (padlock, refusals with the reason), last selected gives the size, ⇧⌘I ⇧⌘E ⇧⌘A, tested in VS Code | partial (pin, same size, reset routing) | partial |
 | Combined fragments in scenarios | yes, Fragment tool around the selected message (loop, opt, alt, par, critical), tested | yes | yes |
 | Create a requirement from a diagram | yes, Requirement tool (satisfied by the selection) and *Satisfies…* in the properties, tested | yes (requirements add-on) | yes |
-| Notes and annotations on a diagram | no (the language has no note construct) | yes | yes |
+| Notes and annotations on a diagram | yes: `note "…" { about: [...] }` in the language, drawn on every view of an element it is about and tied to it; the Note tool writes one about the selection; renamed, deleted, undone; a SysML v2 `comment about`, read back as a note, tested in VS Code | yes | yes |
 
 ## Editing
 
@@ -102,9 +102,8 @@ Legend: **yes** · **partial** · **no**.
 
 ## What is left, in order
 
-1. Drag a port along or across boxes (it moves with *Move to…*).
-2. State invariants from the scenario palette.
-3. Notes on diagrams, which needs a language construct first.
+1. State invariants from the scenario palette.
+2. Fault trees (FTA) and safety reports, `arclang safety --fta --report`.
 
 ## Against Cameo / CATIA Magic and SysON, with sources
 

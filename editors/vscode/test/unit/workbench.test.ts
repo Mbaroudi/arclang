@@ -19,7 +19,7 @@ import {
   portNameFrom,
   Snapshot,
   toolsFor,
-  treeByLayer, nextRequirementId, requirementRequests, fragmentRequest } from '../../src/pure/workbench';
+  treeByLayer, nextRequirementId, requirementRequests, fragmentRequest, noteRequest } from '../../src/pure/workbench';
 
 const metamodel: Metamodel = {
   kinds: [
@@ -228,4 +228,10 @@ test('spatial blocks show and edit as ArcLang text', () => {
   assert.equal(attributeLiteral({ type: 'Location' }, '{ lat: 1 deg lon: 2 deg }'), '{ lat: 1 deg lon: 2 deg }');
   assert.equal(attributeLiteral({ type: 'List', of: 'Location' }, attributeDisplay(route)), attributeDisplay(route), 'a route is not split at its commas');
   assert.equal(attributeDisplay(['a', 'b']), 'a, b', 'plain lists stay joined');
+});
+
+test('a note is written at the top of the file about the selection, and asks for both', () => {
+  assert.deepEqual(noteRequest('  Runs at "30" Hz ', ['LC-CAM', 'LC-CTL']), { op: 'add_raw', declaration: 'note "Runs at \\"30\\" Hz" { about: ["LC-CAM", "LC-CTL"] }', top_level: true });
+  assert.ok('error' in (noteRequest('x', []) as object));
+  assert.ok('error' in (noteRequest('  ', ['LC-CAM']) as object));
 });

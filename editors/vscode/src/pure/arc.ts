@@ -174,7 +174,7 @@ interface Metamodel {
 const KEYWORDS: Record<string, string> = {
   Actor: 'actor', SystemActor: 'actor', OperationalEntity: 'entity', OperationalCapability: 'operational_capability',
   OperationalActivity: 'activity', OperationalProcess: 'operational_process', OperationalExchange: 'interaction',
-  Requirement: 'requirement (or req "ID" "Title")', Mission: 'mission', Capability: 'capability', CapabilityRealization: 'capability_realization',
+  Note: 'note "Text" { about: [...] } (top level)', Requirement: 'requirement (or req "ID" "Title")', Mission: 'mission', Capability: 'capability', CapabilityRealization: 'capability_realization',
   SystemFunction: 'function', LogicalFunction: 'function', PhysicalFunction: 'function', FunctionPort: 'port in|out "name"',
   FunctionalExchange: 'functional_exchange', SystemComponent: 'component', LogicalComponent: 'component',
   BehaviorComponent: 'behavior_component', HardwareComponent: 'hardware_component', FunctionalChain: 'functional_chain',

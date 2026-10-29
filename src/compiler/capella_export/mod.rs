@@ -278,6 +278,10 @@ pub fn export(model: &Model, file_stem: &str) -> Exported {
     let index = diagrams::index(project.children().last().expect("the system engineering"));
     let drawn = diagrams::diagrams(&mut context, &index, &model.diagrams, &format!("{file_stem}.capella"));
     let aird = aird(&project_id, file_stem, drawn);
+    // A diagram note of ArcLang has no element in the semantic model of Capella.
+    for note in &model.notes {
+        context.notes.push(format!("note '{}' not exported: a Capella note lives on a diagram, not in the model", note.name));
+    }
     Exported { capella: document(&project), aird, afm, notes: context.notes }
 }
 

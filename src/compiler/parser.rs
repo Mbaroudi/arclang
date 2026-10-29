@@ -115,6 +115,9 @@ impl Parser {
                 Token::Identifier(ref id) if id == "configuration" && !self.peek_is_colon() => {
                     model.configurations.push(self.parse_configuration()?);
                 }
+                Token::Identifier(ref id) if id == "note" && !self.peek_is_colon() => {
+                    model.notes.push(self.parse_note()?);
+                }
                 Token::SecurityScales => {
                     let scales = self.parse_security_scales()?;
                     if model.security_scales.is_some() {
@@ -266,6 +269,9 @@ impl Parser {
                 Token::Identifier(ref id) if id == "configuration" && !self.peek_is_colon() => {
                     model.configurations.push(self.parse_configuration()?);
                 }
+                Token::Identifier(ref id) if id == "note" && !self.peek_is_colon() => {
+                    model.notes.push(self.parse_note()?);
+                }
                 Token::SecurityScales => {
                     let scales = self.parse_security_scales()?;
                     if model.security_scales.is_some() {
@@ -375,6 +381,9 @@ impl Parser {
                 }
                 Token::Identifier(ref id) if id == "configuration" && !self.peek_is_colon() => {
                     model.configurations.push(self.parse_configuration()?);
+                }
+                Token::Identifier(ref id) if id == "note" && !self.peek_is_colon() => {
+                    model.notes.push(self.parse_note()?);
                 }
                 Token::SecurityScales => {
                     let scales = self.parse_security_scales()?;
@@ -554,6 +563,9 @@ impl Parser {
                 }
                 Token::Identifier(ref id) if id == "configuration" && !self.peek_is_colon() => {
                     model.configurations.push(self.parse_configuration()?);
+                }
+                Token::Identifier(ref id) if id == "note" && !self.peek_is_colon() => {
+                    model.notes.push(self.parse_note()?);
                 }
                 Token::SecurityScales => {
                     let scales = self.parse_security_scales()?;
@@ -3275,6 +3287,16 @@ impl Parser {
         let selects = Self::take_names(&mut attributes, "selects", &name, "configuration").map_err(|e| self.err(e))?;
         let id = attributes.get("id").and_then(|v| v.as_string()).map(str::to_string).unwrap_or_else(|| name.clone());
         Ok(Configuration { id, name, selects, attributes })
+    }
+
+    /// `note "Text" { id: "N-1" about: ["LC-A", "LC-B"] }`; the block is optional.
+    fn parse_note(&mut self) -> Result<Note, String> {
+        self.advance(); // note
+        let name = self.expect_name()?;
+        let mut attributes = if self.check(&Token::LeftBrace) { self.parse_attributes_block()? } else { HashMap::new() };
+        let about = Self::take_names(&mut attributes, "about", &name, "note").map_err(|e| self.err(e))?;
+        let id = attributes.get("id").and_then(|v| v.as_string()).map(str::to_string).unwrap_or_default();
+        Ok(Note { id, name, about, attributes })
     }
 
     fn parse_security_scales(&mut self) -> Result<SecurityScales, String> {

@@ -500,6 +500,8 @@ impl Metamodel {
                     attr("to_kind", AttrType::Text, "For an allocation definition: the kind every allocation of it goes to (`LogicalComponent`)."),
                     attr("physics", AttrType::Enum("Physics"), "For a port definition: what the ports it types carry, for the Modelica export."),
                 ]),
+            kind("Note", Layer::Transverse, "Note (diagram annotation)", "comment about", "A text about elements, declared at the top of a file (`note \"Text\" { about: [\"LC-A\"] }`): drawn on every view that draws one of them, tied to each by a dashed line. An element it names that the model does not declare is an error.",
+                concat(vec![common(), vec![attr("about", list(AttrType::Reference("Element")), "The elements the note is about.")]])),
             kind("Constraint", Layer::Transverse, "Constraint", "assert constraint", "Dimension-checked comparison over typed attributes (`assert: <expression>`). Ill-formed is a compile error; violated is a warning and a gate blocker.", common()),
             kind("StateMachine", Layer::Transverse, "StateMachine", "state def", "Modes and states of an element.",
                 concat(vec![common(), vec![attr("initial", AttrType::Reference("State"), "Initial state.")]])),
@@ -583,6 +585,7 @@ impl Metamodel {
         let relationships = vec![
             relationship("Trace", "element", "element", "A `trace` declaration; `traceKind` is one of the TraceKind values."),
             relationship("Verification", "TestCase", "Requirement", "`verifies:` of a test case."),
+            relationship("Annotation", "Note", "element", "`about:` of a note."),
             relationship("Mitigation", "Requirement", "Hazard", "`mitigated_by:` of a hazard."),
             relationship("ThreatApplication", "Threat", "PrimaryAsset", "`applies_to:` of a threat."),
             relationship("ThreatInvolvement", "Threat", "component, entity or actor", "`involves:` of a threat."),

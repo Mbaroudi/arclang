@@ -211,6 +211,12 @@
     const wanted = Object.keys(offsets || {}).filter((id) => before.nodes.has(id) && isOffset(offsets[id]) && (offsets[id].dx || offsets[id].dy || offsets[id].dw || offsets[id].dh));
     const bent = new Map(Object.keys(routes || {}).filter((id) => id !== '__proto__' && isRoute(routes[id])).map((id) => [id, routes[id].map(({ x, y }) => ({ x, y }))]));
     const styles = entries(more.styles, (style) => STYLES.has(style));
+    // A note is tied to what it is about by a straight line, unless the reader styled it.
+    const tieNotes = (holder) => {
+      for (const edge of holder.edges || []) if (edge.arc && edge.arc.kind === 'annotation' && !styles.has(edge.id)) styles.set(edge.id, 'straight');
+      (holder.children || []).forEach(tieNotes);
+    };
+    tieNotes(layout);
     const labelShifts = entries(more.labels, isShift);
     const portShifts = entries(more.ports, isShift);
     const order = entries(more.order, (z) => Number.isFinite(z) && Math.abs(z) <= FARTHEST);

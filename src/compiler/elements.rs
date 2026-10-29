@@ -711,6 +711,9 @@ pub fn build(ast: &Model, semantic: &SemanticModel) -> ElementGraph {
         builder.typed_element("TestCase", &test_case.id, &test_case.name, &root, &test_case.attributes);
         builder.set_extra("method", json!(test_case.method));
     }
+    for note in &ast.notes {
+        builder.element("Note", &note.id, &note.name, &root, &note.attributes);
+    }
     for constraint in &ast.constraints {
         builder.element("Constraint", &constraint.id, &constraint.name, &root, &constraint.attributes);
         builder.set_extra("expression", json!(constraint.expression.to_string()));
@@ -899,6 +902,12 @@ pub fn build(ast: &Model, semantic: &SemanticModel) -> ElementGraph {
     for test_case in &ast.test_cases {
         for requirement in &test_case.verifies {
             builder.relate("Verification", None, &test_case.id, requirement, &empty(), vec![("method", json!(test_case.method))]);
+        }
+    }
+    for note in &ast.notes {
+        let id = crate::compiler::notes::id_of(note);
+        for element in &note.about {
+            builder.relate("Annotation", None, &id, element, &empty(), Vec::new());
         }
     }
     // Traces come from the semantic model: ends are already resolved to ids.

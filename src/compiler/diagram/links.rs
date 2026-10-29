@@ -95,6 +95,68 @@ pub(super) fn draw_traces(model: &Model, diagrams: &mut [Diagram]) {
     }
 }
 
+/// Words of a note on lines of about `width` characters.
+fn wrapped(text: &str, width: usize) -> Vec<String> {
+    let mut lines: Vec<String> = Vec::new();
+    for word in text.split_whitespace() {
+        match lines.last_mut() {
+            Some(line) if line.chars().count() + 1 + word.chars().count() <= width => {
+                line.push(' ');
+                line.push_str(word);
+            }
+            _ => lines.push(word.to_string()),
+        }
+    }
+    lines
+}
+
+/// Draw each note on every diagram that draws one of the elements it is
+/// about: a box holding its text, tied to each of them by a dashed line.
+pub(super) fn draw_notes(model: &Model, diagrams: &mut [Diagram]) {
+    if model.notes.is_empty() {
+        return;
+    }
+    let undrawn = undrawn_names(model);
+    for diagram in diagrams.iter_mut() {
+        let drawn = Drawn::of(std::slice::from_ref(diagram), undrawn.clone());
+        let mut nodes: Vec<Node> = Vec::new();
+        let mut edges: Vec<Edge> = Vec::new();
+        for note in &model.notes {
+            let id = crate::compiler::notes::id_of(note);
+            let targets: Vec<String> = note.about.iter().map(|r| drawn.resolve(r)).filter(|t| drawn.ids.contains(t.as_str())).collect();
+            if targets.is_empty() || drawn.ids.contains(id.as_str()) || nodes.iter().any(|n| n.id == id) {
+                continue;
+            }
+            nodes.push(Node {
+                id: id.clone(),
+                uuid: crate::compiler::semantic::ElementInfo::new(id.clone(), note.name.clone(), "Note").uuid,
+                name: String::new(),
+                kind: NodeKind::Note,
+                ports: Vec::new(),
+                children: Vec::new(),
+                realizes: Vec::new(),
+                compartment: wrapped(&note.name, 36),
+                properties: BTreeMap::from([("text".to_string(), note.name.clone())]),
+            });
+            for target in targets {
+                edges.push(Edge {
+                    id: format!("ann:{id} {target}"),
+                    kind: EdgeKind::Annotation,
+                    source: id.clone(),
+                    source_port: None,
+                    target,
+                    target_port: None,
+                    label: String::new(),
+                    exchange_item: None,
+                    properties: BTreeMap::new(),
+                });
+            }
+        }
+        diagram.nodes.extend(nodes);
+        diagram.edges.extend(edges);
+    }
+}
+
 /// The elements the diagrams draw, by id and by name.
 struct Drawn<'a> {
     /// Ids and names of elements no view draws.

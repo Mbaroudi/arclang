@@ -68,7 +68,7 @@
       }
     },
     "declarations": {
-      "match": "\\b(actor|entity|operational_capability|operational_activity|activity|operational_process|mission|capability|capability_realization|function|functional_exchange|functional_chain|component|behavior_component|hardware_component|port|interface|component_exchange|node|link|physical_link|physical_exchange|deployment|deploys|physical_path|configuration_item|system|class|enumeration|data_type|exchange_item|hazard|fmea|threat|asset|association|interaction|interface_in|interface_out|control|sequence|fragment|test_case|type|constraint|state_machine|state|mode|transition|scenario|message|diagram|req|requirement)\\b",
+      "match": "\\b(actor|entity|operational_capability|operational_activity|activity|operational_process|mission|capability|capability_realization|function|functional_exchange|functional_chain|component|behavior_component|hardware_component|port|interface|component_exchange|node|link|physical_link|physical_exchange|deployment|deploys|physical_path|configuration_item|system|class|enumeration|data_type|exchange_item|hazard|fmea|threat|asset|association|interaction|interface_in|interface_out|control|sequence|fragment|test_case|type|constraint|state_machine|state|mode|transition|scenario|message|diagram|note|req|requirement)\\b",
       "captures": {
         "1": {
           "name": "storage.type.declaration.arclang"

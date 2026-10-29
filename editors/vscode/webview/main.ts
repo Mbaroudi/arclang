@@ -2,7 +2,7 @@
 // row with the palette rail, the canvas and the properties drawer, then one
 // status line. Everything shown comes from the last snapshot the host sent;
 // every change goes back to the host as `arclang edit` requests.
-import { connectTargetKinds, connectToolFor, EditRequest, RelationshipRecord, fragmentRequest, nextRequirementId, requirementRequests, Tool, VIEWPOINTS, ElementRecord, graphContainerOf, lifelineElement, Metamodel, Snapshot, ToWebview } from '../src/pure/workbench';
+import { connectTargetKinds, connectToolFor, EditRequest, RelationshipRecord, fragmentRequest, nextRequirementId, noteRequest, requirementRequests, Tool, VIEWPOINTS, ElementRecord, graphContainerOf, lifelineElement, Metamodel, Snapshot, ToWebview } from '../src/pure/workbench';
 import { SemanticBrowser } from './browser';
 import { button, clear, el, inlinePrompt } from './dom';
 import type { ViewerApi, ViewerPosition, ViewerSelection } from './globals';
@@ -102,6 +102,19 @@ function specialTool(tool: Tool): void {
       if (text === null || !text.trim()) return;
       const hasBlock = records.some((e) => e.kind === 'Requirement');
       submit(requirementRequests(id, text.trim(), by?.id ?? null, hasBlock), `requirement ${id}`);
+    });
+    return;
+  }
+  if (tool.special === 'note') {
+    // About the selection: the elements shift-clicked, else the one selected.
+    const about = (multiSelection.elements.length ? multiSelection.elements : state.selected ? [state.selected] : []).filter((e) => e.kind !== 'Note');
+    if (about.length === 0) return showMode('Note: select the elements it is about first');
+    const names = about.map((e) => e.name || e.id).join(', ');
+    void inlinePrompt(sheet, `Note about ${names}`, '', 'What the reader should know…').then((text) => {
+      if (text === null) return;
+      const request = noteRequest(text, about.map((e) => e.id));
+      if ('error' in request) return showToast(request.error, 'error');
+      submit([request], `note about ${names}`);
     });
     return;
   }

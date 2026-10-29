@@ -483,7 +483,7 @@ export interface Tool {
   /** create: declared inside the element the diagram is about (a state machine, a scenario). */
   inGraph?: boolean;
   /** special gestures handled by the page: a requirement (with a satisfies trace), a fragment around a message. */
-  special?: 'requirement' | 'fragment';
+  special?: 'requirement' | 'fragment' | 'note';
   /** connect: the keyword of the relationship and how its ends are written. */
   connect?: 'interaction' | 'functional_exchange' | 'component_exchange' | 'physical_link' | 'physical_exchange' | 'association' | 'transition' | 'message' | 'trace';
   /** connect: the kinds the two ends may have. */
@@ -501,6 +501,7 @@ export const PALETTE: Record<string, Tool[]> = {
     { id: 'operational_capability', label: 'Capability', kind: 'create', keyword: 'operational_capability' },
     { id: 'interaction', label: 'Interaction', kind: 'connect', connect: 'interaction', endKinds: ['Actor', 'OperationalEntity', 'OperationalActivity'] },
     { id: 'trace', label: 'Trace', kind: 'connect', connect: 'trace' },
+    { id: 'note', label: 'Note', kind: 'create', special: 'note' },
   ],
   sab: [
     { id: 'actor', label: 'Actor', kind: 'create', keyword: 'actor' },
@@ -515,6 +516,7 @@ export const PALETTE: Record<string, Tool[]> = {
     { id: 'functional_exchange', label: 'Functional exchange', kind: 'connect', connect: 'functional_exchange', endKinds: ['SystemFunction', 'FunctionPort'] },
     { id: 'component_exchange', label: 'Component exchange', kind: 'connect', connect: 'component_exchange', endKinds: ['SystemComponent', 'SystemActor', 'ComponentPort'] },
     { id: 'trace', label: 'Trace', kind: 'connect', connect: 'trace' },
+    { id: 'note', label: 'Note', kind: 'create', special: 'note' },
   ],
   lab: [
     { id: 'component', label: 'Component', kind: 'create', keyword: 'component', containerKinds: ['LogicalComponent'] },
@@ -525,6 +527,7 @@ export const PALETTE: Record<string, Tool[]> = {
     { id: 'component_exchange', label: 'Component exchange', kind: 'connect', connect: 'component_exchange', endKinds: ['LogicalComponent', 'ComponentPort'] },
     { id: 'functional_exchange', label: 'Functional exchange', kind: 'connect', connect: 'functional_exchange', endKinds: ['LogicalFunction', 'FunctionPort'] },
     { id: 'trace', label: 'Trace', kind: 'connect', connect: 'trace' },
+    { id: 'note', label: 'Note', kind: 'create', special: 'note' },
   ],
   pab: [
     { id: 'node', label: 'Node', kind: 'create', keyword: 'node', containerKinds: ['PhysicalNode'] },
@@ -537,11 +540,13 @@ export const PALETTE: Record<string, Tool[]> = {
     { id: 'physical_exchange', label: 'Physical exchange', kind: 'connect', connect: 'physical_exchange', endKinds: ['PhysicalNode', 'BehaviorComponent', 'ComponentPort', 'PhysicalPort'] },
     { id: 'functional_exchange', label: 'Functional exchange', kind: 'connect', connect: 'functional_exchange', endKinds: ['PhysicalFunction', 'FunctionPort'] },
     { id: 'trace', label: 'Trace', kind: 'connect', connect: 'trace' },
+    { id: 'note', label: 'Note', kind: 'create', special: 'note' },
   ],
   cap: [
     { id: 'mission', label: 'Mission', kind: 'create', keyword: 'mission' },
     { id: 'capability', label: 'Capability', kind: 'create', keyword: 'capability' },
     { id: 'trace', label: 'Trace', kind: 'connect', connect: 'trace' },
+    { id: 'note', label: 'Note', kind: 'create', special: 'note' },
   ],
   msm: [
     { id: 'state', label: 'State', kind: 'create', keyword: 'state', inGraph: true, containerKinds: ['State'] },
@@ -798,6 +803,13 @@ export function requirementRequests(id: string, text: string, satisfiedBy: strin
     ? { op: 'add_raw', declaration, layer: 'requirements' }
     : { op: 'add_raw', declaration: `requirements {\n  ${declaration.replace(/\n/g, '\n  ')}\n}`, top_level: true };
   return satisfiedBy ? [create, { op: 'add_trace', from: satisfiedBy, kind: 'satisfies', to: id }] : [create];
+}
+
+/** A note about elements, declared at the top of the file: `note "Text" { about: ["LC-A"] }`. */
+export function noteRequest(text: string, about: string[]): EditRequest | { error: string } {
+  if (!text.trim()) return { error: 'a note has a text' };
+  if (about.length === 0) return { error: 'select the elements the note is about first' };
+  return { op: 'add_raw', declaration: `note ${stringLiteral(text.trim())} { about: [${about.map(stringLiteral).join(', ')}] }`, top_level: true };
 }
 
 /** A combined fragment around one message: `loop "every cycle"`, `opt`, `alt`, `par`, `critical`. */

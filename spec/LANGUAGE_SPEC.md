@@ -1806,6 +1806,26 @@ namespace requirements::traceability {
 }
 ```
 
+### 7.3 Notes
+
+A note is a text about elements, written at the top of a file like a trace.
+Every view that draws one of its elements draws the note beside them, tied to
+each by a dashed line. An element it names that the model does not declare is
+an error; a note about nothing is a warning, since no view would draw it.
+
+```arc
+note "The camera runs at 30 Hz; the controller plans within one frame" {
+    id: "N-LKA-1"                       // optional: else the text is its identity
+    about: ["LC-CAM", "LC-CTL"]
+}
+```
+
+In SysML v2 a note is a comment about its elements
+(`comment 'N-LKA-1' about LC_CAM, LC_CTL /* ... */`) and is read back as a note;
+a `doc` stays the description of its owner. In the VS Code workbench the *Note*
+tool writes one about the selection; it is renamed, deleted and undone like any
+declaration.
+
 ---
 
 ## 8. Safety & Certification
