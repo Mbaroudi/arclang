@@ -131,6 +131,25 @@ pub struct CompilationResult {
     pub warnings: Vec<String>,
 }
 
+impl CompilationResult {
+    /// A model compiled from a copy (an edit beside it, a revision in a
+    /// scratch directory) speaks of the copy: name `shown` instead, so that
+    /// no scratch path reaches a warning, a verdict or the gate.
+    pub fn name_file_as(&mut self, copy: &Path, shown: &str) {
+        let copy = copy.display().to_string();
+        if copy.is_empty() || copy == shown {
+            return;
+        }
+        for warning in &mut self.warnings {
+            *warning = warning.replace(&copy, shown);
+        }
+        for status in self.semantic_model.simulations.values_mut() {
+            status.reason = status.reason.replace(&copy, shown);
+            status.evidence = status.evidence.replace(&copy, shown);
+        }
+    }
+}
+
 impl Compiler {
     pub fn new(config: CompilerConfig) -> Self {
         Self { config }

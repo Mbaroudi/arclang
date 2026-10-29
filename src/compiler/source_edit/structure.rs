@@ -125,6 +125,27 @@ impl Document {
         }
     }
 
+    /// `trace "A" satisfies "B"` written without a body: the first and last
+    /// lexeme of each such statement linking `from` to `to` by `kind`.
+    fn bodiless_traces(&self, from: &[&str], kind: &str, to: &[&str]) -> Vec<(usize, usize)> {
+        let code: Vec<usize> = (0..self.lexemes.len()).filter(|i| token(&self.lexemes[*i]).is_some()).collect();
+        let text = |at: usize| match token(&self.lexemes[at]) {
+            Some(Token::StringLiteral(text)) => Some(text.as_str()),
+            _ => None,
+        };
+        code.windows(4)
+            .enumerate()
+            .filter(|(_, w)| token(&self.lexemes[w[0]]) == Some(&Token::Trace))
+            .filter(|(at, _)| code.get(at + 4).map_or(true, |next| token(&self.lexemes[*next]) != Some(&Token::LeftBrace)))
+            .filter(|(_, w)| {
+                matches!((text(w[1]), text(w[3])), (Some(source), Some(target)) if from.contains(&source) && to.contains(&target))
+                    && text(w[2]).is_none()
+                    && self.lexemes[w[2]].text == kind
+            })
+            .map(|(_, w)| (w[0], w[3]))
+            .collect()
+    }
+
     /// Index of the first lexeme of a block's declaration line.
     pub(super) fn header_start(&self, block: &Block) -> usize {
         block.open - self.header(block).len()
@@ -690,7 +711,7 @@ pub fn remove_trace(source: &str, from: &[&str], kind: &str, to: &[&str]) -> Res
         Some(Token::StringLiteral(text)) => Some(text.clone()),
         _ => None,
     };
-    let matches: Vec<Block> = document
+    let matches: Vec<(usize, usize)> = document
         .blocks()
         .into_iter()
         .filter(|block| document.is_relationship(block))
@@ -701,18 +722,20 @@ pub fn remove_trace(source: &str, from: &[&str], kind: &str, to: &[&str]) -> Res
             matches!(ends.as_slice(), [source, target] if from.contains(&source.as_str()) && to.contains(&target.as_str()))
                 && verb == Some(kind)
         })
+        .map(|block| (document.header_start(&block), block.close))
+        .chain(document.bodiless_traces(from, kind, to))
         .collect();
-    let block = match matches.len() {
+    let (first, last) = match matches.len() {
         0 => return Err(EditError::NotFound(described)),
-        1 => &matches[0],
+        1 => matches[0],
         _ => {
             return Err(EditError::Ambiguous {
                 element: described,
-                lines: matches.iter().map(|block| document.lexemes[block.open].span.line).collect(),
+                lines: matches.iter().map(|(first, _)| document.lexemes[*first].span.line).collect(),
             })
         }
     };
-    let edited = document.remove_range(document.header_start(block), block.close);
+    let edited = document.remove_range(first, last);
     verify_one_declaration(source, &edited, false)?;
     Ok(edited)
 }
@@ -787,6 +810,15 @@ trace "LC-001" implements "LC-002" {}
         let edited = remove_trace(MODEL, &["Controller", "LC-001"], "implements", &["LC-002"]).unwrap();
         assert_eq!(edited, MODEL.replace("\n\ntrace \"LC-001\" implements \"LC-002\" {}\n", "\n"));
         assert!(matches!(remove_trace(MODEL, &["LC-001"], "refines", &["LC-002"]), Err(EditError::NotFound(_))));
+    }
+
+    #[test]
+    fn removes_a_trace_written_without_a_body() {
+        let model = MODEL.replace("trace \"LC-001\" implements \"LC-002\" {}", "trace \"LC-001\" implements \"LC-002\"\ntrace \"LC-002\" refines \"LC-001\" // kept");
+        let edited = remove_trace(&model, &["LC-001"], "implements", &["LC-002"]).unwrap();
+        assert!(!edited.contains("implements"), "{edited}");
+        assert!(edited.contains("trace \"LC-002\" refines \"LC-001\" // kept\n"), "{edited}");
+        assert!(matches!(remove_trace(&model, &["LC-001"], "satisfies", &["LC-002"]), Err(EditError::NotFound(_))));
     }
 
     #[test]

@@ -284,3 +284,34 @@ fn the_reports_render() {
     let tsv = report::tsv(&report);
     assert!(tsv.starts_with("Element\tName\tKind\tLayer\tCategory\tSeverity\tDistance\tReason\tWhy\n"));
 }
+
+#[test]
+fn no_scratch_path_reaches_a_verdict_or_the_gate() {
+    let dir = std::env::temp_dir().join(format!("arclang-impact-scratch-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(dir.join("physics")).unwrap();
+    let examples = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("examples/automotive");
+    let model = std::fs::read_to_string(examples.join("ev_range_simulation.arc")).unwrap();
+    std::fs::copy(examples.join("physics/EVPhysics.mo"), dir.join("physics/EVPhysics.mo")).unwrap();
+    let file = dir.join("ev.arc");
+    std::fs::write(&file, &model).unwrap();
+    let git = |args: &[&str]| {
+        let out = std::process::Command::new("git").arg("-C").arg(&dir).args(["-c", "user.name=t", "-c", "user.email=t@t", "-c", "commit.gpgsign=false"]).args(args).output().expect("git runs");
+        assert!(out.status.success(), "git {args:?}: {}", String::from_utf8_lossy(&out.stderr));
+    };
+    git(&["init", "-q"]);
+    git(&["add", "."]);
+    git(&["commit", "-q", "-m", "model"]);
+    // Never simulated here: every verdict says which file to verify.
+    let base = crate::compiler::semgit::rich::load(&file, &crate::compiler::semgit::rich::Source::Git("HEAD".into())).expect("loads at HEAD");
+    let reasons: Vec<&String> = base.result.semantic_model.simulations.values().map(|s| &s.reason).collect();
+    assert!(!reasons.is_empty() && reasons.iter().all(|r| r.contains(&file.display().to_string())), "{reasons:?}");
+    let changed = model.replacen("stop_time: 3.2 h", "stop_time: 3.3 h", 1);
+    assert_ne!(changed, model);
+    std::fs::write(&file, &changed).unwrap();
+    let report = since::since(&file, &changed, "HEAD", &options()).expect("since HEAD");
+    for text in [report::text(&report), report::markdown(&report), report::tsv(&report)] {
+        assert!(!text.contains("arclang-rev-") && !text.contains(".edit.arc"), "{text}");
+    }
+    std::fs::remove_dir_all(&dir).unwrap();
+}

@@ -88,7 +88,10 @@ pub fn load(model: &Path, source: &Source) -> Result<Loaded, String> {
             let scratch = Scratch::new("rev")?;
             git::export_tree(&located.top, &commit, &scratch.0)?;
             let path = scratch.0.join(&located.relative);
-            let result = compile(&path).map_err(|e| format!("the model at {revision} does not compile: {}", e.replace(&scratch.0.display().to_string(), &format!("<{revision}>"))))?;
+            let mut result = compile(&path).map_err(|e| format!("the model at {revision} does not compile: {}", e.replace(&scratch.0.display().to_string(), &format!("<{revision}>"))))?;
+            // Its warnings and verdicts name the file the user knows, not the scratch copy.
+            result.name_file_as(&path, &model.display().to_string());
+            result.name_file_as(&scratch.0, &format!("<{revision}>"));
             let layout = read_layout(&path);
             Ok(Loaded { label: revision.clone(), commit: Some(commit), result, text, layout, path, _scratch: Some(scratch) })
         }

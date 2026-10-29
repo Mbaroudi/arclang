@@ -761,10 +761,11 @@ pub fn compile_beside(path: &Path, text: &str) -> Result<crate::CompilationResul
     let compiled = crate::Compiler::new(crate::CompilerConfig::default()).compile_file(&sibling);
     let removed = std::fs::remove_file(&sibling);
     // Name the real file, not the scratch copy.
-    let result = compiled.map_err(|e| {
+    let mut result = compiled.map_err(|e| {
         e.to_string().replace(&sibling.display().to_string(), &path.display().to_string())
     })?;
     removed.map_err(|e| format!("{}: {}", sibling.display(), e))?;
+    result.name_file_as(&sibling, &path.display().to_string());
     Ok(result)
 }
 
