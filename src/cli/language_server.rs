@@ -61,7 +61,7 @@ impl LanguageServer for ArcLangLanguageServer {
             capabilities: ServerCapabilities {
                 text_document_sync: Some(TextDocumentSyncCapability::Kind(TextDocumentSyncKind::FULL)),
                 completion_provider: Some(CompletionOptions {
-                    trigger_characters: Some(vec![":".to_string(), "\"".to_string()]),
+                    trigger_characters: Some(vec![":".to_string(), "\"".to_string(), "[".to_string(), ",".to_string()]),
                     ..Default::default()
                 }),
                 hover_provider: Some(HoverProviderCapability::Simple(true)),
@@ -179,8 +179,43 @@ pub fn compute_diagnostics(source: &str) -> Vec<Diagnostic> {
                 })
                 .collect()
         }
-        Err(error) => vec![diagnostic_from_message(&error.to_string(), DiagnosticSeverity::ERROR)],
+        Err(error) => diagnostics_from_error(source, &error.to_string()),
     }
+}
+
+/// A compile error as diagnostics where they are: a parse error at the line
+/// and column it gives; a semantic error (one per line of the message) on
+/// the line that writes the name it quotes last, else on the declaration of
+/// the first name it quotes, else at the top.
+fn diagnostics_from_error(source: &str, message: &str) -> Vec<Diagnostic> {
+    if position_in(message).is_some() {
+        return vec![diagnostic_from_message(message, DiagnosticSeverity::ERROR)];
+    }
+    let outline = source_edit::outline(source).unwrap_or_default();
+    let quoted_re = Regex::new(r"'([^']+)'").ok();
+    let lines: Vec<&str> = message.lines().map(str::trim).filter(|l| !l.is_empty() && !l.ends_with(':')).collect();
+    let lines = if lines.is_empty() { vec![message.trim()] } else { lines };
+    lines
+        .into_iter()
+        .map(|line| {
+            let names: Vec<String> = quoted_re.as_ref().map(|re| re.captures_iter(line).map(|c| c[1].to_string()).collect()).unwrap_or_default();
+            let written = names.iter().rev().find_map(|name| {
+                let needle = format!("\"{name}\"");
+                source.lines().enumerate().find_map(|(n, text)| text.find(&needle).map(|at| {
+                    let column = text[..at].chars().count() as u32;
+                    Range::new(Position::new(n as u32, column), Position::new(n as u32, column + needle.chars().count() as u32))
+                }))
+            });
+            let declared = || names.iter().find_map(|name| find_declaration(&outline, name)).map(line_range);
+            Diagnostic {
+                range: written.or_else(declared).unwrap_or_else(|| Range::new(Position::new(0, 0), Position::new(0, 1))),
+                severity: Some(DiagnosticSeverity::ERROR),
+                source: Some("arclang".to_string()),
+                message: line.trim_start_matches("Semantic error: ").to_string(),
+                ..Default::default()
+            }
+        })
+        .collect()
 }
 
 /// `at line L, column C` in a compiler message, as a one-character range.
@@ -373,6 +408,9 @@ fn kinds_of(keyword: &str) -> &'static [&'static str] {
         "data_type" => &["DataType"],
         "exchange_item" => &["ExchangeItem"],
         "hazard" => &["Hazard"],
+        "fmea" => &["FmeaEntry"],
+        "note" => &["Note"],
+        "configuration" => &["Configuration"],
         "threat" => &["Threat"],
         "asset" => &["PrimaryAsset"],
         "trace" => &["Trace"],
@@ -395,7 +433,7 @@ fn kinds_of(keyword: &str) -> &'static [&'static str] {
 const TOP_LEVEL: &[&str] = &[
     "model", "import", "operational_analysis", "system_analysis", "logical_architecture", "physical_architecture", "epbs",
     "architecture", "requirements", "safety_analysis", "security_analysis", "security_scales", "trace", "state_machine", "scenario", "scenarios", "class", "enumeration",
-    "data_type", "exchange_item", "test_case", "constraint", "type", "diagram",
+    "data_type", "exchange_item", "test_case", "constraint", "type", "diagram", "note", "configuration",
     "table", // tables hook
 ];
 fn inside(keyword: &str) -> &'static [&'static str] {
@@ -406,7 +444,7 @@ fn inside(keyword: &str) -> &'static [&'static str] {
         "physical_architecture" => &["node", "link", "physical_link", "physical_exchange", "deployment", "physical_path"],
         "epbs" => &["configuration_item", "system"],
         "requirements" => &["req", "requirement"],
-        "safety_analysis" => &["hazard"],
+        "safety_analysis" => &["hazard", "fmea"],
         "security_analysis" => &["threat", "asset"],
         "component" => &["function", "port", "component", "interface"],
         "node" => &["behavior_component", "hardware_component", "port", "deploys"],
@@ -435,20 +473,42 @@ pub fn complete(text: &str, line: u32, character: u32) -> Vec<CompletionItem> {
     let holder_keyword = path.last().map(|d| d.keyword.as_str()).unwrap_or("");
     let holder_kinds: Vec<&KindSpec> = kinds_of(holder_keyword).iter().filter_map(|k| kind_spec(&metamodel, k)).collect();
 
-    // `key: ` — the values the attribute may take.
-    let value_re = Regex::new(r#"^\s*([A-Za-z_][A-Za-z0-9_]*)\s*:\s*"?[A-Za-z0-9_\- ]*$"#).ok();
+    // `key: ` or `key: [..., ` — the values the attribute may take: an
+    // enumeration's members, or the elements of the model a reference names.
+    let value_re = Regex::new(r#"^\s*([A-Za-z_][A-Za-z0-9_]*)\s*:\s*(\[[^\]]*)?"?[A-Za-z0-9_.\- ]*$"#).ok();
     if let Some(caps) = value_re.as_ref().and_then(|re| re.captures(&before)) {
         let key = &caps[1];
         let mut items: Vec<CompletionItem> = Vec::new();
         let mut seen = std::collections::HashSet::new();
         let sources: Vec<&KindSpec> = if holder_kinds.is_empty() { metamodel.kinds.iter().collect() } else { holder_kinds.clone() };
+        let quoted = !before.trim_end().ends_with('"');
+        for kind in &sources {
+            for attribute in kind.attributes.iter().filter(|a| a.key == key) {
+                let wanted = match &attribute.ty {
+                    AttrType::Reference(k) => Some(*k),
+                    AttrType::List(inner) => match inner.as_ref() { AttrType::Reference(k) => Some(*k), _ => None },
+                    _ => None,
+                };
+                let Some(wanted) = wanted else { continue };
+                for (designator, declaration) in referable(&outline, wanted) {
+                    if seen.insert(designator.clone()) {
+                        items.push(CompletionItem {
+                            label: designator.clone(),
+                            kind: Some(CompletionItemKind::REFERENCE),
+                            detail: Some(format!("{} {}", declaration.keyword, declaration.name.clone().unwrap_or_default())),
+                            insert_text: Some(if quoted { format!("\"{designator}\"") } else { designator.clone() }),
+                            ..Default::default()
+                        });
+                    }
+                }
+            }
+        }
         for kind in sources {
             for attribute in kind.attributes.iter().filter(|a| a.key == key) {
                 if let AttrType::Enum(name) = &attribute.ty {
                     if let Some(spec) = metamodel.enumeration(name) {
                         for value in spec.values.iter() {
                             if seen.insert(value.to_string()) {
-                                let quoted = !before.trim_end().ends_with('"');
                                 items.push(CompletionItem {
                                     label: value.to_string(),
                                     kind: Some(CompletionItemKind::ENUM_MEMBER),
@@ -502,6 +562,25 @@ pub fn complete(text: &str, line: u32, character: u32) -> Vec<CompletionItem> {
         }
     }
     items
+}
+
+/// The declarations a reference to `kind` may name (`Element`: any), by
+/// their id, else their name, in the order of the file.
+fn referable<'a>(outline: &'a [source_edit::Declaration], kind: &str) -> Vec<(String, &'a source_edit::Declaration)> {
+    let mut out = Vec::new();
+    let mut stack: Vec<&source_edit::Declaration> = outline.iter().rev().collect();
+    while let Some(declaration) = stack.pop() {
+        stack.extend(declaration.children.iter().rev());
+        let kinds = kinds_of(&declaration.keyword);
+        let fits = if kind == "Element" { !kinds.is_empty() && !matches!(declaration.keyword.as_str(), "model" | "trace") } else { kinds.iter().any(|k| kind.split(&[',', ' '][..]).any(|w| w == *k)) };
+        if !fits {
+            continue;
+        }
+        if let Some(designator) = declaration.id.clone().or_else(|| declaration.name.clone()) {
+            out.push((designator, declaration));
+        }
+    }
+    out
 }
 
 // --- hover ----------------------------------------------------------------------
@@ -667,6 +746,30 @@ trace "LC-CTL" satisfies "REQ-001"
         let by_name = definition(MODEL, 16, 28).expect("by name");
         assert_eq!(by_name.start.line, 4);
         assert!(definition(MODEL, 1, 5).is_none());
+    }
+
+    #[test]
+    fn a_semantic_error_is_shown_where_the_name_is_written() {
+        let source = "model T { name: \"t\" }\nlogical_architecture \"L\" {\n    component \"Camera\" { id: \"LC-CAM\" }\n}\nnote \"Runs at 30 Hz\" { about: [\"LC-NOPE\"] }\n";
+        let diagnostics = compute_diagnostics(source);
+        assert_eq!(diagnostics.len(), 1, "{diagnostics:?}");
+        assert_eq!(diagnostics[0].range.start, Position::new(4, 31), "{diagnostics:?}");
+        assert!(!diagnostics[0].message.starts_with("Semantic error"), "{}", diagnostics[0].message);
+        assert!(diagnostics[0].message.contains("about 'LC-NOPE' names no element"), "{}", diagnostics[0].message);
+    }
+
+    #[test]
+    fn references_complete_with_the_elements_of_the_right_kind() {
+        let source = "model T { name: \"t\" }\nlogical_architecture \"L\" {\n    component \"Camera\" { id: \"LC-CAM\" }\n}\nsafety_analysis {\n    hazard \"Unintended steering\" { id: \"HAZ-1\" }\n    fmea \"Stuck\" {\n        leads_to: [\n    }\n}\nnote \"x\" {\n    about: \n}\n";
+        let labels = |line: u32, character: u32| complete(source, line, character).into_iter().map(|i| i.label).collect::<Vec<_>>();
+        let hazards = labels(7, 19);
+        assert!(hazards.contains(&"HAZ-1".to_string()) && !hazards.contains(&"LC-CAM".to_string()), "{hazards:?}");
+        let any = labels(11, 11);
+        assert!(any.contains(&"LC-CAM".to_string()) && any.contains(&"HAZ-1".to_string()), "{any:?}");
+        let top = labels(13, 0);
+        assert!(top.contains(&"note".to_string()) && top.contains(&"configuration".to_string()), "{top:?}");
+        let safety = complete("safety_analysis {\n    \n}\n", 1, 4).into_iter().map(|i| i.label).collect::<Vec<_>>();
+        assert!(safety.contains(&"fmea".to_string()), "{safety:?}");
     }
 
     #[test]
