@@ -11,6 +11,7 @@ on:
     branches: [main]
     paths:
       - 'src/compiler/sysmlv2_generator.rs'
+      - 'src/compiler/sysml_export/**'
       - 'src/compiler/metamodel.rs'
       - 'src/compiler/quantity.rs'
       - 'src/compiler/constraint.rs'
