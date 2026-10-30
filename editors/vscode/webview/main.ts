@@ -55,6 +55,9 @@ interface State {
 
 const savedLayout = (vscode.getState() as { layout?: Partial<Layout> } | undefined)?.layout ?? {};
 const wide = window.innerWidth >= 1000;
+// The reader's settings the page follows (the host sends them before the first drawing).
+const preferences: { reorganize: 'ask' | 'always' | 'never' } = { reorganize: 'ask' };
+
 const state: State = {
   snapshot: null,
   metamodel: null,
@@ -549,6 +552,7 @@ function mount(snapshot: Snapshot): void {
     exporter: window.ArcVizExport,
     stage: window.ArcVizStage,
     place: window.ArcVizPlace,
+    tidy: window.ArcVizTidy,
     edit: window.ArcVizEdit,
     theme: window.ArcVizTheme,
   };
@@ -576,6 +580,9 @@ function mount(snapshot: Snapshot): void {
     // Boxes go where they are dragged (into another box when let go on it), kept next to the model.
     arrange: true,
     onLayout: (file: unknown) => vscode.postMessage({ type: 'layout', file, join: joining > 0 }),
+    // After a move by hand that leaves the diagram harder to read: the setting arclang.workbench.reorganize.
+    reorganize: preferences.reorganize,
+    onReorganize: (mode: string) => vscode.postMessage({ type: 'reorganize', mode }),
     // Editing from the drawing: double-click renames, ends reconnect, bands select, arrows connect.
     edit: editing.viewerOptions(),
     ...arrangeOptions((id, isEdge) => elementFor({ view: '', id, name: '', kind: '', isEdge: Boolean(isEdge) })), // zorder hook: the layer of what is drawn
@@ -731,6 +738,10 @@ window.addEventListener('message', (event: MessageEvent<ToWebview>) => {
   const message = event.data;
   if (exportsUi.handle(message) || themeEditor.handle(message)) return;
   switch (message.type) {
+    case 'preferences':
+      preferences.reorganize = message.reorganize;
+      state.viewer?.setReorganize?.(message.reorganize);
+      return;
     case 'snapshot': {
       const before = state.snapshot;
       state.snapshot = message.snapshot;

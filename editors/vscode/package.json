@@ -1598,6 +1598,21 @@
           "markdownDescription": "The `arclang` executable: a name on the PATH or an absolute path. The extension runs `arclang lsp --stdio`, `arclang diagram`, `arclang check`, `arclang gate`, `arclang transition`, `arclang export`, `arclang import`, `arclang set`, `arclang rename`. User setting only: a workspace cannot choose the executable the extension runs.",
           "scope": "machine"
         },
+        "arclang.workbench.reorganize": {
+          "type": "string",
+          "enum": [
+            "ask",
+            "always",
+            "never"
+          ],
+          "enumDescriptions": [
+            "When a box moved or resized by hand leaves the diagram harder to read (boxes overlapping, lines across a box, more crossings), offer to tidy it up, keeping the arrangement.",
+            "Tidy the diagram up by itself after every such move (Ctrl/Cmd+Z undoes it).",
+            "Leave the diagram as it is placed by hand."
+          ],
+          "default": "ask",
+          "markdownDescription": "What follows a move by hand on a workbench diagram that leaves it harder to read. Every line is rerouted around the boxes after each move in any case; tidying up also aligns and spaces the boxes and removes overlaps, keeping the order in which they are placed. Also in the diagram's **Layout** menu."
+        },
         "arclang.workbench.followSelection": {
           "type": "string",
           "enum": [

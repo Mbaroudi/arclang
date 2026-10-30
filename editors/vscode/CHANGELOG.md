@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- **Diagrams that put themselves back in order**: after a box is moved or resized by hand, every line that now runs across a box is redrawn around it, not only the lines of the box moved. When the move leaves the diagram harder to read (boxes overlapping, lines across a box, more crossings than before), the workbench offers to **tidy it up**: ELK lays the view out again from where the boxes are, so their order stays, aligns and spaces them and redraws every line; the result is written to the layout file and `⌘Z` undoes it. *Keep my layout* leaves it; *Always tidy up* does it by itself from then on. The choice is the setting `arclang.workbench.reorganize` (`ask`, `always`, `never`) and is in the diagram's **Layout** menu, beside *Tidy up, keeping my arrangement*. Tests: `tools/diagram_render/tidy.test.mjs`, `test/e2e/vscode_tidy_test.js`.
+
 ## 4.8.0
 
 - **Run and debug a state machine, a scenario or a functional chain**: *ArcLang: Run…* offers what the model runs (F5 runs the first) through `arclang debug --dap`. A **scenario** plays message by message (alt takes the operand whose guard is set, opt and loop as written or while their condition holds, par in the order written; state invariants hold on their lifelines); its view is shown with the message just sent drawn bold. A **functional chain** runs as a token game (or: the branch whose condition holds; and: fork and join; iterate: loops while its condition holds); the steps holding a token are outlined. A breakpoint on a message or a chain step stops when it is reached.

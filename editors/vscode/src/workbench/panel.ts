@@ -8,7 +8,7 @@
 import { randomBytes } from 'node:crypto';
 import * as path from 'node:path';
 import * as vscode from 'vscode';
-import { CanvasCommand, EditRequest, ElementRecord, FromWebview, isLayoutFile, layoutPathOf, Snapshot, ToWebview } from '../pure/workbench';
+import { CanvasCommand, EditRequest, ElementRecord, FromWebview, isLayoutFile, layoutPathOf, reorganizeOf, Snapshot, ToWebview } from '../pure/workbench';
 import { looksLikeArcLang, selectionSource } from '../pure/clipboard';
 import { CanvasHistory } from './canvas-history';
 import { applyRequests, EditQueue, refusalMessage } from './edits';
@@ -40,6 +40,7 @@ const VIEWER_SCRIPTS = [
   'arcviz-stage.js',
   'arcviz-place.js',
   'arcviz-route.js',
+  'arcviz-tidy.js',
   'arcviz-edit.js',
   'arcviz-toolbar.js',
   'arcviz-theme-presets.js',
@@ -164,6 +165,7 @@ export class WorkbenchPanel {
       }),
       vscode.workspace.onDidChangeConfiguration((event) => {
         if (event.affectsConfiguration('files.autoSave')) this.postFileState();
+        if (event.affectsConfiguration('arclang.workbench.reorganize')) this.postPreferences();
       }),
       vscode.window.onDidChangeTextEditorSelection(async (event) => {
         if (event.textEditor.document.uri.toString() !== document.uri.toString()) return;
@@ -322,6 +324,11 @@ export class WorkbenchPanel {
     this.exports.run(action, args);
   }
 
+  /** What the page follows of the reader's settings. */
+  private postPreferences(): void {
+    this.post({ type: 'preferences', reorganize: reorganizeOf(vscode.workspace.getConfiguration('arclang.workbench').get('reorganize')) });
+  }
+
   private async handle(message: FromWebview): Promise<void> {
     if (await this.exports.handle(message)) return;
     // semgit hook: a comparison is read-only
@@ -334,6 +341,7 @@ export class WorkbenchPanel {
         this.ready = true;
         // The theme first: the first drawing is already in its colours.
         await this.exports.pushThemes();
+        this.postPreferences();
         this.lastFileState = '';
         this.postFileState();
         await this.push();
@@ -376,6 +384,13 @@ export class WorkbenchPanel {
       case 'save':
         await this.save(message.name, message.data);
         return;
+      case 'reorganize': {
+        const mode = reorganizeOf(message.mode);
+        if (mode !== message.mode) return;
+        // A user setting: how the reader likes to work, the same in every model.
+        await vscode.workspace.getConfiguration('arclang.workbench').update('reorganize', mode, vscode.ConfigurationTarget.Global);
+        return;
+      }
       case 'layout': {
         if (!isLayoutFile(message.file)) return;
         const before = this.layoutNow ?? null;

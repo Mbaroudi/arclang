@@ -37,7 +37,13 @@ the selection follows; Undo, Redo and Save are the editor's own.
   name; ports are declared when the ends have none). **Drag a box anywhere
   on the diagram, resize it by the grip on its corner**: the arrangement is
   kept in `<model>.layout.json` beside the model. Let a box go on another
-  to move it inside. `F2` renames, `Delete` removes,
+  to move it inside. After every move, the lines are redrawn around the
+  boxes; when a move leaves the diagram harder to read (boxes overlapping,
+  lines across a box, more crossings), the workbench offers to **tidy it
+  up**, keeping the order in which the boxes are placed (`⌘Z` undoes it).
+  *Always tidy up* does it by itself from then on; the setting
+  `arclang.workbench.reorganize` (`ask`, `always`, `never`) and the
+  **Layout** menu change that choice. `F2` renames, `Delete` removes,
   double-click goes to the source (see below), `Esc` cancels; right-click gives the native menu
   (rename, delete, show in source, show in tree, ask @arclang, copy id).
   **Full screen** gives the workbench the whole screen with all its tools

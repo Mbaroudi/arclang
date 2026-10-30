@@ -25,6 +25,7 @@ const VIEWER_FILES = [
   'arcviz-stage.js',
   'arcviz-place.js',
   'arcviz-route.js',
+  'arcviz-tidy.js',
   'arcviz-edit.js',
   'arcviz-toolbar.js',
   'arcviz-color.js',

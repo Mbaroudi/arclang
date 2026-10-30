@@ -308,6 +308,22 @@
         else places.delete(key);
         remember();
       },
+      /**
+       * A tidy layout as the placement: the boxes where it puts them; bends,
+       * moved names and ports dropped (the lines are redrawn); line styles
+       * and stacking kept.
+       */
+      tidy(id, placed) {
+        const key = keyOf(id, of(id));
+        const kept = {};
+        for (const node of Object.keys(placed || {})) {
+          if (nodes.has(id) && nodes.get(id).has(node) && isOffset(placed[node]) && !nothing(placed[node])) kept[node] = asPlacement(placed[node]);
+        }
+        if (Object.keys(kept).length > 0) places.set(key, kept);
+        else places.delete(key);
+        for (const map of [routes, labels, ports]) map.delete(key);
+        remember();
+      },
       /** Back to the automatic layout: boxes, bends, styles, names, ports and stacking. */
       resetPlaces(id) {
         const key = keyOf(id, of(id));
