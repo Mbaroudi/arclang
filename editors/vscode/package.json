@@ -833,7 +833,7 @@
       },
       {
         "command": "arclang.debug.run",
-        "title": "Run the state machine (debugger)",
+        "title": "Run… (state machine, scenario or functional chain, in the debugger)",
         "category": "ArcLang",
         "icon": "$(debug-start)"
       },
@@ -2773,7 +2773,7 @@
     "debuggers": [
       {
         "type": "arclang",
-        "label": "ArcLang state machine",
+        "label": "ArcLang model (state machine, scenario, chain)",
         "languages": [
           "arclang"
         ],
@@ -2785,12 +2785,20 @@
             "properties": {
               "program": {
                 "type": "string",
-                "description": "The .arc model whose state machine runs.",
+                "description": "The .arc model to run.",
                 "default": "${file}"
               },
               "machine": {
                 "type": "string",
-                "description": "The state machine to run, by name or id (default: the first of the model)."
+                "description": "The state machine to run, by name or id (default: the first state machine, else scenario, else chain)."
+              },
+              "scenario": {
+                "type": "string",
+                "description": "The scenario to play message by message, by name or id."
+              },
+              "chain": {
+                "type": "string",
+                "description": "The functional chain (or operational process) to run step by step, by name or id."
               }
             }
           }

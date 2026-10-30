@@ -1,4 +1,4 @@
-import { debugTargets, firePicks } from '../../src/pure/debug';
+import { debugView, firePicks, runPicks } from '../../src/pure/debug';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
@@ -247,9 +247,11 @@ test('a state is asserted on the lifeline offered, or on the one named, as a sta
   assert.ok('error' in (invariantRequest('Run', 'tick', 'tick', 'LC-B', lines, '  ') as object));
 });
 
-test('the debugger lights the active states and the transition fired, and offers the events waited for', () => {
-  assert.deepEqual(debugTargets({ type: 'debug-state', machine: 'Charger', active: ['Charging', 'Charging.Bulk'], fired: ['Charging.Precharge -> Charging.Bulk'] }), { states: ['Charger.Charging', 'Charger.Charging.Bulk'], transitions: ['tr:Precharge -> Bulk'] });
-  assert.deepEqual(debugTargets({ type: 'debug-state', machine: '', active: [], fired: [] }), { states: [], transitions: [] });
-  const picks = firePicks(['SF-DET']);
-  assert.deepEqual(picks.map((p) => p.event), ['SF-DET', null, '?']);
+test('the debugger shows the diagram of what runs, and offers what the model runs', () => {
+  assert.equal(debugView({ type: 'debug-state', kind: 'machine', name: 'LKA modes', nodes: [], edges: [] }), 'msm:LKA modes');
+  assert.equal(debugView({ type: 'debug-state', kind: 'scenario', name: 'Lane departure', nodes: [], edges: ['msg:1'] }), 'es:Lane departure');
+  assert.equal(debugView({ type: 'debug-state', kind: 'chain', name: 'Reaction', nodes: ['SF-A'], edges: [] }), null);
+  const picks = runPicks({ machines: ['LKA modes'], scenarios: ['Lane departure'], chains: ['Reaction'] });
+  assert.deepEqual(picks.map((p) => [p.key, p.name]), [['machine', 'LKA modes'], ['scenario', 'Lane departure'], ['chain', 'Reaction']]);
+  assert.deepEqual(firePicks(['SF-DET']).map((p) => p.event), ['SF-DET', null, '?']);
 });

@@ -7,6 +7,8 @@
 //! compiler cannot decide it, so it is a *condition* the reader sets (true
 //! or false); a guard written `true` or `false` decides itself.
 
+pub mod chain;
 pub mod machine;
+pub mod scenario;
 
 pub use machine::{Machine, Step};

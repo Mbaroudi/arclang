@@ -1,4 +1,5 @@
 pub mod debug;
+pub mod debug_target;
 pub mod diagram_service;
 pub mod edit;
 pub mod table; // tables hook

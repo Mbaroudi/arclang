@@ -1,19 +1,20 @@
 // The model debugger: VS Code runs `arclang debug --dap` (the Debug Adapter
-// Protocol) for a launch of type `arclang`. F5 on a .arc file runs its first
-// state machine; breakpoints go on a state (stopped when it is entered) or a
-// transition (when it fires). *ArcLang: Fire an event* injects an event; the
-// workbench diagrams light the active states and the transition just fired.
+// Protocol) for a launch of type `arclang`. *ArcLang: Run…* offers the state
+// machines, scenarios and functional chains of the model (F5 runs the first);
+// a breakpoint on a line stops when a step reaches it. *ArcLang: Fire an
+// event* injects an event into a state machine; the workbench diagram lights
+// the active states, the message just sent or the chain steps with a token.
 import * as path from 'node:path';
 import * as vscode from 'vscode';
-import { binary } from '../cli';
+import { binary, run } from '../cli';
 import { WorkbenchPanel } from '../workbench/panel';
-import { DebugStateMessage, firePicks } from '../pure/debug';
+import { DebugStateMessage, firePicks, Runnables, runPicks } from '../pure/debug';
 
 interface MachineState {
-  machine: string;
-  active: string[];
-  leaves: string[];
-  fired: string[];
+  kind: string;
+  name: string;
+  nodes: string[];
+  edges: string[];
   events: string[];
 }
 
@@ -27,7 +28,7 @@ function programOf(session: vscode.DebugSession): string | null {
 function paint(session: vscode.DebugSession, state: MachineState | null): void {
   const program = programOf(session);
   if (!program) return;
-  const message: DebugStateMessage = { type: 'debug-state', machine: state?.machine ?? '', active: state?.active ?? [], fired: state?.fired ?? [] };
+  const message: DebugStateMessage = { type: 'debug-state', kind: state?.kind ?? '', name: state?.name ?? '', nodes: state?.nodes ?? [], edges: state?.edges ?? [] };
   for (const workbench of WorkbenchPanel.all(vscode.Uri.file(program))) workbench.postPanes(message);
 }
 
@@ -67,12 +68,25 @@ export function registerDebug(context: vscode.ExtensionContext): void {
     }),
     vscode.commands.registerCommand('arclang.debug.run', async (uri?: unknown) => {
       const program = uri instanceof vscode.Uri ? uri.fsPath : activeModel();
-      if (!program) return vscode.window.showInformationMessage('ArcLang: open a .arc model with a state machine to run it.');
-      await vscode.debug.startDebugging(vscode.workspace.getWorkspaceFolder(vscode.Uri.file(program)), { type: 'arclang', request: 'launch', name: `Run ${path.basename(program)}`, program });
+      if (!program) return vscode.window.showInformationMessage('ArcLang: open a .arc model to run one of its state machines, scenarios or functional chains.');
+      // What the model runs: one is run at once, several are offered.
+      const listed = await run(['debug', program, '--list'], { cwd: path.dirname(program) });
+      let runnables: Runnables;
+      try {
+        runnables = JSON.parse(listed.stdout) as Runnables;
+      } catch {
+        return vscode.window.showErrorMessage(`ArcLang: the model does not compile, nothing to run. ${listed.stderr.trim().split('\n').pop() ?? ''}`);
+      }
+      const picks = runPicks(runnables);
+      if (picks.length === 0) return vscode.window.showInformationMessage('ArcLang: the model has no state machine, scenario or functional chain to run.');
+      const choice = picks.length === 1 ? picks[0] : await vscode.window.showQuickPick(picks, { placeHolder: 'What to run, step by step' });
+      if (!choice) return;
+      await vscode.debug.startDebugging(vscode.workspace.getWorkspaceFolder(vscode.Uri.file(program)), { type: 'arclang', request: 'launch', name: `Run ${choice.name}`, program, [choice.key]: choice.name });
     }),
     vscode.commands.registerCommand('arclang.debug.fire', async () => {
       const session = vscode.debug.activeDebugSession;
-      if (!session || session.type !== 'arclang') return vscode.window.showInformationMessage('ArcLang: no state machine is running (F5 on a .arc model).');
+      if (!session || session.type !== 'arclang') return vscode.window.showInformationMessage('ArcLang: nothing is running (ArcLang: Run… on a .arc model).');
+      if (states.get(session.id)?.kind && states.get(session.id)?.kind !== 'machine') return vscode.window.showInformationMessage('ArcLang: a scenario or a chain takes no event: Step Over (F10) runs its next step.');
       const picks = firePicks(states.get(session.id)?.events ?? []);
       const choice = await vscode.window.showQuickPick(picks.map((p) => ({ label: p.label, description: p.description, event: p.event })), { placeHolder: 'The event to fire' });
       if (!choice) return;

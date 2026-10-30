@@ -1,7 +1,9 @@
-// The state machine debugger inside the real VS Code: a breakpoint (F9) on a
-// mode of the model, the debugger launched from the command palette, events
-// typed in the debug console, a guard set there, the stop on the breakpoint,
-// the active modes as the call stack, and the mode lit on the workbench diagram.
+// The model debugger inside the real VS Code. A state machine: a breakpoint
+// (F9) on a mode, Run… from the command palette, events typed in the debug
+// console, a guard set there, the stop on the breakpoint, the active modes as
+// the call stack, the mode lit on the workbench diagram. A scenario: a
+// breakpoint on a message, Continue stops there, the message lit on the
+// scenario's view. A functional chain: Step Over executes its first step.
 //   VSCODE_APP="/Applications/Visual Studio Code.app" PLAYWRIGHT=/path/to/playwright ARCLANG_BINARY=/path/to/arclang node vscode_debug_test.js
 const { _electron } = require(process.env.PLAYWRIGHT || 'playwright');
 const fs = require('fs'); const os = require('os'); const path = require('path');
@@ -55,9 +57,9 @@ async function launch(dir, model) {
     report('F9 puts a breakpoint in the margin of the model', glyph > 0, `${glyph}`);
 
     // 2. Run: the initial mode is entered and the session stops on entry
-    await command('ArcLang: Run the state machine (debugger)'); await settle(5000);
+    await command('ArcLang: Run… (state machine'); await win.waitForTimeout(800); await win.keyboard.type('LKA modes'); await win.waitForTimeout(500); await win.keyboard.press('Enter'); await settle(5000);
     const started = await consoleText();
-    report('the debugger runs the machine of the model', /Running LKA modes/.test(started) && /active: Off/.test(started), started.split('\n').slice(0, 3).join(' | '));
+    report('the debugger runs the machine of the model', /Running the state machine LKA modes/.test(started) && /active: Off/.test(started), started.split('\n').slice(0, 3).join(' | '));
     const verified = await win.locator('.codicon-debug-breakpoint').count();
     report('the breakpoint on the mode is verified', verified > 0);
 
@@ -74,7 +76,7 @@ async function launch(dir, model) {
 
     // 4. Stopped on the breakpoint: the call stack, the line, the diagram
     const stack = await win.locator('.debug-viewlet, .debug-pane').first().innerText().catch(() => '');
-    report('stopped on the breakpoint, the active mode is the call stack, with the reason', /mode Correcting/.test(stack) && /entered Correcting/.test(stack), stack.replace(/\s+/g, ' ').slice(0, 120));
+    report('stopped on the breakpoint, the active mode is the call stack, with the reason', /mode Correcting/.test(stack) && /line 171: SF-EST: fired Armed -> Correcting/.test(stack), stack.replace(/\s+/g, ' ').slice(0, 120));
     const paused = await win.locator('.codicon-debug-stackframe').count();
     report('the editor shows the line of the mode it stopped on', paused > 0);
     const lit = await page.locator('.arcviz-stage .wb-debug-active').evaluateAll((ns) => ns.map((n) => n.dataset.id));
@@ -87,6 +89,32 @@ async function launch(dir, model) {
     await shot('debug-02-stopped');
     report('the session ends', (await win.locator('.debug-toolbar').count()) === 0 || !(await win.locator('.debug-toolbar').first().isVisible().catch(() => false)));
     report('stopped, the diagram is no longer lit', (await page.locator('.arcviz-stage .wb-debug-active').count()) === 0);
+
+    // 6. A scenario: a breakpoint on its second message, Continue stops there
+    await command('View: Focus First Editor Group');
+    await win.keyboard.press('Control+g'); await win.waitForTimeout(400); await win.keyboard.type('181'); await win.keyboard.press('Enter'); await win.waitForTimeout(500);
+    await win.keyboard.press('F9'); await settle(800);
+    await command('ArcLang: Run… (state machine'); await win.waitForTimeout(800); await win.keyboard.type('Lane departure'); await win.waitForTimeout(500);
+    await win.keyboard.press('ArrowDown'); await win.keyboard.press('ArrowUp');
+    const pickedScenario = await win.locator('.quick-input-list .monaco-list-row.focused').first().innerText().catch(() => '');
+    await win.keyboard.press('Enter'); await settle(5000);
+    report('Run… offers the scenario of the model', /scenario/.test(pickedScenario), pickedScenario.replace(/\s+/g, ' '));
+    await win.keyboard.press('F5'); await settle(3000);
+    const scenarioLog = await consoleText();
+    report('Continue sends the messages up to the breakpoint', /message 1: LC-CAM -> LC-CTL "lane model"/.test(scenarioLog) && /message 2: LC-CTL -> LC-ACT "steering correction"/.test(scenarioLog));
+    const scenarioStack = await win.locator('.debug-viewlet, .debug-pane').first().innerText().catch(() => '');
+    report('it stops on the message, which is the top of the call stack', /line 181/.test(scenarioStack) && /message 2: LC-CTL -> LC-ACT/.test(scenarioStack), scenarioStack.replace(/\s+/g, ' ').slice(0, 160));
+    const view = await page.locator('.arcviz-stage [data-id="msg:2"]').count();
+    report('the workbench shows the scenario, its message just sent drawn bold', view === 1 && (await page.locator('.arcviz-stage .wb-debug-fired').evaluateAll((ns) => ns.map((n) => n.dataset.id))).includes('msg:2'));
+    await shot('debug-03-scenario');
+    await win.keyboard.press('Shift+F5'); await settle(3000);
+
+    // 7. A functional chain: Step Over executes its first step, lit on the diagram
+    await command('ArcLang: Run… (state machine'); await win.waitForTimeout(800); await win.keyboard.type('reaction'); await win.waitForTimeout(500); await win.keyboard.press('Enter'); await settle(5000);
+    await win.keyboard.press('F10'); await settle(2500);
+    const chainLog = await consoleText();
+    report('Step Over executes the first step of the chain', /Running the functional chain Lane departure reaction/.test(chainLog) && /executed SF-DET/.test(chainLog), chainLog.split('\n').slice(-4).join(' | '));
+    await win.keyboard.press('Shift+F5'); await settle(2500);
   } catch (error) {
     report('the test ran to its end', false, error.message);
   } finally {
