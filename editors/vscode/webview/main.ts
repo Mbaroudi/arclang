@@ -2,7 +2,7 @@
 // row with the palette rail, the canvas and the properties drawer, then one
 // status line. Everything shown comes from the last snapshot the host sent;
 // every change goes back to the host as `arclang edit` requests.
-import { connectTargetKinds, connectToolFor, EditRequest, RelationshipRecord, fragmentRequest, nextRequirementId, noteRequest, requirementRequests, Tool, VIEWPOINTS, ElementRecord, graphContainerOf, lifelineElement, Metamodel, Snapshot, ToWebview } from '../src/pure/workbench';
+import { connectTargetKinds, connectToolFor, EditRequest, RelationshipRecord, fragmentRequest, invariantRequest, nextRequirementId, noteRequest, requirementRequests, Tool, VIEWPOINTS, ElementRecord, graphContainerOf, lifelineElement, Metamodel, Snapshot, ToWebview, ViewerEdge } from '../src/pure/workbench';
 import { SemanticBrowser } from './browser';
 import { button, clear, el, inlinePrompt } from './dom';
 import type { ViewerApi, ViewerPosition, ViewerSelection } from './globals';
@@ -16,7 +16,7 @@ import { createShell } from './shell';
 import { DiagramContents } from './diagram-contents';
 import { createStatusLine } from './status-line';
 import { changesOf, markFindings as markFindings_, pulse, renderLayers as renderLayers_ } from './marks';
-import { Alignment, modelIdOf, relationshipOfEdge, writtenRef } from '../src/pure/editing';
+import { Alignment, edgeEndIds, modelIdOf, relationshipOfEdge, writtenRef } from '../src/pure/editing';
 import { installAi } from './ask-ai'; // ai-design hook
 import { installKeys } from './keys';
 import { MultiSelection } from './multi-select';
@@ -115,6 +115,29 @@ function specialTool(tool: Tool): void {
       const request = noteRequest(text, about.map((e) => e.id));
       if ('error' in request) return showToast(request.error, 'error');
       submit([request], `note about ${names}`);
+    });
+    return;
+  }
+  if (tool.special === 'invariant') {
+    const graph = currentGraph();
+    const scenario = graph ? graphContainerOf(graph.id, graph.arc.view) : null;
+    const picked = (multiSelection.elements.length ? multiSelection.elements : state.selected ? [state.selected] : []).filter((e) => e.kind === 'Message');
+    if (!graph || !scenario || picked.length === 0) return showMode('State: select a message of the scenario (or several in a row) first');
+    // The messages in the order of the scenario: the order of its lines.
+    const edges = (graph.edges ?? []) as Array<ViewerEdge & { labels?: Array<{ text?: string }> }>;
+    const rowOf = (name: string) => edges.findIndex((e) => (e.labels?.[0]?.text ?? e.id.replace(/^msg:/, '')) === name);
+    const rows = picked.map((m) => ({ name: m.name, row: rowOf(m.name) })).filter((m) => m.row >= 0).sort((a, b) => a.row - b.row);
+    if (rows.length === 0) return showMode('State: select a message of the scenario first');
+    const first = rows[0];
+    const last = rows[rows.length - 1];
+    const lifelines = (graph.children ?? []).map((n) => lifelineElement(n.id, scenario));
+    const lifeline = edgeEndIds(edges[last.row], graph).target;
+    const span = first.name === last.name ? `"${first.name}"` : `"${first.name}" … "${last.name}"`;
+    void inlinePrompt(sheet, `State of ${lifeline} during ${span}`, '', `a state, mode X, function X, or Lifeline: state (${lifelines.join(', ')})`).then((answer) => {
+      if (answer === null) return;
+      const request = invariantRequest(scenario, first.name, last.name, lifeline, lifelines, answer);
+      if ('error' in request) return showToast(request.error, 'error');
+      submit([request], `${request.name} on ${request.lifeline}`);
     });
     return;
   }

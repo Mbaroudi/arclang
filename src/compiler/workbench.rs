@@ -328,6 +328,10 @@ pub enum EditRequest {
         top_level: bool,
     },
     Remove { element: String },
+    /// Assert a state, mode or function (`keyword`) named `name` on the
+    /// lifeline `lifeline` of a scenario while its messages `first` … `last`
+    /// (labels) happen.
+    WrapInvariant { scenario: String, keyword: String, lifeline: String, name: String, first: String, last: String },
     /// Wrap the messages of a scenario, from `first` to `last` (labels), in a
     /// combined fragment; `operands` cut it at the messages named, with guards.
     WrapFragment {
@@ -471,6 +475,14 @@ impl EditRequest {
                 top_level: *top_level,
             },
             EditRequest::Remove { element } => EditRequest::Remove { element: w(element) },
+            EditRequest::WrapInvariant { scenario, keyword, lifeline, name, first, last } => EditRequest::WrapInvariant {
+                scenario: w(scenario),
+                keyword: keyword.clone(),
+                lifeline: w(lifeline),
+                name: name.clone(),
+                first: first.clone(),
+                last: last.clone(),
+            },
             EditRequest::WrapFragment { scenario, kind, label, first, last, operands } => EditRequest::WrapFragment {
                 scenario: w(scenario),
                 kind: kind.clone(),
@@ -578,6 +590,9 @@ pub fn edit(source: &str, request: &EditRequest) -> Result<String, String> {
         EditRequest::Remove { element } => source_edit::remove_element(source, element),
         EditRequest::WrapFragment { scenario, kind, label, first, last, operands } => {
             source_edit::wrap_fragment(source, scenario, kind, label, first, last, operands)
+        }
+        EditRequest::WrapInvariant { scenario, keyword, lifeline, name, first, last } => {
+            source_edit::wrap_invariant(source, scenario, keyword, lifeline, name, first, last)
         }
         EditRequest::Move { element, container, layer, layer_name } => {
             let container = match (container, layer) {
@@ -812,6 +827,21 @@ requirements system {
         let cut = parse(edit(text, r#"{"op":"wrap_fragment","scenario":"Run","kind":"opt","first":"tick","last":"done"}"#));
         assert_eq!(cut["success"], false);
         assert!(cut["error"].as_str().unwrap().contains("same block"), "{cut}");
+    }
+
+    #[test]
+    fn a_state_is_asserted_on_a_lifeline_over_messages() {
+        let model = "model T { name: \"t\" }\nlogical_architecture LA {\n    component A { id: \"LC-A\" }\n    component B { id: \"LC-B\" }\n}\nstate_machine Modes {\n    initial: \"Off\"\n    state \"Off\" {}\n    state \"Armed\" {}\n}\nscenario Run {\n    participants: [\"A\", \"B\"]\n    message A -> B \"start\"\n    message B -> A \"tick\"\n    message A -> B \"ack\"\n}\n";
+        let armed = parse(edit(model, r#"{"op":"wrap_invariant","scenario":"Run","keyword":"state","lifeline":"B","name":"Armed","first":"tick","last":"ack"}"#));
+        assert_eq!(armed["success"], true, "{armed}");
+        let text = armed["source"].as_str().unwrap();
+        assert!(text.contains("    state \"B\" \"Armed\" {\n        message B -> A \"tick\"\n        message A -> B \"ack\"\n    }"), "{text}");
+        let compiled = crate::compiler::workbench::compile_text(text).expect("compiles");
+        let scenario = &compiled.ast.scenarios[0];
+        assert_eq!((scenario.invariants[0].name.as_str(), scenario.invariants[0].start, scenario.invariants[0].end), ("Armed", 1, 2));
+        let wrong = parse(edit(model, r#"{"op":"wrap_invariant","scenario":"Run","keyword":"phase","lifeline":"B","name":"Armed","first":"tick","last":"tick"}"#));
+        assert_eq!(wrong["success"], false);
+        assert!(wrong["error"].as_str().unwrap().contains("state, mode or function"), "{wrong}");
     }
 
     #[test]

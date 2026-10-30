@@ -19,7 +19,7 @@ import {
   portNameFrom,
   Snapshot,
   toolsFor,
-  treeByLayer, nextRequirementId, requirementRequests, fragmentRequest, noteRequest } from '../../src/pure/workbench';
+  treeByLayer, nextRequirementId, requirementRequests, fragmentRequest, noteRequest, invariantRequest } from '../../src/pure/workbench';
 
 const metamodel: Metamodel = {
   kinds: [
@@ -234,4 +234,14 @@ test('a note is written at the top of the file about the selection, and asks for
   assert.deepEqual(noteRequest('  Runs at "30" Hz ', ['LC-CAM', 'LC-CTL']), { op: 'add_raw', declaration: 'note "Runs at \\"30\\" Hz" { about: ["LC-CAM", "LC-CTL"] }', top_level: true });
   assert.ok('error' in (noteRequest('x', []) as object));
   assert.ok('error' in (noteRequest('  ', ['LC-CAM']) as object));
+});
+
+test('a state is asserted on the lifeline offered, or on the one named, as a state, a mode or a function', () => {
+  const lines = ['LC-A', 'LC-B'];
+  assert.deepEqual(invariantRequest('Run', 'tick', 'ack', 'LC-B', lines, ' Armed '), { op: 'wrap_invariant', scenario: 'Run', keyword: 'state', lifeline: 'LC-B', name: 'Armed', first: 'tick', last: 'ack' });
+  assert.deepEqual(invariantRequest('Run', 'tick', 'tick', 'LC-B', lines, 'mode Lane keeping'), { op: 'wrap_invariant', scenario: 'Run', keyword: 'mode', lifeline: 'LC-B', name: 'Lane keeping', first: 'tick', last: 'tick' });
+  assert.deepEqual(invariantRequest('Run', 'tick', 'tick', 'LC-B', lines, 'LC-A: function Plan'), { op: 'wrap_invariant', scenario: 'Run', keyword: 'function', lifeline: 'LC-A', name: 'Plan', first: 'tick', last: 'tick' });
+  assert.deepEqual(invariantRequest('Run', 'tick', 'tick', 'LC-B', lines, 'state'), { op: 'wrap_invariant', scenario: 'Run', keyword: 'state', lifeline: 'LC-B', name: 'state', first: 'tick', last: 'tick' });
+  assert.ok('error' in (invariantRequest('Run', 'tick', 'tick', 'LC-B', lines, 'Driver: Armed') as object));
+  assert.ok('error' in (invariantRequest('Run', 'tick', 'tick', 'LC-B', lines, '  ') as object));
 });

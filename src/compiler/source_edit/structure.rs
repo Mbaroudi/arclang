@@ -514,6 +514,26 @@ pub fn wrap_fragment(
     if !matches!(kind, "alt" | "opt" | "loop" | "par" | "seq" | "critical") {
         return Err(EditError::Invalid(format!("'{kind}' is not a fragment kind: use alt, opt, loop, par, seq or critical")));
     }
+    let tag = if label.is_empty() { String::new() } else { format!(" {}", string_literal(label)) };
+    wrap_messages(source, scenario, &format!("fragment {kind}{tag}"), first, last, operands)
+}
+
+/// Assert a state, mode or function on a lifeline of a scenario while the
+/// messages `first` … `last` happen: they are wrapped in
+/// `state "Lifeline" "Name" { ... }` (Capella: a state fragment).
+pub fn wrap_invariant(source: &str, scenario: &str, keyword: &str, lifeline: &str, name: &str, first: &str, last: &str) -> Result<String, EditError> {
+    if !matches!(keyword, "state" | "mode" | "function") {
+        return Err(EditError::Invalid(format!("'{keyword}' is not what a lifeline asserts: use state, mode or function")));
+    }
+    if name.trim().is_empty() {
+        return Err(EditError::Invalid("an invariant names the state, mode or function it asserts".to_string()));
+    }
+    wrap_messages(source, scenario, &format!("{keyword} {} {}", string_literal(lifeline), string_literal(name.trim())), first, last, &[])
+}
+
+/// Wrap the messages `first` … `last` of a scenario in `header { ... }`,
+/// cut in operands at the messages `operands` name.
+fn wrap_messages(source: &str, scenario: &str, header: &str, first: &str, last: &str, operands: &[(String, String)]) -> Result<String, EditError> {
     let document = Document::read(source)?;
     let block = document.find_element(scenario)?;
     let lexemes = &document.lexemes;
@@ -533,7 +553,7 @@ pub fn wrap_fragment(
     let home = enclosing_open(lexemes, start);
     if enclosing_open(lexemes, end) != home {
         return Err(EditError::Invalid(format!(
-            "messages '{first}' and '{last}' are not in the same block; a fragment wraps messages of one block, so a fragment already there stays whole"
+            "messages '{first}' and '{last}' are not in the same block; a fragment or an invariant wraps messages of one block, so one already there stays whole"
         )));
     }
     let mut cuts: Vec<(usize, &str)> = Vec::new();
@@ -554,7 +574,9 @@ pub fn wrap_fragment(
     }
 
     let indentation = document.indentation_of(start);
-    let inner = format!("{indentation}{INDENT}");
+    // One level deeper, as this file indents: what the scenario adds to its own line.
+    let unit = indentation.strip_prefix(document.indentation_of(document.header_start(&block)).as_str()).filter(|u| !u.is_empty()).unwrap_or(INDENT).to_string();
+    let inner = format!("{indentation}{unit}");
     let text_start = lexemes[start].offset;
     let text_end = document.end_of(line_end(lexemes, end, block.close));
     let piece = |from: usize, to: usize| -> String { document.chars[from..to].iter().collect() };
@@ -564,8 +586,7 @@ pub fn wrap_fragment(
             .map(|line| format!("{prefix}{}\n", line.strip_prefix(indentation.as_str()).unwrap_or(line.trim_start())))
             .collect()
     };
-    let tag = if label.is_empty() { String::new() } else { format!(" {}", string_literal(label)) };
-    let mut out = format!("fragment {kind}{tag} {{\n");
+    let mut out = format!("{header} {{\n");
     if cuts.is_empty() {
         out.push_str(&reindent(&piece(text_start, text_end), &inner));
     } else {
@@ -574,7 +595,7 @@ pub fn wrap_fragment(
             let to = cuts.get(n + 1).map_or(text_end, |(next, _)| lexemes[*next].offset);
             let guard_tag = if guard.is_empty() { String::new() } else { format!(" {}", string_literal(guard)) };
             out.push_str(&format!("{inner}operand{guard_tag} {{\n"));
-            out.push_str(&reindent(&piece(from, to), &format!("{inner}{INDENT}")));
+            out.push_str(&reindent(&piece(from, to), &format!("{inner}{unit}")));
             out.push_str(&format!("{inner}}}\n"));
         }
     }

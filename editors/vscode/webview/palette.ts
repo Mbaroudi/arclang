@@ -222,6 +222,7 @@ function glyphOf(tool: Tool): string {
     requirement: '☑',
     fragment: '⧉',
     note: '✎',
+    invariant: '▭',
   };
   return glyphs[tool.id] ?? tool.label.slice(0, 1);
 }

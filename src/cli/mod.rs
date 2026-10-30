@@ -499,7 +499,7 @@ pub enum Commands {
 
     /// Apply one edit, written as JSON, to a model file: {"op": "set" |
     /// "unset" | "rename" | "add" | "add_raw" | "remove" | "move" |
-    /// "add_trace" | "remove_trace" | "wrap_fragment" | "reconnect" |
+    /// "add_trace" | "remove_trace" | "wrap_fragment" | "wrap_invariant" | "reconnect" |
     /// "duplicate" | "duplicate_many", ...}. Comments and layout are kept; refused unless the
     /// edited model compiles and shows what was asked. Prints {"success":
     /// true, "source": ...} or {"success": false, "error": ...}; --write
