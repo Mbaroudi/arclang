@@ -3,6 +3,10 @@
 // physics is hand-written in physics/EVPhysics.mo, and `arclang verify`
 // simulates each configuration in OpenModelica: the long range pack keeps
 // its reserve over 300 km at -10 °C, the standard pack does not.
+//
+// The behaviour runs step by step in the debugger (F5, or ArcLang: Run…):
+// the drive modes (a state machine), a winter highway trip (a scenario) and
+// the speed control loop (a functional chain).
 
 model "EV range simulation" {
     description: "One drivetrain, two battery packs, a range requirement checked by simulation"
@@ -20,6 +24,34 @@ system_analysis "Vehicle needs" {
     requirement "Winter highway range" {
         id: "REQ-RANGE"
         description: "At -10 °C and 100 km/h, the vehicle drives 300 km and keeps 10 % of its charge in reserve"
+    }
+
+    // What the vehicle does on the trip: what the debugger runs.
+    function "Measure vehicle speed" {
+        id: "SF-SPEED"
+        port out "speed"
+    }
+    function "Watch state of charge" {
+        id: "SF-SOC"
+        port out "soc"
+    }
+    function "Regulate speed" {
+        id: "SF-REG"
+        port in "speed"
+        port in "soc"
+        port out "torque"
+    }
+    function "Deliver torque" {
+        id: "SF-TORQUE"
+        port in "torque"
+    }
+    functional_exchange "speed" { from: "SF-SPEED.speed" to: "SF-REG.speed" }
+    functional_exchange "state of charge" { from: "SF-SOC.soc" to: "SF-REG.soc" }
+    functional_exchange "torque request" { from: "SF-REG.torque" to: "SF-TORQUE.torque" }
+    functional_chain "Speed control loop" {
+        id: "FC-SPEED"
+        involves: ["SF-SPEED", "SF-REG", "SF-TORQUE"]
+        latency_budget: 50 ms
     }
 }
 
@@ -94,6 +126,44 @@ physical_architecture "EV hardware" {
     // Inside the control unit: the node's ports relay the controller's.
     physical_link "Speed to controller" { id: "PL-SPEED-IN" from: "PN-VCU.speed" to: "BC-SPD.speed" protocol: "On-chip" }
     physical_link "Torque from controller" { id: "PL-TORQUE-OUT" from: "BC-SPD.torque_cmd" to: "PN-VCU.torque_cmd" protocol: "On-chip" }
+}
+
+// --- Behaviour: what runs step by step --------------------------------------
+
+state_machine "Drive modes" {
+    id: "SM-DRIVE"
+    initial: "Parked"
+    mode Parked { description: "Ready, no torque" }
+    mode Driving { description: "Cruising at the target speed" }
+    mode Reserve { description: "Below 10 % of charge: power limited to reach a charger" }
+    mode Stranded { description: "Battery empty: the vehicle stops" }
+    transition Parked -> Driving { trigger: "SF-REG" guard: "driver starts the trip" }
+    transition Driving -> Reserve { trigger: "SF-SOC" guard: "state of charge below 10 %" }
+    transition Driving -> Parked { trigger: "SF-REG" guard: "destination reached" }
+    transition Reserve -> Parked { trigger: "SF-REG" guard: "destination reached" }
+    transition Reserve -> Stranded { trigger: "SF-SOC" guard: "battery empty" }
+}
+
+scenario "Winter highway trip" {
+    id: "SC-TRIP"
+    participants: ["LC-BODY", "LC-SPD", "LC-DRIVE", "LC-BATT"]
+    state "LC-SPD" "Driving"
+    message "LC-BODY" -> "LC-SPD" "speed 100 km/h"
+    // One pass per 100 km: three to drive the 300 km of the requirement.
+    fragment loop "3 times" {
+        message "LC-SPD" -> "LC-DRIVE" "torque request"
+        message "LC-DRIVE" -> "LC-BATT" "draw power"
+        message "LC-BATT" -> "LC-SPD" "state of charge"
+    }
+    fragment alt {
+        operand "state of charge above 10 %" {
+            message "LC-SPD" -> "LC-DRIVE" "keep 100 km/h"
+        }
+        operand "state of charge below 10 %" {
+            message "LC-SPD" -> "LC-DRIVE" "limit power: reserve mode"
+            state "LC-SPD" "Reserve"
+        }
+    }
 }
 
 configuration "City" { id: "CFG-CITY" selects: ["LC-PACK-STD"] }
