@@ -9,7 +9,9 @@
 // 40 Ah battery keeps the essential bus above 24 V for the 30 minutes the
 // requirement asks; the 25 Ah battery does not. The envelope case sweeps the
 // 40 Ah battery over cold and heavier loads, and finds where it is not
-// enough: below 20 °C past 400 W, and at 700 W even at 20 °C.
+// enough: at -20 °C past 400 W, and at 700 W whatever the temperature.
+// Each expectation names the requirement it checks, so a sagging bus does
+// not hide that the load shedding works.
 
 model "Aircraft electrical network" {
     description: "A 28 V DC network: generator, battery, essential and non-essential loads, load shedding, two battery sizes checked by simulation"
@@ -63,9 +65,8 @@ logical_architecture "Electrical system" {
         component "Storage" {
             id: "LC-STORAGE"
             variation: true
-            // The energy of 25 Ah and 40 Ah at 24 V (ArcLang has no unit of charge).
-            component "25 Ah battery" { id: "LC-BAT-25" variant: true energy: 600 Wh }
-            component "40 Ah battery" { id: "LC-BAT-40" variant: true energy: 960 Wh }
+            component "25 Ah battery" { id: "LC-BAT-25" variant: true capacity: 25 Ah }
+            component "40 Ah battery" { id: "LC-BAT-40" variant: true capacity: 40 Ah }
         }
         component "Distribution" { id: "LC-DIST" }
         component "Essential consumers" { id: "LC-ESS" }
@@ -79,7 +80,7 @@ physical_architecture "Electrical hardware" {
     node "Starter generator" {
         id: "PN-GEN"
         voltage: 28 V
-        internal_resistance: 0.005
+        internal_resistance: 5 mOhm
         fails_at: 10 min
         deploys "LC-GEN"
         port "p" { is: "DC plus" }
@@ -90,8 +91,8 @@ physical_architecture "Electrical hardware" {
         id: "PN-BAT"
         full_voltage: 27.6 V
         empty_voltage: 21 V
-        internal_resistance: 0.025
-        temperature: 293.15 K
+        internal_resistance: 25 mOhm
+        temperature: 20 °C
         initial_soc: 80 %
         deploys "LC-STORAGE"
         port "p" { is: "DC plus" }
@@ -152,20 +153,20 @@ test_case "Generator loss, 25 Ah battery" {
     verifies: ["REQ-ESS-30MIN", "REQ-SHED"]
     method: "analysis"
     simulate: { model: "ElectricalNetworkPhysics.LightBattery" configuration: "CFG-25AH" stop_time: 40 min sources: ["physics/ElectricalNetworkPhysics.mo"] }
-    expects: ["min(\"PN-ESS\".voltage) >= 24 V", "at(40 min, \"PN-NESS\".drawn) <= 1 W"]
+    expects: ["REQ-ESS-30MIN: min(\"PN-ESS\".voltage) >= 24 V", "REQ-SHED: at(40 min, \"PN-NESS\".drawn) <= 1 W"]
 }
 test_case "Generator loss, 40 Ah battery" {
     id: "TC-LOSS-40"
     verifies: ["REQ-ESS-30MIN", "REQ-SHED"]
     method: "analysis"
     simulate: { model: "ElectricalNetworkPhysics.HeavyBattery" configuration: "CFG-40AH" stop_time: 40 min sources: ["physics/ElectricalNetworkPhysics.mo"] }
-    expects: ["min(\"PN-ESS\".voltage) >= 24 V", "at(40 min, \"PN-NESS\".drawn) <= 1 W"]
+    expects: ["REQ-ESS-30MIN: min(\"PN-ESS\".voltage) >= 24 V", "REQ-SHED: at(40 min, \"PN-NESS\".drawn) <= 1 W"]
 }
 test_case "Cold and heavy envelope, 40 Ah battery" {
     id: "TC-LOSS-ENVELOPE"
     verifies: ["REQ-ESS-ENVELOPE"]
     method: "analysis"
     simulate: { model: "ElectricalNetworkPhysics.HeavyBattery" configuration: "CFG-40AH" stop_time: 40 min sources: ["physics/ElectricalNetworkPhysics.mo"]
-                sweep: ["\"PN-BAT\".temperature = 253.15 K, 273.15 K, 293.15 K", "\"PN-ESS\".power = 400 W .. 700 W step 150 W"] }
+                sweep: ["\"PN-BAT\".temperature = -20 °C, 0 °C, 20 °C", "\"PN-ESS\".power = 400 W .. 700 W step 150 W"] }
     expects: ["min(\"PN-ESS\".voltage) >= 24 V"]
 }

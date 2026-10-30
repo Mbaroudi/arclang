@@ -20,6 +20,11 @@ pub fn si_type(dimension: Dimension) -> String {
         Dimension::Temperature => "Temperature",
         Dimension::Speed => "Velocity",
         Dimension::Angle => "Angle",
+        Dimension::Charge => "ElectricCharge",
+        Dimension::Resistance => "Resistance",
+        Dimension::ThermalConductance => "ThermalConductance",
+        Dimension::HeatCapacity => "HeatCapacity",
+        Dimension::Area => "Area",
         Dimension::Ratio => return "Real(unit=\"1\")".to_string(),
         Dimension::DataRate | Dimension::Information => return format!("Real(unit=\"{}\")", dimension.canonical_unit()),
     };
@@ -65,5 +70,11 @@ mod tests {
         assert!((value - 0.9).abs() < 1e-12);
         assert_eq!(si_type(Dimension::DataRate), "Real(unit=\"bit/s\")");
         assert!(parameter(&AttributeValue::String("x".into())).is_none());
+        let warm = AttributeValue::Quantity(Quantity::new(35.0, "°C").unwrap());
+        let (ty, value, written) = parameter(&warm).unwrap();
+        assert_eq!((ty.as_str(), written.as_str()), ("Modelica.Units.SI.Temperature", "35 °C"));
+        assert!((value - 308.15).abs() < 1e-9, "Modelica takes kelvin");
+        let ohm = AttributeValue::Quantity(Quantity::new(25.0, "mOhm").unwrap());
+        assert_eq!(parameter(&ohm).unwrap().0, "Modelica.Units.SI.Resistance");
     }
 }

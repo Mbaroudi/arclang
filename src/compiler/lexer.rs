@@ -508,7 +508,8 @@ impl Lexer {
             }
             '"' => self.read_string_literal(),
             _ if ch.is_ascii_digit() => self.read_number(),
-            _ if ch.is_alphabetic() || ch == '_' => self.read_identifier_or_keyword(),
+            // `°C`: the degree sign starts a unit symbol.
+            _ if ch.is_alphabetic() || ch == '_' || ch == '°' => self.read_identifier_or_keyword(),
             _ => Err(format!("Unexpected character: '{}'", ch)),
         }
     }
@@ -593,7 +594,7 @@ impl Lexer {
     fn read_identifier_or_keyword(&mut self) -> Result<Token, String> {
         let mut ident = String::new();
         
-        while !self.is_at_end() && (self.current_char().is_alphanumeric() || self.current_char() == '_') {
+        while !self.is_at_end() && (self.current_char().is_alphanumeric() || self.current_char() == '_' || (ident.is_empty() && self.current_char() == '°')) {
             ident.push(self.current_char());
             self.advance();
         }

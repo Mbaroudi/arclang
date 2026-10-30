@@ -107,9 +107,9 @@ physical_architecture "EV hardware" {
         id: "PN-BODY"
         mass: 2100 kg
         wheel_radius: 0.34 m
-        drag_area: 0.62
+        drag_area: 0.62 m²
         rolling_resistance: 0.011
-        ambient: 263.15 K
+        ambient: -10 °C
         deploys "LC-BODY"
         port "wheel" { physics: mechanical_rotational }
         port out "speed" { is: "Signal" }
@@ -203,6 +203,6 @@ test_case "Range envelope, long range pack" {
     verifies: ["REQ-RANGE-ENVELOPE"]
     method: "analysis"
     simulate: { model: "EVPhysics.TouringRange" configuration: "CFG-TOURING" stop_time: 5 h sources: ["physics/EVPhysics.mo"]
-                sweep: ["vehicleBody.ambient = 253.15 K, 273.15 K, 293.15 K", "\"PN-VCU\".speedController.target_speed = 90 km/h .. 110 km/h step 10 km/h"] }
+                sweep: ["vehicleBody.ambient = -20 °C, 0 °C, 20 °C", "\"PN-VCU\".speedController.target_speed = 90 km/h .. 110 km/h step 10 km/h"] }
     expects: ["final(vehicleBody.distance) >= 300 km", "min(\"PN-BATT\".soc) >= 0.1"]
 }

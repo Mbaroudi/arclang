@@ -20,7 +20,7 @@ package ElectricalNetworkPhysics "Physics of the aircraft electrical network"
 
   model Battery "Open-circuit voltage falling with the charge; less capacity and more resistance in the cold"
     extends AircraftElectricalNetwork.Physical.MainBattery;
-    parameter Real capacity_factor(unit="1") = 1 - 0.006 * (293.15 - temperature) "Usable fraction of the energy at this temperature";
+    parameter Real capacity_factor(unit="1") = 1 - 0.006 * (293.15 - temperature) "Usable fraction of the capacity at this temperature";
     parameter Real resistance_factor(unit="1") = 1 + 0.02 * max(0, 293.15 - temperature) "Internal resistance rise in the cold";
     Modelica.Electrical.Analog.Sources.SignalVoltage ocv "Open-circuit voltage";
     Modelica.Electrical.Analog.Basic.Resistor resistance(R=internal_resistance * resistance_factor);
@@ -33,7 +33,7 @@ package ElectricalNetworkPhysics "Physics of the aircraft electrical network"
     connect(resistance.n, ocv.p);
     connect(ocv.n, n);
     connect(ground.p, n);
-    der(soc) = ocv.v * resistance.i / (energy * capacity_factor);
+    der(soc) = resistance.i / (capacity * capacity_factor);
   end Battery;
 
   model Essential "Constant-power loads: avionics, flight instruments, radios"

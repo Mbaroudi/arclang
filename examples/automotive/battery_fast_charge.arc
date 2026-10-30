@@ -64,8 +64,8 @@ logical_architecture "Charging" {
         component "Thermal management" {
             id: "LC-THERMAL"
             variation: true
-            component "Air cooling" { id: "LC-AIR" variant: true cooling_conductance: 60 coolant_inlet: 308.15 K }
-            component "Liquid chiller" { id: "LC-CHILLER" variant: true cooling_conductance: 500 coolant_inlet: 291.15 K }
+            component "Air cooling" { id: "LC-AIR" variant: true cooling_conductance: 60 W/K coolant_inlet: 35 °C }
+            component "Liquid chiller" { id: "LC-CHILLER" variant: true cooling_conductance: 500 W/K coolant_inlet: 18 °C }
         }
         component "Battery management" { id: "LC-BMS" }
     }
@@ -79,9 +79,9 @@ physical_architecture "Charging hardware" {
         id: "PN-CELLS"
         energy: 75 kWh
         voltage: 400 V
-        internal_resistance: 0.04
+        internal_resistance: 40 mOhm
         mass: 420 kg
-        ambient: 308.15 K
+        ambient: 35 °C
         // Arriving from a highway drive: the cells are warmer than the air.
         warm_up: 8 K
         initial_soc: 10 %
@@ -113,9 +113,9 @@ physical_architecture "Charging hardware" {
         port out "limit" { is: "Signal" }
         behavior_component "Thermal regulator" {
             id: "BC-THERM"
-            pump_on: 303.15 K
-            derate_start: 318.15 K
-            derate_full: 326.15 K
+            pump_on: 30 °C
+            derate_start: 45 °C
+            derate_full: 53 °C
             port in "temperature" { is: "Signal" }
             port out "pump_cmd" { is: "Signal" }
             port out "limit" { is: "Signal" }
@@ -150,20 +150,20 @@ test_case "Fast charge, air cooled" {
     verifies: ["REQ-CELL-TEMP", "REQ-CHARGE-TIME"]
     method: "analysis"
     simulate: { model: "FastChargePhysics.AirCooledCharge" configuration: "CFG-AIR" stop_time: 90 min sources: ["physics/FastChargePhysics.mo"] }
-    expects: ["max(\"PN-CELLS\".core.T) <= 328.15 K", "final(\"PN-CELLS\".soc) >= 0.8", "final(\"PN-CHARGER\".elapsed) <= 30 min"]
+    expects: ["REQ-CELL-TEMP: max(\"PN-CELLS\".core.T) <= 55 °C", "REQ-CHARGE-TIME: final(\"PN-CELLS\".soc) >= 0.8", "REQ-CHARGE-TIME: final(\"PN-CHARGER\".elapsed) <= 30 min"]
 }
 test_case "Fast charge, chilled" {
     id: "TC-CHARGE-CHILLED"
     verifies: ["REQ-CELL-TEMP", "REQ-CHARGE-TIME"]
     method: "analysis"
     simulate: { model: "FastChargePhysics.ChilledCharge" configuration: "CFG-CHILLED" stop_time: 90 min sources: ["physics/FastChargePhysics.mo"] }
-    expects: ["max(\"PN-CELLS\".core.T) <= 328.15 K", "final(\"PN-CELLS\".soc) >= 0.8", "final(\"PN-CHARGER\".elapsed) <= 30 min"]
+    expects: ["REQ-CELL-TEMP: max(\"PN-CELLS\".core.T) <= 55 °C", "REQ-CHARGE-TIME: final(\"PN-CELLS\".soc) >= 0.8", "REQ-CHARGE-TIME: final(\"PN-CHARGER\".elapsed) <= 30 min"]
 }
 test_case "Hot climate envelope, chilled" {
     id: "TC-HOT-ENVELOPE"
     verifies: ["REQ-HOT-ENVELOPE"]
     method: "analysis"
     simulate: { model: "FastChargePhysics.ChilledCharge" configuration: "CFG-CHILLED" stop_time: 90 min sources: ["physics/FastChargePhysics.mo"]
-                sweep: ["\"PN-CELLS\".ambient = 298.15 K .. 313.15 K step 5 K", "\"PN-CHARGER\".max_power = 100 kW, 150 kW"] }
-    expects: ["max(\"PN-CELLS\".core.T) <= 328.15 K", "final(\"PN-CELLS\".soc) >= 0.8", "final(\"PN-CHARGER\".elapsed) <= 35 min"]
+                sweep: ["\"PN-CELLS\".ambient = 25 °C .. 40 °C step 5 °C", "\"PN-CHARGER\".max_power = 100 kW, 150 kW"] }
+    expects: ["max(\"PN-CELLS\".core.T) <= 55 °C", "final(\"PN-CELLS\".soc) >= 0.8", "final(\"PN-CHARGER\".elapsed) <= 35 min"]
 }

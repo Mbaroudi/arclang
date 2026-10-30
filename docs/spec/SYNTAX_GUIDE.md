@@ -252,6 +252,11 @@ deceleration: 0.3
 - Negative numbers: `-40`, `-12.5`
 - Scientific notation: `1.5e7`, `2E-3` (a heat capacity in J/K, a small resistance)
 
+**Quantities of physics**: `35 °C` (or `35 degC`, a temperature level:
+308.15 K; a difference of temperatures is written in K), `40 Ah`, `2500 mAh`,
+`25 mOhm` (or `mΩ`), `200 W/K`, `15 MJ/K`, `0.62 m²`. `arclang metamodel`
+lists every unit.
+
 **Identifiers**:
 ```arc
 priority: Critical
