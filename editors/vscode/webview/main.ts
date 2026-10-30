@@ -23,6 +23,7 @@ import { MultiSelection } from './multi-select';
 import { installNavMenu } from './nav-menu'; // nav hook
 import { installPanes } from './panes'; // panes hook
 import { installImpact } from './impact-marks'; // impact hook
+import { installDebugMarks } from './debug-marks'; // debug hook
 import { comparing, installCompare } from './compare'; // semgit hook
 import { installFileMenu } from './file-menu';
 import { DiagramExports } from './diagram-export';
@@ -840,6 +841,7 @@ installNavMenu({ toolRow: document.querySelector<HTMLElement>('.wb-toolrow'), sh
 installPanes({ sheet, layerBar, viewer: () => state.viewer, graph: () => currentGraph(), snapshot: () => state.snapshot, idOf: (id) => elementFor({ view: '', id, name: '', kind: '', isEdge: false })?.id ?? null, select: (element) => selectElement(element, false), submit, toast: (text, kind) => showToast(text, kind), post: (message) => vscode.postMessage(message as never), showGraph });
 
 installImpact({ post: (m) => vscode.postMessage(m as never), host, layerBar, drawingId, selection: () => (multiSelection.elements.length > 1 ? multiSelection.elements : state.selected ? [state.selected] : []) }); // impact hook
+installDebugMarks(host); // debug hook
 // zorder hook: Arrange (stacking, groups, locks, layers) on the canvas (webview/arrange.ts).
 installArrange({ host, sheet, viewer: () => state.viewer, graph: () => currentGraph(), snapshot: () => state.snapshot, selected: () => state.selected, selectedDrawing: () => state.selectedDrawing, multi: () => multiSelection.elements, setMulti: (elements) => { multiSelection.elements = elements; if (elements.length) selectElement(elements[elements.length - 1], false); markMulti(); }, select: selectElement, elementFor: (id, isEdge = false) => elementFor({ view: '', id, name: '', kind: '', isEdge }), drawingId, submit, toast: (text, kind) => showToast(text, kind) });
 

@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- **Run and debug a state machine**: F5 (or *ArcLang: Run the state machine*) on a `.arc` model runs its state machine through `arclang debug --dap`. Breakpoints (F9) on a state stop when it is entered, on a transition when it fires; an event is fired by typing its name in the debug console, `fire <event>`, or *ArcLang: Fire an event* (debug toolbar); a guard is the author's text, a condition set with `set <guard> true|false` or in Variables (*Conditions*); *Step Over* is a completion step. The active states are the call stack, at their declarations; the workbench diagram outlines them and draws the transition just fired. Compiler: `arclang debug model.arc --events a,b --set "<guard>"` in a terminal. Test: `test/e2e/vscode_debug_test.js`.
+
 ## 4.7.0
 
 - **A trace drawn on the diagram.** A trace whose two ends a view draws is a dashed line labelled by its type (`satisfies`, `allocates`...). Selected, it is the trace (its type in the properties); an end dragged onto another element reconnects it; Delete removes its line from the source; ⌘Z brings it back. Two traces between the same ends are told apart by their type. Test: `test/e2e/vscode_trace_test.js`.

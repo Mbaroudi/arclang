@@ -675,3 +675,7 @@ button.wb-icon-button.wb-bar-toggle.wb-save.is-dirty:hover { background: var(--v
 .wb-nav-button .wb-nav-plus { font-weight: 600; margin-right: 2px; }
 .wb-layer.wb-layer-more { margin-left: auto; opacity: 0.85; font-style: italic; }
 @media (max-width: 620px) { .wb-nav-button .wb-toggle-label { display: none; } }
+
+/* The running state machine (debug hook): active states, the transition just fired. */
+.wb-debug-active > .av-shape { stroke: #22c55e !important; stroke-width: 3px !important; filter: drop-shadow(0 0 6px rgba(34, 197, 94, 0.7)); }
+.wb-debug-fired .av-line { stroke: #f59e0b !important; stroke-width: 3px !important; }

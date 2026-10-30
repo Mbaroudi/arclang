@@ -1,3 +1,4 @@
+import { debugTargets, firePicks } from '../../src/pure/debug';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
@@ -244,4 +245,11 @@ test('a state is asserted on the lifeline offered, or on the one named, as a sta
   assert.deepEqual(invariantRequest('Run', 'tick', 'tick', 'LC-B', lines, 'state'), { op: 'wrap_invariant', scenario: 'Run', keyword: 'state', lifeline: 'LC-B', name: 'state', first: 'tick', last: 'tick' });
   assert.ok('error' in (invariantRequest('Run', 'tick', 'tick', 'LC-B', lines, 'Driver: Armed') as object));
   assert.ok('error' in (invariantRequest('Run', 'tick', 'tick', 'LC-B', lines, '  ') as object));
+});
+
+test('the debugger lights the active states and the transition fired, and offers the events waited for', () => {
+  assert.deepEqual(debugTargets({ type: 'debug-state', machine: 'Charger', active: ['Charging', 'Charging.Bulk'], fired: ['Charging.Precharge -> Charging.Bulk'] }), { states: ['Charger.Charging', 'Charger.Charging.Bulk'], transitions: ['tr:Precharge -> Bulk'] });
+  assert.deepEqual(debugTargets({ type: 'debug-state', machine: '', active: [], fired: [] }), { states: [], transitions: [] });
+  const picks = firePicks(['SF-DET']);
+  assert.deepEqual(picks.map((p) => p.event), ['SF-DET', null, '?']);
 });
