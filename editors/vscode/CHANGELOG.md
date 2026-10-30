@@ -1,9 +1,12 @@
 # Changelog
 
-## Unreleased
+## 4.8.0
 
 - **Run and debug a state machine, a scenario or a functional chain**: *ArcLang: Run…* offers what the model runs (F5 runs the first) through `arclang debug --dap`. A **scenario** plays message by message (alt takes the operand whose guard is set, opt and loop as written or while their condition holds, par in the order written; state invariants hold on their lifelines); its view is shown with the message just sent drawn bold. A **functional chain** runs as a token game (or: the branch whose condition holds; and: fork and join; iterate: loops while its condition holds); the steps holding a token are outlined. A breakpoint on a message or a chain step stops when it is reached.
 - **State machines**: F5 on a `.arc` model runs its state machine. Breakpoints (F9) on a state stop when it is entered, on a transition when it fires; an event is fired by typing its name in the debug console, `fire <event>`, or *ArcLang: Fire an event* (debug toolbar); a guard is the author's text, a condition set with `set <guard> true|false` or in Variables (*Conditions*); *Step Over* is a completion step. The active states are the call stack, at their declarations; the workbench diagram outlines them and draws the transition just fired. Compiler: `arclang debug model.arc --events a,b --set "<guard>"` in a terminal. Test: `test/e2e/vscode_debug_test.js`.
+- **Errors where they are written**: a semantic error (an unknown reference, a note about nothing declared, a `leads_to` naming no hazard) is underlined on the name it is about, as you type, no longer on line 1. **Completion of references**: after `about:`, `leads_to:`, `element:`, `from:`, `satisfies:`… (in a list too), the ids of the declared elements of the right kind; `note`, `configuration` and `fmea` offered where they may be written.
+- **SysML v2**: a type of physical or system ports is exported as a port definition; the OMG pilot accepts every example again.
+- Needs the 4.8 compiler.
 
 ## 4.7.0
 
