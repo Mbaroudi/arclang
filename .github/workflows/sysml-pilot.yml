@@ -31,6 +31,10 @@ jobs:
   pilot:
     name: OMG pilot accepts every exported example
     runs-on: ubuntu-latest
+    env:
+      # The pilot's Java kernel runs out of its default heap on the larger
+      # examples (data platform migration, 836 elements).
+      JAVA_TOOL_OPTIONS: -Xmx8g
     defaults:
       run:
         shell: bash -el {0}
