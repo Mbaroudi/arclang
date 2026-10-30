@@ -276,14 +276,21 @@ pub fn elements_json(graph: &ElementGraph) -> serde_json::Value {
             }
             record
         }).collect::<Vec<_>>(),
-        "relationships": graph.relationships.iter().map(|relationship| json!({
-            "uuid": relationship.uuid,
-            "kind": relationship.kind,
-            "name": relationship.name,
-            "source": relationship.source,
-            "target": relationship.target,
-            "attributes": elements::attributes_json(&relationship.attributes),
-        })).collect::<Vec<_>>(),
+        "relationships": graph.relationships.iter().map(|relationship| {
+            let mut record = json!({
+                "uuid": relationship.uuid,
+                "kind": relationship.kind,
+                "name": relationship.name,
+                "source": relationship.source,
+                "target": relationship.target,
+                "attributes": elements::attributes_json(&relationship.attributes),
+            });
+            // A trace has no name: its type tells two traces between the same ends apart.
+            if let Some(kind) = relationship.extra.get("traceKind") {
+                record["traceKind"] = kind.clone();
+            }
+            record
+        }).collect::<Vec<_>>(),
     })
 }
 
@@ -364,6 +371,20 @@ pub enum EditRequest {
         layer: Option<String>,
         layer_name: Option<String>,
     },
+}
+
+/// How an end of a trace may be written: as asked, and the id and the
+/// name of the element it designates.
+fn trace_end_spellings(source: &str, designator: &str) -> Vec<String> {
+    let mut spellings = vec![designator.to_string()];
+    if let Ok(compiled) = compile_text(source) {
+        let graph = elements::build(&compiled.ast, &compiled.semantic_model);
+        if let Some(element) = graph.elements.iter().find(|e| e.id == designator || e.name == designator) {
+            spellings.extend([element.id.clone(), element.name.clone()]);
+        }
+    }
+    spellings.dedup();
+    spellings
 }
 
 pub fn compile_text(source: &str) -> Result<CompilationResult, String> {
@@ -567,7 +588,12 @@ pub fn edit(source: &str, request: &EditRequest) -> Result<String, String> {
             source_edit::move_element(source, element, container)
         }
         EditRequest::AddTrace { from, kind, to } => source_edit::add_trace(source, from, kind, to),
-        EditRequest::RemoveTrace { from, kind, to } => source_edit::remove_trace(source, &[from.as_str()], kind, &[to.as_str()]),
+        EditRequest::RemoveTrace { from, kind, to } => {
+            // A trace writes an end by its id or its name: either designates it.
+            let (from, to) = (trace_end_spellings(source, from), trace_end_spellings(source, to));
+            let (from, to): (Vec<&str>, Vec<&str>) = (from.iter().map(String::as_str).collect(), to.iter().map(String::as_str).collect());
+            source_edit::remove_trace(source, &from, kind, &to)
+        }
         EditRequest::Reconnect { .. } | EditRequest::Duplicate { .. } | EditRequest::DuplicateMany { .. } => unreachable!("handled by edit_links"),
     }
     .map_err(|e| e.to_string())?;

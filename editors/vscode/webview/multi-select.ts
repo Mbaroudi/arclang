@@ -1,7 +1,8 @@
 // The multi-selection of the workbench (Shift+click): the elements selected
 // together, marked on the drawing, with a bar to delete or hide them all in
 // one gesture. The page keeps the primary selection; this keeps the others.
-import { EditRequest, ElementRecord } from '../src/pure/workbench';
+import { EditRequest, ElementRecord, Snapshot } from '../src/pure/workbench';
+import { removalOf } from '../src/pure/editing';
 import { button, el } from './dom';
 import { arrangeAllows } from './arrange'; // zorder hook
 
@@ -18,6 +19,8 @@ export interface MultiSelectionDeps {
   submit: (requests: EditRequest[], label: string) => void;
   /** Hide the elements from the diagram on screen. */
   hide: (elements: ElementRecord[]) => void;
+  /** The model, for what deleting an element asks (a trace is removed by its ends). */
+  snapshot?: () => Snapshot | null;
 }
 
 export class MultiSelection {
@@ -85,7 +88,7 @@ export class MultiSelection {
   deleteMany(elements: ElementRecord[]): void {
     if (!arrangeAllows(elements, 'delete')) return; // zorder hook
     const targets = this.outermost(elements);
-    this.d.submit(targets.map((e) => ({ op: 'remove', element: e.id })), `delete ${targets.length} elements`);
+    this.d.submit(targets.map((e) => removalOf(e, this.d.snapshot?.())), `delete ${targets.length} elements`);
     this.elements = [];
     this.mark();
   }

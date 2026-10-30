@@ -6,10 +6,10 @@
 //! diagrams so a viewer can take the reader from an element to the ones it
 //! is traced to, in whichever view draws them.
 
-use super::{Diagram, Node, NodeKind};
+use super::{Diagram, Edge, EdgeKind, Node, NodeKind};
 use crate::compiler::ast::Model;
 use serde::Serialize;
-use std::collections::{BTreeSet, HashMap, HashSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 
 /// One trace, its ends resolved to the ids the diagrams use.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize)]
@@ -41,6 +41,58 @@ pub(super) fn cross_links(model: &Model, diagrams: &[Diagram]) -> Vec<Link> {
         })
         .filter(|link| seen.insert(link.clone()))
         .collect()
+}
+
+/// Draw on each diagram the traces whose two ends it draws: a dashed line
+/// labelled by the trace type, which the editor selects, reconnects and
+/// deletes like any other line. A scenario draws lifelines, not elements:
+/// it gets none.
+pub(super) fn draw_traces(model: &Model, diagrams: &mut [Diagram]) {
+    let traces: Vec<_> = model
+        .traces
+        .iter()
+        .chain(model.operational_analysis.iter().flat_map(|oa| oa.traces.iter()))
+        .collect();
+    if traces.is_empty() {
+        return;
+    }
+    let undrawn = undrawn_names(model);
+    for diagram in diagrams.iter_mut() {
+        let drawn = Drawn::of(std::slice::from_ref(diagram), undrawn.clone());
+        let mut taken: HashSet<String> = diagram.edges.iter().map(|e| e.id.clone()).collect();
+        let mut stack: Vec<&Node> = diagram.nodes.iter().collect();
+        while let Some(node) = stack.pop() {
+            stack.extend(node.children.iter());
+            taken.insert(node.id.clone());
+            taken.extend(node.ports.iter().map(|p| p.id.clone()));
+        }
+        let mut added: Vec<Edge> = Vec::new();
+        let mut seen: HashSet<(String, String, String)> = HashSet::new();
+        for trace in &traces {
+            let (source, target) = (drawn.resolve(&trace.from), drawn.resolve(&trace.to));
+            if !drawn.ids.contains(source.as_str()) || !drawn.ids.contains(target.as_str()) || source == target {
+                continue;
+            }
+            if !seen.insert((source.clone(), trace.trace_type.clone(), target.clone())) {
+                continue;
+            }
+            let base = format!("trc:{source} {} {target}", trace.trace_type);
+            let id = (1..).map(|n| if n == 1 { base.clone() } else { format!("{base}#{n}") }).find(|id| !taken.contains(id)).expect("an unused id");
+            taken.insert(id.clone());
+            added.push(Edge {
+                id,
+                kind: EdgeKind::Trace,
+                source,
+                source_port: None,
+                target,
+                target_port: None,
+                label: trace.trace_type.clone(),
+                exchange_item: None,
+                properties: BTreeMap::from([("trace".to_string(), trace.trace_type.clone())]),
+            });
+        }
+        diagram.edges.extend(added);
+    }
 }
 
 /// The elements the diagrams draw, by id and by name.

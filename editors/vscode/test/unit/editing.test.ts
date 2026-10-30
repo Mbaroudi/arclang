@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { writtenRef, alignMoves, distributeMoves, edgeEndIds, freshIdLike, modelIdOf, moveTargets, pasteRequests, quickConnectPlan, reconnectKinds, reconnectPlan, relationshipOfEdge, reversePlan } from '../../src/pure/editing';
+import { writtenRef, alignMoves, distributeMoves, edgeEndIds, freshIdLike, modelIdOf, moveTargets, pasteRequests, quickConnectPlan, reconnectKinds, reconnectPlan, relationshipOfEdge, removalOf, reversePlan } from '../../src/pure/editing';
 import { ElementRecord, RelationshipRecord, Snapshot, ViewerGraph } from '../../src/pure/workbench';
 
 const element = (uuid: string, id: string, kind: string, owner: string | null = 'm', name = id): ElementRecord => ({ uuid, id, kind, name, owner, attributes: {} });
@@ -50,6 +50,28 @@ test('an exchange reconnected to a box gets a port there, to a port goes straigh
   assert.ok('error' in (reconnectPlan(flow, 'source', elements.find((e) => e.id === 'LC-B.q')!, elements) as object), 'an in port is no source');
   assert.deepEqual(reconnectKinds('ComponentExchange', 'lab'), ['LogicalComponent', 'ComponentPort']);
   assert.equal(reconnectKinds('Message', 'es'), null);
+});
+
+test('a trace drawn on a view is told apart by its type, reconnected by it and removed by its ends', () => {
+  const refines: RelationshipRecord = { uuid: 't1', kind: 'Trace', name: '', source: 'a', target: 'b', traceKind: 'allocates' };
+  const implementsIt: RelationshipRecord = { uuid: 't2', kind: 'Trace', name: '', source: 'a', target: 'b', traceKind: 'implements' };
+  const traced = { elements: { elements, relationships: [flow, refines, implementsIt] } } as unknown as Snapshot;
+  const lab: ViewerGraph = {
+    id: 'lab',
+    arc: { view: 'lab', title: 'L' },
+    edges: [
+      { id: 'trc:LC-A allocates LC-B', arc: { kind: 'trace', properties: { trace: 'allocates' } }, sources: ['LC-A'], targets: ['LC-B'] },
+      { id: 'trc:LC-A implements LC-B', arc: { kind: 'trace', properties: { trace: 'implements' } }, sources: ['LC-A'], targets: ['LC-B'] },
+    ],
+  };
+  assert.equal(relationshipOfEdge('trc:LC-A allocates LC-B', lab, traced)?.uuid, 't1');
+  assert.equal(relationshipOfEdge('trc:LC-A implements LC-B', lab, traced)?.uuid, 't2');
+  assert.deepEqual(reconnectPlan(implementsIt, 'target', elements.find((e) => e.id === 'LC-C')!, elements), [
+    { op: 'reconnect', kind: 'Trace', from: 'LC-A', to: 'LC-B', name: 'implements', new_to: 'LC-C' },
+  ]);
+  const asElement: ElementRecord = { uuid: 't2', id: 'Trace', kind: 'Trace', name: '', owner: null, attributes: {} };
+  assert.deepEqual(removalOf(asElement, traced), { op: 'remove_trace', from: 'LC-A', kind: 'implements', to: 'LC-B' });
+  assert.deepEqual(removalOf(elements[1], traced), { op: 'remove', element: 'LC-A' });
 });
 
 test('boxes align on the outermost edge or the centre, and distribute with equal gaps', () => {

@@ -122,3 +122,28 @@ trace "SF-2" satisfies "Braking"
 
     assert_eq!(set.links, vec![link("satisfies", "SF-2", "Braking")]);
 }
+
+#[test]
+fn a_trace_between_two_elements_of_a_view_is_drawn_there_once() {
+    let set = diagrams_of(
+        r#"
+logical_architecture "L" {
+    component "A" { id: "LC-A" }
+    component "B" { id: "LC-B" }
+    component "C" { id: "LC-C" }
+}
+system_analysis "S" { function "X" { id: "SF-X" } }
+trace "LC-A" refines "LC-B"
+trace "A" refines "LC-B"
+trace "LC-C" realizes "SF-X"
+"#,
+    );
+    let lab = set.diagrams.iter().find(|d| d.id == "lab").expect("a logical view");
+    let traces: Vec<_> = lab.edges.iter().filter(|e| e.kind == arclang::compiler::diagram::EdgeKind::Trace).collect();
+    assert_eq!(traces.len(), 1, "{traces:?}");
+    assert_eq!((traces[0].source.as_str(), traces[0].target.as_str(), traces[0].label.as_str()), ("LC-A", "LC-B", "refines"));
+    assert_eq!(traces[0].properties.get("trace").map(String::as_str), Some("refines"));
+    // A trace to another level stays a link: no view draws both ends.
+    assert!(set.diagrams.iter().all(|d| d.edges.iter().all(|e| e.source != "LC-C")));
+    assert!(set.diagrams.iter().all(|d| d.validate().is_empty()));
+}

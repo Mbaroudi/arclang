@@ -76,6 +76,7 @@
     association: { stroke: '#7A6A2A', width: 1.3, label: 'Typed by', arrow: true },
     item_element: { stroke: '#3C8A3F', width: 1.3, dash: '5 3', label: 'Groups', arrow: true },
     breakdown: { stroke: '#3D4852', width: 1.4, label: 'Made of', arrow: false },
+    trace: { stroke: '#6B5B95', width: 1.3, dash: '3 3', label: 'Trace', arrow: true },
   };
   const FALLBACK_EDGE = { stroke: '#444B52', width: 1.4, label: 'Link', arrow: true };
 

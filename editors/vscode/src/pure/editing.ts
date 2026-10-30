@@ -15,6 +15,7 @@ export const RELATIONSHIP_OF_EDGE: Record<string, string> = {
   transition: 'Transition',
   message: 'Message',
   association: 'Association',
+  trace: 'Trace',
 };
 
 /** The connect tool whose ends a relationship's ends may be, by relationship kind. */
@@ -75,7 +76,9 @@ export function relationshipOfEdge(edgeId: string, graph: ViewerGraph, snapshot:
   const to = byId.get(target);
   if (!from || !to) return null;
   const kind = RELATIONSHIP_OF_EDGE[edge.arc.kind];
-  const candidates = (snapshot.elements.relationships ?? []).filter((r) => r.source === from.uuid && r.target === to.uuid && (!kind || r.kind === kind));
+  // A trace is told apart by its type, which its line carries.
+  const traceKind = kind === 'Trace' ? edge.arc.properties?.trace : undefined;
+  const candidates = (snapshot.elements.relationships ?? []).filter((r) => r.source === from.uuid && r.target === to.uuid && (!kind || r.kind === kind) && (!traceKind || r.traceKind === traceKind));
   if (candidates.length <= 1) return candidates[0] ?? null;
   const name = label ?? edgeId.replace(/^[a-z]+:/, '');
   return candidates.find((r) => r.name === name) ?? candidates[0];
@@ -128,10 +131,30 @@ export function reconnectPlan(relationship: RelationshipRecord, end: 'source' | 
     kind: relationship.kind,
     from: both.from.id,
     to: both.to.id,
-    ...(relationship.name ? { name: relationship.name } : {}),
+    ...(relationshipName(relationship) ? { name: relationshipName(relationship) } : {}),
     ...(end === 'source' ? { new_from: newEnd } : { new_to: newEnd }),
   };
   return [...requests, reconnect];
+}
+
+/** What tells a relationship apart from another between the same ends: its name, a trace's type. */
+function relationshipName(relationship: RelationshipRecord): string | undefined {
+  return relationship.name || relationship.traceKind || undefined;
+}
+
+/**
+ * The request that deletes an element of the page: a trace (drawn as a
+ * line, it is no declaration of its own) is removed by its ends and type.
+ */
+export function removalOf(element: ElementRecord, snapshot: Snapshot | null | undefined): EditRequest {
+  if (element.kind === 'Trace') {
+    const relationship = (snapshot?.elements?.relationships ?? []).find((r) => r.uuid === element.uuid);
+    const records = snapshot?.elements?.elements ?? [];
+    const from = relationship && records.find((e) => e.uuid === relationship.source);
+    const to = relationship && records.find((e) => e.uuid === relationship.target);
+    if (relationship?.traceKind && from && to) return { op: 'remove_trace', from: from.id, kind: relationship.traceKind, to: to.id };
+  }
+  return { op: 'remove', element: element.id };
 }
 
 /**
@@ -150,7 +173,7 @@ export function reversePlan(relationship: RelationshipRecord, elements: ElementR
     if (carried > 1) return { error: `${port.id} carries other exchanges: it cannot turn around for this one` };
     flips.push({ op: 'set', element: port.id, key: 'direction', value: next });
   }
-  return [...flips, { op: 'reconnect', kind: relationship.kind, from: both.from.id, to: both.to.id, ...(relationship.name ? { name: relationship.name } : {}), new_from: both.to.id, new_to: both.from.id }];
+  return [...flips, { op: 'reconnect', kind: relationship.kind, from: both.from.id, to: both.to.id, ...(relationshipName(relationship) ? { name: relationshipName(relationship) } : {}), new_from: both.to.id, new_to: both.from.id }];
 }
 
 // --- Align and distribute ---------------------------------------------------
