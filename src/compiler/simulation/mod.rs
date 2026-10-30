@@ -96,9 +96,17 @@ pub struct Status {
 }
 
 /// One run of a case, as cached and reported.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 pub struct Outcome {
     pub test_case: String,
+    /// The test case's name, the requirements it verifies and the name of
+    /// its configuration: what a reader of the log looks for.
+    #[serde(default)]
+    pub name: String,
+    #[serde(default)]
+    pub verifies: Vec<String>,
+    #[serde(default)]
+    pub configuration_name: Option<String>,
     pub verdict: String,
     pub reason: String,
     pub values: Vec<expects::Evaluated>,
@@ -110,6 +118,26 @@ pub struct Outcome {
     #[serde(default)]
     pub omc_version: String,
     pub log: String,
+    /// How long the run took, in seconds (0 when nothing ran).
+    #[serde(default)]
+    pub seconds: f64,
+}
+
+/// `verifies REQ-RANGE · configuration City (CFG-CITY) · model EVPhysics.CityRange`.
+pub fn context_line(outcome: &Outcome) -> String {
+    let mut parts = Vec::new();
+    if !outcome.verifies.is_empty() {
+        parts.push(format!("verifies {}", outcome.verifies.join(", ")));
+    }
+    match (&outcome.configuration_name, &outcome.configuration) {
+        (Some(name), Some(id)) if name != id => parts.push(format!("configuration {name} ({id})")),
+        (_, Some(id)) => parts.push(format!("configuration {id}")),
+        _ => {}
+    }
+    if !outcome.model.is_empty() {
+        parts.push(format!("model {}", outcome.model));
+    }
+    parts.join(" · ")
 }
 
 impl Outcome {

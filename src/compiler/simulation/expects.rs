@@ -360,6 +360,10 @@ pub struct Evaluated {
     /// `final(vehicleBody.distance) = 287.4 km`.
     pub value: String,
     pub holds: bool,
+    /// How far the value is from its bound: `short by 0.07341`,
+    /// `19.9 km to spare`. Empty for an equality that holds.
+    #[serde(default)]
+    pub margin: String,
 }
 
 pub struct Context<'a> {
@@ -466,7 +470,16 @@ pub fn evaluate(expect: &Expect, context: &mut Context<'_>) -> Result<Evaluated,
     let holds = expect.cmp.holds(lhs.si, rhs.si);
     let unit = written_unit(&expect.rhs).or_else(|| written_unit(&expect.lhs));
     let value = format!("{} = {}", label(&expect.lhs), shown(lhs, unit));
-    Ok(Evaluated { expect: expect.text.clone(), value, holds })
+    let gap = shown(Value { si: (lhs.si - rhs.si).abs(), dim: lhs.dim.or(rhs.dim) }, unit);
+    let margin = match (expect.cmp, holds) {
+        (Cmp::Eq, true) => String::new(),
+        (Cmp::Ne, false) => "equal".to_string(),
+        (Cmp::Eq, false) | (Cmp::Ne, true) => format!("off by {gap}"),
+        (Cmp::Gt | Cmp::Ge, false) => format!("short by {gap}"),
+        (Cmp::Lt | Cmp::Le, false) => format!("over by {gap}"),
+        _ => format!("{gap} to spare"),
+    };
+    Ok(Evaluated { expect: expect.text.clone(), value, holds, margin })
 }
 
 #[cfg(test)]
@@ -503,6 +516,16 @@ mod tests {
         assert!(run("at(0.5 h, body.distance) == 150 km").unwrap().holds);
         assert!(run("final(body.distance) - initial(body.distance) > 2 * 150 km").unwrap().holds);
         assert!(run("min(\"PN-BATT\".soc) >= 0.1").unwrap().holds, "an ArcLang id names the instance");
+    }
+
+    #[test]
+    fn margins_say_how_far_a_value_is_from_its_bound() {
+        assert_eq!(run("min(battery.soc) >= 0.25").unwrap().margin, "short by 0.05");
+        assert_eq!(run("min(battery.soc) >= 0.1").unwrap().margin, "0.1 to spare");
+        assert_eq!(run("final(body.distance) >= 300 km").unwrap().margin, "0.5 km to spare");
+        assert_eq!(run("max(body.speed) < 100 km/h").unwrap().margin, "over by 0.08 km/h");
+        assert_eq!(run("initial(battery.soc) == 1").unwrap().margin, "");
+        assert_eq!(run("initial(battery.soc) == 0.5").unwrap().margin, "off by 0.5");
     }
 
     #[test]

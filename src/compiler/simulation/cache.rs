@@ -106,7 +106,7 @@ mod tests {
             configuration: None,
             tool: "omc".into(),
             omc_version: "v1".into(),
-            log: String::new(),
+            ..Default::default()
         };
         let path = write(dir.path(), &outcome).unwrap();
         assert!(path.ends_with("TC_1.json"));

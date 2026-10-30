@@ -18,6 +18,11 @@ fn configuration_id(result: &CompilationResult, spec: &Spec) -> Option<String> {
     result.ast.configurations.iter().find(|c| &c.id == written || &c.name == written).map(|c| c.id.clone()).or_else(|| Some(written.clone()))
 }
 
+fn configuration_name(result: &CompilationResult, spec: &Spec) -> Option<String> {
+    let written = spec.configuration.as_ref()?;
+    result.ast.configurations.iter().find(|c| &c.id == written || &c.name == written).map(|c| c.name.clone())
+}
+
 /// The cached verdict of every simulated case, as this compilation sees it:
 /// fresh when its key still matches, otherwise inconclusive (stale, or
 /// never simulated). Nothing is simulated here.
@@ -81,6 +86,9 @@ pub fn verify(result: &CompilationResult, model_path: &Path, only: Option<&str>,
         let key = cache::key(&export.text, &base, &spec, &expects);
         let mut outcome = Outcome {
             test_case: test.id.clone(),
+            name: test.name.clone(),
+            verifies: test.verifies.clone(),
+            configuration_name: configuration_name(result, &spec),
             verdict: "inconclusive".to_string(),
             reason: String::new(),
             values: Vec::new(),
@@ -88,8 +96,7 @@ pub fn verify(result: &CompilationResult, model_path: &Path, only: Option<&str>,
             model: spec.model.clone(),
             configuration: configuration_id(result, &spec),
             tool: String::new(),
-            omc_version: String::new(),
-            log: String::new(),
+            ..Default::default()
         };
         if !spec.backend.available() {
             outcome.reason = format!("backend '{}' is declared but not implemented yet: only 'openmodelica' runs", spec.backend.name());
@@ -100,7 +107,9 @@ pub fn verify(result: &CompilationResult, model_path: &Path, only: Option<&str>,
             Err(reason) => outcome.reason = reason.clone(),
             Ok(tool) => {
                 outcome.tool = tool.describe();
+                let started = std::time::Instant::now();
                 simulate(tool, &export, &base, &spec, &expects, config, &mut outcome);
+                outcome.seconds = started.elapsed().as_secs_f64();
                 if outcome.verdict != "inconclusive" {
                     cache::write(&dir, &outcome)?;
                 }

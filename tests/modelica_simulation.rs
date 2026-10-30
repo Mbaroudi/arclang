@@ -233,13 +233,13 @@ fn cached(model: &Path, test: &str, verdict: &str, values: Vec<simulation::expec
         configuration: spec.configuration,
         tool: "test".into(),
         omc_version: "OpenModelica test".into(),
-        log: String::new(),
+        ..Default::default()
     };
     cache::write(&cache::dir(model), &outcome).unwrap();
 }
 
 fn value(text: &str, holds: bool) -> simulation::expects::Evaluated {
-    simulation::expects::Evaluated { expect: "e".into(), value: text.into(), holds }
+    simulation::expects::Evaluated { expect: "e".into(), value: text.into(), holds, margin: String::new() }
 }
 
 #[test]
@@ -366,6 +366,12 @@ fn openmodelica_checks_the_package_and_verifies_the_demo() {
     let verdict = |id: &str| outcomes.iter().find(|o| o.test_case == id).unwrap().verdict.clone();
     assert_eq!(verdict("TC-RANGE-LR"), "pass");
     assert_eq!(verdict("TC-RANGE-STD"), "fail");
+    // What the log says of a failure: how far, how long, what OpenModelica printed.
+    let std = outcomes.iter().find(|o| o.test_case == "TC-RANGE-STD").unwrap();
+    let soc = std.values.iter().find(|v| !v.holds).unwrap();
+    assert!(soc.margin.starts_with("short by 0.07"), "{soc:?}");
+    assert!(std.values.iter().any(|v| v.holds && v.margin.ends_with("km to spare")), "{:?}", std.values);
+    assert!(std.seconds > 0.0 && std.log.contains("@@simulate"));
     // The gate now reads them from the cache.
     let result = compile_file(&model);
     assert_eq!(result.semantic_model.simulations["TC-RANGE-LR"].verdict, "pass");
@@ -401,6 +407,29 @@ fn check_tools_prints_a_summary_without_json() {
     assert!(out.status.success());
     let text = String::from_utf8_lossy(&out.stdout);
     assert!(text.contains("OpenModelica not available") && text.contains("Docker installed"), "{text}");
+}
+
+#[test]
+fn verify_names_each_case_its_requirements_and_configuration_even_without_a_tool() {
+    let (_dir, model) = demo_copy();
+    let out = std::process::Command::new(env!("CARGO_BIN_EXE_arclang"))
+        .args(["verify", "--json"])
+        .arg(&model)
+        .env("ARCLANG_OMC", "/nonexistent/arclang/omc")
+        .env_remove("ARCLANG_OMC_DOCKER")
+        .output()
+        .unwrap();
+    assert!(!out.status.success(), "inconclusive is not a pass");
+    let json: serde_json::Value = serde_json::from_slice(&out.stdout).expect("json on stdout");
+    let std = json.as_array().unwrap().iter().find(|o| o["test_case"] == "TC-RANGE-STD").expect("the standard case");
+    assert_eq!(std["verdict"], "inconclusive");
+    assert_eq!(std["name"], "Winter range, standard pack");
+    assert_eq!(std["verifies"], serde_json::json!(["REQ-RANGE"]));
+    assert_eq!(std["configuration"], "CFG-CITY");
+    assert_eq!(std["configuration_name"], "City");
+    assert_eq!(std["seconds"], 0.0);
+    let text = String::from_utf8_lossy(&out.stderr);
+    assert!(!text.contains("Compilation error"), "a case that does not pass is not a compilation error: {text}");
 }
 
 #[test]

@@ -1367,14 +1367,26 @@ impl CliRunner {
                     "fail" => "✗",
                     _ => "?",
                 };
-                let configuration = outcome.configuration.as_deref().map(|c| format!(" [{c}]")).unwrap_or_default();
-                println!("\n{mark} {} — {}{configuration}: {}", outcome.test_case, outcome.model, outcome.verdict.to_uppercase());
+                let name = if outcome.name.is_empty() || outcome.name == outcome.test_case { String::new() } else { format!(" \"{}\"", outcome.name) };
+                println!("\n{mark} {}{name}: {}", outcome.test_case, outcome.verdict.to_uppercase());
+                println!("    {}", crate::compiler::simulation::context_line(outcome));
                 for value in &outcome.values {
-                    println!("    {} {}   ({})", if value.holds { "ok  " } else { "FAIL" }, value.value, value.expect);
+                    let margin = if value.margin.is_empty() { String::new() } else { format!(", {}", value.margin) };
+                    println!("    {} {}   ({}{margin})", if value.holds { "ok  " } else { "FAIL" }, value.value, value.expect);
                 }
                 if !outcome.reason.is_empty() && outcome.verdict != "fail" {
                     println!("    {}", outcome.reason);
                 }
+                if self.verbose && !outcome.log.trim().is_empty() {
+                    println!("    OpenModelica log:");
+                    for line in outcome.log.lines().filter(|l| !l.trim().is_empty()) {
+                        println!("      | {line}");
+                    }
+                }
+            }
+            let seconds: f64 = outcomes.iter().map(|o| o.seconds).sum();
+            if seconds > 0.0 {
+                println!("\n  Simulated in {seconds:.1} s{}", if self.verbose { "" } else { " (-v prints the OpenModelica log)" });
             }
             let cached = outcomes.iter().filter(|o| o.verdict != "inconclusive").count();
             if cached > 0 {
@@ -1385,7 +1397,7 @@ impl CliRunner {
         if failed == 0 {
             Ok(())
         } else {
-            Err(CliError::Compilation(format!("{failed} of {} simulated case(s) do not pass", outcomes.len())))
+            Err(CliError::CiFailed(format!("{failed} of {} simulated case(s) do not pass", outcomes.len())))
         }
     }
 
@@ -1669,8 +1681,18 @@ impl CliRunner {
                                 }
                                 std::fs::write(&target, text).map_err(CliError::Io)?;
                             }
+                            // A single-file export of the same package beside the folder
+                            // would define it twice: it was written by ArcLang, so it goes.
+                            let single = output.join(&export.file_name);
+                            if std::fs::read_to_string(&single).is_ok_and(|t| t.starts_with(crate::compiler::modelica::GENERATED_HEADER)) {
+                                std::fs::remove_file(&single).map_err(CliError::Io)?;
+                                println!("  note: removed {}, the single-file export this folder replaces", single.display());
+                            }
                             output.join(&export.package)
                         } else {
+                            if output.join(&export.package).is_dir() {
+                                println!("  note: {} also holds a split export of {} (--split); OpenModelica would see the package twice", output.display(), export.package);
+                            }
                             let path = output.join(&export.file_name);
                             std::fs::write(&path, &export.text).map_err(CliError::Io)?;
                             path

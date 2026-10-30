@@ -19,7 +19,7 @@ pack does not.
 | `arclang export model.arc -f modelica -o out/` | Writes `out/<Package>.mo`, the structure of the physical architecture, drawn (see below). Notes what is not exported. |
 | `arclang export model.arc -f modelica -o out/ --split` | The same package as one file per class in an `out/<Package>/` folder (a Modelica library): what Modex browses. |
 | `arclang export model.arc -f modelica -o out/ --no-placement` | The structure alone, with no drawing: the text `arclang verify` simulates. |
-| `arclang verify model.arc [--test TC-ID] [--json]` | Exports to a temporary directory, runs OpenModelica on every case that `simulate:`s (or one), reads the result, evaluates `expects:`, prints the values and caches the verdicts. Exits non-zero unless every case passes. |
+| `arclang verify model.arc [--test TC-ID] [--json]` | Exports to a temporary directory, runs OpenModelica on every case that `simulate:`s (or one), reads the result, evaluates `expects:`, prints the values (each with its margin: `short by 0.07341`, `19.91 km to spare`), the requirements, configuration and model of each case and the time taken, and caches the verdicts. `-v` also prints what OpenModelica printed. Exits non-zero unless every case passes. |
 | `arclang check model.arc` | Never simulates. Reads the cache: a fail, a stale or a missing verdict is a `verification:` warning. |
 | `arclang gate model.arc` | Never simulates. A failing simulated case is a blocker; so is one whose verdict is stale or missing (inconclusive), with the command to run. |
 | `arclang table model.arc --kind requirements_coverage` | The verdict of each case, and a **Key values** column with what the simulation evaluated to. |
@@ -66,7 +66,12 @@ for the menu (also *ArcLang: Simulation* in the command palette):
 - **Run simulations on this model** (also the play button in the editor
   title and *Simulate* in the workbench): runs `arclang verify`, with a
   progress notification that can be cancelled; the result offers *Show the
-  verdicts* (the requirement coverage table) and *Show the log*.
+  verdicts* (the requirement coverage table) and *Show the log*. The log is
+  the **ArcLang Simulation** output channel: each run begins with its time,
+  file and tool, then each case with its name, the requirements it
+  verifies, its configuration and model, each value with how far it is from
+  its bound, and what OpenModelica printed; it ends on the count and the
+  time taken.
 - **Check my setup**: a checklist of Docker installed, Docker running, the
   OpenModelica image, the Modelica library, a local `omc`, and the Modex
   extension (to draw `.mo` files), each missing item with a button: open the
@@ -74,8 +79,16 @@ for the menu (also *ArcLang: Simulation* in the command palette):
   (about 1 GB, with progress), install the library now, install Modex, or
   show the exact command in a terminal (typed, not run).
 - **Set up OpenModelica (guided)**: the same fixes, one step at a time.
-- **Export Modelica**, **Open the Modelica drawing**, **Open the
-  documentation**.
+- **Export Modelica** writes `modelica/<Package>/`, one file per class
+  (`--split`), and offers to open the drawing; an earlier single-file export
+  written by ArcLang beside it is removed, since OpenModelica would see the
+  package twice.
+- **Open the Modelica drawing** asks which configuration and opens
+  `<Package>/Systems/<Configuration>.mo` in Modex, the model that holds the
+  whole architecture (the package itself has nothing to draw). The first
+  time, it offers to add the export folder to `modex.libraryRoots` for the
+  workspace, so that Modex draws each part from its class.
+- **Open the documentation**.
 
 When you run simulations and nothing is available, the checklist opens
 instead of an error. The first run with Docker installs the Modelica library

@@ -5,18 +5,24 @@ import {
   Diagnosis,
   checklist,
   countOutcomes,
+  contextLine,
   countsText,
+  libraryRootOf,
   nextStep,
   outcomesLog,
   parseDiagnosis,
   parseOutcomes,
+  runLog,
   safeImageName,
   simView,
   simulates,
   simulationEnv,
   summaryText,
+  systemDrawings,
   toolLabel,
+  toolLogLines,
   toolMissing,
+  withLibraryRoot,
 } from '../../src/pure/simulation';
 import { checklistHtml, escapeHtml } from '../../src/pure/simulation-html';
 
@@ -188,12 +194,72 @@ test('the verdicts of arclang verify --json are counted and logged', () => {
   const outcomes = parseOutcomes(VERDICTS)!;
   assert.deepEqual(countOutcomes(outcomes), { pass: 1, fail: 1, other: 0 });
   assert.equal(summaryText(countOutcomes(outcomes)), '1 fail, 1 pass.');
-  assert.match(outcomesLog(outcomes), /FAIL {2}TC-RANGE-STD\n {6}FAIL min\(batteryPack.soc\) = 0.1 {3}\(>= 0.2\)\nPASS {2}TC-RANGE-LR/);
+  assert.match(outcomesLog(outcomes), /✗ FAIL {2}TC-RANGE-STD\n {6}model EVPhysics.StdRange\n {6}FAIL min\(batteryPack.soc\) = 0.1 {3}\(>= 0.2\)\n\n✓ PASS {2}TC-RANGE-LR/);
   assert.equal(summaryText({ pass: 3, fail: 0, other: 0 }), 'All 3 simulated cases pass.');
   assert.equal(summaryText({ pass: 0, fail: 0, other: 0 }), 'No test case in this model simulates.');
   assert.equal(countsText({ pass: 0, fail: 0, other: 0 }), 'no case');
   assert.equal(parseOutcomes('{}'), null);
   assert.equal(parseOutcomes('nope'), null);
+});
+
+const RUN = JSON.stringify([
+  {
+    test_case: 'TC-RANGE-STD', name: 'Winter range, standard pack', verifies: ['REQ-RANGE'], configuration: 'CFG-CITY', configuration_name: 'City',
+    model: 'EVPhysics.CityRange', verdict: 'fail', reason: 'min(batteryPack.soc) = 0.02659 does not hold', tool: 'docker image om', omc_version: 'OpenModelica 1.27.1',
+    log: '@@version OpenModelica 1.27.1\n\n\n@@simulate\nLOG_SUCCESS | The simulation finished successfully.\n', seconds: 2.5,
+    values: [
+      { value: 'final(vehicleBody.distance) = 319.9 km', expect: 'final(vehicleBody.distance) >= 300 km', holds: true, margin: '19.91 km to spare' },
+      { value: 'min(batteryPack.soc) = 0.02659', expect: 'min("PN-BATT".soc) >= 0.1', holds: false, margin: 'short by 0.07341' },
+    ],
+  },
+  { test_case: 'TC-RANGE-LR', name: 'TC-RANGE-LR', verifies: [], configuration: 'CFG-TOURING', configuration_name: 'CFG-TOURING', model: '', verdict: 'pass', reason: '', tool: 'docker image om', omc_version: '', log: '', seconds: 2, values: [] },
+]);
+
+test('the log of a run says what each case checks, how far each value is and what OpenModelica printed', () => {
+  const outcomes = parseOutcomes(RUN)!;
+  const [std, lr] = outcomes;
+  assert.equal(contextLine(std), 'verifies REQ-RANGE · configuration City (CFG-CITY) · model EVPhysics.CityRange');
+  assert.equal(contextLine(lr), 'configuration CFG-TOURING', 'a name equal to the id is not repeated');
+  assert.deepEqual(toolLogLines(std.log), ['@@version OpenModelica 1.27.1', '@@simulate', 'LOG_SUCCESS | The simulation finished successfully.']);
+  const log = runLog('ev.arc', outcomes, new Date(2026, 9, 30, 14, 32, 5));
+  assert.match(log, /^── 14:32:05 {2}arclang verify ev.arc\n {3}Tool: docker image om, OpenModelica 1.27.1\n/);
+  assert.match(log, /✗ FAIL {2}TC-RANGE-STD "Winter range, standard pack"\n/);
+  assert.match(log, /FAIL min\(batteryPack.soc\) = 0.02659 {3}\(min\("PN-BATT".soc\) >= 0.1, short by 0.07341\)/);
+  assert.match(log, /ok {3}final\(vehicleBody.distance\) = 319.9 km {3}\(final\(vehicleBody.distance\) >= 300 km, 19.91 km to spare\)/);
+  assert.match(log, /OpenModelica log \(3 lines\):\n {8}\| @@version OpenModelica 1.27.1\n {8}\| @@simulate\n/);
+  assert.match(log, /✓ PASS {2}TC-RANGE-LR\n/, 'a name equal to the id is not repeated');
+  assert.match(log, /1 fail, 1 pass\. Simulated in 4.5 s\.\n$/);
+  assert.doesNotMatch(log, /does not hold/, 'the reason of a failure is its values, already shown');
+});
+
+test('an older compiler without names, margins or logs still gives a readable log', () => {
+  const outcomes = parseOutcomes(VERDICTS)!;
+  assert.deepEqual([outcomes[0].name, outcomes[0].verifies, outcomes[0].log, outcomes[0].seconds], ['', [], '', 0]);
+  const log = runLog('ev.arc', outcomes, new Date(2026, 9, 30, 9, 5, 0));
+  assert.match(log, /^── 09:05:00 {2}arclang verify ev.arc\n\n/);
+  assert.match(log, /1 fail, 1 pass\.\n$/);
+});
+
+test('the drawing opens the system model of a configuration, from a split export', () => {
+  const files = [
+    '/w/modelica/EVRangeSimulation/Systems/Touring.mo',
+    '/w/modelica/EVRangeSimulation/Systems/package.mo',
+    '/w/modelica/EVRangeSimulation/Physical/BatteryPack.mo',
+    '/w/modelica/EVRangeSimulation/Systems/City.mo',
+    '/w/modelica/EVRangeSimulation.mo',
+    '/w/physics/EVPhysics.mo',
+  ];
+  assert.deepEqual(systemDrawings(files), [
+    { label: 'City', file: '/w/modelica/EVRangeSimulation/Systems/City.mo' },
+    { label: 'Touring', file: '/w/modelica/EVRangeSimulation/Systems/Touring.mo' },
+  ]);
+  assert.deepEqual(systemDrawings(['/w/modelica/EVRangeSimulation.mo']), [], 'a single file has no model Modex can open');
+  assert.deepEqual(systemDrawings(['C:\\w\\m\\P\\Systems\\City.mo']), [{ label: 'City', file: 'C:\\w\\m\\P\\Systems\\City.mo' }]);
+  assert.equal(libraryRootOf('/w/modelica/EVRangeSimulation/Systems/City.mo'), '/w/modelica');
+  assert.equal(libraryRootOf('C:\\w\\m\\P\\Systems\\City.mo'), 'C:\\w\\m');
+  assert.deepEqual(withLibraryRoot(undefined, '/w/modelica'), ['/w/modelica']);
+  assert.deepEqual(withLibraryRoot(['/libs', 3], '/w/modelica'), ['/libs', '/w/modelica']);
+  assert.equal(withLibraryRoot(['/w/modelica'], '/w/modelica'), null);
 });
 
 test('a missing OpenModelica is told apart from a failing case', () => {
