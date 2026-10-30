@@ -48,6 +48,9 @@ pub struct Model {
     /// Product-line configurations: the variants each selects.
     #[serde(default)]
     pub configurations: Vec<Configuration>,
+    /// Notes on the diagrams: a text about some elements.
+    #[serde(default)]
+    pub notes: Vec<Note>,
     /// Dimension-checked assertions over typed attributes.
     #[serde(default)]
     pub constraints: Vec<Constraint>,
@@ -101,6 +104,7 @@ impl Model {
             associations: Vec::new(),
             test_cases: Vec::new(),
             configurations: Vec::new(),
+            notes: Vec::new(),
             constraints: Vec::new(),
             types: Vec::new(),
             diagrams: Vec::new(),
@@ -1301,6 +1305,21 @@ pub struct Configuration {
     pub id: String,
     pub name: String,
     pub selects: Vec<String>,
+    pub attributes: HashMap<String, AttributeValue>,
+}
+
+/// `note "The camera runs at 30 Hz" { about: ["LC-CAM"] }`: a text about
+/// elements, drawn on every view that draws one of them, tied to each by a
+/// dashed line (SysML v2: `comment about`). The text is its name.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Note {
+    /// `id:` when written, else empty: a note is known by its text.
+    #[serde(default)]
+    pub id: String,
+    /// Its text.
+    pub name: String,
+    /// The elements it is about, as written.
+    pub about: Vec<String>,
     pub attributes: HashMap<String, AttributeValue>,
 }
 

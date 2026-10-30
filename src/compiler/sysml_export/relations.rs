@@ -111,6 +111,15 @@ pub(super) fn write(e: &mut Exporter<'_>) {
             dependency(e, "selects", &config.id, selected);
         }
     }
+    // A note: a comment about the elements it names (its id, when written, names it).
+    for note in &model.notes {
+        let about: Vec<String> = note.about.iter().filter_map(|r| e.reference(r)).collect();
+        if about.is_empty() {
+            continue;
+        }
+        let name = if note.id.is_empty() { String::new() } else { format!(" {}", text::name(&note.id)) };
+        e.line(&format!("comment{name} about {} {}", about.join(", "), text::doc(&note.name).trim_start_matches("doc ")));
+    }
     for test in &model.test_cases {
         let id = if test.id.is_empty() { test.name.clone() } else { test.id.clone() };
         let verified: Vec<String> = test.verifies.iter().filter_map(|r| e.reference(r)).collect();

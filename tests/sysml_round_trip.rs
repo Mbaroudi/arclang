@@ -144,3 +144,21 @@ fn every_example_round_trip_is_measured() {
     }
     println!("ROUNDTRIP total elements {kept}/{total} ({}%)", 100 * kept / total.max(1));
 }
+
+#[test]
+fn a_note_goes_to_sysml_as_a_comment_about_its_elements_and_comes_back() {
+    let source = "model T { name: \"t\" }\nlogical_architecture \"L\" {\n    component \"Camera\" { id: \"LC-CAM\" description: \"Sees the lane\" }\n    component \"Controller\" { id: \"LC-CTL\" }\n}\nnote \"Runs at 30 Hz; */ is harmless\" { id: \"N-1\" about: [\"LC-CAM\", \"LC-CTL\"] }\nnote \"Plans within a frame\" { about: [\"LC-CTL\"] }\n";
+    let before = compile(source);
+    let text = sysmlv2_generator::generate_sysmlv2(&before.semantic_model, &before.ast);
+    assert!(text.contains("comment 'N-1' about "), "{text}");
+    let built = sysml_parser::records(&text).unwrap_or_else(|e| panic!("the export does not parse: {e}\n{text}"));
+    let imported = sysml_import::import_records(&built.records).unwrap_or_else(|f| panic!("{}", f.message));
+    let after = compile(&imported.source);
+    let notes: Vec<(String, String, Vec<String>)> = after.ast.notes.iter().map(|n| (n.id.clone(), n.name.clone(), n.about.clone())).collect();
+    assert_eq!(notes.len(), 2, "{}", imported.source);
+    assert!(notes.iter().any(|(id, text, about)| id == "N-1" && text == "Runs at 30 Hz; * / is harmless" && about.len() == 2), "{notes:?}");
+    assert!(notes.iter().any(|(id, text, about)| id.is_empty() && text == "Plans within a frame" && about.len() == 1), "{notes:?}");
+    // A doc stays the description of its element, not a note.
+    assert!(imported.source.contains("Sees the lane"), "{}", imported.source);
+    assert_eq!(shape(&before).1.iter().filter(|r| r.0 == "Annotation").count(), shape(&after).1.iter().filter(|r| r.0 == "Annotation").count());
+}

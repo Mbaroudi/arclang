@@ -748,6 +748,7 @@ impl<'g> Mapper<'g> {
         self.configurations();
         self.constraints();
         self.traces();
+        self.notes();
         self.sysml_views();
         self.sysml_tables(); // tables hook
     }
@@ -2377,6 +2378,31 @@ impl<'g> Mapper<'g> {
             } else {
                 lines.push(format!("trace {} -> {} {{ trace_type: {} }}", string_literal(&from), string_literal(&to), string_literal(&kind)));
             }
+        }
+        for line in lines {
+            self.line(0, &line);
+        }
+    }
+}
+
+impl Mapper<'_> {
+    /// `comment about X, Y /* text */` (an ArcLang note): `note "text" { about: [...] }`.
+    fn notes(&mut self) {
+        let mut lines: Vec<String> = Vec::new();
+        let comments: Vec<&Element> = self.graph.of_kinds(&["Comment"]).filter(|e| !self.is_library(e) && !e.about.is_empty()).collect();
+        for comment in comments {
+            let Some(body) = comment.body.as_deref().map(str::trim).filter(|b| !b.is_empty()) else { continue };
+            let about: Vec<String> = comment.about.iter().filter_map(|id| self.element_ref(id)).collect();
+            if about.len() < comment.about.len() {
+                self.count("notes about elements not written (left out)");
+            }
+            if about.is_empty() {
+                continue;
+            }
+            self.count("notes");
+            let id = comment.name.as_deref().map(|name| format!(" id: {}", string_literal(name))).unwrap_or_default();
+            let list = about.iter().map(|r| string_literal(r)).collect::<Vec<_>>().join(", ");
+            lines.push(format!("note {} {{{id} about: [{list}] }}", string_literal(&body.split_whitespace().collect::<Vec<_>>().join(" "))));
         }
         for line in lines {
             self.line(0, &line);

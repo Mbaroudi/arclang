@@ -82,6 +82,10 @@ pub struct Element {
     pub exposes: Vec<(String, bool, bool)>,
     /// The metadata a view filters on (`filter @Safety;`): definition ids.
     pub filters: Vec<String>,
+    /// A comment written `about` elements other than its owner (an ArcLang
+    /// note): their ids, and its body. Empty for a doc of its owner.
+    pub about: Vec<String>,
+    pub body: Option<String>,
 }
 
 /// The model: elements by id, in document order.
@@ -303,8 +307,13 @@ pub fn load(records: &[Value]) -> Result<Graph, String> {
             element.guard = first_id(record, &["guardExpression"]).and_then(|g| by_id.get(&g)).and_then(|(_, r)| text(r, "textualRepresentation"));
             element.effect = first_id(record, &["effectAction"]).and_then(|e| by_id.get(&e)).and_then(|(_, r)| text(r, "declaredName").or_else(|| text(r, "name")));
         }
-        if kind == "Documentation" || kind == "Comment" {
-            // Kept on the owner below.
+        if kind == "Comment" {
+            // `comment about X, Y /* ... */`: about other elements than its owner, a note.
+            let annotated = ids_of(record.get("annotatedElement"));
+            if !annotated.is_empty() && element.owner.as_ref().is_none_or(|owner| annotated != [owner.clone()]) {
+                element.about = annotated;
+                element.body = text(record, "body");
+            }
         }
         graph.index.insert(id, graph.elements.len());
         graph.elements.push(element);
@@ -370,7 +379,7 @@ pub fn load(records: &[Value]) -> Result<Graph, String> {
     let docs: Vec<(String, String)> = graph
         .elements
         .iter()
-        .filter(|e| e.kind == "Documentation" || e.kind == "Comment")
+        .filter(|e| (e.kind == "Documentation" || e.kind == "Comment") && e.about.is_empty())
         .filter_map(|e| {
             let body = by_id.get(&e.id).and_then(|(_, r)| text(r, "body"))?;
             let annotated = by_id.get(&e.id).and_then(|(_, r)| first_id(r, &["annotatedElement"])).or_else(|| e.owner.clone())?;

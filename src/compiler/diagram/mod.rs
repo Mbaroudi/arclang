@@ -241,6 +241,8 @@ pub enum NodeKind {
     ExchangeItem,
     /// An element of the product breakdown: system, subsystem or item.
     ConfigurationItem,
+    /// A note about elements of the view; its text is its compartment.
+    Note,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
@@ -328,6 +330,8 @@ pub enum EdgeKind {
     /// A trace (`realizes`, `satisfies`...) between two elements the
     /// diagram draws; its type is the label and the `trace` property.
     Trace,
+    /// A note tied to an element it is about.
+    Annotation,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
@@ -446,6 +450,7 @@ pub fn build_diagrams(model: &Model) -> DiagramSet {
     }
 
     links::draw_traces(model, &mut diagrams);
+    links::draw_notes(model, &mut diagrams);
     let links = links::cross_links(model, &diagrams);
     DiagramSet {
         schema_version: SCHEMA_VERSION,

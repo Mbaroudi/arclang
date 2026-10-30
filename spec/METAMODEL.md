@@ -1044,6 +1044,22 @@ Reusable definition: `type Name extends Base { ... }`. Declares typed attributes
 | `to_kind` | `text` | For an allocation definition: the kind every allocation of it goes to (`LogicalComponent`). |
 | `physics` | `enum Physics` | For a port definition: what the ports it types carry, for the Modelica export. |
 
+#### Note
+
+A text about elements, declared at the top of a file (`note "Text" { about: ["LC-A"] }`): drawn on every view that draws one of them, tied to each by a dashed line. An element it names that the model does not declare is an error.
+
+- Arcadia: `Note (diagram annotation)`
+- SysML v2: `comment about`
+
+| Attribute | Type | Meaning |
+|---|---|---|
+| `id` | `identifier` | Stable identity; drives the UUIDv5. Defaults to the name. |
+| `name` | `text` | Display name; overrides the block name. |
+| `description` | `text` | Free-text description. |
+| `is` | `ref<Type>` | User-defined type of the element, or a list of types; their attributes (and ports, for components) are inherited. |
+| `tags` | `list<text>` | Tags the element carries (`["Safety"]`): a declared diagram draws what carries one with `tagged:`. In SysML v2, metadata usages of definitions in a `Tags` package. |
+| `about` | `list<ref<Element>>` | The elements the note is about. |
+
 #### Constraint
 
 Dimension-checked comparison over typed attributes (`assert: <expression>`). Ill-formed is a compile error; violated is a warning and a gate blocker.
@@ -1203,6 +1219,7 @@ The element graph served by the Systems Modeling API (`/api/systems-modeling`) i
 |---|---|---|---|
 | `Trace` | element | element | A `trace` declaration; `traceKind` is one of the TraceKind values. |
 | `Verification` | TestCase | Requirement | `verifies:` of a test case. |
+| `Annotation` | Note | element | `about:` of a note. |
 | `Mitigation` | Requirement | Hazard | `mitigated_by:` of a hazard. |
 | `ThreatApplication` | Threat | PrimaryAsset | `applies_to:` of a threat. |
 | `ThreatInvolvement` | Threat | component, entity or actor | `involves:` of a threat. |

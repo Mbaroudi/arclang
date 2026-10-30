@@ -208,6 +208,12 @@ fn elk_node(node: &Node, wired: &HashSet<&str>) -> Value {
     };
     let (width, height) = if node.kind == NodeKind::InitialState || node.kind == NodeKind::Junction {
         (INITIAL_STATE_SIZE, INITIAL_STATE_SIZE)
+    } else if node.kind == NodeKind::Note {
+        let widest_line = node.compartment.iter().map(|line| text_width(line, COMPARTMENT_CHAR_WIDTH)).fold(0.0, f64::max);
+        (
+            (widest_line + 2.0 * COMPARTMENT_INSET).max(NODE_MIN_WIDTH),
+            node.compartment.len() as f64 * COMPARTMENT_LINE_HEIGHT + 2.0 * COMPARTMENT_INSET,
+        )
     } else if !node.compartment.is_empty() {
         let widest_line = node
             .compartment

@@ -147,3 +147,26 @@ trace "LC-C" realizes "SF-X"
     assert!(set.diagrams.iter().all(|d| d.edges.iter().all(|e| e.source != "LC-C")));
     assert!(set.diagrams.iter().all(|d| d.validate().is_empty()));
 }
+
+#[test]
+fn a_note_is_drawn_on_each_view_drawing_an_element_it_is_about() {
+    let set = diagrams_of(
+        r#"
+system_analysis "S" { function "Detect" { id: "SF-1" } }
+logical_architecture "L" {
+    component "Camera" { id: "LC-CAM" }
+    component "Controller" { id: "LC-CTL" }
+}
+note "The camera runs at 30 Hz and the controller plans within one frame" { id: "N-1" about: ["LC-CAM", "Controller", "SF-1"] }
+"#,
+    );
+    let lab = set.diagrams.iter().find(|d| d.id == "lab").expect("a logical view");
+    let note = lab.nodes.iter().find(|n| n.id == "N-1").expect("the note on the logical view");
+    assert_eq!(note.kind, arclang::compiler::diagram::NodeKind::Note);
+    assert!(note.compartment.len() > 1 && note.compartment.iter().all(|line| line.chars().count() <= 36), "{:?}", note.compartment);
+    let ties: Vec<&str> = lab.edges.iter().filter(|e| e.kind == arclang::compiler::diagram::EdgeKind::Annotation).map(|e| e.target.as_str()).collect();
+    assert_eq!(ties, ["LC-CAM", "LC-CTL"]);
+    let sab = set.diagrams.iter().find(|d| d.id == "sab").expect("a system view");
+    assert!(sab.nodes.iter().any(|n| n.id == "N-1"));
+    assert!(set.diagrams.iter().all(|d| d.validate().is_empty()), "{:?}", set.diagrams.iter().map(|d| d.validate()).collect::<Vec<_>>());
+}
