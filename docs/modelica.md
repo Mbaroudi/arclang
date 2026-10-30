@@ -270,6 +270,34 @@ model file), `tolerance` (default `1e-6`) and `intervals` (output intervals,
 default 500). A case that simulates neither asserts constraints nor gives a
 verdict.
 
+### Sweeps: one case over many conditions
+
+`sweep:` runs the case over a grid of parameter values, and its `expects:`
+must hold at every point:
+
+```arc
+simulate: { model: "EVPhysics.TouringRange" configuration: "CFG-TOURING" stop_time: 3.2 h
+            sources: ["physics/EVPhysics.mo"]
+            sweep: ["vehicleBody.ambient = 253.15 K, 263.15 K, 293.15 K",
+                    "\"PN-VCU\".speedController.target_speed = 90 km/h .. 130 km/h step 20 km/h"] }
+```
+
+Each axis is `parameter = values`: a Modelica path of the simulated model
+(its first part may be an ArcLang id in quotes), then a list of values or a
+range `a .. b step s` in one unit. The grid is every combination (here 3 × 3),
+at most 200 points. All of them run in one OpenModelica session, each with
+`-override`; the model is compiled once per point, so a point costs about a
+second.
+
+A value only counts once it is proven: each point also asks OpenModelica to
+print the parameters it ran with (`-output`), and a parameter missing from
+that line (a name the model does not have, which OpenModelica only warns
+about) or holding another value (a constant, a `final` or an evaluated
+parameter) makes the case an **error**, never a silent pass. The verdict is
+`pass` when every point holds, `fail` when one does not (the reason names how
+many and the first), `error` when one could not run. `arclang verify` prints
+every point with its values and margins; `--json` gives them as `points`.
+
 Each of `expects:` compares two expressions over the result. A variable is a
 Modelica name of the result (`vehicleBody.distance`, `vehicleBody.car.v`), or
 an ArcLang element in quotes followed by the rest of the path

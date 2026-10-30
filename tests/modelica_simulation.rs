@@ -187,7 +187,12 @@ fn simulate_blocks_are_checked_when_parsed() {
         ("simulate: { model: \"P.M\" stop_time: 1 s } expects: [\"final(x) > 1\"] verdict: \"pass\"", "verdict comes from the simulation"),
         ("simulate: \"P.M\" expects: [\"final(x) > 1\"]", "simulate is a block"),
         ("simulate: { model: \"P.M\" stop_time: 1 s configuration: \"CFG-9\" } expects: [\"final(x) > 1\"]", "configuration 'CFG-9', which is none"),
+        ("simulate: { model: \"P.M\" stop_time: 1 s sweep: [\"body.mass 1800 kg\"] } expects: [\"final(x) > 1\"]", "parameter = values"),
+        ("simulate: { model: \"P.M\" stop_time: 1 s sweep: [\"a.b = 1 .. 300 step 1\"] } expects: [\"final(x) > 1\"]", "more than 200"),
+        ("simulate: { model: \"P.M\" stop_time: 1 s sweep: 3 } expects: [\"final(x) > 1\"]", "sweep is a list"),
     ];
+    let swept = "simulate: { model: \"P.M\" stop_time: 1 h sweep: [\"body.mass = 1800 kg, 2100 kg\", \"\\\"PN-VCU\\\".pi.k = 100 .. 300 step 100\"] } expects: [\"final(a.b) >= 2 km\"]";
+    assert!(case(swept).is_ok(), "a sweep, an ArcLang id in quotes: {:?}", case(swept).err());
     for (body, expected) in errors {
         let error = case(body).err().unwrap_or_else(|| panic!("`{body}` compiles"));
         assert!(error.contains(expected), "`{body}`: {error}");
@@ -376,6 +381,36 @@ fn openmodelica_checks_the_package_and_verifies_the_demo() {
     let result = compile_file(&model);
     assert_eq!(result.semantic_model.simulations["TC-RANGE-LR"].verdict, "pass");
     assert_eq!(result.semantic_model.simulations["TC-RANGE-STD"].verdict, "fail");
+}
+
+#[test]
+#[ignore = "runs OpenModelica (Docker or ARCLANG_OMC): cargo test --release --test modelica_simulation -- --ignored --nocapture"]
+fn openmodelica_runs_a_sweep_and_proves_each_override() {
+    let (_dir, model) = demo_copy();
+    let text = std::fs::read_to_string(&model).unwrap();
+    // The long range pack, over three temperatures and two speeds; then a name that is not a parameter.
+    let sweep = "sources: [\"physics/EVPhysics.mo\"] sweep: [\"vehicleBody.ambient = 253.15 K, 263.15 K, 293.15 K\", \"\\\"PN-VCU\\\".speedController.target_speed = 90 km/h .. 110 km/h step 20 km/h\"] }";
+    let marker = "configuration: \"CFG-TOURING\" stop_time: 3.2 h sources: [\"physics/EVPhysics.mo\"] }";
+    assert!(text.contains(marker));
+    std::fs::write(&model, text.replacen(marker, &format!("configuration: \"CFG-TOURING\" stop_time: 3.2 h {sweep}"), 1)).unwrap();
+    let config = ToolConfig::from_env();
+    let outcomes = run::verify(&compile_file(&model), &model, Some("TC-RANGE-LR"), &config).unwrap();
+    let lr = &outcomes[0];
+    for point in &lr.points {
+        println!("{} {}: {}", if point.holds { "ok  " } else { "FAIL" }, point.label, point.values.iter().map(|v| format!("{} ({})", v.value, v.margin)).collect::<Vec<_>>().join("; "));
+    }
+    assert_eq!(lr.points.len(), 6);
+    assert!(lr.points.iter().all(|p| p.error.is_empty()), "every override took: {:?}", lr.points);
+    assert_eq!(lr.points[0].label, "ambient = 253.15 K, target_speed = 90 km/h");
+    // Colder air is denser: less charge left, at the same speed.
+    let soc = |i: usize| lr.points[i].values.iter().find(|v| v.value.starts_with("min(")).unwrap().value.rsplit(' ').next().unwrap().parse::<f64>().unwrap();
+    assert!(soc(0) < soc(4), "253 K {} against 293 K {}", soc(0), soc(4));
+
+    let text = std::fs::read_to_string(&model).unwrap().replacen("vehicleBody.ambient = ", "vehicleBody.nothing = ", 1);
+    std::fs::write(&model, text).unwrap();
+    let outcomes = run::verify(&compile_file(&model), &model, Some("TC-RANGE-LR"), &config).unwrap();
+    assert_eq!(outcomes[0].verdict, "error");
+    assert!(outcomes[0].reason.contains("'vehicleBody.nothing' is not a variable"), "{}", outcomes[0].reason);
 }
 
 // ---- Diagnosis of the tools (`verify --check-tools`) ----------------------

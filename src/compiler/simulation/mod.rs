@@ -23,6 +23,7 @@ pub mod cache;
 pub mod expects;
 pub mod results;
 pub mod run;
+pub mod sweep;
 pub mod tool;
 
 use crate::compiler::ast::{AttributeValue, Model, TestCase};
@@ -31,7 +32,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 /// The keys `simulate: { ... }` takes.
-pub const SIMULATE_KEYS: [&str; 8] = ["backend", "model", "configuration", "stop_time", "start_time", "sources", "tolerance", "intervals"];
+pub const SIMULATE_KEYS: [&str; 9] = ["backend", "model", "configuration", "stop_time", "start_time", "sources", "tolerance", "intervals", "sweep"];
 
 /// What runs a simulation. Every backend ends in the same result (a table
 /// of time series) and the same `expects:` evaluation, so adding one
@@ -83,6 +84,8 @@ pub struct Spec {
     pub sources: Vec<String>,
     pub tolerance: Option<f64>,
     pub intervals: Option<u32>,
+    /// The axes of a parameter sweep, as written (`body.mass = 1800 kg, 2100 kg`).
+    pub sweep: Vec<String>,
 }
 
 /// The status of a simulated case on this compilation, from the cache.
@@ -121,6 +124,21 @@ pub struct Outcome {
     /// How long the run took, in seconds (0 when nothing ran).
     #[serde(default)]
     pub seconds: f64,
+    /// Every point of a parameter sweep; empty when the case sweeps nothing.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub points: Vec<PointOutcome>,
+}
+
+/// One point of a sweep: its parameters, the values its expectations took.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+pub struct PointOutcome {
+    /// `ambient = 253.15 K, target_speed = 90 km/h`.
+    pub label: String,
+    pub values: Vec<expects::Evaluated>,
+    pub holds: bool,
+    /// Why the point has no values (the simulation failed, a parameter did not change).
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub error: String,
 }
 
 /// `verifies REQ-RANGE · configuration City (CFG-CITY) · model EVPhysics.CityRange`.
@@ -208,7 +226,22 @@ fn read_spec(map: &HashMap<String, AttributeValue>) -> Result<Spec, String> {
         Some(_) => return Err("simulate: intervals is a whole number of output intervals".to_string()),
     };
     let configuration = map.get("configuration").and_then(|v| v.as_string()).map(str::to_string);
-    Ok(Spec { backend, model, configuration, start_time, stop_time, sources, tolerance, intervals })
+    let sweep = match map.get("sweep") {
+        None => Vec::new(),
+        Some(AttributeValue::List(items)) => items.iter().map(|i| i.as_string().map(str::to_string).ok_or("simulate: sweep is a list of \"parameter = values\"")).collect::<Result<_, _>>()?,
+        Some(AttributeValue::String(one)) => vec![one.clone()],
+        Some(_) => return Err("simulate: sweep is a list of \"parameter = values\"".to_string()),
+    };
+    // ArcLang ids are resolved when the package is exported: here, the syntax and the size.
+    let unresolved: Vec<String> = sweep
+        .iter()
+        .map(|t| match t.trim_start().strip_prefix('"').and_then(|rest| rest.split_once('"')) {
+            Some((_, path)) => format!("part{path}"),
+            None => t.clone(),
+        })
+        .collect();
+    sweep::parse(&unresolved, &Default::default())?;
+    Ok(Spec { backend, model, configuration, start_time, stop_time, sources, tolerance, intervals, sweep })
 }
 
 /// The `expects:` of a case.

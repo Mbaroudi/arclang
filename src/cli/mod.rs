@@ -1370,9 +1370,22 @@ impl CliRunner {
                 let name = if outcome.name.is_empty() || outcome.name == outcome.test_case { String::new() } else { format!(" \"{}\"", outcome.name) };
                 println!("\n{mark} {}{name}: {}", outcome.test_case, outcome.verdict.to_uppercase());
                 println!("    {}", crate::compiler::simulation::context_line(outcome));
-                for value in &outcome.values {
+                let print_value = |indent: &str, value: &crate::compiler::simulation::expects::Evaluated| {
                     let margin = if value.margin.is_empty() { String::new() } else { format!(", {}", value.margin) };
-                    println!("    {} {}   ({}{margin})", if value.holds { "ok  " } else { "FAIL" }, value.value, value.expect);
+                    println!("{indent}{} {}   ({}{margin})", if value.holds { "ok  " } else { "FAIL" }, value.value, value.expect);
+                };
+                if outcome.points.is_empty() {
+                    outcome.values.iter().for_each(|v| print_value("    ", v));
+                } else {
+                    let passing = outcome.points.iter().filter(|p| p.holds).count();
+                    println!("    sweep: {} points, {passing} pass, {} do not", outcome.points.len(), outcome.points.len() - passing);
+                    for point in &outcome.points {
+                        println!("    {} {}", if point.holds { "ok  " } else if point.error.is_empty() { "FAIL" } else { "ERR " }, point.label);
+                        point.values.iter().for_each(|v| print_value("        ", v));
+                        if !point.error.is_empty() {
+                            println!("        {}", point.error);
+                        }
+                    }
                 }
                 if !outcome.reason.is_empty() && outcome.verdict != "fail" {
                     println!("    {}", outcome.reason);

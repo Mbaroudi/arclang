@@ -240,6 +240,21 @@ test('an older compiler without names, margins or logs still gives a readable lo
   assert.match(log, /1 fail, 1 pass\.\n$/);
 });
 
+test('a sweep shows every point, its values and why a point has none', () => {
+  const [o] = parseOutcomes(JSON.stringify([{
+    test_case: 'TC-SWEEP', verdict: 'fail', reason: '1 of 2 points fail', values: [],
+    points: [
+      { label: 'ambient = 253.15 K', holds: true, values: [{ value: 'min(soc) = 0.18', expect: 'min(soc) >= 0.1', holds: true, margin: '0.08 to spare' }] },
+      { label: 'ambient = 293.15 K', holds: false, values: [], error: "sweep: 'body.x' is not a variable of the simulated model" },
+      { nonsense: true },
+    ],
+  }]))!;
+  assert.equal(o.points.length, 2, 'a point without a label is dropped');
+  const log = outcomesLog([o]);
+  assert.match(log, / {6}sweep: 2 points, 1 pass, 1 do not\n {6}ok {3}ambient = 253.15 K\n {10}ok {3}min\(soc\) = 0.18 {3}\(min\(soc\) >= 0.1, 0.08 to spare\)\n {6}ERR {2}ambient = 293.15 K\n {10}sweep: 'body.x'/);
+  assert.deepEqual(parseOutcomes(VERDICTS)![0].points, [], 'an older compiler has no points');
+});
+
 test('the drawing opens the system model of a configuration, from a split export', () => {
   const files = [
     '/w/modelica/EVRangeSimulation/Systems/Touring.mo',

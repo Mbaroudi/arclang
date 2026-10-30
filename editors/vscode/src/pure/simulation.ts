@@ -313,6 +313,8 @@ export interface Outcome {
   /** What OpenModelica printed, and how long the run took. */
   log: string;
   seconds: number;
+  /** Every point of a parameter sweep (4.8.1); empty when the case sweeps nothing. */
+  points: { label: string; values: Outcome['values']; holds: boolean; error: string }[];
 }
 
 export function parseOutcomes(text: string): Outcome[] | null {
@@ -343,6 +345,16 @@ export function parseOutcomes(text: string): Outcome[] | null {
       omc_version: text('omc_version'),
       log: text('log'),
       seconds: typeof o.seconds === 'number' && Number.isFinite(o.seconds) ? o.seconds : 0,
+      points: Array.isArray(o.points)
+        ? (o.points as Record<string, unknown>[])
+            .filter((p) => p && typeof p.label === 'string')
+            .map((p) => ({
+              label: p.label as string,
+              values: Array.isArray(p.values) ? (p.values as Outcome['values']).filter((v) => v && typeof v.value === 'string') : [],
+              holds: p.holds === true,
+              error: typeof p.error === 'string' ? p.error : '',
+            }))
+        : [],
     });
   }
   return out;
@@ -386,7 +398,17 @@ export function outcomesLog(outcomes: Outcome[], options: { toolLog?: boolean } 
     lines.push(`${mark}  ${o.test_case}${name}`);
     const context = contextLine(o);
     if (context) lines.push(`      ${context}`);
-    for (const v of o.values) lines.push(`      ${v.holds ? 'ok  ' : 'FAIL'} ${v.value}   (${v.expect}${v.margin ? `, ${v.margin}` : ''})`);
+    const value = (indent: string, v: Outcome['values'][number]) => `${indent}${v.holds ? 'ok  ' : 'FAIL'} ${v.value}   (${v.expect}${v.margin ? `, ${v.margin}` : ''})`;
+    if (o.points.length === 0) for (const v of o.values) lines.push(value('      ', v));
+    else {
+      const passing = o.points.filter((p) => p.holds).length;
+      lines.push(`      sweep: ${o.points.length} points, ${passing} pass, ${o.points.length - passing} do not`);
+      for (const p of o.points) {
+        lines.push(`      ${p.holds ? 'ok  ' : p.error ? 'ERR ' : 'FAIL'} ${p.label}`);
+        for (const v of p.values) lines.push(value('          ', v));
+        if (p.error) lines.push(`          ${p.error}`);
+      }
+    }
     if (o.reason && o.verdict !== 'fail') lines.push(`      ${o.reason}`);
     const log = toolLogLines(o.log);
     if (options.toolLog && log.length) {

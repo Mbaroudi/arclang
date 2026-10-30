@@ -33,7 +33,7 @@ use structure::{Connection, Part, Structure};
 /// The Modelica Standard Library version the package `uses`.
 pub const MSL_VERSION: &str = "4.1.0";
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct Export {
     /// The package name (`EVRangeSimulation`).
     pub package: String,
