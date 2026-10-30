@@ -31,7 +31,11 @@ fn types_ports(e: &Exporter<'_>, name: &str) -> bool {
     fn components(list: &[crate::compiler::ast::LogicalComponent], name: &str) -> bool {
         list.iter().any(|c| any(&c.ports, name) || components(&c.sub_components, name))
     }
-    e.model.logical_architecture.iter().any(|la| components(&la.components, name)) || e.model.types.iter().any(|t| any(&t.ports, name))
+    // Every level declares typed ports: system components, logical
+    // components, physical nodes and the behaviour components they host.
+    let system = e.model.system_analysis.iter().any(|sa| sa.components.iter().any(|c| any(&c.ports, name)));
+    let physical = e.model.physical_architecture.iter().flat_map(|pa| &pa.nodes).any(|n| any(&n.component_ports, name) || n.behavior_components.iter().any(|b| any(&b.ports, name)));
+    system || physical || e.model.logical_architecture.iter().any(|la| components(&la.components, name)) || e.model.types.iter().any(|t| any(&t.ports, name))
 }
 
 /// Whether exchanges are typed by `name`: then it is an interface definition,

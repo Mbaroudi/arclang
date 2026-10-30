@@ -92,3 +92,11 @@ fn a_transition_into_a_nested_state_names_it_by_its_path() {
     assert!(text.contains("transition '217b9f27-b9c3-41aa-8c70-4a08cf65938e' first 'ed01d361-f9cb-4c26-a0aa-e9338d4066ff' then 'e1589350-78e9-43b7-b87d-926def3fdddf'.'7104c85d-4fb0-48c6-a16b-2c162fd57a0f' {"));
     assert!(!text.contains("a state is not in this region"), "every transition is exported");
 }
+
+#[test]
+fn a_type_of_physical_ports_is_a_port_definition() {
+    // The OMG pilot refuses a port typed by anything but a port definition.
+    let text = exported("model T { name: \"t\" }\ntype \"Signal\" { physics: signal }\nphysical_architecture \"P\" {\n    node \"VCU\" {\n        id: \"PN-VCU\"\n        port in \"speed\" { is: \"Signal\" }\n        behavior_component \"Controller\" { id: \"BC-1\" port out \"cmd\" { is: \"Signal\" } }\n    }\n}\n");
+    assert!(text.contains("abstract port def Signal"), "{text}");
+    assert!(!text.contains("part def Signal"), "{text}");
+}
