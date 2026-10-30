@@ -740,6 +740,7 @@ safety_analysis {
     effect: "Output remains energized; the connector lock cannot release"
     cause: "Contact welding on a trip under load"
     severity: "9"  occurrence: "3"  detection: "2"  rpn: 54
+    element: "LC-PWR"  leads_to: ["HAZ-004", "HAZ-001"]  fit: 20
   }
   fmea "Coolant pump failure" {
     id: "FMEA-002"
@@ -747,6 +748,7 @@ safety_analysis {
     effect: "Cable temperature rises at 500 A; derating then stop"
     cause: "Pump wear, hose fatigue"
     severity: "7"  occurrence: "4"  detection: "2"  rpn: 56
+    element: "LC-COOL"  leads_to: ["HAZ-002"]  fit: 50
   }
   fmea "Insulation monitoring device silent failure" {
     id: "FMEA-003"
@@ -754,6 +756,7 @@ safety_analysis {
     effect: "Insulation fault not detected during charging"
     cause: "Measurement coupling failure"
     severity: "9"  occurrence: "2"  detection: "4"  rpn: 72
+    element: "LC-PROT"  leads_to: ["HAZ-001"]  fit: 15
   }
   fmea "OCPP link loss" {
     id: "FMEA-004"

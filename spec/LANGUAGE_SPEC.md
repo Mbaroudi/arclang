@@ -2063,96 +2063,49 @@ namespace safety::fmea {
 
 ### 8.3 Fault Tree Analysis (FTA)
 
+A fault tree is computed for every hazard from the FMEA: its basic events are
+the failure modes that `leads_to` it. One of them suffices (an OR gate, the
+default) or all of them together (`gate: "and"`, a redundancy). Rates are in
+FIT, failures per 10^9 hours, the unit of ISO 26262.
+
 ```arc
-namespace safety::fta {
-    
-    fault_tree LossOfFlightControl {
-        id = "FTA-001"
-        top_event = safety::hazards::HAZ-001
-        
-        tree {
-            top_event "Loss of Flight Control" {
-                probability = 1e-9 per hour
-                
-                OR {
-                    event "Both Flight Computers Failed" {
-                        probability = 1e-10 per hour
-                        
-                        AND {
-                            basic_event "Primary Computer Failed" {
-                                failure_rate = 1e-5 per hour
-                                mttf = 100000 hours
-                            }
-                            
-                            basic_event "Backup Computer Failed" {
-                                failure_rate = 1e-5 per hour
-                                mttf = 100000 hours
-                            }
-                            
-                            basic_event "Common Cause Failure" {
-                                beta_factor = 0.1
-                            }
-                        }
-                    }
-                    
-                    event "All Actuators Failed" {
-                        probability = 5e-11 per hour
-                        
-                        AND {
-                            basic_event "Aileron Actuator Failed" {
-                                failure_rate = 1e-6 per hour
-                            }
-                            basic_event "Elevator Actuator Failed" {
-                                failure_rate = 1e-6 per hour
-                            }
-                            basic_event "Rudder Actuator Failed" {
-                                failure_rate = 1e-6 per hour
-                            }
-                        }
-                    }
-                    
-                    event "Complete Power Loss" {
-                        probability = 1e-10 per hour
-                        
-                        AND {
-                            basic_event "Primary Battery Depleted" {
-                                failure_rate = 1e-5 per hour
-                            }
-                            basic_event "Backup Battery Failed" {
-                                failure_rate = 1e-6 per hour
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        
-        analysis {
-            minimal_cut_sets {
-                cut_set_1 = ["Primary Computer Failed", "Backup Computer Failed"]
-                cut_set_2 = ["Complete Power Loss"]
-                cut_set_3 = ["All Actuators Failed"]
-            }
-            
-            importance_measures {
-                component "Primary Computer" {
-                    fussell_vesely = 0.65
-                    risk_achievement_worth = 1.8
-                }
-                component "Power System" {
-                    fussell_vesely = 0.25
-                    risk_achievement_worth = 1.5
-                }
-            }
-        }
-        
-        export {
-            format = ["PDF", "XML"]
-            output = "safety/fta/LossOfFlightControl_FTA.pdf"
-        }
+safety_analysis {
+    hazard "Unintended steering" { id: "HAZ-1" asil: "ASIL-D" mitigated_by: ["REQ-SAF-1"] }
+    hazard "Loss of assist" { id: "HAZ-2" asil: "ASIL-B" gate: "and" mission_time: 10 h }
+    fmea "Torque sensor stuck" {
+        id: "FM-1"
+        element: "LC-SENS"                // the element that fails (must be declared)
+        leads_to: ["HAZ-1", "HAZ-2"]       // the hazards it is a basic event of
+        fit: 4                             // failure rate, FIT
+        rpn: 90
     }
 }
 ```
+
+The probability of the top event is computed over `mission_time` (1 h by
+default) from the rates, and held to the budget of the hazard: `budget_fit`
+when written, else the target of its level. The targets are as follows.
+
+| Level | Budget (FIT) |
+|---|---|
+| ASIL-D | 10 (ISO 26262 PMHF) |
+| ASIL-C, ASIL-B | 100 |
+| Catastrophic / DAL-A | 1 (ARP 4761) |
+| Hazardous / DAL-B | 100 |
+| Major / DAL-C | 10,000 |
+| Minor / DAL-D | 1,000,000 |
+| SIL-4 | 10 (IEC 61508, high demand) |
+| SIL-3 | 100 |
+| SIL-2 | 1,000 |
+| SIL-1 | 10,000 |
+
+ASIL-A and QM set no rate target. A tree beyond its budget is a compiler warning. A
+`leads_to` that names no hazard, or an `element` that names no element, is an
+error. `arclang safety model.arc --standard iso26262 --fta` prints the trees
+with their single points of failure. `--report [-o report.md]` writes a
+Markdown safety report: the hazards and their verdicts, the FMEA by risk
+priority, each tree as a Mermaid diagram, and the mitigations. Both commands
+fail when a tree is beyond its budget.
 
 ### 8.4 Safety Mechanisms
 

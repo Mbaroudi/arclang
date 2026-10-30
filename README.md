@@ -404,7 +404,7 @@ the long-term goal.
 
 These commands exist but fail honestly with `Not implemented` instead of
 pretending to work: `repl`, `clean`, `new`, `sync` (PLM),
-`plugin`, `lsp` TCP mode, safety FTA/report generation, dependency analysis.
+`plugin`, `lsp` TCP mode, dependency analysis.
 The built-in Rust `import` command reads a simplified XML — real Capella
 round-trip goes through `tools/capella_bridge/` (capellambse).
 

@@ -448,6 +448,9 @@ impl Metamodel {
                     attr("dal", AttrType::Enum("Dal"), "Declared DAL; must match the condition."),
                     attr("sil", AttrType::Enum("Sil"), "IEC 61508 SIL of the hazard (SIL-1..SIL-4); classifies it without S/E/C."),
                     attr("mitigated_by", list(AttrType::Reference("Requirement")), "Safety requirements mitigating the hazard."),
+                    attr("gate", AttrType::Text, "Fault tree: `or` (default, one failure mode leading to it suffices) or `and` (all of them, a redundancy)."),
+                    attr("budget_fit", AttrType::Number, "Fault tree: the most its rate may be, in FIT; else the target of its ASIL, failure condition, DAL or SIL."),
+                    attr("mission_time", AttrType::Quantity(Dimension::Time), "Fault tree: the exposure the probability is computed over (1 h by default)."),
                 ]])),
             kind("FmeaEntry", Layer::Transverse, "(safety extension)", "requirement (failure mode)", "FMEA line: failure mode with S/O/D rating.",
                 concat(vec![common(), vec![
@@ -458,6 +461,9 @@ impl Metamodel {
                     attr("occurrence", AttrType::Text, "Occurrence: rating, class or rate description."),
                     attr("detection", AttrType::Text, "Detection: rating, class or detection means."),
                     attr("rpn", AttrType::Number, "Risk priority number."),
+                    attr("element", AttrType::Reference("Element"), "The element that fails."),
+                    attr("leads_to", list(AttrType::Reference("Hazard")), "The hazards this failure mode leads to: the fault trees it is a basic event of."),
+                    attr("fit", AttrType::Number, "Failure rate in FIT (failures per 10^9 hours)."),
                 ]])),
             kind("Threat", Layer::Transverse, "cybersecurity:Threat (Cybersecurity viewpoint)", "requirement (threat)", "Threat of a cybersecurity analysis: what an attacker may achieve, applied to primary assets and involving components. Its security needs are the free `security_<need>` attributes, checked against `security_scales`.",
                 concat(vec![common(), vec![

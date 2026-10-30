@@ -298,11 +298,17 @@ pub enum Commands {
         #[clap(long)]
         fmea: bool,
         
+        /// The fault tree of every hazard: its failure modes, rate and budget
         #[clap(long)]
         fta: bool,
-        
+
+        /// A safety report in Markdown (hazards, FMEA by risk, fault trees, mitigations)
         #[clap(long)]
         report: bool,
+
+        /// Where the report is written (default: the terminal)
+        #[clap(short, long)]
+        output: Option<PathBuf>,
     },
     
     /// Start the HTTP API. Models given here are served through the
@@ -836,8 +842,8 @@ impl CliRunner {
             Commands::Import { input, format, output } => {
                 self.run_import(input, format, output)
             }
-            Commands::Safety { input, standard, fmea, fta, report } => {
-                self.run_safety(input, standard, fmea, fta, report)
+            Commands::Safety { input, standard, fmea, fta, report, output } => {
+                self.run_safety(input, standard, fmea, fta, report, output)
             }
             Commands::Serve { port, models, history, history_depth, token_file, users_file, allow_write } => {
                 self.run_serve(port, models, history.then_some(history_depth), token_file, users_file, allow_write)
@@ -1867,25 +1873,38 @@ impl CliRunner {
         fmea: bool,
         fta: bool,
         report: bool,
+        output: Option<PathBuf>,
     ) -> Result<(), CliError> {
-        if fta {
-            return Err(CliError::NotImplemented(
-                "FTA generation is not implemented yet".to_string(),
-            ));
-        }
-        if report {
-            return Err(CliError::NotImplemented(
-                "safety report generation is not implemented yet".to_string(),
-            ));
-        }
-
-        println!("Safety analysis ({:?}) of {}...", standard, input.display());
-
         let config = crate::CompilerConfig::default();
         let mut compiler = crate::Compiler::new(config);
         let result = compiler
             .compile_file(&input)
             .map_err(|e| CliError::Compilation(e.to_string()))?;
+        if fta || report {
+            let trees = crate::compiler::fta::trees(&result.ast).map_err(|errors| CliError::Compilation(errors.join("\n")))?;
+            if trees.is_empty() {
+                return Err(CliError::Compilation("no fault tree: the model declares no hazard (safety_analysis { hazard ... })".to_string()));
+            }
+            if report {
+                let text = crate::compiler::fta::markdown_report(&result.ast, &trees, &format!("{standard:?}"));
+                match &output {
+                    Some(path) => {
+                        std::fs::write(path, text).map_err(CliError::Io)?;
+                        println!("✓ Safety report written to {}", path.display());
+                    }
+                    None => print!("{text}"),
+                }
+            } else {
+                print!("{}", crate::compiler::fta::text_report(&trees));
+            }
+            // A tree beyond its budget fails the command, as a gate would.
+            if trees.iter().any(|t| t.within_budget() == Some(false)) {
+                return Err(CliError::Compilation("a fault tree is beyond its budget".to_string()));
+            }
+            return Ok(());
+        }
+
+        println!("Safety analysis ({:?}) of {}...", standard, input.display());
 
         let safety_blocks = &result.ast.safety_analysis;
         let hazard_count: usize = safety_blocks.iter().map(|s| s.hazards.len()).sum();

@@ -15,6 +15,7 @@ pub mod spatial;
 pub mod allocations;
 pub mod identity_sites;
 pub mod verification;
+pub mod fta;
 pub mod notes;
 pub mod variability;
 pub mod rules;
@@ -368,6 +369,9 @@ impl Compiler {
 
         // Notes on the diagrams: about elements the model declares.
         warnings.extend(notes::check(&ast, &mut semantic_model).map_err(CompilerError::Semantic)?);
+
+        // Fault trees: failure modes leading to hazards, held to their budgets.
+        warnings.extend(fta::check(&ast, &semantic_model).map_err(CompilerError::Semantic)?);
 
         // Ports that declare physics are connected to ports of the same physics.
         modelica::check(&ast).map_err(CompilerError::Semantic)?;

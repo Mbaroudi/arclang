@@ -85,7 +85,7 @@ suite('ArcLang extension', () => {
     assert.ok(extension, 'extension found');
     await extension.activate();
     const commands = await vscode.commands.getCommands(true);
-    for (const id of ['arclang.openDiagrams', 'arclang.check', 'arclang.runGate', 'arclang.transitionApply', 'arclang.export', 'arclang.import', 'arclang.ai.apply']) {
+    for (const id of ['arclang.openDiagrams', 'arclang.check', 'arclang.runGate', 'arclang.safetyReport', 'arclang.transitionApply', 'arclang.export', 'arclang.import', 'arclang.ai.apply']) {
       assert.ok(commands.includes(id), `${id} registered`);
     }
   });

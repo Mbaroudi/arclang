@@ -4,7 +4,7 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import * as vscode from 'vscode';
-import { failureText, output, refusedHere, report, run } from './cli';
+import { failureText, output, refusedHere, report, run, tempDir } from './cli';
 import { shownDiagramFile } from './diagrams';
 import { EXPORT_FORMATS, parseCheckReport, renderTransitionPlan, summarizeCheck, TransitionPlan } from './pure/arc';
 
@@ -59,6 +59,24 @@ export async function runGate(uri?: vscode.Uri): Promise<void> {
   report(`arclang gate --standard ${standard} ${path.basename(file)}`, result);
   if (result.code === 0) vscode.window.showInformationMessage(`ArcLang gate (${standard}): PASS`);
   else vscode.window.showWarningMessage(`ArcLang gate (${standard}): FAIL. See the ArcLang output.`);
+}
+
+/** The safety report of the model (hazards, FMEA, fault trees), opened in the Markdown preview. */
+export async function safetyReport(uri?: vscode.Uri): Promise<void> {
+  if (refusedHere(['safety'])) return; // web hook
+  const file = await fileFrom(uri);
+  if (!file) return;
+  const standard = vscode.workspace.getConfiguration('arclang').get<string>('gate.standard', 'iso26262');
+  const out = path.join(tempDir(), `${path.basename(file, '.arc')}.safety.md`);
+  const result = await run(['safety', file, '--standard', standard, '--report', '--output', out], { cwd: path.dirname(file) });
+  // A tree beyond its budget fails the command; the report is written all the same.
+  if (!fs.existsSync(out) || (result.code !== 0 && !/beyond its budget/.test(result.stderr + result.stdout))) {
+    output().clear();
+    report(`arclang safety --report ${path.basename(file)}`, result);
+    return;
+  }
+  await vscode.commands.executeCommand('markdown.showPreview', vscode.Uri.file(out));
+  if (result.code !== 0) vscode.window.showWarningMessage('ArcLang: a fault tree is beyond its budget (see the safety report).');
 }
 
 export async function formatActive(): Promise<void> {
