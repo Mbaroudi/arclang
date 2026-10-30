@@ -250,6 +250,7 @@ deceleration: 0.3
 - Decimals supported: `3.14`, `0.5`
 - Underscores for readability: `1_000_000`
 - Negative numbers: `-40`, `-12.5`
+- Scientific notation: `1.5e7`, `2E-3` (a heat capacity in J/K, a small resistance)
 
 **Identifiers**:
 ```arc

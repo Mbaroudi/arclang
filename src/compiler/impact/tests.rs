@@ -306,7 +306,7 @@ fn no_scratch_path_reaches_a_verdict_or_the_gate() {
     let base = crate::compiler::semgit::rich::load(&file, &crate::compiler::semgit::rich::Source::Git("HEAD".into())).expect("loads at HEAD");
     let reasons: Vec<&String> = base.result.semantic_model.simulations.values().map(|s| &s.reason).collect();
     assert!(!reasons.is_empty() && reasons.iter().all(|r| r.contains(&file.display().to_string())), "{reasons:?}");
-    let changed = model.replacen("stop_time: 3.2 h", "stop_time: 3.3 h", 1);
+    let changed = model.replacen("stop_time: 5 h", "stop_time: 6 h", 1);
     assert_ne!(changed, model);
     std::fs::write(&file, &changed).unwrap();
     let report = since::since(&file, &changed, "HEAD", &options()).expect("since HEAD");

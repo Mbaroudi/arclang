@@ -258,6 +258,7 @@ fn the_gate_reads_cached_verdicts_and_says_when_they_are_missing_or_stale() {
 
     cached(&model, "TC-RANGE-LR", "pass", vec![value("final(vehicleBody.distance) = 319.9 km", true), value("min(batteryPack.soc) = 0.2403", true)], "");
     cached(&model, "TC-RANGE-STD", "fail", vec![value("min(batteryPack.soc) = 0.02664", false)], "min(batteryPack.soc) = 0.02664 (expected min(\"PN-BATT\".soc) >= 0.1)");
+    cached(&model, "TC-RANGE-ENVELOPE", "pass", vec![value("min(batteryPack.soc) = 0.2016", true)], "");
     let result = compile_file(&model);
     let report = production_gate::run_gate(&result.ast, &result.semantic_model, "ISO26262");
     let blocker = report.findings.iter().find(|f| f.check == "requirements.verification").unwrap();
@@ -270,11 +271,11 @@ fn the_gate_reads_cached_verdicts_and_says_when_they_are_missing_or_stale() {
     assert!(json.contains("Key values") && json.contains("TC-RANGE-LR: final(vehicleBody.distance) = 319.9 km; min(batteryPack.soc) = 0.2403"), "{json}");
     assert!(json.contains("TC-RANGE-STD: min(batteryPack.soc) = 0.02664 (fails)"), "{json}");
 
-    // Both pass: the requirement is verified, the gate has no blocker on it.
+    // All pass: both requirements (the range, its envelope) are verified, the gate has no blocker on them.
     cached(&model, "TC-RANGE-STD", "pass", vec![value("min(batteryPack.soc) = 0.3", true)], "");
     let result = compile_file(&model);
     let report = production_gate::run_gate(&result.ast, &result.semantic_model, "ISO26262");
-    assert_eq!(report.requirements_verified, 1);
+    assert_eq!(report.requirements_verified, 2);
 
     // A source changed: stale, inconclusive again.
     let physics = model.parent().unwrap().join("physics/EVPhysics.mo");
@@ -374,8 +375,9 @@ fn openmodelica_checks_the_package_and_verifies_the_demo() {
     // What the log says of a failure: how far, how long, what OpenModelica printed.
     let std = outcomes.iter().find(|o| o.test_case == "TC-RANGE-STD").unwrap();
     let soc = std.values.iter().find(|v| !v.holds).unwrap();
-    assert!(soc.margin.starts_with("short by 0.07"), "{soc:?}");
-    assert!(std.values.iter().any(|v| v.holds && v.margin.ends_with("km to spare")), "{:?}", std.values);
+    assert!(soc.margin.starts_with("short by 0.013"), "{soc:?}");
+    // The run ends when the 300 km are driven: the distance sits on its bound.
+    assert!(std.values.iter().any(|v| v.holds && v.margin == "at the bound"), "{:?}", std.values);
     assert!(std.seconds > 0.0 && std.log.contains("@@simulate"));
     // The gate now reads them from the cache.
     let result = compile_file(&model);
@@ -390,9 +392,9 @@ fn openmodelica_runs_a_sweep_and_proves_each_override() {
     let text = std::fs::read_to_string(&model).unwrap();
     // The long range pack, over three temperatures and two speeds; then a name that is not a parameter.
     let sweep = "sources: [\"physics/EVPhysics.mo\"] sweep: [\"vehicleBody.ambient = 253.15 K, 263.15 K, 293.15 K\", \"\\\"PN-VCU\\\".speedController.target_speed = 90 km/h .. 110 km/h step 20 km/h\"] }";
-    let marker = "configuration: \"CFG-TOURING\" stop_time: 3.2 h sources: [\"physics/EVPhysics.mo\"] }";
+    let marker = "configuration: \"CFG-TOURING\" stop_time: 5 h sources: [\"physics/EVPhysics.mo\"] }";
     assert!(text.contains(marker));
-    std::fs::write(&model, text.replacen(marker, &format!("configuration: \"CFG-TOURING\" stop_time: 3.2 h {sweep}"), 1)).unwrap();
+    std::fs::write(&model, text.replacen(marker, &format!("configuration: \"CFG-TOURING\" stop_time: 5 h {sweep}"), 1)).unwrap();
     let config = ToolConfig::from_env();
     let outcomes = run::verify(&compile_file(&model), &model, Some("TC-RANGE-LR"), &config).unwrap();
     let lr = &outcomes[0];

@@ -257,7 +257,7 @@ test_case "Winter range, long range pack" {
     id: "TC-RANGE-LR"
     verifies: ["REQ-RANGE"]
     method: "analysis"
-    simulate: { model: "EVPhysics.TouringRange" configuration: "CFG-TOURING" stop_time: 3.2 h sources: ["physics/EVPhysics.mo"] }
+    simulate: { model: "EVPhysics.TouringRange" configuration: "CFG-TOURING" stop_time: 5 h sources: ["physics/EVPhysics.mo"] }
     expects: ["final(vehicleBody.distance) >= 300 km", "min(\"PN-BATT\".soc) >= 0.1"]
 }
 ```
@@ -270,13 +270,32 @@ model file), `tolerance` (default `1e-6`) and `intervals` (output intervals,
 default 500). A case that simulates neither asserts constraints nor gives a
 verdict.
 
+### When a run ends
+
+`stop_time` is a bound, not the end of the story: a run that should stop on
+an event says so in its physics with `terminate()`, and OpenModelica ends it
+there, the result file complete. The EV range runs end when the 300 km are
+driven (in the system model) or when the pack is empty (in the battery),
+whichever comes first:
+
+```modelica
+when vehicleBody.distance >= trip then
+  terminate("the trip is driven");
+end when;
+```
+
+so `final(vehicleBody.distance) >= 300 km` fails when the pack empties first,
+and `min("PN-BATT".soc)` is the charge left at the end of the trip, not after
+an hour of driving past it. A value that ends on its bound is reported `at the
+bound`, not `0.00000006 km to spare`.
+
 ### Sweeps: one case over many conditions
 
 `sweep:` runs the case over a grid of parameter values, and its `expects:`
 must hold at every point:
 
 ```arc
-simulate: { model: "EVPhysics.TouringRange" configuration: "CFG-TOURING" stop_time: 3.2 h
+simulate: { model: "EVPhysics.TouringRange" configuration: "CFG-TOURING" stop_time: 5 h
             sources: ["physics/EVPhysics.mo"]
             sweep: ["vehicleBody.ambient = 253.15 K, 263.15 K, 293.15 K",
                     "\"PN-VCU\".speedController.target_speed = 90 km/h .. 130 km/h step 20 km/h"] }
@@ -337,6 +356,28 @@ the same `expects:` evaluation, so the others change no model:
 
 They are accepted by the language today and answer **inconclusive**
 (`backend 'fmu' is declared but not implemented yet`).
+
+## The validation campaign
+
+Five systems from five domains, each with its architecture in ArcLang, its
+physics in a hand-written Modelica package, and requirements verified by
+simulation: in each, one configuration is meant to pass, one to fail, and a
+sweep covers the conditions the requirement names.
+
+| System | Physics | Configurations | Sweep |
+|---|---|---|---|
+| `examples/automotive/ev_range_simulation.arc` | longitudinal dynamics, drag at the air density of the ambient, a cruise PI, a pack drained to its end | standard pack **fail** (8.7 % left after 300 km), long range **pass** | -20 to 20 °C × 90 to 110 km/h: 9 of 9 pass |
+| `examples/automotive/battery_fast_charge.arc` | open-circuit voltage, internal resistance heating the cells, a cold plate, thermal derating of the charge power | air cooled **fail** (34.5 min for 10 to 80 %), chilled **pass** | 25 to 40 °C × 100 and 150 kW: 8 of 8 pass |
+| `examples/aerospace/drone_endurance.arc` | momentum theory power, the pack's weight on the frame, an altitude PID | standard pack **fail** (8 % left after 25 min), extended **pass** | payload 0 to 2 kg × 0 to 35 °C: 9 of 9 pass |
+| `examples/building/heat_pump_heating.arc` | a thermal mass, its envelope, a daily outdoor cycle, a heat pump whose capacity and COP fall in the cold, a PI thermostat | 6 kW **fail** (19 °C at night), 9 kW **pass** (36.6 kWh a day) | -10 to 0 °C × 300 and 900 W of gains: 6 of 6 pass |
+| `examples/aerospace/aircraft_electrical_network.arc` | a 28 V generator lost at 10 min, a battery whose voltage sags as it empties and in the cold, constant-power loads, load shedding | 25 Ah **fail** (23.6 V), 40 Ah **pass** | -20 to 20 °C × 400 to 700 W: **fail**, 5 of 9 points, first at -20 °C and 550 W |
+
+The last sweep fails on purpose: it finds where the 40 Ah battery is not
+enough, which the two single cases do not show. `tests/simulation_campaign.rs`
+checks without a tool that every system compiles, exports, extends the system
+of each configuration and verifies each requirement; with OpenModelica
+(`cargo test --release --test simulation_campaign -- --ignored`), that every
+case gets the verdict above, cached for the gate.
 
 ## SysML v2
 

@@ -8,7 +8,7 @@
 //!     verifies: ["REQ-RANGE"]
 //!     method: "analysis"
 //!     simulate: { model: "EVPhysics.TouringRange" configuration: "CFG-TOURING"
-//!                 stop_time: 3.2 h sources: ["physics/EVPhysics.mo"] }
+//!                 stop_time: 5 h sources: ["physics/EVPhysics.mo"] }
 //!     expects: ["final(vehicleBody.distance) >= 300 km", "min(batteryPack.soc) >= 0.1"]
 //! }
 //! ```

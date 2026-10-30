@@ -457,7 +457,10 @@ fn shown(value: Value, unit: Option<&str>) -> String {
 fn label(term: &Term) -> String {
     match term {
         Term::Call { function, at: None, variable } => format!("{function}({variable})"),
-        Term::Call { variable, .. } => format!("at(..., {variable})"),
+        Term::Call { variable, at: Some(t), .. } => match t.as_ref() {
+            Term::Number { value, dim, unit } => format!("at({}, {variable})", shown(Value { si: *value, dim: Some(*dim) }, unit.as_deref())),
+            _ => format!("at(..., {variable})"),
+        },
         _ => "value".to_string(),
     }
 }
@@ -470,9 +473,13 @@ pub fn evaluate(expect: &Expect, context: &mut Context<'_>) -> Result<Evaluated,
     let holds = expect.cmp.holds(lhs.si, rhs.si);
     let unit = written_unit(&expect.rhs).or_else(|| written_unit(&expect.lhs));
     let value = format!("{} = {}", label(&expect.lhs), shown(lhs, unit));
-    let gap = shown(Value { si: (lhs.si - rhs.si).abs(), dim: lhs.dim.or(rhs.dim) }, unit);
+    let gap_si = (lhs.si - rhs.si).abs();
+    let gap = shown(Value { si: gap_si, dim: lhs.dim.or(rhs.dim) }, unit);
+    // A gap below what four significant digits show: the value sits on its bound.
+    let on_bound = gap_si <= 5e-5 * lhs.si.abs().max(rhs.si.abs());
     let margin = match (expect.cmp, holds) {
         (Cmp::Eq, true) => String::new(),
+        (_, true) if on_bound => "at the bound".to_string(),
         (Cmp::Ne, false) => "equal".to_string(),
         (Cmp::Eq, false) | (Cmp::Ne, true) => format!("off by {gap}"),
         (Cmp::Gt | Cmp::Ge, false) => format!("short by {gap}"),
@@ -512,7 +519,7 @@ mod tests {
         assert!(run("max(body.speed) < 101 km/h").unwrap().holds);
         // Trapezoidal mean: (0.8*1800 + 0.4*1800) / 3600.
         assert_eq!(run("mean(battery.soc) > 0").unwrap().value, "mean(battery.soc) = 0.6");
-        assert_eq!(run("at(900 s, battery.soc) > 0").unwrap().value, "at(..., battery.soc) = 0.8");
+        assert_eq!(run("at(900 s, battery.soc) > 0").unwrap().value, "at(900 s, battery.soc) = 0.8");
         assert!(run("at(0.5 h, body.distance) == 150 km").unwrap().holds);
         assert!(run("final(body.distance) - initial(body.distance) > 2 * 150 km").unwrap().holds);
         assert!(run("min(\"PN-BATT\".soc) >= 0.1").unwrap().holds, "an ArcLang id names the instance");
@@ -526,6 +533,9 @@ mod tests {
         assert_eq!(run("max(body.speed) < 100 km/h").unwrap().margin, "over by 0.08 km/h");
         assert_eq!(run("initial(battery.soc) == 1").unwrap().margin, "");
         assert_eq!(run("initial(battery.soc) == 0.5").unwrap().margin, "off by 0.5");
+        // A run that ends on its bound (a terminate() at 300 km) is not "0.00000006 km to spare".
+        assert_eq!(run("final(body.distance) >= 300.4999999 km").unwrap().margin, "at the bound");
+        assert_eq!(run("final(body.distance) >= 300.6 km").unwrap().margin, "short by 0.1 km");
     }
 
     #[test]
