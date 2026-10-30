@@ -1,4 +1,4 @@
-import { debugView, firePicks, runPicks } from '../../src/pure/debug';
+import { debugView, firePicks, nothingToRun, runPicks } from '../../src/pure/debug';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
@@ -254,4 +254,13 @@ test('the debugger shows the diagram of what runs, and offers what the model run
   const picks = runPicks({ machines: ['LKA modes'], scenarios: ['Lane departure'], chains: ['Reaction'] });
   assert.deepEqual(picks.map((p) => [p.key, p.name]), [['machine', 'LKA modes'], ['scenario', 'Lane departure'], ['chain', 'Reaction']]);
   assert.deepEqual(firePicks(['SF-DET']).map((p) => p.event), ['SF-DET', null, '?']);
+});
+
+test('a model with nothing to run step by step is told so, not that it does not compile', () => {
+  assert.deepEqual(runPicks({ machines: [], scenarios: [], chains: [] }), []);
+  const simulated = nothingToRun(true);
+  assert.match(simulated.text, /nothing to run step by step/);
+  assert.doesNotMatch(simulated.text, /compile/);
+  assert.equal(simulated.action, 'Run simulations', 'a model verified by simulation is offered its simulations');
+  assert.equal(nothingToRun(false).action, null);
 });

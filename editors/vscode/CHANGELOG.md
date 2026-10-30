@@ -4,6 +4,7 @@
 
 - **The simulation log says what happened**: *Show the log* opens the **ArcLang Simulation** output channel. Each run gives its time, file, tool and OpenModelica version; each case its name, the requirements it verifies, its configuration (by name) and model; each value how far it is from its bound (`short by 0.07341`, `19.91 km to spare`); then what OpenModelica printed, and the time taken. `arclang verify` prints the same, and the OpenModelica log with `-v`; a case that does not pass no longer reads "Compilation error".
 - **The Modelica drawing is no longer blank**: *Export Modelica* writes one file per class (`--split`), and *Open the Modelica drawing* asks which configuration and opens its system model in Modex, not the package, which has nothing to draw. It offers once to add the folder to `modex.libraryRoots` for the workspace, so that Modex draws each part. A single-file export ArcLang wrote beside the folder is removed. Test: `test/e2e/vscode_sim_drawing_test.js`.
+- **F5 or *Run…* on a model with nothing to run step by step** (no state machine, scenario or functional chain) says so, instead of "the model does not compile"; when the model is verified by simulation, it offers *Run simulations*. `arclang debug --list` answers for such a model (empty lists) instead of failing.
 
 ## 4.8.0
 
