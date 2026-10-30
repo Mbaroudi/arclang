@@ -1,5 +1,15 @@
 # Changelog
 
+## 4.7.0
+
+- **A trace drawn on the diagram.** A trace whose two ends a view draws is a dashed line labelled by its type (`satisfies`, `allocates`...). Selected, it is the trace (its type in the properties); an end dragged onto another element reconnects it; Delete removes its line from the source; ⌘Z brings it back. Two traces between the same ends are told apart by their type. Test: `test/e2e/vscode_trace_test.js`.
+- **Notes on the diagrams**: `note "Text" { about: ["LC-CAM"] }` at the top of a file, drawn on every view of an element it is about, a pale note tied to it by a dashed line; the **Note** tool writes one about the selection; renamed, deleted and undone like any declaration. SysML v2: a `comment about`, read back as a note. Test: `test/e2e/vscode_note_test.js`.
+- **State invariants from the scenario palette**: the **State** tool asserts what a lifeline is in while the selected messages happen (a state, `mode X`, `function X`, or `Lifeline: state`); the box is drawn on the lifeline; an unknown state is refused with the reason. Test: `test/e2e/vscode_invariant_test.js`.
+- **Fault trees and a safety report**: an FMEA line says what fails (`element`), the hazards it leads to (`leads_to`) and its rate (`fit`); each hazard gets a fault tree (OR, or `gate: "and"`), its rate held to the budget of its ASIL, failure condition, DAL or SIL; single points of failure listed. *ArcLang: Safety report* opens the report (hazards, FMEA by risk, the trees, mitigations). Compiler: `arclang safety --fta`, `--report`. Test: `test/e2e/vscode_safety_test.js`.
+- **Impact analysis**: *What if: delete* works on a trace written on one line; the gate explanations no longer show temporary paths, and a blocker already there is no longer listed as both resolved and new.
+- Wrapped messages (fragments, invariants) are indented as the file indents.
+- Needs the 4.7 compiler.
+
 ## 4.6.0
 
 - **Semantic git**: the model versioned like code, reviewed and merged like a model (`docs/SEMANTIC_GIT.md`).
