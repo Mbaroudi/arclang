@@ -1,3 +1,5 @@
+pub mod debug;
+pub mod debug_target;
 pub mod diagram_service;
 pub mod edit;
 pub mod table; // tables hook
@@ -232,6 +234,10 @@ pub enum Commands {
     /// Change-impact analysis: what a change to elements, a proposed edit
     /// (what-if) or the changes since a git revision reach, and why
     Impact(impact::ImpactArgs), // impact hook
+
+    /// Run a state machine of the model step by step: events fired in order
+    /// (--events), or a debugger for VS Code (--dap, the Debug Adapter Protocol)
+    Debug(debug::DebugArgs),
     
     /// Verification by simulation: run the test cases that `simulate:` in
     /// OpenModelica (ARCLANG_OMC, or Docker with ARCLANG_OMC_DOCKER), check
@@ -811,6 +817,7 @@ impl CliRunner {
                 self.run_trace(input, from, to, validate, matrix)
             }
             Commands::Impact(args) => impact::run(&args), // impact hook
+            Commands::Debug(args) => debug::run(&args),
             Commands::Diff { old, new, json, from, to, format, output, gate_standard } => {
                 if from.is_some() || format.is_some() || output.is_some() { // semgit hook
                     let format = format.map(Into::into).unwrap_or(if json { crate::compiler::semgit::render::Format::Json } else { crate::compiler::semgit::render::Format::Text });

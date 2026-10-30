@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- **Run and debug a state machine, a scenario or a functional chain**: *ArcLang: Run…* offers what the model runs (F5 runs the first) through `arclang debug --dap`. A **scenario** plays message by message (alt takes the operand whose guard is set, opt and loop as written or while their condition holds, par in the order written; state invariants hold on their lifelines); its view is shown with the message just sent drawn bold. A **functional chain** runs as a token game (or: the branch whose condition holds; and: fork and join; iterate: loops while its condition holds); the steps holding a token are outlined. A breakpoint on a message or a chain step stops when it is reached.
+- **State machines**: F5 on a `.arc` model runs its state machine. Breakpoints (F9) on a state stop when it is entered, on a transition when it fires; an event is fired by typing its name in the debug console, `fire <event>`, or *ArcLang: Fire an event* (debug toolbar); a guard is the author's text, a condition set with `set <guard> true|false` or in Variables (*Conditions*); *Step Over* is a completion step. The active states are the call stack, at their declarations; the workbench diagram outlines them and draws the transition just fired. Compiler: `arclang debug model.arc --events a,b --set "<guard>"` in a terminal. Test: `test/e2e/vscode_debug_test.js`.
+
 ## 4.7.0
 
 - **A trace drawn on the diagram.** A trace whose two ends a view draws is a dashed line labelled by its type (`satisfies`, `allocates`...). Selected, it is the trace (its type in the properties); an end dragged onto another element reconnects it; Delete removes its line from the source; ⌘Z brings it back. Two traces between the same ends are told apart by their type. Test: `test/e2e/vscode_trace_test.js`.

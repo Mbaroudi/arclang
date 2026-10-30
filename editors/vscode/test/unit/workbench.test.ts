@@ -1,3 +1,4 @@
+import { debugView, firePicks, runPicks } from '../../src/pure/debug';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
@@ -244,4 +245,13 @@ test('a state is asserted on the lifeline offered, or on the one named, as a sta
   assert.deepEqual(invariantRequest('Run', 'tick', 'tick', 'LC-B', lines, 'state'), { op: 'wrap_invariant', scenario: 'Run', keyword: 'state', lifeline: 'LC-B', name: 'state', first: 'tick', last: 'tick' });
   assert.ok('error' in (invariantRequest('Run', 'tick', 'tick', 'LC-B', lines, 'Driver: Armed') as object));
   assert.ok('error' in (invariantRequest('Run', 'tick', 'tick', 'LC-B', lines, '  ') as object));
+});
+
+test('the debugger shows the diagram of what runs, and offers what the model runs', () => {
+  assert.equal(debugView({ type: 'debug-state', kind: 'machine', name: 'LKA modes', nodes: [], edges: [] }), 'msm:LKA modes');
+  assert.equal(debugView({ type: 'debug-state', kind: 'scenario', name: 'Lane departure', nodes: [], edges: ['msg:1'] }), 'es:Lane departure');
+  assert.equal(debugView({ type: 'debug-state', kind: 'chain', name: 'Reaction', nodes: ['SF-A'], edges: [] }), null);
+  const picks = runPicks({ machines: ['LKA modes'], scenarios: ['Lane departure'], chains: ['Reaction'] });
+  assert.deepEqual(picks.map((p) => [p.key, p.name]), [['machine', 'LKA modes'], ['scenario', 'Lane departure'], ['chain', 'Reaction']]);
+  assert.deepEqual(firePicks(['SF-DET']).map((p) => p.event), ['SF-DET', null, '?']);
 });

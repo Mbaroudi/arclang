@@ -830,6 +830,18 @@
         "command": "arclang.simulation.docs",
         "title": "Open the simulation documentation",
         "category": "ArcLang"
+      },
+      {
+        "command": "arclang.debug.run",
+        "title": "Run… (state machine, scenario or functional chain, in the debugger)",
+        "category": "ArcLang",
+        "icon": "$(debug-start)"
+      },
+      {
+        "command": "arclang.debug.fire",
+        "title": "Fire an event",
+        "category": "ArcLang",
+        "icon": "$(zap)"
       }
     ],
     "menus": {
@@ -1560,6 +1572,20 @@
           "command": "arclang.workbench.saveAs",
           "when": "webviewId == 'arclang.workbench'",
           "group": "file@2"
+        }
+      ],
+      "debug/toolBar": [
+        {
+          "command": "arclang.debug.fire",
+          "when": "debugType == arclang",
+          "group": "navigation"
+        }
+      ],
+      "editor/title/run": [
+        {
+          "command": "arclang.debug.run",
+          "when": "resourceLangId == arclang",
+          "group": "navigation@1"
         }
       ]
     },
@@ -2737,6 +2763,66 @@
         "key": "ctrl+shift+a",
         "mac": "cmd+shift+a",
         "when": "activeWebviewPanelId == 'arclang.workbench.diagram' && focusedView == '' && !inputFocus && !arclang.workbenchTyping"
+      }
+    ],
+    "breakpoints": [
+      {
+        "language": "arclang"
+      }
+    ],
+    "debuggers": [
+      {
+        "type": "arclang",
+        "label": "ArcLang model (state machine, scenario, chain)",
+        "languages": [
+          "arclang"
+        ],
+        "configurationAttributes": {
+          "launch": {
+            "required": [
+              "program"
+            ],
+            "properties": {
+              "program": {
+                "type": "string",
+                "description": "The .arc model to run.",
+                "default": "${file}"
+              },
+              "machine": {
+                "type": "string",
+                "description": "The state machine to run, by name or id (default: the first state machine, else scenario, else chain)."
+              },
+              "scenario": {
+                "type": "string",
+                "description": "The scenario to play message by message, by name or id."
+              },
+              "chain": {
+                "type": "string",
+                "description": "The functional chain (or operational process) to run step by step, by name or id."
+              }
+            }
+          }
+        },
+        "initialConfigurations": [
+          {
+            "type": "arclang",
+            "request": "launch",
+            "name": "Run the state machine",
+            "program": "${file}"
+          }
+        ],
+        "configurationSnippets": [
+          {
+            "label": "ArcLang: Run a state machine",
+            "description": "Run a state machine of a .arc model step by step",
+            "body": {
+              "type": "arclang",
+              "request": "launch",
+              "name": "Run the state machine",
+              "program": "^\"\\${file}\""
+            }
+          }
+        ]
       }
     ]
   },

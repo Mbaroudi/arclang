@@ -44,6 +44,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   register('arclang.check', (uri?: unknown) => commands.check(uriOf(uri)));
   register('arclang.runGate', (uri?: unknown) => commands.runGate(uriOf(uri)));
   register('arclang.safetyReport', (uri?: unknown) => commands.safetyReport(uriOf(uri)));
+  // The debugger runs the native compiler (`arclang debug --dap`): not in a browser.
+  for (const command of ['arclang.debug.run', 'arclang.debug.fire']) register(command, () => vscode.window.showInformationMessage('ArcLang: the state machine debugger needs the desktop VS Code and the arclang compiler.'));
   register('arclang.format', () => commands.formatActive());
   register('arclang.transitionPlan', (uri?: unknown) => commands.transitionPlan(uriOf(uri)));
   register('arclang.transitionApply', (uri?: unknown, step?: unknown) => commands.transitionApply(uriOf(uri), typeof step === 'string' ? step : undefined));
