@@ -5,6 +5,7 @@
 use super::expects::{self, Context};
 use super::results::{units_from_init_xml, Series};
 use super::tool::{self, Tool, ToolConfig};
+use super::montecarlo;
 use super::sweep::{self, Point};
 use super::{cache, expects_of, is_simulated, replay, spec_of, Outcome, PointOutcome, Spec, Status};
 use crate::compiler::modelica::{self, names, Export};
@@ -199,10 +200,20 @@ fn simulate(tool: &Tool, export: &Export, base: &Path, spec: &Spec, expects: &[S
         Ok(parsed) => parsed,
         Err(error) => return error_verdict(outcome, error),
     };
-    let points = match sweep::parse(&spec.sweep, &export.instances) {
-        Ok(axes) => sweep::grid(&axes),
-        Err(error) => return error_verdict(outcome, error),
+    let sampled = !spec.uncertain.is_empty();
+    let points = if sampled {
+        match montecarlo::parse(&spec.uncertain, &export.instances) {
+            Ok(parameters) => montecarlo::sample(&parameters, spec.samples, spec.seed),
+            Err(error) => return error_verdict(outcome, error),
+        }
+    } else {
+        match sweep::parse(&spec.sweep, &export.instances) {
+            Ok(axes) => sweep::grid(&axes),
+            Err(error) => return error_verdict(outcome, error),
+        }
     };
+    outcome.probability = spec.required;
+    let label = |index: usize, point: &Point| if sampled { format!("sample {} ({})", index + 1, sweep::label(point)) } else { sweep::label(point) };
     let system = match &outcome.configuration {
         Some(id) => match export.systems.get(id) {
             Some(system) => Some(system.clone()),
@@ -222,7 +233,9 @@ fn simulate(tool: &Tool, export: &Export, base: &Path, spec: &Spec, expects: &[S
         }
     };
     let _ = std::fs::write(dir.join("run.mos"), script(export, &staged, spec, system.as_deref(), &points));
-    let run = tool::run(tool, &dir, "run.mos", config.timeout);
+    // Many runs need more than the default time: about 3 s each.
+    let timeout = config.timeout.or_else(|| (points.len() > 300).then(|| std::time::Duration::from_secs(3 * points.len() as u64)));
+    let run = tool::run(tool, &dir, "run.mos", timeout);
     let results: Vec<(Option<String>, String)> = (0..points.len())
         .map(|i| {
             let csv = std::fs::read_to_string(dir.join(format!("{RESULT_PREFIX}_{i}_res.csv"))).ok().filter(|c| !c.trim().is_empty());
@@ -270,17 +283,26 @@ fn simulate(tool: &Tool, export: &Export, base: &Path, spec: &Spec, expects: &[S
             None => Err(format!("the simulation of {} failed: {}", spec.model, simulation_messages(&run.output, index))),
             Some(csv) => applied(point, point_section(&run.output, index)).and_then(|()| evaluate_point(csv, xml, &parsed, &mut notes)),
         };
+        let inputs = if sampled { point.iter().map(|(variable, level)| (variable.clone(), level.si)).collect() } else { Vec::new() };
         outcomes.push(match evaluated {
-            Ok(values) => PointOutcome { label: sweep::label(point), holds: values.iter().all(|v| v.holds), values, error: String::new() },
-            Err(error) => PointOutcome { label: sweep::label(point), holds: false, values: Vec::new(), error },
+            Ok(values) => PointOutcome { label: label(index, point), holds: values.iter().all(|v| v.holds), values, error: String::new(), inputs },
+            Err(error) => PointOutcome { label: label(index, point), holds: false, values: Vec::new(), error, inputs },
         });
     }
     notes.sort();
     notes.dedup();
     // The results are kept for the workbench to replay them on the diagram.
-    let labels: Vec<String> = points.iter().map(sweep::label).collect();
-    if let Err(error) = replay::save(&base.join(".arclang").join("sim-results"), &outcome.test_case, &outcome.key, &labels, &results, &export.parts, &parsed) {
+    let labels: Vec<String> = points.iter().enumerate().map(|(i, p)| label(i, p)).collect();
+    let results_dir = base.join(".arclang").join("sim-results");
+    if let Err(error) = replay::save(&results_dir, &outcome.test_case, &outcome.key, &labels, &results, &export.parts, &parsed) {
         notes.push(format!("the results could not be kept for replay: {error}"));
+    }
+    // The samples, as a table R or Python can read (`arclang statistics`).
+    if sampled {
+        let table = replay::case_dir(&results_dir, &outcome.test_case).join("samples.csv");
+        if let Err(error) = std::fs::write(&table, montecarlo::samples_csv(&outcomes)) {
+            notes.push(format!("the samples could not be written to {}: {error}", table.display()));
+        }
     }
     if !notes.is_empty() {
         outcome.log.push_str(&format!("\n{}\n", notes.join("\n")));
@@ -337,9 +359,15 @@ fn evaluate_point(csv: &str, xml: &str, parsed: &[expects::Expect], notes: &mut 
 /// The verdict of a case from its points: an error at one is an error, a failure at one a failure.
 fn conclude(outcome: &mut Outcome, points: Vec<PointOutcome>) {
     let swept = points.len() > 1 || points.first().is_some_and(|p| !p.label.is_empty());
-    let (verdict, reason, values) = super::conclusion(&points);
+    let (verdict, reason, values) = super::conclusion_for(&points, outcome.probability);
+    if let Some(required) = outcome.probability {
+        outcome.sensitivity = montecarlo::sensitivity(&points);
+        outcome.estimate = montecarlo::estimate(&points, required.confidence);
+    }
+    // A probabilistic pass says with what probability.
+    let keep_reason = outcome.probability.is_some() && verdict == "pass";
     outcome.verdict = verdict;
-    if outcome.verdict != "pass" {
+    if outcome.verdict != "pass" || keep_reason {
         outcome.reason = reason;
     }
     if outcome.verdict != "error" {
@@ -387,7 +415,7 @@ mod tests {
     #[test]
     fn each_point_runs_in_one_script_with_its_overrides() {
         let export = modelica::Export { file_name: "P.mo".into(), ..Default::default() };
-        let spec = Spec { backend: Default::default(), model: "Phys.Sys".into(), configuration: None, start_time: 0.0, stop_time: 10.0, sources: vec![], tolerance: None, intervals: None, sweep: vec![] };
+        let spec = Spec { model: "Phys.Sys".into(), stop_time: 10.0, ..Default::default() };
         let text = script(&export, &[], &spec, None, &[Vec::new()]);
         assert!(text.contains("@@simulate 0\\n") && text.contains("fileNamePrefix=\"arclang_sim_0\")"), "{text}");
         assert!(!text.contains("simflags"));
@@ -397,12 +425,12 @@ mod tests {
     }
 
     fn evaluated(holds: bool) -> Evaluated {
-        Evaluated { expect: "min(soc) >= 0.1".into(), value: format!("min(soc) = {}", if holds { 0.2 } else { 0.05 }), holds, margin: String::new(), requirement: None }
+        Evaluated { expect: "min(soc) >= 0.1".into(), value: format!("min(soc) = {}", if holds { 0.2 } else { 0.05 }), holds, margin: String::new(), requirement: None, slack: None, slack_unit: None }
     }
 
     #[test]
     fn a_case_passes_only_when_every_point_holds() {
-        let at = |label: &str, holds: bool| PointOutcome { label: label.into(), values: vec![evaluated(holds)], holds, error: String::new() };
+        let at = |label: &str, holds: bool| PointOutcome { label: label.into(), values: vec![evaluated(holds)], holds, error: String::new(), inputs: Vec::new() };
         let mut outcome = Outcome::default();
         conclude(&mut outcome, vec![at("t = 1", true), at("t = 2", false), at("t = 3", false)]);
         assert_eq!(outcome.verdict, "fail");

@@ -31,6 +31,7 @@ import {
 } from '../pure/simulation';
 import { checklistHtml } from '../pure/simulation-html';
 import { applyFix } from './fixes';
+import { MonteCarloPanel } from './montecarlo';
 import { replaySimulation } from './replay';
 
 const SKIP_DIRS = '**/{node_modules,.git,target,.arclang,dist,out}/**';
@@ -204,6 +205,7 @@ class Simulation implements vscode.Disposable {
     const state = this.list ? (this.list.ready ? this.list.headline : 'Needs setup: choose "Check my setup".') : 'Looking for OpenModelica…';
     const entries: Entry[] = [
       { id: 'run', label: '$(play) Run simulations on this model', detail: 'Simulates the test cases of the model in OpenModelica and shows their verdicts.' },
+      { id: 'montecarlo', label: '$(graph) Show Monte Carlo results', detail: 'How likely the requirements hold: the probability shown, the spread of each margin, what moves it, the failing samples.' },
       { id: 'replay', label: '$(history) Replay a simulation on the diagram', detail: 'Moves through the last run of a test case: the values on each box, the first instant an expectation fails.' },
       { id: 'check', label: '$(checklist) Check my setup', detail: 'What is installed, what is missing, and a button to fix each thing.' },
       { id: 'setup', label: '$(tools) Set up OpenModelica (guided)', detail: 'Step by step, from nothing to a first simulation.' },
@@ -214,6 +216,7 @@ class Simulation implements vscode.Disposable {
     const picked = await vscode.window.showQuickPick(entries, { title: 'ArcLang: Simulation', placeHolder: state });
     switch (picked?.id) {
       case 'run': return this.runSimulations();
+      case 'montecarlo': return this.runSimulations(undefined, true);
       case 'replay': return replaySimulation(activeModelUri());
       case 'check': return this.showSetup();
       case 'setup': return this.guidedSetup();
@@ -266,7 +269,12 @@ class Simulation implements vscode.Disposable {
     return picked?.file ?? null;
   }
 
-  async runSimulations(arg?: unknown): Promise<void> {
+  /**
+   * Run the simulations of a model and show their verdicts. The Monte Carlo
+   * cases open on their own page; `monteCarlo` says so even when there are
+   * none. `arclang verify` answers from its cache what has not changed.
+   */
+  async runSimulations(arg?: unknown, monteCarlo = false): Promise<void> {
     if (!this.guard() || this.model.running) return;
     const file = await this.pickModel(arg);
     if (!file) return;
@@ -299,6 +307,8 @@ class Simulation implements vscode.Disposable {
         counts = countOutcomes(outcomes);
         missingTool = toolMissing(outcomes, result.stderr);
         simOutput().appendLine(runLog(path.basename(file), outcomes, new Date()));
+        if (!missingTool && MonteCarloPanel.has(outcomes)) MonteCarloPanel.show(file, outcomes, () => simulationEnv(settings()));
+        else if (!missingTool && monteCarlo) void vscode.window.showInformationMessage('ArcLang: no test case of this model samples uncertain parameters (uncertain: in simulate: { ... }).');
       }
     } finally {
       this.model = { ...this.model, running: false, last: counts ?? this.model.last };
@@ -490,6 +500,7 @@ export function registerSimulation(context: vscode.ExtensionContext): void {
   const register = (command: string, callback: (...args: unknown[]) => unknown) => context.subscriptions.push(vscode.commands.registerCommand(command, callback));
   register('arclang.simulation.menu', () => simulation.menu());
   register('arclang.simulation.run', (uri?: unknown) => simulation.runSimulations(uri));
+  register('arclang.simulation.montecarlo', (uri?: unknown) => simulation.runSimulations(uri, true));
   register('arclang.simulation.replay', (uri?: unknown) => replaySimulation(uri instanceof vscode.Uri ? uri : activeModelUri()));
   register('arclang.simulation.check', () => simulation.showSetup());
   register('arclang.simulation.setup', () => simulation.guidedSetup());

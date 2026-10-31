@@ -290,6 +290,13 @@ pub enum Commands {
         /// whether results of their last run are kept for --replay
         #[clap(long)]
         list: bool,
+
+        /// Do not simulate: analyse the samples of the last run of a Monte
+        /// Carlo case (--test) with R or Python (`r` or `python`): failure
+        /// probability by a normal fit, influence of each parameter (PRCC,
+        /// SRRC; delta and S1 with SALib). The verdict stays the compiler's
+        #[clap(long, value_name = "ENGINE")]
+        statistics: Option<String>,
     },
 
     /// A document filled from a template: Markdown whose {{ ... }}
@@ -895,11 +902,14 @@ impl CliRunner {
                 }
                 self.run_export(input, output, format, no_placement, split)
             }
-            Commands::Verify { input, test, json, check_tools, replay, point, list } => {
+            Commands::Verify { input, test, json, check_tools, replay, point, list, statistics } => {
                 if check_tools {
                     return self.run_check_tools(json);
                 }
                 let input = input.ok_or_else(|| CliError::Config("give a model file to verify".into()))?;
+                if let Some(engine) = statistics {
+                    return self.run_statistics(&input, test.as_deref(), &engine, json);
+                }
                 if list {
                     let result = crate::Compiler::new(crate::CompilerConfig::default()).compile_file(&input).map_err(|e| CliError::Compilation(e.to_string()))?;
                     let kept = crate::compiler::simulation::replay::dir(&input);
@@ -1547,6 +1557,24 @@ impl CliRunner {
         Ok(())
     }
 
+    fn run_statistics(&self, input: &std::path::Path, test: Option<&str>, engine: &str, json: bool) -> Result<(), CliError> {
+        use crate::compiler::simulation::{replay, statistics};
+        let engine = statistics::Engine::parse(engine).ok_or_else(|| CliError::Config(format!("--statistics takes r or python, not '{engine}'")))?;
+        let test = test.ok_or_else(|| CliError::Config("--statistics needs --test CASE, the Monte Carlo case whose samples to analyse".into()))?;
+        let result = crate::Compiler::new(crate::CompilerConfig::default()).compile_file(input).map_err(|e| CliError::Compilation(e.to_string()))?;
+        let case = result.ast.test_cases.iter().find(|t| t.id == test || t.name == test).ok_or_else(|| CliError::Config(format!("no test_case '{test}'")))?;
+        let report = statistics::analyse(&replay::case_dir(&replay::dir(input), &case.id), engine).map_err(CliError::Compilation)?;
+        if json {
+            println!("{}", serde_json::to_string_pretty(&report).map_err(|e| CliError::Compilation(e.to_string()))?);
+        } else {
+            println!("Statistics of the samples of {} — {}", case.id, input.display());
+            statistics::summary(&report).iter().for_each(|line| println!("{line}"));
+            println!("
+  The verdict and the gate are the compiler's: `arclang verify` and `arclang gate`.");
+        }
+        Ok(())
+    }
+
     fn run_verify(&self, input: PathBuf, test: Option<String>, json: bool) -> Result<(), CliError> {
         use crate::compiler::simulation::{run, tool::ToolConfig};
         let result = crate::Compiler::new(crate::CompilerConfig::default())
@@ -1573,7 +1601,35 @@ impl CliRunner {
                     let margin = if value.margin.is_empty() { String::new() } else { format!(", {}", value.margin) };
                     println!("{indent}{} {}   ({}{margin})", if value.holds { "ok  " } else { "FAIL" }, value.value, value.expect);
                 };
-                if outcome.points.is_empty() {
+                if let Some(required) = outcome.probability {
+                    let failing: Vec<_> = outcome.points.iter().filter(|p| !p.holds).collect();
+                    println!("    Monte Carlo: {} samples, {} hold; required: {} % at {} % confidence", outcome.points.len(), outcome.points.len() - failing.len(), required.probability * 100.0, required.confidence * 100.0);
+                    println!("    {}", outcome.reason);
+                    for point in failing.iter().take(10) {
+                        println!("    {} {}", if point.error.is_empty() { "FAIL" } else { "ERR " }, point.label);
+                        point.values.iter().filter(|v| !v.holds).for_each(|v| print_value("        ", v));
+                        if !point.error.is_empty() {
+                            println!("        {}", point.error);
+                        }
+                    }
+                    if failing.len() > 10 {
+                        println!("    ... and {} more (--json lists every sample)", failing.len() - 10);
+                    }
+                    let mut expects: Vec<&str> = Vec::new();
+                    for influence in &outcome.sensitivity {
+                        if !expects.contains(&influence.expect.as_str()) {
+                            expects.push(&influence.expect);
+                        }
+                    }
+                    for expect in expects {
+                        let strong: Vec<_> = outcome.sensitivity.iter().filter(|i| i.expect == expect && i.rank_correlation.abs() >= 0.1).collect();
+                        if strong.is_empty() {
+                            continue;
+                        }
+                        println!("    what moves \"{expect}\" (rank correlation with its margin):");
+                        strong.iter().for_each(|i| println!("        {:+.2}  {}", i.rank_correlation, i.parameter));
+                    }
+                } else if outcome.points.is_empty() {
                     outcome.values.iter().for_each(|v| print_value("    ", v));
                 } else {
                     let passing = outcome.points.iter().filter(|p| p.holds).count();
@@ -1586,7 +1642,7 @@ impl CliRunner {
                         }
                     }
                 }
-                if !outcome.reason.is_empty() && outcome.verdict != "fail" {
+                if !outcome.reason.is_empty() && outcome.verdict != "fail" && outcome.probability.is_none() {
                     println!("    {}", outcome.reason);
                 }
                 if self.verbose && !outcome.log.trim().is_empty() {

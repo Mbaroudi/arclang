@@ -20,7 +20,7 @@ pub fn dir(model_path: &Path) -> PathBuf {
     model_dir(model_path).join(".arclang").join("sim-results")
 }
 
-fn case_dir(dir: &Path, test_id: &str) -> PathBuf {
+pub fn case_dir(dir: &Path, test_id: &str) -> PathBuf {
     let safe: String = test_id.chars().map(|c| if c.is_ascii_alphanumeric() || c == '-' || c == '_' { c } else { '_' }).collect();
     dir.join(safe)
 }

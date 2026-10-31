@@ -76,13 +76,19 @@ export async function replaySimulation(uri: vscode.Uri | null): Promise<void> {
   }
   const picked = cases.length === 1 ? cases[0] : (await vscode.window.showQuickPick(cases.map((c) => ({ label: c.name, description: c.id, detail: c.replayable ? undefined : 'Not run yet: run the simulations first', value: c })), { title: 'ArcLang: Replay a simulation', placeHolder: 'The test case whose last run to replay on the diagram' }))?.value;
   if (!picked) return;
-  let replay = await readReplay(file, picked.id, 0);
+  await replayCase(uri, picked);
+}
+
+/** Replay one test case: at `point` (a sweep point or a sample), or at the one picked when none is given. */
+export async function replayCase(uri: vscode.Uri, picked: { id: string; name: string }, point?: number): Promise<void> {
+  const file = uri.fsPath;
+  let replay = await readReplay(file, picked.id, point ?? 0);
   if (typeof replay === 'string') {
     const choice = await vscode.window.showWarningMessage(`ArcLang: ${replay}`, 'Run simulations');
     if (choice) void vscode.commands.executeCommand('arclang.simulation.run', uri);
     return;
   }
-  if (replay.points.length > 1) {
+  if (point === undefined && replay.points.length > 1) {
     const point = await vscode.window.showQuickPick(replay.points.map((label, index) => ({ label: label || `Point ${index + 1}`, index })), { title: `ArcLang: Replay ${picked.name}`, placeHolder: 'The point of the sweep to replay' });
     if (!point) return;
     if (point.index !== 0) {

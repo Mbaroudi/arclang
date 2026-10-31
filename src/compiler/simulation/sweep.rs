@@ -39,14 +39,14 @@ pub struct Axis {
 pub type Point = Vec<(String, Level)>;
 
 /// `"PN-VCU".speedController.target_speed` with `PN-VCU` -> `vehicleControlUnit`.
-fn resolve(variable: &str, aliases: &BTreeMap<String, String>) -> Result<String, String> {
+pub(super) fn resolve(variable: &str, aliases: &BTreeMap<String, String>) -> Result<String, String> {
     let Some(rest) = variable.strip_prefix('"') else { return Ok(variable.to_string()) };
     let (id, path) = rest.split_once('"').ok_or_else(|| format!("sweep: '{variable}' opens a quote it does not close"))?;
     let instance = aliases.get(id).ok_or_else(|| format!("sweep: '{id}' is not a part of the simulated architecture"))?;
     Ok(format!("{instance}{path}"))
 }
 
-fn is_path(text: &str) -> bool {
+pub(super) fn is_path(text: &str) -> bool {
     !text.is_empty()
         && text.split('.').all(|part| {
             let part = part.split('[').next().unwrap_or("");

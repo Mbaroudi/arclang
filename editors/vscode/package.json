@@ -819,6 +819,12 @@
         "icon": "$(play)"
       },
       {
+        "command": "arclang.simulation.montecarlo",
+        "title": "Show Monte Carlo results",
+        "category": "ArcLang",
+        "icon": "$(graph)"
+      },
+      {
         "command": "arclang.simulation.replay",
         "title": "Replay a simulation on the diagram",
         "category": "ArcLang",
@@ -1356,6 +1362,10 @@
         },
         {
           "command": "arclang.simulation.run",
+          "when": "!isWeb"
+        },
+        {
+          "command": "arclang.simulation.montecarlo",
           "when": "!isWeb"
         },
         {

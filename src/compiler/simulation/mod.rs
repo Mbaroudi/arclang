@@ -21,9 +21,11 @@
 
 pub mod cache;
 pub mod expects;
+pub mod montecarlo;
 pub mod replay;
 pub mod results;
 pub mod run;
+pub mod statistics;
 pub mod sweep;
 pub mod tool;
 
@@ -33,7 +35,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 /// The keys `simulate: { ... }` takes.
-pub const SIMULATE_KEYS: [&str; 9] = ["backend", "model", "configuration", "stop_time", "start_time", "sources", "tolerance", "intervals", "sweep"];
+pub const SIMULATE_KEYS: [&str; 14] = ["backend", "model", "configuration", "stop_time", "start_time", "sources", "tolerance", "intervals", "sweep", "uncertain", "samples", "seed", "probability", "confidence"];
 
 /// What runs a simulation. Every backend ends in the same result (a table
 /// of time series) and the same `expects:` evaluation, so adding one
@@ -71,7 +73,7 @@ impl Backend {
 }
 
 /// What a case simulates.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Default)]
 pub struct Spec {
     pub backend: Backend,
     /// The Modelica class simulated: the hand-written model extending a
@@ -87,6 +89,13 @@ pub struct Spec {
     pub intervals: Option<u32>,
     /// The axes of a parameter sweep, as written (`body.mass = 1800 kg, 2100 kg`).
     pub sweep: Vec<String>,
+    /// The uncertain parameters of a Monte Carlo case, as written
+    /// (`body.mass ~ normal(1850 kg, 40 kg)`); empty otherwise.
+    pub uncertain: Vec<String>,
+    pub samples: usize,
+    pub seed: u64,
+    /// The probability and confidence a Monte Carlo case must show.
+    pub required: Option<montecarlo::Requirement>,
 }
 
 /// The status of a simulated case on this compilation, from the cache.
@@ -136,9 +145,19 @@ pub struct Outcome {
     /// How long the run took, in seconds (0 when nothing ran).
     #[serde(default)]
     pub seconds: f64,
-    /// Every point of a parameter sweep; empty when the case sweeps nothing.
+    /// Every point of a parameter sweep, or every sample of a Monte Carlo
+    /// case; empty when the case sweeps nothing.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub points: Vec<PointOutcome>,
+    /// What a Monte Carlo case had to show.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub probability: Option<montecarlo::Requirement>,
+    /// What the samples of a Monte Carlo case show.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub estimate: Option<montecarlo::Estimate>,
+    /// How much each uncertain parameter moves each margin.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub sensitivity: Vec<montecarlo::Influence>,
 }
 
 /// One point of a sweep: its parameters, the values its expectations took.
@@ -151,6 +170,9 @@ pub struct PointOutcome {
     /// Why the point has no values (the simulation failed, a parameter did not change).
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub error: String,
+    /// The values of the uncertain parameters at a sample, in SI units.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub inputs: Vec<(String, f64)>,
 }
 
 /// `verifies REQ-RANGE · configuration City (CFG-CITY) · model EVPhysics.CityRange`.
@@ -192,13 +214,13 @@ impl Outcome {
             return self.status();
         }
         let kept = |values: &[expects::Evaluated]| values.iter().filter(|v| checks(v.requirement.as_deref())).cloned().collect::<Vec<_>>();
-        let point = |label: &str, values: Vec<expects::Evaluated>, error: &str| PointOutcome { label: label.to_string(), holds: error.is_empty() && values.iter().all(|v| v.holds), values, error: error.to_string() };
+        let point = |label: &str, values: Vec<expects::Evaluated>, error: &str| PointOutcome { label: label.to_string(), holds: error.is_empty() && values.iter().all(|v| v.holds), values, error: error.to_string(), inputs: Vec::new() };
         let points: Vec<PointOutcome> = if self.points.is_empty() {
             vec![point("", kept(&self.values), "")]
         } else {
             self.points.iter().map(|p| point(&p.label, kept(&p.values), &p.error)).collect()
         };
-        let (verdict, reason, values) = conclusion(&points);
+        let (verdict, reason, values) = conclusion_for(&points, self.probability);
         Status::new(verdict, reason, evidence_of(&values))
     }
 }
@@ -228,6 +250,15 @@ pub fn conclusion(points: &[PointOutcome]) -> (String, String, Vec<expects::Eval
         return ("fail".to_string(), reason, failing.values.clone());
     }
     ("pass".to_string(), String::new(), points.first().map(|p| p.values.clone()).unwrap_or_default())
+}
+
+/// The verdict of a case from its points, judged as samples when the case
+/// requires a probability, as sweep points otherwise.
+pub fn conclusion_for(points: &[PointOutcome], probability: Option<montecarlo::Requirement>) -> (String, String, Vec<expects::Evaluated>) {
+    let (verdict, reason, values) = conclusion(points);
+    let Some(required) = probability else { return (verdict, reason, values) };
+    let (verdict, reason) = montecarlo::judge(points, required);
+    (verdict, reason, values)
 }
 
 fn is_class_name(text: &str) -> bool {
@@ -303,7 +334,60 @@ fn read_spec(map: &HashMap<String, AttributeValue>) -> Result<Spec, String> {
         })
         .collect();
     sweep::parse(&unresolved, &Default::default())?;
-    Ok(Spec { backend, model, configuration, start_time, stop_time, sources, tolerance, intervals, sweep })
+    let (uncertain, samples, seed, required) = read_monte_carlo(map, &sweep)?;
+    Ok(Spec { backend, model, configuration, start_time, stop_time, sources, tolerance, intervals, sweep, uncertain, samples, seed, required })
+}
+
+fn fraction(map: &HashMap<String, AttributeValue>, key: &str, low: f64) -> Result<Option<f64>, String> {
+    match map.get(key) {
+        None => Ok(None),
+        Some(v) => match v.as_number() {
+            Some(p) if p > low && p < 1.0 => Ok(Some(p)),
+            _ => Err(format!("simulate: {key} is a number between {low} and 1 (e.g. {key}: 0.99), got '{}'", v.display())),
+        },
+    }
+}
+
+/// `uncertain:`, `samples:`, `seed:`, `probability:` and `confidence:`.
+fn read_monte_carlo(map: &HashMap<String, AttributeValue>, sweep: &[String]) -> Result<(Vec<String>, usize, u64, Option<montecarlo::Requirement>), String> {
+    let uncertain: Vec<String> = match map.get("uncertain") {
+        None => Vec::new(),
+        Some(AttributeValue::List(items)) => items.iter().map(|i| i.as_string().map(str::to_string).ok_or("simulate: uncertain is a list of \"parameter ~ law\"")).collect::<Result<_, _>>()?,
+        Some(AttributeValue::String(one)) => vec![one.clone()],
+        Some(_) => return Err("simulate: uncertain is a list of \"parameter ~ law\"".to_string()),
+    };
+    let probability = fraction(map, "probability", 0.0)?;
+    let confidence = fraction(map, "confidence", 0.5)?;
+    if uncertain.is_empty() {
+        if let Some(key) = ["samples", "seed", "probability", "confidence"].into_iter().find(|k| map.contains_key(*k)) {
+            return Err(format!("simulate: {key} needs uncertain: [\"parameter ~ law\", ...], the parameters to sample"));
+        }
+        return Ok((uncertain, 0, 0, None));
+    }
+    if !sweep.is_empty() {
+        return Err("simulate: a case either sweeps or samples: give sweep: or uncertain:, not both".to_string());
+    }
+    let probability = probability.ok_or("simulate: uncertain: needs probability: (e.g. probability: 0.99), how likely the expectations must hold")?;
+    let samples = match map.get("samples") {
+        None => montecarlo::DEFAULT_SAMPLES,
+        Some(AttributeValue::Integer(n)) if *n >= 10 && (*n as usize) <= montecarlo::MAX_SAMPLES => *n as usize,
+        Some(v) => return Err(format!("simulate: samples is a whole number from 10 to {}, got '{}'", montecarlo::MAX_SAMPLES, v.display())),
+    };
+    let seed = match map.get("seed") {
+        None => montecarlo::DEFAULT_SEED,
+        Some(AttributeValue::Integer(n)) if *n >= 0 => *n as u64,
+        Some(v) => return Err(format!("simulate: seed is a whole number, got '{}'", v.display())),
+    };
+    let unresolved: Vec<String> = uncertain
+        .iter()
+        .map(|t| match t.trim_start().strip_prefix('"').and_then(|rest| rest.split_once('"')) {
+            Some((_, path)) => format!("part{path}"),
+            None => t.clone(),
+        })
+        .collect();
+    montecarlo::parse(&unresolved, &Default::default())?;
+    let required = montecarlo::Requirement { probability, confidence: confidence.unwrap_or(montecarlo::DEFAULT_CONFIDENCE) };
+    Ok((uncertain, samples, seed, Some(required)))
 }
 
 /// The `expects:` of a case.
