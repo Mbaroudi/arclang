@@ -67,7 +67,7 @@ const SAME_CONCEPT: [&[&str]; 2] = [
 ];
 
 /// What each view draws together: name, concepts, exchanges.
-const VIEWS: [(&str, &[&str], &[&str]); 10] = [
+const VIEWS: [(&str, &[&str], &[&str]); 13] = [
     ("Operational", &["operational_entity", "operational_activity"], &["interaction", "communication_mean"]),
     ("System", &["system_actor", "system_component", "system_function"], &["functional_exchange", "component_exchange", "trace"]),
     ("Logical", &["system_actor", "logical_component", "logical_function"], &["functional_exchange", "component_exchange", "trace"]),
@@ -86,6 +86,9 @@ const VIEWS: [(&str, &[&str], &[&str]); 10] = [
     ("Product breakdown", &["configuration_item", "requirement"], &["relation"]),
     ("Requirements", &["requirement", "test_case"], &["trace", "relation"]),
     ("Parametric", &["constraint", "data_type"], &["relation"]),
+    ("General View", &["data_type", "system_component"], &["relation"]),
+    ("Interconnection View", &["system_component"], &["component_exchange"]),
+    ("Action Flow View", &["system_function"], &["functional_exchange"]),
 ];
 
 /// Colours the tool keeps: name, colour, also reserved on lines.
