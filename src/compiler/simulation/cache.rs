@@ -52,6 +52,9 @@ pub fn key(package: &str, base: &Path, spec: &Spec, expects: &[String]) -> Strin
     field("time", format!("{}..{}", spec.start_time, spec.stop_time).as_bytes());
     field("tolerance", format!("{:?}", spec.tolerance).as_bytes());
     field("intervals", format!("{:?}", spec.intervals).as_bytes());
+    for axis in &spec.sweep {
+        field("sweep", axis.as_bytes());
+    }
     for expect in expects {
         field("expects", expect.as_bytes());
     }
@@ -76,7 +79,7 @@ mod tests {
     use super::*;
 
     fn spec(sources: Vec<String>) -> Spec {
-        Spec { backend: Default::default(), model: "P.M".into(), configuration: None, start_time: 0.0, stop_time: 10.0, sources, tolerance: None, intervals: None }
+        Spec { backend: Default::default(), model: "P.M".into(), configuration: None, start_time: 0.0, stop_time: 10.0, sources, tolerance: None, intervals: None, sweep: vec![] }
     }
 
     #[test]

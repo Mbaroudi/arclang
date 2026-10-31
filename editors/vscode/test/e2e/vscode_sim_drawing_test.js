@@ -99,10 +99,11 @@ async function frameWith(win, selector, text, tries = 80) {
     report('the log says when and which file', /^── \d\d:\d\d:\d\d {2}arclang verify ev\.arc/m.test(log), (log.split('\n')[0] || '').slice(0, 60));
     report('the log names the tool and its version', /Tool: .*OpenModelica 1\.\d+/.test(log), (log.match(/Tool:.*/) || [''])[0]);
     report('each case: its name, requirement, configuration and model', /✗ FAIL {2}TC-RANGE-STD "Winter range, standard pack"\n {6}verifies REQ-RANGE · configuration City \(CFG-CITY\) · model EVPhysics\.CityRange/.test(log));
-    report('a failing value says how far it is from its bound', /FAIL min\(batteryPack\.soc\) = 0\.02659 .*short by 0\.07341/.test(log));
-    report('a value that holds says what it has to spare', /final\(vehicleBody\.distance\) = 319\.9 km .*19\.91 km to spare/.test(log));
+    report('a failing value says how far it is from its bound', /FAIL min\(batteryPack\.soc\) = 0\.08693 .*short by 0\.01307/.test(log));
+    report('a value that holds says what it has to spare', /min\(batteryPack\.soc\) = 0\.2874 .*0\.1874 to spare/.test(log));
+    report('a run that ends on its bound says so', /final\(vehicleBody\.distance\) = 300 km .*at the bound/.test(log));
     report('what OpenModelica printed is in the log', /OpenModelica log \(\d+ lines\):\n {8}\| @@version OpenModelica/.test(log) && /The simulation finished successfully/.test(log));
-    report('the run ends on its count and time', /1 fail, 1 pass\. Simulated in \d+\.\d s\./.test(log));
+    report('the run ends on its count and time', /1 fail, 2 pass\. Simulated in \d+\.\d s\./.test(log));
     await win.keyboard.press('Meta+End');
     await shot('sim-log');
     if (SHOTS) fs.writeFileSync(path.join(SHOTS, 'sim-log.txt'), log);

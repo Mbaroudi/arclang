@@ -187,7 +187,12 @@ fn simulate_blocks_are_checked_when_parsed() {
         ("simulate: { model: \"P.M\" stop_time: 1 s } expects: [\"final(x) > 1\"] verdict: \"pass\"", "verdict comes from the simulation"),
         ("simulate: \"P.M\" expects: [\"final(x) > 1\"]", "simulate is a block"),
         ("simulate: { model: \"P.M\" stop_time: 1 s configuration: \"CFG-9\" } expects: [\"final(x) > 1\"]", "configuration 'CFG-9', which is none"),
+        ("simulate: { model: \"P.M\" stop_time: 1 s sweep: [\"body.mass 1800 kg\"] } expects: [\"final(x) > 1\"]", "parameter = values"),
+        ("simulate: { model: \"P.M\" stop_time: 1 s sweep: [\"a.b = 1 .. 300 step 1\"] } expects: [\"final(x) > 1\"]", "more than 200"),
+        ("simulate: { model: \"P.M\" stop_time: 1 s sweep: 3 } expects: [\"final(x) > 1\"]", "sweep is a list"),
     ];
+    let swept = "simulate: { model: \"P.M\" stop_time: 1 h sweep: [\"body.mass = 1800 kg, 2100 kg\", \"\\\"PN-VCU\\\".pi.k = 100 .. 300 step 100\"] } expects: [\"final(a.b) >= 2 km\"]";
+    assert!(case(swept).is_ok(), "a sweep, an ArcLang id in quotes: {:?}", case(swept).err());
     for (body, expected) in errors {
         let error = case(body).err().unwrap_or_else(|| panic!("`{body}` compiles"));
         assert!(error.contains(expected), "`{body}`: {error}");
@@ -239,7 +244,7 @@ fn cached(model: &Path, test: &str, verdict: &str, values: Vec<simulation::expec
 }
 
 fn value(text: &str, holds: bool) -> simulation::expects::Evaluated {
-    simulation::expects::Evaluated { expect: "e".into(), value: text.into(), holds, margin: String::new() }
+    simulation::expects::Evaluated { expect: "e".into(), value: text.into(), holds, margin: String::new(), requirement: None }
 }
 
 #[test]
@@ -253,6 +258,7 @@ fn the_gate_reads_cached_verdicts_and_says_when_they_are_missing_or_stale() {
 
     cached(&model, "TC-RANGE-LR", "pass", vec![value("final(vehicleBody.distance) = 319.9 km", true), value("min(batteryPack.soc) = 0.2403", true)], "");
     cached(&model, "TC-RANGE-STD", "fail", vec![value("min(batteryPack.soc) = 0.02664", false)], "min(batteryPack.soc) = 0.02664 (expected min(\"PN-BATT\".soc) >= 0.1)");
+    cached(&model, "TC-RANGE-ENVELOPE", "pass", vec![value("min(batteryPack.soc) = 0.2016", true)], "");
     let result = compile_file(&model);
     let report = production_gate::run_gate(&result.ast, &result.semantic_model, "ISO26262");
     let blocker = report.findings.iter().find(|f| f.check == "requirements.verification").unwrap();
@@ -265,11 +271,11 @@ fn the_gate_reads_cached_verdicts_and_says_when_they_are_missing_or_stale() {
     assert!(json.contains("Key values") && json.contains("TC-RANGE-LR: final(vehicleBody.distance) = 319.9 km; min(batteryPack.soc) = 0.2403"), "{json}");
     assert!(json.contains("TC-RANGE-STD: min(batteryPack.soc) = 0.02664 (fails)"), "{json}");
 
-    // Both pass: the requirement is verified, the gate has no blocker on it.
+    // All pass: both requirements (the range, its envelope) are verified, the gate has no blocker on them.
     cached(&model, "TC-RANGE-STD", "pass", vec![value("min(batteryPack.soc) = 0.3", true)], "");
     let result = compile_file(&model);
     let report = production_gate::run_gate(&result.ast, &result.semantic_model, "ISO26262");
-    assert_eq!(report.requirements_verified, 1);
+    assert_eq!(report.requirements_verified, 2);
 
     // A source changed: stale, inconclusive again.
     let physics = model.parent().unwrap().join("physics/EVPhysics.mo");
@@ -369,13 +375,44 @@ fn openmodelica_checks_the_package_and_verifies_the_demo() {
     // What the log says of a failure: how far, how long, what OpenModelica printed.
     let std = outcomes.iter().find(|o| o.test_case == "TC-RANGE-STD").unwrap();
     let soc = std.values.iter().find(|v| !v.holds).unwrap();
-    assert!(soc.margin.starts_with("short by 0.07"), "{soc:?}");
-    assert!(std.values.iter().any(|v| v.holds && v.margin.ends_with("km to spare")), "{:?}", std.values);
+    assert!(soc.margin.starts_with("short by 0.013"), "{soc:?}");
+    // The run ends when the 300 km are driven: the distance sits on its bound.
+    assert!(std.values.iter().any(|v| v.holds && v.margin == "at the bound"), "{:?}", std.values);
     assert!(std.seconds > 0.0 && std.log.contains("@@simulate"));
     // The gate now reads them from the cache.
     let result = compile_file(&model);
     assert_eq!(result.semantic_model.simulations["TC-RANGE-LR"].verdict, "pass");
     assert_eq!(result.semantic_model.simulations["TC-RANGE-STD"].verdict, "fail");
+}
+
+#[test]
+#[ignore = "runs OpenModelica (Docker or ARCLANG_OMC): cargo test --release --test modelica_simulation -- --ignored --nocapture"]
+fn openmodelica_runs_a_sweep_and_proves_each_override() {
+    let (_dir, model) = demo_copy();
+    let text = std::fs::read_to_string(&model).unwrap();
+    // The long range pack, over three temperatures and two speeds; then a name that is not a parameter.
+    let sweep = "sources: [\"physics/EVPhysics.mo\"] sweep: [\"vehicleBody.ambient = 253.15 K, 263.15 K, 293.15 K\", \"\\\"PN-VCU\\\".speedController.target_speed = 90 km/h .. 110 km/h step 20 km/h\"] }";
+    let marker = "configuration: \"CFG-TOURING\" stop_time: 5 h sources: [\"physics/EVPhysics.mo\"] }";
+    assert!(text.contains(marker));
+    std::fs::write(&model, text.replacen(marker, &format!("configuration: \"CFG-TOURING\" stop_time: 5 h {sweep}"), 1)).unwrap();
+    let config = ToolConfig::from_env();
+    let outcomes = run::verify(&compile_file(&model), &model, Some("TC-RANGE-LR"), &config).unwrap();
+    let lr = &outcomes[0];
+    for point in &lr.points {
+        println!("{} {}: {}", if point.holds { "ok  " } else { "FAIL" }, point.label, point.values.iter().map(|v| format!("{} ({})", v.value, v.margin)).collect::<Vec<_>>().join("; "));
+    }
+    assert_eq!(lr.points.len(), 6);
+    assert!(lr.points.iter().all(|p| p.error.is_empty()), "every override took: {:?}", lr.points);
+    assert_eq!(lr.points[0].label, "ambient = 253.15 K, target_speed = 90 km/h");
+    // Colder air is denser: less charge left, at the same speed.
+    let soc = |i: usize| lr.points[i].values.iter().find(|v| v.value.starts_with("min(")).unwrap().value.rsplit(' ').next().unwrap().parse::<f64>().unwrap();
+    assert!(soc(0) < soc(4), "253 K {} against 293 K {}", soc(0), soc(4));
+
+    let text = std::fs::read_to_string(&model).unwrap().replacen("vehicleBody.ambient = ", "vehicleBody.nothing = ", 1);
+    std::fs::write(&model, text).unwrap();
+    let outcomes = run::verify(&compile_file(&model), &model, Some("TC-RANGE-LR"), &config).unwrap();
+    assert_eq!(outcomes[0].verdict, "error");
+    assert!(outcomes[0].reason.contains("'vehicleBody.nothing' is not a variable"), "{}", outcomes[0].reason);
 }
 
 // ---- Diagnosis of the tools (`verify --check-tools`) ----------------------
@@ -436,4 +473,100 @@ fn verify_names_each_case_its_requirements_and_configuration_even_without_a_tool
 fn verify_without_a_model_nor_check_tools_is_a_usage_error() {
     let out = std::process::Command::new(env!("CARGO_BIN_EXE_arclang")).arg("verify").output().unwrap();
     assert!(!out.status.success());
+}
+
+// ---- Requirements of a product line, expectations by requirement ----------
+
+fn edit(model: &Path, edits: &[(&str, &str)]) {
+    let mut text = std::fs::read_to_string(model).unwrap();
+    for (from, to) in edits {
+        assert!(text.contains(from), "the demo holds {from:?}");
+        text = text.replacen(from, to, 1);
+    }
+    std::fs::write(model, text).unwrap();
+}
+
+fn compile_err(model: &Path) -> String {
+    Compiler::new(CompilerConfig::default()).compile_file(model).err().map(|e| e.to_string()).unwrap_or_default()
+}
+
+const RANGE_ID: &str = "id: \"REQ-RANGE\"\n";
+const CITY_REQUIREMENT: &str = "    requirement \"City range\" {\n        id: \"REQ-CITY\"\n        applies_to: [\"City\"]\n        description: \"At -10 °C, the city car drives 200 km\"\n    }\n";
+
+#[test]
+fn a_requirement_applies_to_the_configurations_it_names() {
+    let (_dir, model) = demo_copy();
+    // Only the touring car must drive 300 km: the city case cannot verify it.
+    edit(&model, &[(RANGE_ID, "id: \"REQ-RANGE\"\n        applies_to: [\"CFG-TOURING\"]\n")]);
+    let error = compile_err(&model);
+    assert!(error.contains("test_case 'Winter range, standard pack' verifies 'REQ-RANGE' in configuration City, but 'REQ-RANGE' applies only to CFG-TOURING"), "{error}");
+    // The city car has its own requirement.
+    edit(&model, &[
+        ("system_analysis \"Vehicle needs\" {\n", &format!("system_analysis \"Vehicle needs\" {{\n{CITY_REQUIREMENT}")),
+        ("    verifies: [\"REQ-RANGE\"]\n    method: \"analysis\"\n    simulate: { model: \"EVPhysics.CityRange\"", "    verifies: [\"REQ-CITY\"]\n    method: \"analysis\"\n    simulate: { model: \"EVPhysics.CityRange\""),
+        ("trace \"PN-BATT\" satisfies \"REQ-RANGE\"\n", "trace \"PN-BATT\" satisfies \"REQ-RANGE\"\ntrace \"PN-BATT\" satisfies \"REQ-CITY\"\n"),
+    ]);
+    assert_eq!(compile_err(&model), "");
+    cached(&model, "TC-RANGE-LR", "pass", vec![value("min(batteryPack.soc) = 0.2874", true)], "");
+    cached(&model, "TC-RANGE-ENVELOPE", "pass", vec![value("min(batteryPack.soc) = 0.2016", true)], "");
+    cached(&model, "TC-RANGE-STD", "fail", vec![value("min(batteryPack.soc) = 0.08693", false)], "min(batteryPack.soc) = 0.08693 (expected min(\"PN-BATT\".soc) >= 0.1)");
+    let result = compile_file(&model);
+    let report = production_gate::run_gate(&result.ast, &result.semantic_model, "ISO26262");
+    let blockers: Vec<&str> = report.findings.iter().filter(|f| f.check == "requirements.verification").map(|f| f.message.as_str()).collect();
+    // The city car's failure blocks its requirement, not the touring car's.
+    assert_eq!(blockers.len(), 1, "{blockers:?}");
+    assert!(blockers[0].starts_with("requirement 'REQ-CITY': verification cases fail"), "{blockers:?}");
+    assert_eq!(report.requirements_verified, 2, "REQ-RANGE and its envelope");
+
+    // A configuration named that is none, and a requirement left without a case in one of its configurations.
+    edit(&model, &[("applies_to: [\"City\"]", "applies_to: [\"Town\"]")]);
+    assert!(compile_err(&model).contains("requirement 'REQ-CITY' applies to 'Town', which is no configuration"), "{}", compile_err(&model));
+    edit(&model, &[("applies_to: [\"Town\"]", "applies_to: [\"City\"]"), ("applies_to: [\"CFG-TOURING\"]", "applies_to: [\"CFG-TOURING\", \"City\"]")]);
+    let result = compile_file(&model);
+    let report = production_gate::run_gate(&result.ast, &result.semantic_model, "ISO26262");
+    assert!(report.findings.iter().any(|f| f.message == "requirement 'REQ-RANGE' applies to configuration City (CFG-CITY), which no verification case runs in"), "{:?}", report.findings);
+}
+
+#[test]
+fn an_expectation_that_names_its_requirement_judges_only_that_requirement() {
+    let (_dir, model) = demo_copy();
+    let trip = "    requirement \"Trip length\" {\n        id: \"REQ-TRIP\"\n        description: \"The vehicle drives 300 km\"\n    }\n";
+    edit(&model, &[
+        ("system_analysis \"Vehicle needs\" {\n", &format!("system_analysis \"Vehicle needs\" {{\n{trip}")),
+        ("trace \"PN-BATT\" satisfies \"REQ-RANGE\"\n", "trace \"PN-BATT\" satisfies \"REQ-RANGE\"\ntrace \"PN-BATT\" satisfies \"REQ-TRIP\"\n"),
+        (
+            "    verifies: [\"REQ-RANGE\"]\n    method: \"analysis\"\n    simulate: { model: \"EVPhysics.CityRange\" configuration: \"CFG-CITY\" stop_time: 5 h sources: [\"physics/EVPhysics.mo\"] }\n    expects: [\"final(vehicleBody.distance) >= 300 km\", \"min(\\\"PN-BATT\\\".soc) >= 0.1\"]",
+            "    verifies: [\"REQ-RANGE\", \"REQ-TRIP\"]\n    method: \"analysis\"\n    simulate: { model: \"EVPhysics.CityRange\" configuration: \"CFG-CITY\" stop_time: 5 h sources: [\"physics/EVPhysics.mo\"] }\n    expects: [\"Trip length: final(vehicleBody.distance) >= 300 km\", \"REQ-RANGE: min(\\\"PN-BATT\\\".soc) >= 0.1\"]",
+        ),
+    ]);
+    assert_eq!(compile_err(&model), "");
+    let tagged = |text: &str, holds: bool, requirement: &str| simulation::expects::Evaluated { expect: "e".into(), value: text.into(), holds, margin: String::new(), requirement: Some(requirement.into()) };
+    cached(&model, "TC-RANGE-STD", "fail", vec![tagged("final(vehicleBody.distance) = 300 km", true, "Trip length"), tagged("min(batteryPack.soc) = 0.08693", false, "REQ-RANGE")], "min(batteryPack.soc) = 0.08693 (expected e)");
+    cached(&model, "TC-RANGE-LR", "pass", vec![value("min(batteryPack.soc) = 0.2874", true)], "");
+    cached(&model, "TC-RANGE-ENVELOPE", "pass", vec![value("min(batteryPack.soc) = 0.2016", true)], "");
+    let result = compile_file(&model);
+    let status = &result.semantic_model.simulations["TC-RANGE-STD"];
+    assert_eq!(status.by_requirement["REQ-TRIP"].verdict, "pass");
+    assert_eq!(status.by_requirement["REQ-RANGE"].verdict, "fail");
+    let report = production_gate::run_gate(&result.ast, &result.semantic_model, "ISO26262");
+    let blockers: Vec<&str> = report.findings.iter().filter(|f| f.check == "requirements.verification").map(|f| f.message.as_str()).collect();
+    assert_eq!(blockers.len(), 1, "the trip is driven: only the reserve fails: {blockers:?}");
+    assert!(blockers[0].contains("'REQ-RANGE'") && blockers[0].contains("min(batteryPack.soc) = 0.08693"), "{blockers:?}");
+
+    // An expectation naming a requirement the case does not verify; a requirement no expectation checks.
+    edit(&model, &[("\"Trip length: final", "\"REQ-RANGE-ENVELOPE: final")]);
+    assert!(compile_err(&model).contains("an expectation checks 'REQ-RANGE-ENVELOPE', which the case does not verify"), "{}", compile_err(&model));
+    edit(&model, &[("\"REQ-RANGE-ENVELOPE: final", "\"REQ-RANGE: final")]);
+    assert!(compile_err(&model).contains("verifies 'REQ-TRIP', but none of its expectations checks it"), "{}", compile_err(&model));
+}
+
+#[test]
+fn physics_units_reach_the_modelica_parameters() {
+    // The demo writes `ambient: -10 °C` and `drag_area: 0.62 m²`.
+    let (_dir, model) = demo_copy();
+    let result = compile_file(&model);
+    let export = modelica::export(&result.ast).unwrap();
+    assert!(export.text.contains("parameter Modelica.Units.SI.Temperature ambient = 263.15 \"-10 °C\";"), "{}", export.text);
+    assert!(export.text.contains("parameter Modelica.Units.SI.Area drag_area = 0.62 \"0.62 m²\";"));
+    assert!(export.text.contains("parameter Real efficiency(unit=\"1\") = 0.9 \"90 %\";"), "no conversion noise");
 }

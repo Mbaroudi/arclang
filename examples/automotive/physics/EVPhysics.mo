@@ -19,6 +19,10 @@ package EVPhysics "Physics of the EV range simulation"
     power = -cells.v * cells.i;
     der(drawn) = power + auxiliary_load;
     soc = 1 - drawn / energy;
+    // An empty pack stops the vehicle: the trip ends there, short of its length.
+    when soc <= 0 then
+      terminate("the battery is empty");
+    end when;
   end Battery;
 
   model Drive "Torque-controlled motor and reduction gear, drawing its power from the HV bus"
@@ -78,6 +82,11 @@ package EVPhysics "Physics of the EV range simulation"
       redeclare EVPhysics.Drive driveUnit,
       redeclare EVPhysics.Body vehicleBody,
       redeclare EVPhysics.ControlUnit vehicleControlUnit);
+    parameter Modelica.Units.SI.Length trip = 300e3 "Length of the trip: the simulation ends there";
+  equation
+    when vehicleBody.distance >= trip then
+      terminate("the trip is driven");
+    end when;
   end CityRange;
 
   model TouringRange "Configuration Touring (long range pack) on the winter highway"
@@ -86,6 +95,11 @@ package EVPhysics "Physics of the EV range simulation"
       redeclare EVPhysics.Drive driveUnit,
       redeclare EVPhysics.Body vehicleBody,
       redeclare EVPhysics.ControlUnit vehicleControlUnit);
+    parameter Modelica.Units.SI.Length trip = 300e3 "Length of the trip: the simulation ends there";
+  equation
+    when vehicleBody.distance >= trip then
+      terminate("the trip is driven");
+    end when;
   end TouringRange;
   annotation(uses(Modelica(version="4.1.0")));
 end EVPhysics;

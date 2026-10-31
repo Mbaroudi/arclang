@@ -22,6 +22,7 @@
     cap: 'Capabilities',
     cdb: 'Data',
     pbs: 'Product breakdown',
+    req: 'Requirements',
   };
   const NUDGE = 10; // sheet units a box moves per key press
   const HISTORY_LIMIT = 50;
