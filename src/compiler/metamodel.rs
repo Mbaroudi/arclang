@@ -573,7 +573,7 @@ impl Metamodel {
             EnumSpec { name: "Flange", values: &["a", "b"], doc: "The flange (or heat port) a mechanical or thermal port is (`Flange_a`, `Flange_b`)." },
             EnumSpec { name: "Verdict", values: &["pass", "fail", "inconclusive", "error"], doc: "Verdict of a verification case (SysML v2 `VerdictKind`)." },
             EnumSpec { name: "ExchangeMechanism", values: &["EVENT", "FLOW", "OPERATION", "DATA", "SHARED_DATA"], doc: "Arcadia exchange item mechanism." },
-            EnumSpec { name: "TraceKind", values: &["satisfies", "implements", "validates", "verifies", "realizes", "refines", "allocates"], doc: "Traceability link kinds." },
+            EnumSpec { name: "TraceKind", values: &["satisfies", "implements", "validates", "verifies", "realizes", "refines", "derives", "allocates"], doc: "Traceability link kinds." },
             EnumSpec { name: "PortKind", values: &["data", "control", "event"], doc: "Function port nature." },
             EnumSpec { name: "MessageKind", values: &["sync", "async"], doc: "Scenario message kind." },
             EnumSpec { name: "Unit", values: &[], doc: "Any symbol of the unit table below." },
@@ -586,6 +586,7 @@ impl Metamodel {
             TraceRule { kind: "validates", from: "TestCase, Scenario", to: "Requirement, Capability", doc: "Validation evidence." },
             TraceRule { kind: "realizes", from: "lower-layer element", to: "upper-layer element", doc: "Inter-layer realization: SA→OA, LA→SA, PA→LA, EPBS→PA." },
             TraceRule { kind: "refines", from: "Requirement", to: "Requirement", doc: "Requirement decomposition." },
+            TraceRule { kind: "derives", from: "Requirement", to: "Requirement", doc: "A requirement derived from another (SysML `derive`): `trace \"REQ-CELL-TEMP\" derives \"REQ-RANGE\"`. Drawn on the requirements view." },
             TraceRule { kind: "allocates", from: "component, node", to: "function, component", doc: "Allocation (also expressed by nesting and `deployment`)." },
         ];
 

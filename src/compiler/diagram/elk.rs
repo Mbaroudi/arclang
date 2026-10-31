@@ -34,6 +34,8 @@ const COMPARTMENT_TOP: f64 = 34.0;
 const COMPARTMENT_LINE_HEIGHT: f64 = 14.0;
 const COMPARTMENT_INSET: f64 = 10.0;
 const COMPARTMENT_CHAR_WIDTH: f64 = 6.2;
+/// Height of the verdict badge under a requirement's or a test case's lines.
+const VERDICT_ROOM: f64 = 14.0;
 /// Diameter of the filled disc marking a machine's initial state.
 const INITIAL_STATE_SIZE: f64 = 18.0;
 const COMPONENT_PORT_SIZE: f64 = 12.0;
@@ -226,7 +228,9 @@ fn elk_node(node: &Node, wired: &HashSet<&str>) -> Value {
                 .max(NODE_MIN_WIDTH),
             COMPARTMENT_TOP
                 + node.compartment.len() as f64 * COMPARTMENT_LINE_HEIGHT
-                + COMPARTMENT_INSET,
+                + COMPARTMENT_INSET
+                // The verdict of a requirement or a test case sits under its lines.
+                + if matches!(node.kind, NodeKind::Requirement | NodeKind::TestCase) { VERDICT_ROOM } else { 0.0 },
         )
     } else {
         (

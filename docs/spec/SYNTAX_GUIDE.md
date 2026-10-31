@@ -229,6 +229,18 @@ traceability {
   - Requirement → Components
   - Logical → Physical components
 
+**Typed traces**: `trace "PN-BATT" satisfies "REQ-RANGE"`, `trace "REQ-COOL"
+refines "REQ-CELL"`, `trace "REQ-CELL" derives "REQ-RANGE"` (a requirement
+derived from another, SysML `derive`), `realizes`, `implements`, `allocates`.
+
+**The Requirements view** (`arclang diagram model.arc --view req`, and
+*Requirements* in the VS Code workbench) draws every requirement with its id
+and text, `parent:` as containment, the `derives` and `refines` traces between
+requirements, the elements that satisfy them and the test cases that verify
+them. Each requirement and case shows its verdict (`✓ verified`, `✗ fails`,
+`? inconclusive`, `not verified`); a suspect trace or verification is an amber
+dashed line.
+
 ### Data Types
 
 **Strings**:

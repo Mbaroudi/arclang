@@ -67,7 +67,13 @@ pub(super) fn draw_traces(model: &Model, diagrams: &mut [Diagram]) {
             taken.extend(node.ports.iter().map(|p| p.id.clone()));
         }
         let mut added: Vec<Edge> = Vec::new();
-        let mut seen: HashSet<(String, String, String)> = HashSet::new();
+        // A view may draw a relationship itself (a test case's `verifies:`): a trace saying it again is not drawn twice.
+        let mut seen: HashSet<(String, String, String)> = diagram
+            .edges
+            .iter()
+            .filter(|e| e.kind == EdgeKind::Trace)
+            .map(|e| (e.source.clone(), e.label.clone(), e.target.clone()))
+            .collect();
         for trace in &traces {
             let (source, target) = (drawn.resolve(&trace.from), drawn.resolve(&trace.to));
             if !drawn.ids.contains(source.as_str()) || !drawn.ids.contains(target.as_str()) || source == target {
@@ -159,9 +165,12 @@ pub(super) fn draw_notes(model: &Model, diagrams: &mut [Diagram]) {
 
 /// The elements the diagrams draw, by id and by name.
 struct Drawn<'a> {
-    /// Ids and names of elements no view draws.
+    /// Ids and names of requirements, test cases and hazards: only the
+    /// requirements view draws the first two.
     undrawn: HashSet<&'a str>,
     ids: HashSet<&'a str>,
+    /// Ids of the requirements and test cases drawn.
+    requirements: HashSet<&'a str>,
     ids_by_name: HashMap<&'a str, BTreeSet<&'a str>>,
 }
 
@@ -170,11 +179,15 @@ impl<'a> Drawn<'a> {
         let mut drawn = Drawn {
             undrawn,
             ids: HashSet::new(),
+            requirements: HashSet::new(),
             ids_by_name: HashMap::new(),
         };
         let mut stack: Vec<&Node> = diagrams.iter().flat_map(|d| d.nodes.iter()).collect();
         while let Some(node) = stack.pop() {
             stack.extend(node.children.iter());
+            if matches!(node.kind, NodeKind::Requirement | NodeKind::TestCase) {
+                drawn.requirements.insert(&node.id);
+            }
             if stands_for_an_element(node.kind) {
                 drawn.ids.insert(&node.id);
                 drawn
@@ -189,11 +202,19 @@ impl<'a> Drawn<'a> {
 
     /// The id a reference names: itself when it is an id, the element
     /// carrying that name when there is exactly one, else the reference
-    /// unchanged. A name an undrawn element also answers to is left as
-    /// written: the trace may be about that element.
+    /// unchanged. A name a requirement or test case also answers to is
+    /// that requirement or case where it is drawn, else left as written:
+    /// the trace may be about it.
     fn resolve(&self, reference: &str) -> String {
-        if self.ids.contains(reference) || self.undrawn.contains(reference) {
+        if self.ids.contains(reference) {
             return reference.to_string();
+        }
+        if self.undrawn.contains(reference) {
+            let drawn: Vec<&&str> = self.ids_by_name.get(reference).map(|ids| ids.iter().filter(|id| self.requirements.contains(**id)).collect()).unwrap_or_default();
+            return match drawn.as_slice() {
+                [single] => (**single).to_string(),
+                _ => reference.to_string(),
+            };
         }
         let named = self.ids_by_name.get(reference);
         match named.map(|ids| ids.iter().collect::<Vec<_>>()).as_deref() {

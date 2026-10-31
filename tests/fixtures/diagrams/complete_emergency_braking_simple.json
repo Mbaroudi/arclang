@@ -1730,6 +1730,474 @@
       ]
     },
     {
+      "id": "req",
+      "kind": "req",
+      "title": "Requirements",
+      "nodes": [
+        {
+          "id": "REQ-AEB-001",
+          "uuid": "4f704057-d4b8-5dc3-95b1-d5f776513878",
+          "name": "Obstacle detection range",
+          "kind": "requirement",
+          "compartment": [
+            "id: REQ-AEB-001",
+            "The system shall detect obstacles at a",
+            "range of at least 150 m"
+          ],
+          "properties": {
+            "description": "The system shall detect obstacles at a range of at least 150 m",
+            "priority": "High",
+            "safety_level": "ASIL-D",
+            "title": "Obstacle detection range"
+          }
+        },
+        {
+          "id": "REQ-AEB-002",
+          "uuid": "fb3aee7d-656c-5737-a0ff-eb85ab7dd0d0",
+          "name": "Sensor fusion latency",
+          "kind": "requirement",
+          "compartment": [
+            "id: REQ-AEB-002",
+            "Radar and camera data shall be fused",
+            "within 50 ms"
+          ],
+          "properties": {
+            "description": "Radar and camera data shall be fused within 50 ms",
+            "priority": "High",
+            "safety_level": "ASIL-D",
+            "title": "Sensor fusion latency"
+          }
+        },
+        {
+          "id": "REQ-AEB-003",
+          "uuid": "f64f1ee1-9022-5617-b469-22b69f6383c8",
+          "name": "Collision risk assessment",
+          "kind": "requirement",
+          "compartment": [
+            "id: REQ-AEB-003",
+            "The system shall compute the time to",
+            "collision of every tracked object"
+          ],
+          "properties": {
+            "description": "The system shall compute the time to collision of every tracked object",
+            "priority": "High",
+            "safety_level": "ASIL-D",
+            "title": "Collision risk assessment"
+          }
+        },
+        {
+          "id": "REQ-AEB-004",
+          "uuid": "4563e857-ce98-5bd0-a1b9-0bde2201e314",
+          "name": "Emergency braking activation",
+          "kind": "requirement",
+          "compartment": [
+            "id: REQ-AEB-004",
+            "Full braking force shall be commanded",
+            "within 100 ms of a critical threat",
+            "detection"
+          ],
+          "properties": {
+            "description": "Full braking force shall be commanded within 100 ms of a critical threat detection",
+            "priority": "High",
+            "safety_level": "ASIL-D",
+            "title": "Emergency braking activation"
+          }
+        },
+        {
+          "id": "REQ-AEB-005",
+          "uuid": "e69e1502-818e-55b4-af79-09bb80403682",
+          "name": "Driver warning",
+          "kind": "requirement",
+          "compartment": [
+            "id: REQ-AEB-005",
+            "The driver shall be warned before",
+            "autonomous braking is applied"
+          ],
+          "properties": {
+            "description": "The driver shall be warned before autonomous braking is applied",
+            "priority": "Medium",
+            "safety_level": "ASIL-B",
+            "title": "Driver warning"
+          }
+        },
+        {
+          "id": "REQ-AEB-006",
+          "uuid": "0b6449e9-6378-54e4-87db-a23da91b8d4c",
+          "name": "Driver override",
+          "kind": "requirement",
+          "compartment": [
+            "id: REQ-AEB-006",
+            "An accelerator kick-down by the driver",
+            "shall cancel the autonomous braking"
+          ],
+          "properties": {
+            "description": "An accelerator kick-down by the driver shall cancel the autonomous braking",
+            "priority": "High",
+            "safety_level": "ASIL-B",
+            "title": "Driver override"
+          }
+        },
+        {
+          "id": "REQ-AEB-007",
+          "uuid": "7846c266-ad6c-5e4c-8b55-1c646fa3feab",
+          "name": "Health monitoring",
+          "kind": "requirement",
+          "compartment": [
+            "id: REQ-AEB-007",
+            "A sensor or controller fault shall",
+            "switch the AEB off and request a driver",
+            "takeover within 200 ms"
+          ],
+          "properties": {
+            "description": "A sensor or controller fault shall switch the AEB off and request a driver takeover within 200 ms",
+            "priority": "High",
+            "safety_level": "ASIL-D",
+            "title": "Health monitoring"
+          }
+        },
+        {
+          "id": "TC-001",
+          "uuid": "e041280e-3d2a-5cf4-9ab9-74b42bfb384c",
+          "name": "Radar range verification",
+          "kind": "test_case",
+          "compartment": [
+            "method: test"
+          ],
+          "properties": {
+            "description": "Verify 150 m obstacle detection on the proving ground",
+            "method": "test",
+            "verifies": "[REQ-AEB-001]"
+          }
+        },
+        {
+          "id": "TC-002",
+          "uuid": "1a9ef85a-f2f4-5f6a-9d0e-56e71947a296",
+          "name": "Fusion latency measurement",
+          "kind": "test_case",
+          "compartment": [
+            "method: test"
+          ],
+          "properties": {
+            "description": "Measure the radar and camera fusion latency under full bus load",
+            "method": "test",
+            "verifies": "[REQ-AEB-002]"
+          }
+        },
+        {
+          "id": "TC-003",
+          "uuid": "6746193d-d312-5da2-840c-1ad2eccc9cfb",
+          "name": "TTC computation analysis",
+          "kind": "test_case",
+          "compartment": [
+            "method: analysis"
+          ],
+          "properties": {
+            "description": "Worst-case execution time analysis of the TTC algorithm",
+            "method": "analysis",
+            "verifies": "[REQ-AEB-003]"
+          }
+        },
+        {
+          "id": "TC-004",
+          "uuid": "a4353bfd-e1da-5288-a2e2-a63a6f070c71",
+          "name": "Emergency braking activation test",
+          "kind": "test_case",
+          "compartment": [
+            "method: test"
+          ],
+          "properties": {
+            "description": "Full braking force commanded within 100 ms on the target dummy",
+            "method": "test",
+            "verifies": "[REQ-AEB-004]"
+          }
+        },
+        {
+          "id": "TC-005",
+          "uuid": "cea2e4a0-6bc5-5ada-a835-4007ef2fa908",
+          "name": "Driver warning demonstration",
+          "kind": "test_case",
+          "compartment": [
+            "method: demonstration"
+          ],
+          "properties": {
+            "description": "Visual and audio warning precedes the autonomous braking",
+            "method": "demonstration",
+            "verifies": "[REQ-AEB-005]"
+          }
+        },
+        {
+          "id": "TC-006",
+          "uuid": "47184fa6-ff32-5739-a548-e80f28a5b109",
+          "name": "Driver override demonstration",
+          "kind": "test_case",
+          "compartment": [
+            "method: demonstration"
+          ],
+          "properties": {
+            "description": "Kick-down during autonomous braking releases the brakes",
+            "method": "demonstration",
+            "verifies": "[REQ-AEB-006]"
+          }
+        },
+        {
+          "id": "TC-007",
+          "uuid": "a3b0a26b-be25-5b5d-9297-e7bcddf19fb9",
+          "name": "Fault injection campaign",
+          "kind": "test_case",
+          "compartment": [
+            "method: test"
+          ],
+          "properties": {
+            "description": "Radar and controller faults injected on the HIL bench, takeover requested within 200 ms",
+            "method": "test",
+            "verifies": "[REQ-AEB-007]"
+          }
+        },
+        {
+          "id": "RadarSensor",
+          "uuid": "215cd4f4-cecc-5e28-8627-b1bc97f349b2",
+          "name": "RadarSensor",
+          "kind": "logical_component"
+        },
+        {
+          "id": "CameraSensor",
+          "uuid": "6d348730-fd90-5fa5-a8ff-2800ba0bf3af",
+          "name": "CameraSensor",
+          "kind": "logical_component"
+        },
+        {
+          "id": "SensorFusion",
+          "uuid": "e06c1f75-6138-5281-8439-f0eedb2c418f",
+          "name": "SensorFusion",
+          "kind": "logical_component"
+        },
+        {
+          "id": "ObjectTracker",
+          "uuid": "d10a9e1a-7daa-51fa-84de-72a6f6a25f9a",
+          "name": "ObjectTracker",
+          "kind": "logical_component"
+        },
+        {
+          "id": "ThreatAssessment",
+          "uuid": "a24f46c8-9b1e-52d7-9a48-546c7b5539da",
+          "name": "ThreatAssessment",
+          "kind": "logical_component"
+        },
+        {
+          "id": "BrakeController",
+          "uuid": "f2515a4b-2de8-5ef9-a629-2557bfc5e56f",
+          "name": "BrakeController",
+          "kind": "logical_component"
+        },
+        {
+          "id": "BrakeActuator",
+          "uuid": "d09be69f-4ec5-5eba-ab3f-67fbb4611bf4",
+          "name": "BrakeActuator",
+          "kind": "logical_component"
+        },
+        {
+          "id": "DriverInterface",
+          "uuid": "9a4477a1-5291-580f-ba39-8dbe3a3a2a2b",
+          "name": "DriverInterface",
+          "kind": "logical_component"
+        },
+        {
+          "id": "VehicleCANGateway",
+          "uuid": "e097ae2f-815b-570c-b6c5-66109149bacb",
+          "name": "VehicleCANGateway",
+          "kind": "logical_component"
+        },
+        {
+          "id": "SystemSupervisor",
+          "uuid": "ebf98e9a-7614-55b8-af69-3f28773fb51a",
+          "name": "SystemSupervisor",
+          "kind": "logical_component"
+        }
+      ],
+      "edges": [
+        {
+          "id": "vfy:TC-001 REQ-AEB-001",
+          "kind": "trace",
+          "source": "TC-001",
+          "target": "REQ-AEB-001",
+          "label": "verifies",
+          "properties": {
+            "trace": "verifies"
+          }
+        },
+        {
+          "id": "vfy:TC-002 REQ-AEB-002",
+          "kind": "trace",
+          "source": "TC-002",
+          "target": "REQ-AEB-002",
+          "label": "verifies",
+          "properties": {
+            "trace": "verifies"
+          }
+        },
+        {
+          "id": "vfy:TC-003 REQ-AEB-003",
+          "kind": "trace",
+          "source": "TC-003",
+          "target": "REQ-AEB-003",
+          "label": "verifies",
+          "properties": {
+            "trace": "verifies"
+          }
+        },
+        {
+          "id": "vfy:TC-004 REQ-AEB-004",
+          "kind": "trace",
+          "source": "TC-004",
+          "target": "REQ-AEB-004",
+          "label": "verifies",
+          "properties": {
+            "trace": "verifies"
+          }
+        },
+        {
+          "id": "vfy:TC-005 REQ-AEB-005",
+          "kind": "trace",
+          "source": "TC-005",
+          "target": "REQ-AEB-005",
+          "label": "verifies",
+          "properties": {
+            "trace": "verifies"
+          }
+        },
+        {
+          "id": "vfy:TC-006 REQ-AEB-006",
+          "kind": "trace",
+          "source": "TC-006",
+          "target": "REQ-AEB-006",
+          "label": "verifies",
+          "properties": {
+            "trace": "verifies"
+          }
+        },
+        {
+          "id": "vfy:TC-007 REQ-AEB-007",
+          "kind": "trace",
+          "source": "TC-007",
+          "target": "REQ-AEB-007",
+          "label": "verifies",
+          "properties": {
+            "trace": "verifies"
+          }
+        },
+        {
+          "id": "trc:RadarSensor satisfies REQ-AEB-001",
+          "kind": "trace",
+          "source": "RadarSensor",
+          "target": "REQ-AEB-001",
+          "label": "satisfies",
+          "properties": {
+            "trace": "satisfies"
+          }
+        },
+        {
+          "id": "trc:CameraSensor satisfies REQ-AEB-001",
+          "kind": "trace",
+          "source": "CameraSensor",
+          "target": "REQ-AEB-001",
+          "label": "satisfies",
+          "properties": {
+            "trace": "satisfies"
+          }
+        },
+        {
+          "id": "trc:SensorFusion satisfies REQ-AEB-002",
+          "kind": "trace",
+          "source": "SensorFusion",
+          "target": "REQ-AEB-002",
+          "label": "satisfies",
+          "properties": {
+            "trace": "satisfies"
+          }
+        },
+        {
+          "id": "trc:ObjectTracker satisfies REQ-AEB-003",
+          "kind": "trace",
+          "source": "ObjectTracker",
+          "target": "REQ-AEB-003",
+          "label": "satisfies",
+          "properties": {
+            "trace": "satisfies"
+          }
+        },
+        {
+          "id": "trc:ThreatAssessment satisfies REQ-AEB-003",
+          "kind": "trace",
+          "source": "ThreatAssessment",
+          "target": "REQ-AEB-003",
+          "label": "satisfies",
+          "properties": {
+            "trace": "satisfies"
+          }
+        },
+        {
+          "id": "trc:BrakeController satisfies REQ-AEB-004",
+          "kind": "trace",
+          "source": "BrakeController",
+          "target": "REQ-AEB-004",
+          "label": "satisfies",
+          "properties": {
+            "trace": "satisfies"
+          }
+        },
+        {
+          "id": "trc:BrakeActuator satisfies REQ-AEB-004",
+          "kind": "trace",
+          "source": "BrakeActuator",
+          "target": "REQ-AEB-004",
+          "label": "satisfies",
+          "properties": {
+            "trace": "satisfies"
+          }
+        },
+        {
+          "id": "trc:DriverInterface satisfies REQ-AEB-005",
+          "kind": "trace",
+          "source": "DriverInterface",
+          "target": "REQ-AEB-005",
+          "label": "satisfies",
+          "properties": {
+            "trace": "satisfies"
+          }
+        },
+        {
+          "id": "trc:VehicleCANGateway satisfies REQ-AEB-006",
+          "kind": "trace",
+          "source": "VehicleCANGateway",
+          "target": "REQ-AEB-006",
+          "label": "satisfies",
+          "properties": {
+            "trace": "satisfies"
+          }
+        },
+        {
+          "id": "trc:BrakeController satisfies REQ-AEB-006",
+          "kind": "trace",
+          "source": "BrakeController",
+          "target": "REQ-AEB-006",
+          "label": "satisfies",
+          "properties": {
+            "trace": "satisfies"
+          }
+        },
+        {
+          "id": "trc:SystemSupervisor satisfies REQ-AEB-007",
+          "kind": "trace",
+          "source": "SystemSupervisor",
+          "target": "REQ-AEB-007",
+          "label": "satisfies",
+          "properties": {
+            "trace": "satisfies"
+          }
+        }
+      ]
+    },
+    {
       "id": "msm:AEBOperatingModes",
       "kind": "msm",
       "title": "AEBOperatingModes",

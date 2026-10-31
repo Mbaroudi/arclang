@@ -1276,7 +1276,7 @@ Values match ignoring case and the separators `-`, `_` and space.
 | Flange | `a`, `b` | The flange (or heat port) a mechanical or thermal port is (`Flange_a`, `Flange_b`). |
 | Verdict | `pass`, `fail`, `inconclusive`, `error` | Verdict of a verification case (SysML v2 `VerdictKind`). |
 | ExchangeMechanism | `EVENT`, `FLOW`, `OPERATION`, `DATA`, `SHARED_DATA` | Arcadia exchange item mechanism. |
-| TraceKind | `satisfies`, `implements`, `validates`, `verifies`, `realizes`, `refines`, `allocates` | Traceability link kinds. |
+| TraceKind | `satisfies`, `implements`, `validates`, `verifies`, `realizes`, `refines`, `derives`, `allocates` | Traceability link kinds. |
 | PortKind | `data`, `control`, `event` | Function port nature. |
 | MessageKind | `sync`, `async` | Scenario message kind. |
 | Unit | (unit table) | Any symbol of the unit table below. |
@@ -1382,4 +1382,5 @@ Dangling endpoints are compile errors. Kind mismatches are `metamodel:` warnings
 | `validates` | TestCase, Scenario | Requirement, Capability | Validation evidence. |
 | `realizes` | lower-layer element | upper-layer element | Inter-layer realization: SA→OA, LA→SA, PA→LA, EPBS→PA. |
 | `refines` | Requirement | Requirement | Requirement decomposition. |
+| `derives` | Requirement | Requirement | A requirement derived from another (SysML `derive`): `trace "REQ-CELL-TEMP" derives "REQ-RANGE"`. Drawn on the requirements view. |
 | `allocates` | component, node | function, component | Allocation (also expressed by nesting and `deployment`). |
