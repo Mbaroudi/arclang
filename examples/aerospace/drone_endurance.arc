@@ -139,11 +139,29 @@ physical_architecture "Drone hardware" {
 configuration "Survey" { id: "CFG-SURVEY" selects: ["LC-PACK-STD"] }
 configuration "Long endurance" { id: "CFG-LONG" selects: ["LC-PACK-EXT"] }
 
-trace "PN-BATT" satisfies "REQ-ENDURANCE"
-trace "PN-BATT" satisfies "REQ-SURVEY"
-trace "PN-PROP" satisfies "REQ-ENDURANCE"
-trace "BC-ALT" satisfies "REQ-ALT-HOLD"
-trace "PN-BATT" satisfies "REQ-ENVELOPE"
+// Rules of this program, checked with the compiler's own: each requirement
+// is verified by a test case, each physical link says what it carries.
+rule "Every requirement is verified" {
+    id: "RULE-VERIFIED"
+    kind: "Requirement"
+    require: "count_in(verifies) >= 1"
+    severity: "blocker"
+}
+rule "Every link names its protocol" {
+    id: "RULE-PROTOCOL"
+    kind: "PhysicalLink"
+    require: "has(protocol)"
+    severity: "blocker"
+    message: "an interface control document needs the protocol of each link"
+}
+
+// Each trace was reviewed against what its two ends said (`arclang trace
+// drone_endurance.arc --review`): when one changes, the trace is suspect.
+trace "PN-BATT" satisfies "REQ-ENDURANCE" { reviewed: "19d9a441 ae35f237" }
+trace "PN-BATT" satisfies "REQ-SURVEY" { reviewed: "19d9a441 0967ebab" }
+trace "PN-PROP" satisfies "REQ-ENDURANCE" { reviewed: "19d5ef51 ae35f237" }
+trace "BC-ALT" satisfies "REQ-ALT-HOLD" { reviewed: "f6a702d7 ee9395dc" }
+trace "PN-BATT" satisfies "REQ-ENVELOPE" { reviewed: "19d9a441 45ae8227" }
 
 // --- Verification by simulation --------------------------------------------
 

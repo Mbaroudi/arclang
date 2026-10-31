@@ -99,6 +99,12 @@ const RULES: &[Rule] = &[
     rule!("trace.component", Severity::Warning, "Component without a trace",
         "No trace names the component: nothing says what it realizes or satisfies.",
         "Declare what the component satisfies or realizes with a `trace`."),
+    rule!("trace.suspect", Severity::Warning, "Suspect trace",
+        "A trace reviewed against its two ends (`reviewed:`), one of which changed since: what it claims may no longer hold. The production gate blocks on it.",
+        "Check that the trace still holds (or correct it), then mark it reviewed: `arclang trace <model> --review --from <a> --to <b>`."),
+    rule!("rule.user", Severity::Warning, "Rule of the model not held",
+        "An element does not hold a `rule` the model declares (`kind`, `where`, `require`). A rule of severity blocker stops the production gate.",
+        "Give the element what the rule requires, or change the rule."),
     rule!("method.layer-order", Severity::Info, "Layer without the one it refines",
         "Arcadia builds each level on the previous one: a physical architecture realizes a logical one, which allocates system functions, which answer operational needs.",
         "Add the missing level, or keep the model as a single-level study if that is what it is."),
@@ -167,6 +173,19 @@ pub fn classify_warning(message: &str) -> Finding {
         };
         return finding(rule_id, message, element, fix);
     }
+    if message.starts_with("suspect: ") {
+        let element = between(message, "trace '", "'");
+        return finding("trace.suspect", message, element, None);
+    }
+    if let Some(rest) = message.strip_prefix("rule '") {
+        let severity = match between(rest, "(", ")") {
+            Some("blocker") => Severity::Error,
+            Some("info") => Severity::Info,
+            _ => Severity::Warning,
+        };
+        let element = rest.find("): '").and_then(|at| between(&rest[at..], "): '", "'"));
+        return Finding { rule: "rule.user", severity, message: message.to_string(), element: element.map(str::to_string), fix: None };
+    }
     if message.starts_with("constraint: ") {
         let element = between(message, "constraint '", "'");
         return finding("constraint.violated", message, element, None);
@@ -233,7 +252,7 @@ pub fn to_markdown() -> String {
         };
         out.push_str(&format!("| `{}` | {} | {} | {} | {} |\n", rule.id, severity, rule.title, rule.doc, rule.fix));
     }
-    out.push_str("\nThe production gate (`arclang gate`) reports its own findings, each named after its check: `requirements.presence`, `requirements.satisfaction`, `requirements.verification`, `verification.dangling`, `safety.hara`, `safety.asil`, `safety.dal`, `safety.mitigation`, `timing.latency`, `timing.budget`, `timing.units`, `icd.completeness`, `constraints.violated`, `metamodel.types`, `methodology`.\n");
+    out.push_str("\nThe production gate (`arclang gate`) reports its own findings, each named after its check: `requirements.presence`, `requirements.satisfaction`, `requirements.verification`, `verification.dangling`, `safety.hara`, `safety.asil`, `safety.dal`, `safety.mitigation`, `timing.latency`, `timing.budget`, `timing.units`, `icd.completeness`, `constraints.violated`, `metamodel.types`, `methodology`, `traceability.suspect`; a rule of the model reports under `rule.<its id>` (a blocker or a warning, as it says), and one that cannot hold under `rule.invalid`.\n");
     out
 }
 

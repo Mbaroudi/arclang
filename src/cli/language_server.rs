@@ -165,7 +165,16 @@ pub fn compute_diagnostics(source: &str) -> Vec<Diagnostic> {
                         rules::Severity::Warning => DiagnosticSeverity::WARNING,
                         rules::Severity::Info => DiagnosticSeverity::INFORMATION,
                     };
+                    // A suspect trace is shown on the trace itself.
+                    let trace = (finding.rule == "trace.suspect")
+                        .then(|| crate::compiler::suspect::ends_of_line(&finding.message))
+                        .flatten()
+                        .and_then(|(from, kind, to)| {
+                            let header = format!("trace \"{from}\" {kind} \"{to}\"");
+                            outline.iter().find(|d| d.keyword == "trace" && d.header.starts_with(&header)).map(line_range)
+                        });
                     let range = position_in(&finding.message)
+                        .or(trace)
                         .or_else(|| finding.element.as_deref().and_then(|element| find_declaration(&outline, element)).map(|d| line_range(d)))
                         .unwrap_or_else(|| Range::new(Position::new(0, 0), Position::new(0, 1)));
                     Diagnostic {
@@ -718,6 +727,23 @@ trace "LC-CTL" satisfies "REQ-001"
         let trace = diagnostics.iter().find(|d| d.code == Some(NumberOrString::String("trace.component".to_string()))).expect("trace finding");
         assert_eq!(trace.range.start.line, 1);
         assert_eq!(trace.severity, Some(DiagnosticSeverity::WARNING));
+    }
+
+    #[test]
+    fn a_suspect_trace_is_shown_on_the_trace_and_a_rule_on_its_element() {
+        use crate::compiler::{elements, suspect};
+        let source = "system_analysis \"S\" {\n    requirement \"Range\" { id: \"REQ-1\" description: \"300 km\" }\n}\nphysical_architecture \"P\" {\n    node \"Pack\" { id: \"PN-1\" }\n}\nrule \"Nodes weigh\" { id: \"R-MASS\" kind: \"PhysicalNode\" require: \"has(mass)\" severity: \"blocker\" }\n";
+        let traced = format!("{source}trace \"PN-1\" satisfies \"REQ-1\" {{ reviewed: \"STAMP\" }}\n");
+        let clean = Compiler::new(CompilerConfig::default()).compile_string(&traced.replace("STAMP", "00000000 00000000"));
+        let model = clean.ok().unwrap();
+        let graph = elements::build(&model.ast, &model.semantic_model);
+        let stamp = suspect::stamp(&graph, &model.ast.traces[0]).unwrap();
+        let changed = traced.replace("STAMP", &stamp).replace("300 km", "320 km");
+        let diagnostics = compute_diagnostics(&changed);
+        let code = |c: &str| diagnostics.iter().find(|d| d.code == Some(NumberOrString::String(c.to_string()))).unwrap_or_else(|| panic!("{c}: {diagnostics:?}"));
+        assert_eq!(code("trace.suspect").range.start.line, 7, "on the trace line");
+        let rule = code("rule.user");
+        assert_eq!((rule.range.start.line, rule.severity), (4, Some(DiagnosticSeverity::ERROR)), "a blocker, on the node");
     }
 
     #[test]

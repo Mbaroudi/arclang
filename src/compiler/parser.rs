@@ -118,6 +118,9 @@ impl Parser {
                 Token::Identifier(ref id) if id == "note" && !self.peek_is_colon() => {
                     model.notes.push(self.parse_note()?);
                 }
+                Token::Identifier(ref id) if id == "rule" && !self.peek_is_colon() => {
+                    model.rules.push(self.parse_rule()?);
+                }
                 Token::SecurityScales => {
                     let scales = self.parse_security_scales()?;
                     if model.security_scales.is_some() {
@@ -272,6 +275,9 @@ impl Parser {
                 Token::Identifier(ref id) if id == "note" && !self.peek_is_colon() => {
                     model.notes.push(self.parse_note()?);
                 }
+                Token::Identifier(ref id) if id == "rule" && !self.peek_is_colon() => {
+                    model.rules.push(self.parse_rule()?);
+                }
                 Token::SecurityScales => {
                     let scales = self.parse_security_scales()?;
                     if model.security_scales.is_some() {
@@ -384,6 +390,9 @@ impl Parser {
                 }
                 Token::Identifier(ref id) if id == "note" && !self.peek_is_colon() => {
                     model.notes.push(self.parse_note()?);
+                }
+                Token::Identifier(ref id) if id == "rule" && !self.peek_is_colon() => {
+                    model.rules.push(self.parse_rule()?);
                 }
                 Token::SecurityScales => {
                     let scales = self.parse_security_scales()?;
@@ -566,6 +575,9 @@ impl Parser {
                 }
                 Token::Identifier(ref id) if id == "note" && !self.peek_is_colon() => {
                     model.notes.push(self.parse_note()?);
+                }
+                Token::Identifier(ref id) if id == "rule" && !self.peek_is_colon() => {
+                    model.rules.push(self.parse_rule()?);
                 }
                 Token::SecurityScales => {
                     let scales = self.parse_security_scales()?;
@@ -3287,6 +3299,14 @@ impl Parser {
         let selects = Self::take_names(&mut attributes, "selects", &name, "configuration").map_err(|e| self.err(e))?;
         let id = attributes.get("id").and_then(|v| v.as_string()).map(str::to_string).unwrap_or_else(|| name.clone());
         Ok(Configuration { id, name, selects, attributes })
+    }
+
+    /// `rule "Every node declares its mass" { kind: "PhysicalNode" require: "has(mass)" }`.
+    fn parse_rule(&mut self) -> Result<RuleDecl, String> {
+        self.advance(); // rule
+        let name = self.expect_name()?;
+        let attributes = self.parse_attributes_block()?;
+        Ok(RuleDecl { name, attributes })
     }
 
     /// `note "Text" { id: "N-1" about: ["LC-A", "LC-B"] }`; the block is optional.

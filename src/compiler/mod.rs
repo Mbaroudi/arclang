@@ -20,6 +20,8 @@ pub mod fta;
 pub mod notes;
 pub mod variability;
 pub mod rules;
+pub mod suspect;
+pub mod user_rules;
 pub mod transition;
 pub mod production_gate;
 pub mod semantic;
@@ -370,6 +372,15 @@ impl Compiler {
 
         // Notes on the diagrams: about elements the model declares.
         warnings.extend(notes::check(&ast, &mut semantic_model).map_err(CompilerError::Semantic)?);
+
+        // Rules the model declares, and traces whose end changed since they were reviewed.
+        if let Some(found) = user_rules::violations(&ast, &semantic_model).map_err(CompilerError::Semantic)? {
+            warnings.extend(found.iter().map(|v| v.line()));
+        }
+        if suspect::watches(&ast) {
+            let graph = elements::build(&ast, &semantic_model);
+            warnings.extend(suspect::suspects(&ast, &graph).map_err(CompilerError::Semantic)?.iter().map(|s| s.line()));
+        }
 
         // Fault trees: failure modes leading to hazards, held to their budgets.
         warnings.extend(fta::check(&ast, &semantic_model).map_err(CompilerError::Semantic)?);

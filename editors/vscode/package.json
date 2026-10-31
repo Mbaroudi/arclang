@@ -580,6 +580,12 @@
         "icon": "$(beaker)"
       },
       {
+        "command": "arclang.trace.review",
+        "title": "Mark every trace as reviewed (suspect when an end changes)",
+        "category": "ArcLang",
+        "icon": "$(pass)"
+      },
+      {
         "command": "arclang.impact.mine",
         "title": "Impact analysis: my changes (since HEAD or main)",
         "category": "ArcLang",
@@ -1203,6 +1209,10 @@
         {
           "command": "arclang.impact.mine",
           "when": "resourceLangId == arclang || resourceLangId == sysml"
+        },
+        {
+          "command": "arclang.trace.review",
+          "when": "resourceLangId == arclang"
         },
         {
           "command": "arclang.impact.refresh",

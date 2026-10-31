@@ -761,6 +761,52 @@ pub fn remove_trace(source: &str, from: &[&str], kind: &str, to: &[&str]) -> Res
     Ok(edited)
 }
 
+/// Write attribute `key` on the trace of `kind` from `from` to `to` (each
+/// end as the text writes it): in its block, or in a block given to a trace
+/// written without one. Comments and layout are kept.
+pub fn set_trace_attribute(source: &str, from: &str, kind: &str, to: &str, key: &str, value: &str) -> Result<String, EditError> {
+    let document = Document::read(source)?;
+    let described = format!("trace \"{from}\" {kind} \"{to}\"");
+    let string = |lexeme: &Lexeme| match token(lexeme) {
+        Some(Token::StringLiteral(text)) => Some(text.clone()),
+        _ => None,
+    };
+    let blocks: Vec<Block> = document
+        .blocks()
+        .into_iter()
+        .filter(|block| document.is_relationship(block))
+        .filter(|block| {
+            let header = document.header(block);
+            let ends: Vec<String> = header.iter().filter_map(string).collect();
+            let verb = header.iter().skip(1).find(|lexeme| string(lexeme).is_none()).map(|lexeme| lexeme.text.as_str());
+            matches!(ends.as_slice(), [source, target] if source == from && target == to) && verb == Some(kind)
+        })
+        .collect();
+    let bare = document.bodiless_traces(&[from], kind, &[to]);
+    let edited = match (blocks.as_slice(), bare.as_slice()) {
+        ([block], []) => match document.find_attribute(block, key) {
+            Some(attribute) => {
+                let start = document.lexemes[attribute.value_start].offset;
+                let end = document.end_of(attribute.value_end - 1);
+                document.splice(start, end, value)
+            }
+            None => document.insert_attribute(block, key, value),
+        },
+        ([], [(_, last)]) => {
+            let at = document.end_of(*last);
+            document.splice(at, at, &format!(" {{ {key}: {value} }}"))
+        }
+        ([], []) => return Err(EditError::NotFound(described)),
+        _ => {
+            let mut lines: Vec<usize> = blocks.iter().map(|b| document.lexemes[document.header_start(b)].span.line).collect();
+            lines.extend(bare.iter().map(|(first, _)| document.lexemes[*first].span.line));
+            return Err(EditError::Ambiguous { element: described, lines });
+        }
+    };
+    Document::read(&edited)?;
+    Ok(edited)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

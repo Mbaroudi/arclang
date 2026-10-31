@@ -847,7 +847,10 @@ pub fn build(ast: &Model, semantic: &SemanticModel) -> ElementGraph {
             if let Some(bandwidth) = &link.bandwidth {
                 attributes.entry("bandwidth".to_string()).or_insert_with(|| AttributeValue::String(bandwidth.clone()));
             }
-            attributes.entry("protocol".to_string()).or_insert_with(|| AttributeValue::String(link.protocol.clone()));
+            // The parser's "Unknown" for a link that names no protocol is not a protocol it has.
+            if link.protocol != "Unknown" {
+                attributes.entry("protocol".to_string()).or_insert_with(|| AttributeValue::String(link.protocol.clone()));
+            }
             let before = builder.graph.relationships.len();
             builder.relate("PhysicalLink", Some(&link.name), &link.from, &link.to, &attributes, Vec::new());
             // A link is typed like an element; its typings hang off the link.
