@@ -97,3 +97,9 @@ __pycache__/
 !tests/fixtures/semgit/*
 # The CI/CD goldens (Markdown, JSON, HTML, SVG) and the vendored SARIF schema.
 !tests/fixtures/cicd/*
+
+# Local checkouts of reference projects, kept beside the sources, never part
+# of the repository (an entry without .gitmodules breaks cargo git deps).
+/capellambse-study/
+/elk-models/
+/sysml-v2/
