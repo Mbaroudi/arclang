@@ -595,7 +595,8 @@ pub enum Commands {
         title: String,
 
         /// Restrict the output to one kind of view: oab, sab, lab, pab, msm
-        /// (mode and state machines) or es (scenarios)
+        /// (mode and state machines), es (scenarios), cap, cdb, pbs or req
+        /// (requirements)
         #[clap(long)]
         view: Option<String>,
 
@@ -2322,7 +2323,7 @@ impl CliRunner {
         let selected = match view.as_deref() {
             None => None,
             Some(text) => Some(ViewKind::parse(text).ok_or_else(|| {
-                CliError::Compilation(format!("unknown view '{text}' — expected oab, sab, lab, pab, msm or es"))
+                CliError::Compilation(format!("unknown view '{text}' — expected oab, sab, lab, pab, msm, es, cap, cdb, pbs or req"))
             })?),
         };
         let result = crate::Compiler::new(crate::CompilerConfig::default())
@@ -2330,6 +2331,7 @@ impl CliRunner {
             .map_err(|e| CliError::Compilation(e.to_string()))?;
 
         let mut set = build_diagrams(&result.ast);
+        crate::compiler::diagram::judge_requirements(&mut set, &result.ast, &result.semantic_model);
         // The layout is checked against every view before one is selected:
         // a view left out by `--view` is not a stale entry of the file.
         layout_file::arrange(&mut set, &input, layout.as_deref()).map_err(CliError::Compilation)?;

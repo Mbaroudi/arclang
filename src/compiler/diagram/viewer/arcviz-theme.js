@@ -63,6 +63,7 @@
     { key: 'exchange_item', label: 'exchange item', shape: 'rect', kinds: ['exchange_item'] },
     { key: 'state_mode', label: 'state or mode', shape: 'pill', kinds: ['state', 'mode'] },
     { key: 'requirement', label: 'requirement', shape: 'rect', kinds: ['requirement'] },
+    { key: 'test_case', label: 'test case', shape: 'rect', kinds: ['test_case'] },
     { key: 'configuration_item', label: 'configuration item', shape: 'rect', kinds: ['configuration_item'] },
   ];
   const FUNCTION_OF_VIEW = { oab: 'operational_activity', sab: 'system_function', lab: 'logical_function', pab: 'physical_function' };
@@ -78,7 +79,7 @@
     { key: 'transition', label: 'transition', kinds: ['transition'] },
     { key: 'message', label: 'message', kinds: ['message'] },
     { key: 'trace', label: 'trace', kinds: ['realization', 'trace'] },
-    { key: 'relation', label: 'relation', kinds: ['exploitation', 'involvement', 'capability_association', 'generalization', 'association', 'item_element', 'breakdown'] },
+    { key: 'relation', label: 'relation', kinds: ['exploitation', 'involvement', 'capability_association', 'generalization', 'association', 'item_element', 'breakdown', 'containment'] },
   ];
 
   // One concept on several layers: one colour.
@@ -97,6 +98,7 @@
     cap: { name: 'Capabilities', concepts: ['mission', 'capability', 'operational_capability', 'system_actor', 'operational_entity', 'system_function', 'functional_chain'], exchanges: ['relation', 'trace'] },
     cdb: { name: 'Data', concepts: ['data_type', 'exchange_item'], exchanges: ['relation'] },
     pbs: { name: 'Product breakdown', concepts: ['configuration_item', 'requirement'], exchanges: ['relation'] },
+    req: { name: 'Requirements', concepts: ['requirement', 'test_case'], exchanges: ['trace', 'relation'] },
   };
 
   // Colours the tool gives a meaning of its own (VS Code's light defaults).

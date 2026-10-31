@@ -45,6 +45,8 @@ mod logical;
 mod operational;
 mod physical;
 mod product;
+mod requirements;
+pub use requirements::judge as judge_requirements;
 mod scenario;
 mod state_machine;
 mod system;
@@ -96,10 +98,12 @@ pub enum ViewKind {
     Cdb,
     /// Product breakdown structure (EPBS).
     Pbs,
+    /// Requirements, their derivations, what satisfies and what verifies them.
+    Req,
 }
 
 impl ViewKind {
-    pub const ALL: [ViewKind; 9] = [
+    pub const ALL: [ViewKind; 10] = [
         ViewKind::Oab,
         ViewKind::Sab,
         ViewKind::Lab,
@@ -109,6 +113,7 @@ impl ViewKind {
         ViewKind::Cap,
         ViewKind::Cdb,
         ViewKind::Pbs,
+        ViewKind::Req,
     ];
 
     /// Short identifier, also the diagram id and the CLI `--view` value.
@@ -123,6 +128,7 @@ impl ViewKind {
             ViewKind::Cap => "cap",
             ViewKind::Cdb => "cdb",
             ViewKind::Pbs => "pbs",
+            ViewKind::Req => "req",
         }
     }
 
@@ -137,6 +143,7 @@ impl ViewKind {
             ViewKind::Cap => "Missions and Capabilities",
             ViewKind::Cdb => "Data Model",
             ViewKind::Pbs => "Product Breakdown",
+            ViewKind::Req => "Requirements",
         }
     }
 
@@ -243,6 +250,10 @@ pub enum NodeKind {
     ConfigurationItem,
     /// A note about elements of the view; its text is its compartment.
     Note,
+    /// A requirement: its id and text are its compartment.
+    Requirement,
+    /// A verification case and the requirements it verifies.
+    TestCase,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
@@ -332,6 +343,8 @@ pub enum EdgeKind {
     Trace,
     /// A note tied to an element it is about.
     Annotation,
+    /// A requirement sits under another in its document (`parent:`).
+    Containment,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
@@ -405,6 +418,7 @@ pub fn build_diagrams(model: &Model) -> DiagramSet {
             capabilities::build(model),
             data::build(model),
             product::build(model),
+            requirements::build(model),
         ]
         .into_iter()
         .flatten()

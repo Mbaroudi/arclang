@@ -162,6 +162,7 @@ trace "PN-BATT" satisfies "REQ-SURVEY" { reviewed: "19d9a441 0967ebab" }
 trace "PN-PROP" satisfies "REQ-ENDURANCE" { reviewed: "19d5ef51 ae35f237" }
 trace "BC-ALT" satisfies "REQ-ALT-HOLD" { reviewed: "f6a702d7 ee9395dc" }
 trace "PN-BATT" satisfies "REQ-ENVELOPE" { reviewed: "19d9a441 45ae8227" }
+trace "REQ-ENVELOPE" derives "REQ-ENDURANCE" { reviewed: "45ae8227 ae35f237" }
 
 // --- Verification by simulation --------------------------------------------
 
