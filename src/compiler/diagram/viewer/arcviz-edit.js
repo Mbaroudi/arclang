@@ -411,7 +411,7 @@
     stage.addEventListener('keyup', (event) => {
       if (event.key === ' ') spaceDown = false;
     });
-    const isChrome = (target) => target.closest && target.closest('.arcviz-handle, .arcviz-grip, .arcviz-resize, .arcviz-end, .arcviz-bend, .arcviz-quick, .arcviz-edge-style');
+    const isChrome = (target) => target.closest && target.closest('.arcviz-handle, .arcviz-grip, .arcviz-resize, .arcviz-end, .arcviz-bend, .arcviz-quick, .arcviz-edge-style, .arcviz-tidy-offer');
     if (deps.onMarquee) {
       stage.addEventListener('pointerdown', (down) => {
         if (down.button !== 0 || spaceDown || !down.isPrimary || stage.classList.contains('is-connecting')) return;

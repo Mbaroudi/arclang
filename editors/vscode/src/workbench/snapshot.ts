@@ -118,7 +118,8 @@ export function registerSnapshotRefresh(context: vscode.ExtensionContext, delayM
     }),
     vscode.workspace.onDidChangeConfiguration((event) => {
       if (event.affectsConfiguration('arclang.binary')) metamodelCache = null;
-      if (event.affectsConfiguration('arclang')) cache.clear();
+      // A preference of the page (what follows a move by hand) changes no snapshot: no redraw of every view.
+      if (event.affectsConfiguration('arclang') && !event.affectsConfiguration('arclang.workbench.reorganize')) cache.clear();
     }),
   );
 }

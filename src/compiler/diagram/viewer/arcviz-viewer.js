@@ -124,6 +124,13 @@
    *             over payload.theme. See setTheme for later changes.
    *   edit:     a host that edits the model from the drawing, with
    *             deps.edit (ArcVizEdit): see `attach` in arcviz-edit.js.
+   *   reorganize: 'ask' (the default), 'always' or 'never': what follows a
+   *             box moved or resized by hand that left the drawing harder
+   *             to read (boxes overlapping, lines across a box or crossing):
+   *             an offer to tidy it up, a tidy-up, or nothing. Needs
+   *             deps.tidy (ArcVizTidy).
+   *   onReorganize: (mode) => void, when the reader changes that choice
+   *             (the host keeps it); without it, the page remembers it.
    */
   function mount(host, payload, deps, options) {
     const graphs = payload.graphs || [];
@@ -174,6 +181,32 @@
     // (blob, filename) -> void. Without it, the browser downloads them.
     const save = (options && options.onDownload) || download;
     const onLayout = options && options.onLayout;
+    // Tidying up after a change by hand: ArcVizTidy, and what the reader chose to do.
+    const tidyKit = deps.tidy || root.ArcVizTidy || null;
+    const REORGANIZE = ['ask', 'always', 'never'];
+    const onReorganize = options && options.onReorganize;
+    let reorganize = (() => {
+      if (options && REORGANIZE.includes(options.reorganize)) return options.reorganize;
+      try {
+        const kept = root.localStorage && root.localStorage.getItem('arcviz.reorganize');
+        if (REORGANIZE.includes(kept)) return kept;
+      } catch (error) {
+        // Storage refused (a private window): ask.
+      }
+      return 'ask';
+    })();
+    function setReorganize(mode) {
+      if (!REORGANIZE.includes(mode)) return;
+      reorganize = mode;
+      if (onReorganize) onReorganize(mode);
+      else {
+        try {
+          if (root.localStorage) root.localStorage.setItem('arcviz.reorganize', mode);
+        } catch (error) {
+          // Not remembered: kept for this page only.
+        }
+      }
+    }
     // zorder hook: layers (tags), groups and locks (arcviz-layers.js); options.layers = { tagsOf(view, id, isEdge) -> [tag] }.
     const layersKit = deps.layers || root.ArcVizLayers || null;
     const layerStore = layersKit ? layersKit.create({ tagsOf: (options && options.layers && options.layers.tagsOf) || null }) : null;
@@ -307,6 +340,12 @@
       className: 'arcviz-layout',
       items: () => [
         { label: 'Re-arrange automatically', action: 'reset-layout', title: 'Put every box of this view back where the automatic layout placed it', disabled: !can.reset, reason: 'No box of this view was placed by hand', run: () => resetLayout() },
+        ...(tidyKit && options && (options.edit || options.arrange) ? [
+          { label: 'Tidy up, keeping my arrangement', action: 'tidy-up', title: 'Align and space the boxes, remove overlaps and redraw every line, keeping the order in which the boxes are placed now', disabled: !can.arrange, reason: 'A scenario is drawn as declared', run: () => tidyUp() },
+          { label: 'After a move by hand: ask to tidy up', action: 'reorganize-ask', checked: reorganize === 'ask', title: 'When a box moved or resized by hand leaves the diagram harder to read, offer to tidy it up', run: () => setReorganize('ask') },
+          { label: 'After a move by hand: always tidy up', action: 'reorganize-always', checked: reorganize === 'always', title: 'Tidy the diagram up by itself whenever a move by hand leaves it harder to read', run: () => setReorganize('always') },
+          { label: 'After a move by hand: never ask', action: 'reorganize-never', checked: reorganize === 'never', title: 'Leave the diagram as it is placed by hand', run: () => setReorganize('never') },
+        ] : []),
         'separator',
         { label: 'Fold all', action: 'fold-all', title: 'Show every container as a single box', disabled: !can.fold, reason: 'This view has no container to fold', run: () => refold(new Set(scope.foldable(state.active))) },
         { label: 'Unfold all', action: 'unfold-all', title: 'Show what every container holds', disabled: !can.unfold, reason: 'No container is folded', run: () => refold(new Set()) },
@@ -706,7 +745,22 @@
     }
 
     /** Redraw the active view after its placement changed, where it is. */
-    async function replace(change) {
+    /** How orderly the drawing on screen is, when the page can tell. */
+    async function orderOfActive() {
+      if (!tidyKit) return null;
+      const shown = await activeView();
+      return shown ? tidyKit.measure(shown.graph) : null;
+    }
+
+    /**
+     * Change the placement and draw it again. A change by hand (`manual`)
+     * that leaves the drawing harder to read is followed by what the reader
+     * chose: an offer to tidy it up, a tidy-up, or nothing.
+     */
+    async function replace(change, how) {
+      const manual = Boolean(how && how.manual) && tidyKit && reorganize !== 'never';
+      const before = manual ? await orderOfActive() : null;
+      closeTidyOffer();
       const view = state.active;
       const where = sheet.position();
       state.views.delete(scope.key(view) + filterSignature(view));
@@ -717,6 +771,13 @@
       const shown = await activeView();
       if (shown && shown.graph.arc.placed) scope.settle(view, shown.graph.arc.placed);
       reportLayout();
+      if (manual && shown) {
+        const after = tidyKit.measure(shown.graph);
+        if (tidyKit.worse(before, after)) {
+          if (reorganize === 'always') setTimeout(() => tidyUp(), 0);
+          else offerTidy(after);
+        }
+      }
       // Print pages show each view whole, as the reader arranged it.
       try {
         state.settled.set(view, await layout(graphs.find((graph) => graph.id === view), scope.WHOLE));
@@ -725,8 +786,70 @@
       }
     }
 
+    /**
+     * Tidy the view up: ELK lays it out again from where the boxes are now
+     * (ArcVizTidy.seeded), so their order stays, and the result is kept as
+     * the placement. Bends, moved names and ports go: the lines are redrawn.
+     */
+    async function tidyUp() {
+      closeTidyOffer();
+      const view = state.active;
+      const graph = activeGraph();
+      if (!tidyKit || !graph || render.isSequence(graph)) return;
+      const shown = await activeView();
+      const key = scope.key(view) + filterSignature(view);
+      const automatic = state.layouts.get(key);
+      if (!shown || !automatic) return;
+      try {
+        const auto = await automatic;
+        const copy = applyFilters(JSON.parse(JSON.stringify(scope.shape(graph))), filtersOf(view));
+        const tidy = await render.layOut(new deps.ELK(), tidyKit.seeded(copy, shown.graph));
+        if (state.active !== view) return;
+        const before = tidyKit.measure(shown.graph);
+        await replace(() => scope.tidy(view, tidyKit.placements(auto, tidy)));
+        const after = await orderOfActive();
+        const left = after ? tidyKit.describe(after) : '';
+        announce(`Diagram tidied up${before && after ? ` (${tidyKit.describe(before) || 'nothing to fix'} before${left ? `, ${left} now` : ', nothing left'})` : ''}.`);
+      } catch (error) {
+        announce(`The diagram could not be tidied up: ${error && error.message ? error.message : error}`);
+      }
+    }
+
+    // The offer to tidy up, over the sheet: never modal, gone at the next change.
+    let tidyOffer = null;
+    function closeTidyOffer() {
+      if (tidyOffer) tidyOffer.remove();
+      tidyOffer = null;
+    }
+    function offerTidy(order) {
+      closeTidyOffer();
+      const choose = (mode, tidy) => () => {
+        if (mode) setReorganize(mode);
+        closeTidyOffer();
+        if (tidy) tidyUp();
+      };
+      const text = `This change left the diagram harder to read: ${tidyKit.describe(order)}. Tidy it up, keeping your arrangement?`;
+      tidyOffer = el('div', { class: 'arcviz-tidy-offer', role: 'group', 'aria-label': 'Tidy up the diagram' }, [
+        el('span', { class: 'arcviz-tidy-text', text }),
+        el('button', { type: 'button', class: 'arcviz-tidy-yes', text: 'Tidy up', onclick: choose(null, true) }),
+        el('button', { type: 'button', class: 'arcviz-tidy-keep', text: 'Keep my layout', onclick: choose(null, false) }),
+        el('button', { type: 'button', class: 'arcviz-tidy-always', text: 'Always tidy up', title: 'Tidy up by itself after every move by hand that leaves the diagram harder to read (Layout menu to change it)', onclick: choose('always', true) }),
+      ]);
+      // The sheet pans and selects on a press: a press on the offer is the offer's.
+      for (const type of ['pointerdown', 'mousedown', 'touchstart', 'dblclick', 'wheel', 'contextmenu']) tidyOffer.addEventListener(type, (event) => event.stopPropagation());
+      tidyOffer.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape') {
+          event.stopPropagation();
+          closeTidyOffer();
+          stage.focus();
+        }
+      });
+      stage.appendChild(tidyOffer);
+      announce(text);
+    }
+
     async function moveBy(id, dx, dy) {
-      await replace(() => scope.moveBy(state.active, id, dx, dy));
+      await replace(() => scope.moveBy(state.active, id, dx, dy), { manual: true });
       announce(`${nav.nameOf(id)} moved.`);
     }
 
@@ -741,7 +864,7 @@
           for (const child of children) scope.moveBy(state.active, child.id, -dx, -dy);
         }
         scope.resizeBy(state.active, id, dw, dh);
-      });
+      }, { manual: true });
       announce(`${nav.nameOf(id)} resized.`);
     }
 
@@ -751,7 +874,7 @@
       // zorder hook: a group moves its members (a member dragged drags its group); a box let go on a group frame stays where it is let go.
       if (layerStore) id = layersKit.redirect(layerStore, view, id);
       if (layersKit && layersKit.isGroupId(id)) {
-        await replace(() => layersApi.membersDeep(id).forEach((member) => scope.moveBy(view, member, dx, dy)));
+        await replace(() => layersApi.membersDeep(id).forEach((member) => scope.moveBy(view, member, dx, dy)), { manual: true });
         announce('Group moved.');
         return;
       }
@@ -1005,7 +1128,7 @@
             for (const { id, dx, dy } of moves || []) {
               for (const member of isGroup(id) ? commands.membersDeep(id) : [id]) if (carried(member, true).length > 0) scope.moveBy(state.active, member, dx, dy);
             }
-          }),
+          }, { manual: true }),
         },
       };
     })() : null;
@@ -1477,6 +1600,11 @@
       svgOf: (id) => (state.settled.get(id) || {}).svg || null,
       buildPrintPages,
       setTheme,
+      /** Tidy the view up, keeping its arrangement (see tidyUp); and what follows a move by hand, from the host's setting. */
+      tidyUp,
+      setReorganize: (mode) => {
+        if (REORGANIZE.includes(mode)) reorganize = mode;
+      },
       /** The theme drawn (complete), null for the built-in colours; and the reasons the last one was refused. */
       theme: () => ({ theme: themeState.theme, refused: themeState.refused }),
       exportSvg,

@@ -1306,3 +1306,40 @@
   padding: 0;
   width: var(--av-tool-size);
 }
+
+/* The offer to tidy up after a move by hand: over the bottom of the sheet, never modal. */
+.arcviz .arcviz-tidy-offer {
+  position: absolute;
+  left: 50%;
+  bottom: var(--av-space-3);
+  transform: translateX(-50%);
+  z-index: 5;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--av-space-1) var(--av-space-2);
+  max-width: min(46rem, calc(100% - 2 * var(--av-space-2)));
+  padding: var(--av-space-2);
+  background: var(--av-menu-bg);
+  color: var(--av-menu-fg);
+  border: 1px solid var(--av-menu-border);
+  border-left: 3px solid var(--av-accent);
+  border-radius: 6px;
+  box-shadow: var(--av-menu-shadow);
+  cursor: default;
+  font-size: 0.875rem;
+}
+.arcviz .arcviz-tidy-text { flex: 1 1 18rem; line-height: 1.35; }
+.arcviz .arcviz-tidy-offer button {
+  font: inherit;
+  padding: 0.3rem 0.7rem;
+  border-radius: 4px;
+  border: 1px solid var(--av-menu-border);
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+.arcviz .arcviz-tidy-offer button:hover { background: var(--av-tool-hover); }
+.arcviz .arcviz-tidy-offer button:focus-visible { outline: 2px solid var(--av-focus); outline-offset: 1px; }
+.arcviz .arcviz-tidy-offer .arcviz-tidy-yes { background: var(--av-accent); border-color: var(--av-accent); color: #ffffff; }
+.arcviz .arcviz-tidy-offer .arcviz-tidy-yes:hover { filter: brightness(1.1); background: var(--av-accent); }

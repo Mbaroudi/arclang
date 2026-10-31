@@ -33,6 +33,10 @@ export interface ViewerApi {
   setRoute?: (edge: string, points: { x: number; y: number }[]) => Promise<void>;
   /** Read the host's history and selection into the toolbar again. */
   refreshTools?: () => void;
+  /** Tidy the view up, keeping the order of its boxes. */
+  tidyUp?: () => Promise<void>;
+  /** What follows a move by hand that leaves the diagram harder to read (the host's setting). */
+  setReorganize?: (mode: 'ask' | 'always' | 'never') => void;
   /** Colour every view with a theme (null: the built-in colours); see the viewer's setTheme. */
   setTheme?: (theme: unknown, settings?: { dark?: boolean; draft?: boolean }) => Promise<ThemeVerdict>;
   /** The view (or `view`), or the box around `ids`, as SVG drawn with the export colours. */
@@ -77,6 +81,8 @@ export interface ToolbarHookItem {
 
 export interface ViewerOptions {
   slots?: Record<string, HTMLElement>;
+  reorganize?: 'ask' | 'always' | 'never';
+  onReorganize?: (mode: string) => void;
   onSelect?: (selection: ViewerSelection | null) => void;
   onDrop?: (drop: { view: string; from: string; to: string | null }) => void;
   onOpen?: (id: string) => void;
@@ -113,6 +119,7 @@ declare global {
     ArcVizExport: unknown;
     ArcVizStage: unknown;
     ArcVizPlace: unknown;
+    ArcVizTidy: unknown;
     ArcVizEdit: unknown;
     ArcVizTheme: unknown;
     ArcVizToolbar: {

@@ -156,6 +156,8 @@ export type EditRequest =
 export type ToWebview =
   | { type: 'snapshot'; snapshot: Snapshot; metamodel: Metamodel | null; file: string; selected: string | null }
   | { type: 'select'; id: string | null }
+  /** The reader's choices the page follows: what comes after a move by hand that leaves a diagram harder to read. */
+  | { type: 'preferences'; reorganize: Reorganize }
   | { type: 'show'; view: string; select: string | null }
   | { type: 'layer'; step: number }
   | { type: 'diagram-op'; op: 'hide' | 'related' | 'new' | 'rename'; id: string; drawing?: string }
@@ -211,6 +213,13 @@ export interface SlideData {
 export type CanvasCommand = 'copy' | 'cut' | 'paste' | 'paste-text' | 'duplicate' | 'select-all' | 'delete' | 'zoom-in' | 'zoom-out' | 'fit' | ArrangeCommand; // zorder hook: ArrangeCommand
 
 /** What the webview sends to the extension host. */
+/** After a move by hand that leaves a diagram harder to read: offer to tidy up, tidy up, or nothing. */
+export type Reorganize = 'ask' | 'always' | 'never';
+export const REORGANIZE: readonly Reorganize[] = ['ask', 'always', 'never'];
+export function reorganizeOf(value: unknown): Reorganize {
+  return REORGANIZE.includes(value as Reorganize) ? (value as Reorganize) : 'ask';
+}
+
 export type FromWebview =
   | { type: 'ready' }
   | { type: 'edit'; requests: EditRequest[]; label: string }
@@ -224,6 +233,8 @@ export type FromWebview =
   | { type: 'save'; name: string; mime: string; data: string }
   /** The arrangement changed; `join` makes it part of the step before it (a pasted copy placed). */
   | { type: 'layout'; file: unknown; join?: boolean }
+  /** The reader changed, on the page, what follows a move by hand (the Layout menu, "Always tidy up"). */
+  | { type: 'reorganize'; mode: string }
   | { type: 'history'; op: 'undo' | 'redo' }
   /** What a copy took, for the host to put its source on the system clipboard. */
   | { type: 'copied'; elements: { id: string; name: string }[]; relationships: string[] }

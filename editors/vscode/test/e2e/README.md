@@ -49,6 +49,13 @@ with a host that edits through `arclang edit` and snapshots through
   pointer or over its body, a port let go on another box moved there, Reset
   layout, the full screen kept when a box is selected (29 checks; keys sent as an AZERTY Mac sends them).
 
+- `vscode_tidy_test.js`: tidying a diagram up after a move by hand: a box
+  let go over another (the line to it follows), the offer saying why, Tidy
+  up removing the overlap and writing the layout file, `⌘Z` bringing the
+  move back, Keep my layout, Always tidy up setting
+  `arclang.workbench.reorganize` and tidying the next move by itself, the
+  Layout menu's entries (14 checks).
+
 - `vscode_panes_test.js`: the panes in VS Code itself: quantity, enumeration
   and reference edited in the pane, refusals as they are typed, ⌘Z (AZERTY),
   redefine and reset of an inherited value, the tree's kind icons, diagrams

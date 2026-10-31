@@ -420,11 +420,11 @@
           }
         }
         const moving = ends.some((end) => displaced(end, edge.container));
-        // With routing around boxes, an exchange a moved box now lies across is redrawn too.
-        const crossed = !moving && avoid && movedRects.length > 0 && owner(ends[0]) !== owner(ends[1]) && (() => {
+        // With routing around boxes, once anything moved by hand, every exchange
+        // that now runs across a box (moved or not) is redrawn around it too.
+        const crossed = !moving && avoid && (movedRects.length > 0 || bent.size > 0 || portShifts.size > 0) && owner(ends[0]) !== owner(ends[1]) && (() => {
           const points = drawnPoints(edge);
-          const others = new Set(obstaclesOf(ends).map((r) => r.id));
-          return movedRects.some((r) => others.has(r.id) && router().crosses(points, r));
+          return obstaclesOf(ends).some((r) => router().crosses(points, r));
         })();
         if (!moving && !crossed) continue;
         if (owner(ends[0]) === owner(ends[1])) {
