@@ -513,6 +513,35 @@ pub fn run_gate(ast: &Model, semantic: &SemanticModel, standard: &str) -> GateRe
         }
     }
 
+    // ---- Traces reviewed, whose end changed since: suspect ---------------
+    // ---- Rules the model declares ----------------------------------------
+    let graph = (super::suspect::watches(ast) || !ast.rules.is_empty()).then(|| super::elements::build(ast, semantic));
+    if let Some(graph) = &graph {
+        match super::suspect::suspects(ast, graph) {
+            Ok(suspects) => {
+                for suspect in suspects {
+                    push("traceability.suspect", Severity::Blocker, suspect.line());
+                }
+            }
+            Err(error) => push("traceability.suspect", Severity::Blocker, error),
+        }
+        if !ast.rules.is_empty() {
+            match super::user_rules::read(ast).and_then(|rules| super::user_rules::evaluate(&rules, graph)) {
+                Ok(violations) => {
+                    for violation in violations {
+                        let severity = match violation.level {
+                            super::user_rules::Level::Blocker => Severity::Blocker,
+                            super::user_rules::Level::Warning => Severity::Warning,
+                            super::user_rules::Level::Info => continue,
+                        };
+                        push(&format!("rule.{}", violation.rule), severity, format!("{} ({}): '{}': {}", violation.rule_name, violation.rule, violation.element, violation.message));
+                    }
+                }
+                Err(error) => push("rule.invalid", Severity::Blocker, error),
+            }
+        }
+    }
+
     // ---- 4. ICD completeness on inter-node exchanges ---------------------
     for pa in &ast.physical_architecture {
         for exchange in &pa.physical_exchanges {

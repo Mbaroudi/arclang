@@ -168,7 +168,8 @@ fn snapshot_of(compiled: Result<crate::CompilationResult, crate::CompilerError>,
                 .clone()
                 .unwrap_or_else(|| "System Architecture".to_string());
             let findings = crate::compiler::rules::findings(&result);
-            let diagrams = crate::compiler::diagram::build_diagrams(&result.ast);
+            let mut diagrams = crate::compiler::diagram::build_diagrams(&result.ast);
+            crate::compiler::diagram::judge_requirements(&mut diagrams, &result.ast, model);
             let diagrams = crate::compiler::diagram::html::viewer_payload(&diagrams, &title);
             let gate_report = crate::compiler::production_gate::run_gate(
                 &result.ast,

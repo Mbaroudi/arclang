@@ -229,6 +229,18 @@ traceability {
   - Requirement → Components
   - Logical → Physical components
 
+**Typed traces**: `trace "PN-BATT" satisfies "REQ-RANGE"`, `trace "REQ-COOL"
+refines "REQ-CELL"`, `trace "REQ-CELL" derives "REQ-RANGE"` (a requirement
+derived from another, SysML `derive`), `realizes`, `implements`, `allocates`.
+
+**The Requirements view** (`arclang diagram model.arc --view req`, and
+*Requirements* in the VS Code workbench) draws every requirement with its id
+and text, `parent:` as containment, the `derives` and `refines` traces between
+requirements, the elements that satisfy them and the test cases that verify
+them. Each requirement and case shows its verdict (`✓ verified`, `✗ fails`,
+`? inconclusive`, `not verified`); a suspect trace or verification is an amber
+dashed line.
+
 ### Data Types
 
 **Strings**:
@@ -251,6 +263,46 @@ deceleration: 0.3
 - Underscores for readability: `1_000_000`
 - Negative numbers: `-40`, `-12.5`
 - Scientific notation: `1.5e7`, `2E-3` (a heat capacity in J/K, a small resistance)
+
+**Rules of the model**: what the authors want of their elements, checked
+by `check`, the gate, SARIF and VS Code like the compiler's own rules:
+
+```arc
+rule "Every link names its protocol" {
+    id: "RULE-PROTOCOL"
+    kind: "PhysicalLink"                 // a kind of `arclang metamodel`, or a list
+    where: "name != \"Spare\""            // optional: which of them
+    require: "has(protocol)"             // what each must hold
+    severity: "blocker"                  // blocker (stops the gate), warning (default), info
+    message: "an ICD needs the protocol of each link"
+}
+```
+
+A predicate reads the element's attributes by key, `name`, `id` and `kind`;
+numbers with units (compared in SI, dimension-checked: `mass <= 50 kg`);
+text in quotes; `true`, `false`; `has(key)`, `size(key)` (items of a list),
+`count(type)` (traces of that type from the element: `count(satisfies)`)
+and `count_in(type)` (to it; `count_in(verifies)` counts the test cases
+verifying a requirement); comparisons, `and`, `or`, `not`, parentheses.
+Links, exchanges and deployments are judged like elements. A comparison
+with an attribute the element lacks does not hold; a rule comparing two
+dimensions (`mass <= 5 s`) is an error.
+
+**Suspect traces**: `arclang trace model.arc --review` writes on each trace
+the fingerprint of its two ends (`reviewed: "19d9a441 ae35f237"`, from the
+kind, name and attributes of each). When an end changes, the trace is
+suspect: a warning of `check` on the trace, a blocker of the gate, until it
+is reviewed again (`--review --from A --to B`, or the quick fix in VS Code).
+`arclang trace model.arc --suspects` lists them. A trace without
+`reviewed:` is not watched; a stamp that is not two fingerprints is an error.
+
+A test case's `verifies:` is watched the same way: `--review` writes on the
+case one entry per requirement it verifies (`reviewed: ["REQ-RANGE 751d6c02
+0967ebab"]`, the requirement, then the fingerprints of the case and of the
+requirement). A changed expectation, procedure or verdict, or a changed
+requirement, makes that verification suspect, on the test case; so does a
+requirement the case verifies but does not name in `reviewed:`. Adding a
+requirement to `verifies:` leaves the verifications already reviewed alone.
 
 **Quantities of physics**: `35 °C` (or `35 degC`, a temperature level:
 308.15 K; a difference of temperatures is written in K), `40 Ah`, `2500 mAh`,

@@ -115,8 +115,11 @@ such; ArcLang's column comes from this repository, not from a fresh test.
 | Capability | ArcLang | Cameo / CATIA Magic 2026x | SysON 2026.11 |
 |---|---|---|---|
 | SysML v2 coverage | import and export, validated against the pilot | claims 100% of the standard (vendor claim) | native; metamodel follows the 2025-04 specification |
-| Diagram types | Arcadia viewpoints, 9 views | graphical, tabular and textual views | General, Interconnection, Action Flow, State transition |
-| Requirement derivation on a diagram | no | yes | yes (`derive` edges, 2026.9) |
+| Diagram types | Arcadia viewpoints and a requirements view, 10 views | graphical, tabular and textual views | General, Interconnection, Action Flow, State transition |
+| Requirement derivation on a diagram | yes: the Requirements view draws `derives`, `refines`, containment (`parent:`), what satisfies and what verifies each requirement, with its verdict; Derive, Refine and Satisfy tools | yes | yes (`derive` edges, 2026.9) |
+| Validation rules written by the user | yes: `rule` blocks (kind, where, require, severity), in Problems, SARIF and the gate | yes (validation suites, OCL, scripts) | not found |
+| Suspect links | yes: traces and test case verifications, by fingerprints of their ends; quick fix to review | yes (suspect links on changed requirements) | not found |
+| A relation created from a matrix cell | no: matrices are computed, their cells are not edited | yes (dependency matrix) | no |
 | Production gate (ISO 26262, DO-178C, IEC 61508) | yes | no (validation suites and custom rules) | no |
 | Simulation | OpenModelica bridge, verdict in the gate | SysML v2 Simulation Plugin, technology preview | listed in the features index, not checked |
 | Version control | semantic git: diff, history, merge, baselines | branching and patch reintegration, Teamwork Cloud | listed in the features index, not checked |
