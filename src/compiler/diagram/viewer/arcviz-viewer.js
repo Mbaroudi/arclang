@@ -24,6 +24,9 @@
     pbs: 'Product breakdown',
     req: 'Requirements',
     par: 'Parametric',
+    gv: 'General View',
+    iv: 'Interconnection',
+    afv: 'Action Flow',
   };
   const NUDGE = 10; // sheet units a box moves per key press
   const HISTORY_LIMIT = 50;

@@ -49,8 +49,8 @@
     { key: 'operational_activity', label: 'operational activity', shape: 'rect', kinds: ['operational_activity', 'operational_process'] },
     { key: 'operational_capability', label: 'operational capability', shape: 'pill', kinds: ['operational_capability'] },
     { key: 'system_actor', label: 'actor', shape: 'rect', kinds: ['system_actor'] },
-    { key: 'system_component', label: 'system component', shape: 'rect', kinds: ['system', 'system_component'] },
-    { key: 'system_function', label: 'system function', shape: 'rect', kinds: [] },
+    { key: 'system_component', label: 'system component', shape: 'rect', kinds: ['system', 'system_component', 'sysml_part'] },
+    { key: 'system_function', label: 'system function', shape: 'rect', kinds: ['sysml_action'] },
     { key: 'logical_component', label: 'logical component', shape: 'rect', kinds: ['logical_component'] },
     { key: 'logical_function', label: 'logical function', shape: 'rect', kinds: [] },
     { key: 'physical_node', label: 'physical node', shape: 'rect', kinds: ['physical_node', 'hardware_component'] },
@@ -59,7 +59,7 @@
     { key: 'capability', label: 'capability', shape: 'pill', kinds: ['capability', 'capability_realization'] },
     { key: 'mission', label: 'mission', shape: 'pill', kinds: ['mission'] },
     { key: 'functional_chain', label: 'functional chain', shape: 'rect', kinds: ['functional_chain'] },
-    { key: 'data_type', label: 'class or data type', shape: 'rect', kinds: ['class', 'enumeration', 'data_type', 'value_property'] },
+    { key: 'data_type', label: 'class or data type', shape: 'rect', kinds: ['class', 'enumeration', 'data_type', 'value_property', 'sysml_definition'] },
     { key: 'exchange_item', label: 'exchange item', shape: 'rect', kinds: ['exchange_item'] },
     { key: 'state_mode', label: 'state or mode', shape: 'pill', kinds: ['state', 'mode'] },
     { key: 'requirement', label: 'requirement', shape: 'rect', kinds: ['requirement'] },
@@ -70,8 +70,8 @@
   const FUNCTION_OF_VIEW = { oab: 'operational_activity', sab: 'system_function', lab: 'logical_function', pab: 'physical_function' };
 
   const EXCHANGES = [
-    { key: 'functional_exchange', label: 'functional exchange', kinds: ['functional_exchange'] },
-    { key: 'component_exchange', label: 'component exchange', kinds: ['component_exchange'] },
+    { key: 'functional_exchange', label: 'functional exchange', kinds: ['functional_exchange', 'flow'] },
+    { key: 'component_exchange', label: 'component exchange', kinds: ['component_exchange', 'connection'] },
     { key: 'physical_exchange', label: 'physical exchange', kinds: ['physical_exchange'] },
     { key: 'interaction', label: 'interaction', kinds: ['interaction'] },
     { key: 'communication_mean', label: 'communication mean', kinds: ['communication_mean'] },
@@ -80,7 +80,7 @@
     { key: 'transition', label: 'transition', kinds: ['transition'] },
     { key: 'message', label: 'message', kinds: ['message'] },
     { key: 'trace', label: 'trace', kinds: ['realization', 'trace'] },
-    { key: 'relation', label: 'relation', kinds: ['exploitation', 'involvement', 'capability_association', 'generalization', 'association', 'item_element', 'breakdown', 'containment', 'binding'] },
+    { key: 'relation', label: 'relation', kinds: ['exploitation', 'involvement', 'capability_association', 'generalization', 'association', 'item_element', 'breakdown', 'containment', 'binding', 'typing', 'composition', 'succession'] },
   ];
 
   // One concept on several layers: one colour.
@@ -101,6 +101,9 @@
     pbs: { name: 'Product breakdown', concepts: ['configuration_item', 'requirement'], exchanges: ['relation'] },
     req: { name: 'Requirements', concepts: ['requirement', 'test_case'], exchanges: ['trace', 'relation'] },
     par: { name: 'Parametric', concepts: ['constraint', 'data_type'], exchanges: ['relation'] },
+    gv: { name: 'General View', concepts: ['data_type', 'system_component'], exchanges: ['relation'] },
+    iv: { name: 'Interconnection View', concepts: ['system_component'], exchanges: ['component_exchange'] },
+    afv: { name: 'Action Flow View', concepts: ['system_function'], exchanges: ['functional_exchange'] },
   };
 
   // Colours the tool gives a meaning of its own (VS Code's light defaults).

@@ -419,6 +419,11 @@ impl Builder {
             EdgeKind::Annotation => "ann",
             EdgeKind::Containment => "ct",
             EdgeKind::Binding => "bnd",
+            EdgeKind::Typing => "typ",
+            EdgeKind::Composition => "cmp",
+            EdgeKind::Connection => "cnx",
+            EdgeKind::Flow => "flw",
+            EdgeKind::Succession => "seq",
         };
         let base_id = format!("{prefix}:{name}");
         let id = self.claim(&base_id);
