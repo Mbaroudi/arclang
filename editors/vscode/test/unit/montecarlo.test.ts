@@ -133,3 +133,16 @@ test('the page escapes what it shows, draws each chart, and offers a replay for 
   assert.match(html, /The model changed since these results/);
   assert.match(monteCarloHtml({ file: 'x.arc', cases: [], statistics: {}, stale: false }, 'N', 'c'), /No test case of this model samples/);
 });
+
+test('an end of the axis the bound would cover is left out', () => {
+  const outcomes = parseOutcomes(RUN)!;
+  const [c] = monteCarloCases(outcomes);
+  // A margin from -18 to 2 km: the bound sits near the right end, whose label would sit under it.
+  const margin = { ...c.margins[1], unit: 'km', constant: false, smallest: -18, largest: 2, bins: Array.from({ length: 10 }, (_, i) => ({ from: -18 + 2 * i, to: -16 + 2 * i, count: i === 9 ? 195 : 1, failing: i < 9 })) };
+  const html = monteCarloHtml({ file: 'ev.arc', cases: [{ ...c, margins: [margin] }], statistics: {}, stale: false }, 'N', 'c');
+  const histogramSvg = html.slice(html.indexOf('class="histogram"'), html.indexOf('</svg>', html.indexOf('class="histogram"')));
+  assert.match(histogramSvg, />-18 km</, 'the far end is labelled');
+  assert.match(histogramSvg, />bound</);
+  assert.doesNotMatch(histogramSvg, />2 km</, 'the near end is not drawn under the bound');
+});
+

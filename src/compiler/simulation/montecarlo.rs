@@ -5,9 +5,13 @@
 //! simulate: { model: "EVPhysics.TouringRange" stop_time: 5 h sources: ["physics/EVPhysics.mo"]
 //!             uncertain: ["vehicleBody.mass ~ normal(1850 kg, 40 kg)",
 //!                         "\"PN-BATT\".capacity ~ uniform(58 kWh, 62 kWh)",
-//!                         "driveUnit.efficiency ~ triangular(0.86, 0.9, 0.92)"]
+//!                         "driveUnit.efficiency ~ normal(0.9, 0.03) in [0.8, 0.97]"]
 //!             samples: 300 seed: 7 probability: 0.99 confidence: 0.95 }
 //! ```
+//!
+//! `in [low, high]` after a law truncates it: the law is kept between the
+//! bounds and its weight there spread over the interval (an efficiency no
+//! normal law may take above 1, a mass never negative).
 //!
 //! The samples are a Latin hypercube (each parameter's range cut in as many
 //! strata as samples, one sample per stratum), drawn from the seed, so the
@@ -40,15 +44,38 @@ pub enum Law {
     Normal { mean: f64, sd: f64 },
     Uniform { low: f64, high: f64 },
     Triangular { low: f64, mode: f64, high: f64 },
+    /// A law kept between two bounds.
+    Truncated { law: Box<Law>, low: f64, high: f64 },
 }
+
+/// Weight a truncation must leave between its bounds: below it the samples
+/// would all sit on a bound, a law that does not describe the parameter.
+const MIN_TRUNCATED_WEIGHT: f64 = 1e-6;
 
 impl Law {
     /// The value at probability `u` (0 < u < 1).
     fn quantile(&self, u: f64) -> f64 {
-        match *self {
-            Law::Normal { mean, sd } => Normal::new(mean, sd).expect("checked").inverse_cdf(u),
-            Law::Uniform { low, high } => Uniform::new(low, high).expect("checked").inverse_cdf(u),
-            Law::Triangular { low, mode, high } => Triangular::new(low, high, mode).expect("checked").inverse_cdf(u),
+        match self {
+            Law::Normal { mean, sd } => Normal::new(*mean, *sd).expect("checked").inverse_cdf(u),
+            Law::Uniform { low, high } => Uniform::new(*low, *high).expect("checked").inverse_cdf(u),
+            Law::Triangular { low, mode, high } => Triangular::new(*low, *high, *mode).expect("checked").inverse_cdf(u),
+            Law::Truncated { law, low, high } => {
+                let (from, to) = (law.cdf(*low), law.cdf(*high));
+                law.quantile(from + u * (to - from)).clamp(*low, *high)
+            }
+        }
+    }
+
+    /// The probability of a value at most `x`.
+    fn cdf(&self, x: f64) -> f64 {
+        match self {
+            Law::Normal { mean, sd } => Normal::new(*mean, *sd).expect("checked").cdf(x),
+            Law::Uniform { low, high } => Uniform::new(*low, *high).expect("checked").cdf(x),
+            Law::Triangular { low, mode, high } => Triangular::new(*low, *high, *mode).expect("checked").cdf(x),
+            Law::Truncated { law, low, high } => {
+                let (from, to) = (law.cdf(*low), law.cdf(*high));
+                ((law.cdf(x.clamp(*low, *high)) - from) / (to - from)).clamp(0.0, 1.0)
+            }
         }
     }
 }
@@ -121,14 +148,34 @@ fn law(text: &str) -> Result<(Law, String), String> {
     Ok((law, unit))
 }
 
-/// One parameter: `variable ~ law(...)`.
+/// `normal(0.9, 0.03) in [0.8, 0.97]`: the law, kept between its bounds when it has some.
+fn bounded_law(text: &str) -> Result<(Law, String), String> {
+    let Some((law_text, bounds)) = text.rsplit_once(" in ") else { return law(text) };
+    let (base, unit) = law(law_text)?;
+    let inner = bounds.trim().strip_prefix('[').and_then(|b| b.strip_suffix(']')).ok_or_else(|| format!("uncertain: '{}' is not an interval: in [low, high]", bounds.trim()))?;
+    let ends = inner.split(',').map(number_and_unit).collect::<Result<Vec<_>, _>>()?;
+    let [(low, low_unit), (high, high_unit)] = ends.as_slice() else { return Err(format!("uncertain: in [{inner}] takes two bounds: in [low, high]")) };
+    if *low_unit != unit || *high_unit != unit {
+        return Err(format!("uncertain: in [{inner}] must be in the unit of its law ({})", if unit.is_empty() { "a plain number" } else { &unit }));
+    }
+    if low >= high {
+        return Err(format!("uncertain: in [{inner}] must have low < high"));
+    }
+    let weight = base.cdf(*high) - base.cdf(*low);
+    if weight < MIN_TRUNCATED_WEIGHT {
+        return Err(format!("uncertain: '{}' puts almost no weight in [{inner}]: the bounds miss the law", law_text.trim()));
+    }
+    Ok((Law::Truncated { law: Box::new(base), low: *low, high: *high }, unit))
+}
+
+/// One parameter: `variable ~ law(...)`, or `variable ~ law(...) in [low, high]`.
 pub fn parse_one(text: &str, aliases: &BTreeMap<String, String>) -> Result<Uncertain, String> {
     let (variable, law_text) = text.split_once('~').ok_or_else(|| format!("uncertain: '{text}' is not `parameter ~ law` (e.g. `body.mass ~ normal(1850 kg, 40 kg)`)"))?;
     let variable = sweep::resolve(variable.trim(), aliases).map_err(|e| e.replacen("sweep:", "uncertain:", 1))?;
     if !sweep::is_path(&variable) {
         return Err(format!("uncertain: '{variable}' is not a Modelica path (part.parameter)"));
     }
-    let (law, unit) = law(law_text)?;
+    let (law, unit) = bounded_law(law_text)?;
     Ok(Uncertain { variable, law, unit })
 }
 
@@ -368,6 +415,39 @@ mod tests {
             assert!(error.contains(told), "{text}: {error}");
         }
         assert!(parse(&["a.b ~ normal(1, 1)".into(), "a.b ~ uniform(0, 1)".into()], &aliases).unwrap_err().contains("twice"));
+    }
+
+    #[test]
+    fn a_truncated_law_stays_between_its_bounds_and_keeps_its_shape_there() {
+        let aliases = BTreeMap::new();
+        let efficiency = parse_one("drive.efficiency ~ normal(0.95, 0.05) in [0.8, 1]", &aliases).unwrap();
+        assert!(matches!(&efficiency.law, Law::Truncated { low, high, .. } if (*low, *high) == (0.8, 1.0)));
+        let points = sample(std::slice::from_ref(&efficiency), 400, 3);
+        let values: Vec<f64> = points.iter().map(|p| p[0].1.si).collect();
+        assert!(values.iter().all(|v| (0.8..=1.0).contains(v)), "every sample within the bounds");
+        // One sample per stratum of the truncated law: its median is that of the normal cut at 1.
+        let mut sorted = values.clone();
+        sorted.sort_by(f64::total_cmp);
+        let median = sorted[200];
+        let normal = Normal::new(0.95, 0.05).unwrap();
+        let expected = normal.inverse_cdf((normal.cdf(0.8) + normal.cdf(1.0)) / 2.0);
+        assert!((median - expected).abs() < 0.003, "{median} vs {expected}");
+        assert!(values.iter().filter(|v| **v > 0.99).count() > values.iter().filter(|v| **v < 0.81).count(), "the weight stays near the mean");
+        // With units, and on any law.
+        let mass = parse_one("body.mass ~ normal(1850 kg, 40 kg) in [1800 kg, 1900 kg]", &aliases).unwrap();
+        assert_eq!(mass.unit, "kg");
+        assert!(parse_one("a.b ~ triangular(0, 1, 4) in [0.5, 3]", &aliases).is_ok());
+        for (text, told) in [
+            ("a.b ~ normal(1, 1) in [2, 1]", "low < high"),
+            ("a.b ~ normal(1 kg, 1 kg) in [0 g, 2 g]", "in the unit of its law (kg)"),
+            ("a.b ~ normal(1, 1) in [0]", "takes two bounds"),
+            ("a.b ~ normal(1, 1) in 0, 2", "not an interval"),
+            ("a.b ~ normal(0, 1) in [50, 60]", "almost no weight"),
+            ("a.b ~ uniform(0, 1) in [2, 3]", "almost no weight"),
+        ] {
+            let error = parse_one(text, &aliases).unwrap_err();
+            assert!(error.contains(told), "{text}: {error}");
+        }
     }
 
     #[test]

@@ -396,7 +396,10 @@ simulate: { model: "EVPhysics.TouringRange" configuration: "CFG-TOURING" stop_ti
 
 - Each parameter is `path ~ law`, the path as in a sweep; the laws are
   `normal(mean, sd)`, `uniform(low, high)` and `triangular(low, mode, high)`,
-  their arguments in one unit.
+  their arguments in one unit. `in [low, high]` after a law truncates it:
+  `drive.efficiency ~ normal(0.9, 0.03) in [0.8, 0.97]` never draws an
+  efficiency above 0.97, and keeps the shape of the normal law between the
+  bounds. Bounds that leave the law almost no weight are refused.
 - `samples` (10 to 1000, default 200) are drawn as a Latin hypercube (one
   sample in each of as many strata of each parameter), from `seed` (default
   1): the same case draws the same samples on every machine, and a new seed
