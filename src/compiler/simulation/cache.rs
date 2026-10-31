@@ -55,6 +55,12 @@ pub fn key(package: &str, base: &Path, spec: &Spec, expects: &[String]) -> Strin
     for axis in &spec.sweep {
         field("sweep", axis.as_bytes());
     }
+    for parameter in &spec.uncertain {
+        field("uncertain", parameter.as_bytes());
+    }
+    if let Some(required) = &spec.required {
+        field("samples", format!("{} seed {} p {} c {}", spec.samples, spec.seed, required.probability, required.confidence).as_bytes());
+    }
     for expect in expects {
         field("expects", expect.as_bytes());
     }
@@ -79,7 +85,7 @@ mod tests {
     use super::*;
 
     fn spec(sources: Vec<String>) -> Spec {
-        Spec { backend: Default::default(), model: "P.M".into(), configuration: None, start_time: 0.0, stop_time: 10.0, sources, tolerance: None, intervals: None, sweep: vec![] }
+        Spec { model: "P.M".into(), stop_time: 10.0, sources, ..Default::default() }
     }
 
     #[test]

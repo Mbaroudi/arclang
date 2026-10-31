@@ -244,7 +244,7 @@ fn cached(model: &Path, test: &str, verdict: &str, values: Vec<simulation::expec
 }
 
 fn value(text: &str, holds: bool) -> simulation::expects::Evaluated {
-    simulation::expects::Evaluated { expect: "e".into(), value: text.into(), holds, margin: String::new(), requirement: None }
+    simulation::expects::Evaluated { expect: "e".into(), value: text.into(), holds, margin: String::new(), slack: None, requirement: None }
 }
 
 #[test]
@@ -540,7 +540,7 @@ fn an_expectation_that_names_its_requirement_judges_only_that_requirement() {
         ),
     ]);
     assert_eq!(compile_err(&model), "");
-    let tagged = |text: &str, holds: bool, requirement: &str| simulation::expects::Evaluated { expect: "e".into(), value: text.into(), holds, margin: String::new(), requirement: Some(requirement.into()) };
+    let tagged = |text: &str, holds: bool, requirement: &str| simulation::expects::Evaluated { expect: "e".into(), value: text.into(), holds, margin: String::new(), slack: None, requirement: Some(requirement.into()) };
     cached(&model, "TC-RANGE-STD", "fail", vec![tagged("final(vehicleBody.distance) = 300 km", true, "Trip length"), tagged("min(batteryPack.soc) = 0.08693", false, "REQ-RANGE")], "min(batteryPack.soc) = 0.08693 (expected e)");
     cached(&model, "TC-RANGE-LR", "pass", vec![value("min(batteryPack.soc) = 0.2874", true)], "");
     cached(&model, "TC-RANGE-ENVELOPE", "pass", vec![value("min(batteryPack.soc) = 0.2016", true)], "");

@@ -381,6 +381,10 @@ pub struct Evaluated {
     /// The requirement the expectation checks, when it names one.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub requirement: Option<String>,
+    /// The margin as a number, in SI units: positive on the side that holds
+    /// (`final(d) >= 300 km` at 320 km: 20000). `None` for an equality.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub slack: Option<f64>,
 }
 
 pub struct Context<'a> {
@@ -505,7 +509,12 @@ pub fn evaluate(expect: &Expect, context: &mut Context<'_>) -> Result<Evaluated,
         (Cmp::Lt | Cmp::Le, false) => format!("over by {gap}"),
         _ => format!("{gap} to spare"),
     };
-    Ok(Evaluated { expect: expect.text.clone(), value, holds, margin, requirement: expect.requirement.clone() })
+    let slack = match expect.cmp {
+        Cmp::Gt | Cmp::Ge => Some(lhs.si - rhs.si),
+        Cmp::Lt | Cmp::Le => Some(rhs.si - lhs.si),
+        Cmp::Eq | Cmp::Ne => None,
+    };
+    Ok(Evaluated { expect: expect.text.clone(), value, holds, margin, requirement: expect.requirement.clone(), slack })
 }
 
 /// When an expectation stops holding, in seconds of the run: `None` while it

@@ -380,6 +380,68 @@ to one makes the cached verdict stale. The cache may be committed as
 evidence; `arclang gate` in CI then needs no OpenModelica, and fails when the
 evidence is stale.
 
+### Monte Carlo: how likely the requirements hold
+
+A sweep checks chosen conditions; tolerances are better described by laws.
+`uncertain:` draws its parameters instead, and the case is judged on the
+probability that its `expects:` hold:
+
+```arc
+simulate: { model: "EVPhysics.TouringRange" configuration: "CFG-TOURING" stop_time: 5 h
+            sources: ["physics/EVPhysics.mo"]
+            uncertain: ["vehicleBody.ambient ~ uniform(253.15 K, 293.15 K)",
+                        "\"PN-VCU\".speedController.target_speed ~ triangular(90 km/h, 100 km/h, 110 km/h)"]
+            samples: 300 seed: 7 probability: 0.99 confidence: 0.95 }
+```
+
+- Each parameter is `path ~ law`, the path as in a sweep; the laws are
+  `normal(mean, sd)`, `uniform(low, high)` and `triangular(low, mode, high)`,
+  their arguments in one unit.
+- `samples` (10 to 1000, default 200) are drawn as a Latin hypercube (one
+  sample in each of as many strata of each parameter), from `seed` (default
+  1): the same case draws the same samples on every machine, and a new seed
+  makes the cached verdict stale. Each sample is one simulation, its
+  parameters overridden and proven applied, as a sweep point is.
+- The verdict is the compiler's: `pass` when the lower bound of the
+  Clopper-Pearson interval of the samples that hold reaches `probability` at
+  `confidence` (default 0.95). The reason says it: `holds in 300 of 300
+  samples: probability between 99.01 % and 100 % at 95 % confidence`. When
+  every sample holds but there are too few to show the probability, it says
+  how many would: to show 99 % at 95 % confidence takes 299. A sample that
+  does not run makes the case an `error`.
+- `arclang verify` prints the failing samples and, for each expectation,
+  the parameters that move its margin (Spearman's rank correlation): `-0.87
+  vehicleControlUnit.speedController.target_speed`. `--json` gives every
+  sample with its parameters (`inputs`, in SI units) and its margins
+  (`slack`, in SI units, positive on the side that holds).
+
+A sweep and a sampling do not mix in one case. Runs take about a second
+each; beyond 300 samples the time limit grows with them, unless
+`ARCLANG_OMC_TIMEOUT` sets it.
+
+#### Further analysis with R or Python
+
+The samples are kept as a table, `.arclang/sim-results/<case>/samples.csv`:
+one row per sample, the parameters, each margin, whether it held.
+
+```sh
+arclang verify model.arc --test TC-RANGE-LR --statistics python   # or r
+```
+
+analyses it without simulating again, and writes `statistics.json` beside it:
+for each margin, the share of failing samples, a normal fit and the failure
+probability it extrapolates (beyond what the samples alone can show: read it
+as an indication), and the influence of each parameter with an interval:
+
+- Python (`python3`, or `ARCLANG_PYTHON`): PRCC with NumPy; with SALib,
+  Borgonovo's delta and Sobol's first-order index from the same samples;
+- R (`Rscript`, or `ARCLANG_RSCRIPT`): PRCC and SRRC with 95 % bootstrap
+  intervals, in base R (no package to install).
+
+A margin that does not vary (a run that ends on its bound, as the trip
+distance here) is said so rather than explained by noise. The analysis
+informs; the verdict and the gate never depend on R or Python.
+
 ### Replaying a run on the diagram
 
 `arclang verify` keeps the results of each run beside the model, in
