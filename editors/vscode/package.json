@@ -586,6 +586,12 @@
         "icon": "$(pass)"
       },
       {
+        "command": "arclang.document.generate",
+        "title": "Generate a document (design review or template)",
+        "category": "ArcLang",
+        "icon": "$(book)"
+      },
+      {
         "command": "arclang.impact.mine",
         "title": "Impact analysis: my changes (since HEAD or main)",
         "category": "ArcLang",
@@ -1218,6 +1224,10 @@
         },
         {
           "command": "arclang.trace.review",
+          "when": "resourceLangId == arclang"
+        },
+        {
+          "command": "arclang.document.generate",
           "when": "resourceLangId == arclang"
         },
         {
