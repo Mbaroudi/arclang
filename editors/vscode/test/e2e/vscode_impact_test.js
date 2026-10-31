@@ -10,7 +10,7 @@
 //   VSCODE_APP=".../Visual Studio Code.app" PLAYWRIGHT=/path/to/playwright \
 //   ARCLANG_BINARY=/path/to/arclang node vscode_impact_test.js
 // SHOTS=/dir keeps pictures.
-const { _electron } = require(process.env.PLAYWRIGHT || 'playwright');
+const { launchVSCode } = require('./launch');
 const fs = require('fs'); const os = require('os'); const path = require('path');
 const { execFileSync } = require('child_process');
 const { azerty } = require('./azerty');
@@ -29,9 +29,7 @@ async function launch(dir, model, extra = {}) {
   };
   fs.mkdirSync(path.join(dir, 'u', 'User'), { recursive: true });
   fs.writeFileSync(path.join(dir, 'u', 'User', 'settings.json'), JSON.stringify(settings));
-  const app = await _electron.launch({ executablePath: path.join(APP, 'Contents/MacOS/Electron'), args: [`--user-data-dir=${dir}/u`, `--extensions-dir=${dir}/x`, `--extensionDevelopmentPath=${EXT}`, '--skip-welcome', '--skip-release-notes', model] });
-  const win = await app.firstWindow();
-  await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setBounds({ x: 0, y: 0, width: 1700, height: 1000 }));
+  const { win, close } = await launchVSCode(APP, [`--user-data-dir=${dir}/u`, `--extensions-dir=${dir}/x`, `--extensionDevelopmentPath=${EXT}`, '--skip-welcome', '--skip-release-notes', '--new-window', model], { width: 1700, height: 1000 });
   await win.waitForTimeout(4000);
   const palette = async (name) => {
     // Focus in the text: a key typed in a webview reaches the page, not always the palette.
@@ -51,7 +49,7 @@ async function launch(dir, model, extra = {}) {
     for (const pick of picks) { await ready(); await win.keyboard.type(pick); await win.waitForTimeout(600); await win.keyboard.press('Enter'); await win.waitForTimeout(800); }
   };
   await command('View: Close Secondary Side Bar');
-  return { app, win, command, palette, ready };
+  return { close, win, command, palette, ready };
 }
 
 /** The frame of the impact view (not one of `not`), once its rows are there. */
@@ -102,7 +100,7 @@ function openpyxl(book, script) {
   const original = fs.readFileSync(model, 'utf8');
   const git = (...args) => execFileSync('git', ['-C', dir, '-c', 'user.name=t', '-c', 'user.email=t@t', '-c', 'commit.gpgsign=false', ...args]);
   git('init', '-q'); git('add', 'aeb.arc'); git('commit', '-q', '-m', 'model');
-  const { app, win, command, palette, ready } = await launch(dir, model);
+  const { close, win, command, palette, ready } = await launch(dir, model);
   const press = await azerty(win);
   try {
     // 1. A sensor component analysed from the command palette
@@ -230,7 +228,7 @@ function openpyxl(book, script) {
     report('the run went to its end', false, String(error && error.message));
     if (SHOTS) await win.screenshot({ path: path.join(SHOTS, 'impact-failure.png') }).catch(() => undefined);
   } finally {
-    await app.close();
+    await close();
   }
   const failed = results.filter((ok) => !ok).length;
   console.log(failed ? `${failed} FAILED` : `all ${results.length} impact checks passed in VS Code`);
