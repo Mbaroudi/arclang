@@ -192,6 +192,26 @@ fn percent(p: f64) -> String {
     format!("{} %", text.trim_end_matches('0').trim_end_matches('.'))
 }
 
+/// How often the expectations held over the samples, and the probability
+/// it shows: the bounds of its Clopper-Pearson interval.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+pub struct Estimate {
+    pub held: usize,
+    pub total: usize,
+    pub low: f64,
+    pub high: f64,
+}
+
+/// The estimate of samples that all ran; `None` when one did not.
+pub fn estimate(points: &[PointOutcome], confidence: f64) -> Option<Estimate> {
+    if points.is_empty() || points.iter().any(|p| !p.error.is_empty()) {
+        return None;
+    }
+    let held = points.iter().filter(|p| p.holds).count();
+    let (low, high) = interval(held, points.len(), confidence);
+    Some(Estimate { held, total: points.len(), low, high })
+}
+
 /// The verdict of a probabilistic case from its samples.
 pub fn judge(points: &[PointOutcome], required: Requirement) -> (String, String) {
     if let Some(broken) = points.iter().find(|p| !p.error.is_empty()) {
@@ -273,6 +293,9 @@ pub fn sensitivity(points: &[PointOutcome]) -> Vec<Influence> {
     for (e, expect) in first.values.iter().enumerate() {
         let slacks: Option<Vec<f64>> = ran.iter().map(|p| p.values.get(e).and_then(|v| v.slack)).collect();
         let Some(slacks) = slacks else { continue };
+        if is_constant(&slacks) {
+            continue;
+        }
         let slack_ranks = ranks(&slacks);
         let mut of_expect: Vec<Influence> = first
             .inputs
@@ -288,6 +311,15 @@ pub fn sensitivity(points: &[PointOutcome]) -> Vec<Influence> {
         influences.extend(of_expect);
     }
     influences
+}
+
+/// A margin that does not vary over the samples (the run ends on its bound):
+/// its ranks are numerical noise, no parameter moves it. The same test as the
+/// R and Python analyses.
+pub fn is_constant(margins: &[f64]) -> bool {
+    let (low, high) = margins.iter().fold((f64::INFINITY, f64::NEG_INFINITY), |(l, h), &m| (l.min(m), h.max(m)));
+    let largest = margins.iter().fold(1.0_f64, |a, m| a.max(m.abs()));
+    high - low <= 1e-6 * largest
 }
 
 /// The samples as a table for R or Python: one row per sample, the
@@ -368,7 +400,7 @@ mod tests {
         assert!((high - 0.7998267548).abs() < 1e-9, "{high}");
         assert_eq!(samples_needed(0.99, 0.95), 299);
         let points = |held: usize, total: usize| -> Vec<PointOutcome> {
-            (0..total).map(|i| PointOutcome { label: format!("sample {}", i + 1), holds: i < held, values: vec![Evaluated { expect: "x >= 1".into(), value: "x = 0.5".into(), holds: i < held, margin: String::new(), requirement: None, slack: Some(0.0) }], ..Default::default() }).collect()
+            (0..total).map(|i| PointOutcome { label: format!("sample {}", i + 1), holds: i < held, values: vec![Evaluated { expect: "x >= 1".into(), value: "x = 0.5".into(), holds: i < held, margin: String::new(), requirement: None, slack: Some(0.0), slack_unit: None }], ..Default::default() }).collect()
         };
         let required = Requirement { probability: 0.99, confidence: 0.95 };
         assert_eq!(judge(&points(300, 300), required).0, "pass");
@@ -381,6 +413,11 @@ mod tests {
         let mut broken = points(10, 10);
         broken[3].error = "the simulation failed".into();
         assert_eq!(judge(&broken, required).0, "error");
+        // The same numbers, for a reader that draws them.
+        let shown = estimate(&points(298, 300), 0.95).unwrap();
+        assert_eq!((shown.held, shown.total), (298, 300));
+        assert!((shown.low - 0.9791637695).abs() < 1e-9 && shown.high < 1.0);
+        assert_eq!(estimate(&broken, 0.95), None);
     }
 
     #[test]
@@ -391,7 +428,7 @@ mod tests {
                 PointOutcome {
                     label: format!("sample {i}"),
                     inputs: vec![("body.mass".into(), mass), ("cell.noise".into(), noise)],
-                    values: vec![Evaluated { expect: "final(range) >= 300 km".into(), value: String::new(), holds: true, margin: String::new(), requirement: None, slack: Some(50_000.0 - 20.0 * mass) }],
+                    values: vec![Evaluated { expect: "final(range) >= 300 km".into(), value: String::new(), holds: true, margin: String::new(), requirement: None, slack: Some(50_000.0 - 20.0 * mass), slack_unit: None }],
                     holds: true,
                     error: String::new(),
                 }
@@ -403,5 +440,8 @@ mod tests {
         assert!(influences[1].rank_correlation.abs() < 0.5, "{influences:?}");
         let csv = samples_csv(&points);
         assert!(csv.starts_with("sample,\"body.mass\",\"cell.noise\",\"margin: final(range) >= 300 km\",holds\n1,1800,0,14000,1\n"), "{csv}");
+        // A run that ends on its bound: the margin is noise, nothing moves it.
+        let on_bound: Vec<PointOutcome> = points.iter().enumerate().map(|(i, p)| PointOutcome { values: vec![Evaluated { slack: Some(6.0e-5 + i as f64 * 1e-10), ..p.values[0].clone() }], ..p.clone() }).collect();
+        assert!(sensitivity(&on_bound).is_empty());
     }
 }

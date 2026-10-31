@@ -307,14 +307,67 @@ export interface Outcome {
   verdict: string;
   reason: string;
   configuration?: string | null;
-  values: { value: string; expect: string; holds: boolean; margin?: string }[];
+  values: Evaluated[];
   tool: string;
   omc_version: string;
   /** What OpenModelica printed, and how long the run took. */
   log: string;
   seconds: number;
-  /** Every point of a parameter sweep (4.8.1); empty when the case sweeps nothing. */
-  points: { label: string; values: Outcome['values']; holds: boolean; error: string }[];
+  /** Every point of a parameter sweep (4.8.1), or every sample of a Monte Carlo case; empty when the case sweeps nothing. */
+  points: Point[];
+  /** What a Monte Carlo case had to show, what its samples show, and what moves each margin; null and empty otherwise. */
+  probability: { probability: number; confidence: number } | null;
+  estimate: { held: number; total: number; low: number; high: number } | null;
+  sensitivity: { expect: string; parameter: string; rank_correlation: number }[];
+}
+
+export interface Evaluated {
+  value: string;
+  expect: string;
+  holds: boolean;
+  margin?: string;
+  /** The margin in SI, positive on the side that holds; absent for an equality. */
+  slack?: number;
+  /** The unit the margin reads in: `slack / factor` is the margin in it. */
+  slack_unit?: { symbol: string; factor: number };
+}
+
+export interface Point {
+  label: string;
+  values: Evaluated[];
+  holds: boolean;
+  error: string;
+  /** The uncertain parameters at a sample, in SI. */
+  inputs: [string, number][];
+}
+
+const finite = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
+
+function evaluated(raw: unknown): Evaluated | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const v = raw as Record<string, unknown>;
+  if (typeof v.value !== 'string') return null;
+  const unit = v.slack_unit as Record<string, unknown> | undefined;
+  return {
+    value: v.value,
+    expect: typeof v.expect === 'string' ? v.expect : '',
+    holds: v.holds === true,
+    ...(typeof v.margin === 'string' ? { margin: v.margin } : {}),
+    ...(finite(v.slack) ? { slack: v.slack } : {}),
+    ...(unit && typeof unit.symbol === 'string' && finite(unit.factor) && unit.factor > 0 ? { slack_unit: { symbol: unit.symbol, factor: unit.factor } } : {}),
+  };
+}
+
+const evaluatedList = (raw: unknown): Evaluated[] => (Array.isArray(raw) ? raw.map(evaluated).filter((v): v is Evaluated => v !== null) : []);
+
+function probabilityOf(raw: unknown): Outcome['probability'] {
+  const p = raw as Record<string, unknown> | null | undefined;
+  return p && finite(p.probability) && finite(p.confidence) ? { probability: p.probability, confidence: p.confidence } : null;
+}
+
+function estimateOf(raw: unknown): Outcome['estimate'] {
+  const e = raw as Record<string, unknown> | null | undefined;
+  return e && finite(e.held) && finite(e.total) && finite(e.low) && finite(e.high) && e.total > 0 ? { held: e.held, total: e.total, low: e.low, high: e.high } : null;
 }
 
 export function parseOutcomes(text: string): Outcome[] | null {
@@ -340,7 +393,7 @@ export function parseOutcomes(text: string): Outcome[] | null {
       verdict: o.verdict,
       reason: text('reason'),
       configuration: typeof o.configuration === 'string' ? o.configuration : null,
-      values: Array.isArray(o.values) ? (o.values as Outcome['values']).filter((v) => v && typeof v.value === 'string') : [],
+      values: evaluatedList(o.values),
       tool: text('tool'),
       omc_version: text('omc_version'),
       log: text('log'),
@@ -350,10 +403,20 @@ export function parseOutcomes(text: string): Outcome[] | null {
             .filter((p) => p && typeof p.label === 'string')
             .map((p) => ({
               label: p.label as string,
-              values: Array.isArray(p.values) ? (p.values as Outcome['values']).filter((v) => v && typeof v.value === 'string') : [],
+              values: evaluatedList(p.values),
               holds: p.holds === true,
               error: typeof p.error === 'string' ? p.error : '',
+              inputs: Array.isArray(p.inputs)
+                ? (p.inputs as unknown[]).filter((i): i is [string, number] => Array.isArray(i) && typeof i[0] === 'string' && finite(i[1])).map(([n, v]) => [n, v] as [string, number])
+                : [],
             }))
+        : [],
+      probability: probabilityOf(o.probability),
+      estimate: estimateOf(o.estimate),
+      sensitivity: Array.isArray(o.sensitivity)
+        ? (o.sensitivity as Record<string, unknown>[])
+            .filter((i) => i && typeof i.expect === 'string' && typeof i.parameter === 'string' && finite(i.rank_correlation))
+            .map((i) => ({ expect: i.expect as string, parameter: i.parameter as string, rank_correlation: i.rank_correlation as number }))
         : [],
     });
   }
@@ -398,8 +461,9 @@ export function outcomesLog(outcomes: Outcome[], options: { toolLog?: boolean } 
     lines.push(`${mark}  ${o.test_case}${name}`);
     const context = contextLine(o);
     if (context) lines.push(`      ${context}`);
-    const value = (indent: string, v: Outcome['values'][number]) => `${indent}${v.holds ? 'ok  ' : 'FAIL'} ${v.value}   (${v.expect}${v.margin ? `, ${v.margin}` : ''})`;
-    if (o.points.length === 0) for (const v of o.values) lines.push(value('      ', v));
+    const value = (indent: string, v: Evaluated) => `${indent}${v.holds ? 'ok  ' : 'FAIL'} ${v.value}   (${v.expect}${v.margin ? `, ${v.margin}` : ''})`;
+    if (o.probability) lines.push(...monteCarloLines(o, value));
+    else if (o.points.length === 0) for (const v of o.values) lines.push(value('      ', v));
     else {
       const passing = o.points.filter((p) => p.holds).length;
       lines.push(`      sweep: ${o.points.length} points, ${passing} pass, ${o.points.length - passing} do not`);
@@ -409,7 +473,7 @@ export function outcomesLog(outcomes: Outcome[], options: { toolLog?: boolean } 
         if (p.error) lines.push(`          ${p.error}`);
       }
     }
-    if (o.reason && o.verdict !== 'fail') lines.push(`      ${o.reason}`);
+    if (o.reason && (o.verdict !== 'fail' || o.probability)) lines.push(`      ${o.reason}`);
     const log = toolLogLines(o.log);
     if (options.toolLog && log.length) {
       lines.push(`      OpenModelica log (${log.length} line${log.length > 1 ? 's' : ''}):`);
@@ -418,6 +482,37 @@ export function outcomesLog(outcomes: Outcome[], options: { toolLog?: boolean } 
     lines.push('');
   }
   return lines.join('\n').trimEnd();
+}
+
+/** Failing samples a log lists before it says how many more there are. */
+export const LOGGED_FAILURES = 10;
+/** An influence below this (|Spearman's rho|) is not worth a line. */
+export const NOTABLE_INFLUENCE = 0.1;
+
+/** A percentage as the compiler writes it: `92.78 %`, `100 %`. */
+export function percentText(p: number): string {
+  return `${(Math.round(p * 10000) / 100).toString()} %`;
+}
+
+/** A Monte Carlo case in a log: how many samples held, the failing ones, what moves each margin; never every sample. */
+function monteCarloLines(o: Outcome, value: (indent: string, v: Evaluated) => string): string[] {
+  const lines: string[] = [];
+  const held = o.points.filter((p) => p.holds).length;
+  const required = o.probability!;
+  lines.push(`      Monte Carlo: ${o.points.length} samples, ${held} hold; required: ${percentText(required.probability)} at ${percentText(required.confidence)} confidence`);
+  const failing = o.points.filter((p) => !p.holds);
+  for (const p of failing.slice(0, LOGGED_FAILURES)) {
+    lines.push(`      ${p.error ? 'ERR ' : 'FAIL'} ${p.label}`);
+    for (const v of p.values.filter((v) => !v.holds)) lines.push(value('          ', v));
+    if (p.error) lines.push(`          ${p.error}`);
+  }
+  if (failing.length > LOGGED_FAILURES) lines.push(`      … and ${failing.length - LOGGED_FAILURES} more failing samples`);
+  const notable = o.sensitivity.filter((i) => Math.abs(i.rank_correlation) >= NOTABLE_INFLUENCE);
+  if (notable.length) {
+    lines.push('      What moves the margins (rank correlation; positive: more of it, more to spare):');
+    for (const i of notable) lines.push(`          ${i.rank_correlation >= 0 ? '+' : ''}${i.rank_correlation.toFixed(2)}  ${i.parameter}  on  ${i.expect}`);
+  }
+  return lines;
 }
 
 /** The whole log of one run: when, which file, which tool, the cases, the verdicts and the time. */

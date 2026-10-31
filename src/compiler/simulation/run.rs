@@ -360,8 +360,9 @@ fn evaluate_point(csv: &str, xml: &str, parsed: &[expects::Expect], notes: &mut 
 fn conclude(outcome: &mut Outcome, points: Vec<PointOutcome>) {
     let swept = points.len() > 1 || points.first().is_some_and(|p| !p.label.is_empty());
     let (verdict, reason, values) = super::conclusion_for(&points, outcome.probability);
-    if outcome.probability.is_some() {
+    if let Some(required) = outcome.probability {
         outcome.sensitivity = montecarlo::sensitivity(&points);
+        outcome.estimate = montecarlo::estimate(&points, required.confidence);
     }
     // A probabilistic pass says with what probability.
     let keep_reason = outcome.probability.is_some() && verdict == "pass";
@@ -424,7 +425,7 @@ mod tests {
     }
 
     fn evaluated(holds: bool) -> Evaluated {
-        Evaluated { expect: "min(soc) >= 0.1".into(), value: format!("min(soc) = {}", if holds { 0.2 } else { 0.05 }), holds, margin: String::new(), requirement: None, slack: None }
+        Evaluated { expect: "min(soc) >= 0.1".into(), value: format!("min(soc) = {}", if holds { 0.2 } else { 0.05 }), holds, margin: String::new(), requirement: None, slack: None, slack_unit: None }
     }
 
     #[test]

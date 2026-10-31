@@ -442,6 +442,23 @@ A margin that does not vary (a run that ends on its bound, as the trip
 distance here) is said so rather than explained by noise. The analysis
 informs; the verdict and the gate never depend on R or Python.
 
+#### In VS Code
+
+*Show Monte Carlo results* (in the simulation menu, or the command palette)
+runs the simulations of the model (`arclang verify` answers from its cache
+what has not changed) and opens a page with each case that samples; a run of
+*Run simulations* opens it too when a case samples. For each case:
+
+- the probability its samples show, as an interval at the confidence asked,
+  against the one required: green when the interval clears it, red when not;
+- for each expectation, the spread of its margin over the samples, in the
+  unit the expectation is written in, with the bound and the failing samples
+  in red; a margin that does not vary is said so;
+- what moves each margin (the rank correlations of `arclang verify`);
+- the failing samples, each with *Replay* to watch it on the diagram, and
+  *Replay a sample…* for any other;
+- *Further analysis with R or Python*: the analysis above, in the page.
+
 ### Replaying a run on the diagram
 
 `arclang verify` keeps the results of each run beside the model, in

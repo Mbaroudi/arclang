@@ -76,7 +76,7 @@ fn cache_samples(model: &Path, held: usize, total: usize) {
         .map(|i| PointOutcome {
             label: format!("sample {}", i + 1),
             holds: i < held,
-            values: vec![simulation::expects::Evaluated { expect: "min(\"PN-BATT\".soc) >= 0.1".into(), value: format!("min(batteryPack.soc) = {}", if i < held { "0.2" } else { "0.05" }), holds: i < held, margin: String::new(), requirement: None, slack: Some(if i < held { 0.1 } else { -0.05 }) }],
+            values: vec![simulation::expects::Evaluated { expect: "min(\"PN-BATT\".soc) >= 0.1".into(), value: format!("min(batteryPack.soc) = {}", if i < held { "0.2" } else { "0.05" }), holds: i < held, margin: String::new(), requirement: None, slack: Some(if i < held { 0.1 } else { -0.05 }), slack_unit: None }],
             ..Default::default()
         })
         .collect();

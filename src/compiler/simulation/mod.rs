@@ -152,6 +152,9 @@ pub struct Outcome {
     /// What a Monte Carlo case had to show.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub probability: Option<montecarlo::Requirement>,
+    /// What the samples of a Monte Carlo case show.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub estimate: Option<montecarlo::Estimate>,
     /// How much each uncertain parameter moves each margin.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub sensitivity: Vec<montecarlo::Influence>,

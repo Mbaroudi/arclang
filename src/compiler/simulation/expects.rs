@@ -385,6 +385,17 @@ pub struct Evaluated {
     /// (`final(d) >= 300 km` at 320 km: 20000). `None` for an equality.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub slack: Option<f64>,
+    /// The unit the margin reads in (the one the expectation is written in):
+    /// `slack / factor` is the margin in it. `None` for a plain number.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub slack_unit: Option<SlackUnit>,
+}
+
+/// `km`, 1000: a margin of 20000 (SI) reads 20 km.
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct SlackUnit {
+    pub symbol: String,
+    pub factor: f64,
 }
 
 pub struct Context<'a> {
@@ -514,7 +525,14 @@ pub fn evaluate(expect: &Expect, context: &mut Context<'_>) -> Result<Evaluated,
         Cmp::Lt | Cmp::Le => Some(rhs.si - lhs.si),
         Cmp::Eq | Cmp::Ne => None,
     };
-    Ok(Evaluated { expect: expect.text.clone(), value, holds, margin, requirement: expect.requirement.clone(), slack })
+    let dim = lhs.dim.or(rhs.dim);
+    let slack_unit = match (slack, gap_unit.and_then(lookup_unit), dim) {
+        (None, _, _) => None,
+        (_, Some(spec), _) => Some(SlackUnit { symbol: spec.symbol.to_string(), factor: spec.factor }),
+        (_, None, Some(dim)) if !dim.is_dimensionless() => Some(SlackUnit { symbol: dim.unit().to_string(), factor: 1.0 }),
+        _ => None,
+    };
+    Ok(Evaluated { expect: expect.text.clone(), value, holds, margin, requirement: expect.requirement.clone(), slack, slack_unit })
 }
 
 /// When an expectation stops holding, in seconds of the run: `None` while it

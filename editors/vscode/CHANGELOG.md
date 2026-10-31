@@ -9,6 +9,11 @@
   the parameters that move each margin; `--statistics r|python` analyses the
   samples further (PRCC, SRRC, Borgonovo's delta, Sobol's S1, a fitted
   failure probability). The verdict and the gate stay the compiler's.
+- *Show Monte Carlo results*: a page per sampled case with the probability
+  shown against the one required, the spread of each margin with its bound,
+  what moves it, the failing samples with a replay on the diagram, and the R
+  or Python analysis in place. The simulation log lists the failing samples
+  of a Monte Carlo case, never every sample.
 
 - **Diagrams that put themselves back in order**: after a box is moved or resized by hand, every line that now runs across a box is redrawn around it, not only the lines of the box moved. When the move leaves the diagram harder to read (boxes overlapping, lines across a box, more crossings than before), the workbench offers to **tidy it up**: ELK lays the view out again from where the boxes are, so their order stays, aligns and spaces them and redraws every line; the result is written to the layout file and `⌘Z` undoes it. *Keep my layout* leaves it; *Always tidy up* does it by itself from then on. The choice is the setting `arclang.workbench.reorganize` (`ask`, `always`, `never`) and is in the diagram's **Layout** menu, beside *Tidy up, keeping my arrangement*. Tests: `tools/diagram_render/tidy.test.mjs`, `test/e2e/vscode_tidy_test.js`.
 - **A validation campaign of five systems**: the EV range, a battery fast charge (cells heating, cooling, thermal derating), a drone's hover endurance, a house heated by a heat pump on its design day, and an aircraft's 28 V network after the loss of its generator. Each has its architecture in ArcLang, its physics in Modelica, one configuration that passes, one that fails, and a sweep over the conditions its requirement names; the aircraft sweep finds where the larger battery is not enough. See *The validation campaign* in docs/modelica.md.
