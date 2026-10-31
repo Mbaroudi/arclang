@@ -71,7 +71,9 @@ pub fn number(n: f64) -> String {
 }
 
 pub fn quantity(q: &Quantity) -> String {
-    let value = if q.value.fract() == 0.0 && q.value.abs() < 1e15 { format!("{}", q.value as i64) } else { q.value.to_string() };
+    // SysML's °C is a temperature difference: a level in °C is written in K.
+    let value = if q.spec().offset != 0.0 { q.canonical() } else { q.value };
+    let value = if value.fract() == 0.0 && value.abs() < 1e15 { format!("{}", value as i64) } else { format!("{}", (value * 1e9).round() / 1e9) };
     format!("{value} [{}]", q.spec().sysml)
 }
 

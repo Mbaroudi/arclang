@@ -4,8 +4,10 @@
 // `arclang verify` flies each configuration in OpenModelica: the flight
 // controller climbs to 50 m and holds it, the rotors draw the power momentum
 // theory gives for the weight they carry, and the battery's own weight
-// hangs on the frame. The extended pack hovers 25 minutes with its reserve;
-// the standard pack, lighter but smaller, does not.
+// hangs on the frame. Each configuration has its mission: the long
+// endurance drone hovers 25 minutes with 2 kg, the survey drone 20 minutes
+// with 1 kg; each requirement applies to its configuration only, and the
+// gate wants a passing case in each.
 
 model "Drone endurance" {
     description: "A quadrotor carrying a 2 kg sensor, two battery packs, endurance and altitude hold checked by simulation"
@@ -23,7 +25,13 @@ type "Signal" { physics: signal }
 system_analysis "Mission needs" {
     requirement "Hover endurance" {
         id: "REQ-ENDURANCE"
+        applies_to: ["CFG-LONG"]
         description: "With a 2 kg payload at 20 °C, the drone hovers at 50 m for 25 minutes and lands with 20 % of its charge"
+    }
+    requirement "Survey endurance" {
+        id: "REQ-SURVEY"
+        applies_to: ["CFG-SURVEY"]
+        description: "With a 1 kg camera at 20 °C, the survey drone hovers at 50 m for 20 minutes and lands with 20 % of its charge"
     }
     requirement "Altitude hold" {
         id: "REQ-ALT-HOLD"
@@ -31,6 +39,7 @@ system_analysis "Mission needs" {
     }
     requirement "Operating envelope" {
         id: "REQ-ENVELOPE"
+        applies_to: ["CFG-LONG"]
         description: "From 0 °C to 35 °C and with payloads up to 2 kg, the extended pack keeps the endurance and the reserve of REQ-ENDURANCE"
     }
 
@@ -97,7 +106,7 @@ physical_architecture "Drone hardware" {
         id: "PN-FRAME"
         mass: 4.5 kg
         payload: 2 kg
-        ambient: 293.15 K
+        ambient: 20 °C
         deploys "LC-STRUCT"
         port "lift" { is: "Load path" }
         port "mount" { physics: mechanical_translational flange: b }
@@ -130,32 +139,56 @@ physical_architecture "Drone hardware" {
 configuration "Survey" { id: "CFG-SURVEY" selects: ["LC-PACK-STD"] }
 configuration "Long endurance" { id: "CFG-LONG" selects: ["LC-PACK-EXT"] }
 
-trace "PN-BATT" satisfies "REQ-ENDURANCE"
-trace "PN-PROP" satisfies "REQ-ENDURANCE"
-trace "BC-ALT" satisfies "REQ-ALT-HOLD"
-trace "PN-BATT" satisfies "REQ-ENVELOPE"
+// Rules of this program, checked with the compiler's own: each requirement
+// is verified by a test case, each physical link says what it carries.
+rule "Every requirement is verified" {
+    id: "RULE-VERIFIED"
+    kind: "Requirement"
+    require: "count_in(verifies) >= 1"
+    severity: "blocker"
+}
+rule "Every link names its protocol" {
+    id: "RULE-PROTOCOL"
+    kind: "PhysicalLink"
+    require: "has(protocol)"
+    severity: "blocker"
+    message: "an interface control document needs the protocol of each link"
+}
+
+// Each trace was reviewed against what its two ends said (`arclang trace
+// drone_endurance.arc --review`): when one changes, the trace is suspect.
+trace "PN-BATT" satisfies "REQ-ENDURANCE" { reviewed: "19d9a441 ae35f237" }
+trace "PN-BATT" satisfies "REQ-SURVEY" { reviewed: "19d9a441 0967ebab" }
+trace "PN-PROP" satisfies "REQ-ENDURANCE" { reviewed: "19d5ef51 ae35f237" }
+trace "BC-ALT" satisfies "REQ-ALT-HOLD" { reviewed: "f6a702d7 ee9395dc" }
+trace "PN-BATT" satisfies "REQ-ENVELOPE" { reviewed: "19d9a441 45ae8227" }
+trace "REQ-ENVELOPE" derives "REQ-ENDURANCE" { reviewed: "45ae8227 ae35f237" }
 
 // --- Verification by simulation --------------------------------------------
 
-test_case "Hover endurance, standard pack" {
+// The survey mission carries a 1 kg camera: one point, set as a sweep of one value.
+test_case "Survey mission, standard pack" {
     id: "TC-HOVER-STD"
-    verifies: ["REQ-ENDURANCE", "REQ-ALT-HOLD"]
+    verifies: ["REQ-SURVEY", "REQ-ALT-HOLD"]
     method: "analysis"
-    simulate: { model: "DronePhysics.SurveyHover" configuration: "CFG-SURVEY" stop_time: 25 min sources: ["physics/DronePhysics.mo"] }
-    expects: ["final(\"PN-PROP\".elapsed) >= 25 min", "min(\"PN-BATT\".soc) >= 0.2", "max(\"PN-FRAME\".height) <= 55 m", "final(\"PN-FRAME\".height) >= 45 m"]
+    simulate: { model: "DronePhysics.SurveyHover" configuration: "CFG-SURVEY" stop_time: 20 min sources: ["physics/DronePhysics.mo"] sweep: ["\"PN-FRAME\".payload = 1 kg"] }
+    expects: ["REQ-SURVEY: final(\"PN-PROP\".elapsed) >= 20 min", "REQ-SURVEY: min(\"PN-BATT\".soc) >= 0.2", "REQ-ALT-HOLD: max(\"PN-FRAME\".height) <= 55 m", "REQ-ALT-HOLD: final(\"PN-FRAME\".height) >= 45 m"]
+    reviewed: ["REQ-SURVEY 751d6c02 0967ebab", "REQ-ALT-HOLD 751d6c02 ee9395dc"]
 }
 test_case "Hover endurance, extended pack" {
     id: "TC-HOVER-EXT"
     verifies: ["REQ-ENDURANCE", "REQ-ALT-HOLD"]
     method: "analysis"
     simulate: { model: "DronePhysics.LongHover" configuration: "CFG-LONG" stop_time: 25 min sources: ["physics/DronePhysics.mo"] }
-    expects: ["final(\"PN-PROP\".elapsed) >= 25 min", "min(\"PN-BATT\".soc) >= 0.2", "max(\"PN-FRAME\".height) <= 55 m", "final(\"PN-FRAME\".height) >= 45 m"]
+    expects: ["REQ-ENDURANCE: final(\"PN-PROP\".elapsed) >= 25 min", "REQ-ENDURANCE: min(\"PN-BATT\".soc) >= 0.2", "REQ-ALT-HOLD: max(\"PN-FRAME\".height) <= 55 m", "REQ-ALT-HOLD: final(\"PN-FRAME\".height) >= 45 m"]
+    reviewed: ["REQ-ENDURANCE 9ccecbbc ae35f237", "REQ-ALT-HOLD 9ccecbbc ee9395dc"]
 }
 test_case "Operating envelope, extended pack" {
     id: "TC-ENVELOPE"
     verifies: ["REQ-ENVELOPE"]
     method: "analysis"
     simulate: { model: "DronePhysics.LongHover" configuration: "CFG-LONG" stop_time: 25 min sources: ["physics/DronePhysics.mo"]
-                sweep: ["\"PN-FRAME\".payload = 0 kg .. 2 kg step 1 kg", "\"PN-FRAME\".ambient = 273.15 K, 293.15 K, 308.15 K"] }
+                sweep: ["\"PN-FRAME\".payload = 0 kg .. 2 kg step 1 kg", "\"PN-FRAME\".ambient = 0 °C, 20 °C, 35 °C"] }
     expects: ["final(\"PN-PROP\".elapsed) >= 25 min", "min(\"PN-BATT\".soc) >= 0.2"]
+    reviewed: ["REQ-ENVELOPE 6b9fd4cd 45ae8227"]
 }

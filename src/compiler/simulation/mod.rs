@@ -96,6 +96,17 @@ pub struct Status {
     pub reason: String,
     /// The values the expectations evaluated to (`final(...) = 320 km; ...`).
     pub evidence: String,
+    /// The verdict for each requirement the case verifies, by the reference
+    /// written in `verifies:`, when its expectations name requirements: a
+    /// requirement is judged on the expectations naming it and those naming none.
+    #[serde(skip_serializing_if = "HashMap::is_empty")]
+    pub by_requirement: HashMap<String, Status>,
+}
+
+impl Status {
+    pub fn new(verdict: impl Into<String>, reason: impl Into<String>, evidence: impl Into<String>) -> Status {
+        Status { verdict: verdict.into(), reason: reason.into(), evidence: evidence.into(), by_requirement: HashMap::new() }
+    }
 }
 
 /// One run of a case, as cached and reported.
@@ -160,12 +171,62 @@ pub fn context_line(outcome: &Outcome) -> String {
 
 impl Outcome {
     pub fn evidence(&self) -> String {
-        self.values.iter().map(|v| format!("{}{}", v.value, if v.holds { "" } else { " (fails)" })).collect::<Vec<_>>().join("; ")
+        evidence_of(&self.values)
     }
 
     pub fn status(&self) -> Status {
-        Status { verdict: self.verdict.clone(), reason: self.reason.clone(), evidence: self.evidence() }
+        Status::new(self.verdict.clone(), self.reason.clone(), self.evidence())
     }
+
+    /// Whether an expectation of the case names a requirement.
+    pub fn names_requirements(&self) -> bool {
+        self.values.iter().chain(self.points.iter().flat_map(|p| p.values.iter())).any(|v| v.requirement.is_some())
+    }
+
+    /// The verdict of the case on the expectations `checks` keeps (by the
+    /// requirement each names, `None` when it names none). An error or an
+    /// inconclusive run is that for every requirement.
+    pub fn status_for(&self, checks: impl Fn(Option<&str>) -> bool) -> Status {
+        if !matches!(self.verdict.as_str(), "pass" | "fail") || !self.names_requirements() {
+            return self.status();
+        }
+        let kept = |values: &[expects::Evaluated]| values.iter().filter(|v| checks(v.requirement.as_deref())).cloned().collect::<Vec<_>>();
+        let point = |label: &str, values: Vec<expects::Evaluated>, error: &str| PointOutcome { label: label.to_string(), holds: error.is_empty() && values.iter().all(|v| v.holds), values, error: error.to_string() };
+        let points: Vec<PointOutcome> = if self.points.is_empty() {
+            vec![point("", kept(&self.values), "")]
+        } else {
+            self.points.iter().map(|p| point(&p.label, kept(&p.values), &p.error)).collect()
+        };
+        let (verdict, reason, values) = conclusion(&points);
+        Status::new(verdict, reason, evidence_of(&values))
+    }
+}
+
+fn evidence_of(values: &[expects::Evaluated]) -> String {
+    values.iter().map(|v| format!("{}{}", v.value, if v.holds { "" } else { " (fails)" })).collect::<Vec<_>>().join("; ")
+}
+
+/// The verdict of a case from its points, its reason and the values to show:
+/// an error at one point is an error, a failure at one a failure.
+pub fn conclusion(points: &[PointOutcome]) -> (String, String, Vec<expects::Evaluated>) {
+    let swept = points.len() > 1 || points.first().is_some_and(|p| !p.label.is_empty());
+    let at = |p: &PointOutcome| if p.label.is_empty() { String::new() } else { format!("at {}: ", p.label) };
+    if let Some(broken) = points.iter().find(|p| !p.error.is_empty()) {
+        return ("error".to_string(), format!("{}{}", at(broken), broken.error), Vec::new());
+    }
+    if let Some(failing) = points.iter().find(|p| !p.holds) {
+        let bad: Vec<&expects::Evaluated> = failing.values.iter().filter(|v| !v.holds).collect();
+        let count = points.iter().filter(|p| !p.holds).count();
+        let many = if swept { format!("{count} of {} points fail; first ", points.len()) } else { String::new() };
+        let reason = format!(
+            "{many}{}{} (expected {})",
+            at(failing),
+            bad.iter().map(|v| v.value.as_str()).collect::<Vec<_>>().join("; "),
+            bad.iter().map(|v| v.expect.as_str()).collect::<Vec<_>>().join("; ")
+        );
+        return ("fail".to_string(), reason, failing.values.clone());
+    }
+    ("pass".to_string(), String::new(), points.first().map(|p| p.values.clone()).unwrap_or_default())
 }
 
 fn is_class_name(text: &str) -> bool {

@@ -270,6 +270,41 @@ model file), `tolerance` (default `1e-6`) and `intervals` (output intervals,
 default 500). A case that simulates neither asserts constraints nor gives a
 verdict.
 
+### Which requirement an expectation checks
+
+A case often verifies more than one requirement. An expectation may name the
+one it checks, before a colon:
+
+```arc
+test_case "Generator loss, 25 Ah battery" {
+    verifies: ["REQ-ESS-30MIN", "REQ-SHED"]
+    simulate: { ... }
+    expects: ["REQ-ESS-30MIN: min(\"PN-ESS\".voltage) >= 24 V",
+              "REQ-SHED: at(40 min, \"PN-NESS\".drawn) <= 1 W"]
+}
+```
+
+Each requirement is then judged on the expectations naming it and on those
+naming none: here the bus voltage fails `REQ-ESS-30MIN` and leaves
+`REQ-SHED`, whose cabin loads are shed, verified. An expectation naming a
+requirement the case does not verify is an error, and so is a requirement
+the case verifies that no expectation checks. Without names, every
+expectation checks every requirement, as before.
+
+### Requirements of a product line
+
+A requirement holds for every configuration unless it says for which:
+
+```arc
+requirement "Hover endurance" { id: "REQ-ENDURANCE" applies_to: ["CFG-LONG"] ... }
+requirement "Survey endurance" { id: "REQ-SURVEY" applies_to: ["CFG-SURVEY"] ... }
+```
+
+A case verifying it must run in one of those configurations (otherwise the
+model does not compile), and the gate wants, for each of them, a case that
+runs in it or in no configuration: `requirement 'REQ-X' applies to
+configuration City (CFG-CITY), which no verification case runs in`.
+
 ### When a run ends
 
 `stop_time` is a bound, not the end of the story: a run that should stop on
@@ -359,21 +394,25 @@ They are accepted by the language today and answer **inconclusive**
 
 ## The validation campaign
 
-Five systems from five domains, each with its architecture in ArcLang, its
-physics in a hand-written Modelica package, and requirements verified by
-simulation: in each, one configuration is meant to pass, one to fail, and a
-sweep covers the conditions the requirement names.
+Five systems, each with its architecture in ArcLang, its physics in a
+hand-written Modelica package, and requirements verified by simulation: a
+sweep covers the conditions each requirement names, and in four of them one
+configuration is meant to fail. Expectations name the requirement they check,
+so a failure blocks only its own requirement; the drone verifies each
+configuration against the requirement that applies to it, and passes the
+gate.
 
 | System | Physics | Configurations | Sweep |
 |---|---|---|---|
 | `examples/automotive/ev_range_simulation.arc` | longitudinal dynamics, drag at the air density of the ambient, a cruise PI, a pack drained to its end | standard pack **fail** (8.7 % left after 300 km), long range **pass** | -20 to 20 °C × 90 to 110 km/h: 9 of 9 pass |
 | `examples/automotive/battery_fast_charge.arc` | open-circuit voltage, internal resistance heating the cells, a cold plate, thermal derating of the charge power | air cooled **fail** (34.5 min for 10 to 80 %), chilled **pass** | 25 to 40 °C × 100 and 150 kW: 8 of 8 pass |
-| `examples/aerospace/drone_endurance.arc` | momentum theory power, the pack's weight on the frame, an altitude PID | standard pack **fail** (8 % left after 25 min), extended **pass** | payload 0 to 2 kg × 0 to 35 °C: 9 of 9 pass |
+| `examples/aerospace/drone_endurance.arc` | momentum theory power, the pack's weight on the frame, an altitude PID | each configuration against its own mission (`applies_to`): survey **pass** (20 min with 1 kg), long endurance **pass** (25 min with 2 kg); the gate **passes** | payload 0 to 2 kg × 0 to 35 °C: 9 of 9 pass |
 | `examples/building/heat_pump_heating.arc` | a thermal mass, its envelope, a daily outdoor cycle, a heat pump whose capacity and COP fall in the cold, a PI thermostat | 6 kW **fail** (19 °C at night), 9 kW **pass** (36.6 kWh a day) | -10 to 0 °C × 300 and 900 W of gains: 6 of 6 pass |
-| `examples/aerospace/aircraft_electrical_network.arc` | a 28 V generator lost at 10 min, a battery whose voltage sags as it empties and in the cold, constant-power loads, load shedding | 25 Ah **fail** (23.6 V), 40 Ah **pass** | -20 to 20 °C × 400 to 700 W: **fail**, 5 of 9 points, first at -20 °C and 550 W |
+| `examples/aerospace/aircraft_electrical_network.arc` | a 28 V generator lost at 10 min, a battery whose voltage sags as it empties and in the cold, constant-power loads, load shedding | 25 Ah **fail** (23.7 V; its load shedding verified all the same), 40 Ah **pass** | -20 to 20 °C × 400 to 700 W: **fail**, 4 of 9 points, first at -20 °C and 550 W |
 
 The last sweep fails on purpose: it finds where the 40 Ah battery is not
-enough, which the two single cases do not show. `tests/simulation_campaign.rs`
+enough, which the two single cases do not show. The gate test checks that
+each system blocks exactly the requirements whose own expectations fail. `tests/simulation_campaign.rs`
 checks without a tool that every system compiles, exports, extends the system
 of each configuration and verifies each requirement; with OpenModelica
 (`cargo test --release --test simulation_campaign -- --ignored`), that every

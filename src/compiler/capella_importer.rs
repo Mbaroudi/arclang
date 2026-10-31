@@ -129,6 +129,7 @@ impl CapellaImporter {
             test_cases: Vec::new(),
             configurations: Vec::new(),
             notes: Vec::new(),
+            rules: Vec::new(),
             constraints: Vec::new(),
             types: Vec::new(),
             attributes: std::collections::HashMap::new(),

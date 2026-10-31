@@ -453,6 +453,7 @@ export const VIEWPOINTS: { view: string; label: string; short: string }[] = [
   { view: 'cdb', label: 'Data model', short: 'Data' },
   { view: 'msm', label: 'Modes and states', short: 'Modes' },
   { view: 'es', label: 'Scenarios', short: 'Scenarios' },
+  { view: 'req', label: 'Requirements', short: 'Requirements' },
 ];
 
 /** The viewpoint the layer of the model tree opens. */
@@ -489,6 +490,8 @@ export interface Tool {
   connect?: 'interaction' | 'functional_exchange' | 'component_exchange' | 'physical_link' | 'physical_exchange' | 'association' | 'transition' | 'message' | 'trace';
   /** connect: the kinds the two ends may have. */
   endKinds?: string[];
+  /** connect, a trace: its kind, when the tool is for one kind (Derive, Satisfy...): nothing is asked. */
+  traceKind?: string;
 }
 
 const PORTED = ['SystemFunction', 'LogicalFunction', 'PhysicalFunction', 'SystemComponent', 'SystemActor', 'LogicalComponent', 'BehaviorComponent', 'PhysicalNode', 'Actor'];
@@ -565,6 +568,13 @@ export const PALETTE: Record<string, Tool[]> = {
     { id: 'data_type', label: 'Data type', kind: 'create', keyword: 'data_type', topLevel: true },
     { id: 'exchange_item', label: 'Exchange item', kind: 'create', keyword: 'exchange_item', topLevel: true },
     { id: 'association', label: 'Association', kind: 'connect', connect: 'association', endKinds: ['Class'] },
+  ],
+  req: [
+    { id: 'requirement', label: 'Requirement', kind: 'create', special: 'requirement' },
+    { id: 'note', label: 'Note', kind: 'create', special: 'note' },
+    { id: 'derive', label: 'Derive', kind: 'connect', connect: 'trace', traceKind: 'derives', endKinds: ['Requirement'] },
+    { id: 'refine', label: 'Refine', kind: 'connect', connect: 'trace', traceKind: 'refines', endKinds: ['Requirement'] },
+    { id: 'satisfy', label: 'Satisfy', kind: 'connect', connect: 'trace', traceKind: 'satisfies' },
   ],
 };
 
@@ -673,8 +683,8 @@ export function connectPlan(tool: Tool, from: ConnectEnd, to: ConnectEnd, name: 
       return [{ op: 'add_raw', declaration, container: graphContainer }];
     }
     case 'trace': {
-      // The name asked is the kind of the trace.
-      const kind = label.toLowerCase();
+      // The name asked is the kind of the trace, unless the tool is for one kind.
+      const kind = (tool.traceKind ?? label).toLowerCase();
       if (!TRACE_KINDS.includes(kind)) return { error: `a trace is one of ${TRACE_KINDS.join(', ')}` };
       return [{ op: 'add_trace', from: from.id, kind, to: to.id }];
     }
@@ -689,7 +699,7 @@ export function connectPlan(tool: Tool, from: ConnectEnd, to: ConnectEnd, name: 
 }
 
 /** The kinds of traces the language knows (TraceKind of the metamodel). */
-export const TRACE_KINDS = ['realizes', 'satisfies', 'implements', 'allocates', 'verifies', 'refines', 'validates'];
+export const TRACE_KINDS = ['realizes', 'satisfies', 'implements', 'allocates', 'verifies', 'refines', 'derives', 'validates'];
 
 /** The name of a named diagram from its graph id (`lab:Lane keeping chain`), null for a viewpoint, a machine or a scenario. */
 export function namedDiagramOf(graphId: string, view: string): string | null {
@@ -799,11 +809,16 @@ export function nextRequirementId(ids: string[]): string {
 }
 
 /** The requests that create a requirement and, when given, trace an element to it. */
-export function requirementRequests(id: string, text: string, satisfiedBy: string | null, hasRequirementsBlock: boolean): EditRequest[] {
+/**
+ * A new requirement, satisfied by the element selected; when the element
+ * selected is a requirement, the new one derives from it.
+ */
+export function requirementRequests(id: string, text: string, satisfiedBy: string | null, hasRequirementsBlock: boolean, derivedFrom: string | null = null): EditRequest[] {
   const declaration = `requirement ${stringLiteral(id)} {\n  description: ${stringLiteral(text)}\n}`;
   const create: EditRequest = hasRequirementsBlock
     ? { op: 'add_raw', declaration, layer: 'requirements' }
     : { op: 'add_raw', declaration: `requirements {\n  ${declaration.replace(/\n/g, '\n  ')}\n}`, top_level: true };
+  if (derivedFrom) return [create, { op: 'add_trace', from: id, kind: 'derives', to: derivedFrom }];
   return satisfiedBy ? [create, { op: 'add_trace', from: satisfiedBy, kind: 'satisfies', to: id }] : [create];
 }
 

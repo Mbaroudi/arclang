@@ -1,7 +1,9 @@
-//! The validation campaign: five systems from five domains, each with its
-//! architecture in ArcLang, its physics in Modelica and its requirements
-//! verified by simulation, one configuration meant to pass, one meant to
-//! fail, and a sweep over the conditions the requirement names.
+//! The validation campaign: five systems, each with its architecture in
+//! ArcLang, its physics in Modelica and its requirements verified by
+//! simulation, a sweep over the conditions the requirement names, and in
+//! four of them a configuration meant to fail. The drone shows the other
+//! way: each configuration verified against the requirement that applies
+//! to it, and the gate passes.
 //!
 //! The first tests need no tool: every system compiles, exports, and its
 //! physics extends the system model of each configuration it simulates.
@@ -39,7 +41,7 @@ const CAMPAIGN: [System; 5] = [
         model: "examples/aerospace/drone_endurance.arc",
         physics: "physics/DronePhysics.mo",
         package: "DroneEndurance",
-        verdicts: &[("TC-HOVER-STD", "fail"), ("TC-HOVER-EXT", "pass"), ("TC-ENVELOPE", "pass")],
+        verdicts: &[("TC-HOVER-STD", "pass"), ("TC-HOVER-EXT", "pass"), ("TC-ENVELOPE", "pass")],
     },
     System {
         model: "examples/building/heat_pump_heating.arc",
@@ -83,7 +85,6 @@ fn every_system_compiles_and_exports_with_a_system_model_per_configuration() {
         assert_eq!(export.file_name, format!("{}.mo", system.package), "{}", system.model);
         assert!(export.notes.is_empty(), "{}: nothing left out of the export: {:?}", system.model, export.notes);
         assert_eq!(export.systems.len(), result.ast.configurations.len(), "{}", system.model);
-        // Two configurations: one meant to pass, one meant to fail.
         assert_eq!(result.ast.configurations.len(), 2, "{}", system.model);
     }
 }
@@ -164,8 +165,33 @@ fn a_sweep_finds_the_corner_where_the_design_is_not_enough() {
     let envelope = &outcomes[0];
     assert_eq!(envelope.points.len(), 9);
     let failing: Vec<&str> = envelope.points.iter().filter(|p| !p.holds).map(|p| p.label.as_str()).collect();
-    assert_eq!(failing.len(), 5, "{failing:?}");
-    assert!(envelope.reason.starts_with("5 of 9 points fail; first at temperature = 253.15 K, power = 550 W"), "{}", envelope.reason);
+    assert_eq!(failing, ["temperature = -20 °C, power = 550 W", "temperature = -20 °C, power = 700 W", "temperature = 0 °C, power = 700 W", "temperature = 20 °C, power = 700 W"]);
+    assert!(envelope.reason.starts_with("4 of 9 points fail; first at temperature = -20 °C, power = 550 W"), "{}", envelope.reason);
     // Warm and light, the 40 Ah battery is enough.
-    assert!(envelope.points.iter().any(|p| p.holds && p.label == "temperature = 293.15 K, power = 550 W"));
+    assert!(envelope.points.iter().any(|p| p.holds && p.label == "temperature = 20 °C, power = 550 W"));
+}
+
+#[test]
+#[ignore = "runs OpenModelica (Docker or ARCLANG_OMC): cargo test --release --test simulation_campaign -- --ignored --nocapture"]
+fn the_gate_blocks_only_the_requirements_whose_own_expectations_fail() {
+    use arclang::compiler::production_gate;
+    // Each system: the requirements left unverified once every case has run.
+    let blocked: [&[&str]; 5] = [&["REQ-RANGE"], &["REQ-CHARGE-TIME"], &[], &["REQ-COMFORT"], &["REQ-ESS-30MIN", "REQ-ESS-ENVELOPE"]];
+    let config = ToolConfig::from_env();
+    for (system, expected) in CAMPAIGN.iter().zip(blocked) {
+        let (_dir, model) = fresh(system);
+        run::verify(&compile(&model), &model, None, &config).unwrap();
+        let result = compile(&model);
+        let report = production_gate::run_gate(&result.ast, &result.semantic_model, "ISO26262");
+        let mut unverified: Vec<&str> = report
+            .findings
+            .iter()
+            .filter(|f| f.check == "requirements.verification")
+            .filter_map(|f| f.message.split('\'').nth(1))
+            .collect();
+        unverified.sort_unstable();
+        unverified.dedup();
+        assert_eq!(unverified, expected, "{}: {:?}", system.model, report.findings);
+        assert_eq!(report.passed, expected.is_empty(), "{}", system.model);
+    }
 }

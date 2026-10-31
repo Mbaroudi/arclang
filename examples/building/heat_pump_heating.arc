@@ -71,12 +71,12 @@ logical_architecture "Heating" {
 physical_architecture "Heating plant" {
     node "Living space" {
         id: "PN-SPACE"
-        // Air, furniture and the inner layer of the walls, in J/K.
-        heat_capacity: 1.5e7
-        // Walls, windows, roof and ventilation, in W/K.
-        envelope_conductance: 200
+        // Air, furniture and the inner layer of the walls.
+        heat_capacity: 15 MJ/K
+        // Walls, windows, roof and ventilation.
+        envelope_conductance: 200 W/K
         internal_gain: 600 W
-        initial_temperature: 294.15 K
+        initial_temperature: 21 °C
         deploys "LC-SPACE"
         port "heating" { is: "Heat" }
         port "envelope" { physics: thermal flange: b }
@@ -84,7 +84,7 @@ physical_architecture "Heating plant" {
     }
     node "Outdoor air" {
         id: "PN-OUTDOOR"
-        design_temperature: 266.15 K
+        design_temperature: -7 °C
         daily_swing: 4 K
         deploys "LC-CLIMATE"
         port "air" { is: "Heat" }
@@ -93,7 +93,7 @@ physical_architecture "Heating plant" {
     node "Heat pump" {
         id: "PN-HP"
         carnot_efficiency: 45 %
-        supply_temperature: 308.15 K
+        supply_temperature: 35 °C
         deploys "LC-GEN"
         port "condenser" { physics: thermal flange: b }
         port "evaporator" { physics: thermal flange: b }
@@ -106,7 +106,7 @@ physical_architecture "Heating plant" {
         port out "demand" { is: "Signal" }
         behavior_component "Comfort controller" {
             id: "BC-COMFORT"
-            setpoint: 294.15 K
+            setpoint: 21 °C
             port in "temperature" { is: "Signal" }
             port out "demand" { is: "Signal" }
         }
@@ -137,20 +137,20 @@ test_case "Design day, compact unit" {
     verifies: ["REQ-COMFORT", "REQ-ENERGY"]
     method: "analysis"
     simulate: { model: "HeatingPhysics.CompactDay" configuration: "CFG-COMPACT" stop_time: 24 h sources: ["physics/HeatingPhysics.mo"] }
-    expects: ["min(\"PN-SPACE\".room.T) >= 293.15 K", "max(\"PN-SPACE\".room.T) <= 295.15 K", "final(\"PN-HP\".consumed) <= 45 kWh"]
+    expects: ["REQ-COMFORT: min(\"PN-SPACE\".room.T) >= 20 °C", "REQ-COMFORT: max(\"PN-SPACE\".room.T) <= 22 °C", "REQ-ENERGY: final(\"PN-HP\".consumed) <= 45 kWh"]
 }
 test_case "Design day, standard unit" {
     id: "TC-DAY-STANDARD"
     verifies: ["REQ-COMFORT", "REQ-ENERGY"]
     method: "analysis"
     simulate: { model: "HeatingPhysics.StandardDay" configuration: "CFG-STANDARD" stop_time: 24 h sources: ["physics/HeatingPhysics.mo"] }
-    expects: ["min(\"PN-SPACE\".room.T) >= 293.15 K", "max(\"PN-SPACE\".room.T) <= 295.15 K", "final(\"PN-HP\".consumed) <= 45 kWh"]
+    expects: ["REQ-COMFORT: min(\"PN-SPACE\".room.T) >= 20 °C", "REQ-COMFORT: max(\"PN-SPACE\".room.T) <= 22 °C", "REQ-ENERGY: final(\"PN-HP\".consumed) <= 45 kWh"]
 }
 test_case "Climate envelope, standard unit" {
     id: "TC-CLIMATE"
     verifies: ["REQ-CLIMATE"]
     method: "analysis"
     simulate: { model: "HeatingPhysics.StandardDay" configuration: "CFG-STANDARD" stop_time: 24 h sources: ["physics/HeatingPhysics.mo"]
-                sweep: ["\"PN-OUTDOOR\".design_temperature = 263.15 K .. 273.15 K step 5 K", "\"PN-SPACE\".internal_gain = 300 W, 900 W"] }
-    expects: ["min(\"PN-SPACE\".room.T) >= 293.15 K", "max(\"PN-SPACE\".room.T) <= 295.15 K"]
+                sweep: ["\"PN-OUTDOOR\".design_temperature = -10 °C .. 0 °C step 5 °C", "\"PN-SPACE\".internal_gain = 300 W, 900 W"] }
+    expects: ["min(\"PN-SPACE\".room.T) >= 20 °C", "max(\"PN-SPACE\".room.T) <= 22 °C"]
 }

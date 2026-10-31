@@ -388,11 +388,12 @@ impl<'a> Checker<'a> {
                         }
                     }
                 }
-                "refines" => {
+                "refines" | "derives" => {
                     if let (Some(source), Some(target)) = (source_kind, target_kind) {
                         if source != "Requirement" || target != "Requirement" {
+                            let what = if trace.trace_type == "refines" { "refines" } else { "is derived from" };
                             self.push(Level::Warning, "Trace", &label, None,
-                                "`refines` links a requirement to the requirement it refines".to_string());
+                                format!("`{}` links a requirement to the requirement it {what}", trace.trace_type));
                         }
                     }
                 }
