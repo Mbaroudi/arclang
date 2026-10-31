@@ -418,6 +418,7 @@ impl Builder {
             EdgeKind::Trace => "trc",
             EdgeKind::Annotation => "ann",
             EdgeKind::Containment => "ct",
+            EdgeKind::Binding => "bnd",
         };
         let base_id = format!("{prefix}:{name}");
         let id = self.claim(&base_id);

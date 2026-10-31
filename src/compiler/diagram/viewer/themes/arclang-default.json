@@ -83,6 +83,10 @@
       "fill": "#D6E4F5",
       "stroke": "#2D6B66"
     },
+    "constraint": {
+      "fill": "#E3EEFB",
+      "stroke": "#27466F"
+    },
     "configuration_item": {
       "fill": "#DDE1E6",
       "stroke": "#3D4852"
@@ -234,6 +238,10 @@
       "test_case": {
         "fill": "#233249",
         "stroke": "#8FB3E8"
+      },
+      "constraint": {
+        "fill": "#263447",
+        "stroke": "#9DBDE6"
       },
       "configuration_item": {
         "fill": "#2E3238",

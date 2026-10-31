@@ -23,6 +23,7 @@
     cdb: 'Data',
     pbs: 'Product breakdown',
     req: 'Requirements',
+    par: 'Parametric',
   };
   const NUDGE = 10; // sheet units a box moves per key press
   const HISTORY_LIMIT = 50;

@@ -23,7 +23,7 @@ pub const PRESETS: [(&str, &str); 6] = [
 const VERSION: u64 = 1;
 
 /// Concept families: key, label, silhouette (see CONCEPTS in arcviz-theme.js).
-const CONCEPTS: [(&str, &str, &str); 20] = [
+const CONCEPTS: [(&str, &str, &str); 21] = [
     ("operational_entity", "operational entity or actor", "rect"),
     ("operational_activity", "operational activity", "rect"),
     ("operational_capability", "operational capability", "pill"),
@@ -43,6 +43,7 @@ const CONCEPTS: [(&str, &str, &str); 20] = [
     ("state_mode", "state or mode", "pill"),
     ("requirement", "requirement", "rect"),
     ("test_case", "test case", "rect"),
+    ("constraint", "constraint", "pill"),
     ("configuration_item", "configuration item", "rect"),
 ];
 
@@ -66,7 +67,7 @@ const SAME_CONCEPT: [&[&str]; 2] = [
 ];
 
 /// What each view draws together: name, concepts, exchanges.
-const VIEWS: [(&str, &[&str], &[&str]); 9] = [
+const VIEWS: [(&str, &[&str], &[&str]); 10] = [
     ("Operational", &["operational_entity", "operational_activity"], &["interaction", "communication_mean"]),
     ("System", &["system_actor", "system_component", "system_function"], &["functional_exchange", "component_exchange", "trace"]),
     ("Logical", &["system_actor", "logical_component", "logical_function"], &["functional_exchange", "component_exchange", "trace"]),
@@ -84,6 +85,7 @@ const VIEWS: [(&str, &[&str], &[&str]); 9] = [
     ("Data", &["data_type", "exchange_item"], &["relation"]),
     ("Product breakdown", &["configuration_item", "requirement"], &["relation"]),
     ("Requirements", &["requirement", "test_case"], &["trace", "relation"]),
+    ("Parametric", &["constraint", "data_type"], &["relation"]),
 ];
 
 /// Colours the tool keeps: name, colour, also reserved on lines.

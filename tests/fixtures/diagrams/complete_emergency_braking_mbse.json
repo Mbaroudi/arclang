@@ -1851,6 +1851,193 @@
       ]
     },
     {
+      "id": "par",
+      "kind": "par",
+      "title": "Parametric",
+      "nodes": [
+        {
+          "id": "CST-001",
+          "uuid": "8f4d19a7-85fc-53f1-a08c-4e94c1f27cbf",
+          "name": "Braking chain within budget",
+          "kind": "constraint",
+          "compartment": [
+            "sum(\"FC-001\", latency) <= \"FC-001\".latency_budget",
+            "90 ms against 100 ms"
+          ],
+          "properties": {
+            "expression": "sum(\"FC-001\", latency) <= \"FC-001\".latency_budget",
+            "left": "90 ms",
+            "right": "100 ms",
+            "verdict": "pass"
+          }
+        },
+        {
+          "id": "SF-AcquireSensorData",
+          "uuid": "cdcfb5dc-b9f7-5212-a8a4-59264394653f",
+          "name": "AcquireSensorData",
+          "kind": "function",
+          "children": [
+            {
+              "id": "SF-AcquireSensorData.latency",
+              "uuid": "0a0338d5-8780-563d-9b74-21a910932113",
+              "name": "latency",
+              "kind": "value_property",
+              "compartment": [
+                "= 20 ms"
+              ],
+              "properties": {
+                "value": "20 ms"
+              }
+            }
+          ]
+        },
+        {
+          "id": "SF-FuseData",
+          "uuid": "0355dac5-e82b-5dd6-9a41-fe8eda548e41",
+          "name": "FuseData",
+          "kind": "function",
+          "children": [
+            {
+              "id": "SF-FuseData.latency",
+              "uuid": "8acf45fc-dfb2-5299-b49c-f796ccefa3a4",
+              "name": "latency",
+              "kind": "value_property",
+              "compartment": [
+                "= 25 ms"
+              ],
+              "properties": {
+                "value": "25 ms"
+              }
+            }
+          ]
+        },
+        {
+          "id": "SF-TrackObjects",
+          "uuid": "c789fec3-d99b-544c-a7db-6d04e07bdd68",
+          "name": "TrackObjects",
+          "kind": "function",
+          "children": [
+            {
+              "id": "SF-TrackObjects.latency",
+              "uuid": "71c1a003-dbc1-5e88-820f-c19c8fcdaba6",
+              "name": "latency",
+              "kind": "value_property",
+              "compartment": [
+                "= 15 ms"
+              ],
+              "properties": {
+                "value": "15 ms"
+              }
+            }
+          ]
+        },
+        {
+          "id": "SF-AssessThreat",
+          "uuid": "ea8b90da-f483-573e-b338-7a7810b9ef2a",
+          "name": "AssessThreat",
+          "kind": "function",
+          "children": [
+            {
+              "id": "SF-AssessThreat.latency",
+              "uuid": "dfadb32c-308d-5c77-a0b5-5c091be09d34",
+              "name": "latency",
+              "kind": "value_property",
+              "compartment": [
+                "= 20 ms"
+              ],
+              "properties": {
+                "value": "20 ms"
+              }
+            }
+          ]
+        },
+        {
+          "id": "SF-ComputeBrakingForce",
+          "uuid": "a5c8a2aa-e7f2-5619-a960-9250694cc909",
+          "name": "ComputeBrakingForce",
+          "kind": "function",
+          "children": [
+            {
+              "id": "SF-ComputeBrakingForce.latency",
+              "uuid": "08f05947-45ec-57d4-b708-508c82ea00b7",
+              "name": "latency",
+              "kind": "value_property",
+              "compartment": [
+                "= 10 ms"
+              ],
+              "properties": {
+                "value": "10 ms"
+              }
+            }
+          ]
+        },
+        {
+          "id": "FC-001",
+          "uuid": "cca34f17-9c5b-540b-b416-9af4dc68376c",
+          "name": "EmergencyBrakingChain",
+          "kind": "functional_chain",
+          "children": [
+            {
+              "id": "FC-001.latency_budget",
+              "uuid": "a7487b16-988a-5cec-8402-5ea6d582402a",
+              "name": "latency_budget",
+              "kind": "value_property",
+              "compartment": [
+                "= 100 ms"
+              ],
+              "properties": {
+                "value": "100 ms"
+              }
+            }
+          ]
+        }
+      ],
+      "edges": [
+        {
+          "id": "bnd:SF-AcquireSensorData.latency CST-001",
+          "kind": "binding",
+          "source": "SF-AcquireSensorData.latency",
+          "target": "CST-001",
+          "label": "sum"
+        },
+        {
+          "id": "bnd:SF-FuseData.latency CST-001",
+          "kind": "binding",
+          "source": "SF-FuseData.latency",
+          "target": "CST-001",
+          "label": "sum"
+        },
+        {
+          "id": "bnd:SF-TrackObjects.latency CST-001",
+          "kind": "binding",
+          "source": "SF-TrackObjects.latency",
+          "target": "CST-001",
+          "label": "sum"
+        },
+        {
+          "id": "bnd:SF-AssessThreat.latency CST-001",
+          "kind": "binding",
+          "source": "SF-AssessThreat.latency",
+          "target": "CST-001",
+          "label": "sum"
+        },
+        {
+          "id": "bnd:SF-ComputeBrakingForce.latency CST-001",
+          "kind": "binding",
+          "source": "SF-ComputeBrakingForce.latency",
+          "target": "CST-001",
+          "label": "sum"
+        },
+        {
+          "id": "bnd:FC-001.latency_budget CST-001",
+          "kind": "binding",
+          "source": "FC-001.latency_budget",
+          "target": "CST-001",
+          "label": ""
+        }
+      ]
+    },
+    {
       "id": "msm:AEBOperatingModes",
       "kind": "msm",
       "title": "AEBOperatingModes",

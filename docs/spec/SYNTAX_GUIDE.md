@@ -241,6 +241,13 @@ them. Each requirement and case shows its verdict (`✓ verified`, `✗ fails`,
 `? inconclusive`, `not verified`); a suspect trace or verification is an amber
 dashed line.
 
+**The Parametric view** (`arclang diagram model.arc --view par`, and
+*Parametric* in the VS Code workbench) draws each `constraint` with its
+expression, the value of each side (`50 ms against 100 ms`) and its verdict
+(`✓ holds`, `✗ violated`), bound to every value it reads: `mass = 450 kg`
+inside the battery, the `latency` of each function a `sum("FC-STOP", latency)`
+adds up, the line labelled `sum`.
+
 ### Data Types
 
 **Strings**:

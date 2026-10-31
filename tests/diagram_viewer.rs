@@ -63,6 +63,7 @@ fn explorer_embeds_the_viewer_with_every_diagram_of_the_model() {
             "cap",
             "cdb",
             "req",
+            "par",
             "msm:AEBOperatingModes",
             "es:EmergencyStop",
             "lab:Braking chain",

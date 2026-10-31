@@ -45,6 +45,7 @@ mod logical;
 mod operational;
 mod physical;
 mod product;
+mod parametric;
 mod requirements;
 pub use requirements::judge as judge_requirements;
 mod scenario;
@@ -100,10 +101,12 @@ pub enum ViewKind {
     Pbs,
     /// Requirements, their derivations, what satisfies and what verifies them.
     Req,
+    /// The constraints bound to the values they read.
+    Par,
 }
 
 impl ViewKind {
-    pub const ALL: [ViewKind; 10] = [
+    pub const ALL: [ViewKind; 11] = [
         ViewKind::Oab,
         ViewKind::Sab,
         ViewKind::Lab,
@@ -114,6 +117,7 @@ impl ViewKind {
         ViewKind::Cdb,
         ViewKind::Pbs,
         ViewKind::Req,
+        ViewKind::Par,
     ];
 
     /// Short identifier, also the diagram id and the CLI `--view` value.
@@ -129,6 +133,7 @@ impl ViewKind {
             ViewKind::Cdb => "cdb",
             ViewKind::Pbs => "pbs",
             ViewKind::Req => "req",
+            ViewKind::Par => "par",
         }
     }
 
@@ -144,6 +149,7 @@ impl ViewKind {
             ViewKind::Cdb => "Data Model",
             ViewKind::Pbs => "Product Breakdown",
             ViewKind::Req => "Requirements",
+            ViewKind::Par => "Parametric",
         }
     }
 
@@ -254,6 +260,10 @@ pub enum NodeKind {
     Requirement,
     /// A verification case and the requirements it verifies.
     TestCase,
+    /// A constraint: its expression, the value of each side, its verdict.
+    Constraint,
+    /// A value a constraint reads, inside the element holding it.
+    ValueProperty,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
@@ -345,6 +355,8 @@ pub enum EdgeKind {
     Annotation,
     /// A requirement sits under another in its document (`parent:`).
     Containment,
+    /// A value bound to a constraint that reads it.
+    Binding,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
@@ -419,6 +431,7 @@ pub fn build_diagrams(model: &Model) -> DiagramSet {
             data::build(model),
             product::build(model),
             requirements::build(model),
+            parametric::build(model),
         ]
         .into_iter()
         .flatten()

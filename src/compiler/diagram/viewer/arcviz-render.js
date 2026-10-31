@@ -59,6 +59,8 @@
     note: { fill: '#FFF6C9', stroke: '#A8902E', label: 'Note', glyph: 'none' },
     requirement: { fill: '#F4F6E2', stroke: '#5F6B2E', label: 'Requirement', glyph: 'none' },
     test_case: { fill: '#D6E4F5', stroke: '#2D6B66', label: 'Test case', glyph: 'none' },
+    constraint: { fill: '#E3EEFB', stroke: '#27466F', label: 'Constraint', glyph: 'none', round: 14 },
+    value_property: { fill: '#FFFFFF', stroke: '#4A545E', label: 'Value', glyph: 'none' },
   };
   const FALLBACK_NODE = { fill: '#FFFFFF', stroke: '#444B52', label: 'Element', glyph: 'box' };
 
@@ -82,6 +84,7 @@
     trace: { stroke: '#6B5B95', width: 1.3, dash: '3 3', label: 'Trace', arrow: true },
     annotation: { stroke: '#A8902E', width: 1, dash: '2 3', label: 'About', arrow: false },
     containment: { stroke: '#5F6B2E', width: 1.2, label: 'Contains', arrow: false },
+    binding: { stroke: '#27466F', width: 1.2, label: 'Bound to', arrow: false },
   };
   const FALLBACK_EDGE = { stroke: '#444B52', width: 1.4, label: 'Link', arrow: true };
 
@@ -92,6 +95,12 @@
     inconclusive: { text: '? inconclusive', color: '#8A6A00', tip: 'A simulation not run or stale: run the simulations' },
     pending: { text: '… pending', color: '#5A6672', tip: 'No verdict given yet' },
     unverified: { text: 'not verified', color: '#8A6A00', tip: 'No test case verifies it' },
+  };
+  // What the compiler finds when it evaluates a constraint (diagram::parametric).
+  const HOLDS = {
+    pass: { text: '✓ holds', color: '#2B7A2E', tip: 'The comparison holds for the values of the model' },
+    fail: { text: '✗ violated', color: '#C92A2A', tip: 'The comparison does not hold: a blocker of the gate' },
+    inconclusive: { text: '? not evaluated', color: '#8A6A00', tip: 'A value it reads is missing or not a number' },
   };
   // A trace or a verification whose end changed since it was reviewed.
   const SUSPECT = { stroke: '#BF8803', dash: '6 3' };
@@ -321,7 +330,7 @@
       body += `<text x="${num(bx + width / 2)}" y="${num(by + 8.3)}" text-anchor="middle" font-size="8" font-weight="700" fill="${(theme && theme.tag.text) || safetyColor(safety)}">${esc(safety)}</text>`;
     }
     // A requirement or a test case: what its verification says, at the bottom left.
-    const verdict = (arc.kind === 'requirement' || arc.kind === 'test_case') && VERDICT[properties.verdict];
+    const verdict = (arc.kind === 'requirement' || arc.kind === 'test_case') ? VERDICT[properties.verdict] : arc.kind === 'constraint' ? HOLDS[properties.verdict] : null;
     if (verdict) {
       const width = verdict.text.length * 5.4 + 10;
       const by = y + node.height - 15;

@@ -48,9 +48,10 @@ async def test_workbench_counts_the_elements_and_names_the_diagrams(server, aeb)
     assert "Relationships: 96 (" in answer and "traces: 15." in answer
     assert "Findings: 0" in answer
     assert "Gate: PASS, 7/7 requirements verified." in answer
-    assert "Diagrams: 11 (id | view | title)" in answer
+    assert "Diagrams: 12 (id | view | title)" in answer
     assert "  lab | lab | AEB System - Component Structure" in answer
     assert "  req | req | Requirements" in answer
+    assert "  par | par | Parametric" in answer
     assert "  es:EmergencyStop | es | EmergencyStop" in answer
 
 

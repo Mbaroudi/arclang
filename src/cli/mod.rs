@@ -595,8 +595,8 @@ pub enum Commands {
         title: String,
 
         /// Restrict the output to one kind of view: oab, sab, lab, pab, msm
-        /// (mode and state machines), es (scenarios), cap, cdb, pbs or req
-        /// (requirements)
+        /// (mode and state machines), es (scenarios), cap, cdb, pbs, req
+        /// (requirements) or par (parametric)
         #[clap(long)]
         view: Option<String>,
 
@@ -2323,7 +2323,7 @@ impl CliRunner {
         let selected = match view.as_deref() {
             None => None,
             Some(text) => Some(ViewKind::parse(text).ok_or_else(|| {
-                CliError::Compilation(format!("unknown view '{text}' — expected oab, sab, lab, pab, msm, es, cap, cdb, pbs or req"))
+                CliError::Compilation(format!("unknown view '{text}' — expected oab, sab, lab, pab, msm, es, cap, cdb, pbs, req or par"))
             })?),
         };
         let result = crate::Compiler::new(crate::CompilerConfig::default())

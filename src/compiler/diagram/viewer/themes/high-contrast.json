@@ -83,6 +83,10 @@
       "fill": "#C2F0FF",
       "stroke": "#000000"
     },
+    "constraint": {
+      "fill": "#79BFF5",
+      "stroke": "#000000"
+    },
     "configuration_item": {
       "fill": "#BDBDBD",
       "stroke": "#000000"

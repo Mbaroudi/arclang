@@ -454,6 +454,7 @@ export const VIEWPOINTS: { view: string; label: string; short: string }[] = [
   { view: 'msm', label: 'Modes and states', short: 'Modes' },
   { view: 'es', label: 'Scenarios', short: 'Scenarios' },
   { view: 'req', label: 'Requirements', short: 'Requirements' },
+  { view: 'par', label: 'Parametric', short: 'Parametric' },
 ];
 
 /** The viewpoint the layer of the model tree opens. */
