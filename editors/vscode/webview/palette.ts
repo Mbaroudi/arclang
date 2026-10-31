@@ -72,8 +72,9 @@ export class Palette {
 
   /** Connect two ends with a tool (a drag between them): asks the name, submits the plan. */
   connectWith(tool: Tool, from: ConnectEnd, to: ConnectEnd): void {
-    const ask = tool.connect === 'transition' ? 'guard (optional)' : tool.connect === 'message' ? 'text of the message' : tool.connect === 'trace' ? 'realizes, satisfies, implements, allocates, verifies, refines' : 'name of the exchange';
-    void inlinePrompt(this.owner.anchor(), `${tool.label} from ${from.id} to ${to.id}`, tool.connect === 'trace' ? 'realizes' : '', ask).then((name) => {
+    const ask = tool.connect === 'transition' ? 'guard (optional)' : tool.connect === 'message' ? 'text of the message' : tool.connect === 'trace' ? 'realizes, satisfies, implements, allocates, verifies, refines, derives' : 'name of the exchange';
+    // A tool for one kind of trace asks nothing.
+    void (tool.traceKind ? Promise.resolve(tool.traceKind) : inlinePrompt(this.owner.anchor(), `${tool.label} from ${from.id} to ${to.id}`, tool.connect === 'trace' ? 'realizes' : '', ask)).then((name) => {
       if (name === null) return this.disarm();
       const plan = connectPlan(tool, from, to, name, this.view, this.graphContainer);
       if ('error' in plan) {
@@ -82,7 +83,7 @@ export class Palette {
         else this.owner.hint(plan.error);
         return;
       }
-      this.owner.submit(plan, `${tool.label} ${name || `${from.id} -> ${to.id}`}`);
+      this.owner.submit(plan, tool.traceKind ? `${tool.label} ${from.id} to ${to.id}` : `${tool.label} ${name || `${from.id} -> ${to.id}`}`);
       this.disarm();
     });
   }
@@ -112,15 +113,15 @@ export class Palette {
     const from = this.firstEnd;
     const tool = this.armed;
     this.firstEnd = null;
-    const ask = tool.connect === 'transition' ? 'guard (optional)' : tool.connect === 'message' ? 'text of the message' : tool.connect === 'trace' ? 'realizes, satisfies, implements, allocates, verifies, refines' : 'name of the exchange';
-    void inlinePrompt(this.owner.anchor(), `${tool.label}`, tool.connect === 'trace' ? 'realizes' : '', ask).then((name) => {
+    const ask = tool.connect === 'transition' ? 'guard (optional)' : tool.connect === 'message' ? 'text of the message' : tool.connect === 'trace' ? 'realizes, satisfies, implements, allocates, verifies, refines, derives' : 'name of the exchange';
+    void (tool.traceKind ? Promise.resolve(tool.traceKind) : inlinePrompt(this.owner.anchor(), `${tool.label}`, tool.connect === 'trace' ? 'realizes' : '', ask)).then((name) => {
       if (name === null) return this.disarm();
       const plan = connectPlan(tool, from, end, name, this.view, this.graphContainer);
       if ('error' in plan) {
         this.owner.hint(plan.error);
         return this.disarm();
       }
-      this.owner.submit(plan, `${tool.label} ${name}`);
+      this.owner.submit(plan, tool.traceKind ? `${tool.label} ${from.id} to ${end.id}` : `${tool.label} ${name}`);
       this.disarm();
     });
     return true;

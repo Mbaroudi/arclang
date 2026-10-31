@@ -4,7 +4,7 @@
 //      Simulation menu, "Check simulation setup" is a checklist with every
 //      Docker step done;
 //   2. a simulation run from the menu ends on the verdicts (standard pack
-//      fail, long range pack pass), in the status item and in the table;
+//      fail, long range pack and its envelope pass), in the status item and in the table;
 //   3. no Docker and no omc (a PATH without them): the item says "needs
 //      setup", the checklist shows what to do with a button for each step,
 //      and running the simulations opens that checklist, not a raw error.
@@ -112,10 +112,10 @@ async function chooseInMenu(win, label) {
       await chooseInMenu(win, 'Run simulations on this model');
       const running = await until(win, async () => { const t = await itemText(win); return t && /Simulating/.test(t) ? t : null; }, 40, 250);
       report('while it runs the item says Simulating…', !!running, running || '');
-      const toast = await until(win, async () => { const t = (await win.locator('.notification-toast').allTextContents()).join(' ').replace(/\s+/g, ' '); return /fail, 1 pass|simulated case/.test(t) ? t : null; }, 400, 1000);
-      report('the run ends on "1 fail, 1 pass."', !!toast && /1 fail, 1 pass/.test(toast), (toast || '').slice(0, 120));
+      const toast = await until(win, async () => { const t = (await win.locator('.notification-toast').allTextContents()).join(' ').replace(/\s+/g, ' '); return /fail, \d+ pass|simulated case/.test(t) ? t : null; }, 400, 1000);
+      report('the run ends on "1 fail, 2 pass."', !!toast && /1 fail, 2 pass/.test(toast), (toast || '').slice(0, 120));
       const done = await itemText(win);
-      report('the status item shows the verdicts', !!done && /Simulation: 1 fail, 1 pass/.test(done), done || '');
+      report('the status item shows the verdicts', !!done && /Simulation: 1 fail, 2 pass/.test(done), done || '');
       await shot(win, 'sim-result.png');
       await win.locator('.notification-toast a, .notification-toast .monaco-button', { hasText: 'Show the verdicts' }).first().click().catch(() => undefined);
       let table = null;

@@ -299,11 +299,22 @@ export function simulates(text: string): boolean {
 
 export interface Outcome {
   test_case: string;
+  /** The test case's name, the requirements it verifies, its configuration's name (4.8.1). */
+  name: string;
+  verifies: string[];
+  configuration_name: string | null;
   model: string;
   verdict: string;
   reason: string;
   configuration?: string | null;
-  values: { value: string; expect: string; holds: boolean }[];
+  values: { value: string; expect: string; holds: boolean; margin?: string }[];
+  tool: string;
+  omc_version: string;
+  /** What OpenModelica printed, and how long the run took. */
+  log: string;
+  seconds: number;
+  /** Every point of a parameter sweep (4.8.1); empty when the case sweeps nothing. */
+  points: { label: string; values: Outcome['values']; holds: boolean; error: string }[];
 }
 
 export function parseOutcomes(text: string): Outcome[] | null {
@@ -319,13 +330,31 @@ export function parseOutcomes(text: string): Outcome[] | null {
     if (typeof raw !== 'object' || raw === null) return null;
     const o = raw as Record<string, unknown>;
     if (typeof o.test_case !== 'string' || typeof o.verdict !== 'string') return null;
+    const text = (key: string) => (typeof o[key] === 'string' ? (o[key] as string) : '');
     out.push({
       test_case: o.test_case,
-      model: typeof o.model === 'string' ? o.model : '',
+      name: text('name'),
+      verifies: Array.isArray(o.verifies) ? o.verifies.filter((v): v is string => typeof v === 'string') : [],
+      configuration_name: typeof o.configuration_name === 'string' ? o.configuration_name : null,
+      model: text('model'),
       verdict: o.verdict,
-      reason: typeof o.reason === 'string' ? o.reason : '',
+      reason: text('reason'),
       configuration: typeof o.configuration === 'string' ? o.configuration : null,
       values: Array.isArray(o.values) ? (o.values as Outcome['values']).filter((v) => v && typeof v.value === 'string') : [],
+      tool: text('tool'),
+      omc_version: text('omc_version'),
+      log: text('log'),
+      seconds: typeof o.seconds === 'number' && Number.isFinite(o.seconds) ? o.seconds : 0,
+      points: Array.isArray(o.points)
+        ? (o.points as Record<string, unknown>[])
+            .filter((p) => p && typeof p.label === 'string')
+            .map((p) => ({
+              label: p.label as string,
+              values: Array.isArray(p.values) ? (p.values as Outcome['values']).filter((v) => v && typeof v.value === 'string') : [],
+              holds: p.holds === true,
+              error: typeof p.error === 'string' ? p.error : '',
+            }))
+        : [],
     });
   }
   return out;
@@ -346,16 +375,84 @@ export function toolMissing(outcomes: Outcome[], stderr: string): boolean {
   return /OpenModelica not available/i.test(stderr) || outcomes.some((o) => /OpenModelica not available/i.test(o.reason));
 }
 
-/** The log of a run, for the output channel. */
-export function outcomesLog(outcomes: Outcome[]): string {
+/** `verifies REQ-RANGE · configuration City (CFG-CITY) · model EVPhysics.CityRange`. */
+export function contextLine(o: Outcome): string {
+  const parts: string[] = [];
+  if (o.verifies.length) parts.push(`verifies ${o.verifies.join(', ')}`);
+  if (o.configuration) parts.push(o.configuration_name && o.configuration_name !== o.configuration ? `configuration ${o.configuration_name} (${o.configuration})` : `configuration ${o.configuration}`);
+  if (o.model) parts.push(`model ${o.model}`);
+  return parts.join(' · ');
+}
+
+/** The lines OpenModelica printed, without the blank ones. */
+export function toolLogLines(log: string): string[] {
+  return log.split(/\r?\n/).filter((l) => l.trim() !== '');
+}
+
+/** One case of a run: its verdict, what it checks, each value and how far it is from its bound. */
+export function outcomesLog(outcomes: Outcome[], options: { toolLog?: boolean } = {}): string {
   const lines: string[] = [];
   for (const o of outcomes) {
-    const mark = o.verdict === 'pass' ? 'PASS' : o.verdict === 'fail' ? 'FAIL' : o.verdict.toUpperCase();
-    lines.push(`${mark}  ${o.test_case}${o.configuration ? ` [${o.configuration}]` : ''}`);
-    for (const v of o.values) lines.push(`      ${v.holds ? 'ok  ' : 'FAIL'} ${v.value}   (${v.expect})`);
+    const mark = o.verdict === 'pass' ? '✓ PASS' : o.verdict === 'fail' ? '✗ FAIL' : `? ${o.verdict.toUpperCase()}`;
+    const name = o.name && o.name !== o.test_case ? ` "${o.name}"` : '';
+    lines.push(`${mark}  ${o.test_case}${name}`);
+    const context = contextLine(o);
+    if (context) lines.push(`      ${context}`);
+    const value = (indent: string, v: Outcome['values'][number]) => `${indent}${v.holds ? 'ok  ' : 'FAIL'} ${v.value}   (${v.expect}${v.margin ? `, ${v.margin}` : ''})`;
+    if (o.points.length === 0) for (const v of o.values) lines.push(value('      ', v));
+    else {
+      const passing = o.points.filter((p) => p.holds).length;
+      lines.push(`      sweep: ${o.points.length} points, ${passing} pass, ${o.points.length - passing} do not`);
+      for (const p of o.points) {
+        lines.push(`      ${p.holds ? 'ok  ' : p.error ? 'ERR ' : 'FAIL'} ${p.label}`);
+        for (const v of p.values) lines.push(value('          ', v));
+        if (p.error) lines.push(`          ${p.error}`);
+      }
+    }
     if (o.reason && o.verdict !== 'fail') lines.push(`      ${o.reason}`);
+    const log = toolLogLines(o.log);
+    if (options.toolLog && log.length) {
+      lines.push(`      OpenModelica log (${log.length} line${log.length > 1 ? 's' : ''}):`);
+      for (const l of log) lines.push(`        | ${l}`);
+    }
+    lines.push('');
   }
+  return lines.join('\n').trimEnd();
+}
+
+/** The whole log of one run: when, which file, which tool, the cases, the verdicts and the time. */
+export function runLog(file: string, outcomes: Outcome[], at: Date): string {
+  const time = `${String(at.getHours()).padStart(2, '0')}:${String(at.getMinutes()).padStart(2, '0')}:${String(at.getSeconds()).padStart(2, '0')}`;
+  const lines = [`── ${time}  arclang verify ${file}`];
+  const ran = outcomes.find((o) => o.tool);
+  if (ran) lines.push(`   Tool: ${ran.tool}${ran.omc_version ? `, ${ran.omc_version}` : ''}`);
+  lines.push('', outcomesLog(outcomes, { toolLog: true }), '');
+  const seconds = outcomes.reduce((sum, o) => sum + o.seconds, 0);
+  lines.push(`${summaryText(countOutcomes(outcomes))}${seconds > 0 ? ` Simulated in ${seconds.toFixed(1)} s.` : ''}`, '');
   return lines.join('\n');
+}
+
+// ---- The Modelica drawing ---------------------------------------------------------
+
+/** The system models of a split export, one per configuration: what Modex draws whole. */
+export function systemDrawings(files: string[]): { label: string; file: string }[] {
+  return files
+    .map((file) => ({ file, match: /[\\/]Systems[\\/]([A-Za-z_][A-Za-z0-9_]*)\.mo$/.exec(file) }))
+    .filter((f): f is { file: string; match: RegExpExecArray } => f.match !== null && f.match[1] !== 'package')
+    .map((f) => ({ label: f.match[1], file: f.file }))
+    .sort((a, b) => a.label.localeCompare(b.label) || a.file.localeCompare(b.file));
+}
+
+/** The folder Modex must know as a library root for a split export: the one holding `<Package>/`. */
+export function libraryRootOf(systemFile: string): string {
+  // <root>/<Package>/Systems/<Configuration>.mo
+  return systemFile.replace(/[\\/][^\\/]+[\\/]Systems[\\/][^\\/]+\.mo$/, '');
+}
+
+/** `modex.libraryRoots` with a root added, or null when it is there already. */
+export function withLibraryRoot(current: unknown, root: string): string[] | null {
+  const roots = Array.isArray(current) ? current.filter((r): r is string => typeof r === 'string') : [];
+  return roots.includes(root) ? null : [...roots, root];
 }
 
 /** The sentence a run ends on. */

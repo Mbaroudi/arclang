@@ -1565,6 +1565,14 @@ fn local_unit_declaration(symbol: &str) -> Option<&'static str> {
         "'kW*h'" => "attribute <'kW*h'> 'kilowatt hour' : EnergyUnit { :>> unitConversion: ConversionByConvention { :>> referenceUnit = J; :>> conversionFactor = 3600000; } }",
         "kPa" => "attribute <kPa> kilopascal : PressureUnit { :>> unitConversion: ConversionByPrefix { :>> prefix = kilo; :>> referenceUnit = Pa; } }",
         "bar" => "attribute <bar> bar : PressureUnit { :>> unitConversion: ConversionByConvention { :>> referenceUnit = Pa; :>> conversionFactor = 100000; } }",
+        "'A*h'" => "attribute <'A*h'> 'ampere hour' : ElectricChargeUnit { :>> unitConversion: ConversionByConvention { :>> referenceUnit = C; :>> conversionFactor = 3600; } }",
+        "'mA*h'" => "attribute <'mA*h'> 'milliampere hour' : ElectricChargeUnit { :>> unitConversion: ConversionByConvention { :>> referenceUnit = C; :>> conversionFactor = 3.6; } }",
+        "'mΩ'" => "attribute <'mΩ'> milliohm : ResistanceUnit { :>> unitConversion: ConversionByPrefix { :>> prefix = milli; :>> referenceUnit = 'Ω'; } }",
+        "'kΩ'" => "attribute <'kΩ'> kiloohm : ResistanceUnit { :>> unitConversion: ConversionByPrefix { :>> prefix = kilo; :>> referenceUnit = 'Ω'; } }",
+        "'kW/K'" => "attribute <'kW/K'> 'kilowatt per kelvin' : ThermalConductanceUnit { :>> unitConversion: ConversionByConvention { :>> referenceUnit = 'W/K'; :>> conversionFactor = 1000; } }",
+        "'kJ/K'" => "attribute <'kJ/K'> 'kilojoule per kelvin' : HeatCapacityUnit { :>> unitConversion: ConversionByConvention { :>> referenceUnit = 'J/K'; :>> conversionFactor = 1000; } }",
+        "'MJ/K'" => "attribute <'MJ/K'> 'megajoule per kelvin' : HeatCapacityUnit { :>> unitConversion: ConversionByConvention { :>> referenceUnit = 'J/K'; :>> conversionFactor = 1000000; } }",
+        "'cm²'" => "attribute <'cm²'> 'square centimetre' : AreaUnit { :>> unitConversion: ConversionByConvention { :>> referenceUnit = 'm²'; :>> conversionFactor = 0.0001; } }",
         "'%'" => "attribute <'%'> percent : DimensionOneUnit { :>> unitConversion: ConversionByConvention { :>> referenceUnit = one; :>> conversionFactor = 0.01; } }",
         _ => return None,
     })
@@ -1627,7 +1635,9 @@ fn number_literal(n: f64) -> String {
 }
 
 fn quantity_literal(quantity: &Quantity) -> String {
-    format!("{} [{}]", number_literal(quantity.value), quantity.spec().sysml)
+    // SysML's °C is a temperature difference: a level in °C is written in K.
+    let value = if quantity.spec().offset != 0.0 { (quantity.canonical() * 1e9).round() / 1e9 } else { quantity.value };
+    format!("{} [{}]", number_literal(value), quantity.spec().sysml)
 }
 
 fn protocol_note(interface: &InterfaceDefinition) -> String {

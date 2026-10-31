@@ -361,6 +361,7 @@ impl Metamodel {
                     attr("verification_method", AttrType::Enum("VerificationMethod"), "Intended verification method."),
                     attr("parent", AttrType::Reference("Requirement"), "Requirement it sits under in its document (ReqIF SPEC-HIERARCHY); structure, not refinement."),
                     attr("reqif_id", AttrType::Text, "Identifier the requirement has in the tool it came from (ReqIF IDENTIFIER), given back on export."),
+                    attr("applies_to", list(AttrType::Reference("Configuration")), "The configurations of the product line the requirement holds for; every one when absent. A case verifying it runs in one of them, and the gate wants a case in each."),
                 ], safety()])),
             kind("Mission", Layer::System, "Mission", "use case def", "High-level goal the system contributes to.", common()),
             kind("Capability", Layer::System, "Capability", "use case def", "Expected ability of the system. May be declared inside another capability.",
@@ -490,8 +491,9 @@ impl Metamodel {
                     attr("expected", AttrType::Text, "Expected result."),
                     attr("asserts", list(AttrType::Reference("Constraint")), "An analysis: the constraints whose evaluation is its verdict (pass when they all hold)."),
                     attr("verdict", AttrType::Enum("Verdict"), "Outcome of a test run elsewhere; computed, not given, when the case `asserts:` constraints or `simulate:`s. A requirement with a failing case is not verified."),
-                    attr("simulate", AttrType::Record(&crate::compiler::simulation::SIMULATE_KEYS), "Verified by simulation: the `backend` (`openmodelica`, the default; `fmu` and `command` are declared, not built yet), the Modelica `model` to simulate (extending a system model of `arclang export -f modelica`), the `configuration` it is, `stop_time` (and `start_time`), the hand-written Modelica `sources` (paths from the model file), `tolerance`, `intervals`. Run by `arclang verify`; the verdict is cached, and inconclusive when stale or never run."),
-                    attr("expects", list(AttrType::Text), "What the simulation result must show: comparisons over its variables read with `min`, `max`, `final`, `initial`, `mean` or `at(t, var)`, with units (`final(vehicle.distance) >= 300 km`)."),
+                    attr("simulate", AttrType::Record(&crate::compiler::simulation::SIMULATE_KEYS), "Verified by simulation: the `backend` (`openmodelica`, the default; `fmu` and `command` are declared, not built yet), the Modelica `model` to simulate (extending a system model of `arclang export -f modelica`), the `configuration` it is, `stop_time` (and `start_time`), the hand-written Modelica `sources` (paths from the model file), `tolerance`, `intervals`, and a `sweep` (`[\"body.mass = 1800 kg, 2100 kg\", \"vcu.target_speed = 80 km/h .. 130 km/h step 10 km/h\"]`: every combination is simulated, and the expectations must hold at each). Run by `arclang verify`; the verdict is cached, and inconclusive when stale or never run."),
+                    attr("expects", list(AttrType::Text), "What the simulation result must show: comparisons over its variables read with `min`, `max`, `final`, `initial`, `mean` or `at(t, var)`, with units (`final(vehicle.distance) >= 300 km`). A comparison may name the requirement it checks (`\"REQ-SHED: at(40 min, cabin.drawn) <= 1 W\"`): each requirement is then judged on the comparisons naming it and those naming none."),
+                    attr("reviewed", list(AttrType::Text), "The verifications reviewed: one entry per verified requirement, the requirement and the fingerprints of the case and of the requirement, written by `arclang trace --review`. A verification whose case or requirement changed since is suspect, and so is one the case verifies but does not name here."),
                 ]])),
             kind("Model", Layer::Transverse, "Project / SystemEngineering", "package", "The model itself: root of the element graph, owner of every top-level element.", vec![
                     attr("name", AttrType::Text, "Model name."),
@@ -571,7 +573,7 @@ impl Metamodel {
             EnumSpec { name: "Flange", values: &["a", "b"], doc: "The flange (or heat port) a mechanical or thermal port is (`Flange_a`, `Flange_b`)." },
             EnumSpec { name: "Verdict", values: &["pass", "fail", "inconclusive", "error"], doc: "Verdict of a verification case (SysML v2 `VerdictKind`)." },
             EnumSpec { name: "ExchangeMechanism", values: &["EVENT", "FLOW", "OPERATION", "DATA", "SHARED_DATA"], doc: "Arcadia exchange item mechanism." },
-            EnumSpec { name: "TraceKind", values: &["satisfies", "implements", "validates", "verifies", "realizes", "refines", "allocates"], doc: "Traceability link kinds." },
+            EnumSpec { name: "TraceKind", values: &["satisfies", "implements", "validates", "verifies", "realizes", "refines", "derives", "allocates"], doc: "Traceability link kinds." },
             EnumSpec { name: "PortKind", values: &["data", "control", "event"], doc: "Function port nature." },
             EnumSpec { name: "MessageKind", values: &["sync", "async"], doc: "Scenario message kind." },
             EnumSpec { name: "Unit", values: &[], doc: "Any symbol of the unit table below." },
@@ -584,6 +586,7 @@ impl Metamodel {
             TraceRule { kind: "validates", from: "TestCase, Scenario", to: "Requirement, Capability", doc: "Validation evidence." },
             TraceRule { kind: "realizes", from: "lower-layer element", to: "upper-layer element", doc: "Inter-layer realization: SA→OA, LA→SA, PA→LA, EPBS→PA." },
             TraceRule { kind: "refines", from: "Requirement", to: "Requirement", doc: "Requirement decomposition." },
+            TraceRule { kind: "derives", from: "Requirement", to: "Requirement", doc: "A requirement derived from another (SysML `derive`): `trace \"REQ-CELL-TEMP\" derives \"REQ-RANGE\"`. Drawn on the requirements view." },
             TraceRule { kind: "allocates", from: "component, node", to: "function, component", doc: "Allocation (also expressed by nesting and `deployment`)." },
         ];
 
@@ -705,12 +708,13 @@ impl Metamodel {
         out.push_str("Each dimension converts to its canonical unit for arithmetic.\n\n");
         out.push_str("| Symbol | Dimension | Factor to canonical | SysML v2 (SI) |\n|---|---|---|---|\n");
         for unit in self.units {
+            let factor = if unit.offset == 0.0 { unit.factor.to_string() } else { format!("{} + {}", unit.factor, unit.offset) };
             out.push_str(&format!(
                 "| `{}` | {} ({}) | {} | `{}` |\n",
                 unit.symbol,
                 unit.dimension.label(),
                 unit.dimension.canonical_unit(),
-                unit.factor,
+                factor,
                 unit.sysml
             ));
         }

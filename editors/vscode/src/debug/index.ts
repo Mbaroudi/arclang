@@ -8,7 +8,8 @@ import * as path from 'node:path';
 import * as vscode from 'vscode';
 import { binary, run } from '../cli';
 import { WorkbenchPanel } from '../workbench/panel';
-import { DebugStateMessage, firePicks, Runnables, runPicks } from '../pure/debug';
+import { DebugStateMessage, firePicks, nothingToRun, Runnables, runPicks } from '../pure/debug';
+import { simulates } from '../pure/simulation';
 
 interface MachineState {
   kind: string;
@@ -40,18 +41,48 @@ function activeModel(): string | null {
   return tab?.uri?.fsPath.endsWith('.arc') ? tab.uri.fsPath : null;
 }
 
+/**
+ * What a model runs, or null once the user has been told why nothing runs:
+ * the model does not compile, or it has nothing to run (with the simulations
+ * offered when the model is verified by simulation).
+ */
+async function runnablesOf(program: string): Promise<Runnables | null> {
+  const listed = await run(['debug', program, '--list'], { cwd: path.dirname(program) });
+  let runnables: Runnables;
+  try {
+    runnables = JSON.parse(listed.stdout) as Runnables;
+  } catch {
+    void vscode.window.showErrorMessage(`ArcLang: the model does not compile, nothing to run. ${listed.stderr.trim().split('\n').pop() ?? ''}`);
+    return null;
+  }
+  if (runPicks(runnables).length > 0) return runnables;
+  let text = '';
+  try {
+    text = Buffer.from(await vscode.workspace.fs.readFile(vscode.Uri.file(program))).toString('utf8');
+  } catch {
+    /* unreadable: nothing more to offer */
+  }
+  const { text: message, action } = nothingToRun(simulates(text));
+  void (action ? vscode.window.showInformationMessage(message, action) : vscode.window.showInformationMessage(message)).then((choice) => {
+    if (choice === 'Run simulations') void vscode.commands.executeCommand('arclang.simulation.run', vscode.Uri.file(program));
+  });
+  return null;
+}
+
 export function registerDebug(context: vscode.ExtensionContext): void {
   context.subscriptions.push(
     vscode.debug.registerDebugAdapterDescriptorFactory('arclang', {
       createDebugAdapterDescriptor: () => new vscode.DebugAdapterExecutable(binary(), ['debug', '--dap']),
     }),
     vscode.debug.registerDebugConfigurationProvider('arclang', {
-      resolveDebugConfiguration(_folder, config) {
+      async resolveDebugConfiguration(_folder, config) {
         const program = typeof config.program === 'string' && config.program ? config.program : activeModel();
         if (!program) {
           void vscode.window.showInformationMessage('ArcLang: open a .arc model with a state machine to run it.');
           return undefined;
         }
+        // F5 with nothing named runs the first: say so when there is none.
+        if (!config.machine && !config.scenario && !config.chain && !(await runnablesOf(program))) return undefined;
         return { ...config, type: 'arclang', request: 'launch', name: config.name || `Run ${path.basename(program)}`, program };
       },
     }),
@@ -70,15 +101,9 @@ export function registerDebug(context: vscode.ExtensionContext): void {
       const program = uri instanceof vscode.Uri ? uri.fsPath : activeModel();
       if (!program) return vscode.window.showInformationMessage('ArcLang: open a .arc model to run one of its state machines, scenarios or functional chains.');
       // What the model runs: one is run at once, several are offered.
-      const listed = await run(['debug', program, '--list'], { cwd: path.dirname(program) });
-      let runnables: Runnables;
-      try {
-        runnables = JSON.parse(listed.stdout) as Runnables;
-      } catch {
-        return vscode.window.showErrorMessage(`ArcLang: the model does not compile, nothing to run. ${listed.stderr.trim().split('\n').pop() ?? ''}`);
-      }
+      const runnables = await runnablesOf(program);
+      if (!runnables) return;
       const picks = runPicks(runnables);
-      if (picks.length === 0) return vscode.window.showInformationMessage('ArcLang: the model has no state machine, scenario or functional chain to run.');
       const choice = picks.length === 1 ? picks[0] : await vscode.window.showQuickPick(picks, { placeHolder: 'What to run, step by step' });
       if (!choice) return;
       await vscode.debug.startDebugging(vscode.workspace.getWorkspaceFolder(vscode.Uri.file(program)), { type: 'arclang', request: 'launch', name: `Run ${choice.name}`, program, [choice.key]: choice.name });

@@ -49,6 +49,16 @@ pub enum Dimension {
     /// canonical: radian (rad); a degree is pi/180 rad. Latitude, longitude,
     /// headings: geometry needs angles.
     Angle,
+    /// canonical: coulomb (A·s); an ampere-hour is 3600 C.
+    Charge,
+    /// canonical: ohm (V/A)
+    Resistance,
+    /// canonical: watt per kelvin (W/K)
+    ThermalConductance,
+    /// canonical: joule per kelvin (J/K)
+    HeatCapacity,
+    /// canonical: square metre (m²)
+    Area,
 }
 
 impl Dimension {
@@ -71,6 +81,11 @@ impl Dimension {
             Dimension::Speed => "m/s",
             Dimension::Ratio => "one",
             Dimension::Angle => "rad",
+            Dimension::Charge => "C",
+            Dimension::Resistance => "Ohm",
+            Dimension::ThermalConductance => "W/K",
+            Dimension::HeatCapacity => "J/K",
+            Dimension::Area => "m²",
         }
     }
 
@@ -93,6 +108,11 @@ impl Dimension {
             Dimension::Speed => "speed",
             Dimension::Ratio => "ratio",
             Dimension::Angle => "angle",
+            Dimension::Charge => "electric charge",
+            Dimension::Resistance => "resistance",
+            Dimension::ThermalConductance => "thermal conductance",
+            Dimension::HeatCapacity => "heat capacity",
+            Dimension::Area => "area",
         }
     }
 
@@ -115,6 +135,11 @@ impl Dimension {
             Dimension::Speed => "SpeedValue",
             Dimension::Ratio => "DimensionOneValue",
             Dimension::Angle => "AngularMeasureValue",
+            Dimension::Charge => "ElectricChargeValue",
+            Dimension::Resistance => "ResistanceValue",
+            Dimension::ThermalConductance => "ThermalConductanceValue",
+            Dimension::HeatCapacity => "HeatCapacityValue",
+            Dimension::Area => "AreaValue",
         }
     }
 }
@@ -220,7 +245,7 @@ impl DimVec {
     }
 }
 
-const ALL_DIMENSIONS: [Dimension; 16] = [
+const ALL_DIMENSIONS: [Dimension; 21] = [
     Dimension::Time,
     Dimension::Frequency,
     Dimension::DataRate,
@@ -237,6 +262,11 @@ const ALL_DIMENSIONS: [Dimension; 16] = [
     Dimension::Speed,
     Dimension::Ratio,
     Dimension::Angle,
+    Dimension::Charge,
+    Dimension::Resistance,
+    Dimension::ThermalConductance,
+    Dimension::HeatCapacity,
+    Dimension::Area,
 ];
 
 impl Dimension {
@@ -260,6 +290,11 @@ impl Dimension {
             Dimension::Speed => DimVec::new(-1, 1, 0, 0, 0, 0),
             Dimension::Ratio => DimVec::NONE,
             Dimension::Angle => DimVec::ANGLE,
+            Dimension::Charge => DimVec::new(1, 0, 0, 1, 0, 0),
+            Dimension::Resistance => DimVec::new(-3, 2, 1, -2, 0, 0),
+            Dimension::ThermalConductance => DimVec::new(-3, 2, 1, 0, -1, 0),
+            Dimension::HeatCapacity => DimVec::new(-2, 2, 1, 0, -1, 0),
+            Dimension::Area => DimVec::new(0, 2, 0, 0, 0, 0),
         }
     }
 }
@@ -272,12 +307,31 @@ pub struct UnitSpec {
     pub dimension: Dimension,
     /// Multiply a value in this unit by `factor` to get the canonical unit.
     pub factor: f64,
+    /// Then add `offset`: 273.15 for degrees Celsius, 0 for every other unit.
+    pub offset: f64,
     /// Name in the SysML v2 `SI` library (or an expression over it).
     pub sysml: &'static str,
 }
 
 const fn unit(symbol: &'static str, dimension: Dimension, factor: f64, sysml: &'static str) -> UnitSpec {
-    UnitSpec { symbol, dimension, factor, sysml }
+    UnitSpec { symbol, dimension, factor, offset: 0.0, sysml }
+}
+
+/// A unit whose zero is not the canonical zero (degrees Celsius).
+const fn affine(symbol: &'static str, dimension: Dimension, offset: f64, sysml: &'static str) -> UnitSpec {
+    UnitSpec { symbol, dimension, factor: 1.0, offset, sysml }
+}
+
+impl UnitSpec {
+    /// A value in this unit, in the canonical unit.
+    pub fn to_canonical(&self, value: f64) -> f64 {
+        value * self.factor + self.offset
+    }
+
+    /// A canonical value, in this unit.
+    pub fn from_canonical(&self, canonical: f64) -> f64 {
+        (canonical - self.offset) / self.factor
+    }
 }
 
 /// The unit table. Symbols are case-sensitive (SI): `ms` is milliseconds,
@@ -350,8 +404,32 @@ pub const UNITS: &[UnitSpec] = &[
     unit("Pa", Dimension::Pressure, 1.0, "Pa"),
     unit("kPa", Dimension::Pressure, 1e3, "kPa"),
     unit("bar", Dimension::Pressure, 1e5, "bar"),
-    // Temperature (absolute scales only; offsets are not linear factors)
+    // Temperature. A degree Celsius is a temperature level (20 °C is
+    // 293.15 K); a difference of temperatures is written in K.
     unit("K", Dimension::Temperature, 1.0, "K"),
+    // SysML's '°C' is a temperature difference: a level is exported in K.
+    affine("°C", Dimension::Temperature, 273.15, "K"),
+    affine("degC", Dimension::Temperature, 273.15, "K"),
+    // Charge, resistance
+    unit("C", Dimension::Charge, 1.0, "C"),
+    unit("mAh", Dimension::Charge, 3.6, "'mA*h'"),
+    unit("Ah", Dimension::Charge, 3600.0, "'A*h'"),
+    unit("mOhm", Dimension::Resistance, 1e-3, "'mΩ'"),
+    unit("Ohm", Dimension::Resistance, 1.0, "'Ω'"),
+    unit("Ω", Dimension::Resistance, 1.0, "'Ω'"),
+    unit("mΩ", Dimension::Resistance, 1e-3, "'mΩ'"),
+    unit("kOhm", Dimension::Resistance, 1e3, "'kΩ'"),
+    unit("kΩ", Dimension::Resistance, 1e3, "'kΩ'"),
+    // Heat
+    unit("W/K", Dimension::ThermalConductance, 1.0, "'W/K'"),
+    unit("kW/K", Dimension::ThermalConductance, 1e3, "'kW/K'"),
+    unit("J/K", Dimension::HeatCapacity, 1.0, "'J/K'"),
+    unit("kJ/K", Dimension::HeatCapacity, 1e3, "'kJ/K'"),
+    unit("MJ/K", Dimension::HeatCapacity, 1e6, "'MJ/K'"),
+    // Area
+    unit("cm²", Dimension::Area, 1e-4, "'cm²'"),
+    unit("m²", Dimension::Area, 1.0, "'m²'"),
+    unit("m2", Dimension::Area, 1.0, "'m²'"),
     // Speed
     unit("m/s", Dimension::Speed, 1.0, "'m/s'"),
     unit("km/h", Dimension::Speed, 1000.0 / 3600.0, "'km/h'"),
@@ -442,7 +520,7 @@ impl Quantity {
 
     /// Value expressed in the canonical unit of its dimension.
     pub fn canonical(&self) -> f64 {
-        self.value * self.spec().factor
+        self.spec().to_canonical(self.value)
     }
 
     /// Convert to another unit of the SAME dimension.
@@ -454,7 +532,7 @@ impl Quantity {
         if target.dimension != self.dimension() {
             return Err(QuantityError::UnknownUnit { value: self.value, unit: unit.to_string() });
         }
-        Ok(Quantity { value: self.canonical() / target.factor, unit: target.symbol.to_string() })
+        Ok(Quantity { value: target.from_canonical(self.canonical()), unit: target.symbol.to_string() })
     }
 
     /// Convenience for the production gate: milliseconds if this is a time.
@@ -564,8 +642,30 @@ mod tests {
         assert_eq!(Quantity::parse("1 TB").unwrap().canonical(), 8e12);
         assert_eq!(Quantity::parse("1000 GB").unwrap().canonical(), Quantity::parse("1 TB").unwrap().canonical());
         assert_eq!(lookup_unit("Tbps").unwrap().sysml, "'Tbit/s'");
-        // Temperatures are absolute only: a Celsius offset is not a factor.
-        assert!(lookup_unit("degC").is_none());
-        assert!(lookup_unit("°C").is_none());
+    }
+
+    #[test]
+    fn celsius_is_a_temperature_level_with_its_offset() {
+        assert_eq!(Quantity::new(20.0, "°C").unwrap().canonical(), 293.15);
+        assert_eq!(Quantity::new(-10.0, "degC").unwrap().canonical(), 263.15);
+        assert!((Quantity::new(300.0, "K").unwrap().to_unit("°C").unwrap().value - 26.85).abs() < 1e-9);
+        assert_eq!(Quantity::new(35.0, "°C").unwrap().dimension(), Dimension::Temperature);
+    }
+
+    #[test]
+    fn units_of_physics_charge_resistance_heat_and_area() {
+        assert_eq!(Quantity::parse("40 Ah").unwrap().canonical(), 144000.0);
+        assert_eq!(Quantity::parse("2500 mAh").unwrap().canonical(), 9000.0);
+        assert_eq!(Quantity::new(25.0, "mOhm").unwrap().canonical(), 0.025);
+        assert_eq!(Quantity::new(25.0, "mΩ").unwrap().canonical(), Quantity::new(0.025, "Ohm").unwrap().canonical());
+        assert_eq!(Quantity::new(200.0, "W/K").unwrap().dimension(), Dimension::ThermalConductance);
+        assert_eq!(Quantity::new(15.0, "MJ/K").unwrap().canonical(), 1.5e7);
+        assert_eq!(Quantity::new(0.23, "m²").unwrap().dimension(), Dimension::Area);
+        let v = |d: Dimension| d.vector();
+        assert_eq!(v(Dimension::Current).multiply(v(Dimension::Time)).named(), Some(Dimension::Charge));
+        assert_eq!(v(Dimension::Voltage).divide(v(Dimension::Current)).named(), Some(Dimension::Resistance));
+        assert_eq!(v(Dimension::Power).divide(v(Dimension::Temperature)).named(), Some(Dimension::ThermalConductance));
+        assert_eq!(v(Dimension::Energy).divide(v(Dimension::Temperature)).named(), Some(Dimension::HeatCapacity));
+        assert_eq!(v(Dimension::Length).multiply(v(Dimension::Length)).named(), Some(Dimension::Area));
     }
 }

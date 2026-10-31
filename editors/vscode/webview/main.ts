@@ -101,11 +101,14 @@ function specialTool(tool: Tool): void {
   const records = state.snapshot?.elements?.elements ?? [];
   if (tool.special === 'requirement') {
     const id = nextRequirementId(records.filter((e) => e.kind === 'Requirement').map((e) => e.id));
-    const by = state.selected && state.selected.kind !== 'Requirement' ? state.selected : null;
-    void inlinePrompt(sheet, `New requirement ${id}${by ? `, satisfied by ${by.name || by.id}` : ''}`, '', 'The system shall…').then((text) => {
+    // Satisfied by the element selected; derived from the requirement selected.
+    const by = state.selected && state.selected.kind !== 'Requirement' && state.selected.kind !== 'TestCase' ? state.selected : null;
+    const from = state.selected && state.selected.kind === 'Requirement' ? state.selected : null;
+    const why = by ? `, satisfied by ${by.name || by.id}` : from ? `, derived from ${from.name || from.id}` : '';
+    void inlinePrompt(sheet, `New requirement ${id}${why}`, '', 'The system shall…').then((text) => {
       if (text === null || !text.trim()) return;
       const hasBlock = records.some((e) => e.kind === 'Requirement');
-      submit(requirementRequests(id, text.trim(), by?.id ?? null, hasBlock), `requirement ${id}`);
+      submit(requirementRequests(id, text.trim(), by?.id ?? null, hasBlock, from?.id ?? null), `requirement ${id}`);
     });
     return;
   }

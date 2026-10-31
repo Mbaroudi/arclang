@@ -143,6 +143,33 @@ fn split_writes_one_file_per_class_in_a_library_folder() {
 }
 
 #[test]
+fn a_split_export_replaces_the_single_file_arclang_wrote_beside_it() {
+    let dir = tempfile::tempdir().unwrap();
+    let export = |split: bool| {
+        let mut command = std::process::Command::new(env!("CARGO_BIN_EXE_arclang"));
+        command.arg("export").arg(root().join(DEMO)).args(["-f", "modelica", "-o"]).arg(dir.path());
+        if split {
+            command.arg("--split");
+        }
+        let out = command.output().unwrap();
+        assert!(out.status.success(), "{}", String::from_utf8_lossy(&out.stderr));
+        String::from_utf8_lossy(&out.stdout).to_string()
+    };
+    let single = dir.path().join("EVRangeSimulation.mo");
+    export(false);
+    assert!(single.is_file());
+    let text = export(true);
+    assert!(!single.exists(), "the package would be defined twice");
+    assert!(text.contains("removed") && dir.path().join("EVRangeSimulation/Systems/City.mo").is_file(), "{text}");
+    // A file of the same name that ArcLang did not write is never touched.
+    std::fs::write(&single, "package EVRangeSimulation end EVRangeSimulation;").unwrap();
+    export(true);
+    assert!(single.is_file());
+    // And a single-file export says the folder is there.
+    assert!(export(false).contains("also holds a split export"));
+}
+
+#[test]
 fn every_example_with_physical_nodes_draws_without_overlap() {
     let mut seen = 0;
     let mut stack: Vec<PathBuf> = vec![root().join("examples")];

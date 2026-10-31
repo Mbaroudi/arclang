@@ -116,6 +116,8 @@ impl Document {
             .filter(|block| name.is_none() || self.header_name(block).as_deref() == name)
             .collect();
         match matches.len() {
+            // Requirements are declared in a `requirements` block or in the system analysis.
+            0 if keyword == "requirements" && name.is_none() => self.find_layer("system_analysis", None).map_err(|_| EditError::NotFound(described)),
             0 => Err(EditError::NotFound(described)),
             1 => Ok(matches.into_iter().next().expect("one match")),
             _ => Err(EditError::Ambiguous {
@@ -761,6 +763,52 @@ pub fn remove_trace(source: &str, from: &[&str], kind: &str, to: &[&str]) -> Res
     Ok(edited)
 }
 
+/// Write attribute `key` on the trace of `kind` from `from` to `to` (each
+/// end as the text writes it): in its block, or in a block given to a trace
+/// written without one. Comments and layout are kept.
+pub fn set_trace_attribute(source: &str, from: &str, kind: &str, to: &str, key: &str, value: &str) -> Result<String, EditError> {
+    let document = Document::read(source)?;
+    let described = format!("trace \"{from}\" {kind} \"{to}\"");
+    let string = |lexeme: &Lexeme| match token(lexeme) {
+        Some(Token::StringLiteral(text)) => Some(text.clone()),
+        _ => None,
+    };
+    let blocks: Vec<Block> = document
+        .blocks()
+        .into_iter()
+        .filter(|block| document.is_relationship(block))
+        .filter(|block| {
+            let header = document.header(block);
+            let ends: Vec<String> = header.iter().filter_map(string).collect();
+            let verb = header.iter().skip(1).find(|lexeme| string(lexeme).is_none()).map(|lexeme| lexeme.text.as_str());
+            matches!(ends.as_slice(), [source, target] if source == from && target == to) && verb == Some(kind)
+        })
+        .collect();
+    let bare = document.bodiless_traces(&[from], kind, &[to]);
+    let edited = match (blocks.as_slice(), bare.as_slice()) {
+        ([block], []) => match document.find_attribute(block, key) {
+            Some(attribute) => {
+                let start = document.lexemes[attribute.value_start].offset;
+                let end = document.end_of(attribute.value_end - 1);
+                document.splice(start, end, value)
+            }
+            None => document.insert_attribute(block, key, value),
+        },
+        ([], [(_, last)]) => {
+            let at = document.end_of(*last);
+            document.splice(at, at, &format!(" {{ {key}: {value} }}"))
+        }
+        ([], []) => return Err(EditError::NotFound(described)),
+        _ => {
+            let mut lines: Vec<usize> = blocks.iter().map(|b| document.lexemes[document.header_start(b)].span.line).collect();
+            lines.extend(bare.iter().map(|(first, _)| document.lexemes[*first].span.line));
+            return Err(EditError::Ambiguous { element: described, lines });
+        }
+    };
+    Document::read(&edited)?;
+    Ok(edited)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -870,5 +918,12 @@ trace "LC-001" implements "LC-002" {}
         let model = "model T { name: \"t\" }\nlogical_architecture LA {\n    component Fusion {\n        id: \"LC-F\"\n        function \"Fuse data\"\n    }\n}\n";
         let edited = add_element(model, Container::Element("Fuse data"), "port out", "objects", &[]).unwrap();
         assert!(edited.contains("        function \"Fuse data\" {\n            port out \"objects\" {}\n        }\n"), "{edited}");
+    }
+
+    #[test]
+    fn a_requirement_goes_in_the_system_analysis_when_there_is_no_requirements_block() {
+        let model = "model T {}\nsystem_analysis \"Needs\" {\n    requirement \"Range\" { id: \"REQ-1\" }\n}\n";
+        let edited = add_declaration(model, Container::Layer { keyword: "requirements", name: None }, "requirement \"REQ-2\" { description: \"x\" }").unwrap();
+        assert!(edited.contains("system_analysis \"Needs\" {\n    requirement \"Range\" { id: \"REQ-1\" }\n    requirement \"REQ-2\""), "{edited}");
     }
 }

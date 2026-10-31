@@ -68,7 +68,10 @@ pub enum Term {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Expect {
+    /// The comparison as written, without its requirement.
     pub text: String,
+    /// The requirement it checks (`REQ-SHED: ...`); `None`: every requirement the case verifies.
+    pub requirement: Option<String>,
     pub lhs: Term,
     pub cmp: Cmp,
     pub rhs: Term,
@@ -258,7 +261,7 @@ impl Parser<'_> {
                 None => Term::Number { value, dim: DimVec::NONE, unit: None },
                 Some(symbol) => {
                     let spec = lookup_unit(&symbol).expect("tokenized from the table");
-                    Term::Number { value: value * spec.factor, dim: spec.dimension.vector(), unit: Some(symbol) }
+                    Term::Number { value: spec.to_canonical(value), dim: spec.dimension.vector(), unit: Some(symbol) }
                 }
             }),
             Some(Token::Open) => {
@@ -311,7 +314,17 @@ fn describe(token: Option<&Token>) -> String {
 
 /// Parse one expectation; quoted ArcLang ids resolve through `aliases`
 /// (id or name -> instance path).
-pub fn parse(text: &str, aliases: &BTreeMap<String, String>) -> Result<Expect, String> {
+/// `REQ-SHED: at(40 min, x) <= 1 W`: the requirement an expectation checks,
+/// then the comparison. A comparison holds no colon, so one names a requirement.
+pub fn split_requirement(text: &str) -> (Option<&str>, &str) {
+    match text.split_once(':') {
+        Some((requirement, rest)) if !requirement.trim().is_empty() && !requirement.contains('"') => (Some(requirement.trim()), rest.trim()),
+        _ => (None, text),
+    }
+}
+
+pub fn parse(full: &str, aliases: &BTreeMap<String, String>) -> Result<Expect, String> {
+    let (requirement, text) = split_requirement(full);
     let tokens = tokens(text).map_err(|e| format!("expects \"{text}\": {e}"))?;
     let mut parser = Parser { tokens, at: 0, aliases };
     let wrap = |e: String| format!("expects \"{text}\": {e}");
@@ -329,12 +342,13 @@ pub fn parse(text: &str, aliases: &BTreeMap<String, String>) -> Result<Expect, S
     if let Some(extra) = parser.peek() {
         return Err(wrap(format!("unexpected {} after the comparison", describe(Some(extra)))));
     }
-    Ok(Expect { text: text.to_string(), lhs, cmp, rhs })
+    Ok(Expect { text: text.to_string(), requirement: requirement.map(str::to_string), lhs, cmp, rhs })
 }
 
 /// The syntax of an expectation, without the model: quoted ids are not
 /// resolved yet.
-pub fn check_syntax(text: &str) -> Result<(), String> {
+pub fn check_syntax(full: &str) -> Result<(), String> {
+    let text = split_requirement(full).1;
     let tokens = tokens(text).map_err(|e| format!("expects \"{text}\": {e}"))?;
     let aliases: BTreeMap<String, String> = tokens
         .iter()
@@ -343,7 +357,7 @@ pub fn check_syntax(text: &str) -> Result<(), String> {
             _ => None,
         })
         .collect();
-    parse(text, &aliases).map(|_| ())
+    parse(full, &aliases).map(|_| ())
 }
 
 /// A value in SI; `dim` is `None` when a variable's unit is unknown.
@@ -360,6 +374,13 @@ pub struct Evaluated {
     /// `final(vehicleBody.distance) = 287.4 km`.
     pub value: String,
     pub holds: bool,
+    /// How far the value is from its bound: `short by 0.07341`,
+    /// `19.9 km to spare`. Empty for an equality that holds.
+    #[serde(default)]
+    pub margin: String,
+    /// The requirement the expectation checks, when it names one.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub requirement: Option<String>,
 }
 
 pub struct Context<'a> {
@@ -444,7 +465,7 @@ fn shown(value: Value, unit: Option<&str>) -> String {
         if text == "-0" { "0".to_string() } else { text }
     };
     match (unit.and_then(lookup_unit), value.dim) {
-        (Some(spec), Some(dim)) if spec.dimension.vector() == dim => format!("{} {}", number(value.si / spec.factor), spec.symbol),
+        (Some(spec), Some(dim)) if spec.dimension.vector() == dim => format!("{} {}", number(spec.from_canonical(value.si)), spec.symbol),
         (_, Some(dim)) if !dim.is_dimensionless() => format!("{} {}", number(value.si), dim.unit()),
         _ => number(value.si),
     }
@@ -453,7 +474,10 @@ fn shown(value: Value, unit: Option<&str>) -> String {
 fn label(term: &Term) -> String {
     match term {
         Term::Call { function, at: None, variable } => format!("{function}({variable})"),
-        Term::Call { variable, .. } => format!("at(..., {variable})"),
+        Term::Call { variable, at: Some(t), .. } => match t.as_ref() {
+            Term::Number { value, dim, unit } => format!("at({}, {variable})", shown(Value { si: *value, dim: Some(*dim) }, unit.as_deref())),
+            _ => format!("at(..., {variable})"),
+        },
         _ => "value".to_string(),
     }
 }
@@ -466,7 +490,22 @@ pub fn evaluate(expect: &Expect, context: &mut Context<'_>) -> Result<Evaluated,
     let holds = expect.cmp.holds(lhs.si, rhs.si);
     let unit = written_unit(&expect.rhs).or_else(|| written_unit(&expect.lhs));
     let value = format!("{} = {}", label(&expect.lhs), shown(lhs, unit));
-    Ok(Evaluated { expect: expect.text.clone(), value, holds })
+    let gap_si = (lhs.si - rhs.si).abs();
+    // A gap is a difference: 4.9 K, never 4.9 °C read as a level.
+    let gap_unit = unit.filter(|u| lookup_unit(u).is_none_or(|spec| spec.offset == 0.0)).or(unit.map(|_| "K"));
+    let gap = shown(Value { si: gap_si, dim: lhs.dim.or(rhs.dim) }, gap_unit);
+    // A gap below what four significant digits show: the value sits on its bound.
+    let on_bound = gap_si <= 5e-5 * lhs.si.abs().max(rhs.si.abs());
+    let margin = match (expect.cmp, holds) {
+        (Cmp::Eq, true) => String::new(),
+        (_, true) if on_bound => "at the bound".to_string(),
+        (Cmp::Ne, false) => "equal".to_string(),
+        (Cmp::Eq, false) | (Cmp::Ne, true) => format!("off by {gap}"),
+        (Cmp::Gt | Cmp::Ge, false) => format!("short by {gap}"),
+        (Cmp::Lt | Cmp::Le, false) => format!("over by {gap}"),
+        _ => format!("{gap} to spare"),
+    };
+    Ok(Evaluated { expect: expect.text.clone(), value, holds, margin, requirement: expect.requirement.clone() })
 }
 
 #[cfg(test)]
@@ -499,10 +538,51 @@ mod tests {
         assert!(run("max(body.speed) < 101 km/h").unwrap().holds);
         // Trapezoidal mean: (0.8*1800 + 0.4*1800) / 3600.
         assert_eq!(run("mean(battery.soc) > 0").unwrap().value, "mean(battery.soc) = 0.6");
-        assert_eq!(run("at(900 s, battery.soc) > 0").unwrap().value, "at(..., battery.soc) = 0.8");
+        assert_eq!(run("at(900 s, battery.soc) > 0").unwrap().value, "at(900 s, battery.soc) = 0.8");
         assert!(run("at(0.5 h, body.distance) == 150 km").unwrap().holds);
         assert!(run("final(body.distance) - initial(body.distance) > 2 * 150 km").unwrap().holds);
         assert!(run("min(\"PN-BATT\".soc) >= 0.1").unwrap().holds, "an ArcLang id names the instance");
+    }
+
+    #[test]
+    fn an_expectation_may_name_the_requirement_it_checks() {
+        let aliases = BTreeMap::new();
+        let tagged = parse("REQ-SHED: final(body.distance) >= 300 km", &aliases).unwrap();
+        assert_eq!(tagged.requirement.as_deref(), Some("REQ-SHED"));
+        assert_eq!(tagged.text, "final(body.distance) >= 300 km");
+        assert_eq!(parse("final(body.distance) >= 300 km", &aliases).unwrap().requirement, None);
+        assert!(check_syntax("Load shedding: at(40 min, cabin.drawn) <= 1 W").is_ok(), "a requirement by its name");
+        assert!(check_syntax("REQ-SHED: at(40 min, cabin.drawn) <=").is_err());
+        let evaluated = run("REQ-RANGE: final(body.distance) >= 300 km").unwrap();
+        assert_eq!(evaluated.requirement.as_deref(), Some("REQ-RANGE"));
+        assert_eq!(evaluated.expect, "final(body.distance) >= 300 km");
+    }
+
+    #[test]
+    fn celsius_compares_as_a_temperature_level() {
+        let aliases = BTreeMap::new();
+        let warm = parse("max(cells.T) <= 55 °C", &aliases).unwrap();
+        assert!(matches!(warm.rhs, Term::Number { value, .. } if (value - 328.15).abs() < 1e-9), "{:?}", warm.rhs);
+        assert_eq!(shown(Value { si: 323.3, dim: Some(crate::compiler::quantity::Dimension::Temperature.vector()) }, Some("°C")), "50.15 °C");
+        let mut series = Series::from_csv("time,cells.T\n0,308.15\n1,323.3\n").unwrap();
+        series.set_units([("cells.T".to_string(), "K".to_string())].into_iter().collect());
+        let mut notes = Vec::new();
+        let evaluated = evaluate(&warm, &mut Context { series: &series, notes: &mut notes }).unwrap();
+        assert_eq!(evaluated.value, "max(cells.T) = 50.15 °C");
+        assert_eq!(evaluated.margin, "4.85 K to spare", "a gap is a difference, in kelvin");
+    }
+
+    #[test]
+    fn margins_say_how_far_a_value_is_from_its_bound() {
+        assert_eq!(run("min(battery.soc) >= 0.25").unwrap().margin, "short by 0.05");
+        assert_eq!(run("min(battery.soc) >= 0.1").unwrap().margin, "0.1 to spare");
+        assert_eq!(run("final(body.distance) >= 300 km").unwrap().margin, "0.5 km to spare");
+        assert_eq!(run("max(body.speed) < 100 km/h").unwrap().margin, "over by 0.08 km/h");
+        assert_eq!(run("initial(battery.soc) == 1").unwrap().margin, "");
+        assert_eq!(run("initial(battery.soc) == 0.5").unwrap().margin, "off by 0.5");
+        // A run that ends on its bound (a terminate() at 300 km) is not "0.00000006 km to spare".
+        assert_eq!(run("final(body.distance) >= 300.4999999 km").unwrap().margin, "at the bound");
+        assert_eq!(run("final(body.distance) >= 300.6 km").unwrap().margin, "short by 0.1 km");
     }
 
     #[test]

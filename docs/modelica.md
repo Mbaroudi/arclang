@@ -19,7 +19,7 @@ pack does not.
 | `arclang export model.arc -f modelica -o out/` | Writes `out/<Package>.mo`, the structure of the physical architecture, drawn (see below). Notes what is not exported. |
 | `arclang export model.arc -f modelica -o out/ --split` | The same package as one file per class in an `out/<Package>/` folder (a Modelica library): what Modex browses. |
 | `arclang export model.arc -f modelica -o out/ --no-placement` | The structure alone, with no drawing: the text `arclang verify` simulates. |
-| `arclang verify model.arc [--test TC-ID] [--json]` | Exports to a temporary directory, runs OpenModelica on every case that `simulate:`s (or one), reads the result, evaluates `expects:`, prints the values and caches the verdicts. Exits non-zero unless every case passes. |
+| `arclang verify model.arc [--test TC-ID] [--json]` | Exports to a temporary directory, runs OpenModelica on every case that `simulate:`s (or one), reads the result, evaluates `expects:`, prints the values (each with its margin: `short by 0.07341`, `19.91 km to spare`), the requirements, configuration and model of each case and the time taken, and caches the verdicts. `-v` also prints what OpenModelica printed. Exits non-zero unless every case passes. |
 | `arclang check model.arc` | Never simulates. Reads the cache: a fail, a stale or a missing verdict is a `verification:` warning. |
 | `arclang gate model.arc` | Never simulates. A failing simulated case is a blocker; so is one whose verdict is stale or missing (inconclusive), with the command to run. |
 | `arclang table model.arc --kind requirements_coverage` | The verdict of each case, and a **Key values** column with what the simulation evaluated to. |
@@ -66,7 +66,12 @@ for the menu (also *ArcLang: Simulation* in the command palette):
 - **Run simulations on this model** (also the play button in the editor
   title and *Simulate* in the workbench): runs `arclang verify`, with a
   progress notification that can be cancelled; the result offers *Show the
-  verdicts* (the requirement coverage table) and *Show the log*.
+  verdicts* (the requirement coverage table) and *Show the log*. The log is
+  the **ArcLang Simulation** output channel: each run begins with its time,
+  file and tool, then each case with its name, the requirements it
+  verifies, its configuration and model, each value with how far it is from
+  its bound, and what OpenModelica printed; it ends on the count and the
+  time taken.
 - **Check my setup**: a checklist of Docker installed, Docker running, the
   OpenModelica image, the Modelica library, a local `omc`, and the Modex
   extension (to draw `.mo` files), each missing item with a button: open the
@@ -74,8 +79,16 @@ for the menu (also *ArcLang: Simulation* in the command palette):
   (about 1 GB, with progress), install the library now, install Modex, or
   show the exact command in a terminal (typed, not run).
 - **Set up OpenModelica (guided)**: the same fixes, one step at a time.
-- **Export Modelica**, **Open the Modelica drawing**, **Open the
-  documentation**.
+- **Export Modelica** writes `modelica/<Package>/`, one file per class
+  (`--split`), and offers to open the drawing; an earlier single-file export
+  written by ArcLang beside it is removed, since OpenModelica would see the
+  package twice.
+- **Open the Modelica drawing** asks which configuration and opens
+  `<Package>/Systems/<Configuration>.mo` in Modex, the model that holds the
+  whole architecture (the package itself has nothing to draw). The first
+  time, it offers to add the export folder to `modex.libraryRoots` for the
+  workspace, so that Modex draws each part from its class.
+- **Open the documentation**.
 
 When you run simulations and nothing is available, the checklist opens
 instead of an error. The first run with Docker installs the Modelica library
@@ -244,7 +257,7 @@ test_case "Winter range, long range pack" {
     id: "TC-RANGE-LR"
     verifies: ["REQ-RANGE"]
     method: "analysis"
-    simulate: { model: "EVPhysics.TouringRange" configuration: "CFG-TOURING" stop_time: 3.2 h sources: ["physics/EVPhysics.mo"] }
+    simulate: { model: "EVPhysics.TouringRange" configuration: "CFG-TOURING" stop_time: 5 h sources: ["physics/EVPhysics.mo"] }
     expects: ["final(vehicleBody.distance) >= 300 km", "min(\"PN-BATT\".soc) >= 0.1"]
 }
 ```
@@ -256,6 +269,88 @@ OpenModelica checks it with `extendsFrom`), `stop_time` (required) and
 model file), `tolerance` (default `1e-6`) and `intervals` (output intervals,
 default 500). A case that simulates neither asserts constraints nor gives a
 verdict.
+
+### Which requirement an expectation checks
+
+A case often verifies more than one requirement. An expectation may name the
+one it checks, before a colon:
+
+```arc
+test_case "Generator loss, 25 Ah battery" {
+    verifies: ["REQ-ESS-30MIN", "REQ-SHED"]
+    simulate: { ... }
+    expects: ["REQ-ESS-30MIN: min(\"PN-ESS\".voltage) >= 24 V",
+              "REQ-SHED: at(40 min, \"PN-NESS\".drawn) <= 1 W"]
+}
+```
+
+Each requirement is then judged on the expectations naming it and on those
+naming none: here the bus voltage fails `REQ-ESS-30MIN` and leaves
+`REQ-SHED`, whose cabin loads are shed, verified. An expectation naming a
+requirement the case does not verify is an error, and so is a requirement
+the case verifies that no expectation checks. Without names, every
+expectation checks every requirement, as before.
+
+### Requirements of a product line
+
+A requirement holds for every configuration unless it says for which:
+
+```arc
+requirement "Hover endurance" { id: "REQ-ENDURANCE" applies_to: ["CFG-LONG"] ... }
+requirement "Survey endurance" { id: "REQ-SURVEY" applies_to: ["CFG-SURVEY"] ... }
+```
+
+A case verifying it must run in one of those configurations (otherwise the
+model does not compile), and the gate wants, for each of them, a case that
+runs in it or in no configuration: `requirement 'REQ-X' applies to
+configuration City (CFG-CITY), which no verification case runs in`.
+
+### When a run ends
+
+`stop_time` is a bound, not the end of the story: a run that should stop on
+an event says so in its physics with `terminate()`, and OpenModelica ends it
+there, the result file complete. The EV range runs end when the 300 km are
+driven (in the system model) or when the pack is empty (in the battery),
+whichever comes first:
+
+```modelica
+when vehicleBody.distance >= trip then
+  terminate("the trip is driven");
+end when;
+```
+
+so `final(vehicleBody.distance) >= 300 km` fails when the pack empties first,
+and `min("PN-BATT".soc)` is the charge left at the end of the trip, not after
+an hour of driving past it. A value that ends on its bound is reported `at the
+bound`, not `0.00000006 km to spare`.
+
+### Sweeps: one case over many conditions
+
+`sweep:` runs the case over a grid of parameter values, and its `expects:`
+must hold at every point:
+
+```arc
+simulate: { model: "EVPhysics.TouringRange" configuration: "CFG-TOURING" stop_time: 5 h
+            sources: ["physics/EVPhysics.mo"]
+            sweep: ["vehicleBody.ambient = 253.15 K, 263.15 K, 293.15 K",
+                    "\"PN-VCU\".speedController.target_speed = 90 km/h .. 130 km/h step 20 km/h"] }
+```
+
+Each axis is `parameter = values`: a Modelica path of the simulated model
+(its first part may be an ArcLang id in quotes), then a list of values or a
+range `a .. b step s` in one unit. The grid is every combination (here 3 × 3),
+at most 200 points. All of them run in one OpenModelica session, each with
+`-override`; the model is compiled once per point, so a point costs about a
+second.
+
+A value only counts once it is proven: each point also asks OpenModelica to
+print the parameters it ran with (`-output`), and a parameter missing from
+that line (a name the model does not have, which OpenModelica only warns
+about) or holding another value (a constant, a `final` or an evaluated
+parameter) makes the case an **error**, never a silent pass. The verdict is
+`pass` when every point holds, `fail` when one does not (the reason names how
+many and the first), `error` when one could not run. `arclang verify` prints
+every point with its values and margins; `--json` gives them as `points`.
 
 Each of `expects:` compares two expressions over the result. A variable is a
 Modelica name of the result (`vehicleBody.distance`, `vehicleBody.car.v`), or
@@ -296,6 +391,32 @@ the same `expects:` evaluation, so the others change no model:
 
 They are accepted by the language today and answer **inconclusive**
 (`backend 'fmu' is declared but not implemented yet`).
+
+## The validation campaign
+
+Five systems, each with its architecture in ArcLang, its physics in a
+hand-written Modelica package, and requirements verified by simulation: a
+sweep covers the conditions each requirement names, and in four of them one
+configuration is meant to fail. Expectations name the requirement they check,
+so a failure blocks only its own requirement; the drone verifies each
+configuration against the requirement that applies to it, and passes the
+gate.
+
+| System | Physics | Configurations | Sweep |
+|---|---|---|---|
+| `examples/automotive/ev_range_simulation.arc` | longitudinal dynamics, drag at the air density of the ambient, a cruise PI, a pack drained to its end | standard pack **fail** (8.7 % left after 300 km), long range **pass** | -20 to 20 °C × 90 to 110 km/h: 9 of 9 pass |
+| `examples/automotive/battery_fast_charge.arc` | open-circuit voltage, internal resistance heating the cells, a cold plate, thermal derating of the charge power | air cooled **fail** (34.5 min for 10 to 80 %), chilled **pass** | 25 to 40 °C × 100 and 150 kW: 8 of 8 pass |
+| `examples/aerospace/drone_endurance.arc` | momentum theory power, the pack's weight on the frame, an altitude PID | each configuration against its own mission (`applies_to`): survey **pass** (20 min with 1 kg), long endurance **pass** (25 min with 2 kg); the gate **passes** | payload 0 to 2 kg × 0 to 35 °C: 9 of 9 pass |
+| `examples/building/heat_pump_heating.arc` | a thermal mass, its envelope, a daily outdoor cycle, a heat pump whose capacity and COP fall in the cold, a PI thermostat | 6 kW **fail** (19 °C at night), 9 kW **pass** (36.6 kWh a day) | -10 to 0 °C × 300 and 900 W of gains: 6 of 6 pass |
+| `examples/aerospace/aircraft_electrical_network.arc` | a 28 V generator lost at 10 min, a battery whose voltage sags as it empties and in the cold, constant-power loads, load shedding | 25 Ah **fail** (23.7 V; its load shedding verified all the same), 40 Ah **pass** | -20 to 20 °C × 400 to 700 W: **fail**, 4 of 9 points, first at -20 °C and 550 W |
+
+The last sweep fails on purpose: it finds where the 40 Ah battery is not
+enough, which the two single cases do not show. The gate test checks that
+each system blocks exactly the requirements whose own expectations fail. `tests/simulation_campaign.rs`
+checks without a tool that every system compiles, exports, extends the system
+of each configuration and verifies each requirement; with OpenModelica
+(`cargo test --release --test simulation_campaign -- --ignored`), that every
+case gets the verdict above, cached for the gate.
 
 ## SysML v2
 

@@ -5,7 +5,7 @@ package EVRangeSimulation "EV range simulation"
   package Behaviour "Behaviour components, by the node they are deployed on"
     package VehicleControlUnit "Behaviour components of Vehicle control unit"
       partial model SpeedController "Speed controller"
-        parameter Modelica.Units.SI.Velocity target_speed = 27.77777777777778 "100 km/h";
+        parameter Modelica.Units.SI.Velocity target_speed = 27.7777777777778 "100 km/h";
         Modelica.Blocks.Interfaces.RealInput speed "signal port speed" annotation(Placement(transformation(origin={-61,0}, extent={{-8,-8},{8,8}})), __ArcLang(id="BC-SPD.speed"));
         Modelica.Blocks.Interfaces.RealOutput torque_cmd "signal port torque_cmd" annotation(Placement(transformation(origin={61,0}, extent={{-8,-8},{8,8}})), __ArcLang(id="BC-SPD.torque_cmd"));
         annotation(Icon(coordinateSystem(extent={{-70,-48},{70,48}}), graphics={Rectangle(extent={{-70,-48},{70,48}}, lineColor={0,0,0}, fillColor={255,255,255}, fillPattern=FillPattern.Solid), Text(extent={{-32.2,-19.2},{32.2,19.2}}, textString="Speed controller", textColor={0,0,0}), Text(extent={{-70,50},{70,72}}, textString="%name", textColor={0,0,255})}), Diagram(coordinateSystem(extent={{-70,-48},{70,48}})), Documentation(info="<html><p>Behaviour component 'Speed controller' (BC-SPD).</p><p>Realizes LC-SPD.</p></html>"), __ArcLang(id="BC-SPD", kind="BehaviorComponent"));
@@ -31,8 +31,8 @@ package EVRangeSimulation "EV range simulation"
       annotation(Icon(coordinateSystem(extent={{-70,-48},{70,48}}), graphics={Rectangle(extent={{-70,-48},{70,48}}, lineColor={0,0,0}, fillColor={255,255,255}, fillPattern=FillPattern.Solid), Text(extent={{-32.2,-19.2},{32.2,19.2}}, textString="Drive unit", textColor={0,0,0}), Text(extent={{-70,50},{70,72}}, textString="%name", textColor={0,0,255})}), Diagram(coordinateSystem(extent={{-70,-48},{70,48}})), Documentation(info="<html><p>Physical node 'Drive unit' (PN-DRIVE).</p><p>Realizes LC-DRIVE.</p></html>"), __ArcLang(id="PN-DRIVE", kind="PhysicalNode"));
     end DriveUnit;
     partial model VehicleBody "Vehicle body"
-      parameter Modelica.Units.SI.Temperature ambient = 263.15 "263.15 K";
-      parameter Real drag_area = 0.62;
+      parameter Modelica.Units.SI.Temperature ambient = 263.15 "-10 °C";
+      parameter Modelica.Units.SI.Area drag_area = 0.62 "0.62 m²";
       parameter Modelica.Units.SI.Mass mass = 2100 "2100 kg";
       parameter Real rolling_resistance = 0.011;
       parameter Modelica.Units.SI.Length wheel_radius = 0.34 "0.34 m";

@@ -52,6 +52,14 @@ export interface RunPick {
 }
 
 /** One pick per state machine, scenario and functional chain of the model. */
+/** What to say when a model has nothing to run step by step, and what to offer instead. */
+export function nothingToRun(simulates: boolean): { text: string; action: string | null } {
+  const base = 'ArcLang: this model has no state machine, scenario or functional chain, so there is nothing to run step by step.';
+  return simulates
+    ? { text: `${base} It is verified by simulation: Run simulations runs its test cases in OpenModelica.`, action: 'Run simulations' }
+    : { text: base, action: null };
+}
+
 export function runPicks(runnables: Runnables): RunPick[] {
   return [
     ...runnables.machines.map((name) => ({ label: `$(symbol-enum) ${name}`, description: 'state machine: events and guards', key: 'machine' as const, name })),

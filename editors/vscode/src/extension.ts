@@ -21,6 +21,7 @@ import { registerDebug } from './debug'; // debug hook
 import { registerSemgit } from './semgit'; // semgit hook
 import { registerCi } from './cicd'; // cicd hook
 import { registerSimulation } from './simulation'; // simulation hook
+import { registerTraces } from './traces';
 
 export async function activate(context: vscode.ExtensionContext): Promise<void> {
   const register = (command: string, callback: (...args: unknown[]) => unknown) =>
@@ -58,6 +59,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   registerSemgit(context); // semgit hook
   registerCi(context); // cicd hook
   registerSimulation(context); // simulation hook
+  registerTraces(context);
   registerTools(context);
   registerParticipant(context);
   registerAi(context); // ai-design hook
