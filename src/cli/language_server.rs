@@ -165,13 +165,14 @@ pub fn compute_diagnostics(source: &str) -> Vec<Diagnostic> {
                         rules::Severity::Warning => DiagnosticSeverity::WARNING,
                         rules::Severity::Info => DiagnosticSeverity::INFORMATION,
                     };
-                    // A suspect trace is shown on the trace itself.
+                    // A suspect trace is shown on the trace itself, a suspect verification on its test case.
                     let trace = (finding.rule == "trace.suspect")
                         .then(|| crate::compiler::suspect::ends_of_line(&finding.message))
                         .flatten()
                         .and_then(|(from, kind, to)| {
                             let header = format!("trace \"{from}\" {kind} \"{to}\"");
-                            outline.iter().find(|d| d.keyword == "trace" && d.header.starts_with(&header)).map(line_range)
+                            let on_trace = outline.iter().find(|d| d.keyword == "trace" && d.header.starts_with(&header)).map(line_range);
+                            on_trace.or_else(|| (kind == "verifies").then(|| find_declaration(&outline, &from).map(line_range)).flatten())
                         });
                     let range = position_in(&finding.message)
                         .or(trace)

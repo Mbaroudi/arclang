@@ -172,6 +172,7 @@ test_case "Survey mission, standard pack" {
     method: "analysis"
     simulate: { model: "DronePhysics.SurveyHover" configuration: "CFG-SURVEY" stop_time: 20 min sources: ["physics/DronePhysics.mo"] sweep: ["\"PN-FRAME\".payload = 1 kg"] }
     expects: ["REQ-SURVEY: final(\"PN-PROP\".elapsed) >= 20 min", "REQ-SURVEY: min(\"PN-BATT\".soc) >= 0.2", "REQ-ALT-HOLD: max(\"PN-FRAME\".height) <= 55 m", "REQ-ALT-HOLD: final(\"PN-FRAME\".height) >= 45 m"]
+    reviewed: ["REQ-SURVEY 751d6c02 0967ebab", "REQ-ALT-HOLD 751d6c02 ee9395dc"]
 }
 test_case "Hover endurance, extended pack" {
     id: "TC-HOVER-EXT"
@@ -179,6 +180,7 @@ test_case "Hover endurance, extended pack" {
     method: "analysis"
     simulate: { model: "DronePhysics.LongHover" configuration: "CFG-LONG" stop_time: 25 min sources: ["physics/DronePhysics.mo"] }
     expects: ["REQ-ENDURANCE: final(\"PN-PROP\".elapsed) >= 25 min", "REQ-ENDURANCE: min(\"PN-BATT\".soc) >= 0.2", "REQ-ALT-HOLD: max(\"PN-FRAME\".height) <= 55 m", "REQ-ALT-HOLD: final(\"PN-FRAME\".height) >= 45 m"]
+    reviewed: ["REQ-ENDURANCE 9ccecbbc ae35f237", "REQ-ALT-HOLD 9ccecbbc ee9395dc"]
 }
 test_case "Operating envelope, extended pack" {
     id: "TC-ENVELOPE"
@@ -187,4 +189,5 @@ test_case "Operating envelope, extended pack" {
     simulate: { model: "DronePhysics.LongHover" configuration: "CFG-LONG" stop_time: 25 min sources: ["physics/DronePhysics.mo"]
                 sweep: ["\"PN-FRAME\".payload = 0 kg .. 2 kg step 1 kg", "\"PN-FRAME\".ambient = 0 °C, 20 °C, 35 °C"] }
     expects: ["final(\"PN-PROP\".elapsed) >= 25 min", "min(\"PN-BATT\".soc) >= 0.2"]
+    reviewed: ["REQ-ENVELOPE 6b9fd4cd 45ae8227"]
 }

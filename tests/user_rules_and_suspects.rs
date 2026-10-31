@@ -173,18 +173,65 @@ fn the_trace_command_reviews_and_lists_suspects() {
         assert!(out.status.success(), "{}", String::from_utf8_lossy(&out.stderr));
         String::from_utf8_lossy(&out.stdout).to_string()
     };
-    assert!(run(&["--suspects"]).starts_with("0 of 2 trace(s) reviewed, 0 suspect"));
+    assert!(run(&["--suspects"]).starts_with("0 of 2 trace(s) and 0 of 1 verification(s) reviewed, 0 suspect"));
     let reviewed = run(&["--review"]);
-    assert!(reviewed.contains("Reviewed 2 trace(s)") && reviewed.contains("✓ PN-BATT satisfies REQ-RANGE"), "{reviewed}");
-    assert!(run(&["--review"]).contains("Reviewed 0 trace(s) in") , "nothing changed: nothing written");
+    assert!(reviewed.contains("Reviewed 3 link(s)") && reviewed.contains("✓ PN-BATT satisfies REQ-RANGE") && reviewed.contains("✓ TC-RANGE verifies REQ-RANGE"), "{reviewed}");
+    assert!(run(&["--review"]).contains("Reviewed 0 link(s) in") , "nothing changed: nothing written");
     let text = std::fs::read_to_string(&model).unwrap().replace("Charges in 30 min", "Charges in 20 min");
     std::fs::write(&model, text).unwrap();
     let suspects = run(&["--suspects"]);
-    assert!(suspects.contains("2 of 2 trace(s) reviewed, 1 suspect") && suspects.contains("'REQ-CHARGE' changed"), "{suspects}");
+    assert!(suspects.contains("2 of 2 trace(s) and 1 of 1 verification(s) reviewed, 1 suspect") && suspects.contains("'REQ-CHARGE' changed"), "{suspects}");
     assert!(suspects.contains(&format!("arclang trace {} --review --from PN-CHG --to REQ-CHARGE", model.display())), "{suspects}");
     // Reviewing one trace, by the name of its end.
-    assert!(run(&["--review", "--from", "Charger", "--to", "REQ-CHARGE"]).contains("Reviewed 1 trace(s)"));
-    assert!(run(&["--suspects"]).contains("2 of 2 trace(s) reviewed, 0 suspect"));
+    assert!(run(&["--review", "--from", "Charger", "--to", "REQ-CHARGE"]).contains("Reviewed 1 link(s)"));
+    assert!(run(&["--suspects"]).contains("2 of 2 trace(s) and 1 of 1 verification(s) reviewed, 0 suspect"));
+    // A changed expectation unsettles the verification; reviewing it by the case.
+    let text = std::fs::read_to_string(&model).unwrap().replace("verdict: \"pass\"", "verdict: \"pass\" procedure: \"bench run\"");
+    std::fs::write(&model, text).unwrap();
+    assert!(run(&["--suspects"]).contains("suspect: verification 'TC-RANGE' verifies 'REQ-RANGE': 'TC-RANGE' changed"));
+    assert!(run(&["--review", "--from", "Range test"]).contains("✓ TC-RANGE verifies REQ-RANGE"));
+    assert!(run(&["--suspects"]).contains(", 0 suspect"));
+}
+
+fn verification_lines(result: &arclang::CompilationResult) -> Vec<&str> {
+    result.warnings.iter().map(String::as_str).filter(|w| w.starts_with("suspect: verification")).collect()
+}
+
+#[test]
+fn a_verification_is_suspect_when_its_case_or_its_requirement_changes() {
+    let result = compile(MODEL).unwrap();
+    let graph = elements::build(&result.ast, &result.semantic_model);
+    let stamp = suspect::verification_stamp(&graph, &result.ast.test_cases[0], "REQ-RANGE").unwrap();
+    assert!(stamp.starts_with("REQ-RANGE ") && stamp.len() == "REQ-RANGE ".len() + 17, "{stamp}");
+    let reviewed = source_edit::set_attribute(MODEL, "TC-RANGE", "reviewed", &format!("[{}]", source_edit::string_literal(&stamp))).unwrap();
+    assert!(verification_lines(&compile(&reviewed).unwrap()).is_empty(), "just reviewed");
+
+    // The requirement changes.
+    let changed = reviewed.replace("Drives 300 km", "Drives 350 km");
+    let result = compile(&changed).unwrap();
+    let lines = verification_lines(&result);
+    assert_eq!(lines.len(), 1, "{:?}", result.warnings);
+    assert!(lines[0].starts_with("suspect: verification 'TC-RANGE' verifies 'REQ-RANGE': 'REQ-RANGE' changed since the verification was reviewed"), "{}", lines[0]);
+    let report = production_gate::run_gate(&result.ast, &result.semantic_model, "ISO26262");
+    assert!(report.findings.iter().any(|f| f.check == "traceability.suspect" && f.message.contains("verification 'TC-RANGE'")));
+    assert_eq!(arclang::compiler::rules::classify_warning(lines[0]).rule, "trace.suspect");
+
+    // The case changes (its verdict).
+    let result = compile(&reviewed.replace("verdict: \"pass\"", "verdict: \"fail\"")).unwrap();
+    assert!(verification_lines(&result)[0].contains("'TC-RANGE' changed since"), "{:?}", result.warnings);
+
+    // A requirement added to `verifies:` leaves the reviewed one alone and is itself never reviewed.
+    let result = compile(&reviewed.replace("verifies: [\"REQ-RANGE\"]", "verifies: [\"REQ-RANGE\", \"REQ-CHARGE\"]")).unwrap();
+    assert_eq!(verification_lines(&result).len(), 1, "{:?}", result.warnings);
+    assert!(verification_lines(&result)[0].starts_with("suspect: verification 'TC-RANGE' verifies 'REQ-CHARGE': never reviewed"));
+
+    // The requirement written by its name in the stamp is the same requirement.
+    let by_name = reviewed.replace(&stamp, &stamp.replacen("REQ-RANGE", "Range", 1));
+    assert!(verification_lines(&compile(&by_name).unwrap()).is_empty());
+
+    // A hand-written entry is refused.
+    let error = compile(&MODEL.replace("verdict: \"pass\"", "verdict: \"pass\" reviewed: [\"REQ-RANGE ok\"]")).err().unwrap_or_default();
+    assert!(error.contains("entry \"REQ-RANGE ok\" is not a requirement and the two fingerprints"), "{error}");
 }
 
 #[test]

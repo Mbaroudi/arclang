@@ -284,6 +284,14 @@ is reviewed again (`--review --from A --to B`, or the quick fix in VS Code).
 `arclang trace model.arc --suspects` lists them. A trace without
 `reviewed:` is not watched; a stamp that is not two fingerprints is an error.
 
+A test case's `verifies:` is watched the same way: `--review` writes on the
+case one entry per requirement it verifies (`reviewed: ["REQ-RANGE 751d6c02
+0967ebab"]`, the requirement, then the fingerprints of the case and of the
+requirement). A changed expectation, procedure or verdict, or a changed
+requirement, makes that verification suspect, on the test case; so does a
+requirement the case verifies but does not name in `reviewed:`. Adding a
+requirement to `verifies:` leaves the verifications already reviewed alone.
+
 **Quantities of physics**: `35 °C` (or `35 degC`, a temperature level:
 308.15 K; a difference of temperatures is written in K), `40 Ah`, `2500 mAh`,
 `25 mOhm` (or `mΩ`), `200 W/K`, `15 MJ/K`, `0.62 m²`. `arclang metamodel`
