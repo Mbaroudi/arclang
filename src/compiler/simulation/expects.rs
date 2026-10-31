@@ -508,6 +508,71 @@ pub fn evaluate(expect: &Expect, context: &mut Context<'_>) -> Result<Evaluated,
     Ok(Evaluated { expect: expect.text.clone(), value, holds, margin, requirement: expect.requirement.clone() })
 }
 
+/// When an expectation stops holding, in seconds of the run: `None` while it
+/// holds. An extremum (`max(cells.T) <= 55 °C`) fails at the first instant
+/// the values up to it break the bound; `at(t, x)` fails at `t`; anything
+/// else (`final`, `mean`) at the end of the run.
+pub fn first_failure(expect: &Expect, series: &Series) -> Option<f64> {
+    let mut notes = Vec::new();
+    let mut fails = |s: &Series| evaluate(expect, &mut Context { series: s, notes: &mut notes }).map(|e| !e.holds).unwrap_or(false);
+    if !fails(series) {
+        return None;
+    }
+    if [&expect.lhs, &expect.rhs].iter().any(|t| uses_extremum(t)) {
+        let (mut low, mut high) = (1, series.len());
+        while low < high {
+            let middle = (low + high) / 2;
+            if fails(&series.prefix(middle)) {
+                high = middle;
+            } else {
+                low = middle + 1;
+            }
+        }
+        return series.times().nth(low - 1);
+    }
+    at_time(&expect.lhs).or_else(|| at_time(&expect.rhs)).or_else(|| series.times().last())
+}
+
+fn uses_extremum(term: &Term) -> bool {
+    match term {
+        Term::Call { function, .. } => function == "min" || function == "max",
+        Term::Neg(inner) => uses_extremum(inner),
+        Term::Binary { lhs, rhs, .. } => uses_extremum(lhs) || uses_extremum(rhs),
+        Term::Number { .. } => false,
+    }
+}
+
+fn at_time(term: &Term) -> Option<f64> {
+    match term {
+        Term::Call { function, at: Some(at), .. } if function == "at" => match at.as_ref() {
+            Term::Number { value, .. } => Some(*value),
+            _ => None,
+        },
+        Term::Neg(inner) => at_time(inner),
+        Term::Binary { lhs, rhs, .. } => at_time(lhs).or_else(|| at_time(rhs)),
+        _ => None,
+    }
+}
+
+/// The variables an expectation reads (`cells.T`), as the result names them.
+pub fn variables(expect: &Expect) -> Vec<String> {
+    fn walk(term: &Term, out: &mut Vec<String>) {
+        match term {
+            Term::Call { variable, .. } => out.push(variable.clone()),
+            Term::Neg(inner) => walk(inner, out),
+            Term::Binary { lhs, rhs, .. } => {
+                walk(lhs, out);
+                walk(rhs, out);
+            }
+            Term::Number { .. } => {}
+        }
+    }
+    let mut out = Vec::new();
+    walk(&expect.lhs, &mut out);
+    walk(&expect.rhs, &mut out);
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -167,6 +167,27 @@ pub fn evaluate(rules: &[UserRule], graph: &ElementGraph) -> Result<Vec<Violatio
     Ok(out)
 }
 
+/// The elements of a kind (or of every kind, `*`) that hold a predicate,
+/// written as a rule's `where:` (`mass > 10 kg and has(voltage)`).
+pub fn select<'g>(graph: &'g ElementGraph, kind: &str, predicate: Option<&str>) -> Result<Vec<&'g ElementRecord>, String> {
+    let known: Vec<&str> = super::metamodel::Metamodel::current().kinds.iter().map(|k| k.name).collect();
+    if kind != "*" && !known.contains(&kind) {
+        return Err(format!("'{kind}' is no kind of element (see `arclang metamodel`)"));
+    }
+    let parsed = predicate.map(parse).transpose()?;
+    let mut out = Vec::new();
+    for element in graph.elements.iter().filter(|e| kind == "*" || e.kind == kind) {
+        let keep = match &parsed {
+            Some(pred) => holds(pred, &Element { record: element, graph })?,
+            None => true,
+        };
+        if keep {
+            out.push(element);
+        }
+    }
+    Ok(out)
+}
+
 /// The rules of a compiled model and what they find: `None` when it declares none.
 pub fn violations(model: &Model, semantic: &super::semantic::SemanticModel) -> Result<Option<Vec<Violation>>, String> {
     if model.rules.is_empty() {

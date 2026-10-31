@@ -552,6 +552,10 @@ fn an_expectation_that_names_its_requirement_judges_only_that_requirement() {
     let blockers: Vec<&str> = report.findings.iter().filter(|f| f.check == "requirements.verification").map(|f| f.message.as_str()).collect();
     assert_eq!(blockers.len(), 1, "the trip is driven: only the reserve fails: {blockers:?}");
     assert!(blockers[0].contains("'REQ-RANGE'") && blockers[0].contains("min(batteryPack.soc) = 0.08693"), "{blockers:?}");
+    // The coverage table says the same as the gate: the trip is verified, the reserve is not.
+    let coverage = arclang::compiler::tables::compute(&result, &arclang::compiler::tables::TableSpec { kind: "requirements_coverage".into(), ..Default::default() }, &Default::default()).unwrap();
+    let verdict = |id: &str| arclang::compiler::tables::export::cell_text(&coverage.rows.iter().find(|r| r.id == id).unwrap().cells["verdict"]);
+    assert_eq!((verdict("REQ-TRIP").as_str(), verdict("REQ-RANGE").as_str()), ("pass", "fail"));
 
     // An expectation naming a requirement the case does not verify; a requirement no expectation checks.
     edit(&model, &[("\"Trip length: final", "\"REQ-RANGE-ENVELOPE: final")]);

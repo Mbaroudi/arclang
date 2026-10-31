@@ -6,7 +6,7 @@ use super::expects::{self, Context};
 use super::results::{units_from_init_xml, Series};
 use super::tool::{self, Tool, ToolConfig};
 use super::sweep::{self, Point};
-use super::{cache, expects_of, is_simulated, spec_of, Outcome, PointOutcome, Spec, Status};
+use super::{cache, expects_of, is_simulated, replay, spec_of, Outcome, PointOutcome, Spec, Status};
 use crate::compiler::modelica::{self, names, Export};
 use crate::compiler::CompilationResult;
 use std::path::{Path, PathBuf};
@@ -277,10 +277,26 @@ fn simulate(tool: &Tool, export: &Export, base: &Path, spec: &Spec, expects: &[S
     }
     notes.sort();
     notes.dedup();
+    // The results are kept for the workbench to replay them on the diagram.
+    let labels: Vec<String> = points.iter().map(sweep::label).collect();
+    if let Err(error) = replay::save(&base.join(".arclang").join("sim-results"), &outcome.test_case, &outcome.key, &labels, &results, &export.parts, &parsed) {
+        notes.push(format!("the results could not be kept for replay: {error}"));
+    }
     if !notes.is_empty() {
         outcome.log.push_str(&format!("\n{}\n", notes.join("\n")));
     }
     conclude(outcome, outcomes);
+}
+
+/// The results kept of the last run of a case, for the workbench to replay.
+pub fn replay(result: &CompilationResult, model_path: &Path, case: &str, point: usize) -> Result<replay::Replay, String> {
+    let test = result.ast.test_cases.iter().filter(|t| is_simulated(t)).find(|t| t.id == case || t.name == case).ok_or_else(|| format!("no test_case '{case}' that simulates (simulate: {{ ... }})"))?;
+    let export = modelica::export(&result.ast)?;
+    let spec = spec_of(&test.attributes).expect("simulated").map_err(|e| format!("test_case '{}': {e}", test.name))?;
+    let expects = expects_of(&test.attributes);
+    let key = cache::key(&export.text, &cache::model_dir(model_path), &spec, &expects);
+    let parsed: Vec<_> = expects.iter().map(|e| expects::parse(e, &export.instances)).collect::<Result<_, _>>()?;
+    replay::load(&replay::dir(model_path), &test.id, point, &key, &export.parts, &parsed)
 }
 
 /// What omc printed for one point: from its `@@simulate <i>` to the next.

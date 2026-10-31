@@ -230,7 +230,7 @@ fn elk_node(node: &Node, wired: &HashSet<&str>) -> Value {
                 + node.compartment.len() as f64 * COMPARTMENT_LINE_HEIGHT
                 + COMPARTMENT_INSET
                 // The verdict of a requirement or a test case sits under its lines.
-                + if matches!(node.kind, NodeKind::Requirement | NodeKind::TestCase) { VERDICT_ROOM } else { 0.0 },
+                + if matches!(node.kind, NodeKind::Requirement | NodeKind::TestCase | NodeKind::Constraint) { VERDICT_ROOM } else { 0.0 },
         )
     } else {
         (

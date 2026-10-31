@@ -157,8 +157,58 @@ impl Series {
         self.rows.iter().map(move |r| r[column])
     }
 
-    fn times(&self) -> impl Iterator<Item = f64> + '_ {
+    pub fn times(&self) -> impl Iterator<Item = f64> + '_ {
         self.values(0)
+    }
+
+    /// The names of the columns, `time` first.
+    pub fn names(&self) -> &[String] {
+        &self.names
+    }
+
+    /// The units read from the result, by variable.
+    pub fn units(&self) -> &BTreeMap<String, String> {
+        &self.units
+    }
+
+    /// How many time steps the result holds.
+    pub fn len(&self) -> usize {
+        self.rows.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.rows.is_empty()
+    }
+
+    /// The first `steps` time steps: what was known at that instant.
+    pub fn prefix(&self, steps: usize) -> Series {
+        Series { names: self.names.clone(), rows: self.rows[..steps.min(self.rows.len())].to_vec(), units: self.units.clone() }
+    }
+
+    /// Only the columns named (time is always kept), at most `steps` time
+    /// steps evenly spread, the last one kept.
+    pub fn trimmed(&self, keep: &dyn Fn(&str) -> bool, steps: usize) -> Series {
+        let columns: Vec<usize> = (0..self.names.len()).filter(|&i| i == 0 || keep(&self.names[i])).collect();
+        let n = self.rows.len();
+        let picked: Vec<usize> = if n <= steps || steps < 2 { (0..n).collect() } else { (0..steps).map(|k| k * (n - 1) / (steps - 1)).collect() };
+        let mut picked = picked;
+        picked.dedup();
+        Series {
+            names: columns.iter().map(|&i| self.names[i].clone()).collect(),
+            rows: picked.iter().map(|&r| columns.iter().map(|&c| self.rows[r][c]).collect()).collect(),
+            units: self.units.iter().filter(|(k, _)| keep(k)).map(|(k, v)| (k.clone(), v.clone())).collect(),
+        }
+    }
+
+    /// The result as OpenModelica writes it: a quoted header, then numbers.
+    pub fn to_csv(&self) -> String {
+        let mut out = self.names.iter().map(|n| format!("\"{n}\"")).collect::<Vec<_>>().join(",");
+        out.push('\n');
+        for row in &self.rows {
+            out.push_str(&row.iter().map(|v| v.to_string()).collect::<Vec<_>>().join(","));
+            out.push('\n');
+        }
+        out
     }
 
     /// The mean over time (trapezoidal), or the value of a single instant.

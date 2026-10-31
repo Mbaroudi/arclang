@@ -21,6 +21,7 @@
 
 pub mod cache;
 pub mod expects;
+pub mod replay;
 pub mod results;
 pub mod run;
 pub mod sweep;

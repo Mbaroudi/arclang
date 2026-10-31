@@ -249,6 +249,20 @@ impl<'a> Context<'a> {
     }
 
     /// The declared table of that name, as an element.
+    /// The verdict of a case for one requirement it verifies: an expectation
+    /// naming another requirement does not fail this one.
+    pub fn verdict_for(&self, case_id: &str, requirement: &ElementRecord) -> (String, Option<String>) {
+        let whole = || self.verdicts.get(case_id).cloned().unwrap_or_else(|| ("pending".to_string(), None));
+        let Some(case) = self.result.ast.test_cases.iter().find(|t| t.id == case_id) else { return whole() };
+        let Some(written) = case.verifies.iter().find(|r| **r == requirement.id || **r == requirement.name) else { return whole() };
+        match verification::verdict_for(case, written, &self.result.semantic_model) {
+            Verdict::Pass => ("pass".to_string(), None),
+            Verdict::Pending => ("pending".to_string(), None),
+            Verdict::Fail(why) => ("fail".to_string(), Some(why)),
+            Verdict::Inconclusive(why) => ("inconclusive".to_string(), Some(why)),
+        }
+    }
+
     pub fn declared(&self, name: &str) -> Option<&ElementRecord> {
         self.graph.elements.iter().find(|e| e.kind == "Table" && (e.name == name || e.id == name))
     }

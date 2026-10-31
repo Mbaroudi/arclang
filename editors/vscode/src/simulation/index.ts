@@ -31,6 +31,7 @@ import {
 } from '../pure/simulation';
 import { checklistHtml } from '../pure/simulation-html';
 import { applyFix } from './fixes';
+import { replaySimulation } from './replay';
 
 const SKIP_DIRS = '**/{node_modules,.git,target,.arclang,dist,out}/**';
 const MAX_FILES = 300;
@@ -203,6 +204,7 @@ class Simulation implements vscode.Disposable {
     const state = this.list ? (this.list.ready ? this.list.headline : 'Needs setup: choose "Check my setup".') : 'Looking for OpenModelica…';
     const entries: Entry[] = [
       { id: 'run', label: '$(play) Run simulations on this model', detail: 'Simulates the test cases of the model in OpenModelica and shows their verdicts.' },
+      { id: 'replay', label: '$(history) Replay a simulation on the diagram', detail: 'Moves through the last run of a test case: the values on each box, the first instant an expectation fails.' },
       { id: 'check', label: '$(checklist) Check my setup', detail: 'What is installed, what is missing, and a button to fix each thing.' },
       { id: 'setup', label: '$(tools) Set up OpenModelica (guided)', detail: 'Step by step, from nothing to a first simulation.' },
       { id: 'export', label: '$(export) Export Modelica', detail: 'Write the physical architecture as a Modelica package.' },
@@ -212,6 +214,7 @@ class Simulation implements vscode.Disposable {
     const picked = await vscode.window.showQuickPick(entries, { title: 'ArcLang: Simulation', placeHolder: state });
     switch (picked?.id) {
       case 'run': return this.runSimulations();
+      case 'replay': return replaySimulation(activeModelUri());
       case 'check': return this.showSetup();
       case 'setup': return this.guidedSetup();
       case 'export': return this.exportModelica();
@@ -487,6 +490,7 @@ export function registerSimulation(context: vscode.ExtensionContext): void {
   const register = (command: string, callback: (...args: unknown[]) => unknown) => context.subscriptions.push(vscode.commands.registerCommand(command, callback));
   register('arclang.simulation.menu', () => simulation.menu());
   register('arclang.simulation.run', (uri?: unknown) => simulation.runSimulations(uri));
+  register('arclang.simulation.replay', (uri?: unknown) => replaySimulation(uri instanceof vscode.Uri ? uri : activeModelUri()));
   register('arclang.simulation.check', () => simulation.showSetup());
   register('arclang.simulation.setup', () => simulation.guidedSetup());
   register('arclang.simulation.export', (uri?: unknown) => simulation.exportModelica(uri));

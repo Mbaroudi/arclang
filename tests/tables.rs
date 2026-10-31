@@ -138,6 +138,19 @@ fn a_traceability_matrix_holds_the_trace_kinds_and_says_which_way_a_click_goes()
 }
 
 #[test]
+fn a_matrix_of_requirements_shows_and_creates_their_derivations() {
+    let result = compile(
+        "model \"M\" {}\nsystem_analysis \"S\" {\n    requirement \"Range\" { id: \"REQ-RANGE\" }\n    requirement \"Cells\" { id: \"REQ-CELL\" }\n}\ntrace \"REQ-CELL\" derives \"REQ-RANGE\"\n",
+    );
+    let spec = TableSpec { kind: "traceability_matrix".into(), kinds: vec!["derives".into()], matrix_columns: vec!["Requirement".into()], ..TableSpec::default() };
+    let m = tables::compute(&result, &spec, &Options::default()).unwrap().matrix.unwrap();
+    let cell = m.cells.iter().find(|c| m.rows[c.row].id == "REQ-CELL" && m.columns[c.column].id == "REQ-RANGE").expect("REQ-CELL x REQ-RANGE");
+    assert_eq!(cell.kinds, ["derives"]);
+    assert_eq!(m.creatable, ["derives"]);
+    assert_eq!(m.direction["derives"], "row_to_column", "a click writes: the row derives from the column");
+}
+
+#[test]
 fn an_allocation_matrix_shows_what_performs_each_function_and_what_nothing_does() {
     let result = model();
     let table = declared(&result, "Allocation");

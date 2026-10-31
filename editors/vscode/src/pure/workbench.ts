@@ -465,6 +465,10 @@ export const VIEWPOINTS: { view: string; label: string; short: string }[] = [
   { view: 'msm', label: 'Modes and states', short: 'Modes' },
   { view: 'es', label: 'Scenarios', short: 'Scenarios' },
   { view: 'req', label: 'Requirements', short: 'Requirements' },
+  { view: 'par', label: 'Parametric', short: 'Parametric' },
+  { view: 'gv', label: 'SysML v2 General View', short: 'General View' },
+  { view: 'iv', label: 'SysML v2 Interconnection View', short: 'Interconnection' },
+  { view: 'afv', label: 'SysML v2 Action Flow View', short: 'Action Flow' },
 ];
 
 /** The viewpoint the layer of the model tree opens. */

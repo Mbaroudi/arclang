@@ -274,6 +274,40 @@ pub enum Commands {
         /// Print each outcome as JSON
         #[clap(long)]
         json: bool,
+
+        /// Do not simulate: print, as JSON, the results kept of the last
+        /// run of this test case (id or name), for the workbench to replay
+        /// on the diagram: the time, each part's values, each expectation
+        /// and the first instant it fails
+        #[clap(long, value_name = "CASE")]
+        replay: Option<String>,
+
+        /// With --replay: the point of the sweep (0 is the first)
+        #[clap(long, default_value_t = 0)]
+        point: usize,
+
+        /// Do not simulate: list, as JSON, the test cases that simulate and
+        /// whether results of their last run are kept for --replay
+        #[clap(long)]
+        list: bool,
+    },
+
+    /// A document filled from a template: Markdown whose {{ ... }}
+    /// directives the compiler fills from the model (model, date, value,
+    /// table, elements, verdicts, constraints, gate, suspects, rules).
+    /// Without --template, a design review of the whole model. The output's
+    /// extension chooses the format: .md, .html or .docx (Word)
+    Document {
+        #[clap(value_parser)]
+        input: PathBuf,
+
+        /// The template (Markdown with {{ ... }} directives)
+        #[clap(long, short)]
+        template: Option<PathBuf>,
+
+        /// Where the document is written: .md, .html or .docx
+        #[clap(long, short)]
+        output: PathBuf,
     },
 
     Export {
@@ -595,8 +629,8 @@ pub enum Commands {
         title: String,
 
         /// Restrict the output to one kind of view: oab, sab, lab, pab, msm
-        /// (mode and state machines), es (scenarios), cap, cdb, pbs or req
-        /// (requirements)
+        /// (mode and state machines), es (scenarios), cap, cdb, pbs, req
+        /// (requirements) or par (parametric)
         #[clap(long)]
         view: Option<String>,
 
@@ -861,13 +895,33 @@ impl CliRunner {
                 }
                 self.run_export(input, output, format, no_placement, split)
             }
-            Commands::Verify { input, test, json, check_tools } => {
+            Commands::Verify { input, test, json, check_tools, replay, point, list } => {
                 if check_tools {
                     return self.run_check_tools(json);
                 }
                 let input = input.ok_or_else(|| CliError::Config("give a model file to verify".into()))?;
+                if list {
+                    let result = crate::Compiler::new(crate::CompilerConfig::default()).compile_file(&input).map_err(|e| CliError::Compilation(e.to_string()))?;
+                    let kept = crate::compiler::simulation::replay::dir(&input);
+                    let cases: Vec<serde_json::Value> = result
+                        .ast
+                        .test_cases
+                        .iter()
+                        .filter(|t| crate::compiler::simulation::is_simulated(t))
+                        .map(|t| serde_json::json!({ "id": t.id, "name": t.name, "replayable": crate::compiler::simulation::replay::kept(&kept, &t.id) }))
+                        .collect();
+                    println!("{}", serde_json::Value::Array(cases));
+                    return Ok(());
+                }
+                if let Some(case) = replay {
+                    let result = crate::Compiler::new(crate::CompilerConfig::default()).compile_file(&input).map_err(|e| CliError::Compilation(e.to_string()))?;
+                    let replay = crate::compiler::simulation::run::replay(&result, &input, &case, point).map_err(CliError::Compilation)?;
+                    println!("{}", serde_json::to_string(&replay).map_err(|e| CliError::Compilation(e.to_string()))?);
+                    return Ok(());
+                }
                 self.run_verify(input, test, json)
             }
+            Commands::Document { input, template, output } => self.run_document(input, template, output),
             Commands::Import { input, format, output } => {
                 self.run_import(input, format, output)
             }
@@ -1309,6 +1363,28 @@ impl CliRunner {
         ))
     }
     
+    fn run_document(&self, input: PathBuf, template: Option<PathBuf>, output: PathBuf) -> Result<(), CliError> {
+        use crate::compiler::document;
+        let fail = |e: String| CliError::Compilation(e);
+        let text = match &template {
+            Some(path) => std::fs::read_to_string(path).map_err(|e| fail(format!("cannot read the template {}: {e}", path.display())))?,
+            None => document::DEFAULT_TEMPLATE.to_string(),
+        };
+        let result = crate::Compiler::new(crate::CompilerConfig::default()).compile_file(&input).map_err(|e| fail(e.to_string()))?;
+        let date = chrono::Local::now().format("%Y-%m-%d").to_string();
+        let markdown = document::render(&text, &result, &date).map_err(|e| fail(format!("{}: {e}", template.as_deref().map(|p| p.display().to_string()).unwrap_or_else(|| "the default template".to_string()))))?;
+        let title = result.semantic_model.name.clone().unwrap_or_else(|| "Model".to_string());
+        let bytes = match output.extension().and_then(|e| e.to_str()).map(str::to_ascii_lowercase).as_deref() {
+            Some("md" | "markdown") => markdown.into_bytes(),
+            Some("html" | "htm") => document::to_html(&markdown, &title).into_bytes(),
+            Some("docx") => document::to_docx(&markdown, &title),
+            _ => return Err(CliError::Config(format!("{}: the output is .md, .html or .docx", output.display()))),
+        };
+        std::fs::write(&output, bytes).map_err(|e| fail(format!("cannot write {}: {e}", output.display())))?;
+        println!("Wrote {}", output.display());
+        Ok(())
+    }
+
     fn run_trace_suspects(&self, input: &std::path::Path) -> Result<(), CliError> {
         let result = crate::Compiler::new(crate::CompilerConfig::default()).compile_file(input).map_err(|e| CliError::Compilation(e.to_string()))?;
         let graph = crate::compiler::elements::build(&result.ast, &result.semantic_model);
@@ -2323,7 +2399,7 @@ impl CliRunner {
         let selected = match view.as_deref() {
             None => None,
             Some(text) => Some(ViewKind::parse(text).ok_or_else(|| {
-                CliError::Compilation(format!("unknown view '{text}' — expected oab, sab, lab, pab, msm, es, cap, cdb, pbs or req"))
+                CliError::Compilation(format!("unknown view '{text}' — expected oab, sab, lab, pab, msm, es, cap, cdb, pbs, req or par"))
             })?),
         };
         let result = crate::Compiler::new(crate::CompilerConfig::default())

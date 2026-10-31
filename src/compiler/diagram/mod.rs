@@ -45,10 +45,12 @@ mod logical;
 mod operational;
 mod physical;
 mod product;
+mod parametric;
 mod requirements;
 pub use requirements::judge as judge_requirements;
 mod scenario;
 mod state_machine;
+mod sysml_views;
 mod system;
 
 use super::ast::Model;
@@ -100,10 +102,18 @@ pub enum ViewKind {
     Pbs,
     /// Requirements, their derivations, what satisfies and what verifies them.
     Req,
+    /// The constraints bound to the values they read.
+    Par,
+    /// SysML v2 General View: definitions and parts, how they are made, typed, specialized.
+    Gv,
+    /// SysML v2 Interconnection View of a package: parts, ports, connections. Id `iv:<package>`.
+    Iv,
+    /// SysML v2 Action Flow View of a package: actions, items, flows. Id `afv:<package>`.
+    Afv,
 }
 
 impl ViewKind {
-    pub const ALL: [ViewKind; 10] = [
+    pub const ALL: [ViewKind; 14] = [
         ViewKind::Oab,
         ViewKind::Sab,
         ViewKind::Lab,
@@ -114,6 +124,10 @@ impl ViewKind {
         ViewKind::Cdb,
         ViewKind::Pbs,
         ViewKind::Req,
+        ViewKind::Par,
+        ViewKind::Gv,
+        ViewKind::Iv,
+        ViewKind::Afv,
     ];
 
     /// Short identifier, also the diagram id and the CLI `--view` value.
@@ -129,6 +143,10 @@ impl ViewKind {
             ViewKind::Cdb => "cdb",
             ViewKind::Pbs => "pbs",
             ViewKind::Req => "req",
+            ViewKind::Par => "par",
+            ViewKind::Gv => "gv",
+            ViewKind::Iv => "iv",
+            ViewKind::Afv => "afv",
         }
     }
 
@@ -144,6 +162,10 @@ impl ViewKind {
             ViewKind::Cdb => "Data Model",
             ViewKind::Pbs => "Product Breakdown",
             ViewKind::Req => "Requirements",
+            ViewKind::Par => "Parametric",
+            ViewKind::Gv => "General View",
+            ViewKind::Iv => "Interconnection View",
+            ViewKind::Afv => "Action Flow View",
         }
     }
 
@@ -254,6 +276,16 @@ pub enum NodeKind {
     Requirement,
     /// A verification case and the requirements it verifies.
     TestCase,
+    /// A constraint: its expression, the value of each side, its verdict.
+    Constraint,
+    /// A value a constraint reads, inside the element holding it.
+    ValueProperty,
+    /// A SysML v2 definition (`part def`, `port def`...): its keyword is the `stereotype` property.
+    SysmlDefinition,
+    /// A SysML v2 part usage.
+    SysmlPart,
+    /// A SysML v2 action usage.
+    SysmlAction,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
@@ -345,6 +377,18 @@ pub enum EdgeKind {
     Annotation,
     /// A requirement sits under another in its document (`parent:`).
     Containment,
+    /// A value bound to a constraint that reads it.
+    Binding,
+    /// A SysML v2 usage typed by its definition.
+    Typing,
+    /// A SysML v2 part made of another.
+    Composition,
+    /// A SysML v2 connection between ports.
+    Connection,
+    /// A SysML v2 flow of items between actions.
+    Flow,
+    /// A SysML v2 step followed by the next (`then`).
+    Succession,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
@@ -419,11 +463,13 @@ pub fn build_diagrams(model: &Model) -> DiagramSet {
             data::build(model),
             product::build(model),
             requirements::build(model),
+            parametric::build(model),
         ]
         .into_iter()
         .flatten()
         .map(|(diagram, diagnostics)| (Some(diagram), diagnostics)),
     )
+    .chain(sysml_views::build(model))
     .chain(state_machine::build(model))
     .chain(scenario::build(model));
 

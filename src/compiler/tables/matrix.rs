@@ -8,7 +8,7 @@ use crate::compiler::metamodel::Layer;
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 /// The trace kinds of the language (`TraceKind`).
-pub const TRACE_KINDS: [&str; 7] = ["satisfies", "implements", "validates", "verifies", "realizes", "refines", "allocates"];
+pub const TRACE_KINDS: [&str; 8] = ["satisfies", "implements", "validates", "verifies", "realizes", "refines", "derives", "allocates"];
 
 /// The columns of the row list a matrix comes with.
 pub fn columns() -> Vec<Column> {
@@ -135,7 +135,7 @@ fn direction_of(context: &Context, kind: &str, row: Option<usize>, column: Optio
         }
         "allocates" | "implements" if is_function(row_kind) && !is_function(column_kind) => "column_to_row",
         "allocates" | "implements" if is_function(column_kind) && !is_function(row_kind) => "row_to_column",
-        "refines" => "row_to_column",
+        "refines" | "derives" => "row_to_column",
         _ if is_target(row_kind) && !is_target(column_kind) => "column_to_row",
         _ if is_target(column_kind) => "row_to_column",
         _ if row_kind == "TestCase" => "row_to_column",

@@ -375,7 +375,12 @@ impl Scope {
         Ok(members.iter().map(String::as_str).filter(|m| self.knows(m)).collect())
     }
 
-    fn attribute(&self, element: &str, attribute: &str) -> Result<Value, String> {
+    /// An attribute as the model writes it (`300 km`), for display.
+    pub fn written(&self, element: &str, attribute: &str) -> Option<String> {
+        self.attributes.get(element)?.get(attribute).map(AttributeValue::display)
+    }
+
+    pub fn attribute(&self, element: &str, attribute: &str) -> Result<Value, String> {
         let attributes = self
             .attributes
             .get(element)
