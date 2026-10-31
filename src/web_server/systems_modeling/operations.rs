@@ -45,7 +45,7 @@ enum Place {
 
 pub(super) enum Operation {
     /// Set (`Some`, as ArcLang source) or remove (`None`) one attribute.
-    Attribute { designators: Vec<String>, key: String, value: Option<String> },
+    Attribute { identity: String, designators: Vec<String>, key: String, value: Option<String> },
     Create { kind: String, keyword: &'static str, place: Place, name: String, owner: String, attributes: Vec<(String, String)> },
     Rename { identity: String, designators: Vec<String>, name: String },
     Delete { identity: String, designators: Vec<String> },
@@ -247,7 +247,7 @@ pub(super) fn operations(change: &Value, head: &View) -> Result<Vec<Operation>, 
                 bad_request(format!("attribute '{}' of '{}': {}", key, identity, reason))
             })?),
         };
-        operations.push(Operation::Attribute { designators: designators(record), key: key.clone(), value });
+        operations.push(Operation::Attribute { identity: identity.to_string(), designators: designators(record), key: key.clone(), value });
     }
     Ok(operations)
 }
@@ -269,8 +269,8 @@ impl Operation {
     pub(super) fn label(&self) -> String {
         let first = |designators: &[String]| designators.first().cloned().unwrap_or_default();
         match self {
-            Operation::Attribute { designators, key, value: Some(_) } => format!("set {}.{}", first(designators), key),
-            Operation::Attribute { designators, key, value: None } => format!("unset {}.{}", first(designators), key),
+            Operation::Attribute { designators, key, value: Some(_), .. } => format!("set {}.{}", first(designators), key),
+            Operation::Attribute { designators, key, value: None, .. } => format!("unset {}.{}", first(designators), key),
             Operation::Create { kind, name, .. } => format!("add {} '{}'", kind, name),
             Operation::Rename { designators, name, .. } => format!("rename {} to '{}'", first(designators), name),
             Operation::Delete { designators, .. } => format!("remove {}", first(designators)),
@@ -282,10 +282,10 @@ impl Operation {
     /// The model text with this operation applied.
     pub(super) fn apply(&self, source: &str) -> Result<String, EditError> {
         match self {
-            Operation::Attribute { designators, key, value: Some(value) } => {
+            Operation::Attribute { designators, key, value: Some(value), .. } => {
                 with_each(designators, |designator| source_edit::set_attribute(source, designator, key, value))
             }
-            Operation::Attribute { designators, key, value: None } => {
+            Operation::Attribute { designators, key, value: None, .. } => {
                 with_each(designators, |designator| source_edit::remove_attribute(source, designator, key))
             }
             Operation::Create { keyword, place: Place::Layer { keyword: layer, name: layer_name }, name, attributes, .. } => {
@@ -360,11 +360,19 @@ pub(super) fn check_outcome(operations: &[Operation], head: &Snapshot, after: &S
     let mut removable_traces: HashSet<&str> = HashSet::new();
     for operation in operations {
         match operation {
-            Operation::Attribute { designators, key, value: Some(value) } => {
+            Operation::Attribute { identity, designators, key, value: Some(value) } => {
                 let designator = designators.first().map(String::as_str).unwrap_or_default();
                 source_edit::confirm_effect(graph, designator, key, value).map_err(|reason| refused(reason.to_string()))?;
+                let attribute = |view: &View| view.record(identity).map(|record| record["attributes"][key.as_str()].clone());
+                if attribute(before) == attribute(now) {
+                    return Err(refused(format!("{}: the edit did not reach the element it names", operation.label())));
+                }
             }
-            Operation::Attribute { value: None, .. } => {}
+            Operation::Attribute { identity, key, value: None, .. } => {
+                if now.record(identity).is_none_or(|record| record["attributes"].get(key.as_str()).is_some()) {
+                    return Err(refused(format!("{}: the element still has that attribute once compiled", operation.label())));
+                }
+            }
             Operation::Create { kind, name, owner, attributes, .. } => {
                 let found = new_elements.iter().position(|record| {
                     record["@type"] == kind.as_str() && record["name"] == name.as_str() && record["owner"]["@id"] == owner.as_str()
@@ -418,6 +426,27 @@ pub(super) fn check_outcome(operations: &[Operation], head: &Snapshot, after: &S
         }
     }
 
+    // An edit is applied where the text names the element: a word two
+    // elements share could carry it to the other one. Only the elements
+    // the request names may read differently once compiled.
+    let named: HashSet<&str> = operations
+        .iter()
+        .filter_map(|operation| match operation {
+            Operation::Attribute { identity, .. } | Operation::Rename { identity, .. } => Some(identity.as_str()),
+            _ => None,
+        })
+        .collect();
+    let touched_elsewhere = before.records.iter().filter(|record| !is_relationship(record)).find(|record| {
+        let Some(id) = record["@id"].as_str() else { return false };
+        let Some(current) = now.record(id) else { return false };
+        !named.contains(id) && (current["attributes"] != record["attributes"] || current["name"] != record["name"])
+    });
+    if let Some(other) = touched_elsewhere {
+        return Err(refused(format!(
+            "the request would also change {}: the text knows it by a word another element has too; give each its own `id` first",
+            label_of(other)
+        )));
+    }
     if let Some(extra) = new_elements.first().or(new_traces.first()) {
         return Err(refused(format!("the request would also create {}", label_of(extra))));
     }

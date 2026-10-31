@@ -629,3 +629,32 @@ async fn a_gateway_that_authenticates_its_users_lets_its_writers_write_and_nobod
     assert!(error.to_string().contains("an unauthenticated client may read but not write"), "{error}");
     assert_eq!(commit_count(&model2), 1);
 }
+
+/// An element whose name is another element's identifier: an edit of it
+/// must land on it, never on the element that identifier names.
+#[tokio::test]
+async fn an_edit_lands_on_the_element_it_names_even_when_another_is_known_by_the_same_word() {
+    let (_directory, model) = repository();
+    let text = std::fs::read_to_string(&model).unwrap().replace(
+        "    component \"Monitor\" { id: \"LC-002\" }\n",
+        "    component \"Monitor\" { id: \"LC-002\" }\n    component \"LC-001\" { latency: 5 ms }\n",
+    );
+    std::fs::write(&model, &text).unwrap();
+    git(model.parent().unwrap(), &["commit", "-q", "-am", "a component named like the controller's id"]);
+    let app = server(&model, true, true);
+    let (_, projects) = call(&app, "GET", "/projects", Some(TOKEN), None).await;
+    let project = projects[0]["@id"].as_str().unwrap().to_string();
+    let (_, branches) = call(&app, "GET", &format!("/projects/{project}/branches"), Some(TOKEN), None).await;
+    let head = branches[0]["head"]["@id"].as_str().unwrap().to_string();
+    let (_, elements) = call(&app, "GET", &format!("/projects/{project}/commits/{head}/elements"), Some(TOKEN), None).await;
+    let named = elements.as_array().unwrap().iter().find(|e| e["name"] == "LC-001").unwrap()["@id"].as_str().unwrap().to_string();
+    let body = json!({ "@type": "Commit", "previousCommit": { "@id": head }, "change": [change(&named, json!({ "latency": null }))] });
+    let (status, answer) = call(&app, "POST", &format!("/projects/{project}/commits"), Some(TOKEN), Some(body)).await;
+    let after = std::fs::read_to_string(&model).unwrap();
+    let controller = &after[after.find("component \"Controller\"").unwrap()..after.find("component \"Monitor\"").unwrap()];
+    assert!(controller.contains("latency: 25 ms"), "the edit reached the Controller ({status}, {answer}):\n{after}");
+    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY, "{answer}");
+    assert!(answer["description"].as_str().unwrap().contains("did not reach the element it names") || answer["description"].as_str().unwrap().contains("still has that attribute"), "{answer}");
+    assert_eq!(after, text, "nothing written");
+    assert_eq!(commit_count(&model), 2);
+}
