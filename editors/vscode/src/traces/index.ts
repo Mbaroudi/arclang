@@ -35,7 +35,7 @@ async function review(arg?: unknown): Promise<void> {
   if (!given?.trace) {
     const yes = 'Mark them reviewed';
     const answer = await vscode.window.showWarningMessage(
-      'Mark every trace of this model as reviewed? Each records what its two ends say now; a later change to either end makes it suspect.',
+      'Mark every trace and verification of this model as reviewed? Each records what its two ends say now; a later change to either end makes it suspect.',
       { modal: true },
       yes,
     );
@@ -49,14 +49,14 @@ async function review(arg?: unknown): Promise<void> {
     return;
   }
   if (result.stdout === document.getText()) {
-    void vscode.window.showInformationMessage('Nothing to review: every trace is up to date.');
+    void vscode.window.showInformationMessage('Nothing to review: every trace and verification is up to date.');
     return;
   }
   const edit = new vscode.WorkspaceEdit();
   edit.replace(document.uri, new vscode.Range(document.positionAt(0), document.positionAt(document.getText().length)), result.stdout);
   await vscode.workspace.applyEdit(edit);
   await document.save();
-  void vscode.window.setStatusBarMessage(given?.trace ? `Reviewed: ${given.trace.from} ${given.trace.type} ${given.trace.to}` : 'Every trace marked reviewed', 4000);
+  void vscode.window.setStatusBarMessage(given?.trace ? `Reviewed: ${given.trace.from} ${given.trace.type} ${given.trace.to}` : 'Every trace and verification marked reviewed', 4000);
 }
 
 export function registerTraces(context: vscode.ExtensionContext): void {

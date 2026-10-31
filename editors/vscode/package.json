@@ -581,7 +581,7 @@
       },
       {
         "command": "arclang.trace.review",
-        "title": "Mark every trace as reviewed (suspect when an end changes)",
+        "title": "Mark every trace and verification as reviewed (suspect when an end changes)",
         "category": "ArcLang",
         "icon": "$(pass)"
       },

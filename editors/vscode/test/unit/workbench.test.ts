@@ -20,6 +20,7 @@ import {
   portNameFrom,
   Snapshot,
   toolsFor,
+  VIEWPOINTS,
   treeByLayer, nextRequirementId, requirementRequests, fragmentRequest, noteRequest, invariantRequest } from '../../src/pure/workbench';
 
 const metamodel: Metamodel = {
@@ -213,6 +214,19 @@ test('a requirement goes into the requirements block, or a new one, and is trace
   const alone = requirementRequests('REQ-1', 'x', null, false);
   assert.equal(alone.length, 1);
   assert.match((alone[0] as { declaration: string }).declaration, /^requirements \{\n  requirement "REQ-1" \{/);
+  // Created with a requirement selected: the new one derives from it.
+  const derived = requirementRequests('REQ-2', 'Cells stay under 55 °C', null, true, 'REQ-1');
+  assert.deepEqual(derived[1], { op: 'add_trace', from: 'REQ-2', kind: 'derives', to: 'REQ-1' });
+});
+
+test('the requirements view connects by the kind of its tool, without asking', () => {
+  const derive = toolsFor('req').find((t) => t.id === 'derive')!;
+  assert.deepEqual(connectPlan(derive, { id: 'REQ-2', kind: 'Requirement' }, { id: 'REQ-1', kind: 'Requirement' }, 'derives', 'req'), [{ op: 'add_trace', from: 'REQ-2', kind: 'derives', to: 'REQ-1' }]);
+  const refused = connectPlan(derive, { id: 'PN-1', kind: 'PhysicalNode' }, { id: 'REQ-1', kind: 'Requirement' }, 'derives', 'req');
+  assert.ok('error' in refused && /connects Requirement/.test(refused.error));
+  const satisfy = toolsFor('req').find((t) => t.id === 'satisfy')!;
+  assert.deepEqual(connectPlan(satisfy, { id: 'PN-1', kind: 'PhysicalNode' }, { id: 'REQ-1', kind: 'Requirement' }, 'satisfies', 'req'), [{ op: 'add_trace', from: 'PN-1', kind: 'satisfies', to: 'REQ-1' }]);
+  assert.ok(VIEWPOINTS.some((v) => v.view === 'req' && v.short === 'Requirements'));
 });
 
 test('a fragment request names its kind and label, and refuses an unknown kind', () => {

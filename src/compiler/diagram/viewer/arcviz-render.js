@@ -57,6 +57,8 @@
     exchange_item: { fill: '#E4F3E0', stroke: '#3C8A3F', label: 'Exchange item', glyph: 'none' },
     configuration_item: { fill: '#E9ECEF', stroke: '#3D4852', label: 'Configuration item', glyph: 'node' },
     note: { fill: '#FFF6C9', stroke: '#A8902E', label: 'Note', glyph: 'none' },
+    requirement: { fill: '#F4F6E2', stroke: '#5F6B2E', label: 'Requirement', glyph: 'none' },
+    test_case: { fill: '#D6E4F5', stroke: '#2D6B66', label: 'Test case', glyph: 'none' },
   };
   const FALLBACK_NODE = { fill: '#FFFFFF', stroke: '#444B52', label: 'Element', glyph: 'box' };
 
@@ -79,8 +81,20 @@
     breakdown: { stroke: '#3D4852', width: 1.4, label: 'Made of', arrow: false },
     trace: { stroke: '#6B5B95', width: 1.3, dash: '3 3', label: 'Trace', arrow: true },
     annotation: { stroke: '#A8902E', width: 1, dash: '2 3', label: 'About', arrow: false },
+    containment: { stroke: '#5F6B2E', width: 1.2, label: 'Contains', arrow: false },
   };
   const FALLBACK_EDGE = { stroke: '#444B52', width: 1.4, label: 'Link', arrow: true };
+
+  // What the verification of a requirement or a test case says (diagram::requirements::judge).
+  const VERDICT = {
+    pass: { text: '✓ verified', color: '#2B7A2E', tip: 'Every case verifying it passes' },
+    fail: { text: '✗ fails', color: '#C92A2A', tip: 'A case verifying it fails' },
+    inconclusive: { text: '? inconclusive', color: '#8A6A00', tip: 'A simulation not run or stale: run the simulations' },
+    pending: { text: '… pending', color: '#5A6672', tip: 'No verdict given yet' },
+    unverified: { text: 'not verified', color: '#8A6A00', tip: 'No test case verifies it' },
+  };
+  // A trace or a verification whose end changed since it was reviewed.
+  const SUSPECT = { stroke: '#BF8803', dash: '6 3' };
 
   const SAFETY_COLOR = [
     [/ASIL[-_ ]?D|SIL[-_ ]?4|DAL[-_ ]?A/i, '#B42318'],
@@ -306,6 +320,14 @@
       body += `<rect x="${num(bx)}" y="${num(by)}" width="${num(width)}" height="11" rx="2" fill="${(theme && theme.tag.fill) || '#FFFFFF'}" stroke="${(theme && theme.tag.stroke) || safetyColor(safety)}" stroke-width=".8"/>`;
       body += `<text x="${num(bx + width / 2)}" y="${num(by + 8.3)}" text-anchor="middle" font-size="8" font-weight="700" fill="${(theme && theme.tag.text) || safetyColor(safety)}">${esc(safety)}</text>`;
     }
+    // A requirement or a test case: what its verification says, at the bottom left.
+    const verdict = (arc.kind === 'requirement' || arc.kind === 'test_case') && VERDICT[properties.verdict];
+    if (verdict) {
+      const width = verdict.text.length * 5.4 + 10;
+      const by = y + node.height - 15;
+      body += `<g class="av-verdict" data-verdict="${esc(properties.verdict)}"><title>${esc(verdict.tip)}</title><rect x="${num(x + 4)}" y="${num(by)}" width="${num(width)}" height="11" rx="5.5" fill="${ink('background')}" stroke="${verdict.color}" stroke-width=".9"/>`;
+      body += `<text x="${num(x + 4 + width / 2)}" y="${num(by + 8.3)}" text-anchor="middle" font-size="8" font-weight="700" fill="${verdict.color}">${esc(verdict.text)}</text></g>`;
+    }
     for (const port of node.ports || []) body += drawPort(port, node, x, y);
 
     // A context element stands beside the subject of the diagram: dashed.
@@ -358,9 +380,15 @@
     const origin = (edge.container !== rootId && origins.get(edge.container)) || { x: 0, y: 0 };
     const at = (point) => ({ x: point.x + origin.x, y: point.y + origin.y });
     const arc = edge.arc || {};
-    const style = edgeStyle(arc.kind);
+    const props = arc.properties || {};
+    const suspect = props.suspect === 'true';
+    const base = edgeStyle(arc.kind);
+    // A suspect link is amber and dashed; a verification line takes the colour of its verdict.
+    const stroke = suspect ? SUSPECT.stroke : props.verdict === 'fail' ? VERDICT.fail.color : base.stroke;
+    const style = suspect ? { ...base, stroke, dash: SUSPECT.dash, text: stroke } : { ...base, stroke };
     const name = edge.labels && edge.labels[0] ? edge.labels[0].text : edge.id;
-    const tip = `${style.label}: ${name}${arc.exchange_item ? ' — carries ' + arc.exchange_item : ''}`;
+    const verdictTip = props.verdict ? ` — verdict: ${props.verdict}` : '';
+    const tip = `${style.label}: ${name}${arc.exchange_item ? ' — carries ' + arc.exchange_item : ''}${verdictTip}${suspect ? ' — ' + (props.suspect_reason || 'suspect') : ''}`;
     let body = `<title>${esc(tip)}</title>`;
     for (const section of edge.sections || []) {
       const points = [section.startPoint, ...(section.bendPoints || []), section.endPoint].map(at);
@@ -375,10 +403,11 @@
     }
     for (const label of edge.labels || []) {
       if (label.x === undefined || !label.text) continue;
-      body += `<text class="av-edge-label" x="${num(label.x + origin.x)}" y="${num(label.y + origin.y + 9.5)}" font-size="10" fill="${style.text || style.stroke}" stroke="${ink('background')}" stroke-width="3" paint-order="stroke" stroke-linejoin="round">${esc(label.text)}</text>`;
+      const mark = suspect ? ' ⚠ suspect' : props.verdict === 'pass' ? ' ✓' : props.verdict === 'fail' ? ' ✗' : '';
+      body += `<text class="av-edge-label" x="${num(label.x + origin.x)}" y="${num(label.y + origin.y + 9.5)}" font-size="10" fill="${style.text || style.stroke}" stroke="${ink('background')}" stroke-width="3" paint-order="stroke" stroke-linejoin="round">${esc(label.text + mark)}</text>`;
     }
     const styled = edge.lineStyle === 'curved' || edge.lineStyle === 'straight' ? ` data-style="${edge.lineStyle}"` : '';
-    return `<g class="av-edge" data-id="${esc(edge.id)}"${styled} data-kind="${esc(arc.kind)}" data-source="${esc(arc.source_node)}" data-target="${esc(arc.target_node)}">${body}</g>`;
+    return `<g class="av-edge${suspect ? ' is-suspect' : ''}" data-id="${esc(edge.id)}"${styled} data-kind="${esc(arc.kind)}" data-source="${esc(arc.source_node)}" data-target="${esc(arc.target_node)}">${body}</g>`;
   }
 
   function arrowMarkers(edges) {

@@ -116,6 +116,8 @@ impl Document {
             .filter(|block| name.is_none() || self.header_name(block).as_deref() == name)
             .collect();
         match matches.len() {
+            // Requirements are declared in a `requirements` block or in the system analysis.
+            0 if keyword == "requirements" && name.is_none() => self.find_layer("system_analysis", None).map_err(|_| EditError::NotFound(described)),
             0 => Err(EditError::NotFound(described)),
             1 => Ok(matches.into_iter().next().expect("one match")),
             _ => Err(EditError::Ambiguous {
@@ -916,5 +918,12 @@ trace "LC-001" implements "LC-002" {}
         let model = "model T { name: \"t\" }\nlogical_architecture LA {\n    component Fusion {\n        id: \"LC-F\"\n        function \"Fuse data\"\n    }\n}\n";
         let edited = add_element(model, Container::Element("Fuse data"), "port out", "objects", &[]).unwrap();
         assert!(edited.contains("        function \"Fuse data\" {\n            port out \"objects\" {}\n        }\n"), "{edited}");
+    }
+
+    #[test]
+    fn a_requirement_goes_in_the_system_analysis_when_there_is_no_requirements_block() {
+        let model = "model T {}\nsystem_analysis \"Needs\" {\n    requirement \"Range\" { id: \"REQ-1\" }\n}\n";
+        let edited = add_declaration(model, Container::Layer { keyword: "requirements", name: None }, "requirement \"REQ-2\" { description: \"x\" }").unwrap();
+        assert!(edited.contains("system_analysis \"Needs\" {\n    requirement \"Range\" { id: \"REQ-1\" }\n    requirement \"REQ-2\""), "{edited}");
     }
 }

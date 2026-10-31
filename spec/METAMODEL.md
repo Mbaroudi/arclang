@@ -1022,6 +1022,7 @@ Verification case covering requirements.
 | `verdict` | `enum Verdict` | Outcome of a test run elsewhere; computed, not given, when the case `asserts:` constraints or `simulate:`s. A requirement with a failing case is not verified. |
 | `simulate` | `{backend, model, configuration, stop_time, start_time, sources, tolerance, intervals, sweep}` | Verified by simulation: the `backend` (`openmodelica`, the default; `fmu` and `command` are declared, not built yet), the Modelica `model` to simulate (extending a system model of `arclang export -f modelica`), the `configuration` it is, `stop_time` (and `start_time`), the hand-written Modelica `sources` (paths from the model file), `tolerance`, `intervals`, and a `sweep` (`["body.mass = 1800 kg, 2100 kg", "vcu.target_speed = 80 km/h .. 130 km/h step 10 km/h"]`: every combination is simulated, and the expectations must hold at each). Run by `arclang verify`; the verdict is cached, and inconclusive when stale or never run. |
 | `expects` | `list<text>` | What the simulation result must show: comparisons over its variables read with `min`, `max`, `final`, `initial`, `mean` or `at(t, var)`, with units (`final(vehicle.distance) >= 300 km`). A comparison may name the requirement it checks (`"REQ-SHED: at(40 min, cabin.drawn) <= 1 W"`): each requirement is then judged on the comparisons naming it and those naming none. |
+| `reviewed` | `list<text>` | The verifications reviewed: one entry per verified requirement, the requirement and the fingerprints of the case and of the requirement, written by `arclang trace --review`. A verification whose case or requirement changed since is suspect, and so is one the case verifies but does not name here. |
 
 #### Model
 
@@ -1275,7 +1276,7 @@ Values match ignoring case and the separators `-`, `_` and space.
 | Flange | `a`, `b` | The flange (or heat port) a mechanical or thermal port is (`Flange_a`, `Flange_b`). |
 | Verdict | `pass`, `fail`, `inconclusive`, `error` | Verdict of a verification case (SysML v2 `VerdictKind`). |
 | ExchangeMechanism | `EVENT`, `FLOW`, `OPERATION`, `DATA`, `SHARED_DATA` | Arcadia exchange item mechanism. |
-| TraceKind | `satisfies`, `implements`, `validates`, `verifies`, `realizes`, `refines`, `allocates` | Traceability link kinds. |
+| TraceKind | `satisfies`, `implements`, `validates`, `verifies`, `realizes`, `refines`, `derives`, `allocates` | Traceability link kinds. |
 | PortKind | `data`, `control`, `event` | Function port nature. |
 | MessageKind | `sync`, `async` | Scenario message kind. |
 | Unit | (unit table) | Any symbol of the unit table below. |
@@ -1381,4 +1382,5 @@ Dangling endpoints are compile errors. Kind mismatches are `metamodel:` warnings
 | `validates` | TestCase, Scenario | Requirement, Capability | Validation evidence. |
 | `realizes` | lower-layer element | upper-layer element | Inter-layer realization: SA→OA, LA→SA, PA→LA, EPBS→PA. |
 | `refines` | Requirement | Requirement | Requirement decomposition. |
+| `derives` | Requirement | Requirement | A requirement derived from another (SysML `derive`): `trace "REQ-CELL-TEMP" derives "REQ-RANGE"`. Drawn on the requirements view. |
 | `allocates` | component, node | function, component | Allocation (also expressed by nesting and `deployment`). |
