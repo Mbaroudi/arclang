@@ -139,14 +139,29 @@ pub enum Commands {
         #[clap(value_parser)]
         input: PathBuf,
 
+        /// With --review: only the traces from this element (id or name).
         #[clap(long)]
         from: Option<String>,
 
+        /// With --review: only the traces to this element (id or name).
         #[clap(long)]
         to: Option<String>,
 
         #[clap(long)]
         validate: bool,
+
+        /// List the suspect traces: reviewed, and one of their ends changed since.
+        #[clap(long)]
+        suspects: bool,
+
+        /// Mark traces as reviewed (all, or those --from / --to): write the
+        /// fingerprints of their two ends in the file, as `reviewed: "..."`.
+        #[clap(long)]
+        review: bool,
+
+        /// With --review: print the reviewed source instead of writing the file.
+        #[clap(long)]
+        print: bool,
 
         #[clap(long)]
         matrix: bool,
@@ -580,7 +595,8 @@ pub enum Commands {
         title: String,
 
         /// Restrict the output to one kind of view: oab, sab, lab, pab, msm
-        /// (mode and state machines) or es (scenarios)
+        /// (mode and state machines), es (scenarios), cap, cdb, pbs or req
+        /// (requirements)
         #[clap(long)]
         view: Option<String>,
 
@@ -813,7 +829,13 @@ impl CliRunner {
             Commands::Plugin { plugin_command } => {
                 self.run_plugin(plugin_command)
             }
-            Commands::Trace { input, from, to, validate, matrix } => {
+            Commands::Trace { input, from, to, validate, matrix, suspects, review, print } => {
+                if review {
+                    return self.run_trace_review(&input, from.as_deref(), to.as_deref(), print);
+                }
+                if suspects {
+                    return self.run_trace_suspects(&input);
+                }
                 self.run_trace(input, from, to, validate, matrix)
             }
             Commands::Impact(args) => impact::run(&args), // impact hook
@@ -1287,6 +1309,107 @@ impl CliRunner {
         ))
     }
     
+    fn run_trace_suspects(&self, input: &std::path::Path) -> Result<(), CliError> {
+        let result = crate::Compiler::new(crate::CompilerConfig::default()).compile_file(input).map_err(|e| CliError::Compilation(e.to_string()))?;
+        let graph = crate::compiler::elements::build(&result.ast, &result.semantic_model);
+        let watched = result.ast.traces.iter().filter(|t| t.attributes.contains_key("reviewed")).count();
+        let suspects = crate::compiler::suspect::suspects(&result.ast, &graph).map_err(CliError::Compilation)?;
+        let verifications: usize = result.ast.test_cases.iter().map(|c| c.verifies.len()).sum();
+        let never = suspects.iter().filter(|s| s.link == crate::compiler::suspect::Link::Verification && s.changed.is_empty()).count();
+        let verified: usize = result.ast.test_cases.iter().filter(|c| c.attributes.contains_key("reviewed")).map(|c| c.verifies.len()).sum::<usize>().saturating_sub(never);
+        let and_verifications = if verifications > 0 { format!(" and {verified} of {verifications} verification(s)") } else { String::new() };
+        println!("{watched} of {} trace(s){and_verifications} reviewed, {} suspect", result.ast.traces.len(), suspects.len());
+        for suspect in &suspects {
+            println!("  {}", suspect.line().replace("<model>", &input.display().to_string()));
+        }
+        Ok(())
+    }
+
+    fn run_trace_review(&self, input: &std::path::Path, from: Option<&str>, to: Option<&str>, print: bool) -> Result<(), CliError> {
+        use crate::compiler::{elements, source_edit, suspect};
+        let fail = |e: String| CliError::Compilation(e);
+        let result = crate::Compiler::new(crate::CompilerConfig::default()).compile_file(input).map_err(|e| fail(e.to_string()))?;
+        let graph = elements::build(&result.ast, &result.semantic_model);
+        // An end given by id or name matches the trace however it writes that end.
+        let names = |written: &str| -> Vec<String> {
+            match suspect::end(&graph, written) {
+                Some(e) => vec![e.id.clone(), e.name.clone()],
+                None => vec![written.to_string()],
+            }
+        };
+        let wanted = |end: &str, filter: Option<&str>| filter.is_none_or(|f| names(f).iter().any(|n| n == end) || f == end);
+        let traces: Vec<_> = result.ast.traces.iter().filter(|t| wanted(&t.from, from) && wanted(&t.to, to)).collect();
+        // A test case's `verifies:` is reviewed like a trace from the case to the requirement.
+        let cases: Vec<(&crate::compiler::ast::TestCase, Vec<&str>)> = result
+            .ast
+            .test_cases
+            .iter()
+            .filter(|c| wanted(&c.id, from) || wanted(&c.name, from))
+            .map(|c| (c, c.verifies.iter().map(String::as_str).filter(|r| wanted(r, to)).collect::<Vec<_>>()))
+            .filter(|(_, requirements)| !requirements.is_empty())
+            .collect();
+        if traces.is_empty() && cases.is_empty() {
+            return Err(fail("no trace or verification matches: give --from and --to as the ids or names of its ends".to_string()));
+        }
+        let mut text = std::fs::read_to_string(input).map_err(|e| fail(format!("cannot read {}: {e}", input.display())))?;
+        let (mut reviewed, mut current, mut elsewhere) = (Vec::new(), 0, Vec::new());
+        for trace in traces {
+            let Some(stamp) = suspect::stamp(&graph, trace) else { continue };
+            if trace.attributes.get("reviewed").and_then(|v| v.as_string()) == Some(stamp.as_str()) {
+                current += 1;
+                continue;
+            }
+            let value = source_edit::string_literal(&stamp);
+            match source_edit::set_trace_attribute(&text, &trace.from, &trace.trace_type, &trace.to, "reviewed", &value) {
+                Ok(edited) => {
+                    text = edited;
+                    reviewed.push(format!("{} {} {}", trace.from, trace.trace_type, trace.to));
+                }
+                Err(source_edit::EditError::NotFound(_)) => elsewhere.push(format!("{} {} {}", trace.from, trace.trace_type, trace.to)),
+                Err(e) => return Err(fail(e.to_string())),
+            }
+        }
+        for (case, requirements) in cases {
+            let designator = if case.id.is_empty() { &case.name } else { &case.id };
+            let entries = suspect::reviewed_entries(&graph, case, &requirements).map_err(fail)?;
+            let written: Vec<String> = match case.attributes.get("reviewed") {
+                Some(crate::compiler::ast::AttributeValue::List(items)) => items.iter().filter_map(|i| i.as_string().map(str::to_string)).collect(),
+                _ => Vec::new(),
+            };
+            if entries == written {
+                current += requirements.len();
+                continue;
+            }
+            let value = format!("[{}]", entries.iter().map(|e| source_edit::string_literal(e)).collect::<Vec<_>>().join(", "));
+            match source_edit::set_attribute(&text, designator, "reviewed", &value) {
+                Ok(edited) => {
+                    text = edited;
+                    reviewed.extend(requirements.iter().map(|r| format!("{designator} verifies {r}")));
+                }
+                Err(source_edit::EditError::NotFound(_)) => elsewhere.extend(requirements.iter().map(|r| format!("{designator} verifies {r}"))),
+                Err(e) => return Err(fail(e.to_string())),
+            }
+        }
+        if !reviewed.is_empty() {
+            source_edit::compile_beside(input, &text).map_err(|e| fail(format!("the reviewed model would not compile: {e}")))?;
+            if !print {
+                std::fs::write(input, &text).map_err(|e| fail(format!("cannot write {}: {e}", input.display())))?;
+            }
+        }
+        if print {
+            print!("{text}");
+            return Ok(());
+        }
+        println!("Reviewed {} link(s) in {}{}", reviewed.len(), input.display(), if current > 0 { format!(" ({current} already up to date)") } else { String::new() });
+        for line in &reviewed {
+            println!("  ✓ {line}");
+        }
+        for line in &elsewhere {
+            println!("  - {line}: written in another file (or as `trace {{ from: ... }}`); review it there");
+        }
+        Ok(())
+    }
+
     fn run_trace(
         &self,
         input: PathBuf,
@@ -2200,7 +2323,7 @@ impl CliRunner {
         let selected = match view.as_deref() {
             None => None,
             Some(text) => Some(ViewKind::parse(text).ok_or_else(|| {
-                CliError::Compilation(format!("unknown view '{text}' — expected oab, sab, lab, pab, msm or es"))
+                CliError::Compilation(format!("unknown view '{text}' — expected oab, sab, lab, pab, msm, es, cap, cdb, pbs or req"))
             })?),
         };
         let result = crate::Compiler::new(crate::CompilerConfig::default())
@@ -2208,6 +2331,7 @@ impl CliRunner {
             .map_err(|e| CliError::Compilation(e.to_string()))?;
 
         let mut set = build_diagrams(&result.ast);
+        crate::compiler::diagram::judge_requirements(&mut set, &result.ast, &result.semantic_model);
         // The layout is checked against every view before one is selected:
         // a view left out by `--view` is not a stale entry of the file.
         layout_file::arrange(&mut set, &input, layout.as_deref()).map_err(CliError::Compilation)?;

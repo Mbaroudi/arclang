@@ -91,6 +91,9 @@ pub fn html(text: &str) -> String {
 /// A real literal: plain for ordinary magnitudes, scientific otherwise
 /// (`2.952e8`), always the shortest text that reads back the same value.
 pub fn real(value: f64) -> String {
+    // Fifteen significant digits: what a decimal written in the model holds,
+    // without the noise of its conversion (70 % is 0.7, not 0.7000000000000001).
+    let value: f64 = format!("{value:.14e}").parse().unwrap_or(value);
     let magnitude = value.abs();
     if magnitude != 0.0 && !(1e-3..1e6).contains(&magnitude) {
         format!("{value:e}")
@@ -102,6 +105,15 @@ pub fn real(value: f64) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn reals_carry_no_conversion_noise() {
+        assert_eq!(real(70.0 * 0.01), "0.7");
+        assert_eq!(real(0.1 + 0.2), "0.3");
+        assert_eq!(real(100.0 * 1000.0 / 3600.0), "27.7777777777778");
+        assert_eq!(real(2.7e8), "2.7e8");
+        assert_eq!(real(0.025), "0.025");
+    }
 
     #[test]
     fn classes_instances_and_members() {

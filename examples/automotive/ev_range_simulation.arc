@@ -2,7 +2,10 @@
 // architecture is exported to Modelica (`arclang export -f modelica`), the
 // physics is hand-written in physics/EVPhysics.mo, and `arclang verify`
 // simulates each configuration in OpenModelica: the long range pack keeps
-// its reserve over 300 km at -10 °C, the standard pack does not.
+// its reserve over 300 km at -10 °C, the standard pack does not. Each run
+// ends when the 300 km are driven or when the pack is empty, whichever comes
+// first; `stop_time` is only a bound. The envelope case sweeps the long range
+// pack over the temperatures and speeds the requirement names.
 //
 // The behaviour runs step by step in the debugger (F5, or ArcLang: Run…):
 // the drive modes (a state machine), a winter highway trip (a scenario) and
@@ -25,10 +28,15 @@ system_analysis "Vehicle needs" {
         id: "REQ-RANGE"
         description: "At -10 °C and 100 km/h, the vehicle drives 300 km and keeps 10 % of its charge in reserve"
     }
+    requirement "Range envelope" {
+        id: "REQ-RANGE-ENVELOPE"
+        description: "From -20 °C to 20 °C and from 90 km/h to 110 km/h, the long range vehicle drives 300 km and keeps 10 % of its charge"
+    }
 
     // What the vehicle does on the trip: what the debugger runs.
     function "Measure vehicle speed" {
         id: "SF-SPEED"
+        latency: 5 ms
         port out "speed"
     }
     function "Watch state of charge" {
@@ -37,12 +45,14 @@ system_analysis "Vehicle needs" {
     }
     function "Regulate speed" {
         id: "SF-REG"
+        latency: 10 ms
         port in "speed"
         port in "soc"
         port out "torque"
     }
     function "Deliver torque" {
         id: "SF-TORQUE"
+        latency: 15 ms
         port in "torque"
     }
     functional_exchange "speed" { from: "SF-SPEED.speed" to: "SF-REG.speed" }
@@ -97,9 +107,9 @@ physical_architecture "EV hardware" {
         id: "PN-BODY"
         mass: 2100 kg
         wheel_radius: 0.34 m
-        drag_area: 0.62
+        drag_area: 0.62 m²
         rolling_resistance: 0.011
-        ambient: 263.15 K
+        ambient: -10 °C
         deploys "LC-BODY"
         port "wheel" { physics: mechanical_rotational }
         port out "speed" { is: "Signal" }
@@ -170,6 +180,7 @@ configuration "City" { id: "CFG-CITY" selects: ["LC-PACK-STD"] }
 configuration "Touring" { id: "CFG-TOURING" selects: ["LC-PACK-LR"] }
 
 trace "PN-BATT" satisfies "REQ-RANGE"
+trace "PN-BATT" satisfies "REQ-RANGE-ENVELOPE"
 
 // --- Verification by simulation --------------------------------------------
 
@@ -177,13 +188,21 @@ test_case "Winter range, standard pack" {
     id: "TC-RANGE-STD"
     verifies: ["REQ-RANGE"]
     method: "analysis"
-    simulate: { model: "EVPhysics.CityRange" configuration: "CFG-CITY" stop_time: 3.2 h sources: ["physics/EVPhysics.mo"] }
+    simulate: { model: "EVPhysics.CityRange" configuration: "CFG-CITY" stop_time: 5 h sources: ["physics/EVPhysics.mo"] }
     expects: ["final(vehicleBody.distance) >= 300 km", "min(\"PN-BATT\".soc) >= 0.1"]
 }
 test_case "Winter range, long range pack" {
     id: "TC-RANGE-LR"
     verifies: ["REQ-RANGE"]
     method: "analysis"
-    simulate: { model: "EVPhysics.TouringRange" configuration: "CFG-TOURING" stop_time: 3.2 h sources: ["physics/EVPhysics.mo"] }
+    simulate: { model: "EVPhysics.TouringRange" configuration: "CFG-TOURING" stop_time: 5 h sources: ["physics/EVPhysics.mo"] }
+    expects: ["final(vehicleBody.distance) >= 300 km", "min(\"PN-BATT\".soc) >= 0.1"]
+}
+test_case "Range envelope, long range pack" {
+    id: "TC-RANGE-ENVELOPE"
+    verifies: ["REQ-RANGE-ENVELOPE"]
+    method: "analysis"
+    simulate: { model: "EVPhysics.TouringRange" configuration: "CFG-TOURING" stop_time: 5 h sources: ["physics/EVPhysics.mo"]
+                sweep: ["vehicleBody.ambient = -20 °C, 0 °C, 20 °C", "\"PN-VCU\".speedController.target_speed = 90 km/h .. 110 km/h step 10 km/h"] }
     expects: ["final(vehicleBody.distance) >= 300 km", "min(\"PN-BATT\".soc) >= 0.1"]
 }

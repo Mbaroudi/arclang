@@ -1,7 +1,7 @@
 //! Parameter sweeps: one case simulated over a grid of conditions.
 //!
 //! ```text
-//! simulate: { model: "EVPhysics.CityRange" stop_time: 3.2 h sources: ["physics/EVPhysics.mo"]
+//! simulate: { model: "EVPhysics.CityRange" stop_time: 5 h sources: ["physics/EVPhysics.mo"]
 //!             sweep: ["vehicleBody.ambient = 253.15 K, 263.15 K, 293.15 K",
 //!                     "\"PN-VCU\".speedController.target_speed = 80 km/h .. 130 km/h step 25 km/h"] }
 //! ```

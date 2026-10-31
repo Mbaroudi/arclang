@@ -1534,6 +1534,323 @@
       ]
     },
     {
+      "id": "req",
+      "kind": "req",
+      "title": "Requirements",
+      "nodes": [
+        {
+          "id": "REQ_AEB_001",
+          "uuid": "3c328c85-9ac5-552f-9a97-11d59c5ccec8",
+          "name": "REQ_AEB_001",
+          "kind": "requirement",
+          "compartment": [
+            "id: REQ_AEB_001",
+            "The system shall detect obstacles at a",
+            "range of 150 m"
+          ],
+          "properties": {
+            "category": "Functional",
+            "description": "The system shall detect obstacles at a range of 150 m",
+            "priority": "High",
+            "safety_level": "ASIL-D"
+          }
+        },
+        {
+          "id": "REQ_AEB_002",
+          "uuid": "4a752ccc-4b09-5f1e-8cc9-30a6af082c1b",
+          "name": "REQ_AEB_002",
+          "kind": "requirement",
+          "compartment": [
+            "id: REQ_AEB_002",
+            "The system shall activate the brakes",
+            "within 200 ms of the threat detection"
+          ],
+          "properties": {
+            "category": "Performance",
+            "description": "The system shall activate the brakes within 200 ms of the threat detection",
+            "priority": "High",
+            "safety_level": "ASIL-D"
+          }
+        },
+        {
+          "id": "REQ_AEB_003",
+          "uuid": "b54e00f2-8050-582b-b287-de4b3c268648",
+          "name": "REQ_AEB_003",
+          "kind": "requirement",
+          "compartment": [
+            "id: REQ_AEB_003",
+            "The system shall warn the driver before",
+            "the automatic braking"
+          ],
+          "properties": {
+            "category": "Functional",
+            "description": "The system shall warn the driver before the automatic braking",
+            "priority": "Medium",
+            "safety_level": "ASIL-B"
+          }
+        },
+        {
+          "id": "REQ_AEB_004",
+          "uuid": "5b429b12-f73c-5cf5-9160-f0858ffd3473",
+          "name": "REQ_AEB_004",
+          "kind": "requirement",
+          "compartment": [
+            "id: REQ_AEB_004",
+            "The system shall keep its detection",
+            "performance in rain, fog and at night"
+          ],
+          "properties": {
+            "category": "Environmental",
+            "description": "The system shall keep its detection performance in rain, fog and at night",
+            "priority": "High",
+            "safety_level": "ASIL-D"
+          }
+        },
+        {
+          "id": "TC-001",
+          "uuid": "e041280e-3d2a-5cf4-9ab9-74b42bfb384c",
+          "name": "TC-001",
+          "kind": "test_case",
+          "compartment": [
+            "method: test"
+          ],
+          "properties": {
+            "description": "Detection range on the proving ground",
+            "method": "test",
+            "verifies": "[REQ_AEB_001]"
+          }
+        },
+        {
+          "id": "TC-002",
+          "uuid": "1a9ef85a-f2f4-5f6a-9d0e-56e71947a296",
+          "name": "TC-002",
+          "kind": "test_case",
+          "compartment": [
+            "method: test"
+          ],
+          "properties": {
+            "description": "Threat to brake pressure latency on the HIL bench",
+            "method": "test",
+            "verifies": "[REQ_AEB_002]"
+          }
+        },
+        {
+          "id": "TC-003",
+          "uuid": "6746193d-d312-5da2-840c-1ad2eccc9cfb",
+          "name": "TC-003",
+          "kind": "test_case",
+          "compartment": [
+            "method: demonstration"
+          ],
+          "properties": {
+            "description": "Warning precedes the braking",
+            "method": "demonstration",
+            "verifies": "[REQ_AEB_003]"
+          }
+        },
+        {
+          "id": "TC-004",
+          "uuid": "a4353bfd-e1da-5288-a2e2-a63a6f070c71",
+          "name": "TC-004",
+          "kind": "test_case",
+          "compartment": [
+            "method: test"
+          ],
+          "properties": {
+            "description": "Rain, fog and night campaigns on the test track",
+            "method": "test",
+            "verifies": "[REQ_AEB_004]"
+          }
+        },
+        {
+          "id": "RadarSensor",
+          "uuid": "215cd4f4-cecc-5e28-8627-b1bc97f349b2",
+          "name": "RadarSensor",
+          "kind": "logical_component"
+        },
+        {
+          "id": "CameraSensor",
+          "uuid": "6d348730-fd90-5fa5-a8ff-2800ba0bf3af",
+          "name": "CameraSensor",
+          "kind": "logical_component"
+        },
+        {
+          "id": "ThreatAssessment",
+          "uuid": "a24f46c8-9b1e-52d7-9a48-546c7b5539da",
+          "name": "ThreatAssessment",
+          "kind": "logical_component"
+        },
+        {
+          "id": "BrakeController",
+          "uuid": "f2515a4b-2de8-5ef9-a629-2557bfc5e56f",
+          "name": "BrakeController",
+          "kind": "logical_component"
+        },
+        {
+          "id": "BrakeActuator",
+          "uuid": "d09be69f-4ec5-5eba-ab3f-67fbb4611bf4",
+          "name": "BrakeActuator",
+          "kind": "logical_component"
+        },
+        {
+          "id": "VehicleCANGateway",
+          "uuid": "e097ae2f-815b-570c-b6c5-66109149bacb",
+          "name": "VehicleCANGateway",
+          "kind": "logical_component"
+        },
+        {
+          "id": "DriverInterface",
+          "uuid": "9a4477a1-5291-580f-ba39-8dbe3a3a2a2b",
+          "name": "DriverInterface",
+          "kind": "logical_component"
+        },
+        {
+          "id": "SensorFusion",
+          "uuid": "e06c1f75-6138-5281-8439-f0eedb2c418f",
+          "name": "SensorFusion",
+          "kind": "logical_component"
+        },
+        {
+          "id": "ObjectTracker",
+          "uuid": "d10a9e1a-7daa-51fa-84de-72a6f6a25f9a",
+          "name": "ObjectTracker",
+          "kind": "logical_component"
+        }
+      ],
+      "edges": [
+        {
+          "id": "vfy:TC-001 REQ_AEB_001",
+          "kind": "trace",
+          "source": "TC-001",
+          "target": "REQ_AEB_001",
+          "label": "verifies",
+          "properties": {
+            "trace": "verifies"
+          }
+        },
+        {
+          "id": "vfy:TC-002 REQ_AEB_002",
+          "kind": "trace",
+          "source": "TC-002",
+          "target": "REQ_AEB_002",
+          "label": "verifies",
+          "properties": {
+            "trace": "verifies"
+          }
+        },
+        {
+          "id": "vfy:TC-003 REQ_AEB_003",
+          "kind": "trace",
+          "source": "TC-003",
+          "target": "REQ_AEB_003",
+          "label": "verifies",
+          "properties": {
+            "trace": "verifies"
+          }
+        },
+        {
+          "id": "vfy:TC-004 REQ_AEB_004",
+          "kind": "trace",
+          "source": "TC-004",
+          "target": "REQ_AEB_004",
+          "label": "verifies",
+          "properties": {
+            "trace": "verifies"
+          }
+        },
+        {
+          "id": "trc:RadarSensor satisfies REQ_AEB_001",
+          "kind": "trace",
+          "source": "RadarSensor",
+          "target": "REQ_AEB_001",
+          "label": "satisfies",
+          "properties": {
+            "trace": "satisfies"
+          }
+        },
+        {
+          "id": "trc:CameraSensor satisfies REQ_AEB_001",
+          "kind": "trace",
+          "source": "CameraSensor",
+          "target": "REQ_AEB_001",
+          "label": "satisfies",
+          "properties": {
+            "trace": "satisfies"
+          }
+        },
+        {
+          "id": "trc:ThreatAssessment satisfies REQ_AEB_002",
+          "kind": "trace",
+          "source": "ThreatAssessment",
+          "target": "REQ_AEB_002",
+          "label": "satisfies",
+          "properties": {
+            "trace": "satisfies"
+          }
+        },
+        {
+          "id": "trc:BrakeController satisfies REQ_AEB_002",
+          "kind": "trace",
+          "source": "BrakeController",
+          "target": "REQ_AEB_002",
+          "label": "satisfies",
+          "properties": {
+            "trace": "satisfies"
+          }
+        },
+        {
+          "id": "trc:BrakeActuator satisfies REQ_AEB_002",
+          "kind": "trace",
+          "source": "BrakeActuator",
+          "target": "REQ_AEB_002",
+          "label": "satisfies",
+          "properties": {
+            "trace": "satisfies"
+          }
+        },
+        {
+          "id": "trc:VehicleCANGateway satisfies REQ_AEB_002",
+          "kind": "trace",
+          "source": "VehicleCANGateway",
+          "target": "REQ_AEB_002",
+          "label": "satisfies",
+          "properties": {
+            "trace": "satisfies"
+          }
+        },
+        {
+          "id": "trc:DriverInterface satisfies REQ_AEB_003",
+          "kind": "trace",
+          "source": "DriverInterface",
+          "target": "REQ_AEB_003",
+          "label": "satisfies",
+          "properties": {
+            "trace": "satisfies"
+          }
+        },
+        {
+          "id": "trc:SensorFusion satisfies REQ_AEB_004",
+          "kind": "trace",
+          "source": "SensorFusion",
+          "target": "REQ_AEB_004",
+          "label": "satisfies",
+          "properties": {
+            "trace": "satisfies"
+          }
+        },
+        {
+          "id": "trc:ObjectTracker satisfies REQ_AEB_004",
+          "kind": "trace",
+          "source": "ObjectTracker",
+          "target": "REQ_AEB_004",
+          "label": "satisfies",
+          "properties": {
+            "trace": "satisfies"
+          }
+        }
+      ]
+    },
+    {
       "id": "msm:AEBOperatingModes",
       "kind": "msm",
       "title": "AEBOperatingModes",

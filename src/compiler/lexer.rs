@@ -508,7 +508,8 @@ impl Lexer {
             }
             '"' => self.read_string_literal(),
             _ if ch.is_ascii_digit() => self.read_number(),
-            _ if ch.is_alphabetic() || ch == '_' => self.read_identifier_or_keyword(),
+            // `°C`: the degree sign starts a unit symbol.
+            _ if ch.is_alphabetic() || ch == '_' || ch == '°' => self.read_identifier_or_keyword(),
             _ => Err(format!("Unexpected character: '{}'", ch)),
         }
     }
@@ -566,6 +567,15 @@ impl Lexer {
                 self.advance();
             } else if ch == '_' {
                 self.advance();
+            } else if (ch == 'e' || ch == 'E') && self.exponent_follows() {
+                // Scientific notation: 1.5e7, 2E-3.
+                has_decimal = true;
+                number_str.push('e');
+                self.advance();
+                if matches!(self.current_char(), '+' | '-') {
+                    number_str.push(self.current_char());
+                    self.advance();
+                }
             } else {
                 break;
             }
@@ -584,7 +594,7 @@ impl Lexer {
     fn read_identifier_or_keyword(&mut self) -> Result<Token, String> {
         let mut ident = String::new();
         
-        while !self.is_at_end() && (self.current_char().is_alphanumeric() || self.current_char() == '_') {
+        while !self.is_at_end() && (self.current_char().is_alphanumeric() || self.current_char() == '_' || (ident.is_empty() && self.current_char() == '°')) {
             ident.push(self.current_char());
             self.advance();
         }
@@ -739,6 +749,16 @@ impl Lexer {
         self.input[self.position]
     }
     
+    /// Whether the `e` at the cursor starts an exponent: digits, or a sign then digits.
+    fn exponent_follows(&self) -> bool {
+        let at = |k: usize| self.input.get(self.position + k).copied();
+        match at(1) {
+            Some(c) if c.is_ascii_digit() => true,
+            Some('+' | '-') => at(2).map_or(false, |c| c.is_ascii_digit()),
+            _ => false,
+        }
+    }
+
     fn peek_char(&self) -> Option<char> {
         if self.position + 1 < self.input.len() {
             Some(self.input[self.position + 1])
@@ -768,6 +788,16 @@ impl Lexer {
 mod tests {
     use super::*;
     
+    #[test]
+    fn numbers_in_scientific_notation() {
+        let tokens = Lexer::new("1.5e7 2E-3 4e+2 3 em").tokenize().unwrap();
+        assert_eq!(tokens[0], Token::Number(1.5e7));
+        assert_eq!(tokens[1], Token::Number(2e-3));
+        assert_eq!(tokens[2], Token::Number(400.0));
+        assert_eq!(tokens[3], Token::Integer(3));
+        assert!(matches!(&tokens[4], Token::Identifier(name) if name == "em"), "an e not followed by digits is no exponent: {:?}", tokens[4]);
+    }
+
     #[test]
     fn test_tokenize_simple() {
         let input = r#"operational_analysis "Test" { actor "User" {} }"#;

@@ -79,6 +79,10 @@
       "fill": "#AEBCCB",
       "stroke": "#2F4A66"
     },
+    "test_case": {
+      "fill": "#E2E8EE",
+      "stroke": "#2F4A66"
+    },
     "configuration_item": {
       "fill": "#E3E9EF",
       "stroke": "#2F4A66"

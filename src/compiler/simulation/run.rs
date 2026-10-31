@@ -38,7 +38,7 @@ pub fn attach(result: &mut CompilationResult, model_path: &Path) {
     let mut warnings = Vec::new();
     for test in result.ast.test_cases.iter().filter(|t| is_simulated(t)) {
         let Some(Ok(spec)) = spec_of(&test.attributes) else { continue };
-        let inconclusive = |reason: String| Status { verdict: "inconclusive".to_string(), reason, evidence: String::new() };
+        let inconclusive = |reason: String| Status::new("inconclusive", reason, "");
         let status = match &export {
             Err(error) => inconclusive(format!("the model does not export to Modelica: {error}")),
             Ok(export) => {
@@ -50,7 +50,17 @@ pub fn attach(result: &mut CompilationResult, model_path: &Path) {
                         model_path.display(),
                         test.id
                     )),
-                    Some(outcome) => outcome.status(),
+                    Some(outcome) => {
+                        let mut status = outcome.status();
+                        if outcome.names_requirements() {
+                            for written in &test.verifies {
+                                let target = crate::compiler::verification::requirement_key(&result.ast, written);
+                                let checks = |tag: Option<&str>| tag.is_none_or(|t| crate::compiler::verification::requirement_key(&result.ast, t) == target);
+                                status.by_requirement.insert(written.clone(), outcome.status_for(checks));
+                            }
+                        }
+                        status
+                    }
                 }
             }
         };
@@ -311,25 +321,13 @@ fn evaluate_point(csv: &str, xml: &str, parsed: &[expects::Expect], notes: &mut 
 /// The verdict of a case from its points: an error at one is an error, a failure at one a failure.
 fn conclude(outcome: &mut Outcome, points: Vec<PointOutcome>) {
     let swept = points.len() > 1 || points.first().is_some_and(|p| !p.label.is_empty());
-    let at = |p: &PointOutcome| if p.label.is_empty() { String::new() } else { format!("at {}: ", p.label) };
-    if let Some(broken) = points.iter().find(|p| !p.error.is_empty()) {
-        outcome.verdict = "error".to_string();
-        outcome.reason = format!("{}{}", at(broken), broken.error);
-    } else if let Some(failing) = points.iter().find(|p| !p.holds) {
-        let bad: Vec<&expects::Evaluated> = failing.values.iter().filter(|v| !v.holds).collect();
-        let count = points.iter().filter(|p| !p.holds).count();
-        let many = if swept { format!("{count} of {} points fail; first ", points.len()) } else { String::new() };
-        outcome.verdict = "fail".to_string();
-        outcome.reason = format!(
-            "{many}{}{} (expected {})",
-            at(failing),
-            bad.iter().map(|v| v.value.as_str()).collect::<Vec<_>>().join("; "),
-            bad.iter().map(|v| v.expect.as_str()).collect::<Vec<_>>().join("; ")
-        );
-        outcome.values = failing.values.clone();
-    } else {
-        outcome.verdict = "pass".to_string();
-        outcome.values = points.first().map(|p| p.values.clone()).unwrap_or_default();
+    let (verdict, reason, values) = super::conclusion(&points);
+    outcome.verdict = verdict;
+    if outcome.verdict != "pass" {
+        outcome.reason = reason;
+    }
+    if outcome.verdict != "error" {
+        outcome.values = values;
     }
     if swept {
         outcome.points = points;
@@ -383,7 +381,7 @@ mod tests {
     }
 
     fn evaluated(holds: bool) -> Evaluated {
-        Evaluated { expect: "min(soc) >= 0.1".into(), value: format!("min(soc) = {}", if holds { 0.2 } else { 0.05 }), holds, margin: String::new() }
+        Evaluated { expect: "min(soc) >= 0.1".into(), value: format!("min(soc) = {}", if holds { 0.2 } else { 0.05 }), holds, margin: String::new(), requirement: None }
     }
 
     #[test]
