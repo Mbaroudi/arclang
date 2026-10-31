@@ -292,6 +292,24 @@ pub enum Commands {
         list: bool,
     },
 
+    /// A document filled from a template: Markdown whose {{ ... }}
+    /// directives the compiler fills from the model (model, date, value,
+    /// table, elements, verdicts, constraints, gate, suspects, rules).
+    /// Without --template, a design review of the whole model. The output's
+    /// extension chooses the format: .md, .html or .docx (Word)
+    Document {
+        #[clap(value_parser)]
+        input: PathBuf,
+
+        /// The template (Markdown with {{ ... }} directives)
+        #[clap(long, short)]
+        template: Option<PathBuf>,
+
+        /// Where the document is written: .md, .html or .docx
+        #[clap(long, short)]
+        output: PathBuf,
+    },
+
     Export {
         #[clap(value_parser)]
         input: PathBuf,
@@ -903,6 +921,7 @@ impl CliRunner {
                 }
                 self.run_verify(input, test, json)
             }
+            Commands::Document { input, template, output } => self.run_document(input, template, output),
             Commands::Import { input, format, output } => {
                 self.run_import(input, format, output)
             }
@@ -1344,6 +1363,28 @@ impl CliRunner {
         ))
     }
     
+    fn run_document(&self, input: PathBuf, template: Option<PathBuf>, output: PathBuf) -> Result<(), CliError> {
+        use crate::compiler::document;
+        let fail = |e: String| CliError::Compilation(e);
+        let text = match &template {
+            Some(path) => std::fs::read_to_string(path).map_err(|e| fail(format!("cannot read the template {}: {e}", path.display())))?,
+            None => document::DEFAULT_TEMPLATE.to_string(),
+        };
+        let result = crate::Compiler::new(crate::CompilerConfig::default()).compile_file(&input).map_err(|e| fail(e.to_string()))?;
+        let date = chrono::Local::now().format("%Y-%m-%d").to_string();
+        let markdown = document::render(&text, &result, &date).map_err(|e| fail(format!("{}: {e}", template.as_deref().map(|p| p.display().to_string()).unwrap_or_else(|| "the default template".to_string()))))?;
+        let title = result.semantic_model.name.clone().unwrap_or_else(|| "Model".to_string());
+        let bytes = match output.extension().and_then(|e| e.to_str()).map(str::to_ascii_lowercase).as_deref() {
+            Some("md" | "markdown") => markdown.into_bytes(),
+            Some("html" | "htm") => document::to_html(&markdown, &title).into_bytes(),
+            Some("docx") => document::to_docx(&markdown, &title),
+            _ => return Err(CliError::Config(format!("{}: the output is .md, .html or .docx", output.display()))),
+        };
+        std::fs::write(&output, bytes).map_err(|e| fail(format!("cannot write {}: {e}", output.display())))?;
+        println!("Wrote {}", output.display());
+        Ok(())
+    }
+
     fn run_trace_suspects(&self, input: &std::path::Path) -> Result<(), CliError> {
         let result = crate::Compiler::new(crate::CompilerConfig::default()).compile_file(input).map_err(|e| CliError::Compilation(e.to_string()))?;
         let graph = crate::compiler::elements::build(&result.ast, &result.semantic_model);

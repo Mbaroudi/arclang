@@ -20,6 +20,7 @@ pub mod fta;
 pub mod notes;
 pub mod variability;
 pub mod rules;
+pub mod document;
 pub mod suspect;
 pub mod user_rules;
 pub mod transition;
