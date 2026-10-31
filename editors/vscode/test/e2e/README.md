@@ -32,6 +32,18 @@ with a host that edits through `arclang edit` and snapshots through
 - `toolbar_test.js`: every toolbar tool (exports reach the host as SVG,
   PNG and JSON, full screen, zoom, filters, layers, folding), no console error.
 
+VS Code 1.14x turns off Electron's `--inspect`, which Playwright's
+`_electron.launch` needs. `launch.js` starts VS Code with Chromium's
+debugging port instead and attaches to it (`launchVSCode(app, args)`); it
+works with older builds too. `vscode_montecarlo_test.js` uses it; the
+other `vscode_*` tests still use `_electron.launch` and need a VS Code
+before 1.14x until they move to it. Keep the user data directory short:
+VS Code's socket in it must fit in macOS's 104 characters.
+
+- `vscode_montecarlo_test.js`: Monte Carlo results in VS Code: OpenModelica
+  runs every sample, the page shows the probability, the margins, what moves
+  them, the failing samples; Python analyses them; a sample replays on the
+  diagram (11 checks).
 - `vscode_real_test.js`: the workbench inside VS Code itself, driven by
   Playwright through Electron: the toolbar is whole, a box dragged stays
   where it is let go, a box is resized by its grip, both are written to
