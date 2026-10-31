@@ -88,7 +88,7 @@ fn row(context: &Context, index: usize, keys: &[String]) -> Row {
         .iter()
         .map(|&t| {
             let mut link = context.link(t);
-            link.verdict = Some(context.verdicts.get(&link.id).map(|(v, _)| v.clone()).unwrap_or_else(|| "pending".to_string()));
+            link.verdict = Some(context.verdict_for(&link.id, element).0);
             link
         })
         .collect();
@@ -114,11 +114,11 @@ fn row(context: &Context, index: usize, keys: &[String]) -> Row {
         issues.push("verified by no test case".to_string());
     }
     for link in test_links.iter().filter(|l| l.verdict.as_deref() == Some("fail")) {
-        let why = context.verdicts.get(&link.id).and_then(|(_, why)| why.clone()).map(|w| format!(": {w}")).unwrap_or_default();
+        let why = context.verdict_for(&link.id, element).1.map(|w| format!(": {w}")).unwrap_or_default();
         issues.push(format!("{} fails{why}", link.name));
     }
     for link in test_links.iter().filter(|l| l.verdict.as_deref() == Some("inconclusive")) {
-        let why = context.verdicts.get(&link.id).and_then(|(_, why)| why.clone()).map(|w| format!(": {w}")).unwrap_or_default();
+        let why = context.verdict_for(&link.id, element).1.map(|w| format!(": {w}")).unwrap_or_default();
         issues.push(format!("{} is inconclusive{why}", link.name));
     }
     for blocker in &blockers {

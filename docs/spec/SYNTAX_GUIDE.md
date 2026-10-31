@@ -248,6 +248,18 @@ expression, the value of each side (`50 ms against 100 ms`) and its verdict
 inside the battery, the `latency` of each function a `sum("FC-STOP", latency)`
 adds up, the line labelled `sum`.
 
+**The SysML v2 views** draw the same model in the vocabulary of SysML v2,
+from the text `arclang export -f sys-ml` writes: the **General View**
+(`gv`: definitions and parts, each with its keyword, «part def», «part»,
+«port def», and its attributes; a part linked to the parts it is made of, a
+usage to its definition, a definition to the one it specializes), an
+**Interconnection View** of each package whose parts are connected
+(`iv:<package>`: the parts nested as they are owned, their ports, the
+connections between ports) and an **Action Flow View** of each package with
+actions (`afv:<package>`: the actions, their items in and out, the flows,
+the steps of an action in order with `then`, its fork, join, decision and
+merge nodes). They are read: the Arcadia views are where the model is edited.
+
 ### Data Types
 
 **Strings**:

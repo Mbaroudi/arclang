@@ -61,6 +61,9 @@
     test_case: { fill: '#D6E4F5', stroke: '#2D6B66', label: 'Test case', glyph: 'none' },
     constraint: { fill: '#E3EEFB', stroke: '#27466F', label: 'Constraint', glyph: 'none', round: 14 },
     value_property: { fill: '#FFFFFF', stroke: '#4A545E', label: 'Value', glyph: 'none' },
+    sysml_definition: { fill: '#F7F1DC', stroke: '#7A6A2A', label: 'Definition', glyph: 'none', stereotype: true },
+    sysml_part: { fill: '#D3E4F8', stroke: '#2A62A8', label: 'Part', glyph: 'none', stereotype: true },
+    sysml_action: { fill: '#CDEDBE', stroke: '#3C8A3F', label: 'Action', glyph: 'none', round: 9, stereotype: true },
   };
   const FALLBACK_NODE = { fill: '#FFFFFF', stroke: '#444B52', label: 'Element', glyph: 'box' };
 
@@ -85,6 +88,11 @@
     annotation: { stroke: '#A8902E', width: 1, dash: '2 3', label: 'About', arrow: false },
     containment: { stroke: '#5F6B2E', width: 1.2, label: 'Contains', arrow: false },
     binding: { stroke: '#27466F', width: 1.2, label: 'Bound to', arrow: false },
+    typing: { stroke: '#4A545E', width: 1.1, dash: '5 3', label: 'Defined by', arrow: true },
+    composition: { stroke: '#4A545E', width: 1.3, label: 'Made of', arrow: false },
+    connection: { stroke: '#1D4E96', width: 1.6, label: 'Connection', arrow: false },
+    flow: { stroke: '#1F7A33', width: 1.5, label: 'Flow', arrow: true },
+    succession: { stroke: '#343A40', width: 1.2, dash: '4 3', label: 'Then', arrow: true },
   };
   const FALLBACK_EDGE = { stroke: '#444B52', width: 1.4, label: 'Link', arrow: true };
 
@@ -280,6 +288,7 @@
     }
     // A variant of a product line is one choice among others: dashed.
     const properties = arc.properties || {};
+    const stereotype = style.stereotype && properties.stereotype ? `«${properties.stereotype}»` : '';
     const variant = properties.variant === 'true';
     const theme = themeOf();
     const marking = theme && theme.variant;
@@ -302,13 +311,16 @@
         body += `<text x="${num(x + COMPARTMENT.inset)}" y="${num(y + COMPARTMENT.inset + 10 + index * COMPARTMENT.line)}" font-size="10.5" fill="#3B3214">${esc(line)}</text>`;
       });
     } else if (lines.length > 0) {
-      body += `<text x="${num(centerX)}" y="${num(y + 19)}" text-anchor="middle" font-size="12" font-weight="700" fill="${text}">${esc(name)}</text>`;
+      // A SysML v2 element says what it is before its name: «part def» Battery.
+      const head = stereotype ? `<tspan font-weight="400" font-style="italic" font-size="10">${esc(stereotype)} </tspan>${esc(name)}` : esc(name);
+      body += `<text x="${num(centerX)}" y="${num(y + 19)}" text-anchor="middle" font-size="12" font-weight="700" fill="${text}">${head}</text>`;
       body += `<line x1="${num(x)}" y1="${num(y + COMPARTMENT.top - 8)}" x2="${num(x + node.width)}" y2="${num(y + COMPARTMENT.top - 8)}" stroke="${style.stroke}" stroke-width="1"/>`;
       lines.forEach((line, index) => {
         body += `<text x="${num(x + COMPARTMENT.inset)}" y="${num(y + COMPARTMENT.top + 4 + index * COMPARTMENT.line)}" font-size="10.5" fill="${text}">${esc(line)}</text>`;
       });
     } else if (container) {
-      body += `<text x="${num(centerX)}" y="${num(y + 20)}" text-anchor="middle" font-size="12" font-weight="700" fill="${text}">${esc(name)}</text>`;
+      if (stereotype) body += `<text x="${num(centerX)}" y="${num(y + 11)}" text-anchor="middle" font-size="9.5" font-style="italic" fill="${muted}">${esc(stereotype)}</text>`;
+      body += `<text x="${num(centerX)}" y="${num(y + (stereotype ? 24 : 20))}" text-anchor="middle" font-size="12" font-weight="700" fill="${text}">${esc(name)}</text>`;
       if (realizes) {
         body += `<text x="${num(centerX)}" y="${num(y + 33)}" text-anchor="middle" font-size="9.5" font-style="italic" fill="${muted}">realizes ${esc(realizes)}</text>`;
       }
@@ -316,7 +328,8 @@
       // Under the name: what the element realizes, and what a folded
       // container hides.
       const notes = [realizes ? `realizes ${realizes}` : '', arc.folded ? `${arc.folded} inside` : ''].filter(Boolean).join(' · ');
-      const baseline = y + node.height / 2 + (notes ? -2 : 4);
+      const baseline = y + node.height / 2 + (notes ? -2 : 4) + (stereotype ? 6 : 0);
+      if (stereotype) body += `<text x="${num(centerX)}" y="${num(baseline - 14)}" text-anchor="middle" font-size="9.5" font-style="italic" fill="${muted}">${esc(stereotype)}</text>`;
       body += `<text x="${num(centerX)}" y="${num(baseline)}" text-anchor="middle" font-size="12" font-weight="600" fill="${text}">${esc(name)}</text>`;
       if (notes) {
         body += `<text x="${num(centerX)}" y="${num(baseline + 13)}" text-anchor="middle" font-size="9.5" font-style="italic" fill="${muted}">${esc(notes)}</text>`;

@@ -24,6 +24,7 @@ import { installNavMenu } from './nav-menu'; // nav hook
 import { installPanes } from './panes'; // panes hook
 import { installImpact } from './impact-marks'; // impact hook
 import { installDebugMarks } from './debug-marks'; // debug hook
+import { installReplayMarks } from './replay-marks'; // replay hook
 import { comparing, installCompare } from './compare'; // semgit hook
 import { installFileMenu } from './file-menu';
 import { DiagramExports } from './diagram-export';
@@ -845,6 +846,7 @@ installPanes({ sheet, layerBar, viewer: () => state.viewer, graph: () => current
 
 installImpact({ post: (m) => vscode.postMessage(m as never), host, layerBar, drawingId, selection: () => (multiSelection.elements.length > 1 ? multiSelection.elements : state.selected ? [state.selected] : []) }); // impact hook
 installDebugMarks(host, (view) => showGraph(view), () => state.viewer?.current?.()?.view ?? null); // debug hook
+installReplayMarks(host, (view) => showGraph(view), (id) => !!host.querySelector(`.arcviz-stage .av-node[data-id="${CSS.escape(id)}"]`)); // replay hook
 // zorder hook: Arrange (stacking, groups, locks, layers) on the canvas (webview/arrange.ts).
 installArrange({ host, sheet, viewer: () => state.viewer, graph: () => currentGraph(), snapshot: () => state.snapshot, selected: () => state.selected, selectedDrawing: () => state.selectedDrawing, multi: () => multiSelection.elements, setMulti: (elements) => { multiSelection.elements = elements; if (elements.length) selectElement(elements[elements.length - 1], false); markMulti(); }, select: selectElement, elementFor: (id, isEdge = false) => elementFor({ view: '', id, name: '', kind: '', isEdge }), drawingId, submit, toast: (text, kind) => showToast(text, kind) });
 
