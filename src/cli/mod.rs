@@ -274,6 +274,22 @@ pub enum Commands {
         /// Print each outcome as JSON
         #[clap(long)]
         json: bool,
+
+        /// Do not simulate: print, as JSON, the results kept of the last
+        /// run of this test case (id or name), for the workbench to replay
+        /// on the diagram: the time, each part's values, each expectation
+        /// and the first instant it fails
+        #[clap(long, value_name = "CASE")]
+        replay: Option<String>,
+
+        /// With --replay: the point of the sweep (0 is the first)
+        #[clap(long, default_value_t = 0)]
+        point: usize,
+
+        /// Do not simulate: list, as JSON, the test cases that simulate and
+        /// whether results of their last run are kept for --replay
+        #[clap(long)]
+        list: bool,
     },
 
     Export {
@@ -861,11 +877,30 @@ impl CliRunner {
                 }
                 self.run_export(input, output, format, no_placement, split)
             }
-            Commands::Verify { input, test, json, check_tools } => {
+            Commands::Verify { input, test, json, check_tools, replay, point, list } => {
                 if check_tools {
                     return self.run_check_tools(json);
                 }
                 let input = input.ok_or_else(|| CliError::Config("give a model file to verify".into()))?;
+                if list {
+                    let result = crate::Compiler::new(crate::CompilerConfig::default()).compile_file(&input).map_err(|e| CliError::Compilation(e.to_string()))?;
+                    let kept = crate::compiler::simulation::replay::dir(&input);
+                    let cases: Vec<serde_json::Value> = result
+                        .ast
+                        .test_cases
+                        .iter()
+                        .filter(|t| crate::compiler::simulation::is_simulated(t))
+                        .map(|t| serde_json::json!({ "id": t.id, "name": t.name, "replayable": crate::compiler::simulation::replay::kept(&kept, &t.id) }))
+                        .collect();
+                    println!("{}", serde_json::Value::Array(cases));
+                    return Ok(());
+                }
+                if let Some(case) = replay {
+                    let result = crate::Compiler::new(crate::CompilerConfig::default()).compile_file(&input).map_err(|e| CliError::Compilation(e.to_string()))?;
+                    let replay = crate::compiler::simulation::run::replay(&result, &input, &case, point).map_err(CliError::Compilation)?;
+                    println!("{}", serde_json::to_string(&replay).map_err(|e| CliError::Compilation(e.to_string()))?);
+                    return Ok(());
+                }
                 self.run_verify(input, test, json)
             }
             Commands::Import { input, format, output } => {

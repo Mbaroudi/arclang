@@ -380,6 +380,28 @@ to one makes the cached verdict stale. The cache may be committed as
 evidence; `arclang gate` in CI then needs no OpenModelica, and fails when the
 evidence is stale.
 
+### Replaying a run on the diagram
+
+`arclang verify` keeps the results of each run beside the model, in
+`.arclang/sim-results/<case>/`: one CSV per point of a sweep, trimmed to the
+variables of the parts (`batteryPack.soc`) and those the expectations read,
+at most 600 instants. In VS Code, *Replay a simulation on the diagram* (in the
+simulation menu, or the command palette) picks a test case, opens the
+workbench on the physical view and adds a time bar:
+
+- each part shows its values under its box at the instant of the bar;
+- *First failure at 37 min 26 s* goes to the first instant an expectation
+  stops holding, and the part it reads is outlined in red, with what failed in
+  its tooltip and the requirement in the bar;
+- ▶ plays the run, × ends the replay.
+
+An extremum (`min(x) >= b`, `max(x) <= b`) fails at the first instant the
+values up to it break the bound; `at(t, x)` at `t`; a final or mean value at
+the end of the run. When the model changed since the run, the bar says so.
+From the command line: `arclang verify model.arc --list` lists the cases that
+simulate and whether a run is kept; `arclang verify model.arc --replay
+TC-LOSS-25 [--point N]` prints the run as JSON.
+
 ### Backends
 
 `backend:` names what runs the simulation; `openmodelica` is the default and

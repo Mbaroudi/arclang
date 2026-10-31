@@ -119,6 +119,7 @@ such; ArcLang's column comes from this repository, not from a fresh test.
 | Requirement derivation on a diagram | yes: the Requirements view draws `derives`, `refines`, containment (`parent:`), what satisfies and what verifies each requirement, with its verdict; Derive, Refine and Satisfy tools | yes | yes (`derive` edges, 2026.9) |
 | Validation rules written by the user | yes: `rule` blocks (kind, where, require, severity), in Problems, SARIF and the gate | yes (validation suites, OCL, scripts) | not found |
 | Suspect links | yes: traces and test case verifications, by fingerprints of their ends; quick fix to review | yes (suspect links on changed requirements) | not found |
+| Replay a simulation on the diagram | yes: a time bar over the last OpenModelica run, the values on each box, a jump to the first instant an expectation fails, the part outlined in red | yes (Result Player, step to failures in 2026x) | no |
 | Parametric diagram | yes: each constraint bound to the values it reads, with the value of each side and its verdict | yes | not found |
 | A relation created from a matrix cell | yes: a click on an empty cell of a traceability or allocation matrix writes the trace (`derives` included), a click on a mark removes it after asking, tested in VS Code | yes (dependency matrix) | no |
 | Production gate (ISO 26262, DO-178C, IEC 61508) | yes | no (validation suites and custom rules) | no |

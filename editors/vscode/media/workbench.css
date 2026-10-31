@@ -679,3 +679,17 @@ button.wb-icon-button.wb-bar-toggle.wb-save.is-dirty:hover { background: var(--v
 /* The running state machine (debug hook): active states, the transition just fired. */
 .wb-debug-active > .av-shape { stroke: #22c55e !important; stroke-width: 3px !important; filter: drop-shadow(0 0 6px rgba(34, 197, 94, 0.7)); }
 .wb-debug-fired .av-line { stroke: #f59e0b !important; stroke-width: 3px !important; }
+
+/* A simulation replayed on the diagram (replay hook): the time bar, each part's values, a failed part. */
+.wb-replay { position: absolute; left: 12px; right: 12px; bottom: 12px; z-index: 30; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 6px 10px; border-radius: 6px; background: var(--vscode-editorWidget-background, var(--vscode-editor-background)); border: 1px solid var(--vscode-widget-border, #8884); box-shadow: 0 2px 10px rgba(0, 0, 0, 0.25); font-size: 12px; }
+.wb-replay-title { font-weight: 600; max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wb-replay-slider { flex: 1 1 200px; min-width: 120px; accent-color: var(--vscode-focusBorder, #0b5cad); }
+.wb-replay-time { font-variant-numeric: tabular-nums; color: var(--vscode-descriptionForeground); white-space: nowrap; }
+.wb-replay button { font: inherit; color: var(--vscode-button-secondaryForeground, inherit); background: var(--vscode-button-secondaryBackground, transparent); border: 1px solid var(--vscode-widget-border, #8884); border-radius: 4px; padding: 2px 8px; cursor: pointer; }
+.wb-replay button:hover:not([disabled]) { background: var(--vscode-button-secondaryHoverBackground, #8882); }
+.wb-replay button:focus-visible { outline: 1px solid var(--vscode-focusBorder, #0b5cad); outline-offset: 1px; }
+.wb-replay button[disabled] { opacity: 0.6; cursor: default; }
+.wb-replay-status.is-failing { color: var(--vscode-errorForeground, #e51400); font-weight: 600; }
+.wb-replay-tag-box { fill: var(--vscode-editor-background, #fff); stroke: var(--vscode-widget-border, #8888); stroke-width: 0.8; opacity: 0.94; }
+.wb-replay-tag-text { font: 10px var(--vscode-editor-font-family, monospace); fill: var(--vscode-editor-foreground, #222); font-variant-numeric: tabular-nums; }
+.wb-replay-fail > .av-shape { stroke: #c92a2a !important; stroke-width: 3px !important; filter: drop-shadow(0 0 5px rgba(201, 42, 42, 0.6)); }

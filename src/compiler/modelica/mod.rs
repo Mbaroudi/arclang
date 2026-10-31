@@ -48,6 +48,8 @@ pub struct Export {
     /// ArcLang id (and name) of each part -> its path in a system model
     /// (`PN-BATT` -> `batteryPack`, `BC-SPD` -> `vehicleControlUnit.speedController`).
     pub instances: BTreeMap<String, String>,
+    /// ArcLang id of each part -> its path (the ids alone, without the names of `instances`).
+    pub parts: BTreeMap<String, String>,
     /// Configuration id (empty without configurations) -> qualified system model.
     pub systems: BTreeMap<String, String>,
 }
@@ -105,11 +107,12 @@ pub fn export_with(ast: &Model, options: &Options) -> Result<Export, String> {
         instances.insert(part.id.clone(), path.clone());
         by_name.push((part.name.clone(), path));
     }
+    let parts = instances.clone();
     for (name, path) in by_name {
         instances.entry(name).or_insert(path);
     }
     let systems = structure.systems.iter().map(|s| (s.id.clone(), format!("{package}.Systems.{}", s.class))).collect();
-    Ok(Export { file_name: format!("{package}.mo"), package, text, files, notes: structure.notes.clone(), instances, systems })
+    Ok(Export { file_name: format!("{package}.mo"), package, text, files, notes: structure.notes.clone(), instances, parts, systems })
 }
 
 struct Writer<'a> {
