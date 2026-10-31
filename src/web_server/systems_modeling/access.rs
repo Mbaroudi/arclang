@@ -171,4 +171,14 @@ impl Workspace {
         self.access.allow_write = true;
         Ok(())
     }
+
+    /// Accept writes from the principals a gateway authenticates: a server
+    /// that embeds this API (behind single sign-on, for instance) checks
+    /// every request itself and attaches its [`Principal`] before the
+    /// router sees it. The router still refuses a write that carries no
+    /// principal with the write role, so without such a gateway nobody
+    /// writes. `arclang serve` never calls this.
+    pub fn allow_writes_from_gateway(&mut self) {
+        self.access.allow_write = true;
+    }
 }
