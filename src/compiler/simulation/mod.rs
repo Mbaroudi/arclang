@@ -8,7 +8,7 @@
 //!     verifies: ["REQ-RANGE"]
 //!     method: "analysis"
 //!     simulate: { model: "EVPhysics.TouringRange" configuration: "CFG-TOURING"
-//!                 stop_time: 3.2 h sources: ["physics/EVPhysics.mo"] }
+//!                 stop_time: 5 h sources: ["physics/EVPhysics.mo"] }
 //!     expects: ["final(vehicleBody.distance) >= 300 km", "min(batteryPack.soc) >= 0.1"]
 //! }
 //! ```
@@ -23,6 +23,7 @@ pub mod cache;
 pub mod expects;
 pub mod results;
 pub mod run;
+pub mod sweep;
 pub mod tool;
 
 use crate::compiler::ast::{AttributeValue, Model, TestCase};
@@ -31,7 +32,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 /// The keys `simulate: { ... }` takes.
-pub const SIMULATE_KEYS: [&str; 8] = ["backend", "model", "configuration", "stop_time", "start_time", "sources", "tolerance", "intervals"];
+pub const SIMULATE_KEYS: [&str; 9] = ["backend", "model", "configuration", "stop_time", "start_time", "sources", "tolerance", "intervals", "sweep"];
 
 /// What runs a simulation. Every backend ends in the same result (a table
 /// of time series) and the same `expects:` evaluation, so adding one
@@ -83,6 +84,8 @@ pub struct Spec {
     pub sources: Vec<String>,
     pub tolerance: Option<f64>,
     pub intervals: Option<u32>,
+    /// The axes of a parameter sweep, as written (`body.mass = 1800 kg, 2100 kg`).
+    pub sweep: Vec<String>,
 }
 
 /// The status of a simulated case on this compilation, from the cache.
@@ -93,12 +96,31 @@ pub struct Status {
     pub reason: String,
     /// The values the expectations evaluated to (`final(...) = 320 km; ...`).
     pub evidence: String,
+    /// The verdict for each requirement the case verifies, by the reference
+    /// written in `verifies:`, when its expectations name requirements: a
+    /// requirement is judged on the expectations naming it and those naming none.
+    #[serde(skip_serializing_if = "HashMap::is_empty")]
+    pub by_requirement: HashMap<String, Status>,
+}
+
+impl Status {
+    pub fn new(verdict: impl Into<String>, reason: impl Into<String>, evidence: impl Into<String>) -> Status {
+        Status { verdict: verdict.into(), reason: reason.into(), evidence: evidence.into(), by_requirement: HashMap::new() }
+    }
 }
 
 /// One run of a case, as cached and reported.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 pub struct Outcome {
     pub test_case: String,
+    /// The test case's name, the requirements it verifies and the name of
+    /// its configuration: what a reader of the log looks for.
+    #[serde(default)]
+    pub name: String,
+    #[serde(default)]
+    pub verifies: Vec<String>,
+    #[serde(default)]
+    pub configuration_name: Option<String>,
     pub verdict: String,
     pub reason: String,
     pub values: Vec<expects::Evaluated>,
@@ -110,16 +132,101 @@ pub struct Outcome {
     #[serde(default)]
     pub omc_version: String,
     pub log: String,
+    /// How long the run took, in seconds (0 when nothing ran).
+    #[serde(default)]
+    pub seconds: f64,
+    /// Every point of a parameter sweep; empty when the case sweeps nothing.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub points: Vec<PointOutcome>,
+}
+
+/// One point of a sweep: its parameters, the values its expectations took.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+pub struct PointOutcome {
+    /// `ambient = 253.15 K, target_speed = 90 km/h`.
+    pub label: String,
+    pub values: Vec<expects::Evaluated>,
+    pub holds: bool,
+    /// Why the point has no values (the simulation failed, a parameter did not change).
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub error: String,
+}
+
+/// `verifies REQ-RANGE · configuration City (CFG-CITY) · model EVPhysics.CityRange`.
+pub fn context_line(outcome: &Outcome) -> String {
+    let mut parts = Vec::new();
+    if !outcome.verifies.is_empty() {
+        parts.push(format!("verifies {}", outcome.verifies.join(", ")));
+    }
+    match (&outcome.configuration_name, &outcome.configuration) {
+        (Some(name), Some(id)) if name != id => parts.push(format!("configuration {name} ({id})")),
+        (_, Some(id)) => parts.push(format!("configuration {id}")),
+        _ => {}
+    }
+    if !outcome.model.is_empty() {
+        parts.push(format!("model {}", outcome.model));
+    }
+    parts.join(" · ")
 }
 
 impl Outcome {
     pub fn evidence(&self) -> String {
-        self.values.iter().map(|v| format!("{}{}", v.value, if v.holds { "" } else { " (fails)" })).collect::<Vec<_>>().join("; ")
+        evidence_of(&self.values)
     }
 
     pub fn status(&self) -> Status {
-        Status { verdict: self.verdict.clone(), reason: self.reason.clone(), evidence: self.evidence() }
+        Status::new(self.verdict.clone(), self.reason.clone(), self.evidence())
     }
+
+    /// Whether an expectation of the case names a requirement.
+    pub fn names_requirements(&self) -> bool {
+        self.values.iter().chain(self.points.iter().flat_map(|p| p.values.iter())).any(|v| v.requirement.is_some())
+    }
+
+    /// The verdict of the case on the expectations `checks` keeps (by the
+    /// requirement each names, `None` when it names none). An error or an
+    /// inconclusive run is that for every requirement.
+    pub fn status_for(&self, checks: impl Fn(Option<&str>) -> bool) -> Status {
+        if !matches!(self.verdict.as_str(), "pass" | "fail") || !self.names_requirements() {
+            return self.status();
+        }
+        let kept = |values: &[expects::Evaluated]| values.iter().filter(|v| checks(v.requirement.as_deref())).cloned().collect::<Vec<_>>();
+        let point = |label: &str, values: Vec<expects::Evaluated>, error: &str| PointOutcome { label: label.to_string(), holds: error.is_empty() && values.iter().all(|v| v.holds), values, error: error.to_string() };
+        let points: Vec<PointOutcome> = if self.points.is_empty() {
+            vec![point("", kept(&self.values), "")]
+        } else {
+            self.points.iter().map(|p| point(&p.label, kept(&p.values), &p.error)).collect()
+        };
+        let (verdict, reason, values) = conclusion(&points);
+        Status::new(verdict, reason, evidence_of(&values))
+    }
+}
+
+fn evidence_of(values: &[expects::Evaluated]) -> String {
+    values.iter().map(|v| format!("{}{}", v.value, if v.holds { "" } else { " (fails)" })).collect::<Vec<_>>().join("; ")
+}
+
+/// The verdict of a case from its points, its reason and the values to show:
+/// an error at one point is an error, a failure at one a failure.
+pub fn conclusion(points: &[PointOutcome]) -> (String, String, Vec<expects::Evaluated>) {
+    let swept = points.len() > 1 || points.first().is_some_and(|p| !p.label.is_empty());
+    let at = |p: &PointOutcome| if p.label.is_empty() { String::new() } else { format!("at {}: ", p.label) };
+    if let Some(broken) = points.iter().find(|p| !p.error.is_empty()) {
+        return ("error".to_string(), format!("{}{}", at(broken), broken.error), Vec::new());
+    }
+    if let Some(failing) = points.iter().find(|p| !p.holds) {
+        let bad: Vec<&expects::Evaluated> = failing.values.iter().filter(|v| !v.holds).collect();
+        let count = points.iter().filter(|p| !p.holds).count();
+        let many = if swept { format!("{count} of {} points fail; first ", points.len()) } else { String::new() };
+        let reason = format!(
+            "{many}{}{} (expected {})",
+            at(failing),
+            bad.iter().map(|v| v.value.as_str()).collect::<Vec<_>>().join("; "),
+            bad.iter().map(|v| v.expect.as_str()).collect::<Vec<_>>().join("; ")
+        );
+        return ("fail".to_string(), reason, failing.values.clone());
+    }
+    ("pass".to_string(), String::new(), points.first().map(|p| p.values.clone()).unwrap_or_default())
 }
 
 fn is_class_name(text: &str) -> bool {
@@ -180,7 +287,22 @@ fn read_spec(map: &HashMap<String, AttributeValue>) -> Result<Spec, String> {
         Some(_) => return Err("simulate: intervals is a whole number of output intervals".to_string()),
     };
     let configuration = map.get("configuration").and_then(|v| v.as_string()).map(str::to_string);
-    Ok(Spec { backend, model, configuration, start_time, stop_time, sources, tolerance, intervals })
+    let sweep = match map.get("sweep") {
+        None => Vec::new(),
+        Some(AttributeValue::List(items)) => items.iter().map(|i| i.as_string().map(str::to_string).ok_or("simulate: sweep is a list of \"parameter = values\"")).collect::<Result<_, _>>()?,
+        Some(AttributeValue::String(one)) => vec![one.clone()],
+        Some(_) => return Err("simulate: sweep is a list of \"parameter = values\"".to_string()),
+    };
+    // ArcLang ids are resolved when the package is exported: here, the syntax and the size.
+    let unresolved: Vec<String> = sweep
+        .iter()
+        .map(|t| match t.trim_start().strip_prefix('"').and_then(|rest| rest.split_once('"')) {
+            Some((_, path)) => format!("part{path}"),
+            None => t.clone(),
+        })
+        .collect();
+    sweep::parse(&unresolved, &Default::default())?;
+    Ok(Spec { backend, model, configuration, start_time, stop_time, sources, tolerance, intervals, sweep })
 }
 
 /// The `expects:` of a case.

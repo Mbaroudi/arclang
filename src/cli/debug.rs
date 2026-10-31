@@ -56,11 +56,13 @@ pub fn run(args: &DebugArgs) -> Result<(), CliError> {
         return Adapter::default().serve(std::io::stdin().lock(), std::io::stdout()).map_err(CliError::Io);
     }
     let input = args.input.as_ref().ok_or_else(|| CliError::Config("name the model: arclang debug model.arc --events ...".to_string()))?;
-    let (mut target, listed) = load(input, args.machine.as_deref(), args.scenario.as_deref(), args.chain.as_deref()).map_err(CliError::Compilation)?;
     if args.list {
-        println!("{}", serde_json::to_string_pretty(&listed).unwrap_or_default());
+        // What there is to run, possibly nothing: a model without a machine still compiles.
+        let result = crate::Compiler::new(crate::CompilerConfig::default()).compile_file(input).map_err(|e| CliError::Compilation(e.to_string()))?;
+        println!("{}", serde_json::to_string_pretty(&super::debug_target::runnables(&result.ast)).unwrap_or_default());
         return Ok(());
     }
+    let (mut target, _) = load(input, args.machine.as_deref(), args.scenario.as_deref(), args.chain.as_deref()).map_err(CliError::Compilation)?;
     for condition in &args.conditions {
         target.set_condition(condition, true);
     }

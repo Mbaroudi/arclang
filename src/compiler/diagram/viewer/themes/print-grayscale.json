@@ -79,6 +79,10 @@
       "fill": "#B0B0B0",
       "stroke": "#000000"
     },
+    "test_case": {
+      "fill": "#E0E0E0",
+      "stroke": "#000000"
+    },
     "configuration_item": {
       "fill": "#E6E6E6",
       "stroke": "#000000"

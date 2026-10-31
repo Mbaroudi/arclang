@@ -169,6 +169,7 @@ Stakeholder, system or safety requirement.
 | `verification_method` | `enum VerificationMethod` | Intended verification method. |
 | `parent` | `ref<Requirement>` | Requirement it sits under in its document (ReqIF SPEC-HIERARCHY); structure, not refinement. |
 | `reqif_id` | `text` | Identifier the requirement has in the tool it came from (ReqIF IDENTIFIER), given back on export. |
+| `applies_to` | `list<ref<Configuration>>` | The configurations of the product line the requirement holds for; every one when absent. A case verifying it runs in one of them, and the gate wants a case in each. |
 | `safety_level` | `enum SafetyLevel` | ASIL, DAL or SIL assigned to the element. |
 | `asil` | `enum Asil` | ISO 26262 ASIL (QM, ASIL-A..D). |
 | `dal` | `enum Dal` | DO-178C design assurance level (DAL-A..E). |
@@ -1019,8 +1020,9 @@ Verification case covering requirements.
 | `expected` | `text` | Expected result. |
 | `asserts` | `list<ref<Constraint>>` | An analysis: the constraints whose evaluation is its verdict (pass when they all hold). |
 | `verdict` | `enum Verdict` | Outcome of a test run elsewhere; computed, not given, when the case `asserts:` constraints or `simulate:`s. A requirement with a failing case is not verified. |
-| `simulate` | `{backend, model, configuration, stop_time, start_time, sources, tolerance, intervals}` | Verified by simulation: the `backend` (`openmodelica`, the default; `fmu` and `command` are declared, not built yet), the Modelica `model` to simulate (extending a system model of `arclang export -f modelica`), the `configuration` it is, `stop_time` (and `start_time`), the hand-written Modelica `sources` (paths from the model file), `tolerance`, `intervals`. Run by `arclang verify`; the verdict is cached, and inconclusive when stale or never run. |
-| `expects` | `list<text>` | What the simulation result must show: comparisons over its variables read with `min`, `max`, `final`, `initial`, `mean` or `at(t, var)`, with units (`final(vehicle.distance) >= 300 km`). |
+| `simulate` | `{backend, model, configuration, stop_time, start_time, sources, tolerance, intervals, sweep}` | Verified by simulation: the `backend` (`openmodelica`, the default; `fmu` and `command` are declared, not built yet), the Modelica `model` to simulate (extending a system model of `arclang export -f modelica`), the `configuration` it is, `stop_time` (and `start_time`), the hand-written Modelica `sources` (paths from the model file), `tolerance`, `intervals`, and a `sweep` (`["body.mass = 1800 kg, 2100 kg", "vcu.target_speed = 80 km/h .. 130 km/h step 10 km/h"]`: every combination is simulated, and the expectations must hold at each). Run by `arclang verify`; the verdict is cached, and inconclusive when stale or never run. |
+| `expects` | `list<text>` | What the simulation result must show: comparisons over its variables read with `min`, `max`, `final`, `initial`, `mean` or `at(t, var)`, with units (`final(vehicle.distance) >= 300 km`). A comparison may name the requirement it checks (`"REQ-SHED: at(40 min, cabin.drawn) <= 1 W"`): each requirement is then judged on the comparisons naming it and those naming none. |
+| `reviewed` | `list<text>` | The verifications reviewed: one entry per verified requirement, the requirement and the fingerprints of the case and of the requirement, written by `arclang trace --review`. A verification whose case or requirement changed since is suspect, and so is one the case verifies but does not name here. |
 
 #### Model
 
@@ -1274,7 +1276,7 @@ Values match ignoring case and the separators `-`, `_` and space.
 | Flange | `a`, `b` | The flange (or heat port) a mechanical or thermal port is (`Flange_a`, `Flange_b`). |
 | Verdict | `pass`, `fail`, `inconclusive`, `error` | Verdict of a verification case (SysML v2 `VerdictKind`). |
 | ExchangeMechanism | `EVENT`, `FLOW`, `OPERATION`, `DATA`, `SHARED_DATA` | Arcadia exchange item mechanism. |
-| TraceKind | `satisfies`, `implements`, `validates`, `verifies`, `realizes`, `refines`, `allocates` | Traceability link kinds. |
+| TraceKind | `satisfies`, `implements`, `validates`, `verifies`, `realizes`, `refines`, `derives`, `allocates` | Traceability link kinds. |
 | PortKind | `data`, `control`, `event` | Function port nature. |
 | MessageKind | `sync`, `async` | Scenario message kind. |
 | Unit | (unit table) | Any symbol of the unit table below. |
@@ -1342,6 +1344,25 @@ A quantity is `<number> <unit>` (`latency: 25 ms`). Symbols are case-sensitive. 
 | `kPa` | pressure (Pa) | 1000 | `kPa` |
 | `bar` | pressure (Pa) | 100000 | `bar` |
 | `K` | temperature (K) | 1 | `K` |
+| `°C` | temperature (K) | 1 + 273.15 | `K` |
+| `degC` | temperature (K) | 1 + 273.15 | `K` |
+| `C` | electric charge (C) | 1 | `C` |
+| `mAh` | electric charge (C) | 3.6 | `'mA*h'` |
+| `Ah` | electric charge (C) | 3600 | `'A*h'` |
+| `mOhm` | resistance (Ohm) | 0.001 | `'mΩ'` |
+| `Ohm` | resistance (Ohm) | 1 | `'Ω'` |
+| `Ω` | resistance (Ohm) | 1 | `'Ω'` |
+| `mΩ` | resistance (Ohm) | 0.001 | `'mΩ'` |
+| `kOhm` | resistance (Ohm) | 1000 | `'kΩ'` |
+| `kΩ` | resistance (Ohm) | 1000 | `'kΩ'` |
+| `W/K` | thermal conductance (W/K) | 1 | `'W/K'` |
+| `kW/K` | thermal conductance (W/K) | 1000 | `'kW/K'` |
+| `J/K` | heat capacity (J/K) | 1 | `'J/K'` |
+| `kJ/K` | heat capacity (J/K) | 1000 | `'kJ/K'` |
+| `MJ/K` | heat capacity (J/K) | 1000000 | `'MJ/K'` |
+| `cm²` | area (m²) | 0.0001 | `'cm²'` |
+| `m²` | area (m²) | 1 | `'m²'` |
+| `m2` | area (m²) | 1 | `'m²'` |
 | `m/s` | speed (m/s) | 1 | `'m/s'` |
 | `km/h` | speed (m/s) | 0.2777777777777778 | `'km/h'` |
 | `percent` | ratio (one) | 0.01 | `'%'` |
@@ -1361,4 +1382,5 @@ Dangling endpoints are compile errors. Kind mismatches are `metamodel:` warnings
 | `validates` | TestCase, Scenario | Requirement, Capability | Validation evidence. |
 | `realizes` | lower-layer element | upper-layer element | Inter-layer realization: SA→OA, LA→SA, PA→LA, EPBS→PA. |
 | `refines` | Requirement | Requirement | Requirement decomposition. |
+| `derives` | Requirement | Requirement | A requirement derived from another (SysML `derive`): `trace "REQ-CELL-TEMP" derives "REQ-RANGE"`. Drawn on the requirements view. |
 | `allocates` | component, node | function, component | Allocation (also expressed by nesting and `deployment`). |

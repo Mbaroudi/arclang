@@ -201,21 +201,9 @@ pub fn run_gate(ast: &Model, semantic: &SemanticModel, standard: &str) -> GateRe
         .map(|t| t.to.as_str())
         .collect();
     // A case that fails verifies nothing: its requirements are only covered.
-    let verdicts: Vec<(&super::ast::TestCase, super::verification::Verdict)> =
-        ast.test_cases.iter().map(|tc| (tc, super::verification::verdict(tc, semantic))).collect();
-    let covered: HashSet<&str> = ast
-        .test_cases
-        .iter()
-        .flat_map(|tc| tc.verifies.iter().map(|r| r.as_str()))
-        .collect();
-    // A case that fails, or whose outcome is not known, is not hidden by
-    // one that passes.
-    use super::verification::Verdict;
-    let failing: HashSet<&str> = verdicts
-        .iter()
-        .filter(|(_, v)| matches!(v, Verdict::Fail(_) | Verdict::Inconclusive(_)))
-        .flat_map(|(tc, _)| tc.verifies.iter().map(|r| r.as_str()))
-        .collect();
+    // A case is judged for each requirement on the expectations that check
+    // it, and counts only in the configurations the requirement applies to.
+    use super::verification::{self, Verdict};
 
     let mut requirements_satisfied = 0;
     let mut requirements_verified = 0;
@@ -230,38 +218,60 @@ pub fn run_gate(ast: &Model, semantic: &SemanticModel, standard: &str) -> GateRe
             );
         }
         let name = semantic.all_elements.get(requirement.id.as_str()).map(|e| e.name.as_str());
-        let within = |set: &HashSet<&str>| set.contains(requirement.id.as_str()) || name.is_some_and(|n| set.contains(n));
-        if within(&covered) && !within(&failing) {
-            requirements_verified += 1;
-        } else if within(&covered) {
-            let verifying = |tc: &super::ast::TestCase| tc.verifies.iter().any(|r| r == &requirement.id || Some(r.as_str()) == name);
-            let failed: Vec<String> = verdicts
-                .iter()
-                .filter(|(tc, v)| matches!(v, Verdict::Fail(_)) && verifying(tc))
-                .map(|(tc, v)| match (super::simulation::is_simulated(tc), v) {
-                    (true, Verdict::Fail(why)) => format!("{}: {why}", tc.name),
-                    _ => tc.name.clone(),
-                })
-                .collect();
-            let unknown: Vec<String> = verdicts
-                .iter()
-                .filter(|(tc, _)| verifying(tc))
-                .filter_map(|(tc, v)| match v {
-                    Verdict::Inconclusive(why) => Some(format!("{}: {why}", tc.name)),
-                    _ => None,
-                })
-                .collect();
-            if !failed.is_empty() {
-                push("requirements.verification", Severity::Blocker, format!("requirement '{}': verification cases fail ({})", requirement.id, failed.join(", ")));
-            }
-            if !unknown.is_empty() {
-                push("requirements.verification", Severity::Blocker, format!("requirement '{}': verification cases are inconclusive ({})", requirement.id, unknown.join(", ")));
-            }
-        } else {
+        let cases: Vec<(&super::ast::TestCase, Verdict)> = ast
+            .test_cases
+            .iter()
+            .filter_map(|tc| {
+                let reference = tc.verifies.iter().find(|r| *r == &requirement.id || Some(r.as_str()) == name)?;
+                Some((tc, verification::verdict_for(tc, reference, semantic)))
+            })
+            .collect();
+        if cases.is_empty() {
             push(
                 "requirements.verification",
                 Severity::Blocker,
                 format!("requirement '{}' has no verification case (test_case verifies: [...])", requirement.id),
+            );
+            continue;
+        }
+        // A case that fails, or whose outcome is not known, is not hidden by
+        // one that passes.
+        let failed: Vec<String> = cases
+            .iter()
+            .filter_map(|(tc, v)| match (super::simulation::is_simulated(tc), v) {
+                (true, Verdict::Fail(why)) => Some(format!("{}: {why}", tc.name)),
+                (false, Verdict::Fail(_)) => Some(tc.name.clone()),
+                _ => None,
+            })
+            .collect();
+        let unknown: Vec<String> = cases
+            .iter()
+            .filter_map(|(tc, v)| match v {
+                Verdict::Inconclusive(why) => Some(format!("{}: {why}", tc.name)),
+                _ => None,
+            })
+            .collect();
+        // Each configuration it applies to needs a case run in it (or in none).
+        let uncovered: Vec<String> = verification::applies_to(ast, &requirement.id)
+            .unwrap_or_default()
+            .into_iter()
+            .filter(|cfg| !cases.iter().any(|(tc, _)| verification::configuration_of(ast, tc).is_none_or(|c| &c == cfg)))
+            .map(|cfg| ast.configurations.iter().find(|c| c.id == cfg).map(|c| format!("{} ({cfg})", c.name)).unwrap_or(cfg))
+            .collect();
+        if failed.is_empty() && unknown.is_empty() && uncovered.is_empty() {
+            requirements_verified += 1;
+        }
+        if !failed.is_empty() {
+            push("requirements.verification", Severity::Blocker, format!("requirement '{}': verification cases fail ({})", requirement.id, failed.join(", ")));
+        }
+        if !unknown.is_empty() {
+            push("requirements.verification", Severity::Blocker, format!("requirement '{}': verification cases are inconclusive ({})", requirement.id, unknown.join(", ")));
+        }
+        if !uncovered.is_empty() {
+            push(
+                "requirements.verification",
+                Severity::Blocker,
+                format!("requirement '{}' applies to configuration {}, which no verification case runs in", requirement.id, uncovered.join(", ")),
             );
         }
     }
@@ -499,6 +509,35 @@ pub fn run_gate(ast: &Model, semantic: &SemanticModel, standard: &str) -> GateRe
                         format!("functional_chain '{}': sum of function latencies {:.1} ms exceeds the {:.1} ms budget", chain.name, total, budget_ms),
                     );
                 }
+            }
+        }
+    }
+
+    // ---- Traces reviewed, whose end changed since: suspect ---------------
+    // ---- Rules the model declares ----------------------------------------
+    let graph = (super::suspect::watches(ast) || !ast.rules.is_empty()).then(|| super::elements::build(ast, semantic));
+    if let Some(graph) = &graph {
+        match super::suspect::suspects(ast, graph) {
+            Ok(suspects) => {
+                for suspect in suspects {
+                    push("traceability.suspect", Severity::Blocker, suspect.line());
+                }
+            }
+            Err(error) => push("traceability.suspect", Severity::Blocker, error),
+        }
+        if !ast.rules.is_empty() {
+            match super::user_rules::read(ast).and_then(|rules| super::user_rules::evaluate(&rules, graph)) {
+                Ok(violations) => {
+                    for violation in violations {
+                        let severity = match violation.level {
+                            super::user_rules::Level::Blocker => Severity::Blocker,
+                            super::user_rules::Level::Warning => Severity::Warning,
+                            super::user_rules::Level::Info => continue,
+                        };
+                        push(&format!("rule.{}", violation.rule), severity, format!("{} ({}): '{}': {}", violation.rule_name, violation.rule, violation.element, violation.message));
+                    }
+                }
+                Err(error) => push("rule.invalid", Severity::Blocker, error),
             }
         }
     }

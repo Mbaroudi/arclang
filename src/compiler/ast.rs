@@ -51,6 +51,9 @@ pub struct Model {
     /// Notes on the diagrams: a text about some elements.
     #[serde(default)]
     pub notes: Vec<Note>,
+    /// Rules the authors want the model to hold (`rule "..." { kind: ... require: ... }`).
+    #[serde(default)]
+    pub rules: Vec<RuleDecl>,
     /// Dimension-checked assertions over typed attributes.
     #[serde(default)]
     pub constraints: Vec<Constraint>,
@@ -105,6 +108,7 @@ impl Model {
             test_cases: Vec::new(),
             configurations: Vec::new(),
             notes: Vec::new(),
+            rules: Vec::new(),
             constraints: Vec::new(),
             types: Vec::new(),
             diagrams: Vec::new(),
@@ -1311,6 +1315,13 @@ pub struct Configuration {
 /// `note "The camera runs at 30 Hz" { about: ["LC-CAM"] }`: a text about
 /// elements, drawn on every view that draws one of them, tied to each by a
 /// dashed line (SysML v2: `comment about`). The text is its name.
+/// A rule of the model, as written: its name and its block (see `user_rules`).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RuleDecl {
+    pub name: String,
+    pub attributes: HashMap<String, AttributeValue>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Note {
     /// `id:` when written, else empty: a note is known by its text.

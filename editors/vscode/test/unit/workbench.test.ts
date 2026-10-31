@@ -1,4 +1,4 @@
-import { debugView, firePicks, runPicks } from '../../src/pure/debug';
+import { debugView, firePicks, nothingToRun, runPicks } from '../../src/pure/debug';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
@@ -20,6 +20,7 @@ import {
   portNameFrom,
   Snapshot,
   toolsFor,
+  VIEWPOINTS,
   treeByLayer, nextRequirementId, requirementRequests, fragmentRequest, noteRequest, invariantRequest } from '../../src/pure/workbench';
 
 const metamodel: Metamodel = {
@@ -213,6 +214,19 @@ test('a requirement goes into the requirements block, or a new one, and is trace
   const alone = requirementRequests('REQ-1', 'x', null, false);
   assert.equal(alone.length, 1);
   assert.match((alone[0] as { declaration: string }).declaration, /^requirements \{\n  requirement "REQ-1" \{/);
+  // Created with a requirement selected: the new one derives from it.
+  const derived = requirementRequests('REQ-2', 'Cells stay under 55 °C', null, true, 'REQ-1');
+  assert.deepEqual(derived[1], { op: 'add_trace', from: 'REQ-2', kind: 'derives', to: 'REQ-1' });
+});
+
+test('the requirements view connects by the kind of its tool, without asking', () => {
+  const derive = toolsFor('req').find((t) => t.id === 'derive')!;
+  assert.deepEqual(connectPlan(derive, { id: 'REQ-2', kind: 'Requirement' }, { id: 'REQ-1', kind: 'Requirement' }, 'derives', 'req'), [{ op: 'add_trace', from: 'REQ-2', kind: 'derives', to: 'REQ-1' }]);
+  const refused = connectPlan(derive, { id: 'PN-1', kind: 'PhysicalNode' }, { id: 'REQ-1', kind: 'Requirement' }, 'derives', 'req');
+  assert.ok('error' in refused && /connects Requirement/.test(refused.error));
+  const satisfy = toolsFor('req').find((t) => t.id === 'satisfy')!;
+  assert.deepEqual(connectPlan(satisfy, { id: 'PN-1', kind: 'PhysicalNode' }, { id: 'REQ-1', kind: 'Requirement' }, 'satisfies', 'req'), [{ op: 'add_trace', from: 'PN-1', kind: 'satisfies', to: 'REQ-1' }]);
+  assert.ok(VIEWPOINTS.some((v) => v.view === 'req' && v.short === 'Requirements'));
 });
 
 test('a fragment request names its kind and label, and refuses an unknown kind', () => {
@@ -254,4 +268,13 @@ test('the debugger shows the diagram of what runs, and offers what the model run
   const picks = runPicks({ machines: ['LKA modes'], scenarios: ['Lane departure'], chains: ['Reaction'] });
   assert.deepEqual(picks.map((p) => [p.key, p.name]), [['machine', 'LKA modes'], ['scenario', 'Lane departure'], ['chain', 'Reaction']]);
   assert.deepEqual(firePicks(['SF-DET']).map((p) => p.event), ['SF-DET', null, '?']);
+});
+
+test('a model with nothing to run step by step is told so, not that it does not compile', () => {
+  assert.deepEqual(runPicks({ machines: [], scenarios: [], chains: [] }), []);
+  const simulated = nothingToRun(true);
+  assert.match(simulated.text, /nothing to run step by step/);
+  assert.doesNotMatch(simulated.text, /compile/);
+  assert.equal(simulated.action, 'Run simulations', 'a model verified by simulation is offered its simulations');
+  assert.equal(nothingToRun(false).action, null);
 });

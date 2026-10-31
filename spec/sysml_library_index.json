@@ -93,6 +93,24 @@
       ]
     },
     {
+      "qualifiedName": "ISQElectromagnetism::ElectricChargeUnit",
+      "metaclass": "AttributeDefinition",
+      "name": "ElectricChargeUnit",
+      "shortName": null,
+      "roles": [
+        "type"
+      ]
+    },
+    {
+      "qualifiedName": "ISQElectromagnetism::ElectricChargeValue",
+      "metaclass": "AttributeDefinition",
+      "name": "ElectricChargeValue",
+      "shortName": null,
+      "roles": [
+        "type"
+      ]
+    },
+    {
       "qualifiedName": "ISQElectromagnetism::ElectricPotentialUnit",
       "metaclass": "AttributeDefinition",
       "name": "ElectricPotentialUnit",
@@ -105,6 +123,24 @@
       "qualifiedName": "ISQElectromagnetism::ElectricPotentialValue",
       "metaclass": "AttributeDefinition",
       "name": "ElectricPotentialValue",
+      "shortName": null,
+      "roles": [
+        "type"
+      ]
+    },
+    {
+      "qualifiedName": "ISQElectromagnetism::ResistanceUnit",
+      "metaclass": "AttributeDefinition",
+      "name": "ResistanceUnit",
+      "shortName": null,
+      "roles": [
+        "type"
+      ]
+    },
+    {
+      "qualifiedName": "ISQElectromagnetism::ResistanceValue",
+      "metaclass": "AttributeDefinition",
+      "name": "ResistanceValue",
       "shortName": null,
       "roles": [
         "type"
@@ -210,6 +246,24 @@
       ]
     },
     {
+      "qualifiedName": "ISQSpaceTime::AreaUnit",
+      "metaclass": "AttributeDefinition",
+      "name": "AreaUnit",
+      "shortName": null,
+      "roles": [
+        "type"
+      ]
+    },
+    {
+      "qualifiedName": "ISQSpaceTime::AreaValue",
+      "metaclass": "AttributeDefinition",
+      "name": "AreaValue",
+      "shortName": null,
+      "roles": [
+        "type"
+      ]
+    },
+    {
       "qualifiedName": "ISQSpaceTime::FrequencyUnit",
       "metaclass": "AttributeDefinition",
       "name": "FrequencyUnit",
@@ -249,6 +303,42 @@
       "qualifiedName": "ISQThermodynamics::EnergyValue",
       "metaclass": "AttributeDefinition",
       "name": "EnergyValue",
+      "shortName": null,
+      "roles": [
+        "type"
+      ]
+    },
+    {
+      "qualifiedName": "ISQThermodynamics::HeatCapacityUnit",
+      "metaclass": "AttributeDefinition",
+      "name": "HeatCapacityUnit",
+      "shortName": null,
+      "roles": [
+        "type"
+      ]
+    },
+    {
+      "qualifiedName": "ISQThermodynamics::HeatCapacityValue",
+      "metaclass": "AttributeDefinition",
+      "name": "HeatCapacityValue",
+      "shortName": null,
+      "roles": [
+        "type"
+      ]
+    },
+    {
+      "qualifiedName": "ISQThermodynamics::ThermalConductanceUnit",
+      "metaclass": "AttributeDefinition",
+      "name": "ThermalConductanceUnit",
+      "shortName": null,
+      "roles": [
+        "type"
+      ]
+    },
+    {
+      "qualifiedName": "ISQThermodynamics::ThermalConductanceValue",
+      "metaclass": "AttributeDefinition",
+      "name": "ThermalConductanceValue",
       "shortName": null,
       "roles": [
         "type"
@@ -345,6 +435,15 @@
       ]
     },
     {
+      "qualifiedName": "SI::'joule per kelvin'",
+      "metaclass": "AttributeUsage",
+      "name": "joule per kelvin",
+      "shortName": "J/K",
+      "roles": [
+        "value"
+      ]
+    },
+    {
       "qualifiedName": "SI::'kilometre per hour'",
       "metaclass": "AttributeUsage",
       "name": "kilometre per hour",
@@ -358,6 +457,24 @@
       "metaclass": "AttributeUsage",
       "name": "metre per second",
       "shortName": "m/s",
+      "roles": [
+        "value"
+      ]
+    },
+    {
+      "qualifiedName": "SI::'metre squared'",
+      "metaclass": "AttributeUsage",
+      "name": "metre squared",
+      "shortName": "m²",
+      "roles": [
+        "value"
+      ]
+    },
+    {
+      "qualifiedName": "SI::'watt per kelvin'",
+      "metaclass": "AttributeUsage",
+      "name": "watt per kelvin",
+      "shortName": "W/K",
       "roles": [
         "value"
       ]
@@ -394,6 +511,15 @@
       "metaclass": "AttributeUsage",
       "name": "centimetre",
       "shortName": "cm",
+      "roles": [
+        "value"
+      ]
+    },
+    {
+      "qualifiedName": "SI::coulomb",
+      "metaclass": "AttributeUsage",
+      "name": "coulomb",
+      "shortName": "C",
       "roles": [
         "value"
       ]
@@ -520,6 +646,15 @@
       "metaclass": "AttributeUsage",
       "name": "newton",
       "shortName": "N",
+      "roles": [
+        "value"
+      ]
+    },
+    {
+      "qualifiedName": "SI::ohm",
+      "metaclass": "AttributeUsage",
+      "name": "ohm",
+      "shortName": "Ω",
       "roles": [
         "value"
       ]

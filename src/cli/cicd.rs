@@ -372,13 +372,7 @@ fn run(args: &RunArgs) -> Result<(), CliError> {
                                 test_case: model.display().to_string(),
                                 verdict: "inconclusive".into(),
                                 reason,
-                                values: Vec::new(),
-                                key: String::new(),
-                                model: String::new(),
-                                configuration: None,
-                                tool: String::new(),
-                                omc_version: String::new(),
-                                log: String::new(),
+                                ..Default::default()
                             };
                             extra = diag::verification_diagnostics(&[outcome], model, &root);
                         }

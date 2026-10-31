@@ -6,7 +6,7 @@
 // untrusted workspace or in the browser build.
 import * as path from 'node:path';
 import * as vscode from 'vscode';
-import { UNTRUSTED_MESSAGE, currentBackend, failureText, output, report, run, workspaceTrusted } from '../cli';
+import { UNTRUSTED_MESSAGE, currentBackend, failureText, report, run, workspaceTrusted } from '../cli';
 import {
   Checklist,
   Counts,
@@ -15,16 +15,19 @@ import {
   SimModel,
   checklist,
   countOutcomes,
+  libraryRootOf,
   nextStep,
-  outcomesLog,
   parseDiagnosis,
   parseOutcomes,
   simView,
   simulates,
+  runLog,
   simulationEnv,
   summaryText,
+  systemDrawings,
   toolLabel,
   toolMissing,
+  withLibraryRoot,
 } from '../pure/simulation';
 import { checklistHtml } from '../pure/simulation-html';
 import { applyFix } from './fixes';
@@ -37,6 +40,13 @@ const STALE_MS = 60_000;
 function settings() {
   const c = vscode.workspace.getConfiguration('arclang.simulation');
   return { image: c.get<string>('image', ''), omc: c.get<string>('omc', ''), timeout: c.get<number>('timeout', 900) };
+}
+
+let simChannel: vscode.OutputChannel | undefined;
+/** The log of the simulation runs, apart from the other commands' output. */
+function simOutput(): vscode.OutputChannel {
+  if (!simChannel) simChannel = vscode.window.createOutputChannel('ArcLang Simulation');
+  return simChannel;
 }
 
 const modexInstalled = () => vscode.extensions.getExtension(MODEX_ID) !== undefined;
@@ -285,11 +295,7 @@ class Simulation implements vscode.Disposable {
       } else {
         counts = countOutcomes(outcomes);
         missingTool = toolMissing(outcomes, result.stderr);
-        const out = output();
-        out.appendLine(`$ arclang verify ${path.basename(file)}`);
-        out.appendLine(outcomesLog(outcomes));
-        out.appendLine(summaryText(counts));
-        out.appendLine('');
+        simOutput().appendLine(runLog(path.basename(file), outcomes, new Date()));
       }
     } finally {
       this.model = { ...this.model, running: false, last: counts ?? this.model.last };
@@ -304,7 +310,7 @@ class Simulation implements vscode.Disposable {
     const show = counts.fail || counts.other ? vscode.window.showWarningMessage : vscode.window.showInformationMessage;
     const choice = await show(text, 'Show the verdicts', 'Show the log');
     if (choice === 'Show the verdicts') await vscode.commands.executeCommand('arclang.table.coverage', vscode.Uri.file(file));
-    else if (choice === 'Show the log') output().show(true);
+    else if (choice === 'Show the log') simOutput().show(true);
   }
 
   private vscodeProgress<T>(title: string, task: () => Promise<T>): Promise<T> {
@@ -394,12 +400,25 @@ class Simulation implements vscode.Disposable {
     const file = explicit ?? activeModelUri()?.fsPath ?? (this.simulating.size === 1 ? [...this.simulating][0] : null);
     if (!file) return void vscode.window.showInformationMessage('ArcLang: open a .arc model first.');
     const target = path.join(path.dirname(file), 'modelica');
-    const result = await run(['export', file, '-f', 'modelica', '-o', target], { cwd: path.dirname(file) });
-    report(`arclang export ${path.basename(file)} -f modelica -o ${target}`, result, result.code !== 0);
+    // One file per class: Modex reaches a package's models by its folders only.
+    const args = ['export', file, '-f', 'modelica', '--split', '-o', target];
+    const result = await run(args, { cwd: path.dirname(file) });
+    report(`arclang ${args.slice(0, -1).join(' ')} ${target}`, result, result.code !== 0);
     if (result.code !== 0) return void vscode.window.showErrorMessage(`ArcLang: the Modelica export failed. ${failureText(result).split('\n')[0]}`);
     const written = /Output: (.+)/.exec(result.stdout)?.[1]?.trim();
-    const choice = await vscode.window.showInformationMessage(`ArcLang: Modelica package written to ${vscode.workspace.asRelativePath(written ?? target)}.`, 'Open');
-    if (choice === 'Open' && written) await vscode.commands.executeCommand('vscode.open', vscode.Uri.file(written));
+    const systems = written ? await this.systemsUnder(written) : [];
+    const choice = await vscode.window.showInformationMessage(
+      `ArcLang: Modelica package written to ${vscode.workspace.asRelativePath(written ?? target)}${systems.length ? `, ${systems.length} configuration${systems.length > 1 ? 's' : ''} to draw` : ''}.`,
+      ...(systems.length ? ['Open the drawing'] : []),
+    );
+    if (choice === 'Open the drawing') await this.drawSystem(systems);
+  }
+
+  private async systemsUnder(packageDir: string): Promise<{ label: string; file: string }[]> {
+    const pattern = new vscode.RelativePattern(vscode.Uri.file(packageDir), 'Systems/*.mo');
+    const found = (await vscode.workspace.findFiles(pattern, null, 100)).map((u) => u.fsPath);
+    for (const f of found) this.modelica.add(f);
+    return systemDrawings(found);
   }
 
   async openDrawing(): Promise<void> {
@@ -412,17 +431,48 @@ class Simulation implements vscode.Disposable {
       }
       if (!choice) return;
     }
-    const files = [...this.modelica].sort();
-    if (files.length === 0) {
-      const choice = await vscode.window.showInformationMessage('ArcLang: this workspace has no .mo file yet. Export the model to Modelica first.', 'Export Modelica');
+    const systems = systemDrawings([...this.modelica]);
+    if (systems.length === 0) {
+      // Nothing drawable: no export yet, or a single-file one whose models Modex cannot reach.
+      const text = this.modelica.size
+        ? 'ArcLang: the Modelica here is a single file, whose models Modex cannot open. Export again, one file per class, to draw each configuration.'
+        : 'ArcLang: this workspace has no .mo file yet. Export the model to Modelica first.';
+      const choice = await vscode.window.showInformationMessage(text, 'Export Modelica');
       if (choice) await this.exportModelica();
       return;
     }
-    const file =
-      files.length === 1
-        ? files[0]
-        : (await vscode.window.showQuickPick(files.map((f) => ({ label: path.basename(f), description: vscode.workspace.asRelativePath(f), f })), { placeHolder: 'Which Modelica file?' }))?.f;
-    if (file) await vscode.commands.executeCommand('vscode.open', vscode.Uri.file(file));
+    await this.drawSystem(systems);
+  }
+
+  /** Opens the system model of one configuration, its folder known to Modex as a library. */
+  private async drawSystem(systems: { label: string; file: string }[]): Promise<void> {
+    const many = new Set(systems.map((s) => s.label)).size < systems.length;
+    const picked =
+      systems.length === 1
+        ? systems[0]
+        : await vscode.window.showQuickPick(
+            systems.map((s) => ({ label: s.label, description: many ? vscode.workspace.asRelativePath(s.file) : 'configuration', system: s })),
+            { placeHolder: 'Which configuration to draw?' },
+          ).then((p) => p?.system);
+    if (!picked) return;
+    await this.knowLibraryRoot(libraryRootOf(picked.file));
+    await vscode.commands.executeCommand('vscode.open', vscode.Uri.file(picked.file));
+  }
+
+  /** Modex draws the parts of a model from their classes only when their package is a library root. */
+  private async knowLibraryRoot(root: string): Promise<void> {
+    if (!modexInstalled()) return;
+    const config = vscode.workspace.getConfiguration('modex');
+    const roots = withLibraryRoot(config.get('libraryRoots'), root);
+    if (!roots) return;
+    const choice = await vscode.window.showInformationMessage(
+      `ArcLang: Modex draws the parts of a model only from a package it knows. Add ${vscode.workspace.asRelativePath(root)} to modex.libraryRoots for this workspace?`,
+      'Add it',
+      'Not now',
+    );
+    if (choice !== 'Add it') return;
+    const target = vscode.workspace.workspaceFolders?.length ? vscode.ConfigurationTarget.Workspace : vscode.ConfigurationTarget.Global;
+    await config.update('libraryRoots', roots, target);
   }
 
   dispose(): void {
