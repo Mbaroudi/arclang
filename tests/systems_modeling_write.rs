@@ -577,3 +577,55 @@ async fn a_rename_that_would_change_an_identity_or_break_a_reference_is_refused(
     assert_eq!(std::fs::read_to_string(&model).unwrap(), NAMED);
     assert_eq!(commit_count(&model), 2);
 }
+
+/// The API embedded behind a gateway that authenticates every request
+/// itself (an SSO server) and attaches who it is.
+fn behind_gateway(model: &Path, who: Option<arclang::web_server::systems_modeling::Principal>) -> Router {
+    use arclang::web_server::systems_modeling::{router, Vocabulary};
+    let mut workspace = Workspace::default();
+    workspace.add_file_with_history(model, 50).expect("model loads");
+    workspace.allow_writes_from_gateway();
+    let shared = std::sync::Arc::new(std::sync::RwLock::new(workspace));
+    Router::new().nest(BASE, router(shared, Vocabulary::ArcLang)).layer(axum::middleware::from_fn(move |mut request: axum::extract::Request, next: axum::middleware::Next| {
+        let who = who.clone();
+        async move {
+            if let Some(principal) = who {
+                request.extensions_mut().insert(principal);
+            }
+            next.run(request).await
+        }
+    }))
+}
+
+#[tokio::test]
+async fn a_gateway_that_authenticates_its_users_lets_its_writers_write_and_nobody_else() {
+    use arclang::web_server::systems_modeling::{Principal, Role};
+    let (_guard, model) = repository();
+    let writer = behind_gateway(&model, Some(Principal { name: "ada@example.com".into(), role: Role::Write }));
+    let (project, head, element) = locate(&writer, "LC-001").await;
+    let body = json!({
+        "@type": "Commit",
+        "description": "Latency agreed with the brake supplier",
+        "previousCommit": { "@id": head },
+        "change": [change(&element, json!({ "latency": { "@type": "Quantity", "value": 20, "unit": "ms" } }))]
+    });
+    let (status, commit) = call(&writer, "POST", &format!("/projects/{project}/commits"), None, Some(body.clone())).await;
+    assert_eq!(status, StatusCode::CREATED, "{commit}");
+    assert_eq!(commit_count(&model), 2);
+
+    // The same server, a reader: refused.
+    let (_g2, model2) = repository();
+    let reader = behind_gateway(&model2, Some(Principal { name: "bob".into(), role: Role::Read }));
+    let (project2, head2, element2) = locate(&reader, "LC-001").await;
+    let body2 = json!({ "@type": "Commit", "previousCommit": { "@id": head2 }, "change": [change(&element2, json!({ "latency": { "@type": "Quantity", "value": 20, "unit": "ms" } }))] });
+    let (refused, error) = call(&reader, "POST", &format!("/projects/{project2}/commits"), None, Some(body2.clone())).await;
+    assert_eq!(refused, StatusCode::FORBIDDEN, "{error}");
+    assert!(error.to_string().contains("user 'bob' may read but not write"), "{error}");
+
+    // Without the gateway's principal: nobody writes.
+    let open = behind_gateway(&model2, None);
+    let (refused, error) = call(&open, "POST", &format!("/projects/{project2}/commits"), None, Some(body2)).await;
+    assert_eq!(refused, StatusCode::FORBIDDEN, "{error}");
+    assert!(error.to_string().contains("an unauthenticated client may read but not write"), "{error}");
+    assert_eq!(commit_count(&model2), 1);
+}
