@@ -26,6 +26,7 @@ import { installImpact } from './impact-marks'; // impact hook
 import { installDebugMarks } from './debug-marks'; // debug hook
 import { installReplayMarks } from './replay-marks'; // replay hook
 import { comparing, installCompare } from './compare'; // semgit hook
+import { installTimeline, refreshTimeline } from './timeline'; // timeline hook
 import { installFileMenu } from './file-menu';
 import { DiagramExports } from './diagram-export';
 import { ThemeEditor } from './theme-editor';
@@ -265,6 +266,7 @@ function relationshipElement(r: RelationshipRecord): ElementRecord {
 }
 
 function selectElement(element: ElementRecord | null, inViewer: boolean): void {
+  setTimeout(refreshTimeline, 0); // timeline hook
   state.selected = element;
   properties.show(element, state.metamodel);
   browser.show(element, state.snapshot);
@@ -864,6 +866,9 @@ installArrange({ host, sheet, viewer: () => state.viewer, graph: () => currentGr
 vscode.postMessage({ type: 'ready' });
 // Save, Save as, Import at the head of the tool row; a model file dropped on the sheet.
 installFileMenu({ slot: shell.fileSlot, sheet, post: (message) => vscode.postMessage(message), toast: (text, kind) => showToast(text, kind) });
+
+// timeline hook: the bar of time travel along the bottom of the drawing.
+installTimeline({ host, post: (m) => vscode.postMessage(m as never), selection: () => state.selected, toast: (text, kind) => showToast(text, kind) });
 
 // semgit hook: Compare ▾, the compare mode's marks and panel, the history of an element.
 installCompare({

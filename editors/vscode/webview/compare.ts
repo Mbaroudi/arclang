@@ -117,6 +117,8 @@ function menuItems(): MenuItem[] {
   const post = hooks!.post;
   const selected = hooks!.selection();
   const items: MenuItem[] = [
+    { label: 'Timeline: travel in the history…', run: () => post({ type: 'semgit-timeline', op: 'open' }) },
+    'separator',
     { label: 'Compare with HEAD', run: () => post({ type: 'semgit-compare', op: 'with', ref: 'HEAD' }) },
     { label: 'Compare with a branch, a tag or a revision…', run: () => post({ type: 'semgit-compare', op: 'with' }) },
     { label: 'Compare with a baseline…', run: () => post({ type: 'semgit-compare', op: 'baseline' }) },
@@ -257,12 +259,15 @@ function renderPanel(): void {
   const s = state;
   const c = s.consequences;
   const root = el('aside', { class: 'wb-cmp-panel', 'aria-label': `Changes against ${s.label}` });
+  const past = s.timeTravel === true;
   const head = el('div', { class: 'wb-cmp-head' }, [
-    el('div', { class: 'wb-cmp-title' }, [el('strong', { text: 'Comparing with ' }), el('code', { text: s.label })]),
-    button('Exit', () => h.post({ type: 'semgit-compare', op: 'exit' }), { class: 'wb-cmp-exit', title: 'Leave the comparison and edit again' }),
+    el('div', { class: 'wb-cmp-title' }, [el('strong', { text: past ? 'At ' : 'Comparing with ' }), el('code', { text: s.label })]),
+    past
+      ? button('Back to now', () => h.post({ type: 'semgit-timeline', op: 'now' }), { class: 'wb-cmp-exit', title: 'The model as it is in the editor' })
+      : button('Exit', () => h.post({ type: 'semgit-compare', op: 'exit' }), { class: 'wb-cmp-exit', title: 'Leave the comparison and edit again' }),
   ]);
   root.appendChild(head);
-  root.appendChild(el('p', { class: 'wb-cmp-note', text: 'Read-only: leave the comparison to edit the model.' }));
+  root.appendChild(el('p', { class: 'wb-cmp-note', text: past ? 'A past moment of the model, as git holds it: read-only. The changes marked are those since the moment compared with.' : 'Read-only: leave the comparison to edit the model.' }));
 
   const summary = el('div', { class: 'wb-cmp-summary' });
   const total = s.marks.length;

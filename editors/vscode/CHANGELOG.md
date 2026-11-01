@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- **Timeline: time travel in the model's history.** *ArcLang: Timeline* (or *Compare ▾ → Timeline*) puts a bar along the bottom of the workbench with one notch per commit of the model, its snapshots as flags and its merges as diamonds. Moving along it draws the model as it was at that commit, read-only, with the changes since the commit before (or since any earlier moment chosen in *Changes since*) marked on the diagram and listed beside it. From there: restore the selected element or the whole model as it was (an edit of the file, undoable, never a rewrite of history), take a snapshot (an annotated git tag), start a branch. *ArcLang: Merge a branch into the current one* merges by element (the semantic merge driver) and sends the elements in dispute to *Resolve conflicts*; *ArcLang: Switch branch…*. The CLI gains `arclang restore model.arc --rev REV [--element ID]`. Test: `test/e2e/vscode_timeline_test.js` (14 checks in VS Code 1.144).
+
 - Monte Carlo verification: `uncertain:` draws a case's parameters
   (`normal`, `uniform`, `triangular`) in `samples` from a `seed`, and the case
   passes when the probability that its expectations hold is shown to reach
