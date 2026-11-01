@@ -128,14 +128,19 @@ arclang workbench examples/energy/ev_charging_station.arc
 
 **File:** `datacenter/ai_liquid_cooling.arc`, physics in `datacenter/physics/CoolingPhysics.mo`
 
-Direct-to-chip liquid cooling of an AI hall: sixteen GPU racks of 120 kW give 85 % of their heat to cold plates; a coolant distribution unit (CDU) carries it through a plate exchanger to the facility water; dry coolers give it to the outside air and a chiller helps on hot afternoons. Two product variants, a CDU with two pumps and one with three (N+1). The operational need, seven requirements (chip temperature, no throttling, coolant supply between 20 °C and 40 °C, partial PUE at most 1.10, pump redundancy, climate and load envelope, throttling risk, leak isolation in 10 s), the supply loop and the leak isolation chain with their latency budgets, the cooling modes (a state machine) and a pump failure during a training run (a scenario). `arclang verify` runs the scenarios in OpenModelica:
+Direct-to-chip liquid cooling of an AI hall: sixteen GPU racks give 85 % of their heat to cold plates; a coolant distribution unit (CDU) carries it through a plate exchanger to the facility water; dry coolers give it to the outside air and a chiller helps on hot afternoons. A product line of three variation points: the racks (120 kW today, 200 kW next generation), the CDU (two pumps, three pumps N+1, high flow N+1), the heat rejection (900 kW chiller, or larger coolers and 1.6 MW), in four configurations. The operational need, eleven requirements, the supply loop and the leak isolation chain with their latency budgets, the cooling modes (a state machine) and a pump failure during a training run (a scenario). Every component of the physics is placed and wired, so OMEdit draws and simulates each scenario. `arclang verify` runs them in OpenModelica:
 
 | Scenario | Verdict |
 |---|---|
-| Design summer day (35 °C), N+1 pumps | pass: GPUs at 76.4 °C at most, supply at most 36.4 °C, partial PUE 1.077 |
-| A CDU pump stops at 14 h, two pumps | fail: the controller caps the GPUs to 68 % of their power to hold 83 °C |
+| Design summer day (35 °C), N+1 pumps | pass: GPUs at 76 °C at most, supply at most 36.4 °C, partial PUE 1.077 |
+| A CDU pump stops at 14 h, two pumps | fail: the controller caps the GPUs to 69 % of their power to hold 83 °C |
 | The same failure, N+1 pumps | pass: the spare pump takes over |
-| 30 to 45 °C outside × 100 to 132 kW per rack | 9 of 12: at 45 °C the chiller is short and the GPUs throttle |
+| Grid outage at 14 h (pumps on the UPS, fans on the generator after 30 s, chiller back after 10 min) | pass: the dry coolers alone hold the GPUs at 79 °C |
+| The generator 1, 3 or 5 min late, with the loop's 40 MJ/K or a buffer tank (160 MJ/K) | 5 of 6: 3 min ride through on the loop alone; 5 min throttle (94 %) unless the tank is there |
+| A rack leaks at 14 h: valves closed in 8.5 s, rack powered off 10, 20, 30 or 60 s after the alarm | 2 of 4: off within 20 s its GPUs stay under 95 °C; at 30 s they reach 102 °C, at 60 s 140 °C; the other racks train on |
+| Racks of 200 kW on the current plant | fail: GPUs capped to 73 % |
+| Racks of 200 kW, high flow CDU, larger coolers, 1.6 MW chiller | pass: GPUs at 77 °C, partial PUE 1.075 |
+| 30 to 45 °C outside × 100 to 132 kW per rack | 9 of 12: at 45 °C (and 40 °C with 132 kW) the GPUs throttle |
 | Monte Carlo over the summers (35 °C ± 3 K, 110 to 132 kW per rack) | pass: 60 of 60 days without throttling |
 
 ```bash

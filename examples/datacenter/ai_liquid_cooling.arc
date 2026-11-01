@@ -66,6 +66,22 @@ system_analysis "Cooling needs" {
         id: "REQ-RISK"
         description: "Over the summer peaks the site sees (35 °C, give or take 3 K) and racks from 110 kW to 132 kW, at least 95 % of the hottest days pass without throttling"
     }
+    requirement "Grid outage ride-through" {
+        id: "REQ-OUTAGE"
+        description: "A grid outage at the hottest hour of the design day (generator after 30 s, chiller back after 10 min) leaves every GPU cold plate at or below 85 °C, without throttling"
+    }
+    requirement "Late generator" {
+        id: "REQ-RIDE"
+        description: "If the generator starts up to 5 min late, the coolant and the facility water carry the heat meanwhile: no throttling"
+    }
+    requirement "Leaking rack" {
+        id: "REQ-LEAK-RACK"
+        description: "A rack isolated for a leak is powered off before its GPUs reach 95 °C, and the other racks keep training at or below 85 °C without throttling"
+    }
+    requirement "Next generation racks" {
+        id: "REQ-NEXTGEN"
+        description: "On the design summer day the hall takes racks of 200 kW: every GPU cold plate at or below 85 °C, without throttling, partial PUE at most 1.10"
+    }
     requirement "Leak isolation" {
         id: "REQ-LEAK"
         description: "A coolant leak in a rack is isolated within 10 s of reaching the floor sensor"
@@ -109,15 +125,26 @@ system_analysis "Cooling needs" {
 logical_architecture "Liquid cooling" {
     component "AI hall" {
         id: "LC-HALL"
-        component "GPU racks" { id: "LC-RACKS" }
+        component "GPU racks" {
+            id: "LC-RACKS"
+            variation: true
+            component "Racks, current generation" { id: "LC-RACK-G1" variant: true rack_power: 120 kW gpu_power: 1000 W cold_plate_conductance: 33 W/K }
+            component "Racks, next generation" { id: "LC-RACK-G2" variant: true rack_power: 200 kW gpu_power: 1400 W cold_plate_conductance: 45 W/K }
+        }
         component "Coolant distribution" {
             id: "LC-CDU"
             variation: true
-            component "CDU, two pumps" { id: "LC-CDU-N" variant: true pump_count: 2 }
-            component "CDU, three pumps (N+1)" { id: "LC-CDU-N1" variant: true pump_count: 3 }
+            component "CDU, two pumps" { id: "LC-CDU-N" variant: true pump_count: 2 pump_flow: 22 kg/s hx_conductance: 450 kW/K }
+            component "CDU, three pumps (N+1)" { id: "LC-CDU-N1" variant: true pump_count: 3 pump_flow: 22 kg/s hx_conductance: 450 kW/K }
+            component "CDU, high flow (N+1)" { id: "LC-CDU-HF" variant: true pump_count: 3 pump_flow: 36 kg/s hx_conductance: 750 kW/K }
         }
         component "Facility water" { id: "LC-FWS" }
-        component "Heat rejection" { id: "LC-REJECT" }
+        component "Heat rejection" {
+            id: "LC-REJECT"
+            variation: true
+            component "Dry coolers and 900 kW chiller" { id: "LC-REJ-STD" variant: true cooler_conductance: 280 kW/K chiller_capacity: 900 kW fan_power: 45 kW }
+            component "Larger dry coolers and 1.6 MW chiller" { id: "LC-REJ-XL" variant: true cooler_conductance: 480 kW/K chiller_capacity: 1600 kW fan_power: 75 kW }
+        }
         component "Cooling control" { id: "LC-CONTROL" }
         component "Leak protection" { id: "LC-LEAK" }
     }
@@ -130,14 +157,16 @@ physical_architecture "Cooling plant" {
     node "GPU racks" {
         id: "PN-RACKS"
         rack_count: 16
-        rack_power: 120 kW
         // Cold plates take the GPUs', CPUs' and switches' heat; fans and
-        // power supplies give the rest to the room air.
+        // power supplies give the rest to the room air. The power of a rack,
+        // of its GPUs and their cold plates' conductance (chip case to
+        // coolant) come with the generation of racks.
         liquid_fraction: 85 %
-        gpu_power: 1000 W
-        // Per GPU, from the chip case to the coolant.
-        cold_plate_conductance: 33 W/K
         idle_load: 30 %
+        // A GPU and its cold plate: what heats up when the coolant stops.
+        gpu_capacity: 800 J/K
+        // From the leak alarm to the rack's power off (the scheduler drains it).
+        shutdown_delay: 20 s
         deploys "LC-RACKS"
         port "cold_plates" { is: "Heat" }
         port in "coolant_flow" { is: "Signal" }
@@ -146,10 +175,8 @@ physical_architecture "Cooling plant" {
     }
     node "Coolant distribution unit" {
         id: "PN-CDU"
-        pump_flow: 22 kg/s
         needed_pumps: 2
         pump_power: 7.5 kW
-        hx_conductance: 450 kW/K
         coolant_capacity: 8 MJ/K
         deploys "LC-CDU"
         port "secondary" { physics: thermal flange: b }
@@ -159,6 +186,7 @@ physical_architecture "Cooling plant" {
     }
     node "Facility water loop" {
         id: "PN-FWS"
+        // The pipes and the coils, about 10 m³ of water; a buffer tank adds to it.
         water_capacity: 40 MJ/K
         deploys "LC-FWS"
         port "from_cdu" { physics: thermal flange: b }
@@ -166,10 +194,11 @@ physical_architecture "Cooling plant" {
     }
     node "Dry coolers and chiller" {
         id: "PN-REJECT"
-        cooler_conductance: 280 kW/K
-        fan_power: 45 kW
-        chiller_capacity: 900 kW
         chiller_efficiency: 35 %
+        // After a grid outage: the generator powers the fans, the chiller's
+        // compressor waits out its restart. The CDU pumps are on the UPS.
+        generator_start: 30 s
+        chiller_restart: 10 min
         deploys "LC-REJECT"
         port "water" { physics: thermal flange: b }
         port "air" { is: "Heat" }
@@ -254,8 +283,10 @@ scenario "Pump failure during a training run" {
     }
 }
 
-configuration "Two pumps" { id: "CFG-N" selects: ["LC-CDU-N"] }
-configuration "N+1 pumps" { id: "CFG-N1" selects: ["LC-CDU-N1"] }
+configuration "Two pumps" { id: "CFG-N" selects: ["LC-RACK-G1", "LC-CDU-N", "LC-REJ-STD"] }
+configuration "N+1 pumps" { id: "CFG-N1" selects: ["LC-RACK-G1", "LC-CDU-N1", "LC-REJ-STD"] }
+configuration "Next generation racks on the current plant" { id: "CFG-G2-TODAY" selects: ["LC-RACK-G2", "LC-CDU-N1", "LC-REJ-STD"] }
+configuration "Next generation hall" { id: "CFG-G2" selects: ["LC-RACK-G2", "LC-CDU-HF", "LC-REJ-XL"] }
 
 trace "PN-CDU" satisfies "REQ-GPU"
 trace "PN-REJECT" satisfies "REQ-GPU"
@@ -266,6 +297,11 @@ trace "PN-CDU" satisfies "REQ-N1"
 trace "PN-REJECT" satisfies "REQ-ENVELOPE"
 trace "PN-REJECT" satisfies "REQ-RISK"
 trace "LC-LEAK" satisfies "REQ-LEAK"
+trace "PN-FWS" satisfies "REQ-OUTAGE"
+trace "PN-FWS" satisfies "REQ-RIDE"
+trace "LC-LEAK" satisfies "REQ-LEAK-RACK"
+trace "PN-CDU" satisfies "REQ-NEXTGEN"
+trace "PN-REJECT" satisfies "REQ-NEXTGEN"
 trace "SF-REJECT" realizes "OA-COOL"
 trace "SF-LEAK-CLOSE" realizes "OA-LEAK"
 
@@ -312,6 +348,43 @@ test_case "Throttling risk over the summers, N+1 pumps" {
                 uncertain: ["\"PN-OUTDOOR\".design_temperature ~ normal(308.15 K, 3 K)", "\"PN-RACKS\".rack_power ~ uniform(110 kW, 132 kW)"]
                 samples: 60 seed: 11 probability: 0.95 }
     expects: ["min(\"PN-RACKS\".cap) >= 0.99"]
+}
+test_case "Grid outage at 14 h, N+1 pumps" {
+    id: "TC-OUTAGE"
+    verifies: ["REQ-OUTAGE"]
+    method: "analysis"
+    simulate: { model: "CoolingPhysics.PowerOutage" configuration: "CFG-N1" stop_time: 24 h sources: ["physics/CoolingPhysics.mo"] }
+    expects: ["max(\"PN-RACKS\".gpu_temperature) <= 85 °C", "min(\"PN-RACKS\".cap) >= 0.99"]
+}
+test_case "Late generator: ride-through and buffer tank, N+1 pumps" {
+    id: "TC-RIDE"
+    verifies: ["REQ-RIDE"]
+    method: "analysis"
+    simulate: { model: "CoolingPhysics.PowerOutage" configuration: "CFG-N1" stop_time: 24 h sources: ["physics/CoolingPhysics.mo"]
+                sweep: ["\"PN-REJECT\".generator_start = 1 min, 3 min, 5 min", "\"PN-FWS\".water_capacity = 40 MJ/K, 160 MJ/K"] }
+    expects: ["max(\"PN-RACKS\".gpu_temperature) <= 85 °C", "min(\"PN-RACKS\".cap) >= 0.99"]
+}
+test_case "Leak in a rack at 14 h, N+1 pumps" {
+    id: "TC-LEAK-RACK"
+    verifies: ["REQ-LEAK-RACK"]
+    method: "analysis"
+    simulate: { model: "CoolingPhysics.LeakInARack" configuration: "CFG-N1" stop_time: 24 h sources: ["physics/CoolingPhysics.mo"]
+                sweep: ["\"PN-RACKS\".shutdown_delay = 10 s, 20 s, 30 s, 60 s"] }
+    expects: ["max(\"PN-RACKS\".isolated_gpu_temperature) <= 95 °C", "max(\"PN-RACKS\".gpu_temperature) <= 85 °C", "min(\"PN-RACKS\".cap) >= 0.99"]
+}
+test_case "Next generation racks on the current plant" {
+    id: "TC-NEXTGEN-TODAY"
+    verifies: ["REQ-NEXTGEN"]
+    method: "analysis"
+    simulate: { model: "CoolingPhysics.NextGenerationToday" configuration: "CFG-G2-TODAY" stop_time: 24 h sources: ["physics/CoolingPhysics.mo"] }
+    expects: ["max(\"PN-RACKS\".gpu_temperature) <= 85 °C", "min(\"PN-RACKS\".cap) >= 0.99", "final(ppue) <= 1.1"]
+}
+test_case "Next generation hall" {
+    id: "TC-NEXTGEN"
+    verifies: ["REQ-NEXTGEN"]
+    method: "analysis"
+    simulate: { model: "CoolingPhysics.NextGenerationHall" configuration: "CFG-G2" stop_time: 24 h sources: ["physics/CoolingPhysics.mo"] }
+    expects: ["max(\"PN-RACKS\".gpu_temperature) <= 85 °C", "min(\"PN-RACKS\".cap) >= 0.99", "final(ppue) <= 1.1"]
 }
 test_case "Leak isolation" {
     id: "TC-LEAK"
