@@ -13,6 +13,7 @@ import { applyCompare, compareActive, sessionOf, startCompare, stopCompare } fro
 import { listRefs, repoTop, safeRevision, showAt } from './git';
 import { elementHistory, snapshotAt } from './history';
 import { installMergeDriver, registerConflicts } from './merge';
+import { handleTimeline, mergeBranch, openTimeline, switchBranch } from './timeline';
 
 export { applyCompare, compareActive };
 
@@ -125,6 +126,8 @@ export async function handleSemgitMessage(panel: WorkbenchPanel, message: Semgit
       return;
     case 'semgit-merge-install':
       return installMergeDriver();
+    case 'semgit-timeline':
+      return handleTimeline(panel, message.op, message.hash, message.base, message.element);
   }
 }
 
@@ -166,11 +169,27 @@ export function registerSemgit(context: vscode.ExtensionContext): void {
     if (picked) await verifyBaseline(documentDir(document) ?? '.', picked.label);
   });
   register('arclang.merge.install', () => installMergeDriver());
+  register('arclang.timeline', async (arg?: unknown) => {
+    const document = targetDocument(arg);
+    if (!document) return void vscode.window.showInformationMessage('ArcLang: open a .arc model first.');
+    if (!WorkbenchPanel.for(document.uri)) await WorkbenchPanel.open(document);
+    const panel = WorkbenchPanel.for(document.uri);
+    if (panel) setTimeout(() => void openTimeline(panel), 600);
+  });
+  register('arclang.branch.switch', async (arg?: unknown) => {
+    const document = targetDocument(arg);
+    if (document) await switchBranch(document);
+  });
+  register('arclang.branch.merge', async (arg?: unknown) => {
+    const document = targetDocument(arg);
+    if (document) await mergeBranch(document);
+  });
   registerConflicts(context);
   // Editing a file under comparison ends it: what is compared is no longer what is on disk.
   context.subscriptions.push(
     vscode.workspace.onDidSaveTextDocument((document) => {
-      if (compareActive(document)) void startCompare(document, sessionOf(document)!.ref, sessionOf(document)!.label);
+      // A past moment is git's, not the file's: saving leaves it as it is.
+      if (compareActive(document) && !sessionOf(document)!.at) void startCompare(document, sessionOf(document)!.ref, sessionOf(document)!.label);
     }),
     vscode.workspace.onDidCloseTextDocument((document) => stopCompare(document)),
   );

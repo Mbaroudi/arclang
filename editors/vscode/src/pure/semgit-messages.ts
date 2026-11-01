@@ -7,4 +7,5 @@ export type SemgitFromWorkbench =
   | { type: 'semgit-history-show'; hash: string }
   | { type: 'semgit-history-diff'; hash: string }
   | { type: 'semgit-baseline'; op: 'create' | 'compare' }
-  | { type: 'semgit-merge-install' };
+  | { type: 'semgit-merge-install' }
+  | { type: 'semgit-timeline'; op: 'open' | 'show' | 'now' | 'restore' | 'snapshot' | 'branch'; hash?: string; base?: string | null; element?: string };

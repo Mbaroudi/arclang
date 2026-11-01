@@ -4,6 +4,7 @@
 use super::CliError;
 use crate::compiler::semgit::baseline::{self, CreateOptions};
 use crate::compiler::semgit::history as element_history;
+use crate::compiler::semgit::git;
 use crate::compiler::semgit::merge::{self, install, layout};
 use crate::compiler::semgit::render::{self, Format};
 use crate::compiler::semgit::rich::{self, Source};
@@ -91,6 +92,50 @@ pub fn run_history(args: &HistoryArgs) -> Result<(), CliError> {
         println!("{}", serde_json::to_string_pretty(&history).map_err(|e| failure(e.to_string()))?);
     } else {
         print!("{}", element_history::text(&history));
+    }
+    Ok(())
+}
+
+#[derive(clap::Args, Debug)]
+pub struct RestoreArgs {
+    /// The model file, as it is now
+    #[clap(value_parser)]
+    pub input: PathBuf,
+    /// The git revision to go back to
+    #[clap(long)]
+    pub rev: String,
+    /// Only these elements (their ids), the rest left as it is; repeatable.
+    /// Without it, the whole file as the revision has it
+    #[clap(long = "element")]
+    pub elements: Vec<String>,
+    /// Write the result here; default: standard output. The file itself is never changed unless named here
+    #[clap(short, long)]
+    pub output: Option<PathBuf>,
+}
+
+/// `arclang restore model.arc --rev v1.0 --element LC-001`: the text of the
+/// model with the elements (or the whole file) as they were at a revision.
+/// An element removed since is put back in its parent. Nothing is
+/// committed: the result is a change to review, as any edit.
+pub fn run_restore(args: &RestoreArgs) -> Result<(), CliError> {
+    git::check_revision(&args.rev).map_err(failure)?;
+    let located = git::locate(&args.input).map_err(failure)?;
+    let old = git::show(&located.top, &args.rev, &located.relative)
+        .ok_or_else(|| failure(format!("{} is not in revision {}", located.relative, args.rev)))?;
+    let text = if args.elements.is_empty() {
+        old
+    } else {
+        let mut now = std::fs::read_to_string(&args.input).map_err(|e| failure(format!("{}: {e}", args.input.display())))?;
+        for element in &args.elements {
+            now = merge::restore_element(&now, &old, element)
+                .map_err(failure)?
+                .ok_or_else(|| failure(format!("element '{element}' is not in {} at {}", located.relative, args.rev)))?;
+        }
+        now
+    };
+    match &args.output {
+        Some(path) => std::fs::write(path, &text)?,
+        None => print!("{text}"),
     }
     Ok(())
 }

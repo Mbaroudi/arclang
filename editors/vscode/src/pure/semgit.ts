@@ -191,6 +191,8 @@ export interface CompareState {
   changed: boolean;
   /** The drawing ids of the ghosts on the page (set by the host once the old diagrams are put back). */
   ghostDrawn?: string[];
+  /** Time travel: the drawing is a past moment of the model, not the model now. */
+  timeTravel?: boolean;
 }
 
 export function compareState(diff: RichDiff, ref: string, label: string): CompareState {

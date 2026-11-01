@@ -722,6 +722,23 @@
         "category": "ArcLang"
       },
       {
+        "command": "arclang.timeline",
+        "title": "Timeline: travel in the model's history (diagram at any commit, restore, snapshot, branch)",
+        "category": "ArcLang",
+        "icon": "$(history)"
+      },
+      {
+        "command": "arclang.branch.switch",
+        "title": "Switch branch…",
+        "category": "ArcLang"
+      },
+      {
+        "command": "arclang.branch.merge",
+        "title": "Merge a branch into the current one (by element)…",
+        "category": "ArcLang",
+        "icon": "$(git-merge)"
+      },
+      {
         "command": "arclang.compare",
         "title": "Compare the model with a branch, tag, baseline or HEAD…",
         "category": "ArcLang",
@@ -1299,6 +1316,18 @@
         {
           "command": "arclang.workbench.selectNone",
           "when": "activeCustomEditorId == arclang.workbench"
+        },
+        {
+          "command": "arclang.timeline",
+          "when": "resourceLangId == arclang || activeCustomEditorId == arclang.workbench"
+        },
+        {
+          "command": "arclang.branch.switch",
+          "when": "resourceLangId == arclang || activeCustomEditorId == arclang.workbench"
+        },
+        {
+          "command": "arclang.branch.merge",
+          "when": "resourceLangId == arclang || activeCustomEditorId == arclang.workbench"
         },
         {
           "command": "arclang.compare",

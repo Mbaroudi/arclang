@@ -227,6 +227,10 @@ pub enum Commands {
     /// .arc and .layout.json files (`arclang merge --install`)
     Merge(semgit::MergeArgs), // semgit hook
 
+    /// The model with elements (or the whole file) as they were at a git
+    /// revision, printed for review: time travel, never a rewrite of history
+    Restore(semgit::RestoreArgs), // semgit hook
+
     /// Baselines an auditor accepts: the gate, the coverage and the exports,
     /// bound to a git tag by a manifest
     Baseline {
@@ -892,6 +896,7 @@ impl CliRunner {
             }
             Commands::History(args) => semgit::run_history(&args), // semgit hook
             Commands::Merge(args) => semgit::run_merge(&args), // semgit hook
+            Commands::Restore(args) => semgit::run_restore(&args), // semgit hook
             Commands::Baseline { command } => semgit::run_baseline(&command), // semgit hook
             Commands::Gate { input, standard, format: _ } => {
                 self.run_gate(input, standard)
