@@ -42,3 +42,34 @@ fn an_unchanged_side_returns_the_other_byte_for_byte() {
     assert_eq!(merged(BASE, &ours).text, ours);
     assert_eq!(merged(&ours, BASE).text, ours);
 }
+
+const TWO: &str = "model M {}\n\nlogical_architecture \"L\" {\n    component \"A\" {\n        id: \"LC-A\"\n        latency: 1 ms\n    }\n    component \"B\" {\n        id: \"LC-B\"\n        latency: 2 ms\n    }\n}\n";
+
+#[test]
+fn each_conflict_takes_the_side_chosen_for_it_and_the_others_stay_marked() {
+    let ours = TWO.replace("1 ms", "10 ms").replace("2 ms", "20 ms");
+    let theirs = TWO.replace("1 ms", "11 ms").replace("2 ms", "21 ms");
+    let m = merge_arc(TWO, &ours, &theirs).unwrap();
+    assert_eq!(m.conflicts.len(), 2, "{:?}", m.conflicts);
+    let (text, open) = resolve_conflicts(&m.text, &m.conflicts, &[("LC-A".to_string(), Side::Theirs)]);
+    assert!(text.contains("latency: 11 ms") && !text.contains("latency: 10 ms"), "{text}");
+    assert_eq!(open.len(), 1);
+    assert_eq!(open[0].element, "LC-B");
+    assert!(text.contains("<<<<<<< ours") && text.contains("20 ms") && text.contains("21 ms"), "LC-B is still in dispute");
+    let (all, none_left) = resolve_conflicts(&m.text, &m.conflicts, &[("LC-A".to_string(), Side::Ours), ("component 'B' [LC-B]".to_string(), Side::Theirs)]);
+    assert!(none_left.is_empty());
+    assert!(all.contains("10 ms") && all.contains("21 ms") && !all.contains("<<<<<<<"), "{all}");
+    assert!(crate::Compiler::new(crate::CompilerConfig::default()).compile_string(&all).is_ok(), "{all}");
+}
+
+#[test]
+fn an_element_comes_back_as_it_was_even_once_removed() {
+    let changed = TWO.replace("1 ms", "9 ms");
+    let back = restore_element(&changed, TWO, "LC-A").unwrap().unwrap();
+    assert_eq!(back, TWO, "its text replaced");
+    let removed = TWO.replace("    component \"B\" {\n        id: \"LC-B\"\n        latency: 2 ms\n    }\n", "");
+    let back = restore_element(&removed, TWO, "LC-B").unwrap().unwrap();
+    assert!(back.contains("component \"B\" {\n        id: \"LC-B\"\n        latency: 2 ms\n    }\n}"), "put back in its parent: {back}");
+    assert!(crate::Compiler::new(crate::CompilerConfig::default()).compile_string(&back).is_ok(), "{back}");
+    assert_eq!(restore_element(TWO, TWO, "LC-Z").unwrap(), None, "not in the old version");
+}

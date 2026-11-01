@@ -438,3 +438,126 @@ fn merge_root(base: &Node, ours: &Node, theirs: &Node, ctx: &mut Ctx) -> Vec<Str
 
 #[cfg(test)]
 mod tests;
+
+/// Which version of an element in conflict a resolution keeps.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Side {
+    Ours,
+    Theirs,
+}
+
+/// Apply choices to the marker blocks of a merged text: a block whose
+/// conflict is named (by element id, name or label) keeps the side chosen
+/// and loses its markers; the others stay, and are returned.
+pub fn resolve_conflicts(text: &str, conflicts: &[Conflict], chosen: &[(String, Side)]) -> (String, Vec<Conflict>) {
+    let (lines, crlf, final_newline) = tree::split_lines(text);
+    let mut out: Vec<String> = Vec::new();
+    let mut open: Vec<Conflict> = Vec::new();
+    let mut i = 0;
+    while i < lines.len() {
+        let line = &lines[i];
+        let Some(found) = conflicts.iter().find(|c| line.starts_with(&format!("{OURS_MARK} {}:", c.label))) else {
+            out.push(line.clone());
+            i += 1;
+            continue;
+        };
+        // The block: up to the matching end marker, nested blocks included.
+        let (mut depth, mut middle, mut end) = (0usize, None, None);
+        for (j, l) in lines.iter().enumerate().skip(i) {
+            if l.starts_with(OURS_MARK) {
+                depth += 1;
+            } else if l == MIDDLE_MARK && depth == 1 && middle.is_none() {
+                middle = Some(j);
+            } else if l.starts_with(THEIRS_MARK) {
+                depth -= 1;
+                if depth == 0 {
+                    end = Some(j);
+                    break;
+                }
+            }
+        }
+        let (Some(middle), Some(end)) = (middle, end) else {
+            out.push(line.clone());
+            i += 1;
+            continue;
+        };
+        let decision = chosen.iter().find(|(name, _)| *name == found.element || *name == found.label).map(|(_, side)| *side);
+        match decision {
+            Some(Side::Ours) => out.extend(lines[i + 1..middle].iter().cloned()),
+            Some(Side::Theirs) => out.extend(lines[middle + 1..end].iter().cloned()),
+            None => {
+                out.extend(lines[i..=end].iter().cloned());
+                open.push(found.clone());
+            }
+        }
+        i = end + 1;
+    }
+    (tree::join(&out, crlf, final_newline), open)
+}
+
+fn find<'n>(node: &'n Node, id: &str, path: &mut Vec<String>) -> Option<&'n Node> {
+    for child in node.children() {
+        if child.id.as_deref() == Some(id) {
+            return Some(child);
+        }
+        path.push(child.key.clone());
+        if let Some(found) = find(child, id, path) {
+            return Some(found);
+        }
+        path.pop();
+    }
+    None
+}
+
+/// Replace the node with `id` by `with`; true when found.
+fn replace(node: &mut Node, id: &str, with: &Node) -> bool {
+    for item in &mut node.items {
+        if let tree::Item::Child(child) = item {
+            if child.id.as_deref() == Some(id) {
+                *child = with.clone();
+                return true;
+            }
+            if replace(child, id, with) {
+                return true;
+            }
+        }
+    }
+    false
+}
+
+/// Insert `node` as the last child of the declaration at `path` (keys from the root).
+fn insert(root: &mut Node, path: &[String], node: &Node) -> bool {
+    let mut cursor = root;
+    for key in path {
+        let next = cursor.items.iter_mut().find_map(|item| match item {
+            tree::Item::Child(child) if child.key == *key => Some(child),
+            _ => None,
+        });
+        match next {
+            Some(child) => cursor = child,
+            None => return false,
+        }
+    }
+    // Before the closing brace of a declaration; at the end of the file for the root.
+    let at = if path.is_empty() {
+        cursor.items.len()
+    } else {
+        cursor.items.iter().rposition(|item| matches!(item, tree::Item::Line(l) if l.trim_start().starts_with('}'))).unwrap_or(cursor.items.len())
+    };
+    cursor.items.insert(at, tree::Item::Child(node.clone()));
+    true
+}
+
+/// The text of `current` with the element `id` as `old` has it: its text
+/// replaced, or put back in its parent when it was removed since. `None`
+/// when `old` does not hold the element.
+pub fn restore_element(current: &str, old: &str, id: &str) -> Result<Option<String>, String> {
+    let (now, then) = (tree::parse(current).map_err(|e| format!("current: {e}"))?, tree::parse(old).map_err(|e| format!("old: {e}"))?);
+    let mut path = Vec::new();
+    let Some(was) = find(&then.root, id, &mut path) else { return Ok(None) };
+    let mut root = now.root.clone();
+    if !replace(&mut root, id, was) && !insert(&mut root, &path, was) {
+        return Err(format!("the declaration that held '{id}' is no longer in the model; restore it first"));
+    }
+    Ok(Some(tree::join(&root.body(), now.crlf, now.final_newline)))
+}

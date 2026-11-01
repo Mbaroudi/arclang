@@ -111,7 +111,7 @@ the long-term goal.
   SysML v2 as abstract definitions with `:>` and `:>>`.
 - **Systems Modeling API**: `arclang serve model.arc ...` serves
   each model as a project under `/api/systems-modeling`, following the OMG
-  Systems Modeling API resource model: projects, the `main` branch, commits,
+  Systems Modeling API resource model: projects, branches, tags, commits,
   elements, relationships (`?direction=in|out|both`), roots, cursor pagination
   (`page[size]`, `page[after]`, `page[before]`, `Link` header) and ad-hoc
   queries (`POST /projects/{id}/query-results` with primitive and composite
@@ -204,9 +204,35 @@ the long-term goal.
     a commit that is no longer the head, is refused (409). Not supported:
     other kinds of elements and relationships, elements declared in
     imported files, creating a layer block the file does not have,
-    projects and branches. Rights are per user but not per project, and
+    creating projects. Rights are per user but not per project, and
     there is no rate limiting: this is a local or trusted-network service,
     not an internet-facing one.
+  - **Branches, snapshots, merges, time travel** (`--allow-write --history`).
+    Every local git branch is a branch of the API (`GET .../branches`, the
+    default first: the one checked out), and `GET .../commits?branchId=`
+    lists its line; a commit records both parents of a merge. `POST
+    .../branches {"name", "head": {"@id"}}` makes a git branch at a commit;
+    `DELETE .../branches/{id}` drops one, never the default and never one
+    whose commits no other branch holds. `POST .../commits?branchId=`
+    writes to any branch: one that is not checked out is written in a
+    temporary `git worktree`, the working tree left untouched. A snapshot
+    is an annotated git tag, never moved: `POST .../tags {"name",
+    "taggedCommit": {"@id"}, "description"}`, `GET .../tags`. `POST
+    .../branches/{target}/merge {"source": {"@id"} | "sourceName"}` merges
+    one branch into another as one merge commit; the model files (`.arc`,
+    `.layout.json`) are merged by element identity, so changes to
+    different elements, or to different attributes of one, never conflict.
+    An element changed differently on both sides is answered with 409 and
+    `{"@type": "MergeConflicts", "conflicts": [{"element", "label",
+    "reason", "target", "source"}]}`, nothing written; the request sent
+    again with `"resolutions": [{"element": "LC-001", "keep": "source"}]`
+    merges. The merged model must compile. `POST
+    .../branches/{id}/restore {"commit": {"@id"}, "elements": ["LC-001"]}`
+    brings the elements named (or the whole model) back as they were at a
+    commit, as a new commit: history is never rewritten; an element removed
+    since is put back in its parent. Every commit of every branch is
+    readable (`.../commits/{id}/elements`), and `.../commits/{id}/changes?
+    baseCommitId=` compares any two commits by identity.
 - **Multiplicity**: `multiplicity: 4` on a logical component or a physical
   node says how many of it its owner has; a range is written as text
   (`"0..1"`, `"1..*"`, `"*"`). It is typed by the metamodel (an ill-formed

@@ -105,63 +105,165 @@ pub(super) fn commit_id(key: &str, sha: &str) -> String {
     element_uuid("commit", &format!("git|{}|{}", key, sha))
 }
 
-/// The file's history key and its snapshots, oldest first.
-pub(super) fn snapshots(path: &FsPath, depth: usize) -> Result<(String, Vec<Snapshot>), String> {
-    let tracked = locate(path)?;
-    // A commit that touched only an imported file changed the model too.
-    let files = model_files(path, &tracked)?;
-    let Tracked { root, relative: relative_text } = tracked;
-    let relative = PathBuf::from(&relative_text);
+/// One revision of the model in git: a commit that touched one of its files.
+pub(super) struct Revision {
+    pub sha: String,
+    /// Its parents among the commits that touched the model (git's history
+    /// simplification), so that a merge keeps both lines.
+    pub parents: Vec<String>,
+    pub created: DateTime<Utc>,
+    pub subject: String,
+    pub user: Option<String>,
+}
 
+/// The revisions of the model reachable from `revision`, newest first.
+pub(super) fn log(root: &FsPath, revision: &str, depth: usize, files: &[String]) -> Result<Vec<Revision>, String> {
     let depth_text = depth.max(1).to_string();
     // One record per commit, ended by a record separator: a note ends
     // with a line break of its own.
     let notes = format!("--notes={}", USER_NOTES);
-    let mut arguments: Vec<&str> = vec!["log", "-n", &depth_text, &notes, "--format=%H%x1f%cI%x1f%s%x1f%N%x1e", "--"];
+    let mut arguments: Vec<&str> = vec!["log", revision, "-n", &depth_text, "--full-history", "--parents", &notes, "--format=%H%x1f%P%x1f%cI%x1f%s%x1f%N%x1e", "--"];
     arguments.extend(files.iter().map(String::as_str));
-    let log = git(&root, &arguments)?;
-    let mut revisions: Vec<(String, DateTime<Utc>, String, Option<String>)> = Vec::new();
+    let log = git(root, &arguments)?;
+    let mut revisions = Vec::new();
     for record in log.split('\u{1e}') {
         let mut fields = record.trim_start_matches('\n').split('\u{1f}');
-        let (Some(sha), Some(date), Some(subject)) = (fields.next(), fields.next(), fields.next()) else { continue };
+        let (Some(sha), Some(parents), Some(date), Some(subject)) = (fields.next(), fields.next(), fields.next(), fields.next()) else { continue };
         let user = fields.next().map(str::trim).filter(|user| !user.is_empty()).map(str::to_string);
         let created = DateTime::parse_from_rfc3339(date)
             .map_err(|e| format!("git date '{}': {}", date, e))?
             .with_timezone(&Utc);
-        revisions.push((sha.to_string(), created, subject.to_string(), user));
-    }
-    revisions.reverse(); // oldest first
-
-    let project_key = relative_text.clone();
-    let mut snapshots = Vec::with_capacity(revisions.len());
-    for (sha, created, subject, user) in revisions {
-        // Unique per call: identical revisions may be materialised
-        // concurrently (several models, several servers, tests).
-        static SCRATCH_COUNTER: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
-        let scratch = std::env::temp_dir().join(format!(
-            "arclang-history-{}-{}-{}",
-            std::process::id(),
-            SCRATCH_COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed),
-            &sha[..12.min(sha.len())]
-        ));
-        let compiled = materialize(&root, &sha, &relative, &scratch, &mut Vec::new()).and_then(|()| {
-            crate::Compiler::new(crate::CompilerConfig::default())
-                .compile_file(scratch.join(&relative))
-                .map_err(|e| e.to_string())
+        revisions.push(Revision {
+            sha: sha.to_string(),
+            parents: parents.split_whitespace().map(str::to_string).collect(),
+            created,
+            subject: subject.to_string(),
+            user,
         });
-        let _ = std::fs::remove_dir_all(&scratch);
-        let mut snapshot = match compiled {
-            Ok(result) => Snapshot::from_compilation(&result, created),
-            // Scratch paths would leak into the message; keep the cause.
-            Err(reason) => Snapshot::failed(reason.replace(&scratch.to_string_lossy().into_owned(), "."), created),
-        };
-        // In a history the commit IS the git commit: two revisions with
-        // the same content are still two commits.
-        snapshot.id = commit_id(&project_key, &sha);
-        snapshot.description = subject;
-        snapshot.git_commit = Some(sha);
-        snapshot.user = user;
-        snapshots.push(snapshot);
     }
-    Ok((project_key, snapshots))
+    Ok(revisions)
+}
+
+/// The model as it is at git commit `sha`, compiled; a revision that does
+/// not compile is a commit without elements that says why.
+pub(super) fn compile_revision(root: &FsPath, relative: &FsPath, key: &str, revision: &Revision) -> Snapshot {
+    // Unique per call: identical revisions may be materialised
+    // concurrently (several models, several servers, tests).
+    static SCRATCH_COUNTER: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+    let sha = &revision.sha;
+    let scratch = std::env::temp_dir().join(format!(
+        "arclang-history-{}-{}-{}",
+        std::process::id(),
+        SCRATCH_COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed),
+        &sha[..12.min(sha.len())]
+    ));
+    let compiled = materialize(root, sha, relative, &scratch, &mut Vec::new()).and_then(|()| {
+        crate::Compiler::new(crate::CompilerConfig::default())
+            .compile_file(scratch.join(relative))
+            .map_err(|e| e.to_string())
+    });
+    let _ = std::fs::remove_dir_all(&scratch);
+    let mut snapshot = match compiled {
+        Ok(result) => Snapshot::from_compilation(&result, revision.created),
+        // Scratch paths would leak into the message; keep the cause.
+        Err(reason) => Snapshot::failed(reason.replace(&scratch.to_string_lossy().into_owned(), "."), revision.created),
+    };
+    // In a history the commit IS the git commit: two revisions with the
+    // same content are still two commits.
+    snapshot.id = commit_id(key, sha);
+    snapshot.description = revision.subject.clone();
+    snapshot.git_commit = Some(sha.clone());
+    snapshot.user = revision.user.clone();
+    snapshot.parents = revision.parents.iter().map(|parent| commit_id(key, parent)).collect();
+    snapshot
+}
+
+/// The local branches of the repository and the commit each points at.
+pub(super) fn branches(root: &FsPath) -> Result<Vec<(String, String)>, String> {
+    let listing = git(root, &["for-each-ref", "--format=%(refname:short)%1f%(objectname)", "refs/heads"])?;
+    Ok(listing
+        .lines()
+        .filter_map(|line| line.split_once('\u{1f}'))
+        .map(|(name, sha)| (name.to_string(), sha.to_string()))
+        .collect())
+}
+
+/// The branch checked out in the working tree, if any.
+pub(super) fn checked_out(root: &FsPath) -> Option<String> {
+    git(root, &["symbolic-ref", "--quiet", "--short", "HEAD"]).ok().map(|name| name.trim().to_string()).filter(|name| !name.is_empty())
+}
+
+/// A tag of the repository: name, the commit it points at, when it was made, its message.
+pub(super) struct GitTag {
+    pub name: String,
+    pub sha: String,
+    pub created: DateTime<Utc>,
+    pub message: String,
+}
+
+pub(super) fn tags(root: &FsPath) -> Result<Vec<GitTag>, String> {
+    // `%(*objectname)` is the commit an annotated tag points at; empty for a lightweight tag.
+    let listing = git(
+        root,
+        &["for-each-ref", "--format=%(refname:short)%1f%(*objectname)%1f%(objectname)%1f%(creatordate:iso-strict)%1f%(contents:subject)%1e", "refs/tags"],
+    )?;
+    let mut tags = Vec::new();
+    for record in listing.split('\u{1e}') {
+        let fields: Vec<&str> = record.trim_start_matches('\n').split('\u{1f}').collect();
+        let [name, peeled, object, date, message] = fields.as_slice() else { continue };
+        let created = DateTime::parse_from_rfc3339(date).map(|d| d.with_timezone(&Utc)).unwrap_or_else(|_| Utc::now());
+        let sha = if peeled.is_empty() { object } else { peeled };
+        tags.push(GitTag { name: name.to_string(), sha: sha.to_string(), created, message: message.to_string() });
+    }
+    Ok(tags)
+}
+
+/// The last commit at or before `revision` that touched the model: the
+/// state of the model a tag or a branch on an unrelated commit stands for.
+pub(super) fn model_commit_at(root: &FsPath, revision: &str, files: &[String]) -> Result<Option<String>, String> {
+    let mut arguments: Vec<&str> = vec!["log", "-1", "--format=%H", revision, "--"];
+    arguments.extend(files.iter().map(String::as_str));
+    Ok(Some(git(root, &arguments)?.trim().to_string()).filter(|sha| !sha.is_empty()))
+}
+
+/// A checkout of `branch` in a temporary directory (`git worktree`), so
+/// that a branch can be written without touching the user's working tree.
+/// Removed when dropped.
+pub(super) struct Worktree {
+    repository: PathBuf,
+    pub path: PathBuf,
+}
+
+impl Worktree {
+    pub(super) fn add(repository: &FsPath, branch: &str) -> Result<Worktree, String> {
+        static COUNTER: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+        let path = std::env::temp_dir().join(format!(
+            "arclang-branch-{}-{}",
+            std::process::id(),
+            COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+        ));
+        let path_text = path.to_string_lossy().into_owned();
+        git(repository, &["worktree", "add", "--quiet", &path_text, branch])?;
+        Ok(Worktree { repository: repository.to_path_buf(), path })
+    }
+}
+
+impl Drop for Worktree {
+    fn drop(&mut self) {
+        let path_text = self.path.to_string_lossy().into_owned();
+        if git(&self.repository, &["worktree", "remove", "--force", &path_text]).is_err() {
+            let _ = std::fs::remove_dir_all(&self.path);
+            let _ = git(&self.repository, &["worktree", "prune"]);
+        }
+    }
+}
+
+/// A branch or tag name git accepts (`git check-ref-format`), and no more.
+pub(super) fn valid_ref_name(kind: &str, name: &str) -> Result<(), String> {
+    let reference = format!("refs/{}/{}", kind, name);
+    let accepted = Command::new("git").args(["check-ref-format", &reference]).output().map(|output| output.status.success()).unwrap_or(false);
+    if name.is_empty() || name.starts_with('-') || !accepted {
+        return Err(format!("'{}' is not a valid {} name", name, if kind == "heads" { "branch" } else { "tag" }));
+    }
+    Ok(())
 }

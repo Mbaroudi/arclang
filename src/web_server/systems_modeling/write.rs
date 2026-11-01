@@ -28,13 +28,8 @@ fn expected_previous(body: &Value) -> Option<&str> {
     }
 }
 
-fn commit(
-    workspace: &mut Workspace,
-    project_id: &str,
-    body: &Value,
-    vocabulary: Vocabulary,
-    principal: Option<&Principal>,
-) -> Result<Response, Response> {
+/// The user a write is made for, when the server and the user may write.
+pub(super) fn writer<'p>(workspace: &Workspace, principal: Option<&'p Principal>, vocabulary: Vocabulary) -> Result<&'p Principal, Response> {
     if vocabulary == Vocabulary::SysML {
         return Err(error(
             StatusCode::METHOD_NOT_ALLOWED,
@@ -47,10 +42,21 @@ fn commit(
             "this server is read-only; writes need `arclang serve --allow-write` and an API token".to_string(),
         ));
     }
-    let Some(principal) = principal.filter(|principal| principal.role == Role::Write) else {
+    principal.filter(|principal| principal.role == Role::Write).ok_or_else(|| {
         let who = principal.map_or("an unauthenticated client".to_string(), |p| format!("user '{}'", p.name));
-        return Err(error(StatusCode::FORBIDDEN, format!("{} may read but not write", who)));
-    };
+        error(StatusCode::FORBIDDEN, format!("{} may read but not write", who))
+    })
+}
+
+fn commit(
+    workspace: &mut Workspace,
+    project_id: &str,
+    body: &Value,
+    vocabulary: Vocabulary,
+    principal: Option<&Principal>,
+    branch_id: Option<&str>,
+) -> Result<Response, Response> {
+    let principal = writer(workspace, principal, vocabulary)?;
     let position = workspace
         .projects
         .iter()
@@ -60,7 +66,13 @@ fn commit(
     let Some(path) = project.source.clone() else {
         return Err(refused("this project is not served from a file and cannot be written".to_string()));
     };
-    let head = project.head();
+    let branch = match branch_id {
+        Some(id) => project.branch(id).ok_or_else(|| not_found(format!("branch '{}' not found in project '{}'", id, project_id)))?,
+        None => project.default_branch(),
+    };
+    let branch_name = branch.name.clone();
+    let branch_position = project.branches.iter().position(|b| b.id == branch.id).expect("the branch is the project's");
+    let head = project.head_of(branch);
     if let Some(expected) = expected_previous(body) {
         if expected != head.id {
             return Err(conflict(format!(
@@ -77,16 +89,24 @@ fn commit(
     // the commit to come must hold this request's edits and nothing else.
     // Every file of the model counts: the commit is the state of all of them.
     let tracked = history::locate(&path).map_err(refused)?;
-    let files = history::model_files(&path, &tracked).map_err(refused)?;
-    let mut arguments: Vec<&str> = vec!["status", "--porcelain", "--"];
-    arguments.extend(files.iter().map(String::as_str));
-    let status = history::git(&tracked.root, &arguments).map_err(refused)?;
-    if !status.trim().is_empty() {
-        let dirty: Vec<&str> = status.lines().map(|line| line.get(3..).unwrap_or(line).trim()).collect();
-        return Err(conflict(format!(
-            "{} has uncommitted changes or is not tracked by git; commit it first",
-            dirty.join(", ")
-        )));
+    // The checked-out branch is written in the working tree; any other in a
+    // temporary checkout of its own, the working tree left untouched.
+    let in_place = project.history_key.is_none() || history::checked_out(&tracked.root).as_deref() == Some(branch_name.as_str());
+    let worktree = if in_place { None } else { Some(history::Worktree::add(&tracked.root, &branch_name).map_err(refused)?) };
+    let tree_root = worktree.as_ref().map_or(tracked.root.clone(), |worktree| worktree.path.clone());
+    let path = tree_root.join(&tracked.relative);
+    if in_place {
+        let files = history::model_files(&path, &tracked).map_err(refused)?;
+        let mut arguments: Vec<&str> = vec!["status", "--porcelain", "--"];
+        arguments.extend(files.iter().map(String::as_str));
+        let status = history::git(&tracked.root, &arguments).map_err(refused)?;
+        if !status.trim().is_empty() {
+            let dirty: Vec<&str> = status.lines().map(|line| line.get(3..).unwrap_or(line).trim()).collect();
+            return Err(conflict(format!(
+                "{} has uncommitted changes or is not tracked by git; commit it first",
+                dirty.join(", ")
+            )));
+        }
     }
     let on_disk = compile_file(&path).map_err(conflict)?;
     if on_disk.head().digest != head.digest {
@@ -136,8 +156,8 @@ fn commit(
     let result = crate::Compiler::new(crate::CompilerConfig::default())
         .compile_file(&path)
         .map_err(|e| restore(e.to_string()))?;
-    history::git(&tracked.root, &["commit", "--quiet", "-m", &message, "--", &tracked.relative]).map_err(restore)?;
-    let sha = history::git(&tracked.root, &["rev-parse", "HEAD"])
+    history::git(&tree_root, &["commit", "--quiet", "-m", &message, "--", &tracked.relative]).map_err(restore)?;
+    let sha = history::git(&tree_root, &["rev-parse", "HEAD"])
         .map_err(|e| error(StatusCode::INTERNAL_SERVER_ERROR, e))?
         .trim()
         .to_string();
@@ -153,6 +173,8 @@ fn commit(
         }
     }
 
+    let head_id = head.id.clone();
+    drop(worktree);
     let project = &mut workspace.projects[position];
     let mut snapshot = Snapshot::from_compilation(&result, Utc::now());
     if let Some(key) = &project.history_key {
@@ -162,6 +184,8 @@ fn commit(
     snapshot.git_commit = Some(sha);
     snapshot.user = user.map(str::to_string);
     snapshot.warnings.extend(warnings);
+    snapshot.parents = vec![head_id];
+    project.branches[branch_position].commits.push(snapshot.id.clone());
     project.commits.push(snapshot);
 
     let created = project.commit_json(project.commits.len() - 1, true);
@@ -172,13 +196,16 @@ fn commit(
 pub(super) async fn create_commit(
     State(api): State<handlers::Api>,
     Path(project_id): Path<String>,
+    Query(params): Query<HashMap<String, String>>,
     principal: Option<axum::Extension<Principal>>,
     Json(body): Json<Value>,
 ) -> Response {
     let principal = principal.map(|axum::Extension(principal)| principal);
     let outcome = tokio::task::spawn_blocking(move || {
         let mut workspace = write(&api.workspace);
-        commit(&mut workspace, &project_id, &body, api.vocabulary, principal.as_ref())
+        // The specification names the branch to commit to as `branchId`.
+        let branch_id = params.get("branchId").cloned().or_else(|| body["branch"]["@id"].as_str().map(str::to_string));
+        commit(&mut workspace, &project_id, &body, api.vocabulary, principal.as_ref(), branch_id.as_deref())
     })
     .await;
     match outcome {

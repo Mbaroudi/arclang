@@ -96,6 +96,8 @@ pub struct Snapshot {
     pub user: Option<String>,
     /// Why this revision could not be compiled (it then has no elements).
     pub compile_error: Option<String>,
+    /// The commits this one follows: one, or two for a merge, none for the first.
+    pub parents: Vec<String>,
 }
 
 fn reference(uuid: &str) -> Value {
@@ -219,6 +221,7 @@ impl Snapshot {
             git_commit: None,
             user: None,
             compile_error: None,
+            parents: Vec::new(),
         }
     }
 
@@ -256,30 +259,64 @@ impl Snapshot {
             git_commit: None,
             user: None,
             compile_error: Some(reason),
+            parents: Vec::new(),
         }
     }
 }
 
-/// One model as the API serves it: its commits, oldest first. The last one
-/// is the head of `main`.
+/// A branch of a project: the commits of its line, oldest first (the last
+/// one is its head).
+pub struct BranchState {
+    pub id: String,
+    pub name: String,
+    pub created: String,
+    pub commits: Vec<String>,
+}
+
+/// A snapshot of the model: a named, immutable reference to one commit (a git tag).
+pub struct TagState {
+    pub id: String,
+    pub name: String,
+    pub created: String,
+    pub description: Option<String>,
+    pub commit: String,
+}
+
+/// One model as the API serves it: every commit of every branch (each
+/// compiled once), its branches and its tags (snapshots).
 pub struct Project {
     pub id: String,
     pub name: String,
     pub description: Option<String>,
     pub created: String,
-    pub branch_id: String,
     pub commits: Vec<Snapshot>,
+    pub branches: Vec<BranchState>,
+    /// The branch served by default: the one checked out, else `main`.
+    pub default_branch: usize,
+    pub tags: Vec<TagState>,
     /// The model file this project is compiled from, when there is one.
     pub source: Option<PathBuf>,
     /// Stable key of the file in its git repository, when served with history.
     history_key: Option<String>,
+    /// How many commits of each branch the history holds.
+    depth: usize,
+}
+
+pub(super) fn branch_uuid(project_id: &str, name: &str) -> String {
+    element_uuid("branch", &format!("{}|{}", project_id, name))
+}
+
+pub(super) fn tag_uuid(project_id: &str, name: &str) -> String {
+    element_uuid("tag", &format!("{}|{}", project_id, name))
 }
 
 impl Project {
     fn single(name: &str, description: Option<String>, snapshot: Snapshot) -> Project {
         let id = element_uuid("project", name);
         Project {
-            branch_id: element_uuid("branch", &format!("{}|{}", id, BRANCH_NAME)),
+            branches: vec![BranchState { id: branch_uuid(&id, BRANCH_NAME), name: BRANCH_NAME.to_string(), created: snapshot.created.clone(), commits: vec![snapshot.id.clone()] }],
+            default_branch: 0,
+            tags: Vec::new(),
             id,
             name: name.to_string(),
             description,
@@ -287,6 +324,7 @@ impl Project {
             commits: vec![snapshot],
             source: None,
             history_key: None,
+            depth: 0,
         }
     }
 
@@ -301,18 +339,35 @@ impl Project {
     /// `model Name { }` header is named after its file.
     fn renamed(mut self, name: &str) -> Project {
         self.id = element_uuid("project", name);
-        self.branch_id = element_uuid("branch", &format!("{}|{}", self.id, BRANCH_NAME));
+        for branch in &mut self.branches {
+            branch.id = branch_uuid(&self.id, &branch.name);
+        }
         self.name = name.to_string();
         self
     }
 
-    /// The current state of the model.
+    /// The branch served by default.
+    pub fn default_branch(&self) -> &BranchState {
+        &self.branches[self.default_branch]
+    }
+
+    /// The head of a branch.
+    pub fn head_of(&self, branch: &BranchState) -> &Snapshot {
+        let id = branch.commits.last().expect("a branch always has a commit");
+        &self.commits[self.position(id).expect("a branch's commits are in the project")]
+    }
+
+    /// The current state of the model: the head of the default branch.
     pub fn head(&self) -> &Snapshot {
-        self.commits.last().expect("a project always has at least one commit")
+        self.head_of(self.default_branch())
     }
 
     fn position(&self, commit_id: &str) -> Option<usize> {
         self.commits.iter().position(|commit| commit.id == commit_id)
+    }
+
+    fn branch(&self, branch_id: &str) -> Option<&BranchState> {
+        self.branches.iter().find(|branch| branch.id == branch_id)
     }
 
     fn project_json(&self) -> Value {
@@ -322,23 +377,39 @@ impl Project {
             "alias": [],
             "name": self.name,
             "description": self.description,
-            "defaultBranch": reference(&self.branch_id),
+            "defaultBranch": reference(&self.default_branch().id),
             "created": self.created,
         })
     }
 
-    fn branch_json(&self) -> Value {
+    fn branch_json(&self, branch: &BranchState) -> Value {
+        let head = &self.head_of(branch).id;
         json!({
-            "@id": self.branch_id,
+            "@id": branch.id,
             "@type": "Branch",
             "alias": [],
             "deleted": Value::Null,
             "description": Value::Null,
-            "name": BRANCH_NAME,
+            "name": branch.name,
             "owningProject": reference(&self.id),
-            "head": reference(&self.head().id),
-            "referencedCommit": reference(&self.head().id),
-            "created": self.created,
+            "head": reference(head),
+            "referencedCommit": reference(head),
+            "created": branch.created,
+        })
+    }
+
+    fn tag_json(&self, tag: &TagState) -> Value {
+        json!({
+            "@id": tag.id,
+            "@type": "Tag",
+            "alias": [],
+            "deleted": Value::Null,
+            "description": tag.description,
+            "name": tag.name,
+            "owningProject": reference(&self.id),
+            "referencedCommit": reference(&tag.commit),
+            "taggedCommit": reference(&tag.commit),
+            "created": tag.created,
         })
     }
 
@@ -347,7 +418,7 @@ impl Project {
     /// revision that does not compile says so in its description either way.
     fn commit_json(&self, position: usize, extended: bool) -> Value {
         let commit = &self.commits[position];
-        let previous: Vec<Value> = position.checked_sub(1).map(|p| reference(&self.commits[p].id)).into_iter().collect();
+        let previous: Vec<Value> = commit.parents.iter().map(|parent| reference(parent)).collect();
         let description = match &commit.compile_error {
             Some(error) => format!("{} (this revision does not compile: {})", commit.description, error),
             None => commit.description.clone(),
@@ -379,13 +450,20 @@ impl Project {
         object
     }
 
-    /// What changed in commit `position` relative to the one before it, by
+    /// What changed in commit `position` relative to its first parent, by
     /// element identity: added and modified records carry their payload, a
     /// deleted record has a null payload. The first commit adds everything.
     fn changes(&self, position: usize, vocabulary: Vocabulary, extended: bool) -> Result<Vec<Value>, Response> {
+        let base = self.commits[position].parents.first().and_then(|parent| self.position(parent));
+        self.changes_between(base, position, vocabulary, extended)
+    }
+
+    /// What changed from commit `base` to commit `position` (any two
+    /// commits, of any branches), by element identity.
+    fn changes_between(&self, base: Option<usize>, position: usize, vocabulary: Vocabulary, extended: bool) -> Result<Vec<Value>, Response> {
         let commit = &self.commits[position];
         let view = commit.view(vocabulary)?;
-        let previous = match position.checked_sub(1) {
+        let previous = match base {
             Some(before) => Some(self.commits[before].view(vocabulary)?),
             None => None,
         };
@@ -469,26 +547,29 @@ impl Workspace {
     }
 
     /// Serve a model file with its git history: one commit per git commit
-    /// that touched it (at most `depth`, the most recent ones), plus the
-    /// working tree as head when it differs from the last git commit.
+    /// that touched it (at most `depth` per branch, the most recent ones),
+    /// on every local branch, with the tags as snapshots, plus the working
+    /// tree as head of the checked-out branch when it differs from git.
     pub fn add_file_with_history(&mut self, path: &FsPath, depth: usize) -> Result<&Project, String> {
         let mut project = compile_file(path)?;
-        let working_tree = project.commits.pop().expect("compile_file yields one snapshot");
-        let (key, history) = history::snapshots(path, depth)?;
-        project.commits = history;
-        project.history_key = Some(key);
-        // The working tree is a commit of its own only when it holds
-        // something git does not: same content = same state.
-        let same_as_last = project.commits.last().map_or(false, |last| last.digest == working_tree.digest);
-        if !same_as_last {
-            let mut working_tree = working_tree;
-            working_tree.description = format!("Working tree (uncommitted): {}", working_tree.description);
-            project.commits.push(working_tree);
-        }
-        if let Some(first) = project.commits.first() {
-            project.created = first.created.clone();
-        }
+        project.depth = depth;
+        load_history(&mut project, Vec::new())?;
         self.add(project)
+    }
+
+    /// Read the project's history from git again, after git changed: only
+    /// the commits not seen yet are compiled.
+    pub(super) fn reload(&mut self, project_id: &str) -> Result<(), String> {
+        let project = self.projects.iter_mut().find(|project| project.id == project_id).ok_or("no such project")?;
+        let path = project.source.clone().ok_or("this project is not served from a file")?;
+        let mut fresh = compile_file(&path)?;
+        fresh.depth = project.depth;
+        fresh.id = project.id.clone();
+        fresh.name = project.name.clone();
+        let cache = std::mem::take(&mut project.commits);
+        load_history(&mut fresh, cache)?;
+        *project = fresh;
+        Ok(())
     }
 
     fn project(&self, id: &str) -> Result<&Project, Response> {
@@ -524,6 +605,86 @@ fn bad_request(description: String) -> Response {
     error(StatusCode::BAD_REQUEST, description)
 }
 
+/// Fill `project` (compiled from its working tree, one commit) with its git
+/// history: the commits of every local branch, the tags, and the working
+/// tree as head of the checked-out branch when git does not hold it.
+/// Commits already compiled (`cache`, by id) are reused.
+fn load_history(project: &mut Project, cache: Vec<Snapshot>) -> Result<(), String> {
+    let path = project.source.clone().ok_or("this project is not served from a file")?;
+    let working_tree = project.commits.pop().expect("compile_file yields one snapshot");
+    let tracked = history::locate(&path)?;
+    let files = history::model_files(&path, &tracked)?;
+    let relative = PathBuf::from(&tracked.relative);
+    let key = tracked.relative.clone();
+    let mut cache: HashMap<String, Snapshot> = cache.into_iter().map(|snapshot| (snapshot.id.clone(), snapshot)).collect();
+    let checked_out = history::checked_out(&tracked.root);
+    let mut pool: Vec<Snapshot> = Vec::new();
+    let mut branches = Vec::new();
+    for (name, _) in history::branches(&tracked.root)? {
+        let mut revisions = history::log(&tracked.root, &name, project.depth, &files)?;
+        if revisions.is_empty() {
+            continue; // a branch that never held the model
+        }
+        revisions.reverse(); // oldest first
+        let mut line = Vec::new();
+        for revision in &revisions {
+            let id = history::commit_id(&key, &revision.sha);
+            if !pool.iter().any(|snapshot| snapshot.id == id) {
+                let snapshot = cache.remove(&id).unwrap_or_else(|| history::compile_revision(&tracked.root, &relative, &key, revision));
+                pool.push(snapshot);
+            }
+            line.push(id);
+        }
+        let created = revisions.first().map(|revision| timestamp(revision.created)).unwrap_or_default();
+        branches.push(BranchState { id: branch_uuid(&project.id, &name), name, created, commits: line });
+    }
+    if branches.is_empty() {
+        return Err(format!("{}: no commit of any branch holds the model; commit it first", path.display()));
+    }
+    // A history holds only what its commits name as parents.
+    let known: Vec<String> = pool.iter().map(|snapshot| snapshot.id.clone()).collect();
+    for snapshot in &mut pool {
+        snapshot.parents.retain(|parent| known.contains(parent));
+    }
+    let default_branch = checked_out
+        .as_deref()
+        .and_then(|name| branches.iter().position(|branch| branch.name == name))
+        .or_else(|| branches.iter().position(|branch| branch.name == BRANCH_NAME))
+        .unwrap_or(0);
+    // The working tree is a commit of its own only when it holds something
+    // git does not: same content = same state.
+    if checked_out.as_deref() == Some(branches[default_branch].name.as_str()) {
+        let head_id = branches[default_branch].commits.last().cloned().expect("a branch has a commit");
+        let head_digest = pool.iter().find(|snapshot| snapshot.id == head_id).map(|snapshot| snapshot.digest.clone());
+        if head_digest.as_deref() != Some(working_tree.digest.as_str()) {
+            let mut working_tree = working_tree;
+            working_tree.description = format!("Working tree (uncommitted): {}", working_tree.description);
+            working_tree.parents = vec![head_id];
+            branches[default_branch].commits.push(working_tree.id.clone());
+            pool.push(working_tree);
+        }
+    }
+    let mut tags = Vec::new();
+    for tag in history::tags(&tracked.root)? {
+        let Some(sha) = history::model_commit_at(&tracked.root, &tag.sha, &files)? else { continue };
+        let commit = history::commit_id(&key, &sha);
+        if !pool.iter().any(|snapshot| snapshot.id == commit) {
+            continue; // beyond the depth served
+        }
+        let description = Some(tag.message.clone()).filter(|message| !message.is_empty() && *message != tag.name);
+        tags.push(TagState { id: tag_uuid(&project.id, &tag.name), name: tag.name, created: timestamp(tag.created), description, commit });
+    }
+    if let Some(first) = pool.iter().map(|snapshot| snapshot.created.clone()).min() {
+        project.created = first;
+    }
+    project.commits = pool;
+    project.branches = branches;
+    project.default_branch = default_branch;
+    project.tags = tags;
+    project.history_key = Some(key);
+    Ok(())
+}
+
 fn compile_file(path: &FsPath) -> Result<Project, String> {
     let result = crate::Compiler::new(crate::CompilerConfig::default())
         .compile_file(path)
@@ -545,6 +706,7 @@ mod handlers;
 mod history;
 mod operations;
 mod sysml_view;
+mod versioning;
 mod write;
 
 pub use access::{Access, Principal, Role, MIN_TOKEN_LENGTH};
