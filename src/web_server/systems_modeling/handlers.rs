@@ -139,10 +139,15 @@ async fn get_project(State(api): Shared, Path(project_id): Path<String>) -> Resp
     }
 }
 
-async fn list_branches(State(api): Shared, Path(project_id): Path<String>) -> Response {
+/// Every branch, the default one first.
+async fn list_branches(State(api): Shared, Path(project_id): Path<String>, Query(params): Params, uri: OriginalUri) -> Response {
     let workspace = read(&api.workspace);
     match workspace.project(&project_id) {
-        Ok(project) => Json(json!([project.branch_json()])).into_response(),
+        Ok(project) => {
+            let mut branches: Vec<Value> = vec![project.branch_json(project.default_branch())];
+            branches.extend(project.branches.iter().filter(|b| b.id != project.default_branch().id).map(|b| project.branch_json(b)));
+            paginate(branches.iter().collect(), &params, &uri)
+        }
         Err(response) => response,
     }
 }
@@ -150,18 +155,59 @@ async fn list_branches(State(api): Shared, Path(project_id): Path<String>) -> Re
 async fn get_branch(State(api): Shared, Path((project_id, branch_id)): Path<(String, String)>) -> Response {
     let workspace = read(&api.workspace);
     match workspace.project(&project_id) {
-        Ok(project) if project.branch_id == branch_id => Json(project.branch_json()).into_response(),
-        Ok(_) => not_found(format!("branch '{}' not found in project '{}'", branch_id, project_id)),
+        Ok(project) => match project.branch(&branch_id) {
+            Some(branch) => Json(project.branch_json(branch)).into_response(),
+            None => not_found(format!("branch '{}' not found in project '{}'", branch_id, project_id)),
+        },
         Err(response) => response,
     }
 }
 
-/// Commits, newest first (the head of `main` comes first).
+/// The snapshots of a project (git tags), newest first.
+async fn list_tags(State(api): Shared, Path(project_id): Path<String>, Query(params): Params, uri: OriginalUri) -> Response {
+    let workspace = read(&api.workspace);
+    match workspace.project(&project_id) {
+        Ok(project) => {
+            let mut tags: Vec<&TagState> = project.tags.iter().collect();
+            tags.sort_by(|a, b| b.created.cmp(&a.created));
+            let tags: Vec<Value> = tags.into_iter().map(|tag| project.tag_json(tag)).collect();
+            paginate(tags.iter().collect(), &params, &uri)
+        }
+        Err(response) => response,
+    }
+}
+
+async fn get_tag(State(api): Shared, Path((project_id, tag_id)): Path<(String, String)>) -> Response {
+    let workspace = read(&api.workspace);
+    match workspace.project(&project_id) {
+        Ok(project) => match project.tags.iter().find(|tag| tag.id == tag_id) {
+            Some(tag) => Json(project.tag_json(tag)).into_response(),
+            None => not_found(format!("snapshot '{}' not found in project '{}'", tag_id, project_id)),
+        },
+        Err(response) => response,
+    }
+}
+
+/// The commits of a branch (`?branchId=`, the default branch when absent),
+/// newest first: the head comes first.
 async fn list_commits(State(api): Shared, Path(project_id): Path<String>, Query(params): Params, uri: OriginalUri) -> Response {
     let workspace = read(&api.workspace);
     match workspace.project(&project_id) {
         Ok(project) => {
-            let commits: Vec<Value> = (0..project.commits.len()).rev().map(|position| project.commit_json(position, extended(&params))).collect();
+            let branch = match params.get("branchId") {
+                Some(id) => match project.branch(id) {
+                    Some(branch) => branch,
+                    None => return not_found(format!("branch '{}' not found in project '{}'", id, project_id)),
+                },
+                None => project.default_branch(),
+            };
+            let commits: Vec<Value> = branch
+                .commits
+                .iter()
+                .rev()
+                .filter_map(|id| project.position(id))
+                .map(|position| project.commit_json(position, extended(&params)))
+                .collect();
             paginate(commits.iter().collect(), &params, &uri)
         }
         Err(response) => response,
@@ -186,7 +232,15 @@ async fn list_changes(
     let workspace = read(&api.workspace);
     match workspace.commit(&project_id, &commit_id) {
         Ok((project, position)) => {
-            match project.changes(position, api.vocabulary, extended(&params)) {
+            // `?baseCommitId=`: what changed from any commit to this one (an ArcLang extension).
+            let changes = match params.get("baseCommitId") {
+                Some(base) => match project.position(base) {
+                    Some(base) => project.changes_between(Some(base), position, api.vocabulary, extended(&params)),
+                    None => return not_found(format!("commit '{}' not found in project '{}'", base, project_id)),
+                },
+                None => project.changes(position, api.vocabulary, extended(&params)),
+            };
+            match changes {
                 Ok(changes) => paginate(changes.iter().collect(), &params, &uri),
                 Err(response) => response,
             }
@@ -437,8 +491,12 @@ pub fn router(workspace: SharedWorkspace, vocabulary: Vocabulary) -> Router {
     Router::new()
         .route("/projects", get(list_projects))
         .route("/projects/:project_id", get(get_project))
-        .route("/projects/:project_id/branches", get(list_branches))
-        .route("/projects/:project_id/branches/:branch_id", get(get_branch))
+        .route("/projects/:project_id/branches", get(list_branches).post(versioning::post_branch))
+        .route("/projects/:project_id/branches/:branch_id", get(get_branch).delete(versioning::delete_branch_handler))
+        .route("/projects/:project_id/branches/:branch_id/merge", post(versioning::post_merge))
+        .route("/projects/:project_id/branches/:branch_id/restore", post(versioning::post_restore))
+        .route("/projects/:project_id/tags", get(list_tags).post(versioning::post_tag))
+        .route("/projects/:project_id/tags/:tag_id", get(get_tag))
         .route("/projects/:project_id/commits", get(list_commits).post(write::create_commit))
         .route("/projects/:project_id/commits/:commit_id", get(get_commit))
         .route("/projects/:project_id/commits/:commit_id/elements", get(list_elements))
