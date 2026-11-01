@@ -140,7 +140,8 @@ export function renderTransitionPlan(plans: TransitionPlan[], file: string): str
 
 interface MetamodelType {
   type: string;
-  of?: MetamodelType | string;
+  /** A record's keys, or the type of a list's items. */
+  of?: MetamodelType | string | string[];
   name?: string;
   dimension?: string;
   [key: string]: unknown;
@@ -191,6 +192,7 @@ const KEYWORDS: Record<string, string> = {
 function typeText(type: MetamodelType | string | undefined): string {
   if (!type) return '?';
   if (typeof type === 'string') return type;
+  if (Array.isArray(type.of)) return `${type.type.toLowerCase()} { ${type.of.join(', ')} }`;
   const inner = type.of ? `<${typeText(type.of)}>` : type.name ? `<${type.name}>` : type.dimension ? `<${type.dimension}>` : '';
   return `${type.type.toLowerCase()}${inner}`;
 }
@@ -221,6 +223,8 @@ export function condenseMetamodel(json: string): string {
         .map((a) => `${a.key}: ${typeText(a.type)}`)
         .join(', ');
       lines.push(`- ${head}: ${kind.doc ?? ''}${attributes ? ` Attributes: id, name, description, ${attributes}.` : ' Attributes: id, name, description.'}`);
+      // A record attribute has a syntax of its own (simulate: sweeps, uncertain laws): its description says how to write it.
+      for (const record of (kind.attributes ?? []).filter((a) => Array.isArray(a.type?.of) && a.doc)) lines.push(`  - \`${record.key}\`: ${record.doc}`);
     }
   }
   if (metamodel.enums?.length) {

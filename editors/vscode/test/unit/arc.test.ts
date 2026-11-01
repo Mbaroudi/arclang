@@ -81,6 +81,9 @@ test('the metamodel is condensed by layer with typed attributes, keywords, enums
         { key: 'involves', type: { type: 'List', of: { type: 'Reference', of: 'Element' } } },
         { key: 'latency_budget', type: { type: 'Quantity', of: 'Time' } },
       ] },
+      { name: 'TestCase', layer: 'Transverse', doc: 'A verification.', attributes: [
+        { key: 'simulate', type: { type: 'Record', of: ['model', 'uncertain', 'probability'] }, doc: 'Verified by simulation: `uncertain` parameters (`["body.mass ~ normal(1850 kg, 40 kg)"]`).' },
+      ] },
     ],
     enums: [{ name: 'SafetyLevel', values: ['QM', 'ASIL-A'] }],
     trace_rules: [{ kind: 'satisfies', from: 'component', to: 'Requirement', doc: 'Counted by the gate.' }],
@@ -89,6 +92,8 @@ test('the metamodel is condensed by layer with typed attributes, keywords, enums
   const text = condenseMetamodel(json);
   assert.match(text, /## Operational\n- Actor \(keyword `actor`\): Human or external system\. Attributes: id, name, description, safety_level: enum<SafetyLevel>\./);
   assert.match(text, /FunctionalChain \(keyword `functional_chain`\).*involves: list<reference<Element>>, latency_budget: quantity<Time>/);
+  assert.match(text, /TestCase \(keyword `test_case`\).*simulate: record \{ model, uncertain, probability \}\./);
+  assert.match(text, /\n {2}- `simulate`: Verified by simulation: `uncertain` parameters \(`\["body\.mass ~ normal\(1850 kg, 40 kg\)"\]`\)\./, 'a record attribute keeps its syntax');
   assert.match(text, /- SafetyLevel: QM, ASIL-A/);
   assert.match(text, /- satisfies: from component to Requirement\. Counted by the gate\./);
   assert.match(text, /- Time: ms s\n- DataRate: Mbps/);

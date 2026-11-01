@@ -71,7 +71,11 @@ function histogramSvg(m: Margin): string {
     return `<rect data-bin="${i}" x="${left}" y="${HH - 18 - height}" width="${width}" height="${height}" class="bin ${b.failing ? 'failing' : 'holding'}"><title>${escapeHtml(`${b.count} sample${b.count === 1 ? '' : 's'}: margin ${range}`)}</title></rect>`;
   };
   const bound = bins.length > 1 && low <= 0 && high >= 0 ? `<line x1="${x(0)}" y1="4" x2="${x(0)}" y2="${HH - 18}" class="bound"/><text x="${x(0)}" y="${HH - 4}" text-anchor="middle" class="axis-label bound-label">bound</text>` : '';
-  const ends = bins.length > 1 ? `<text x="8" y="${HH - 4}" class="axis-label">${escapeHtml(shortNumber(low) + unit)}</text><text x="${HW - 8}" y="${HH - 4}" text-anchor="end" class="axis-label">${escapeHtml(shortNumber(high) + unit)}</text>` : '';
+  // An end of the axis that the bound's label would cover is left out.
+  const clear = (at: number) => !bound || Math.abs(at - x(0)) > 56;
+  const lowEnd = bins.length > 1 && clear(8) ? `<text x="8" y="${HH - 4}" class="axis-label">${escapeHtml(shortNumber(low) + unit)}</text>` : '';
+  const highEnd = bins.length > 1 && clear(HW - 8) ? `<text x="${HW - 8}" y="${HH - 4}" text-anchor="end" class="axis-label">${escapeHtml(shortNumber(high) + unit)}</text>` : '';
+  const ends = lowEnd + highEnd;
   const label = `Margin of ${m.expect} over ${m.samples} samples: from ${shortNumber(m.smallest)} to ${shortNumber(m.largest)}${unit}, ${m.failing} below the bound.`;
   return `<svg class="histogram" viewBox="0 0 ${HW} ${HH}" role="img" aria-label="${escapeHtml(label)}">
   <line x1="8" y1="${HH - 18}" x2="${HW - 8}" y2="${HH - 18}" class="axis"/>
