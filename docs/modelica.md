@@ -156,12 +156,22 @@ boxes; waypoints bent by hand are not carried over.
   connectors are `Modelica.*` classes, and accept it.
 - **OMEdit** (OpenModelica): it reads the same annotations from either
   layout (open `<Package>.mo` or `<Package>/package.mo`, with the Modelica
-  Standard Library 4.1.0 installed). OMEdit itself was not run for this
-  page; the check is `omc`, which OMEdit uses to read them:
+  Standard Library 4.1.0 installed). Checked in OMEdit 1.27.1 (the
+  `openmodelica/openmodelica:v1.27.1-gui` image): with
+  `EVRangeSimulation/package.mo` and `physics/EVPhysics.mo` open, each
+  physics model draws its Standard Library components (the motor, the
+  rotor's inertia, the gear, the wheel, the car's mass, the drag force,
+  the PI) wired to the connectors the export generates, and *Simulate* on
+  `EVPhysics.TouringRange` runs the 300 km trip (its `experiment`
+  annotation gives OMEdit the 5 h of the test case) and plots
+  `batteryPack.soc` down to 0.2874, the value `arclang verify` checks.
 
 The package loads in `omc` with both layouts, and `getNthComponentAnnotation`,
 `getNthConnectionAnnotation` and `getDiagramAnnotation` return the
-placements, lines and diagram extent written here.
+placements, lines and diagram extent written here. The hand-written
+physics of the examples places its components and draws its connections
+the same way (`annotation(Placement(...))`, `annotation(Line(...))`), so a
+model opens as a diagram, not as a list of declarations.
 
 Known limits: the layout is layered and simple, so a model with many
 unconnected parts is wrapped into columns of four and a dense model has
