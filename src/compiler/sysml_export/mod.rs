@@ -258,7 +258,7 @@ pub(crate) fn id_of<'a>(attributes: &'a HashMap<String, AttributeValue>, fallbac
     attributes.get("id").and_then(|v| v.as_string()).filter(|s| !s.is_empty()).unwrap_or(fallback)
 }
 
-fn local_unit(symbol: &str) -> Option<&'static str> {
+pub(crate) fn local_unit(symbol: &str) -> Option<&'static str> {
     Some(match symbol {
         "ns" => "attribute <ns> nanosecond : DurationUnit { :>> unitConversion: ConversionByPrefix { :>> prefix = nano; :>> referenceUnit = s; } }",
         "us" => "attribute <us> microsecond : DurationUnit { :>> unitConversion: ConversionByPrefix { :>> prefix = micro; :>> referenceUnit = s; } }",
@@ -288,6 +288,14 @@ fn local_unit(symbol: &str) -> Option<&'static str> {
         "kPa" => "attribute <kPa> kilopascal : PressureUnit { :>> unitConversion: ConversionByPrefix { :>> prefix = kilo; :>> referenceUnit = Pa; } }",
         "bar" => "attribute <bar> bar : PressureUnit { :>> unitConversion: ConversionByConvention { :>> referenceUnit = Pa; :>> conversionFactor = 100000; } }",
         "'%'" => "attribute <'%'> percent : DimensionOneUnit { :>> unitConversion: ConversionByConvention { :>> referenceUnit = one; :>> conversionFactor = 0.01; } }",
+        "'A*h'" => "attribute <'A*h'> 'ampere hour' : ElectricChargeUnit { :>> unitConversion: ConversionByConvention { :>> referenceUnit = C; :>> conversionFactor = 3600; } }",
+        "'mA*h'" => "attribute <'mA*h'> 'milliampere hour' : ElectricChargeUnit { :>> unitConversion: ConversionByConvention { :>> referenceUnit = C; :>> conversionFactor = 3.6; } }",
+        "'mΩ'" => "attribute <'mΩ'> milliohm : ResistanceUnit { :>> unitConversion: ConversionByPrefix { :>> prefix = milli; :>> referenceUnit = 'Ω'; } }",
+        "'kΩ'" => "attribute <'kΩ'> kiloohm : ResistanceUnit { :>> unitConversion: ConversionByPrefix { :>> prefix = kilo; :>> referenceUnit = 'Ω'; } }",
+        "'kW/K'" => "attribute <'kW/K'> 'kilowatt per kelvin' : ThermalConductanceUnit { :>> unitConversion: ConversionByConvention { :>> referenceUnit = 'W/K'; :>> conversionFactor = 1000; } }",
+        "'kJ/K'" => "attribute <'kJ/K'> 'kilojoule per kelvin' : HeatCapacityUnit { :>> unitConversion: ConversionByConvention { :>> referenceUnit = 'J/K'; :>> conversionFactor = 1000; } }",
+        "'MJ/K'" => "attribute <'MJ/K'> 'megajoule per kelvin' : HeatCapacityUnit { :>> unitConversion: ConversionByConvention { :>> referenceUnit = 'J/K'; :>> conversionFactor = 1000000; } }",
+        "'cm²'" => "attribute <'cm²'> 'square centimetre' : AreaUnit { :>> unitConversion: ConversionByConvention { :>> referenceUnit = 'm²'; :>> conversionFactor = 0.0001; } }",
         _ => return None,
     })
 }

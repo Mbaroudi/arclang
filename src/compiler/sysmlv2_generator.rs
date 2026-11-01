@@ -1537,45 +1537,8 @@ pub fn library_probe() -> String {
 /// SysML v2 declaration of a unit the `SI` library lacks, in the library's
 /// own style (`ConversionByPrefix` / `ConversionByConvention`).
 fn local_unit_declaration(symbol: &str) -> Option<&'static str> {
-    Some(match symbol {
-        "ns" => "attribute <ns> nanosecond : DurationUnit { :>> unitConversion: ConversionByPrefix { :>> prefix = nano; :>> referenceUnit = s; } }",
-        "us" => "attribute <us> microsecond : DurationUnit { :>> unitConversion: ConversionByPrefix { :>> prefix = micro; :>> referenceUnit = s; } }",
-        "ms" => "attribute <ms> millisecond : DurationUnit { :>> unitConversion: ConversionByPrefix { :>> prefix = milli; :>> referenceUnit = s; } }",
-        "kHz" => "attribute <kHz> kilohertz : FrequencyUnit { :>> unitConversion: ConversionByPrefix { :>> prefix = kilo; :>> referenceUnit = Hz; } }",
-        "MHz" => "attribute <MHz> megahertz : FrequencyUnit { :>> unitConversion: ConversionByPrefix { :>> prefix = mega; :>> referenceUnit = Hz; } }",
-        "GHz" => "attribute <GHz> gigahertz : FrequencyUnit { :>> unitConversion: ConversionByPrefix { :>> prefix = giga; :>> referenceUnit = Hz; } }",
-        "'kbit/s'" => "attribute <'kbit/s'> 'kilobit per second' : BinaryDigitRateUnit { :>> unitConversion: ConversionByPrefix { :>> prefix = kilo; :>> referenceUnit = 'bit/s'; } }",
-        "'Mbit/s'" => "attribute <'Mbit/s'> 'megabit per second' : BinaryDigitRateUnit { :>> unitConversion: ConversionByPrefix { :>> prefix = mega; :>> referenceUnit = 'bit/s'; } }",
-        "'Gbit/s'" => "attribute <'Gbit/s'> 'gigabit per second' : BinaryDigitRateUnit { :>> unitConversion: ConversionByPrefix { :>> prefix = giga; :>> referenceUnit = 'bit/s'; } }",
-        "'Tbit/s'" => "attribute <'Tbit/s'> 'terabit per second' : BinaryDigitRateUnit { :>> unitConversion: ConversionByPrefix { :>> prefix = tera; :>> referenceUnit = 'bit/s'; } }",
-        "kB" => "attribute <kB> kilobyte : StorageCapacityUnit { :>> unitConversion: ConversionByPrefix { :>> prefix = kilo; :>> referenceUnit = B; } }",
-        "MB" => "attribute <MB> megabyte : StorageCapacityUnit { :>> unitConversion: ConversionByPrefix { :>> prefix = mega; :>> referenceUnit = B; } }",
-        "GB" => "attribute <GB> gigabyte : StorageCapacityUnit { :>> unitConversion: ConversionByPrefix { :>> prefix = giga; :>> referenceUnit = B; } }",
-        "TB" => "attribute <TB> terabyte : StorageCapacityUnit { :>> unitConversion: ConversionByPrefix { :>> prefix = tera; :>> referenceUnit = B; } }",
-        "KiB" => "attribute <KiB> kibibyte : StorageCapacityUnit { :>> unitConversion: ConversionByConvention { :>> referenceUnit = B; :>> conversionFactor = 1024; } }",
-        "MiB" => "attribute <MiB> mebibyte : StorageCapacityUnit { :>> unitConversion: ConversionByConvention { :>> referenceUnit = B; :>> conversionFactor = 1048576; } }",
-        "GiB" => "attribute <GiB> gibibyte : StorageCapacityUnit { :>> unitConversion: ConversionByConvention { :>> referenceUnit = B; :>> conversionFactor = 1073741824; } }",
-        "t" => "attribute <t> tonne : MassUnit { :>> unitConversion: ConversionByConvention { :>> referenceUnit = kg; :>> conversionFactor = 1000; } }",
-        "kN" => "attribute <kN> kilonewton : ForceUnit { :>> unitConversion: ConversionByPrefix { :>> prefix = kilo; :>> referenceUnit = N; } }",
-        "mV" => "attribute <mV> millivolt : ElectricPotentialUnit { :>> unitConversion: ConversionByPrefix { :>> prefix = milli; :>> referenceUnit = V; } }",
-        "kV" => "attribute <kV> kilovolt : ElectricPotentialUnit { :>> unitConversion: ConversionByPrefix { :>> prefix = kilo; :>> referenceUnit = V; } }",
-        "mA" => "attribute <mA> milliampere : ElectricCurrentUnit { :>> unitConversion: ConversionByPrefix { :>> prefix = milli; :>> referenceUnit = A; } }",
-        "mW" => "attribute <mW> milliwatt : PowerUnit { :>> unitConversion: ConversionByPrefix { :>> prefix = milli; :>> referenceUnit = W; } }",
-        "'W*h'" => "attribute <'W*h'> 'watt hour' : EnergyUnit { :>> unitConversion: ConversionByConvention { :>> referenceUnit = J; :>> conversionFactor = 3600; } }",
-        "'kW*h'" => "attribute <'kW*h'> 'kilowatt hour' : EnergyUnit { :>> unitConversion: ConversionByConvention { :>> referenceUnit = J; :>> conversionFactor = 3600000; } }",
-        "kPa" => "attribute <kPa> kilopascal : PressureUnit { :>> unitConversion: ConversionByPrefix { :>> prefix = kilo; :>> referenceUnit = Pa; } }",
-        "bar" => "attribute <bar> bar : PressureUnit { :>> unitConversion: ConversionByConvention { :>> referenceUnit = Pa; :>> conversionFactor = 100000; } }",
-        "'A*h'" => "attribute <'A*h'> 'ampere hour' : ElectricChargeUnit { :>> unitConversion: ConversionByConvention { :>> referenceUnit = C; :>> conversionFactor = 3600; } }",
-        "'mA*h'" => "attribute <'mA*h'> 'milliampere hour' : ElectricChargeUnit { :>> unitConversion: ConversionByConvention { :>> referenceUnit = C; :>> conversionFactor = 3.6; } }",
-        "'mΩ'" => "attribute <'mΩ'> milliohm : ResistanceUnit { :>> unitConversion: ConversionByPrefix { :>> prefix = milli; :>> referenceUnit = 'Ω'; } }",
-        "'kΩ'" => "attribute <'kΩ'> kiloohm : ResistanceUnit { :>> unitConversion: ConversionByPrefix { :>> prefix = kilo; :>> referenceUnit = 'Ω'; } }",
-        "'kW/K'" => "attribute <'kW/K'> 'kilowatt per kelvin' : ThermalConductanceUnit { :>> unitConversion: ConversionByConvention { :>> referenceUnit = 'W/K'; :>> conversionFactor = 1000; } }",
-        "'kJ/K'" => "attribute <'kJ/K'> 'kilojoule per kelvin' : HeatCapacityUnit { :>> unitConversion: ConversionByConvention { :>> referenceUnit = 'J/K'; :>> conversionFactor = 1000; } }",
-        "'MJ/K'" => "attribute <'MJ/K'> 'megajoule per kelvin' : HeatCapacityUnit { :>> unitConversion: ConversionByConvention { :>> referenceUnit = 'J/K'; :>> conversionFactor = 1000000; } }",
-        "'cm²'" => "attribute <'cm²'> 'square centimetre' : AreaUnit { :>> unitConversion: ConversionByConvention { :>> referenceUnit = 'm²'; :>> conversionFactor = 0.0001; } }",
-        "'%'" => "attribute <'%'> percent : DimensionOneUnit { :>> unitConversion: ConversionByConvention { :>> referenceUnit = one; :>> conversionFactor = 0.01; } }",
-        _ => return None,
-    })
+    // One table for both exporters: the units the SI library lacks.
+    super::sysml_export::local_unit(symbol)
 }
 
 // ---- helpers ---------------------------------------------------------------

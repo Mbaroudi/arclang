@@ -439,3 +439,29 @@ async fn the_sysml_view_is_read_only() {
 
     assert_eq!(response.status(), StatusCode::METHOD_NOT_ALLOWED);
 }
+
+/// Every unit a value is written in (`40 ['mΩ']`) resolves: the OMG `SI`
+/// library declares it, or the export declares it in `ArcLangUnits`. The
+/// OMG pilot refuses an export whose unit resolves to nothing.
+#[test]
+fn every_unit_written_in_an_export_resolves() {
+    let index = std::fs::read_to_string(Path::new(env!("CARGO_MANIFEST_DIR")).join("spec/sysml_library_index.json")).unwrap();
+    let mut files = Vec::new();
+    arc_files(&Path::new(env!("CARGO_MANIFEST_DIR")).join("examples"), &mut files);
+    files.sort();
+    let mut checked = 0;
+    for path in files {
+        let Ok(result) = Compiler::new(CompilerConfig::default()).compile_file(&path) else { continue };
+        let text = generate_sysmlv2(&result.semantic_model, &result.ast);
+        // A value: a number, a space, its unit in brackets (`40 ['mΩ']`).
+        let values = text.match_indices(" [").filter(|(at, _)| text[..*at].chars().last().is_some_and(|c| c.is_ascii_digit()));
+        for unit in values.filter_map(|(at, _)| text[at + 2..].split_once(']').map(|(unit, _)| unit)) {
+            let bare = unit.trim_matches('\'');
+            let in_library = index.contains(&format!("\"{bare}\""));
+            let declared = text.contains(&format!("attribute <{unit}>"));
+            assert!(in_library || declared, "{}: the unit [{unit}] is neither in the SI library nor declared in ArcLangUnits", path.display());
+            checked += 1;
+        }
+    }
+    assert!(checked > 50, "the corpus writes values with units ({checked} checked)");
+}
