@@ -27,7 +27,11 @@ export async function timelineOf(document: vscode.TextDocument): Promise<Timelin
   } catch {
     // keep the path as given
   }
-  const log = await git(['log', '-n', '300', `--format=${LOG_FORMAT}`, '--', relativeTo(top, file)], top);
+  // `--full-history`: a merge that brought a change in is a moment of the
+  // model (and may carry a snapshot), even when it holds the same model as
+  // the branch merged; merges that changed nothing stay out. `--topo-order`:
+  // commits made within the same second still come after their parents.
+  const log = await git(['log', '-n', '300', '--full-history', '--topo-order', `--format=${LOG_FORMAT}`, '--', relativeTo(top, file)], top);
   if (log.code !== 0) return log.stderr.trim() || 'git log failed';
   const commits = parseLog(log.stdout);
   if (commits.length === 0) return 'the model has no commit yet: commit it to travel in its history';
