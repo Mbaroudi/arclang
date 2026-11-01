@@ -176,6 +176,31 @@ async fn a_snapshot_names_a_commit_for_good() {
 }
 
 #[tokio::test]
+async fn a_snapshot_of_a_merge_names_the_merge() {
+    // main did not move since the branch: the merge holds the same model as
+    // the branch's head, and is still the commit the snapshot names.
+    let (_guard, model) = repository();
+    let app = server(&model, true);
+    let project = project(&app).await;
+    let main = branch_id(&app, &project, "main").await;
+    let (_, feature) = call(&app, "POST", &format!("/projects/{project}/branches"), Some(json!({ "name": "feature" }))).await;
+    let feature = feature["@id"].as_str().unwrap().to_string();
+    set_latency(&app, &project, &feature, "LC-001", 10).await;
+    let (status, merge) = call(&app, "POST", &format!("/projects/{project}/branches/{main}/merge"), Some(json!({ "source": { "@id": feature } }))).await;
+    assert_eq!(status, StatusCode::CREATED, "{merge}");
+
+    let (status, tag) = call(&app, "POST", &format!("/projects/{project}/tags"), Some(json!({ "name": "after-merge" }))).await;
+    assert_eq!(status, StatusCode::CREATED, "{tag}");
+    assert_eq!(tag["taggedCommit"]["@id"], merge["@id"], "the snapshot is on the merge, not on the branch's head");
+    // Made within the same second, the commits still list newest first, each after its parents.
+    let (_, commits) = call(&app, "GET", &format!("/projects/{project}/commits?branchId={main}"), None).await;
+    let order: Vec<&str> = commits.as_array().unwrap().iter().map(|c| c["@id"].as_str().unwrap()).collect();
+    assert_eq!(order.len(), 3, "{commits}");
+    assert_eq!(order[0], merge["@id"].as_str().unwrap());
+    assert_eq!(order[1], merge["previousCommit"][1]["@id"].as_str().unwrap(), "the branch's commit, then the first one");
+}
+
+#[tokio::test]
 async fn branches_that_change_different_elements_merge_by_identity() {
     let (_guard, model) = repository();
     let app = server(&model, true);
