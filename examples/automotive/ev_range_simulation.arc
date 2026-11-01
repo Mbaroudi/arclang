@@ -1,11 +1,14 @@
 // A requirement verified by a physical simulation. The physical
 // architecture is exported to Modelica (`arclang export -f modelica`), the
 // physics is hand-written in physics/EVPhysics.mo, and `arclang verify`
-// simulates each configuration in OpenModelica: the long range pack keeps
-// its reserve over 300 km at -10 °C, the standard pack does not. Each run
-// ends when the 300 km are driven or when the pack is empty, whichever comes
-// first; `stop_time` is only a bound. The envelope case sweeps the long range
-// pack over the temperatures and speeds the requirement names.
+// simulates each configuration in OpenModelica: the cells' resistance grows
+// in the cold and heats the pack, the cabin heater holds 21 °C against the
+// outside air, the motor is limited to its power. The long range pack keeps
+// its reserve over 300 km at -10 °C, the standard pack is empty before. Each
+// run ends when the 300 km are driven or when the pack is empty, whichever
+// comes first; `stop_time` is only a bound. The envelope case sweeps the long
+// range pack over the temperatures and speeds the requirement names, and
+// finds the corner it misses: -20 °C at 110 km/h.
 //
 // The behaviour runs step by step in the debugger (F5, or ArcLang: Run…):
 // the drive modes (a state machine), a winter highway trip (a scenario) and
@@ -88,7 +91,11 @@ physical_architecture "EV hardware" {
     node "Battery pack" {
         id: "PN-BATT"
         voltage: 400 V
-        auxiliary_load: 2.5 kW
+        // Lights, pumps, electronics; the cabin heater is a node of its own.
+        auxiliary_load: 400 W
+        internal_resistance: 50 mΩ
+        thermal_mass: 400 kJ/K
+        cooling: 10 W/K
         deploys "LC-BATT"
         port "hv_p" { is: "HV plus" }
         port "hv_n" { is: "HV minus" }
@@ -97,6 +104,7 @@ physical_architecture "EV hardware" {
         id: "PN-DRIVE"
         efficiency: 90 %
         gear_ratio: 9.0
+        max_power: 150 kW
         deploys "LC-DRIVE"
         port "hv_p" { is: "HV plus" }
         port "hv_n" { is: "HV minus" }
@@ -114,6 +122,15 @@ physical_architecture "EV hardware" {
         port "wheel" { physics: mechanical_rotational }
         port out "speed" { is: "Signal" }
     }
+    node "Cabin heater" {
+        id: "PN-HEAT"
+        max_power: 5 kW
+        setpoint: 21 °C
+        cabin_conductance: 120 W/K
+        cabin_capacity: 100 kJ/K
+        port "hv_p" { is: "HV plus" }
+        port "hv_n" { is: "HV minus" }
+    }
     node "Vehicle control unit" {
         id: "PN-VCU"
         port in "speed" { is: "Signal" }
@@ -128,6 +145,8 @@ physical_architecture "EV hardware" {
     }
     physical_link "HV plus line" { id: "PL-HVP" from: "PN-BATT.hv_p" to: "PN-DRIVE.hv_p" protocol: "HV DC 400 V" }
     physical_link "HV minus line" { id: "PL-HVN" from: "PN-BATT.hv_n" to: "PN-DRIVE.hv_n" protocol: "HV DC 400 V" }
+    physical_link "Heater plus line" { id: "PL-HEAT-P" from: "PN-BATT.hv_p" to: "PN-HEAT.hv_p" protocol: "HV DC 400 V" }
+    physical_link "Heater minus line" { id: "PL-HEAT-N" from: "PN-BATT.hv_n" to: "PN-HEAT.hv_n" protocol: "HV DC 400 V" }
     physical_link "Half shafts" { id: "PL-SHAFT" from: "PN-DRIVE.shaft" to: "PN-BODY.wheel" protocol: "Mechanical" }
     physical_link "Body CAN" { id: "PL-CAN-BODY" from: "PN-BODY" to: "PN-VCU" protocol: "CAN FD" }
     physical_link "Drive CAN" { id: "PL-CAN-DRIVE" from: "PN-VCU" to: "PN-DRIVE" protocol: "CAN FD" }

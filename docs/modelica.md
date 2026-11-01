@@ -159,12 +159,16 @@ boxes; waypoints bent by hand are not carried over.
   Standard Library 4.1.0 installed). Checked in OMEdit 1.27.1 (the
   `openmodelica/openmodelica:v1.27.1-gui` image): with
   `EVRangeSimulation/package.mo` and `physics/EVPhysics.mo` open, each
-  physics model draws its Standard Library components (the motor, the
-  rotor's inertia, the gear, the wheel, the car's mass, the drag force,
-  the PI) wired to the connectors the export generates, and *Simulate* on
-  `EVPhysics.TouringRange` runs the 300 km trip (its `experiment`
-  annotation gives OMEdit the 5 h of the test case) and plots
-  `batteryPack.soc` down to 0.2874, the value `arclang verify` checks.
+  physics model draws its Standard Library components wired to the
+  connectors the export generates: in the pack, the open-circuit voltage
+  table, the internal resistance that grows in the cold and heats the
+  cells' thermal mass, the auxiliaries; in the drive, the motor limited to
+  its power, the rotor's inertia, the gear; the wheel, the car's mass, the
+  drag force; the cruise PI; in the cabin heater, the thermostat PI, the
+  heat flow, the cabin's thermal mass and its losses to the outside air.
+  *Simulate* on `EVPhysics.TouringRange` runs the 300 km trip (its
+  `experiment` annotation gives OMEdit the 5 h of the test case) and plots
+  `batteryPack.soc` down to 0.2095, the value `arclang verify` checks.
 
 The package loads in `omc` with both layouts, and `getNthComponentAnnotation`,
 `getNthConnectionAnnotation` and `getDiagramAnnotation` return the
@@ -200,8 +204,12 @@ EVPhysics                              hand-written
 ├── model ControlUnit extends EVRangeSimulation.Physical.VehicleControlUnit(
 │         redeclare EVPhysics.SpeedControl speedController);
 └── model TouringRange extends EVRangeSimulation.Systems.Touring(
-          redeclare EVPhysics.Battery batteryPack, ...);
+          redeclare EVPhysics.Battery batteryPack(ambient=vehicleBody.ambient), ...);
 ```
+
+A part whose physics needs a value another node owns takes it in the
+`redeclare`: the pack and the cabin heater start at the body's `ambient`,
+so a sweep of `vehicleBody.ambient` reaches all three.
 
 - **Names.** The package is the model name in UpperCamelCase
   (`EVRangeSimulation`); classes are element names in UpperCamelCase,
@@ -518,7 +526,7 @@ gate.
 
 | System | Physics | Configurations | Sweep |
 |---|---|---|---|
-| `examples/automotive/ev_range_simulation.arc` | longitudinal dynamics, drag at the air density of the ambient, a cruise PI, a pack drained to its end | standard pack **fail** (8.7 % left after 300 km), long range **pass** | -20 to 20 °C × 90 to 110 km/h: 9 of 9 pass |
+| `examples/automotive/ev_range_simulation.arc` | longitudinal dynamics, drag at the air density of the ambient, a cruise PI, a motor limited to 150 kW; a pack with its open-circuit voltage curve, an internal resistance that grows in the cold and heats the cells; a PTC heater keeping the cabin at 21 °C | standard pack **fail** (empty at 289.8 km), long range **pass** (21 % left after 300 km) | -20 to 20 °C × 90 to 110 km/h: 8 of 9 pass (-20 °C at 110 km/h: 7 % left) |
 | `examples/automotive/battery_fast_charge.arc` | open-circuit voltage, internal resistance heating the cells, a cold plate, thermal derating of the charge power | air cooled **fail** (34.5 min for 10 to 80 %), chilled **pass** | 25 to 40 °C × 100 and 150 kW: 8 of 8 pass |
 | `examples/aerospace/drone_endurance.arc` | momentum theory power, the pack's weight on the frame, an altitude PID | each configuration against its own mission (`applies_to`): survey **pass** (20 min with 1 kg), long endurance **pass** (25 min with 2 kg); the gate **passes** | payload 0 to 2 kg × 0 to 35 °C: 9 of 9 pass |
 | `examples/building/heat_pump_heating.arc` | a thermal mass, its envelope, a daily outdoor cycle, a heat pump whose capacity and COP fall in the cold, a PI thermostat | 6 kW **fail** (19 °C at night), 9 kW **pass** (36.6 kWh a day) | -10 to 0 °C × 300 and 900 W of gains: 6 of 6 pass |
