@@ -10,7 +10,7 @@
 //   VSCODE_APP=".../Visual Studio Code.app" PLAYWRIGHT=/path/to/playwright \
 //   ARCLANG_BINARY=/path/to/arclang node vscode_ci_test.js
 // SHOTS=/dir keeps pictures; THEME=dark|light picks the colour theme.
-const { _electron } = require(process.env.PLAYWRIGHT || 'playwright');
+const { launchVSCode } = require('./launch');
 const fs = require('fs'); const os = require('os'); const path = require('path');
 const { execFileSync } = require('child_process');
 
@@ -34,9 +34,7 @@ async function launch(dir, model, extraSettings = {}) {
   };
   fs.mkdirSync(path.join(dir, 'u', 'User'), { recursive: true });
   fs.writeFileSync(path.join(dir, 'u', 'User', 'settings.json'), JSON.stringify(settings));
-  const app = await _electron.launch({ executablePath: path.join(APP, 'Contents/MacOS/Electron'), args: [`--user-data-dir=${dir}/u`, `--extensions-dir=${dir}/x`, `--extensionDevelopmentPath=${EXT}`, '--skip-welcome', '--skip-release-notes', dir, model] });
-  const win = await app.firstWindow();
-  await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setBounds({ x: 0, y: 0, width: 1500, height: 950 }));
+  const { win, close } = await launchVSCode(APP, [`--user-data-dir=${dir}/u`, `--extensions-dir=${dir}/x`, `--extensionDevelopmentPath=${EXT}`, '--skip-welcome', '--skip-release-notes', '--new-window', dir, model], { width: 1500, height: 950 });
   await win.waitForTimeout(4500);
   const ready = async () => {
     for (let i = 0; i < 40; i++) {
@@ -65,7 +63,7 @@ async function launch(dir, model, extraSettings = {}) {
     const icon = await item.locator('.codicon').first().getAttribute('class').catch(() => '') || '';
     return { icon: (/codicon-([a-z-]+)/.exec(icon.replace('codicon-modifier-spin', '')) || [])[1] || '', label: await item.getAttribute('aria-label').catch(() => '') };
   };
-  return { app, win, palette, pick, dialog, ready, toasts, ciItem };
+  return { close, win, palette, pick, dialog, ready, toasts, ciItem };
 }
 
 const until = async (win, test, tries = 40) => { for (let i = 0; i < tries; i++) { const v = await test(); if (v) return v; await win.waitForTimeout(400); } return null; };
@@ -85,7 +83,7 @@ const until = async (win, test, tries = 40) => { for (let i = 0; i < tries; i++)
   mode('success');
   const workflow = path.join(dir, '.github', 'workflows', 'arclang.yml');
 
-  const { app, win, palette, pick, dialog, ready, toasts, ciItem } = await launch(dir, model);
+  const { close, win, palette, pick, dialog, ready, toasts, ciItem } = await launch(dir, model);
   try {
     // 1. No workflow yet: no status item, and gh is not asked.
     await win.waitForTimeout(2500);
@@ -171,7 +169,7 @@ const until = async (win, test, tries = 40) => { for (let i = 0; i < tries; i++)
     report('the run', false, String(error).slice(0, 300));
     if (SHOTS) await win.screenshot({ path: path.join(SHOTS, `ci-failure-${THEME}.png`) }).catch(() => undefined);
   } finally {
-    await app.close();
+    await close();
   }
 
   // Not covered here: an untrusted workspace. In Restricted Mode the extension host of this harness

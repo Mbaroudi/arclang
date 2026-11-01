@@ -6,7 +6,7 @@
 // tidies the next such move by itself; the Layout menu offers the same.
 //   VSCODE_APP="/Applications/Visual Studio Code.app" PLAYWRIGHT=/path/to/playwright ARCLANG_BINARY=/path/to/arclang node vscode_tidy_test.js
 // SHOTS=dir saves pictures. Keys are sent as a French (AZERTY) Mac keyboard sends them.
-const { _electron } = require(process.env.PLAYWRIGHT || 'playwright');
+const { launchVSCode } = require('./launch');
 const fs = require('fs'); const os = require('os'); const path = require('path');
 const { azerty } = require('./azerty');
 
@@ -23,9 +23,7 @@ const rows = []; const report = (name, ok, detail) => { rows.push({ name, ok });
   const settings = { 'files.simpleDialog.enable': true, 'update.mode': 'none', 'extensions.autoCheckUpdates': false, 'extensions.autoUpdate': false, 'telemetry.telemetryLevel': 'off', 'workbench.startupEditor': 'none', 'security.workspace.trust.enabled': false, 'window.restoreWindows': 'none', ...(process.env.ARCLANG_BINARY ? { 'arclang.binary': process.env.ARCLANG_BINARY } : {}) };
   fs.mkdirSync(path.dirname(userSettings), { recursive: true });
   fs.writeFileSync(userSettings, JSON.stringify(settings));
-  const app = await _electron.launch({ executablePath: path.join(APP, 'Contents/MacOS/Electron'), args: [`--user-data-dir=${dir}/u`, `--extensions-dir=${dir}/x`, `--extensionDevelopmentPath=${EXT}`, '--skip-welcome', '--skip-release-notes', model] });
-  const win = await app.firstWindow();
-  await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setBounds({ x: 0, y: 0, width: 1600, height: 1000 }));
+  const { win, close } = await launchVSCode(APP, [`--user-data-dir=${dir}/u`, `--extensions-dir=${dir}/x`, `--extensionDevelopmentPath=${EXT}`, '--skip-welcome', '--skip-release-notes', '--new-window', model], { width: 1600, height: 1000 });
   await win.waitForTimeout(4000);
   const command = async (name) => { await win.keyboard.press('Meta+Shift+P'); await win.waitForTimeout(300); await win.keyboard.type(name); await win.waitForTimeout(500); await win.keyboard.press('Enter'); await win.waitForTimeout(600); };
   await command('View: Close Secondary Side Bar');
@@ -126,7 +124,7 @@ const rows = []; const report = (name, ok, detail) => { rows.push({ name, ok });
     report('the test ran to its end', false, String(error).slice(0, 240));
     await shot('tidy-error').catch(() => undefined);
   } finally {
-    await app.close().catch(() => undefined);
+    await close().catch(() => undefined);
   }
   const failed = rows.filter((r) => !r.ok).length;
   console.log(`\n${rows.length - failed}/${rows.length} checks passed`);

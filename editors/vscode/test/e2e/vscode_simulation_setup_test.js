@@ -12,7 +12,7 @@
 //   ARCLANG_BINARY=/path/to/arclang node vscode_simulation_setup_test.js
 // Needs Docker with the OpenModelica image for 1 and 2 (they are skipped
 // when `docker version` fails). SHOTS=/dir keeps pictures.
-const { _electron } = require(process.env.PLAYWRIGHT || 'playwright');
+const { launchVSCode } = require('./launch');
 const fs = require('fs'); const os = require('os'); const path = require('path');
 const { spawnSync } = require('child_process');
 
@@ -42,15 +42,9 @@ async function launch({ dir, model }, env = {}, binary = process.env.ARCLANG_BIN
   };
   fs.mkdirSync(path.join(dir, 'u', 'User'), { recursive: true });
   fs.writeFileSync(path.join(dir, 'u', 'User', 'settings.json'), JSON.stringify(settings));
-  const app = await _electron.launch({
-    executablePath: path.join(APP, 'Contents/MacOS/Electron'),
-    args: [`--user-data-dir=${dir}/u`, `--extensions-dir=${dir}/x`, `--extensionDevelopmentPath=${EXT}`, '--skip-welcome', '--skip-release-notes', dir, model],
-    env: { ...process.env, ...env },
-  });
-  const win = await app.firstWindow();
-  await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setBounds({ x: 0, y: 0, width: 1500, height: 950 }));
+  const { win, close } = await launchVSCode(APP, [`--user-data-dir=${dir}/u`, `--extensions-dir=${dir}/x`, `--extensionDevelopmentPath=${EXT}`, '--skip-welcome', '--skip-release-notes', '--new-window', dir, model], { env: { ...process.env, ...env }, width: 1500, height: 950 });
   await win.waitForTimeout(4500);
-  return { app, win };
+  return { close, win };
 }
 
 const until = async (win, test, tries = 60, ms = 500) => { for (let i = 0; i < tries; i++) { const v = await test(); if (v) return v; await win.waitForTimeout(ms); } return null; };
@@ -83,7 +77,7 @@ async function chooseInMenu(win, label) {
 (async () => {
   if (dockerUp) {
     const w = workspace();
-    const { app, win } = await launch(w);
+    const { close, win } = await launch(w);
     try {
       // 1. The status item and the menu.
       const text = await until(win, async () => { const t = await itemText(win); return t && /OpenModelica \(Docker\)/.test(t) ? t : null; }, 40);
@@ -128,7 +122,7 @@ async function chooseInMenu(win, label) {
     } catch (error) {
       report('the Docker part ran to its end', false, String(error).slice(0, 200));
       await shot(win, 'sim-error-docker.png').catch(() => undefined);
-    } finally { await app.close().catch(() => undefined); }
+    } finally { await close().catch(() => undefined); }
   } else console.log('SKIP the Docker part: no Docker daemon answers');
 
   // 4. No Docker, no omc.
@@ -137,7 +131,7 @@ async function chooseInMenu(win, label) {
   // compiler is started through a wrapper that removes docker and omc from its own PATH.
   const wrapper = path.join(w.dir, 'arclang-nodocker.sh');
   fs.writeFileSync(wrapper, `#!/bin/sh\nunset ARCLANG_OMC ARCLANG_OMC_DOCKER\nPATH=/usr/bin:/bin exec "${process.env.ARCLANG_BINARY || 'arclang'}" "$@"\n`, { mode: 0o755 });
-  const { app, win } = await launch(w, {}, wrapper);
+  const { close, win } = await launch(w, {}, wrapper);
   try {
     const text = await until(win, async () => { const t = await itemText(win); return t && /needs setup/.test(t) ? t : null; }, 40);
     report('without Docker nor omc the item says needs setup', !!text, text || '');
@@ -166,7 +160,7 @@ async function chooseInMenu(win, label) {
   } catch (error) {
     report('the no-tool part ran to its end', false, String(error).slice(0, 200));
     await shot(win, 'sim-error-notool.png').catch(() => undefined);
-  } finally { await app.close().catch(() => undefined); }
+  } finally { await close().catch(() => undefined); }
 
   const failed = results.filter((ok) => !ok).length;
   console.log(`\n${results.length - failed}/${results.length} checks passed`);
