@@ -4,7 +4,7 @@
 // then saved for the team; the image read back from the macOS clipboard;
 // the .pptx read back with python-pptx.
 //   VSCODE_APP=... PLAYWRIGHT=... ARCLANG_BINARY=... [SHOTS=/dir] [PPTX_PYTHON=/venv/bin/python] node vscode_theme_test.js
-const { _electron } = require(process.env.PLAYWRIGHT || 'playwright');
+const { launchVSCode } = require('./launch');
 const { execFileSync } = require('child_process');
 const fs = require('fs'); const os = require('os'); const path = require('path');
 const { azerty } = require('./azerty');
@@ -21,9 +21,7 @@ async function launch(dir, model, extra = {}) {
   fs.mkdirSync(path.join(dir, 'u', 'User'), { recursive: true });
   fs.writeFileSync(path.join(dir, 'u', 'User', 'settings.json'), JSON.stringify(settings));
   const work = path.join(dir, 'work');
-  const app = await _electron.launch({ executablePath: path.join(APP, 'Contents/MacOS/Electron'), args: [`--user-data-dir=${dir}/u`, `--extensions-dir=${dir}/x`, `--extensionDevelopmentPath=${EXT}`, '--skip-welcome', '--skip-release-notes', work, model] });
-  const win = await app.firstWindow();
-  await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setBounds({ x: 0, y: 0, width: 1600, height: 1000 }));
+  const { win, close } = await launchVSCode(APP, [`--user-data-dir=${dir}/u`, `--extensions-dir=${dir}/x`, `--extensionDevelopmentPath=${EXT}`, '--skip-welcome', '--skip-release-notes', '--new-window', work, model], { width: 1600, height: 1000 });
   await win.waitForTimeout(4000);
   const command = async (name) => { await win.keyboard.press('Meta+Shift+P'); await win.waitForTimeout(300); await win.keyboard.type(name); await win.waitForTimeout(600); await win.keyboard.press('Enter'); await win.waitForTimeout(600); };
   await command('View: Close Secondary Side Bar');
@@ -34,7 +32,7 @@ async function launch(dir, model, extra = {}) {
     for (const f of win.frames()) { try { if (await f.$('.arcviz-stage svg')) { page = f; break; } } catch { /* a frame going away */ } }
   }
   await win.waitForTimeout(1500);
-  return { app, win, page, command, work };
+  return { close, win, page, command, work };
 }
 
 function workspace() {
@@ -107,8 +105,7 @@ async function presets(colorTheme, slug) {
     }
     if (slug === 'dark') {
       // A narrow panel still draws dark: the rule holds at every width.
-      const bounds = await ctx.app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].getBounds());
-      await ctx.app.evaluate(({ BrowserWindow }, b) => BrowserWindow.getAllWindows()[0].setBounds({ ...b, width: 520 }), bounds);
+      await win.setViewportSize({ ...win.viewportSize(), width: 520 });
       await win.waitForTimeout(2000);
       // The last preset chosen (monochrome document) has no dark variant.
       const narrow = await fills(ctx.page);
@@ -119,7 +116,7 @@ async function presets(colorTheme, slug) {
     report(`no error (${slug} presets)`, false, String(error).slice(0, 300));
     await win.screenshot({ path: path.join(process.env.SHOTS || os.tmpdir(), `vscode-theme-failure-${slug}.png`) }).catch(() => {});
   } finally {
-    await ctx.app.close().catch(() => {});
+    await ctx.close().catch(() => {});
     fs.rmSync(dir, { recursive: true, force: true });
   }
 }
@@ -207,7 +204,7 @@ async function editorAndExports() {
     // 3. Copy as SVG
     await openExport(page); await win.waitForTimeout(300);
     await page.locator('.arcviz-menu-pop:not([hidden]) [data-action="copy-svg"]').click(); await win.waitForTimeout(1500);
-    const svgText = await ctx.app.evaluate(({ clipboard }) => clipboard.readText());
+    const svgText = execFileSync('/usr/bin/pbpaste', { encoding: 'utf8' });
     report('Copy as SVG puts the SVG markup on the clipboard, in the theme\'s colours', /^<svg /.test(svgText) && /#8DA8D6/i.test(svgText), svgText.slice(0, 40));
 
     // 4. Export PowerPoint: every diagram, one slide each
@@ -240,7 +237,7 @@ async function editorAndExports() {
     report('no error (editor and exports)', false, String(error).slice(0, 300));
     await win.screenshot({ path: path.join(process.env.SHOTS || os.tmpdir(), 'vscode-theme-failure.png') }).catch(() => {});
   } finally {
-    await ctx.app.close().catch(() => {});
+    await ctx.close().catch(() => {});
     fs.rmSync(dir, { recursive: true, force: true });
   }
 }

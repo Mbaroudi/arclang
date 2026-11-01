@@ -3,7 +3,7 @@
 // selection, shows a compiler-checked proposal, Apply writes it as one
 // undoable edit; and on a .mo file the answer is labelled not verified.
 //   VSCODE_APP="/Applications/Visual Studio Code.app" PLAYWRIGHT=... node vscode_chat_test.js
-const { _electron } = require(process.env.PLAYWRIGHT || 'playwright');
+const { launchVSCode } = require('./launch');
 const fs = require('fs'); const os = require('os'); const path = require('path'); const { spawnSync } = require('child_process');
 const { startFakeServer, arclangScenario } = require('../ai/fake-llm-server.js');
 const { azerty } = require('./azerty');
@@ -29,10 +29,7 @@ const until = async (win, test, ms = 20000) => { const end = Date.now() + ms; wh
   };
   fs.mkdirSync(path.join(dir, 'u', 'User'), { recursive: true });
   fs.writeFileSync(path.join(dir, 'u', 'User', 'settings.json'), JSON.stringify(settings));
-  const exe = ['Electron', 'Code'].map((n) => path.join(APP, 'Contents/MacOS', n)).find((p) => fs.existsSync(p));
-  const app = await _electron.launch({ executablePath: exe, args: [`--user-data-dir=${dir}/u`, `--extensions-dir=${dir}/x`, `--extensionDevelopmentPath=${EXT}`, '--skip-welcome', '--skip-release-notes', '--disable-workspace-trust', model, mo] });
-  const win = await app.firstWindow();
-  await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setBounds({ x: 0, y: 0, width: 1600, height: 1000 }));
+  const { win, close } = await launchVSCode(APP, [`--user-data-dir=${dir}/u`, `--extensions-dir=${dir}/x`, `--extensionDevelopmentPath=${EXT}`, '--skip-welcome', '--skip-release-notes', '--new-window', '--disable-workspace-trust', model, mo], { width: 1600, height: 1000 });
   await win.waitForTimeout(4000);
   const press = await azerty(win);
   const shot = async (name) => { if (SHOTS) { fs.mkdirSync(SHOTS, { recursive: true }); await win.screenshot({ path: path.join(SHOTS, `${name}.png`) }); } };
@@ -76,7 +73,7 @@ const until = async (win, test, ms = 20000) => { const end = Date.now() + ms; wh
   } catch (error) {
     report('no error', false, String(error).slice(0, 300));
   } finally {
-    await app.close(); await fake.close();
+    await close(); await fake.close();
   }
   const failed = rows.filter((r) => !r.ok).length;
   console.log(failed ? `${failed} FAILED` : 'all ok');

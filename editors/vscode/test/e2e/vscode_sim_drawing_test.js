@@ -10,7 +10,7 @@
 //   node vscode_sim_drawing_test.js
 // Needs Modex (MODEX_EXT, default ~/.vscode/extensions/modexai.modex-vscode-*) and the network
 // once (Modex installs the Modelica Standard Library on its first start). SHOTS=/dir keeps pictures.
-const { _electron } = require(process.env.PLAYWRIGHT || 'playwright');
+const { launchVSCode } = require('./launch');
 const fs = require('fs'); const os = require('os'); const path = require('path');
 
 const APP = process.env.VSCODE_APP || '/Applications/Visual Studio Code.app';
@@ -56,17 +56,18 @@ async function frameWith(win, selector, text, tries = 80) {
   fs.mkdirSync(path.join(dir, 'u', 'User'), { recursive: true });
   fs.writeFileSync(path.join(dir, 'u', 'User', 'settings.json'), JSON.stringify(settings));
   fs.cpSync(modex, path.join(dir, 'x', path.basename(modex)), { recursive: true });
-  const app = await _electron.launch({ executablePath: path.join(APP, 'Contents/MacOS/Electron'), args: [`--user-data-dir=${dir}/u`, `--extensions-dir=${dir}/x`, `--extensionDevelopmentPath=${EXT}`, '--skip-welcome', '--skip-release-notes', ws] });
-  const win = await app.firstWindow();
+  const { win, close } = await launchVSCode(APP, [`--user-data-dir=${dir}/u`, `--extensions-dir=${dir}/x`, `--extensionDevelopmentPath=${EXT}`, '--skip-welcome', '--skip-release-notes', '--new-window', ws], { width: 1700, height: 1000 });
   const shot = async (name) => { if (SHOTS) await win.screenshot({ path: path.join(SHOTS, `${name}.png`) }); };
-  const command = async (name) => { await win.keyboard.press('Meta+Shift+P'); await win.waitForTimeout(400); await win.keyboard.type(name); await win.waitForTimeout(800); await win.keyboard.press('Enter'); await win.waitForTimeout(900); };
+  const command = async (name) => {
+    // Focus on the tab: a key typed in a webview (Modex's diagram) reaches the page, not always the palette.
+    await win.locator('.tabs-container .tab.active').first().click({ timeout: 1000 }).catch(() => undefined); await win.waitForTimeout(300);
+    await win.keyboard.press('Meta+Shift+P'); await win.waitForTimeout(400); await win.keyboard.type(name); await win.waitForTimeout(800); await win.keyboard.press('Enter'); await win.waitForTimeout(900); };
   const button = (label) => win.locator(`.notifications-toasts .monaco-button:has-text("${label}")`).first();
   const clickWhenShown = async (label, seconds) => {
     for (let i = 0; i < seconds * 2; i++) { if (await button(label).count()) { await button(label).click(); return true; } await win.waitForTimeout(500); }
     return false;
   };
   try {
-    await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setBounds({ x: 0, y: 0, width: 1700, height: 1000 }));
     await win.waitForTimeout(8000);
     // Modex's first start: the Modelica Standard Library.
     const install = win.locator('.notifications-toasts .monaco-button:has-text("Install")').first();
@@ -146,7 +147,7 @@ async function frameWith(win, selector, text, tries = 80) {
     report('the test ran to its end', false, String(error).slice(0, 240));
     await shot('sim-drawing-error').catch(() => undefined);
   } finally {
-    await app.close().catch(() => undefined);
+    await close().catch(() => undefined);
   }
   const failed = results.filter((ok) => !ok).length;
   console.log(`\n${results.length - failed}/${results.length} checks passed`);

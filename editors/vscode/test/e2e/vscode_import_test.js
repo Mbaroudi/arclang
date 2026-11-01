@@ -8,7 +8,7 @@
 //   VSCODE_APP="/Applications/Visual Studio Code.app" PLAYWRIGHT=/path/to/playwright ARCLANG_BINARY=/path/to/arclang node vscode_import_test.js
 // Keys are sent as a French (AZERTY) Mac keyboard sends them (azerty.js);
 // SHOTS=/dir keeps pictures of each step.
-const { _electron } = require(process.env.PLAYWRIGHT || 'playwright');
+const { launchVSCode } = require('./launch');
 const { execFileSync, spawn } = require('child_process');
 const fs = require('fs'); const os = require('os'); const path = require('path');
 const { azerty } = require('./azerty');
@@ -36,13 +36,14 @@ async function launch(dir, home) {
   const settings = { 'files.simpleDialog.enable': true, 'update.mode': 'none', 'extensions.autoCheckUpdates': false, 'extensions.autoUpdate': false, 'telemetry.telemetryLevel': 'off', 'workbench.startupEditor': 'none', 'security.workspace.trust.enabled': false, 'window.restoreWindows': 'none', 'window.menuStyle': 'custom', 'files.autoSave': 'off', 'workbench.colorTheme': process.env.THEME || 'Default Light Modern', 'arclang.binary': BIN };
   fs.mkdirSync(path.join(home, 'u', 'User'), { recursive: true });
   fs.writeFileSync(path.join(home, 'u', 'User', 'settings.json'), JSON.stringify(settings));
-  const app = await _electron.launch({ executablePath: path.join(APP, 'Contents/MacOS/Electron'), args: [`--user-data-dir=${home}/u`, `--extensions-dir=${home}/x`, `--extensionDevelopmentPath=${EXT}`, '--skip-welcome', '--skip-release-notes', dir] });
-  const win = await app.firstWindow();
-  await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setBounds({ x: 0, y: 0, width: 1680, height: 1050 }));
+  const { win, close } = await launchVSCode(APP, [`--user-data-dir=${home}/u`, `--extensions-dir=${home}/x`, `--extensionDevelopmentPath=${EXT}`, '--skip-welcome', '--skip-release-notes', '--new-window', dir], { width: 1680, height: 1050 });
   await win.waitForTimeout(4000);
   const press = await azerty(win);
-  const command = async (name) => { await press('Meta+Shift+p'); await win.waitForTimeout(300); await win.keyboard.type(name); await win.waitForTimeout(700); await press('Enter'); await win.waitForTimeout(700); };
-  return { app, win, press, command, settings };
+  const command = async (name) => {
+    // Focus on the tab: a key typed in a webview (a report, the workbench) reaches the page, not always the palette.
+    await win.locator('.tabs-container .tab.active').first().click({ timeout: 1000 }).catch(() => undefined); await win.waitForTimeout(300);
+    await press('Meta+Shift+p'); await win.waitForTimeout(300); await win.keyboard.type(name); await win.waitForTimeout(700); await press('Enter'); await win.waitForTimeout(700); };
+  return { close, win, press, command, settings };
 }
 
 /** The frame of a webview holding `selector`, not one of `not`. */
@@ -89,7 +90,7 @@ async function readReport(win, previous) {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'arcimport-home-'));
   const served = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'arcserve-')), 'aeb.arc');
   fs.copyFileSync(path.join(REPO, 'examples/complete_emergency_braking_simple.arc'), served);
-  const { app, win, press, command, settings } = await launch(dir, home);
+  const { close, win, press, command, settings } = await launch(dir, home);
   const server = spawn(BIN, ['serve', '--port', String(PORT), served], { stdio: 'ignore' });
   try {
     // 1. No model yet: the model view welcomes with the imports.
@@ -231,7 +232,7 @@ async function readReport(win, previous) {
     await shot(win, 'import-failure');
   } finally {
     server.kill();
-    await app.close();
+    await close();
     const failed = rows.filter((x) => !x.ok).length;
     console.log(`\n${rows.length - failed}/${rows.length} passed`);
     process.exit(failed ? 1 : 0);

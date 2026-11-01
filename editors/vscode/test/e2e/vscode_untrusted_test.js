@@ -3,7 +3,7 @@
 // refreshing them (it used to: a refusal was never remembered, so each refresh
 // asked again, until the host's event queue overflowed with "Invalid array length").
 //   VSCODE_APP=".../Visual Studio Code.app" PLAYWRIGHT=/path/to/playwright node vscode_untrusted_test.js
-const { _electron } = require(process.env.PLAYWRIGHT || 'playwright');
+const { launchVSCode } = require('./launch');
 const fs = require('fs'); const os = require('os'); const path = require('path');
 
 const APP = process.env.VSCODE_APP || '/Applications/Visual Studio Code.app';
@@ -28,11 +28,7 @@ function hostLogs(userData) {
     'workbench.startupEditor': 'none', 'git.enabled': false, 'window.restoreWindows': 'none',
     'security.workspace.trust.enabled': true, 'security.workspace.trust.startupPrompt': 'never', 'security.workspace.trust.banner': 'never',
   }));
-  const app = await _electron.launch({
-    executablePath: path.join(APP, 'Contents/MacOS/Electron'),
-    args: [`--user-data-dir=${dir}/u`, `--extensions-dir=${dir}/x`, `--extensionDevelopmentPath=${EXT}`, '--skip-welcome', '--skip-release-notes', dir, model],
-  });
-  const win = await app.firstWindow();
+  const { win, close } = await launchVSCode(APP, [`--user-data-dir=${dir}/u`, `--extensions-dir=${dir}/x`, `--extensionDevelopmentPath=${EXT}`, '--skip-welcome', '--skip-release-notes', '--new-window', dir, model]);
   await win.waitForTimeout(6000);
   // The ArcLang view is the one that asks for the snapshot of the open model.
   await win.keyboard.press('F1');
@@ -66,7 +62,7 @@ function hostLogs(userData) {
   report('the editor still answers: the second model opened', tabs > 0);
   const simulation = await win.locator('.statusbar-item', { hasText: /Simulat/ }).count();
   report('no Simulation item in a restricted workspace', simulation === 0);
-  await app.close();
+  await close();
   fs.rmSync(dir, { recursive: true, force: true });
   const failed = results.filter((ok) => !ok).length;
   console.log(`\n${results.length - failed}/${results.length} passed`);

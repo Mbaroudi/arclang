@@ -8,7 +8,7 @@
 //   VSCODE_APP=".../Visual Studio Code.app" PLAYWRIGHT=/path/to/playwright \
 //   ARCLANG_BINARY=/path/to/arclang node vscode_semgit_test.js
 // SHOTS=/dir keeps pictures; THEME=dark|light picks the colour theme.
-const { _electron } = require(process.env.PLAYWRIGHT || 'playwright');
+const { launchVSCode } = require('./launch');
 const fs = require('fs'); const os = require('os'); const path = require('path');
 const { execFileSync } = require('child_process');
 
@@ -28,9 +28,7 @@ async function launch(dir, model) {
   };
   fs.mkdirSync(path.join(dir, 'u', 'User'), { recursive: true });
   fs.writeFileSync(path.join(dir, 'u', 'User', 'settings.json'), JSON.stringify(settings));
-  const app = await _electron.launch({ executablePath: path.join(APP, 'Contents/MacOS/Electron'), args: [`--user-data-dir=${dir}/u`, `--extensions-dir=${dir}/x`, `--extensionDevelopmentPath=${EXT}`, '--skip-welcome', '--skip-release-notes', dir, model] });
-  const win = await app.firstWindow();
-  await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setBounds({ x: 0, y: 0, width: 1700, height: 1000 }));
+  const { win, close } = await launchVSCode(APP, [`--user-data-dir=${dir}/u`, `--extensions-dir=${dir}/x`, `--extensionDevelopmentPath=${EXT}`, '--skip-welcome', '--skip-release-notes', '--new-window', dir, model], { width: 1700, height: 1000 });
   await win.waitForTimeout(4500);
   const palette = async (name) => {
     await win.locator('.tab', { hasText: 'aeb.arc' }).first().click().catch(() => undefined); await win.waitForTimeout(300);
@@ -67,7 +65,7 @@ async function launch(dir, model) {
     await win.screenshot({ path: path.join(SHOTS, `${name}-${THEME}.png`) });
     await win.keyboard.press('Meta+Shift+P'); await win.waitForTimeout(400); await win.keyboard.type('View: Toggle Maximize Editor Group'); await win.waitForTimeout(800); await win.keyboard.press('Enter'); await win.waitForTimeout(1200);
   };
-  return { app, win, command, palette, ready, pick, dialog, shot };
+  return { close, win, command, palette, ready, pick, dialog, shot };
 }
 
 async function workbenchFrame(win) {
@@ -101,7 +99,7 @@ const until = async (win, test, tries = 40) => { for (let i = 0; i < tries; i++)
   fs.writeFileSync(model, changed);
   report('the working tree differs from HEAD in the three ways', changed !== committed && !changed.includes('TC-007') && changed.includes('LogEvents') && changed.includes('latency: 40 ms'));
 
-  const { app, win, command, palette, ready, pick, dialog, shot } = await launch(dir, model);
+  const { close, win, command, palette, ready, pick, dialog, shot } = await launch(dir, model);
   try {
     // 1. Compare with HEAD
     await command('ArcLang: Open the workbench beside the source');
@@ -258,7 +256,7 @@ const until = async (win, test, tries = 40) => { for (let i = 0; i < tries; i++)
     report('the run', false, String(error).slice(0, 300));
     if (SHOTS) await win.screenshot({ path: path.join(SHOTS, `semgit-failure-${THEME}.png`) }).catch(() => undefined);
   } finally {
-    await app.close();
+    await close();
     fs.rmSync(dir, { recursive: true, force: true });
   }
   const failed = results.filter((r) => !r).length;

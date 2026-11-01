@@ -9,7 +9,7 @@
 // Needs the Modex extension (MODEX_EXT, default ~/.vscode/extensions/modexai.modex-vscode-*)
 // and the network once: Modex offers to install the Modelica Standard Library
 // the first time it starts, and the test accepts. SHOTS=/dir keeps pictures.
-const { _electron } = require(process.env.PLAYWRIGHT || 'playwright');
+const { launchVSCode } = require('./launch');
 const fs = require('fs'); const os = require('os'); const path = require('path');
 const { spawnSync } = require('child_process');
 
@@ -95,10 +95,8 @@ async function snapshot(frame) {
   fs.mkdirSync(path.join(dir, 'u', 'User'), { recursive: true });
   fs.writeFileSync(path.join(dir, 'u', 'User', 'settings.json'), JSON.stringify(settings));
   fs.cpSync(modex, path.join(dir, 'x', path.basename(modex)), { recursive: true });
-  const app = await _electron.launch({ executablePath: path.join(APP, 'Contents/MacOS/Electron'), args: [`--user-data-dir=${dir}/u`, `--extensions-dir=${dir}/x`, '--skip-welcome', '--skip-release-notes', ws] });
-  const win = await app.firstWindow();
+  const { win, close } = await launchVSCode(APP, [`--user-data-dir=${dir}/u`, `--extensions-dir=${dir}/x`, '--skip-welcome', '--skip-release-notes', '--new-window', ws], { width: 1700, height: 1000 });
   try {
-    await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setBounds({ x: 0, y: 0, width: 1700, height: 1000 }));
     await win.waitForTimeout(10000);
     // The Modelica Standard Library prompt of the first start.
     const install = win.locator('.notifications-toasts .monaco-button:has-text("Install")').first();
@@ -112,6 +110,8 @@ async function snapshot(frame) {
     for (const c of CASES) {
       const text = fs.readFileSync(path.join(ws, c.open), 'utf8');
       const want = declared(text);
+      // Focus on the tab: a key typed in a webview (the diagram before) reaches the page, not always Quick Open.
+      await win.locator('.tabs-container .tab.active').first().click({ timeout: 1000 }).catch(() => undefined); await win.waitForTimeout(300);
       await win.keyboard.press('Meta+P'); await win.waitForTimeout(500);
       await win.keyboard.type(path.basename(c.open) === 'System.mo' ? c.open : c.open); await win.waitForTimeout(1200); await win.keyboard.press('Enter');
       const probe = want.labels[0] || want.names[0];
@@ -131,7 +131,7 @@ async function snapshot(frame) {
     report('the test ran to its end', false, String(error).slice(0, 240));
     if (SHOTS) await win.screenshot({ path: path.join(SHOTS, 'modex-error.png') }).catch(() => undefined);
   } finally {
-    await app.close().catch(() => undefined);
+    await close().catch(() => undefined);
   }
   const failed = results.filter((ok) => !ok).length;
   console.log(`\n${results.length - failed}/${results.length} checks passed`);

@@ -6,7 +6,7 @@
 //   VSCODE_APP="/Applications/Visual Studio Code.app" PLAYWRIGHT=/path/to/playwright ARCLANG_BINARY=/path/to/arclang node vscode_panes_test.js
 // Keys are sent as a French (AZERTY) Mac keyboard sends them (azerty.js);
 // SHOTS=/dir keeps pictures of the pane, the tree and the tabs.
-const { _electron } = require(process.env.PLAYWRIGHT || 'playwright');
+const { launchVSCode } = require('./launch');
 const fs = require('fs'); const os = require('os'); const path = require('path');
 const { azerty } = require('./azerty');
 
@@ -19,9 +19,7 @@ async function launch(dir, model, extra = {}) {
   const settings = { 'files.simpleDialog.enable': true, 'update.mode': 'none', 'arclang.workbench.doubleClick': 'rename', 'extensions.autoCheckUpdates': false, 'extensions.autoUpdate': false, 'telemetry.telemetryLevel': 'off', 'workbench.startupEditor': 'none', 'security.workspace.trust.enabled': false, 'window.restoreWindows': 'none', 'window.menuStyle': 'custom', 'workbench.colorTheme': process.env.THEME || 'Default Light Modern', ...(process.env.ARCLANG_BINARY ? { 'arclang.binary': process.env.ARCLANG_BINARY } : {}), ...extra };
   fs.mkdirSync(path.join(dir, 'u', 'User'), { recursive: true });
   fs.writeFileSync(path.join(dir, 'u', 'User', 'settings.json'), JSON.stringify(settings));
-  const app = await _electron.launch({ executablePath: path.join(APP, 'Contents/MacOS/Electron'), args: [`--user-data-dir=${dir}/u`, `--extensions-dir=${dir}/x`, `--extensionDevelopmentPath=${EXT}`, '--skip-welcome', '--skip-release-notes', dir, model] });
-  const win = await app.firstWindow();
-  await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setBounds({ x: 0, y: 0, width: 1680, height: 1050 }));
+  const { win, close } = await launchVSCode(APP, [`--user-data-dir=${dir}/u`, `--extensions-dir=${dir}/x`, `--extensionDevelopmentPath=${EXT}`, '--skip-welcome', '--skip-release-notes', '--new-window', dir, model], { width: 1680, height: 1050 });
   await win.waitForTimeout(4000);
   const press = await azerty(win);
   const command = async (name) => { await press('Meta+Shift+p'); await win.waitForTimeout(300); await win.keyboard.type(name); await win.waitForTimeout(600); await press('Enter'); await win.waitForTimeout(600); };
@@ -29,7 +27,7 @@ async function launch(dir, model, extra = {}) {
   await command('ArcLang: Open the workbench');
   const page = await workbenchPage(win);
   await win.waitForTimeout(1200);
-  return { app, win, page, command, press };
+  return { close, win, page, command, press };
 }
 
 /** The frame of a workbench page (not one of `not`), once its drawing is there. */
@@ -45,7 +43,7 @@ async function workbenchPage(win, not = []) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'arcpanes-'));
   const model = path.join(dir, 'model.arc');
   fs.copyFileSync(path.join(EXT, 'media', 'reference.arc'), model);
-  const { app, win, page, command, press } = await launch(dir, model);
+  const { close, win, page, command, press } = await launch(dir, model);
   const text = () => fs.readFileSync(model, 'utf8');
   const save = async () => { await press('Meta+s'); await win.waitForTimeout(900); };
   try {
@@ -185,7 +183,7 @@ async function workbenchPage(win, not = []) {
     report('the run went through', false, String(error).slice(0, 200));
     if (SHOTS) await win.screenshot({ path: path.join(SHOTS, 'vscode-panes-error.png') }).catch(() => undefined);
   } finally {
-    await app.close();
+    await close();
   }
   const failed = rows.filter((r) => !r.ok).length;
   console.log(`\n${rows.length - failed}/${rows.length} checks passed`);
