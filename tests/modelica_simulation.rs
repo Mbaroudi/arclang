@@ -43,7 +43,9 @@ fn the_demo_exports_to_the_golden_package() {
     let result = compile_file(&root().join(DEMO));
     let export = modelica::export(&result.ast).unwrap();
     assert_eq!(export.file_name, "EVRangeSimulation.mo");
-    let golden = root().join("tests/fixtures/modelica/EVRangeSimulation.mo");
+    // The demo's own golden: tests/modelica_placement.rs keeps a frozen copy of
+    // the model for the exporter's goldens.
+    let golden = root().join("tests/fixtures/modelica/EVRangeSimulation.demo.mo");
     if std::env::var_os("ARCLANG_BLESS").is_some() {
         std::fs::write(&golden, &export.text).unwrap();
     }
@@ -345,6 +347,7 @@ fn openmodelica_checks_the_package_and_verifies_the_demo() {
     let paths = [
         "EVRangeSimulation.Behaviour.VehicleControlUnit.SpeedController",
         "EVRangeSimulation.Physical.BatteryPack",
+        "EVRangeSimulation.Physical.CabinHeater",
         "EVRangeSimulation.Physical.DriveUnit",
         "EVRangeSimulation.Physical.VehicleBody",
         "EVRangeSimulation.Physical.VehicleControlUnit",
@@ -374,10 +377,12 @@ fn openmodelica_checks_the_package_and_verifies_the_demo() {
     assert_eq!(verdict("TC-RANGE-STD"), "fail");
     // What the log says of a failure: how far, how long, what OpenModelica printed.
     let std = outcomes.iter().find(|o| o.test_case == "TC-RANGE-STD").unwrap();
-    let soc = std.values.iter().find(|v| !v.holds).unwrap();
-    assert!(soc.margin.starts_with("short by 0.013"), "{soc:?}");
-    // The run ends when the 300 km are driven: the distance sits on its bound.
-    assert!(std.values.iter().any(|v| v.holds && v.margin == "at the bound"), "{:?}", std.values);
+    // The pack is empty before the 300 km (its heater and its cold cells take
+    // their share): the run ends there, short of the trip and of the reserve.
+    let short: Vec<&str> = std.values.iter().filter(|v| !v.holds).map(|v| v.margin.as_str()).collect();
+    assert_eq!(short.len(), 2, "{:?}", std.values);
+    assert!(short[0].starts_with("short by 10.2") && short[0].ends_with("km"), "{short:?}");
+    assert!(short[1].starts_with("short by 0.1"), "{short:?}");
     assert!(std.seconds > 0.0 && std.log.contains("@@simulate"));
     // The gate now reads them from the cache.
     let result = compile_file(&model);

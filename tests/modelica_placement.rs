@@ -7,7 +7,9 @@ use arclang::compiler::modelica::{self, Options};
 use arclang::compiler::{Compiler, CompilerConfig};
 use std::path::{Path, PathBuf};
 
-const DEMO: &str = "examples/automotive/ev_range_simulation.arc";
+// A copy of the EV demo as it was when these goldens were drawn: the
+// demo itself grows with its physics, the exporter is what is tested here.
+const DEMO: &str = "tests/fixtures/modelica/ev_range_simulation.arc";
 
 fn root() -> &'static Path {
     Path::new(env!("CARGO_MANIFEST_DIR"))
