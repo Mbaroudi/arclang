@@ -122,6 +122,28 @@ arclang gate --standard iec61508 examples/energy/ev_charging_station.arc
 arclang workbench examples/energy/ev_charging_station.arc
 ```
 
+## Data centre
+
+### Liquid cooling of an AI training hall
+
+**File:** `datacenter/ai_liquid_cooling.arc`, physics in `datacenter/physics/CoolingPhysics.mo`
+
+Direct-to-chip liquid cooling of an AI hall: sixteen GPU racks of 120 kW give 85 % of their heat to cold plates; a coolant distribution unit (CDU) carries it through a plate exchanger to the facility water; dry coolers give it to the outside air and a chiller helps on hot afternoons. Two product variants, a CDU with two pumps and one with three (N+1). The operational need, seven requirements (chip temperature, no throttling, coolant supply between 20 °C and 40 °C, partial PUE at most 1.10, pump redundancy, climate and load envelope, throttling risk, leak isolation in 10 s), the supply loop and the leak isolation chain with their latency budgets, the cooling modes (a state machine) and a pump failure during a training run (a scenario). `arclang verify` runs the scenarios in OpenModelica:
+
+| Scenario | Verdict |
+|---|---|
+| Design summer day (35 °C), N+1 pumps | pass: GPUs at 76.4 °C at most, supply at most 36.4 °C, partial PUE 1.077 |
+| A CDU pump stops at 14 h, two pumps | fail: the controller caps the GPUs to 68 % of their power to hold 83 °C |
+| The same failure, N+1 pumps | pass: the spare pump takes over |
+| 30 to 45 °C outside × 100 to 132 kW per rack | 9 of 12: at 45 °C the chiller is short and the GPUs throttle |
+| Monte Carlo over the summers (35 °C ± 3 K, 110 to 132 kW per rack) | pass: 60 of 60 days without throttling |
+
+```bash
+arclang check examples/datacenter/ai_liquid_cooling.arc
+arclang verify examples/datacenter/ai_liquid_cooling.arc
+arclang workbench examples/datacenter/ai_liquid_cooling.arc
+```
+
 ## Semiconductor
 
 ### AI accelerator platform
