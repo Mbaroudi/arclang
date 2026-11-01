@@ -325,7 +325,7 @@ requirement to `verifies:` leaves the verifications already reviewed alone.
 
 **Quantities of physics**: `35 °C` (or `35 degC`, a temperature level:
 308.15 K; a difference of temperatures is written in K), `40 Ah`, `2500 mAh`,
-`25 mOhm` (or `mΩ`), `200 W/K`, `15 MJ/K`, `0.62 m²`. `arclang metamodel`
+`25 mOhm` (or `mΩ`), `200 W/K`, `15 MJ/K`, `0.62 m²`, `22 kg/s` (or `g/s`). `arclang metamodel`
 lists every unit.
 
 **Identifiers**:

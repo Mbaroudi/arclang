@@ -295,6 +295,7 @@ pub(crate) fn local_unit(symbol: &str) -> Option<&'static str> {
         "'kW/K'" => "attribute <'kW/K'> 'kilowatt per kelvin' : ThermalConductanceUnit { :>> unitConversion: ConversionByConvention { :>> referenceUnit = 'W/K'; :>> conversionFactor = 1000; } }",
         "'kJ/K'" => "attribute <'kJ/K'> 'kilojoule per kelvin' : HeatCapacityUnit { :>> unitConversion: ConversionByConvention { :>> referenceUnit = 'J/K'; :>> conversionFactor = 1000; } }",
         "'MJ/K'" => "attribute <'MJ/K'> 'megajoule per kelvin' : HeatCapacityUnit { :>> unitConversion: ConversionByConvention { :>> referenceUnit = 'J/K'; :>> conversionFactor = 1000000; } }",
+        "'g/s'" => "attribute <'g/s'> 'gram per second' : MassFlowRateUnit { :>> unitConversion: ConversionByConvention { :>> referenceUnit = 'kg⋅s⁻¹'; :>> conversionFactor = 0.001; } }",
         "'cm²'" => "attribute <'cm²'> 'square centimetre' : AreaUnit { :>> unitConversion: ConversionByConvention { :>> referenceUnit = 'm²'; :>> conversionFactor = 0.0001; } }",
         _ => return None,
     })

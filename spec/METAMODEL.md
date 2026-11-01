@@ -1363,6 +1363,8 @@ A quantity is `<number> <unit>` (`latency: 25 ms`). Symbols are case-sensitive. 
 | `cm²` | area (m²) | 0.0001 | `'cm²'` |
 | `m²` | area (m²) | 1 | `'m²'` |
 | `m2` | area (m²) | 1 | `'m²'` |
+| `kg/s` | mass flow rate (kg/s) | 1 | `'kg⋅s⁻¹'` |
+| `g/s` | mass flow rate (kg/s) | 0.001 | `'g/s'` |
 | `m/s` | speed (m/s) | 1 | `'m/s'` |
 | `km/h` | speed (m/s) | 0.2777777777777778 | `'km/h'` |
 | `percent` | ratio (one) | 0.01 | `'%'` |
