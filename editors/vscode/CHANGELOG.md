@@ -3,6 +3,7 @@
 ## Unreleased
 
 - One English: everything ArcLang says is in American English, as its keywords already were (`behavior_component`) and as SysML v2 and Capella are: behavior, color, center, analyze, canceled, labeled, catalog… in the compiler's messages, the workbench, the docs and the examples. The file formats do not change. The SI's *metre* and *litre* stay, as the SysML v2 library names them.
+- Start from a blank page: *ArcLang: New model → Blank model* named after a file such as `model.arc` or `system.arc` compiles (the name is now PascalCase, `Model`, never a keyword); a model with no level yet shows where to start, **Add a level…**, which opens an empty sheet with its palette.
 - Workbench: the notice "Laying out N diagrams…" no longer stays on the drawing after quick edits (a layout that a later one replaced left its timer running).
 
 ## 4.9.0

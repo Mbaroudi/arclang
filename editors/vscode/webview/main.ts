@@ -548,6 +548,19 @@ function mount(snapshot: Snapshot): void {
     clear(host).appendChild(el('p', { class: 'wb-empty', text: 'Nothing to draw: the model does not compile yet.' }));
     return;
   }
+  // A model that compiles but declares no level yet: where to start, not an empty page.
+  if (snapshot.diagrams.graphs.length === 0) {
+    state.viewer = null;
+    const start = el('div', { class: 'wb-start' }, [
+      el('h2', { text: 'An empty model. Start with a level of the method.' }),
+      el('p', { text: 'Operational analysis (who needs what), system analysis (what the system does), logical architecture (how, independent of technology), physical architecture (with what). Each level opens an empty sheet with its palette; the text on the left follows every box you draw.' }),
+    ]);
+    const add = el('button', { class: 'wb-start-add', type: 'button', text: 'Add a level…' });
+    add.addEventListener('click', () => vscode.postMessage({ type: 'command', command: 'arclang.newLayer' }));
+    start.appendChild(add);
+    clear(host).appendChild(start);
+    return;
+  }
   const deps = {
     ELK: window.ELK,
     render: window.ArcVizRender,

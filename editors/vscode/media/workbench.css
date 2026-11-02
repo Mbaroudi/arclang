@@ -737,3 +737,11 @@ button.wb-icon-button.wb-bar-toggle.wb-save.is-dirty:hover { background: var(--v
 .wb-time-base-label { display: inline-flex; align-items: center; gap: 6px; color: var(--vscode-descriptionForeground); }
 .wb-time-base { font: inherit; max-width: 320px; color: var(--vscode-dropdown-foreground, inherit); background: var(--vscode-dropdown-background, transparent); border: 1px solid var(--vscode-dropdown-border, #8884); border-radius: 3px; padding: 2px 4px; }
 .wb-time-gap { flex: 1 1 auto; }
+
+/* The start of an empty model: what to do first. */
+.wb-start { max-width: 36rem; margin: 12vh auto 0; padding: 0 24px; color: var(--vscode-foreground); }
+.wb-start h2 { font-size: 16px; font-weight: 600; margin: 0 0 8px; }
+.wb-start p { font-size: 13px; line-height: 1.5; color: var(--vscode-descriptionForeground); margin: 0 0 16px; }
+.wb-start-add { font: inherit; font-size: 13px; padding: 6px 14px; border: 0; border-radius: 2px; cursor: pointer; color: var(--vscode-button-foreground); background: var(--vscode-button-background); }
+.wb-start-add:hover { background: var(--vscode-button-hoverBackground); }
+.wb-start-add:focus-visible { outline: 1px solid var(--vscode-focusBorder); outline-offset: 2px; }
