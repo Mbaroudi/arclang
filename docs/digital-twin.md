@@ -58,12 +58,73 @@ For each comparison the twin reports:
 - the share of the samples within the tolerance;
 - the first instant beyond it, in seconds from the start of the data.
 
+## Parquet
+
+`data: { file: "data/house.parquet" time: "timestamp" }` reads a Parquet
+file as pandas and pyarrow write it:
+- compression Snappy, zstd or LZ4 (not gzip);
+- the time column a timestamp (milli, micro or nanoseconds, the schema says
+  which), a number in `time_unit`, or an ISO 8601 text;
+- the other columns numbers or booleans (1 and 0), null where there is no
+  value.
+
+## Live data (MQTT)
+
+```arc
+twin "House 042, live" {
+    verifies: ["REQ-COMFORT"]
+    simulate: { model: "HeatingPhysics.StandardDay" configuration: "CFG-STANDARD" sources: ["physics/HeatingPhysics.mo"] }
+    data: { mqtt: "mqtt://broker.local:1883" topics: ["house/042/#"] window: 24 h refresh: 1 min record: "data/live.csv" }
+    drives: ["\"PN-OUTDOOR\".T <- outdoor_c °C"]
+    compares: ["\"PN-SPACE\".room.T ~ indoor_c °C within 0.5 K for 99 %"]
+}
+```
+
+```bash
+arclang twin model.arc --live                  # follows the broker until stopped
+arclang twin model.arc --live --json --for 600 # one JSON line per run, for ten minutes
+arclang twin model.arc                         # replays what was recorded (record:)
+```
+
+`--live` subscribes to the topics. Every `refresh` (one minute by default)
+it runs the twin over the latest `window` of data (one hour by default),
+then prints the verdict, or a JSON line with `--json`. The window is
+counted in the data's own time, so a fast replay of past data is a live
+run too. In VS Code, *ArcLang: Watch a digital twin live* follows the twin
+in its view, with a banner saying how the connection goes and a Stop
+button.
+
+**Messages.** Either a number, or a JSON object:
+- A number gives one sample. Its column is the topic's last level:
+  `house/042/indoor_c` gives `indoor_c`.
+- A JSON object gives one column per numeric or boolean field, for example
+  `{"time": "2026-01-14T08:10:00Z", "outdoor_c": -9.5, "indoor_c": 21.0}`.
+  Its `time` is an ISO 8601 date-time or seconds (or milliseconds) since
+  1970. Without a `time`, the sample is dated by its arrival.
+
+Only the columns the twin reads (those of `drives:` and `compares:`) are kept.
+
+**The broker.** `mqtt://host[:port]` (1883 by default), or `mqtts://` for TLS
+(8883). The credentials are never written in the model: set
+`ARCLANG_MQTT_USERNAME` and `ARCLANG_MQTT_PASSWORD`. `client_id` names the
+client. When the broker cannot be reached, the twin says so and tries again
+every two seconds.
+
+**Record.** With `record:`, every sample received is appended to a CSV:
+the time, then the columns. A later `arclang twin`, without `--live`,
+replays it like any data file.
+
+**What live means here.** The twin runs the model again over the window at
+every refresh. It does not yet advance the model message by message: the
+verdict comes at most one `refresh` after the data. That is right for
+watching a building, a data center or a fleet. It is not right for
+closing a control loop.
+
 ## What comes next
 
-- **Parquet** files.
-- **Live data** in the same `data:` block: MQTT, OPC UA, Kafka and HTTP, with
-  the model advanced as the data arrives (an FMU, `buildModelFMU`).
-- **Online**: on arclang.fr, signed in, the twins run on the server, as the
+- OPC UA, Kafka and HTTP sources, in the same `data:` block.
+- The model advanced as the data arrives, with an FMU (`buildModelFMU`).
+- Twins online: on arclang.fr, signed in, they run on the server, as the
   simulations do.
 
 The example in `examples/building/heat-pump/` carries a twin and a sample of

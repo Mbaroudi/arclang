@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- **Digital twins on Parquet and on live MQTT data**:
+  - `data: { file: "….parquet" }` reads pandas and pyarrow files: timestamps in milli, micro or nanoseconds, Snappy, zstd or LZ4.
+  - `data: { mqtt: "mqtt://broker:1883" topics: ["site/#"] window: 6 h refresh: 1 min record: "data/live.csv" }` follows a broker: `arclang twin --live` runs the twin over the latest window at every refresh. A message is a number (its column is the topic's last level) or a JSON object (a column per field, with its own `time`). Credentials come from `ARCLANG_MQTT_USERNAME` and `ARCLANG_MQTT_PASSWORD`, never from the model. `record:` keeps everything received as a CSV the twin replays later.
+  - In VS Code, *ArcLang: Watch a digital twin live* follows the twin in its view, with a live banner and Stop.
+  - Tests: `test/e2e/vscode_twin_live_test.js` (6 checks in the real VS Code with a Mosquitto broker and OpenModelica in Docker).
 - **Digital twins**: a `twin` declaration connects a model's physics to real data.
   - `data:` names a CSV of measurements; `drives:` imposes measured columns on the model's variables, converted from their units.
   - `compares:` checks the model against measured columns, `within` a tolerance, `for` a share of the samples.

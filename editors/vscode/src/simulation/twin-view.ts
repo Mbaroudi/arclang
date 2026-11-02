@@ -3,15 +3,16 @@
 // view shows, per twin, its verdict, each comparison's curves (the
 // measurement, the model, the tolerance band, the first instant beyond)
 // and the requirements it checks on the run.
+import { spawn, type ChildProcess } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
 import * as path from 'node:path';
 import * as vscode from 'vscode';
-import { failureText, run } from '../cli';
+import { binary, failureText, run } from '../cli';
 import { parseTwinOutcomes, twinSummary, type TwinOutcome } from '../pure/twin';
 
 export const TWIN_VIEW = 'arclang.twin';
 
-type FromPage = { type: 'ready' } | { type: 'rerun' } | { type: 'data'; file: string } | { type: 'log' };
+type FromPage = { type: 'ready' } | { type: 'rerun' } | { type: 'data'; file: string } | { type: 'log' } | { type: 'stop' };
 
 let output: vscode.OutputChannel | undefined;
 const log = () => (output ??= vscode.window.createOutputChannel('ArcLang Twin'));
@@ -37,6 +38,7 @@ class TwinView {
         this.post();
       } else if (message.type === 'rerun') this.rerun();
       else if (message.type === 'log') log().show(true);
+      else if (message.type === 'stop') stopLive();
       else if (message.type === 'data' && !path.isAbsolute(message.file) && !message.file.split(/[\\/]/).includes('..')) {
         void vscode.commands.executeCommand('vscode.open', vscode.Uri.file(path.join(path.dirname(this.file), message.file)));
       }
@@ -64,6 +66,15 @@ class TwinView {
     void TwinView.current?.panel.webview.postMessage({ type: 'busy', text });
   }
 
+  /** The state of a live run, for the banner: running, and what the connection said last. */
+  static live(running: boolean, status: string, detail: string): void {
+    void TwinView.current?.panel.webview.postMessage({ type: 'live', running, status, detail });
+  }
+
+  static onDispose(listener: () => void): void {
+    TwinView.current?.panel.onDidDispose(listener);
+  }
+
   private post(): void {
     if (!this.ready) return;
     // The page draws the charts at the width it has (src/pure/twin.ts, escaped).
@@ -85,7 +96,8 @@ class TwinView {
 <title>Digital twins</title>
 </head>
 <body>
-<header class="bar"><h1 id="title">Digital twins</h1><span class="spacer"></span><button id="log">Log</button><button id="rerun" class="primary">Run again</button></header>
+<header class="bar"><h1 id="title">Digital twins</h1><span class="spacer"></span><button id="log">Log</button><button id="stop" hidden>Stop</button><button id="rerun" class="primary">Run again</button></header>
+<p id="live" class="live" role="status" hidden><span class="dot" aria-hidden="true"></span><span id="live-text"></span></p>
 <main id="twins" aria-live="polite"></main>
 <p id="status" class="status" role="status"></p>
 <script nonce="${nonce}" src="${uri('dist', 'twin.js')}"></script>
@@ -130,4 +142,79 @@ export async function runTwins(context: vscode.ExtensionContext, arg: unknown, e
   TwinView.show(context, file, outcomes, () => void runTwins(context, vscode.Uri.file(file), env));
   const failed = outcomes.some((o) => o.verdict !== 'pass');
   void (failed ? vscode.window.showWarningMessage : vscode.window.showInformationMessage)(`ArcLang: ${twinSummary(outcomes)}.`);
+}
+
+// ---- Live ----------------------------------------------------------------------
+
+let watching: ChildProcess | null = null;
+
+function stopLive(): void {
+  watching?.kill();
+  watching = null;
+  TwinView.live(false, 'stopped', 'The live run is stopped.');
+}
+
+/**
+ * Follows a twin's live data (`arclang twin --live --json`): the view is
+ * updated at every run of the twin, the banner says how the connection
+ * goes; Stop (or closing the view) ends it.
+ */
+export async function watchTwin(context: vscode.ExtensionContext, arg: unknown, env: () => Record<string, string>): Promise<void> {
+  const file = activeModel(arg);
+  if (!file) return void vscode.window.showInformationMessage('ArcLang: open a .arc model with a twin on live data (data: { mqtt: … topics: [ … ] }).');
+  const listed = await run(['twin', file, '--list'], { cwd: path.dirname(file) });
+  let twins: { id: string; name: string; live: boolean }[] = [];
+  try {
+    twins = JSON.parse(listed.stdout) as { id: string; name: string; live: boolean }[];
+  } catch {
+    return void vscode.window.showErrorMessage(`ArcLang: the model's twins could not be listed. ${failureText(listed).split('\n')[0]}`);
+  }
+  const live = twins.filter((t) => t.live);
+  if (live.length === 0) return void vscode.window.showInformationMessage('ArcLang: no twin of this model reads live data: data: { mqtt: "mqtt://broker:1883" topics: ["site/#"] window: 6 h refresh: 1 min }.');
+  const picked = live.length === 1 ? live[0] : await vscode.window.showQuickPick(live.map((t) => ({ label: t.name, description: t.id, twin: t })), { placeHolder: 'The twin to follow live' }).then((p) => p?.twin);
+  if (!picked) return;
+  stopLive();
+  const channel = log();
+  channel.appendLine(`── ${new Date().toLocaleTimeString()}  arclang twin ${path.basename(file)} --live --twin ${picked.id}`);
+  TwinView.show(context, file, [], () => void watchTwin(context, vscode.Uri.file(file), env));
+  TwinView.live(true, 'connecting', `Connecting to the broker of ${picked.name}…`);
+  TwinView.onDispose(() => stopLive());
+  const child = spawn(binary(), ['twin', file, '--live', '--json', '--twin', picked.id], { cwd: path.dirname(file), env: { ...process.env, ...env() } });
+  watching = child;
+  let pending = '';
+  child.stdout?.on('data', (chunk: Buffer) => {
+    pending += chunk.toString('utf8');
+    const lines = pending.split('\n');
+    pending = lines.pop() ?? '';
+    for (const line of lines.filter((l) => l.trim())) {
+      let message: unknown;
+      try {
+        message = JSON.parse(line);
+      } catch {
+        channel.appendLine(line);
+        continue;
+      }
+      const record = message as { verdict?: string; status?: string; detail?: string };
+      if (record.verdict !== undefined) {
+        const outcome = message as TwinOutcome;
+        channel.appendLine(`${new Date().toLocaleTimeString()} twin '${outcome.name}': ${outcome.verdict.toUpperCase()} over ${outcome.samples} samples${outcome.reason && outcome.verdict !== 'pass' ? `: ${outcome.reason}` : ''}`);
+        TwinView.show(context, file, [outcome], () => void watchTwin(context, vscode.Uri.file(file), env));
+        TwinView.live(true, 'running', `Live: last run at ${new Date().toLocaleTimeString()}, ${outcome.samples} samples in the window.`);
+      } else if (record.status) {
+        channel.appendLine(`${record.status}: ${record.detail ?? ''}`);
+        TwinView.live(true, record.status, record.detail ?? '');
+      }
+    }
+  });
+  child.stderr?.on('data', (chunk: Buffer) => channel.append(chunk.toString('utf8')));
+  child.on('exit', (code) => {
+    if (watching === child) {
+      watching = null;
+      TwinView.live(false, 'stopped', code ? `The live run ended (code ${code}): see the ArcLang Twin output.` : 'The live run ended.');
+    }
+  });
+}
+
+export function stopWatchingTwins(): void {
+  stopLive();
 }
