@@ -11,7 +11,15 @@ export interface GitResult {
   stderr: string;
 }
 
+/** Where git runs instead of a local git: the browser build sets the account's repository (web/extension.ts). */
+let runner: ((args: string[], cwd: string) => Promise<GitResult>) | null = null;
+
+export function setGitRunner(run: (args: string[], cwd: string) => Promise<GitResult>): void {
+  runner = run;
+}
+
 export function git(args: string[], cwd: string): Promise<GitResult> {
+  if (runner) return runner(args, cwd);
   return new Promise((resolve) => {
     execFile('git', args, { cwd, maxBuffer: 64 * 1024 * 1024 }, (error, stdout, stderr) => {
       resolve({ code: error && typeof error.code === 'number' ? error.code : error ? 1 : 0, stdout: String(stdout), stderr: String(stderr) });

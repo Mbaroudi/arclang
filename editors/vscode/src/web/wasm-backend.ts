@@ -75,6 +75,8 @@ export function createWasmBackend(wasm: Wasm): Backend {
       const format = option(rest, '-f', '--format');
       return command === 'export' ? format === 'sys-ml' || format === 'sysml' : format === 'sysml';
     }
+    // The workbench of a revision reads the history: online.
+    if (command === 'workbench' && rest.some((a) => a === '--rev' || a.startsWith('--rev='))) return false;
     return SUPPORTED.has(command ?? '');
   }
 

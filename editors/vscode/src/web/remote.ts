@@ -19,7 +19,13 @@ import * as vfs from './vfs';
 const HOST_COMMAND = 'arclangWeb.compiler.run';
 const ROOT = '/workspace';
 /** What the server runs (it checks again, and refuses what it must). */
-const REMOTE = new Set(['gate', 'table', 'safety', 'impact', 'diff', 'diagram', 'export', 'import', 'document', 'trace', 'set', 'rename', 'verify', 'debug']);
+const REMOTE = new Set(['gate', 'table', 'safety', 'impact', 'diff', 'diagram', 'export', 'import', 'document', 'trace', 'set', 'rename', 'verify', 'debug', 'history', 'restore', 'baseline', 'workbench']);
+/** Commands that read the history: the site adds the user's repository, whose top is the workspace. */
+const readsHistory = (args: string[]): boolean => {
+  const [command, ...rest] = args;
+  const flags = rest.map((a) => a.split('=')[0]);
+  return ['history', 'restore', 'baseline'].includes(command) || (command === 'workbench' && flags.includes('--rev')) || (command === 'impact' && flags.includes('--since')) || (command === 'diff' && (flags.includes('--from') || flags.includes('--to')));
+};
 /** An empty file that makes an output's folder exist in the job (the compiler does not create it); never sent back. */
 const OUTPUT_FOLDER = '__arclang_output_folder';
 const SENT = /\.(arc|mo|mos|csv|tsv|json|txt|md|reqif|reqifz|xml|capella|aird|afm|melodymodeller|sysml|kerml|docx|xlsx|html|plantuml|puml|mmd|mermaid)$/i;
@@ -100,6 +106,7 @@ export async function runRemote(args: string[], options: RunOptions): Promise<Ru
   let base = ROOT;
   let files = await folderFiles(ROOT);
   if (!files) {
+    if (readsHistory(args)) return failed(`ArcLang: the workspace is larger than the compiler online takes with its history (${LIMITS.files} files, ${LIMITS.bytes / 1e6} MB).`, 78);
     base = options.cwd && inside(options.cwd, ROOT) ? options.cwd : firstModel ? posixDir(firstModel) : ROOT;
     files = await folderFiles(base);
     if (!files) return failed(`ArcLang: the folder ${base} is larger than the compiler online takes (${LIMITS.files} files, ${LIMITS.bytes / 1e6} MB).`, 78);

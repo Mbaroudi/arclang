@@ -5,6 +5,7 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as vscode from 'vscode';
+import { findFiles } from '../files';
 import { isCapellaModel, isSysmlText, looksLikeApiRecords } from '../pure/importing';
 
 export const SYSML_FOLDERS = 'arclang.sysmlFolders';
@@ -47,10 +48,10 @@ function withParents(folder: string, roots: string[]): string[] {
 async function scan(): Promise<void> {
   const roots = (vscode.workspace.workspaceFolders ?? []).filter((f) => f.uri.scheme === 'file').map((f) => f.uri.fsPath);
   const [sysml, capella, json, arc] = await Promise.all([
-    vscode.workspace.findFiles('**/*.{sysml,kerml}', EXCLUDE, SCAN_LIMIT),
-    vscode.workspace.findFiles('**/*.{capella,melodymodeller}', EXCLUDE, SCAN_LIMIT),
-    vscode.workspace.findFiles('**/*.json', '**/{node_modules,target,.git,.vscode}/**', JSON_LIMIT),
-    vscode.workspace.findFiles('**/*.arc', EXCLUDE, 1),
+    findFiles('**/*.{sysml,kerml}', EXCLUDE, SCAN_LIMIT),
+    findFiles('**/*.{capella,melodymodeller}', EXCLUDE, SCAN_LIMIT),
+    findFiles('**/*.json', '**/{node_modules,target,.git,.vscode}/**', JSON_LIMIT),
+    findFiles('**/*.arc', EXCLUDE, 1),
   ]);
   const sysmlFolders = new Set<string>();
   for (const uri of sysml) if (isSysmlText(uri.fsPath)) for (const f of withParents(path.dirname(uri.fsPath), roots)) sysmlFolders.add(f);
