@@ -59,7 +59,7 @@ async function readModel(path: string | undefined): Promise<{ ok: true; text: st
 }
 
 /** What this build answers: the subcommands, and for export and import the formats. */
-const SUPPORTED = new Set(['--version', 'workbench', 'check', 'edit', 'format', 'metamodel', 'rules', 'transition']);
+const SUPPORTED = new Set(['--version', 'workbench', 'check', 'edit', 'format', 'metamodel', 'rules', 'transition', 'debug']);
 
 export function createWasmBackend(wasm: Wasm): Backend {
   function unavailable(args: string[]): string | null {
@@ -145,6 +145,14 @@ export function createWasmBackend(wasm: Wasm): Backend {
           const answer = JSON.parse(wasm.transition(model.text, option(rest, '--step') ?? '', option(rest, '--into') ?? '', plan)) as { success: boolean; plans?: unknown; source?: string; error?: string };
           if (!answer.success) return failed(answer.error ?? 'the transition was refused');
           return done(plan ? JSON.stringify(answer.plans) : (answer.source ?? ''));
+        }
+        case 'debug': {
+          // What a model runs step by step; the run itself is the inline debug adapter (debug-adapter.ts).
+          if (!rest.includes('--list')) return failed(NOT_AVAILABLE(`'arclang debug' outside the debugger`), 78);
+          const model = await readModel(positionals(rest, [])[0]);
+          if (!model.ok) return model.result;
+          const answer = wasm.debug_runnables(model.text);
+          return answer === 'null' ? failed('the model does not compile') : done(answer);
         }
         case 'metamodel':
           return done(option(rest, '--format') === 'json' ? wasm.metamodel() : wasm.metamodel_markdown());

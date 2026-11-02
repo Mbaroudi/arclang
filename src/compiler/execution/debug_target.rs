@@ -57,6 +57,17 @@ pub fn runnables(model: &Model) -> Value {
 /// first scenario, else the first chain.
 pub fn load(path: &Path, machine: Option<&str>, scenario: Option<&str>, chain: Option<&str>) -> Result<(Target, Value), String> {
     let result = crate::Compiler::new(crate::CompilerConfig::default()).compile_file(path).map_err(|e| e.to_string())?;
+    let source = std::fs::read_to_string(path).unwrap_or_default();
+    target_of(&result, source, &path.display().to_string(), machine, scenario, chain)
+}
+
+/// The same from the model's text (the browser, which has no files: its imports are not followed).
+pub fn load_source(source: &str, label: &str, machine: Option<&str>, scenario: Option<&str>, chain: Option<&str>) -> Result<(Target, Value), String> {
+    let result = crate::Compiler::new(crate::CompilerConfig::default()).compile_string(source).map_err(|e| e.to_string())?;
+    target_of(&result, source.to_string(), label, machine, scenario, chain)
+}
+
+fn target_of(result: &crate::compiler::CompilationResult, source: String, label: &str, machine: Option<&str>, scenario: Option<&str>, chain: Option<&str>) -> Result<(Target, Value), String> {
     let model = &result.ast;
     let listed = runnables(model);
     let chains: Vec<&crate::compiler::ast::FunctionalChain> = model
@@ -76,11 +87,10 @@ pub fn load(path: &Path, machine: Option<&str>, scenario: Option<&str>, chain: O
             (Some(m), _, _) => Run::Machine(Machine::new(m)),
             (None, Some(s), _) => Run::Scenario(ScenarioRun::new(s)),
             (None, None, Some(c)) => Run::Chain(ChainRun::new(c)),
-            _ => return Err(format!("{} declares no state machine, scenario or functional chain to run", path.display())),
+            _ => return Err(format!("{label} declares no state machine, scenario or functional chain to run")),
         },
     };
     let ids = result.semantic_model.all_elements.values().map(|e| (e.name.clone(), e.id.clone())).collect();
-    let source = std::fs::read_to_string(path).unwrap_or_default();
     Ok((Target { run, source, ids, last: Outcome::default() }, listed))
 }
 

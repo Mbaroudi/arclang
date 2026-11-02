@@ -8,6 +8,8 @@
 //! or false); a guard written `true` or `false` decides itself.
 
 pub mod chain;
+pub mod dap;
+pub mod debug_target;
 pub mod machine;
 pub mod scenario;
 

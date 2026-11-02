@@ -14,3 +14,11 @@ export const transition = missing;
 export const import_sysml = missing;
 export const import_sysml_files = missing;
 export const workbench = missing;
+export const debug_runnables = missing;
+export class DebugSession {
+  constructor() {
+    missing();
+  }
+  handle = missing;
+  free = missing;
+}
