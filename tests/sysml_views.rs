@@ -5,7 +5,7 @@ use arclang::compiler::diagram::{build_diagrams, Diagram, EdgeKind, Node, NodeKi
 use arclang::compiler::{Compiler, CompilerConfig};
 
 fn drone() -> Vec<Diagram> {
-    let result = Compiler::new(CompilerConfig::default()).compile_file(std::path::Path::new("examples/aerospace/drone_endurance.arc")).unwrap();
+    let result = Compiler::new(CompilerConfig::default()).compile_file(std::path::Path::new("examples/aerospace/drone-endurance/drone_endurance.arc")).unwrap();
     build_diagrams(&result.ast).diagrams
 }
 

@@ -485,7 +485,7 @@ fn example_files() -> Vec<PathBuf> {
         for entry in std::fs::read_dir(dir).expect("examples dir").flatten() {
             let path = entry.path();
             if path.is_dir() {
-                if path.file_name().is_some_and(|n| n == "legacy") {
+                if path.file_name().is_some_and(|n| n == "archive") {
                     continue;
                 }
                 walk(&path, out);
@@ -545,7 +545,7 @@ fn every_example_yields_structurally_valid_deterministic_diagrams() {
 
 fn assert_golden(example: &str) {
     let root = Path::new(env!("CARGO_MANIFEST_DIR"));
-    let source = root.join("examples").join(format!("{example}.arc"));
+    let source = root.join("examples/automotive/emergency-braking").join(format!("{example}.arc"));
     let golden = root
         .join("tests/fixtures/diagrams")
         .join(format!("{example}.json"));

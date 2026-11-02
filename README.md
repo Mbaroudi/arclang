@@ -45,7 +45,7 @@ the long-term goal.
 - **A canonical grammar**: [`spec/GRAMMAR.ebnf`](spec/GRAMMAR.ebnf) is the single
   source of truth for the syntax and matches the parser.
 - **Golden corpus in CI**: every example under `examples/` (except
-  `examples/legacy/`) must compile — `cargo test` fails otherwise.
+  `examples/archive/`) must compile — `cargo test` fails otherwise.
 - **JSON export** of the parsed model (`arclang build`, `arclang export -f json`).
 - **HTML architecture document** (`arclang export -f html`,
   `arclang explorer`): requirements, components, traceability and the
@@ -249,7 +249,7 @@ the long-term goal.
   compile error. Products and quotients carry derived dimensions
   (`voltage * current <= power`, `frame / bandwidth < 1 ms`). A violated constraint is a warning at compile time and a
   blocker in the production gate; `arclang check` prints each verdict with
-  both evaluated sides. See `examples/automotive/timing_constraints.arc`.
+  both evaluated sides. See `examples/features/timing-constraints/timing_constraints.arc`.
 - **Industrial governance**: MIT-licensed; dependency audit (RustSec) on
   every CI run; releases ship binaries + `SHA256SUMS` + GitHub build
   provenance attestations; language stability policy in
@@ -264,7 +264,7 @@ the long-term goal.
 - **Multi-file models**: `import "fragment.arc"` assembles a model from
   team-owned files (paths relative to the importing file, recursive, cycles
   and missing files are hard errors). Traces in one file resolve against
-  elements of another — see `examples/multifile/`.
+  elements of another — see `examples/01-getting-started/multifile/`.
 - **ReqIF exchange**: `arclang export -f req-if` emits OMG ReqIF 1.0 (the
   DOORS/Polarion/Jama exchange format) with deterministic identifiers and
   requirement-to-requirement relations; `arclang import -f req-if` reads
@@ -298,7 +298,7 @@ the long-term goal.
   valid closed solids, volumes and placements as declared. In SysML v2 the
   values are nested attributes typed `LengthValue` and
   `AngularMeasureValue`, accepted by the OMG pilot and read back exactly.
-  Example: [`examples/spatial/charging_corridor.arc`](examples/spatial/charging_corridor.arc).
+  Example: [`examples/spatial/charging-corridor/charging_corridor.arc`](examples/spatial/charging-corridor/charging_corridor.arc).
 - **Requirements verified by simulation (OpenModelica)**: `arclang export -f
   modelica` writes the physical architecture as a Modelica package (one
   partial model per node and behavior component, MSL connectors from the
@@ -441,16 +441,16 @@ round-trip goes through `tools/capella_bridge/` (capellambse).
 cargo build --release
 
 # Compile a model (JSON output + real element counts)
-./target/release/arclang build examples/complete_emergency_braking_simple.arc
+./target/release/arclang build examples/automotive/emergency-braking/complete_emergency_braking_simple.arc
 
 # Check with traceability warnings
-./target/release/arclang check examples/automotive/adaptive_cruise_control.arc --lint
+./target/release/arclang check examples/automotive/adaptive-cruise/adaptive_cruise_control.arc --lint
 
 # Traceability matrix
-./target/release/arclang trace examples/automotive/acc_from_capella.arc --validate --matrix
+./target/release/arclang trace examples/capella/acc-from-capella/acc_from_capella.arc --validate --matrix
 
 # Model metrics
-./target/release/arclang info examples/aerospace/flight_control_system.arc --metrics
+./target/release/arclang info examples/aerospace/flight-control/flight_control_system.arc --metrics
 ```
 
 ## Language at a glance

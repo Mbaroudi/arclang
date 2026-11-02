@@ -14,7 +14,7 @@ const rows = []; const report = (name, ok, detail) => { rows.push({ name, ok });
 
 (async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'arcfs-'));
-  fs.copyFileSync(path.join(REPO, 'examples/automotive/acc_minimal.arc'), path.join(dir, 'acc.arc'));
+  fs.copyFileSync(path.join(REPO, 'examples/01-getting-started/acc-minimal/acc_minimal.arc'), path.join(dir, 'acc.arc'));
   if (process.env.PDF) fs.copyFileSync(process.env.PDF, path.join(dir, 'report.pdf'));
   const settings = { 'update.mode': 'none', 'extensions.autoCheckUpdates': false, 'telemetry.telemetryLevel': 'off', 'workbench.startupEditor': 'none', 'security.workspace.trust.enabled': false, 'window.restoreWindows': 'none', 'arclang.binary': process.env.ARCLANG_BINARY || 'arclang' };
   fs.mkdirSync(path.join(dir, 'u', 'User'), { recursive: true });

@@ -11,8 +11,8 @@ use arclang::compiler::tables::{self, Options, TableSpec};
 use arclang::compiler::{production_gate, Compiler, CompilerConfig};
 use std::path::{Path, PathBuf};
 
-const DEMO: &str = "examples/automotive/ev_range_simulation.arc";
-const PHYSICS: &str = "examples/automotive/physics/EVPhysics.mo";
+const DEMO: &str = "examples/automotive/ev-range/ev_range_simulation.arc";
+const PHYSICS: &str = "examples/automotive/ev-range/physics/EVPhysics.mo";
 
 fn root() -> &'static Path {
     Path::new(env!("CARGO_MANIFEST_DIR"))

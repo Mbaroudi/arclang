@@ -73,7 +73,7 @@ jobs:
               ./target/release/arclang build "$f" || true
               fail=1
             fi
-          done < <(find examples -name '*.arc' -not -path 'examples/legacy/*' -print0)
+          done < <(find examples -name '*.arc' -not -path 'examples/archive/*' -print0)
           exit $fail
 
       - name: Install Node

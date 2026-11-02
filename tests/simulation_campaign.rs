@@ -26,31 +26,31 @@ struct System {
 
 const CAMPAIGN: [System; 5] = [
     System {
-        model: "examples/automotive/ev_range_simulation.arc",
+        model: "examples/automotive/ev-range/ev_range_simulation.arc",
         physics: "physics/EVPhysics.mo",
         package: "EVRangeSimulation",
         verdicts: &[("TC-RANGE-STD", "fail"), ("TC-RANGE-LR", "pass"), ("TC-RANGE-ENVELOPE", "pass")],
     },
     System {
-        model: "examples/automotive/battery_fast_charge.arc",
+        model: "examples/automotive/battery-fast-charge/battery_fast_charge.arc",
         physics: "physics/FastChargePhysics.mo",
         package: "BatteryFastCharge",
         verdicts: &[("TC-CHARGE-AIR", "fail"), ("TC-CHARGE-CHILLED", "pass"), ("TC-HOT-ENVELOPE", "pass")],
     },
     System {
-        model: "examples/aerospace/drone_endurance.arc",
+        model: "examples/aerospace/drone-endurance/drone_endurance.arc",
         physics: "physics/DronePhysics.mo",
         package: "DroneEndurance",
         verdicts: &[("TC-HOVER-STD", "pass"), ("TC-HOVER-EXT", "pass"), ("TC-ENVELOPE", "pass")],
     },
     System {
-        model: "examples/building/heat_pump_heating.arc",
+        model: "examples/building/heat-pump/heat_pump_heating.arc",
         physics: "physics/HeatingPhysics.mo",
         package: "HeatPumpHeating",
         verdicts: &[("TC-DAY-COMPACT", "fail"), ("TC-DAY-STANDARD", "pass"), ("TC-CLIMATE", "pass")],
     },
     System {
-        model: "examples/aerospace/aircraft_electrical_network.arc",
+        model: "examples/aerospace/electrical-network/aircraft_electrical_network.arc",
         physics: "physics/ElectricalNetworkPhysics.mo",
         package: "AircraftElectricalNetwork",
         verdicts: &[("TC-LOSS-25", "fail"), ("TC-LOSS-40", "pass"), ("TC-LOSS-ENVELOPE", "fail")],

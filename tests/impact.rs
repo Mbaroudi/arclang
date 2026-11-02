@@ -10,7 +10,7 @@ fn root() -> PathBuf {
 }
 
 fn aeb() -> PathBuf {
-    root().join("examples/complete_emergency_braking_simple.arc")
+    root().join("examples/automotive/emergency-braking/complete_emergency_braking_simple.arc")
 }
 
 fn arclang(args: &[&str]) -> Output {

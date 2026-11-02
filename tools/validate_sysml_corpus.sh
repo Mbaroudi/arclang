@@ -12,7 +12,7 @@ trap 'rm -rf "$out"' EXIT
 
 [ -x "$bin" ] || { echo "build first: cargo build" >&2; exit 2; }
 
-find "$root/examples" -name '*.arc' -not -path '*/legacy/*' | sort | while read -r model; do
+find "$root/examples" -name '*.arc' -not -path '*/archive/*' | sort | while read -r model; do
     case "$model" in
         */multifile/*) grep -q '^import ' "$model" || continue ;;  # fragments are exported through their root
     esac

@@ -24,7 +24,7 @@ echo -e "${BLUE}Output directory: $OUTPUT_DIR${NC}"
 echo ""
 
 # Test model
-MODEL="examples/legacy/emergency_braking_all_diagrams.arc"
+MODEL="examples/archive/emergency_braking_all_diagrams.arc"
 
 if [ ! -f "$MODEL" ]; then
     echo "Error: Model file $MODEL not found"
