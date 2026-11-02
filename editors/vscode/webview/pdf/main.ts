@@ -1,6 +1,6 @@
 // The PDF view: every page of the document drawn by pdf.js, drawn when it
 // comes into view, at the zoom chosen (fit the width, fit the page, or a step).
-import { GlobalWorkerOptions, getDocument, type PDFDocumentProxy, type RenderTask } from 'pdfjs-dist';
+import { GlobalWorkerOptions, getDocument, type PDFDocumentLoadingTask, type PDFDocumentProxy, type RenderTask } from 'pdfjs-dist';
 import { currentPage, Fit, fitScale, stepZoom, ToPdfView } from '../../src/pure/pdf-view';
 
 declare function acquireVsCodeApi(): { postMessage(message: unknown): void };
@@ -20,6 +20,8 @@ interface Sheet {
 }
 
 let pdf: PDFDocumentProxy | null = null;
+// pdf.js 6 frees a document through the task that loaded it.
+let loading: PDFDocumentLoadingTask | null = null;
 let sheets: Sheet[] = [];
 let scale = 1;
 let fit: Fit = 'width';
@@ -92,8 +94,9 @@ function zoomTo(next: Fit | number): void {
 async function open(name: string, bytes: Uint8Array): Promise<void> {
   say(`Opening ${name}…`);
   const position = doc.scrollTop / Math.max(1, doc.scrollHeight);
-  await pdf?.destroy();
-  pdf = await getDocument({ data: bytes, useWorkerFetch: false, standardFontDataUrl: document.body.dataset.fonts }).promise;
+  await loading?.destroy();
+  loading = getDocument({ data: bytes, useWorkerFetch: false, standardFontDataUrl: document.body.dataset.fonts });
+  pdf = await loading.promise;
   document.title = name;
   sheets = [];
   const elements: HTMLElement[] = [];
