@@ -1,0 +1,38 @@
+/* The PDF view: the pages on the editor's background, a thin toolbar that
+   follows the VS Code theme, the page as paper (white, a soft shadow). */
+:root {
+  --pdf-bg: color-mix(in srgb, var(--vscode-editor-foreground, #1f1f1f) 6%, var(--vscode-editor-background, #f3f3f3));
+  --pdf-fg: var(--vscode-editor-foreground, #1f1f1f);
+  --pdf-bar: var(--vscode-editorWidget-background, var(--vscode-editor-background, #ffffff));
+  --pdf-line: color-mix(in srgb, var(--pdf-fg) 14%, transparent);
+  --pdf-hover: var(--vscode-toolbar-hoverBackground, color-mix(in srgb, var(--pdf-fg) 9%, transparent));
+  --pdf-on: var(--vscode-inputOption-activeBackground, color-mix(in srgb, var(--vscode-focusBorder, #005fb8) 22%, transparent));
+  --pdf-focus: var(--vscode-focusBorder, #005fb8);
+  --pdf-gap: 20px;
+  --pdf-shadow: 0 1px 2px rgb(0 0 0 / 0.18), 0 6px 22px rgb(0 0 0 / 0.16);
+  --pdf-sans: var(--vscode-font-family, system-ui, sans-serif);
+  color-scheme: light dark;
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
+body { display: flex; flex-direction: column; background: var(--pdf-bg); color: var(--pdf-fg); font: 12px/1.4 var(--pdf-sans); }
+.bar { display: flex; align-items: center; gap: 10px; padding: 5px 10px; background: var(--pdf-bar); border-bottom: 1px solid var(--pdf-line); flex: none; }
+.group { display: inline-flex; border: 1px solid var(--pdf-line); border-radius: 4px; overflow: hidden; }
+.group button { border-radius: 0; }
+.group button + button { border-left: 1px solid var(--pdf-line); }
+.spacer { flex: 1; }
+button { font: inherit; color: inherit; background: transparent; border: 0; border-radius: 4px; padding: 3px 9px; cursor: pointer; transition: background-color 120ms ease-out; }
+button:hover { background: var(--pdf-hover); }
+button:active { transform: translateY(0.5px); }
+button[aria-pressed="true"] { background: var(--pdf-on); }
+button:focus-visible, input:focus-visible, #doc:focus-visible { outline: 1px solid var(--pdf-focus); outline-offset: -1px; }
+.zoom { min-width: 58px; font-variant-numeric: tabular-nums; }
+#save { border: 1px solid var(--pdf-line); }
+.pages { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.pages input { width: 46px; font: inherit; color: inherit; background: var(--vscode-input-background, transparent); border: 1px solid var(--pdf-line); border-radius: 3px; padding: 2px 4px; text-align: right; }
+#doc { flex: 1; overflow: auto; display: flex; flex-direction: column; align-items: center; gap: var(--pdf-gap); padding: var(--pdf-gap); }
+.sheet { flex: none; background: #ffffff; box-shadow: var(--pdf-shadow); }
+.sheet canvas { display: block; width: 100%; height: 100%; }
+.status { position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); margin: 0; padding: 6px 12px; border-radius: 4px; background: var(--pdf-bar); border: 1px solid var(--pdf-line); box-shadow: var(--pdf-shadow); }
+.status[hidden], .status:empty { display: none; }
+@media (prefers-reduced-motion: reduce) { button { transition: none; } }

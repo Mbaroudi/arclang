@@ -25,6 +25,7 @@ import { applyCompare, compareActive, handleSemgitMessage, isSemgitMessage } fro
 import { DiagramExports, ExportArgs, themeStore } from './diagram-export';
 import type { DiagramAction } from '../pure/workbench';
 import { fileStateOf, saveModel, saveModelAs } from './model-file';
+import { onDidChangeFullScreen, setFullScreen } from '../fullscreen';
 import { droppedModelFiles } from '../pure/importing';
 
 export const VIEW_TYPE = 'arclang.workbench';
@@ -184,13 +185,19 @@ export class WorkbenchPanel {
         else void vscode.commands.executeCommand('setContext', TYPING, false);
       }),
     );
+    // Full screen from VS Code's side (the title bar's button, Esc): the workbench in front takes it, any other gives it back.
+    this.disposables.push(
+      onDidChangeFullScreen((on) => {
+        const mine = on ? this.panel.active : this.maximized;
+        if (!mine || this.maximized === on) return;
+        this.maximized = on;
+        this.post({ type: 'full-screen', on });
+      }),
+    );
     this.panel.onDidDispose(() => {
       if (active === this) active = null;
       // Closed in full screen: the window comes back as it was.
-      if (this.maximized) {
-        void vscode.commands.executeCommand('workbench.action.toggleZenMode');
-        void vscode.commands.executeCommand('workbench.action.toggleMaximizeEditorGroup');
-      }
+      if (this.maximized) void setFullScreen(false);
       const key = document.uri.toString();
       const set = panels.get(key);
       set?.delete(this);
@@ -427,13 +434,7 @@ export class WorkbenchPanel {
         if (message.on !== this.maximized) {
           this.maximized = message.on;
           this.panel.reveal(undefined, false);
-          await vscode.commands.executeCommand('workbench.action.toggleMaximizeEditorGroup');
-          await vscode.commands.executeCommand('workbench.action.toggleZenMode');
-          // Zen mode centers the editor by default: the diagram wants the full width.
-          // Leaving Zen mode puts the centering back as it was.
-          if (message.on && vscode.workspace.getConfiguration('zenMode').get<boolean>('centerLayout', true)) {
-            await vscode.commands.executeCommand('workbench.action.toggleCenteredLayout');
-          }
+          await setFullScreen(message.on);
         }
         return;
       default:
