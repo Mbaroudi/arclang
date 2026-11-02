@@ -108,6 +108,7 @@ export function registerWorkbench(context: vscode.ExtensionContext): void {
   register('arclang.diagram.copyImage', () => activeOr('copy its diagram')?.diagramAction('copy-image'));
   register('arclang.diagram.copySvg', () => activeOr('copy its diagram')?.diagramAction('copy-svg'));
   register('arclang.diagram.exportPowerPoint', (args?: unknown) => activeOr('export its diagrams')?.diagramAction('export-pptx', (args ?? undefined) as ExportArgs | undefined));
+  register('arclang.diagram.exportPdf', (args?: unknown) => activeOr('export its diagrams')?.diagramAction('export-pdf', (args ?? undefined) as ExportArgs | undefined));
   register('arclang.diagram.editTheme', () => activeOr('edit a theme on its diagram')?.diagramAction('edit-theme'));
   register('arclang.diagram.chooseTheme', async (key?: unknown) => {
     const store = themeStore(context);

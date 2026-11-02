@@ -558,6 +558,16 @@
         "category": "ArcLang"
       },
       {
+        "command": "arclang.simulation.exportReport",
+        "title": "Export the simulation report (PDF or PowerPoint)…",
+        "category": "ArcLang"
+      },
+      {
+        "command": "arclang.diagram.exportPdf",
+        "title": "Export the diagrams to PDF, one page each with its title and legend…",
+        "category": "ArcLang"
+      },
+      {
         "command": "arclang.diagram.chooseTheme",
         "title": "Choose the diagram color theme…",
         "category": "ArcLang"
@@ -1226,6 +1236,10 @@
           "when": "activeCustomEditorId == arclang.workbench"
         },
         {
+          "command": "arclang.diagram.exportPdf",
+          "when": "activeCustomEditorId == arclang.workbench"
+        },
+        {
           "command": "arclang.diagram.chooseTheme",
           "when": "activeCustomEditorId == arclang.workbench"
         },
@@ -1627,6 +1641,11 @@
           "command": "arclang.diagram.exportPowerPoint",
           "when": "webviewId == 'arclang.workbench'",
           "group": "export@3"
+        },
+        {
+          "command": "arclang.diagram.exportPdf",
+          "when": "webviewId == 'arclang.workbench'",
+          "group": "export@4"
         },
         {
           "command": "arclang.workbench.save",

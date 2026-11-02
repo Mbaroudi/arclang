@@ -10,6 +10,7 @@ import { UNTRUSTED_MESSAGE, currentBackend, failureText, report, run, workspaceT
 import {
   Checklist,
   Counts,
+  Outcome,
   DOCS_URL,
   MODEX_ID,
   SimModel,
@@ -33,6 +34,7 @@ import { checklistHtml } from '../pure/simulation-html';
 import { applyFix } from './fixes';
 import { MonteCarloPanel } from './montecarlo';
 import { replaySimulation } from './replay';
+import { exportSimulationReport } from './report';
 
 const SKIP_DIRS = '**/{node_modules,.git,target,.arclang,dist,out}/**';
 const MAX_FILES = 300;
@@ -65,6 +67,8 @@ function activeModelUri(): vscode.Uri | null {
 class Simulation implements vscode.Disposable {
   private readonly item = vscode.window.createStatusBarItem('arclang.simulation', vscode.StatusBarAlignment.Left, 90);
   private model: SimModel = { relevant: false, checking: false, running: false, list: null, toolLabel: null, last: null };
+  /** The last run's outcomes, by model file: what Export the report writes. */
+  private readonly lastRun = new Map<string, Outcome[]>();
   /** .arc files that simulate, .mo files: by path. */
   private readonly simulating = new Set<string>();
   private readonly modelica = new Set<string>();
@@ -305,6 +309,7 @@ class Simulation implements vscode.Disposable {
         }
       } else {
         counts = countOutcomes(outcomes);
+        this.lastRun.set(file, outcomes);
         missingTool = toolMissing(outcomes, result.stderr);
         simOutput().appendLine(runLog(path.basename(file), outcomes, new Date()));
         if (!missingTool && MonteCarloPanel.has(outcomes)) MonteCarloPanel.show(file, outcomes, () => simulationEnv(settings()));
@@ -321,9 +326,23 @@ class Simulation implements vscode.Disposable {
   private async announce(file: string, counts: Counts): Promise<void> {
     const text = `ArcLang: ${summaryText(counts)}`;
     const show = counts.fail || counts.other ? vscode.window.showWarningMessage : vscode.window.showInformationMessage;
-    const choice = await show(text, 'Show the verdicts', 'Show the log');
+    const choice = await show(text, 'Show the verdicts', 'Export the report', 'Show the log');
     if (choice === 'Show the verdicts') await vscode.commands.executeCommand('arclang.table.coverage', vscode.Uri.file(file));
+    else if (choice === 'Export the report') await this.exportReport(file);
     else if (choice === 'Show the log') simOutput().show(true);
+  }
+
+  /** The report of the last run of a model (run it first when there is none), as PDF or PowerPoint. */
+  async exportReport(arg?: unknown): Promise<void> {
+    const file = typeof arg === 'string' ? arg : await this.pickModel(arg);
+    if (!file) return;
+    const outcomes = this.lastRun.get(file);
+    if (!outcomes) {
+      const choice = await vscode.window.showInformationMessage('ArcLang: no simulation of this model was run in this window yet: run them, then export the report.', 'Run simulations');
+      if (choice === 'Run simulations') await this.runSimulations(vscode.Uri.file(file));
+      if (!this.lastRun.has(file)) return;
+    }
+    await exportSimulationReport(file, this.lastRun.get(file)!, () => simulationEnv(settings()));
   }
 
   private vscodeProgress<T>(title: string, task: () => Promise<T>): Promise<T> {
@@ -501,6 +520,7 @@ export function registerSimulation(context: vscode.ExtensionContext): void {
   register('arclang.simulation.menu', () => simulation.menu());
   register('arclang.simulation.run', (uri?: unknown) => simulation.runSimulations(uri));
   register('arclang.simulation.montecarlo', (uri?: unknown) => simulation.runSimulations(uri, true));
+  register('arclang.simulation.exportReport', (uri?: unknown) => simulation.exportReport(uri));
   register('arclang.simulation.replay', (uri?: unknown) => replaySimulation(uri instanceof vscode.Uri ? uri : activeModelUri()));
   register('arclang.simulation.check', () => simulation.showSetup());
   register('arclang.simulation.setup', () => simulation.guidedSetup());

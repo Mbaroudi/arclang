@@ -3,9 +3,10 @@
 // inversion), Copy as image and Copy as SVG of the view or the selection,
 // the slides of a PowerPoint export, and the entries these add to the
 // toolbar's Export and Theme menus and to the canvas menu.
-import type { DiagramAction, SlideData, ThemeEntry, ToWebview } from '../src/pure/workbench';
+import type { DiagramAction, SlideData, SlideFormat, ThemeEntry, ToWebview } from '../src/pure/workbench';
 import type { ToolbarHookItem, ViewerApi } from './globals';
 import type { MenuItem } from './menu';
+import { el } from './dom';
 
 export interface ExportDeps {
   post(message: unknown): void;
@@ -21,6 +22,21 @@ export interface ExportDeps {
 /** The long side of a slide's picture, in pixels: sharp on a 4K projector. */
 const SLIDE_PIXELS = 2400;
 const VIEW_NAMES: Record<string, string> = { oab: 'Operational', sab: 'System', lab: 'Logical', pab: 'Physical', msm: 'Modes and states', es: 'Scenario', cap: 'Capabilities', cdb: 'Data', pbs: 'Product breakdown' };
+
+/** A PNG drawing as a JPEG on a white sheet (a PDF embeds JPEG as it is). */
+async function jpegOf(png: Blob): Promise<Blob> {
+  const bitmap = await createImageBitmap(png);
+  const canvas = document.createElement('canvas');
+  canvas.width = bitmap.width;
+  canvas.height = bitmap.height;
+  const context = canvas.getContext('2d');
+  if (!context) throw new Error('no canvas to draw the page on');
+  context.fillStyle = '#ffffff';
+  context.fillRect(0, 0, canvas.width, canvas.height);
+  context.drawImage(bitmap, 0, 0);
+  bitmap.close();
+  return new Promise((resolve, reject) => canvas.toBlob((blob) => (blob ? resolve(blob) : reject(new Error('the page could not be encoded'))), 'image/jpeg', 0.92));
+}
 
 function base64Of(blob: Blob): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -95,8 +111,20 @@ export class DiagramExports {
       case 'diagram-action':
         this.run(message.action);
         return true;
+      case 'download': {
+        // VS Code for the Web: the file goes to the browser's downloads, not to the page's virtual disk.
+        const bytes = Uint8Array.from(atob(message.data), (c) => c.charCodeAt(0));
+        const url = URL.createObjectURL(new Blob([bytes], { type: message.mime }));
+        const link = el('a', { href: url, download: message.name });
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 30_000);
+        this.d.toast(`${message.name} downloaded`, 'info');
+        return true;
+      }
       case 'pptx-render':
-        void this.renderSlides(message.ids, message.target);
+        void this.renderSlides(message.ids, message.target, message.format ?? 'pptx');
         return true;
       default:
         return false;
@@ -107,6 +135,7 @@ export class DiagramExports {
     if (action === 'copy-image') void this.copyImage();
     else if (action === 'copy-svg') void this.copySvg();
     else if (action === 'export-pptx') this.exportPptx();
+    else if (action === 'export-pdf') this.exportPptx('pdf');
     else if (action === 'edit-theme') this.d.openEditor();
     else if (action === 'choose-theme') this.d.openEditor();
   }
@@ -139,18 +168,19 @@ export class DiagramExports {
     if (drawing) this.d.post({ type: 'clipboard-svg', text: drawing.svg });
   }
 
-  /** Ask the host which diagrams: it answers with pptx-render. */
-  exportPptx(): void {
+  /** Ask the host which diagrams go into the PowerPoint or PDF file: it answers with pptx-render. */
+  exportPptx(format: SlideFormat = 'pptx'): void {
     const viewer = this.d.viewer();
     if (!viewer?.views) return;
-    this.d.post({ type: 'pptx-request', views: viewer.views(), current: viewer.current?.().view ?? null });
+    this.d.post({ type: 'pptx-request', views: viewer.views(), current: viewer.current?.().view ?? null, format });
   }
 
-  private async renderSlides(ids: string[], target?: string): Promise<void> {
+  private async renderSlides(ids: string[], target: string | undefined, format: SlideFormat): Promise<void> {
     const viewer = this.d.viewer();
     if (!viewer?.exportSvg || !viewer.exportImage) return;
     const slides: SlideData[] = [];
-    this.d.toast(`Drawing ${ids.length} slide${ids.length > 1 ? 's' : ''}…`, 'info');
+    const unit = format === 'pdf' ? 'page' : 'slide';
+    this.d.toast(`Drawing ${ids.length} ${unit}${ids.length > 1 ? 's' : ''}…`, 'info');
     try {
       for (const id of ids) {
         const svg = await viewer.exportSvg({ view: id });
@@ -162,17 +192,19 @@ export class DiagramExports {
         const layer = VIEW_NAMES[kind];
         slides.push({
           title: layer && !image.title.toLowerCase().startsWith(layer.toLowerCase()) ? `${layer} — ${image.title}` : image.title,
-          data: await base64Of(image.blob),
+          // A PDF embeds a JPEG as it is: the PNG is flattened on white and recoded.
+          data: await base64Of(format === 'pdf' ? await jpegOf(image.blob) : image.blob),
           width: Math.round(image.width * scale),
           height: Math.round(image.height * scale),
           notes: image.elements.map((e) => `${e.kind}: ${e.name}`),
+          legend: image.legend ?? [],
         });
       }
     } catch (error) {
-      this.d.toast(`The slides could not be drawn: ${error instanceof Error ? error.message : String(error)}`, 'error');
+      this.d.toast(`The ${unit}s could not be drawn: ${error instanceof Error ? error.message : String(error)}`, 'error');
       return;
     }
-    if (slides.length) this.d.post({ type: 'pptx', slides, title: this.d.file().replace(/\.[^.]+$/, ''), target });
+    if (slides.length) this.d.post({ type: 'pptx', slides, title: this.d.file().replace(/\.[^.]+$/, ''), target, format });
   }
 
   /** More entries in the toolbar's Export menu. */
@@ -180,7 +212,8 @@ export class DiagramExports {
     return [
       { id: 'copy-image', label: 'Copy as image', title: 'The view, or the selection, as a picture to paste in PowerPoint, Keynote, Word or Google Slides', shortcut: 'Mod+Shift+C', run: () => void this.copyImage() },
       { id: 'copy-svg', label: 'Copy as SVG', title: 'The view, or the selection, as SVG text for the tools that take it', run: () => void this.copySvg() },
-      { id: 'export-pptx', label: 'Export PowerPoint…', title: 'One 16:9 slide per diagram (this one, its layer or all), with its title and the elements in the notes', run: () => this.exportPptx() },
+      { id: 'export-pptx', label: 'Export PowerPoint…', title: 'One 16:9 slide per diagram (this one, its layer or all), with its title, its legend and the elements in the notes', run: () => this.exportPptx() },
+      { id: 'export-pdf', label: 'Export PDF…', title: 'One page per diagram (this one, its layer or all), with its title, its legend and the page number', run: () => this.exportPptx('pdf') },
     ];
   }
 

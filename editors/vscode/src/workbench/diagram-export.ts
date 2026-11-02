@@ -6,6 +6,8 @@ import * as path from 'node:path';
 import { deflateRawSync } from 'node:zlib';
 import * as vscode from 'vscode';
 import { buildPptx, pngSize } from '../pure/pptx';
+import { buildPdf } from '../pure/pdf';
+import type { SlideData, SlideFormat } from '../pure/workbench';
 import type { DiagramAction, FromWebview, ThemeEntry, ToWebview } from '../pure/workbench';
 import { writeImageToClipboard } from './clipboard-image';
 import { ThemeStore } from './themes';
@@ -79,10 +81,11 @@ export class DiagramExports implements vscode.Disposable {
         else vscode.window.setStatusBarMessage(`ArcLang: ${message.text}`, 4000);
         return true;
       case 'pptx-request':
-        await this.askSlides(message.views, message.current);
+        await this.askSlides(message.views, message.current, message.format ?? 'pptx');
         return true;
       case 'pptx':
-        await this.writePptx(message.slides, message.title, message.target);
+        if (message.format === 'pdf') await this.writePdf(message.slides, message.title, message.target);
+        else await this.writePptx(message.slides, message.title, message.target);
         return true;
       case 'theme-choose': {
         const entry = (await this.store.list()).find((e) => e.key === message.key);
@@ -136,7 +139,7 @@ export class DiagramExports implements vscode.Disposable {
     }
   }
 
-  private async askSlides(views: { id: string; title: string; view: string }[], current: string | null): Promise<void> {
+  private async askSlides(views: { id: string; title: string; view: string }[], current: string | null, format: SlideFormat): Promise<void> {
     const here = views.find((v) => v.id === current) ?? views[0];
     if (!here) return;
     const layer = views.filter((v) => v.view === here.view);
@@ -145,17 +148,50 @@ export class DiagramExports implements vscode.Disposable {
       const items: (vscode.QuickPickItem & { scope: 'current' | 'layer' | 'all' })[] = [
         { label: 'This diagram', description: here.title, scope: 'current' },
         { label: 'Its layer', description: `${layer.length} diagram${layer.length > 1 ? 's' : ''}`, scope: 'layer' },
-        { label: 'Every diagram', description: `${views.length} diagrams, one slide each`, scope: 'all' },
+        { label: 'Every diagram', description: `${views.length} diagrams, one ${format === 'pdf' ? 'page' : 'slide'} each`, scope: 'all' },
       ];
-      const picked = await vscode.window.showQuickPick(items, { placeHolder: 'Which diagrams go into the PowerPoint file?' });
+      const picked = await vscode.window.showQuickPick(items, { placeHolder: `Which diagrams go into the ${format === 'pdf' ? 'PDF' : 'PowerPoint'} file?` });
       if (!picked) return;
       scope = picked.scope;
     }
     const ids = scope === 'current' ? [here.id] : scope === 'layer' ? layer.map((v) => v.id) : views.map((v) => v.id);
-    this.post({ type: 'pptx-render', ids, target: this.pending.target });
+    this.post({ type: 'pptx-render', ids, target: this.pending.target, format });
   }
 
-  private async writePptx(slides: { title: string; data: string; width: number; height: number; notes: string[] }[], title: string, target?: string): Promise<void> {
+  /** In a browser (VS Code for the Web), the file goes to the browser's downloads: true when it did. */
+  private async download(name: string, mime: string, bytes: Uint8Array, target?: string): Promise<boolean> {
+    if (target || vscode.env.uiKind !== vscode.UIKind.Web) return false;
+    this.post({ type: 'download', name, mime, data: Buffer.from(bytes).toString('base64') });
+    return true;
+  }
+
+  /** The PDF of the diagrams: one page each, its title, its drawing, its legend, the page number. */
+  private async writePdf(slides: SlideData[], title: string, target?: string): Promise<void> {
+    try {
+      const pdf = buildPdf({ title, pages: slides.map((slide) => ({ title: slide.title, jpeg: new Uint8Array(Buffer.from(slide.data, 'base64')), legend: slide.legend ?? [] })) });
+      if (await this.download(`${path.basename(this.document.uri.fsPath).replace(/\.[^.]+$/, '') || 'diagrams'}.pdf`, 'application/pdf', pdf, target)) return;
+      const folder = this.document.uri.scheme === 'file' ? vscode.Uri.file(path.dirname(this.document.uri.fsPath)) : undefined;
+      const name = `${path.basename(this.document.uri.fsPath).replace(/\.[^.]+$/, '') || 'diagrams'}.pdf`;
+      const uri = target
+        ? vscode.Uri.file(target)
+        : await vscode.window.showSaveDialog({ defaultUri: folder ? vscode.Uri.joinPath(folder, name) : undefined, filters: { PDF: ['pdf'] }, saveLabel: 'Export' });
+      if (!uri) return;
+      await vscode.workspace.fs.writeFile(uri, pdf);
+      const written = `ArcLang: ${slides.length} page${slides.length > 1 ? 's' : ''} written to ${path.basename(uri.fsPath)}`;
+      if (target) {
+        vscode.window.setStatusBarMessage(written, 5000);
+        return;
+      }
+      const open = await vscode.window.showInformationMessage(written, 'Reveal');
+      if (open === 'Reveal') await vscode.commands.executeCommand('revealFileInOS', uri);
+    } catch (error) {
+      void vscode.window.showErrorMessage(`ArcLang: the PDF file could not be written: ${error instanceof Error ? error.message : String(error)}`);
+    } finally {
+      this.pending = {};
+    }
+  }
+
+  private async writePptx(slides: SlideData[], title: string, target?: string): Promise<void> {
     try {
       const deck = buildPptx(
         {
@@ -163,11 +199,13 @@ export class DiagramExports implements vscode.Disposable {
           slides: slides.map((slide) => {
             const png = new Uint8Array(Buffer.from(slide.data, 'base64'));
             const size = pngSize(png);
-            return { title: slide.title, png, width: size?.width ?? slide.width, height: size?.height ?? slide.height, notes: slide.notes };
+            return { title: slide.title, png, width: size?.width ?? slide.width, height: size?.height ?? slide.height, notes: slide.notes, legend: slide.legend ?? [] };
           }),
         },
-        (data) => new Uint8Array(deflateRawSync(data)),
+        // In a browser there is no zlib: the parts are stored (the pictures are PNG, compressed already).
+        vscode.env.uiKind === vscode.UIKind.Web ? undefined : (data) => new Uint8Array(deflateRawSync(data)),
       );
+      if (await this.download(`${path.basename(this.document.uri.fsPath).replace(/\.[^.]+$/, '') || 'diagrams'}.pptx`, 'application/vnd.openxmlformats-officedocument.presentationml.presentation', deck, target)) return;
       const folder = this.document.uri.scheme === 'file' ? vscode.Uri.file(path.dirname(this.document.uri.fsPath)) : undefined;
       const name = `${path.basename(this.document.uri.fsPath).replace(/\.[^.]+$/, '') || 'diagrams'}.pptx`;
       const uri = target

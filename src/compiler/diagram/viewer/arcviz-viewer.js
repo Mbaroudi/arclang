@@ -1545,6 +1545,32 @@
       return items;
     }
 
+    /** The legend of a view, as its exports print it (in the exports' colors): one entry per kind of box, then per kind of line. */
+    function legendOf(view) {
+      const kind = view.graph && view.graph.arc ? view.graph.arc.view : null;
+      return render.withTheme ? render.withTheme(themeOptions('exports'), kind, () => legendEntries(view)) : legendEntries(view);
+    }
+
+    function legendEntries(view) {
+      const items = [];
+      const seen = new Set();
+      for (const { node } of view.index.nodes.values()) {
+        const kind = (node.arc || {}).kind;
+        if (kind === 'initial_state' || kind === 'junction') continue;
+        const style = render.nodeStyle(kind);
+        if (seen.has(style.label)) continue;
+        seen.add(style.label);
+        items.push({ label: style.label, fill: style.fill, stroke: style.stroke });
+      }
+      for (const edge of view.index.edges.values()) {
+        const style = render.edgeStyle((edge.arc || {}).kind);
+        if (seen.has(style.label)) continue;
+        seen.add(style.label);
+        items.push({ label: style.label, stroke: style.stroke, line: true, dash: Boolean(style.dash) });
+      }
+      return items;
+    }
+
     /**
      * The view on screen (or `options.view`) as an SVG for the clipboard
      * or a file: only the box around `options.ids` (the selection when
@@ -1557,7 +1583,7 @@
       const box = ids.length ? deps.exporter.boundsOf(found.view.graph, ids) : null;
       const drawn = box ? deps.exporter.crop(found.drawn, box) : found.drawn;
       const svg = options && options.transparent ? deps.exporter.withoutPaper(drawn.svg) : drawn.svg;
-      return { svg, width: drawn.width, height: drawn.height, cropped: Boolean(box), title: found.graph.arc.title, view: found.graph.id, elements: contentsOf(found.view) };
+      return { svg, width: drawn.width, height: drawn.height, cropped: Boolean(box), title: found.graph.arc.title, view: found.graph.id, elements: contentsOf(found.view), legend: legendOf(found.view) };
     }
 
     /** The same as a PNG blob, `options.scale` pixels per unit (2 by default). */

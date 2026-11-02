@@ -5,15 +5,20 @@
 // Keynote, LibreOffice and python-pptx open: a master, one "Title Only"
 // layout, a theme, a notes master, and per slide its picture and notes.
 import { Deflate, zip, ZipEntry } from './zip';
+import { layoutLegend, LegendItem, rgbOf } from './pdf';
 
 export interface Slide {
   title: string;
-  /** The drawing, PNG bytes, and its size in pixels. */
-  png: Uint8Array;
+  /** The drawing, PNG bytes, and its size in pixels; a slide of shapes only has none. */
+  png?: Uint8Array;
   width: number;
   height: number;
   /** One line per element shown, in the speaker notes. */
   notes: string[];
+  /** The legend of what the diagram shows, along the bottom of the slide. */
+  legend?: LegendItem[];
+  /** More shapes (DrawingML, `p:sp`/`p:cxnSp`), their ids from 100 up: tables and charts drawn as shapes. */
+  shapes?: string;
 }
 
 export interface Deck {
@@ -48,10 +53,16 @@ export function xmlText(text: string): string {
     .replace(/"/g, '&quot;');
 }
 
-/** Where a picture of `width` x `height` goes: as large as fits under the title, centered. */
-export function fitPicture(width: number, height: number): { x: number; y: number; cx: number; cy: number } {
+/** A point in EMU: a 16:9 slide is 960 x 540 points, as a PDF page. */
+const PT = 12700;
+/** The height of a line of the legend, and its text size (hundredths of a point). */
+const LEGEND_ROW = 18 * PT;
+const LEGEND_SIZE = 900;
+
+/** Where a picture of `width` x `height` goes: as large as fits between the title and the legend, centered. */
+export function fitPicture(width: number, height: number, legendLines = 0): { x: number; y: number; cx: number; cy: number } {
   const boxW = SLIDE.cx - MARGIN * 2;
-  const boxH = SLIDE.cy - PICTURE_TOP - MARGIN / 2;
+  const boxH = SLIDE.cy - PICTURE_TOP - MARGIN / 2 - legendLines * LEGEND_ROW;
   const scale = Math.min(boxW / Math.max(1, width), boxH / Math.max(1, height));
   const cx = Math.round(width * scale);
   const cy = Math.round(height * scale);
@@ -105,8 +116,8 @@ function theme(name: string): string {
     `<a:clrScheme name="ArcLang">${color('dk1', '000000')}${color('lt1', 'FFFFFF')}${color('dk2', '18222D')}${color('lt2', 'E9EDF1')}` +
     `${color('accent1', '2A62A8')}${color('accent2', '3C8A3F')}${color('accent3', 'B0730C')}${color('accent4', '9C8500')}${color('accent5', 'C92A2A')}${color('accent6', '55616D')}` +
     `${color('hlink', '0B5CAD')}${color('folHlink', '6F42C1')}</a:clrScheme>` +
-    '<a:fontScheme name="ArcLang"><a:majorFont><a:latin typeface="Calibri Light"/><a:ea typeface=""/><a:cs typeface=""/></a:majorFont>' +
-    '<a:minorFont><a:latin typeface="Calibri"/><a:ea typeface=""/><a:cs typeface=""/></a:minorFont></a:fontScheme>' +
+    '<a:fontScheme name="ArcLang"><a:majorFont><a:latin typeface="Arial"/><a:ea typeface=""/><a:cs typeface=""/></a:majorFont>' +
+    '<a:minorFont><a:latin typeface="Arial"/><a:ea typeface=""/><a:cs typeface=""/></a:minorFont></a:fontScheme>' +
     `<a:fmtScheme name="ArcLang"><a:fillStyleLst>${solid}${solid}${solid}</a:fillStyleLst>` +
     `<a:lnStyleLst>${line(6350)}${line(12700)}${line(19050)}</a:lnStyleLst>` +
     '<a:effectStyleLst><a:effectStyle><a:effectLst/></a:effectStyle><a:effectStyle><a:effectLst/></a:effectStyle><a:effectStyle><a:effectLst/></a:effectStyle></a:effectStyleLst>' +
@@ -126,13 +137,44 @@ function notesMaster(): string {
     '<p:notesStyle><a:lvl1pPr><a:defRPr sz="1200"><a:solidFill><a:schemeClr val="tx1"/></a:solidFill><a:latin typeface="+mn-lt"/></a:defRPr></a:lvl1pPr></p:notesStyle></p:notesMaster>';
 }
 
+const hex = (color: string | undefined, fallback: string) => {
+  const rgb = rgbOf(color);
+  return rgb ? rgb.map((c) => Math.round(c * 255).toString(16).padStart(2, '0')).join('').toUpperCase() : fallback;
+};
+
+/** The legend's shapes along the bottom of the slide: a swatch (box or line) and its label per kind. */
+function legendShapes(items: LegendItem[], firstId: number): { xml: string; lines: number } {
+  const laid = layoutLegend(items, SLIDE.cx / PT - (MARGIN / PT) * 2);
+  const top = SLIDE.cy - MARGIN / 2 - laid.lines * LEGEND_ROW;
+  let id = firstId;
+  const parts = laid.placed.map(({ item, x, line }) => {
+    const left = MARGIN + Math.round(x * PT);
+    const middle = top + line * LEGEND_ROW + LEGEND_ROW / 2;
+    const stroke = hex(item.stroke, '666666');
+    const swatch = item.line
+      ? `<p:cxnSp><p:nvCxnSpPr><p:cNvPr id="${id++}" name="Legend line"/><p:cNvCxnSpPr/><p:nvPr/></p:nvCxnSpPr><p:spPr><a:xfrm><a:off x="${left}" y="${middle}"/><a:ext cx="${12 * PT}" cy="0"/></a:xfrm><a:prstGeom prst="line"><a:avLst/></a:prstGeom>` +
+        `<a:ln w="19050"><a:solidFill><a:srgbClr val="${stroke}"/></a:solidFill>${item.dash ? '<a:prstDash val="dash"/>' : ''}</a:ln></p:spPr></p:cxnSp>`
+      : `<p:sp><p:nvSpPr><p:cNvPr id="${id++}" name="Legend box"/><p:cNvSpPr/><p:nvPr/></p:nvSpPr><p:spPr><a:xfrm><a:off x="${left}" y="${middle - 4.5 * PT}"/><a:ext cx="${12 * PT}" cy="${9 * PT}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom>` +
+        `<a:solidFill><a:srgbClr val="${hex(item.fill, 'FFFFFF')}"/></a:solidFill><a:ln w="9525"><a:solidFill><a:srgbClr val="${stroke}"/></a:solidFill></a:ln></p:spPr></p:sp>`;
+    const label = `<p:sp><p:nvSpPr><p:cNvPr id="${id++}" name="Legend label"/><p:cNvSpPr txBox="1"/><p:nvPr/></p:nvSpPr><p:spPr><a:xfrm><a:off x="${left + 18 * PT}" y="${middle - 7 * PT}"/><a:ext cx="${Math.round(200 * PT)}" cy="${14 * PT}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom><a:noFill/></p:spPr>` +
+      `<p:txBody><a:bodyPr wrap="none" lIns="0" tIns="0" rIns="0" bIns="0" anchor="ctr"/><a:lstStyle/><a:p><a:r><a:rPr lang="en-US" sz="${LEGEND_SIZE}"><a:solidFill><a:srgbClr val="404040"/></a:solidFill></a:rPr><a:t>${xmlText(item.label)}</a:t></a:r></a:p></p:txBody></p:sp>`;
+    return swatch + label;
+  });
+  return { xml: parts.join(''), lines: laid.lines };
+}
+
 function slide(item: Slide, index: number): string {
-  const at = fitPicture(item.width, item.height);
+  const legend = legendShapes(item.legend ?? [], 4);
+  const at = item.png ? fitPicture(item.width, item.height, legend.lines) : null;
   const body = `<p:txBody><a:bodyPr anchor="b"><a:normAutofit/></a:bodyPr><a:lstStyle/>${paragraph(item.title)}</p:txBody>`;
   return `${XML}<p:sld xmlns:a="${NS_A}" xmlns:r="${NS_R}" xmlns:p="${NS_P}"><p:cSld><p:spTree>${group}${titleBox(2, body)}` +
-    `<p:pic><p:nvPicPr><p:cNvPr id="3" name="Diagram ${index + 1}" descr="${xmlText(item.title)}"/><p:cNvPicPr><a:picLocks noChangeAspect="1"/></p:cNvPicPr><p:nvPr/></p:nvPicPr>` +
-    `<p:blipFill><a:blip r:embed="rId2"/><a:stretch><a:fillRect/></a:stretch></p:blipFill>` +
-    `<p:spPr><a:xfrm><a:off x="${at.x}" y="${at.y}"/><a:ext cx="${at.cx}" cy="${at.cy}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></p:spPr></p:pic>` +
+    (at
+      ? `<p:pic><p:nvPicPr><p:cNvPr id="3" name="Diagram ${index + 1}" descr="${xmlText(item.title)}"/><p:cNvPicPr><a:picLocks noChangeAspect="1"/></p:cNvPicPr><p:nvPr/></p:nvPicPr>` +
+        `<p:blipFill><a:blip r:embed="rId2"/><a:stretch><a:fillRect/></a:stretch></p:blipFill>` +
+        `<p:spPr><a:xfrm><a:off x="${at.x}" y="${at.y}"/><a:ext cx="${at.cx}" cy="${at.cy}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></p:spPr></p:pic>`
+      : '') +
+    legend.xml +
+    (item.shapes ?? '') +
     '</p:spTree></p:cSld><p:clrMapOvr><a:masterClrMapping/></p:clrMapOvr></p:sld>';
 }
 
@@ -208,17 +250,17 @@ export function buildPptx(deck: Deck, deflate?: Deflate): Uint8Array {
   add('ppt/notesMasters/notesMaster1.xml', notesMaster());
   add('ppt/notesMasters/_rels/notesMaster1.xml.rels', rels([['rId1', 'theme', '../theme/theme2.xml']]));
   deck.slides.forEach((item, i) => {
-    if (!isPng(item.png)) throw new Error(`slide ${i + 1} (${item.title}): the picture is not a PNG`);
+    if (item.png && !isPng(item.png)) throw new Error(`slide ${i + 1} (${item.title}): the picture is not a PNG`);
     const n = i + 1;
     add(`ppt/slides/slide${n}.xml`, slide(item, i));
     add(`ppt/slides/_rels/slide${n}.xml.rels`, rels([
       ['rId1', 'slideLayout', '../slideLayouts/slideLayout1.xml'],
-      ['rId2', 'image', `../media/image${n}.png`],
+      ...(item.png ? [['rId2', 'image', `../media/image${n}.png`] as [string, string, string]] : []),
       ['rId3', 'notesSlide', `../notesSlides/notesSlide${n}.xml`],
     ]));
     add(`ppt/notesSlides/notesSlide${n}.xml`, notesSlide(item));
     add(`ppt/notesSlides/_rels/notesSlide${n}.xml.rels`, rels([['rId1', 'notesMaster', '../notesMasters/notesMaster1.xml'], ['rId2', 'slide', `../slides/slide${n}.xml`]]));
-    add(`ppt/media/image${n}.png`, item.png);
+    if (item.png) add(`ppt/media/image${n}.png`, item.png);
   });
   return zip(entries, deflate);
 }
