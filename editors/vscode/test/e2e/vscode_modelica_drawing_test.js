@@ -11,7 +11,7 @@ const EXT = path.resolve(__dirname, '../..');
 const REPO = path.resolve(EXT, '../..');
 const SHOTS = process.env.SHOTS || null;
 const rows = []; const report = (name, ok, detail) => { rows.push({ name, ok }); console.log(`${ok ? 'ok  ' : 'FAIL'} ${name.padEnd(64)} ${detail || ''}`); };
-const example = ['examples/datacenter/ai-liquid-cooling', 'examples/datacenter'].map((d) => path.join(REPO, d)).find((d) => fs.existsSync(path.join(d, 'ai_liquid_cooling.arc')));
+const example = path.join(REPO, 'examples/datacenter/ai-liquid-cooling');
 
 (async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'arcmo-'));

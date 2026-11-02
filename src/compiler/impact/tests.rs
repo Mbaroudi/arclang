@@ -3,7 +3,7 @@ use super::*;
 use crate::compiler::workbench::{compile_text, EditRequest};
 
 const BATTERY: &str = include_str!("../../../tests/fixtures/impact/battery.arc");
-const AEB: &str = include_str!("../../../examples/complete_emergency_braking_simple.arc");
+const AEB: &str = include_str!("../../../examples/automotive/emergency-braking/complete_emergency_braking_simple.arc");
 
 fn compiled(source: &str) -> CompilationResult {
     compile_text(source).expect("the model compiles")
@@ -290,7 +290,7 @@ fn no_scratch_path_reaches_a_verdict_or_the_gate() {
     let dir = std::env::temp_dir().join(format!("arclang-impact-scratch-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(dir.join("physics")).unwrap();
-    let examples = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("examples/automotive");
+    let examples = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("examples/automotive/ev-range");
     let model = std::fs::read_to_string(examples.join("ev_range_simulation.arc")).unwrap();
     std::fs::copy(examples.join("physics/EVPhysics.mo"), dir.join("physics/EVPhysics.mo")).unwrap();
     let file = dir.join("ev.arc");

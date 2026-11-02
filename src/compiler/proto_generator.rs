@@ -176,7 +176,7 @@ mod tests {
     #[test]
     fn proto_covers_enums_messages_and_services() {
         let flagship = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("examples/complete_emergency_braking_simple.arc");
+            .join("examples/automotive/emergency-braking/complete_emergency_braking_simple.arc");
         let result = Compiler::new(CompilerConfig::default())
             .compile_file(&flagship)
             .expect("compiles");

@@ -163,6 +163,8 @@ export type ToWebview =
   | { type: 'diagram-op'; op: 'hide' | 'related' | 'new' | 'rename'; id: string; drawing?: string }
   | { type: 'edit-result'; ok: boolean; label: string; error?: string }
   | { type: 'busy'; busy: boolean; label?: string }
+  /** Full screen entered or left from VS Code (the title bar's button, Esc): the page follows without asking back. */
+  | { type: 'full-screen'; on: boolean }
   /** A key of the canvas, bound in VS Code (so it follows the keyboard layout) and run by the page. */
   | { type: 'key'; command: CanvasCommand; text?: string }
   /** What ⌘Z and ⌘⇧Z would take back and bring back; `done` names the step just undone or redone. */

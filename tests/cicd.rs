@@ -666,8 +666,8 @@ fn the_report_needs_a_git_repository_and_a_known_base() {
 fn ci_run_without_openmodelica_reports_the_simulations_as_inconclusive_never_as_passed() {
     let repo = Repo::new();
     let root = Path::new(env!("CARGO_MANIFEST_DIR"));
-    repo.write("ev.arc", &std::fs::read_to_string(root.join("examples/automotive/ev_range_simulation.arc")).unwrap());
-    repo.write("physics/EVPhysics.mo", &std::fs::read_to_string(root.join("examples/automotive/physics/EVPhysics.mo")).unwrap());
+    repo.write("ev.arc", &std::fs::read_to_string(root.join("examples/automotive/ev-range/ev_range_simulation.arc")).unwrap());
+    repo.write("physics/EVPhysics.mo", &std::fs::read_to_string(root.join("examples/automotive/ev-range/physics/EVPhysics.mo")).unwrap());
     repo.commit("ev");
     let out = Command::new(arclang())
         .current_dir(repo.path())

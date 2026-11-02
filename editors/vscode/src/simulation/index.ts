@@ -36,7 +36,7 @@ import { applyFix } from './fixes';
 import { MonteCarloPanel } from './montecarlo';
 import { replaySimulation } from './replay';
 import { openModelicaDrawing } from './modelica-view';
-import { exportSimulationReport } from './report';
+import { desktopReplays, exportSimulationReport } from './report';
 
 const SKIP_DIRS = '**/{node_modules,.git,target,.arclang,dist,out}/**';
 const MAX_FILES = 300;
@@ -344,7 +344,7 @@ class Simulation implements vscode.Disposable {
       if (choice === 'Run simulations') await this.runSimulations(vscode.Uri.file(file));
       if (!this.lastRun.has(file)) return;
     }
-    await exportSimulationReport(file, this.lastRun.get(file)!, () => simulationEnv(settings()));
+    await exportSimulationReport(file, this.lastRun.get(file)!, desktopReplays(file, () => simulationEnv(settings())));
   }
 
   private vscodeProgress<T>(title: string, task: () => Promise<T>): Promise<T> {

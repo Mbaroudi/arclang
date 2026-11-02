@@ -18,6 +18,8 @@ import { registerImport } from './importing';
 import { registerTables } from './tables'; // tables hook
 import { registerImpact } from './impact'; // impact hook
 import { registerDebug } from './debug'; // debug hook
+import { registerPdfViewer } from './pdf/viewer';
+import { registerFullScreen } from './fullscreen';
 import { registerSemgit } from './semgit'; // semgit hook
 import { registerCi } from './cicd'; // cicd hook
 import { registerSimulation } from './simulation'; // simulation hook
@@ -57,6 +59,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   registerTables(context); // tables hook
   registerImpact(context); // impact hook
   registerDebug(context); // debug hook
+  registerPdfViewer(context);
+  registerFullScreen(context);
   registerSemgit(context); // semgit hook
   registerCi(context); // cicd hook
   registerSimulation(context); // simulation hook

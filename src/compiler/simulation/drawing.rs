@@ -180,8 +180,7 @@ mod tests {
 
     #[test]
     fn the_drawables_are_the_cases_models_then_the_configurations_systems() {
-        let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("examples/datacenter/ai_liquid_cooling.arc");
-        let path = if path.exists() { path } else { Path::new(env!("CARGO_MANIFEST_DIR")).join("examples/datacenter/ai-liquid-cooling/ai_liquid_cooling.arc") };
+        let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("examples/datacenter/ai-liquid-cooling/ai_liquid_cooling.arc");
         let result = crate::Compiler::new(crate::CompilerConfig::default()).compile_file(&path).expect("compiles");
         let listed = drawables_json(&result).expect("exports");
         let classes = listed["classes"].as_array().unwrap();
@@ -196,8 +195,7 @@ mod tests {
 
     #[test]
     fn a_class_outside_the_models_packages_is_refused_before_any_tool() {
-        let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("examples/datacenter/ai_liquid_cooling.arc");
-        let path = if path.exists() { path } else { Path::new(env!("CARGO_MANIFEST_DIR")).join("examples/datacenter/ai-liquid-cooling/ai_liquid_cooling.arc") };
+        let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("examples/datacenter/ai-liquid-cooling/ai_liquid_cooling.arc");
         let result = crate::Compiler::new(crate::CompilerConfig::default()).compile_file(&path).expect("compiles");
         let config = ToolConfig { omc: Some("/nonexistent/omc".into()), ..ToolConfig::default() };
         let error = instance(&result, &path, "Other.Package.Model", &config).unwrap_err();
