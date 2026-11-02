@@ -14,7 +14,7 @@ const EXT = path.resolve(__dirname, '../..');
 const SHOTS = process.env.SHOTS || null;
 const rows = []; const report = (name, ok, detail) => { rows.push({ name, ok }); console.log(`${ok ? 'ok  ' : 'FAIL'} ${name.padEnd(64)} ${detail || ''}`); };
 
-// What a finger on the key labelled X of an AZERTY Mac sends (Playwright's Meta+z arrives as ⌘W there).
+// What a finger on the key labeled X of an AZERTY Mac sends (Playwright's Meta+z arrives as ⌘W there).
 const AZ = { a: 'KeyQ', q: 'KeyA', z: 'KeyW', w: 'KeyZ', m: 'Semicolon' };
 async function azerty(win) {
   const cdp = await win.context().newCDPSession(win);
@@ -68,7 +68,7 @@ async function launch(dir, model) {
     };
     const box = (id) => page.locator(`.arcviz-stage [data-id="${id}"]`).first().boundingBox();
     const shape = (id) => page.locator(`.arcviz-stage [data-id="${id}"] > .av-shape`).first().boundingBox();
-    const centre = (b) => ({ x: b.x + b.width / 2, y: b.y + b.height / 2 });
+    const center = (b) => ({ x: b.x + b.width / 2, y: b.y + b.height / 2 });
     const settle = (ms = 2200) => win.waitForTimeout(ms);
     const drag = async (from, to, options = {}) => { await win.mouse.move(from.x, from.y); await win.mouse.down(); await win.mouse.move(to.x, to.y, { steps: options.steps || 14 }); if (options.during) await options.during(); await win.mouse.up(); await settle(options.wait); };
     const sheetPoint = (id, where) => page.locator(`.arcviz-stage [data-id="${id}"]`).first().evaluate((g, where) => { const line = g.querySelector('.av-line'); const len = line.getTotalLength(); const p = line.getPointAtLength(where === 'start' ? 0 : where === 'end' ? len : len / 2); const m = line.getScreenCTM(); return { x: p.x * m.a + p.y * m.c + m.e, y: p.x * m.b + p.y * m.d + m.f }; }, where);
@@ -101,8 +101,8 @@ async function launch(dir, model) {
     report('LaneFlow is still drawn at right angles', !/NaN/.test(lane) && (lane.match(/L/g) || []).length >= 1, lane.slice(0, 60));
     // Attachment: the line still starts on Camera's port and ends on the controller's.
     const near = (p, q) => Math.hypot(p.x - q.x, p.y - q.y) < 14;
-    const startOk = near(await edgeAt('ce:LaneFlow', 'start'), centre(await box('LC-CAM::lane')));
-    const endOk = near(await edgeAt('ce:LaneFlow', 'end'), centre(await box('LC-CTL::lane')));
+    const startOk = near(await edgeAt('ce:LaneFlow', 'start'), center(await box('LC-CAM::lane')));
+    const endOk = near(await edgeAt('ce:LaneFlow', 'end'), center(await box('LC-CTL::lane')));
     report('LaneFlow stays attached to both of its ports', startOk && endOk, `${startOk} ${endOk}`);
     await shot('drawio-01-routed');
 
@@ -128,7 +128,7 @@ async function launch(dir, model) {
     report('the selected box shows eight resize handles', handles === 8, `${handles}`);
     const inner0 = await shape('LF-PLAN'); const ref0 = await shape('LC-ACT');
     const nw = await page.locator('.arcviz-resize.is-nw').boundingBox();
-    await drag(centre(nw), { x: centre(nw).x - 60, y: centre(nw).y - 40 });
+    await drag(center(nw), { x: center(nw).x - 60, y: center(nw).y - 40 });
     // Relative to another box: a box grown past the top of the sheet moves the whole drawing down.
     const ref1 = await shape('LC-ACT'); const rel = (a, r0, r1) => ({ x: a.x - (r1.x - r0.x), y: a.y - (r1.y - r0.y), width: a.width, height: a.height });
     const s1 = rel(await shape('LC-CTL'), ref0, ref1); const inner1 = rel(await shape('LF-PLAN'), ref0, ref1);
@@ -136,7 +136,7 @@ async function launch(dir, model) {
     report('what the box holds stays where it was', Math.abs(inner1.x - inner0.x) < 6 && Math.abs(inner1.y - inner0.y) < 6, `${Math.round(inner1.x - inner0.x)},${Math.round(inner1.y - inner0.y)}`);
     report('the size is kept in the layout file', /"LC-CTL":\s*\{[^}]*"dw"/.test(layout()));
     const w = await page.locator('.arcviz-resize.is-w').boundingBox();
-    await drag(centre(w), { x: centre(w).x + 600, y: centre(w).y });
+    await drag(center(w), { x: center(w).x + 600, y: center(w).y });
     const s2 = await shape('LC-CTL'); const inner2 = await shape('LF-PLAN');
     report('shrunk past what it holds, the box stops at its content', s2.x <= inner2.x && s2.x + s2.width >= inner2.x + inner2.width && s2.width >= 40, `${Math.round(s2.width)} wide`);
     await shot('drawio-03-resized');
@@ -163,23 +163,23 @@ async function launch(dir, model) {
     // 5. A port slid along its box, kept in the layout file; the exchange follows it
     await blank();
     let p = await box('LC-CTL::steer');
-    await drag(centre(p), { x: centre(p).x, y: centre(p).y + 30 }, { steps: 10 });
+    await drag(center(p), { x: center(p).x, y: center(p).y + 30 }, { steps: 10 });
     let p2 = await box('LC-CTL::steer');
     report('a port slides along the border of its box', Math.abs(p2.y - p.y - 30) < 10 && Math.abs(p2.x - p.x) < 4, `${Math.round(p2.x - p.x)},${Math.round(p2.y - p.y)}`);
     report('its place is kept in the layout file', /"ports":\s*\{\s*"LC-CTL::steer"/.test(layout()));
-    report('its exchange leaves from where it now is', near(await edgeAt('ce:SteerCommand', 'start'), centre(p2)));
+    report('its exchange leaves from where it now is', near(await edgeAt('ce:SteerCommand', 'start'), center(p2)));
     // Away into the empty sheet beside the box (not onto another box, which would move the port there).
-    p = p2; await drag(centre(p), { x: centre(p).x + 160, y: centre(p).y + 20 }, { steps: 10 });
+    p = p2; await drag(center(p), { x: center(p).x + 160, y: center(p).y + 20 }, { steps: 10 });
     p2 = await box('LC-CTL::steer'); const ctl = await shape('LC-CTL');
-    const onBorder = Math.min(Math.abs(centre(p2).x - ctl.x), Math.abs(centre(p2).x - ctl.x - ctl.width), Math.abs(centre(p2).y - ctl.y), Math.abs(centre(p2).y - ctl.y - ctl.height)) < 8;
-    report('pulled away from its box, a port stays on its border', onBorder, JSON.stringify(centre(p2)));
+    const onBorder = Math.min(Math.abs(center(p2).x - ctl.x), Math.abs(center(p2).x - ctl.x - ctl.width), Math.abs(center(p2).y - ctl.y), Math.abs(center(p2).y - ctl.y - ctl.height)) < 8;
+    report('pulled away from its box, a port stays on its border', onBorder, JSON.stringify(center(p2)));
     await shot('drawio-05-port');
 
     // 6. A name dragged off its line, kept in the layout file; the sheet does not move
     await blank();
     const label = page.locator('.arcviz-stage [data-id="ce:LaneFlow"] .av-edge-label').first();
     const l0 = await label.boundingBox(); const cam0 = await box('LC-CAM');
-    await drag(centre(l0), { x: centre(l0).x + 50, y: centre(l0).y + 40 }, { steps: 10 });
+    await drag(center(l0), { x: center(l0).x + 50, y: center(l0).y + 40 }, { steps: 10 });
     const l1 = await label.boundingBox(); const cam1 = await box('LC-CAM');
     report('a name is dragged off its line', Math.abs(l1.x - l0.x - 50) < 10 && Math.abs(l1.y - l0.y - 40) < 10, `${Math.round(l1.x - l0.x)},${Math.round(l1.y - l0.y)}`);
     report('the sheet stays where it was', Math.abs(cam1.x - cam0.x) < 1 && Math.abs(cam1.y - cam0.y) < 1);
@@ -191,12 +191,12 @@ async function launch(dir, model) {
     const end = await page.locator('.arcviz-end[data-end="target"]').boundingBox();
     const cam = await shape('LC-CAM'); const capture = await shape('LF-CAP');
     const before = await source();
-    await win.mouse.move(centre(end).x, centre(end).y); await win.mouse.down();
+    await win.mouse.move(center(end).x, center(end).y); await win.mouse.down();
     await win.mouse.move(cam.x - 12, cam.y + cam.height * 0.25, { steps: 15 }); await win.waitForTimeout(300);
     const nearMarks = await page.evaluate(() => ({ box: [...document.querySelectorAll('.is-snap-box')].map((n) => n.dataset.id), target: [...document.querySelectorAll('.is-drop-target')].map((n) => n.dataset.id) }));
     await shot('drawio-07-snap-near');
     report('12 px outside a box, its outline lights and it is the target', nearMarks.box.includes('LC-CAM') && nearMarks.target.includes('LC-CAM'), JSON.stringify(nearMarks));
-    await win.mouse.move(centre(capture).x, centre(capture).y, { steps: 6 }); await win.waitForTimeout(300);
+    await win.mouse.move(center(capture).x, center(capture).y, { steps: 6 }); await win.waitForTimeout(300);
     const bodyMarks = await page.evaluate(() => [...document.querySelectorAll('.is-drop-target')].map((n) => n.dataset.id));
     report('over the body of the box (on what it holds), still the box', bodyMarks.includes('LC-CAM'), bodyMarks.join(','));
     await win.mouse.up(); await settle(4000);
@@ -208,7 +208,7 @@ async function launch(dir, model) {
     await blank();
     const lanePort = await box('LC-CAM::lane'); const act = await shape('LC-ACT');
     const text0 = await source();
-    await drag(centre(lanePort), { x: act.x + act.width / 2, y: act.y + act.height - 10 }, { steps: 18, wait: 4000 });
+    await drag(center(lanePort), { x: act.x + act.width / 2, y: act.y + act.height - 10 }, { steps: 18, wait: 4000 });
     const text1 = await source();
     const actBlock = (text1.split('component "Steering Actuator"')[1] || '').split('component_exchange')[0];
     report('a port let go on another box is moved into it', text1 !== text0 && /port out "lane"/.test(actBlock), text1 === text0 ? 'source unchanged' : '');

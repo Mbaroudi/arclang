@@ -1,9 +1,9 @@
 // Impact-driven suggestions while editing: after an edit (by the
-// arclang.ai.suggestOnEdit setting) or on "Analyse impact" of a selection,
+// arclang.ai.suggestOnEdit setting) or on "Analyze impact" of a selection,
 // the compiler says what the change touched and broke (traces, findings,
 // gate, `arclang impact`); when something broke, the AI proposes one to
 // three architecture changes, each compiled on a copy before it is shown in
-// the Suggestions pane. Debounced, cancelled when a newer edit comes, never
+// the Suggestions pane. Debounced, canceled when a newer edit comes, never
 // in the way of editing, and never applied without the user's click.
 import * as vscode from 'vscode';
 import type { Snapshot } from '../pure/workbench';
@@ -155,14 +155,14 @@ export class SuggestionEngine {
     await this.ask(document, analysis, controller);
   }
 
-  /** "Analyse impact" of a selection: what depends on it, what the compiler says on it, and proposals. */
+  /** "Analyze impact" of a selection: what depends on it, what the compiler says on it, and proposals. */
   async analyseSelection(document: vscode.TextDocument, ids: string[]): Promise<void> {
     const key = document.uri.toString();
     this.running.get(key)?.abort();
     const controller = new AbortController();
     this.running.set(key, controller);
     const provider = (await this.providerLabel()) ?? '';
-    this.publish(document, { state: 'analysing', trigger: `impact of ${ids.join(', ')}`, consequences: [], suggestions: [], provider });
+    this.publish(document, { state: 'analyzing', trigger: `impact of ${ids.join(', ')}`, consequences: [], suggestions: [], provider });
     const [snapshot, source] = await Promise.all([snapshotOf(document), arcText(document)]);
     if (!source.ok || !snapshot.elements) {
       this.publish(document, { state: 'error', trigger: `impact of ${ids.join(', ')}`, consequences: [], suggestions: [], provider, error: source.ok ? 'the model does not compile' : source.error });

@@ -179,7 +179,7 @@ export function statusView(run: Run | null, branch: string): StatusView {
   if (run.status !== 'completed') return { state: 'running', text: '$(sync~spin) ArcLang CI', tooltip: `Running: ${where}` };
   if (run.conclusion === 'success') return { state: 'passed', text: '$(check) ArcLang CI', tooltip: `Passed: ${where}` };
   if (FAILED.has(run.conclusion)) return { state: 'failed', text: '$(error) ArcLang CI', tooltip: `Failed (${run.conclusion}): ${where}` };
-  // cancelled, skipped, neutral, stale: nothing was proved.
+  // canceled, skipped, neutral, stale: nothing was proved.
   return { state: 'unknown', text: '$(question) ArcLang CI', tooltip: `${run.conclusion || run.status}: ${where}` };
 }
 

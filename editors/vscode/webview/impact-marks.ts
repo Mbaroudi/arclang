@@ -118,19 +118,19 @@ function one(): ElementRecord | null {
   return selected.length === 1 ? selected[0] : null;
 }
 
-/** "Analyse impact" and "What if…" in the context menu of one element (impact hook in editing.ts). */
+/** "Analyze impact" and "What if…" in the context menu of one element (impact hook in editing.ts). */
 export function withImpact(items: MenuItem[]): MenuItem[] {
   const element = one();
   if (!hooks || !element || element.kind === 'Model') return items;
   const open = (whatIf: boolean) => hooks?.post({ type: 'impact-open', id: element.id, whatIf });
-  return [{ label: 'Analyse impact…', run: () => open(false) }, { label: 'What if…', run: () => open(true) }, 'separator', ...items];
+  return [{ label: 'Analyze impact…', run: () => open(false) }, { label: 'What if…', run: () => open(true) }, 'separator', ...items];
 }
 
 /** The floating toolbar's impact button (impact hook in editing.ts). */
 export function withImpactMini<T extends MenuAction & { glyph: string }>(actions: T[]): (T | (MenuAction & { glyph: string }))[] {
   const element = one();
   if (!hooks || !element || element.kind === 'Model') return actions;
-  return [{ glyph: '⚡', label: 'Analyse impact of the selection', run: () => hooks?.post({ type: 'impact-open', id: element.id }) }, ...actions];
+  return [{ glyph: '⚡', label: 'Analyze impact of the selection', run: () => hooks?.post({ type: 'impact-open', id: element.id }) }, ...actions];
 }
 
 /** Open the analysis of an element, or its what-if form (the Properties pane's buttons). */

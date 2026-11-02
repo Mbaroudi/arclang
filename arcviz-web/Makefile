@@ -51,7 +51,7 @@ db-reset:
 		docker-compose up -d postgres redis; \
 		echo "✅ Databases reset successfully"; \
 	else \
-		echo "❌ Cancelled"; \
+		echo "❌ Canceled"; \
 	fi
 
 db-tools:

@@ -1,4 +1,4 @@
-//! Behavioural tests for the viewpoint diagram model (`compiler::diagram`).
+//! Behavioral tests for the viewpoint diagram model (`compiler::diagram`).
 //!
 //! The diagram model is what a renderer draws: one diagram per Arcadia
 //! viewpoint, functions nested in the components they are allocated to,
@@ -832,10 +832,10 @@ operational_analysis OA {
 }
 
 // ---------------------------------------------------------------------------
-// Behaviour views: mode/state machines and exchange scenarios
+// Behavior views: mode/state machines and exchange scenarios
 // ---------------------------------------------------------------------------
 
-const BEHAVIOUR: &str = r#"
+const BEHAVIOR: &str = r#"
 logical_architecture LA {
   component Sensor {
     description: "s"
@@ -877,7 +877,7 @@ fn diagram<'a>(set: &'a DiagramSet, id: &str) -> &'a Diagram {
 
 #[test]
 fn each_state_machine_is_its_own_diagram_of_modes_states_and_transitions() {
-    let set = diagrams_of(BEHAVIOUR);
+    let set = diagrams_of(BEHAVIOR);
     let modes = diagram(&set, "msm:Modes");
     assert_eq!(modes.kind, ViewKind::Msm);
     assert_eq!(diagram(&set, "msm:Power").kind, ViewKind::Msm);
@@ -905,7 +905,7 @@ fn each_state_machine_is_its_own_diagram_of_modes_states_and_transitions() {
 
 #[test]
 fn initial_state_is_marked_by_a_pseudo_state_and_its_transition() {
-    let set = diagrams_of(BEHAVIOUR);
+    let set = diagrams_of(BEHAVIOR);
     let modes = diagram(&set, "msm:Modes");
 
     let initial = modes
@@ -922,12 +922,12 @@ fn initial_state_is_marked_by_a_pseudo_state_and_its_transition() {
     assert_eq!(entry.label, "");
 }
 
-/// The compiler rejects dangling behaviour references before any diagram is
+/// The compiler rejects dangling behavior references before any diagram is
 /// built; `build_diagrams` also takes hand-built or imported ASTs, so it
 /// must still report them rather than draw a guess.
 fn behaviour_ast() -> arclang::compiler::ast::Model {
     Compiler::new(CompilerConfig::default())
-        .compile_string(BEHAVIOUR)
+        .compile_string(BEHAVIOR)
         .expect("test model compiles")
         .ast
 }
@@ -969,7 +969,7 @@ fn transition_to_an_undeclared_state_and_unknown_initial_are_reported() {
 
 #[test]
 fn scenario_keeps_lifelines_and_messages_in_declared_order() {
-    let set = diagrams_of(BEHAVIOUR);
+    let set = diagrams_of(BEHAVIOR);
     let stop = diagram(&set, "es:Stop");
     assert_eq!(stop.kind, ViewKind::Es);
 
@@ -1041,7 +1041,7 @@ fn message_naming_a_non_participant_and_undeclared_participant_are_reported() {
 
 #[test]
 fn scenario_export_is_a_sequence_layout_and_state_machine_export_is_layered() {
-    let set = diagrams_of(BEHAVIOUR);
+    let set = diagrams_of(BEHAVIOR);
 
     let sequence = elk::to_elk(diagram(&set, "es:Stop"));
     assert_eq!(sequence["arc"]["layout"], "sequence");

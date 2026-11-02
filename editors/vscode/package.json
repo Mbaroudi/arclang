@@ -226,7 +226,7 @@
       },
       {
         "command": "arclang.ai.analyseImpact",
-        "title": "Analyse impact with AI",
+        "title": "Analyze impact with AI",
         "category": "ArcLang",
         "icon": "$(lightbulb)"
       },
@@ -279,7 +279,7 @@
       },
       {
         "command": "arclang.showRules",
-        "title": "Show the catalogue of rules",
+        "title": "Show the catalog of rules",
         "category": "ArcLang"
       },
       {
@@ -559,17 +559,17 @@
       },
       {
         "command": "arclang.diagram.chooseTheme",
-        "title": "Choose the diagram colour theme…",
+        "title": "Choose the diagram color theme…",
         "category": "ArcLang"
       },
       {
         "command": "arclang.diagram.editTheme",
-        "title": "Edit or create a diagram colour theme…",
+        "title": "Edit or create a diagram color theme…",
         "category": "ArcLang"
       },
       {
         "command": "arclang.impact.analyze",
-        "title": "Impact analysis: analyse an element…",
+        "title": "Impact analysis: analyze an element…",
         "category": "ArcLang",
         "icon": "$(pulse)"
       },
@@ -1849,7 +1849,7 @@
           ],
           "enumDescriptions": [
             "No impact analysis after edits.",
-            "After an edit, the compiler's consequences (broken traces, new findings, gate blockers) show in the Suggestions pane; the AI is asked when you click \"Propose changes with AI\" or \"Analyse impact\".",
+            "After an edit, the compiler's consequences (broken traces, new findings, gate blockers) show in the Suggestions pane; the AI is asked when you click \"Propose changes with AI\" or \"Analyze impact\".",
             "After an edit with consequences, the AI proposes one to three changes in the Suggestions pane, each checked by the compiler. Nothing is applied without your click."
           ],
           "description": "Impact-driven AI suggestions while editing in the workbench."
@@ -1865,7 +1865,7 @@
           ],
           "enumDescriptions": [
             "The source of the selected elements, their relationships and findings.",
-            "Also the source of their neighbours (the other ends of their relationships, their owners).",
+            "Also the source of their neighbors (the other ends of their relationships, their owners).",
             "Also the whole model text (clipped to a size the model takes)."
           ],
           "description": "What the AI is shown around a selection, besides the metamodel of its kinds and the gate state."
@@ -1894,7 +1894,7 @@
         "arclang.diagram.theme": {
           "type": "string",
           "default": "arclang-default",
-          "markdownDescription": "The colour theme of every diagram, on every layer: a preset (`arclang-default`, `capella-classic`, `colorblind-safe`, `print-grayscale`, `high-contrast`, `monochrome-document`), the `id` of a team theme (`.arclang/themes/*.json` in the workspace, versioned with the model) or of one of yours (**ArcLang: Edit or create a diagram colour theme…**), or the path of an `arclang-theme.json` file. A theme that breaks a colour rule is refused and the default is drawn, with the reasons. In a dark VS Code theme, a colour theme with a dark variant draws it; any other is turned dark by inverting it."
+          "markdownDescription": "The color theme of every diagram, on every layer: a preset (`arclang-default`, `capella-classic`, `colorblind-safe`, `print-grayscale`, `high-contrast`, `monochrome-document`), the `id` of a team theme (`.arclang/themes/*.json` in the workspace, versioned with the model) or of one of yours (**ArcLang: Edit or create a diagram color theme…**), or the path of an `arclang-theme.json` file. A theme that breaks a color rule is refused and the default is drawn, with the reasons. In a dark VS Code theme, a color theme with a dark variant draws it; any other is turned dark by inverting it."
         },
         "arclang.diagram.copyBackground": {
           "type": "string",
@@ -1905,7 +1905,7 @@
           "default": "white",
           "enumDescriptions": [
             "The image keeps the sheet of its theme (white for every light theme): what a slide expects.",
-            "No sheet: the boxes and lines only, for a coloured slide."
+            "No sheet: the boxes and lines only, for a colored slide."
           ],
           "description": "The background of the diagram copied as an image (Copy as image, ⇧⌘C / Ctrl+Shift+C on the canvas)."
         },
@@ -2054,12 +2054,12 @@
       },
       {
         "name": "arclang_rules",
-        "displayName": "ArcLang: catalogue of rules",
+        "displayName": "ArcLang: catalog of rules",
         "toolReferenceName": "arclangRules",
         "canBeReferencedInPrompt": true,
         "icon": "$(law)",
-        "userDescription": "The catalogue of validation rules the compiler checks.",
-        "modelDescription": "Returns the catalogue of ArcLang validation rules (what arclang_check reports) as JSON: rule id, severity, what it checks and how to satisfy it.",
+        "userDescription": "The catalog of validation rules the compiler checks.",
+        "modelDescription": "Returns the catalog of ArcLang validation rules (what arclang_check reports) as JSON: rule id, severity, what it checks and how to satisfy it.",
         "inputSchema": {
           "type": "object",
           "properties": {}

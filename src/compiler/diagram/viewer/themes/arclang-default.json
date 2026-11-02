@@ -2,7 +2,7 @@
   "version": 1,
   "id": "arclang-default",
   "name": "ArcLang default",
-  "description": "Capella's code in ArcLang's tints: functions green, components blue, nodes yellow, operational analysis orange and grey. The colours ArcLang drew with before themes, moved where they broke a rule (component outlines were the selection blue; actors, components and functions too close in grayscale).",
+  "description": "Capella's code in ArcLang's tints: functions green, components blue, nodes yellow, operational analysis orange and gray. The colors ArcLang drew with before themes, moved where they broke a rule (component outlines were the selection blue; actors, components and functions too close in grayscale).",
   "background": "#FFFFFF",
   "text": "#18222D",
   "muted": "#2E3742",

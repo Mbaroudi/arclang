@@ -1,6 +1,6 @@
 // The semantic browser: what the selected element is connected to, by
 // relationship and by trace, each entry a step to that element.
-import { ElementRecord, neighbours, Snapshot } from '../src/pure/workbench';
+import { ElementRecord, neighbors, Snapshot } from '../src/pure/workbench';
 import { button, clear, el } from './dom';
 
 export class SemanticBrowser {
@@ -23,7 +23,7 @@ export class SemanticBrowser {
       this.root.appendChild(el('p', { class: 'wb-muted', text: 'The relationships and traces of the selected element appear here.' }));
       return;
     }
-    const { incoming, outgoing } = neighbours(element, snapshot);
+    const { incoming, outgoing } = neighbors(element, snapshot);
     const owner = snapshot.elements?.elements.find((e) => e.uuid === element.owner) ?? null;
     const owned = (snapshot.elements?.elements ?? []).filter((e) => e.owner === element.uuid);
     this.root.appendChild(this.column('Owner', owner ? [{ kind: 'owns', name: '', other: owner }] : []));

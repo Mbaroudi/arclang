@@ -184,7 +184,7 @@ export function dropPlan(element: ElementRecord, graph: ViewerGraph, topIds: str
   return { kind: 'edit', requests: [{ op: 'set', element: named, key: 'shows', value: showsLiteral(shows) }], label: `show ${element.id} on ${named}` };
 }
 
-/** The tree's drag payload: the element's id, typed for the page to recognise it. */
+/** The tree's drag payload: the element's id, typed for the page to recognize it. */
 export const TREE_MIME = 'application/vnd.code.tree.arclangmodel';
 
 export function dropPayload(uri: string, id: string): string {

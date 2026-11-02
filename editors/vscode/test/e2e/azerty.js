@@ -1,5 +1,5 @@
 // Keys as a finger on a French (Mac AZERTY) keyboard sends them: the key
-// labelled Z sends the code US keyboards call KeyW, and so on. Playwright's
+// labeled Z sends the code US keyboards call KeyW, and so on. Playwright's
 // keyboard.press('Meta+z') sends KeyZ, which VS Code, reading the real
 // layout of this Mac, takes for ⌘W. These go through the Chrome DevTools
 // protocol with the code and the key of the French layout.

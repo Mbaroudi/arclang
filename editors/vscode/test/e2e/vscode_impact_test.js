@@ -1,6 +1,6 @@
 // The impact analysis inside the real VS Code, driven by Playwright through
 // Electron, on a copy of the flagship example (a git repository of its own):
-// a component analysed from the command palette, its requirement and test
+// a component analyzed from the command palette, its requirement and test
 // rows, the outline on another layer's diagram and the count on its tab; a
 // what-if delete (the gate PASS -> FAIL, a new blocker) discarded, the file
 // unchanged; a what-if latency of 80 ms on a function of the chain (the
@@ -103,8 +103,8 @@ function openpyxl(book, script) {
   const { close, win, command, palette, ready } = await launch(dir, model);
   const press = await azerty(win);
   try {
-    // 1. A sensor component analysed from the command palette
-    await command('Impact analysis: analyse an element', ['RadarSensor']);
+    // 1. A sensor component analyzed from the command palette
+    await command('Impact analysis: analyze an element', ['RadarSensor']);
     const view = await impactFrame(win);
     report('the impact view opens in its own tab', !!view);
     if (!view) throw new Error('no impact view');

@@ -8,7 +8,7 @@ Package name=LevelCrossingProtection short=- via=-
     MetadataDefinition name=Actor short=- via=OwningMembership
     MetadataDefinition name=Entity short=- via=OwningMembership
     MetadataDefinition name=Node short=- via=OwningMembership
-    MetadataDefinition name=Behaviour short=- via=OwningMembership
+    MetadataDefinition name=Behavior short=- via=OwningMembership
     MetadataDefinition name=Hardware short=- via=OwningMembership
     MetadataDefinition name=Mission short=- via=OwningMembership
     MetadataDefinition name=Capability short=- via=OwningMembership
@@ -52,7 +52,7 @@ Package name=LevelCrossingProtection short=- via=-
       Documentation name=- short=- via=OwningMembership body="Barriers shall be fully closed at least 10 s before the train reaches the crossing"
       AttributeUsage name=priority short=- via=FeatureMembership : ScalarValues::String = String("High")
     RequirementUsage name=Crossing clear proving short=REQ-LX-003 via=OwningMembership
-      Documentation name=- short=- via=OwningMembership body="The system shall prove the crossing area is free of obstacles before authorising train passage"
+      Documentation name=- short=- via=OwningMembership body="The system shall prove the crossing area is free of obstacles before authorizing train passage"
       AttributeUsage name=priority short=- via=FeatureMembership : ScalarValues::String = String("High")
     RequirementUsage name=Fail-safe state short=REQ-LX-004 via=OwningMembership
       Documentation name=- short=- via=OwningMembership body="On any internal failure, barriers shall close and the protecting signal shall show stop"
@@ -87,10 +87,10 @@ Package name=LevelCrossingProtection short=- via=-
     ConnectionUsage name=crossing status short=- via=OwningMembership src=LevelCrossingProtection::'Logical Architecture'::'Obstacle Detector' tgt=LevelCrossingProtection::'Logical Architecture'::'Crossing Controller'
     ConnectionUsage name=barrier command short=- via=OwningMembership src=LevelCrossingProtection::'Logical Architecture'::'Crossing Controller' tgt=LevelCrossingProtection::'Logical Architecture'::'Barrier Machine'
     ConnectionUsage name=signal command short=- via=OwningMembership src=LevelCrossingProtection::'Logical Architecture'::'Crossing Controller' tgt=LevelCrossingProtection::'Logical Architecture'::'Protecting Signal'
-  Package name=Behaviours short=- via=OwningMembership
+  Package name=Behaviors short=- via=OwningMembership
     StateUsage name=CrossingModes short=- via=OwningMembership
       ActionUsage name=- short=- via=StateSubactionMembership
-      SuccessionAsUsage name=- short=- via=FeatureMembership src=LevelCrossingProtection::Behaviours::CrossingModes::entryAction tgt=LevelCrossingProtection::Behaviours::CrossingModes::Open
+      SuccessionAsUsage name=- short=- via=FeatureMembership src=LevelCrossingProtection::Behaviors::CrossingModes::entryAction tgt=LevelCrossingProtection::Behaviors::CrossingModes::Open
       StateUsage name=Open short=- via=FeatureMembership
         MetadataUsage name=- short=- via=OwningMembership : LevelCrossingProtection::ArcadiaProfile::Mode
       StateUsage name=Closing short=- via=FeatureMembership
@@ -100,19 +100,19 @@ Package name=LevelCrossingProtection short=- via=-
       StateUsage name=Failed short=- via=FeatureMembership
         MetadataUsage name=- short=- via=OwningMembership : LevelCrossingProtection::ArcadiaProfile::Mode
       TransitionUsage name=t1 short=- via=FeatureMembership
-        SuccessionAsUsage name=- short=- via=OwningMembership src=LevelCrossingProtection::Behaviours::CrossingModes::Open tgt=LevelCrossingProtection::Behaviours::CrossingModes::Closing
+        SuccessionAsUsage name=- short=- via=OwningMembership src=LevelCrossingProtection::Behaviors::CrossingModes::Open tgt=LevelCrossingProtection::Behaviors::CrossingModes::Closing
         AttributeUsage name=trigger short=- via=FeatureMembership : ScalarValues::String = String("train approach")
       TransitionUsage name=t2 short=- via=FeatureMembership
-        SuccessionAsUsage name=- short=- via=OwningMembership src=LevelCrossingProtection::Behaviours::CrossingModes::Closing tgt=LevelCrossingProtection::Behaviours::CrossingModes::Protected
+        SuccessionAsUsage name=- short=- via=OwningMembership src=LevelCrossingProtection::Behaviors::CrossingModes::Closing tgt=LevelCrossingProtection::Behaviors::CrossingModes::Protected
         AttributeUsage name=trigger short=- via=FeatureMembership : ScalarValues::String = String("crossing status")
       TransitionUsage name=t3 short=- via=FeatureMembership
-        SuccessionAsUsage name=- short=- via=OwningMembership src=LevelCrossingProtection::Behaviours::CrossingModes::Protected tgt=LevelCrossingProtection::Behaviours::CrossingModes::Open
+        SuccessionAsUsage name=- short=- via=OwningMembership src=LevelCrossingProtection::Behaviors::CrossingModes::Protected tgt=LevelCrossingProtection::Behaviors::CrossingModes::Open
         AttributeUsage name=trigger short=- via=FeatureMembership : ScalarValues::String = String("train approach")
       TransitionUsage name=t4 short=- via=FeatureMembership
-        SuccessionAsUsage name=- short=- via=OwningMembership src=LevelCrossingProtection::Behaviours::CrossingModes::Closing tgt=LevelCrossingProtection::Behaviours::CrossingModes::Failed
+        SuccessionAsUsage name=- short=- via=OwningMembership src=LevelCrossingProtection::Behaviors::CrossingModes::Closing tgt=LevelCrossingProtection::Behaviors::CrossingModes::Failed
         AttributeUsage name=trigger short=- via=FeatureMembership : ScalarValues::String = String("Enter fail-safe on fault")
       TransitionUsage name=t5 short=- via=FeatureMembership
-        SuccessionAsUsage name=- short=- via=OwningMembership src=LevelCrossingProtection::Behaviours::CrossingModes::Protected tgt=LevelCrossingProtection::Behaviours::CrossingModes::Failed
+        SuccessionAsUsage name=- short=- via=OwningMembership src=LevelCrossingProtection::Behaviors::CrossingModes::Protected tgt=LevelCrossingProtection::Behaviors::CrossingModes::Failed
         AttributeUsage name=trigger short=- via=FeatureMembership : ScalarValues::String = String("Enter fail-safe on fault")
   VerificationCaseUsage name=TC-LX-001 short=- via=OwningMembership
     AttributeUsage name=method short=- via=FeatureMembership : ScalarValues::String = String("test")

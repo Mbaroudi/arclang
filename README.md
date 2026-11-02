@@ -275,9 +275,9 @@ the long-term goal.
   ports, connections) plus Stateflow skeletons for state machines;
   `arclang export -f fmi` emits one FMI 2.0 `modelDescription.xml` per
   component (causality from exchange direction, GUID = the component's
-  deterministic ArcLang UUID). Interface contracts only — behaviour stays in
+  deterministic ArcLang UUID). Interface contracts only — behavior stays in
   the simulation tool.
-- **Spatial modelling, to maps and to CAD**: where elements stand on the
+- **Spatial modeling, to maps and to CAD**: where elements stand on the
   Earth (`location: { lat: 47.795 deg lon: 3.661 deg alt: 180 m }`, WGS 84),
   where they stand in their owner (`position: { x: 0.3 m y: 0.3 m }`), how
   they are turned (`orientation: { yaw: 90 deg }`), their envelope
@@ -292,7 +292,7 @@ the long-term goal.
   a gate blocker. `arclang export -f geojson` puts the located elements
   and the links on a map (RFC 7946: QGIS, kepler.gl, GitHub);
   `arclang export -f step` writes the product structure (levels, nodes,
-  behaviour components, EPBS) with its shapes as STEP AP242
+  behavior components, EPBS) with its shapes as STEP AP242
   (ISO 10303-242), read by CATIA, SOLIDWORKS, NX, Creo and FreeCAD. The
   STEP output is checked with Open CASCADE (`tools/step_validate.py`):
   valid closed solids, volumes and placements as declared. In SysML v2 the
@@ -301,7 +301,7 @@ the long-term goal.
   Example: [`examples/spatial/charging_corridor.arc`](examples/spatial/charging_corridor.arc).
 - **Requirements verified by simulation (OpenModelica)**: `arclang export -f
   modelica` writes the physical architecture as a Modelica package (one
-  partial model per node and behaviour component, MSL connectors from the
+  partial model per node and behavior component, MSL connectors from the
   ports' `physics:`, SI parameters from typed quantities, one system model
   per configuration); a `test_case` that says `simulate: { ... }` and
   `expects: ["final(vehicle.distance) >= 300 km"]` is run by `arclang
@@ -381,7 +381,7 @@ the long-term goal.
   edited in that file.
 
 - **Workbench API**: `arclang workbench model.arc` prints, as one JSON
-  document, everything a modelling workbench shows of a model: the
+  document, everything a modeling workbench shows of a model: the
   diagrams as the viewer mounts them, the explorer document, every element
   with its typed attributes and the id the compiler gives it, the findings
   named after their rule, the production gate (`--gate-standard`, `--exports`

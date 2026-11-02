@@ -1,7 +1,7 @@
 // The diff of an AI proposal, as the page shows it.
 import { el } from './dom';
 
-/** A unified diff, coloured by line, its first lines shown. */
+/** A unified diff, colored by line, its first lines shown. */
 export function renderDiff(lines: string[], added: number, removed: number, max = 40): HTMLElement {
   const pre = el('pre', { class: 'wb-ai-diff', 'aria-label': `Source diff: ${added} lines added, ${removed} removed` });
   for (const line of lines.slice(0, max)) {

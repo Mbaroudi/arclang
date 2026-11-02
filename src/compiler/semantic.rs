@@ -353,7 +353,7 @@ pub fn arcadia_methodology_lints(ast: &Model) -> Vec<String> {
         }
     }
 
-    // Arcadia transport rule: a behavioural exchange between components
+    // Arcadia transport rule: a behavioral exchange between components
     // deployed on DIFFERENT nodes must be supported by a physical link or
     // physical path between those nodes (MetaModel p.16).
     let mut node_of_component: HashMap<&str, &str> = HashMap::new();
@@ -408,7 +408,7 @@ pub fn arcadia_methodology_lints(ast: &Model) -> Vec<String> {
                         pair.sort();
                         if !linked_pairs.contains(&(pair[0].clone(), pair[1].clone())) {
                             lints.push(format!(
-                                "component exchange '{}' crosses nodes '{}' and '{}' but no physical link or exchange connects them — behavioural exchanges must be transported (Arcadia)",
+                                "component exchange '{}' crosses nodes '{}' and '{}' but no physical link or exchange connects them — behavioral exchanges must be transported (Arcadia)",
                                 exchange.label.as_deref().unwrap_or(""),
                                 node_a, node_b
                             ));
@@ -963,7 +963,7 @@ impl SemanticAnalyzer {
                 for func in &node.functions {
                     register_level_function(func, "Function", &mut functions, &mut all_elements, &mut duplicate_ids);
                 }
-                // Behaviour components and the physical functions they perform.
+                // Behavior components and the physical functions they perform.
                 for behavior in &node.behavior_components {
                     register_element(
                         &mut all_elements,

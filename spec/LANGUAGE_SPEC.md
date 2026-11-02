@@ -90,7 +90,7 @@ project "Advanced Flight Control System" {
     domain = aerospace
     
     metadata {
-        customer = "Airbus Defence & Space"
+        customer = "Airbus Defense & Space"
         program = "Next-Gen UAV"
         classification = "CONFIDENTIAL"
     }
@@ -1529,8 +1529,8 @@ cannot be, with the reason.
 
 | Attribute | On | Value |
 |---|---|---|
-| `location` | operational entities and actors, system actors, physical nodes, behaviour components, EPBS items | `{ lat: 47.795 deg lon: 3.661 deg alt: 180 m }`, WGS 84; `alt` optional |
-| `position` | physical nodes, behaviour components, EPBS items | `{ x: 0.3 m y: 0.3 m z: 0 m }` in the owner's frame (x east, y north, z up); a missing axis is 0 |
+| `location` | operational entities and actors, system actors, physical nodes, behavior components, EPBS items | `{ lat: 47.795 deg lon: 3.661 deg alt: 180 m }`, WGS 84; `alt` optional |
+| `position` | physical nodes, behavior components, EPBS items | `{ x: 0.3 m y: 0.3 m z: 0 m }` in the owner's frame (x east, y north, z up); a missing axis is 0 |
 | `orientation` | same | `{ yaw: 90 deg pitch: 0 deg roll: 0 deg }`, about z, then y, then x |
 | `shape` | same | `{ box: [length, width, height] }` or `{ cylinder: [diameter, height] }` |
 | `route` | physical links | `[{ lat: .. lon: .. }, { lat: .. lon: .. }, ...]`, at least two points |
@@ -1565,7 +1565,7 @@ shorter than its route nor than the distance between its located ends
 (`spatial.max-length`), and its `latency` is not shorter than the time light
 takes over its length (`spatial.latency`). Distances are great-circle
 distances on the mean Earth sphere; every comparison allows 0.5 % in the
-model's favour, the most that sphere and the WGS 84 ellipsoid differ.
+model's favor, the most that sphere and the WGS 84 ellipsoid differ.
 
 Exports: `arclang export -f geojson` (RFC 7946: points for located
 elements, lines for links) and `arclang export -f step` (STEP AP242,

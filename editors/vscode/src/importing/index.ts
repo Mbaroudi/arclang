@@ -1,7 +1,7 @@
 // One import flow for every entry point (the model view's button and its
 // welcome, the explorer's menus, the workbench's File menu, a file dropped
 // on the sheet): what to import, where the model goes, the compiler run with
-// a progress that can be cancelled, then a report that says whether what was
+// a progress that can be canceled, then a report that says whether what was
 // written compiles.
 import * as fs from 'node:fs';
 import * as path from 'node:path';
@@ -172,7 +172,7 @@ async function fromApi(context: vscode.ExtensionContext): Promise<Prepared | { e
       throw error;
     }
   } catch (error) {
-    if (error instanceof ApiError && error.message === 'cancelled') return null;
+    if (error instanceof ApiError && error.message === 'canceled') return null;
     return { error: `the API server: ${error instanceof Error ? error.message : String(error)}` };
   }
 }
@@ -313,7 +313,7 @@ export async function importModel(context: vscode.ExtensionContext, options: Imp
       return { outcome, check: merge.ok ? { ...merge.check, metrics: written.metrics } : merge.check, merge };
     });
     if (!done) {
-      void vscode.window.setStatusBarMessage('ArcLang: import cancelled', 4000);
+      void vscode.window.setStatusBarMessage('ArcLang: import canceled', 4000);
       return null;
     }
     const notes = [resolved.note, done.merge?.note].filter((n): n is string => !!n);

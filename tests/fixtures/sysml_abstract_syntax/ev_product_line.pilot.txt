@@ -8,7 +8,7 @@ Package name=EV product line short=- via=-
     MetadataDefinition name=Actor short=- via=OwningMembership
     MetadataDefinition name=Entity short=- via=OwningMembership
     MetadataDefinition name=Node short=- via=OwningMembership
-    MetadataDefinition name=Behaviour short=- via=OwningMembership
+    MetadataDefinition name=Behavior short=- via=OwningMembership
     MetadataDefinition name=Hardware short=- via=OwningMembership
     MetadataDefinition name=Mission short=- via=OwningMembership
     MetadataDefinition name=Capability short=- via=OwningMembership

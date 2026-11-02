@@ -413,7 +413,7 @@ const editing = new Editing({
   extraMenu: () => exportsUi.menuItems(),
 });
 
-// --- Exports and colour themes (diagram-export.ts, theme-editor.ts) --------------
+// --- Exports and color themes (diagram-export.ts, theme-editor.ts) --------------
 
 const exportsUi = new DiagramExports({
   post: (message) => vscode.postMessage(message as never),
@@ -570,10 +570,13 @@ function mount(snapshot: Snapshot): void {
   // Past three seconds (NN/g's limit of attention), the page says what it is doing.
   const graphs = snapshot.diagrams.graphs;
   const boxes = graphs.reduce((sum, g) => sum + countNodes(g.children ?? []), 0);
+  // One notice at a time: a mount that a later one replaces never shows it.
+  clearTimeout(slowLayout);
   const slow = setTimeout(() => {
     layoutNotice.textContent = `Laying out ${graphs.length} diagram${graphs.length > 1 ? 's' : ''}, ${boxes} boxes…`;
     layoutNotice.hidden = false;
   }, 3000);
+  slowLayout = slow;
   const options = {
     slots: { tabs, tools, tree: hiddenTree, details: detailsSlot, related: relatedSlot, foot: hiddenFoot },
     onSelect,
@@ -617,7 +620,10 @@ function mount(snapshot: Snapshot): void {
   fitStage();
   void viewer.ready.then(() => {
     // A later snapshot remounted the viewer meanwhile: that mount restores the view.
-    if (generation !== mountGeneration) return;
+    if (generation !== mountGeneration) {
+      clearTimeout(slow);
+      return;
+    }
     markFindings();
     if (previous?.view && viewer.show) {
       const known = viewer.views?.().some((v) => v.id === previous.view);
@@ -693,6 +699,8 @@ let shownGraph: string | null = null;
 /** While the viewer is remounted on a new snapshot, the view on screen is not the reader's yet. */
 let remounting = false;
 let mountGeneration = 0;
+/** The timer of the notice that a layout is slow, for the mount under way. */
+let slowLayout: ReturnType<typeof setTimeout> | undefined;
 
 /** What follows the view on screen: the palette, and a selection that is not drawn there. */
 function followView(): void {
@@ -826,7 +834,7 @@ window.addEventListener('message', (event: MessageEvent<ToWebview>) => {
   }
 });
 
-/** Elements added or changed by the last edit pulse once; one created is selected and centred, as Capella does. */
+/** Elements added or changed by the last edit pulse once; one created is selected and centered, as Capella does. */
 function flashChanges(before: Snapshot, after: Snapshot): void {
   const { created, changed } = changesOf(before, after);
   void state.viewer?.ready.then(() => {

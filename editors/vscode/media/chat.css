@@ -1,5 +1,5 @@
-/* The AI chat: native to the editor. The theme's own colours carry the
-   frame; colour appears only where it means something: green for what the
+/* The AI chat: native to the editor. The theme's own colors carry the
+   frame; color appears only where it means something: green for what the
    compiler checked, amber for what nobody checked, red for a refusal. */
 :root {
   --c-fg: var(--vscode-foreground, #cccccc);

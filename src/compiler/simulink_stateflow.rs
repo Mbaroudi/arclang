@@ -133,7 +133,7 @@ pub(super) fn write(out: &mut String, ast: &Model, model_name: &str) {
     if ast.state_machines.is_empty() {
         return;
     }
-    out.push_str("%% Stateflow charts (behaviour skeletons)\n");
+    out.push_str("%% Stateflow charts (behavior skeletons)\n");
     out.push_str(&format!("sfModelName = {};\n", m_string(&format!("{model_name}_behaviour"))));
     out.push_str("sfnew(sfModelName);\n\n");
     let mut charts = HashSet::new();

@@ -44,7 +44,7 @@ export const LAYER_CHOICES: LayerChoice[] = [
   { keyword: 'operational_analysis', label: 'Operational', detail: 'actors, entities, activities, operational capabilities', title: 'Operational Analysis' },
   { keyword: 'system_analysis', label: 'System', detail: 'the system, its actors, functions and capabilities', title: 'System Analysis' },
   { keyword: 'logical_architecture', label: 'Logical', detail: 'logical components and functions', title: 'Logical Architecture' },
-  { keyword: 'physical_architecture', label: 'Physical', detail: 'nodes, behaviour components, physical links', title: 'Physical Architecture' },
+  { keyword: 'physical_architecture', label: 'Physical', detail: 'nodes, behavior components, physical links', title: 'Physical Architecture' },
   { keyword: 'epbs', label: 'EPBS', detail: 'the end product breakdown: systems, subsystems, configuration items', title: 'EPBS' },
   { keyword: 'requirements', label: 'Requirements', detail: 'the requirements the architecture answers' },
   { keyword: 'safety_analysis', label: 'Safety', detail: 'hazards, failure modes, safety goals' },

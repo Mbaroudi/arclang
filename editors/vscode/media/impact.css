@@ -1,4 +1,4 @@
-/* The impact analysis view: an instrument panel for a change. Colour carries
+/* The impact analysis view: an instrument panel for a change. Color carries
    one meaning, severity (red blocker, amber major, steel blue minor, the
    change itself in the accent); everything else follows the VS Code theme
    (dark, light, high contrast). */

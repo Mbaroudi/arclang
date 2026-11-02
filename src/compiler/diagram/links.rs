@@ -44,7 +44,7 @@ pub(super) fn cross_links(model: &Model, diagrams: &[Diagram]) -> Vec<Link> {
 }
 
 /// Draw on each diagram the traces whose two ends it draws: a dashed line
-/// labelled by the trace type, which the editor selects, reconnects and
+/// labeled by the trace type, which the editor selects, reconnects and
 /// deletes like any other line. A scenario draws lifelines, not elements:
 /// it gets none.
 pub(super) fn draw_traces(model: &Model, diagrams: &mut [Diagram]) {

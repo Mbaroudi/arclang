@@ -176,7 +176,7 @@ test('a tool that went missing after a run shows the setup, not a stale verdict'
 
 // ---- Which models call for the item ----
 
-test('a model that simulates, or has a physics port, is recognised; a comment is not', () => {
+test('a model that simulates, or has a physics port, is recognized; a comment is not', () => {
   assert.equal(simulates('test_case "x" { simulate: { model: "A.B" stop_time: 1 s } }'), true);
   assert.equal(simulates('port in p { physics: electrical }'), true);
   assert.equal(simulates('// simulate: nothing\nmodel M {}'), false);

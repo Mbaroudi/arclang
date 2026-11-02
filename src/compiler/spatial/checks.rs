@@ -4,8 +4,8 @@
 //! way it takes nor than the distance between located ends, never longer
 //! than the most it may be, and no signal crosses it faster than light.
 //! Distances are on the mean-radius sphere, so every comparison allows
-//! [`SPHERE_TOLERANCE`] in the model's favour: a finding is never a
-//! rounding artefact.
+//! [`SPHERE_TOLERANCE`] in the model's favor: a finding is never a
+//! rounding artifact.
 
 use super::{distance, location, route, route_length, GeoPoint, SPEED_OF_LIGHT, SPHERE_TOLERANCE};
 use crate::compiler::ast::{AttributeValue, Model, PhysicalLink};

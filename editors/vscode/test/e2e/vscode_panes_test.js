@@ -97,7 +97,7 @@ async function workbenchPage(win, not = []) {
     // 3. Redefine and reset an inherited value
     await page.locator('.wb-layer', { hasText: 'System' }).first().click(); await win.waitForTimeout(1500);
     await clickBox(page, 'SF-DET'); await unfold('inherited');
-    report('the value of the type shows greyed, from the type', (await row('period').evaluate((r) => r.classList.contains('is-inherited'))) && /Periodic task/.test(await row('period').textContent()));
+    report('the value of the type shows grayed, from the type', (await row('period').evaluate((r) => r.classList.contains('is-inherited'))) && /Periodic task/.test(await row('period').textContent()));
     await row('period').locator('button', { hasText: 'Redefine' }).click(); await win.waitForTimeout(400);
     const own = row('period').locator('input.wb-quantity-value'); await own.fill('10'); await press('Enter'); await win.waitForTimeout(3500); await save();
     report('Redefine writes the element\'s own value', /"SF-DET"[\s\S]*?period: 10 ms/.test(text()));

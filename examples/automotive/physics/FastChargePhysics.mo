@@ -53,7 +53,7 @@ package FastChargePhysics "Physics of the battery fast charge"
   end Loop;
 
   model Regulator "Pump speed up with the temperature; charge power down past the derating threshold"
-    extends BatteryFastCharge.Behaviour.BatteryManagementUnit.ThermalRegulator;
+    extends BatteryFastCharge.Behavior.BatteryManagementUnit.ThermalRegulator;
   equation
     pump_cmd = min(1, max(0, (temperature - pump_on) / 5));
     limit = min(1, max(0.2, 1 - 0.8 * (temperature - derate_start) / (derate_full - derate_start)));

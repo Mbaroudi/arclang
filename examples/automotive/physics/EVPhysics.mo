@@ -64,7 +64,7 @@ package EVPhysics "Physics of the EV range simulation"
   end Body;
 
   model SpeedControl "Cruise control: a PI on the vehicle speed, the motor torque limited"
-    extends EVRangeSimulation.Behaviour.VehicleControlUnit.SpeedController;
+    extends EVRangeSimulation.Behavior.VehicleControlUnit.SpeedController;
     parameter Modelica.Units.SI.Torque tauMax = 350 "Motor torque limit";
     Modelica.Blocks.Sources.Constant setpoint(k=target_speed) annotation(Placement(transformation(origin={-30,25}, extent={{-8,-8},{8,8}})));
     Modelica.Blocks.Continuous.LimPID pi(controllerType=Modelica.Blocks.Types.SimpleController.PI, k=200, Ti=10, yMax=tauMax, yMin=-tauMax) annotation(Placement(transformation(origin={10,0}, extent={{-10,-10},{10,10}})));

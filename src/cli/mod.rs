@@ -95,7 +95,7 @@ pub enum Commands {
         write: bool,
     },
 
-    /// Print the catalogue of validation rules (what `check` reports) as Markdown or JSON
+    /// Print the catalog of validation rules (what `check` reports) as Markdown or JSON
     Rules {
         #[clap(long, default_value = "markdown")]
         format: MetamodelFormat,
@@ -295,7 +295,7 @@ pub enum Commands {
         #[clap(long)]
         list: bool,
 
-        /// Do not simulate: analyse the samples of the last run of a Monte
+        /// Do not simulate: analyze the samples of the last run of a Monte
         /// Carlo case (--test) with R or Python (`r` or `python`): failure
         /// probability by a normal fit, influence of each parameter (PRCC,
         /// SRRC; delta and S1 with SALib). The verdict stays the compiler's
@@ -547,7 +547,7 @@ pub enum Commands {
         write: bool,
     },
 
-    /// Everything a modelling workbench shows of one model, as JSON: the
+    /// Everything a modeling workbench shows of one model, as JSON: the
     /// diagrams as the viewer mounts them, the explorer document, every
     /// element with its typed attributes, the findings (named after their
     /// rule) and the production gate. A model that does not compile gives
@@ -651,10 +651,10 @@ pub enum Commands {
         #[clap(long, value_parser)]
         layout: Option<PathBuf>,
 
-        /// Colour theme of the HTML viewer (-f html): a preset
+        /// Color theme of the HTML viewer (-f html): a preset
         /// (arclang-default, capella-classic, colorblind-safe,
         /// print-grayscale, high-contrast, monochrome-document) or an
-        /// arclang-theme.json file. A file that breaks a colour rule is refused
+        /// arclang-theme.json file. A file that breaks a color rule is refused
         #[clap(long)]
         theme: Option<String>,
 
@@ -856,7 +856,7 @@ impl CliRunner {
                 match format {
                     MetamodelFormat::Json => println!(
                         "{}",
-                        serde_json::to_string_pretty(crate::compiler::rules::catalogue()).unwrap_or_default()
+                        serde_json::to_string_pretty(crate::compiler::rules::catalog()).unwrap_or_default()
                     ),
                     _ => print!("{}", crate::compiler::rules::to_markdown()),
                 }
@@ -971,7 +971,7 @@ impl CliRunner {
                 ..
             } => self.run_viewpoint_diagrams(input, output, view, format, layout, theme),
             Commands::Diagram { theme: Some(_), format, .. } => Err(CliError::Compilation(format!(
-                "--theme colours the HTML viewer (-f html), not {format:?}"
+                "--theme colors the HTML viewer (-f html), not {format:?}"
             ))),
             Commands::Diagram {
                 input,
@@ -1565,10 +1565,10 @@ impl CliRunner {
     fn run_statistics(&self, input: &std::path::Path, test: Option<&str>, engine: &str, json: bool) -> Result<(), CliError> {
         use crate::compiler::simulation::{replay, statistics};
         let engine = statistics::Engine::parse(engine).ok_or_else(|| CliError::Config(format!("--statistics takes r or python, not '{engine}'")))?;
-        let test = test.ok_or_else(|| CliError::Config("--statistics needs --test CASE, the Monte Carlo case whose samples to analyse".into()))?;
+        let test = test.ok_or_else(|| CliError::Config("--statistics needs --test CASE, the Monte Carlo case whose samples to analyze".into()))?;
         let result = crate::Compiler::new(crate::CompilerConfig::default()).compile_file(input).map_err(|e| CliError::Compilation(e.to_string()))?;
         let case = result.ast.test_cases.iter().find(|t| t.id == test || t.name == test).ok_or_else(|| CliError::Config(format!("no test_case '{test}'")))?;
-        let report = statistics::analyse(&replay::case_dir(&replay::dir(input), &case.id), engine).map_err(CliError::Compilation)?;
+        let report = statistics::analyze(&replay::case_dir(&replay::dir(input), &case.id), engine).map_err(CliError::Compilation)?;
         if json {
             println!("{}", serde_json::to_string_pretty(&report).map_err(|e| CliError::Compilation(e.to_string()))?);
         } else {

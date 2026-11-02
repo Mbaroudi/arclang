@@ -1,5 +1,5 @@
 // The theme editor: a panel over the canvas where a theme is made from a
-// copy of another one, a colour per concept and per exchange, previewed on
+// copy of another one, a color per concept and per exchange, previewed on
 // the diagram as it is picked and checked by the same rules as everywhere
 // (ArcVizTheme). A theme that breaks a rule can be previewed, not saved.
 import type { ThemeEntry, ToWebview } from '../src/pure/workbench';
@@ -53,8 +53,8 @@ export class ThemeEditor {
     this.saveMine = button('Save as my theme', () => this.save('user'), { title: 'Into your own themes, for every model you open' });
     this.exportJson = button('Export JSON…', () => this.draft && this.d.post({ type: 'theme-export', theme: this.clean() }));
     const close = button('×', () => void this.close(), { class: 'wb-te-close', 'aria-label': 'Close the theme editor', title: 'Close (Esc): the theme in use comes back' });
-    this.root = el('section', { class: 'wb-theme-editor', role: 'dialog', 'aria-label': 'Colour theme', hidden: true }, [
-      el('header', { class: 'wb-te-head' }, [el('h2', { text: 'Colour theme' }), close]),
+    this.root = el('section', { class: 'wb-theme-editor', role: 'dialog', 'aria-label': 'Color theme', hidden: true }, [
+      el('header', { class: 'wb-te-head' }, [el('h2', { text: 'Color theme' }), close]),
       el('div', { class: 'wb-te-start' }, [
         el('label', { text: 'Start from' }),
         this.base,
@@ -143,8 +143,8 @@ export class ThemeEditor {
     this.changed();
   }
 
-  private colour(label: string, get: () => string, set: (value: string) => void): HTMLElement {
-    const swatch = el('input', { type: 'color', class: 'wb-te-swatch', value: get().toLowerCase(), 'aria-label': `${label} colour` });
+  private color(label: string, get: () => string, set: (value: string) => void): HTMLElement {
+    const swatch = el('input', { type: 'color', class: 'wb-te-swatch', value: get().toLowerCase(), 'aria-label': `${label} color` });
     const hex = el('input', { type: 'text', class: 'wb-te-hex', value: get().toUpperCase(), 'aria-label': `${label} hex`, maxlength: '7', spellcheck: 'false' });
     swatch.addEventListener('input', () => {
       hex.value = swatch.value.toUpperCase();
@@ -159,7 +159,7 @@ export class ThemeEditor {
       set(value.toUpperCase());
       this.changed();
     });
-    return el('span', { class: 'wb-te-colour' }, [swatch, hex]);
+    return el('span', { class: 'wb-te-color' }, [swatch, hex]);
   }
 
   private drawFields(): void {
@@ -168,15 +168,15 @@ export class ThemeEditor {
     if (!draft) return;
     const sheet = el('fieldset', { class: 'wb-te-group' }, [el('legend', { text: 'Sheet and text' })]);
     for (const [key, label] of [['background', 'Background'], ['text', 'Text'], ['muted', 'Secondary text']] as const) {
-      sheet.appendChild(el('div', { class: 'wb-te-line', 'data-key': key }, [el('span', { class: 'wb-te-label', text: label }), this.colour(label, () => String(draft[key]), (v) => { draft[key] = v; })]));
+      sheet.appendChild(el('div', { class: 'wb-te-line', 'data-key': key }, [el('span', { class: 'wb-te-label', text: label }), this.color(label, () => String(draft[key]), (v) => { draft[key] = v; })]));
     }
     const concepts = el('fieldset', { class: 'wb-te-group' }, [el('legend', { text: 'Concepts: fill and outline' })]);
     for (const concept of this.module.CONCEPTS) {
       const entry = draft.concepts[concept.key];
       concepts.appendChild(el('div', { class: 'wb-te-line', 'data-key': concept.key }, [
         el('span', { class: 'wb-te-label', text: cap(concept.label) }),
-        this.colour(`${concept.label} fill`, () => entry.fill, (v) => { entry.fill = v; }),
-        this.colour(`${concept.label} outline`, () => entry.stroke, (v) => { entry.stroke = v; }),
+        this.color(`${concept.label} fill`, () => entry.fill, (v) => { entry.fill = v; }),
+        this.color(`${concept.label} outline`, () => entry.stroke, (v) => { entry.stroke = v; }),
       ]));
     }
     const exchanges = el('fieldset', { class: 'wb-te-group' }, [el('legend', { text: 'Exchanges: line and style' })]);
@@ -187,7 +187,7 @@ export class ThemeEditor {
       style.addEventListener('change', () => { entry.style = style.value; this.changed(); });
       exchanges.appendChild(el('div', { class: 'wb-te-line', 'data-key': exchange.key }, [
         el('span', { class: 'wb-te-label', text: cap(exchange.label) }),
-        this.colour(`${exchange.label} line`, () => String(entry.line), (v) => { entry.line = v; }),
+        this.color(`${exchange.label} line`, () => String(entry.line), (v) => { entry.line = v; }),
         style,
       ]));
     }
@@ -221,7 +221,7 @@ export class ThemeEditor {
   private showVerdict(verdict: { ok: boolean; errors: { message: string }[]; warnings: { message: string }[] }, heading: string | null): void {
     clear(this.verdictBox);
     this.verdictBox.classList.toggle('is-refused', !verdict.ok);
-    const title = heading ?? (verdict.ok ? 'Passes every colour rule' : `Refused: ${verdict.errors.length} rule${verdict.errors.length > 1 ? 's' : ''} broken — previewed, cannot be saved`);
+    const title = heading ?? (verdict.ok ? 'Passes every color rule' : `Refused: ${verdict.errors.length} rule${verdict.errors.length > 1 ? 's' : ''} broken — previewed, cannot be saved`);
     this.verdictBox.appendChild(el('p', { class: 'wb-te-title', text: `${verdict.ok ? '✓' : '✕'} ${title}` }));
     if (verdict.errors.length) this.verdictBox.appendChild(el('ul', { class: 'wb-te-errors' }, verdict.errors.map((e) => el('li', { text: e.message }))));
     if (verdict.warnings.length) {

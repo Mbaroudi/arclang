@@ -1,6 +1,6 @@
 /* The impact analysis on the workbench diagrams: the elements it reaches are
    outlined by severity, the changed ones apart, and the layer tabs carry a
-   count. The colours are the impact view's. */
+   count. The colors are the impact view's. */
 .wb-impact { --wb-impact: #6b6b6b; }
 .wb-impact-seed { --wb-impact: #6a3fb5; }
 .wb-impact-blocker { --wb-impact: #b3261e; }

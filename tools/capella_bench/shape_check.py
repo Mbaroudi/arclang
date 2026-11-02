@@ -25,7 +25,7 @@ if not os.path.exists(ref):
     F, A = set(), set()
     for f in glob.glob(f'{corpus}/**/*.capella', recursive=True):
         try:
-            if 'modeller/7.0.0' not in open(f, errors='replace').read(3000): continue
+            if 'modeler/7.0.0' not in open(f, errors='replace').read(3000): continue
             fe, at = shapes(f); F |= fe; A |= at
         except Exception: pass
     json.dump({'f': sorted(map(list, F)), 'a': sorted(map(list, A))}, open(ref, 'w'))

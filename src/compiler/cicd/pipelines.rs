@@ -186,11 +186,11 @@ jobs:
         run: arclang ci run --standard @@STANDARD@@ --sarif arclang-results/arclang.sarif --summary arclang-results/summary.md@@MODELS@@
 
       - name: Job summary
-        if: ${{ !cancelled() && hashFiles('arclang-results/summary.md') != '' }}
+        if: ${{ !canceled() && hashFiles('arclang-results/summary.md') != '' }}
         run: cat arclang-results/summary.md >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload the findings to code scanning (SARIF)
-        if: ${{ !cancelled() && hashFiles('arclang-results/arclang.sarif') != '' }}
+        if: ${{ !canceled() && hashFiles('arclang-results/arclang.sarif') != '' }}
         uses: github/codeql-action/upload-sarif@v3
         continue-on-error: true
         with:
@@ -198,7 +198,7 @@ jobs:
           category: arclang
 
       - name: Pull-request report
-        if: ${{ !cancelled() && github.event_name == 'pull_request' }}
+        if: ${{ !canceled() && github.event_name == 'pull_request' }}
         continue-on-error: true
         shell: bash
         env:
@@ -222,7 +222,7 @@ jobs:
           fi
 
       - name: Keep the results
-        if: ${{ !cancelled() }}
+        if: ${{ !canceled() }}
         uses: actions/upload-artifact@v4
         with:
           name: arclang-report

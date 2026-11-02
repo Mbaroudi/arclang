@@ -30,7 +30,7 @@ Human or external system interacting with the system.
 
 #### OperationalEntity
 
-Organisation or system of the operational world.
+Organization or system of the operational world.
 
 - Arcadia: `Entity`
 - SysML v2: `part def`
@@ -374,7 +374,7 @@ Control node of a functional chain: `control and|or|iterate "Name"`, joined to t
 
 #### LogicalComponent
 
-Behavioural building block, may be nested. In a product line, a component `variation: true` holds the components that are its variants (`variant: true`).
+Behavioral building block, may be nested. In a product line, a component `variation: true` holds the components that are its variants (`variant: true`).
 
 - Arcadia: `LogicalComponent`
 - SysML v2: `part def + part`
@@ -519,7 +519,7 @@ Realization of a system capability by components. May be declared inside another
 
 #### PhysicalNode
 
-Hardware node hosting behaviour components.
+Hardware node hosting behavior components.
 
 - Arcadia: `PhysicalComponent (NODE)`
 - SysML v2: `part def + part`
@@ -569,7 +569,7 @@ Unoriented physical connector.
 
 #### BehaviorComponent
 
-Software/behaviour deployed on a node; declares the physical functions it performs.
+Software/behavior deployed on a node; declares the physical functions it performs.
 
 - Arcadia: `PhysicalComponent (BEHAVIOR)`
 - SysML v2: `part`
@@ -591,7 +591,7 @@ Software/behaviour deployed on a node; declares the physical functions it perfor
 
 #### PhysicalFunction
 
-Function of the physical level, declared inside the behaviour component that performs it (or at the level, unallocated), with its ports and sub-functions; `realizes:` names the logical function it realizes.
+Function of the physical level, declared inside the behavior component that performs it (or at the level, unallocated), with its ports and sub-functions; `realizes:` names the logical function it realizes.
 
 - Arcadia: `PhysicalFunction`
 - SysML v2: `action def (perform)`
@@ -1101,7 +1101,7 @@ Modes and states of an element.
 
 #### State
 
-State (undergone) or mode (chosen behaviour).
+State (undergone) or mode (chosen behavior).
 
 - Arcadia: `State / Mode`
 - SysML v2: `state`

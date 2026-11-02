@@ -553,7 +553,7 @@ impl Builder {
     }
 
     /// Change what an edge displays; its id keeps the name it was added
-    /// under (a transition is identified by its ends, labelled by its
+    /// under (a transition is identified by its ends, labeled by its
     /// trigger).
     pub fn set_edge_label(&mut self, edge_id: &str, label: String) {
         if let Some(edge) = self.edges.iter_mut().find(|edge| edge.id == edge_id) {

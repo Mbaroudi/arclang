@@ -2,7 +2,7 @@
 //!
 //! Each step sends the next message. Combined fragments decide what comes
 //! next, from conditions the reader sets (false until set), as written:
-//! - `alt`: the first operand whose label holds, else an operand labelled
+//! - `alt`: the first operand whose label holds, else an operand labeled
 //!   `else` (or unlabelled), else none;
 //! - `opt`: its operand when its label holds;
 //! - `loop`: its body as many times as its label says (`3`, `3 times`,

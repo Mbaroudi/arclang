@@ -439,7 +439,7 @@ fn char_offset(text: &str, index: usize) -> usize {
 
 /// Move the declaration of `element`, with everything declared inside it,
 /// into `container`, as its last declaration: a function reallocated to
-/// another component, a behaviour component deployed on another node, a
+/// another component, a behavior component deployed on another node, a
 /// component nested elsewhere. The text of the declaration is kept as
 /// written. The caller checks on the compiled model that every element
 /// kept its identity.

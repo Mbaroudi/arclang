@@ -1,4 +1,4 @@
-//! Physical Architecture Blank: nodes containing the behaviour and hardware
+//! Physical Architecture Blank: nodes containing the behavior and hardware
 //! components deployed on them, physical links and physical exchanges.
 
 use super::builder::{identity, properties, text, view_title, Builder};

@@ -113,7 +113,7 @@ function pageOf(uri: vscode.Uri): WorkbenchPanel | undefined {
   return active && active.documentOf.uri.toString() === uri.toString() ? active : WorkbenchPanel.for(uri);
 }
 
-/** The commands and the behaviour of the panes; `tree` and `view` are the side bar's model tree. */
+/** The commands and the behavior of the panes; `tree` and `view` are the side bar's model tree. */
 export function registerPanes(context: vscode.ExtensionContext, tree: ModelTreeProvider, view: vscode.TreeView<ModelItem>): void {
   extension = context;
   const register = (command: string, callback: (...args: unknown[]) => unknown) => context.subscriptions.push(vscode.commands.registerCommand(command, callback));

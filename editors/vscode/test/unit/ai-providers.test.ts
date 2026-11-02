@@ -165,7 +165,7 @@ test('cancellation stops a stream in the middle', async () => {
         if (received.length > 20) controller.abort();
       }
     })(),
-    (error: unknown) => error instanceof ProviderError && error.kind === 'cancelled',
+    (error: unknown) => error instanceof ProviderError && error.kind === 'canceled',
   );
   assert.ok(received.length < 400);
 });

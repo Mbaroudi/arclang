@@ -1,5 +1,5 @@
-// The graph of the impact set: the changed elements in the centre, one ring
-// per distance, each element a disc coloured by severity (its layer inside),
+// The graph of the impact set: the changed elements in the center, one ring
+// per distance, each element a disc colored by severity (its layer inside),
 // each link the last step of the path that explains it. Wheel zooms, a drag
 // pans, a click selects the row, a double click shows it in its diagram.
 import { ImpactedItem, ringLayout, SeedItem, RingNode } from '../../src/pure/impact';

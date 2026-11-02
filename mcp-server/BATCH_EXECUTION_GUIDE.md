@@ -69,4 +69,4 @@ A failed operation has `"status": "error"` and an `"error"` field.
 
 ## Limits
 
-- `enhance_diagram` rewrites SVG text (sizes, colours); it adds no model content.
+- `enhance_diagram` rewrites SVG text (sizes, colors); it adds no model content.

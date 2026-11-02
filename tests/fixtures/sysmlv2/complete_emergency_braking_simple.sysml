@@ -13,7 +13,7 @@ package <EmergencyBrakingSystem> 'Automotive Emergency Braking System (AEB)' {
         metadata def Actor;
         metadata def Entity;
         metadata def Node;
-        metadata def Behaviour;
+        metadata def Behavior;
         metadata def Hardware;
         metadata def Mission;
         metadata def Capability;
@@ -443,7 +443,7 @@ package <EmergencyBrakingSystem> 'Automotive Emergency Braking System (AEB)' {
             attribute node_type : String = "ECU";
             attribute processor : String = "ARM Cortex-M4";
             attribute safety_level : String = "ASIL-D";
-            #Behaviour part <'BC-RadarProcessing'> RadarProcessing {
+            #Behavior part <'BC-RadarProcessing'> RadarProcessing {
                 doc /* Radar data acquisition and preprocessing */
                 attribute safety_level : String = "ASIL-D";
             }
@@ -454,7 +454,7 @@ package <EmergencyBrakingSystem> 'Automotive Emergency Braking System (AEB)' {
             attribute processor : String = "ARM Cortex-A53";
             attribute ram : StorageCapacityValue = 2 [GB];
             attribute safety_level : String = "ASIL-D";
-            #Behaviour part <'BC-CameraProcessing'> CameraProcessing {
+            #Behavior part <'BC-CameraProcessing'> CameraProcessing {
                 doc /* Camera image processing and object detection */
                 attribute safety_level : String = "ASIL-D";
             }
@@ -466,19 +466,19 @@ package <EmergencyBrakingSystem> 'Automotive Emergency Braking System (AEB)' {
             attribute ram : StorageCapacityValue = 8 [GB];
             attribute safety_level : String = "ASIL-D";
             attribute storage : StorageCapacityValue = 64 [GB];
-            #Behaviour part <'BC-FusionModule'> FusionModule {
+            #Behavior part <'BC-FusionModule'> FusionModule {
                 attribute safety_level : String = "ASIL-D";
             }
-            #Behaviour part <'BC-TrackingModule'> TrackingModule {
+            #Behavior part <'BC-TrackingModule'> TrackingModule {
                 attribute safety_level : String = "ASIL-D";
             }
-            #Behaviour part <'BC-ThreatModule'> ThreatModule {
+            #Behavior part <'BC-ThreatModule'> ThreatModule {
                 attribute safety_level : String = "ASIL-D";
             }
-            #Behaviour part <'BC-BrakingModule'> BrakingModule {
+            #Behavior part <'BC-BrakingModule'> BrakingModule {
                 attribute safety_level : String = "ASIL-D";
             }
-            #Behaviour part <'BC-SupervisorModule'> SupervisorModule {
+            #Behavior part <'BC-SupervisorModule'> SupervisorModule {
                 attribute safety_level : String = "ASIL-D";
             }
         }
@@ -488,7 +488,7 @@ package <EmergencyBrakingSystem> 'Automotive Emergency Braking System (AEB)' {
             attribute node_type : String = "ECU";
             attribute processor : String = "Infineon AURIX TC397";
             attribute safety_level : String = "ASIL-D";
-            #Behaviour part <'BC-BrakeActuation'> BrakeActuation {
+            #Behavior part <'BC-BrakeActuation'> BrakeActuation {
                 attribute safety_level : String = "ASIL-D";
             }
         }
@@ -498,7 +498,7 @@ package <EmergencyBrakingSystem> 'Automotive Emergency Braking System (AEB)' {
             attribute processor : String = "NXP i.MX 8M";
             attribute ram : StorageCapacityValue = 4 [GB];
             attribute safety_level : String = "QM";
-            #Behaviour part <'BC-HMI'> HMI {
+            #Behavior part <'BC-HMI'> HMI {
                 attribute safety_level : String = "QM";
             }
         }
@@ -508,7 +508,7 @@ package <EmergencyBrakingSystem> 'Automotive Emergency Braking System (AEB)' {
             attribute node_type : String = "Gateway";
             attribute processor : String = "Renesas RH850";
             attribute safety_level : String = "ASIL-B";
-            #Behaviour part <'BC-CANInterface'> CANInterface {
+            #Behavior part <'BC-CANInterface'> CANInterface {
                 attribute safety_level : String = "ASIL-B";
             }
         }
@@ -573,7 +573,7 @@ package <EmergencyBrakingSystem> 'Automotive Emergency Braking System (AEB)' {
         }
         dependency 'via' from VehicleStatus to VehicleCAN;
     }
-    package Behaviours {
+    package Behaviors {
         state AEBOperatingModes {
             entry; then Standby;
             #Mode state Standby {

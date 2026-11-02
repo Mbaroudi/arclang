@@ -125,8 +125,8 @@ async def test_every_rule_id_named_in_the_rules_is_in_the_compilers_catalogue(se
     named = set(re.findall(pattern, rules))
     assert named, "the rules name no rule id"
     printed = (await server.compiler.rules(as_json=True)).stdout
-    catalogue = {entry["id"] for entry in json.loads(printed)}
-    assert named <= catalogue, named - catalogue
+    catalog = {entry["id"] for entry in json.loads(printed)}
+    assert named <= catalog, named - catalog
 
 
 async def test_the_findings_the_rules_promise_are_the_ones_the_compiler_gives(server, workspace):

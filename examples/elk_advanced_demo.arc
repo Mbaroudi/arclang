@@ -68,7 +68,7 @@ logical_architecture "ACC Control System" {
         component "Radar Front End" {
             id: "LA-003-1"
             port out "SensorData" { protocol: "SPI" }
-            function "Digitise the echoes" { id: "LF-006" }
+            function "Digitize the echoes" { id: "LF-006" }
         }
     }
     component "Safety Monitor" {

@@ -50,7 +50,7 @@ The commits (hash, author, date, subject) that changed one element, with what ch
 
 A three-way merge by element identity. The files are read as a tree of declarations (the same outline the editor uses); each declaration is matched by `keyword#id` (or its header when it has no id).
 
-- changes to different elements, or to different attributes of one element, merge without a conflict, wherever they are in the file, even on neighbouring lines, even two attributes on one line;
+- changes to different elements, or to different attributes of one element, merge without a conflict, wherever they are in the file, even on neighboring lines, even two attributes on one line;
 - two branches adding different elements to the same container merge in both orders (additions made on both sides are ordered by key, so the result does not depend on who merges);
 - an element removed on one side and untouched on the other is removed;
 - comments, blank lines, indentation, line endings and the order of the declarations nobody touched are kept as written (the comments above a declaration travel with it);
@@ -107,7 +107,7 @@ and creates the annotated tag `baseline/<name>` on the commit. It never pushes. 
 
 ## In VS Code
 
-- **Compare ▾** in the workbench tool row (and *ArcLang: Compare the model with a branch, tag, baseline or HEAD…*): HEAD, a quick pick of branches, tags, baselines and remotes, or a baseline. The diagrams are drawn with the changes marked: added green, modified amber, **removed ghosted** (dashed red, struck through) in the box that held them and at their old place when the old layout had one, moved and renamed with a badge (every status has a glyph as well as a colour); counters on the layer tabs; a side panel grouped by layer, with the gate, new blockers, unsatisfied and unverified requirements, each change clickable to select the element, with *Source*, *Diff* (VS Code's diff against the revision) and *History*. The comparison is read-only; *Exit* returns to editing.
+- **Compare ▾** in the workbench tool row (and *ArcLang: Compare the model with a branch, tag, baseline or HEAD…*): HEAD, a quick pick of branches, tags, baselines and remotes, or a baseline. The diagrams are drawn with the changes marked: added green, modified amber, **removed ghosted** (dashed red, struck through) in the box that held them and at their old place when the old layout had one, moved and renamed with a badge (every status has a glyph as well as a color); counters on the layer tabs; a side panel grouped by layer, with the gate, new blockers, unsatisfied and unverified requirements, each change clickable to select the element, with *Source*, *Diff* (VS Code's diff against the revision) and *History*. The comparison is read-only; *Exit* returns to editing.
 - **History…** (context menu, Properties pane, Compare ▾): the commits of the element; selecting one draws the model at that revision beside the current one.
 - **Create baseline…**: name, standard, the gate result shown first; **Compare with a baseline…**; *Verify a baseline…*.
 - **Resolve conflicts** view (Activity bar, ArcLang): the element conflicts left by a merge, by file and element, with *Accept ours*, *Accept theirs* and *Edit*; a message announces them.

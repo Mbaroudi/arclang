@@ -1,5 +1,5 @@
 //! What the Modelica package is made of, read from the physical
-//! architecture: the parts (nodes and behaviour components) with their
+//! architecture: the parts (nodes and behavior components) with their
 //! parameters and connectors, the connections between them, and, per
 //! configuration, the parts it keeps and the variant parameters it sets.
 
@@ -45,10 +45,10 @@ pub struct Part {
     pub ports: Vec<Port>,
     /// Logical components it deploys or realizes, by written id.
     pub realizes: Vec<String>,
-    /// For a behaviour component: the node holding it.
+    /// For a behavior component: the node holding it.
     pub node: Option<usize>,
-    /// For a node: its behaviour components.
-    pub behaviours: Vec<usize>,
+    /// For a node: its behavior components.
+    pub behaviors: Vec<usize>,
 }
 
 #[derive(Debug, Clone)]
@@ -204,29 +204,29 @@ impl<'a> Reader<'a> {
                     ports,
                     realizes,
                     node: None,
-                    behaviours: Vec::new(),
+                    behaviors: Vec::new(),
                 });
                 let mut members: Vec<String> = self.out.parts[index].ports.iter().map(|p| p.member.clone()).chain(self.out.parts[index].params.iter().map(|p| p.name.clone())).collect();
                 let mut behaviour_classes = Vec::new();
-                for behaviour in &node.behavior_components {
-                    let realizes = self.realized(&behaviour.id, behaviour.allocated_component.clone());
+                for behavior in &node.behavior_components {
+                    let realizes = self.realized(&behavior.id, behavior.allocated_component.clone());
                     let mut taken = Vec::new();
-                    let ports = self.component_ports(&behaviour.id, &behaviour.ports, &mut taken);
-                    let params = self.params(&behaviour.id, &behaviour.attributes, &realizes);
+                    let ports = self.component_ports(&behavior.id, &behavior.ports, &mut taken);
+                    let params = self.params(&behavior.id, &behavior.attributes, &realizes);
                     let child = self.out.parts.len();
                     self.out.parts.push(Part {
-                        id: behaviour.id.clone(),
-                        name: behaviour.name.clone(),
-                        description: behaviour.attributes.get("description").map(|d| d.display()),
-                        class: names::unique(names::class_name(&behaviour.name), &mut behaviour_classes),
-                        instance: names::unique(names::instance_name(&behaviour.name), &mut members),
+                        id: behavior.id.clone(),
+                        name: behavior.name.clone(),
+                        description: behavior.attributes.get("description").map(|d| d.display()),
+                        class: names::unique(names::class_name(&behavior.name), &mut behaviour_classes),
+                        instance: names::unique(names::instance_name(&behavior.name), &mut members),
                         params,
                         ports,
                         realizes,
                         node: Some(index),
-                        behaviours: Vec::new(),
+                        behaviors: Vec::new(),
                     });
-                    self.out.parts[index].behaviours.push(child);
+                    self.out.parts[index].behaviors.push(child);
                 }
             }
         }
@@ -269,7 +269,7 @@ impl<'a> Reader<'a> {
             } else if self.out.parts[a.0].node.is_none() && self.out.parts[b.0].node.is_none() {
                 None
             } else {
-                self.out.notes.push(format!("'{id}' joins behaviour components of different nodes: route it through ports of the nodes; left out"));
+                self.out.notes.push(format!("'{id}' joins behavior components of different nodes: route it through ports of the nodes; left out"));
                 continue;
             };
             let end = |(part, port): (usize, usize)| {
@@ -299,7 +299,7 @@ impl<'a> Reader<'a> {
                     continue;
                 }
                 let mut modifiers = self.variant_modifiers(part, &selected);
-                for &child in &part.behaviours {
+                for &child in &part.behaviors {
                     let inner = self.variant_modifiers(&self.out.parts[child], &selected);
                     if !inner.is_empty() {
                         modifiers.push(format!("{}({})", self.out.parts[child].instance, inner.join(", ")));
