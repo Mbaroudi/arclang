@@ -258,3 +258,39 @@ mod tests {
         assert!(!metamodel_markdown().is_empty() && !rules_markdown().is_empty());
     }
 }
+
+/// What a model runs step by step (`arclang debug --list`): its state
+/// machines, scenarios and functional chains; `null` when it does not compile.
+#[wasm_bindgen]
+pub fn debug_runnables(source: &str) -> String {
+    match arclang::Compiler::new(arclang::CompilerConfig::default()).compile_string(source) {
+        Ok(result) => arclang::compiler::execution::debug_target::runnables(&result.ast).to_string(),
+        Err(_) => "null".to_string(),
+    }
+}
+
+/// A debug session (the Debug Adapter Protocol, as `arclang debug --dap`):
+/// the browser's inline debug adapter hands it one request at a time.
+#[wasm_bindgen]
+pub struct DebugSession {
+    adapter: arclang::compiler::execution::dap::Adapter,
+}
+
+#[wasm_bindgen]
+impl DebugSession {
+    #[wasm_bindgen(constructor)]
+    pub fn new() -> DebugSession {
+        DebugSession { adapter: Default::default() }
+    }
+
+    /// One request (JSON); returns `{messages, done}`: its responses and events.
+    pub fn handle(&mut self, request: &str) -> String {
+        self.adapter.handle_json(request).to_string()
+    }
+}
+
+impl Default for DebugSession {
+    fn default() -> Self {
+        Self::new()
+    }
+}

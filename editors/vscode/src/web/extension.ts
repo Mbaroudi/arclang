@@ -12,6 +12,7 @@ import { registerImpact } from '../impact';
 import { registerTables } from '../tables';
 import { registerSimulationWeb } from '../simulation/web';
 import { registerSemgit } from '../semgit';
+import { registerDebug } from '../debug';
 import { registerDocuments } from '../document';
 import { registerTraces } from '../traces';
 import { setGitRunner } from '../semgit/git';
@@ -21,6 +22,7 @@ import { setThemeModuleLoader } from '../workbench/themes';
 import { registerWebDiagnostics } from './diagnostics';
 import { createWasmBackend, NOT_AVAILABLE } from './wasm-backend';
 import { loadWasm } from './wasm';
+import { wasmDebugAdapter } from './debug-adapter';
 import { probeRemote } from './remote';
 
 /** Registers a part of the extension; one that cannot start in a browser must not stop the others. */
@@ -50,8 +52,6 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   register('arclang.check', (uri?: unknown) => commands.check(uriOf(uri)));
   register('arclang.runGate', (uri?: unknown) => commands.runGate(uriOf(uri)));
   register('arclang.safetyReport', (uri?: unknown) => commands.safetyReport(uriOf(uri)));
-  // The debugger runs the native compiler (`arclang debug --dap`): not in a browser.
-  for (const command of ['arclang.debug.run', 'arclang.debug.fire']) register(command, () => vscode.window.showInformationMessage('ArcLang: the state machine debugger needs the desktop VS Code and the arclang compiler.'));
   register('arclang.format', () => commands.formatActive());
   register('arclang.transitionPlan', (uri?: unknown) => commands.transitionPlan(uriOf(uri)));
   register('arclang.transitionApply', (uri?: unknown, step?: unknown) => commands.transitionApply(uriOf(uri), typeof step === 'string' ? step : undefined));
@@ -88,6 +88,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   attempt('semantic git', () => registerSemgit(context));
   attempt('documents', () => registerDocuments(context));
   attempt('traces', () => registerTraces(context));
+  attempt('the debugger', () => registerDebug(context, wasmDebugAdapter(wasm)));
   attempt('the AI assistant', () => registerAi(context)); // ai-design hook
 }
 
