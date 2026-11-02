@@ -32,6 +32,8 @@ pub mod tool;
 pub mod twin;
 #[cfg(feature = "native")]
 pub mod twin_live;
+#[cfg(feature = "native")]
+pub mod twin_opcua;
 
 use crate::compiler::ast::{AttributeValue, Model, TestCase};
 use crate::compiler::quantity::Dimension;

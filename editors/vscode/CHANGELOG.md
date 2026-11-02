@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- **Digital twins on live OPC UA data**:
+  - `data: { opcua: "opc.tcp://plc:4840" nodes: { indoor_c: "ns=2;s=Room.T" } sampling: 1 s window: 24 h refresh: 1 min }` subscribes to the server's nodes, one column per node, each reading dated by its source timestamp. Every reading is kept, even one equal to the last.
+  - `security: "none" | "sign" | "sign_and_encrypt"` with a `policy:` (Basic256Sha256 by default). ArcLang's certificate is made in `.arclang/opcua-pki/`, and a server's certificate is trusted once moved from `rejected/` to `trusted/`. The user and password come from `ARCLANG_OPCUA_USERNAME` and `ARCLANG_OPCUA_PASSWORD`, never from the model.
+  - A lost session is said and a new one opened every two seconds; `record:` and *Watch a digital twin live* work as with MQTT.
+- MQTT over TLS (`mqtts://`) now uses the platform's TLS (native-tls).
 - **Digital twins on Parquet and on live MQTT data**:
   - `data: { file: "….parquet" }` reads pandas and pyarrow files: timestamps in milli, micro or nanoseconds, Snappy, zstd or LZ4.
   - `data: { mqtt: "mqtt://broker:1883" topics: ["site/#"] window: 6 h refresh: 1 min record: "data/live.csv" }` follows a broker: `arclang twin --live` runs the twin over the latest window at every refresh. A message is a number (its column is the topic's last level) or a JSON object (a column per field, with its own `time`). Credentials come from `ARCLANG_MQTT_USERNAME` and `ARCLANG_MQTT_PASSWORD`, never from the model. `record:` keeps everything received as a CSV the twin replays later.

@@ -148,8 +148,15 @@ export async function runTwins(context: vscode.ExtensionContext, arg: unknown, e
 
 let watching: ChildProcess | null = null;
 
+/** Asks the run to stop (it records what is waiting), then ends it if it lingers. */
 function stopLive(): void {
-  watching?.kill();
+  const child = watching;
+  if (child && child.exitCode === null) {
+    child.stdin?.write('stop\n');
+    setTimeout(() => {
+      if (child.exitCode === null) child.kill();
+    }, 5000);
+  }
   watching = null;
   TwinView.live(false, 'stopped', 'The live run is stopped.');
 }
@@ -161,7 +168,7 @@ function stopLive(): void {
  */
 export async function watchTwin(context: vscode.ExtensionContext, arg: unknown, env: () => Record<string, string>): Promise<void> {
   const file = activeModel(arg);
-  if (!file) return void vscode.window.showInformationMessage('ArcLang: open a .arc model with a twin on live data (data: { mqtt: … topics: [ … ] }).');
+  if (!file) return void vscode.window.showInformationMessage('ArcLang: open a .arc model with a twin on live data (data: { mqtt: … topics: [ … ] } or { opcua: … nodes: { … } }).');
   const listed = await run(['twin', file, '--list'], { cwd: path.dirname(file) });
   let twins: { id: string; name: string; live: boolean }[] = [];
   try {
@@ -170,19 +177,20 @@ export async function watchTwin(context: vscode.ExtensionContext, arg: unknown, 
     return void vscode.window.showErrorMessage(`ArcLang: the model's twins could not be listed. ${failureText(listed).split('\n')[0]}`);
   }
   const live = twins.filter((t) => t.live);
-  if (live.length === 0) return void vscode.window.showInformationMessage('ArcLang: no twin of this model reads live data: data: { mqtt: "mqtt://broker:1883" topics: ["site/#"] window: 6 h refresh: 1 min }.');
+  if (live.length === 0) return void vscode.window.showInformationMessage('ArcLang: no twin of this model reads live data: data: { mqtt: "mqtt://broker:1883" topics: ["site/#"] } or { opcua: "opc.tcp://plc:4840" nodes: { room_c: "ns=2;s=Room.T" } }.');
   const picked = live.length === 1 ? live[0] : await vscode.window.showQuickPick(live.map((t) => ({ label: t.name, description: t.id, twin: t })), { placeHolder: 'The twin to follow live' }).then((p) => p?.twin);
   if (!picked) return;
   stopLive();
   const channel = log();
   channel.appendLine(`── ${new Date().toLocaleTimeString()}  arclang twin ${path.basename(file)} --live --twin ${picked.id}`);
   TwinView.show(context, file, [], () => void watchTwin(context, vscode.Uri.file(file), env));
-  TwinView.live(true, 'connecting', `Connecting to the broker of ${picked.name}…`);
+  TwinView.live(true, 'connecting', `Connecting to the live data of ${picked.name}…`);
   TwinView.onDispose(() => stopLive());
   const child = spawn(binary(), ['twin', file, '--live', '--json', '--twin', picked.id], { cwd: path.dirname(file), env: { ...process.env, ...env() } });
   watching = child;
   let pending = '';
   child.stdout?.on('data', (chunk: Buffer) => {
+    if (watching !== child) return; // stopped: what it still says is not news
     pending += chunk.toString('utf8');
     const lines = pending.split('\n');
     pending = lines.pop() ?? '';

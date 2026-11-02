@@ -33,7 +33,11 @@ use std::collections::{BTreeMap, HashMap};
 use std::path::{Path, PathBuf};
 
 const SIMULATE_KEYS: [&str; 4] = ["model", "configuration", "sources", "tolerance"];
-const DATA_KEYS: [&str; 10] = ["file", "time", "time_unit", "delimiter", "mqtt", "topics", "window", "refresh", "record", "client_id"];
+const DATA_KEYS: [&str; 15] = ["file", "time", "time_unit", "delimiter", "mqtt", "topics", "client_id", "opcua", "nodes", "security", "policy", "sampling", "window", "refresh", "record"];
+/// The keys of live data only, whatever the source.
+const LIVE_KEYS: [&str; 9] = ["topics", "client_id", "nodes", "security", "policy", "sampling", "window", "refresh", "record"];
+/// The OPC UA security policies a twin may ask for (the None policy goes with `security: "none"`).
+pub const OPCUA_POLICIES: [&str; 4] = ["Basic256Sha256", "Aes128Sha256RsaOaep", "Aes256Sha256RsaPss", "Basic128Rsa15"];
 const KEYS: [&str; 9] = ["id", "description", "verifies", "simulate", "data", "drives", "compares", "expects", "notes"];
 /// Points of each curve kept for the view (the deviations are computed on every sample).
 const PLOT_POINTS: usize = 600;
@@ -61,19 +65,131 @@ pub struct Compare {
     pub share: f64,
 }
 
-/// Live measurements: an MQTT broker, the topics, how much of the latest data
+/// Live measurements: where they come from, how much of the latest data
 /// the model replays (`window`) and how often (`refresh`); `record` keeps
 /// everything received as a CSV the twin replays later.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Live {
+    /// The broker (`mqtt://`, `mqtts://`) or the server (`opc.tcp://`).
     pub url: String,
-    pub topics: Vec<String>,
+    pub source: Source,
     /// Seconds.
     pub window: f64,
     /// Seconds.
     pub refresh: f64,
     pub record: Option<String>,
-    pub client_id: Option<String>,
+}
+
+/// How OPC UA messages are protected: `security: "none" | "sign" | "sign_and_encrypt"`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Security {
+    None,
+    Sign,
+    SignAndEncrypt,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum Source {
+    /// MQTT: the topics subscribed to; a column is a topic's last level or a field of its JSON.
+    Mqtt { topics: Vec<String>, client_id: Option<String> },
+    /// OPC UA: a column per node (`nodes: { indoor_c: "ns=2;s=Room.T" }`), sampled by the server every `sampling` seconds.
+    OpcUa { nodes: Vec<(String, String)>, security: Security, policy: String, sampling: f64 },
+}
+
+impl Live {
+    /// The source as the outcome names it: `opc.tcp://plc:4840 (indoor_c, outdoor_c, last 24 h)`.
+    pub fn label(&self) -> String {
+        let what = match &self.source {
+            Source::Mqtt { topics, .. } => topics.join(" "),
+            Source::OpcUa { nodes, .. } => nodes.iter().map(|(c, _)| c.as_str()).collect::<Vec<_>>().join(" "),
+        };
+        format!("{} ({what}, last {})", self.url, window_text(self.window))
+    }
+}
+
+/// An OPC UA node id as written in its text form: `ns=2;s=Room.T`, `i=2258`,
+/// `ns=3;g=<guid>`, `ns=1;b=<base64>`; also `nsu=<namespace uri>;s=...`.
+pub fn is_node_id(text: &str) -> bool {
+    let rest = match text.split_once(';') {
+        Some((namespace, rest)) => {
+            let ok = namespace.strip_prefix("ns=").is_some_and(|n| !n.is_empty() && n.chars().all(|c| c.is_ascii_digit()))
+                || namespace.strip_prefix("nsu=").is_some_and(|u| !u.is_empty());
+            if !ok {
+                return false;
+            }
+            rest
+        }
+        None => text,
+    };
+    match rest.split_once('=') {
+        Some(("i", n)) => !n.is_empty() && n.chars().all(|c| c.is_ascii_digit()),
+        Some(("s" | "g" | "b", v)) => !v.is_empty(),
+        _ => false,
+    }
+}
+
+/// The source of live data written in `data:`: an MQTT broker or an OPC UA server.
+fn live_of(data: &HashMap<String, AttributeValue>, url: String, opcua: bool) -> Result<(String, Source), String> {
+    let text = |key: &str| data.get(key).and_then(|v| v.as_string()).map(str::to_string);
+    if url.contains('@') {
+        let (user, password) = if opcua { ("ARCLANG_OPCUA_USERNAME", "ARCLANG_OPCUA_PASSWORD") } else { ("ARCLANG_MQTT_USERNAME", "ARCLANG_MQTT_PASSWORD") };
+        return Err(format!("data: the credentials are not written in the model: set {user} and {password}"));
+    }
+    let scheme = url.split("://").next().unwrap_or("");
+    let only = |keys: &[&str], source: &str| -> Result<(), String> {
+        match keys.iter().find(|k| data.contains_key(**k)) {
+            Some(key) => Err(format!("data: '{key}' is not for {source}")),
+            None => Ok(()),
+        }
+    };
+    if !opcua {
+        if !(scheme == "mqtt" || scheme == "mqtts") || !url.contains("://") {
+            return Err(format!("data: mqtt '{url}' is not mqtt://host[:port] or mqtts://host[:port]"));
+        }
+        only(&["nodes", "security", "policy", "sampling"], "an MQTT broker (they are OPC UA's)")?;
+        let topics = strings(data, "topics").map_err(|e| format!("data: {e}"))?;
+        if topics.is_empty() {
+            return Err("data: topics, what to subscribe to: topics: [\"site/042/#\"]".to_string());
+        }
+        return Ok((url, Source::Mqtt { topics, client_id: text("client_id") }));
+    }
+    if scheme != "opc.tcp" || !url.contains("://") {
+        return Err(format!("data: opcua '{url}' is not opc.tcp://host[:port]"));
+    }
+    only(&["topics", "client_id"], "an OPC UA server (they are MQTT's)")?;
+    let Some(AttributeValue::Map(written)) = data.get("nodes") else {
+        return Err("data: nodes, a column per node: nodes: { indoor_c: \"ns=2;s=Room.T\" }".to_string());
+    };
+    let mut nodes = Vec::new();
+    for (column, node) in written {
+        let node = node.as_string().ok_or_else(|| format!("data: nodes: {column} is a node id written as text (\"ns=2;s=Room.T\")"))?;
+        if !is_node_id(node) {
+            return Err(format!("data: nodes: '{node}' is not an OPC UA node id (ns=2;s=Room.T, ns=2;i=1002, i=2258)"));
+        }
+        nodes.push((column.clone(), node.to_string()));
+    }
+    if nodes.is_empty() {
+        return Err("data: nodes, a column per node: nodes: { indoor_c: \"ns=2;s=Room.T\" }".to_string());
+    }
+    nodes.sort();
+    let security = match text("security").as_deref() {
+        None | Some("none") => Security::None,
+        Some("sign") => Security::Sign,
+        Some("sign_and_encrypt") => Security::SignAndEncrypt,
+        Some(other) => return Err(format!("data: security '{other}' is \"none\", \"sign\" or \"sign_and_encrypt\"")),
+    };
+    let policy = match (security, text("policy")) {
+        (Security::None, None) => "None".to_string(),
+        (Security::None, Some(_)) => return Err("data: a policy is for messages signed or encrypted: security: \"sign_and_encrypt\"".to_string()),
+        (_, None) => "Basic256Sha256".to_string(),
+        (_, Some(policy)) if OPCUA_POLICIES.contains(&policy.as_str()) => policy,
+        (_, Some(policy)) => return Err(format!("data: policy '{policy}' is one of {}", OPCUA_POLICIES.join(", "))),
+    };
+    let sampling = super::seconds(data, "sampling").map_err(|e| format!("data: {e}"))?.unwrap_or(1.0);
+    if sampling <= 0.0 {
+        return Err("data: sampling is positive (1 s by default)".to_string());
+    }
+    Ok((url, Source::OpcUa { nodes, security, policy, sampling }))
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -206,7 +322,7 @@ pub fn spec_of(attributes: &HashMap<String, AttributeValue>) -> Result<Spec, Str
     };
     let configuration = simulate.get("configuration").and_then(|v| v.as_string()).map(str::to_string);
 
-    let data = block(attributes, "data", &DATA_KEYS, "{ file: \"data/measured.csv\" time: \"time\" } or { mqtt: \"mqtt://broker:1883\" topics: [\"site/#\"] }")?;
+    let data = block(attributes, "data", &DATA_KEYS, "{ file: \"data/measured.csv\" time: \"time\" } or { mqtt: \"mqtt://broker:1883\" topics: [\"site/#\"] } or { opcua: \"opc.tcp://plc:4840\" nodes: { t: \"ns=2;s=T\" } }")?;
     let text = |key: &str| data.get(key).and_then(|v| v.as_string()).map(str::to_string);
     let inside = |file: &str| -> Result<(), String> {
         if Path::new(file).is_absolute() || file.split(['/', '\\']).any(|p| p == "..") {
@@ -214,27 +330,16 @@ pub fn spec_of(attributes: &HashMap<String, AttributeValue>) -> Result<Spec, Str
         }
         Ok(())
     };
-    let live = match (text("file"), text("mqtt")) {
-        (Some(_), Some(_)) => return Err("data: a file or an mqtt broker, not both".to_string()),
-        (None, None) => return Err("data: file (the measurements, CSV or Parquet) or mqtt (a broker, for live data) is required".to_string()),
-        (Some(_), None) => {
-            if let Some(key) = ["topics", "window", "refresh", "record", "client_id"].iter().find(|k| data.contains_key(**k)) {
-                return Err(format!("data: '{key}' is for live data (mqtt: ...), not for a file"));
+    let live = match (text("file"), text("mqtt"), text("opcua")) {
+        (None, None, None) => return Err("data: file (the measurements, CSV or Parquet), mqtt (a broker) or opcua (a server) is required".to_string()),
+        (Some(_), None, None) => {
+            if let Some(key) = LIVE_KEYS.iter().find(|k| data.contains_key(**k)) {
+                return Err(format!("data: '{key}' is for live data (mqtt: or opcua:), not for a file"));
             }
             None
         }
-        (None, Some(url)) => {
-            let scheme = url.split("://").next().unwrap_or("");
-            if !(scheme == "mqtt" || scheme == "mqtts") || !url.contains("://") {
-                return Err(format!("data: mqtt '{url}' is not mqtt://host[:port] or mqtts://host[:port]"));
-            }
-            if url.contains('@') {
-                return Err("data: the broker's credentials are not written in the model: set ARCLANG_MQTT_USERNAME and ARCLANG_MQTT_PASSWORD".to_string());
-            }
-            let topics = strings(data, "topics").map_err(|e| format!("data: {e}"))?;
-            if topics.is_empty() {
-                return Err("data: topics, what to subscribe to: topics: [\"site/042/#\"]".to_string());
-            }
+        (None, Some(url), None) | (None, None, Some(url)) => {
+            let (url, source) = live_of(data, url, data.contains_key("opcua"))?;
             let window = super::seconds(data, "window").map_err(|e| format!("data: {e}"))?.unwrap_or(3600.0);
             let refresh = super::seconds(data, "refresh").map_err(|e| format!("data: {e}"))?.unwrap_or(60.0);
             if window <= 0.0 || refresh < 1.0 {
@@ -247,8 +352,9 @@ pub fn spec_of(attributes: &HashMap<String, AttributeValue>) -> Result<Spec, Str
                     return Err(format!("data: record '{record}' is a CSV file (.csv)"));
                 }
             }
-            Some(Live { url, topics, window, refresh, record, client_id: text("client_id") })
+            Some(Live { url, source, window, refresh, record })
         }
+        _ => return Err("data: one source: a file, an mqtt broker or an opcua server".to_string()),
     };
     let file = match &live {
         Some(live) => live.record.clone().unwrap_or_default(),
@@ -921,6 +1027,47 @@ mod tests {
         assert!(parse_compare("T ~ room °C within 2 kg").unwrap_err().contains("kg"));
         assert!(parse_compare("T ~ room").unwrap_err().contains("within"));
         assert!(parse_drive("heater.power = x").unwrap_err().contains("<-"));
+    }
+
+    #[test]
+    fn live_data_comes_from_an_mqtt_broker_or_an_opcua_server() {
+        let with = |data: &str| TWIN.replace(r#"data: { file: "data/room.csv" time: "timestamp" }"#, data);
+        let mqtt = spec_of(&attributes(&with(r#"data: { mqtt: "mqtt://broker:1883" topics: ["site/#"] window: 24 h refresh: 1 min }"#))).unwrap();
+        let live = mqtt.data.live.unwrap();
+        assert_eq!(live.source, Source::Mqtt { topics: vec!["site/#".into()], client_id: None });
+        assert_eq!((live.window, live.refresh), (86400.0, 60.0));
+        assert_eq!(live.label(), "mqtt://broker:1883 (site/#, last 24 h)");
+
+        let opcua = spec_of(&attributes(&with(r#"data: { opcua: "opc.tcp://plc:4840" nodes: { room: "ns=2;s=Room.T" outside: "ns=2;i=1002" } security: "sign_and_encrypt" sampling: 500 ms record: "data/live.csv" }"#))).unwrap();
+        let live = opcua.data.live.unwrap();
+        let Source::OpcUa { nodes, security, policy, sampling } = &live.source else { panic!("OPC UA") };
+        assert_eq!(nodes, &vec![("outside".to_string(), "ns=2;i=1002".to_string()), ("room".to_string(), "ns=2;s=Room.T".to_string())]);
+        assert_eq!((*security, policy.as_str(), *sampling), (Security::SignAndEncrypt, "Basic256Sha256", 0.5));
+        assert_eq!(opcua.data.file, "data/live.csv");
+        let anonymous = spec_of(&attributes(&with(r#"data: { opcua: "opc.tcp://plc:4840" nodes: { room: "i=2258" } }"#))).unwrap();
+        assert!(matches!(anonymous.data.live.unwrap().source, Source::OpcUa { security: Security::None, ref policy, .. } if policy == "None"));
+
+        let refused_data = |data: &str| refused(&with(data));
+        assert!(refused_data(r#"data: { opcua: "opc.tcp://plc:4840" }"#).contains("nodes"));
+        assert!(refused_data(r#"data: { opcua: "opc.tcp://plc:4840" nodes: { room: "Room.T" } }"#).contains("not an OPC UA node id"));
+        assert!(refused_data(r#"data: { opcua: "opc.tcp://user:pw@plc:4840" nodes: { room: "i=1" } }"#).contains("ARCLANG_OPCUA_USERNAME"));
+        assert!(refused_data(r#"data: { opcua: "http://plc:4840" nodes: { room: "i=1" } }"#).contains("opc.tcp://"));
+        assert!(refused_data(r#"data: { opcua: "opc.tcp://plc:4840" nodes: { room: "i=1" } policy: "Basic256Sha256" }"#).contains("signed or encrypted"));
+        assert!(refused_data(r#"data: { opcua: "opc.tcp://plc:4840" nodes: { room: "i=1" } security: "sign" policy: "Basic256" }"#).contains("is one of"));
+        assert!(refused_data(r#"data: { opcua: "opc.tcp://plc:4840" nodes: { room: "i=1" } topics: ["x"] }"#).contains("MQTT's"));
+        assert!(refused_data(r#"data: { mqtt: "mqtt://broker" topics: ["x"] nodes: { room: "i=1" } }"#).contains("OPC UA's"));
+        assert!(refused_data(r#"data: { mqtt: "mqtt://broker" opcua: "opc.tcp://plc:4840" topics: ["x"] }"#).contains("one source"));
+        assert!(refused_data(r#"data: { file: "data/room.csv" sampling: 1 s }"#).contains("live data"));
+    }
+
+    #[test]
+    fn an_opcua_node_id_is_written_in_its_text_form() {
+        for good in ["ns=2;s=Room.T", "ns=2;i=1002", "i=2258", "ns=3;g=09087e75-8e5e-499b-954f-f2a9603db28a", "ns=1;b=M/RbKBsRVkePCePcx24oRA==", "nsu=urn:plant;s=T"] {
+            assert!(is_node_id(good), "{good}");
+        }
+        for bad in ["Room.T", "ns=x;s=T", "ns=2;i=12a", "ns=2;s=", "s"] {
+            assert!(!is_node_id(bad), "{bad}");
+        }
     }
 
     #[test]

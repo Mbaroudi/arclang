@@ -1,23 +1,27 @@
-//! A twin on live data: `arclang twin --live` subscribes to the twin's MQTT
-//! topics, keeps what arrives, and at every `refresh` runs the twin over the
-//! latest `window` of data. The window is in the data's own time (a
-//! message's `time`, else its arrival), so a replay of past data at full
+//! A twin on live data: `arclang twin --live` follows the twin's source (the
+//! topics of an MQTT broker, the nodes of an OPC UA server), keeps what
+//! arrives, and at every `refresh` runs the twin over the latest `window` of
+//! data. The window is in the data's own time (a message's `time`, a value's
+//! source timestamp, else its arrival), so a replay of past data at full
 //! speed is a live run too. With `record:`, every sample received is
 //! appended to a CSV that `arclang twin` replays later.
 //!
-//! A message is either a number (the column is the topic's last level:
+//! An MQTT message is either a number (the column is the topic's last level:
 //! `site/042/indoor_c` gives `indoor_c`) or a JSON object (a column per
 //! numeric or boolean field, its `time` an ISO 8601 date-time or seconds,
 //! or milliseconds, since 1970). The broker's credentials come from
-//! `ARCLANG_MQTT_USERNAME` and `ARCLANG_MQTT_PASSWORD`, never from the model.
+//! `ARCLANG_MQTT_USERNAME` and `ARCLANG_MQTT_PASSWORD`, never from the model;
+//! OPC UA's are in [`super::twin_opcua`].
 
 use super::tool::ToolConfig;
-use super::twin::{self, Live, Measurements, Outcome, Spec};
+use super::twin::{self, Live, Measurements, Outcome, Source, Spec};
 use crate::compiler::ast::Twin;
 use crate::compiler::CompilationResult;
 use std::collections::BTreeMap;
 use std::io::Write;
 use std::path::Path;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::mpsc::{Receiver, RecvTimeoutError, Sender};
 use std::time::{Duration, Instant};
 
 /// Samples by instant (seconds since 1970), the columns of each.
@@ -162,14 +166,28 @@ pub struct Status {
     pub detail: String,
 }
 
-/// Follows the broker until `until` (or forever): `emit` receives each run of the twin, `say` the connection's news.
-pub fn live(result: &CompilationResult, model_path: &Path, twin: &Twin, config: &ToolConfig, until: Option<Duration>, mut emit: impl FnMut(&Outcome), mut say: impl FnMut(&Status)) -> Result<(), String> {
+impl Status {
+    pub fn new(status: &str, detail: impl Into<String>) -> Status {
+        Status { status: status.to_string(), detail: detail.into() }
+    }
+}
+
+/// What a source sends to the run: its news, or samples (instant, column, value).
+pub enum Feed {
+    Status(Status),
+    Samples(Vec<(f64, String, f64)>),
+}
+
+pub fn now() -> f64 {
+    std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs_f64()).unwrap_or(0.0)
+}
+
+/// Follows an MQTT broker in a thread of its own.
+fn mqtt(live: &Live, topics: &[String], client_id: Option<&str>, feed: Sender<Feed>) -> Result<(), String> {
     use rumqttc::{Client, Event, MqttOptions, Packet, QoS, Transport};
-    let spec = twin::spec_of(&twin.attributes)?;
-    let live: Live = spec.data.live.clone().ok_or_else(|| format!("twin '{}' reads a file, not live data: data: {{ mqtt: \"mqtt://broker:1883\" topics: [...] }}", twin.name))?;
     let (tls, host, port) = broker(&live.url)?;
-    let client_id = live.client_id.clone().unwrap_or_else(|| format!("arclang-twin-{}", std::process::id()));
-    let mut options = MqttOptions::new(client_id, host.clone(), port);
+    let client_id = client_id.map(str::to_string).unwrap_or_else(|| format!("arclang-twin-{}", std::process::id()));
+    let mut options = MqttOptions::new(client_id, host, port);
     options.set_keep_alive(Duration::from_secs(30));
     if tls {
         options.set_transport(Transport::tls_with_config(rumqttc::TlsConfiguration::Native));
@@ -178,36 +196,83 @@ pub fn live(result: &CompilationResult, model_path: &Path, twin: &Twin, config: 
         options.set_credentials(user, password);
     }
     let (client, mut connection) = Client::new(options, 64);
-    for topic in &live.topics {
+    for topic in topics {
         client.subscribe(topic.clone(), QoS::AtMostOnce).map_err(|e| format!("cannot subscribe to {topic}: {e}"))?;
     }
+    let (url, topics) = (live.url.clone(), topics.join(", "));
+    std::thread::spawn(move || {
+        let _client = client;
+        let mut connected = false;
+        for event in connection.iter() {
+            let sent = match event {
+                Ok(Event::Incoming(Packet::ConnAck(_))) => {
+                    connected = true;
+                    feed.send(Feed::Status(Status::new("connected", format!("{url} ({topics})"))))
+                }
+                Ok(Event::Incoming(Packet::Publish(message))) => feed.send(Feed::Samples(decode(&message.topic, &message.payload, now()))),
+                Ok(_) => Ok(()),
+                Err(error) => {
+                    let status = if connected { Status::new("disconnected", error.to_string()) } else { Status::new("unreachable", format!("{url}: {error}")) };
+                    connected = false;
+                    let sent = feed.send(Feed::Status(status));
+                    std::thread::sleep(Duration::from_secs(2));
+                    sent
+                }
+            };
+            if sent.is_err() {
+                return;
+            }
+        }
+    });
+    Ok(())
+}
+
+/// Follows the twin's source until `until` (or forever), or until `stop` is set: then what is
+/// waiting is recorded and the run ends without a last run of the twin. `emit` receives each run
+/// of the twin, `say` the connection's news.
+#[allow(clippy::too_many_arguments)]
+pub fn live(result: &CompilationResult, model_path: &Path, twin: &Twin, config: &ToolConfig, until: Option<Duration>, stop: &AtomicBool, mut emit: impl FnMut(&Outcome), mut say: impl FnMut(&Status)) -> Result<(), String> {
+    let spec = twin::spec_of(&twin.attributes)?;
+    let live: Live = spec.data.live.clone().ok_or_else(|| format!("twin '{}' reads a file, not live data: data: {{ mqtt: \"mqtt://broker:1883\" topics: [...] }} or {{ opcua: \"opc.tcp://plc:4840\" nodes: {{ ... }} }}", twin.name))?;
     let base = super::cache::model_dir(model_path);
+    let (sender, feed): (Sender<Feed>, Receiver<Feed>) = std::sync::mpsc::channel();
+    match &live.source {
+        Source::Mqtt { topics, client_id } => mqtt(&live, topics, client_id.as_deref(), sender)?,
+        Source::OpcUa { nodes, security, policy, sampling } => super::twin_opcua::follow(&live.url, nodes, *security, policy, *sampling, &base, sender)?,
+    }
     let record_path = live.record.as_ref().map(|r| base.join(r));
     let wanted = columns(&spec);
+    let label = live.label();
     let mut buffer = Buffer::default();
     let started = Instant::now();
     let mut last_run = Instant::now();
     let mut new_samples = 0usize;
-    let mut connected = false;
-    let mut pending: Vec<(f64, BTreeMap<String, f64>)> = Vec::new();
+    // What arrived since the last record, by instant: the values of one instant make one row,
+    // whether they came in one message (MQTT JSON) or one notification per node (OPC UA).
+    let mut pending: BTreeMap<i64, BTreeMap<String, f64>> = BTreeMap::new();
     let refresh = Duration::from_secs_f64(live.refresh);
     loop {
-        let done = until.is_some_and(|u| started.elapsed() >= u);
+        let stopped = stop.load(Ordering::Relaxed);
+        let done = stopped || until.is_some_and(|u| started.elapsed() >= u);
         if done || last_run.elapsed() >= refresh {
             if let Some(path) = &record_path {
-                if let Err(error) = record(path, &spec.data.time, &wanted, &pending) {
-                    say(&Status { status: "record".into(), detail: format!("{} cannot be written: {error}", path.display()) });
+                // The latest instant may still be arriving (one node after the other): it waits for the next record.
+                let held = if done { BTreeMap::new() } else { pending.last_key_value().map(|(k, _)| *k).map(|k| pending.split_off(&k)).unwrap_or_default() };
+                let rows: Vec<(f64, BTreeMap<String, f64>)> = std::mem::replace(&mut pending, held).into_iter().map(|(k, row)| (k as f64 / 1000.0, row)).collect();
+                if let Err(error) = record(path, &spec.data.time, &wanted, &rows) {
+                    say(&Status::new("record", format!("{} cannot be written: {error}", path.display())));
                 }
             }
-            pending.clear();
+            if stopped {
+                return Ok(());
+            }
             if new_samples > 0 {
                 match buffer.window(live.window, &wanted) {
                     Some(measurements) => {
-                        let label = format!("{} ({}, last {})", live.url, live.topics.join(" "), super::twin::window_text(live.window));
                         emit(&twin::run_on(result, model_path, twin, &spec, measurements, &label, config, Instant::now()));
                         new_samples = 0;
                     }
-                    None => say(&Status { status: "waiting".into(), detail: format!("{} sample(s) so far: the twin runs from two", buffer.len()) }),
+                    None => say(&Status::new("waiting", format!("{} sample(s) so far: the twin runs from two", buffer.len()))),
                 }
             }
             last_run = Instant::now();
@@ -216,39 +281,21 @@ pub fn live(result: &CompilationResult, model_path: &Path, twin: &Twin, config: 
                 return Ok(());
             }
         }
-        match connection.recv_timeout(Duration::from_millis(200)) {
-            Ok(Ok(Event::Incoming(Packet::ConnAck(_)))) => {
-                connected = true;
-                say(&Status { status: "connected".into(), detail: format!("{} ({})", live.url, live.topics.join(", ")) });
-            }
-            Ok(Ok(Event::Incoming(Packet::Publish(message)))) => {
-                let arrival = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs_f64()).unwrap_or(0.0);
-                let mut row: BTreeMap<String, f64> = BTreeMap::new();
-                let mut at = arrival;
-                for (t, column, value) in decode(&message.topic, &message.payload, arrival) {
+        match feed.recv_timeout(Duration::from_millis(200)) {
+            Ok(Feed::Status(status)) => say(&status),
+            Ok(Feed::Samples(samples)) => {
+                for (t, column, value) in samples {
                     if wanted.contains(&column) {
                         buffer.push(t, &column, value);
-                        row.insert(column, value);
-                        at = t;
+                        if record_path.is_some() {
+                            pending.entry(key(t)).or_default().insert(column, value);
+                        }
                         new_samples += 1;
                     }
                 }
-                if !row.is_empty() {
-                    pending.push((at, row));
-                }
             }
-            Ok(Ok(_)) => {}
-            Ok(Err(error)) => {
-                if connected {
-                    say(&Status { status: "disconnected".into(), detail: error.to_string() });
-                } else {
-                    say(&Status { status: "unreachable".into(), detail: format!("{}: {error}", live.url) });
-                }
-                connected = false;
-                std::thread::sleep(Duration::from_secs(2));
-            }
-            Err(rumqttc::RecvTimeoutError::Timeout) => {}
-            Err(rumqttc::RecvTimeoutError::Disconnected) => return Err("the MQTT connection closed".to_string()),
+            Err(RecvTimeoutError::Timeout) => {}
+            Err(RecvTimeoutError::Disconnected) => return Err(format!("the connection to {} closed", live.url)),
         }
     }
 }
