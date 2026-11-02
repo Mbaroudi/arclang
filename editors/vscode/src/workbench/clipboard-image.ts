@@ -38,9 +38,17 @@ export function clipboardCommands(platform: NodeJS.Platform, png: string): { fil
   ];
 }
 
+/** Where the image goes instead of the platform's tool: the browser build sets the page's clipboard (web/extension.ts). */
+let writer: ((png: Buffer) => Promise<void>) | null = null;
+
+export function setClipboardImageWriter(write: (png: Buffer) => Promise<void>): void {
+  writer = write;
+}
+
 /** Put the PNG `bytes` on the system clipboard as an image. */
 export async function writeImageToClipboard(bytes: Buffer, platform: NodeJS.Platform = process.platform): Promise<void> {
   if (bytes.length < 8 || bytes.readUInt32BE(0) !== 0x89504e47) throw new Error('not a PNG image');
+  if (writer) return writer(bytes);
   const dir = await mkdtemp(path.join(os.tmpdir(), 'arclang-copy-'));
   const file = path.join(dir, 'diagram.png');
   try {

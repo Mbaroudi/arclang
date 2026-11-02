@@ -4,6 +4,7 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import * as vscode from 'vscode';
+import { deliver } from './download';
 import { failureText, output, refusedHere, report, run, tempDir } from './cli';
 import { shownDiagramFile } from './diagrams';
 import { EXPORT_FORMATS, parseCheckReport, renderTransitionPlan, summarizeCheck, TransitionPlan } from './pure/arc';
@@ -225,8 +226,10 @@ export async function exportModel(uri?: vscode.Uri): Promise<void> {
     vscode.window.showErrorMessage(`ArcLang: export failed. ${failureText(result).split('\n')[0]}`);
     return;
   }
+  const isFile = await vscode.workspace.fs.stat(target).then((s) => s.type === vscode.FileType.File, () => false);
+  if (isFile) await deliver(target);
   const choice = await vscode.window.showInformationMessage(`ArcLang: exported to ${path.basename(target.fsPath)}.`, 'Open');
-  if (choice === 'Open' && fs.existsSync(target.fsPath) && fs.statSync(target.fsPath).isFile()) {
+  if (choice === 'Open' && isFile) {
     await vscode.commands.executeCommand('vscode.open', target);
   }
 }

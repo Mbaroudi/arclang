@@ -134,7 +134,9 @@ export async function runRemote(args: string[], options: RunOptions): Promise<Ru
 
   // The outputs, where the extension asked for them; the job's paths in the text turned back.
   for (const [rel, data] of Object.entries(answer.files ?? {})) {
-    const target = rel.endsWith(`/${OUTPUT_FOLDER}`) ? null : outputTarget(rel, plan.outputs);
+    if (rel.endsWith(`/${OUTPUT_FOLDER}`)) continue;
+    // An output asked for, or a file the command wrote in the folder sent (a baseline's), never a hidden one.
+    const target = outputTarget(rel, plan.outputs) ?? (rel.startsWith('w/') && !rel.split('/').some((s) => s.startsWith('.')) ? `${base}${rel.slice(1)}` : null);
     if (target) await writeBack(target, fromBase64(data));
   }
   const restore = (text: string) => restorePaths(text, plan.back);

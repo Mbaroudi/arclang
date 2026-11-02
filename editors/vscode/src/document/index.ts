@@ -3,6 +3,7 @@
 // compiler (`arclang document`) and written as Word, HTML or Markdown.
 import * as path from 'node:path';
 import * as vscode from 'vscode';
+import { deliver } from '../download';
 import { failureText, run } from '../cli';
 import { documentArgs, DOCUMENT_FORMATS, DocumentFormat } from '../pure/document';
 
@@ -47,6 +48,7 @@ async function generate(arg: unknown): Promise<void> {
     void vscode.window.showErrorMessage(`ArcLang: the document was not written. ${result.stderr.trim().split('\n').pop() || failureText(result)}`);
     return;
   }
+  await deliver(target);
   const open = await vscode.window.showInformationMessage(`ArcLang: wrote ${path.basename(target.fsPath)}.`, format.value === 'md' ? 'Open' : 'Open with the default app');
   if (!open) return;
   if (format.value === 'md') await vscode.window.showTextDocument(target);
