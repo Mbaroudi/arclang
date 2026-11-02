@@ -154,3 +154,17 @@ test_case "Climate envelope, standard unit" {
                 sweep: ["\"PN-OUTDOOR\".design_temperature = -10 °C .. 0 °C step 5 °C", "\"PN-SPACE\".internal_gain = 300 W, 900 W"] }
     expects: ["min(\"PN-SPACE\".room.T) >= 20 °C", "max(\"PN-SPACE\".room.T) <= 22 °C"]
 }
+
+// A digital twin: the standard configuration driven by a day of outdoor
+// temperatures and compared to the room temperature measured that day.
+// The sample in data/ is synthetic (see its header): replace it with a
+// logger's export, same columns.
+twin "January cold day, standard unit" {
+    id: "TW-JANUARY"
+    verifies: ["REQ-COMFORT"]
+    simulate: { model: "HeatingPhysics.StandardDay" configuration: "CFG-STANDARD" sources: ["physics/HeatingPhysics.mo"] }
+    data: { file: "data/house-2026-01-14.csv" time: "timestamp" }
+    drives: ["\"PN-OUTDOOR\".T <- outdoor_c °C"]
+    compares: ["\"PN-SPACE\".room.T ~ indoor_c °C within 0.5 K for 99 %"]
+    expects: ["REQ-COMFORT: min(\"PN-SPACE\".room.T) >= 20 °C"]
+}

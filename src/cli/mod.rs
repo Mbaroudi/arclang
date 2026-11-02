@@ -315,6 +315,26 @@ pub enum Commands {
         drawing: Option<String>,
     },
 
+    /// Run the digital twins of a model: each `twin`'s physical model
+    /// driven by its measured data (drives:) in OpenModelica, compared to
+    /// the measurements (compares:) and checked against its expects:
+    Twin {
+        #[clap(value_parser)]
+        input: PathBuf,
+
+        /// Only this twin (id or name)
+        #[clap(long)]
+        twin: Option<String>,
+
+        /// Print the outcomes as JSON (with the curves, for VS Code)
+        #[clap(long)]
+        json: bool,
+
+        /// Do not run: list the twins as JSON
+        #[clap(long)]
+        list: bool,
+    },
+
     /// A document filled from a template: Markdown whose {{ ... }}
     /// directives the compiler fills from the model (model, date, value,
     /// table, elements, verdicts, constraints, gate, suspects, rules).
@@ -958,6 +978,7 @@ impl CliRunner {
                 }
                 self.run_verify(input, test, json)
             }
+            Commands::Twin { input, twin, json, list } => self.run_twin(input, twin, json, list),
             Commands::Document { input, template, output } => self.run_document(input, template, output),
             Commands::Import { input, format, output } => {
                 self.run_import(input, format, output)
@@ -1798,6 +1819,60 @@ impl CliRunner {
     /// Drawn unless `--no-placement`; the workbench layout next to the model,
     /// when there is one, moves the boxes (a layout that cannot be read is
     /// reported and left out: the drawing is automatic then).
+    fn run_twin(&self, input: PathBuf, only: Option<String>, json: bool, list: bool) -> Result<(), CliError> {
+        use crate::compiler::simulation::twin;
+        let result = crate::Compiler::new(crate::CompilerConfig::default()).compile_file(&input).map_err(|e| CliError::Compilation(e.to_string()))?;
+        if list {
+            let twins: Vec<serde_json::Value> = result.ast.twins.iter().map(|t| serde_json::json!({ "id": t.id, "name": t.name, "verifies": t.verifies })).collect();
+            println!("{}", serde_json::Value::Array(twins));
+            return Ok(());
+        }
+        let chosen: Vec<_> = result.ast.twins.iter().filter(|t| only.as_deref().is_none_or(|o| t.id == o || t.name == o)).collect();
+        if chosen.is_empty() {
+            return Err(CliError::Compilation(match only {
+                Some(o) => format!("no twin '{o}' in {}", input.display()),
+                None => format!("{} declares no twin (twin \"Name\" {{ simulate: ... data: ... drives: ... }})", input.display()),
+            }));
+        }
+        let config = crate::compiler::simulation::tool::ToolConfig::from_env();
+        let outcomes: Vec<twin::Outcome> = chosen.iter().map(|t| twin::run(&result, &input, t, &config)).collect();
+        if json {
+            println!("{}", serde_json::to_string(&outcomes).map_err(|e| CliError::Compilation(e.to_string()))?);
+        } else {
+            for o in &outcomes {
+                println!("twin '{}' ({}): {}", o.name, o.twin, o.verdict.to_uppercase());
+                if !o.data.is_empty() {
+                    println!("  data: {}, {} samples over {:.0} s from {}", o.data, o.samples, o.duration, o.data_start);
+                }
+                for c in &o.comparisons {
+                    let unit = crate::compiler::quantity::lookup_unit(&c.unit);
+                    println!(
+                        "  {} {} ~ {}: max deviation {}, RMS {}, {:.1} % of the samples within {} ({:.1} % required){}",
+                        if c.holds { "ok  " } else { "FAIL" },
+                        c.target,
+                        c.column,
+                        twin::shown(c.max_deviation, unit),
+                        twin::shown(c.rms_deviation, unit),
+                        c.within * 100.0,
+                        c.tolerance,
+                        c.required * 100.0,
+                        c.first_exceedance.map(|t| format!(", first beyond at {t:.0} s")).unwrap_or_default()
+                    );
+                }
+                for v in &o.values {
+                    println!("  {} {}: {}", if v.holds { "ok  " } else { "FAIL" }, v.expect, v.value);
+                }
+                if !o.reason.is_empty() && o.verdict != "pass" {
+                    println!("  {}", o.reason);
+                }
+            }
+        }
+        if outcomes.iter().any(|o| o.verdict != "pass") {
+            return Err(CliError::Compilation(format!("{} of {} twin(s) do not hold", outcomes.iter().filter(|o| o.verdict != "pass").count(), outcomes.len())));
+        }
+        Ok(())
+    }
+
     fn modelica_options(&self, input: &std::path::Path, no_placement: bool) -> crate::compiler::modelica::Options {
         use crate::compiler::diagram::layout_file::{sidecar_path, LayoutFile};
         if no_placement {

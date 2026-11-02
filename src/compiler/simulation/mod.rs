@@ -29,6 +29,7 @@ pub mod run;
 pub mod statistics;
 pub mod sweep;
 pub mod tool;
+pub mod twin;
 
 use crate::compiler::ast::{AttributeValue, Model, TestCase};
 use crate::compiler::quantity::Dimension;

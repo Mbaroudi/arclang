@@ -45,6 +45,9 @@ pub struct Model {
     /// Verification cases tracing to requirements (V&V).
     #[serde(default)]
     pub test_cases: Vec<TestCase>,
+    /// Digital twins: a physical model driven by real data and compared to it.
+    #[serde(default)]
+    pub twins: Vec<Twin>,
     /// Product-line configurations: the variants each selects.
     #[serde(default)]
     pub configurations: Vec<Configuration>,
@@ -106,6 +109,7 @@ impl Model {
             classes: Vec::new(),
             associations: Vec::new(),
             test_cases: Vec::new(),
+            twins: Vec::new(),
             configurations: Vec::new(),
             notes: Vec::new(),
             rules: Vec::new(),
@@ -142,6 +146,7 @@ impl Model {
         self.data_types.extend(other.data_types);
         self.classes.extend(other.classes);
         self.test_cases.extend(other.test_cases);
+        self.twins.extend(other.twins);
         self.configurations.extend(other.configurations);
         self.constraints.extend(other.constraints);
         self.types.extend(other.types);
@@ -1285,6 +1290,18 @@ pub struct DataType {
     pub enumeration_values: Option<Vec<EnumValue>>,
     /// Every attribute written (status, unit_name, description...).
     #[serde(default)]
+    pub attributes: HashMap<String, AttributeValue>,
+}
+
+/// A digital twin: the physical model (`simulate:`) driven by measured data
+/// (`data:`, `drives:`) and compared to it (`compares:`), the requirements it
+/// `verifies` checked on the run (`expects:`). See `simulation::twin`.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Twin {
+    #[serde(default)]
+    pub id: String,
+    pub name: String,
+    pub verifies: Vec<String>,
     pub attributes: HashMap<String, AttributeValue>,
 }
 

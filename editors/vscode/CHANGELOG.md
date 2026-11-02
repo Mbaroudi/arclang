@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- **Digital twins**: a `twin` declaration connects a model's physics to real data.
+  - `data:` names a CSV of measurements; `drives:` imposes measured columns on the model's variables, converted from their units.
+  - `compares:` checks the model against measured columns, `within` a tolerance, `for` a share of the samples.
+  - `expects:` checks the requirements on that run.
+  - `arclang twin model.arc` runs them in OpenModelica. In VS Code, *ArcLang: Run the digital twins* shows each twin: its verdict, the measurement against the model with the tolerance band and the first instant beyond, the requirements on the run.
+  - The heat pump example carries one, on a synthetic day of data. See `docs/digital-twin.md`.
+  - Test: `test/e2e/vscode_twin_test.js` (6 checks in the real VS Code with OpenModelica in Docker).
 - **The Modelica drawing in VS Code, on the desktop and in the browser**: *ArcLang: Open the Modelica drawing* draws a simulated scenario or a configuration as OMEdit does, from OpenModelica's instance of the class: the parts with the icons of their classes (the Standard Library's included), their placements, the connectors and the connection lines. A part opens its own diagram, the path at the top goes back, the wheel and `+ - 0` zoom. Modex is no longer needed. The compiler gains `arclang verify --drawings` and `--drawing CLASS`. Test: `test/e2e/vscode_modelica_drawing_test.js` (9 checks in the real VS Code with OpenModelica in Docker).
 - **Examples, one folder each, each with its README**: what the model represents, what to look at, how to open it (playground, VS Code, command line) and a few changes to make to see the compiler and the gate react, all checked against the compiler. `examples/README.md` gives a path to follow and a table per domain; `01-getting-started/` and `features/` come first; the old syntax moved to `archive/`. In the playground the READMEs come with the examples.
 - Simulation online (arclang.fr) as on the desktop: when a run ends, *Show the verdicts* opens the requirement coverage table (the compiler online reads the run's verdicts), *Export the report* offers PDF or PowerPoint with the curves the server kept and ends with *Open*, *Show the log* shows the same log as the desktop's (the tool, OpenModelica's version, each case and its time). The desktop and the browser now share one report export.

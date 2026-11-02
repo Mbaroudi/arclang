@@ -322,6 +322,10 @@ impl Compiler {
                     .collect(),
             });
         }
+        // A twin names requirements and a configuration of the model.
+        for finding in simulation::twin::check(&ast) {
+            warnings.push(format!("twin: {finding}"));
+        }
         let scope = constraint::Scope::from_model(&ast);
         for declared in &ast.constraints {
             let outcome = constraint::check(&declared.expression, &scope)
