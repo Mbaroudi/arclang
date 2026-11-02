@@ -466,9 +466,9 @@ function onDownload(blob: Blob, filename: string): void {
  * Full screen in an editor: the canvas takes the page (palette, drawer and
  * status line hidden) and the host maximizes the editor; Esc or the button leaves.
  */
-function setFocusMode(on: boolean): void {
+function setFocusMode(on: boolean, tellHost = true): void {
   document.body.classList.toggle('wb-focus', on);
-  vscode.postMessage({ type: 'focus-mode', on });
+  if (tellHost) vscode.postMessage({ type: 'focus-mode', on });
   fitStage();
   setTimeout(() => {
     fitStage();
@@ -833,6 +833,9 @@ window.addEventListener('message', (event: MessageEvent<ToWebview>) => {
       return;
     case 'busy':
       progress.hidden = !message.busy;
+      return;
+    case 'full-screen':
+      if (document.body.classList.contains('wb-focus') !== message.on) setFocusMode(message.on, false);
       return;
     case 'key':
       canvasCommand(message.command, message.text);

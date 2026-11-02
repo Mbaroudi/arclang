@@ -14,6 +14,7 @@ import { registerSimulationWeb } from '../simulation/web';
 import { registerSemgit } from '../semgit';
 import { registerDebug } from '../debug';
 import { registerPdfViewer } from '../pdf/viewer';
+import { registerFullScreen } from '../fullscreen';
 import { registerDocuments } from '../document';
 import { registerTraces } from '../traces';
 import { setGitRunner } from '../semgit/git';
@@ -90,6 +91,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   attempt('documents', () => registerDocuments(context));
   attempt('traces', () => registerTraces(context));
   attempt('the PDF viewer', () => registerPdfViewer(context));
+  attempt('full screen', () => registerFullScreen(context));
   attempt('the debugger', () => registerDebug(context, wasmDebugAdapter(wasm)));
   attempt('the AI assistant', () => registerAi(context)); // ai-design hook
 }
