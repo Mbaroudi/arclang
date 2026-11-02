@@ -172,10 +172,20 @@ const impact = await esbuild.context({
   outfile: 'dist/impact.js',
 });
 
+// The Modelica drawing's page.
+const modelicaPage = await esbuild.context({
+  ...common,
+  entryPoints: ['webview/modelica/main.ts'],
+  format: 'iife',
+  platform: 'browser',
+  target: 'es2022',
+  outfile: 'dist/modelica.js',
+});
+
 if (watch) {
-  await Promise.all([host.watch(), web.watch(), chat.watch(), page.watch(), tables.watch(), impact.watch()]);
+  await Promise.all([host.watch(), web.watch(), chat.watch(), page.watch(), tables.watch(), impact.watch(), modelicaPage.watch()]);
 } else {
-  await Promise.all([host.rebuild(), web.rebuild(), chat.rebuild(), page.rebuild(), tables.rebuild(), impact.rebuild()]);
+  await Promise.all([host.rebuild(), web.rebuild(), chat.rebuild(), page.rebuild(), tables.rebuild(), impact.rebuild(), modelicaPage.rebuild()]);
   copyWasm();
-  await Promise.all([host.dispose(), web.dispose(), chat.dispose(), page.dispose(), tables.dispose(), impact.dispose()]);
+  await Promise.all([host.dispose(), web.dispose(), chat.dispose(), page.dispose(), tables.dispose(), impact.dispose(), modelicaPage.dispose()]);
 }

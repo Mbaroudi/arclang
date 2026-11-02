@@ -1,0 +1,44 @@
+/* The Modelica drawing: the diagram on white paper as OMEdit shows it (the
+   icons' colors are the library's), the toolbar and the path in the VS Code
+   theme. A part that opens its own diagram lights up under the pointer. */
+:root {
+  --md-bg: color-mix(in srgb, var(--vscode-editor-foreground, #1f1f1f) 6%, var(--vscode-editor-background, #f3f3f3));
+  --md-fg: var(--vscode-editor-foreground, #1f1f1f);
+  --md-bar: var(--vscode-editorWidget-background, var(--vscode-editor-background, #ffffff));
+  --md-line: color-mix(in srgb, var(--md-fg) 14%, transparent);
+  --md-muted: var(--vscode-descriptionForeground, #6b6b6b);
+  --md-hover: var(--vscode-toolbar-hoverBackground, color-mix(in srgb, var(--md-fg) 9%, transparent));
+  --md-focus: var(--vscode-focusBorder, #005fb8);
+  --md-accent: var(--vscode-textLink-foreground, #005fb8);
+  --md-error: var(--vscode-errorForeground, #b3261e);
+  --md-shadow: 0 1px 2px rgb(0 0 0 / 0.18), 0 6px 22px rgb(0 0 0 / 0.16);
+  color-scheme: light dark;
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
+body { display: flex; flex-direction: column; background: var(--md-bg); color: var(--md-fg); font: 12px/1.4 var(--vscode-font-family, system-ui, sans-serif); }
+.bar { display: flex; align-items: center; gap: 10px; padding: 5px 10px; background: var(--md-bar); border-bottom: 1px solid var(--md-line); flex: none; }
+.crumbs { display: flex; align-items: center; gap: 4px; min-width: 0; overflow: hidden; }
+.crumb { white-space: nowrap; }
+.crumb.current { font-weight: 600; padding: 3px 4px; }
+.sep { color: var(--md-muted); }
+.spacer { flex: 1; }
+.summary { color: var(--md-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 40%; }
+.group { display: inline-flex; border: 1px solid var(--md-line); border-radius: 4px; overflow: hidden; }
+.group button { border-radius: 0; }
+.group button + button { border-left: 1px solid var(--md-line); }
+button { font: inherit; color: inherit; background: transparent; border: 0; border-radius: 4px; padding: 3px 9px; cursor: pointer; transition: background-color 120ms ease-out; }
+button.crumb { color: var(--md-accent); padding: 3px 4px; }
+button:hover { background: var(--md-hover); }
+button:focus-visible, .stage:focus-visible { outline: 1px solid var(--md-focus); outline-offset: -1px; }
+#source { border: 1px solid var(--md-line); }
+.stage { flex: 1; min-height: 0; margin: 14px; background: #ffffff; box-shadow: var(--md-shadow); border-radius: 2px; cursor: grab; touch-action: none; overflow: hidden; }
+.stage:active { cursor: grabbing; }
+.stage svg { width: 100%; height: 100%; display: block; }
+.stage g.component.opens { cursor: pointer; }
+.stage g.component.opens:hover { filter: drop-shadow(0 0 2px rgb(0 95 184 / 0.75)); }
+.tip { position: fixed; z-index: 2; max-width: 360px; padding: 6px 9px; white-space: pre-line; border-radius: 4px; background: var(--md-bar); border: 1px solid var(--md-line); box-shadow: var(--md-shadow); pointer-events: none; }
+.status { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); margin: 0; max-width: 80%; padding: 6px 12px; white-space: pre-line; border-radius: 4px; background: var(--md-bar); border: 1px solid var(--md-line); box-shadow: var(--md-shadow); }
+.status.error { border-color: var(--md-error); color: var(--md-error); }
+.status[hidden], .status:empty { display: none; }
+@media (prefers-reduced-motion: reduce) { button { transition: none; } }
