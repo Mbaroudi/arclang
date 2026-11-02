@@ -2015,7 +2015,7 @@ architecture physical {
 
     #[test]
     fn export_is_deterministic() {
-        let source = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/examples/complete_emergency_braking_simple.arc")).unwrap();
+        let source = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/examples/automotive/emergency-braking/complete_emergency_braking_simple.arc")).unwrap();
         assert_eq!(export(&source), export(&source));
     }
 }

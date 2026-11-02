@@ -9,8 +9,8 @@ use arclang::compiler::simulation::{self, cache, montecarlo, run, tool::ToolConf
 use arclang::compiler::{production_gate, Compiler, CompilerConfig};
 use std::path::{Path, PathBuf};
 
-const DEMO: &str = "examples/automotive/ev_range_simulation.arc";
-const PHYSICS: &str = "examples/automotive/physics/EVPhysics.mo";
+const DEMO: &str = "examples/automotive/ev-range/ev_range_simulation.arc";
+const PHYSICS: &str = "examples/automotive/ev-range/physics/EVPhysics.mo";
 const CASE: &str = "simulate: { model: \"EVPhysics.TouringRange\" configuration: \"CFG-TOURING\" stop_time: 5 h sources: [\"physics/EVPhysics.mo\"] }";
 
 fn root() -> &'static Path {

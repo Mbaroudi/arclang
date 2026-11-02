@@ -87,7 +87,7 @@ fn report(name: &str, m: &Measure) {
 
 #[test]
 fn the_flagship_example_comes_back_from_sysml() {
-    let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("examples/complete_emergency_braking_simple.arc");
+    let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("examples/automotive/emergency-braking/complete_emergency_braking_simple.arc");
     let m = round_trip(&path);
     report("complete_emergency_braking_simple", &m);
     assert!(m.kept_elements == m.total_elements, "{} of {} elements come back", m.kept_elements, m.total_elements);
@@ -96,7 +96,7 @@ fn the_flagship_example_comes_back_from_sysml() {
 
 #[test]
 fn the_capella_ife_example_comes_back_whole() {
-    let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("examples/capella/in_flight_entertainment.arc");
+    let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("examples/capella/in-flight-entertainment/in_flight_entertainment.arc");
     let m = round_trip(&path);
     report("in_flight_entertainment", &m);
     assert!(m.kept_elements == m.total_elements, "{} of {} elements come back", m.kept_elements, m.total_elements);
@@ -110,7 +110,7 @@ fn every_example_round_trip_is_measured() {
         for entry in std::fs::read_dir(dir).into_iter().flatten().flatten() {
             let path = entry.path();
             if path.is_dir() {
-                if path.file_name().is_some_and(|n| n == "legacy" || n == "multifile") {
+                if path.file_name().is_some_and(|n| n == "archive" || n == "multifile") {
                     continue;
                 }
                 walk(&path, out);

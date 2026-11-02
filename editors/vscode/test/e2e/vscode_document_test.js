@@ -17,7 +17,7 @@ const rows = []; const report = (name, ok, detail) => { rows.push({ name, ok });
 (async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'arcdoc-'));
   const model = path.join(dir, 'aircraft.arc');
-  fs.copyFileSync(path.join(REPO, 'examples/aerospace/aircraft_electrical_network.arc'), model);
+  fs.copyFileSync(path.join(REPO, 'examples/aerospace/electrical-network/aircraft_electrical_network.arc'), model);
   const template = path.join(dir, 'brief.md');
   fs.writeFileSync(template, '# {{model}}: battery brief\n\nThe light battery: {{value LC-BAT-25 capacity}}.\n\n{{elements LogicalComponent where "has(capacity)" columns capacity}}\n\n{{gate}}\n');
   const settings = { 'files.simpleDialog.enable': true, 'update.mode': 'none', 'extensions.autoCheckUpdates': false, 'extensions.autoUpdate': false, 'telemetry.telemetryLevel': 'off', 'workbench.startupEditor': 'none', 'security.workspace.trust.enabled': false, 'window.restoreWindows': 'none', 'arclang.binary': BINARY };

@@ -219,7 +219,7 @@ mod tests {
     #[test]
     fn header_covers_types_ports_and_state_machines() {
         let flagship = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("examples/complete_emergency_braking_simple.arc");
+            .join("examples/automotive/emergency-braking/complete_emergency_braking_simple.arc");
         let result = Compiler::new(CompilerConfig::default())
             .compile_file(&flagship)
             .expect("compiles");

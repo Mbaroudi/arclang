@@ -7,7 +7,7 @@ use arclang::compiler::modelica::{self, Options};
 use arclang::compiler::{Compiler, CompilerConfig};
 use std::path::{Path, PathBuf};
 
-const DEMO: &str = "examples/automotive/ev_range_simulation.arc";
+const DEMO: &str = "examples/automotive/ev-range/ev_range_simulation.arc";
 
 fn root() -> &'static Path {
     Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -178,7 +178,7 @@ fn every_example_with_physical_nodes_draws_without_overlap() {
             let path = entry.path();
             if path.is_dir() {
                 stack.push(path);
-            } else if path.extension().is_some_and(|e| e == "arc") && !path.to_string_lossy().contains("legacy") {
+            } else if path.extension().is_some_and(|e| e == "arc") && !path.to_string_lossy().contains("archive") {
                 let Ok(result) = Compiler::new(CompilerConfig::default()).compile_file(&path) else { continue };
                 let Ok(export) = modelica::export_with(&result.ast, &Options { placement: true, layout: None }) else { continue };
                 seen += 1;

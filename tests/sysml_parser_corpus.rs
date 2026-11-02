@@ -68,7 +68,7 @@ fn through_parser(relative: &str) -> (usize, usize, usize, usize, Vec<String>) {
 
 #[test]
 fn the_flagship_export_comes_back_through_the_parser() {
-    let (kept, total, kept_relationships, total_relationships, lost) = through_parser("examples/complete_emergency_braking_simple.arc");
+    let (kept, total, kept_relationships, total_relationships, lost) = through_parser("examples/automotive/emergency-braking/complete_emergency_braking_simple.arc");
     println!("PARSER ROUNDTRIP flagship: elements {kept}/{total}, relationships {kept_relationships}/{total_relationships}");
     for l in lost.iter().take(40) {
         println!("PARSER ROUNDTRIP   lost {l}");
