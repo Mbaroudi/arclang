@@ -201,12 +201,22 @@ function copyPdfjs() {
   fs.cpSync(path.join(from, 'standard_fonts'), path.join(to, 'standard_fonts'), { recursive: true });
 }
 
+// The digital twins' page.
+const twinPage = await esbuild.context({
+  ...common,
+  entryPoints: ['webview/twin/main.ts'],
+  format: 'iife',
+  platform: 'browser',
+  target: 'es2022',
+  outfile: 'dist/twin.js',
+});
+
 if (watch) {
   copyPdfjs();
-  await Promise.all([host.watch(), web.watch(), chat.watch(), page.watch(), tables.watch(), impact.watch(), pdf.watch(), modelicaPage.watch()]);
+  await Promise.all([host.watch(), web.watch(), chat.watch(), page.watch(), tables.watch(), impact.watch(), pdf.watch(), modelicaPage.watch(), twinPage.watch()]);
 } else {
-  await Promise.all([host.rebuild(), web.rebuild(), chat.rebuild(), page.rebuild(), tables.rebuild(), impact.rebuild(), pdf.rebuild(), modelicaPage.rebuild()]);
+  await Promise.all([host.rebuild(), web.rebuild(), chat.rebuild(), page.rebuild(), tables.rebuild(), impact.rebuild(), pdf.rebuild(), modelicaPage.rebuild(), twinPage.rebuild()]);
   copyWasm();
   copyPdfjs();
-  await Promise.all([host.dispose(), web.dispose(), chat.dispose(), page.dispose(), tables.dispose(), impact.dispose(), pdf.dispose(), modelicaPage.dispose()]);
+  await Promise.all([host.dispose(), web.dispose(), chat.dispose(), page.dispose(), tables.dispose(), impact.dispose(), pdf.dispose(), modelicaPage.dispose(), twinPage.dispose()]);
 }

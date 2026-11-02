@@ -913,6 +913,12 @@
         "command": "arclang.view.toggleFullScreen",
         "title": "Toggle full screen",
         "category": "ArcLang"
+      },
+      {
+        "command": "arclang.twin.run",
+        "title": "Run the digital twins (the physics driven by measured data)",
+        "category": "ArcLang",
+        "icon": "$(pulse)"
       }
     ],
     "menus": {

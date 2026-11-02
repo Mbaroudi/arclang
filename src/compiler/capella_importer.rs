@@ -127,6 +127,7 @@ impl CapellaImporter {
             classes: Vec::new(),
             associations: Vec::new(),
             test_cases: Vec::new(),
+            twins: Vec::new(),
             configurations: Vec::new(),
             notes: Vec::new(),
             rules: Vec::new(),

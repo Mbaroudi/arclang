@@ -165,6 +165,9 @@ impl Parser {
                 Token::TestCase if !self.peek_is_colon() => {
                     model.test_cases.push(self.parse_test_case()?);
                 }
+                Token::Twin if !self.peek_is_colon() => {
+                    model.twins.push(self.parse_twin()?);
+                }
                 Token::ConstraintKw if !self.peek_is_colon() => {
                     model.constraints.push(self.parse_constraint()?);
                 }
@@ -322,6 +325,9 @@ impl Parser {
                 Token::TestCase if !self.peek_is_colon() => {
                     model.test_cases.push(self.parse_test_case()?);
                 }
+                Token::Twin if !self.peek_is_colon() => {
+                    model.twins.push(self.parse_twin()?);
+                }
                 Token::ConstraintKw if !self.peek_is_colon() => {
                     model.constraints.push(self.parse_constraint()?);
                 }
@@ -437,6 +443,9 @@ impl Parser {
                 }
                 Token::TestCase if !self.peek_is_colon() => {
                     model.test_cases.push(self.parse_test_case()?);
+                }
+                Token::Twin if !self.peek_is_colon() => {
+                    model.twins.push(self.parse_twin()?);
                 }
                 Token::ConstraintKw if !self.peek_is_colon() => {
                     model.constraints.push(self.parse_constraint()?);
@@ -622,6 +631,9 @@ impl Parser {
                 }
                 Token::TestCase if !self.peek_is_colon() => {
                     model.test_cases.push(self.parse_test_case()?);
+                }
+                Token::Twin if !self.peek_is_colon() => {
+                    model.twins.push(self.parse_twin()?);
                 }
                 Token::ConstraintKw if !self.peek_is_colon() => {
                     model.constraints.push(self.parse_constraint()?);
@@ -1837,6 +1849,17 @@ impl Parser {
                 None => Err(self.err(format!("Expected a value, a name or '(' in expression, got {}", token))),
             },
         }
+    }
+
+    /// Parse: twin Name { verifies: [...] simulate: { model: ... } data: { file: ... } drives: [...] compares: [...] expects: [...] }
+    fn parse_twin(&mut self) -> Result<Twin, String> {
+        self.expect(Token::Twin)?;
+        let name = self.expect_name()?;
+        let attributes = self.parse_attributes_block()?;
+        let id = attributes.get("id").and_then(|v| v.as_string()).map(|s| s.to_string()).unwrap_or_else(|| name.clone());
+        let verifies = Self::string_list(&attributes, "verifies");
+        super::simulation::twin::validate(&attributes).map_err(|e| self.err(format!("twin '{}': {e}", name)))?;
+        Ok(Twin { id, name, verifies, attributes })
     }
 
     /// Parse: test_case Name { verifies: ["REQ-1"] method: "test" description: "..." }
