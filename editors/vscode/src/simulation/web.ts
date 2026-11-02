@@ -7,15 +7,14 @@
 // extension, so that a button never fails silently.
 import * as path from 'node:path';
 import * as vscode from 'vscode';
-import { PDF_VIEW_TYPE } from '../pdf/viewer';
 import { failureText, run } from '../cli';
-import { deliver } from '../download';
 import { leftText, pickFiles, walkable, ONLINE_LIMITS } from '../pure/sim-online';
-import { buildReport, buildReportPdf, type Replay } from '../pure/sim-report';
-import { DOCS_URL, Outcome, countOutcomes, outcomesLog, parseOutcomes, simulates, summaryText } from '../pure/simulation';
+import type { Replay } from '../pure/sim-report';
+import { DOCS_URL, Outcome, countOutcomes, parseOutcomes, runLog, simulates, summaryText } from '../pure/simulation';
 import { MonteCarloPanel } from './montecarlo';
 import { keepOnlineRun, type OnlineStatistics } from './online-results';
 import { replaySimulation } from './replay';
+import { exportSimulationReport } from './report';
 
 const HOST_COMMAND = 'arclangWeb.simulation.run';
 const DESKTOP_ONLY = 'ArcLang: simulation needs the desktop extension. It runs OpenModelica on your computer, which a browser cannot do.';
@@ -118,33 +117,25 @@ async function runOnline(arg: unknown, monteCarlo: boolean): Promise<void> {
     if (value && Array.isArray(value.time) && Array.isArray(value.elements) && Array.isArray(value.expectations)) replays.set(o.test_case, value);
   }
   last = { uri, outcomes, replays };
-  log.appendLine(`--- ${model}, simulated online (${new Date().toLocaleString()})${picked.left ? `; ${picked.left} file(s) of the folder not sent (limits)` : ''}`);
-  log.appendLine(outcomesLog(outcomes));
-  log.show(true);
+  // The same log as the desktop's (the tool, OpenModelica's version, each case and its time).
+  log.appendLine(runLog(`${model} (online)`, outcomes, new Date()));
+  if (picked.left) log.appendLine(`${picked.left} file(s) of the folder were not sent (limits).\n`);
   if (MonteCarloPanel.has(outcomes)) MonteCarloPanel.show(uri.fsPath, outcomes, () => ({}));
   else if (monteCarlo) void vscode.window.showInformationMessage('ArcLang: no test case of this model samples uncertain parameters (uncertain: in simulate: { ... }).');
   const counts = countOutcomes(outcomes);
   const show = counts.fail || counts.other ? vscode.window.showWarningMessage : vscode.window.showInformationMessage;
-  const choice = await show(`ArcLang: ${summaryText(counts)}${leftText(answer.left)}`, 'Show the verdicts', 'Export the report (PDF)');
-  if (choice === 'Show the verdicts') log.show(true);
-  else if (choice === 'Export the report (PDF)') await exportReport();
+  // The same choices as on the desktop: the verdicts in the coverage table (the compiler online reads the run's cache), the report, the log.
+  const choice = await show(`ArcLang: ${summaryText(counts)}${leftText(answer.left)}`, 'Show the verdicts', 'Export the report', 'Show the log');
+  if (choice === 'Show the verdicts') await vscode.commands.executeCommand('arclang.table.coverage', uri);
+  else if (choice === 'Export the report') await exportReport();
+  else if (choice === 'Show the log') log.show(true);
 }
 
-/** The report of the last online run, as a PDF beside the model. */
+/** The report of the last online run, as PDF or PowerPoint: the desktop's export, with the series the server kept. */
 async function exportReport(): Promise<void> {
   if (!last) return void vscode.window.showInformationMessage('ArcLang: run the simulations first; the report shows their verdicts and curves.');
-  const base = path.posix.basename(last.uri.path).replace(/\.[^.]+$/, '');
-  const target = vscode.Uri.joinPath(last.uri, '..', `${base}-simulation.pdf`);
-  try {
-    const report = buildReport(base, last.outcomes, last.replays, new Date());
-    const pdf = buildReportPdf(report);
-    await vscode.workspace.fs.writeFile(target, pdf);
-    await deliver(target, pdf);
-    const open = await vscode.window.showInformationMessage(`ArcLang: the simulation report is written to ${path.posix.basename(target.path)}, beside the model.`, 'Open');
-    if (open === 'Open') await vscode.commands.executeCommand('vscode.openWith', target, PDF_VIEW_TYPE);
-  } catch (error) {
-    void vscode.window.showErrorMessage(`ArcLang: the simulation report could not be written: ${error instanceof Error ? error.message : String(error)}`);
-  }
+  const { uri, outcomes, replays } = last;
+  await exportSimulationReport(uri.fsPath, outcomes, async (testCase) => replays.get(testCase) ?? null);
 }
 
 /** The replay of the last online run of the model looked at (or of the last run). */
@@ -176,7 +167,7 @@ async function menu(): Promise<void> {
     { id: 'montecarlo', label: '$(graph) Show Monte Carlo results', detail: 'Runs the model online and shows how likely the requirements hold.' },
     { id: 'replay', label: '$(history) Replay a simulation on the diagram', detail: 'Moves through the last online run of a test case: the values on each box, the first instant an expectation fails.' },
     { id: 'modelica', label: '$(export) Export Modelica', detail: 'Write the physical architecture as a Modelica package, beside the model.' },
-    { id: 'export', label: '$(file-pdf) Export the report of the last run', detail: 'A PDF beside the model: one page per test case, with its verdict, values and curves.' },
+    { id: 'export', label: '$(file-pdf) Export the report of the last run', detail: 'PDF or PowerPoint: one page per test case, with its verdict, values and curves.' },
     { id: 'docs', label: '$(book) Open the documentation', detail: 'How simulation works and how to write a test case.' },
   ];
   const picked = await vscode.window.showQuickPick(entries, { title: 'ArcLang: Simulation (online)' });
