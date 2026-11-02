@@ -125,7 +125,7 @@ export function fitDrawing(width: number, height: number, legendLines: number): 
   return { x: MARGIN + (boxW - w) / 2, y: bottom + (boxH - h) / 2, w, h };
 }
 
-const f = (n: number) => (Math.round(n * 100) / 100).toString();
+export const f = (n: number) => (Math.round(n * 100) / 100).toString();
 
 function pageContent(page: PdfPage, index: number, total: number, doc: PdfDocument, size: { width: number; height: number }): string {
   const ops: string[] = [];
@@ -157,8 +157,18 @@ function pageContent(page: PdfPage, index: number, total: number, doc: PdfDocume
   return ops.join('\n');
 }
 
-/** The PDF file of `doc`. Throws when a page's drawing is not a JPEG. */
-export function buildPdf(doc: PdfDocument): Uint8Array {
+/** A page as the assembler takes it: its drawing operators and the JPEG images they name /Im1, /Im2… */
+export interface RawPage {
+  content: string;
+  images: Uint8Array[];
+}
+
+/**
+ * The bytes of a PDF of `pages` (16:9), titled `title`: the fonts /F1
+ * (Helvetica) and /F2 (Helvetica-Bold) and each page's JPEG images. Throws
+ * when an image is not a JPEG.
+ */
+export function assemblePdf(title: string, pages: RawPage[]): Uint8Array {
   const encoder = new TextEncoder();
   const chunks: Uint8Array[] = [];
   let length = 0;
@@ -176,29 +186,38 @@ export function buildPdf(doc: PdfDocument): Uint8Array {
     write('\nendobj\n');
   };
 
-  // Ids: 1 catalog, 2 pages, 3 Helvetica, 4 Helvetica-Bold, 5 info, then 3 per page (page, content, image).
-  const pageIds = doc.pages.map((_, i) => 6 + 3 * i);
+  // Ids: 1 catalog, 2 pages, 3 Helvetica, 4 Helvetica-Bold, 5 info, then per page: the page, its content, its images.
+  const pageIds: number[] = [];
+  let next = 6;
+  for (const page of pages) {
+    pageIds.push(next);
+    next += 2 + page.images.length;
+  }
   write('%PDF-1.4\n%\u00e2\u00e3\u00cf\u00d3\n'); // a comment of bytes above 127: the file is binary
   object(1, '<< /Type /Catalog /Pages 2 0 R >>');
-  object(2, `<< /Type /Pages /Count ${doc.pages.length} /Kids [${pageIds.map((id) => `${id} 0 R`).join(' ')}] >>`);
+  object(2, `<< /Type /Pages /Count ${pages.length} /Kids [${pageIds.map((id) => `${id} 0 R`).join(' ')}] >>`);
   object(3, '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>');
   object(4, '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>');
-  object(5, `<< /Title ${pdfText(doc.title)} /Producer (ArcLang) /Creator (ArcLang) >>`);
-  doc.pages.forEach((page, i) => {
-    const size = jpegSize(page.jpeg);
-    if (!size) throw new Error(`page ${i + 1} (${page.title}): the drawing is not a JPEG`);
-    const [pageId, contentId, imageId] = [pageIds[i], pageIds[i] + 1, pageIds[i] + 2];
-    const content = pageContent(page, i, doc.pages.length, doc, size);
-    object(pageId, `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${PAGE.width} ${PAGE.height}] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> /XObject << /Im1 ${imageId} 0 R >> >> /Contents ${contentId} 0 R >>`);
-    object(contentId, `<< /Length ${encoder.encode(content).length} >>\nstream\n${content}\nendstream`);
-    object(imageId, () => {
-      const space = size.components === 1 ? '/DeviceGray' : size.components === 4 ? '/DeviceCMYK' : '/DeviceRGB';
-      write(`<< /Type /XObject /Subtype /Image /Width ${size.width} /Height ${size.height} /ColorSpace ${space} /BitsPerComponent 8 /Filter /DCTDecode /Length ${page.jpeg.length} >>\nstream\n`);
-      write(page.jpeg);
-      write('\nendstream');
+  object(5, `<< /Title ${pdfText(title)} /Producer (ArcLang) /Creator (ArcLang) >>`);
+  pages.forEach((page, i) => {
+    const pageId = pageIds[i];
+    const contentId = pageId + 1;
+    const imageIds = page.images.map((_, k) => pageId + 2 + k);
+    const xobjects = imageIds.length ? ` /XObject << ${imageIds.map((id, k) => `/Im${k + 1} ${id} 0 R`).join(' ')} >>` : '';
+    object(pageId, `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${PAGE.width} ${PAGE.height}] /Resources << /Font << /F1 3 0 R /F2 4 0 R >>${xobjects} >> /Contents ${contentId} 0 R >>`);
+    object(contentId, `<< /Length ${encoder.encode(page.content).length} >>\nstream\n${page.content}\nendstream`);
+    page.images.forEach((jpeg, k) => {
+      const size = jpegSize(jpeg);
+      if (!size) throw new Error(`page ${i + 1}: image ${k + 1} is not a JPEG`);
+      object(imageIds[k], () => {
+        const space = size.components === 1 ? '/DeviceGray' : size.components === 4 ? '/DeviceCMYK' : '/DeviceRGB';
+        write(`<< /Type /XObject /Subtype /Image /Width ${size.width} /Height ${size.height} /ColorSpace ${space} /BitsPerComponent 8 /Filter /DCTDecode /Length ${jpeg.length} >>\nstream\n`);
+        write(jpeg);
+        write('\nendstream');
+      });
     });
   });
-  const objects = 5 + 3 * doc.pages.length;
+  const objects = next - 1;
   const xref = length;
   write(`xref\n0 ${objects + 1}\n0000000000 65535 f \n`);
   for (let id = 1; id <= objects; id++) write(`${String(offsets[id]).padStart(10, '0')} 00000 n \n`);
@@ -211,4 +230,16 @@ export function buildPdf(doc: PdfDocument): Uint8Array {
     at += chunk.length;
   }
   return out;
+}
+
+/** The PDF file of `doc`. Throws when a page's drawing is not a JPEG. */
+export function buildPdf(doc: PdfDocument): Uint8Array {
+  return assemblePdf(
+    doc.title,
+    doc.pages.map((page, i) => {
+      const size = jpegSize(page.jpeg);
+      if (!size) throw new Error(`page ${i + 1} (${page.title}): the drawing is not a JPEG`);
+      return { content: pageContent(page, i, doc.pages.length, doc, size), images: [page.jpeg] };
+    }),
+  );
 }

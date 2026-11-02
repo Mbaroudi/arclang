@@ -9,14 +9,16 @@ import { layoutLegend, LegendItem, rgbOf } from './pdf';
 
 export interface Slide {
   title: string;
-  /** The drawing, PNG bytes, and its size in pixels. */
-  png: Uint8Array;
+  /** The drawing, PNG bytes, and its size in pixels; a slide of shapes only has none. */
+  png?: Uint8Array;
   width: number;
   height: number;
   /** One line per element shown, in the speaker notes. */
   notes: string[];
   /** The legend of what the diagram shows, along the bottom of the slide. */
   legend?: LegendItem[];
+  /** More shapes (DrawingML, `p:sp`/`p:cxnSp`), their ids from 100 up: tables and charts drawn as shapes. */
+  shapes?: string;
 }
 
 export interface Deck {
@@ -163,13 +165,16 @@ function legendShapes(items: LegendItem[], firstId: number): { xml: string; line
 
 function slide(item: Slide, index: number): string {
   const legend = legendShapes(item.legend ?? [], 4);
-  const at = fitPicture(item.width, item.height, legend.lines);
+  const at = item.png ? fitPicture(item.width, item.height, legend.lines) : null;
   const body = `<p:txBody><a:bodyPr anchor="b"><a:normAutofit/></a:bodyPr><a:lstStyle/>${paragraph(item.title)}</p:txBody>`;
   return `${XML}<p:sld xmlns:a="${NS_A}" xmlns:r="${NS_R}" xmlns:p="${NS_P}"><p:cSld><p:spTree>${group}${titleBox(2, body)}` +
-    `<p:pic><p:nvPicPr><p:cNvPr id="3" name="Diagram ${index + 1}" descr="${xmlText(item.title)}"/><p:cNvPicPr><a:picLocks noChangeAspect="1"/></p:cNvPicPr><p:nvPr/></p:nvPicPr>` +
-    `<p:blipFill><a:blip r:embed="rId2"/><a:stretch><a:fillRect/></a:stretch></p:blipFill>` +
-    `<p:spPr><a:xfrm><a:off x="${at.x}" y="${at.y}"/><a:ext cx="${at.cx}" cy="${at.cy}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></p:spPr></p:pic>` +
+    (at
+      ? `<p:pic><p:nvPicPr><p:cNvPr id="3" name="Diagram ${index + 1}" descr="${xmlText(item.title)}"/><p:cNvPicPr><a:picLocks noChangeAspect="1"/></p:cNvPicPr><p:nvPr/></p:nvPicPr>` +
+        `<p:blipFill><a:blip r:embed="rId2"/><a:stretch><a:fillRect/></a:stretch></p:blipFill>` +
+        `<p:spPr><a:xfrm><a:off x="${at.x}" y="${at.y}"/><a:ext cx="${at.cx}" cy="${at.cy}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></p:spPr></p:pic>`
+      : '') +
     legend.xml +
+    (item.shapes ?? '') +
     '</p:spTree></p:cSld><p:clrMapOvr><a:masterClrMapping/></p:clrMapOvr></p:sld>';
 }
 
@@ -245,17 +250,17 @@ export function buildPptx(deck: Deck, deflate?: Deflate): Uint8Array {
   add('ppt/notesMasters/notesMaster1.xml', notesMaster());
   add('ppt/notesMasters/_rels/notesMaster1.xml.rels', rels([['rId1', 'theme', '../theme/theme2.xml']]));
   deck.slides.forEach((item, i) => {
-    if (!isPng(item.png)) throw new Error(`slide ${i + 1} (${item.title}): the picture is not a PNG`);
+    if (item.png && !isPng(item.png)) throw new Error(`slide ${i + 1} (${item.title}): the picture is not a PNG`);
     const n = i + 1;
     add(`ppt/slides/slide${n}.xml`, slide(item, i));
     add(`ppt/slides/_rels/slide${n}.xml.rels`, rels([
       ['rId1', 'slideLayout', '../slideLayouts/slideLayout1.xml'],
-      ['rId2', 'image', `../media/image${n}.png`],
+      ...(item.png ? [['rId2', 'image', `../media/image${n}.png`] as [string, string, string]] : []),
       ['rId3', 'notesSlide', `../notesSlides/notesSlide${n}.xml`],
     ]));
     add(`ppt/notesSlides/notesSlide${n}.xml`, notesSlide(item));
     add(`ppt/notesSlides/_rels/notesSlide${n}.xml.rels`, rels([['rId1', 'notesMaster', '../notesMasters/notesMaster1.xml'], ['rId2', 'slide', `../slides/slide${n}.xml`]]));
-    add(`ppt/media/image${n}.png`, item.png);
+    if (item.png) add(`ppt/media/image${n}.png`, item.png);
   });
   return zip(entries, deflate);
 }

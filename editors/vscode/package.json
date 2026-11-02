@@ -558,6 +558,11 @@
         "category": "ArcLang"
       },
       {
+        "command": "arclang.simulation.exportReport",
+        "title": "Export the simulation report (PDF or PowerPoint)…",
+        "category": "ArcLang"
+      },
+      {
         "command": "arclang.diagram.exportPdf",
         "title": "Export the diagrams to PDF, one page each with its title and legend…",
         "category": "ArcLang"

@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- **Simulation report, PDF or PowerPoint**: *ArcLang: Export the simulation report…*, or **Export the report** when a run ends: a summary page (each test case, its verdict, the requirements it verifies, OpenModelica's version) and a page per test case with its verdict, what it simulated, each expectation with its value and margin, and the curve of each quantity checked over time with its bound and the first instant it fails, drawn as vectors (editable shapes in PowerPoint). Values read in the unit the expectation is written in (°C, km, kW…).
 - **Export PDF…**: the diagrams (this one, its layer or all) as a PDF, one 16:9 page each with its title, the drawing, the legend of what it shows and the page number. Also *ArcLang: Export the diagrams to PDF…*.
 - PowerPoint: each slide now carries the legend of its diagram under the drawing, in the drawing's own colors, and the deck's fonts are Arial (Calibri fell back to a serif face where Office is not installed).
 - VS Code for the Web: PDF and PowerPoint exports go to the browser's downloads (they were written to the page's virtual disk), and the PowerPoint export works there (it needed zlib, which a browser does not have).
