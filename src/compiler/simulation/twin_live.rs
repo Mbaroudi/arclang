@@ -172,7 +172,7 @@ pub fn live(result: &CompilationResult, model_path: &Path, twin: &Twin, config: 
     let mut options = MqttOptions::new(client_id, host.clone(), port);
     options.set_keep_alive(Duration::from_secs(30));
     if tls {
-        options.set_transport(Transport::tls_with_default_config());
+        options.set_transport(Transport::tls_with_config(rumqttc::TlsConfiguration::Native));
     }
     if let (Ok(user), Ok(password)) = (std::env::var("ARCLANG_MQTT_USERNAME"), std::env::var("ARCLANG_MQTT_PASSWORD")) {
         options.set_credentials(user, password);
