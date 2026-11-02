@@ -65,7 +65,7 @@ operational_analysis "Emergency Braking - Operational View" {
     // Operational interactions
     interaction DriverCommands { from: Driver to: Vehicle.MonitorEnvironment description: "Driving inputs" }
     interaction EnvironmentData { from: TrafficEnvironment to: Vehicle.MonitorEnvironment description: "Environmental conditions" }
-    interaction ThreatDetection { from: Vehicle.MonitorEnvironment to: Vehicle.DetectThreat description: "Observations to analyse" }
+    interaction ThreatDetection { from: Vehicle.MonitorEnvironment to: Vehicle.DetectThreat description: "Observations to analyze" }
     interaction DriverWarning { from: Vehicle.AlertDriver to: Driver description: "Visual and audio warning" }
     interaction BrakingAction { from: Vehicle.ApplyBrakes to: Vehicle description: "Braking force" }
     interaction PedestrianProtection { from: Vehicle.ApplyBrakes to: Pedestrian description: "Collision avoided or mitigated" }

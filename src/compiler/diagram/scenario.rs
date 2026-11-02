@@ -108,7 +108,7 @@ fn build_scenario(
         .collect();
     let all: Vec<String> = diagram.nodes.iter().map(|node| node.id.clone()).collect();
     diagram.fragments = scenario.fragments.iter().map(|fragment| frame(fragment, &rows, &all)).collect();
-    // The invariants, on the lifeline each one names, labelled with the
+    // The invariants, on the lifeline each one names, labeled with the
     // name of the state or function (the model may reference it by id).
     let mut diagnostics = diagnostics;
     for invariant in &scenario.invariants {

@@ -8,7 +8,7 @@
 // OpenModelica: the design summer day, a CDU pump failing in the middle of
 // a training run, a heat wave, and the climate and load envelope.
 //
-// The behaviour runs step by step in the debugger (F5, or ArcLang: Run…):
+// The behavior runs step by step in the debugger (F5, or ArcLang: Run…):
 // the cooling modes (a state machine), a pump failure during a training
 // run (a scenario) and the leak isolation chain (a functional chain).
 
@@ -247,7 +247,7 @@ physical_architecture "Cooling plant" {
     physical_link "Cap from the controller" { id: "PL-P-OUT" from: "BC-COOL.power_cap" to: "PN-BMS.power_cap" protocol: "On-chip" }
 }
 
-// --- Behaviour: what runs step by step --------------------------------------
+// --- Behavior: what runs step by step --------------------------------------
 
 state_machine "Cooling modes" {
     id: "SM-COOLING"

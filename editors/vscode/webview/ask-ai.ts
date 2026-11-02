@@ -101,11 +101,11 @@ class AskController {
   menuActions(): MenuAction[] {
     return [
       { label: 'Ask AI…', shortcut: '⌘I', run: () => this.open() },
-      { label: 'Analyse impact with AI', run: () => this.analyse() },
+      { label: 'Analyze impact with AI', run: () => this.analyze() },
     ];
   }
 
-  analyse(): void {
+  analyze(): void {
     const ids = this.selection().map((e) => e.id);
     if (ids.length === 0) return;
     this.hooks.post({ type: 'ai-impact', ids });

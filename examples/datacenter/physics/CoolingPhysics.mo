@@ -118,7 +118,7 @@ package CoolingPhysics "Physics of the AI hall's liquid cooling"
   end Weather;
 
   model Control "A PI on the coolant supply (fans, then chiller); a PI capping the GPUs above their limit"
-    extends AILiquidCooling.Behaviour.CoolingController.SupplyTemperatureControl;
+    extends AILiquidCooling.Behavior.CoolingController.SupplyTemperatureControl;
     Modelica.Blocks.Sources.Constant target(k=setpoint) annotation(Placement(transformation(origin={-30,2}, extent={{-6,-6},{6,6}})));
     Modelica.Blocks.Continuous.LimPID cooling(controllerType=Modelica.Blocks.Types.SimpleController.PI, k=0.5, Ti=600, yMax=2, yMin=0, initType=Modelica.Blocks.Types.Init.InitialOutput, y_start=0.5) "0 to 1: fans; 1 to 2: chiller" annotation(Placement(transformation(origin={10,20}, extent={{-8,-8},{8,8}})));
     Modelica.Blocks.Sources.Constant limit(k=cap_above) annotation(Placement(transformation(origin={-30,-20}, extent={{-6,-6},{6,6}})));

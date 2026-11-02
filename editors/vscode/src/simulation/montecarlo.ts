@@ -72,10 +72,10 @@ export class MonteCarloPanel {
       if (index >= total) return;
       return replayCase(vscode.Uri.file(this.file), { id: found.id, name: found.name }, index >= 0 ? index : undefined);
     }
-    if (type === 'statistics' && (engine === 'r' || engine === 'python')) return this.analyse(found, engine);
+    if (type === 'statistics' && (engine === 'r' || engine === 'python')) return this.analyze(found, engine);
   }
 
-  private async analyse(found: MonteCarloCase, engine: 'r' | 'python'): Promise<void> {
+  private async analyze(found: MonteCarloCase, engine: 'r' | 'python'): Promise<void> {
     if (this.statistics[found.id]?.state === 'running') return;
     this.setStatistics(found, { state: 'running', engine });
     const result = await run(['verify', this.file, '--test', found.id, '--statistics', engine, '--json'], { cwd: path.dirname(this.file), env: this.env() });

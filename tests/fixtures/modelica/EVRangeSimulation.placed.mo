@@ -2,16 +2,16 @@
 // The physics lives in a package of its own that extends these models.
 within ;
 package EVRangeSimulation "EV range simulation"
-  package Behaviour "Behaviour components, by the node they are deployed on"
-    package VehicleControlUnit "Behaviour components of Vehicle control unit"
+  package Behavior "Behavior components, by the node they are deployed on"
+    package VehicleControlUnit "Behavior components of Vehicle control unit"
       partial model SpeedController "Speed controller"
         parameter Modelica.Units.SI.Velocity target_speed = 27.7777777777778 "100 km/h";
         Modelica.Blocks.Interfaces.RealInput speed "signal port speed" annotation(Placement(transformation(origin={-61,0}, extent={{-8,-8},{8,8}})), __ArcLang(id="BC-SPD.speed"));
         Modelica.Blocks.Interfaces.RealOutput torque_cmd "signal port torque_cmd" annotation(Placement(transformation(origin={61,0}, extent={{-8,-8},{8,8}})), __ArcLang(id="BC-SPD.torque_cmd"));
-        annotation(Icon(coordinateSystem(extent={{-70,-48},{70,48}}), graphics={Rectangle(extent={{-70,-48},{70,48}}, lineColor={0,0,0}, fillColor={255,255,255}, fillPattern=FillPattern.Solid), Text(extent={{-32.2,-19.2},{32.2,19.2}}, textString="Speed controller", textColor={0,0,0}), Text(extent={{-70,50},{70,72}}, textString="%name", textColor={0,0,255})}), Diagram(coordinateSystem(extent={{-70,-48},{70,48}})), Documentation(info="<html><p>Behaviour component 'Speed controller' (BC-SPD).</p><p>Realizes LC-SPD.</p></html>"), __ArcLang(id="BC-SPD", kind="BehaviorComponent"));
+        annotation(Icon(coordinateSystem(extent={{-70,-48},{70,48}}), graphics={Rectangle(extent={{-70,-48},{70,48}}, lineColor={0,0,0}, fillColor={255,255,255}, fillPattern=FillPattern.Solid), Text(extent={{-32.2,-19.2},{32.2,19.2}}, textString="Speed controller", textColor={0,0,0}), Text(extent={{-70,50},{70,72}}, textString="%name", textColor={0,0,255})}), Diagram(coordinateSystem(extent={{-70,-48},{70,48}})), Documentation(info="<html><p>Behavior component 'Speed controller' (BC-SPD).</p><p>Realizes LC-SPD.</p></html>"), __ArcLang(id="BC-SPD", kind="BehaviorComponent"));
       end SpeedController;
     end VehicleControlUnit;
-  end Behaviour;
+  end Behavior;
   package Physical "Physical nodes"
     partial model BatteryPack "Battery pack"
       parameter Modelica.Units.SI.Power auxiliary_load = 2500 "2.5 kW";
@@ -43,7 +43,7 @@ package EVRangeSimulation "EV range simulation"
     partial model VehicleControlUnit "Vehicle control unit"
       Modelica.Blocks.Interfaces.RealInput speed "signal port speed" annotation(Placement(transformation(origin={-21,0}, extent={{-8,-8},{8,8}})), __ArcLang(id="PN-VCU.speed"));
       Modelica.Blocks.Interfaces.RealOutput torque_cmd "signal port torque_cmd" annotation(Placement(transformation(origin={81,0}, extent={{-8,-8},{8,8}})), __ArcLang(id="PN-VCU.torque_cmd"));
-      replaceable EVRangeSimulation.Behaviour.VehicleControlUnit.SpeedController speedController constrainedby EVRangeSimulation.Behaviour.VehicleControlUnit.SpeedController "Speed controller" annotation(Placement(transformation(origin={30,0}, extent={{-30,-13.7},{30,13.7}})), __ArcLang(id="BC-SPD"));
+      replaceable EVRangeSimulation.Behavior.VehicleControlUnit.SpeedController speedController constrainedby EVRangeSimulation.Behavior.VehicleControlUnit.SpeedController "Speed controller" annotation(Placement(transformation(origin={30,0}, extent={{-30,-13.7},{30,13.7}})), __ArcLang(id="BC-SPD"));
     equation
       connect(speed, speedController.speed) annotation(Line(points={{-21,0},{3.9,0}}, color={0,0,127}), __ArcLang(id="PL-SPEED-IN"));
       connect(speedController.torque_cmd, torque_cmd) annotation(Line(points={{56.1,0},{81,0}}, color={0,0,127}), __ArcLang(id="PL-TORQUE-OUT"));

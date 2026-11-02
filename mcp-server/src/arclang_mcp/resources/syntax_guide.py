@@ -65,7 +65,7 @@ an element kind accepts and with which type.
 10. Multiplicity (logical components and physical nodes): `multiplicity: 4`,
     or `"0..1"`, `"1..*"`, `"*"`.
 11. Reusable definitions are top-level `type "Name" { attributes }` blocks,
-    `type "B" extends "A" { }` specialising one; `is: "Name"` on an element
+    `type "B" extends "A" { }` specializing one; `is: "Name"` on an element
     gives it the type's attributes. Writing one of them differently on the
     element is an error.
 12. A `constraint "Name" { assert: <expression> }` compares the model's
@@ -74,7 +74,7 @@ an element kind accepts and with which type.
     a `constraint.violated` finding and a gate blocker.
 13. Modes and states: `state_machine Name { initial: "A" mode A { } state B { }
     transition A -> B { trigger: "LF-001" guard: "..." } }`. A `mode` is a
-    chosen behaviour, a `state` an undergone one. The ends of a transition
+    chosen behavior, a `state` an undergone one. The ends of a transition
     must be declared; a `trigger` that names no declared element is a warning.
 14. Scenarios: `scenario Name { participants: ["LC-001", "LC-002"]
     message "LC-001" -> "LC-002" "label" { type: "async" exchange: "X" } }`.

@@ -1,5 +1,5 @@
 // AI accelerator platform: a compute tray of eight AI accelerators in a
-// data-center rack, modelled end to end in Arcadia. Operational need, system
+// data-center rack, modeled end to end in Arcadia. Operational need, system
 // functions and chains with latency budgets, logical components down to the
 // tensor cores and the HBM stacks, physical nodes and links with their
 // protocols and data rates, configuration items, a data model, modes,
@@ -433,7 +433,7 @@ system_analysis "System Analysis" {
 
     functional_chain "All-reduce step" {
         id: "FC-ALLREDUCE"
-        description: "One gradient synchronisation step: local reduce, ring exchange, completion"
+        description: "One gradient synchronization step: local reduce, ring exchange, completion"
         involves: ["SF-SCHED", "SF-REDUCE", "SF-ALLRED", "SF-SYNC"]
         latency_budget: 2500 us
         capability: "CAP-TRAIN"
@@ -1117,7 +1117,7 @@ security_analysis {
         id: "TH-THERMAL-DOS"
         kind: "Denial of service"
         level: 2
-        rationale: "A tenant workload crafted to peak power on all devices forces throttling of its neighbours or a breaker trip"
+        rationale: "A tenant workload crafted to peak power on all devices forces throttling of its neighbors or a breaker trip"
         applies_to: ["AS-TELEMETRY"]
         involves: ["LC-PDN", "LC-BMC"]
         security_availability: "2 minutes"
@@ -1162,7 +1162,7 @@ state_machine "Accelerator power and thermal modes" {
 // ---------------------------------------------------------------------------
 
 scenario "Job launch and all-reduce step" {
-    description: "A training job is dispatched, its tensors staged, and one gradient synchronisation step runs over the fabric"
+    description: "A training job is dispatched, its tensors staged, and one gradient synchronization step runs over the fabric"
     participants: ["LC-ORCH", "LC-HOST", "LC-ACC", "LC-FSW", "LC-BMC"]
     message "LC-ORCH" -> "LC-HOST" "dispatch job" { type: "async" exchange: "Job dispatch" }
     message "LC-HOST" -> "LC-ACC" "DMA weights and activations (1 GB)" { type: "async" exchange: "Tensor transfers" timing: 18 ms }

@@ -13,7 +13,7 @@ package LevelCrossingProtection {
         metadata def Actor;
         metadata def Entity;
         metadata def Node;
-        metadata def Behaviour;
+        metadata def Behavior;
         metadata def Hardware;
         metadata def Mission;
         metadata def Capability;
@@ -61,7 +61,7 @@ package LevelCrossingProtection {
             attribute priority : String = "High";
         }
         requirement <'REQ-LX-003'> 'Crossing clear proving' {
-            doc /* The system shall prove the crossing area is free of obstacles before authorising train passage */
+            doc /* The system shall prove the crossing area is free of obstacles before authorizing train passage */
             attribute priority : String = "High";
         }
         requirement <'REQ-LX-004'> 'Fail-safe state' {
@@ -108,7 +108,7 @@ package LevelCrossingProtection {
         connection 'barrier command' connect 'LC-LX-002' to 'LC-LX-003';
         connection 'signal command' connect 'LC-LX-002' to 'LC-LX-005';
     }
-    package Behaviours {
+    package Behaviors {
         state CrossingModes {
             entry; then Open;
             #Mode state Open;

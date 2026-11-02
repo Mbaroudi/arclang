@@ -1,4 +1,4 @@
-// The diagram colour themes the workbench offers: the compiler's presets,
+// The diagram color themes the workbench offers: the compiler's presets,
 // the team's (`.arclang/themes/*.json` in the workspace, versioned with the
 // model) and the user's own (in the extension's global storage). Every one
 // is checked by the viewer's validator (media/viewer/arcviz-theme.js, the

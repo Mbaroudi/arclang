@@ -1,5 +1,5 @@
 //! `arclang verify model.arc --test CASE --statistics r|python`: the samples
-//! of a Monte Carlo case, analysed further with R or Python, without
+//! of a Monte Carlo case, analyzed further with R or Python, without
 //! simulating again.
 //!
 //! The analysis reads `samples.csv`, which `arclang verify` keeps beside the
@@ -61,8 +61,8 @@ impl Engine {
     }
 }
 
-/// Analyse the samples kept in `case_dir`; the report, also written there.
-pub fn analyse(case_dir: &Path, engine: Engine) -> Result<serde_json::Value, String> {
+/// Analyze the samples kept in `case_dir`; the report, also written there.
+pub fn analyze(case_dir: &Path, engine: Engine) -> Result<serde_json::Value, String> {
     let samples = case_dir.join("samples.csv");
     if !samples.is_file() {
         return Err(format!("no samples in {}: run `arclang verify` on a case with uncertain: first", case_dir.display()));
@@ -148,10 +148,10 @@ mod tests {
         assert_eq!(Engine::parse("python"), Some(Engine::Python));
         assert_eq!(Engine::parse("matlab"), None);
         let dir = tempfile::tempdir().unwrap();
-        assert!(analyse(dir.path(), Engine::R).unwrap_err().contains("no samples"));
+        assert!(analyze(dir.path(), Engine::R).unwrap_err().contains("no samples"));
         std::fs::write(dir.path().join("samples.csv"), "sample,\"a.x\",\"margin: x >= 1\",holds\n1,1,0,1\n").unwrap();
         std::env::set_var("ARCLANG_PYTHON", "/nonexistent/python-for-arclang");
-        let error = analyse(dir.path(), Engine::Python).unwrap_err();
+        let error = analyze(dir.path(), Engine::Python).unwrap_err();
         std::env::remove_var("ARCLANG_PYTHON");
         assert!(error.contains("does not run") && error.contains("pip install numpy SALib"), "{error}");
     }

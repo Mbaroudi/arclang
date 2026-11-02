@@ -1,7 +1,7 @@
 // The model tree in the side bar: the model, then its Arcadia layers, each
 // with its diagrams first and then its elements nested by ownership, from
 // the compiler's snapshot. Every node has the icon of its kind (the
-// diagram's colours), the findings on it as a badge, and can be filtered,
+// diagram's colors), the findings on it as a badge, and can be filtered,
 // dragged onto a diagram, renamed, deleted, given a child; a click selects
 // the element in the views and the text, a diagram opens on click.
 import * as fs from 'node:fs';
@@ -49,7 +49,7 @@ class IconFiles {
   }
 }
 
-/** The findings of a node, shown as a badge and a colour at the end of its line. */
+/** The findings of a node, shown as a badge and a color at the end of its line. */
 class FindingDecorations implements vscode.FileDecorationProvider {
   provideFileDecoration(uri: vscode.Uri): vscode.FileDecoration | undefined {
     if (uri.scheme !== DECORATION_SCHEME) return undefined;

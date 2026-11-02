@@ -196,7 +196,7 @@ export class Properties {
       );
     }
     actions.appendChild(action('⏱', 'History', () => openHistory(element.id), { title: 'The commits that changed it, found by the semantic diff between revisions' })); // semgit hook
-    actions.appendChild(action('⚡', 'Impact', () => openImpact(element.id), { title: 'Analyse the impact of a change to it, or ask what if…' })); // impact hook
+    actions.appendChild(action('⚡', 'Impact', () => openImpact(element.id), { title: 'Analyze the impact of a change to it, or ask what if…' })); // impact hook
     actions.appendChild(action('⌫', 'Delete', () => this.owner.submit([removalOf(element, this.owner.snapshot?.())], `delete ${element.name || element.id}`), { class: 'wb-danger', title: 'Delete the declaration (⌘Z takes it back)' }));
     const linked = ends
       ? el('p', { class: 'wb-ends' }, [

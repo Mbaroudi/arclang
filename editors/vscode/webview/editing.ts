@@ -603,7 +603,7 @@ export class Editing {
     this.menu.open(event.clientX, event.clientY, [...withArrange(withAi(withHistory(withImpact(this.menuItems(element, target?.dataset.id ?? null)))), element), ...(extra.length ? ['separator' as const, ...extra] : [])]); // ai-design hook: Ask AI first; zorder hook: Arrange after
   }
 
-  /** The actions on an element (or on the sheet when none), in the order a modeller looks for them. */
+  /** The actions on an element (or on the sheet when none), in the order a modeler looks for them. */
   menuItems(element: ElementRecord | null, drawing: string | null): MenuItem[] {
     const many = this.ctx.multi().length > 1 ? this.ctx.multi() : [];
     const paste: MenuAction = { label: this.clip?.cut ? 'Paste (move here)' : 'Paste here', shortcut: '⌘V', run: () => this.paste(this.menuPoint), disabled: !this.clip };
@@ -614,7 +614,7 @@ export class Editing {
     ];
     if (many.length) {
       return [
-        { title: 'Align', row: [['Left', 'left'], ['Centre', 'center'], ['Right', 'right'], ['Top', 'top'], ['Middle', 'middle'], ['Bottom', 'bottom']].map(([label, how]) => ({ label, run: () => this.align(how as Alignment) })) },
+        { title: 'Align', row: [['Left', 'left'], ['Center', 'center'], ['Right', 'right'], ['Top', 'top'], ['Middle', 'middle'], ['Bottom', 'bottom']].map(([label, how]) => ({ label, run: () => this.align(how as Alignment) })) },
         { title: 'Distribute', row: [{ label: 'Horizontally', run: () => this.distribute('horizontal'), disabled: many.length < 3 }, { label: 'Vertically', run: () => this.distribute('vertical'), disabled: many.length < 3 }] },
         'separator',
         { label: 'Copy', shortcut: '⌘C', run: () => this.copy(false) },

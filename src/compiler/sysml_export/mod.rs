@@ -7,7 +7,7 @@
 
 mod architecture;
 mod attributes;
-mod behaviour;
+mod behavior;
 mod constraints;
 mod data;
 mod levels;
@@ -25,7 +25,7 @@ use std::collections::{BTreeSet, HashMap};
 /// The metadata definitions of the profile: the levels, then the kinds
 /// SysML cannot tell by itself.
 pub const PROFILE: &[&str] = &[
-    "OA", "SA", "LA", "PA", "EPBS", "Actor", "Entity", "Node", "Behaviour", "Hardware", "Mission", "Capability", "Chain", "Link", "Hazard", "Security", "PrimaryAsset", "Threat", "SecurityScales", "Configuration",
+    "OA", "SA", "LA", "PA", "EPBS", "Actor", "Entity", "Node", "Behavior", "Hardware", "Mission", "Capability", "Chain", "Link", "Hazard", "Security", "PrimaryAsset", "Threat", "SecurityScales", "Configuration",
     "Mode", "Class", "PhysicalPort", "ExchangeItem", "Path", "Fmea", "Interface", "Trace", "Association", "Iterate", "Invariant",
 ];
 
@@ -189,7 +189,7 @@ impl<'m> Exporter<'m> {
             e.header("Model", &model.attributes, &["name"]);
             data::write(e);
             levels::write(e);
-            behaviour::write(e);
+            behavior::write(e);
             types::write(e);
             relations::write(e);
             security::write(e);
@@ -212,7 +212,7 @@ impl<'m> Exporter<'m> {
         data::register(self);
         types::register(self);
         levels::register(self);
-        behaviour::register(self);
+        behavior::register(self);
         security::register(self);
     }
 

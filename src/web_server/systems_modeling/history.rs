@@ -38,18 +38,18 @@ fn materialize(root: &FsPath, revision: &str, relative: &FsPath, destination: &F
         let Some(rest) = rest.strip_prefix('"') else { continue };
         let Some(end) = rest.find('"') else { continue };
         let imported = relative.parent().unwrap_or_else(|| FsPath::new("")).join(&rest[..end]);
-        // Normalise `a/../b` without touching the filesystem.
-        let mut normalised = PathBuf::new();
+        // Normalize `a/../b` without touching the filesystem.
+        let mut normalized = PathBuf::new();
         for component in imported.components() {
             match component {
                 std::path::Component::ParentDir => {
-                    normalised.pop();
+                    normalized.pop();
                 }
                 std::path::Component::CurDir => {}
-                other => normalised.push(other.as_os_str()),
+                other => normalized.push(other.as_os_str()),
             }
         }
-        materialize(root, revision, &normalised, destination, done)?;
+        materialize(root, revision, &normalized, destination, done)?;
     }
     Ok(())
 }
@@ -147,7 +147,7 @@ pub(super) fn log(root: &FsPath, revision: &str, depth: usize, files: &[String])
 /// The model as it is at git commit `sha`, compiled; a revision that does
 /// not compile is a commit without elements that says why.
 pub(super) fn compile_revision(root: &FsPath, relative: &FsPath, key: &str, revision: &Revision) -> Snapshot {
-    // Unique per call: identical revisions may be materialised
+    // Unique per call: identical revisions may be materialized
     // concurrently (several models, several servers, tests).
     static SCRATCH_COUNTER: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
     let sha = &revision.sha;

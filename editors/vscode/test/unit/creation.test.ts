@@ -37,15 +37,18 @@ const edit = (text: string, request: unknown) =>
   inTemp(text, (file) => parseEditAnswer(spawnSync(ARCLANG!, ['edit', file, '--request', JSON.stringify(request)], { encoding: 'utf8' }).stdout));
 
 test('a model name comes from the file name, always an identifier', () => {
-  assert.equal(modelNameOf('/tmp/lane keeping.arc'), 'lane_keeping');
-  assert.equal(modelNameOf('2024-plan.arc'), 'M_2024_plan');
+  assert.equal(modelNameOf('/tmp/lane keeping.arc'), 'LaneKeeping');
+  assert.equal(modelNameOf('2024-plan.arc'), 'M2024Plan');
   assert.equal(modelNameOf('---.arc'), 'Model');
+  // A file named after a keyword still gives a name the language takes.
+  assert.equal(modelNameOf('model.arc'), 'Model');
+  assert.equal(modelNameOf('system.arc'), 'System');
   assert.equal(arcFileName('plan'), 'plan.arc');
   assert.equal(arcFileName('plan.ARC'), 'plan.ARC');
 });
 
 test('the blank model is a header; the skeleton holds the four levels', () => {
-  assert.match(blankModel('plant'), /^model plant \{\n  name: "plant"\n  version: "0.1"\n\}\n$/);
+  assert.match(blankModel('plant'), /^model Plant \{\n  name: "plant"\n  version: "0.1"\n\}\n$/);
   const skeleton = arcadiaSkeleton('plant');
   for (const keyword of ['operational_analysis', 'system_analysis', 'logical_architecture', 'physical_architecture']) assert.ok(heldBlocks(skeleton).has(keyword), keyword);
 });
@@ -66,7 +69,8 @@ test('a layer block and a diagram declaration are plain ArcLang', () => {
 });
 
 test('the compiler accepts the blank model and the skeleton', withCompiler, () => {
-  for (const text of [blankModel('plant'), arcadiaSkeleton('plant')]) {
+  // model.arc and system.arc are what a first model is often called: they must compile too.
+  for (const text of [blankModel('plant'), arcadiaSkeleton('plant'), blankModel('model'), arcadiaSkeleton('system')]) {
     const result = check(text);
     assert.equal(result.status, 0, result.stdout + result.stderr);
   }

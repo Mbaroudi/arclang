@@ -7,7 +7,7 @@ use arclang::compiler::capella_xmi::import_strings;
 use arclang::compiler::{Compiler, CompilerConfig};
 
 const ONLY_LOGICAL: &str = r#"<?xml version="1.0" encoding="UTF-8"?>
-<org.polarsys.capella.core.data.capellamodeller:Project xmlns:xmi="http://www.omg.org/XMI" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:org.polarsys.capella.core.data.capellamodeller="http://www.polarsys.org/capella/core/modeller/7.0.0" xmlns:org.polarsys.capella.core.data.la="http://www.polarsys.org/capella/core/la/7.0.0" xmlns:org.polarsys.capella.core.data.pa="http://www.polarsys.org/capella/core/pa/7.0.0" id="p1" name="Partial">
+<org.polarsys.capella.core.data.capellamodeller:Project xmlns:xmi="http://www.omg.org/XMI" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:org.polarsys.capella.core.data.capellamodeller="http://www.polarsys.org/capella/core/modeler/7.0.0" xmlns:org.polarsys.capella.core.data.la="http://www.polarsys.org/capella/core/la/7.0.0" xmlns:org.polarsys.capella.core.data.pa="http://www.polarsys.org/capella/core/pa/7.0.0" id="p1" name="Partial">
   <ownedModelRoots xsi:type="org.polarsys.capella.core.data.capellamodeller:SystemEngineering" id="se1" name="Partial">
     <ownedArchitectures xsi:type="org.polarsys.capella.core.data.la:LogicalArchitecture" id="la1" name="Logical Architecture"/>
     <ownedArchitectures xsi:type="org.polarsys.capella.core.data.pa:PhysicalArchitecture" id="pa1" name="Physical Architecture"/>

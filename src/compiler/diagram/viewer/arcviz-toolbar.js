@@ -13,7 +13,7 @@
 
   const SVG = 'http://www.w3.org/2000/svg';
 
-  // 16 × 16 outlines in the codicon style, stroked 1.5 in the text colour.
+  // 16 × 16 outlines in the codicon style, stroked 1.5 in the text color.
   // Each entry is a list of [element, attributes].
   const ICONS = {
     back: [['path', { d: 'M9.5 3.5 5 8l4.5 4.5' }]],

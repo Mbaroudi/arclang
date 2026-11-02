@@ -1,4 +1,4 @@
-/* ArcViz viewer. The drawing follows Capella's colour code; the frame around
+/* ArcViz viewer. The drawing follows Capella's color code; the frame around
    it stays quiet: a drafting desk under a white sheet. Scoped to .arcviz. */
 .arcviz {
   --av-ink: #18222d;
@@ -1157,7 +1157,7 @@
 /* Editing from the drawing (ArcVizEdit, for an editor host only). The ends
    of the selected exchange are discs to drag onto another box or port; its
    runs carry a diamond that adds a bend, its bends a square that moves or,
-   double-clicked, removes them. Guides show the edge or centre a moved box
+   double-clicked, removes them. Guides show the edge or center a moved box
    snaps to; a dashed band encloses what a drag on the sheet selects; the
    box under the pointer shows an arrow on each side to connect from. */
 .arcviz .arcviz-end,

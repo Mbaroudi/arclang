@@ -81,7 +81,7 @@
   }
   /**
    * The nearest place on the border of a box (width × height) to a port
-   * centred at (cx, cy): its side and how far along it from the top or the
+   * centered at (cx, cy): its side and how far along it from the top or the
    * left, in sheet units (so a resize from the bottom or the right leaves
    * it where it is, as it leaves the other ports).
    */
@@ -106,7 +106,7 @@
     }
   }
 
-  /** Where a straight line from the centre of a box towards a point leaves the box. */
+  /** Where a straight line from the center of a box towards a point leaves the box. */
   function floating(box, towards) {
     const cx = box.x + box.width / 2;
     const cy = box.y + box.height / 2;
@@ -348,11 +348,11 @@
      * each other (draw.io's floating end), recomputed whenever a box moves.
      */
     const anchors = (ends, firstPoint, lastPoint) => {
-      const centre = (end) => {
+      const center = (end) => {
         const r = rectOf(owner(end));
         return r ? { x: r.x + r.width / 2, y: r.y + r.height / 2 } : null;
       };
-      const [sourceCentre, targetCentre] = ends.map(centre);
+      const [sourceCentre, targetCentre] = ends.map(center);
       if (!sourceCentre || !targetCentre) return null;
       const from = anchor(ends[0], firstPoint || targetCentre, map);
       const to = anchor(ends[1], lastPoint || sourceCentre, map);
@@ -383,12 +383,12 @@
         const r = rectOf(end);
         return r ? floating(r, towards) : null;
       };
-      const centre = (end) => {
+      const center = (end) => {
         const r = rectOf(owner(end));
         return r ? { x: r.x + r.width / 2, y: r.y + r.height / 2 } : null;
       };
-      const from = at(ends[0], via[0] || centre(ends[1]));
-      const to = at(ends[1], via[via.length - 1] || centre(ends[0]));
+      const from = at(ends[0], via[0] || center(ends[1]));
+      const to = at(ends[1], via[via.length - 1] || center(ends[0]));
       return from && to ? [{ x: from.x, y: from.y }, ...via, { x: to.x, y: to.y }] : null;
     };
     // Boxes that moved, for the exchanges they now lie across.

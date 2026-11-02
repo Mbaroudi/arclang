@@ -1,4 +1,4 @@
-// The page side of the diagram exports and colour themes: the theme drawn
+// The page side of the diagram exports and color themes: the theme drawn
 // (its dark variant on a dark editor when it has one, else the editor's
 // inversion), Copy as image and Copy as SVG of the view or the selection,
 // the slides of a PowerPoint export, and the entries these add to the
@@ -193,7 +193,7 @@ export class DiagramExports {
       checked: entry.key === this.active,
       run: () => (entry.ok ? this.d.post({ type: 'theme-choose', key: entry.key }) : this.d.toast(`The theme ${entry.name} is refused: ${entry.errors.join('; ')}`, 'error')),
     }));
-    return [...choices, { id: 'theme-edit', label: 'Edit or new theme…', title: 'Colours per concept, checked as you pick them, previewed on this diagram', run: () => this.d.openEditor() }];
+    return [...choices, { id: 'theme-edit', label: 'Edit or new theme…', title: 'Colors per concept, checked as you pick them, previewed on this diagram', run: () => this.d.openEditor() }];
   }
 
   /** The same, in the canvas menu. */

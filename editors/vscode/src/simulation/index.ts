@@ -298,7 +298,7 @@ class Simulation implements vscode.Disposable {
       if (!outcomes) {
         if (/OpenModelica not available/i.test(result.stderr)) missingTool = true;
         else if (result.code === 127 || result.code === 126) vscode.window.showErrorMessage(`ArcLang: ${failureText(result)}`);
-        else if (result.code === null || result.code > 128) vscode.window.showInformationMessage('ArcLang: the simulation was cancelled.');
+        else if (result.code === null || result.code > 128) vscode.window.showInformationMessage('ArcLang: the simulation was canceled.');
         else {
           report(`arclang verify ${path.basename(file)}`, result);
           vscode.window.showErrorMessage('ArcLang: the model could not be simulated. See the ArcLang output.');

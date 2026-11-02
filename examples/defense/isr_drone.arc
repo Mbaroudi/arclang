@@ -1,7 +1,7 @@
 // Tactical ISR unmanned aircraft system: the air vehicle, its ground control
-// station and the datalink, modelled through the five Arcadia levels with
+// station and the datalink, modeled through the five Arcadia levels with
 // airworthiness-grade attributes. A textbook, unclassified example: the
-// numbers are credible, none is taken from a real programme.
+// numbers are credible, none is taken from a real program.
 //
 // What it shows of ArcLang: user-defined types with required attributes,
 // typed quantities with units, requirements satisfied by components and
@@ -71,7 +71,7 @@ requirements performance {
     verification_method: "test"
   }
   requirement "REQ-PERF-005" {
-    description: "The gimbal shall hold the line of sight within 0.5 mrad while the aircraft manoeuvres at up to 30 degrees of bank"
+    description: "The gimbal shall hold the line of sight within 0.5 mrad while the aircraft maneuvers at up to 30 degrees of bank"
     priority: "Medium" category: "performance"
     verification_method: "test"
   }
@@ -124,7 +124,7 @@ requirements security {
     verification_method: "test"
   }
   requirement "REQ-SEC-003" {
-    description: "Under jamming the datalink shall hop frequencies and, when the C2 channel stays unusable, hand over to the lost-link behaviour"
+    description: "Under jamming the datalink shall hop frequencies and, when the C2 channel stays unusable, hand over to the lost-link behavior"
     priority: "High" category: "security"
     verification_method: "test"
   }
@@ -359,7 +359,7 @@ system_analysis "System Analysis" {
     latency: 20 ms
     port in "operator_input" port out "point_cmd"
   }
-  function "Stabilise and point sensor" {
+  function "Stabilize and point sensor" {
     id: "SF-POINT"
     is: "Mission function"
     description: "Holds the line of sight on the commanded point through the aircraft's motion"
@@ -489,7 +489,7 @@ logical_architecture "Logical Architecture" {
       dal: "DAL-B" safety_level: "DAL-B"
       description: "Dual-channel flight control: inner loops, route following, geofence and lost-link return"
       port in "nav" port in "route" port in "link_state" port out "fcs_health"
-      function "Stabilise and control flight" { id: "LF-FLY" realizes: "SF-FLY" latency: 20 ms }
+      function "Stabilize and control flight" { id: "LF-FLY" realizes: "SF-FLY" latency: 20 ms }
       function "Follow route" { id: "LF-ROUTE" realizes: "SF-ROUTE" latency: 100 ms }
       function "Enforce geofence" { id: "LF-GEO" realizes: "SF-GEO" latency: 50 ms }
       function "Execute lost-link return" { id: "LF-RTB" realizes: "SF-RTB" latency: 200 ms }
@@ -512,9 +512,9 @@ logical_architecture "Logical Architecture" {
     component "EO/IR sensor" {
       id: "LC-EOIR"
       dal: "DAL-C" safety_level: "DAL-C"
-      description: "Stabilised gimbal with daylight and infrared channels"
+      description: "Stabilized gimbal with daylight and infrared channels"
       port in "point_cmd" port out "video_raw"
-      function "Stabilise and point" { id: "LF-POINT" realizes: "SF-POINT" latency: 50 ms }
+      function "Stabilize and point" { id: "LF-POINT" realizes: "SF-POINT" latency: 50 ms }
       function "Acquire video" { id: "LF-VIDEO" realizes: "SF-VIDEO" latency: 33 ms }
     }
     component "Payload management" {
@@ -743,7 +743,7 @@ physical_architecture "Physical Architecture" {
     id: "PN-GIMBAL"
     is: "Airborne computer"
     type: "Airborne LRU"
-    description: "Four-axis stabilised turret with daylight and mid-wave infrared channels"
+    description: "Four-axis stabilized turret with daylight and mid-wave infrared channels"
     dal: "DAL-C" safety_level: "DAL-C"
     power: 90 W
     mass: 11.5 kg
@@ -1132,7 +1132,7 @@ state_machine "Datalink states" {
   owner: "LC-ADT"
   initial: "Idle"
   state Idle { description: "Transceiver powered, no acquisition in progress" }
-  state Acquiring { description: "Synchronising the hopping pattern and authenticating the ground data terminal" }
+  state Acquiring { description: "Synchronizing the hopping pattern and authenticating the ground data terminal" }
   state Connected { description: "Authenticated frames flowing both ways" }
   state Degraded { description: "Frame error rate above threshold: payload rate reduced, C2 kept" }
   state Lost { description: "No authenticated frame for 5 s" }
@@ -1269,9 +1269,9 @@ safety_analysis {
     detection: "GNSS/INS consistency monitor, 50 ms"
     rpn: 60
   }
-  fmea "Gimbal stabilisation loss" {
+  fmea "Gimbal stabilization loss" {
     id: "FM-004"
-    failure_mode: "Gyro failure in the stabilisation loop"
+    failure_mode: "Gyro failure in the stabilization loop"
     effect: "Video unusable; mission aborted, flight unaffected"
     cause: "Gyro wear, connector vibration"
     severity: "Minor"
@@ -1433,7 +1433,7 @@ test_case "Video latency, sensor to screen" {
   method: "test" verifies: ["REQ-PERF-004"]
   expected: "Latency at or below 500 ms over 1000 frames"
 }
-test_case "Gimbal stabilisation" {
+test_case "Gimbal stabilization" {
   id: "TC-PERF-005"
   description: "Motion table test, 30 degrees of bank, line-of-sight jitter measured"
   method: "test" verifies: ["REQ-PERF-005"]
@@ -1453,7 +1453,7 @@ test_case "Geofence hold" {
 }
 test_case "Flight control channel switchover" {
   id: "TC-SAF-003"
-  description: "Fault injection on the command channel; surface command continuity analysed"
+  description: "Fault injection on the command channel; surface command continuity analyzed"
   method: "analysis" verifies: ["REQ-SAF-003"]
   expected: "Switchover within 100 ms, no surface transient above 2 degrees"
 }
@@ -1547,7 +1547,7 @@ trace "LC-GDT" satisfies "REQ-PERF-002" { rationale: "Tracking antenna gain clos
 trace "LC-NAV" satisfies "REQ-PERF-003" { rationale: "GNSS/INS blending at 100 Hz" }
 trace "LC-PLM" satisfies "REQ-PERF-004" { rationale: "Compression latency 120 ms within the 500 ms chain" }
 trace "LC-PAYLOAD-ST" satisfies "REQ-PERF-004" { rationale: "Decode and display within 40 ms" }
-trace "LC-EOIR" satisfies "REQ-PERF-005" { rationale: "Four-axis stabilisation" }
+trace "LC-EOIR" satisfies "REQ-PERF-005" { rationale: "Four-axis stabilization" }
 trace "LC-FCS" satisfies "REQ-SAF-001" { rationale: "Lost-link return executed by the flight-critical partition" }
 trace "LC-ADT-C2" satisfies "REQ-SAF-001" { rationale: "Declares the link lost after 5 s without an authenticated frame" }
 trace "LC-FCS" satisfies "REQ-SAF-002" { rationale: "Geofence prediction 30 s ahead, hold commanded before the boundary" }

@@ -2,16 +2,16 @@
 // The physics lives in a package of its own that extends these models.
 within ;
 package EVRangeSimulation "EV range simulation"
-  package Behaviour "Behaviour components, by the node they are deployed on"
-    package VehicleControlUnit "Behaviour components of Vehicle control unit"
+  package Behavior "Behavior components, by the node they are deployed on"
+    package VehicleControlUnit "Behavior components of Vehicle control unit"
       partial model SpeedController "Speed controller"
         parameter Modelica.Units.SI.Velocity target_speed = 27.7777777777778 "100 km/h";
         Modelica.Blocks.Interfaces.RealInput speed "signal port speed" annotation(__ArcLang(id="BC-SPD.speed"));
         Modelica.Blocks.Interfaces.RealOutput torque_cmd "signal port torque_cmd" annotation(__ArcLang(id="BC-SPD.torque_cmd"));
-        annotation(Documentation(info="<html><p>Behaviour component 'Speed controller' (BC-SPD).</p><p>Realizes LC-SPD.</p></html>"), __ArcLang(id="BC-SPD", kind="BehaviorComponent"));
+        annotation(Documentation(info="<html><p>Behavior component 'Speed controller' (BC-SPD).</p><p>Realizes LC-SPD.</p></html>"), __ArcLang(id="BC-SPD", kind="BehaviorComponent"));
       end SpeedController;
     end VehicleControlUnit;
-  end Behaviour;
+  end Behavior;
   package Physical "Physical nodes"
     partial model BatteryPack "Battery pack"
       parameter Modelica.Units.SI.Power auxiliary_load = 2500 "2.5 kW";
@@ -43,7 +43,7 @@ package EVRangeSimulation "EV range simulation"
     partial model VehicleControlUnit "Vehicle control unit"
       Modelica.Blocks.Interfaces.RealInput speed "signal port speed" annotation(__ArcLang(id="PN-VCU.speed"));
       Modelica.Blocks.Interfaces.RealOutput torque_cmd "signal port torque_cmd" annotation(__ArcLang(id="PN-VCU.torque_cmd"));
-      replaceable EVRangeSimulation.Behaviour.VehicleControlUnit.SpeedController speedController constrainedby EVRangeSimulation.Behaviour.VehicleControlUnit.SpeedController "Speed controller" annotation(__ArcLang(id="BC-SPD"));
+      replaceable EVRangeSimulation.Behavior.VehicleControlUnit.SpeedController speedController constrainedby EVRangeSimulation.Behavior.VehicleControlUnit.SpeedController "Speed controller" annotation(__ArcLang(id="BC-SPD"));
     equation
       connect(speed, speedController.speed) annotation(__ArcLang(id="PL-SPEED-IN"));
       connect(speedController.torque_cmd, torque_cmd) annotation(__ArcLang(id="PL-TORQUE-OUT"));

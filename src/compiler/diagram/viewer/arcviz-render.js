@@ -6,9 +6,9 @@
  * drawing can be checked headless (tools/diagram_render). Every dynamic
  * string goes through `esc` before it reaches the markup.
  *
- * Colours come from a theme (ArcVizTheme.palette, see arcviz-theme.js):
+ * Colors come from a theme (ArcVizTheme.palette, see arcviz-theme.js):
  * the one given to `renderSvg`, else the one set by `setTheme`, else the
- * built-in colours below. The notation (glyphs, corners, arrows) is not
+ * built-in colors below. The notation (glyphs, corners, arrows) is not
  * the theme's.
  */
 (function (root, factory) {
@@ -26,7 +26,7 @@
   const COMPARTMENT = { top: 34, line: 14, inset: 10 };
   const CORNER = 5;
 
-  // Capella's colour code: blue structure, green functions, yellow hardware.
+  // Capella's color code: blue structure, green functions, yellow hardware.
   const NODE_STYLE = {
     operational_actor: { fill: '#DCEAF8', stroke: '#3F6FA6', label: 'Operational actor', glyph: 'actor' },
     operational_entity: { fill: '#EEF0F2', stroke: '#66717D', label: 'Operational entity', glyph: 'box' },
@@ -38,7 +38,7 @@
     function: { fill: '#CDEDBE', stroke: '#3C8A3F', label: 'Function', glyph: 'function', round: 9 },
     logical_component: { fill: '#D3E4F8', stroke: '#2A62A8', label: 'Logical component', glyph: 'component' },
     physical_node: { fill: '#FFF4AE', stroke: '#9C8500', label: 'Node', glyph: 'node' },
-    behavior_component: { fill: '#D3E4F8', stroke: '#2A62A8', label: 'Behaviour component', glyph: 'component' },
+    behavior_component: { fill: '#D3E4F8', stroke: '#2A62A8', label: 'Behavior component', glyph: 'component' },
     hardware_component: { fill: '#FFE98A', stroke: '#9C8500', label: 'Hardware component', glyph: 'node' },
     deployed_component: { fill: '#D3E4F8', stroke: '#2A62A8', label: 'Deployed component', glyph: 'component' },
     mode: { fill: '#E3EEFB', stroke: '#2A62A8', label: 'Mode', glyph: 'none', round: 14 },
@@ -141,7 +141,7 @@
   const INK = { text: '#18222D', muted: '#3D4852', background: '#FFFFFF' };
   const ink = (part) => (themeOf() && themeOf()[part]) || INK[part];
 
-  /** Colour every later drawing with `palette` (ArcVizTheme.palette), or with the built-in colours (null). */
+  /** Color every later drawing with `palette` (ArcVizTheme.palette), or with the built-in colors (null). */
   function setTheme(palette) {
     active = palette || null;
   }
@@ -405,7 +405,7 @@
     const props = arc.properties || {};
     const suspect = props.suspect === 'true';
     const base = edgeStyle(arc.kind);
-    // A suspect link is amber and dashed; a verification line takes the colour of its verdict.
+    // A suspect link is amber and dashed; a verification line takes the color of its verdict.
     const stroke = suspect ? SUSPECT.stroke : props.verdict === 'fail' ? VERDICT.fail.color : base.stroke;
     const style = suspect ? { ...base, stroke, dash: SUSPECT.dash, text: stroke } : { ...base, stroke };
     const name = edge.labels && edge.labels[0] ? edge.labels[0].text : edge.id;
@@ -479,7 +479,7 @@
       }
     });
 
-    const centre = (index) => headWidth / 2 + index * spacing;
+    const center = (index) => headWidth / 2 + index * spacing;
     // Combined fragments take room above their first row (the frame's
     // label), between operands, and below their last row.
     const fragments = (graph.arc && graph.arc.fragments) || [];
@@ -508,13 +508,13 @@
     extra.reduce((sum, value, index) => { offsets[index] = sum + value; return sum + value; }, 0);
     const rowY = (index) => SEQ.first + index * SEQ.row + (offsets[Math.min(index, offsets.length - 1)] || 0);
     const bottom = rowY(Math.max(messages.length - 1, 0)) + (offsets[messages.length] || 0) - (offsets[Math.max(messages.length - 1, 0)] || 0) + SEQ.tail + SEQ.selfDrop;
-    const contentWidth = centre(Math.max(lifelines.length - 1, 0)) + headWidth / 2 + Math.max(0, selfRoom);
+    const contentWidth = center(Math.max(lifelines.length - 1, 0)) + headWidth / 2 + Math.max(0, selfRoom);
 
     const nodes = lifelines.map((lifeline, index) => {
       const represents = lifeline.arc.properties && lifeline.arc.properties.represents;
       const style = represents ? nodeStyle(represents) : nodeStyle('lifeline');
       const name = lifeline.labels[0].text;
-      const cx = centre(index);
+      const cx = center(index);
       const x = cx - headWidth / 2;
       return (
         `<g class="av-node" data-id="${esc(lifeline.id)}" data-kind="lifeline">` +
@@ -535,8 +535,8 @@
       if (fragment.end < fragment.start || messages.length === 0) return;
       const columns = fragment.lifelines.map((id) => column.get(id)).filter((c) => c !== undefined);
       // A nested frame sits inside its parent: a little narrower, a little lower.
-      const left = centre(Math.min(...columns)) - 40 + depth * 10;
-      const right = centre(Math.max(...columns)) + 40 - depth * 10;
+      const left = center(Math.min(...columns)) - 40 + depth * 10;
+      const right = center(Math.max(...columns)) + 40 - depth * 10;
       const top = rowY(fragment.start) - FRAME_TOP + 2 + depth * 10;
       const lastSelf = messages[fragment.end] && messages[fragment.end].arc.source_node === messages[fragment.end].arc.target_node;
       const bottomY = rowY(fragment.end) + (lastSelf ? SEQ.selfDrop : 0) + FRAME_BOTTOM - 6 - depth * 6;
@@ -567,7 +567,7 @@
     const boxes = invariants.map((invariant) => {
       const col = column.get(invariant.lifeline);
       if (col === undefined) return '';
-      const cx = centre(col);
+      const cx = center(col);
       const instant = invariant.end < invariant.start || messages.length === 0;
       const at = Math.min(invariant.start, Math.max(messages.length - 1, 0));
       const top = messages.length === 0 ? SEQ.first - INVARIANT : rowY(at) - INVARIANT + 4;
@@ -589,8 +589,8 @@
       const arc = message.arc;
       const kind = (arc.properties && arc.properties.type) || 'sync';
       const y = rowY(index);
-      const x1 = centre(column.get(arc.source_node));
-      const x2 = centre(column.get(arc.target_node));
+      const x1 = center(column.get(arc.source_node));
+      const x2 = center(column.get(arc.target_node));
       const text = messageText(message, index);
       const dash = kind === 'return' ? ' stroke-dasharray="6 3"' : '';
       const head = (tipX, tipY, dir) => {
@@ -649,7 +649,7 @@
    */
   function renderSvg(graph, options) {
     const before = [current, currentView];
-    // `options.theme`: a palette, or null for the built-in colours; left out, the one set by setTheme.
+    // `options.theme`: a palette, or null for the built-in colors; left out, the one set by setTheme.
     current = options && 'theme' in options ? options.theme || undefined : null;
     currentView = graph.arc ? graph.arc.view : null;
     try {

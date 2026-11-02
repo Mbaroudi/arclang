@@ -1,4 +1,4 @@
-//! Spatial modelling — where the elements of a system stand, how big they
+//! Spatial modeling — where the elements of a system stand, how big they
 //! are, and what a physical link covers.
 //!
 //! The values are ordinary ArcLang attribute blocks with units, so they

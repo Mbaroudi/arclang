@@ -62,15 +62,15 @@ file (`--current FILE` for an unsaved buffer).
 `-f md|html|xlsx` write a change-request report: summary, impact (blockers
 first), gate, constraints, budgets, coverage, verdicts, changes. The Excel
 workbook uses the tables' own writer (frozen, filterable header, status
-colours).
+colors).
 
 ## In VS Code
 
 *Impact analysis* opens in its own editor tab, live (debounced, shown stale
 while recomputing): from the diagram (context menu, floating toolbar), the
-model tree, the text (code action "Analyse impact of …"), the Properties
-pane, or the palette (`Impact analysis: analyse an element…`, `what if…`,
-`my changes`). The tab shows the graph (rings by distance, severity colours),
+model tree, the text (code action "Analyze impact of …"), the Properties
+pane, or the palette (`Impact analysis: analyze an element…`, `what if…`,
+`my changes`). The tab shows the graph (rings by distance, severity colors),
 the table with the clickable *why* path, filters (severity, layer, category,
 depth, direction, kinds of link), the what-if panel with **Apply the change**
 (one undoable edit) or **Discard**, the exports, *Copy as table*, and *Ask AI*

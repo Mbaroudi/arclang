@@ -26,7 +26,7 @@ compiler's rule: it never says more than the compiler did.
   exit code (or from the JSON the compiler printed). A failure is reported as
   a failure, with the compiler's message.
 - The language reference a client reads is not a copy that can drift: the
-  metamodel and the rule catalogue are printed by the binary, the example
+  metamodel and the rule catalog are printed by the binary, the example
   model is compiled, formatted and gated by the test suite, and every
   construct the syntax rules teach is written in that model.
 - Generated ArcLang (requirements, components, skeletons) is compiled before it
@@ -123,12 +123,12 @@ model = "claude-opus-5-5"
 
 ## Tools
 
-### Check and analyse
+### Check and analyze
 
 | Tool | Command | Returns |
 |---|---|---|
 | `arclang_validate` | `check --lint [--json]` | Errors with line and column; counts of compilation warnings (typed attributes and constraints block the gate), traceability warnings, advisories. With `as_json: true`, each finding with its `rule`, `severity`, `element` and `fix` |
-| `arclang_rules` | `rules --format markdown\|json` | The catalogue of validation rules: meaning and remedy of each `rule` a finding names, or one `rule` alone |
+| `arclang_rules` | `rules --format markdown\|json` | The catalog of validation rules: meaning and remedy of each `rule` a finding names, or one `rule` alone |
 | `arclang_compile` | `build` | Counts of the compiled model |
 | `arclang_gate` | `gate --standard iso26262\|do178c\|iec61508` | PASS or FAIL and each blocker with its rule |
 | `arclang_trace_analysis` | `trace --validate` | Coverage, issues, the matrix with rationales |
@@ -220,7 +220,7 @@ The tests run the real binary (`ARCLANG_BINARY`, else `target/release/arclang`,
 else `target/debug/arclang`, else the `PATH`) and are skipped without one. They
 cover every tool, the resources against the compiler (the format lists and
 edit ops of the wrapper against the CLI's `--help`, the rule ids and constructs
-the syntax rules name against the catalogue and the reference model), the
+the syntax rules name against the catalog and the reference model), the
 workbench read and the scripted edits on the flagship example, and a session
 over stdio. They pass with the MCP Python SDK 1.x and 2.x.
 

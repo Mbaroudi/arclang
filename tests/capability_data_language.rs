@@ -1,6 +1,6 @@
 //! Language coverage for capabilities and the data model: actors involved in
 //! capabilities, nested capabilities, capability relations, units of data
-//! types and the declared order of class fields. Each behaviour is checked
+//! types and the declared order of class fields. Each behavior is checked
 //! from source text down to the diagram a reader sees.
 
 use arclang::compiler::ast::Model;

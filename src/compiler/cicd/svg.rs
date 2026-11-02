@@ -58,7 +58,7 @@ fn statuses(diff: &RichDiff, side: Side) -> HashMap<String, &'static str> {
     map
 }
 
-fn colours(status: &str) -> (&'static str, &'static str, &'static str) {
+fn colors(status: &str) -> (&'static str, &'static str, &'static str) {
     match status {
         "added" => ("#e6f4ea", "#1a7f37", ""),
         "removed" => ("#fdecea", "#c62828", "5 3"),
@@ -99,7 +99,7 @@ pub fn render(result: &CompilationResult, diff: &RichDiff, side: Side, caption: 
         y += 14;
         for (i, node) in in_layer.iter().enumerate() {
             let status = marks.get(&node.id).copied().unwrap_or("");
-            let (fill, stroke, dash) = colours(status);
+            let (fill, stroke, dash) = colors(status);
             let x = 12 + (i % COLUMNS) * (BOX_W + GAP);
             let top = y + (i / COLUMNS) * (BOX_H + GAP);
             let dash_attr = if dash.is_empty() { String::new() } else { format!(" stroke-dasharray=\"{dash}\"") };
@@ -134,7 +134,7 @@ pub fn render(result: &CompilationResult, diff: &RichDiff, side: Side, caption: 
     let legend = [("added", "added"), ("modified", "modified"), ("removed", "removed"), ("", "unchanged")];
     let mut legend_svg = String::new();
     for (i, (status, label)) in legend.iter().enumerate() {
-        let (fill, stroke, dash) = colours(status);
+        let (fill, stroke, dash) = colors(status);
         let x = 12 + i * 120;
         let dash_attr = if dash.is_empty() { String::new() } else { format!(" stroke-dasharray=\"{dash}\"") };
         legend_svg.push_str(&format!("<rect x=\"{x}\" y=\"{}\" width=\"14\" height=\"14\" rx=\"3\" fill=\"{fill}\" stroke=\"{stroke}\"{dash_attr}/><text x=\"{}\" y=\"{}\" class=\"kind\">{label}</text>", y + 4, x + 20, y + 15));

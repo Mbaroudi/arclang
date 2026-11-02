@@ -1,6 +1,6 @@
 # ArcLang for VS Code compared with Capella and SysML v2 tools
 
-What a modeller does in a diagram, and where each tool stands. Capella is
+What a modeler does in a diagram, and where each tool stands. Capella is
 Eclipse Capella 7 (Sirius diagrams); SysML v2 tools are SysON 2026.1 (Obeo,
 open source, web) and the textual SysML v2 editors (pilot implementation,
 VS Code language extensions). "Tested" means covered by `test/e2e` against
@@ -19,7 +19,7 @@ Legend: **yes** · **partial** · **no**.
 | Connect by dragging from a handle | yes, with valid targets highlighted, tested | yes | yes |
 | Connect by keyboard | yes (`c`, arrows, Enter) | no | no |
 | Quick connect from the side of a box | yes: an arrow on each side of the box under the pointer; dragged it connects, clicked it creates a connected element of the same kind, tested | no | partial |
-| Traces (realizes, satisfies, allocates…) from the canvas | yes, Trace tool; a trace whose two ends a view draws is a dashed line labelled by its type, selected, reconnected by dragging an end, deleted with Delete, tested in VS Code | yes (allocation and realization tools) | partial |
+| Traces (realizes, satisfies, allocates…) from the canvas | yes, Trace tool; a trace whose two ends a view draws is a dashed line labeled by its type, selected, reconnected by dragging an end, deleted with Delete, tested in VS Code | yes (allocation and realization tools) | partial |
 | Move a box freely on the diagram | yes, drag it anywhere; kept in `<model>.layout.json` next to the model, tested in VS Code | yes (kept in the .aird) | yes |
 | Resize a box | yes, grip on the corner of the selected box, kept in the layout file, tested in VS Code | yes | yes |
 | Move an element into another (reallocate) by drag | yes, let go on the container (marked during the drag), tested in VS Code | yes | yes |
@@ -75,7 +75,7 @@ Legend: **yes** · **partial** · **no**.
 | New model / new layer / new diagram / open a diagram by layer | yes: quick picks, the tree's New menu, a welcome view and the workbench's New menu; the compiler checks what is written, one undo, tested in VS Code | yes (wizards) | yes |
 | Minimap | yes (Shift+M, click or drag to move the view), tested | yes (outline) | yes |
 | Automatic layout | yes (ELK), with the manual arrangement on top of it (Reset layout goes back) | yes (Arrange All, mixed results) | yes (Flow, Compact) |
-| Align, distribute, snap | yes: align left, centre, right, top, middle, bottom and distribute for a selection; smart guides while moving or resizing (Alt moves freely), tested (and in VS Code) | yes | partial |
+| Align, distribute, snap | yes: align left, center, right, top, middle, bottom and distribute for a selection; smart guides while moving or resizing (Alt moves freely), tested (and in VS Code) | yes | partial |
 
 ## Checking, exporting, AI
 
@@ -100,7 +100,7 @@ Legend: **yes** · **partial** · **no**.
 | The change checked before you see it | yes: every edit run by the compiler on a copy, refusals sent back to the AI | no (lint or tests afterwards) | no |
 | The change shown on the diagram | yes: changed boxes marked, new elements listed | no | no |
 | Suggestions from the consequences of your last edit | yes: broken traces, unsatisfied requirements, findings, gate blockers, `arclang impact` | partial (tab completion of the next edit) | partial (next edit suggestions) |
-| Context it is given | the selection's declarations, relationships, neighbours, findings, metamodel, gate | open files, codebase index | open files, workspace index |
+| Context it is given | the selection's declarations, relationships, neighbors, findings, metamodel, gate | open files, codebase index | open files, workspace index |
 | Provider and model of your choice, keys in the OS keychain, local models | yes (8 providers, Ollama and OpenAI-compatible servers) | partial (its own models, some keys) | partial (Copilot's models, BYOK in some plans) |
 
 ## What is left, in order

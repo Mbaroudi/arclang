@@ -1,7 +1,7 @@
-//! Diagram colour themes for the CLI: the built-in presets and the rules a
+//! Diagram color themes for the CLI: the built-in presets and the rules a
 //! theme must pass before `arclang diagram --theme` draws with it.
 //!
-//! The viewer's `viewer/arcviz-theme.js` (colour science in
+//! The viewer's `viewer/arcviz-theme.js` (color science in
 //! `viewer/arcviz-color.js`) is the reference; this module mirrors its rules
 //! and messages so that the CLI refuses the same files the viewer and the
 //! workbench refuse. `tests/fixtures/themes` holds the verdicts both must
@@ -33,7 +33,7 @@ const CONCEPTS: [(&str, &str, &str); 21] = [
     ("logical_component", "logical component", "rect"),
     ("logical_function", "logical function", "rect"),
     ("physical_node", "physical node", "rect"),
-    ("behaviour_component", "behaviour component", "rect"),
+    ("behaviour_component", "behavior component", "rect"),
     ("physical_function", "physical function", "rect"),
     ("capability", "capability", "pill"),
     ("mission", "mission", "pill"),
@@ -91,7 +91,7 @@ const VIEWS: [(&str, &[&str], &[&str]); 13] = [
     ("Action Flow View", &["system_function"], &["functional_exchange"]),
 ];
 
-/// Colours the tool keeps: name, colour, also reserved on lines.
+/// Colors the tool keeps: name, color, also reserved on lines.
 const RESERVED: [(&str, &str, bool); 4] = [
     ("error red", "#E51400", false),
     ("warning amber", "#BF8803", false),
@@ -256,7 +256,7 @@ fn check_structure(theme: &Value, report: &mut Report) {
 fn check_colour(value: Option<&Value>, place: &str, report: &mut Report) {
     if let Some(value) = value {
         if value.as_str().and_then(parse).is_none() {
-            report.error("structure", format!("{place} is not a colour: {value} (write #RRGGBB)"));
+            report.error("structure", format!("{place} is not a color: {value} (write #RRGGBB)"));
         }
     }
 }
@@ -400,7 +400,7 @@ fn check_complete(full: &Value, prefix: &str, report: &mut Report) {
     for (key, label) in EXCHANGES {
         let line = full.get("exchanges").and_then(|e| e.get(key)).and_then(|e| e.get("line")).and_then(Value::as_str);
         if line.is_none_or(str::is_empty) {
-            report.error("complete", format!("{prefix}{label} has no line colour (exchanges.{key})"));
+            report.error("complete", format!("{prefix}{label} has no line color (exchanges.{key})"));
         }
     }
 }
@@ -410,7 +410,7 @@ fn check_complete(full: &Value, prefix: &str, report: &mut Report) {
 struct Full<'a>(&'a Value);
 
 impl Full<'_> {
-    fn colour(&self, key: &str) -> Rgb {
+    fn color(&self, key: &str) -> Rgb {
         parse(self.0[key].as_str().unwrap_or("")).unwrap_or([0.0; 3])
     }
     fn concept(&self, key: &str, field: &str) -> String {
@@ -469,7 +469,7 @@ fn rgb(text: &str) -> Rgb {
 
 fn check_rules(theme: &Value, prefix: &str, report: &mut Report) {
     let full = Full(theme);
-    let bg = full.colour("background");
+    let bg = full.color("background");
     for group in SAME_CONCEPT {
         let first = group[0];
         for other in &group[1..] {
@@ -487,31 +487,31 @@ fn check_rules(theme: &Value, prefix: &str, report: &mut Report) {
     for (key, label, _) in CONCEPTS {
         for field in ["fill", "stroke"] {
             let value = full.concept(key, field);
-            for (name, colour, _) in RESERVED {
-                let d = delta_e(rgb(&value), rgb(colour));
+            for (name, color, _) in RESERVED {
+                let d = delta_e(rgb(&value), rgb(color));
                 if d < RESERVED_LIMIT {
-                    report.error("reserved", format!("{prefix}{label} {field} {value} is the {name} the tool keeps for its own meaning (ΔE {}); choose another colour", round(d)));
+                    report.error("reserved", format!("{prefix}{label} {field} {value} is the {name} the tool keeps for its own meaning (ΔE {}); choose another color", round(d)));
                 }
             }
         }
     }
     for (key, label) in EXCHANGES {
         let value = full.line(key);
-        for (name, colour, lines) in RESERVED {
+        for (name, color, lines) in RESERVED {
             if !lines {
                 continue;
             }
-            let d = delta_e(rgb(&value), rgb(colour));
+            let d = delta_e(rgb(&value), rgb(color));
             if d < RESERVED_LIMIT {
-                report.error("reserved", format!("{prefix}{label} line {value} is the {name} the tool keeps for its own meaning (ΔE {}); choose another colour", round(d)));
+                report.error("reserved", format!("{prefix}{label} line {value} is the {name} the tool keeps for its own meaning (ΔE {}); choose another color", round(d)));
             }
         }
     }
-    let text_bg = contrast(full.colour("text"), bg);
+    let text_bg = contrast(full.color("text"), bg);
     if text_bg < TEXT {
         report.error("contrast", format!("{prefix}text on the background reaches {}:1, under {TEXT}:1 (WCAG AA)", round(text_bg)));
     }
-    let muted = full.colour("muted");
+    let muted = full.color("muted");
     for (key, label, _) in CONCEPTS {
         let fill = rgb(&full.concept(key, "fill"));
         let text = contrast(rgb(&full.concept_text(key)), fill);
@@ -561,7 +561,7 @@ fn check_rules(theme: &Value, prefix: &str, report: &mut Report) {
         }
         let d = delta_e(rgb(&full.concept(a, "fill")), rgb(&full.concept(b, "fill")));
         if d < SAME_COLOUR * 2.0 {
-            report.warning("one-colour", format!("{prefix}{} and {} share a colour (ΔE {}): one colour should mean one concept", label_of(a), label_of(b), round(d)));
+            report.warning("one-color", format!("{prefix}{} and {} share a color (ΔE {}): one color should mean one concept", label_of(a), label_of(b), round(d)));
         }
     }
     let fills = distinct_colours(CONCEPTS.iter().map(|c| full.concept(c.0, "fill")).collect());
@@ -572,7 +572,7 @@ fn check_rules(theme: &Value, prefix: &str, report: &mut Report) {
     }
     let lines = distinct_colours(EXCHANGES.iter().map(|e| full.line(e.0)).collect());
     if lines > LINES {
-        report.error("palette", format!("{prefix}{lines} different line colours: keep to {LINES} or fewer, or tell lines apart by style"));
+        report.error("palette", format!("{prefix}{lines} different line colors: keep to {LINES} or fewer, or tell lines apart by style"));
     }
 }
 
@@ -616,15 +616,15 @@ fn pairs<'a>(items: &[&'a str]) -> Vec<(&'a str, &'a str)> {
 fn distinct_colours(values: Vec<String>) -> usize {
     let mut kept: Vec<Rgb> = Vec::new();
     for value in values {
-        let colour = rgb(&value);
-        if !kept.iter().any(|other| delta_e(colour, *other) < SAME_COLOUR) {
-            kept.push(colour);
+        let color = rgb(&value);
+        if !kept.iter().any(|other| delta_e(color, *other) < SAME_COLOUR) {
+            kept.push(color);
         }
     }
     kept.len()
 }
 
-// --- colour science (viewer/arcviz-color.js) -------------------------------------
+// --- color science (viewer/arcviz-color.js) -------------------------------------
 
 type Rgb = [f64; 3];
 

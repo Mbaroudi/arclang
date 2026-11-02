@@ -94,7 +94,7 @@ TOOLS: List[Tool] = [
     Tool(
         name="arclang_rules",
         description=(
-            "The catalogue of validation rules (`arclang rules`): what `check` reports, "
+            "The catalog of validation rules (`arclang rules`): what `check` reports, "
             "each rule with its severity, meaning and how to answer it, and the names of "
             "the gate's own checks. Ask for one `rule` (e.g. metamodel.type) to get its "
             "entry alone. This is the reference for the `rule` of a finding."

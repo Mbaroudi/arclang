@@ -921,7 +921,7 @@ impl<'a> Generator<'a> {
                 }
                 for behavior in &node.behavior_components {
                     let bc_def = self.defs.get(&format!("part:{}", behavior.id), &behavior.name);
-                    self.out.push_str(&format!("        part {} : {};  // behaviour component\n", ident(&format!("bc_{}", behavior.id)), bc_def));
+                    self.out.push_str(&format!("        part {} : {};  // behavior component\n", ident(&format!("bc_{}", behavior.id)), bc_def));
                 }
                 self.out.push_str("    }\n");
                 let multiplicity = multiplicity_suffix("PhysicalNode", &node.attributes);
@@ -1073,7 +1073,7 @@ impl<'a> Generator<'a> {
         None
     }
 
-    // ---- behaviour, verification, traces ---------------------------------
+    // ---- behavior, verification, traces ---------------------------------
 
     fn emit_state_machines(&mut self) {
         if self.ast.state_machines.is_empty() {

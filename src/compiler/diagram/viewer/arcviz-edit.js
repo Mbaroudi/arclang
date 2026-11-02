@@ -2,7 +2,7 @@
  * ArcViz edit — direct manipulation for a host that edits the model from
  * the drawing (an editor, not the site): the ends of the selected exchange
  * dragged to another box or port (reconnect), its middle dragged to bend
- * it, boxes moved or resized against the edges and centres of the others
+ * it, boxes moved or resized against the edges and centers of the others
  * (smart guides, Alt to move freely), a drag on the empty sheet to select
  * the boxes it encloses, and an arrow on each side of the box under the
  * pointer: dragged, it connects; tapped, it creates and connects.
@@ -14,7 +14,7 @@
 (function (root) {
   'use strict';
 
-  const SNAP = 6; // frame pixels within which an edge or a centre snaps
+  const SNAP = 6; // frame pixels within which an edge or a center snaps
   const REACH = 20; // frame pixels around a box or a port within which a dragged end lands on it
   const GRID = 10; // sheet units: boxes moved or resized land on this grid (Alt: anywhere)
   const STYLES = [['orthogonal', '┐', 'Right angles'], ['straight', '╱', 'Straight'], ['curved', '∿', 'Curved']];
@@ -24,7 +24,7 @@
   const SIDES = ['north', 'east', 'south', 'west'];
   const ARROWS = { north: '↑', east: '→', south: '↓', west: '←' };
 
-  const centre = (r) => ({ x: (r.left + r.right) / 2, y: (r.top + r.bottom) / 2 });
+  const center = (r) => ({ x: (r.left + r.right) / 2, y: (r.top + r.bottom) / 2 });
   /** How far a point is from a rectangle (0 inside). */
   const away = (r, x, y) => Math.hypot(Math.max(r.left - x, 0, x - r.right), Math.max(r.top - y, 0, y - r.bottom));
   const holds = (r, x, y) => x >= r.left && x <= r.right && y >= r.top && y <= r.bottom;
@@ -41,7 +41,7 @@
     let best = null;
     for (const spot of spots) {
       if (!spot.port) continue;
-      const c = centre(spot.rect);
+      const c = center(spot.rect);
       const d = Math.hypot(c.x - x, c.y - y);
       if (d <= REACH && (!best || d < best.d)) best = { ...spot, d };
     }
@@ -281,7 +281,7 @@
       follow(node, down, (event) => {
         const found = targetUnder(event);
         // The end jumps onto the port it would take: what is let go is what was shown.
-        const spot = found && found.port ? centre(found.rect) : { x: event.clientX, y: event.clientY };
+        const spot = found && found.port ? center(found.rect) : { x: event.clientX, y: event.clientY };
         const at = toFrame(spot.x, spot.y);
         place(node, at);
         band(fixed, at);
@@ -332,7 +332,7 @@
       place(styleBar, { x: at.x, y: at.y - 26 });
     }
 
-    // --- smart guides: edges and centres of the other boxes --------------
+    // --- smart guides: edges and centers of the other boxes --------------
     const guides = { x: div('arcviz-guide is-vertical'), y: div('arcviz-guide is-horizontal') };
     for (const guide of Object.values(guides)) guide.hidden = true;
     if (deps.snap) stage.append(guides.x, guides.y);
@@ -511,7 +511,7 @@
       const box = port.closest('.av-node');
       if (!box) return;
       const border = shapeOf(box).getBoundingClientRect();
-      const start = centre(port.getBoundingClientRect());
+      const start = center(port.getBoundingClientRect());
       const scale = sheetScale();
       let landing = null; // another box the port would go to
       let at = start;

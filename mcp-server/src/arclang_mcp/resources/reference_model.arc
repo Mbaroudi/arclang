@@ -49,7 +49,7 @@ model EmergencyBraking {
         }
     }
 
-    // Logical Architecture: how the system is organised.
+    // Logical Architecture: how the system is organized.
     architecture logical {
         component "ThreatAssessor" {
             id: "LC-001"
@@ -186,5 +186,5 @@ constraint "Reaction time" {
 // Traces: element, relation, element. The rationale says why.
 trace "LC-002" satisfies "REQ-BRK-001" { rationale: "Computes and commands the braking force" }
 trace "LC-001" satisfies "REQ-BRK-001" { rationale: "Detects the imminent collision" }
-trace "LF-001" realizes "SF-001" { rationale: "Logical realisation of the threat assessment" }
-trace "LF-002" realizes "SF-002" { rationale: "Logical realisation of the braking command" }
+trace "LF-001" realizes "SF-001" { rationale: "Logical realization of the threat assessment" }
+trace "LF-002" realizes "SF-002" { rationale: "Logical realization of the braking command" }

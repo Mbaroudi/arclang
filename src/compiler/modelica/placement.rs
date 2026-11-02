@@ -11,7 +11,7 @@
 //! dependency: connections give the parts a direction, the parts are put in
 //! columns by the longest path from a source (inputs on the left, outputs
 //! on the right), ordered in each column by the mean row of their
-//! neighbours, and a column holds at most [`MAX_ROWS`] boxes. A
+//! neighbors, and a column holds at most [`MAX_ROWS`] boxes. A
 //! `<model>.layout.json` moves a box from there (see [`offsets`]).
 //! Y axis up, as Modelica has it.
 
@@ -139,7 +139,7 @@ fn flow_side(connections: &[Connection], part: usize, port: usize) -> Option<Sid
     }
 }
 
-/// The colour a connection is drawn in, by the physics it carries.
+/// The color a connection is drawn in, by the physics it carries.
 pub fn color(physics: Physics) -> &'static str {
     match physics {
         Physics::Electrical => "{0,0,255}",
@@ -189,7 +189,7 @@ impl Placed {
 pub struct Plan {
     /// Part index -> where its box sits on this diagram.
     pub boxes: BTreeMap<usize, Placed>,
-    /// Port index of the model itself -> its centre on the border.
+    /// Port index of the model itself -> its center on the border.
     pub own_ports: BTreeMap<usize, (f64, f64)>,
     /// Index in the connection list -> the points of its line.
     pub wires: BTreeMap<usize, Vec<(f64, f64)>>,
@@ -203,7 +203,7 @@ type Point = (f64, f64);
 
 impl Plan {
     /// Where a connector of the model sits in its own frame, as a fraction of
-    /// half the width and half the height from the centre (-1..1). The icon
+    /// half the width and half the height from the center (-1..1). The icon
     /// of a model is its diagram, so a box in a parent shows the connector
     /// there.
     pub fn fraction(&self, port: usize) -> (f64, f64) {
@@ -320,15 +320,15 @@ fn columns(parts: &[Part], children: &[usize], conns: &[&Connection]) -> Vec<Vec
     for (v, &l) in layer.iter().enumerate() {
         grouped[l].push(v);
     }
-    // Order each column by the mean row of the neighbours already placed.
-    let neighbours = |v: usize| -> Vec<usize> {
+    // Order each column by the mean row of the neighbors already placed.
+    let neighbors = |v: usize| -> Vec<usize> {
         edges.iter().filter_map(|&(a, b)| if a == v { Some(b) } else if b == v { Some(a) } else { None }).collect()
     };
     let mut rows: BTreeMap<usize, f64> = BTreeMap::new();
     let mut out: Vec<Vec<usize>> = Vec::new();
     for mut column in grouped {
         let key = |v: usize| -> f64 {
-            let known: Vec<f64> = neighbours(v).iter().filter_map(|w| rows.get(w).copied()).collect();
+            let known: Vec<f64> = neighbors(v).iter().filter_map(|w| rows.get(w).copied()).collect();
             if known.is_empty() { f64::MAX } else { known.iter().sum::<f64>() / known.len() as f64 }
         };
         let mut keyed: Vec<(f64, usize)> = column.drain(..).map(|v| (key(v), v)).collect();

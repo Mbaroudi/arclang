@@ -100,7 +100,7 @@ machine and an engagement scenario.
 
 **File:** `defense/isr_drone.arc`
 
-A tactical ISR unmanned aircraft system: air vehicle, ground control station and 150 km line-of-sight datalink, modelled through every Arcadia level and written to pass the production gate as it stands. Operational analysis (commander, pilot, payload operator, ATC, maintainer, an ISR sortie process), system functions with ports, exchanges and three functional chains with latency budgets (lost-link return to base within 10 s, sensor-to-screen video within 500 ms, geofence hold), 17 requirements each satisfied by a component and verified by a test case, a logical architecture with DAL B flight control and DAL C mission system, physical nodes typed through reusable `type`s with power, mass and memory in units, RF and avionics links with a complete ICD, configuration items, a data model (waypoints, flight plan, sensor frames, tracks, C2 messages, classification marking), two state machines, two scenarios with fragments, a HARA that passes the DO-178C, ISO 26262 and IEC 61508 gates, FMEA lines, and a cybersecurity analysis (jamming, GNSS spoofing, datalink hijack, payload exfiltration) on declared scales. Zero findings; three named diagrams.
+A tactical ISR unmanned aircraft system: air vehicle, ground control station and 150 km line-of-sight datalink, modeled through every Arcadia level and written to pass the production gate as it stands. Operational analysis (commander, pilot, payload operator, ATC, maintainer, an ISR sortie process), system functions with ports, exchanges and three functional chains with latency budgets (lost-link return to base within 10 s, sensor-to-screen video within 500 ms, geofence hold), 17 requirements each satisfied by a component and verified by a test case, a logical architecture with DAL B flight control and DAL C mission system, physical nodes typed through reusable `type`s with power, mass and memory in units, RF and avionics links with a complete ICD, configuration items, a data model (waypoints, flight plan, sensor frames, tracks, C2 messages, classification marking), two state machines, two scenarios with fragments, a HARA that passes the DO-178C, ISO 26262 and IEC 61508 gates, FMEA lines, and a cybersecurity analysis (jamming, GNSS spoofing, datalink hijack, payload exfiltration) on declared scales. Zero findings; three named diagrams.
 
 ```bash
 arclang check examples/defense/isr_drone.arc
@@ -122,7 +122,7 @@ arclang gate --standard iec61508 examples/energy/ev_charging_station.arc
 arclang workbench examples/energy/ev_charging_station.arc
 ```
 
-## Data centre
+## Data center
 
 ### Liquid cooling of an AI training hall
 
@@ -155,7 +155,7 @@ arclang workbench examples/datacenter/ai_liquid_cooling.arc
 
 **File:** `semiconductor/ai_accelerator_platform.arc`
 
-A data-center compute tray of eight AI accelerators (tensor cores, 141 GB HBM3e per device at 4.8 TB/s, 700 W TDP, a 900 GB/s GPU-to-GPU fabric, a PCIe Gen5 x16 host link, liquid cooling at a 308 K inlet), modelled from operational analysis to physical architecture and EPBS: ML platform engineer, operator, security officer and tenant; system functions and chains with latency budgets (all-reduce step 2.5 ms, thermal throttling 100 ms, power brake 1 ms, attested boot 30 s); compute die, HBM, fabric, host interface, power delivery, thermal manager and security processor inside the accelerator, a fabric switch, a BMC with firmware attestation, the host runtime and the orchestration agent; OAM modules, baseboard, host server, power shelf and CDU with typed links and ICD-complete physical exchanges. It adds a data model (tensor descriptors, kernel launches, telemetry, attestation reports), a power and thermal mode machine whose transitions are triggered by declared functions, three scenarios, a HARA with FMEA, a cybersecurity analysis (model weights, tenant data, firmware; firmware tampering, side channel, fabric eavesdropping), 16 requirements each satisfied and verified, 5 dimension-checked constraints and three named diagrams. Zero findings; passes the production gate under ISO 26262, DO-178C and IEC 61508; round-trips through the SysML v2 export.
+A data-center compute tray of eight AI accelerators (tensor cores, 141 GB HBM3e per device at 4.8 TB/s, 700 W TDP, a 900 GB/s GPU-to-GPU fabric, a PCIe Gen5 x16 host link, liquid cooling at a 308 K inlet), modeled from operational analysis to physical architecture and EPBS: ML platform engineer, operator, security officer and tenant; system functions and chains with latency budgets (all-reduce step 2.5 ms, thermal throttling 100 ms, power brake 1 ms, attested boot 30 s); compute die, HBM, fabric, host interface, power delivery, thermal manager and security processor inside the accelerator, a fabric switch, a BMC with firmware attestation, the host runtime and the orchestration agent; OAM modules, baseboard, host server, power shelf and CDU with typed links and ICD-complete physical exchanges. It adds a data model (tensor descriptors, kernel launches, telemetry, attestation reports), a power and thermal mode machine whose transitions are triggered by declared functions, three scenarios, a HARA with FMEA, a cybersecurity analysis (model weights, tenant data, firmware; firmware tampering, side channel, fabric eavesdropping), 16 requirements each satisfied and verified, 5 dimension-checked constraints and three named diagrams. Zero findings; passes the production gate under ISO 26262, DO-178C and IEC 61508; round-trips through the SysML v2 export.
 
 ```bash
 arclang check examples/semiconductor/ai_accelerator_platform.arc
@@ -166,7 +166,7 @@ arclang workbench examples/semiconductor/ai_accelerator_platform.arc
 ## Business
 
 `business/data_platform_migration/data_platform_migration.arc` (783 lines)
-applies Arcadia to an IT programme: the migration of a media company's data
+applies Arcadia to an IT program: the migration of a media company's data
 estate from Oracle and Snowflake to a Databricks lakehouse. Stakeholder and
 system requirements refined and traced, the data teams' operational need,
 twenty-four logical components grouped by layer, the cloud deployment with one

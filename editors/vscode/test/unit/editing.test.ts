@@ -74,7 +74,7 @@ test('a trace drawn on a view is told apart by its type, reconnected by it and r
   assert.deepEqual(removalOf(elements[1], traced), { op: 'remove', element: 'LC-A' });
 });
 
-test('boxes align on the outermost edge or the centre, and distribute with equal gaps', () => {
+test('boxes align on the outermost edge or the center, and distribute with equal gaps', () => {
   const boxes = [
     { id: 'a', x: 0, y: 0, width: 100, height: 40 },
     { id: 'b', x: 150, y: 30, width: 50, height: 40 },

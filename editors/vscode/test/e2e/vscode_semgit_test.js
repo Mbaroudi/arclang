@@ -7,7 +7,7 @@
 // git through the driver the extension installed.
 //   VSCODE_APP=".../Visual Studio Code.app" PLAYWRIGHT=/path/to/playwright \
 //   ARCLANG_BINARY=/path/to/arclang node vscode_semgit_test.js
-// SHOTS=/dir keeps pictures; THEME=dark|light picks the colour theme.
+// SHOTS=/dir keeps pictures; THEME=dark|light picks the color theme.
 const { _electron } = require(process.env.PLAYWRIGHT || 'playwright');
 const fs = require('fs'); const os = require('os'); const path = require('path');
 const { execFileSync } = require('child_process');
@@ -134,7 +134,7 @@ const until = async (win, test, tries = 40) => { for (let i = 0; i < tries; i++)
     await bench.click('.wb-layer:has-text("System")'); await win.waitForTimeout(3000);
     const marks = await until(win, async () => { const m = await bench.$$eval('.arcviz-stage .wb-cmp', (n) => n.map((x) => `${x.dataset.id}:${(x.getAttribute('class') || '').split(' ').filter((c) => c.startsWith('wb-cmp-')).join(',')}`)); return m.length ? m : null; });
     report('the system diagram outlines the modified and added functions', !!marks && marks.some((m) => /FuseData.*modified/.test(m)) && marks.some((m) => /LogEvents.*added/.test(m)), (marks || []).join(' '));
-    report('badges mark them for readers who do not tell colours apart', (await bench.$$('.arcviz-stage .wb-cmp-badge')).length >= 2);
+    report('badges mark them for readers who do not tell colors apart', (await bench.$$('.arcviz-stage .wb-cmp-badge')).length >= 2);
     await shot('compare-system', bench);
     await bench.click('.wb-layer:has-text("Capabilities")').catch(() => undefined);
 

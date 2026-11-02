@@ -83,7 +83,7 @@ SysML says most Arcadia kinds by itself; metadata names the rest.
 | operational entity / actor | `part` in OA | `#Entity`, `#Actor` |
 | system component / actor | `part` in SA | `#Actor` |
 | logical component | `part` in LA, nested components as nested `part`s | `#Actor` for an actor |
-| physical node / behaviour / hardware component | `part` in PA; behaviours and hardware nested in the node | `#Node`, `#Behaviour`, `#Hardware` |
+| physical node / behavior / hardware component | `part` in PA; behaviors and hardware nested in the node | `#Node`, `#Behavior`, `#Hardware` |
 | function / activity | `action` of the level, or `perform action` declared in the part that performs it; `in`/`out` item parameters are the ports | |
 | functional chain / process | `action` whose steps are `action`s referencing (`:>`) the functions, with `then` successions; exchanges it involves by `dependency involves`; control nodes `fork`/`join` (and), `decide`/`merge` (or), `#Iterate merge`; sequence links as identified `succession <'id'> first a then b { attribute condition : String = "..."; }` | `#Chain` |
 | physical path | `part` involving its links by `dependency involves` | `#Path` |
@@ -114,7 +114,7 @@ SysML says most Arcadia kinds by itself; metadata names the rest.
 ## What the import does with a SysML model
 
 - Elements are the structural usages (parts, actions) and the definitions
-  used nowhere; a usage nested in a part is its child (a behaviour on a
+  used nowhere; a usage nested in a part is its child (a behavior on a
   node, a performed function); a step of a chain, a lifeline of a scenario
   or the subject of a requirement only refers to one.
 - A usage's level is stated on it or its packages, else its parent's, else

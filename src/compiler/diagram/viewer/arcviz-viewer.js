@@ -80,9 +80,9 @@
    * deps:    { ELK, render, links, navigation, collapse, scope, exporter,
    *          stage, place, theme } — the layout engine constructor and the
    *          other ArcViz modules, each one named after its file (`theme`,
-   *          ArcVizTheme, is optional: without it the built-in colours).
+   *          ArcVizTheme, is optional: without it the built-in colors).
    *          payload.theme, a theme (arclang-theme.json) or a preset id,
-   *          colours every view; one the validator refuses is not applied
+   *          colors every view; one the validator refuses is not applied
    *          and the notes say why.
    * options: optional. A host that is a workbench of its own, with a
    *          project explorer and a properties view, places the chrome
@@ -123,7 +123,7 @@
    *   exportItems, themeItems: [{ id, label, title, shortcut?, checked?, run }]
    *             — more entries in Export (above SVG and PNG) and a Theme
    *             menu (shown only when given); see "extension hooks".
-   *   theme:    { theme, dark } — the colour theme to draw with (deps.theme
+   *   theme:    { theme, dark } — the color theme to draw with (deps.theme
    *             checks it), its dark variant on screen when `dark`; it wins
    *             over payload.theme. See setTheme for later changes.
    *   edit:     a host that edits the model from the drawing, with
@@ -141,7 +141,7 @@
     const diagnostics = payload.diagnostics || [];
     const render = deps.render;
     // --- theme ----------------------------------------------------------
-    // The colours of the screen and those of the exports: the same theme,
+    // The colors of the screen and those of the exports: the same theme,
     // the screen in its dark variant when the host asks for one.
     const themes = deps.theme || null;
     const themeState = { screen: undefined, exports: undefined, theme: null, refused: null };
@@ -369,7 +369,7 @@
         const align = (label, how) => ({ label, action: `align-${how}`, run: () => aligner.align(how) });
         const spread = (label, axis) => ({ label, action: `distribute-${axis}`, disabled: few, reason: 'Select three or more boxes to distribute them', run: () => aligner.distribute(axis) });
         return [
-          align('Align left', 'left'), align('Align centre', 'center'), align('Align right', 'right'),
+          align('Align left', 'left'), align('Align center', 'center'), align('Align right', 'right'),
           'separator',
           align('Align top', 'top'), align('Align middle', 'middle'), align('Align bottom', 'bottom'),
           'separator',
@@ -1496,12 +1496,12 @@
     window.addEventListener('afterprint', () => { printHost.textContent = ''; });
 
     if (themeState.refused) {
-      notes.appendChild(el('p', { class: 'arcviz-note', role: 'status', text: `The theme was refused, the built-in colours are shown: ${themeState.refused.map((e) => e.message).join('; ')}` }));
+      notes.appendChild(el('p', { class: 'arcviz-note', role: 'status', text: `The theme was refused, the built-in colors are shown: ${themeState.refused.map((e) => e.message).join('; ')}` }));
     }
 
     /**
-     * Colour every view with `theme` (a theme object, a preset id, or null
-     * for the built-in colours); `settings.dark` draws its dark variant on
+     * Color every view with `theme` (a theme object, a preset id, or null
+     * for the built-in colors); `settings.dark` draws its dark variant on
      * screen, `settings.draft` previews a theme being edited even when the
      * validator refuses it. A refused theme changes nothing otherwise.
      * Returns the validator's verdict.
@@ -1510,7 +1510,7 @@
       const verdict = adoptTheme(theme, settings);
       if (!verdict.ok && !(settings && settings.draft && verdict.theme)) return verdict;
       drawLegendNow();
-      state.views.clear(); // the layouts stay: only the colours change
+      state.views.clear(); // the layouts stay: only the colors change
       for (const [id, entry] of state.settled) state.settled.set(id, { ...entry, ...render.renderSvg(entry.graph, themeOptions('screen')) });
       await redraw();
       return verdict;
@@ -1609,7 +1609,7 @@
       setReorganize: (mode) => {
         if (REORGANIZE.includes(mode)) reorganize = mode;
       },
-      /** The theme drawn (complete), null for the built-in colours; and the reasons the last one was refused. */
+      /** The theme drawn (complete), null for the built-in colors; and the reasons the last one was refused. */
       theme: () => ({ theme: themeState.theme, refused: themeState.refused }),
       exportSvg,
       exportImage,

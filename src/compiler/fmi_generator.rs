@@ -1,7 +1,7 @@
 //! FMI 2.0 export: co-simulation interface contracts.
 //!
 //! One `modelDescription.xml` (FMI 2.0, Co-Simulation) per logical
-//! component, physical behaviour component and physical node that has ports
+//! component, physical behavior component and physical node that has ports
 //! or ends an exchange. A variable per port: `in` is an input, `out` an
 //! output, `inout` both (`name_in`, `name_out`, since FMI 2.0 has no
 //! bidirectional variable); a port held by a port is `outer_inner`; an
@@ -17,7 +17,7 @@
 //! leave the interface alone, changes when the interface changes, and two
 //! models do not share it.
 //!
-//! The behaviour inside each FMU is NOT generated: there are no binaries or
+//! The behavior inside each FMU is NOT generated: there are no binaries or
 //! sources; simulation teams implement or wrap it, and ArcLang guarantees
 //! the interfaces match the architecture.
 
@@ -102,10 +102,10 @@ fn units(ast: &Model) -> Vec<Unit<'_>> {
             let mut ports = Vec::new();
             flatten(&node.component_ports, "", &mut ports);
             out.push(Unit { id: written_id(&node.attributes, &node.id, &node.name), name: node.name.clone(), ports, interfaces: Vec::new() });
-            for behaviour in &node.behavior_components {
+            for behavior in &node.behavior_components {
                 let mut ports = Vec::new();
-                flatten(&behaviour.ports, "", &mut ports);
-                out.push(Unit { id: written_id(&behaviour.attributes, &behaviour.id, &behaviour.name), name: behaviour.name.clone(), ports, interfaces: Vec::new() });
+                flatten(&behavior.ports, "", &mut ports);
+                out.push(Unit { id: written_id(&behavior.attributes, &behavior.id, &behavior.name), name: behavior.name.clone(), ports, interfaces: Vec::new() });
             }
         }
     }

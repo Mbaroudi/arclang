@@ -1,4 +1,4 @@
-"""ArcLang: the samples of a Monte Carlo case, analysed with Python.
+"""ArcLang: the samples of a Monte Carlo case, analyzed with Python.
 
 Usage: python3 analysis.py samples.csv statistics.json
 

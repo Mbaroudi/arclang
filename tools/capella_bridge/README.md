@@ -66,7 +66,7 @@ Against the Capella 7.0 test model from the capellambse test suite
 | `search("StateMachine")` (regions/states/modes/transitions) | `state_machine` (mode/state/transition) |
 | `search("Scenario")` (instance_roles -> Part.type, message ends) | `scenario` (participants:, message) |
 
-Strictness rules honoured by the emitter: `involves:`/`realizes:`/`mission:`
+Strictness rules honored by the emitter: `involves:`/`realizes:`/`mission:`
 lists reference **only UUIDs emitted in the same .arc** (dangling references
 are compile errors); chains/processes/paths whose involvements are all
 unemitted are **skipped** (involves is required non-empty); transition

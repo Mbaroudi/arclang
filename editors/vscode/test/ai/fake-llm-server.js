@@ -186,7 +186,7 @@ function startFakeServer(script, port = 0) {
 
 // --- The scenario of the real VS Code test ------------------------------------
 
-/** Answers as a modelling assistant would, keyed on what is asked. */
+/** Answers as a modeling assistant would, keyed on what is asked. */
 function arclangScenario(request) {
   const asked = request.lastUser;
   const all = request.all;

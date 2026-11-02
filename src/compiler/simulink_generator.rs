@@ -4,13 +4,13 @@
 //! System Composer with its documented API: the logical architecture as one
 //! model (components nested as the model nests them, oriented ports, port to
 //! port connections, through the boundary of the components between two
-//! ends), the physical architecture as a second model (nodes, behaviour
+//! ends), the physical architecture as a second model (nodes, behavior
 //! components, physical ports and links), and Stateflow skeletons of the
 //! state machines (see [`simulink_stateflow`](super::simulink_stateflow)).
 //! The script is plain text: its generation is tested; its execution
 //! belongs to a licensed MATLAB environment.
 //!
-//! Scope: architecture skeleton and interface contracts. Behaviour stays in
+//! Scope: architecture skeleton and interface contracts. Behavior stays in
 //! Simulink, as in the usual industrial split. Actors, operational entities
 //! and capabilities are not components of an architecture model and are not
 //! written.
@@ -294,10 +294,10 @@ fn physical_model(out: &mut String, ast: &Model, vars: &mut HashSet<String>) {
             for (name, direction) in ports {
                 arch.port(part, &name, direction);
             }
-            for behaviour in &node.behavior_components {
-                let inner = arch.add(vars, Some(part), written_id(&behaviour.attributes, &behaviour.id, &behaviour.name), &behaviour.name);
+            for behavior in &node.behavior_components {
+                let inner = arch.add(vars, Some(part), written_id(&behavior.attributes, &behavior.id, &behavior.name), &behavior.name);
                 let mut ports = Vec::new();
-                flatten_ports(&behaviour.ports, "", &mut ports);
+                flatten_ports(&behavior.ports, "", &mut ports);
                 for (name, direction) in ports {
                     arch.port(inner, &name, direction);
                 }

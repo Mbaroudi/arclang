@@ -15,7 +15,7 @@ Every typed element of the `.capella` lands in one bucket:
   `involves` list, a trace, a nested state);
 - **language gap**: the compiler has no place for it yet, named as such;
 - **tooling**: Capella's own bookkeeping (transition links, REC/RPL
-  catalogues, key values, packages), not model content.
+  catalogs, key values, packages), not model content.
 
 The diagrams of the `.aird` are counted apart: declared, an element's own
 view (scenarios, state machines, chains, paths), or left out.

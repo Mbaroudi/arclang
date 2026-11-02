@@ -1,4 +1,4 @@
-/* The table view: a ledger, dense and exact. Colours carry meaning only:
+/* The table view: a ledger, dense and exact. Colors carry meaning only:
    green covered, amber pending, red a gap or a failure; the rest follows
    the VS Code theme (dark, light, high contrast). */
 :root {

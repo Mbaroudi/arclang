@@ -6,8 +6,10 @@ import { stringLiteral, ViewerGraph } from './workbench';
 /** A model name taken from a file name: `lane_keeping.arc` is `lane_keeping`. */
 export function modelNameOf(fileName: string): string {
   const base = fileName.replace(/^.*[\\/]/, '').replace(/\.(arc|sysml)$/i, '');
-  const name = base.replace(/[^A-Za-z0-9_]+/g, '_').replace(/^_+|_+$/g, '');
-  return /^[A-Za-z_]/.test(name) ? name : name ? `M_${name}` : 'Model';
+  // PascalCase: the keywords are lower case, so a file named model.arc or
+  // system.arc still gives a name the language accepts (Model, System).
+  const name = base.split(/[^A-Za-z0-9]+/).filter(Boolean).map((w) => w[0].toUpperCase() + w.slice(1)).join('');
+  return /^[A-Za-z]/.test(name) ? name : name ? `M${name}` : 'Model';
 }
 
 /** The header of a model: nothing else. */
@@ -44,7 +46,7 @@ export const LAYER_CHOICES: LayerChoice[] = [
   { keyword: 'operational_analysis', label: 'Operational', detail: 'actors, entities, activities, operational capabilities', title: 'Operational Analysis' },
   { keyword: 'system_analysis', label: 'System', detail: 'the system, its actors, functions and capabilities', title: 'System Analysis' },
   { keyword: 'logical_architecture', label: 'Logical', detail: 'logical components and functions', title: 'Logical Architecture' },
-  { keyword: 'physical_architecture', label: 'Physical', detail: 'nodes, behaviour components, physical links', title: 'Physical Architecture' },
+  { keyword: 'physical_architecture', label: 'Physical', detail: 'nodes, behavior components, physical links', title: 'Physical Architecture' },
   { keyword: 'epbs', label: 'EPBS', detail: 'the end product breakdown: systems, subsystems, configuration items', title: 'EPBS' },
   { keyword: 'requirements', label: 'Requirements', detail: 'the requirements the architecture answers' },
   { keyword: 'safety_analysis', label: 'Safety', detail: 'hazards, failure modes, safety goals' },

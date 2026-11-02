@@ -1,4 +1,4 @@
-/* The workbench page, in the editor's own colours. The viewer brings its own
+/* The workbench page, in the editor's own colors. The viewer brings its own
    stylesheet; its variables are mapped to the theme here. Layout: a 35 px
    bar, a row (palette rail, canvas, properties drawer), one status line. */
 :root {
@@ -42,7 +42,7 @@
   border-color: var(--vscode-input-border, transparent);
 }
 /* The viewer's tool row and its menus take the editor's toolbar and menu
-   look: the same hover, pressed and focus colours as VS Code's own. */
+   look: the same hover, pressed and focus colors as VS Code's own. */
 #workbench .arcviz {
   --av-tool-fg: var(--vscode-icon-foreground, var(--vscode-foreground));
   --av-tool-hover: var(--vscode-toolbar-hoverBackground, rgba(90, 93, 94, 0.31));
@@ -585,10 +585,10 @@ body.wb-focus #workbench .arcviz #arcviz-fullscreen { color: var(--vscode-inputO
 /* Dark and high-contrast themes: the drawing is turned to the dark side the
    way the editor is, light paper becoming a dark sheet and dark ink light;
    the hue is turned back so a function stays green and a component blue.
-   Every drawing of the page, at every width and on every view. A colour
+   Every drawing of the page, at every width and on every view. A color
    theme with a dark variant of its own (wb-theme-own-dark) is drawn as it
    is. The exports (SVG, PNG, the clipboard, PowerPoint) are always drawn in
-   the theme's own light colours. */
+   the theme's own light colors. */
 body.vscode-dark:not(.wb-theme-own-dark) #workbench svg.av-svg,
 body.vscode-dark:not(.wb-theme-own-dark) #workbench .wb-minimap svg {
   filter: invert(0.88) hue-rotate(180deg);
@@ -657,7 +657,7 @@ body.vscode-high-contrast #workbench .arcviz .av-node.wb-hover > .av-shape { str
 .wb-te-group legend { font-weight: 600; text-transform: uppercase; font-size: 10.5px; letter-spacing: 0.06em; color: var(--vscode-descriptionForeground); padding: 4px 0; }
 .wb-te-line { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 6px; padding: 2px 0; border-bottom: 1px solid color-mix(in srgb, var(--vscode-foreground) 7%, transparent); }
 .wb-te-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.wb-te-colour { display: inline-flex; align-items: center; gap: 3px; }
+.wb-te-color { display: inline-flex; align-items: center; gap: 3px; }
 .wb-te-swatch { inline-size: 22px; block-size: 20px; padding: 0; border: 1px solid var(--vscode-input-border, #8886); border-radius: 3px; background: none; cursor: pointer; }
 .wb-theme-editor input.wb-te-hex { width: 7ch; font-family: var(--vscode-editor-font-family, monospace); font-size: 11px; padding: 2px 4px; }
 .wb-te-hex.is-invalid { border-color: var(--vscode-inputValidation-errorBorder, #e51400); }
@@ -737,3 +737,11 @@ button.wb-icon-button.wb-bar-toggle.wb-save.is-dirty:hover { background: var(--v
 .wb-time-base-label { display: inline-flex; align-items: center; gap: 6px; color: var(--vscode-descriptionForeground); }
 .wb-time-base { font: inherit; max-width: 320px; color: var(--vscode-dropdown-foreground, inherit); background: var(--vscode-dropdown-background, transparent); border: 1px solid var(--vscode-dropdown-border, #8884); border-radius: 3px; padding: 2px 4px; }
 .wb-time-gap { flex: 1 1 auto; }
+
+/* The start of an empty model: what to do first. */
+.wb-start { max-width: 36rem; margin: 12vh auto 0; padding: 0 24px; color: var(--vscode-foreground); }
+.wb-start h2 { font-size: 16px; font-weight: 600; margin: 0 0 8px; }
+.wb-start p { font-size: 13px; line-height: 1.5; color: var(--vscode-descriptionForeground); margin: 0 0 16px; }
+.wb-start-add { font: inherit; font-size: 13px; padding: 6px 14px; border: 0; border-radius: 2px; cursor: pointer; color: var(--vscode-button-foreground); background: var(--vscode-button-background); }
+.wb-start-add:hover { background: var(--vscode-button-hoverBackground); }
+.wb-start-add:focus-visible { outline: 1px solid var(--vscode-focusBorder); outline-offset: 2px; }

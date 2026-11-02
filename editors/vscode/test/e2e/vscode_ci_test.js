@@ -4,12 +4,12 @@
 //   - ArcLang: Configure CI: the quick pick of providers (the remote's ticked), a
 //     preview of the file before anything is written, then the file written and
 //     opened; a second run shows the file as existing and replaces it only
-//     after a confirmation (cancelled first: the file is untouched);
-//   - the status bar item: passed, failed, running, cancelled (not a pass),
+//     after a confirmation (canceled first: the file is untouched);
+//   - the status bar item: passed, failed, running, canceled (not a pass),
 //     `gh` missing, `gh` not logged in;
 //   VSCODE_APP=".../Visual Studio Code.app" PLAYWRIGHT=/path/to/playwright \
 //   ARCLANG_BINARY=/path/to/arclang node vscode_ci_test.js
-// SHOTS=/dir keeps pictures; THEME=dark|light picks the colour theme.
+// SHOTS=/dir keeps pictures; THEME=dark|light picks the color theme.
 const { _electron } = require(process.env.PLAYWRIGHT || 'playwright');
 const fs = require('fs'); const os = require('os'); const path = require('path');
 const { execFileSync } = require('child_process');
@@ -78,7 +78,7 @@ const until = async (win, test, tries = 40) => { for (let i = 0; i < tries; i++)
   git('init', '-q', '-b', 'main'); git('remote', 'add', 'origin', 'https://github.com/acme/rocket.git'); git('add', 'aeb.arc'); git('commit', '-q', '-m', 'the flagship model');
   // A stub `gh`: its answer is the mode the test writes, every call is logged.
   fs.mkdirSync(path.join(dir, 'bin'), { recursive: true });
-  for (const [mode, over] of Object.entries({ success: {}, failure: { conclusion: 'failure' }, running: { status: 'in_progress', conclusion: '' }, cancelled: { conclusion: 'cancelled' } })) fs.writeFileSync(path.join(dir, `run-${mode}.json`), RUN(over));
+  for (const [mode, over] of Object.entries({ success: {}, failure: { conclusion: 'failure' }, running: { status: 'in_progress', conclusion: '' }, canceled: { conclusion: 'canceled' } })) fs.writeFileSync(path.join(dir, `run-${mode}.json`), RUN(over));
   fs.writeFileSync(path.join(dir, 'bin', 'gh'), `#!/bin/bash\necho "$@" >> "${dir}/calls.log"\nmode="$(cat "${dir}/gh-mode")"\nif [ "$mode" = nologin ]; then echo "To get started with GitHub CLI, please run:  gh auth login" >&2; exit 4; fi\ncat "${dir}/run-$mode.json"\n`, { mode: 0o755 });
   const mode = (m) => fs.writeFileSync(path.join(dir, 'gh-mode'), m);
   const calls = () => (fs.existsSync(path.join(dir, 'calls.log')) ? fs.readFileSync(path.join(dir, 'calls.log'), 'utf8').split('\n').filter(Boolean) : []);
@@ -130,7 +130,7 @@ const until = async (win, test, tries = 40) => { for (let i = 0; i < tries; i++)
     report('a failed run is an error', !!(await state('failure', 'error')));
     if (SHOTS) await win.screenshot({ path: path.join(SHOTS, `ci-status-failed-${THEME}.png`) });
     report('a run in progress is a spinner', !!(await state('running', 'sync')));
-    report('a cancelled run is a question mark, never a pass', !!(await state('cancelled', 'question')));
+    report('a canceled run is a question mark, never a pass', !!(await state('canceled', 'question')));
 
     // 4. gh not logged in, then gh missing: said in words, no token asked.
     mode('nologin'); await palette('ArcLang: Refresh the CI pipeline status');
@@ -160,7 +160,7 @@ const until = async (win, test, tries = 40) => { for (let i = 0; i < tries; i++)
     report('a modal asks before replacing it', /Replace them\?/.test(sure) && /arclang\.yml/.test(sure), String(sure).replace(/\s+/g, ' ').slice(0, 120));
     await win.waitForTimeout(800);
     await ready().catch(() => undefined);
-    report('cancelling the confirmation leaves the file as it was', fs.readFileSync(workflow, 'utf8').startsWith('# edited by hand'));
+    report('canceling the confirmation leaves the file as it was', fs.readFileSync(workflow, 'utf8').startsWith('# edited by hand'));
     await pick('Write 1 file');
     await dialog('Replace');
     await until(win, () => (!fs.readFileSync(workflow, 'utf8').startsWith('# edited by hand') ? true : null), 20);

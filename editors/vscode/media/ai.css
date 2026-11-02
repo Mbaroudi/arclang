@@ -1,5 +1,5 @@
 /* The AI on the workbench: the Ask panel by the selection, the marks of a
-   proposal on the drawing, the Suggestions pane. The editor's colours, with
+   proposal on the drawing, the Suggestions pane. The editor's colors, with
    one accent of its own (the charts' purple) for what comes from an AI, so
    a proposal is never mistaken for the model. */
 :root {
@@ -166,7 +166,7 @@ button.wb-ai-apply { font-weight: 600; }
 .wb-ai-pane-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .wb-ai-pane-head strong { color: var(--wb-ai); white-space: nowrap; }
 .wb-ai-hint, .wb-ai-empty { margin: 0; color: var(--vscode-descriptionForeground); line-height: 1.4; }
-button.wb-ai-analyse { align-self: stretch; text-align: left; font-size: 12px; padding: 4px 8px; }
+button.wb-ai-analyze { align-self: stretch; text-align: left; font-size: 12px; padding: 4px 8px; }
 .wb-ai-trigger { margin: 4px 0 0; font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--vscode-descriptionForeground); }
 .wb-ai-consequences { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 4px; }
 .wb-ai-consequences li { padding: 4px 8px; border-left: 3px solid var(--vscode-editorWarning-foreground, #cca700); background: color-mix(in srgb, var(--vscode-editorWarning-foreground, #cca700) 8%, transparent); border-radius: 0 4px 4px 0; line-height: 1.35; }

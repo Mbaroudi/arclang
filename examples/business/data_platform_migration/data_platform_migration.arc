@@ -7,7 +7,7 @@
 // Budget:   3 M$ (2 M$ infrastructure, 1 M$ services), 12 months
 // Team:     2 architects, 5 data engineers, 2 analysts
 //
-// Arcadia applied to an IT programme: the operational need of the data
+// Arcadia applied to an IT program: the operational need of the data
 // teams, the functions of the platform, the logical components grouped by
 // layer, the cloud deployment, the acceptance tests on every requirement.
 // No integrity levels: this is not a safety system, and the production gate
@@ -74,7 +74,7 @@ requirements stakeholder {
 requirements system {
     // Migration
     req "SYS-MIG-001" "Bidirectional Data Sync" {
-        description: "The platform shall synchronise Oracle/Snowflake and Databricks in both directions with conflict resolution during the transition"
+        description: "The platform shall synchronize Oracle/Snowflake and Databricks in both directions with conflict resolution during the transition"
         priority: "Critical"
         criticality: "High"
     }
@@ -157,7 +157,7 @@ requirements system {
         priority: "High"
     }
     req "SYS-MON-003" "Cost Tracking and Optimization" {
-        description: "Cloud costs shall be tracked by workload and team, with optimisation recommendations"
+        description: "Cloud costs shall be tracked by workload and team, with optimization recommendations"
         priority: "Medium"
     }
 }
@@ -284,7 +284,7 @@ system_analysis "Data Platform" {
     function "Track the lineage" { id: "SF-LINEAGE" }
     function "Keep the audit trail" { id: "SF-AUDIT" }
     function "Monitor the pipelines" { id: "SF-MONITOR" }
-    function "Optimise the cost" { id: "SF-COST" }
+    function "Optimize the cost" { id: "SF-COST" }
     function "Back up and recover" { id: "SF-BACKUP" }
 
     functional_exchange "raw rows" { id: "FE-001" from: "SF-EXTRACT.raw" to: "SF-SCHEMA.raw" }
@@ -379,7 +379,7 @@ architecture logical {
         description: "Governance of the data and AI assets: catalog, grants, lineage"
         port out "grants"
         port out "lineage_events"
-        function "Catalogue the assets" { id: "LF-CATALOG" realizes: "SF-ACCESS" }
+        function "Catalog the assets" { id: "LF-CATALOG" realizes: "SF-ACCESS" }
         function "Emit the lineage events" { id: "LF-EMIT" realizes: "SF-LINEAGE" }
     }
     component "Delta Lake Storage" {
@@ -441,7 +441,7 @@ architecture logical {
     component "Audit Logger" {
         id: "LA-GOV-003"
         layer: "Governance"
-        description: "Centralised audit log for GDPR, CCPA and SOC 2"
+        description: "Centralized audit log for GDPR, CCPA and SOC 2"
         port in "access_events"
         function "Record the audit trail" { id: "LF-AUDIT" realizes: "SF-AUDIT" }
     }
@@ -507,7 +507,7 @@ architecture logical {
         layer: "Monitoring"
         description: "Cost by workload and team, with recommendations"
         port out "cost_alerts"
-        function "Attribute and optimise the cost" { id: "LF-COST" realizes: "SF-COST" }
+        function "Attribute and optimize the cost" { id: "LF-COST" realizes: "SF-COST" }
     }
     component "Alert Manager" {
         id: "LA-MON-003"
