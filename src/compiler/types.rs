@@ -629,7 +629,7 @@ system_analysis "SA" {
     function "Filter" { id: "SF-2" is: "Periodic task" wcet: 3 ms period: 20 ms }
     functional_chain "Loop" { id: "FC-1" involves: ["SF-1", "SF-2"] }
 }
-constraint "Utilisation" { assert: "SF-1".wcet / "SF-1".period + "SF-2".wcet / "SF-2".period <= 0.5 }
+constraint "Utilization" { assert: "SF-1".wcet / "SF-1".period + "SF-2".wcet / "SF-2".period <= 0.5 }
 "#,
         )
         .unwrap();

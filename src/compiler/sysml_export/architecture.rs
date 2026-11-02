@@ -2,7 +2,7 @@
 //! component is a `part` of its level, the components it holds `part`s
 //! inside it, so `'LC-1'.'LC-2'.radar` is a port a connection can end on;
 //! a function declared in a component is a `perform action` there. A
-//! physical node holds its behaviour and hardware components the same way,
+//! physical node holds its behavior and hardware components the same way,
 //! with its oriented ports and its `#PhysicalPort`s.
 
 use super::levels::{self, alias_held, component_ports, connection, flow, function, function_keys, performs, port_defs, ports_of, register_function, register_part};
@@ -41,12 +41,12 @@ pub(super) fn register(e: &mut Exporter<'_>) {
                 register_function(e, &package, &at, f);
             }
             levels::alias_held(e, &[id, &node.name], &node.functions);
-            for behaviour in &node.behavior_components {
-                let inside = register_part(e, &package, &at, &behaviour.id, &behaviour.name, &ports_of(&behaviour.ports));
-                for f in &behaviour.functions {
+            for behavior in &node.behavior_components {
+                let inside = register_part(e, &package, &at, &behavior.id, &behavior.name, &ports_of(&behavior.ports));
+                for f in &behavior.functions {
                     register_function(e, &package, &inside, f);
                 }
-                levels::alias_held(e, &[&behaviour.id, &behaviour.name], &behaviour.functions);
+                levels::alias_held(e, &[&behavior.id, &behavior.name], &behavior.functions);
             }
             for hardware in &node.hardware_components {
                 register_part(e, &package, &at, &hardware.id, &hardware.name, &[]);
@@ -271,9 +271,9 @@ fn physical(e: &mut Exporter<'_>, pa: &PhysicalArchitecture) {
             for deployment in &node.deployments {
                 super::relations::allocation(e, &deployment.component, &node_id);
             }
-            for behaviour in &node.behavior_components {
-                if let Some(component) = &behaviour.allocated_component {
-                    super::relations::dependency(e, "allocated_component", &behaviour.id, component);
+            for behavior in &node.behavior_components {
+                if let Some(component) = &behavior.allocated_component {
+                    super::relations::dependency(e, "allocated_component", &behavior.id, component);
                 }
             }
         }
@@ -325,7 +325,7 @@ fn physical(e: &mut Exporter<'_>, pa: &PhysicalArchitecture) {
     }
 }
 
-/// A node with its ports, the functions it holds, and its behaviour and hardware components.
+/// A node with its ports, the functions it holds, and its behavior and hardware components.
 fn physical_node(e: &mut Exporter<'_>, node: &PhysicalNode) {
     let id = id_of(&node.attributes, &node.id).to_string();
     let actor = super::flag(&node.attributes, "actor");
@@ -348,14 +348,14 @@ fn physical_node(e: &mut Exporter<'_>, node: &PhysicalNode) {
         for f in &node.functions {
             function(e, "PhysicalFunction", f, "perform action");
         }
-        for behaviour in &node.behavior_components {
-            e.block(&format!("#Behaviour part {}", text::declared(&behaviour.id, &behaviour.name)), |e| {
-                e.header("BehaviorComponent", &behaviour.attributes, &[]);
-                component_ports(e, &behaviour.ports);
-                for f in &behaviour.functions {
+        for behavior in &node.behavior_components {
+            e.block(&format!("#Behavior part {}", text::declared(&behavior.id, &behavior.name)), |e| {
+                e.header("BehaviorComponent", &behavior.attributes, &[]);
+                component_ports(e, &behavior.ports);
+                for f in &behavior.functions {
                     function(e, "PhysicalFunction", f, "perform action");
                 }
-                performs(e, &behaviour.allocated_functions);
+                performs(e, &behavior.allocated_functions);
             });
         }
         for hardware in &node.hardware_components {

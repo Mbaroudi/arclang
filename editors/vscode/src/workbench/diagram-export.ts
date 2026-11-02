@@ -1,4 +1,4 @@
-// The host side of a workbench's diagram exports and colour themes: the
+// The host side of a workbench's diagram exports and color themes: the
 // themes sent to the page and the one it draws, a theme saved for the team
 // or the user, an image or an SVG put on the system clipboard, a PowerPoint
 // file written from the slides the page drew.

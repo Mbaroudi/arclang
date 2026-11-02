@@ -1,6 +1,6 @@
-//! `spec/RULES.md` is GENERATED from the rule catalogue declared in code.
+//! `spec/RULES.md` is GENERATED from the rule catalog declared in code.
 //! This test fails when the file and the code disagree, so the published
-//! catalogue never drifts from what `check` reports.
+//! catalog never drifts from what `check` reports.
 
 use std::path::Path;
 

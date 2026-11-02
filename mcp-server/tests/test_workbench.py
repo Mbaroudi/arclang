@@ -252,7 +252,7 @@ async def test_edit_arguments_are_checked_to_the_leaves(server, aeb):
     with pytest.raises(InvalidArguments, match="is not an argument of"):
         await server.call_tool(
             "arclang_edit",
-            {"path": str(aeb), "requests": [{"op": "remove", "element": "X", "colour": "red"}]},
+            {"path": str(aeb), "requests": [{"op": "remove", "element": "X", "color": "red"}]},
         )
     with pytest.raises(InvalidArguments, match="'write' must be a boolean"):
         await server.call_tool(

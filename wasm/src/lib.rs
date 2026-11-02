@@ -104,10 +104,10 @@ pub fn transition(source: &str, step: &str, into: &str, plan_only: bool) -> Stri
     }
 }
 
-/// The catalogue of validation rules as JSON: what `findings` name.
+/// The catalog of validation rules as JSON: what `findings` name.
 #[wasm_bindgen]
 pub fn rules() -> String {
-    serde_json::to_string(arclang::compiler::rules::catalogue()).unwrap_or_default()
+    serde_json::to_string(arclang::compiler::rules::catalog()).unwrap_or_default()
 }
 
 /// The language metamodel as JSON (element kinds, typed attributes,

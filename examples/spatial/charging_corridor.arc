@@ -1,6 +1,6 @@
-// A motorway charging corridor modelled in space: three charging hubs on
+// A motorway charging corridor modeled in space: three charging hubs on
 // the A6 between Auxerre and Beaune, the fibre that links them along the
-// motorway, and the supervision centre in Lyon. Each hub stands where it is
+// motorway, and the supervision center in Lyon. Each hub stands where it is
 // (WGS 84), its cabinet has a size and its equipment a place in it, and the
 // links have a route, a length and a latency the compiler checks against
 // the distances and the speed of light.
@@ -27,7 +27,7 @@ requirements corridor {
     category: "performance"  priority: "High"  source: "AFIR, article 3"  verification_method: "test"
   }
   requirement "REQ-COR-003" {
-    description: "The supervision centre shall see the state of every charging point within 1 s, over a link of at most 80 km between amplifiers"
+    description: "The supervision center shall see the state of every charging point within 1 s, over a link of at most 80 km between amplifiers"
     category: "performance"  priority: "High"  verification_method: "analysis"
   }
   requirement "REQ-COR-004" {
@@ -48,7 +48,7 @@ operational_analysis "Operational Analysis" {
   }
   entity "Charge point operator" {
     id: "OE-CPO"
-    description: "Runs the hubs from its supervision centre"
+    description: "Runs the hubs from its supervision center"
     location: { lat: 45.7640 deg lon: 4.8357 deg alt: 170 m }
     activity "Supervise the corridor" { id: "OAC-SUP" }
     activity "Deliver energy" { id: "OAC-DELIVER" }
@@ -140,7 +140,7 @@ physical_architecture "Physical Architecture" {
     port out "uplink"
     deploys "LC-HUB"
   }
-  node "Supervision centre" {
+  node "Supervision center" {
     id: "PN-SUP"
     description: "Lyon, Part-Dieu"
     location: { lat: 45.7640 deg lon: 4.8357 deg alt: 170 m }

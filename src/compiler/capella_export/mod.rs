@@ -13,7 +13,7 @@
 //! The import reads the export back: Capella -> ArcLang -> Capella keeps
 //! what ArcLang holds.
 
-mod behaviour;
+mod behavior;
 mod context;
 mod cyber;
 mod security;
@@ -81,7 +81,7 @@ pub fn export(model: &Model, file_stem: &str) -> Exported {
         context.register(&id, &id);
     }
     for machine in &model.state_machines {
-        behaviour::register(&mut context, machine);
+        behavior::register(&mut context, machine);
     }
     // The levels are known by their id: an owner can name one.
     let level_ids = model.operational_analysis.iter().map(|l| &l.id).chain(model.system_analysis.iter().map(|l| &l.id)).chain(model.logical_architecture.iter().map(|l| &l.id)).chain(model.physical_architecture.iter().map(|l| &l.id));
@@ -211,11 +211,11 @@ pub fn export(model: &Model, file_stem: &str) -> Exported {
     let fallback = main_sa
         .and_then(|sa| sa.components.first().map(|c| context::id_of(&c.attributes, &format!("system-component:{}", c.name))));
     for machine in &model.state_machines {
-        let (owner, name) = behaviour::owner_and_name(&context, machine, fallback.as_deref());
+        let (owner, name) = behavior::owner_and_name(&context, machine, fallback.as_deref());
         // A machine owned by a level goes to the level's component package.
         let owner = owner.map(|o| level_component(&engineering, &o).unwrap_or(o));
         let name = own_name(&engineering, owner.as_deref(), name);
-        let el = behaviour::state_machine(&context, machine, name);
+        let el = behavior::state_machine(&context, machine, name);
         match owner.and_then(|o| engineering.find_mut(&o)) {
             Some(owner) => owner.push(el),
             None => context.note(format!("state machine '{}' left out: no component to own it", machine.name)),

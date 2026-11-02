@@ -2,7 +2,7 @@
 //! attributes of exchanges, the actor flag of logical components and
 //! physical nodes, the kind and attributes of states and transitions,
 //! the port ends of physical links, the EPBS items as elements, and the
-//! allocation of a behaviour component kept apart from its functions.
+//! allocation of a behavior component kept apart from its functions.
 
 use arclang::compiler::diagram::build_diagrams;
 use arclang::compiler::elements;
@@ -149,9 +149,9 @@ fn a_node_carries_oriented_component_ports_where_physical_exchanges_end() {
 #[test]
 fn a_behaviour_component_keeps_its_allocated_component_apart_from_its_functions() {
     let result = compile(MODEL);
-    let behaviour = &result.ast.physical_architecture[0].nodes[1].behavior_components[0];
-    assert_eq!(behaviour.allocated_component.as_deref(), Some("LC-Ctrl"));
-    assert_eq!(behaviour.allocated_functions, vec!["LF-Decide"]);
+    let behavior = &result.ast.physical_architecture[0].nodes[1].behavior_components[0];
+    assert_eq!(behavior.allocated_component.as_deref(), Some("LC-Ctrl"));
+    assert_eq!(behavior.allocated_functions, vec!["LF-Decide"]);
 }
 
 #[test]

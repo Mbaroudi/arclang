@@ -342,7 +342,7 @@ impl Metamodel {
             // ---- Operational Analysis ----
             kind("Actor", Layer::Operational, "OperationalActor", "part def (actor)", "Human or external system interacting with the system.",
                 concat(vec![common(), vec![attr("category", AttrType::Text, "Actor category.")], safety(), vec![located()]])),
-            kind("OperationalEntity", Layer::Operational, "Entity", "part def", "Organisation or system of the operational world.", concat(vec![component_attrs(), vec![located()]])),
+            kind("OperationalEntity", Layer::Operational, "Entity", "part def", "Organization or system of the operational world.", concat(vec![component_attrs(), vec![located()]])),
             kind("OperationalCapability", Layer::Operational, "OperationalCapability", "use case def", "Expected ability of the operational world. May be declared inside another operational capability.",
                 concat(vec![common(), vec![
                     attr("involves", list(AttrType::Reference("Element")), "Actors, entities, activities and processes involved."),
@@ -382,7 +382,7 @@ impl Metamodel {
             kind("SequenceLink", Layer::System, "SequenceLink", "succession", "`sequence \"A\" -> \"B\" { condition: \"...\" }` inside a chain: each end a step of the chain or one of its control nodes.",
                 concat(vec![common(), vec![attr("condition", AttrType::Text, "Guard of the branch.")]])),
             // ---- Logical Architecture ----
-            kind("LogicalComponent", Layer::Logical, "LogicalComponent", "part def + part", "Behavioural building block, may be nested. In a product line, a component `variation: true` holds the components that are its variants (`variant: true`).",
+            kind("LogicalComponent", Layer::Logical, "LogicalComponent", "part def + part", "Behavioral building block, may be nested. In a product line, a component `variation: true` holds the components that are its variants (`variant: true`).",
                 concat(vec![component_attrs(), vec![
                     multiplicity(),
                     attr("variation", AttrType::Boolean, "A point of variation: the components it holds marked `variant` are the choices."),
@@ -404,11 +404,11 @@ impl Metamodel {
             kind("CapabilityRealization", Layer::Logical, "CapabilityRealization", "use case def", "Realization of a system capability by components. May be declared inside another realization.",
                 concat(vec![common(), vec![attr("realizes", AttrType::Reference("Capability"), "Capability realized."), attr("involves", list(AttrType::Reference("Element")), "Components and chains involved.")], capability_relations("CapabilityRealization")])),
             // ---- Physical Architecture ----
-            kind("PhysicalNode", Layer::Physical, "PhysicalComponent (NODE)", "part def + part", "Hardware node hosting behaviour components.",
+            kind("PhysicalNode", Layer::Physical, "PhysicalComponent (NODE)", "part def + part", "Hardware node hosting behavior components.",
                 concat(vec![component_attrs(), spatial(), vec![multiplicity(), attr("processor", AttrType::Text, "Processor."), attr("cpu", AttrType::Text, "CPU description."), attr("redundancy", AttrType::Text, "Redundancy scheme.")]])),
             kind("PhysicalPort", Layer::Physical, "PhysicalPort", "port", "Unoriented physical connector.", concat(vec![vec![attr("connector", AttrType::Text, "Connector type.")], physics()])),
-            kind("BehaviorComponent", Layer::Physical, "PhysicalComponent (BEHAVIOR)", "part", "Software/behaviour deployed on a node; declares the physical functions it performs.", concat(vec![common(), safety(), spatial()])),
-            kind("PhysicalFunction", Layer::Physical, "PhysicalFunction", "action def (perform)", "Function of the physical level, declared inside the behaviour component that performs it (or at the level, unallocated), with its ports and sub-functions; `realizes:` names the logical function it realizes.", function_attrs()),
+            kind("BehaviorComponent", Layer::Physical, "PhysicalComponent (BEHAVIOR)", "part", "Software/behavior deployed on a node; declares the physical functions it performs.", concat(vec![common(), safety(), spatial()])),
+            kind("PhysicalFunction", Layer::Physical, "PhysicalFunction", "action def (perform)", "Function of the physical level, declared inside the behavior component that performs it (or at the level, unallocated), with its ports and sub-functions; `realizes:` names the logical function it realizes.", function_attrs()),
             kind("HardwareComponent", Layer::Physical, "PhysicalComponent (NODE, nested)", "part", "Hardware part of a node.", concat(vec![common(), resources()])),
             kind("PhysicalLink", Layer::Physical, "PhysicalLink", "connect (binding)", "Physical medium between nodes or ports.", concat(vec![exchange_attrs(), routed()])),
             kind("PhysicalExchange", Layer::Physical, "ComponentExchange (physical)", "flow", "Message routed over a link.",
@@ -513,7 +513,7 @@ impl Metamodel {
             kind("Constraint", Layer::Transverse, "Constraint", "assert constraint", "Dimension-checked comparison over typed attributes (`assert: <expression>`). Ill-formed is a compile error; violated is a warning and a gate blocker.", common()),
             kind("StateMachine", Layer::Transverse, "StateMachine", "state def", "Modes and states of an element.",
                 concat(vec![common(), vec![attr("initial", AttrType::Reference("State"), "Initial state.")]])),
-            kind("State", Layer::Transverse, "State / Mode", "state", "State (undergone) or mode (chosen behaviour).", common()),
+            kind("State", Layer::Transverse, "State / Mode", "state", "State (undergone) or mode (chosen behavior).", common()),
             kind("Transition", Layer::Transverse, "StateTransition", "transition", "Transition between states.",
                 vec![
                     attr("trigger", AttrType::Text, "Triggering event."),

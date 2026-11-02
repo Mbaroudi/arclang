@@ -1,5 +1,5 @@
 // One icon per element kind, drawn as the diagram draws the kind: Capella's
-// colour code (blue structure, green functions, yellow hardware, orange
+// color code (blue structure, green functions, yellow hardware, orange
 // activities) and the viewer's glyphs (the stick figure of an actor, the
 // circled f of a function, the 3D box of a node). Pure data: the side bar
 // tree writes them as SVG files, the properties pane builds them as nodes.

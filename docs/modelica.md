@@ -65,7 +65,7 @@ for the menu (also *ArcLang: Simulation* in the command palette):
 
 - **Run simulations on this model** (also the play button in the editor
   title and *Simulate* in the workbench): runs `arclang verify`, with a
-  progress notification that can be cancelled; the result offers *Show the
+  progress notification that can be canceled; the result offers *Show the
   verdicts* (the requirement coverage table) and *Show the log*. The log is
   the **ArcLang Simulation** output channel: each run begins with its time,
   file and tool, then each case with its name, the requirements it
@@ -100,7 +100,7 @@ that name a program): `arclang.simulation.image` (`ARCLANG_OMC_DOCKER`),
 `arclang.simulation.omc` (`ARCLANG_OMC`), `arclang.simulation.timeout`
 (`ARCLANG_OMC_TIMEOUT`, seconds). Nothing runs in an untrusted workspace; in
 the browser build the item is hidden and the commands say that simulation
-needs the desktop extension. Cancelling a run stops `arclang`; a Docker
+needs the desktop extension. Canceling a run stops `arclang`; a Docker
 container already started may finish on its own.
 
 ## Drawing the architecture in Modex and OMEdit
@@ -109,15 +109,15 @@ Graphical Modelica editors draw from annotations. Without them the canvas is
 blank, so the export writes them by default:
 
 - `Placement` on every component instance (a node in a system model, a
-  behaviour component in a node), on a layered layout: inputs and
+  behavior component in a node), on a layered layout: inputs and
   upstream parts on the left, outputs and downstream parts on the right,
   boxes that do not overlap, the same text every run;
-- a `Line` on every `connect`, in right angles and coloured by what it
+- a `Line` on every `connect`, in right angles and colored by what it
   carries: electrical blue `{0,0,255}`, signal dark blue `{0,0,127}`,
-  mechanical grey `{95,95,95}`, thermal red `{191,0,0}`;
+  mechanical gray `{95,95,95}`, thermal red `{191,0,0}`;
 - a `Diagram(coordinateSystem(extent=...))` on every model, sized to fit
   its boxes and wires;
-- on a model that is itself a component (every node and behaviour
+- on a model that is itself a component (every node and behavior
   component), an `Icon`: a rectangle with its name, over the same extent as
   its diagram, with its connectors placed on the left (inputs, positive
   pins, `_a` flanges) or the right (outputs, negative pins, `_b` flanges).
@@ -175,7 +175,7 @@ model opens as a diagram, not as a list of declarations.
 
 Known limits: the layout is layered and simple, so a model with many
 unconnected parts is wrapped into columns of four and a dense model has
-long wires routed round the outside; the colours cover the physics
+long wires routed round the outside; the colors cover the physics
 ArcLang exports (fluid ports are not exported); a long name is shrunk to
 the box by the editor; offsets from a layout file place boxes but their
 size changes (`dw`, `dh`) and bent edges are ignored.
@@ -189,9 +189,9 @@ never overwrites a line of it.
 
 ```text
 EVRangeSimulation                      generated, never edited
-├── Behaviour.<Node>.<Component>       partial model per behaviour component
+├── Behavior.<Node>.<Component>       partial model per behavior component
 ├── Physical.<Node>                    partial model per physical node
-│     connectors, parameters, `replaceable` behaviour components, connect(...)
+│     connectors, parameters, `replaceable` behavior components, connect(...)
 └── Systems.<Configuration>            partial model per configuration
       `replaceable` nodes, variant parameters in `constrainedby (...)`, connect(...)
 
@@ -253,11 +253,11 @@ nothing; `_a` otherwise. A port without `physics:` is not exported, and the
 export says so: ArcLang does not guess.
 
 `physical_link`s and `physical_exchange`s between ports become `connect(...)`:
-between nodes in the system models, between a node's ports and its behaviour
+between nodes in the system models, between a node's ports and its behavior
 components (or between those) in the node's model. Their ends must have the
 same physics, and a signal must go from an output to an input (a node port
-relaying a behaviour component's keeps its direction): otherwise the model
-does not compile, export or not. An exchange between behaviour components of
+relaying a behavior component's keeps its direction): otherwise the model
+does not compile, export or not. An exchange between behavior components of
 two different nodes is not exported (it is routed through ports of the nodes).
 
 ## Verification by simulation
@@ -550,9 +550,9 @@ as its ArcLang text in a `String` attribute, which the importer reads back.
   medium, which ArcLang does not model yet.
 - **The logical architecture** is not exported as models: it gives the
   variants and their parameters only.
-- Nodes do not nest in ArcLang; behaviour components are one level inside
+- Nodes do not nest in ArcLang; behavior components are one level inside
   their node. A port holding ports (`Owner.port.sub`) is not exported.
-- A behaviour component a configuration leaves out stays in its node's model
+- A behavior component a configuration leaves out stays in its node's model
   (the node model is shared by all configurations).
 - Simulating compiles C code: about 20 s a case with Docker on a laptop.
 - With Docker on Linux, files the container writes in the working directory

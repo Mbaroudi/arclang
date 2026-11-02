@@ -5,7 +5,7 @@ import * as vscode from 'vscode';
 import { failureText, run, RunResult, withTempFile } from '../cli';
 import { clip, exitLine, parseCheckReport, renderTransitionPlan, summarizeCheck, TransitionPlan } from '../pure/arc';
 import { confirmEdits, mdText } from '../pure/confirm';
-import { EditRequest, layerOfKind, Metamodel, neighbours, Snapshot } from '../pure/workbench';
+import { EditRequest, layerOfKind, Metamodel, neighbors, Snapshot } from '../pure/workbench';
 import { applyRequests } from '../workbench/edits';
 import { metamodelJson, snapshotOf } from '../workbench/snapshot';
 
@@ -132,7 +132,7 @@ export function registerTools(context: vscode.ExtensionContext): void {
     }),
 
     vscode.lm.registerTool<Record<string, never>>('arclang_rules', {
-      prepareInvocation: () => ({ invocationMessage: 'Reading the catalogue of rules' }),
+      prepareInvocation: () => ({ invocationMessage: 'Reading the catalog of rules' }),
       async invoke(_options, token) {
         const result = await run(['rules', '--format', 'json'], { token });
         return answer([exitLine('rules --format json', result.code), result.code === 0 ? clip(result.stdout, MAX_RESULT) : failureText(result)]);
@@ -299,7 +299,7 @@ export function describeModel(snapshot: Snapshot, metamodel: Metamodel | null, f
     lines.push(`${e.id} | ${e.kind} | ${e.name} | ${owner} | ${attributes}`);
   }
   if (filter.element && wanted.length === 1) {
-    const around = neighbours(wanted[0], snapshot);
+    const around = neighbors(wanted[0], snapshot);
     lines.push(`Incoming: ${around.incoming.map((n) => `${n.kind}${n.name ? ` ${n.name}` : ''} from ${n.other?.id ?? '?'}`).join('; ') || 'none'}`);
     lines.push(`Outgoing: ${around.outgoing.map((n) => `${n.kind}${n.name ? ` ${n.name}` : ''} to ${n.other?.id ?? '?'}`).join('; ') || 'none'}`);
   }

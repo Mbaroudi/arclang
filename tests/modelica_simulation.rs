@@ -73,7 +73,7 @@ fn ports_parameters_and_connections_become_modelica() {
     assert!(text.contains("constrainedby EVRangeSimulation.Physical.BatteryPack(energy=2.952e8)"), "82 kWh");
     assert!(text.contains("connect(batteryPack.hv_p, driveUnit.hv_p) annotation(__ArcLang(id=\"PL-HVP\"));"));
     assert!(text.contains("connect(speed, speedController.speed) annotation(__ArcLang(id=\"PL-SPEED-IN\"));"));
-    assert!(text.contains("replaceable EVRangeSimulation.Behaviour.VehicleControlUnit.SpeedController speedController constrainedby"));
+    assert!(text.contains("replaceable EVRangeSimulation.Behavior.VehicleControlUnit.SpeedController speedController constrainedby"));
 }
 
 const BASE: &str = r#"
@@ -343,7 +343,7 @@ fn openmodelica_checks_the_package_and_verifies_the_demo() {
         export.file_name
     );
     let paths = [
-        "EVRangeSimulation.Behaviour.VehicleControlUnit.SpeedController",
+        "EVRangeSimulation.Behavior.VehicleControlUnit.SpeedController",
         "EVRangeSimulation.Physical.BatteryPack",
         "EVRangeSimulation.Physical.DriveUnit",
         "EVRangeSimulation.Physical.VehicleBody",

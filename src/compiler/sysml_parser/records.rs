@@ -378,7 +378,7 @@ impl<'n> Builder<'n> {
     }
 
     /// The membership metaclass of `index` in `owner`: what the parser said,
-    /// refined by the owner (parameters of behaviours, variants, annotations).
+    /// refined by the owner (parameters of behaviors, variants, annotations).
     fn membership_kind(&self, index: usize, owner: usize) -> &'static str {
         let node = self.scope.node(index);
         let owner_kind = self.scope.node(owner).kind;
@@ -703,7 +703,7 @@ impl<'n> Builder<'n> {
     }
 }
 
-/// Behaviours: their directed features are parameters.
+/// Behaviors: their directed features are parameters.
 fn is_behavior(kind: &str) -> bool {
     matches!(
         kind,

@@ -71,7 +71,7 @@ const INSTRUCTIONS: Record<string, string> = {
   transition: 'From the transition plan below, say what each step would create on the next Arcadia level and recommend the next step to apply. The user applies a step with the buttons under this answer; do not rewrite the model.',
   chat: 'Help with the request. When a fact about a model is needed (does it compile, what depends on an element, which attributes a kind has, which ids exist), call the arclang tools instead of guessing: arclang_model lists the elements with their exact ids. To change an open model, prefer arclang_edit with precise requests (add, set, move, trace, rename, remove) over rewriting the file; the compiler refuses what would not compile and the user confirms each gesture. Return a WHOLE file in one ```arc fence only when the model does not exist yet or must be rewritten.',
   agent:
-    'Act as the ArcLang modelling agent on the open model, step by step: (1) read it with arclang_model (the whole model, then the layer or kind concerned) so you know the exact ids; (2) say in two or three lines what you will change and why; (3) apply the changes with arclang_edit, grouping the requests of one intention in one call (ports before the exchange that uses them, elements before the traces to them); (4) after each call, read the answer: a refusal names the request and the reason, fix that request and retry at most twice; (5) finish with arclang_check and, when requirements are involved, arclang_gate, and report what the compiler says, citing findings by their rule. Never claim a change was made unless an arclang_edit answer says it was applied. Do not rewrite the file.',
+    'Act as the ArcLang modeling agent on the open model, step by step: (1) read it with arclang_model (the whole model, then the layer or kind concerned) so you know the exact ids; (2) say in two or three lines what you will change and why; (3) apply the changes with arclang_edit, grouping the requests of one intention in one call (ports before the exchange that uses them, elements before the traces to them); (4) after each call, read the answer: a refusal names the request and the reason, fix that request and retry at most twice; (5) finish with arclang_check and, when requirements are involved, arclang_gate, and report what the compiler says, citing findings by their rule. Never claim a change was made unless an arclang_edit answer says it was applied. Do not rewrite the file.',
 };
 
 /**
@@ -89,7 +89,7 @@ export async function converse(
 ): Promise<string> {
   let text = '';
   for (let round = 0; round < 8; round++) {
-    const response = await model.sendRequest(messages, { tools, justification: 'ArcLang modelling with the compiler at hand' }, token);
+    const response = await model.sendRequest(messages, { tools, justification: 'ArcLang modeling with the compiler at hand' }, token);
     const calls: vscode.LanguageModelToolCallPart[] = [];
     let roundText = '';
     for await (const part of response.stream) {

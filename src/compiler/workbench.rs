@@ -1,4 +1,4 @@
-//! What a modelling workbench needs from the compiler, in one place: the
+//! What a modeling workbench needs from the compiler, in one place: the
 //! snapshot of a model (diagrams as the viewer mounts them, the explorer
 //! document, every element with its typed attributes, the findings, the
 //! gate) and the edits of its text (set, unset, rename, add, remove, move,
@@ -90,7 +90,7 @@ pub struct Snapshot {
     /// scenarios and the data model, resolved by the compiler.
     pub document: Option<serde_json::Value>,
     /// Every element of the compiled model with its typed attributes, as
-    /// the modelling API lists them: what a properties view edits.
+    /// the modeling API lists them: what a properties view edits.
     pub elements: Option<serde_json::Value>,
     /// Every warning, traceability and methodology finding, each named
     /// after its rule (`rules()` lists them) with the element concerned.
@@ -210,7 +210,7 @@ fn snapshot_of(compiled: Result<crate::CompilationResult, crate::CompilerError>,
     }
 }
 
-/// Rename an element the way a modelling workbench does: the element keeps
+/// Rename an element the way a modeling workbench does: the element keeps
 /// its identity and what referred to it still does. An element that
 /// writes no `id` is first given its current id in writing; references
 /// that used its name are rewritten to the id; then the name changes. The
@@ -296,7 +296,7 @@ pub fn elements_json(graph: &ElementGraph) -> serde_json::Value {
 }
 
 /// One edit of the model text, as `arclang set`, `unset`, `rename`, the
-/// modelling API's create and delete, and `trace` write it. Attribute
+/// modeling API's create and delete, and `trace` write it. Attribute
 /// values are ArcLang source (`"text"`, `25 ms`, `[A, B]`).
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(tag = "op", rename_all = "snake_case")]

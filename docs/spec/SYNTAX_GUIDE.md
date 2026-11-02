@@ -246,7 +246,7 @@ dashed line.
 expression, the value of each side (`50 ms against 100 ms`) and its verdict
 (`✓ holds`, `✗ violated`), bound to every value it reads: `mass = 450 kg`
 inside the battery, the `latency` of each function a `sum("FC-STOP", latency)`
-adds up, the line labelled `sum`.
+adds up, the line labeled `sum`.
 
 **The SysML v2 views** draw the same model in the vocabulary of SysML v2,
 from the text `arclang export -f sys-ml` writes: the **General View**

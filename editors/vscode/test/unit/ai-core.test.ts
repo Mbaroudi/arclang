@@ -71,7 +71,7 @@ test('the context of a selection holds its source, relationships, findings, meta
   assert.match(built.text, /```arc\n  component "Camera" \{/);
   assert.match(built.text, /## Relationships of the selection/);
   assert.match(built.text, /LC-CTL satisfies REQ-LKA-001/);
-  assert.match(built.text, /## Neighbours/);
+  assert.match(built.text, /## Neighbors/);
   assert.match(built.text, /## Production gate: PASS, 2\/2/);
   assert.match(built.text, /## Metamodel of these kinds[\s\S]*LogicalComponent \(Logical/);
   const narrow = buildSelectionContext({ snapshot, metamodel: null, text: REFERENCE, fileName: 'reference.arc', ids: ['LC-CAM'], scope: 'selection' });

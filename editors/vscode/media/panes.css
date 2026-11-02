@@ -1,6 +1,6 @@
 /* The panes: the properties inspector (sections that fold, typed controls,
    live checks), the drop target of the tree, a diagram's own tab. In the
-   editor's own colours, so light, dark and high contrast themes all hold. */
+   editor's own colors, so light, dark and high contrast themes all hold. */
 :root {
   --wb-row: 24px;
   --wb-label: clamp(100px, 42%, 160px);

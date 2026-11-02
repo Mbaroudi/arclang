@@ -76,7 +76,7 @@ export function layerRows(elements: { attributes?: Record<string, unknown> }[], 
   return all.map((name) => ({ name, label: layerLabel(name), count: counts.get(name) ?? 0 }));
 }
 
-/** The layers one step up or down: `name` swapped with its neighbour (top first). */
+/** The layers one step up or down: `name` swapped with its neighbor (top first). */
 export function stepLayer(names: string[], name: string, step: -1 | 1): string[] {
   const at = names.indexOf(name);
   const to = at + step;

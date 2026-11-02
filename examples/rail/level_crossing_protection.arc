@@ -24,7 +24,7 @@ requirements safety {
         safety_level: "SIL-4"
     }
     req "REQ-LX-003" "Crossing clear proving" {
-        description: "The system shall prove the crossing area is free of obstacles before authorising train passage"
+        description: "The system shall prove the crossing area is free of obstacles before authorizing train passage"
         priority: "High"
         safety_level: "SIL-4"
     }
@@ -58,7 +58,7 @@ operational_analysis "Level Crossing Operations" {
         activity "Announce the train" { id: "OA-ANNOUNCE" description: "Warn the road before the train arrives" }
         activity "Close the road" { id: "OA-CLOSE" description: "Stop road traffic with barriers" }
         activity "Prove the crossing clear" { id: "OA-PROVE" description: "Confirm nobody is trapped between the barriers" }
-        activity "Authorise the passage" { id: "OA-AUTH" description: "Show a proceed aspect to the train" }
+        activity "Authorize the passage" { id: "OA-AUTH" description: "Show a proceed aspect to the train" }
     }
     operational_capability "Protect the crossing" {
         id: "OC-001"
@@ -82,7 +82,7 @@ system_analysis "Level Crossing System" {
     function "Warn the road users" { id: "SF-WARN" latency: 200 ms port in "approach" port out "warned" }
     function "Close the barriers" { id: "SF-CLOSE" latency: 8 s port in "warned" port out "closed" }
     function "Prove the crossing clear" { id: "SF-PROVE" latency: 300 ms port in "closed" port out "clear" }
-    function "Authorise the train passage" { id: "SF-AUTH" latency: 200 ms port in "clear" }
+    function "Authorize the train passage" { id: "SF-AUTH" latency: 200 ms port in "clear" }
     function "Fall back to the safe state" { id: "SF-SAFE" description: "Barriers down, signal at stop, on any fault" }
     functional_exchange "train approach" { id: "FE-LX-001" from: "SF-DETECT.approach" to: "SF-WARN.approach" }
     functional_exchange "road warned" { id: "FE-LX-002" from: "SF-WARN.warned" to: "SF-CLOSE.warned" }
@@ -111,7 +111,7 @@ architecture logical {
         port out "SignalCommand"
         port out "WarningCommand"
         function "Sequence the protection cycle" { id: "LF-SEQ" realizes: "SF-CLOSE" latency: 200 ms }
-        function "Authorise the passage" { id: "LF-AUTH" realizes: "SF-AUTH" }
+        function "Authorize the passage" { id: "LF-AUTH" realizes: "SF-AUTH" }
         function "Enter fail-safe on fault" { id: "LF-SAFE" realizes: "SF-SAFE" }
     }
     component "Road Warning Unit" {

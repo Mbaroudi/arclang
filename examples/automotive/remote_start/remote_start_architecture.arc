@@ -187,7 +187,7 @@ trace "REG-RS-004" refines "STK-RS-005"
 operational_analysis "Remote Start Operations" {
     actor "Vehicle User" {
         id: "OA-USER"
-        description: "Owner or authorised driver with the smartphone application"
+        description: "Owner or authorized driver with the smartphone application"
     }
     actor "Mobility Service Operator" {
         id: "OA-OPERATOR"

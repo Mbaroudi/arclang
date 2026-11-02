@@ -64,7 +64,7 @@ package ElectricalNetworkPhysics "Physics of the aircraft electrical network"
   end Cabin;
 
   model Shedding "Shed the cabin as soon as the generator is offline"
-    extends AircraftElectricalNetwork.Behaviour.BusPowerControlUnit.SheddingLogic;
+    extends AircraftElectricalNetwork.Behavior.BusPowerControlUnit.SheddingLogic;
   equation
     shed = 1 - online;
   end Shedding;

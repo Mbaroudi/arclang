@@ -341,7 +341,7 @@ class ArcLangCompiler:
     ) -> Run:
         """`arclang workbench --gate-standard <standard> [--exports]`.
 
-        Everything a modelling workbench shows of one model, as one JSON
+        Everything a modeling workbench shows of one model, as one JSON
         document: `elements` (with `relationships`), `diagrams`, the
         explorer `document`, `findings`, `gate`, and with `exports` the
         interop texts. A model that does not compile gives
@@ -393,7 +393,7 @@ class ArcLangCompiler:
         return await self.run(["metamodel", "--format", "json" if as_json else "markdown"])
 
     async def rules(self, as_json: bool = False) -> Run:
-        """`arclang rules --format markdown|json`: the catalogue of validation rules."""
+        """`arclang rules --format markdown|json`: the catalog of validation rules."""
         return await self.run(["rules", "--format", "json" if as_json else "markdown"])
 
     @staticmethod

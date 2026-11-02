@@ -35,7 +35,7 @@ const VIEWER_FILES = [
   'arcviz-viewer.css',
 ];
 
-/** The built-in colour themes (viewer/themes), in the order the viewer lists them. */
+/** The built-in color themes (viewer/themes), in the order the viewer lists them. */
 const THEME_PRESETS = ['arclang-default', 'capella-classic', 'colorblind-safe', 'print-grayscale', 'high-contrast', 'monochrome-document'];
 
 function copyViewer() {

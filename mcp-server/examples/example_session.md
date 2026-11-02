@@ -222,8 +222,8 @@ Transition oa-to-sa of braking.arc: accepted, NOT written (pass write: true to a
  
 @@ -188,3 +191,4 @@
  trace "LC-001" satisfies "REQ-BRK-001" { rationale: "Detects the imminent collision" }
- trace "LF-001" realizes "SF-001" { rationale: "Logical realisation of the threat assessment" }
- trace "LF-002" realizes "SF-002" { rationale: "Logical realisation of the braking command" }
+ trace "LF-001" realizes "SF-001" { rationale: "Logical realization of the threat assessment" }
+ trace "LF-002" realizes "SF-002" { rationale: "Logical realization of the braking command" }
 +trace "SF-MonitorEnvironment" realizes "OA-MonitorEnvironment" {}
 
 

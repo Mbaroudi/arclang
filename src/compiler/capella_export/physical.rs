@@ -1,11 +1,11 @@
-//! The physical architecture: nodes with their physical ports, behaviour
+//! The physical architecture: nodes with their physical ports, behavior
 //! components deployed on them with their ports and the logical component
 //! each one realizes, the tree of physical functions, physical links and
 //! paths, component exchanges, functional chains and capability realizations.
 //!
 //! Capella keeps one root physical component; the first node is that root,
 //! and every other component is its sub-component, through a part. A
-//! behaviour component written in a node is deployed on that node.
+//! behavior component written in a node is deployed on that node.
 
 use super::context::{derived, id_of, port_id, text, Context};
 use super::functions::{self, Placed};
@@ -49,8 +49,8 @@ fn placed(pa: &PhysicalArchitecture) -> Vec<Placed<'_>> {
     let mut placed = Vec::new();
     for node in &pa.nodes {
         functions::place(&node.functions, Some(&node.id), &mut placed);
-        for behaviour in &node.behavior_components {
-            functions::place(&behaviour.functions, Some(&behaviour.id), &mut placed);
+        for behavior in &node.behavior_components {
+            functions::place(&behavior.functions, Some(&behavior.id), &mut placed);
         }
     }
     functions::place(&pa.functions, None, &mut placed);
@@ -66,19 +66,19 @@ pub(super) fn register(context: &mut Context, pa: &PhysicalArchitecture) {
             context.register(&format!("{}.{}", node.id, port.name), &id);
             context.register(&format!("{}.{}", node.name, port.name), &id);
         }
-        // A node's oriented ports are component ports, as a behaviour's are.
+        // A node's oriented ports are component ports, as a behavior's are.
         for port in &node.component_ports {
             let id = port_id(&node.id, &port.name, &port.id);
             context.register(&format!("{}.{}", node.id, port.name), &id);
             context.register(&format!("{}.{}", node.name, port.name), &id);
         }
-        for behaviour in &node.behavior_components {
-            context.register(&behaviour.id, &behaviour.id);
-            context.register(&behaviour.name, &behaviour.id);
-            for port in &behaviour.ports {
-                let id = port_id(&behaviour.id, &port.name, &port.id);
-                context.register(&format!("{}.{}", behaviour.id, port.name), &id);
-                context.register(&format!("{}.{}", behaviour.name, port.name), &id);
+        for behavior in &node.behavior_components {
+            context.register(&behavior.id, &behavior.id);
+            context.register(&behavior.name, &behavior.id);
+            for port in &behavior.ports {
+                let id = port_id(&behavior.id, &port.name, &port.id);
+                context.register(&format!("{}.{}", behavior.id, port.name), &id);
+                context.register(&format!("{}.{}", behavior.name, port.name), &id);
             }
         }
     }
@@ -109,7 +109,7 @@ pub(super) fn register(context: &mut Context, pa: &PhysicalArchitecture) {
     }
 }
 
-fn behaviour(context: &Context, b: &BehaviorComponent, placed: &[Placed<'_>]) -> El {
+fn behavior(context: &Context, b: &BehaviorComponent, placed: &[Placed<'_>]) -> El {
     let el = El::new("ownedPhysicalComponents", "pa:PhysicalComponent", &b.id).attr("name", &b.name).attr("nature", "BEHAVIOR");
     let mut el = apply(el, &b.attributes, &["allocated_component", "allocated_functions", "kind"]);
     for port in &b.ports {
@@ -202,7 +202,7 @@ pub(super) fn write(context: &mut Context, pa: &PhysicalArchitecture, above_root
     // The root first: Capella (and the import) take the first component as the system.
     if let Some((first, others)) = systems.split_first() {
         let mut system = node(context, first, &placed, &link_ports);
-        // The root holds nodes and behaviours: it is of no nature.
+        // The root holds nodes and behaviors: it is of no nature.
         system.remove("nature");
         // Every other component is a part of the root, deployed where it is written.
         let mut parts: Vec<El> = Vec::new();
@@ -233,7 +233,7 @@ pub(super) fn write(context: &mut Context, pa: &PhysicalArchitecture, above_root
         }
         for n in pa.nodes.iter() {
             for b in &n.behavior_components {
-                system.push(behaviour(context, b, &placed));
+                system.push(behavior(context, b, &placed));
             }
         }
         for link in links {
@@ -282,7 +282,7 @@ pub(super) fn write(context: &mut Context, pa: &PhysicalArchitecture, above_root
         }
         pkg.push(El::new("ownedParts", "cs:Part", &part_id(&first.id)).attr("name", &first.name).attr("abstractType", &format!("#{}", first.id)));
         for actor in &actors {
-            // An actor's part holds the deployments of the behaviours written in it.
+            // An actor's part holds the deployments of the behaviors written in it.
             let mut part = El::new("ownedParts", "cs:Part", &part_id(&actor.id)).attr("name", &actor.name).attr("abstractType", &format!("#{}", actor.id));
             for b in &actor.behavior_components {
                 part.push(

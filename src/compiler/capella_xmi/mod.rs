@@ -14,7 +14,7 @@
 //! declarations: the elements a Capella diagram shows are what the
 //! ArcLang diagram shows, as Capella users expect their diagrams back.
 
-mod behaviour;
+mod behavior;
 mod data;
 mod diagrams;
 mod fragments;
@@ -489,8 +489,8 @@ fn import_document(document: &Node, aird: Option<Result<Node, String>>, file_nam
     }
     // Add-on viewpoints (STPA, Cybersecurity): their own elements.
     viewpoints::viewpoints(&mut writer, project);
-    behaviour::state_machines(&mut writer, engineering);
-    behaviour::scenarios(&mut writer, engineering);
+    behavior::state_machines(&mut writer, engineering);
+    behavior::scenarios(&mut writer, engineering);
     data::requirement_relations(&mut writer, project);
 
     // Allocations of functional exchanges to component exchanges, and of
@@ -569,7 +569,7 @@ mod tests {
         assert!(counts.get("requirements").copied().unwrap_or(0) >= 5, "{counts:?}");
         assert!(counts.get("component exchanges").copied().unwrap_or(0) >= 5, "{counts:?}");
         assert!(counts.get("diagrams").copied().unwrap_or(0) >= 3, "{counts:?} {:?}", imported.notes);
-        // The behaviour, the data and the reuse of the model come along.
+        // The behavior, the data and the reuse of the model come along.
         assert!(counts.get("scenarios").copied().unwrap_or(0) >= 3, "{counts:?}");
         assert!(counts.get("messages").copied().unwrap_or(0) >= 10, "{counts:?}");
         assert!(counts.get("states").copied().unwrap_or(0) >= 10, "{counts:?}");
@@ -622,7 +622,7 @@ mod tests {
         let text = &imported.source;
         let at = |needle: &str| text.find(needle).unwrap_or_else(|| panic!("{needle} missing in:\n{text}"));
         // The root comes first, as a node; the actor is a node flagged actor;
-        // the behaviour at package level belongs to the root.
+        // the behavior at package level belongs to the root.
         assert!(at("node \"IFE System\"") < at("node \"Passenger\""), "{text}");
         assert!(at("node \"IFE System\"") < at("behavior_component \"RTSoft\"") && at("behavior_component \"RTSoft\"") < at("node \"Passenger\""), "{text}");
         let passenger = &text[at("node \"Passenger\"")..];

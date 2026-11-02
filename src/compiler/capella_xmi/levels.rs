@@ -505,7 +505,7 @@ pub(super) fn system(writer: &mut Writer, sa: &Node) {
 
 // --- functions of a level ---------------------------------------------------------
 
-/// Which component (or behaviour component) performs each function of a
+/// Which component (or behavior component) performs each function of a
 /// level, from the functional allocations, and the parent of each function.
 struct FunctionTree<'a> {
     by_id: HashMap<String, &'a Node>,
@@ -739,12 +739,12 @@ pub(super) fn physical(writer: &mut Writer, pa: &Node) {
     writer.line(1, &format!("id: {}", string_literal(pa.id())));
     let mut taken: HashSet<String> = HashSet::new();
     let components: Vec<&Node> = pa.find_all("pa:PhysicalComponent");
-    // Where a behaviour component is deployed: the node whose part holds its part.
+    // Where a behavior component is deployed: the node whose part holds its part.
     let mut deployed_on: HashMap<String, String> = HashMap::new();
     for link in pa.find_all("deployment:PartDeploymentLink") {
         let (Some(location), Some(element)) = (first_ref(link.attr("location")), first_ref(link.attr("deployedElement"))) else { continue };
-        let (Some(node), Some(behaviour)) = (writer.part_type.get(&location).cloned(), writer.part_type.get(&element).cloned()) else { continue };
-        deployed_on.insert(behaviour, node);
+        let (Some(node), Some(behavior)) = (writer.part_type.get(&location).cloned(), writer.part_type.get(&element).cloned()) else { continue };
+        deployed_on.insert(behavior, node);
     }
     let by_id: HashMap<String, &Node> = components.iter().map(|c| (c.id().to_string(), *c)).collect();
     let is_unset = |c: &Node| matches!(c.attr("nature"), None | Some("UNSET"));
@@ -763,7 +763,7 @@ pub(super) fn physical(writer: &mut Writer, pa: &Node) {
     // nature, `actor="true"`), written as `node { actor: true }`.
     let is_node = |c: &Node| c.attr("nature") == Some("NODE") || (is_unset(c) && is_actor(c) && c.id() != root);
     let nodes: Vec<&Node> = components.iter().copied().filter(|c| is_node(c)).collect();
-    let behaviours: Vec<&Node> = components.iter().copied().filter(|c| !is_node(c)).collect();
+    let behaviors: Vec<&Node> = components.iter().copied().filter(|c| !is_node(c)).collect();
     let mut written_nodes: HashSet<String> = HashSet::new();
     let mut nodes_to_write: Vec<&Node> = nodes.clone();
     if !nodes.iter().any(|n| n.id() == root) {
@@ -799,24 +799,24 @@ pub(super) fn physical(writer: &mut Writer, pa: &Node) {
         // A node exchanges data through oriented component ports too (an
         // actor node above all): `port in|out`, ends of physical exchanges.
         component_ports(writer, 2, node, &node_id);
-        // The functions the node itself performs (a node may be a behaviour too).
+        // The functions the node itself performs (a node may be a behavior too).
         owned_functions(writer, 2, &node_id, &mut tree, "PhysicalFunction", "physical functions");
         let mut behaviour_names: HashSet<String> = HashSet::new();
-        for behaviour in behaviours.iter().filter(|b| b.id() != root) {
-            // A behaviour deployed on something that is not a node (another
-            // behaviour, a part of no node) is held by the root node.
-            let host = deployed_on.get(behaviour.id()).filter(|h| nodes.iter().any(|n| n.id() == *h)).cloned().unwrap_or_else(|| root.clone());
+        for behavior in behaviors.iter().filter(|b| b.id() != root) {
+            // A behavior deployed on something that is not a node (another
+            // behavior, a part of no node) is held by the root node.
+            let host = deployed_on.get(behavior.id()).filter(|h| nodes.iter().any(|n| n.id() == *h)).cloned().unwrap_or_else(|| root.clone());
             if host != node_id {
                 continue;
             }
-            writer.count("behaviour components");
-            let behaviour_id = writer.remember(behaviour, "BehaviorComponent");
-            let behaviour_name = data::unique_name(&mut behaviour_names, &display_name(behaviour));
+            writer.count("behavior components");
+            let behaviour_id = writer.remember(behavior, "BehaviorComponent");
+            let behaviour_name = data::unique_name(&mut behaviour_names, &display_name(behavior));
             writer.names.insert(behaviour_id.clone(), behaviour_name.clone());
             writer.line(2, &format!("behavior_component {} {{", string_literal(&behaviour_name)));
-            header_attributes(writer, 3, behaviour, "BehaviorComponent");
-            component_ports(writer, 3, behaviour, &behaviour_id);
-            if let Some(realization) = behaviour.tagged("ownedComponentRealizations").next() {
+            header_attributes(writer, 3, behavior, "BehaviorComponent");
+            component_ports(writer, 3, behavior, &behaviour_id);
+            if let Some(realization) = behavior.tagged("ownedComponentRealizations").next() {
                 if let Some(realized) = first_ref(realization.attr("targetElement")) {
                     writer.line(3, &format!("allocated_component: {}", string_literal(&realized)));
                 }
@@ -854,7 +854,7 @@ pub(super) fn physical(writer: &mut Writer, pa: &Node) {
     let mut exchange_names: HashSet<String> = HashSet::new();
     for exchange in pa.find_all("fa:ComponentExchange") {
         let (Some(source), Some(target)) = (first_ref(exchange.attr("source")), first_ref(exchange.attr("target"))) else { continue };
-        // Bound to the ports of the behaviour components when they are written.
+        // Bound to the ports of the behavior components when they are written.
         let end = |writer: &Writer, reference: &str| writer.port_ref.get(reference).cloned().or_else(|| writer.port_owner.get(reference).cloned().filter(|owner| writer.written(owner)));
         let (Some(from), Some(to)) = (end(writer, &source), end(writer, &target)) else {
             writer.count("physical component exchanges whose end is not an imported component (left out)");

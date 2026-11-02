@@ -1,4 +1,4 @@
-//! The behaviour of a Capella model: state machines with their regions,
+//! The behavior of a Capella model: state machines with their regions,
 //! pseudo-states and transitions, and scenarios with their lifelines,
 //! messages and combined fragments.
 

@@ -12,8 +12,8 @@ does.
 ## In the editor
 
 - **Problems** with their rule (`trace.component`, `metamodel.type`, ...)
-  pointing at the element concerned. The catalogue is **ArcLang: Show the
-  catalogue of rules**.
+  pointing at the element concerned. The catalog is **ArcLang: Show the
+  catalog of rules**.
 - **Outline**, **completion** of keywords, attributes and enumeration values
   from the metamodel, **hover** documentation, **go to definition**,
   **rename** through the lossless source editor (comments and layout kept,
@@ -141,7 +141,7 @@ A model is versioned like code but reviewed and merged like a model (`docs/SEMAN
 The compiler runs in your pipeline (`docs/CI_CD.md`): every model compiled, the production gate, the simulations that simulate, a SARIF file for code scanning, and on a pull request one comment (semantic diff, impact, the gate before and after, new blockers) that is updated on each push.
 
 - **ArcLang: Configure CI**: pick the CI systems (GitHub Actions, GitLab CI, Azure DevOps, Jenkins; the one the git remote points at is ticked), read each file in a preview, then write them with `arclang ci init`. Nothing is written until you choose *Write*; a file that exists is replaced only after a second confirmation. The files are not run against the provider by ArcLang: the first pipeline run is their test.
-- **A status item** in the status bar for a repository with the GitHub workflow: the latest run of the current branch (passed, failed, running, or `?` when it was cancelled or skipped: only a success is shown as passing). It is read with the GitHub CLI (`gh`), with its own login: ArcLang stores no token, and says in words when `gh` is missing or not logged in. Nothing is read in an untrusted workspace. Settings: `arclang.ci.statusBar`, `arclang.ci.pollSeconds`, `arclang.ci.gh`.
+- **A status item** in the status bar for a repository with the GitHub workflow: the latest run of the current branch (passed, failed, running, or `?` when it was canceled or skipped: only a success is shown as passing). It is read with the GitHub CLI (`gh`), with its own login: ArcLang stores no token, and says in words when `gh` is missing or not logged in. Nothing is read in an untrusted workspace. Settings: `arclang.ci.statusBar`, `arclang.ci.pollSeconds`, `arclang.ci.gh`.
 
 ## Simulation with OpenModelica
 
@@ -196,7 +196,7 @@ nothing changes until you click Apply (one undoable edit).
   traces), *Refine* (into sub-components or functions), *Check against
   requirements*.
 - The AI is shown the source of the selected elements, their relationships
-  and neighbours (`arclang.ai.contextScope`), the findings on them, the
+  and neighbors (`arclang.ai.contextScope`), the findings on them, the
   metamodel of their kinds and the gate. It may read more elements and run
   `arclang impact` itself (read-only tools).
 - Its answer comes back as a **proposal**: an explanation, the edits in
@@ -224,8 +224,8 @@ interfaces, missing traces…), new gate blockers, and `arclang impact` on the
 changed elements. Then, by `arclang.ai.suggestOnEdit`:
 
 - `onRequest` (default): the consequences are shown; **Propose changes with
-  AI** asks for proposals. **Analyse the impact** of a selection (the tab, the
-  context menu, or **ArcLang: Analyse impact with AI**) does the same for any
+  AI** asks for proposals. **Analyze the impact** of a selection (the tab, the
+  context menu, or **ArcLang: Analyze impact with AI**) does the same for any
   element.
 - `afterEachEdit`: when an edit has consequences, the AI proposes one to
   three architecture changes, each with its rationale and the consequence it
@@ -233,7 +233,7 @@ changed elements. Then, by `arclang.ai.suggestOnEdit`:
 - `off`: nothing.
 
 Analyses wait for a pause in editing, a newer edit cancels an older one, and
-nothing blocks the editor. Suggestions are labelled as AI proposals: Preview,
+nothing blocks the editor. Suggestions are labeled as AI proposals: Preview,
 Apply or Dismiss.
 
 ### Choosing the AI

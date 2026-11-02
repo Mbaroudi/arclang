@@ -593,7 +593,7 @@ pub struct PhysicalArchitecture {
     #[serde(default)]
     pub attributes: HashMap<String, AttributeValue>,
     pub nodes: Vec<PhysicalNode>,
-    /// Functions of the level that no behaviour component performs.
+    /// Functions of the level that no behavior component performs.
     #[serde(default)]
     pub functions: Vec<LogicalFunction>,
     pub links: Vec<PhysicalLink>,
@@ -607,7 +607,7 @@ pub struct PhysicalArchitecture {
     /// Realizations of the logical capability realizations by the physical components.
     #[serde(default)]
     pub capability_realizations: Vec<Capability>,
-    /// Ordered sets of physical links routing behavioural exchanges (Arcadia).
+    /// Ordered sets of physical links routing behavioral exchanges (Arcadia).
     #[serde(default)]
     pub paths: Vec<PhysicalPath>,
 }
@@ -664,7 +664,7 @@ pub enum NodeType {
 pub struct BehaviorComponent {
     pub id: String,
     pub name: String,
-    /// The logical component this behaviour realizes (`allocated_component:`).
+    /// The logical component this behavior realizes (`allocated_component:`).
     #[serde(default)]
     pub allocated_component: Option<String>,
     /// The functions it performs by name (`allocated_functions:`), the legacy
@@ -776,7 +776,7 @@ pub struct FmeaEntry {
 }
 
 /// `security_analysis { level: "sa" threat … asset … }`: the threats and
-/// primary assets analysed at one level. `level` names the architecture
+/// primary assets analyzed at one level. `level` names the architecture
 /// (`oa`, `sa`, `la`, `pa`) whose cybersecurity package holds them.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SecurityAnalysis {
@@ -1030,7 +1030,7 @@ pub struct State {
     #[serde(default)]
     pub id: String,
     pub name: String,
-    /// Arcadia distinguishes Mode (chosen behaviour) from State (undergone).
+    /// Arcadia distinguishes Mode (chosen behavior) from State (undergone).
     #[serde(default)]
     pub kind: StateKind,
     pub entry_actions: Vec<String>,

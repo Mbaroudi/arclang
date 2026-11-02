@@ -1,16 +1,16 @@
 /*
- * ArcViz themes — the colour code of the diagrams as a file
+ * ArcViz themes — the color code of the diagrams as a file
  * (`arclang-theme.json`, version 1), the built-in presets, and the rules a
- * theme must pass before it colours anything.
+ * theme must pass before it colors anything.
  *
  * A theme gives each Arcadia concept family its fill, stroke and text, each
  * kind of exchange its line, width and style, and the markings (variant,
- * tag). One theme colours every layer at once. The validator holds a theme
- * to what a systems engineer expects of a colour code:
- *   - one concept, one colour on every layer (a function is a function in
+ * tag). One theme colors every layer at once. The validator holds a theme
+ * to what a systems engineer expects of a color code:
+ *   - one concept, one color on every layer (a function is a function in
  *     System, Logical and Physical analysis);
- *   - the colours that mean something to the tool (error red, warning amber,
- *     the selection accent, the AI purple) never colour an element kind;
+ *   - the colors that mean something to the tool (error red, warning amber,
+ *     the selection accent, the AI purple) never color an element kind;
  *   - text on its fill reaches WCAG AA (4.5:1);
  *   - what one view draws together stays distinguishable: CIEDE2000 >= 10,
  *     and still apart for protanopia, deuteranopia and a grayscale print,
@@ -38,11 +38,11 @@
 
   const VERSION = 1;
 
-  // The concept families a theme colours: the kinds of box each one draws,
+  // The concept families a theme colors: the kinds of box each one draws,
   // and the silhouette the notation gives them: a rectangle (square or
   // rounded corners: too alike to tell concepts apart) or a pill (states,
   // capabilities, missions). Two concepts of different silhouettes are told
-  // apart without their colour. `function` is one kind on three layers:
+  // apart without their color. `function` is one kind on three layers:
   // its family is the layer's.
   const CONCEPTS = [
     { key: 'operational_entity', label: 'operational entity or actor', shape: 'rect', kinds: ['operational_entity', 'operational_actor', 'lifeline'] },
@@ -54,7 +54,7 @@
     { key: 'logical_component', label: 'logical component', shape: 'rect', kinds: ['logical_component'] },
     { key: 'logical_function', label: 'logical function', shape: 'rect', kinds: [] },
     { key: 'physical_node', label: 'physical node', shape: 'rect', kinds: ['physical_node', 'hardware_component'] },
-    { key: 'behaviour_component', label: 'behaviour component', shape: 'rect', kinds: ['behavior_component', 'deployed_component'] },
+    { key: 'behaviour_component', label: 'behavior component', shape: 'rect', kinds: ['behavior_component', 'deployed_component'] },
     { key: 'physical_function', label: 'physical function', shape: 'rect', kinds: [] },
     { key: 'capability', label: 'capability', shape: 'pill', kinds: ['capability', 'capability_realization'] },
     { key: 'mission', label: 'mission', shape: 'pill', kinds: ['mission'] },
@@ -83,7 +83,7 @@
     { key: 'relation', label: 'relation', kinds: ['exploitation', 'involvement', 'capability_association', 'generalization', 'association', 'item_element', 'breakdown', 'containment', 'binding', 'typing', 'composition', 'succession'] },
   ];
 
-  // One concept on several layers: one colour.
+  // One concept on several layers: one color.
   const SAME_CONCEPT = [
     ['system_function', 'logical_function', 'physical_function'],
     ['system_component', 'logical_component', 'behaviour_component'],
@@ -106,8 +106,8 @@
     afv: { name: 'Action Flow View', concepts: ['system_function'], exchanges: ['functional_exchange'] },
   };
 
-  // Colours the tool gives a meaning of its own (VS Code's light defaults).
-  // An element kind coloured with one would read as an error, a warning,
+  // Colors the tool gives a meaning of its own (VS Code's light defaults).
+  // An element kind colored with one would read as an error, a warning,
   // the selection or an AI proposal. Lines keep only the last two: a red
   // physical link is Capella's own code, and nothing marks a line as an error.
   const RESERVED = [
@@ -119,7 +119,7 @@
 
   const LIMITS = {
     distinct: 10, // CIEDE2000 between two concepts drawn together
-    reserved: 10, // CIEDE2000 to a reserved colour
+    reserved: 10, // CIEDE2000 to a reserved color
     cvdError: 5,
     cvdWarning: 8,
     grayError: 5, // L* points in a grayscale print
@@ -129,7 +129,7 @@
     fills: 16,
     fillsWarning: 13,
     lines: 10,
-    sameColour: 2, // CIEDE2000 under which two colours are the same
+    sameColour: 2, // CIEDE2000 under which two colors are the same
   };
   const STYLES = { solid: null, dashed: '6 3', dotted: '2 2.5' };
 
@@ -139,7 +139,7 @@
   const exchangeOfKind = new Map(EXCHANGES.flatMap((e) => e.kinds.map((kind) => [kind, e.key])));
   const presetById = new Map(PRESETS.map((preset) => [preset.id, preset]));
 
-  /** The concept family that colours a box of `kind` on `view`; null for notation marks. */
+  /** The concept family that colors a box of `kind` on `view`; null for notation marks. */
   function conceptFor(kind, view) {
     if (kind === 'function') return FUNCTION_OF_VIEW[view] || 'system_function';
     return conceptOfKind.get(kind) || null;
@@ -203,7 +203,7 @@
 
   function checkColour(value, where, report) {
     if (value === undefined) return;
-    if (!Color.parse(value)) report.error('structure', `${where} is not a colour: ${JSON.stringify(value)} (write #RRGGBB)`);
+    if (!Color.parse(value)) report.error('structure', `${where} is not a color: ${JSON.stringify(value)} (write #RRGGBB)`);
   }
 
   function checkPalette(part, prefix, report) {
@@ -244,7 +244,7 @@
     }
     for (const exchange of EXCHANGES) {
       const entry = (full.exchanges || {})[exchange.key];
-      if (!entry || !entry.line) report.error('complete', `${prefix}${exchange.label} has no line colour (exchanges.${exchange.key})`);
+      if (!entry || !entry.line) report.error('complete', `${prefix}${exchange.label} has no line color (exchanges.${exchange.key})`);
     }
   }
 
@@ -258,7 +258,7 @@
 
   function checkRules(full, prefix, report) {
     const bg = rgb(full.background);
-    // One concept, one colour on every layer.
+    // One concept, one color on every layer.
     for (const group of SAME_CONCEPT) {
       const [first, ...rest] = group;
       for (const other of rest) {
@@ -270,13 +270,13 @@
         }
       }
     }
-    // Reserved colours.
+    // Reserved colors.
     for (const concept of CONCEPTS) {
       for (const field of ['fill', 'stroke']) {
         const value = full.concepts[concept.key][field];
         for (const reserved of RESERVED) {
           const d = Color.deltaE(rgb(value), rgb(reserved.color));
-          if (d < LIMITS.reserved) report.error('reserved', `${prefix}${concept.label} ${field} ${value} is the ${reserved.name} the tool keeps for its own meaning (ΔE ${round(d)}); choose another colour`);
+          if (d < LIMITS.reserved) report.error('reserved', `${prefix}${concept.label} ${field} ${value} is the ${reserved.name} the tool keeps for its own meaning (ΔE ${round(d)}); choose another color`);
         }
       }
     }
@@ -284,7 +284,7 @@
       const value = full.exchanges[exchange.key].line;
       for (const reserved of RESERVED.filter((r) => r.lines)) {
         const d = Color.deltaE(rgb(value), rgb(reserved.color));
-        if (d < LIMITS.reserved) report.error('reserved', `${prefix}${exchange.label} line ${value} is the ${reserved.name} the tool keeps for its own meaning (ΔE ${round(d)}); choose another colour`);
+        if (d < LIMITS.reserved) report.error('reserved', `${prefix}${exchange.label} line ${value} is the ${reserved.name} the tool keeps for its own meaning (ΔE ${round(d)}); choose another color`);
       }
     }
     // Contrast.
@@ -318,7 +318,7 @@
         distinguish(prefix, spec.name, pretty(a), pretty(b), full.exchanges[a].line, full.exchanges[b].line, report);
       });
     }
-    // One colour, one concept: a colour reused for another concept of the same shape on another view.
+    // One color, one concept: a color reused for another concept of the same shape on another view.
     const reported = new Set();
     for (const [a, b] of pairs(CONCEPTS.map((c) => c.key))) {
       if (sameGroup(a, b) || conceptByKey.get(a).shape !== conceptByKey.get(b).shape) continue;
@@ -327,7 +327,7 @@
       const d = Color.deltaE(rgb(full.concepts[a].fill), rgb(full.concepts[b].fill));
       if (d < LIMITS.sameColour * 2 && !reported.has(`${a}|${b}`)) {
         reported.add(`${a}|${b}`);
-        report.warning('one-colour', `${prefix}${pretty(a)} and ${pretty(b)} share a colour (ΔE ${round(d)}): one colour should mean one concept`);
+        report.warning('one-color', `${prefix}${pretty(a)} and ${pretty(b)} share a color (ΔE ${round(d)}): one color should mean one concept`);
       }
     }
     // A bounded palette.
@@ -335,7 +335,7 @@
     if (fills > LIMITS.fills) report.error('palette', `${prefix}${fills} different fills: keep to ${LIMITS.fills} or fewer, a reader learns no more`);
     else if (fills > LIMITS.fillsWarning) report.warning('palette', `${prefix}${fills} different fills: ${LIMITS.fillsWarning} or fewer read more easily`);
     const lines = distinctColours(EXCHANGES.map((e) => full.exchanges[e.key].line));
-    if (lines > LIMITS.lines) report.error('palette', `${prefix}${lines} different line colours: keep to ${LIMITS.lines} or fewer, or tell lines apart by style`);
+    if (lines > LIMITS.lines) report.error('palette', `${prefix}${lines} different line colors: keep to ${LIMITS.lines} or fewer, or tell lines apart by style`);
   }
 
   function distinguish(prefix, view, a, b, colourA, colourB, report) {
@@ -408,7 +408,7 @@
    * the kinds it meets. `dark` picks the dark variant when the theme has one.
    * A theme that fails validation is refused here too (throws), unless
    * `draft` asks for the preview of a theme being edited: a complete one is
-   * then drawn whatever its colours break, to show what is wrong.
+   * then drawn whatever its colors break, to show what is wrong.
    */
   function palette(theme, options) {
     const checked = validate(theme);

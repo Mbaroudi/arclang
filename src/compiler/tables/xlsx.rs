@@ -1,5 +1,5 @@
 //! A minimal Office Open XML workbook (`.xlsx`) written by hand: one sheet
-//! per table, a frozen and filterable header, the status colours of the
+//! per table, a frozen and filterable header, the status colors of the
 //! cells, column widths from the content. The parts are stored in a zip
 //! without compression and with a fixed date, so the same tables always
 //! give the same bytes. No dependency.

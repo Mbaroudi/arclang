@@ -4,7 +4,7 @@
 
 Please report suspected vulnerabilities privately via
 [GitHub Security Advisories](https://github.com/Mbaroudi/arclang/security/advisories/new)
-rather than opening a public issue. You should receive an acknowledgement
+rather than opening a public issue. You should receive an acknowledgment
 within 7 days.
 
 ## Supply chain

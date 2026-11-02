@@ -413,7 +413,7 @@ const editing = new Editing({
   extraMenu: () => exportsUi.menuItems(),
 });
 
-// --- Exports and colour themes (diagram-export.ts, theme-editor.ts) --------------
+// --- Exports and color themes (diagram-export.ts, theme-editor.ts) --------------
 
 const exportsUi = new DiagramExports({
   post: (message) => vscode.postMessage(message as never),
@@ -548,6 +548,19 @@ function mount(snapshot: Snapshot): void {
     clear(host).appendChild(el('p', { class: 'wb-empty', text: 'Nothing to draw: the model does not compile yet.' }));
     return;
   }
+  // A model that compiles but declares no level yet: where to start, not an empty page.
+  if (snapshot.diagrams.graphs.length === 0) {
+    state.viewer = null;
+    const start = el('div', { class: 'wb-start' }, [
+      el('h2', { text: 'An empty model. Start with a level of the method.' }),
+      el('p', { text: 'Operational analysis (who needs what), system analysis (what the system does), logical architecture (how, independent of technology), physical architecture (with what). Each level opens an empty sheet with its palette; the text on the left follows every box you draw.' }),
+    ]);
+    const add = el('button', { class: 'wb-start-add', type: 'button', text: 'Add a level…' });
+    add.addEventListener('click', () => vscode.postMessage({ type: 'command', command: 'arclang.newLayer' }));
+    start.appendChild(add);
+    clear(host).appendChild(start);
+    return;
+  }
   const deps = {
     ELK: window.ELK,
     render: window.ArcVizRender,
@@ -570,10 +583,13 @@ function mount(snapshot: Snapshot): void {
   // Past three seconds (NN/g's limit of attention), the page says what it is doing.
   const graphs = snapshot.diagrams.graphs;
   const boxes = graphs.reduce((sum, g) => sum + countNodes(g.children ?? []), 0);
+  // One notice at a time: a mount that a later one replaces never shows it.
+  clearTimeout(slowLayout);
   const slow = setTimeout(() => {
     layoutNotice.textContent = `Laying out ${graphs.length} diagram${graphs.length > 1 ? 's' : ''}, ${boxes} boxes…`;
     layoutNotice.hidden = false;
   }, 3000);
+  slowLayout = slow;
   const options = {
     slots: { tabs, tools, tree: hiddenTree, details: detailsSlot, related: relatedSlot, foot: hiddenFoot },
     onSelect,
@@ -617,7 +633,10 @@ function mount(snapshot: Snapshot): void {
   fitStage();
   void viewer.ready.then(() => {
     // A later snapshot remounted the viewer meanwhile: that mount restores the view.
-    if (generation !== mountGeneration) return;
+    if (generation !== mountGeneration) {
+      clearTimeout(slow);
+      return;
+    }
     markFindings();
     if (previous?.view && viewer.show) {
       const known = viewer.views?.().some((v) => v.id === previous.view);
@@ -693,6 +712,8 @@ let shownGraph: string | null = null;
 /** While the viewer is remounted on a new snapshot, the view on screen is not the reader's yet. */
 let remounting = false;
 let mountGeneration = 0;
+/** The timer of the notice that a layout is slow, for the mount under way. */
+let slowLayout: ReturnType<typeof setTimeout> | undefined;
 
 /** What follows the view on screen: the palette, and a selection that is not drawn there. */
 function followView(): void {
@@ -826,7 +847,7 @@ window.addEventListener('message', (event: MessageEvent<ToWebview>) => {
   }
 });
 
-/** Elements added or changed by the last edit pulse once; one created is selected and centred, as Capella does. */
+/** Elements added or changed by the last edit pulse once; one created is selected and centered, as Capella does. */
 function flashChanges(before: Snapshot, after: Snapshot): void {
   const { created, changed } = changesOf(before, after);
   void state.viewer?.ready.then(() => {

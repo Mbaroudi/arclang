@@ -48,7 +48,7 @@ export function xmlText(text: string): string {
     .replace(/"/g, '&quot;');
 }
 
-/** Where a picture of `width` x `height` goes: as large as fits under the title, centred. */
+/** Where a picture of `width` x `height` goes: as large as fits under the title, centered. */
 export function fitPicture(width: number, height: number): { x: number; y: number; cx: number; cy: number } {
   const boxW = SLIDE.cx - MARGIN * 2;
   const boxH = SLIDE.cy - PICTURE_TOP - MARGIN / 2;
@@ -98,13 +98,13 @@ function layout(): string {
 }
 
 function theme(name: string): string {
-  const colour = (tag: string, value: string) => `<a:${tag}><a:srgbClr val="${value}"/></a:${tag}>`;
+  const color = (tag: string, value: string) => `<a:${tag}><a:srgbClr val="${value}"/></a:${tag}>`;
   const solid = '<a:solidFill><a:schemeClr val="phClr"/></a:solidFill>';
   const line = (w: number) => `<a:ln w="${w}" cap="flat" cmpd="sng" algn="ctr">${solid}<a:prstDash val="solid"/></a:ln>`;
   return `${XML}<a:theme xmlns:a="${NS_A}" name="${xmlText(name)}"><a:themeElements>` +
-    `<a:clrScheme name="ArcLang">${colour('dk1', '000000')}${colour('lt1', 'FFFFFF')}${colour('dk2', '18222D')}${colour('lt2', 'E9EDF1')}` +
-    `${colour('accent1', '2A62A8')}${colour('accent2', '3C8A3F')}${colour('accent3', 'B0730C')}${colour('accent4', '9C8500')}${colour('accent5', 'C92A2A')}${colour('accent6', '55616D')}` +
-    `${colour('hlink', '0B5CAD')}${colour('folHlink', '6F42C1')}</a:clrScheme>` +
+    `<a:clrScheme name="ArcLang">${color('dk1', '000000')}${color('lt1', 'FFFFFF')}${color('dk2', '18222D')}${color('lt2', 'E9EDF1')}` +
+    `${color('accent1', '2A62A8')}${color('accent2', '3C8A3F')}${color('accent3', 'B0730C')}${color('accent4', '9C8500')}${color('accent5', 'C92A2A')}${color('accent6', '55616D')}` +
+    `${color('hlink', '0B5CAD')}${color('folHlink', '6F42C1')}</a:clrScheme>` +
     '<a:fontScheme name="ArcLang"><a:majorFont><a:latin typeface="Calibri Light"/><a:ea typeface=""/><a:cs typeface=""/></a:majorFont>' +
     '<a:minorFont><a:latin typeface="Calibri"/><a:ea typeface=""/><a:cs typeface=""/></a:minorFont></a:fontScheme>' +
     `<a:fmtScheme name="ArcLang"><a:fillStyleLst>${solid}${solid}${solid}</a:fillStyleLst>` +

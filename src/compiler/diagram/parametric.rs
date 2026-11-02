@@ -5,7 +5,7 @@
 //! its verdict; each attribute it reads is a value box inside the element
 //! that holds it (`mass = 450 kg` in the battery), tied to the constraint by
 //! a binding line. An aggregate (`sum("FC-AEB", latency)`) binds the value of
-//! every member it adds up, the line labelled by the function.
+//! every member it adds up, the line labeled by the function.
 
 use super::elements::element_index;
 use super::{Diagram, Edge, EdgeKind, Node, NodeKind, ViewKind};

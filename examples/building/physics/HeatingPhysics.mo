@@ -51,7 +51,7 @@ package HeatingPhysics "Physics of the heat pump heating"
   end HeatPump;
 
   model ComfortLoop "A PI on the room temperature; the demand between off and full capacity"
-    extends HeatPumpHeating.Behaviour.Thermostat.ComfortController;
+    extends HeatPumpHeating.Behavior.Thermostat.ComfortController;
     Modelica.Blocks.Sources.Constant target(k=setpoint);
     Modelica.Blocks.Continuous.LimPID pi(controllerType=Modelica.Blocks.Types.SimpleController.PI, k=1.5, Ti=1800, yMax=1, yMin=0, initType=Modelica.Blocks.Types.Init.InitialOutput, y_start=0.6);
   equation

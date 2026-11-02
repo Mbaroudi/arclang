@@ -8,7 +8,7 @@ Package name=Automotive Emergency Braking System (AEB) short=EmergencyBrakingSys
     MetadataDefinition name=Actor short=- via=OwningMembership
     MetadataDefinition name=Entity short=- via=OwningMembership
     MetadataDefinition name=Node short=- via=OwningMembership
-    MetadataDefinition name=Behaviour short=- via=OwningMembership
+    MetadataDefinition name=Behavior short=- via=OwningMembership
     MetadataDefinition name=Hardware short=- via=OwningMembership
     MetadataDefinition name=Mission short=- via=OwningMembership
     MetadataDefinition name=Capability short=- via=OwningMembership
@@ -314,7 +314,7 @@ Package name=Automotive Emergency Braking System (AEB) short=EmergencyBrakingSys
       AttributeUsage name=processor short=- via=FeatureMembership : ScalarValues::String = String("ARM Cortex-M4")
       AttributeUsage name=safety_level short=- via=FeatureMembership : ScalarValues::String = String("ASIL-D")
       PartUsage name=RadarProcessing short=BC-RadarProcessing via=FeatureMembership
-        MetadataUsage name=- short=- via=OwningMembership : 'Automotive Emergency Braking System (AEB)'::ArcadiaProfile::Behaviour
+        MetadataUsage name=- short=- via=OwningMembership : 'Automotive Emergency Braking System (AEB)'::ArcadiaProfile::Behavior
         Documentation name=- short=- via=OwningMembership body="Radar data acquisition and preprocessing"
         AttributeUsage name=component_type short=- via=FeatureMembership : ScalarValues::String = String("Behavior")
         AttributeUsage name=safety_level short=- via=FeatureMembership : ScalarValues::String = String("ASIL-D")
@@ -326,7 +326,7 @@ Package name=Automotive Emergency Braking System (AEB) short=EmergencyBrakingSys
       AttributeUsage name=processor short=- via=FeatureMembership : ScalarValues::String = String("ARM Cortex-A53")
       AttributeUsage name=safety_level short=- via=FeatureMembership : ScalarValues::String = String("ASIL-D")
       PartUsage name=CameraProcessing short=BC-CameraProcessing via=FeatureMembership
-        MetadataUsage name=- short=- via=OwningMembership : 'Automotive Emergency Braking System (AEB)'::ArcadiaProfile::Behaviour
+        MetadataUsage name=- short=- via=OwningMembership : 'Automotive Emergency Braking System (AEB)'::ArcadiaProfile::Behavior
         Documentation name=- short=- via=OwningMembership body="Camera image processing and object detection"
         AttributeUsage name=component_type short=- via=FeatureMembership : ScalarValues::String = String("Behavior")
         AttributeUsage name=safety_level short=- via=FeatureMembership : ScalarValues::String = String("ASIL-D")
@@ -338,19 +338,19 @@ Package name=Automotive Emergency Braking System (AEB) short=EmergencyBrakingSys
       AttributeUsage name=processor short=- via=FeatureMembership : ScalarValues::String = String("Intel Atom x5-E3940")
       AttributeUsage name=safety_level short=- via=FeatureMembership : ScalarValues::String = String("ASIL-D")
       PartUsage name=FusionModule short=BC-FusionModule via=FeatureMembership
-        MetadataUsage name=- short=- via=OwningMembership : 'Automotive Emergency Braking System (AEB)'::ArcadiaProfile::Behaviour
+        MetadataUsage name=- short=- via=OwningMembership : 'Automotive Emergency Braking System (AEB)'::ArcadiaProfile::Behavior
         AttributeUsage name=component_type short=- via=FeatureMembership : ScalarValues::String = String("Behavior")
         AttributeUsage name=safety_level short=- via=FeatureMembership : ScalarValues::String = String("ASIL-D")
       PartUsage name=TrackingModule short=BC-TrackingModule via=FeatureMembership
-        MetadataUsage name=- short=- via=OwningMembership : 'Automotive Emergency Braking System (AEB)'::ArcadiaProfile::Behaviour
+        MetadataUsage name=- short=- via=OwningMembership : 'Automotive Emergency Braking System (AEB)'::ArcadiaProfile::Behavior
         AttributeUsage name=component_type short=- via=FeatureMembership : ScalarValues::String = String("Behavior")
         AttributeUsage name=safety_level short=- via=FeatureMembership : ScalarValues::String = String("ASIL-D")
       PartUsage name=ThreatModule short=BC-ThreatModule via=FeatureMembership
-        MetadataUsage name=- short=- via=OwningMembership : 'Automotive Emergency Braking System (AEB)'::ArcadiaProfile::Behaviour
+        MetadataUsage name=- short=- via=OwningMembership : 'Automotive Emergency Braking System (AEB)'::ArcadiaProfile::Behavior
         AttributeUsage name=component_type short=- via=FeatureMembership : ScalarValues::String = String("Behavior")
         AttributeUsage name=safety_level short=- via=FeatureMembership : ScalarValues::String = String("ASIL-D")
       PartUsage name=BrakingModule short=BC-BrakingModule via=FeatureMembership
-        MetadataUsage name=- short=- via=OwningMembership : 'Automotive Emergency Braking System (AEB)'::ArcadiaProfile::Behaviour
+        MetadataUsage name=- short=- via=OwningMembership : 'Automotive Emergency Braking System (AEB)'::ArcadiaProfile::Behavior
         AttributeUsage name=component_type short=- via=FeatureMembership : ScalarValues::String = String("Behavior")
         AttributeUsage name=safety_level short=- via=FeatureMembership : ScalarValues::String = String("ASIL-D")
     PartUsage name=BrakeECU short=PN-BrakeECU via=OwningMembership
@@ -361,7 +361,7 @@ Package name=Automotive Emergency Braking System (AEB) short=EmergencyBrakingSys
       AttributeUsage name=processor short=- via=FeatureMembership : ScalarValues::String = String("Infineon AURIX TC397")
       AttributeUsage name=safety_level short=- via=FeatureMembership : ScalarValues::String = String("ASIL-D")
       PartUsage name=BrakeActuation short=BC-BrakeActuation via=FeatureMembership
-        MetadataUsage name=- short=- via=OwningMembership : 'Automotive Emergency Braking System (AEB)'::ArcadiaProfile::Behaviour
+        MetadataUsage name=- short=- via=OwningMembership : 'Automotive Emergency Braking System (AEB)'::ArcadiaProfile::Behavior
         AttributeUsage name=component_type short=- via=FeatureMembership : ScalarValues::String = String("Behavior")
         AttributeUsage name=safety_level short=- via=FeatureMembership : ScalarValues::String = String("ASIL-D")
     PartUsage name=InstrumentCluster short=PN-InstrumentCluster via=OwningMembership
@@ -372,7 +372,7 @@ Package name=Automotive Emergency Braking System (AEB) short=EmergencyBrakingSys
       AttributeUsage name=processor short=- via=FeatureMembership : ScalarValues::String = String("NXP i.MX 8M")
       AttributeUsage name=safety_level short=- via=FeatureMembership : ScalarValues::String = String("QM")
       PartUsage name=HMI short=BC-HMI via=FeatureMembership
-        MetadataUsage name=- short=- via=OwningMembership : 'Automotive Emergency Braking System (AEB)'::ArcadiaProfile::Behaviour
+        MetadataUsage name=- short=- via=OwningMembership : 'Automotive Emergency Braking System (AEB)'::ArcadiaProfile::Behavior
         AttributeUsage name=component_type short=- via=FeatureMembership : ScalarValues::String = String("Behavior")
         AttributeUsage name=safety_level short=- via=FeatureMembership : ScalarValues::String = String("QM")
     PartUsage name=CANGatewayECU short=PN-CANGatewayECU via=OwningMembership
@@ -383,7 +383,7 @@ Package name=Automotive Emergency Braking System (AEB) short=EmergencyBrakingSys
       AttributeUsage name=processor short=- via=FeatureMembership : ScalarValues::String = String("Renesas RH850")
       AttributeUsage name=safety_level short=- via=FeatureMembership : ScalarValues::String = String("ASIL-B")
       PartUsage name=CANInterface short=BC-CANInterface via=FeatureMembership
-        MetadataUsage name=- short=- via=OwningMembership : 'Automotive Emergency Braking System (AEB)'::ArcadiaProfile::Behaviour
+        MetadataUsage name=- short=- via=OwningMembership : 'Automotive Emergency Braking System (AEB)'::ArcadiaProfile::Behavior
         AttributeUsage name=component_type short=- via=FeatureMembership : ScalarValues::String = String("Behavior")
         AttributeUsage name=safety_level short=- via=FeatureMembership : ScalarValues::String = String("ASIL-B")
     AllocationUsage name=- short=- via=OwningMembership src='Automotive Emergency Braking System (AEB)'::'AEB System - Component Structure'::RadarSensor tgt='Automotive Emergency Braking System (AEB)'::'AEB System - Hardware Deployment'::FrontRadarECU
@@ -441,10 +441,10 @@ Package name=Automotive Emergency Braking System (AEB) short=EmergencyBrakingSys
     Dependency name=via short=- via=OwningMembership client='Automotive Emergency Braking System (AEB)'::'AEB System - Hardware Deployment'::CameraMessages supplier='Automotive Emergency Braking System (AEB)'::'AEB System - Hardware Deployment'::EthernetLink
     Dependency name=via short=- via=OwningMembership client='Automotive Emergency Braking System (AEB)'::'AEB System - Hardware Deployment'::RadarMessages supplier='Automotive Emergency Braking System (AEB)'::'AEB System - Hardware Deployment'::CANBus
     Dependency name=via short=- via=OwningMembership client='Automotive Emergency Braking System (AEB)'::'AEB System - Hardware Deployment'::VehicleStatus supplier='Automotive Emergency Braking System (AEB)'::'AEB System - Hardware Deployment'::VehicleCAN
-  Package name=Behaviours short=- via=OwningMembership
+  Package name=Behaviors short=- via=OwningMembership
     StateUsage name=AEBOperatingModes short=- via=OwningMembership
       ActionUsage name=- short=- via=StateSubactionMembership
-      SuccessionAsUsage name=- short=- via=FeatureMembership src='Automotive Emergency Braking System (AEB)'::Behaviours::AEBOperatingModes::entryAction tgt='Automotive Emergency Braking System (AEB)'::Behaviours::AEBOperatingModes::Standby
+      SuccessionAsUsage name=- short=- via=FeatureMembership src='Automotive Emergency Braking System (AEB)'::Behaviors::AEBOperatingModes::entryAction tgt='Automotive Emergency Braking System (AEB)'::Behaviors::AEBOperatingModes::Standby
       StateUsage name=Standby short=- via=FeatureMembership
         MetadataUsage name=- short=- via=OwningMembership : 'Automotive Emergency Braking System (AEB)'::ArcadiaProfile::Mode
         Documentation name=- short=- via=OwningMembership body="System armed, monitoring"
@@ -457,16 +457,16 @@ Package name=Automotive Emergency Braking System (AEB) short=EmergencyBrakingSys
       StateUsage name=Failed short=- via=FeatureMembership
         Documentation name=- short=- via=OwningMembership body="Undergone: sensor or actuator failure"
       TransitionUsage name=t1 short=- via=FeatureMembership
-        SuccessionAsUsage name=- short=- via=OwningMembership src='Automotive Emergency Braking System (AEB)'::Behaviours::AEBOperatingModes::Standby tgt='Automotive Emergency Braking System (AEB)'::Behaviours::AEBOperatingModes::Warning
+        SuccessionAsUsage name=- short=- via=OwningMembership src='Automotive Emergency Braking System (AEB)'::Behaviors::AEBOperatingModes::Standby tgt='Automotive Emergency Braking System (AEB)'::Behaviors::AEBOperatingModes::Warning
         AttributeUsage name=trigger short=- via=FeatureMembership : ScalarValues::String = String("AssessThreat")
       TransitionUsage name=t2 short=- via=FeatureMembership
-        SuccessionAsUsage name=- short=- via=OwningMembership src='Automotive Emergency Braking System (AEB)'::Behaviours::AEBOperatingModes::Warning tgt='Automotive Emergency Braking System (AEB)'::Behaviours::AEBOperatingModes::EmergencyBraking
+        SuccessionAsUsage name=- short=- via=OwningMembership src='Automotive Emergency Braking System (AEB)'::Behaviors::AEBOperatingModes::Warning tgt='Automotive Emergency Braking System (AEB)'::Behaviors::AEBOperatingModes::EmergencyBraking
         AttributeUsage name=trigger short=- via=FeatureMembership : ScalarValues::String = String("ComputeBrakingForce")
       TransitionUsage name=t3 short=- via=FeatureMembership
-        SuccessionAsUsage name=- short=- via=OwningMembership src='Automotive Emergency Braking System (AEB)'::Behaviours::AEBOperatingModes::EmergencyBraking tgt='Automotive Emergency Braking System (AEB)'::Behaviours::AEBOperatingModes::Standby
+        SuccessionAsUsage name=- short=- via=OwningMembership src='Automotive Emergency Braking System (AEB)'::Behaviors::AEBOperatingModes::EmergencyBraking tgt='Automotive Emergency Braking System (AEB)'::Behaviors::AEBOperatingModes::Standby
         AttributeUsage name=trigger short=- via=FeatureMembership : ScalarValues::String = String("MonitorVehicleState")
       TransitionUsage name=t4 short=- via=FeatureMembership
-        SuccessionAsUsage name=- short=- via=OwningMembership src='Automotive Emergency Braking System (AEB)'::Behaviours::AEBOperatingModes::Standby tgt='Automotive Emergency Braking System (AEB)'::Behaviours::AEBOperatingModes::Failed
+        SuccessionAsUsage name=- short=- via=OwningMembership src='Automotive Emergency Braking System (AEB)'::Behaviors::AEBOperatingModes::Standby tgt='Automotive Emergency Braking System (AEB)'::Behaviors::AEBOperatingModes::Failed
         AttributeUsage name=guard short=- via=FeatureMembership : ScalarValues::String = String("sensor_fault")
         AttributeUsage name=trigger short=- via=FeatureMembership : ScalarValues::String = String("MonitorVehicleState")
     OccurrenceUsage name=EmergencyStop short=- via=OwningMembership
@@ -474,15 +474,15 @@ Package name=Automotive Emergency Braking System (AEB) short=EmergencyBrakingSys
         EventOccurrenceUsage name=m1_sent short=- via=FeatureMembership
       PartUsage name=l_SensorFusion short=- via=FeatureMembership :> 'Automotive Emergency Braking System (AEB)'::'AEB System - Component Structure'::SensorFusion
         EventOccurrenceUsage name=m1_received short=- via=FeatureMembership
-        SuccessionAsUsage name=- short=- via=FeatureMembership src='Automotive Emergency Braking System (AEB)'::Behaviours::EmergencyStop::l_SensorFusion::m1_received tgt='Automotive Emergency Braking System (AEB)'::Behaviours::EmergencyStop::l_SensorFusion::m2_sent
+        SuccessionAsUsage name=- short=- via=FeatureMembership src='Automotive Emergency Braking System (AEB)'::Behaviors::EmergencyStop::l_SensorFusion::m1_received tgt='Automotive Emergency Braking System (AEB)'::Behaviors::EmergencyStop::l_SensorFusion::m2_sent
         EventOccurrenceUsage name=m2_sent short=- via=FeatureMembership
       PartUsage name=l_ThreatAssessment short=- via=FeatureMembership :> 'Automotive Emergency Braking System (AEB)'::'AEB System - Component Structure'::ThreatAssessment
         EventOccurrenceUsage name=m2_received short=- via=FeatureMembership
-        SuccessionAsUsage name=- short=- via=FeatureMembership src='Automotive Emergency Braking System (AEB)'::Behaviours::EmergencyStop::l_ThreatAssessment::m2_received tgt='Automotive Emergency Braking System (AEB)'::Behaviours::EmergencyStop::l_ThreatAssessment::m3_sent
+        SuccessionAsUsage name=- short=- via=FeatureMembership src='Automotive Emergency Braking System (AEB)'::Behaviors::EmergencyStop::l_ThreatAssessment::m2_received tgt='Automotive Emergency Braking System (AEB)'::Behaviors::EmergencyStop::l_ThreatAssessment::m3_sent
         EventOccurrenceUsage name=m3_sent short=- via=FeatureMembership
       PartUsage name=l_BrakeController short=- via=FeatureMembership :> 'Automotive Emergency Braking System (AEB)'::'AEB System - Component Structure'::BrakeController
         EventOccurrenceUsage name=m3_received short=- via=FeatureMembership
-        SuccessionAsUsage name=- short=- via=FeatureMembership src='Automotive Emergency Braking System (AEB)'::Behaviours::EmergencyStop::l_BrakeController::m3_received tgt='Automotive Emergency Braking System (AEB)'::Behaviours::EmergencyStop::l_BrakeController::m4_sent
+        SuccessionAsUsage name=- short=- via=FeatureMembership src='Automotive Emergency Braking System (AEB)'::Behaviors::EmergencyStop::l_BrakeController::m3_received tgt='Automotive Emergency Braking System (AEB)'::Behaviors::EmergencyStop::l_BrakeController::m4_sent
         EventOccurrenceUsage name=m4_sent short=- via=FeatureMembership
       PartUsage name=l_BrakeActuator short=- via=FeatureMembership :> 'Automotive Emergency Braking System (AEB)'::'AEB System - Component Structure'::BrakeActuator
         EventOccurrenceUsage name=m4_received short=- via=FeatureMembership

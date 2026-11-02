@@ -1,5 +1,5 @@
 //! Functions of each level, as Arcadia has them: logical functions inside
-//! the component that performs them, physical functions inside behaviour
+//! the component that performs them, physical functions inside behavior
 //! components, each with ports and sub-functions, exchanged between at
 //! their own level and realizing the function of the level above; the
 //! system, its components and its actors with ports and component
@@ -95,19 +95,19 @@ fn logical_functions_carry_ports_sub_functions_and_their_own_exchanges() {
 fn physical_functions_live_in_behaviour_components_and_exchange_at_their_level() {
     let result = compile(MODEL);
     let pa = &result.ast.physical_architecture[0];
-    let behaviour = &pa.nodes[0].behavior_components[0];
-    assert_eq!(behaviour.functions[0].id, "PF-Decide");
+    let behavior = &pa.nodes[0].behavior_components[0];
+    assert_eq!(behavior.functions[0].id, "PF-Decide");
     let set = build_diagrams(&result.ast);
     let pab = set.diagrams.iter().find(|d| d.id == "pab").expect("pab drawn");
     let edge = pab.edges.iter().find(|e| e.label == "targets" && e.source != "SF-Sense").expect("the physical exchange is drawn");
     assert!(edge.source == "PF-Sense" && edge.target == "PF-Decide", "{edge:?}");
-    // A behaviour component carries ports; a physical exchange binds to them; a chain orders physical functions.
+    // A behavior component carries ports; a physical exchange binds to them; a chain orders physical functions.
     assert_eq!(pa.nodes[0].behavior_components[1].ports.len(), 1);
-    let frames = pab.edges.iter().find(|e| e.label == "bus frames").expect("the physical exchange between behaviours");
+    let frames = pab.edges.iter().find(|e| e.label == "bus frames").expect("the physical exchange between behaviors");
     assert_eq!(frames.source_port.as_deref(), Some("PC-Sensor::bus"));
     assert_eq!(pa.functional_chains[0].involves, vec!["PF-Sense", "PF-Decide"]);
     assert!(pab.chains.iter().any(|c| c.id == "PFC-1" || c.name == "Brake path"), "{:?}", pab.chains.iter().map(|c| &c.name).collect::<Vec<_>>());
-    // A physical capability realization realizes a logical one and involves behaviours and chains.
+    // A physical capability realization realizes a logical one and involves behaviors and chains.
     assert_eq!(pa.capability_realizations[0].realizes.as_deref(), Some("LCR-1"));
     assert!(result.warnings.iter().all(|w| !w.contains("PCR-1")), "{:?}", result.warnings);
     let cap = set.diagrams.iter().find(|d| d.id == "cap").expect("capabilities drawn");

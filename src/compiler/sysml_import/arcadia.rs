@@ -14,7 +14,7 @@
 //! enclosing packages, else from the parent, else from what the element
 //! is: actions are system functions, parts logical components. What SysML
 //! cannot say by itself is read from metadata too: `Actor`, `Entity`,
-//! `Node`, `Behaviour`, `Hardware`, `Mission`, `Capability`, `Chain`,
+//! `Node`, `Behavior`, `Hardware`, `Mission`, `Capability`, `Chain`,
 //! `Link`, `Hazard`, `Mode`; failing that, from the documentation ArcLang's
 //! own export writes (`Name (role)`).
 //!
@@ -76,7 +76,7 @@ enum Role {
     Entity,
     Component,
     Node,
-    Behaviour,
+    Behavior,
     Hardware,
 }
 
@@ -165,7 +165,7 @@ pub fn map(graph: &Graph) -> Mapped {
 const CONNECTOR_KINDS: &[&str] = &["ConnectionUsage", "InterfaceUsage", "FlowUsage", "FlowConnectionUsage", "SuccessionFlowUsage", "BindingConnectorAsUsage"];
 
 const EXPORTED_ROLES: &[&str] = &[
-    "actor", "operational entity", "system component", "logical component", "physical node", "behaviour component", "hardware component", "entity", "node",
+    "actor", "operational entity", "system component", "logical component", "physical node", "behavior component", "hardware component", "entity", "node",
     "function", "activity",
 ];
 
@@ -225,7 +225,7 @@ impl<'g> Mapper<'g> {
         if Self::has_metadata(element, &["Actor", "ArcadiaActor", "SystemActor", "OperationalActor"]) { return Some(Role::Actor); }
         if Self::has_metadata(element, &["Entity", "OperationalEntity"]) { return Some(Role::Entity); }
         if Self::has_metadata(element, &["Node", "PhysicalNode"]) { return Some(Role::Node); }
-        if Self::has_metadata(element, &["Behaviour", "Behavior", "BehaviorComponent"]) { return Some(Role::Behaviour); }
+        if Self::has_metadata(element, &["Behavior", "Behavior", "BehaviorComponent"]) { return Some(Role::Behavior); }
         if Self::has_metadata(element, &["Hardware", "HardwareComponent"]) { return Some(Role::Hardware); }
         if Self::has_metadata(element, &["Component", "LogicalComponent", "SystemComponent"]) { return Some(Role::Component); }
         if let Some((_, role)) = Self::exported_doc(element) {
@@ -233,7 +233,7 @@ impl<'g> Mapper<'g> {
                 "actor" => Role::Actor,
                 "operational entity" | "entity" => Role::Entity,
                 "physical node" | "node" => Role::Node,
-                "behaviour component" => Role::Behaviour,
+                "behavior component" => Role::Behavior,
                 "hardware component" => Role::Hardware,
                 _ => Role::Component,
             });
@@ -544,7 +544,7 @@ impl<'g> Mapper<'g> {
                     (Shape::Action, _) if self.profiled => Level::Sa,
                     // Any SysML model: functions sit with the parts that perform them.
                     (Shape::Action, _) => Level::La,
-                    (Shape::Part, Some(Role::Node) | Some(Role::Behaviour) | Some(Role::Hardware)) => Level::Pa,
+                    (Shape::Part, Some(Role::Node) | Some(Role::Behavior) | Some(Role::Hardware)) => Level::Pa,
                     (Shape::Part, Some(Role::Entity)) => Level::Oa,
                     (Shape::Part, _) => Level::La,
                 },
@@ -1691,7 +1691,7 @@ impl<'g> Mapper<'g> {
         for child in children {
             match self.nodes[child].shape {
                 Shape::Action => self.function(2, child, "function"),
-                Shape::Part => self.behaviour(child),
+                Shape::Part => self.behavior(child),
             }
         }
         // Logical components allocated to the node.
@@ -1711,7 +1711,7 @@ impl<'g> Mapper<'g> {
         self.line(1, "}");
     }
 
-    fn behaviour(&mut self, index: usize) {
+    fn behavior(&mut self, index: usize) {
         let name = self.nodes[index].name.clone();
         if self.nodes[index].role == Some(Role::Hardware) {
             let id = self.remember_node(index, "HardwareComponent");
@@ -1720,7 +1720,7 @@ impl<'g> Mapper<'g> {
             return;
         }
         let id = self.remember_node(index, "BehaviorComponent");
-        self.count("behaviour components");
+        self.count("behavior components");
         self.line(2, &format!("behavior_component {} {{", string_literal(&name)));
         self.header(3, index, &id);
         self.write_ports(3, index, false);
@@ -1732,7 +1732,7 @@ impl<'g> Mapper<'g> {
             match self.nodes[child].shape {
                 Shape::Action => self.function(3, child, "function"),
                 Shape::Part => {
-                    let note = format!("behaviour '{}' holds part '{}': a behaviour component holds functions only", name, self.nodes[child].name);
+                    let note = format!("behavior '{}' holds part '{}': a behavior component holds functions only", name, self.nodes[child].name);
                     self.notes.push(note);
                 }
             }
@@ -1740,7 +1740,7 @@ impl<'g> Mapper<'g> {
         self.line(2, "}");
     }
 
-    /// The logical component a behaviour realizes: an allocation or a
+    /// The logical component a behavior realizes: an allocation or a
     /// `realizes` dependency from it to a written logical component.
     fn allocated_logical(&self, index: usize) -> Option<String> {
         self.graph
@@ -1977,7 +1977,7 @@ impl<'g> Mapper<'g> {
         self.line(0, "");
     }
 
-    // --- behaviour --------------------------------------------------------
+    // --- behavior --------------------------------------------------------
 
     fn state_machines(&mut self) {
         // A state definition, or a state usage exhibited by a part, holding states.

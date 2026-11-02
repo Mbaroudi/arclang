@@ -3,10 +3,10 @@
 //!
 //! The generated package holds the STRUCTURE, never the physics:
 //!
-//! - `Behaviour.<Node>.<Component>`: a `partial model` per behaviour
+//! - `Behavior.<Node>.<Component>`: a `partial model` per behavior
 //!   component, with its connectors and parameters;
 //! - `Physical.<Node>`: a `partial model` per physical node, with its
-//!   connectors, its parameters, its behaviour components as `replaceable`
+//!   connectors, its parameters, its behavior components as `replaceable`
 //!   instances and the `connect` equations between them;
 //! - `Systems.<Configuration>`: a `partial model` per configuration (one
 //!   `System` without any) instantiating the nodes the configuration keeps,
@@ -136,7 +136,7 @@ fn documentation(paragraphs: &[String], id: &str, kind: &str, drawing: &str) -> 
     format!("annotation({drawing}Documentation(info=\"<html>{html}</html>\"), __ArcLang(id=\"{}\", kind=\"{kind}\"));", names::string(id))
 }
 
-/// `Placement(transformation(...))` of a component centred on (x, y).
+/// `Placement(transformation(...))` of a component centered on (x, y).
 fn component_placement(placed: &placement::Placed) -> String {
     let (hw, hh) = (placed.w / 2.0, placed.h / 2.0);
     format!(
@@ -192,17 +192,17 @@ impl Writer<'_> {
         let _ = writeln!(out, "// The physics lives in a package of its own that extends these models.");
         let _ = writeln!(out, "within ;");
         let _ = writeln!(out, "package {} \"{}\"", self.package, names::string(&name));
-        let behaviours: Vec<&Part> = self.structure.parts.iter().filter(|p| p.node.is_none() && !p.behaviours.is_empty()).collect();
-        if !behaviours.is_empty() {
-            let _ = writeln!(out, "  package Behaviour \"Behaviour components, by the node they are deployed on\"");
-            for node in behaviours {
-                let _ = writeln!(out, "    package {} \"Behaviour components of {}\"", node.class, names::string(&node.name));
-                for &child in &node.behaviours {
+        let behaviors: Vec<&Part> = self.structure.parts.iter().filter(|p| p.node.is_none() && !p.behaviors.is_empty()).collect();
+        if !behaviors.is_empty() {
+            let _ = writeln!(out, "  package Behavior \"Behavior components, by the node they are deployed on\"");
+            for node in behaviors {
+                let _ = writeln!(out, "    package {} \"Behavior components of {}\"", node.class, names::string(&node.name));
+                for &child in &node.behaviors {
                     self.part_model(&mut out, &self.structure.parts[child], "      ", "BehaviorComponent");
                 }
                 let _ = writeln!(out, "    end {};", node.class);
             }
-            let _ = writeln!(out, "  end Behaviour;");
+            let _ = writeln!(out, "  end Behavior;");
         }
         let _ = writeln!(out, "  package Physical \"Physical nodes\"");
         for part in self.structure.parts.iter().filter(|p| p.node.is_none()) {
@@ -233,9 +233,9 @@ impl Writer<'_> {
             };
             let _ = writeln!(out, "{indent}  {} {} \"{} port {}\" {note};", port.connector, port.member, port.physics.label(), names::string(&port.name));
         }
-        for &child in &part.behaviours {
+        for &child in &part.behaviors {
             let child_part = &self.structure.parts[child];
-            let class = format!("{}.Behaviour.{}.{}", self.package, part.class, child_part.class);
+            let class = format!("{}.Behavior.{}.{}", self.package, part.class, child_part.class);
             let note = self.instance_annotation(drawn, child, &child_part.id);
             let _ = writeln!(out, "{indent}  replaceable {class} {} constrainedby {class} \"{}\" {note};", child_part.instance, names::string(&child_part.name));
         }
@@ -248,7 +248,7 @@ impl Writer<'_> {
             }
         }
         let mut info: Vec<String> = part.description.iter().cloned().collect();
-        info.push(format!("{} '{}' ({}).", if kind == "PhysicalNode" { "Physical node" } else { "Behaviour component" }, part.name, part.id));
+        info.push(format!("{} '{}' ({}).", if kind == "PhysicalNode" { "Physical node" } else { "Behavior component" }, part.name, part.id));
         if !part.realizes.is_empty() {
             info.push(format!("Realizes {}.", part.realizes.join(", ")));
         }
@@ -257,7 +257,7 @@ impl Writer<'_> {
         let _ = writeln!(out, "{indent}end {};", part.class);
     }
 
-    /// The drawing of the model of every part, behaviour components first:
+    /// The drawing of the model of every part, behavior components first:
     /// a node's boxes are sized by theirs.
     fn draw_parts(&self) -> Vec<placement::Plan> {
         let parts = &self.structure.parts;
@@ -266,7 +266,7 @@ impl Writer<'_> {
         for index in order {
             let connections: Vec<&Connection> = self.structure.connections.iter().filter(|c| c.within == Some(index)).collect();
             let moves = self.moves(Some(&parts[index].id));
-            plans[index] = placement::plan(parts, &self.sides, &plans, Some(index), &parts[index].behaviours, &connections, &moves);
+            plans[index] = placement::plan(parts, &self.sides, &plans, Some(index), &parts[index].behaviors, &connections, &moves);
         }
         plans
     }
@@ -373,23 +373,23 @@ impl Writer<'_> {
             vec![(format!("{path}/package.mo"), text), (format!("{path}/package.order"), order.iter().map(|n| format!("{n}\n")).collect())]
         };
         let nodes: Vec<usize> = (0..self.structure.parts.len()).filter(|&i| self.structure.parts[i].node.is_none()).collect();
-        let with_behaviours: Vec<usize> = nodes.iter().copied().filter(|&i| !self.structure.parts[i].behaviours.is_empty()).collect();
+        let with_behaviours: Vec<usize> = nodes.iter().copied().filter(|&i| !self.structure.parts[i].behaviors.is_empty()).collect();
         let mut top = Vec::new();
         if !with_behaviours.is_empty() {
-            top.push("Behaviour".to_string());
+            top.push("Behavior".to_string());
         }
         top.extend(["Physical".to_string(), "Systems".to_string()]);
         files.extend(package_file(root, "", root, &model_name(self.ast), &top, &self.package_annotation()));
         if !with_behaviours.is_empty() {
             let order: Vec<String> = with_behaviours.iter().map(|&i| self.structure.parts[i].class.clone()).collect();
-            files.extend(package_file(&format!("{root}/Behaviour"), root, "Behaviour", "Behaviour components, by the node they are deployed on", &order, ""));
+            files.extend(package_file(&format!("{root}/Behavior"), root, "Behavior", "Behavior components, by the node they are deployed on", &order, ""));
             for &i in &with_behaviours {
                 let node = &self.structure.parts[i];
-                let dir = format!("{root}/Behaviour/{}", node.class);
-                let within = format!("{root}.Behaviour");
-                let order: Vec<String> = node.behaviours.iter().map(|&c| self.structure.parts[c].class.clone()).collect();
-                files.extend(package_file(&dir, &within, &node.class, &format!("Behaviour components of {}", node.name), &order, ""));
-                for &child in &node.behaviours {
+                let dir = format!("{root}/Behavior/{}", node.class);
+                let within = format!("{root}.Behavior");
+                let order: Vec<String> = node.behaviors.iter().map(|&c| self.structure.parts[c].class.clone()).collect();
+                files.extend(package_file(&dir, &within, &node.class, &format!("Behavior components of {}", node.name), &order, ""));
+                for &child in &node.behaviors {
                     let part = &self.structure.parts[child];
                     let mut text = format!("{header}within {within}.{};\n", node.class);
                     self.part_model(&mut text, part, "", "BehaviorComponent");

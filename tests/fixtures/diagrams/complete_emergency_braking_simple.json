@@ -112,7 +112,7 @@
           "target": "OA-DetectThreat",
           "label": "ThreatDetection",
           "properties": {
-            "description": "Observations to analyse"
+            "description": "Observations to analyze"
           }
         },
         {
@@ -3205,8 +3205,8 @@
           }
         },
         {
-          "id": "'Automotive Emergency Braking System (AEB)'::Behaviours::EmergencyStop.l_RadarSensor",
-          "uuid": "1ab6ccd6-959c-5bcf-b5ea-62d9bd45eb4a",
+          "id": "'Automotive Emergency Braking System (AEB)'::Behaviors::EmergencyStop.l_RadarSensor",
+          "uuid": "e8da2e03-3a38-563c-b82a-ce5cb8badb48",
           "name": "l_RadarSensor",
           "kind": "sysml_part",
           "properties": {
@@ -3215,8 +3215,8 @@
           }
         },
         {
-          "id": "'Automotive Emergency Braking System (AEB)'::Behaviours::EmergencyStop.l_SensorFusion",
-          "uuid": "dade5f48-0d52-5f65-a8db-71964b7a9c66",
+          "id": "'Automotive Emergency Braking System (AEB)'::Behaviors::EmergencyStop.l_SensorFusion",
+          "uuid": "b0d7e1a2-2849-5290-a32f-0d2d32824ad6",
           "name": "l_SensorFusion",
           "kind": "sysml_part",
           "properties": {
@@ -3225,8 +3225,8 @@
           }
         },
         {
-          "id": "'Automotive Emergency Braking System (AEB)'::Behaviours::EmergencyStop.l_ThreatAssessment",
-          "uuid": "ba2e37dd-f68b-535f-9c46-ccaabb1447d0",
+          "id": "'Automotive Emergency Braking System (AEB)'::Behaviors::EmergencyStop.l_ThreatAssessment",
+          "uuid": "0c2b5039-7259-5fdf-a7e6-b23bb70fc71a",
           "name": "l_ThreatAssessment",
           "kind": "sysml_part",
           "properties": {
@@ -3235,8 +3235,8 @@
           }
         },
         {
-          "id": "'Automotive Emergency Braking System (AEB)'::Behaviours::EmergencyStop.l_DriverInterface",
-          "uuid": "8741f41a-d096-5be7-9e96-b4d2d444367f",
+          "id": "'Automotive Emergency Braking System (AEB)'::Behaviors::EmergencyStop.l_DriverInterface",
+          "uuid": "35514b95-92cc-5dbf-916a-8429615fc9c2",
           "name": "l_DriverInterface",
           "kind": "sysml_part",
           "properties": {
@@ -3245,8 +3245,8 @@
           }
         },
         {
-          "id": "'Automotive Emergency Braking System (AEB)'::Behaviours::EmergencyStop.l_BrakeController",
-          "uuid": "9957ad87-4603-5aa3-bc0d-e67eb0cb926c",
+          "id": "'Automotive Emergency Braking System (AEB)'::Behaviors::EmergencyStop.l_BrakeController",
+          "uuid": "6c7214f2-1052-54ba-a605-ed8e93d1e4ed",
           "name": "l_BrakeController",
           "kind": "sysml_part",
           "properties": {
@@ -3255,8 +3255,8 @@
           }
         },
         {
-          "id": "'Automotive Emergency Braking System (AEB)'::Behaviours::EmergencyStop.l_BrakeActuator",
-          "uuid": "5cf01d01-654b-5405-ada1-a1fea73df5f8",
+          "id": "'Automotive Emergency Braking System (AEB)'::Behaviors::EmergencyStop.l_BrakeActuator",
+          "uuid": "0d40bb70-453a-5294-a106-4880c8ce6eec",
           "name": "l_BrakeActuator",
           "kind": "sysml_part",
           "properties": {
@@ -3337,44 +3337,44 @@
           "label": ""
         },
         {
-          "id": "gen:'Automotive Emergency Braking System (AEB)'::Behaviours::EmergencyStop.l_RadarSensor LC-RadarSensor",
+          "id": "gen:'Automotive Emergency Braking System (AEB)'::Behaviors::EmergencyStop.l_RadarSensor LC-RadarSensor",
           "kind": "generalization",
-          "source": "'Automotive Emergency Braking System (AEB)'::Behaviours::EmergencyStop.l_RadarSensor",
+          "source": "'Automotive Emergency Braking System (AEB)'::Behaviors::EmergencyStop.l_RadarSensor",
           "target": "LC-RadarSensor",
           "label": ""
         },
         {
-          "id": "gen:'Automotive Emergency Braking System (AEB)'::Behaviours::EmergencyStop.l_SensorFusion LC-SensorFusion",
+          "id": "gen:'Automotive Emergency Braking System (AEB)'::Behaviors::EmergencyStop.l_SensorFusion LC-SensorFusion",
           "kind": "generalization",
-          "source": "'Automotive Emergency Braking System (AEB)'::Behaviours::EmergencyStop.l_SensorFusion",
+          "source": "'Automotive Emergency Braking System (AEB)'::Behaviors::EmergencyStop.l_SensorFusion",
           "target": "LC-SensorFusion",
           "label": ""
         },
         {
-          "id": "gen:'Automotive Emergency Braking System (AEB)'::Behaviours::EmergencyStop.l_ThreatAssessment LC-ThreatAssessment",
+          "id": "gen:'Automotive Emergency Braking System (AEB)'::Behaviors::EmergencyStop.l_ThreatAssessment LC-ThreatAssessment",
           "kind": "generalization",
-          "source": "'Automotive Emergency Braking System (AEB)'::Behaviours::EmergencyStop.l_ThreatAssessment",
+          "source": "'Automotive Emergency Braking System (AEB)'::Behaviors::EmergencyStop.l_ThreatAssessment",
           "target": "LC-ThreatAssessment",
           "label": ""
         },
         {
-          "id": "gen:'Automotive Emergency Braking System (AEB)'::Behaviours::EmergencyStop.l_DriverInterface LC-DriverInterface",
+          "id": "gen:'Automotive Emergency Braking System (AEB)'::Behaviors::EmergencyStop.l_DriverInterface LC-DriverInterface",
           "kind": "generalization",
-          "source": "'Automotive Emergency Braking System (AEB)'::Behaviours::EmergencyStop.l_DriverInterface",
+          "source": "'Automotive Emergency Braking System (AEB)'::Behaviors::EmergencyStop.l_DriverInterface",
           "target": "LC-DriverInterface",
           "label": ""
         },
         {
-          "id": "gen:'Automotive Emergency Braking System (AEB)'::Behaviours::EmergencyStop.l_BrakeController LC-BrakeController",
+          "id": "gen:'Automotive Emergency Braking System (AEB)'::Behaviors::EmergencyStop.l_BrakeController LC-BrakeController",
           "kind": "generalization",
-          "source": "'Automotive Emergency Braking System (AEB)'::Behaviours::EmergencyStop.l_BrakeController",
+          "source": "'Automotive Emergency Braking System (AEB)'::Behaviors::EmergencyStop.l_BrakeController",
           "target": "LC-BrakeController",
           "label": ""
         },
         {
-          "id": "gen:'Automotive Emergency Braking System (AEB)'::Behaviours::EmergencyStop.l_BrakeActuator LC-BrakeActuator",
+          "id": "gen:'Automotive Emergency Braking System (AEB)'::Behaviors::EmergencyStop.l_BrakeActuator LC-BrakeActuator",
           "kind": "generalization",
-          "source": "'Automotive Emergency Braking System (AEB)'::Behaviours::EmergencyStop.l_BrakeActuator",
+          "source": "'Automotive Emergency Braking System (AEB)'::Behaviors::EmergencyStop.l_BrakeActuator",
           "target": "LC-BrakeActuator",
           "label": ""
         }

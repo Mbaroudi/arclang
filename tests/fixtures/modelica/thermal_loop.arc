@@ -1,7 +1,7 @@
 model "Battery thermal loop" {}
 
 // A second wired model for the drawing tests: electrical, thermal, mechanical
-// and signal connectors, a node with two behaviour components and a cycle.
+// and signal connectors, a node with two behavior components and a cycle.
 physical_architecture "Thermal hardware" {
     node "Cell stack" {
         id: "PN-CELLS"

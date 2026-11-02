@@ -61,7 +61,7 @@ package DronePhysics "Physics of the drone endurance"
   end Frame;
 
   model AltitudeLoop "Altitude hold: a PID on the altitude, thrust between zero and the limit"
-    extends DroneEndurance.Behaviour.FlightController.AltitudeHold;
+    extends DroneEndurance.Behavior.FlightController.AltitudeHold;
     Modelica.Blocks.Sources.Constant setpoint(k=target_altitude);
     Modelica.Blocks.Continuous.LimPID pid(controllerType=Modelica.Blocks.Types.SimpleController.PID, k=12, Ti=6, Td=1.5, yMax=250, yMin=0, initType=Modelica.Blocks.Types.Init.InitialOutput, y_start=0);
   equation

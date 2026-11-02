@@ -1,6 +1,6 @@
 // Tactical mission computer of a two-seat combat aircraft: radar and
 // electronic-warfare data are fused into tracks, threats are ranked, and a
-// weapon is released only after a dual-operator authorisation. Airborne
+// weapon is released only after a dual-operator authorization. Airborne
 // software levels follow DO-178C; the weapon release path is DAL-A.
 //
 //   arclang check examples/defense/mission_computer.arc
@@ -78,7 +78,7 @@ operational_analysis "Tactical Mission System" {
         }
         activity "Weapon Employment" {
             id: "OA-002"
-            description: "Select and release the right ordnance once authorised"
+            description: "Select and release the right ordnance once authorized"
         }
     }
     operational_capability "Air-to-Air Combat" {
@@ -121,7 +121,7 @@ system_analysis "Mission Computer System" {
     }
     function "Threat Evaluation" {
         id: "SF-003"
-        description: "Assess the threat level of each track and prioritise the responses"
+        description: "Assess the threat level of each track and prioritize the responses"
         safety_level: "DAL-B"
         latency: 20 ms
         port in "tracks"
@@ -129,7 +129,7 @@ system_analysis "Mission Computer System" {
     }
     function "Weapon Control" {
         id: "SF-004"
-        description: "Manage the weapon inventory and release a weapon on authorisation"
+        description: "Manage the weapon inventory and release a weapon on authorization"
         safety_level: "DAL-A"
         port in "threats"
     }
@@ -140,7 +140,7 @@ system_analysis "Mission Computer System" {
     }
     functional_exchange "detections" { id: "FE-001" from: "SF-001.detections" to: "SF-002.detections" }
     functional_exchange "tracks" { id: "FE-002" from: "SF-002.tracks" to: "SF-003.tracks" }
-    functional_exchange "prioritised threats" { id: "FE-003" from: "SF-003.threats" to: "SF-004.threats" }
+    functional_exchange "prioritized threats" { id: "FE-003" from: "SF-003.threats" to: "SF-004.threats" }
     functional_chain "Detection to track" {
         id: "FC-001"
         involves: ["SF-001", "SF-002"]
@@ -179,7 +179,7 @@ logical_architecture "Mission Computer Logical Architecture" {
     component "Threat Manager" {
         id: "LC-004"
         safety_level: "DAL-B"
-        description: "Threat identification and prioritisation"
+        description: "Threat identification and prioritization"
         port in "emitters"
         port in "tracks"
         port out "threats"
@@ -209,7 +209,7 @@ logical_architecture "Mission Computer Logical Architecture" {
     component_exchange "Radar detections" { from_port: "LC-001.radar_detections" to_port: "LC-003.radar_detections" }
     component_exchange "Emitter reports" { from_port: "LC-002.emitters" to_port: "LC-004.emitters" }
     component_exchange "Fused tracks" { from_port: "LC-003.tracks" to_port: "LC-004.tracks" }
-    component_exchange "Prioritised threats" { from_port: "LC-004.threats" to_port: "LC-005.threats" }
+    component_exchange "Prioritized threats" { from_port: "LC-004.threats" to_port: "LC-005.threats" }
     component_exchange "Release command" { from_port: "LC-005.release" to_port: "LC-006.release" }
 }
 
@@ -279,7 +279,7 @@ epbs "Mission Computer EPBS" {
 safety_analysis {
     hazard "Unintended Weapon Release" {
         id: "HAZ-001"
-        description: "A weapon is released without the authorisation of both operators"
+        description: "A weapon is released without the authorization of both operators"
         condition: "Catastrophic"
         dal: "DAL-A"
         mitigated_by: ["SYS-MC-003"]
@@ -334,7 +334,7 @@ scenario "Engagement" {
     participants: ["LC-001", "LC-003", "LC-004", "LC-005", "LC-006"]
     message "LC-001" -> "LC-003" "radar detections"
     message "LC-003" -> "LC-004" "fused tracks" { timing: 100 ms }
-    message "LC-004" -> "LC-005" "prioritised threats"
+    message "LC-004" -> "LC-005" "prioritized threats"
     message "LC-005" -> "LC-006" "release command" { type: "async" }
 }
 
@@ -355,7 +355,7 @@ trace "LC-003" satisfies "SYS-MC-001" { rationale: "Track fusion updates the tra
 trace "LC-003" satisfies "SYS-MC-002" { rationale: "Track prediction coasts a track through sensor gaps" }
 trace "LC-002" satisfies "SYS-MC-005" { rationale: "The radar warning receiver sorts emitters under jamming" }
 trace "LC-004" satisfies "SYS-MC-005" { rationale: "Emitter identification keeps the threat picture under jamming" }
-trace "LC-005" satisfies "SYS-MC-003" { rationale: "The authorisation check needs both consents" }
+trace "LC-005" satisfies "SYS-MC-003" { rationale: "The authorization check needs both consents" }
 trace "LC-006" satisfies "SYS-MC-004" { rationale: "Type 1 encryption of every tactical data link" }
 trace "LC-006" satisfies "SYS-MC-006" { rationale: "Keys and integrity checks of the mission data store" }
 trace "SF-002" realizes "OA-001"

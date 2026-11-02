@@ -150,11 +150,11 @@ fn synthetic_samples(dir: &Path) {
 #[test]
 #[ignore = "runs R and Python (ARCLANG_RSCRIPT, ARCLANG_PYTHON, or Rscript and python3 with NumPy): cargo test --test monte_carlo -- --ignored"]
 fn r_and_python_find_the_parameter_that_moves_the_margin_and_agree() {
-    use simulation::statistics::{analyse, Engine};
+    use simulation::statistics::{analyze, Engine};
     let dir = tempfile::tempdir().unwrap();
     synthetic_samples(dir.path());
     let prcc = |engine: Engine| -> Vec<(String, f64)> {
-        let report = analyse(dir.path(), engine).unwrap_or_else(|e| panic!("{engine:?}: {e}"));
+        let report = analyze(dir.path(), engine).unwrap_or_else(|e| panic!("{engine:?}: {e}"));
         assert!(dir.path().join("statistics.json").is_file());
         let margin = &report["margins"][0];
         assert_eq!(margin["samples"], 60);

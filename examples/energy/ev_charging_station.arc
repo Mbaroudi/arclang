@@ -723,7 +723,7 @@ safety_analysis {
   }
   hazard "Grid overload of the site connection" {
     id: "HAZ-003"
-    description: "Eight chargers at full power exceed the 630 kVA connection: the breaker trips, site and neighbouring loads lose supply"
+    description: "Eight chargers at full power exceed the 630 kVA connection: the breaker trips, site and neighboring loads lose supply"
     severity: "S1"  exposure: "E4"  controllability: "C2"  asil: "ASIL-A"
     mitigated_by: ["REQ-CHG-008"]
   }

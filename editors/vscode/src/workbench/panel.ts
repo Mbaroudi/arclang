@@ -79,7 +79,7 @@ export class WorkbenchPanel {
   /** The arrangement the page shows: kept here, the layout file is written a moment later. */
   private layoutNow: unknown = undefined;
   private readonly history: CanvasHistory;
-  /** Copy as image, PowerPoint, the colour themes. */
+  /** Copy as image, PowerPoint, the color themes. */
   private readonly exports: DiagramExports;
   /** A diagram in a tab of its own (a webview panel, not the custom editor): its title shows the unsaved changes. */
   private ownTab = false;
@@ -339,7 +339,7 @@ export class WorkbenchPanel {
     switch (message.type) {
       case 'ready':
         this.ready = true;
-        // The theme first: the first drawing is already in its colours.
+        // The theme first: the first drawing is already in its colors.
         await this.exports.pushThemes();
         this.postPreferences();
         this.lastFileState = '';

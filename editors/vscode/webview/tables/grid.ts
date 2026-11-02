@@ -47,7 +47,7 @@ function linkChip(link: NonNullable<TableCell['links']>[number], host: GridHost)
   return chip;
 }
 
-/** The family a kind's colour comes from. */
+/** The family a kind's color comes from. */
 export function kindFamily(kind: string): string {
   if (kind.endsWith('Function') || kind === 'OperationalActivity') return 'function';
   if (kind.endsWith('Component') || kind === 'PhysicalNode' || kind === 'OperationalEntity') return 'component';

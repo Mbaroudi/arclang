@@ -37,7 +37,7 @@ const CASES = [
   { name: 'EV range: configuration (4 nodes, 5 wires)', model: 'examples/automotive/ev_range_simulation.arc', open: 'EVRangeSimulation/Systems/Touring.mo' },
   { name: 'EV range: control unit node (own connectors, a controller)', model: 'examples/automotive/ev_range_simulation.arc', open: 'EVRangeSimulation/Physical/VehicleControlUnit.mo' },
   { name: 'Battery thermal loop: configuration (5 nodes, 8 wires)', model: 'tests/fixtures/modelica/thermal_loop.arc', open: 'BatteryThermalLoop/Systems/System.mo' },
-  { name: 'Battery thermal loop: controller node (2 behaviours, a cycle)', model: 'tests/fixtures/modelica/thermal_loop.arc', open: 'BatteryThermalLoop/Physical/ThermalController.mo' },
+  { name: 'Battery thermal loop: controller node (2 behaviors, a cycle)', model: 'tests/fixtures/modelica/thermal_loop.arc', open: 'BatteryThermalLoop/Physical/ThermalController.mo' },
   { name: 'EV product line: configuration', model: 'examples/automotive/ev_product_line.arc', open: 'EVProductLine/Systems/Touring.mo' },
   { name: 'ISR drone: system', model: 'examples/defense/isr_drone.arc', open: 'TacticalISRUnmannedAircraftSystem/Systems/System.mo' },
   { name: 'Flight control: system', model: 'examples/aerospace/flight_control_system.arc', open: 'PrimaryFlightControlSystem/Systems/System.mo' },

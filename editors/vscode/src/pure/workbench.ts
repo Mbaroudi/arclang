@@ -167,7 +167,7 @@ export type ToWebview =
   | { type: 'key'; command: CanvasCommand; text?: string }
   /** What ⌘Z and ⌘⇧Z would take back and bring back; `done` names the step just undone or redone. */
   | { type: 'history'; undo: string | null; redo: string | null; done?: string }
-  /** The colour themes on offer and the one drawn (`problem`: why the one asked for is not). */
+  /** The color themes on offer and the one drawn (`problem`: why the one asked for is not). */
   | { type: 'themes'; entries: ThemeEntry[]; active: string; problem: string | null; dark: boolean; copyBackground: 'white' | 'transparent' }
   /** A command of the diagram, run by the page (copy as image, PowerPoint, the theme editor). */
   | { type: 'diagram-action'; action: DiagramAction }
@@ -179,10 +179,10 @@ export type ToWebview =
   /** The model's file: unsaved changes, auto save on, and its language (a .sysml saves as SysML v2). */
   | { type: 'file-state'; dirty: boolean; autoSave: boolean; language: 'arclang' | 'sysml' };
 
-/** Where a colour theme comes from. */
+/** Where a color theme comes from. */
 export type ThemeSource = 'preset' | 'team' | 'user' | 'file';
 
-/** A colour theme on offer, as the host read and checked it. */
+/** A color theme on offer, as the host read and checked it. */
 export interface ThemeEntry {
   /** `preset:<id>`, `team:<id>`, `user:<id>` or `file:<id>`. */
   key: string;
@@ -786,7 +786,7 @@ export function elementLabel(element: Pick<ElementRecord, 'id' | 'name' | 'kind'
 }
 
 /** The relationships and traces an element takes part in, for the semantic browser. */
-export function neighbours(
+export function neighbors(
   element: ElementRecord,
   snapshot: Snapshot,
 ): { incoming: { kind: string; name: string; other: ElementRecord | null }[]; outgoing: { kind: string; name: string; other: ElementRecord | null }[] } {

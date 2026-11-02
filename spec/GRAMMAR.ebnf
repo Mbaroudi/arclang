@@ -214,7 +214,7 @@ PhysicalArchitecture ::= "physical_architecture" Name "{" PaElement* "}"
                        | "architecture" "physical" Name? "{" PaElement* "}" ;
 
 PaElement       ::= "node" Name "{" NodeElement* "}"
-                  | LevelFunctionDecl                         (* a function no behaviour component performs *)
+                  | LevelFunctionDecl                         (* a function no behavior component performs *)
                   | FunctionalExchange                        (* between physical functions *)
                   | FunctionalChainDecl                       (* ordered physical functions *)
                   | CapabilityRealizationDecl                 (* realizes a logical capability realization *)
@@ -465,7 +465,7 @@ StateMachineElement ::= ( "state" | "mode" ) Name StateBody?
                         (* a top-level region of its own, with its initial: ; a
                            machine with several regions writes one block each.
                            Its states and transitions are the machine's too. *)
-                        (* mode = chosen behaviour, state = undergone (Arcadia) *)
+                        (* mode = chosen behavior, state = undergone (Arcadia) *)
 (* A state holds a region: states, modes and transitions of its own. A
    transition declared inside a state joins the machine's, and names any
    state of the machine, at any depth. *)

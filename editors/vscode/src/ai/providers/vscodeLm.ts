@@ -41,14 +41,14 @@ export class VscodeLmProvider implements ChatProvider {
         source.token,
       );
       for await (const part of response.stream) {
-        if (options.signal?.aborted) throw new ProviderError('VS Code language model: cancelled', 'cancelled');
+        if (options.signal?.aborted) throw new ProviderError('VS Code language model: canceled', 'canceled');
         if (part instanceof vscode.LanguageModelTextPart) yield { type: 'text', text: part.value };
         else if (part instanceof vscode.LanguageModelToolCallPart) yield { type: 'tool_call', call: { id: part.callId, name: part.name, input: (part.input ?? {}) as Record<string, unknown> } };
       }
       yield { type: 'done' };
     } catch (error) {
       if (error instanceof ProviderError) throw error;
-      if (options.signal?.aborted) throw new ProviderError('VS Code language model: cancelled', 'cancelled');
+      if (options.signal?.aborted) throw new ProviderError('VS Code language model: canceled', 'canceled');
       throw new ProviderError(`VS Code language model: ${error instanceof Error ? error.message : String(error)}`, 'http');
     } finally {
       options.signal?.removeEventListener('abort', onAbort);

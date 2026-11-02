@@ -1,6 +1,6 @@
 // The impact analysis page: what a change reaches, as the compiler computes
 // it. A header (the seed, the counts by severity, the gate), a filter row,
-// the graph (rings by distance, severity colours), the table with the "why"
+// the graph (rings by distance, severity colors), the table with the "why"
 // path of each element, and, for a what-if, the panel of what the change
 // does to the model. The page only shows: every computation, every write
 // and every export is the host's.

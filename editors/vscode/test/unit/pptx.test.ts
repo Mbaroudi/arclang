@@ -44,14 +44,14 @@ test('a ZIP reads back entry by entry, stored or deflated, and refuses unsafe na
   assert.throws(() => zip([{ name: 'a', data: new Uint8Array() }, { name: 'a', data: new Uint8Array() }]), /bad or repeated/);
 });
 
-test('a picture is as large as fits under the title, centred, its proportions kept', () => {
+test('a picture is as large as fits under the title, centered, its proportions kept', () => {
   const wide = fitPicture(4000, 1000);
   assert.ok(wide.x >= 457200 && wide.x + wide.cx <= 12192000 - 457200 + 1);
   assert.ok(Math.abs(wide.cx / wide.cy - 4) < 0.01);
   const tall = fitPicture(800, 2400);
   assert.ok(tall.y >= 900000 && tall.y + tall.cy <= 6858000);
   assert.ok(Math.abs(tall.cx / tall.cy - 1 / 3) < 0.01);
-  assert.ok(tall.x > wide.x, 'a tall picture is centred across');
+  assert.ok(tall.x > wide.x, 'a tall picture is centered across');
 });
 
 test('a deck has one slide, one picture and one notes page per diagram, every part declared', () => {

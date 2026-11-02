@@ -1,4 +1,4 @@
-//! Behaviour: a state machine is a `state def` with its states (nested
+//! Behavior: a state machine is a `state def` with its states (nested
 //! ones inside their parent) and transitions, `#Mode` on a mode; a scenario
 //! is an `occurrence def` with one `ref part` lifeline per participant, an
 //! event per message end and a `message` between them, in order. The owner
@@ -9,8 +9,8 @@ use super::{text, Exporter};
 use crate::compiler::ast::*;
 use std::collections::HashMap;
 
-// Not `Behaviour`: that is a metadata definition of the profile.
-pub(super) const PACKAGE: &str = "Behaviours";
+// Not `Behavior`: that is a metadata definition of the profile.
+pub(super) const PACKAGE: &str = "Behaviors";
 
 fn state_id(state: &State) -> &str {
     if state.id.is_empty() { &state.name } else { &state.id }

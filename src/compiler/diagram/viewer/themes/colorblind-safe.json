@@ -1,8 +1,8 @@
 {
   "version": 1,
   "id": "colorblind-safe",
-  "name": "Colour-blind safe",
-  "description": "The Okabe-Ito palette, chosen to stay apart for every common colour-vision deficiency: tints for the boxes, the full colours for their outlines and lines.",
+  "name": "Color-blind safe",
+  "description": "The Okabe-Ito palette, chosen to stay apart for every common color-vision deficiency: tints for the boxes, the full colors for their outlines and lines.",
   "source": "Okabe M., Ito K., Color Universal Design (2002); Wong B., Points of view: Color blindness, Nature Methods 8:441 (2011).",
   "background": "#FFFFFF",
   "text": "#000000",

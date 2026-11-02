@@ -1,6 +1,6 @@
 /* Arrange on the workbench: the Layers panel floating at the right of the
    sheet, the lines selected together, a locked element, a group open for
-   editing. The editor's own colours; the focus colour marks what is chosen. */
+   editing. The editor's own colors; the focus color marks what is chosen. */
 :root {
   --wb-tl-width: 272px;
   --wb-tl-radius: 6px;
