@@ -946,7 +946,7 @@
         },
         {
           "command": "arclang.simulation.run",
-          "when": "resourceLangId == arclang && arclang.simulatesHere && !isWeb",
+          "when": "resourceLangId == arclang && arclang.simulatesHere",
           "group": "navigation@3"
         }
       ],
