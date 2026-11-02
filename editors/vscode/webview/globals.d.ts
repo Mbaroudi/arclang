@@ -66,6 +66,8 @@ export interface ExportedDrawing {
   title: string;
   view: string;
   elements: { id: string; name: string; kind: string; line?: boolean }[];
+  /** One entry per kind of box, then per kind of line, as the view's legend shows them. */
+  legend?: { label: string; stroke: string; fill?: string; line?: boolean; dash?: boolean }[];
 }
 
 export interface ToolbarHookItem {

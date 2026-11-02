@@ -647,6 +647,18 @@
    * Draw a graph: a laid-out ELK graph, or a scenario (see `isSequence`).
    * Returns the standalone SVG markup and its size.
    */
+  /** Run `work` with the colors `renderSvg(…, options)` would use for a view of kind `view`: a legend matches its drawing. */
+  function withTheme(options, view, work) {
+    const before = [current, currentView];
+    current = options && 'theme' in options ? options.theme || undefined : null;
+    currentView = view || null;
+    try {
+      return work();
+    } finally {
+      [current, currentView] = before;
+    }
+  }
+
   function renderSvg(graph, options) {
     const before = [current, currentView];
     // `options.theme`: a palette, or null for the built-in colors; left out, the one set by setTheme.
@@ -726,5 +738,5 @@
     return ids;
   }
 
-  return { renderSvg, isSequence, layOut, drawnIds, nodeStyle, edgeStyle, esc, setTheme, theme: () => active };
+  return { renderSvg, isSequence, layOut, drawnIds, nodeStyle, edgeStyle, withTheme, esc, setTheme, theme: () => active };
 });
