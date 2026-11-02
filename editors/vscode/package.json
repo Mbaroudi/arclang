@@ -2952,7 +2952,7 @@
   },
   "dependencies": {
     "pako": "1.0.11",
-    "pdfjs-dist": "5.7.284",
+    "pdfjs-dist": "6.5.438",
     "vscode-languageclient": "^10.1.2"
   },
   "devDependencies": {
