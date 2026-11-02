@@ -9,6 +9,7 @@ import * as vscode from 'vscode';
 import { failureText, run } from '../cli';
 import { WorkbenchPanel } from '../workbench/panel';
 import { parseReplay, Replay, ReplayMessage, timeLabel } from '../pure/replay';
+import { onlineReplay, onlineRun } from './online-results';
 
 interface SimulatedCase {
   id: string;
@@ -19,6 +20,8 @@ interface SimulatedCase {
 
 /** The test cases of the model that simulate (`arclang verify --list`). */
 async function simulatedCases(file: string): Promise<SimulatedCase[] | string> {
+  const online = onlineRun(file);
+  if (online) return online.cases;
   const result = await run(['verify', file, '--list'], { cwd: path.dirname(file) });
   try {
     const cases = JSON.parse(result.stdout) as SimulatedCase[];
@@ -29,6 +32,8 @@ async function simulatedCases(file: string): Promise<SimulatedCase[] | string> {
 }
 
 async function readReplay(file: string, testCase: string, point: number): Promise<Replay | string> {
+  const online = onlineReplay(file, testCase, point);
+  if (online) return 'text' in online ? (parseReplay(online.text) ?? 'the replay of the online run could not be read') : online.error;
   const result = await run(['verify', file, '--replay', testCase, '--point', String(point)], { cwd: path.dirname(file) });
   return parseReplay(result.stdout) ?? (result.stderr.trim().split('\n').pop() || failureText(result));
 }

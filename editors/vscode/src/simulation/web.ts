@@ -11,6 +11,8 @@ import { leftText, pickFiles, walkable, ONLINE_LIMITS } from '../pure/sim-online
 import { buildReport, buildReportPdf, type Replay } from '../pure/sim-report';
 import { DOCS_URL, Outcome, countOutcomes, outcomesLog, parseOutcomes, simulates, summaryText } from '../pure/simulation';
 import { MonteCarloPanel } from './montecarlo';
+import { keepOnlineRun, type OnlineStatistics } from './online-results';
+import { replaySimulation } from './replay';
 
 const HOST_COMMAND = 'arclangWeb.simulation.run';
 const DESKTOP_ONLY = 'ArcLang: simulation needs the desktop extension. It runs OpenModelica on your computer, which a browser cannot do.';
@@ -80,7 +82,7 @@ async function runOnline(arg: unknown, monteCarlo: boolean): Promise<void> {
   let reply: HostAnswer;
   try {
     reply = await vscode.window.withProgress(
-      { location: vscode.ProgressLocation.Notification, title: 'Simulating online with OpenModelica… (up to three minutes)' },
+      { location: vscode.ProgressLocation.Notification, title: 'Simulating online with OpenModelica… (up to four minutes)' },
       () => Promise.resolve(vscode.commands.executeCommand<HostAnswer>(HOST_COMMAND, { model, files })),
     );
   } finally {
@@ -97,15 +99,19 @@ async function runOnline(arg: unknown, monteCarlo: boolean): Promise<void> {
     log.show(true);
     return void vscode.window.showErrorMessage(
       answer.timedOut
-        ? 'ArcLang: the simulation took longer than an online run may (about three minutes). Shorten it, or run it on your computer with the desktop extension.'
+        ? 'ArcLang: the simulation took longer than an online run may (about four minutes). Shorten it, or run it on your computer with the desktop extension.'
         : 'ArcLang: the model could not be simulated. See the ArcLang Simulation output.',
     );
   }
+  // What the server computed in the same job: the replays (by case, then point) and the statistics.
+  const byCase = (answer.replays && typeof answer.replays === 'object' ? answer.replays : {}) as Record<string, Record<string, unknown>>;
+  const statistics = (answer.statistics && typeof answer.statistics === 'object' ? answer.statistics : {}) as Record<string, Record<string, OnlineStatistics>>;
+  keepOnlineRun(uri.fsPath, { cases: outcomes.map((o) => ({ id: o.test_case, name: o.name || o.test_case, replayable: !!byCase[o.test_case] })), replays: byCase, statistics });
+  // The report draws the curves of single runs (a sweep or a Monte Carlo case shows its points).
   const replays = new Map<string, Replay>();
-  if (answer.replays && typeof answer.replays === 'object') {
-    for (const [testCase, value] of Object.entries(answer.replays as Record<string, Replay>)) {
-      if (value && Array.isArray(value.time) && Array.isArray(value.elements) && Array.isArray(value.expectations)) replays.set(testCase, value);
-    }
+  for (const o of outcomes.filter((o) => !o.points.length)) {
+    const value = byCase[o.test_case]?.['0'] as Replay | undefined;
+    if (value && Array.isArray(value.time) && Array.isArray(value.elements) && Array.isArray(value.expectations)) replays.set(o.test_case, value);
   }
   last = { uri, outcomes, replays };
   log.appendLine(`--- ${model}, simulated online (${new Date().toLocaleString()})${picked.left ? `; ${picked.left} file(s) of the folder not sent (limits)` : ''}`);
@@ -134,11 +140,20 @@ async function exportReport(): Promise<void> {
   }
 }
 
+/** The replay of the last online run of the model looked at (or of the last run). */
+async function replayLast(): Promise<void> {
+  const uri = activeModel(undefined) ?? last?.uri ?? null;
+  if (uri && last && uri.toString() !== last.uri.toString() && !activeModel(undefined)) return replaySimulation(last.uri);
+  if (!last) return void vscode.window.showInformationMessage('ArcLang: run the simulations first; the replay moves through their last run.');
+  return replaySimulation(uri);
+}
+
 async function menu(): Promise<void> {
   type Entry = vscode.QuickPickItem & { id: string };
   const entries: Entry[] = [
     { id: 'run', label: '$(play) Run simulations on this model', detail: 'Online, in OpenModelica: the verdicts of the test cases. For signed-in visitors, a number of runs a day.' },
     { id: 'montecarlo', label: '$(graph) Show Monte Carlo results', detail: 'Runs the model online and shows how likely the requirements hold.' },
+    { id: 'replay', label: '$(history) Replay a simulation on the diagram', detail: 'Moves through the last online run of a test case: the values on each box, the first instant an expectation fails.' },
     { id: 'export', label: '$(file-pdf) Export the report of the last run', detail: 'A PDF beside the model: one page per test case, with its verdict, values and curves.' },
     { id: 'docs', label: '$(book) Open the documentation', detail: 'How simulation works and how to write a test case.' },
   ];
@@ -146,6 +161,7 @@ async function menu(): Promise<void> {
   if (picked?.id === 'run') return runOnline(undefined, false);
   if (picked?.id === 'montecarlo') return runOnline(undefined, true);
   if (picked?.id === 'export') return exportReport();
+  if (picked?.id === 'replay') return replayLast();
   if (picked?.id === 'docs') return void vscode.env.openExternal(vscode.Uri.parse(DOCS_URL));
 }
 
