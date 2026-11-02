@@ -172,7 +172,9 @@ export type ToWebview =
   /** A command of the diagram, run by the page (copy as image, PowerPoint, the theme editor). */
   | { type: 'diagram-action'; action: DiagramAction }
   /** Draw these views for the slides of a PowerPoint file; `target`, where the host writes it. */
-  | { type: 'pptx-render'; ids: string[]; target?: string }
+  | { type: 'pptx-render'; ids: string[]; target?: string; format?: SlideFormat }
+  /** In a browser (VS Code for the Web): a file the page hands to the browser's downloads. */
+  | { type: 'download'; name: string; mime: string; data: string }
   /** A theme saved by the host, or one read from a file the user chose. */
   | { type: 'theme-saved'; entry: ThemeEntry }
   | { type: 'theme-imported'; theme: unknown; errors: string[]; name: string }
@@ -198,16 +200,22 @@ export interface ThemeEntry {
 }
 
 /** The diagram commands the host asks the page to run. */
-export type DiagramAction = 'copy-image' | 'copy-svg' | 'export-pptx' | 'choose-theme' | 'edit-theme';
+export type DiagramAction = 'copy-image' | 'copy-svg' | 'export-pptx' | 'export-pdf' | 'choose-theme' | 'edit-theme';
 
 /** One slide of a PowerPoint export, as the page draws it: the PNG in base64. */
 export interface SlideData {
   title: string;
+  /** The drawing, base64: a PNG for PowerPoint, a JPEG for PDF. */
   data: string;
   width: number;
   height: number;
   notes: string[];
+  /** The legend of what the diagram shows, printed on its slide or page. */
+  legend?: { label: string; stroke: string; fill?: string; line?: boolean; dash?: boolean }[];
 }
+
+/** The two files of slides: one diagram a slide (PowerPoint) or a page (PDF). */
+export type SlideFormat = 'pptx' | 'pdf';
 
 /** The canvas commands VS Code's keybindings run on the workbench. */
 export type CanvasCommand = 'copy' | 'cut' | 'paste' | 'paste-text' | 'duplicate' | 'select-all' | 'delete' | 'zoom-in' | 'zoom-out' | 'fit' | ArrangeCommand; // zorder hook: ArrangeCommand
@@ -249,8 +257,8 @@ export type FromWebview =
   /** A line for the status bar (an export done), or an error to show. */
   | { type: 'notify'; text: string; error?: boolean }
   /** The views a PowerPoint export may take, for the host to ask which. */
-  | { type: 'pptx-request'; views: { id: string; title: string; view: string }[]; current: string | null }
-  | { type: 'pptx'; slides: SlideData[]; title: string; target?: string }
+  | { type: 'pptx-request'; views: { id: string; title: string; view: string }[]; current: string | null; format?: SlideFormat }
+  | { type: 'pptx'; slides: SlideData[]; title: string; target?: string; format?: SlideFormat }
   | { type: 'theme-choose'; key: string }
   | { type: 'theme-save'; scope: 'team' | 'user'; theme: Record<string, unknown> }
   | { type: 'theme-export'; theme: Record<string, unknown> }

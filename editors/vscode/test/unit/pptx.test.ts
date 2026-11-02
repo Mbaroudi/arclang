@@ -87,3 +87,22 @@ test('XML text drops forbidden characters and escapes markup', () => {
   assert.deepEqual(pngSize(png(12, 7)), { width: 12, height: 7 });
   assert.equal(pngSize(new Uint8Array(4)), null);
 });
+
+test('each slide carries the legend of its diagram, and the picture leaves it room', () => {
+  const legend = [
+    { label: 'Logical component', fill: '#dbe8fb', stroke: '#2f5ea8' },
+    { label: 'Component exchange', stroke: '#1e3c8c', line: true },
+    { label: 'Physical exchange', stroke: '#2f5ea8', line: true, dash: true },
+  ];
+  const deck = buildPptx({ title: 'Cooling', slides: [{ title: 'Logical', png: png(16, 9), width: 16, height: 9, notes: [], legend }, { title: 'Bare', png: png(16, 9), width: 16, height: 9, notes: [] }] });
+  const entries = unzip(deck, (d) => new Uint8Array(inflateRawSync(d)));
+  const first = text(entries, 'ppt/slides/slide1.xml');
+  for (const label of ['Logical component', 'Component exchange', 'Physical exchange']) assert.ok(first.includes(`<a:t>${label}</a:t>`), label);
+  assert.ok(first.includes('<a:srgbClr val="DBE8FB"/>'), 'the box swatch takes the kind\'s fill');
+  assert.ok(first.includes('<a:prstDash val="dash"/>'), 'a dashed line kind');
+  assert.ok(!text(entries, 'ppt/slides/slide2.xml').includes('Legend'), 'no legend when the diagram has none');
+  // The picture is smaller with a legend under it, never over it.
+  assert.ok(fitPicture(1600, 900, 1).cy < fitPicture(1600, 900, 0).cy);
+  const ids = [...first.matchAll(/<p:cNvPr id="(\d+)"/g)].map((m) => m[1]);
+  assert.equal(new Set(ids).size, ids.length, 'every shape has its own id');
+});
