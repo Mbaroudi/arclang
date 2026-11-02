@@ -14,6 +14,7 @@ import { DOCS_URL, Outcome, countOutcomes, parseOutcomes, runLog, simulates, sum
 import { MonteCarloPanel } from './montecarlo';
 import { keepOnlineRun, type OnlineStatistics } from './online-results';
 import { replaySimulation } from './replay';
+import { openModelicaDrawing } from './modelica-view';
 import { exportSimulationReport } from './report';
 
 const HOST_COMMAND = 'arclangWeb.simulation.run';
@@ -167,6 +168,7 @@ async function menu(): Promise<void> {
     { id: 'montecarlo', label: '$(graph) Show Monte Carlo results', detail: 'Runs the model online and shows how likely the requirements hold.' },
     { id: 'replay', label: '$(history) Replay a simulation on the diagram', detail: 'Moves through the last online run of a test case: the values on each box, the first instant an expectation fails.' },
     { id: 'modelica', label: '$(export) Export Modelica', detail: 'Write the physical architecture as a Modelica package, beside the model.' },
+    { id: 'drawing', label: '$(symbol-structure) Open the Modelica drawing', detail: 'The scenarios and configurations drawn as OMEdit draws them; a part opens its own diagram.' },
     { id: 'export', label: '$(file-pdf) Export the report of the last run', detail: 'PDF or PowerPoint: one page per test case, with its verdict, values and curves.' },
     { id: 'docs', label: '$(book) Open the documentation', detail: 'How simulation works and how to write a test case.' },
   ];
@@ -176,6 +178,7 @@ async function menu(): Promise<void> {
   if (picked?.id === 'export') return exportReport();
   if (picked?.id === 'modelica') return exportModelica();
   if (picked?.id === 'replay') return replayLast();
+  if (picked?.id === 'drawing') return void vscode.commands.executeCommand('arclang.simulation.drawing');
   if (picked?.id === 'docs') return void vscode.env.openExternal(vscode.Uri.parse(DOCS_URL));
 }
 
@@ -188,7 +191,14 @@ export function registerSimulationWeb(context: vscode.ExtensionContext): void {
   register('export', async (arg?: unknown) => ((await online()) ? exportModelica(arg) : desktopOnly()));
   register('exportReport', async () => ((await online()) ? exportReport() : desktopOnly()));
   register('replay', async () => ((await online()) ? replayLast() : desktopOnly()));
-  for (const command of ['check', 'setup', 'drawing']) register(command, desktopOnly);
+  for (const command of ['check', 'setup']) register(command, desktopOnly);
+  // The Modelica drawing: OpenModelica online gives the instance, the view is the desktop's.
+  register('drawing', async (arg?: unknown) => {
+    if (!(await online())) return desktopOnly();
+    const uri = activeModel(arg);
+    if (!uri) return void vscode.window.showInformationMessage('ArcLang: open a .arc model with physics (a test case that simulates) to draw it.');
+    await openModelicaDrawing(context, uri.fsPath);
+  });
   register('docs', () => vscode.env.openExternal(vscode.Uri.parse(DOCS_URL)));
 
   // The ▶ of the editor's title bar, on a model that simulates, where simulation runs online.

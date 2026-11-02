@@ -301,6 +301,18 @@ pub enum Commands {
         /// SRRC; delta and S1 with SALib). The verdict stays the compiler's
         #[clap(long, value_name = "ENGINE")]
         statistics: Option<String>,
+
+        /// Do not simulate: list, as JSON, the Modelica classes of the model
+        /// worth drawing (each simulated case's model, each configuration's
+        /// system)
+        #[clap(long)]
+        drawings: bool,
+
+        /// Do not simulate: print OpenModelica's instance of this Modelica
+        /// class (getModelInstance: its components, icons, placements and
+        /// connections) as JSON, for VS Code to draw it
+        #[clap(long, value_name = "CLASS")]
+        drawing: Option<String>,
     },
 
     /// A document filled from a template: Markdown whose {{ ... }}
@@ -907,13 +919,23 @@ impl CliRunner {
                 }
                 self.run_export(input, output, format, no_placement, split)
             }
-            Commands::Verify { input, test, json, check_tools, replay, point, list, statistics } => {
+            Commands::Verify { input, test, json, check_tools, replay, point, list, statistics, drawings, drawing } => {
                 if check_tools {
                     return self.run_check_tools(json);
                 }
                 let input = input.ok_or_else(|| CliError::Config("give a model file to verify".into()))?;
                 if let Some(engine) = statistics {
                     return self.run_statistics(&input, test.as_deref(), &engine, json);
+                }
+                if drawings || drawing.is_some() {
+                    let result = crate::Compiler::new(crate::CompilerConfig::default()).compile_file(&input).map_err(|e| CliError::Compilation(e.to_string()))?;
+                    use crate::compiler::simulation::drawing;
+                    let text = match drawing {
+                        Some(class) => drawing::instance(&result, &input, &class, &crate::compiler::simulation::tool::ToolConfig::from_env()).map_err(CliError::Compilation)?,
+                        None => drawing::drawables_json(&result).map_err(CliError::Compilation)?.to_string(),
+                    };
+                    println!("{text}");
+                    return Ok(());
                 }
                 if list {
                     let result = crate::Compiler::new(crate::CompilerConfig::default()).compile_file(&input).map_err(|e| CliError::Compilation(e.to_string()))?;

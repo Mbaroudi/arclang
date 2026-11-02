@@ -35,6 +35,7 @@ import { checklistHtml } from '../pure/simulation-html';
 import { applyFix } from './fixes';
 import { MonteCarloPanel } from './montecarlo';
 import { replaySimulation } from './replay';
+import { openModelicaDrawing } from './modelica-view';
 import { desktopReplays, exportSimulationReport } from './report';
 
 const SKIP_DIRS = '**/{node_modules,.git,target,.arclang,dist,out}/**';
@@ -215,7 +216,7 @@ class Simulation implements vscode.Disposable {
       { id: 'check', label: '$(checklist) Check my setup', detail: 'What is installed, what is missing, and a button to fix each thing.' },
       { id: 'setup', label: '$(tools) Set up OpenModelica (guided)', detail: 'Step by step, from nothing to a first simulation.' },
       { id: 'export', label: '$(export) Export Modelica', detail: 'Write the physical architecture as a Modelica package.' },
-      { id: 'drawing', label: '$(symbol-structure) Open the Modelica drawing', detail: 'A .mo file as a diagram (needs the Modex extension).' },
+      { id: 'drawing', label: '$(symbol-structure) Open the Modelica drawing', detail: 'The scenarios and configurations drawn as OMEdit draws them; a part opens its own diagram.' },
       { id: 'docs', label: '$(book) Open the documentation', detail: 'How simulation works and how to write a test case.' },
     ];
     const picked = await vscode.window.showQuickPick(entries, { title: 'ArcLang: Simulation', placeHolder: state });
@@ -226,7 +227,7 @@ class Simulation implements vscode.Disposable {
       case 'check': return this.showSetup();
       case 'setup': return this.guidedSetup();
       case 'export': return this.exportModelica();
-      case 'drawing': return this.openDrawing();
+      case 'drawing': return void vscode.commands.executeCommand('arclang.simulation.drawing');
       case 'docs': return void vscode.env.openExternal(vscode.Uri.parse(DOCS_URL));
     }
   }
@@ -444,7 +445,7 @@ class Simulation implements vscode.Disposable {
       `ArcLang: Modelica package written to ${vscode.workspace.asRelativePath(written ?? target)}${systems.length ? `, ${systems.length} configuration${systems.length > 1 ? 's' : ''} to draw` : ''}.`,
       ...(systems.length ? ['Open the drawing'] : []),
     );
-    if (choice === 'Open the drawing') await this.drawSystem(systems);
+    if (choice === 'Open the drawing') await vscode.commands.executeCommand('arclang.simulation.drawing', vscode.Uri.file(file));
   }
 
   private async systemsUnder(packageDir: string): Promise<{ label: string; file: string }[]> {
@@ -526,7 +527,12 @@ export function registerSimulation(context: vscode.ExtensionContext): void {
   register('arclang.simulation.check', () => simulation.showSetup());
   register('arclang.simulation.setup', () => simulation.guidedSetup());
   register('arclang.simulation.export', (uri?: unknown) => simulation.exportModelica(uri));
-  register('arclang.simulation.drawing', () => simulation.openDrawing());
+  // The drawing of the scenarios and configurations, in VS Code (OpenModelica gives their instance; Modex is no longer needed).
+  register('arclang.simulation.drawing', async (uri?: unknown) => {
+    const file = uri instanceof vscode.Uri && uri.scheme === 'file' ? uri.fsPath : activeModelUri()?.fsPath;
+    if (!file) return void vscode.window.showInformationMessage('ArcLang: open a .arc model with physics (a test case that simulates) to draw it.');
+    await openModelicaDrawing(context, file, typeof uri === 'string' ? uri : undefined);
+  });
   register('arclang.simulation.docs', () => vscode.env.openExternal(vscode.Uri.parse(DOCS_URL)));
   simulation.start(context);
 }

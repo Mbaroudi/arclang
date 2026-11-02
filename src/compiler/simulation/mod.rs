@@ -20,6 +20,7 @@
 //! key no longer matches is stale, so inconclusive, as is a case never run.
 
 pub mod cache;
+pub mod drawing;
 pub mod expects;
 pub mod montecarlo;
 pub mod replay;

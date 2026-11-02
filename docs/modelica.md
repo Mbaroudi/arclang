@@ -83,11 +83,16 @@ for the menu (also *ArcLang: Simulation* in the command palette):
   (`--split`), and offers to open the drawing; an earlier single-file export
   written by ArcLang beside it is removed, since OpenModelica would see the
   package twice.
-- **Open the Modelica drawing** asks which configuration and opens
-  `<Package>/Systems/<Configuration>.mo` in Modex, the model that holds the
-  whole architecture (the package itself has nothing to draw). The first
-  time, it offers to add the export folder to `modex.libraryRoots` for the
-  workspace, so that Modex draws each part from its class.
+- **Open the Modelica drawing** asks which simulated scenario or which
+  configuration to draw and draws it in VS Code as OMEdit does: the parts
+  with the icons of their classes (the Standard Library's included), where
+  they are placed, the connectors on them and the connection lines. A part
+  opens its own class's diagram; the path at the top goes back; the wheel,
+  `+`, `-` and `0` zoom, a drag moves the drawing. OpenModelica gives the
+  drawing (`arclang verify model.arc --drawings` lists what there is to
+  draw, `--drawing CLASS` prints OpenModelica's instance of a class as
+  JSON); on arclang.fr, signed in, it runs online. No other extension is
+  needed.
 - **Open the documentation**.
 
 When you run simulations and nothing is available, the checklist opens
