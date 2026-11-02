@@ -7,6 +7,7 @@ import { randomBytes } from 'node:crypto';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as vscode from 'vscode';
+import { deliver } from '../download';
 import { run, tempDir, withTempFile, workspaceTrusted, UNTRUSTED_MESSAGE } from '../cli';
 import { History } from '../pure/history';
 import { FromTableView, parseTable, removalRequests, TableData, TableSpec, tableArgs, ToTableView, traceRequest } from '../pure/tables';
@@ -291,6 +292,7 @@ export class TablePanel implements vscode.Disposable {
       const result = await run([...args, '-o', out], { cwd: documentDir(this.document) });
       if (result.code !== 0 || !fs.existsSync(out)) return this.post({ type: 'result', ok: false, message: (result.stderr || result.stdout).trim() || 'the export failed' });
       await vscode.workspace.fs.writeFile(target, fs.readFileSync(out));
+      await deliver(target);
       this.post({ type: 'result', ok: true, message: `Exported ${path.basename(target.fsPath)}` });
       vscode.window.setStatusBarMessage(`ArcLang: exported ${target.fsPath}`, 5000);
     } finally {

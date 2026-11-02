@@ -6,6 +6,7 @@ import { deflateRawSync } from 'node:zlib';
 import * as vscode from 'vscode';
 import { run } from '../cli';
 import type { Outcome } from '../pure/simulation';
+import { deliver, reveal } from '../download';
 import { buildReport, buildReportPdf, buildReportPptx, type Replay } from '../pure/sim-report';
 
 /** The replay of a test case's last run, or null when none was kept. */
@@ -48,9 +49,10 @@ export async function exportSimulationReport(file: string, outcomes: Outcome[], 
       return format.ext === 'pdf' ? buildReportPdf(report) : buildReportPptx(report, (data) => new Uint8Array(deflateRawSync(data)));
     });
     await vscode.workspace.fs.writeFile(target, bytes);
+    await deliver(target, bytes);
     const open = await vscode.window.showInformationMessage(`ArcLang: the simulation report is written to ${path.basename(target.fsPath)}`, 'Open', 'Reveal');
     if (open === 'Open') await vscode.env.openExternal(target);
-    else if (open === 'Reveal') await vscode.commands.executeCommand('revealFileInOS', target);
+    else if (open === 'Reveal') await reveal(target);
   } catch (error) {
     void vscode.window.showErrorMessage(`ArcLang: the simulation report could not be written: ${error instanceof Error ? error.message : String(error)}`);
   }

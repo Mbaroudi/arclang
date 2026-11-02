@@ -41,6 +41,12 @@ function positionals(args: string[], withValue: string[]): string[] {
   return out;
 }
 
+/** An output: in the workspace when its path is there (the user chose it), else a temporary file of the extension. */
+async function writeOut(path: string, text: string): Promise<void> {
+  if (path === '/workspace' || path.startsWith('/workspace/')) await vscode.workspace.fs.writeFile(vscode.Uri.file(path), new TextEncoder().encode(text));
+  else vfs.write(path, text);
+}
+
 /** A temporary file of the extension, else a file of the workspace. */
 async function readModel(path: string | undefined): Promise<{ ok: true; text: string } | { ok: false; result: RunResult }> {
   if (!path) return { ok: false, result: failed('(no file)', 2) };
@@ -75,6 +81,8 @@ export function createWasmBackend(wasm: Wasm): Backend {
       const format = option(rest, '-f', '--format');
       return command === 'export' ? format === 'sys-ml' || format === 'sysml' : format === 'sysml';
     }
+    // The workbench of a revision reads the history: online.
+    if (command === 'workbench' && rest.some((a) => a === '--rev' || a.startsWith('--rev='))) return false;
     return SUPPORTED.has(command ?? '');
   }
 
@@ -116,7 +124,7 @@ export function createWasmBackend(wasm: Wasm): Backend {
           if (!model.ok) return model.result;
           const answer = JSON.parse(wasm.export_sysml(model.text)) as { success: boolean; text?: string; error?: string };
           if (!answer.success) return failed(answer.error ?? 'the model could not be exported');
-          if (out) vfs.write(out, answer.text ?? '');
+          if (out) await writeOut(out, answer.text ?? '');
           return done(out ? '' : (answer.text ?? ''));
         }
         case 'import': {
@@ -127,7 +135,7 @@ export function createWasmBackend(wasm: Wasm): Backend {
           if (!model.ok) return model.result;
           const answer = JSON.parse(wasm.import_sysml(model.text)) as { success: boolean; source?: string; error?: string; notes?: string[] };
           if (!answer.success) return failed(answer.error ?? 'the SysML v2 text could not be imported');
-          if (out) vfs.write(out, answer.source ?? '');
+          if (out) await writeOut(out, answer.source ?? '');
           return done((answer.notes ?? []).map((note) => `  note: ${note}\n`).join(''));
         }
         case 'transition': {

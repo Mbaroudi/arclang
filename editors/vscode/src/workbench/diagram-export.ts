@@ -5,6 +5,7 @@
 import * as path from 'node:path';
 import { deflateRawSync } from 'node:zlib';
 import * as vscode from 'vscode';
+import { deliver, reveal } from '../download';
 import { buildPptx, pngSize } from '../pure/pptx';
 import { buildPdf } from '../pure/pdf';
 import type { SlideData, SlideFormat } from '../pure/workbench';
@@ -177,13 +178,14 @@ export class DiagramExports implements vscode.Disposable {
         : await vscode.window.showSaveDialog({ defaultUri: folder ? vscode.Uri.joinPath(folder, name) : undefined, filters: { PDF: ['pdf'] }, saveLabel: 'Export' });
       if (!uri) return;
       await vscode.workspace.fs.writeFile(uri, pdf);
+      await deliver(uri, pdf);
       const written = `ArcLang: ${slides.length} page${slides.length > 1 ? 's' : ''} written to ${path.basename(uri.fsPath)}`;
       if (target) {
         vscode.window.setStatusBarMessage(written, 5000);
         return;
       }
       const open = await vscode.window.showInformationMessage(written, 'Reveal');
-      if (open === 'Reveal') await vscode.commands.executeCommand('revealFileInOS', uri);
+      if (open === 'Reveal') await reveal(uri);
     } catch (error) {
       void vscode.window.showErrorMessage(`ArcLang: the PDF file could not be written: ${error instanceof Error ? error.message : String(error)}`);
     } finally {
@@ -213,12 +215,13 @@ export class DiagramExports implements vscode.Disposable {
         : await vscode.window.showSaveDialog({ defaultUri: folder ? vscode.Uri.joinPath(folder, name) : undefined, filters: { 'PowerPoint presentation': ['pptx'] }, saveLabel: 'Export' });
       if (!uri) return;
       await vscode.workspace.fs.writeFile(uri, deck);
+      await deliver(uri, deck);
       if (target) {
         vscode.window.setStatusBarMessage(`ArcLang: ${slides.length} slide${slides.length > 1 ? 's' : ''} written to ${path.basename(uri.fsPath)}`, 5000);
         return;
       }
       const open = await vscode.window.showInformationMessage(`ArcLang: ${slides.length} slide${slides.length > 1 ? 's' : ''} written to ${path.basename(uri.fsPath)}`, 'Reveal');
-      if (open === 'Reveal') await vscode.commands.executeCommand('revealFileInOS', uri);
+      if (open === 'Reveal') await reveal(uri);
     } catch (error) {
       void vscode.window.showErrorMessage(`ArcLang: the PowerPoint file could not be written: ${error instanceof Error ? error.message : String(error)}`);
     } finally {

@@ -6,6 +6,7 @@
 // untrusted workspace or in the browser build.
 import * as path from 'node:path';
 import * as vscode from 'vscode';
+import { findFiles } from '../files';
 import { UNTRUSTED_MESSAGE, currentBackend, failureText, report, run, workspaceTrusted } from '../cli';
 import {
   Checklist,
@@ -121,7 +122,7 @@ class Simulation implements vscode.Disposable {
     this.simulating.clear();
     this.modelica.clear();
     if (this.available()) {
-      const files = await vscode.workspace.findFiles('**/*.{arc,mo}', SKIP_DIRS, MAX_FILES);
+      const files = await findFiles('**/*.{arc,mo}', SKIP_DIRS, MAX_FILES);
       await Promise.all(files.map((uri) => this.scanFile(uri, false)));
     }
     this.render();
@@ -448,7 +449,7 @@ class Simulation implements vscode.Disposable {
 
   private async systemsUnder(packageDir: string): Promise<{ label: string; file: string }[]> {
     const pattern = new vscode.RelativePattern(vscode.Uri.file(packageDir), 'Systems/*.mo');
-    const found = (await vscode.workspace.findFiles(pattern, null, 100)).map((u) => u.fsPath);
+    const found = (await findFiles(pattern, null, 100)).map((u) => u.fsPath);
     for (const f of found) this.modelica.add(f);
     return systemDrawings(found);
   }

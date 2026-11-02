@@ -6,6 +6,7 @@
 // never drawn. `arclang.diagram.theme` names the one in use.
 import * as path from 'node:path';
 import * as vscode from 'vscode';
+import { deliver } from '../download';
 import type { ThemeEntry, ThemeSource } from '../pure/workbench';
 
 interface Verdict {
@@ -175,6 +176,7 @@ export class ThemeStore implements vscode.Disposable {
     const target = await vscode.window.showSaveDialog({ defaultUri: folder ? vscode.Uri.joinPath(folder, `${id}.arclang-theme.json`) : undefined, filters: { 'ArcLang theme': ['json'] }, saveLabel: 'Export theme' });
     if (!target) return null;
     await vscode.workspace.fs.writeFile(target, Buffer.from(`${JSON.stringify(theme, null, 2)}\n`, 'utf8'));
+    await deliver(target);
     return target;
   }
 }

@@ -8,6 +8,7 @@
 import * as path from 'node:path';
 import * as vscode from 'vscode';
 import { failureText, run } from '../cli';
+import { deliver } from '../download';
 import { leftText, pickFiles, walkable, ONLINE_LIMITS } from '../pure/sim-online';
 import { buildReport, buildReportPdf, type Replay } from '../pure/sim-report';
 import { DOCS_URL, Outcome, countOutcomes, outcomesLog, parseOutcomes, simulates, summaryText } from '../pure/simulation';
@@ -135,7 +136,9 @@ async function exportReport(): Promise<void> {
   const target = vscode.Uri.joinPath(last.uri, '..', `${base}-simulation.pdf`);
   try {
     const report = buildReport(base, last.outcomes, last.replays, new Date());
-    await vscode.workspace.fs.writeFile(target, buildReportPdf(report));
+    const pdf = buildReportPdf(report);
+    await vscode.workspace.fs.writeFile(target, pdf);
+    await deliver(target, pdf);
     void vscode.window.showInformationMessage(`ArcLang: the simulation report is written to ${path.posix.basename(target.path)}, beside the model.`);
   } catch (error) {
     void vscode.window.showErrorMessage(`ArcLang: the simulation report could not be written: ${error instanceof Error ? error.message : String(error)}`);
@@ -190,6 +193,8 @@ export function registerSimulationWeb(context: vscode.ExtensionContext): void {
   register('run', async (arg?: unknown) => ((await online()) ? runOnline(arg, false) : desktopOnly()));
   register('montecarlo', async (arg?: unknown) => ((await online()) ? runOnline(arg, true) : desktopOnly()));
   register('export', async (arg?: unknown) => ((await online()) ? exportModelica(arg) : desktopOnly()));
+  register('exportReport', async () => ((await online()) ? exportReport() : desktopOnly()));
+  register('replay', async () => ((await online()) ? replayLast() : desktopOnly()));
   for (const command of ['check', 'setup', 'drawing']) register(command, desktopOnly);
   register('docs', () => vscode.env.openExternal(vscode.Uri.parse(DOCS_URL)));
 

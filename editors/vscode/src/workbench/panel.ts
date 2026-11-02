@@ -8,6 +8,7 @@
 import { randomBytes } from 'node:crypto';
 import * as path from 'node:path';
 import * as vscode from 'vscode';
+import { deliver, reveal } from '../download';
 import { CanvasCommand, EditRequest, ElementRecord, FromWebview, isLayoutFile, layoutPathOf, reorganizeOf, Snapshot, ToWebview } from '../pure/workbench';
 import { looksLikeArcLang, selectionSource } from '../pure/clipboard';
 import { CanvasHistory } from './canvas-history';
@@ -558,9 +559,10 @@ export class WorkbenchPanel {
     const target = await vscode.window.showSaveDialog({ defaultUri: folder ? vscode.Uri.joinPath(folder, safe) : undefined, filters, saveLabel: 'Save' });
     if (!target) return;
     await vscode.workspace.fs.writeFile(target, Buffer.from(base64, 'base64'));
+    await deliver(target);
     const open = await vscode.window.showInformationMessage(`ArcLang: saved ${path.basename(target.fsPath)}`, 'Open', 'Reveal');
     if (open === 'Open') await vscode.commands.executeCommand('vscode.open', target);
-    if (open === 'Reveal') await vscode.commands.executeCommand('revealFileInOS', target);
+    if (open === 'Reveal') await reveal(target);
   }
 
   private async element(id: string): Promise<ElementRecord | null> {
