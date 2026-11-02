@@ -894,6 +894,25 @@
         "title": "Fire an event",
         "category": "ArcLang",
         "icon": "$(zap)"
+      },
+      {
+        "command": "arclang.view.fullScreen",
+        "title": "Full screen",
+        "category": "ArcLang",
+        "icon": "$(screen-full)",
+        "enablement": "!arclang.fullScreen"
+      },
+      {
+        "command": "arclang.view.exitFullScreen",
+        "title": "Exit full screen",
+        "category": "ArcLang",
+        "icon": "$(screen-normal)",
+        "enablement": "arclang.fullScreen"
+      },
+      {
+        "command": "arclang.view.toggleFullScreen",
+        "title": "Toggle full screen",
+        "category": "ArcLang"
       }
     ],
     "menus": {
@@ -949,6 +968,16 @@
           "command": "arclang.simulation.run",
           "when": "resourceLangId == arclang && arclang.simulatesHere",
           "group": "navigation@3"
+        },
+        {
+          "command": "arclang.view.fullScreen",
+          "when": "!arclang.fullScreen && (resourceLangId == arclang || resourceLangId == sysml || resourceLangId == modelica || activeCustomEditorId == arclang.pdf || activeCustomEditorId == arclang.workbench || activeWebviewPanelId == arclang.table || activeWebviewPanelId == arclang.impact || activeWebviewPanelId == arclang.workbench.diagram || activeWebviewPanelId == arclang.monteCarlo || activeWebviewPanelId == arclang.importReport || activeWebviewPanelId == arclang.simulationSetup || activeWebviewPanelId == arclangDiagrams)",
+          "group": "navigation@99"
+        },
+        {
+          "command": "arclang.view.exitFullScreen",
+          "when": "arclang.fullScreen && (resourceLangId == arclang || resourceLangId == sysml || resourceLangId == modelica || activeCustomEditorId == arclang.pdf || activeCustomEditorId == arclang.workbench || activeWebviewPanelId == arclang.table || activeWebviewPanelId == arclang.impact || activeWebviewPanelId == arclang.workbench.diagram || activeWebviewPanelId == arclang.monteCarlo || activeWebviewPanelId == arclang.importReport || activeWebviewPanelId == arclang.simulationSetup || activeWebviewPanelId == arclangDiagrams)",
+          "group": "navigation@99"
         }
       ],
       "editor/context": [
@@ -2873,6 +2902,17 @@
         "key": "ctrl+shift+a",
         "mac": "cmd+shift+a",
         "when": "activeWebviewPanelId == 'arclang.workbench.diagram' && focusedView == '' && !inputFocus && !arclang.workbenchTyping"
+      },
+      {
+        "command": "arclang.view.toggleFullScreen",
+        "key": "ctrl+alt+enter",
+        "mac": "cmd+alt+enter",
+        "when": "!findWidgetVisible && !inQuickOpen"
+      },
+      {
+        "command": "arclang.view.exitFullScreen",
+        "key": "escape",
+        "when": "arclang.fullScreen && activeCustomEditorId != arclang.workbench && !editorHasSelection && !editorHasMultipleSelections && !suggestWidgetVisible && !findWidgetVisible && !inSnippetMode && !parameterHintsVisible && !inQuickOpen && !notificationToastsVisible"
       }
     ],
     "breakpoints": [
