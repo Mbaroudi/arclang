@@ -16,6 +16,8 @@ export interface OnlineRun {
   replays: Record<string, Record<string, unknown>>;
   /** By test case, then by engine (r, python). */
   statistics: Record<string, Record<string, OnlineStatistics>>;
+  /** The verdicts kept by the run (`.arclang/sim-cache/<case>.json` on the desktop): sent with the compiler online's commands. */
+  cache?: Record<string, string>;
 }
 
 const runs = new Map<string, OnlineRun>();

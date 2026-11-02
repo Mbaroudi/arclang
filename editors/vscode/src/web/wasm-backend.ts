@@ -10,6 +10,8 @@ import type { Wasm } from './wasm';
 export const NOT_AVAILABLE = (what: string): string =>
   `${what} is not available in the browser yet: the web playground runs the compiler in WebAssembly, which carries the model, edits, checks, SysML v2 and the viewer for now. Use the desktop extension for this command.`;
 
+import { runRemote, runsRemotely } from './remote';
+
 const done = (stdout: string, code = 0): RunResult => ({ code, stdout, stderr: '' });
 const failed = (stderr: string, code = 1): RunResult => ({ code, stdout: '', stderr });
 
@@ -56,6 +58,8 @@ const SUPPORTED = new Set(['--version', 'workbench', 'check', 'edit', 'format', 
 export function createWasmBackend(wasm: Wasm): Backend {
   function unavailable(args: string[]): string | null {
     const [command, ...rest] = args;
+    // Online (arclang.fr, signed in), the server runs what this build does not.
+    if (runsRemotely(command) && !local(args)) return null;
     if (command === 'export' || command === 'import') {
       const format = option(rest, '-f', '--format');
       const known = command === 'export' ? format === 'sys-ml' || format === 'sysml' : format === 'sysml';
@@ -64,8 +68,19 @@ export function createWasmBackend(wasm: Wasm): Backend {
     return SUPPORTED.has(command ?? '') ? null : NOT_AVAILABLE(`'arclang ${command ?? ''}'`);
   }
 
-  async function run(args: string[], _options: RunOptions): Promise<RunResult> {
+  /** Whether this build answers the command itself. */
+  function local(args: string[]): boolean {
     const [command, ...rest] = args;
+    if (command === 'export' || command === 'import') {
+      const format = option(rest, '-f', '--format');
+      return command === 'export' ? format === 'sys-ml' || format === 'sysml' : format === 'sysml';
+    }
+    return SUPPORTED.has(command ?? '');
+  }
+
+  async function run(args: string[], options: RunOptions): Promise<RunResult> {
+    const [command, ...rest] = args;
+    if (!local(args) && runsRemotely(command)) return runRemote(args, options);
     try {
       switch (command) {
         case '--version':
