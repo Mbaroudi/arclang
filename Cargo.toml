@@ -21,6 +21,7 @@ native = [
     "dep:reqwest",
     "dep:toml", "dep:bincode",
     "dep:rayon", "dep:rand", "dep:config", "dep:indicatif",
+    "dep:parquet", "dep:rumqttc",
 ]
 
 [[bin]]
@@ -64,6 +65,9 @@ statrs = { version = "0.18", default-features = false }
 rand_chacha = "0.3"
 config = { version = "0.13", optional = true }
 indicatif = { version = "0.17", optional = true }
+# Digital twins: measurements in Parquet; live data over MQTT.
+parquet = { version = "60", default-features = false, features = ["snap", "zstd", "lz4"], optional = true }
+rumqttc = { version = "0.25", optional = true }
 
 [dev-dependencies]
 criterion = { version = "0.5", features = ["html_reports"] }

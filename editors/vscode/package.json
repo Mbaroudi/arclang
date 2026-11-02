@@ -919,6 +919,12 @@
         "title": "Run the digital twins (the physics driven by measured data)",
         "category": "ArcLang",
         "icon": "$(pulse)"
+      },
+      {
+        "command": "arclang.twin.watch",
+        "title": "Watch a digital twin live (MQTT)",
+        "category": "ArcLang",
+        "icon": "$(broadcast)"
       }
     ],
     "menus": {

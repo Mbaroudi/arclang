@@ -36,7 +36,7 @@ import { applyFix } from './fixes';
 import { MonteCarloPanel } from './montecarlo';
 import { replaySimulation } from './replay';
 import { openModelicaDrawing } from './modelica-view';
-import { runTwins } from './twin-view';
+import { runTwins, stopWatchingTwins, watchTwin } from './twin-view';
 import { desktopReplays, exportSimulationReport } from './report';
 
 const SKIP_DIRS = '**/{node_modules,.git,target,.arclang,dist,out}/**';
@@ -523,6 +523,8 @@ export function registerSimulation(context: vscode.ExtensionContext): void {
   register('arclang.simulation.menu', () => simulation.menu());
   // Digital twins: the physics driven by measured data, compared to it.
   register('arclang.twin.run', (uri?: unknown) => runTwins(context, uri, () => simulationEnv(settings())));
+  register('arclang.twin.watch', (uri?: unknown) => watchTwin(context, uri, () => simulationEnv(settings())));
+  context.subscriptions.push({ dispose: stopWatchingTwins });
   register('arclang.simulation.run', (uri?: unknown) => simulation.runSimulations(uri));
   register('arclang.simulation.montecarlo', (uri?: unknown) => simulation.runSimulations(uri, true));
   register('arclang.simulation.exportReport', (uri?: unknown) => simulation.exportReport(uri));

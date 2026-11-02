@@ -201,7 +201,7 @@ export function registerSimulationWeb(context: vscode.ExtensionContext): void {
   });
   register('docs', () => vscode.env.openExternal(vscode.Uri.parse(DOCS_URL)));
   // Digital twins run on the desktop for now (the measured data stays on the engineer's machine).
-  context.subscriptions.push(vscode.commands.registerCommand('arclang.twin.run', () => vscode.window.showInformationMessage('ArcLang: digital twins run in the desktop extension for now: arclang twin model.arc, or ArcLang: Run the digital twins in VS Code with OpenModelica installed.')));
+  for (const command of ['arclang.twin.run', 'arclang.twin.watch']) context.subscriptions.push(vscode.commands.registerCommand(command, () => vscode.window.showInformationMessage('ArcLang: digital twins run in the desktop extension for now: arclang twin model.arc, or ArcLang: Run the digital twins in VS Code with OpenModelica installed.')));
 
   // The ▶ of the editor's title bar, on a model that simulates, where simulation runs online.
   // Asked again until the page has registered its command (once the account is known).

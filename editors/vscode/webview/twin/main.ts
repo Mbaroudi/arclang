@@ -8,7 +8,7 @@ declare function acquireVsCodeApi(): { postMessage(message: unknown): void };
 const vscode = acquireVsCodeApi();
 
 type Shown = TwinOutcome;
-type FromHost = { type: 'twins'; model: string; twins: Shown[] } | { type: 'busy'; text: string };
+type FromHost = { type: 'twins'; model: string; twins: Shown[] } | { type: 'busy'; text: string } | { type: 'live'; running: boolean; status: string; detail: string };
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const status = $<HTMLElement>('status');
@@ -35,8 +35,10 @@ function twinCard(t: Shown): HTMLElement {
   card.append(head);
   const meta = el('p', 'meta');
   if (t.data) {
-    const open = el('button', 'link', t.data);
-    open.addEventListener('click', () => vscode.postMessage({ type: 'data', file: t.data }));
+    // A file opens; a live stream (mqtt://…) is only named.
+    const live = t.data.includes('://');
+    const open = el(live ? 'span' : 'button', live ? 'source' : 'link', t.data);
+    if (!live) open.addEventListener('click', () => vscode.postMessage({ type: 'data', file: t.data }));
     meta.append(open, document.createTextNode(` · ${t.samples} samples over ${duration(t.duration)}${t.data_start ? ` from ${t.data_start}` : ''}`));
   }
   if (t.verifies.length) meta.append(document.createTextNode(` · verifies ${t.verifies.join(', ')}`));
@@ -95,12 +97,22 @@ new ResizeObserver(() => drawCharts()).observe(document.body);
 
 window.addEventListener('message', (event: MessageEvent<FromHost>) => {
   const message = event.data;
+  if (message.type === 'live') {
+    const banner = $<HTMLElement>('live');
+    banner.hidden = false;
+    banner.className = `live ${message.running ? message.status : 'stopped'}`;
+    $<HTMLElement>('live-text').textContent = message.detail;
+    $<HTMLButtonElement>('stop').hidden = !message.running;
+    $<HTMLButtonElement>('rerun').hidden = message.running;
+    return;
+  }
   if (message.type === 'busy') {
     status.textContent = message.text;
     status.hidden = false;
     return;
   }
   status.hidden = true;
+  if (message.twins.length === 0) return;
   $('title').textContent = `Digital twins · ${message.model}`;
   charts = [];
   $('twins').replaceChildren(...message.twins.map(twinCard));
@@ -108,4 +120,5 @@ window.addEventListener('message', (event: MessageEvent<FromHost>) => {
 });
 $('rerun').addEventListener('click', () => vscode.postMessage({ type: 'rerun' }));
 $('log').addEventListener('click', () => vscode.postMessage({ type: 'log' }));
+$('stop').addEventListener('click', () => vscode.postMessage({ type: 'stop' }));
 vscode.postMessage({ type: 'ready' });

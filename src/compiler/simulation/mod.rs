@@ -30,6 +30,8 @@ pub mod statistics;
 pub mod sweep;
 pub mod tool;
 pub mod twin;
+#[cfg(feature = "native")]
+pub mod twin_live;
 
 use crate::compiler::ast::{AttributeValue, Model, TestCase};
 use crate::compiler::quantity::Dimension;
@@ -267,7 +269,7 @@ fn is_class_name(text: &str) -> bool {
     !text.is_empty() && text.split('.').all(|part| part.chars().next().is_some_and(|c| c.is_ascii_alphabetic() || c == '_') && part.chars().all(|c| c.is_ascii_alphanumeric() || c == '_'))
 }
 
-fn seconds(map: &HashMap<String, AttributeValue>, key: &str) -> Result<Option<f64>, String> {
+pub(crate) fn seconds(map: &HashMap<String, AttributeValue>, key: &str) -> Result<Option<f64>, String> {
     let Some(value) = map.get(key) else { return Ok(None) };
     match value.as_quantity() {
         Some(Ok(q)) if q.dimension() == Dimension::Time => Ok(Some(q.canonical())),

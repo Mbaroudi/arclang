@@ -33,7 +33,7 @@ use std::collections::{BTreeMap, HashMap};
 use std::path::{Path, PathBuf};
 
 const SIMULATE_KEYS: [&str; 4] = ["model", "configuration", "sources", "tolerance"];
-const DATA_KEYS: [&str; 4] = ["file", "time", "time_unit", "delimiter"];
+const DATA_KEYS: [&str; 10] = ["file", "time", "time_unit", "delimiter", "mqtt", "topics", "window", "refresh", "record", "client_id"];
 const KEYS: [&str; 9] = ["id", "description", "verifies", "simulate", "data", "drives", "compares", "expects", "notes"];
 /// Points of each curve kept for the view (the deviations are computed on every sample).
 const PLOT_POINTS: usize = 600;
@@ -61,9 +61,26 @@ pub struct Compare {
     pub share: f64,
 }
 
+/// Live measurements: an MQTT broker, the topics, how much of the latest data
+/// the model replays (`window`) and how often (`refresh`); `record` keeps
+/// everything received as a CSV the twin replays later.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Live {
+    pub url: String,
+    pub topics: Vec<String>,
+    /// Seconds.
+    pub window: f64,
+    /// Seconds.
+    pub refresh: f64,
+    pub record: Option<String>,
+    pub client_id: Option<String>,
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct Data {
+    /// The measurements: a file, or for a live twin its `record` (empty when it keeps none).
     pub file: String,
+    pub live: Option<Live>,
     /// The column of the instants: numbers (in `time_unit`, seconds by default) or ISO 8601 date-times.
     pub time: String,
     pub time_unit: &'static UnitSpec,
@@ -189,17 +206,60 @@ pub fn spec_of(attributes: &HashMap<String, AttributeValue>) -> Result<Spec, Str
     };
     let configuration = simulate.get("configuration").and_then(|v| v.as_string()).map(str::to_string);
 
-    let data = block(attributes, "data", &DATA_KEYS, "{ file: \"data/measured.csv\" time: \"time\" }")?;
-    let file = data.get("file").and_then(|v| v.as_string()).ok_or("data: file is required (the measurements, CSV)")?.to_string();
-    let lower = file.to_ascii_lowercase();
-    if lower.ends_with(".parquet") {
-        return Err("data: Parquet files are not read yet: export the measurements to CSV for now".to_string());
-    }
-    if !(lower.ends_with(".csv") || lower.ends_with(".tsv") || lower.ends_with(".txt")) {
-        return Err(format!("data: '{file}' is not a CSV file (.csv, .tsv)"));
-    }
-    if Path::new(&file).is_absolute() || file.split(['/', '\\']).any(|p| p == "..") {
-        return Err(format!("data: '{file}' must be a path inside the model's folder"));
+    let data = block(attributes, "data", &DATA_KEYS, "{ file: \"data/measured.csv\" time: \"time\" } or { mqtt: \"mqtt://broker:1883\" topics: [\"site/#\"] }")?;
+    let text = |key: &str| data.get(key).and_then(|v| v.as_string()).map(str::to_string);
+    let inside = |file: &str| -> Result<(), String> {
+        if Path::new(file).is_absolute() || file.split(['/', '\\']).any(|p| p == "..") {
+            return Err(format!("data: '{file}' must be a path inside the model's folder"));
+        }
+        Ok(())
+    };
+    let live = match (text("file"), text("mqtt")) {
+        (Some(_), Some(_)) => return Err("data: a file or an mqtt broker, not both".to_string()),
+        (None, None) => return Err("data: file (the measurements, CSV or Parquet) or mqtt (a broker, for live data) is required".to_string()),
+        (Some(_), None) => {
+            if let Some(key) = ["topics", "window", "refresh", "record", "client_id"].iter().find(|k| data.contains_key(**k)) {
+                return Err(format!("data: '{key}' is for live data (mqtt: ...), not for a file"));
+            }
+            None
+        }
+        (None, Some(url)) => {
+            let scheme = url.split("://").next().unwrap_or("");
+            if !(scheme == "mqtt" || scheme == "mqtts") || !url.contains("://") {
+                return Err(format!("data: mqtt '{url}' is not mqtt://host[:port] or mqtts://host[:port]"));
+            }
+            if url.contains('@') {
+                return Err("data: the broker's credentials are not written in the model: set ARCLANG_MQTT_USERNAME and ARCLANG_MQTT_PASSWORD".to_string());
+            }
+            let topics = strings(data, "topics").map_err(|e| format!("data: {e}"))?;
+            if topics.is_empty() {
+                return Err("data: topics, what to subscribe to: topics: [\"site/042/#\"]".to_string());
+            }
+            let window = super::seconds(data, "window").map_err(|e| format!("data: {e}"))?.unwrap_or(3600.0);
+            let refresh = super::seconds(data, "refresh").map_err(|e| format!("data: {e}"))?.unwrap_or(60.0);
+            if window <= 0.0 || refresh < 1.0 {
+                return Err("data: window is positive and refresh at least 1 s".to_string());
+            }
+            let record = text("record");
+            if let Some(record) = &record {
+                inside(record)?;
+                if !record.to_ascii_lowercase().ends_with(".csv") {
+                    return Err(format!("data: record '{record}' is a CSV file (.csv)"));
+                }
+            }
+            Some(Live { url, topics, window, refresh, record, client_id: text("client_id") })
+        }
+    };
+    let file = match &live {
+        Some(live) => live.record.clone().unwrap_or_default(),
+        None => text("file").unwrap_or_default(),
+    };
+    if live.is_none() {
+        let lower = file.to_ascii_lowercase();
+        if !(lower.ends_with(".csv") || lower.ends_with(".tsv") || lower.ends_with(".txt") || lower.ends_with(".parquet")) {
+            return Err(format!("data: '{file}' is neither a CSV file (.csv, .tsv) nor a Parquet file (.parquet)"));
+        }
+        inside(&file)?;
     }
     let time = data.get("time").and_then(|v| v.as_string()).unwrap_or("time").to_string();
     let time_unit = unit_of(data.get("time_unit").and_then(|v| v.as_string()).unwrap_or("s"), "data: time_unit")?;
@@ -229,7 +289,7 @@ pub fn spec_of(attributes: &HashMap<String, AttributeValue>) -> Result<Spec, Str
     if let Some(twice) = drives.iter().find(|d| !seen.insert(d.target.clone())) {
         return Err(format!("drives: '{}' is driven twice", twice.target));
     }
-    Ok(Spec { model, configuration, sources, tolerance, data: Data { file, time, time_unit, delimiter }, drives, compares, expects })
+    Ok(Spec { model, configuration, sources, tolerance, data: Data { file, live, time, time_unit, delimiter }, drives, compares, expects })
 }
 
 pub fn validate(attributes: &HashMap<String, AttributeValue>) -> Result<(), String> {
@@ -332,6 +392,114 @@ pub fn read_measurements(text: &str, data: &Data) -> Result<Measurements, String
     let times: Vec<f64> = times.iter().map(|t| t - first).collect();
     let columns = names.into_iter().zip(cells).enumerate().filter(|(i, _)| *i != time_column).map(|(_, (n, c))| (n, c)).collect();
     Ok(Measurements { times, columns, start })
+}
+
+/// A window as people read it: 45 s, 15 min, 6 h, 2 d.
+pub fn window_text(seconds: f64) -> String {
+    if seconds < 120.0 {
+        format!("{seconds:.0} s")
+    } else if seconds < 7200.0 {
+        format!("{:.0} min", seconds / 60.0)
+    } else if seconds < 172_800.0 {
+        format!("{} h", ((seconds / 3600.0) * 10.0).round() / 10.0)
+    } else {
+        format!("{} d", ((seconds / 86400.0) * 10.0).round() / 10.0)
+    }
+}
+
+/// The measurements of a file: Parquet by its extension, CSV otherwise.
+pub fn load_measurements(path: &Path, data: &Data) -> Result<Measurements, String> {
+    if data.file.to_ascii_lowercase().ends_with(".parquet") {
+        return read_parquet(path, data);
+    }
+    let text = std::fs::read_to_string(path).map_err(|e| format!("cannot be read: {e}"))?;
+    read_measurements(&text, data)
+}
+
+/// A Parquet file of measurements: a row per instant, the time column a
+/// timestamp, a number (in `time_unit`) or an ISO 8601 text; the other
+/// columns numbers (null where there is no value).
+#[cfg(feature = "native")]
+pub fn read_parquet(path: &Path, data: &Data) -> Result<Measurements, String> {
+    use parquet::file::reader::{FileReader, SerializedFileReader};
+    use parquet::record::Field;
+    let file = std::fs::File::open(path).map_err(|e| format!("cannot be read: {e}"))?;
+    let reader = SerializedFileReader::new(file).map_err(|e| format!("is not a Parquet file: {e}"))?;
+    let schema = reader.metadata().file_metadata().schema_descr();
+    let names: Vec<String> = schema.columns().iter().map(|c| c.name().to_string()).collect();
+    if !names.iter().any(|n| n == &data.time) {
+        return Err(format!("the data has no time column '{}' (its columns: {})", data.time, names.join(", ")));
+    }
+    // A timestamp in nanoseconds (pandas' default) reaches the rows as a bare integer: its unit is in the schema.
+    let nanoseconds = schema.columns().iter().find(|c| c.name() == data.time).and_then(|c| c.logical_type_ref()).is_some_and(|t| {
+        matches!(t, parquet::basic::LogicalType::Timestamp(t) if matches!(t.unit, parquet::basic::TimeUnit::NANOS))
+    });
+    let number = |field: &Field| -> Option<f64> {
+        match field {
+            Field::Double(v) => Some(*v),
+            Field::Float(v) => Some(f64::from(*v)),
+            Field::Long(v) => Some(*v as f64),
+            Field::Int(v) => Some(f64::from(*v)),
+            Field::Short(v) => Some(f64::from(*v)),
+            Field::Byte(v) => Some(f64::from(*v)),
+            Field::ULong(v) => Some(*v as f64),
+            Field::UInt(v) => Some(f64::from(*v)),
+            Field::UShort(v) => Some(f64::from(*v)),
+            Field::UByte(v) => Some(f64::from(*v)),
+            Field::Bool(v) => Some(if *v { 1.0 } else { 0.0 }),
+            _ => None,
+        }
+        .filter(|v| v.is_finite())
+    };
+    let mut times = Vec::new();
+    let mut columns: BTreeMap<String, Vec<Option<f64>>> = names.iter().filter(|n| *n != &data.time).map(|n| (n.clone(), Vec::new())).collect();
+    let mut start = String::new();
+    let rows = reader.get_row_iter(None).map_err(|e| format!("cannot be read: {e}"))?;
+    for (number_of_row, row) in rows.enumerate() {
+        let row = row.map_err(|e| format!("row {}: {e}", number_of_row + 1))?;
+        let mut time = None;
+        let mut values: BTreeMap<&str, Option<f64>> = BTreeMap::new();
+        for (name, field) in row.get_column_iter() {
+            if name == &data.time {
+                let (seconds, shown) = match field {
+                    Field::TimestampMillis(ms) => (Some(*ms as f64 / 1e3), ms.to_string()),
+                    Field::TimestampMicros(us) => (Some(*us as f64 / 1e6), us.to_string()),
+                    Field::Long(ns) if nanoseconds => (Some(*ns as f64 / 1e9), ns.to_string()),
+                    Field::Str(text) => (instant(text, data.time_unit), text.clone()),
+                    other => (number(other).map(|v| data.time_unit.to_canonical(v)), other.to_string()),
+                };
+                let seconds = seconds.ok_or_else(|| format!("row {}: the time '{shown}' is not an instant", number_of_row + 1))?;
+                if start.is_empty() {
+                    start = match field {
+                        Field::TimestampMillis(_) | Field::TimestampMicros(_) => chrono::DateTime::from_timestamp_millis((seconds * 1e3) as i64).map(|t| t.to_rfc3339()).unwrap_or(shown),
+                        Field::Long(_) if nanoseconds => chrono::DateTime::from_timestamp_millis((seconds * 1e3) as i64).map(|t| t.to_rfc3339()).unwrap_or(shown),
+                        _ => shown,
+                    };
+                }
+                time = Some(seconds);
+            } else {
+                values.insert(name.as_str(), number(field));
+            }
+        }
+        let Some(time) = time else { continue };
+        times.push(time);
+        for (name, column) in columns.iter_mut() {
+            column.push(values.get(name.as_str()).copied().flatten());
+        }
+    }
+    if times.len() < 2 {
+        return Err("the data has fewer than two samples".to_string());
+    }
+    if times.windows(2).any(|w| w[1] < w[0]) {
+        return Err("the instants of the data go back in time: sort the file by its time column".to_string());
+    }
+    let first = times[0];
+    Ok(Measurements { times: times.iter().map(|t| t - first).collect(), columns, start })
+}
+
+#[cfg(not(feature = "native"))]
+pub fn read_parquet(_path: &Path, _data: &Data) -> Result<Measurements, String> {
+    Err("Parquet files are read by the arclang binary, not by this build".to_string())
 }
 
 /// A measured column in SI at each instant, empty cells left out.
@@ -548,14 +716,31 @@ pub fn run(result: &CompilationResult, model_path: &Path, twin: &Twin, config: &
     };
     let base = super::cache::model_dir(model_path);
     outcome.data = spec.data.file.clone();
-    let text = match std::fs::read_to_string(base.join(&spec.data.file)) {
-        Ok(text) => text,
-        Err(error) => return finish(Outcome { verdict: "error".to_string(), ..outcome }, format!("the data '{}' cannot be read: {error}", spec.data.file)),
-    };
-    let measurements = match read_measurements(&text, &spec.data) {
+    // A live twin replays what it recorded; arclang twin --live follows the broker.
+    if let Some(live) = &spec.data.live {
+        if spec.data.file.is_empty() || !base.join(&spec.data.file).exists() {
+            let why = if spec.data.file.is_empty() { "it records nothing (record: \"data/live.csv\")".to_string() } else { format!("{} is not recorded yet", spec.data.file) };
+            return finish(outcome, format!("this twin reads live data from {}: run arclang twin --live; {why}", live.url));
+        }
+    }
+    let measurements = match load_measurements(&base.join(&spec.data.file), &spec.data) {
         Ok(m) => m,
         Err(error) => return finish(Outcome { verdict: "error".to_string(), ..outcome }, format!("{}: {error}", spec.data.file)),
     };
+    let label = spec.data.file.clone();
+    run_on(result, model_path, twin, &spec, measurements, &label, config, started)
+}
+
+/// A twin on measurements already read (a file, or the window of a live stream).
+#[allow(clippy::too_many_arguments)]
+pub fn run_on(result: &CompilationResult, model_path: &Path, twin: &Twin, spec: &Spec, measurements: Measurements, label: &str, config: &ToolConfig, started: std::time::Instant) -> Outcome {
+    let mut outcome = Outcome { twin: twin.id.clone(), name: twin.name.clone(), verifies: twin.verifies.clone(), verdict: "inconclusive".to_string(), data: label.to_string(), ..Outcome::default() };
+    let finish = |mut outcome: Outcome, reason: String| {
+        outcome.reason = reason;
+        outcome.seconds = started.elapsed().as_secs_f64();
+        outcome
+    };
+    let base = super::cache::model_dir(model_path);
     outcome.samples = measurements.times.len();
     outcome.duration = *measurements.times.last().unwrap_or(&0.0);
     outcome.data_start = measurements.start.clone();
@@ -729,7 +914,8 @@ mod tests {
     fn a_twin_says_what_is_wrong() {
         let without = |key: &str| TWIN.lines().filter(|l| !l.trim_start().starts_with(key)).collect::<Vec<_>>().join("\n");
         assert!(refused(&without("drives")).contains("drives"));
-        assert!(refused(&TWIN.replace("room.csv", "room.parquet")).contains("Parquet"));
+        assert!(refused(&TWIN.replace("room.csv", "room.xlsx")).contains("Parquet file"));
+        assert_eq!(refused(&TWIN.replace("room.csv", "room.parquet")), "");
         assert!(refused(&TWIN.replace("data/room.csv", "../room.csv")).contains("inside the model's folder"));
         assert!(refused(&TWIN.replace("verifies", "verifys")).contains("'verifys' is not one of"));
         assert!(parse_compare("T ~ room °C within 2 kg").unwrap_err().contains("kg"));
@@ -752,7 +938,7 @@ mod tests {
 
     #[test]
     fn the_measurements_read_dates_and_units_and_drive_the_inputs() {
-        let data = Data { file: "x.csv".into(), time: "timestamp".into(), time_unit: lookup_unit("s").unwrap(), delimiter: None };
+        let data = Data { file: "x.csv".into(), live: None, time: "timestamp".into(), time_unit: lookup_unit("s").unwrap(), delimiter: None };
         let m = read_measurements("timestamp;heater_kw;outside\n2026-10-28T08:00:00Z;0;5\n2026-10-28T08:10:00Z;2,5;\n2026-10-28T08:20:00Z;2;7\n", &data).unwrap();
         assert_eq!(m.times, vec![0.0, 600.0, 1200.0]);
         assert_eq!(m.start, "2026-10-28T08:00:00Z");
@@ -764,6 +950,22 @@ mod tests {
         // An empty cell is interpolated between its neighbors.
         assert_eq!(lines[2], "600,2500,279.15");
         assert!(read_measurements("t,x\n2,1\n1,2\n", &Data { time: "t".into(), ..data.clone() }).unwrap_err().contains("back in time"));
+    }
+
+    #[cfg(feature = "native")]
+    #[test]
+    fn a_parquet_file_reads_its_timestamps_whatever_their_unit() {
+        // Written by pandas: nanoseconds by default (snappy), microseconds on request (zstd); a null, a boolean, an int32.
+        for name in ["ns", "us"] {
+            let path = Path::new(env!("CARGO_MANIFEST_DIR")).join(format!("tests/fixtures/twin/{name}.parquet"));
+            let data = Data { file: format!("{name}.parquet"), live: None, time: "timestamp".into(), time_unit: lookup_unit("s").unwrap(), delimiter: None };
+            let m = load_measurements(&path, &data).unwrap_or_else(|e| panic!("{name}: {e}"));
+            assert_eq!(m.times, vec![0.0, 600.0, 1200.0], "{name}");
+            assert_eq!(m.start, "2026-01-14T00:00:00+00:00", "{name}");
+            assert_eq!(m.columns["outdoor_c"], vec![Some(-9.5), None, Some(-8.5)], "{name}");
+            assert_eq!(m.columns["pump_on"], vec![Some(1.0), Some(0.0), Some(1.0)], "{name}");
+            assert_eq!(m.columns["count"], vec![Some(1.0), Some(2.0), Some(3.0)], "{name}");
+        }
     }
 
     #[test]

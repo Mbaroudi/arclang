@@ -333,6 +333,16 @@ pub enum Commands {
         /// Do not run: list the twins as JSON
         #[clap(long)]
         list: bool,
+
+        /// Follow the twin's live data (data: { mqtt: ... }): run it over
+        /// the latest window at every refresh, until stopped (or --for);
+        /// with --json, one JSON line per run
+        #[clap(long)]
+        live: bool,
+
+        /// With --live: stop after this many seconds
+        #[clap(long = "for", value_name = "SECONDS")]
+        for_seconds: Option<u64>,
     },
 
     /// A document filled from a template: Markdown whose {{ ... }}
@@ -978,7 +988,13 @@ impl CliRunner {
                 }
                 self.run_verify(input, test, json)
             }
-            Commands::Twin { input, twin, json, list } => self.run_twin(input, twin, json, list),
+            Commands::Twin { input, twin, json, list, live, for_seconds } => {
+                if live {
+                    self.run_twin_live(input, twin, json, for_seconds)
+                } else {
+                    self.run_twin(input, twin, json, list)
+                }
+            }
             Commands::Document { input, template, output } => self.run_document(input, template, output),
             Commands::Import { input, format, output } => {
                 self.run_import(input, format, output)
@@ -1819,11 +1835,60 @@ impl CliRunner {
     /// Drawn unless `--no-placement`; the workbench layout next to the model,
     /// when there is one, moves the boxes (a layout that cannot be read is
     /// reported and left out: the drawing is automatic then).
+    fn run_twin_live(&self, input: PathBuf, only: Option<String>, json: bool, for_seconds: Option<u64>) -> Result<(), CliError> {
+        use crate::compiler::simulation::{twin, twin_live};
+        let result = crate::Compiler::new(crate::CompilerConfig::default()).compile_file(&input).map_err(|e| CliError::Compilation(e.to_string()))?;
+        let live: Vec<_> = result
+            .ast
+            .twins
+            .iter()
+            .filter(|t| only.as_deref().is_none_or(|o| t.id == o || t.name == o))
+            .filter(|t| twin::spec_of(&t.attributes).is_ok_and(|s| s.data.live.is_some()))
+            .collect();
+        let chosen = match live.as_slice() {
+            [one] => *one,
+            [] => return Err(CliError::Compilation(format!("{} has no twin on live data (data: {{ mqtt: \"mqtt://broker:1883\" topics: [...] }})", input.display()))),
+            _ => return Err(CliError::Compilation(format!("{} twins read live data: name one with --twin ({})", live.len(), live.iter().map(|t| t.id.as_str()).collect::<Vec<_>>().join(", ")))),
+        };
+        let config = crate::compiler::simulation::tool::ToolConfig::from_env();
+        let until = for_seconds.map(std::time::Duration::from_secs);
+        twin_live::live(
+            &result,
+            &input,
+            chosen,
+            &config,
+            until,
+            |outcome| {
+                if json {
+                    println!("{}", serde_json::to_string(outcome).unwrap_or_default());
+                } else {
+                    let worst = outcome.comparisons.iter().map(|c| format!("{} within {:.1} %", c.target, c.within * 100.0)).collect::<Vec<_>>().join(", ");
+                    println!("{} twin '{}': {} over {} samples{}{}", chrono::Local::now().format("%H:%M:%S"), outcome.name, outcome.verdict.to_uppercase(), outcome.samples, if worst.is_empty() { String::new() } else { format!("; {worst}") }, if outcome.reason.is_empty() || outcome.verdict == "pass" { String::new() } else { format!("; {}", outcome.reason) });
+                }
+                let _ = std::io::Write::flush(&mut std::io::stdout());
+            },
+            |status| {
+                if json {
+                    println!("{}", serde_json::to_string(status).unwrap_or_default());
+                } else {
+                    eprintln!("{}: {}", status.status, status.detail);
+                }
+                let _ = std::io::Write::flush(&mut std::io::stdout());
+            },
+        )
+        .map_err(CliError::Compilation)
+    }
+
     fn run_twin(&self, input: PathBuf, only: Option<String>, json: bool, list: bool) -> Result<(), CliError> {
         use crate::compiler::simulation::twin;
         let result = crate::Compiler::new(crate::CompilerConfig::default()).compile_file(&input).map_err(|e| CliError::Compilation(e.to_string()))?;
         if list {
-            let twins: Vec<serde_json::Value> = result.ast.twins.iter().map(|t| serde_json::json!({ "id": t.id, "name": t.name, "verifies": t.verifies })).collect();
+            let twins: Vec<serde_json::Value> = result
+                .ast
+                .twins
+                .iter()
+                .map(|t| serde_json::json!({ "id": t.id, "name": t.name, "verifies": t.verifies, "live": twin::spec_of(&t.attributes).is_ok_and(|s| s.data.live.is_some()) }))
+                .collect();
             println!("{}", serde_json::Value::Array(twins));
             return Ok(());
         }
