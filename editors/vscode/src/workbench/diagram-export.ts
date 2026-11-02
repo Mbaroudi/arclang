@@ -6,6 +6,7 @@ import * as path from 'node:path';
 import { deflateRawSync } from 'node:zlib';
 import * as vscode from 'vscode';
 import { deliver, reveal } from '../download';
+import { PDF_VIEW_TYPE } from '../pdf/viewer';
 import { buildPptx, pngSize } from '../pure/pptx';
 import { buildPdf } from '../pure/pdf';
 import type { SlideData, SlideFormat } from '../pure/workbench';
@@ -184,8 +185,9 @@ export class DiagramExports implements vscode.Disposable {
         vscode.window.setStatusBarMessage(written, 5000);
         return;
       }
-      const open = await vscode.window.showInformationMessage(written, 'Reveal');
-      if (open === 'Reveal') await reveal(uri);
+      const open = await vscode.window.showInformationMessage(written, 'Open', 'Reveal');
+      if (open === 'Open') await vscode.commands.executeCommand('vscode.openWith', uri, PDF_VIEW_TYPE);
+      else if (open === 'Reveal') await reveal(uri);
     } catch (error) {
       void vscode.window.showErrorMessage(`ArcLang: the PDF file could not be written: ${error instanceof Error ? error.message : String(error)}`);
     } finally {

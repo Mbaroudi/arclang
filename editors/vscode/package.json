@@ -63,6 +63,7 @@
     "onLanguage:modelica",
     "onView:arclangChat",
     "onCommand:arclang.chat.open",
+    "onCustomEditor:arclang.pdf",
     "workspaceContains:.github/workflows/arclang.yml",
     "workspaceContains:**/*.{arc,mo}"
   ],
@@ -2442,6 +2443,16 @@
           }
         ],
         "priority": "option"
+      },
+      {
+        "viewType": "arclang.pdf",
+        "displayName": "PDF",
+        "selector": [
+          {
+            "filenamePattern": "*.pdf"
+          }
+        ],
+        "priority": "default"
       }
     ],
     "keybindings": [
@@ -2941,6 +2952,7 @@
   },
   "dependencies": {
     "pako": "1.0.11",
+    "pdfjs-dist": "6.5.438",
     "vscode-languageclient": "^10.1.2"
   },
   "devDependencies": {

@@ -4,6 +4,7 @@
 import * as path from 'node:path';
 import { deflateRawSync } from 'node:zlib';
 import * as vscode from 'vscode';
+import { PDF_VIEW_TYPE } from '../pdf/viewer';
 import { run } from '../cli';
 import type { Outcome } from '../pure/simulation';
 import { deliver, reveal } from '../download';
@@ -51,7 +52,8 @@ export async function exportSimulationReport(file: string, outcomes: Outcome[], 
     await vscode.workspace.fs.writeFile(target, bytes);
     await deliver(target, bytes);
     const open = await vscode.window.showInformationMessage(`ArcLang: the simulation report is written to ${path.basename(target.fsPath)}`, 'Open', 'Reveal');
-    if (open === 'Open') await vscode.env.openExternal(target);
+    // A PDF opens in VS Code's PDF view; a deck in the system's application.
+    if (open === 'Open') await (format.ext === 'pdf' ? vscode.commands.executeCommand('vscode.openWith', target, PDF_VIEW_TYPE) : vscode.env.openExternal(target));
     else if (open === 'Reveal') await reveal(target);
   } catch (error) {
     void vscode.window.showErrorMessage(`ArcLang: the simulation report could not be written: ${error instanceof Error ? error.message : String(error)}`);

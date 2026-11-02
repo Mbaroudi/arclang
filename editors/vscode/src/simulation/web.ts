@@ -7,6 +7,7 @@
 // extension, so that a button never fails silently.
 import * as path from 'node:path';
 import * as vscode from 'vscode';
+import { PDF_VIEW_TYPE } from '../pdf/viewer';
 import { failureText, run } from '../cli';
 import { deliver } from '../download';
 import { leftText, pickFiles, walkable, ONLINE_LIMITS } from '../pure/sim-online';
@@ -139,7 +140,8 @@ async function exportReport(): Promise<void> {
     const pdf = buildReportPdf(report);
     await vscode.workspace.fs.writeFile(target, pdf);
     await deliver(target, pdf);
-    void vscode.window.showInformationMessage(`ArcLang: the simulation report is written to ${path.posix.basename(target.path)}, beside the model.`);
+    const open = await vscode.window.showInformationMessage(`ArcLang: the simulation report is written to ${path.posix.basename(target.path)}, beside the model.`, 'Open');
+    if (open === 'Open') await vscode.commands.executeCommand('vscode.openWith', target, PDF_VIEW_TYPE);
   } catch (error) {
     void vscode.window.showErrorMessage(`ArcLang: the simulation report could not be written: ${error instanceof Error ? error.message : String(error)}`);
   }

@@ -13,6 +13,7 @@ import { registerTables } from '../tables';
 import { registerSimulationWeb } from '../simulation/web';
 import { registerSemgit } from '../semgit';
 import { registerDebug } from '../debug';
+import { registerPdfViewer } from '../pdf/viewer';
 import { registerDocuments } from '../document';
 import { registerTraces } from '../traces';
 import { setGitRunner } from '../semgit/git';
@@ -88,6 +89,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   attempt('semantic git', () => registerSemgit(context));
   attempt('documents', () => registerDocuments(context));
   attempt('traces', () => registerTraces(context));
+  attempt('the PDF viewer', () => registerPdfViewer(context));
   attempt('the debugger', () => registerDebug(context, wasmDebugAdapter(wasm)));
   attempt('the AI assistant', () => registerAi(context)); // ai-design hook
 }
