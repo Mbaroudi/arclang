@@ -16,6 +16,7 @@ import { setThemeModuleLoader } from '../workbench/themes';
 import { registerWebDiagnostics } from './diagnostics';
 import { createWasmBackend, NOT_AVAILABLE } from './wasm-backend';
 import { loadWasm } from './wasm';
+import { probeRemote } from './remote';
 
 /** Registers a part of the extension; one that cannot start in a browser must not stop the others. */
 function attempt(name: string, start: () => void): void {
@@ -56,6 +57,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   register('arclang.showRules', () => commands.showRules());
   register('arclang.restartServer', () => vscode.window.showInformationMessage('ArcLang: the compiler runs in this page, there is no server to restart.'));
   register('arclang.installBinary', () => vscode.window.showInformationMessage(NOT_AVAILABLE('Installing the native compiler')));
+
+  // The compiler online: the page registers its command once the account is known.
+  for (const delay of [0, 2000, 6000, 15000]) setTimeout(() => void probeRemote(), delay);
 
   attempt('formatting', () => registerFormatter(context));
   attempt('diagnostics', () => registerWebDiagnostics(context));

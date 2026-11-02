@@ -75,7 +75,10 @@ export async function safetyReport(uri?: vscode.Uri): Promise<void> {
     report(`arclang safety --report ${path.basename(file)}`, result);
     return;
   }
-  await vscode.commands.executeCommand('markdown.showPreview', vscode.Uri.file(out));
+  // The browser build has no Markdown preview: the report opens as a Markdown document there.
+  const preview = (await vscode.commands.getCommands(true)).includes('markdown.showPreview');
+  if (preview) await vscode.commands.executeCommand('markdown.showPreview', vscode.Uri.file(out));
+  else await vscode.window.showTextDocument(await vscode.workspace.openTextDocument({ language: 'markdown', content: fs.readFileSync(out, 'utf8') }), { preview: false });
   if (result.code !== 0) vscode.window.showWarningMessage('ArcLang: a fault tree is beyond its budget (see the safety report).');
 }
 
