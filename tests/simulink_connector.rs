@@ -120,6 +120,7 @@ fn the_m2m_writes_the_connectors_scripts() {
     let dir = fixtures().join("m2m/expected");
     let mut names: Vec<String> = std::fs::read_dir(&dir).unwrap().filter_map(|e| e.ok()).map(|e| e.file_name().to_string_lossy().to_string()).filter(|n| n.ends_with(".m")).collect();
     names.sort();
+    assert_eq!(names.len(), 34, "the connector's 34 configurations");
     let mut failures = Vec::new();
     for name in &names {
         let text = m2m_script(name.trim_end_matches(".m"));
