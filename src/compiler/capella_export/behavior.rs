@@ -1,8 +1,9 @@
 //! State machines: regions, states and modes (nested through their regions),
 //! the initial state, transitions with their trigger and guard. A machine
-//! belongs to a component in Capella: the one its name starts with
-//! (`Owner / Machine`, as the import names machines that share a name),
-//! else the first system component.
+//! belongs to a component in Capella: its `owner:`, else the one its name
+//! starts with (`Owner / Machine`, as the import names machines that share
+//! a name); a machine written without one goes where the export says
+//! (`super::unowned_machine`).
 
 use super::context::{derived, list, text, Context};
 use super::xml::El;
@@ -23,6 +24,37 @@ pub(super) fn owner_and_name<'a>(context: &Context, machine: &'a StateMachine, f
         }
     }
     (fallback.map(str::to_string), machine.name.as_str())
+}
+
+/// The functions a machine names: what triggers its transitions and what
+/// they do, what its states do on entry, on exit and while in them.
+pub(super) fn named_functions(context: &Context, machine: &StateMachine) -> Vec<String> {
+    let mut names: Vec<String> = Vec::new();
+    for t in &machine.transitions {
+        names.push(t.trigger.clone());
+        match t.attributes.get("action") {
+            Some(crate::compiler::ast::AttributeValue::List(_)) => names.extend(list(&t.attributes, "action")),
+            _ => names.extend(t.action.as_deref().unwrap_or("").split(", ").map(str::to_string)),
+        }
+    }
+    fn activities(states: &[State], names: &mut Vec<String>) {
+        for s in states {
+            for key in ["entry", "exit", "do"] {
+                names.extend(list(&s.attributes, key));
+            }
+            activities(&s.sub_states, names);
+        }
+    }
+    activities(&machine.states, &mut names);
+    let mut found: Vec<String> = Vec::new();
+    for name in names.iter().map(|n| n.trim()).filter(|n| !n.is_empty()) {
+        if let Some(id) = context.resolve_function(name).filter(|id| context.functions.contains(*id)) {
+            if !found.iter().any(|f| f == id) {
+                found.push(id.to_string());
+            }
+        }
+    }
+    found
 }
 
 fn machine_id(machine: &StateMachine) -> String {
@@ -187,6 +219,12 @@ fn state(context: &Context, machine: &str, s: &State, inner: &HashMap<String, Ve
         for t in inner.get(&id).into_iter().flatten() {
             region.push(t.clone());
         }
+        let region = involving(region);
+        // A state names the states of its regions (`referencedStates`), as
+        // Capella keeps them, the same list as its regions' (DWF_SM_03).
+        if let Some(involved) = region.get("involvedStates").map(str::to_string) {
+            el.set("referencedStates", &involved);
+        }
         el.push(region);
     }
     el
@@ -234,7 +272,10 @@ fn region(context: &Context, id: &str, (region_id, region_name): (&str, &str), i
     let mut top: Vec<El> = Vec::new();
     let mut inner: HashMap<String, Vec<El>> = HashMap::new();
     for (index, t) in transitions.iter().enumerate() {
-        let Some(el) = transition(context, id, index, t, names) else { continue };
+        // The transitions of a machine's single region are numbered in the
+        // machine, those of one of its several regions in the region.
+        let seed = if region_name == "Default Region" && region_id == derived(&format!("{id}:region")) { id } else { region_id };
+        let Some(el) = transition(context, seed, index, t, names) else { continue };
         let at = declared_in.get(&format!("{}->{}:{}", t.from, t.to, t.id)).cloned().or_else(|| if declared_in.is_empty() { holder(states, &t.from, &t.to).map(|s| state_id(id, s)) } else { None });
         match at {
             Some(state) => inner.entry(state).or_default().push(el),
@@ -246,6 +287,16 @@ fn region(context: &Context, id: &str, (region_id, region_name): (&str, &str), i
     }
     for el in top {
         region.push(el);
+    }
+    involving(region)
+}
+
+/// A region names the states it shows (`involvedStates`): its own, in order,
+/// as Capella writes them. A state machine diagram draws these.
+fn involving(mut region: El) -> El {
+    let states: Vec<String> = region.children().iter().filter(|c| c.tag() == "ownedStates").map(|c| format!("#{}", c.id())).collect();
+    if !states.is_empty() {
+        region.set("involvedStates", &states.join(" "));
     }
     region
 }

@@ -45,6 +45,19 @@ fn link_end(context: &Context, link: &str, end: &str, side: &str) -> (Option<Str
     }
 }
 
+/// The end of a physical exchange: a port as written, or a new component port
+/// of the component written, since Capella ends an exchange on a port.
+fn exchange_end(context: &Context, exchange: &str, end: &str, side: &str) -> (Option<String>, Option<(String, El)>) {
+    let Some(resolved) = context.resolve(end) else { return (None, None) };
+    if end.contains('.') {
+        return (Some(resolved.to_string()), None);
+    }
+    let id = derived(&format!("{exchange}:{side}:port"));
+    let orientation = if side == "source" { "OUT" } else { "IN" };
+    let port = El::new("ownedFeatures", "fa:ComponentPort", &id).attr("name", &format!("CP {}", &id[..8])).attr("orientation", orientation).attr("kind", "FLOW");
+    (Some(id), Some((resolved.to_string(), port)))
+}
+
 fn placed(pa: &PhysicalArchitecture) -> Vec<Placed<'_>> {
     let mut placed = Vec::new();
     for node in &pa.nodes {
@@ -228,26 +241,41 @@ pub(super) fn write(context: &mut Context, pa: &PhysicalArchitecture, above_root
         for part in parts {
             system.push(part);
         }
+        // Capella ends a component exchange on a port: an exchange written
+        // between two components gives each end a component port.
+        let mut exchanges = Vec::new();
+        let mut exchange_ports: Vec<(String, El)> = Vec::new();
+        for exchange in &pa.physical_exchanges {
+            let label = exchange.label.clone().unwrap_or_default();
+            let (source, new_source) = exchange_end(context, &exchange.id, &exchange.from, "source");
+            let (target, new_target) = exchange_end(context, &exchange.id, &exchange.to, "target");
+            let (Some(source), Some(target)) = (source, target) else {
+                context.note(format!("physical exchange '{label}' left out: an end is not exported"));
+                continue;
+            };
+            exchange_ports.extend(new_source.into_iter().chain(new_target));
+            let el = El::new("ownedComponentExchanges", "fa:ComponentExchange", &exchange.id).attr("name", &label).attr("target", &format!("#{target}")).attr("source", &format!("#{source}")).attr("kind", "FLOW");
+            exchanges.push(relations::exchange(context, el, &exchange.attributes));
+        }
+        let with_ports = |mut el: El, owner: &str| {
+            for (_, port) in exchange_ports.iter().filter(|(o, _)| o == owner) {
+                el.push(port.clone());
+            }
+            el
+        };
         for n in others {
-            system.push(node(context, n, &placed, &link_ports));
+            system.push(with_ports(node(context, n, &placed, &link_ports), &n.id));
         }
         for n in pa.nodes.iter() {
             for b in &n.behavior_components {
-                system.push(behavior(context, b, &placed));
+                system.push(with_ports(behavior(context, b, &placed), &b.id));
             }
         }
         for link in links {
             system.push(link);
         }
-        for exchange in &pa.physical_exchanges {
-            let label = exchange.label.clone().unwrap_or_default();
-            match (context.resolve(&exchange.from).map(str::to_string), context.resolve(&exchange.to).map(str::to_string)) {
-                (Some(source), Some(target)) => {
-                    let el = El::new("ownedComponentExchanges", "fa:ComponentExchange", &exchange.id).attr("name", &label).attr("target", &format!("#{target}")).attr("source", &format!("#{source}")).attr("kind", "FLOW");
-                    system.push(relations::exchange(context, el, &exchange.attributes));
-                }
-                _ => context.note(format!("physical exchange '{label}' left out: an end is not exported")),
-            }
+        for exchange in exchanges {
+            system.push(exchange);
         }
         for path in &pa.paths {
             let mut el = apply(El::new("ownedPhysicalPath", "cs:PhysicalPath", &path.id).attr("name", &path.name), &path.attributes, &["involves"]);

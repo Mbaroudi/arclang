@@ -1,5 +1,6 @@
 //! Export of an ArcLang model as a Capella 7 project: the `.capella` model,
-//! with the `.aird` (its Sirius session, no diagram yet) and the `.afm`
+//! with the `.aird` (its Sirius session: the diagrams the model declares,
+//! and a state machine diagram of every machine, laid out) and the `.afm`
 //! (the viewpoints it uses) Capella needs to open it.
 //!
 //! The Capella ids are the ArcLang ids: a model imported from Capella goes
@@ -24,6 +25,8 @@ mod epbs;
 mod functions;
 mod header;
 mod logical;
+mod msm;
+mod msm_layout;
 mod operational;
 mod physical;
 mod relations;
@@ -208,12 +211,22 @@ pub fn export(model: &Model, file_stem: &str) -> Exported {
         context.note(format!("{} system analyses: Capella has one, the main one is exported", model.system_analysis.len()));
     }
     // State machines go to their component.
-    let fallback = main_sa
+    let first_system_component = main_sa
         .and_then(|sa| sa.components.first().map(|c| context::id_of(&c.attributes, &format!("system-component:{}", c.name))));
+    let performers = diagrams::index(&engineering);
     for machine in &model.state_machines {
-        let (owner, name) = behavior::owner_and_name(&context, machine, fallback.as_deref());
+        let (owner, name) = behavior::owner_and_name(&context, machine, None);
         // A machine owned by a level goes to the level's component package.
         let owner = owner.map(|o| level_component(&engineering, &o).unwrap_or(o));
+        let owner = owner.or_else(|| {
+            let levels = [sa_id.as_str(), la_id.as_str(), pa_id.as_str(), oa_id.as_str()];
+            let found = unowned_machine(&engineering, &performers, &behavior::named_functions(&context, machine), first_system_component.as_deref(), &levels);
+            if let Some((owner, why)) = &found {
+                let owner_name = engineering.find(owner).and_then(|o| o.get("name")).unwrap_or(owner);
+                context.note(format!("state machine '{}' has no owner: it goes to '{owner_name}', {why}", machine.name));
+            }
+            found.map(|(owner, _)| owner)
+        });
         let name = own_name(&engineering, owner.as_deref(), name);
         let el = behavior::state_machine(&context, machine, name);
         match owner.and_then(|o| engineering.find_mut(&o)) {
@@ -276,7 +289,9 @@ pub fn export(model: &Model, file_stem: &str) -> Exported {
 
     let afm = afm(&project_id, !requirements::all(model).is_empty(), stpa::is_used(model), with_cybersecurity);
     let index = diagrams::index(project.children().last().expect("the system engineering"));
-    let drawn = diagrams::diagrams(&mut context, &index, &model.diagrams, &format!("{file_stem}.capella"));
+    let mut drawn = diagrams::diagrams(&mut context, &index, &model.diagrams, &format!("{file_stem}.capella"));
+    // Every state machine is drawn, as Capella draws it, laid out.
+    drawn.extend(msm::diagrams(project.children().last().expect("the system engineering"), &format!("{file_stem}.capella")));
     let aird = aird(&project_id, file_stem, drawn);
     // A diagram note of ArcLang has no element in the semantic model of Capella.
     for note in &model.notes {
@@ -314,6 +329,49 @@ fn level_component(engineering: &El, id: &str) -> Option<String> {
         el.children().iter().find_map(first)
     }
     first(level).map(|c| c.id().to_string())
+}
+
+/// Where a machine written without an owner goes, and why: the component
+/// that performs every function it names (or the innermost component
+/// holding those that do), else the first system component, else the
+/// component package of the first level that has one (the system
+/// analysis's structure first), as Capella keeps a machine there.
+fn unowned_machine(engineering: &El, index: &diagrams::Index, functions: &[String], first_system_component: Option<&str>, levels: &[&str]) -> Option<(String, &'static str)> {
+    let is_component = |id: &str| index.kind.get(id).is_some_and(|k| k.ends_with("Component") && !k.ends_with("Pkg"));
+    let mut performers: Vec<&str> = Vec::new();
+    for performer in functions.iter().filter_map(|f| index.performer.get(f).map(String::as_str)) {
+        if !performers.contains(&performer) {
+            performers.push(performer);
+        }
+    }
+    if !performers.is_empty() {
+        // The components holding the first performer, innermost first.
+        let mut chain: Vec<&str> = Vec::new();
+        let mut at = Some(performers[0]);
+        while let Some(id) = at {
+            if is_component(id) {
+                chain.push(id);
+            }
+            at = index.owner.get(id).map(String::as_str);
+        }
+        let holds = |holder: &str, id: &str| {
+            let mut at = Some(id);
+            while let Some(x) = at {
+                if x == holder {
+                    return true;
+                }
+                at = index.owner.get(x).map(String::as_str);
+            }
+            false
+        };
+        if let Some(common) = chain.into_iter().find(|c| performers.iter().all(|p| holds(c, p))) {
+            return Some((common.to_string(), "the component that performs the functions it names"));
+        }
+    }
+    if let Some(component) = first_system_component.filter(|c| engineering.find(c).is_some()) {
+        return Some((component.to_string(), "the first system component"));
+    }
+    levels.iter().find_map(|level| level_component(engineering, level)).map(|pkg| (pkg, "the component package of its level, as Capella keeps a machine no component owns"))
 }
 
 /// When `id` is an architecture, its first capability (or capability realization).
@@ -503,6 +561,8 @@ fn aird(project_id: &str, file_stem: &str, drawn: Vec<(String, El, El)>) -> Stri
         .attr("xmlns:description", "http://www.eclipse.org/sirius/description/1.1.0")
         .attr("xmlns:description_1", "http://www.eclipse.org/sirius/diagram/description/1.1.0")
         .attr("xmlns:diagram", "http://www.eclipse.org/sirius/diagram/1.1.0")
+        .attr("xmlns:filter", "http://www.eclipse.org/sirius/diagram/description/filter/1.1.0")
+        .attr("xmlns:notation", "http://www.eclipse.org/gmf/runtime/1.0.3/notation")
         .attr("xmlns:style", "http://www.eclipse.org/sirius/diagram/description/style/1.1.0")
         .attr("xmlns:viewpoint", "http://www.eclipse.org/sirius/1.1.0");
     for (key, value) in NAMESPACES.iter().filter(|(k, _)| k.starts_with("xmlns:org.") || *k == "xmlns:libraries") {

@@ -122,14 +122,15 @@ impl Model {
         self.resources.iter().position(|(name, _)| name == file)
     }
 
-    /// Resolves `#id`, `file#id` or a bare id, from the document `resource`.
+    /// Resolves `#id`, `file#id` or a bare id, from the document `resource`; a
+    /// URI is percent-encoded (`Model%20Test.capella#an%20id`), as EMF writes it.
     fn resolve(&self, resource: usize, token: &str) -> Option<usize> {
         let (file, id) = match token.split_once('#') {
             Some((file, id)) => (file, id),
             None => ("", token),
         };
-        let resource = if file.is_empty() { resource } else { self.resource_named(file)? };
-        self.ids.get(&(resource, id.to_string())).copied()
+        let resource = if file.is_empty() { resource } else { self.resource_named(file).or_else(|| self.resource_named(&decoded(file)))? };
+        self.ids.get(&(resource, id.to_string())).or_else(|| self.ids.get(&(resource, decoded(id)))).copied()
     }
 
     /// Every reference made by attribute or by `href`, resolved, and their inverses.
@@ -278,6 +279,29 @@ impl Model {
 /// reference to another file (`pkg:Kind file#id`) is not one.
 fn reference_tokens(value: &str) -> impl Iterator<Item = &str> {
     value.split_whitespace().filter(|t| t.contains('#'))
+}
+
+/// A percent-encoded URI segment, decoded (`a%20b` -> `a b`).
+fn decoded(text: &str) -> String {
+    if !text.contains('%') {
+        return text.to_string();
+    }
+    let bytes = text.as_bytes();
+    let mut out = Vec::with_capacity(bytes.len());
+    let mut i = 0;
+    while i < bytes.len() {
+        let hex = |b: u8| (b as char).to_digit(16);
+        if bytes[i] == b'%' && i + 2 < bytes.len() {
+            if let (Some(h), Some(l)) = (hex(bytes[i + 1]), hex(bytes[i + 2])) {
+                out.push((h * 16 + l) as u8);
+                i += 3;
+                continue;
+            }
+        }
+        out.push(bytes[i]);
+        i += 1;
+    }
+    String::from_utf8_lossy(&out).into_owned()
 }
 
 #[cfg(test)]

@@ -12,7 +12,7 @@ mod classes;
 mod data;
 mod diagram;
 mod drawing;
-mod font;
+pub(crate) mod font;
 mod function;
 pub mod model;
 mod scope;
