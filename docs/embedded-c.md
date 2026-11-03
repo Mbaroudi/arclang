@@ -50,8 +50,8 @@ invented.
   1. on the first step, the initial states are entered (their entry actions
      run in that step);
   2. the equations are evaluated, in the order written;
-  3. the events present in the step fire, in the order the machine's
-     transitions first name them;
+  3. the events of the step fire one after the other, in the order they
+     arrived (see [the order of events](#the-order-of-events));
   4. the timed transitions fire when their source has been active long
      enough: `timing: 200 ms` without a trigger waits
      `ceil(200 ms / period)` steps;
@@ -296,20 +296,48 @@ For a model `Battery Charger` with a machine `Charger`:
 #include "battery_charger.h"
 
 battery_charger_state   state;    /* the machines' active states and timers */
-battery_charger_inputs  inputs;   /* inputs.charger.ev_plug, .cond_battery_present ... */
+battery_charger_inputs  inputs;   /* inputs.charger.queue, .cond_battery_present ... */
 battery_charger_outputs outputs;  /* outputs.charger.st_charging, .act_close_contactors ... */
 
 battery_charger_init(&state);
 for (;;) {
-    /* set the inputs: an event is true in the step it occurs */
+    inputs.charger.queued = 0U;   /* the events of this step, in arrival order: */
+    (void)battery_charger_charger_post(&inputs.charger, BATTERY_CHARGER_CHARGER_EV_PLUG);
+    inputs.charger.cond_battery_present = true;
     battery_charger_step(&state, &inputs, &outputs);
     /* read the outputs */
 }
 ```
 
 Every field carries, in a comment, the text it comes from (`/* event
-"plug" ... */`). The names: `ev_<event>`, `cond_<condition>`,
-`st_<state path>`, `act_<action>`, in snake case.
+"plug" ... */`). The names: `<MODEL>_<MACHINE>_EV_<EVENT>` (an event's
+code), `cond_<condition>`, `v_<variable>`, `st_<state path>`,
+`act_<action>`, in snake case.
+
+## The order of events
+
+The events of a machine reach a step through a queue: `queue[]` and
+`queued` in its inputs, filled by `<model>_<machine>_post()` in the order the
+events arrived (false, and the event dropped, when `<MODEL>_<MACHINE>_QUEUE_SIZE`
+events, 16 by default, are already queued). One step processes them in that
+order, each as a run to completion: its transitions are chosen (sources
+active, guards holding) and fired before the next event is looked at. An
+event posted twice fires twice. Then come the timed transitions and the
+completion transitions, as before. The caller empties the queue
+(`queued = 0`) before posting the events of the next step.
+
+In an executed case, an event may arrive at any time (`"13 ms: plug"`): the
+first step at or after it takes it, and the events of one step are ordered
+by their time, then as the inputs list them. A condition or a variable
+changes on the step grid only.
+
+Through an `io_binding`, the glue posts the events in the order it reads
+them, which is all the I/O tells of their order within a period: the edges
+of the gpio pins (by pin), then the CAN frames (by identifier), then the
+UART bytes (by port, in the order they were received: two bytes are two
+events). A case whose order of events in a step the I/O cannot give (a UART
+byte before a gpio edge of the same step, an edge twice in a step) is in
+error and says so.
 
 ## The I/O interface
 
@@ -394,8 +422,9 @@ arclang_io_status <b>_cycle(<b>_glue *glue, <model>_state *state,
 
 `cycle` reads; if a read failed it returns the error without stepping (the
 application decides what a failed read means); it steps, writes, and kicks
-the watchdog only when everything succeeded. A channel in error leaves its
-events and conditions false. A main loop on a target:
+the watchdog only when everything succeeded. A channel in error posts no
+event and leaves its conditions false; an event the queue has no room for
+makes the read fail with `ARCLANG_IO_ERR_FULL`. A main loop on a target:
 
 ```c
 arclang_io_init();
@@ -431,10 +460,11 @@ test_case "TC-CHG-001" {
 }
 ```
 
-- `inputs`: `"<time>: <event>"` — the event occurs in the step at that
-  time; `"<time>: <condition>"`, `"<condition> = false"` — it holds, or not,
-  from that step on (conditions start false). Every time is on the step
-  grid.
+- `inputs`: `"<time>: <event>"` — the event arrives at that time, taken by
+  the first step at or after it, in order of arrival; `"<time>:
+  <condition>"`, `"<condition> = false"` — it holds, or not, from that step
+  on (conditions start false); `"<time>: <variable> = <value>"` — an `in`
+  variable. A condition's or a variable's time is on the step grid.
 - `expects`: the comparisons of simulated cases (`min`, `max`, `final`,
   `initial`, `mean`, `at(t, ...)`), over the run's variables: a state reads
   `"Machine".State` (`"Machine".Parent.Child` for a nested one; 1 while
@@ -503,9 +533,6 @@ Said plainly:
   the C. A completion transition leaving a composite state does not wait
   for its regions to reach their final states: it fires as soon as its
   source is active.
-- **One event at a time per trigger:** an event present in a step fires
-  once; the order of the events within a step is the order of the machine,
-  not the order they happened in.
 - **Verdicts in the traceability:** a failing executed case is a
   compilation warning; the verdicts of `arclang sil` are printed (and
   `--json`), not yet cached for `check`, `gate` and the tables as

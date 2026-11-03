@@ -66,6 +66,9 @@ pub fn generate(plan: &Plan, binding: &Binding) -> Glue {
     let _ = writeln!(source, "#if {period} != {}UL\n#error \"{p}.c is compiled for another period than io_binding {} ({} us): define {period}={}\"\n#endif\n", binding.period_us, comment(&binding.name), binding.period_us, binding.period_us);
     let _ = writeln!(source, "#ifndef ARCLANG_IO_UART_BURST\n#define ARCLANG_IO_UART_BURST {UART_BURST}U\n#endif\n");
     let _ = writeln!(source, "static void first_error(arclang_io_status *status, arclang_io_status result)\n{{\n    if ((*status == ARCLANG_IO_OK) && (result != ARCLANG_IO_OK)) {{\n        *status = result;\n    }}\n}}\n");
+    if binding.inputs.iter().any(|i| matches!(i.target, Target::Event(_))) {
+        let _ = writeln!(source, "/* An event the queue had no room for is an error of the read. */\nstatic void posted(arclang_io_status *status, bool ok)\n{{\n    if (!ok) {{\n        first_error(status, ARCLANG_IO_ERR_FULL);\n    }}\n}}\n");
+    }
     let _ = writeln!(source, "void {b}_glue_init({b}_glue *glue)\n{{");
     for pin in &edges {
         let _ = writeln!(source, "    glue->gpio_{pin} = false;");
@@ -109,9 +112,13 @@ fn read_source(plan: &Plan, binding: &Binding, out: &mut String) {
         return;
     }
     let _ = writeln!(out, "    arclang_io_status result;\n    {p}_{}_inputs *in = &inputs->{};\n    (void)glue;", m.ident, m.ident);
-    let _ = writeln!(out, "    /* events are instants: false unless they occur in this period */");
-    for input in binding.inputs.iter().filter(|i| matches!(i.target, Target::Event(_))) {
-        let _ = writeln!(out, "    {} = false;", field(input.target));
+    let t = format!("{p}_{}", m.ident);
+    let post = |target: Target| match target {
+        Target::Event(e) => format!("posted(&status, {t}_post(in, {}_{}))", t.to_uppercase(), m.events[e].ident.to_uppercase()),
+        Target::Condition(_) => unreachable!("an event"),
+    };
+    if binding.inputs.iter().any(|i| matches!(i.target, Target::Event(_))) {
+        let _ = writeln!(out, "    /* events: posted in the order the glue reads them (gpio edges by pin, CAN\n       frames by identifier, UART bytes as they arrived), the queue emptied first */\n    in->queued = 0U;");
     }
     // gpio: one read per pin.
     let mut pins: BTreeMap<u16, Vec<&super::binding::Input>> = BTreeMap::new();
@@ -136,11 +143,11 @@ fn read_source(plan: &Plan, binding: &Binding, out: &mut String) {
                 }
                 Source::GpioEdge(_, Edge::Rising) => {
                     edge = true;
-                    let _ = writeln!(out, "            {} = level && !glue->gpio_{pin}; /* {} */", field(input.target), comment(&input.written));
+                    let _ = writeln!(out, "            if (level && !glue->gpio_{pin}) {{ /* {} */\n                {};\n            }}", comment(&input.written), post(input.target));
                 }
                 Source::GpioEdge(_, Edge::Falling) => {
                     edge = true;
-                    let _ = writeln!(out, "            {} = !level && glue->gpio_{pin}; /* {} */", field(input.target), comment(&input.written));
+                    let _ = writeln!(out, "            if (!level && glue->gpio_{pin}) {{ /* {} */\n                {};\n            }}", comment(&input.written), post(input.target));
                 }
                 _ => {}
             }
@@ -178,7 +185,7 @@ fn read_source(plan: &Plan, binding: &Binding, out: &mut String) {
         for input in inputs {
             match input.target {
                 Target::Event(_) => {
-                    let _ = writeln!(out, "        {} = (result == ARCLANG_IO_OK) && received; /* {} */", field(input.target), comment(&input.written));
+                    let _ = writeln!(out, "        if ((result == ARCLANG_IO_OK) && received) {{ /* {} */\n            {};\n        }}", comment(&input.written), post(input.target));
                 }
                 Target::Condition(_) => {
                     let _ = writeln!(out, "        {} = (result == ARCLANG_IO_OK) && glue->can_{id:x}; /* {} */", field(input.target), comment(&input.written));
@@ -191,7 +198,7 @@ fn read_source(plan: &Plan, binding: &Binding, out: &mut String) {
         let _ = writeln!(out, "    {{ /* uart {port} */\n        uint16_t n;\n        for (n = 0U; n < ARCLANG_IO_UART_BURST; n++) {{\n            uint8_t byte = 0U;\n            bool received = false;\n            result = arclang_io_uart_read({port}U, &byte, &received);\n            first_error(&status, result);\n            if ((result != ARCLANG_IO_OK) || !received) {{\n                break;\n            }}");
         for input in inputs {
             if let Source::Uart { byte, .. } = input.source {
-                let _ = writeln!(out, "            if (byte == 0x{byte:02X}U) {{\n                {} = true; /* {} */\n            }}", field(input.target), comment(&input.written));
+                let _ = writeln!(out, "            if (byte == 0x{byte:02X}U) {{ /* {} */\n                {};\n            }}", comment(&input.written), post(input.target));
             }
         }
         let _ = writeln!(out, "        }}\n    }}");

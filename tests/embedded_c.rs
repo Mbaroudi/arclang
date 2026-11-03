@@ -292,7 +292,7 @@ fn the_compiler_checks_the_executed_cases() {
     };
     let ok_expect = r#""final(\"Remote start sequence\".Idle) == 1""#;
     let cases = [
-        (case(r#"stop_time: 100 ms inputs: ["7 ms: LF-RX"]"#, ok_expect), "execute: input '7 ms: LF-RX' is not on the step grid (10000 us)"),
+        (case(r#"stop_time: 100 ms inputs: ["7 ms: signature and nonce valid"]"#, ok_expect), "execute: input '7 ms: signature and nonce valid' (a condition or a variable changes on the step grid; an event may arrive between steps) is not on the step grid (10000 us)"),
         (case(r#"stop_time: 100 ms inputs: ["10 ms: LF-NOPE"]"#, ok_expect), "'LF-NOPE' is no event, condition or input variable of state_machine 'Remote start sequence'"),
         (case(r#"stop_time: 100 ms inputs: ["200 ms: LF-RX"]"#, ok_expect), "comes after stop_time"),
         (case(r#"stop_time: 100 ms"#, r#""final(\"Remote start sequence\".Flying) == 1""#), "'remote_start_sequence.Flying' is no state, action or variable of the machines"),
@@ -629,3 +629,67 @@ fn pseudo_states_and_regions_run_alike_in_the_model_and_in_the_c() {
     let _ = std::fs::remove_dir_all(&dir);
 }
 
+// ---- the order of events ---------------------------------------------------------------
+
+/// Events of one step are processed in the order they arrive, not in the
+/// order the machine names them; an event may arrive between steps and
+/// more than once.
+const ORDER: &str = r#"model T { name: "t" }
+requirements system { req "R" "r" { description: "d" } }
+state_machine "O" {
+  initial: "A"
+  state A {}
+  state B {}
+  state C { entry: "reached C" }
+  state D {}
+  transition A -> B { trigger: "x" }
+  transition B -> C { trigger: "y" }
+  transition A -> D { trigger: "y" }
+  transition C -> C { trigger: "tick" action: "count" }
+  transition D -> A { trigger: "reset" }
+  transition C -> A { trigger: "reset" }
+}
+test_case "TC-XY" { verifies: ["R"] execute: { stop_time: 50 ms inputs: ["10 ms: x", "10 ms: y", "20 ms: tick", "20 ms: tick", "30 ms: reset"] }
+  expects: ["at(10 ms, \"O\".C) == 1", "at(20 ms, \"O\".action.count) == 2", "at(30 ms, \"O\".A) == 1"] }
+test_case "TC-YX" { verifies: ["R"] execute: { stop_time: 50 ms inputs: ["10 ms: y", "10 ms: x"] }
+  expects: ["at(10 ms, \"O\".D) == 1", "final(\"O\".D) == 1"] }
+test_case "TC-BETWEEN" { verifies: ["R"] execute: { stop_time: 50 ms inputs: ["13 ms: y", "11 ms: x"] }
+  expects: ["at(10 ms, \"O\".A) == 1", "at(20 ms, \"O\".C) == 1"] }
+"#;
+
+#[test]
+fn events_are_processed_in_the_order_they_arrive() {
+    let dir = work("order-src");
+    let model = dir.join("o.arc");
+    std::fs::write(&model, ORDER).unwrap();
+    for (id, verdicts) in model_verdicts(&model) {
+        assert!(verdicts.iter().all(|v| *v), "{id}: {verdicts:?}");
+    }
+    for cc in compilers() {
+        for o in run_sil(&model, &cc, "order") {
+            assert_eq!(o.verdict, "pass", "{cc} {}: {}", o.test_case, o.reason);
+            assert_eq!(o.back_to_back.as_ref().unwrap().max_difference, 0.0);
+        }
+    }
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn an_order_the_io_cannot_reproduce_is_reported() {
+    // On the charger board, gpio edges are read before UART bytes: a fault
+    // byte cannot arrive before a plug edge of the same period.
+    let text = format!(
+        "{}\n{}",
+        std::fs::read_to_string(example(CHARGER)).unwrap(),
+        r#"test_case "TC-ORDER" { verifies: ["SYS-CHG-002"] execute: { machine: "Charger" binding: "Charger board" stop_time: 50 ms inputs: ["0 s: battery present", "10 ms: fault", "10 ms: plug"] } expects: ["final(\"Charger\".Idle) == 1"] }"#
+    );
+    let dir = work("order-io");
+    let model = dir.join("c.arc");
+    std::fs::write(&model, text).unwrap();
+    let result = compile_file(&model);
+    let options = sil::Options { compiler: gcc(), work: dir.join("w"), only: Some("TC-ORDER".to_string()) };
+    let o = &sil::run(&result.ast, &options).unwrap()[0];
+    assert_eq!(o.verdict, "error");
+    assert!(o.reason.contains("at step 1 the case has 'fault', 'plug' arrive in this order; through the I/O they arrive 'plug', 'fault'"), "{}", o.reason);
+    let _ = std::fs::remove_dir_all(&dir);
+}

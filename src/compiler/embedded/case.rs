@@ -19,7 +19,10 @@
 //! time), `<time>: <condition>` / `<condition> = true|false` (it holds,
 //! or not, from that step on) or `<time>: <in variable> = <value>` (the
 //! variable has the value from that step on: `100 ms: speed = 50 km/h`).
-//! Every time is on the step grid.
+//! A condition or a variable changes on the step grid; an event may arrive
+//! at any time: it is taken by the first step at or after it, and the
+//! events of one step are processed in the order they arrived (by time, then
+//! as written).
 
 use super::binding::period_of;
 use super::plan::Plan;
@@ -49,6 +52,8 @@ pub struct Stimulus {
     pub written: String,
     pub step: usize,
     pub drive: Drive,
+    /// When it arrives, in seconds (an event's order in its step).
+    pub at: f64,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -115,6 +120,16 @@ fn split(line: &str) -> Result<(f64, String), String> {
     Ok((q.canonical(), name.to_string()))
 }
 
+/// The first step at or after `seconds`.
+fn after(seconds: f64, step_us: u64, what: &str) -> Result<usize, String> {
+    let steps = seconds * 1e6 / step_us as f64;
+    if steps < -1e-9 {
+        return Err(format!("{what} is before 0"));
+    }
+    let near = steps.round();
+    Ok(if (steps - near).abs() <= 1e-6 { near as usize } else { steps.ceil() as usize })
+}
+
 fn on_grid(seconds: f64, step_us: u64, what: &str) -> Result<usize, String> {
     let steps = seconds * 1e6 / step_us as f64;
     if steps < -1e-9 || (steps - steps.round()).abs() > 1e-6 {
@@ -173,7 +188,9 @@ fn resolve(map: &HashMap<String, AttributeValue>, plan: &Plan, bindings: &[super
     let mut stimuli = Vec::new();
     for line in inputs(map)? {
         let (seconds, name) = split(&line)?;
-        let step = on_grid(seconds, step_us, &format!("execute: input '{line}'"))?;
+        // An event arrives at any time: the first step at or after it takes it.
+        let event = m.event(&name).is_some();
+        let step = if event { after(seconds, step_us, &format!("execute: input '{line}'"))? } else { on_grid(seconds, step_us, &format!("execute: input '{line}' (a condition or a variable changes on the step grid; an event may arrive between steps)"))? };
         if step > last {
             return Err(format!("execute: input '{line}' comes after stop_time"));
         }
@@ -204,7 +221,7 @@ fn resolve(map: &HashMap<String, AttributeValue>, plan: &Plan, bindings: &[super
                 }
             }
         };
-        stimuli.push(Stimulus { written: line.clone(), step, drive });
+        stimuli.push(Stimulus { written: line.clone(), step, drive, at: seconds });
     }
     let tolerance = match map.get("tolerance") {
         None => 0.0,
@@ -219,9 +236,13 @@ impl Case {
         let mut v = Vectors::quiet(plan, self.steps);
         let mut changes: Vec<&Stimulus> = self.stimuli.iter().filter(|s| matches!(s.drive, Drive::Condition(..) | Drive::Value(..))).collect();
         changes.sort_by_key(|s| s.step);
-        for s in &self.stimuli {
+        // The events by arrival: time, then as written (a stable sort).
+        let mut arrivals: Vec<&Stimulus> = self.stimuli.iter().filter(|s| matches!(s.drive, Drive::Event(_))).collect();
+        arrivals.sort_by(|a, b| a.at.partial_cmp(&b.at).unwrap_or(std::cmp::Ordering::Equal));
+        for s in arrivals {
             if let Drive::Event(e) = s.drive {
                 v.events[self.machine][e][s.step] = true;
+                v.queue[self.machine][s.step].push(e);
             }
         }
         for s in changes {

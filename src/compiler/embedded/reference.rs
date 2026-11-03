@@ -5,7 +5,7 @@
 //! 0. the `in` variables take the step's values;
 //! 1. on the first step, the initial states are entered;
 //! 1b. the equations are evaluated, in the order written;
-//! 2. the events present in the step fire, in the order the machine declares them;
+//! 2. the events of the step fire, in the order they arrive (the queue);
 //! 3. the timed transitions whose source has been active long enough fire
 //!    (`after 5 s`: at least ceil(5 s / period) steps);
 //! 4. the completion transitions (no trigger) fire, once;
@@ -25,8 +25,11 @@ use std::collections::BTreeMap;
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct Vectors {
     pub steps: usize,
-    /// [machine][event][step]
+    /// [machine][event][step]: whether the event occurs in the step.
     pub events: Vec<Vec<Vec<bool>>>,
+    /// [machine][step]: the events of the step in the order they arrive
+    /// (an event may arrive more than once).
+    pub queue: Vec<Vec<Vec<usize>>>,
     /// [machine][condition][step]
     pub conditions: Vec<Vec<Vec<bool>>>,
     /// [machine][variable][step]: the value of each `in` variable (the
@@ -40,6 +43,7 @@ impl Vectors {
         Vectors {
             steps,
             events: plan.machines.iter().map(|m| vec![vec![false; steps]; m.events.len()]).collect(),
+            queue: plan.machines.iter().map(|_| vec![Vec::new(); steps]).collect(),
             conditions: plan.machines.iter().map(|m| vec![vec![false; steps]; m.conditions.len()]).collect(),
             values: plan.machines.iter().map(|m| m.program().variables.iter().map(|v| vec![v.initial; steps]).collect()).collect(),
         }
@@ -178,14 +182,13 @@ pub fn run(plan: &Plan, vectors: &Vectors, period_us: u64) -> Table {
                 r.account(&started);
             }
             r.machine.flow();
+            for &e in &vectors.queue[n][k] {
+                let step = r.machine.fire(Some(&r.plan.events[e].text));
+                r.account(&step);
+            }
             for (trigger, _) in &r.plan.dispatch.clone() {
                 let step = match *trigger {
-                    Trigger::Event(e) => {
-                        if !vectors.events[n][e][k] {
-                            continue;
-                        }
-                        r.machine.fire(Some(&r.plan.events[e].text))
-                    }
+                    Trigger::Event(_) => continue,
                     Trigger::Timer(tm) => {
                         let timer = &r.plan.timers[tm];
                         let wait = ticks(timer.micros, period_us);

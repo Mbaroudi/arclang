@@ -68,9 +68,17 @@ fn header(plan: &Plan, default_period_us: u64) -> String {
         let t = type_prefix(plan, m);
         let _ = writeln!(out, "/* state_machine \"{}\" */", comment(&m.name));
         let _ = writeln!(out, "#define {}_STATE_COUNT {}U\n", t.to_uppercase(), m.states.len());
+        let upper = t.to_uppercase();
+        if !m.events.is_empty() {
+            let _ = writeln!(out, "/* The events of the machine, as posted to its queue. */");
+            for (n, e) in m.events.iter().enumerate() {
+                let _ = writeln!(out, "#define {upper}_{} {n}U /* event \"{}\" */", e.ident.to_uppercase(), comment(&e.text));
+            }
+            let _ = writeln!(out, "/* How many events one step takes, at most. */\n#ifndef {upper}_QUEUE_SIZE\n#define {upper}_QUEUE_SIZE 16U\n#endif\n");
+        }
         let _ = writeln!(out, "typedef struct {{");
-        for e in &m.events {
-            let _ = writeln!(out, "    bool {}; /* event \"{}\": true in the step it occurs */", e.ident, comment(&e.text));
+        if !m.events.is_empty() {
+            let _ = writeln!(out, "    uint16_t queue[{upper}_QUEUE_SIZE]; /* the events of the step, in the order they arrived */\n    uint8_t queued; /* how many: the caller empties it (0) before posting the next step's */");
         }
         for c in &m.conditions {
             let _ = writeln!(out, "    bool {}; /* condition \"{}\": whether it holds in the step */", c.ident, comment(&c.text));
@@ -131,8 +139,12 @@ fn header(plan: &Plan, default_period_us: u64) -> String {
     let _ = writeln!(out, "}} {p}_state;\n");
     let _ = writeln!(
         out,
-        "/* Reset the state: no state is active until the first step, which enters\n   the initial states (their entry actions count in that step). */\nvoid {p}_init({p}_state *state);\n\n/* One step: the initial states on the first one; then, in each machine, the\n   events as declared, the timed transitions, the completion transitions; the\n   do activities of the active states; the outputs. */\nvoid {p}_step({p}_state *state, const {p}_inputs *inputs, {p}_outputs *outputs);\n"
+        "/* Reset the state: no state is active until the first step, which enters\n   the initial states (their entry actions count in that step). */\nvoid {p}_init({p}_state *state);\n\n/* One step: the initial states on the first one; then, in each machine, the\n   equations, the events of its queue in the order they arrived, the timed\n   transitions, the completion transitions; the do activities of the active\n   states; the outputs. */\nvoid {p}_step({p}_state *state, const {p}_inputs *inputs, {p}_outputs *outputs);\n"
     );
+    for m in plan.machines.iter().filter(|m| !m.events.is_empty()) {
+        let t = type_prefix(plan, m);
+        let _ = writeln!(out, "/* Post an event of state_machine \"{}\" for the next step, after those posted\n   before it; false (and dropped) when the queue is full. */\nbool {t}_post({t}_inputs *inputs, uint16_t event);\n", comment(&m.name));
+    }
     let _ = writeln!(out, "#ifdef __cplusplus\n}}\n#endif\n\n#endif /* {guard} */");
     out
 }
@@ -200,6 +212,10 @@ fn source(plan: &Plan) -> String {
         }
     }
     let _ = writeln!(body, "}}");
+    for m in plan.machines.iter().filter(|m| !m.events.is_empty()) {
+        let t = type_prefix(plan, m);
+        let _ = writeln!(body, "\nbool {t}_post({t}_inputs *inputs, uint16_t event)\n{{\n    bool posted = false;\n    if ((inputs->queued < {u}_QUEUE_SIZE) && (event < {n}U)) {{\n        inputs->queue[inputs->queued] = event;\n        inputs->queued++;\n        posted = true;\n    }}\n    return posted;\n}}", u = t.to_uppercase(), n = m.events.len());
+    }
 
     let mut out = banner(plan, "The behavior of the model: its state machines.");
     let _ = writeln!(out, "#include \"{}.h\"\n", plan.ident);
@@ -432,6 +448,10 @@ fn run_source(plan: &Plan, m: &MachinePlan, access: &Access, h: &mut Helpers, ou
     let t = type_prefix(plan, m);
     let i = &m.ident;
     let n = m.states.len();
+    let mut handlers = String::new();
+    let mut run = String::new();
+    let out_final = out;
+    let out = &mut run;
     let _ = writeln!(out, "static void {i}_run({t}_state *st, const {t}_inputs *in, {t}_outputs *out)\n{{\n    uint16_t k;\n    (void)in;\n    (void)out;");
     if m.terminates() {
         let _ = writeln!(out, "    if (st->terminated) {{\n        return;\n    }}");
@@ -443,16 +463,38 @@ fn run_source(plan: &Plan, m: &MachinePlan, access: &Access, h: &mut Helpers, ou
             access.statements(std::slice::from_ref(&e.assign), "    ", h, out);
         }
     }
+    // The events: in the order of the queue, each by its handler.
+    let handled: Vec<usize> = m.dispatch.iter().filter_map(|(trigger, _)| if let Trigger::Event(e) = trigger { Some(*e) } else { None }).collect();
+    if !m.events.is_empty() {
+        let upper = t.to_uppercase();
+        let _ = writeln!(out, "    /* the events, in the order they arrived */\n    for (k = 0U; (k < (uint16_t)in->queued) && (k < {upper}_QUEUE_SIZE); k++) {{\n        switch (in->queue[k]) {{");
+        for &e in &handled {
+            let _ = writeln!(out, "        case {upper}_{}:\n            {i}_on_{e}(st, in, out);\n            break;", m.events[e].ident.to_uppercase());
+        }
+        let _ = writeln!(out, "        default:\n            break;\n        }}\n    }}");
+    }
     for (trigger, order) in &m.dispatch {
         let live: Vec<usize> = order.iter().copied().filter(|&c| m.compounds[c].compound.alternatives.iter().any(|a| !never(m, &a.guards))).collect();
         let (title, condition) = match trigger {
-            Trigger::Event(e) => (format!("event \"{}\"", comment(&m.events[*e].text)), format!("in->{}", m.events[*e].ident)),
+            Trigger::Event(e) => (format!("event \"{}\"", comment(&m.events[*e].text)), String::new()),
             Trigger::Timer(tm) => (format!("timed: {}", comment(&m.timers[*tm].label)), String::new()),
             Trigger::Completion => ("completion transitions".to_string(), String::new()),
+        };
+        // An event's transitions go in its handler, called from the queue.
+        let mut group = String::new();
+        let out: &mut String = if let Trigger::Event(e) = trigger {
+            let _ = writeln!(handlers, "/* event \"{}\": its transitions */\nstatic void {i}_on_{e}({t}_state *st, const {t}_inputs *in, {t}_outputs *out)\n{{\n    (void)in;\n    (void)out;", comment(&m.events[*e].text));
+            &mut group
+        } else {
+            &mut *out
         };
         let _ = writeln!(out, "    /* {title} */");
         if live.is_empty() {
             let _ = writeln!(out, "    /* (every transition it fires has the guard false) */");
+            if matches!(trigger, Trigger::Event(_)) {
+                handlers.push_str(&group);
+                let _ = writeln!(handlers, "}}\n");
+            }
             continue;
         }
         if condition.is_empty() {
@@ -493,6 +535,10 @@ fn run_source(plan: &Plan, m: &MachinePlan, access: &Access, h: &mut Helpers, ou
             let _ = writeln!(out, "        if ((alt_{slot} != 0U) && {}) {{\n            {i}_fire_{c}(st, in, out, alt_{slot});\n        }}", sources_active(c));
         }
         let _ = writeln!(out, "    }}");
+        if matches!(trigger, Trigger::Event(_)) {
+            handlers.push_str(&group);
+            let _ = writeln!(handlers, "}}\n");
+        }
     }
     let activities: Vec<usize> = (0..n).filter(|&k| !m.states[k].activity.is_empty()).collect();
     if !activities.is_empty() {
@@ -511,4 +557,6 @@ fn run_source(plan: &Plan, m: &MachinePlan, access: &Access, h: &mut Helpers, ou
         out,
         "    /* time in state */\n    for (k = 0U; k < {n}U; k++) {{\n        if (st->active[k] && (st->in_state[k] < UINT32_MAX)) {{\n            st->in_state[k]++;\n        }}\n    }}\n}}\n"
     );
+    out_final.push_str(&handlers);
+    out_final.push_str(&run);
 }
