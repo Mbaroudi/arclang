@@ -55,6 +55,7 @@ pub mod simulink_generator;
 mod simulink_stateflow;
 pub mod fmi_generator;
 pub mod modelica;
+pub mod embedded;
 pub mod simulation;
 pub mod reqif;
 pub mod graph_diff;
@@ -394,6 +395,9 @@ impl Compiler {
 
         // Ports that declare physics are connected to ports of the same physics.
         modelica::check(&ast).map_err(CompilerError::Semantic)?;
+
+        // Embedded C: the I/O bindings and the cases executed at fixed step.
+        warnings.extend(embedded::check(&ast).map_err(CompilerError::Semantic)?);
         for config in &ast.configurations {
             semantic_model
                 .all_elements

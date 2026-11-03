@@ -71,6 +71,20 @@ pub struct Model {
     /// views computed by the compiler (see `compiler::tables`). // tables hook
     #[serde(default)]
     pub tables: Vec<super::tables::TableDecl>, // tables hook
+    /// Bindings of state machines to I/O channels (`io_binding "ECU" { ... }`),
+    /// checked by `embedded::binding`, used by the generated C glue.
+    #[serde(default)]
+    pub io_bindings: Vec<IoBinding>,
+}
+
+/// `io_binding "ACC ECU" { machine: "ACC modes" period: 10 ms inputs: ["LF-022 <- gpio 4 rising"] outputs: ["Following -> gpio 10"] }`:
+/// the events and conditions of a machine read from I/O channels, and its
+/// states and actions written to them, once for every target.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct IoBinding {
+    pub id: String,
+    pub name: String,
+    pub attributes: HashMap<String, AttributeValue>,
 }
 
 /// `diagram "Name" { view: lab shows: [A, B] context: true }`.
@@ -117,6 +131,7 @@ impl Model {
             types: Vec::new(),
             diagrams: Vec::new(),
             tables: Vec::new(), // tables hook
+            io_bindings: Vec::new(),
         }
     }
     
@@ -151,6 +166,7 @@ impl Model {
         self.constraints.extend(other.constraints);
         self.types.extend(other.types);
         self.tables.extend(other.tables); // tables hook
+        self.io_bindings.extend(other.io_bindings);
     }
 
     /// Export the model to JSON string for diagram rendering

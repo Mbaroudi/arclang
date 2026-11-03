@@ -422,6 +422,23 @@ pub fn case_expects(model: &crate::compiler::ast::Model, test: &crate::compiler:
 /// What the parser checks of a case's simulation: a well-formed block,
 /// expectations that parse, and no other source of verdict.
 pub fn validate(attributes: &HashMap<String, AttributeValue>) -> Result<(), String> {
+    if attributes.contains_key("execute") {
+        if attributes.contains_key("simulate") {
+            return Err("a case either simulates (simulate:) or executes its state machine (execute:), not both".to_string());
+        }
+        crate::compiler::embedded::case::validate(attributes)?;
+        if attributes.contains_key("snapshots") {
+            return Err("snapshots: are checked on a simulation, not on an executed state machine".to_string());
+        }
+        if attributes.contains_key("asserts") || attributes.contains_key("verdict") {
+            return Err("its verdict comes from its run: it neither asserts constraints nor gives a verdict".to_string());
+        }
+        let expects = expects_of(attributes);
+        if expects.is_empty() {
+            return Err("execute: needs expects: [...], what the run must show (e.g. final(\"Modes\".Standby) == 1)".to_string());
+        }
+        return expects.iter().try_for_each(|e| expects::check_syntax(e));
+    }
     let Some(spec) = spec_of(attributes) else {
         return match (attributes.contains_key("expects"), attributes.contains_key("snapshots")) {
             (true, _) => Err("expects: needs simulate: { ... }, the simulation they are read on".to_string()),

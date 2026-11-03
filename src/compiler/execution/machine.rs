@@ -31,6 +31,9 @@ pub struct StateNode {
     pub children: Vec<usize>,
     pub entry: Vec<String>,
     pub exit: Vec<String>,
+    /// Its `do:` activities, as written. The debugger does not run them;
+    /// a fixed-step run (`embedded`) counts them once per step the state is active.
+    pub activity: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -92,6 +95,11 @@ fn add_states(states: &[State], parent: Option<usize>, prefix: &str, out: &mut V
             children: Vec::new(),
             entry: state.entry_actions.clone(),
             exit: state.exit_actions.clone(),
+            activity: match state.attributes.get("do") {
+                Some(crate::compiler::ast::AttributeValue::List(items)) => items.iter().filter_map(|i| i.as_string()).map(str::to_string).collect(),
+                Some(crate::compiler::ast::AttributeValue::String(one)) => vec![one.clone()],
+                _ => Vec::new(),
+            },
         });
         let children = add_states(&state.sub_states, Some(index), &path, out);
         out[index].children = children;
@@ -147,7 +155,9 @@ impl Machine {
 
     fn transition(index: usize, t: &Transition, source: usize, target: usize) -> TransitionNode {
         let nonempty = |s: &Option<String>| s.as_ref().map(|v| v.trim().to_string()).filter(|v| !v.is_empty());
-        let trigger = Some(t.trigger.trim().to_string()).filter(|v| !v.is_empty()).or_else(|| nonempty(&t.timing).map(|timing| format!("after {timing}")));
+        // `timing: 5 s` is a quantity, not a string: read it as written.
+        let timing = nonempty(&t.timing).or_else(|| t.attributes.get("timing").map(|v| v.display().trim().to_string()).filter(|v| !v.is_empty()));
+        let trigger = Some(t.trigger.trim().to_string()).filter(|v| !v.is_empty()).or_else(|| timing.map(|timing| format!("after {timing}")));
         TransitionNode {
             index,
             label: if t.id.is_empty() { format!("{} -> {}", t.from, t.to) } else { t.id.clone() },
@@ -199,7 +209,7 @@ impl Machine {
         }
     }
 
-    fn ancestors(&self, state: usize) -> Vec<usize> {
+    pub(crate) fn ancestors(&self, state: usize) -> Vec<usize> {
         let mut out = vec![state];
         let mut at = state;
         while let Some(parent) = self.states[at].parent {
@@ -209,7 +219,7 @@ impl Machine {
         out
     }
 
-    fn depth(&self, state: usize) -> usize {
+    pub(crate) fn depth(&self, state: usize) -> usize {
         self.ancestors(state).len()
     }
 
@@ -274,10 +284,16 @@ impl Machine {
 
     /// The transitions `event` enables now, in the order they fire.
     pub fn enabled(&self, event: Option<&str>) -> Vec<usize> {
+        self.enabled_where(event, &|_| true)
+    }
+
+    /// The transitions `event` enables now among those `keep` keeps (a timed
+    /// transition whose source has been active long enough), in firing order.
+    pub fn enabled_where(&self, event: Option<&str>, keep: &dyn Fn(&TransitionNode) -> bool) -> Vec<usize> {
         let mut candidates: Vec<&TransitionNode> = self
             .transitions
             .iter()
-            .filter(|t| self.active.contains(&t.source) && t.trigger.as_deref() == event && self.guard_holds(&t.guard))
+            .filter(|t| self.active.contains(&t.source) && t.trigger.as_deref() == event && self.guard_holds(&t.guard) && keep(t))
             .collect();
         candidates.sort_by(|a, b| {
             self.depth(b.source)
@@ -290,7 +306,7 @@ impl Machine {
 
     /// The state under the least common ancestor of `a` and `b` that holds
     /// `a`, and the ancestors of `b` under it, outermost first.
-    fn scope(&self, source: usize, target: usize) -> (usize, Vec<usize>) {
+    pub(crate) fn scope(&self, source: usize, target: usize) -> (usize, Vec<usize>) {
         if source == target {
             return (source, Vec::new());
         }
@@ -315,8 +331,13 @@ impl Machine {
 
     /// Fire the transitions `event` enables (`None`: a completion step).
     pub fn fire(&mut self, event: Option<&str>) -> Step {
+        self.fire_where(event, &|_| true)
+    }
+
+    /// Fire the transitions `event` enables among those `keep` keeps.
+    pub fn fire_where(&mut self, event: Option<&str>, keep: &dyn Fn(&TransitionNode) -> bool) -> Step {
         let mut step = Step { event: event.map(str::to_string), ..Step::default() };
-        for index in self.enabled(event) {
+        for index in self.enabled_where(event, keep) {
             let Some(t) = self.transitions.iter().find(|t| t.index == index).cloned() else { continue };
             // A transition of a region an earlier one left is no longer enabled.
             if !self.active.contains(&t.source) {
@@ -476,5 +497,24 @@ state_machine "Vehicle" {
         let mut leaves = m.leaves();
         leaves.sort();
         assert_eq!(leaves, ["Lit", "On"]);
+    }
+
+    #[test]
+    fn a_timing_without_trigger_is_a_timed_event_and_do_activities_are_read() {
+        let mut m = machine(r#"model T { name: "t" }
+state_machine "Charger" {
+  initial: "Precharge"
+  state Precharge { do: "limit current" }
+  state Bulk {}
+  transition Precharge -> Bulk { timing: 200 ms }
+}
+"#);
+        assert_eq!(m.transitions[0].trigger.as_deref(), Some("after 200 ms"));
+        assert_eq!(m.states[0].activity, ["limit current"]);
+        m.start();
+        // Not a completion transition: a step without event leaves it alone.
+        assert!(m.fire(None).fired.is_empty());
+        assert!(m.fire_where(Some("after 200 ms"), &|_| false).fired.is_empty());
+        assert_eq!(m.fire(Some("after 200 ms")).entered, ["Bulk"]);
     }
 }
