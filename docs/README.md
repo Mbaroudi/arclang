@@ -19,6 +19,9 @@ compiler when the site is built.
 
 - [modelica.md](modelica.md): the Modelica export and requirements verified
   by simulation in OpenModelica (`arclang export -f modelica`, `arclang verify`).
+- [simulink-connector.md](simulink-connector.md): what the Capella-Simulink
+  connector exports, from a Capella or an ArcLang model
+  (`arclang export -f simulink-connector`).
 - [MIGRATION_4.0.md](MIGRATION_4.0.md): moving a model from 3.x to 4.0.
 - [VERSIONING.md](VERSIONING.md): what a major, minor and patch release may change.
 - [qualification/](qualification/): tool-qualification support kit.

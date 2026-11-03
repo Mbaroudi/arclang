@@ -161,3 +161,27 @@ fn the_written_pivot_reads_back_the_same() {
         assert_eq!(mlcore::write(&again), text, "{name}: written twice the same");
     }
 }
+
+/// An ArcLang model goes through the Capella exporter, then the connector's m2m: its
+/// functions become models, its state machines charts (laid out by ArcLang, the export
+/// writing no state machine diagram).
+#[test]
+fn an_arclang_model_exports_through_capella() {
+    use arclang::compiler::simulink_connector::export;
+    let path = Path::new(concat!(env!("CARGO_MANIFEST_DIR"), "/examples/automotive/remote-start/remote_start_architecture.arc"));
+    let result = arclang::Compiler::new(arclang::CompilerConfig::default()).compile_file(path).unwrap();
+    let exported = arclang::compiler::capella_export::export(&result.ast, "remote_start");
+    let model = Model::from_strings(&[("remote_start.capella", exported.capella.as_str()), ("remote_start.aird", exported.aird.as_str())]).unwrap();
+    let options = Options { draw_without_diagram: true, ..Options::default() };
+    let functions = export::export(&model, Strategy::Functions, &[], &options).unwrap();
+    assert!(functions.script.contains("new_system("), "{}", functions.script);
+    let machines = export::export(&model, Strategy::StateMachines, &[], &options).unwrap();
+    assert!(machines.script.contains("Stateflow.State(parent)") && machines.script.contains("transition.SourceOClock"), "{}", machines.script);
+    assert!(machines.notes.iter().any(|n| n.contains("ArcLang lays its chart out")));
+    // Without the layout, the connector's rule: a region needs its diagram.
+    let refused = export::export(&model, Strategy::StateMachines, &[], &Options::default());
+    assert!(refused.is_err());
+    // What is written reads back to the same script.
+    let again = pivot::read(&machines.pivot, Path::new(".")).unwrap();
+    assert_eq!(script(&again).unwrap(), machines.script);
+}

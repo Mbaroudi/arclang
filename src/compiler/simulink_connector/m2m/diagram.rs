@@ -24,17 +24,17 @@ use super::super::pivot::{Kind as PivotKind, Value};
 use std::collections::HashMap;
 
 /// `IConstants`/`ViewGraphicalInfomation.DEFAULT_TRANSLATION`.
-const TRANSLATION: f64 = 10.0;
+pub(super) const TRANSLATION: f64 = 10.0;
 /// `DiagramGenerator.DEFAULT_IMAGE_MARGIN_PIXELS`.
-const IMAGE_MARGIN: i32 = 10;
+pub(super) const IMAGE_MARGIN: i32 = 10;
 /// The drop shadow of a container (`AlphaDropShadowBorder`): right and bottom.
-const SHADOW: i32 = 2;
+pub(super) const SHADOW: i32 = 2;
 /// A state holding regions: its width past its label's, its height with an empty region,
 /// where its regions' contents start, and the room after them.
-const STATE_LABEL_MARGIN: i32 = 13;
-const STATE_EMPTY_HEIGHT: i32 = 67;
-const STATE_CLIENT: (i32, i32) = (6, 34);
-const STATE_CONTENT_MARGIN: (i32, i32) = (12, 9);
+pub(super) const STATE_LABEL_MARGIN: i32 = 13;
+pub(super) const STATE_EMPTY_HEIGHT: i32 = 67;
+pub(super) const STATE_CLIENT: (i32, i32) = (6, 34);
+pub(super) const STATE_CONTENT_MARGIN: (i32, i32) = (12, 9);
 /// The height of a label line.
 const LABEL_HEIGHT: i32 = 13;
 /// `AbstractCapellaSMToPivot`: a junction's size, the shift of twin regions.
@@ -61,11 +61,11 @@ pub struct View {
 }
 
 impl View {
-    fn new(kind: Kind, origin: (f64, f64), end: (f64, f64)) -> View {
+    pub(super) fn new(kind: Kind, origin: (f64, f64), end: (f64, f64)) -> View {
         View { kind, origin, end, source_oclock: false, children: Vec::new() }
     }
 
-    fn origin_translate(&mut self, dx: f64, dy: f64) {
+    pub(super) fn origin_translate(&mut self, dx: f64, dy: f64) {
         if self.kind == Kind::Edge && self.source_oclock {
             return;
         }
@@ -75,7 +75,7 @@ impl View {
         }
     }
 
-    fn end_translate(&mut self, dx: f64, dy: f64) {
+    pub(super) fn end_translate(&mut self, dx: f64, dy: f64) {
         if self.kind == Kind::Edge && self.source_oclock {
             return;
         }
@@ -88,7 +88,7 @@ impl View {
 }
 
 /// draw2d's `PrecisionPoint` to int.
-fn int(v: f64) -> i32 {
+pub(super) fn int(v: f64) -> i32 {
     (v + 1e-9).floor() as i32
 }
 
@@ -97,8 +97,9 @@ pub fn diagram_of(m: &Model, target: usize) -> Option<usize> {
     m.referencers(target, "target").into_iter().find(|&d| m.class(d) == "DSemanticDiagram")
 }
 
-/// The geometry of the diagrams of the selection, by the region each shows.
-pub fn collect(m: &Model, selection: &[usize]) -> Result<HashMap<usize, View>, String> {
+/// The geometry of the diagrams of the selection, by the region each shows; with `draw`, a
+/// machine's region without a diagram is laid out by ArcLang (`drawing`).
+pub fn collect(m: &Model, selection: &[usize], draw: bool) -> Result<HashMap<usize, View>, String> {
     let mut out = HashMap::new();
     for &d in selection {
         if m.class(d) != "DSemanticDiagram" {
@@ -112,15 +113,21 @@ pub fn collect(m: &Model, selection: &[usize]) -> Result<HashMap<usize, View>, S
             out.insert(target, view);
         }
     }
+    if draw {
+        for &region in selection {
+            if m.is(region, "Region") && m.container(region).is_some_and(|c| m.is(c, "StateMachine")) && !out.contains_key(&region) {
+                out.insert(region, super::drawing::lay_out(m, region));
+            }
+        }
+    }
     Ok(out)
 }
 
 // ---- Laying the notation out ------------------------------------------------------------
 
-/// A figure: its notation node, its diagram element, its Capella element, its absolute bounds.
+/// A figure: its Capella element, its absolute bounds.
 #[derive(Debug, Clone)]
 struct Figure {
-    element: Option<usize>,
     target: Option<usize>,
     bounds: (i32, i32, i32, i32),
     /// Whether it has the containers' drop shadow.
@@ -223,7 +230,7 @@ impl<'m> Layout<'m> {
         let target = element.and_then(|e| self.m.reference(e, "target"));
         let region = container && target.is_some_and(|t| self.m.is(t, "Region"));
         self.by_node.insert(node, self.figures.len());
-        self.figures.push(Figure { element, target, bounds: (ax, ay, w, h), shadow: container && !region, top });
+        self.figures.push(Figure { target, bounds: (ax, ay, w, h), shadow: container && !region, top });
         if !container {
             return;
         }
@@ -241,7 +248,7 @@ impl<'m> Layout<'m> {
             let rh = (h - 20 - offset).max(LABEL_HEIGHT);
             self.by_node.insert(region, self.figures.len());
             let re = self.element_of(region);
-            self.figures.push(Figure { element: re, target: re.and_then(|e| self.m.reference(e, "target")), bounds: (rx, ry, w - 4, rh), shadow: false, top: false });
+            self.figures.push(Figure { target: re.and_then(|e| self.m.reference(e, "target")), bounds: (rx, ry, w - 4, rh), shadow: false, top: false });
             for child in self.inner_nodes(region) {
                 self.place(child, (ax + STATE_CLIENT.0, ay + STATE_CLIENT.1 + offset), false);
             }
@@ -387,7 +394,7 @@ fn reference(b: (f64, f64, f64, f64), relative: Option<(f64, f64)>) -> (f64, f64
 
 /// `BaseSlidableAnchor.getLocation`: where the line from the anchor's reference (straightened
 /// within 10 px) to the foreign one crosses the box, the crossing nearest the foreign one.
-fn location(b: (f64, f64, f64, f64), own: (f64, f64), foreign: (f64, f64)) -> (f64, f64) {
+pub(super) fn location(b: (f64, f64, f64, f64), own: (f64, f64), foreign: (f64, f64)) -> (f64, f64) {
     let mut own = own;
     if (foreign.0 - own.0).abs() < 10.0 {
         own.0 = foreign.0;
@@ -421,7 +428,7 @@ fn crossing(b: (f64, f64, f64, f64), a: (f64, f64), f: (f64, f64)) -> Option<(f6
 }
 
 /// `CoordinatesCalculator.computeOClock`: the clock position of a point around a box's center.
-fn oclock(r: (i32, i32, i32, i32), p: (i32, i32)) -> f64 {
+pub(super) fn oclock(r: (i32, i32, i32, i32), p: (i32, i32)) -> f64 {
     let center = (r.0 + r.2 / 2, r.1 + r.3 / 2);
     let (dx, dy) = (p.0 - center.0, p.1 - center.1);
     (std::f64::consts::PI + f64::atan2(-dx as f64, dy as f64)) / std::f64::consts::PI * 6.0

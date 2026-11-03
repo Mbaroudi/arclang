@@ -26,7 +26,7 @@ impl Collector {
 }
 
 /// The selection the strategy transforms.
-pub fn compute(m: &Model, strategy: Strategy, targets: &[usize]) -> Result<Vec<usize>, String> {
+pub fn compute(m: &Model, strategy: Strategy, targets: &[usize], draw: bool) -> Result<Vec<usize>, String> {
     let mut c = Collector { items: Vec::new() };
     c.add_all(targets.iter().copied());
     let mut visited: Vec<usize> = Vec::new();
@@ -46,7 +46,7 @@ pub fn compute(m: &Model, strategy: Strategy, targets: &[usize]) -> Result<Vec<u
                 chain_visitor(m, &mut c, e);
                 function_visitor(m, &mut c, e, false);
             }
-            Strategy::StateMachines => state_machine_visitor(m, &mut c, e)?,
+            Strategy::StateMachines => state_machine_visitor(m, &mut c, e, draw)?,
             Strategy::DataPackages => {
                 package_visitor(m, &mut c, e);
                 type_visitor(m, &mut c, e);
@@ -91,12 +91,16 @@ fn chain_visitor(m: &Model, c: &mut Collector, e: usize) {
 
 /// `StateMachineVisitor`: a machine's regions and the diagram of each, a region's states and
 /// transitions, a state's regions, a transition's triggers.
-fn state_machine_visitor(m: &Model, c: &mut Collector, e: usize) -> Result<(), String> {
+fn state_machine_visitor(m: &Model, c: &mut Collector, e: usize, draw: bool) -> Result<(), String> {
     if m.is(e, "StateMachine") {
         for region in m.owned(e, "ownedRegions") {
             c.add(Some(region));
-            let diagram = super::diagram::diagram_of(m, region).ok_or_else(|| format!("Cannot find diagram for region with id {}", m.id(region).unwrap_or_default()))?;
-            c.add(Some(diagram));
+            match super::diagram::diagram_of(m, region) {
+                Some(diagram) => c.add(Some(diagram)),
+                // Laid out by ArcLang when asked (`Options::draw_without_diagram`).
+                None if draw => {}
+                None => return Err(format!("Cannot find diagram for region with id {}", m.id(region).unwrap_or_default())),
+            }
         }
     } else if m.is(e, "Region") {
         c.add_all(m.refs(e, "involvedStates"));

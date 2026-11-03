@@ -11,6 +11,7 @@
 mod classes;
 mod data;
 mod diagram;
+mod drawing;
 mod font;
 mod function;
 pub mod model;
@@ -54,11 +55,14 @@ pub struct Options {
     pub leaf_functions: String,
     /// `port.naming.option`: `ExchangeItem` (the default) or `CapellaElement`.
     pub port_naming: String,
+    /// Not the connector's: a state machine region without a diagram is laid out by ArcLang
+    /// instead of refused (the connector takes the layout from the diagram).
+    pub draw_without_diagram: bool,
 }
 
 impl Default for Options {
     fn default() -> Options {
-        Options { leaf_functions: "model".to_string(), port_naming: "ExchangeItem".to_string() }
+        Options { leaf_functions: "model".to_string(), port_naming: "ExchangeItem".to_string(), draw_without_diagram: false }
     }
 }
 
@@ -330,7 +334,7 @@ pub fn transform(m: &Model, strategy: Strategy, ids: &[&str], options: &Options)
             None => return Err(format!("Cannot find element: {id}")),
         }
     }
-    let selection = scope::compute(m, strategy, &targets)?;
+    let selection = scope::compute(m, strategy, &targets, options.draw_without_diagram)?;
     if selection.is_empty() {
         return Err("Nothing to transform: the selection is empty".to_string());
     }
@@ -363,7 +367,7 @@ pub fn transform(m: &Model, strategy: Strategy, ids: &[&str], options: &Options)
     run.p[project].originator = m.id(engineering);
     if strategy == Strategy::StateMachines {
         sm::initialize(&mut run)?;
-        run.geometry = diagram::collect(m, &run.selection)?;
+        run.geometry = diagram::collect(m, &run.selection, options.draw_without_diagram)?;
     }
     transposer::run(&mut run, strategy)?;
     run.link_dictionaries();

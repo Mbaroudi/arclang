@@ -976,11 +976,11 @@ impl CliRunner {
                     return Err(CliError::Compilation("--no-placement and --split apply to the Modelica export (-f modelica)".to_string()));
                 }
                 if matches!(format, ExportFormat::SimulinkConnector) {
-                    let options = crate::compiler::simulink_connector::m2m::Options { leaf_functions, port_naming };
+                    let options = crate::compiler::simulink_connector::m2m::Options { leaf_functions, port_naming, draw_without_diagram: true };
                     return self.run_simulink_connector(&input, &output, &strategy, &elements, &options);
                 }
-                if !elements.is_empty() || strategy != "functions" {
-                    return Err(CliError::Compilation("--strategy and --element apply to the Simulink connector export (-f simulink-connector)".to_string()));
+                if !elements.is_empty() || strategy != "functions" || leaf_functions != "model" || port_naming != "ExchangeItem" {
+                    return Err(CliError::Compilation("--strategy, --element, --leaf-functions and --port-naming apply to the Simulink connector export (-f simulink-connector)".to_string()));
                 }
                 self.run_export(input, output, format, no_placement, split)
             }

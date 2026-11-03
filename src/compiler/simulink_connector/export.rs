@@ -47,9 +47,9 @@ fn resolve(m: &Model, strategy: Strategy, names: &[String]) -> Result<Vec<String
 }
 
 /// The elements taken when none is named: the functions under each layer's root function, the
-/// functional chains, the state machines whose regions all have a diagram, the data packages
-/// of the layers.
-fn defaults(m: &Model, strategy: Strategy, notes: &mut Vec<String>) -> Vec<String> {
+/// functional chains, the state machines (those whose regions all have a diagram, unless
+/// ArcLang lays them out), the data packages of the layers.
+fn defaults(m: &Model, strategy: Strategy, draw: bool, notes: &mut Vec<String>) -> Vec<String> {
     let mut out = Vec::new();
     for e in 0..m.elements.len() {
         let take = match strategy {
@@ -58,10 +58,10 @@ fn defaults(m: &Model, strategy: Strategy, notes: &mut Vec<String>) -> Vec<Strin
             Strategy::StateMachines => {
                 let machine = m.is(e, "StateMachine");
                 let drawn = m.owned(e, "ownedRegions").iter().all(|&r| m2m::has_diagram(m, r));
-                if machine && !drawn {
+                if machine && !drawn && !draw {
                     notes.push(format!("the state machine '{}' is left out: a region of it has no diagram, which gives the chart its layout", m.name(e).unwrap_or_default()));
                 }
-                machine && drawn
+                machine && (drawn || draw)
             }
             Strategy::DataPackages => m.is(e, "DataPkg") && m.container(e).is_some_and(|c| m.is(c, "BlockArchitecture")),
         };
@@ -75,9 +75,21 @@ fn defaults(m: &Model, strategy: Strategy, notes: &mut Vec<String>) -> Vec<Strin
 /// Exports the elements of a Capella model.
 pub fn export(m: &Model, strategy: Strategy, elements: &[String], options: &Options) -> Result<Exported, String> {
     let mut notes = Vec::new();
-    let ids = if elements.is_empty() { defaults(m, strategy, &mut notes) } else { resolve(m, strategy, elements)? };
+    let ids = if elements.is_empty() { defaults(m, strategy, options.draw_without_diagram, &mut notes) } else { resolve(m, strategy, elements)? };
     if ids.is_empty() {
-        return Err(format!("the model has nothing to export with the {strategy:?} strategy"));
+        let mut message = format!("the model has nothing to export with the {strategy:?} strategy");
+        for note in &notes {
+            message.push_str(&format!("\n  note: {note}"));
+        }
+        return Err(message);
+    }
+    if strategy == Strategy::StateMachines {
+        for id in &ids {
+            let Some(machine) = m.by_id(id) else { continue };
+            if m.owned(machine, "ownedRegions").iter().any(|&r| !m2m::has_diagram(m, r)) {
+                notes.push(format!("the state machine '{}' has no diagram: ArcLang lays its chart out", m.name(machine).unwrap_or_default()));
+            }
+        }
     }
     let refs: Vec<&str> = ids.iter().map(String::as_str).collect();
     let pivot = m2m::transform(m, strategy, &refs, options)?;

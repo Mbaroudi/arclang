@@ -4,9 +4,11 @@
 //! the connector's MATLAB toolbox imports with `CapSLBridge.import`), and
 //! the pivot becomes the MATLAB script that builds the Simulink project.
 //!
-//! The generator is a port of the connector's, checked against the
-//! connector's own examples and expected scripts
-//! (`tests/fixtures/simulink_connector/`).
+//! Both halves are ports of the connector's, checked against its own tests
+//! (`tests/fixtures/simulink_connector/`): the model-to-model transformation
+//! (`m2m`, from the Capella XMI; an ArcLang model is written as Capella
+//! first) and the generator (`generator`). `mlcore` writes the pivot,
+//! `export` is what `arclang export -f simulink-connector` runs.
 
 pub mod export;
 pub mod generator;
