@@ -1,7 +1,8 @@
 // Concerns, a requirement's subject and its constraints, inside the real VS
 // Code: the Requirements view draws the concern a requirement frames, the
 // subject it is about (with the requirements about it), and the constraints
-// it requires and assumes; a constraint that is no comparison is a problem.
+// it requires and assumes, and the Logical view lists on the car the
+// requirements about it; a constraint that is no comparison is a problem.
 //   VSCODE_APP="/Applications/Visual Studio Code.app" PLAYWRIGHT=/path/to/playwright ARCLANG_BINARY=/path/to/arclang node vscode_concerns_test.js
 // SHOTS=dir saves pictures.
 const { _electron } = require(process.env.PLAYWRIGHT || 'playwright');
@@ -77,6 +78,11 @@ async function launch(dir, model) {
     const lines = await page.locator('.arcviz-stage .av-edge').evaluateAll((es) => es.map((e) => (e.querySelector('.av-edge-label')?.textContent || '').replace(/\s+/g, ' ').trim()));
     report('two frames lines and two subject lines are drawn', lines.filter((l) => /^frames/.test(l)).length === 2 && lines.filter((l) => /^subject/.test(l)).length === 2, lines.join(' | '));
     await shot('concerns-01-view');
+
+    // In the Logical view, the car lists the requirements about it.
+    await page.locator('button, [role="tab"]', { hasText: /^Logical/ }).first().click(); await win.waitForTimeout(2500);
+    report('the Logical view lists the requirements about the car in its box', /requirements\s*REQ-MASS\s*REQ-BRAKE/.test(await text('LC-CAR')), await text('LC-CAR'));
+    await shot('concerns-01b-logical');
 
     // A constraint that is no comparison: the compiler says so in Problems.
     fs.writeFileSync(model, MODEL.replace('"stopping_distance <= 40 m"', '"stopping_distance"'));
