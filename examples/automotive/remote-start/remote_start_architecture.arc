@@ -767,3 +767,53 @@ diagram "Vehicle network" {
     shows: ["PA-ECU-002"]
     context: true
 }
+
+// Embedded C: the start sequence proven in the loop (arclang sil, docs/embedded-c.md)
+test_case "TC-RS-SIL-001" {
+    verifies: ["SYS-RS-001", "SYS-RS-002"]
+    method: "test"
+    description: "Authenticated request, interlocks satisfied, powertrain running, driver takes over"
+    execute: {
+        machine: "Remote start sequence"
+        step: 5 ms
+        stop_time: 200 ms
+        inputs: [
+            "0 s: LF-RX",
+            "10 ms: signature and nonce valid", "15 ms: LF-SIG",
+            "20 ms: all interlocks satisfied", "25 ms: LF-GATE",
+            "40 ms: powertrain reports running", "45 ms: LF-EXEC",
+            "100 ms: driver takes over", "105 ms: LF-PARK"
+        ]
+    }
+    expects: [
+        "at(5 ms, \"Remote start sequence\".Authenticating) == 1",
+        "at(30 ms, \"Remote start sequence\".Starting) == 1",
+        "at(50 ms, \"Remote start sequence\".Running) == 1",
+        "max(\"Remote start sequence\".Inhibited) == 0",
+        "final(\"Remote start sequence\".Idle) == 1"
+    ]
+}
+
+test_case "TC-RS-SIL-002" {
+    verifies: ["SYS-RS-010", "SAFE-RS-002"]
+    method: "test"
+    description: "A replayed request goes back to Idle; a failed interlock inhibits the start"
+    execute: {
+        machine: "Remote start sequence"
+        step: 5 ms
+        stop_time: 100 ms
+        inputs: [
+            "0 s: LF-RX", "5 ms: replay or tampering detected", "10 ms: LF-REPLAY",
+            "15 ms: replay or tampering detected = false",
+            "20 ms: LF-RX", "25 ms: signature and nonce valid", "30 ms: LF-SIG",
+            "35 ms: an interlock failed", "40 ms: LF-GATE",
+            "60 ms: LF-TX"
+        ]
+    }
+    expects: [
+        "at(10 ms, \"Remote start sequence\".Idle) == 1",
+        "at(45 ms, \"Remote start sequence\".Inhibited) == 1",
+        "max(\"Remote start sequence\".Starting) == 0",
+        "final(\"Remote start sequence\".Idle) == 1"
+    ]
+}

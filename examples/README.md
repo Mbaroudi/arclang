@@ -72,6 +72,7 @@ Simulation needs OpenModelica: on the desktop, *ArcLang: Set up OpenModelica*; o
 
 | Example | Level | What it is |
 |---|---|---|
+| [Battery charger controller](energy/battery-charger/) | Beginner | Charging modes and a fan as state machines, bound to I/O channels, generated as portable C and proven against the model in the loop (`arclang export -f c`, `arclang sil`, see [docs/embedded-c.md](../docs/embedded-c.md)). Behavior only: no architecture, not written for the gate. |
 | [DC fast-charging station](energy/ev-charging-station/) | Advanced | A 350 kW public charger and its back end: CCS2, ISO 15118 plug-and-charge, OCPP 2.0.1, load management, payment. |
 
 ## Data center
