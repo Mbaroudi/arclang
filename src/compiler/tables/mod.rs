@@ -244,6 +244,58 @@ pub struct Row {
     #[serde(skip_serializing_if = "Vec::is_empty", default)]
     pub issues: Vec<String>,
     pub cells: BTreeMap<String, Cell>,
+    /// The row this one sits under (a requirement's `parent:`), when the table nests.
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub parent: Option<String>,
+    /// How deep the row sits: 0 at the top.
+    #[serde(skip_serializing_if = "is_zero", default)]
+    pub depth: usize,
+}
+
+fn is_zero(depth: &usize) -> bool {
+    *depth == 0
+}
+
+/// Rows in the order of their tree: each followed by the rows under it, in
+/// their order. `parent_of` names the row a row sits under (by id or name);
+/// a parent that is no row, or a cycle, leaves the row at the top.
+pub(crate) fn nest(rows: Vec<Row>, parent_of: impl Fn(&Row) -> Option<String>) -> Vec<Row> {
+    let find = |written: &str| rows.iter().position(|r| r.id == written).or_else(|| rows.iter().position(|r| r.name == written));
+    let parents: Vec<Option<usize>> = rows.iter().enumerate().map(|(i, row)| parent_of(row).and_then(|p| find(&p)).filter(|&p| p != i)).collect();
+    // A row whose ancestors loop back to it is at the top.
+    let rooted = |mut i: usize| {
+        let mut hops = 0;
+        while let Some(p) = parents[i] {
+            i = p;
+            hops += 1;
+            if hops > rows.len() {
+                return false;
+            }
+        }
+        true
+    };
+    let parents: Vec<Option<usize>> = (0..rows.len()).map(|i| if rooted(i) { parents[i] } else { None }).collect();
+    let mut order: Vec<(usize, usize)> = Vec::new();
+    fn walk(i: usize, depth: usize, parents: &[Option<usize>], order: &mut Vec<(usize, usize)>) {
+        order.push((i, depth));
+        for child in (0..parents.len()).filter(|&c| parents[c] == Some(i)) {
+            walk(child, depth + 1, parents, order);
+        }
+    }
+    for root in (0..rows.len()).filter(|&i| parents[i].is_none()) {
+        walk(root, 0, &parents, &mut order);
+    }
+    let mut slots: Vec<Option<Row>> = rows.into_iter().map(Some).collect();
+    let ids: Vec<String> = slots.iter().map(|r| r.as_ref().map(|r| r.id.clone()).unwrap_or_default()).collect();
+    order
+        .into_iter()
+        .filter_map(|(i, depth)| {
+            let mut row = slots[i].take()?;
+            row.depth = depth;
+            row.parent = parents[i].map(|p| ids[p].clone());
+            Some(row)
+        })
+        .collect()
 }
 
 /// One cell of a matrix that holds something.

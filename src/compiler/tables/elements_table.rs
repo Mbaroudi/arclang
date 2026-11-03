@@ -85,7 +85,7 @@ fn row(context: &Context, index: usize, keys: &[String]) -> Row {
         };
         cells.insert(key.clone(), cell);
     }
-    Row { id: element.id.clone(), uuid: element.uuid.clone(), kind: element.kind.to_string(), name: element.name.clone(), status: "ok".to_string(), issues: Vec::new(), cells }
+    Row { id: element.id.clone(), uuid: element.uuid.clone(), kind: element.kind.to_string(), name: element.name.clone(), status: "ok".to_string(), issues: Vec::new(), cells, parent: None, depth: 0 }
 }
 
 /// An attribute: its text, with links when it names elements.

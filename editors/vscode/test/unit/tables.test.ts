@@ -143,3 +143,23 @@ test('a table sits in the model tree under the layer of its scope', () => {
   const groups = treeByLayer([model, table] as never, null);
   assert.deepEqual(groups.map((g) => g.layer), ['Model', 'System']);
 });
+
+test('a folded requirement hides the rows under it, at every depth, until the table is sorted', async () => {
+  const { childRequirementId, childRequirementRequests } = await import('../../src/pure/workbench');
+  const { parentIds } = await import('../../src/pure/tables');
+  const make = (id: string, parent?: string, depth?: number): TableRow => ({ id, uuid: id, kind: 'Requirement', name: id, status: 'ok', cells: { id: { text: id } }, parent, depth });
+  const rows = [make('REQ-1'), make('REQ-1.1', 'REQ-1', 1), make('REQ-1.1.1', 'REQ-1.1', 2), make('REQ-2')];
+  const data = { rows, columns: [{ key: 'id', label: 'Req id', type: 'text' }] } as unknown as TableData;
+  const ids = (state: Parameters<typeof visibleRows>[1]) => visibleRows(data, state).map((r) => r.id);
+  const base = { filter: '', columnFilters: {}, gapsOnly: false, sort: null };
+  assert.deepEqual(ids(base), ['REQ-1', 'REQ-1.1', 'REQ-1.1.1', 'REQ-2']);
+  assert.deepEqual(ids({ ...base, collapsed: ['REQ-1'] }), ['REQ-1', 'REQ-2']);
+  assert.deepEqual(ids({ ...base, collapsed: ['REQ-1.1'] }), ['REQ-1', 'REQ-1.1', 'REQ-2']);
+  assert.equal(ids({ ...base, collapsed: ['REQ-1'], sort: { key: 'id', descending: false } }).length, 4, 'sorted, the tree is flat');
+  assert.deepEqual([...parentIds(data)].sort(), ['REQ-1', 'REQ-1.1']);
+
+  assert.equal(childRequirementId('REQ-1', ['REQ-1', 'REQ-1.1', 'REQ-1.1.1', 'REQ-1.2']), 'REQ-1.3');
+  assert.equal(childRequirementId('REQ-2', ['REQ-2']), 'REQ-2.1');
+  const [request] = childRequirementRequests('REQ-1.3', 'Six airbags', 'REQ-1', true);
+  assert.deepEqual(request, { op: 'add_raw', declaration: 'requirement "REQ-1.3" {\n  description: "Six airbags"\n  parent: "REQ-1"\n}', layer: 'requirements' });
+});

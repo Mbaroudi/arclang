@@ -40,6 +40,10 @@ export interface TableRow {
   status: string;
   issues?: string[];
   cells: Record<string, TableCell>;
+  /** The row this one sits under (a requirement's `parent:`). */
+  parent?: string;
+  /** How deep the row sits: absent at the top. */
+  depth?: number;
 }
 
 export interface MatrixLink {
@@ -227,6 +231,8 @@ export interface ViewState {
   columnFilters: Record<string, string>;
   gapsOnly: boolean;
   sort: { key: string; descending: boolean } | null;
+  /** Rows whose rows under them are folded away. */
+  collapsed?: string[];
 }
 
 const STATUS_ORDER: Record<string, number> = { fail: 0, gap: 1, warn: 2, ok: 3 };
@@ -244,11 +250,26 @@ export function naturalCompare(a: string, b: string): number {
 }
 
 /** The rows the view shows, in its order. */
+/** The ids of the rows other rows sit under. */
+export function parentIds(table: TableData): Set<string> {
+  return new Set(table.rows.flatMap((row) => (row.parent ? [row.parent] : [])));
+}
+
 export function visibleRows(table: TableData, state: ViewState): TableRow[] {
   let rows = table.rows.filter((row) => (!state.gapsOnly || row.status === 'gap' || row.status === 'fail') && rowMatches(row, state.filter));
   for (const [key, text] of Object.entries(state.columnFilters)) {
     const wanted = text.trim().toLowerCase();
     if (wanted) rows = rows.filter((row) => cellText(row.cells[key]).toLowerCase().includes(wanted) || (row.cells[key]?.links ?? []).some((l) => l.id.toLowerCase().includes(wanted)));
+  }
+  // Unsorted, the rows are a tree: the rows under a folded row are not shown.
+  if (!state.sort && state.collapsed?.length) {
+    const folded = new Set(state.collapsed);
+    const parentOf = new Map(table.rows.map((row) => [row.id, row.parent]));
+    const hidden = (row: TableRow) => {
+      for (let up = row.parent, hops = 0; up && hops < table.rows.length; up = parentOf.get(up), hops++) if (folded.has(up)) return true;
+      return false;
+    };
+    rows = rows.filter((row) => !hidden(row));
   }
   if (state.sort) {
     const { key, descending } = state.sort;
@@ -381,6 +402,7 @@ export type FromTableView =
   | { type: 'remove-trace'; row: number; column: number }
   | { type: 'export'; format: 'csv' | 'xlsx' | 'html' | 'md' }
   | { type: 'copied'; rows: number; ok: boolean; tsv: string }
+  | { type: 'add-child'; parent: string; text: string }
   | { type: 'save-declaration'; spec: TableSpec }
   | { type: 'spec'; spec: TableSpec }
   | { type: 'typing'; on: boolean }

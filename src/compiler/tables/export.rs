@@ -43,7 +43,12 @@ pub fn grid(table: &Table) -> Vec<Vec<String>> {
     }
     let mut out = vec![table.columns.iter().map(|c| c.label.clone()).collect::<Vec<_>>()];
     for row in &table.rows {
-        out.push(table.columns.iter().map(|c| row.cells.get(&c.key).map(cell_text).unwrap_or_default()).collect());
+        let mut line: Vec<String> = table.columns.iter().map(|c| row.cells.get(&c.key).map(cell_text).unwrap_or_default()).collect();
+        // A nested row says how deep it sits in its first column.
+        if let Some(first) = line.first_mut().filter(|_| row.depth > 0) {
+            *first = format!("{}{first}", "  ".repeat(row.depth));
+        }
+        out.push(line);
     }
     out
 }

@@ -191,7 +191,7 @@ fn row(context: &Context, exchange: &Exchange, keys: &[String]) -> Row {
         cell.status = Some("warn".to_string());
     }
     let uuid = relationship_uuid(context, exchange, from_port, to_port).unwrap_or_else(|| element_uuid(&format!("icd:{}", exchange.kind), &exchange.id));
-    Row { id: exchange.id.clone(), uuid, kind: exchange.kind.to_string(), name: exchange.name.clone(), status: status.to_string(), issues, cells }
+    Row { id: exchange.id.clone(), uuid, kind: exchange.kind.to_string(), name: exchange.name.clone(), status: status.to_string(), issues, cells, parent: None, depth: 0 }
 }
 
 /// The UUID the element graph gives the exchange: same kind, same ends.

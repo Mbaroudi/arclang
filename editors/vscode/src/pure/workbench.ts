@@ -847,6 +847,23 @@ export function requirementRequests(id: string, text: string, satisfiedBy: strin
   return satisfiedBy ? [create, { op: 'add_trace', from: satisfiedBy, kind: 'satisfies', to: id }] : [create];
 }
 
+/** The id of a new requirement under `parent`: `REQ-1.3` after `REQ-1.1` and `REQ-1.2`. */
+export function childRequirementId(parent: string, ids: string[]): string {
+  const prefix = `${parent}.`;
+  const taken = new Set(ids);
+  let next = 1 + ids.reduce((highest, id) => (id.startsWith(prefix) && /^\d+$/.test(id.slice(prefix.length)) ? Math.max(highest, Number(id.slice(prefix.length))) : highest), 0);
+  while (taken.has(`${prefix}${next}`)) next++;
+  return `${prefix}${next}`;
+}
+
+/** A new requirement under `parent` (its `parent:`), in the requirements block. */
+export function childRequirementRequests(id: string, text: string, parent: string, hasRequirementsBlock: boolean): EditRequest[] {
+  const declaration = `requirement ${stringLiteral(id)} {\n  description: ${stringLiteral(text)}\n  parent: ${stringLiteral(parent)}\n}`;
+  return hasRequirementsBlock
+    ? [{ op: 'add_raw', declaration, layer: 'requirements' }]
+    : [{ op: 'add_raw', declaration: `requirements {\n  ${declaration.replace(/\n/g, '\n  ')}\n}`, top_level: true }];
+}
+
 /** A note about elements, declared at the top of the file: `note "Text" { about: ["LC-A"] }`. */
 export function noteRequest(text: string, about: string[]): EditRequest | { error: string } {
   if (!text.trim()) return { error: 'a note has a text' };
