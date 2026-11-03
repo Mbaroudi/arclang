@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<org.eclipse.capella.simulink.core:Dictionary xmi:version="2.0" xmlns:xmi="http://www.omg.org/XMI" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:org.eclipse.capella.simulink.core="http://www.eclipse.org/capella/simulink/core/1.0" id="b1" name="bus (1)">
+  <datatypes xsi:type="org.eclipse.capella.simulink.core:Bus" id="53788a6a-3462-4b79-bdbc-093924700aa0" name="myBus">
+    <busElements id="1a54a092-e939-42ee-bed8-218db62f6497" name="Value">
+      <datatype xsi:type="org.eclipse.capella.simulink.core:BuiltIntype" href="library:/model/builtInTypes.mlcore#af51b9eb-672c-4506-ac0a-3faefd6e01fc"/>
+    </busElements>
+    <busElements id="915308fb-7814-49b8-ab4e-26c2abe1a6ba" name="Validity">
+      <datatype xsi:type="org.eclipse.capella.simulink.core:BuiltIntype" href="library:/model/builtInTypes.mlcore#895807ab-63ff-4779-8bed-8ff8180aa13e"/>
+    </busElements>
+  </datatypes>
+</org.eclipse.capella.simulink.core:Dictionary>

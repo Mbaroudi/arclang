@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="ASCII"?>
+<org.eclipse.capella.simulink.core:Project xmi:version="2.0" xmlns:xmi="http://www.omg.org/XMI" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:org.eclipse.capella.simulink.core="http://www.eclipse.org/capella/simulink/core/1.0" xmlns:org.eclipse.capella.simulink.infra="http://www.eclipse.org/capella/simulink/infra/1.0" id="676bdac7-ba05-4d92-92a2-6d4195fb65ff" name="capella-mls-ref-project">
+  <systems id="397e2415-4362-4c4e-b030-323af42e636b" name="LF-P">
+    <ports id="aa21129f-53db-43e9-98e4-cc7e3553c314t" name="FIP 1"/>
+    <ports id="82475ef8-c233-4b37-9e86-5c7635751084" name="FIP 2" index="2"/>
+    <ports id="41f05e33-9c3d-4898-8f84-803bbe00e9b4" name="FIP 3" index="3"/>
+    <ports id="8f576c75-371f-4e67-bea0-093778f26812" name="FOP 1" kind="Outport"/>
+    <ports id="e87e4168-0836-4ba6-ae25-1202acbdfc31" name="FOP 2" kind="Outport" index="2"/>
+    <blocks xsi:type="org.eclipse.capella.simulink.core:Subsystem" id="bec54430-c4d4-474d-8207-a3cab762e3d3" name="LF-C-Sub-Sys" source="CapellaElements/Subsystem/Function">
+      <ports id="aa21129f-53db-43e9-98e4-cc7e3553c314d" name="FIP 1 (LF-C-Sys)"/>
+      <ports id="42fcb409-33a1-4812-b9af-b9eb3e3ddbf7" name="S1/1, S1/2, S1/3" description="Available in Modes and States: S1/1, S1/2, S1/3" kind="Enable">
+        <parameters id="21f262d2-a31b-49d4-a866-c7f1e1dd7d7b" key="AttributesFormatString">
+          <value xsi:type="org.eclipse.capella.simulink.infra:PrimitiveValue" id="007171b6-dffa-41e1-9a93-f6f396456c93" specification="%&lt;Description>"/>
+        </parameters>
+        <parameters id="e70384ba-ab9d-4684-9d0d-428b0efb1da7" key="ShowName">
+          <value xsi:type="org.eclipse.capella.simulink.infra:PrimitiveValue" id="f89d77af-9752-47dc-a4b4-617bd4b9f271" specification="off"/>
+        </parameters>
+      </ports>
+      <ports id="ca7b3988-3f99-4d44-a435-dd9d0dada7ad" name="FIP 2 (LF-C-Sys)" index="2"/>
+      <ports id="27b16dff-c557-44ed-bfad-57e7483aa814" name="FOP 1 (LF-C-Sys)" kind="Outport"/>
+      <ports id="46684b4f-ab10-4e32-9235-c7b5463601c9" name="FOP 2 (LF-C-Sys)" kind="Outport" index="2"/>
+    </blocks>
+    <lines id="31ed9328-f5b8-4f19-bd7b-41b3d6ca3b7c" name="a" source="aa21129f-53db-43e9-98e4-cc7e3553c314t" target="aa21129f-53db-43e9-98e4-cc7e3553c314d"/>
+    <lines id="c212aeff-05ba-4beb-b76c-efa3b7a7c91f" name="b" source="82475ef8-c233-4b37-9e86-5c7635751084" target="42fcb409-33a1-4812-b9af-b9eb3e3ddbf7"/>
+    <lines id="920c1dcd-522b-433c-ae34-01d277a733b5" name="c" source="41f05e33-9c3d-4898-8f84-803bbe00e9b4" target="ca7b3988-3f99-4d44-a435-dd9d0dada7ad"/>
+    <lines id="4d266691-5ee2-4510-9e51-f49a5cee037f" name="d" source="46684b4f-ab10-4e32-9235-c7b5463601c9" target="8f576c75-371f-4e67-bea0-093778f26812"/>
+    <lines id="12d789e3-8a19-46a2-83a8-4b4a3b519708" name="e" source="27b16dff-c557-44ed-bfad-57e7483aa814" target="e87e4168-0836-4ba6-ae25-1202acbdfc31"/>
+  </systems>
+</org.eclipse.capella.simulink.core:Project>

@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="ASCII"?>
+<xmi:XMI xmi:version="2.0" xmlns:xmi="http://www.omg.org/XMI" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:org.eclipse.capella.simulink.core="http://www.eclipse.org/capella/simulink/core/1.0" xmlns:org.eclipse.capella.simulink.infra="http://www.eclipse.org/capella/simulink/infra/1.0">
+  <org.eclipse.capella.simulink.core:Project id="6a8b16d2-4d56-40ce-93ad-6f0e84e89f48" name="MyProject25" dictionaries="285e15e6-8f4a-4c9a-95a9-8f885224ca0a 3c648c40-eb28-4ed0-a71b-bcb060fe69a4">
+    <systems id="f58f10b2-a77c-41b1-9cc3-1d74bff71344" name="SystemFunction 1" dictionary="3c648c40-eb28-4ed0-a71b-bcb060fe69a4">
+      <parameters id="31c85bc5-3489-4e03-8851-c6674c7b9f51" key="capella.layer">
+        <value xsi:type="org.eclipse.capella.simulink.infra:PrimitiveValue" id="a1e2e4d3-3702-4d9e-bd3b-140ea5be8783" specification="SA"/>
+      </parameters>
+      <ports id="afcb93b3-d298-4f95-8d9a-db13804c90f1" name="FunctionalExchange 1" datatype="d39796cd-d185-4fc0-ab19-e852e1a3ef68" kind="Outport"/>
+    </systems>
+  </org.eclipse.capella.simulink.core:Project>
+  <org.eclipse.capella.simulink.core:Dictionary id="285e15e6-8f4a-4c9a-95a9-8f885224ca0a" name="System Analysis">
+    <parameters id="20649075-d808-4523-ae36-15c08a595dca" key="capella.layer">
+      <value xsi:type="org.eclipse.capella.simulink.infra:PrimitiveValue" id="912bd96c-5cf1-4675-abf4-ba773d63b3d8" specification="SA"/>
+    </parameters>
+    <datatypes xsi:type="org.eclipse.capella.simulink.core:Bus" id="d39796cd-d185-4fc0-ab19-e852e1a3ef68" name="busFE_FunctionalExchange 1"/>
+  </org.eclipse.capella.simulink.core:Dictionary>
+  <org.eclipse.capella.simulink.core:Dictionary id="3c648c40-eb28-4ed0-a71b-bcb060fe69a4" name="SystemFunction 1" subDictionaries="285e15e6-8f4a-4c9a-95a9-8f885224ca0a">
+    <parameters id="7ff9564a-46ef-44e3-a401-bc982f986477" key="capella.layer">
+      <value xsi:type="org.eclipse.capella.simulink.infra:PrimitiveValue" id="3966670f-4538-41a2-af85-629c3db928c8" specification="SA"/>
+    </parameters>
+  </org.eclipse.capella.simulink.core:Dictionary>
+</xmi:XMI>
