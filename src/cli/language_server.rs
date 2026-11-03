@@ -439,6 +439,7 @@ fn kinds_of(keyword: &str) -> &'static [&'static str] {
         "message" => &["Message"],
         "diagram" => &["Diagram"],
         "table" => &["Table"], // tables hook
+        "io_binding" => &["IoBinding"],
         _ => &[],
     }
 }
@@ -449,6 +450,7 @@ const TOP_LEVEL: &[&str] = &[
     "architecture", "requirements", "safety_analysis", "security_analysis", "security_scales", "trace", "state_machine", "scenario", "scenarios", "class", "enumeration",
     "data_type", "exchange_item", "test_case", "constraint", "type", "diagram", "note", "configuration",
     "table", // tables hook
+    "io_binding",
 ];
 fn inside(keyword: &str) -> &'static [&'static str] {
     match keyword {
@@ -465,7 +467,8 @@ fn inside(keyword: &str) -> &'static [&'static str] {
         "node" => &["behavior_component", "hardware_component", "port", "deploys", "timeslice", "snapshot"],
         "entity" | "actor" => &["activity", "operational_activity"],
         "function" => &["port"],
-        "state_machine" => &["state", "mode", "transition"],
+        "state_machine" => &["state", "mode", "transition", "region"],
+        "state" | "mode" | "region" => &["state", "mode", "transition", "region"],
         "scenario" | "scenarios" => &["scenario", "message"],
         _ => &[],
     }
@@ -485,6 +488,9 @@ pub fn complete(text: &str, line: u32, character: u32) -> Vec<CompletionItem> {
     let path = enclosing(&outline, line as usize + 1);
     let current = line_of(text, line);
     let before: String = current.chars().take(character as usize).collect();
+    if let Some(items) = complete_code(text, &path, line, &before) {
+        return items;
+    }
     let holder_keyword = path.last().map(|d| d.keyword.as_str()).unwrap_or("");
     let holder_kinds: Vec<&KindSpec> = kinds_of(holder_keyword).iter().filter_map(|k| kind_spec(&metamodel, k)).collect();
 
@@ -577,6 +583,107 @@ pub fn complete(text: &str, line: u32, character: u32) -> Vec<CompletionItem> {
         }
     }
     items
+}
+
+fn simple(label: &str, kind: CompletionItemKind, detail: &str) -> CompletionItem {
+    CompletionItem { label: label.to_string(), kind: Some(kind), detail: Some(detail.to_string()), ..Default::default() }
+}
+
+/// The text of the lines `from..=to` (1-based).
+fn lines_between(text: &str, from: usize, to: usize) -> String {
+    text.split('\n').skip(from.saturating_sub(1)).take(to + 1 - from.max(1)).collect::<Vec<_>>().join("\n")
+}
+
+/// The variables a state machine declares in its `variables:` list, with their declaration.
+fn machine_variables(block: &str) -> Vec<(String, String)> {
+    let Some(start) = block.find("variables:") else { return Vec::new() };
+    let rest = &block[start..];
+    // The bracket that closes the list, not one of a unit inside a string.
+    let mut quoted = false;
+    let Some(end) = rest.char_indices().find(|&(_, c)| {
+        if c == '"' {
+            quoted = !quoted;
+        }
+        c == ']' && !quoted
+    }).map(|(i, _)| i) else { return Vec::new() };
+    let list = &rest[..end];
+    let re = Regex::new(r#""\s*(?:in\s+|out\s+|const\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*:([^"]*)""#).ok();
+    re.map(|re| re.captures_iter(list).map(|c| (c[1].to_string(), c[0].trim_matches('"').to_string())).collect()).unwrap_or_default()
+}
+
+/// Completion in the code of a state machine and in an executed case:
+/// - inside `execute: { ... }`, its keys;
+/// - inside the string of a `guard:`, an `action:`, an entry/exit/do action
+///   or an equation, the machine's variables, the operators' words and the
+///   functions (the blocks in `equations:` only);
+/// - inside the strings of `variables:`, the directions and the types.
+fn complete_code(text: &str, path: &[&source_edit::Declaration], line: u32, before: &str) -> Option<Vec<CompletionItem>> {
+    let holder = path.last()?;
+    // Inside `execute: {` not yet closed, at the start of a key.
+    if let Some(case) = path.iter().rev().find(|d| d.keyword == "test_case") {
+        let upto = format!("{}\n{before}", lines_between(text, case.line, line as usize));
+        if let Some(open) = upto.rfind("execute:") {
+            let after = &upto[open..];
+            let depth = after.matches('{').count() as i64 - after.matches('}').count() as i64;
+            let at_key = Regex::new(r"(^|[\s{])[A-Za-z_]*$").ok().is_some_and(|re| re.is_match(before)) && before.matches('"').count() % 2 == 0;
+            if depth > 0 && at_key {
+                let docs = [
+                    ("machine", "the state_machine the case drives (optional when the model has one)"),
+                    ("step", "the step (default: the binding's period, else 10 ms)"),
+                    ("stop_time", "how long the case runs (required)"),
+                    ("inputs", "\"<time>: <event>\", \"<time>: <condition> = true|false\", \"<time>: <in variable> = <value>\""),
+                    ("binding", "an io_binding: the run goes through the I/O glue and the host board"),
+                    ("tolerance", "how far a C value may be from the model's (default 0)"),
+                ];
+                return Some(
+                    docs.iter()
+                        .map(|(key, doc)| CompletionItem { insert_text: Some(format!("{key}: ")), ..simple(key, CompletionItemKind::PROPERTY, doc) })
+                        .collect(),
+                );
+            }
+        }
+    }
+    let machine = path.iter().rev().find(|d| d.keyword == "state_machine")?;
+    let block = lines_between(text, machine.line, machine.end_line);
+    let inside_string = before.matches('"').count() % 2 == 1;
+    if !inside_string {
+        return None;
+    }
+    let key_re = Regex::new(r#"([A-Za-z_]+)\s*:\s*\[?(?:"[^"]*"\s*,\s*)*"[^"]*$"#).ok()?;
+    let key = key_re.captures(before).map(|c| c[1].to_string()).or_else(|| {
+        // A list going on over several lines: the key that opened it.
+        let upto = format!("{}\n{before}", lines_between(text, holder.line, line as usize));
+        let open = upto.rfind('[')?;
+        Regex::new(r"([A-Za-z_]+)\s*:\s*$").ok()?.captures(&upto[..open]).map(|c| c[1].to_string())
+    })?;
+    let variables = machine_variables(&block);
+    match key.as_str() {
+        "variables" => {
+            let mut items: Vec<CompletionItem> = [("in", "an input: the caller sets it every step"), ("out", "an output kept by the machine"), ("const", "never assigned")]
+                .iter()
+                .map(|(w, d)| CompletionItem { insert_text: Some(format!("{w} ")), ..simple(w, CompletionItemKind::KEYWORD, d) })
+                .collect();
+            for (ty, c) in [("Boolean", "bool"), ("Integer", "int32_t, saturating"), ("Real", "double"), ("Float", "float")] {
+                items.push(simple(ty, CompletionItemKind::TYPE_PARAMETER, &format!("a variable's type (C {c})")));
+            }
+            Some(items)
+        }
+        "guard" | "action" | "entry" | "exit" | "do" | "equations" => {
+            let mut items: Vec<CompletionItem> = variables.iter().map(|(name, declared)| simple(name, CompletionItemKind::VARIABLE, declared)).collect();
+            for (word, doc) in [("and", "both hold"), ("or", "either holds"), ("not", "it does not hold"), ("true", "Boolean"), ("false", "Boolean")] {
+                items.push(simple(word, CompletionItemKind::KEYWORD, doc));
+            }
+            let mut functions = vec![("min", "min(a, b)"), ("max", "max(a, b)"), ("abs", "abs(a)"), ("saturate", "saturate(x, lo, hi)"), ("gain", "gain(x, k) = x * k")];
+            if key == "equations" {
+                functions.extend([("delay", "delay(x[, initial]): the input of the previous step"), ("integrator", "integrator(x, k[, lo, hi]): forward Euler"), ("pid", "pid(e, kp, ki, kd[, lo, hi]): parallel, clamping anti-windup")]);
+            }
+            for (name, signature) in functions {
+                items.push(CompletionItem { insert_text: Some(format!("{name}(")), ..simple(name, CompletionItemKind::FUNCTION, signature) });
+            }
+            Some(items)
+        }
+        _ => None,
+    }
 }
 
 /// The declarations a reference to `kind` may name (`Element`: any), by
@@ -802,6 +909,26 @@ trace "LC-CTL" satisfies "REQ-001"
         assert!(top.contains(&"note".to_string()) && top.contains(&"configuration".to_string()), "{top:?}");
         let safety = complete("safety_analysis {\n    \n}\n", 1, 4).into_iter().map(|i| i.label).collect::<Vec<_>>();
         assert!(safety.contains(&"fmea".to_string()), "{safety:?}");
+    }
+
+    #[test]
+    fn completion_knows_io_binding_execute_and_the_action_language() {
+        let labels = |text: &str, line: u32, character: u32| complete(text, line, character).into_iter().map(|i| i.label).collect::<Vec<_>>();
+        assert!(labels("", 0, 0).contains(&"io_binding".to_string()));
+        let binding = labels("io_binding \"B\" {\n    \n}\n", 1, 4);
+        assert!(binding.contains(&"inputs".to_string()) && binding.contains(&"watchdog".to_string()), "{binding:?}");
+        let case = "test_case \"T\" {\n    execute: {\n        machine: \"M\"\n        \n    }\n}\n";
+        let keys = labels(case, 3, 8);
+        assert!(keys.contains(&"stop_time".to_string()) && keys.contains(&"inputs".to_string()), "{keys:?}");
+        let machine = "state_machine \"M\" {\n    variables: [\"in speed: Real [km/h]\", \"out count: Integer = 0\"]\n    equations: [\"\"]\n    initial: \"A\"\n    state A {}\n    transition A -> A { guard: \"sp\" }\n}\n";
+        let guard = labels(machine, 5, 32);
+        assert!(guard.contains(&"speed".to_string()) && guard.contains(&"count".to_string()) && guard.contains(&"and".to_string()) && !guard.contains(&"pid".to_string()), "{guard:?}");
+        let equation = labels(machine, 2, 17);
+        assert!(equation.contains(&"pid".to_string()) && equation.contains(&"delay".to_string()), "{equation:?}");
+        let types = labels(machine, 1, 17);
+        assert!(types.contains(&"Real".to_string()) && types.contains(&"in".to_string()), "{types:?}");
+        let state = labels("state_machine \"M\" {\n    state A {\n        \n    }\n}\n", 2, 8);
+        assert!(state.contains(&"region".to_string()), "{state:?}");
     }
 
     #[test]

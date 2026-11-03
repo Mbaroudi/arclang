@@ -547,6 +547,22 @@ requirements), with its values as evidence; a case never run in SIL, or
 whose C or case changed since (stale, with a warning), is inconclusive and
 says what to run.
 
+## In VS Code
+
+The extension's grammar knows `io_binding` and `region`, and colours the
+action language inside the strings of `guard:`, `action:`, `entry:`,
+`exit:`, `do:`, `equations:` and `variables:` (operators, `and`/`or`/`not`,
+functions and blocks, types, units, numbers; an action in prose is coloured
+as words, not as a string) and the channels of a binding's `inputs:` and
+`outputs:`. The language server completes the machine's variables, the
+operators' words and the functions inside a guard or an action, the blocks
+inside an equation, the directions and the types inside `variables:`, the
+keys inside `execute: { }`, and `io_binding` at the top level
+(`editors/vscode/test/e2e/vscode_embedded_test.js` checks it in the real VS
+Code).
+
+![Completion of a variable inside a guard, the equations coloured](images/embedded-c-vscode.png)
+
 ## MISRA C 2012
 
 `tools/embedded/misra.sh` (run in the embedded image: `tools/embedded/run.sh
