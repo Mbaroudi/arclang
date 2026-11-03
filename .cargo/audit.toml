@@ -1,0 +1,13 @@
+# cargo audit reads this file; CI runs `cargo audit` and fails on any other advisory.
+[advisories]
+ignore = [
+    # RUSTSEC-2023-0071, rsa (Marvin attack: timing side channel on RSA
+    # decryption; no fixed release exists). Brought by async-opcua, the OPC UA
+    # client of the digital twins (`data: { opcua: ... }`). Only secured OPC UA
+    # sessions use RSA, and on ArcLang's side the private key decrypts only
+    # what the server sends while the secure channel opens: an attacker would
+    # have to make ArcLang decrypt many chosen messages and time each one
+    # precisely. Sessions with `security: "none"` use no RSA at all.
+    # Remove this line when rsa publishes a constant-time release.
+    "RUSTSEC-2023-0071",
+]

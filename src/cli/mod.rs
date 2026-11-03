@@ -1847,17 +1847,44 @@ impl CliRunner {
             .collect();
         let chosen = match live.as_slice() {
             [one] => *one,
-            [] => return Err(CliError::Compilation(format!("{} has no twin on live data (data: {{ mqtt: \"mqtt://broker:1883\" topics: [...] }})", input.display()))),
+            [] => return Err(CliError::Compilation(format!("{} has no twin on live data (data: {{ mqtt: \"mqtt://broker:1883\" topics: [...] }} or {{ opcua: \"opc.tcp://plc:4840\" nodes: {{ ... }} }})", input.display()))),
             _ => return Err(CliError::Compilation(format!("{} twins read live data: name one with --twin ({})", live.len(), live.iter().map(|t| t.id.as_str()).collect::<Vec<_>>().join(", ")))),
         };
         let config = crate::compiler::simulation::tool::ToolConfig::from_env();
         let until = for_seconds.map(std::time::Duration::from_secs);
+        // Stopped by a line `stop` on the standard input (VS Code), Ctrl-C or SIGTERM: what was
+        // received since the last record is written before the end.
+        let stop = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let on_line = stop.clone();
+        std::thread::spawn(move || {
+            for line in std::io::BufRead::lines(std::io::stdin().lock()).map_while(Result::ok) {
+                if line.trim() == "stop" {
+                    on_line.store(true, std::sync::atomic::Ordering::Relaxed);
+                    return;
+                }
+            }
+        });
+        let on_signal = stop.clone();
+        std::thread::spawn(move || {
+            let Ok(runtime) = tokio::runtime::Builder::new_current_thread().enable_all().build() else { return };
+            runtime.block_on(async {
+                #[cfg(unix)]
+                {
+                    let Ok(mut term) = tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate()) else { return };
+                    tokio::select! { _ = tokio::signal::ctrl_c() => {}, _ = term.recv() => {} }
+                }
+                #[cfg(not(unix))]
+                let _ = tokio::signal::ctrl_c().await;
+            });
+            on_signal.store(true, std::sync::atomic::Ordering::Relaxed);
+        });
         twin_live::live(
             &result,
             &input,
             chosen,
             &config,
             until,
+            &stop,
             |outcome| {
                 if json {
                     println!("{}", serde_json::to_string(outcome).unwrap_or_default());

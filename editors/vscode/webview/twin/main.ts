@@ -35,7 +35,7 @@ function twinCard(t: Shown): HTMLElement {
   card.append(head);
   const meta = el('p', 'meta');
   if (t.data) {
-    // A file opens; a live stream (mqtt://…) is only named.
+    // A file opens; a live source (mqtt://…, opc.tcp://…) is only named.
     const live = t.data.includes('://');
     const open = el(live ? 'span' : 'button', live ? 'source' : 'link', t.data);
     if (!live) open.addEventListener('click', () => vscode.postMessage({ type: 'data', file: t.data }));

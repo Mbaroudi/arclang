@@ -112,7 +112,61 @@ every two seconds.
 
 **Record.** With `record:`, every sample received is appended to a CSV:
 the time, then the columns. A later `arclang twin`, without `--live`,
-replays it like any data file.
+replays it like any data file. Stopping the run (Ctrl-C, SIGTERM, a line
+`stop` on its standard input, or Stop in VS Code) writes what was received
+since the last record before it ends.
+
+## Live data (OPC UA)
+
+```arc
+twin "House 042, from the controller" {
+    verifies: ["REQ-COMFORT"]
+    simulate: { model: "HeatingPhysics.StandardDay" configuration: "CFG-STANDARD" sources: ["physics/HeatingPhysics.mo"] }
+    data: {
+        opcua: "opc.tcp://plc.local:4840"
+        nodes: { outdoor_c: "ns=2;s=House.Outdoor.T" indoor_c: "ns=2;s=House.Room.T" }
+        security: "sign_and_encrypt"
+        sampling: 1 s
+        window: 24 h
+        refresh: 1 min
+        record: "data/live.csv"
+    }
+    drives: ["\"PN-OUTDOOR\".T <- outdoor_c °C"]
+    compares: ["\"PN-SPACE\".room.T ~ indoor_c °C within 0.5 K for 99 %"]
+}
+```
+
+`--live` opens a session on the server and subscribes to the nodes, one
+column per node. The server samples them every `sampling` (one second by
+default) and sends every new reading, even one equal to the last. A
+reading is dated by its source timestamp, else the server's. A value whose
+status is not good is left out, and a boolean counts as 1 or 0.
+
+**Nodes.** In their text form: `ns=2;s=House.Room.T`, `ns=2;i=1002`,
+`i=2258`, `ns=3;g=<guid>`, `ns=1;b=<base64>`, or `nsu=<namespace uri>;s=...`.
+
+**Security.** `security:` is `"none"` (the default), `"sign"` or
+`"sign_and_encrypt"`. `policy:` is `Basic256Sha256` by default, or
+`Aes128Sha256RsaOaep`, `Aes256Sha256RsaPss` or `Basic128Rsa15`. ArcLang
+makes its own certificate the first time, in `.arclang/opcua-pki/` beside
+the model (`ARCLANG_OPCUA_PKI` names another folder).
+
+The first connection to a secured server is refused, on purpose. The
+server's certificate is put in `rejected/`, and the message says so. Once
+you have checked it, move it to `trusted/`; the server must also trust
+ArcLang's certificate (`own/cert.der`).
+
+**Identity.** The session is anonymous, unless `ARCLANG_OPCUA_USERNAME` and
+`ARCLANG_OPCUA_PASSWORD` are set: credentials are never written in the
+model. When the server cannot be reached, or the session is lost, the twin
+says so and opens a new session every two seconds.
+
+When the server's host name gives several addresses (`localhost` is often
+`::1` and then 127.0.0.1), the twin connects to the first that answers and
+says which. For a secured session, the server's certificate must then name
+that address.
+
+`record:` and the window work as for MQTT.
 
 **What live means here.** The twin runs the model again over the window at
 every refresh. It does not yet advance the model message by message: the
@@ -122,7 +176,7 @@ closing a control loop.
 
 ## What comes next
 
-- OPC UA, Kafka and HTTP sources, in the same `data:` block.
+- Kafka and HTTP sources, in the same `data:` block.
 - The model advanced as the data arrives, with an FMU (`buildModelFMU`).
 - Twins online: on arclang.fr, signed in, they run on the server, as the
   simulations do.

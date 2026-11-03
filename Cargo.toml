@@ -21,7 +21,7 @@ native = [
     "dep:reqwest",
     "dep:toml", "dep:bincode",
     "dep:rayon", "dep:rand", "dep:config", "dep:indicatif",
-    "dep:parquet", "dep:rumqttc",
+    "dep:parquet", "dep:rumqttc", "dep:async-opcua", "dep:futures",
 ]
 
 [[bin]]
@@ -68,6 +68,8 @@ indicatif = { version = "0.17", optional = true }
 # Digital twins: measurements in Parquet; live data over MQTT.
 parquet = { version = "60", default-features = false, features = ["snap", "zstd", "lz4"], optional = true }
 rumqttc = { version = "0.25", default-features = false, features = ["use-native-tls"], optional = true }
+async-opcua = { version = "0.19", default-features = false, features = ["client"], optional = true }
+futures = { version = "0.3", optional = true }
 
 [dev-dependencies]
 criterion = { version = "0.5", features = ["html_reports"] }
