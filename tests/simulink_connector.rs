@@ -67,12 +67,16 @@ fn show() {
 
 // ---- The model-to-model half ---------------------------------------------------------
 
-use arclang::compiler::simulink_connector::m2m::{self, model::Model, Options, Strategy};
+use arclang::compiler::simulink_connector::m2m::{self, model::Model, Options, Platform, Strategy};
 use std::collections::HashMap;
 
 /// A configuration of the connector's m2m tests (`testN.properties`).
 fn configuration(name: &str) -> HashMap<String, String> {
-    let text = std::fs::read_to_string(fixtures().join("m2m/configurations").join(format!("{name}.properties"))).unwrap();
+    configuration_in("m2m", name)
+}
+
+fn configuration_in(set: &str, name: &str) -> HashMap<String, String> {
+    let text = std::fs::read_to_string(fixtures().join(set).join("configurations").join(format!("{name}.properties"))).unwrap();
     text.lines()
         .filter(|l| !l.trim_start().starts_with('#'))
         .filter_map(|l| l.split_once('='))
@@ -82,9 +86,15 @@ fn configuration(name: &str) -> HashMap<String, String> {
 
 /// The script of a configuration: the Capella selection made a pivot, the pivot a script.
 fn m2m_script(name: &str) -> String {
-    let props = configuration(name);
+    m2m_script_in("m2m", name)
+}
+
+fn m2m_script_in(set: &str, name: &str) -> String {
+    let props = configuration_in(set, name);
     let project = &props["project"];
-    let model = Model::load(&fixtures().join("m2m").join(project).join(format!("{project}.capella"))).unwrap();
+    // The Linux set runs the connector on its own projects too (`m2m/pp`, `m2m/mystate`).
+    let dir = [set, "m2m"].iter().map(|s| fixtures().join(s).join(project)).find(|d| d.is_dir()).unwrap();
+    let model = Model::load(&dir.join(format!("{project}.capella"))).unwrap();
     let strategy = Strategy::parse(&props["strategy"]).unwrap();
     let mut options = Options::default();
     if let Some(v) = props.get("leaf.functions.export.option") {
@@ -92,6 +102,9 @@ fn m2m_script(name: &str) -> String {
     }
     if let Some(v) = props.get("port.naming.option") {
         options.port_naming = v.clone();
+    }
+    if set == "m2m_linux" {
+        options.platform = Platform::LinuxGtk;
     }
     let ids: Vec<&str> = props["elements"].split_whitespace().collect();
     match m2m::transform(&model, strategy, &ids, &options).and_then(|p| script(&p)) {
@@ -136,6 +149,68 @@ fn the_m2m_writes_the_connectors_scripts() {
 #[ignore]
 fn show_m2m() {
     println!("{}", m2m_script(&std::env::var("CONFIG").unwrap_or_default()));
+}
+
+/// The real connector, run headless in Capella 7.1 on Linux GTK (`m2m_linux/README.md`),
+/// on state machines drawn by ArcLang's export and by Capella itself: nested states, a
+/// state with two regions and one with three, machines with three regions, transitions
+/// with bends, a loop, a choice, long names; and on its own diagram tests.
+///
+/// Every line of every script is the connector's but the geometry (positions, clock
+/// positions, ends) of the configurations in `GEOMETRY_GAPS`, whose figures the port
+/// does not yet measure as that platform draws them: there, every other line is.
+#[test]
+fn the_m2m_matches_the_connector_run_on_linux() {
+    /// What the port does not measure yet, by configuration:
+    /// - msm1, msm2, msm3, msm7, msm8 (drawn by ArcLang): the image's bounds take in the
+    ///   labels of pseudo states and the edges (their bends, lanes and labels), and a
+    ///   state's regions start 1 px higher at each level.
+    /// - msm4, msm5, msm6 (drawn by Capella): a mode without a region is sized 41 px
+    ///   high around its label, regions stacked in a state are sized by Sirius.
+    /// - test15, test18, test19: the ends of some transitions (anchors whose handle
+    ///   bounds are not those of the other states of the same diagrams).
+    /// - test28: a state holding a junction is 4 px narrower and 1 px shorter.
+    const GEOMETRY_GAPS: &[&str] = &["msm1", "msm2", "msm3", "msm4", "msm5", "msm6", "msm7", "msm8", "test15", "test18", "test19", "test28"];
+    let geometry = |line: &str| ["Position", "OClock", "EndPoint", "Midpoint"].iter().any(|k| line.contains(k));
+    let dir = fixtures().join("m2m_linux/expected");
+    let mut names: Vec<String> = std::fs::read_dir(&dir).unwrap().filter_map(|e| e.ok()).map(|e| e.file_name().to_string_lossy().to_string()).filter(|n| n.ends_with(".m")).collect();
+    names.sort();
+    assert_eq!(names.len(), 15, "{names:?}");
+    let mut failures = Vec::new();
+    for name in &names {
+        let config = name.trim_end_matches(".m");
+        let text = m2m_script_in("m2m_linux", config);
+        let generated: Vec<&str> = text.split('\n').collect();
+        let generated = if generated.last() == Some(&"") { &generated[..generated.len() - 1] } else { &generated[..] };
+        let expected = std::fs::read_to_string(dir.join(name)).unwrap();
+        let exact = differs(generated, &expected);
+        if !GEOMETRY_GAPS.contains(&config) {
+            if let Some(why) = exact {
+                failures.push(format!("{name}: {why}"));
+            }
+            continue;
+        }
+        // A gap: the same lines but the geometry, and the gap still there.
+        let expected: Vec<&str> = expected.lines().filter(|l| !l.is_empty()).collect();
+        if generated.len() != expected.len() {
+            failures.push(format!("{name}: {} lines, the connector's {}", generated.len(), expected.len()));
+            continue;
+        }
+        if let Some((i, (g, e))) = generated.iter().zip(&expected).enumerate().find(|(_, (g, e))| g != e && !(geometry(g) && geometry(e))) {
+            failures.push(format!("{name}: line {}: expecting '{e}' got '{g}'", i + 1));
+        }
+        if exact.is_none() {
+            failures.push(format!("{name}: now the connector's exactly: take it out of GEOMETRY_GAPS"));
+        }
+    }
+    assert!(failures.is_empty(), "{} of {} configurations:\n{}", failures.len(), names.len(), failures.join("\n"));
+}
+
+/// `CONFIG=msm1 cargo test --test simulink_connector show_m2m_linux -- --ignored --nocapture`.
+#[test]
+#[ignore]
+fn show_m2m_linux() {
+    println!("{}", m2m_script_in("m2m_linux", &std::env::var("CONFIG").unwrap_or_default()));
 }
 
 /// The pivot written as an `.mlcore` and read again gives the same script.
