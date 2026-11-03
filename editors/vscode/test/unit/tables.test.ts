@@ -5,6 +5,7 @@ import {
   emptySpec,
   gridOf,
   Matrix,
+  parentIds,
   parseTable,
   removalRequests,
   rowMatches,
@@ -17,7 +18,7 @@ import {
   traceRequest,
   visibleRows,
 } from '../../src/pure/tables';
-import { treeByLayer } from '../../src/pure/workbench';
+import { childRequirementId, childRequirementRequests, treeByLayer } from '../../src/pure/workbench';
 
 function row(id: string, status: string, priority: string, satisfied: string[] = []): TableRow {
   return {
@@ -144,9 +145,7 @@ test('a table sits in the model tree under the layer of its scope', () => {
   assert.deepEqual(groups.map((g) => g.layer), ['Model', 'System']);
 });
 
-test('a folded requirement hides the rows under it, at every depth, until the table is sorted', async () => {
-  const { childRequirementId, childRequirementRequests } = await import('../../src/pure/workbench');
-  const { parentIds } = await import('../../src/pure/tables');
+test('a folded requirement hides the rows under it, at every depth, until the table is sorted', () => {
   const make = (id: string, parent?: string, depth?: number): TableRow => ({ id, uuid: id, kind: 'Requirement', name: id, status: 'ok', cells: { id: { text: id } }, parent, depth });
   const rows = [make('REQ-1'), make('REQ-1.1', 'REQ-1', 1), make('REQ-1.1.1', 'REQ-1.1', 2), make('REQ-2')];
   const data = { rows, columns: [{ key: 'id', label: 'Req id', type: 'text' }] } as unknown as TableData;
