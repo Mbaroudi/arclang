@@ -1637,7 +1637,8 @@ impl Parser {
         let Some(Token::Identifier(unit)) = self.tokens.get(self.position) else {
             return Ok((n, integer, None));
         };
-        if matches!(self.tokens.get(self.position + 1), Some(Token::Colon)) {
+        // Followed by a name, the identifier opens a declaration (`snapshot "Landed" { ... }`).
+        if matches!(self.tokens.get(self.position + 1), Some(Token::Colon) | Some(Token::StringLiteral(_))) {
             return Ok((n, integer, None));
         }
         let unit = unit.clone();
@@ -2465,9 +2466,13 @@ impl Parser {
         let mut sub_components = Vec::new();
         let mut ports = Vec::new();
         let mut attributes = HashMap::new();
+        let mut occurrences = Vec::new();
         
         while !self.check(&Token::RightBrace) && !self.is_at_end() {
             match self.current() {
+                Token::Identifier(ref word) if (word == "timeslice" || word == "snapshot") && !self.peek_is_colon() => {
+                    occurrences.push(self.parse_occurrence()?);
+                }
                 Token::Component => {
                     // Nested component
                     sub_components.push(self.parse_logical_component()?);
@@ -2537,7 +2542,40 @@ impl Parser {
             interfaces_in,
             interfaces_out,
             attributes,
+            occurrences,
         })
+    }
+
+    /// `timeslice "Name" { attributes, snapshot ... }` or `snapshot "Name" { attributes }`.
+    fn parse_occurrence(&mut self) -> Result<Occurrence, String> {
+        let kind = match self.current() {
+            Token::Identifier(ref word) if word == "timeslice" => OccurrenceKind::Timeslice,
+            _ => OccurrenceKind::Snapshot,
+        };
+        self.advance();
+        let name = self.expect_name()?;
+        self.expect(Token::LeftBrace)?;
+        let mut attributes = HashMap::new();
+        let mut snapshots = Vec::new();
+        while !self.check(&Token::RightBrace) && !self.is_at_end() {
+            match self.current() {
+                Token::Identifier(ref word) if word == "snapshot" && !self.peek_is_colon() => {
+                    if kind == OccurrenceKind::Snapshot {
+                        return Err(self.err(format!("snapshot '{name}': a snapshot is one moment, it holds no snapshot (a timeslice does)")));
+                    }
+                    snapshots.push(self.parse_occurrence()?);
+                }
+                Token::Identifier(ref word) if word == "timeslice" && !self.peek_is_colon() => {
+                    return Err(self.err(format!("{} '{name}': a timeslice is declared in the element it is a part of the life of", kind.keyword())));
+                }
+                _ => {
+                    let (key, value) = self.parse_attribute()?;
+                    attributes.insert(key, value);
+                }
+            }
+        }
+        self.expect(Token::RightBrace)?;
+        Ok(Occurrence { kind, name, attributes, snapshots })
     }
     
     /// A function of the logical or physical level:
@@ -2854,9 +2892,13 @@ impl Parser {
         let mut component_ports = Vec::new();
         let mut node_functions = Vec::new();
         let mut attributes = HashMap::new();
+        let mut occurrences = Vec::new();
         
         while !self.check(&Token::RightBrace) && !self.is_at_end() {
             match self.current() {
+                Token::Identifier(ref word) if (word == "timeslice" || word == "snapshot") && !self.peek_is_colon() => {
+                    occurrences.push(self.parse_occurrence()?);
+                }
                 Token::Deploys => {
                     deployments.push(self.parse_deployment()?);
                 }
@@ -2909,6 +2951,7 @@ impl Parser {
             component_ports,
             ports: node_ports,
             attributes,
+            occurrences,
         })
     }
     
@@ -3054,6 +3097,7 @@ impl Parser {
             ports: Vec::new(),
             component_ports: Vec::new(),
             attributes,
+            occurrences: Vec::new(),
         })
     }
     

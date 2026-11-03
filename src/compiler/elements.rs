@@ -363,9 +363,23 @@ impl Builder {
         }
     }
 
+    /// The timeslices and snapshots of an element, inside it (a timeslice's snapshots inside the timeslice).
+    fn occurrences(&mut self, occurrences: &[crate::compiler::ast::Occurrence], owner_id: &str, owner: &str) {
+        for occurrence in occurrences {
+            let kind = match occurrence.kind {
+                crate::compiler::ast::OccurrenceKind::Timeslice => "Timeslice",
+                crate::compiler::ast::OccurrenceKind::Snapshot => "Snapshot",
+            };
+            let id = crate::compiler::occurrences::id_of(owner_id, occurrence);
+            let uuid = self.element(kind, &id, &occurrence.name, owner, &occurrence.attributes);
+            self.occurrences(&occurrence.snapshots, &id, &uuid);
+        }
+    }
+
     fn component(&mut self, component: &LogicalComponent, owner: &str) {
         let uuid = self.typed_element("LogicalComponent", &component.id, &component.name, owner, &component.attributes);
         let id = component.attributes.get("id").and_then(|v| v.as_string()).unwrap_or(&component.id).to_string();
+        self.occurrences(&component.occurrences, &id, &uuid);
         for port in &component.ports {
             self.port(
                 "ComponentPort",
@@ -599,6 +613,7 @@ pub fn build(ast: &Model, semantic: &SemanticModel) -> ElementGraph {
         for node in &pa.nodes {
             let uuid = builder.typed_element("PhysicalNode", &node.id, &node.name, &root, &node.attributes);
             let id = node.attributes.get("id").and_then(|v| v.as_string()).unwrap_or(&node.id).to_string();
+            builder.occurrences(&node.occurrences, &id, &uuid);
             for port in &node.ports {
                 builder.port("PhysicalPort", &uuid, [&id, &node.name], "", &port.name, &empty(), Vec::new());
             }

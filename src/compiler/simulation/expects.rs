@@ -73,6 +73,9 @@ pub struct Expect {
     /// The requirement it checks (`REQ-SHED: ...`); `None`: every requirement the case verifies.
     pub requirement: Option<String>,
     pub lhs: Term,
+    /// `== 120 m within 1 %` / `within 0.5 m`: how far equal may be, relative
+    /// (a percentage of the right side) or absolute; `None`: numerically equal.
+    pub tolerance: Option<Term>,
     pub cmp: Cmp,
     pub rhs: Term,
 }
@@ -349,10 +352,19 @@ fn parse_with(full: &str, aliases: &BTreeMap<String, String>, values: bool) -> R
         other => return Err(wrap(format!("expected a comparison (>=, <=, >, <, ==, !=), got {}", describe(other.as_ref())))),
     };
     let rhs = parser.sum().map_err(wrap)?;
+    let tolerance = if parser.peek() == Some(&Token::Name("within".to_string())) {
+        parser.at += 1;
+        if !matches!(cmp, Cmp::Eq | Cmp::Ne) {
+            return Err(wrap("`within` says how far equal may be: it goes with == or !=".to_string()));
+        }
+        Some(parser.sum().map_err(wrap)?)
+    } else {
+        None
+    };
     if let Some(extra) = parser.peek() {
         return Err(wrap(format!("unexpected {} after the comparison", describe(Some(extra)))));
     }
-    Ok(Expect { text: text.to_string(), requirement: requirement.map(str::to_string), lhs, cmp, rhs })
+    Ok(Expect { text: text.to_string(), requirement: requirement.map(str::to_string), lhs, cmp, rhs, tolerance })
 }
 
 /// The syntax of an expectation, without the model: quoted ids are not
@@ -460,7 +472,11 @@ fn eval(term: &Term, context: &mut Context<'_>) -> Result<Value, String> {
                             return Err(format!("at(...): the instant is a {}, not a time", dim.label()));
                         }
                     }
-                    series.at(column, time.si).ok_or_else(|| format!("at({} s, ...) is outside the simulated time", time.si))?
+                    series.at(column, time.si).ok_or_else(|| {
+                        let seconds = |t: f64| format!("{} s", (t * 1000.0).round() / 1000.0);
+                        let span = |t: Option<f64>| t.map(seconds).unwrap_or_else(|| "?".to_string());
+                        format!("at({}, ...) is outside the simulated time ({} to {})", seconds(time.si), span(series.times().next()), span(series.times().last()))
+                    })?
                 }
             };
             Ok(match unit {
@@ -524,7 +540,24 @@ pub fn evaluate(expect: &Expect, context: &mut Context<'_>) -> Result<Evaluated,
     let lhs = eval(&expect.lhs, context).map_err(wrap)?;
     let rhs = eval(&expect.rhs, context).map_err(wrap)?;
     same(lhs.dim, rhs.dim, &format!("comparing with {}", expect.cmp.symbol())).map_err(wrap)?;
-    let holds = expect.cmp.holds(lhs.si, rhs.si);
+    let within = match &expect.tolerance {
+        None => None,
+        Some(term) => {
+            let tolerance = eval(term, context).map_err(wrap)?;
+            if written_unit(term) == Some("%") {
+                Some(tolerance.si.abs() * rhs.si.abs())
+            } else {
+                same(tolerance.dim, rhs.dim, "within").map_err(wrap)?;
+                Some(tolerance.si.abs())
+            }
+        }
+    };
+    let close = |a: f64, b: f64| within.is_some_and(|w| (a - b).abs() <= w) || Cmp::Eq.holds(a, b);
+    let holds = match (expect.cmp, within) {
+        (Cmp::Eq, Some(_)) => close(lhs.si, rhs.si),
+        (Cmp::Ne, Some(_)) => !close(lhs.si, rhs.si),
+        _ => expect.cmp.holds(lhs.si, rhs.si),
+    };
     let unit = written_unit(&expect.rhs).or_else(|| written_unit(&expect.lhs));
     let value = format!("{} = {}", label(&expect.lhs), shown(lhs, unit));
     let gap_si = (lhs.si - rhs.si).abs();
@@ -534,6 +567,7 @@ pub fn evaluate(expect: &Expect, context: &mut Context<'_>) -> Result<Evaluated,
     // A gap below what four significant digits show: the value sits on its bound.
     let on_bound = gap_si <= 5e-5 * lhs.si.abs().max(rhs.si.abs());
     let margin = match (expect.cmp, holds) {
+        (Cmp::Eq, true) if within.is_some() && !Cmp::Eq.holds(lhs.si, rhs.si) => format!("off by {gap}, within its tolerance"),
         (Cmp::Eq, true) => String::new(),
         (_, true) if on_bound => "at the bound".to_string(),
         (Cmp::Ne, false) => "equal".to_string(),
@@ -730,5 +764,29 @@ mod constraint_tests {
         }
         assert!(check_constraint("mass").unwrap_err().contains("comparison"));
         assert!(check_constraint("mass <= ").is_err());
+    }
+}
+
+#[cfg(test)]
+mod tolerance_tests {
+    use super::{evaluate, parse, Context};
+    use crate::compiler::simulation::results::Series;
+    use std::collections::BTreeMap;
+
+    fn holds(text: &str) -> (bool, String) {
+        let series = Series::from_csv("\"time\",\"x\"\n0,0\n10,0.6933\n").unwrap();
+        let expect = parse(text, &BTreeMap::new()).unwrap();
+        let evaluated = evaluate(&expect, &mut Context { series: &series, notes: &mut Vec::new() }).unwrap();
+        (evaluated.holds, evaluated.margin)
+    }
+
+    #[test]
+    fn equal_within_a_percentage_or_an_amount() {
+        assert!(!holds("at(10 s, x) == 0.69").0, "numerically equal only");
+        assert_eq!(holds("at(10 s, x) == 0.69 within 1 %"), (true, "off by 0.0033, within its tolerance".to_string()));
+        assert!(!holds("at(10 s, x) == 0.69 within 0.1 %").0);
+        assert!(holds("at(10 s, x) == 0.69 within 0.01").0);
+        assert!(holds("at(10 s, x) != 0.5 within 1 %").0);
+        assert!(parse("final(x) >= 1 within 1 %", &BTreeMap::new()).unwrap_err().contains("goes with == or !="));
     }
 }

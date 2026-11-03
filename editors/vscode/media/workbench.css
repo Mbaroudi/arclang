@@ -745,3 +745,13 @@ button.wb-icon-button.wb-bar-toggle.wb-save.is-dirty:hover { background: var(--v
 .wb-start-add { font: inherit; font-size: 13px; padding: 6px 14px; border: 0; border-radius: 2px; cursor: pointer; color: var(--vscode-button-foreground); background: var(--vscode-button-background); }
 .wb-start-add:hover { background: var(--vscode-button-hoverBackground); }
 .wb-start-add:focus-visible { outline: 1px solid var(--vscode-focusBorder); outline-offset: 2px; }
+
+/* Timeslices and snapshots of an element, in the properties pane. */
+.wb-life { list-style: none; margin: 0; padding: 2px 12px 6px 20px; }
+.wb-life .wb-life { margin-top: 4px; padding: 0 0 0 14px; border-left: 1px solid var(--vscode-tree-indentGuidesStroke, rgba(128, 128, 128, 0.35)); }
+.wb-life > li { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; padding: 4px 0; }
+.wb-life-kind { font-size: 10px; letter-spacing: 0.04em; text-transform: uppercase; color: var(--vscode-descriptionForeground); }
+.wb-life-name { font-weight: 600; }
+.wb-life-when { font-variant-numeric: tabular-nums; color: var(--vscode-textLink-foreground); }
+.wb-life-values { flex-basis: 100%; color: var(--vscode-descriptionForeground); font-variant-numeric: tabular-nums; }
+.wb-life .wb-life { flex-basis: 100%; }

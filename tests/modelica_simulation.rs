@@ -574,3 +574,34 @@ fn physics_units_reach_the_modelica_parameters() {
     assert!(export.text.contains("parameter Modelica.Units.SI.Area drag_area = 0.62 \"0.62 m²\";"));
     assert!(export.text.contains("parameter Real efficiency(unit=\"1\") = 0.9 \"90 %\";"), "no conversion noise");
 }
+
+#[test]
+#[ignore = "runs OpenModelica (Docker or ARCLANG_OMC): cargo test --release --test modelica_simulation -- --ignored --nocapture"]
+fn openmodelica_checks_the_snapshots_a_case_names() {
+    let (_dir, model) = demo_copy();
+    let text = std::fs::read_to_string(&model).unwrap();
+    // The pack is full at the start; it is not still full an hour later.
+    let node = "        auxiliary_load: 2.5 kW\n";
+    assert!(text.contains(node));
+    let text = text.replacen(node, &format!("{node}        snapshot \"Charged\" {{ at: 0 s soc: 1 }}\n        snapshot \"Still full\" {{ at: 1 h soc: 1 }}\n"), 1);
+    let case = "    expects: [\"final(vehicleBody.distance) >= 300 km\", \"min(\\\"PN-BATT\\\".soc) >= 0.1\"]\n}";
+    assert!(text.contains(case));
+    let with = |snapshots: &str| text.replacen(case, &format!("    expects: [\"final(vehicleBody.distance) >= 300 km\", \"min(\\\"PN-BATT\\\".soc) >= 0.1\"]\n    snapshots: [{snapshots}]\n}}"), 1);
+    let config = ToolConfig::from_env();
+
+    std::fs::write(&model, with("\"PN-BATT.Charged\"")).unwrap();
+    let outcome = &run::verify(&compile_file(&model), &model, Some("TC-RANGE-STD"), &config).unwrap()[0];
+    for value in &outcome.values {
+        println!("{} {} ({})", if value.holds { "ok  " } else { "FAIL" }, value.value, value.margin);
+    }
+    assert!(outcome.values.iter().any(|v| v.value.starts_with("at(0 s, ") && v.holds), "{:?}", outcome.values);
+
+    std::fs::write(&model, with("\"PN-BATT\"")).unwrap();
+    let outcome = &run::verify(&compile_file(&model), &model, Some("TC-RANGE-STD"), &config).unwrap()[0];
+    for value in &outcome.values {
+        println!("{} {} ({})", if value.holds { "ok  " } else { "FAIL" }, value.value, value.margin);
+    }
+    println!("verdict {}: {} {:?}", outcome.verdict, outcome.reason, outcome.points.iter().map(|p| p.error.clone()).collect::<Vec<_>>());
+    assert_eq!(outcome.verdict, "fail", "{}", outcome.reason);
+    assert!(outcome.values.iter().any(|v| v.value.starts_with("at(1 h, ") && !v.holds), "{:?}", outcome.values);
+}

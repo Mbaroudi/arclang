@@ -1112,7 +1112,7 @@ impl<'g> Mapper<'g> {
         let graph = self.graph;
         for element in elements {
             for child in element.children.iter().filter_map(|c| graph.get(c)) {
-                if child.kind != "AttributeUsage" && child.kind != "ReferenceUsage" || child.role.is_some() {
+                if child.kind != "AttributeUsage" && child.kind != "ReferenceUsage" || child.role.is_some() || child.portion.is_some() {
                     continue;
                 }
                 // A redefinition (`attribute :>> period = 33 [ms]`) is named by what it redefines.
@@ -1721,6 +1721,7 @@ impl<'g> Mapper<'g> {
         }
         self.variability(depth + 1, index);
         self.write_ports(depth + 1, index, false);
+        self.occurrences_of(depth + 1, index);
         let children = self.nodes[index].children.clone();
         for child in children {
             match self.nodes[child].shape {
@@ -1729,6 +1730,31 @@ impl<'g> Mapper<'g> {
             }
         }
         self.line(depth, "}");
+    }
+
+    /// The timeslices and snapshots of a part, each with its values.
+    fn occurrences_of(&mut self, depth: usize, index: usize) {
+        let owners: Vec<&'g Element> = [self.nodes[index].usage, self.nodes[index].def].into_iter().flatten().collect();
+        for owner in owners {
+            self.occurrences(depth, owner);
+        }
+    }
+
+    fn occurrences(&mut self, depth: usize, owner: &'g Element) {
+        let graph = self.graph;
+        for child in owner.children.iter().filter_map(|c| graph.get(c)).filter(|c| c.portion.is_some()) {
+            let keyword = child.portion.as_deref().unwrap_or("snapshot");
+            self.count(if keyword == "timeslice" { "timeslices" } else { "snapshots" });
+            self.line(depth, &format!("{keyword} {} {{", string_literal(&Self::display(child))));
+            if let Some(doc) = Self::description(child) {
+                self.line(depth + 1, &format!("description: {}", string_literal(&doc)));
+            }
+            self.attributes(depth + 1, &[child], &["description"]);
+            if keyword == "timeslice" {
+                self.occurrences(depth + 1, child);
+            }
+            self.line(depth, "}");
+        }
     }
 
     fn physical_node(&mut self, index: usize) {
@@ -1742,6 +1768,7 @@ impl<'g> Mapper<'g> {
             self.line(2, "actor: true");
         }
         self.write_ports(2, index, true);
+        self.occurrences_of(2, index);
         let children = self.nodes[index].children.clone();
         for child in children {
             match self.nodes[child].shape {

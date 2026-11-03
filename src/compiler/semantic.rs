@@ -1515,6 +1515,7 @@ impl SemanticAnalyzer {
                     }
                 }
             }
+            reference_errors.extend(super::occurrences::check(ast));
             let scales = ast.security_scales.as_ref();
             let threat_kinds = scales.and_then(|s| s.scale("threat_kinds"));
             for analysis in &ast.security_analysis {

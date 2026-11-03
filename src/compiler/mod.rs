@@ -18,6 +18,7 @@ pub mod verification;
 pub mod execution;
 pub mod fta;
 pub mod notes;
+pub mod occurrences;
 pub mod variability;
 pub mod rules;
 pub mod document;

@@ -411,19 +411,30 @@ pub fn expects_of(attributes: &HashMap<String, AttributeValue>) -> Vec<String> {
     }
 }
 
+/// What a case expects of its simulation: its `expects:`, then the values of
+/// the snapshots it checks (`snapshots:`), each at its time.
+pub fn case_expects(model: &crate::compiler::ast::Model, test: &crate::compiler::ast::TestCase) -> Vec<String> {
+    let mut expects = expects_of(&test.attributes);
+    expects.extend(crate::compiler::occurrences::expectations(model, &test.attributes).unwrap_or_default());
+    expects
+}
+
 /// What the parser checks of a case's simulation: a well-formed block,
 /// expectations that parse, and no other source of verdict.
 pub fn validate(attributes: &HashMap<String, AttributeValue>) -> Result<(), String> {
-    let has_expects = attributes.contains_key("expects");
     let Some(spec) = spec_of(attributes) else {
-        return if has_expects { Err("expects: needs simulate: { ... }, the simulation they are read on".to_string()) } else { Ok(()) };
+        return match (attributes.contains_key("expects"), attributes.contains_key("snapshots")) {
+            (true, _) => Err("expects: needs simulate: { ... }, the simulation they are read on".to_string()),
+            (false, true) => Err("snapshots: are checked on a simulation: give it simulate: { ... }".to_string()),
+            _ => Ok(()),
+        };
     };
     spec?;
     if attributes.contains_key("asserts") || attributes.contains_key("verdict") {
         return Err("its verdict comes from the simulation: it neither asserts constraints nor gives a verdict".to_string());
     }
     let expects = expects_of(attributes);
-    if expects.is_empty() {
+    if expects.is_empty() && !attributes.contains_key("snapshots") {
         return Err("simulate: needs expects: [\"final(x) >= 1\", ...], what the result must show".to_string());
     }
     expects.iter().try_for_each(|e| expects::check_syntax(e))

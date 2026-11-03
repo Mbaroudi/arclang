@@ -7,7 +7,7 @@ use super::results::{units_from_init_xml, Series};
 use super::tool::{self, Tool, ToolConfig};
 use super::montecarlo;
 use super::sweep::{self, Point};
-use super::{cache, expects_of, is_simulated, replay, spec_of, Outcome, PointOutcome, Spec, Status};
+use super::{cache, case_expects, is_simulated, replay, spec_of, Outcome, PointOutcome, Spec, Status};
 use crate::compiler::modelica::{self, names, Export};
 use crate::compiler::CompilationResult;
 use std::path::{Path, PathBuf};
@@ -43,7 +43,7 @@ pub fn attach(result: &mut CompilationResult, model_path: &Path) {
         let status = match &export {
             Err(error) => inconclusive(format!("the model does not export to Modelica: {error}")),
             Ok(export) => {
-                let key = cache::key(&export.text, &base, &spec, &expects_of(&test.attributes));
+                let key = cache::key(&export.text, &base, &spec, &case_expects(&result.ast, test));
                 match cache::read(&dir, &test.id) {
                     None => inconclusive(format!("never simulated: run `arclang verify {} --test {}`", model_path.display(), test.id)),
                     Some(outcome) if outcome.key != key => inconclusive(format!(
@@ -94,7 +94,7 @@ pub fn verify(result: &CompilationResult, model_path: &Path, only: Option<&str>,
     let mut outcomes = Vec::new();
     for test in cases {
         let spec = spec_of(&test.attributes).expect("simulated").map_err(|e| format!("test_case '{}': {e}", test.name))?;
-        let expects = expects_of(&test.attributes);
+        let expects = case_expects(&result.ast, test);
         let key = cache::key(&export.text, &base, &spec, &expects);
         let mut outcome = Outcome {
             test_case: test.id.clone(),
@@ -315,7 +315,7 @@ pub fn replay(result: &CompilationResult, model_path: &Path, case: &str, point: 
     let test = result.ast.test_cases.iter().filter(|t| is_simulated(t)).find(|t| t.id == case || t.name == case).ok_or_else(|| format!("no test_case '{case}' that simulates (simulate: {{ ... }})"))?;
     let export = modelica::export(&result.ast)?;
     let spec = spec_of(&test.attributes).expect("simulated").map_err(|e| format!("test_case '{}': {e}", test.name))?;
-    let expects = expects_of(&test.attributes);
+    let expects = case_expects(&result.ast, test);
     let key = cache::key(&export.text, &cache::model_dir(model_path), &spec, &expects);
     let parsed: Vec<_> = expects.iter().map(|e| expects::parse(e, &export.instances)).collect::<Result<_, _>>()?;
     replay::load(&replay::dir(model_path), &test.id, point, &key, &export.parts, &parsed)

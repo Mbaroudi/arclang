@@ -1043,7 +1043,8 @@ Verification case covering requirements.
 | `asserts` | `list<ref<Constraint>>` | An analysis: the constraints whose evaluation is its verdict (pass when they all hold). |
 | `verdict` | `enum Verdict` | Outcome of a test run elsewhere; computed, not given, when the case `asserts:` constraints or `simulate:`s. A requirement with a failing case is not verified. |
 | `simulate` | `{backend, model, configuration, stop_time, start_time, sources, tolerance, intervals, sweep, uncertain, samples, seed, probability, confidence}` | Verified by simulation: the `backend` (`openmodelica`, the default; `fmu` and `command` are declared, not built yet), the Modelica `model` to simulate (extending a system model of `arclang export -f modelica`), the `configuration` it is, `stop_time` (and `start_time`), the hand-written Modelica `sources` (paths from the model file), `tolerance`, `intervals`, and a `sweep` (`["body.mass = 1800 kg, 2100 kg", "vcu.target_speed = 80 km/h .. 130 km/h step 10 km/h"]`: every combination is simulated, and the expectations must hold at each). Or `uncertain` parameters (`["body.mass ~ normal(1850 kg, 40 kg)", "cell.capacity ~ uniform(58 kWh, 62 kWh)", "drive.efficiency ~ normal(0.9, 0.03) in [0.8, 0.97]"]`: `normal`, `uniform` or `triangular`, kept between bounds by `in [low, high]`) drawn in `samples` (10 to 1000, default 200) from a `seed`: the case passes when the probability that the expectations hold is shown, at `confidence` (default 0.95), to reach `probability` (the Clopper-Pearson lower bound). Run by `arclang verify`; the verdict is cached, and inconclusive when stale or never run. |
-| `expects` | `list<text>` | What the simulation result must show: comparisons over its variables read with `min`, `max`, `final`, `initial`, `mean` or `at(t, var)`, with units (`final(vehicle.distance) >= 300 km`). A comparison may name the requirement it checks (`"REQ-SHED: at(40 min, cabin.drawn) <= 1 W"`): each requirement is then judged on the comparisons naming it and those naming none. |
+| `snapshots` | `list<text>` | Snapshots the simulation must reach: a snapshot, a timeslice (its snapshots) or an element (all its snapshots), by id (`["LC-DRONE.Takeoff.At cruise"]`). Each value of each one, at its `at:`, is an expectation within the snapshot's tolerance (`at(40 s, "LC-DRONE".altitude) == 120 m within 1 %`). |
+| `expects` | `list<text>` | What the simulation result must show: comparisons over its variables read with `min`, `max`, `final`, `initial`, `mean` or `at(t, var)`, with units (`final(vehicle.distance) >= 300 km`); `==` and `!=` may say how far equal may be (`at(1 h, battery.soc) == 0.7 within 2 %`, or `within 0.05`). A comparison may name the requirement it checks (`"REQ-SHED: at(40 min, cabin.drawn) <= 1 W"`): each requirement is then judged on the comparisons naming it and those naming none. |
 | `reviewed` | `list<text>` | The verifications reviewed: one entry per verified requirement, the requirement and the fingerprints of the case and of the requirement, written by `arclang trace --review`. A verification whose case or requirement changed since is suspect, and so is one the case verifies but does not name here. |
 
 #### Model
@@ -1104,6 +1105,40 @@ Dimension-checked comparison over typed attributes (`assert: <expression>`). Ill
 | `description` | `text` | Free-text description. |
 | `is` | `ref<Type>` | User-defined type of the element, or a list of types; their attributes (and ports, for components) are inherited. |
 | `tags` | `list<text>` | Tags the element carries (`["Safety"]`): a declared diagram draws what carries one with `tagged:`. In SysML v2, metadata usages of definitions in a `Tags` package. |
+
+#### Timeslice
+
+A stretch of an element's life, declared in it (`timeslice "Takeoff" { start: 0 s end: 40 s }`); holds the snapshots it goes through. Its other attributes are the values the element has during it.
+
+- Arcadia: `(none: carried as a property)`
+- SysML v2: `timeslice`
+
+| Attribute | Type | Meaning |
+|---|---|---|
+| `id` | `identifier` | Stable identity; drives the UUIDv5. Defaults to the name. |
+| `name` | `text` | Display name; overrides the block name. |
+| `description` | `text` | Free-text description. |
+| `is` | `ref<Type>` | User-defined type of the element, or a list of types; their attributes (and ports, for components) are inherited. |
+| `tags` | `list<text>` | Tags the element carries (`["Safety"]`): a declared diagram draws what carries one with `tagged:`. In SysML v2, metadata usages of definitions in a `Tags` package. |
+| `start` | `quantity<time>` | When it starts. |
+| `end` | `quantity<time>` | When it ends; not before it starts. |
+
+#### Snapshot
+
+One moment of an element's life, declared in it or in one of its timeslices (`snapshot "Landed" { at: 5 min altitude: 0 m }`). Its other attributes are the values the element has then; a value the element declares as a quantity keeps its dimension.
+
+- Arcadia: `(none: carried as a property)`
+- SysML v2: `snapshot`
+
+| Attribute | Type | Meaning |
+|---|---|---|
+| `id` | `identifier` | Stable identity; drives the UUIDv5. Defaults to the name. |
+| `name` | `text` | Display name; overrides the block name. |
+| `description` | `text` | Free-text description. |
+| `is` | `ref<Type>` | User-defined type of the element, or a list of types; their attributes (and ports, for components) are inherited. |
+| `tags` | `list<text>` | Tags the element carries (`["Safety"]`): a declared diagram draws what carries one with `tagged:`. In SysML v2, metadata usages of definitions in a `Tags` package. |
+| `at` | `quantity<time>` | When it is; within its timeslice. |
+| `tolerance` | `text` | How far a simulated value may be from the snapshot's and still reach it, when a test case checks it: a percentage of the value (`2 %`) or an amount (`0.5 m`). 1 % when absent. |
 
 #### StateMachine
 
