@@ -31,6 +31,11 @@ pub fn period_macro(plan: &Plan) -> String {
     format!("{}_PERIOD_US", plan.ident.to_uppercase())
 }
 
+/// The macro of an event's code: `<MODEL>_<MACHINE>_EV_<EVENT>`.
+pub fn event_macro(prefix: &str, event_ident: &str) -> String {
+    super::plan::bounded(&format!("{}_{}", prefix.to_uppercase(), event_ident.to_uppercase()), 63)
+}
+
 fn type_prefix(plan: &Plan, machine: &MachinePlan) -> String {
     format!("{}_{}", plan.ident, machine.ident)
 }
@@ -72,7 +77,7 @@ fn header(plan: &Plan, default_period_us: u64) -> String {
         if !m.events.is_empty() {
             let _ = writeln!(out, "/* The events of the machine, as posted to its queue. */");
             for (n, e) in m.events.iter().enumerate() {
-                let _ = writeln!(out, "#define {upper}_{} {n}U /* event \"{}\" */", e.ident.to_uppercase(), comment(&e.text));
+                let _ = writeln!(out, "#define {} {n}U /* event \"{}\" */", event_macro(&t, &e.ident), comment(&e.text));
             }
             let _ = writeln!(out, "/* How many events one step takes, at most. */\n#ifndef {upper}_QUEUE_SIZE\n#define {upper}_QUEUE_SIZE 16U\n#endif\n");
         }
@@ -215,7 +220,7 @@ fn source(plan: &Plan) -> String {
         }
         let period = period_macro(plan);
         for b in &m.budgets {
-            let _ = writeln!(body, "    outputs->{i}.{} = state->{i}.active[{s}] && (state->{i}.in_state[{s}] > (uint32_t)(({us}UL + {period} - 1UL) / {period})); /* budget {} */", b.ident, comment(&b.written), s = b.source, us = b.micros);
+            let _ = writeln!(body, "    outputs->{i}.{} = state->{i}.active[{s}] && (state->{i}.in_state[{s}] > (({us}UL + {period} - 1UL) / {period})); /* budget {} */", b.ident, comment(&b.written), s = b.source, us = b.micros);
         }
     }
     let _ = writeln!(body, "}}");
@@ -229,7 +234,9 @@ fn source(plan: &Plan) -> String {
     if plan.machines.iter().any(|m| !m.program().is_empty()) {
         let _ = writeln!(out, "/* The arithmetic is the model's: no contraction of a * b + c into one rounding. */\n#if defined(__clang__)\n#pragma STDC FP_CONTRACT OFF\n#endif\n");
     }
-    let _ = writeln!(out, "#define NO_STATE 0xFFFFU\n");
+    if plan.machines.iter().any(|m| !m.histories().is_empty()) {
+        let _ = writeln!(out, "#define NO_STATE 0xFFFFU\n");
+    }
     let any_action = plan.machines.iter().any(|m| !m.actions.is_empty());
     if any_action {
         let _ = writeln!(out, "static uint8_t counted(uint8_t n)\n{{\n    return (n < 255U) ? (uint8_t)(n + 1U) : n;\n}}\n");
@@ -361,21 +368,6 @@ fn machine_source(plan: &Plan, m: &MachinePlan, h: &mut Helpers, out: &mut Strin
     if !histories.is_empty() {
         let _ = writeln!(out, "static const uint16_t {i}_parent[{n}] = {{ {} }};", list(m.states.iter().map(|s| index(s.parent)).collect()));
     }
-    if shallow {
-        let _ = writeln!(out, "static const uint16_t {i}_last[{n}] = {{ {} }};", list(m.machine.states.iter().map(|s| format!("{}U", s.last)).collect()));
-        // Whether a state is the initial state of its region.
-        let starts: Vec<String> = (0..n)
-            .map(|k| {
-                let node = &m.machine.states[k];
-                let first = match node.parent {
-                    Some(p) => m.machine.states[p].regions[node.region].initial,
-                    None => m.machine.top_regions[node.region].initial,
-                };
-                (if first == Some(k) { "true" } else { "false" }).to_string()
-            })
-            .collect();
-        let _ = writeln!(out, "static const bool {i}_starts[{n}] = {{ {} }};", list(starts));
-    }
     let _ = writeln!(out);
     let actions_fn = |name: &str, pick: &dyn Fn(&super::plan::StatePlan) -> &Vec<usize>, out: &mut String, h: &mut Helpers| {
         let _ = writeln!(out, "static void {i}_{name}({st} *st, const {inp} *in, {o} *out, uint16_t s)\n{{");
@@ -401,9 +393,23 @@ fn machine_source(plan: &Plan, m: &MachinePlan, h: &mut Helpers, out: &mut Strin
     actions_fn("entry_actions", &|s| &s.entry, out, h);
     let _ = writeln!(out, "static void {i}_enter_one({st} *st, const {inp} *in, {o} *out, uint16_t s)\n{{\n    st->active[s] = true;\n    st->in_state[s] = 0U;\n    {i}_entry_actions(st, in, out, s);\n}}\n");
     if shallow {
+        let last = list(m.machine.states.iter().map(|s| format!("{}U", s.last)).collect());
+        // Whether a state is the initial state of its region.
+        let starts = list(
+            (0..n)
+                .map(|k| {
+                    let node = &m.machine.states[k];
+                    let first = match node.parent {
+                        Some(p) => m.machine.states[p].regions[node.region].initial,
+                        None => m.machine.top_regions[node.region].initial,
+                    };
+                    (if first == Some(k) { "true" } else { "false" }).to_string()
+                })
+                .collect(),
+        );
         let _ = writeln!(
             out,
-            "/* Enter s and the initial states of the regions under it, in the order of the states. */\nstatic void {i}_enter_default({st} *st, const {inp} *in, {o} *out, uint16_t s)\n{{\n    uint16_t k;\n    {i}_enter_one(st, in, out, s);\n    for (k = (uint16_t)(s + 1U); k <= {i}_last[s]; k++) {{\n        if ({i}_starts[k] && st->active[{i}_parent[k]]) {{\n            {i}_enter_one(st, in, out, k);\n        }}\n    }}\n}}\n"
+            "/* Enter s and the initial states of the regions under it, in the order of the states. */\nstatic void {i}_enter_default({st} *st, const {inp} *in, {o} *out, uint16_t s)\n{{\n    static const uint16_t {i}_last[{n}] = {{ {last} }};\n    static const bool {i}_starts[{n}] = {{ {starts} }};\n    uint16_t k;\n    {i}_enter_one(st, in, out, s);\n    for (k = (uint16_t)(s + 1U); k <= {i}_last[s]; k++) {{\n        if ({i}_starts[k] && st->active[{i}_parent[k]]) {{\n            {i}_enter_one(st, in, out, k);\n        }}\n    }}\n}}\n"
         );
     }
     if !m.compounds.is_empty() {
@@ -461,7 +467,8 @@ fn run_source(plan: &Plan, m: &MachinePlan, access: &Access, h: &mut Helpers, ou
     let out = &mut run;
     let _ = writeln!(out, "static void {i}_run({t}_state *st, const {t}_inputs *in, {t}_outputs *out)\n{{\n    uint16_t k;\n    (void)in;\n    (void)out;");
     if m.terminates() {
-        let _ = writeln!(out, "    if (st->terminated) {{\n        return;\n    }}");
+        // One exit (MISRA C 2012 rule 15.5): a terminated machine does nothing.
+        let _ = writeln!(out, "    if (!st->terminated) {{");
     }
     if !m.program().equations.is_empty() {
         let _ = writeln!(out, "    /* equations, in the order written */");
@@ -476,7 +483,7 @@ fn run_source(plan: &Plan, m: &MachinePlan, access: &Access, h: &mut Helpers, ou
         let upper = t.to_uppercase();
         let _ = writeln!(out, "    /* the events, in the order they arrived */\n    for (k = 0U; (k < (uint16_t)in->queued) && (k < {upper}_QUEUE_SIZE); k++) {{\n        switch (in->queue[k]) {{");
         for &e in &handled {
-            let _ = writeln!(out, "        case {upper}_{}:\n            {i}_on_{e}(st, in, out);\n            break;", m.events[e].ident.to_uppercase());
+            let _ = writeln!(out, "        case {}:\n            {i}_on_{e}(st, in, out);\n            break;", event_macro(&t, &m.events[e].ident));
         }
         let _ = writeln!(out, "        default:\n            break;\n        }}\n    }}");
     }
@@ -519,7 +526,7 @@ fn run_source(plan: &Plan, m: &MachinePlan, access: &Access, h: &mut Helpers, ou
             if let Trigger::Timer(tm) = m.compounds[c].trigger {
                 let us = m.timers[tm].micros;
                 let period = period_macro(plan);
-                enabled.push_str(&format!(" && (st->in_state[{}] >= (uint32_t)(({us}UL + {period} - 1UL) / {period}))", m.transitions[compound.head].source));
+                enabled.push_str(&format!(" && (st->in_state[{}] >= (({us}UL + {period} - 1UL) / {period}))", m.transitions[compound.head].source));
             }
             let _ = writeln!(out, "        if ({enabled}) {{");
             let alternatives: Vec<(usize, &Alternative)> = compound.alternatives.iter().enumerate().filter(|(_, a)| !never(m, &a.guards)).collect();
@@ -564,6 +571,11 @@ fn run_source(plan: &Plan, m: &MachinePlan, access: &Access, h: &mut Helpers, ou
         out,
         "    /* time in state */\n    for (k = 0U; k < {n}U; k++) {{\n        if (st->active[k] && (st->in_state[k] < UINT32_MAX)) {{\n            st->in_state[k]++;\n        }}\n    }}\n}}\n"
     );
+    if m.terminates() {
+        // Close the `if (!st->terminated)` around the body.
+        let end = run.rfind("}\n").expect("the end of run");
+        run.insert_str(end, "    }\n");
+    }
     out_final.push_str(&handlers);
     out_final.push_str(&run);
 }

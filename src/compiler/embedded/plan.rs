@@ -222,7 +222,23 @@ pub fn member(raw: &str) -> String {
     }
 }
 
+/// A C identifier of at most `max` characters: a longer one keeps its
+/// beginning and ends with a hash of the whole, so identifiers stay distinct
+/// within the 63 characters C99 guarantees (MISRA C 2012 rules 5.2, 5.4).
+pub fn bounded(name: &str, max: usize) -> String {
+    if name.len() <= max {
+        return name.to_string();
+    }
+    let mut hash: u32 = 0x811c_9dc5;
+    for b in name.bytes() {
+        hash = (hash ^ b as u32).wrapping_mul(0x0100_0193);
+    }
+    let keep: String = name.chars().take(max - 9).collect();
+    format!("{}_{hash:08x}", keep.trim_end_matches('_'))
+}
+
 fn unique(taken: &mut BTreeSet<String>, wanted: String) -> String {
+    let wanted = bounded(&wanted, 60);
     let mut name = wanted.clone();
     let mut n = 2;
     while !taken.insert(name.clone()) {
@@ -416,7 +432,7 @@ pub fn plan_machine(source: &StateMachine, taken: &mut BTreeSet<String>) -> Resu
             return Err(format!("{what}: variable '{}' has the name of a state: a result column reads either", v.text));
         }
     }
-    let ident = unique(taken, c_name(&source.name));
+    let ident = unique(taken, bounded(&c_name(&source.name), 24));
     if machine.states.is_empty() {
         return Err(format!("{what} has no state: nothing to generate"));
     }
@@ -455,5 +471,5 @@ pub fn plan(ast: &Model) -> Result<Plan, String> {
     let model = model_name(ast);
     let mut taken = BTreeSet::new();
     let machines = ast.state_machines.iter().map(|m| plan_machine(m, &mut taken)).collect::<Result<Vec<_>, _>>()?;
-    Ok(Plan { ident: c_name(&model), model, machines })
+    Ok(Plan { ident: bounded(&c_name(&model), 32), model, machines })
 }

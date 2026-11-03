@@ -185,7 +185,7 @@ pub fn definitions(h: &Helpers, pid_type: &str) -> String {
     let used = |name: &str| h.used.contains(name);
     let int_ops = ["add_i32", "sub_i32", "mul_i32", "div_i32", "neg_i32", "abs_i32"];
     if int_ops.iter().any(|n| used(n)) {
-        out.push_str("/* Integers saturate to the range of int32_t; a division by zero gives 0. */\nstatic int32_t arc_sat_i32(int64_t v)\n{\n    int32_t r;\n    if (v > (int64_t)INT32_MAX) {\n        r = INT32_MAX;\n    } else if (v < (int64_t)INT32_MIN) {\n        r = INT32_MIN;\n    } else {\n        r = (int32_t)v;\n    }\n    return r;\n}\n\n");
+        out.push_str("/* Integers saturate to the range of int32_t; a division by zero gives 0. */\nstatic int32_t arc_sat_i32(int64_t v)\n{\n    int32_t r;\n    if (v > (int64_t)INT32_MAX) {\n        r = (int32_t)INT32_MAX;\n    } else if (v < (int64_t)INT32_MIN) {\n        r = (int32_t)INT32_MIN;\n    } else {\n        r = (int32_t)v;\n    }\n    return r;\n}\n\n");
     }
     for (name, op) in [("add", "+"), ("sub", "-"), ("mul", "*")] {
         if used(&format!("{name}_i32")) {
@@ -228,16 +228,16 @@ pub fn definitions(h: &Helpers, pid_type: &str) -> String {
         }
     }
     if used("integrator") {
-        out.push_str("/* Discrete integrator, forward Euler: y = s; s := s + k*T*x. */\nstatic double arc_integrator(double *s, double x, double k, double t)\n{\n    double out = *s;\n    *s = *s + k * t * x;\n    return out;\n}\n\n");
+        out.push_str("/* Discrete integrator, forward Euler: y = s; s := s + k*T*x. */\nstatic double arc_integrator(double *s, double x, double k, double t)\n{\n    double out = *s;\n    *s = *s + ((k * t) * x);\n    return out;\n}\n\n");
     }
     if used("integrator_limited") {
-        out.push_str("/* Discrete integrator, forward Euler, its state and output held in [lo, hi]. */\nstatic double arc_integrator_limited(double *s, double x, double k, double t, double lo, double hi)\n{\n    double out = arc_saturate_f64(*s, lo, hi);\n    *s = arc_saturate_f64(*s + k * t * x, lo, hi);\n    return out;\n}\n\n");
+        out.push_str("/* Discrete integrator, forward Euler, its state and output held in [lo, hi]. */\nstatic double arc_integrator_limited(double *s, double x, double k, double t, double lo, double hi)\n{\n    double out = arc_saturate_f64(*s, lo, hi);\n    *s = arc_saturate_f64(*s + ((k * t) * x), lo, hi);\n    return out;\n}\n\n");
     }
     if used("pid") {
-        let _ = writeln!(out, "/* PID, parallel: kp*e + integral + kd*(e - e_previous)/T; integral := integral + ki*T*e.\n   No derivative on the first step. */\nstatic double arc_pid({pid_type} *p, double e, double kp, double ki, double kd, double t)\n{{\n    double previous = p->primed ? p->previous : e;\n    double out = kp * e + p->integral + kd * (e - previous) / t;\n    p->integral = p->integral + ki * t * e;\n    p->previous = e;\n    p->primed = true;\n    return out;\n}}\n");
+        let _ = writeln!(out, "/* PID, parallel: kp*e + integral + kd*(e - e_previous)/T; integral := integral + ki*T*e.\n   No derivative on the first step. */\nstatic double arc_pid({pid_type} *p, double e, double kp, double ki, double kd, double t)\n{{\n    double previous = p->primed ? p->previous : e;\n    double out = ((kp * e) + p->integral) + ((kd * (e - previous)) / t);\n    p->integral = p->integral + ((ki * t) * e);\n    p->previous = e;\n    p->primed = true;\n    return out;\n}}\n");
     }
     if used("pid_limited") {
-        let _ = writeln!(out, "/* PID, parallel, its output held in [lo, hi]; clamping anti-windup: no\n   integration further into the saturation. */\nstatic double arc_pid_limited({pid_type} *p, double e, double kp, double ki, double kd, double t, double lo, double hi)\n{{\n    double previous = p->primed ? p->previous : e;\n    double raw = kp * e + p->integral + kd * (e - previous) / t;\n    bool winding = ((raw > hi) && (e > 0.0)) || ((raw < lo) && (e < 0.0));\n    if (!winding) {{\n        p->integral = p->integral + ki * t * e;\n    }}\n    p->previous = e;\n    p->primed = true;\n    return arc_saturate_f64(raw, lo, hi);\n}}\n");
+        let _ = writeln!(out, "/* PID, parallel, its output held in [lo, hi]; clamping anti-windup: no\n   integration further into the saturation. */\nstatic double arc_pid_limited({pid_type} *p, double e, double kp, double ki, double kd, double t, double lo, double hi)\n{{\n    double previous = p->primed ? p->previous : e;\n    double raw = ((kp * e) + p->integral) + ((kd * (e - previous)) / t);\n    bool winding = ((raw > hi) && (e > 0.0)) || ((raw < lo) && (e < 0.0));\n    if (!winding) {{\n        p->integral = p->integral + ((ki * t) * e);\n    }}\n    p->previous = e;\n    p->primed = true;\n    return arc_saturate_f64(raw, lo, hi);\n}}\n");
     }
     out
 }

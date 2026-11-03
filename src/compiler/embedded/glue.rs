@@ -82,12 +82,12 @@ pub fn generate(plan: &Plan, binding: &Binding) -> Glue {
     let _ = writeln!(source, "}}\n");
     read_source(plan, binding, &mut source);
     write_source(plan, binding, &mut source);
-    let _ = writeln!(source, "arclang_io_status {b}_cycle({b}_glue *glue, {p}_state *state, {p}_inputs *inputs, {p}_outputs *outputs)\n{{\n    arclang_io_status status = {b}_read(glue, inputs);\n    if (status != ARCLANG_IO_OK) {{\n        return status;\n    }}\n    {p}_step(state, inputs, outputs);\n    status = {b}_write(outputs);");
+    // One exit (MISRA C 2012 rule 15.5).
+    let _ = writeln!(source, "arclang_io_status {b}_cycle({b}_glue *glue, {p}_state *state, {p}_inputs *inputs, {p}_outputs *outputs)\n{{\n    arclang_io_status status = {b}_read(glue, inputs);\n    if (status == ARCLANG_IO_OK) {{\n        {p}_step(state, inputs, outputs);\n        status = {b}_write(outputs);");
     if binding.watchdog {
-        let _ = writeln!(source, "    if (status != ARCLANG_IO_OK) {{\n        return status;\n    }}\n    return arclang_io_watchdog_kick();\n}}");
-    } else {
-        let _ = writeln!(source, "    return status;\n}}");
+        let _ = writeln!(source, "        if (status == ARCLANG_IO_OK) {{\n            status = arclang_io_watchdog_kick();\n        }}");
     }
+    let _ = writeln!(source, "    }}\n    return status;\n}}");
     Glue { header_name: format!("{b}_io.h"), header, source_name: format!("{b}_io.c"), source }
 }
 
@@ -114,7 +114,7 @@ fn read_source(plan: &Plan, binding: &Binding, out: &mut String) {
     let _ = writeln!(out, "    arclang_io_status result;\n    {p}_{}_inputs *in = &inputs->{};\n    (void)glue;", m.ident, m.ident);
     let t = format!("{p}_{}", m.ident);
     let post = |target: Target| match target {
-        Target::Event(e) => format!("posted(&status, {t}_post(in, {}_{}))", t.to_uppercase(), m.events[e].ident.to_uppercase()),
+        Target::Event(e) => format!("posted(&status, {t}_post(in, {}))", super::cgen::event_macro(&t, &m.events[e].ident)),
         Target::Condition(_) => unreachable!("an event"),
     };
     if binding.inputs.iter().any(|i| matches!(i.target, Target::Event(_))) {
@@ -177,7 +177,7 @@ fn read_source(plan: &Plan, binding: &Binding, out: &mut String) {
         let _ = writeln!(out, "    }}");
     }
     for (id, inputs) in &frames {
-        let _ = writeln!(out, "    {{ /* can 0x{id:X} */\n        uint8_t data[8] = {{0U}};\n        uint8_t length = 0U;\n        bool received = false;\n        result = arclang_io_can_receive(0x{id:X}UL, data, &length, &received);\n        first_error(&status, result);");
+        let _ = writeln!(out, "    {{ /* can 0x{id:X} */\n        uint8_t data[8] = {{0U, 0U, 0U, 0U, 0U, 0U, 0U, 0U}};\n        uint8_t length = 0U;\n        bool received = false;\n        result = arclang_io_can_receive(0x{id:X}UL, data, &length, &received);\n        first_error(&status, result);");
         let latched = inputs.iter().any(|i| matches!(i.target, Target::Condition(_)));
         if latched {
             let _ = writeln!(out, "        if ((result == ARCLANG_IO_OK) && received) {{\n            glue->can_{id:x} = (length > 0U) && (data[0] != 0U);\n        }}");
@@ -233,7 +233,7 @@ fn write_source(plan: &Plan, binding: &Binding, out: &mut String) {
                 let _ = writeln!(out, "        first_error(&status, arclang_io_dac_write({ch}U, (value != 0U) ? {raw}U : 0U));");
             }
             Sink::Can(id) => {
-                let _ = writeln!(out, "        uint8_t data[8] = {{0U}};\n        data[0] = value;\n        first_error(&status, arclang_io_can_send(0x{id:X}UL, data, 1U));");
+                let _ = writeln!(out, "        uint8_t data[8] = {{0U, 0U, 0U, 0U, 0U, 0U, 0U, 0U}};\n        data[0] = value;\n        first_error(&status, arclang_io_can_send(0x{id:X}UL, data, 1U));");
             }
             Sink::Uart(port, byte) => {
                 let _ = writeln!(out, "        if (value != 0U) {{\n            first_error(&status, arclang_io_uart_write({port}U, 0x{byte:02X}U));\n        }}");

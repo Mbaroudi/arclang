@@ -739,3 +739,28 @@ fn a_timer_fires_a_budget_is_watched_and_both_are_generated() {
     assert!(error.contains("transition Idle -> Arming has a trigger and `after:`: a transition has one trigger"), "{error}");
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+// ---- MISRA C 2012 ----------------------------------------------------------------------
+
+/// cppcheck's MISRA C 2012 addon on the generated C of the examples finds
+/// only the deviations docs/embedded-c.md lists (rules 2.5 and 8.7, both
+/// advisory). Needs `cppcheck` (`ARCLANG_TEST_CPPCHECK`), as in tools/embedded.
+#[test]
+fn the_generated_c_has_only_the_documented_misra_deviations() {
+    let cppcheck = std::env::var("ARCLANG_TEST_CPPCHECK").unwrap_or_else(|_| "cppcheck".to_string());
+    assert!(version(&cppcheck).is_some(), "no cppcheck found: install it (with its MISRA addon) or set ARCLANG_TEST_CPPCHECK");
+    for path in [ACC, REMOTE_START, CHARGER, WINDOW] {
+        let result = compile_file(&example(path));
+        let (files, _) = embedded::export(&result.ast).unwrap();
+        let dir = work(&format!("misra-{}", path.replace('/', "_")));
+        for (name, text) in files.iter().filter(|(n, _)| !n.starts_with("host/")) {
+            std::fs::write(dir.join(name), text).unwrap();
+        }
+        let sources: Vec<PathBuf> = files.iter().filter(|(n, _)| n.ends_with(".c") && !n.starts_with("host/")).map(|(n, _)| dir.join(n)).collect();
+        let out = Command::new(&cppcheck).args(["--addon=misra", "--std=c99", "--enable=style", "--quiet", "--suppress=missingIncludeSystem", "-I"]).arg(&dir).args(&sources).output().unwrap();
+        let report = String::from_utf8_lossy(&out.stderr);
+        let rules: std::collections::BTreeSet<String> = report.match_indices("[misra-c2012-").map(|(i, _)| report[i + 13..].split(']').next().unwrap().to_string()).collect();
+        assert!(rules.iter().all(|r| r == "2.5" || r == "8.7"), "{path}: {rules:?}\n{report}");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+}

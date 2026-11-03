@@ -537,6 +537,46 @@ with the vectors, and judged:
 harnesses and the binaries, `--json` prints the outcomes. The command fails
 when a case does not pass.
 
+## MISRA C 2012
+
+`tools/embedded/misra.sh` (run in the embedded image: `tools/embedded/run.sh
+tools/embedded/misra.sh`) exports the C of every example that has a state
+machine and runs cppcheck 2.10's MISRA C 2012 addon on it (`--addon=misra
+--std=c99 --enable=style`; the host implementation of `arclang_io.h`, used
+only for SIL, is not checked). `tests/embedded_c.rs` keeps four examples at
+the deviations below.
+
+Over the 18 examples:
+
+| Rule | Before | After | What changed |
+|---|---|---|---|
+| 2.5 (advisory) unused macro | 42 | 26 | `NO_STATE` only where a history uses it; the rest is a deviation |
+| 5.2 identifiers distinct (63 chars) | 5 | 0 | identifiers bounded: a long one keeps its start and ends with a hash |
+| 5.4 macro identifiers distinct | 25 | 0 | the same, for the event codes |
+| 8.7 (advisory) external linkage used in one unit | 4 | 4 | deviation |
+| 8.9 (advisory) object at block scope | 2 | 0 | the history tables inside the one function that reads them |
+| 9.3 partially initialised array | 6 | 0 | CAN buffers initialised element by element |
+| 10.3 assignment of another essential type | 2 | 0 | `INT32_MIN`/`INT32_MAX` cast to `int32_t` |
+| 10.8 composite expression cast | 15 | 0 | no cast of the tick count of timers and budgets |
+| 12.1 implicit precedence | 3 | 0 | the integrator and PID arithmetic parenthesised (same evaluation order) |
+| 15.5 single point of exit | 5 | 0 | `run()` of a terminating machine and the glue's `cycle()` |
+| **Total** | **109** | **30** | |
+
+The deviations that remain, with their reason:
+
+- **Rule 2.5** (advisory), `<MODEL>_<MACHINE>_STATE_COUNT` and the
+  binding's `<BINDING>_PERIOD_US`: they are the API of the generated header
+  for the integrator (sizing a log of the states; the period of the main
+  loop); the generated code itself has no use for them.
+- **Rule 8.7** (advisory), `<binding>_read()` and `<binding>_write()`: the
+  glue offers them to an application that reads and writes around its own
+  step (instead of `<binding>_cycle()`), so they keep external linkage
+  although the glue calls them only from its own unit.
+
+The addon checks the rules it implements without their texts; rules it
+does not decide (the directives, and the rules needing a whole program or
+a human reading) are not covered by these numbers.
+
 ## What is not generated yet
 
 Said plainly:
@@ -562,7 +602,7 @@ Said plainly:
   lot: only the host implementation of `arclang_io.h` exists. The FMU
   wrapping of the C is not done.
 - **No certification claim.** The generated code is written to be simple
-  to review (static tables, bounded loops, no recursion, no dynamic memory)
-  and is compiled warning-free under the strict flags above; it has not been
-  checked against MISRA C, and nothing here is qualified for DO-178C or
-  ISO 26262.
+  to review (static tables, bounded loops, no recursion, no dynamic memory),
+  is compiled warning-free under the strict flags above and is checked with
+  cppcheck's MISRA C 2012 addon (below); nothing here is qualified for
+  DO-178C or ISO 26262, and an addon run is not a MISRA compliance claim.
