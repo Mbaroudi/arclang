@@ -13,13 +13,17 @@ reaches the hardware through one small I/O interface. Three layers:
    (`io_binding`), checked by the compiler and generated as glue
    (`<model>_<binding>_io.h/.c`): the only generated code that calls the I/O.
 3. **The targets** — a package implements `arclang_io.h` once for a target
-   (Zephyr, Linux RT, an FPGA soft core, a PLC runtime...). This first lot
-   ships the host (PC) implementation only, `arclang_io_host.c`, used for
-   software in the loop. Target packages come later.
+   (Zephyr, Linux RT, an FPGA soft core, a PLC runtime...) and says how to
+   build and run on it, as data. `host` (the PC, `arclang_io_host.c`) is
+   used for software in the loop; `zephyr/litex_vexriscv` runs Zephyr on a
+   LiteX SoC with a VexRiscv RISC-V core, emulated in Renode, for processor
+   in the loop (`arclang pil`). See [embedded-targets.md](embedded-targets.md).
 
 ```text
 arclang export model.arc -f c -o build/c     # the files, for any target
 arclang sil    model.arc --cc gcc --cc clang # the C against the model
+arclang export model.arc -f zephyr -o app    # a Zephyr application (embedded-targets.md)
+arclang pil    model.arc                     # the C on the target's processor, in Renode
 ```
 
 `arclang sil` proves layers 1 and 2: it compiles the generated C on this
@@ -434,6 +438,11 @@ is not a whole number of microseconds; an unknown machine. An event or a
 condition left unbound is a warning: on the target it never occurs, never
 holds.
 
+`target: "zephyr/litex_vexriscv"` names the target package the binding is
+deployed on (`host` by default): the compiler also refuses a channel the
+target does not have, or a number beyond its range (see
+[embedded-targets.md](embedded-targets.md#choosing-a-target)).
+
 The glue (`<model>_<binding>_io.c`) gives:
 
 ```c
@@ -683,8 +692,9 @@ Said plainly:
   the C. A completion transition leaving a composite state does not wait
   for its regions to reach their final states: it fires as soon as its
   source is active.
-- **Target packages** (Zephyr, Linux RT, FPGA, PLC) are not part of this
-  lot: only the host implementation of `arclang_io.h` exists.
+- **Targets**: the host and one Zephyr target, `zephyr/litex_vexriscv`,
+  run in emulation (Renode); no bitstream, no board in this lot. See
+  [embedded-targets.md](embedded-targets.md#limits-said-plainly).
 - **No certification claim.** The generated code is written to be simple
   to review (static tables, bounded loops, no recursion, no dynamic memory),
   is compiled warning-free under the strict flags above and is checked with
