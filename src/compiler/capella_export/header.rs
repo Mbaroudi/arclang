@@ -37,7 +37,7 @@ pub(super) fn apply(el: El, attributes: &HashMap<String, AttributeValue>, struct
     // Viewpoint attributes are extensions of the element, not property values.
     let (el, extensions) = super::cyber::extend(el, attributes);
     let text = |key: &str| attributes.get(key).and_then(AttributeValue::as_string);
-    let mut el = el.opt("description", text("description")).opt("summary", text("summary")).opt("review", text("review"));
+    let mut el = el.opt("description", text("description").map(super::linked_text).as_deref()).opt("summary", text("summary")).opt("review", text("review"));
     if let Some(status) = text("capella_status").or_else(|| text("status")) {
         el.set("status", &format!("#{}", status_id(status)));
     }

@@ -645,3 +645,10 @@ mod tests {
         assert_eq!(a.aird, b.aird);
     }
 }
+
+/// Text as Capella's linked text, an HTML fragment: `<`, `>` and `&` escaped
+/// (`speed < 30 km/h` would otherwise read as a tag). Descriptions and
+/// guards are read back as HTML.
+pub(super) fn linked_text(text: &str) -> String {
+    text.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;")
+}

@@ -137,17 +137,12 @@ fn transition(context: &Context, id: &str, index: usize, t: &crate::compiler::as
         el.set("guard", &format!("#{constraint}"));
         el.push(
             El::new("ownedConstraints", "capellacore:Constraint", &constraint)
-                .with(El::new("ownedSpecification", "datavalue:OpaqueExpression", &derived(&format!("{tid}:guard:expression"))).with(El::text("bodies", &linked_text(guard))).with(El::text("languages", "capella:linkedText"))),
+                .with(El::new("ownedSpecification", "datavalue:OpaqueExpression", &derived(&format!("{tid}:guard:expression"))).with(El::text("bodies", &super::linked_text(guard))).with(El::text("languages", "capella:linkedText"))),
         );
     }
     Some(el)
 }
 
-/// Text as Capella's linked text, an HTML fragment: `<`, `>` and `&` escaped
-/// (`speed < 30 km/h` would otherwise read as a tag).
-fn linked_text(text: &str) -> String {
-    text.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;")
-}
 
 /// Record the states of a machine, by id and by name.
 pub(super) fn register(context: &mut Context, machine: &StateMachine) {

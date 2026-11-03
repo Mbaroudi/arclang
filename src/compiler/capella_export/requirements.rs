@@ -143,7 +143,7 @@ pub(super) fn write(context: &Context, model: &Model, level: &str) -> Vec<El> {
         let title = text(&r.attributes, "title").unwrap_or(&r.id);
         let mut el = El::new("ownedRequirements", "Requirements:Requirement", &id).attr("ReqIFIdentifier", &r.id).attr("ReqIFLongName", title);
         if let Some(description) = text(&r.attributes, "description").filter(|d| *d != title) {
-            el.set("ReqIFText", description);
+            el.set("ReqIFText", &super::linked_text(description));
         }
         for (key, field) in FIELDS {
             if let Some(value) = text(&r.attributes, key) {

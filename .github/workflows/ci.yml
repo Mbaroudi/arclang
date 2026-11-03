@@ -40,6 +40,20 @@ jobs:
       - name: Run doc tests
         run: cargo test --doc
 
+  # The embedded chain's checks that need cppcheck (MISRA addon) and fmpy,
+  # pinned in tools/embedded/Dockerfile: run in that image.
+  embedded:
+    name: Embedded chain (MISRA, FMU) in its image
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build the image
+        run: docker build -t arclang-embedded:1 tools/embedded
+
+      - name: Run the embedded tests, the tool-dependent ones included
+        run: tools/embedded/run.sh cargo test --test embedded_c -- --include-ignored
+
   examples:
     name: Compile all active examples (CLI)
     runs-on: ubuntu-latest

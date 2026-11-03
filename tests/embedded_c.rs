@@ -749,6 +749,7 @@ fn a_timer_fires_a_budget_is_watched_and_both_are_generated() {
 /// only the deviations docs/embedded-c.md lists (rules 2.5 and 8.7, both
 /// advisory). Needs `cppcheck` (`ARCLANG_TEST_CPPCHECK`), as in tools/embedded.
 #[test]
+#[ignore = "needs the tools of tools/embedded: run in its image (CI job Embedded chain)"]
 fn the_generated_c_has_only_the_documented_misra_deviations() {
     let cppcheck = std::env::var("ARCLANG_TEST_CPPCHECK").unwrap_or_else(|_| "cppcheck".to_string());
     assert!(version(&cppcheck).is_some(), "no cppcheck found: install it (with its MISRA addon) or set ARCLANG_TEST_CPPCHECK");
@@ -810,6 +811,7 @@ fn sil_verdicts_are_cached_for_check_gate_and_the_tables() {
 /// inputs of every executed case, reproduces the model-level run bit for
 /// bit. Needs python3 with fmpy (`ARCLANG_TEST_PYTHON`), as in tools/embedded.
 #[test]
+#[ignore = "needs the tools of tools/embedded: run in its image (CI job Embedded chain)"]
 fn the_fmu_runs_in_fmpy_as_the_model_does() {
     let python = std::env::var("ARCLANG_TEST_PYTHON").unwrap_or_else(|_| "python3".to_string());
     let fmpy = Command::new(&python).args(["-c", "import fmpy"]).output();

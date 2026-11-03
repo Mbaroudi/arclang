@@ -13,8 +13,9 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-ins
     && rm -rf /var/lib/apt/lists/*
 
 # Node 22 (the VS Code extension's tests)
-RUN curl -fsSL https://nodejs.org/dist/v22.11.0/node-v22.11.0-linux-arm64.tar.xz | tar -xJ -C /opt \
-    && ln -s /opt/node-v22.11.0-linux-arm64/bin/* /usr/local/bin/
+RUN arch=$(dpkg --print-architecture | sed 's/amd64/x64/') \
+    && curl -fsSL https://nodejs.org/dist/v22.11.0/node-v22.11.0-linux-$arch.tar.xz | tar -xJ -C /opt \
+    && ln -s /opt/node-v22.11.0-linux-$arch/bin/* /usr/local/bin/
 
 # fmpy, to validate the FMUs
 RUN python3 -m venv /opt/fmpy && /opt/fmpy/bin/pip install --no-cache-dir fmpy==0.3.22 \

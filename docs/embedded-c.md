@@ -631,7 +631,10 @@ tools/embedded/misra.sh`) exports the C of every example that has a state
 machine and runs cppcheck 2.10's MISRA C 2012 addon on it (`--addon=misra
 --std=c99 --enable=style`; the host implementation of `arclang_io.h`, used
 only for SIL, is not checked). `tests/embedded_c.rs` keeps four examples at
-the deviations below.
+the deviations below; that test and the FMU one need the image's tools, so
+they are `#[ignore]`d on a bare host and run there: `tools/embedded/run.sh
+cargo test --test embedded_c -- --include-ignored` (the CI job "Embedded
+chain" does the same).
 
 Over the 18 examples:
 
