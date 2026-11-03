@@ -922,7 +922,7 @@
       },
       {
         "command": "arclang.twin.watch",
-        "title": "Watch a digital twin live (MQTT, OPC UA)",
+        "title": "Watch a digital twin live (MQTT, OPC UA, Kafka, HTTP)",
         "category": "ArcLang",
         "icon": "$(broadcast)"
       }

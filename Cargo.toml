@@ -22,6 +22,7 @@ native = [
     "dep:toml", "dep:bincode",
     "dep:rayon", "dep:rand", "dep:config", "dep:indicatif",
     "dep:parquet", "dep:rumqttc", "dep:async-opcua", "dep:futures",
+    "dep:rskafka", "dep:rustls", "dep:rustls-native-certs",
 ]
 
 [[bin]]
@@ -70,6 +71,9 @@ parquet = { version = "60", default-features = false, features = ["snap", "zstd"
 rumqttc = { version = "0.25", default-features = false, features = ["use-native-tls"], optional = true }
 async-opcua = { version = "0.19", default-features = false, features = ["client"], optional = true }
 futures = { version = "0.3", optional = true }
+rskafka = { version = "0.6", features = ["transport-tls"], optional = true }
+rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"], optional = true }
+rustls-native-certs = { version = "0.8", optional = true }
 
 [dev-dependencies]
 criterion = { version = "0.5", features = ["html_reports"] }

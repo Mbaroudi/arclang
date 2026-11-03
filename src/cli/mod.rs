@@ -334,7 +334,7 @@ pub enum Commands {
         #[clap(long)]
         list: bool,
 
-        /// Follow the twin's live data (data: { mqtt: ... }): run it over
+        /// Follow the twin's live data (mqtt, opcua, kafka, http): run it over
         /// the latest window at every refresh, until stopped (or --for);
         /// with --json, one JSON line per run
         #[clap(long)]
@@ -1847,7 +1847,7 @@ impl CliRunner {
             .collect();
         let chosen = match live.as_slice() {
             [one] => *one,
-            [] => return Err(CliError::Compilation(format!("{} has no twin on live data (data: {{ mqtt: \"mqtt://broker:1883\" topics: [...] }} or {{ opcua: \"opc.tcp://plc:4840\" nodes: {{ ... }} }})", input.display()))),
+            [] => return Err(CliError::Compilation(format!("{} has no twin on live data (data: {{ mqtt: \"mqtt://broker:1883\" topics: [...] }}, or opcua:, kafka:, http:)", input.display()))),
             _ => return Err(CliError::Compilation(format!("{} twins read live data: name one with --twin ({})", live.len(), live.iter().map(|t| t.id.as_str()).collect::<Vec<_>>().join(", ")))),
         };
         let config = crate::compiler::simulation::tool::ToolConfig::from_env();

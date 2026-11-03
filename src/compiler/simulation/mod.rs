@@ -33,6 +33,10 @@ pub mod twin;
 #[cfg(feature = "native")]
 pub mod twin_live;
 #[cfg(feature = "native")]
+pub mod twin_http;
+#[cfg(feature = "native")]
+pub mod twin_kafka;
+#[cfg(feature = "native")]
 pub mod twin_opcua;
 
 use crate::compiler::ast::{AttributeValue, Model, TestCase};

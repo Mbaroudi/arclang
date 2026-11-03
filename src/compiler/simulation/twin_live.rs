@@ -1,5 +1,6 @@
 //! A twin on live data: `arclang twin --live` follows the twin's source (the
-//! topics of an MQTT broker, the nodes of an OPC UA server), keeps what
+//! topics of an MQTT broker or of Kafka, the nodes of an OPC UA server, an
+//! HTTP API read at intervals), keeps what
 //! arrives, and at every `refresh` runs the twin over the latest `window` of
 //! data. The window is in the data's own time (a message's `time`, a value's
 //! source timestamp, else its arrival), so a replay of past data at full
@@ -11,7 +12,8 @@
 //! numeric or boolean field, its `time` an ISO 8601 date-time or seconds,
 //! or milliseconds, since 1970). The broker's credentials come from
 //! `ARCLANG_MQTT_USERNAME` and `ARCLANG_MQTT_PASSWORD`, never from the model;
-//! OPC UA's are in [`super::twin_opcua`].
+//! the other sources' are in [`super::twin_opcua`], [`super::twin_kafka`] and
+//! [`super::twin_http`].
 
 use super::tool::ToolConfig;
 use super::twin::{self, Live, Measurements, Outcome, Source, Spec};
@@ -92,11 +94,24 @@ fn instant(value: &serde_json::Value) -> Option<f64> {
 pub fn decode(topic: &str, payload: &[u8], arrival: f64) -> Vec<(f64, String, f64)> {
     let Ok(text) = std::str::from_utf8(payload) else { return Vec::new() };
     let text = text.trim();
-    let column = topic.rsplit('/').next().unwrap_or(topic).to_string();
+    let column = topic.rsplit('/').next().unwrap_or(topic);
     if let Ok(value) = text.parse::<f64>() {
-        return if value.is_finite() { vec![(arrival, column, value)] } else { Vec::new() };
+        return if value.is_finite() { vec![(arrival, column.to_string(), value)] } else { Vec::new() };
     }
-    let Ok(serde_json::Value::Object(fields)) = serde_json::from_str::<serde_json::Value>(text) else { return Vec::new() };
+    match serde_json::from_str::<serde_json::Value>(text) {
+        Ok(value) => samples_of(&value, arrival),
+        Err(_) => Vec::new(),
+    }
+}
+
+/// The samples of a JSON object (a column per numeric or boolean field, at its `time`, else at
+/// `arrival`) or of a list of objects.
+pub fn samples_of(value: &serde_json::Value, arrival: f64) -> Vec<(f64, String, f64)> {
+    let fields = match value {
+        serde_json::Value::Array(items) => return items.iter().flat_map(|item| samples_of(item, arrival)).collect(),
+        serde_json::Value::Object(fields) => fields,
+        _ => return Vec::new(),
+    };
     let t = fields.get("time").and_then(instant).unwrap_or(arrival);
     fields
         .iter()
@@ -233,12 +248,14 @@ fn mqtt(live: &Live, topics: &[String], client_id: Option<&str>, feed: Sender<Fe
 #[allow(clippy::too_many_arguments)]
 pub fn live(result: &CompilationResult, model_path: &Path, twin: &Twin, config: &ToolConfig, until: Option<Duration>, stop: &AtomicBool, mut emit: impl FnMut(&Outcome), mut say: impl FnMut(&Status)) -> Result<(), String> {
     let spec = twin::spec_of(&twin.attributes)?;
-    let live: Live = spec.data.live.clone().ok_or_else(|| format!("twin '{}' reads a file, not live data: data: {{ mqtt: \"mqtt://broker:1883\" topics: [...] }} or {{ opcua: \"opc.tcp://plc:4840\" nodes: {{ ... }} }}", twin.name))?;
+    let live: Live = spec.data.live.clone().ok_or_else(|| format!("twin '{}' reads a file, not live data: data: {{ mqtt: \"mqtt://broker:1883\" topics: [...] }} (or opcua:, kafka:, http:)", twin.name))?;
     let base = super::cache::model_dir(model_path);
     let (sender, feed): (Sender<Feed>, Receiver<Feed>) = std::sync::mpsc::channel();
     match &live.source {
         Source::Mqtt { topics, client_id } => mqtt(&live, topics, client_id.as_deref(), sender)?,
         Source::OpcUa { nodes, security, policy, sampling } => super::twin_opcua::follow(&live.url, nodes, *security, policy, *sampling, &base, sender)?,
+        Source::Kafka { brokers, tls, topics, client_id, sasl } => super::twin_kafka::follow(&live.url, brokers, *tls, topics, client_id.as_deref(), sasl, live.window, sender)?,
+        Source::Http { sampling } => super::twin_http::follow(&live.url, *sampling, sender)?,
     }
     let record_path = live.record.as_ref().map(|r| base.join(r));
     let wanted = columns(&spec);
