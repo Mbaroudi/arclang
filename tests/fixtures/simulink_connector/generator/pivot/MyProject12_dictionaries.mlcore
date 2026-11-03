@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="ASCII"?>
+<xmi:XMI xmi:version="2.0" xmlns:xmi="http://www.omg.org/XMI" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:org.eclipse.capella.simulink.core="http://www.eclipse.org/capella/simulink/core/1.0">
+  <org.eclipse.capella.simulink.core:Dictionary id="c3fe2d5e-463e-4535-abb6-da80c2c150cea1" name="Project_dict_3">
+    <datatypes xsi:type="org.eclipse.capella.simulink.core:Bus" id="3524612a-22ff-4dae-b98c-574944c3216b" name="Project_dict_3_Bus">
+      <busElements id="02df6669-c815-4ba3-9370-f89e4ef1e266" name="myElement">
+        <datatype xsi:type="org.eclipse.capella.simulink.core:BuiltIntype" href="library:/model/builtInTypes.mlcore#895807ab-63ff-4779-8bed-8ff8180aa13e"/>
+      </busElements>
+    </datatypes>
+  </org.eclipse.capella.simulink.core:Dictionary>
+  <org.eclipse.capella.simulink.core:Dictionary id="c3fe2d5e-463e-4535-abb6-da80c2c150cec1" name="sub_dict_3" subDictionaries="c3fe2d5e-463e-4535-abb6-da80c2c150cee1">
+    <datatypes xsi:type="org.eclipse.capella.simulink.core:Bus" id="440ac876-710c-496c-a95d-e1cccf64faa5" name="sub_dict_3_Bus">
+      <busElements id="d37101a3-70a8-4bf5-ad7d-1751d7f54af7" name="myElement">
+        <datatype xsi:type="org.eclipse.capella.simulink.core:BuiltIntype" href="library:/model/builtInTypes.mlcore#895807ab-63ff-4779-8bed-8ff8180aa13e"/>
+      </busElements>
+    </datatypes>
+  </org.eclipse.capella.simulink.core:Dictionary>
+  <org.eclipse.capella.simulink.core:Dictionary id="c3fe2d5e-463e-4535-abb6-da80c2c150ced1" name="sub_dict_4">
+    <datatypes xsi:type="org.eclipse.capella.simulink.core:Bus" id="6845522b-adba-434a-ae16-4c239bda286a" name="sub_dict_4_Bus">
+      <busElements id="6e956b62-1394-482b-b8da-348448b0173e" name="myElement">
+        <datatype xsi:type="org.eclipse.capella.simulink.core:BuiltIntype" href="library:/model/builtInTypes.mlcore#895807ab-63ff-4779-8bed-8ff8180aa13e"/>
+      </busElements>
+    </datatypes>
+  </org.eclipse.capella.simulink.core:Dictionary>
+  <org.eclipse.capella.simulink.core:Dictionary id="c3fe2d5e-463e-4535-abb6-da80c2c150cee1" name="sub_dict_3_1">
+    <datatypes xsi:type="org.eclipse.capella.simulink.core:Bus" id="30b4438a-a789-4639-9f32-8c77f0bfcd73" name="sub_dict_3_1_Bus">
+      <busElements id="907ef016-bc76-47b7-a583-e82a2dc31af3" name="myElement">
+        <datatype xsi:type="org.eclipse.capella.simulink.core:BuiltIntype" href="library:/model/builtInTypes.mlcore#895807ab-63ff-4779-8bed-8ff8180aa13e"/>
+      </busElements>
+    </datatypes>
+  </org.eclipse.capella.simulink.core:Dictionary>
+</xmi:XMI>

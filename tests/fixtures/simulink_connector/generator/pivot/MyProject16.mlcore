@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<org.eclipse.capella.simulink.core:Project xmi:version="2.0" xmlns:xmi="http://www.omg.org/XMI" xmlns:org.eclipse.capella.simulink.core="http://www.eclipse.org/capella/simulink/core/1.0" id="74f8c963-dc18-400b-aa60-385d0342b45a" name="MyProject16">
+  <systems id="f25829bc-fa5c-491e-ac41-fa0e2572996c" name="MyModel">
+    <ports id="731c8b9d-1037-43ef-882e-425053fb6827" name="in"/>
+    <ports id="46dad0ba-d242-49f8-9a48-4ef2716774d1" name="out" kind="Outport"/>
+    <ports id="96404903-5834-42ed-90ec-59f01289dd75" name="in2" index="2"/>
+    <ports id="b7b8e089-97fb-4ad9-b37c-10838799cd1f" name="out2" kind="Outport" index="2"/>
+    <lines id="f269235e-ac19-468a-8b67-4b705ef309b1" source="731c8b9d-1037-43ef-882e-425053fb6827" target="46dad0ba-d242-49f8-9a48-4ef2716774d1"/>
+  </systems>
+</org.eclipse.capella.simulink.core:Project>

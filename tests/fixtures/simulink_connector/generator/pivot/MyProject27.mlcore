@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="ASCII"?>
+<xmi:XMI xmi:version="2.0" xmlns:xmi="http://www.omg.org/XMI" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:org.eclipse.capella.simulink.core="http://www.eclipse.org/capella/simulink/core/1.0" xmlns:org.eclipse.capella.simulink.infra="http://www.eclipse.org/capella/simulink/infra/1.0">
+  <org.eclipse.capella.simulink.core:Project id="4c162879-95e2-421a-9117-bfa1b2b1b35f" originatorId="c7b9d820-302a-4f8d-ac1a-efac48dde8bc" name="MyProject27" dictionaries="6295e9b8-bb66-4626-92be-5c31d7d2f0f1 838450cd-342e-4083-bca8-0d1822a0bda8 85ba828c-7dc1-44f4-b7f5-5a20a3da59df 08220cf8-fe80-43bd-b700-423d769624bd a1909401-b73e-4fcd-805b-da143848641e de5e0c88-b22b-470d-b4fd-ef265a880806 69fd841b-939b-4948-941e-72511f8de33a a28152cb-ec79-4196-9c2a-64af547e1538">
+    <systems id="5749b82e-3533-4599-93df-a1e2e7088582" originatorId="49a3a98e-8275-4717-b923-702bea503c42" name="LogicalFunction 1" dictionary="838450cd-342e-4083-bca8-0d1822a0bda8">
+      <parameters id="3168c451-3d1a-4e6a-a1d2-a8fe33cdd11f" key="capella.layer">
+        <value xsi:type="org.eclipse.capella.simulink.infra:PrimitiveValue" id="01340357-d137-4b49-bd5d-990d3c4f35de" specification="LA"/>
+      </parameters>
+      <ports id="bbf8b4d2-45ea-4fd0-8d0a-9d1975ba9270" originatorId="8cfbc7c5-cb4c-4924-811a-8141edb7ad13" name="FunctionalExchange 1" datatype="e3f76177-5c7f-4ae5-a85e-c23f3fc0a8b4" kind="Outport"/>
+    </systems>
+    <systems id="df4d392e-b4ae-444b-9908-54bc8e0275ad" originatorId="8fa606a3-0a7c-4d91-a963-23b7d2c33f72" name="LogicalFunction 2" dictionary="de5e0c88-b22b-470d-b4fd-ef265a880806">
+      <parameters id="8dfe3b3f-877e-4a12-a8c3-35aa2ba708ea" key="capella.layer">
+        <value xsi:type="org.eclipse.capella.simulink.infra:PrimitiveValue" id="807926a2-955c-434d-b047-865afaa4d150" specification="LA"/>
+      </parameters>
+      <ports id="c4a0b3dd-80fe-451e-9093-5436e8f6e1af" originatorId="2ff501f4-2070-4cff-931c-459aac18612f" name="FunctionalExchange 2" datatype="ecb139ca-cc01-497a-8fe7-8778802ddc9d" kind="Outport"/>
+      <ports id="be528f88-4c7d-4824-8a67-d3e541b3804c" originatorId="25f1fd1e-54ef-4860-b864-e1e55fa81d07" name="FunctionalExchange 1" datatype="e3f76177-5c7f-4ae5-a85e-c23f3fc0a8b4"/>
+    </systems>
+    <systems id="f843b569-7572-4135-b751-b68e207e8fe3" originatorId="7d8e21e9-20dc-4cdd-b49c-5be4d1ed5f6f" name="LogicalFunction 3" dictionary="69fd841b-939b-4948-941e-72511f8de33a">
+      <parameters id="571b8eb5-4ee7-4e99-8d73-43a77d1540c7" key="capella.layer">
+        <value xsi:type="org.eclipse.capella.simulink.infra:PrimitiveValue" id="5a144cc5-5fad-4a73-b07c-af929510b13e" specification="LA"/>
+      </parameters>
+      <ports id="74ebf200-0e13-42cc-9afd-4c24a2d50b27" originatorId="414d3b80-97cc-4671-ba81-6e810c4389b8" name="FunctionalExchange 2" datatype="ecb139ca-cc01-497a-8fe7-8778802ddc9d"/>
+    </systems>
+    <systems id="b8422aa1-5ecf-4ae7-95a6-898024052629" originatorId="5b7a6332-77f6-47d2-94f7-040d4c0cdb21" name="FunctionalChain 1" dictionary="a28152cb-ec79-4196-9c2a-64af547e1538">
+      <parameters id="fb547dcd-7d7f-43f1-88ba-00c43ae087ec" key="capella.layer">
+        <value xsi:type="org.eclipse.capella.simulink.infra:PrimitiveValue" id="d177ec6f-3bac-4b77-a9b9-b593acdb362e" specification="LA"/>
+      </parameters>
+      <blocks xsi:type="org.eclipse.capella.simulink.core:SystemReference" id="d4254df8-d7f7-435f-8135-1e2e88711056" name="Reference to LogicalFunction 1" source="CapellaElements/ModelRef/Model_Function" system="5749b82e-3533-4599-93df-a1e2e7088582"/>
+      <blocks xsi:type="org.eclipse.capella.simulink.core:SystemReference" id="eaaafd8e-4f7c-4945-b9b2-56d75104eee4" name="Reference to LogicalFunction 2" source="CapellaElements/ModelRef/Model_Function" system="df4d392e-b4ae-444b-9908-54bc8e0275ad"/>
+      <blocks xsi:type="org.eclipse.capella.simulink.core:SystemReference" id="d79fbfb1-725f-47af-a26c-54cab6a1305e" name="Reference to LogicalFunction 3" source="CapellaElements/ModelRef/Model_Function" system="f843b569-7572-4135-b751-b68e207e8fe3"/>
+      <lines id="703dcec3-07ea-4526-9b09-3c8a4a5629ff" originatorId="a068fe8b-4b95-48a3-932a-6ee322d9ab60" name="FunctionalExchange 2" source="derived-eaaafd8e-4f7c-4945-b9b2-56d75104eee4--c4a0b3dd-80fe-451e-9093-5436e8f6e1af" target="derived-d79fbfb1-725f-47af-a26c-54cab6a1305e--74ebf200-0e13-42cc-9afd-4c24a2d50b27"/>
+      <lines id="c5d87764-0954-4b18-adc5-443c02c6ec9c" originatorId="98a47e04-4476-4523-b467-2f9c5436b56e" name="FunctionalExchange 1" source="derived-d4254df8-d7f7-435f-8135-1e2e88711056--bbf8b4d2-45ea-4fd0-8d0a-9d1975ba9270" target="derived-eaaafd8e-4f7c-4945-b9b2-56d75104eee4--be528f88-4c7d-4824-8a67-d3e541b3804c"/>
+    </systems>
+  </org.eclipse.capella.simulink.core:Project>
+  <org.eclipse.capella.simulink.core:Dictionary id="6295e9b8-bb66-4626-92be-5c31d7d2f0f1" originatorId="53488d17-3a5b-4aaf-abcc-92a2089f7670" name="Logical Architecture" subDictionaries="85ba828c-7dc1-44f4-b7f5-5a20a3da59df">
+    <parameters id="a6748f83-d3b7-49e3-ac98-b1e226e8adc8" key="capella.layer">
+      <value xsi:type="org.eclipse.capella.simulink.infra:PrimitiveValue" id="87c477bb-f7b3-4123-b1a2-caa3a70973c7" specification="LA"/>
+    </parameters>
+    <parameters id="78287abc-0422-4ed8-9cfa-023959912203" key="capella.layer.root">
+      <value xsi:type="org.eclipse.capella.simulink.infra:PrimitiveValue" id="5a363fbc-7de4-4a1b-aff9-b2871604fd11" specification="True"/>
+    </parameters>
+    <datatypes xsi:type="org.eclipse.capella.simulink.core:Bus" id="e3f76177-5c7f-4ae5-a85e-c23f3fc0a8b4" originatorId="98a47e04-4476-4523-b467-2f9c5436b56e" name="busFE_FunctionalExchange 1">
+      <busElements id="25df4988-ba5e-4801-b6d1-b13916e04785" originatorId="126c60b1-357d-4710-a5c0-45925c09b584" name="ExchangeItem 1" datatype="a4db32e4-fbaa-42c0-9889-59e29c713c83"/>
+    </datatypes>
+    <datatypes xsi:type="org.eclipse.capella.simulink.core:Bus" id="ecb139ca-cc01-497a-8fe7-8778802ddc9d" originatorId="a068fe8b-4b95-48a3-932a-6ee322d9ab60" name="busFE_FunctionalExchange 2">
+      <busElements id="9c97e0f6-e53e-4b4c-a8f8-61c82051461e" originatorId="8391ab37-2d32-40af-a5cd-c4098186e45a" name="ExchangeItem 2" datatype="d9c2d8aa-d7ac-4c54-9379-6656f53374ff"/>
+    </datatypes>
+  </org.eclipse.capella.simulink.core:Dictionary>
+  <org.eclipse.capella.simulink.core:Dictionary id="838450cd-342e-4083-bca8-0d1822a0bda8" originatorId="49a3a98e-8275-4717-b923-702bea503c42" name="LogicalFunction 1" subDictionaries="6295e9b8-bb66-4626-92be-5c31d7d2f0f1">
+    <parameters id="4d4059e1-e5f9-4a7a-ad99-5d4e056aead4" key="capella.layer">
+      <value xsi:type="org.eclipse.capella.simulink.infra:PrimitiveValue" id="8157fa48-5754-4d9c-8eaa-eb584cc0c4db" specification="LA"/>
+    </parameters>
+  </org.eclipse.capella.simulink.core:Dictionary>
+  <org.eclipse.capella.simulink.core:Dictionary id="85ba828c-7dc1-44f4-b7f5-5a20a3da59df" originatorId="86bed7de-8f53-4274-aa43-cd1d3f98fec0" name="Data" subDictionaries="08220cf8-fe80-43bd-b700-423d769624bd">
+    <parameters id="2445ee2c-82da-4d3d-a27a-1a92ada68a41" key="capella.layer">
+      <value xsi:type="org.eclipse.capella.simulink.infra:PrimitiveValue" id="85d1e4c6-c647-4b03-85dc-ad4e8c30ce23" specification="LA"/>
+    </parameters>
+    <datatypes xsi:type="org.eclipse.capella.simulink.core:Bus" id="a4db32e4-fbaa-42c0-9889-59e29c713c83" originatorId="126c60b1-357d-4710-a5c0-45925c09b584" name="busEI_ExchangeItem 1">
+      <busElements id="24ebd150-e0ec-49c0-b321-f0978f726884" originatorId="53b272be-ad2b-402a-94a9-9d3d73f2c741" name="ExchangeItemElement 1" datatype="1199067d-c11d-425d-af04-bd359d1fcff3"/>
+    </datatypes>
+    <datatypes xsi:type="org.eclipse.capella.simulink.core:Bus" id="d9c2d8aa-d7ac-4c54-9379-6656f53374ff" originatorId="8391ab37-2d32-40af-a5cd-c4098186e45a" name="busEI_ExchangeItem 2">
+      <busElements id="57535341-755e-43c9-9ebb-c2b79c4449b4" originatorId="69a69f5c-16ff-48f7-97fb-39af6381a638" name="ExchangeItemElement 2" datatype="1199067d-c11d-425d-af04-bd359d1fcff3"/>
+    </datatypes>
+  </org.eclipse.capella.simulink.core:Dictionary>
+  <org.eclipse.capella.simulink.core:Dictionary id="08220cf8-fe80-43bd-b700-423d769624bd" originatorId="041b60b5-0b59-4706-9cf3-1732e967a8d7" name="Data">
+    <parameters id="0e36bb4f-ccf7-4f5e-89a5-b98539af863d" key="capella.layer">
+      <value xsi:type="org.eclipse.capella.simulink.infra:PrimitiveValue" id="12d50f97-5180-4f5b-8440-8290b2bab5fc" specification="PA"/>
+    </parameters>
+    <datatypes xsi:type="org.eclipse.capella.simulink.core:Signal" id="1199067d-c11d-425d-af04-bd359d1fcff3" originatorId="7787f6af-8440-4e4c-acbc-29e81a2bcdcd" name="PhysicalQuantity 1">
+      <datatype xsi:type="org.eclipse.capella.simulink.core:BuiltIntype" href="library:/model/builtInTypes.mlcore#00d92ac8-3b5d-44bb-89a8-cb71d44c1283"/>
+    </datatypes>
+  </org.eclipse.capella.simulink.core:Dictionary>
+  <org.eclipse.capella.simulink.core:Dictionary id="a1909401-b73e-4fcd-805b-da143848641e" originatorId="3ce6e5e8-22cb-442f-81dd-7292c8db8230" name="Predefined Types">
+    <parameters id="0d444f62-ab39-4f38-98b1-307b5ef11a33" key="capella.layer">
+      <value xsi:type="org.eclipse.capella.simulink.infra:PrimitiveValue" id="d0b1d7a5-cacd-47a0-8035-da276909cf45" specification="SA"/>
+    </parameters>
+  </org.eclipse.capella.simulink.core:Dictionary>
+  <org.eclipse.capella.simulink.core:Dictionary id="de5e0c88-b22b-470d-b4fd-ef265a880806" originatorId="8fa606a3-0a7c-4d91-a963-23b7d2c33f72" name="LogicalFunction 2" subDictionaries="6295e9b8-bb66-4626-92be-5c31d7d2f0f1">
+    <parameters id="0b2f159f-4188-4167-8d50-d26b5c20150d" key="capella.layer">
+      <value xsi:type="org.eclipse.capella.simulink.infra:PrimitiveValue" id="3ded3198-7569-490b-93bc-432ba4f46b4a" specification="LA"/>
+    </parameters>
+  </org.eclipse.capella.simulink.core:Dictionary>
+  <org.eclipse.capella.simulink.core:Dictionary id="69fd841b-939b-4948-941e-72511f8de33a" originatorId="7d8e21e9-20dc-4cdd-b49c-5be4d1ed5f6f" name="LogicalFunction 3" subDictionaries="6295e9b8-bb66-4626-92be-5c31d7d2f0f1">
+    <parameters id="f34d4bec-86e4-42a5-8573-e802244d1cba" key="capella.layer">
+      <value xsi:type="org.eclipse.capella.simulink.infra:PrimitiveValue" id="cc9e600b-a473-4724-a034-bfc827d6aa50" specification="LA"/>
+    </parameters>
+  </org.eclipse.capella.simulink.core:Dictionary>
+  <org.eclipse.capella.simulink.core:Dictionary id="a28152cb-ec79-4196-9c2a-64af547e1538" originatorId="5b7a6332-77f6-47d2-94f7-040d4c0cdb21" name="FunctionalChain 1" subDictionaries="6295e9b8-bb66-4626-92be-5c31d7d2f0f1">
+    <parameters id="66753e3a-970a-4595-b96f-67a3099c7cc0" key="capella.layer">
+      <value xsi:type="org.eclipse.capella.simulink.infra:PrimitiveValue" id="6df4b4d1-38e0-452f-98e7-8ec7d3c4552d" specification="LA"/>
+    </parameters>
+  </org.eclipse.capella.simulink.core:Dictionary>
+</xmi:XMI>

@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="ASCII"?>
+<org.eclipse.capella.simulink.core:Project xmi:version="2.0" xmlns:xmi="http://www.omg.org/XMI" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:org.eclipse.capella.simulink.core="http://www.eclipse.org/capella/simulink/core/1.0" xmlns:org.eclipse.capella.simulink.infra="http://www.eclipse.org/capella/simulink/infra/1.0" id="8048a469-2dbd-428f-a89a-e4dd559079c8" name="mystate">
+  <systems id="4d8d9dd0-a5b2-40c8-9731-ace0113f1269" name="1________10________20________30________40________50________">
+    <parameters id="b2ae822f-c423-49a5-9d0e-d96468a99772" key="capella.layer">
+      <value xsi:type="org.eclipse.capella.simulink.infra:PrimitiveValue" id="ad0655ca-fbe2-481f-8ff9-9b2d31f238d6" specification="LA"/>
+    </parameters>
+    <ports id="a1afe1b4-6139-4f8c-9174-93ffb660cb12" name="FunctionalExchange 1" kind="Outport"/>
+  </systems>
+  <systems id="40fd44b2-48ab-42ac-80c0-26501041cf82" name="2________10________20________30________40________50________">
+    <parameters id="72961f18-3a81-4d78-9ad9-e950c8576579" key="capella.layer">
+      <value xsi:type="org.eclipse.capella.simulink.infra:PrimitiveValue" id="594ba5e3-bcbe-47d7-8f1f-d813efca32bc" specification="LA"/>
+    </parameters>
+    <ports id="843a630c-4fa0-4a5e-9028-edb88f94efc4" name="FunctionalExchange 1"/>
+  </systems>
+  <systems id="9e3e81b8-4fea-4368-95d5-cd856bbb30e8" name="________10________20________30________40________50">
+    <parameters id="428c0a13-be6e-41f6-8edd-f4aa09dd2612" key="capella.layer">
+      <value xsi:type="org.eclipse.capella.simulink.infra:PrimitiveValue" id="5182a114-1d11-4ee2-8cc7-514bb1c16445" specification="LA"/>
+    </parameters>
+    <blocks xsi:type="org.eclipse.capella.simulink.core:SystemReference" id="f05a3276-16b9-4299-b22e-3bfcc2ce9cc0" name="Reference to LogicalFunction 1" source="CapellaElements/ModelRef/Model_Function" system="4d8d9dd0-a5b2-40c8-9731-ace0113f1269"/>
+    <blocks xsi:type="org.eclipse.capella.simulink.core:SystemReference" id="36a9a4bb-f31b-4913-a6ee-713accddb6b3" name="Reference to LogicalFunction 2" source="CapellaElements/ModelRef/Model_Function" system="40fd44b2-48ab-42ac-80c0-26501041cf82"/>
+    <lines id="84123cd2-c85a-454e-b080-1c451b470c89" name="FunctionalExchange 1" source="derived-f05a3276-16b9-4299-b22e-3bfcc2ce9cc0--a1afe1b4-6139-4f8c-9174-93ffb660cb12" target="derived-36a9a4bb-f31b-4913-a6ee-713accddb6b3--843a630c-4fa0-4a5e-9028-edb88f94efc4"/>
+  </systems>
+</org.eclipse.capella.simulink.core:Project>

@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="ASCII"?>
+<xmi:XMI xmi:version="2.0" xmlns:xmi="http://www.omg.org/XMI" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:org.eclipse.capella.simulink.core="http://www.eclipse.org/capella/simulink/core/1.0" xmlns:org.eclipse.capella.simulink.infra="http://www.eclipse.org/capella/simulink/infra/1.0">
+  <org.eclipse.capella.simulink.core:Project id="c1beeb19-47b2-4faf-886e-ce04bbec1e7d" originatorId="myOriginCapellaProject" name="MyProject19" dictionaries="5866ead9-fba5-4060-83cb-8f0e4652d001"/>
+  <org.eclipse.capella.simulink.core:Dictionary id="5866ead9-fba5-4060-83cb-8f0e4652d001" name="G[Head Dictionary]" subDictionaries="987179ef-caa3-427f-8cb9-d8fb72f4f32b df7d4311-4464-4416-b47c-de446bdd7be0 c5ec02c3-9369-443d-acb3-3796c375d6fc"/>
+  <org.eclipse.capella.simulink.core:Dictionary id="987179ef-caa3-427f-8cb9-d8fb72f4f32b" originatorId="myOriginPkg3" name="DataPkg 3">
+    <parameters id="e3d2374e-9a53-4e13-b141-c1ea51dcdec2" key="capella.layer">
+      <value xsi:type="org.eclipse.capella.simulink.infra:PrimitiveValue" id="280fa2dc-74d2-4ba4-b310-8cc15e069817" specification="SA"/>
+    </parameters>
+    <datatypes xsi:type="org.eclipse.capella.simulink.core:Bus" id="8e49a3db-6319-430a-aeb1-35b930c3e891" originatorId="myOriginClass3" name="busClass_Class 3">
+      <busElements id="8ed7d956-0871-4438-82e9-6822f78450c8" originatorId="myOriginid" name="id" datatype="ba305977-d35b-4478-9761-9cae387ae48b"/>
+      <busElements id="1cf81eb8-596c-468d-90c6-04628435cd73" name="Property 3">
+        <datatype xsi:type="org.eclipse.capella.simulink.core:BuiltIntype" href="library:/model/builtInTypes.mlcore#895807ab-63ff-4779-8bed-8ff8180aa13e"/>
+      </busElements>
+    </datatypes>
+    <datatypes xsi:type="org.eclipse.capella.simulink.core:Bus" id="6836e86e-998a-4dae-b50b-7827b7eba159" originatorId="myOriginClass1" name="busClass_Class 1">
+      <busElements id="c6fc55a2-bfbf-4bea-96be-56bd02880abc" name="class 3" datatype="8e49a3db-6319-430a-aeb1-35b930c3e891"/>
+    </datatypes>
+    <datatypes xsi:type="org.eclipse.capella.simulink.core:Bus" id="f9f84bb7-088a-436d-8a3f-06efa74528a3" originatorId="myOriginClass2" name="busClass_Class 2">
+      <busElements id="9fbc352a-7339-4d60-88b9-a2c8e159841a" name="class 1" datatype="6836e86e-998a-4dae-b50b-7827b7eba159"/>
+      <busElements id="0ba8112f-2f15-42f5-93c5-448e04ec49ba" name="Property 2">
+        <datatype xsi:type="org.eclipse.capella.simulink.core:BuiltIntype" href="library:/model/builtInTypes.mlcore#15c85f46-ad7f-4fc6-af4c-4b91579177b1"/>
+      </busElements>
+    </datatypes>
+  </org.eclipse.capella.simulink.core:Dictionary>
+  <org.eclipse.capella.simulink.core:Dictionary id="df7d4311-4464-4416-b47c-de446bdd7be0" originatorId="myOriginPkg4" name="DataPkg 4">
+    <parameters id="feb5f53f-658f-41fc-b7e3-eb5b56398aa4" key="capella.layer">
+      <value xsi:type="org.eclipse.capella.simulink.infra:PrimitiveValue" id="6da452c5-5f31-4039-b431-05234e3fd3ad" specification="SA"/>
+    </parameters>
+    <datatypes xsi:type="org.eclipse.capella.simulink.core:Enumeration" id="8fa99eb7-a564-4d99-a19f-c25763ba6f6e" originatorId="myOriginEnum1" name="Enumeration 1">
+      <literals id="ce9c0468-226c-479d-93b7-647bd61001cb" originatorId="myOriginLiteral1" name="EnumerationLiteral 1"/>
+      <literals id="2b740ff1-c613-44e4-baa7-98f6e58659aa" originatorId="myOriginLiteral2" name="EnumerationLiteral 2" value="1"/>
+      <literals id="b47b8062-c83a-48cd-b443-a450f3f69b14" originatorId="myOriginLiteral3" name="EnumerationLiteral 3" value="2"/>
+    </datatypes>
+    <datatypes xsi:type="org.eclipse.capella.simulink.core:Bus" id="a5a42519-efdb-4c04-b8c3-b2f7f44f6f57" originatorId="myOriginClass1" name="busClass_Class 1">
+      <busElements id="5b92accc-1ff7-4344-bd3b-a00dbf3a5685" originatorId="myOriginProperty1" name="Property 1" datatype="8fa99eb7-a564-4d99-a19f-c25763ba6f6e"/>
+    </datatypes>
+  </org.eclipse.capella.simulink.core:Dictionary>
+  <org.eclipse.capella.simulink.core:Dictionary id="c5ec02c3-9369-443d-acb3-3796c375d6fc" originatorId="myOriginPkg2" name="DataPkg 2">
+    <parameters id="bcaa7e66-c650-4083-b0bd-9632ab70a3dd" key="capella.layer">
+      <value xsi:type="org.eclipse.capella.simulink.infra:PrimitiveValue" id="5ff3de7c-a41c-4b68-b7bc-ff47ebf0c8db" specification="SA"/>
+    </parameters>
+    <datatypes xsi:type="org.eclipse.capella.simulink.core:CustomType" id="ba305977-d35b-4478-9761-9cae387ae48b" originatorId="myOriginID" name="ID"/>
+  </org.eclipse.capella.simulink.core:Dictionary>
+</xmi:XMI>

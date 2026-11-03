@@ -100,7 +100,8 @@ fn short_kind(xsi: &str) -> String {
 /// Parse an XMI document into a tree. Fails on malformed XML.
 pub fn parse(xml: &str) -> Result<Node, String> {
     let mut reader = Reader::from_str(xml);
-    reader.config_mut().trim_text(true);
+    // An element's text is trimmed once whole: quick-xml splits it at each entity reference.
+    reader.config_mut().trim_text(false);
     let mut stack: Vec<Node> = vec![Node { tag: "#document".to_string(), ..Default::default() }];
     let mut buffer = Vec::new();
     loop {
@@ -128,12 +129,33 @@ pub fn parse(xml: &str) -> Result<Node, String> {
                 let text = unescape(&String::from_utf8_lossy(&text));
                 stack.last_mut().expect("document").text.push_str(&text);
             }
+            // quick-xml reports `&lt;`, `&#xA;`… in a text apart from it.
+            Event::GeneralRef(reference) => {
+                let resolved = match reference.resolve_char_ref() {
+                    Ok(Some(c)) => Some(c),
+                    _ => match reference.decode().as_deref() {
+                        Ok("lt") => Some('<'),
+                        Ok("gt") => Some('>'),
+                        Ok("amp") => Some('&'),
+                        Ok("quot") => Some('"'),
+                        Ok("apos") => Some('\''),
+                        _ => None,
+                    },
+                };
+                if let Some(c) = resolved.filter(|&c| c != '\r') {
+                    stack.last_mut().expect("document").text.push(c);
+                }
+            }
             Event::CData(data) => {
                 let text = String::from_utf8_lossy(&data);
                 stack.last_mut().expect("document").text.push_str(&text);
             }
             Event::End(_) => {
-                let done = stack.pop().expect("an open element");
+                let mut done = stack.pop().expect("an open element");
+                let trimmed = done.text.trim_matches(|c: char| matches!(c, ' ' | '\t' | '\n' | '\r'));
+                if trimmed.len() != done.text.len() {
+                    done.text = trimmed.to_string();
+                }
                 stack.last_mut().expect("document").children.push(done);
             }
             Event::Eof => break,

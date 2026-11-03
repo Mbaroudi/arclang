@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<org.eclipse.capella.simulink.core:Project xmi:version="2.0" xmlns:xmi="http://www.omg.org/XMI" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:org.eclipse.capella.simulink.core="http://www.eclipse.org/capella/simulink/core/1.0" id="4f2b7401-72bb-46b7-9687-dbf16db63821" name="MyProject17">
+  <systems id="bfa98da1-dff5-4539-a829-e8dc472ccaf0" name="otherSystem">
+    <ports id="a5a48038-b2af-4c33-ba54-c46e69e9fb11" name="in1"/>
+  </systems>
+  <systems id="154590b4-a93c-4696-955f-374e732726d4" name="mainSystem">
+    <ports id="439ebbd7-b812-4b02-9fbe-3324ed9ee3ab" name="in1"/>
+    <ports id="aa445f1f-c3be-44dd-95b4-7ff4fc458eda" name="in2" index="2"/>
+    <blocks xsi:type="org.eclipse.capella.simulink.core:SystemReference" id="5334e9b7-5a4c-4418-8e28-b4aaaf974a07" name="other1" source="simulink/Ports &amp; Subsystems/Model" system="bfa98da1-dff5-4539-a829-e8dc472ccaf0"/>
+    <blocks xsi:type="org.eclipse.capella.simulink.core:SystemReference" id="7e31e749-edcc-4874-8d1a-672cd4c1bc9c" name="other2" source="simulink/Ports &amp; Subsystems/Model" system="bfa98da1-dff5-4539-a829-e8dc472ccaf0"/>
+    <lines id="61c88220-b8e5-4257-9173-56589c430616" name="line2" source="aa445f1f-c3be-44dd-95b4-7ff4fc458eda" target="derived-7e31e749-edcc-4874-8d1a-672cd4c1bc9c--a5a48038-b2af-4c33-ba54-c46e69e9fb11"/>
+    <lines id="8e583c54-eeec-4ad0-bbfa-46480cf4926d" name="line1" source="439ebbd7-b812-4b02-9fbe-3324ed9ee3ab" target="derived-5334e9b7-5a4c-4418-8e28-b4aaaf974a07--a5a48038-b2af-4c33-ba54-c46e69e9fb11"/>
+  </systems>
+</org.eclipse.capella.simulink.core:Project>

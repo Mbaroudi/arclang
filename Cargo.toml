@@ -40,6 +40,7 @@ sha2 = "0.10"
 petgraph = "0.6"
 regex = "1.10"
 quick-xml = "0.41"
+unicode-normalization = "0.1"
 chrono = { version = "0.4", features = ["serde"] }
 # v5 only: deterministic identity must not depend on an entropy source
 uuid = { version = "1.6", features = ["v5", "serde"] }
