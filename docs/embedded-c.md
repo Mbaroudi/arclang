@@ -509,16 +509,32 @@ case naming a machine, an input, a binding or a variable that does not exist.
 ## Software in the loop
 
 ```text
-$ arclang sil examples/energy/battery-charger/battery_charger.arc --cc gcc-15 --cc clang
+$ arclang sil examples/energy/battery-charger/battery_charger.arc --cc gcc --cc clang
 
-SIL examples/energy/battery-charger/battery_charger.arc — gcc-15 (Homebrew GCC 15.2.0)
+SIL examples/energy/battery-charger/battery_charger.arc — gcc (gcc (Debian 12.2.0-14+deb12u1) 12.2.0)
 
   ✓ pass  TC-CHG-001
     verifies SYS-CHG-001, SYS-CHG-002 · machine Charger
     model: pass · C: pass · the C reproduces the model
-    back to back: 61 steps × 18 outputs, largest difference 0 (tolerance 0)
+    back to back: 61 steps × 34 outputs, largest difference 0 (tolerance 0)
     ok   SYS-CHG-001: at(210 ms, "Charger".Charging.Precharge) == 1   model 1 · C 1
+    ok   SYS-CHG-001: at(230 ms, "Charger".Charging.Bulk) == 1   model 1 · C 1
+    ok   at(400 ms, "Charger".Charging.Absorption) == 1   model 1 · C 1
+    ok   SYS-CHG-002: final("Charger".Idle) == 1   model 1 · C 1
+    ok   SYS-CHG-002: at(500 ms, "Charger".action.open_contactors) == 1   model 1 · C 1
+    ok   at(20 ms, "Charger".action.close_contactors) == 1   model 1 · C 1
+    ok   max("Charger".action.regulate_current) == 1   model 1 · C 1
+
+  ✓ pass  TC-CHG-002
+    verifies SYS-CHG-003 · machine Charger · through io_binding Charger board
+    model: pass · C: pass · the C reproduces the model
+    back to back: 41 steps × 40 outputs, largest difference 0 (tolerance 0)
+    ok   at(60 ms, "Charger".FanOn) == 1   model 1 · C 1
+    ok   at(100 ms, "Charger".Fault) == 1   model 1 · C 1
+    ok   at(160 ms, "Charger".FanOff) == 1   model 1 · C 1
     ...
+
+  3 verdict(s) cached in examples/energy/battery-charger/.arclang/sim-cache
 ```
 
 Each case is compiled with `-std=c99 -Wall -Wextra -Werror -pedantic`, run

@@ -625,7 +625,7 @@ fn complete_code(text: &str, path: &[&source_edit::Declaration], line: u32, befo
         if let Some(open) = upto.rfind("execute:") {
             let after = &upto[open..];
             let depth = after.matches('{').count() as i64 - after.matches('}').count() as i64;
-            let at_key = Regex::new(r"(^|[\s{])[A-Za-z_]*$").ok().is_some_and(|re| re.is_match(before)) && before.matches('"').count() % 2 == 0;
+            let at_key = Regex::new(r"(^|[\s{])[A-Za-z_]*$").ok().is_some_and(|re| re.is_match(before)) && before.matches('"').count().is_multiple_of(2);
             if depth > 0 && at_key {
                 let docs = [
                     ("machine", "the state_machine the case drives (optional when the model has one)"),

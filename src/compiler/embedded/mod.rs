@@ -25,6 +25,12 @@ pub mod sil;
 
 use crate::compiler::ast::Model;
 
+/// Generated files, as (name, text).
+pub type Files = Vec<(String, String)>;
+
+/// An FMU: its file name, its bytes, the case files, the notes.
+pub type FmuExport = (String, Vec<u8>, Files, Vec<String>);
+
 /// The step period the C is generated for: the first binding's, else 10 ms.
 pub fn default_period_us(bindings: &[binding::Binding]) -> u64 {
     bindings.first().map(|b| b.period_us).unwrap_or(case::DEFAULT_STEP_US)
@@ -83,7 +89,7 @@ pub fn check(ast: &Model) -> Result<Vec<String>, String> {
 /// `arclang export -f fmu`: the FMU (bytes, its file name), the inputs and
 /// the reference of every executed case the FMU can give (`cases/<id>.inputs.csv`,
 /// `cases/<id>.reference.csv`), and notes.
-pub fn export_fmu(ast: &Model, compiler: Option<&str>, work: &std::path::Path) -> Result<(String, Vec<u8>, Vec<(String, String)>, Vec<String>), String> {
+pub fn export_fmu(ast: &Model, compiler: Option<&str>, work: &std::path::Path) -> Result<FmuExport, String> {
     let plan = plan::plan(ast)?;
     let bindings = binding::resolve_all(ast, &plan)?;
     let period = default_period_us(&bindings);
@@ -109,7 +115,7 @@ pub fn export_fmu(ast: &Model, compiler: Option<&str>, work: &std::path::Path) -
 }
 
 /// `arclang export -f c`: every file, as (name, text), and notes.
-pub fn export(ast: &Model) -> Result<(Vec<(String, String)>, Vec<String>), String> {
+pub fn export(ast: &Model) -> Result<(Files, Vec<String>), String> {
     let plan = plan::plan(ast)?;
     let bindings = binding::resolve_all(ast, &plan)?;
     let mut files = sil::files(&plan, &bindings, default_period_us(&bindings));

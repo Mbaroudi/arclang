@@ -2,9 +2,9 @@
 //! `execution::Machine` (the debugger's executor), step by step, with the
 //! same step semantics as the generated `step()`:
 //!
-//! 0. the `in` variables take the step's values;
-//! 1. on the first step, the initial states are entered;
-//! 1b. the equations are evaluated, in the order written;
+//! 1. the `in` variables take the step's values; on the first step, the
+//!    initial states are entered; the equations are evaluated, in the order
+//!    written;
 //! 2. the events of the step fire, in the order they arrive (the queue);
 //! 3. the timed transitions whose source has been active long enough fire
 //!    (`after 5 s`: at least ceil(5 s / period) steps);

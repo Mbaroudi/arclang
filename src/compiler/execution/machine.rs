@@ -398,11 +398,11 @@ impl Machine {
             built.top_regions[r].initial = first;
             built.tops.extend(first);
         }
-        for s in 0..built.states.len() {
-            for r in 0..built.states[s].regions.len() {
+        for (s, regions) in written.iter().enumerate() {
+            for (r, (_, initial, _)) in regions.iter().enumerate() {
                 let ids = built.states[s].regions[r].states.clone();
                 let what = built.states[s].path.clone();
-                let first = built.initial_among(&written[s][r].1, &ids, what, &mut notes);
+                let first = built.initial_among(initial, &ids, what, &mut notes);
                 built.states[s].regions[r].initial = first;
                 if r == 0 {
                     built.states[s].initial = first;
@@ -681,7 +681,7 @@ impl Machine {
     }
 
     /// What a transition from `sources` to `targets` exits and enters.
-    pub(crate) fn scope(&self, sources: &[usize], targets: &[usize]) -> Result<(Vec<(usize, usize)>, Vec<EntryOp>), String> {
+    pub(crate) fn scope(&self, sources: &[usize], targets: &[usize]) -> Result<Scope, String> {
         // From a state to itself: out and in again.
         if let ([s], [t]) = (sources, targets) {
             if s == t {
@@ -1090,6 +1090,9 @@ fn kind_name(p: Pseudo) -> &'static str {
         Pseudo::Terminate => "terminate",
     }
 }
+
+/// What a transition exits (ranges of the arena) and what it enters.
+pub type Scope = (Vec<(usize, usize)>, Vec<EntryOp>);
 
 /// The period the blocks integrate over until a run sets one (10 ms).
 pub const DEFAULT_PERIOD_US: u64 = 10_000;

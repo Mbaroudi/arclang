@@ -165,12 +165,11 @@ pub fn model_description(plan: &Plan, period_us: u64, guid: &str) -> String {
         );
     }
     let _ = writeln!(out, "  </ModelVariables>\n  <ModelStructure>\n    <Outputs>");
-    for (k, v) in vars.iter().enumerate().filter(|(_, v)| !v.input) {
+    for (k, _) in vars.iter().enumerate().filter(|(_, v)| !v.input) {
         let _ = writeln!(out, "      <Unknown index=\"{}\"/>", k + 1);
     }
     let _ = writeln!(out, "    </Outputs>\n    <InitialUnknowns>");
-    for (k, v) in vars.iter().enumerate().filter(|(_, v)| !v.input) {
-        let _ = (k, v);
+    for (k, _) in vars.iter().enumerate().filter(|(_, v)| !v.input) {
         let _ = writeln!(out, "      <Unknown index=\"{}\"/>", k + 1);
     }
     let _ = writeln!(out, "    </InitialUnknowns>\n  </ModelStructure>\n</fmiModelDescription>");

@@ -584,8 +584,7 @@ pub fn channel_operations(case: &Case, plan: &Plan, binding: &Binding, vectors: 
             Source::Uart { port, .. } => (3, port as u32),
         }
     };
-    for k in 0..n {
-        let queue = &vectors.queue[binding.machine][k];
+    for (k, queue) in vectors.queue[binding.machine].iter().enumerate() {
         let mut glue_order: Vec<(u8, u32, usize, usize)> = Vec::new();
         for (arrival, &e) in queue.iter().enumerate() {
             let input = binding.input_of(Target::Event(e)).expect("checked bound");
