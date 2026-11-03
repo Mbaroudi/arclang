@@ -200,3 +200,25 @@ fn the_import_reads_the_machines_back_and_leaves_their_diagrams() {
     assert_eq!(second.aird, exported.aird);
 }
 
+
+#[test]
+fn a_state_names_the_states_of_its_regions() {
+    // Capella's DWF_SM_03: a state's referencedStates are its regions' involvedStates.
+    let exported = exported(MACHINES, "msm");
+    let m = model(&exported, "msm");
+    let holders: Vec<usize> = (0..m.elements.len()).filter(|&e| matches!(m.class(e), "State" | "Mode") && !m.owned(e, "ownedRegions").is_empty()).collect();
+    assert!(!holders.is_empty());
+    for state in holders {
+        let involved: Vec<usize> = m.owned(state, "ownedRegions").into_iter().flat_map(|r| m.refs(r, "involvedStates")).collect();
+        assert_eq!(m.refs(state, "referencedStates"), involved, "{:?}", m.name(state));
+    }
+}
+
+#[test]
+fn a_diagram_names_an_element_by_its_id_as_it_is() {
+    // EMF looks a fragment up without decoding it: Capella resolves `#Two regions.Link`,
+    // not `#Two%20regions.Link` (the connector then found no diagram for the region).
+    let exported = exported(MACHINES, "msm");
+    assert!(exported.aird.contains("msm.capella#Two regions.Link\""), "the region's own id");
+    assert!(!exported.aird.contains("#Two%20regions"));
+}

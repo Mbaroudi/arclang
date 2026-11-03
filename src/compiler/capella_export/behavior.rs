@@ -219,7 +219,13 @@ fn state(context: &Context, machine: &str, s: &State, inner: &HashMap<String, Ve
         for t in inner.get(&id).into_iter().flatten() {
             region.push(t.clone());
         }
-        el.push(involving(region));
+        let region = involving(region);
+        // A state names the states of its regions (`referencedStates`), as
+        // Capella keeps them, the same list as its regions' (DWF_SM_03).
+        if let Some(involved) = region.get("involvedStates").map(str::to_string) {
+            el.set("referencedStates", &involved);
+        }
+        el.push(region);
     }
     el
 }

@@ -434,7 +434,7 @@ state_machine "ACC operating modes" {
     mode Cruising { description: "Holding the set speed, no lead vehicle" }
     mode Following { description: "Holding the time gap to the lead vehicle" }
     mode Overridden { description: "Driver pedal input, actuator command inhibited" }
-    state Degraded { description: "Sensor or controller fault, ACC switched off with a takeover request" }
+    mode Degraded { description: "Sensor or controller fault, ACC switched off with a takeover request" }
     transition Off -> Standby { trigger: "LF-022" guard: "main switch on" }
     transition Standby -> Cruising { trigger: "LF-022" guard: "set pressed above 30 km/h" }
     transition Cruising -> Following { trigger: "LF-009" guard: "lead vehicle in range" }

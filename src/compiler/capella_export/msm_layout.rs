@@ -25,6 +25,8 @@ const DIAGRAM_MARGIN: i32 = 20;
 const REGION_MARGIN: i32 = 12;
 /// Between two columns (room for the transitions' labels) and two rows.
 const COLUMN_GAP: i32 = 80;
+/// Beside a transition's label, in the gap it is drawn in.
+const LABEL_GAP_ROOM: i32 = 30;
 const ROW_GAP: i32 = 40;
 /// The columns of a band, and the room between two bands (for the transitions going back).
 const BAND_COLUMNS: usize = 8;
@@ -35,6 +37,20 @@ const LABEL_ROOM: i32 = 40;
 const STATE_MIN_WIDTH: i32 = 90;
 /// A state holding states is at least as tall as Capella's empty one (`STATE_EMPTY_HEIGHT`).
 const COMPOSITE_MIN_HEIGHT: i32 = 67;
+/// Room under the regions of a state: the state's label is 17 px with
+/// Capella's Windows font, 26 px with the DejaVu font of Capella on Linux,
+/// and a region left shorter than what it holds shows scroll bars.
+const COMPOSITE_SLACK: i32 = 12;
+/// A transition going back or past a box runs under the boxes of its region:
+/// this far under them, then one lane further for each next one, more than a
+/// label's height apart (`msm::route`). The region keeps the room for them.
+pub(super) const ROUTE_DROP: i32 = 20;
+pub(super) const ROUTE_STAGGER: i32 = 24;
+/// The room above a state with a loop (`msm::LOOP_HEIGHT`, and its label).
+const LOOP_ROOM: i32 = 40;
+/// The label of a pseudo state or a final state is drawn above it, in this
+/// band (`msm::Writer::state`), so that its transitions do not cross it.
+pub(super) const POINT_LABEL_HEIGHT: i32 = 18;
 
 /// A state drawn in a region: its Capella id, kind (`Mode`, `InitialPseudoState`...),
 /// name, bounds in its region, and the region it holds.
@@ -105,9 +121,9 @@ fn ids_within(state: &El, into: &mut Vec<String>) {
 }
 
 /// The states of a region laid out, with the extent of what they cover (right, bottom).
-pub(super) fn region(region: &El, all: &[(String, String, String)], top: bool) -> (Vec<Placed>, (i32, i32)) {
+pub(super) fn region(region: &El, all: &[(String, String, String)], labels: &HashMap<String, String>, top: bool) -> (Vec<Placed>, (i32, i32)) {
     let margin = if top { DIAGRAM_MARGIN } else { REGION_MARGIN };
-    let mut placed: Vec<Placed> = states(region).into_iter().map(|s| state(s, all)).collect();
+    let mut placed: Vec<Placed> = states(region).into_iter().map(|s| state(s, all, labels)).collect();
     if placed.is_empty() {
         return (placed, (0, 0));
     }
@@ -122,33 +138,79 @@ pub(super) fn region(region: &El, all: &[(String, String, String)], top: bool) -
     }
     let edges: Vec<(usize, usize)> = all.iter().filter_map(|(_, a, b)| Some((*at.get(a)?, *at.get(b)?))).filter(|(a, b)| a != b).collect();
     let columns = columns(&placed, &edges);
-    let sizes: Vec<(i32, i32)> = placed.iter().map(|p| (p.bounds.2, p.bounds.3)).collect();
+    // Between two columns, room for the labels of the transitions from one to the next.
+    let column_of: HashMap<usize, usize> = columns.iter().enumerate().flat_map(|(c, members)| members.iter().map(move |&k| (k, c))).collect();
+    let own: HashMap<&str, usize> = placed.iter().enumerate().map(|(k, p)| (p.id.as_str(), k)).collect();
+    let mut gaps = vec![COLUMN_GAP; columns.len()];
+    for (id, a, b) in all {
+        let (Some(&a), Some(&b)) = (own.get(a.as_str()), own.get(b.as_str())) else { continue };
+        let (ca, cb) = (column_of[&a], column_of[&b]);
+        if cb == ca + 1 {
+            let width = labels.get(id).map_or(0, |l| text_width(l.trim_end()));
+            gaps[ca] = gaps[ca].max(width + LABEL_GAP_ROOM);
+        }
+    }
+    // What each state takes in its column: a pseudo state its label too.
+    let sizes: Vec<(i32, i32)> = placed.iter().map(room).collect();
     let width = |c: &Vec<usize>| c.iter().map(|&k| sizes[k].0).max().unwrap_or(0);
     let height = |c: &Vec<usize>| c.iter().map(|&k| sizes[k].1).sum::<i32>() + ROW_GAP * (c.len() as i32 - 1).max(0);
+    // A loop goes over its state: room above the states for it.
+    let loops = all.iter().any(|(_, a, b)| a == b && own.contains_key(a.as_str()));
     // A long sequence of columns wraps onto bands, one under the other.
-    let mut top_of_band = margin;
-    for band in columns.chunks(BAND_COLUMNS) {
+    let mut top_of_band = margin + if loops { LOOP_ROOM } else { 0 };
+    for (b, band) in columns.chunks(BAND_COLUMNS).enumerate() {
         let tallest = band.iter().map(height).max().unwrap_or(0);
         let mut x = margin;
-        for column in band {
+        for (i, column) in band.iter().enumerate() {
             let w = width(column);
             let mut y = top_of_band + (tallest - height(column)) / 2;
             for &k in column {
                 let (_, _, sw, sh) = placed[k].bounds;
-                placed[k].bounds = (x + (w - sw) / 2, y, sw, sh);
-                y += sh + ROW_GAP;
+                let above = sizes[k].1 - sh;
+                placed[k].bounds = (x + (w - sw) / 2, y + above, sw, sh);
+                y += sizes[k].1 + ROW_GAP;
             }
-            x += w + COLUMN_GAP;
+            x += w + gaps[b * BAND_COLUMNS + i];
         }
         top_of_band += tallest + BAND_GAP;
     }
-    let right = placed.iter().map(|p| p.bounds.0 + p.bounds.2).max().unwrap_or(0);
+    let right = placed.iter().map(|p| p.bounds.0 + p.bounds.2 + (room(p).0 - p.bounds.2) / 2).max().unwrap_or(0);
     let bottom = placed.iter().map(|p| p.bounds.1 + p.bounds.3).max().unwrap_or(0);
-    (placed, (right, bottom))
+    (placed, (right, bottom + round_room(&edges, &column_of)))
+}
+
+/// The room under a region's states for the transitions that go round them:
+/// every one but those from a column to the next may (`msm::route`).
+fn round_room(edges: &[(usize, usize)], column_of: &HashMap<usize, usize>) -> i32 {
+    let round = edges.iter().filter(|(a, b)| column_of[b] != column_of[a] + 1).count() as i32;
+    if round == 0 {
+        0
+    } else {
+        ROUTE_DROP + ROUTE_STAGGER * (round - 1) + POINT_LABEL_HEIGHT
+    }
+}
+
+/// The room a state takes in its region: its box, and for a pseudo state or a
+/// final state the label above it, centered on it.
+fn room(p: &Placed) -> (i32, i32) {
+    let (w, h) = (p.bounds.2, p.bounds.3);
+    if is_container(&p.kind) {
+        return (w, h);
+    }
+    (w.max(point_label_width(&p.name)), h + POINT_LABEL_HEIGHT)
+}
+
+/// The width of the label of a pseudo state or a final state.
+pub(super) fn point_label_width(name: &str) -> i32 {
+    if name.is_empty() {
+        0
+    } else {
+        text_width(name) + 4
+    }
 }
 
 /// A state with what it holds, sized; its position is set by its region.
-fn state(s: &El, all: &[(String, String, String)]) -> Placed {
+fn state(s: &El, all: &[(String, String, String)], labels: &HashMap<String, String>) -> Placed {
     let kind = local(s.kind()).to_string();
     let name = s.get("name").unwrap_or("").to_string();
     let mut placed = Placed { id: s.id().to_string(), xsi_type: s.kind().to_string(), name, bounds: (0, 0, 0, 0), regions: Vec::new(), kind };
@@ -164,7 +226,7 @@ fn state(s: &El, all: &[(String, String, String)]) -> Placed {
         return placed;
     }
     // The regions one under the other, each as tall as what it holds.
-    let inner: Vec<(Vec<Placed>, (i32, i32))> = regions.iter().map(|r| region(r, all, false)).collect();
+    let inner: Vec<(Vec<Placed>, (i32, i32))> = regions.iter().map(|r| region(r, all, labels, false)).collect();
     let right = inner.iter().map(|(_, (r, _))| *r).max().unwrap_or(0);
     let width = label.max(STATE_MIN_WIDTH).max(STATE_CLIENT.0 + right + REGION_MARGIN + STATE_CLIENT.0);
     let mut offset = 0;
@@ -173,7 +235,7 @@ fn state(s: &El, all: &[(String, String, String)]) -> Placed {
         placed.regions.push(PlacedRegion { id: r.id().to_string(), xsi_type: r.kind().to_string(), bounds: (0, offset, width - 4, h), states });
         offset += h;
     }
-    placed.bounds = (0, 0, width, (17 + offset + 3).max(COMPOSITE_MIN_HEIGHT));
+    placed.bounds = (0, 0, width, (17 + offset + 3 + COMPOSITE_SLACK).max(COMPOSITE_MIN_HEIGHT));
     placed
 }
 
@@ -270,7 +332,7 @@ mod tests {
             .with(tr("t1", "a", "b"))
             .with(tr("t2", "b", "a"));
         let all = transitions(&region);
-        let (placed, (right, bottom)) = super::region(&region, &all, true);
+        let (placed, (right, bottom)) = super::region(&region, &all, &HashMap::new(), true);
         let x = |id: &str| placed.iter().find(|p| p.id == id).unwrap().bounds.0;
         assert!(x("i") < x("a") && x("a") < x("b"), "{:?}", placed.iter().map(|p| (&p.id, p.bounds)).collect::<Vec<_>>());
         assert!(right > x("b") && bottom > 0);
@@ -282,7 +344,7 @@ mod tests {
         let outer = st("capellacommon:State", "s").with(inner);
         let region = El::new("ownedRegions", "capellacommon:Region", "r").with(outer);
         let all = transitions(&region);
-        let (placed, _) = super::region(&region, &all, true);
+        let (placed, _) = super::region(&region, &all, &HashMap::new(), true);
         let s = &placed[0];
         let mut at = HashMap::new();
         absolute(&placed, (0, 0), &mut at);

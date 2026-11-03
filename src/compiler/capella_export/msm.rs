@@ -46,6 +46,13 @@ fn bounds(id: &str, (x, y, w, h): (i32, i32, i32, i32)) -> El {
     notation("layoutConstraint", "notation:Bounds", id).attr("x", &x.to_string()).attr("y", &y.to_string()).attr("width", &w.to_string()).attr("height", &h.to_string())
 }
 
+/// The label of a pseudo state or a final state, centered above it, where its
+/// transitions do not cross it (Sirius puts it on the right by default).
+fn label_above(id: &str, name: &str, width: i32) -> El {
+    let x = (width - layout::point_label_width(name)) / 2;
+    notation("layoutConstraint", "notation:Location", id).attr("x", &x.to_string()).attr("y", &(-layout::POINT_LABEL_HEIGHT).to_string())
+}
+
 fn shape_style(id: &str) -> El {
     notation("styles", "notation:ShapeStyle", id).attr("fontName", FONT.0).attr("fontHeight", FONT.1)
 }
@@ -180,7 +187,7 @@ impl Writer<'_> {
         let node = notation("children", "notation:Node", &view)
             .attr("type", if top { "2001" } else { "3007" })
             .attr("element", &uid)
-            .with(notation("children", "notation:Node", &format!("{view}-label")).attr("type", if top { "5002" } else { "5003" }).with(notation("layoutConstraint", "notation:Location", &format!("{view}-label-at"))))
+            .with(notation("children", "notation:Node", &format!("{view}-label")).attr("type", if top { "5002" } else { "5003" }).with(label_above(&format!("{view}-label-at"), &p.name, p.bounds.2)))
             .with(
                 notation("children", "notation:Node", &format!("{view}-figure"))
                     .attr("type", look.figure)
@@ -248,7 +255,7 @@ impl Writer<'_> {
     }
 
     /// A transition: its edge and its notation, a straight line between the
-    /// centers of its ends (a loop on a state goes round its top right corner).
+    /// centers of its ends (a loop on a state goes over its top).
     fn transition(&self, (id, source, target): &(String, String, String), at: &HashMap<String, (i32, i32, i32, i32)>, label: &str) -> Option<(El, El)> {
         let ((source_uid, source_view), (target_uid, target_view)) = (self.drawn.get(source)?, self.drawn.get(target)?);
         let (a, b) = (at.get(source)?, at.get(target)?);
@@ -282,10 +289,17 @@ impl Writer<'_> {
 impl Writer<'_> {
     /// How many transitions before this one go round the boxes (to stagger them).
     fn routed(&self, id: &str, at: &HashMap<String, (i32, i32, i32, i32)>) -> i32 {
+        let Some((_, source, target)) = self.transitions.iter().find(|t| t.0 == id) else { return 0 };
+        let Some(scope) = at.get(source).zip(at.get(target)).map(|(a, b)| container_of(*a, *b, at)) else { return 0 };
         let before = self.transitions.iter().take_while(|t| t.0 != id);
-        before.filter(|(_, s, t)| s != t && at.get(s).zip(at.get(t)).is_some_and(|(a, b)| goes_round(*a, *b, at))).count() as i32
+        before
+            .filter(|(_, s, t)| s != t && at.get(s).zip(at.get(t)).is_some_and(|(a, b)| goes_round(*a, *b, at) && container_of(*a, *b, at) == scope))
+            .count() as i32
     }
 }
+
+/// How far a loop goes above its state (`msm_layout::LOOP_ROOM` keeps the room).
+const LOOP_HEIGHT: i32 = 25;
 
 fn center(r: (i32, i32, i32, i32)) -> (i32, i32) {
     (r.0 + r.2 / 2, r.1 + r.3 / 2)
@@ -326,23 +340,65 @@ fn goes_round(a: (i32, i32, i32, i32), b: (i32, i32, i32, i32), at: &HashMap<Str
 }
 
 /// The points of a transition from the center of its source, as offsets: a
-/// straight line; a loop round the top right corner of its state; under the
-/// boxes when it goes back, over them when it would cross one, each next one
-/// a little further out.
+/// straight line; a loop over the top of its state; under the boxes of its
+/// container when it goes back or would cross a box, each in a lane of its own.
 fn route(a: (i32, i32, i32, i32), b: (i32, i32, i32, i32), at: &HashMap<String, (i32, i32, i32, i32)>, before: i32) -> Vec<(i32, i32)> {
     let (from, to) = (center(a), center(b));
     if a == b {
-        let (dx, dy) = (a.2 / 2 + 30, a.3 / 2 + 30);
-        return vec![(0, 0), (dx, 0), (dx, -dy), (0, -dy), (0, 0)];
+        // Over the top of the state, clear of the transitions leaving its sides.
+        let (dx, top) = ((a.2 / 4).clamp(8, 20), -(a.3 / 2));
+        return vec![(0, 0), (-dx, top), (-dx, top - LOOP_HEIGHT), (dx, top - LOOP_HEIGHT), (dx, top), (0, 0)];
     }
     if !goes_round(a, b, at) {
         return vec![(0, 0), (to.0 - from.0, to.1 - from.1)];
     }
-    let mut boxes = obstacles(a, b, at);
-    boxes.extend([a, b]);
-    let stagger = 12 * (before % 6);
-    let y = if to.0 < from.0 { boxes.iter().map(|r| r.1 + r.3).max().unwrap_or(from.1) + 20 + stagger } else { boxes.iter().map(|r| r.1).min().unwrap_or(from.1) - 20 - stagger };
-    vec![(0, 0), (0, y - from.1), (to.0 - from.0, y - from.1), (to.0 - from.0, to.1 - from.1)]
+    // Under the boxes of the container holding both ends, in a lane of its own,
+    // the room the layout keeps for it (`msm_layout::round_room`).
+    let shift = layout::ROUTE_STAGGER * before;
+    let scope = free_boxes(a, b, at).into_iter().filter(|r| within(*r, container_of(a, b, at)));
+    let y = scope.chain([a, b]).map(|r| r.1 + r.3).max().unwrap_or(from.1) + layout::ROUTE_DROP + shift;
+    // Each end goes down (up) from its center, or, when that would cross another
+    // box of its column, beside it, on the side facing the other end.
+    let side = |r: (i32, i32, i32, i32), toward_right: bool| if toward_right { r.0 + r.2 + SIDE_ROOM + shift / 2 } else { r.0 - SIDE_ROOM - shift / 2 };
+    let sx = if leg_crosses(a, from.0, (from.1, y), a, b, at) { side(a, to.0 > from.0) } else { from.0 };
+    let tx = if leg_crosses(b, to.0, (to.1, y), a, b, at) { side(b, from.0 > to.0) } else { to.0 };
+    let mut points = vec![(0, 0)];
+    if sx != from.0 {
+        points.push((sx - from.0, 0));
+    }
+    points.push((sx - from.0, y - from.1));
+    points.push((tx - from.0, y - from.1));
+    if tx != to.0 {
+        points.push((tx - from.0, to.1 - from.1));
+    }
+    points.push((to.0 - from.0, to.1 - from.1));
+    points
+}
+
+/// The smallest box holding both boxes, if any.
+fn container_of(a: (i32, i32, i32, i32), b: (i32, i32, i32, i32), at: &HashMap<String, (i32, i32, i32, i32)>) -> Option<(i32, i32, i32, i32)> {
+    at.values().copied().filter(|&r| r != a && r != b && inside(a, r) && inside(b, r)).min_by_key(|r| (r.2 * r.3, *r))
+}
+
+fn within(r: (i32, i32, i32, i32), container: Option<(i32, i32, i32, i32)>) -> bool {
+    container.is_none_or(|c| inside(r, c))
+}
+
+/// Beside a box, where a transition goes down or up instead of across it.
+const SIDE_ROOM: i32 = 16;
+
+/// The boxes a transition between two boxes must keep clear of: all but
+/// them, those holding them and those they hold.
+fn free_boxes(a: (i32, i32, i32, i32), b: (i32, i32, i32, i32), at: &HashMap<String, (i32, i32, i32, i32)>) -> Vec<(i32, i32, i32, i32)> {
+    let mut found: Vec<(i32, i32, i32, i32)> = at.values().copied().filter(|&r| r != a && r != b && !inside(a, r) && !inside(b, r) && !inside(r, a) && !inside(r, b)).collect();
+    found.sort();
+    found
+}
+
+/// Whether the vertical leg at `x` from `y0` to `y1`, leaving box `own`, crosses another box.
+fn leg_crosses(own: (i32, i32, i32, i32), x: i32, (y0, y1): (i32, i32), a: (i32, i32, i32, i32), b: (i32, i32, i32, i32), at: &HashMap<String, (i32, i32, i32, i32)>) -> bool {
+    let (lo, hi) = (y0.min(y1), y0.max(y1));
+    free_boxes(a, b, at).into_iter().filter(|&r| r != own).any(|r| x >= r.0 && x <= r.0 + r.2 && r.1 <= hi && r.1 + r.3 >= lo)
 }
 
 fn container_style(uid: &str, background: &str, foreground: &str, region: bool) -> El {
@@ -413,13 +469,13 @@ pub(super) fn diagrams(root: &El, file: &str) -> Vec<(String, El, El)> {
 fn diagram(region: &El, name: &str, file: &str) -> (String, El, El) {
     let uid = format!("_{}", derived(&format!("msm:{}", region.id())));
     let transitions = layout::transitions(region);
-    let (placed, _) = layout::region(region, &transitions, true);
+    let mut names = HashMap::new();
+    labels(region, &mut names);
+    let (placed, _) = layout::region(region, &transitions, &names, true);
     let mut writer = Writer { uid: uid.clone(), file, transitions, drawn: HashMap::new() };
     writer.record(&placed);
     let mut at = HashMap::new();
     layout::absolute(&placed, (0, 0), &mut at);
-    let mut names = HashMap::new();
-    labels(region, &mut names);
 
     let mut elements = Vec::new();
     let mut data = notation("data", "notation:Diagram", &format!("{uid}-notation")).attr("type", "Sirius").attr("element", &uid).attr("measurementUnit", "Pixel");

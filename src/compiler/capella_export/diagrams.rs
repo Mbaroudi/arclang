@@ -206,8 +206,9 @@ pub(super) fn sirius(tag: &str, kind: &str, uid: &str) -> El {
     El::root(tag).attr("xmi:type", kind).attr("uid", uid)
 }
 
-/// The URI of an element of the model file, encoded as EMF writes it
-/// (`Model%20Test.capella#an%20id`).
+/// The URI of an element of the model file as EMF writes it: the file
+/// encoded, the id as it is (`Model%20Test.capella#an id`). EMF looks the
+/// fragment up without decoding it: Capella does not find `#an%20id`.
 pub(super) fn uri(file: &str, id: &str) -> String {
     let encode = |text: &str| {
         let mut out = String::with_capacity(text.len());
@@ -219,7 +220,7 @@ pub(super) fn uri(file: &str, id: &str) -> String {
         }
         out
     };
-    format!("{}#{}", encode(file), encode(id))
+    format!("{}#{}", encode(file), id)
 }
 
 fn href(kind: &str, file: &str, id: &str) -> El {
