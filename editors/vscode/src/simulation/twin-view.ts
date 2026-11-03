@@ -168,7 +168,7 @@ function stopLive(): void {
  */
 export async function watchTwin(context: vscode.ExtensionContext, arg: unknown, env: () => Record<string, string>): Promise<void> {
   const file = activeModel(arg);
-  if (!file) return void vscode.window.showInformationMessage('ArcLang: open a .arc model with a twin on live data (data: { mqtt: … topics: [ … ] } or { opcua: … nodes: { … } }).');
+  if (!file) return void vscode.window.showInformationMessage('ArcLang: open a .arc model with a twin on live data (data: { mqtt: … }, { opcua: … }, { kafka: … } or { http: … }).');
   const listed = await run(['twin', file, '--list'], { cwd: path.dirname(file) });
   let twins: { id: string; name: string; live: boolean }[] = [];
   try {
@@ -177,7 +177,7 @@ export async function watchTwin(context: vscode.ExtensionContext, arg: unknown, 
     return void vscode.window.showErrorMessage(`ArcLang: the model's twins could not be listed. ${failureText(listed).split('\n')[0]}`);
   }
   const live = twins.filter((t) => t.live);
-  if (live.length === 0) return void vscode.window.showInformationMessage('ArcLang: no twin of this model reads live data: data: { mqtt: "mqtt://broker:1883" topics: ["site/#"] } or { opcua: "opc.tcp://plc:4840" nodes: { room_c: "ns=2;s=Room.T" } }.');
+  if (live.length === 0) return void vscode.window.showInformationMessage('ArcLang: no twin of this model reads live data: data: { mqtt: "mqtt://broker:1883" topics: ["site/#"] }, { opcua: "opc.tcp://plc:4840" nodes: { room_c: "ns=2;s=Room.T" } }, { kafka: "kafka://broker:9092" topics: ["house.telemetry"] } or { http: "https://api.example/house/latest" }.');
   const picked = live.length === 1 ? live[0] : await vscode.window.showQuickPick(live.map((t) => ({ label: t.name, description: t.id, twin: t })), { placeHolder: 'The twin to follow live' }).then((p) => p?.twin);
   if (!picked) return;
   stopLive();

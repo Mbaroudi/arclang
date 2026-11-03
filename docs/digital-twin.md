@@ -168,15 +168,64 @@ that address.
 
 `record:` and the window work as for MQTT.
 
-**What live means here.** The twin runs the model again over the window at
-every refresh. It does not yet advance the model message by message: the
-verdict comes at most one `refresh` after the data. That is right for
+## Live data (Kafka)
+
+```arc
+data: {
+    kafka: "kafka://broker-1:9092,broker-2:9092"
+    topics: ["house.telemetry"]
+    window: 24 h
+    refresh: 1 min
+    record: "data/live.csv"
+}
+```
+
+`--live` reads every partition of the topics. Kafka keeps what was sent, so
+the twin starts `window` ago and its first run needs no wait; after that it
+reads the messages as they come. It reads without a consumer group: it
+commits no offset and does not move any other consumer's. `client_id`
+names the twin to the brokers.
+
+A message is decoded as an MQTT message is: a JSON object (a column per
+field, at its `time`) or a bare number. A number's column is the message's
+key, else the topic's last level (`house.indoor_c` gives `indoor_c`). With
+no `time` in the message, the instant is the message's own Kafka timestamp.
+
+`kafkas://` connects over TLS and checks the broker's certificate against
+the system's trusted roots. A user and a password come from
+`ARCLANG_KAFKA_USERNAME` and `ARCLANG_KAFKA_PASSWORD`, never from the model.
+The mechanism is `sasl:` `"plain"` (the default), `"scram-sha-256"` or
+`"scram-sha-512"`; a broker that turns the user down is reported as
+*refused*. When the broker stops answering, the twin says so within a few
+seconds and reconnects every two seconds. It takes up where it stopped, so
+nothing is read twice.
+
+## Live data (HTTP)
+
+```arc
+data: {
+    http: "https://api.example.com/houses/042/latest"
+    sampling: 30 s
+    window: 24 h
+    refresh: 5 min
+}
+```
+
+`--live` sends a GET every `sampling` (ten seconds by default). The answer
+is a JSON object, as an MQTT message's, or a list of them. Only what is
+newer than what was already read is kept, column by column. An API that
+answers its latest hour at every call therefore adds only the new samples.
+A bearer token comes from `ARCLANG_HTTP_TOKEN`, never from the model. A 401
+or a 403 is reported as *refused*.
+
+**What live means here.** Whatever the source, the twin runs the model
+again over the window at every refresh. It does not yet advance the model
+message by message: the verdict comes at most one `refresh` after the data. That is right for
 watching a building, a data center or a fleet. It is not right for
 closing a control loop.
 
 ## What comes next
 
-- Kafka and HTTP sources, in the same `data:` block.
 - The model advanced as the data arrives, with an FMU (`buildModelFMU`).
 - Twins online: on arclang.fr, signed in, they run on the server, as the
   simulations do.

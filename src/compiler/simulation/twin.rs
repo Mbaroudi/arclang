@@ -33,9 +33,23 @@ use std::collections::{BTreeMap, HashMap};
 use std::path::{Path, PathBuf};
 
 const SIMULATE_KEYS: [&str; 4] = ["model", "configuration", "sources", "tolerance"];
-const DATA_KEYS: [&str; 15] = ["file", "time", "time_unit", "delimiter", "mqtt", "topics", "client_id", "opcua", "nodes", "security", "policy", "sampling", "window", "refresh", "record"];
+const DATA_KEYS: [&str; 18] = ["file", "time", "time_unit", "delimiter", "mqtt", "opcua", "kafka", "http", "topics", "client_id", "nodes", "security", "policy", "sampling", "sasl", "window", "refresh", "record"];
+/// The sources of live data, as `data:` names them.
+const LIVE_SOURCES: [&str; 4] = ["mqtt", "opcua", "kafka", "http"];
 /// The keys of live data only, whatever the source.
-const LIVE_KEYS: [&str; 9] = ["topics", "client_id", "nodes", "security", "policy", "sampling", "window", "refresh", "record"];
+const LIVE_KEYS: [&str; 10] = ["topics", "client_id", "nodes", "security", "policy", "sampling", "sasl", "window", "refresh", "record"];
+/// The keys of one source or a few: the others refuse them.
+const SOURCE_KEYS: [(&str, &[&str]); 7] = [
+    ("topics", &["mqtt", "kafka"]),
+    ("client_id", &["mqtt", "kafka"]),
+    ("nodes", &["opcua"]),
+    ("security", &["opcua"]),
+    ("policy", &["opcua"]),
+    ("sampling", &["opcua", "http"]),
+    ("sasl", &["kafka"]),
+];
+/// The SASL mechanisms a twin may ask a Kafka broker for (PLAIN by default, when credentials are set).
+pub const KAFKA_SASL: [&str; 3] = ["plain", "scram-sha-256", "scram-sha-512"];
 /// The OPC UA security policies a twin may ask for (the None policy goes with `security: "none"`).
 pub const OPCUA_POLICIES: [&str; 4] = ["Basic256Sha256", "Aes128Sha256RsaOaep", "Aes256Sha256RsaPss", "Basic128Rsa15"];
 const KEYS: [&str; 9] = ["id", "description", "verifies", "simulate", "data", "drives", "compares", "expects", "notes"];
@@ -70,7 +84,7 @@ pub struct Compare {
 /// everything received as a CSV the twin replays later.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Live {
-    /// The broker (`mqtt://`, `mqtts://`) or the server (`opc.tcp://`).
+    /// The broker (`mqtt://`, `mqtts://`, `kafka://`, `kafkas://`) or the server (`opc.tcp://`, `http://`, `https://`).
     pub url: String,
     pub source: Source,
     /// Seconds.
@@ -94,14 +108,20 @@ pub enum Source {
     Mqtt { topics: Vec<String>, client_id: Option<String> },
     /// OPC UA: a column per node (`nodes: { indoor_c: "ns=2;s=Room.T" }`), sampled by the server every `sampling` seconds.
     OpcUa { nodes: Vec<(String, String)>, security: Security, policy: String, sampling: f64 },
+    /// Kafka: the topics read from all their partitions, from `window` ago; a column is a field of a
+    /// message's JSON, or for a number its key (else the topic's last level).
+    Kafka { brokers: Vec<String>, tls: bool, topics: Vec<String>, client_id: Option<String>, sasl: String },
+    /// HTTP: a GET every `sampling` seconds, its answer a JSON object or a list of them, as an MQTT message's.
+    Http { sampling: f64 },
 }
 
 impl Live {
     /// The source as the outcome names it: `opc.tcp://plc:4840 (indoor_c, outdoor_c, last 24 h)`.
     pub fn label(&self) -> String {
         let what = match &self.source {
-            Source::Mqtt { topics, .. } => topics.join(" "),
+            Source::Mqtt { topics, .. } | Source::Kafka { topics, .. } => topics.join(" "),
             Source::OpcUa { nodes, .. } => nodes.iter().map(|(c, _)| c.as_str()).collect::<Vec<_>>().join(" "),
+            Source::Http { sampling } => format!("every {}", window_text(*sampling)),
         };
         format!("{} ({what}, last {})", self.url, window_text(self.window))
     }
@@ -128,35 +148,92 @@ pub fn is_node_id(text: &str) -> bool {
     }
 }
 
-/// The source of live data written in `data:`: an MQTT broker or an OPC UA server.
-fn live_of(data: &HashMap<String, AttributeValue>, url: String, opcua: bool) -> Result<(String, Source), String> {
+/// The source of live data written in `data:` (`mqtt`, `opcua`, `kafka` or `http`), at `url`.
+fn live_of(data: &HashMap<String, AttributeValue>, url: String, source: &str) -> Result<(String, Source), String> {
     let text = |key: &str| data.get(key).and_then(|v| v.as_string()).map(str::to_string);
-    if url.contains('@') {
-        let (user, password) = if opcua { ("ARCLANG_OPCUA_USERNAME", "ARCLANG_OPCUA_PASSWORD") } else { ("ARCLANG_MQTT_USERNAME", "ARCLANG_MQTT_PASSWORD") };
-        return Err(format!("data: the credentials are not written in the model: set {user} and {password}"));
+    if url.split("://").nth(1).unwrap_or(&url).split('/').next().unwrap_or("").contains('@') {
+        let hint = match source {
+            "mqtt" => "set ARCLANG_MQTT_USERNAME and ARCLANG_MQTT_PASSWORD",
+            "opcua" => "set ARCLANG_OPCUA_USERNAME and ARCLANG_OPCUA_PASSWORD",
+            "kafka" => "set ARCLANG_KAFKA_USERNAME and ARCLANG_KAFKA_PASSWORD",
+            _ => "set ARCLANG_HTTP_TOKEN (a bearer token)",
+        };
+        return Err(format!("data: the credentials are not written in the model: {hint}"));
     }
-    let scheme = url.split("://").next().unwrap_or("");
-    let only = |keys: &[&str], source: &str| -> Result<(), String> {
-        match keys.iter().find(|k| data.contains_key(**k)) {
-            Some(key) => Err(format!("data: '{key}' is not for {source}")),
-            None => Ok(()),
+    let mut written: Vec<&String> = data.keys().collect();
+    written.sort();
+    for key in written {
+        if let Some((_, owners)) = SOURCE_KEYS.iter().find(|(k, _)| k == key) {
+            if !owners.contains(&source) {
+                return Err(format!("data: '{key}' is not for {source} (it is {}'s)", owners.join(" and ")));
+            }
         }
-    };
-    if !opcua {
-        if !(scheme == "mqtt" || scheme == "mqtts") || !url.contains("://") {
-            return Err(format!("data: mqtt '{url}' is not mqtt://host[:port] or mqtts://host[:port]"));
-        }
-        only(&["nodes", "security", "policy", "sampling"], "an MQTT broker (they are OPC UA's)")?;
+    }
+    let scheme = url.split_once("://").map(|(s, _)| s.to_string()).unwrap_or_default();
+    let topics = || -> Result<Vec<String>, String> {
         let topics = strings(data, "topics").map_err(|e| format!("data: {e}"))?;
         if topics.is_empty() {
-            return Err("data: topics, what to subscribe to: topics: [\"site/042/#\"]".to_string());
+            return Err(format!("data: topics, what to read: topics: [\"{}\"]", if source == "kafka" { "house.telemetry" } else { "site/042/#" }));
         }
-        return Ok((url, Source::Mqtt { topics, client_id: text("client_id") }));
+        Ok(topics)
+    };
+    match source {
+        "mqtt" => {
+            if !(scheme == "mqtt" || scheme == "mqtts") {
+                return Err(format!("data: mqtt '{url}' is not mqtt://host[:port] or mqtts://host[:port]"));
+            }
+            let topics = topics()?;
+            Ok((url, Source::Mqtt { topics, client_id: text("client_id") }))
+        }
+        "kafka" => {
+            let brokers = kafka_brokers(&url)?;
+            if text("sasl").is_some_and(|m| !KAFKA_SASL.contains(&m.as_str())) {
+                return Err(format!("data: sasl '{}' is one of {}", text("sasl").unwrap_or_default(), KAFKA_SASL.join(", ")));
+            }
+            let topics = topics()?;
+            Ok((url, Source::Kafka { brokers, tls: scheme == "kafkas", topics, client_id: text("client_id"), sasl: text("sasl").unwrap_or_else(|| "plain".to_string()) }))
+        }
+        "http" => {
+            if !(scheme == "http" || scheme == "https") || url.split_once("://").is_some_and(|(_, rest)| rest.is_empty() || rest.starts_with('/')) {
+                return Err(format!("data: http '{url}' is not http://host/path or https://host/path"));
+            }
+            let sampling = super::seconds(data, "sampling").map_err(|e| format!("data: {e}"))?.unwrap_or(10.0);
+            if sampling <= 0.0 {
+                return Err("data: sampling is positive (10 s by default for http)".to_string());
+            }
+            Ok((url, Source::Http { sampling }))
+        }
+        _ => opcua_of(data, url, &scheme),
     }
-    if scheme != "opc.tcp" || !url.contains("://") {
+}
+
+/// `kafka://host:port[,host:port...]` (or `kafkas://`, over TLS): the brokers to start from.
+pub fn kafka_brokers(url: &str) -> Result<Vec<String>, String> {
+    let wrong = || format!("data: kafka '{url}' is not kafka://host:port[,host:port] or kafkas://host:port");
+    let (scheme, rest) = url.split_once("://").ok_or_else(wrong)?;
+    if scheme != "kafka" && scheme != "kafkas" {
+        return Err(wrong());
+    }
+    let brokers: Vec<String> = rest
+        .trim_end_matches('/')
+        .split(',')
+        .map(|broker| {
+            let broker = broker.trim();
+            match broker.rsplit_once(':') {
+                Some((host, port)) if !host.is_empty() && port.parse::<u16>().is_ok() => Ok(broker.to_string()),
+                None if !broker.is_empty() && !broker.contains('/') => Ok(format!("{broker}:9092")),
+                _ => Err(wrong()),
+            }
+        })
+        .collect::<Result<_, _>>()?;
+    Ok(brokers)
+}
+
+fn opcua_of(data: &HashMap<String, AttributeValue>, url: String, scheme: &str) -> Result<(String, Source), String> {
+    let text = |key: &str| data.get(key).and_then(|v| v.as_string()).map(str::to_string);
+    if scheme != "opc.tcp" {
         return Err(format!("data: opcua '{url}' is not opc.tcp://host[:port]"));
     }
-    only(&["topics", "client_id"], "an OPC UA server (they are MQTT's)")?;
     let Some(AttributeValue::Map(written)) = data.get("nodes") else {
         return Err("data: nodes, a column per node: nodes: { indoor_c: \"ns=2;s=Room.T\" }".to_string());
     };
@@ -322,7 +399,7 @@ pub fn spec_of(attributes: &HashMap<String, AttributeValue>) -> Result<Spec, Str
     };
     let configuration = simulate.get("configuration").and_then(|v| v.as_string()).map(str::to_string);
 
-    let data = block(attributes, "data", &DATA_KEYS, "{ file: \"data/measured.csv\" time: \"time\" } or { mqtt: \"mqtt://broker:1883\" topics: [\"site/#\"] } or { opcua: \"opc.tcp://plc:4840\" nodes: { t: \"ns=2;s=T\" } }")?;
+    let data = block(attributes, "data", &DATA_KEYS, "{ file: \"data/measured.csv\" time: \"time\" } or { mqtt: \"mqtt://broker:1883\" topics: [\"site/#\"] } (or opcua:, kafka:, http:)")?;
     let text = |key: &str| data.get(key).and_then(|v| v.as_string()).map(str::to_string);
     let inside = |file: &str| -> Result<(), String> {
         if Path::new(file).is_absolute() || file.split(['/', '\\']).any(|p| p == "..") {
@@ -330,16 +407,18 @@ pub fn spec_of(attributes: &HashMap<String, AttributeValue>) -> Result<Spec, Str
         }
         Ok(())
     };
-    let live = match (text("file"), text("mqtt"), text("opcua")) {
-        (None, None, None) => return Err("data: file (the measurements, CSV or Parquet), mqtt (a broker) or opcua (a server) is required".to_string()),
-        (Some(_), None, None) => {
+    let given: Vec<&str> = std::iter::once("file").chain(LIVE_SOURCES).filter(|k| data.contains_key(*k)).collect();
+    let live = match given.as_slice() {
+        [] => return Err("data: file (the measurements, CSV or Parquet) or live data (mqtt, opcua, kafka or http) is required".to_string()),
+        ["file"] => {
             if let Some(key) = LIVE_KEYS.iter().find(|k| data.contains_key(**k)) {
-                return Err(format!("data: '{key}' is for live data (mqtt: or opcua:), not for a file"));
+                return Err(format!("data: '{key}' is for live data (mqtt, opcua, kafka or http), not for a file"));
             }
             None
         }
-        (None, Some(url), None) | (None, None, Some(url)) => {
-            let (url, source) = live_of(data, url, data.contains_key("opcua"))?;
+        [source] => {
+            let url = text(source).ok_or_else(|| format!("data: {source} is a URL written as text"))?;
+            let (url, source) = live_of(data, url, source)?;
             let window = super::seconds(data, "window").map_err(|e| format!("data: {e}"))?.unwrap_or(3600.0);
             let refresh = super::seconds(data, "refresh").map_err(|e| format!("data: {e}"))?.unwrap_or(60.0);
             if window <= 0.0 || refresh < 1.0 {
@@ -354,7 +433,7 @@ pub fn spec_of(attributes: &HashMap<String, AttributeValue>) -> Result<Spec, Str
             }
             Some(Live { url, source, window, refresh, record })
         }
-        _ => return Err("data: one source: a file, an mqtt broker or an opcua server".to_string()),
+        _ => return Err(format!("data: one source, not {}", given.join(" and "))),
     };
     let file = match &live {
         Some(live) => live.record.clone().unwrap_or_default(),
@@ -1054,9 +1133,34 @@ mod tests {
         assert!(refused_data(r#"data: { opcua: "http://plc:4840" nodes: { room: "i=1" } }"#).contains("opc.tcp://"));
         assert!(refused_data(r#"data: { opcua: "opc.tcp://plc:4840" nodes: { room: "i=1" } policy: "Basic256Sha256" }"#).contains("signed or encrypted"));
         assert!(refused_data(r#"data: { opcua: "opc.tcp://plc:4840" nodes: { room: "i=1" } security: "sign" policy: "Basic256" }"#).contains("is one of"));
-        assert!(refused_data(r#"data: { opcua: "opc.tcp://plc:4840" nodes: { room: "i=1" } topics: ["x"] }"#).contains("MQTT's"));
-        assert!(refused_data(r#"data: { mqtt: "mqtt://broker" topics: ["x"] nodes: { room: "i=1" } }"#).contains("OPC UA's"));
-        assert!(refused_data(r#"data: { mqtt: "mqtt://broker" opcua: "opc.tcp://plc:4840" topics: ["x"] }"#).contains("one source"));
+        assert!(refused_data(r#"data: { opcua: "opc.tcp://plc:4840" nodes: { room: "i=1" } topics: ["x"] }"#).contains("it is mqtt and kafka's"));
+        assert!(refused_data(r#"data: { mqtt: "mqtt://broker" topics: ["x"] nodes: { room: "i=1" } }"#).contains("it is opcua's"));
+        assert!(refused_data(r#"data: { mqtt: "mqtt://broker" opcua: "opc.tcp://plc:4840" topics: ["x"] }"#).contains("one source, not mqtt and opcua"));
+    }
+
+    #[test]
+    fn live_data_comes_from_kafka_or_an_http_api() {
+        let with = |data: &str| TWIN.replace(r#"data: { file: "data/room.csv" time: "timestamp" }"#, data);
+        let refused_data = |data: &str| refused(&with(data));
+        let kafka = spec_of(&attributes(&with(r#"data: { kafka: "kafkas://k1:9093,k2" topics: ["house.telemetry"] sasl: "scram-sha-512" window: 6 h }"#))).unwrap();
+        let live = kafka.data.live.unwrap();
+        assert_eq!(live.source, Source::Kafka { brokers: vec!["k1:9093".into(), "k2:9092".into()], tls: true, topics: vec!["house.telemetry".into()], client_id: None, sasl: "scram-sha-512".into() });
+        assert_eq!(live.label(), "kafkas://k1:9093,k2 (house.telemetry, last 6 h)");
+        let http = spec_of(&attributes(&with(r#"data: { http: "https://api.example/house/42/latest" record: "data/live.csv" }"#))).unwrap();
+        let live = http.data.live.unwrap();
+        assert_eq!(live.source, Source::Http { sampling: 10.0 });
+        assert_eq!(live.label(), "https://api.example/house/42/latest (every 10 s, last 60 min)");
+        assert!(refused_data(r#"data: { kafka: "kafka://k1:9092" }"#).contains("house.telemetry"));
+        assert!(refused_data(r#"data: { kafka: "kafka://u:p@k1:9092" topics: ["t"] }"#).contains("ARCLANG_KAFKA_USERNAME"));
+        assert!(refused_data(r#"data: { kafka: "http://k1:9092" topics: ["t"] }"#).contains("kafka://host:port"));
+        assert!(refused_data(r#"data: { kafka: "kafka://k1:port" topics: ["t"] }"#).contains("kafka://host:port"));
+        assert!(refused_data(r#"data: { kafka: "kafka://k1" topics: ["t"] sasl: "gssapi" }"#).contains("is one of plain"));
+        assert!(refused_data(r#"data: { kafka: "kafka://k1" topics: ["t"] sampling: 1 s }"#).contains("it is opcua and http's"));
+        assert!(refused_data(r#"data: { http: "https://token@api.example/x" }"#).contains("ARCLANG_HTTP_TOKEN"));
+        assert!(refused_data(r#"data: { http: "ftp://api.example/x" }"#).contains("http://host/path"));
+        assert!(refused_data(r#"data: { http: "https://api.example/x" topics: ["t"] }"#).contains("it is mqtt and kafka's"));
+        assert!(refused_data(r#"data: { http: "https://api.example/x" sasl: "plain" }"#).contains("it is kafka's"));
+        assert!(refused_data(r#"data: { file: "a.csv" sasl: "plain" }"#).contains("not for a file"));
         assert!(refused_data(r#"data: { file: "data/room.csv" sampling: 1 s }"#).contains("live data"));
     }
 

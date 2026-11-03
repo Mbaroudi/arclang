@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- **Digital twins on Kafka and on HTTP APIs**:
+  - `data: { kafka: "kafka://broker:9092" topics: ["house.telemetry"] window: 24 h }` reads every partition, starting `window` ago (Kafka keeps the data, so the first run needs no wait), without a consumer group. Messages are decoded as MQTT's; a bare number takes its key as its column. `kafkas://` uses TLS; `sasl: "plain" | "scram-sha-256" | "scram-sha-512"` with `ARCLANG_KAFKA_USERNAME` and `ARCLANG_KAFKA_PASSWORD`. A broker that stops answering is reported within seconds, and reading resumes where it stopped.
+  - `data: { http: "https://api.example/house/latest" sampling: 30 s }` reads a JSON API at intervals, keeping only what is newer than what was already read; a bearer token comes from `ARCLANG_HTTP_TOKEN`.
+  - A refused user or token shows as *refused* in the live banner.
+  - Tests: `test/e2e/vscode_twin_live_test.js` with `TWIN_SOURCE=kafka` and `TWIN_SOURCE=http` (6 checks each in the real VS Code).
 - **Digital twins on live OPC UA data**:
   - `data: { opcua: "opc.tcp://plc:4840" nodes: { indoor_c: "ns=2;s=Room.T" } sampling: 1 s window: 24 h refresh: 1 min }` subscribes to the server's nodes, one column per node, each reading dated by its source timestamp. Every reading is kept, even one equal to the last.
   - `security: "none" | "sign" | "sign_and_encrypt"` with a `policy:` (Basic256Sha256 by default). ArcLang's certificate is made in `.arclang/opcua-pki/`, and a server's certificate is trusted once moved from `rejected/` to `trusted/`. The user and password come from `ARCLANG_OPCUA_USERNAME` and `ARCLANG_OPCUA_PASSWORD`, never from the model.
