@@ -78,7 +78,7 @@ pub(super) fn write(context: &Context, model: &Model, engineering_id: &str) -> O
     let constraint_ids: Vec<String> = constraints.iter().map(|r| constraint_of(r)).collect();
     fn hazard(tag: &str, h: &Hazard, children: &HashMap<Option<String>, Vec<&Hazard>>, context: &Context, constraint_ids: &[String], loss_id: &dyn Fn(&str) -> String) -> El {
         let hid = hazard_id(h);
-        let mut el = El::new(tag, "stpa:Hazard", &hid).attr("name", &h.name).opt("userID", text(&h.attributes, "stpa_id")).opt("description", text(&h.attributes, "description"));
+        let mut el = El::new(tag, "stpa:Hazard", &hid).attr("name", &h.name).opt("userID", text(&h.attributes, "stpa_id")).opt("description", text(&h.attributes, "description").map(super::linked_text).as_deref());
         let losses: Vec<String> = list(&h.attributes, "losses").iter().map(|l| format!("#{}", loss_id(l))).collect();
         if !losses.is_empty() {
             el.set("losses", &losses.join(" "));

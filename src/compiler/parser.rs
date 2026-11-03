@@ -121,6 +121,9 @@ impl Parser {
                 Token::Identifier(ref id) if id == "rule" && !self.peek_is_colon() => {
                     model.rules.push(self.parse_rule()?);
                 }
+                Token::Identifier(ref id) if id == "io_binding" && !self.peek_is_colon() => {
+                    model.io_bindings.push(self.parse_io_binding()?);
+                }
                 Token::SecurityScales => {
                     let scales = self.parse_security_scales()?;
                     if model.security_scales.is_some() {
@@ -281,6 +284,9 @@ impl Parser {
                 Token::Identifier(ref id) if id == "rule" && !self.peek_is_colon() => {
                     model.rules.push(self.parse_rule()?);
                 }
+                Token::Identifier(ref id) if id == "io_binding" && !self.peek_is_colon() => {
+                    model.io_bindings.push(self.parse_io_binding()?);
+                }
                 Token::SecurityScales => {
                     let scales = self.parse_security_scales()?;
                     if model.security_scales.is_some() {
@@ -399,6 +405,9 @@ impl Parser {
                 }
                 Token::Identifier(ref id) if id == "rule" && !self.peek_is_colon() => {
                     model.rules.push(self.parse_rule()?);
+                }
+                Token::Identifier(ref id) if id == "io_binding" && !self.peek_is_colon() => {
+                    model.io_bindings.push(self.parse_io_binding()?);
                 }
                 Token::SecurityScales => {
                     let scales = self.parse_security_scales()?;
@@ -587,6 +596,9 @@ impl Parser {
                 }
                 Token::Identifier(ref id) if id == "rule" && !self.peek_is_colon() => {
                     model.rules.push(self.parse_rule()?);
+                }
+                Token::Identifier(ref id) if id == "io_binding" && !self.peek_is_colon() => {
+                    model.io_bindings.push(self.parse_io_binding()?);
                 }
                 Token::SecurityScales => {
                     let scales = self.parse_security_scales()?;
@@ -1337,11 +1349,20 @@ impl Parser {
         let mut attributes = HashMap::new();
         let mut sub_states = Vec::new();
         let mut own_transitions: Vec<Transition> = Vec::new();
+        let mut regions: Vec<Region> = Vec::new();
         if self.check(&Token::LeftBrace) {
             self.expect(Token::LeftBrace)?;
             while !self.check(&Token::RightBrace) && !self.is_at_end() {
                 match self.current() {
                     Token::StateKw | Token::Mode => sub_states.push(self.parse_state(transitions)?),
+                    Token::Region if !self.peek_is_colon() => {
+                        // An orthogonal region of the state: its states are the
+                        // state's too, its transitions the machine's.
+                        let region = self.parse_region(&name)?;
+                        sub_states.extend(region.states.iter().cloned());
+                        transitions.extend(region.transitions.iter().cloned());
+                        regions.push(region);
+                    }
                     Token::Transition => {
                         // Owned by this region, and in the machine's flat list.
                         let transition = self.parse_transition()?;
@@ -1369,6 +1390,7 @@ impl Parser {
             color: attributes.get("color").and_then(|v| v.as_string()).map(|s| s.to_string()),
             initial: attributes.get("initial").and_then(|v| v.as_string()).map(|s| s.to_string()).unwrap_or_default(),
             attributes,
+            regions,
         })
     }
 
@@ -3387,6 +3409,16 @@ impl Parser {
     }
 
     /// `rule "Every node declares its mass" { kind: "PhysicalNode" require: "has(mass)" }`.
+    /// `io_binding "ACC ECU" { machine: "..." period: 10 ms inputs: [...] outputs: [...] }`;
+    /// what it binds is checked against the machine by `embedded::binding`.
+    fn parse_io_binding(&mut self) -> Result<IoBinding, String> {
+        self.advance(); // io_binding
+        let name = self.expect_name()?;
+        let attributes = self.parse_attributes_block()?;
+        let id = attributes.get("id").and_then(|v| v.as_string()).map(str::to_string).unwrap_or_else(|| name.clone());
+        Ok(IoBinding { id, name, attributes })
+    }
+
     fn parse_rule(&mut self) -> Result<RuleDecl, String> {
         self.advance(); // rule
         let name = self.expect_name()?;

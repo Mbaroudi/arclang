@@ -526,3 +526,74 @@ diagram "Around the ADAS ECU" {
     shows: ["PN-003"]
     context: true
 }
+
+// ---------------------------------------------------------------------------
+// Embedded C: the modes on an ECU, proven in the loop (arclang sil, docs/embedded-c.md)
+// ---------------------------------------------------------------------------
+
+io_binding "ACC ECU" {
+    machine: "ACC operating modes"
+    period: 10 ms
+    watchdog: true
+    inputs: [
+        "LF-022 <- gpio 4 rising",
+        "main switch on <- gpio 3",
+        "main switch off <- gpio 6",
+        "set pressed above 30 km/h <- adc 0 > 2048",
+        "lead vehicle in range <- can 0x120",
+        "lead vehicle gone <- can 0x122",
+        "LF-009 <- can 0x121",
+        "LF-021 <- uart 0 0x42",
+        "LF-018 <- gpio 7 rising",
+        "pedal released <- gpio 5"
+    ]
+    outputs: ["Following -> gpio 10", "Degraded -> can 0x300", "Cruising -> pwm 1 750", "Overridden -> uart 1 0x4F"]
+}
+
+test_case "TC-ACC-SIL-001" {
+    verifies: ["SYS-ACC-004"]
+    method: "test"
+    description: "Engage, follow a lead vehicle, override by the pedal, release: the generated step() against the model"
+    execute: {
+        machine: "ACC operating modes"
+        step: 10 ms
+        stop_time: 1 s
+        inputs: [
+            "0 s: main switch on", "10 ms: LF-022",
+            "50 ms: set pressed above 30 km/h", "60 ms: LF-022",
+            "100 ms: lead vehicle in range", "110 ms: LF-009",
+            "200 ms: LF-021",
+            "300 ms: pedal released", "310 ms: LF-022"
+        ]
+    }
+    expects: [
+        "at(20 ms, \"ACC operating modes\".Standby) == 1",
+        "at(110 ms, \"ACC operating modes\".Following) == 1",
+        "at(250 ms, \"ACC operating modes\".Overridden) == 1",
+        "final(\"ACC operating modes\".Standby) == 1",
+        "max(\"ACC operating modes\".Degraded) == 0"
+    ]
+}
+
+test_case "TC-ACC-SIL-002" {
+    verifies: ["SYS-ACC-007"]
+    method: "test"
+    description: "A fault while following reaches Degraded, the main switch off returns to Off: through the I/O glue and the host board"
+    execute: {
+        machine: "ACC operating modes"
+        binding: "ACC ECU"
+        stop_time: 500 ms
+        inputs: [
+            "0 s: main switch on", "10 ms: LF-022",
+            "30 ms: set pressed above 30 km/h", "40 ms: LF-022",
+            "60 ms: lead vehicle in range", "70 ms: LF-009",
+            "150 ms: LF-018",
+            "200 ms: main switch on = false", "200 ms: main switch off", "250 ms: LF-022"
+        ]
+    }
+    expects: [
+        "at(100 ms, \"ACC operating modes\".Following) == 1",
+        "at(150 ms, \"ACC operating modes\".Degraded) == 1",
+        "final(\"ACC operating modes\".Off) == 1"
+    ]
+}

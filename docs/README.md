@@ -22,6 +22,9 @@ compiler when the site is built.
 - [simulink-connector.md](simulink-connector.md): what the Capella-Simulink
   connector exports, from a Capella or an ArcLang model
   (`arclang export -f simulink-connector`).
+- [embedded-c.md](embedded-c.md): the state machines as portable C99, the
+  I/O interface and its bindings, software in the loop against the model
+  (`arclang export -f c`, `arclang sil`).
 - [MIGRATION_4.0.md](MIGRATION_4.0.md): moving a model from 3.x to 4.0.
 - [VERSIONING.md](VERSIONING.md): what a major, minor and patch release may change.
 - [qualification/](qualification/): tool-qualification support kit.

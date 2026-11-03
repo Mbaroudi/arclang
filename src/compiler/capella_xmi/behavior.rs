@@ -156,8 +156,22 @@ fn write_region(writer: &mut Writer, depth: usize, region: &Node, state_names: &
             }
         }
         let nested: Vec<&Node> = state.tagged("ownedRegions").collect();
-        for sub in nested {
-            write_region(writer, depth + 1, sub, state_names, events, false, unique);
+        let populated: Vec<&Node> = nested.iter().copied().filter(|r| r.tagged("ownedStates").next().is_some()).collect();
+        if populated.len() > 1 {
+            // Orthogonal regions of the state: `region` blocks, each with its initial state.
+            let mut region_names: HashSet<String> = HashSet::new();
+            for sub in populated {
+                writer.count("state regions (written as region blocks)");
+                let region_name = data::unique_name(&mut region_names, &display_name(sub));
+                writer.line(depth + 1, &format!("region {} {{", string_literal(&region_name)));
+                writer.line(depth + 2, &format!("id: {}", string_literal(sub.id())));
+                write_region(writer, depth + 2, sub, state_names, events, false, unique);
+                writer.line(depth + 1, "}");
+            }
+        } else {
+            for sub in nested {
+                write_region(writer, depth + 1, sub, state_names, events, false, unique);
+            }
         }
         writer.line(depth, "}");
     }

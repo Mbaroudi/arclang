@@ -315,6 +315,32 @@ pub enum Commands {
         drawing: Option<String>,
     },
 
+    /// Software in the loop: compile the C generated from the state machines
+    /// (`export -f c`) on this computer, run each test case that `execute:`s
+    /// with its input vectors, compare the outputs with the model-level run
+    /// step by step and judge its `expects:` on both
+    Sil {
+        #[clap(value_parser)]
+        input: PathBuf,
+
+        /// Only this test case (id or name)
+        #[clap(long)]
+        test: Option<String>,
+
+        /// The C compiler (gcc, clang, gcc-15...); repeat it to run every case
+        /// with each. Default: $CC, else cc
+        #[clap(long = "cc")]
+        compilers: Vec<String>,
+
+        /// Keep the generated files, harnesses and binaries in this directory
+        #[clap(long)]
+        keep: Option<PathBuf>,
+
+        /// Print the outcomes as JSON
+        #[clap(long)]
+        json: bool,
+    },
+
     /// Run the digital twins of a model: each `twin`'s physical model
     /// driven by its measured data (drives:) in OpenModelica, compared to
     /// the measurements (compares:) and checked against its expects:
@@ -837,6 +863,16 @@ pub enum ExportFormat {
     /// A Modelica package of the physical architecture (OpenModelica):
     /// `output` is a DIRECTORY
     Modelica,
+    /// Portable C99 of the state machines (`<model>.h/.c`, init/step), the
+    /// I/O interface `arclang_io.h`, the glue of each `io_binding` and the
+    /// host implementation of the I/O for SIL: `output` is a DIRECTORY
+    #[clap(name = "c")]
+    C,
+    /// The generated C as an FMI 2.0 co-simulation FMU (`<model>.fmu`, with
+    /// this computer's binary when $CC or cc compiles it) and the inputs
+    /// and model-level reference of each executed case: `output` is a DIRECTORY
+    #[clap(name = "fmu")]
+    Fmu,
 }
 
 #[derive(Debug, clap::ValueEnum, Clone)]
@@ -1023,6 +1059,7 @@ impl CliRunner {
                 }
                 self.run_verify(input, test, json)
             }
+            Commands::Sil { input, test, compilers, keep, json } => self.run_sil(&input, test, compilers, keep, json),
             Commands::Twin { input, twin, json, list, live, for_seconds } => {
                 if live {
                     self.run_twin_live(input, twin, json, for_seconds)
@@ -1768,6 +1805,82 @@ impl CliRunner {
         }
     }
 
+    fn run_sil(&self, input: &std::path::Path, test: Option<String>, compilers: Vec<String>, keep: Option<PathBuf>, json: bool) -> Result<(), CliError> {
+        use crate::compiler::embedded::sil;
+        let result = crate::Compiler::new(crate::CompilerConfig::default()).compile_file(input).map_err(|e| CliError::Compilation(e.to_string()))?;
+        let compilers = if compilers.is_empty() { vec![std::env::var("CC").ok().filter(|c| !c.trim().is_empty()).unwrap_or_else(|| "cc".to_string())] } else { compilers };
+        let scratch = keep.is_none();
+        let work = keep.unwrap_or_else(|| std::env::temp_dir().join(format!("arclang-sil-{}", std::process::id())));
+        let mut outcomes = Vec::new();
+        for compiler in &compilers {
+            let version = sil::compiler_version(compiler).ok_or_else(|| CliError::Config(format!("the C compiler '{compiler}' does not run (give one with --cc, or set CC)")))?;
+            let options = sil::Options { compiler: compiler.clone(), work: work.join(compiler.replace(['/', '\\'], "_")), only: test.clone() };
+            let run = sil::run(&result.ast, &options);
+            let run = run.map_err(CliError::Compilation)?;
+            if !json {
+                println!("\nSIL {} — {compiler} ({version})", input.display());
+                for outcome in &run {
+                    self.print_sil(outcome);
+                }
+            }
+            outcomes.extend(run);
+        }
+        if scratch {
+            let _ = std::fs::remove_dir_all(&work);
+        } else if !json {
+            println!("\n  Generated files, harnesses and binaries kept in {}", work.display());
+        }
+        // Kept where check, gate and the tables read verdicts.
+        let cached = sil::cache(&result.ast, input, &outcomes).map_err(CliError::Compilation)?;
+        if json {
+            println!("{}", serde_json::to_string_pretty(&outcomes).unwrap_or_default());
+        } else if !cached.is_empty() {
+            println!("\n  {} verdict(s) cached in {}", cached.len(), crate::compiler::simulation::cache::dir(input).display());
+        }
+        let failed = outcomes.iter().filter(|o| o.verdict != "pass").count();
+        if failed == 0 {
+            Ok(())
+        } else {
+            Err(CliError::CiFailed(format!("{failed} of {} SIL run(s) do not pass", outcomes.len())))
+        }
+    }
+
+    fn print_sil(&self, outcome: &crate::compiler::embedded::sil::Outcome) {
+        let mark = match outcome.verdict.as_str() {
+            "pass" => "✓ pass ",
+            "fail" => "✗ FAIL ",
+            _ => "! ERROR",
+        };
+        let title = if outcome.name == outcome.test_case { outcome.name.clone() } else { format!("{} ({})", outcome.name, outcome.test_case) };
+        println!("\n  {mark} {title}");
+        let mut context = vec![format!("machine {}", outcome.machine)];
+        if !outcome.verifies.is_empty() {
+            context.insert(0, format!("verifies {}", outcome.verifies.join(", ")));
+        }
+        if let Some(binding) = &outcome.binding {
+            context.push(format!("through io_binding {binding}"));
+        }
+        println!("    {}", context.join(" · "));
+        println!("    model: {} · C: {} · {}", outcome.model_verdict, outcome.c_verdict, if outcome.agrees { "the C reproduces the model" } else { "the C does NOT reproduce the model" });
+        if let Some(b2b) = &outcome.back_to_back {
+            match &b2b.first_mismatch {
+                None => println!("    back to back: {} steps × {} outputs, largest difference {} (tolerance {})", b2b.steps, b2b.columns, b2b.max_difference, b2b.tolerance),
+                Some(m) => println!("    back to back: MISMATCH {m}"),
+            }
+        }
+        for judged in &outcome.expectations {
+            let value = |v: &Option<crate::compiler::simulation::expects::Evaluated>| match v {
+                Some(v) => format!("{}{}", v.value.rsplit_once(" = ").map(|(_, x)| x).unwrap_or(&v.value), if v.holds { "" } else { " (fails)" }),
+                None => "—".to_string(),
+            };
+            let holds = judged.c.as_ref().is_some_and(|v| v.holds);
+            println!("    {} {}   model {} · C {}", if holds { "ok  " } else { "FAIL" }, judged.expect, value(&judged.model), value(&judged.c));
+        }
+        if !outcome.reason.is_empty() {
+            println!("    {}", outcome.reason);
+        }
+    }
+
     fn run_gate(&self, input: PathBuf, standard: SafetyStandard) -> Result<(), CliError> {
         let config = crate::CompilerConfig::default();
         let mut compiler = crate::Compiler::new(config);
@@ -2101,6 +2214,8 @@ impl CliRunner {
             ExportFormat::GeoJSON => "json".to_string(),
             ExportFormat::Step => "json".to_string(),
             ExportFormat::Modelica => "json".to_string(),
+            ExportFormat::C => "json".to_string(),
+            ExportFormat::Fmu => "json".to_string(),
         };
         
         let mut compiler = crate::Compiler::new(config);
@@ -2248,6 +2363,48 @@ impl CliRunner {
                         }
                         println!("  Output: {}", path.display());
                         println!("  The physics goes in a package of its own extending these models (see docs/modelica.md).");
+                        return Ok(());
+                    }
+                    ExportFormat::C => {
+                        let (files, notes) = crate::compiler::embedded::export(&result.ast).map_err(CliError::Compilation)?;
+                        for (name, text) in &files {
+                            let path = output.join(name);
+                            if let Some(dir) = path.parent() {
+                                std::fs::create_dir_all(dir).map_err(CliError::Io)?;
+                            }
+                            std::fs::write(&path, text).map_err(CliError::Io)?;
+                        }
+                        for note in &notes {
+                            println!("  note: {note}");
+                        }
+                        println!("✓ Export successful — {} file(s) of portable C99", files.len());
+                        for (name, _) in &files {
+                            println!("  {}", output.join(name).display());
+                        }
+                        println!("  Compile with -std=c99; see docs/embedded-c.md for the API and the I/O layer.");
+                        return Ok(());
+                    }
+                    ExportFormat::Fmu => {
+                        let compiler = std::env::var("CC").ok().filter(|c| !c.trim().is_empty()).unwrap_or_else(|| "cc".to_string());
+                        let compiler = crate::compiler::embedded::sil::compiler_version(&compiler).map(|_| compiler);
+                        std::fs::create_dir_all(&output).map_err(CliError::Io)?;
+                        let work = std::env::temp_dir().join(format!("arclang-fmu-{}", std::process::id()));
+                        let built = crate::compiler::embedded::export_fmu(&result.ast, compiler.as_deref(), &work);
+                        let _ = std::fs::remove_dir_all(&work);
+                        let (name, archive, cases, notes) = built.map_err(CliError::Compilation)?;
+                        std::fs::write(output.join(&name), &archive).map_err(CliError::Io)?;
+                        for (file, text) in &cases {
+                            let path = output.join(file);
+                            if let Some(dir) = path.parent() {
+                                std::fs::create_dir_all(dir).map_err(CliError::Io)?;
+                            }
+                            std::fs::write(&path, text).map_err(CliError::Io)?;
+                        }
+                        for note in &notes {
+                            println!("  note: {note}");
+                        }
+                        println!("✓ Export successful — FMI 2.0 co-simulation FMU {}", output.join(&name).display());
+                        println!("  {} case file(s) in {} (inputs, and the model-level reference at the end of each step)", cases.len(), output.join("cases").display());
                         return Ok(());
                     }
                     ExportFormat::FMI => {

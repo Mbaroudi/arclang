@@ -11,7 +11,7 @@ use super::ast::{Model, PortDirection};
 use super::semantic::SemanticModel;
 
 /// snake_case C identifier from any model name.
-fn c_ident(raw: &str) -> String {
+pub(crate) fn c_ident(raw: &str) -> String {
     let mut out = String::new();
     let mut prev_lower = false;
     for ch in raw.chars() {

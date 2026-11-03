@@ -245,3 +245,44 @@ fn an_invariant_inside_a_fragment_is_known_by_its_operand() {
     let frame = &scenario.fragments[0];
     assert_eq!(frame.operands[0].invariants, vec![1], "the second invariant sits in the loop");
 }
+
+/// A state's orthogonal regions and its pseudo-states go to Capella and come
+/// back as they were written: the regions as `region` blocks with their
+/// initial states, the pseudo-states with their kind; a second round trip
+/// changes nothing.
+#[test]
+fn regions_inside_a_state_and_pseudo_states_survive_a_capella_round_trip() {
+    use arclang::compiler::capella_export::export;
+    use arclang::compiler::capella_xmi::import_strings;
+    use arclang::compiler::execution::Machine;
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("examples/automotive/power-window/power_window.arc");
+    // In Capella a machine belongs to a component: the first system component.
+    let source = format!("{}\nsystem_analysis \"SA\" {{ id: \"ARCH-SA\" system_component \"Window ECU\" {{ id: \"SC-ECU\" }} }}\n", std::fs::read_to_string(path).unwrap());
+    let original = compile(&source);
+    let first = export(&original.ast, "model");
+    assert_eq!(first.capella.matches("capellacommon:Region").count(), 4, "the machine's region, Active's two, Moving's");
+    let imported = import_strings(&first.capella, None, "model.capella").unwrap_or_else(|f| panic!("{}", f.message));
+    assert!(imported.source.contains("region \"Motion\" {") && imported.source.contains("region \"Safety\" {"), "{}", imported.source);
+    let again = compile(&imported.source);
+    let second = export(&again.ast, "model");
+    let reimported = import_strings(&second.capella, None, "model.capella").unwrap_or_else(|f| panic!("{}", f.message));
+    assert_eq!(imported.source, reimported.source, "a second round trip changes nothing");
+    // The executable structure is the one written.
+    let shape = |m: &Machine| m.states.iter().map(|s| (s.path.clone(), s.pseudo, s.regions.len(), s.regions.iter().map(|r| r.initial.map(|i| m.states[i].path.clone())).collect::<Vec<_>>())).collect::<Vec<_>>();
+    let a = Machine::new(&original.ast.state_machines[0]);
+    let b = Machine::new(&again.ast.state_machines[0]);
+    assert!(b.notes.is_empty(), "{:?}", b.notes);
+    // Capella has no junction: it comes back a choice.
+    let mut sa: Vec<_> = shape(&a).into_iter().map(|(p, k, n, i)| (p, if k == Some(arclang::compiler::execution::machine::Pseudo::Junction) { Some(arclang::compiler::execution::machine::Pseudo::Choice) } else { k }, n, i)).collect();
+    let mut sb = shape(&b);
+    sa.sort_by(|x, y| x.0.cmp(&y.0));
+    sb.sort_by(|x, y| x.0.cmp(&y.0));
+    assert_eq!(sa, sb);
+    let ends = |m: &Machine| {
+        let mut e: Vec<String> = m.transitions.iter().map(|t| format!("{} -> {} [{}] {{{}}}", m.states[t.source].path, m.states[t.target].path, t.trigger.clone().unwrap_or_default(), t.guard.clone().unwrap_or_default())).collect();
+        e.sort();
+        e
+    };
+    assert_eq!(ends(&a), ends(&b));
+    assert_eq!(a.compounds.len(), b.compounds.len());
+}

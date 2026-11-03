@@ -11,7 +11,7 @@ use std::collections::BTreeMap;
 use std::path::Path;
 
 pub enum Run {
-    Machine(Machine),
+    Machine(Box<Machine>),
     Scenario(ScenarioRun),
     Chain(ChainRun),
 }
@@ -80,11 +80,11 @@ fn target_of(result: &crate::compiler::CompilationResult, source: String, label:
         .collect();
     let missing = |what: &str, name: &str, key: &str| format!("no {what} '{name}': the model has {}", listed[key].as_array().map(|a| a.iter().filter_map(|v| v.as_str()).collect::<Vec<_>>().join(", ")).unwrap_or_default());
     let run = match (machine, scenario, chain) {
-        (Some(name), _, _) => Run::Machine(Machine::new(model.state_machines.iter().find(|m| m.name == name || m.id == name).ok_or_else(|| missing("state machine", name, "machines"))?)),
+        (Some(name), _, _) => Run::Machine(Box::new(Machine::new(model.state_machines.iter().find(|m| m.name == name || m.id == name).ok_or_else(|| missing("state machine", name, "machines"))?))),
         (_, Some(name), _) => Run::Scenario(ScenarioRun::new(model.scenarios.iter().find(|s| s.name == name || s.id == name).ok_or_else(|| missing("scenario", name, "scenarios"))?)),
         (_, _, Some(name)) => Run::Chain(ChainRun::new(chains.iter().find(|c| c.name == name || c.id == name).ok_or_else(|| missing("functional chain", name, "chains"))?)),
         _ => match (model.state_machines.first(), model.scenarios.first(), chains.first()) {
-            (Some(m), _, _) => Run::Machine(Machine::new(m)),
+            (Some(m), _, _) => Run::Machine(Box::new(Machine::new(m))),
             (None, Some(s), _) => Run::Scenario(ScenarioRun::new(s)),
             (None, None, Some(c)) => Run::Chain(ChainRun::new(c)),
             _ => return Err(format!("{label} declares no state machine, scenario or functional chain to run")),

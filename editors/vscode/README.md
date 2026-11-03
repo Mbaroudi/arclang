@@ -15,6 +15,7 @@ does.
   pointing at the element concerned. The catalog is **ArcLang: Show the
   catalog of rules**.
 - **Outline**, **completion** of keywords, attributes and enumeration values
+- The **embedded chain**: `io_binding` and `region` highlighted, the action language coloured inside guards, actions, equations and variables, completion of the machine's variables, the operators' words and the functions in a guard or an action, the blocks (`delay`, `integrator`, `pid`) in an equation, the directions and types in `variables:`, and the keys of `execute: { }`
   from the metamodel, **hover** documentation, **go to definition**,
   **rename** through the lossless source editor (comments and layout kept,
   refused when the element would not keep its identity).

@@ -80,8 +80,11 @@ pub struct Expect {
     pub rhs: Term,
 }
 
+/// A token of an expectation, and of the action language
+/// (`execution::expr`), which shares the lexer: numbers with their unit,
+/// names, quoted ids, operators.
 #[derive(Debug, Clone, PartialEq)]
-enum Token {
+pub(crate) enum Token {
     Number(f64, Option<String>),
     Name(String),
     Quoted(String),
@@ -106,7 +109,7 @@ fn unit_at(text: &str) -> Option<&'static str> {
     best
 }
 
-fn tokens(text: &str) -> Result<Vec<Token>, String> {
+pub(crate) fn tokens(text: &str) -> Result<Vec<Token>, String> {
     let mut out = Vec::new();
     let chars: Vec<(usize, char)> = text.char_indices().collect();
     let mut i = 0;
@@ -168,6 +171,9 @@ fn tokens(text: &str) -> Result<Vec<Token>, String> {
             let two = text.get(at..at + 2).unwrap_or("");
             let op: &'static str = match (two, c) {
                 (">=", _) => ">=",
+                (":=", _) => ":=",
+                ("&&", _) => "&&",
+                ("||", _) => "||",
                 ("<=", _) => "<=",
                 ("==", _) => "==",
                 ("!=", _) => "!=",
@@ -177,6 +183,9 @@ fn tokens(text: &str) -> Result<Vec<Token>, String> {
                 (_, '-') => "-",
                 (_, '*') => "*",
                 (_, '/') => "/",
+                (_, '=') => "=",
+                (_, '!') => "!",
+                (_, ';') => ";",
                 (_, '(') => {
                     out.push(Token::Open);
                     i += 1;
