@@ -11,7 +11,7 @@ import { deliver } from '../download';
 import { run, tempDir, withTempFile, workspaceTrusted, UNTRUSTED_MESSAGE } from '../cli';
 import { History } from '../pure/history';
 import { FromTableView, parseTable, removalRequests, TableData, TableSpec, tableArgs, ToTableView, traceRequest } from '../pure/tables';
-import { EditRequest } from '../pure/workbench';
+import { childRequirementId, childRequirementRequests, EditRequest } from '../pure/workbench';
 import { applyRequests, EditQueue, refusalMessage } from '../workbench/edits';
 import { WorkbenchPanel } from '../workbench/panel';
 import { snapshotOf } from '../workbench/snapshot';
@@ -238,6 +238,13 @@ export class TablePanel implements vscode.Disposable {
         const request = matrix ? traceRequest(matrix, message.row, message.column, message.kind) : null;
         if (!request) return this.post({ type: 'result', ok: false, message: 'No trace can be created in this cell' });
         await this.edit([request], `trace ${request.from} ${request.kind} ${request.to}`);
+        return;
+      }
+      case 'add-child': {
+        const ids = (this.table?.rows ?? []).map((row) => row.id);
+        const id = childRequirementId(message.parent, ids);
+        const hasBlock = /^\s*requirements\b/m.test(this.document.getText());
+        await this.edit(childRequirementRequests(id, message.text, message.parent, hasBlock), `requirement ${id} under ${message.parent}`);
         return;
       }
       case 'remove-trace':

@@ -3,7 +3,7 @@
 
 use super::builder::{properties, Builder, Missing, NodeRef};
 use super::{Diagram, EdgeKind, NodeKind, ViewKind};
-use crate::compiler::ast::{DataAttribute, ExchangeItem, Model};
+use crate::compiler::ast::{ClassDef, DataAttribute, ExchangeItem, Model};
 use std::collections::{BTreeMap, HashSet};
 
 pub(super) fn build(model: &Model) -> Option<(Diagram, Vec<String>)> {
@@ -21,7 +21,9 @@ pub(super) fn build(model: &Model) -> Option<(Diagram, Vec<String>)> {
             NodeKind::Class,
             properties(&class.attributes, &["description"]),
         );
-        builder.set_compartment(node, class.fields.iter().map(field_line).collect());
+        let mut lines: Vec<String> = class.fields.iter().map(field_line).collect();
+        lines.extend(inherited_fields(model, class).into_iter().map(|field| format!("^{}", field_line(field))));
+        builder.set_compartment(node, lines);
         owners.push((node, &class.name, &class.fields));
     }
     for data_type in &model.data_types {
@@ -141,7 +143,9 @@ pub(super) fn build(model: &Model) -> Option<(Diagram, Vec<String>)> {
         match (builder.find(&class.id), builder.find(base)) {
             (Ok(source), Ok(target)) => {
                 let (source, target) = (builder.whole(source), builder.whole(target));
-                builder.add_edge(EdgeKind::Generalization, &source, &target, &format!("{}.extends", class.id), None, BTreeMap::new());
+                let edge = builder.add_edge(EdgeKind::Generalization, &source, &target, &format!("{}.extends", class.id), None, BTreeMap::new());
+                // The hollow arrowhead says it: no label.
+                builder.set_edge_label(&edge, String::new());
             }
             (_, Err(missing)) => builder.report_missing(&what, base, missing, "class"),
             _ => {}
@@ -176,6 +180,27 @@ pub(super) fn build(model: &Model) -> Option<(Diagram, Vec<String>)> {
 }
 
 /// A field in UML attribute notation: `name : Type = default`.
+/// The fields a class has from the classes it extends, nearest first, and
+/// not those it declares again (SysML v2 shows them `^`-marked).
+fn inherited_fields<'m>(model: &'m Model, class: &ClassDef) -> Vec<&'m DataAttribute> {
+    let mut out: Vec<&DataAttribute> = Vec::new();
+    let mut seen: HashSet<&str> = HashSet::new();
+    let mut base = class.extends.as_deref();
+    while let Some(name) = base {
+        let Some(parent) = model.classes.iter().find(|c| c.id == name || c.name == name) else { break };
+        if !seen.insert(parent.name.as_str()) || parent.name == class.name {
+            break;
+        }
+        for field in &parent.fields {
+            if !class.fields.iter().chain(out.iter().copied()).any(|f| f.name == field.name) {
+                out.push(field);
+            }
+        }
+        base = parent.extends.as_deref();
+    }
+    out
+}
+
 fn field_line(field: &DataAttribute) -> String {
     match &field.default_value {
         Some(default) => format!("{} : {} = {default}", field.name, field.attr_type),

@@ -385,3 +385,34 @@ fn written_for(model: &Model, reference: &str) -> String {
         .map(|r| identity(&r.attributes, &r.id).to_string())
         .unwrap_or_else(|| reference.to_string())
 }
+
+/// In the architecture views, an element some requirement is about lists
+/// those requirements (SysML v2's requirements compartment): in its box
+/// when it holds no other box, else in its `requirements` property.
+pub(super) fn show_on_subjects(model: &Model, diagrams: &mut [Diagram]) {
+    let index = element_index(model);
+    let mut about: BTreeMap<&str, Vec<&str>> = BTreeMap::new();
+    for requirement in model.system_analysis.iter().flat_map(|sa| &sa.requirements) {
+        let Some(subject) = requirement.attributes.get("subject").and_then(|v| v.as_string()) else { continue };
+        let Some(element) = index.get(subject) else { continue };
+        about.entry(element.id).or_default().push(identity(&requirement.attributes, &requirement.id));
+    }
+    if about.is_empty() {
+        return;
+    }
+    fn walk(nodes: &mut [Node], about: &BTreeMap<&str, Vec<&str>>) {
+        for node in nodes {
+            if let Some(ids) = about.get(node.id.as_str()) {
+                node.properties.insert("requirements".to_string(), ids.join(", "));
+                if node.children.is_empty() && node.compartment.is_empty() {
+                    node.compartment.push("requirements".to_string());
+                    node.compartment.extend(ids.iter().map(|id| id.to_string()));
+                }
+            }
+            walk(&mut node.children, about);
+        }
+    }
+    for diagram in diagrams.iter_mut().filter(|d| matches!(d.kind, ViewKind::Oab | ViewKind::Sab | ViewKind::Lab | ViewKind::Pab)) {
+        walk(&mut diagram.nodes, &about);
+    }
+}

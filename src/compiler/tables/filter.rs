@@ -123,7 +123,7 @@ mod tests {
         let mut cells = BTreeMap::new();
         cells.insert("priority".to_string(), Cell::text(priority));
         cells.insert("text".to_string(), Cell::text("The brake shall hold"));
-        Row { id: "REQ-1".into(), uuid: "u".into(), kind: "Requirement".into(), name: "Brake".into(), status: status.into(), issues: vec![], cells }
+        Row { id: "REQ-1".into(), uuid: "u".into(), kind: "Requirement".into(), name: "Brake".into(), status: status.into(), issues: vec![], cells, parent: None, depth: 0 }
     }
 
     #[test]

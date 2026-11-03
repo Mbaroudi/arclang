@@ -511,6 +511,7 @@ pub fn build_diagrams(model: &Model) -> DiagramSet {
         diagrams.push(diagram);
     }
 
+    requirements::show_on_subjects(model, &mut diagrams);
     links::draw_traces(model, &mut diagrams);
     links::draw_notes(model, &mut diagrams);
     let links = links::cross_links(model, &diagrams);

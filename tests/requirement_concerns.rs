@@ -136,3 +136,14 @@ fn the_requirements_view_draws_the_concern_framed_and_the_subject() {
     assert!(has("REQ-MASS", "frames", "CON-SAFETY"));
     assert!(has("REQ-MASS", "subject", "LC-CAR"));
 }
+
+#[test]
+fn an_architecture_view_lists_the_requirements_about_an_element() {
+    use arclang::compiler::diagram::{build_diagrams, ViewKind};
+    let result = compile(MODEL).unwrap();
+    let set = build_diagrams(&result.ast);
+    let logical = set.diagrams.iter().find(|d| d.kind == ViewKind::Lab).unwrap();
+    let car = logical.nodes.iter().find(|n| n.id == "LC-CAR").unwrap();
+    assert_eq!(car.compartment, ["requirements", "REQ-MASS"]);
+    assert_eq!(car.properties["requirements"], "REQ-MASS");
+}

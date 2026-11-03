@@ -1,7 +1,8 @@
 // Concerns, a requirement's subject and its constraints, inside the real VS
 // Code: the Requirements view draws the concern a requirement frames, the
 // subject it is about (with the requirements about it), and the constraints
-// it requires and assumes; a constraint that is no comparison is a problem.
+// it requires and assumes, and the Logical view lists on the car the
+// requirements about it, the Data view a class's inherited fields; a constraint that is no comparison is a problem.
 //   VSCODE_APP="/Applications/Visual Studio Code.app" PLAYWRIGHT=/path/to/playwright ARCLANG_BINARY=/path/to/arclang node vscode_concerns_test.js
 // SHOTS=dir saves pictures.
 const { _electron } = require(process.env.PLAYWRIGHT || 'playwright');
@@ -36,6 +37,9 @@ system_analysis "Needs" {
 logical_architecture "Logic" {
     component "Car" { id: "LC-CAR" }
 }
+
+class "Vehicle" { id: "CL-VEHICLE" mass: "Float" }
+class "Car" { id: "CL-CAR" extends: "CL-VEHICLE" doors: "Integer" }
 `;
 
 async function launch(dir, model) {
@@ -77,6 +81,17 @@ async function launch(dir, model) {
     const lines = await page.locator('.arcviz-stage .av-edge').evaluateAll((es) => es.map((e) => (e.querySelector('.av-edge-label')?.textContent || '').replace(/\s+/g, ' ').trim()));
     report('two frames lines and two subject lines are drawn', lines.filter((l) => /^frames/.test(l)).length === 2 && lines.filter((l) => /^subject/.test(l)).length === 2, lines.join(' | '));
     await shot('concerns-01-view');
+
+    // In the Logical view, the car lists the requirements about it.
+    await page.locator('button, [role="tab"]', { hasText: /^Logical/ }).first().click(); await win.waitForTimeout(2500);
+    report('the Logical view lists the requirements about the car in its box', /requirements\s*REQ-MASS\s*REQ-BRAKE/.test(await text('LC-CAR')), await text('LC-CAR'));
+    await shot('concerns-01b-logical');
+
+    // In the Data view, a class shows what it has from the class it extends, ^-marked.
+    const data = page.locator('button, [role="tab"]', { hasText: /^Data/ }).first();
+    if (await data.count()) { await data.click(); await win.waitForTimeout(2500); }
+    report('the Data view shows the inherited field ^mass on Car', /doors : Integer\s*\^mass : Float/.test(await text('CL-CAR')), await text('CL-CAR'));
+    await shot('concerns-01c-data');
 
     // A constraint that is no comparison: the compiler says so in Problems.
     fs.writeFileSync(model, MODEL.replace('"stopping_distance <= 40 m"', '"stopping_distance"'));
