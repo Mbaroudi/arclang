@@ -63,6 +63,18 @@ impl Buffer {
         }
     }
 
+    /// The instants after `t`, in order, with their columns.
+    pub fn after(&self, t: f64) -> Vec<(f64, BTreeMap<String, f64>)> {
+        use std::ops::Bound::{Excluded, Unbounded};
+        self.samples.range((Excluded(key(t)), Unbounded)).map(|(k, v)| (*k as f64 / 1000.0, v.clone())).collect()
+    }
+
+    /// The first instant of the latest `window` seconds.
+    pub fn window_start(&self, window: f64) -> Option<f64> {
+        let latest = self.latest()?;
+        self.samples.range(key(latest - window)..).next().map(|(k, _)| *k as f64 / 1000.0)
+    }
+
     /// The latest `window` seconds as measurements of the given columns; None with fewer than two samples.
     pub fn window(&self, window: f64, columns: &[String]) -> Option<Measurements> {
         let latest = self.latest()?;
@@ -257,6 +269,15 @@ pub fn live(result: &CompilationResult, model_path: &Path, twin: &Twin, config: 
         Source::Kafka { brokers, tls, topics, client_id, sasl } => super::twin_kafka::follow(&live.url, brokers, *tls, topics, client_id.as_deref(), sasl, live.window, sender)?,
         Source::Http { sampling } => super::twin_http::follow(&live.url, *sampling, sender)?,
     }
+    // A model that advances with the data is built once, while the source is already followed.
+    let mut stepping = if live.step {
+        say(&Status::new("building", format!("{}: the model as an FMU, to advance with the data", twin.name)));
+        let model = super::twin_step::Model::build(result, model_path, &spec, config)?;
+        say(&Status::new("ready", format!("the model advances with the data ({})", model.tool_text)));
+        Some(super::twin_step::Stepping::new(model, &spec))
+    } else {
+        None
+    };
     let record_path = live.record.as_ref().map(|r| base.join(r));
     let wanted = columns(&spec);
     let label = live.label();
@@ -283,10 +304,18 @@ pub fn live(result: &CompilationResult, model_path: &Path, twin: &Twin, config: 
             if stopped {
                 return Ok(());
             }
+            if let Some(stepping) = stepping.as_mut() {
+                advance(stepping, &buffer, done, &mut say)?;
+            }
             if new_samples > 0 {
-                match buffer.window(live.window, &wanted) {
-                    Some(measurements) => {
-                        emit(&twin::run_on(result, model_path, twin, &spec, measurements, &label, config, Instant::now()));
+                let judged = match (buffer.window(live.window, &wanted), &stepping) {
+                    (Some(measurements), Some(stepping)) => stepping.outcome(twin, &spec, measurements, buffer.window_start(live.window).unwrap_or(0.0), &label, Instant::now()),
+                    (Some(measurements), None) => Some(twin::run_on(result, model_path, twin, &spec, measurements, &label, config, Instant::now())),
+                    (None, _) => None,
+                };
+                match judged {
+                    Some(outcome) => {
+                        emit(&outcome);
                         new_samples = 0;
                     }
                     None => say(&Status::new("waiting", format!("{} sample(s) so far: the twin runs from two", buffer.len()))),
@@ -294,6 +323,9 @@ pub fn live(result: &CompilationResult, model_path: &Path, twin: &Twin, config: 
             }
             last_run = Instant::now();
             buffer.trim(live.window * 2.0);
+            if let Some(stepping) = stepping.as_mut() {
+                stepping.trim(live.window * 2.0);
+            }
             if done {
                 return Ok(());
             }
@@ -310,11 +342,23 @@ pub fn live(result: &CompilationResult, model_path: &Path, twin: &Twin, config: 
                         new_samples += 1;
                     }
                 }
+                if let Some(stepping) = stepping.as_mut() {
+                    advance(stepping, &buffer, false, &mut say)?;
+                }
             }
             Err(RecvTimeoutError::Timeout) => {}
             Err(RecvTimeoutError::Disconnected) => return Err(format!("the connection to {} closed", live.url)),
         }
     }
+}
+
+/// Steps the model to what arrived; a failure is said and the model started again from the next instant.
+fn advance(stepping: &mut super::twin_step::Stepping, buffer: &Buffer, complete: bool, say: &mut impl FnMut(&Status)) -> Result<(), String> {
+    if let Err(error) = stepping.advance(buffer, complete) {
+        say(&Status::new("model", format!("{error}; the model starts again from the next sample")));
+        stepping.restart()?;
+    }
+    Ok(())
 }
 
 #[cfg(test)]

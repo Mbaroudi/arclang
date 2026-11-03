@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- **A live twin whose model advances with the data**: `advance: "step"` in a live `data:` block.
+  - The model is built once as an OpenModelica Co-Simulation FMU (FMI 2.0, CVODE), then stepped to each new instant, its inputs interpolated linearly between samples, its state kept.
+  - Each refresh only judges what was computed: the model is no longer run again over the window.
+  - The stepper is compiled where the FMU was built: in the OpenModelica image, or with the local compiler.
+  - The card says *advanced with the data (FMU)*; the banner shows *building* while the FMU is made.
+  - On the heat pump's day it gives the same verdict as a run over the whole day (99.7 % within, 0.548 °C at most). Test: `TWIN_ADVANCE=step` in `vscode_twin_live_test.js` (7 checks in the real VS Code).
 - **Digital twins on Kafka and on HTTP APIs**:
   - `data: { kafka: "kafka://broker:9092" topics: ["house.telemetry"] window: 24 h }` reads every partition, starting `window` ago (Kafka keeps the data, so the first run needs no wait), without a consumer group. Messages are decoded as MQTT's; a bare number takes its key as its column. `kafkas://` uses TLS; `sasl: "plain" | "scram-sha-256" | "scram-sha-512"` with `ARCLANG_KAFKA_USERNAME` and `ARCLANG_KAFKA_PASSWORD`. A broker that stops answering is reported within seconds, and reading resumes where it stopped.
   - `data: { http: "https://api.example/house/latest" sampling: 30 s }` reads a JSON API at intervals, keeping only what is newer than what was already read; a bearer token comes from `ARCLANG_HTTP_TOKEN`.

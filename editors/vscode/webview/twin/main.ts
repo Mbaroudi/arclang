@@ -43,6 +43,8 @@ function twinCard(t: Shown): HTMLElement {
   }
   if (t.verifies.length) meta.append(document.createTextNode(` · verifies ${t.verifies.join(', ')}`));
   if (t.omc_version) meta.append(document.createTextNode(` · ${t.omc_version}, ${t.seconds.toFixed(1)} s`));
+  // A live twin whose model advances with the data: built once as an FMU, never run again.
+  if (t.tool.endsWith('FMU stepped')) meta.append(document.createTextNode(' · advanced with the data (FMU)'));
   card.append(meta);
   if (t.reason && t.verdict !== 'pass') card.append(el('p', `reason ${t.verdict}`, t.reason));
   t.comparisons.forEach((c) => {

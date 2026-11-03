@@ -219,6 +219,30 @@ pub fn run(tool: &Tool, dir: &Path, script: &str, timeout: Option<Duration>) -> 
     Ok(Run { success: status.success(), output })
 }
 
+/// A program of `dir` started where the tool runs (in the image, or here), talking on its
+/// stdin and stdout; its stderr goes to `log`. `sh script` is the only command: the script is
+/// a file of `dir`. The second value names the container to remove when the program is stopped.
+pub fn spawn(tool: &Tool, dir: &Path, script: &str, log: &Path) -> Result<(std::process::Child, Option<String>), String> {
+    let dir = dir.canonicalize().map_err(|e| format!("cannot use the working directory {}: {e}", dir.display()))?;
+    let nanos = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_nanos()).unwrap_or(0);
+    let (mut command, container) = match tool {
+        Tool::Local(_) => {
+            let mut command = Command::new("sh");
+            command.arg(script).current_dir(&dir);
+            (command, None)
+        }
+        Tool::Docker(image) => {
+            let container = format!("arclang-twin-{}-{nanos}", std::process::id());
+            let mut command = Command::new("docker");
+            command.args(["run", "-i", "--rm", "--name", &container, "-v"]).arg(format!("{}:/work", dir.display())).args(["-w", "/work", image, "sh", script]);
+            (command, Some(container))
+        }
+    };
+    let err = std::fs::File::create(log).map_err(|e| format!("cannot write {}: {e}", log.display()))?;
+    let child = command.stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(err).spawn().map_err(|e| format!("cannot start {}: {e}", tool.describe()))?;
+    Ok((child, container))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

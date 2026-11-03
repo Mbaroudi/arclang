@@ -12,6 +12,7 @@
 //   (an apache/kafka container listening on localhost:9092: the test makes a topic of its own)
 //   TWIN_SOURCE=http HTTP_PYTHON=python3 ... node vscode_twin_live_test.js
 //   (port 8765 free: the test starts http_replay_server.py)
+//   TWIN_ADVANCE=step with any source: the model is built once as an FMU and advances with the data
 const fs = require('fs'); const os = require('os'); const path = require('path');
 const { spawn, execFileSync } = require('child_process');
 const { launchVSCode } = require('./launch');
@@ -50,7 +51,8 @@ const DATA = {
   opcua: 'data: { opcua: "opc.tcp://localhost:4840/arclang/" nodes: { outdoor_c: "ns=2;s=House.Outdoor.T" indoor_c: "ns=2;s=House.Room.T" } sampling: 50 ms window: 24 h refresh: 4 s record: "data/live.csv" time: "timestamp" }',
   kafka: `data: { kafka: "kafka://localhost:9092" topics: ["${TOPIC}"] window: 24 h refresh: 4 s record: "data/live.csv" time: "timestamp" }`,
   http: 'data: { http: "http://127.0.0.1:8765/house/042/latest" sampling: 500 ms window: 24 h refresh: 4 s record: "data/live.csv" time: "timestamp" }',
-}[SOURCE];
+}[SOURCE].replace(' window: 24 h', process.env.TWIN_ADVANCE === 'step' ? ' advance: "step" window: 24 h' : ' window: 24 h');
+const STEP = process.env.TWIN_ADVANCE === 'step';
 const REACHED = { mqtt: 'localhost:1883', opcua: 'localhost:4840', kafka: 'localhost:9092', http: '127.0.0.1:8765' }[SOURCE];
 
 (async () => {
@@ -78,7 +80,7 @@ const REACHED = { mqtt: 'localhost:1883', opcua: 'localhost:4840', kafka: 'local
     report('the live view opens', Boolean(view));
     if (!view) return;
     let connected = false;
-    for (let i = 0; i < 20 && !connected; i++) { await win.waitForTimeout(500); connected = new RegExp(`${REACHED}|Live`).test(await view.locator('#live').innerText({ timeout: 1000 }).catch(() => '')); }
+    for (let i = 0; i < (STEP ? 120 : 20) && !connected; i++) { await win.waitForTimeout(500); connected = new RegExp(`${REACHED}|Live`).test(await view.locator('#live').innerText({ timeout: 1000 }).catch(() => '')); }
     report(`the banner says the ${SOURCE} source is reached`, connected, await view.locator('#live').innerText({ timeout: 1000 }).catch(() => ''));
     let publisher = null;
     if (SOURCE === 'mqtt') publisher = spawn(process.env.MQTT_PYTHON || 'python3', ['-c', PUBLISH, csvFile], { stdio: 'ignore' });
@@ -98,7 +100,8 @@ const REACHED = { mqtt: 'localhost:1883', opcua: 'localhost:4840', kafka: 'local
     const counts = [...seen].sort((a, b) => a - b);
     report('the view follows the runs as the data arrives', counts.length >= 2 && counts[counts.length - 1] === 289, counts.join(' → '));
     report('the twin holds on the whole day', (await view.locator('section.twin .badge').first().innerText()).toLowerCase() === 'holds');
-    if (SHOTS) await win.screenshot({ path: path.join(SHOTS, `twin-live-${SOURCE}-01.png`) });
+    if (STEP) report('the model advanced with the data (an FMU, never run again)', /advanced with the data \(FMU\)/.test(await view.locator('section.twin .meta').first().innerText()));
+    if (SHOTS) await win.screenshot({ path: path.join(SHOTS, `twin-live-${SOURCE}${STEP ? '-step' : ''}-01.png`) });
     await view.locator('#stop').click();
     let stopped = false;
     for (let i = 0; i < 10 && !stopped; i++) { await win.waitForTimeout(500); stopped = /stopped/.test(await view.locator('#live').getAttribute('class')); }
