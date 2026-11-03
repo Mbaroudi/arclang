@@ -86,6 +86,8 @@ pub struct Element {
     /// note): their ids, and its body. Empty for a doc of its owner.
     pub about: Vec<String>,
     pub body: Option<String>,
+    /// What a requirement's member is to it: `subject`, `frame`, `require`, `assume`.
+    pub role: Option<&'static str>,
 }
 
 /// The model: elements by id, in document order.
@@ -326,6 +328,17 @@ pub fn load(records: &[Value]) -> Result<Graph, String> {
             "Subclassification" | "Specialization" => link(&mut graph, first_id(record, &["subclassifier", "specific"]), first_id(record, &["superclassifier", "general"]), |e, t| e.specializes.push(t)),
             "Redefinition" => link(&mut graph, first_id(record, &["redefiningFeature", "specific"]), first_id(record, &["redefinedFeature", "general"]), |e, t| e.redefines.push(t)),
             "Subsetting" | "ReferenceSubsetting" => link(&mut graph, first_id(record, &["subsettingFeature", "referencingFeature", "specific"]), first_id(record, &["subsettedFeature", "referencedFeature", "general"]), |e, t| e.subsets.push(t)),
+            "SubjectMembership" | "FramedConcernMembership" | "RequirementConstraintMembership" => {
+                let role = match (kind.as_str(), record.get("kind").and_then(Value::as_str)) {
+                    ("SubjectMembership", _) => "subject",
+                    ("FramedConcernMembership", _) => "frame",
+                    (_, Some("assume" | "assumption")) => "assume",
+                    _ => "require",
+                };
+                if let Some(&i) = first_id(record, &["ownedMemberElement", "memberElement"]).as_deref().and_then(|m| graph.index.get(m)) {
+                    graph.elements[i].role = Some(role);
+                }
+            }
             "VariantMembership" => {
                 if let Some(&i) = first_id(record, &["ownedVariantUsage", "ownedMemberElement", "memberElement"]).as_deref().and_then(|v| graph.index.get(v)) {
                     graph.elements[i].is_variant = true;

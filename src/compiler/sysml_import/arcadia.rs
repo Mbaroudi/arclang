@@ -759,7 +759,7 @@ impl<'g> Mapper<'g> {
     /// expression over the attributes of written elements. An expression
     /// ArcLang cannot say leaves the constraint out, and says so.
     fn constraints(&mut self) {
-        let constraints: Vec<&'g Element> = self.graph.of_kinds(&["ConstraintUsage", "AssertConstraintUsage"]).filter(|c| !self.is_library(c) && !self.is_case_assertion(c)).collect();
+        let constraints: Vec<&'g Element> = self.graph.of_kinds(&["ConstraintUsage", "AssertConstraintUsage"]).filter(|c| !self.is_library(c) && !self.is_case_assertion(c) && c.role.is_none()).collect();
         for constraint in constraints {
             let expression = constraint.children.iter().filter_map(|c| self.graph.get(c)).find(|c| c.kind.ends_with("Expression") || c.kind.starts_with("Literal"));
             let text = match expression {
@@ -981,6 +981,43 @@ impl<'g> Mapper<'g> {
         }
     }
 
+    /// What a requirement says natively: its `subject`, the concerns it
+    /// `frame`s, the constraints it `require`s and `assume`s (their text).
+    fn requirement_members(&mut self, depth: usize, sources: &[&Element]) {
+        let members: Vec<&'g Element> = sources.iter().flat_map(|s| s.children.iter()).filter_map(|c| self.graph.get(c)).filter(|c| c.role.is_some()).collect();
+        let mut by_role: BTreeMap<&str, Vec<String>> = BTreeMap::new();
+        for member in members {
+            let role = member.role.unwrap_or_default();
+            let written = match role {
+                "subject" => {
+                    let target = member.value_expression.as_deref().and_then(|v| self.graph.get(v)).and_then(|v| v.referent.clone().or_else(|| v.target_feature.clone()));
+                    target.and_then(|t| self.intended_id(&t)).map(|t| string_literal(&t))
+                }
+                "frame" => member.subsets.first().and_then(|t| self.intended_id(t)).map(|t| string_literal(&t)),
+                _ => member
+                    .children
+                    .iter()
+                    .filter_map(|c| self.graph.get(c))
+                    .find(|c| c.name.as_deref() == Some("expression"))
+                    .and_then(|c| c.value.clone())
+                    .or_else(|| member.source_text.as_deref().map(|t| string_literal(&arclang_units(t)))),
+            };
+            match written {
+                Some(written) => by_role.entry(role).or_default().push(written),
+                None => self.count("requirement members not read (left out)"),
+            }
+        }
+        for (role, written) in by_role {
+            self.count("requirement members");
+            let key = if role == "frame" { "frames" } else { role };
+            if role == "subject" {
+                self.line(depth, &format!("subject: {}", written[0]));
+            } else {
+                self.line(depth, &format!("{key}: [{}]", written.join(", ")));
+            }
+        }
+    }
+
     fn requirements(&mut self) {
         let all = self.declared("RequirementDefinition", "RequirementUsage");
         let is_tagged = |e: &Element, d: Option<&Element>, names: &[&str]| Self::has_metadata(e, names) || d.is_some_and(|d| Self::has_metadata(d, names));
@@ -988,8 +1025,25 @@ impl<'g> Mapper<'g> {
         let (hazards, requirements): (Vec<_>, Vec<_>) = all.into_iter().partition(|(e, d)| {
             is_tagged(e, *d, &["Hazard"]) || e.name.as_deref().is_some_and(|n| n.starts_with("hazard_"))
         });
-        if !requirements.is_empty() {
+        let concerns = self.declared("ConcernDefinition", "ConcernUsage");
+        if !requirements.is_empty() || !concerns.is_empty() {
             self.line(0, "requirements {");
+            for (e, def) in concerns {
+                let identity = Self::identity_of(e, def);
+                let id = self.remember(&e.id, Self::identity_id(identity), "Concern");
+                if let Some(d) = def { self.ids.entry(d.id.clone()).or_insert(id.clone()); }
+                self.count("concerns");
+                self.line(1, &format!("concern {} {{", string_literal(&Self::display(identity))));
+                self.line(2, &format!("id: {}", string_literal(&id)));
+                let sources: Vec<&Element> = [Some(e), def].into_iter().flatten().collect();
+                if let Some(doc) = sources.iter().find_map(|s| Self::description(s)) {
+                    self.line(2, &format!("description: {}", string_literal(&doc)));
+                }
+                self.attributes(2, &sources, &["description"]);
+                let element_ids: Vec<String> = sources.iter().map(|s| s.id.clone()).collect();
+                self.reference_attributes(2, &element_ids);
+                self.line(1, "}");
+            }
             for (e, def) in requirements {
                 let identity = Self::identity_of(e, def);
                 let id = self.remember(&e.id, Self::identity_id(identity), "Requirement");
@@ -1006,6 +1060,7 @@ impl<'g> Mapper<'g> {
                 self.attributes(2, &sources, &["description", "title"]);
                 let element_ids: Vec<String> = sources.iter().map(|s| s.id.clone()).collect();
                 self.reference_attributes(2, &element_ids);
+                self.requirement_members(2, &sources);
                 self.line(1, "}");
             }
             self.line(0, "}");
@@ -1057,7 +1112,7 @@ impl<'g> Mapper<'g> {
         let graph = self.graph;
         for element in elements {
             for child in element.children.iter().filter_map(|c| graph.get(c)) {
-                if child.kind != "AttributeUsage" && child.kind != "ReferenceUsage" {
+                if child.kind != "AttributeUsage" && child.kind != "ReferenceUsage" || child.role.is_some() {
                     continue;
                 }
                 // A redefinition (`attribute :>> period = 33 [ms]`) is named by what it redefines.
@@ -2515,4 +2570,12 @@ fn keyword_is_attribute_key(key: &str) -> bool {
         .is_some();
     KNOWN.with(|k| k.borrow_mut().insert(key.to_string(), accepted));
     accepted
+}
+
+/// A SysML expression's quantities in ArcLang's notation: `1200 [kg]` is
+/// `1200 kg`, `30 ['°C']` is `30 °C`.
+fn arclang_units(text: &str) -> String {
+    static UNIT: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
+    let unit = UNIT.get_or_init(|| regex::Regex::new(r"\s*\[\s*'?([^\]']+?)'?\s*\]").expect("a valid pattern"));
+    unit.replace_all(text, " $1").into_owned()
 }

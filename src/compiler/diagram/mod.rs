@@ -274,6 +274,8 @@ pub enum NodeKind {
     Note,
     /// A requirement: its id and text are its compartment.
     Requirement,
+    /// A concern a requirement frames (SysML v2): its stakeholders are its compartment.
+    Concern,
     /// A verification case and the requirements it verifies.
     TestCase,
     /// A constraint: its expression, the value of each side, its verdict.

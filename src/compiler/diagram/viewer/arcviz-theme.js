@@ -62,7 +62,7 @@
     { key: 'data_type', label: 'class or data type', shape: 'rect', kinds: ['class', 'enumeration', 'data_type', 'value_property', 'sysml_definition'] },
     { key: 'exchange_item', label: 'exchange item', shape: 'rect', kinds: ['exchange_item'] },
     { key: 'state_mode', label: 'state or mode', shape: 'pill', kinds: ['state', 'mode'] },
-    { key: 'requirement', label: 'requirement', shape: 'rect', kinds: ['requirement'] },
+    { key: 'requirement', label: 'requirement', shape: 'rect', kinds: ['requirement', 'concern'] },
     { key: 'test_case', label: 'test case', shape: 'rect', kinds: ['test_case'] },
     { key: 'constraint', label: 'constraint', shape: 'pill', kinds: ['constraint'] },
     { key: 'configuration_item', label: 'configuration item', shape: 'rect', kinds: ['configuration_item'] },

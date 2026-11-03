@@ -402,6 +402,10 @@ impl Resolver<'_> {
                 let label = requirement.id.clone();
                 self.apply("Requirement", &label, &mut requirement.attributes, None)?;
             }
+            for concern in &mut sa.concerns {
+                let label = concern.id.clone();
+                self.apply("Concern", &label, &mut concern.attributes, None)?;
+            }
             sa.functions.iter_mut().try_for_each(|f| self.function(f))?;
             for exchange in &mut sa.functional_exchanges {
                 let label = exchange.id.clone();

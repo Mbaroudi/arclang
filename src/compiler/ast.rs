@@ -292,6 +292,9 @@ pub struct SystemAnalysis {
     #[serde(default)]
     pub attributes: HashMap<String, AttributeValue>,
     pub requirements: Vec<Requirement>,
+    /// Concerns declared beside the requirements (`concern "..." { }` in a `requirements` block).
+    #[serde(default)]
+    pub concerns: Vec<Concern>,
     pub functions: Vec<SystemFunction>,
     pub components: Vec<SystemComponent>,
     pub external_actors: Vec<ExternalActor>,
@@ -403,6 +406,14 @@ pub struct SequenceLink {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Requirement {
+    pub id: String,
+    pub attributes: HashMap<String, AttributeValue>,
+}
+
+/// What a stakeholder cares about, framed by the requirements that address it
+/// (SysML v2 `concern`): `concern "Reduce the number of special parts" { stakeholders: ["Production"] }`.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Concern {
     pub id: String,
     pub attributes: HashMap<String, AttributeValue>,
 }
