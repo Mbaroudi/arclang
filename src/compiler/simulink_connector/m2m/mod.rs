@@ -11,8 +11,9 @@
 mod classes;
 mod data;
 mod diagram;
+pub use diagram::{Geometry, Platform, LINUX_GTK, REFERENCE};
 mod drawing;
-mod font;
+pub(crate) mod font;
 mod function;
 pub mod model;
 mod scope;
@@ -58,11 +59,13 @@ pub struct Options {
     /// Not the connector's: a state machine region without a diagram is laid out by ArcLang
     /// instead of refused (the connector takes the layout from the diagram).
     pub draw_without_diagram: bool,
+    /// Not the connector's: the platform whose figures the diagrams' geometry follows.
+    pub platform: diagram::Platform,
 }
 
 impl Default for Options {
     fn default() -> Options {
-        Options { leaf_functions: "model".to_string(), port_naming: "ExchangeItem".to_string(), draw_without_diagram: false }
+        Options { leaf_functions: "model".to_string(), port_naming: "ExchangeItem".to_string(), draw_without_diagram: false, platform: diagram::Platform::Reference }
     }
 }
 
@@ -367,7 +370,7 @@ pub fn transform(m: &Model, strategy: Strategy, ids: &[&str], options: &Options)
     run.p[project].originator = m.id(engineering);
     if strategy == Strategy::StateMachines {
         sm::initialize(&mut run)?;
-        run.geometry = diagram::collect(m, &run.selection, options.draw_without_diagram)?;
+        run.geometry = diagram::collect(m, &run.selection, options.draw_without_diagram, options.platform.geometry())?;
     }
     transposer::run(&mut run, strategy)?;
     run.link_dictionaries();

@@ -27,16 +27,62 @@ use std::collections::HashMap;
 pub(super) const TRANSLATION: f64 = 10.0;
 /// `DiagramGenerator.DEFAULT_IMAGE_MARGIN_PIXELS`.
 pub(super) const IMAGE_MARGIN: i32 = 10;
-/// The drop shadow of a container (`AlphaDropShadowBorder`): right and bottom.
-pub(super) const SHADOW: i32 = 2;
-/// A state holding regions: its width past its label's, its height with an empty region,
-/// where its regions' contents start, and the room after them.
-pub(super) const STATE_LABEL_MARGIN: i32 = 13;
-pub(super) const STATE_EMPTY_HEIGHT: i32 = 67;
-pub(super) const STATE_CLIENT: (i32, i32) = (6, 34);
-pub(super) const STATE_CONTENT_MARGIN: (i32, i32) = (12, 9);
-/// The height of a label line.
-const LABEL_HEIGHT: i32 = 13;
+/// What the figures measure on the platform the connector runs on: GMF draws
+/// the diagram with the platform's fonts and theme, so the connector's scripts
+/// differ from one platform to another (its own tests accept four variants).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Geometry {
+    /// A state holding regions: its width past its label's, its height with an empty region,
+    /// where its regions' contents start, and the room after them.
+    pub state_label_margin: i32,
+    pub state_empty_height: i32,
+    pub state_client: (i32, i32),
+    pub state_content_margin: (i32, i32),
+    /// The height of a label line.
+    pub label_height: i32,
+    /// The drop shadow of a container (`AlphaDropShadowBorder`), right and bottom,
+    /// outside its handle bounds.
+    pub shadow: (i32, i32),
+}
+
+/// The platform of the connector's reference scripts (`m2m/expected/testN.m`).
+pub const REFERENCE: Geometry = Geometry { state_label_margin: 13, state_empty_height: 67, state_client: (6, 34), state_content_margin: (12, 9), label_height: 13, shadow: (2, 2) };
+
+/// Capella 7.1 on Linux GTK 3.24, Pango 1.57, DejaVu Sans 2.37 (`m2m_linux/README.md`):
+/// a state Sirius sizes is 10 px wider past its label and 3 px taller with its empty
+/// region than on the reference platform, its label measured the same. Measured on
+/// the connector's own diagrams there; what else differs on that platform (the
+/// extents of labels and edges in the image, the size of a mode without a region,
+/// the stacking of regions, some anchors) is not modeled (`m2m_linux` lists it).
+pub const LINUX_GTK: Geometry = Geometry { state_label_margin: 23, state_empty_height: 70, state_client: (6, 34), state_content_margin: (12, 9), label_height: 13, shadow: (2, 2) };
+
+/// The platform whose figures the geometry follows.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum Platform {
+    /// The connector's reference scripts.
+    #[default]
+    Reference,
+    /// Capella 7.1 on Linux GTK (`LINUX_GTK`).
+    LinuxGtk,
+}
+
+impl Platform {
+    pub fn geometry(self) -> Geometry {
+        match self {
+            Platform::Reference => REFERENCE,
+            Platform::LinuxGtk => LINUX_GTK,
+        }
+    }
+
+    /// `reference` or `linux-gtk`.
+    pub fn parse(text: &str) -> Option<Platform> {
+        match text.to_ascii_lowercase().as_str() {
+            "reference" => Some(Platform::Reference),
+            "linux-gtk" | "linux" => Some(Platform::LinuxGtk),
+            _ => None,
+        }
+    }
+}
 /// `AbstractCapellaSMToPivot`: a junction's size, the shift of twin regions.
 const JUNCTION_SIZE: i32 = 16;
 const TRANSLATE_DELTA: f64 = 2.0;
@@ -99,7 +145,7 @@ pub fn diagram_of(m: &Model, target: usize) -> Option<usize> {
 
 /// The geometry of the diagrams of the selection, by the region each shows; with `draw`, a
 /// machine's region without a diagram is laid out by ArcLang (`drawing`).
-pub fn collect(m: &Model, selection: &[usize], draw: bool) -> Result<HashMap<usize, View>, String> {
+pub fn collect(m: &Model, selection: &[usize], draw: bool, g: Geometry) -> Result<HashMap<usize, View>, String> {
     let mut out = HashMap::new();
     for &d in selection {
         if m.class(d) != "DSemanticDiagram" {
@@ -109,14 +155,14 @@ pub fn collect(m: &Model, selection: &[usize], draw: bool) -> Result<HashMap<usi
         if out.contains_key(&target) {
             continue;
         }
-        if let Some(view) = Layout::new(m, d).and_then(|mut l| l.view()) {
+        if let Some(view) = Layout::new(m, d, g).and_then(|mut l| l.view()) {
             out.insert(target, view);
         }
     }
     if draw {
         for &region in selection {
             if m.is(region, "Region") && m.container(region).is_some_and(|c| m.is(c, "StateMachine")) && !out.contains_key(&region) {
-                out.insert(region, super::drawing::lay_out(m, region));
+                out.insert(region, super::drawing::lay_out(m, region, g));
             }
         }
     }
@@ -137,6 +183,7 @@ struct Figure {
 
 struct Layout<'m> {
     m: &'m Model,
+    g: Geometry,
     diagram: usize,
     resource: usize,
     figures: Vec<Figure>,
@@ -144,10 +191,10 @@ struct Layout<'m> {
 }
 
 impl<'m> Layout<'m> {
-    fn new(m: &'m Model, diagram: usize) -> Option<Layout<'m>> {
+    fn new(m: &'m Model, diagram: usize, g: Geometry) -> Option<Layout<'m>> {
         let entry = m.owned(diagram, "ownedAnnotationEntries").into_iter().find(|&a| m.attr(a, "source") == Some("GMF_DIAGRAMS"))?;
         let notation = m.owned(entry, "data").into_iter().next()?;
-        Some(Layout { m, diagram: notation, resource: m.elements[diagram].resource, figures: Vec::new(), by_node: HashMap::new() })
+        Some(Layout { m, g, diagram: notation, resource: m.elements[diagram].resource, figures: Vec::new(), by_node: HashMap::new() })
     }
 
     fn element_of(&self, node: usize) -> Option<usize> {
@@ -211,12 +258,12 @@ impl<'m> Layout<'m> {
                     let lx: i32 = self.m.attr(at, "x").and_then(|v| v.parse().ok()).unwrap_or(0);
                     let ly: i32 = self.m.attr(at, "y").and_then(|v| v.parse().ok()).unwrap_or(0);
                     right = right.max(x + lx + text_width(&self.label_name(child)));
-                    bottom = bottom.max(y + ly + LABEL_HEIGHT);
+                    bottom = bottom.max(y + ly + self.g.label_height);
                 }
             }
         }
-        let width = (text_width(&self.label_name(node)) + STATE_LABEL_MARGIN).max(if right > 0 { STATE_CLIENT.0 + right + STATE_CONTENT_MARGIN.0 } else { 0 });
-        let height = STATE_EMPTY_HEIGHT.max(if bottom > 0 { STATE_CLIENT.1 + bottom + STATE_CONTENT_MARGIN.1 } else { 0 });
+        let width = (text_width(&self.label_name(node)) + self.g.state_label_margin).max(if right > 0 { self.g.state_client.0 + right + self.g.state_content_margin.0 } else { 0 });
+        let height = self.g.state_empty_height.max(if bottom > 0 { self.g.state_client.1 + bottom + self.g.state_content_margin.1 } else { 0 });
         (if w > 0 { w } else { width }, if h > 0 { h } else { height })
     }
 
@@ -236,7 +283,7 @@ impl<'m> Layout<'m> {
         }
         if region {
             for child in self.inner_nodes(node) {
-                self.place(child, (ax + STATE_CLIENT.0 - 1, ay + STATE_CLIENT.1 - 17), false);
+                self.place(child, (ax + self.g.state_client.0 - 1, ay + self.g.state_client.1 - 17), false);
             }
             return;
         }
@@ -245,12 +292,12 @@ impl<'m> Layout<'m> {
         for region in self.inner_nodes(node) {
             let rx = ax + 1;
             let ry = ay + 17 + offset;
-            let rh = (h - 20 - offset).max(LABEL_HEIGHT);
+            let rh = (h - 20 - offset).max(self.g.label_height);
             self.by_node.insert(region, self.figures.len());
             let re = self.element_of(region);
             self.figures.push(Figure { target: re.and_then(|e| self.m.reference(e, "target")), bounds: (rx, ry, w - 4, rh), shadow: false, top: false });
             for child in self.inner_nodes(region) {
-                self.place(child, (ax + STATE_CLIENT.0, ay + STATE_CLIENT.1 + offset), false);
+                self.place(child, (ax + self.g.state_client.0, ay + self.g.state_client.1 + offset), false);
             }
             offset += rh;
         }
@@ -259,8 +306,8 @@ impl<'m> Layout<'m> {
     /// The figure's handle bounds: its bounds without the drop shadow.
     fn handle(&self, f: usize) -> (f64, f64, f64, f64) {
         let (x, y, w, h) = self.figures[f].bounds;
-        let s = if self.figures[f].shadow { SHADOW } else { 0 };
-        (x as f64, y as f64, (w - s) as f64, (h - s) as f64)
+        let (sx, sy) = if self.figures[f].shadow { self.g.shadow } else { (0, 0) };
+        (x as f64, y as f64, (w - sx) as f64, (h - sy) as f64)
     }
 
     fn view(&mut self) -> Option<View> {

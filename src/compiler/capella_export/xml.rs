@@ -26,7 +26,7 @@ pub(super) const NAMESPACES: &[(&str, &str)] = &[
     ("xmlns:libraries", "http://www.polarsys.org/capella/common/libraries/7.0.0"),
     ("xmlns:org.polarsys.capella.core.data.capellacommon", "http://www.polarsys.org/capella/core/common/7.0.0"),
     ("xmlns:org.polarsys.capella.core.data.capellacore", "http://www.polarsys.org/capella/core/core/7.0.0"),
-    ("xmlns:org.polarsys.capella.core.data.capellamodeller", "http://www.polarsys.org/capella/core/modeler/7.0.0"),
+    ("xmlns:org.polarsys.capella.core.data.capellamodeller", "http://www.polarsys.org/capella/core/modeller/7.0.0"),
     ("xmlns:org.polarsys.capella.core.data.cs", "http://www.polarsys.org/capella/core/cs/7.0.0"),
     ("xmlns:org.polarsys.capella.core.data.ctx", "http://www.polarsys.org/capella/core/ctx/7.0.0"),
     ("xmlns:org.polarsys.capella.core.data.epbs", "http://www.polarsys.org/capella/core/epbs/7.0.0"),
@@ -107,6 +107,14 @@ impl El {
     /// The `xsi:type` of the element.
     pub(super) fn kind(&self) -> &str {
         self.attrs.iter().find(|(k, _)| k == "xsi:type").map(|(_, v)| v.as_str()).unwrap_or("")
+    }
+    /// The text the element holds.
+    pub(super) fn content(&self) -> &str {
+        &self.text
+    }
+    /// The feature the element is contained in (`ownedStates`).
+    pub(super) fn tag(&self) -> &str {
+        &self.tag
     }
     pub(super) fn children(&self) -> &[El] {
         &self.children

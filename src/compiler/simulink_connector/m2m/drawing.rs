@@ -1,13 +1,14 @@
 //! A layout for a state machine region that has no diagram: ArcLang's, not the
-//! connector's (which takes every position from the `.aird`). A model written
-//! from ArcLang has no state machine diagram; its charts are laid out here.
+//! connector's (which takes every position from the `.aird`). The Capella export
+//! of ArcLang draws every machine (`capella_export::msm`); a Capella model whose
+//! machine was never drawn, or a model read without its `.aird`, is laid out here.
 //!
 //! The states of a region are put on a grid, a state holding states draws them
 //! in a row inside it; the figures are sized as `diagram` sizes them, and the
 //! transitions run from center to center, their ends read as the connector
 //! reads a diagram's (clock positions on the handle bounds).
 
-use super::diagram::{int, location, oclock, Kind, View, IMAGE_MARGIN, SHADOW, STATE_CLIENT, STATE_CONTENT_MARGIN, STATE_EMPTY_HEIGHT, STATE_LABEL_MARGIN, TRANSLATION};
+use super::diagram::{int, location, oclock, Geometry, Kind, View, IMAGE_MARGIN, TRANSLATION};
 use super::font::text_width;
 use super::model::Model;
 
@@ -30,27 +31,27 @@ fn sub_states(m: &Model, state: usize) -> Vec<usize> {
     m.owned(state, "ownedRegions").into_iter().flat_map(|r| m.owned(r, "ownedStates")).collect()
 }
 
-fn size(m: &Model, e: usize) -> (i32, i32) {
+fn size(m: &Model, e: usize, g: Geometry) -> (i32, i32) {
     if !is_container(m, e) {
         return (POINT_SIZE, POINT_SIZE);
     }
-    let label = text_width(&m.name(e).unwrap_or_default()) + STATE_LABEL_MARGIN;
-    let inner: Vec<(i32, i32)> = sub_states(m, e).into_iter().map(|s| size(m, s)).collect();
+    let label = text_width(&m.name(e).unwrap_or_default()) + g.state_label_margin;
+    let inner: Vec<(i32, i32)> = sub_states(m, e).into_iter().map(|s| size(m, s, g)).collect();
     if inner.is_empty() {
-        return (label, STATE_EMPTY_HEIGHT);
+        return (label, g.state_empty_height);
     }
     let row: i32 = inner.iter().map(|s| s.0).sum::<i32>() + GAP / 3 * (inner.len() as i32 - 1);
     let tallest = inner.iter().map(|s| s.1).max().unwrap_or(0);
-    (label.max(STATE_CLIENT.0 + row + STATE_CONTENT_MARGIN.0), STATE_EMPTY_HEIGHT.max(STATE_CLIENT.1 + tallest + STATE_CONTENT_MARGIN.1))
+    (label.max(g.state_client.0 + row + g.state_content_margin.0), g.state_empty_height.max(g.state_client.1 + tallest + g.state_content_margin.1))
 }
 
-fn place(m: &Model, e: usize, at: (i32, i32), out: &mut Vec<Placed>) {
-    let (w, h) = size(m, e);
+fn place(m: &Model, e: usize, at: (i32, i32), out: &mut Vec<Placed>, g: Geometry) {
+    let (w, h) = size(m, e, g);
     out.push(Placed { element: e, bounds: (at.0, at.1, w, h), shadow: is_container(m, e) });
-    let mut x = at.0 + STATE_CLIENT.0;
+    let mut x = at.0 + g.state_client.0;
     for s in sub_states(m, e) {
-        place(m, s, (x, at.1 + STATE_CLIENT.1), out);
-        x += size(m, s).0 + GAP / 3;
+        place(m, s, (x, at.1 + g.state_client.1), out, g);
+        x += size(m, s, g).0 + GAP / 3;
     }
 }
 
@@ -66,15 +67,15 @@ fn transitions(m: &Model, region: usize) -> Vec<usize> {
 }
 
 /// The view of a region laid out on a grid, as `diagram` gives a drawn one.
-pub fn lay_out(m: &Model, region: usize) -> View {
+pub fn lay_out(m: &Model, region: usize, g: Geometry) -> View {
     let states = m.owned(region, "ownedStates");
     let columns = (states.len() as f64).sqrt().ceil().max(1.0) as usize;
-    let cell_w = states.iter().map(|&s| size(m, s).0).max().unwrap_or(0) + GAP;
-    let cell_h = states.iter().map(|&s| size(m, s).1).max().unwrap_or(0) + GAP;
+    let cell_w = states.iter().map(|&s| size(m, s, g).0).max().unwrap_or(0) + GAP;
+    let cell_h = states.iter().map(|&s| size(m, s, g).1).max().unwrap_or(0) + GAP;
     let mut placed = Vec::new();
     for (k, &s) in states.iter().enumerate() {
         let at = ((k % columns) as i32 * cell_w, (k / columns) as i32 * cell_h);
-        place(m, s, at, &mut placed);
+        place(m, s, at, &mut placed, g);
     }
     let origin = (-IMAGE_MARGIN, -IMAGE_MARGIN);
     let mut children: Vec<(usize, View)> = placed
@@ -89,8 +90,8 @@ pub fn lay_out(m: &Model, region: usize) -> View {
         let (Some(s), Some(d)) = (find(m.reference(t, "source")), find(m.reference(t, "target"))) else { continue };
         let handle = |p: &Placed| {
             let (x, y, w, h) = p.bounds;
-            let shadow = if p.shadow { SHADOW } else { 0 };
-            (x as f64, y as f64, (w - shadow) as f64, (h - shadow) as f64)
+            let (sx, sy) = if p.shadow { g.shadow } else { (0, 0) };
+            (x as f64, y as f64, (w - sx) as f64, (h - sy) as f64)
         };
         let center = |b: (f64, f64, f64, f64)| (b.0 + b.2 / 2.0, b.1 + b.3 / 2.0);
         let (sb, db) = (handle(s), handle(d));
