@@ -64,3 +64,75 @@ fn show() {
     let p = pivot::load(&fixtures().join("generator/pivot").join(name)).unwrap();
     println!("{}", script(&p).unwrap_or_else(|e| e));
 }
+
+// ---- The model-to-model half ---------------------------------------------------------
+
+use arclang::compiler::simulink_connector::m2m::{self, model::Model, Options, Strategy};
+use std::collections::HashMap;
+
+/// A configuration of the connector's m2m tests (`testN.properties`).
+fn configuration(name: &str) -> HashMap<String, String> {
+    let text = std::fs::read_to_string(fixtures().join("m2m/configurations").join(format!("{name}.properties"))).unwrap();
+    text.lines()
+        .filter(|l| !l.trim_start().starts_with('#'))
+        .filter_map(|l| l.split_once('='))
+        .map(|(k, v)| (k.trim().to_string(), v.trim().to_string()))
+        .collect()
+}
+
+/// The script of a configuration: the Capella selection made a pivot, the pivot a script.
+fn m2m_script(name: &str) -> String {
+    let props = configuration(name);
+    let project = &props["project"];
+    let model = Model::load(&fixtures().join("m2m").join(project).join(format!("{project}.capella"))).unwrap();
+    let strategy = Strategy::parse(&props["strategy"]).unwrap();
+    let mut options = Options::default();
+    if let Some(v) = props.get("leaf.functions.export.option") {
+        options.leaf_functions = v.clone();
+    }
+    if let Some(v) = props.get("port.naming.option") {
+        options.port_naming = v.clone();
+    }
+    let ids: Vec<&str> = props["elements"].split_whitespace().collect();
+    match m2m::transform(&model, strategy, &ids, &options).and_then(|p| script(&p)) {
+        Ok(text) => text,
+        Err(message) => message,
+    }
+}
+
+/// Why the script differs from every expected one the connector accepts, or None.
+fn differs_from_all(dir: &Path, name: &str, text: &str) -> Option<String> {
+    let generated: Vec<&str> = text.split('\n').collect();
+    let generated = if generated.last() == Some(&"") { &generated[..generated.len() - 1] } else { &generated[..] };
+    let mut why = Vec::new();
+    for suffix in ["", ".1", ".2", ".3"] {
+        let Ok(expected) = std::fs::read_to_string(dir.join(format!("{name}{suffix}"))) else { continue };
+        match differs(generated, &expected) {
+            None => return None,
+            Some(d) => why.push(format!("{name}{suffix}: {d}")),
+        }
+    }
+    Some(why.join(" | "))
+}
+
+#[test]
+fn the_m2m_writes_the_connectors_scripts() {
+    let dir = fixtures().join("m2m/expected");
+    let mut names: Vec<String> = std::fs::read_dir(&dir).unwrap().filter_map(|e| e.ok()).map(|e| e.file_name().to_string_lossy().to_string()).filter(|n| n.ends_with(".m")).collect();
+    names.sort();
+    let mut failures = Vec::new();
+    for name in &names {
+        let text = m2m_script(name.trim_end_matches(".m"));
+        if let Some(why) = differs_from_all(&dir, name, &text) {
+            failures.push(why);
+        }
+    }
+    assert!(failures.is_empty(), "{} of {} configurations differ:\n{}", failures.len(), names.len(), failures.join("\n"));
+}
+
+/// `CONFIG=test1 cargo test --test simulink_connector show_m2m -- --ignored --nocapture`.
+#[test]
+#[ignore]
+fn show_m2m() {
+    println!("{}", m2m_script(&std::env::var("CONFIG").unwrap_or_default()));
+}

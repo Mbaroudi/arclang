@@ -10,3 +10,10 @@ the connector's own outputs.
 - `generator/pivot/`: the connector's pivot examples (`.mlcore`).
 - `generator/expected/`: the MATLAB script its generator writes for each one
   (`X.m`, and `X.m.1`, `X.m.2`… when its tests accept another order).
+- `m2m/`: the connector's model-to-model tests
+  (`org.eclipse.capella.simulink.capella.m2m.tests`): the Capella projects
+  they transform (`pp/`, `mystate/`: the `.capella` and its `.aird`), each
+  test's configuration (`configurations/testN.properties`: the project, the
+  export strategy, the ids of the elements chosen, the options) and the
+  script expected from it (`expected/testN.m`, and `testN.m.1`… for the
+  other platforms' diagram geometry its tests accept).

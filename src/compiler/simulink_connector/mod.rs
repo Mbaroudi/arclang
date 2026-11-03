@@ -10,6 +10,7 @@
 
 pub mod generator;
 pub mod java;
+pub mod m2m;
 pub mod pivot;
 
 pub use generator::script;
