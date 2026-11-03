@@ -38,8 +38,11 @@ RUN curl -fsSL https://github.com/astral-sh/uv/releases/download/0.9.5/uv-$(unam
     && git clone --depth 1 --branch ${ZEPHYR_VERSION} https://github.com/zephyrproject-rtos/zephyr /opt/zephyrproject/zephyr \
     && /opt/west/bin/pip install --no-cache-dir west -r /opt/zephyrproject/zephyr/scripts/requirements-base.txt \
     && cd /opt/zephyrproject && /opt/west/bin/west init -l zephyr \
-    && rm -rf /opt/zephyrproject/zephyr/.git /opt/zephyrproject/zephyr/doc
-ENV ZEPHYR_BASE=/opt/zephyrproject/zephyr PATH=/opt/west/bin:$PATH
+    && rm -rf /opt/zephyrproject/zephyr/.git /opt/zephyrproject/zephyr/doc \
+    && ln -s /opt/west/bin/west /usr/local/bin/west
+# west runs Zephyr's scripts with its own Python (WEST_PYTHON); python3 on
+# the PATH stays the embedded image's, with fmpy.
+ENV ZEPHYR_BASE=/opt/zephyrproject/zephyr
 
 # Renode, portable (.NET included)
 RUN set -e; case "$(dpkg --print-architecture)" in amd64) f=linux-portable;; arm64) f=linux-arm64-portable;; *) exit 1;; esac; \
