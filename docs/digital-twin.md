@@ -218,15 +218,41 @@ answers its latest hour at every call therefore adds only the new samples.
 A bearer token comes from `ARCLANG_HTTP_TOKEN`, never from the model. A 401
 or a 403 is reported as *refused*.
 
-**What live means here.** Whatever the source, the twin runs the model
-again over the window at every refresh. It does not yet advance the model
-message by message: the verdict comes at most one `refresh` after the data. That is right for
-watching a building, a data center or a fleet. It is not right for
-closing a control loop.
+**What live means here.** By default (`advance: "window"`), the twin runs
+the model again over the window at every refresh: the verdict comes at most
+one `refresh` after the data, and the model starts each window from its
+initial state.
+
+With `advance: "step"`, the model advances with the data instead:
+
+```arc
+data: { opcua: "opc.tcp://plc:4840" nodes: { ... } window: 24 h refresh: 1 min advance: "step" }
+```
+
+The model is built once as an FMU: OpenModelica's Co-Simulation FMU (FMI
+2.0), solved by CVODE. That takes a few seconds, while the source is
+already followed. A small stepper then advances the FMU to each new instant
+of the data. It is compiled where the FMU was built: in the OpenModelica
+image with Docker, or with the local C compiler (`cc`, or `$CC`) next to a
+local `omc`.
+- **Inputs.** Between two instants, each driven input goes linearly from one
+  sample to the next, as with a file.
+- **State.** The model keeps its state from one sample to the next. It is
+  never run again from the start of a window, so a refresh only judges what
+  the model has already computed and costs next to nothing.
+- **Timing.** An instant is stepped to once the next one has arrived, since
+  an OPC UA instant comes one node at a time. A sample older than the
+  model's time drives nothing, but it is still compared.
+- **Failures.** If the stepper fails, the twin says so, and the model starts
+  again from its initial state at the next sample.
+
+On the heat pump's day, both ways give the same verdict to the last digit.
+
+The model is still not driven by a control loop of its own: the twin
+watches, it does not command.
 
 ## What comes next
 
-- The model advanced as the data arrives, with an FMU (`buildModelFMU`).
 - Twins online: on arclang.fr, signed in, they run on the server, as the
   simulations do.
 

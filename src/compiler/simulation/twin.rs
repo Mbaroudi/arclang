@@ -33,11 +33,11 @@ use std::collections::{BTreeMap, HashMap};
 use std::path::{Path, PathBuf};
 
 const SIMULATE_KEYS: [&str; 4] = ["model", "configuration", "sources", "tolerance"];
-const DATA_KEYS: [&str; 18] = ["file", "time", "time_unit", "delimiter", "mqtt", "opcua", "kafka", "http", "topics", "client_id", "nodes", "security", "policy", "sampling", "sasl", "window", "refresh", "record"];
+const DATA_KEYS: [&str; 19] = ["file", "time", "time_unit", "delimiter", "mqtt", "opcua", "kafka", "http", "topics", "client_id", "nodes", "security", "policy", "sampling", "sasl", "window", "refresh", "record", "advance"];
 /// The sources of live data, as `data:` names them.
 const LIVE_SOURCES: [&str; 4] = ["mqtt", "opcua", "kafka", "http"];
 /// The keys of live data only, whatever the source.
-const LIVE_KEYS: [&str; 10] = ["topics", "client_id", "nodes", "security", "policy", "sampling", "sasl", "window", "refresh", "record"];
+const LIVE_KEYS: [&str; 11] = ["topics", "client_id", "nodes", "security", "policy", "sampling", "sasl", "window", "refresh", "record", "advance"];
 /// The keys of one source or a few: the others refuse them.
 const SOURCE_KEYS: [(&str, &[&str]); 7] = [
     ("topics", &["mqtt", "kafka"]),
@@ -92,6 +92,9 @@ pub struct Live {
     /// Seconds.
     pub refresh: f64,
     pub record: Option<String>,
+    /// `advance: "step"`: the model advances with the data, built once as an FMU, instead of
+    /// running again over the window at every refresh (`advance: "window"`, the default).
+    pub step: bool,
 }
 
 /// How OPC UA messages are protected: `security: "none" | "sign" | "sign_and_encrypt"`.
@@ -123,7 +126,7 @@ impl Live {
             Source::OpcUa { nodes, .. } => nodes.iter().map(|(c, _)| c.as_str()).collect::<Vec<_>>().join(" "),
             Source::Http { sampling } => format!("every {}", window_text(*sampling)),
         };
-        format!("{} ({what}, last {})", self.url, window_text(self.window))
+        format!("{} ({what}, last {}{})", self.url, window_text(self.window), if self.step { ", stepped" } else { "" })
     }
 }
 
@@ -431,7 +434,12 @@ pub fn spec_of(attributes: &HashMap<String, AttributeValue>) -> Result<Spec, Str
                     return Err(format!("data: record '{record}' is a CSV file (.csv)"));
                 }
             }
-            Some(Live { url, source, window, refresh, record })
+            let step = match text("advance").as_deref() {
+                None | Some("window") => false,
+                Some("step") => true,
+                Some(other) => return Err(format!("data: advance '{other}' is \"window\" (the model runs again over the window) or \"step\" (it advances with the data)")),
+            };
+            Some(Live { url, source, window, refresh, record, step })
         }
         _ => return Err(format!("data: one source, not {}", given.join(" and "))),
     };
@@ -581,7 +589,9 @@ pub fn read_measurements(text: &str, data: &Data) -> Result<Measurements, String
 
 /// A window as people read it: 45 s, 15 min, 6 h, 2 d.
 pub fn window_text(seconds: f64) -> String {
-    if seconds < 120.0 {
+    if seconds < 1.0 {
+        format!("{:.0} ms", seconds * 1000.0)
+    } else if seconds < 120.0 {
         format!("{seconds:.0} s")
     } else if seconds < 7200.0 {
         format!("{:.0} min", seconds / 60.0)
@@ -821,7 +831,8 @@ fn work_dir() -> Result<PathBuf, String> {
     Ok(dir)
 }
 
-fn script(export: &Export, staged: &[String], spec: &Spec, stop: f64, intervals: usize) -> String {
+/// The lines of a script that load the library, the model, the physics and the wrapper.
+pub fn load_lines(export: &Export, staged: &[String]) -> Vec<String> {
     let msl = modelica::MSL_VERSION;
     let mut lines = vec![
         "print(\"@@version \" + getVersion() + \"\\n\");".to_string(),
@@ -833,6 +844,11 @@ fn script(export: &Export, staged: &[String], spec: &Spec, stop: f64, intervals:
         lines.push(format!("print(\"@@load {file} \" + String(loadFile(\"{file}\")) + \"\\n\");"));
         lines.push("print(getErrorString());".to_string());
     }
+    lines
+}
+
+fn script(export: &Export, staged: &[String], spec: &Spec, stop: f64, intervals: usize) -> String {
+    let mut lines = load_lines(export, staged);
     lines.push(format!(
         "simulate({WRAPPER}, startTime=0, stopTime={}, numberOfIntervals={intervals}, tolerance={}, outputFormat=\"csv\", fileNamePrefix=\"{RESULT}\", simflags=\"-csvInput=twin_inputs.csv\");",
         modelica::names::real(stop),
@@ -886,6 +902,61 @@ pub fn shown(value: f64, unit: Option<&UnitSpec>) -> String {
     }
 }
 
+/// A working directory with the model's Modelica, the wrapper and the physics: the files to load.
+pub fn stage(export: &Export, spec: &Spec, base: &Path) -> Result<(PathBuf, Vec<String>), String> {
+    let targets: Vec<String> = spec.drives.iter().map(|d| resolve(&d.target, &export.instances)).collect();
+    let wrapper = wrapper(&spec.model, &targets)?;
+    let dir = work_dir()?;
+    let written = (|| -> Result<Vec<String>, String> {
+        std::fs::write(dir.join(&export.file_name), &export.text).map_err(|e| e.to_string())?;
+        std::fs::write(dir.join("twin.mo"), wrapper).map_err(|e| e.to_string())?;
+        let mut staged = Vec::new();
+        for (index, source) in spec.sources.iter().enumerate() {
+            let content = std::fs::read(base.join(source)).map_err(|e| format!("source '{source}' cannot be read: {e}"))?;
+            let stem: String = Path::new(source).file_stem().and_then(|s| s.to_str()).unwrap_or("source").chars().filter(|c| c.is_ascii_alphanumeric() || *c == '_').collect();
+            let name = format!("sources/{index}_{stem}.mo");
+            std::fs::write(dir.join(&name), content).map_err(|e| e.to_string())?;
+            staged.push(name);
+        }
+        Ok(staged)
+    })();
+    match written {
+        Ok(staged) => Ok((dir, staged)),
+        Err(error) => {
+            let _ = std::fs::remove_dir_all(&dir);
+            Err(error)
+        }
+    }
+}
+
+/// Why OpenModelica could not run the wrapper, from what it printed.
+pub fn failure(output: &str, what: &str) -> String {
+    if let Some(failed) = output.lines().filter_map(|l| l.strip_prefix("@@load ")).find_map(|l| l.strip_suffix(" false")) {
+        return format!("{failed} does not load in OpenModelica (see the log)");
+    }
+    // A measurement can only drive a variable: OpenModelica refuses to bind a parameter to an input.
+    if output.contains("of variability parameter has binding") {
+        let name = output.lines().find(|l| l.contains("of variability parameter")).and_then(|l| l.split("Component ").nth(1)).and_then(|l| l.split_whitespace().next()).unwrap_or("?");
+        return format!("drives: '{name}' is a parameter of the physics: a measurement can only drive a variable; declare it as a variable (or an input) in the Modelica source");
+    }
+    let errors: Vec<&str> = output.lines().filter(|l| l.contains("Error")).take(4).collect();
+    format!("the twin could not be {what}{}", if errors.is_empty() { " (see the log)".to_string() } else { format!(": {}", errors.join(" ")) })
+}
+
+/// The variables of the model the twin reads: what it is compared on, what its expectations read.
+pub fn read_variables(spec: &Spec, instances: &BTreeMap<String, String>) -> Result<Vec<String>, String> {
+    let mut out: Vec<String> = spec.compares.iter().map(|c| resolve(&c.target, instances)).collect();
+    for text in &spec.expects {
+        let expect = expects::parse(text, instances).map_err(|e| format!("expects '{text}': {e}"))?;
+        for variable in expects::variables(&expect) {
+            if !out.contains(&variable) {
+                out.push(variable);
+            }
+        }
+    }
+    Ok(out)
+}
+
 /// Runs a twin: the data read, the wrapper simulated, the deviations and the expectations.
 pub fn run(result: &CompilationResult, model_path: &Path, twin: &Twin, config: &ToolConfig) -> Outcome {
     let started = std::time::Instant::now();
@@ -933,22 +1004,10 @@ pub fn run_on(result: &CompilationResult, model_path: &Path, twin: &Twin, spec: 
         Ok(export) => export,
         Err(error) => return finish(Outcome { verdict: "error".to_string(), ..outcome }, format!("the model does not export to Modelica: {error}")),
     };
-    let targets: Vec<String> = spec.drives.iter().map(|d| resolve(&d.target, &export.instances)).collect();
     let prepared = (|| -> Result<(PathBuf, Vec<String>), String> {
         let inputs = input_csv(&measurements, &spec.drives)?;
-        let wrapper = wrapper(&spec.model, &targets)?;
-        let dir = work_dir()?;
-        std::fs::write(dir.join(&export.file_name), &export.text).map_err(|e| e.to_string())?;
-        std::fs::write(dir.join("twin.mo"), wrapper).map_err(|e| e.to_string())?;
+        let (dir, staged) = stage(&export, spec, &base)?;
         std::fs::write(dir.join("twin_inputs.csv"), inputs).map_err(|e| e.to_string())?;
-        let mut staged = Vec::new();
-        for (index, source) in spec.sources.iter().enumerate() {
-            let content = std::fs::read(base.join(source)).map_err(|e| format!("source '{source}' cannot be read: {e}"))?;
-            let stem: String = Path::new(source).file_stem().and_then(|s| s.to_str()).unwrap_or("source").chars().filter(|c| c.is_ascii_alphanumeric() || *c == '_').collect();
-            let name = format!("sources/{index}_{stem}.mo");
-            std::fs::write(dir.join(&name), content).map_err(|e| e.to_string())?;
-            staged.push(name);
-        }
         Ok((dir, staged))
     })();
     let (dir, staged) = match prepared {
@@ -964,7 +1023,7 @@ pub fn run_on(result: &CompilationResult, model_path: &Path, twin: &Twin, spec: 
     };
     outcome.tool = tool.describe();
     let intervals = (measurements.times.len() * 2).clamp(100, 20_000);
-    let _ = std::fs::write(dir.join("twin.mos"), script(&export, &staged, &spec, outcome.duration.max(1e-6), intervals));
+    let _ = std::fs::write(dir.join("twin.mos"), script(&export, &staged, spec, outcome.duration.max(1e-6), intervals));
     let run = tool::run(&tool, &dir, "twin.mos", config.timeout);
     let csv = std::fs::read_to_string(dir.join(format!("{RESULT}_res.csv"))).ok().filter(|c| !c.trim().is_empty());
     let xml = std::fs::read_to_string(dir.join(format!("{RESULT}_init.xml"))).unwrap_or_default();
@@ -975,19 +1034,9 @@ pub fn run_on(result: &CompilationResult, model_path: &Path, twin: &Twin, spec: 
     };
     outcome.omc_version = run.output.lines().find_map(|l| l.strip_prefix("@@version ")).unwrap_or("").trim().to_string();
     outcome.log = run.output.chars().rev().take(12_000).collect::<Vec<_>>().into_iter().rev().collect();
-    if let Some(failed) = run.output.lines().filter_map(|l| l.strip_prefix("@@load ")).find_map(|l| l.strip_suffix(" false")) {
-        return finish(Outcome { verdict: "error".to_string(), ..outcome }, format!("{failed} does not load in OpenModelica (see the log)"));
-    }
-    let Some(csv) = csv else {
-        // A measurement can only drive a variable: OpenModelica refuses to bind a parameter to an input.
-        let reason = if run.output.contains("of variability parameter has binding") {
-            let name = run.output.lines().find(|l| l.contains("of variability parameter")).and_then(|l| l.split("Component ").nth(1)).and_then(|l| l.split_whitespace().next()).unwrap_or("?");
-            format!("drives: '{name}' is a parameter of the physics: a measurement can only drive a variable; declare it as a variable (or an input) in the Modelica source")
-        } else {
-            let errors: Vec<&str> = run.output.lines().filter(|l| l.contains("Error")).take(4).collect();
-            format!("the twin could not be simulated{}", if errors.is_empty() { " (see the log)".to_string() } else { format!(": {}", errors.join(" ")) })
-        };
-        return finish(Outcome { verdict: "error".to_string(), ..outcome }, reason);
+    let loaded = !run.output.lines().any(|l| l.starts_with("@@load ") && l.ends_with(" false"));
+    let Some(csv) = csv.filter(|_| loaded) else {
+        return finish(Outcome { verdict: "error".to_string(), ..outcome }, failure(&run.output, "simulated"));
     };
     let mut series = match Series::from_csv(&csv) {
         Ok(series) => series,
@@ -995,13 +1044,25 @@ pub fn run_on(result: &CompilationResult, model_path: &Path, twin: &Twin, spec: 
     };
     series.set_units(units_from_init_xml(&xml));
 
+    let judged = judge(outcome, spec, &export.instances, &series, &measurements);
+    let reason = judged.reason.clone();
+    finish(judged, reason)
+}
+
+/// The verdict of a run of the twin: each comparison over the measurements, each expectation
+/// over the run; the reason says what fails, or what is wrong.
+pub fn judge(mut outcome: Outcome, spec: &Spec, instances: &BTreeMap<String, String>, series: &Series, measurements: &Measurements) -> Outcome {
+    let finish = |mut outcome: Outcome, reason: String| {
+        outcome.reason = reason;
+        outcome
+    };
     let mut problems = Vec::new();
     for c in &spec.compares {
-        let variable = resolve(&c.target, &export.instances);
+        let variable = resolve(&c.target, instances);
         let comparison = (|| -> Result<Comparison, String> {
             let column = series.column(&variable).ok_or_else(|| format!("compares: '{}' is not a variable of the run ({variable})", c.target))?;
-            let measured = channel(&measurements, &c.column, c.unit)?;
-            let (max, rms, within, first, curve) = compare(&series, column, &measured, c.tolerance);
+            let measured = channel(measurements, &c.column, c.unit)?;
+            let (max, rms, within, first, curve) = compare(series, column, &measured, c.tolerance);
             Ok(Comparison {
                 target: c.target.clone(),
                 variable: variable.clone(),
@@ -1042,7 +1103,7 @@ pub fn run_on(result: &CompilationResult, model_path: &Path, twin: &Twin, spec: 
     }
     let mut notes = Vec::new();
     for text in &spec.expects {
-        let evaluated = expects::parse(text, &export.instances).and_then(|e| expects::evaluate(&e, &mut Context { series: &series, notes: &mut notes }));
+        let evaluated = expects::parse(text, instances).and_then(|e| expects::evaluate(&e, &mut Context { series, notes: &mut notes }));
         match evaluated {
             Ok(value) => {
                 if !value.holds {
@@ -1161,6 +1222,11 @@ mod tests {
         assert!(refused_data(r#"data: { http: "https://api.example/x" topics: ["t"] }"#).contains("it is mqtt and kafka's"));
         assert!(refused_data(r#"data: { http: "https://api.example/x" sasl: "plain" }"#).contains("it is kafka's"));
         assert!(refused_data(r#"data: { file: "a.csv" sasl: "plain" }"#).contains("not for a file"));
+        let stepped = spec_of(&attributes(&with(r#"data: { http: "https://api.example/x" advance: "step" }"#))).unwrap().data.live.unwrap();
+        assert!(stepped.step && stepped.label().ends_with(", stepped)"));
+        assert_eq!(window_text(0.5), "500 ms");
+        assert!(refused_data(r#"data: { http: "https://api.example/x" advance: "fmu" }"#).contains("\"step\""));
+        assert!(refused_data(r#"data: { file: "a.csv" advance: "step" }"#).contains("not for a file"));
         assert!(refused_data(r#"data: { file: "data/room.csv" sampling: 1 s }"#).contains("live data"));
     }
 

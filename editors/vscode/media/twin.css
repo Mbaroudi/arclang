@@ -30,9 +30,9 @@ button.link { border: 0; padding: 0; color: var(--vscode-textLink-foreground, #0
 .live { display: flex; align-items: center; gap: 8px; margin: 0; padding: 6px 16px; border-bottom: 1px solid var(--tw-line); color: var(--tw-muted); }
 .live[hidden] { display: none; }
 .live .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--tw-muted); }
-.live.running .dot, .live.connected .dot { background: var(--tw-ok); animation: pulse 1.6s ease-in-out infinite; }
-.live.unreachable .dot, .live.disconnected .dot, .live.refused .dot { background: var(--tw-off); }
-.live.connecting .dot, .live.waiting .dot { background: var(--tw-warn); }
+.live.running .dot, .live.connected .dot, .live.ready .dot { background: var(--tw-ok); animation: pulse 1.6s ease-in-out infinite; }
+.live.unreachable .dot, .live.disconnected .dot, .live.refused .dot, .live.model .dot { background: var(--tw-off); }
+.live.connecting .dot, .live.waiting .dot, .live.building .dot { background: var(--tw-warn); }
 @keyframes pulse { 50% { opacity: 0.35; } }
 main { padding: 16px; display: grid; gap: 18px; max-width: 980px; }
 .twin { border: 1px solid var(--tw-line); border-left-width: 4px; border-radius: 6px; padding: 14px 16px 10px; background: var(--tw-panel); }

@@ -38,6 +38,8 @@ pub mod twin_http;
 pub mod twin_kafka;
 #[cfg(feature = "native")]
 pub mod twin_opcua;
+#[cfg(feature = "native")]
+pub mod twin_step;
 
 use crate::compiler::ast::{AttributeValue, Model, TestCase};
 use crate::compiler::quantity::Dimension;
