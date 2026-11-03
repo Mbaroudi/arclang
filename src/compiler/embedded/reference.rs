@@ -87,6 +87,7 @@ pub fn columns(plan: &Plan) -> Vec<String> {
         out.extend(m.states.iter().map(|s| format!("{}.{}", m.ident, s.member)));
         out.extend(m.actions.iter().map(|a| format!("{}.{}", m.ident, a.member)));
         out.extend(m.variables.iter().map(|v| format!("{}.{}", m.ident, v.member)));
+        out.extend(m.budgets.iter().map(|b| format!("{}.{}", m.ident, b.member)));
     }
     out
 }
@@ -218,6 +219,8 @@ pub fn run(plan: &Plan, vectors: &Vectors, period_us: u64) -> Table {
             row.extend((0..r.plan.states.len()).map(|s| if r.machine.active.contains(&s) { 1.0 } else { 0.0 }));
             row.extend(r.counts.iter().map(|&c| c.min(255) as f64));
             row.extend(r.machine.env.values.iter().map(|v| v.number()));
+            // A budget is overrun when its source has been active longer than it.
+            row.extend(r.plan.budgets.iter().map(|b| (r.machine.active.contains(&b.source) && r.in_state[b.source] > ticks(b.micros, period_us)) as u8 as f64));
         }
         rows.push(row);
     }

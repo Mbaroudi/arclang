@@ -1202,7 +1202,9 @@ Transition between states.
 | `trigger` | `text` | Triggering event. |
 | `guard` | `text` | Guard condition: an expression over the machine's variables (`speed > 30 km/h and armed`), else prose (a condition the reader sets). |
 | `action` | `text` | Effect: assignments to the machine's variables (`count := count + 1; on := true`), else prose (reported, not executed). |
-| `timing` | `quantity<time>` | Timing constraint. |
+| `timing` | `quantity<time>` | Timing constraint: without a trigger, a timer (as `after:`); beside a trigger, a budget (as `budget:`). |
+| `after` | `quantity<time>` | A timer: the transition fires when its source has been active this long (SysML v2 `accept after`). Not with a trigger. |
+| `budget` | `quantity<time>` | A budget: how long the source may stay active before the transition fires; watched every step, an overrun is an output (`"Machine".budget.<transition>`), never a timer. |
 | `priority` | `number` | Priority among concurrent transitions. |
 
 #### Diagram

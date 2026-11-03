@@ -104,6 +104,23 @@ pub struct MachinePlan {
     pub notes: Vec<String>,
     /// The C names of the variables, in the program's order.
     pub variables: Vec<Signal>,
+    /// The budgets of its transitions, watched every step.
+    pub budgets: Vec<Budget>,
+}
+
+/// `budget: 1500 ms` on a transition: an output true in every step its
+/// source has been active longer than the budget (ceil(budget / period)
+/// steps) without the transition firing.
+#[derive(Debug, Clone)]
+pub struct Budget {
+    pub transition: usize,
+    pub label: String,
+    pub ident: String,
+    /// Its result column under the machine (`budget.Starting_Running`).
+    pub member: String,
+    pub source: usize,
+    pub micros: u64,
+    pub written: String,
 }
 
 impl MachinePlan {
@@ -215,6 +232,12 @@ fn unique(taken: &mut BTreeSet<String>, wanted: String) -> String {
     name
 }
 
+/// Whether a trigger is a timer: `after <time>`, from `after:` or `timing:`
+/// (no trigger written), or written so in `trigger:` with a time.
+fn is_timer(label: &str, declared: &crate::compiler::ast::Transition) -> bool {
+    label.starts_with("after ") && (declared.trigger.trim().is_empty() || micros(label).is_ok())
+}
+
 /// The duration of a timed trigger (`after 5 s`), in microseconds.
 fn micros(label: &str) -> Result<u64, String> {
     let written = label.trim_start_matches("after").trim();
@@ -270,7 +293,7 @@ pub fn plan_machine(source: &StateMachine, taken: &mut BTreeSet<String>) -> Resu
     let mut actions = Vec::new();
     for t in &machine.transitions {
         match t.trigger.as_deref() {
-            Some(label) if label.starts_with("after ") && source.transitions.get(t.index).is_some_and(|d| d.trigger.trim().is_empty()) => push_unique(&mut timers_written, label),
+            Some(label) if is_timer(label, &source.transitions[t.index]) => push_unique(&mut timers_written, label),
             Some(label) => push_unique(&mut events, label),
             None => {}
         }
@@ -337,7 +360,7 @@ pub fn plan_machine(source: &StateMachine, taken: &mut BTreeSet<String>) -> Resu
         match c.trigger.as_deref() {
             None => Trigger::Completion,
             Some(label) => match timers.iter().position(|tm| tm.label == label) {
-                Some(i) if source.transitions.get(machine.transitions[c.head].index).is_some_and(|d| d.trigger.trim().is_empty()) => Trigger::Timer(i),
+                Some(i) if is_timer(label, &source.transitions[machine.transitions[c.head].index]) => Trigger::Timer(i),
                 _ => Trigger::Event(events.iter().position(|e| e.text == label).expect("collected")),
             },
         }
@@ -361,11 +384,23 @@ pub fn plan_machine(source: &StateMachine, taken: &mut BTreeSet<String>) -> Resu
             (trigger, order)
         })
         .collect();
-    let mut notes = machine.notes.clone();
-    for t in &machine.transitions {
-        let declared = &source.transitions[t.index];
-        if !declared.trigger.trim().is_empty() && (declared.timing.is_some() || declared.attributes.contains_key("timing")) {
-            notes.push(format!("transition {} has a trigger and a timing: the trigger fires it, the timing is not generated (it is a budget, not a timer)", t.label));
+    let notes = machine.notes.clone();
+    // Budgets: how long the source of a transition may stay active before it fires.
+    let mut budget_names = BTreeSet::new();
+    let mut budget_members = BTreeSet::new();
+    let mut budgets = Vec::new();
+    for (k, t) in machine.transitions.iter().enumerate() {
+        if let Some(written) = &t.budget {
+            let us = micros(&format!("after {written}")).map_err(|e| format!("{what}: transition {}: budget: {}", t.label, e.replace("timing", "budget")))?;
+            budgets.push(Budget {
+                transition: k,
+                label: t.label.clone(),
+                ident: unique(&mut budget_names, format!("bud_{}", c_ident(&t.label))),
+                member: unique(&mut budget_members, format!("budget.{}", member(&t.label))),
+                source: t.source,
+                micros: us,
+                written: written.clone(),
+            });
         }
     }
     let max_depth = (0..machine.states.len()).map(|s| machine.depth(s)).max().unwrap_or(1);
@@ -404,6 +439,7 @@ pub fn plan_machine(source: &StateMachine, taken: &mut BTreeSet<String>) -> Resu
         dispatch,
         max_depth,
         variables,
+        budgets,
     })
 }
 

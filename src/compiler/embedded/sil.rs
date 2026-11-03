@@ -157,6 +157,10 @@ fn print_outputs(plan: &Plan, out: &mut String) {
             }
             first = false;
         }
+        for b in &m.budgets {
+            let _ = writeln!(out, "        printf(\"{}%d\", (int)outputs.{}.{});", if first { "" } else { "," }, m.ident, b.ident);
+            first = false;
+        }
     }
 }
 

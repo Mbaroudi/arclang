@@ -102,6 +102,9 @@ fn header(plan: &Plan, default_period_us: u64) -> String {
         for (i, v) in program.variables.iter().enumerate() {
             let _ = writeln!(out, "    {} {}; /* variable \"{}\"{}: its value after the step */", v.ty.c(), m.variables[i].ident, comment(&v.name), comment(&unit(v)));
         }
+        for b in &m.budgets {
+            let _ = writeln!(out, "    bool {}; /* budget {} of transition {}: its source active longer than it */", b.ident, comment(&b.written), comment(&b.label));
+        }
         let _ = writeln!(out, "}} {t}_outputs;\n");
         let _ = writeln!(out, "typedef struct {{\n    bool active[{n}];\n    uint32_t in_state[{n}]; /* steps since the state was entered (saturates) */", n = m.states.len());
         for (i, v) in program.variables.iter().enumerate().filter(|(_, v)| v.direction != crate::compiler::execution::expr::Direction::In) {
@@ -209,6 +212,10 @@ fn source(plan: &Plan) -> String {
         for (n, v) in m.program().variables.iter().enumerate() {
             let from = if v.direction == Direction::In { "inputs" } else { "state" };
             let _ = writeln!(body, "    outputs->{i}.{f} = {from}->{i}.{f};", f = m.variables[n].ident);
+        }
+        let period = period_macro(plan);
+        for b in &m.budgets {
+            let _ = writeln!(body, "    outputs->{i}.{} = state->{i}.active[{s}] && (state->{i}.in_state[{s}] > (uint32_t)(({us}UL + {period} - 1UL) / {period})); /* budget {} */", b.ident, comment(&b.written), s = b.source, us = b.micros);
         }
     }
     let _ = writeln!(body, "}}");

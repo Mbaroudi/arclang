@@ -128,6 +128,9 @@ pub struct TransitionNode {
     pub guard: Option<String>,
     pub action: Option<String>,
     pub priority: Option<i64>,
+    /// How long its source may stay active before it fires (`budget: 1500 ms`,
+    /// or `timing:` beside a trigger): a deadline watched, not a timer.
+    pub budget: Option<String>,
 }
 
 /// What is entered, in order.
@@ -406,13 +409,18 @@ impl Machine {
                 }
             }
         }
+        let mut conflicts = Vec::new();
         for (index, transition) in machine.transitions.iter().enumerate() {
+            if !transition.trigger.trim().is_empty() && transition.attributes.contains_key("after") {
+                conflicts.push(format!("transition {} -> {} has a trigger and `after:`: a transition has one trigger (an event, or after a time)", transition.from, transition.to));
+            }
             match (built.resolve(&transition.from), built.resolve(&transition.to)) {
                 (Some(source), Some(target)) => built.transitions.push(Self::transition(index, transition, source, target)),
                 _ => notes.push(format!("transition {} -> {} names a state the machine does not declare: left out", transition.from, transition.to)),
             }
         }
-        let (compounds, refused) = built.compound_transitions();
+        let (compounds, mut refused) = built.compound_transitions();
+        refused.extend(conflicts);
         built.compounds = compounds;
         notes.extend(refused.iter().cloned());
         built.refused = refused;
@@ -441,8 +449,14 @@ impl Machine {
     fn transition(index: usize, t: &Transition, source: usize, target: usize) -> TransitionNode {
         let nonempty = |s: &Option<String>| s.as_ref().map(|v| v.trim().to_string()).filter(|v| !v.is_empty());
         // `timing: 5 s` is a quantity, not a string: read it as written.
-        let timing = nonempty(&t.timing).or_else(|| t.attributes.get("timing").map(|v| v.display().trim().to_string()).filter(|v| !v.is_empty()));
-        let trigger = Some(t.trigger.trim().to_string()).filter(|v| !v.is_empty()).or_else(|| timing.map(|timing| format!("after {timing}")));
+        let quantity = |key: &str| t.attributes.get(key).map(|v| v.display().trim().to_string()).filter(|v| !v.is_empty());
+        let timing = nonempty(&t.timing).or_else(|| quantity("timing"));
+        let written = Some(t.trigger.trim().to_string()).filter(|v| !v.is_empty());
+        // A timer: `after: 5 s` (SysML v2 `accept after`), or `timing:`
+        // without a trigger. A budget: `budget: 5 s`, or `timing:` beside a trigger.
+        let after = quantity("after").or_else(|| if written.is_none() { timing.clone() } else { None });
+        let budget = quantity("budget").or_else(|| if written.is_some() { timing.clone() } else { None });
+        let trigger = written.or_else(|| after.map(|a| format!("after {a}")));
         TransitionNode {
             index,
             label: if t.id.is_empty() { format!("{} -> {}", t.from, t.to) } else { t.id.clone() },
@@ -452,6 +466,7 @@ impl Machine {
             guard: nonempty(&t.guard),
             action: nonempty(&t.action),
             priority: t.priority.as_deref().and_then(|p| p.trim().parse().ok()),
+            budget,
         }
     }
 

@@ -53,8 +53,8 @@ invented.
   3. the events of the step fire one after the other, in the order they
      arrived (see [the order of events](#the-order-of-events));
   4. the timed transitions fire when their source has been active long
-     enough: `timing: 200 ms` without a trigger waits
-     `ceil(200 ms / period)` steps;
+     enough: `after: 200 ms` waits `ceil(200 ms / period)` steps (see
+     [timers and budgets](#timers-and-budgets));
   5. the completion transitions (no trigger, no timing) fire, once;
   6. the `do:` activities of the active states run (count once), in the
      order of the states;
@@ -287,6 +287,30 @@ Capella has every one of these pseudo-states but the junction: a junction
 is exported as a Capella choice (its branches are then chosen when
 reached). SysML v2 export writes the states of every region of a state
 in one region, as it does for the machine's top-level regions.
+
+## Timers and budgets
+
+A time on a transition is one of two things, said explicitly:
+
+```arclang
+transition Arming -> Armed { after: 30 ms }                        // a timer: it fires
+transition Done -> Idle { trigger: "after 20 ms" }                 // the same (SysML v2 `accept after`)
+transition Armed -> Done { trigger: "confirm" budget: 50 ms }      // a budget: it is watched
+```
+
+- **A timer** (`after:`, or `trigger: "after <time>"`) is the trigger of the
+  transition: it fires when its source has been active `ceil(time /
+  period)` steps (guards holding). A transition has one trigger: an event
+  and `after:` together are refused.
+- **A budget** (`budget:`) is how long the source may stay active before
+  the transition fires. It is never a timer: nothing fires because of it.
+  It is watched: the machine reports, for each budget, an output true in
+  every step its source has been active longer than `ceil(budget /
+  period)` steps (in the C, `bool bud_<transition>`; in a case,
+  `"Machine".budget.<transition>`, `Armed -> Done` written `Armed_Done`), so
+  an expectation can require `max("W".budget.Armed_Done) == 0`.
+- `timing:` keeps its meaning: without a trigger a timer, beside a trigger
+  a budget (now generated and watched).
 
 ## The API
 
@@ -525,10 +549,6 @@ Said plainly:
   actions): a case that sets a variable runs without `binding:`.
 - **No functional chains, scenarios or functions** are generated as code:
   the debugger executes them, the generator does not.
-- **Timing with a trigger** (`trigger: "LF-EXEC" timing: 1500 ms`): the
-  trigger fires the transition; the timing is a budget, not a timer, and is
-  not generated (a note in the generated file says so). Only `timing:`
-  without a trigger is a timer.
 - **Deferred events and change events** are not in the executor, so not in
   the C. A completion transition leaving a composite state does not wait
   for its regions to reach their final states: it fires as soon as its

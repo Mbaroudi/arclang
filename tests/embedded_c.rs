@@ -693,3 +693,49 @@ fn an_order_the_io_cannot_reproduce_is_reported() {
     assert!(o.reason.contains("at step 1 the case has 'fault', 'plug' arrive in this order; through the I/O they arrive 'plug', 'fault'"), "{}", o.reason);
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+// ---- timers and budgets ----------------------------------------------------------------
+
+const TIMING: &str = r#"model T { name: "t" }
+requirements system { req "R" "r" { description: "d" } }
+state_machine "W" {
+  initial: "Idle"
+  state Idle {}
+  state Arming {}
+  state Armed {}
+  state Done {}
+  transition Idle -> Arming { trigger: "go" }
+  transition Arming -> Armed { after: 30 ms }
+  transition Armed -> Done { trigger: "confirm" budget: 50 ms }
+  transition Done -> Idle { trigger: "after 20 ms" }
+}
+test_case "TC-IN-TIME" { verifies: ["R"] execute: { stop_time: 200 ms inputs: ["10 ms: go", "70 ms: confirm"] }
+  expects: ["at(30 ms, \"W\".Arming) == 1", "at(40 ms, \"W\".Armed) == 1", "max(\"W\".budget.Armed_Done) == 0", "at(70 ms, \"W\".Done) == 1", "at(90 ms, \"W\".Idle) == 1"] }
+test_case "TC-LATE" { verifies: ["R"] execute: { stop_time: 200 ms inputs: ["10 ms: go", "120 ms: confirm"] }
+  expects: ["at(80 ms, \"W\".budget.Armed_Done) == 0", "at(90 ms, \"W\".budget.Armed_Done) == 1", "at(120 ms, \"W\".budget.Armed_Done) == 0", "at(120 ms, \"W\".Done) == 1"] }
+"#;
+
+#[test]
+fn a_timer_fires_a_budget_is_watched_and_both_are_generated() {
+    let dir = work("timing-src");
+    let model = dir.join("w.arc");
+    std::fs::write(&model, TIMING).unwrap();
+    for (id, verdicts) in model_verdicts(&model) {
+        assert!(verdicts.iter().all(|v| *v), "{id}: {verdicts:?}");
+    }
+    for cc in compilers() {
+        for o in run_sil(&model, &cc, "timing") {
+            assert_eq!(o.verdict, "pass", "{cc} {}: {}", o.test_case, o.reason);
+        }
+    }
+    let result = compile_file(&model);
+    let plan = plan::plan(&result.ast).unwrap();
+    assert_eq!(plan.machines[0].timers.len(), 2, "after: and trigger \"after 20 ms\"");
+    let generated = embedded::cgen::generate(&plan, 10_000);
+    assert!(generated.header.contains("bool bud_armed_done; /* budget 50 ms of transition Armed -> Done"), "{}", generated.header);
+    // One trigger per transition.
+    let both = TIMING.replace("{ trigger: \"go\" }", "{ trigger: \"go\" after: 5 ms }");
+    let error = compile_text(&both).unwrap_err();
+    assert!(error.contains("transition Idle -> Arming has a trigger and `after:`: a transition has one trigger"), "{error}");
+    let _ = std::fs::remove_dir_all(&dir);
+}
