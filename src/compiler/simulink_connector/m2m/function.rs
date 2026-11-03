@@ -474,7 +474,7 @@ fn propagate(run: &mut Run, port: usize, capella_holder: usize, selection: &[usi
         let radix = port_name(run, port);
         let name = unique_name(run, holder, radix);
         let copy = run.new_obj(Kind::Port, name, run.p[origin].originator.clone());
-        run.p[copy].id = Some("propagated_null".to_string());
+        run.p[copy].id = Some(format!("propagated_{}", run.p[copy].id.clone().unwrap_or_default()));
         let origin_kind = port_kind(run, origin);
         run.p[copy].port_kind = if origin_kind == "Enable" { "Inport".to_string() } else { origin_kind.clone() };
         run.p[copy].datatype = run.p[origin].datatype;

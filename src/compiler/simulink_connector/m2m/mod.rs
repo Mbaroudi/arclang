@@ -11,6 +11,7 @@
 mod classes;
 mod data;
 mod diagram;
+mod font;
 mod function;
 pub mod model;
 mod scope;
@@ -142,10 +143,20 @@ impl<'m> Run<'m> {
 
     // ---- Making the pivot -------------------------------------------------------
 
+    /// A new element, as `MLCoreFactory` makes it: with an id of its own (the connector's are
+    /// random; here they are UUIDs of the order they are made in), and the library block a
+    /// subsystem, a chart or a model reference is by default.
     fn new_obj(&mut self, kind: Kind, name: Option<String>, originator: Option<String>) -> usize {
         let mut obj = Obj::new(kind);
+        obj.id = Some(self.uuid(kind.class()));
         obj.name = name;
         obj.originator = originator;
+        obj.source = match kind {
+            Kind::Subsystem => Some("simulink/Ports & Subsystems/Subsystem".to_string()),
+            Kind::Chart => Some("sflib/Chart".to_string()),
+            Kind::SystemReference => Some("simulink/Ports & Subsystems/Model".to_string()),
+            _ => None,
+        };
         self.p.add(obj)
     }
 
@@ -305,6 +316,11 @@ fn pivot_contents(p: &Pivot, i: usize) -> Vec<usize> {
     out
 }
 
+/// Whether a region has a diagram, which the state machines strategy needs.
+pub fn has_diagram(m: &Model, region: usize) -> bool {
+    diagram::diagram_of(m, region).is_some()
+}
+
 /// Transforms the elements with these ids, as the connector's export operation does.
 pub fn transform(m: &Model, strategy: Strategy, ids: &[&str], options: &Options) -> Result<Pivot, String> {
     let mut targets = Vec::new();
@@ -325,10 +341,7 @@ pub fn transform(m: &Model, strategy: Strategy, ids: &[&str], options: &Options)
     // `GenericInitializeTransformation`: the project, named after the system engineering.
     let first = selection.iter().copied().find(|&e| m.is(e, "CapellaElement")).ok_or_else(|| "No object to export!".to_string())?;
     let engineering = m.ancestor(first, "SystemEngineering").ok_or_else(|| "The selection is not in a Capella model".to_string())?;
-    let mut project = Obj::new(Kind::Project);
-    project.name = m.name(engineering);
-    project.originator = m.id(engineering);
-    let project = p.add(project);
+    let project = p.add(Obj::new(Kind::Project));
     p.roots.push(project);
     let mut run = Run {
         m,
@@ -345,6 +358,9 @@ pub fn transform(m: &Model, strategy: Strategy, ids: &[&str], options: &Options)
         geometry: HashMap::new(),
         uuids: 0,
     };
+    run.p[project].id = Some(run.uuid("Project"));
+    run.p[project].name = m.name(engineering);
+    run.p[project].originator = m.id(engineering);
     if strategy == Strategy::StateMachines {
         sm::initialize(&mut run)?;
         run.geometry = diagram::collect(m, &run.selection)?;

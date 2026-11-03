@@ -136,3 +136,28 @@ fn the_m2m_writes_the_connectors_scripts() {
 fn show_m2m() {
     println!("{}", m2m_script(&std::env::var("CONFIG").unwrap_or_default()));
 }
+
+/// The pivot written as an `.mlcore` and read again gives the same script.
+#[test]
+fn the_written_pivot_reads_back_the_same() {
+    use arclang::compiler::simulink_connector::mlcore;
+    for n in 1..=34 {
+        let name = format!("test{n}");
+        let props = configuration(&name);
+        let project = &props["project"];
+        let model = Model::load(&fixtures().join("m2m").join(project).join(format!("{project}.capella"))).unwrap();
+        let mut options = Options::default();
+        if let Some(v) = props.get("leaf.functions.export.option") {
+            options.leaf_functions = v.clone();
+        }
+        if let Some(v) = props.get("port.naming.option") {
+            options.port_naming = v.clone();
+        }
+        let ids: Vec<&str> = props["elements"].split_whitespace().collect();
+        let p = m2m::transform(&model, Strategy::parse(&props["strategy"]).unwrap(), &ids, &options).unwrap();
+        let text = mlcore::write(&p);
+        let again = pivot::read(&text, Path::new(".")).unwrap_or_else(|e| panic!("{name}: {e}\n{text}"));
+        assert_eq!(script(&again), script(&p), "{name}");
+        assert_eq!(mlcore::write(&again), text, "{name}: written twice the same");
+    }
+}

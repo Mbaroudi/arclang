@@ -8,9 +8,11 @@
 //! connector's own examples and expected scripts
 //! (`tests/fixtures/simulink_connector/`).
 
+pub mod export;
 pub mod generator;
 pub mod java;
 pub mod m2m;
+pub mod mlcore;
 pub mod pivot;
 
 pub use generator::script;

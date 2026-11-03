@@ -210,6 +210,11 @@ impl Model {
         self.inverse.get(&(i, feature.to_string())).cloned().unwrap_or_default()
     }
 
+    /// The element of a given document with this id.
+    pub fn by_id_in(&self, resource: usize, id: &str) -> Option<usize> {
+        self.ids.get(&(resource, id.to_string())).copied()
+    }
+
     /// The element of this document with this id.
     pub fn by_id(&self, id: &str) -> Option<usize> {
         (0..self.resources.len()).find_map(|r| self.ids.get(&(r, id.to_string())).copied())

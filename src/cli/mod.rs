@@ -383,6 +383,29 @@ pub enum Commands {
         /// Modex browses a package by its folders
         #[clap(long)]
         split: bool,
+
+        /// Simulink connector only: what to export, as the Capella-Simulink
+        /// connector's operations: functions, functional-chains,
+        /// state-machines or data-pkg
+        #[clap(long, default_value = "functions")]
+        strategy: String,
+
+        /// Simulink connector only: the elements to export, by Capella id or
+        /// by name (repeat it, or separate them by commas); by default the
+        /// strategy's roots (the top functions, every chain, every state
+        /// machine, the layers' data packages)
+        #[clap(long = "element", value_delimiter = ',')]
+        elements: Vec<String>,
+
+        /// Simulink connector only: leaf functions as `model` (one Simulink
+        /// model each, referenced) or as `subsystem`
+        #[clap(long, default_value = "model")]
+        leaf_functions: String,
+
+        /// Simulink connector only: ports named after the functional
+        /// exchange (`ExchangeItem`) or after the Capella port (`CapellaElement`)
+        #[clap(long, default_value = "ExchangeItem")]
+        port_naming: String,
     },
     
     Import {
@@ -797,6 +820,11 @@ pub enum ExportFormat {
     #[clap(name = "sysml-json")]
     SysMLJson,
     Simulink,
+    /// What the Capella-Simulink connector exports: the pivot (`.mlcore`)
+    /// and the MATLAB script that builds the Simulink project; the input is
+    /// an ArcLang model or a `.capella` file
+    #[clap(name = "simulink-connector")]
+    SimulinkConnector,
     FMI,
     ReqIF,
     CHeaders,
@@ -943,9 +971,16 @@ impl CliRunner {
             Commands::Gate { input, standard, format: _ } => {
                 self.run_gate(input, standard)
             }
-            Commands::Export { input, output, format, no_placement, split } => {
+            Commands::Export { input, output, format, no_placement, split, strategy, elements, leaf_functions, port_naming } => {
                 if (no_placement || split) && !matches!(format, ExportFormat::Modelica) {
                     return Err(CliError::Compilation("--no-placement and --split apply to the Modelica export (-f modelica)".to_string()));
+                }
+                if matches!(format, ExportFormat::SimulinkConnector) {
+                    let options = crate::compiler::simulink_connector::m2m::Options { leaf_functions, port_naming };
+                    return self.run_simulink_connector(&input, &output, &strategy, &elements, &options);
+                }
+                if !elements.is_empty() || strategy != "functions" {
+                    return Err(CliError::Compilation("--strategy and --element apply to the Simulink connector export (-f simulink-connector)".to_string()));
                 }
                 self.run_export(input, output, format, no_placement, split)
             }
@@ -1987,6 +2022,50 @@ impl CliRunner {
         crate::compiler::modelica::Options { placement: true, layout }
     }
 
+    /// `export -f simulink-connector`: the Capella model (read, or written from the ArcLang
+    /// one), the chosen elements made a pivot, the pivot a script; `output.mlcore` and
+    /// `output.m` are written.
+    fn run_simulink_connector(
+        &self,
+        input: &std::path::Path,
+        output: &std::path::Path,
+        strategy: &str,
+        elements: &[String],
+        options: &crate::compiler::simulink_connector::m2m::Options,
+    ) -> Result<(), CliError> {
+        use crate::compiler::simulink_connector::{export, m2m};
+        let strategy = m2m::Strategy::parse(strategy).ok_or_else(|| CliError::Config(format!("unknown strategy '{strategy}': expected functions, functional-chains, state-machines or data-pkg")))?;
+        let model = if input.extension().is_some_and(|e| e == "capella") {
+            m2m::model::Model::load(input).map_err(CliError::Compilation)?
+        } else {
+            let result = crate::Compiler::new(crate::CompilerConfig::default()).compile_file(input).map_err(|e| CliError::Compilation(e.to_string()))?;
+            let stem = input.file_stem().map(|s| s.to_string_lossy().to_string()).unwrap_or_else(|| "model".to_string());
+            let exported = crate::compiler::capella_export::export(&result.ast, &stem);
+            let capella = format!("{stem}.capella");
+            let aird = format!("{stem}.aird");
+            m2m::model::Model::from_strings(&[(capella.as_str(), exported.capella.as_str()), (aird.as_str(), exported.aird.as_str())]).map_err(CliError::Compilation)?
+        };
+        let exported = export::export(&model, strategy, elements, options).map_err(CliError::Compilation)?;
+        let base = match output.extension().and_then(|e| e.to_str()) {
+            Some("m") | Some("mlcore") => output.with_extension(""),
+            _ => output.to_path_buf(),
+        };
+        if let Some(parent) = base.parent().filter(|p| !p.as_os_str().is_empty()) {
+            std::fs::create_dir_all(parent).map_err(CliError::Io)?;
+        }
+        let pivot = base.with_extension("mlcore");
+        let script = base.with_extension("m");
+        std::fs::write(&pivot, &exported.pivot).map_err(CliError::Io)?;
+        std::fs::write(&script, &exported.script).map_err(CliError::Io)?;
+        for note in &exported.notes {
+            eprintln!("note: {note}");
+        }
+        println!("✓ Export successful");
+        println!("  Pivot: {}", pivot.display());
+        println!("  MATLAB script: {}", script.display());
+        Ok(())
+    }
+
     fn run_export(
         &self,
         input: PathBuf,
@@ -2014,6 +2093,7 @@ impl CliRunner {
             ExportFormat::SysML => "json".to_string(),
             ExportFormat::SysMLJson => "json".to_string(),
             ExportFormat::Simulink => "json".to_string(),
+            ExportFormat::SimulinkConnector => "json".to_string(),
             ExportFormat::FMI => "json".to_string(),
             ExportFormat::ReqIF => "json".to_string(),
             ExportFormat::CHeaders => "json".to_string(),
