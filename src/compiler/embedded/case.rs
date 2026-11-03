@@ -16,8 +16,10 @@
 //! ```
 //!
 //! An input is `<time>: <event>` (the event occurs in the step at that
-//! time) or `<time>: <condition>` / `<condition> = true|false` (it holds,
-//! or not, from that step on). Every time is on the step grid.
+//! time), `<time>: <condition>` / `<condition> = true|false` (it holds,
+//! or not, from that step on) or `<time>: <in variable> = <value>` (the
+//! variable has the value from that step on: `100 ms: speed = 50 km/h`).
+//! Every time is on the step grid.
 
 use super::binding::period_of;
 use super::plan::Plan;
@@ -38,6 +40,8 @@ pub const MAX_STEPS: u64 = 1_000_000;
 pub enum Drive {
     Event(usize),
     Condition(usize, bool),
+    /// An `in` variable (its index in the program) and its value.
+    Value(usize, crate::compiler::execution::expr::Value),
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -173,8 +177,15 @@ fn resolve(map: &HashMap<String, AttributeValue>, plan: &Plan, bindings: &[super
         if step > last {
             return Err(format!("execute: input '{line}' comes after stop_time"));
         }
+        let assigned = name.split_once('=').map(|(n, v)| (n.trim(), v.trim())).and_then(|(n, v)| m.variable(n).map(|i| (i, v)));
         let drive = if let Some(e) = m.event(&name) {
             Drive::Event(e)
+        } else if let Some((i, written)) = assigned {
+            let v = &m.program().variables[i];
+            if v.direction != crate::compiler::execution::expr::Direction::In {
+                return Err(format!("execute: input '{line}': '{}' is not an input of state_machine '{}' (declare it `in {}`)", v.name, m.name, v.text));
+            }
+            Drive::Value(i, v.value(written).map_err(|e| format!("execute: input '{line}': {e}"))?)
         } else {
             let (text, value) = match name.rsplit_once('=') {
                 Some((text, value)) if matches!(value.trim(), "true" | "false") => (text.trim().to_string(), value.trim() == "true"),
@@ -184,10 +195,11 @@ fn resolve(map: &HashMap<String, AttributeValue>, plan: &Plan, bindings: &[super
                 Some(c) => Drive::Condition(c, value),
                 None => {
                     return Err(format!(
-                        "execute: input '{line}': '{text}' is no event or condition of state_machine '{}' (events: {}; conditions: {})",
+                        "execute: input '{line}': '{text}' is no event, condition or input variable of state_machine '{}' (events: {}; conditions: {}; inputs: {})",
                         m.name,
                         m.events.iter().map(|e| format!("'{}'", e.text)).collect::<Vec<_>>().join(", "),
-                        m.conditions.iter().map(|c| format!("'{}'", c.text)).collect::<Vec<_>>().join(", ")
+                        m.conditions.iter().map(|c| format!("'{}'", c.text)).collect::<Vec<_>>().join(", "),
+                        m.program().inputs().map(|(_, v)| format!("'{}'", v.name)).collect::<Vec<_>>().join(", ")
                     ))
                 }
             }
@@ -205,7 +217,7 @@ impl Case {
     /// The vectors of every machine: this case's inputs on its machine, nothing on the others.
     pub fn vectors(&self, plan: &Plan) -> Vectors {
         let mut v = Vectors::quiet(plan, self.steps);
-        let mut changes: Vec<&Stimulus> = self.stimuli.iter().filter(|s| matches!(s.drive, Drive::Condition(..))).collect();
+        let mut changes: Vec<&Stimulus> = self.stimuli.iter().filter(|s| matches!(s.drive, Drive::Condition(..) | Drive::Value(..))).collect();
         changes.sort_by_key(|s| s.step);
         for s in &self.stimuli {
             if let Drive::Event(e) = s.drive {
@@ -213,10 +225,18 @@ impl Case {
             }
         }
         for s in changes {
-            if let Drive::Condition(c, value) = s.drive {
-                for k in s.step..self.steps {
-                    v.conditions[self.machine][c][k] = value;
+            match s.drive {
+                Drive::Condition(c, value) => {
+                    for k in s.step..self.steps {
+                        v.conditions[self.machine][c][k] = value;
+                    }
                 }
+                Drive::Value(i, value) => {
+                    for k in s.step..self.steps {
+                        v.values[self.machine][i][k] = value;
+                    }
+                }
+                Drive::Event(_) => {}
             }
         }
         v

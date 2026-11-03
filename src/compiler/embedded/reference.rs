@@ -2,7 +2,9 @@
 //! `execution::Machine` (the debugger's executor), step by step, with the
 //! same step semantics as the generated `step()`:
 //!
+//! 0. the `in` variables take the step's values;
 //! 1. on the first step, the initial states are entered;
+//! 1b. the equations are evaluated, in the order written;
 //! 2. the events present in the step fire, in the order the machine declares them;
 //! 3. the timed transitions whose source has been active long enough fire
 //!    (`after 5 s`: at least ceil(5 s / period) steps);
@@ -10,10 +12,12 @@
 //! 5. the `do:` activities of the active states run;
 //! 6. each active state has been active one step more.
 //!
-//! The result is a table: per step, each state (1 while active) and each
-//! action (the times it ran in the step, at most 255).
+//! The result is a table: per step, each state (1 while active), each
+//! action (the times it ran in the step, at most 255) and each variable
+//! (its value after the step, in its unit).
 
 use super::plan::{MachinePlan, Plan, Trigger};
+use crate::compiler::execution::expr::Value;
 use crate::compiler::simulation::results::Series;
 use std::collections::BTreeMap;
 
@@ -25,6 +29,9 @@ pub struct Vectors {
     pub events: Vec<Vec<Vec<bool>>>,
     /// [machine][condition][step]
     pub conditions: Vec<Vec<Vec<bool>>>,
+    /// [machine][variable][step]: the value of each `in` variable (the
+    /// others' entries are their initial values, unused).
+    pub values: Vec<Vec<Vec<Value>>>,
 }
 
 impl Vectors {
@@ -34,6 +41,7 @@ impl Vectors {
             steps,
             events: plan.machines.iter().map(|m| vec![vec![false; steps]; m.events.len()]).collect(),
             conditions: plan.machines.iter().map(|m| vec![vec![false; steps]; m.conditions.len()]).collect(),
+            values: plan.machines.iter().map(|m| m.program().variables.iter().map(|v| vec![v.initial; steps]).collect()).collect(),
         }
     }
 }
@@ -44,6 +52,8 @@ pub struct Table {
     pub names: Vec<String>,
     pub period_us: u64,
     pub rows: Vec<Vec<f64>>,
+    /// The unit of a column that has one (a variable's), else `1`.
+    pub units: BTreeMap<String, String>,
 }
 
 impl Table {
@@ -61,7 +71,7 @@ impl Table {
             csv.push('\n');
         }
         let mut series = Series::from_csv(&csv)?;
-        series.set_units(self.names.iter().map(|n| (n.clone(), "1".to_string())).collect());
+        series.set_units(self.names.iter().map(|n| (n.clone(), self.units.get(n).cloned().unwrap_or_else(|| "1".to_string()))).collect());
         Ok(series)
     }
 }
@@ -72,6 +82,20 @@ pub fn columns(plan: &Plan) -> Vec<String> {
     for m in &plan.machines {
         out.extend(m.states.iter().map(|s| format!("{}.{}", m.ident, s.member)));
         out.extend(m.actions.iter().map(|a| format!("{}.{}", m.ident, a.member)));
+        out.extend(m.variables.iter().map(|v| format!("{}.{}", m.ident, v.member)));
+    }
+    out
+}
+
+/// The unit of each variable column that has one.
+pub fn units(plan: &Plan) -> BTreeMap<String, String> {
+    let mut out = BTreeMap::new();
+    for m in &plan.machines {
+        for (v, signal) in m.program().variables.iter().zip(&m.variables) {
+            if let Some(unit) = &v.unit {
+                out.insert(format!("{}.{}", m.ident, signal.member), unit.clone());
+            }
+        }
     }
     out
 }
@@ -133,18 +157,27 @@ pub fn run(plan: &Plan, vectors: &Vectors, period_us: u64) -> Table {
     let mut machines: Vec<Running> = plan
         .machines
         .iter()
-        .map(|m| Running { plan: m, machine: m.machine.clone(), in_state: vec![0; m.states.len()], counts: vec![0; m.actions.len()] })
+        .map(|m| {
+            let mut machine = m.machine.clone();
+            machine.set_period(period_us);
+            Running { plan: m, machine, in_state: vec![0; m.states.len()], counts: vec![0; m.actions.len()] }
+        })
         .collect();
     let mut rows = Vec::with_capacity(vectors.steps);
     for k in 0..vectors.steps {
         let mut row = Vec::new();
         for (n, r) in machines.iter_mut().enumerate() {
             r.counts.iter_mut().for_each(|c| *c = 0);
+            let inputs: Vec<usize> = r.plan.program().inputs().map(|(i, _)| i).collect();
+            for i in inputs {
+                r.machine.env.values[i] = vectors.values[n][i][k];
+            }
+            r.machine.conditions = r.plan.conditions.iter().enumerate().map(|(c, signal)| (signal.text.clone(), vectors.conditions[n][c][k])).collect();
             if k == 0 {
                 let started = r.machine.start();
                 r.account(&started);
             }
-            r.machine.conditions = r.plan.conditions.iter().enumerate().map(|(c, signal)| (signal.text.clone(), vectors.conditions[n][c][k])).collect();
+            r.machine.flow();
             for (trigger, _) in &r.plan.dispatch.clone() {
                 let step = match *trigger {
                     Trigger::Event(e) => {
@@ -165,6 +198,8 @@ pub fn run(plan: &Plan, vectors: &Vectors, period_us: u64) -> Table {
                 };
                 r.account(&step);
             }
+            // The do activities that are code run here, in the order of the states.
+            r.machine.activities();
             for s in 0..r.plan.states.len() {
                 if r.machine.active.contains(&s) {
                     for &a in &r.plan.states[s].activity {
@@ -179,8 +214,9 @@ pub fn run(plan: &Plan, vectors: &Vectors, period_us: u64) -> Table {
             }
             row.extend((0..r.plan.states.len()).map(|s| if r.machine.active.contains(&s) { 1.0 } else { 0.0 }));
             row.extend(r.counts.iter().map(|&c| c.min(255) as f64));
+            row.extend(r.machine.env.values.iter().map(|v| v.number()));
         }
         rows.push(row);
     }
-    Table { names: columns(plan), period_us, rows }
+    Table { names: columns(plan), period_us, rows, units: units(plan) }
 }

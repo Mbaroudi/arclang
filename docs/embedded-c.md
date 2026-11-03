@@ -33,27 +33,32 @@ A state machine is executed as the debugger (`arclang debug`) executes it,
 by the same code (`execution::Machine`): UML and Capella semantics, nothing
 invented.
 
-- **Inputs** are the machine's *events* (the triggers of its transitions) and
-  its *conditions* (the guards, as written). A guard written in prose
-  (`"lead vehicle in range"`) is not code the compiler can decide: it is a
-  boolean input the caller (or the binding) sets. A guard written `true` or
-  `false` decides itself.
-- **Outputs** are the machine's *states* (true while active) and its
+- **Inputs** are the machine's *events* (the triggers of its transitions),
+  its *conditions* (the guards written in prose) and its `in` *variables*. A
+  guard written in prose (`"lead vehicle in range"`) is not code the
+  compiler can decide: it is a boolean input the caller (or the binding)
+  sets. A guard written `true` or `false` decides itself; a guard written as
+  an expression over the variables (`"speed > 30 km/h"`) is computed (see
+  [the action language](#the-action-language-variables-expressions-equations)).
+- **Outputs** are the machine's *states* (true while active), its
   *actions* (entry, exit, do and transition actions: how many times each ran
-  in the step, saturating at 255). An action written in prose
-  (`"close contactors"`) is reported, not executed: the integrator, or a
-  binding, turns it into an effect.
+  in the step, saturating at 255) and its *variables* (their value after the
+  step). An action written in prose (`"close contactors"`) is reported, not
+  executed: the integrator, or a binding, turns it into an effect. An action
+  written as assignments (`"count := count + 1"`) is executed, and counted.
 - **One step** (`step()`), in each machine:
   1. on the first step, the initial states are entered (their entry actions
-     count in that step);
-  2. the events present in the step fire, in the order the machine's
+     run in that step);
+  2. the equations are evaluated, in the order written;
+  3. the events present in the step fire, in the order the machine's
      transitions first name them;
-  3. the timed transitions fire when their source has been active long
+  4. the timed transitions fire when their source has been active long
      enough: `timing: 200 ms` without a trigger waits
      `ceil(200 ms / period)` steps;
-  4. the completion transitions (no trigger, no timing) fire, once;
-  5. the `do:` activities of the active states run (count once);
-  6. every active state has been active one step more.
+  5. the completion transitions (no trigger, no timing) fire, once;
+  6. the `do:` activities of the active states run (count once), in the
+     order of the states;
+  7. every active state has been active one step more.
 
   For each trigger, the transitions it enables are chosen at the start of
   its firing (source active, guard holding), then fired in order — inner
@@ -66,6 +71,142 @@ invented.
 
 The period is `<MODEL>_PERIOD_US` (microseconds), the binding's period by
 default, else 10 ms; define it at compile time for another one.
+
+## The action language: variables, expressions, equations
+
+A machine may declare typed variables and difference equations; a guard
+can then be an expression and an action assignments. The syntax follows
+SysML v2 (`in`/`out` attributes, `:=` assignment, `and`/`or`/`not`), written
+in ArcLang's attribute style:
+
+```arclang
+state_machine "Charger" {
+    variables: [
+        "in voltage: Real [V]",                 // set by the caller every step
+        "in current: Real [A]",
+        "const v_absorption: Real [V] = 54.6 V",
+        "target: Real [A] = 0 A",               // kept by the machine
+        "error: Real [A]",
+        "out setpoint: Real [A]",
+        "filtered: Real [V] = 0 V",
+        "out charge: Real [Ah]",
+        "out plugs: Integer = 0"
+    ]
+    equations: [
+        "error = target - current",
+        "setpoint = pid(error, 0.5, 20 Hz, 0 s, 0 A, 20 A)",
+        "filtered = filtered + 0.2 * (voltage - filtered)",
+        "charge = integrator(current, 1)"
+    ]
+    ...
+        state Charging {
+            entry: ["close contactors", "plugs := plugs + 1"]
+            state Bulk { entry: ["ramp current", "target := 16 A"] }
+            transition Bulk -> Absorption { guard: "filtered >= v_absorption and target > 0 A" }
+        }
+}
+```
+
+**Variables**: `[in|out|const] name: Type [unit] = initial`.
+
+| Type | C type | Arithmetic |
+|---|---|---|
+| `Boolean` | `bool` | `and`, `or`, `not` (or `&&`, `\|\|`, `!`), `==`, `!=` |
+| `Integer` | `int32_t` | saturating: `+ - * /` and negation saturate to the range of `int32_t` instead of overflowing; a division by zero gives 0 (C truncation toward zero otherwise) |
+| `Real` | `double` | IEEE 754 binary64 |
+| `Float` | `float` | IEEE 754 binary32 |
+
+No fixed point is generated: the type of each variable is the one declared.
+The unit (a symbol of the unit table: `V`, `km/h`, `Ah`, `m/s`...) fixes the
+dimension and the unit the value is *stored* in, in the C as in the result
+columns (`speed` declared `[km/h]` holds km/h). A unit with an offset (`°C`)
+is refused: write temperatures in `K`. The initial value is zero (false)
+when omitted. `in`: an input, in the `inputs` structure, set by the caller
+every step, never assigned by the machine. `const`: never assigned. Every
+other variable is kept in the `state` structure, and every variable is in
+the `outputs` structure after the step.
+
+**Expressions**: `+ - * /`, `< <= > >= == !=`, `and or not`, parentheses,
+numbers with a unit (`30 km/h`, `2 A`), `true`, `false`, and the pure
+functions `min(a, b)`, `max(a, b)`, `abs(a)`, `saturate(x, lo, hi)` and
+`gain(x, k)` (= `x * k`). The compiler types every operation and checks the
+units with the unit system of the language:
+
+- `+`, `-`, comparisons, `min`, `max`, `saturate` take operands of one
+  dimension (a plain `0` goes with any); `*` and `/` multiply and divide
+  dimensions (`2 N / 1 m` is a stiffness);
+- values of different units of one dimension are converted where they
+  meet, the right side to the unit of the left (a number is folded at
+  compile time: `speed > 30 km/h` with `speed [m/s]` compares with
+  `8.333...`); a conversion of an `Integer` by a factor that is not whole
+  makes it a `Real`;
+- a number written in the model takes the type of the other side when it is
+  a value of it (`0.5` beside a `Float` is `0.5f`); otherwise `Integer`
+  meets `Float` as `Float`, anything meets `Real` as `Real`;
+- an assignment converts to the target's unit and type: an `Integer` takes
+  only an `Integer` (no silent truncation), a `Float` takes a `Real`
+  (rounded to nearest).
+
+The C prints the same typed tree as the model evaluates, operator for
+operator, so the two compute the same bits: the integer operations are
+static helpers (`arc_add_i32`...), `min`/`max`/`abs`/`saturate` are static
+functions (each argument evaluated once), and the source turns
+floating-point contraction off (`#pragma STDC FP_CONTRACT OFF` under Clang;
+GCC does not contract in ISO C mode).
+
+**Guards and actions as code**: a guard is an expression when it parses as
+one and names a variable of the machine; it must be a `Boolean`. An action
+is code when it is assignments `target := expression` (or `=`), separated by
+`;`. A text that names no variable stays prose, exactly as before: old
+models keep their meaning. A text that names a variable and also a name that
+is none is an error (a typo), not prose. Actions run when the semantics runs
+them: exit actions, then the transition's action, then entry actions; a
+guard is evaluated when its trigger is processed, before any transition of
+that trigger fires.
+
+**Equations** are `target = expression`, evaluated every step in the order
+written, after the initial states are entered and before the transitions;
+an equation reads the values of the step so far (a variable assigned later
+in the list, or by an action, reads its value of the previous step: a
+sequential program, no algebraic loop). One equation per variable; an
+action does not assign a variable an equation computes. In equations only,
+the blocks of discrete-time data flow, each call a block with its own
+state:
+
+| Block | Output and update (step `T` = the period) |
+|---|---|
+| `delay(x)`, `delay(x, initial)` | the input of the previous step (the initial value on the first) |
+| `integrator(x, k)` | forward Euler: `y = s; s := s + k*T*x` (unit: x·k·time) |
+| `integrator(x, k, lo, hi)` | the same, output and state held in `[lo, hi]` |
+| `pid(e, kp, ki, kd)` | parallel: `kp*e + I + kd*(e - e_prev)/T`, `I := I + ki*T*e`; no derivative on the first step |
+| `pid(e, kp, ki, kd, lo, hi)` | the same, output held in `[lo, hi]`, clamping anti-windup (no integration further into the saturation) |
+
+The gains carry their units: `kp*e`, `ki*e*time` and `kd*e/time` must be
+of one dimension (the output's). Gain and sum are plain `*` and `+`. A block
+cannot sit in the arguments of another (give the inner one its own
+equation), so C's unspecified order of evaluation of arguments changes
+nothing. Their arguments are converted to SI units, their output (a `Real`)
+is in SI units of its dimension, converted on assignment.
+
+The compiler's messages say what is wrong and where:
+
+```text
+state_machine 'M': guard "speed > 3 s": '>' between a speed and a time
+state_machine 'M': action "n := speed": a Real assigned to Integer 'n' (an Integer holds whole numbers: declare it Real, or compute in Integers)
+state_machine 'M': guard "speed > limt": 'limt' is no variable of the machine
+state_machine 'M': equation "y = pid(e, 2 N / 1 m, 1 N / 1 m, 0 s)": pid(...): ki*e*time is a quantity in kg·s^-1, kp*e a force
+```
+
+In an executed case, an `in` variable takes a value from a step on
+(`"100 ms: current = 1.5 A"`, in any unit of its dimension), and an
+expectation reads a variable as `"Charger".setpoint`, in its unit:
+
+```arclang
+expects: ["at(100 ms, \"Charger\".target) == 2 A", "max(\"Charger\".setpoint) <= 20 A"]
+```
+
+`arclang sil` compares every variable, step by step, with the model's,
+bit for bit by default (`tolerance: 0`).
 
 ## The API
 
@@ -266,14 +407,12 @@ when a case does not pass.
 
 Said plainly:
 
-- **Guards and actions are not code.** ArcLang writes guards and actions as
-  text; the generator makes the guards inputs and counts the actions. There
-  is no expression language for them yet (no variables, no arithmetic, no
-  assignment in an action), so no data flow is computed by the C.
-- **No continuous or discrete-time dynamics.** The language describes no
-  equations, filters or controllers (the Modelica export writes the
-  structure, the physics is hand-written); nothing of the kind is generated.
-  Only state machines are.
+- **No fixed point, no continuous time.** Variables are `bool`,
+  `int32_t`, `float` or `double` as declared; the data flow is discrete
+  (difference equations and the blocks above, at the step period).
+  Continuous dynamics stay in the Modelica export. Variables are not bound
+  to I/O channels yet (an `io_binding` binds events, conditions, states and
+  actions): a case that sets a variable runs without `binding:`.
 - **No functional chains, scenarios or functions** are generated as code:
   the debugger executes them, the generator does not.
 - **Timing with a trigger** (`trigger: "LF-EXEC" timing: 1500 ms`): the

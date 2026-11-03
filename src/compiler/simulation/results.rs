@@ -83,6 +83,14 @@ pub fn parse_unit(text: &str) -> Option<Unit> {
     if text.is_empty() {
         return None;
     }
+    modelica_unit(text).or_else(|| {
+        // A symbol of ArcLang's unit table (`Ah`, `km/h`): the unit of a
+        // variable of a state machine. Not one with an offset.
+        crate::compiler::quantity::lookup_unit(text).filter(|s| s.offset == 0.0).map(|s| Unit { factor: s.factor, dim: s.dimension.vector() })
+    })
+}
+
+fn modelica_unit(text: &str) -> Option<Unit> {
     let (numerator, denominator) = match text.split_once('/') {
         Some((n, d)) => (n, Some(d.trim_start_matches('(').trim_end_matches(')'))),
         None => (text, None),

@@ -33,11 +33,14 @@ pub struct Timer {
     pub micros: u64,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Guard {
     Always,
     Never,
     Condition(usize),
+    /// A guard that is an expression over the variables: its text, the key
+    /// of its code in the machine's program.
+    Code(String),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -104,6 +107,8 @@ pub struct MachinePlan {
     pub dispatch: Vec<(Trigger, Vec<usize>)>,
     pub max_depth: usize,
     pub notes: Vec<String>,
+    /// The C names of the variables, in the program's order.
+    pub variables: Vec<Signal>,
 }
 
 impl MachinePlan {
@@ -122,6 +127,15 @@ impl MachinePlan {
 
     pub fn action(&self, text: &str) -> Option<usize> {
         self.actions.iter().position(|a| a.text == text)
+    }
+
+    /// The variables and code of the machine.
+    pub fn program(&self) -> &crate::compiler::execution::expr::Program {
+        &self.machine.program
+    }
+
+    pub fn variable(&self, name: &str) -> Option<usize> {
+        self.machine.program.variable(name)
     }
 
     /// The state a reference names: its path, its id, or a name only one state has.
@@ -240,6 +254,8 @@ fn regions_of(source: &StateMachine, machine: &Machine) -> Vec<usize> {
 }
 
 pub fn plan_machine(source: &StateMachine, taken: &mut BTreeSet<String>) -> Result<MachinePlan, String> {
+    // A mistake in the code of the machine is an error here, not a note.
+    crate::compiler::execution::machine::compile(source)?;
     let machine = Machine::new(source);
     let what = format!("state_machine '{}'", source.name);
     let mut events = Vec::new();
@@ -252,7 +268,7 @@ pub fn plan_machine(source: &StateMachine, taken: &mut BTreeSet<String>) -> Resu
             Some(label) => push_unique(&mut events, label),
             None => {}
         }
-        if let Some(guard) = t.guard.as_deref().filter(|g| *g != "true" && *g != "false") {
+        if let Some(guard) = t.guard.as_deref().filter(|g| *g != "true" && *g != "false" && !machine.program.guards.contains_key(*g)) {
             push_unique(&mut conditions, guard);
         }
     }
@@ -314,6 +330,7 @@ pub fn plan_machine(source: &StateMachine, taken: &mut BTreeSet<String>) -> Resu
         let guard = match t.guard.as_deref() {
             None | Some("true") => Guard::Always,
             Some("false") => Guard::Never,
+            Some(text) if machine.program.guards.contains_key(text) => Guard::Code(text.to_string()),
             Some(text) => Guard::Condition(conditions.iter().position(|c| c.text == text).expect("collected")),
         };
         let trigger = match t.trigger.as_deref() {
@@ -366,6 +383,18 @@ pub fn plan_machine(source: &StateMachine, taken: &mut BTreeSet<String>) -> Resu
         }
     }
     let max_depth = (0..machine.states.len()).map(|s| machine.depth(s)).max().unwrap_or(1);
+    let mut variable_names = BTreeSet::new();
+    let variables: Vec<Signal> = machine
+        .program
+        .variables
+        .iter()
+        .map(|v| Signal { text: v.name.clone(), ident: unique(&mut variable_names, format!("v_{}", c_ident(&v.name))), member: v.name.clone() })
+        .collect();
+    for v in &variables {
+        if states.iter().any(|s| s.member == v.member) {
+            return Err(format!("{what}: variable '{}' has the name of a state: a result column reads either", v.text));
+        }
+    }
     let ident = unique(taken, c_name(&source.name));
     if machine.states.is_empty() {
         return Err(format!("{what} has no state: nothing to generate"));
@@ -387,6 +416,7 @@ pub fn plan_machine(source: &StateMachine, taken: &mut BTreeSet<String>) -> Resu
         timers,
         dispatch,
         max_depth,
+        variables,
     })
 }
 

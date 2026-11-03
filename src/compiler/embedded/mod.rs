@@ -15,6 +15,7 @@
 
 pub mod binding;
 pub mod case;
+pub mod cexpr;
 pub mod cgen;
 pub mod glue;
 pub mod plan;
@@ -32,6 +33,11 @@ pub fn default_period_us(bindings: &[binding::Binding]) -> u64 {
 /// executed cases (their machine, inputs, binding, the variables their
 /// expectations read) and the model-level verdict of each case, as warnings.
 pub fn check(ast: &Model) -> Result<Vec<String>, String> {
+    // The code of every machine: variables, equations, guards and actions
+    // that are expressions, typed and unit-checked.
+    for machine in &ast.state_machines {
+        crate::compiler::execution::machine::compile(machine)?;
+    }
     let executed = sil::cases(ast);
     if ast.io_bindings.is_empty() && executed.is_empty() {
         return Ok(Vec::new());
@@ -54,7 +60,7 @@ pub fn check(ast: &Model) -> Result<Vec<String>, String> {
             for variable in crate::compiler::simulation::expects::variables(&parsed) {
                 if !columns.contains(&variable) {
                     return Err(format!(
-                        "test_case '{}': '{variable}' is no state or action of the machines (a state reads `\"{}\".{}`, an action `\"{}\".action.<its text, other characters _>`)",
+                        "test_case '{}': '{variable}' is no state, action or variable of the machines (a state reads `\"{}\".{}`, an action `\"{}\".action.<its text, other characters _>`, a variable `\"Machine\".<its name>`)",
                         test.name,
                         plan.machines[case.machine].name,
                         plan.machines[case.machine].states[0].member,
@@ -86,8 +92,19 @@ pub fn export(ast: &Model) -> Result<(Vec<(String, String)>, Vec<String>), Strin
         if !m.conditions.is_empty() {
             notes.push(format!("state_machine '{}': {} guard(s) written in prose are inputs the caller sets (conditions)", m.name, m.conditions.len()));
         }
-        if !m.actions.is_empty() {
-            notes.push(format!("state_machine '{}': {} action(s) written in prose are reported (counted per step), not executed", m.name, m.actions.len()));
+        let code = m.actions.iter().filter(|a| m.program().actions.contains_key(a.text.trim())).count();
+        if m.actions.len() > code {
+            notes.push(format!("state_machine '{}': {} action(s) written in prose are reported (counted per step), not executed", m.name, m.actions.len() - code));
+        }
+        if code > 0 || !m.program().guards.is_empty() || !m.program().equations.is_empty() {
+            notes.push(format!(
+                "state_machine '{}': {} variable(s), {} equation(s), {} guard(s) and {} action(s) written as code are generated as C",
+                m.name,
+                m.program().variables.len(),
+                m.program().equations.len(),
+                m.program().guards.len(),
+                code
+            ));
         }
     }
     Ok((files, notes))

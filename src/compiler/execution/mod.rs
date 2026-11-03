@@ -9,6 +9,7 @@
 
 pub mod chain;
 pub mod dap;
+pub mod expr;
 pub mod debug_target;
 pub mod machine;
 pub mod scenario;

@@ -231,7 +231,7 @@ fn a_c_that_departs_from_the_model_is_detected() {
     let running = plan.machines[0].state("Running").unwrap();
     let inhibited = plan.machines[0].state("Inhibited").unwrap();
     let fire = generated.source.split("/* transition Starting -> Running */").nth(1).unwrap().split('}').next().unwrap().to_string();
-    let tampered = generated.source.replace(&fire, &fire.replace(&format!("_enter(st, out, {running}U)"), &format!("_enter(st, out, {inhibited}U)")));
+    let tampered = generated.source.replace(&fire, &fire.replace(&format!("_enter(st, in, out, {running}U)"), &format!("_enter(st, in, out, {inhibited}U)")));
     assert_ne!(tampered, generated.source);
     std::fs::write(dir.join(&generated.header_name), &generated.header).unwrap();
     std::fs::write(dir.join(&generated.source_name), &tampered).unwrap();
@@ -292,9 +292,9 @@ fn the_compiler_checks_the_executed_cases() {
     let ok_expect = r#""final(\"Remote start sequence\".Idle) == 1""#;
     let cases = [
         (case(r#"stop_time: 100 ms inputs: ["7 ms: LF-RX"]"#, ok_expect), "execute: input '7 ms: LF-RX' is not on the step grid (10000 us)"),
-        (case(r#"stop_time: 100 ms inputs: ["10 ms: LF-NOPE"]"#, ok_expect), "'LF-NOPE' is no event or condition of state_machine 'Remote start sequence'"),
+        (case(r#"stop_time: 100 ms inputs: ["10 ms: LF-NOPE"]"#, ok_expect), "'LF-NOPE' is no event, condition or input variable of state_machine 'Remote start sequence'"),
         (case(r#"stop_time: 100 ms inputs: ["200 ms: LF-RX"]"#, ok_expect), "comes after stop_time"),
-        (case(r#"stop_time: 100 ms"#, r#""final(\"Remote start sequence\".Flying) == 1""#), "'remote_start_sequence.Flying' is no state or action of the machines"),
+        (case(r#"stop_time: 100 ms"#, r#""final(\"Remote start sequence\".Flying) == 1""#), "'remote_start_sequence.Flying' is no state, action or variable of the machines"),
         (case(r#"stop_time: 100 ms speed: 3"#, ok_expect), "execute: 'speed' is not one of machine, step, stop_time, inputs, binding, tolerance"),
         (case(r#"inputs: []"#, ok_expect), "execute: stop_time is required"),
         (case(r#"stop_time: 100 ms binding: "Nope""#, ok_expect), "binding 'Nope' is no io_binding of the model"),
@@ -351,7 +351,7 @@ fn the_cli_exports_c_and_runs_sil() {
     let out = Command::new(exe).arg("sil").arg(example(CHARGER)).args(["--cc", &gcc(), "--json"]).output().unwrap();
     assert!(out.status.success(), "{}{}", String::from_utf8_lossy(&out.stdout), String::from_utf8_lossy(&out.stderr));
     let json: serde_json::Value = serde_json::from_slice(&out.stdout).unwrap();
-    assert_eq!(json.as_array().unwrap().len(), 2);
+    assert_eq!(json.as_array().unwrap().len(), 3);
     assert!(json.as_array().unwrap().iter().all(|o| o["verdict"] == "pass" && o["agrees"] == true), "{json}");
     // A failing case makes the command fail.
     let model = dir.join("failing.arc");
@@ -362,3 +362,153 @@ fn the_cli_exports_c_and_runs_sil() {
     assert!(stdout.contains("✗ FAIL  TC-ACC-SIL-WRONG") && stdout.contains("model: fail · C: fail · the C reproduces the model"), "{stdout}");
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+// ---- the action language -------------------------------------------------------------
+
+/// A machine exercising every operator, type, unit conversion and block,
+/// with inputs that hit the corners (saturation, division by zero, limits).
+const ARITHMETIC: &str = r#"model Arith { name: "arith" }
+requirements system { req "R-1" "Arithmetic" { description: "d" } }
+state_machine "Calc" {
+    variables: [
+        "in speed: Real [km/h]",
+        "in n: Integer",
+        "in d: Integer",
+        "in x: Float",
+        "in on: Boolean",
+        "out ms: Real [m/s]",
+        "out big: Integer = 2147483000",
+        "out q: Integer",
+        "out neg: Integer",
+        "out f: Float = 0.5",
+        "out lim: Real",
+        "out mx: Integer",
+        "out ab: Real",
+        "out held: Boolean",
+        "out late: Integer = 7",
+        "out acc: Real [m]",
+        "out u: Real",
+        "out count: Integer = 0",
+        "out fast: Boolean"
+    ]
+    equations: [
+        "ms = speed",
+        "big = big + n * 1000",
+        "q = n / d",
+        "neg = -n - 2147483647",
+        "f = f * 0.75 + x / 3",
+        "lim = saturate(speed / 1 km/h * 0.1, -2.5, 2.5)",
+        "mx = max(n, d) - min(n, 3) + abs(d)",
+        "ab = abs(ms / 1 m/s - 20)",
+        "held = delay(on)",
+        "late = delay(n, 7)",
+        "acc = integrator(ms, 1, 0 m, 1 m)",
+        "u = pid(1 - lim, 2, 4 Hz, 0.01 s)",
+        "fast = speed > 30 km/h and not (n == 0) or on"
+    ]
+    initial: "Slow"
+    state Slow { entry: "count := count + 1" }
+    state Fast { entry: ["count := count + 10", "beep"] do: "count := count + 1" }
+    transition Slow -> Fast { guard: "ms >= 10 m/s and count < 5" action: "count := count * 2" }
+    transition Fast -> Slow { trigger: "brake" guard: "speed < 20 km/h or on" }
+}
+test_case "TC-ARITH" {
+    verifies: ["R-1"]
+    execute: {
+        machine: "Calc"
+        stop_time: 300 ms
+        inputs: [
+            "0 s: speed = 10 km/h", "0 s: n = 3", "0 s: d = 0", "0 s: x = 1.5",
+            "50 ms: speed = 54 km/h", "60 ms: d = -2", "80 ms: n = 2000000",
+            "100 ms: on = true", "120 ms: x = -7.25", "150 ms: speed = 12 km/h",
+            "160 ms: brake", "200 ms: n = 0", "200 ms: on = false"
+        ]
+    }
+    expects: [
+        "R-1: at(40 ms, \"Calc\".ms) == 10 km/h",
+        "R-1: at(70 ms, \"Calc\".ms) == 15 m/s",
+        "R-1: final(\"Calc\".big) == 2147483647",
+        "R-1: at(40 ms, \"Calc\".q) == 0",
+        "R-1: at(70 ms, \"Calc\".q) == -1",
+        "R-1: at(80 ms, \"Calc\".neg) == -2147483648",
+        "R-1: max(\"Calc\".lim) == 2.5",
+        "R-1: max(\"Calc\".acc) == 1 m",
+        "R-1: at(100 ms, \"Calc\".held) == 0",
+        "R-1: at(110 ms, \"Calc\".held) == 1",
+        "R-1: at(80 ms, \"Calc\".late) == 3",
+        "R-1: at(90 ms, \"Calc\".late) == 2000000",
+        "R-1: at(60 ms, \"Calc\".Fast) == 1",
+        "R-1: at(170 ms, \"Calc\".Slow) == 1",
+        "R-1: at(50 ms, \"Calc\".count) == 13",
+        "R-1: at(50 ms, \"Calc\".action.beep) == 1"
+    ]
+}
+"#;
+
+#[test]
+fn the_action_language_runs_alike_in_the_model_and_in_the_c() {
+    let dir = work("arith-src");
+    let model = dir.join("arith.arc");
+    std::fs::write(&model, ARITHMETIC).unwrap();
+    let expected = model_verdicts(&model);
+    assert_eq!(expected[0].1.len(), 16);
+    assert!(expected[0].1.iter().all(|v| *v), "every expectation holds on the model: {expected:?}");
+    for cc in compilers() {
+        let outcomes = run_sil(&model, &cc, "arith");
+        let o = &outcomes[0];
+        assert_eq!(o.verdict, "pass", "{cc}: {}", o.reason);
+        let b2b = o.back_to_back.as_ref().unwrap();
+        // Bit for bit: Integer saturation, Float, unit conversions, the blocks.
+        assert!(b2b.first_mismatch.is_none() && b2b.max_difference == 0.0, "{cc}: {b2b:?}");
+    }
+    // The C: typed fields, saturating helpers, blocks, no contraction.
+    let result = compile_file(&model);
+    let plan = plan::plan(&result.ast).unwrap();
+    let generated = embedded::cgen::generate(&plan, 10_000);
+    for wanted in ["double v_speed; /* in variable \"speed\" [km/h]", "int32_t v_big;", "float v_f;", "bool v_on;", "static int32_t arc_add_i32", "static int32_t arc_div_i32", "#pragma STDC FP_CONTRACT OFF", "_pid_state blk_"] {
+        assert!(generated.header.contains(wanted) || generated.source.contains(wanted), "{wanted}");
+    }
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+fn machine_error(variables: &str, rest: &str) -> String {
+    let text = format!("model T {{ name: \"t\" }}\nstate_machine \"M\" {{\n  variables: [{variables}]\n  initial: \"A\"\n  state A {{}}\n  state B {{}}\n  {rest}\n}}\n");
+    compile_text(&text).err().unwrap_or_else(|| panic!("refused: {text}"))
+}
+
+#[test]
+fn the_compiler_checks_types_units_and_names_of_the_code() {
+    let cases = [
+        (r#""in speed: Real [km/h]""#, r#"transition A -> B { guard: "speed > 3 s" }"#, "guard \"speed > 3 s\": '>' between a speed and a time"),
+        (r#""in speed: Real [km/h]""#, r#"transition A -> B { guard: "speed + 1 km/h" }"#, "guard \"speed + 1 km/h\" is a Real, not a Boolean"),
+        (r#""in speed: Real [km/h]""#, r#"transition A -> B { guard: "speed > limt" }"#, "'limt' is no variable of the machine"),
+        (r#""n: Integer", "in speed: Real""#, r#"transition A -> B { action: "n := speed" }"#, "a Real assigned to Integer 'n'"),
+        (r#""in speed: Real""#, r#"transition A -> B { action: "speed := 1" }"#, "'speed' is an input (in)"),
+        (r#""const k: Real = 2""#, r#"transition A -> B { action: "k := 3" }"#, "'k' is a constant"),
+        (r#""on: Boolean""#, r#"transition A -> B { guard: "on + 1 > 0" }"#, "'+' between a Boolean and a Integer: it takes numbers"),
+        (r#""x: Real [V]""#, r#"transition A -> B { action: "x := 3 A" }"#, "a electric current assigned to 'x', a voltage"),
+        (r#""x: Complex""#, "", "'Complex' is not a type (Boolean, Integer, Real, Float)"),
+        (r#""x: Real", "x: Integer""#, "", "variable 'x' is declared twice"),
+        (r#""t: Real [°C]""#, "", "'°C' has an offset"),
+        (r#""in u: Real", "y: Real""#, r#"transition A -> B { action: "y := delay(u)" }"#, "delay(...) keeps a state from step to step: it is written in equations:"),
+    ];
+    for (variables, rest, expected) in cases {
+        let error = machine_error(variables, rest);
+        assert!(error.contains(expected), "{variables} {rest}\n  gives: {error}\n  wanted: {expected}");
+    }
+    let equations = |eqs: &str| {
+        let text = format!("model T {{ name: \"t\" }}\nstate_machine \"M\" {{\n  variables: [\"in e: Real [m]\", \"y: Real [N]\", \"z: Real\"]\n  equations: [{eqs}]\n  initial: \"A\"\n  state A {{}}\n}}\n");
+        compile_text(&text).err().unwrap_or_default()
+    };
+    assert!(equations(r#""y = pid(e, 2 N / 1 m, 1 N / 1 m, 0 s)""#).contains("pid(...): ki*e*time is a"), "{}", equations(r#""y = pid(e, 2 N / 1 m, 1 N / 1 m, 0 s)""#));
+    assert!(equations(r#""z = 1", "z = 2""#).contains("'z' is already computed by"));
+    assert!(equations(r#""y = e""#).contains("a length assigned to 'y', a force"));
+    assert!(equations(r#""z = delay(delay(e / 1 m))""#).contains("inside the arguments of a block"));
+    // Prose stays prose: a machine with variables keeps its text guards and actions.
+    let text = "model T { name: \"t\" }\nstate_machine \"M\" {\n  variables: [\"n: Integer\"]\n  initial: \"A\"\n  state A {}\n  state B {}\n  transition A -> B { trigger: \"go\" guard: \"lead vehicle in range\" action: \"close contactors\" }\n}\n";
+    let result = compile_text(text).unwrap();
+    let plan = plan::plan(&result.ast).unwrap();
+    assert_eq!(plan.machines[0].conditions.len(), 1);
+    assert!(plan.machines[0].program().guards.is_empty() && plan.machines[0].program().actions.is_empty());
+}
+

@@ -12,8 +12,15 @@
 //! - firing exits the active states under the source (deepest first, exit
 //!   actions), runs the action, then enters the target and its initial
 //!   states. A transition from a state to itself exits and re-enters it.
+//!
+//! A machine may declare typed variables and equations (`variables:`,
+//! `equations:`, see `expr`): a guard that is an expression over them is
+//! evaluated, an action that assigns them is executed when it runs (exit,
+//! transition, entry actions, in that order). Guards and actions in prose
+//! stay conditions the reader sets and actions reported.
 
-use crate::compiler::ast::{State, StateMachine, Transition};
+use super::expr::{self, Env, Program};
+use crate::compiler::ast::{AttributeValue, State, StateMachine, Transition};
 use serde::Serialize;
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -78,6 +85,59 @@ pub struct Machine {
     /// What the machine says that the compiler did not decide (an initial
     /// state missing, a reference that names no state).
     pub notes: Vec<String>,
+    /// Its variables, equations, guards and actions as code.
+    pub program: Program,
+    /// The values of its variables and the states of its blocks.
+    pub env: Env,
+}
+
+fn strings(value: Option<&AttributeValue>) -> Vec<String> {
+    match value {
+        Some(AttributeValue::List(items)) => items.iter().map(|i| i.as_string().map(str::to_string).unwrap_or_else(|| i.display())).collect(),
+        Some(AttributeValue::String(one)) => vec![one.clone()],
+        Some(other) => vec![other.display()],
+        None => Vec::new(),
+    }
+}
+
+/// The program of a machine: its `variables:` and `equations:`, and every
+/// guard and action that is code. An error is a mistake in the code (a
+/// type, a unit, a name).
+pub fn compile(machine: &StateMachine) -> Result<Program, String> {
+    let what = format!("state_machine '{}'", machine.name);
+    let mut program = expr::program(&strings(machine.attributes.get("variables")), &strings(machine.attributes.get("equations"))).map_err(|e| format!("{what}: {e}"))?;
+    if program.is_empty() {
+        return Ok(program);
+    }
+    fn states_of<'a>(states: &'a [State], out: &mut Vec<&'a State>) {
+        for s in states {
+            out.push(s);
+            states_of(&s.sub_states, out);
+        }
+    }
+    let mut states = Vec::new();
+    states_of(&machine.states, &mut states);
+    let mut actions: Vec<String> = Vec::new();
+    for s in &states {
+        actions.extend(s.entry_actions.iter().chain(&s.exit_actions).cloned());
+        actions.extend(strings(s.attributes.get("do")));
+    }
+    let mut guards = Vec::new();
+    for t in &machine.transitions {
+        actions.extend(t.action.iter().cloned());
+        guards.extend(t.guard.iter().cloned());
+    }
+    for guard in guards.iter().map(|g| g.trim()).filter(|g| !g.is_empty()) {
+        if let Some(e) = program.guard(guard).map_err(|e| format!("{what}: {e}"))? {
+            program.guards.insert(guard.to_string(), e);
+        }
+    }
+    for action in actions.iter().map(|a| a.trim()).filter(|a| !a.is_empty()) {
+        if let Some(code) = program.action(action).map_err(|e| format!("{what}: {e}"))? {
+            program.actions.insert(action.to_string(), code);
+        }
+    }
+    Ok(program)
 }
 
 fn add_states(states: &[State], parent: Option<usize>, prefix: &str, out: &mut Vec<StateNode>) -> Vec<usize> {
@@ -108,6 +168,9 @@ fn add_states(states: &[State], parent: Option<usize>, prefix: &str, out: &mut V
     ids
 }
 
+/// The period the blocks integrate over until a run sets one (10 ms).
+pub const DEFAULT_PERIOD_US: u64 = 10_000;
+
 impl Machine {
     /// Build the machine; it is not started.
     pub fn new(machine: &StateMachine) -> Machine {
@@ -123,7 +186,12 @@ impl Machine {
                 regions.push((region.initial.clone(), ids));
             }
         }
-        let mut built = Machine { name: machine.name.clone(), states, transitions: Vec::new(), tops: Vec::new(), active: BTreeSet::new(), conditions: BTreeMap::new(), notes: Vec::new() };
+        let program = compile(machine).unwrap_or_else(|e| {
+            notes.push(format!("{e}: the machine runs without its code"));
+            Program::default()
+        });
+        let env = Env::new(&program, DEFAULT_PERIOD_US);
+        let mut built = Machine { name: machine.name.clone(), states, transitions: Vec::new(), tops: Vec::new(), active: BTreeSet::new(), conditions: BTreeMap::new(), notes: Vec::new(), program, env };
         for (initial, ids) in &regions {
             match built.pick_initial(initial, ids) {
                 Some(first) => built.tops.push(first),
@@ -225,12 +293,52 @@ impl Machine {
 
     /// Enter `state` (its ancestors are active) and the initial states under it.
     fn enter(&mut self, state: usize, step: &mut Step) {
-        self.active.insert(state);
-        step.entered.push(self.states[state].path.clone());
-        step.actions.extend(self.states[state].entry.iter().map(|a| format!("entry {}: {a}", self.states[state].path)));
+        self.enter_one(state, step);
         if let Some(first) = self.states[state].initial {
             self.enter(first, step);
         }
+    }
+
+    /// Enter `state` alone: active, its entry actions run.
+    fn enter_one(&mut self, state: usize, step: &mut Step) {
+        self.active.insert(state);
+        step.entered.push(self.states[state].path.clone());
+        for a in self.states[state].entry.clone() {
+            step.actions.push(format!("entry {}: {a}", self.states[state].path));
+            self.run(&a);
+        }
+    }
+
+    /// Run an action that is code (nothing for prose).
+    pub fn run(&mut self, action: &str) {
+        if let Some(code) = self.program.actions.get(action.trim()) {
+            expr::execute(&self.program, &mut self.env, code);
+        }
+    }
+
+    /// Evaluate the equations (the data flow of one step).
+    pub fn flow(&mut self) {
+        expr::flow(&self.program, &mut self.env);
+    }
+
+    /// Run the `do:` activities of the active states, in the order of the
+    /// states; what ran, as (state, activity).
+    pub fn activities(&mut self) -> Vec<(usize, String)> {
+        let mut ran = Vec::new();
+        for s in 0..self.states.len() {
+            if self.active.contains(&s) {
+                for a in self.states[s].activity.clone() {
+                    self.run(&a);
+                    ran.push((s, a));
+                }
+            }
+        }
+        ran
+    }
+
+    /// The step period the blocks integrate over.
+    pub fn set_period(&mut self, period_us: u64) {
+        self.env.period = expr::period_seconds(period_us);
     }
 
     /// Exit `state` and every active state under it, deepest first.
@@ -242,13 +350,24 @@ impl Machine {
         }
         if self.active.remove(&state) {
             step.exited.push(self.states[state].path.clone());
-            step.actions.extend(self.states[state].exit.iter().map(|a| format!("exit {}: {a}", self.states[state].path)));
+            for a in self.states[state].exit.clone() {
+                step.actions.push(format!("exit {}: {a}", self.states[state].path));
+                self.run(&a);
+            }
         }
     }
 
     /// Enter the initial state of every top-level region.
     pub fn start(&mut self) -> Step {
         self.active.clear();
+        // The variables start again from their initial values; the inputs
+        // keep what the caller set.
+        let mut env = Env::new(&self.program, DEFAULT_PERIOD_US);
+        env.period = self.env.period;
+        for (i, _) in self.program.inputs() {
+            env.values[i] = self.env.values[i];
+        }
+        self.env = env;
         let mut step = Step::default();
         for top in self.tops.clone() {
             self.enter(top, &mut step);
@@ -262,13 +381,19 @@ impl Machine {
             None => true,
             Some("true") => true,
             Some("false") => false,
-            Some(text) => self.conditions.get(text).copied().unwrap_or(false),
+            Some(text) => match self.program.guards.get(text) {
+                Some(code) => {
+                    let mut env = self.env.clone();
+                    expr::eval(&self.program, &mut env, code) == expr::Value::Bool(true)
+                }
+                None => self.conditions.get(text).copied().unwrap_or(false),
+            },
         }
     }
 
-    /// The conditions of the guards of the machine: their text, set or not.
+    /// The conditions of the guards of the machine (those in prose): their text, set or not.
     pub fn guards(&self) -> Vec<String> {
-        let mut out: Vec<String> = self.transitions.iter().filter_map(|t| t.guard.clone()).filter(|g| g != "true" && g != "false").collect();
+        let mut out: Vec<String> = self.transitions.iter().filter_map(|t| t.guard.clone()).filter(|g| g != "true" && g != "false" && !self.program.guards.contains_key(g)).collect();
         out.sort();
         out.dedup();
         out
@@ -356,6 +481,7 @@ impl Machine {
             }
             if let Some(action) = &t.action {
                 step.actions.push(format!("do {}: {action}", t.label));
+                self.run(action);
             }
             if t.source == t.target {
                 self.enter(t.target, &mut step);
@@ -365,9 +491,7 @@ impl Machine {
                     if n + 1 == entry_path.len() {
                         self.enter(state, &mut step);
                     } else {
-                        self.active.insert(state);
-                        step.entered.push(self.states[state].path.clone());
-                        step.actions.extend(self.states[state].entry.iter().map(|a| format!("entry {}: {a}", self.states[state].path)));
+                        self.enter_one(state, &mut step);
                     }
                 }
             }
