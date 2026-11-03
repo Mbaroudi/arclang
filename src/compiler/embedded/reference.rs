@@ -189,7 +189,7 @@ pub fn run(plan: &Plan, vectors: &Vectors, period_us: u64) -> Table {
                     Trigger::Timer(tm) => {
                         let timer = &r.plan.timers[tm];
                         let wait = ticks(timer.micros, period_us);
-                        let timed: Vec<usize> = r.plan.transitions.iter().filter(|t| t.trigger == Trigger::Timer(tm)).map(|t| t.index).collect();
+                        let timed: Vec<usize> = r.plan.compounds.iter().filter(|c| c.trigger == Trigger::Timer(tm)).map(|c| r.plan.transitions[c.compound.head].index).collect();
                         let in_state = r.in_state.clone();
                         let keep = move |t: &crate::compiler::execution::machine::TransitionNode| timed.contains(&t.index) && in_state[t.source] >= wait;
                         r.machine.fire_where(Some(&timer.label), &keep)

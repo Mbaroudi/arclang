@@ -340,7 +340,9 @@ fn plain(html: &str) -> String {
             _ => {}
         }
     }
-    out.replace("&nbsp;", " ").split_whitespace().collect::<Vec<_>>().join(" ")
+    // The characters linked text escapes, once its tags are gone.
+    let out = out.replace("&nbsp;", " ").replace("&lt;", "<").replace("&gt;", ">").replace("&quot;", "\"").replace("&#39;", "'").replace("&amp;", "&");
+    out.split_whitespace().collect::<Vec<_>>().join(" ")
 }
 
 /// A Capella name as an ArcLang attribute key: lowercase words joined by

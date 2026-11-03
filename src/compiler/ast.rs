@@ -1116,6 +1116,12 @@ pub struct State {
     /// Every attribute written (`kind:` for a pseudo-state, property values...).
     #[serde(default)]
     pub attributes: HashMap<String, AttributeValue>,
+    /// The orthogonal regions the state opens, written as `region` blocks
+    /// inside it, each with its initial state; their states are in
+    /// `sub_states` too, their transitions in the machine's flat list. Empty
+    /// for a state holding one region (its sub-states).
+    #[serde(default)]
+    pub regions: Vec<Region>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]

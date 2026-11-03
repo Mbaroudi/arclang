@@ -8,7 +8,8 @@
 //! and reports the states active; it never touches a register.
 
 use super::cexpr::{self, Access, Helpers};
-use super::plan::{Guard, Kind, MachinePlan, Plan, Trigger};
+use super::plan::{Guard, MachinePlan, Plan, Trigger};
+use crate::compiler::execution::machine::{Alternative, EntryOp, Next, Segment};
 use crate::compiler::execution::expr::{BlockKind, Direction};
 use std::fmt::Write as _;
 
@@ -101,6 +102,18 @@ fn header(plan: &Plan, default_period_us: u64) -> String {
         for b in 0..program.blocks.len() {
             let _ = writeln!(out, "    {} blk_{b}; /* the state of a block of the equations */", super::cexpr::block_field(program, b, &pid_type(plan)));
         }
+        for (h, deep, owner, (lo, hi)) in m.histories() {
+            let what = format!("{} of {}", m.states[h].path, m.states[owner].path);
+            if deep {
+                let _ = writeln!(out, "    bool has_{h}; /* deep history {}: remembered */
+    bool deep_{h}[{}]; /* its region's active states when last exited */", comment(&what), hi - lo + 1);
+            } else {
+                let _ = writeln!(out, "    uint16_t hist_{h}; /* shallow history {}: the state last active in its region */", comment(&what));
+            }
+        }
+        if m.terminates() {
+            let _ = writeln!(out, "    bool terminated; /* a terminate pseudo-state was reached */");
+        }
         let _ = writeln!(out, "}} {t}_state;\n");
     }
     let p = &plan.ident;
@@ -122,15 +135,6 @@ fn header(plan: &Plan, default_period_us: u64) -> String {
     );
     let _ = writeln!(out, "#ifdef __cplusplus\n}}\n#endif\n\n#endif /* {guard} */");
     out
-}
-
-fn guard_expr(m: &MachinePlan, guard: &Guard, access: &Access, h: &mut Helpers) -> Option<String> {
-    match guard {
-        Guard::Always => Some(String::new()),
-        Guard::Never => None,
-        Guard::Condition(i) => Some(format!(" && in->{}", m.conditions[*i].ident)),
-        Guard::Code(text) => Some(format!(" && {}", access.expr(&m.program().guards[text], h))),
-    }
 }
 
 /// The code of an action, when it is code, as lines at `indent`.
@@ -155,6 +159,16 @@ fn source(plan: &Plan) -> String {
         for (n, v) in program.variables.iter().enumerate().filter(|(_, v)| v.direction != Direction::In) {
             let _ = writeln!(body, "    state->{i}.{} = {};", m.variables[n].ident, cexpr::constant(v.initial));
         }
+        for (h, deep, _, (lo, hi)) in m.histories() {
+            if deep {
+                let _ = writeln!(body, "    state->{i}.has_{h} = false;\n    for (k = 0U; k < {}U; k++) {{\n        state->{i}.deep_{h}[k] = false;\n    }}", hi - lo + 1);
+            } else {
+                let _ = writeln!(body, "    state->{i}.hist_{h} = NO_STATE;");
+            }
+        }
+        if m.terminates() {
+            let _ = writeln!(body, "    state->{i}.terminated = false;");
+        }
         for (b, block) in program.blocks.iter().enumerate() {
             match block.kind {
                 BlockKind::Delay => {
@@ -176,11 +190,7 @@ fn source(plan: &Plan) -> String {
         for a in &m.actions {
             let _ = writeln!(body, "    outputs->{i}.{} = 0U;", a.ident);
         }
-        let _ = writeln!(body, "    if (starting) {{");
-        for &top in &m.machine.tops {
-            let _ = writeln!(body, "        {i}_enter(&state->{i}, &inputs->{i}, &outputs->{i}, {top}U); /* {} */", comment(&m.states[top].path));
-        }
-        let _ = writeln!(body, "    }}\n    {i}_run(&state->{i}, &inputs->{i}, &outputs->{i});");
+        let _ = writeln!(body, "    if (starting) {{\n        {i}_start(&state->{i}, &inputs->{i}, &outputs->{i});\n    }}\n    {i}_run(&state->{i}, &inputs->{i}, &outputs->{i});");
         for (n, s) in m.states.iter().enumerate() {
             let _ = writeln!(body, "    outputs->{i}.{} = state->{i}.active[{n}];", s.ident);
         }
@@ -206,20 +216,118 @@ fn source(plan: &Plan) -> String {
     out
 }
 
+fn guard_c(m: &MachinePlan, text: &str, access: &Access, h: &mut Helpers) -> String {
+    match m.guard(text) {
+        Guard::Always => "true".to_string(),
+        Guard::Never => "false".to_string(),
+        Guard::Condition(c) => format!("in->{}", m.conditions[c].ident),
+        Guard::Code(code) => access.expr(&m.program().guards[&code], h),
+    }
+}
+
+/// The guards of a branch and of the choices after it, as one C condition.
+fn holds_c(m: &MachinePlan, guards: &[String], segment: &Segment, access: &Access, h: &mut Helpers) -> String {
+    let mut parts: Vec<String> = guards.iter().filter(|g| m.guard(g) != Guard::Always).map(|g| guard_c(m, g, access, h)).collect();
+    if let Next::Choice { branches, .. } = &segment.next {
+        let any: Vec<String> = branches.iter().map(|b| holds_c(m, &b.guards, &b.segment, access, h)).collect();
+        if !any.iter().any(|a| a == "true") {
+            parts.push(format!("({})", any.join(" || ")));
+        }
+    }
+    match parts.len() {
+        0 => "true".to_string(),
+        1 => parts.remove(0),
+        _ => parts.iter().map(|p| if p.starts_with('(') { p.clone() } else { format!("({p})") }).collect::<Vec<_>>().join(" && "),
+    }
+}
+
+fn never(m: &MachinePlan, guards: &[String]) -> bool {
+    guards.iter().any(|g| m.guard(g) == Guard::Never)
+}
+
+fn transition_actions(m: &MachinePlan, transitions: &[usize], indent: &str, access: &Access, h: &mut Helpers, out: &mut String) {
+    for &t in transitions {
+        if let Some(a) = m.transitions[t].action {
+            let id = &m.actions[a].ident;
+            let _ = writeln!(out, "{indent}out->{id} = counted(out->{id}); /* {}: {} */", comment(&m.transitions[t].label), comment(&m.actions[a].text));
+            action_code(m, a, indent, access, h, out);
+        }
+    }
+}
+
+fn entry_c(m: &MachinePlan, ops: &[EntryOp], indent: &str, access: &Access, h: &mut Helpers, out: &mut String) {
+    let i = &m.ident;
+    for op in ops {
+        match op {
+            EntryOp::Enter(s) => {
+                let _ = writeln!(out, "{indent}{i}_enter_one(st, in, out, {s}U); /* {} */", comment(&m.states[*s].path));
+            }
+            EntryOp::Action(t) => transition_actions(m, &[*t], indent, access, h, out),
+            EntryOp::History { pseudo, default } => {
+                let deep = m.histories().into_iter().find(|x| x.0 == *pseudo);
+                match deep {
+                    Some((p, true, _, (lo, hi))) => {
+                        let _ = writeln!(out, "{indent}if (st->has_{p}) {{ /* deep history {} */\n{indent}    uint16_t k;\n{indent}    for (k = {lo}U; k <= {hi}U; k++) {{\n{indent}        if (st->deep_{p}[k - {lo}U]) {{\n{indent}            {i}_enter_one(st, in, out, k);\n{indent}        }}\n{indent}    }}\n{indent}}} else {{", comment(&m.states[p].path));
+                    }
+                    Some((p, false, _, _)) => {
+                        let _ = writeln!(out, "{indent}if (st->hist_{p} != NO_STATE) {{ /* shallow history {} */\n{indent}    {i}_enter_default(st, in, out, st->hist_{p});\n{indent}}} else {{", comment(&m.states[p].path));
+                    }
+                    None => {
+                        let _ = writeln!(out, "{indent}{{");
+                    }
+                }
+                entry_c(m, default, &format!("{indent}    "), access, h, out);
+                let _ = writeln!(out, "{indent}}}");
+            }
+        }
+    }
+}
+
+fn segment_c(m: &MachinePlan, segment: &Segment, indent: &str, access: &Access, h: &mut Helpers, out: &mut String) {
+    let i = &m.ident;
+    for &(lo, hi) in &segment.exit {
+        let _ = writeln!(out, "{indent}{i}_exit_range(st, in, out, {lo}U, {hi}U);");
+    }
+    transition_actions(m, &segment.transitions, indent, access, h, out);
+    match &segment.next {
+        Next::Enter(ops) => entry_c(m, ops, indent, access, h, out),
+        Next::Terminate => {
+            let _ = writeln!(out, "{indent}{{ /* terminate: no exit action, nothing active any more */\n{indent}    uint16_t k;\n{indent}    for (k = 0U; k < {}U; k++) {{\n{indent}        st->active[k] = false;\n{indent}    }}\n{indent}    st->terminated = true;\n{indent}}}", m.states.len());
+        }
+        Next::Choice { pseudo, branches } => {
+            let _ = writeln!(out, "{indent}/* choice {}: the first branch that holds now, else the first */", comment(&m.states[*pseudo].path));
+            if branches.len() == 1 {
+                segment_c(m, &branches[0].segment, indent, access, h, out);
+                return;
+            }
+            for (n, b) in branches.iter().enumerate() {
+                let cond = holds_c(m, &b.guards, &b.segment, access, h);
+                let _ = writeln!(out, "{indent}{}if ({cond}) {{", if n == 0 { "" } else { "} else " });
+                segment_c(m, &b.segment, &format!("{indent}    "), access, h, out);
+            }
+            let _ = writeln!(out, "{indent}}} else {{");
+            segment_c(m, &branches[0].segment, &format!("{indent}    "), access, h, out);
+            let _ = writeln!(out, "{indent}}}");
+        }
+    }
+}
+
 fn machine_source(plan: &Plan, m: &MachinePlan, h: &mut Helpers, out: &mut String) {
     let t = type_prefix(plan, m);
     let i = &m.ident;
     let n = m.states.len();
-    let depth = m.max_depth;
     let st = format!("{t}_state");
     let inp = format!("{t}_inputs");
     let o = format!("{t}_outputs");
     let period = period_macro(plan);
     let access = Access { machine: m, state: "st", inputs: "in", period: &period };
+    let histories = m.histories();
+    let shallow = histories.iter().any(|x| !x.1);
     let _ = writeln!(out, "/* ---- state_machine \"{}\" ---- */\n", comment(&m.name));
-    let _ = writeln!(out, "/* States, by index:");
+    let _ = writeln!(out, "/* States, by index (a state, then the states of its regions):");
     for (k, s) in m.states.iter().enumerate() {
-        let _ = writeln!(out, "     {k}: {}", comment(&s.path));
+        let pseudo = m.machine.states[k].pseudo.map(|p| format!(" (pseudo-state: {p:?}, never active)")).unwrap_or_default();
+        let _ = writeln!(out, "     {k}: {}{}", comment(&s.path), comment(&pseudo));
     }
     let _ = writeln!(out, "*/");
     for note in &m.notes {
@@ -227,11 +335,25 @@ fn machine_source(plan: &Plan, m: &MachinePlan, h: &mut Helpers, out: &mut Strin
     }
     let list = |values: Vec<String>| values.join(", ");
     let index = |v: Option<usize>| v.map(|x| format!("{x}U")).unwrap_or_else(|| "NO_STATE".to_string());
-    let has_transitions = !m.transitions.is_empty();
-    if has_transitions {
+    if !histories.is_empty() {
         let _ = writeln!(out, "static const uint16_t {i}_parent[{n}] = {{ {} }};", list(m.states.iter().map(|s| index(s.parent)).collect()));
     }
-    let _ = writeln!(out, "static const uint16_t {i}_initial[{n}] = {{ {} }};\n", list(m.states.iter().map(|s| index(s.initial)).collect()));
+    if shallow {
+        let _ = writeln!(out, "static const uint16_t {i}_last[{n}] = {{ {} }};", list(m.machine.states.iter().map(|s| format!("{}U", s.last)).collect()));
+        // Whether a state is the initial state of its region.
+        let starts: Vec<String> = (0..n)
+            .map(|k| {
+                let node = &m.machine.states[k];
+                let first = match node.parent {
+                    Some(p) => m.machine.states[p].regions[node.region].initial,
+                    None => m.machine.top_regions[node.region].initial,
+                };
+                (if first == Some(k) { "true" } else { "false" }).to_string()
+            })
+            .collect();
+        let _ = writeln!(out, "static const bool {i}_starts[{n}] = {{ {} }};", list(starts));
+    }
+    let _ = writeln!(out);
     let actions_fn = |name: &str, pick: &dyn Fn(&super::plan::StatePlan) -> &Vec<usize>, out: &mut String, h: &mut Helpers| {
         let _ = writeln!(out, "static void {i}_{name}({st} *st, const {inp} *in, {o} *out, uint16_t s)\n{{");
         let cases: Vec<(usize, &Vec<usize>)> = m.states.iter().enumerate().map(|(k, s)| (k, pick(s))).filter(|(_, a)| !a.is_empty()).collect();
@@ -255,46 +377,51 @@ fn machine_source(plan: &Plan, m: &MachinePlan, h: &mut Helpers, out: &mut Strin
     };
     actions_fn("entry_actions", &|s| &s.entry, out, h);
     let _ = writeln!(out, "static void {i}_enter_one({st} *st, const {inp} *in, {o} *out, uint16_t s)\n{{\n    st->active[s] = true;\n    st->in_state[s] = 0U;\n    {i}_entry_actions(st, in, out, s);\n}}\n");
-    let _ = writeln!(
-        out,
-        "/* Enter s and the initial states under it, down to a leaf. */\nstatic void {i}_enter({st} *st, const {inp} *in, {o} *out, uint16_t s)\n{{\n    uint16_t current = s;\n    uint16_t level;\n    for (level = 0U; level < {depth}U; level++) {{\n        {i}_enter_one(st, in, out, current);\n        if ({i}_initial[current] == NO_STATE) {{\n            break;\n        }}\n        current = {i}_initial[current];\n    }}\n}}\n"
-    );
-    if has_transitions {
-        actions_fn("exit_actions", &|s| &s.exit, out, h);
+    if shallow {
         let _ = writeln!(
             out,
-            "/* Exit s and the active states under it, deepest first. */\nstatic void {i}_exit({st} *st, const {inp} *in, {o} *out, uint16_t s)\n{{\n    uint16_t leaf = s;\n    uint16_t level;\n    uint16_t k;\n    bool deeper;\n    for (level = 0U; level < {depth}U; level++) {{\n        deeper = false;\n        for (k = 0U; k < {n}U; k++) {{\n            if (({i}_parent[k] == leaf) && st->active[k]) {{\n                leaf = k;\n                deeper = true;\n                break;\n            }}\n        }}\n        if (!deeper) {{\n            break;\n        }}\n    }}\n    for (level = 0U; level < {depth}U; level++) {{\n        if (st->active[leaf]) {{\n            st->active[leaf] = false;\n            {i}_exit_actions(st, in, out, leaf);\n        }}\n        if ((leaf == s) || ({i}_parent[leaf] == NO_STATE)) {{\n            break;\n        }}\n        leaf = {i}_parent[leaf];\n    }}\n}}\n"
+            "/* Enter s and the initial states of the regions under it, in the order of the states. */\nstatic void {i}_enter_default({st} *st, const {inp} *in, {o} *out, uint16_t s)\n{{\n    uint16_t k;\n    {i}_enter_one(st, in, out, s);\n    for (k = (uint16_t)(s + 1U); k <= {i}_last[s]; k++) {{\n        if ({i}_starts[k] && st->active[{i}_parent[k]]) {{\n            {i}_enter_one(st, in, out, k);\n        }}\n    }}\n}}\n"
         );
     }
-    for (k, tr) in m.transitions.iter().enumerate() {
-        if tr.guard == Guard::Never {
-            continue;
-        }
-        let ends = format!("{} -> {}", m.states[tr.source].path, m.states[tr.target].path);
-        let title = if tr.label.contains("->") { ends } else { format!("{} ({ends})", tr.label) };
-        let _ = writeln!(out, "/* transition {} */\nstatic void {i}_fire_{k}({st} *st, const {inp} *in, {o} *out)\n{{", comment(&title));
-        match tr.kind {
-            Kind::Inner => {
-                for &child in &m.states[tr.source].children {
-                    let _ = writeln!(out, "    if (st->active[{child}]) {{\n        {i}_exit(st, in, out, {child}U);\n    }}");
-                }
+    if !m.compounds.is_empty() {
+        actions_fn("exit_actions", &|s| &s.exit, out, h);
+        let _ = writeln!(out, "/* Exit the active states of lo..hi, the last first; the history of a state exited is kept first. */\nstatic void {i}_exit_range({st} *st, const {inp} *in, {o} *out, uint16_t lo, uint16_t hi)\n{{\n    uint16_t n;\n    uint16_t k;");
+        for &(p, deep, owner, (lo, hi)) in &histories {
+            let low = if owner == 0 { String::new() } else { format!("(lo <= {owner}U) && ") };
+            let _ = writeln!(out, "    if ({low}({owner}U <= hi) && st->active[{owner}]) {{");
+            if deep {
+                let _ = writeln!(out, "        bool any = false;\n        for (k = {lo}U; k <= {hi}U; k++) {{\n            if (st->active[k]) {{\n                any = true;\n            }}\n        }}\n        if (any) {{\n            for (k = {lo}U; k <= {hi}U; k++) {{\n                st->deep_{p}[k - {lo}U] = st->active[k];\n            }}\n            st->has_{p} = true;\n        }}");
+            } else {
+                let _ = writeln!(out, "        for (k = {lo}U; k <= {hi}U; k++) {{\n            if (st->active[k] && ({i}_parent[k] == {owner}U)) {{\n                st->hist_{p} = k;\n                break;\n            }}\n        }}");
             }
-            _ => {
-                let _ = writeln!(out, "    {i}_exit(st, in, out, {}U);", tr.exit_from);
-            }
+            let _ = writeln!(out, "    }}");
         }
-        if let Some(a) = tr.action {
-            let id = &m.actions[a].ident;
-            let _ = writeln!(out, "    out->{id} = counted(out->{id}); /* {} */", comment(&m.actions[a].text));
-            action_code(m, a, "    ", &access, h, out);
-        }
-        if tr.kind == Kind::SelfLoop {
-            let _ = writeln!(out, "    {i}_enter(st, in, out, {}U);", tr.target);
+        let _ = writeln!(out, "    for (n = 0U; n <= (uint16_t)(hi - lo); n++) {{\n        k = (uint16_t)(hi - n);\n        if (st->active[k]) {{\n            st->active[k] = false;\n            {i}_exit_actions(st, in, out, k);\n        }}\n    }}\n}}\n");
+    }
+    // The start: the initial state of every top-level region, down to the leaves.
+    let _ = writeln!(out, "static void {i}_start({st} *st, const {inp} *in, {o} *out)\n{{");
+    for &top in &m.machine.tops {
+        entry_c(m, &m.machine.default_entry(top), "    ", &access, h, out);
+    }
+    let _ = writeln!(out, "}}\n");
+    for (c, cp) in m.compounds.iter().enumerate() {
+        let compound = &cp.compound;
+        let head = &m.transitions[compound.head];
+        let ends = format!("{} -> {}", m.states[head.source].path, m.states[head.target].path);
+        let title = if head.label.contains("->") { ends } else { format!("{} ({ends})", head.label) };
+        let _ = writeln!(out, "/* transition {} */\nstatic void {i}_fire_{c}({st} *st, const {inp} *in, {o} *out, uint8_t alternative)\n{{\n    (void)in;\n    (void)out;", comment(&title));
+        let live: Vec<(usize, &Alternative)> = compound.alternatives.iter().enumerate().filter(|(_, a)| !never(m, &a.guards)).collect();
+        if live.len() == 1 {
+            let _ = writeln!(out, "    (void)alternative;");
+            segment_c(m, &live[0].1.segment, "    ", &access, h, out);
         } else {
-            for (step, &s) in tr.entry_path.iter().enumerate() {
-                let call = if step + 1 == tr.entry_path.len() { "enter" } else { "enter_one" };
-                let _ = writeln!(out, "    {i}_{call}(st, in, out, {s}U);");
+            let _ = writeln!(out, "    switch (alternative) {{");
+            for (a, alt) in &live {
+                let _ = writeln!(out, "    case {}U:", a + 1);
+                segment_c(m, &alt.segment, "        ", &access, h, out);
+                let _ = writeln!(out, "        break;");
             }
+            let _ = writeln!(out, "    default:\n        break;\n    }}");
         }
         let _ = writeln!(out, "}}\n");
     }
@@ -306,6 +433,9 @@ fn run_source(plan: &Plan, m: &MachinePlan, access: &Access, h: &mut Helpers, ou
     let i = &m.ident;
     let n = m.states.len();
     let _ = writeln!(out, "static void {i}_run({t}_state *st, const {t}_inputs *in, {t}_outputs *out)\n{{\n    uint16_t k;\n    (void)in;\n    (void)out;");
+    if m.terminates() {
+        let _ = writeln!(out, "    if (st->terminated) {{\n        return;\n    }}");
+    }
     if !m.program().equations.is_empty() {
         let _ = writeln!(out, "    /* equations, in the order written */");
         for e in &m.program().equations {
@@ -314,7 +444,7 @@ fn run_source(plan: &Plan, m: &MachinePlan, access: &Access, h: &mut Helpers, ou
         }
     }
     for (trigger, order) in &m.dispatch {
-        let live: Vec<usize> = order.iter().copied().filter(|&k| m.transitions[k].guard != Guard::Never).collect();
+        let live: Vec<usize> = order.iter().copied().filter(|&c| m.compounds[c].compound.alternatives.iter().any(|a| !never(m, &a.guards))).collect();
         let (title, condition) = match trigger {
             Trigger::Event(e) => (format!("event \"{}\"", comment(&m.events[*e].text)), format!("in->{}", m.events[*e].ident)),
             Trigger::Timer(tm) => (format!("timed: {}", comment(&m.timers[*tm].label)), String::new()),
@@ -330,20 +460,37 @@ fn run_source(plan: &Plan, m: &MachinePlan, access: &Access, h: &mut Helpers, ou
         } else {
             let _ = writeln!(out, "    if ({condition}) {{");
         }
-        for (slot, &k) in live.iter().enumerate() {
-            let tr = &m.transitions[k];
-            let mut enabled = format!("st->active[{}]", tr.source);
-            if let Trigger::Timer(tm) = tr.trigger {
+        for slot in 0..live.len() {
+            let _ = writeln!(out, "        uint8_t alt_{slot} = 0U;");
+        }
+        let sources_active = |c: usize| m.compounds[c].compound.sources.iter().map(|s| format!("st->active[{s}]")).collect::<Vec<_>>().join(" && ");
+        for (slot, &c) in live.iter().enumerate() {
+            let compound = &m.compounds[c].compound;
+            let mut enabled = sources_active(c);
+            if let Trigger::Timer(tm) = m.compounds[c].trigger {
                 let us = m.timers[tm].micros;
                 let period = period_macro(plan);
-                enabled.push_str(&format!(" && (st->in_state[{}] >= (uint32_t)(({us}UL + {period} - 1UL) / {period}))", tr.source));
+                enabled.push_str(&format!(" && (st->in_state[{}] >= (uint32_t)(({us}UL + {period} - 1UL) / {period}))", m.transitions[compound.head].source));
             }
-            enabled.push_str(&guard_expr(m, &tr.guard, access, h).unwrap_or_default());
-            let _ = writeln!(out, "        const bool enabled_{slot} = {enabled};");
+            let _ = writeln!(out, "        if ({enabled}) {{");
+            let alternatives: Vec<(usize, &Alternative)> = compound.alternatives.iter().enumerate().filter(|(_, a)| !never(m, &a.guards)).collect();
+            for (n, (a, alt)) in alternatives.iter().enumerate() {
+                let cond = holds_c(m, &alt.guards, &alt.segment, access, h);
+                if cond == "true" {
+                    // An unguarded alternative ends the list.
+                    if n == 0 {
+                        let _ = writeln!(out, "            alt_{slot} = {}U;", a + 1);
+                    } else {
+                        let _ = writeln!(out, "            else {{\n                alt_{slot} = {}U;\n            }}", a + 1);
+                    }
+                    break;
+                }
+                let _ = writeln!(out, "            {}if ({cond}) {{\n                alt_{slot} = {}U;\n            }}", if n == 0 { "" } else { "else " }, a + 1);
+            }
+            let _ = writeln!(out, "        }}");
         }
-        for (slot, &k) in live.iter().enumerate() {
-            let tr = &m.transitions[k];
-            let _ = writeln!(out, "        if (enabled_{slot} && st->active[{}]) {{\n            {i}_fire_{k}(st, in, out);\n        }}", tr.source);
+        for (slot, &c) in live.iter().enumerate() {
+            let _ = writeln!(out, "        if ((alt_{slot} != 0U) && {}) {{\n            {i}_fire_{c}(st, in, out, alt_{slot});\n        }}", sources_active(c));
         }
         let _ = writeln!(out, "    }}");
     }

@@ -47,6 +47,7 @@ fn example(path: &str) -> PathBuf {
 const ACC: &str = "automotive/adaptive-cruise/adaptive_cruise_control.arc";
 const REMOTE_START: &str = "automotive/remote-start/remote_start_architecture.arc";
 const CHARGER: &str = "energy/battery-charger/battery_charger.arc";
+const WINDOW: &str = "automotive/power-window/power_window.arc";
 
 fn compile_file(path: &Path) -> arclang::compiler::CompilationResult {
     Compiler::new(CompilerConfig::default()).compile_file(path).unwrap_or_else(|e| panic!("{} compiles: {e}", path.display()))
@@ -147,7 +148,7 @@ fn model_verdicts(path: &Path) -> Vec<(String, Vec<bool>)> {
 
 #[test]
 fn sil_reproduces_the_model_on_real_examples_with_both_compilers() {
-    for path in [ACC, REMOTE_START, CHARGER] {
+    for path in [ACC, REMOTE_START, CHARGER, WINDOW] {
         let expected = model_verdicts(&example(path));
         assert!(expected.len() >= 2, "{path} has executed cases");
         for cc in compilers() {
@@ -231,7 +232,7 @@ fn a_c_that_departs_from_the_model_is_detected() {
     let running = plan.machines[0].state("Running").unwrap();
     let inhibited = plan.machines[0].state("Inhibited").unwrap();
     let fire = generated.source.split("/* transition Starting -> Running */").nth(1).unwrap().split('}').next().unwrap().to_string();
-    let tampered = generated.source.replace(&fire, &fire.replace(&format!("_enter(st, in, out, {running}U)"), &format!("_enter(st, in, out, {inhibited}U)")));
+    let tampered = generated.source.replace(&fire, &fire.replace(&format!("_enter_one(st, in, out, {running}U)"), &format!("_enter_one(st, in, out, {inhibited}U)")));
     assert_ne!(tampered, generated.source);
     std::fs::write(dir.join(&generated.header_name), &generated.header).unwrap();
     std::fs::write(dir.join(&generated.source_name), &tampered).unwrap();
@@ -325,16 +326,42 @@ fn vectors_that_the_io_cannot_produce_are_reported() {
 }
 
 #[test]
-fn a_transition_across_regions_is_refused() {
+fn a_transition_across_regions_exits_and_reenters_what_holds_them() {
     let text = r#"model T { name: "t" }
+requirements system { req "R" "r" { description: "d" } }
 state_machine "Two" {
-  region "A" { initial: "A1" state A1 {} state A2 {} transition A1 -> A2 { trigger: "go" } }
-  region "B" { initial: "B1" state B1 {} transition B1 -> A2 { trigger: "jump" } }
+  region "A" { initial: "A1" state A1 { exit: "leave A1" } state A2 {} transition A1 -> A2 { trigger: "go" } }
+  region "B" { initial: "B1" state B1 {} state B2 {} transition B1 -> B2 { trigger: "go" } transition B2 -> A1 { trigger: "jump" } }
 }
+test_case "TC" { verifies: ["R"] execute: { stop_time: 40 ms inputs: ["10 ms: go", "20 ms: jump"] }
+  expects: ["at(10 ms, \"Two\".A2) == 1", "at(20 ms, \"Two\".A1) == 1", "at(20 ms, \"Two\".B1) == 1", "at(20 ms, \"Two\".action.leave_A1) == 0"] }
 "#;
-    let result = compile_text(text).unwrap();
-    let error = plan::plan(&result.ast).unwrap_err();
-    assert!(error.contains("transition B1 -> A2 goes from one region to another; such a transition is not generated"), "{error}");
+    let dir = work("cross-src");
+    let model = dir.join("two.arc");
+    std::fs::write(&model, text).unwrap();
+    // Between top-level regions: the whole machine is left and entered again.
+    assert!(model_verdicts(&model)[0].1.iter().all(|v| *v), "{:?}", model_verdicts(&model));
+    for cc in compilers() {
+        let o = &run_sil(&model, &cc, "cross")[0];
+        assert_eq!(o.verdict, "pass", "{cc}: {}", o.reason);
+    }
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn ill_formed_pseudo_states_are_refused_with_the_reason() {
+    let machine = |body: &str| format!("model T {{ name: \"t\" }}\nstate_machine \"M\" {{\n  initial: \"A\"\n  state A {{}}\n  state B {{}}\n  state C {{}}\n{body}\n}}\n");
+    let cases = [
+        ("state J { kind: \"join\" }\n transition A -> J { trigger: \"x\" }\n transition B -> J { trigger: \"y\" }\n transition J -> C {}", "join J: its incoming transitions have different triggers"),
+        ("state F { kind: \"fork\" }\n transition A -> F { trigger: \"x\" }\n transition F -> B {}\n transition F -> C {}", "a transition enters 2 states of one region (B, C): a fork goes to states of orthogonal regions"),
+        ("state K { kind: \"junction\" }\n transition A -> K { trigger: \"x\" }", "junction K has no outgoing transition"),
+        ("state P { kind: \"junction\" }\n state Q { kind: \"junction\" }\n transition A -> P { trigger: \"x\" }\n transition P -> Q {}\n transition Q -> P {}", "goes round through pseudo-states"),
+    ];
+    for (body, expected) in cases {
+        let result = compile_text(&machine(body)).unwrap();
+        let error = plan::plan(&result.ast).unwrap_err();
+        assert!(error.contains(expected), "{body}\n  gives: {error}\n  wanted: {expected}");
+    }
 }
 
 #[test]
@@ -510,5 +537,95 @@ fn the_compiler_checks_types_units_and_names_of_the_code() {
     let plan = plan::plan(&result.ast).unwrap();
     assert_eq!(plan.machines[0].conditions.len(), 1);
     assert!(plan.machines[0].program().guards.is_empty() && plan.machines[0].program().actions.is_empty());
+}
+
+/// Regions in a state, local and ancestor transitions, both histories, a
+/// choice after an action, a junction before one, entry and exit points,
+/// terminate: the C against the model.
+const PSEUDO: &str = r#"model T { name: "t" }
+requirements system { req "R" "r" { description: "d" } }
+state_machine "P" {
+  variables: ["out n: Integer = 0"]
+  initial: "Idle"
+  state Idle {}
+  state Work {
+    entry: "work in"
+    region "Main" {
+      initial: "Prep"
+      state Prep {}
+      state Run {
+        initial: "Slow"
+        state Slow { exit: "slow out" }
+        state Fast {}
+        transition Slow -> Fast { trigger: "faster" }
+      }
+      state Deep { kind: "deep_history" }
+      state Flat { kind: "shallow_history" }
+      state Door { kind: "entry_point" }
+      state Gone { kind: "exit_point" }
+      transition Prep -> Run { trigger: "go" }
+      transition Door -> Fast { action: "n := n + 10" }
+      transition Fast -> Gone { trigger: "leave" }
+    }
+    region "Aux" {
+      initial: "Quiet"
+      state Quiet { exit: "aux out" }
+      state Busy {}
+      transition Quiet -> Busy { trigger: "busy" }
+    }
+    transition Work -> Fast { trigger: "boost" }
+    transition Slow -> Work { trigger: "up" }
+  }
+  state Choose { kind: "choice" }
+  state Static { kind: "junction" }
+  state High {}
+  state Low {}
+  state Stop { kind: "terminate" }
+  transition Idle -> Work { trigger: "start" }
+  transition Work -> Idle { trigger: "pause" }
+  transition Gone -> Idle { action: "n := n - 1" }
+  transition Idle -> Deep { trigger: "deep" }
+  transition Idle -> Flat { trigger: "flat" }
+  transition Idle -> Door { trigger: "door" }
+  transition Idle -> Choose { trigger: "pick" action: "n := n + 1" }
+  transition Choose -> High { guard: "n > 0" }
+  transition Choose -> Low { guard: "else" }
+  transition High -> Static { trigger: "pick" action: "n := 0" }
+  transition Low -> Static { trigger: "pick" action: "n := n + 1" }
+  transition Static -> High { guard: "n > 0" }
+  transition Static -> Low { guard: "else" }
+  transition High -> Idle { trigger: "back" }
+  transition Low -> Idle { trigger: "back" }
+  transition Idle -> Stop { trigger: "kill" }
+}
+test_case "TC-P" { verifies: ["R"] execute: { stop_time: 260 ms inputs: [
+    "10 ms: start", "20 ms: go", "30 ms: busy", "40 ms: boost", "50 ms: pause", "60 ms: deep",
+    "70 ms: pause", "80 ms: flat", "90 ms: up", "100 ms: pause", "110 ms: door", "120 ms: leave",
+    "130 ms: pick", "140 ms: pick", "150 ms: pick", "160 ms: back", "170 ms: kill", "180 ms: start"] }
+  expects: [
+    "at(40 ms, \"P\".Work.Run.Fast) == 1", "at(40 ms, \"P\".Work.Busy) == 1",
+    "at(60 ms, \"P\".Work.Run.Fast) == 1", "at(60 ms, \"P\".Work.Busy) == 0",
+    "at(80 ms, \"P\".Work.Run.Slow) == 1",
+    "at(90 ms, \"P\".Work.Prep) == 1", "at(90 ms, \"P\".action.slow_out) == 1",
+    "at(110 ms, \"P\".Work.Run.Fast) == 1", "at(110 ms, \"P\".n) == 10",
+    "at(120 ms, \"P\".Idle) == 1", "at(120 ms, \"P\".n) == 9",
+    "at(130 ms, \"P\".High) == 1", "at(140 ms, \"P\".High) == 1", "at(140 ms, \"P\".n) == 0",
+    "at(150 ms, \"P\".Low) == 1",
+    "at(170 ms, \"P\".Idle) == 0", "final(\"P\".Work) == 0", "final(\"P\".Idle) == 0"] }
+"#;
+
+#[test]
+fn pseudo_states_and_regions_run_alike_in_the_model_and_in_the_c() {
+    let dir = work("pseudo-src");
+    let model = dir.join("p.arc");
+    std::fs::write(&model, PSEUDO).unwrap();
+    let verdicts = model_verdicts(&model);
+    assert!(verdicts[0].1.iter().all(|v| *v), "{verdicts:?}");
+    for cc in compilers() {
+        let o = &run_sil(&model, &cc, "pseudo")[0];
+        assert_eq!(o.verdict, "pass", "{cc}: {}", o.reason);
+        assert_eq!(o.back_to_back.as_ref().unwrap().max_difference, 0.0);
+    }
+    let _ = std::fs::remove_dir_all(&dir);
 }
 

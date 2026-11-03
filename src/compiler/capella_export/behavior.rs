@@ -61,6 +61,12 @@ fn descendants(s: &State, into: &mut Vec<String>) {
     }
 }
 
+/// Whether a transition is declared in `state` or in a state under it.
+fn contains_transition(state: &State, t: &crate::compiler::ast::Transition) -> bool {
+    let same = |u: &crate::compiler::ast::Transition| u.from == t.from && u.to == t.to && u.id == t.id;
+    state.transitions.iter().any(same) || state.sub_states.iter().any(|s| contains_transition(s, t))
+}
+
 /// The innermost state holding both ends of a transition in its regions.
 fn holder<'a>(states: &'a [State], from: &str, to: &str) -> Option<&'a State> {
     for s in states {
@@ -99,10 +105,16 @@ fn transition(context: &Context, id: &str, index: usize, t: &crate::compiler::as
         el.set("guard", &format!("#{constraint}"));
         el.push(
             El::new("ownedConstraints", "capellacore:Constraint", &constraint)
-                .with(El::new("ownedSpecification", "datavalue:OpaqueExpression", &derived(&format!("{tid}:guard:expression"))).with(El::text("bodies", guard)).with(El::text("languages", "capella:linkedText"))),
+                .with(El::new("ownedSpecification", "datavalue:OpaqueExpression", &derived(&format!("{tid}:guard:expression"))).with(El::text("bodies", &linked_text(guard))).with(El::text("languages", "capella:linkedText"))),
         );
     }
     Some(el)
+}
+
+/// Text as Capella's linked text, an HTML fragment: `<`, `>` and `&` escaped
+/// (`speed < 30 km/h` would otherwise read as a tag).
+fn linked_text(text: &str) -> String {
+    text.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;")
 }
 
 /// Record the states of a machine, by id and by name.
@@ -124,7 +136,8 @@ pub(super) fn register(context: &mut Context, machine: &StateMachine) {
 fn state_kind(s: &State) -> &'static str {
     match text(&s.attributes, "kind") {
         Some("final") => "capellacommon:FinalState",
-        Some("choice") => "capellacommon:ChoicePseudoState",
+        // Capella has no junction: the closest pseudo-state is a choice.
+        Some("choice") | Some("junction") => "capellacommon:ChoicePseudoState",
         Some("fork") => "capellacommon:ForkPseudoState",
         Some("join") => "capellacommon:JoinPseudoState",
         Some("terminate") => "capellacommon:TerminatePseudoState",
@@ -175,7 +188,31 @@ fn state(context: &Context, machine: &str, s: &State, inner: &HashMap<String, Ve
             el.set(attribute, &functions.join(" "));
         }
     }
-    if !s.sub_states.is_empty() {
+    if !s.regions.is_empty() {
+        // Orthogonal regions written as `region` blocks, each with its initial state.
+        for (n, r) in s.regions.iter().enumerate() {
+            let written = !r.id.is_empty() && r.id != format!("{}.{}", s.name, r.name);
+            let region_id = if written { r.id.clone() } else { derived(&format!("{id}:region:{}", r.name)) };
+            let mut region = El::new("ownedRegions", "capellacommon:Region", &region_id).attr("name", &r.name);
+            if let Some(target) = names.get(&r.initial).filter(|_| !r.initial.is_empty()) {
+                initial(&mut region, &region_id, target);
+            }
+            for sub in &r.states {
+                region.push(state(context, machine, sub, inner, names));
+            }
+            for t in inner.get(&format!("{id}#{n}")).into_iter().flatten() {
+                region.push(t.clone());
+            }
+            // A transition declared in the state, outside its regions (one
+            // between them): its first region.
+            if n == 0 {
+                for t in inner.get(&id).into_iter().flatten() {
+                    region.push(t.clone());
+                }
+            }
+            el.push(region);
+        }
+    } else if !s.sub_states.is_empty() {
         let region_id = derived(&format!("{id}:region"));
         let mut region = El::new("ownedRegions", "capellacommon:Region", &region_id).attr("name", "Default Region");
         if let Some(target) = names.get(&s.initial).filter(|_| !s.initial.is_empty()) {
@@ -226,6 +263,13 @@ fn region(context: &Context, id: &str, (region_id, region_name): (&str, &str), i
         for s in states {
             for t in &s.transitions {
                 into.insert(format!("{}->{}:{}", t.from, t.to, t.id), state_id(machine, s));
+            }
+            // A transition declared in a region of the state: that region.
+            for (n, r) in s.regions.iter().enumerate() {
+                let own: Vec<&crate::compiler::ast::Transition> = r.transitions.iter().filter(|t| !r.states.iter().any(|sub| contains_transition(sub, t))).collect();
+                for t in own {
+                    into.insert(format!("{}->{}:{}", t.from, t.to, t.id), format!("{}#{n}", state_id(machine, s)));
+                }
             }
             declared(machine, &s.sub_states, into);
         }

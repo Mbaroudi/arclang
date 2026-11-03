@@ -61,13 +61,16 @@ invented.
   7. every active state has been active one step more.
 
   For each trigger, the transitions it enables are chosen at the start of
-  its firing (source active, guard holding), then fired in order — inner
+  its firing (sources active, guards holding), then fired in order — inner
   source first, then lower `priority`, then declaration order — each only
-  if its source is still active. Firing exits the active states under the
-  source, deepest first (exit actions), runs the transition's action, then
-  enters the target and its initial states (entry actions). A transition
-  from a state to itself exits and re-enters it. Orthogonal top-level
-  regions (`region "Name" { ... }`) fire in the same step.
+  if its sources are still active. Firing exits the active states of the
+  transition's scope, the last state of the scope first (so the deepest
+  first; exit actions), runs the transitions' actions, then enters the
+  targets, their ancestors under the scope and the initial state of every
+  other region entered (entry actions, outermost first, regions in the
+  order written). Orthogonal regions fire in the same step. See
+  [regions and pseudo-states](#regions-and-pseudo-states) for the scope of
+  a transition.
 
 The period is `<MODEL>_PERIOD_US` (microseconds), the binding's period by
 default, else 10 ms; define it at compile time for another one.
@@ -207,6 +210,83 @@ expects: ["at(100 ms, \"Charger\".target) == 2 A", "max(\"Charger\".setpoint) <=
 
 `arclang sil` compares every variable, step by step, with the model's,
 bit for bit by default (`tolerance: 0`).
+
+## Regions and pseudo-states
+
+A state may hold several orthogonal regions, written as `region` blocks
+inside it (as the machine itself may), each with its initial state:
+
+```arclang
+state Active {
+    region "Motion" {
+        initial: "Stopped"
+        state Stopped {}
+        state Moving { initial: "Up" state Up {} state Down {} }
+        state Resume { kind: "deep_history" }
+        state Decide { kind: "choice" }
+        transition Stopped -> Decide { trigger: "auto" }
+        transition Decide -> Up { guard: "position < 50" }
+        transition Decide -> Down { guard: "else" }
+    }
+    region "Safety" {
+        initial: "Watching"
+        state Watching {}
+        state Pinched {}
+        state Monitor { kind: "shallow_history" }
+        transition Watching -> Pinched { trigger: "obstacle" }
+    }
+    transition Pinched -> Stopped { trigger: "release" }   // across the regions
+}
+```
+
+Pseudo-states are written as the Capella import writes them: a state with
+a `kind:` (Capella's `ChoicePseudoState`, `ForkPseudoState`...). They
+are never active, so no output reports them. The executor, the C and the
+SIL run them alike (`examples/automotive/power-window/power_window.arc`):
+
+| `kind:` | Semantics (UML / Capella) |
+|---|---|
+| `junction` | static: its branches are chosen before the transition fires, with the values of that moment; the transition is enabled only when a branch holds |
+| `choice` | dynamic: its branch is chosen when it is reached, after the exits and actions before it (it sees what they assigned); the transition is enabled only when a branch holds then; if the actions made none hold, the first branch |
+| `fork` | one transition to several states of orthogonal regions; the regions not named enter their initial state |
+| `join` | fires when every source is active and every incoming transition's guard holds, on their common trigger; all their actions run, then the outgoing one's |
+| `shallow_history` | entering it enters the state its region was in when its owner was last exited (by its initial states); else its default transition, else the region's initial state |
+| `deep_history` | the same with every state that was active in the region, down to the leaves |
+| `entry_point`, `exit_point` | pass through: the transition goes on along their outgoing transition |
+| `terminate` | the machine stops: nothing is active, no exit action runs, no transition fires any more |
+
+Branches of a junction or a choice are tried in `priority` then
+declaration order; a branch guarded `else` is tried last and always holds.
+A `final` state is a state (it has no outgoing transition).
+
+The scope of a transition (what it exits and what it re-enters) is the
+region that holds both ends, as UML defines it:
+
+- in one region of their common ancestor: the active state of that region
+  is exited; the target is entered with its ancestors under it;
+- a target inside its source (local): the source stays active, only the
+  region holding the target changes;
+- a source inside its target, or a state to itself: the target is exited
+  and entered again, by its initial states;
+- between orthogonal regions: the state holding both regions is exited and
+  entered again (the whole machine for top-level regions), the target in
+  its region, the other regions by their initial state.
+
+A pseudo-state used against its meaning is refused with the reason, and no
+C is generated for the machine: a join whose incoming transitions have
+different triggers or with more than one outgoing transition, a fork whose
+targets share a region, a junction or a choice without an outgoing
+transition, transitions that go round through pseudo-states.
+
+In the C, a history is a field of the machine's state (`hist_<n>` for a
+shallow one, `deep_<n>[]` for a deep one), kept when its owner is exited;
+exits run over a range of the state table, last state first; every other
+entry and exit is a list computed once from the executor.
+
+Capella has every one of these pseudo-states but the junction: a junction
+is exported as a Capella choice (its branches are then chosen when
+reached). SysML v2 export writes the states of every region of a state
+in one region, as it does for the machine's top-level regions.
 
 ## The API
 
@@ -419,12 +499,10 @@ Said plainly:
   trigger fires the transition; the timing is a budget, not a timer, and is
   not generated (a note in the generated file says so). Only `timing:`
   without a trigger is a timer.
-- **Transitions between orthogonal regions** are refused (each region is
-  generated as a machine of its own). Regions nested inside a state do not
-  exist in the language: a composite state holds one region.
-- **History states, choice, junction, fork and join pseudo-states,
-  deferred events and change events** are not in the executor, so not in the
-  C.
+- **Deferred events and change events** are not in the executor, so not in
+  the C. A completion transition leaving a composite state does not wait
+  for its regions to reach their final states: it fires as soon as its
+  source is active.
 - **One event at a time per trigger:** an event present in a step fires
   once; the order of the events within a step is the order of the machine,
   not the order they happened in.

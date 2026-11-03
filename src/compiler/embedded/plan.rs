@@ -50,16 +50,6 @@ pub enum Trigger {
     Completion,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Kind {
-    /// From a state to itself: it is exited and entered again.
-    SelfLoop,
-    /// To a state inside the source: what is under the source is exited.
-    Inner,
-    /// Anywhere else: the source's branch under the common ancestor is exited.
-    Outer,
-}
-
 #[derive(Debug, Clone)]
 pub struct StatePlan {
     pub path: String,
@@ -81,13 +71,16 @@ pub struct TransitionPlan {
     pub label: String,
     pub source: usize,
     pub target: usize,
-    pub kind: Kind,
-    pub exit_from: usize,
-    /// Entered in order; the last is entered with its initial states.
-    pub entry_path: Vec<usize>,
     pub action: Option<usize>,
     pub guard: Guard,
+}
+
+/// A transition that fires as one, through the pseudo-states it goes
+/// through (`execution::machine::Compound`), and what triggers it.
+#[derive(Debug, Clone)]
+pub struct CompoundPlan {
     pub trigger: Trigger,
+    pub compound: crate::compiler::execution::machine::Compound,
 }
 
 #[derive(Debug, Clone)]
@@ -98,12 +91,14 @@ pub struct MachinePlan {
     pub machine: Machine,
     pub states: Vec<StatePlan>,
     pub transitions: Vec<TransitionPlan>,
+    pub compounds: Vec<CompoundPlan>,
     pub events: Vec<Signal>,
     pub conditions: Vec<Signal>,
     pub actions: Vec<Signal>,
     pub timers: Vec<Timer>,
-    /// What fires in a step, in order: each trigger and its transitions in
-    /// the order they fire (inner source first, then priority, then declaration).
+    /// What fires in a step, in order: each trigger and its compound
+    /// transitions in the order they fire (inner source first, then
+    /// priority, then declaration).
     pub dispatch: Vec<(Trigger, Vec<usize>)>,
     pub max_depth: usize,
     pub notes: Vec<String>,
@@ -136,6 +131,32 @@ impl MachinePlan {
 
     pub fn variable(&self, name: &str) -> Option<usize> {
         self.machine.program.variable(name)
+    }
+
+    /// A guard as the C reads it.
+    pub fn guard(&self, text: &str) -> Guard {
+        guard_of(&self.machine, &self.conditions, Some(text))
+    }
+
+    /// The history pseudo-states: (index, deep, owner, region range).
+    pub fn histories(&self) -> Vec<(usize, bool, usize, (usize, usize))> {
+        use crate::compiler::execution::machine::Pseudo;
+        self.machine
+            .histories()
+            .into_iter()
+            .filter_map(|h| {
+                let node = &self.machine.states[h];
+                let owner = node.parent?;
+                let region = &self.machine.states[owner].regions[node.region];
+                let range = (*region.states.first()?, self.machine.states[*region.states.last()?].last);
+                Some((h, node.pseudo == Some(Pseudo::DeepHistory), owner, range))
+            })
+            .collect()
+    }
+
+    /// Whether a `terminate` pseudo-state can be reached.
+    pub fn terminates(&self) -> bool {
+        self.machine.states.iter().any(|s| s.pseudo == Some(crate::compiler::execution::machine::Pseudo::Terminate))
     }
 
     /// The state a reference names: its path, its id, or a name only one state has.
@@ -227,30 +248,15 @@ fn push_unique(list: &mut Vec<String>, text: &str) {
     }
 }
 
-/// The top-level region each top state is in, in arena order.
-fn regions_of(source: &StateMachine, machine: &Machine) -> Vec<usize> {
-    let sizes: Vec<usize> = if source.regions.is_empty() { vec![source.states.len()] } else { source.regions.iter().map(|r| r.states.len()).collect() };
-    let mut region = vec![0; machine.states.len()];
-    let mut top = 0;
-    for (i, state) in machine.states.iter().enumerate() {
-        match state.parent {
-            None => {
-                let mut seen = 0;
-                let mut r = 0;
-                for (n, size) in sizes.iter().enumerate() {
-                    if top < seen + size {
-                        r = n;
-                        break;
-                    }
-                    seen += size;
-                }
-                region[i] = r;
-                top += 1;
-            }
-            Some(parent) => region[i] = region[parent],
-        }
+/// A guard as the C reads it: always, never, a condition the caller sets,
+/// or code.
+pub fn guard_of(machine: &Machine, conditions: &[Signal], guard: Option<&str>) -> Guard {
+    match guard.map(str::trim) {
+        None | Some("true") | Some("else") => Guard::Always,
+        Some("false") => Guard::Never,
+        Some(text) if machine.program.guards.contains_key(text) => Guard::Code(text.to_string()),
+        Some(text) => Guard::Condition(conditions.iter().position(|c| c.text == text).expect("collected")),
     }
-    region
 }
 
 pub fn plan_machine(source: &StateMachine, taken: &mut BTreeSet<String>) -> Result<MachinePlan, String> {
@@ -268,7 +274,7 @@ pub fn plan_machine(source: &StateMachine, taken: &mut BTreeSet<String>) -> Resu
             Some(label) => push_unique(&mut events, label),
             None => {}
         }
-        if let Some(guard) = t.guard.as_deref().filter(|g| *g != "true" && *g != "false" && !machine.program.guards.contains_key(*g)) {
+        if let Some(guard) = t.guard.as_deref().filter(|g| *g != "true" && *g != "false" && *g != "else" && !machine.program.guards.contains_key(*g)) {
             push_unique(&mut conditions, guard);
         }
     }
@@ -313,64 +319,44 @@ pub fn plan_machine(source: &StateMachine, taken: &mut BTreeSet<String>) -> Resu
             }
         })
         .collect();
-    let region = regions_of(source, &machine);
+    if let Some(refused) = machine.refused.first() {
+        return Err(format!("{what}: {refused}"));
+    }
     let mut transitions = Vec::new();
     for t in &machine.transitions {
-        if region[t.source] != region[t.target] {
-            return Err(format!("{what}: transition {} goes from one region to another; such a transition is not generated (each region is a machine of its own)", t.label));
-        }
-        let (exit_from, entry_path) = machine.scope(t.source, t.target);
-        let kind = if t.source == t.target {
-            Kind::SelfLoop
-        } else if machine.ancestors(t.target).contains(&t.source) {
-            Kind::Inner
-        } else {
-            Kind::Outer
-        };
-        let guard = match t.guard.as_deref() {
-            None | Some("true") => Guard::Always,
-            Some("false") => Guard::Never,
-            Some(text) if machine.program.guards.contains_key(text) => Guard::Code(text.to_string()),
-            Some(text) => Guard::Condition(conditions.iter().position(|c| c.text == text).expect("collected")),
-        };
-        let trigger = match t.trigger.as_deref() {
-            None => Trigger::Completion,
-            Some(label) => match timers.iter().position(|tm| tm.label == label) {
-                Some(i) if source.transitions.get(t.index).is_some_and(|d| d.trigger.trim().is_empty()) => Trigger::Timer(i),
-                _ => Trigger::Event(events.iter().position(|e| e.text == label).expect("collected")),
-            },
-        };
         transitions.push(TransitionPlan {
             index: t.index,
             label: t.label.clone(),
             source: t.source,
             target: t.target,
-            kind,
-            exit_from,
-            entry_path,
             action: t.action.as_ref().map(|a| actions.iter().position(|x| &x.text == a).expect("collected")),
-            guard,
-            trigger,
+            guard: guard_of(&machine, &conditions, t.guard.as_deref()),
         });
     }
+    let trigger_of = |c: &crate::compiler::execution::machine::Compound| -> Trigger {
+        match c.trigger.as_deref() {
+            None => Trigger::Completion,
+            Some(label) => match timers.iter().position(|tm| tm.label == label) {
+                Some(i) if source.transitions.get(machine.transitions[c.head].index).is_some_and(|d| d.trigger.trim().is_empty()) => Trigger::Timer(i),
+                _ => Trigger::Event(events.iter().position(|e| e.text == label).expect("collected")),
+            },
+        }
+    };
+    let compounds: Vec<CompoundPlan> = machine.compounds.iter().map(|c| CompoundPlan { trigger: trigger_of(c), compound: c.clone() }).collect();
     // The order of a step: events as declared, then timers, then completion.
     let mut triggers: Vec<Trigger> = (0..events.len()).map(Trigger::Event).collect();
     triggers.extend((0..timers.len()).map(Trigger::Timer));
-    if transitions.iter().any(|t| t.trigger == Trigger::Completion) {
+    if compounds.iter().any(|c| c.trigger == Trigger::Completion) {
         triggers.push(Trigger::Completion);
     }
     let dispatch = triggers
         .into_iter()
         .map(|trigger| {
-            let mut order: Vec<usize> = (0..transitions.len()).filter(|&i| transitions[i].trigger == trigger).collect();
-            // As `Machine::enabled` sorts: deeper source, lower priority, declaration.
-            let priority = |i: usize| machine.transitions[i].priority.unwrap_or(i64::MAX);
+            let mut order: Vec<usize> = (0..compounds.len()).filter(|&i| compounds[i].trigger == trigger).collect();
+            // As `Machine::enabled_compounds` sorts: deeper source, lower priority, declaration.
             order.sort_by(|&a, &b| {
-                machine
-                    .depth(transitions[b].source)
-                    .cmp(&machine.depth(transitions[a].source))
-                    .then(priority(a).cmp(&priority(b)))
-                    .then(transitions[a].index.cmp(&transitions[b].index))
+                let (x, y) = (&compounds[a].compound, &compounds[b].compound);
+                y.depth.cmp(&x.depth).then(x.priority.unwrap_or(i64::MAX).cmp(&y.priority.unwrap_or(i64::MAX))).then(machine.transitions[x.head].index.cmp(&machine.transitions[y.head].index))
             });
             (trigger, order)
         })
@@ -410,6 +396,7 @@ pub fn plan_machine(source: &StateMachine, taken: &mut BTreeSet<String>) -> Resu
         machine,
         states,
         transitions,
+        compounds,
         events,
         conditions,
         actions,
