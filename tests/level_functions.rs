@@ -184,6 +184,9 @@ trace "SC-S.bus" -> "SF-A.x" { trace_type: "allocates" }
     let set = build_diagrams(&result.ast);
     let cdb = set.diagrams.iter().find(|d| d.id == "cdb").expect("cdb");
     assert!(cdb.edges.iter().any(|e| e.source == "CL-Car" && e.target == "CL-Vehicle"), "{:?}", cdb.edges);
+    let box_of = |id: &str| cdb.nodes.iter().find(|n| n.id == id).unwrap().compartment.clone();
+    assert_eq!(box_of("CL-Car"), ["doors : Integer", "^speed : Float"], "what Car has from Vehicle, ^-marked");
+    assert_eq!(box_of("CL-Vehicle"), ["speed : Float"]);
     let traces: Vec<(&str, &str, &str)> = result.semantic_model.traces.iter().map(|t| (t.from.as_str(), t.trace_type.as_str(), t.to.as_str())).collect();
     assert!(traces.contains(&("CE-bus", "allocates", "FE-x")) && traces.contains(&("SC-S.bus", "allocates", "SF-A.x")), "{traces:?}");
 }
