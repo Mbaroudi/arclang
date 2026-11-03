@@ -108,6 +108,14 @@ impl El {
     pub(super) fn kind(&self) -> &str {
         self.attrs.iter().find(|(k, _)| k == "xsi:type").map(|(_, v)| v.as_str()).unwrap_or("")
     }
+    /// The text the element holds.
+    pub(super) fn content(&self) -> &str {
+        &self.text
+    }
+    /// The feature the element is contained in (`ownedStates`).
+    pub(super) fn tag(&self) -> &str {
+        &self.tag
+    }
     pub(super) fn children(&self) -> &[El] {
         &self.children
     }

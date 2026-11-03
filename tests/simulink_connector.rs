@@ -164,8 +164,8 @@ fn the_written_pivot_reads_back_the_same() {
 }
 
 /// An ArcLang model goes through the Capella exporter, then the connector's m2m: its
-/// functions become models, its state machines charts (laid out by ArcLang, the export
-/// writing no state machine diagram).
+/// functions become models, its state machines charts, laid out from the state machine
+/// diagrams the export writes, as the connector lays out a model drawn in Capella.
 #[test]
 fn an_arclang_model_exports_through_capella() {
     use arclang::compiler::simulink_connector::export;
@@ -173,15 +173,15 @@ fn an_arclang_model_exports_through_capella() {
     let result = arclang::Compiler::new(arclang::CompilerConfig::default()).compile_file(path).unwrap();
     let exported = arclang::compiler::capella_export::export(&result.ast, "remote_start");
     let model = Model::from_strings(&[("remote_start.capella", exported.capella.as_str()), ("remote_start.aird", exported.aird.as_str())]).unwrap();
-    let options = Options { draw_without_diagram: true, ..Options::default() };
+    let options = Options::default();
     let functions = export::export(&model, Strategy::Functions, &[], &options).unwrap();
     assert!(functions.script.contains("new_system("), "{}", functions.script);
     let machines = export::export(&model, Strategy::StateMachines, &[], &options).unwrap();
     assert!(machines.script.contains("Stateflow.State(parent)") && machines.script.contains("transition.SourceOClock"), "{}", machines.script);
-    assert!(machines.notes.iter().any(|n| n.contains("ArcLang lays its chart out")));
-    // Without the layout, the connector's rule: a region needs its diagram.
-    let refused = export::export(&model, Strategy::StateMachines, &[], &Options::default());
-    assert!(refused.is_err());
+    assert!(machines.notes.iter().all(|n| !n.contains("ArcLang lays its chart out")), "{:?}", machines.notes);
+    // ArcLang's own layout is not needed: the diagrams are there.
+    let drawn = export::export(&model, Strategy::StateMachines, &[], &Options { draw_without_diagram: true, ..Options::default() }).unwrap();
+    assert_eq!(drawn.script, machines.script);
     // What is written reads back to the same script.
     let again = pivot::read(&machines.pivot, Path::new(".")).unwrap();
     assert_eq!(script(&again).unwrap(), machines.script);

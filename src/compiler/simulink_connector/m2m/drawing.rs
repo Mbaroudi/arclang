@@ -1,6 +1,7 @@
 //! A layout for a state machine region that has no diagram: ArcLang's, not the
-//! connector's (which takes every position from the `.aird`). A model written
-//! from ArcLang has no state machine diagram; its charts are laid out here.
+//! connector's (which takes every position from the `.aird`). The Capella export
+//! of ArcLang draws every machine (`capella_export::msm`); a Capella model whose
+//! machine was never drawn, or a model read without its `.aird`, is laid out here.
 //!
 //! The states of a region are put on a grid, a state holding states draws them
 //! in a row inside it; the figures are sized as `diagram` sizes them, and the

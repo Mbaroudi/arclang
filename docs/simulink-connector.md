@@ -62,8 +62,12 @@ positions of transition ends are those of the reference scripts. The size of
 the regions of a state with several regions, and of a machine with several
 regions, are estimates (no test of the connector covers them).
 
-The connector refuses a state machine whose region has no diagram. A model
-written from ArcLang has none, so the command lays such a chart out itself
+The connector refuses a state machine whose region has no diagram. The
+Capella export of an ArcLang model draws every machine (a Mode State Machine
+diagram on each of its top-level regions, every box placed and sized in the
+diagram's notation), so the chart of an ArcLang model is read from its
+diagram as the chart of a model drawn in Capella. A Capella model whose
+machine was never drawn has none: the command lays such a chart out itself
 (states on a grid, transitions between their centers) and says so in a
 note. This layout is ArcLang's, not the connector's.
 
