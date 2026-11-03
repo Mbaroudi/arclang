@@ -375,7 +375,10 @@ fn the_cli_exports_c_and_runs_sil() {
     }
     let stdout = String::from_utf8_lossy(&out.stdout);
     assert!(stdout.contains("action(s) written in prose are reported (counted per step), not executed"), "{stdout}");
-    let out = Command::new(exe).arg("sil").arg(example(CHARGER)).args(["--cc", &gcc(), "--json"]).output().unwrap();
+    // On a copy: `arclang sil` caches its verdicts beside the model.
+    let copy = dir.join("battery_charger.arc");
+    std::fs::copy(example(CHARGER), &copy).unwrap();
+    let out = Command::new(exe).arg("sil").arg(&copy).args(["--cc", &gcc(), "--json"]).output().unwrap();
     assert!(out.status.success(), "{}{}", String::from_utf8_lossy(&out.stdout), String::from_utf8_lossy(&out.stderr));
     let json: serde_json::Value = serde_json::from_slice(&out.stdout).unwrap();
     assert_eq!(json.as_array().unwrap().len(), 3);
@@ -763,4 +766,40 @@ fn the_generated_c_has_only_the_documented_misra_deviations() {
         assert!(rules.iter().all(|r| r == "2.5" || r == "8.7"), "{path}: {rules:?}\n{report}");
         let _ = std::fs::remove_dir_all(&dir);
     }
+}
+
+// ---- verdicts in the traceability ------------------------------------------------------
+
+#[test]
+fn sil_verdicts_are_cached_for_check_gate_and_the_tables() {
+    use arclang::compiler::verification::{verdict_for, Verdict};
+    let dir = work("cache");
+    let model = dir.join("battery_charger.arc");
+    std::fs::copy(example(CHARGER), &model).unwrap();
+    let verdict = |path: &Path| {
+        let result = compile_file(path);
+        let test = result.ast.test_cases.iter().find(|t| t.id == "TC-CHG-003").unwrap().clone();
+        verdict_for(&test, "SYS-CHG-004", &result.semantic_model)
+    };
+    match verdict(&model) {
+        Verdict::Inconclusive(why) => assert!(why.contains("never run in SIL: run `arclang sil"), "{why}"),
+        other => panic!("before any SIL run: {other:?}"),
+    }
+    let exe = env!("CARGO_BIN_EXE_arclang");
+    let out = Command::new(exe).arg("sil").arg(&model).args(["--cc", &gcc(), "--cc", &clang()]).output().unwrap();
+    assert!(out.status.success(), "{}", String::from_utf8_lossy(&out.stdout));
+    assert!(String::from_utf8_lossy(&out.stdout).contains("3 verdict(s) cached in"), "{}", String::from_utf8_lossy(&out.stdout));
+    assert_eq!(verdict(&model), Verdict::Pass);
+    // The coverage table reads it.
+    let table = Command::new(exe).arg("table").arg(&model).args(["--kind", "requirements_coverage", "-f", "csv"]).output().unwrap();
+    let csv = String::from_utf8_lossy(&table.stdout);
+    assert!(csv.lines().any(|l| l.starts_with("SYS-CHG-004") && l.contains("TC-CHG-003 (pass)")), "{csv}");
+    // A change of the C makes it stale, so inconclusive again, with a warning.
+    let text = std::fs::read_to_string(&model).unwrap().replace("\"target := 2 A\"", "\"target := 3 A\"");
+    std::fs::write(&model, text).unwrap();
+    match verdict(&model) {
+        Verdict::Inconclusive(why) => assert!(why.contains("stale: the generated C or the case changed"), "{why}"),
+        other => panic!("after a change: {other:?}"),
+    }
+    let _ = std::fs::remove_dir_all(&dir);
 }

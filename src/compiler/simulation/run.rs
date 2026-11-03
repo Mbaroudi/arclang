@@ -29,7 +29,9 @@ fn configuration_name(result: &CompilationResult, spec: &Spec) -> Option<String>
 /// fresh when its key still matches, otherwise inconclusive (stale, or
 /// never simulated). Nothing is simulated here.
 pub fn attach(result: &mut CompilationResult, model_path: &Path) {
+    let executed = attach_executed(result, model_path);
     if !result.ast.test_cases.iter().any(is_simulated) {
+        result.semantic_model.simulations = executed;
         return;
     }
     let dir = cache::dir(model_path);
@@ -72,8 +74,59 @@ pub fn attach(result: &mut CompilationResult, model_path: &Path) {
         }
         statuses.insert(test.id.clone(), status);
     }
+    statuses.extend(executed);
     result.semantic_model.simulations = statuses;
     result.warnings.extend(warnings);
+}
+
+/// The status of a case of the cache, for each requirement it verifies too.
+fn status_of(result: &CompilationResult, test: &crate::compiler::ast::TestCase, outcome: &Outcome) -> Status {
+    let mut status = outcome.status();
+    if outcome.names_requirements() {
+        for written in &test.verifies {
+            let target = crate::compiler::verification::requirement_key(&result.ast, written);
+            let checks = |tag: Option<&str>| tag.is_none_or(|t| crate::compiler::verification::requirement_key(&result.ast, t) == target);
+            status.by_requirement.insert(written.clone(), outcome.status_for(checks));
+        }
+    }
+    status
+}
+
+/// The cached SIL verdict of every case that executes at fixed step
+/// (`arclang sil` writes them): fresh when the generated C and the case are
+/// those it ran, otherwise inconclusive. A failing or stale verdict is a
+/// warning; a case never run is not (the compiler already judged it on the
+/// model).
+fn attach_executed(result: &mut CompilationResult, model_path: &Path) -> std::collections::HashMap<String, Status> {
+    let mut statuses = std::collections::HashMap::new();
+    let executed: Vec<_> = crate::compiler::embedded::sil::cases(&result.ast).into_iter().cloned().collect();
+    if executed.is_empty() {
+        return statuses;
+    }
+    let dir = cache::dir(model_path);
+    for test in &executed {
+        let inconclusive = |reason: String| Status::new("inconclusive", reason, "");
+        let status = match crate::compiler::embedded::sil::cache_key(&result.ast, test) {
+            Err(e) => inconclusive(format!("the C is not generated: {e}")),
+            Ok(key) => match cache::read(&dir, &test.id) {
+                None => inconclusive(format!("never run in SIL: run `arclang sil {} --test {}`", model_path.display(), test.id)),
+                Some(outcome) if outcome.key != key => {
+                    let reason = format!("stale: the generated C or the case changed since its SIL run; run `arclang sil {} --test {}`", model_path.display(), test.id);
+                    result.warnings.push(format!("verification: test_case '{}' is inconclusive: {reason}", test.name));
+                    inconclusive(reason)
+                }
+                Some(outcome) => {
+                    let status = status_of(result, test, &outcome);
+                    if status.verdict != "pass" {
+                        result.warnings.push(format!("verification: test_case '{}' {} in SIL: {}", test.name, if status.verdict == "fail" { "fails" } else { "is in error" }, status.reason));
+                    }
+                    status
+                }
+            },
+        };
+        statuses.insert(test.id.clone(), status);
+    }
+    statuses
 }
 
 /// Simulate the cases of a model (one, with `only`), cache and return

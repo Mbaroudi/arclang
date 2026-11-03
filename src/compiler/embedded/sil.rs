@@ -91,6 +91,86 @@ pub struct Options {
     pub only: Option<String>,
 }
 
+/// Bumped when the meaning of a cached SIL verdict changes.
+const CACHE_FORMAT: &str = "arclang-sil-cache-1";
+
+/// The hash of what the SIL verdict of a case depends on: every generated
+/// file, the case's `execute:` and its expectations. Any change of the model
+/// that changes the C, or of the generator, makes the cached verdict stale.
+pub fn cache_key(ast: &Model, test: &TestCase) -> Result<String, String> {
+    use sha2::{Digest, Sha256};
+    let (files, _) = super::export(ast)?;
+    let mut hash = Sha256::new();
+    let mut field = |label: &str, bytes: &[u8]| {
+        hash.update(label.as_bytes());
+        hash.update((bytes.len() as u64).to_le_bytes());
+        hash.update(bytes);
+    };
+    field("format", CACHE_FORMAT.as_bytes());
+    for (name, text) in &files {
+        field("file", name.as_bytes());
+        field("text", text.as_bytes());
+    }
+    if let Some(crate::compiler::ast::AttributeValue::Map(map)) = test.attributes.get("execute") {
+        let mut keys: Vec<&String> = map.keys().collect();
+        keys.sort();
+        for key in keys {
+            field("execute", format!("{key}={}", map[key].display()).as_bytes());
+        }
+    }
+    for expect in crate::compiler::simulation::expects_of(&test.attributes) {
+        field("expects", expect.as_bytes());
+    }
+    Ok(hash.finalize().iter().map(|b| format!("{b:02x}")).collect())
+}
+
+/// The verdict of a case over the compilers it ran with, as the
+/// simulation cache keeps verdicts: an error with one is an error, a
+/// failure with one a failure.
+pub fn cached_outcome(runs: &[&Outcome], key: String) -> crate::compiler::simulation::Outcome {
+    let first = runs[0];
+    let worst = runs.iter().find(|o| o.verdict == "error").or_else(|| runs.iter().find(|o| o.verdict == "fail")).copied().unwrap_or(first);
+    let values: Vec<Evaluated> = worst.expectations.iter().filter_map(|j| j.c.clone().or_else(|| j.model.clone())).collect();
+    let log = runs
+        .iter()
+        .map(|o| {
+            let b2b = o.back_to_back.as_ref().map(|b| format!("{} steps x {} outputs, largest difference {}", b.steps, b.columns, b.max_difference)).unwrap_or_default();
+            format!("{}: {} (model {}, C {}) {b2b} {}", o.compiler, o.verdict, o.model_verdict, o.c_verdict, o.reason).trim().to_string()
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+    let reason = if worst.verdict == "pass" { String::new() } else { format!("SIL with {}: {}", worst.compiler, worst.reason) };
+    crate::compiler::simulation::Outcome {
+        test_case: first.test_case.clone(),
+        name: first.name.clone(),
+        verifies: first.verifies.clone(),
+        verdict: worst.verdict.clone(),
+        reason,
+        values,
+        key,
+        model: format!("state_machine {}", first.machine),
+        tool: format!("arclang sil ({})", runs.iter().map(|o| o.compiler.as_str()).collect::<Vec<_>>().join(", ")),
+        log,
+        ..Default::default()
+    }
+}
+
+/// Keep the verdicts of the cases run in the model's cache
+/// (`.arclang/sim-cache/`), where `check`, `gate` and the tables read them.
+pub fn cache(ast: &Model, model_path: &Path, outcomes: &[Outcome]) -> Result<Vec<PathBuf>, String> {
+    let dir = crate::compiler::simulation::cache::dir(model_path);
+    let mut written = Vec::new();
+    for test in cases(ast) {
+        let runs: Vec<&Outcome> = outcomes.iter().filter(|o| o.test_case == test.id).collect();
+        if runs.is_empty() {
+            continue;
+        }
+        let outcome = cached_outcome(&runs, cache_key(ast, test)?);
+        written.push(crate::compiler::simulation::cache::write(&dir, &outcome)?);
+    }
+    Ok(written)
+}
+
 /// The cases of a model that execute at fixed step.
 pub fn cases(ast: &Model) -> Vec<&TestCase> {
     ast.test_cases.iter().filter(|t| super::case::is_executed(t)).collect()

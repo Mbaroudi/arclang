@@ -1825,8 +1825,12 @@ impl CliRunner {
         } else if !json {
             println!("\n  Generated files, harnesses and binaries kept in {}", work.display());
         }
+        // Kept where check, gate and the tables read verdicts.
+        let cached = sil::cache(&result.ast, input, &outcomes).map_err(CliError::Compilation)?;
         if json {
             println!("{}", serde_json::to_string_pretty(&outcomes).unwrap_or_default());
+        } else if !cached.is_empty() {
+            println!("\n  {} verdict(s) cached in {}", cached.len(), crate::compiler::simulation::cache::dir(input).display());
         }
         let failed = outcomes.iter().filter(|o| o.verdict != "pass").count();
         if failed == 0 {

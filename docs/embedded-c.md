@@ -537,6 +537,16 @@ with the vectors, and judged:
 harnesses and the binaries, `--json` prints the outcomes. The command fails
 when a case does not pass.
 
+The verdict of each case run is kept in `.arclang/sim-cache/` beside the
+model, as `arclang verify` keeps simulation verdicts, keyed by a hash of
+every generated file, the case's `execute:` and its expectations (over all
+the compilers of the run: an error with one is an error, a failure a
+failure). `check`, `gate`, the tables and the documents read it: a fresh
+verdict is the case's verdict (by requirement when its expectations name
+requirements), with its values as evidence; a case never run in SIL, or
+whose C or case changed since (stale, with a warning), is inconclusive and
+says what to run.
+
 ## MISRA C 2012
 
 `tools/embedded/misra.sh` (run in the embedded image: `tools/embedded/run.sh
@@ -593,11 +603,6 @@ Said plainly:
   the C. A completion transition leaving a composite state does not wait
   for its regions to reach their final states: it fires as soon as its
   source is active.
-- **Verdicts in the traceability:** a failing executed case is a
-  compilation warning; the verdicts of `arclang sil` are printed (and
-  `--json`), not yet cached for `check`, `gate` and the tables as
-  `arclang verify` caches simulation verdicts, so an executed case reads
-  pending there.
 - **Target packages** (Zephyr, Linux RT, FPGA, PLC) are not part of this
   lot: only the host implementation of `arclang_io.h` exists. The FMU
   wrapping of the C is not done.
