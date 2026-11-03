@@ -341,6 +341,32 @@ pub enum Commands {
         json: bool,
     },
 
+    /// Processor in the loop: build the generated C for a target package
+    /// (Zephyr, `zephyr/litex_vexriscv`), run it on the target's processor in
+    /// its emulator (Renode), drive each test case that `execute:`s through
+    /// the bound channels (or the step() API), compare the outputs with the
+    /// model-level run step by step and judge its `expects:` on both
+    Pil {
+        #[clap(value_parser)]
+        input: PathBuf,
+
+        /// Only this test case (id or name)
+        #[clap(long)]
+        test: Option<String>,
+
+        /// The target package (default: the io_binding's `target:`)
+        #[clap(long)]
+        target: Option<String>,
+
+        /// Keep the applications, builds, plans and logs in this directory
+        #[clap(long)]
+        keep: Option<PathBuf>,
+
+        /// Print the outcomes as JSON
+        #[clap(long)]
+        json: bool,
+    },
+
     /// Run the digital twins of a model: each `twin`'s physical model
     /// driven by its measured data (drives:) in OpenModelica, compared to
     /// the measurements (compares:) and checked against its expects:
@@ -432,6 +458,14 @@ pub enum Commands {
         /// exchange (`ExchangeItem`) or after the Capella port (`CapellaElement`)
         #[clap(long, default_value = "ExchangeItem")]
         port_naming: String,
+
+        /// Zephyr only: the target package (default: the io_binding's `target:`)
+        #[clap(long)]
+        target: Option<String>,
+
+        /// Zephyr only: the io_binding the controller runs (default: the only one)
+        #[clap(long)]
+        binding: Option<String>,
     },
     
     Import {
@@ -873,6 +907,11 @@ pub enum ExportFormat {
     /// and model-level reference of each executed case: `output` is a DIRECTORY
     #[clap(name = "fmu")]
     Fmu,
+    /// A Zephyr application of the model for a target package (`--target`,
+    /// else the io_binding's): the C, the glue, the target's arclang_io,
+    /// drivers, devicetree overlay, build files and emulator: `output` is a DIRECTORY
+    #[clap(name = "zephyr")]
+    Zephyr,
 }
 
 #[derive(Debug, clap::ValueEnum, Clone)]
@@ -1007,7 +1046,13 @@ impl CliRunner {
             Commands::Gate { input, standard, format: _ } => {
                 self.run_gate(input, standard)
             }
-            Commands::Export { input, output, format, no_placement, split, strategy, elements, leaf_functions, port_naming } => {
+            Commands::Export { input, output, format, no_placement, split, strategy, elements, leaf_functions, port_naming, target, binding } => {
+                if matches!(format, ExportFormat::Zephyr) {
+                    return self.run_export_zephyr(&input, &output, target.as_deref(), binding.as_deref());
+                }
+                if target.is_some() || binding.is_some() {
+                    return Err(CliError::Compilation("--target and --binding apply to the Zephyr export (-f zephyr)".to_string()));
+                }
                 if (no_placement || split) && !matches!(format, ExportFormat::Modelica) {
                     return Err(CliError::Compilation("--no-placement and --split apply to the Modelica export (-f modelica)".to_string()));
                 }
@@ -1060,6 +1105,7 @@ impl CliRunner {
                 self.run_verify(input, test, json)
             }
             Commands::Sil { input, test, compilers, keep, json } => self.run_sil(&input, test, compilers, keep, json),
+            Commands::Pil { input, test, target, keep, json } => self.run_pil(&input, test, target, keep, json),
             Commands::Twin { input, twin, json, list, live, for_seconds } => {
                 if live {
                     self.run_twin_live(input, twin, json, for_seconds)
@@ -1805,6 +1851,31 @@ impl CliRunner {
         }
     }
 
+    fn run_export_zephyr(&self, input: &std::path::Path, output: &std::path::Path, target: Option<&str>, binding: Option<&str>) -> Result<(), CliError> {
+        let result = crate::Compiler::new(crate::CompilerConfig::default()).compile_file(input).map_err(|e| CliError::Compilation(e.to_string()))?;
+        let app = crate::compiler::embedded::zephyr::export(&result.ast, target, binding).map_err(CliError::Compilation)?;
+        for (name, text, executable) in &app.files {
+            let path = output.join(name);
+            if let Some(dir) = path.parent() {
+                std::fs::create_dir_all(dir).map_err(CliError::Io)?;
+            }
+            std::fs::write(&path, text).map_err(CliError::Io)?;
+            #[cfg(unix)]
+            if *executable {
+                use std::os::unix::fs::PermissionsExt;
+                std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755)).map_err(CliError::Io)?;
+            }
+            #[cfg(not(unix))]
+            let _ = executable;
+        }
+        for note in &app.notes {
+            println!("  note: {note}");
+        }
+        println!("✓ Export successful — a Zephyr application of {} file(s) in {}", app.files.len(), output.display());
+        println!("  Build: west build -b <board> {} (or {}/run.sh); see docs/embedded-targets.md.", output.display(), output.display());
+        Ok(())
+    }
+
     fn run_sil(&self, input: &std::path::Path, test: Option<String>, compilers: Vec<String>, keep: Option<PathBuf>, json: bool) -> Result<(), CliError> {
         use crate::compiler::embedded::sil;
         let result = crate::Compiler::new(crate::CompilerConfig::default()).compile_file(input).map_err(|e| CliError::Compilation(e.to_string()))?;
@@ -1845,6 +1916,38 @@ impl CliRunner {
         }
     }
 
+    fn run_pil(&self, input: &std::path::Path, test: Option<String>, target: Option<String>, keep: Option<PathBuf>, json: bool) -> Result<(), CliError> {
+        use crate::compiler::embedded::pil;
+        let result = crate::Compiler::new(crate::CompilerConfig::default()).compile_file(input).map_err(|e| CliError::Compilation(e.to_string()))?;
+        let scratch = keep.is_none();
+        let work = keep.unwrap_or_else(|| std::env::temp_dir().join(format!("arclang-pil-{}", std::process::id())));
+        let options = pil::Options { target, work: work.clone(), only: test };
+        let (package, outcomes) = pil::run(&result.ast, &options).map_err(CliError::Compilation)?;
+        if !json {
+            println!("\nPIL {} — {}", input.display(), outcomes.first().map(|o| o.compiler.as_str()).unwrap_or(package.name.as_str()));
+            for outcome in &outcomes {
+                self.print_sil(outcome);
+            }
+        }
+        if scratch {
+            let _ = std::fs::remove_dir_all(&work);
+        } else if !json {
+            println!("\n  Applications, builds, plans and logs kept in {}", work.display());
+        }
+        let cached = pil::cache(&result.ast, input, &package, &outcomes).map_err(CliError::Compilation)?;
+        if json {
+            println!("{}", serde_json::to_string_pretty(&outcomes).unwrap_or_default());
+        } else if !cached.is_empty() {
+            println!("\n  {} PIL verdict(s) cached in {}", cached.len(), crate::compiler::simulation::cache::dir(input).display());
+        }
+        let failed = outcomes.iter().filter(|o| o.verdict != "pass").count();
+        if failed == 0 {
+            Ok(())
+        } else {
+            Err(CliError::CiFailed(format!("{failed} of {} PIL run(s) do not pass", outcomes.len())))
+        }
+    }
+
     fn print_sil(&self, outcome: &crate::compiler::embedded::sil::Outcome) {
         let mark = match outcome.verdict.as_str() {
             "pass" => "✓ pass ",
@@ -1862,6 +1965,9 @@ impl CliRunner {
         }
         println!("    {}", context.join(" · "));
         println!("    model: {} · C: {} · {}", outcome.model_verdict, outcome.c_verdict, if outcome.agrees { "the C reproduces the model" } else { "the C does NOT reproduce the model" });
+        if let Some(timing) = &outcome.timing {
+            println!("    timing: {timing}");
+        }
         if let Some(b2b) = &outcome.back_to_back {
             match &b2b.first_mismatch {
                 None => println!("    back to back: {} steps × {} outputs, largest difference {} (tolerance {})", b2b.steps, b2b.columns, b2b.max_difference, b2b.tolerance),
@@ -2216,6 +2322,7 @@ impl CliRunner {
             ExportFormat::Modelica => "json".to_string(),
             ExportFormat::C => "json".to_string(),
             ExportFormat::Fmu => "json".to_string(),
+            ExportFormat::Zephyr => "json".to_string(),
         };
         
         let mut compiler = crate::Compiler::new(config);

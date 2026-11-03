@@ -1024,7 +1024,7 @@ One product of a product line: the variant it selects in each variation. Two var
 
 #### IoBinding
 
-`io_binding "ECU" { ... }`: the inputs and outputs of a state machine bound once to the channels of the I/O interface `arclang_io.h` (gpio, adc, dac, pwm, can, uart, with a clock and a watchdog). Checked by the compiler; `arclang export -f c` generates the glue that calls the channels, `arclang sil` runs it on the host board. See docs/embedded-c.md.
+`io_binding "ECU" { ... }`: the inputs and outputs of a state machine bound once to the channels of the I/O interface `arclang_io.h` (gpio, adc, dac, pwm, can, uart, with a clock and a watchdog). Checked by the compiler, against its target's channels too; `arclang export -f c` generates the glue that calls the channels, `arclang sil` runs it on the host board, `arclang pil` on the target's processor. See docs/embedded-c.md.
 
 - Arcadia: `(embedded extension)`
 - SysML v2: `(none: an allocation of a state machine's events, conditions, states and actions to I/O channels)`
@@ -1034,6 +1034,7 @@ One product of a product line: the variant it selects in each variation. Two var
 | `machine` | `ref<StateMachine>` | The state machine bound (optional when the model has one). |
 | `period` | `quantity<time>` | The step period on the target, a time (`10 ms`): the glue runs one cycle per period. |
 | `watchdog` | `boolean` | Kick the watchdog after every cycle that read, stepped and wrote without error. |
+| `target` | `text` | The target package it is deployed on (`zephyr/litex_vexriscv`; `host` by default): the compiler checks that the target has every channel bound. `arclang export -f zephyr` and `arclang pil` use it. See docs/embedded-targets.md. |
 | `inputs` | `list<text>` | `event or condition <- channel`: an event from an edge (`gpio 4 rising`), a frame (`can 0x120`) or a byte (`uart 0 0x41`); a condition from a level (`gpio 3`), a raw threshold (`adc 0 > 2048`) or the first byte of the last frame (`can 0x121`). An event bound to a level, a condition to an edge, or an input bound twice is an error; an input left unbound, a warning. |
 | `outputs` | `list<text>` | `state or action -> channel`: a state (1 while active) or an action (times run in the step) written to `gpio 10`, `pwm 2 750` (per mille while not zero), `dac 1 4095` (while not zero), `can 0x300` (first byte, every period) or `uart 1 0x45` (each step it is not zero). A channel written twice, or a pin both read and written, is an error. |
 | `description` | `text` | Free-text description. |
