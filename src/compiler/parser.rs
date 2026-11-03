@@ -932,6 +932,14 @@ impl Parser {
         })
     }
     
+    /// `concern "Name" { ... }`: `concern` is a keyword in a requirements or system analysis block only.
+    fn parse_concern(&mut self) -> Result<Concern, String> {
+        self.advance();
+        let id = self.expect_name()?;
+        let attributes = self.parse_attributes_block()?;
+        Ok(Concern { id, attributes })
+    }
+
     fn parse_system_analysis(&mut self) -> Result<SystemAnalysis, String> {
         let mut level_attributes: HashMap<String, AttributeValue> = HashMap::new();
         self.expect(Token::SystemAnalysis)?;
@@ -947,6 +955,7 @@ impl Parser {
         let mut missions = Vec::new();
         let mut capabilities = Vec::new();
         let mut functional_chains = Vec::new();
+        let mut concerns = Vec::new();
 
         while !self.check(&Token::RightBrace) && !self.is_at_end() {
             match self.current() {
@@ -955,6 +964,9 @@ impl Parser {
                 }
                 Token::Req => {
                     requirements.push(self.parse_req_statement()?);
+                }
+                Token::Identifier(ref word) if word == "concern" => {
+                    concerns.push(self.parse_concern()?);
                 }
                 Token::Function => {
                     functions.push(self.parse_system_function()?);
@@ -1011,6 +1023,7 @@ impl Parser {
             attributes: level_attributes,
             name,
             requirements,
+            concerns,
             functions,
             components,
             external_actors,
@@ -2096,7 +2109,8 @@ impl Parser {
         self.expect(Token::LeftBrace)?;
         
         let mut requirements = Vec::new();
-        
+        let mut concerns = Vec::new();
+
         while !self.check(&Token::RightBrace) && !self.is_at_end() {
             match self.current() {
                 Token::Req => {
@@ -2105,9 +2119,12 @@ impl Parser {
                 Token::Requirement => {
                     requirements.push(self.parse_requirement()?);
                 }
+                Token::Identifier(ref word) if word == "concern" => {
+                    concerns.push(self.parse_concern()?);
+                }
                 _ => {
                     return Err(self.err(format!(
-                        "Unexpected token in requirements block: {} (expected 'req' or 'requirement')",
+                        "Unexpected token in requirements block: {} (expected 'req', 'requirement' or 'concern')",
                         self.current()
                     )));
                 }
@@ -2121,6 +2138,7 @@ impl Parser {
             attributes: HashMap::new(),
             name,
             requirements,
+            concerns,
             functions: Vec::new(),
             components: Vec::new(),
             external_actors: Vec::new(),

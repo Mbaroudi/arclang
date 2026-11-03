@@ -362,7 +362,17 @@ impl Metamodel {
                     attr("parent", AttrType::Reference("Requirement"), "Requirement it sits under in its document (ReqIF SPEC-HIERARCHY); structure, not refinement."),
                     attr("reqif_id", AttrType::Text, "Identifier the requirement has in the tool it came from (ReqIF IDENTIFIER), given back on export."),
                     attr("applies_to", list(AttrType::Reference("Configuration")), "The configurations of the product line the requirement holds for; every one when absent. A case verifying it runs in one of them, and the gate wants a case in each."),
+                    attr("frames", list(AttrType::Reference("Concern")), "The concerns the requirement addresses (SysML v2 `frame`)."),
+                    attr("subject", AttrType::Reference("Element"), "What the requirement is about: a component, a node, a function (SysML v2 `subject`). The element shows it in its requirements compartment."),
+                    attr("require", list(AttrType::Text), "Constraints the subject must meet, as expressions (`\"mass <= 1200 kg\"`; SysML v2 `require constraint`)."),
+                    attr("assume", list(AttrType::Text), "Constraints taken for granted for the requirement to hold (`\"ambient >= -20 °C\"`; SysML v2 `assume constraint`)."),
                 ], safety()])),
+            kind("Concern", Layer::System, "(none: carried as a requirement)", "concern", "What a stakeholder cares about, framed by the requirements that address it. Declared in a `requirements` block: `concern \"Resists to bullets\" { stakeholders: [\"Owner\"] }`.",
+                concat(vec![common(), vec![
+                    attr("stakeholders", list(AttrType::Text), "Who has the concern (SysML v2 `stakeholder`)."),
+                    attr("rationale", AttrType::Text, "Why it matters."),
+                    attr("parent", AttrType::Reference("Concern"), "Concern it sits under."),
+                ]])),
             kind("Mission", Layer::System, "Mission", "use case def", "High-level goal the system contributes to.", common()),
             kind("Capability", Layer::System, "Capability", "use case def", "Expected ability of the system. May be declared inside another capability.",
                 concat(vec![common(), vec![

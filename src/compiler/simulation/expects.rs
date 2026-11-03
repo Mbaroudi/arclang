@@ -202,6 +202,8 @@ struct Parser<'a> {
     tokens: Vec<Token>,
     at: usize,
     aliases: &'a BTreeMap<String, String>,
+    /// A bare variable stands for its value (a requirement's constraint), not a time series.
+    values: bool,
 }
 
 impl Parser<'_> {
@@ -282,6 +284,10 @@ impl Parser<'_> {
                 self.expect(Token::Close)?;
                 Ok(Term::Call { function, at, variable })
             }
+            Some(Token::Name(_)) | Some(Token::Quoted(_)) if self.values => {
+                self.at -= 1;
+                Ok(Term::Call { function: "value".to_string(), at: None, variable: self.variable()? })
+            }
             Some(Token::Name(name)) | Some(Token::Quoted(name)) => Err(format!(
                 "'{}' is a time series: read it with {}(...) or at(t, ...)",
                 name.replace('\u{0}', ""),
@@ -324,9 +330,13 @@ pub fn split_requirement(text: &str) -> (Option<&str>, &str) {
 }
 
 pub fn parse(full: &str, aliases: &BTreeMap<String, String>) -> Result<Expect, String> {
+    parse_with(full, aliases, false)
+}
+
+fn parse_with(full: &str, aliases: &BTreeMap<String, String>, values: bool) -> Result<Expect, String> {
     let (requirement, text) = split_requirement(full);
     let tokens = tokens(text).map_err(|e| format!("expects \"{text}\": {e}"))?;
-    let mut parser = Parser { tokens, at: 0, aliases };
+    let mut parser = Parser { tokens, at: 0, aliases, values };
     let wrap = |e: String| format!("expects \"{text}\": {e}");
     let lhs = parser.sum().map_err(wrap)?;
     let cmp = match parser.next() {
@@ -348,6 +358,10 @@ pub fn parse(full: &str, aliases: &BTreeMap<String, String>) -> Result<Expect, S
 /// The syntax of an expectation, without the model: quoted ids are not
 /// resolved yet.
 pub fn check_syntax(full: &str) -> Result<(), String> {
+    syntax(full, false)
+}
+
+fn syntax(full: &str, values: bool) -> Result<(), String> {
     let text = split_requirement(full).1;
     let tokens = tokens(text).map_err(|e| format!("expects \"{text}\": {e}"))?;
     let aliases: BTreeMap<String, String> = tokens
@@ -357,7 +371,14 @@ pub fn check_syntax(full: &str) -> Result<(), String> {
             _ => None,
         })
         .collect();
-    parse(full, &aliases).map(|_| ())
+    parse_with(full, &aliases, values).map(|_| ())
+}
+
+/// A requirement's constraint (`require:`, `assume:`): a comparison written as an
+/// expectation is (`mass <= 1200 kg`, `max(cabin.T) <= 30 °C`), its variables the subject's
+/// features. Its syntax and units are checked; it is not evaluated here.
+pub fn check_constraint(text: &str) -> Result<(), String> {
+    syntax(text, true).map_err(|e| e.trim_start_matches(&format!("expects \"{text}\": ")).to_string())
 }
 
 /// A value in SI; `dim` is `None` when a variable's unit is unknown.
@@ -488,6 +509,7 @@ fn shown(value: Value, unit: Option<&str>) -> String {
 
 fn label(term: &Term) -> String {
     match term {
+        Term::Call { function, at: None, variable } if function == "value" => variable.clone(),
         Term::Call { function, at: None, variable } => format!("{function}({variable})"),
         Term::Call { variable, at: Some(t), .. } => match t.as_ref() {
             Term::Number { value, dim, unit } => format!("at({}, {variable})", shown(Value { si: *value, dim: Some(*dim) }, unit.as_deref())),
@@ -694,5 +716,19 @@ mod tests {
         assert!(check_syntax("min(battery.soc)").unwrap_err().contains("comparison"));
         assert!(check_syntax("min(battery.soc >= 1").unwrap_err().contains("expected ')'"));
         assert!(check_syntax("at(battery.soc) > 1").is_err());
+    }
+}
+
+#[cfg(test)]
+mod constraint_tests {
+    use super::check_constraint;
+
+    #[test]
+    fn a_requirement_constraint_is_a_comparison_of_the_subjects_features() {
+        for ok in ["mass <= 1200 kg", "max(cabin.T) <= 30 °C", "range >= 400 km", "ambient.T >= -20 °C"] {
+            assert!(check_constraint(ok).is_ok(), "{ok}: {:?}", check_constraint(ok));
+        }
+        assert!(check_constraint("mass").unwrap_err().contains("comparison"));
+        assert!(check_constraint("mass <= ").is_err());
     }
 }

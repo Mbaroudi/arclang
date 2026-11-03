@@ -9,11 +9,16 @@
 //! `implements`) are drawn like every trace a view can draw both ends of
 //! (`links::draw_traces`); a test case's `verifies:` is a `verifies` line
 //! from the case to each requirement.
+//!
+//! A requirement's box also lists what it is about (`subject:`), the
+//! concerns it frames and the constraints it requires and assumes; each
+//! concern is a box of its own with a `frames` line to it, the subject a box
+//! with a `subject` line to it and the requirements about it in its compartment.
 
 use super::builder::identity;
 use super::elements::element_index;
 use super::{Diagram, Edge, EdgeKind, Node, NodeKind, ViewKind};
-use crate::compiler::ast::{AttributeValue, Model, Requirement, TestCase};
+use crate::compiler::ast::{AttributeValue, Concern, Model, Requirement, TestCase};
 use crate::compiler::identity::element_uuid;
 use crate::compiler::semantic::SemanticModel;
 use std::collections::{BTreeMap, HashMap, HashSet};
@@ -94,6 +99,59 @@ pub(super) fn build(model: &Model) -> Option<(Diagram, Vec<String>)> {
             properties: BTreeMap::new(),
         });
     }
+    let concerns: Vec<&Concern> = model.system_analysis.iter().flat_map(|sa| &sa.concerns).collect();
+    let mut concern_ids: HashMap<&str, &str> = HashMap::new();
+    for concern in &concerns {
+        let id = identity(&concern.attributes, &concern.id);
+        concern_ids.insert(id, id);
+        concern_ids.entry(&concern.id).or_insert(id);
+        if added.insert(id.to_string()) {
+            nodes.push(concern_node(concern, id));
+        }
+    }
+    // The subject of each requirement, and the requirements about it.
+    let mut about: Vec<(String, Vec<String>)> = Vec::new();
+    for requirement in &requirements {
+        let id = identity(&requirement.attributes, &requirement.id);
+        if let Some(AttributeValue::List(framed)) = requirement.attributes.get("frames") {
+            for concern in framed.iter().filter_map(|c| c.as_string()) {
+                match concern_ids.get(concern) {
+                    Some(target) => {
+                        let properties = BTreeMap::from([("trace".to_string(), "frames".to_string())]);
+                        edges.push(edge(EdgeKind::Trace, "frm", id, target, "frames", properties));
+                    }
+                    None => diagnostics.push(format!("[req] '{id}': frames '{concern}', which is not a concern")),
+                }
+            }
+        }
+        let Some(subject) = requirement.attributes.get("subject").and_then(|v| v.as_string()) else { continue };
+        let Some(element) = index.get(subject) else { continue };
+        if added.insert(element.id.to_string()) {
+            nodes.push(Node {
+                id: element.id.to_string(),
+                uuid: element_uuid("element", element.id),
+                name: element.name.to_string(),
+                kind: element.kind,
+                ports: Vec::new(),
+                children: Vec::new(),
+                realizes: Vec::new(),
+                compartment: Vec::new(),
+                properties: BTreeMap::new(),
+            });
+        }
+        let properties = BTreeMap::from([("trace".to_string(), "subject".to_string())]);
+        edges.push(edge(EdgeKind::Trace, "sbj", id, element.id, "subject", properties));
+        match about.iter_mut().find(|(subject, _)| subject == element.id) {
+            Some((_, ids)) => ids.push(id.to_string()),
+            None => about.push((element.id.to_string(), vec![id.to_string()])),
+        }
+    }
+    for (subject, ids) in about {
+        if let Some(node) = nodes.iter_mut().find(|n| n.id == subject) {
+            node.compartment.push("requirements".to_string());
+            node.compartment.extend(ids);
+        }
+    }
     let diagram = Diagram {
         id: ViewKind::Req.id().to_string(),
         kind: ViewKind::Req,
@@ -128,6 +186,20 @@ fn requirement_node(requirement: &Requirement, id: &str, title: &str) -> Node {
         }
         compartment.extend(lines);
     }
+    if let Some(subject) = requirement.attributes.get("subject").and_then(|v| v.as_string()) {
+        compartment.push(format!("subject: {subject}"));
+    }
+    for key in ["frames", "require", "assume"] {
+        let items: Vec<String> = match requirement.attributes.get(key) {
+            Some(AttributeValue::List(items)) => items.iter().map(|i| i.as_string().map(str::to_string).unwrap_or_else(|| i.display())).collect(),
+            Some(AttributeValue::String(one)) => vec![one.clone()],
+            _ => Vec::new(),
+        };
+        if !items.is_empty() {
+            compartment.push(key.to_string());
+            compartment.extend(items);
+        }
+    }
     Node {
         id: id.to_string(),
         uuid: element_uuid("element", id),
@@ -138,6 +210,31 @@ fn requirement_node(requirement: &Requirement, id: &str, title: &str) -> Node {
         realizes: Vec::new(),
         compartment,
         properties: properties(&requirement.attributes),
+    }
+}
+
+fn concern_node(concern: &Concern, id: &str) -> Node {
+    let mut compartment = vec![format!("id: {id}")];
+    if let Some(AttributeValue::List(stakeholders)) = concern.attributes.get("stakeholders") {
+        let names: Vec<String> = stakeholders.iter().map(|s| s.as_string().map(str::to_string).unwrap_or_else(|| s.display())).collect();
+        if !names.is_empty() {
+            compartment.push(format!("stakeholders: {}", names.join(", ")));
+        }
+    }
+    if let Some(text) = concern.attributes.get("description").and_then(|v| v.as_string()) {
+        compartment.extend(wrapped(text, TEXT_WIDTH).into_iter().take(TEXT_LINES));
+    }
+    let name = concern.attributes.get("name").and_then(|v| v.as_string()).unwrap_or(&concern.id);
+    Node {
+        id: id.to_string(),
+        uuid: element_uuid("element", id),
+        name: name.to_string(),
+        kind: NodeKind::Concern,
+        ports: Vec::new(),
+        children: Vec::new(),
+        realizes: Vec::new(),
+        compartment,
+        properties: properties(&concern.attributes),
     }
 }
 

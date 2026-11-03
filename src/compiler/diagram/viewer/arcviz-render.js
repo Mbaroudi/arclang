@@ -58,6 +58,7 @@
     configuration_item: { fill: '#E9ECEF', stroke: '#3D4852', label: 'Configuration item', glyph: 'node' },
     note: { fill: '#FFF6C9', stroke: '#A8902E', label: 'Note', glyph: 'none' },
     requirement: { fill: '#F4F6E2', stroke: '#5F6B2E', label: 'Requirement', glyph: 'none' },
+    concern: { fill: '#FBF3E4', stroke: '#8A5A1E', label: 'Concern', glyph: 'none', round: 14 },
     test_case: { fill: '#D6E4F5', stroke: '#2D6B66', label: 'Test case', glyph: 'none' },
     constraint: { fill: '#E3EEFB', stroke: '#27466F', label: 'Constraint', glyph: 'none', round: 14 },
     value_property: { fill: '#FFFFFF', stroke: '#4A545E', label: 'Value', glyph: 'none' },

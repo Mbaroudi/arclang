@@ -68,7 +68,11 @@ RequirementsBlock ::= "requirements" RequirementsSubtype? "{" RequirementDecl* "
 RequirementsSubtype ::= "stakeholder" | "system" | "safety" | Identifier ;
 
 RequirementDecl ::= "req" Name String? AttributeBlock          (* req REQ-001 "Title" { ... } *)
-                  | "requirement" Name AttributeBlock ;        (* requirement "REQ-001" { ... } *)
+                  | "requirement" Name AttributeBlock          (* requirement "REQ-001" { ... } *)
+                  | "concern" Name AttributeBlock ;            (* concern "Driver safety" { stakeholders: [...] } *)
+(* A requirement frames concerns (frames: [...]), is about a subject (subject: "LC-1")
+   and requires or assumes constraints written as comparisons (require: ["mass <= 1200 kg"]).
+   `concern` is also declared in a system_analysis block. *)
 
 (* ---- Operational Analysis (OA) --------------------------------------------- *)
 

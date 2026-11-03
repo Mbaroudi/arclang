@@ -170,9 +170,31 @@ Stakeholder, system or safety requirement.
 | `parent` | `ref<Requirement>` | Requirement it sits under in its document (ReqIF SPEC-HIERARCHY); structure, not refinement. |
 | `reqif_id` | `text` | Identifier the requirement has in the tool it came from (ReqIF IDENTIFIER), given back on export. |
 | `applies_to` | `list<ref<Configuration>>` | The configurations of the product line the requirement holds for; every one when absent. A case verifying it runs in one of them, and the gate wants a case in each. |
+| `frames` | `list<ref<Concern>>` | The concerns the requirement addresses (SysML v2 `frame`). |
+| `subject` | `ref<Element>` | What the requirement is about: a component, a node, a function (SysML v2 `subject`). The element shows it in its requirements compartment. |
+| `require` | `list<text>` | Constraints the subject must meet, as expressions (`"mass <= 1200 kg"`; SysML v2 `require constraint`). |
+| `assume` | `list<text>` | Constraints taken for granted for the requirement to hold (`"ambient >= -20 °C"`; SysML v2 `assume constraint`). |
 | `safety_level` | `enum SafetyLevel` | ASIL, DAL or SIL assigned to the element. |
 | `asil` | `enum Asil` | ISO 26262 ASIL (QM, ASIL-A..D). |
 | `dal` | `enum Dal` | DO-178C design assurance level (DAL-A..E). |
+
+#### Concern
+
+What a stakeholder cares about, framed by the requirements that address it. Declared in a `requirements` block: `concern "Resists to bullets" { stakeholders: ["Owner"] }`.
+
+- Arcadia: `(none: carried as a requirement)`
+- SysML v2: `concern`
+
+| Attribute | Type | Meaning |
+|---|---|---|
+| `id` | `identifier` | Stable identity; drives the UUIDv5. Defaults to the name. |
+| `name` | `text` | Display name; overrides the block name. |
+| `description` | `text` | Free-text description. |
+| `is` | `ref<Type>` | User-defined type of the element, or a list of types; their attributes (and ports, for components) are inherited. |
+| `tags` | `list<text>` | Tags the element carries (`["Safety"]`): a declared diagram draws what carries one with `tagged:`. In SysML v2, metadata usages of definitions in a `Tags` package. |
+| `stakeholders` | `list<text>` | Who has the concern (SysML v2 `stakeholder`). |
+| `rationale` | `text` | Why it matters. |
+| `parent` | `ref<Concern>` | Concern it sits under. |
 
 #### Mission
 

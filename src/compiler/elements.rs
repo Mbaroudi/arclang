@@ -547,6 +547,10 @@ pub fn build(ast: &Model, semantic: &SemanticModel) -> ElementGraph {
                 .to_string();
             builder.typed_element("Requirement", &requirement.id, &title, &root, &requirement.attributes);
         }
+        for concern in &sa.concerns {
+            let name = concern.attributes.get("name").and_then(|v| v.as_string()).unwrap_or(&concern.id).to_string();
+            builder.typed_element("Concern", &concern.id, &name, &root, &concern.attributes);
+        }
         for function in &sa.functions {
             builder.function(function, &root);
         }
@@ -900,6 +904,18 @@ pub fn build(ast: &Model, semantic: &SemanticModel) -> ElementGraph {
                     }
                 }
             }
+        }
+    }
+    // A requirement frames the concerns it addresses, and is about its subject.
+    for requirement in ast.system_analysis.iter().flat_map(|sa| &sa.requirements) {
+        let id = requirement.attributes.get("id").and_then(|v| v.as_string()).unwrap_or(&requirement.id);
+        if let Some(AttributeValue::List(concerns)) = requirement.attributes.get("frames") {
+            for concern in concerns.iter().filter_map(|c| c.as_string()) {
+                builder.relate("Frame", None, id, concern, &empty(), Vec::new());
+            }
+        }
+        if let Some(subject) = requirement.attributes.get("subject").and_then(|v| v.as_string()) {
+            builder.relate("Subject", None, id, subject, &empty(), Vec::new());
         }
     }
     for test_case in &ast.test_cases {
