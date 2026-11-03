@@ -521,6 +521,13 @@ impl Metamodel {
             kind("Note", Layer::Transverse, "Note (diagram annotation)", "comment about", "A text about elements, declared at the top of a file (`note \"Text\" { about: [\"LC-A\"] }`): drawn on every view that draws one of them, tied to each by a dashed line. An element it names that the model does not declare is an error.",
                 concat(vec![common(), vec![attr("about", list(AttrType::Reference("Element")), "The elements the note is about.")]])),
             kind("Constraint", Layer::Transverse, "Constraint", "assert constraint", "Dimension-checked comparison over typed attributes (`assert: <expression>`). Ill-formed is a compile error; violated is a warning and a gate blocker.", common()),
+            kind("Timeslice", Layer::Transverse, "(none: carried as a property)", "timeslice", "A stretch of an element's life, declared in it (`timeslice \"Takeoff\" { start: 0 s end: 40 s }`); holds the snapshots it goes through. Its other attributes are the values the element has during it.",
+                concat(vec![common(), vec![
+                    attr("start", AttrType::Quantity(Dimension::Time), "When it starts."),
+                    attr("end", AttrType::Quantity(Dimension::Time), "When it ends; not before it starts."),
+                ]])),
+            kind("Snapshot", Layer::Transverse, "(none: carried as a property)", "snapshot", "One moment of an element's life, declared in it or in one of its timeslices (`snapshot \"Landed\" { at: 5 min altitude: 0 m }`). Its other attributes are the values the element has then; a value the element declares as a quantity keeps its dimension.",
+                concat(vec![common(), vec![attr("at", AttrType::Quantity(Dimension::Time), "When it is; within its timeslice.")]])),
             kind("StateMachine", Layer::Transverse, "StateMachine", "state def", "Modes and states of an element.",
                 concat(vec![common(), vec![attr("initial", AttrType::Reference("State"), "Initial state.")]])),
             kind("State", Layer::Transverse, "State / Mode", "state", "State (undergone) or mode (chosen behavior).", common()),

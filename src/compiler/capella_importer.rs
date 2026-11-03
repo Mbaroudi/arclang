@@ -241,6 +241,7 @@ impl CapellaImporter {
             interfaces_in: Vec::new(),
             interfaces_out: Vec::new(),
             attributes,
+            occurrences: Vec::new(),
         }))
     }
     

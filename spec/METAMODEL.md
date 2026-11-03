@@ -1105,6 +1105,39 @@ Dimension-checked comparison over typed attributes (`assert: <expression>`). Ill
 | `is` | `ref<Type>` | User-defined type of the element, or a list of types; their attributes (and ports, for components) are inherited. |
 | `tags` | `list<text>` | Tags the element carries (`["Safety"]`): a declared diagram draws what carries one with `tagged:`. In SysML v2, metadata usages of definitions in a `Tags` package. |
 
+#### Timeslice
+
+A stretch of an element's life, declared in it (`timeslice "Takeoff" { start: 0 s end: 40 s }`); holds the snapshots it goes through. Its other attributes are the values the element has during it.
+
+- Arcadia: `(none: carried as a property)`
+- SysML v2: `timeslice`
+
+| Attribute | Type | Meaning |
+|---|---|---|
+| `id` | `identifier` | Stable identity; drives the UUIDv5. Defaults to the name. |
+| `name` | `text` | Display name; overrides the block name. |
+| `description` | `text` | Free-text description. |
+| `is` | `ref<Type>` | User-defined type of the element, or a list of types; their attributes (and ports, for components) are inherited. |
+| `tags` | `list<text>` | Tags the element carries (`["Safety"]`): a declared diagram draws what carries one with `tagged:`. In SysML v2, metadata usages of definitions in a `Tags` package. |
+| `start` | `quantity<time>` | When it starts. |
+| `end` | `quantity<time>` | When it ends; not before it starts. |
+
+#### Snapshot
+
+One moment of an element's life, declared in it or in one of its timeslices (`snapshot "Landed" { at: 5 min altitude: 0 m }`). Its other attributes are the values the element has then; a value the element declares as a quantity keeps its dimension.
+
+- Arcadia: `(none: carried as a property)`
+- SysML v2: `snapshot`
+
+| Attribute | Type | Meaning |
+|---|---|---|
+| `id` | `identifier` | Stable identity; drives the UUIDv5. Defaults to the name. |
+| `name` | `text` | Display name; overrides the block name. |
+| `description` | `text` | Free-text description. |
+| `is` | `ref<Type>` | User-defined type of the element, or a list of types; their attributes (and ports, for components) are inherited. |
+| `tags` | `list<text>` | Tags the element carries (`["Safety"]`): a declared diagram draws what carries one with `tagged:`. In SysML v2, metadata usages of definitions in a `Tags` package. |
+| `at` | `quantity<time>` | When it is; within its timeslice. |
+
 #### StateMachine
 
 Modes and states of an element.

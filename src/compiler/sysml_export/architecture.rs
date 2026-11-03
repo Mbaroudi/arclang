@@ -8,6 +8,7 @@
 use super::levels::{self, alias_held, component_ports, connection, flow, function, function_keys, performs, port_defs, ports_of, register_function, register_part};
 use super::{id_of, text, Exporter};
 use crate::compiler::ast::*;
+use std::collections::HashMap;
 
 pub(super) fn register(e: &mut Exporter<'_>) {
     let model = e.model;
@@ -200,6 +201,29 @@ fn logical_component(e: &mut Exporter<'_>, component: &LogicalComponent) {
     });
 }
 
+/// The timeslices and snapshots of an element: a value the element has
+/// redefined (`attribute :>> altitude = 120 [m];`), any other declared.
+fn occurrences(e: &mut Exporter<'_>, occurrences: &[Occurrence], owner: &HashMap<String, AttributeValue>) {
+    // Every key of the element is redefined, whatever its value.
+    let redefined: HashMap<String, AttributeValue> = owner.keys().map(|k| (k.clone(), AttributeValue::String("\u{0}".to_string()))).collect();
+    for occurrence in occurrences {
+        let kind = match occurrence.kind {
+            OccurrenceKind::Timeslice => "Timeslice",
+            OccurrenceKind::Snapshot => "Snapshot",
+        };
+        let id = occurrence.attributes.get("id").and_then(|v| v.as_string()).unwrap_or("");
+        e.block(&format!("{} {}", occurrence.kind.keyword(), text::declared(id, &occurrence.name)), |e| {
+            if let Some(description) = occurrence.attributes.get("description").and_then(|d| d.as_string()) {
+                e.line(&text::doc(description));
+            }
+            for line in super::attributes::lines(&e.metamodel, kind, &occurrence.attributes, &[], Some(&redefined), &mut e.units) {
+                e.line(&line);
+            }
+            self::occurrences(e, &occurrence.snapshots, owner);
+        });
+    }
+}
+
 /// Whether a component has more than its identity and its subcomponents.
 fn has_own_features(component: &LogicalComponent, skip: &[&str]) -> bool {
     let identity = ["id", "name", "is"];
@@ -221,6 +245,7 @@ fn own_features(e: &mut Exporter<'_>, component: &LogicalComponent, skip: &[&str
         e.line(&format!("attribute component_type : String = {};", text::string(&component.component_type)));
     }
     levels::owned_ports(e, &component.ports, &component.attributes);
+    occurrences(e, &component.occurrences, &component.attributes);
     // `interface_in` / `interface_out`: ports named by the interface they offer.
     for (direction, interfaces) in [("in", &component.interfaces_in), ("out", &component.interfaces_out)] {
         for interface in interfaces {
@@ -340,6 +365,7 @@ fn physical_node(e: &mut Exporter<'_>, node: &PhysicalNode) {
             }
         }
         levels::owned_ports(e, &node.component_ports, &node.attributes);
+        occurrences(e, &node.occurrences, &node.attributes);
         for port in &node.ports {
             let short = id_of(&port.attributes, "");
             let short = if short.is_empty() { String::new() } else { format!("{} ", text::short(short)) };

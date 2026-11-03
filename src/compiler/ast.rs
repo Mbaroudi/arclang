@@ -536,6 +536,39 @@ pub struct LogicalComponent {
     pub interfaces_in: Vec<InterfaceDefinition>,
     pub interfaces_out: Vec<InterfaceDefinition>,
     pub attributes: HashMap<String, AttributeValue>,
+    /// Its timeslices and snapshots, in order.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub occurrences: Vec<Occurrence>,
+}
+
+/// A portion of an element's life (SysML v2 `timeslice`, `snapshot`): a
+/// stretch of time (`timeslice "Takeoff" { start: 0 s end: 40 s }`) holding
+/// the moments it goes through, or one moment (`snapshot "Landed" { at: 5 min
+/// altitude: 0 m }`); the other attributes are the values the element has then.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct Occurrence {
+    pub kind: OccurrenceKind,
+    pub name: String,
+    pub attributes: HashMap<String, AttributeValue>,
+    /// The snapshots of a timeslice, in order.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub snapshots: Vec<Occurrence>,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum OccurrenceKind {
+    Timeslice,
+    Snapshot,
+}
+
+impl OccurrenceKind {
+    pub fn keyword(self) -> &'static str {
+        match self {
+            OccurrenceKind::Timeslice => "timeslice",
+            OccurrenceKind::Snapshot => "snapshot",
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -661,6 +694,9 @@ pub struct PhysicalNode {
     #[serde(default)]
     pub ports: Vec<PhysicalPort>,
     pub attributes: HashMap<String, AttributeValue>,
+    /// Its timeslices and snapshots, in order.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub occurrences: Vec<Occurrence>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -204,7 +204,15 @@ ComponentElement ::= Component                                  (* nested compon
                   | "interface_out" ":"? Name "{" InterfaceAttrs "}"
                   | "provides" "interface"? Name "{" InterfaceAttrs "}"
                   | "requires" "interface"? Name "{" InterfaceAttrs "}"
+                  | OccurrenceDecl
                   | Attribute ;
+
+(* A stretch or a moment of the element's life (SysML v2 timeslice, snapshot):
+   start:/end: (a timeslice) and at: (a snapshot) are times; the other
+   attributes are the values the element has then. *)
+OccurrenceDecl  ::= "timeslice" Name "{" ( Attribute | SnapshotDecl )* "}"
+                  | SnapshotDecl ;
+SnapshotDecl    ::= "snapshot" Name AttributeBlock ;
 
 InterfaceAttrs  ::= ( "protocol" ":" String | Attribute )* ;
 InterfaceBody   ::= ( "from" ":" Name | "to" ":" Name | Attribute )* ;
@@ -233,6 +241,7 @@ PaElement       ::= "node" Name "{" NodeElement* "}"
                   | Attribute ;
 
 NodeElement     ::= "deploys" Name AttributeBlock?
+                  | OccurrenceDecl
                   | "port" Name AttributeBlock?               (* physical ports are UNORIENTED *)
                   | ComponentPortDecl                         (* port in|out|inout: a component port of the node,
                                                                  end of a physical_exchange as `Node.port` *)

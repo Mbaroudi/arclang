@@ -88,6 +88,8 @@ pub struct Element {
     pub body: Option<String>,
     /// What a requirement's member is to it: `subject`, `frame`, `require`, `assume`.
     pub role: Option<&'static str>,
+    /// `timeslice` or `snapshot`: a portion of the life of what owns it.
+    pub portion: Option<String>,
 }
 
 /// The model: elements by id, in document order.
@@ -260,6 +262,7 @@ pub fn load(records: &[Value]) -> Result<Graph, String> {
             ..Element::default()
         };
         element.chaining = ids_of(record.get("chainingFeature"));
+        element.portion = text(record, "portionKind").map(|p| p.to_ascii_lowercase()).filter(|p| p == "timeslice" || p == "snapshot");
         if kind.ends_with("Expression") || kind.starts_with("Literal") {
             element.operator = text(record, "operator");
             element.arguments = ids_of(record.get("argument"));
