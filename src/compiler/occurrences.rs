@@ -3,7 +3,10 @@
 //! element has then. A timeslice may say when it starts and ends (`start:`,
 //! `end:`), a snapshot when it is (`at:`), as times; a snapshot of a
 //! timeslice is within it; a value the element declares as a quantity keeps
-//! its dimension in a snapshot.
+//! its dimension in a snapshot. A simulated test case checks snapshots
+//! (`snapshots: ["LC-DRONE"]`): each value of each one is an expectation on
+//! the result at its time, within its tolerance
+//! (`at(40 s, "LC-DRONE".altitude) == 120 m within 1 %`).
 
 use super::ast::{AttributeValue, Model, Occurrence, OccurrenceKind};
 use super::quantity::Dimension;
@@ -11,6 +14,15 @@ use std::collections::{HashMap, HashSet};
 
 /// Keys of a timeslice or snapshot that say when, not what the element is then.
 pub const TIME_KEYS: [&str; 3] = ["start", "end", "at"];
+
+/// How far a simulated value may be from a snapshot's and still reach it,
+/// when the snapshot says nothing (`tolerance: 0.5 m`, `tolerance: 2 %`).
+pub const DEFAULT_TOLERANCE: &str = "1 %";
+
+/// Keys of a snapshot that are no value of the element.
+fn is_value_key(key: &str) -> bool {
+    !TIME_KEYS.contains(&key) && !matches!(key, "id" | "description" | "tolerance")
+}
 
 /// Every element with timeslices or snapshots: its id, its attributes and them.
 pub fn owners(model: &Model) -> Vec<(&str, &HashMap<String, AttributeValue>, &[Occurrence])> {
@@ -55,9 +67,76 @@ fn dimension(value: &AttributeValue) -> Option<Dimension> {
     }
 }
 
+/// The snapshots `written` stands for: one snapshot, the snapshots of a
+/// timeslice, or every snapshot of an element; each with its element's id.
+fn snapshots_of<'m>(model: &'m Model, written: &str) -> Option<Vec<(&'m str, String, &'m Occurrence)>> {
+    fn all<'m>(owner: &'m str, prefix: &str, occurrences: &'m [Occurrence], out: &mut Vec<(&'m str, String, &'m Occurrence)>, only: Option<&str>) {
+        for occurrence in occurrences {
+            let id = id_of(prefix, occurrence);
+            let wanted = only.is_none_or(|o| o == id || o.starts_with(&format!("{id}.")));
+            match occurrence.kind {
+                OccurrenceKind::Snapshot if wanted && only.is_none_or(|o| o == id) => out.push((owner, id, occurrence)),
+                OccurrenceKind::Timeslice if wanted => all(owner, &id, &occurrence.snapshots, out, only.filter(|o| *o != id)),
+                _ => {}
+            }
+        }
+    }
+    let owners = owners(model);
+    let (owner, _, occurrences) = owners.iter().find(|(id, _, _)| *id == written || written.starts_with(&format!("{id}.")))?;
+    let mut out = Vec::new();
+    all(owner, owner, occurrences, &mut out, (written != *owner).then_some(written));
+    (!out.is_empty()).then_some(out)
+}
+
+/// The expectations a test case's `snapshots:` stand for, on a simulation
+/// result: every value of every snapshot, at its time.
+pub fn expectations(model: &Model, attributes: &HashMap<String, AttributeValue>) -> Result<Vec<String>, String> {
+    let written: Vec<String> = match attributes.get("snapshots") {
+        Some(AttributeValue::List(items)) => items.iter().filter_map(|i| i.as_string()).map(str::to_string).collect(),
+        Some(AttributeValue::String(one)) => vec![one.clone()],
+        _ => return Ok(Vec::new()),
+    };
+    let mut out = Vec::new();
+    for reference in &written {
+        let snapshots = snapshots_of(model, reference).ok_or_else(|| format!("snapshots: '{reference}' is no element with snapshots, no timeslice and no snapshot"))?;
+        for (owner, id, snapshot) in snapshots {
+            let at = snapshot.attributes.get("at").ok_or_else(|| format!("snapshots: '{id}' says no time: give it `at:` to check it on a simulation"))?;
+            let mut keys: Vec<&String> = snapshot.attributes.keys().filter(|k| is_value_key(k)).collect();
+            let tolerance = snapshot.attributes.get("tolerance").map(|t| t.display()).unwrap_or_else(|| DEFAULT_TOLERANCE.to_string());
+            keys.sort();
+            if keys.is_empty() {
+                return Err(format!("snapshots: '{id}' gives no value to check"));
+            }
+            for key in keys {
+                let value = &snapshot.attributes[key];
+                if !matches!(value, AttributeValue::Quantity(_) | AttributeValue::Number(_) | AttributeValue::Integer(_)) {
+                    return Err(format!("snapshots: '{id}': {key} is {}, not a number a simulation gives", value.display()));
+                }
+                out.push(format!("at({}, \"{owner}\".{key}) == {} within {tolerance}", at.display(), value.display()));
+            }
+        }
+    }
+    Ok(out)
+}
+
 /// What is wrong with the timeslices and snapshots of the model.
 pub fn check(model: &Model) -> Vec<String> {
     let mut errors = Vec::new();
+    for case in model.test_cases.iter().filter(|c| c.attributes.contains_key("snapshots")) {
+        if !case.attributes.contains_key("simulate") {
+            errors.push(format!("test_case '{}': snapshots: are checked on a simulation: give it simulate: {{ ... }}", case.name));
+        }
+        match expectations(model, &case.attributes) {
+            Ok(expects) => {
+                for expect in expects {
+                    if let Err(error) = super::simulation::expects::check_syntax(&expect) {
+                        errors.push(format!("test_case '{}': {error}", case.name));
+                    }
+                }
+            }
+            Err(error) => errors.push(format!("test_case '{}': {error}", case.name)),
+        }
+    }
     for (owner, attributes, occurrences) in owners(model) {
         let mut names: HashSet<&str> = HashSet::new();
         for occurrence in occurrences {
@@ -104,7 +183,14 @@ fn check_one(owner: &str, attributes: &HashMap<String, AttributeValue>, occurren
         }
     }
     // A value of the element keeps its dimension in a snapshot of it.
-    for (key, value) in occurrence.attributes.iter().filter(|(k, _)| !TIME_KEYS.contains(&k.as_str()) && !matches!(k.as_str(), "id" | "description")) {
+    if let Some(tolerance) = occurrence.attributes.get("tolerance") {
+        let is_percent = matches!(tolerance.as_quantity(), Some(Ok(q)) if q.spec().symbol == "%");
+        let is_amount = matches!(tolerance, AttributeValue::Quantity(_) | AttributeValue::Number(_) | AttributeValue::Integer(_));
+        if occurrence.kind == OccurrenceKind::Timeslice || !(is_percent || is_amount) {
+            errors.push(format!("{what}: tolerance is how far a simulated value may be from a snapshot's: a percentage or an amount, on a snapshot"));
+        }
+    }
+    for (key, value) in occurrence.attributes.iter().filter(|(k, _)| is_value_key(k)) {
         if let (Some(declared), Some(Ok(quantity))) = (attributes.get(key).and_then(dimension), value.as_quantity()) {
             if quantity.dimension() != declared {
                 errors.push(format!("{what}: {key} is a {} of '{owner}', not a {}", declared.label(), quantity.dimension().label()));

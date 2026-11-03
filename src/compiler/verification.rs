@@ -180,7 +180,7 @@ fn check_applicability(model: &Model) -> Result<(), String> {
         if !super::simulation::is_simulated(test) {
             continue;
         }
-        let expects = super::simulation::expects_of(&test.attributes);
+        let expects = super::simulation::case_expects(model, test);
         let named: Vec<Option<&str>> = expects.iter().map(|e| super::simulation::expects::split_requirement(e).0).collect();
         if named.iter().all(Option::is_none) {
             continue;

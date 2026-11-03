@@ -112,3 +112,36 @@ fn timeslices_and_snapshots_written_by_another_tool_are_read() {
     assert_eq!(drone.occurrences.len(), 2, "{source}");
     assert_eq!(drone.occurrences[0].snapshots[0].attributes["altitude"].display(), "120 m");
 }
+
+#[test]
+fn a_simulated_case_checks_the_snapshots_it_names_at_their_time() {
+    let case = r#"
+requirements { requirement "REQ-FLY" { description: "The drone climbs to 120 m in 40 s and lands" } }
+test_case "Mission flight" {
+    id: "TC-FLIGHT"
+    verifies: ["REQ-FLY"]
+    method: "analysis"
+    simulate: { model: "P.Flight" stop_time: 30 min }
+    snapshots: ["LC-DRONE.Takeoff", "LC-DRONE.Landed"]
+}
+"#;
+    let result = compile(&format!("{MODEL}{case}")).unwrap();
+    let test = &result.ast.test_cases[0];
+    assert_eq!(
+        arclang::compiler::simulation::case_expects(&result.ast, test),
+        [
+            "at(0 s, \"LC-DRONE\".altitude) == 0 m within 1 %",
+            "at(40 s, \"LC-DRONE\".altitude) == 120 m within 1 %",
+            "at(25 min, \"LC-DRONE\".altitude) == 0 m within 1 %",
+            "at(25 min, \"LC-DRONE\".battery) == 0.1 within 1 %",
+        ]
+    );
+    for (from, to, says) in [
+        ("\"LC-DRONE.Landed\"]", "\"LC-DRONE.Nowhere\"]", "'LC-DRONE.Nowhere' is no element with snapshots"),
+        ("\"LC-DRONE.Takeoff\", ", "\"LC-DRONE.Cruise\", ", "'LC-DRONE.Cruise.Low battery' says no time"),
+        ("    simulate: { model: \"P.Flight\" stop_time: 30 min }\n", "", "snapshots: are checked on a simulation"),
+    ] {
+        let error = compile(&format!("{MODEL}{}", case.replace(from, to))).unwrap_err();
+        assert!(error.contains(says), "{says}\n{error}");
+    }
+}
