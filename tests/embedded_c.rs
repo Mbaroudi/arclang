@@ -803,3 +803,36 @@ fn sil_verdicts_are_cached_for_check_gate_and_the_tables() {
     }
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+// ---- FMU -------------------------------------------------------------------------------
+
+/// The generated C as an FMI 2.0 co-simulation FMU, run by fmpy on the
+/// inputs of every executed case, reproduces the model-level run bit for
+/// bit. Needs python3 with fmpy (`ARCLANG_TEST_PYTHON`), as in tools/embedded.
+#[test]
+fn the_fmu_runs_in_fmpy_as_the_model_does() {
+    let python = std::env::var("ARCLANG_TEST_PYTHON").unwrap_or_else(|_| "python3".to_string());
+    let fmpy = Command::new(&python).args(["-c", "import fmpy"]).output();
+    assert!(fmpy.is_ok_and(|o| o.status.success()), "no python3 with fmpy: install it (pip install fmpy) or set ARCLANG_TEST_PYTHON");
+    let check = Path::new(env!("CARGO_MANIFEST_DIR")).join("tools/embedded/fmu_check.py");
+    for path in [CHARGER, WINDOW] {
+        let result = compile_file(&example(path));
+        let dir = work(&format!("fmu-{}", path.replace('/', "_")));
+        let (name, archive, cases, notes) = embedded::export_fmu(&result.ast, Some(&gcc()), &dir).unwrap();
+        assert!(notes.iter().any(|n| n.contains("binaries/linux64") || n.contains("binaries/darwin64")), "{notes:?}");
+        let fmu = dir.join(&name);
+        std::fs::write(&fmu, &archive).unwrap();
+        std::fs::create_dir_all(dir.join("cases")).unwrap();
+        for (file, text) in &cases {
+            std::fs::write(dir.join(file), text).unwrap();
+        }
+        let ids: Vec<String> = cases.iter().filter_map(|(f, _)| f.strip_suffix(".inputs.csv").map(str::to_string)).collect();
+        assert!(ids.len() >= 2, "{path}: {ids:?}");
+        for id in ids {
+            let out = Command::new(&python).arg(&check).arg(&fmu).arg(dir.join(&id)).output().unwrap();
+            let stdout = String::from_utf8_lossy(&out.stdout);
+            assert!(out.status.success() && stdout.contains("largest difference 0.0") && stdout.contains("the FMU reproduces the model"), "{path} {id}:\n{stdout}{}", String::from_utf8_lossy(&out.stderr));
+        }
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+}

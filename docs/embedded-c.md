@@ -547,6 +547,51 @@ requirements), with its values as evidence; a case never run in SIL, or
 whose C or case changed since (stale, with a warning), is inconclusive and
 says what to run.
 
+## An FMU of the behavior
+
+```text
+CC=gcc arclang export model.arc -f fmu -o build/fmu
+python3 tools/embedded/fmu_check.py build/fmu/battery_charger.fmu build/fmu/cases/TC-CHG-003
+```
+
+`-f fmu` wraps the generated C as an **FMI 2.0 co-simulation FMU**
+(`<model>.fmu`): `modelDescription.xml`, the sources (the behavior,
+`fmu.c` with the `fmi2*` functions over `init()` / `step()`, and
+`arclang_fmi2.h`, the FMI 2.0 types and signatures) and, when `$CC` (else
+`cc`) compiles them, the shared library of this computer under
+`binaries/linux64` (or `darwin64`, `win64`; fmpy reads an aarch64 Linux
+library from `linux64` too). Without a compiler it is a source FMU.
+
+- Inputs: the events (Boolean: an event is posted in the first step of a
+  communication step while its input is true; two events of one step are
+  posted in the machine's order, as an FMU input carries no order), the
+  conditions (Boolean) and the `in` variables (Real, Integer, Boolean; a
+  `Float` is a Real). Outputs: the states (Boolean), the actions (Integer,
+  the times run in the last step), the other variables, the budgets.
+- `fmi2DoStep(t, h)` runs the steps of the behavior whose time falls in
+  `[t, t + h)` (step k at k × period) with the inputs set at `t`: any
+  communication step works; the outputs are those of the last step run.
+- The wrapper allocates its instance through the importer's callbacks, as
+  FMI requires; the behavior still allocates nothing. No FMU state
+  get/set, no directional derivatives (they answer `fmi2Error`).
+
+The export also writes, for each executed case the FMU can give, its
+inputs (`cases/<id>.inputs.csv`, one row per step) and the model-level
+reference at the end of each step (`cases/<id>.reference.csv`).
+`tools/embedded/fmu_check.py` loads the FMU with fmpy's FMI 2.0
+co-simulation interface, plays the inputs, and compares every output at
+every step: on the charger (3 cases, 32 outputs, with the PID, the filter
+and the charge integrator), the power window (2 cases) and the cruise
+control (2 cases), the largest difference is 0. `fmpy validate` finds no
+problem in the FMU.
+
+Not done: FMI 3.0 (another API and description; not cheap enough to add
+here), and a run in OpenModelica: 1.27's `importFMU` takes only FMI 2.0
+Model Exchange FMUs, and the `openmodelica/openmodelica:v1.27.1-minimal`
+image has no OMSimulator, which would run a co-simulation FMU. fmpy's
+`simulate_fmu` samples discrete inputs a step late at the breakpoints of an
+input table, which is why the check drives `fmi2DoStep` itself.
+
 ## In VS Code
 
 The extension's grammar knows `io_binding` and `region`, and colours the
@@ -620,8 +665,7 @@ Said plainly:
   for its regions to reach their final states: it fires as soon as its
   source is active.
 - **Target packages** (Zephyr, Linux RT, FPGA, PLC) are not part of this
-  lot: only the host implementation of `arclang_io.h` exists. The FMU
-  wrapping of the C is not done.
+  lot: only the host implementation of `arclang_io.h` exists.
 - **No certification claim.** The generated code is written to be simple
   to review (static tables, bounded loops, no recursion, no dynamic memory),
   is compiled warning-free under the strict flags above and is checked with

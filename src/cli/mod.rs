@@ -868,6 +868,11 @@ pub enum ExportFormat {
     /// host implementation of the I/O for SIL: `output` is a DIRECTORY
     #[clap(name = "c")]
     C,
+    /// The generated C as an FMI 2.0 co-simulation FMU (`<model>.fmu`, with
+    /// this computer's binary when $CC or cc compiles it) and the inputs
+    /// and model-level reference of each executed case: `output` is a DIRECTORY
+    #[clap(name = "fmu")]
+    Fmu,
 }
 
 #[derive(Debug, clap::ValueEnum, Clone)]
@@ -2210,6 +2215,7 @@ impl CliRunner {
             ExportFormat::Step => "json".to_string(),
             ExportFormat::Modelica => "json".to_string(),
             ExportFormat::C => "json".to_string(),
+            ExportFormat::Fmu => "json".to_string(),
         };
         
         let mut compiler = crate::Compiler::new(config);
@@ -2376,6 +2382,29 @@ impl CliRunner {
                             println!("  {}", output.join(name).display());
                         }
                         println!("  Compile with -std=c99; see docs/embedded-c.md for the API and the I/O layer.");
+                        return Ok(());
+                    }
+                    ExportFormat::Fmu => {
+                        let compiler = std::env::var("CC").ok().filter(|c| !c.trim().is_empty()).unwrap_or_else(|| "cc".to_string());
+                        let compiler = crate::compiler::embedded::sil::compiler_version(&compiler).map(|_| compiler);
+                        std::fs::create_dir_all(&output).map_err(CliError::Io)?;
+                        let work = std::env::temp_dir().join(format!("arclang-fmu-{}", std::process::id()));
+                        let built = crate::compiler::embedded::export_fmu(&result.ast, compiler.as_deref(), &work);
+                        let _ = std::fs::remove_dir_all(&work);
+                        let (name, archive, cases, notes) = built.map_err(CliError::Compilation)?;
+                        std::fs::write(output.join(&name), &archive).map_err(CliError::Io)?;
+                        for (file, text) in &cases {
+                            let path = output.join(file);
+                            if let Some(dir) = path.parent() {
+                                std::fs::create_dir_all(dir).map_err(CliError::Io)?;
+                            }
+                            std::fs::write(&path, text).map_err(CliError::Io)?;
+                        }
+                        for note in &notes {
+                            println!("  note: {note}");
+                        }
+                        println!("✓ Export successful — FMI 2.0 co-simulation FMU {}", output.join(&name).display());
+                        println!("  {} case file(s) in {} (inputs, and the model-level reference at the end of each step)", cases.len(), output.join("cases").display());
                         return Ok(());
                     }
                     ExportFormat::FMI => {

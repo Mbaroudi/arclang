@@ -17,6 +17,7 @@ pub mod binding;
 pub mod case;
 pub mod cexpr;
 pub mod cgen;
+pub mod fmu;
 pub mod glue;
 pub mod plan;
 pub mod reference;
@@ -77,6 +78,34 @@ pub fn check(ast: &Model) -> Result<Vec<String>, String> {
         }
     }
     Ok(warnings)
+}
+
+/// `arclang export -f fmu`: the FMU (bytes, its file name), the inputs and
+/// the reference of every executed case the FMU can give (`cases/<id>.inputs.csv`,
+/// `cases/<id>.reference.csv`), and notes.
+pub fn export_fmu(ast: &Model, compiler: Option<&str>, work: &std::path::Path) -> Result<(String, Vec<u8>, Vec<(String, String)>, Vec<String>), String> {
+    let plan = plan::plan(ast)?;
+    let bindings = binding::resolve_all(ast, &plan)?;
+    let period = default_period_us(&bindings);
+    let (archive, mut notes) = fmu::build(&plan, period, compiler, work)?;
+    let mut cases = Vec::new();
+    for test in sil::cases(ast) {
+        let case = case::read(test, &plan, &bindings).expect("executes")?;
+        if case.step_us != period {
+            notes.push(format!("test_case '{}' runs every {} us, the FMU every {period} us: no reference written", test.name, case.step_us));
+            continue;
+        }
+        let vectors = case.vectors(&plan);
+        let table = reference::run(&plan, &vectors, case.step_us);
+        match fmu::case_csv(&plan, &vectors, &table, case.machine) {
+            Some((inputs, reference)) => {
+                cases.push((format!("cases/{}.inputs.csv", test.id), inputs));
+                cases.push((format!("cases/{}.reference.csv", test.id), reference));
+            }
+            None => notes.push(format!("test_case '{}' has events in one step in another order than the machine's: an FMU posts them in the machine's order, no reference written", test.name)),
+        }
+    }
+    Ok((format!("{}.fmu", plan.ident), archive, cases, notes))
 }
 
 /// `arclang export -f c`: every file, as (name, text), and notes.
