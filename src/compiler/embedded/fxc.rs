@@ -124,6 +124,10 @@ pub fn expr(access: &Access, fx: &MachineFixed, n: &Node, h: &mut Helpers) -> St
             helper(h, "fx_resize");
             format!("arc_fx_resize((int64_t){}, {d})", e(a, h))
         }
+        Op::Narrow { a, bits } => {
+            helper(h, "fx_narrow");
+            format!("arc_fx_narrow({}, {bits})", e(a, h))
+        }
         Op::Cmp { op, a, b, sa, sb } => {
             let (x, y) = (aligned(access, fx, a, *sa, h), aligned(access, fx, b, *sb, h));
             format!("({x} {} {y})", cmp_symbol(*op))
@@ -306,6 +310,9 @@ static int32_t arc_fx_resize(int64_t x, int d)
     if used("fx_max") {
         out.push_str("static int64_t arc_fx_max(int64_t a, int64_t b)\n{\n    return (a > b) ? a : b;\n}\n\n");
     }
+    if used("fx_narrow") {
+        out.push_str(NARROW);
+    }
     if used("fx_clamp") {
         out.push_str("static int64_t arc_fx_clamp(int64_t x, int64_t lo, int64_t hi)\n{\n    int64_t r = x;\n    if (x < lo) {\n        r = lo;\n    } else if (x > hi) {\n        r = hi;\n    } else {\n        /* within the limits */\n    }\n    return r;\n}\n\n");
     }
@@ -323,6 +330,26 @@ pub fn plan(plan: &Plan, machines: &[usize], period_us: u64) -> Result<Plan, Str
     }
     Ok(out)
 }
+
+/// A word saturated to a narrower one (a variable of fewer than 32 bits).
+pub const NARROW: &str = "/* A word saturated to a word of `bits` bits (2 to 31), as a variable of
+   fewer than 32 bits holds it. */
+static int32_t arc_fx_narrow(int32_t word, int bits)
+{
+    int32_t hi = (int32_t)(((int32_t)1 << (bits - 1)) - 1);
+    int32_t lo = (int32_t)(-hi - 1);
+    int32_t r = word;
+    if (word > hi) {
+        r = hi;
+    } else if (word < lo) {
+        r = lo;
+    } else {
+        /* within the word */
+    }
+    return r;
+}
+
+";
 
 /// The value of a word, and a value as a word, for the caller (the driver, a harness).
 pub const CONVERSIONS: &str = "/* A value as the word of a Q format of `frac` fraction bits (rounded to

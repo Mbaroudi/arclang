@@ -78,6 +78,7 @@ package arclang_fx_pkg is
   function fx_max(a, b : w64) return w64;
   function fx_clamp(x, lo, hi : w64) return w64;
   function fx_sel(c : boolean; a, b : w32) return w32;
+  function fx_narrow(x : w32; bits : positive) return w32;
   function sat_i64(x : w64) return w32;
   function add_i32(a, b : w32) return w32;
   function sub_i32(a, b : w32) return w32;
@@ -170,6 +171,14 @@ package body arclang_fx_pkg is
     else
       return x;
     end if;
+  end function;
+
+  -- A word saturated to a narrower word of bits bits (a variable of fewer than 32).
+  function fx_narrow(x : w32; bits : positive) return w32 is
+    constant hi : w32 := shift_left(to_signed(1, 32), bits - 1) - 1;
+    constant lo : w32 := -shift_left(to_signed(1, 32), bits - 1);
+  begin
+    if x > hi then return hi; elsif x < lo then return lo; else return x; end if;
   end function;
 
   function fx_sel(c : boolean; a, b : w32) return w32 is
@@ -274,9 +283,32 @@ impl V<'_> {
         format!("r_{}", name(&self.m.variables[i].ident))
     }
 
+    /// The bits of a variable narrower than 32, if it is.
+    fn narrow(&self, i: usize) -> Option<u32> {
+        let v = &self.fx.vars[i];
+        (matches!(v.kind, Kind::Fixed(_)) && v.width < 32).then_some(v.width)
+    }
+
+    /// A variable read as a value (a narrow one sign-extended to 32 bits).
+    fn read_var(&self, i: usize) -> String {
+        match self.narrow(i) {
+            Some(_) => format!("resize({}, 32)", self.var(i)),
+            None => self.var(i),
+        }
+    }
+
+    /// A 32-bit value stored into a variable (a narrow one saturated, then resized).
+    fn store(&self, i: usize, value: &str) -> String {
+        match self.narrow(i) {
+            Some(w) if value.starts_with("fx_narrow(") => format!("{} := resize({value}, {w});", self.var(i)),
+            Some(w) => format!("{} := resize(fx_narrow({value}, {w}), {w});", self.var(i)),
+            None => format!("{} := {value};", self.var(i)),
+        }
+    }
+
     fn loc(&self, l: &Loc) -> String {
         match l {
-            Loc::Var(i) => self.var(*i),
+            Loc::Var(i) => self.read_var(*i),
             Loc::Blk(b, field) => format!("blk{b}_{}", field.name()),
             Loc::Tmp(b, n) => format!("b{b}_{n}"),
         }
@@ -303,6 +335,7 @@ impl V<'_> {
             Op::MinMax { max, a, b, sa, sb, d } => format!("fx_resize({}({}, {}), {d})", if *max { "fx_max" } else { "fx_min" }, al(a, *sa), al(b, *sb)),
             Op::Sat { x, lo, hi, s, d } => format!("fx_resize(fx_clamp({}, {}, {}), {d})", al(x, s[0]), al(lo, s[1]), al(hi, s[2])),
             Op::Resize { a, d } => format!("fx_resize(resize({}, 64), {d})", e(a)),
+            Op::Narrow { a, bits } => format!("fx_narrow({}, {bits})", e(a)),
             Op::Cmp { op, a, b, sa, sb } => format!("({} {} {})", al(a, *sa), symbol(*op), al(b, *sb)),
             Op::IntBin { op, a, b } => {
                 let f = match op {
@@ -334,6 +367,9 @@ impl V<'_> {
     fn stmts(&self, code: &[Stmt], indent: &str, out: &mut String) {
         for s in code {
             match s {
+                Stmt::Set(Loc::Var(i), n) => {
+                    let _ = writeln!(out, "{indent}{}", self.store(*i, &self.expr(n)));
+                }
                 Stmt::Set(l, n) => {
                     let _ = writeln!(out, "{indent}{} := {};", self.loc(l), self.expr(n));
                 }
@@ -577,7 +613,7 @@ pub fn core(plan: &Plan, m: &MachinePlan, fx: &MachineFixed) -> String {
     }
     for (i, var) in program.inputs() {
         let ty = if fx.vars[i].kind == Kind::Bool { "std_logic" } else { "signed(31 downto 0)" };
-        ports.push(format!("    {} : in {ty} -- in variable \"{}\" {}", port_name("i", &m.variables[i].ident), comment(&var.name), fx.vars[i].kind.label()));
+        ports.push(format!("    {} : in {ty} -- in variable \"{}\" {}", port_name("i", &m.variables[i].ident), comment(&var.name), fx.vars[i].label()));
     }
     for s in &m.states {
         ports.push(format!("    {} : out std_logic -- state {}", port_name("o", &s.ident), comment(&s.path)));
@@ -587,7 +623,7 @@ pub fn core(plan: &Plan, m: &MachinePlan, fx: &MachineFixed) -> String {
     }
     for (i, var) in program.variables.iter().enumerate() {
         let ty = if fx.vars[i].kind == Kind::Bool { "std_logic" } else { "signed(31 downto 0)" };
-        ports.push(format!("    {} : out {ty} -- variable \"{}\" {}", port_name("o", &m.variables[i].ident), comment(&var.name), fx.vars[i].kind.label()));
+        ports.push(format!("    {} : out {ty} -- variable \"{}\" {}", port_name("o", &m.variables[i].ident), comment(&var.name), fx.vars[i].label()));
     }
     for b in &m.budgets {
         ports.push(format!("    {} : out std_logic -- budget {} of {}", port_name("o", &b.ident), comment(&b.written), comment(&b.label)));
@@ -638,7 +674,11 @@ pub fn core(plan: &Plan, m: &MachinePlan, fx: &MachineFixed) -> String {
         let _ = writeln!(out, "    variable {} : boolean;", v.cond(c));
     }
     for (i, var) in program.variables.iter().enumerate() {
-        let _ = writeln!(out, "    variable {} : {}; -- \"{}\" {}", v.var(i), vtype(fx.vars[i].kind), comment(&var.name), fx.vars[i].kind.label());
+        let ty = match v.narrow(i) {
+            Some(w) => format!("signed({} downto 0)", w - 1),
+            None => vtype(fx.vars[i].kind).to_string(),
+        };
+        let _ = writeln!(out, "    variable {} : {ty}; -- \"{}\" {}", v.var(i), comment(&var.name), fx.vars[i].label());
     }
     for a in 0..m.actions.len() {
         let _ = writeln!(out, "    variable {} : count8;", v.act(a));
@@ -761,7 +801,7 @@ pub fn core(plan: &Plan, m: &MachinePlan, fx: &MachineFixed) -> String {
         let _ = writeln!(init, "{} := false;", v.cond(c));
     }
     for (i, var) in fx.vars.iter().enumerate() {
-        let _ = writeln!(init, "{} := {};", v.var(i), lit(var.kind, var.initial));
+        let _ = writeln!(init, "{}", v.store(i, &lit(var.kind, var.initial)));
     }
     for a in 0..m.actions.len() {
         let _ = writeln!(init, "{} := (others => '0');", v.act(a));
@@ -801,7 +841,7 @@ pub fn core(plan: &Plan, m: &MachinePlan, fx: &MachineFixed) -> String {
     for (i, _) in program.inputs() {
         let port = port_name("i", &m.variables[i].ident);
         let value = if fx.vars[i].kind == Kind::Bool { format!("{port} = '1'") } else { port };
-        let _ = writeln!(out, "              {} := {value};", v.var(i));
+        let _ = writeln!(out, "              {}", v.store(i, &value));
     }
     for a in 0..m.actions.len() {
         let _ = writeln!(out, "              {} := (others => '0');", v.act(a));
@@ -850,7 +890,7 @@ pub fn core(plan: &Plan, m: &MachinePlan, fx: &MachineFixed) -> String {
         let _ = writeln!(out, "            {} <= {};", port_name("o", &act.ident), v.act(a));
     }
     for (i, var) in fx.vars.iter().enumerate() {
-        let value = if var.kind == Kind::Bool { format!("b2l({})", v.var(i)) } else { v.var(i) };
+        let value = if var.kind == Kind::Bool { format!("b2l({})", v.var(i)) } else { v.read_var(i) };
         let _ = writeln!(out, "            {} <= {value};", port_name("o", &m.variables[i].ident));
     }
     for b in &m.budgets {

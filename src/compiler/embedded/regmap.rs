@@ -101,7 +101,7 @@ pub fn map(plan: &Plan, m: &MachinePlan, fx: &MachineFixed) -> Map {
         regs.push((format!("COND{n}"), true, Reg::Cond(n), format!("conditions, bit k = {}", names.join(", "))));
     }
     for (i, v) in m.program().inputs() {
-        regs.push((format!("IN_{}", upper(&m.variables[i].ident)), true, Reg::In(i), format!("in variable \"{}\": {}", v.name, fx.vars[i].kind.label())));
+        regs.push((format!("IN_{}", upper(&m.variables[i].ident)), true, Reg::In(i), format!("in variable \"{}\": {}", v.name, fx.vars[i].label())));
     }
     for n in 0..words(m.states.len()) {
         regs.push((format!("STATE{n}"), false, Reg::State(n), format!("states {} to {}, active", 32 * n, (32 * n + 31).min(m.states.len() - 1))));
@@ -110,7 +110,7 @@ pub fn map(plan: &Plan, m: &MachinePlan, fx: &MachineFixed) -> Map {
         regs.push((format!("ACT_{}", upper(&act.ident)), false, Reg::Action(a), format!("action \"{}\": times run in the step", act.text)));
     }
     for (i, v) in m.program().variables.iter().enumerate() {
-        regs.push((format!("VAR_{}", upper(&m.variables[i].ident)), false, Reg::Var(i), format!("variable \"{}\" after the step: {}", v.name, fx.vars[i].kind.label())));
+        regs.push((format!("VAR_{}", upper(&m.variables[i].ident)), false, Reg::Var(i), format!("variable \"{}\" after the step: {}", v.name, fx.vars[i].label())));
     }
     for n in 0..words(m.budgets.len()) {
         regs.push((format!("BUDGET{n}"), false, Reg::Budget(n), "budgets overrun, bit k = budget 32n + k".into()));
@@ -134,7 +134,7 @@ pub fn json(map: &Map, m: &MachinePlan, fx: &MachineFixed) -> String {
         .iter()
         .map(|r| {
             let format = match r.reg {
-                Reg::In(i) | Reg::Var(i) => format!(", \"format\": {}", json_string(&fx.vars[i].kind.label())),
+                Reg::In(i) | Reg::Var(i) => format!(", \"format\": {}", json_string(&fx.vars[i].label())),
                 _ => String::new(),
             };
             format!(
@@ -177,6 +177,10 @@ pub fn driver(plan: &Plan, m: &MachinePlan, fx: &MachineFixed, map: &Map) -> Str
     }
     let _ = writeln!(out, "\n/* How many times the status is read before a step is given up. */\n#ifndef {up}_HW_POLLS\n#define {up}_HW_POLLS 100000UL\n#endif\n");
     out.push_str(super::fxc::CONVERSIONS);
+    if m.program().inputs().any(|(i, _)| fx.vars[i].width < 32 && matches!(fx.vars[i].kind, Kind::Fixed(_))) {
+        out.push('\n');
+        out.push_str(&super::fxc::NARROW.replace("static int32_t", "static inline int32_t"));
+    }
     let _ = writeln!(
         out,
         "\nstatic inline void {b}_hw_write(uint32_t offset, uint32_t value)\n{{\n    *(volatile uint32_t *)(uintptr_t)({up}_HW_BASE + offset) = value;\n}}\n\nstatic inline uint32_t {b}_hw_read(uint32_t offset)\n{{\n    return *(volatile uint32_t *)(uintptr_t)({up}_HW_BASE + offset);\n}}\n\n/* Back to init(): no state active until the next step enters the initial ones. */\nstatic inline void {b}_hw_reset(void)\n{{\n    {b}_hw_write({up}_CTRL, 2U);\n}}\n\n/* One step: the inputs written, START, DONE awaited, the outputs read.\n   0, or -1 when the block never became ready or never finished. */\nstatic inline int {b}_hw_step(const {t}_inputs *in, {t}_outputs *out)\n{{\n    unsigned long n = 0UL;\n    uint32_t word = 0U;\n    while ((({b}_hw_read({up}_STATUS) & 1U) == 0U) && (n < {up}_HW_POLLS)) {{\n        n++;\n    }}\n    if (n >= {up}_HW_POLLS) {{\n        return -1;\n    }}"
@@ -195,6 +199,7 @@ pub fn driver(plan: &Plan, m: &MachinePlan, fx: &MachineFixed, map: &Map) -> Str
         let field = &m.variables[i].ident;
         let name = format!("IN_{}", field.to_uppercase());
         let value = match fx.vars[i].kind {
+            Kind::Fixed(f) if fx.vars[i].width < 32 => format!("(uint32_t)arc_fx_narrow(arc_fx_from((double)in->{field}, {f}), {})", fx.vars[i].width),
             Kind::Fixed(f) => format!("(uint32_t)arc_fx_from((double)in->{field}, {f})"),
             Kind::Int => format!("(uint32_t)in->{field}"),
             Kind::Bool => format!("in->{field} ? 1U : 0U"),

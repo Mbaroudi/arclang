@@ -166,9 +166,15 @@ pub struct Variable {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub range: Option<(f64, f64)>,
     /// `format Q<i>.<f>`: the fixed-point format it is held in, when the
-    /// model sets it (integer bits, fraction bits, i + f = 31).
+    /// model sets it (integer bits, fraction bits, i + f at most 31: a word
+    /// of i + f + 1 bits).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub format: Option<(i32, i32)>,
+    /// `resolution r`: the step the hardware must resolve, in its unit; the
+    /// fraction bits are the fewest whose step is at most r, the word as
+    /// narrow as its range and those allow.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub resolution: Option<f64>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -362,18 +368,19 @@ fn split_word<'t>(text: &'t str, word: &str) -> (&'t str, Option<&'t str>) {
     }
 }
 
-/// `Q<i>.<f>`: a signed 32-bit word, i integer bits, f fraction bits.
+/// `Q<i>.<f>`: a signed word of i + f + 1 bits (at most 32), i integer
+/// bits, f fraction bits.
 fn q_format(written: &str) -> Result<(i32, i32), String> {
-    let bad = || format!("format '{written}' is a Q format of a signed 32-bit word, Q<integer bits>.<fraction bits> with the two adding up to 31 (Q6.25)");
+    let bad = || format!("format '{written}' is a Q format of a signed word, Q<integer bits>.<fraction bits> with the two adding up to 31 at most (Q6.25: 32 bits, Q6.9: 16 bits)");
     let (i, f) = written.trim().strip_prefix('Q').and_then(|q| q.split_once('.')).ok_or_else(bad)?;
     let (i, f): (i32, i32) = (i.parse().map_err(|_| bad())?, f.parse().map_err(|_| bad())?);
-    if i < 0 || f < 0 || i + f != 31 {
+    if i < 0 || f < 0 || i + f > 31 || i + f < 1 {
         return Err(bad());
     }
     Ok((i, f))
 }
 
-/// `[in|out|const] name: Type [unit] [range lo .. hi] [format Qi.f] = initial`.
+/// `[in|out|const] name: Type [unit] [range lo .. hi] [resolution r | format Qi.f] = initial`.
 pub fn declaration(text: &str) -> Result<Variable, String> {
     let what = format!("variable \"{text}\"");
     let mut rest = text.trim();
@@ -394,6 +401,7 @@ pub fn declaration(text: &str) -> Result<Variable, String> {
         None => (rest.trim(), None),
     };
     let (typed, format) = split_word(typed, "format");
+    let (typed, resolution) = split_word(typed, "resolution");
     let (typed, range) = split_word(typed, "range");
     let (type_word, unit) = match typed.split_once('[') {
         Some((t, u)) => {
@@ -444,6 +452,22 @@ pub fn declaration(text: &str) -> Result<Variable, String> {
             Some(q_format(written).map_err(|e| format!("{what}: {e}"))?)
         }
     };
+    let resolution = match resolution {
+        None => None,
+        Some(written) => {
+            if !matches!(ty, Ty::Real | Ty::Float) {
+                return Err(format!("{what}: a resolution is for a Real or a Float, not a {}", ty.name()));
+            }
+            if format.is_some() {
+                return Err(format!("{what}: a resolution or a format, not both (the format gives the resolution)"));
+            }
+            let r = value_in(ty, spec, written).map_err(|e| format!("{what}: resolution: {e}"))?.number();
+            if !(r.is_finite() && r > 0.0) {
+                return Err(format!("{what}: a resolution is a step above zero"));
+            }
+            Some(r)
+        }
+    };
     Ok(Variable {
         name: name.to_string(),
         ty,
@@ -455,6 +479,7 @@ pub fn declaration(text: &str) -> Result<Variable, String> {
         text: text.to_string(),
         range,
         format,
+        resolution,
     })
 }
 
@@ -1371,7 +1396,13 @@ mod tests {
         assert!(declaration("x: Real [V] range 0 V .. 1 s").unwrap_err().contains("is a time"));
         assert!(declaration("x: Real [V] range 0 V .. 1 V = 3 V").unwrap_err().contains("outside its range"));
         assert!(declaration("x: Real range 0 1").unwrap_err().contains("range <low> .. <high>"));
-        assert!(declaration("x: Real format Q6.20").unwrap_err().contains("adding up to 31"));
+        assert_eq!(declaration("x: Real format Q6.9").unwrap().format, Some((6, 9)), "a 16-bit word");
+        assert!(declaration("x: Real format Q6.30").unwrap_err().contains("adding up to 31 at most"));
+        let v = declaration("in v: Real [V] range 0 V .. 60 V resolution 1 mV").unwrap();
+        assert_eq!((v.range, v.resolution), (Some((0.0, 60.0)), Some(0.001)));
+        assert!(declaration("x: Real [V] resolution 0 V").unwrap_err().contains("above zero"));
+        assert!(declaration("x: Real resolution 0.1 format Q6.9").unwrap_err().contains("not both"));
+        assert!(declaration("n: Integer resolution 1").unwrap_err().contains("for a Real or a Float"));
         assert!(declaration("n: Integer format Q31.0").unwrap_err().contains("for a Real or a Float"));
         assert!(declaration("b: Boolean range 0 .. 1").unwrap_err().contains("no range"));
     }

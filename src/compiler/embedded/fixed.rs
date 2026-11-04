@@ -121,6 +121,9 @@ pub enum Op {
     Sat { x: Box<Node>, lo: Box<Node>, hi: Box<Node>, s: [i32; 3], d: i32 },
     /// A word (or an `int32`, as 0 fraction bits) into this format.
     Resize { a: Box<Node>, d: i32 },
+    /// A word saturated to a narrower word of `bits` bits (a variable
+    /// stored in fewer than 32): the same value when it is in its range.
+    Narrow { a: Box<Node>, bits: u32 },
     /// A comparison of two words, aligned.
     Cmp { op: Bin, a: Box<Node>, b: Box<Node>, sa: i32, sb: i32 },
     /// Integers: `+ - * /` saturating (a division by zero gives 0).
@@ -152,6 +155,32 @@ pub struct VarFx {
     pub initial: i64,
     /// Its initial value, exactly.
     pub value: f64,
+    /// The bits of its word: 32, or fewer (`resolution`, a narrower `format`).
+    pub width: u32,
+}
+
+impl VarFx {
+    /// `Q6.25`, `Q6.10 (17 bits)`, `int32`, `boolean`.
+    pub fn label(&self) -> String {
+        match self.kind {
+            Kind::Fixed(f) if self.width < 32 => format!("Q{}.{f} ({} bits)", self.width as i32 - 1 - f, self.width),
+            k => k.label(),
+        }
+    }
+
+    /// A word into this variable's word: saturated to its width.
+    pub fn narrow(&self, word: i64) -> i64 {
+        narrow(word, self.width)
+    }
+}
+
+/// A word saturated to `bits` bits.
+pub fn narrow(word: i64, bits: u32) -> i64 {
+    if bits >= 32 {
+        return word;
+    }
+    let max = (1i64 << (bits - 1)) - 1;
+    word.clamp(-max - 1, max)
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -331,6 +360,20 @@ fn frac_of(n: &Node) -> i32 {
 }
 
 /// A node into the format of `range` (or of `frac`).
+/// The format of a range resolved to `step`: the fewest fraction bits whose
+/// step is at most `step` (none for a step of 1 or more), the integer bits
+/// of the range, a sign bit: the fraction bits and the width of the word.
+pub fn resolved(range: (f64, f64), step: f64) -> Result<(i32, u32), String> {
+    let int = 31 - frac_for(range)?;
+    let frac = (-step.log2()).ceil().max(0.0) as i32;
+    let width = 1 + int.max(0) + frac;
+    if width > 32 {
+        return Err(format!("a resolution of {step} over the range {} .. {} needs a word of {width} bits, more than 32: a coarser resolution, or no resolution (32 bits, the finest the range allows)", range.0, range.1));
+    }
+    // A range below 1 has negative integer bits: the word keeps its fraction bits.
+    Ok((frac, width.max(2) as u32))
+}
+
 fn into_frac(n: Node, frac: i32, range: (f64, f64)) -> Node {
     if n.kind == Kind::Fixed(frac) {
         return n;
@@ -497,6 +540,10 @@ impl Lower<'_> {
         let node = self.lower(&fold(self.program, &a.value))?;
         let v = &self.vars[a.target];
         let node = match v.kind {
+            Kind::Fixed(f) if v.width < 32 => {
+                let n = into_frac(node, f, v.range);
+                Node { kind: n.kind, range: n.range, op: Op::Narrow { a: Box::new(n), bits: v.width } }
+            }
             Kind::Fixed(f) => into_frac(node, f, v.range),
             _ => node,
         };
@@ -888,19 +935,23 @@ pub fn machine(m: &MachinePlan, period_us: u64) -> Result<MachineFixed, String> 
     for (i, v) in program.variables.iter().enumerate() {
         let (lo, hi, origin) = known[i];
         let what = format!("state_machine '{name}': variable '{}'", v.name);
-        let (kind, origin) = match v.ty {
-            Ty::Bool => (Kind::Bool, origin),
-            Ty::Int => (Kind::Int, origin),
-            _ => match v.format {
-                Some((_, frac)) => (Kind::Fixed(frac), "format"),
-                None => (Kind::Fixed(frac_for((lo, hi)).map_err(|e| format!("{what}: {e}"))?), origin),
+        let (kind, origin, width) = match v.ty {
+            Ty::Bool => (Kind::Bool, origin, 1),
+            Ty::Int => (Kind::Int, origin, 32),
+            _ => match (v.format, v.resolution) {
+                (Some((int, frac)), _) => (Kind::Fixed(frac), "format", (int + frac + 1) as u32),
+                (None, Some(step)) => {
+                    let (frac, width) = resolved((lo, hi), step).map_err(|e| format!("{what}: {e}"))?;
+                    (Kind::Fixed(frac), origin, width)
+                }
+                (None, None) => (Kind::Fixed(frac_for((lo, hi)).map_err(|e| format!("{what}: {e}"))?), origin, 32),
             },
         };
         let initial = match kind {
-            Kind::Fixed(f) => quantize(v.initial.number(), f),
+            Kind::Fixed(f) => narrow(quantize(v.initial.number(), f), width),
             _ => v.initial.number() as i64,
         };
-        vars.push(VarFx { kind, range: (lo, hi), origin, initial, value: v.initial.number() });
+        vars.push(VarFx { kind, range: (lo, hi), origin, initial, value: v.initial.number(), width });
     }
     let plain: Vec<Option<(f64, f64)>> = vars.iter().map(|v| Some(v.range)).collect();
     let mut l = Lower { program, vars: &vars, outs: vec![None; program.blocks.len()], what: String::new() };
@@ -951,40 +1002,106 @@ fn magnitude(n: &Node) -> f64 {
     n.range.0.abs().max(n.range.1.abs())
 }
 
-/// A bound of how far a node may be from the value the model computes,
-/// given the bounds of what it reads.
-fn error(n: &Node, e: &BTreeMap<Loc, f64>) -> f64 {
+/// A node's error as a first-order affine form: `sum(coef[l] * err(l)) +
+/// d`, `|d| <= free`, where err(l) is the signed error of what it reads.
+/// Linear code (sums, differences, products by a constant, resizes) keeps
+/// the coefficients, so an error read twice can cancel (`f + 0.2 * (v - f)`
+/// carries 0.8 of f's error, not 1.2); anything else collapses to a bound.
+#[derive(Debug, Clone, Default)]
+struct Affine {
+    coef: BTreeMap<Loc, f64>,
+    free: f64,
+}
+
+impl Affine {
+    fn bound(&self, e: &BTreeMap<Loc, f64>) -> f64 {
+        self.coef.iter().map(|(l, c)| c.abs() * e.get(l).copied().unwrap_or(0.0)).sum::<f64>() + self.free
+    }
+
+    fn only(free: f64) -> Affine {
+        Affine { coef: BTreeMap::new(), free }
+    }
+
+    fn scaled(mut self, k: f64) -> Affine {
+        for c in self.coef.values_mut() {
+            *c *= k;
+        }
+        self.free *= k.abs();
+        self
+    }
+
+    fn plus(mut self, other: Affine, sign: f64) -> Affine {
+        for (l, c) in other.coef {
+            *self.coef.entry(l).or_insert(0.0) += sign * c;
+        }
+        self.free += other.free;
+        self
+    }
+
+    fn with(mut self, rounding: f64) -> Affine {
+        self.free += rounding;
+        self
+    }
+}
+
+/// A constant's exact value, when a node is one.
+fn constant_of(n: &Node) -> Option<f64> {
+    match n.op {
+        Op::Lit(_) if matches!(n.kind, Kind::Fixed(_)) && n.range.0 == n.range.1 => Some(n.range.0),
+        _ => None,
+    }
+}
+
+fn affine(n: &Node, e: &BTreeMap<Loc, f64>) -> Affine {
     let frac = frac_of(n);
+    let collapsed = |x: f64| Affine::only(x);
     match &n.op {
         Op::Lit(raw) => match n.kind {
-            Kind::Fixed(f) => (n.range.0 - value_of(*raw, f)).abs(),
-            _ => 0.0,
+            Kind::Fixed(f) => collapsed((n.range.0 - value_of(*raw, f)).abs()),
+            _ => Affine::default(),
         },
-        Op::Read(loc) => e.get(loc).copied().unwrap_or(0.0),
-        Op::Add { a, b, sa, sb, d, .. } => {
+        Op::Read(loc) => Affine { coef: BTreeMap::from([(loc.clone(), 1.0)]), free: 0.0 },
+        Op::Add { sub, a, b, sa, sb, d } => {
             let common = frac_of(a) + sa;
-            error(a, e) + error(b, e) + half_ulp(*sa < 0, common) + half_ulp(*sb < 0, common) + half_ulp(*d > 0, frac)
+            affine(a, e).plus(affine(b, e), if *sub { -1.0 } else { 1.0 }).with(half_ulp(*sa < 0, common) + half_ulp(*sb < 0, common) + half_ulp(*d > 0, frac))
         }
         Op::Mul { a, b, d } => {
-            let (ea, eb) = (error(a, e), error(b, e));
-            magnitude(a) * eb + magnitude(b) * ea + ea * eb + half_ulp(*d > 0, frac)
+            let (fa, fb) = (affine(a, e), affine(b, e));
+            let (ea, eb) = (fa.bound(e), fb.bound(e));
+            let rounding = half_ulp(*d > 0, frac);
+            // A product by a constant is linear: its error is the other's,
+            // scaled, and the constant's own (its rounding) times the other.
+            match (constant_of(a), constant_of(b)) {
+                (_, Some(k)) => fa.scaled(k).with(magnitude(a) * eb + ea * eb + rounding),
+                (Some(k), _) => fb.scaled(k).with(magnitude(b) * ea + ea * eb + rounding),
+                _ => collapsed(magnitude(a) * eb + magnitude(b) * ea + ea * eb + rounding),
+            }
         }
-        Op::Neg { a, d } | Op::Abs { a, d } => error(a, e) + half_ulp(*d > 0, frac),
+        Op::Neg { a, d } => affine(a, e).scaled(-1.0).with(half_ulp(*d > 0, frac)),
+        Op::Abs { a, d } => collapsed(affine(a, e).bound(e) + half_ulp(*d > 0, frac)),
         Op::Resize { a, d } => match a.kind {
-            Kind::Fixed(_) => error(a, e) + half_ulp(*d > 0, frac),
-            _ => half_ulp(*d > 0, frac),
+            Kind::Fixed(_) => affine(a, e).with(half_ulp(*d > 0, frac)),
+            _ => collapsed(half_ulp(*d > 0, frac)),
         },
         Op::MinMax { a, b, sa, sb, d, .. } => {
             let common = frac_of(a) + sa;
-            error(a, e).max(error(b, e)) + half_ulp(*sa < 0 || *sb < 0, common) + half_ulp(*d > 0, frac)
+            collapsed(affine(a, e).bound(e).max(affine(b, e).bound(e)) + half_ulp(*sa < 0 || *sb < 0, common) + half_ulp(*d > 0, frac))
         }
         Op::Sat { x, lo, hi, s, d } => {
             let common = frac_of(x) + s[0];
-            error(x, e).max(error(lo, e)).max(error(hi, e)) + half_ulp(s.iter().any(|v| *v < 0), common) + half_ulp(*d > 0, frac)
+            let worst = affine(x, e).bound(e).max(affine(lo, e).bound(e)).max(affine(hi, e).bound(e));
+            collapsed(worst + half_ulp(s.iter().any(|v| *v < 0), common) + half_ulp(*d > 0, frac))
         }
-        Op::Select { a, b, .. } => error(a, e).max(error(b, e)),
-        _ => 0.0,
+        Op::Select { a, b, .. } => collapsed(affine(a, e).bound(e).max(affine(b, e).bound(e))),
+        Op::Narrow { a, .. } => affine(a, e),
+        _ => Affine::default(),
     }
+}
+
+/// A bound of how far a node may be from the value the model computes,
+/// given the bounds of what it reads.
+fn error(n: &Node, e: &BTreeMap<Loc, f64>) -> f64 {
+    affine(n, e).bound(e)
 }
 
 fn run_error(stmts: &[Stmt], e: &mut BTreeMap<Loc, f64>) {
