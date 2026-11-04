@@ -26,7 +26,7 @@ use crate::compiler::ast::{AttributeValue, IoBinding, Model};
 use crate::compiler::quantity::Dimension;
 use std::collections::BTreeMap;
 
-pub const KEYS: [&str; 7] = ["id", "description", "machine", "period", "inputs", "outputs", "watchdog"];
+pub const KEYS: [&str; 8] = ["id", "description", "machine", "period", "inputs", "outputs", "watchdog", "target"];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Edge {
@@ -89,6 +89,8 @@ pub struct Binding {
     pub machine: usize,
     pub period_us: u64,
     pub watchdog: bool,
+    /// The target package it is deployed on (`target:`, `host` by default).
+    pub target: String,
     pub inputs: Vec<Input>,
     pub outputs: Vec<Output>,
     /// What the binding leaves unbound.
@@ -352,6 +354,11 @@ pub fn resolve(binding: &IoBinding, plan: &Plan) -> Result<Binding, String> {
     if inputs.is_empty() && outputs.is_empty() {
         return Err(format!("{what} binds nothing: give inputs: [\"event <- channel\"] or outputs: [\"state -> channel\"]"));
     }
+    let target = match a.get("target") {
+        None => super::target::HOST.to_string(),
+        Some(AttributeValue::String(name)) => name.clone(),
+        Some(other) => return Err(format!("{what}: target is the name of a target package (`target: \"zephyr/litex_vexriscv\"`), got '{}'", other.display())),
+    };
     let mut warnings = Vec::new();
     for (k, e) in m.events.iter().enumerate() {
         if !inputs.iter().any(|i| i.target == Target::Event(k)) {
@@ -363,17 +370,21 @@ pub fn resolve(binding: &IoBinding, plan: &Plan) -> Result<Binding, String> {
             warnings.push(format!("{what}: condition '{}' is bound to no channel: on the target it never holds", c.text));
         }
     }
-    Ok(Binding {
+    let resolved = Binding {
         ident: format!("{}_{}", plan.ident, c_name(&binding.name)),
         name: binding.name.clone(),
         id: binding.id.clone(),
         machine,
         period_us,
         watchdog,
+        target,
         inputs,
         outputs,
         warnings,
-    })
+    };
+    let package = super::target::find(&resolved.target).map_err(|e| format!("{what}: target: {e}"))?;
+    super::target::check(&resolved, &package)?;
+    Ok(resolved)
 }
 
 /// Every binding of the model, resolved; the first error stops.

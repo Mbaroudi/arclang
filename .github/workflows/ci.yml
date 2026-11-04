@@ -54,6 +54,22 @@ jobs:
       - name: Run the embedded tests, the tool-dependent ones included
         run: tools/embedded/run.sh cargo test --test embedded_c -- --include-ignored
 
+  # Processor in the loop: Zephyr for the LiteX VexRiscv SoC, run in Renode,
+  # pinned in tools/embedded/soc/Dockerfile (on top of the embedded image).
+  embedded-soc:
+    name: Embedded SoC (Zephyr, Renode)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build the images
+        run: |
+          docker build -t arclang-embedded:1 tools/embedded
+          docker build -t arclang-embedded-soc:1 tools/embedded/soc
+
+      - name: Run the target and PIL tests, the Renode runs included
+        run: tools/embedded/soc/run.sh cargo test --test embedded_soc -- --include-ignored
+
   examples:
     name: Compile all active examples (CLI)
     runs-on: ubuntu-latest

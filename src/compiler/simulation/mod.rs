@@ -135,6 +135,13 @@ impl Status {
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 pub struct Outcome {
     pub test_case: String,
+    /// What ran: empty for a simulation, `sil` for software in the loop,
+    /// `pil` for processor in the loop (kept apart: `<case>.pil.json`).
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub kind: String,
+    /// The target package of a processor-in-the-loop run.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub target: String,
     /// The test case's name, the requirements it verifies and the name of
     /// its configuration: what a reader of the log looks for.
     #[serde(default)]

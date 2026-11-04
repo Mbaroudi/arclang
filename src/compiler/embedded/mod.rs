@@ -6,12 +6,16 @@
 //! 2. `binding` and `glue`: one I/O interface, `arclang_io.h`, and the
 //!    bindings of machine inputs and outputs to its channels, written once in
 //!    the model (`io_binding`), checked by the compiler, generated as glue;
-//! 3. target packages implement `arclang_io.h` (`runtime/arclang_io_host.c`
-//!    is the PC one, for software in the loop).
+//! 3. `target`: target packages implement `arclang_io.h` and say how to
+//!    build, run and flash, as data (`targets/`): `host` (the PC, for
+//!    software in the loop) and `zephyr/litex_vexriscv`; `zephyr` exports a
+//!    Zephyr application for a package of runtime zephyr.
 //!
 //! `sil` proves layers 1 and 2 against the model: the C compiled on the
 //! host, run with the vectors of each `execute:` test case, compared with the
-//! model-level run (`reference`) step by step. See docs/embedded-c.md.
+//! model-level run (`reference`) step by step. `pil` does the same with the
+//! C built for a target and run on its processor (emulated: Renode). See
+//! docs/embedded-c.md and docs/embedded-targets.md.
 
 pub mod binding;
 pub mod case;
@@ -19,9 +23,12 @@ pub mod cexpr;
 pub mod cgen;
 pub mod fmu;
 pub mod glue;
+pub mod pil;
 pub mod plan;
 pub mod reference;
 pub mod sil;
+pub mod target;
+pub mod zephyr;
 
 use crate::compiler::ast::Model;
 

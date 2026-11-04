@@ -1,0 +1,16 @@
+description: ADC register bank of ArcLang's LiteX target, one 32-bit read-only register per channel
+
+compatible: "arclang,litex-adc"
+
+include: [adc-controller.yaml]
+
+properties:
+  reg:
+    required: true
+  channels:
+    type: int
+    required: true
+    description: Number of channels (registers).
+
+io-channel-cells:
+  - input

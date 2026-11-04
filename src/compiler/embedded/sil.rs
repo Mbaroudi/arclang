@@ -79,6 +79,10 @@ pub struct Outcome {
     pub expectations: Vec<Judged>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub back_to_back: Option<BackToBack>,
+    /// Processor in the loop: what the target's run says of time (the
+    /// period kept through the I/O, the cost of a step).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub timing: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -150,6 +154,7 @@ pub fn cached_outcome(runs: &[&Outcome], key: String) -> crate::compiler::simula
         key,
         model: format!("state_machine {}", first.machine),
         tool: format!("arclang sil ({})", runs.iter().map(|o| o.compiler.as_str()).collect::<Vec<_>>().join(", ")),
+        kind: "sil".to_string(),
         log,
         ..Default::default()
     }
@@ -722,7 +727,7 @@ fn build(plan: &Plan, bindings: &[Binding], period_us: u64, binding: Option<&Bin
     Ok(binary)
 }
 
-fn verdict_of(values: &[Option<Evaluated>]) -> String {
+pub fn verdict_of(values: &[Option<Evaluated>]) -> String {
     if values.iter().any(Option::is_none) {
         "error".to_string()
     } else if values.iter().flatten().all(|v| v.holds) {
@@ -732,15 +737,29 @@ fn verdict_of(values: &[Option<Evaluated>]) -> String {
     }
 }
 
-/// Run one case: the model, the C, both judged, compared.
-fn run_case(test: &TestCase, ast: &Model, plan: &Plan, bindings: &[Binding], builds: &mut Builds, options: &Options) -> Outcome {
+/// A case ready to run on an implementation: its outcome so far (the
+/// model judged), the case, its vectors and binding, the model-level
+/// table with the columns of the bound output channels.
+pub struct Prepared<'a> {
+    pub outcome: Outcome,
+    pub case: Case,
+    pub binding: Option<&'a Binding>,
+    pub vectors: Vectors,
+    pub model: Table,
+    pub texts: Vec<String>,
+    pub aliases: BTreeMap<String, String>,
+}
+
+/// Read a case, run it on the model and judge it there; the outcome in
+/// error when that fails.
+pub fn prepare<'a>(test: &TestCase, plan: &Plan, bindings: &'a [Binding], implementation: &str) -> Result<Prepared<'a>, Box<Outcome>> {
     let texts = crate::compiler::simulation::expects_of(&test.attributes);
     let mut outcome = Outcome {
         test_case: test.id.clone(),
         name: test.name.clone(),
         verifies: test.verifies.clone(),
         machine: String::new(),
-        compiler: options.compiler.clone(),
+        compiler: implementation.to_string(),
         binding: None,
         verdict: "error".to_string(),
         model_verdict: "error".to_string(),
@@ -749,13 +768,13 @@ fn run_case(test: &TestCase, ast: &Model, plan: &Plan, bindings: &[Binding], bui
         reason: String::new(),
         expectations: texts.iter().map(|t| Judged { expect: t.clone(), model: None, c: None, error: String::new() }).collect(),
         back_to_back: None,
+        timing: None,
     };
-    let _ = ast;
     let case = match super::case::read(test, plan, bindings).expect("an executed case") {
         Ok(case) => case,
         Err(e) => {
             outcome.reason = e;
-            return outcome;
+            return Err(Box::new(outcome));
         }
     };
     outcome.machine = plan.machines[case.machine].name.clone();
@@ -768,56 +787,29 @@ fn run_case(test: &TestCase, ast: &Model, plan: &Plan, bindings: &[Binding], bui
         Ok(v) => v,
         Err(e) => {
             outcome.reason = e;
-            return outcome;
+            return Err(Box::new(outcome));
         }
     };
     for (judged, value) in outcome.expectations.iter_mut().zip(&model_values) {
         judged.model = Some(value.clone());
     }
     outcome.model_verdict = verdict_of(&outcome.expectations.iter().map(|j| j.model.clone()).collect::<Vec<_>>());
-    let (stdin, mut names) = match binding {
-        None => (direct_stdin(plan, &vectors), model.names.clone()),
-        Some(b) => {
-            let ops = match channel_operations(&case, plan, b, &vectors) {
-                Ok(ops) => ops,
-                Err(e) => {
-                    outcome.reason = e;
-                    return outcome;
-                }
-            };
-            let mut stdin = format!("{}\n", case.steps);
-            for step in ops {
-                for op in step {
-                    stdin.push_str(&op);
-                    stdin.push('\n');
-                }
-                stdin.push_str(".\n");
-            }
-            (stdin, model.names.clone())
-        }
-    };
     if let Some(b) = binding {
         let expected = expected_io(plan, b, &model);
-        names.extend(io_columns(b));
+        model.names.extend(io_columns(b));
         for (row, extra) in model.rows.iter_mut().zip(expected) {
             row.extend(extra);
         }
-        model.names = names.clone();
     }
-    let binary = match builds.get(plan, bindings, case.step_us, binding, options) {
-        Ok(path) => path,
-        Err(e) => {
-            outcome.reason = e;
-            return outcome;
-        }
-    };
-    let c = match run_binary(&binary, &stdin).and_then(|stdout| parse_rows(&stdout, &names, case.step_us)) {
-        Ok(table) => Table { units: model.units.clone(), ..table },
-        Err(e) => {
-            outcome.reason = e;
-            return outcome;
-        }
-    };
+    Ok(Prepared { outcome, case, binding, vectors, model, texts, aliases })
+}
+
+/// Judge the run of an implementation (`c`, the columns of the model's
+/// table) against the model: the expectations on both, step by step, the
+/// verdict and its reason.
+pub fn conclude(prepared: Prepared<'_>, c: Table) -> Outcome {
+    let Prepared { mut outcome, case, model, texts, aliases, .. } = prepared;
+    let c = Table { units: model.units.clone(), ..c };
     let c_values = judge(&texts, &aliases, &c);
     let back_to_back = compare(&model, &c, case.tolerance);
     match c_values {
@@ -857,6 +849,54 @@ fn run_case(test: &TestCase, ast: &Model, plan: &Plan, bindings: &[Binding], bui
     outcome
 }
 
+/// The stdin of the host harness through the I/O: per step, its channel operations and `.`.
+pub fn io_stdin(steps: usize, ops: &[Vec<String>]) -> String {
+    let mut stdin = format!("{steps}\n");
+    for step in ops {
+        for op in step {
+            stdin.push_str(op);
+            stdin.push('\n');
+        }
+        stdin.push_str(".\n");
+    }
+    stdin
+}
+
+/// Run one case: the model, the C, both judged, compared.
+fn run_case(test: &TestCase, plan: &Plan, bindings: &[Binding], builds: &mut Builds, options: &Options) -> Outcome {
+    let prepared = match prepare(test, plan, bindings, &options.compiler) {
+        Ok(p) => p,
+        Err(outcome) => return *outcome,
+    };
+    let stdin = match prepared.binding {
+        None => direct_stdin(plan, &prepared.vectors),
+        Some(b) => match channel_operations(&prepared.case, plan, b, &prepared.vectors) {
+            Ok(ops) => io_stdin(prepared.case.steps, &ops),
+            Err(e) => {
+                let mut outcome = prepared.outcome;
+                outcome.reason = e;
+                return outcome;
+            }
+        },
+    };
+    let binary = match builds.get(plan, bindings, prepared.case.step_us, prepared.binding, options) {
+        Ok(path) => path,
+        Err(e) => {
+            let mut outcome = prepared.outcome;
+            outcome.reason = e;
+            return outcome;
+        }
+    };
+    match run_binary(&binary, &stdin).and_then(|stdout| parse_rows(&stdout, &prepared.model.names, prepared.case.step_us)) {
+        Ok(table) => conclude(prepared, table),
+        Err(e) => {
+            let mut outcome = prepared.outcome;
+            outcome.reason = e;
+            outcome
+        }
+    }
+}
+
 /// Run every executed case of a compiled model (or `options.only`).
 pub fn run(ast: &Model, options: &Options) -> Result<Vec<Outcome>, String> {
     let plan = super::plan::plan(ast)?;
@@ -870,5 +910,5 @@ pub fn run(ast: &Model, options: &Options) -> Result<Vec<Outcome>, String> {
     }
     std::fs::create_dir_all(&options.work).map_err(|e| format!("cannot make {}: {e}", options.work.display()))?;
     let mut builds = Builds { binaries: HashMap::new() };
-    Ok(selected.into_iter().map(|t| run_case(t, ast, &plan, &bindings, &mut builds, options)).collect())
+    Ok(selected.into_iter().map(|t| run_case(t, &plan, &bindings, &mut builds, options)).collect())
 }

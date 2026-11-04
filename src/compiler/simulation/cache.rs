@@ -67,6 +67,26 @@ pub fn key(package: &str, base: &Path, spec: &Spec, expects: &[String]) -> Strin
     hash.finalize().iter().map(|b| format!("{b:02x}")).collect()
 }
 
+/// The verdict of another kind of run of the case (`pil`), kept beside its
+/// simulation or SIL verdict as `<case>.<kind>.json`.
+fn kind_file(dir: &Path, test_id: &str, kind: &str) -> PathBuf {
+    let base = file(dir, test_id);
+    base.with_extension(format!("{kind}.json"))
+}
+
+pub fn read_kind(dir: &Path, test_id: &str, kind: &str) -> Option<Outcome> {
+    let text = std::fs::read_to_string(kind_file(dir, test_id, kind)).ok()?;
+    serde_json::from_str(&text).ok()
+}
+
+pub fn write_kind(dir: &Path, kind: &str, outcome: &Outcome) -> Result<PathBuf, String> {
+    std::fs::create_dir_all(dir).map_err(|e| format!("cannot create {}: {e}", dir.display()))?;
+    let path = kind_file(dir, &outcome.test_case, kind);
+    let text = serde_json::to_string_pretty(outcome).map_err(|e| e.to_string())?;
+    std::fs::write(&path, text + "\n").map_err(|e| format!("cannot write {}: {e}", path.display()))?;
+    Ok(path)
+}
+
 pub fn read(dir: &Path, test_id: &str) -> Option<Outcome> {
     let text = std::fs::read_to_string(file(dir, test_id)).ok()?;
     serde_json::from_str(&text).ok()

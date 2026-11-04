@@ -99,6 +99,7 @@ state_machine "Charger" {
 
 io_binding "Charger board" {
     machine: "Charger"
+    target: "zephyr/litex_vexriscv"
     period: 10 ms
     watchdog: true
     inputs: [

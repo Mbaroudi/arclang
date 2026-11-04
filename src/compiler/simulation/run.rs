@@ -124,9 +124,41 @@ fn attach_executed(result: &mut CompilationResult, model_path: &Path) -> std::co
                 }
             },
         };
+        let status = with_pil(result, model_path, &dir, test, status);
         statuses.insert(test.id.clone(), status);
     }
     statuses
+}
+
+/// A case's status with its processor-in-the-loop verdict, when one is
+/// cached (`arclang pil` writes `<case>.pil.json`): a fresh failure or
+/// error is the case's verdict (it is the same C on the target), a fresh
+/// pass stands for a SIL verdict missing or stale and is added to the
+/// evidence otherwise; a stale one is a warning only.
+fn with_pil(result: &mut CompilationResult, model_path: &Path, dir: &Path, test: &crate::compiler::ast::TestCase, status: Status) -> Status {
+    let Some(outcome) = cache::read_kind(dir, &test.id, "pil") else { return status };
+    let fresh = crate::compiler::embedded::target::find(&outcome.target).and_then(|package| crate::compiler::embedded::pil::cache_key(&result.ast, test, &package)).is_ok_and(|key| key == outcome.key);
+    if !fresh {
+        result.warnings.push(format!(
+            "verification: test_case '{}': its PIL verdict on {} is stale (the generated C, the case or the target package changed); run `arclang pil {} --test {}`",
+            test.name,
+            outcome.target,
+            model_path.display(),
+            test.id
+        ));
+        return status;
+    }
+    let pil = status_of(result, test, &outcome);
+    if pil.verdict != "pass" {
+        result.warnings.push(format!("verification: test_case '{}' {} in PIL on {}: {}", test.name, if pil.verdict == "fail" { "fails" } else { "is in error" }, outcome.target, pil.reason));
+        return pil;
+    }
+    if status.verdict == "inconclusive" {
+        return pil;
+    }
+    let mut status = status;
+    status.evidence = format!("{} · PIL on {}: pass", status.evidence, outcome.target).trim_start_matches(" · ").to_string();
+    status
 }
 
 /// Simulate the cases of a model (one, with `only`), cache and return
