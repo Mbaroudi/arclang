@@ -33,20 +33,21 @@ MAIN_RAM = 0x40000000
 
 
 class BoardCRG(LiteXModule):
-    """The board's 25 MHz oscillator; a PLL when the node's clock differs."""
+    """The board's oscillator; a PLL when the node's clock differs."""
 
     def __init__(self, platform, clock_hz):
         self.cd_sys = ClockDomain()
-        clk25 = platform.request("clk25")
-        if clock_hz == 25_000_000:
-            self.comb += self.cd_sys.clk.eq(clk25)
+        osc = platform.request(platform.default_clk_name)
+        osc_hz = round(1e9 / platform.default_clk_period)
+        if clock_hz == osc_hz:
+            self.comb += self.cd_sys.clk.eq(osc)
             # Held in reset for the first cycles after configuration.
             count = Signal(4, reset=15)
             self.sync += count.eq(count - (count != 0))
             self.comb += self.cd_sys.rst.eq(count != 0)
         else:
             self.pll = pll = ECP5PLL()
-            pll.register_clkin(clk25, 25e6)
+            pll.register_clkin(osc, osc_hz)
             pll.create_clkout(self.cd_sys, clock_hz)
 
 
@@ -115,13 +116,22 @@ def sim_platform():
 
 
 def board_platform(config):
-    if config["board"] != "ulx3s":
-        sys.exit("arclang soc: no board '%s' (ulx3s)" % config["board"])
-    from litex_boards.platforms import radiona_ulx3s
+    """The board's LiteX platform, for the node's part."""
+    board, device = config["board"], config["device"].upper()
+    if board == "ulx3s":
+        from litex_boards.platforms import radiona_ulx3s
 
-    # The part without its package and speed: LFE5U-25F, LFE5U-85F...
-    device = "-".join(config["device"].split("-")[:2])
-    return radiona_ulx3s.Platform(device=device, revision="2.0", toolchain="trellis")
+        # The part without its package and speed: LFE5U-25F, LFE5U-85F...
+        return radiona_ulx3s.Platform(device="-".join(device.split("-")[:2]), revision="2.0", toolchain="trellis")
+    if board in ("colorlight_i5", "colorlight_i9"):
+        from litex_boards.platforms import colorlight_i5
+
+        return colorlight_i5.Platform(board=board[-2:], revision="7.0" if board.endswith("i5") else "7.2", toolchain="trellis")
+    if board == "ecp5_evn":
+        from litex_boards.platforms import lattice_ecp5_evn
+
+        return lattice_ecp5_evn.Platform(toolchain="trellis")
+    sys.exit("arclang soc: no board '%s'" % board)
 
 
 def main():

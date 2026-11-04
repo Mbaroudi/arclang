@@ -41,8 +41,45 @@ const PACKAGE: &str = "zephyr/litex_vexriscv";
 /// of block RAM (32 of the 56 DP16KD of an LFE5U-25F).
 pub const RAM_BYTES: u32 = 64 * 1024;
 
-/// The boards a bitstream is built for, by the node's part.
-pub const BOARDS: &[&str] = &["ulx3s"];
+/// A board a bitstream is built for: its LiteX platform (`soc.py` knows
+/// it), the parts it carries, its name for openFPGALoader.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize)]
+pub struct Board {
+    pub name: &'static str,
+    pub parts: &'static [&'static str],
+    pub loader: &'static str,
+    /// Its oscillator.
+    pub clock_hz: u64,
+}
+
+/// The boards, the first of a part being its default.
+pub const BOARDS: &[Board] = &[
+    Board { name: "ulx3s", parts: &["LFE5U-12F-6BG381C", "LFE5U-25F-6BG381C", "LFE5U-45F-6BG381C", "LFE5U-85F-6BG381C"], loader: "ulx3s", clock_hz: 25_000_000 },
+    Board { name: "colorlight_i5", parts: &["LFE5U-25F-6BG381C"], loader: "colorlight-i5", clock_hz: 25_000_000 },
+    Board { name: "colorlight_i9", parts: &["LFE5U-45F-6BG381C"], loader: "colorlight-i9", clock_hz: 25_000_000 },
+    Board { name: "ecp5_evn", parts: &["LFE5UM5G-85F-8BG381C"], loader: "ecp5_evn", clock_hz: 12_000_000 },
+];
+
+fn same_part(a: &str, b: &str) -> bool {
+    let norm = |p: &str| p.trim().to_uppercase().trim_end_matches(['C', 'I']).to_string();
+    norm(a) == norm(b)
+}
+
+/// The board of a SoC: the one asked for, else the node's `board:`, else
+/// the first board carrying its part; it must carry the part.
+pub fn board_for(allocations: &[Allocation], asked: Option<&str>) -> Result<Board, String> {
+    let a = allocations.first().ok_or("no state_machine is allocated to programmable logic: the SoC would have no block")?;
+    let names = || BOARDS.iter().map(|b| b.name).collect::<Vec<_>>().join(", ");
+    let named = asked.or(a.board.as_deref());
+    let board = match named {
+        Some(n) => *BOARDS.iter().find(|b| b.name == n.trim().to_lowercase().replace('-', "_")).ok_or_else(|| format!("no board '{n}' (boards: {})", names()))?,
+        None => *BOARDS.iter().find(|b| b.parts.iter().any(|p| same_part(p, &a.part))).ok_or_else(|| format!("node '{}': no board carries {} (boards: {}); name one with board:, or choose a part of one", a.node, a.part, names()))?,
+    };
+    if !board.parts.iter().any(|p| same_part(p, &a.part)) {
+        return Err(format!("board '{}' carries {}, not node '{}''s {}", board.name, board.parts.join(" or "), a.node, a.part));
+    }
+    Ok(board)
+}
 
 /// Bumped when the meaning of a cached SoC verdict changes.
 const CACHE_FORMAT: &str = "arclang-soc-cache-1";
@@ -64,7 +101,9 @@ pub struct Options {
     pub compiler: String,
     /// Run the cases in the simulated SoC.
     pub simulate: bool,
-    /// Build the bitstream for this board.
+    /// Build the bitstream.
+    pub bitstream: bool,
+    /// For this board (else the node's `board:`, else the board of its part).
     pub board: Option<String>,
     /// Run the cases on the board through this serial port (it holds the bitstream).
     pub port: Option<String>,
@@ -127,6 +166,7 @@ struct Built {
 struct Builds<'a> {
     plan: &'a Plan,
     allocations: &'a [Allocation],
+    board: Board,
     work: PathBuf,
     simulate: bool,
     built: HashMap<u64, Result<Built, String>>,
@@ -135,7 +175,7 @@ struct Builds<'a> {
 impl Builds<'_> {
     fn get(&mut self, period_us: u64) -> Result<&Built, String> {
         if !self.built.contains_key(&period_us) {
-            let built = prepare(self.plan, self.allocations, period_us, &self.work.join(format!("soc-{period_us}us")), self.simulate);
+            let built = prepare(self.plan, self.allocations, &self.board, period_us, &self.work.join(format!("soc-{period_us}us")), self.simulate);
             self.built.insert(period_us, built);
         }
         self.built[&period_us].as_ref().map_err(|e| e.clone())
@@ -150,7 +190,7 @@ fn free_port() -> Result<u16, String> {
 /// The JSON the SoC script reads: the model, the board and the part, the
 /// clock, the RAM and its image, the console's TCP port, every block (its
 /// Verilog, its address, its address bits).
-pub fn soc_config(plan: &Plan, allocations: &[Allocation], period_us: u64, dir: &Path, port: u16) -> Result<String, String> {
+pub fn soc_config(plan: &Plan, allocations: &[Allocation], board: &Board, period_us: u64, dir: &Path, port: u16) -> Result<String, String> {
     let first = allocations.first().ok_or("no state_machine is allocated to programmable logic: the SoC would have no block")?;
     let mut blocks = Vec::new();
     for (k, a) in allocations.iter().enumerate() {
@@ -167,7 +207,7 @@ pub fn soc_config(plan: &Plan, allocations: &[Allocation], period_us: u64, dir: 
     }
     let config = serde_json::json!({
         "name": plan.ident,
-        "board": "ulx3s",
+        "board": board.name,
         "device": first.part,
         "clock_hz": first.clock_hz as u64,
         "ram_bytes": RAM_BYTES,
@@ -181,7 +221,7 @@ pub fn soc_config(plan: &Plan, allocations: &[Allocation], period_us: u64, dir: 
 
 /// The application, the blocks' Verilog, the SoC's map, the Zephyr image
 /// and (`simulate`) the simulator, for one period.
-fn prepare(plan: &Plan, allocations: &[Allocation], period_us: u64, dir: &Path, simulate: bool) -> Result<Built, String> {
+fn prepare(plan: &Plan, allocations: &[Allocation], board: &Board, period_us: u64, dir: &Path, simulate: bool) -> Result<Built, String> {
     std::fs::create_dir_all(dir).map_err(|e| format!("cannot make {}: {e}", dir.display()))?;
     let package = super::target::find(PACKAGE)?;
     // Every allocated machine on one clock: the SoC has one.
@@ -208,7 +248,7 @@ fn prepare(plan: &Plan, allocations: &[Allocation], period_us: u64, dir: &Path, 
         hdl::write(&hw, &format!("{ent}_wb.v"), &verilog_of(&hw, &format!("{ent}_wb"))?)?;
     }
     let port = free_port()?;
-    hdl::write(dir, "soc.json", &soc_config(plan, allocations, period_us, dir, port)?)?;
+    hdl::write(dir, "soc.json", &soc_config(plan, allocations, board, period_us, dir, port)?)?;
     hdl::write(dir, "soc.py", SOC_SCRIPT)?;
     let python = litex_python();
     run_step(&[&python, "soc.py", "soc.json", "csr"], dir, "LiteX (the SoC's map)")?;
@@ -344,15 +384,11 @@ pub fn run(ast: &Model, options: &Options) -> Result<Report, String> {
     if allocations.is_empty() {
         return Err("no state_machine is allocated to programmable logic: give it to a node of kind \"fpga\" (docs/embedded-fpga.md)".to_string());
     }
-    if let Some(board) = &options.board {
-        if !BOARDS.contains(&board.as_str()) {
-            return Err(format!("no board '{board}' (boards: {})", BOARDS.join(", ")));
-        }
-    }
+    let board = board_for(&allocations, options.board.as_deref())?;
     std::fs::create_dir_all(&options.work).map_err(|e| format!("cannot make {}: {e}", options.work.display()))?;
     let work = options.work.canonicalize().unwrap_or_else(|_| options.work.clone());
     let options = Options { work: work.clone(), ..options.clone() };
-    let mut builds = Builds { plan: &plan, allocations: &allocations, work, simulate: options.simulate && options.port.is_none(), built: HashMap::new() };
+    let mut builds = Builds { plan: &plan, allocations: &allocations, board, work, simulate: options.simulate && options.port.is_none(), built: HashMap::new() };
     let mut outcomes = Vec::new();
     if options.simulate || options.port.is_some() {
         let selected = hdl::selected(ast, &plan, &allocations, &bindings, options.only.as_deref());
@@ -365,16 +401,16 @@ pub fn run(ast: &Model, options: &Options) -> Result<Report, String> {
         let tools = tools(&options.compiler);
         outcomes = selected.into_iter().map(|t| run_case(t, &plan, &bindings, &mut builds, &options, &tools)).collect();
     }
-    let bitstream = options.board.as_ref().map(|board| {
+    let bitstream = options.bitstream.then(|| {
         let period = super::default_period_us(&bindings);
-        builds.get(period).map(|b| (b.dir.clone(), b.image.clone())).and_then(|(dir, image)| bitstream(&plan, &allocations, &dir, &image, board))
+        builds.get(period).map(|b| (b.dir.clone(), b.image.clone())).and_then(|(dir, image)| bitstream(&plan, &allocations, &dir, &image, &board))
     });
     Ok(Report { outcomes, bitstream })
 }
 
 /// The SoC built for the board: synthesis, place and route, the bitstream;
 /// its resources and its Fmax from nextpnr's log.
-fn bitstream(plan: &Plan, allocations: &[Allocation], dir: &Path, image: &Path, board: &str) -> Result<Bitstream, String> {
+fn bitstream(plan: &Plan, allocations: &[Allocation], dir: &Path, image: &Path, board: &Board) -> Result<Bitstream, String> {
     let log = run_step(&[&litex_python(), "soc.py", "soc.json", "board"], dir, "LiteX, Yosys, nextpnr-ecp5 and ecppack (the bitstream)")?;
     let _ = std::fs::write(dir.join("board.log"), &log);
     let gateware = dir.join("board").join("gateware");
@@ -401,7 +437,7 @@ fn bitstream(plan: &Plan, allocations: &[Allocation], dir: &Path, image: &Path, 
     let a = &allocations[0];
     let mhz = a.clock_hz / 1e6;
     Ok(Bitstream {
-        board: board.to_string(),
+        board: board.name.to_string(),
         device: a.part.clone(),
         clock_mhz: mhz,
         fmax_mhz: fmax,
@@ -412,7 +448,7 @@ fn bitstream(plan: &Plan, allocations: &[Allocation], dir: &Path, image: &Path, 
         brams: used("DP16KD"),
         blocks: allocations.iter().map(|a| format!("{}_wb", super::vhdl::entity(plan, &plan.machines[a.machine]))).collect(),
         image_bytes: std::fs::metadata(image).map(|m| m.len()).unwrap_or(0),
-        flash: format!("openFPGALoader -b {board} {}", bit.display()),
+        flash: format!("openFPGALoader -b {} {}", board.loader, bit.display()),
         bitstream: bit.display().to_string(),
     })
 }

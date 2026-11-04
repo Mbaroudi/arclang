@@ -8,8 +8,9 @@
 //! name or id), or when the component is one of its behavior components.
 //! The node is programmable logic when it says so: `kind: "fpga"` (or
 //! `"programmable_logic"`). Its `device:` is the FPGA part (default
-//! `LFE5U-25F-6BG381C`, a Lattice ECP5 of the ULX3S class) and `clock:` the
-//! clock of the logic (default 25 MHz).
+//! `LFE5U-25F-6BG381C`, a Lattice ECP5 of the ULX3S class), `clock:` the
+//! clock of the logic (default 25 MHz) and `board:` the board it is on, for
+//! `arclang soc` (default: the board of that part).
 //!
 //! ```text
 //! physical_architecture "Charger hardware" {
@@ -95,6 +96,8 @@ pub struct Allocation {
     /// The part as written (`device:`), read when synthesising (`device()`).
     pub part: String,
     pub clock_hz: f64,
+    /// The node's `board:`, when it names one (`ulx3s`, `colorlight_i5`...).
+    pub board: Option<String>,
 }
 
 /// Whether a node is programmable logic.
@@ -119,6 +122,7 @@ pub fn allocations(ast: &Model, plan: &Plan) -> Result<Vec<Allocation>, String> 
         for node in pa.nodes.iter().filter(|n| is_logic(n)) {
             let part = node.attributes.get("device").map(AttributeValue::display).unwrap_or_else(|| DEFAULT_DEVICE.to_string());
             let clock_hz = clock(node)?;
+            let board = node.attributes.get("board").map(|v| v.display().trim().to_string()).filter(|b| !b.is_empty());
             for (index, machine) in ast.state_machines.iter().enumerate() {
                 let owner = machine.attributes.get("owner").and_then(|v| v.as_string());
                 let names = |r: &str| r == machine.name || (!machine.id.is_empty() && r == machine.id) || owner.is_some_and(|o| o == r);
@@ -133,7 +137,7 @@ pub fn allocations(ast: &Model, plan: &Plan) -> Result<Vec<Allocation>, String> 
                 if plan.machines[index].events.len() > 255 {
                     return Err(format!("state_machine '{}' has {} events: the hardware takes at most 255", machine.name, plan.machines[index].events.len()));
                 }
-                out.push(Allocation { machine: index, node: node.name.clone(), part: part.clone(), clock_hz });
+                out.push(Allocation { machine: index, node: node.name.clone(), part: part.clone(), clock_hz, board: board.clone() });
             }
         }
     }

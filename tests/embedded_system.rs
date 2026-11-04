@@ -36,7 +36,7 @@ fn work(name: &str) -> PathBuf {
 }
 
 fn options(name: &str) -> system::Options {
-    system::Options { work: work(name), only: None, compiler: "gcc".into(), simulate: true, board: None, port: None }
+    system::Options { work: work(name), only: None, compiler: "gcc".into(), simulate: true, bitstream: false, board: None, port: None }
 }
 
 // ---- on any host ----------------------------------------------------------------------
@@ -47,7 +47,10 @@ fn the_soc_has_each_block_where_its_driver_looks_for_it() {
     let p = plan::plan(&model.ast).unwrap();
     let allocations = alloc::allocations(&model.ast, &p).unwrap();
     let dir = work("config");
-    let config: serde_json::Value = serde_json::from_str(&system::soc_config(&p, &allocations, 10_000, &dir, 4327).unwrap()).unwrap();
+    let board = system::board_for(&allocations, None).unwrap();
+    assert_eq!(board.name, "ulx3s", "the first board of the part");
+    assert_eq!(system::board_for(&allocations, Some("colorlight_i5")).unwrap().loader, "colorlight-i5", "the same part on another board");
+    let config: serde_json::Value = serde_json::from_str(&system::soc_config(&p, &allocations, &board, 10_000, &dir, 4327).unwrap()).unwrap();
     assert_eq!((config["board"].as_str(), config["device"].as_str(), config["clock_hz"].as_u64()), (Some("ulx3s"), Some("LFE5U-25F-6BG381C"), Some(25_000_000)));
     assert_eq!(config["ram_bytes"].as_u64(), Some(system::RAM_BYTES as u64));
     let block = &config["blocks"][0];
@@ -78,7 +81,9 @@ fn the_soc_refuses_what_it_cannot_build() {
     assert!(system::run(&software.ast, &options("none")).unwrap_err().contains("no state_machine is allocated to programmable logic"));
     let charger = compile_file(&example(CHARGER));
     let board = system::Options { board: Some("arty".into()), ..options("board") };
-    assert!(system::run(&charger.ast, &board).unwrap_err().contains("no board 'arty' (boards: ulx3s)"));
+    assert!(system::run(&charger.ast, &board).unwrap_err().contains("no board 'arty' (boards: ulx3s, colorlight_i5, colorlight_i9, ecp5_evn)"));
+    let evn = system::Options { board: Some("ecp5_evn".into()), ..options("evn") };
+    assert!(system::run(&charger.ast, &evn).unwrap_err().contains("board 'ecp5_evn' carries LFE5UM5G-85F-8BG381C, not node 'Charger fabric''s LFE5U-25F-6BG381C"));
 }
 
 // ---- in the system image --------------------------------------------------------------
@@ -115,7 +120,7 @@ fn the_window_runs_in_the_simulated_soc_bit_exact_with_the_fixed_point_c() {
 #[ignore = "needs LiteX, Zephyr, GHDL, Yosys and nextpnr-ecp5 of tools/embedded/system: run in its image (CI job Embedded system)"]
 fn the_same_soc_is_one_bitstream_for_the_ulx3s_that_meets_timing() {
     let model = compile_file(&example(CHARGER));
-    let options = system::Options { simulate: false, board: Some("ulx3s".into()), ..options("bitstream") };
+    let options = system::Options { simulate: false, bitstream: true, board: Some("ulx3s".into()), ..options("bitstream") };
     let report = system::run(&model.ast, &options).unwrap();
     let b = report.bitstream.unwrap().unwrap();
     assert!(b.timing_met, "Fmax {} MHz for {} MHz", b.fmax_mhz, b.clock_mhz);
