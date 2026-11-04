@@ -173,6 +173,14 @@ pub(super) fn write(context: &mut Context, sa: &SystemAnalysis, above_root: Opti
 
     let mut components = El::new("ownedSystemComponentPkg", "ctx:SystemComponentPkg", &derived(&format!("{id}:components"))).attr("name", "Structure");
     let mut parts = Vec::new();
+    // Capella's system analysis always has its system, the root component
+    // (an empty project has it): one when the model declares none.
+    if sa.components.is_empty() {
+        let cid = derived(&format!("{id}:system"));
+        let (el, part) = component(context, &cid, "System", false, &[], &Default::default());
+        components.push(el);
+        parts.push(part);
+    }
     for c in &sa.components {
         let cid = id_of(&c.attributes, &format!("system-component:{}", c.name));
         let (el, part) = component(context, &cid, &c.name, false, &c.ports, &c.attributes);
