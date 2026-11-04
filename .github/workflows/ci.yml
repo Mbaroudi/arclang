@@ -112,7 +112,7 @@ jobs:
           docker build -t arclang-embedded-system:1 tools/embedded/system
 
       - name: Run the system tests, the simulated SoC and the bitstream included
-        run: tools/embedded/system/run.sh cargo test --release --test embedded_system -- --include-ignored
+        run: tools/embedded/system/run.sh cargo test --release --test embedded_system -- --include-ignored --test-threads=3
 
   examples:
     name: Compile all active examples (CLI)

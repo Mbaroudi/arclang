@@ -125,6 +125,37 @@ fn steps(link: &mut Link, lines: &[String], seconds: u64) -> Result<String, Stri
     Ok(reports)
 }
 
+/// Through the I/O: 'G' once, then the report of each of `steps` cycles
+/// (the inputs are the simulated bench's, played in step with the cycles).
+fn cycles(link: &mut Link, steps: usize, seconds: u64) -> Result<String, String> {
+    link.send("G")?;
+    let mut reports = String::new();
+    for k in 0..steps {
+        let deadline = Instant::now() + Duration::from_secs(seconds);
+        let prefix = format!("R {k},");
+        loop {
+            match link.line(deadline)? {
+                Some(line) if line.starts_with(&prefix) => {
+                    reports.push_str(&line);
+                    reports.push('\n');
+                    break;
+                }
+                Some(line) if line.starts_with("ARCLANG ERROR ") => return Err(format!("on the target, at cycle {k}: {}", &line["ARCLANG ERROR ".len()..])),
+                Some(_) => {}
+                None => return Err(format!("no report of cycle {k} within {seconds} s; the console:\n{}", tail(&link.log()))),
+            }
+        }
+    }
+    Ok(reports)
+}
+
+/// What the bench sends: a line a step (the step() API), or 'G' and the
+/// cycles through the I/O.
+pub enum Drive<'a> {
+    Lines(&'a [String]),
+    Cycles(usize),
+}
+
 /// The simulator, killed when the bench is done with it.
 struct Simulator(Child);
 
@@ -137,7 +168,7 @@ impl Drop for Simulator {
 
 /// Run the steps in the simulator built in `gateware` (a fresh reset), its
 /// console on TCP `port`: the reports, and everything the console said.
-pub fn simulate(gateware: &Path, port: u16, lines: &[String], boot_seconds: u64, step_seconds: u64) -> Result<(String, String), String> {
+pub fn simulate(gateware: &Path, port: u16, drive: Drive, boot_seconds: u64, step_seconds: u64) -> Result<(String, String), String> {
     let log = std::fs::File::create(gateware.join("vsim.log")).map_err(|e| format!("cannot write the simulator's log: {e}"))?;
     let child = Command::new(gateware.join("obj_dir").join("Vsim"))
         .current_dir(gateware)
@@ -165,14 +196,30 @@ pub fn simulate(gateware: &Path, port: u16, lines: &[String], boot_seconds: u64,
     let _ = stream.set_nodelay(true);
     let reader = stream.try_clone().map_err(|e| e.to_string())?;
     let mut link = Link::new(Box::new(reader), Box::new(stream));
-    let reports = ready(&mut link, boot_seconds).and_then(|_| steps(&mut link, lines, step_seconds));
+    let wanted = match drive {
+        Drive::Cycles(n) => n,
+        Drive::Lines(_) => 0,
+    };
+    let reports = ready(&mut link, boot_seconds).and_then(|_| match drive {
+        Drive::Lines(lines) => steps(&mut link, lines, step_seconds),
+        Drive::Cycles(n) => cycles(&mut link, n, step_seconds),
+    });
+    if reports.is_ok() && wanted > 0 {
+        // The bench records a cycle's channels just after its report: wait
+        // for the last one before the simulator stops.
+        let deadline = Instant::now() + Duration::from_secs(step_seconds);
+        let recorded = || std::fs::read_to_string(gateware.join("recorder.txt")).map(|t| t.lines().filter(|l| l.starts_with("S ")).count()).unwrap_or(0);
+        while recorded() < wanted && Instant::now() < deadline {
+            std::thread::sleep(Duration::from_millis(50));
+        }
+    }
     drop(sim);
     reports.map(|r| (r, link.log()))
 }
 
 /// Run the steps on a board through its serial port (115200 bauds, 8N1,
 /// raw), the board holding the SoC's bitstream.
-pub fn board(port: &str, lines: &[String], step_seconds: u64) -> Result<(String, String), String> {
+pub fn board(port: &str, drive: Drive, step_seconds: u64) -> Result<(String, String), String> {
     let flag = if cfg!(target_os = "macos") { "-f" } else { "-F" };
     let stty = Command::new("stty").args([flag, port, "115200", "raw", "-echo", "cs8", "-cstopb", "-parenb"]).output().map_err(|e| format!("cannot run stty: {e}"))?;
     if !stty.status.success() {
@@ -182,6 +229,9 @@ pub fn board(port: &str, lines: &[String], step_seconds: u64) -> Result<(String,
     let reader = file.try_clone().map_err(|e| e.to_string())?;
     let mut link = Link::new(Box::new(reader), Box::new(file));
     ready(&mut link, 20)?;
-    let reports = steps(&mut link, lines, step_seconds)?;
+    let reports = match drive {
+        Drive::Lines(lines) => steps(&mut link, lines, step_seconds)?,
+        Drive::Cycles(n) => cycles(&mut link, n, step_seconds)?,
+    };
     Ok((reports, link.log()))
 }

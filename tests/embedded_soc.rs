@@ -146,10 +146,10 @@ fn export_writes_a_zephyr_application_tied_to_the_model() {
     let again = zephyr::export(&result.ast, None, None).unwrap();
     assert_eq!(zephyr::key_files(&app), zephyr::key_files(&again));
     // Without a binding: an application for the step() API only.
-    let window = compile_file(&example(WINDOW));
-    let e = zephyr::export(&window.ast, None, None).err().unwrap();
+    let unbound = compile_file(&example(REMOTE_START));
+    let e = zephyr::export(&unbound.ast, None, None).err().unwrap();
     assert!(e.contains("no target: give one (--target zephyr/litex_vexriscv)"), "{e}");
-    let app = zephyr::export(&window.ast, Some(LITEX), None).unwrap();
+    let app = zephyr::export(&unbound.ast, Some(LITEX), None).unwrap();
     assert!(app.files.iter().any(|(n, t, _)| n == "arclang_app.cmake" && t.contains("set(ARCLANG_MAIN pil_direct")));
     assert!(!app.files.iter().any(|(n, _, _)| n.starts_with("src/glue/")));
     // The host is no Zephyr target.
@@ -243,7 +243,8 @@ fn run_pil(path: &Path, extra: &[&str]) -> (bool, serde_json::Value, String) {
     (out.status.success(), json, String::from_utf8_lossy(&out.stderr).to_string())
 }
 
-/// The charger (through its binding and through step()), the power window,
+/// The charger (through its binding and through step()), the power window
+/// (through its door module and through step()),
 /// the cruise control and the remote start, built by the Zephyr SDK for the
 /// LiteX VexRiscv SoC and run in Renode: every case reproduces the model,
 /// largest difference 0; through the I/O, the period is kept on the
@@ -253,7 +254,7 @@ fn run_pil(path: &Path, extra: &[&str]) -> (bool, serde_json::Value, String) {
 fn pil_on_the_litex_soc_in_renode_reproduces_the_model() {
     use arclang::compiler::verification::{verdict_for, Verdict};
     let dir = work("pil");
-    for (path, cases) in [(CHARGER, 3), (WINDOW, 2), (ACC, 2), (REMOTE_START, 2)] {
+    for (path, cases) in [(CHARGER, 3), (WINDOW, 3), (ACC, 2), (REMOTE_START, 2)] {
         let model = dir.join(Path::new(path).file_name().unwrap());
         std::fs::copy(example(path), &model).unwrap();
         let (ok, json, stderr) = run_pil(&model, &["--target", LITEX]);

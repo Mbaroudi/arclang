@@ -108,6 +108,27 @@ fn a_block_on_its_own_clock_is_a_clock_domain_of_the_soc() {
     }
 }
 
+#[test]
+fn the_socs_channels_are_in_the_devicetree_and_the_bench_plays_the_case() {
+    // A map as LiteX writes it, reduced to what the overlay reads.
+    let mut names: Vec<String> = ["gpio_in_in", "gpio_in_mode", "gpio_in_edge", "gpio_in_ev_pending", "gpio_in_ev_enable", "gpio_out_out", "pwm0_enable", "pwm0_width", "pwm0_period", "pwm1_enable", "pwm1_width", "pwm1_period", "adc_ch0", "bench_cycle"].iter().map(|s| s.to_string()).collect();
+    for k in 0..2 {
+        for r in ["rxtx", "txfull", "rxempty", "ev_status", "ev_pending", "ev_enable", "txempty", "rxfull"] {
+            names.push(format!("uart_a{k}_{r}"));
+        }
+    }
+    let mut registers = serde_json::Map::new();
+    for (k, name) in names.iter().enumerate() {
+        registers.insert(name.clone(), serde_json::json!({ "addr": 0xf000_2000u64 + 4 * k as u64, "size": 1 }));
+    }
+    let csr = serde_json::json!({ "csr_registers": registers, "constants": { "gpio_in_interrupt": 2, "uart_a0_interrupt": 3, "uart_a1_interrupt": 4 } });
+    let dts = system::io::overlay(&csr).unwrap();
+    for wanted in ["arclang-gpio-in = &gpio_in;", "arclang-pwm-1 = &arclang_pwm1;", "arclang-uart-1 = &arclang_uart1;", "compatible = \"arclang,litex-adc\";", "interrupts = <3 10>;", "ngpios = <32>;"] {
+        assert!(dts.contains(wanted), "{wanted}\n{dts}");
+    }
+    assert!(system::io::hook(&csr).unwrap().contains("void arclang_pil_bench(uint32_t event)"));
+}
+
 // ---- in the system image --------------------------------------------------------------
 
 fn assert_passes(outcomes: &[hdl::Outcome]) {
@@ -134,8 +155,30 @@ fn the_charger_runs_in_the_simulated_soc_bit_exact_with_the_fixed_point_c() {
 fn the_window_runs_in_the_simulated_soc_bit_exact_with_the_fixed_point_c() {
     let model = compile_file(&example(WINDOW));
     let report = system::run(&model.ast, &options("window")).unwrap();
-    assert_eq!(report.outcomes.len(), 2);
+    assert_eq!(report.outcomes.len(), 3);
     assert_passes(&report.outcomes);
+}
+
+#[test]
+#[ignore = "needs LiteX, Verilator, Zephyr and GHDL of tools/embedded/system: run in its image (CI job Embedded system)"]
+fn a_case_through_the_io_runs_on_the_socs_peripherals_with_the_block() {
+    // The door module: gpio switches, uart bytes in and out, the motor's
+    // PWM, the lamps, the watchdog, played by the simulated bench in step
+    // with the cycles; the channels compared with the model, the block with
+    // the fixed-point C.
+    let model = compile_file(&example(WINDOW));
+    let report = system::run(&model.ast, &system::Options { only: Some("TC-PW-003".into()), ..options("io") }).unwrap();
+    let o = &report.outcomes[0];
+    assert_eq!(o.verdict, "pass", "{}", o.reason);
+    assert_eq!(o.bit_exact.as_ref().unwrap().max_difference, 0.0);
+    let timing = o.cycles.as_deref().unwrap();
+    assert!(timing.contains("13 cycles through the I/O") && timing.contains("for a period of 10000 us"), "{timing}");
+    // A binding with CAN runs through the step() API, and says so.
+    let charger = compile_file(&example(CHARGER));
+    let report = system::run(&charger.ast, &system::Options { only: Some("TC-CHG-002".into()), ..options("can") }).unwrap();
+    let o = &report.outcomes[0];
+    assert_eq!(o.verdict, "pass", "{}", o.reason);
+    assert!(o.cycles.as_deref().is_some_and(|c| c.contains("uses CAN, which the SoC has no core for yet")), "{:?}", o.cycles);
 }
 
 #[test]

@@ -339,7 +339,7 @@ fn the_charger_controller_runs_in_ghdl_bit_exact_with_the_fixed_point_c() {
 #[ignore = "needs GHDL and gcc of tools/embedded/fpga: run in its image (CI job Embedded FPGA)"]
 fn the_window_machine_runs_in_ghdl_bit_exact_with_the_fixed_point_c() {
     let (outcomes, _) = run_hdl(WINDOW, false);
-    assert_eq!(outcomes.len(), 2);
+    assert_eq!(outcomes.len(), 3);
     assert_passes(&outcomes);
 }
 

@@ -151,18 +151,96 @@ and their data packages at 2026.08, Migen at e19524c9, Verilator 5.006 and
 openFPGALoader 1.2.0. The CI job "Embedded system" builds the four images
 and runs those tests.
 
+## Boards and clocks
+
+| Board | Part | Oscillator | openFPGALoader |
+|---|---|---|---|
+| `ulx3s` | LFE5U-12F/25F/45F/85F-6BG381C | 25 MHz | `-b ulx3s` |
+| `colorlight_i5` | LFE5U-25F-6BG381C | 25 MHz | `-b colorlight-i5` |
+| `colorlight_i9` | LFE5U-45F-6BG381C | 25 MHz | `-b colorlight-i9` |
+| `ecp5_evn` | LFE5UM5G-85F-8BG381C | 12 MHz | `-b ecp5_evn` |
+
+A node names its board with `board:` (`arclang soc --board` overrides it,
+`--bitstream` builds for the model's own); without one, the first board
+carrying its part. The charger on the Colorlight i5: 6950 LUT4, Fmax 37.1
+MHz; on the ECP5 evaluation board (12 MHz to 25 MHz by the PLL): Fmax 50.9
+MHz.
+
+**Clocks.** The bus runs at the `clock:` of the node that has a
+`processor:` (else the first block's). A block whose node has another
+clock is in a clock domain of its own, reached through LiteX's Wishbone
+clock domain crossing, clocked by a clocker of its own in the simulator
+and by an output of the PLL on a board; every clock is timed against its
+own target. The charger's block at 20 MHz beside a 25 MHz VexRiscv:
+bit-exact in the simulated SoC; block 38.5 MHz, CPU 68.0 MHz after routing.
+One SoC is one FPGA: blocks on two parts are refused.
+
+## Gate level
+
+`arclang soc --gate-level` simulates each block **as synthesised for the
+ECP5**: `synth_ecp5` on the block alone (the synthesis of the bitstream),
+its netlist of ECP5 cells (LUT4, flip-flops, carry chains, MULT18X18D)
+simulated with Yosys's cell models inside the SoC; the processor, the RAM
+and the bus stay as written (third-party cores; and Yosys has no behaviour
+for the ECP5's block RAM, DP16KD, so a block using block RAM is refused at
+gate level). Yosys ships the multiplier MULT18X18D as a port list only:
+ArcLang writes a model of the combinational mode Yosys uses and refuses
+any other. The charger's block (1432 LUT4, 1347 flip-flops, 16
+multipliers) and the window's: bit-exact with the fixed-point C at gate
+level.
+
+## Through the I/O
+
+A case that runs through an `io_binding` runs the controller's loop
+(`pil_io`) on the SoC's own peripherals, the machine in its block:
+
+| Channel | In the SoC |
+|---|---|
+| gpio 0 to 31, in and out | LiteX GPIOIn (with its interrupt) and GPIOOut |
+| pwm 0, 1 | two LiteX PWM cores |
+| uart 0, 1 | two LiteX UARTs beside the console |
+| adc 0 to 7 | the register bank of the target (`arclang,litex-adc`) |
+| watchdog | the LiteX watchdog |
+| can | not yet: a case whose binding uses CAN runs through the step() API, and says so; its channels stay proved by `arclang pil` in Renode |
+
+The devicetree of these channels and the aliases `arclang_io_zephyr.c`
+finds them by are generated from the SoC's map. In the simulator, a bench
+written in Verilog drives and records them **in step with the cycles**:
+the application tells a register of the SoC when its I/O is up and when
+each cycle ends (`arclang_pil_bench`, a no-op on a board); at those
+instants the bench plays the next step's operations (gpio levels, ADC
+values, UART bytes, read at start from `player.hex`) and records the
+outputs (`recorder.txt`): what the Renode bench does between two quanta,
+done by the simulated hardware, so a run cannot race the simulator. The
+recorded channels must be what the model makes them, step by step, exactly;
+the block's words the fixed-point C's.
+
+```text
+  ✓ pass  TC-PW-003
+    model: pass · SoC: pass
+    timing: 13 cycles through the I/O in the simulated SoC, 9997 to 10015 us apart for a period of 10000 us (the first at 20390 us)
+    SoC vs fixed-point C: 13 steps × 21 outputs, largest difference 0 (bit-exact)
+```
+
+(the power window's door module: switches on gpio, the diagnostic link on
+uart 0, the motor's PWM at 800 ‰, the lamps on gpio, a status byte on
+uart 1, the watchdog fed every cycle.)
+
+**Conversions.** The driver converts values to the block's words and back
+with integer arithmetic on the IEEE 754 bits (`arc_fx_from`, `arc_fx_to`):
+no floating-point call on the VexRiscv, the same words as the
+floating-point formula (checked on 2 million values). The charger's step()
+went from 180–300 us to 67–82 us.
+
 ## Limits, said plainly
 
-- **No board here.** The bitstream is built and meets timing; the SoC it
-  holds is the one simulated cycle by cycle, and its Zephyr image the one
-  that ran there. Writing it to a ULX3S and `--port` have not been run on
-  a board: the first run on hardware is the next proof.
-- **One SoC, one clock, one part**: every allocated machine on nodes of
-  the same part and clock.
-- **The step() API only** in the SoC: the cases run through the console,
-  not through the I/O channels (gpio, ADC, PWM, CAN...) of a binding; those
-  stay proved by PIL in Renode, where the machine runs as software C.
-- **The VexRiscv's soft floating point** converts the inputs and outputs:
-  most of step()'s time. A machine whose inputs are integers, or a
-  processor with an FPU, would not pay it.
-- **ULX3S only** as a built-in board.
+- **No board here.** The bitstreams are built and meet timing; the SoC
+  they hold is the one simulated, at RTL and with its blocks at gate
+  level. Writing one to a board and `--port` have not been run on
+  hardware.
+- **No CAN core in the SoC yet**: a binding using CAN runs through the
+  step() API in the SoC (its channels proved in Renode).
+- **The channels on a board are wired to no pin yet**: on a board, cases
+  run through the step() API; the pins of each channel are the next step.
+- **Gate level covers the blocks**, not the processor, RAM and bus.
+- **One FPGA a SoC.**

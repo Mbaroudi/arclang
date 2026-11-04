@@ -20,6 +20,8 @@
 
 #[path = "system/bench.rs"]
 mod bench;
+#[path = "system/io.rs"]
+pub mod io;
 
 use super::alloc::Allocation;
 use super::hdl::{self, Outcome};
@@ -91,7 +93,7 @@ const STEP_SECONDS: u64 = 60;
 
 /// The nodes of the Zephyr board's devicetree the SoC does not have and
 /// LiteX's overlay generator does not know: disabled.
-const ABSENT_NODES: &[&str] = &["dna0", "prbs0", "i2c1", "pwm0", "gpio_out", "gpio_in", "clock0"];
+const ABSENT_NODES: &[&str] = &["dna0", "prbs0", "i2c1", "clock0"];
 
 #[derive(Debug, Clone)]
 pub struct Options {
@@ -178,16 +180,23 @@ struct Builds<'a> {
     work: PathBuf,
     simulate: bool,
     gate_level: bool,
-    built: HashMap<u64, Result<Built, String>>,
+    built: HashMap<(Option<String>, u64), Result<Built, String>>,
 }
 
 impl Builds<'_> {
-    fn get(&mut self, period_us: u64) -> Result<&Built, String> {
-        if !self.built.contains_key(&period_us) {
-            let built = prepare(self.plan, self.allocations, &self.board, self.sys_hz, period_us, &self.work.join(format!("soc-{period_us}us")), self.simulate.then_some(if self.gate_level { "gatesim" } else { "sim" }));
-            self.built.insert(period_us, built);
+    /// The SoC whose application runs the step() API (no binding) or the
+    /// controller's loop through a binding's I/O, at a period.
+    fn get(&mut self, binding: Option<&super::binding::Binding>, period_us: u64) -> Result<&Built, String> {
+        let key = (binding.map(|b| b.ident.clone()), period_us);
+        if !self.built.contains_key(&key) {
+            let dir = match binding {
+                Some(b) => self.work.join(format!("soc-{}-{period_us}us", b.ident)),
+                None => self.work.join(format!("soc-{period_us}us")),
+            };
+            let built = prepare(self.plan, self.allocations, &self.board, self.sys_hz, binding, period_us, &dir, self.simulate.then_some(if self.gate_level { "gatesim" } else { "sim" }));
+            self.built.insert(key.clone(), built);
         }
-        self.built[&period_us].as_ref().map_err(|e| e.clone())
+        self.built[&key].as_ref().map_err(|e| e.clone())
     }
 }
 
@@ -232,14 +241,18 @@ pub fn soc_config(plan: &Plan, allocations: &[Allocation], board: &Board, sys_hz
 /// The application, the blocks' Verilog, the SoC's map, the Zephyr image
 /// and the simulator (`simulator`: `sim` as written, `gatesim` as
 /// synthesised), for one period.
-fn prepare(plan: &Plan, allocations: &[Allocation], board: &Board, sys_hz: f64, period_us: u64, dir: &Path, simulator: Option<&'static str>) -> Result<Built, String> {
+#[allow(clippy::too_many_arguments)]
+fn prepare(plan: &Plan, allocations: &[Allocation], board: &Board, sys_hz: f64, binding: Option<&super::binding::Binding>, period_us: u64, dir: &Path, simulator: Option<&'static str>) -> Result<Built, String> {
     std::fs::create_dir_all(dir).map_err(|e| format!("cannot make {}: {e}", dir.display()))?;
     let package = super::target::find(PACKAGE)?;
     // One SoC is one FPGA: every block on the same part (each on its own clock).
     if let Some(a) = allocations.iter().find(|a| a.part != allocations[0].part) {
         return Err(format!("node '{}' ({}) and node '{}' ({}): one SoC is one FPGA, one part; two parts are two chips", allocations[0].node, allocations[0].part, a.node, a.part));
     }
-    let app = super::zephyr::hw_app(plan, allocations, None, &package, period_us)?;
+    if let Some(b) = binding {
+        super::target::check(b, &package)?;
+    }
+    let app = super::zephyr::hw_app(plan, allocations, binding, &package, period_us)?;
     let app_dir = dir.join("app");
     let _ = std::fs::remove_dir_all(&app_dir);
     super::pil::write_app(&app_dir, &app)?;
@@ -263,14 +276,21 @@ fn prepare(plan: &Plan, allocations: &[Allocation], board: &Board, sys_hz: f64, 
     hdl::write(dir, "soc.py", SOC_SCRIPT)?;
     let python = litex_python();
     run_step(&[&python, "soc.py", "soc.json", "csr"], dir, "LiteX (the SoC's map)")?;
-    overlay(dir)?;
+    let csr = overlay(dir)?;
+    // The application tells the bench where the cycles end.
+    hdl::write(&app_dir.join("src").join("model"), "arclang_bench_hook.c", &io::hook(&csr)?)?;
     let build = dir.join("build");
     let overlay_arg = format!("-DDTC_OVERLAY_FILE={}", dir.join("soc.overlay").display());
     let conf_arg = format!("-DEXTRA_CONF_FILE={}", dir.join("soc.conf").display());
     let period_arg = format!("-DARCLANG_PERIOD_US={period_us}");
     let build_s = build.display().to_string();
     let app_s = app_dir.display().to_string();
-    run_step(&["west", "build", "-p", "always", "-b", "litex_vexriscv", "-d", &build_s, &app_s, "--", "-DARCLANG_MAIN=pil_direct", &period_arg, &overlay_arg, &conf_arg], dir, "west build (Zephyr for the SoC)")?;
+    let main = if binding.is_some() { "-DARCLANG_MAIN=pil_io" } else { "-DARCLANG_MAIN=pil_direct" };
+    let mut west = vec!["west", "build", "-p", "always", "-b", "litex_vexriscv", "-d", &build_s, &app_s, "--", main, &overlay_arg, &conf_arg];
+    if binding.is_none() {
+        west.push(&period_arg);
+    }
+    run_step(&west, dir, "west build (Zephyr for the SoC)")?;
     let image = build.join("zephyr").join("zephyr.bin");
     if !image.is_file() {
         return Err(format!("the Zephyr build made no {}", image.display()));
@@ -302,8 +322,9 @@ fn run_step(command: &[&str], dir: &Path, what: &str) -> Result<String, String> 
 }
 
 /// Zephyr's devicetree and configuration overlays from the SoC's map:
-/// LiteX's generator, and the board's other nodes disabled.
-fn overlay(dir: &Path) -> Result<(), String> {
+/// LiteX's generator, the channels' nodes and aliases, and the board's
+/// other nodes disabled. The map, read.
+fn overlay(dir: &Path) -> Result<serde_json::Value, String> {
     let python = litex_python();
     let script = std::process::Command::new(&python)
         .args(["-c", "import litex.tools.litex_json2dts_zephyr as m; print(m.__file__)"])
@@ -311,13 +332,15 @@ fn overlay(dir: &Path) -> Result<(), String> {
         .map_err(|e| format!("cannot run {python}: {e}"))?;
     let script = String::from_utf8_lossy(&script.stdout).trim().to_string();
     run_step(&[&python, &script, "--dts", "soc.overlay", "--config", "soc.conf", "csr.json"], dir, "LiteX (Zephyr's overlay)")?;
+    let csr: serde_json::Value = serde_json::from_str(&std::fs::read_to_string(dir.join("csr.json")).map_err(|e| format!("no csr.json: {e}"))?).map_err(|e| format!("csr.json: {e}"))?;
     let mut text = std::fs::read_to_string(dir.join("soc.overlay")).map_err(|e| format!("no soc.overlay: {e}"))?;
+    text.push_str(&io::overlay(&csr)?);
     text.push_str("\n/* ArcLang: the board's nodes this SoC does not have. */\n");
     for node in ABSENT_NODES {
         let _ = writeln!(text, "&{node} {{\n    status = \"disabled\";\n}};");
     }
     hdl::write(dir, "soc.overlay", &text)?;
-    Ok(())
+    Ok(csr)
 }
 
 /// The machine's columns of a run of the whole plan, as the words of the
@@ -345,12 +368,6 @@ fn words(plan: &Plan, machine: usize, fx: &super::fixed::MachineFixed, table: &T
     Table { rows, ..mine }
 }
 
-/// Where a case's steps go: the simulator, started for the case, or the board.
-enum Target<'a> {
-    Simulator(&'a Built),
-    Board(&'a str),
-}
-
 fn run_case(test: &TestCase, plan: &Plan, bindings: &[super::binding::Binding], builds: &mut Builds, options: &Options, tools: &str) -> Outcome {
     let mut outcome = hdl::new_outcome(test, tools);
     let texts: Vec<String> = outcome.expectations.iter().map(|j| j.expect.clone()).collect();
@@ -364,20 +381,59 @@ fn run_case(test: &TestCase, plan: &Plan, bindings: &[super::binding::Binding], 
 fn run_case_inner(test: &TestCase, plan: &Plan, bindings: &[super::binding::Binding], builds: &mut Builds, options: &Options, texts: &[String], outcome: &mut Outcome) -> Result<(), String> {
     let dir = options.work.join(format!("case-{}", hdl::case_dir(test)));
     let r = hdl::reference(test, plan, bindings, &options.compiler, &dir, texts, outcome)?;
-    let built = builds.get(r.case.step_us)?;
-    let lines: Vec<String> = (0..r.case.steps).map(|k| super::zephyr::direct_line(plan, &r.vectors, k)).collect();
-    let target = match &options.port {
-        Some(port) => Target::Board(port),
-        None => Target::Simulator(built),
+    let bound = r.case.binding.as_ref().map(|name| bindings.iter().find(|b| b.is(name)).ok_or_else(|| format!("no io_binding '{name}'"))).transpose()?;
+    // A binding with CAN runs through the step() API: the SoC has no CAN
+    // core yet (its channels stay proved by PIL in Renode).
+    let uses_can = |b: &super::binding::Binding| b.inputs.iter().any(|i| matches!(i.source, super::binding::Source::Can(_))) || b.outputs.iter().any(|o| matches!(o.sink, super::binding::Sink::Can(_)));
+    let binding = bound.filter(|b| !uses_can(b) && options.port.is_none());
+    let note = match bound {
+        Some(b) if binding.is_none() && uses_can(b) => Some(format!(" (through the step() API: io_binding '{}' uses CAN, which the SoC has no core for yet; its channels are proved by arclang pil in Renode)", b.name)),
+        Some(b) if binding.is_none() => Some(format!(" (through the step() API: on a board the channels of io_binding '{}' are not wired to pins yet)", b.name)),
+        _ => None,
     };
     let names = reference::run(plan, &r.vectors, r.case.step_us).names;
-    let (text, log) = match target {
-        Target::Simulator(b) => bench::simulate(&b.dir.join(b.simulator).join("gateware"), b.port, &lines, BOOT_SECONDS, STEP_SECONDS)?,
-        Target::Board(port) => bench::board(port, &lines, STEP_SECONDS)?,
+    let lines: Vec<String> = (0..r.case.steps).map(|k| super::zephyr::direct_line(plan, &r.vectors, k)).collect();
+    let built = builds.get(binding, r.case.step_us)?;
+    let gateware = built.dir.join(built.simulator).join("gateware");
+    let drive = match binding {
+        Some(b) => {
+            // The case as channel operations, played by the simulated bench.
+            let ops = super::sil::channel_operations(&r.case, plan, b, &r.vectors)?;
+            hdl::write(&gateware, "player.hex", &io::player(&ops)?)?;
+            let _ = std::fs::remove_file(gateware.join("recorder.txt"));
+            bench::Drive::Cycles(r.case.steps)
+        }
+        None => bench::Drive::Lines(&lines),
+    };
+    let (text, log) = match &options.port {
+        Some(port) => bench::board(port, drive, STEP_SECONDS)?,
+        None => bench::simulate(&gateware, built.port, drive, BOOT_SECONDS, STEP_SECONDS)?,
     };
     let _ = std::fs::write(dir.join("console.txt"), &log);
-    let rows = super::pil::parse_result(&text, names.len(), 0, r.case.steps)?;
+    // Through the I/O: the channels the bench recorded after each cycle.
+    let (text, io_count) = match binding {
+        Some(b) => {
+            let recorder = std::fs::read_to_string(gateware.join("recorder.txt")).map_err(|e| format!("the bench recorded nothing: {e}"))?;
+            let _ = std::fs::write(dir.join("recorder.txt"), &recorder);
+            let channels = io::outputs(b, &recorder, r.case.steps)?;
+            let joined: String = text.lines().zip(&channels).map(|(l, c)| format!("{l}|{c}\n")).collect();
+            (joined, super::sil::io_columns(b).len())
+        }
+        None => (text, 0),
+    };
+    let rows = super::pil::parse_result(&text, names.len(), io_count, r.case.steps)?;
+    // The channels must be what the model makes them, exactly.
+    if let Some(b) = binding {
+        let model_full = reference::run(plan, &r.vectors, r.case.step_us);
+        let expected = super::sil::expected_io(plan, b, &model_full);
+        let columns = super::sil::io_columns(b);
+        if let Some((k, c)) = rows.iter().enumerate().find_map(|(k, row)| (0..io_count).find(|&c| row.values[names.len() + c] != expected[k][c]).map(|c| (k, c))) {
+            outcome.reason = format!("the channel {} departs from the model at step {k} ({} ms): {} on the SoC, {} expected", columns[c], k as u64 * r.case.step_us / 1000, rows[k].values[names.len() + c], expected[k][c]);
+        }
+    }
+    let rows: Vec<super::pil::Row> = rows.into_iter().map(|row| super::pil::Row { time: row.time, values: row.values[..names.len()].to_vec() }).collect();
     let worst = rows.iter().map(|row| row.time).max().unwrap_or(0);
+    let times: Vec<u64> = rows.iter().map(|row| row.time).collect();
     let table = Table { names, period_us: r.case.step_us, rows: rows.into_iter().map(|row| row.values).collect(), units: Default::default() };
     let device_raw = words(plan, r.machine, &r.fx, &table);
     let clock = builds.sys_hz / 1e6;
@@ -389,7 +445,21 @@ fn run_case_inner(test: &TestCase, plan: &Plan, bindings: &[super::binding::Bind
         "in the simulated SoC"
     };
     outcome.cycles = Some(format!("step() took at most {:.1} us {on} at {clock} MHz (the driver, the bus and the block)", worst as f64 / 1000.0));
+    if let (Some(n), Some(c)) = (&note, outcome.cycles.as_mut()) {
+        c.push_str(n);
+    }
+    let departed = std::mem::take(&mut outcome.reason);
     hdl::conclude(&r, plan, &device_raw, if options.port.is_some() { "the board" } else { "the SoC" }, texts, outcome);
+    if !departed.is_empty() {
+        outcome.verdict = "fail".to_string();
+        outcome.reason = departed;
+    }
+    if binding.is_some() {
+        // Through the I/O the report gives each cycle's time on the target (us).
+        let gaps: Vec<u64> = times.windows(2).map(|w| w[1].saturating_sub(w[0])).collect();
+        let (lo, hi) = (gaps.iter().min().copied().unwrap_or(0), gaps.iter().max().copied().unwrap_or(0));
+        outcome.cycles = Some(format!("{} cycles through the I/O {on}, {lo} to {hi} us apart for a period of {} us (the first at {} us)", times.len(), r.case.step_us, times.first().copied().unwrap_or(0)));
+    }
     Ok(())
 }
 
@@ -425,7 +495,7 @@ pub fn run(ast: &Model, options: &Options) -> Result<Report, String> {
     }
     let bitstream = options.bitstream.then(|| {
         let period = super::default_period_us(&bindings);
-        builds.get(period).map(|b| (b.dir.clone(), b.image.clone())).and_then(|(dir, image)| bitstream(&plan, &allocations, &dir, &image, &board))
+        builds.get(None, period).map(|b| (b.dir.clone(), b.image.clone())).and_then(|(dir, image)| bitstream(&plan, &allocations, &dir, &image, &board))
     });
     Ok(Report { outcomes, bitstream })
 }

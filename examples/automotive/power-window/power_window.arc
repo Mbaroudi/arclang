@@ -102,6 +102,36 @@ state_machine "Window" {
     transition Fault -> Dead { trigger: "fatal" }
 }
 
+// The window lift's I/O on the door module: switches on gpio, the
+// diagnostic link on uart 0, the motor's PWM, the lamps and a status byte
+// on uart 1, a watchdog. A run through the I/O cannot set position (no
+// channel binds it): it stays 0, so the window goes up from Decide.
+io_binding "Door module" {
+    machine: "Window"
+    target: "zephyr/litex_vexriscv"
+    period: 10 ms
+    watchdog: true
+    inputs: [
+        "key <- gpio 0 rising",
+        "sleep <- gpio 0 falling",
+        "auto <- gpio 1 rising",
+        "obstacle <- gpio 2 rising",
+        "release <- gpio 2 falling",
+        "wake <- gpio 3 rising",
+        "reverse <- uart 0 0x52",
+        "stop <- uart 0 0x53",
+        "shutdown <- uart 0 0x58"
+    ]
+    outputs: [
+        "Moving -> pwm 0 800",
+        "Up -> gpio 10",
+        "Down -> gpio 11",
+        "Pinched -> gpio 12",
+        "Fault -> gpio 13",
+        "Stopped -> uart 1 0x53"
+    ]
+}
+
 test_case "TC-PW-001" {
     verifies: ["SYS-PW-001", "SYS-PW-002", "SYS-PW-003", "SYS-PW-004"]
     method: "test"
@@ -153,5 +183,30 @@ test_case "TC-PW-002" {
         "SYS-PW-001: at(20 ms, \"Window\".Active.Moving.Down) == 1",
         "at(30 ms, \"Window\".Active.Stopped) == 1",
         "final(\"Window\".commands) == 1"
+    ]
+}
+
+test_case "TC-PW-003" {
+    verifies: ["SYS-PW-001", "SYS-PW-003"]
+    method: "test"
+    description: "Through the door module's I/O: key, auto up, reverse, pinch, release, stop, sleep"
+    execute: {
+        machine: "Window"
+        binding: "Door module"
+        step: 10 ms
+        stop_time: 120 ms
+        inputs: [
+            "10 ms: key", "20 ms: auto", "30 ms: reverse", "40 ms: obstacle",
+            "60 ms: release", "70 ms: auto", "80 ms: stop", "100 ms: sleep"
+        ]
+    }
+    expects: [
+        "SYS-PW-001: at(20 ms, \"Window\".Active.Moving.Up) == 1",
+        "at(30 ms, \"Window\".Active.Moving.Down) == 1",
+        "at(40 ms, \"Window\".Active.Pinched) == 1",
+        "SYS-PW-003: at(60 ms, \"Window\".Active.Stopped) == 1",
+        "at(70 ms, \"Window\".Active.Moving.Up) == 1",
+        "at(80 ms, \"Window\".Active.Stopped) == 1",
+        "final(\"Window\".Off) == 1"
     ]
 }
