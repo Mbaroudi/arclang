@@ -31,7 +31,7 @@ use crate::compiler::ast::{AttributeValue, TestCase};
 use crate::compiler::quantity::{Dimension, Quantity};
 use std::collections::HashMap;
 
-pub const EXECUTE_KEYS: [&str; 6] = ["machine", "step", "stop_time", "inputs", "binding", "tolerance"];
+pub const EXECUTE_KEYS: [&str; 7] = ["machine", "step", "stop_time", "inputs", "binding", "tolerance", "quantisation"];
 
 /// The default step of a case without `step:` or `binding:`.
 pub const DEFAULT_STEP_US: u64 = 10_000;

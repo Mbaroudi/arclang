@@ -125,6 +125,7 @@ fn attach_executed(result: &mut CompilationResult, model_path: &Path) -> std::co
             },
         };
         let status = with_pil(result, model_path, &dir, test, status);
+        let status = with_hdl(result, model_path, &dir, test, status);
         statuses.insert(test.id.clone(), status);
     }
     statuses
@@ -158,6 +159,35 @@ fn with_pil(result: &mut CompilationResult, model_path: &Path, dir: &Path, test:
     }
     let mut status = status;
     status.evidence = format!("{} · PIL on {}: pass", status.evidence, outcome.target).trim_start_matches(" · ").to_string();
+    status
+}
+
+/// A case's status with its hardware-in-simulation verdict, when one is
+/// cached (`arclang hdl` writes `<case>.hdl.json`), read as a PIL one: a
+/// fresh failure or error is the case's verdict (the hardware computes the
+/// machine), a fresh pass is evidence; a stale one is a warning only.
+fn with_hdl(result: &mut CompilationResult, model_path: &Path, dir: &Path, test: &crate::compiler::ast::TestCase, status: Status) -> Status {
+    let Some(outcome) = cache::read_kind(dir, &test.id, "hdl") else { return status };
+    let fresh = crate::compiler::embedded::hdl::cache_key(&result.ast, test, &outcome.tool).is_ok_and(|key| key == outcome.key);
+    if !fresh {
+        result.warnings.push(format!(
+            "verification: test_case '{}': its HDL verdict is stale (the generated VHDL, the fixed-point C or the case changed); run `arclang hdl {} --test {}`",
+            test.name,
+            model_path.display(),
+            test.id
+        ));
+        return status;
+    }
+    let hdl = status_of(result, test, &outcome);
+    if hdl.verdict != "pass" {
+        result.warnings.push(format!("verification: test_case '{}' {} in HDL ({}): {}", test.name, if hdl.verdict == "fail" { "fails" } else { "is in error" }, outcome.target, hdl.reason));
+        return hdl;
+    }
+    if status.verdict == "inconclusive" {
+        return hdl;
+    }
+    let mut status = status;
+    status.evidence = format!("{} · HDL {}: pass", status.evidence, outcome.target).trim_start_matches(" · ").to_string();
     status
 }
 

@@ -367,6 +367,33 @@ pub enum Commands {
         json: bool,
     },
 
+    /// Hardware in simulation: the VHDL of each state machine allocated to
+    /// programmable logic (`export -f vhdl`) simulated by GHDL through its
+    /// registers, each test case that `execute:`s compared step by step with
+    /// the bit-exact fixed-point C (difference 0) and with the model (within
+    /// the quantisation tolerance), its `expects:` judged; `--synth` also
+    /// synthesises it for its node's ECP5 (Yosys, nextpnr-ecp5, ecppack)
+    Hdl {
+        #[clap(value_parser)]
+        input: PathBuf,
+
+        /// Only this test case (id or name)
+        #[clap(long)]
+        test: Option<String>,
+
+        /// Synthesise, place and route each block, report its resources and Fmax
+        #[clap(long)]
+        synth: bool,
+
+        /// Keep the VHDL, the testbenches, the C reference and the netlists in this directory
+        #[clap(long)]
+        keep: Option<PathBuf>,
+
+        /// Print the outcomes as JSON
+        #[clap(long)]
+        json: bool,
+    },
+
     /// Run the digital twins of a model: each `twin`'s physical model
     /// driven by its measured data (drives:) in OpenModelica, compared to
     /// the measurements (compares:) and checked against its expects:
@@ -912,6 +939,12 @@ pub enum ExportFormat {
     /// drivers, devicetree overlay, build files and emulator: `output` is a DIRECTORY
     #[clap(name = "zephyr")]
     Zephyr,
+    /// VHDL-2008 of the state machines allocated to programmable logic (one
+    /// entity each and its Wishbone wrapper), the register map (JSON, LiteX
+    /// csr.csv), the C driver and the bit-exact fixed-point C reference:
+    /// `output` is a DIRECTORY
+    #[clap(name = "vhdl")]
+    Vhdl,
 }
 
 #[derive(Debug, clap::ValueEnum, Clone)]
@@ -1106,6 +1139,7 @@ impl CliRunner {
             }
             Commands::Sil { input, test, compilers, keep, json } => self.run_sil(&input, test, compilers, keep, json),
             Commands::Pil { input, test, target, keep, json } => self.run_pil(&input, test, target, keep, json),
+            Commands::Hdl { input, test, synth, keep, json } => self.run_hdl(&input, test, synth, keep, json),
             Commands::Twin { input, twin, json, list, live, for_seconds } => {
                 if live {
                     self.run_twin_live(input, twin, json, for_seconds)
@@ -1948,6 +1982,104 @@ impl CliRunner {
         }
     }
 
+    fn run_hdl(&self, input: &std::path::Path, test: Option<String>, synth: bool, keep: Option<PathBuf>, json: bool) -> Result<(), CliError> {
+        use crate::compiler::embedded::hdl;
+        let result = crate::Compiler::new(crate::CompilerConfig::default()).compile_file(input).map_err(|e| CliError::Compilation(e.to_string()))?;
+        let scratch = keep.is_none();
+        let work = keep.unwrap_or_else(|| std::env::temp_dir().join(format!("arclang-hdl-{}", std::process::id())));
+        let compiler = std::env::var("CC").ok().filter(|c| !c.trim().is_empty()).unwrap_or_else(|| "cc".to_string());
+        let options = hdl::Options { work: work.clone(), only: test, synth, compiler };
+        let (outcomes, synthesis) = hdl::run(&result.ast, &options).map_err(CliError::Compilation)?;
+        if !json {
+            println!("\nHDL {} — {}", input.display(), outcomes.first().map(|o| o.tools.as_str()).unwrap_or(""));
+            for o in &outcomes {
+                self.print_hdl(o);
+            }
+            for s in &synthesis {
+                match s {
+                    Ok(s) => {
+                        println!("\n  {} synthesis {} on {}", if s.timing_met { "✓" } else { "✗ TIMING NOT MET:" }, s.block, s.device);
+                        println!("    {} LUT4, {} flip-flops, {} DSP (MULT18X18D), {} block RAM (DP16KD), {} I/O", s.luts, s.ffs, s.dsps, s.brams, s.ios);
+                        println!("    Fmax {:.2} MHz for a clock of {} MHz: {}", s.fmax_mhz, s.clock_mhz, if s.timing_met { "met" } else { "NOT met" });
+                        println!("    bitstream {}", s.bitstream);
+                        for n in &s.notes {
+                            println!("    note: {n}");
+                        }
+                    }
+                    Err(e) => println!("\n  ! ERROR synthesis: {e}"),
+                }
+            }
+        }
+        if scratch {
+            let _ = std::fs::remove_dir_all(&work);
+        } else if !json {
+            println!("\n  VHDL, testbenches, C reference and netlists kept in {}", work.display());
+        }
+        let cached = hdl::cache(&result.ast, input, &outcomes).map_err(CliError::Compilation)?;
+        if json {
+            let synthesis: Vec<serde_json::Value> = synthesis.iter().map(|s| match s {
+                Ok(s) => serde_json::to_value(s).unwrap_or_default(),
+                Err(e) => serde_json::json!({ "error": e }),
+            }).collect();
+            println!("{}", serde_json::to_string_pretty(&serde_json::json!({ "cases": outcomes, "synthesis": synthesis })).unwrap_or_default());
+        } else if !cached.is_empty() {
+            println!("\n  {} HDL verdict(s) cached in {}", cached.len(), crate::compiler::simulation::cache::dir(input).display());
+        }
+        let failed = outcomes.iter().filter(|o| o.verdict != "pass").count();
+        let unsynthesised = synthesis.iter().filter(|s| !matches!(s, Ok(s) if s.timing_met)).count();
+        if failed == 0 && unsynthesised == 0 {
+            Ok(())
+        } else {
+            Err(CliError::CiFailed(format!("{failed} of {} HDL run(s) do not pass, {unsynthesised} of {} synthesis fail or miss timing", outcomes.len(), synthesis.len())))
+        }
+    }
+
+    fn print_hdl(&self, o: &crate::compiler::embedded::hdl::Outcome) {
+        let mark = match o.verdict.as_str() {
+            "pass" => "✓ pass ",
+            "fail" => "✗ FAIL ",
+            _ => "! ERROR",
+        };
+        let title = if o.name == o.test_case { o.name.clone() } else { format!("{} ({})", o.name, o.test_case) };
+        println!("\n  {mark} {title}");
+        let mut context = vec![format!("machine {}", o.machine), format!("block {}", o.block)];
+        if !o.verifies.is_empty() {
+            context.insert(0, format!("verifies {}", o.verifies.join(", ")));
+        }
+        println!("    {}", context.join(" · "));
+        println!("    model: {} · VHDL: {}", o.model_verdict, o.hdl_verdict);
+        if let Some(c) = &o.cycles {
+            println!("    timing: {c}");
+        }
+        if let Some(b) = &o.bit_exact {
+            match &b.first_mismatch {
+                None => println!("    VHDL vs fixed-point C: {} steps × {} outputs, largest difference {} (bit-exact)", b.steps, b.columns, b.max_difference),
+                Some(m) => println!("    VHDL vs fixed-point C: MISMATCH {m}"),
+            }
+        }
+        if let Some(q) = &o.quantisation {
+            match &q.first_mismatch {
+                None if q.column.is_empty() => println!("    fixed point vs model: no Real variable, every output equal"),
+                None => println!("    fixed point vs model: largest difference {:.3e} on {} (tolerance {:.3e}, {})", q.max_difference, q.column, q.tolerance, q.origin),
+                Some(m) => println!("    fixed point vs model: MISMATCH {m}"),
+            }
+            for (column, format, d, t) in &q.variables {
+                println!("      {column} {format}: {d:.3e} ≤ {t:.3e}");
+            }
+        }
+        for judged in &o.expectations {
+            let value = |v: &Option<crate::compiler::simulation::expects::Evaluated>| match v {
+                Some(v) => format!("{}{}", v.value.rsplit_once(" = ").map(|(_, x)| x).unwrap_or(&v.value), if v.holds { "" } else { " (fails)" }),
+                None => "—".to_string(),
+            };
+            let holds = judged.c.as_ref().is_some_and(|v| v.holds);
+            println!("    {} {}   model {} · VHDL {}", if holds { "ok  " } else { "FAIL" }, judged.expect, value(&judged.model), value(&judged.c));
+        }
+        if !o.reason.is_empty() {
+            println!("    {}", o.reason);
+        }
+    }
+
     fn print_sil(&self, outcome: &crate::compiler::embedded::sil::Outcome) {
         let mark = match outcome.verdict.as_str() {
             "pass" => "✓ pass ",
@@ -2323,6 +2455,7 @@ impl CliRunner {
             ExportFormat::C => "json".to_string(),
             ExportFormat::Fmu => "json".to_string(),
             ExportFormat::Zephyr => "json".to_string(),
+            ExportFormat::Vhdl => "json".to_string(),
         };
         
         let mut compiler = crate::Compiler::new(config);
@@ -2470,6 +2603,25 @@ impl CliRunner {
                         }
                         println!("  Output: {}", path.display());
                         println!("  The physics goes in a package of its own extending these models (see docs/modelica.md).");
+                        return Ok(());
+                    }
+                    ExportFormat::Vhdl => {
+                        let (files, notes) = crate::compiler::embedded::hdl::export(&result.ast).map_err(CliError::Compilation)?;
+                        for (name, text) in &files {
+                            let path = output.join(name);
+                            if let Some(dir) = path.parent() {
+                                std::fs::create_dir_all(dir).map_err(CliError::Io)?;
+                            }
+                            std::fs::write(&path, text).map_err(CliError::Io)?;
+                        }
+                        for note in &notes {
+                            println!("  note: {note}");
+                        }
+                        println!("✓ Export successful — {} file(s): VHDL-2008, register map, driver, fixed-point C reference", files.len());
+                        for (name, _) in &files {
+                            println!("  {}", output.join(name).display());
+                        }
+                        println!("  Simulate and synthesise with `arclang hdl`; see docs/embedded-fpga.md.");
                         return Ok(());
                     }
                     ExportFormat::C => {

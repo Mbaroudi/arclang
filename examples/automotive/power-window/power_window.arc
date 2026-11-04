@@ -11,6 +11,7 @@
 //   arclang check  examples/automotive/power-window/power_window.arc
 //   arclang export examples/automotive/power-window/power_window.arc -f c -o build/window
 //   arclang sil    examples/automotive/power-window/power_window.arc
+//   arclang hdl    examples/automotive/power-window/power_window.arc --synth
 // ============================================================================
 
 model PowerWindow {
@@ -37,6 +38,18 @@ requirements system {
     req "SYS-PW-004" "Out-of-range position is a fault" {
         description: "A key with an out-of-range position shall go to fault; a fatal fault stops the controller"
         priority: "Critical"
+    }
+}
+
+// The window lift's machine is computed by programmable logic
+// (docs/embedded-fpga.md).
+physical_architecture "Window hardware" {
+    node "Door module fabric" {
+        id: "PN-PW-FABRIC"
+        kind: "fpga"
+        device: "LFE5U-25F-6BG381C"
+        clock: 25 MHz
+        deploys "Window"
     }
 }
 

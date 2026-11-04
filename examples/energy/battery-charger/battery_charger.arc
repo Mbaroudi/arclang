@@ -11,6 +11,7 @@
 //   arclang check  examples/energy/battery-charger/battery_charger.arc
 //   arclang export examples/energy/battery-charger/battery_charger.arc -f c -o build/charger
 //   arclang sil    examples/energy/battery-charger/battery_charger.arc
+//   arclang hdl    examples/energy/battery-charger/battery_charger.arc --synth
 // ============================================================================
 
 model BatteryCharger {
@@ -44,20 +45,39 @@ requirements system {
     }
 }
 
+// The hardware/software split (docs/embedded-fpga.md): the charge
+// controller is computed by the programmable logic of the SoC, in fixed
+// point; the processor runs the I/O and calls it through its registers.
+physical_architecture "Charger hardware" {
+    node "Charger SoC" {
+        id: "PN-CHG-SOC"
+        processor: "VexRiscv (LiteX)"
+    }
+    node "Charger fabric" {
+        id: "PN-CHG-FABRIC"
+        kind: "fpga"
+        device: "LFE5U-25F-6BG381C"
+        clock: 25 MHz
+        behavior_component "Charge controller" { id: "PC-CHG-CTRL" }
+    }
+}
+
 state_machine "Charger" {
+    owner: "PC-CHG-CTRL"
     // The data the controller computes: measured inputs, a current loop, a
-    // first-order filter of the voltage, the charge delivered.
+    // first-order filter of the voltage, the charge delivered. The ranges
+    // give the fixed-point formats of the hardware.
     variables: [
-        "in voltage: Real [V]",
-        "in current: Real [A]",
+        "in voltage: Real [V] range 0 V .. 60 V",
+        "in current: Real [A] range -25 A .. 25 A",
         "const v_absorption: Real [V] = 54.6 V",
         "const i_bulk: Real [A] = 16 A",
         "target: Real [A] = 0 A",
         "error: Real [A]",
         "out setpoint: Real [A]",
-        "filtered: Real [V] = 0 V",
+        "filtered: Real [V] range 0 V .. 60 V = 0 V",
         "previous: Real [V]",
-        "out charge: Real [Ah]",
+        "out charge: Real [Ah] range -10 Ah .. 10 Ah",
         "out plugs: Integer = 0"
     ]
     equations: [

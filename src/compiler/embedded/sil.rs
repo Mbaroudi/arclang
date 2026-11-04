@@ -277,7 +277,9 @@ pub fn direct_harness(plan: &Plan) -> String {
     for m in &plan.machines {
         for (i, v) in m.program().inputs() {
             let field = format!("inputs.{}.{}", m.ident, m.variables[i].ident);
-            let read = match v.ty {
+            // In fixed point (the reference of the hardware), a Real is its word.
+            let ty = if m.fixed.is_some() && v.ty != Ty::Bool { Ty::Int } else { v.ty };
+            let read = match ty {
                 Ty::Bool => format!("if (scanf(\"%d\", &v) != 1) {{\n            return 3;\n        }}\n        {field} = (v != 0);"),
                 Ty::Int => format!("if (scanf(\"%ld\", &l) != 1) {{\n            return 3;\n        }}\n        {field} = (int32_t)l;"),
                 Ty::Real => format!("if (scanf(\"%lf\", &d) != 1) {{\n            return 3;\n        }}\n        {field} = d;"),

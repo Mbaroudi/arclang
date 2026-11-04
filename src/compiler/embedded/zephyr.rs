@@ -72,7 +72,40 @@ pub fn export(ast: &Model, target: Option<&str>, binding: Option<&str>) -> Resul
     let bindings = super::binding::resolve_all(ast, &plan)?;
     let chosen = choose_binding(&bindings, binding)?;
     let package = choose_target(&bindings, chosen, target)?;
-    app(&plan, chosen, &package)
+    let allocations = super::alloc::allocations(ast, &plan)?;
+    if allocations.is_empty() {
+        return app(&plan, chosen, &package);
+    }
+    // The machines the programmable logic computes: called through their drivers.
+    let period = chosen.map(|b| b.period_us).unwrap_or(super::case::DEFAULT_STEP_US);
+    let mut hw = plan.clone();
+    let mut extra = Vec::new();
+    let mut defines = Vec::new();
+    let mut notes = Vec::new();
+    for (k, a) in allocations.iter().enumerate() {
+        let fx = super::fixed::machine(&plan.machines[a.machine], period)?;
+        let block = super::vhdl::entity(&plan, &plan.machines[a.machine]);
+        for (name, text) in super::vhdl::files(&plan, &plan.machines[a.machine], &fx) {
+            let dir = if name.ends_with("_hw.h") { "src/model" } else { "hw" };
+            extra.push((format!("{dir}/{name}"), text, false));
+        }
+        let base = 0xB000_0000u32 + 0x1000 * k as u32;
+        defines.push(format!("if(NOT DEFINED {up}_HW_BASE)\n  set({up}_HW_BASE 0x{base:08X})\nendif()\ntarget_compile_definitions(app PRIVATE {up}_HW_BASE=${{{up}_HW_BASE}})\n", up = block.to_uppercase()));
+        notes.push(format!("state_machine '{}' is computed by the programmable logic ('{}'): src/model/{block}_hw.h drives block {block}_wb at {up}_HW_BASE (0x{base:08X} by default: where the SoC maps its Wishbone region; -D{up}_HW_BASE=... for another), the VHDL in hw/; the emulated SoC has no such block, so arclang pil runs the machine's software C instead", plan.machines[a.machine].name, a.node, up = block.to_uppercase()));
+        hw.machines[a.machine].hardware = Some(block);
+    }
+    let mut built = app(&hw, chosen, &package)?;
+    for (name, text, _) in built.files.iter_mut() {
+        if name == "arclang_app.cmake" {
+            text.push_str("# The blocks of the programmable logic: the addresses of their registers.\n");
+            for d in &defines {
+                text.push_str(d);
+            }
+        }
+    }
+    built.files.extend(extra);
+    built.notes.extend(notes);
+    Ok(built)
 }
 
 /// The application of a plan, one binding (or none), for a package.
