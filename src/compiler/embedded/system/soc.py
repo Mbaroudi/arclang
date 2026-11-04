@@ -8,6 +8,8 @@
 #
 #   python soc.py soc.json csr      # the SoC's map (csr.json), for Zephyr's overlay
 #   python soc.py soc.json sim      # the Verilator simulator, console on TCP
+#   python soc.py soc.json gatesim  # the same, each block synthesised for the ECP5 (Yosys) and
+#                                   # simulated as its netlist of ECP5 cells, console on TCP
 #   python soc.py soc.json board    # the bitstream (Yosys, nextpnr-ecp5, ecppack)
 #
 # soc.json: {"name", "board", "device", "clock_hz", "ram_bytes", "image",
@@ -173,12 +175,89 @@ def board_platform(config):
     sys.exit("arclang soc: no board '%s'" % board)
 
 
+# The multiplier of the ECP5 as Yosys instantiates it (no register, no
+# cascade): Yosys ships its port list only. Any registered or other mode is
+# refused at elaboration rather than simulated wrongly.
+MULT18X18D_BODY = """
+  wire [17:0] arc_a = {%(a)s};
+  wire [17:0] arc_b = {%(b)s};
+  wire signed [18:0] arc_xa = SIGNEDA ? {arc_a[17], arc_a} : {1'b0, arc_a};
+  wire signed [18:0] arc_xb = SIGNEDB ? {arc_b[17], arc_b} : {1'b0, arc_b};
+  wire signed [37:0] arc_p = arc_xa * arc_xb;
+  assign {%(p)s} = arc_p[35:0];
+  assign SIGNEDP = SIGNEDA | SIGNEDB;
+  assign {%(zero)s} = 0;
+  initial begin
+    if (REG_INPUTA_CLK != "NONE" || REG_INPUTB_CLK != "NONE" || REG_INPUTC_CLK != "NONE" ||
+        REG_PIPELINE_CLK != "NONE" || REG_OUTPUT_CLK != "NONE" || MULT_BYPASS != "DISABLED" || SOURCEB_MODE != "B_SHIFT")
+      $fatal(1, "MULT18X18D: only the combinational mode Yosys uses is modelled");
+  end
+"""
+
+
+def lattice_share():
+    import subprocess
+
+    return os.path.join(subprocess.run(["yosys-config", "--datdir"], capture_output=True, text=True, check=True).stdout.strip(), "lattice")
+
+
+def mult18x18d_model(path):
+    import re
+
+    with open(os.path.join(lattice_share(), "cells_bb_ecp5.v")) as f:
+        text = f.read()
+    module = re.search(r"module MULT18X18D\(.*?endmodule", text, re.S).group(0)
+    bits = lambda name, n: ", ".join("%s%d" % (name, k) for k in reversed(range(n)))
+    zero = ", ".join(
+        [bits(n, 18) for n in ("SROA", "SROB", "ROA", "ROB", "ROC")]
+    )
+    body = MULT18X18D_BODY % {"a": bits("A", 18), "b": bits("B", 18), "p": bits("P", 36), "zero": zero}
+    with open(path, "w") as f:
+        f.write("// MULT18X18D for simulation: written by arclang soc (soc.py)\n")
+        f.write(module.replace("endmodule", body + "endmodule"))
+
+
+def gate_level(gateware, sources, config):
+    """Each generated block synthesised alone for the ECP5 by Yosys
+    (synth_ecp5, as in the bitstream) and simulated as its netlist of ECP5
+    cells, inside the SoC; the processor, the RAM and the bus stay as
+    written (third-party cores, and the ECP5 block RAM has no simulation
+    model in Yosys)."""
+    import re
+    import subprocess
+
+    share = lattice_share()
+    netlists = {}
+    for block in config["blocks"]:
+        top = block["name"] + "_wb"
+        out = os.path.join(gateware, top + "_gl.v")
+        script = "read_verilog -sv %s; synth_ecp5 -top %s -noiopad %s; write_verilog -noattr %s; stat" % (
+            block["verilog"], top, os.environ.get("ARCLANG_SYNTH_FLAGS", ""), out)
+        done = subprocess.run(["yosys", "-q", "-l", top + "_gl.log", "-p", script], cwd=gateware, capture_output=True, text=True)
+        if done.returncode != 0:
+            sys.exit("arclang soc: Yosys failed on %s:\n%s" % (top, "\n".join((done.stdout + done.stderr).splitlines()[-30:])))
+        with open(out) as f:
+            if re.search(r"^\s*DP16KD\b|^\s*PDPW16KD\b", f.read(), re.M):
+                sys.exit("arclang soc: block %s uses block RAM, which has no simulation model: no gate-level simulation" % top)
+        netlists[os.path.abspath(block["verilog"])] = out
+    mult18x18d_model(os.path.join(gateware, "mult18x18d_sim.v"))
+    cc = []
+    for src in sources:
+        cc.append("--cc " + netlists.get(os.path.abspath(src), src))
+    cc += ["--cc " + os.path.join(share, "cells_sim_ecp5.v"), "--cc mult18x18d_sim.v", "-I" + share, "-Wno-lint", "-Wno-style", "-Wno-TIMESCALEMOD"]
+    with open(os.path.join(gateware, "build_sim.sh")) as f:
+        build = f.read()
+    build = re.sub(r'CC_SRCS="[^"]*"', 'CC_SRCS="%s"' % " ".join(cc), build)
+    with open(os.path.join(gateware, "build_sim.sh"), "w") as f:
+        f.write(build)
+
+
 def main():
     config_path, what = sys.argv[1], sys.argv[2]
     with open(config_path) as f:
         config = json.load(f)
     out = os.path.dirname(os.path.abspath(config_path))
-    if what in ("csr", "sim"):
+    if what in ("csr", "sim", "gatesim"):
         platform = sim_platform(config)
         crg = SimCRG(platform, config)
     elif what == "board":
@@ -196,7 +275,7 @@ def main():
     )
     if what == "csr":
         builder.build(run=False)
-    elif what == "sim":
+    elif what in ("sim", "gatesim"):
         from litex.build.sim.config import SimConfig
 
         sim = SimConfig()
@@ -209,6 +288,8 @@ def main():
         import subprocess
 
         gateware = os.path.join(out, what, "gateware")
+        if what == "gatesim":
+            gate_level(gateware, [s[0] for s in platform.sources], config)
         done = subprocess.run(["bash", "build_sim.sh"], cwd=gateware, capture_output=True, text=True)
         if done.returncode != 0:
             sys.exit("arclang soc: Verilator failed:\n" + "\n".join((done.stdout + done.stderr).splitlines()[-30:]))

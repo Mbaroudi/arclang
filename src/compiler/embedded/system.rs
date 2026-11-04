@@ -101,6 +101,9 @@ pub struct Options {
     pub compiler: String,
     /// Run the cases in the simulated SoC.
     pub simulate: bool,
+    /// Simulate the SoC as synthesised for the ECP5 (a netlist of ECP5
+    /// cells), not as written.
+    pub gate_level: bool,
     /// Build the bitstream.
     pub bitstream: bool,
     /// For this board (else the node's `board:`, else the board of its part).
@@ -160,6 +163,8 @@ pub fn tools(compiler: &str) -> String {
 /// One built SoC: the application at a period, its image, the simulator.
 struct Built {
     dir: PathBuf,
+    /// The simulator's directory (`sim` or `gatesim`).
+    simulator: &'static str,
     image: PathBuf,
     port: u16,
 }
@@ -172,13 +177,14 @@ struct Builds<'a> {
     sys_hz: f64,
     work: PathBuf,
     simulate: bool,
+    gate_level: bool,
     built: HashMap<u64, Result<Built, String>>,
 }
 
 impl Builds<'_> {
     fn get(&mut self, period_us: u64) -> Result<&Built, String> {
         if !self.built.contains_key(&period_us) {
-            let built = prepare(self.plan, self.allocations, &self.board, self.sys_hz, period_us, &self.work.join(format!("soc-{period_us}us")), self.simulate);
+            let built = prepare(self.plan, self.allocations, &self.board, self.sys_hz, period_us, &self.work.join(format!("soc-{period_us}us")), self.simulate.then_some(if self.gate_level { "gatesim" } else { "sim" }));
             self.built.insert(period_us, built);
         }
         self.built[&period_us].as_ref().map_err(|e| e.clone())
@@ -224,8 +230,9 @@ pub fn soc_config(plan: &Plan, allocations: &[Allocation], board: &Board, sys_hz
 }
 
 /// The application, the blocks' Verilog, the SoC's map, the Zephyr image
-/// and (`simulate`) the simulator, for one period.
-fn prepare(plan: &Plan, allocations: &[Allocation], board: &Board, sys_hz: f64, period_us: u64, dir: &Path, simulate: bool) -> Result<Built, String> {
+/// and the simulator (`simulator`: `sim` as written, `gatesim` as
+/// synthesised), for one period.
+fn prepare(plan: &Plan, allocations: &[Allocation], board: &Board, sys_hz: f64, period_us: u64, dir: &Path, simulator: Option<&'static str>) -> Result<Built, String> {
     std::fs::create_dir_all(dir).map_err(|e| format!("cannot make {}: {e}", dir.display()))?;
     let package = super::target::find(PACKAGE)?;
     // One SoC is one FPGA: every block on the same part (each on its own clock).
@@ -268,10 +275,11 @@ fn prepare(plan: &Plan, allocations: &[Allocation], board: &Board, sys_hz: f64, 
     if !image.is_file() {
         return Err(format!("the Zephyr build made no {}", image.display()));
     }
-    if simulate {
-        run_step(&[&python, "soc.py", "soc.json", "sim"], dir, "LiteX and Verilator (the simulator)")?;
+    if let Some(what) = simulator {
+        let label = if what == "gatesim" { "LiteX, Yosys and Verilator (the SoC synthesised for the ECP5, simulated as a netlist)" } else { "LiteX and Verilator (the simulator)" };
+        run_step(&[&python, "soc.py", "soc.json", what], dir, label)?;
     }
-    Ok(Built { dir: dir.to_path_buf(), image, port })
+    Ok(Built { dir: dir.to_path_buf(), simulator: simulator.unwrap_or("sim"), image, port })
 }
 
 /// GHDL's synthesis of a block as Verilog: its standard output only (its
@@ -364,7 +372,7 @@ fn run_case_inner(test: &TestCase, plan: &Plan, bindings: &[super::binding::Bind
     };
     let names = reference::run(plan, &r.vectors, r.case.step_us).names;
     let (text, log) = match target {
-        Target::Simulator(b) => bench::simulate(&b.dir.join("sim").join("gateware"), b.port, &lines, BOOT_SECONDS, STEP_SECONDS)?,
+        Target::Simulator(b) => bench::simulate(&b.dir.join(b.simulator).join("gateware"), b.port, &lines, BOOT_SECONDS, STEP_SECONDS)?,
         Target::Board(port) => bench::board(port, &lines, STEP_SECONDS)?,
     };
     let _ = std::fs::write(dir.join("console.txt"), &log);
@@ -373,7 +381,13 @@ fn run_case_inner(test: &TestCase, plan: &Plan, bindings: &[super::binding::Bind
     let table = Table { names, period_us: r.case.step_us, rows: rows.into_iter().map(|row| row.values).collect(), units: Default::default() };
     let device_raw = words(plan, r.machine, &r.fx, &table);
     let clock = builds.sys_hz / 1e6;
-    let on = if options.port.is_some() { "on the board" } else { "in the simulated SoC" };
+    let on = if options.port.is_some() {
+        "on the board"
+    } else if options.gate_level {
+        "in the SoC's ECP5 netlist (gate level)"
+    } else {
+        "in the simulated SoC"
+    };
     outcome.cycles = Some(format!("step() took at most {:.1} us {on} at {clock} MHz (the driver, the bus and the block)", worst as f64 / 1000.0));
     hdl::conclude(&r, plan, &device_raw, if options.port.is_some() { "the board" } else { "the SoC" }, texts, outcome);
     Ok(())
@@ -393,7 +407,7 @@ pub fn run(ast: &Model, options: &Options) -> Result<Report, String> {
     let work = options.work.canonicalize().unwrap_or_else(|_| options.work.clone());
     let options = Options { work: work.clone(), ..options.clone() };
         let sys_hz = super::alloc::processor_clock(ast)?.unwrap_or(allocations[0].clock_hz);
-    let mut builds = Builds { plan: &plan, allocations: &allocations, board, sys_hz, work, simulate: options.simulate && options.port.is_none(), built: HashMap::new() };
+    let mut builds = Builds { plan: &plan, allocations: &allocations, board, sys_hz, work, simulate: options.simulate && options.port.is_none(), gate_level: options.gate_level, built: HashMap::new() };
     let mut outcomes = Vec::new();
     if options.simulate || options.port.is_some() {
         let selected = hdl::selected(ast, &plan, &allocations, &bindings, options.only.as_deref());
@@ -403,7 +417,10 @@ pub fn run(ast: &Model, options: &Options) -> Result<Report, String> {
                 None => "no test_case executes a machine of the programmable logic".to_string(),
             });
         }
-        let tools = tools(&options.compiler);
+        let mut tools = tools(&options.compiler);
+        if options.gate_level {
+            tools.push_str(&format!("; blocks at gate level ({}, synth_ecp5)", hdl::version("yosys", "-V")));
+        }
         outcomes = selected.into_iter().map(|t| run_case(t, &plan, &bindings, &mut builds, &options, &tools)).collect();
     }
     let bitstream = options.bitstream.then(|| {

@@ -421,6 +421,10 @@ pub enum Commands {
         #[clap(long)]
         no_sim: bool,
 
+        /// Simulate the SoC as synthesised for the ECP5 by Yosys (a netlist of ECP5 cells), not as written
+        #[clap(long)]
+        gate_level: bool,
+
         /// Run the cases on the board through this serial port, the board holding the bitstream (implies --no-sim)
         #[clap(long)]
         port: Option<String>,
@@ -1180,7 +1184,7 @@ impl CliRunner {
             Commands::Sil { input, test, compilers, keep, json } => self.run_sil(&input, test, compilers, keep, json),
             Commands::Pil { input, test, target, keep, json } => self.run_pil(&input, test, target, keep, json),
             Commands::Hdl { input, test, synth, keep, json } => self.run_hdl(&input, test, synth, keep, json),
-            Commands::Soc { input, test, bitstream, board, no_sim, port, keep, json } => self.run_soc(&input, test, bitstream || board.is_some(), board, !no_sim && port.is_none(), port, keep, json),
+            Commands::Soc { input, test, bitstream, board, no_sim, gate_level, port, keep, json } => self.run_soc(&input, test, bitstream || board.is_some(), board, !no_sim && port.is_none(), gate_level, port, keep, json),
             Commands::Twin { input, twin, json, list, live, for_seconds } => {
                 if live {
                     self.run_twin_live(input, twin, json, for_seconds)
@@ -2076,14 +2080,14 @@ impl CliRunner {
     }
 
     #[allow(clippy::too_many_arguments)]
-    fn run_soc(&self, input: &std::path::Path, test: Option<String>, bitstream: bool, board: Option<String>, simulate: bool, port: Option<String>, keep: Option<PathBuf>, json: bool) -> Result<(), CliError> {
+    fn run_soc(&self, input: &std::path::Path, test: Option<String>, bitstream: bool, board: Option<String>, simulate: bool, gate_level: bool, port: Option<String>, keep: Option<PathBuf>, json: bool) -> Result<(), CliError> {
         use crate::compiler::embedded::system;
         let result = crate::Compiler::new(crate::CompilerConfig::default()).compile_file(input).map_err(|e| CliError::Compilation(e.to_string()))?;
         let scratch = keep.is_none();
         let work = keep.unwrap_or_else(|| std::env::temp_dir().join(format!("arclang-soc-{}", std::process::id())));
         let compiler = std::env::var("CC").ok().filter(|c| !c.trim().is_empty()).unwrap_or_else(|| "cc".to_string());
         let on_board = port.is_some();
-        let options = system::Options { work: work.clone(), only: test, compiler, simulate, bitstream, board, port };
+        let options = system::Options { work: work.clone(), only: test, compiler, simulate, gate_level, bitstream, board, port };
         let report = system::run(&result.ast, &options).map_err(CliError::Compilation)?;
         let device = if on_board { "board" } else { "SoC" };
         if !json {

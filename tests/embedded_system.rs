@@ -36,7 +36,7 @@ fn work(name: &str) -> PathBuf {
 }
 
 fn options(name: &str) -> system::Options {
-    system::Options { work: work(name), only: None, compiler: "gcc".into(), simulate: true, bitstream: false, board: None, port: None }
+    system::Options { work: work(name), only: None, compiler: "gcc".into(), simulate: true, gate_level: false, bitstream: false, board: None, port: None }
 }
 
 // ---- on any host ----------------------------------------------------------------------
@@ -103,7 +103,7 @@ fn a_block_on_its_own_clock_is_a_clock_domain_of_the_soc() {
     let board = system::board_for(&allocations, None).unwrap();
     let config: serde_json::Value = serde_json::from_str(&system::soc_config(&p, &allocations, &board, 25e6, 10_000, &work("clocks"), 4327).unwrap()).unwrap();
     assert_eq!((config["clock_hz"].as_u64(), config["blocks"][0]["clock_hz"].as_u64()), (Some(25_000_000), Some(20_000_000)));
-    for wanted in ["wishbone.ClockDomainCrossing(bus, port, cd_from=\"sys\", cd_to=domain)", "pll.create_clkout(cd, hz)", "sim.add_clocker(\"clk_\" + name, freq_hz=hz)"] {
+    for wanted in ["synth_ecp5 -top %s -noiopad", "MULT18X18D: only the combinational mode Yosys uses is modelled", "wishbone.ClockDomainCrossing(bus, port, cd_from=\"sys\", cd_to=domain)", "pll.create_clkout(cd, hz)", "sim.add_clocker(\"clk_\" + name, freq_hz=hz)"] {
         assert!(system::SOC_SCRIPT.contains(wanted), "{wanted}");
     }
 }
@@ -144,6 +144,19 @@ fn a_block_on_its_own_clock_runs_bit_exact_through_the_clock_domain_crossing() {
     let model = Compiler::new(CompilerConfig::default()).compile_string(&two_clocks()).unwrap();
     let report = system::run(&model.ast, &system::Options { only: Some("TC-CHG-002".into()), ..options("two-clocks") }).unwrap();
     assert_passes(&report.outcomes);
+}
+
+#[test]
+#[ignore = "needs LiteX, Verilator, Zephyr, GHDL and Yosys of tools/embedded/system: run in its image (CI job Embedded system)"]
+fn the_block_as_synthesised_for_the_ecp5_runs_bit_exact_at_gate_level() {
+    // The charger's block uses 16 multipliers: their model is exercised.
+    let model = compile_file(&example(CHARGER));
+    let report = system::run(&model.ast, &system::Options { only: Some("TC-CHG-003".into()), gate_level: true, ..options("gate-level") }).unwrap();
+    assert_eq!(report.outcomes.len(), 1);
+    let o = &report.outcomes[0];
+    assert_eq!(o.verdict, "pass", "{}", o.reason);
+    assert_eq!(o.bit_exact.as_ref().unwrap().max_difference, 0.0);
+    assert!(o.cycles.as_deref().is_some_and(|c| c.contains("gate level")), "{:?}", o.cycles);
 }
 
 #[test]
