@@ -222,6 +222,9 @@ fn source(plan: &Plan) -> String {
     }
     let _ = writeln!(body, "}}\n");
     let _ = writeln!(body, "void {p}_step({p}_state *state, const {p}_inputs *inputs, {p}_outputs *outputs)\n{{\n    bool starting = !state->started;\n    state->started = true;");
+    if plan.machines.iter().all(|m| m.hardware.is_some()) {
+        let _ = writeln!(body, "    (void)starting; /* every machine is computed by the programmable logic */");
+    }
     for m in &plan.machines {
         let i = &m.ident;
         if let Some(block) = &m.hardware {
@@ -259,7 +262,8 @@ fn source(plan: &Plan) -> String {
     if plan.machines.iter().any(|m| !m.program().is_empty()) {
         let _ = writeln!(out, "/* The arithmetic is the model's: no contraction of a * b + c into one rounding. */\n#if defined(__clang__)\n#pragma STDC FP_CONTRACT OFF\n#endif\n");
     }
-    if plan.machines.iter().any(|m| !m.histories().is_empty() && m.hardware.is_none()) {
+    // Also for a machine the logic computes: init() still clears its (unused) software state.
+    if plan.machines.iter().any(|m| !m.histories().is_empty()) {
         let _ = writeln!(out, "#define NO_STATE 0xFFFFU\n");
     }
     let any_action = plan.machines.iter().any(|m| !m.actions.is_empty() && m.hardware.is_none());
@@ -287,8 +291,8 @@ fn var_type(m: &MachinePlan, i: usize) -> &'static str {
 fn unit_note(m: &MachinePlan, i: usize) -> String {
     let v = &m.program().variables[i];
     let unit = v.unit.as_ref().map(|u| format!(" [{u}]")).unwrap_or_default();
-    match m.fixed.as_ref().map(|fx| fx.vars[i].kind) {
-        Some(kind @ super::fixed::Kind::Fixed(_)) => format!("{unit} {}", kind.label()),
+    match m.fixed.as_ref().map(|fx| &fx.vars[i]) {
+        Some(v) if matches!(v.kind, super::fixed::Kind::Fixed(_)) => format!("{unit} {}", v.label()),
         _ => unit,
     }
 }
