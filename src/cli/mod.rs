@@ -394,6 +394,42 @@ pub enum Commands {
         json: bool,
     },
 
+    /// The processor and the programmable logic together: one LiteX SoC
+    /// (a VexRiscv running the Zephyr application, the blocks of the
+    /// machines allocated to programmable logic on its bus) simulated cycle
+    /// by cycle in Verilator, each test case that `execute:`s such a machine
+    /// run through the driver and compared, as `hdl` compares the VHDL, with
+    /// the fixed-point C and the model; `--board` also builds the same SoC
+    /// into one bitstream; `--port` runs the cases on the board instead
+    Soc {
+        #[clap(value_parser)]
+        input: PathBuf,
+
+        /// Only this test case (id or name)
+        #[clap(long)]
+        test: Option<String>,
+
+        /// Build the bitstream for this board (ulx3s)
+        #[clap(long)]
+        board: Option<String>,
+
+        /// Do not simulate (with --board: the bitstream only)
+        #[clap(long)]
+        no_sim: bool,
+
+        /// Run the cases on the board through this serial port, the board holding the bitstream (implies --no-sim)
+        #[clap(long)]
+        port: Option<String>,
+
+        /// Keep the application, the SoC, the simulator and the bitstream in this directory
+        #[clap(long)]
+        keep: Option<PathBuf>,
+
+        /// Print the outcomes as JSON
+        #[clap(long)]
+        json: bool,
+    },
+
     /// Run the digital twins of a model: each `twin`'s physical model
     /// driven by its measured data (drives:) in OpenModelica, compared to
     /// the measurements (compares:) and checked against its expects:
@@ -1140,6 +1176,7 @@ impl CliRunner {
             Commands::Sil { input, test, compilers, keep, json } => self.run_sil(&input, test, compilers, keep, json),
             Commands::Pil { input, test, target, keep, json } => self.run_pil(&input, test, target, keep, json),
             Commands::Hdl { input, test, synth, keep, json } => self.run_hdl(&input, test, synth, keep, json),
+            Commands::Soc { input, test, board, no_sim, port, keep, json } => self.run_soc(&input, test, board, !no_sim && port.is_none(), port, keep, json),
             Commands::Twin { input, twin, json, list, live, for_seconds } => {
                 if live {
                     self.run_twin_live(input, twin, json, for_seconds)
@@ -1993,7 +2030,7 @@ impl CliRunner {
         if !json {
             println!("\nHDL {} — {}", input.display(), outcomes.first().map(|o| o.tools.as_str()).unwrap_or(""));
             for o in &outcomes {
-                self.print_hdl(o);
+                self.print_hdl(o, "VHDL");
             }
             for s in &synthesis {
                 match s {
@@ -2034,7 +2071,55 @@ impl CliRunner {
         }
     }
 
-    fn print_hdl(&self, o: &crate::compiler::embedded::hdl::Outcome) {
+    #[allow(clippy::too_many_arguments)]
+    fn run_soc(&self, input: &std::path::Path, test: Option<String>, board: Option<String>, simulate: bool, port: Option<String>, keep: Option<PathBuf>, json: bool) -> Result<(), CliError> {
+        use crate::compiler::embedded::system;
+        let result = crate::Compiler::new(crate::CompilerConfig::default()).compile_file(input).map_err(|e| CliError::Compilation(e.to_string()))?;
+        let scratch = keep.is_none();
+        let work = keep.unwrap_or_else(|| std::env::temp_dir().join(format!("arclang-soc-{}", std::process::id())));
+        let compiler = std::env::var("CC").ok().filter(|c| !c.trim().is_empty()).unwrap_or_else(|| "cc".to_string());
+        let on_board = port.is_some();
+        let options = system::Options { work: work.clone(), only: test, compiler, simulate, board: board.clone(), port };
+        let report = system::run(&result.ast, &options).map_err(CliError::Compilation)?;
+        let device = if on_board { "board" } else { "SoC" };
+        if !json {
+            println!("\nSoC {} — {}", input.display(), report.outcomes.first().map(|o| o.tools.as_str()).unwrap_or(""));
+            for o in &report.outcomes {
+                self.print_hdl(o, device);
+            }
+            match &report.bitstream {
+                Some(Ok(b)) => {
+                    println!("\n  {} bitstream for {} ({}): VexRiscv, {} KiB of RAM holding the Zephyr application ({} bytes), {}", if b.timing_met { "✓" } else { "✗ TIMING NOT MET:" }, b.board, b.device, system::RAM_BYTES / 1024, b.image_bytes, b.blocks.join(", "));
+                    println!("    {} LUT4, {} flip-flops, {} DSP (MULT18X18D), {} block RAM (DP16KD)", b.luts, b.ffs, b.dsps, b.brams);
+                    println!("    Fmax {:.2} MHz for a clock of {} MHz: {}", b.fmax_mhz, b.clock_mhz, if b.timing_met { "met" } else { "NOT met" });
+                    println!("    bitstream {}", b.bitstream);
+                    println!("    to the board: {}", b.flash);
+                }
+                Some(Err(e)) => println!("\n  ! ERROR bitstream: {e}"),
+                None => {}
+            }
+        }
+        if scratch && !on_board && board.is_none() {
+            let _ = std::fs::remove_dir_all(&work);
+        } else if !json {
+            println!("\n  application, SoC, simulator and bitstream kept in {}", work.display());
+        }
+        let cached = system::cache(&result.ast, input, &report.outcomes).map_err(CliError::Compilation)?;
+        if json {
+            println!("{}", serde_json::to_string_pretty(&report).unwrap_or_default());
+        } else if !cached.is_empty() {
+            println!("\n  {} SoC verdict(s) cached in {}", cached.len(), crate::compiler::simulation::cache::dir(input).display());
+        }
+        let failed = report.outcomes.iter().filter(|o| o.verdict != "pass").count();
+        let unbuilt = usize::from(report.bitstream.as_ref().is_some_and(|b| !matches!(b, Ok(b) if b.timing_met)));
+        if failed == 0 && unbuilt == 0 {
+            Ok(())
+        } else {
+            Err(CliError::CiFailed(format!("{failed} of {} SoC run(s) do not pass{}", report.outcomes.len(), if unbuilt > 0 { "; the bitstream failed or misses timing" } else { "" })))
+        }
+    }
+
+    fn print_hdl(&self, o: &crate::compiler::embedded::hdl::Outcome, device: &str) {
         let mark = match o.verdict.as_str() {
             "pass" => "✓ pass ",
             "fail" => "✗ FAIL ",
@@ -2047,14 +2132,14 @@ impl CliRunner {
             context.insert(0, format!("verifies {}", o.verifies.join(", ")));
         }
         println!("    {}", context.join(" · "));
-        println!("    model: {} · VHDL: {}", o.model_verdict, o.hdl_verdict);
+        println!("    model: {} · {device}: {}", o.model_verdict, o.hdl_verdict);
         if let Some(c) = &o.cycles {
             println!("    timing: {c}");
         }
         if let Some(b) = &o.bit_exact {
             match &b.first_mismatch {
-                None => println!("    VHDL vs fixed-point C: {} steps × {} outputs, largest difference {} (bit-exact)", b.steps, b.columns, b.max_difference),
-                Some(m) => println!("    VHDL vs fixed-point C: MISMATCH {m}"),
+                None => println!("    {device} vs fixed-point C: {} steps × {} outputs, largest difference {} (bit-exact)", b.steps, b.columns, b.max_difference),
+                Some(m) => println!("    {device} vs fixed-point C: MISMATCH {m}"),
             }
         }
         if let Some(q) = &o.quantisation {
@@ -2073,7 +2158,7 @@ impl CliRunner {
                 None => "—".to_string(),
             };
             let holds = judged.c.as_ref().is_some_and(|v| v.holds);
-            println!("    {} {}   model {} · VHDL {}", if holds { "ok  " } else { "FAIL" }, judged.expect, value(&judged.model), value(&judged.c));
+            println!("    {} {}   model {} · {device} {}", if holds { "ok  " } else { "FAIL" }, judged.expect, value(&judged.model), value(&judged.c));
         }
         if !o.reason.is_empty() {
             println!("    {}", o.reason);

@@ -126,6 +126,7 @@ fn attach_executed(result: &mut CompilationResult, model_path: &Path) -> std::co
         };
         let status = with_pil(result, model_path, &dir, test, status);
         let status = with_hdl(result, model_path, &dir, test, status);
+        let status = with_soc(result, model_path, &dir, test, status);
         statuses.insert(test.id.clone(), status);
     }
     statuses
@@ -188,6 +189,34 @@ fn with_hdl(result: &mut CompilationResult, model_path: &Path, dir: &Path, test:
     }
     let mut status = status;
     status.evidence = format!("{} · HDL {}: pass", status.evidence, outcome.target).trim_start_matches(" · ").to_string();
+    status
+}
+
+/// A case's status with its SoC verdict (`arclang soc` writes
+/// `<case>.soc.json`: the processor and the logic together, simulated or on
+/// the board), read as the HDL one is.
+fn with_soc(result: &mut CompilationResult, model_path: &Path, dir: &Path, test: &crate::compiler::ast::TestCase, status: Status) -> Status {
+    let Some(outcome) = cache::read_kind(dir, &test.id, "soc") else { return status };
+    let fresh = crate::compiler::embedded::system::cache_key(&result.ast, test, &outcome.tool).is_ok_and(|key| key == outcome.key);
+    if !fresh {
+        result.warnings.push(format!(
+            "verification: test_case '{}': its SoC verdict is stale (the generated VHDL, the fixed-point C, the application or the case changed); run `arclang soc {} --test {}`",
+            test.name,
+            model_path.display(),
+            test.id
+        ));
+        return status;
+    }
+    let soc = status_of(result, test, &outcome);
+    if soc.verdict != "pass" {
+        result.warnings.push(format!("verification: test_case '{}' {} on the SoC ({}): {}", test.name, if soc.verdict == "fail" { "fails" } else { "is in error" }, outcome.target, soc.reason));
+        return soc;
+    }
+    if status.verdict == "inconclusive" {
+        return soc;
+    }
+    let mut status = status;
+    status.evidence = format!("{} · SoC {}: pass", status.evidence, outcome.target).trim_start_matches(" · ").to_string();
     status
 }
 

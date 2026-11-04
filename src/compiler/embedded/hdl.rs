@@ -105,7 +105,7 @@ pub struct Synthesis {
 }
 
 /// The first line a tool prints of its version.
-fn version(program: &str, arg: &str) -> String {
+pub(super) fn version(program: &str, arg: &str) -> String {
     Command::new(program).arg(arg).output().ok().map(|o| format!("{}{}", String::from_utf8_lossy(&o.stdout), String::from_utf8_lossy(&o.stderr))).and_then(|t| t.lines().next().map(|l| l.trim().to_string())).filter(|l| !l.is_empty()).unwrap_or_else(|| format!("{program} (not found)"))
 }
 
@@ -119,7 +119,7 @@ pub fn tools(compiler: &str, synth: bool) -> String {
     parts.join("; ")
 }
 
-fn run_tool(program: &str, args: &[String], cwd: &Path, what: &str) -> Result<String, String> {
+pub(super) fn run_tool(program: &str, args: &[String], cwd: &Path, what: &str) -> Result<String, String> {
     let out = Command::new(program).args(args).current_dir(cwd).output().map_err(|e| format!("{what}: cannot run '{program}': {e} (run in ArcLang's FPGA image: tools/embedded/fpga/run.sh)"))?;
     let text = format!("{}{}", String::from_utf8_lossy(&out.stdout), String::from_utf8_lossy(&out.stderr));
     if !out.status.success() {
@@ -129,16 +129,17 @@ fn run_tool(program: &str, args: &[String], cwd: &Path, what: &str) -> Result<St
     Ok(text)
 }
 
-fn write(dir: &Path, name: &str, text: &str) -> Result<PathBuf, String> {
+pub(super) fn write(dir: &Path, name: &str, text: &str) -> Result<PathBuf, String> {
     let path = dir.join(name);
     std::fs::write(&path, text).map_err(|e| format!("cannot write {}: {e}", path.display()))?;
     Ok(path)
 }
 
 /// The input of a value of an `in` variable: its word, its integer, 0/1.
-fn input_word(kind: Kind, v: crate::compiler::execution::expr::Value) -> i64 {
-    match kind {
-        Kind::Fixed(f) => fixed::quantize(v.number(), f),
+/// An input as the word the driver writes: quantised, saturated to its width.
+fn input_word(var: &fixed::VarFx, v: crate::compiler::execution::expr::Value) -> i64 {
+    match var.kind {
+        Kind::Fixed(f) => var.narrow(fixed::quantize(v.number(), f)),
         _ => v.number() as i64,
     }
 }
@@ -154,7 +155,7 @@ fn fixed_stdin(plan: &Plan, machine: usize, fx: &MachineFixed, vectors: &Vectors
             line.extend(vectors.queue[machine][k].iter().map(|e| e.to_string()));
         }
         line.extend((0..m.conditions.len()).map(|c| (vectors.conditions[machine][c][k] as u8).to_string()));
-        line.extend(m.program().inputs().map(|(i, _)| input_word(fx.vars[i].kind, vectors.values[machine][i][k]).to_string()));
+        line.extend(m.program().inputs().map(|(i, _)| input_word(&fx.vars[i], vectors.values[machine][i][k]).to_string()));
         stdin.push_str(&line.join(" "));
         stdin.push('\n');
     }
@@ -184,7 +185,7 @@ fn stimulus(plan: &Plan, machine: usize, fx: &MachineFixed, map: &Map, vectors: 
             let _ = writeln!(out, "W {} {bits:08X}", index(Reg::Cond(w)));
         }
         for (i, _) in m.program().inputs() {
-            let word = input_word(fx.vars[i].kind, vectors.values[machine][i][k]);
+            let word = input_word(&fx.vars[i], vectors.values[machine][i][k]);
             let _ = writeln!(out, "W {} {:08X}", index(Reg::In(i)), word as i32 as u32);
         }
         out.push_str("G\n");
@@ -288,7 +289,7 @@ fn quantisation(model: &Table, fixed: &Table, tolerance: &[f64], plan: &Plan, ma
     let base = m.states.len() + m.actions.len();
     let mut first_mismatch = None;
     let mut worst = (0.0, String::new(), 0.0);
-    let mut per: Vec<(String, String, f64, f64)> = fx.vars.iter().enumerate().filter(|(_, v)| matches!(v.kind, Kind::Fixed(_))).map(|(i, v)| (model.names[base + i].clone(), v.kind.label(), 0.0, tolerance[base + i])).collect();
+    let mut per: Vec<(String, String, f64, f64)> = fx.vars.iter().enumerate().filter(|(_, v)| matches!(v.kind, Kind::Fixed(_))).map(|(i, v)| (model.names[base + i].clone(), v.label(), 0.0, tolerance[base + i])).collect();
     for (k, (a, b)) in model.rows.iter().zip(&fixed.rows).enumerate() {
         for (c, (x, y)) in a.iter().zip(b).enumerate() {
             let d = (x - y).abs();
@@ -312,7 +313,7 @@ fn quantisation(model: &Table, fixed: &Table, tolerance: &[f64], plan: &Plan, ma
 }
 
 /// The columns of one machine of a table.
-fn machine_columns(table: &Table, ident: &str) -> Table {
+pub(super) fn machine_columns(table: &Table, ident: &str) -> Table {
     let keep: Vec<usize> = table.names.iter().enumerate().filter(|(_, n)| n.starts_with(&format!("{ident}."))).map(|(i, _)| i).collect();
     Table { names: keep.iter().map(|&i| table.names[i].clone()).collect(), period_us: table.period_us, rows: table.rows.iter().map(|r| keep.iter().map(|&i| r[i]).collect()).collect(), units: table.units.clone() }
 }
@@ -328,8 +329,19 @@ fn quantisation_set(test: &TestCase) -> Result<Option<f64>, String> {
 }
 
 fn run_case(test: &TestCase, plan: &Plan, bindings: &[super::binding::Binding], options: &Options, tools: &str) -> Outcome {
+    let mut outcome = new_outcome(test, tools);
+    let texts = outcome.expectations.iter().map(|j| j.expect.clone()).collect::<Vec<_>>();
+    if let Err(e) = run_case_inner(test, plan, bindings, options, &texts, &mut outcome) {
+        outcome.verdict = "error".to_string();
+        outcome.reason = e;
+    }
+    outcome
+}
+
+/// An outcome not yet run: every expectation unjudged.
+pub(super) fn new_outcome(test: &TestCase, tools: &str) -> Outcome {
     let texts = crate::compiler::simulation::expects_of(&test.attributes);
-    let mut outcome = Outcome {
+    Outcome {
         test_case: test.id.clone(),
         name: test.name.clone(),
         verifies: test.verifies.clone(),
@@ -344,15 +356,66 @@ fn run_case(test: &TestCase, plan: &Plan, bindings: &[super::binding::Binding], 
         bit_exact: None,
         quantisation: None,
         cycles: None,
-    };
-    if let Err(e) = run_case_inner(test, plan, bindings, options, &texts, &mut outcome) {
-        outcome.verdict = "error".to_string();
-        outcome.reason = e;
     }
-    outcome
 }
 
 fn run_case_inner(test: &TestCase, plan: &Plan, bindings: &[super::binding::Binding], options: &Options, texts: &[String], outcome: &mut Outcome) -> Result<(), String> {
+    let dir = options.work.join(format!("case-{}", case_dir(test)));
+    let r = reference(test, plan, bindings, &options.compiler, &dir, texts, outcome)?;
+    let m = &plan.machines[r.machine];
+    // The VHDL, its testbench, the case as bus operations.
+    let map = super::regmap::map(plan, m, &r.fx);
+    let ent = super::vhdl::entity(plan, m);
+    let mut sources = Vec::new();
+    for (name, text) in super::vhdl::files(plan, m, &r.fx) {
+        write(&dir, &name, &text)?;
+        if name.ends_with(".vhd") {
+            sources.push(name.clone());
+        }
+    }
+    let tb = format!("{ent}_tb.vhd");
+    write(&dir, &tb, &super::vhdl::testbench(plan, m, &map))?;
+    sources.push(tb);
+    write(&dir, "stimulus.txt", &stimulus(plan, r.machine, &r.fx, &map, &r.vectors))?;
+    let _ = std::fs::remove_file(dir.join("result.txt"));
+    let mut analyse = vec!["-a".to_string(), "--std=08".to_string()];
+    analyse.extend(sources.iter().cloned());
+    run_tool("ghdl", &analyse, &dir, "ghdl -a (analysis)")?;
+    run_tool("ghdl", &["-e".into(), "--std=08".into(), format!("{ent}_tb")], &dir, "ghdl -e (elaboration)")?;
+    run_tool("ghdl", &["-r".into(), "--std=08".into(), format!("{ent}_tb"), "-gSTIMULUS=stimulus.txt".into(), "-gRESULT=result.txt".into(), "--ieee-asserts=disable".into()], &dir, "ghdl -r (simulation)")?;
+    let result = std::fs::read_to_string(dir.join("result.txt")).map_err(|e| format!("the simulation wrote no result: {e}"))?;
+    let (rows, cycles) = decode(plan, r.machine, &r.fx, &map, &result, r.case.steps)?;
+    let hdl_raw = Table { names: r.model.names.clone(), period_us: r.case.step_us, rows, units: r.model.units.clone() };
+    let (lo, hi) = (cycles.iter().min().copied().unwrap_or(0), cycles.iter().max().copied().unwrap_or(0));
+    outcome.cycles = Some(if lo == hi { format!("{lo} clock cycles a step") } else { format!("{lo} to {hi} clock cycles a step (the events of the step: one a clock)") });
+    conclude(&r, plan, &hdl_raw, "the VHDL", texts, outcome);
+    Ok(())
+}
+
+/// A case's directory name.
+pub(super) fn case_dir(test: &TestCase) -> String {
+    test.id.chars().map(|c| if c.is_ascii_alphanumeric() { c } else { '_' }).collect()
+}
+
+/// What a run of a case on the hardware is judged against: the model and
+/// the bit-exact fixed-point C reference, compiled and run on this computer.
+pub(super) struct Reference {
+    pub case: super::case::Case,
+    pub machine: usize,
+    pub vectors: Vectors,
+    /// The model, the machine's columns.
+    pub model: Table,
+    pub aliases: std::collections::BTreeMap<String, String>,
+    pub fx: MachineFixed,
+    /// The fixed-point C's words, the machine's columns.
+    pub fixed_raw: Table,
+    pub tolerance: Vec<f64>,
+    pub origin: &'static str,
+}
+
+/// The model run (its expectations judged into `outcome`) and the
+/// fixed-point C reference of a case, built and run in `dir`.
+pub(super) fn reference(test: &TestCase, plan: &Plan, bindings: &[super::binding::Binding], compiler: &str, dir: &Path, texts: &[String], outcome: &mut Outcome) -> Result<Reference, String> {
     let case = super::case::read(test, plan, bindings).expect("an executed case")?;
     let machine = case.machine;
     let m = &plan.machines[machine];
@@ -370,49 +433,29 @@ fn run_case_inner(test: &TestCase, plan: &Plan, bindings: &[super::binding::Bind
     // The fixed-point reference at the case's period.
     let fx_plan = super::fxc::plan(plan, &[machine], case.step_us)?;
     let fx = fx_plan.machines[0].fixed.as_deref().expect("fixed").clone();
-    let dir = options.work.join(format!("case-{}", test.id.chars().map(|c| if c.is_ascii_alphanumeric() { c } else { '_' }).collect::<String>()));
-    std::fs::create_dir_all(&dir).map_err(|e| format!("cannot make {}: {e}", dir.display()))?;
+    std::fs::create_dir_all(dir).map_err(|e| format!("cannot make {}: {e}", dir.display()))?;
     let generated = super::cgen::generate(&fx_plan, case.step_us);
-    write(&dir, &generated.header_name, &generated.header)?;
-    let source = write(&dir, &generated.source_name, &generated.source)?;
-    let harness = write(&dir, "fx_main.c", &sil::direct_harness(&fx_plan))?;
+    write(dir, &generated.header_name, &generated.header)?;
+    let source = write(dir, &generated.source_name, &generated.source)?;
+    let harness = write(dir, "fx_main.c", &sil::direct_harness(&fx_plan))?;
     let binary = dir.join("fx_reference");
-    sil::compile(&options.compiler, &[source, harness], &dir, &[format!("{}={}UL", super::cgen::period_macro(&fx_plan), case.step_us)], &binary)?;
+    sil::compile(compiler, &[source, harness], dir, &[format!("{}={}UL", super::cgen::period_macro(&fx_plan), case.step_us)], &binary)?;
     let stdout = sil::run_binary(&binary, &fixed_stdin(plan, machine, &fx, &vectors))?;
     let fixed_raw = sil::parse_rows(&stdout, &model.names, case.step_us)?;
-    // The VHDL, its testbench, the case as bus operations.
-    let map = super::regmap::map(plan, m, &fx);
-    let ent = super::vhdl::entity(plan, m);
-    let mut sources = Vec::new();
-    for (name, text) in super::vhdl::files(plan, m, &fx) {
-        let path = write(&dir, &name, &text)?;
-        if name.ends_with(".vhd") {
-            sources.push(name.clone());
-        }
-        let _ = path;
-    }
-    let tb = format!("{ent}_tb.vhd");
-    write(&dir, &tb, &super::vhdl::testbench(plan, m, &map))?;
-    sources.push(tb);
-    write(&dir, "stimulus.txt", &stimulus(plan, machine, &fx, &map, &vectors))?;
-    let _ = std::fs::remove_file(dir.join("result.txt"));
-    let mut analyse = vec!["-a".to_string(), "--std=08".to_string()];
-    analyse.extend(sources.iter().cloned());
-    run_tool("ghdl", &analyse, &dir, "ghdl -a (analysis)")?;
-    run_tool("ghdl", &["-e".into(), "--std=08".into(), format!("{ent}_tb")], &dir, "ghdl -e (elaboration)")?;
-    run_tool("ghdl", &["-r".into(), "--std=08".into(), format!("{ent}_tb"), "-gSTIMULUS=stimulus.txt".into(), "-gRESULT=result.txt".into(), "--ieee-asserts=disable".into()], &dir, "ghdl -r (simulation)")?;
-    let result = std::fs::read_to_string(dir.join("result.txt")).map_err(|e| format!("the simulation wrote no result: {e}"))?;
-    let (rows, cycles) = decode(plan, machine, &fx, &map, &result, case.steps)?;
-    let hdl_raw = Table { names: model.names.clone(), period_us: case.step_us, rows, units: model.units.clone() };
-    let (lo, hi) = (cycles.iter().min().copied().unwrap_or(0), cycles.iter().max().copied().unwrap_or(0));
-    outcome.cycles = Some(if lo == hi { format!("{lo} clock cycles a step") } else { format!("{lo} to {hi} clock cycles a step (the events of the step: one a clock)") });
-    let bit_exact = sil::compare(&fixed_raw, &hdl_raw, 0.0);
-    let fixed_values = values(plan, machine, &fx, &fixed_raw);
-    let hdl_values = values(plan, machine, &fx, &hdl_raw);
     let tolerance = tolerances(plan, machine, &fx, &vectors, case.steps, set);
-    let q = quantisation(&model, &fixed_values, &tolerance, plan, machine, &fx, if set.is_some() { "set in the case (quantisation:)" } else { "derived from the formats" });
-    let hdl_judged = sil::judge(texts, &aliases, &Table { units: model.units.clone(), ..hdl_values });
-    match hdl_judged {
+    let origin = if set.is_some() { "set in the case (quantisation:)" } else { "derived from the formats" };
+    Ok(Reference { case, machine, vectors, model, aliases, fx, fixed_raw, tolerance, origin })
+}
+
+/// A run on the hardware (`device`: "the VHDL", "the SoC"), its words in
+/// `device_raw`, judged: word for word against the fixed-point C, within
+/// the tolerance of the model, its expectations as the model's.
+pub(super) fn conclude(r: &Reference, plan: &Plan, device_raw: &Table, device: &str, texts: &[String], outcome: &mut Outcome) {
+    let bit_exact = sil::compare(&r.fixed_raw, device_raw, 0.0);
+    let fixed_values = values(plan, r.machine, &r.fx, &r.fixed_raw);
+    let device_values = values(plan, r.machine, &r.fx, device_raw);
+    let q = quantisation(&r.model, &fixed_values, &r.tolerance, plan, r.machine, &r.fx, r.origin);
+    match sil::judge(texts, &r.aliases, &Table { units: r.model.units.clone(), ..device_values }) {
         Ok(v) => {
             for (j, x) in outcome.expectations.iter_mut().zip(v) {
                 j.c = Some(x);
@@ -431,25 +474,24 @@ fn run_case_inner(test: &TestCase, plan: &Plan, bindings: &[super::binding::Bind
     };
     if outcome.reason.is_empty() {
         outcome.reason = if let Some(mm) = &bit_exact.first_mismatch {
-            format!("the VHDL departs from the fixed-point C: {mm}")
+            format!("{device} departs from the fixed-point C: {mm}")
         } else if let Some(mm) = &q.first_mismatch {
             format!("the fixed point departs from the model: {mm}")
         } else if !alike {
-            "an expectation is judged differently on the VHDL run and on the model".to_string()
+            format!("an expectation is judged differently on {device} and on the model")
         } else if outcome.verdict == "fail" {
             let failing: Vec<String> = outcome.expectations.iter().filter_map(|j| j.c.as_ref()).filter(|v| !v.holds).map(|v| format!("{} (expected {})", v.value, v.expect)).collect();
-            format!("{}, on the VHDL as on the model", failing.join("; "))
+            format!("{}, on {device} as on the model", failing.join("; "))
         } else {
             String::new()
         };
     }
     outcome.bit_exact = Some(bit_exact);
     outcome.quantisation = Some(q);
-    Ok(())
 }
 
 /// The executed cases of the allocated machines (or `only`).
-fn selected<'a>(ast: &'a Model, plan: &Plan, allocations: &[Allocation], bindings: &[super::binding::Binding], only: Option<&str>) -> Vec<&'a TestCase> {
+pub(super) fn selected<'a>(ast: &'a Model, plan: &Plan, allocations: &[Allocation], bindings: &[super::binding::Binding], only: Option<&str>) -> Vec<&'a TestCase> {
     sil::cases(ast)
         .into_iter()
         .filter(|t| only.is_none_or(|o| t.id == o || t.name == o))
@@ -609,29 +651,36 @@ pub fn cache_key(ast: &Model, test: &TestCase, tools: &str) -> Result<String, St
 
 /// Keep each case's verdict as `<case>.hdl.json` in the model's cache.
 pub fn cache(ast: &Model, model_path: &Path, outcomes: &[Outcome]) -> Result<Vec<PathBuf>, String> {
+    cache_kind(ast, model_path, outcomes, "hdl", |test, tools| cache_key(ast, test, tools))
+}
+
+/// Keep each case's verdict as `<case>.<kind>.json`: `hdl` (the VHDL in
+/// GHDL), `soc` (the SoC, simulated or on its board).
+pub(super) fn cache_kind(ast: &Model, model_path: &Path, outcomes: &[Outcome], kind: &str, key: impl Fn(&TestCase, &str) -> Result<String, String>) -> Result<Vec<PathBuf>, String> {
     let dir = crate::compiler::simulation::cache::dir(model_path);
+    let (label, device) = if kind == "hdl" { ("HDL", "VHDL") } else { ("SoC", "SoC") };
     let mut written = Vec::new();
     for o in outcomes {
         let Some(test) = ast.test_cases.iter().find(|t| t.id == o.test_case) else { continue };
         let values = o.expectations.iter().filter_map(|j| j.c.clone().or_else(|| j.model.clone())).collect();
-        let b2b = o.bit_exact.as_ref().map(|b| format!("VHDL vs fixed-point C: {} steps x {} outputs, largest difference {}", b.steps, b.columns, b.max_difference)).unwrap_or_default();
+        let b2b = o.bit_exact.as_ref().map(|b| format!("{device} vs fixed-point C: {} steps x {} outputs, largest difference {}", b.steps, b.columns, b.max_difference)).unwrap_or_default();
         let q = o.quantisation.as_ref().map(|q| format!("; fixed point vs model: largest difference {:e} ({}, tolerance {:e} {})", q.max_difference, q.column, q.tolerance, q.origin)).unwrap_or_default();
         let outcome = crate::compiler::simulation::Outcome {
             test_case: o.test_case.clone(),
             name: o.name.clone(),
             verifies: o.verifies.clone(),
             verdict: o.verdict.clone(),
-            reason: if o.verdict == "pass" { String::new() } else { format!("HDL: {}", o.reason) },
+            reason: if o.verdict == "pass" { String::new() } else { format!("{label}: {}", o.reason) },
             values,
-            key: cache_key(ast, test, &o.tools)?,
+            key: key(test, &o.tools)?,
             model: format!("state_machine {}", o.machine),
             tool: o.tools.clone(),
-            kind: "hdl".to_string(),
+            kind: kind.to_string(),
             target: o.block.clone(),
             log: format!("{b2b}{q}"),
             ..Default::default()
         };
-        written.push(crate::compiler::simulation::cache::write_kind(&dir, "hdl", &outcome)?);
+        written.push(crate::compiler::simulation::cache::write_kind(&dir, kind, &outcome)?);
     }
     Ok(written)
 }
@@ -658,7 +707,7 @@ pub fn export(ast: &Model) -> Result<(super::Files, Vec<String>), String> {
         notes.push(format!("state_machine '{}' on '{}' ({}, {} MHz): block {}_wb", m.name, a.node, a.part, a.clock_hz / 1e6, super::vhdl::entity(&plan, m)));
         for (i, v) in fx.vars.iter().enumerate() {
             if let Kind::Fixed(_) = v.kind {
-                notes.push(format!("  {} {} (range {} .. {}, {})", m.program().variables[i].name, v.kind.label(), v.range.0, v.range.1, v.origin));
+                notes.push(format!("  {} {} (range {} .. {}, {})", m.program().variables[i].name, v.label(), v.range.0, v.range.1, v.origin));
             }
         }
     }

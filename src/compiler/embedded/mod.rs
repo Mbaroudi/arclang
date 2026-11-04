@@ -32,6 +32,7 @@ pub mod plan;
 pub mod reference;
 pub mod regmap;
 pub mod sil;
+pub mod system;
 pub mod target;
 pub mod vhdl;
 pub mod zephyr;

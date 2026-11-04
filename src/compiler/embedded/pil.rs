@@ -108,7 +108,7 @@ pub fn cache(ast: &Model, model_path: &Path, package: &Package, outcomes: &[Outc
     Ok(written)
 }
 
-fn run_command(command: &[String], cwd: Option<&Path>, env: &[(&str, &Path)], what: &str) -> Result<String, String> {
+pub(super) fn run_command(command: &[String], cwd: Option<&Path>, env: &[(&str, &Path)], what: &str) -> Result<String, String> {
     let (program, args) = command.split_first().ok_or_else(|| format!("{what}: an empty command"))?;
     let mut c = Command::new(program);
     c.args(args);
@@ -135,7 +135,7 @@ fn substitute(words: &[String], values: &[(&str, String)]) -> Vec<String> {
         .collect()
 }
 
-fn write_app(dir: &Path, app: &super::zephyr::App) -> Result<(), String> {
+pub(super) fn write_app(dir: &Path, app: &super::zephyr::App) -> Result<(), String> {
     for (name, text, executable) in &app.files {
         let path = dir.join(name);
         if let Some(parent) = path.parent() {
@@ -259,12 +259,12 @@ fn bench_plan(package: &Package, app: &Path, image: &Path, binding: Option<&Bind
 }
 
 /// A row of the target's report: `R step,time,status,values...|io values`.
-struct Row {
-    time: u64,
-    values: Vec<f64>,
+pub(super) struct Row {
+    pub time: u64,
+    pub values: Vec<f64>,
 }
 
-fn parse_result(text: &str, width: usize, io: usize, steps: usize) -> Result<Vec<Row>, String> {
+pub(super) fn parse_result(text: &str, width: usize, io: usize, steps: usize) -> Result<Vec<Row>, String> {
     let mut rows = Vec::new();
     for line in text.lines() {
         if let Some(error) = line.strip_prefix("error ") {
