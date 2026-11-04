@@ -208,6 +208,66 @@ fn the_register_map_names_every_input_and_output() {
     assert!(csv.contains("csr_register,power_window_window_ctrl,0x00000000,1,rw"), "{csv}");
 }
 
+// ---- narrow words ---------------------------------------------------------------------
+
+/// The charger with its voltages resolved to 1 mV and its current to 1 mA.
+fn narrow_charger() -> String {
+    std::fs::read_to_string(example(CHARGER))
+        .unwrap()
+        .replace("\"in voltage: Real [V] range 0 V .. 60 V\"", "\"in voltage: Real [V] range 0 V .. 60 V resolution 1 mV\"")
+        .replace("\"in current: Real [A] range -25 A .. 25 A\"", "\"in current: Real [A] range -25 A .. 25 A resolution 1 mA\"")
+        .replace("\"filtered: Real [V] range 0 V .. 60 V = 0 V\"", "\"filtered: Real [V] range 0 V .. 60 V resolution 1 mV = 0 V\"")
+}
+
+#[test]
+fn a_resolution_gives_a_word_as_narrow_as_the_range_and_the_step_allow() {
+    let model = compile_text(&narrow_charger()).unwrap();
+    let p = plan::plan(&model.ast).unwrap();
+    let fx = fixed::machine(&p.machines[0], 10_000).unwrap();
+    let var = |name: &str| fx.vars[p.machines[0].program().variables.iter().position(|v| v.name == name).unwrap()].clone();
+    // 60 V < 2^6, 1 mV > 2^-10: Q6.10 and a sign, 17 bits; 25 A < 2^5: 16 bits.
+    assert_eq!((var("voltage").kind, var("voltage").width, var("voltage").label()), (fixed::Kind::Fixed(10), 17, "Q6.10 (17 bits)".to_string()));
+    assert_eq!((var("current").kind, var("current").width), (fixed::Kind::Fixed(10), 16));
+    assert_eq!(var("setpoint").width, 32, "without a resolution, 32 bits");
+    assert_eq!(fixed::narrow(1 << 20, 17), (1 << 16) - 1, "a store saturates to the word");
+    assert!(compile_text(&on_fpga(&["in v: Real range 0 .. 1000000 resolution 0.0000001", "out y: Real"], &["y = v"])).and_then(|m| {
+        let p = plan::plan(&m.ast).unwrap();
+        fixed::machine(&p.machines[0], 10_000)
+    }).unwrap_err().contains("more than 32"));
+    let fmt = compile_text(&on_fpga(&["in v: Real format Q6.9", "out y: Real range 0 .. 64 format Q6.9"], &["y = v"])).unwrap();
+    let p = plan::plan(&fmt.ast).unwrap();
+    assert_eq!(fixed::machine(&p.machines[0], 10_000).unwrap().vars[1].width, 16, "Q6.9: 16 bits");
+}
+
+#[test]
+fn a_narrow_variable_is_held_in_its_width_in_the_vhdl_the_c_and_the_driver() {
+    let model = compile_text(&narrow_charger()).unwrap();
+    let p = plan::plan(&model.ast).unwrap();
+    let m = &p.machines[0];
+    let fx = fixed::machine(m, 10_000).unwrap();
+    let core = vhdl::core(&p, m, &fx);
+    assert!(core.contains("variable r_v_voltage : signed(16 downto 0);") && core.contains("variable r_v_filtered : signed(16 downto 0);"), "narrow storage");
+    assert!(core.contains("r_v_filtered := resize(fx_narrow(") && core.contains("resize(r_v_filtered, 32)"), "saturated when stored, sign-extended when read");
+    let fx_plan = fxc::plan(&p, &[0], 10_000).unwrap();
+    let c = arclang::compiler::embedded::cgen::generate(&fx_plan, 10_000).source;
+    assert!(c.contains("arc_fx_narrow(") && c.contains("static int32_t arc_fx_narrow(int32_t word, int bits)"), "the C reference saturates the same store");
+    let driver = regmap::driver(&p, m, &fx, &regmap::map(&p, m, &fx));
+    assert!(driver.contains("arc_fx_narrow(arc_fx_from((double)in->v_voltage, 10), 17)"), "the driver writes an input in its width");
+}
+
+#[test]
+fn the_quantisation_bound_sees_a_fed_back_value_cancel() {
+    // f = f + 0.2 * (v - f) carries 0.8 of f's error a step, not 1.2: the
+    // bound stays near a few units of the format over many steps.
+    let model = compile_file(&example(CHARGER));
+    let p = plan::plan(&model.ast).unwrap();
+    let fx = fixed::machine(&p.machines[0], 10_000).unwrap();
+    let filtered = p.machines[0].program().variables.iter().position(|v| v.name == "filtered").unwrap();
+    let ulp = 2f64.powi(-25);
+    let bound = fixed::bounds(&fx, 500, &vec![0.0; fx.vars.len()])[filtered];
+    assert!(bound < 16.0 * ulp, "{bound} for an ulp of {ulp}");
+}
+
 // ---- in the FPGA image ----------------------------------------------------------------
 
 fn run_hdl(path: &str, synth: bool) -> (Vec<hdl::Outcome>, Vec<Result<hdl::Synthesis, String>>) {
@@ -257,6 +317,24 @@ fn both_blocks_synthesise_for_the_ecp5_and_meet_timing() {
         assert!(s.timing_met, "{path}: Fmax {} MHz for {} MHz", s.fmax_mhz, s.clock_mhz);
         assert!(s.luts > 0 && s.ffs > 0 && Path::new(&s.bitstream).is_file(), "{s:?}");
     }
+}
+
+#[test]
+#[ignore = "needs GHDL, Yosys and nextpnr-ecp5 of tools/embedded/fpga: run in its image (CI job Embedded FPGA)"]
+fn narrow_words_stay_bit_exact_and_take_fewer_flip_flops() {
+    let model = compile_text(&narrow_charger()).unwrap();
+    let options = hdl::Options { work: work("narrow"), only: None, synth: false, compiler: "gcc".into() };
+    let (outcomes, _) = hdl::run(&model.ast, &options).unwrap();
+    assert_eq!(outcomes.len(), 3);
+    assert_passes(&outcomes);
+    let p = plan::plan(&model.ast).unwrap();
+    let a = &alloc::allocations(&model.ast, &p).unwrap()[0];
+    let narrow = hdl::synthesise(&p, a, 10_000, &work("narrow-synth")).unwrap();
+    let wide_model = compile_file(&example(CHARGER));
+    let wp = plan::plan(&wide_model.ast).unwrap();
+    let wide = hdl::synthesise(&wp, &alloc::allocations(&wide_model.ast, &wp).unwrap()[0], 10_000, &work("wide-synth")).unwrap();
+    assert!(narrow.ffs < wide.ffs, "{} flip-flops narrow, {} at 32 bits", narrow.ffs, wide.ffs);
+    assert!(narrow.timing_met, "Fmax {} MHz", narrow.fmax_mhz);
 }
 
 #[test]
