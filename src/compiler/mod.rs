@@ -41,6 +41,7 @@ pub mod semantic_adapter;
 pub mod capella_metamodel;
 pub mod codegen;
 pub mod capella_importer;
+pub mod refine;
 pub mod capella_xmi;
 pub mod capella_export;
 pub mod sysmlv2_generator;
@@ -293,6 +294,10 @@ impl Compiler {
         mut ast: ast::Model,
         mut warnings: Vec<String>,
     ) -> Result<CompilationResult, CompilerError> {
+        // What the model adds to elements declared elsewhere (an imported
+        // file): applied first, so every later stage sees the whole element.
+        refine::apply(&mut ast).map_err(CompilerError::Semantic)?;
+
         // User-defined types: fold inherited attributes and ports into every
         // typed element FIRST, so all later stages see effective values.
         let type_uses = types::resolve(&mut ast).map_err(CompilerError::Semantic)?;

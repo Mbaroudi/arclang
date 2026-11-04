@@ -75,6 +75,10 @@ pub struct Model {
     /// checked by `embedded::binding`, used by the generated C glue.
     #[serde(default)]
     pub io_bindings: Vec<IoBinding>,
+    /// `refine "<id>" { ... }`: what this model adds to elements declared
+    /// elsewhere (an imported file); applied once the files are merged.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub refinements: Vec<crate::compiler::refine::Refinement>,
 }
 
 /// `io_binding "ACC ECU" { machine: "ACC modes" period: 10 ms inputs: ["LF-022 <- gpio 4 rising"] outputs: ["Following -> gpio 10"] }`:
@@ -132,6 +136,7 @@ impl Model {
             diagrams: Vec::new(),
             tables: Vec::new(), // tables hook
             io_bindings: Vec::new(),
+            refinements: Vec::new(),
         }
     }
     
@@ -167,6 +172,7 @@ impl Model {
         self.types.extend(other.types);
         self.tables.extend(other.tables); // tables hook
         self.io_bindings.extend(other.io_bindings);
+        self.refinements.extend(other.refinements);
     }
 
     /// Export the model to JSON string for diagram rendering
