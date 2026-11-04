@@ -1,7 +1,9 @@
 # Embedded targets: packages, Zephyr on a LiteX SoC, processor in the loop
 
 ArcLang generates the behavior of a model as C that knows no board
-([embedded-c.md](embedded-c.md)). Three layers take it to the hardware:
+([embedded-c.md](embedded-c.md)), and the machines it allocates to
+programmable logic as VHDL ([embedded-fpga.md](embedded-fpga.md)). Three
+layers take it to the hardware:
 
 | Layer | What | Where |
 |---|---|---|
@@ -186,7 +188,10 @@ deterministic, not a worst-case execution time.
 
 ### The bitstream
 
-Not built in this lot. The overlay and the Renode platform describe the SoC
+Not built for the SoC: lot 3 ([embedded-fpga.md](embedded-fpga.md)) adds
+the FPGA image (GHDL, Yosys, nextpnr-ecp5) and synthesises the blocks a
+model allocates to programmable logic, alone, for the ECP5; the SoC itself
+is still not built. The overlay and the Renode platform describe the SoC
 (addresses, interrupt lines); a LiteX SoC for an ECP5 board with those
 peripherals (two more UARTs, a second PWM, an SJA1000-compatible core, the
 ADC register bank) is to be written as a LiteX target script, and Yosys,
@@ -312,8 +317,9 @@ Python 3.12 (Zephyr 4.4's minimum), Renode 1.17.0 (portable). The CI job
 - **Virtual time is not cycle timing.** Renode runs instructions at its CPU
   model's rate; the times reported are deterministic and comparable between
   runs, not the VexRiscv's worst-case execution time.
-- **No bitstream** in this lot (above). The SoC described has not been
-  synthesised.
+- **No SoC bitstream** (above). The SoC described has not been
+  synthesised; the hardware blocks of lot 3 have, alone
+  ([embedded-fpga.md](embedded-fpga.md#synthesis)).
 - **One target ships**, `zephyr/litex_vexriscv`, and one runtime besides the
   host, Zephyr. The image has been built and the tests run on Linux arm64
   (Docker on Apple silicon); the CI job builds it on x86_64 (the x86_64
