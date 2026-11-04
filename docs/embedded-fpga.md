@@ -12,7 +12,12 @@ arclang export model.arc -f vhdl -o build/hw      # VHDL, register map, driver, 
 arclang hdl    model.arc                          # each case in GHDL, against the fixed-point C and the model
 arclang hdl    model.arc --synth                  # and synthesis for the ECP5: resources, Fmax
 arclang export model.arc -f zephyr -o build/app   # the Zephyr application calls the block through its driver
+arclang soc    model.arc --board ulx3s            # processor and logic together: simulated, and one bitstream
 ```
+
+The SoC that puts the processor and the blocks together, simulated cycle
+by cycle and built into one bitstream, is in
+[embedded-system.md](embedded-system.md).
 
 The three layers stay: the generated code knows no board (the VHDL uses
 numeric_std only, the driver takes the block's address as a macro); one I/O
@@ -74,10 +79,11 @@ it, and its C, SIL and PIL are unchanged.
 
 ## Fixed point
 
-Every `Real` (and `Float`) value of the hardware is a signed 32-bit word
-with a binary point of its own, its Q format: `Qi.f`, `i` integer bits and
-`f = 31 - i` fraction bits. An `Integer` stays the model's saturating
-`int32`, a `Boolean` a bit.
+Every `Real` (and `Float`) value of the hardware is a signed word with a
+binary point of its own, its Q format: `Qi.f`, `i` integer bits and `f`
+fraction bits, `f = 31 - i` in a 32-bit word unless the variable asks for
+a narrower one (below). An `Integer` stays the model's saturating `int32`,
+a `Boolean` a bit.
 
 **Ranges.** A variable declaration takes a range and, if wanted, a format:
 
@@ -101,7 +107,10 @@ variables: [
   growing. A variable fed back on itself (`filtered = filtered + 0.2 *
   (voltage - filtered)`) grows at every pass: it must be declared. An `in`
   variable has nothing assigned: declared, or an error.
-- `format Q<i>.<f>` (i + f = 31) sets the format instead of the range's.
+- `format Q<i>.<f>` (i + f at most 31: a word of i + f + 1 bits) sets the
+  format instead of the range's.
+- `resolution r` (in the variable's unit) asks for the narrowest word that
+  holds the range with a step of at most `r` (below).
 
 **The format of a range**: the fewest integer bits `i` for which the
 largest magnitude of the range is below `2^i` (60 V: `i = 6`, Q6.25, a
@@ -126,6 +135,42 @@ beyond the declared range (an input outside it, a computed variable whose
 declared range is too small) saturates at the end of the format, not at the
 range.
 
+**Narrow words.** A variable is held in 32 bits unless it says what it
+needs:
+
+```arclang
+"in voltage: Real [V] range 0 V .. 60 V resolution 1 mV",    // Q6.10, 17 bits
+"in current: Real [A] range -25 A .. 25 A resolution 1 mA",  // Q5.10, 16 bits
+"filtered: Real [V] range 0 V .. 60 V resolution 1 mV = 0 V", // Q6.10, 17 bits
+"out duty: Real range 0 .. 1 format Q1.9"                     // 11 bits
+```
+
+The fraction bits are the fewest whose step is at most the resolution (1 mV:
+2^-10 V ≈ 0.98 mV), the integer bits those of the range, plus a sign: a
+resolution and a range that need more than 32 bits are refused. Only the
+*storage* narrows: the VHDL holds the variable in a register of that width
+(`signed(16 downto 0)`), the arithmetic that computes it is unchanged
+(aligned, 64 bits, rounded into the format), and the value is saturated to
+the word when stored, in the VHDL as in the C reference (`arc_fx_narrow`),
+so the two stay bit-exact; it is sign-extended where it is read. An input
+is saturated to its word where it is formed: by the driver
+(`arc_fx_narrow(arc_fx_from(v, f), w)`), by `arclang hdl`'s stimulus, and
+by the block when it latches the register. A narrow word keeps the same
+bound as a 32-bit one (±2^i): only its step is coarser, and the
+quantisation tolerance grows with it.
+
+The charger with those three resolutions (the other variables at 32 bits),
+bit-exact in GHDL with its C reference on its three cases:
+
+| Charger | LUT4 | FF | DSP | Fmax |
+|---|---|---|---|---|
+| every `Real` in 32 bits | 3436 | 1347 | 16 | 32.6 MHz |
+| voltage, current, filtered at 1 mV / 1 mA | 3336 | 1185 | 14 | 26.8 MHz |
+
+The saving is in the registers and the multipliers that read them; the
+intermediate results keep their 32-bit formats (a value's word is not
+narrowed unless it is stored).
+
 **Blocks.** Their gains are constants, folded at the period of the code
 (`k*T`, `ki*T`, `kd/T`, each rounded into its own format):
 
@@ -146,13 +191,20 @@ variable's fixed-point value may be from the floating-point model's is
 derived from the formats: every rounding of the code (half a unit in the
 last place of the format it rounds into), every constant's rounding, every
 input's (the case's values converted to words), propagated through what
-reads it (a product by the largest magnitude of the other operand) step
-after step, an action counting in every step; plus the floating-point
-model's own rounding (2^-40 of the range a step; 2^-20 for a `Float`). It
-is a bound, not an estimate: an expression that reads a fed-back value twice
-(`f + 0.2 * (v - f)`) counts its error twice at every step, so the bound of
-the charger's filter after 600 ms (1.2e-2 V) is far above the difference
-seen (7e-8 V). `quantisation: 0.001` in a case's `execute:` sets the
+reads it step after step, an action counting in every step; plus the
+floating-point model's own rounding (2^-40 of the range a step; 2^-20 for a
+`Float`).
+
+The propagation is a first-order affine form: an expression's error is a
+signed combination of the errors of what it reads, plus the roundings.
+Sums, differences, negations, resizes and products by a constant keep the
+combination, so an error read twice cancels as the algebra says: `f + 0.2
+* (v - f)` carries 0.8 of `f`'s error a step, not 1.2, and the bound
+converges instead of growing. Anything else (a product of two variables,
+`min`, `max`, `saturate`, a choice) is bounded by magnitudes, as before.
+The charger's filter after 600 ms: a bound of 1.85e-7 V for a difference
+seen of 7.2e-8 V (at 32 bits; 2.4e-3 V for 9.7e-4 V at 1 mV).
+`quantisation: 0.001` in a case's `execute:` sets the
 tolerance instead (in each variable's unit), and the outcome says which it
 is. The states, actions, `Integer`s, `Boolean`s and budgets must be
 equal: a difference there means the quantisation changed a decision (a
@@ -387,14 +439,14 @@ is 4.7 GB (1.4 GB over the embedded image). The CI job "Embedded FPGA
   combinational depth of the largest equation (the PID: three products and
   two sums) sets the Fmax. Enough for control periods in milliseconds;
   not a DSP datapath.
-- **32-bit words only.** Every `Real` is a 32-bit word; narrower words
-  (fewer LUTs) are not generated.
-- **The tolerance is a bound**, first-order on the expression as written:
-  loose where a fed-back value is read twice (the filter, above).
+- **Narrow storage, not narrow arithmetic.** A `resolution` narrows a
+  variable's register, not the intermediate results that compute it.
+- **The tolerance is a first-order bound**: tight for linear code, loose
+  through products of two variables and through `min`, `max` and
+  `saturate`.
 - **ECP5 only** for synthesis (nextpnr-ecp5); the VHDL itself is vendor
   neutral.
-- **No board, no SoC bitstream.** The block is synthesised alone. A LiteX
-  SoC with the VexRiscv and the block, built into one bitstream, and a
-  hardware/software co-simulation (Renode with the block verilated, or
-  LiteX's simulator) are not done in this lot: the Zephyr application that
-  calls the block builds, but nothing runs it against the block.
+- **`arclang hdl --synth` synthesises a block alone.** The SoC with the
+  processor and the blocks, simulated together and built into one
+  bitstream, is `arclang soc` ([embedded-system.md](embedded-system.md));
+  no physical board has run it yet.

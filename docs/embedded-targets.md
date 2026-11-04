@@ -251,6 +251,8 @@ emulator; the target's reports are compared with the model-level run as
   channels as SIL compares them.
 - **Without a binding**: the step() API (`pil_direct.c`). The bench sends
   each step's inputs on the console as a line, the target steps and reports.
+  A line `?` is answered with `ARCLANG READY`: a bench that comes after the
+  boot (`arclang soc`'s, to a simulator or a board) asks with it.
 - **Bit for bit**: values cross the console as the hexadecimal digits of
   their IEEE 754 bits (`x404b4ccccccccccd` for 54.6), so a `Real` computed
   by the target's software floating point is compared exactly.
