@@ -137,9 +137,11 @@ fn export_writes_a_zephyr_application_tied_to_the_model() {
     assert!(file("arclang_app.cmake").contains("set(ARCLANG_PERIOD_MACRO BATTERY_CHARGER_PERIOD_US)"));
     assert!(app.files.iter().any(|(n, _, executable)| n == "run.sh" && *executable));
     assert!(app.notes.iter().any(|n| n.contains("adc: a register bank of this target")), "{:?}", app.notes);
-    // The behavior is the same file as `export -f c`.
+    // The behavior is that of `export -f c` (the same header), but for the
+    // machine the programmable logic computes: called through its driver.
     let (c_files, _) = arclang::compiler::embedded::export(&result.ast).unwrap();
-    assert_eq!(c_files.iter().find(|(n, _)| n == "battery_charger.c").unwrap().1, file("src/model/battery_charger.c"));
+    assert_eq!(c_files.iter().find(|(n, _)| n == "battery_charger.h").unwrap().1, file("src/model/battery_charger.h"));
+    assert!(file("src/model/battery_charger.c").contains("battery_charger_charger_hw_step(") && !c_files.iter().find(|(n, _)| n == "battery_charger.c").unwrap().1.contains("_hw_step("));
     // Deterministic.
     let again = zephyr::export(&result.ast, None, None).unwrap();
     assert_eq!(zephyr::key_files(&app), zephyr::key_files(&again));
@@ -316,4 +318,23 @@ fn pil_refuses_what_it_cannot_run() {
     let options = pil::Options { target: None, work: work("pil-none"), only: Some("TC-NOPE".to_string()) };
     let e = pil::run(&result.ast, &options).err().unwrap();
     assert!(e.contains("no test_case 'TC-NOPE' that executes"), "{e}");
+}
+
+/// The charger's machine is allocated to the programmable logic: the Zephyr
+/// application calls the block through its generated driver, and builds for
+/// the LiteX VexRiscv SoC (the emulated SoC has no such block, so it is
+/// built, not run: PIL runs the machine's software C).
+#[test]
+#[ignore = "needs west and the Zephyr SDK: run in tools/embedded/soc (CI job Embedded SoC)"]
+fn the_zephyr_application_calling_the_hardware_block_builds_for_the_soc() {
+    let dir = work("hw-app");
+    let app_dir = dir.join("app");
+    let out = Command::new(env!("CARGO_BIN_EXE_arclang")).arg("export").arg(example(CHARGER)).args(["-f", "zephyr", "-o"]).arg(&app_dir).output().unwrap();
+    assert!(out.status.success(), "{}", String::from_utf8_lossy(&out.stderr));
+    let c = std::fs::read_to_string(app_dir.join("src/model/battery_charger.c")).unwrap();
+    assert!(c.contains("battery_charger_charger_hw_step("), "the step calls the block");
+    let build = Command::new("west").args(["build", "-p", "auto", "-b", "litex_vexriscv", "-d"]).arg(dir.join("build")).arg(&app_dir).output().unwrap();
+    assert!(build.status.success(), "{}{}", String::from_utf8_lossy(&build.stdout), String::from_utf8_lossy(&build.stderr));
+    assert!(dir.join("build/zephyr/zephyr.elf").is_file());
+    let _ = std::fs::remove_dir_all(&dir);
 }
