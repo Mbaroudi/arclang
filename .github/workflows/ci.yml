@@ -88,6 +88,32 @@ jobs:
       - name: Run the FPGA tests, the GHDL runs and the synthesis included
         run: tools/embedded/fpga/run.sh cargo test --release --test embedded_fpga -- --include-ignored
 
+  # The processor and the logic together: a LiteX SoC (VexRiscv, Zephyr, the
+  # generated blocks) simulated cycle by cycle in Verilator, and the same SoC
+  # built into one bitstream for the ULX3S. The system image takes Zephyr
+  # from the SoC image and GHDL, Yosys and nextpnr from the FPGA image.
+  embedded-system:
+    name: Embedded system (LiteX SoC, Verilator, bitstream)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Four images, about 10 GB: room made from the runner's SDKs this job does not use.
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /usr/local/share/boost /opt/hostedtoolcache/CodeQL
+          df -h /
+
+      - name: Build the images
+        run: |
+          docker build -t arclang-embedded:1 tools/embedded
+          docker build -t arclang-embedded-soc:1 tools/embedded/soc
+          docker build -t arclang-embedded-fpga:1 tools/embedded/fpga
+          docker build -t arclang-embedded-system:1 tools/embedded/system
+
+      - name: Run the system tests, the simulated SoC and the bitstream included
+        run: tools/embedded/system/run.sh cargo test --release --test embedded_system -- --include-ignored
+
   examples:
     name: Compile all active examples (CLI)
     runs-on: ubuntu-latest
