@@ -208,6 +208,43 @@ fn the_register_map_names_every_input_and_output() {
     assert!(csv.contains("csr_register,power_window_window_ctrl,0x00000000,1,rw"), "{csv}");
 }
 
+// ---- the conversions of the driver ----------------------------------------------------
+
+#[test]
+fn the_driver_converts_with_integers_only_and_gives_the_words_of_the_floating_point_formula() {
+    // arc_fx_from / arc_fx_to read the IEEE 754 bits: no floating point on a
+    // processor without an FPU. Checked against floor(ldexp(v, f) + 0.5)
+    // (saturated) and ldexp(w, -f) on edge cases and random values.
+    let dir = work("conversions");
+    let harness = format!(
+        "#include <math.h>\n#include <stdbool.h>\n#include <stdint.h>\n#include <stdio.h>\n#include <string.h>\n{}\n\
+static int32_t reference(double v, int f) {{ double s; if (isnan(v)) return 0; s = floor(ldexp(v, f) + 0.5); if (s >= 2147483647.0) return INT32_MAX; if (s <= -2147483648.0) return INT32_MIN; return (int32_t)s; }}\n\
+static uint64_t state = 88172645463325252ULL;\nstatic uint64_t next(void) {{ state ^= state << 13; state ^= state >> 7; state ^= state << 17; return state; }}\n\
+int main(void) {{\n\
+  const double edges[] = {{0.0, -0.0, 0.5, -0.5, 1.5, -1.5, 2.5, -2.5, 54.6, -54.6, 1e-300, -1e-300, 4.9e-324, 1e300, -1e300, 2147483647.0, 2147483647.5, -2147483648.0, -2147483648.5, 1.0/0.0, -1.0/0.0, 0.0/0.0}};\n\
+  long bad = 0; long n = 0; int f; unsigned k;\n\
+  for (f = 0; f <= 40; f++) for (k = 0; k < sizeof edges / sizeof edges[0]; k++) {{ double v = ldexp(edges[k], -(f % 7)); n++; if (arc_fx_from(v, f) != reference(v, f)) {{ bad++; if (bad < 5) printf(\"from %.17g %d: %d %d\\n\", v, f, arc_fx_from(v, f), reference(v, f)); }} }}\n\
+  for (k = 0; k < 2000000U; k++) {{ uint64_t b = next(); double v; int32_t w; f = (int)(next() % 48U); b = (b & 0x800FFFFFFFFFFFFFULL) | ((uint64_t)(1023U - 40U + (unsigned)(next() % 80U)) << 52); memcpy(&v, &b, sizeof v);\n\
+    n++; if (arc_fx_from(v, f) != reference(v, f)) {{ bad++; if (bad < 5) printf(\"from %.17g %d: %d %d\\n\", v, f, arc_fx_from(v, f), reference(v, f)); }}\n\
+    w = (int32_t)next(); if (arc_fx_to(w, f) != ldexp((double)w, -f)) {{ bad++; if (bad < 5) printf(\"to %d %d\\n\", w, f); }} }}\n\
+  if (arc_fx_to(INT32_MIN, 0) != -2147483648.0 || arc_fx_to(0, 5) != 0.0) bad++;\n\
+  printf(\"%ld of %ld differ\\n\", bad, n); return bad != 0; }}\n",
+        fxc::CONVERSIONS
+    );
+    std::fs::write(dir.join("conversions.c"), harness).unwrap();
+    let cc = std::env::var("CC").unwrap_or_else(|_| "cc".to_string());
+    let built = Command::new(&cc).args(["-std=c99", "-O2", "-Wall", "-Wextra", "-Werror", "conversions.c", "-o", "conversions", "-lm"]).current_dir(&dir).output().unwrap();
+    assert!(built.status.success(), "{}", String::from_utf8_lossy(&built.stderr));
+    let ran = Command::new(dir.join("conversions")).output().unwrap();
+    assert!(ran.status.success(), "{}", String::from_utf8_lossy(&ran.stdout));
+    // And the driver itself calls no floating-point function.
+    let model = compile_file(&example(CHARGER));
+    let p = plan::plan(&model.ast).unwrap();
+    let fx = fixed::machine(&p.machines[0], 10_000).unwrap();
+    let driver = regmap::driver(&p, &p.machines[0], &fx, &regmap::map(&p, &p.machines[0], &fx));
+    assert!(!driver.contains("ldexp") && !driver.contains("floor(") && !driver.contains("<math.h>"), "{driver}");
+}
+
 // ---- narrow words ---------------------------------------------------------------------
 
 /// The charger with its voltages resolved to 1 mV and its current to 1 mA.

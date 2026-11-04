@@ -353,23 +353,103 @@ static int32_t arc_fx_narrow(int32_t word, int bits)
 
 /// The value of a word, and a value as a word, for the caller (the driver, a harness).
 pub const CONVERSIONS: &str = "/* A value as the word of a Q format of `frac` fraction bits (rounded to
-   nearest, ties toward plus infinity, saturated), and back. */
+   nearest, ties toward plus infinity, saturated; NaN gives 0), and back.
+   Integer arithmetic on the IEEE 754 bits only: no floating-point
+   operation, so a processor without an FPU pays no software floating
+   point; the same words as value times 2^frac rounded half up. */
 static inline int32_t arc_fx_from(double value, int frac)
 {
-    double scaled = floor(ldexp(value, frac) + 0.5);
+    uint64_t bits;
+    uint64_t m;
     int32_t r;
-    if (scaled >= 2147483647.0) {
-        r = INT32_MAX;
-    } else if (scaled <= -2147483648.0) {
-        r = INT32_MIN;
+    int e;
+    int s;
+    bool negative;
+    (void)memcpy(&bits, &value, sizeof bits);
+    negative = (bits >> 63) != 0U;
+    e = (int)((bits >> 52) & 0x7FFU);
+    m = bits & 0xFFFFFFFFFFFFFULL;
+    if (e == 0x7FF) {
+        /* infinity saturates; NaN is 0 */
+        r = (m != 0U) ? 0 : (negative ? INT32_MIN : INT32_MAX);
     } else {
-        r = (int32_t)scaled;
+        if (e == 0) {
+            e = 1; /* subnormal */
+        } else {
+            m |= 0x10000000000000ULL;
+        }
+        /* |value| * 2^frac = m * 2^s */
+        s = e - 1075 + frac;
+        if (m == 0U) {
+            r = 0;
+        } else if (s >= 0) {
+            r = negative ? INT32_MIN : INT32_MAX;
+            if ((s < 32) && (m <= ((uint64_t)0x80000000U >> s))) {
+                uint64_t w = m << s;
+                if (!negative && (w <= 0x7FFFFFFFU)) {
+                    r = (int32_t)w;
+                } else if (negative && (w <= 0x80000000U)) {
+                    r = (int32_t)(-(int64_t)w);
+                } else {
+                    /* saturated */
+                }
+            }
+        } else {
+            int k = -s;
+            uint64_t w;
+            if (k >= 64) {
+                w = 0U;
+            } else if (negative) {
+                /* ceil(m / 2^k - 1/2): ties toward plus infinity */
+                w = (m + ((uint64_t)1 << (k - 1)) - 1U) >> k;
+            } else {
+                w = (m + ((uint64_t)1 << (k - 1))) >> k;
+            }
+            if (!negative) {
+                r = (w > 0x7FFFFFFFU) ? INT32_MAX : (int32_t)w;
+            } else {
+                r = (w > 0x80000000U) ? INT32_MIN : (int32_t)(-(int64_t)w);
+            }
+        }
     }
     return r;
 }
 
 static inline double arc_fx_to(int32_t word, int frac)
 {
-    return ldexp((double)word, -frac);
+    double value = 0.0;
+    if (word != 0) {
+        /* 32-bit arithmetic only (a 64-bit shift is a library call on a
+           32-bit processor): the leading bit by halving, then the two
+           halves of the binary64. */
+        uint32_t a = (word < 0) ? (0U - (uint32_t)word) : (uint32_t)word;
+        uint32_t hi;
+        uint32_t lo;
+        uint64_t bits;
+        int n = 0;
+        int t;
+        if ((a >> 16) != 0U) { n += 16; }
+        if ((a >> (n + 8)) != 0U) { n += 8; }
+        if ((a >> (n + 4)) != 0U) { n += 4; }
+        if ((a >> (n + 2)) != 0U) { n += 2; }
+        if ((a >> (n + 1)) != 0U) { n += 1; }
+        /* a = 1.f * 2^n: the mantissa is a shifted left by t = 52 - n, the
+           leading bit dropped */
+        t = 52 - n;
+        if (t >= 32) {
+            hi = (a << (t - 32)) & 0xFFFFFU;
+            lo = 0U;
+        } else {
+            hi = (a >> (32 - t)) & 0xFFFFFU;
+            lo = a << t;
+        }
+        hi |= (uint32_t)(n - frac + 1023) << 20;
+        if (word < 0) {
+            hi |= 0x80000000U;
+        }
+        bits = ((uint64_t)hi << 32) | (uint64_t)lo;
+        (void)memcpy(&value, &bits, sizeof value);
+    }
+    return value;
 }
 ";
