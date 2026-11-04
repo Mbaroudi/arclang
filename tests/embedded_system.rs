@@ -50,7 +50,7 @@ fn the_soc_has_each_block_where_its_driver_looks_for_it() {
     let board = system::board_for(&allocations, None).unwrap();
     assert_eq!(board.name, "ulx3s", "the first board of the part");
     assert_eq!(system::board_for(&allocations, Some("colorlight_i5")).unwrap().loader, "colorlight-i5", "the same part on another board");
-    let config: serde_json::Value = serde_json::from_str(&system::soc_config(&p, &allocations, &board, 10_000, &dir, 4327).unwrap()).unwrap();
+    let config: serde_json::Value = serde_json::from_str(&system::soc_config(&p, &allocations, &board, 25e6, 10_000, &dir, 4327).unwrap()).unwrap();
     assert_eq!((config["board"].as_str(), config["device"].as_str(), config["clock_hz"].as_u64()), (Some("ulx3s"), Some("LFE5U-25F-6BG381C"), Some(25_000_000)));
     assert_eq!(config["ram_bytes"].as_u64(), Some(system::RAM_BYTES as u64));
     let block = &config["blocks"][0];
@@ -86,6 +86,28 @@ fn the_soc_refuses_what_it_cannot_build() {
     assert!(system::run(&charger.ast, &evn).unwrap_err().contains("board 'ecp5_evn' carries LFE5UM5G-85F-8BG381C, not node 'Charger fabric''s LFE5U-25F-6BG381C"));
 }
 
+/// The charger with its processor at 25 MHz and its block at 20 MHz.
+fn two_clocks() -> String {
+    let text = std::fs::read_to_string(example(CHARGER)).unwrap().replace("processor: \"VexRiscv (LiteX)\"", "processor: \"VexRiscv (LiteX)\"\n        clock: 25 MHz");
+    let at = text.find("node \"Charger fabric\"").unwrap();
+    let clock = at + text[at..].find("clock: 25 MHz").unwrap();
+    format!("{}clock: 20 MHz{}", &text[..clock], &text[clock + "clock: 25 MHz".len()..])
+}
+
+#[test]
+fn a_block_on_its_own_clock_is_a_clock_domain_of_the_soc() {
+    let model = Compiler::new(CompilerConfig::default()).compile_string(&two_clocks()).unwrap();
+    let p = plan::plan(&model.ast).unwrap();
+    let allocations = alloc::allocations(&model.ast, &p).unwrap();
+    assert_eq!(alloc::processor_clock(&model.ast).unwrap(), Some(25e6));
+    let board = system::board_for(&allocations, None).unwrap();
+    let config: serde_json::Value = serde_json::from_str(&system::soc_config(&p, &allocations, &board, 25e6, 10_000, &work("clocks"), 4327).unwrap()).unwrap();
+    assert_eq!((config["clock_hz"].as_u64(), config["blocks"][0]["clock_hz"].as_u64()), (Some(25_000_000), Some(20_000_000)));
+    for wanted in ["wishbone.ClockDomainCrossing(bus, port, cd_from=\"sys\", cd_to=domain)", "pll.create_clkout(cd, hz)", "sim.add_clocker(\"clk_\" + name, freq_hz=hz)"] {
+        assert!(system::SOC_SCRIPT.contains(wanted), "{wanted}");
+    }
+}
+
 // ---- in the system image --------------------------------------------------------------
 
 fn assert_passes(outcomes: &[hdl::Outcome]) {
@@ -113,6 +135,14 @@ fn the_window_runs_in_the_simulated_soc_bit_exact_with_the_fixed_point_c() {
     let model = compile_file(&example(WINDOW));
     let report = system::run(&model.ast, &options("window")).unwrap();
     assert_eq!(report.outcomes.len(), 2);
+    assert_passes(&report.outcomes);
+}
+
+#[test]
+#[ignore = "needs LiteX, Verilator, Zephyr and GHDL of tools/embedded/system: run in its image (CI job Embedded system)"]
+fn a_block_on_its_own_clock_runs_bit_exact_through_the_clock_domain_crossing() {
+    let model = Compiler::new(CompilerConfig::default()).compile_string(&two_clocks()).unwrap();
+    let report = system::run(&model.ast, &system::Options { only: Some("TC-CHG-002".into()), ..options("two-clocks") }).unwrap();
     assert_passes(&report.outcomes);
 }
 

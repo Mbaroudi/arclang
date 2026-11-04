@@ -115,6 +115,17 @@ fn clock(node: &PhysicalNode) -> Result<f64, String> {
     }
 }
 
+/// The clock of the processor the logic sits beside: the `clock:` of the
+/// first node that has a `processor:` (and is not programmable logic).
+pub fn processor_clock(ast: &Model) -> Result<Option<f64>, String> {
+    for pa in &ast.physical_architecture {
+        if let Some(node) = pa.nodes.iter().find(|n| !is_logic(n) && n.attributes.contains_key("processor") && n.attributes.contains_key("clock")) {
+            return clock(node).map(Some);
+        }
+    }
+    Ok(None)
+}
+
 /// The machines allocated to programmable logic, with their node.
 pub fn allocations(ast: &Model, plan: &Plan) -> Result<Vec<Allocation>, String> {
     let mut out: Vec<Allocation> = Vec::new();

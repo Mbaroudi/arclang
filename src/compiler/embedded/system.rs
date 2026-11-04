@@ -116,6 +116,8 @@ pub struct Bitstream {
     pub clock_mhz: f64,
     pub fmax_mhz: f64,
     pub timing_met: bool,
+    /// Every clock: its name in nextpnr, its Fmax, its target (MHz).
+    pub clocks: Vec<(String, f64, f64)>,
     pub luts: u64,
     pub ffs: u64,
     pub dsps: u64,
@@ -167,6 +169,7 @@ struct Builds<'a> {
     plan: &'a Plan,
     allocations: &'a [Allocation],
     board: Board,
+    sys_hz: f64,
     work: PathBuf,
     simulate: bool,
     built: HashMap<u64, Result<Built, String>>,
@@ -175,7 +178,7 @@ struct Builds<'a> {
 impl Builds<'_> {
     fn get(&mut self, period_us: u64) -> Result<&Built, String> {
         if !self.built.contains_key(&period_us) {
-            let built = prepare(self.plan, self.allocations, &self.board, period_us, &self.work.join(format!("soc-{period_us}us")), self.simulate);
+            let built = prepare(self.plan, self.allocations, &self.board, self.sys_hz, period_us, &self.work.join(format!("soc-{period_us}us")), self.simulate);
             self.built.insert(period_us, built);
         }
         self.built[&period_us].as_ref().map_err(|e| e.clone())
@@ -190,7 +193,7 @@ fn free_port() -> Result<u16, String> {
 /// The JSON the SoC script reads: the model, the board and the part, the
 /// clock, the RAM and its image, the console's TCP port, every block (its
 /// Verilog, its address, its address bits).
-pub fn soc_config(plan: &Plan, allocations: &[Allocation], board: &Board, period_us: u64, dir: &Path, port: u16) -> Result<String, String> {
+pub fn soc_config(plan: &Plan, allocations: &[Allocation], board: &Board, sys_hz: f64, period_us: u64, dir: &Path, port: u16) -> Result<String, String> {
     let first = allocations.first().ok_or("no state_machine is allocated to programmable logic: the SoC would have no block")?;
     let mut blocks = Vec::new();
     for (k, a) in allocations.iter().enumerate() {
@@ -203,13 +206,14 @@ pub fn soc_config(plan: &Plan, allocations: &[Allocation], board: &Board, period
             "base": super::zephyr::hw_base(k),
             "size": 0x1000,
             "address_bits": map.address_bits(),
+            "clock_hz": a.clock_hz as u64,
         }));
     }
     let config = serde_json::json!({
         "name": plan.ident,
         "board": board.name,
         "device": first.part,
-        "clock_hz": first.clock_hz as u64,
+        "clock_hz": sys_hz as u64,
         "ram_bytes": RAM_BYTES,
         "image": dir.join("build").join("zephyr").join("zephyr.bin").display().to_string(),
         "tcp_port": port,
@@ -221,12 +225,12 @@ pub fn soc_config(plan: &Plan, allocations: &[Allocation], board: &Board, period
 
 /// The application, the blocks' Verilog, the SoC's map, the Zephyr image
 /// and (`simulate`) the simulator, for one period.
-fn prepare(plan: &Plan, allocations: &[Allocation], board: &Board, period_us: u64, dir: &Path, simulate: bool) -> Result<Built, String> {
+fn prepare(plan: &Plan, allocations: &[Allocation], board: &Board, sys_hz: f64, period_us: u64, dir: &Path, simulate: bool) -> Result<Built, String> {
     std::fs::create_dir_all(dir).map_err(|e| format!("cannot make {}: {e}", dir.display()))?;
     let package = super::target::find(PACKAGE)?;
-    // Every allocated machine on one clock: the SoC has one.
-    if let Some(a) = allocations.iter().find(|a| a.clock_hz != allocations[0].clock_hz || a.part != allocations[0].part) {
-        return Err(format!("node '{}' ({}, {} MHz) and node '{}' ({}, {} MHz): one SoC has one part and one clock", allocations[0].node, allocations[0].part, allocations[0].clock_hz / 1e6, a.node, a.part, a.clock_hz / 1e6));
+    // One SoC is one FPGA: every block on the same part (each on its own clock).
+    if let Some(a) = allocations.iter().find(|a| a.part != allocations[0].part) {
+        return Err(format!("node '{}' ({}) and node '{}' ({}): one SoC is one FPGA, one part; two parts are two chips", allocations[0].node, allocations[0].part, a.node, a.part));
     }
     let app = super::zephyr::hw_app(plan, allocations, None, &package, period_us)?;
     let app_dir = dir.join("app");
@@ -248,7 +252,7 @@ fn prepare(plan: &Plan, allocations: &[Allocation], board: &Board, period_us: u6
         hdl::write(&hw, &format!("{ent}_wb.v"), &verilog_of(&hw, &format!("{ent}_wb"))?)?;
     }
     let port = free_port()?;
-    hdl::write(dir, "soc.json", &soc_config(plan, allocations, board, period_us, dir, port)?)?;
+    hdl::write(dir, "soc.json", &soc_config(plan, allocations, board, sys_hz, period_us, dir, port)?)?;
     hdl::write(dir, "soc.py", SOC_SCRIPT)?;
     let python = litex_python();
     run_step(&[&python, "soc.py", "soc.json", "csr"], dir, "LiteX (the SoC's map)")?;
@@ -368,7 +372,7 @@ fn run_case_inner(test: &TestCase, plan: &Plan, bindings: &[super::binding::Bind
     let worst = rows.iter().map(|row| row.time).max().unwrap_or(0);
     let table = Table { names, period_us: r.case.step_us, rows: rows.into_iter().map(|row| row.values).collect(), units: Default::default() };
     let device_raw = words(plan, r.machine, &r.fx, &table);
-    let clock = builds.allocations.first().map(|a| a.clock_hz / 1e6).unwrap_or(0.0);
+    let clock = builds.sys_hz / 1e6;
     let on = if options.port.is_some() { "on the board" } else { "in the simulated SoC" };
     outcome.cycles = Some(format!("step() took at most {:.1} us {on} at {clock} MHz (the driver, the bus and the block)", worst as f64 / 1000.0));
     hdl::conclude(&r, plan, &device_raw, if options.port.is_some() { "the board" } else { "the SoC" }, texts, outcome);
@@ -388,7 +392,8 @@ pub fn run(ast: &Model, options: &Options) -> Result<Report, String> {
     std::fs::create_dir_all(&options.work).map_err(|e| format!("cannot make {}: {e}", options.work.display()))?;
     let work = options.work.canonicalize().unwrap_or_else(|_| options.work.clone());
     let options = Options { work: work.clone(), ..options.clone() };
-    let mut builds = Builds { plan: &plan, allocations: &allocations, board, work, simulate: options.simulate && options.port.is_none(), built: HashMap::new() };
+        let sys_hz = super::alloc::processor_clock(ast)?.unwrap_or(allocations[0].clock_hz);
+    let mut builds = Builds { plan: &plan, allocations: &allocations, board, sys_hz, work, simulate: options.simulate && options.port.is_none(), built: HashMap::new() };
     let mut outcomes = Vec::new();
     if options.simulate || options.port.is_some() {
         let selected = hdl::selected(ast, &plan, &allocations, &bindings, options.only.as_deref());
@@ -427,21 +432,20 @@ fn bitstream(plan: &Plan, allocations: &[Allocation], dir: &Path, image: &Path, 
             .next_back()
             .unwrap_or(0)
     };
-    // "Max frequency for clock 'sys_clk': 41.23 MHz (PASS at 25.00 MHz)"
-    let fmax = log
-        .lines()
-        .filter(|l| l.contains("Max frequency for clock"))
-        .filter_map(|l| l.split_once("': ").and_then(|(_, r)| r.split_whitespace().next()).and_then(|n| n.parse::<f64>().ok()))
-        .next_back()
-        .ok_or("nextpnr reported no Fmax")?;
+    let clocks = clocks_of(&log);
+    if clocks.is_empty() {
+        return Err("nextpnr reported no Fmax".to_string());
+    }
     let a = &allocations[0];
-    let mhz = a.clock_hz / 1e6;
+    // The clock the summary names: the slowest margin.
+    let worst = clocks.iter().min_by(|x, y| (x.1 / x.2).total_cmp(&(y.1 / y.2))).expect("one");
     Ok(Bitstream {
         board: board.name.to_string(),
         device: a.part.clone(),
-        clock_mhz: mhz,
-        fmax_mhz: fmax,
-        timing_met: fmax >= mhz,
+        clock_mhz: worst.2,
+        fmax_mhz: worst.1,
+        timing_met: clocks.iter().all(|c| c.1 >= c.2),
+        clocks: clocks.clone(),
         luts: used("TRELLIS_COMB"),
         ffs: used("TRELLIS_FF"),
         dsps: used("MULT18X18D"),
@@ -451,6 +455,25 @@ fn bitstream(plan: &Plan, allocations: &[Allocation], dir: &Path, image: &Path, 
         flash: format!("openFPGALoader -b {} {}", board.loader, bit.display()),
         bitstream: bit.display().to_string(),
     })
+}
+
+/// Each clock nextpnr timed after routing: its name, its Fmax, its target
+/// (MHz). "Max frequency for clock 'sys_clk': 41.23 MHz (PASS at 25.00
+/// MHz)", printed after placement and again after routing: the last wins.
+pub fn clocks_of(log: &str) -> Vec<(String, f64, f64)> {
+    let mut out: Vec<(String, f64, f64)> = Vec::new();
+    for line in log.lines().filter(|l| l.contains("Max frequency for clock")) {
+        // The name is quoted after spaces that align the lines.
+        let Some((_, rest)) = line.split_once("for clock").and_then(|(a, r)| r.split_once('\'').map(|(_, n)| (a, n))) else { continue };
+        let Some((name, rest)) = rest.split_once("': ") else { continue };
+        let fmax = rest.split_whitespace().next().and_then(|n| n.parse::<f64>().ok());
+        let target = rest.split_once(" at ").and_then(|(_, t)| t.split_whitespace().next()).and_then(|n| n.parse::<f64>().ok());
+        if let (Some(fmax), Some(target)) = (fmax, target) {
+            out.retain(|c| c.0 != name);
+            out.push((name.to_string(), fmax, target));
+        }
+    }
+    out
 }
 
 /// What a cached SoC verdict depends on: what the HDL verdict does, the
@@ -473,6 +496,8 @@ pub fn cache_key(ast: &Model, test: &TestCase, tools: &str) -> Result<String, St
     field("hdl", hdl::cache_key(ast, test, tools)?.as_bytes());
     field("soc", SOC_SCRIPT.as_bytes());
     field("ram", &RAM_BYTES.to_le_bytes());
+    let sys_hz = super::alloc::processor_clock(ast)?.unwrap_or(allocations.first().map(|a| a.clock_hz).unwrap_or(0.0));
+    field("clocks", format!("{sys_hz} {:?}", allocations.iter().map(|a| (a.clock_hz, a.part.clone(), a.board.clone())).collect::<Vec<_>>()).as_bytes());
     for (name, text, _) in &app.files {
         field("file", name.as_bytes());
         field("text", text.as_bytes());
@@ -483,4 +508,15 @@ pub fn cache_key(ast: &Model, test: &TestCase, tools: &str) -> Result<String, St
 /// Keep each case's verdict as `<case>.soc.json` in the model's cache.
 pub fn cache(ast: &Model, model_path: &Path, outcomes: &[Outcome]) -> Result<Vec<PathBuf>, String> {
     hdl::cache_kind(ast, model_path, outcomes, "soc", |test, tools| cache_key(ast, test, tools))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn every_clock_nextpnr_timed_is_read_after_routing() {
+        let log = "Info: Max frequency for clock      '$glbnet$block.clk': 37.97 MHz (PASS at 20.00 MHz)\nInfo: Max frequency for clock '$glbnet$cpu.clk': 55.06 MHz (PASS at 25.00 MHz)\nInfo: Max frequency for clock      '$glbnet$block.clk': 38.49 MHz (PASS at 20.00 MHz)\nInfo: Max frequency for clock '$glbnet$cpu.clk': 18.00 MHz (FAIL at 25.00 MHz)\n";
+        assert_eq!(clocks_of(log), vec![("$glbnet$block.clk".to_string(), 38.49, 20.0), ("$glbnet$cpu.clk".to_string(), 18.0, 25.0)]);
+    }
 }

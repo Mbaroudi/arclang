@@ -2095,7 +2095,9 @@ impl CliRunner {
                 Some(Ok(b)) => {
                     println!("\n  {} bitstream for {} ({}): VexRiscv, {} KiB of RAM holding the Zephyr application ({} bytes), {}", if b.timing_met { "✓" } else { "✗ TIMING NOT MET:" }, b.board, b.device, system::RAM_BYTES / 1024, b.image_bytes, b.blocks.join(", "));
                     println!("    {} LUT4, {} flip-flops, {} DSP (MULT18X18D), {} block RAM (DP16KD)", b.luts, b.ffs, b.dsps, b.brams);
-                    println!("    Fmax {:.2} MHz for a clock of {} MHz: {}", b.fmax_mhz, b.clock_mhz, if b.timing_met { "met" } else { "NOT met" });
+                    for (name, fmax, target) in &b.clocks {
+                        println!("    clock {name}: Fmax {fmax:.2} MHz for {target:.2} MHz: {}", if fmax >= target { "met" } else { "NOT met" });
+                    }
                     println!("    bitstream {}", b.bitstream);
                     println!("    to the board: {}", b.flash);
                 }

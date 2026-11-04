@@ -11,7 +11,12 @@
 #   python soc.py soc.json board    # the bitstream (Yosys, nextpnr-ecp5, ecppack)
 #
 # soc.json: {"name", "board", "device", "clock_hz", "ram_bytes", "image",
-#            "tcp_port", "seed", "blocks": [{"name", "verilog", "base", "size", "address_bits"}]}
+#            "tcp_port", "seed",
+#            "blocks": [{"name", "verilog", "base", "size", "address_bits", "clock_hz"}]}
+#
+# clock_hz is the bus's (the processor's); a block on another clock is in a
+# clock domain of its own, f<hz>, reached through a Wishbone clock domain
+# crossing.
 
 import json
 import os
@@ -21,6 +26,7 @@ from migen import ClockDomain, ClockSignal, Instance, ResetSignal, Signal
 
 from litex.build.generic_platform import Pins, Subsignal
 from litex.build.io import CRG
+from migen.genlib.resetsync import AsyncResetSynchronizer
 from litex.gen import LiteXModule
 from litex.soc.cores.clock import ECP5PLL
 from litex.soc.integration.builder import Builder
@@ -32,14 +38,38 @@ from litex.soc.interconnect import wishbone
 MAIN_RAM = 0x40000000
 
 
-class BoardCRG(LiteXModule):
-    """The board's oscillator; a PLL when the node's clock differs."""
+def domains(config):
+    """The blocks' clocks other than the bus's: {domain name: Hz}."""
+    return {"f%d" % b["clock_hz"]: b["clock_hz"] for b in config["blocks"] if b["clock_hz"] != config["clock_hz"]}
 
-    def __init__(self, platform, clock_hz):
+
+def domain_of(config, block):
+    return "sys" if block["clock_hz"] == config["clock_hz"] else "f%d" % block["clock_hz"]
+
+
+class SimCRG(LiteXModule):
+    """As litex_sim: sys from its clock, LiteX's power-on reset; each other
+    domain from a clock of its own, reset with sys."""
+
+    def __init__(self, platform, config):
+        self.crg = CRG(platform.request("sys_clk"))
+        for name in domains(config):
+            cd = ClockDomain(name)
+            setattr(self, "cd_" + name, cd)
+            self.comb += cd.clk.eq(platform.request("clk_" + name))
+            self.specials += AsyncResetSynchronizer(cd, ResetSignal("sys"))
+
+
+class BoardCRG(LiteXModule):
+    """The board's oscillator; a PLL when a clock differs from it."""
+
+    def __init__(self, platform, config):
+        clock_hz = config["clock_hz"]
         self.cd_sys = ClockDomain()
+        others = domains(config)
         osc = platform.request(platform.default_clk_name)
         osc_hz = round(1e9 / platform.default_clk_period)
-        if clock_hz == osc_hz:
+        if clock_hz == osc_hz and not others:
             self.comb += self.cd_sys.clk.eq(osc)
             # Held in reset for the first cycles after configuration.
             count = Signal(4, reset=15)
@@ -49,6 +79,10 @@ class BoardCRG(LiteXModule):
             self.pll = pll = ECP5PLL()
             pll.register_clkin(osc, osc_hz)
             pll.create_clkout(self.cd_sys, clock_hz)
+            for name, hz in others.items():
+                cd = ClockDomain(name)
+                setattr(self, "cd_" + name, cd)
+                pll.create_clkout(cd, hz)
 
 
 class ArcLangSoC(SoCCore):
@@ -74,34 +108,39 @@ class ArcLangSoC(SoCCore):
         )
         self.crg = crg
         for block in config["blocks"]:
-            self.add_block(platform, block)
+            self.add_block(platform, block, domain_of(config, block))
 
-    def add_block(self, platform, block):
+    def add_block(self, platform, block, domain):
         bus = wishbone.Interface(data_width=32, address_width=32, addressing="word")
+        port = bus
+        if domain != "sys":
+            # The block's side of a clock domain crossing.
+            port = wishbone.Interface(data_width=32, address_width=32, addressing="word")
+            self.submodules += wishbone.ClockDomainCrossing(bus, port, cd_from="sys", cd_to=domain)
         bits = block["address_bits"]
         self.specials += Instance(
             block["name"] + "_wb",
-            i_clk=ClockSignal("sys"),
-            i_rst=ResetSignal("sys"),
-            i_wb_adr=bus.adr[:bits],
-            i_wb_dat_w=bus.dat_w,
-            o_wb_dat_r=bus.dat_r,
-            i_wb_sel=bus.sel,
-            i_wb_cyc=bus.cyc,
-            i_wb_stb=bus.stb,
-            i_wb_we=bus.we,
-            o_wb_ack=bus.ack,
-            o_wb_err=bus.err,
+            i_clk=ClockSignal(domain),
+            i_rst=ResetSignal(domain),
+            i_wb_adr=port.adr[:bits],
+            i_wb_dat_w=port.dat_w,
+            o_wb_dat_r=port.dat_r,
+            i_wb_sel=port.sel,
+            i_wb_cyc=port.cyc,
+            i_wb_stb=port.stb,
+            i_wb_we=port.we,
+            o_wb_ack=port.ack,
+            o_wb_err=port.err,
             o_irq=Signal(name=block["name"] + "_irq"),
         )
         platform.add_source(block["verilog"])
         self.bus.add_slave(block["name"], bus, SoCRegion(origin=block["base"], size=block["size"], cached=False))
 
 
-def sim_platform():
+def sim_platform(config):
     from litex.build.sim import SimPlatform
 
-    io = [
+    io = [("clk_" + name, 0, Pins(1)) for name in domains(config)] + [
         ("sys_clk", 0, Pins(1)),
         ("serial", 0,
             Subsignal("source_valid", Pins(1)),
@@ -140,12 +179,11 @@ def main():
         config = json.load(f)
     out = os.path.dirname(os.path.abspath(config_path))
     if what in ("csr", "sim"):
-        platform = sim_platform()
-        # As litex_sim: the clock alone; the reset is LiteX's power-on reset.
-        crg = CRG(platform.request("sys_clk"))
+        platform = sim_platform(config)
+        crg = SimCRG(platform, config)
     elif what == "board":
         platform = board_platform(config)
-        crg = BoardCRG(platform, config["clock_hz"])
+        crg = BoardCRG(platform, config)
     else:
         sys.exit("arclang soc: csr, sim or board, not '%s'" % what)
     soc = ArcLangSoC(platform, config, crg, with_image=what != "csr")
@@ -163,6 +201,8 @@ def main():
 
         sim = SimConfig()
         sim.add_clocker("sys_clk", freq_hz=config["clock_hz"])
+        for name, hz in domains(config).items():
+            sim.add_clocker("clk_" + name, freq_hz=hz)
         sim.add_module("serial2tcp", "serial", args={"port": config["tcp_port"]})
         builder.build(sim_config=sim, run=False, opt_level="O2", threads=1, interactive=False)
         # Compiled here, run by the bench (gateware/obj_dir/Vsim, from gateware/).
