@@ -1,0 +1,364 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xmi:XMI xmi:version="2.0" xmlns:xmi="http://www.omg.org/XMI" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:description="http://www.eclipse.org/sirius/description/1.1.0" xmlns:description_1="http://www.eclipse.org/sirius/diagram/description/1.1.0" xmlns:diagram="http://www.eclipse.org/sirius/diagram/1.1.0" xmlns:filter="http://www.eclipse.org/sirius/diagram/description/filter/1.1.0" xmlns:notation="http://www.eclipse.org/gmf/runtime/1.0.3/notation" xmlns:style="http://www.eclipse.org/sirius/diagram/description/style/1.1.0" xmlns:viewpoint="http://www.eclipse.org/sirius/1.1.0" xmlns:libraries="http://www.polarsys.org/capella/common/libraries/7.0.0" xmlns:org.polarsys.capella.core.data.capellacommon="http://www.polarsys.org/capella/core/common/7.0.0" xmlns:org.polarsys.capella.core.data.capellacore="http://www.polarsys.org/capella/core/core/7.0.0" xmlns:org.polarsys.capella.core.data.capellamodeller="http://www.polarsys.org/capella/core/modeller/7.0.0" xmlns:org.polarsys.capella.core.data.cs="http://www.polarsys.org/capella/core/cs/7.0.0" xmlns:org.polarsys.capella.core.data.ctx="http://www.polarsys.org/capella/core/ctx/7.0.0" xmlns:org.polarsys.capella.core.data.epbs="http://www.polarsys.org/capella/core/epbs/7.0.0" xmlns:org.polarsys.capella.core.data.fa="http://www.polarsys.org/capella/core/fa/7.0.0" xmlns:org.polarsys.capella.core.data.information="http://www.polarsys.org/capella/core/information/7.0.0" xmlns:org.polarsys.capella.core.data.information.datatype="http://www.polarsys.org/capella/core/information/datatype/7.0.0" xmlns:org.polarsys.capella.core.data.information.datavalue="http://www.polarsys.org/capella/core/information/datavalue/7.0.0" xmlns:org.polarsys.capella.core.data.interaction="http://www.polarsys.org/capella/core/interaction/7.0.0" xmlns:org.polarsys.capella.core.data.la="http://www.polarsys.org/capella/core/la/7.0.0" xmlns:org.polarsys.capella.core.data.oa="http://www.polarsys.org/capella/core/oa/7.0.0" xmlns:org.polarsys.capella.core.data.pa="http://www.polarsys.org/capella/core/pa/7.0.0" xmlns:org.polarsys.capella.core.data.pa.deployment="http://www.polarsys.org/capella/core/pa/deployment/7.0.0">
+  <viewpoint:DAnalysis uid="_fd1fb048-0ef6-5b7e-8b42-659cf1568446" selectedViews="_5a75f82e-5cf2-5abc-8140-1dea6971c792 _ad1258a1-94e5-55f9-b705-26b532180166 _de1e4625-ac46-574d-a91a-0fa3e1d09ee3 _ed67a530-ab1f-5e1a-8ce8-8e73af078663 _96c4c083-7130-5b0e-b947-cc6cd2272bc2 _4bc07346-bba0-55e0-94b1-c009d5391e87 _182dea45-814a-5686-a385-bc5aaca813c7" version="15.4.1.202403191723">
+    <semanticResources>drone.afm</semanticResources>
+    <semanticResources>drone.capella</semanticResources>
+    <ownedViews xmi:type="viewpoint:DView" uid="_5a75f82e-5cf2-5abc-8140-1dea6971c792">
+      <viewpoint xmi:type="description:Viewpoint" href="platform:/plugin/org.polarsys.kitalpha.ad.integration.sirius/description/ad.odesign#//@ownedViewpoints[name='ad']"/>
+    </ownedViews>
+    <ownedViews xmi:type="viewpoint:DView" uid="_ad1258a1-94e5-55f9-b705-26b532180166">
+      <viewpoint xmi:type="description:Viewpoint" href="platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/oa.odesign#//@ownedViewpoints[name='Operational%20Analysis']"/>
+    </ownedViews>
+    <ownedViews xmi:type="viewpoint:DView" uid="_de1e4625-ac46-574d-a91a-0fa3e1d09ee3">
+      <viewpoint xmi:type="description:Viewpoint" href="platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/context.odesign#//@ownedViewpoints[name='System%20Analysis']"/>
+    </ownedViews>
+    <ownedViews xmi:type="viewpoint:DView" uid="_ed67a530-ab1f-5e1a-8ce8-8e73af078663">
+      <ownedRepresentationDescriptors xmi:type="viewpoint:DRepresentationDescriptor" uid="_c1a34a51-bbd1-52d2-8bbf-ac6c5322c488-descriptor" name="[LAB] Drone" repPath="#_c1a34a51-bbd1-52d2-8bbf-ac6c5322c488">
+        <description xmi:type="description_1:DiagramDescription" href="platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/logical.odesign#//@ownedViewpoints[name='Logical%20Architecture']/@ownedRepresentations[name='Logical%20Architecture%20Blank']"/>
+        <target xmi:type="org.polarsys.capella.core.data.la:LogicalComponentPkg" href="drone.capella#c254dd87-3130-5a0e-9332-f916f21a0b65"/>
+      </ownedRepresentationDescriptors>
+      <viewpoint xmi:type="description:Viewpoint" href="platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/logical.odesign#//@ownedViewpoints[name='Logical%20Architecture']"/>
+    </ownedViews>
+    <ownedViews xmi:type="viewpoint:DView" uid="_96c4c083-7130-5b0e-b947-cc6cd2272bc2">
+      <ownedRepresentationDescriptors xmi:type="viewpoint:DRepresentationDescriptor" uid="_de691457-47fd-5a1c-b427-abd827384638-descriptor" name="[PAB] Drone hardware" repPath="#_de691457-47fd-5a1c-b427-abd827384638">
+        <description xmi:type="description_1:DiagramDescription" href="platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/physical.odesign#//@ownedViewpoints[name='Physical%20Architecture']/@ownedRepresentations[name='Physical%20Architecture%20Blank']"/>
+        <target xmi:type="org.polarsys.capella.core.data.pa:PhysicalComponentPkg" href="drone.capella#fd64f577-267e-51f2-83e0-058e98bea1b3"/>
+      </ownedRepresentationDescriptors>
+      <viewpoint xmi:type="description:Viewpoint" href="platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/physical.odesign#//@ownedViewpoints[name='Physical%20Architecture']"/>
+    </ownedViews>
+    <ownedViews xmi:type="viewpoint:DView" uid="_4bc07346-bba0-55e0-94b1-c009d5391e87">
+      <viewpoint xmi:type="description:Viewpoint" href="platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/EPBS.odesign#//@ownedViewpoints[name='EPBS%20Architecture']"/>
+    </ownedViews>
+    <ownedViews xmi:type="viewpoint:DView" uid="_182dea45-814a-5686-a385-bc5aaca813c7">
+      <viewpoint xmi:type="description:Viewpoint" href="platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/common.odesign#//@ownedViewpoints[name='Common']"/>
+    </ownedViews>
+  </viewpoint:DAnalysis>
+  <diagram:DSemanticDiagram uid="_de691457-47fd-5a1c-b427-abd827384638">
+    <ownedDiagramElements xmi:type="diagram:DNodeContainer" uid="_de691457-47fd-5a1c-b427-abd827384638-6f3dafed-655e-5e57-998c-009b36cd15a1" name="Battery">
+      <target xmi:type="org.polarsys.capella.core.data.cs:Part" href="drone.capella#ee445081-6682-5c47-a3af-b15bf3fa5701"/>
+      <semanticElements xmi:type="org.polarsys.capella.core.data.cs:Part" href="drone.capella#ee445081-6682-5c47-a3af-b15bf3fa5701"/>
+      <semanticElements xmi:type="org.polarsys.capella.core.data.pa:PhysicalComponent" href="drone.capella#PN-BATT"/>
+      <ownedStyle xmi:type="diagram:FlatContainerStyle" uid="_de691457-47fd-5a1c-b427-abd827384638-6f3dafed-655e-5e57-998c-009b36cd15a1-style">
+        <description xmi:type="style:FlatContainerStyleDescription" href="platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/physical.odesign#//@ownedViewpoints[name='Physical%20Architecture']/@ownedRepresentations[name='Physical%20Architecture%20Blank']/@defaultLayer/@containerMappings[name='PAB_PC']/@conditionnalStyles.2/@style"/>
+      </ownedStyle>
+      <actualMapping xmi:type="description_1:ContainerMapping" href="platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/physical.odesign#//@ownedViewpoints[name='Physical%20Architecture']/@ownedRepresentations[name='Physical%20Architecture%20Blank']/@defaultLayer/@containerMappings[name='PAB_PC']"/>
+      <ownedBorderedNodes xmi:type="diagram:DNode" uid="_de691457-47fd-5a1c-b427-abd827384638-9b1f8dd4-6ad9-554f-ba74-2b47dff88f8d" name="p">
+        <target xmi:type="org.polarsys.capella.core.data.cs:PhysicalPort" href="drone.capella#95d54554-93fe-5553-b86b-042253408b65"/>
+        <semanticElements xmi:type="org.polarsys.capella.core.data.cs:PhysicalPort" href="drone.capella#95d54554-93fe-5553-b86b-042253408b65"/>
+        <ownedStyle xmi:type="diagram:Square" uid="_de691457-47fd-5a1c-b427-abd827384638-9b1f8dd4-6ad9-554f-ba74-2b47dff88f8d-style">
+          <description xmi:type="style:SquareDescription" href="platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/physical.odesign#//@ownedViewpoints[name='Physical%20Architecture']/@ownedRepresentations[name='Physical%20Architecture%20Blank']/@defaultLayer/@containerMappings[name='PAB_PC']/@borderedNodeMappings[name='PAB_Port']/@conditionnalStyles.0/@style"/>
+        </ownedStyle>
+        <actualMapping xmi:type="description_1:NodeMapping" href="platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/physical.odesign#//@ownedViewpoints[name='Physical%20Architecture']/@ownedRepresentations[name='Physical%20Architecture%20Blank']/@defaultLayer/@containerMappings[name='PAB_PC']/@borderedNodeMappings[name='PAB_Port']"/>
+      </ownedBorderedNodes>
+      <ownedBorderedNodes xmi:type="diagram:DNode" uid="_de691457-47fd-5a1c-b427-abd827384638-526b1c76-acea-5fbc-b239-3f862b170e69" name="n">
+        <target xmi:type="org.polarsys.capella.core.data.cs:PhysicalPort" href="drone.capella#0e96ec52-7edc-5e3d-9014-f7736c3e6bb6"/>
+        <semanticElements xmi:type="org.polarsys.capella.core.data.cs:PhysicalPort" href="drone.capella#0e96ec52-7edc-5e3d-9014-f7736c3e6bb6"/>
+        <ownedStyle xmi:type="diagram:Square" uid="_de691457-47fd-5a1c-b427-abd827384638-526b1c76-acea-5fbc-b239-3f862b170e69-style">
+          <description xmi:type="style:SquareDescription" href="platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/physical.odesign#//@ownedViewpoints[name='Physical%20Architecture']/@ownedRepresentations[name='Physical%20Architecture%20Blank']/@defaultLayer/@containerMappings[name='PAB_PC']/@borderedNodeMappings[name='PAB_Port']/@conditionnalStyles.0/@style"/>
+        </ownedStyle>
+        <actualMapping xmi:type="description_1:NodeMapping" href="platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/physical.odesign#//@ownedViewpoints[name='Physical%20Architecture']/@ownedRepresentations[name='Physical%20Architecture%20Blank']/@defaultLayer/@containerMappings[name='PAB_PC']/@borderedNodeMappings[name='PAB_Port']"/>
+      </ownedBorderedNodes>
+      <ownedBorderedNodes xmi:type="diagram:DNode" uid="_de691457-47fd-5a1c-b427-abd827384638-99efde16-f5fc-5c5c-93c2-02db415e7ff1" name="mount">
+        <target xmi:type="org.polarsys.capella.core.data.cs:PhysicalPort" href="drone.capella#e95dd4e7-da8f-5c00-95bb-f48d9da516d2"/>
+        <semanticElements xmi:type="org.polarsys.capella.core.data.cs:PhysicalPort" href="drone.capella#e95dd4e7-da8f-5c00-95bb-f48d9da516d2"/>
+        <ownedStyle xmi:type="diagram:Square" uid="_de691457-47fd-5a1c-b427-abd827384638-99efde16-f5fc-5c5c-93c2-02db415e7ff1-style">
+          <description xmi:type="style:SquareDescription" href="platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/physical.odesign#//@ownedViewpoints[name='Physical%20Architecture']/@ownedRepresentations[name='Physical%20Architecture%20Blank']/@defaultLayer/@containerMappings[name='PAB_PC']/@borderedNodeMappings[name='PAB_Port']/@conditionnalStyles.0/@style"/>
+        </ownedStyle>
+        <actualMapping xmi:type="description_1:NodeMapping" href="platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/physical.odesign#//@ownedViewpoints[name='Physical%20Architecture']/@ownedRepresentations[name='Physical%20Architecture%20Blank']/@defaultLayer/@containerMappings[name='PAB_PC']/@borderedNodeMappings[name='PAB_Port']"/>
+      </ownedBorderedNodes>
+    </ownedDiagramElements>
+    <ownedDiagramElements xmi:type="diagram:DNodeContainer" uid="_de691457-47fd-5a1c-b427-abd827384638-e7091e6c-f5c3-58e3-8db3-931aab4eb90b" name="Propulsion">
+      <target xmi:type="org.polarsys.capella.core.data.cs:Part" href="drone.capella#0645b3a0-1123-5d17-be47-9f230a8e0624"/>
+      <semanticElements xmi:type="org.polarsys.capella.core.data.cs:Part" href="drone.capella#0645b3a0-1123-5d17-be47-9f230a8e0624"/>
+      <semanticElements xmi:type="org.polarsys.capella.core.data.pa:PhysicalComponent" href="drone.capella#PN-PROP"/>
+      <ownedStyle xmi:type="diagram:FlatContainerStyle" uid="_de691457-47fd-5a1c-b427-abd827384638-e7091e6c-f5c3-58e3-8db3-931aab4eb90b-style">
+        <description xmi:type="style:FlatContainerStyleDescription" href="platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/physical.odesign#//@ownedViewpoints[name='Physical%20Architecture']/@ownedRepresentations[name='Physical%20Architecture%20Blank']/@defaultLayer/@containerMappings[name='PAB_PC']/@conditionnalStyles.2/@style"/>
+      </ownedStyle>
+      <actualMapping xmi:type="description_1:ContainerMapping" href="platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/physical.odesign#//@ownedViewpoints[name='Physical%20Architecture']/@ownedRepresentations[name='Physical%20Architecture%20Blank']/@defaultLayer/@containerMappings[name='PAB_PC']"/>
+      <ownedBorderedNodes xmi:type="diagram:DNode" uid="_de691457-47fd-5a1c-b427-abd827384638-c72d4473-029f-5b19-9bec-0ac4478c098a" name="p">
+        <target xmi:type="org.polarsys.capella.core.data.cs:PhysicalPort" href="drone.capella#0fd25fa4-e71b-557d-95ae-09c9dd571851"/>
+        <semanticElements xmi:type="org.polarsys.capella.core.data.cs:PhysicalPort" href="drone.capella#0fd25fa4-e71b-557d-95ae-09c9dd571851"/>
+        <ownedStyle xmi:type="diagram:Square" uid="_de691457-47fd-5a1c-b427-abd827384638-c72d4473-029f-5b19-9bec-0ac4478c098a-style">
+          <description xmi:type="style:SquareDescription" href="platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/physical.odesign#//@ownedViewpoints[name='Physical%20Architecture']/@ownedRepresentations[name='Physical%20Architecture%20Blank']/@defaultLayer/@containerMappings[name='PAB_PC']/@borderedNodeMappings[name='PAB_Port']/@conditionnalStyles.0/@style"/>
+        </ownedStyle>
+        <actualMapping xmi:type="description_1:NodeMapping" href="platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/physical.odesign#//@ownedViewpoints[name='Physical%20Architecture']/@ownedRepresentations[name='Physical%20Architecture%20Blank']/@defaultLayer/@containerMappings[name='PAB_PC']/@borderedNodeMappings[name='PAB_Port']"/>
+      </ownedBorderedNodes>
+      <ownedBorderedNodes xmi:type="diagram:DNode" uid="_de691457-47fd-5a1c-b427-abd827384638-fb7d7e39-a264-52d9-86c4-196a7da9354d" name="n">
+        <target xmi:type="org.polarsys.capella.core.data.cs:PhysicalPort" href="drone.capella#745f1965-c1ed-573e-b95b-975badea5a2d"/>
+        <semanticElements xmi:type="org.polarsys.capella.core.data.cs:PhysicalPort" href="drone.capella#745f1965-c1ed-573e-b95b-975badea5a2d"/>
+        <ownedStyle xmi:type="diagram:Square" uid="_de691457-47fd-5a1c-b427-abd827384638-fb7d7e39-a264-52d9-86c4-196a7da9354d-style">
+          <description xmi:type="style:SquareDescription" href="platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/physical.odesign#//@ownedViewpoints[name='Physical%20Architecture']/@ownedRepresentations[name='Physical%20Architecture%20Blank']/@defaultLayer/@containerMappings[name='PAB_PC']/@borderedNodeMappings[name='PAB_Port']/@conditionnalStyles.0/@style"/>
+        </ownedStyle>
+        <actualMapping xmi:type="description_1:NodeMapping" href="platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/physical.odesign#//@ownedViewpoints[name='Physical%20Architecture']/@ownedRepresentations[name='Physical%20Architecture%20Blank']/@defaultLayer/@containerMappings[name='PAB_PC']/@borderedNodeMappings[name='PAB_Port']"/>
+      </ownedBorderedNodes>
+      <ownedBorderedNodes xmi:type="diagram:DNode" uid="_de691457-47fd-5a1c-b427-abd827384638-6fff19db-eee7-54e2-9fa4-17f52ea700c6" name="lift">
+        <target xmi:type="org.polarsys.capella.core.data.cs:PhysicalPort" href="drone.capella#3d71259f-e6c4-51b4-ae7a-f4dff2b1d942"/>
+        <semanticElements xmi:type="org.polarsys.capella.core.data.cs:PhysicalPort" href="drone.capella#3d71259f-e6c4-51b4-ae7a-f4dff2b1d942"/>
+        <ownedStyle xmi:type="diagram:Square" uid="_de691457-47fd-5a1c-b427-abd827384638-6fff19db-eee7-54e2-9fa4-17f52ea700c6-style">
+          <description xmi:type="style:SquareDescription" href="platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/physical.odesign#//@ownedViewpoints[name='Physical%20Architecture']/@ownedRepresentations[name='Physical%20Architecture%20Blank']/@defaultLayer/@containerMappings[name='PAB_PC']/@borderedNodeMappings[name='PAB_Port']/@conditionnalStyles.0/@style"/>
+        </ownedStyle>
+        <actualMapping xmi:type="description_1:NodeMapping" href="platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/physical.odesign#//@ownedViewpoints[name='Physical%20Architecture']/@ownedRepresentations[name='Physical%20Architecture%20Blank']/@defaultLayer/@containerMappings[name='PAB_PC']/@borderedNodeMappings[name='PAB_Port']"/>
+      </ownedBorderedNodes>
+      <ownedBorderedNodes xmi:type="diagram:DNode" uid="_de691457-47fd-5a1c-b427-abd827384638-e9823a89-3c9a-578e-aa37-fafb2f93cec0" name="PP d91f9819">
+        <target xmi:type="org.polarsys.capella.core.data.cs:PhysicalPort" href="drone.capella#d91f9819-5da0-58f7-b7f7-fc6d94cf50ab"/>
+        <semanticElements xmi:type="org.polarsys.capella.core.data.cs:PhysicalPort" href="drone.capella#d91f9819-5da0-58f7-b7f7-fc6d94cf50ab"/>
+        <ownedStyle xmi:type="diagram:Square" uid="_de691457-47fd-5a1c-b427-abd827384638-e9823a89-3c9a-578e-aa37-fafb2f93cec0-style">
+          <description xmi:type="style:SquareDescription" href="platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/physical.odesign#//@ownedViewpoints[name='Physical%20Architecture']/@ownedRepresentations[name='Physical%20Architecture%20Blank']/@defaultLayer/@containerMappings[name='PAB_PC']/@borderedNodeMappings[name='PAB_Port']/@conditionnalStyles.0/@style"/>
+        </ownedStyle>
+        <actualMapping xmi:type="description_1:NodeMapping" href="platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/physical.odesign#//@ownedViewpoints[name='Physical%20Architecture']/@ownedRepresentations[name='Physical%20Architecture%20Blank']/@defaultLayer/@containerMappings[name='PAB_PC']/@borderedNodeMappings[name='PAB_Port']"/>
+      </ownedBorderedNodes>
+    </ownedDiagramElements>
+    <ownedDiagramElements xmi:type="diagram:DNodeContainer" uid="_de691457-47fd-5a1c-b427-abd827384638-132049ed-9827-5709-8909-b3d73f1ce026" name="Airframe">
+      <target xmi:type="org.polarsys.capella.core.data.cs:Part" href="drone.capella#b62322c9-ddd8-5d85-be7b-b0ad74844e28"/>
+      <semanticElements xmi:type="org.polarsys.capella.core.data.cs:Part" href="drone.capella#b62322c9-ddd8-5d85-be7b-b0ad74844e28"/>
+      <semanticElements xmi:type="org.polarsys.capella.core.data.pa:PhysicalComponent" href="drone.capella#PN-FRAME"/>
+      <ownedStyle xmi:type="diagram:FlatContainerStyle" uid="_de691457-47fd-5a1c-b427-abd827384638-132049ed-9827-5709-8909-b3d73f1ce026-style">
+        <description xmi:type="style:FlatContainerStyleDescription" href="platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/physical.odesign#//@ownedViewpoints[name='Physical%20Architecture']/@ownedRepresentations[name='Physical%20Architecture%20Blank']/@defaultLayer/@containerMappings[name='PAB_PC']/@conditionnalStyles.2/@style"/>
+      </ownedStyle>
+      <actualMapping xmi:type="description_1:ContainerMapping" href="platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/physical.odesign#//@ownedViewpoints[name='Physical%20Architecture']/@ownedRepresentations[name='Physical%20Architecture%20Blank']/@defaultLayer/@containerMappings[name='PAB_PC']"/>
+      <ownedBorderedNodes xmi:type="diagram:DNode" uid="_de691457-47fd-5a1c-b427-abd827384638-ee0afccd-d00e-5fa9-b11c-7592f4d4fe3c" name="lift">
+        <target xmi:type="org.polarsys.capella.core.data.cs:PhysicalPort" href="drone.capella#2b8c4114-c172-5c70-9a37-3e762a91789e"/>
+        <semanticElements xmi:type="org.polarsys.capella.core.data.cs:PhysicalPort" href="drone.capella#2b8c4114-c172-5c70-9a37-3e762a91789e"/>
+        <ownedStyle xmi:type="diagram:Square" uid="_de691457-47fd-5a1c-b427-abd827384638-ee0afccd-d00e-5fa9-b11c-7592f4d4fe3c-style">
+          <description xmi:type="style:SquareDescription" href="platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/physical.odesign#//@ownedViewpoints[name='Physical%20Architecture']/@ownedRepresentations[name='Physical%20Architecture%20Blank']/@defaultLayer/@containerMappings[name='PAB_PC']/@borderedNodeMappings[name='PAB_Port']/@conditionnalStyles.0/@style"/>
+        </ownedStyle>
+        <actualMapping xmi:type="description_1:NodeMapping" href="platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/physical.odesign#//@ownedViewpoints[name='Physical%20Architecture']/@ownedRepresentations[name='Physical%20Architecture%20Blank']/@defaultLayer/@containerMappings[name='PAB_PC']/@borderedNodeMappings[name='PAB_Port']"/>
+      </ownedBorderedNodes>
+      <ownedBorderedNodes xmi:type="diagram:DNode" uid="_de691457-47fd-5a1c-b427-abd827384638-1ae17e79-f787-598a-9638-a7454a4429b0" name="mount">
+        <target xmi:type="org.polarsys.capella.core.data.cs:PhysicalPort" href="drone.capella#68aa6254-c03c-5680-a9ef-adc6abc5d09c"/>
+        <semanticElements xmi:type="org.polarsys.capella.core.data.cs:PhysicalPort" href="drone.capella#68aa6254-c03c-5680-a9ef-adc6abc5d09c"/>
+        <ownedStyle xmi:type="diagram:Square" uid="_de691457-47fd-5a1c-b427-abd827384638-1ae17e79-f787-598a-9638-a7454a4429b0-style">
+          <description xmi:type="style:SquareDescription" href="platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/physical.odesign#//@ownedViewpoints[name='Physical%20Architecture']/@ownedRepresentations[name='Physical%20Architecture%20Blank']/@defaultLayer/@containerMappings[name='PAB_PC']/@borderedNodeMappings[name='PAB_Port']/@conditionnalStyles.0/@style"/>
+        </ownedStyle>
+        <actualMapping xmi:type="description_1:NodeMapping" href="platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/physical.odesign#//@ownedViewpoints[name='Physical%20Architecture']/@ownedRepresentations[name='Physical%20Architecture%20Blank']/@defaultLayer/@containerMappings[name='PAB_PC']/@borderedNodeMappings[name='PAB_Port']"/>
+      </ownedBorderedNodes>
+      <ownedBorderedNodes xmi:type="diagram:DNode" uid="_de691457-47fd-5a1c-b427-abd827384638-eb630ca1-0f7d-5050-abe8-26062871f90e" name="PP a01f7d02">
+        <target xmi:type="org.polarsys.capella.core.data.cs:PhysicalPort" href="drone.capella#a01f7d02-fc49-50cf-a6ec-f1f50785cfcc"/>
+        <semanticElements xmi:type="org.polarsys.capella.core.data.cs:PhysicalPort" href="drone.capella#a01f7d02-fc49-50cf-a6ec-f1f50785cfcc"/>
+        <ownedStyle xmi:type="diagram:Square" uid="_de691457-47fd-5a1c-b427-abd827384638-eb630ca1-0f7d-5050-abe8-26062871f90e-style">
+          <description xmi:type="style:SquareDescription" href="platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/physical.odesign#//@ownedViewpoints[name='Physical%20Architecture']/@ownedRepresentations[name='Physical%20Architecture%20Blank']/@defaultLayer/@containerMappings[name='PAB_PC']/@borderedNodeMappings[name='PAB_Port']/@conditionnalStyles.0/@style"/>
+        </ownedStyle>
+        <actualMapping xmi:type="description_1:NodeMapping" href="platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/physical.odesign#//@ownedViewpoints[name='Physical%20Architecture']/@ownedRepresentations[name='Physical%20Architecture%20Blank']/@defaultLayer/@containerMappings[name='PAB_PC']/@borderedNodeMappings[name='PAB_Port']"/>
+      </ownedBorderedNodes>
+    </ownedDiagramElements>
+    <ownedDiagramElements xmi:type="diagram:DNodeContainer" uid="_de691457-47fd-5a1c-b427-abd827384638-3ea78975-44a6-506f-abb7-c16e0eb1aa1c" name="Flight controller">
+      <target xmi:type="org.polarsys.capella.core.data.cs:Part" href="drone.capella#051996a8-a6bd-5a77-b8e0-5920b132e0d6"/>
+      <semanticElements xmi:type="org.polarsys.capella.core.data.cs:Part" href="drone.capella#051996a8-a6bd-5a77-b8e0-5920b132e0d6"/>
+      <semanticElements xmi:type="org.polarsys.capella.core.data.pa:PhysicalComponent" href="drone.capella#PN-FC"/>
+      <ownedStyle xmi:type="diagram:FlatContainerStyle" uid="_de691457-47fd-5a1c-b427-abd827384638-3ea78975-44a6-506f-abb7-c16e0eb1aa1c-style">
+        <description xmi:type="style:FlatContainerStyleDescription" href="platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/physical.odesign#//@ownedViewpoints[name='Physical%20Architecture']/@ownedRepresentations[name='Physical%20Architecture%20Blank']/@defaultLayer/@containerMappings[name='PAB_PC']/@conditionnalStyles.2/@style"/>
+      </ownedStyle>
+      <actualMapping xmi:type="description_1:ContainerMapping" href="platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/physical.odesign#//@ownedViewpoints[name='Physical%20Architecture']/@ownedRepresentations[name='Physical%20Architecture%20Blank']/@defaultLayer/@containerMappings[name='PAB_PC']"/>
+      <ownedBorderedNodes xmi:type="diagram:DNode" uid="_de691457-47fd-5a1c-b427-abd827384638-c677884c-6742-56d8-b8c6-3b3bd0f4704d" name="PP e61b6041">
+        <target xmi:type="org.polarsys.capella.core.data.cs:PhysicalPort" href="drone.capella#e61b6041-6412-59c5-9f7f-1220dd3f1f2b"/>
+        <semanticElements xmi:type="org.polarsys.capella.core.data.cs:PhysicalPort" href="drone.capella#e61b6041-6412-59c5-9f7f-1220dd3f1f2b"/>
+        <ownedStyle xmi:type="diagram:Square" uid="_de691457-47fd-5a1c-b427-abd827384638-c677884c-6742-56d8-b8c6-3b3bd0f4704d-style">
+          <description xmi:type="style:SquareDescription" href="platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/physical.odesign#//@ownedViewpoints[name='Physical%20Architecture']/@ownedRepresentations[name='Physical%20Architecture%20Blank']/@defaultLayer/@containerMappings[name='PAB_PC']/@borderedNodeMappings[name='PAB_Port']/@conditionnalStyles.0/@style"/>
+        </ownedStyle>
+        <actualMapping xmi:type="description_1:NodeMapping" href="platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/physical.odesign#//@ownedViewpoints[name='Physical%20Architecture']/@ownedRepresentations[name='Physical%20Architecture%20Blank']/@defaultLayer/@containerMappings[name='PAB_PC']/@borderedNodeMappings[name='PAB_Port']"/>
+      </ownedBorderedNodes>
+      <ownedBorderedNodes xmi:type="diagram:DNode" uid="_de691457-47fd-5a1c-b427-abd827384638-38198843-48ac-5528-a725-875f08fc03f1" name="PP f46d227c">
+        <target xmi:type="org.polarsys.capella.core.data.cs:PhysicalPort" href="drone.capella#f46d227c-ff36-5875-9c90-89989149a956"/>
+        <semanticElements xmi:type="org.polarsys.capella.core.data.cs:PhysicalPort" href="drone.capella#f46d227c-ff36-5875-9c90-89989149a956"/>
+        <ownedStyle xmi:type="diagram:Square" uid="_de691457-47fd-5a1c-b427-abd827384638-38198843-48ac-5528-a725-875f08fc03f1-style">
+          <description xmi:type="style:SquareDescription" href="platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/physical.odesign#//@ownedViewpoints[name='Physical%20Architecture']/@ownedRepresentations[name='Physical%20Architecture%20Blank']/@defaultLayer/@containerMappings[name='PAB_PC']/@borderedNodeMappings[name='PAB_Port']/@conditionnalStyles.0/@style"/>
+        </ownedStyle>
+        <actualMapping xmi:type="description_1:NodeMapping" href="platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/physical.odesign#//@ownedViewpoints[name='Physical%20Architecture']/@ownedRepresentations[name='Physical%20Architecture%20Blank']/@defaultLayer/@containerMappings[name='PAB_PC']/@borderedNodeMappings[name='PAB_Port']"/>
+      </ownedBorderedNodes>
+    </ownedDiagramElements>
+    <ownedDiagramElements xmi:type="diagram:DNodeContainer" uid="_de691457-47fd-5a1c-b427-abd827384638-6d5ccd60-0b29-5839-954e-a3894f870431" name="Altitude hold">
+      <target xmi:type="org.polarsys.capella.core.data.cs:Part" href="drone.capella#d6bae0be-baf6-5348-a51e-59645f932efb"/>
+      <semanticElements xmi:type="org.polarsys.capella.core.data.cs:Part" href="drone.capella#d6bae0be-baf6-5348-a51e-59645f932efb"/>
+      <semanticElements xmi:type="org.polarsys.capella.core.data.pa:PhysicalComponent" href="drone.capella#BC-ALT"/>
+      <ownedStyle xmi:type="diagram:FlatContainerStyle" uid="_de691457-47fd-5a1c-b427-abd827384638-6d5ccd60-0b29-5839-954e-a3894f870431-style">
+        <description xmi:type="style:FlatContainerStyleDescription" href="platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/physical.odesign#//@ownedViewpoints[name='Physical%20Architecture']/@ownedRepresentations[name='Physical%20Architecture%20Blank']/@defaultLayer/@containerMappings[name='PAB_PC']/@conditionnalStyles.2/@style"/>
+      </ownedStyle>
+      <actualMapping xmi:type="description_1:ContainerMapping" href="platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/physical.odesign#//@ownedViewpoints[name='Physical%20Architecture']/@ownedRepresentations[name='Physical%20Architecture%20Blank']/@defaultLayer/@containerMappings[name='PAB_PC']"/>
+      <ownedBorderedNodes xmi:type="diagram:DNode" uid="_de691457-47fd-5a1c-b427-abd827384638-bee1f0d1-98d4-50ed-a47c-ee5179470fac" name="altitude">
+        <target xmi:type="org.polarsys.capella.core.data.fa:ComponentPort" href="drone.capella#7e1b847d-b679-5eb3-bd88-17a55e1f1960"/>
+        <semanticElements xmi:type="org.polarsys.capella.core.data.fa:ComponentPort" href="drone.capella#7e1b847d-b679-5eb3-bd88-17a55e1f1960"/>
+        <ownedStyle xmi:type="diagram:WorkspaceImage" uid="_de691457-47fd-5a1c-b427-abd827384638-bee1f0d1-98d4-50ed-a47c-ee5179470fac-style">
+          <description xmi:type="style:WorkspaceImageDescription" href="platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/physical.odesign#//@ownedViewpoints[name='Physical%20Architecture']/@ownedRepresentations[name='Physical%20Architecture%20Blank']/@defaultLayer/@containerMappings[name='PAB_PC']/@borderedNodeMappings[name='PAB_Port']/@conditionnalStyles.3/@style"/>
+        </ownedStyle>
+        <actualMapping xmi:type="description_1:NodeMapping" href="platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/physical.odesign#//@ownedViewpoints[name='Physical%20Architecture']/@ownedRepresentations[name='Physical%20Architecture%20Blank']/@defaultLayer/@containerMappings[name='PAB_PC']/@borderedNodeMappings[name='PAB_Port']"/>
+      </ownedBorderedNodes>
+      <ownedBorderedNodes xmi:type="diagram:DNode" uid="_de691457-47fd-5a1c-b427-abd827384638-3b56ae87-18c9-5e59-ade9-a90da14ee1ee" name="thrust_cmd">
+        <target xmi:type="org.polarsys.capella.core.data.fa:ComponentPort" href="drone.capella#7894812a-df73-5cc0-8acf-d7e1ca625543"/>
+        <semanticElements xmi:type="org.polarsys.capella.core.data.fa:ComponentPort" href="drone.capella#7894812a-df73-5cc0-8acf-d7e1ca625543"/>
+        <ownedStyle xmi:type="diagram:WorkspaceImage" uid="_de691457-47fd-5a1c-b427-abd827384638-3b56ae87-18c9-5e59-ade9-a90da14ee1ee-style">
+          <description xmi:type="style:WorkspaceImageDescription" href="platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/physical.odesign#//@ownedViewpoints[name='Physical%20Architecture']/@ownedRepresentations[name='Physical%20Architecture%20Blank']/@defaultLayer/@containerMappings[name='PAB_PC']/@borderedNodeMappings[name='PAB_Port']/@conditionnalStyles.3/@style"/>
+        </ownedStyle>
+        <actualMapping xmi:type="description_1:NodeMapping" href="platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/physical.odesign#//@ownedViewpoints[name='Physical%20Architecture']/@ownedRepresentations[name='Physical%20Architecture%20Blank']/@defaultLayer/@containerMappings[name='PAB_PC']/@borderedNodeMappings[name='PAB_Port']"/>
+      </ownedBorderedNodes>
+    </ownedDiagramElements>
+    <ownedDiagramElements xmi:type="diagram:DNodeContainer" uid="_de691457-47fd-5a1c-b427-abd827384638-42f49fcf-7e64-591f-93ae-57948ecc8dc3" name="Altimeter">
+      <target xmi:type="org.polarsys.capella.core.data.cs:Part" href="drone.capella#e3fa7a0f-f8fb-57de-8f2d-e5f06567e5ac"/>
+      <semanticElements xmi:type="org.polarsys.capella.core.data.cs:Part" href="drone.capella#e3fa7a0f-f8fb-57de-8f2d-e5f06567e5ac"/>
+      <semanticElements xmi:type="org.polarsys.capella.core.data.pa:PhysicalComponent" href="drone.capella#BC-BARO"/>
+      <ownedStyle xmi:type="diagram:FlatContainerStyle" uid="_de691457-47fd-5a1c-b427-abd827384638-42f49fcf-7e64-591f-93ae-57948ecc8dc3-style">
+        <description xmi:type="style:FlatContainerStyleDescription" href="platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/physical.odesign#//@ownedViewpoints[name='Physical%20Architecture']/@ownedRepresentations[name='Physical%20Architecture%20Blank']/@defaultLayer/@containerMappings[name='PAB_PC']/@conditionnalStyles.2/@style"/>
+      </ownedStyle>
+      <actualMapping xmi:type="description_1:ContainerMapping" href="platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/physical.odesign#//@ownedViewpoints[name='Physical%20Architecture']/@ownedRepresentations[name='Physical%20Architecture%20Blank']/@defaultLayer/@containerMappings[name='PAB_PC']"/>
+      <ownedBorderedNodes xmi:type="diagram:DNode" uid="_de691457-47fd-5a1c-b427-abd827384638-19af2f48-e22c-5830-b53d-26220a939b7a" name="altitude">
+        <target xmi:type="org.polarsys.capella.core.data.fa:ComponentPort" href="drone.capella#8c7adb35-84e9-584f-938b-1f43ffcecc56"/>
+        <semanticElements xmi:type="org.polarsys.capella.core.data.fa:ComponentPort" href="drone.capella#8c7adb35-84e9-584f-938b-1f43ffcecc56"/>
+        <ownedStyle xmi:type="diagram:WorkspaceImage" uid="_de691457-47fd-5a1c-b427-abd827384638-19af2f48-e22c-5830-b53d-26220a939b7a-style">
+          <description xmi:type="style:WorkspaceImageDescription" href="platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/physical.odesign#//@ownedViewpoints[name='Physical%20Architecture']/@ownedRepresentations[name='Physical%20Architecture%20Blank']/@defaultLayer/@containerMappings[name='PAB_PC']/@borderedNodeMappings[name='PAB_Port']/@conditionnalStyles.3/@style"/>
+        </ownedStyle>
+        <actualMapping xmi:type="description_1:NodeMapping" href="platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/physical.odesign#//@ownedViewpoints[name='Physical%20Architecture']/@ownedRepresentations[name='Physical%20Architecture%20Blank']/@defaultLayer/@containerMappings[name='PAB_PC']/@borderedNodeMappings[name='PAB_Port']"/>
+      </ownedBorderedNodes>
+    </ownedDiagramElements>
+    <ownedDiagramElements xmi:type="diagram:DNodeContainer" uid="_de691457-47fd-5a1c-b427-abd827384638-2a492a03-4b5b-5424-81e9-2cc51ae07a25" name="Motor drive">
+      <target xmi:type="org.polarsys.capella.core.data.cs:Part" href="drone.capella#5b06e4bb-d9ae-5c8b-8771-17f0a0363f21"/>
+      <semanticElements xmi:type="org.polarsys.capella.core.data.cs:Part" href="drone.capella#5b06e4bb-d9ae-5c8b-8771-17f0a0363f21"/>
+      <semanticElements xmi:type="org.polarsys.capella.core.data.pa:PhysicalComponent" href="drone.capella#BC-ESC"/>
+      <ownedStyle xmi:type="diagram:FlatContainerStyle" uid="_de691457-47fd-5a1c-b427-abd827384638-2a492a03-4b5b-5424-81e9-2cc51ae07a25-style">
+        <description xmi:type="style:FlatContainerStyleDescription" href="platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/physical.odesign#//@ownedViewpoints[name='Physical%20Architecture']/@ownedRepresentations[name='Physical%20Architecture%20Blank']/@defaultLayer/@containerMappings[name='PAB_PC']/@conditionnalStyles.2/@style"/>
+      </ownedStyle>
+      <actualMapping xmi:type="description_1:ContainerMapping" href="platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/physical.odesign#//@ownedViewpoints[name='Physical%20Architecture']/@ownedRepresentations[name='Physical%20Architecture%20Blank']/@defaultLayer/@containerMappings[name='PAB_PC']"/>
+      <ownedBorderedNodes xmi:type="diagram:DNode" uid="_de691457-47fd-5a1c-b427-abd827384638-dbfdf9e5-ee8a-53d5-9bfc-f093894dbabd" name="thrust_cmd">
+        <target xmi:type="org.polarsys.capella.core.data.fa:ComponentPort" href="drone.capella#1855e003-8c54-5f86-99be-6a48e797c9a1"/>
+        <semanticElements xmi:type="org.polarsys.capella.core.data.fa:ComponentPort" href="drone.capella#1855e003-8c54-5f86-99be-6a48e797c9a1"/>
+        <ownedStyle xmi:type="diagram:WorkspaceImage" uid="_de691457-47fd-5a1c-b427-abd827384638-dbfdf9e5-ee8a-53d5-9bfc-f093894dbabd-style">
+          <description xmi:type="style:WorkspaceImageDescription" href="platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/physical.odesign#//@ownedViewpoints[name='Physical%20Architecture']/@ownedRepresentations[name='Physical%20Architecture%20Blank']/@defaultLayer/@containerMappings[name='PAB_PC']/@borderedNodeMappings[name='PAB_Port']/@conditionnalStyles.3/@style"/>
+        </ownedStyle>
+        <actualMapping xmi:type="description_1:NodeMapping" href="platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/physical.odesign#//@ownedViewpoints[name='Physical%20Architecture']/@ownedRepresentations[name='Physical%20Architecture%20Blank']/@defaultLayer/@containerMappings[name='PAB_PC']/@borderedNodeMappings[name='PAB_Port']"/>
+      </ownedBorderedNodes>
+    </ownedDiagramElements>
+    <ownedDiagramElements xmi:type="diagram:DEdge" uid="_de691457-47fd-5a1c-b427-abd827384638-7b46b971-badc-5213-bf7e-e85772812355-0" sourceNode="_de691457-47fd-5a1c-b427-abd827384638-9b1f8dd4-6ad9-554f-ba74-2b47dff88f8d" targetNode="_de691457-47fd-5a1c-b427-abd827384638-c72d4473-029f-5b19-9bec-0ac4478c098a">
+      <target xmi:type="org.polarsys.capella.core.data.cs:PhysicalLink" href="drone.capella#PL-PWR-P"/>
+      <semanticElements xmi:type="org.polarsys.capella.core.data.cs:PhysicalLink" href="drone.capella#PL-PWR-P"/>
+      <ownedStyle xmi:type="diagram:EdgeStyle" uid="_de691457-47fd-5a1c-b427-abd827384638-7b46b971-badc-5213-bf7e-e85772812355-0-style">
+        <description xmi:type="style:EdgeStyleDescription" href="platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/physical.odesign#//@ownedViewpoints[name='Physical%20Architecture']/@ownedRepresentations[name='Physical%20Architecture%20Blank']/@defaultLayer/@edgeMappings[name='PAB_PhysicalLink']/@style"/>
+      </ownedStyle>
+      <actualMapping xmi:type="description_1:EdgeMapping" href="platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/physical.odesign#//@ownedViewpoints[name='Physical%20Architecture']/@ownedRepresentations[name='Physical%20Architecture%20Blank']/@defaultLayer/@edgeMappings[name='PAB_PhysicalLink']"/>
+    </ownedDiagramElements>
+    <ownedDiagramElements xmi:type="diagram:DEdge" uid="_de691457-47fd-5a1c-b427-abd827384638-a0590ead-abcb-5229-9d27-2549a4b2d020-0" sourceNode="_de691457-47fd-5a1c-b427-abd827384638-526b1c76-acea-5fbc-b239-3f862b170e69" targetNode="_de691457-47fd-5a1c-b427-abd827384638-fb7d7e39-a264-52d9-86c4-196a7da9354d">
+      <target xmi:type="org.polarsys.capella.core.data.cs:PhysicalLink" href="drone.capella#PL-PWR-N"/>
+      <semanticElements xmi:type="org.polarsys.capella.core.data.cs:PhysicalLink" href="drone.capella#PL-PWR-N"/>
+      <ownedStyle xmi:type="diagram:EdgeStyle" uid="_de691457-47fd-5a1c-b427-abd827384638-a0590ead-abcb-5229-9d27-2549a4b2d020-0-style">
+        <description xmi:type="style:EdgeStyleDescription" href="platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/physical.odesign#//@ownedViewpoints[name='Physical%20Architecture']/@ownedRepresentations[name='Physical%20Architecture%20Blank']/@defaultLayer/@edgeMappings[name='PAB_PhysicalLink']/@style"/>
+      </ownedStyle>
+      <actualMapping xmi:type="description_1:EdgeMapping" href="platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/physical.odesign#//@ownedViewpoints[name='Physical%20Architecture']/@ownedRepresentations[name='Physical%20Architecture%20Blank']/@defaultLayer/@edgeMappings[name='PAB_PhysicalLink']"/>
+    </ownedDiagramElements>
+    <ownedDiagramElements xmi:type="diagram:DEdge" uid="_de691457-47fd-5a1c-b427-abd827384638-a5dbeae8-62db-5fcd-9be5-84cf2363789b-0" sourceNode="_de691457-47fd-5a1c-b427-abd827384638-6fff19db-eee7-54e2-9fa4-17f52ea700c6" targetNode="_de691457-47fd-5a1c-b427-abd827384638-ee0afccd-d00e-5fa9-b11c-7592f4d4fe3c">
+      <target xmi:type="org.polarsys.capella.core.data.cs:PhysicalLink" href="drone.capella#PL-ARMS"/>
+      <semanticElements xmi:type="org.polarsys.capella.core.data.cs:PhysicalLink" href="drone.capella#PL-ARMS"/>
+      <ownedStyle xmi:type="diagram:EdgeStyle" uid="_de691457-47fd-5a1c-b427-abd827384638-a5dbeae8-62db-5fcd-9be5-84cf2363789b-0-style">
+        <description xmi:type="style:EdgeStyleDescription" href="platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/physical.odesign#//@ownedViewpoints[name='Physical%20Architecture']/@ownedRepresentations[name='Physical%20Architecture%20Blank']/@defaultLayer/@edgeMappings[name='PAB_PhysicalLink']/@style"/>
+      </ownedStyle>
+      <actualMapping xmi:type="description_1:EdgeMapping" href="platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/physical.odesign#//@ownedViewpoints[name='Physical%20Architecture']/@ownedRepresentations[name='Physical%20Architecture%20Blank']/@defaultLayer/@edgeMappings[name='PAB_PhysicalLink']"/>
+    </ownedDiagramElements>
+    <ownedDiagramElements xmi:type="diagram:DEdge" uid="_de691457-47fd-5a1c-b427-abd827384638-e66b8494-3f74-501f-a1a5-a7ce8b8f647d-0" sourceNode="_de691457-47fd-5a1c-b427-abd827384638-1ae17e79-f787-598a-9638-a7454a4429b0" targetNode="_de691457-47fd-5a1c-b427-abd827384638-99efde16-f5fc-5c5c-93c2-02db415e7ff1">
+      <target xmi:type="org.polarsys.capella.core.data.cs:PhysicalLink" href="drone.capella#PL-TRAY"/>
+      <semanticElements xmi:type="org.polarsys.capella.core.data.cs:PhysicalLink" href="drone.capella#PL-TRAY"/>
+      <ownedStyle xmi:type="diagram:EdgeStyle" uid="_de691457-47fd-5a1c-b427-abd827384638-e66b8494-3f74-501f-a1a5-a7ce8b8f647d-0-style">
+        <description xmi:type="style:EdgeStyleDescription" href="platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/physical.odesign#//@ownedViewpoints[name='Physical%20Architecture']/@ownedRepresentations[name='Physical%20Architecture%20Blank']/@defaultLayer/@edgeMappings[name='PAB_PhysicalLink']/@style"/>
+      </ownedStyle>
+      <actualMapping xmi:type="description_1:EdgeMapping" href="platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/physical.odesign#//@ownedViewpoints[name='Physical%20Architecture']/@ownedRepresentations[name='Physical%20Architecture%20Blank']/@defaultLayer/@edgeMappings[name='PAB_PhysicalLink']"/>
+    </ownedDiagramElements>
+    <ownedDiagramElements xmi:type="diagram:DEdge" uid="_de691457-47fd-5a1c-b427-abd827384638-7433e59f-4af7-5dc7-b389-d0717b68245e-0" sourceNode="_de691457-47fd-5a1c-b427-abd827384638-eb630ca1-0f7d-5050-abe8-26062871f90e" targetNode="_de691457-47fd-5a1c-b427-abd827384638-c677884c-6742-56d8-b8c6-3b3bd0f4704d">
+      <target xmi:type="org.polarsys.capella.core.data.cs:PhysicalLink" href="drone.capella#PL-SENS"/>
+      <semanticElements xmi:type="org.polarsys.capella.core.data.cs:PhysicalLink" href="drone.capella#PL-SENS"/>
+      <ownedStyle xmi:type="diagram:EdgeStyle" uid="_de691457-47fd-5a1c-b427-abd827384638-7433e59f-4af7-5dc7-b389-d0717b68245e-0-style">
+        <description xmi:type="style:EdgeStyleDescription" href="platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/physical.odesign#//@ownedViewpoints[name='Physical%20Architecture']/@ownedRepresentations[name='Physical%20Architecture%20Blank']/@defaultLayer/@edgeMappings[name='PAB_PhysicalLink']/@style"/>
+      </ownedStyle>
+      <actualMapping xmi:type="description_1:EdgeMapping" href="platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/physical.odesign#//@ownedViewpoints[name='Physical%20Architecture']/@ownedRepresentations[name='Physical%20Architecture%20Blank']/@defaultLayer/@edgeMappings[name='PAB_PhysicalLink']"/>
+    </ownedDiagramElements>
+    <ownedDiagramElements xmi:type="diagram:DEdge" uid="_de691457-47fd-5a1c-b427-abd827384638-7a8f6045-e918-5603-bbdd-9cae35f1a450-0" sourceNode="_de691457-47fd-5a1c-b427-abd827384638-38198843-48ac-5528-a725-875f08fc03f1" targetNode="_de691457-47fd-5a1c-b427-abd827384638-e9823a89-3c9a-578e-aa37-fafb2f93cec0">
+      <target xmi:type="org.polarsys.capella.core.data.cs:PhysicalLink" href="drone.capella#PL-ESC"/>
+      <semanticElements xmi:type="org.polarsys.capella.core.data.cs:PhysicalLink" href="drone.capella#PL-ESC"/>
+      <ownedStyle xmi:type="diagram:EdgeStyle" uid="_de691457-47fd-5a1c-b427-abd827384638-7a8f6045-e918-5603-bbdd-9cae35f1a450-0-style">
+        <description xmi:type="style:EdgeStyleDescription" href="platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/physical.odesign#//@ownedViewpoints[name='Physical%20Architecture']/@ownedRepresentations[name='Physical%20Architecture%20Blank']/@defaultLayer/@edgeMappings[name='PAB_PhysicalLink']/@style"/>
+      </ownedStyle>
+      <actualMapping xmi:type="description_1:EdgeMapping" href="platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/physical.odesign#//@ownedViewpoints[name='Physical%20Architecture']/@ownedRepresentations[name='Physical%20Architecture%20Blank']/@defaultLayer/@edgeMappings[name='PAB_PhysicalLink']"/>
+    </ownedDiagramElements>
+    <ownedDiagramElements xmi:type="diagram:DEdge" uid="_de691457-47fd-5a1c-b427-abd827384638-8c1ad511-3524-520a-8c8d-87dc2e505f28-0" sourceNode="_de691457-47fd-5a1c-b427-abd827384638-19af2f48-e22c-5830-b53d-26220a939b7a" targetNode="_de691457-47fd-5a1c-b427-abd827384638-bee1f0d1-98d4-50ed-a47c-ee5179470fac">
+      <target xmi:type="org.polarsys.capella.core.data.fa:ComponentExchange" href="drone.capella#PX-ALT"/>
+      <semanticElements xmi:type="org.polarsys.capella.core.data.fa:ComponentExchange" href="drone.capella#PX-ALT"/>
+      <ownedStyle xmi:type="diagram:EdgeStyle" uid="_de691457-47fd-5a1c-b427-abd827384638-8c1ad511-3524-520a-8c8d-87dc2e505f28-0-style">
+        <description xmi:type="style:EdgeStyleDescription" href="platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/physical.odesign#//@ownedViewpoints[name='Physical%20Architecture']/@ownedRepresentations[name='Physical%20Architecture%20Blank']/@defaultLayer/@edgeMappings[name='PAB_Exchange']/@conditionnalStyles.3/@style"/>
+      </ownedStyle>
+      <actualMapping xmi:type="description_1:EdgeMapping" href="platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/physical.odesign#//@ownedViewpoints[name='Physical%20Architecture']/@ownedRepresentations[name='Physical%20Architecture%20Blank']/@defaultLayer/@edgeMappings[name='PAB_Exchange']"/>
+    </ownedDiagramElements>
+    <ownedDiagramElements xmi:type="diagram:DEdge" uid="_de691457-47fd-5a1c-b427-abd827384638-04206850-d893-59e2-9a15-617269d79857-0" sourceNode="_de691457-47fd-5a1c-b427-abd827384638-3b56ae87-18c9-5e59-ade9-a90da14ee1ee" targetNode="_de691457-47fd-5a1c-b427-abd827384638-dbfdf9e5-ee8a-53d5-9bfc-f093894dbabd">
+      <target xmi:type="org.polarsys.capella.core.data.fa:ComponentExchange" href="drone.capella#PX-THRUST"/>
+      <semanticElements xmi:type="org.polarsys.capella.core.data.fa:ComponentExchange" href="drone.capella#PX-THRUST"/>
+      <ownedStyle xmi:type="diagram:EdgeStyle" uid="_de691457-47fd-5a1c-b427-abd827384638-04206850-d893-59e2-9a15-617269d79857-0-style">
+        <description xmi:type="style:EdgeStyleDescription" href="platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/physical.odesign#//@ownedViewpoints[name='Physical%20Architecture']/@ownedRepresentations[name='Physical%20Architecture%20Blank']/@defaultLayer/@edgeMappings[name='PAB_Exchange']/@conditionnalStyles.3/@style"/>
+      </ownedStyle>
+      <actualMapping xmi:type="description_1:EdgeMapping" href="platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/physical.odesign#//@ownedViewpoints[name='Physical%20Architecture']/@ownedRepresentations[name='Physical%20Architecture%20Blank']/@defaultLayer/@edgeMappings[name='PAB_Exchange']"/>
+    </ownedDiagramElements>
+    <description xmi:type="description_1:DiagramDescription" href="platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/physical.odesign#//@ownedViewpoints[name='Physical%20Architecture']/@ownedRepresentations[name='Physical%20Architecture%20Blank']"/>
+    <target xmi:type="org.polarsys.capella.core.data.pa:PhysicalComponentPkg" href="drone.capella#fd64f577-267e-51f2-83e0-058e98bea1b3"/>
+    <activatedLayers xmi:type="description_1:Layer" href="platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/physical.odesign#//@ownedViewpoints[name='Physical%20Architecture']/@ownedRepresentations[name='Physical%20Architecture%20Blank']/@defaultLayer"/>
+  </diagram:DSemanticDiagram>
+  <diagram:DSemanticDiagram uid="_c1a34a51-bbd1-52d2-8bbf-ac6c5322c488">
+    <ownedDiagramElements xmi:type="diagram:DNodeContainer" uid="_c1a34a51-bbd1-52d2-8bbf-ac6c5322c488-0e834613-d3ce-5038-a7d0-bb71d559d98f" name="Air vehicle">
+      <target xmi:type="org.polarsys.capella.core.data.cs:Part" href="drone.capella#7e4ecee8-b634-59b4-aea4-c2414ab2f025"/>
+      <semanticElements xmi:type="org.polarsys.capella.core.data.cs:Part" href="drone.capella#7e4ecee8-b634-59b4-aea4-c2414ab2f025"/>
+      <semanticElements xmi:type="org.polarsys.capella.core.data.la:LogicalComponent" href="drone.capella#LC-UAV"/>
+      <ownedStyle xmi:type="diagram:FlatContainerStyle" uid="_c1a34a51-bbd1-52d2-8bbf-ac6c5322c488-0e834613-d3ce-5038-a7d0-bb71d559d98f-style">
+        <description xmi:type="style:FlatContainerStyleDescription" href="platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/logical.odesign#//@ownedViewpoints[name='Logical%20Architecture']/@ownedRepresentations[name='Logical%20Architecture%20Blank']/@defaultLayer/@containerMappings[name='LAB%20Logical%20Component']/@conditionnalStyles.0/@style"/>
+      </ownedStyle>
+      <actualMapping xmi:type="description_1:ContainerMapping" href="platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/logical.odesign#//@ownedViewpoints[name='Logical%20Architecture']/@ownedRepresentations[name='Logical%20Architecture%20Blank']/@defaultLayer/@containerMappings[name='LAB%20Logical%20Component']"/>
+      <ownedDiagramElements xmi:type="diagram:DNodeContainer" uid="_c1a34a51-bbd1-52d2-8bbf-ac6c5322c488-d11c259b-e91f-5990-8150-d448e30af0c8" name="Energy">
+        <target xmi:type="org.polarsys.capella.core.data.cs:Part" href="drone.capella#90ab7b7c-a10d-5d89-b4c9-903fd1eaa353"/>
+        <semanticElements xmi:type="org.polarsys.capella.core.data.cs:Part" href="drone.capella#90ab7b7c-a10d-5d89-b4c9-903fd1eaa353"/>
+        <semanticElements xmi:type="org.polarsys.capella.core.data.la:LogicalComponent" href="drone.capella#LC-ENERGY"/>
+        <ownedStyle xmi:type="diagram:FlatContainerStyle" uid="_c1a34a51-bbd1-52d2-8bbf-ac6c5322c488-d11c259b-e91f-5990-8150-d448e30af0c8-style">
+          <description xmi:type="style:FlatContainerStyleDescription" href="platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/logical.odesign#//@ownedViewpoints[name='Logical%20Architecture']/@ownedRepresentations[name='Logical%20Architecture%20Blank']/@defaultLayer/@containerMappings[name='LAB%20Logical%20Component']/@style"/>
+        </ownedStyle>
+        <actualMapping xmi:type="description_1:ContainerMapping" href="platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/logical.odesign#//@ownedViewpoints[name='Logical%20Architecture']/@ownedRepresentations[name='Logical%20Architecture%20Blank']/@defaultLayer/@containerMappings[name='LAB%20Logical%20Component']"/>
+        <ownedDiagramElements xmi:type="diagram:DNodeContainer" uid="_c1a34a51-bbd1-52d2-8bbf-ac6c5322c488-26713aae-9c68-5ffd-941b-ae15ead68b39" name="Standard pack">
+          <target xmi:type="org.polarsys.capella.core.data.cs:Part" href="drone.capella#fe034fee-b9ad-5751-9b5f-e6d9e502b959"/>
+          <semanticElements xmi:type="org.polarsys.capella.core.data.cs:Part" href="drone.capella#fe034fee-b9ad-5751-9b5f-e6d9e502b959"/>
+          <semanticElements xmi:type="org.polarsys.capella.core.data.la:LogicalComponent" href="drone.capella#LC-PACK-STD"/>
+          <ownedStyle xmi:type="diagram:FlatContainerStyle" uid="_c1a34a51-bbd1-52d2-8bbf-ac6c5322c488-26713aae-9c68-5ffd-941b-ae15ead68b39-style">
+            <description xmi:type="style:FlatContainerStyleDescription" href="platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/logical.odesign#//@ownedViewpoints[name='Logical%20Architecture']/@ownedRepresentations[name='Logical%20Architecture%20Blank']/@defaultLayer/@containerMappings[name='LAB%20Logical%20Component']/@style"/>
+          </ownedStyle>
+          <actualMapping xmi:type="description_1:ContainerMapping" href="platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/logical.odesign#//@ownedViewpoints[name='Logical%20Architecture']/@ownedRepresentations[name='Logical%20Architecture%20Blank']/@defaultLayer/@containerMappings[name='LAB%20Logical%20Component']"/>
+        </ownedDiagramElements>
+        <ownedDiagramElements xmi:type="diagram:DNodeContainer" uid="_c1a34a51-bbd1-52d2-8bbf-ac6c5322c488-3d944e8d-977b-55d5-a211-743818507b88" name="Extended pack">
+          <target xmi:type="org.polarsys.capella.core.data.cs:Part" href="drone.capella#e6a1f578-4030-5e9b-bc34-6c99d71363e5"/>
+          <semanticElements xmi:type="org.polarsys.capella.core.data.cs:Part" href="drone.capella#e6a1f578-4030-5e9b-bc34-6c99d71363e5"/>
+          <semanticElements xmi:type="org.polarsys.capella.core.data.la:LogicalComponent" href="drone.capella#LC-PACK-EXT"/>
+          <ownedStyle xmi:type="diagram:FlatContainerStyle" uid="_c1a34a51-bbd1-52d2-8bbf-ac6c5322c488-3d944e8d-977b-55d5-a211-743818507b88-style">
+            <description xmi:type="style:FlatContainerStyleDescription" href="platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/logical.odesign#//@ownedViewpoints[name='Logical%20Architecture']/@ownedRepresentations[name='Logical%20Architecture%20Blank']/@defaultLayer/@containerMappings[name='LAB%20Logical%20Component']/@style"/>
+          </ownedStyle>
+          <actualMapping xmi:type="description_1:ContainerMapping" href="platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/logical.odesign#//@ownedViewpoints[name='Logical%20Architecture']/@ownedRepresentations[name='Logical%20Architecture%20Blank']/@defaultLayer/@containerMappings[name='LAB%20Logical%20Component']"/>
+        </ownedDiagramElements>
+      </ownedDiagramElements>
+      <ownedDiagramElements xmi:type="diagram:DNodeContainer" uid="_c1a34a51-bbd1-52d2-8bbf-ac6c5322c488-b44c26c6-12e0-536f-ace4-3566dbd77e94" name="Propulsion">
+        <target xmi:type="org.polarsys.capella.core.data.cs:Part" href="drone.capella#83fec7c2-b2cc-5ac2-9a6d-fe12a27db63c"/>
+        <semanticElements xmi:type="org.polarsys.capella.core.data.cs:Part" href="drone.capella#83fec7c2-b2cc-5ac2-9a6d-fe12a27db63c"/>
+        <semanticElements xmi:type="org.polarsys.capella.core.data.la:LogicalComponent" href="drone.capella#LC-PROP"/>
+        <ownedStyle xmi:type="diagram:FlatContainerStyle" uid="_c1a34a51-bbd1-52d2-8bbf-ac6c5322c488-b44c26c6-12e0-536f-ace4-3566dbd77e94-style">
+          <description xmi:type="style:FlatContainerStyleDescription" href="platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/logical.odesign#//@ownedViewpoints[name='Logical%20Architecture']/@ownedRepresentations[name='Logical%20Architecture%20Blank']/@defaultLayer/@containerMappings[name='LAB%20Logical%20Component']/@style"/>
+        </ownedStyle>
+        <actualMapping xmi:type="description_1:ContainerMapping" href="platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/logical.odesign#//@ownedViewpoints[name='Logical%20Architecture']/@ownedRepresentations[name='Logical%20Architecture%20Blank']/@defaultLayer/@containerMappings[name='LAB%20Logical%20Component']"/>
+      </ownedDiagramElements>
+      <ownedDiagramElements xmi:type="diagram:DNodeContainer" uid="_c1a34a51-bbd1-52d2-8bbf-ac6c5322c488-44052459-bbb7-56d4-81e3-ebb028199787" name="Structure">
+        <target xmi:type="org.polarsys.capella.core.data.cs:Part" href="drone.capella#0a46787f-7c50-564d-b2b4-3f498f6e243b"/>
+        <semanticElements xmi:type="org.polarsys.capella.core.data.cs:Part" href="drone.capella#0a46787f-7c50-564d-b2b4-3f498f6e243b"/>
+        <semanticElements xmi:type="org.polarsys.capella.core.data.la:LogicalComponent" href="drone.capella#LC-STRUCT"/>
+        <ownedStyle xmi:type="diagram:FlatContainerStyle" uid="_c1a34a51-bbd1-52d2-8bbf-ac6c5322c488-44052459-bbb7-56d4-81e3-ebb028199787-style">
+          <description xmi:type="style:FlatContainerStyleDescription" href="platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/logical.odesign#//@ownedViewpoints[name='Logical%20Architecture']/@ownedRepresentations[name='Logical%20Architecture%20Blank']/@defaultLayer/@containerMappings[name='LAB%20Logical%20Component']/@style"/>
+        </ownedStyle>
+        <actualMapping xmi:type="description_1:ContainerMapping" href="platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/logical.odesign#//@ownedViewpoints[name='Logical%20Architecture']/@ownedRepresentations[name='Logical%20Architecture%20Blank']/@defaultLayer/@containerMappings[name='LAB%20Logical%20Component']"/>
+      </ownedDiagramElements>
+      <ownedDiagramElements xmi:type="diagram:DNodeContainer" uid="_c1a34a51-bbd1-52d2-8bbf-ac6c5322c488-772f528f-ab6e-553d-af8f-09f9a5bcaa89" name="Flight control">
+        <target xmi:type="org.polarsys.capella.core.data.cs:Part" href="drone.capella#e19ecc95-57e0-5864-bf0f-c809f48b2eba"/>
+        <semanticElements xmi:type="org.polarsys.capella.core.data.cs:Part" href="drone.capella#e19ecc95-57e0-5864-bf0f-c809f48b2eba"/>
+        <semanticElements xmi:type="org.polarsys.capella.core.data.la:LogicalComponent" href="drone.capella#LC-FCS"/>
+        <ownedStyle xmi:type="diagram:FlatContainerStyle" uid="_c1a34a51-bbd1-52d2-8bbf-ac6c5322c488-772f528f-ab6e-553d-af8f-09f9a5bcaa89-style">
+          <description xmi:type="style:FlatContainerStyleDescription" href="platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/logical.odesign#//@ownedViewpoints[name='Logical%20Architecture']/@ownedRepresentations[name='Logical%20Architecture%20Blank']/@defaultLayer/@containerMappings[name='LAB%20Logical%20Component']/@style"/>
+        </ownedStyle>
+        <actualMapping xmi:type="description_1:ContainerMapping" href="platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/logical.odesign#//@ownedViewpoints[name='Logical%20Architecture']/@ownedRepresentations[name='Logical%20Architecture%20Blank']/@defaultLayer/@containerMappings[name='LAB%20Logical%20Component']"/>
+      </ownedDiagramElements>
+    </ownedDiagramElements>
+    <description xmi:type="description_1:DiagramDescription" href="platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/logical.odesign#//@ownedViewpoints[name='Logical%20Architecture']/@ownedRepresentations[name='Logical%20Architecture%20Blank']"/>
+    <target xmi:type="org.polarsys.capella.core.data.la:LogicalComponentPkg" href="drone.capella#c254dd87-3130-5a0e-9332-f916f21a0b65"/>
+    <activatedLayers xmi:type="description_1:Layer" href="platform:/plugin/org.polarsys.capella.core.sirius.analysis/description/logical.odesign#//@ownedViewpoints[name='Logical%20Architecture']/@ownedRepresentations[name='Logical%20Architecture%20Blank']/@defaultLayer"/>
+  </diagram:DSemanticDiagram>
+</xmi:XMI>

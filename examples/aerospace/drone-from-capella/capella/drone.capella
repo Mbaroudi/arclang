@@ -1,0 +1,200 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<org.polarsys.capella.core.data.capellamodeller:Project xmi:version="2.0" xmlns:xmi="http://www.omg.org/XMI" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:libraries="http://www.polarsys.org/capella/common/libraries/7.0.0" xmlns:org.polarsys.capella.core.data.capellacommon="http://www.polarsys.org/capella/core/common/7.0.0" xmlns:org.polarsys.capella.core.data.capellacore="http://www.polarsys.org/capella/core/core/7.0.0" xmlns:org.polarsys.capella.core.data.capellamodeller="http://www.polarsys.org/capella/core/modeller/7.0.0" xmlns:org.polarsys.capella.core.data.cs="http://www.polarsys.org/capella/core/cs/7.0.0" xmlns:org.polarsys.capella.core.data.ctx="http://www.polarsys.org/capella/core/ctx/7.0.0" xmlns:org.polarsys.capella.core.data.epbs="http://www.polarsys.org/capella/core/epbs/7.0.0" xmlns:org.polarsys.capella.core.data.fa="http://www.polarsys.org/capella/core/fa/7.0.0" xmlns:org.polarsys.capella.core.data.information="http://www.polarsys.org/capella/core/information/7.0.0" xmlns:org.polarsys.capella.core.data.information.datatype="http://www.polarsys.org/capella/core/information/datatype/7.0.0" xmlns:org.polarsys.capella.core.data.information.datavalue="http://www.polarsys.org/capella/core/information/datavalue/7.0.0" xmlns:org.polarsys.capella.core.data.interaction="http://www.polarsys.org/capella/core/interaction/7.0.0" xmlns:org.polarsys.capella.core.data.la="http://www.polarsys.org/capella/core/la/7.0.0" xmlns:org.polarsys.capella.core.data.oa="http://www.polarsys.org/capella/core/oa/7.0.0" xmlns:org.polarsys.capella.core.data.pa="http://www.polarsys.org/capella/core/pa/7.0.0" xmlns:org.polarsys.capella.core.data.pa.deployment="http://www.polarsys.org/capella/core/pa/deployment/7.0.0" xmlns:re="http://www.polarsys.org/capella/common/re/7.0.0" xmlns:CapellaRequirements="http://www.polarsys.org/capella/requirements" xmlns:Requirements="http://www.polarsys.org/kitalpha/requirements" id="1b110cad-bb29-5778-ade5-04e182ac5b9a" name="Drone endurance">
+  <ownedExtensions xsi:type="libraries:ModelInformation" id="1f5aad69-5061-55ae-b076-f59d7e33cc7d"/>
+  <ownedEnumerationPropertyTypes xsi:type="org.polarsys.capella.core.data.capellacore:EnumerationPropertyType" id="5e002c57-d774-5beb-9660-652e7f938cd6" name="ProgressStatus">
+    <ownedLiterals xsi:type="org.polarsys.capella.core.data.capellacore:EnumerationPropertyLiteral" id="90357352-ec6d-561a-ad26-2910489bee23" name="DRAFT"/>
+    <ownedLiterals xsi:type="org.polarsys.capella.core.data.capellacore:EnumerationPropertyLiteral" id="e4ff738e-29ec-560b-94f6-f1a61be45382" name="TO_BE_REVIEWED"/>
+    <ownedLiterals xsi:type="org.polarsys.capella.core.data.capellacore:EnumerationPropertyLiteral" id="4163bd15-0032-5534-899a-24e47ec09ba1" name="TO_BE_DISCUSSED"/>
+    <ownedLiterals xsi:type="org.polarsys.capella.core.data.capellacore:EnumerationPropertyLiteral" id="ceb25282-3174-51df-92f1-76a19f9f8534" name="REWORK_NECESSARY"/>
+    <ownedLiterals xsi:type="org.polarsys.capella.core.data.capellacore:EnumerationPropertyLiteral" id="d11cb3fe-8303-507d-8d71-76a93f390d39" name="UNDER_REWORK"/>
+    <ownedLiterals xsi:type="org.polarsys.capella.core.data.capellacore:EnumerationPropertyLiteral" id="cb9a1975-4311-54a5-a3ee-e31fd6b2d29c" name="REVIEWED_OK"/>
+  </ownedEnumerationPropertyTypes>
+  <keyValuePairs xsi:type="org.polarsys.capella.core.data.capellacore:KeyValue" id="7d21149b-7279-5c7f-a401-fafbc19f2082" key="projectApproach" value="SingletonComponents"/>
+  <ownedModelRoots xsi:type="org.polarsys.capella.core.data.capellamodeller:SystemEngineering" id="2938dbdf-c8c8-56ca-9d2c-8a2b1c122aa4" name="Drone endurance">
+    <ownedArchitectures xsi:type="org.polarsys.capella.core.data.oa:OperationalAnalysis" id="7193e227-8353-58e1-9f7e-027d9dd91c4e" name="Operational Analysis"/>
+    <ownedArchitectures xsi:type="org.polarsys.capella.core.data.ctx:SystemAnalysis" id="dd71f676-3a6d-5778-9c1a-9fb65f86efb0" name="Mission needs">
+      <ownedFunctionPkg xsi:type="org.polarsys.capella.core.data.ctx:SystemFunctionPkg" id="75af64af-e2a8-54d6-8ebc-02551c7facc7" name="System Functions">
+        <ownedSystemFunctions xsi:type="org.polarsys.capella.core.data.ctx:SystemFunction" id="eed9bb4b-5c02-5129-aaa4-b73d3fa9b751" name="Root System Function">
+          <ownedFunctions xsi:type="org.polarsys.capella.core.data.ctx:SystemFunction" id="SF-ALT" name="Measure altitude">
+            <ownedPropertyValues xsi:type="org.polarsys.capella.core.data.capellacore:StringPropertyValue" id="a6e00f9d-39ff-59f0-8e9a-79e2dc54f59f" name="latency" value="2 ms"/>
+            <outputs xsi:type="org.polarsys.capella.core.data.fa:FunctionOutputPort" id="b302d388-dc34-5a60-8cd1-a1be1a0e9c57" name="altitude"/>
+          </ownedFunctions>
+          <ownedFunctions xsi:type="org.polarsys.capella.core.data.ctx:SystemFunction" id="SF-HOLD" name="Hold altitude">
+            <ownedPropertyValues xsi:type="org.polarsys.capella.core.data.capellacore:StringPropertyValue" id="4f8efae5-7bf0-5580-9ee8-e3f889917d87" name="latency" value="1 ms"/>
+            <inputs xsi:type="org.polarsys.capella.core.data.fa:FunctionInputPort" id="483e2800-e770-555f-91a6-7820abe9c40a" name="altitude"/>
+            <outputs xsi:type="org.polarsys.capella.core.data.fa:FunctionOutputPort" id="f1e0f5f3-50ff-5271-bf05-6ae6cdcf5c2f" name="thrust"/>
+          </ownedFunctions>
+          <ownedFunctions xsi:type="org.polarsys.capella.core.data.ctx:SystemFunction" id="SF-THRUST" name="Produce thrust">
+            <ownedPropertyValues xsi:type="org.polarsys.capella.core.data.capellacore:StringPropertyValue" id="ce5129e4-3680-5f9e-bb7e-39aa344450f2" name="latency" value="4 ms"/>
+            <inputs xsi:type="org.polarsys.capella.core.data.fa:FunctionInputPort" id="73282513-03e1-51a0-b155-c69a93e6c531" name="thrust"/>
+          </ownedFunctions>
+          <ownedFunctionalChains xsi:type="org.polarsys.capella.core.data.fa:FunctionalChain" id="FC-ALT" name="Altitude loop">
+            <ownedPropertyValues xsi:type="org.polarsys.capella.core.data.capellacore:StringPropertyValue" id="30af9b81-9243-5ba1-b733-2d4c4f97b189" name="latency_budget" value="10 ms"/>
+            <ownedFunctionalChainInvolvements xsi:type="org.polarsys.capella.core.data.fa:FunctionalChainInvolvementFunction" id="a97aeac4-0fd3-57a4-b827-d82cf2267cc2" involved="#SF-ALT"/>
+            <ownedFunctionalChainInvolvements xsi:type="org.polarsys.capella.core.data.fa:FunctionalChainInvolvementFunction" id="7ced2c30-a780-5e4e-943f-6be4c157b1b9" involved="#SF-HOLD"/>
+            <ownedFunctionalChainInvolvements xsi:type="org.polarsys.capella.core.data.fa:FunctionalChainInvolvementFunction" id="15782a8a-40e1-55b6-9fe1-3596dc5ab2da" involved="#SF-THRUST"/>
+          </ownedFunctionalChains>
+          <ownedFunctionalExchanges xsi:type="org.polarsys.capella.core.data.fa:FunctionalExchange" id="altitude" name="altitude" target="#483e2800-e770-555f-91a6-7820abe9c40a" source="#b302d388-dc34-5a60-8cd1-a1be1a0e9c57"/>
+          <ownedFunctionalExchanges xsi:type="org.polarsys.capella.core.data.fa:FunctionalExchange" id="thrust demand" name="thrust demand" target="#73282513-03e1-51a0-b155-c69a93e6c531" source="#f1e0f5f3-50ff-5271-bf05-6ae6cdcf5c2f"/>
+        </ownedSystemFunctions>
+      </ownedFunctionPkg>
+      <ownedSystemComponentPkg xsi:type="org.polarsys.capella.core.data.ctx:SystemComponentPkg" id="37f27af7-beee-5729-8152-16bc619c00ae" name="Structure">
+        <ownedSystemComponents xsi:type="org.polarsys.capella.core.data.ctx:SystemComponent" id="8934af35-efe1-5c28-bb2e-b695b289de23" name="System"/>
+        <ownedParts xsi:type="org.polarsys.capella.core.data.cs:Part" id="e8991761-3719-5072-a4b9-7604cf5ecc64" name="System" abstractType="#8934af35-efe1-5c28-bb2e-b695b289de23"/>
+      </ownedSystemComponentPkg>
+      <ownedMissionPkg xsi:type="org.polarsys.capella.core.data.ctx:MissionPkg" id="28982eb5-c881-56eb-852b-ad9fcac11860" name="Missions"/>
+      <ownedAbstractCapabilityPkg xsi:type="org.polarsys.capella.core.data.ctx:CapabilityPkg" id="76fc2d8a-2ec6-50c5-8b5d-419407a31d6d" name="Capabilities"/>
+      <ownedExtensions xsi:type="CapellaRequirements:CapellaModule" id="b3b00fd6-9330-5e27-a311-d92677288a81" ReqIFLongName="Requirements">
+        <ownedRequirements xsi:type="Requirements:Requirement" id="7f073dd4-60a2-5d51-ba6f-bfc2c514691f" ReqIFIdentifier="Hover endurance" ReqIFLongName="Hover endurance" ReqIFText="With a 2 kg payload at 20 °C, the drone hovers at 50 m for 25 minutes and lands with 20 % of its charge">
+          <ownedAttributes xsi:type="Requirements:EnumerationValueAttribute" id="f95fd047-c755-529b-9555-2c501a6faf8f" definition="#92bf9f6a-ee83-5025-9afb-e60713da33ce" values="#21112ff8-5784-5da8-9645-131f48f47b45"/>
+        </ownedRequirements>
+        <ownedRequirements xsi:type="Requirements:Requirement" id="c3b04451-b2e1-5053-9c22-4df5e8f13a22" ReqIFIdentifier="Survey endurance" ReqIFLongName="Survey endurance" ReqIFText="With a 1 kg camera at 20 °C, the survey drone hovers at 50 m for 20 minutes and lands with 20 % of its charge">
+          <ownedAttributes xsi:type="Requirements:EnumerationValueAttribute" id="d87a0e5d-6370-54f0-a4eb-e9897b84edbd" definition="#92bf9f6a-ee83-5025-9afb-e60713da33ce" values="#e81677f2-cae1-5ea7-bffd-7fb4a752bf02"/>
+        </ownedRequirements>
+        <ownedRequirements xsi:type="Requirements:Requirement" id="1083ad76-6403-54b1-90f4-429e0081f077" ReqIFIdentifier="Altitude hold" ReqIFLongName="Altitude hold" ReqIFText="The climb to 50 m overshoots by less than 5 m, and the drone is still within 5 m of 50 m at the end of the mission"/>
+        <ownedRequirements xsi:type="Requirements:Requirement" id="d30499ac-3e16-509b-bdd7-e3641ec0bcc1" ReqIFIdentifier="Operating envelope" ReqIFLongName="Operating envelope" ReqIFText="From 0 °C to 35 °C and with payloads up to 2 kg, the extended pack keeps the endurance and the reserve of REQ-ENDURANCE">
+          <ownedAttributes xsi:type="Requirements:EnumerationValueAttribute" id="1f63c74b-d819-5fac-a510-b6073812b21e" definition="#92bf9f6a-ee83-5025-9afb-e60713da33ce" values="#21112ff8-5784-5da8-9645-131f48f47b45"/>
+        </ownedRequirements>
+      </ownedExtensions>
+      <ownedExtensions xsi:type="CapellaRequirements:CapellaTypesFolder" id="fcb38b76-2386-5f73-9ff1-ef0b6f7e5b2b" ReqIFLongName="Types">
+        <ownedDefinitionTypes xsi:type="Requirements:EnumerationDataTypeDefinition" id="fe4e3ce3-aad0-5b89-9f46-44533dd08a9d" ReqIFLongName="applies_to">
+          <specifiedValues xsi:type="Requirements:EnumValue" id="21112ff8-5784-5da8-9645-131f48f47b45" ReqIFLongName="CFG-LONG"/>
+          <specifiedValues xsi:type="Requirements:EnumValue" id="e81677f2-cae1-5ea7-bffd-7fb4a752bf02" ReqIFLongName="CFG-SURVEY"/>
+        </ownedDefinitionTypes>
+        <ownedTypes xsi:type="Requirements:RequirementType" id="5d8e3aef-9a79-540a-9a4c-93e2d521a157" ReqIFLongName="Requirement">
+          <ownedAttributes xsi:type="Requirements:AttributeDefinitionEnumeration" id="92bf9f6a-ee83-5025-9afb-e60713da33ce" ReqIFLongName="applies_to" definitionType="#fe4e3ce3-aad0-5b89-9f46-44533dd08a9d" multiValued="true"/>
+        </ownedTypes>
+      </ownedExtensions>
+      <ownedOperationalAnalysisRealizations xsi:type="org.polarsys.capella.core.data.ctx:OperationalAnalysisRealization" id="60923d9a-0b67-5744-b34a-1aeef98c237d" targetElement="#7193e227-8353-58e1-9f7e-027d9dd91c4e" sourceElement="#dd71f676-3a6d-5778-9c1a-9fb65f86efb0"/>
+    </ownedArchitectures>
+    <ownedArchitectures xsi:type="org.polarsys.capella.core.data.la:LogicalArchitecture" id="7d4ae01f-fa85-5232-a205-fe45edc9c902" name="Drone">
+      <ownedLogicalComponentPkg xsi:type="org.polarsys.capella.core.data.la:LogicalComponentPkg" id="c254dd87-3130-5a0e-9332-f916f21a0b65" name="Structure">
+        <ownedLogicalComponents xsi:type="org.polarsys.capella.core.data.la:LogicalComponent" id="LC-UAV" name="Air vehicle">
+          <ownedFeatures xsi:type="org.polarsys.capella.core.data.cs:Part" id="90ab7b7c-a10d-5d89-b4c9-903fd1eaa353" name="Energy" abstractType="#LC-ENERGY"/>
+          <ownedFeatures xsi:type="org.polarsys.capella.core.data.cs:Part" id="83fec7c2-b2cc-5ac2-9a6d-fe12a27db63c" name="Propulsion" abstractType="#LC-PROP"/>
+          <ownedFeatures xsi:type="org.polarsys.capella.core.data.cs:Part" id="0a46787f-7c50-564d-b2b4-3f498f6e243b" name="Structure" abstractType="#LC-STRUCT"/>
+          <ownedFeatures xsi:type="org.polarsys.capella.core.data.cs:Part" id="e19ecc95-57e0-5864-bf0f-c809f48b2eba" name="Flight control" abstractType="#LC-FCS"/>
+          <ownedLogicalComponents xsi:type="org.polarsys.capella.core.data.la:LogicalComponent" id="LC-ENERGY" name="Energy">
+            <ownedPropertyValues xsi:type="org.polarsys.capella.core.data.capellacore:BooleanPropertyValue" id="d36e9b79-1881-5cc8-bed8-941ac48f95ff" name="variation" value="true"/>
+            <ownedFeatures xsi:type="org.polarsys.capella.core.data.cs:Part" id="fe034fee-b9ad-5751-9b5f-e6d9e502b959" name="Standard pack" abstractType="#LC-PACK-STD"/>
+            <ownedFeatures xsi:type="org.polarsys.capella.core.data.cs:Part" id="e6a1f578-4030-5e9b-bc34-6c99d71363e5" name="Extended pack" abstractType="#LC-PACK-EXT"/>
+            <ownedLogicalComponents xsi:type="org.polarsys.capella.core.data.la:LogicalComponent" id="LC-PACK-STD" name="Standard pack">
+              <ownedPropertyValues xsi:type="org.polarsys.capella.core.data.capellacore:StringPropertyValue" id="516b3423-0960-5820-88c6-f451ba7389fb" name="energy" value="444 Wh"/>
+              <ownedPropertyValues xsi:type="org.polarsys.capella.core.data.capellacore:StringPropertyValue" id="01235ac3-42d6-5070-93a5-84823fa5c02e" name="mass" value="2.6 kg"/>
+              <ownedPropertyValues xsi:type="org.polarsys.capella.core.data.capellacore:BooleanPropertyValue" id="150e840d-c474-5829-83a3-0606c6640e02" name="variant" value="true"/>
+            </ownedLogicalComponents>
+            <ownedLogicalComponents xsi:type="org.polarsys.capella.core.data.la:LogicalComponent" id="LC-PACK-EXT" name="Extended pack">
+              <ownedPropertyValues xsi:type="org.polarsys.capella.core.data.capellacore:StringPropertyValue" id="85ef12ca-2d10-5422-aa6e-9d3b9851d167" name="energy" value="666 Wh"/>
+              <ownedPropertyValues xsi:type="org.polarsys.capella.core.data.capellacore:StringPropertyValue" id="5bc5a499-c0b8-56c9-a2b7-5238dfa5a0da" name="mass" value="3.9 kg"/>
+              <ownedPropertyValues xsi:type="org.polarsys.capella.core.data.capellacore:BooleanPropertyValue" id="3c9aa7f9-1b2d-5420-9dde-4540ed0c8631" name="variant" value="true"/>
+            </ownedLogicalComponents>
+          </ownedLogicalComponents>
+          <ownedLogicalComponents xsi:type="org.polarsys.capella.core.data.la:LogicalComponent" id="LC-PROP" name="Propulsion"/>
+          <ownedLogicalComponents xsi:type="org.polarsys.capella.core.data.la:LogicalComponent" id="LC-STRUCT" name="Structure"/>
+          <ownedLogicalComponents xsi:type="org.polarsys.capella.core.data.la:LogicalComponent" id="LC-FCS" name="Flight control"/>
+        </ownedLogicalComponents>
+        <ownedParts xsi:type="org.polarsys.capella.core.data.cs:Part" id="7e4ecee8-b634-59b4-aea4-c2414ab2f025" name="Air vehicle" abstractType="#LC-UAV"/>
+      </ownedLogicalComponentPkg>
+      <ownedAbstractCapabilityPkg xsi:type="org.polarsys.capella.core.data.la:CapabilityRealizationPkg" id="2ab336bc-571e-5b2b-8709-4e20b37b3775" name="Capabilities"/>
+      <ownedSystemAnalysisRealizations xsi:type="org.polarsys.capella.core.data.la:SystemAnalysisRealization" id="f4d3acbc-68db-5f75-b316-9cf6c2aa78fa" targetElement="#dd71f676-3a6d-5778-9c1a-9fb65f86efb0" sourceElement="#7d4ae01f-fa85-5232-a205-fe45edc9c902"/>
+    </ownedArchitectures>
+    <ownedArchitectures xsi:type="org.polarsys.capella.core.data.pa:PhysicalArchitecture" id="59d347a5-e873-58d6-9ade-bc46cc20b6ce" name="Drone hardware">
+      <ownedPhysicalComponentPkg xsi:type="org.polarsys.capella.core.data.pa:PhysicalComponentPkg" id="fd64f577-267e-51f2-83e0-058e98bea1b3" name="Structure">
+        <ownedPhysicalComponents xsi:type="org.polarsys.capella.core.data.pa:PhysicalComponent" id="PN-DRONE" name="Drone">
+          <ownedFeatures xsi:type="org.polarsys.capella.core.data.cs:Part" id="ee445081-6682-5c47-a3af-b15bf3fa5701" name="Battery" abstractType="#PN-BATT"/>
+          <ownedFeatures xsi:type="org.polarsys.capella.core.data.cs:Part" id="0645b3a0-1123-5d17-be47-9f230a8e0624" name="Propulsion" abstractType="#PN-PROP">
+            <ownedDeploymentLinks xsi:type="org.polarsys.capella.core.data.pa.deployment:PartDeploymentLink" id="04e47582-a8a1-5323-9536-aa98f28cabd3" deployedElement="#5b06e4bb-d9ae-5c8b-8771-17f0a0363f21" location="#0645b3a0-1123-5d17-be47-9f230a8e0624"/>
+          </ownedFeatures>
+          <ownedFeatures xsi:type="org.polarsys.capella.core.data.cs:Part" id="b62322c9-ddd8-5d85-be7b-b0ad74844e28" name="Airframe" abstractType="#PN-FRAME">
+            <ownedDeploymentLinks xsi:type="org.polarsys.capella.core.data.pa.deployment:PartDeploymentLink" id="5124af85-65b8-5626-9bb5-1576777395af" deployedElement="#e3fa7a0f-f8fb-57de-8f2d-e5f06567e5ac" location="#b62322c9-ddd8-5d85-be7b-b0ad74844e28"/>
+          </ownedFeatures>
+          <ownedFeatures xsi:type="org.polarsys.capella.core.data.cs:Part" id="051996a8-a6bd-5a77-b8e0-5920b132e0d6" name="Flight controller" abstractType="#PN-FC">
+            <ownedDeploymentLinks xsi:type="org.polarsys.capella.core.data.pa.deployment:PartDeploymentLink" id="95f2ac76-08ad-5f50-915a-663f3fc43dd1" deployedElement="#d6bae0be-baf6-5348-a51e-59645f932efb" location="#051996a8-a6bd-5a77-b8e0-5920b132e0d6"/>
+          </ownedFeatures>
+          <ownedFeatures xsi:type="org.polarsys.capella.core.data.cs:Part" id="5b06e4bb-d9ae-5c8b-8771-17f0a0363f21" name="Motor drive" abstractType="#BC-ESC"/>
+          <ownedFeatures xsi:type="org.polarsys.capella.core.data.cs:Part" id="e3fa7a0f-f8fb-57de-8f2d-e5f06567e5ac" name="Altimeter" abstractType="#BC-BARO"/>
+          <ownedFeatures xsi:type="org.polarsys.capella.core.data.cs:Part" id="d6bae0be-baf6-5348-a51e-59645f932efb" name="Altitude hold" abstractType="#BC-ALT"/>
+          <ownedPhysicalComponents xsi:type="org.polarsys.capella.core.data.pa:PhysicalComponent" id="PN-BATT" name="Battery" nature="NODE">
+            <ownedPropertyValues xsi:type="org.polarsys.capella.core.data.capellacore:StringPropertyValue" id="fc2440ca-015b-5923-9115-ba2cb89def35" name="avionics_load" value="25 W"/>
+            <ownedPropertyValues xsi:type="org.polarsys.capella.core.data.capellacore:StringPropertyValue" id="ed07ac85-779e-5997-b968-f53c9aba143d" name="voltage" value="44.4 V"/>
+            <ownedFeatures xsi:type="org.polarsys.capella.core.data.cs:PhysicalPort" id="95d54554-93fe-5553-b86b-042253408b65" name="p">
+              <ownedPropertyValues xsi:type="org.polarsys.capella.core.data.capellacore:StringPropertyValue" id="fe474517-916e-55ac-8ffd-309a9d7a3b96" name="is" value="Power plus"/>
+            </ownedFeatures>
+            <ownedFeatures xsi:type="org.polarsys.capella.core.data.cs:PhysicalPort" id="0e96ec52-7edc-5e3d-9014-f7736c3e6bb6" name="n">
+              <ownedPropertyValues xsi:type="org.polarsys.capella.core.data.capellacore:StringPropertyValue" id="b63a4c4e-b623-5cf3-b020-858c43c07475" name="is" value="Power minus"/>
+            </ownedFeatures>
+            <ownedFeatures xsi:type="org.polarsys.capella.core.data.cs:PhysicalPort" id="e95dd4e7-da8f-5c00-95bb-f48d9da516d2" name="mount">
+              <ownedPropertyValues xsi:type="org.polarsys.capella.core.data.capellacore:StringPropertyValue" id="860505fa-62b9-54a3-ae2e-08a69ac9a049" name="is" value="Load path"/>
+            </ownedFeatures>
+          </ownedPhysicalComponents>
+          <ownedPhysicalComponents xsi:type="org.polarsys.capella.core.data.pa:PhysicalComponent" id="PN-PROP" name="Propulsion" nature="NODE">
+            <ownedPropertyValues xsi:type="org.polarsys.capella.core.data.capellacore:StringPropertyValue" id="3fcc66ce-852e-5608-9189-b13d53f99b0f" name="efficiency" value="85 %"/>
+            <ownedPropertyValues xsi:type="org.polarsys.capella.core.data.capellacore:StringPropertyValue" id="6d80ab50-b009-553d-baab-9c6ee6d47977" name="figure_of_merit" value="70 %"/>
+            <ownedPropertyValues xsi:type="org.polarsys.capella.core.data.capellacore:StringPropertyValue" id="226b651c-55fd-5068-8a93-298ea3b773d6" name="max_thrust" value="250 N"/>
+            <ownedPropertyValues xsi:type="org.polarsys.capella.core.data.capellacore:StringPropertyValue" id="7d368720-3a1e-518b-a3e8-a10d819db5b7" name="rotor_radius" value="0.27 m"/>
+            <ownedPropertyValues xsi:type="org.polarsys.capella.core.data.capellacore:IntegerPropertyValue" id="27f60511-5d7d-5f05-8fd1-03da2db2ca0c" name="rotors" value="4"/>
+            <ownedFeatures xsi:type="org.polarsys.capella.core.data.cs:PhysicalPort" id="0fd25fa4-e71b-557d-95ae-09c9dd571851" name="p">
+              <ownedPropertyValues xsi:type="org.polarsys.capella.core.data.capellacore:StringPropertyValue" id="407b5380-a879-5a8d-94c8-2399ae26ec79" name="is" value="Power plus"/>
+            </ownedFeatures>
+            <ownedFeatures xsi:type="org.polarsys.capella.core.data.cs:PhysicalPort" id="745f1965-c1ed-573e-b95b-975badea5a2d" name="n">
+              <ownedPropertyValues xsi:type="org.polarsys.capella.core.data.capellacore:StringPropertyValue" id="35f03197-b8e9-5f52-954d-170d9ccb03fb" name="is" value="Power minus"/>
+            </ownedFeatures>
+            <ownedFeatures xsi:type="org.polarsys.capella.core.data.cs:PhysicalPort" id="3d71259f-e6c4-51b4-ae7a-f4dff2b1d942" name="lift">
+              <ownedPropertyValues xsi:type="org.polarsys.capella.core.data.capellacore:StringPropertyValue" id="50b8376d-def5-5c10-ba04-165e0bc90961" name="flange" value="b"/>
+              <ownedPropertyValues xsi:type="org.polarsys.capella.core.data.capellacore:StringPropertyValue" id="624ddf43-8a9b-563b-aded-651bed3bfec5" name="physics" value="mechanical_translational"/>
+            </ownedFeatures>
+            <ownedFeatures xsi:type="org.polarsys.capella.core.data.cs:PhysicalPort" id="d91f9819-5da0-58f7-b7f7-fc6d94cf50ab" name="PP d91f9819"/>
+          </ownedPhysicalComponents>
+          <ownedPhysicalComponents xsi:type="org.polarsys.capella.core.data.pa:PhysicalComponent" id="PN-FRAME" name="Airframe" nature="NODE">
+            <ownedPropertyValues xsi:type="org.polarsys.capella.core.data.capellacore:StringPropertyValue" id="3f600e45-4167-5fe0-9992-134cb838120b" name="ambient" value="20 °C"/>
+            <ownedPropertyValues xsi:type="org.polarsys.capella.core.data.capellacore:StringPropertyValue" id="774c6df5-ca06-5899-90b5-bbe650e1ebd4" name="mass" value="4.5 kg"/>
+            <ownedPropertyValues xsi:type="org.polarsys.capella.core.data.capellacore:StringPropertyValue" id="5b82a219-2501-54a0-ba17-9452df5da7cb" name="payload" value="2 kg"/>
+            <ownedFeatures xsi:type="org.polarsys.capella.core.data.cs:PhysicalPort" id="2b8c4114-c172-5c70-9a37-3e762a91789e" name="lift">
+              <ownedPropertyValues xsi:type="org.polarsys.capella.core.data.capellacore:StringPropertyValue" id="117fe284-d10b-50d0-b6f1-ce3bc3bc623b" name="is" value="Load path"/>
+            </ownedFeatures>
+            <ownedFeatures xsi:type="org.polarsys.capella.core.data.cs:PhysicalPort" id="68aa6254-c03c-5680-a9ef-adc6abc5d09c" name="mount">
+              <ownedPropertyValues xsi:type="org.polarsys.capella.core.data.capellacore:StringPropertyValue" id="7a3fcac7-bf3e-5951-8143-5ae73e467065" name="flange" value="b"/>
+              <ownedPropertyValues xsi:type="org.polarsys.capella.core.data.capellacore:StringPropertyValue" id="6ceadf97-9652-59be-934e-c3ba043b656a" name="physics" value="mechanical_translational"/>
+            </ownedFeatures>
+            <ownedFeatures xsi:type="org.polarsys.capella.core.data.cs:PhysicalPort" id="a01f7d02-fc49-50cf-a6ec-f1f50785cfcc" name="PP a01f7d02"/>
+          </ownedPhysicalComponents>
+          <ownedPhysicalComponents xsi:type="org.polarsys.capella.core.data.pa:PhysicalComponent" id="PN-FC" name="Flight controller" nature="NODE">
+            <ownedFeatures xsi:type="org.polarsys.capella.core.data.cs:PhysicalPort" id="e61b6041-6412-59c5-9f7f-1220dd3f1f2b" name="PP e61b6041"/>
+            <ownedFeatures xsi:type="org.polarsys.capella.core.data.cs:PhysicalPort" id="f46d227c-ff36-5875-9c90-89989149a956" name="PP f46d227c"/>
+          </ownedPhysicalComponents>
+          <ownedPhysicalComponents xsi:type="org.polarsys.capella.core.data.pa:PhysicalComponent" id="BC-ESC" name="Motor drive" nature="BEHAVIOR">
+            <ownedFeatures xsi:type="org.polarsys.capella.core.data.fa:ComponentPort" id="1855e003-8c54-5f86-99be-6a48e797c9a1" name="thrust_cmd" orientation="IN" kind="FLOW"/>
+          </ownedPhysicalComponents>
+          <ownedPhysicalComponents xsi:type="org.polarsys.capella.core.data.pa:PhysicalComponent" id="BC-BARO" name="Altimeter" nature="BEHAVIOR">
+            <ownedFeatures xsi:type="org.polarsys.capella.core.data.fa:ComponentPort" id="8c7adb35-84e9-584f-938b-1f43ffcecc56" name="altitude" orientation="OUT" kind="FLOW"/>
+          </ownedPhysicalComponents>
+          <ownedPhysicalComponents xsi:type="org.polarsys.capella.core.data.pa:PhysicalComponent" id="BC-ALT" name="Altitude hold" nature="BEHAVIOR">
+            <ownedPropertyValues xsi:type="org.polarsys.capella.core.data.capellacore:StringPropertyValue" id="aefcf2bb-ca6c-566f-b72e-1c12f3065374" name="target_altitude" value="50 m"/>
+            <ownedFeatures xsi:type="org.polarsys.capella.core.data.fa:ComponentPort" id="7e1b847d-b679-5eb3-bd88-17a55e1f1960" name="altitude" orientation="IN" kind="FLOW"/>
+            <ownedFeatures xsi:type="org.polarsys.capella.core.data.fa:ComponentPort" id="7894812a-df73-5cc0-8acf-d7e1ca625543" name="thrust_cmd" orientation="OUT" kind="FLOW"/>
+          </ownedPhysicalComponents>
+          <ownedPhysicalLinks xsi:type="org.polarsys.capella.core.data.cs:PhysicalLink" id="PL-PWR-P" name="Power harness plus" linkEnds="#95d54554-93fe-5553-b86b-042253408b65 #0fd25fa4-e71b-557d-95ae-09c9dd571851"/>
+          <ownedPhysicalLinks xsi:type="org.polarsys.capella.core.data.cs:PhysicalLink" id="PL-PWR-N" name="Power harness minus" linkEnds="#0e96ec52-7edc-5e3d-9014-f7736c3e6bb6 #745f1965-c1ed-573e-b95b-975badea5a2d"/>
+          <ownedPhysicalLinks xsi:type="org.polarsys.capella.core.data.cs:PhysicalLink" id="PL-ARMS" name="Motor arms" linkEnds="#3d71259f-e6c4-51b4-ae7a-f4dff2b1d942 #2b8c4114-c172-5c70-9a37-3e762a91789e"/>
+          <ownedPhysicalLinks xsi:type="org.polarsys.capella.core.data.cs:PhysicalLink" id="PL-TRAY" name="Battery tray" linkEnds="#68aa6254-c03c-5680-a9ef-adc6abc5d09c #e95dd4e7-da8f-5c00-95bb-f48d9da516d2"/>
+          <ownedPhysicalLinks xsi:type="org.polarsys.capella.core.data.cs:PhysicalLink" id="PL-SENS" name="Sensor bus" linkEnds="#a01f7d02-fc49-50cf-a6ec-f1f50785cfcc #e61b6041-6412-59c5-9f7f-1220dd3f1f2b"/>
+          <ownedPhysicalLinks xsi:type="org.polarsys.capella.core.data.cs:PhysicalLink" id="PL-ESC" name="ESC bus" linkEnds="#f46d227c-ff36-5875-9c90-89989149a956 #d91f9819-5da0-58f7-b7f7-fc6d94cf50ab"/>
+          <ownedComponentExchanges xsi:type="org.polarsys.capella.core.data.fa:ComponentExchange" id="PX-ALT" name="Altitude" target="#7e1b847d-b679-5eb3-bd88-17a55e1f1960" source="#8c7adb35-84e9-584f-938b-1f43ffcecc56" kind="FLOW">
+            <ownedPropertyValues xsi:type="org.polarsys.capella.core.data.capellacore:StringPropertyValue" id="809be7c8-b949-5bbc-aafd-8f2981bd6fff" name="frequency" value="50 Hz"/>
+            <ownedPropertyValues xsi:type="org.polarsys.capella.core.data.capellacore:StringPropertyValue" id="1787d433-c91e-502b-bf9e-69275a8bb9a1" name="message_type" value="Barometer"/>
+          </ownedComponentExchanges>
+          <ownedComponentExchanges xsi:type="org.polarsys.capella.core.data.fa:ComponentExchange" id="PX-THRUST" name="Thrust command" target="#1855e003-8c54-5f86-99be-6a48e797c9a1" source="#7894812a-df73-5cc0-8acf-d7e1ca625543" kind="FLOW">
+            <ownedPropertyValues xsi:type="org.polarsys.capella.core.data.capellacore:StringPropertyValue" id="167d89f4-6327-5a85-b027-d9fac4aee800" name="frequency" value="400 Hz"/>
+            <ownedPropertyValues xsi:type="org.polarsys.capella.core.data.capellacore:StringPropertyValue" id="6af9f790-4fcd-5196-b044-451cc6566251" name="message_type" value="Throttle"/>
+          </ownedComponentExchanges>
+        </ownedPhysicalComponents>
+        <ownedParts xsi:type="org.polarsys.capella.core.data.cs:Part" id="f24995e7-e074-5053-a0ec-9046434824a0" name="Drone" abstractType="#PN-DRONE"/>
+      </ownedPhysicalComponentPkg>
+      <ownedAbstractCapabilityPkg xsi:type="org.polarsys.capella.core.data.la:CapabilityRealizationPkg" id="0a50a6a2-6467-54d3-b25c-8f1a51c769bf" name="Capabilities"/>
+      <ownedLogicalArchitectureRealizations xsi:type="org.polarsys.capella.core.data.pa:LogicalArchitectureRealization" id="2c154629-9d84-56f6-812e-d5bba83f489d" targetElement="#7d4ae01f-fa85-5232-a205-fe45edc9c902" sourceElement="#59d347a5-e873-58d6-9ade-bc46cc20b6ce"/>
+    </ownedArchitectures>
+    <ownedArchitectures xsi:type="org.polarsys.capella.core.data.epbs:EPBSArchitecture" id="2d1cb9fa-26a9-5f3e-8161-159b282b6eb0" name="EPBS Architecture">
+      <ownedPhysicalArchitectureRealizations xsi:type="org.polarsys.capella.core.data.epbs:PhysicalArchitectureRealization" id="105236ed-084d-500e-a391-519dc4fd646a" targetElement="#59d347a5-e873-58d6-9ade-bc46cc20b6ce" sourceElement="#2d1cb9fa-26a9-5f3e-8161-159b282b6eb0"/>
+    </ownedArchitectures>
+  </ownedModelRoots>
+</org.polarsys.capella.core.data.capellamodeller:Project>
