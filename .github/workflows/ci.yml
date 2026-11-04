@@ -70,6 +70,24 @@ jobs:
       - name: Run the target and PIL tests, the Renode runs included
         run: tools/embedded/soc/run.sh cargo test --test embedded_soc -- --include-ignored
 
+  # The programmable logic: VHDL in GHDL against the fixed-point C, and
+  # synthesis for the ECP5 (Yosys with the GHDL plugin, nextpnr-ecp5,
+  # ecppack), pinned in tools/embedded/fpga/Dockerfile (on top of the
+  # embedded image).
+  embedded-fpga:
+    name: Embedded FPGA (GHDL, Yosys, nextpnr)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build the images
+        run: |
+          docker build -t arclang-embedded:1 tools/embedded
+          docker build -t arclang-embedded-fpga:1 tools/embedded/fpga
+
+      - name: Run the FPGA tests, the GHDL runs and the synthesis included
+        run: tools/embedded/fpga/run.sh cargo test --release --test embedded_fpga -- --include-ignored
+
   examples:
     name: Compile all active examples (CLI)
     runs-on: ubuntu-latest
