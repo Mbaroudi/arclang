@@ -12,7 +12,7 @@ use crate::compiler::variability;
 use std::collections::{BTreeMap, HashMap, HashSet};
 
 /// Attributes that are structure, not physics: never parameters.
-const NOT_PARAMETERS: &[&str] = &["id", "multiplicity", "variation", "variant", "x", "y", "width", "height"];
+const NOT_PARAMETERS: &[&str] = &["id", "multiplicity", "variation", "variant", "x", "y", "width", "height", "model"];
 
 #[derive(Debug, Clone)]
 pub struct Param {
@@ -49,6 +49,10 @@ pub struct Part {
     pub node: Option<usize>,
     /// For a node: its behavior components.
     pub behaviors: Vec<usize>,
+    /// `model:`: the executable model attached to the element (a Modelica
+    /// class extending its generated class, with modifiers if any), which
+    /// the roll-up puts in its place.
+    pub model: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -109,6 +113,8 @@ struct Reader<'a> {
     logical: HashMap<String, &'a LogicalComponent>,
     variations: Vec<variability::Variation>,
     out: Structure,
+    /// Nodes left out, nothing to simulate in them (by id and by name).
+    skipped: HashSet<String>,
 }
 
 impl<'a> Reader<'a> {
@@ -191,6 +197,14 @@ impl<'a> Reader<'a> {
                 let mut ports: Vec<Port> = node.ports.iter().filter_map(|p| self.port(&node.id, &p.name, Orientation::None, &p.attributes, &mut taken)).collect();
                 ports.extend(self.component_ports(&node.id, &node.component_ports, &mut taken));
                 let params = self.params(&node.id, &node.attributes, &realizes);
+                // A node with nothing to simulate (the system itself, as
+                // Capella's root component): no part of the Modelica model.
+                if ports.is_empty() && params.is_empty() && node.behavior_components.is_empty() {
+                    self.out.notes.push(format!("node '{}' has no port, no parameter and no behavior component: nothing to simulate, not a part", node.name));
+                    self.skipped.insert(node.id.clone());
+                    self.skipped.insert(node.name.clone());
+                    continue;
+                }
                 let index = self.out.parts.len();
                 let class = names::unique(names::class_name(&node.name), &mut classes);
                 let instance = names::unique(names::instance_name(&node.name), &mut instances);
@@ -205,6 +219,7 @@ impl<'a> Reader<'a> {
                     realizes,
                     node: None,
                     behaviors: Vec::new(),
+                    model: node.attributes.get("model").and_then(|m| m.as_string()).map(str::to_string),
                 });
                 let mut members: Vec<String> = self.out.parts[index].ports.iter().map(|p| p.member.clone()).chain(self.out.parts[index].params.iter().map(|p| p.name.clone())).collect();
                 let mut behaviour_classes = Vec::new();
@@ -225,6 +240,7 @@ impl<'a> Reader<'a> {
                         realizes,
                         node: Some(index),
                         behaviors: Vec::new(),
+                        model: behavior.attributes.get("model").and_then(|m| m.as_string()).map(str::to_string),
                     });
                     self.out.parts[index].behaviors.push(child);
                 }
@@ -241,7 +257,31 @@ impl<'a> Reader<'a> {
     }
 
     fn ports_named(&self, reference: &str) -> bool {
-        reference.rsplit_once('.').is_some_and(|(owner, _)| self.out.parts.iter().any(|p| p.id == owner || p.name == owner))
+        reference.rsplit_once('.').is_some_and(|(owner, _)| self.skipped.contains(owner) || self.out.parts.iter().any(|p| p.id == owner || p.name == owner))
+    }
+
+    /// The end of a system-level connection: a node's port as it is, a
+    /// behavior component's port through a relay port of its node (made
+    /// once, joined to the behavior's port inside the node).
+    fn relay(&mut self, id: &str, end: (usize, usize)) -> Result<(usize, usize), String> {
+        let (part, port) = end;
+        let Some(node) = self.out.parts[part].node else { return Ok(end) };
+        let inner = self.out.parts[part].ports[port].clone();
+        let member = format!("{}_{}", self.out.parts[part].instance, inner.member);
+        if let Some(existing) = self.out.parts[node].ports.iter().position(|p| p.member == member) {
+            return Ok((node, existing));
+        }
+        let relay = Port { name: member.clone(), id: format!("{}.{}", self.out.parts[node].id, member), member, ..inner };
+        self.out.parts[node].ports.push(relay);
+        let relay_index = self.out.parts[node].ports.len() - 1;
+        let ends = [(part, port), (node, relay_index)];
+        let end = |(p, q): (usize, usize)| {
+            let pt = &self.out.parts[p].ports[q];
+            End { label: pt.id.as_str(), physics: pt.physics, orientation: pt.orientation, outside: p == node }
+        };
+        connector::compatible(end(ends[0]), end(ends[1])).map_err(|e| format!("'{id}' (relay): {e}"))?;
+        self.out.connections.push(Connection { id: format!("{id}:relay:{}", self.out.parts[part].id), ends, within: Some(node) });
+        Ok((node, relay_index))
     }
 
     fn connections(&mut self) -> Result<(), String> {
@@ -266,12 +306,14 @@ impl<'a> Reader<'a> {
             let node_of = |end: (usize, usize)| self.out.parts[end.0].node.unwrap_or(end.0);
             let within = if node_of(a) == node_of(b) && (self.out.parts[a.0].node.is_some() || self.out.parts[b.0].node.is_some() || a.0 == b.0) {
                 Some(node_of(a))
-            } else if self.out.parts[a.0].node.is_none() && self.out.parts[b.0].node.is_none() {
-                None
             } else {
-                self.out.notes.push(format!("'{id}' joins behavior components of different nodes: route it through ports of the nodes; left out"));
-                continue;
+                None
             };
+            // Between behavior components of different nodes (an exchange
+            // Arcadia allocates to a physical link): Modelica connects one
+            // level down only, so the end goes through a relay connector of
+            // its node, joined to the behavior's port inside the node.
+            let (a, b) = if within.is_none() { (self.relay(&id, a)?, self.relay(&id, b)?) } else { (a, b) };
             let end = |(part, port): (usize, usize)| {
                 let p = &self.out.parts[part].ports[port];
                 End { label: p.id.as_str(), physics: p.physics, orientation: p.orientation, outside: within == Some(part) }
@@ -356,6 +398,7 @@ pub fn read(ast: &Model) -> Result<Structure, String> {
         logical: logical_index(ast),
         variations: variability::variations(ast),
         out: Structure::default(),
+        skipped: HashSet::new(),
     };
     reader.parts();
     reader.connections()?;
