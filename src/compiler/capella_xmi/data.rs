@@ -20,7 +20,8 @@ pub(super) fn collect_property_values(writer: &mut Writer, project: &Node) {
     let literal_of = |value: &Node| -> Option<String> {
         let key = key_of(value.name());
         let literal = match value.kind.as_str() {
-            "capellacore:StringPropertyValue" => string_literal(value.attr("value").unwrap_or("")),
+            // A text that reads as a quantity (`2 kg`, `20 °C`, `85 %`) comes back as one.
+            "capellacore:StringPropertyValue" => quantity_or_string(value.attr("value").unwrap_or("")),
             "capellacore:IntegerPropertyValue" => integer_literal(value.attr("value").unwrap_or("0")),
             "capellacore:FloatPropertyValue" => float_literal(value.attr("value").unwrap_or("0")),
             "capellacore:BooleanPropertyValue" => if value.attr("value") == Some("true") { "true".to_string() } else { "false".to_string() },
@@ -91,7 +92,9 @@ pub(super) fn applied_values(writer: &mut Writer, depth: usize, node: &Node, kin
     }
     let mut used: HashSet<String> = HashSet::new();
     for value in lines {
-        let reserved = matches!(value.key.as_str(), "id" | "name" | "description" | "summary" | "is" | "type" | "kind") || writer.is_typed(kind, &value.key);
+        // A typed attribute takes a quantity as written; any other value keeps the pv_ prefix.
+        let quantity = is_quantity_literal(&value.literal);
+        let reserved = matches!(value.key.as_str(), "id" | "name" | "description" | "summary" | "is" | "type" | "kind") || (writer.is_typed(kind, &value.key) && !quantity);
         let mut key = if reserved { format!("pv_{}", value.key) } else { value.key.clone() };
         while !used.insert(key.clone()) {
             key.push('_');
@@ -99,6 +102,21 @@ pub(super) fn applied_values(writer: &mut Writer, depth: usize, node: &Node, kin
         writer.count("property values");
         writer.line(depth, &format!("{key}: {}", value.literal));
     }
+}
+
+/// A property value's text: a quantity literal when it reads as one (a
+/// number and a unit ArcLang knows), else a string literal.
+fn quantity_or_string(text: &str) -> String {
+    let t = text.trim();
+    if crate::compiler::quantity::Quantity::parse(t).is_ok() {
+        t.to_string()
+    } else {
+        string_literal(text)
+    }
+}
+
+fn is_quantity_literal(literal: &str) -> bool {
+    !literal.starts_with('"') && crate::compiler::quantity::Quantity::parse(literal).is_ok()
 }
 
 /// The constraints owned by `node`: their expression bodies, as text.
