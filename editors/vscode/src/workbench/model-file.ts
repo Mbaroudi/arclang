@@ -5,7 +5,7 @@
 import * as path from 'node:path';
 import * as vscode from 'vscode';
 import { deliver, reveal } from '../download';
-import { failureText, report, run, withTempFile } from '../cli';
+import { asFile, failureText, report, run, withTempFile } from '../cli';
 import { arcTextOf, modelLanguage } from './source';
 
 export interface SaveAsFormat {
@@ -78,7 +78,7 @@ export async function saveModelAs(document: vscode.TextDocument, wanted?: string
     const onDisk = modelLanguage(document) === 'arclang' && document.uri.scheme === 'file' && !document.isDirty;
     const exportFrom = (file: string, cwd: string) => run(['export', file, '-f', picked.format!, '-o', out], { cwd });
     const result = await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: `ArcLang: saving as ${picked.label}` }, () =>
-      onDisk ? exportFrom(document.uri.fsPath, path.dirname(document.uri.fsPath)) : withTempFile(source.text, `${base}.arc`, (file, dir) => exportFrom(file, dir)),
+      onDisk ? exportFrom(document.uri.fsPath, path.dirname(document.uri.fsPath)) : withTempFile(source.text, `${base}.arc`, (file, dir) => run(['export', file, '-f', picked.format!, '-o', out, ...asFile(document)], { cwd: dir })),
     );
     report(`arclang export ${path.basename(document.uri.fsPath)} -f ${picked.format} -o ${out}`, result, false);
     if (result.code !== 0 || !(await vscode.workspace.fs.stat(target).then(() => true, () => false))) {

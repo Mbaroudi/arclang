@@ -2,7 +2,7 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as vscode from 'vscode';
-import { failureText, run, RunResult, withTempFile } from '../cli';
+import { asFile, failureText, run, RunResult, withTempFile } from '../cli';
 import { clip, exitLine, parseCheckReport, renderTransitionPlan, summarizeCheck, TransitionPlan } from '../pure/arc';
 import { confirmEdits, mdText } from '../pure/confirm';
 import { EditRequest, layerOfKind, Metamodel, neighbors, Snapshot } from '../pure/workbench';
@@ -60,7 +60,7 @@ function refused(candidate: string | undefined): vscode.LanguageModelToolResult 
 async function runOnModel(file: string, args: (model: string) => string[], token: vscode.CancellationToken): Promise<RunResult> {
   const open = openDocument(file);
   if (open && open.isDirty) {
-    return withTempFile(open.getText(), path.basename(file), (tmp) => run(args(tmp), { cwd: path.dirname(file), token }));
+    return withTempFile(open.getText(), path.basename(file), (tmp) => run([...args(tmp), ...asFile(file)], { cwd: path.dirname(file), token }));
   }
   return run(args(file), { cwd: path.dirname(file), token });
 }
