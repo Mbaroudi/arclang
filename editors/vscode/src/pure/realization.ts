@@ -201,4 +201,4 @@ export type ToRealizationView =
   | { type: 'error'; error: string; file: string }
   | { type: 'result'; ok: boolean; message: string };
 
-export type FromRealizationView = { type: 'ready' } | { type: 'refresh' } | { type: 'run'; command: string } | { type: 'reveal'; id: string } | { type: 'table' };
+export type FromRealizationView = { type: 'ready' } | { type: 'refresh' } | { type: 'run'; command: string } | { type: 'realize'; requirement: string | null } | { type: 'reveal'; id: string } | { type: 'table' };

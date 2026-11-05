@@ -68,6 +68,7 @@ button:focus-visible { outline: 2px solid var(--rl-focus); outline-offset: 1px; 
 .rl-stale { color: var(--rl-stale); border-color: color-mix(in srgb, var(--rl-stale) 55%, transparent); background: color-mix(in srgb, var(--rl-stale) 12%, transparent); }
 .rl-missing { color: var(--rl-missing); border-style: dashed; }
 .rl-na { color: var(--rl-muted); opacity: 0.6; }
+.rl-reached { display: flex; flex-direction: column; gap: 4px; align-items: flex-start; }
 .rl-reached .rl-ok { color: var(--rl-ok); font-weight: 600; }
 .rl-next-cell { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .rl-next-cell code { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

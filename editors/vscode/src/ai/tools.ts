@@ -121,6 +121,21 @@ export function registerTools(context: vscode.ExtensionContext): void {
       },
     }),
 
+    vscode.lm.registerTool<{ path: string; requirement?: string; up_to?: string }>('arclang_realize', {
+      prepareInvocation: () => ({ invocationMessage: 'Planning the realization ladder' }),
+      async invoke(options, token) {
+        const file = allowedPath(options.input.path);
+        if (!file) return refused(options.input.path);
+        const args = ['realize', '--dry-run', '--json', ...(options.input.requirement ? ['--requirement', options.input.requirement] : []), ...(options.input.up_to ? ['--up-to', options.input.up_to] : [])];
+        const result = await runOnModel(file, (m) => [...args, '--', m], token);
+        if (result.code !== 0) return answer([exitLine('realize --dry-run', result.code), failureText(result)]);
+        return answer([
+          `realize --dry-run ${path.basename(file)}: the plan climbs the stages in order (simulation, sil, pil, hdl, soc, board, twin); a gap is a requirement nothing climbs. Propose the missing test_case or twin with arclang_edit; the engineer runs \`arclang realize\` (or Run in the Realization ladder view).`,
+          clip(result.stdout, MAX_RESULT),
+        ]);
+      },
+    }),
+
     vscode.lm.registerTool<{ kind?: string }>('arclang_metamodel', {
       prepareInvocation: () => ({ invocationMessage: 'Reading the ArcLang metamodel' }),
       async invoke(options, token) {

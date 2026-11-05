@@ -56,6 +56,7 @@ function header(): HTMLElement {
   ];
   const next = nextCommands(ladders);
   const actions = el('div', { class: 'rl-actions' }, [
+    button('Realize', () => post({ type: 'realize', requirement: null }), { class: 'rl-run', title: 'arclang realize: climb every stage that is missing or stale, in order, in a terminal beside the model' }),
     button('Refresh', () => post({ type: 'refresh' }), { title: 'Read the cached verdicts again' }),
     button('As a table', () => post({ type: 'table' }), { title: 'The same ladder as a table: Markdown, Excel' }),
     el('label', { class: 'rl-toggle' }, [
@@ -82,7 +83,7 @@ function header(): HTMLElement {
           ]),
         ),
       ])
-    : el('div', { class: 'rl-next rl-muted', text: summary.climbing ? 'Every stage that applies has fresh evidence.' : 'No requirement has a case that simulates or executes, nor a twin: nothing to climb yet.' });
+    : el('div', { class: 'rl-next rl-muted', text: summary.failing ? `${summary.failing} requirement${summary.failing === 1 ? '' : 's'} stop${summary.failing === 1 ? 's' : ''} at a failure: look at the case, the climb does not go past it.` : summary.climbing ? 'Every stage that applies has fresh evidence.' : 'No requirement has a case that simulates or executes, nor a twin: nothing to climb yet.' });
   return el('header', { class: 'rl-header' }, [
     el('div', { class: 'rl-title' }, [el('h1', { text: 'Realization ladder' }), el('span', { class: 'rl-file', text: file }), busy ? el('span', { class: 'rl-busy', text: 'computing…' }) : el('span', { class: 'rl-muted', text: `${computedMs} ms` })]),
     el('div', { class: 'rl-counts' }, counts),
@@ -112,7 +113,10 @@ function row(ladder: Ladder): HTMLElement {
     ladder.stages.map((s) => el('span', { class: `rl-chip rl-${s.state === 'n/a' ? 'na' : s.state}`, title: stageTitle(s) }, [el('b', { text: markOf(s.state) }), ` ${stageLabel(s.stage)}`])),
   );
   const top = reached(ladder);
-  const state = el('div', { class: 'rl-reached' }, [complete(ladder) ? el('span', { class: 'rl-ok', text: 'complete' }) : top ? el('span', { text: `reached ${stageLabel(top)}` }) : el('span', { class: 'rl-muted', text: 'no evidence yet' })]);
+  const state = el('div', { class: 'rl-reached' }, [
+    complete(ladder) ? el('span', { class: 'rl-ok', text: 'complete' }) : top ? el('span', { text: `reached ${stageLabel(top)}` }) : el('span', { class: 'rl-muted', text: 'no evidence yet' }),
+    applies(ladder) && !complete(ladder) ? button('Realize', () => post({ type: 'realize', requirement: ladder.requirement }), { class: 'rl-small', title: `arclang realize --requirement ${ladder.requirement}` }) : null,
+  ]);
   const next = ladder.next
     ? el('div', { class: 'rl-next-cell' }, [
         ladder.next.startsWith('arclang ') ? button('Run', () => post({ type: 'run', command: ladder.next! }), { class: 'rl-run rl-small' }) : null,

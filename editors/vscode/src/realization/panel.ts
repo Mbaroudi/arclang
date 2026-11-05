@@ -133,6 +133,12 @@ export class RealizationPanel implements vscode.Disposable {
         return this.refresh();
       case 'run':
         return this.run(message.command);
+      case 'realize': {
+        const file = this.document.uri.scheme === 'file' ? this.document.uri.fsPath : null;
+        if (!file) return this.post({ type: 'result', ok: false, message: 'Save the model to a file first' });
+        const quoted = /[\s"']/.test(file) ? `"${file.replace(/"/g, '\\"')}"` : file;
+        return this.run(`arclang realize ${quoted}${message.requirement ? ` --requirement ${message.requirement}` : ''}`);
+      }
       case 'reveal':
         return this.reveal(message.id);
       case 'table':

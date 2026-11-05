@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- **The realization ladder** (`ArcLang: Realization ladder`): a tab per model, one row per requirement, a chip per stage — the simulation, SIL, PIL, HDL, the SoC, the board, the twin — fresh pass, fail, stale (changed since) or never run, from the verdicts the commands cached beside the model (nothing runs to show it). The stage reached, the next command with **Run** (a terminal beside the model, the configured binary, the real file), and **Realize** (`arclang realize`: every missing or stale stage in order, a requirement's climb stopping at a failure). The view refreshes when a verdict is written. The table view offers the `realization` kind; the chat tool `arclang_realize` gives the assistant the plan and the gaps (a requirement nothing climbs), to propose the missing case with `arclang_edit`.
 - **A live twin whose model advances with the data**: `advance: "step"` in a live `data:` block.
   - The model is built once as an OpenModelica Co-Simulation FMU (FMI 2.0, CVODE), then stepped to each new instant, its inputs interpolated linearly between samples, its state kept.
   - Each refresh only judges what was computed: the model is no longer run again over the window.
