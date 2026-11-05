@@ -25,6 +25,9 @@ compiler when the site is built.
 - [embedded-c.md](embedded-c.md): the state machines as portable C99, the
   I/O interface and its bindings, software in the loop against the model
   (`arclang export -f c`, `arclang sil`).
+- [realization.md](realization.md): the realization ladder, what each stage
+  (simulation, SIL, PIL, HDL, SoC, board, twin) says of each requirement from
+  the verdicts the runs cached, in `check`, the tables and the workbench.
 - [MIGRATION_4.0.md](MIGRATION_4.0.md): moving a model from 3.x to 4.0.
 - [VERSIONING.md](VERSIONING.md): what a major, minor and patch release may change.
 - [qualification/](qualification/): tool-qualification support kit.

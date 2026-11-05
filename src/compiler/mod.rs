@@ -57,6 +57,7 @@ pub mod fmi_generator;
 pub mod modelica;
 pub mod embedded;
 pub mod simulation;
+pub mod realization;
 pub mod reqif;
 pub mod graph_diff;
 pub mod semantic_diff;
