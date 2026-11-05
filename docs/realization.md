@@ -75,6 +75,47 @@ not a command to run again.
 - The workbench snapshot (`arclang workbench`, VS Code, the MCP server):
   the `realization` field, the same objects as `check --json`.
 
+## Climbing it: `arclang realize`
+
+```text
+arclang realize model.arc                       # every requirement, every stage but the board
+arclang realize model.arc --requirement REQ-1   # one requirement
+arclang realize model.arc --up-to sil           # stop at SIL
+arclang realize model.arc --dry-run             # the plan and the gaps, nothing runs
+arclang realize model.arc --keep-going          # past a failure, every step that can run
+arclang realize model.arc --board               # the bitstream on the board too (needs --port's hardware)
+arclang realize model.arc --json                # the plan, each run's output, the ladder after
+```
+
+The plan is the ladder's: every stage that is missing or stale, in the
+order of the stages, each case once per stage (one step climbs every
+requirement its case verifies). Each step runs the command that produces
+the stage — `verify`, `sil`, `pil`, `hdl`, `soc`, `twin` — as the same
+binary, streaming its output; then the model is compiled again and the
+stage read back for the requirements concerned:
+
+```text
+→ SIL (missing): arclang sil power_window.arc --test TC-PW-001
+  ...
+  SYS-PW-001 SIL: ✓ pass
+  SYS-PW-002 SIL: ✓ pass
+→ PIL (missing): arclang pil power_window.arc --test TC-PW-001
+```
+
+A stage that fails stops the climb of its requirements (`the climb of
+SYS-PW-002 stops here`): the case is the thing to look at, not a command to
+run again; `--keep-going` runs the other steps anyway. A tool that is
+absent (no Docker, no Zephyr image) fails its step the same way, with the
+command's own message. The command succeeds when every stage that applies
+to the chosen requirements is fresh evidence after the climb.
+
+A **gap** is a requirement nothing climbs: no case simulates or executes
+for it and no twin verifies it. `realize` names it and says what would
+climb it (a `test_case` with `simulate:` or `execute:`, a `twin`); it never
+writes one. The assistant's `arclang_realize` tool (VS Code chat, the MCP
+server) returns the plan and the gaps, so an agent can propose the missing
+cases through `arclang_edit` and run the climb.
+
 ## The rungs of a case
 
 A case's status (`semantic_model.simulations`, by case id) keeps its

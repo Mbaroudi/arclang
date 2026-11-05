@@ -218,3 +218,102 @@ pub fn line(ladder: &Ladder) -> String {
 
 /// The legend of the marks `line` uses.
 pub const LEGEND: &str = "✓ fresh pass · ✗ fail or error · ~ stale (changed since) · ○ never run · – not a stage of this requirement";
+
+/// One step of a climb: a command, and the requirements it climbs.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Step {
+    pub stage: String,
+    /// The arguments after `arclang` (`["sil", "model.arc", "--test", "TC-1"]`).
+    pub args: Vec<String>,
+    pub requirements: Vec<String>,
+    /// Why: the state the stage is in for these requirements (`missing`, `stale`).
+    pub state: String,
+}
+
+/// What no command can climb: a requirement with nothing to run.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Gap {
+    pub requirement: String,
+    pub name: String,
+    pub what: String,
+    pub hint: String,
+}
+
+/// The climb of a model: the steps in the order of the stages, each once,
+/// the failures that stop it, and the gaps no step fills.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Plan {
+    pub steps: Vec<Step>,
+    /// Requirements whose ladder has a fresh failure: a climb stops there.
+    pub failing: Vec<(String, String)>,
+    pub gaps: Vec<Gap>,
+}
+
+/// The arguments of the command that produces a stage for a case.
+fn step_args(stage: &str, model: &str, case: &str) -> Vec<String> {
+    let flag = if stage == "twin" { "--twin" } else { "--test" };
+    let mut args: Vec<String> = match stage {
+        "simulation" => vec!["verify".into()],
+        "board" => vec!["soc".into(), "--port".into(), "<serial port>".into()],
+        other => vec![other.into()],
+    };
+    args.push(model.to_string());
+    args.push(flag.to_string());
+    args.push(case.to_string());
+    args
+}
+
+/// The plan that climbs `ladders`: for `only` (a requirement) or all, up to
+/// `up_to` (a stage) or the top. A step is a stage missing or stale for a
+/// case, each case once per stage; the stages come in order, so a stale
+/// SIL is run again before PIL is tried. A stage with a fresh failure is
+/// not climbed again: it is reported, the engineer looks at the case.
+pub fn plan(ladders: &[Ladder], model: &str, only: Option<&str>, up_to: Option<&str>, with_board: bool) -> Plan {
+    // `up_to` is climbed too: the limit is the stage after it.
+    let limit = up_to.map(|s| stage_index(s) + 1).unwrap_or(STAGES.len());
+    let chosen: Vec<&Ladder> = ladders.iter().filter(|l| only.is_none_or(|o| l.requirement == o || l.name == o)).collect();
+    let mut steps: Vec<Step> = Vec::new();
+    let mut failing = Vec::new();
+    let mut gaps = Vec::new();
+    for ladder in &chosen {
+        if !ladder.applies() {
+            gaps.push(Gap {
+                requirement: ladder.requirement.clone(),
+                name: ladder.name.clone(),
+                what: "no case simulates or executes for it, and no twin verifies it".to_string(),
+                hint: "add a test_case that verifies it with simulate: { ... } (the architecture in OpenModelica) or execute: (a state machine, run as C), or a twin".to_string(),
+            });
+            continue;
+        }
+        for (index, stage) in ladder.stages.iter().enumerate() {
+            if index >= limit || stage.state == "n/a" || stage.state == "pass" {
+                continue;
+            }
+            if stage.stage == "board" && !with_board {
+                continue;
+            }
+            if matches!(stage.state.as_str(), "fail" | "error") {
+                let cases: Vec<&str> = stage.cases.iter().filter(|c| matches!(c.state.as_str(), "fail" | "error")).map(|c| c.id.as_str()).collect();
+                failing.push((ladder.requirement.clone(), format!("{}: {} ({})", label(&stage.stage), stage.state, cases.join(", "))));
+                break;
+            }
+            for case in stage.cases.iter().filter(|c| c.state != "pass") {
+                let args = step_args(&stage.stage, model, &case.id);
+                match steps.iter_mut().find(|s| s.args == args) {
+                    Some(step) => {
+                        if !step.requirements.contains(&ladder.requirement) {
+                            step.requirements.push(ladder.requirement.clone());
+                        }
+                    }
+                    None => steps.push(Step { stage: stage.stage.clone(), args, requirements: vec![ladder.requirement.clone()], state: case.state.clone() }),
+                }
+            }
+        }
+    }
+    steps.sort_by_key(|s| stage_index(&s.stage));
+    Plan { steps, failing, gaps }
+}
+
+fn stage_index(stage: &str) -> usize {
+    STAGES.iter().position(|s| *s == stage).unwrap_or(STAGES.len())
+}

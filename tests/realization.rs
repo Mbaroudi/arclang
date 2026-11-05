@@ -154,3 +154,64 @@ fn a_twin_is_the_last_rung_of_what_it_verifies() {
     // The simulation of the design day comes before the twin on the ladder: it is what to run first.
     assert!(ladder.next.starts_with("arclang verify "), "{}", ladder.next);
 }
+
+#[test]
+fn realize_plans_the_climb_in_the_order_of_the_stages_and_names_the_gaps() {
+    let model = copy_of("examples/automotive/power-window/power_window.arc", "plan");
+    // A requirement nothing verifies: a gap, not a step.
+    let text = std::fs::read_to_string(&model).unwrap();
+    std::fs::write(&model, text.replacen("requirements system {", "requirements system {\n    req \"SYS-PW-009\" \"Documented behaviour\" { description: \"The behaviour is documented\" }", 1)).unwrap();
+    let out = Command::new(env!("CARGO_BIN_EXE_arclang")).arg("realize").arg(&model).arg("--dry-run").arg("--json").output().unwrap();
+    assert!(out.status.success(), "{}", String::from_utf8_lossy(&out.stderr));
+    let json: serde_json::Value = serde_json::from_slice(&out.stdout).unwrap();
+    let steps = json["plan"]["steps"].as_array().unwrap();
+    let stages: Vec<&str> = steps.iter().map(|s| s["stage"].as_str().unwrap()).collect();
+    // Every executed case once per stage, SIL before PIL before HDL...
+    assert!(stages.windows(2).all(|w| realization::STAGES.iter().position(|s| *s == w[0]) <= realization::STAGES.iter().position(|s| *s == w[1])), "{stages:?}");
+    assert_eq!(stages.iter().filter(|s| **s == "sil").count(), 3, "{stages:?}");
+    assert!(stages.contains(&"pil") && stages.contains(&"hdl") && stages.contains(&"soc") && !stages.contains(&"board"), "the board needs --board: {stages:?}");
+    let first = &steps[0];
+    assert_eq!(first["args"][0], "sil");
+    assert_eq!(first["args"][1].as_str().unwrap(), model.display().to_string());
+    assert_eq!(first["args"][2], "--test");
+    assert!(first["requirements"].as_array().unwrap().len() >= 2, "one step climbs every requirement its case verifies");
+    let gaps = json["plan"]["gaps"].as_array().unwrap();
+    assert_eq!(gaps.len(), 1);
+    assert_eq!(gaps[0]["requirement"], "SYS-PW-009");
+    assert!(gaps[0]["hint"].as_str().unwrap().contains("test_case"));
+    // Up to SIL, for one requirement: its cases, nothing further.
+    let out = Command::new(env!("CARGO_BIN_EXE_arclang")).args(["realize", "--dry-run", "--json", "--requirement", "SYS-PW-003", "--up-to", "sil"]).arg(&model).output().unwrap();
+    let json: serde_json::Value = serde_json::from_slice(&out.stdout).unwrap();
+    let steps = json["plan"]["steps"].as_array().unwrap();
+    assert!(steps.iter().all(|s| s["stage"] == "sil" && s["requirements"] == serde_json::json!(["SYS-PW-003"])), "{steps:?}");
+    assert_eq!(steps.len(), 2, "TC-PW-001 and TC-PW-003 verify SYS-PW-003");
+    // The text form says the same.
+    let out = Command::new(env!("CARGO_BIN_EXE_arclang")).args(["realize", "--dry-run"]).arg(&model).output().unwrap();
+    let text = String::from_utf8_lossy(&out.stdout);
+    assert!(text.contains("Plan (") && text.contains("SIL (missing) for") && text.contains("SYS-PW-009 \"Documented behaviour\": no case simulates"), "{text}");
+    let out = Command::new(env!("CARGO_BIN_EXE_arclang")).args(["realize", "--dry-run", "--up-to", "orbit"]).arg(&model).output().unwrap();
+    assert!(!out.status.success() && String::from_utf8_lossy(&out.stderr).contains("unknown stage 'orbit'"));
+}
+
+#[test]
+fn realize_climbs_to_sil_and_stops_where_the_evidence_fails() {
+    // SIL needs a C compiler, as the SIL tests do; the climb runs it as this binary.
+    let model = copy_of("examples/automotive/power-window/power_window.arc", "climb");
+    let out = Command::new(env!("CARGO_BIN_EXE_arclang")).args(["realize", "--up-to", "sil", "--requirement", "SYS-PW-002"]).arg(&model).output().unwrap();
+    let text = String::from_utf8_lossy(&out.stdout);
+    assert!(out.status.success(), "{text}{}", String::from_utf8_lossy(&out.stderr));
+    assert!(text.contains("→ SIL (missing): arclang sil") && text.contains("SYS-PW-002 SIL (TC-PW-001): ✓ pass") && text.contains("Complete up to SIL: every stage that applies, up to it, is fresh evidence."), "{text}");
+    // The ladder after: SIL fresh for every case of the requirement.
+    let result = compile(&model);
+    let ladders = realization::ladders(&result, Some(&model));
+    assert_eq!(stage(ladders.iter().find(|l| l.requirement == "SYS-PW-002").unwrap(), "sil").state, "pass");
+    // A case made to fail: the climb reports the failure and does not go past it.
+    let text = std::fs::read_to_string(&model).unwrap();
+    // The expectation is written inside a string list: its quotes are escaped in the file.
+    assert!(text.contains(r#"final(\"Window\".pinches) == 3"#));
+    std::fs::write(&model, text.replacen(r#"final(\"Window\".pinches) == 3"#, r#"final(\"Window\".pinches) == 7"#, 1)).unwrap();
+    let out = Command::new(env!("CARGO_BIN_EXE_arclang")).args(["realize", "--up-to", "pil", "--requirement", "SYS-PW-002"]).arg(&model).output().unwrap();
+    let text = String::from_utf8_lossy(&out.stdout);
+    assert!(!out.status.success());
+    assert!(text.contains("SYS-PW-002 SIL (TC-PW-001): ✗ fail") && text.contains("the climb of SYS-PW-002 stops here") && !text.contains("→ PIL"), "{text}");
+}

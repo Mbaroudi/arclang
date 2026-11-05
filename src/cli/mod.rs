@@ -3,6 +3,7 @@ pub mod debug;
 pub mod diagram_service;
 pub mod edit;
 pub mod table; // tables hook
+mod realize; // realization hook
 pub mod impact; // impact hook
 pub mod semgit; // semgit hook
 pub mod cicd; // cicd hook
@@ -439,6 +440,40 @@ pub enum Commands {
     },
 
     /// Run the digital twins of a model: each `twin`'s physical model
+    /// Climb the realization ladder (docs/realization.md): for each
+    /// requirement, run in order what each stage is missing or stale
+    /// (verify, sil, pil, hdl, soc, twin), read the ladder back after each
+    /// step, stop a requirement's climb at a failure. --dry-run prints the
+    /// plan and the gaps (a requirement nothing climbs) without running.
+    Realize {
+        #[clap(value_parser)]
+        input: PathBuf,
+
+        /// Only this requirement (id or name)
+        #[clap(long)]
+        requirement: Option<String>,
+
+        /// Climb up to this stage only: simulation, sil, pil, hdl, soc, board or twin
+        #[clap(long, value_name = "STAGE")]
+        up_to: Option<String>,
+
+        /// Print the plan and the gaps, run nothing
+        #[clap(long)]
+        dry_run: bool,
+
+        /// Go on past a failure or an error (every step that can run runs)
+        #[clap(long)]
+        keep_going: bool,
+
+        /// Include the board (the bitstream through --port): off by default, it needs the hardware
+        #[clap(long)]
+        board: bool,
+
+        /// The plan, the runs and the ladder after, as JSON (the steps' output captured)
+        #[clap(long)]
+        json: bool,
+    },
+
     /// driven by its measured data (drives:) in OpenModelica, compared to
     /// the measurements (compares:) and checked against its expects:
     Twin {
@@ -1185,6 +1220,7 @@ impl CliRunner {
             Commands::Pil { input, test, target, keep, json } => self.run_pil(&input, test, target, keep, json),
             Commands::Hdl { input, test, synth, keep, json } => self.run_hdl(&input, test, synth, keep, json),
             Commands::Soc { input, test, bitstream, board, no_sim, gate_level, port, keep, json } => self.run_soc(&input, test, bitstream || board.is_some(), board, !no_sim && port.is_none(), gate_level, port, keep, json),
+            Commands::Realize { input, requirement, up_to, dry_run, keep_going, board, json } => realize::run(&input, realize::Options { requirement, up_to, dry_run, keep_going, board, json }),
             Commands::Twin { input, twin, json, list, live, for_seconds } => {
                 if live {
                     self.run_twin_live(input, twin, json, for_seconds)
