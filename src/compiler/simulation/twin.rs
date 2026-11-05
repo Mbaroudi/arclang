@@ -29,6 +29,7 @@ use crate::compiler::modelica::{self, Export};
 use crate::compiler::quantity::{lookup_unit, UnitSpec};
 use crate::compiler::CompilationResult;
 use serde::Serialize;
+use sha2::{Digest, Sha256};
 use std::collections::{BTreeMap, HashMap};
 use std::path::{Path, PathBuf};
 
@@ -822,6 +823,75 @@ pub struct Outcome {
     pub omc_version: String,
     pub seconds: f64,
     pub log: String,
+}
+
+/// The hash of what a twin's verdict depends on: the generated package,
+/// every source, the measurements (path and content), and the twin as
+/// written (its model, configuration, data, drives, compares, expects).
+pub fn cache_key(result: &CompilationResult, model_path: &Path, twin: &Twin) -> Result<String, String> {
+    let spec = spec_of(&twin.attributes)?;
+    let export = modelica::export(&result.ast)?;
+    let base = super::cache::model_dir(model_path);
+    let mut hash = Sha256::new();
+    let mut field = |label: &str, bytes: &[u8]| {
+        hash.update(label.as_bytes());
+        hash.update((bytes.len() as u64).to_le_bytes());
+        hash.update(bytes);
+    };
+    field("twin", b"1");
+    field("package", export.text.as_bytes());
+    for source in &spec.sources {
+        field("source", source.as_bytes());
+        match std::fs::read(base.join(source)) {
+            Ok(content) => field("content", &content),
+            Err(_) => field("missing", b""),
+        }
+    }
+    field("data", spec.data.file.as_bytes());
+    match std::fs::read(base.join(&spec.data.file)) {
+        Ok(content) => field("content", &content),
+        Err(_) => field("missing", b""),
+    }
+    field("model", spec.model.as_bytes());
+    field("configuration", spec.configuration.as_deref().unwrap_or("").as_bytes());
+    field("tolerance", format!("{:?}", spec.tolerance).as_bytes());
+    let mut written: Vec<(&String, String)> = twin.attributes.iter().map(|(k, v)| (k, v.display())).collect();
+    written.sort();
+    for (key, value) in written {
+        field(key, value.as_bytes());
+    }
+    Ok(hash.finalize().iter().map(|b| format!("{b:02x}")).collect())
+}
+
+/// Keep a twin's verdict in the model's cache (`<twin>.twin.json`), where
+/// the compiler reads it as the twin rung of the requirements it verifies.
+pub fn cache(result: &CompilationResult, model_path: &Path, twin: &Twin, outcome: &Outcome) -> Result<PathBuf, String> {
+    let key = cache_key(result, model_path, twin)?;
+    let spec = spec_of(&twin.attributes)?;
+    let comparisons: Vec<String> = outcome
+        .comparisons
+        .iter()
+        .map(|c| format!("{} ~ {}: max deviation {:.4} {}, RMS {:.4} {}, {:.1} % within {} ({:.1} % required)", c.target, c.column, c.max_deviation, c.unit, c.rms_deviation, c.unit, c.within * 100.0, c.tolerance, c.required * 100.0))
+        .collect();
+    let cached = super::Outcome {
+        test_case: twin.id.clone(),
+        kind: "twin".to_string(),
+        name: twin.name.clone(),
+        verifies: twin.verifies.clone(),
+        verdict: outcome.verdict.clone(),
+        reason: outcome.reason.clone(),
+        values: outcome.values.clone(),
+        key,
+        model: spec.model.clone(),
+        configuration: spec.configuration.clone(),
+        tool: outcome.tool.clone(),
+        target: outcome.data.clone(),
+        omc_version: outcome.omc_version.clone(),
+        log: comparisons.join("\n"),
+        seconds: outcome.seconds,
+        ..Default::default()
+    };
+    super::cache::write_kind(&super::cache::dir(model_path), "twin", &cached)
 }
 
 fn work_dir() -> Result<PathBuf, String> {

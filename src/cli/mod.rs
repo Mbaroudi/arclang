@@ -1457,11 +1457,13 @@ impl CliRunner {
         let document = match compiler.compile_file(&input) {
             Ok(result) => {
                 let findings = crate::compiler::rules::findings(&result);
+                let realization = crate::compiler::realization::ladders(&result, Some(&input));
                 serde_json::json!({
                     "success": true,
                     "file": input.display().to_string(),
                     "errors": [],
                     "findings": findings,
+                    "realization": realization,
                     "metrics": {
                         "requirements": result.semantic_model.requirements.len(),
                         "components": result.semantic_model.components.len(),
@@ -1521,6 +1523,17 @@ impl CliRunner {
                     println!("\n⚠ Traceability warnings:");
                     for warning in &warnings {
                         println!("  {}", warning);
+                    }
+                }
+
+                let ladders = crate::compiler::realization::ladders(&result, Some(&input));
+                if crate::compiler::realization::applies(&ladders) {
+                    println!("\nRealization (what each stage says of each requirement; {}):", crate::compiler::realization::LEGEND);
+                    for ladder in ladders.iter().filter(|l| l.applies()) {
+                        println!("  {}", crate::compiler::realization::line(ladder));
+                        if !ladder.next.is_empty() {
+                            println!("      next: {}", ladder.next);
+                        }
                     }
                 }
                 
@@ -2409,6 +2422,11 @@ impl CliRunner {
         }
         let config = crate::compiler::simulation::tool::ToolConfig::from_env();
         let outcomes: Vec<twin::Outcome> = chosen.iter().map(|t| twin::run(&result, &input, t, &config)).collect();
+        for (twin, outcome) in chosen.iter().zip(&outcomes) {
+            if outcome.verdict != "inconclusive" {
+                twin::cache(&result, &input, twin, outcome).map_err(CliError::Compilation)?;
+            }
+        }
         if json {
             println!("{}", serde_json::to_string(&outcomes).map_err(|e| CliError::Compilation(e.to_string()))?);
         } else {
