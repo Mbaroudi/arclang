@@ -25,6 +25,8 @@ mod elements_table;
 pub mod export;
 pub mod filter;
 mod icd;
+mod partition;
+mod realization;
 mod matrix;
 pub mod xlsx;
 
@@ -36,7 +38,7 @@ use std::collections::{BTreeMap, HashMap};
 pub use context::Context;
 
 /// The kinds of table the compiler computes, as written in `kind:`.
-pub const KINDS: [&str; 6] = ["requirements_coverage", "traceability_matrix", "allocation_matrix", "interface_n2", "icd", "elements"];
+pub const KINDS: [&str; 8] = ["requirements_coverage", "traceability_matrix", "allocation_matrix", "interface_n2", "icd", "elements", "realization", "partition"];
 
 /// `table "Name" { kind: requirements_coverage scope: "SA" ... }` as written.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -161,6 +163,8 @@ pub fn default_title(kind: &str) -> &'static str {
         "allocation_matrix" => "Allocation matrix",
         "interface_n2" => "N² interfaces",
         "icd" => "Interface control document",
+        "realization" => "Realization ladder",
+        "partition" => "HW/SW partition",
         _ => "Elements",
     }
 }
@@ -403,6 +407,14 @@ pub fn compute_in(context: &Context, spec: &TableSpec) -> Result<Table, String> 
         }
         "icd" => {
             let (c, a, r) = icd::compute(context, spec)?;
+            (c, a, r, None)
+        }
+        "realization" => {
+            let (c, a, r) = realization::compute(context, spec)?;
+            (c, a, r, None)
+        }
+        "partition" => {
+            let (c, a, r) = partition::compute(context, spec)?;
             (c, a, r, None)
         }
         "traceability_matrix" | "allocation_matrix" | "interface_n2" => {

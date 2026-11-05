@@ -579,6 +579,78 @@ requirements), with its values as evidence; a case never run in SIL, or
 whose C or case changed since (stale, with a warning), is inconclusive and
 says what to run.
 
+## The plant in the loop
+
+A list of inputs says what the machine sees; it cannot say whether the
+machine does the right thing to what it controls. A case closes the loop
+on a **plant**, a model of the physics, with `plant:` inside `execute:`:
+
+```arc
+test_case "TC-CHG-HIL" {
+    verifies: ["SYS-CHG-004", "SYS-CHG-005"]
+    execute: {
+        machine: "Charger"
+        step: 10 ms
+        stop_time: 1.5 s
+        inputs: ["0 s: battery present", "20 ms: plug"]
+        plant: {
+            model: "ChargerPhysics.Battery"
+            sources: ["physics/ChargerPhysics.mo"]
+            inputs: ["i_set <- setpoint"]
+            outputs: ["voltage <- v_batt", "current <- i_batt"]
+        }
+    }
+    expects: ["SYS-CHG-005: at(1 s, \"Charger\".Charging.Absorption) == 1", ...]
+}
+```
+
+- `model:` a Modelica model, its `sources:` beside the `.arc` (as
+  `simulate:` names them); **or** `fmu:` an FMI 2.0 co-simulation FMU as
+  a file (from Simulink, Dymola, Amesim, OpenModelica, any exporter).
+- `inputs:` the plant's `input` variables, each driven by a variable the
+  machine computes (`out` or internal); `outputs:` the machine's `in`
+  variables, each read from a variable of the plant. Values pass in SI,
+  as the machine stores them scaled to its units. The `in` variables not
+  wired stay driven by `inputs:` of the case.
+- `tolerance:` the solver's (CVODE), `1e-6` by default.
+
+At each step the machine reads the plant, steps, and the plant advances
+one period with the machine's outputs held (a zero-order hold, as a DAC
+holds). The first step reads the plant initialised on the machine's
+initial outputs. Nothing is real time: plant and device advance in lock
+step, and a run is reproducible to the bit.
+
+The loop runs around every implementation the same way:
+
+| Stage | How |
+|---|---|
+| the model | the reference interpreter in the loop: the reference of the others |
+| `arclang sil` | the C harness fed a step at a time, the plant on what it answers |
+| `arclang hdl` | the VHDL replays the model's loop; the fixed point is measured against the model on those same inputs |
+| `arclang pil` | the processor replays the model's loop (its C matches the model within tolerance) |
+| `arclang soc` | the simulated SoC, or the board through its port, in the loop: a line a step; bit-exact with the fixed-point C run in the loop too |
+
+A plant written in Modelica is built once as an FMU by OpenModelica
+(local `omc` or its Docker image) and kept under `.arclang/plant/` beside
+the model, keyed by the model, its sources and the wires; a stage that runs
+in a Docker image (docs/realization.md) steps the FMU the host built. The
+stepper is `twin_stepper.c`, the twin's (docs/digital-twin.md): FMI 2.0
+co-simulation, one `fmi2DoStep` a period. A given FMU is stepped by this
+computer's C compiler when it holds a binary for this platform, else where
+OpenModelica runs.
+
+The verdict says `in the loop with the plant <model> (FMI 2.0
+co-simulation)` in its tools, and is cached and read as any other: the
+realization ladder climbs a case with a plant like any case. A case with a
+plant does not go through an `io_binding` yet: its channels are proved by
+the cases without one.
+
+On the charger (`examples/energy/battery-charger`, `physics/ChargerPhysics.mo`:
+the power stage as a first-order lag, the pack's voltage as its open-circuit
+voltage plus the drop on its resistance), TC-CHG-HIL is the only case that
+can prove SYS-CHG-005: precharge at 2 A, bulk at 16 A lifts the terminals
+past 54.6 V, the filtered voltage follows, absorption at 4 A.
+
 ## An FMU of the behavior
 
 ```text

@@ -385,10 +385,10 @@ warning.
 
 With `--synth`, each allocated machine's wrapper goes through:
 
-1. `ghdl -a --std=08` and `ghdl --synth`: GHDL's synthesis elaborates it as
-   hardware;
-2. Yosys with the GHDL plugin (`yosys -m ghdl`, `ghdl --std=08 ... -e
-   <block>_wb; synth_ecp5`);
+1. `ghdl -a --std=08` and `ghdl --synth --out=verilog`: GHDL's synthesis
+   elaborates it as hardware and writes the netlist as Verilog;
+2. Yosys reads that Verilog and maps it (`read_verilog; synth_ecp5`): no
+   GHDL plugin to keep in step with the Yosys binary;
 3. nextpnr-ecp5 for the node's device (`--25k --package CABGA381 --speed
    6`) at the node's clock (`--freq 25`), a fixed seed;
 4. ecppack: the bitstream.
@@ -399,12 +399,54 @@ against the node's `clock:`, and fails when timing is not met.
 
 | Block | LUT4 | FF | DSP | BRAM | Fmax | Clock |
 |---|---|---|---|---|---|---|
-| `battery_charger_charger_wb` (PID, filter, integrator, delay, two regions, a timer) | 3436 | 1347 | 16 | 0 | 32.63 MHz | 25 MHz: met |
-| `power_window_window_wb` (regions, choice, junction, fork, join, histories, terminate) | 2292 | 657 | 0 | 0 | 30.31 MHz | 25 MHz: met |
+| `battery_charger_charger_wb` (PID, filter, integrator, delay, two regions, a timer) | 3288 | 1347 | 16 | 0 | 32.74 MHz | 25 MHz: met |
+| `power_window_window_wb` (regions, choice, junction, fork, join, histories, terminate) | 1992 | 657 | 0 | 0 | 30.26 MHz | 25 MHz: met |
 
 The block is synthesised alone, its bus on the pins nextpnr chooses (81 or
 82 I/O of the 197): the bitstream proves the flow end to end; on a board
 the block is inside the SoC, its bus on the SoC's interconnect.
+
+## Partitioning: `arclang partition`
+
+Which machines belong in the logic and which on the processor is a
+measurement, not a guess. `arclang partition model.arc` measures every
+machine on both sides with the real tools, through the same commands:
+
+- as C on the processor: `arclang pil --json` (the target package of the
+  bindings, or `--target`): the longest a `step()` took of the target's
+  virtual time over the cases, and the behavior's footprint (`size` of
+  its object in the Zephyr build: text, data, bss);
+- as VHDL on the logic: `arclang hdl --synth --json --as-if <device>@<MHz>`
+  (the first logic node's part and clock, or `--device`/`--clock`): LUT4,
+  flip-flops, DSPs, block RAMs, the Fmax against the clock — every
+  machine, allocated or not.
+
+Each command relays itself to its Docker image when the host lacks the
+tools. Then, per machine:
+
+```text
+Partition examples/energy/battery-charger/battery_charger.arc — C on zephyr/litex_vexriscv against VHDL on LFE5U-25F-6BG381C at 25 MHz
+
+  Charger — period 10000 us · fits both; now logic
+    C on zephyr/litex_vexriscv: a step takes at most 38.2 us (262× of margin), 4.1 KiB text + 16 B data + 256 B bss, over 2 case(s)
+    VHDL on LFE5U-25F-6BG381C: 3288 LUT4, 1347 FF, 16 DSP, 0 BRAM; Fmax 32.7 MHz for 25 MHz: met
+```
+
+The C fits when a step stays within the machine's period (its binding's,
+else 10 ms); the VHDL fits when timing is met. The command says what fits
+and what the model allocates today (`now`); the choice stays in the model
+(`node ... deploys`). `--machine` measures one machine, `--dry-run` prints
+the two runs, `--json` the measurements.
+
+The measurements are kept in `.arclang/sim-cache/partition.json` beside
+the model, keyed by the generated C and VHDL, the period, the target, the
+device and the clock: the table kind `partition` reads them (`table
+"Partition" { kind: partition }`, or `arclang table model.arc --kind
+partition`), a row per machine, stale when the generated code changed
+since.
+
+`arclang hdl --synth --as-if LFE5U-25F-6BG381C@25 [--machine M]` is the
+synthesis alone, for any machine, as if allocated.
 
 ## In Docker
 
@@ -424,8 +466,8 @@ commit of 2026-11-01, built from source with its LLVM 15 back end
 and its mcode back end is x86 only, so it is built the same way on arm64
 and x86_64); oss-cad-suite 2026-11-01 (Yosys, nextpnr-ecp5, ecppack, the
 Trellis database) for the host's architecture, pruned of the other
-families' place and route, simulators, solvers and GUIs; the
-ghdl-yosys-plugin at a commit of 2026-11-01, built against both. The image
+families' place and route, simulators, solvers and GUIs. No
+ghdl-yosys-plugin: GHDL's netlist goes to Yosys as Verilog. The image
 is 4.7 GB (1.4 GB over the embedded image). The CI job "Embedded FPGA
 (GHDL, Yosys, nextpnr)" builds both images and runs those tests.
 

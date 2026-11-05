@@ -153,6 +153,30 @@ TOOLS: List[Tool] = [
         inputSchema=schema({"model_path": MODEL_PATH, "standard": STANDARD}, "model_path"),
     ),
     Tool(
+        name="arclang_realize",
+        description=(
+            "The realization ladder of a model and the plan to climb it "
+            "(`arclang realize --dry-run --json`): for each requirement, what each stage "
+            "says (simulation, sil, pil, hdl, soc, board, twin: pass, fail, error, stale, "
+            "missing, or not a stage of it), the steps that would produce the missing or "
+            "stale stages in order, and the gaps: requirements with no case that simulates "
+            "or executes and no twin. Nothing runs. Propose the missing test_case "
+            "(simulate: or execute:) or twin for a gap; the engineer runs `arclang realize`."
+        ),
+        inputSchema=schema(
+            {
+                "model_path": MODEL_PATH,
+                "requirement": {"type": "string", "description": "Only this requirement (id or name)"},
+                "up_to": {
+                    "type": "string",
+                    "enum": ["simulation", "sil", "pil", "hdl", "soc", "board", "twin"],
+                    "description": "Plan up to this stage only",
+                },
+            },
+            "model_path",
+        ),
+    ),
+    Tool(
         name="arclang_diff",
         description=(
             "Semantic diff between two versions of a model (`arclang diff --json`). "
@@ -349,6 +373,7 @@ class CoreTools:
             "arclang_trace_analysis": self._trace_analysis,
             "arclang_info": self._info,
             "arclang_gate": self._gate,
+            "arclang_realize": self._realize,
             "arclang_diff": self._diff,
             "arclang_impact": self._impact,
             "arclang_export": self._export,
@@ -451,6 +476,16 @@ class CoreTools:
             else "no semantic change"
         )
         return f"{title}: {verdict}\n\n{run.stdout.rstrip()}"
+
+    async def _realize(self, args: Dict[str, Any]) -> str:
+        model = self._model(args)
+        arguments = ["realize", "--dry-run", "--json"]
+        if args.get("requirement"):
+            arguments += ["--requirement", str(args["requirement"])]
+        if args.get("up_to"):
+            arguments += ["--up-to", str(args["up_to"])]
+        arguments += ["--", str(model)]
+        return report(f"Realization ladder of {model.name}", await self.compiler.run(arguments))
 
     async def _impact(self, args: Dict[str, Any]) -> str:
         model = self._model(args)

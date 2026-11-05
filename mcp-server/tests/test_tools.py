@@ -118,6 +118,19 @@ async def test_gate_fails_with_its_blockers(server, model):
     assert "[requirements.verification]" in answer
 
 
+async def test_realize_plans_the_ladder_and_names_the_gaps(server, model):
+    # The reference model's requirement is verified by a case that neither simulates nor executes: a gap, no step.
+    answer = await server.call_tool("arclang_realize", {"model_path": str(model)})
+    assert answer.startswith("Realization ladder of braking.arc: succeeded")
+    body = json.loads(answer.split("\n\n", 1)[1])
+    assert [s["stage"] for s in body["ladders"][0]["stages"]] == ["simulation", "sil", "pil", "hdl", "soc", "board", "twin"]
+    assert body["plan"]["steps"] == []
+    assert body["plan"]["gaps"][0]["requirement"] == "REQ-BRK-001"
+    assert "test_case" in body["plan"]["gaps"][0]["hint"]
+    with pytest.raises(InvalidArguments, match="'up_to' must be one of simulation, sil, pil, hdl, soc, board, twin"):
+        await server.call_tool("arclang_realize", {"model_path": str(model), "up_to": "orbit"})
+
+
 async def test_gate_on_a_model_that_does_not_compile_gives_no_verdict(server, broken):
     answer = await server.call_tool("arclang_gate", {"model_path": str(broken)})
     first = answer.splitlines()[0]

@@ -248,9 +248,24 @@ int main(void) {{\n\
 // ---- narrow words ---------------------------------------------------------------------
 
 /// The charger with its voltages resolved to 1 mV and its current to 1 mA.
+/// The example's text without its cases closed on a plant (they need
+/// OpenModelica: tests/embedded_plant.rs runs them where it is).
+fn without_plant_cases(text: &str) -> String {
+    let mut out = String::new();
+    for (i, block) in text.split("\ntest_case ").enumerate() {
+        if i > 0 && block.contains("plant:") {
+            continue;
+        }
+        if i > 0 {
+            out.push_str("\ntest_case ");
+        }
+        out.push_str(block);
+    }
+    out
+}
+
 fn narrow_charger() -> String {
-    std::fs::read_to_string(example(CHARGER))
-        .unwrap()
+    without_plant_cases(&std::fs::read_to_string(example(CHARGER)).unwrap())
         .replace("\"in voltage: Real [V] range 0 V .. 60 V\"", "\"in voltage: Real [V] range 0 V .. 60 V resolution 1 mV\"")
         .replace("\"in current: Real [A] range -25 A .. 25 A\"", "\"in current: Real [A] range -25 A .. 25 A resolution 1 mA\"")
         .replace("\"filtered: Real [V] range 0 V .. 60 V = 0 V\"", "\"filtered: Real [V] range 0 V .. 60 V resolution 1 mV = 0 V\"")
@@ -309,8 +324,10 @@ fn the_quantisation_bound_sees_a_fed_back_value_cancel() {
 
 fn run_hdl(path: &str, synth: bool) -> (Vec<hdl::Outcome>, Vec<Result<hdl::Synthesis, String>>) {
     let model = compile_file(&example(path));
-    let options = hdl::Options { work: work(&format!("hdl-{}", path.replace('/', "_"))), only: None, synth, compiler: "gcc".into() };
-    hdl::run(&model.ast, &options).unwrap()
+    let options = hdl::Options { work: work(&format!("hdl-{}", path.replace('/', "_"))), only: None, synth, compiler: "gcc".into(), as_if: None, machine: None };
+    let (outcomes, synthesis) = hdl::run(&model.ast, &options).unwrap();
+    // The case closed on a plant needs OpenModelica (tests/embedded_plant.rs): the others here.
+    (outcomes.into_iter().filter(|o| !o.tools.contains("in the loop with the plant")).collect(), synthesis)
 }
 
 fn assert_passes(outcomes: &[hdl::Outcome]) {
@@ -360,7 +377,7 @@ fn both_blocks_synthesise_for_the_ecp5_and_meet_timing() {
 #[ignore = "needs GHDL, Yosys and nextpnr-ecp5 of tools/embedded/fpga: run in its image (CI job Embedded FPGA)"]
 fn narrow_words_stay_bit_exact_and_take_fewer_flip_flops() {
     let model = compile_text(&narrow_charger()).unwrap();
-    let options = hdl::Options { work: work("narrow"), only: None, synth: false, compiler: "gcc".into() };
+    let options = hdl::Options { work: work("narrow"), only: None, synth: false, compiler: "gcc".into(), as_if: None, machine: None };
     let (outcomes, _) = hdl::run(&model.ast, &options).unwrap();
     assert_eq!(outcomes.len(), 3);
     assert_passes(&outcomes);

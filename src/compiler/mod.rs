@@ -57,6 +57,8 @@ pub mod fmi_generator;
 pub mod modelica;
 pub mod embedded;
 pub mod simulation;
+pub mod partition;
+pub mod realization;
 pub mod reqif;
 pub mod graph_diff;
 pub mod semantic_diff;
@@ -138,6 +140,8 @@ pub struct CompilationResult {
     /// Non-fatal diagnostics (e.g. constructs accepted syntactically but not
     /// yet represented in the compiled model). Never silently empty a model.
     pub warnings: Vec<String>,
+    /// The HW/SW measurements `arclang partition` kept beside the model, each with whether it still holds.
+    pub partition: Vec<(partition::Entry, bool)>,
 }
 
 impl CompilationResult {
@@ -172,6 +176,7 @@ impl Compiler {
         let mut result = self.finish_located(ast, warnings, &files)?;
         // The cached verdicts of the simulated cases: nothing is simulated.
         simulation::run::attach(&mut result, path);
+        result.partition = partition::fresh(&result.ast, path);
         Ok(result)
     }
 
@@ -413,6 +418,7 @@ impl Compiler {
             semantic_model,
             output,
             warnings,
+            partition: Vec::new(),
         })
     }
 }

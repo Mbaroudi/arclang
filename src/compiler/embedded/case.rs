@@ -31,7 +31,9 @@ use crate::compiler::ast::{AttributeValue, TestCase};
 use crate::compiler::quantity::{Dimension, Quantity};
 use std::collections::HashMap;
 
-pub const EXECUTE_KEYS: [&str; 7] = ["machine", "step", "stop_time", "inputs", "binding", "tolerance", "quantisation"];
+pub const EXECUTE_KEYS: [&str; 8] = ["machine", "step", "stop_time", "inputs", "binding", "tolerance", "quantisation", "plant"];
+
+pub const PLANT_KEYS: [&str; 6] = ["model", "fmu", "sources", "inputs", "outputs", "tolerance"];
 
 /// The default step of a case without `step:` or `binding:`.
 pub const DEFAULT_STEP_US: u64 = 10_000;
@@ -56,6 +58,31 @@ pub struct Stimulus {
     pub at: f64,
 }
 
+/// The plant a case closes the loop on (`execute: { plant: { ... } }`): a
+/// Modelica model with its sources beside the model, or an FMU (FMI 2.0
+/// co-simulation) as a file; what the machine's variables drive in it, what
+/// its variables give the machine's `in` variables. At each step the machine
+/// reads the plant, steps, and the plant advances one period with the
+/// machine's outputs held.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Plant {
+    pub model: Option<String>,
+    pub fmu: Option<String>,
+    pub sources: Vec<String>,
+    /// (the plant's variable, the machine variable that drives it).
+    pub inputs: Vec<(String, usize)>,
+    /// (the machine's `in` variable, the plant's variable it reads).
+    pub outputs: Vec<(usize, String)>,
+    pub tolerance: Option<f64>,
+}
+
+impl Plant {
+    /// `model` or `fmu`, as named in the case.
+    pub fn label(&self) -> String {
+        self.model.clone().or_else(|| self.fmu.clone()).unwrap_or_default()
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct Case {
     pub machine: usize,
@@ -66,6 +93,7 @@ pub struct Case {
     pub binding: Option<String>,
     /// How far a value of the C run may be from the model's (absolute).
     pub tolerance: f64,
+    pub plant: Option<Plant>,
 }
 
 pub fn is_executed(test: &TestCase) -> bool {
@@ -227,7 +255,79 @@ fn resolve(map: &HashMap<String, AttributeValue>, plan: &Plan, bindings: &[super
         None => 0.0,
         Some(v) => v.as_number().filter(|t| *t >= 0.0).ok_or_else(|| format!("execute: tolerance is a number of at least 0, got '{}'", v.display()))?,
     };
-    Ok(Case { machine, step_us, steps: last + 1, stimuli, binding, tolerance })
+    let plant = match map.get("plant") {
+        None => None,
+        Some(AttributeValue::Map(block)) => Some(plant_of(block, m)?),
+        Some(_) => return Err("execute: plant is a block: plant: { model: \"Physics.Battery\" sources: [\"physics/Battery.mo\"] inputs: [\"i_set <- setpoint\"] outputs: [\"voltage <- v_batt\"] }".to_string()),
+    };
+    if plant.is_some() && binding.is_some() {
+        return Err("execute: a case with a plant does not go through an io_binding yet (its channels are proved by the cases without a plant)".to_string());
+    }
+    Ok(Case { machine, step_us, steps: last + 1, stimuli, binding, tolerance, plant })
+}
+
+fn strings_of(map: &HashMap<String, AttributeValue>, key: &str, what: &str) -> Result<Vec<String>, String> {
+    match map.get(key) {
+        None => Ok(Vec::new()),
+        Some(AttributeValue::List(items)) => items.iter().map(|i| i.as_string().map(str::to_string).ok_or_else(|| format!("execute: plant: {key} is a list of {what}"))).collect(),
+        Some(AttributeValue::String(one)) => Ok(vec![one.clone()]),
+        Some(_) => Err(format!("execute: plant: {key} is a list of {what}")),
+    }
+}
+
+/// `plant: { ... }`: what it is, and the wires between the machine and it.
+fn plant_of(map: &HashMap<String, AttributeValue>, m: &crate::compiler::embedded::plan::MachinePlan) -> Result<Plant, String> {
+    let mut keys: Vec<&String> = map.keys().collect();
+    keys.sort();
+    if let Some(unknown) = keys.iter().find(|k| !PLANT_KEYS.contains(&k.as_str())) {
+        return Err(format!("execute: plant: '{unknown}' is not one of {}", PLANT_KEYS.join(", ")));
+    }
+    let model = map.get("model").map(|v| v.display().trim().to_string()).filter(|s| !s.is_empty());
+    let fmu = map.get("fmu").map(|v| v.display().trim().to_string()).filter(|s| !s.is_empty());
+    match (&model, &fmu) {
+        (None, None) => return Err("execute: plant: name the plant: model: \"Physics.Battery\" (a Modelica model, sources: [...] beside the model) or fmu: \"physics/battery.fmu\" (an FMI 2.0 co-simulation FMU)".to_string()),
+        (Some(_), Some(_)) => return Err("execute: plant: model or fmu, not both".to_string()),
+        _ => {}
+    }
+    let sources = strings_of(map, "sources", "Modelica files beside the model")?;
+    let wire = |line: &str, key: &str| -> Result<(String, String), String> {
+        let (left, right) = line.split_once("<-").ok_or_else(|| format!("execute: plant: {key} '{line}' reads \"<left> <- <right>\""))?;
+        let (left, right) = (left.trim(), right.trim());
+        if left.is_empty() || right.is_empty() {
+            return Err(format!("execute: plant: {key} '{line}' reads \"<left> <- <right>\""));
+        }
+        Ok((left.to_string(), right.to_string()))
+    };
+    let mut inputs = Vec::new();
+    for line in strings_of(map, "inputs", "\"<plant variable> <- <machine variable>\"")? {
+        let (target, source) = wire(&line, "inputs")?;
+        let i = m.variable(&source).ok_or_else(|| format!("execute: plant: inputs '{line}': '{source}' is no variable of state_machine '{}'", m.name))?;
+        if m.program().variables[i].direction == crate::compiler::execution::expr::Direction::In {
+            return Err(format!("execute: plant: inputs '{line}': '{source}' is an input of the machine; the plant takes what the machine computes (an `out` variable)"));
+        }
+        inputs.push((target, i));
+    }
+    let mut outputs = Vec::new();
+    for line in strings_of(map, "outputs", "\"<machine in variable> <- <plant variable>\"")? {
+        let (target, source) = wire(&line, "outputs")?;
+        let i = m.variable(&target).ok_or_else(|| format!("execute: plant: outputs '{line}': '{target}' is no variable of state_machine '{}'", m.name))?;
+        let v = &m.program().variables[i];
+        if v.direction != crate::compiler::execution::expr::Direction::In {
+            return Err(format!("execute: plant: outputs '{line}': '{}' is not an input of state_machine '{}' (declare it `in {}`)", v.name, m.name, v.text));
+        }
+        if outputs.iter().any(|(j, _)| *j == i) {
+            return Err(format!("execute: plant: outputs '{line}': '{target}' is read from the plant twice"));
+        }
+        outputs.push((i, source));
+    }
+    if inputs.is_empty() && outputs.is_empty() {
+        return Err("execute: plant: wire it to the machine: inputs: [\"<plant variable> <- <machine variable>\"] and outputs: [\"<machine in variable> <- <plant variable>\"]".to_string());
+    }
+    let tolerance = match map.get("tolerance") {
+        None => None,
+        Some(v) => Some(v.as_number().filter(|t| *t > 0.0).ok_or_else(|| format!("execute: plant: tolerance is a positive number (the solver's), got '{}'", v.display()))?),
+    };
+    Ok(Plant { model, fmu, sources, inputs, outputs, tolerance })
 }
 
 impl Case {

@@ -146,8 +146,10 @@ fn assert_passes(outcomes: &[hdl::Outcome]) {
 fn the_charger_runs_in_the_simulated_soc_bit_exact_with_the_fixed_point_c() {
     let model = compile_file(&example(CHARGER));
     let report = system::run(&model.ast, &options("charger")).unwrap();
-    assert_eq!(report.outcomes.len(), 3);
-    assert_passes(&report.outcomes);
+    // The case closed on a plant needs OpenModelica (tests/embedded_plant.rs): the others here.
+    let outcomes: Vec<hdl::Outcome> = report.outcomes.into_iter().filter(|o| !o.tools.contains("in the loop with the plant")).collect();
+    assert_eq!(outcomes.len(), 3);
+    assert_passes(&outcomes);
 }
 
 #[test]

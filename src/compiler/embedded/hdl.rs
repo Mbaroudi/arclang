@@ -40,6 +40,10 @@ pub struct Options {
     pub work: PathBuf,
     pub only: Option<String>,
     pub synth: bool,
+    /// Synthesise every machine (or `machine`) as if allocated to this part at this clock (Hz), allocated or not.
+    pub as_if: Option<(String, f64)>,
+    /// Only this machine (name or id) for the synthesis.
+    pub machine: Option<String>,
     /// The C compiler of the fixed-point reference.
     pub compiler: String,
 }
@@ -129,6 +133,18 @@ pub(super) fn run_tool(program: &str, args: &[String], cwd: &Path, what: &str) -
     Ok(text)
 }
 
+/// As `run_tool`, the tool's stdout alone (its notes on stderr go to `log` in `cwd`).
+pub(super) fn run_tool_stdout(program: &str, args: &[String], cwd: &Path, what: &str, log: &str) -> Result<String, String> {
+    let out = Command::new(program).args(args).current_dir(cwd).output().map_err(|e| format!("{what}: cannot run '{program}': {e} (run in ArcLang's FPGA image: tools/embedded/fpga/run.sh)"))?;
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    let _ = std::fs::write(cwd.join(log), stderr.as_bytes());
+    if !out.status.success() {
+        let tail: Vec<&str> = stderr.lines().rev().take(30).collect();
+        return Err(format!("{what} failed ({}):\n{}", out.status, tail.into_iter().rev().collect::<Vec<_>>().join("\n")));
+    }
+    Ok(String::from_utf8_lossy(&out.stdout).into_owned())
+}
+
 pub(super) fn write(dir: &Path, name: &str, text: &str) -> Result<PathBuf, String> {
     let path = dir.join(name);
     std::fs::write(&path, text).map_err(|e| format!("cannot write {}: {e}", path.display()))?;
@@ -146,20 +162,25 @@ fn input_word(var: &fixed::VarFx, v: crate::compiler::execution::expr::Value) ->
 
 /// What the fixed-point harness reads (one machine, `machine` of the vectors).
 fn fixed_stdin(plan: &Plan, machine: usize, fx: &MachineFixed, vectors: &Vectors) -> String {
-    let m = &plan.machines[machine];
     let mut stdin = format!("{}\n", vectors.steps);
     for k in 0..vectors.steps {
-        let mut line = Vec::new();
-        if !m.events.is_empty() {
-            line.push(vectors.queue[machine][k].len().to_string());
-            line.extend(vectors.queue[machine][k].iter().map(|e| e.to_string()));
-        }
-        line.extend((0..m.conditions.len()).map(|c| (vectors.conditions[machine][c][k] as u8).to_string()));
-        line.extend(m.program().inputs().map(|(i, _)| input_word(&fx.vars[i], vectors.values[machine][i][k]).to_string()));
-        stdin.push_str(&line.join(" "));
+        stdin.push_str(&fixed_line(plan, machine, fx, vectors, k));
         stdin.push('\n');
     }
     stdin
+}
+
+/// One step's line of the fixed-point harness: the inputs as words.
+pub(super) fn fixed_line(plan: &Plan, machine: usize, fx: &MachineFixed, vectors: &Vectors, k: usize) -> String {
+    let m = &plan.machines[machine];
+    let mut line = Vec::new();
+    if !m.events.is_empty() {
+        line.push(vectors.queue[machine][k].len().to_string());
+        line.extend(vectors.queue[machine][k].iter().map(|e| e.to_string()));
+    }
+    line.extend((0..m.conditions.len()).map(|c| (vectors.conditions[machine][c][k] as u8).to_string()));
+    line.extend(m.program().inputs().map(|(i, _)| input_word(&fx.vars[i], vectors.values[machine][i][k]).to_string()));
+    line.join(" ")
 }
 
 /// The bus operations of a case: per step its inputs written, then `G`.
@@ -328,10 +349,10 @@ fn quantisation_set(test: &TestCase) -> Result<Option<f64>, String> {
     }
 }
 
-fn run_case(test: &TestCase, plan: &Plan, bindings: &[super::binding::Binding], options: &Options, tools: &str) -> Outcome {
+fn run_case(test: &TestCase, plan: &Plan, bindings: &[super::binding::Binding], options: &Options, tools: &str, ast: &Model, plants: &mut super::plant::Plants) -> Outcome {
     let mut outcome = new_outcome(test, tools);
     let texts = outcome.expectations.iter().map(|j| j.expect.clone()).collect::<Vec<_>>();
-    if let Err(e) = run_case_inner(test, plan, bindings, options, &texts, &mut outcome) {
+    if let Err(e) = run_case_inner(test, plan, bindings, options, &texts, &mut outcome, ast, plants) {
         outcome.verdict = "error".to_string();
         outcome.reason = e;
     }
@@ -359,9 +380,10 @@ pub(super) fn new_outcome(test: &TestCase, tools: &str) -> Outcome {
     }
 }
 
-fn run_case_inner(test: &TestCase, plan: &Plan, bindings: &[super::binding::Binding], options: &Options, texts: &[String], outcome: &mut Outcome) -> Result<(), String> {
+#[allow(clippy::too_many_arguments)]
+fn run_case_inner(test: &TestCase, plan: &Plan, bindings: &[super::binding::Binding], options: &Options, texts: &[String], outcome: &mut Outcome, ast: &Model, plants: &mut super::plant::Plants) -> Result<(), String> {
     let dir = options.work.join(format!("case-{}", case_dir(test)));
-    let r = reference(test, plan, bindings, &options.compiler, &dir, texts, outcome)?;
+    let r = reference(test, plan, bindings, &options.compiler, &dir, texts, outcome, ast, plants)?;
     let m = &plan.machines[r.machine];
     // The VHDL, its testbench, the case as bus operations.
     let map = super::regmap::map(plan, m, &r.fx);
@@ -388,7 +410,7 @@ fn run_case_inner(test: &TestCase, plan: &Plan, bindings: &[super::binding::Bind
     let hdl_raw = Table { names: r.model.names.clone(), period_us: r.case.step_us, rows, units: r.model.units.clone() };
     let (lo, hi) = (cycles.iter().min().copied().unwrap_or(0), cycles.iter().max().copied().unwrap_or(0));
     outcome.cycles = Some(if lo == hi { format!("{lo} clock cycles a step") } else { format!("{lo} to {hi} clock cycles a step (the events of the step: one a clock)") });
-    conclude(&r, plan, &hdl_raw, "the VHDL", texts, outcome);
+    conclude(&r, plan, &hdl_raw, "the VHDL", texts, outcome, false);
     Ok(())
 }
 
@@ -407,23 +429,35 @@ pub(super) struct Reference {
     pub model: Table,
     pub aliases: std::collections::BTreeMap<String, String>,
     pub fx: MachineFixed,
-    /// The fixed-point C's words, the machine's columns.
+    /// The fixed-point C's words, the machine's columns, on `vectors`.
     pub fixed_raw: Table,
+    /// With a plant: the fixed-point C's words in its own loop with it —
+    /// what a device in the loop, bit-exact with the C, reproduces.
+    pub fixed_loop: Option<Table>,
     pub tolerance: Vec<f64>,
     pub origin: &'static str,
 }
 
 /// The model run (its expectations judged into `outcome`) and the
 /// fixed-point C reference of a case, built and run in `dir`.
-pub(super) fn reference(test: &TestCase, plan: &Plan, bindings: &[super::binding::Binding], compiler: &str, dir: &Path, texts: &[String], outcome: &mut Outcome) -> Result<Reference, String> {
+#[allow(clippy::too_many_arguments)]
+pub(super) fn reference(test: &TestCase, plan: &Plan, bindings: &[super::binding::Binding], compiler: &str, dir: &Path, texts: &[String], outcome: &mut Outcome, ast: &Model, plants: &mut super::plant::Plants) -> Result<Reference, String> {
     let case = super::case::read(test, plan, bindings).expect("an executed case")?;
     let machine = case.machine;
     let m = &plan.machines[machine];
     outcome.machine = m.name.clone();
     outcome.block = super::vhdl::entity(plan, m);
+    outcome.tools.push_str(&super::plant::Plants::describe(&case));
     let set = quantisation_set(test)?;
-    let vectors = case.vectors(plan);
-    let model = machine_columns(&reference::run(plan, &vectors, case.step_us), &m.ident);
+    // With a plant, the model runs in the loop: its vectors are what the plant gave it.
+    let (vectors, model) = if case.plant.is_some() {
+        let (vectors, model) = super::plant::model_loop(ast, plan, &case, plants)?;
+        (vectors, machine_columns(&model, &m.ident))
+    } else {
+        let vectors = case.vectors(plan);
+        let model = machine_columns(&reference::run(plan, &vectors, case.step_us), &m.ident);
+        (vectors, model)
+    };
     let aliases = reference::aliases(plan);
     let model_values = sil::judge(texts, &aliases, &model)?;
     for (j, v) in outcome.expectations.iter_mut().zip(&model_values) {
@@ -440,18 +474,38 @@ pub(super) fn reference(test: &TestCase, plan: &Plan, bindings: &[super::binding
     let harness = write(dir, "fx_main.c", &sil::direct_harness(&fx_plan))?;
     let binary = dir.join("fx_reference");
     sil::compile(compiler, &[source, harness], dir, &[format!("{}={}UL", super::cgen::period_macro(&fx_plan), case.step_us)], &binary)?;
+    // The fixed-point C on the model's vectors: the quantisation is measured
+    // on the same inputs, step by step; the VHDL replays them.
     let stdout = sil::run_binary(&binary, &fixed_stdin(plan, machine, &fx, &vectors))?;
     let fixed_raw = sil::parse_rows(&stdout, &model.names, case.step_us)?;
+    // With a plant, the fixed-point C in its own loop with it too: a device
+    // in the loop, bit-exact with the C, reproduces that loop, not the model's.
+    let fixed_loop = match &case.plant {
+        Some(_) => {
+            let plant = plants.get(ast, &case)?;
+            let fx_case = super::case::Case { machine: 0, ..case.clone() };
+            let names = model.names.clone();
+            let mut program = super::plant::Program::start(&binary, case.steps, names, case.step_us, Box::new(|v, k| fixed_line(&fx_plan, 0, &fx, v, k)))?;
+            let to_value = |i: usize, x: f64| match fx.vars[i].kind {
+                Kind::Fixed(f) => fixed::value_of(x as i64, f),
+                _ => x,
+            };
+            Some(super::plant::run(&fx_plan, &fx_case, plant, &mut program, Some(&to_value))?.table)
+        }
+        None => None,
+    };
     let tolerance = tolerances(plan, machine, &fx, &vectors, case.steps, set);
     let origin = if set.is_some() { "set in the case (quantisation:)" } else { "derived from the formats" };
-    Ok(Reference { case, machine, vectors, model, aliases, fx, fixed_raw, tolerance, origin })
+    Ok(Reference { case, machine, vectors, model, aliases, fx, fixed_raw, fixed_loop, tolerance, origin })
 }
 
 /// A run on the hardware (`device`: "the VHDL", "the SoC"), its words in
-/// `device_raw`, judged: word for word against the fixed-point C, within
-/// the tolerance of the model, its expectations as the model's.
-pub(super) fn conclude(r: &Reference, plan: &Plan, device_raw: &Table, device: &str, texts: &[String], outcome: &mut Outcome) {
-    let bit_exact = sil::compare(&r.fixed_raw, device_raw, 0.0);
+/// `device_raw`, judged: word for word against the fixed-point C (the C
+/// in the loop with the plant when the device ran `in_loop`), within the
+/// tolerance of the model, its expectations as the model's.
+pub(super) fn conclude(r: &Reference, plan: &Plan, device_raw: &Table, device: &str, texts: &[String], outcome: &mut Outcome, in_loop: bool) {
+    let exact = if in_loop { r.fixed_loop.as_ref().unwrap_or(&r.fixed_raw) } else { &r.fixed_raw };
+    let bit_exact = sil::compare(exact, device_raw, 0.0);
     let fixed_values = values(plan, r.machine, &r.fx, &r.fixed_raw);
     let device_values = values(plan, r.machine, &r.fx, device_raw);
     let q = quantisation(&r.model, &fixed_values, &r.tolerance, plan, r.machine, &r.fx, r.origin);
@@ -507,16 +561,28 @@ pub type Report = (Vec<Outcome>, Vec<Result<Synthesis, String>>);
 
 /// Run the cases of the machines allocated to programmable logic.
 pub fn run(ast: &Model, options: &Options) -> Result<Report, String> {
+    run_with(ast, options, &mut super::plant::Plants::none())
+}
+
+/// As `run`; a case with a plant replays, in the VHDL, the vectors of the
+/// fixed-point C's loop around it (`plants` builds the plant).
+pub fn run_with(ast: &Model, options: &Options, plants: &mut super::plant::Plants) -> Result<Report, String> {
     let plan = super::plan::plan(ast)?;
     let bindings = super::binding::resolve_all(ast, &plan)?;
     let allocations = super::alloc::allocations(ast, &plan)?;
-    if allocations.is_empty() {
+    if allocations.is_empty() && options.as_if.is_none() {
         return Err("no state_machine is allocated to programmable logic: give it to a node of kind \"fpga\" (node \"Fabric\" { kind: \"fpga\" deploys \"<machine or its owner>\" }; docs/embedded-fpga.md)".to_string());
+    }
+    if let Some(wanted) = &options.machine {
+        if !plan.machines.iter().any(|m| m.is(wanted)) {
+            return Err(format!("no state_machine '{wanted}' in the model"));
+        }
     }
     std::fs::create_dir_all(&options.work).map_err(|e| format!("cannot make {}: {e}", options.work.display()))?;
     let work = options.work.canonicalize().unwrap_or_else(|_| options.work.clone());
     let options = Options { work, ..options.clone() };
-    let cases = selected(ast, &plan, &allocations, &bindings, options.only.as_deref());
+    // As if: the synthesis only; the cases stay those of the machines allocated.
+    let cases = if options.as_if.is_some() { Vec::new() } else { selected(ast, &plan, &allocations, &bindings, options.only.as_deref()) };
     if cases.is_empty() && !options.synth {
         return Err(match &options.only {
             Some(o) => format!("no test_case '{o}' that executes a machine allocated to programmable logic"),
@@ -524,11 +590,15 @@ pub fn run(ast: &Model, options: &Options) -> Result<Report, String> {
         });
     }
     let tools = tools(&options.compiler, options.synth);
-    let outcomes = cases.into_iter().map(|t| run_case(t, &plan, &bindings, &options, &tools)).collect();
+    let outcomes = cases.into_iter().map(|t| run_case(t, &plan, &bindings, &options, &tools, ast, plants)).collect();
     let mut synthesis = Vec::new();
     if options.synth {
-        let period = super::default_period_us(&bindings);
-        for a in &allocations {
+        let targets: Vec<Allocation> = match &options.as_if {
+            Some((part, clock_hz)) => plan.machines.iter().enumerate().map(|(i, _)| Allocation { machine: i, node: format!("as if on {part}"), part: part.clone(), clock_hz: *clock_hz, board: None }).collect(),
+            None => allocations.clone(),
+        };
+        for a in targets.iter().filter(|a| options.machine.as_deref().is_none_or(|w| plan.machines[a.machine].is(w))) {
+            let period = crate::compiler::partition::period_of(&bindings, a.machine);
             synthesis.push(synthesise(&plan, a, period, &options.work));
         }
     }
@@ -558,14 +628,17 @@ pub fn synthesise(plan: &Plan, a: &Allocation, period_us: u64, work: &Path) -> R
             sources.push(name);
         }
     }
-    // GHDL's own synthesis first: the design elaborates as hardware.
+    // GHDL's own synthesis first: the design elaborates as hardware, and
+    // its netlist goes to Yosys as Verilog (no plugin to keep in step with
+    // the Yosys binary).
     let mut analyse = vec!["-a".to_string(), "--std=08".to_string()];
     analyse.extend(sources.iter().cloned());
     run_tool("ghdl", &analyse, &dir, "ghdl -a")?;
-    let netlist = run_tool("ghdl", &["--synth".into(), "--std=08".into(), top.clone()], &dir, "ghdl --synth")?;
-    write(&dir, "ghdl_synth.vhd", &netlist)?;
-    let script = format!("ghdl --std=08 {} -e {top}; synth_ecp5 -top {top} -json {ent}.json", sources.join(" "));
-    run_tool("yosys", &["-q".into(), "-m".into(), "ghdl".into(), "-l".into(), "yosys.log".into(), "-p".into(), script], &dir, "yosys (ghdl plugin, synth_ecp5)")?;
+    let netlist = run_tool_stdout("ghdl", &["--synth".into(), "--std=08".into(), "--out=verilog".into(), top.clone()], &dir, "ghdl --synth --out=verilog", "ghdl_synth.log")?;
+    let verilog = format!("{ent}_synth.v");
+    write(&dir, &verilog, &netlist)?;
+    let script = format!("read_verilog {verilog}; synth_ecp5 -top {top} -json {ent}.json");
+    run_tool("yosys", &["-q".into(), "-l".into(), "yosys.log".into(), "-p".into(), script], &dir, "yosys (synth_ecp5)")?;
     let device = a.device()?;
     let mhz = a.clock_hz / 1e6;
     let args: Vec<String> = vec![

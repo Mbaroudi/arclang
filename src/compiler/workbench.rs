@@ -96,6 +96,10 @@ pub struct Snapshot {
     /// after its rule (`rules()` lists them) with the element concerned.
     pub findings: Vec<crate::compiler::rules::Finding>,
     pub gate: Option<GateOut>,
+    /// The realization ladder of each requirement: what the simulation,
+    /// the C, the processor, the logic, the SoC, the board and the twin say.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub realization: Vec<crate::compiler::realization::Ladder>,
     /// OMG SysML v2 textual notation (interop subset).
     pub sysmlv2: Option<String>,
     /// OMG ReqIF 1.0 (requirements exchange).
@@ -111,7 +115,7 @@ pub fn snapshot(source: &str, options: &SnapshotOptions) -> Snapshot {
         optimization_level: 0,
         target: "json".to_string(),
     });
-    snapshot_of(compiler.compile_string(source), options)
+    snapshot_of(compiler.compile_string(source), options, None)
 }
 
 /// The snapshot of a model file, its imports resolved relative to it.
@@ -120,11 +124,11 @@ pub fn snapshot_file_json(path: &std::path::Path, options: &SnapshotOptions) -> 
         optimization_level: 0,
         target: "json".to_string(),
     });
-    serde_json::to_string(&snapshot_of(compiler.compile_file(path), options))
+    serde_json::to_string(&snapshot_of(compiler.compile_file(path), options, Some(path)))
         .unwrap_or_else(|e| format!("{{\"success\":false,\"errors\":[\"serialization: {e}\"]}}"))
 }
 
-fn snapshot_of(compiled: Result<crate::CompilationResult, crate::CompilerError>, options: &SnapshotOptions) -> Snapshot {
+fn snapshot_of(compiled: Result<crate::CompilationResult, crate::CompilerError>, options: &SnapshotOptions, model_path: Option<&std::path::Path>) -> Snapshot {
     match compiled {
         Err(e) => Snapshot {
             success: false,
@@ -137,6 +141,7 @@ fn snapshot_of(compiled: Result<crate::CompilationResult, crate::CompilerError>,
             elements: None,
             findings: Vec::new(),
             gate: None,
+            realization: Vec::new(),
             sysmlv2: None,
             reqif: None,
             c_headers: None,
@@ -168,6 +173,7 @@ fn snapshot_of(compiled: Result<crate::CompilationResult, crate::CompilerError>,
                 .clone()
                 .unwrap_or_else(|| "System Architecture".to_string());
             let findings = crate::compiler::rules::findings(&result);
+            let realization = crate::compiler::realization::ladders(&result, model_path);
             let mut diagrams = crate::compiler::diagram::build_diagrams(&result.ast);
             crate::compiler::diagram::judge_requirements(&mut diagrams, &result.ast, model);
             let diagrams = crate::compiler::diagram::html::viewer_payload(&diagrams, &title);
@@ -201,6 +207,7 @@ fn snapshot_of(compiled: Result<crate::CompilationResult, crate::CompilerError>,
                 elements: Some(elements_json(&elements::build(&result.ast, model))),
                 findings,
                 gate: Some(gate),
+                realization,
                 sysmlv2: options.exports.then(|| crate::compiler::sysmlv2_generator::generate_sysmlv2(model, &result.ast)),
                 reqif: options.exports.then(|| crate::compiler::reqif::generate_reqif(model, &result.ast)),
                 c_headers: options.exports.then(|| crate::compiler::c_header_generator::generate_c_headers(model, &result.ast)),

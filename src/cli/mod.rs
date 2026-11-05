@@ -3,6 +3,8 @@ pub mod debug;
 pub mod diagram_service;
 pub mod edit;
 pub mod table; // tables hook
+mod partition;
+mod realize; // realization hook
 pub mod impact; // impact hook
 pub mod semgit; // semgit hook
 pub mod cicd; // cicd hook
@@ -385,6 +387,14 @@ pub enum Commands {
         #[clap(long)]
         synth: bool,
 
+        /// With --synth: every machine as if allocated to this ECP5 part, at this clock (DEVICE[@MHZ], e.g. LFE5U-25F-6BG381C@25)
+        #[clap(long, value_name = "DEVICE[@MHZ]")]
+        as_if: Option<String>,
+
+        /// With --synth: only this machine (name or id)
+        #[clap(long)]
+        machine: Option<String>,
+
         /// Keep the VHDL, the testbenches, the C reference and the netlists in this directory
         #[clap(long)]
         keep: Option<PathBuf>,
@@ -439,6 +449,74 @@ pub enum Commands {
     },
 
     /// Run the digital twins of a model: each `twin`'s physical model
+    /// Climb the realization ladder (docs/realization.md): for each
+    /// requirement, run in order what each stage is missing or stale
+    /// (verify, sil, pil, hdl, soc, twin), read the ladder back after each
+    /// step, stop a requirement's climb at a failure. --dry-run prints the
+    /// plan and the gaps (a requirement nothing climbs) without running.
+    /// HW/SW partitioning: every machine measured as C on the processor
+    /// (arclang pil: the step's time, the code's footprint) and as VHDL on
+    /// the logic (arclang hdl --synth --as-if: resources, Fmax), what fits
+    /// its period, what the model allocates today; kept beside the model
+    /// for the table kind `partition`.
+    Partition {
+        #[clap(value_parser)]
+        input: PathBuf,
+
+        /// The target package of the C (else the bindings', else zephyr/litex_vexriscv)
+        #[clap(long)]
+        target: Option<String>,
+
+        /// The ECP5 part of the logic (else the first logic node's, else LFE5U-25F-6BG381C)
+        #[clap(long)]
+        device: Option<String>,
+
+        /// The clock of the logic, MHz (else the node's, else 25)
+        #[clap(long)]
+        clock: Option<f64>,
+
+        /// Only this machine (name or id)
+        #[clap(long)]
+        machine: Option<String>,
+
+        /// Print the two runs, run nothing
+        #[clap(long)]
+        dry_run: bool,
+
+        /// The measurements as JSON
+        #[clap(long)]
+        json: bool,
+    },
+
+    Realize {
+        #[clap(value_parser)]
+        input: PathBuf,
+
+        /// Only this requirement (id or name)
+        #[clap(long)]
+        requirement: Option<String>,
+
+        /// Climb up to this stage only: simulation, sil, pil, hdl, soc, board or twin
+        #[clap(long, value_name = "STAGE")]
+        up_to: Option<String>,
+
+        /// Print the plan and the gaps, run nothing
+        #[clap(long)]
+        dry_run: bool,
+
+        /// Go on past a failure or an error (every step that can run runs)
+        #[clap(long)]
+        keep_going: bool,
+
+        /// Include the board (the bitstream through --port): off by default, it needs the hardware
+        #[clap(long)]
+        board: bool,
+
+        /// The plan, the runs and the ladder after, as JSON (the steps' output captured)
+        #[clap(long)]
+        json: bool,
+    },
+
     /// driven by its measured data (drives:) in OpenModelica, compared to
     /// the measurements (compares:) and checked against its expects:
     Twin {
@@ -1183,8 +1261,10 @@ impl CliRunner {
             }
             Commands::Sil { input, test, compilers, keep, json } => self.run_sil(&input, test, compilers, keep, json),
             Commands::Pil { input, test, target, keep, json } => self.run_pil(&input, test, target, keep, json),
-            Commands::Hdl { input, test, synth, keep, json } => self.run_hdl(&input, test, synth, keep, json),
+            Commands::Hdl { input, test, synth, as_if, machine, keep, json } => self.run_hdl(&input, test, synth, as_if, machine, keep, json),
+            Commands::Partition { input, target, device, clock, machine, dry_run, json } => partition::run(&input, partition::Options { target, device, clock_mhz: clock, machine, dry_run, json }),
             Commands::Soc { input, test, bitstream, board, no_sim, gate_level, port, keep, json } => self.run_soc(&input, test, bitstream || board.is_some(), board, !no_sim && port.is_none(), gate_level, port, keep, json),
+            Commands::Realize { input, requirement, up_to, dry_run, keep_going, board, json } => realize::run(&input, realize::Options { requirement, up_to, dry_run, keep_going, board, json }),
             Commands::Twin { input, twin, json, list, live, for_seconds } => {
                 if live {
                     self.run_twin_live(input, twin, json, for_seconds)
@@ -1457,11 +1537,13 @@ impl CliRunner {
         let document = match compiler.compile_file(&input) {
             Ok(result) => {
                 let findings = crate::compiler::rules::findings(&result);
+                let realization = crate::compiler::realization::ladders(&result, Some(&input));
                 serde_json::json!({
                     "success": true,
                     "file": input.display().to_string(),
                     "errors": [],
                     "findings": findings,
+                    "realization": realization,
                     "metrics": {
                         "requirements": result.semantic_model.requirements.len(),
                         "components": result.semantic_model.components.len(),
@@ -1521,6 +1603,17 @@ impl CliRunner {
                     println!("\n⚠ Traceability warnings:");
                     for warning in &warnings {
                         println!("  {}", warning);
+                    }
+                }
+
+                let ladders = crate::compiler::realization::ladders(&result, Some(&input));
+                if crate::compiler::realization::applies(&ladders) {
+                    println!("\nRealization (what each stage says of each requirement; {}):", crate::compiler::realization::LEGEND);
+                    for ladder in ladders.iter().filter(|l| l.applies()) {
+                        println!("  {}", crate::compiler::realization::line(ladder));
+                        if !ladder.next.is_empty() {
+                            println!("      next: {}", ladder.next);
+                        }
                     }
                 }
                 
@@ -1956,6 +2049,7 @@ impl CliRunner {
     }
 
     fn run_sil(&self, input: &std::path::Path, test: Option<String>, compilers: Vec<String>, keep: Option<PathBuf>, json: bool) -> Result<(), CliError> {
+        prebuild_plants(input, test.as_deref())?;
         use crate::compiler::embedded::sil;
         let result = crate::Compiler::new(crate::CompilerConfig::default()).compile_file(input).map_err(|e| CliError::Compilation(e.to_string()))?;
         let compilers = if compilers.is_empty() { vec![std::env::var("CC").ok().filter(|c| !c.trim().is_empty()).unwrap_or_else(|| "cc".to_string())] } else { compilers };
@@ -1965,7 +2059,7 @@ impl CliRunner {
         for compiler in &compilers {
             let version = sil::compiler_version(compiler).ok_or_else(|| CliError::Config(format!("the C compiler '{compiler}' does not run (give one with --cc, or set CC)")))?;
             let options = sil::Options { compiler: compiler.clone(), work: work.join(compiler.replace(['/', '\\'], "_")), only: test.clone() };
-            let run = sil::run(&result.ast, &options);
+            let run = sil::run_with(&result.ast, &options, &mut plants_of(input));
             let run = run.map_err(CliError::Compilation)?;
             if !json {
                 println!("\nSIL {} — {compiler} ({version})", input.display());
@@ -1997,11 +2091,17 @@ impl CliRunner {
 
     fn run_pil(&self, input: &std::path::Path, test: Option<String>, target: Option<String>, keep: Option<PathBuf>, json: bool) -> Result<(), CliError> {
         use crate::compiler::embedded::pil;
+        // No Zephyr or Renode here: the same command in the SoC image, its verdict in the model's cache.
+        prebuild_plants(input, test.as_deref())?;
+        if let Some(code) = crate::compiler::embedded::docker::relay("pil", input).map_err(CliError::Config)? {
+            std::process::exit(code);
+        }
         let result = crate::Compiler::new(crate::CompilerConfig::default()).compile_file(input).map_err(|e| CliError::Compilation(e.to_string()))?;
         let scratch = keep.is_none();
         let work = keep.unwrap_or_else(|| std::env::temp_dir().join(format!("arclang-pil-{}", std::process::id())));
         let options = pil::Options { target, work: work.clone(), only: test };
-        let (package, outcomes) = pil::run(&result.ast, &options).map_err(CliError::Compilation)?;
+        let mut plants = plants_of(input);
+        let (package, outcomes) = pil::run_with(&result.ast, &options, &mut plants).map_err(CliError::Compilation)?;
         if !json {
             println!("\nPIL {} — {}", input.display(), outcomes.first().map(|o| o.compiler.as_str()).unwrap_or(package.name.as_str()));
             for outcome in &outcomes {
@@ -2027,14 +2127,36 @@ impl CliRunner {
         }
     }
 
-    fn run_hdl(&self, input: &std::path::Path, test: Option<String>, synth: bool, keep: Option<PathBuf>, json: bool) -> Result<(), CliError> {
+    #[allow(clippy::too_many_arguments)]
+    fn run_hdl(&self, input: &std::path::Path, test: Option<String>, synth: bool, as_if: Option<String>, machine: Option<String>, keep: Option<PathBuf>, json: bool) -> Result<(), CliError> {
         use crate::compiler::embedded::hdl;
+        // No GHDL here: the same command in the FPGA image.
+        prebuild_plants(input, test.as_deref())?;
+        if let Some(code) = crate::compiler::embedded::docker::relay("hdl", input).map_err(CliError::Config)? {
+            std::process::exit(code);
+        }
         let result = crate::Compiler::new(crate::CompilerConfig::default()).compile_file(input).map_err(|e| CliError::Compilation(e.to_string()))?;
         let scratch = keep.is_none();
         let work = keep.unwrap_or_else(|| std::env::temp_dir().join(format!("arclang-hdl-{}", std::process::id())));
         let compiler = std::env::var("CC").ok().filter(|c| !c.trim().is_empty()).unwrap_or_else(|| "cc".to_string());
-        let options = hdl::Options { work: work.clone(), only: test, synth, compiler };
-        let (outcomes, synthesis) = hdl::run(&result.ast, &options).map_err(CliError::Compilation)?;
+        let as_if = match as_if {
+            None => None,
+            Some(text) => {
+                if !synth {
+                    return Err(CliError::Config("--as-if goes with --synth".to_string()));
+                }
+                let (part, mhz) = text.split_once('@').map(|(p, m)| (p.to_string(), Some(m.to_string()))).unwrap_or((text.clone(), None));
+                crate::compiler::embedded::alloc::device(&part).map_err(CliError::Config)?;
+                let clock_hz = match mhz {
+                    Some(m) => m.trim().parse::<f64>().ok().filter(|m| *m > 0.0).ok_or_else(|| CliError::Config(format!("--as-if: '{m}' is not a clock in MHz")))? * 1e6,
+                    None => crate::compiler::embedded::alloc::DEFAULT_CLOCK_HZ,
+                };
+                Some((part, clock_hz))
+            }
+        };
+        let options = hdl::Options { work: work.clone(), only: test, synth, compiler, as_if, machine };
+        let mut plants = plants_of(input);
+        let (outcomes, synthesis) = hdl::run_with(&result.ast, &options, &mut plants).map_err(CliError::Compilation)?;
         if !json {
             println!("\nHDL {} — {}", input.display(), outcomes.first().map(|o| o.tools.as_str()).unwrap_or(""));
             for o in &outcomes {
@@ -2082,13 +2204,21 @@ impl CliRunner {
     #[allow(clippy::too_many_arguments)]
     fn run_soc(&self, input: &std::path::Path, test: Option<String>, bitstream: bool, board: Option<String>, simulate: bool, gate_level: bool, port: Option<String>, keep: Option<PathBuf>, json: bool) -> Result<(), CliError> {
         use crate::compiler::embedded::system;
+        // No LiteX or Verilator here: the same command in the system image. A board on a port stays on this host.
+        if port.is_none() {
+            prebuild_plants(input, test.as_deref())?;
+        if let Some(code) = crate::compiler::embedded::docker::relay("soc", input).map_err(CliError::Config)? {
+                std::process::exit(code);
+            }
+        }
         let result = crate::Compiler::new(crate::CompilerConfig::default()).compile_file(input).map_err(|e| CliError::Compilation(e.to_string()))?;
         let scratch = keep.is_none();
         let work = keep.unwrap_or_else(|| std::env::temp_dir().join(format!("arclang-soc-{}", std::process::id())));
         let compiler = std::env::var("CC").ok().filter(|c| !c.trim().is_empty()).unwrap_or_else(|| "cc".to_string());
         let on_board = port.is_some();
         let options = system::Options { work: work.clone(), only: test, compiler, simulate, gate_level, bitstream, board, port };
-        let report = system::run(&result.ast, &options).map_err(CliError::Compilation)?;
+        let mut plants = plants_of(input);
+        let report = system::run_with(&result.ast, &options, &mut plants).map_err(CliError::Compilation)?;
         let device = if on_board { "board" } else { "SoC" };
         if !json {
             println!("\nSoC {} — {}", input.display(), report.outcomes.first().map(|o| o.tools.as_str()).unwrap_or(""));
@@ -2409,6 +2539,11 @@ impl CliRunner {
         }
         let config = crate::compiler::simulation::tool::ToolConfig::from_env();
         let outcomes: Vec<twin::Outcome> = chosen.iter().map(|t| twin::run(&result, &input, t, &config)).collect();
+        for (twin, outcome) in chosen.iter().zip(&outcomes) {
+            if outcome.verdict != "inconclusive" {
+                twin::cache(&result, &input, twin, outcome).map_err(CliError::Compilation)?;
+            }
+        }
         if json {
             println!("{}", serde_json::to_string(&outcomes).map_err(|e| CliError::Compilation(e.to_string()))?);
         } else {
@@ -3629,4 +3764,27 @@ pub enum CliError {
 
 fn count_nodes(nodes: &[crate::compiler::diagram::Node]) -> usize {
     nodes.iter().map(|node| 1 + count_nodes(&node.children)).sum()
+}
+
+/// The plants of the model's cases, beside the model.
+fn plants_of(input: &std::path::Path) -> crate::compiler::embedded::plant::Plants {
+    crate::compiler::embedded::plant::Plants::at(&crate::compiler::simulation::cache::model_dir(input))
+}
+
+/// Build the FMU of every plant of the cases chosen, here, where
+/// OpenModelica is: a stage that then runs in a Docker image steps it.
+fn prebuild_plants(input: &std::path::Path, only: Option<&str>) -> Result<(), CliError> {
+    use crate::compiler::embedded::{binding, plan};
+    let result = crate::Compiler::new(crate::CompilerConfig::default()).compile_file(input).map_err(|e| CliError::Compilation(e.to_string()))?;
+    let has_plant = result.ast.test_cases.iter().filter(|t| only.is_none_or(|o| t.id == o || t.name == o)).any(|t| matches!(t.attributes.get("execute"), Some(crate::compiler::ast::AttributeValue::Map(m)) if m.contains_key("plant")));
+    if !has_plant {
+        return Ok(());
+    }
+    let p = plan::plan(&result.ast).map_err(CliError::Compilation)?;
+    let bindings = binding::resolve_all(&result.ast, &p).map_err(CliError::Compilation)?;
+    let built = plants_of(input).prepare_all(&result.ast, &p, &bindings, only).map_err(CliError::Compilation)?;
+    for path in built {
+        eprintln!("plant: {}", path.display());
+    }
+    Ok(())
 }

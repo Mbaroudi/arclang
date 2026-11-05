@@ -29,6 +29,7 @@ use crate::compiler::modelica::{self, Export};
 use crate::compiler::quantity::{lookup_unit, UnitSpec};
 use crate::compiler::CompilationResult;
 use serde::Serialize;
+use sha2::{Digest, Sha256};
 use std::collections::{BTreeMap, HashMap};
 use std::path::{Path, PathBuf};
 
@@ -824,7 +825,76 @@ pub struct Outcome {
     pub log: String,
 }
 
-fn work_dir() -> Result<PathBuf, String> {
+/// The hash of what a twin's verdict depends on: the generated package,
+/// every source, the measurements (path and content), and the twin as
+/// written (its model, configuration, data, drives, compares, expects).
+pub fn cache_key(result: &CompilationResult, model_path: &Path, twin: &Twin) -> Result<String, String> {
+    let spec = spec_of(&twin.attributes)?;
+    let export = modelica::export(&result.ast)?;
+    let base = super::cache::model_dir(model_path);
+    let mut hash = Sha256::new();
+    let mut field = |label: &str, bytes: &[u8]| {
+        hash.update(label.as_bytes());
+        hash.update((bytes.len() as u64).to_le_bytes());
+        hash.update(bytes);
+    };
+    field("twin", b"1");
+    field("package", export.text.as_bytes());
+    for source in &spec.sources {
+        field("source", source.as_bytes());
+        match std::fs::read(base.join(source)) {
+            Ok(content) => field("content", &content),
+            Err(_) => field("missing", b""),
+        }
+    }
+    field("data", spec.data.file.as_bytes());
+    match std::fs::read(base.join(&spec.data.file)) {
+        Ok(content) => field("content", &content),
+        Err(_) => field("missing", b""),
+    }
+    field("model", spec.model.as_bytes());
+    field("configuration", spec.configuration.as_deref().unwrap_or("").as_bytes());
+    field("tolerance", format!("{:?}", spec.tolerance).as_bytes());
+    let mut written: Vec<(&String, String)> = twin.attributes.iter().map(|(k, v)| (k, v.display())).collect();
+    written.sort();
+    for (key, value) in written {
+        field(key, value.as_bytes());
+    }
+    Ok(hash.finalize().iter().map(|b| format!("{b:02x}")).collect())
+}
+
+/// Keep a twin's verdict in the model's cache (`<twin>.twin.json`), where
+/// the compiler reads it as the twin rung of the requirements it verifies.
+pub fn cache(result: &CompilationResult, model_path: &Path, twin: &Twin, outcome: &Outcome) -> Result<PathBuf, String> {
+    let key = cache_key(result, model_path, twin)?;
+    let spec = spec_of(&twin.attributes)?;
+    let comparisons: Vec<String> = outcome
+        .comparisons
+        .iter()
+        .map(|c| format!("{} ~ {}: max deviation {:.4} {}, RMS {:.4} {}, {:.1} % within {} ({:.1} % required)", c.target, c.column, c.max_deviation, c.unit, c.rms_deviation, c.unit, c.within * 100.0, c.tolerance, c.required * 100.0))
+        .collect();
+    let cached = super::Outcome {
+        test_case: twin.id.clone(),
+        kind: "twin".to_string(),
+        name: twin.name.clone(),
+        verifies: twin.verifies.clone(),
+        verdict: outcome.verdict.clone(),
+        reason: outcome.reason.clone(),
+        values: outcome.values.clone(),
+        key,
+        model: spec.model.clone(),
+        configuration: spec.configuration.clone(),
+        tool: outcome.tool.clone(),
+        target: outcome.data.clone(),
+        omc_version: outcome.omc_version.clone(),
+        log: comparisons.join("\n"),
+        seconds: outcome.seconds,
+        ..Default::default()
+    };
+    super::cache::write_kind(&super::cache::dir(model_path), "twin", &cached)
+}
+
+pub(crate) fn work_dir() -> Result<PathBuf, String> {
     let nanos = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.subsec_nanos()).unwrap_or(0);
     let dir = std::env::temp_dir().join(format!("arclang-twin-{}-{nanos}", std::process::id()));
     std::fs::create_dir_all(dir.join("sources")).map_err(|e| format!("cannot create {}: {e}", dir.display()))?;
@@ -903,15 +973,14 @@ pub fn shown(value: f64, unit: Option<&UnitSpec>) -> String {
 }
 
 /// A working directory with the model's Modelica, the wrapper and the physics: the files to load.
-pub fn stage(export: &Export, spec: &Spec, base: &Path) -> Result<(PathBuf, Vec<String>), String> {
-    let targets: Vec<String> = spec.drives.iter().map(|d| resolve(&d.target, &export.instances)).collect();
-    let wrapper = wrapper(&spec.model, &targets)?;
+pub fn stage(export: &Export, model: &str, sources: &[String], targets: &[String], base: &Path) -> Result<(PathBuf, Vec<String>), String> {
+    let wrapper = wrapper(model, targets)?;
     let dir = work_dir()?;
     let written = (|| -> Result<Vec<String>, String> {
         std::fs::write(dir.join(&export.file_name), &export.text).map_err(|e| e.to_string())?;
         std::fs::write(dir.join("twin.mo"), wrapper).map_err(|e| e.to_string())?;
         let mut staged = Vec::new();
-        for (index, source) in spec.sources.iter().enumerate() {
+        for (index, source) in sources.iter().enumerate() {
             let content = std::fs::read(base.join(source)).map_err(|e| format!("source '{source}' cannot be read: {e}"))?;
             let stem: String = Path::new(source).file_stem().and_then(|s| s.to_str()).unwrap_or("source").chars().filter(|c| c.is_ascii_alphanumeric() || *c == '_').collect();
             let name = format!("sources/{index}_{stem}.mo");
@@ -1006,7 +1075,8 @@ pub fn run_on(result: &CompilationResult, model_path: &Path, twin: &Twin, spec: 
     };
     let prepared = (|| -> Result<(PathBuf, Vec<String>), String> {
         let inputs = input_csv(&measurements, &spec.drives)?;
-        let (dir, staged) = stage(&export, spec, &base)?;
+        let targets: Vec<String> = spec.drives.iter().map(|d| resolve(&d.target, &export.instances)).collect();
+        let (dir, staged) = stage(&export, &spec.model, &spec.sources, &targets, &base)?;
         std::fs::write(dir.join("twin_inputs.csv"), inputs).map_err(|e| e.to_string())?;
         Ok((dir, staged))
     })();

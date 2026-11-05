@@ -121,12 +121,34 @@ fn the_behavior_knows_no_board() {
     assert_eq!(generated.header, again.header);
 }
 
+/// The example's text without its cases closed on a plant (they need
+/// OpenModelica: tests/embedded_plant.rs runs them where it is).
+fn without_plant_cases(text: &str) -> String {
+    let mut out = String::new();
+    for (i, block) in text.split("\ntest_case ").enumerate() {
+        if i > 0 && block.contains("plant:") {
+            continue;
+        }
+        if i > 0 {
+            out.push_str("\ntest_case ");
+        }
+        out.push_str(block);
+    }
+    out
+}
+
+/// A copy of the example at `to`, its plant cases left out.
+fn copy_without_plant_cases(from: &Path, to: &Path) {
+    std::fs::write(to, without_plant_cases(&std::fs::read_to_string(from).unwrap())).unwrap();
+}
+
 fn run_sil(path: &Path, compiler: &str, name: &str) -> Vec<sil::Outcome> {
     let result = compile_file(path);
     let options = sil::Options { compiler: compiler.to_string(), work: work(name), only: None };
     let outcomes = sil::run(&result.ast, &options).unwrap();
     let _ = std::fs::remove_dir_all(&options.work);
-    outcomes
+    // The cases closed on a plant are run in tests/embedded_plant.rs, where OpenModelica is.
+    outcomes.into_iter().filter(|o| !o.compiler.contains("in the loop with the plant")).collect()
 }
 
 /// The model-level verdict of each expectation, from the reference run alone.
@@ -136,8 +158,14 @@ fn model_verdicts(path: &Path) -> Vec<(String, Vec<bool>)> {
     let bindings = binding::resolve_all(&result.ast, &plan).unwrap();
     sil::cases(&result.ast)
         .into_iter()
-        .map(|test| {
+        .filter_map(|test| {
             let case = case::read(test, &plan, &bindings).unwrap().unwrap();
+            if case.plant.is_some() {
+                return None;
+            }
+            Some((test, case))
+        })
+        .map(|(test, case)| {
             let table = reference::run(&plan, &case.vectors(&plan), case.step_us);
             let texts = arclang::compiler::simulation::expects_of(&test.attributes);
             let values = sil::judge(&texts, &reference::aliases(&plan), &table).unwrap();
@@ -377,7 +405,7 @@ fn the_cli_exports_c_and_runs_sil() {
     assert!(stdout.contains("action(s) written in prose are reported (counted per step), not executed"), "{stdout}");
     // On a copy: `arclang sil` caches its verdicts beside the model.
     let copy = dir.join("battery_charger.arc");
-    std::fs::copy(example(CHARGER), &copy).unwrap();
+    copy_without_plant_cases(&example(CHARGER), &copy);
     let out = Command::new(exe).arg("sil").arg(&copy).args(["--cc", &gcc(), "--json"]).output().unwrap();
     assert!(out.status.success(), "{}{}", String::from_utf8_lossy(&out.stdout), String::from_utf8_lossy(&out.stderr));
     let json: serde_json::Value = serde_json::from_slice(&out.stdout).unwrap();
@@ -776,7 +804,7 @@ fn sil_verdicts_are_cached_for_check_gate_and_the_tables() {
     use arclang::compiler::verification::{verdict_for, Verdict};
     let dir = work("cache");
     let model = dir.join("battery_charger.arc");
-    std::fs::copy(example(CHARGER), &model).unwrap();
+    copy_without_plant_cases(&example(CHARGER), &model);
     let verdict = |path: &Path| {
         let result = compile_file(path);
         let test = result.ast.test_cases.iter().find(|t| t.id == "TC-CHG-003").unwrap().clone();

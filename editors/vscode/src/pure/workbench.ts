@@ -87,6 +87,8 @@ export interface Snapshot {
   elements: { elements: ElementRecord[]; relationships: RelationshipRecord[] } | null;
   findings: Finding[];
   gate: GateReport | null;
+  /** The realization ladder of each requirement (docs/realization.md); absent from older compilers. */
+  realization?: import('./realization').Ladder[];
 }
 
 export interface AttributeType {
@@ -303,6 +305,7 @@ export function parseSnapshot(text: string): Snapshot {
     elements: elements && Array.isArray(elements.elements) ? { elements: elements.elements, relationships: elements.relationships ?? [] } : null,
     findings: Array.isArray(value.findings) ? (value.findings as Finding[]) : [],
     gate: (value.gate as GateReport | null) ?? null,
+    realization: Array.isArray(value.realization) ? (value.realization as Snapshot['realization']) : [],
   };
 }
 

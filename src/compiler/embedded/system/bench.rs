@@ -102,27 +102,43 @@ fn tail(text: &str) -> String {
     lines[lines.len().saturating_sub(15)..].join("\n")
 }
 
-/// Each step's line, each step's report: the reports, as `pil` reads them.
-fn steps(link: &mut Link, lines: &[String], seconds: u64) -> Result<String, String> {
-    let mut reports = String::new();
-    for (k, input) in lines.iter().enumerate() {
-        link.send(input)?;
-        let deadline = Instant::now() + Duration::from_secs(seconds);
-        let prefix = format!("R {k},");
-        loop {
-            match link.line(deadline)? {
-                Some(line) if line.starts_with(&prefix) => {
-                    reports.push_str(&line);
-                    reports.push('\n');
-                    break;
-                }
-                Some(line) if line.starts_with("ARCLANG ERROR ") => return Err(format!("on the target, at step {k}: {}", &line["ARCLANG ERROR ".len()..])),
-                Some(_) => {}
-                None => return Err(format!("no report of step {k} within {seconds} s; the console:\n{}", tail(&link.log()))),
+/// The board's serial port opened raw at 115200 bauds, 8N1.
+fn open_port(port: &str) -> Result<Link, String> {
+    let flag = if cfg!(target_os = "macos") { "-f" } else { "-F" };
+    let stty = Command::new("stty").args([flag, port, "115200", "raw", "-echo", "cs8", "-cstopb", "-parenb"]).output().map_err(|e| format!("cannot run stty: {e}"))?;
+    if !stty.status.success() {
+        return Err(format!("cannot set up {port}: {}", String::from_utf8_lossy(&stty.stderr).trim()));
+    }
+    let file = std::fs::OpenOptions::new().read(true).write(true).open(port).map_err(|e| format!("cannot open {port}: {e}"))?;
+    let reader = file.try_clone().map_err(|e| e.to_string())?;
+    Ok(Link::new(Box::new(reader), Box::new(file)))
+}
+
+/// One step's line sent, its report `R <k>,...` awaited and kept.
+fn step(link: &mut Link, k: usize, input: &str, seconds: u64, reports: &mut Vec<String>) -> Result<(), String> {
+    link.send(input)?;
+    let deadline = Instant::now() + Duration::from_secs(seconds);
+    let prefix = format!("R {k},");
+    loop {
+        match link.line(deadline)? {
+            Some(line) if line.starts_with(&prefix) => {
+                reports.push(line);
+                return Ok(());
             }
+            Some(line) if line.starts_with("ARCLANG ERROR ") => return Err(format!("on the target, at step {k}: {}", &line["ARCLANG ERROR ".len()..])),
+            Some(_) => {}
+            None => return Err(format!("no report of step {k} within {seconds} s; the console:\n{}", tail(&link.log()))),
         }
     }
-    Ok(reports)
+}
+
+/// Each step's line, each step's report: the reports, as `pil` reads them.
+fn steps(link: &mut Link, lines: &[String], seconds: u64) -> Result<String, String> {
+    let mut reports = Vec::new();
+    for (k, input) in lines.iter().enumerate() {
+        step(link, k, input, seconds, &mut reports)?;
+    }
+    Ok(reports.iter().map(|r| format!("{r}\n")).collect())
 }
 
 /// Through the I/O: 'G' once, then the report of each of `steps` cycles
@@ -166,9 +182,47 @@ impl Drop for Simulator {
     }
 }
 
-/// Run the steps in the simulator built in `gateware` (a fresh reset), its
-/// console on TCP `port`: the reports, and everything the console said.
-pub fn simulate(gateware: &Path, port: u16, drive: Drive, boot_seconds: u64, step_seconds: u64) -> Result<(String, String), String> {
+/// A target ready for its steps: the simulator (killed when the session
+/// ends) or the board, its console linked; a loop sends one step at a time.
+pub struct Session {
+    // Held so the simulator dies with the session.
+    _sim: Option<Simulator>,
+    link: Link,
+    step_seconds: u64,
+}
+
+impl Session {
+    /// The simulator built in `gateware` started (a fresh reset), its console on TCP `port`, booted.
+    pub fn simulate(gateware: &Path, port: u16, boot_seconds: u64, step_seconds: u64) -> Result<Session, String> {
+        let (sim, link) = start(gateware, port)?;
+        let mut session = Session { _sim: Some(sim), link, step_seconds };
+        ready(&mut session.link, boot_seconds)?;
+        Ok(session)
+    }
+
+    /// The board through its serial port, booted.
+    pub fn board(port: &str, step_seconds: u64) -> Result<Session, String> {
+        let link = open_port(port)?;
+        let mut session = Session { _sim: None, link, step_seconds };
+        ready(&mut session.link, 20)?;
+        Ok(session)
+    }
+
+    /// One step: its line of inputs, its report `R <k>,...`.
+    pub fn step(&mut self, k: usize, input: &str) -> Result<String, String> {
+        let mut one = Vec::new();
+        step(&mut self.link, k, input, self.step_seconds, &mut one)?;
+        Ok(one.join("\n"))
+    }
+
+    /// Everything the console said.
+    pub fn log(&self) -> String {
+        self.link.log()
+    }
+}
+
+/// The simulator of `gateware` started, its console reached.
+fn start(gateware: &Path, port: u16) -> Result<(Simulator, Link), String> {
     let log = std::fs::File::create(gateware.join("vsim.log")).map_err(|e| format!("cannot write the simulator's log: {e}"))?;
     let child = Command::new(gateware.join("obj_dir").join("Vsim"))
         .current_dir(gateware)
@@ -195,7 +249,14 @@ pub fn simulate(gateware: &Path, port: u16, drive: Drive, boot_seconds: u64, ste
     };
     let _ = stream.set_nodelay(true);
     let reader = stream.try_clone().map_err(|e| e.to_string())?;
-    let mut link = Link::new(Box::new(reader), Box::new(stream));
+    Ok((sim, Link::new(Box::new(reader), Box::new(stream))))
+}
+
+/// Run the steps in the simulator built in `gateware` (a fresh reset), its
+/// console on TCP `port`: the reports, and everything the console said.
+pub fn simulate(gateware: &Path, port: u16, drive: Drive, boot_seconds: u64, step_seconds: u64) -> Result<(String, String), String> {
+    let (sim, mut link) = start(gateware, port)?;
+    let mut sim = sim;
     let wanted = match drive {
         Drive::Cycles(n) => n,
         Drive::Lines(_) => 0,
@@ -220,14 +281,7 @@ pub fn simulate(gateware: &Path, port: u16, drive: Drive, boot_seconds: u64, ste
 /// Run the steps on a board through its serial port (115200 bauds, 8N1,
 /// raw), the board holding the SoC's bitstream.
 pub fn board(port: &str, drive: Drive, step_seconds: u64) -> Result<(String, String), String> {
-    let flag = if cfg!(target_os = "macos") { "-f" } else { "-F" };
-    let stty = Command::new("stty").args([flag, port, "115200", "raw", "-echo", "cs8", "-cstopb", "-parenb"]).output().map_err(|e| format!("cannot run stty: {e}"))?;
-    if !stty.status.success() {
-        return Err(format!("cannot set up {port}: {}", String::from_utf8_lossy(&stty.stderr).trim()));
-    }
-    let file = std::fs::OpenOptions::new().read(true).write(true).open(port).map_err(|e| format!("cannot open {port}: {e}"))?;
-    let reader = file.try_clone().map_err(|e| e.to_string())?;
-    let mut link = Link::new(Box::new(reader), Box::new(file));
+    let mut link = open_port(port)?;
     ready(&mut link, 20)?;
     let reports = match drive {
         Drive::Lines(lines) => steps(&mut link, lines, step_seconds)?,

@@ -41,8 +41,25 @@ fn work(name: &str) -> PathBuf {
 
 /// The charger with its binding changed by `edit`.
 fn charger_with(edit: impl Fn(String) -> String) -> String {
-    edit(std::fs::read_to_string(example(CHARGER)).unwrap())
+    edit(without_plant_cases(&std::fs::read_to_string(example(CHARGER)).unwrap()))
 }
+
+/// The example's text without its cases closed on a plant (they need
+/// OpenModelica: tests/embedded_plant.rs runs them where it is).
+fn without_plant_cases(text: &str) -> String {
+    let mut out = String::new();
+    for (i, block) in text.split("\ntest_case ").enumerate() {
+        if i > 0 && block.contains("plant:") {
+            continue;
+        }
+        if i > 0 {
+            out.push_str("\ntest_case ");
+        }
+        out.push_str(block);
+    }
+    out
+}
+
 
 // ---- target packages ------------------------------------------------------------------
 
@@ -256,7 +273,7 @@ fn pil_on_the_litex_soc_in_renode_reproduces_the_model() {
     let dir = work("pil");
     for (path, cases) in [(CHARGER, 3), (WINDOW, 3), (ACC, 2), (REMOTE_START, 2)] {
         let model = dir.join(Path::new(path).file_name().unwrap());
-        std::fs::copy(example(path), &model).unwrap();
+        std::fs::write(&model, without_plant_cases(&std::fs::read_to_string(example(path)).unwrap())).unwrap();
         let (ok, json, stderr) = run_pil(&model, &["--target", LITEX]);
         let outcomes = json.as_array().unwrap();
         assert_eq!(outcomes.len(), cases, "{path}");

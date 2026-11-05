@@ -34,7 +34,7 @@ const FMU: &str = "arclang_twin";
 const PATIENCE: Duration = Duration::from_secs(120);
 
 /// Extracts the FMU, compiles the stepper beside it and runs it.
-fn script(tolerance: f64) -> String {
+pub(crate) fn script(tolerance: f64) -> String {
     format!(
         "set -e\nmkdir -p fmu\ncd fmu && unzip -qo ../{FMU}.fmu && cd ..\n${{CC:-cc}} -O2 -o stepper stepper.c -ldl 1>&2\nlibrary=$(ls \"$PWD\"/fmu/binaries/*/{FMU}.* | head -n 1)\nexec ./stepper \"$library\" {FMU} fmu/modelDescription.xml \"file://$PWD/fmu/resources\" {}\n",
         modelica::names::real(tolerance)
@@ -48,7 +48,8 @@ pub struct Model {
     tolerance: f64,
     child: Option<(Child, ChildStdin, Option<String>)>,
     lines: Option<Receiver<String>>,
-    inputs: usize,
+    /// The FMU's input variables, in the order the stepper takes them.
+    inputs: Vec<String>,
     /// The variables read after each step, as the run names them.
     pub variables: Vec<String>,
     pub units: BTreeMap<String, String>,
@@ -62,9 +63,22 @@ impl Model {
     pub fn build(result: &CompilationResult, model_path: &Path, spec: &Spec, config: &ToolConfig) -> Result<Model, String> {
         let export = modelica::export(&result.ast).map_err(|e| format!("the model does not export to Modelica: {e}"))?;
         let variables = twin::read_variables(spec, &export.instances)?;
+        let targets: Vec<String> = spec.drives.iter().map(|d| twin::resolve(&d.target, &export.instances)).collect();
+        let inputs: Vec<String> = (0..targets.len()).map(|i| format!("twin_in_{i}")).collect();
+        Self::build_modelica(&export, &spec.model, &spec.sources, &targets, inputs, variables, spec.tolerance, &super::cache::model_dir(model_path), config)
+    }
+
+    /// A Modelica model (`model`, its `sources` beside the model at `base`)
+    /// as an FMU: each of `targets` (a variable of the model) bound to an
+    /// input `twin_in_<i>` of the wrapper, as the twin drives it; `inputs`
+    /// the FMU inputs the stepper sets before a step (the wrapper's, or
+    /// with no target the model's own `input` variables, as a plant is
+    /// driven); `variables` read after a step.
+    #[allow(clippy::too_many_arguments)]
+    pub fn build_modelica(export: &modelica::Export, model: &str, sources: &[String], targets: &[String], inputs: Vec<String>, variables: Vec<String>, tolerance: Option<f64>, base: &Path, config: &ToolConfig) -> Result<Model, String> {
         let tool = tool::locate(config)?;
-        let (dir, staged) = twin::stage(&export, spec, &super::cache::model_dir(model_path))?;
-        let mut lines = twin::load_lines(&export, &staged);
+        let (dir, staged) = twin::stage(export, model, sources, targets, base)?;
+        let mut lines = twin::load_lines(export, &staged);
         lines.push("setCommandLineOptions(\"--fmiFlags=s:cvode\");".to_string());
         lines.push(format!("print(\"@@fmu \" + buildModelFMU({}, version=\"2.0\", fmuType=\"cs\", fileNamePrefix=\"{FMU}\") + \"\\n\");", "ArcLangTwin"));
         lines.push("print(getErrorString());".to_string());
@@ -88,18 +102,62 @@ impl Model {
             tool_text: format!("{}, FMU stepped", tool.describe()),
             tool,
             dir,
-            tolerance: spec.tolerance.unwrap_or(1e-6),
+            tolerance: tolerance.unwrap_or(1e-6),
             child: None,
             lines: None,
-            inputs: spec.drives.len(),
+            inputs,
             variables,
             units: BTreeMap::new(),
-            instances: export.instances,
+            instances: export.instances.clone(),
             omc_version,
         };
         model.start()?;
         model.units = units_from_init_xml(&std::fs::read_to_string(model.dir.join("fmu/modelDescription.xml")).unwrap_or_default());
         Ok(model)
+    }
+
+    /// The FMU of `path` as it is (an FMI 2.0 co-simulation FMU from any
+    /// tool), its `inputs` set before each step and its `variables` read
+    /// after. It is stepped by this computer's C compiler when the FMU holds
+    /// a binary for this platform, else where OpenModelica runs (the Docker
+    /// image, for a linux64 binary).
+    pub fn from_fmu(path: &Path, inputs: Vec<String>, variables: Vec<String>, tolerance: Option<f64>, config: &ToolConfig) -> Result<Model, String> {
+        let bytes = std::fs::read(path).map_err(|e| format!("the FMU {} cannot be read: {e}", path.display()))?;
+        let platforms = fmu_platforms(path);
+        let here = crate::compiler::embedded::fmu::platform();
+        let tool = if platforms.iter().any(|p| p == here) && cc_runs() {
+            Tool::Host
+        } else {
+            match tool::locate(config) {
+                Ok(tool) => tool,
+                Err(e) if platforms.is_empty() => return Err(format!("the FMU {} has no binary (a source FMU is not stepped); {e}", path.display())),
+                Err(e) => return Err(format!("the FMU {} has a binary for {} but not for this computer ({here}), and {e}", path.display(), platforms.join(", "))),
+            }
+        };
+        let dir = twin::work_dir()?;
+        std::fs::write(dir.join(format!("{FMU}.fmu")), &bytes).map_err(|e| e.to_string())?;
+        std::fs::write(dir.join("stepper.c"), STEPPER).map_err(|e| e.to_string())?;
+        let mut model = Model {
+            tool_text: format!("{} ({}), FMU stepped", path.display(), tool.describe()),
+            tool,
+            dir,
+            tolerance: tolerance.unwrap_or(1e-6),
+            child: None,
+            lines: None,
+            inputs,
+            variables,
+            units: BTreeMap::new(),
+            instances: BTreeMap::new(),
+            omc_version: String::new(),
+        };
+        model.start()?;
+        model.units = units_from_init_xml(&std::fs::read_to_string(model.dir.join("fmu/modelDescription.xml")).unwrap_or_default());
+        Ok(model)
+    }
+
+    /// The FMU built or given.
+    pub fn fmu_file(&self) -> PathBuf {
+        self.dir.join(format!("{FMU}.fmu"))
     }
 
     /// Starts the stepper (again, after a failure): the model is then initialized anew.
@@ -120,8 +178,7 @@ impl Model {
         self.child = Some((child, stdin, container));
         self.lines = Some(receiver);
         self.answer()?;
-        let inputs: Vec<String> = (0..self.inputs).map(|i| format!("twin_in_{i}")).collect();
-        self.ask(&format!("in {}", inputs.join(" ")))?;
+        self.ask(&format!("in {}", self.inputs.join(" ")))?;
         self.ask(&format!("out {}", self.variables.join(" ")))?;
         Ok(())
     }
@@ -182,6 +239,41 @@ impl Model {
     pub fn step(&mut self, t: f64, inputs: &[f64], slopes: &[f64]) -> Result<Vec<f64>, String> {
         let answer = self.ask(&format!("step {t:e} {} {}", Self::numbers(inputs), Self::numbers(slopes)))?;
         Ok(answer.into_iter().skip(1).collect())
+    }
+}
+
+/// The platforms an FMU holds a binary for (`binaries/<platform>/`), as
+/// `unzip` lists it (the stepper's script extracts the FMU with it too).
+fn fmu_platforms(path: &Path) -> Vec<String> {
+    let Ok(out) = std::process::Command::new("unzip").arg("-Z1").arg(path).stderr(std::process::Stdio::null()).output() else { return Vec::new() };
+    let mut platforms: Vec<String> = Vec::new();
+    for name in String::from_utf8_lossy(&out.stdout).lines() {
+        if let Some((platform, file)) = name.strip_prefix("binaries/").and_then(|rest| rest.split_once('/')) {
+            if !file.is_empty() && !platforms.iter().any(|p| p == platform) {
+                platforms.push(platform.to_string());
+            }
+        }
+    }
+    platforms
+}
+
+fn cc_runs() -> bool {
+    let cc = std::env::var("CC").ok().filter(|c| !c.trim().is_empty()).unwrap_or_else(|| "cc".to_string());
+    std::process::Command::new(cc).arg("--version").stdout(std::process::Stdio::null()).stderr(std::process::Stdio::null()).status().is_ok_and(|s| s.success())
+}
+
+/// The plant of an executed case: restarted before each loop, initialised
+/// on the machine's first outputs, advanced a period at a time with them held.
+impl crate::compiler::embedded::plant::Plant for Model {
+    fn restart(&mut self) -> Result<(), String> {
+        self.start()
+    }
+    fn init(&mut self, inputs: &[f64]) -> Result<Vec<f64>, String> {
+        Model::init(self, 0.0, inputs)
+    }
+    fn advance(&mut self, t: f64, inputs: &[f64]) -> Result<Vec<f64>, String> {
+        let slopes = vec![0.0; inputs.len()];
+        self.step(t, inputs, &slopes)
     }
 }
 
