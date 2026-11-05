@@ -39,8 +39,8 @@
 #define ARCLANG_IO_PWM_HZ 1000U
 #endif
 
-#define ALIAS_DEVICE(alias) COND_CODE_1(DT_NODE_EXISTS(DT_ALIAS(alias)), (DEVICE_DT_GET(DT_ALIAS(alias))), (NULL))
-#define ALIAS_LINES(alias) COND_CODE_1(DT_NODE_EXISTS(DT_ALIAS(alias)), (DT_PROP_OR(DT_ALIAS(alias), ngpios, 32)), (0))
+#define ALIAS_DEVICE(alias) COND_CODE_1(DT_NODE_HAS_STATUS_OKAY(DT_ALIAS(alias)), (DEVICE_DT_GET(DT_ALIAS(alias))), (NULL))
+#define ALIAS_LINES(alias) COND_CODE_1(DT_NODE_HAS_STATUS_OKAY(DT_ALIAS(alias)), (DT_PROP_OR(DT_ALIAS(alias), ngpios, 32)), (0))
 
 static const struct device *const gpio_in = ALIAS_DEVICE(arclang_gpio_in);
 static const struct device *const gpio_out = ALIAS_DEVICE(arclang_gpio_out);

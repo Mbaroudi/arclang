@@ -66,7 +66,8 @@ fn header(plan: &Plan, default_period_us: u64) -> String {
     let mut out = banner(plan, "The behavior of the model: its state machines.");
     let _ = writeln!(out, "#ifndef {guard}\n#define {guard}\n\n#include <stdbool.h>\n#include <stdint.h>\n\n#ifdef __cplusplus\nextern \"C\" {{\n#endif\n");
     if plan.machines.iter().any(|m| super::cexpr::uses_pid(m.program())) {
-        let _ = writeln!(out, "/* The state of a PID block. */\ntypedef struct {{\n    double integral;\n    double previous;\n    bool primed;\n}} {};\n", pid_type(plan));
+        let number = if plan.machines.iter().any(|m| m.fixed.is_some()) { "int32_t" } else { "double" };
+        let _ = writeln!(out, "/* The state of a PID block. */\ntypedef struct {{\n    {number} integral;\n    {number} previous;\n    bool primed;\n}} {};\n", pid_type(plan));
     }
     let _ = writeln!(out, "/* The step period, in microseconds: timed transitions count steps of it. */\n#ifndef {period}\n#define {period} {default_period_us}UL\n#endif\n#if {period} == 0\n#error \"{period} must be positive\"\n#endif\n");
     for m in &plan.machines {
@@ -89,9 +90,9 @@ fn header(plan: &Plan, default_period_us: u64) -> String {
             let _ = writeln!(out, "    bool {}; /* condition \"{}\": whether it holds in the step */", c.ident, comment(&c.text));
         }
         let program = m.program();
-        let unit = |v: &crate::compiler::execution::expr::Variable| v.unit.as_ref().map(|u| format!(" [{u}]")).unwrap_or_default();
+        let unit = |i: usize| unit_note(m, i);
         for (i, v) in program.inputs() {
-            let _ = writeln!(out, "    {} {}; /* in variable \"{}\"{}: its value in the step */", v.ty.c(), m.variables[i].ident, comment(&v.name), comment(&unit(v)));
+            let _ = writeln!(out, "    {} {}; /* in variable \"{}\"{}: its value in the step */", var_type(m, i), m.variables[i].ident, comment(&v.name), comment(&unit(i)));
         }
         if m.events.is_empty() && m.conditions.is_empty() && program.inputs().next().is_none() {
             let _ = writeln!(out, "    uint8_t unused_; /* the machine reads no input */");
@@ -105,7 +106,7 @@ fn header(plan: &Plan, default_period_us: u64) -> String {
             let _ = writeln!(out, "    uint8_t {}; /* action \"{}\": times run in the step (saturates at 255) */", a.ident, comment(&a.text));
         }
         for (i, v) in program.variables.iter().enumerate() {
-            let _ = writeln!(out, "    {} {}; /* variable \"{}\"{}: its value after the step */", v.ty.c(), m.variables[i].ident, comment(&v.name), comment(&unit(v)));
+            let _ = writeln!(out, "    {} {}; /* variable \"{}\"{}: its value after the step */", var_type(m, i), m.variables[i].ident, comment(&v.name), comment(&unit(i)));
         }
         for b in &m.budgets {
             let _ = writeln!(out, "    bool {}; /* budget {} of transition {}: its source active longer than it */", b.ident, comment(&b.written), comment(&b.label));
@@ -113,10 +114,14 @@ fn header(plan: &Plan, default_period_us: u64) -> String {
         let _ = writeln!(out, "}} {t}_outputs;\n");
         let _ = writeln!(out, "typedef struct {{\n    bool active[{n}];\n    uint32_t in_state[{n}]; /* steps since the state was entered (saturates) */", n = m.states.len());
         for (i, v) in program.variables.iter().enumerate().filter(|(_, v)| v.direction != crate::compiler::execution::expr::Direction::In) {
-            let _ = writeln!(out, "    {} {}; /* variable \"{}\"{} */", v.ty.c(), m.variables[i].ident, comment(&v.name), comment(&unit(v)));
+            let _ = writeln!(out, "    {} {}; /* variable \"{}\"{} */", var_type(m, i), m.variables[i].ident, comment(&v.name), comment(&unit(i)));
         }
         for b in 0..program.blocks.len() {
-            let _ = writeln!(out, "    {} blk_{b}; /* the state of a block of the equations */", super::cexpr::block_field(program, b, &pid_type(plan)));
+            let field = match &m.fixed {
+                Some(fx) => super::fxc::block_type(fx, b, &pid_type(plan)),
+                None => super::cexpr::block_field(program, b, &pid_type(plan)),
+            };
+            let _ = writeln!(out, "    {field} blk_{b}; /* the state of a block of the equations */");
         }
         for (h, deep, owner, (lo, hi)) in m.histories() {
             let what = format!("{} of {}", m.states[h].path, m.states[owner].path);
@@ -159,15 +164,16 @@ fn header(plan: &Plan, default_period_us: u64) -> String {
 
 /// The code of an action, when it is code, as lines at `indent`.
 fn action_code(m: &MachinePlan, action: usize, indent: &str, access: &Access, h: &mut Helpers, out: &mut String) {
-    if let Some(code) = m.program().actions.get(m.actions[action].text.trim()) {
-        access.statements(code, indent, h, out);
+    let text = m.actions[action].text.trim();
+    if let Some(code) = m.program().actions.get(text) {
+        access.action(text, code, indent, h, out);
     }
 }
 
 fn source(plan: &Plan) -> String {
     let mut h = Helpers::default();
     let mut body = String::new();
-    for m in &plan.machines {
+    for m in plan.machines.iter().filter(|m| m.hardware.is_none()) {
         machine_source(plan, m, &mut h, &mut body);
     }
     let p = &plan.ident;
@@ -177,7 +183,11 @@ fn source(plan: &Plan) -> String {
         let _ = writeln!(body, "    for (k = 0U; k < {n}U; k++) {{\n        state->{i}.active[k] = false;\n        state->{i}.in_state[k] = 0U;\n    }}", n = m.states.len());
         let program = m.program();
         for (n, v) in program.variables.iter().enumerate().filter(|(_, v)| v.direction != Direction::In) {
-            let _ = writeln!(body, "    state->{i}.{} = {};", m.variables[n].ident, cexpr::constant(v.initial));
+            let initial = match &m.fixed {
+                Some(fx) => super::fxc::lit(fx.vars[n].kind, fx.vars[n].initial),
+                None => cexpr::constant(v.initial),
+            };
+            let _ = writeln!(body, "    state->{i}.{} = {initial};", m.variables[n].ident);
         }
         for (h, deep, _, (lo, hi)) in m.histories() {
             if deep {
@@ -190,6 +200,10 @@ fn source(plan: &Plan) -> String {
             let _ = writeln!(body, "    state->{i}.terminated = false;");
         }
         for (b, block) in program.blocks.iter().enumerate() {
+            if let Some(fx) = &m.fixed {
+                super::fxc::block_init(fx, b, &format!("state->{i}.blk_{b}"), &mut body);
+                continue;
+            }
             match block.kind {
                 BlockKind::Delay => {
                     let _ = writeln!(body, "    state->{i}.blk_{b} = {};", cexpr::constant(block.initial));
@@ -203,10 +217,20 @@ fn source(plan: &Plan) -> String {
             }
         }
     }
+    for block in plan.machines.iter().filter_map(|m| m.hardware.as_ref()) {
+        let _ = writeln!(body, "    {block}_hw_reset();");
+    }
     let _ = writeln!(body, "}}\n");
     let _ = writeln!(body, "void {p}_step({p}_state *state, const {p}_inputs *inputs, {p}_outputs *outputs)\n{{\n    bool starting = !state->started;\n    state->started = true;");
+    if plan.machines.iter().all(|m| m.hardware.is_some()) {
+        let _ = writeln!(body, "    (void)starting; /* every machine is computed by the programmable logic */");
+    }
     for m in &plan.machines {
         let i = &m.ident;
+        if let Some(block) = &m.hardware {
+            let _ = writeln!(body, "    /* state_machine \"{}\" is computed by the programmable logic: one step of block {block} */\n    (void){block}_hw_step(&inputs->{i}, &outputs->{i});", comment(&m.name));
+            continue;
+        }
         for a in &m.actions {
             let _ = writeln!(body, "    outputs->{i}.{} = 0U;", a.ident);
         }
@@ -230,20 +254,47 @@ fn source(plan: &Plan) -> String {
     }
 
     let mut out = banner(plan, "The behavior of the model: its state machines.");
-    let _ = writeln!(out, "#include \"{}.h\"\n", plan.ident);
+    let _ = writeln!(out, "#include \"{}.h\"", plan.ident);
+    for block in plan.machines.iter().filter_map(|m| m.hardware.as_ref()) {
+        let _ = writeln!(out, "#include \"{block}_hw.h\"");
+    }
+    let _ = writeln!(out);
     if plan.machines.iter().any(|m| !m.program().is_empty()) {
         let _ = writeln!(out, "/* The arithmetic is the model's: no contraction of a * b + c into one rounding. */\n#if defined(__clang__)\n#pragma STDC FP_CONTRACT OFF\n#endif\n");
     }
+    // Also for a machine the logic computes: init() still clears its (unused) software state.
     if plan.machines.iter().any(|m| !m.histories().is_empty()) {
         let _ = writeln!(out, "#define NO_STATE 0xFFFFU\n");
     }
-    let any_action = plan.machines.iter().any(|m| !m.actions.is_empty());
+    let any_action = plan.machines.iter().any(|m| !m.actions.is_empty() && m.hardware.is_none());
     if any_action {
         let _ = writeln!(out, "static uint8_t counted(uint8_t n)\n{{\n    return (n < 255U) ? (uint8_t)(n + 1U) : n;\n}}\n");
     }
     out.push_str(&cexpr::definitions(&h, &pid_type(plan)));
+    out.push_str(&super::fxc::definitions(&h));
+    if let Some(period) = plan.machines.iter().find_map(|m| m.fixed.as_ref().map(|fx| fx.period_us)) {
+        let _ = writeln!(out, "/* The constants of the fixed-point code (k*T, ki*T, kd/T, the timers) are those of this period. */\n#if {p} != {period}UL\n#error \"this fixed-point code is generated for a period of {period} us\"\n#endif\n", p = period_macro(plan));
+    }
     out.push_str(&body);
     out
+}
+
+/// The C type of a variable (a word in fixed point).
+fn var_type(m: &MachinePlan, i: usize) -> &'static str {
+    match &m.fixed {
+        Some(fx) => super::fxc::c_type(fx.vars[i].kind),
+        None => m.program().variables[i].ty.c(),
+    }
+}
+
+/// ` [V]`, and the format in fixed point: ` [V] Q6.25`.
+fn unit_note(m: &MachinePlan, i: usize) -> String {
+    let v = &m.program().variables[i];
+    let unit = v.unit.as_ref().map(|u| format!(" [{u}]")).unwrap_or_default();
+    match m.fixed.as_ref().map(|fx| &fx.vars[i]) {
+        Some(v) if matches!(v.kind, super::fixed::Kind::Fixed(_)) => format!("{unit} {}", v.label()),
+        _ => unit,
+    }
 }
 
 fn guard_c(m: &MachinePlan, text: &str, access: &Access, h: &mut Helpers) -> String {
@@ -251,7 +302,7 @@ fn guard_c(m: &MachinePlan, text: &str, access: &Access, h: &mut Helpers) -> Str
         Guard::Always => "true".to_string(),
         Guard::Never => "false".to_string(),
         Guard::Condition(c) => format!("in->{}", m.conditions[c].ident),
-        Guard::Code(code) => access.expr(&m.program().guards[&code], h),
+        Guard::Code(code) => access.guard(&code, h),
     }
 }
 
@@ -472,9 +523,9 @@ fn run_source(plan: &Plan, m: &MachinePlan, access: &Access, h: &mut Helpers, ou
     }
     if !m.program().equations.is_empty() {
         let _ = writeln!(out, "    /* equations, in the order written */");
-        for e in &m.program().equations {
+        for (k, e) in m.program().equations.iter().enumerate() {
             let _ = writeln!(out, "    /* {} */", comment(&e.text));
-            access.statements(std::slice::from_ref(&e.assign), "    ", h, out);
+            access.equation(k, "    ", h, out);
         }
     }
     // The events: in the order of the queue, each by its handler.

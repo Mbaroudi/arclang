@@ -161,6 +161,20 @@ pub struct Variable {
     pub initial: Value,
     /// The declaration as written.
     pub text: String,
+    /// `range lo .. hi`: the values it takes, in its unit (what fixed point
+    /// is derived from; the model itself does not clamp to it).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub range: Option<(f64, f64)>,
+    /// `format Q<i>.<f>`: the fixed-point format it is held in, when the
+    /// model sets it (integer bits, fraction bits, i + f at most 31: a word
+    /// of i + f + 1 bits).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub format: Option<(i32, i32)>,
+    /// `resolution r`: the step the hardware must resolve, in its unit; the
+    /// fraction bits are the fewest whose step is at most r, the word as
+    /// narrow as its range and those allow.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub resolution: Option<f64>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -345,7 +359,28 @@ fn affine(spec: &UnitSpec) -> Result<(), String> {
     Ok(())
 }
 
-/// `[in|out|const] name: Type [unit] = initial`.
+/// `text` split at the word `word` (with spaces around it): before, after.
+fn split_word<'t>(text: &'t str, word: &str) -> (&'t str, Option<&'t str>) {
+    let pattern = format!(" {word} ");
+    match text.find(&pattern) {
+        Some(at) => (text[..at].trim(), Some(text[at + pattern.len()..].trim())),
+        None => (text, None),
+    }
+}
+
+/// `Q<i>.<f>`: a signed word of i + f + 1 bits (at most 32), i integer
+/// bits, f fraction bits.
+fn q_format(written: &str) -> Result<(i32, i32), String> {
+    let bad = || format!("format '{written}' is a Q format of a signed word, Q<integer bits>.<fraction bits> with the two adding up to 31 at most (Q6.25: 32 bits, Q6.9: 16 bits)");
+    let (i, f) = written.trim().strip_prefix('Q').and_then(|q| q.split_once('.')).ok_or_else(bad)?;
+    let (i, f): (i32, i32) = (i.parse().map_err(|_| bad())?, f.parse().map_err(|_| bad())?);
+    if i < 0 || f < 0 || i + f > 31 || i + f < 1 {
+        return Err(bad());
+    }
+    Ok((i, f))
+}
+
+/// `[in|out|const] name: Type [unit] [range lo .. hi] [resolution r | format Qi.f] = initial`.
 pub fn declaration(text: &str) -> Result<Variable, String> {
     let what = format!("variable \"{text}\"");
     let mut rest = text.trim();
@@ -365,6 +400,9 @@ pub fn declaration(text: &str) -> Result<Variable, String> {
         Some((t, i)) => (t.trim(), Some(i.trim())),
         None => (rest.trim(), None),
     };
+    let (typed, format) = split_word(typed, "format");
+    let (typed, resolution) = split_word(typed, "resolution");
+    let (typed, range) = split_word(typed, "range");
     let (type_word, unit) = match typed.split_once('[') {
         Some((t, u)) => {
             let u = u.trim().strip_suffix(']').ok_or_else(|| format!("{what}: the unit closes with ]"))?.trim();
@@ -388,6 +426,48 @@ pub fn declaration(text: &str) -> Result<Variable, String> {
         None => Value::zero(ty),
         Some(written) => value_in(ty, spec, written).map_err(|e| format!("{what}: {e}"))?,
     };
+    let range = match range {
+        None => None,
+        Some(written) => {
+            if ty == Ty::Bool {
+                return Err(format!("{what}: a Boolean has no range"));
+            }
+            let (lo, hi) = written.split_once("..").ok_or_else(|| format!("{what}: a range reads `range <low> .. <high>` (\"range 0 V .. 60 V\")"))?;
+            let (lo, hi) = (value_in(ty, spec, lo).map_err(|e| format!("{what}: range: {e}"))?.number(), value_in(ty, spec, hi).map_err(|e| format!("{what}: range: {e}"))?.number());
+            if lo > hi {
+                return Err(format!("{what}: range {lo} .. {hi}: the low end is above the high end"));
+            }
+            if direction != Direction::In && !(lo..=hi).contains(&initial.number()) {
+                return Err(format!("{what}: the initial value {} is outside its range {lo} .. {hi}", initial.number()));
+            }
+            Some((lo, hi))
+        }
+    };
+    let format = match format {
+        None => None,
+        Some(written) => {
+            if !matches!(ty, Ty::Real | Ty::Float) {
+                return Err(format!("{what}: a fixed-point format is for a Real or a Float, not a {}", ty.name()));
+            }
+            Some(q_format(written).map_err(|e| format!("{what}: {e}"))?)
+        }
+    };
+    let resolution = match resolution {
+        None => None,
+        Some(written) => {
+            if !matches!(ty, Ty::Real | Ty::Float) {
+                return Err(format!("{what}: a resolution is for a Real or a Float, not a {}", ty.name()));
+            }
+            if format.is_some() {
+                return Err(format!("{what}: a resolution or a format, not both (the format gives the resolution)"));
+            }
+            let r = value_in(ty, spec, written).map_err(|e| format!("{what}: resolution: {e}"))?.number();
+            if !(r.is_finite() && r > 0.0) {
+                return Err(format!("{what}: a resolution is a step above zero"));
+            }
+            Some(r)
+        }
+    };
     Ok(Variable {
         name: name.to_string(),
         ty,
@@ -397,6 +477,9 @@ pub fn declaration(text: &str) -> Result<Variable, String> {
         scale: spec.map(|s| s.factor).unwrap_or(1.0),
         initial,
         text: text.to_string(),
+        range,
+        format,
+        resolution,
     })
 }
 
@@ -1299,6 +1382,29 @@ mod tests {
         assert!(declaration("t: Real [s] = 3 V").unwrap_err().contains("is a voltage, the variable a time"));
         assert!(declaration("x: Complex").unwrap_err().contains("not a type"));
         assert!(declaration("temp: Real [°C]").unwrap_err().contains("offset"));
+    }
+
+    #[test]
+    fn declarations_read_a_range_and_a_fixed_point_format() {
+        let v = declaration("in voltage: Real [V] range 0 V .. 60000 mV format Q6.25").unwrap();
+        assert_eq!((v.range, v.format, v.unit.as_deref()), (Some((0.0, 60.0)), Some((6, 25)), Some("V")));
+        let v = declaration("filtered: Real [V] range -1 V .. 60 V = 48 V").unwrap();
+        assert_eq!((v.range, v.initial), (Some((-1.0, 60.0)), Value::Real(48.0)));
+        assert_eq!(declaration("n: Integer range 0 .. 10 = 3").unwrap().range, Some((0.0, 10.0)));
+        assert_eq!(declaration("in v: Real [V]").unwrap().range, None, "no range: none");
+        assert!(declaration("x: Real [V] range 5 V .. 1 V").unwrap_err().contains("low end is above"));
+        assert!(declaration("x: Real [V] range 0 V .. 1 s").unwrap_err().contains("is a time"));
+        assert!(declaration("x: Real [V] range 0 V .. 1 V = 3 V").unwrap_err().contains("outside its range"));
+        assert!(declaration("x: Real range 0 1").unwrap_err().contains("range <low> .. <high>"));
+        assert_eq!(declaration("x: Real format Q6.9").unwrap().format, Some((6, 9)), "a 16-bit word");
+        assert!(declaration("x: Real format Q6.30").unwrap_err().contains("adding up to 31 at most"));
+        let v = declaration("in v: Real [V] range 0 V .. 60 V resolution 1 mV").unwrap();
+        assert_eq!((v.range, v.resolution), (Some((0.0, 60.0)), Some(0.001)));
+        assert!(declaration("x: Real [V] resolution 0 V").unwrap_err().contains("above zero"));
+        assert!(declaration("x: Real resolution 0.1 format Q6.9").unwrap_err().contains("not both"));
+        assert!(declaration("n: Integer resolution 1").unwrap_err().contains("for a Real or a Float"));
+        assert!(declaration("n: Integer format Q31.0").unwrap_err().contains("for a Real or a Float"));
+        assert!(declaration("b: Boolean range 0 .. 1").unwrap_err().contains("no range"));
     }
 
     #[test]

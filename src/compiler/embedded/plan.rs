@@ -106,6 +106,12 @@ pub struct MachinePlan {
     pub variables: Vec<Signal>,
     /// The budgets of its transitions, watched every step.
     pub budgets: Vec<Budget>,
+    /// Its code in fixed point, when it is generated so (the bit-exact
+    /// reference of a machine the hardware computes: `fxc`).
+    pub fixed: Option<Box<super::fixed::MachineFixed>>,
+    /// The block that computes it in programmable logic, when the software
+    /// calls it through its driver (`<block>_hw.h`) instead of stepping it.
+    pub hardware: Option<String>,
 }
 
 /// `budget: 1500 ms` on a transition: an output true in every step its
@@ -456,6 +462,8 @@ pub fn plan_machine(source: &StateMachine, taken: &mut BTreeSet<String>) -> Resu
         max_depth,
         variables,
         budgets,
+        fixed: None,
+        hardware: None,
     })
 }
 

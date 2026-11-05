@@ -17,17 +17,24 @@
 //! C built for a target and run on its processor (emulated: Renode). See
 //! docs/embedded-c.md and docs/embedded-targets.md.
 
+pub mod alloc;
 pub mod binding;
 pub mod case;
 pub mod cexpr;
 pub mod cgen;
+pub mod fixed;
 pub mod fmu;
+pub mod fxc;
 pub mod glue;
+pub mod hdl;
 pub mod pil;
 pub mod plan;
 pub mod reference;
+pub mod regmap;
 pub mod sil;
+pub mod system;
 pub mod target;
+pub mod vhdl;
 pub mod zephyr;
 
 use crate::compiler::ast::Model;
@@ -52,6 +59,8 @@ pub fn check(ast: &Model) -> Result<Vec<String>, String> {
     for machine in &ast.state_machines {
         crate::compiler::execution::machine::compile(machine)?;
     }
+    // What the programmable logic computes, in fixed point.
+    alloc::check(ast)?;
     let executed = sil::cases(ast);
     if ast.io_bindings.is_empty() && executed.is_empty() {
         return Ok(Vec::new());

@@ -19,6 +19,10 @@ reaches the hardware through one small I/O interface. Three layers:
    LiteX SoC with a VexRiscv RISC-V core, emulated in Renode, for processor
    in the loop (`arclang pil`). See [embedded-targets.md](embedded-targets.md).
 
+A machine the model allocates to programmable logic is generated as VHDL
+in fixed point instead, and called through registers: see
+[embedded-fpga.md](embedded-fpga.md) (`arclang export -f vhdl`, `arclang hdl`).
+
 ```text
 arclang export model.arc -f c -o build/c     # the files, for any target
 arclang sil    model.arc --cc gcc --cc clang # the C against the model
@@ -114,7 +118,10 @@ state_machine "Charger" {
 }
 ```
 
-**Variables**: `[in|out|const] name: Type [unit] = initial`.
+**Variables**: `[in|out|const] name: Type [unit] [range lo .. hi] [format Qi.f] = initial`.
+`range` and `format` give the fixed point of a machine the hardware
+computes ([embedded-fpga.md](embedded-fpga.md#fixed-point)); the C and the
+model ignore them (a range is not a clamp).
 
 | Type | C type | Arithmetic |
 |---|---|---|
@@ -680,8 +687,9 @@ a human reading) are not covered by these numbers.
 
 Said plainly:
 
-- **No fixed point, no continuous time.** Variables are `bool`,
-  `int32_t`, `float` or `double` as declared; the data flow is discrete
+- **No fixed point in this C, no continuous time.** Variables are `bool`,
+  `int32_t`, `float` or `double` as declared (the fixed-point C is the
+  reference of the hardware: [embedded-fpga.md](embedded-fpga.md)); the data flow is discrete
   (difference equations and the blocks above, at the step period).
   Continuous dynamics stay in the Modelica export. Variables are not bound
   to I/O channels yet (an `io_binding` binds events, conditions, states and

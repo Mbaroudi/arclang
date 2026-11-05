@@ -14,6 +14,15 @@
 #include "arclang_app.h"
 #include "arclang_pil.h"
 
+/* Told the bench's events: 0xFFFFFFFF when the I/O is up, then the step
+   after each cycle. Nothing on a board; a simulated SoC's bench overrides
+   it (arclang soc) to play the case on the channels in step with the
+   cycles. */
+__weak void arclang_pil_bench(uint32_t event)
+{
+	(void)event;
+}
+
 static arclang_state state;
 static arclang_inputs inputs;
 static arclang_outputs outputs;
@@ -29,7 +38,12 @@ int main(void)
 	arclang_model_init(&state);
 	arclang_glue_init(&glue);
 	arclang_pil_puts(status == ARCLANG_IO_OK ? "ARCLANG READY\n" : "ARCLANG ERROR the I/O did not come up\n");
-	while (arclang_pil_getc() != 'G') {
+	arclang_pil_bench(0xFFFFFFFFU);
+	for (int c = arclang_pil_getc(); c != 'G'; c = arclang_pil_getc()) {
+		if (c == '?') {
+			/* a bench that came after the boot asks again */
+			arclang_pil_puts(status == ARCLANG_IO_OK ? "ARCLANG READY\n" : "ARCLANG ERROR the I/O did not come up\n");
+		}
 	}
 	for (;;) {
 		uint64_t now_us;
@@ -38,6 +52,7 @@ int main(void)
 		now_us = k_cyc_to_us_floor64(k_cycle_get_64());
 		status = arclang_cycle(&glue, &state, &inputs, &outputs);
 		arclang_pil_report(step, now_us, (int)status, &outputs);
+		arclang_pil_bench(step);
 		step++;
 	}
 	return 0;
