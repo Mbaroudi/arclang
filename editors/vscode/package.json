@@ -615,6 +615,18 @@
         "icon": "$(refresh)"
       },
       {
+        "command": "arclang.realization.open",
+        "title": "Realization ladder: what each stage says of each requirement",
+        "category": "ArcLang",
+        "icon": "$(list-tree)"
+      },
+      {
+        "command": "arclang.realization.refresh",
+        "title": "Realization ladder: refresh",
+        "category": "ArcLang",
+        "icon": "$(refresh)"
+      },
+      {
         "command": "arclang.import",
         "title": "Import a model (Capella, SysML v2, ReqIF, API server)…",
         "category": "ArcLang",
@@ -1019,6 +1031,11 @@
           "group": "arclang@1"
         },
         {
+          "command": "arclang.realization.open",
+          "when": "resourceLangId == arclang",
+          "group": "arclang@1"
+        },
+        {
           "command": "arclang.impact.whatIf",
           "when": "resourceLangId == arclang",
           "group": "arclang@1"
@@ -1312,6 +1329,14 @@
         {
           "command": "arclang.impact.refresh",
           "when": "activeWebviewPanelId == arclang.impact"
+        },
+        {
+          "command": "arclang.realization.open",
+          "when": "resourceLangId == arclang || resourceLangId == sysml"
+        },
+        {
+          "command": "arclang.realization.refresh",
+          "when": "activeWebviewPanelId == arclang.realization"
         },
         {
           "command": "arclang.import.sysmlFolder",

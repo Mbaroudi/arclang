@@ -17,6 +17,7 @@ import { registerWorkbench } from './workbench';
 import { registerImport } from './importing';
 import { registerTables } from './tables'; // tables hook
 import { registerImpact } from './impact'; // impact hook
+import { registerRealization } from './realization'; // realization hook
 import { registerDebug } from './debug'; // debug hook
 import { registerPdfViewer } from './pdf/viewer';
 import { registerFullScreen } from './fullscreen';
@@ -58,6 +59,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   registerImport(context);
   registerTables(context); // tables hook
   registerImpact(context); // impact hook
+  registerRealization(context); // realization hook
   registerDebug(context); // debug hook
   registerPdfViewer(context);
   registerFullScreen(context);

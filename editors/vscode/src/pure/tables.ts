@@ -119,6 +119,7 @@ export const TABLE_KINDS: { kind: string; label: string; detail: string }[] = [
   { kind: 'interface_n2', label: 'N² interfaces', detail: 'components x components, the exchanges in the cells' },
   { kind: 'icd', label: 'Interface control document', detail: 'one row per exchange: ends, ports, items, protocol, bandwidth, latency' },
   { kind: 'elements', label: 'Elements', detail: 'any kind, the columns picked among its attributes' },
+  { kind: 'realization', label: 'Realization ladder', detail: 'per requirement: what the simulation, SIL, PIL, HDL, the SoC, the board and the twin say, and what to run next' },
 ];
 
 export function isMatrix(kind: string): boolean {
