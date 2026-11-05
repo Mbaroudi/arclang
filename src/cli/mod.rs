@@ -3,6 +3,7 @@ pub mod debug;
 pub mod diagram_service;
 pub mod edit;
 pub mod table; // tables hook
+mod partition;
 mod realize; // realization hook
 pub mod impact; // impact hook
 pub mod semgit; // semgit hook
@@ -386,6 +387,14 @@ pub enum Commands {
         #[clap(long)]
         synth: bool,
 
+        /// With --synth: every machine as if allocated to this ECP5 part, at this clock (DEVICE[@MHZ], e.g. LFE5U-25F-6BG381C@25)
+        #[clap(long, value_name = "DEVICE[@MHZ]")]
+        as_if: Option<String>,
+
+        /// With --synth: only this machine (name or id)
+        #[clap(long)]
+        machine: Option<String>,
+
         /// Keep the VHDL, the testbenches, the C reference and the netlists in this directory
         #[clap(long)]
         keep: Option<PathBuf>,
@@ -445,6 +454,40 @@ pub enum Commands {
     /// (verify, sil, pil, hdl, soc, twin), read the ladder back after each
     /// step, stop a requirement's climb at a failure. --dry-run prints the
     /// plan and the gaps (a requirement nothing climbs) without running.
+    /// HW/SW partitioning: every machine measured as C on the processor
+    /// (arclang pil: the step's time, the code's footprint) and as VHDL on
+    /// the logic (arclang hdl --synth --as-if: resources, Fmax), what fits
+    /// its period, what the model allocates today; kept beside the model
+    /// for the table kind `partition`.
+    Partition {
+        #[clap(value_parser)]
+        input: PathBuf,
+
+        /// The target package of the C (else the bindings', else zephyr/litex_vexriscv)
+        #[clap(long)]
+        target: Option<String>,
+
+        /// The ECP5 part of the logic (else the first logic node's, else LFE5U-25F-6BG381C)
+        #[clap(long)]
+        device: Option<String>,
+
+        /// The clock of the logic, MHz (else the node's, else 25)
+        #[clap(long)]
+        clock: Option<f64>,
+
+        /// Only this machine (name or id)
+        #[clap(long)]
+        machine: Option<String>,
+
+        /// Print the two runs, run nothing
+        #[clap(long)]
+        dry_run: bool,
+
+        /// The measurements as JSON
+        #[clap(long)]
+        json: bool,
+    },
+
     Realize {
         #[clap(value_parser)]
         input: PathBuf,
@@ -1218,7 +1261,8 @@ impl CliRunner {
             }
             Commands::Sil { input, test, compilers, keep, json } => self.run_sil(&input, test, compilers, keep, json),
             Commands::Pil { input, test, target, keep, json } => self.run_pil(&input, test, target, keep, json),
-            Commands::Hdl { input, test, synth, keep, json } => self.run_hdl(&input, test, synth, keep, json),
+            Commands::Hdl { input, test, synth, as_if, machine, keep, json } => self.run_hdl(&input, test, synth, as_if, machine, keep, json),
+            Commands::Partition { input, target, device, clock, machine, dry_run, json } => partition::run(&input, partition::Options { target, device, clock_mhz: clock, machine, dry_run, json }),
             Commands::Soc { input, test, bitstream, board, no_sim, gate_level, port, keep, json } => self.run_soc(&input, test, bitstream || board.is_some(), board, !no_sim && port.is_none(), gate_level, port, keep, json),
             Commands::Realize { input, requirement, up_to, dry_run, keep_going, board, json } => realize::run(&input, realize::Options { requirement, up_to, dry_run, keep_going, board, json }),
             Commands::Twin { input, twin, json, list, live, for_seconds } => {
@@ -2083,7 +2127,8 @@ impl CliRunner {
         }
     }
 
-    fn run_hdl(&self, input: &std::path::Path, test: Option<String>, synth: bool, keep: Option<PathBuf>, json: bool) -> Result<(), CliError> {
+    #[allow(clippy::too_many_arguments)]
+    fn run_hdl(&self, input: &std::path::Path, test: Option<String>, synth: bool, as_if: Option<String>, machine: Option<String>, keep: Option<PathBuf>, json: bool) -> Result<(), CliError> {
         use crate::compiler::embedded::hdl;
         // No GHDL here: the same command in the FPGA image.
         prebuild_plants(input, test.as_deref())?;
@@ -2094,7 +2139,22 @@ impl CliRunner {
         let scratch = keep.is_none();
         let work = keep.unwrap_or_else(|| std::env::temp_dir().join(format!("arclang-hdl-{}", std::process::id())));
         let compiler = std::env::var("CC").ok().filter(|c| !c.trim().is_empty()).unwrap_or_else(|| "cc".to_string());
-        let options = hdl::Options { work: work.clone(), only: test, synth, compiler };
+        let as_if = match as_if {
+            None => None,
+            Some(text) => {
+                if !synth {
+                    return Err(CliError::Config("--as-if goes with --synth".to_string()));
+                }
+                let (part, mhz) = text.split_once('@').map(|(p, m)| (p.to_string(), Some(m.to_string()))).unwrap_or((text.clone(), None));
+                crate::compiler::embedded::alloc::device(&part).map_err(CliError::Config)?;
+                let clock_hz = match mhz {
+                    Some(m) => m.trim().parse::<f64>().ok().filter(|m| *m > 0.0).ok_or_else(|| CliError::Config(format!("--as-if: '{m}' is not a clock in MHz")))? * 1e6,
+                    None => crate::compiler::embedded::alloc::DEFAULT_CLOCK_HZ,
+                };
+                Some((part, clock_hz))
+            }
+        };
+        let options = hdl::Options { work: work.clone(), only: test, synth, compiler, as_if, machine };
         let mut plants = plants_of(input);
         let (outcomes, synthesis) = hdl::run_with(&result.ast, &options, &mut plants).map_err(CliError::Compilation)?;
         if !json {

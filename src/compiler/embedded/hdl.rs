@@ -40,6 +40,10 @@ pub struct Options {
     pub work: PathBuf,
     pub only: Option<String>,
     pub synth: bool,
+    /// Synthesise every machine (or `machine`) as if allocated to this part at this clock (Hz), allocated or not.
+    pub as_if: Option<(String, f64)>,
+    /// Only this machine (name or id) for the synthesis.
+    pub machine: Option<String>,
     /// The C compiler of the fixed-point reference.
     pub compiler: String,
 }
@@ -554,13 +558,19 @@ pub fn run_with(ast: &Model, options: &Options, plants: &mut super::plant::Plant
     let plan = super::plan::plan(ast)?;
     let bindings = super::binding::resolve_all(ast, &plan)?;
     let allocations = super::alloc::allocations(ast, &plan)?;
-    if allocations.is_empty() {
+    if allocations.is_empty() && options.as_if.is_none() {
         return Err("no state_machine is allocated to programmable logic: give it to a node of kind \"fpga\" (node \"Fabric\" { kind: \"fpga\" deploys \"<machine or its owner>\" }; docs/embedded-fpga.md)".to_string());
+    }
+    if let Some(wanted) = &options.machine {
+        if !plan.machines.iter().any(|m| m.is(wanted)) {
+            return Err(format!("no state_machine '{wanted}' in the model"));
+        }
     }
     std::fs::create_dir_all(&options.work).map_err(|e| format!("cannot make {}: {e}", options.work.display()))?;
     let work = options.work.canonicalize().unwrap_or_else(|_| options.work.clone());
     let options = Options { work, ..options.clone() };
-    let cases = selected(ast, &plan, &allocations, &bindings, options.only.as_deref());
+    // As if: the synthesis only; the cases stay those of the machines allocated.
+    let cases = if options.as_if.is_some() { Vec::new() } else { selected(ast, &plan, &allocations, &bindings, options.only.as_deref()) };
     if cases.is_empty() && !options.synth {
         return Err(match &options.only {
             Some(o) => format!("no test_case '{o}' that executes a machine allocated to programmable logic"),
@@ -571,8 +581,12 @@ pub fn run_with(ast: &Model, options: &Options, plants: &mut super::plant::Plant
     let outcomes = cases.into_iter().map(|t| run_case(t, &plan, &bindings, &options, &tools, ast, plants)).collect();
     let mut synthesis = Vec::new();
     if options.synth {
-        let period = super::default_period_us(&bindings);
-        for a in &allocations {
+        let targets: Vec<Allocation> = match &options.as_if {
+            Some((part, clock_hz)) => plan.machines.iter().enumerate().map(|(i, _)| Allocation { machine: i, node: format!("as if on {part}"), part: part.clone(), clock_hz: *clock_hz, board: None }).collect(),
+            None => allocations.clone(),
+        };
+        for a in targets.iter().filter(|a| options.machine.as_deref().is_none_or(|w| plan.machines[a.machine].is(w))) {
+            let period = crate::compiler::partition::period_of(&bindings, a.machine);
             synthesis.push(synthesise(&plan, a, period, &options.work));
         }
     }

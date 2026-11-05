@@ -156,11 +156,65 @@ pub(super) fn write_app(dir: &Path, app: &super::zephyr::App) -> Result<(), Stri
 /// An application directory and its image, or why it did not build.
 type Built = Result<(PathBuf, PathBuf), String>;
 
+/// The behavior's code as built for the target: the sizes `size` reports
+/// of its object file (text, data, bss), and the tool that measured them.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, PartialEq)]
+pub struct Footprint {
+    pub text: u64,
+    pub data: u64,
+    pub bss: u64,
+    pub tool: String,
+}
+
+/// The sizes of the behavior's object (`<source>.obj` or `.o` under the
+/// build), measured by the toolchain's `size` (the compiler's prefix), when
+/// both are found.
+fn footprint(build_dir: &Path, source_name: &str, work: &Path) -> Option<Footprint> {
+    fn find(dir: &Path, wanted: &[String], depth: usize) -> Option<PathBuf> {
+        if depth > 12 {
+            return None;
+        }
+        for entry in std::fs::read_dir(dir).ok()?.flatten() {
+            let path = entry.path();
+            if path.is_dir() {
+                if let Some(found) = find(&path, wanted, depth + 1) {
+                    return Some(found);
+                }
+            } else if path.file_name().and_then(|n| n.to_str()).is_some_and(|n| wanted.iter().any(|w| w == n)) {
+                return Some(path);
+            }
+        }
+        None
+    }
+    let wanted = [format!("{source_name}.obj"), format!("{source_name}.o")];
+    let object = find(build_dir, &wanted, 0)?;
+    let compiler = toolchain_compiler(work)?;
+    let size = compiler.strip_suffix("gcc").map(|prefix| format!("{prefix}size")).or_else(|| compiler.strip_suffix("clang").map(|prefix| format!("{prefix}llvm-size")))?;
+    let out = Command::new(&size).arg(&object).output().ok()?;
+    let text = String::from_utf8_lossy(&out.stdout);
+    let numbers: Vec<u64> = text.lines().nth(1)?.split_whitespace().take(3).filter_map(|n| n.parse().ok()).collect();
+    if numbers.len() != 3 {
+        return None;
+    }
+    Some(Footprint { text: numbers[0], data: numbers[1], bss: numbers[2], tool: size })
+}
+
+/// The C compiler CMake chose for the build under `work`.
+fn toolchain_compiler(work: &Path) -> Option<String> {
+    std::fs::read_dir(work)
+        .ok()
+        .and_then(|entries| entries.flatten().map(|e| e.path().join("CMakeCache.txt")).find(|p| p.is_file()))
+        .and_then(|cache| std::fs::read_to_string(cache).ok())
+        .and_then(|text| text.lines().find_map(|l| l.strip_prefix("CMAKE_C_COMPILER:").and_then(|rest| rest.split_once('=')).map(|(_, path)| path.to_string())))
+}
+
 /// The images built, by (binding, period).
 struct Builds<'a> {
     package: &'a Package,
     work: PathBuf,
     images: HashMap<(Option<String>, u64), Built>,
+    /// Per build: the behavior's footprint, when measured.
+    footprints: HashMap<(Option<String>, u64), Option<Footprint>>,
 }
 
 impl Builds<'_> {
@@ -200,6 +254,19 @@ impl Builds<'_> {
             return Err(format!("the build for {} made no {}", self.package.name, image.display()));
         }
         Ok((app_dir, image))
+    }
+
+    /// The footprint of the behavior in a build already made.
+    fn footprint(&mut self, plan: &Plan, binding: Option<&Binding>, period_us: u64) -> Option<Footprint> {
+        let key = (binding.map(|b| b.ident.clone()), period_us);
+        if !self.footprints.contains_key(&key) {
+            let name = binding.map(|b| b.ident.clone()).unwrap_or_else(|| "direct".to_string());
+            let build_dir = self.work.join(format!("build-{name}-{period_us}us"));
+            let source = super::cgen::generate(plan, period_us).source_name;
+            let measured = footprint(&build_dir, &source, &self.work);
+            self.footprints.insert(key.clone(), measured);
+        }
+        self.footprints.get(&key).cloned().flatten()
     }
 }
 
@@ -330,12 +397,7 @@ fn timing(rows: &[Row], binding: Option<&Binding>, period_us: u64) -> String {
 fn implementation(package: &Package, work: &Path) -> String {
     let mut parts = vec![package.name.clone()];
     if let Some(toolchain) = &package.toolchain {
-        let gcc = std::fs::read_dir(work)
-            .ok()
-            .and_then(|entries| entries.flatten().map(|e| e.path().join("CMakeCache.txt")).find(|p| p.is_file()))
-            .and_then(|cache| std::fs::read_to_string(cache).ok())
-            .and_then(|text| text.lines().find_map(|l| l.strip_prefix("CMAKE_C_COMPILER:").and_then(|rest| rest.split_once('=')).map(|(_, path)| path.to_string())));
-        let version = gcc.and_then(|g| sil::compiler_version(&g));
+        let version = toolchain_compiler(work).and_then(|g| sil::compiler_version(&g));
         parts.push(version.unwrap_or_else(|| toolchain.clone()));
     }
     if package.runtime == "zephyr" {
@@ -379,6 +441,7 @@ fn run_case(test: &TestCase, plan: &Plan, bindings: &[Binding], builds: &mut Bui
         Ok(built) => built,
         Err(e) => return fail(prepared, e),
     };
+    prepared.outcome.footprint = builds.footprint(plan, binding, period);
     let dir = builds.work.join(format!("case-{}", prepared.outcome.test_case.chars().map(|c| if c.is_ascii_alphanumeric() { c } else { '_' }).collect::<String>()));
     if let Err(e) = std::fs::create_dir_all(&dir) {
         return fail(prepared, format!("cannot make {}: {e}", dir.display()));
@@ -435,7 +498,7 @@ pub fn run_with(ast: &Model, options: &Options, plants: &mut super::plant::Plant
     }
     std::fs::create_dir_all(&options.work).map_err(|e| format!("cannot make {}: {e}", options.work.display()))?;
     let work = options.work.canonicalize().unwrap_or_else(|_| options.work.clone());
-    let mut builds = Builds { package: &package, work: work.clone(), images: HashMap::new() };
+    let mut builds = Builds { package: &package, work: work.clone(), images: HashMap::new(), footprints: HashMap::new() };
     // Build first, so the outcomes name the compiler that built them.
     for test in &selected {
         if let Some(Ok(case)) = super::case::read(test, &plan, &bindings) {

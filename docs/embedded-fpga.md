@@ -406,6 +406,48 @@ The block is synthesised alone, its bus on the pins nextpnr chooses (81 or
 82 I/O of the 197): the bitstream proves the flow end to end; on a board
 the block is inside the SoC, its bus on the SoC's interconnect.
 
+## Partitioning: `arclang partition`
+
+Which machines belong in the logic and which on the processor is a
+measurement, not a guess. `arclang partition model.arc` measures every
+machine on both sides with the real tools, through the same commands:
+
+- as C on the processor: `arclang pil --json` (the target package of the
+  bindings, or `--target`): the longest a `step()` took of the target's
+  virtual time over the cases, and the behavior's footprint (`size` of
+  its object in the Zephyr build: text, data, bss);
+- as VHDL on the logic: `arclang hdl --synth --json --as-if <device>@<MHz>`
+  (the first logic node's part and clock, or `--device`/`--clock`): LUT4,
+  flip-flops, DSPs, block RAMs, the Fmax against the clock — every
+  machine, allocated or not.
+
+Each command relays itself to its Docker image when the host lacks the
+tools. Then, per machine:
+
+```text
+Partition examples/energy/battery-charger/battery_charger.arc — C on zephyr/litex_vexriscv against VHDL on LFE5U-25F-6BG381C at 25 MHz
+
+  Charger — period 10000 us · fits both; now logic
+    C on zephyr/litex_vexriscv: a step takes at most 38.2 us (262× of margin), 4.1 KiB text + 16 B data + 256 B bss, over 2 case(s)
+    VHDL on LFE5U-25F-6BG381C: 3436 LUT4, 1347 FF, 16 DSP, 0 BRAM; Fmax 32.6 MHz for 25 MHz: met
+```
+
+The C fits when a step stays within the machine's period (its binding's,
+else 10 ms); the VHDL fits when timing is met. The command says what fits
+and what the model allocates today (`now`); the choice stays in the model
+(`node ... deploys`). `--machine` measures one machine, `--dry-run` prints
+the two runs, `--json` the measurements.
+
+The measurements are kept in `.arclang/sim-cache/partition.json` beside
+the model, keyed by the generated C and VHDL, the period, the target, the
+device and the clock: the table kind `partition` reads them (`table
+"Partition" { kind: partition }`, or `arclang table model.arc --kind
+partition`), a row per machine, stale when the generated code changed
+since.
+
+`arclang hdl --synth --as-if LFE5U-25F-6BG381C@25 [--machine M]` is the
+synthesis alone, for any machine, as if allocated.
+
 ## In Docker
 
 Everything runs in the FPGA image, never on the host:

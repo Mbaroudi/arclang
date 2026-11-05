@@ -309,7 +309,7 @@ fn the_quantisation_bound_sees_a_fed_back_value_cancel() {
 
 fn run_hdl(path: &str, synth: bool) -> (Vec<hdl::Outcome>, Vec<Result<hdl::Synthesis, String>>) {
     let model = compile_file(&example(path));
-    let options = hdl::Options { work: work(&format!("hdl-{}", path.replace('/', "_"))), only: None, synth, compiler: "gcc".into() };
+    let options = hdl::Options { work: work(&format!("hdl-{}", path.replace('/', "_"))), only: None, synth, compiler: "gcc".into(), as_if: None, machine: None };
     hdl::run(&model.ast, &options).unwrap()
 }
 
@@ -360,7 +360,7 @@ fn both_blocks_synthesise_for_the_ecp5_and_meet_timing() {
 #[ignore = "needs GHDL, Yosys and nextpnr-ecp5 of tools/embedded/fpga: run in its image (CI job Embedded FPGA)"]
 fn narrow_words_stay_bit_exact_and_take_fewer_flip_flops() {
     let model = compile_text(&narrow_charger()).unwrap();
-    let options = hdl::Options { work: work("narrow"), only: None, synth: false, compiler: "gcc".into() };
+    let options = hdl::Options { work: work("narrow"), only: None, synth: false, compiler: "gcc".into(), as_if: None, machine: None };
     let (outcomes, _) = hdl::run(&model.ast, &options).unwrap();
     assert_eq!(outcomes.len(), 3);
     assert_passes(&outcomes);

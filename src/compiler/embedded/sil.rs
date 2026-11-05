@@ -83,6 +83,9 @@ pub struct Outcome {
     /// period kept through the I/O, the cost of a step).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub timing: Option<String>,
+    /// The behavior's code on the target (`arclang pil`): text, data and bss bytes.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub footprint: Option<super::pil::Footprint>,
 }
 
 #[derive(Debug, Clone)]
@@ -776,6 +779,7 @@ pub fn prepare<'a>(test: &TestCase, plan: &Plan, bindings: &'a [Binding], implem
         expectations: texts.iter().map(|t| Judged { expect: t.clone(), model: None, c: None, error: String::new() }).collect(),
         back_to_back: None,
         timing: None,
+        footprint: None,
     };
     let case = match super::case::read(test, plan, bindings).expect("an executed case") {
         Ok(case) => case,

@@ -75,11 +75,11 @@ language.
 
 ## What is next, in order
 
-1. **HIL in simulation** — the plant in the loop of `sil` and `soc`
-   (`execute: { plant: … }`), Modelica or an FMU from another tool;
-   `hdl` and `pil` replay the loop; then the same loop around the board.
-2. **HW/SW partitioning** — the same machine as C and as VHDL on the real
-   tools, the trade-off in the model (`arclang partition`).
+1. ~~**HIL in simulation**~~ — done: the plant in the loop of `sil` and
+   `soc` (`execute: { plant: … }`), Modelica or an FMU from another tool;
+   `hdl` and `pil` replay the loop; the board through its port.
+2. ~~**HW/SW partitioning**~~ — done: `arclang partition`, the same machine
+   as C and as VHDL on the real tools, the table kind `partition`.
 3. **Tasks and scheduling** — several machines on one processor, their
    periods and priorities, the schedule proved on the target.
 4. **FMI 3.0** — import through the `fmi` crate when OpenModelica's export
