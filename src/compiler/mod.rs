@@ -160,6 +160,20 @@ impl CompilationResult {
     }
 }
 
+/// The file a compiled input stands for, when it is a copy of it (`--as`):
+/// imports and cached verdicts resolve next to that file, not the copy.
+static ORIGIN: std::sync::OnceLock<std::path::PathBuf> = std::sync::OnceLock::new();
+
+/// Declare the file every later compiled input stands for (set once).
+pub fn set_origin(path: std::path::PathBuf) {
+    let _ = ORIGIN.set(path);
+}
+
+/// The file the inputs stand for, when one was declared.
+pub fn origin() -> Option<&'static Path> {
+    ORIGIN.get().map(|p| p.as_path())
+}
+
 impl Compiler {
     pub fn new(config: CompilerConfig) -> Self {
         Self { config }
@@ -167,6 +181,14 @@ impl Compiler {
     
     pub fn compile_file<P: AsRef<Path>>(&mut self, path: P) -> Result<CompilationResult, CompilerError> {
         let path = path.as_ref();
+        // A copy of another file (an editor's buffer): read here, resolved there.
+        if let Some(origin) = origin() {
+            let same = path.canonicalize().ok().zip(origin.canonicalize().ok()).is_some_and(|(a, b)| a == b);
+            if !same {
+                let source = std::fs::read_to_string(path)?;
+                return self.compile_string_at(&source, origin);
+            }
+        }
         let mut import_stack = Vec::new();
         let mut files = Vec::new();
         let (ast, warnings) = Self::parse_file_with_imports(path, &mut import_stack, &mut files)?;
@@ -198,6 +220,10 @@ impl Compiler {
     }
 
     pub fn compile_string(&mut self, source: &str) -> Result<CompilationResult, CompilerError> {
+        // A text that stands for a file (`--as`): its imports resolve next to that file.
+        if let Some(origin) = origin() {
+            return self.compile_string_at(source, origin);
+        }
         let (ast, warnings) = Self::parse_source(source)?;
         if !ast.imports.is_empty() {
             return Err(CompilerError::Parser(format!(
@@ -208,6 +234,31 @@ impl Compiler {
         }
         let files = [identity_sites::SourceFile { label: String::new(), text: source.to_string() }];
         self.finish_located(ast, warnings, &files)
+    }
+
+    /// Compile a source text that belongs at `path` (an editor's buffer, saved
+    /// or not): its imports resolve relative to that file, as `compile_file`
+    /// would resolve them.
+    pub fn compile_string_at(&mut self, source: &str, path: &Path) -> Result<CompilationResult, CompilerError> {
+        let (mut root, mut warnings) = Self::parse_source(source)?;
+        let mut files = vec![identity_sites::SourceFile { label: path.display().to_string(), text: source.to_string() }];
+        if !root.imports.is_empty() {
+            let canonical = path.canonicalize().unwrap_or_else(|_| path.to_path_buf());
+            let base_dir = canonical.parent().map(Path::to_path_buf).unwrap_or_default();
+            let mut import_stack = vec![canonical];
+            for import in std::mem::take(&mut root.imports) {
+                let target = base_dir.join(&import);
+                if !target.exists() {
+                    return Err(CompilerError::Parser(format!("imported file not found: {import} (resolved to {})", target.display())));
+                }
+                let (fragment, fragment_warnings) = Self::parse_file_with_imports(&target, &mut import_stack, &mut files)?;
+                root.merge(fragment);
+                warnings.extend(fragment_warnings);
+            }
+        }
+        let mut result = self.finish_located(root, warnings, &files)?;
+        simulation::run::attach(&mut result, path);
+        Ok(result)
     }
 
     /// Lex + parse one source text. No filesystem access.
