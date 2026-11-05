@@ -59,6 +59,7 @@ pub mod embedded;
 pub mod simulation;
 pub mod partition;
 pub mod realization;
+pub mod schedule;
 pub mod reqif;
 pub mod graph_diff;
 pub mod semantic_diff;

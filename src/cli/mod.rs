@@ -5,6 +5,7 @@ pub mod edit;
 pub mod table; // tables hook
 mod partition;
 mod realize; // realization hook
+mod schedule;
 pub mod impact; // impact hook
 pub mod semgit; // semgit hook
 pub mod cicd; // cicd hook
@@ -484,6 +485,27 @@ pub enum Commands {
         dry_run: bool,
 
         /// The measurements as JSON
+        #[clap(long)]
+        json: bool,
+    },
+
+    /// Tasks and scheduling: the io_bindings of a target as tasks (a
+    /// period and a priority each), the worst response time of each from
+    /// the step times arclang partition measured, whether every task meets
+    /// its period (fixed-priority response-time analysis).
+    Schedule {
+        #[clap(value_parser)]
+        input: PathBuf,
+
+        /// The target package (else the bindings')
+        #[clap(long)]
+        target: Option<String>,
+
+        /// A step time given instead of measured: MACHINE=MICROSECONDS (repeatable)
+        #[clap(long, value_name = "MACHINE=US")]
+        wcet: Vec<String>,
+
+        /// The analysis as JSON
         #[clap(long)]
         json: bool,
     },
@@ -1263,6 +1285,7 @@ impl CliRunner {
             Commands::Pil { input, test, target, keep, json } => self.run_pil(&input, test, target, keep, json),
             Commands::Hdl { input, test, synth, as_if, machine, keep, json } => self.run_hdl(&input, test, synth, as_if, machine, keep, json),
             Commands::Partition { input, target, device, clock, machine, dry_run, json } => partition::run(&input, partition::Options { target, device, clock_mhz: clock, machine, dry_run, json }),
+            Commands::Schedule { input, target, wcet, json } => schedule::run(&input, schedule::Options { target, wcet, json }),
             Commands::Soc { input, test, bitstream, board, no_sim, gate_level, port, keep, json } => self.run_soc(&input, test, bitstream || board.is_some(), board, !no_sim && port.is_none(), gate_level, port, keep, json),
             Commands::Realize { input, requirement, up_to, dry_run, keep_going, board, json } => realize::run(&input, realize::Options { requirement, up_to, dry_run, keep_going, board, json }),
             Commands::Twin { input, twin, json, list, live, for_seconds } => {

@@ -481,6 +481,56 @@ for (;;) {
 The glue refuses to compile (`#error`) when the behavior was compiled for
 another period than the binding's.
 
+## Tasks and scheduling
+
+A processor runs several machines: one `io_binding` each, on the same
+`target:`, each with its `period:` and, if wanted, its `priority:` (1 the
+highest, up to 32). The exported application (`arclang export -f zephyr`)
+then runs **one task per binding** (`src/tasks.c`): a Zephyr thread with
+its own periodic clock (`arclang_io_task_wait_period`), its glue and its
+machine's step (`<model>_<machine>_step`), at its priority. Without
+`priority:` the priorities follow the periods, the shortest the highest
+(rate monotonic). The machines share the model's state and I/O structures
+but each task touches its own machine's members only; the watchdog is
+kicked by the bindings that ask for it. `--binding` still exports one
+binding alone (`src/main.c`); `arclang pil` runs the cases one binding at
+a time, as before.
+
+```arc
+io_binding "Wiper task" { machine: "Wiper" target: "zephyr/litex_vexriscv" period: 20 ms ... }
+io_binding "Light task" { machine: "Interior light" target: "zephyr/litex_vexriscv" period: 100 ms ... }
+```
+
+`arclang schedule model.arc` says whether every task meets its period,
+from the step times **measured** on the target (`arclang partition`:
+the longest a step took of the target's virtual time) — never a guess;
+`--wcet "Machine=25.5"` gives one instead:
+
+```text
+Schedule body_controller.arc — 2 task(s) on zephyr/litex_vexriscv, fixed priorities, preemptive (response-time analysis)
+  task "Wiper task" (Wiper)  period 20.00 ms  priority 1  step ≤ 18.4 us · response ≤ 18.4 us · meets its period (0.1 % of it) [measured]
+  task "Light task" (Interior light)  period 100.00 ms  priority 2  step ≤ 11.0 us · response ≤ 29.4 us · meets its period (0.0 % of it) [measured]
+  utilisation 0.1 % (rate-monotonic bound 82.8 %) · every task meets its period
+  note: priorities by the period (rate monotonic): the shortest period the highest; write priority: in a binding to choose
+```
+
+The analysis is the response-time analysis of fixed-priority preemptive
+scheduling (Joseph and Pandya): a task's worst response is its own time
+plus the interference of every task of higher (or equal) priority over
+that response, iterated to a fixed point; the task meets its period when
+the response fits in it. The set's utilisation is compared with Liu and
+Layland's bound for information: the periods are met by the response
+times, not by the bound. A task whose step time is unknown leaves the
+schedule unproved (the command fails and says what to run). The table
+kind `schedule` lays the same out per binding (`arclang table --kind
+schedule`), the measurement stale when the generated C changed since.
+
+What this proves and what it does not: the analysis covers the tasks'
+own steps, preempted by each other; it does not count the kernel's tick,
+the I/O drivers' time in the glue (measured inside the step on the
+target, as PIL reports it through the I/O) or interrupts. The tasks do not
+exchange events yet: a machine reads the channels, not another machine.
+
 ## Test cases executed at fixed step
 
 ```arclang

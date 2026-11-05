@@ -120,6 +120,7 @@ export const TABLE_KINDS: { kind: string; label: string; detail: string }[] = [
   { kind: 'icd', label: 'Interface control document', detail: 'one row per exchange: ends, ports, items, protocol, bandwidth, latency' },
   { kind: 'elements', label: 'Elements', detail: 'any kind, the columns picked among its attributes' },
   { kind: 'realization', label: 'Realization ladder', detail: 'per requirement: what the simulation, SIL, PIL, HDL, the SoC, the board and the twin say, and what to run next' },
+  { kind: 'schedule', label: 'Tasks and schedule', detail: 'per io_binding of a target: the task, its period, its priority, the step time measured, the worst response, whether it meets its period' },
   { kind: 'partition', label: 'HW/SW partition', detail: 'per state machine: the C on the processor and the VHDL on the logic as arclang partition measured them, what fits, what the model allocates today' },
 ];
 

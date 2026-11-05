@@ -114,7 +114,7 @@ fn the_behavior_knows_no_board() {
     for forbidden in ["malloc", "#include <stdio.h>", "printf"] {
         assert!(!glue.source.contains(forbidden), "the glue mentions {forbidden}");
     }
-    assert!(glue.source.contains("arclang_io_gpio_read(2U") && glue.source.contains("battery_charger_step(state, inputs, outputs)"));
+    assert!(glue.source.contains("arclang_io_gpio_read(2U") && glue.source.contains("battery_charger_charger_step(state, inputs, outputs)"));
     // Deterministic: the same model gives the same text.
     let again = embedded::cgen::generate(&plan::plan(&result.ast).unwrap(), 10_000);
     assert_eq!(generated.source, again.source);

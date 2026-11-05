@@ -77,7 +77,8 @@ fn the_builtin_targets_are_packages_of_data() {
         assert!(files.contains(&f.to_string()), "{f} in {files:?}");
     }
     let e = target::find("zephyr/nucleo_f429zi").unwrap_err();
-    assert!(e.contains("is no target package (known: host, zephyr/litex_vexriscv") && e.contains("ARCLANG_TARGET_PATH"), "{e}");
+    // Another test of this binary may have put a package on ARCLANG_TARGET_PATH meanwhile: the built-in ones are named either way.
+    assert!(e.contains("is no target package (known: host, ") && e.contains("zephyr/litex_vexriscv") && e.contains("ARCLANG_TARGET_PATH"), "{e}");
 }
 
 #[test]

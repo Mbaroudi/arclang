@@ -56,6 +56,13 @@ arclang_io_status arclang_io_uart_write(uint16_t port, uint8_t byte);
 /* Clock: block until the next period boundary (the step rate). */
 arclang_io_status arclang_io_clock_wait_period(uint32_t period_us);
 
+/* Clock of a task among several (each io_binding its own, numbered from 0,
+   at most ARCLANG_IO_TASKS): block until the task's next period boundary. */
+#ifndef ARCLANG_IO_TASKS
+#define ARCLANG_IO_TASKS 8U
+#endif
+arclang_io_status arclang_io_task_wait_period(uint8_t task, uint32_t period_us);
+
 /* Watchdog: kicked once per cycle that read, stepped and wrote without error. */
 arclang_io_status arclang_io_watchdog_kick(void);
 

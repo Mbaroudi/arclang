@@ -4,7 +4,7 @@
 //! runs one cycle: read, step, write, kick the watchdog.
 
 use super::binding::{Binding, Edge, Origin, Sink, Source, Target};
-use super::cgen::{comment, period_macro};
+use super::cgen::comment;
 use super::plan::Plan;
 use std::collections::BTreeMap;
 use std::fmt::Write as _;
@@ -62,7 +62,8 @@ pub fn generate(plan: &Plan, binding: &Binding) -> Glue {
 
     let mut source = banner;
     let _ = writeln!(source, "#include \"{b}_io.h\"\n");
-    let period = period_macro(plan);
+    // The machine's own period must be the binding's: its timers count steps of it.
+    let period = super::cgen::machine_period_macro(plan, &plan.machines[binding.machine]);
     let _ = writeln!(source, "#if {period} != {}UL\n#error \"{p}.c is compiled for another period than io_binding {} ({} us): define {period}={}\"\n#endif\n", binding.period_us, comment(&binding.name), binding.period_us, binding.period_us);
     let _ = writeln!(source, "#ifndef ARCLANG_IO_UART_BURST\n#define ARCLANG_IO_UART_BURST {UART_BURST}U\n#endif\n");
     let _ = writeln!(source, "static void first_error(arclang_io_status *status, arclang_io_status result)\n{{\n    if ((*status == ARCLANG_IO_OK) && (result != ARCLANG_IO_OK)) {{\n        *status = result;\n    }}\n}}\n");
@@ -83,7 +84,8 @@ pub fn generate(plan: &Plan, binding: &Binding) -> Glue {
     read_source(plan, binding, &mut source);
     write_source(plan, binding, &mut source);
     // One exit (MISRA C 2012 rule 15.5).
-    let _ = writeln!(source, "arclang_io_status {b}_cycle({b}_glue *glue, {p}_state *state, {p}_inputs *inputs, {p}_outputs *outputs)\n{{\n    arclang_io_status status = {b}_read(glue, inputs);\n    if (status == ARCLANG_IO_OK) {{\n        {p}_step(state, inputs, outputs);\n        status = {b}_write(outputs);");
+    let machine = &plan.machines[binding.machine].ident;
+    let _ = writeln!(source, "arclang_io_status {b}_cycle({b}_glue *glue, {p}_state *state, {p}_inputs *inputs, {p}_outputs *outputs)\n{{\n    arclang_io_status status = {b}_read(glue, inputs);\n    if (status == ARCLANG_IO_OK) {{\n        {p}_{machine}_step(state, inputs, outputs);\n        status = {b}_write(outputs);");
     if binding.watchdog {
         let _ = writeln!(source, "        if (status == ARCLANG_IO_OK) {{\n            status = arclang_io_watchdog_kick();\n        }}");
     }
