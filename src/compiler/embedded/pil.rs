@@ -270,33 +270,42 @@ pub(super) fn parse_result(text: &str, width: usize, io: usize, steps: usize) ->
         if let Some(error) = line.strip_prefix("error ") {
             return Err(format!("on the target: {error}"));
         }
-        let Some(report) = line.strip_prefix("R ") else { continue };
-        let (target, channels) = report.split_once('|').unwrap_or((report, ""));
-        let fields: Vec<&str> = target.split(',').collect();
-        if fields.len() != 3 + width {
-            return Err(format!("the target reported {} values for {width} outputs: '{line}'", fields.len().saturating_sub(3)));
+        if !line.starts_with("R ") {
+            continue;
         }
-        let step: usize = fields[0].parse().map_err(|_| format!("a report without its step: '{line}'"))?;
+        let (step, row) = parse_report(line, width, io)?;
         if step != rows.len() {
             return Err(format!("the target reported step {step} where step {} was expected", rows.len()));
         }
-        let time: u64 = fields[1].parse().map_err(|_| format!("a report without its time: '{line}'"))?;
-        let status: i64 = fields[2].parse().map_err(|_| format!("a report without its status: '{line}'"))?;
-        if status != 0 {
-            return Err(format!("the cycle failed at step {step} on the target (status {status})"));
-        }
-        let mut values = fields[3..].iter().map(|t| super::zephyr::decode(t)).collect::<Result<Vec<f64>, String>>()?;
-        let channel_values: Vec<f64> = channels.split(',').filter(|v| !v.is_empty()).map(|v| v.trim().parse::<f64>().map_err(|_| format!("a channel value '{v}' is no number"))).collect::<Result<_, _>>()?;
-        if channel_values.len() != io {
-            return Err(format!("the bench read {} output channels for {io}", channel_values.len()));
-        }
-        values.extend(channel_values);
-        rows.push(Row { time, values });
+        rows.push(row);
     }
     if rows.len() != steps {
         return Err(format!("the target reported {} of {steps} steps", rows.len()));
     }
     Ok(rows)
+}
+
+/// One report `R <step>,<time>,<status>,<values...>[|<channels>]`: its step and its row.
+pub(super) fn parse_report(line: &str, width: usize, io: usize) -> Result<(usize, Row), String> {
+    let report = line.strip_prefix("R ").ok_or_else(|| format!("not a report: '{line}'"))?;
+    let (target, channels) = report.split_once('|').unwrap_or((report, ""));
+    let fields: Vec<&str> = target.split(',').collect();
+    if fields.len() != 3 + width {
+        return Err(format!("the target reported {} values for {width} outputs: '{line}'", fields.len().saturating_sub(3)));
+    }
+    let step: usize = fields[0].parse().map_err(|_| format!("a report without its step: '{line}'"))?;
+    let time: u64 = fields[1].parse().map_err(|_| format!("a report without its time: '{line}'"))?;
+    let status: i64 = fields[2].parse().map_err(|_| format!("a report without its status: '{line}'"))?;
+    if status != 0 {
+        return Err(format!("the cycle failed at step {step} on the target (status {status})"));
+    }
+    let mut values = fields[3..].iter().map(|t| super::zephyr::decode(t)).collect::<Result<Vec<f64>, String>>()?;
+    let channel_values: Vec<f64> = channels.split(',').filter(|v| !v.is_empty()).map(|v| v.trim().parse::<f64>().map_err(|_| format!("a channel value '{v}' is no number"))).collect::<Result<_, _>>()?;
+    if channel_values.len() != io {
+        return Err(format!("the bench read {} output channels for {io}", channel_values.len()));
+    }
+    values.extend(channel_values);
+    Ok((step, Row { time, values }))
 }
 
 fn timing(rows: &[Row], binding: Option<&Binding>, period_us: u64) -> String {
@@ -343,8 +352,8 @@ fn implementation(package: &Package, work: &Path) -> String {
     parts.join("; ")
 }
 
-fn run_case(test: &TestCase, plan: &Plan, bindings: &[Binding], builds: &mut Builds, label: &str) -> Outcome {
-    let mut prepared = match sil::prepare(test, plan, bindings, label) {
+fn run_case(test: &TestCase, plan: &Plan, bindings: &[Binding], builds: &mut Builds, label: &str, ast: &Model, plants: &mut super::plant::Plants) -> Outcome {
+    let mut prepared = match sil::prepare(test, plan, bindings, label, ast, plants) {
         Ok(p) => p,
         Err(outcome) => return *outcome,
     };
@@ -408,6 +417,12 @@ fn run_case(test: &TestCase, plan: &Plan, bindings: &[Binding], builds: &mut Bui
 
 /// Run every executed case of a compiled model (or `options.only`) on the target.
 pub fn run(ast: &Model, options: &Options) -> Result<(Package, Vec<Outcome>), String> {
+    run_with(ast, options, &mut super::plant::Plants::none())
+}
+
+/// As `run`; a case with a plant replays, on the target, the vectors of
+/// the model's loop around it (`plants` builds the plant).
+pub fn run_with(ast: &Model, options: &Options, plants: &mut super::plant::Plants) -> Result<(Package, Vec<Outcome>), String> {
     let plan = super::plan::plan(ast)?;
     let bindings = super::binding::resolve_all(ast, &plan)?;
     let package = choose_target(&bindings, options.target.as_deref())?;
@@ -431,6 +446,6 @@ pub fn run(ast: &Model, options: &Options) -> Result<(Package, Vec<Outcome>), St
         }
     }
     let label = implementation(&package, &work);
-    let outcomes = selected.into_iter().map(|t| run_case(t, &plan, &bindings, &mut builds, &label)).collect();
+    let outcomes = selected.into_iter().map(|t| run_case(t, &plan, &bindings, &mut builds, &label, ast, plants)).collect();
     Ok((package, outcomes))
 }

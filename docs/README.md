@@ -17,6 +17,8 @@ compiler when the site is built.
 
 ## In this directory
 
+- [platform.md](platform.md) — ArcLang as an engineering platform: the identity, the layers of the compiler, the domains and their constructs, what comes next.
+
 - [modelica.md](modelica.md): the Modelica export and requirements verified
   by simulation in OpenModelica (`arclang export -f modelica`, `arclang verify`).
 - [simulink-connector.md](simulink-connector.md): what the Capella-Simulink

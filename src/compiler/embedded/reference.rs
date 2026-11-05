@@ -158,20 +158,33 @@ impl Running<'_> {
     }
 }
 
-pub fn run(plan: &Plan, vectors: &Vectors, period_us: u64) -> Table {
-    let mut machines: Vec<Running> = plan
-        .machines
-        .iter()
-        .map(|m| {
-            let mut machine = m.machine.clone();
-            machine.set_period(period_us);
-            Running { plan: m, machine, in_state: vec![0; m.states.len()], counts: vec![0; m.actions.len()] }
-        })
-        .collect();
-    let mut rows = Vec::with_capacity(vectors.steps);
-    for k in 0..vectors.steps {
+/// The model run step by step: the machines of the plan, each at the
+/// period, advanced one step at a time on the vectors (a closed loop fills
+/// the vectors as it goes).
+pub struct Runner<'p> {
+    machines: Vec<Running<'p>>,
+    period_us: u64,
+}
+
+impl<'p> Runner<'p> {
+    pub fn new(plan: &'p Plan, period_us: u64) -> Runner<'p> {
+        let machines = plan
+            .machines
+            .iter()
+            .map(|m| {
+                let mut machine = m.machine.clone();
+                machine.set_period(period_us);
+                Running { plan: m, machine, in_state: vec![0; m.states.len()], counts: vec![0; m.actions.len()] }
+            })
+            .collect();
+        Runner { machines, period_us }
+    }
+
+    /// Step `k` of every machine on the vectors' inputs of that step: the row of `columns`.
+    pub fn step(&mut self, vectors: &Vectors, k: usize) -> Vec<f64> {
+        let period_us = self.period_us;
         let mut row = Vec::new();
-        for (n, r) in machines.iter_mut().enumerate() {
+        for (n, r) in self.machines.iter_mut().enumerate() {
             r.counts.iter_mut().for_each(|c| *c = 0);
             let inputs: Vec<usize> = r.plan.program().inputs().map(|(i, _)| i).collect();
             for i in inputs {
@@ -222,7 +235,12 @@ pub fn run(plan: &Plan, vectors: &Vectors, period_us: u64) -> Table {
             // A budget is overrun when its source has been active longer than it.
             row.extend(r.plan.budgets.iter().map(|b| (r.machine.active.contains(&b.source) && r.in_state[b.source] > ticks(b.micros, period_us)) as u8 as f64));
         }
-        rows.push(row);
+        row
     }
+}
+
+pub fn run(plan: &Plan, vectors: &Vectors, period_us: u64) -> Table {
+    let mut runner = Runner::new(plan, period_us);
+    let rows = (0..vectors.steps).map(|k| runner.step(vectors, k)).collect();
     Table { names: columns(plan), period_us, rows, units: units(plan) }
 }

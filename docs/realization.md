@@ -116,6 +116,36 @@ writes one. The assistant's `arclang_realize` tool (VS Code chat, the MCP
 server) returns the plan and the gaps, so an agent can propose the missing
 cases through `arclang_edit` and run the climb.
 
+## The stages through Docker
+
+`arclang pil`, `hdl` and `soc` need toolchains a host rarely has (Zephyr
+and Renode; GHDL and Yosys; LiteX and Verilator). The images under
+`tools/embedded` hold them: `arclang-embedded-soc:1`, `arclang-embedded-fpga:1`,
+`arclang-embedded-system:1`. When this host lacks a stage's tools and Docker
+has the stage's image, the command runs itself in the image, the model's
+directory mounted at `/work` (a model that imports files outside its
+directory does not reach them there), and its verdict lands in the model's
+cache as if it had run here: the ladder, `check` and `realize` read it the
+same way. The command says so first:
+
+```text
+pil: no west, renode on this host: running in the Docker image arclang-embedded-soc:1 (/work/models/window mounted at /work)
+```
+
+`ARCLANG_EMBEDDED_DOCKER` names another image (for every stage), or `off`
+keeps the commands on the host. A board on a serial port (`soc --port`)
+always stays on the host. The arclang the image runs is the one its build
+loop left in the `arclang-embedded-target` volume (`tools/embedded/<image>/run.sh
+cargo build --release`), else one on the image's PATH.
+
+## A case with a plant
+
+A case closed on a plant (`execute: { plant: … }`, docs/embedded-c.md)
+climbs like any other: SIL runs the C in the loop, PIL and HDL replay the
+loop, the SoC runs in it. Its plant is built once as an FMU beside the
+model (`.arclang/plant/`), on this host, before a stage relays to a Docker
+image: the image steps the FMU, it does not build it.
+
 ## The rungs of a case
 
 A case's status (`semantic_model.simulations`, by case id) keeps its

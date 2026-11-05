@@ -290,7 +290,7 @@ pub fn direct_harness(plan: &Plan) -> String {
     }
     let _ = writeln!(out, "        {p}_step(&state, &inputs, &outputs);");
     print_outputs(plan, &mut out);
-    let _ = writeln!(out, "        printf(\"\\n\");\n    }}\n    (void)v;\n    (void)l;\n    (void)d;\n    return 0;\n}}");
+    let _ = writeln!(out, "        printf(\"\\n\");\n        fflush(stdout);\n    }}\n    (void)v;\n    (void)l;\n    (void)d;\n    return 0;\n}}");
     out
 }
 
@@ -299,19 +299,24 @@ pub fn direct_harness(plan: &Plan) -> String {
 pub fn direct_stdin(plan: &Plan, vectors: &Vectors) -> String {
     let mut stdin = format!("{}\n", vectors.steps);
     for k in 0..vectors.steps {
-        let mut line = Vec::new();
-        for (n, m) in plan.machines.iter().enumerate() {
-            if !m.events.is_empty() {
-                line.push(vectors.queue[n][k].len().to_string());
-                line.extend(vectors.queue[n][k].iter().map(|e| e.to_string()));
-            }
-            line.extend((0..m.conditions.len()).map(|c| (vectors.conditions[n][c][k] as u8).to_string()));
-            line.extend(m.program().inputs().map(|(i, _)| value_text(vectors.values[n][i][k])));
-        }
-        stdin.push_str(&line.join(" "));
+        stdin.push_str(&direct_line(plan, vectors, k));
         stdin.push('\n');
     }
     stdin
+}
+
+/// One step's line of the direct harness.
+pub fn direct_line(plan: &Plan, vectors: &Vectors, k: usize) -> String {
+    let mut line = Vec::new();
+    for (n, m) in plan.machines.iter().enumerate() {
+        if !m.events.is_empty() {
+            line.push(vectors.queue[n][k].len().to_string());
+            line.extend(vectors.queue[n][k].iter().map(|e| e.to_string()));
+        }
+        line.extend((0..m.conditions.len()).map(|c| (vectors.conditions[n][c][k] as u8).to_string()));
+        line.extend(m.program().inputs().map(|(i, _)| value_text(vectors.values[n][i][k])));
+    }
+    line.join(" ")
 }
 
 /// The columns the I/O run adds: what the glue wrote to each bound output channel.
@@ -754,7 +759,7 @@ pub struct Prepared<'a> {
 
 /// Read a case, run it on the model and judge it there; the outcome in
 /// error when that fails.
-pub fn prepare<'a>(test: &TestCase, plan: &Plan, bindings: &'a [Binding], implementation: &str) -> Result<Prepared<'a>, Box<Outcome>> {
+pub fn prepare<'a>(test: &TestCase, plan: &Plan, bindings: &'a [Binding], implementation: &str, ast: &Model, plants: &mut super::plant::Plants) -> Result<Prepared<'a>, Box<Outcome>> {
     let texts = crate::compiler::simulation::expects_of(&test.attributes);
     let mut outcome = Outcome {
         test_case: test.id.clone(),
@@ -781,9 +786,22 @@ pub fn prepare<'a>(test: &TestCase, plan: &Plan, bindings: &'a [Binding], implem
     };
     outcome.machine = plan.machines[case.machine].name.clone();
     outcome.binding = case.binding.clone();
+    outcome.compiler.push_str(&super::plant::Plants::describe(&case));
     let binding = case.binding.as_ref().and_then(|r| bindings.iter().find(|b| b.is(r)));
-    let vectors = case.vectors(plan);
-    let mut model = reference::run(plan, &vectors, case.step_us);
+    // With a plant, the model runs in the loop: its vectors are what the plant gave it.
+    let (vectors, mut model) = if case.plant.is_some() {
+        match super::plant::model_loop(ast, plan, &case, plants) {
+            Ok(loop_run) => loop_run,
+            Err(e) => {
+                outcome.reason = e;
+                return Err(Box::new(outcome));
+            }
+        }
+    } else {
+        let vectors = case.vectors(plan);
+        let model = reference::run(plan, &vectors, case.step_us);
+        (vectors, model)
+    };
     let aliases = reference::aliases(plan);
     let model_values = match judge(&texts, &aliases, &model) {
         Ok(v) => v,
@@ -865,11 +883,14 @@ pub fn io_stdin(steps: usize, ops: &[Vec<String>]) -> String {
 }
 
 /// Run one case: the model, the C, both judged, compared.
-fn run_case(test: &TestCase, plan: &Plan, bindings: &[Binding], builds: &mut Builds, options: &Options) -> Outcome {
-    let prepared = match prepare(test, plan, bindings, &options.compiler) {
+fn run_case(test: &TestCase, plan: &Plan, bindings: &[Binding], builds: &mut Builds, options: &Options, ast: &Model, plants: &mut super::plant::Plants) -> Outcome {
+    let prepared = match prepare(test, plan, bindings, &options.compiler, ast, plants) {
         Ok(p) => p,
         Err(outcome) => return *outcome,
     };
+    if prepared.case.plant.is_some() {
+        return run_in_loop(prepared, plan, bindings, builds, options, ast, plants);
+    }
     let stdin = match prepared.binding {
         None => direct_stdin(plan, &prepared.vectors),
         Some(b) => match channel_operations(&prepared.case, plan, b, &prepared.vectors) {
@@ -899,8 +920,36 @@ fn run_case(test: &TestCase, plan: &Plan, bindings: &[Binding], builds: &mut Bui
     }
 }
 
+/// The C in the loop with the plant: the harness fed a step at a time,
+/// the plant advanced on what it answers; judged as a batch run is, the
+/// model's own loop being the reference.
+fn run_in_loop(prepared: Prepared<'_>, plan: &Plan, bindings: &[Binding], builds: &mut Builds, options: &Options, ast: &Model, plants: &mut super::plant::Plants) -> Outcome {
+    let fail = |mut prepared: Prepared<'_>, reason: String| {
+        prepared.outcome.reason = reason;
+        prepared.outcome
+    };
+    let binary = match builds.get(plan, bindings, prepared.case.step_us, None, options) {
+        Ok(path) => path,
+        Err(e) => return fail(prepared, e),
+    };
+    let run = (|| -> Result<Table, String> {
+        let plant = plants.get(ast, &prepared.case)?;
+        let mut program = super::plant::Program::start(&binary, prepared.case.steps, prepared.model.names.clone(), prepared.case.step_us, Box::new(|v, k| direct_line(plan, v, k)))?;
+        Ok(super::plant::run(plan, &prepared.case, plant, &mut program, None)?.table)
+    })();
+    match run {
+        Ok(table) => conclude(prepared, table),
+        Err(e) => fail(prepared, e),
+    }
+}
+
 /// Run every executed case of a compiled model (or `options.only`).
 pub fn run(ast: &Model, options: &Options) -> Result<Vec<Outcome>, String> {
+    run_with(ast, options, &mut super::plant::Plants::none())
+}
+
+/// As `run`, the plants of the cases that have one built by `plants`.
+pub fn run_with(ast: &Model, options: &Options, plants: &mut super::plant::Plants) -> Result<Vec<Outcome>, String> {
     let plan = super::plan::plan(ast)?;
     let bindings = super::binding::resolve_all(ast, &plan)?;
     let selected: Vec<&TestCase> = cases(ast).into_iter().filter(|t| options.only.as_deref().is_none_or(|o| t.id == o || t.name == o)).collect();
@@ -912,5 +961,5 @@ pub fn run(ast: &Model, options: &Options) -> Result<Vec<Outcome>, String> {
     }
     std::fs::create_dir_all(&options.work).map_err(|e| format!("cannot make {}: {e}", options.work.display()))?;
     let mut builds = Builds { binaries: HashMap::new() };
-    Ok(selected.into_iter().map(|t| run_case(t, &plan, &bindings, &mut builds, options)).collect())
+    Ok(selected.into_iter().map(|t| run_case(t, &plan, &bindings, &mut builds, options, ast, plants)).collect())
 }

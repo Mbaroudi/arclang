@@ -894,7 +894,7 @@ pub fn cache(result: &CompilationResult, model_path: &Path, twin: &Twin, outcome
     super::cache::write_kind(&super::cache::dir(model_path), "twin", &cached)
 }
 
-fn work_dir() -> Result<PathBuf, String> {
+pub(crate) fn work_dir() -> Result<PathBuf, String> {
     let nanos = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.subsec_nanos()).unwrap_or(0);
     let dir = std::env::temp_dir().join(format!("arclang-twin-{}-{nanos}", std::process::id()));
     std::fs::create_dir_all(dir.join("sources")).map_err(|e| format!("cannot create {}: {e}", dir.display()))?;
@@ -973,15 +973,14 @@ pub fn shown(value: f64, unit: Option<&UnitSpec>) -> String {
 }
 
 /// A working directory with the model's Modelica, the wrapper and the physics: the files to load.
-pub fn stage(export: &Export, spec: &Spec, base: &Path) -> Result<(PathBuf, Vec<String>), String> {
-    let targets: Vec<String> = spec.drives.iter().map(|d| resolve(&d.target, &export.instances)).collect();
-    let wrapper = wrapper(&spec.model, &targets)?;
+pub fn stage(export: &Export, model: &str, sources: &[String], targets: &[String], base: &Path) -> Result<(PathBuf, Vec<String>), String> {
+    let wrapper = wrapper(model, targets)?;
     let dir = work_dir()?;
     let written = (|| -> Result<Vec<String>, String> {
         std::fs::write(dir.join(&export.file_name), &export.text).map_err(|e| e.to_string())?;
         std::fs::write(dir.join("twin.mo"), wrapper).map_err(|e| e.to_string())?;
         let mut staged = Vec::new();
-        for (index, source) in spec.sources.iter().enumerate() {
+        for (index, source) in sources.iter().enumerate() {
             let content = std::fs::read(base.join(source)).map_err(|e| format!("source '{source}' cannot be read: {e}"))?;
             let stem: String = Path::new(source).file_stem().and_then(|s| s.to_str()).unwrap_or("source").chars().filter(|c| c.is_ascii_alphanumeric() || *c == '_').collect();
             let name = format!("sources/{index}_{stem}.mo");
@@ -1076,7 +1075,8 @@ pub fn run_on(result: &CompilationResult, model_path: &Path, twin: &Twin, spec: 
     };
     let prepared = (|| -> Result<(PathBuf, Vec<String>), String> {
         let inputs = input_csv(&measurements, &spec.drives)?;
-        let (dir, staged) = stage(&export, spec, &base)?;
+        let targets: Vec<String> = spec.drives.iter().map(|d| resolve(&d.target, &export.instances)).collect();
+        let (dir, staged) = stage(&export, &spec.model, &spec.sources, &targets, &base)?;
         std::fs::write(dir.join("twin_inputs.csv"), inputs).map_err(|e| e.to_string())?;
         Ok((dir, staged))
     })();

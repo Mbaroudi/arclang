@@ -221,3 +221,37 @@ test_case "TC-CHG-003" {
         "final(\"Charger\".previous) == 56 V"
     ]
 }
+
+// The controller closed on the physics (docs/embedded-c.md, "The plant in
+// the loop"): the current it asks for drives the pack, the pack's voltage
+// and current come back as its inputs. No input list can say whether the
+// filtered voltage reaches 54.6 V: only the loop does. `arclang sil` runs
+// the C in it, `arclang soc` the SoC; `arclang hdl` and `arclang pil`
+// replay the loop's vectors.
+test_case "TC-CHG-HIL" {
+    verifies: ["SYS-CHG-004", "SYS-CHG-005"]
+    method: "test"
+    description: "In the loop with the pack: precharge at 2 A, bulk at 16 A lifts the terminals past 54.6 V, absorption at 4 A"
+    execute: {
+        machine: "Charger"
+        step: 10 ms
+        stop_time: 1.5 s
+        inputs: ["0 s: battery present", "20 ms: plug"]
+        plant: {
+            model: "ChargerPhysics.Battery"
+            sources: ["physics/ChargerPhysics.mo"]
+            inputs: ["i_set <- setpoint"]
+            outputs: ["voltage <- v_batt", "current <- i_batt"]
+        }
+    }
+    expects: [
+        "SYS-CHG-004: at(200 ms, \"Charger\".target) == 2 A",
+        "SYS-CHG-004: at(200 ms, \"Charger\".current) > 1.5 A",
+        "SYS-CHG-004: at(200 ms, \"Charger\".current) < 2.5 A",
+        "SYS-CHG-004: max(\"Charger\".setpoint) <= 20 A",
+        "SYS-CHG-004: at(300 ms, \"Charger\".Charging.Bulk) == 1",
+        "SYS-CHG-005: at(1 s, \"Charger\".Charging.Absorption) == 1",
+        "SYS-CHG-005: at(1.4 s, \"Charger\".current) < 5 A",
+        "final(\"Charger\".charge) > 0.001 Ah"
+    ]
+}

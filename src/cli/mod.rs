@@ -2005,6 +2005,7 @@ impl CliRunner {
     }
 
     fn run_sil(&self, input: &std::path::Path, test: Option<String>, compilers: Vec<String>, keep: Option<PathBuf>, json: bool) -> Result<(), CliError> {
+        prebuild_plants(input, test.as_deref())?;
         use crate::compiler::embedded::sil;
         let result = crate::Compiler::new(crate::CompilerConfig::default()).compile_file(input).map_err(|e| CliError::Compilation(e.to_string()))?;
         let compilers = if compilers.is_empty() { vec![std::env::var("CC").ok().filter(|c| !c.trim().is_empty()).unwrap_or_else(|| "cc".to_string())] } else { compilers };
@@ -2014,7 +2015,7 @@ impl CliRunner {
         for compiler in &compilers {
             let version = sil::compiler_version(compiler).ok_or_else(|| CliError::Config(format!("the C compiler '{compiler}' does not run (give one with --cc, or set CC)")))?;
             let options = sil::Options { compiler: compiler.clone(), work: work.join(compiler.replace(['/', '\\'], "_")), only: test.clone() };
-            let run = sil::run(&result.ast, &options);
+            let run = sil::run_with(&result.ast, &options, &mut plants_of(input));
             let run = run.map_err(CliError::Compilation)?;
             if !json {
                 println!("\nSIL {} — {compiler} ({version})", input.display());
@@ -2046,11 +2047,17 @@ impl CliRunner {
 
     fn run_pil(&self, input: &std::path::Path, test: Option<String>, target: Option<String>, keep: Option<PathBuf>, json: bool) -> Result<(), CliError> {
         use crate::compiler::embedded::pil;
+        // No Zephyr or Renode here: the same command in the SoC image, its verdict in the model's cache.
+        prebuild_plants(input, test.as_deref())?;
+        if let Some(code) = crate::compiler::embedded::docker::relay("pil", input).map_err(CliError::Config)? {
+            std::process::exit(code);
+        }
         let result = crate::Compiler::new(crate::CompilerConfig::default()).compile_file(input).map_err(|e| CliError::Compilation(e.to_string()))?;
         let scratch = keep.is_none();
         let work = keep.unwrap_or_else(|| std::env::temp_dir().join(format!("arclang-pil-{}", std::process::id())));
         let options = pil::Options { target, work: work.clone(), only: test };
-        let (package, outcomes) = pil::run(&result.ast, &options).map_err(CliError::Compilation)?;
+        let mut plants = plants_of(input);
+        let (package, outcomes) = pil::run_with(&result.ast, &options, &mut plants).map_err(CliError::Compilation)?;
         if !json {
             println!("\nPIL {} — {}", input.display(), outcomes.first().map(|o| o.compiler.as_str()).unwrap_or(package.name.as_str()));
             for outcome in &outcomes {
@@ -2078,12 +2085,18 @@ impl CliRunner {
 
     fn run_hdl(&self, input: &std::path::Path, test: Option<String>, synth: bool, keep: Option<PathBuf>, json: bool) -> Result<(), CliError> {
         use crate::compiler::embedded::hdl;
+        // No GHDL here: the same command in the FPGA image.
+        prebuild_plants(input, test.as_deref())?;
+        if let Some(code) = crate::compiler::embedded::docker::relay("hdl", input).map_err(CliError::Config)? {
+            std::process::exit(code);
+        }
         let result = crate::Compiler::new(crate::CompilerConfig::default()).compile_file(input).map_err(|e| CliError::Compilation(e.to_string()))?;
         let scratch = keep.is_none();
         let work = keep.unwrap_or_else(|| std::env::temp_dir().join(format!("arclang-hdl-{}", std::process::id())));
         let compiler = std::env::var("CC").ok().filter(|c| !c.trim().is_empty()).unwrap_or_else(|| "cc".to_string());
         let options = hdl::Options { work: work.clone(), only: test, synth, compiler };
-        let (outcomes, synthesis) = hdl::run(&result.ast, &options).map_err(CliError::Compilation)?;
+        let mut plants = plants_of(input);
+        let (outcomes, synthesis) = hdl::run_with(&result.ast, &options, &mut plants).map_err(CliError::Compilation)?;
         if !json {
             println!("\nHDL {} — {}", input.display(), outcomes.first().map(|o| o.tools.as_str()).unwrap_or(""));
             for o in &outcomes {
@@ -2131,13 +2144,21 @@ impl CliRunner {
     #[allow(clippy::too_many_arguments)]
     fn run_soc(&self, input: &std::path::Path, test: Option<String>, bitstream: bool, board: Option<String>, simulate: bool, gate_level: bool, port: Option<String>, keep: Option<PathBuf>, json: bool) -> Result<(), CliError> {
         use crate::compiler::embedded::system;
+        // No LiteX or Verilator here: the same command in the system image. A board on a port stays on this host.
+        if port.is_none() {
+            prebuild_plants(input, test.as_deref())?;
+        if let Some(code) = crate::compiler::embedded::docker::relay("soc", input).map_err(CliError::Config)? {
+                std::process::exit(code);
+            }
+        }
         let result = crate::Compiler::new(crate::CompilerConfig::default()).compile_file(input).map_err(|e| CliError::Compilation(e.to_string()))?;
         let scratch = keep.is_none();
         let work = keep.unwrap_or_else(|| std::env::temp_dir().join(format!("arclang-soc-{}", std::process::id())));
         let compiler = std::env::var("CC").ok().filter(|c| !c.trim().is_empty()).unwrap_or_else(|| "cc".to_string());
         let on_board = port.is_some();
         let options = system::Options { work: work.clone(), only: test, compiler, simulate, gate_level, bitstream, board, port };
-        let report = system::run(&result.ast, &options).map_err(CliError::Compilation)?;
+        let mut plants = plants_of(input);
+        let report = system::run_with(&result.ast, &options, &mut plants).map_err(CliError::Compilation)?;
         let device = if on_board { "board" } else { "SoC" };
         if !json {
             println!("\nSoC {} — {}", input.display(), report.outcomes.first().map(|o| o.tools.as_str()).unwrap_or(""));
@@ -3683,4 +3704,27 @@ pub enum CliError {
 
 fn count_nodes(nodes: &[crate::compiler::diagram::Node]) -> usize {
     nodes.iter().map(|node| 1 + count_nodes(&node.children)).sum()
+}
+
+/// The plants of the model's cases, beside the model.
+fn plants_of(input: &std::path::Path) -> crate::compiler::embedded::plant::Plants {
+    crate::compiler::embedded::plant::Plants::at(&crate::compiler::simulation::cache::model_dir(input))
+}
+
+/// Build the FMU of every plant of the cases chosen, here, where
+/// OpenModelica is: a stage that then runs in a Docker image steps it.
+fn prebuild_plants(input: &std::path::Path, only: Option<&str>) -> Result<(), CliError> {
+    use crate::compiler::embedded::{binding, plan};
+    let result = crate::Compiler::new(crate::CompilerConfig::default()).compile_file(input).map_err(|e| CliError::Compilation(e.to_string()))?;
+    let has_plant = result.ast.test_cases.iter().filter(|t| only.is_none_or(|o| t.id == o || t.name == o)).any(|t| matches!(t.attributes.get("execute"), Some(crate::compiler::ast::AttributeValue::Map(m)) if m.contains_key("plant")));
+    if !has_plant {
+        return Ok(());
+    }
+    let p = plan::plan(&result.ast).map_err(CliError::Compilation)?;
+    let bindings = binding::resolve_all(&result.ast, &p).map_err(CliError::Compilation)?;
+    let built = plants_of(input).prepare_all(&result.ast, &p, &bindings, only).map_err(CliError::Compilation)?;
+    for path in built {
+        eprintln!("plant: {}", path.display());
+    }
+    Ok(())
 }

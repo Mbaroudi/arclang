@@ -18,6 +18,9 @@ const DEFAULT_TIMEOUT: Duration = Duration::from_secs(900);
 pub enum Tool {
     Local(PathBuf),
     Docker(String),
+    /// No OpenModelica: this computer's shell and C compiler only (a given
+    /// FMU with a binary for this platform, stepped here).
+    Host,
 }
 
 impl Tool {
@@ -25,6 +28,7 @@ impl Tool {
         match self {
             Tool::Local(path) => format!("omc ({})", path.display()),
             Tool::Docker(image) => format!("docker image {image}"),
+            Tool::Host => "this computer's C compiler".to_string(),
         }
     }
 }
@@ -153,6 +157,7 @@ pub fn diagnose(config: &ToolConfig) -> Diagnosis {
     let (tool, detail) = match &located {
         Ok(Tool::Local(_)) => (Some("local".to_string()), located.as_ref().unwrap().describe()),
         Ok(Tool::Docker(_)) => (Some("docker".to_string()), located.as_ref().unwrap().describe()),
+        Ok(Tool::Host) => (Some("host".to_string()), located.as_ref().unwrap().describe()),
         Err(error) => (None, error.clone()),
     };
     Diagnosis { tool, detail, docker_installed, docker_running, image, image_pulled, library_volume: LIBRARY_VOLUME.to_string(), msl_version: crate::compiler::modelica::MSL_VERSION.to_string(), library_installed, local_omc }
@@ -176,6 +181,7 @@ pub fn run(tool: &Tool, dir: &Path, script: &str, timeout: Option<Duration>) -> 
             command.arg(script).current_dir(&dir);
             command
         }
+        Tool::Host => return Err("OpenModelica not available: no omc on the PATH (ARCLANG_OMC), and no Docker daemon to run it (ARCLANG_OMC_DOCKER)".to_string()),
         Tool::Docker(image) => {
             let mut command = Command::new("docker");
             command
@@ -226,7 +232,7 @@ pub fn spawn(tool: &Tool, dir: &Path, script: &str, log: &Path) -> Result<(std::
     let dir = dir.canonicalize().map_err(|e| format!("cannot use the working directory {}: {e}", dir.display()))?;
     let nanos = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_nanos()).unwrap_or(0);
     let (mut command, container) = match tool {
-        Tool::Local(_) => {
+        Tool::Local(_) | Tool::Host => {
             let mut command = Command::new("sh");
             command.arg(script).current_dir(&dir);
             (command, None)

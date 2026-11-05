@@ -107,6 +107,14 @@ missed. The PIL application now answers a line `?` with `ARCLANG READY`;
 the bench asks once a second until it is answered (the Renode bench of
 lot 2 never sends `?`: unchanged).
 
+## In the loop with the plant
+
+A case with a plant (`execute: { plant: … }`, docs/embedded-c.md) runs the
+SoC in the loop: the bench sends the plant's outputs as the step's line,
+reads the report, and the plant advances on what the SoC computed. On the
+board (`--port`) the same, through the serial port: hardware in the loop,
+in lock step with the plant stepped on this computer.
+
 ## The bitstream
 
 ```text

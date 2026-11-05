@@ -368,7 +368,7 @@ fn words(plan: &Plan, machine: usize, fx: &super::fixed::MachineFixed, table: &T
     Table { rows, ..mine }
 }
 
-fn run_case(test: &TestCase, plan: &Plan, bindings: &[super::binding::Binding], builds: &mut Builds, options: &Options, tools: &str) -> Outcome {
+fn run_case(test: &TestCase, plan: &Plan, bindings: &[super::binding::Binding], builds: &mut Builds, options: &Options, tools: &str, ast: &Model, plants: &mut super::plant::Plants) -> Outcome {
     // A run on the board says so: the ladder tells the board from the SoC in simulation by it.
     let tools = match &options.port {
         Some(port) => format!("{tools}; on the board ({port})"),
@@ -376,16 +376,39 @@ fn run_case(test: &TestCase, plan: &Plan, bindings: &[super::binding::Binding], 
     };
     let mut outcome = hdl::new_outcome(test, &tools);
     let texts: Vec<String> = outcome.expectations.iter().map(|j| j.expect.clone()).collect();
-    if let Err(e) = run_case_inner(test, plan, bindings, builds, options, &texts, &mut outcome) {
+    if let Err(e) = run_case_inner(test, plan, bindings, builds, options, &texts, &mut outcome, ast, plants) {
         outcome.verdict = "error".to_string();
         outcome.reason = e;
     }
     outcome
 }
 
-fn run_case_inner(test: &TestCase, plan: &Plan, bindings: &[super::binding::Binding], builds: &mut Builds, options: &Options, texts: &[String], outcome: &mut Outcome) -> Result<(), String> {
+/// The SoC (or the board) in the loop with the plant: a step's line sent,
+/// its report read, the plant advanced on what the machine computed.
+struct InTheLoop<'a> {
+    session: bench::Session,
+    plan: &'a Plan,
+    width: usize,
+    reports: Vec<String>,
+}
+
+impl super::plant::Device for InTheLoop<'_> {
+    fn step(&mut self, vectors: &super::reference::Vectors, k: usize) -> Result<Vec<f64>, String> {
+        let line = super::zephyr::direct_line(self.plan, vectors, k);
+        let report = self.session.step(k, &line)?;
+        let (step, row) = super::pil::parse_report(&report, self.width, 0)?;
+        if step != k {
+            return Err(format!("the target reported step {step} where step {k} was expected"));
+        }
+        self.reports.push(report);
+        Ok(row.values)
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn run_case_inner(test: &TestCase, plan: &Plan, bindings: &[super::binding::Binding], builds: &mut Builds, options: &Options, texts: &[String], outcome: &mut Outcome, ast: &Model, plants: &mut super::plant::Plants) -> Result<(), String> {
     let dir = options.work.join(format!("case-{}", hdl::case_dir(test)));
-    let r = hdl::reference(test, plan, bindings, &options.compiler, &dir, texts, outcome)?;
+    let r = hdl::reference(test, plan, bindings, &options.compiler, &dir, texts, outcome, ast, plants)?;
     let bound = r.case.binding.as_ref().map(|name| bindings.iter().find(|b| b.is(name)).ok_or_else(|| format!("no io_binding '{name}'"))).transpose()?;
     // A binding with CAN runs through the step() API: the SoC has no CAN
     // core yet (its channels stay proved by PIL in Renode).
@@ -410,9 +433,22 @@ fn run_case_inner(test: &TestCase, plan: &Plan, bindings: &[super::binding::Bind
         }
         None => bench::Drive::Lines(&lines),
     };
-    let (text, log) = match &options.port {
-        Some(port) => bench::board(port, drive, STEP_SECONDS)?,
-        None => bench::simulate(&gateware, built.port, drive, BOOT_SECONDS, STEP_SECONDS)?,
+    let (text, log) = match (&r.case.plant, &options.port) {
+        // In the loop: the plant's outputs go to the target a step at a time.
+        (Some(_), port) => {
+            let session = match port {
+                Some(port) => bench::Session::board(port, STEP_SECONDS)?,
+                None => bench::Session::simulate(&gateware, built.port, BOOT_SECONDS, STEP_SECONDS)?,
+            };
+            // The target reports values (its driver converts the words): the plant takes them as they are.
+            let mut device = InTheLoop { session, plan, width: names.len(), reports: Vec::new() };
+            let plant = plants.get(ast, &r.case)?;
+            super::plant::run(plan, &r.case, plant, &mut device, None)?;
+            let log = device.session.log();
+            (device.reports.iter().map(|l| format!("{l}\n")).collect::<String>(), log)
+        }
+        (None, Some(port)) => bench::board(port, drive, STEP_SECONDS)?,
+        (None, None) => bench::simulate(&gateware, built.port, drive, BOOT_SECONDS, STEP_SECONDS)?,
     };
     let _ = std::fs::write(dir.join("console.txt"), &log);
     // Through the I/O: the channels the bench recorded after each cycle.
@@ -454,7 +490,7 @@ fn run_case_inner(test: &TestCase, plan: &Plan, bindings: &[super::binding::Bind
         c.push_str(n);
     }
     let departed = std::mem::take(&mut outcome.reason);
-    hdl::conclude(&r, plan, &device_raw, if options.port.is_some() { "the board" } else { "the SoC" }, texts, outcome);
+    hdl::conclude(&r, plan, &device_raw, if options.port.is_some() { "the board" } else { "the SoC" }, texts, outcome, r.case.plant.is_some());
     if !departed.is_empty() {
         outcome.verdict = "fail".to_string();
         outcome.reason = departed;
@@ -471,6 +507,12 @@ fn run_case_inner(test: &TestCase, plan: &Plan, bindings: &[super::binding::Bind
 /// Run the cases of the allocated machines in the simulated SoC (or on the
 /// board) and (`options.board`) build the bitstream.
 pub fn run(ast: &Model, options: &Options) -> Result<Report, String> {
+    run_with(ast, options, &mut super::plant::Plants::none())
+}
+
+/// As `run`; a case with a plant runs the SoC (or the board) in the loop
+/// with it (`plants` builds the plant).
+pub fn run_with(ast: &Model, options: &Options, plants: &mut super::plant::Plants) -> Result<Report, String> {
     let plan = super::plan::plan(ast)?;
     let bindings = super::binding::resolve_all(ast, &plan)?;
     let allocations = super::alloc::allocations(ast, &plan)?;
@@ -496,7 +538,7 @@ pub fn run(ast: &Model, options: &Options) -> Result<Report, String> {
         if options.gate_level {
             tools.push_str(&format!("; blocks at gate level ({}, synth_ecp5)", hdl::version("yosys", "-V")));
         }
-        outcomes = selected.into_iter().map(|t| run_case(t, &plan, &bindings, &mut builds, &options, &tools)).collect();
+        outcomes = selected.into_iter().map(|t| run_case(t, &plan, &bindings, &mut builds, &options, &tools, ast, plants)).collect();
     }
     let bitstream = options.bitstream.then(|| {
         let period = super::default_period_us(&bindings);
