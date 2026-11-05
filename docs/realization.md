@@ -134,7 +134,8 @@ pil: no west, renode on this host: running in the Docker image arclang-embedded-
 
 `ARCLANG_EMBEDDED_DOCKER` names another image (for every stage), or `off`
 keeps the commands on the host. A board on a serial port (`soc --port`)
-always stays on the host. The arclang the image runs is the one its build
+always stays on the host. A `--keep` directory must be inside the model's
+directory (it is kept at the same place, through the mount). The arclang the image runs is the one its build
 loop left in the `arclang-embedded-target` volume (`tools/embedded/<image>/run.sh
 cargo build --release`), else one on the image's PATH.
 

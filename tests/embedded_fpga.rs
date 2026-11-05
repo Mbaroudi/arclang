@@ -310,7 +310,9 @@ fn the_quantisation_bound_sees_a_fed_back_value_cancel() {
 fn run_hdl(path: &str, synth: bool) -> (Vec<hdl::Outcome>, Vec<Result<hdl::Synthesis, String>>) {
     let model = compile_file(&example(path));
     let options = hdl::Options { work: work(&format!("hdl-{}", path.replace('/', "_"))), only: None, synth, compiler: "gcc".into(), as_if: None, machine: None };
-    hdl::run(&model.ast, &options).unwrap()
+    let (outcomes, synthesis) = hdl::run(&model.ast, &options).unwrap();
+    // The case closed on a plant needs OpenModelica (tests/embedded_plant.rs): the others here.
+    (outcomes.into_iter().filter(|o| !o.tools.contains("in the loop with the plant")).collect(), synthesis)
 }
 
 fn assert_passes(outcomes: &[hdl::Outcome]) {

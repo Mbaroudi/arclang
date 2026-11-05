@@ -16,7 +16,9 @@
 # - oss-cad-suite 2026-11-01 (Yosys, nextpnr-ecp5, ecppack and the Trellis
 #   database), the build of the host's architecture, pruned to what the ECP5
 #   flow uses;
-# - ghdl-yosys-plugin at commit 58988149 (2026-11-01), built against both..
+# No ghdl-yosys-plugin: GHDL writes its synthesised netlist as Verilog
+# (`ghdl --synth --out=verilog`) and Yosys reads it, so nothing has to be
+# built against the Yosys binary of the suite.
 ARG BASE=arclang-embedded:1
 
 FROM ${BASE} AS ghdl
@@ -33,7 +35,6 @@ RUN git clone https://github.com/ghdl/ghdl /src/ghdl \
 
 FROM ${BASE}
 ARG OSS_CAD_SUITE_DATE=2026-11-01
-ARG PLUGIN_COMMIT=589881490177483d601504ff1013d9ca98c4f61d
 
 # GHDL's run-time: LLVM 15 and the GNAT library (GHDL is written in Ada)
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
@@ -57,11 +58,4 @@ RUN set -e; case "$(dpkg --print-architecture)" in amd64) a=x64;; arm64) a=arm64
 ENV PATH=$PATH:/opt/oss-cad-suite/bin
 
 # The GHDL plugin of Yosys, built against this GHDL and this Yosys
-RUN git clone https://github.com/ghdl/ghdl-yosys-plugin /src/plugin \
-    && cd /src/plugin && git checkout ${PLUGIN_COMMIT} \
-    && make GHDL=/opt/ghdl/bin/ghdl YOSYS_CONFIG=/opt/oss-cad-suite/bin/yosys-config \
-    && cp ghdl.so "$(/opt/oss-cad-suite/bin/yosys-config --datdir)/plugins/ghdl.so" \
-    && cd / && rm -rf /src/plugin \
-    && yosys -m ghdl -p 'help ghdl' | head -3
-
 WORKDIR /work

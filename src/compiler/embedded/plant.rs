@@ -16,6 +16,7 @@ use super::plan::Plan;
 use super::reference::{self, Table, Vectors};
 use crate::compiler::execution::expr::{Ty, Value};
 use crate::compiler::simulation::tool::ToolConfig;
+#[cfg(feature = "native")]
 use crate::compiler::simulation::twin_step::Model;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -122,7 +123,9 @@ pub fn run(plan: &Plan, case: &Case, plant: &mut dyn Plant, device: &mut dyn Dev
 /// `.arclang/plant/` beside the model, so a stage that runs in a Docker
 /// image steps the FMU the host built), a given FMU as it is.
 pub struct Plants {
+    #[cfg_attr(not(feature = "native"), allow(dead_code))]
     base: Option<PathBuf>,
+    #[cfg_attr(not(feature = "native"), allow(dead_code))]
     config: ToolConfig,
     built: HashMap<String, Box<dyn Plant>>,
 }
@@ -171,6 +174,7 @@ impl Plants {
 
     /// Build the FMU of a Modelica plant into the cache if it is not there:
     /// the path of the FMU. A given FMU is its own file.
+    #[cfg(feature = "native")]
     pub fn prepare(&self, ast: &crate::compiler::ast::Model, spec: &Spec) -> Result<PathBuf, String> {
         let base = self.base.as_ref().ok_or("the plant needs the model's directory (run the command on the model file)")?;
         if let Some(fmu) = &spec.fmu {
@@ -202,6 +206,17 @@ impl Plants {
     }
 
     /// The plant of a case, built the first time it is asked for.
+    #[cfg(not(feature = "native"))]
+    pub fn get(&mut self, _ast: &crate::compiler::ast::Model, case: &Case) -> Result<&mut dyn Plant, String> {
+        let spec = case.plant.as_ref().ok_or("the case has no plant")?;
+        if self.built.contains_key(&spec.label()) {
+            return Ok(self.built.get_mut(&spec.label()).expect("injected").as_mut());
+        }
+        Err("a plant is built and stepped by the native compiler (OpenModelica, a C compiler), not in the browser".to_string())
+    }
+
+    /// The plant of a case, built the first time it is asked for.
+    #[cfg(feature = "native")]
     pub fn get(&mut self, ast: &crate::compiler::ast::Model, case: &Case) -> Result<&mut dyn Plant, String> {
         let spec = case.plant.as_ref().ok_or("the case has no plant")?;
         if self.built.contains_key(&spec.label()) {
@@ -221,6 +236,7 @@ impl Plants {
     /// Build the FMU of every plant of the cases chosen (`only`, else all),
     /// before a stage runs where OpenModelica is not (a Docker image): the
     /// paths built, and the first error.
+    #[cfg(feature = "native")]
     pub fn prepare_all(&self, ast: &crate::compiler::ast::Model, plan: &Plan, bindings: &[super::binding::Binding], only: Option<&str>) -> Result<Vec<PathBuf>, String> {
         let mut out = Vec::new();
         for test in ast.test_cases.iter().filter(|t| only.is_none_or(|o| t.id == o || t.name == o)) {

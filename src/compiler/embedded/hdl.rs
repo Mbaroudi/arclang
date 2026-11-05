@@ -133,6 +133,18 @@ pub(super) fn run_tool(program: &str, args: &[String], cwd: &Path, what: &str) -
     Ok(text)
 }
 
+/// As `run_tool`, the tool's stdout alone (its notes on stderr go to `log` in `cwd`).
+pub(super) fn run_tool_stdout(program: &str, args: &[String], cwd: &Path, what: &str, log: &str) -> Result<String, String> {
+    let out = Command::new(program).args(args).current_dir(cwd).output().map_err(|e| format!("{what}: cannot run '{program}': {e} (run in ArcLang's FPGA image: tools/embedded/fpga/run.sh)"))?;
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    let _ = std::fs::write(cwd.join(log), stderr.as_bytes());
+    if !out.status.success() {
+        let tail: Vec<&str> = stderr.lines().rev().take(30).collect();
+        return Err(format!("{what} failed ({}):\n{}", out.status, tail.into_iter().rev().collect::<Vec<_>>().join("\n")));
+    }
+    Ok(String::from_utf8_lossy(&out.stdout).into_owned())
+}
+
 pub(super) fn write(dir: &Path, name: &str, text: &str) -> Result<PathBuf, String> {
     let path = dir.join(name);
     std::fs::write(&path, text).map_err(|e| format!("cannot write {}: {e}", path.display()))?;
@@ -616,14 +628,17 @@ pub fn synthesise(plan: &Plan, a: &Allocation, period_us: u64, work: &Path) -> R
             sources.push(name);
         }
     }
-    // GHDL's own synthesis first: the design elaborates as hardware.
+    // GHDL's own synthesis first: the design elaborates as hardware, and
+    // its netlist goes to Yosys as Verilog (no plugin to keep in step with
+    // the Yosys binary).
     let mut analyse = vec!["-a".to_string(), "--std=08".to_string()];
     analyse.extend(sources.iter().cloned());
     run_tool("ghdl", &analyse, &dir, "ghdl -a")?;
-    let netlist = run_tool("ghdl", &["--synth".into(), "--std=08".into(), top.clone()], &dir, "ghdl --synth")?;
-    write(&dir, "ghdl_synth.vhd", &netlist)?;
-    let script = format!("ghdl --std=08 {} -e {top}; synth_ecp5 -top {top} -json {ent}.json", sources.join(" "));
-    run_tool("yosys", &["-q".into(), "-m".into(), "ghdl".into(), "-l".into(), "yosys.log".into(), "-p".into(), script], &dir, "yosys (ghdl plugin, synth_ecp5)")?;
+    let netlist = run_tool_stdout("ghdl", &["--synth".into(), "--std=08".into(), "--out=verilog".into(), top.clone()], &dir, "ghdl --synth --out=verilog", "ghdl_synth.log")?;
+    let verilog = format!("{ent}_synth.v");
+    write(&dir, &verilog, &netlist)?;
+    let script = format!("read_verilog {verilog}; synth_ecp5 -top {top} -json {ent}.json");
+    run_tool("yosys", &["-q".into(), "-l".into(), "yosys.log".into(), "-p".into(), script], &dir, "yosys (synth_ecp5)")?;
     let device = a.device()?;
     let mhz = a.clock_hz / 1e6;
     let args: Vec<String> = vec![

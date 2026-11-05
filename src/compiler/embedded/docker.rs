@@ -59,11 +59,31 @@ fn image_present(image: &str) -> bool {
 }
 
 /// The command's own arguments as the container sees them: the model at
-/// `/work/<its name>` (its directory is mounted there), the rest as given.
-pub fn container_args(args: &[String], input: &Path) -> Vec<String> {
+/// `/work/<its name>` (its directory is mounted there), a `--keep` directory
+/// under the model's directory at its place under `/work`, the rest as given.
+pub fn container_args(args: &[String], input: &Path) -> Result<Vec<String>, String> {
     let given = input.to_string_lossy().to_string();
     let name = input.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default();
-    args.iter().map(|a| if *a == given { format!("/work/{name}") } else { a.clone() }).collect()
+    let dir = input.parent().filter(|p| !p.as_os_str().is_empty()).map(Path::to_path_buf).unwrap_or_else(|| Path::new(".").to_path_buf());
+    let mut out = Vec::with_capacity(args.len());
+    let mut keep_next = false;
+    for a in args {
+        if keep_next {
+            keep_next = false;
+            let keep = Path::new(a);
+            // The directory may not exist yet: compare the paths as written, canonical where they exist.
+            let canonical = |p: &Path| p.canonicalize().unwrap_or_else(|_| std::env::current_dir().map(|c| c.join(p)).unwrap_or_else(|_| p.to_path_buf()));
+            let (model_dir, kept) = (canonical(&dir), canonical(keep));
+            let inside = kept.strip_prefix(&model_dir).map(|rel| rel.to_path_buf()).map_err(|_| format!("--keep {}: when the command runs in a Docker image, the directory kept must be inside the model's directory {}", keep.display(), dir.display()))?;
+            out.push(format!("/work/{}", inside.display()));
+            continue;
+        }
+        if a == "--keep" {
+            keep_next = true;
+        }
+        out.push(if *a == given { format!("/work/{name}") } else { a.clone() });
+    }
+    Ok(out)
 }
 
 /// Run this command in the stage's image when the host lacks the stage's
@@ -86,7 +106,7 @@ pub fn relay(stage: &str, input: &Path) -> Result<Option<i32>, String> {
     let dir = input.parent().filter(|p| !p.as_os_str().is_empty()).map(Path::to_path_buf).unwrap_or_else(|| Path::new(".").to_path_buf());
     let dir = dir.canonicalize().map_err(|e| format!("{}: {e}", dir.display()))?;
     let args: Vec<String> = std::env::args().skip(1).collect();
-    let args = container_args(&args, input);
+    let args = container_args(&args, input)?;
     eprintln!("{stage}: no {what} on this host: running in the Docker image {image} ({} mounted at /work)", dir.display());
     // The arclang of the image: the one its build loop left in the target volume, else one on its PATH.
     let script = "if [ -x /target/release/arclang ]; then exec /target/release/arclang \"$@\"; elif command -v arclang >/dev/null 2>&1; then exec arclang \"$@\"; else echo 'no arclang in the image: build it with tools/embedded/<image>/run.sh cargo build --release' >&2; exit 2; fi";
@@ -111,7 +131,10 @@ mod tests {
     fn the_container_sees_the_model_under_work_and_the_rest_as_given() {
         let args: Vec<String> = ["pil", "examples/x/model.arc", "--test", "TC-1", "--keep", "out"].iter().map(|s| s.to_string()).collect();
         let mapped = container_args(&args, Path::new("examples/x/model.arc"));
-        assert_eq!(mapped, vec!["pil", "/work/model.arc", "--test", "TC-1", "--keep", "out"]);
+        assert!(mapped.unwrap_err().contains("must be inside the model's directory"), "a kept directory outside the model's is refused");
+        let args: Vec<String> = ["hdl", "examples/x/model.arc", "--synth", "--keep", "examples/x/keep/synth"].iter().map(|s| s.to_string()).collect();
+        let mapped = container_args(&args, Path::new("examples/x/model.arc")).unwrap();
+        assert_eq!(mapped, vec!["hdl", "/work/model.arc", "--synth", "--keep", "/work/keep/synth"]);
     }
 
     #[test]
