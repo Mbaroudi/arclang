@@ -45,7 +45,7 @@ impl ArcLangLanguageServer {
 
     async fn check(&self, uri: Url, text: &str) {
         self.remember(&uri, text);
-        let diagnostics = compute_diagnostics(text);
+        let diagnostics = compute_diagnostics_at(text, uri.to_file_path().ok().as_deref());
         self.client.publish_diagnostics(uri, diagnostics, None).await;
     }
 }
@@ -153,8 +153,17 @@ impl LanguageServer for ArcLangLanguageServer {
 /// Compile the source and turn errors and findings into LSP diagnostics,
 /// each finding carrying its rule as the diagnostic code.
 pub fn compute_diagnostics(source: &str) -> Vec<Diagnostic> {
+    compute_diagnostics_at(source, None)
+}
+
+/// The diagnostics of a document at `path`: its imports resolve next to it.
+pub fn compute_diagnostics_at(source: &str, path: Option<&std::path::Path>) -> Vec<Diagnostic> {
     let mut compiler = Compiler::new(CompilerConfig::default());
-    match compiler.compile_string(source) {
+    let compiled = match path {
+        Some(path) => compiler.compile_string_at(source, path),
+        None => compiler.compile_string(source),
+    };
+    match compiled {
         Ok(result) => {
             let outline = source_edit::outline(source).unwrap_or_default();
             rules::findings(&result)
@@ -805,6 +814,21 @@ pub async fn run_stdio() {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_document_that_imports_resolves_its_imports_next_to_it() {
+        let dir = std::env::temp_dir().join(format!("arclang-lsp-import-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("base.arc"), "model \"M\" {}\nphysical_architecture \"PA\" {\n    node \"Pump\" { id: \"PN-PUMP\" }\n}\n").unwrap();
+        let text = "import \"base.arc\"\nrefine \"PN-PUMP\" { power: 3 kW }\n";
+        let path = dir.join("sim.arc");
+        std::fs::write(&path, text).unwrap();
+        let errors = |d: &Vec<Diagnostic>| d.iter().filter(|d| d.severity == Some(DiagnosticSeverity::ERROR)).map(|d| d.message.clone()).collect::<Vec<_>>();
+        assert!(errors(&compute_diagnostics_at(text, Some(&path))).is_empty(), "{:?}", errors(&compute_diagnostics_at(text, Some(&path))));
+        // Without a file, the imports cannot be resolved: said, not guessed.
+        assert!(errors(&compute_diagnostics(text)).iter().any(|e| e.contains("imports 1 file")));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 
     const MODEL: &str = r#"model M {
     name: "M"
