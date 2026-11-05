@@ -102,12 +102,10 @@ fn attach_twins(result: &CompilationResult, model_path: &Path) -> std::collectio
     }
     let dir = cache::dir(model_path);
     for twin in &result.ast.twins {
-        let status = match cache::read_kind(&dir, &twin.id, "twin") {
-            None => {
-                let reason = format!("never run: run `arclang twin {} --twin {}`", model_path.display(), twin.id);
-                Status::new("inconclusive", reason.clone(), "").with_rung(Rung::missing("twin", reason))
-            }
-            Some(outcome) => match super::twin::cache_key(result, model_path, twin) {
+        // A twin never run has no status: the ladder reads its absence as the missing rung.
+        let Some(outcome) = cache::read_kind(&dir, &twin.id, "twin") else { continue };
+        let status = {
+            match super::twin::cache_key(result, model_path, twin) {
                 Ok(key) if key == outcome.key => {
                     let status = outcome.status();
                     let rung = Rung::fresh("twin", outcome.target.clone(), &status);
@@ -117,7 +115,7 @@ fn attach_twins(result: &CompilationResult, model_path: &Path) -> std::collectio
                     let reason = format!("stale: the model, its sources, the measurements or the twin changed since it ran; run `arclang twin {} --twin {}`", model_path.display(), twin.id);
                     Status::new("inconclusive", reason.clone(), "").with_rung(Rung::stale("twin", outcome.target.clone(), reason))
                 }
-            },
+            }
         };
         statuses.insert(twin.id.clone(), status);
     }
@@ -194,11 +192,13 @@ fn attach_executed(result: &mut CompilationResult, model_path: &Path) -> std::co
 /// status, kept apart.
 fn with_stage(result: &mut CompilationResult, model_path: &Path, dir: &Path, test: &crate::compiler::ast::TestCase, status: Status, kind: &str) -> Status {
     let Some(outcome) = cache::read_kind(dir, &test.id, kind) else { return status };
-    let (fresh, stage, label, command, changed) = match kind {
+    // `label` names the stage in a verdict's warning; `stale` is the sentence of a stale one.
+    let (fresh, stage, label, stale, command, changed) = match kind {
         "pil" => (
             crate::compiler::embedded::target::find(&outcome.target).and_then(|package| crate::compiler::embedded::pil::cache_key(&result.ast, test, &package)).is_ok_and(|key| key == outcome.key),
             "pil",
             format!("PIL on {}", outcome.target),
+            format!("its PIL verdict on {} is stale", outcome.target),
             "pil",
             "the generated C, the case or the target package changed",
         ),
@@ -206,6 +206,7 @@ fn with_stage(result: &mut CompilationResult, model_path: &Path, dir: &Path, tes
             crate::compiler::embedded::hdl::cache_key(&result.ast, test, &outcome.tool).is_ok_and(|key| key == outcome.key),
             "hdl",
             format!("HDL {}", outcome.target),
+            "its HDL verdict is stale".to_string(),
             "hdl",
             "the generated VHDL, the fixed-point C or the case changed",
         ),
@@ -213,13 +214,14 @@ fn with_stage(result: &mut CompilationResult, model_path: &Path, dir: &Path, tes
             crate::compiler::embedded::system::cache_key(&result.ast, test, &outcome.tool).is_ok_and(|key| key == outcome.key),
             if outcome.tool.contains("on the board") { "board" } else { "soc" },
             format!("{} {}", if outcome.tool.contains("on the board") { "board" } else { "SoC" }, outcome.target),
+            format!("its {} verdict is stale", if outcome.tool.contains("on the board") { "board" } else { "SoC" }),
             "soc",
             "the generated VHDL, the fixed-point C, the application or the case changed",
         ),
     };
     let target = if kind == "pil" { outcome.target.clone() } else { format!("{} ({})", outcome.target, outcome.tool) };
     if !fresh {
-        let reason = format!("its {label} verdict is stale ({changed}); run `arclang {command} {} --test {}`", model_path.display(), test.id);
+        let reason = format!("{stale} ({changed}); run `arclang {command} {} --test {}`", model_path.display(), test.id);
         result.warnings.push(format!("verification: test_case '{}': {reason}", test.name));
         return status.with_rung(Rung::stale(stage, target, reason));
     }
