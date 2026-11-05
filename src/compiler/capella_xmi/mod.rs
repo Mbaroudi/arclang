@@ -309,6 +309,10 @@ impl Writer {
     fn is_typed(&self, kind: &str, key: &str) -> bool {
         self.metamodel.kind(kind).is_some_and(|spec| spec.attributes.iter().any(|a| a.key == key))
     }
+    /// Whether ArcLang types the attribute as free text, which any value fits.
+    fn is_text(&self, kind: &str, key: &str) -> bool {
+        self.metamodel.kind(kind).is_some_and(|spec| spec.attributes.iter().any(|a| a.key == key && matches!(a.ty, crate::compiler::metamodel::AttrType::Text)))
+    }
 }
 
 /// The architecture levels of a Capella project, by kind, as `capella_levels` names them.

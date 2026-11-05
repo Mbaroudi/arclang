@@ -36,7 +36,18 @@ fn capella_property_values_come_back_as_quantities() {
     let run = Command::new(env!("CARGO_BIN_EXE_arclang")).arg("import").arg(root().join(DEMO).join("capella/drone.capella")).args(["-f", "capella", "-o"]).arg(&out).output().unwrap();
     assert!(run.status.success(), "{}", String::from_utf8_lossy(&run.stderr));
     let text = std::fs::read_to_string(&out).unwrap();
-    for wanted in ["energy: 666 Wh", "mass: 2.6 kg", "ambient: 20 °C", "efficiency: 85 %"] {
+    for wanted in [
+        "energy: 666 Wh",
+        "mass: 2.6 kg",
+        "ambient: 20 °C",
+        "efficiency: 85 %",
+        // A requirement keeps the id the cases verify, and what satisfies it.
+        "req \"REQ-ENDURANCE\" \"Hover endurance\"",
+        "trace \"PN-BATT\" satisfies \"REQ-ENDURANCE\"",
+        // Links and exchanges keep their properties and their carrying link.
+        "protocol: \"I2C\"",
+        "via: \"Sensor bus\" frequency: 50 Hz message_type: \"Barometer\"",
+    ] {
         assert!(text.contains(wanted), "{wanted}");
     }
     assert!(!text.contains("pv_mass"), "a typed attribute keeps its name when its value is a quantity");
@@ -122,6 +133,21 @@ fn the_capella_export_is_what_capella_accepts_between_component_ports() {
     assert!(capella.contains("fa:ComponentExchange\" id=\"PL-IN\""), "a link between component ports is a component exchange");
     assert!(!capella.contains("cs:PhysicalLink\" id=\"PL-IN\""));
     assert!(capella.contains("name=\"System\""), "the system analysis has its root system");
+}
+
+#[test]
+fn a_copy_of_the_model_compiles_as_the_file_it_stands_for() {
+    // An editor writes its buffer to a temporary file and names the real one
+    // with --as: the imports resolve next to the real file.
+    let dir = work("as");
+    std::fs::copy(root().join(DEMO).join("simulation.arc"), dir.join("simulation.arc")).unwrap();
+    let alone = Command::new(env!("CARGO_BIN_EXE_arclang")).arg("workbench").arg(dir.join("simulation.arc")).output().unwrap();
+    assert!(String::from_utf8_lossy(&alone.stdout).contains("imported file not found: drone.arc"), "a copy alone cannot resolve its imports");
+    let run = Command::new(env!("CARGO_BIN_EXE_arclang")).arg("workbench").arg(dir.join("simulation.arc")).arg("--as").arg(root().join(DEMO).join("simulation.arc")).output().unwrap();
+    let text = String::from_utf8_lossy(&run.stdout);
+    let snapshot: serde_json::Value = serde_json::from_str(&text).unwrap();
+    assert_eq!(snapshot["success"], true, "{text}");
+    assert!(snapshot["diagrams"]["graphs"].as_array().unwrap().len() >= 7, "the diagrams of the whole model");
 }
 
 #[test]

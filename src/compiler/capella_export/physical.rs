@@ -231,7 +231,7 @@ pub(super) fn write(context: &mut Context, pa: &PhysicalArchitecture, above_root
             link_nodes.insert(lid.clone(), (a, b));
         }
         link_ports.extend(new_from.into_iter().chain(new_to));
-        links.push(apply(El::new("ownedPhysicalLinks", "cs:PhysicalLink", &lid).attr("name", &link.name).attr("linkEnds", &format!("#{from} #{to}")), &link.attributes, &["from", "to", "protocol", "bandwidth", "exchange_items", "category", "categories"]));
+        links.push(apply(El::new("ownedPhysicalLinks", "cs:PhysicalLink", &lid).attr("name", &link.name).attr("linkEnds", &format!("#{from} #{to}")), &link.attributes, &["from", "to", "exchange_items", "category", "categories"]));
     }
 
     let mut pkg = El::new("ownedPhysicalComponentPkg", "pa:PhysicalComponentPkg", &derived(&format!("{id}:components"))).attr("name", "Structure");
@@ -280,6 +280,21 @@ pub(super) fn write(context: &mut Context, pa: &PhysicalArchitecture, above_root
             exchange_ports.extend(new_source.into_iter().chain(new_target));
             let el = El::new("ownedComponentExchanges", "fa:ComponentExchange", &exchange.id).attr("name", &label).attr("target", &format!("#{target}")).attr("source", &format!("#{source}")).attr("kind", "FLOW");
             exchanges.push(relations::exchange(context, el, &exchange.attributes));
+            // The link carrying the exchange allocates it.
+            if let Some(via) = exchange.attributes.get("via").and_then(|v| v.as_string()) {
+                let carrier = pa.links.iter().enumerate().find(|(_, l)| l.name == via || l.attributes.get("id").and_then(|i| i.as_string()) == Some(via)).map(|(i, l)| link_id(l, i));
+                match carrier.and_then(|lid| links.iter_mut().find(|l| l.id() == lid)) {
+                    Some(link) => {
+                        let lid = link.id().to_string();
+                        link.push(
+                            El::new("ownedComponentExchangeAllocations", "fa:ComponentExchangeAllocation", &derived(&format!("{lid}->{}:allocates", exchange.id)))
+                                .attr("targetElement", &format!("#{}", exchange.id))
+                                .attr("sourceElement", &format!("#{lid}")),
+                        );
+                    }
+                    None => context.note(format!("physical exchange '{label}': its carrying link '{via}' is not exported")),
+                }
+            }
         }
         let with_ports = |mut el: El, owner: &str| {
             for (_, port) in exchange_ports.iter().filter(|(o, _)| o == owner) {

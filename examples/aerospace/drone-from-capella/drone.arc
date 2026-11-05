@@ -5,25 +5,25 @@ model "Drone endurance" {
 
 
 requirements system {
-    req "Hover endurance" "Hover endurance" {
-        id: "Hover endurance"
+    req "REQ-ENDURANCE" "Hover endurance" {
+        id: "REQ-ENDURANCE"
         capella_id: "7f073dd4-60a2-5d51-ba6f-bfc2c514691f"
         description: "With a 2 kg payload at 20 °C, the drone hovers at 50 m for 25 minutes and lands with 20 % of its charge"
         attr_applies_to: "CFG-LONG"
     }
-    req "Survey endurance" "Survey endurance" {
-        id: "Survey endurance"
+    req "REQ-SURVEY" "Survey endurance" {
+        id: "REQ-SURVEY"
         capella_id: "c3b04451-b2e1-5053-9c22-4df5e8f13a22"
         description: "With a 1 kg camera at 20 °C, the survey drone hovers at 50 m for 20 minutes and lands with 20 % of its charge"
         attr_applies_to: "CFG-SURVEY"
     }
-    req "Altitude hold" "Altitude hold" {
-        id: "Altitude hold"
+    req "REQ-ALT-HOLD" "Altitude hold" {
+        id: "REQ-ALT-HOLD"
         capella_id: "1083ad76-6403-54b1-90f4-429e0081f077"
         description: "The climb to 50 m overshoots by less than 5 m, and the drone is still within 5 m of 50 m at the end of the mission"
     }
-    req "Operating envelope" "Operating envelope" {
-        id: "Operating envelope"
+    req "REQ-ENVELOPE" "Operating envelope" {
+        id: "REQ-ENVELOPE"
         capella_id: "d30499ac-3e16-509b-bdd7-e3641ec0bcc1"
         description: "From 0 °C to 35 °C and with payloads up to 2 kg, the extended pack keeps the endurance and the reserve of REQ-ENDURANCE"
         attr_applies_to: "CFG-LONG"
@@ -149,16 +149,21 @@ physical_architecture "Drone hardware" {
             port out "thrust_cmd" { id: "7894812a-df73-5cc0-8acf-d7e1ca625543" }
         }
     }
-    physical_link "Power harness plus" { id: "PL-PWR-P" from: "PN-BATT.p" to: "PN-PROP.p" }
-    physical_link "Power harness minus" { id: "PL-PWR-N" from: "PN-BATT.n" to: "PN-PROP.n" }
-    physical_link "Motor arms" { id: "PL-ARMS" from: "PN-PROP.lift" to: "PN-FRAME.lift" }
-    physical_link "Battery tray" { id: "PL-TRAY" from: "PN-FRAME.mount" to: "PN-BATT.mount" }
-    physical_link "Sensor bus" { id: "PL-SENS" from: "PN-FRAME.PP a01f7d02" to: "PN-FC.PP e61b6041" }
-    physical_link "ESC bus" { id: "PL-ESC" from: "PN-FC.PP f46d227c" to: "PN-PROP.PP d91f9819" }
-    physical_exchange "Altitude" { id: "PX-ALT" from: "BC-BARO.altitude" to: "BC-ALT.altitude" }
-    physical_exchange "Thrust command" { id: "PX-THRUST" from: "BC-ALT.thrust_cmd" to: "BC-ESC.thrust_cmd" }
+    physical_link "Power harness plus" { id: "PL-PWR-P" from: "PN-BATT.p" to: "PN-PROP.p" protocol: "48 V DC" }
+    physical_link "Power harness minus" { id: "PL-PWR-N" from: "PN-BATT.n" to: "PN-PROP.n" protocol: "48 V DC" }
+    physical_link "Motor arms" { id: "PL-ARMS" from: "PN-PROP.lift" to: "PN-FRAME.lift" protocol: "Structure" }
+    physical_link "Battery tray" { id: "PL-TRAY" from: "PN-FRAME.mount" to: "PN-BATT.mount" protocol: "Structure" }
+    physical_link "Sensor bus" { id: "PL-SENS" from: "PN-FRAME.PP a01f7d02" to: "PN-FC.PP e61b6041" protocol: "I2C" }
+    physical_link "ESC bus" { id: "PL-ESC" from: "PN-FC.PP f46d227c" to: "PN-PROP.PP d91f9819" protocol: "DShot" }
+    physical_exchange "Altitude" { id: "PX-ALT" from: "BC-BARO.altitude" to: "BC-ALT.altitude" via: "Sensor bus" frequency: 50 Hz message_type: "Barometer" }
+    physical_exchange "Thrust command" { id: "PX-THRUST" from: "BC-ALT.thrust_cmd" to: "BC-ESC.thrust_cmd" via: "ESC bus" frequency: 400 Hz message_type: "Throttle" }
 }
 
+trace "PN-BATT" satisfies "REQ-ENDURANCE" { relation: "satisfies" }
+trace "PN-BATT" satisfies "REQ-SURVEY" { relation: "satisfies" }
+trace "PN-BATT" satisfies "REQ-ENVELOPE" { relation: "satisfies" }
+trace "PN-PROP" satisfies "REQ-ENDURANCE" { relation: "satisfies" }
+trace "BC-ALT" satisfies "REQ-ALT-HOLD" { relation: "satisfies" }
 
 diagram "[LAB] Drone" {
     view: lab
