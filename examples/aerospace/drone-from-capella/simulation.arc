@@ -98,3 +98,13 @@ test_case "Operating envelope, extended pack" {
     simulate: { configuration: "CFG-LONG" mission: "missions/envelope.mission" stop_time: 25 min sources: ["physics/DronePhysics.mo"] }
     expects: ["final(\"PN-PROP\".elapsed) >= 25 min", "min(\"PN-BATT\".soc) >= 0.2"]
 }
+
+test_case "Endurance under uncertainty, extended pack" {
+    id: "TC-UNCERTAIN"
+    verifies: ["REQ-ENDURANCE"]
+    method: "analysis"
+    simulate: { configuration: "CFG-LONG" stop_time: 25 min sources: ["physics/DronePhysics.mo"]
+        uncertain: ["\"PN-BATT\".energy ~ normal(666 Wh, 25 Wh)", "\"PN-FRAME\".ambient ~ uniform(0 °C, 35 °C)", "\"PN-FRAME\".payload ~ uniform(0 kg, 2 kg)"]
+        samples: 100 seed: 7 probability: 0.9 confidence: 0.9 }
+    expects: ["REQ-ENDURANCE: min(\"PN-BATT\".soc) >= 0.2"]
+}
