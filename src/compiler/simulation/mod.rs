@@ -123,11 +123,62 @@ pub struct Status {
     /// requirement is judged on the expectations naming it and those naming none.
     #[serde(skip_serializing_if = "HashMap::is_empty")]
     pub by_requirement: HashMap<String, Status>,
+    /// Each stage of the case's realization that has a verdict of its own
+    /// (the simulation, the C, the processor, the logic, the SoC, the
+    /// board, the twin), kept apart from the verdict above, which folds them.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub rungs: Vec<Rung>,
 }
 
 impl Status {
     pub fn new(verdict: impl Into<String>, reason: impl Into<String>, evidence: impl Into<String>) -> Status {
-        Status { verdict: verdict.into(), reason: reason.into(), evidence: evidence.into(), by_requirement: HashMap::new() }
+        Status { verdict: verdict.into(), reason: reason.into(), evidence: evidence.into(), by_requirement: HashMap::new(), rungs: Vec::new() }
+    }
+
+    /// The status with one more stage recorded.
+    pub fn with_rung(mut self, rung: Rung) -> Status {
+        self.rungs.push(rung);
+        self
+    }
+}
+
+/// One stage of the realization of a case, as a verdict of its own: what
+/// the simulation, the C (SIL), the processor (PIL), the logic (HDL), the
+/// SoC, the board or the twin said of the case, and whether that still
+/// holds for the model as it is.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Rung {
+    /// `simulation`, `sil`, `pil`, `hdl`, `soc`, `board` or `twin`.
+    pub stage: String,
+    /// `pass`, `fail`, `error` or `inconclusive`.
+    pub verdict: String,
+    /// `fresh` (its key still matches the model), `stale` (the model, its
+    /// sources, the case or the target changed since) or `missing` (never run).
+    pub state: String,
+    /// What ran it: the tool, the target package, the board.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub target: String,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub reason: String,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub evidence: String,
+}
+
+impl Rung {
+    pub fn new(stage: &str, verdict: impl Into<String>, state: &str, target: impl Into<String>, reason: impl Into<String>, evidence: impl Into<String>) -> Rung {
+        Rung { stage: stage.to_string(), verdict: verdict.into(), state: state.to_string(), target: target.into(), reason: reason.into(), evidence: evidence.into() }
+    }
+    /// A stage never run.
+    pub fn missing(stage: &str, reason: impl Into<String>) -> Rung {
+        Rung::new(stage, "inconclusive", "missing", "", reason, "")
+    }
+    /// A stage whose verdict no longer holds for the model.
+    pub fn stale(stage: &str, target: impl Into<String>, reason: impl Into<String>) -> Rung {
+        Rung::new(stage, "inconclusive", "stale", target, reason, "")
+    }
+    /// A stage whose verdict holds.
+    pub fn fresh(stage: &str, target: impl Into<String>, status: &Status) -> Rung {
+        Rung::new(stage, status.verdict.clone(), "fresh", target, status.reason.clone(), status.evidence.clone())
     }
 }
 

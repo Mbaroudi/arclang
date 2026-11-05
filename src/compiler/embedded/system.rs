@@ -369,7 +369,12 @@ fn words(plan: &Plan, machine: usize, fx: &super::fixed::MachineFixed, table: &T
 }
 
 fn run_case(test: &TestCase, plan: &Plan, bindings: &[super::binding::Binding], builds: &mut Builds, options: &Options, tools: &str) -> Outcome {
-    let mut outcome = hdl::new_outcome(test, tools);
+    // A run on the board says so: the ladder tells the board from the SoC in simulation by it.
+    let tools = match &options.port {
+        Some(port) => format!("{tools}; on the board ({port})"),
+        None => tools.to_string(),
+    };
+    let mut outcome = hdl::new_outcome(test, &tools);
     let texts: Vec<String> = outcome.expectations.iter().map(|j| j.expect.clone()).collect();
     if let Err(e) = run_case_inner(test, plan, bindings, builds, options, &texts, &mut outcome) {
         outcome.verdict = "error".to_string();
