@@ -27,7 +27,8 @@ pub struct TableArgs {
     pub name: Option<String>,
 
     /// Compute a table the model does not declare: requirements_coverage,
-    /// traceability_matrix, allocation_matrix, interface_n2, icd, elements or realization
+    /// traceability_matrix, allocation_matrix, interface_n2, icd, elements, realization,
+    /// partition or schedule
     #[clap(long)]
     pub kind: Option<String>,
 

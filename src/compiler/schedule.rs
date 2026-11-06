@@ -50,6 +50,12 @@ pub struct Analysis {
     pub notes: Vec<String>,
 }
 
+/// The utilisation of the tasks whose step time is known; 0 when none is
+/// (an empty f64 sum is -0.0, which would print as "-0.0 %").
+fn utilisation_of(tasks: &[(u64, u32, Option<f64>)]) -> f64 {
+    tasks.iter().filter_map(|(period, _, c)| c.map(|c| c / *period as f64)).sum::<f64>() + 0.0
+}
+
 /// The rate-monotonic utilisation bound for `n` tasks.
 pub fn rm_bound(n: usize) -> f64 {
     if n == 0 {
@@ -117,7 +123,7 @@ pub fn analyse(plan: &Plan, bindings: &[Binding], target: &str, measured: &[(Ent
         tasks[i].response_us = response(&shape, i);
         tasks[i].meets = tasks[i].response_us.map(|r| r <= tasks[i].period_us as f64);
     }
-    let utilisation: f64 = tasks.iter().filter_map(|t| t.wcet_us.map(|c| c / t.period_us as f64)).sum();
+    let utilisation = utilisation_of(&shape);
     let bound = rm_bound(tasks.len());
     let schedulable = if tasks.iter().any(|t| t.meets.is_none()) { None } else { Some(tasks.iter().all(|t| t.meets == Some(true))) };
     if tasks.is_empty() {
@@ -177,6 +183,14 @@ mod tests {
         assert_eq!(response(&[(10, 1, None)], 0), None);
         assert_eq!(response(&[(10, 1, Some(1.0)), (20, 2, None)], 0), Some(1.0), "a task below does not interfere");
         assert_eq!(response(&[(10, 2, Some(1.0)), (20, 1, None)], 0), None, "a task above with no time leaves it unknown");
+    }
+
+    #[test]
+    fn the_utilisation_counts_the_known_tasks_and_is_never_negative_zero() {
+        assert_eq!(utilisation_of(&[(10, 1, Some(1.0)), (20, 2, Some(5.0))]), 0.35);
+        let none = utilisation_of(&[(10, 1, None), (20, 2, None)]);
+        assert!(none == 0.0 && none.is_sign_positive(), "no task measured: 0, not -0");
+        assert_eq!(format!("{:.1}", none * 100.0), "0.0");
     }
 
     #[test]

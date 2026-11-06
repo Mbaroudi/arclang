@@ -21,7 +21,7 @@ from ..compiler.wrapper import (
     parse_diff,
     parse_findings,
 )
-from .common import MODEL_PATH, report, resolve_path, schema
+from .common import MODEL_PATH, InvalidArguments, report, resolve_path, schema
 
 # Formats whose result is short enough to hand back to the caller in full.
 INLINE_EXPORT_LIMIT = 20_000
@@ -171,6 +171,49 @@ TOOLS: List[Tool] = [
                     "type": "string",
                     "enum": ["simulation", "sil", "pil", "hdl", "soc", "board", "twin"],
                     "description": "Plan up to this stage only",
+                },
+            },
+            "model_path",
+        ),
+    ),
+    Tool(
+        name="arclang_partition",
+        description=(
+            "HW/SW partitioning of a model's machines (`arclang partition --dry-run`): the two "
+            "runs that measure every machine as C on the processor (`arclang pil`: step time, "
+            "footprint) and as VHDL on the logic (`arclang hdl --synth --as-if`: LUT4, Fmax), "
+            "and what was measured already (table kind `partition`: what fits its period, what "
+            "the model allocates today). Nothing runs: the engineer runs `arclang partition`."
+        ),
+        inputSchema=schema(
+            {
+                "model_path": MODEL_PATH,
+                "target": {"type": "string", "description": "Target package of the C, e.g. zephyr/litex_vexriscv"},
+                "device": {"type": "string", "description": "ECP5 part of the logic, e.g. LFE5U-25F-6BG381C"},
+                "clock_mhz": {"type": "number", "description": "Clock of the logic, MHz"},
+                "machine": {"type": "string", "description": "Only this machine (name or id)"},
+            },
+            "model_path",
+        ),
+    ),
+    Tool(
+        name="arclang_schedule",
+        description=(
+            "Tasks and scheduling (`arclang schedule --json`): the io_bindings of a target as "
+            "tasks (period, priority), the worst response time of each by fixed-priority "
+            "response-time analysis from the step times `arclang partition` measured, or from "
+            "`wcet` given here, and whether every task meets its period. A task whose step time "
+            "is unknown makes the call FAIL and says how to measure it. Nothing runs on a "
+            "target: the engineer runs `arclang schedule --prove` for the emulator's proof."
+        ),
+        inputSchema=schema(
+            {
+                "model_path": MODEL_PATH,
+                "target": {"type": "string", "description": "Target package (else the bindings')"},
+                "wcet": {
+                    "type": "object",
+                    "description": "Step times given instead of measured: machine name or id -> microseconds",
+                    "additionalProperties": {"type": "number"},
                 },
             },
             "model_path",
@@ -374,6 +417,8 @@ class CoreTools:
             "arclang_info": self._info,
             "arclang_gate": self._gate,
             "arclang_realize": self._realize,
+            "arclang_partition": self._partition,
+            "arclang_schedule": self._schedule,
             "arclang_diff": self._diff,
             "arclang_impact": self._impact,
             "arclang_export": self._export,
@@ -486,6 +531,36 @@ class CoreTools:
             arguments += ["--up-to", str(args["up_to"])]
         arguments += ["--", str(model)]
         return report(f"Realization ladder of {model.name}", await self.compiler.run(arguments))
+
+    async def _partition(self, args: Dict[str, Any]) -> str:
+        model = self._model(args)
+        arguments = ["partition", "--dry-run"]
+        for key, flag in (("target", "--target"), ("device", "--device"), ("machine", "--machine")):
+            if args.get(key):
+                arguments += [flag, str(args[key])]
+        if args.get("clock_mhz") is not None:
+            clock = args["clock_mhz"]
+            if clock <= 0:
+                raise InvalidArguments("'clock_mhz' must be positive")
+            arguments += ["--clock", f"{clock:g}"]
+        title = f"HW/SW partition of {model.name}"
+        plan = await self.compiler.run(arguments + ["--", str(model)])
+        if not plan.ok:
+            return report(title, plan)
+        measured = await self.compiler.run(["table", "--kind", "partition", "--format", "md", "--", str(model)])
+        return f"{report(title, plan)}\n\nMeasured so far:\n\n{measured.output.rstrip()}"
+
+    async def _schedule(self, args: Dict[str, Any]) -> str:
+        model = self._model(args)
+        arguments = ["schedule", "--json"]
+        if args.get("target"):
+            arguments += ["--target", str(args["target"])]
+        for machine, micros in (args.get("wcet") or {}).items():
+            if micros <= 0:
+                raise InvalidArguments(f"the step time of '{machine}' must be positive")
+            arguments += ["--wcet", f"{machine}={micros:g}"]
+        arguments += ["--", str(model)]
+        return report(f"Schedule of {model.name}", await self.compiler.run(arguments))
 
     async def _impact(self, args: Dict[str, Any]) -> str:
         model = self._model(args)
