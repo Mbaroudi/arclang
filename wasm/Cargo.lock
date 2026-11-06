@@ -37,7 +37,7 @@ dependencies = [
 
 [[package]]
 name = "arclang"
-version = "4.10.0"
+version = "4.11.0"
 dependencies = [
  "anyhow",
  "chrono",
@@ -56,7 +56,7 @@ dependencies = [
 
 [[package]]
 name = "arclang-wasm"
-version = "4.10.0"
+version = "4.11.0"
 dependencies = [
  "arclang",
  "serde",
