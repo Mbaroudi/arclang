@@ -38,9 +38,6 @@ system_analysis "Hoist needs" {
         port out "force" { id: "SF-HOLD.force" }
     }
     functional_exchange "height" { id: "FE-HEIGHT" from: "SF-HEIGHT.height" to: "SF-HOLD.height" }
-    system_component "System" {
-        id: "9f40e22a-0c08-50f4-8f58-0df6f771fa9d"
-    }
 }
 
 logical_architecture "Hoist" {

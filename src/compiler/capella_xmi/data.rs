@@ -122,10 +122,13 @@ pub(super) fn applied_values(writer: &mut Writer, depth: usize, node: &Node, kin
 }
 
 /// The property values of an element written on one line (a link, an
-/// exchange), as ` key: value` pairs.
+/// exchange), as ` key: value` pairs, in key order: the order the export
+/// writes them in, so a round trip keeps the line as it is.
 pub(super) fn inline_values(writer: &mut Writer, node: &Node, kind: &str) -> String {
     let lines = values_of(writer, node);
-    keyed_values(writer, lines, kind).into_iter().map(|(key, literal)| format!(" {key}: {literal}")).collect()
+    let mut pairs = keyed_values(writer, lines, kind);
+    pairs.sort_by(|a, b| a.0.cmp(&b.0));
+    pairs.into_iter().map(|(key, literal)| format!(" {key}: {literal}")).collect()
 }
 
 /// A property value's text: a quantity literal when it reads as one (a

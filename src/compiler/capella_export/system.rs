@@ -176,7 +176,7 @@ pub(super) fn write(context: &mut Context, sa: &SystemAnalysis, above_root: Opti
     // Capella's system analysis always has its system, the root component
     // (an empty project has it): one when the model declares none.
     if sa.components.is_empty() {
-        let cid = derived(&format!("{id}:system"));
+        let cid = super::added_root_system(&id);
         let (el, part) = component(context, &cid, "System", false, &[], &Default::default());
         components.push(el);
         parts.push(part);

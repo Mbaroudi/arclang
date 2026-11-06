@@ -56,6 +56,13 @@ fn model_name(model: &Model) -> String {
 }
 
 /// Export `model`; `file_stem` names the files (`<stem>.capella`, `<stem>.afm`).
+/// The id of the root system the export adds to a system analysis that
+/// declares no component (Capella requires one): the import leaves it out,
+/// so a round trip adds nothing.
+pub fn added_root_system(system_analysis_id: &str) -> String {
+    context::derived(&format!("{system_analysis_id}:system"))
+}
+
 pub fn export(model: &Model, file_stem: &str) -> Exported {
     let mut context = Context::default();
     let name = model_name(model);
