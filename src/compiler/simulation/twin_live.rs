@@ -217,7 +217,8 @@ fn mqtt(live: &Live, topics: &[String], client_id: Option<&str>, feed: Sender<Fe
     let mut options = MqttOptions::new(client_id, host, port);
     options.set_keep_alive(Duration::from_secs(30));
     if tls {
-        options.set_transport(Transport::tls_with_config(rumqttc::TlsConfiguration::Native));
+        let config = super::twin_tls::client_config("mqtts://")?;
+        options.set_transport(Transport::tls_with_config(rumqttc::TlsConfiguration::Rustls(config)));
     }
     if let (Ok(user), Ok(password)) = (std::env::var("ARCLANG_MQTT_USERNAME"), std::env::var("ARCLANG_MQTT_PASSWORD")) {
         options.set_credentials(user, password);

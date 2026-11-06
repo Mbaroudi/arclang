@@ -39,7 +39,7 @@ command of the extension, the chat tools and the terminal run inside the
 container, with all the tools.
 
 **2. Your own VS Code, attached to the container.** Copy
-[`.devcontainer/devcontainer.json`](../.devcontainer/devcontainer.json)
+[`.devcontainer/devcontainer.json`](https://github.com/Mbaroudi/arclang/blob/main/.devcontainer/devcontainer.json)
 into the `.devcontainer/` directory of your project. Then run **Dev
 Containers: Reopen in Container**. You keep your VS Code, your keybindings
 and your settings, and the project and the tools are in the container. The
