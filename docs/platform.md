@@ -73,6 +73,13 @@ device is a `node` of the physical architecture, a firmware is what an
 with a plant. Adding a domain means adding a backend and a stage, not a
 language.
 
+## Where it runs
+
+Everything above runs the same on a laptop, on a server or in Codespaces:
+ArcLang Studio is one image with VS Code, the extension, the compiler and
+every tool ([studio.md](studio.md)). The compiler on a computer without the
+tools runs the embedded stages in that image.
+
 ## What is next, in order
 
 1. ~~**HIL in simulation**~~ — done: the plant in the loop of `sil` and

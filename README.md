@@ -436,6 +436,17 @@ round-trip goes through `tools/capella_bridge/` (capellambse).
 
 ## Quick start
 
+Everything at once, VS Code included, in one image ([docs/studio.md](docs/studio.md)):
+
+```bash
+docker run --rm -p 127.0.0.1:3000:3000 -v "$PWD":/home/arclang/workspace ghcr.io/mbaroudi/arclang-studio:4.11.0
+```
+
+It holds the compiler, OpenModelica, Zephyr and Renode, GHDL, Yosys, LiteX
+and Verilator. It runs the same on a laptop, on a server or in Codespaces,
+and [`.devcontainer`](.devcontainer/devcontainer.json) attaches your own VS
+Code to it. Or build the compiler alone:
+
 ```bash
 # Build
 cargo build --release

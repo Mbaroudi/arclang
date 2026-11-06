@@ -29,6 +29,8 @@
 !tests/fixtures/themes/*.json
 # The built-in embedded target packages (include_str!).
 !src/compiler/embedded/targets/**/target.json
+# ArcLang Studio as a dev container.
+!.devcontainer/devcontainer.json
 *.xml
 !examples/**/*.xml
 

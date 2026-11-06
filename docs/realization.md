@@ -118,26 +118,34 @@ cases through `arclang_edit` and run the climb.
 
 ## The stages through Docker
 
-`arclang pil`, `hdl` and `soc` need toolchains a host rarely has (Zephyr
-and Renode; GHDL and Yosys; LiteX and Verilator). The images under
-`tools/embedded` hold them: `arclang-embedded-soc:1`, `arclang-embedded-fpga:1`,
-`arclang-embedded-system:1`. When this host lacks a stage's tools and Docker
-has the stage's image, the command runs itself in the image, the model's
-directory mounted at `/work` (a model that imports files outside its
+`arclang pil`, `hdl` and `soc` need toolchains a host rarely has: Zephyr
+and Renode, GHDL and Yosys, LiteX and Verilator. ArcLang Studio holds them
+all, with the compiler of the same version:
+`ghcr.io/mbaroudi/arclang-studio:<version>` ([studio.md](studio.md)).
+When this host lacks a stage's tools, the command runs itself in that
+image, pulled the first time. The model's directory is mounted at `/work` (a model that imports files outside its
 directory does not reach them there), and its verdict lands in the model's
 cache as if it had run here: the ladder, `check` and `realize` read it the
 same way. The command says so first:
 
 ```text
-pil: no west, renode on this host: running in the Docker image arclang-embedded-soc:1 (/work/models/window mounted at /work)
+pil: no west, renode on this host: running in the Docker image ghcr.io/mbaroudi/arclang-studio:4.11.0 (/work/models/window mounted at /work)
 ```
 
-`ARCLANG_EMBEDDED_DOCKER` names another image (for every stage), or `off`
-keeps the commands on the host. A board on a serial port (`soc --port`)
-always stays on the host. A `--keep` directory must be inside the model's
-directory (it is kept at the same place, through the mount). The arclang the image runs is the one its build
-loop left in the `arclang-embedded-target` volume (`tools/embedded/<image>/run.sh
-cargo build --release`), else one on the image's PATH.
+The container runs as this host's user, so what it writes beside the model
+is yours. `ARCLANG_EMBEDDED_DOCKER` changes the image:
+
+- an image name: that image, for every stage;
+- `off`: the commands stay on the host;
+- `dev`: the per-stage images built from the sources
+  (`arclang-embedded-soc:1`, `-fpga:1`, `-system:1`), with the compiler
+  their build loop left in the `arclang-embedded-target` volume
+  (`tools/embedded/<image>/run.sh cargo build --release`). This is for work
+  on the compiler itself.
+
+A board on a serial port (`soc --port`) always stays on the host. A
+`--keep` directory must be inside the model's directory: it is kept at the
+same place, through the mount.
 
 ## A case with a plant
 
