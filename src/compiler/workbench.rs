@@ -553,6 +553,15 @@ fn edit_links(source: &str, request: &EditRequest) -> Option<Result<String, Stri
 }
 
 /// Apply one edit written as JSON (`{"op": "set", ...}`); see [`edit`].
+/// A keyword whose declaration lives at the top level of a model only (a
+/// layer, the model header): an `add` of one needs no container.
+fn is_top_level_keyword(keyword: &str) -> bool {
+    matches!(
+        keyword,
+        "model" | "operational_analysis" | "system_analysis" | "logical_architecture" | "physical_architecture" | "epbs" | "architecture" | "requirements" | "safety_analysis" | "security_analysis" | "security_scales" | "scenarios"
+    )
+}
+
 pub fn edit_json(source: &str, request: &str) -> Result<String, String> {
     let request: EditRequest = serde_json::from_str(request).map_err(|e| format!("invalid edit request: {e}"))?;
     edit(source, &request)
@@ -578,16 +587,16 @@ pub fn edit(source: &str, request: &EditRequest) -> Result<String, String> {
         EditRequest::Unset { element, key } => source_edit::remove_attribute(source, element, key),
         EditRequest::Rename { element, name } => source_edit::rename_element(source, element, name),
         EditRequest::Add { keyword, name, attributes, container, layer, layer_name, top_level } => {
-            let container = match (container, layer, top_level) {
+            let container = match (container, layer, *top_level || is_top_level_keyword(keyword)) {
                 (Some(element), _, _) => Container::Element(element),
                 (None, Some(layer), _) => Container::Layer { keyword: layer, name: layer_name.as_deref() },
                 (None, None, true) => Container::Document,
-                (None, None, false) => return Err("an element is added inside an element, a layer, or at the top level".to_string()),
+                (None, None, false) => return Err("an element is added inside an element (container), a layer (layer), or at the top level (top_level: true)".to_string()),
             };
             source_edit::add_element(source, container, keyword, name, attributes)
         }
         EditRequest::AddRaw { declaration, container, layer, layer_name, top_level } => {
-            let container = match (container, layer, top_level) {
+            let container = match (container, layer, *top_level || declaration.split_whitespace().next().is_some_and(is_top_level_keyword)) {
                 (Some(element), _, _) => Container::Element(element),
                 (None, Some(layer), _) => Container::Layer { keyword: layer, name: layer_name.as_deref() },
                 (None, None, true) => Container::Document,
@@ -892,6 +901,17 @@ requirements system {
 mod connect_tests {
     use super::tests::{compile, edit};
     use super::*;
+
+    #[test]
+    fn a_layer_added_to_an_empty_model_goes_at_the_top_level() {
+        let edited = edit_json("", r#"{"op":"add","keyword":"logical_architecture","name":"Drone"}"#).unwrap();
+        assert!(edited.contains("logical_architecture \"Drone\""), "{edited}");
+        let raw = edit_json("model \"M\" {}\n", r#"{"op":"add_raw","declaration":"requirements system {\n    req \"REQ-1\" \"Endure\" {}\n}"}"#).unwrap();
+        assert!(raw.contains("requirements system"), "{raw}");
+        // An element still needs its place.
+        let refused = edit_json("", r#"{"op":"add","keyword":"component","name":"Battery"}"#).err().unwrap();
+        assert!(refused.contains("top_level: true"), "{refused}");
+    }
 
     #[test]
     fn ports_and_an_exchange_can_be_added_from_the_workbench() {

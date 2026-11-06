@@ -174,7 +174,6 @@ fn simulate_blocks_are_checked_when_parsed() {
     let ok = "simulate: { model: \"P.M\" stop_time: 1 h configuration: \"CFG-1\" sources: [\"p.mo\"] } expects: [\"final(a.b) >= 2 km\"]";
     assert!(case(ok).is_ok(), "{:?}", case(ok).err());
     let errors = [
-        ("simulate: { stop_time: 1 h } expects: [\"final(x) > 1\"]", "model is required"),
         ("simulate: { model: \"P.M\" } expects: [\"final(x) > 1\"]", "stop_time is required"),
         ("simulate: { model: \"P.M\" stop_time: 3600 } expects: [\"final(x) > 1\"]", "stop_time has no unit"),
         ("simulate: { model: \"P.M\" stop_time: 1 km } expects: [\"final(x) > 1\"]", "not a time"),
@@ -191,6 +190,9 @@ fn simulate_blocks_are_checked_when_parsed() {
         ("simulate: { model: \"P.M\" stop_time: 1 s sweep: [\"a.b = 1 .. 300 step 1\"] } expects: [\"final(x) > 1\"]", "more than 200"),
         ("simulate: { model: \"P.M\" stop_time: 1 s sweep: 3 } expects: [\"final(x) > 1\"]", "sweep is a list"),
     ];
+    // Without model:, the case simulates the roll-up of its configuration
+    // (checked when it runs, against the elements' model: attributes).
+    assert!(case("simulate: { stop_time: 1 h } expects: [\"final(x) > 1\"]").is_ok());
     let swept = "simulate: { model: \"P.M\" stop_time: 1 h sweep: [\"body.mass = 1800 kg, 2100 kg\", \"\\\"PN-VCU\\\".pi.k = 100 .. 300 step 100\"] } expects: [\"final(a.b) >= 2 km\"]";
     assert!(case(swept).is_ok(), "a sweep, an ArcLang id in quotes: {:?}", case(swept).err());
     for (body, expected) in errors {

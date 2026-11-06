@@ -52,6 +52,9 @@ pub struct Export {
     pub parts: BTreeMap<String, String>,
     /// Configuration id (empty without configurations) -> qualified system model.
     pub systems: BTreeMap<String, String>,
+    /// Configuration id -> its executable model (`Executable.<Configuration>`),
+    /// when elements carry `model:`; empty otherwise.
+    pub executables: BTreeMap<String, String>,
 }
 
 /// The name of the model, for the package.
@@ -112,7 +115,8 @@ pub fn export_with(ast: &Model, options: &Options) -> Result<Export, String> {
         instances.entry(name).or_insert(path);
     }
     let systems = structure.systems.iter().map(|s| (s.id.clone(), format!("{package}.Systems.{}", s.class))).collect();
-    Ok(Export { file_name: format!("{package}.mo"), package, text, files, notes: structure.notes.clone(), instances, parts, systems })
+    let executables = if writer.has_executables() { structure.systems.iter().map(|s| (s.id.clone(), format!("{package}.Executable.{}", s.class))).collect() } else { BTreeMap::new() };
+    Ok(Export { file_name: format!("{package}.mo"), package, text, files, notes: structure.notes.clone(), instances, parts, systems, executables })
 }
 
 struct Writer<'a> {
@@ -299,7 +303,11 @@ impl Writer<'_> {
         if Some(part) == holder {
             member.clone()
         } else {
-            format!("{}.{member}", self.structure.parts[part].instance)
+            match (holder, self.structure.parts[part].node) {
+                // At the system level, a behavior component is within its node.
+                (None, Some(node)) => format!("{}.{}.{member}", self.structure.parts[node].instance, self.structure.parts[part].instance),
+                _ => format!("{}.{member}", self.structure.parts[part].instance),
+            }
         }
     }
 
@@ -309,13 +317,91 @@ impl Writer<'_> {
             self.system_model(out, system, "    ");
         }
         let _ = writeln!(out, "  end Systems;");
+        if self.has_executables() {
+            let _ = writeln!(out, "  package Executable \"Each configuration with the executable model of each element (roll-up)\"");
+            self.executable_parts(out, "    ");
+            for system in &self.structure.systems {
+                let _ = write!(out, "{}", self.executable_model(system, "    "));
+            }
+            let _ = writeln!(out, "  end Executable;");
+        }
+    }
+
+    fn has_executables(&self) -> bool {
+        self.structure.parts.iter().any(|p| p.model.is_some())
+    }
+
+    /// The redeclaration of a part by its executable model: its own
+    /// `model:`, else its class with its behavior components' models.
+    fn redeclaration(&self, index: usize) -> Option<String> {
+        let part = &self.structure.parts[index];
+        if let Some(model) = &part.model {
+            // Its own modifiers, then its behavior components' models.
+            let (class, mut modifiers) = match model.split_once('(') {
+                Some((class, rest)) => (class.trim(), vec![rest.trim().trim_end_matches(')').trim().to_string()]),
+                None => (model.trim(), Vec::new()),
+            };
+            modifiers.extend(self.behaviors_executable(index));
+            let modifiers = if modifiers.is_empty() { String::new() } else { format!("({})", modifiers.join(", ")) };
+            return Some(format!("redeclare {class} {}{modifiers}", part.instance));
+        }
+        if self.behaviors_executable(index).is_empty() {
+            return None;
+        }
+        // The node's generated class is partial: a class of its own, its
+        // behavior components redeclared, stands in its place.
+        Some(format!("redeclare {}.Executable.Parts.{} {}", self.package, part.class, part.instance))
+    }
+
+    /// The redeclarations of a node's behavior components by their executable models.
+    fn behaviors_executable(&self, index: usize) -> Vec<String> {
+        self.structure.parts[index].behaviors.iter().filter_map(|b| self.redeclaration(*b)).collect()
+    }
+
+    /// `Executable.Parts`: a node without a model of its own whose behavior
+    /// components have one, as a class with them redeclared.
+    fn executable_parts(&self, out: &mut String, indent: &str) {
+        let parts: Vec<usize> = (0..self.structure.parts.len()).filter(|&i| self.structure.parts[i].node.is_none() && self.structure.parts[i].model.is_none() && !self.behaviors_executable(i).is_empty()).collect();
+        if parts.is_empty() {
+            return;
+        }
+        let _ = writeln!(out, "{indent}package Parts \"Nodes whose behavior components have executable models\"");
+        for i in parts {
+            let part = &self.structure.parts[i];
+            let _ = writeln!(out, "{indent}  model {} \"{}, its behavior components executable\"", part.class, names::string(&part.name));
+            let _ = writeln!(out, "{indent}    extends {}.Physical.{}({});", self.package, part.class, self.behaviors_executable(i).join(", "));
+            let _ = writeln!(out, "{indent}  end {};", part.class);
+        }
+        let _ = writeln!(out, "{indent}end Parts;");
+    }
+
+    /// `Executable.<Configuration>`: the system model of a configuration with
+    /// every part that has an executable model (or whose behavior components
+    /// have) redeclared by it: the roll-up of the element models.
+    fn executable_model(&self, system: &structure::System, indent: &str) -> String {
+        let redeclared: Vec<String> = system.nodes.iter().filter_map(|(index, _)| self.redeclaration(*index)).collect();
+        let missing: Vec<&str> = system.nodes.iter().filter(|(index, _)| self.redeclaration(*index).is_none()).map(|(index, _)| self.structure.parts[*index].name.as_str()).collect();
+        let comment = if system.id.is_empty() { "The whole physical architecture, executable".to_string() } else { format!("Configuration {} ({}), executable", system.name, system.id) };
+        let mut out = String::new();
+        let _ = writeln!(out, "{indent}model {} \"{}\"", system.class, names::string(&comment));
+        let _ = writeln!(out, "{indent}  extends {}.Systems.{}({});", self.package, system.class, redeclared.join(&format!(",\n{indent}    ")));
+        let mut info = vec![comment, "Generated by ArcLang from the model: attribute of each element (the roll-up); never edited.".to_string()];
+        if !missing.is_empty() {
+            info.push(format!("Kept as declared (no model: attached): {}.", missing.join(", ")));
+        }
+        let id = if system.id.is_empty() { "system".to_string() } else { system.id.clone() };
+        let _ = writeln!(out, "{indent}  {}", documentation(&info, &id, "Configuration", ""));
+        let _ = writeln!(out, "{indent}end {};", system.class);
+        out
     }
 
     fn system_model(&self, out: &mut String, system: &structure::System, indent: &str) {
         let comment = if system.id.is_empty() { "The whole physical architecture".to_string() } else { format!("Configuration {} ({})", system.name, system.id) };
         let _ = writeln!(out, "{indent}partial model {} \"{}\"", system.class, names::string(&comment));
         let kept: Vec<usize> = system.nodes.iter().map(|(i, _)| *i).collect();
-        let connections: Vec<&Connection> = self.structure.connections.iter().filter(|c| c.within.is_none() && c.ends.iter().all(|(p, _)| kept.contains(p))).collect();
+        // A behavior component's end is kept with its node.
+        let node_of = |p: usize| self.structure.parts[p].node.unwrap_or(p);
+        let connections: Vec<&Connection> = self.structure.connections.iter().filter(|c| c.within.is_none() && c.ends.iter().all(|(p, _)| kept.contains(&node_of(*p)))).collect();
         let drawn_owned = self.options.placement.then(|| placement::plan(&self.structure.parts, &self.sides, &self.plans, None, &kept, &connections, &self.moves(None)));
         let drawn = drawn_owned.as_ref();
         for (index, modifiers) in &system.nodes {

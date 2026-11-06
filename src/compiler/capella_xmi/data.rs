@@ -20,7 +20,8 @@ pub(super) fn collect_property_values(writer: &mut Writer, project: &Node) {
     let literal_of = |value: &Node| -> Option<String> {
         let key = key_of(value.name());
         let literal = match value.kind.as_str() {
-            "capellacore:StringPropertyValue" => string_literal(value.attr("value").unwrap_or("")),
+            // A text that reads as a quantity (`2 kg`, `20 °C`, `85 %`) comes back as one.
+            "capellacore:StringPropertyValue" => quantity_or_string(value.attr("value").unwrap_or("")),
             "capellacore:IntegerPropertyValue" => integer_literal(value.attr("value").unwrap_or("0")),
             "capellacore:FloatPropertyValue" => float_literal(value.attr("value").unwrap_or("0")),
             "capellacore:BooleanPropertyValue" => if value.attr("value") == Some("true") { "true".to_string() } else { "false".to_string() },
@@ -50,8 +51,8 @@ pub(super) fn collect_property_values(writer: &mut Writer, project: &Node) {
     }
 }
 
-/// The property values applied to (or owned by) `node`, as attributes.
-pub(super) fn applied_values(writer: &mut Writer, depth: usize, node: &Node, kind: &str) {
+/// The property values applied to (or owned by) `node`.
+fn values_of(writer: &mut Writer, node: &Node) -> Vec<PropertyValue> {
     let mut lines: Vec<PropertyValue> = Vec::new();
     let mut seen: HashSet<String> = HashSet::new();
     let groups: Vec<String> = refs(node.attr("appliedPropertyValueGroups"))
@@ -81,6 +82,32 @@ pub(super) fn applied_values(writer: &mut Writer, depth: usize, node: &Node, kin
         writer.count_by("viewpoint attributes of the elements they extend", extensions.len());
         lines.extend(extensions);
     }
+    lines
+}
+
+/// The attributes the property values of an element of `kind` become, by
+/// key. An attribute ArcLang types takes a quantity as written, and any
+/// value when it is free text; any other value keeps the pv_ prefix.
+fn keyed_values(writer: &mut Writer, lines: Vec<PropertyValue>, kind: &str) -> Vec<(String, String)> {
+    let mut used: HashSet<String> = HashSet::new();
+    let mut out = Vec::new();
+    for value in lines {
+        let quantity = is_quantity_literal(&value.literal);
+        let fits = quantity || writer.is_text(kind, &value.key);
+        let reserved = matches!(value.key.as_str(), "id" | "name" | "description" | "summary" | "is" | "type" | "kind") || (writer.is_typed(kind, &value.key) && !fits);
+        let mut key = if reserved { format!("pv_{}", value.key) } else { value.key.clone() };
+        while !used.insert(key.clone()) {
+            key.push('_');
+        }
+        writer.count("property values");
+        out.push((key, value.literal));
+    }
+    out
+}
+
+/// The property values applied to (or owned by) `node`, as attributes.
+pub(super) fn applied_values(writer: &mut Writer, depth: usize, node: &Node, kind: &str) {
+    let lines = values_of(writer, node);
     if lines.is_empty() {
         return;
     }
@@ -89,16 +116,31 @@ pub(super) fn applied_values(writer: &mut Writer, depth: usize, node: &Node, kin
         writer.count_by("property values on classes (left out: a class attribute is a field)", lines.len());
         return;
     }
-    let mut used: HashSet<String> = HashSet::new();
-    for value in lines {
-        let reserved = matches!(value.key.as_str(), "id" | "name" | "description" | "summary" | "is" | "type" | "kind") || writer.is_typed(kind, &value.key);
-        let mut key = if reserved { format!("pv_{}", value.key) } else { value.key.clone() };
-        while !used.insert(key.clone()) {
-            key.push('_');
-        }
-        writer.count("property values");
-        writer.line(depth, &format!("{key}: {}", value.literal));
+    for (key, literal) in keyed_values(writer, lines, kind) {
+        writer.line(depth, &format!("{key}: {literal}"));
     }
+}
+
+/// The property values of an element written on one line (a link, an
+/// exchange), as ` key: value` pairs.
+pub(super) fn inline_values(writer: &mut Writer, node: &Node, kind: &str) -> String {
+    let lines = values_of(writer, node);
+    keyed_values(writer, lines, kind).into_iter().map(|(key, literal)| format!(" {key}: {literal}")).collect()
+}
+
+/// A property value's text: a quantity literal when it reads as one (a
+/// number and a unit ArcLang knows), else a string literal.
+fn quantity_or_string(text: &str) -> String {
+    let t = text.trim();
+    if crate::compiler::quantity::Quantity::parse(t).is_ok() {
+        t.to_string()
+    } else {
+        string_literal(text)
+    }
+}
+
+fn is_quantity_literal(literal: &str) -> bool {
+    !literal.starts_with('"') && crate::compiler::quantity::Quantity::parse(literal).is_ok()
 }
 
 /// The constraints owned by `node`: their expression bodies, as text.

@@ -126,6 +126,7 @@ impl CapellaImporter {
             diagrams: Vec::new(),
             tables: Vec::new(), // tables hook
             io_bindings: Vec::new(),
+            refinements: Vec::new(),
             classes: Vec::new(),
             associations: Vec::new(),
             test_cases: Vec::new(),

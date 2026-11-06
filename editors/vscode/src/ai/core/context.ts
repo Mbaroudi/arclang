@@ -203,6 +203,78 @@ export function kindExcerpt(metamodel: Metamodel | null, kind: string): string |
 }
 
 /** The context of a selection, as one Markdown text for the AI. */
+/** A complete, compiling model in one page: the syntax the AI needs when it writes a model from nothing. */
+export const ARCLANG_ONE_PAGE = `model "Inspection drone" {
+    description: "A quadrotor carrying a 2 kg sensor; endurance checked by simulation"
+}
+
+type "Power plus" { physics: electrical }
+type "Signal" { physics: signal }
+
+system_analysis "Mission needs" {
+    requirement "Hover endurance" {
+        id: "REQ-ENDURANCE"
+        description: "With a 2 kg payload at 20 °C, the drone hovers at 50 m for 25 minutes and lands with 20 % of its charge"
+    }
+    function "Measure altitude" { id: "SF-ALT" latency: 2 ms port out "altitude" }
+    function "Hold altitude" { id: "SF-HOLD" port in "altitude" port out "thrust" }
+    function "Produce thrust" { id: "SF-THRUST" port in "thrust" }
+    functional_exchange "altitude" { from: "SF-ALT.altitude" to: "SF-HOLD.altitude" }
+    functional_exchange "thrust demand" { from: "SF-HOLD.thrust" to: "SF-THRUST.thrust" }
+    functional_chain "Altitude loop" { id: "FC-ALT" involves: ["SF-ALT", "SF-HOLD", "SF-THRUST"] latency_budget: 10 ms }
+}
+
+logical_architecture "Drone" {
+    component "Air vehicle" {
+        id: "LC-UAV"
+        component "Energy" { id: "LC-ENERGY" energy: 666 Wh mass: 3.9 kg }
+        component "Propulsion" { id: "LC-PROP" }
+        component "Flight control" { id: "LC-FCS" }
+    }
+}
+
+physical_architecture "Drone hardware" {
+    node "Battery" {
+        id: "PN-BATT"
+        voltage: 44.4 V
+        deploys "LC-ENERGY"
+        port "p" { is: "Power plus" }
+    }
+    node "Propulsion" {
+        id: "PN-PROP"
+        rotors: 4
+        max_thrust: 250 N
+        deploys "LC-PROP"
+        port "p" { is: "Power plus" }
+        behavior_component "Motor drive" { id: "BC-ESC" port in "thrust_cmd" { is: "Signal" } }
+    }
+    node "Flight controller" {
+        id: "PN-FC"
+        deploys "LC-FCS"
+        behavior_component "Altitude hold" {
+            id: "BC-ALT"
+            target_altitude: 50 m
+            port in "altitude" { is: "Signal" }
+            port out "thrust_cmd" { is: "Signal" }
+        }
+    }
+    physical_link "Power harness" { id: "PL-PWR" from: "PN-BATT.p" to: "PN-PROP.p" protocol: "48 V DC" }
+    physical_exchange "Thrust command" { id: "PX-THRUST" from: "BC-ALT.thrust_cmd" to: "BC-ESC.thrust_cmd" }
+}
+
+trace "PN-BATT" satisfies "REQ-ENDURANCE"
+trace "PN-PROP" satisfies "REQ-ENDURANCE"
+
+test_case "Hover endurance" {
+    id: "TC-ENDURANCE"
+    verifies: ["REQ-ENDURANCE"]
+    method: "test"
+    expects: ["REQ-ENDURANCE: min(\\"PN-BATT\\".soc) >= 0.2"]
+}`;
+
+/** The syntax rules the one-page example shows, said once. */
+export const ARCLANG_SYNTAX_NOTES = `Every declaration is keyword "Name" { ... }; ids are quoted strings; quantities are bare with their unit (25 min, 666 Wh); a port is declared with its direction first (port in "x", port out "y"), a physical port of a node without direction (port "p"); an exchange or a link is a block with from: "Owner.port" to: "Owner.port"; a trace is one line: trace "A" satisfies "REQ-1". Only the kinds shown here and in the metamodel exist.`;
+
 export function buildSelectionContext(input: ContextInput): BuiltContext {
   const { snapshot, text, scope } = input;
   const max = input.maxChars ?? 40000;
@@ -224,6 +296,10 @@ export function buildSelectionContext(input: ContextInput): BuiltContext {
   const label = (e: ElementRecord | undefined) => (e ? `${e.id}${e.name && e.name !== e.id ? ` "${e.name}"` : ''}` : '?');
   const sections: string[] = [];
   sections.push(`# Model ${input.fileName}`);
+  // An empty model: the AI writes it whole, so it needs the syntax, not the selection.
+  if (text.replace(/\/\/.*$/gm, '').trim().length < 200) {
+    sections.push(`## The model is empty or almost: write it whole, in one \`\`\`arc block\n${ARCLANG_SYNTAX_NOTES}\n\nA complete model, as a reference of the syntax (adapt names, ids and values to the request; keep the shapes):\n\`\`\`arc\n${ARCLANG_ONE_PAGE}\n\`\`\``);
+  }
   if (input.selectedText) sections.push(`## The text the user selected\n\`\`\`arc\n${clipText(input.selectedText, Math.floor(max / 3))}\n\`\`\``);
 
   const declared: string[] = [];

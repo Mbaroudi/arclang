@@ -30,6 +30,12 @@ pub struct Cli {
     
     #[clap(short, long, global = true)]
     pub config: Option<PathBuf>,
+
+    /// The file the input stands for, when the input is a copy of it (an
+    /// editor's buffer written to a temporary file): its imports, its
+    /// cached verdicts and the files next to it are those of this file.
+    #[clap(long = "as", global = true, value_name = "PATH")]
+    pub origin: Option<PathBuf>,
 }
 
 #[derive(Clone, Copy, Debug, clap::ValueEnum)]

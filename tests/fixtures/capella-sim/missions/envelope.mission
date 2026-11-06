@@ -1,0 +1,3 @@
+# Every load from none to 200 kg, an empty and a laden cabin
+"PN-CABIN".load = 0 kg .. 200 kg step 100 kg
+"PN-CABIN".mass = 120 kg, 150 kg

@@ -8,7 +8,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as vscode from 'vscode';
 import { deliver } from '../download';
-import { run, tempDir, withTempFile, workspaceTrusted, UNTRUSTED_MESSAGE } from '../cli';
+import { asFile, run, tempDir, withTempFile, workspaceTrusted, UNTRUSTED_MESSAGE } from '../cli';
 import { History } from '../pure/history';
 import { FromTableView, parseTable, removalRequests, TableData, TableSpec, tableArgs, ToTableView, traceRequest } from '../pure/tables';
 import { childRequirementId, childRequirementRequests, EditRequest } from '../pure/workbench';
@@ -141,7 +141,7 @@ export class TablePanel implements vscode.Disposable {
     if (!source.ok) return this.post({ type: 'error', error: source.error, file });
     const started = Date.now();
     const name = file.replace(/\.sysml$/i, '.arc') || 'model.arc';
-    const answer = await withTempFile(source.text, name, async (temp) => run(tableArgs(temp, this.spec, this.declared, gateStandard()), { cwd: documentDir(this.document) }));
+    const answer = await withTempFile(source.text, name, async (temp) => run([...tableArgs(temp, this.spec, this.declared, gateStandard()), ...asFile(this.document)], { cwd: documentDir(this.document) }));
     const parsed = answer.code === 0 ? parseTable(answer.stdout) : { ok: false as const, error: (answer.stderr || answer.stdout).trim().replace(/^Error:\s*/, '') };
     if (!parsed.ok) {
       // A declared table renamed or removed: keep showing it by its spec.

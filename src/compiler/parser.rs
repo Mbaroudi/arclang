@@ -124,6 +124,9 @@ impl Parser {
                 Token::Identifier(ref id) if id == "io_binding" && !self.peek_is_colon() => {
                     model.io_bindings.push(self.parse_io_binding()?);
                 }
+                Token::Identifier(ref id) if id == "refine" && !self.peek_is_colon() => {
+                    model.refinements.push(self.parse_refine()?);
+                }
                 Token::SecurityScales => {
                     let scales = self.parse_security_scales()?;
                     if model.security_scales.is_some() {
@@ -287,6 +290,9 @@ impl Parser {
                 Token::Identifier(ref id) if id == "io_binding" && !self.peek_is_colon() => {
                     model.io_bindings.push(self.parse_io_binding()?);
                 }
+                Token::Identifier(ref id) if id == "refine" && !self.peek_is_colon() => {
+                    model.refinements.push(self.parse_refine()?);
+                }
                 Token::SecurityScales => {
                     let scales = self.parse_security_scales()?;
                     if model.security_scales.is_some() {
@@ -408,6 +414,9 @@ impl Parser {
                 }
                 Token::Identifier(ref id) if id == "io_binding" && !self.peek_is_colon() => {
                     model.io_bindings.push(self.parse_io_binding()?);
+                }
+                Token::Identifier(ref id) if id == "refine" && !self.peek_is_colon() => {
+                    model.refinements.push(self.parse_refine()?);
                 }
                 Token::SecurityScales => {
                     let scales = self.parse_security_scales()?;
@@ -599,6 +608,9 @@ impl Parser {
                 }
                 Token::Identifier(ref id) if id == "io_binding" && !self.peek_is_colon() => {
                     model.io_bindings.push(self.parse_io_binding()?);
+                }
+                Token::Identifier(ref id) if id == "refine" && !self.peek_is_colon() => {
+                    model.refinements.push(self.parse_refine()?);
                 }
                 Token::SecurityScales => {
                     let scales = self.parse_security_scales()?;
@@ -2905,6 +2917,18 @@ impl Parser {
     fn parse_physical_node(&mut self) -> Result<PhysicalNode, String> {
         self.expect(Token::Node)?;
         let name = self.expect_name()?;
+        self.parse_physical_node_body(name)
+    }
+
+    /// `refine "<id>" { <a node's body> }`.
+    fn parse_refine(&mut self) -> Result<crate::compiler::refine::Refinement, String> {
+        self.advance(); // refine
+        let target = self.expect_name()?;
+        let body = self.parse_physical_node_body(target.clone())?;
+        Ok(crate::compiler::refine::Refinement { target, body })
+    }
+
+    fn parse_physical_node_body(&mut self, name: String) -> Result<PhysicalNode, String> {
         self.expect(Token::LeftBrace)?;
         
         let mut deployments = Vec::new();

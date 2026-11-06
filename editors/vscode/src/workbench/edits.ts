@@ -5,20 +5,20 @@
 // imported before and exported after: the gesture is the same.
 import * as path from 'node:path';
 import * as vscode from 'vscode';
-import { run, withTempFile, workspaceTrusted, UNTRUSTED_MESSAGE } from '../cli';
+import { run, withTempFile, workspaceTrusted, UNTRUSTED_MESSAGE , asFile } from '../cli';
 import { EditRequest, parseEditAnswer } from '../pure/workbench';
 import { arcTextOf, documentDir, documentTextFor, replaceWhole } from './source';
 
 export type EditOutcome = { ok: true; source: string; applied: boolean; before?: string; after?: string } | { ok: false; error: string; at: number };
 
 /** Run the requests on `source`, each on the result of the previous one. */
-export async function editText(source: string, requests: EditRequest[], fileName: string, cwd?: string): Promise<EditOutcome> {
+export async function editText(source: string, requests: EditRequest[], fileName: string, cwd?: string, origin?: vscode.TextDocument | string): Promise<EditOutcome> {
   if (!workspaceTrusted()) return { ok: false, error: UNTRUSTED_MESSAGE, at: 0 };
   let text = source;
   for (const [index, request] of requests.entries()) {
     const outcome = await withTempFile(text, fileName, async (file) => {
       // The request travels as one argument: no shell, no quoting, no file.
-      const result = await run(['edit', file, '--request', JSON.stringify(request)], { cwd });
+      const result = await run(['edit', file, '--request', JSON.stringify(request), ...asFile(origin)], { cwd });
       return parseEditAnswer(result.stdout || result.stderr);
     });
     if (!outcome.ok) return { ok: false, error: outcome.error, at: index };

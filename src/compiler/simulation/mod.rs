@@ -47,7 +47,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 /// The keys `simulate: { ... }` takes.
-pub const SIMULATE_KEYS: [&str; 14] = ["backend", "model", "configuration", "stop_time", "start_time", "sources", "tolerance", "intervals", "sweep", "uncertain", "samples", "seed", "probability", "confidence"];
+pub const SIMULATE_KEYS: [&str; 15] = ["backend", "model", "configuration", "stop_time", "start_time", "sources", "tolerance", "intervals", "sweep", "uncertain", "samples", "seed", "probability", "confidence", "mission"];
 
 /// What runs a simulation. Every backend ends in the same result (a table
 /// of time series) and the same `expects:` evaluation, so adding one
@@ -89,8 +89,14 @@ impl Backend {
 pub struct Spec {
     pub backend: Backend,
     /// The Modelica class simulated: the hand-written model extending a
-    /// system model of the generated package.
+    /// system model of the generated package; empty when not written: the
+    /// roll-up of the configuration (`Executable.<Configuration>`), when its
+    /// elements carry `model:`.
     pub model: String,
+    /// `mission:`: a file of parameter values (one `"Element".parameter =
+    /// value` a line, as in sweep:), relative to the model file: read with
+    /// the case, its lines added to the sweep.
+    pub mission: Option<String>,
     pub configuration: Option<String>,
     /// Seconds.
     pub start_time: f64,
@@ -364,8 +370,9 @@ fn read_spec(map: &HashMap<String, AttributeValue>) -> Result<Spec, String> {
         None => Backend::default(),
         Some(name) => Backend::parse(&name).ok_or_else(|| format!("simulate: backend '{name}' is not one of {}", Backend::NAMES.join(", ")))?,
     };
-    let model = map.get("model").and_then(|v| v.as_string()).ok_or("simulate: model is required (the Modelica class to simulate)")?.to_string();
-    if !is_class_name(&model) {
+    let model = map.get("model").map(|v| v.as_string().map(str::to_string).ok_or("simulate: model is a Modelica class name (Package.Model)")).transpose()?.unwrap_or_default();
+    let mission = map.get("mission").map(|v| v.as_string().map(str::to_string).ok_or("simulate: mission is the path of a file of parameter values")).transpose()?;
+    if !model.is_empty() && !is_class_name(&model) {
         return Err(format!("simulate: model '{model}' is not a Modelica class name (Package.Model)"));
     }
     let stop_time = seconds(map, "stop_time").map_err(|e| format!("simulate: {e}"))?.ok_or("simulate: stop_time is required (e.g. stop_time: 3600 s)")?;
@@ -405,7 +412,7 @@ fn read_spec(map: &HashMap<String, AttributeValue>) -> Result<Spec, String> {
         .collect();
     sweep::parse(&unresolved, &Default::default())?;
     let (uncertain, samples, seed, required) = read_monte_carlo(map, &sweep)?;
-    Ok(Spec { backend, model, configuration, start_time, stop_time, sources, tolerance, intervals, sweep, uncertain, samples, seed, required })
+    Ok(Spec { backend, model, mission, configuration, start_time, stop_time, sources, tolerance, intervals, sweep, uncertain, samples, seed, required })
 }
 
 fn fraction(map: &HashMap<String, AttributeValue>, key: &str, low: f64) -> Result<Option<f64>, String> {
@@ -458,6 +465,42 @@ fn read_monte_carlo(map: &HashMap<String, AttributeValue>, sweep: &[String]) -> 
     montecarlo::parse(&unresolved, &Default::default())?;
     let required = montecarlo::Requirement { probability, confidence: confidence.unwrap_or(montecarlo::DEFAULT_CONFIDENCE) };
     Ok((uncertain, samples, seed, Some(required)))
+}
+
+/// The spec a case runs with: its mission's lines added to its sweep, its
+/// model the roll-up of its configuration when it names none.
+pub fn effective(mut spec: Spec, base: &std::path::Path, export: &crate::compiler::modelica::Export, configuration: Option<String>) -> Result<Spec, String> {
+    if let Some(mission) = &spec.mission {
+        let path = base.join(mission);
+        let text = std::fs::read_to_string(&path).map_err(|e| format!("simulate: mission '{mission}': cannot read {}: {e}", path.display()))?;
+        let lines: Vec<String> = text
+            .lines()
+            .map(str::trim)
+            .filter(|l| !l.is_empty() && !l.starts_with('#') && !l.starts_with("//"))
+            .map(str::to_string)
+            .collect();
+        if lines.is_empty() {
+            return Err(format!("simulate: mission '{mission}' sets no parameter (one \"Element\".parameter = value a line)"));
+        }
+        if !spec.uncertain.is_empty() {
+            return Err("simulate: a mission sets values, a Monte Carlo case samples them: give mission: or uncertain:, not both".to_string());
+        }
+        spec.sweep.extend(lines);
+    }
+    if spec.model.is_empty() {
+        let key = configuration.unwrap_or_default();
+        spec.model = match export.executables.get(&key).or_else(|| (export.executables.len() == 1).then(|| export.executables.values().next()).flatten()) {
+            Some(class) => class.clone(),
+            None => {
+                return Err(if export.executables.is_empty() {
+                    "simulate: model is required (the Modelica class to simulate), or give the elements their executable model (model: \"Package.Class\") and the roll-up is simulated".to_string()
+                } else {
+                    format!("simulate: no executable model for configuration '{key}'; name the model to simulate")
+                });
+            }
+        };
+    }
+    Ok(spec)
 }
 
 /// The `expects:` of a case.

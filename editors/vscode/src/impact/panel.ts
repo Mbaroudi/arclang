@@ -8,7 +8,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as vscode from 'vscode';
 import { deliver } from '../download';
-import { run, tempDir, withTempFile, workspaceTrusted, UNTRUSTED_MESSAGE } from '../cli';
+import { asFile, run, tempDir, withTempFile, workspaceTrusted, UNTRUSTED_MESSAGE } from '../cli';
 import { askPrompt, emptyFilters, FromImpactView, ImpactMarksMessage, ImpactQuery, ImpactReport, impactArgs, isWhatIf, parseReport, queryTitle, ToImpactView, visibleItems, whatIfQuery, workbenchMarks } from '../pure/impact';
 import { applyRequests, EditQueue, refusalMessage } from '../workbench/edits';
 import { WorkbenchPanel } from '../workbench/panel';
@@ -141,9 +141,9 @@ export class ImpactPanel implements vscode.Disposable {
     const cwd = documentDir(this.document);
     const extra = out ? ['-o', out] : [];
     if (this.query.since && !isWhatIf(this.query) && this.document.uri.scheme === 'file' && /\.arc$/i.test(this.document.uri.fsPath)) {
-      return withTempFile(source.text, name, (temp) => run([...impactArgs(this.document.uri.fsPath, this.query, gateStandard(), format), '--current', temp, ...extra], { cwd }));
+      return withTempFile(source.text, name, (temp) => run([...impactArgs(this.document.uri.fsPath, this.query, gateStandard(), format), '--current', temp, ...extra, ...asFile(this.document)], { cwd }));
     }
-    return withTempFile(source.text, name, (temp) => run([...impactArgs(temp, this.query, gateStandard(), format), ...extra], { cwd }));
+    return withTempFile(source.text, name, (temp) => run([...impactArgs(temp, this.query, gateStandard(), format), ...extra, ...asFile(this.document)], { cwd }));
   }
 
   private async compute(): Promise<void> {

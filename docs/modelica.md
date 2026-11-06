@@ -232,6 +232,54 @@ EVPhysics                              hand-written
 - **Deterministic.** The same model gives the same text: ports and links in
   declaration order, parameters sorted by name, no date.
 
+## From an architecture authored elsewhere: refine, roll-up, missions
+
+When the architecture is authored in another tool (a Capella project read
+with `arclang import -f capella`), the imported file is never edited and
+simulation lives beside it. A small worked case is the test fixture
+[`tests/fixtures/capella-sim`](../tests/fixtures/capella-sim/simulation.arc), a hoist.
+
+- **Capella's parameters.** A property value whose text reads as a quantity
+  (`666 Wh`, `20 °C`, `85 %`) is imported as one, under its own name.
+- **`refine "<id>" { ... }`** adds to an element declared in another file:
+  attributes (overriding), ports (a port of the same name gets the
+  attributes written, any other is added), deployments and behavior
+  components. The target is a physical node, a behavior component or a
+  logical component, by id, else by a name only one element has.
+
+  ```arclang
+  import "hoist.arc"
+
+  refine "PN-BATT" {
+      model: "HoistPhysics.Pack"
+      deploys "LC-ENERGY"
+      port "p" { is: "Power plus" }
+  }
+  ```
+
+- **The roll-up.** `model:` on a node or a behavior component names its
+  executable model: a Modelica class extending the class the export
+  generates for it, with modifiers if needed (`"Physics.Rotors(rho=airframe.rho)"`).
+  The package then has `Executable.<Configuration>`: the system model of
+  the configuration with every element redeclared by its model (a node
+  with a model gets its behavior components' models as modifiers; a node
+  without one, whose behavior components have, a class of its own in
+  `Executable.Parts`). A case whose `simulate:` names no `model` runs the
+  roll-up of its configuration.
+- **Exchanges between behavior components of two nodes** (Arcadia's
+  form, which Capella's validation wants: no data port on a node) are
+  connected through a relay connector the export gives each node,
+  joined to the behavior component's port inside it: Modelica connects one
+  level down only.
+- **A node with nothing to simulate** (no port, no parameter, no behavior
+  component: the system itself, Capella's root component) is left out of
+  the package, with a note.
+- **Missions.** `simulate: { mission: "missions/envelope.mission" }` reads
+  the file (relative to the model file): one `"Element".parameter = value`
+  a line, `#` and `//` comments; the lines join the case's `sweep`, so a
+  range or a list sweeps. The verdict depends on them: changing the
+  mission makes it stale.
+
 ## Ports and connectors
 
 A port says what it carries with `physics:`, on the port, on a physical port,

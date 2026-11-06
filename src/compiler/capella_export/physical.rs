@@ -32,6 +32,16 @@ fn link_id(link: &PhysicalLink, index: usize) -> String {
 }
 
 /// The port of a link end: `Node.port` names one; a bare node gets a port of its own for the link.
+/// Whether `Owner.port` names an oriented component port (a node's
+/// `port in|out`, or any port of a behavior component).
+fn is_component_port(pa: &PhysicalArchitecture, end: &str) -> bool {
+    let Some((owner, port)) = end.rsplit_once('.') else { return false };
+    pa.nodes.iter().any(|n| {
+        ((n.id == owner || n.name == owner) && n.component_ports.iter().any(|p| p.name == port))
+            || n.behavior_components.iter().any(|b| (b.id == owner || b.name == owner) && b.ports.iter().any(|p| p.name == port))
+    })
+}
+
 fn link_end(context: &Context, link: &str, end: &str, side: &str) -> (Option<String>, Option<(String, String)>) {
     if let Some(port) = context.resolve(end).filter(|_| end.contains('.')) {
         return (Some(port.to_string()), None);
@@ -195,8 +205,22 @@ pub(super) fn write(context: &mut Context, pa: &PhysicalArchitecture, above_root
         let owner = if end.contains('.') && context.resolve(end).is_some() { end.rsplit_once('.').map(|(o, _)| o).unwrap_or(end) } else { end };
         context.resolve(owner).map(str::to_string)
     };
+    // A link between oriented component ports (a node's port and a behavior
+    // component's, say) is a component exchange in Capella: physical links
+    // end on physical ports only.
+    let mut port_exchanges: Vec<El> = Vec::new();
     for (index, link) in pa.links.iter().enumerate() {
         let lid = link_id(link, index);
+        if is_component_port(pa, &link.from) || is_component_port(pa, &link.to) {
+            let (source, target) = (context.resolve(&link.from).map(str::to_string), context.resolve(&link.to).map(str::to_string));
+            let (Some(source), Some(target)) = (source, target) else {
+                context.note(format!("physical link '{}' left out: an end is not exported", link.name));
+                continue;
+            };
+            context.note(format!("physical link '{}' joins component ports: exported as a component exchange, which Capella requires between them", link.name));
+            port_exchanges.push(El::new("ownedComponentExchanges", "fa:ComponentExchange", &lid).attr("name", &link.name).attr("target", &format!("#{target}")).attr("source", &format!("#{source}")).attr("kind", "FLOW"));
+            continue;
+        }
         let (from, new_from) = link_end(context, &lid, &link.from, "from");
         let (to, new_to) = link_end(context, &lid, &link.to, "to");
         let (Some(from), Some(to)) = (from, to) else {
@@ -207,7 +231,7 @@ pub(super) fn write(context: &mut Context, pa: &PhysicalArchitecture, above_root
             link_nodes.insert(lid.clone(), (a, b));
         }
         link_ports.extend(new_from.into_iter().chain(new_to));
-        links.push(apply(El::new("ownedPhysicalLinks", "cs:PhysicalLink", &lid).attr("name", &link.name).attr("linkEnds", &format!("#{from} #{to}")), &link.attributes, &["from", "to", "protocol", "bandwidth", "exchange_items", "category", "categories"]));
+        links.push(apply(El::new("ownedPhysicalLinks", "cs:PhysicalLink", &lid).attr("name", &link.name).attr("linkEnds", &format!("#{from} #{to}")), &link.attributes, &["from", "to", "exchange_items", "category", "categories"]));
     }
 
     let mut pkg = El::new("ownedPhysicalComponentPkg", "pa:PhysicalComponentPkg", &derived(&format!("{id}:components"))).attr("name", "Structure");
@@ -256,6 +280,21 @@ pub(super) fn write(context: &mut Context, pa: &PhysicalArchitecture, above_root
             exchange_ports.extend(new_source.into_iter().chain(new_target));
             let el = El::new("ownedComponentExchanges", "fa:ComponentExchange", &exchange.id).attr("name", &label).attr("target", &format!("#{target}")).attr("source", &format!("#{source}")).attr("kind", "FLOW");
             exchanges.push(relations::exchange(context, el, &exchange.attributes));
+            // The link carrying the exchange allocates it.
+            if let Some(via) = exchange.attributes.get("via").and_then(|v| v.as_string()) {
+                let carrier = pa.links.iter().enumerate().find(|(_, l)| l.name == via || l.attributes.get("id").and_then(|i| i.as_string()) == Some(via)).map(|(i, l)| link_id(l, i));
+                match carrier.and_then(|lid| links.iter_mut().find(|l| l.id() == lid)) {
+                    Some(link) => {
+                        let lid = link.id().to_string();
+                        link.push(
+                            El::new("ownedComponentExchangeAllocations", "fa:ComponentExchangeAllocation", &derived(&format!("{lid}->{}:allocates", exchange.id)))
+                                .attr("targetElement", &format!("#{}", exchange.id))
+                                .attr("sourceElement", &format!("#{lid}")),
+                        );
+                    }
+                    None => context.note(format!("physical exchange '{label}': its carrying link '{via}' is not exported")),
+                }
+            }
         }
         let with_ports = |mut el: El, owner: &str| {
             for (_, port) in exchange_ports.iter().filter(|(o, _)| o == owner) {
@@ -274,7 +313,7 @@ pub(super) fn write(context: &mut Context, pa: &PhysicalArchitecture, above_root
         for link in links {
             system.push(link);
         }
-        for exchange in exchanges {
+        for exchange in exchanges.into_iter().chain(port_exchanges) {
             system.push(exchange);
         }
         for path in &pa.paths {

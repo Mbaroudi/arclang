@@ -845,7 +845,8 @@ pub(super) fn physical(writer: &mut Writer, pa: &Node) {
         writer.remember(link, "PhysicalLink");
         let name = data::unique_name(&mut link_names, &display_name(link));
         writer.names.insert(link.id().to_string(), name.clone());
-        let extra = exchange_attributes(writer, link);
+        let mut extra = exchange_attributes(writer, link);
+        extra.push_str(&data::inline_values(writer, link, "PhysicalLink"));
         writer.line(1, &format!("physical_link {} {{ id: {} from: {} to: {}{extra} }}", string_literal(&name), string_literal(link.id()), string_literal(&from), string_literal(&to)));
     }
     if left_out > 0 {
@@ -868,7 +869,19 @@ pub(super) fn physical(writer: &mut Writer, pa: &Node) {
             }
         }
         let name = data::unique_name(&mut exchange_names, &display_name(exchange));
-        let extra = exchange_attributes(writer, exchange);
+        let mut extra = exchange_attributes(writer, exchange);
+        // The physical link a component exchange is allocated to carries it: `via`.
+        let via = pa
+            .find_all("fa:ComponentExchangeAllocation")
+            .into_iter()
+            .find(|a| first_ref(a.attr("targetElement")).as_deref() == Some(exchange.id()))
+            .and_then(|a| first_ref(a.attr("sourceElement")))
+            .filter(|l| writer.kinds.get(l.as_str()) == Some(&"PhysicalLink"))
+            .and_then(|l| writer.names.get(&l).cloned());
+        if let Some(via) = via {
+            extra.push_str(&format!(" via: {}", string_literal(&via)));
+        }
+        extra.push_str(&data::inline_values(writer, exchange, "PhysicalExchange"));
         writer.line(1, &format!("physical_exchange {} {{ id: {} from: {} to: {}{extra} }}", string_literal(&name), string_literal(exchange.id()), string_literal(&from), string_literal(&to)));
     }
     // Physical paths: ordered links, named.
