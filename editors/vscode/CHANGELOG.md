@@ -1,8 +1,10 @@
 # Changelog
 
-## Unreleased
+## 4.10.0
 
 - **The realization ladder** (`ArcLang: Realization ladder`): a tab per model, one row per requirement, a chip per stage — the simulation, SIL, PIL, HDL, the SoC, the board, the twin — fresh pass, fail, stale (changed since) or never run, from the verdicts the commands cached beside the model (nothing runs to show it). The stage reached, the next command with **Run** (a terminal beside the model, the configured binary, the real file), and **Realize** (`arclang realize`: every missing or stale stage in order, a requirement's climb stopping at a failure). The view refreshes when a verdict is written. The table view offers the `realization` kind; the chat tool `arclang_realize` gives the assistant the plan and the gaps (a requirement nothing climbs), to propose the missing case with `arclang_edit`.
+- The table view offers the `schedule` kind: per `io_binding` of a target, its task's period and priority, the step time (measured by `arclang partition`, measured under load by `arclang schedule --prove`, or given), the worst response time and whether the task meets its period.
+- The compiler behind it (4.10.0): the plant in the loop of `sil`, `hdl` and `soc` (`execute: { plant: … }`, a Modelica model or an FMU), `pil`/`hdl`/`soc` run themselves in their Docker images when the tools are not on the computer, `arclang partition`, and one task per `io_binding` in the Zephyr application with `arclang schedule`. See arclang.fr/docs/embedded-c/ and /docs/realization/.
 - The table view offers the `partition` kind: per state machine, what `arclang partition` measured as C on the processor and as VHDL on the logic, what fits, what the model allocates today.
 - **A live twin whose model advances with the data**: `advance: "step"` in a live `data:` block.
   - The model is built once as an OpenModelica Co-Simulation FMU (FMI 2.0, CVODE), then stepped to each new instant, its inputs interpolated linearly between samples, its state kept.
