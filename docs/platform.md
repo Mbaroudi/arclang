@@ -80,8 +80,10 @@ language.
    `hdl` and `pil` replay the loop; the board through its port.
 2. ~~**HW/SW partitioning**~~ — done: `arclang partition`, the same machine
    as C and as VHDL on the real tools, the table kind `partition`.
-3. **Tasks and scheduling** — several machines on one processor, their
-   periods and priorities, the schedule proved on the target.
+3. ~~**Tasks and scheduling**~~ — done: one task per `io_binding` in the
+   exported application, `arclang schedule` on the step times measured,
+   `--prove` running every task together in Renode, each period proved
+   kept under load.
 4. **FMI 3.0** — import through the `fmi` crate when OpenModelica's export
    leaves experimental status; export when a consumer needs it.
 5. **Dataflow outside machines** — signal-processing blocks between

@@ -481,6 +481,86 @@ for (;;) {
 The glue refuses to compile (`#error`) when the behavior was compiled for
 another period than the binding's.
 
+## Tasks and scheduling
+
+A processor runs several machines: one `io_binding` each, on the same
+`target:`, each with its `period:` and, if wanted, its `priority:` (1 the
+highest, up to 32). The exported application (`arclang export -f zephyr`)
+then runs **one task per binding** (`src/tasks.c`): a Zephyr thread with
+its own periodic clock (`arclang_io_task_wait_period`), its glue and its
+machine's step (`<model>_<machine>_step`), at its priority. Without
+`priority:` the priorities follow the periods, the shortest the highest
+(rate monotonic). The machines share the model's state and I/O structures
+but each task touches its own machine's members only; the watchdog is
+kicked by the bindings that ask for it. `--binding` still exports one
+binding alone (`src/main.c`); `arclang pil` runs the cases one binding at
+a time, as before.
+
+```arc
+io_binding "Wiper task" { machine: "Wiper" target: "zephyr/litex_vexriscv" period: 20 ms ... }
+io_binding "Light task" { machine: "Interior light" target: "zephyr/litex_vexriscv" period: 100 ms ... }
+```
+
+`arclang schedule model.arc` says whether every task meets its period,
+from the step times **measured** on the target (`arclang partition`:
+the longest a step took of the target's virtual time) — never a guess;
+`--wcet "Machine=25.5"` gives one instead:
+
+```text
+Schedule body_controller.arc — 2 task(s) on zephyr/litex_vexriscv, fixed priorities, preemptive (response-time analysis)
+  task "Wiper task" (Wiper)  period 20.00 ms  priority 1  step ≤ 9.0 us · response ≤ 9.0 us · meets its period (0.0 % of it) [measured under load (arclang schedule --prove)]
+  task "Light task" (Interior light)  period 100.00 ms  priority 2  step ≤ 5.0 us · response ≤ 14.0 us · meets its period (0.0 % of it) [measured under load (arclang schedule --prove)]
+  utilisation 0.1 % (rate-monotonic bound 82.8 %) · every task meets its period
+  note: priorities by the period (rate monotonic): the shortest period the highest; write priority: in a binding to choose
+```
+
+The analysis is the response-time analysis of fixed-priority preemptive
+scheduling (Joseph and Pandya): a task's worst response is its own time
+plus the interference of every task of higher (or equal) priority over
+that response, iterated to a fixed point; the task meets its period when
+the response fits in it. The set's utilisation is compared with Liu and
+Layland's bound for information: the periods are met by the response
+times, not by the bound. A task whose step time is unknown leaves the
+schedule unproved (the command fails and says what to run). The table
+kind `schedule` lays the same out per binding (`arclang table --kind
+schedule`), the measurement stale when the generated C changed since.
+
+**Proved on the target.** `arclang schedule model.arc --prove` runs every
+task of the target together first: the application as the firmware runs it
+(one thread per binding, `src/pil_tasks.c` reporting each cycle), in the
+target's emulator (Renode for the LiteX SoC; the command relays itself to
+the SoC image when the host has no Zephyr), each binding's channels driven
+by a case of its machine on the binding's own period grid, all at once,
+for `--cycles` cycles of the longest period. Per task it says whether every
+cycle came, one a period (within a twentieth of it), none failed — the
+period kept under the others' load — and the longest a cycle took, which
+is then the step time the analysis runs on (`measured under load`):
+
+```text
+Tasks on zephyr/litex_vexriscv together, in Renode (5 cycle(s) of the longest period):
+  ✓ task "Wiper task" (Wiper) every 20000 us at priority 1: 30 cycles, one every 20000 us (19993 to 20007); a cycle took at most 9.0 us, the channels quiet
+  ✓ task "Light task" (Interior light) every 100000 us at priority 2: 6 cycles, one every 100000 us (100000 to 100001); a cycle took at most 5.0 us, the channels of TC-BC-002 played
+  kept in examples/automotive/body-controller/.arclang/sim-cache/schedule.json
+```
+
+A task's channels are played from the first executed case of its machine
+whose stimuli all go through the binding's channels (TC-BC-002 for the
+light; the wiper's case sets a variable, which no channel can, so its
+channels stay quiet: its cycles still run, read and write). The bench
+runs a period past the horizon, so a cycle or two more than the count
+asked may come.
+
+The runs are kept beside the model (`schedule.json`), keyed by the
+application's files and the plan; the compiler reads them back for the
+table and the analysis, stale when the generated code or the cases
+changed. A task that slips a period fails the command and names it.
+
+What this proves and what it does not: the analysis covers the tasks'
+own steps, preempted by each other, and the proof sees them with the
+kernel, the drivers and the console between them on the target; neither
+counts interrupts the model does not know. The tasks do not exchange
+events yet: a machine reads the channels, not another machine.
+
 ## Test cases executed at fixed step
 
 ```arclang

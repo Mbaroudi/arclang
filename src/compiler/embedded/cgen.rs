@@ -31,6 +31,12 @@ pub fn period_macro(plan: &Plan) -> String {
     format!("{}_PERIOD_US", plan.ident.to_uppercase())
 }
 
+/// The macro of a machine's own period: `<MODEL>_<MACHINE>_PERIOD_US`, the
+/// model's by default; a machine run as a task of its own has its own.
+pub fn machine_period_macro(plan: &Plan, m: &MachinePlan) -> String {
+    format!("{}_{}_PERIOD_US", plan.ident.to_uppercase(), m.ident.to_uppercase())
+}
+
 /// The macro of an event's code: `<MODEL>_<MACHINE>_EV_<EVENT>`.
 pub fn event_macro(prefix: &str, event_ident: &str) -> String {
     super::plan::bounded(&format!("{}_{}", prefix.to_uppercase(), event_ident.to_uppercase()), 63)
@@ -52,15 +58,22 @@ fn banner(plan: &Plan, what: &str) -> String {
 }
 
 pub fn generate(plan: &Plan, default_period_us: u64) -> Generated {
+    generate_for(plan, default_period_us, &[])
+}
+
+/// As `generate`, each machine of `periods` (its index, microseconds)
+/// stepped at its own period by default (a task of its own): its timers
+/// and budgets count steps of it.
+pub fn generate_for(plan: &Plan, default_period_us: u64, periods: &[(usize, u64)]) -> Generated {
     Generated {
         header_name: format!("{}.h", plan.ident),
-        header: header(plan, default_period_us),
+        header: header(plan, default_period_us, periods),
         source_name: format!("{}.c", plan.ident),
         source: source(plan),
     }
 }
 
-fn header(plan: &Plan, default_period_us: u64) -> String {
+fn header(plan: &Plan, default_period_us: u64, periods: &[(usize, u64)]) -> String {
     let guard = format!("ARCLANG_{}_H", plan.ident.to_uppercase());
     let period = period_macro(plan);
     let mut out = banner(plan, "The behavior of the model: its state machines.");
@@ -70,6 +83,12 @@ fn header(plan: &Plan, default_period_us: u64) -> String {
         let _ = writeln!(out, "/* The state of a PID block. */\ntypedef struct {{\n    {number} integral;\n    {number} previous;\n    bool primed;\n}} {};\n", pid_type(plan));
     }
     let _ = writeln!(out, "/* The step period, in microseconds: timed transitions count steps of it. */\n#ifndef {period}\n#define {period} {default_period_us}UL\n#endif\n#if {period} == 0\n#error \"{period} must be positive\"\n#endif\n");
+    // Each machine's own period: the model's unless it runs as a task of its own.
+    for (n, m) in plan.machines.iter().enumerate() {
+        let own = machine_period_macro(plan, m);
+        let default = periods.iter().find(|(i, _)| *i == n).map(|(_, us)| format!("{us}UL")).unwrap_or_else(|| period.clone());
+        let _ = writeln!(out, "/* The period state_machine \"{}\" is stepped at. */\n#ifndef {own}\n#define {own} {default}\n#endif\n", comment(&m.name));
+    }
     for m in &plan.machines {
         let t = type_prefix(plan, m);
         let _ = writeln!(out, "/* state_machine \"{}\" */", comment(&m.name));
@@ -145,15 +164,18 @@ fn header(plan: &Plan, default_period_us: u64) -> String {
         }
         let _ = writeln!(out, "}} {p}_{name};\n");
     }
-    let _ = writeln!(out, "typedef struct {{\n    bool started;");
+    let _ = writeln!(out, "typedef struct {{");
     for m in &plan.machines {
-        let _ = writeln!(out, "    {}_state {};", type_prefix(plan, m), m.ident);
+        let _ = writeln!(out, "    bool {}_started;\n    {}_state {};", m.ident, type_prefix(plan, m), m.ident);
     }
     let _ = writeln!(out, "}} {p}_state;\n");
     let _ = writeln!(
         out,
-        "/* Reset the state: no state is active until the first step, which enters\n   the initial states (their entry actions count in that step). */\nvoid {p}_init({p}_state *state);\n\n/* One step: the initial states on the first one; then, in each machine, the\n   equations, the events of its queue in the order they arrived, the timed\n   transitions, the completion transitions; the do activities of the active\n   states; the outputs. */\nvoid {p}_step({p}_state *state, const {p}_inputs *inputs, {p}_outputs *outputs);\n"
+        "/* Reset the state: no state is active until the first step, which enters\n   the initial states (their entry actions count in that step). */\nvoid {p}_init({p}_state *state);\n\n/* One step of every machine: the initial states on the first one; then, in\n   each machine, the equations, the events of its queue in the order they\n   arrived, the timed transitions, the completion transitions; the do\n   activities of the active states; the outputs. */\nvoid {p}_step({p}_state *state, const {p}_inputs *inputs, {p}_outputs *outputs);\n"
     );
+    for m in &plan.machines {
+        let _ = writeln!(out, "/* One step of state_machine \"{}\" alone (a task of its own, at its period). */\nvoid {p}_{}_step({p}_state *state, const {p}_inputs *inputs, {p}_outputs *outputs);\n", comment(&m.name), m.ident);
+    }
     for m in plan.machines.iter().filter(|m| !m.events.is_empty()) {
         let t = type_prefix(plan, m);
         let _ = writeln!(out, "/* Post an event of state_machine \"{}\" for the next step, after those posted\n   before it; false (and dropped) when the queue is full. */\nbool {t}_post({t}_inputs *inputs, uint16_t event);\n", comment(&m.name));
@@ -177,7 +199,10 @@ fn source(plan: &Plan) -> String {
         machine_source(plan, m, &mut h, &mut body);
     }
     let p = &plan.ident;
-    let _ = writeln!(body, "void {p}_init({p}_state *state)\n{{\n    uint16_t k;\n    state->started = false;");
+    let _ = writeln!(body, "void {p}_init({p}_state *state)\n{{\n    uint16_t k;");
+    for m in &plan.machines {
+        let _ = writeln!(body, "    state->{}_started = false;", m.ident);
+    }
     for m in &plan.machines {
         let i = &m.ident;
         let _ = writeln!(body, "    for (k = 0U; k < {n}U; k++) {{\n        state->{i}.active[k] = false;\n        state->{i}.in_state[k] = 0U;\n    }}", n = m.states.len());
@@ -221,16 +246,15 @@ fn source(plan: &Plan) -> String {
         let _ = writeln!(body, "    {block}_hw_reset();");
     }
     let _ = writeln!(body, "}}\n");
-    let _ = writeln!(body, "void {p}_step({p}_state *state, const {p}_inputs *inputs, {p}_outputs *outputs)\n{{\n    bool starting = !state->started;\n    state->started = true;");
-    if plan.machines.iter().all(|m| m.hardware.is_some()) {
-        let _ = writeln!(body, "    (void)starting; /* every machine is computed by the programmable logic */");
-    }
+    // One step of each machine alone: what a task of its own calls at its period.
     for m in &plan.machines {
         let i = &m.ident;
+        let _ = writeln!(body, "void {p}_{i}_step({p}_state *state, const {p}_inputs *inputs, {p}_outputs *outputs)\n{{");
         if let Some(block) = &m.hardware {
-            let _ = writeln!(body, "    /* state_machine \"{}\" is computed by the programmable logic: one step of block {block} */\n    (void){block}_hw_step(&inputs->{i}, &outputs->{i});", comment(&m.name));
+            let _ = writeln!(body, "    /* state_machine \"{}\" is computed by the programmable logic: one step of block {block} */\n    state->{i}_started = true;\n    (void){block}_hw_step(&inputs->{i}, &outputs->{i});\n}}\n", comment(&m.name));
             continue;
         }
+        let _ = writeln!(body, "    bool starting = !state->{i}_started;\n    state->{i}_started = true;");
         for a in &m.actions {
             let _ = writeln!(body, "    outputs->{i}.{} = 0U;", a.ident);
         }
@@ -242,10 +266,15 @@ fn source(plan: &Plan) -> String {
             let from = if v.direction == Direction::In { "inputs" } else { "state" };
             let _ = writeln!(body, "    outputs->{i}.{f} = {from}->{i}.{f};", f = m.variables[n].ident);
         }
-        let period = period_macro(plan);
+        let period = machine_period_macro(plan, m);
         for b in &m.budgets {
             let _ = writeln!(body, "    outputs->{i}.{} = state->{i}.active[{s}] && (state->{i}.in_state[{s}] > (({us}UL + {period} - 1UL) / {period})); /* budget {} */", b.ident, comment(&b.written), s = b.source, us = b.micros);
         }
+        let _ = writeln!(body, "}}\n");
+    }
+    let _ = writeln!(body, "void {p}_step({p}_state *state, const {p}_inputs *inputs, {p}_outputs *outputs)\n{{");
+    for m in &plan.machines {
+        let _ = writeln!(body, "    {p}_{}_step(state, inputs, outputs);", m.ident);
     }
     let _ = writeln!(body, "}}");
     for m in plan.machines.iter().filter(|m| !m.events.is_empty()) {
@@ -400,7 +429,7 @@ fn machine_source(plan: &Plan, m: &MachinePlan, h: &mut Helpers, out: &mut Strin
     let st = format!("{t}_state");
     let inp = format!("{t}_inputs");
     let o = format!("{t}_outputs");
-    let period = period_macro(plan);
+    let period = machine_period_macro(plan, m);
     let access = Access { machine: m, state: "st", inputs: "in", period: &period };
     let histories = m.histories();
     let shallow = histories.iter().any(|x| !x.1);
@@ -576,7 +605,7 @@ fn run_source(plan: &Plan, m: &MachinePlan, access: &Access, h: &mut Helpers, ou
             let mut enabled = sources_active(c);
             if let Trigger::Timer(tm) = m.compounds[c].trigger {
                 let us = m.timers[tm].micros;
-                let period = period_macro(plan);
+                let period = machine_period_macro(plan, m);
                 enabled.push_str(&format!(" && (st->in_state[{}] >= (({us}UL + {period} - 1UL) / {period}))", m.transitions[compound.head].source));
             }
             let _ = writeln!(out, "        if ({enabled}) {{");
