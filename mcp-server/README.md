@@ -131,6 +131,9 @@ model = "claude-opus-5-5"
 | `arclang_rules` | `rules --format markdown\|json` | The catalog of validation rules: meaning and remedy of each `rule` a finding names, or one `rule` alone |
 | `arclang_compile` | `build` | Counts of the compiled model |
 | `arclang_gate` | `gate --standard iso26262\|do178c\|iec61508` | PASS or FAIL and each blocker with its rule |
+| `arclang_realize` | `realize --dry-run --json` | The realization ladder: each requirement's verdict per stage (simulation, sil, pil, hdl, soc, board, twin), the steps that would fill the missing or stale ones, the gaps. Nothing runs |
+| `arclang_partition` | `partition --dry-run`, `table --kind partition` | The two runs that measure each machine as C (step time, footprint) and as VHDL (LUT4, Fmax), and what was measured already. Nothing runs |
+| `arclang_schedule` | `schedule --json [--wcet M=US]` | The bindings as tasks, the response time of each (fixed-priority analysis) from measured or given step times, whether each meets its period. FAILED when a step time is unknown, with how to measure it |
 | `arclang_trace_analysis` | `trace --validate` | Coverage, issues, the matrix with rationales |
 | `arclang_impact` | `impact` | What a change to one element reaches, by distance |
 | `arclang_diff` | `diff --json` | Semantic diff by stable identity |
