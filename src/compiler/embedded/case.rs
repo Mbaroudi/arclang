@@ -47,6 +47,9 @@ pub enum Drive {
     Condition(usize, bool),
     /// An `in` variable (its index in the program) and its value.
     Value(usize, crate::compiler::execution::expr::Value),
+    /// An `in` variable of another machine (`"Speed filter".raw = 100
+    /// km/h`): a block upstream of the case's machine, through its wires.
+    Other(usize, usize, crate::compiler::execution::expr::Value),
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -148,6 +151,22 @@ fn split(line: &str) -> Result<(f64, String), String> {
     Ok((q.canonical(), name.to_string()))
 }
 
+/// `"Speed filter".raw` (or `SF.raw`, an id): a machine and its variable.
+fn qualified(name: &str) -> Option<(String, String)> {
+    let name = name.trim();
+    let (machine, var) = match name.strip_prefix('"') {
+        Some(quoted) => {
+            let (machine, rest) = quoted.split_once('"')?;
+            (machine.to_string(), rest.strip_prefix('.')?.trim().to_string())
+        }
+        None => {
+            let (machine, var) = name.rsplit_once('.')?;
+            (machine.trim().to_string(), var.trim().to_string())
+        }
+    };
+    (!machine.is_empty() && !var.is_empty()).then_some((machine, var))
+}
+
 /// The first step at or after `seconds`.
 fn after(seconds: f64, step_us: u64, what: &str) -> Result<usize, String> {
     let steps = seconds * 1e6 / step_us as f64;
@@ -223,6 +242,7 @@ fn resolve(map: &HashMap<String, AttributeValue>, plan: &Plan, bindings: &[super
             return Err(format!("execute: input '{line}' comes after stop_time"));
         }
         let assigned = name.split_once('=').map(|(n, v)| (n.trim(), v.trim())).and_then(|(n, v)| m.variable(n).map(|i| (i, v)));
+        let other = name.split_once('=').map(|(n, v)| (n.trim(), v.trim())).and_then(|(n, v)| qualified(n).map(|(machine, var)| (machine, var, v)));
         let drive = if let Some(e) = m.event(&name) {
             Drive::Event(e)
         } else if let Some((i, written)) = assigned {
@@ -230,7 +250,23 @@ fn resolve(map: &HashMap<String, AttributeValue>, plan: &Plan, bindings: &[super
             if v.direction != crate::compiler::execution::expr::Direction::In {
                 return Err(format!("execute: input '{line}': '{}' is not an input of state_machine '{}' (declare it `in {}`)", v.name, m.name, v.text));
             }
+            if let Some(w) = m.wires.iter().find(|w| w.input == i) {
+                return Err(format!("execute: input '{line}': '{}' is read from state_machine '{}': set the inputs of that machine (\"<time>: \\\"{}\\\".<input> = <value>\")", v.name, plan.machines[w.machine].name, plan.machines[w.machine].name));
+            }
             Drive::Value(i, v.value(written).map_err(|e| format!("execute: input '{line}': {e}"))?)
+        } else if let Some((reference, var, written)) = other {
+            let o = plan.machines.iter().position(|x| x.is(&reference)).ok_or_else(|| format!("execute: input '{line}': '{reference}' is no state_machine of the model"))?;
+            let other = &plan.machines[o];
+            let i = other.variable(&var).ok_or_else(|| format!("execute: input '{line}': '{var}' is no variable of state_machine '{}'", other.name))?;
+            let v = &other.program().variables[i];
+            if v.direction != crate::compiler::execution::expr::Direction::In || other.wires.iter().any(|w| w.input == i) {
+                return Err(format!("execute: input '{line}': '{}' is not an input of state_machine '{}' a case sets", v.name, other.name));
+            }
+            if o == machine {
+                Drive::Value(i, v.value(written).map_err(|e| format!("execute: input '{line}': {e}"))?)
+            } else {
+                Drive::Other(o, i, v.value(written).map_err(|e| format!("execute: input '{line}': {e}"))?)
+            }
         } else {
             let (text, value) = match name.rsplit_once('=') {
                 Some((text, value)) if matches!(value.trim(), "true" | "false") => (text.trim().to_string(), value.trim() == "true"),
@@ -334,7 +370,7 @@ impl Case {
     /// The vectors of every machine: this case's inputs on its machine, nothing on the others.
     pub fn vectors(&self, plan: &Plan) -> Vectors {
         let mut v = Vectors::quiet(plan, self.steps);
-        let mut changes: Vec<&Stimulus> = self.stimuli.iter().filter(|s| matches!(s.drive, Drive::Condition(..) | Drive::Value(..))).collect();
+        let mut changes: Vec<&Stimulus> = self.stimuli.iter().filter(|s| matches!(s.drive, Drive::Condition(..) | Drive::Value(..) | Drive::Other(..))).collect();
         changes.sort_by_key(|s| s.step);
         // The events by arrival: time, then as written (a stable sort).
         let mut arrivals: Vec<&Stimulus> = self.stimuli.iter().filter(|s| matches!(s.drive, Drive::Event(_))).collect();
@@ -355,6 +391,11 @@ impl Case {
                 Drive::Value(i, value) => {
                     for k in s.step..self.steps {
                         v.values[self.machine][i][k] = value;
+                    }
+                }
+                Drive::Other(m, i, value) => {
+                    for k in s.step..self.steps {
+                        v.values[m][i][k] = value;
                     }
                 }
                 Drive::Event(_) => {}

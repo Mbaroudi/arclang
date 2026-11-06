@@ -184,11 +184,25 @@ impl<'p> Runner<'p> {
     pub fn step(&mut self, vectors: &Vectors, k: usize) -> Vec<f64> {
         let period_us = self.period_us;
         let mut row = Vec::new();
-        for (n, r) in self.machines.iter_mut().enumerate() {
+        for n in 0..self.machines.len() {
+            // A wired input reads the other machine as it is after its step (it came before).
+            let wired: Vec<(usize, Value)> = self.machines[n]
+                .plan
+                .wires
+                .iter()
+                .map(|w| {
+                    let from = &self.machines[w.machine];
+                    (w.input, crate::compiler::execution::expr::eval(from.plan.program(), &mut from.machine.env.clone(), &w.value))
+                })
+                .collect();
+            let r = &mut self.machines[n];
             r.counts.iter_mut().for_each(|c| *c = 0);
             let inputs: Vec<usize> = r.plan.program().inputs().map(|(i, _)| i).collect();
             for i in inputs {
                 r.machine.env.values[i] = vectors.values[n][i][k];
+            }
+            for (i, value) in wired {
+                r.machine.env.values[i] = value;
             }
             r.machine.conditions = r.plan.conditions.iter().enumerate().map(|(c, signal)| (signal.text.clone(), vectors.conditions[n][c][k])).collect();
             if k == 0 {
@@ -237,6 +251,26 @@ impl<'p> Runner<'p> {
         }
         row
     }
+}
+
+/// The vectors with every wired input set, step by step, to what it read in
+/// the model's run: what a stage that runs a machine alone (the fixed point,
+/// the VHDL) replays.
+pub fn wired(plan: &Plan, vectors: &Vectors, period_us: u64) -> Vectors {
+    let mut out = vectors.clone();
+    if plan.machines.iter().all(|m| m.wires.is_empty()) {
+        return out;
+    }
+    let mut runner = Runner::new(plan, period_us);
+    for k in 0..vectors.steps {
+        runner.step(vectors, k);
+        for (n, r) in runner.machines.iter().enumerate() {
+            for w in &r.plan.wires {
+                out.values[n][w.input][k] = r.machine.env.values[w.input];
+            }
+        }
+    }
+    out
 }
 
 pub fn run(plan: &Plan, vectors: &Vectors, period_us: u64) -> Table {

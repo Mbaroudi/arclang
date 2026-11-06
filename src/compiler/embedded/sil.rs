@@ -433,6 +433,9 @@ pub fn channel_operations(case: &Case, plan: &Plan, binding: &Binding, vectors: 
             super::case::Drive::Value(i, _) => {
                 return Err(format!("the case sets variable '{}', which {what} binds to no channel: the run through the I/O cannot set it (run it without binding:)", m.program().variables[i].name));
             }
+            super::case::Drive::Other(o, i, _) => {
+                return Err(format!("the case sets variable '{}' of state_machine '{}', which {what} binds to no channel: the run through the I/O cannot set it (run it without binding:)", plan.machines[o].program().variables[i].name, plan.machines[o].name));
+            }
         };
         if binding.input_of(target).is_none() {
             let name = match target {

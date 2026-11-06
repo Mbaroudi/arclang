@@ -250,21 +250,27 @@ fn source(plan: &Plan) -> String {
     for m in &plan.machines {
         let i = &m.ident;
         let _ = writeln!(body, "void {p}_{i}_step({p}_state *state, const {p}_inputs *inputs, {p}_outputs *outputs)\n{{");
+        let own = wired_inputs(plan, m, &mut h, &mut body);
         if let Some(block) = &m.hardware {
-            let _ = writeln!(body, "    /* state_machine \"{}\" is computed by the programmable logic: one step of block {block} */\n    state->{i}_started = true;\n    (void){block}_hw_step(&inputs->{i}, &outputs->{i});\n}}\n", comment(&m.name));
+            let _ = writeln!(body, "    /* state_machine \"{}\" is computed by the programmable logic: one step of block {block} */\n    state->{i}_started = true;\n    (void){block}_hw_step({own}, &outputs->{i});\n}}\n", comment(&m.name));
             continue;
         }
         let _ = writeln!(body, "    bool starting = !state->{i}_started;\n    state->{i}_started = true;");
         for a in &m.actions {
             let _ = writeln!(body, "    outputs->{i}.{} = 0U;", a.ident);
         }
-        let _ = writeln!(body, "    if (starting) {{\n        {i}_start(&state->{i}, &inputs->{i}, &outputs->{i});\n    }}\n    {i}_run(&state->{i}, &inputs->{i}, &outputs->{i});");
+        let _ = writeln!(body, "    if (starting) {{\n        {i}_start(&state->{i}, {own}, &outputs->{i});\n    }}\n    {i}_run(&state->{i}, {own}, &outputs->{i});");
         for (n, s) in m.states.iter().enumerate() {
             let _ = writeln!(body, "    outputs->{i}.{} = state->{i}.active[{n}];", s.ident);
         }
         for (n, v) in m.program().variables.iter().enumerate() {
-            let from = if v.direction == Direction::In { "inputs" } else { "state" };
-            let _ = writeln!(body, "    outputs->{i}.{f} = {from}->{i}.{f};", f = m.variables[n].ident);
+            let f = &m.variables[n].ident;
+            let from = match (v.direction, own.as_str()) {
+                (Direction::In, "&wired") => format!("wired.{f}"),
+                (Direction::In, _) => format!("inputs->{i}.{f}"),
+                _ => format!("state->{i}.{f}"),
+            };
+            let _ = writeln!(body, "    outputs->{i}.{f} = {from};");
         }
         let period = machine_period_macro(plan, m);
         for b in &m.budgets {
@@ -420,6 +426,27 @@ fn segment_c(m: &MachinePlan, segment: &Segment, indent: &str, access: &Access, 
             let _ = writeln!(out, "{indent}}}");
         }
     }
+}
+
+/// The inputs a machine's step reads, as a C pointer: its own, or, when it
+/// reads other machines (wires), a copy with those inputs set from their
+/// outputs (written before it in the step), converted as the model converts.
+fn wired_inputs(plan: &Plan, m: &MachinePlan, h: &mut Helpers, body: &mut String) -> String {
+    let i = &m.ident;
+    if m.wires.is_empty() || m.fixed.is_some() {
+        return format!("&inputs->{i}");
+    }
+    let t = type_prefix(plan, m);
+    let _ = writeln!(body, "    {t}_inputs wired = inputs->{i}; /* the inputs read from other machines replaced */");
+    for w in &m.wires {
+        let from = &plan.machines[w.machine];
+        let outputs = format!("(&outputs->{})", from.ident);
+        let period = machine_period_macro(plan, from);
+        let access = Access { machine: from, state: &outputs, inputs: &outputs, period: &period };
+        let value = access.expr(&w.value, h).replace(&format!("{outputs}->"), &format!("outputs->{}.", from.ident));
+        let _ = writeln!(body, "    wired.{} = {value}; /* from state_machine \"{}\", {} */", m.variables[w.input].ident, comment(&from.name), comment(&from.program().variables[w.variable].name));
+    }
+    "&wired".to_string()
 }
 
 fn machine_source(plan: &Plan, m: &MachinePlan, h: &mut Helpers, out: &mut String) {
