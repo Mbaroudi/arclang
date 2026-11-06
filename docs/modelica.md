@@ -44,6 +44,23 @@ the first run installs MSL 4.1.0 into the `arclang-openmodelica-libraries`
 volume, later runs reuse it. A run is limited to 900 s (`ARCLANG_OMC_TIMEOUT`,
 in seconds); a container that outlives it is removed.
 
+Another Modelica library is used the Modelica way: the `.mo` file that needs
+it declares it, `annotation(uses(Modelica(version="4.1.0"),
+Buildings(version="14.0.0")))`, and OpenModelica loads it with the file, for
+the simulation and for the drawing (its classes' icons). On this machine it
+must be installed where OpenModelica looks (a local `omc`:
+`installPackage(Buildings, "14.0.0")`; with Docker, the same command in the
+`arclang-openmodelica-libraries` volume). Online, on arclang.fr, the server
+has the Standard Library and every library OpenModelica's package index marks
+as fully supported, at a pinned version: Buildings 14.0.0, BusinessSimulation
+2.2.0, DeltaRobot 1.0.2, ExternalMedia 4.1.1, HanserModelica 2.0.1, KeyWordIO
+0.9.0, MEV 1.1.1, MessagePack 0.2.0, ModelicaByExample 0.6.0, PNlib 3.0.0,
+Pharmacolibrary 25.9.0, PhotoVoltaics 3.2.1, PhotoVoltaics_TGM 3.2.1,
+PlanarMechanics 1.7.0, PowerGrids 1.0.3, StewartPlatform 1.0.2,
+SystemDynamics 2.1.2, ThermofluidStream 1.4.1, VehicleInterfaces 2.0.2 and
+iPSL 1.1.1. It also has OMSimulator, OpenModelica's FMI co-simulation, of the
+same release.
+
 When no tool is found the verdict is **inconclusive**, with the reason
 (`OpenModelica not available: ...`), and is not cached: a missing tool is
 never a pass.

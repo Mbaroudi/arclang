@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { ONLINE_LIMITS, leftText, pickFiles, sendablePath, walkable } from '../../src/pure/sim-online';
+import { ONLINE_LIMITS, leftText, pickFiles, sendablePath, walkable, sentAsBytes } from '../../src/pure/sim-online';
 
 test('only what a simulation reads is sent, never a dot file nor the compiler cache', () => {
-  for (const ok of ['ev.arc', 'lib/Plant.mo', 'data/drive cycle.csv', 'run.mos']) assert.ok(sendablePath(ok), ok);
+  for (const ok of ['ev.arc', 'lib/Plant.mo', 'data/drive cycle.csv', 'run.mos', 'data/house.parquet']) assert.ok(sendablePath(ok), ok);
   for (const bad of ['.arclang/sim-cache/TC.json', 'notes/.secret.mo', 'image.png', 'node_modules/x/y.mo', 'a/../b.arc', 'x.arc.', '']) assert.equal(sendablePath(bad), false, bad);
   assert.ok(walkable('lib'));
   assert.equal(walkable('.git'), false);
@@ -27,4 +27,9 @@ test('the runs left read naturally', () => {
   assert.equal(leftText(19), ' · 19 online runs left today');
   assert.equal(leftText(1), ' · 1 online run left today');
   assert.equal(leftText(undefined), '');
+});
+
+test('a twin\'s Parquet measurements and a .mat result go as bytes, the rest as text', () => {
+  for (const bytes of ['data/house.parquet', 'res.MAT']) assert.ok(sentAsBytes(bytes), bytes);
+  for (const text of ['ev.arc', 'lib/Plant.mo', 'data/house.csv']) assert.equal(sentAsBytes(text), false, text);
 });

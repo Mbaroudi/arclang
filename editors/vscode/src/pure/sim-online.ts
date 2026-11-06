@@ -3,8 +3,15 @@
 // is read. The names follow the server's rule: a name it would refuse (a
 // dot file, the compiler's own `.arclang` folder) is never sent.
 
-/** The files a simulation may read: models, Modelica sources, scripts and data. */
-const SENT = /\.(arc|mo|mos|csv|txt|json|tsv|mat)$/i;
+/** The files a simulation may read: models, Modelica sources, scripts and data (a twin's measurements too). */
+const SENT = /\.(arc|mo|mos|csv|txt|json|tsv|mat|parquet)$/i;
+/** The files sent as bytes (base64), not as text. */
+const BINARY = /\.(mat|parquet)$/i;
+
+/** Whether a file goes as bytes (base64) rather than text. */
+export function sentAsBytes(rel: string): boolean {
+  return BINARY.test(rel);
+}
 const SEGMENT = /^[A-Za-z0-9_][A-Za-z0-9._ -]{0,99}$/;
 const SKIPPED_DIRS = new Set(['node_modules', 'target', 'dist', 'out']);
 

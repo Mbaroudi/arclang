@@ -3,12 +3,13 @@
 // visitors: the command `arclangWeb.simulation.run`), "Run simulations" sends
 // the model's folder there and shows the verdicts, the Monte Carlo page and
 // the report; the page counts the runs and the server runs them in a
-// sandbox. Elsewhere the commands say that simulation needs the desktop
+// sandbox; "Run the digital twins" sends it the same way, with the measured
+// data beside the model. Elsewhere the commands say that simulation needs the desktop
 // extension, so that a button never fails silently.
 import * as path from 'node:path';
 import * as vscode from 'vscode';
 import { failureText, run } from '../cli';
-import { leftText, pickFiles, walkable, ONLINE_LIMITS } from '../pure/sim-online';
+import { leftText, pickFiles, sentAsBytes, walkable, ONLINE_LIMITS } from '../pure/sim-online';
 import type { Replay } from '../pure/sim-report';
 import { DOCS_URL, Outcome, countOutcomes, parseOutcomes, runLog, simulates, summaryText } from '../pure/simulation';
 import { MonteCarloPanel } from './montecarlo';
@@ -16,6 +17,8 @@ import { keepOnlineRun, type OnlineStatistics } from './online-results';
 import { replaySimulation } from './replay';
 import { openModelicaDrawing } from './modelica-view';
 import { exportSimulationReport } from './report';
+import { parseTwinOutcomes, twinSummary } from '../pure/twin';
+import { showTwinOutcomes, twinsBusy } from './twin-view';
 
 const HOST_COMMAND = 'arclangWeb.simulation.run';
 const DESKTOP_ONLY = 'ArcLang: simulation needs the desktop extension. It runs OpenModelica on your computer, which a browser cannot do.';
@@ -61,6 +64,16 @@ async function listFolder(dir: vscode.Uri): Promise<{ path: string; size: number
   return found;
 }
 
+/** The files sent, read from the model's folder: text, or bytes in base64 (a .mat result, a Parquet file of measurements). */
+async function readFiles(dir: vscode.Uri, take: string[]): Promise<Record<string, string | { base64: string }>> {
+  const files: Record<string, string | { base64: string }> = {};
+  for (const rel of take) {
+    const bytes = await vscode.workspace.fs.readFile(vscode.Uri.joinPath(dir, rel));
+    files[rel] = sentAsBytes(rel) ? { base64: Buffer.from(bytes).toString('base64') } : new TextDecoder().decode(bytes);
+  }
+  return files;
+}
+
 async function runOnline(arg: unknown, monteCarlo: boolean): Promise<void> {
   if (running) return void vscode.window.showInformationMessage('ArcLang: a simulation is already running.');
   const uri = activeModel(arg);
@@ -78,8 +91,7 @@ async function runOnline(arg: unknown, monteCarlo: boolean): Promise<void> {
   const model = path.posix.basename(uri.path);
   const picked = pickFiles(model, await listFolder(dir));
   if (picked.error) return void vscode.window.showErrorMessage(`ArcLang: ${picked.error}.`);
-  const files: Record<string, string> = {};
-  for (const rel of picked.take) files[rel] = new TextDecoder().decode(await vscode.workspace.fs.readFile(vscode.Uri.joinPath(dir, rel)));
+  const files = await readFiles(dir, picked.take);
 
   running = true;
   let reply: HostAnswer;
@@ -130,6 +142,57 @@ async function runOnline(arg: unknown, monteCarlo: boolean): Promise<void> {
   if (choice === 'Show the verdicts') await vscode.commands.executeCommand('arclang.table.coverage', uri);
   else if (choice === 'Export the report') await exportReport();
   else if (choice === 'Show the log') log.show(true);
+}
+
+/**
+ * The model's digital twins, online: the model's folder (with the measured
+ * data the twins read: CSV or Parquet files) goes to the sandboxed
+ * OpenModelica like a simulation, counted the same way, and the twins come
+ * back in the desktop's view.
+ */
+async function runTwinsOnline(context: vscode.ExtensionContext, arg: unknown): Promise<void> {
+  if (running) return void vscode.window.showInformationMessage('ArcLang: a simulation is already running.');
+  const uri = activeModel(arg);
+  const doc = uri ? await vscode.workspace.openTextDocument(uri) : null;
+  if (!uri || !doc) return void vscode.window.showInformationMessage('ArcLang: open a .arc model with a twin (twin "Name" { simulate: … data: … drives: … }).');
+  if (!/^\s*twin\s+"/m.test(doc.getText())) {
+    return void vscode.window.showInformationMessage('ArcLang: this model declares no twin: twin "Name" { simulate: { model: … } data: { file: … } drives: [ … ] compares: [ … ] }.');
+  }
+  if (doc.isDirty) await doc.save();
+  const dir = vscode.Uri.joinPath(uri, '..');
+  const model = path.posix.basename(uri.path);
+  const picked = pickFiles(model, await listFolder(dir));
+  if (picked.error) return void vscode.window.showErrorMessage(`ArcLang: ${picked.error}.`);
+  const files = await readFiles(dir, picked.take);
+
+  running = true;
+  twinsBusy('Running the twins online in OpenModelica…');
+  let reply: HostAnswer;
+  try {
+    reply = await vscode.window.withProgress({ location: vscode.ProgressLocation.Notification, title: 'Running the digital twins online in OpenModelica…' }, () =>
+      Promise.resolve(vscode.commands.executeCommand<HostAnswer>(HOST_COMMAND, { model, files, twin: true })),
+    );
+  } finally {
+    running = false;
+  }
+  if (!reply) return;
+  if (!reply.ok) return void vscode.window.showErrorMessage(`ArcLang: ${reply.error}`);
+  const answer = reply.answer;
+  const outcomes = Array.isArray(answer.twins) ? parseTwinOutcomes(JSON.stringify(answer.twins)) : null;
+  const log = output();
+  log.appendLine(`── ${new Date().toLocaleTimeString()}  arclang twin ${model} (online)`);
+  if (!outcomes) {
+    if (typeof answer.stderr === 'string') log.appendLine(answer.stderr);
+    log.show(true);
+    return void vscode.window.showErrorMessage(
+      answer.timedOut ? 'ArcLang: the twins took longer than an online run may (15 minutes). Run them on your computer with the desktop extension.' : 'ArcLang: the twins could not run. See the ArcLang Simulation output.',
+    );
+  }
+  for (const o of outcomes) log.appendLine(`twin '${o.name}': ${o.verdict.toUpperCase()}${o.reason ? `: ${o.reason}` : ''}`);
+  if (picked.left) log.appendLine(`${picked.left} file(s) of the folder were not sent (limits).`);
+  showTwinOutcomes(context, uri, outcomes, () => void runTwinsOnline(context, uri));
+  const failed = outcomes.some((o) => o.verdict !== 'pass');
+  void (failed ? vscode.window.showWarningMessage : vscode.window.showInformationMessage)(`ArcLang: ${twinSummary(outcomes)}${leftText(answer.left)}.`);
 }
 
 /** The report of the last online run, as PDF or PowerPoint: the desktop's export, with the series the server kept. */
@@ -200,8 +263,16 @@ export function registerSimulationWeb(context: vscode.ExtensionContext): void {
     await openModelicaDrawing(context, uri.fsPath);
   });
   register('docs', () => vscode.env.openExternal(vscode.Uri.parse(DOCS_URL)));
-  // Digital twins run on the desktop for now (the measured data stays on the engineer's machine).
-  for (const command of ['arclang.twin.run', 'arclang.twin.watch']) context.subscriptions.push(vscode.commands.registerCommand(command, () => vscode.window.showInformationMessage('ArcLang: digital twins run in the desktop extension for now: arclang twin model.arc, or ArcLang: Run the digital twins in VS Code with OpenModelica installed.')));
+  // Digital twins: online on the data files sent with the model. Following
+  // live data (MQTT, OPC UA, Kafka, HTTP) reaches the engineer's network:
+  // the desktop extension does it.
+  const twinsDesktop = () => void vscode.window.showInformationMessage('ArcLang: digital twins run online for signed-in visitors on arclang.fr; elsewhere, in the desktop extension (arclang twin model.arc).');
+  context.subscriptions.push(
+    vscode.commands.registerCommand('arclang.twin.run', async (arg?: unknown) => ((await online()) ? runTwinsOnline(context, arg) : twinsDesktop())),
+    vscode.commands.registerCommand('arclang.twin.watch', () =>
+      vscode.window.showInformationMessage('ArcLang: a live twin follows MQTT, OPC UA, Kafka or HTTP data on your network: it runs in the desktop extension. Online, "Run the digital twins" runs a twin on the data files beside the model.'),
+    ),
+  );
 
   // The ▶ of the editor's title bar, on a model that simulates, where simulation runs online.
   // Asked again until the page has registered its command (once the account is known).

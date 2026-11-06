@@ -251,10 +251,15 @@ On the heat pump's day, both ways give the same verdict to the last digit.
 The model is still not driven by a control loop of its own: the twin
 watches, it does not command.
 
-## What comes next
+## Online
 
-- Twins online: on arclang.fr, signed in, they run on the server, as the
-  simulations do.
+On arclang.fr, signed in, "ArcLang: Run the digital twins" sends the
+model's folder (the model, its Modelica sources, the measurements in CSV or
+Parquet beside it) to the same sandboxed OpenModelica as the simulations,
+counted in the same daily runs, and shows the twins in the same view as the
+desktop. A job there has no network: a twin on live data (MQTT, OPC UA,
+Kafka, HTTP) runs in the desktop extension, which reaches the engineer's
+network.
 
 The example in `examples/building/heat-pump/` carries a twin and a sample of
 data. **The sample is synthetic**: its header says how it was made. Replace
