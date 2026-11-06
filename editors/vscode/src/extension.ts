@@ -73,9 +73,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
   registerAi(context); // ai-design hook
   registerMcpProvider(context);
 
-  // The language server starts with the first .arc document, not at startup.
-  const startForArc = (document: vscode.TextDocument) => {
-    if (document.languageId === 'arclang') void startClient(context);
+  // The language server starts with the first .arc document, not at startup,
+  // and only once the compiler answers: without it the user gets the guided
+  // "install or locate" prompt, not the language client's raw spawn errors.
+  const startForArc = async (document: vscode.TextDocument) => {
+    if (document.languageId !== 'arclang' || !workspaceTrusted()) return;
+    if (await warnIfMissing()) await startClient(context);
   };
   context.subscriptions.push(vscode.workspace.onDidOpenTextDocument(startForArc));
   context.subscriptions.push(

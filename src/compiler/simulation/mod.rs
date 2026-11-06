@@ -37,6 +37,8 @@ pub mod twin_http;
 #[cfg(feature = "native")]
 pub mod twin_kafka;
 #[cfg(feature = "native")]
+pub mod twin_tls;
+#[cfg(feature = "native")]
 pub mod twin_opcua;
 #[cfg(feature = "native")]
 pub mod twin_step;

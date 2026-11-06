@@ -59,7 +59,8 @@ async-trait = { version = "0.1", optional = true }
 tower-lsp = { version = "0.20", optional = true }
 tracing = { version = "0.1", optional = true }
 tracing-subscriber = { version = "0.3", features = ["env-filter"], optional = true }
-reqwest = { version = "0.12", features = ["json", "blocking"], optional = true }
+# TLS by rustls (ring) and the system's roots: no OpenSSL, so the Linux binary needs no libssl.
+reqwest = { version = "0.12", default-features = false, features = ["json", "blocking", "charset", "http2", "rustls-tls-native-roots"], optional = true }
 rayon = { version = "1.8", optional = true }
 rand = { version = "0.8", optional = true }
 # Monte Carlo verification: laws, quantiles, Clopper-Pearson; seeded samples.
@@ -69,7 +70,7 @@ config = { version = "0.13", optional = true }
 indicatif = { version = "0.17", optional = true }
 # Digital twins: measurements in Parquet; live data over MQTT.
 parquet = { version = "60", default-features = false, features = ["snap", "zstd", "lz4"], optional = true }
-rumqttc = { version = "0.25", default-features = false, features = ["use-native-tls"], optional = true }
+rumqttc = { version = "0.25", default-features = false, features = ["use-rustls-no-provider"], optional = true }
 async-opcua = { version = "0.19", default-features = false, features = ["client"], optional = true }
 futures = { version = "0.3", optional = true }
 rskafka = { version = "0.6", features = ["transport-tls"], optional = true }
