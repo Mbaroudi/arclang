@@ -59,7 +59,7 @@ an agent drives it through `arclang_realize`. Python is the agent layer
 | Domain | In the language | Tools behind it |
 |---|---|---|
 | System architecture | `requirements`, `operational_analysis` … `physical_architecture`, `allocations`, `interfaces`, SysML v2 import/export | the compiler, Capella, SysML v2 |
-| Physical model | `simulate: { model: … sources: […] }`, `twin`, `plant:` of an executed case | OpenModelica, Modelica Standard Library, FMI 2.0 CS |
+| Physical model | `simulate: { model: … sources: […] }`, `twin`, `plant:` of an executed case | OpenModelica, Modelica Standard Library, FMI 2.0 and 3.0 CS (import), FMI 2.0 CS (export) |
 | Embedded software | `state_machine` (regions, pseudo-states, `equations:`), `io_binding` (channels, period, watchdog, `target:` package), `node` with `processor:` | C generation, MISRA check, Zephyr, Renode |
 | Digital hardware | `node` with `kind: "fpga"`, `device:`, `clock:`, `deploys`; fixed point from `range` | VHDL generation, GHDL, Yosys, nextpnr, LiteX, Verilator, the ULX3S |
 | Communication | the channels of `io_binding`: gpio, adc, dac, pwm, can, uart | the target package's drivers, Renode's peripherals |
@@ -84,8 +84,10 @@ language.
    exported application, `arclang schedule` on the step times measured,
    `--prove` running every task together in Renode, each period proved
    kept under load.
-4. **FMI 3.0** — import through the `fmi` crate when OpenModelica's export
-   leaves experimental status; export when a consumer needs it.
+4. ~~**FMI 3.0 import**~~ — done: a plant's `fmu:` (and any FMU the
+   stepper runs) is FMI 2.0 or FMI 3.0 co-simulation, from any tool,
+   stepped through the C API by the same stepper. The export stays FMI 2.0
+   until a consumer needs 3.0.
 5. **Dataflow outside machines** — signal-processing blocks between
    machines, in C and in VHDL, with the same fixed-point derivation.
 

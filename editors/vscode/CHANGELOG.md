@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- The compiler: a plant's `fmu:` may be an FMI 3.0 co-simulation FMU, as well as an FMI 2.0 one, from any tool. The stepper reads the version and the model identifier from the description, and loads the binary for the platform it runs on (`aarch64-darwin`, `x86_64-linux`, … then `darwin64`, `linux64`). Fixed: an FMI 2.0 FMU from another tool could not be stepped, because the stepper looked for a library named `arclang_twin` and took the first platform listed.
+
 ## 4.10.0
 
 - **The realization ladder** (`ArcLang: Realization ladder`): a tab per model, one row per requirement, a chip per stage — the simulation, SIL, PIL, HDL, the SoC, the board, the twin — fresh pass, fail, stale (changed since) or never run, from the verdicts the commands cached beside the model (nothing runs to show it). The stage reached, the next command with **Run** (a terminal beside the model, the configured binary, the real file), and **Realize** (`arclang realize`: every missing or stale stage in order, a requirement's climb stopping at a failure). The view refreshes when a verdict is written. The table view offers the `realization` kind; the chat tool `arclang_realize` gives the assistant the plan and the gaps (a requirement nothing climbs), to propose the missing case with `arclang_edit`.
