@@ -286,6 +286,9 @@ fn xml_attribute(tag: &str, key: &str) -> Option<String> {
 
 /// The unit of every variable the `<model>_init.xml` declares one for.
 pub fn units_from_init_xml(xml: &str) -> BTreeMap<String, String> {
+    if xml.contains("<ModelVariables") && !xml.contains("<ScalarVariable") {
+        return units_fmi3(xml);
+    }
     let mut out = BTreeMap::new();
     for block in xml.split("<ScalarVariable").skip(1) {
         let block = block.split("</ScalarVariable>").next().unwrap_or(block);
@@ -294,6 +297,36 @@ pub fn units_from_init_xml(xml: &str) -> BTreeMap<String, String> {
         let typed = block.find("<Real").map(|i| &block[i..]).and_then(|t| t.split('>').next());
         if let Some(unit) = typed.and_then(|t| xml_attribute(t, "unit")).filter(|u| !u.is_empty()) {
             out.insert(name, unit);
+        }
+    }
+    out
+}
+
+/// The units of an FMI 3.0 description: a `Float64`'s (or `Float32`'s)
+/// own `unit`, else its `declaredType`'s.
+fn units_fmi3(xml: &str) -> BTreeMap<String, String> {
+    let tags = |element: &'static str| {
+        xml.match_indices(element).filter_map(move |(at, _)| {
+            let rest = &xml[at + element.len()..];
+            rest.starts_with(|c: char| c.is_whitespace()).then(|| rest.split('>').next().unwrap_or(""))
+        })
+    };
+    let mut types: BTreeMap<String, String> = BTreeMap::new();
+    for element in ["<Float64Type", "<Float32Type"] {
+        for tag in tags(element) {
+            if let (Some(name), Some(unit)) = (xml_attribute(tag, "name"), xml_attribute(tag, "unit").filter(|u| !u.is_empty())) {
+                types.insert(name, unit);
+            }
+        }
+    }
+    let mut out = BTreeMap::new();
+    for element in ["<Float64", "<Float32"] {
+        for tag in tags(element) {
+            let Some(name) = xml_attribute(tag, "name") else { continue };
+            let unit = xml_attribute(tag, "unit").filter(|u| !u.is_empty()).or_else(|| xml_attribute(tag, "declaredType").and_then(|t| types.get(&t).cloned()));
+            if let Some(unit) = unit {
+                out.insert(name, unit);
+            }
         }
     }
     out
@@ -316,6 +349,27 @@ mod tests {
         assert_eq!(parse_unit("rad/s").unwrap().dim, DimVec { time: -1, angle: 1, ..DimVec::NONE });
         assert_eq!(parse_unit("J/(kg.K)").unwrap().dim, dim(-2, 2, 0, 0, -1));
         assert!(parse_unit("furlong").is_none());
+    }
+
+    #[test]
+    fn fmi3_units_come_from_the_variable_or_its_declared_type() {
+        let xml = r#"<fmiModelDescription fmiVersion="3.0">
+  <TypeDefinitions>
+    <Float64Type name="Position" quantity="Position" unit="m"/>
+    <Float64Type name="Velocity" unit="m/s"/>
+  </TypeDefinitions>
+  <ModelVariables>
+    <Float64 name="h" valueReference="1" declaredType="Position"/>
+    <Float64 name="v" valueReference="3" declaredType="Velocity" unit="km/h"/>
+    <Float64 name="mu" valueReference="5"/>
+    <Float32 name="T" valueReference="6" unit="K"/>
+  </ModelVariables>
+</fmiModelDescription>"#;
+        let units = units_from_init_xml(xml);
+        assert_eq!(units.get("h").map(String::as_str), Some("m"));
+        assert_eq!(units.get("v").map(String::as_str), Some("km/h"), "the variable's own unit first");
+        assert_eq!(units.get("T").map(String::as_str), Some("K"));
+        assert!(!units.contains_key("mu") && !units.contains_key("Position"));
     }
 
     #[test]

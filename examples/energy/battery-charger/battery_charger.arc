@@ -11,6 +11,7 @@
 //   arclang check  examples/energy/battery-charger/battery_charger.arc
 //   arclang export examples/energy/battery-charger/battery_charger.arc -f c -o build/charger
 //   arclang sil    examples/energy/battery-charger/battery_charger.arc
+//   arclang hdl    examples/energy/battery-charger/battery_charger.arc --synth
 // ============================================================================
 
 model BatteryCharger {
@@ -44,20 +45,39 @@ requirements system {
     }
 }
 
+// The hardware/software split (docs/embedded-fpga.md): the charge
+// controller is computed by the programmable logic of the SoC, in fixed
+// point; the processor runs the I/O and calls it through its registers.
+physical_architecture "Charger hardware" {
+    node "Charger SoC" {
+        id: "PN-CHG-SOC"
+        processor: "VexRiscv (LiteX)"
+    }
+    node "Charger fabric" {
+        id: "PN-CHG-FABRIC"
+        kind: "fpga"
+        device: "LFE5U-25F-6BG381C"
+        clock: 25 MHz
+        behavior_component "Charge controller" { id: "PC-CHG-CTRL" }
+    }
+}
+
 state_machine "Charger" {
+    owner: "PC-CHG-CTRL"
     // The data the controller computes: measured inputs, a current loop, a
-    // first-order filter of the voltage, the charge delivered.
+    // first-order filter of the voltage, the charge delivered. The ranges
+    // give the fixed-point formats of the hardware.
     variables: [
-        "in voltage: Real [V]",
-        "in current: Real [A]",
+        "in voltage: Real [V] range 0 V .. 60 V",
+        "in current: Real [A] range -25 A .. 25 A",
         "const v_absorption: Real [V] = 54.6 V",
         "const i_bulk: Real [A] = 16 A",
         "target: Real [A] = 0 A",
         "error: Real [A]",
         "out setpoint: Real [A]",
-        "filtered: Real [V] = 0 V",
+        "filtered: Real [V] range 0 V .. 60 V = 0 V",
         "previous: Real [V]",
-        "out charge: Real [Ah]",
+        "out charge: Real [Ah] range -10 Ah .. 10 Ah",
         "out plugs: Integer = 0"
     ]
     equations: [
@@ -199,5 +219,39 @@ test_case "TC-CHG-003" {
         "final(\"Charger\".plugs) == 1",
         "final(\"Charger\".charge) > 0.0001 Ah",
         "final(\"Charger\".previous) == 56 V"
+    ]
+}
+
+// The controller closed on the physics (docs/embedded-c.md, "The plant in
+// the loop"): the current it asks for drives the pack, the pack's voltage
+// and current come back as its inputs. No input list can say whether the
+// filtered voltage reaches 54.6 V: only the loop does. `arclang sil` runs
+// the C in it, `arclang soc` the SoC; `arclang hdl` and `arclang pil`
+// replay the loop's vectors.
+test_case "TC-CHG-HIL" {
+    verifies: ["SYS-CHG-004", "SYS-CHG-005"]
+    method: "test"
+    description: "In the loop with the pack: precharge at 2 A, bulk at 16 A lifts the terminals past 54.6 V, absorption at 4 A"
+    execute: {
+        machine: "Charger"
+        step: 10 ms
+        stop_time: 1.5 s
+        inputs: ["0 s: battery present", "20 ms: plug"]
+        plant: {
+            model: "ChargerPhysics.Battery"
+            sources: ["physics/ChargerPhysics.mo"]
+            inputs: ["i_set <- setpoint"]
+            outputs: ["voltage <- v_batt", "current <- i_batt"]
+        }
+    }
+    expects: [
+        "SYS-CHG-004: at(200 ms, \"Charger\".target) == 2 A",
+        "SYS-CHG-004: at(200 ms, \"Charger\".current) > 1.5 A",
+        "SYS-CHG-004: at(200 ms, \"Charger\".current) < 2.5 A",
+        "SYS-CHG-004: max(\"Charger\".setpoint) <= 20 A",
+        "SYS-CHG-004: at(300 ms, \"Charger\".Charging.Bulk) == 1",
+        "SYS-CHG-005: at(1 s, \"Charger\".Charging.Absorption) == 1",
+        "SYS-CHG-005: at(1.4 s, \"Charger\".current) < 5 A",
+        "final(\"Charger\".charge) > 0.001 Ah"
     ]
 }

@@ -7,7 +7,7 @@ use super::results::{units_from_init_xml, Series};
 use super::tool::{self, Tool, ToolConfig};
 use super::montecarlo;
 use super::sweep::{self, Point};
-use super::{cache, case_expects, is_simulated, replay, spec_of, Outcome, PointOutcome, Spec, Status};
+use super::{cache, case_expects, is_simulated, replay, spec_of, Outcome, PointOutcome, Rung, Spec, Status};
 use crate::compiler::modelica::{self, names, Export};
 use crate::compiler::CompilationResult;
 use std::path::{Path, PathBuf};
@@ -44,16 +44,25 @@ pub fn attach(result: &mut CompilationResult, model_path: &Path) {
         let inconclusive = |reason: String| Status::new("inconclusive", reason, "");
         let configuration = configuration_id(result, &spec);
         let status = match export.as_ref().map_err(|e| e.clone()).and_then(|export| super::effective(spec, &base, export, configuration).map(|spec| (export, spec))) {
-            Err(error) => inconclusive(format!("the model does not export to Modelica: {error}")),
+            Err(error) => {
+                let reason = format!("the model does not export to Modelica: {error}");
+                inconclusive(reason.clone()).with_rung(Rung::missing("simulation", reason))
+            }
             Ok((export, spec)) => {
                 let key = cache::key(&export.text, &base, &spec, &case_expects(&result.ast, test));
                 match cache::read(&dir, &test.id) {
-                    None => inconclusive(format!("never simulated: run `arclang verify {} --test {}`", model_path.display(), test.id)),
-                    Some(outcome) if outcome.key != key => inconclusive(format!(
-                        "stale: the model, its Modelica sources or the case changed since it was simulated; run `arclang verify {} --test {}`",
-                        model_path.display(),
-                        test.id
-                    )),
+                    None => {
+                        let reason = format!("never simulated: run `arclang verify {} --test {}`", model_path.display(), test.id);
+                        inconclusive(reason.clone()).with_rung(Rung::missing("simulation", reason))
+                    }
+                    Some(outcome) if outcome.key != key => {
+                        let reason = format!(
+                            "stale: the model, its Modelica sources or the case changed since it was simulated; run `arclang verify {} --test {}`",
+                            model_path.display(),
+                            test.id
+                        );
+                        inconclusive(reason.clone()).with_rung(Rung::stale("simulation", outcome.tool.clone(), reason))
+                    }
                     Some(outcome) => {
                         let mut status = outcome.status();
                         if outcome.names_requirements() {
@@ -63,7 +72,8 @@ pub fn attach(result: &mut CompilationResult, model_path: &Path) {
                                 status.by_requirement.insert(written.clone(), outcome.status_for(checks));
                             }
                         }
-                        status
+                        let rung = Rung::fresh("simulation", outcome.tool.clone(), &status);
+                        status.with_rung(rung)
                     }
                 }
             }
@@ -76,8 +86,41 @@ pub fn attach(result: &mut CompilationResult, model_path: &Path) {
         statuses.insert(test.id.clone(), status);
     }
     statuses.extend(executed);
+    statuses.extend(attach_twins(result, model_path));
     result.semantic_model.simulations = statuses;
     result.warnings.extend(warnings);
+}
+
+/// The cached verdict of every twin (`arclang twin` writes `<twin>.twin.json`),
+/// keyed by the twin's id, as one rung: fresh when the model, its sources,
+/// the measurements and the twin are those it ran, stale otherwise, missing
+/// when never run. Nothing of it is a warning: a twin is evidence from the
+/// field, not a case the model owes.
+fn attach_twins(result: &CompilationResult, model_path: &Path) -> std::collections::HashMap<String, Status> {
+    let mut statuses = std::collections::HashMap::new();
+    if result.ast.twins.is_empty() {
+        return statuses;
+    }
+    let dir = cache::dir(model_path);
+    for twin in &result.ast.twins {
+        // A twin never run has no status: the ladder reads its absence as the missing rung.
+        let Some(outcome) = cache::read_kind(&dir, &twin.id, "twin") else { continue };
+        let status = {
+            match super::twin::cache_key(result, model_path, twin) {
+                Ok(key) if key == outcome.key => {
+                    let status = outcome.status();
+                    let rung = Rung::fresh("twin", outcome.target.clone(), &status);
+                    status.with_rung(rung)
+                }
+                _ => {
+                    let reason = format!("stale: the model, its sources, the measurements or the twin changed since it ran; run `arclang twin {} --twin {}`", model_path.display(), twin.id);
+                    Status::new("inconclusive", reason.clone(), "").with_rung(Rung::stale("twin", outcome.target.clone(), reason))
+                }
+            }
+        };
+        statuses.insert(twin.id.clone(), status);
+    }
+    statuses
 }
 
 /// The status of a case of the cache, for each requirement it verifies too.
@@ -108,58 +151,109 @@ fn attach_executed(result: &mut CompilationResult, model_path: &Path) -> std::co
     for test in &executed {
         let inconclusive = |reason: String| Status::new("inconclusive", reason, "");
         let status = match crate::compiler::embedded::sil::cache_key(&result.ast, test) {
-            Err(e) => inconclusive(format!("the C is not generated: {e}")),
+            Err(e) => {
+                let reason = format!("the C is not generated: {e}");
+                inconclusive(reason.clone()).with_rung(Rung::missing("sil", reason))
+            }
             Ok(key) => match cache::read(&dir, &test.id) {
-                None => inconclusive(format!("never run in SIL: run `arclang sil {} --test {}`", model_path.display(), test.id)),
+                None => {
+                    let reason = format!("never run in SIL: run `arclang sil {} --test {}`", model_path.display(), test.id);
+                    inconclusive(reason.clone()).with_rung(Rung::missing("sil", reason))
+                }
                 Some(outcome) if outcome.key != key => {
                     let reason = format!("stale: the generated C or the case changed since its SIL run; run `arclang sil {} --test {}`", model_path.display(), test.id);
                     result.warnings.push(format!("verification: test_case '{}' is inconclusive: {reason}", test.name));
-                    inconclusive(reason)
+                    inconclusive(reason.clone()).with_rung(Rung::stale("sil", outcome.tool.clone(), reason))
                 }
                 Some(outcome) => {
                     let status = status_of(result, test, &outcome);
                     if status.verdict != "pass" {
                         result.warnings.push(format!("verification: test_case '{}' {} in SIL: {}", test.name, if status.verdict == "fail" { "fails" } else { "is in error" }, status.reason));
                     }
-                    status
+                    let rung = Rung::fresh("sil", outcome.tool.clone(), &status);
+                    status.with_rung(rung)
                 }
             },
         };
         let status = with_pil(result, model_path, &dir, test, status);
+        let status = with_hdl(result, model_path, &dir, test, status);
+        let status = with_soc(result, model_path, &dir, test, status);
         statuses.insert(test.id.clone(), status);
     }
     statuses
 }
 
-/// A case's status with its processor-in-the-loop verdict, when one is
-/// cached (`arclang pil` writes `<case>.pil.json`): a fresh failure or
-/// error is the case's verdict (it is the same C on the target), a fresh
-/// pass stands for a SIL verdict missing or stale and is added to the
-/// evidence otherwise; a stale one is a warning only.
-fn with_pil(result: &mut CompilationResult, model_path: &Path, dir: &Path, test: &crate::compiler::ast::TestCase, status: Status) -> Status {
-    let Some(outcome) = cache::read_kind(dir, &test.id, "pil") else { return status };
-    let fresh = crate::compiler::embedded::target::find(&outcome.target).and_then(|package| crate::compiler::embedded::pil::cache_key(&result.ast, test, &package)).is_ok_and(|key| key == outcome.key);
+/// A case's status with the verdict of a later stage, when one is cached
+/// beside its SIL verdict (`<case>.<kind>.json`): processor in the loop
+/// (`arclang pil`), the logic in simulation (`arclang hdl`), the SoC or the
+/// board (`arclang soc`). A fresh failure or error is the case's verdict
+/// (it is the same C on the target, the hardware computes the machine); a
+/// fresh pass stands for a SIL verdict missing or stale and is added to the
+/// evidence otherwise; a stale one is a warning only. Each is a rung of the
+/// status, kept apart.
+fn with_stage(result: &mut CompilationResult, model_path: &Path, dir: &Path, test: &crate::compiler::ast::TestCase, status: Status, kind: &str) -> Status {
+    let Some(outcome) = cache::read_kind(dir, &test.id, kind) else { return status };
+    // `label` names the stage in a verdict's warning; `stale` is the sentence of a stale one.
+    let (fresh, stage, label, stale, command, changed) = match kind {
+        "pil" => (
+            crate::compiler::embedded::target::find(&outcome.target).and_then(|package| crate::compiler::embedded::pil::cache_key(&result.ast, test, &package)).is_ok_and(|key| key == outcome.key),
+            "pil",
+            format!("PIL on {}", outcome.target),
+            format!("its PIL verdict on {} is stale", outcome.target),
+            "pil",
+            "the generated C, the case or the target package changed",
+        ),
+        "hdl" => (
+            crate::compiler::embedded::hdl::cache_key(&result.ast, test, &outcome.tool).is_ok_and(|key| key == outcome.key),
+            "hdl",
+            format!("HDL {}", outcome.target),
+            "its HDL verdict is stale".to_string(),
+            "hdl",
+            "the generated VHDL, the fixed-point C or the case changed",
+        ),
+        _ => (
+            crate::compiler::embedded::system::cache_key(&result.ast, test, &outcome.tool).is_ok_and(|key| key == outcome.key),
+            if outcome.tool.contains("on the board") { "board" } else { "soc" },
+            format!("{} {}", if outcome.tool.contains("on the board") { "board" } else { "SoC" }, outcome.target),
+            format!("its {} verdict is stale", if outcome.tool.contains("on the board") { "board" } else { "SoC" }),
+            "soc",
+            "the generated VHDL, the fixed-point C, the application or the case changed",
+        ),
+    };
+    let target = if kind == "pil" { outcome.target.clone() } else { format!("{} ({})", outcome.target, outcome.tool) };
     if !fresh {
-        result.warnings.push(format!(
-            "verification: test_case '{}': its PIL verdict on {} is stale (the generated C, the case or the target package changed); run `arclang pil {} --test {}`",
-            test.name,
-            outcome.target,
-            model_path.display(),
-            test.id
-        ));
-        return status;
+        let reason = format!("{stale} ({changed}); run `arclang {command} {} --test {}`", model_path.display(), test.id);
+        result.warnings.push(format!("verification: test_case '{}': {reason}", test.name));
+        return status.with_rung(Rung::stale(stage, target, reason));
     }
-    let pil = status_of(result, test, &outcome);
-    if pil.verdict != "pass" {
-        result.warnings.push(format!("verification: test_case '{}' {} in PIL on {}: {}", test.name, if pil.verdict == "fail" { "fails" } else { "is in error" }, outcome.target, pil.reason));
-        return pil;
+    let later = status_of(result, test, &outcome);
+    let rung = Rung::fresh(stage, target, &later);
+    if later.verdict != "pass" {
+        result.warnings.push(format!("verification: test_case '{}' {} in {label}: {}", test.name, if later.verdict == "fail" { "fails" } else { "is in error" }, later.reason));
+        let mut rungs = status.rungs;
+        rungs.push(rung);
+        return Status { rungs, ..later };
     }
     if status.verdict == "inconclusive" {
-        return pil;
+        let mut rungs = status.rungs;
+        rungs.push(rung);
+        return Status { rungs, ..later };
     }
     let mut status = status;
-    status.evidence = format!("{} · PIL on {}: pass", status.evidence, outcome.target).trim_start_matches(" · ").to_string();
-    status
+    status.evidence = format!("{} · {label}: pass", status.evidence).trim_start_matches(" · ").to_string();
+    status.with_rung(rung)
+}
+
+fn with_pil(result: &mut CompilationResult, model_path: &Path, dir: &Path, test: &crate::compiler::ast::TestCase, status: Status) -> Status {
+    with_stage(result, model_path, dir, test, status, "pil")
+}
+
+fn with_hdl(result: &mut CompilationResult, model_path: &Path, dir: &Path, test: &crate::compiler::ast::TestCase, status: Status) -> Status {
+    with_stage(result, model_path, dir, test, status, "hdl")
+}
+
+fn with_soc(result: &mut CompilationResult, model_path: &Path, dir: &Path, test: &crate::compiler::ast::TestCase, status: Status) -> Status {
+    with_stage(result, model_path, dir, test, status, "soc")
 }
 
 /// Simulate the cases of a model (one, with `only`), cache and return

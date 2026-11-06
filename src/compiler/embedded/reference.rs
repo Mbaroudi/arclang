@@ -158,24 +158,51 @@ impl Running<'_> {
     }
 }
 
-pub fn run(plan: &Plan, vectors: &Vectors, period_us: u64) -> Table {
-    let mut machines: Vec<Running> = plan
-        .machines
-        .iter()
-        .map(|m| {
-            let mut machine = m.machine.clone();
-            machine.set_period(period_us);
-            Running { plan: m, machine, in_state: vec![0; m.states.len()], counts: vec![0; m.actions.len()] }
-        })
-        .collect();
-    let mut rows = Vec::with_capacity(vectors.steps);
-    for k in 0..vectors.steps {
+/// The model run step by step: the machines of the plan, each at the
+/// period, advanced one step at a time on the vectors (a closed loop fills
+/// the vectors as it goes).
+pub struct Runner<'p> {
+    machines: Vec<Running<'p>>,
+    period_us: u64,
+}
+
+impl<'p> Runner<'p> {
+    pub fn new(plan: &'p Plan, period_us: u64) -> Runner<'p> {
+        let machines = plan
+            .machines
+            .iter()
+            .map(|m| {
+                let mut machine = m.machine.clone();
+                machine.set_period(period_us);
+                Running { plan: m, machine, in_state: vec![0; m.states.len()], counts: vec![0; m.actions.len()] }
+            })
+            .collect();
+        Runner { machines, period_us }
+    }
+
+    /// Step `k` of every machine on the vectors' inputs of that step: the row of `columns`.
+    pub fn step(&mut self, vectors: &Vectors, k: usize) -> Vec<f64> {
+        let period_us = self.period_us;
         let mut row = Vec::new();
-        for (n, r) in machines.iter_mut().enumerate() {
+        for n in 0..self.machines.len() {
+            // A wired input reads the other machine as it is after its step (it came before).
+            let wired: Vec<(usize, Value)> = self.machines[n]
+                .plan
+                .wires
+                .iter()
+                .map(|w| {
+                    let from = &self.machines[w.machine];
+                    (w.input, crate::compiler::execution::expr::eval(from.plan.program(), &mut from.machine.env.clone(), &w.value))
+                })
+                .collect();
+            let r = &mut self.machines[n];
             r.counts.iter_mut().for_each(|c| *c = 0);
             let inputs: Vec<usize> = r.plan.program().inputs().map(|(i, _)| i).collect();
             for i in inputs {
                 r.machine.env.values[i] = vectors.values[n][i][k];
+            }
+            for (i, value) in wired {
+                r.machine.env.values[i] = value;
             }
             r.machine.conditions = r.plan.conditions.iter().enumerate().map(|(c, signal)| (signal.text.clone(), vectors.conditions[n][c][k])).collect();
             if k == 0 {
@@ -222,7 +249,32 @@ pub fn run(plan: &Plan, vectors: &Vectors, period_us: u64) -> Table {
             // A budget is overrun when its source has been active longer than it.
             row.extend(r.plan.budgets.iter().map(|b| (r.machine.active.contains(&b.source) && r.in_state[b.source] > ticks(b.micros, period_us)) as u8 as f64));
         }
-        rows.push(row);
+        row
     }
+}
+
+/// The vectors with every wired input set, step by step, to what it read in
+/// the model's run: what a stage that runs a machine alone (the fixed point,
+/// the VHDL) replays.
+pub fn wired(plan: &Plan, vectors: &Vectors, period_us: u64) -> Vectors {
+    let mut out = vectors.clone();
+    if plan.machines.iter().all(|m| m.wires.is_empty()) {
+        return out;
+    }
+    let mut runner = Runner::new(plan, period_us);
+    for k in 0..vectors.steps {
+        runner.step(vectors, k);
+        for (n, r) in runner.machines.iter().enumerate() {
+            for w in &r.plan.wires {
+                out.values[n][w.input][k] = r.machine.env.values[w.input];
+            }
+        }
+    }
+    out
+}
+
+pub fn run(plan: &Plan, vectors: &Vectors, period_us: u64) -> Table {
+    let mut runner = Runner::new(plan, period_us);
+    let rows = (0..vectors.steps).map(|k| runner.step(vectors, k)).collect();
     Table { names: columns(plan), period_us, rows, units: units(plan) }
 }

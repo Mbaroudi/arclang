@@ -236,8 +236,8 @@ EVPhysics                              hand-written
 
 When the architecture is authored in another tool (a Capella project read
 with `arclang import -f capella`), the imported file is never edited and
-simulation lives beside it. The worked example is
-[`examples/aerospace/drone-from-capella`](../examples/aerospace/drone-from-capella/README.md).
+simulation lives beside it. A small worked case is the test fixture
+[`tests/fixtures/capella-sim`](../tests/fixtures/capella-sim/simulation.arc), a hoist.
 
 - **Capella's parameters.** A property value whose text reads as a quantity
   (`666 Wh`, `20 °C`, `85 %`) is imported as one, under its own name.
@@ -248,10 +248,10 @@ simulation lives beside it. The worked example is
   logical component, by id, else by a name only one element has.
 
   ```arclang
-  import "drone.arc"
+  import "hoist.arc"
 
   refine "PN-BATT" {
-      model: "DronePhysics.Pack"
+      model: "HoistPhysics.Pack"
       deploys "LC-ENERGY"
       port "p" { is: "Power plus" }
   }
@@ -259,7 +259,7 @@ simulation lives beside it. The worked example is
 
 - **The roll-up.** `model:` on a node or a behavior component names its
   executable model: a Modelica class extending the class the export
-  generates for it, with modifiers if needed (`"DronePhysics.Rotors(rho=airframe.rho)"`).
+  generates for it, with modifiers if needed (`"Physics.Rotors(rho=airframe.rho)"`).
   The package then has `Executable.<Configuration>`: the system model of
   the configuration with every element redeclared by its model (a node
   with a model gets its behavior components' models as modifiers; a node

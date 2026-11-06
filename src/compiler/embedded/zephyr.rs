@@ -66,48 +66,179 @@ pub fn choose_binding<'a>(bindings: &'a [Binding], name: Option<&str>) -> Result
     }
 }
 
-/// The application of the model for `target` (else the binding's).
+/// The bindings an export runs as tasks: the one named, else every binding
+/// of the target (one task each), else none.
+pub fn choose_bindings<'a>(bindings: &'a [Binding], name: Option<&str>, target: Option<&str>) -> Result<Vec<&'a Binding>, String> {
+    match name {
+        Some(_) => Ok(choose_binding(bindings, name)?.into_iter().collect()),
+        None => {
+            let package = match target {
+                Some(t) => t.to_string(),
+                None => match bindings.iter().map(|b| b.target.as_str()).collect::<std::collections::BTreeSet<_>>().len() {
+                    0 | 1 => bindings.first().map(|b| b.target.clone()).unwrap_or_default(),
+                    _ => return Err(format!("the io_bindings are deployed on several targets ({}): name the target (--target) or the binding (--binding)", bindings.iter().map(|b| format!("'{}' on {}", b.name, b.target)).collect::<Vec<_>>().join(", "))),
+                },
+            };
+            Ok(bindings.iter().filter(|b| b.target == package).collect())
+        }
+    }
+}
+
+/// The application of the model for `target` (else the bindings'): every
+/// binding of the target as a task, or the one named.
 pub fn export(ast: &Model, target: Option<&str>, binding: Option<&str>) -> Result<App, String> {
     let plan = super::plan::plan(ast)?;
     let bindings = super::binding::resolve_all(ast, &plan)?;
-    let chosen = choose_binding(&bindings, binding)?;
-    let package = choose_target(&bindings, chosen, target)?;
-    app(&plan, chosen, &package)
+    let chosen = choose_bindings(&bindings, binding, target)?;
+    let package = choose_target(&bindings, chosen.first().copied(), target)?;
+    let allocations = super::alloc::allocations(ast, &plan)?;
+    if allocations.is_empty() {
+        return app_of(&plan, &chosen, &package);
+    }
+    let period = chosen.first().map(|b| b.period_us).unwrap_or(super::case::DEFAULT_STEP_US);
+    let mut built = hw_app_of(&plan, &allocations, &chosen, &package, period)?;
+    for (k, a) in allocations.iter().enumerate() {
+        let block = super::vhdl::entity(&plan, &plan.machines[a.machine]);
+        built.notes.push(format!("state_machine '{}' is computed by the programmable logic ('{}'): src/model/{block}_hw.h drives block {block}_wb at {up}_HW_BASE (0x{base:08X} by default: where the SoC maps its Wishbone region; -D{up}_HW_BASE=... for another), the VHDL in hw/; the emulated SoC has no such block, so arclang pil runs the machine's software C instead (arclang soc runs it with the block)", plan.machines[a.machine].name, a.node, up = block.to_uppercase(), base = hw_base(k)));
+    }
+    Ok(built)
+}
+
+/// Where the SoC maps the k-th block's Wishbone region.
+pub fn hw_base(k: usize) -> u32 {
+    0xB000_0000u32 + 0x1000 * k as u32
+}
+
+/// The application of a plan whose allocated machines the programmable
+/// logic computes: those called through their drivers (the VHDL in `hw/`),
+/// in fixed point at `period_us`.
+pub fn hw_app(plan: &Plan, allocations: &[super::alloc::Allocation], binding: Option<&Binding>, package: &Package, period_us: u64) -> Result<App, String> {
+    let bindings: Vec<&Binding> = binding.into_iter().collect();
+    hw_app_of(plan, allocations, &bindings, package, period_us)
+}
+
+/// As `hw_app`, for several bindings (a task each).
+pub fn hw_app_of(plan: &Plan, allocations: &[super::alloc::Allocation], bindings: &[&Binding], package: &Package, period_us: u64) -> Result<App, String> {
+    let mut hw = plan.clone();
+    let mut extra = Vec::new();
+    let mut defines = Vec::new();
+    for (k, a) in allocations.iter().enumerate() {
+        let fx = super::fixed::machine(&plan.machines[a.machine], period_us)?;
+        let block = super::vhdl::entity(plan, &plan.machines[a.machine]);
+        for (name, text) in super::vhdl::files(plan, &plan.machines[a.machine], &fx) {
+            let dir = if name.ends_with("_hw.h") { "src/model" } else { "hw" };
+            extra.push((format!("{dir}/{name}"), text, false));
+        }
+        defines.push(format!("if(NOT DEFINED {up}_HW_BASE)\n  set({up}_HW_BASE 0x{base:08X})\nendif()\ntarget_compile_definitions(app PRIVATE {up}_HW_BASE=${{{up}_HW_BASE}})\n", up = block.to_uppercase(), base = hw_base(k)));
+        hw.machines[a.machine].hardware = Some(block);
+    }
+    let mut built = app_of(&hw, bindings, package)?;
+    for (name, text, _) in built.files.iter_mut() {
+        if name == "arclang_app.cmake" {
+            text.push_str("# The blocks of the programmable logic: the addresses of their registers.\n");
+            for d in &defines {
+                text.push_str(d);
+            }
+        }
+    }
+    built.files.extend(extra);
+    Ok(built)
 }
 
 /// The application of a plan, one binding (or none), for a package.
 pub fn app(plan: &Plan, binding: Option<&Binding>, package: &Package) -> Result<App, String> {
+    let bindings: Vec<&Binding> = binding.into_iter().collect();
+    app_of(plan, &bindings, package)
+}
+
+/// The application of a plan for a package: none of its bindings (the
+/// step() API alone), one (the controller's loop, `main.c`), or several
+/// (a task each at its period and priority, `tasks.c`).
+pub fn app_of(plan: &Plan, bindings: &[&Binding], package: &Package) -> Result<App, String> {
+    let binding = bindings.first().copied();
     let period = binding.map(|b| b.period_us).unwrap_or(super::case::DEFAULT_STEP_US);
     let mut files: Vec<(String, String, bool)> = Vec::new();
-    let generated = super::cgen::generate(plan, period);
+    // Several bindings: each machine at its binding's period (a task of its own);
+    // one: the model's period is the binding's, as `export -f c` generates it.
+    let periods: Vec<(usize, u64)> = if bindings.len() > 1 { bindings.iter().map(|b| (b.machine, b.period_us)).collect() } else { Vec::new() };
+    let generated = super::cgen::generate_for(plan, period, &periods);
     files.push((format!("src/model/{}", generated.header_name), generated.header, false));
     files.push((format!("src/model/{}", generated.source_name), generated.source, false));
     files.push(("src/arclang_io.h".to_string(), super::sil::IO_HEADER.to_string(), false));
-    if let Some(b) = binding {
+    for b in bindings {
         let glue = super::glue::generate(plan, b);
         files.push((format!("src/glue/{}", glue.header_name), glue.header, false));
         files.push((format!("src/glue/{}", glue.source_name), glue.source, false));
     }
-    files.push(("src/arclang_app.h".to_string(), app_header(plan, binding, period), false));
-    files.push(("src/arclang_io_config.h".to_string(), io_config(binding), false));
-    files.push(("arclang_app.cmake".to_string(), app_cmake(plan, binding, package), false));
+    files.push(("src/arclang_app.h".to_string(), app_header(plan, bindings, period), false));
+    files.push(("src/arclang_io_config.h".to_string(), io_config(bindings), false));
+    files.push(("arclang_app.cmake".to_string(), app_cmake(plan, bindings, package), false));
+    if bindings.len() > 1 {
+        files.push(("src/tasks.c".to_string(), tasks_main(plan, bindings, false), false));
+        files.push(("src/pil_tasks.c".to_string(), tasks_main(plan, bindings, true), false));
+    }
     let (header, source) = pil_files(plan);
     files.push(("src/arclang_pil.h".to_string(), header, false));
     files.push(("src/arclang_pil.c".to_string(), source, false));
     files.extend(package.files()?);
     let mut notes = vec![format!("target {}: {}", package.name, package.summary)];
-    match binding {
-        Some(b) => notes.push(format!("the controller runs io_binding '{}' every {} us (src/main.c)", b.name, b.period_us)),
-        None => notes.push("no io_binding: the application runs the step() API in processor in the loop only (ARCLANG_MAIN=pil_direct)".to_string()),
+    match bindings {
+        [] => notes.push("no io_binding: the application runs the step() API in processor in the loop only (ARCLANG_MAIN=pil_direct)".to_string()),
+        [b] => notes.push(format!("the controller runs io_binding '{}' every {} us (src/main.c)", b.name, b.period_us)),
+        many => {
+            let owned: Vec<Binding> = many.iter().map(|b| (*b).clone()).collect();
+            let priorities = super::binding::priorities(&owned);
+            for (b, p) in many.iter().zip(priorities) {
+                notes.push(format!("task '{}' runs state_machine '{}' every {} us at priority {p} (src/tasks.c)", b.name, plan.machines[b.machine].name, b.period_us));
+            }
+        }
     }
     for (kind, channel) in &package.channels {
         if let Some(note) = &channel.note {
-            if uses(binding, kind) {
+            if bindings.iter().any(|b| uses(Some(b), kind)) {
                 notes.push(format!("{kind}: {note}"));
             }
         }
     }
     Ok(App { files, notes, binding: binding.map(|b| b.name.clone()) })
+}
+
+/// `src/tasks.c`: one Zephyr thread per binding, each its glue, its clock
+/// (`arclang_io_task_wait_period`) and its priority; the machines share
+/// the model's state and I/O structures but each thread touches its own
+/// machine's members only.
+/// With `report`, the same as the processor-in-the-loop bench runs it
+/// (`src/pil_tasks.c`): the tasks wait for the bench's `G`, and each cycle
+/// is reported on the console as `T <task>,<step>,<start us>,<end us>,<status>`.
+fn tasks_main(plan: &Plan, bindings: &[&Binding], report: bool) -> String {
+    let owned: Vec<Binding> = bindings.iter().map(|b| (*b).clone()).collect();
+    let priorities = super::binding::priorities(&owned);
+    let mut out = banner(if report { "The controller as tasks under the processor-in-the-loop bench: one thread per io_binding, each cycle reported." } else { "The controller as tasks: one thread per io_binding, at its period and priority." }, plan);
+    let _ = writeln!(out, "#include <zephyr/kernel.h>\n#include <zephyr/sys/printk.h>\n#include <stdio.h>\n#include <string.h>\n\n#include \"arclang_app.h\"{}\n", if report { "\n#include \"arclang_pil.h\"" } else { "" });
+    let _ = writeln!(out, "static arclang_state state;\nstatic arclang_inputs inputs;\nstatic arclang_outputs outputs;\nstatic bool io_up;");
+    if report {
+        let _ = writeln!(out, "/* The bench's go, given once it sent 'G'; the console shared by the reports. */\nstatic K_SEM_DEFINE(go, 0, 1);\nstatic K_MUTEX_DEFINE(console);\n\nstatic void report(uint32_t task, uint32_t step, uint64_t start, uint64_t end, int status)\n{{\n\tchar line[80];\n\t(void)snprintf(line, sizeof line, \"T %u,%u,%llu,%llu,%d\\n\", (unsigned)task, (unsigned)step, (unsigned long long)start, (unsigned long long)end, status);\n\tk_mutex_lock(&console, K_FOREVER);\n\tarclang_pil_puts(line);\n\tk_mutex_unlock(&console);\n}}");
+    }
+    let _ = writeln!(out);
+    for (k, (b, p)) in bindings.iter().zip(&priorities).enumerate() {
+        let g = &b.ident;
+        let cycle = if report {
+            format!("\t\tif (io_up) {{\n\t\t\tuint64_t start = k_cyc_to_us_floor64(k_cycle_get_64());\n\t\t\tarclang_io_status status = {g}_cycle(&glue_{k}, &state, &inputs, &outputs);\n\t\t\treport({k}U, step, start, k_cyc_to_us_floor64(k_cycle_get_64()), (int)status);\n\t\t\tstep++;\n\t\t}}")
+        } else {
+            format!("\t\tif (io_up) {{\n\t\t\t(void){g}_cycle(&glue_{k}, &state, &inputs, &outputs);\n\t\t}}")
+        };
+        let wait_go = if report { "\tk_sem_take(&go, K_FOREVER);\n\tk_sem_give(&go);\n" } else { "" };
+        let step_var = if report { "\tuint32_t step = 0U;\n" } else { "" };
+        let _ = writeln!(out, "/* task {k}: io_binding \"{}\" on state_machine \"{}\", every {} us, priority {p} */\nstatic {g}_glue glue_{k};\n\nstatic void task_{k}(void *a, void *b, void *c)\n{{\n{step_var}\t(void)a;\n\t(void)b;\n\t(void)c;\n\t{g}_glue_init(&glue_{k});\n{wait_go}\tfor (;;) {{\n\t\t(void)arclang_io_task_wait_period({k}U, {}UL);\n{cycle}\n\t}}\n}}\n", super::cgen::comment(&b.name), super::cgen::comment(&plan.machines[b.machine].name), b.period_us, b.period_us);
+        // Zephyr: a lower number is a higher priority; the binding's 1 is the kernel's 0.
+        let _ = writeln!(out, "K_THREAD_DEFINE(arclang_task_{k}, ARCLANG_TASK_STACK, task_{k}, NULL, NULL, NULL, {}, 0, 0);\n", p.saturating_sub(1));
+    }
+    if report {
+        let _ = writeln!(out, "int main(void)\n{{\n\tarclang_io_status status;\n\t(void)memset(&inputs, 0, sizeof inputs);\n\t(void)memset(&outputs, 0, sizeof outputs);\n\tarclang_model_init(&state);\n\tstatus = arclang_io_init();\n\tio_up = (status == ARCLANG_IO_OK);\n\tarclang_pil_puts(io_up ? \"ARCLANG READY\\n\" : \"ARCLANG ERROR the I/O did not come up\\n\");\n\tfor (int c = arclang_pil_getc(); c != 'G'; c = arclang_pil_getc()) {{\n\t\tif (c == '?') {{\n\t\t\tarclang_pil_puts(io_up ? \"ARCLANG READY\\n\" : \"ARCLANG ERROR the I/O did not come up\\n\");\n\t\t}}\n\t}}\n\t/* The tasks start together on the bench's go. */\n\tk_sem_give(&go);\n\treturn 0;\n}}");
+    } else {
+        let _ = writeln!(out, "int main(void)\n{{\n\t(void)memset(&inputs, 0, sizeof inputs);\n\t(void)memset(&outputs, 0, sizeof outputs);\n\tarclang_model_init(&state);\n\tif (arclang_io_init() != ARCLANG_IO_OK) {{\n\t\tprintk(\"arclang: the I/O did not come up; no cycle runs\\n\");\n\t\treturn 0;\n\t}}\n\tio_up = true;\n\treturn 0;\n}}");
+    }
+    out
 }
 
 fn uses(binding: Option<&Binding>, kind: &str) -> bool {
@@ -134,31 +265,39 @@ fn banner(what: &str, plan: &Plan) -> String {
     format!("/*\n * {what}\n * Generated by ArcLang from model \"{}\". Do not edit: regenerate.\n */\n", super::cgen::comment(&plan.model))
 }
 
-fn app_header(plan: &Plan, binding: Option<&Binding>, period: u64) -> String {
+fn app_header(plan: &Plan, bindings: &[&Binding], period: u64) -> String {
     let p = &plan.ident;
     let mut out = banner("The model and the binding under the names the target's mains use.", plan);
     let _ = writeln!(out, "#ifndef ARCLANG_APP_H\n#define ARCLANG_APP_H\n\n#include \"arclang_io.h\"\n#include \"{p}.h\"\n");
     let _ = writeln!(out, "typedef {p}_state arclang_state;\ntypedef {p}_inputs arclang_inputs;\ntypedef {p}_outputs arclang_outputs;\n#define arclang_model_init(state) {p}_init(state)\n#define arclang_model_step(state, inputs, outputs) {p}_step((state), (inputs), (outputs))\n");
-    match binding {
-        Some(b) => {
+    match bindings {
+        [b] => {
             let g = &b.ident;
-            let _ = writeln!(out, "#define ARCLANG_HAS_BINDING 1\n#ifndef ARCLANG_DIRECT\n#include \"{g}_io.h\"\ntypedef {g}_glue arclang_glue;\n#define arclang_glue_init(glue) {g}_glue_init(glue)\n#define arclang_cycle(glue, state, inputs, outputs) {g}_cycle((glue), (state), (inputs), (outputs))\n#define ARCLANG_PERIOD_US {}_PERIOD_US\n#endif\n", g.to_uppercase());
+            let _ = writeln!(out, "#define ARCLANG_HAS_BINDING 1\n#define ARCLANG_TASKS 1\n#ifndef ARCLANG_DIRECT\n#include \"{g}_io.h\"\ntypedef {g}_glue arclang_glue;\n#define arclang_glue_init(glue) {g}_glue_init(glue)\n#define arclang_cycle(glue, state, inputs, outputs) {g}_cycle((glue), (state), (inputs), (outputs))\n#define ARCLANG_PERIOD_US {}_PERIOD_US\n#endif\n", g.to_uppercase());
         }
-        None => {
-            let _ = writeln!(out, "#define ARCLANG_HAS_BINDING 0\n#define ARCLANG_PERIOD_US {period}UL\n");
+        [] => {
+            let _ = writeln!(out, "#define ARCLANG_HAS_BINDING 0\n#define ARCLANG_TASKS 0\n#define ARCLANG_PERIOD_US {period}UL\n");
+        }
+        many => {
+            // Several: the tasks of src/tasks.c; the first binding's period stays the model's.
+            let _ = writeln!(out, "#define ARCLANG_HAS_BINDING 1\n#define ARCLANG_TASKS {}\n#define ARCLANG_TASK_STACK 2048\n#ifndef ARCLANG_DIRECT", many.len());
+            for b in many {
+                let _ = writeln!(out, "#include \"{}_io.h\"", b.ident);
+            }
+            let _ = writeln!(out, "#define ARCLANG_PERIOD_US {}_PERIOD_US\n#endif\n", many[0].ident.to_uppercase());
         }
     }
     let _ = writeln!(out, "#endif /* ARCLANG_APP_H */");
     out
 }
 
-fn io_config(binding: Option<&Binding>) -> String {
-    let mut ids: Vec<u32> = binding.map(|b| b.inputs.iter().filter_map(|i| if let Source::Can(id) = i.source { Some(id) } else { None }).collect()).unwrap_or_default();
+fn io_config(bindings: &[&Binding]) -> String {
+    let mut ids: Vec<u32> = bindings.iter().flat_map(|b| b.inputs.iter().filter_map(|i| if let Source::Can(id) = i.source { Some(id) } else { None })).collect();
     ids.sort();
     ids.dedup();
-    let watchdog = binding.is_some_and(|b| b.watchdog);
-    // Ten periods without a kick, at least 10 ms.
-    let timeout_ms = binding.map(|b| (b.period_us * 10).div_ceil(1000).max(10)).unwrap_or(0);
+    let watchdog = bindings.iter().any(|b| b.watchdog);
+    // Ten periods without a kick (the longest period of the bindings that kick it), at least 10 ms.
+    let timeout_ms = bindings.iter().filter(|b| b.watchdog).map(|b| (b.period_us * 10).div_ceil(1000).max(10)).max().unwrap_or(0);
     let mut out = String::from("/* What arclang_io_zephyr.c sets up for the binding. Generated by ArcLang. */\n#ifndef ARCLANG_IO_CONFIG_H\n#define ARCLANG_IO_CONFIG_H\n\n");
     let _ = writeln!(out, "#ifdef ARCLANG_DIRECT\n#define ARCLANG_IO_WATCHDOG 0\n#define ARCLANG_IO_CAN_RX_COUNT 0\n#else");
     let _ = writeln!(out, "#define ARCLANG_IO_WATCHDOG {}\n#define ARCLANG_IO_WATCHDOG_TIMEOUT_MS {timeout_ms}U", watchdog as u8);
@@ -170,10 +309,14 @@ fn io_config(binding: Option<&Binding>) -> String {
     out
 }
 
-fn app_cmake(plan: &Plan, binding: Option<&Binding>, package: &Package) -> String {
-    let main = if binding.is_some() { "main" } else { "pil_direct" };
+fn app_cmake(plan: &Plan, bindings: &[&Binding], package: &Package) -> String {
+    let main = match bindings.len() {
+        0 => "pil_direct",
+        1 => "main",
+        _ => "tasks",
+    };
     format!(
-        "# Generated by ArcLang for target {}: what CMakeLists.txt needs of the model.\nset(ARCLANG_PERIOD_MACRO {})\nif(NOT DEFINED ARCLANG_MAIN)\n  set(ARCLANG_MAIN {main} CACHE STRING \"main, pil_io or pil_direct\")\nendif()\n",
+        "# Generated by ArcLang for target {}: what CMakeLists.txt needs of the model.\nset(ARCLANG_PERIOD_MACRO {})\nif(NOT DEFINED ARCLANG_MAIN)\n  set(ARCLANG_MAIN {main} CACHE STRING \"main, tasks, pil_io or pil_direct\")\nendif()\n",
         package.name,
         super::cgen::period_macro(plan)
     )
@@ -270,7 +413,7 @@ pub fn pil_files(plan: &Plan) -> (String, String) {
         }
     }
     let _ = writeln!(source, "    arclang_pil_putc('\\n');\n}}\n");
-    let _ = writeln!(source, "bool arclang_pil_read(arclang_inputs *inputs)\n{{\n    char line[ARCLANG_PIL_LINE];\n    const char *at = line;\n    int64_t v = 0;\n    uint64_t bits = 0U;\n    bool ok = read_line(line, sizeof line);");
+    let _ = writeln!(source, "bool arclang_pil_read(arclang_inputs *inputs)\n{{\n    char line[ARCLANG_PIL_LINE];\n    const char *at = line;\n    int64_t v = 0;\n    uint64_t bits = 0U;\n    bool ok = read_line(line, sizeof line);\n    /* `?`: a bench that came after the boot asks again (a simulator, a board). */\n    while (ok && (line[0] == '?') && (line[1] == '\\0')) {{\n        arclang_pil_puts(\"ARCLANG READY\\n\");\n        ok = read_line(line, sizeof line);\n    }}");
     for m in &plan.machines {
         if !m.events.is_empty() {
             let t = format!("{p}_{}", m.ident);

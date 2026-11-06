@@ -31,7 +31,9 @@ use crate::compiler::ast::{AttributeValue, TestCase};
 use crate::compiler::quantity::{Dimension, Quantity};
 use std::collections::HashMap;
 
-pub const EXECUTE_KEYS: [&str; 6] = ["machine", "step", "stop_time", "inputs", "binding", "tolerance"];
+pub const EXECUTE_KEYS: [&str; 8] = ["machine", "step", "stop_time", "inputs", "binding", "tolerance", "quantisation", "plant"];
+
+pub const PLANT_KEYS: [&str; 6] = ["model", "fmu", "sources", "inputs", "outputs", "tolerance"];
 
 /// The default step of a case without `step:` or `binding:`.
 pub const DEFAULT_STEP_US: u64 = 10_000;
@@ -45,6 +47,9 @@ pub enum Drive {
     Condition(usize, bool),
     /// An `in` variable (its index in the program) and its value.
     Value(usize, crate::compiler::execution::expr::Value),
+    /// An `in` variable of another machine (`"Speed filter".raw = 100
+    /// km/h`): a block upstream of the case's machine, through its wires.
+    Other(usize, usize, crate::compiler::execution::expr::Value),
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -54,6 +59,31 @@ pub struct Stimulus {
     pub drive: Drive,
     /// When it arrives, in seconds (an event's order in its step).
     pub at: f64,
+}
+
+/// The plant a case closes the loop on (`execute: { plant: { ... } }`): a
+/// Modelica model with its sources beside the model, or an FMU (FMI 2.0
+/// co-simulation) as a file; what the machine's variables drive in it, what
+/// its variables give the machine's `in` variables. At each step the machine
+/// reads the plant, steps, and the plant advances one period with the
+/// machine's outputs held.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Plant {
+    pub model: Option<String>,
+    pub fmu: Option<String>,
+    pub sources: Vec<String>,
+    /// (the plant's variable, the machine variable that drives it).
+    pub inputs: Vec<(String, usize)>,
+    /// (the machine's `in` variable, the plant's variable it reads).
+    pub outputs: Vec<(usize, String)>,
+    pub tolerance: Option<f64>,
+}
+
+impl Plant {
+    /// `model` or `fmu`, as named in the case.
+    pub fn label(&self) -> String {
+        self.model.clone().or_else(|| self.fmu.clone()).unwrap_or_default()
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -66,6 +96,7 @@ pub struct Case {
     pub binding: Option<String>,
     /// How far a value of the C run may be from the model's (absolute).
     pub tolerance: f64,
+    pub plant: Option<Plant>,
 }
 
 pub fn is_executed(test: &TestCase) -> bool {
@@ -118,6 +149,22 @@ fn split(line: &str) -> Result<(f64, String), String> {
         return Err(format!("execute: input '{line}' names no event or condition"));
     }
     Ok((q.canonical(), name.to_string()))
+}
+
+/// `"Speed filter".raw` (or `SF.raw`, an id): a machine and its variable.
+fn qualified(name: &str) -> Option<(String, String)> {
+    let name = name.trim();
+    let (machine, var) = match name.strip_prefix('"') {
+        Some(quoted) => {
+            let (machine, rest) = quoted.split_once('"')?;
+            (machine.to_string(), rest.strip_prefix('.')?.trim().to_string())
+        }
+        None => {
+            let (machine, var) = name.rsplit_once('.')?;
+            (machine.trim().to_string(), var.trim().to_string())
+        }
+    };
+    (!machine.is_empty() && !var.is_empty()).then_some((machine, var))
 }
 
 /// The first step at or after `seconds`.
@@ -195,6 +242,7 @@ fn resolve(map: &HashMap<String, AttributeValue>, plan: &Plan, bindings: &[super
             return Err(format!("execute: input '{line}' comes after stop_time"));
         }
         let assigned = name.split_once('=').map(|(n, v)| (n.trim(), v.trim())).and_then(|(n, v)| m.variable(n).map(|i| (i, v)));
+        let other = name.split_once('=').map(|(n, v)| (n.trim(), v.trim())).and_then(|(n, v)| qualified(n).map(|(machine, var)| (machine, var, v)));
         let drive = if let Some(e) = m.event(&name) {
             Drive::Event(e)
         } else if let Some((i, written)) = assigned {
@@ -202,7 +250,23 @@ fn resolve(map: &HashMap<String, AttributeValue>, plan: &Plan, bindings: &[super
             if v.direction != crate::compiler::execution::expr::Direction::In {
                 return Err(format!("execute: input '{line}': '{}' is not an input of state_machine '{}' (declare it `in {}`)", v.name, m.name, v.text));
             }
+            if let Some(w) = m.wires.iter().find(|w| w.input == i) {
+                return Err(format!("execute: input '{line}': '{}' is read from state_machine '{}': set the inputs of that machine (\"<time>: \\\"{}\\\".<input> = <value>\")", v.name, plan.machines[w.machine].name, plan.machines[w.machine].name));
+            }
             Drive::Value(i, v.value(written).map_err(|e| format!("execute: input '{line}': {e}"))?)
+        } else if let Some((reference, var, written)) = other {
+            let o = plan.machines.iter().position(|x| x.is(&reference)).ok_or_else(|| format!("execute: input '{line}': '{reference}' is no state_machine of the model"))?;
+            let other = &plan.machines[o];
+            let i = other.variable(&var).ok_or_else(|| format!("execute: input '{line}': '{var}' is no variable of state_machine '{}'", other.name))?;
+            let v = &other.program().variables[i];
+            if v.direction != crate::compiler::execution::expr::Direction::In || other.wires.iter().any(|w| w.input == i) {
+                return Err(format!("execute: input '{line}': '{}' is not an input of state_machine '{}' a case sets", v.name, other.name));
+            }
+            if o == machine {
+                Drive::Value(i, v.value(written).map_err(|e| format!("execute: input '{line}': {e}"))?)
+            } else {
+                Drive::Other(o, i, v.value(written).map_err(|e| format!("execute: input '{line}': {e}"))?)
+            }
         } else {
             let (text, value) = match name.rsplit_once('=') {
                 Some((text, value)) if matches!(value.trim(), "true" | "false") => (text.trim().to_string(), value.trim() == "true"),
@@ -227,14 +291,86 @@ fn resolve(map: &HashMap<String, AttributeValue>, plan: &Plan, bindings: &[super
         None => 0.0,
         Some(v) => v.as_number().filter(|t| *t >= 0.0).ok_or_else(|| format!("execute: tolerance is a number of at least 0, got '{}'", v.display()))?,
     };
-    Ok(Case { machine, step_us, steps: last + 1, stimuli, binding, tolerance })
+    let plant = match map.get("plant") {
+        None => None,
+        Some(AttributeValue::Map(block)) => Some(plant_of(block, m)?),
+        Some(_) => return Err("execute: plant is a block: plant: { model: \"Physics.Battery\" sources: [\"physics/Battery.mo\"] inputs: [\"i_set <- setpoint\"] outputs: [\"voltage <- v_batt\"] }".to_string()),
+    };
+    if plant.is_some() && binding.is_some() {
+        return Err("execute: a case with a plant does not go through an io_binding yet (its channels are proved by the cases without a plant)".to_string());
+    }
+    Ok(Case { machine, step_us, steps: last + 1, stimuli, binding, tolerance, plant })
+}
+
+fn strings_of(map: &HashMap<String, AttributeValue>, key: &str, what: &str) -> Result<Vec<String>, String> {
+    match map.get(key) {
+        None => Ok(Vec::new()),
+        Some(AttributeValue::List(items)) => items.iter().map(|i| i.as_string().map(str::to_string).ok_or_else(|| format!("execute: plant: {key} is a list of {what}"))).collect(),
+        Some(AttributeValue::String(one)) => Ok(vec![one.clone()]),
+        Some(_) => Err(format!("execute: plant: {key} is a list of {what}")),
+    }
+}
+
+/// `plant: { ... }`: what it is, and the wires between the machine and it.
+fn plant_of(map: &HashMap<String, AttributeValue>, m: &crate::compiler::embedded::plan::MachinePlan) -> Result<Plant, String> {
+    let mut keys: Vec<&String> = map.keys().collect();
+    keys.sort();
+    if let Some(unknown) = keys.iter().find(|k| !PLANT_KEYS.contains(&k.as_str())) {
+        return Err(format!("execute: plant: '{unknown}' is not one of {}", PLANT_KEYS.join(", ")));
+    }
+    let model = map.get("model").map(|v| v.display().trim().to_string()).filter(|s| !s.is_empty());
+    let fmu = map.get("fmu").map(|v| v.display().trim().to_string()).filter(|s| !s.is_empty());
+    match (&model, &fmu) {
+        (None, None) => return Err("execute: plant: name the plant: model: \"Physics.Battery\" (a Modelica model, sources: [...] beside the model) or fmu: \"physics/battery.fmu\" (an FMI 2.0 co-simulation FMU)".to_string()),
+        (Some(_), Some(_)) => return Err("execute: plant: model or fmu, not both".to_string()),
+        _ => {}
+    }
+    let sources = strings_of(map, "sources", "Modelica files beside the model")?;
+    let wire = |line: &str, key: &str| -> Result<(String, String), String> {
+        let (left, right) = line.split_once("<-").ok_or_else(|| format!("execute: plant: {key} '{line}' reads \"<left> <- <right>\""))?;
+        let (left, right) = (left.trim(), right.trim());
+        if left.is_empty() || right.is_empty() {
+            return Err(format!("execute: plant: {key} '{line}' reads \"<left> <- <right>\""));
+        }
+        Ok((left.to_string(), right.to_string()))
+    };
+    let mut inputs = Vec::new();
+    for line in strings_of(map, "inputs", "\"<plant variable> <- <machine variable>\"")? {
+        let (target, source) = wire(&line, "inputs")?;
+        let i = m.variable(&source).ok_or_else(|| format!("execute: plant: inputs '{line}': '{source}' is no variable of state_machine '{}'", m.name))?;
+        if m.program().variables[i].direction == crate::compiler::execution::expr::Direction::In {
+            return Err(format!("execute: plant: inputs '{line}': '{source}' is an input of the machine; the plant takes what the machine computes (an `out` variable)"));
+        }
+        inputs.push((target, i));
+    }
+    let mut outputs = Vec::new();
+    for line in strings_of(map, "outputs", "\"<machine in variable> <- <plant variable>\"")? {
+        let (target, source) = wire(&line, "outputs")?;
+        let i = m.variable(&target).ok_or_else(|| format!("execute: plant: outputs '{line}': '{target}' is no variable of state_machine '{}'", m.name))?;
+        let v = &m.program().variables[i];
+        if v.direction != crate::compiler::execution::expr::Direction::In {
+            return Err(format!("execute: plant: outputs '{line}': '{}' is not an input of state_machine '{}' (declare it `in {}`)", v.name, m.name, v.text));
+        }
+        if outputs.iter().any(|(j, _)| *j == i) {
+            return Err(format!("execute: plant: outputs '{line}': '{target}' is read from the plant twice"));
+        }
+        outputs.push((i, source));
+    }
+    if inputs.is_empty() && outputs.is_empty() {
+        return Err("execute: plant: wire it to the machine: inputs: [\"<plant variable> <- <machine variable>\"] and outputs: [\"<machine in variable> <- <plant variable>\"]".to_string());
+    }
+    let tolerance = match map.get("tolerance") {
+        None => None,
+        Some(v) => Some(v.as_number().filter(|t| *t > 0.0).ok_or_else(|| format!("execute: plant: tolerance is a positive number (the solver's), got '{}'", v.display()))?),
+    };
+    Ok(Plant { model, fmu, sources, inputs, outputs, tolerance })
 }
 
 impl Case {
     /// The vectors of every machine: this case's inputs on its machine, nothing on the others.
     pub fn vectors(&self, plan: &Plan) -> Vectors {
         let mut v = Vectors::quiet(plan, self.steps);
-        let mut changes: Vec<&Stimulus> = self.stimuli.iter().filter(|s| matches!(s.drive, Drive::Condition(..) | Drive::Value(..))).collect();
+        let mut changes: Vec<&Stimulus> = self.stimuli.iter().filter(|s| matches!(s.drive, Drive::Condition(..) | Drive::Value(..) | Drive::Other(..))).collect();
         changes.sort_by_key(|s| s.step);
         // The events by arrival: time, then as written (a stable sort).
         let mut arrivals: Vec<&Stimulus> = self.stimuli.iter().filter(|s| matches!(s.drive, Drive::Event(_))).collect();
@@ -255,6 +391,11 @@ impl Case {
                 Drive::Value(i, value) => {
                     for k in s.step..self.steps {
                         v.values[self.machine][i][k] = value;
+                    }
+                }
+                Drive::Other(m, i, value) => {
+                    for k in s.step..self.steps {
+                        v.values[m][i][k] = value;
                     }
                 }
                 Drive::Event(_) => {}

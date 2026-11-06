@@ -73,7 +73,33 @@ pub struct Access<'a> {
 }
 
 impl Access<'_> {
-    fn program(&self) -> &Program {
+    /// A guard that is code, as C (fixed point when the machine is).
+    pub fn guard(&self, text: &str, h: &mut Helpers) -> String {
+        match &self.machine.fixed {
+            Some(fx) => super::fxc::expr(self, fx, &fx.guards[text], h),
+            None => self.expr(&self.program().guards[text], h),
+        }
+    }
+
+    /// An action that is code, as statements.
+    pub fn action(&self, text: &str, code: &[Assign], indent: &str, h: &mut Helpers, out: &mut String) {
+        match &self.machine.fixed {
+            Some(fx) => super::fxc::stmts(self, fx, &fx.actions[text], indent, h, out),
+            None => self.statements(code, indent, h, out),
+        }
+    }
+
+    /// Equation `k`, as statements.
+    pub fn equation(&self, k: usize, indent: &str, h: &mut Helpers, out: &mut String) {
+        match &self.machine.fixed {
+            Some(fx) => super::fxc::equation(self, fx, k, indent, h, out),
+            None => self.statements(std::slice::from_ref(&self.program().equations[k].assign), indent, h, out),
+        }
+    }
+}
+
+impl Access<'_> {
+    pub fn program(&self) -> &Program {
         self.machine.program()
     }
 

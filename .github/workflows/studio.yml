@@ -1,0 +1,97 @@
+# ArcLang Studio (tools/studio, docs/studio.md): the image with VS Code in
+# the browser, the extension, the compiler and every tool of the chain,
+# built for amd64 and arm64 on their own runners and published to GHCR as
+# one multi-arch image at each release: ghcr.io/mbaroudi/arclang-studio:<version>
+# and :latest. The compiler relays the embedded stages to the image of its
+# own version; the dev container (.devcontainer) uses it too.
+name: ArcLang Studio
+
+on:
+  push:
+    tags: ['v*.*.*']
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: Push the image (otherwise build only)
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  IMAGE: ghcr.io/mbaroudi/arclang-studio
+
+jobs:
+  build:
+    name: Build ArcLang Studio (${{ matrix.arch }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-latest
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 300
+    steps:
+      - uses: actions/checkout@v4
+
+      # The chain's images and their layers take tens of GB.
+      - name: Make room
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL /usr/local/share/boost || true
+          docker system prune -af || true
+          df -h /
+
+      - name: The version
+        id: version
+        run: echo "version=$(grep -m1 '^version' Cargo.toml | cut -d'"' -f2)" >> "$GITHUB_OUTPUT"
+
+      # The chain, each image on the one before (the default Docker driver
+      # sees the local tags the next build starts FROM).
+      - name: Build the chain
+        run: |
+          docker build -t arclang-embedded:1 tools/embedded
+          docker build -t arclang-embedded-soc:1 tools/embedded/soc
+          docker build -t arclang-embedded-fpga:1 tools/embedded/fpga
+          docker build -t arclang-embedded-system:1 tools/embedded/system
+
+      - name: Build the studio
+        run: docker build -f tools/studio/Dockerfile -t "$IMAGE:${{ steps.version.outputs.version }}-${{ matrix.arch }}" .
+
+      - name: Check the studio
+        run: |
+          tag="$IMAGE:${{ steps.version.outputs.version }}-${{ matrix.arch }}"
+          docker run --rm "$tag" arclang --version
+          docker run --rm "$tag" sh -c 'omc --version && ghdl --version | head -1 && yosys -V && nextpnr-ecp5 --version && verilator --version && renode --version | head -1 && west --version && openvscode-server --version | head -1'
+          docker run --rm "$tag" openvscode-server --list-extensions | grep -qx arclang.arclang
+          docker run --rm "$tag" sh -c 'cd /home/arclang/examples/automotive/speed-monitor && arclang sil speed_monitor.arc && arclang hdl speed_monitor.arc'
+
+      - name: Log in to GHCR
+        if: startsWith(github.ref, 'refs/tags/') || inputs.publish
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+
+      - name: Push
+        if: startsWith(github.ref, 'refs/tags/') || inputs.publish
+        run: docker push "$IMAGE:${{ steps.version.outputs.version }}-${{ matrix.arch }}"
+
+  publish:
+    name: Publish the multi-arch image
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/') || inputs.publish
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: The version
+        id: version
+        run: echo "version=$(grep -m1 '^version' Cargo.toml | cut -d'"' -f2)" >> "$GITHUB_OUTPUT"
+      - name: Log in to GHCR
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+      - name: One tag for both architectures
+        run: |
+          v=${{ steps.version.outputs.version }}
+          docker buildx imagetools create -t "$IMAGE:$v" -t "$IMAGE:latest" "$IMAGE:$v-amd64" "$IMAGE:$v-arm64"
+          docker buildx imagetools inspect "$IMAGE:$v"

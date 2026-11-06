@@ -108,7 +108,7 @@ pub fn cache(ast: &Model, model_path: &Path, package: &Package, outcomes: &[Outc
     Ok(written)
 }
 
-fn run_command(command: &[String], cwd: Option<&Path>, env: &[(&str, &Path)], what: &str) -> Result<String, String> {
+pub(super) fn run_command(command: &[String], cwd: Option<&Path>, env: &[(&str, &Path)], what: &str) -> Result<String, String> {
     let (program, args) = command.split_first().ok_or_else(|| format!("{what}: an empty command"))?;
     let mut c = Command::new(program);
     c.args(args);
@@ -135,7 +135,7 @@ fn substitute(words: &[String], values: &[(&str, String)]) -> Vec<String> {
         .collect()
 }
 
-fn write_app(dir: &Path, app: &super::zephyr::App) -> Result<(), String> {
+pub(super) fn write_app(dir: &Path, app: &super::zephyr::App) -> Result<(), String> {
     for (name, text, executable) in &app.files {
         let path = dir.join(name);
         if let Some(parent) = path.parent() {
@@ -156,11 +156,65 @@ fn write_app(dir: &Path, app: &super::zephyr::App) -> Result<(), String> {
 /// An application directory and its image, or why it did not build.
 type Built = Result<(PathBuf, PathBuf), String>;
 
+/// The behavior's code as built for the target: the sizes `size` reports
+/// of its object file (text, data, bss), and the tool that measured them.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, PartialEq)]
+pub struct Footprint {
+    pub text: u64,
+    pub data: u64,
+    pub bss: u64,
+    pub tool: String,
+}
+
+/// The sizes of the behavior's object (`<source>.obj` or `.o` under the
+/// build), measured by the toolchain's `size` (the compiler's prefix), when
+/// both are found.
+fn footprint(build_dir: &Path, source_name: &str, work: &Path) -> Option<Footprint> {
+    fn find(dir: &Path, wanted: &[String], depth: usize) -> Option<PathBuf> {
+        if depth > 12 {
+            return None;
+        }
+        for entry in std::fs::read_dir(dir).ok()?.flatten() {
+            let path = entry.path();
+            if path.is_dir() {
+                if let Some(found) = find(&path, wanted, depth + 1) {
+                    return Some(found);
+                }
+            } else if path.file_name().and_then(|n| n.to_str()).is_some_and(|n| wanted.iter().any(|w| w == n)) {
+                return Some(path);
+            }
+        }
+        None
+    }
+    let wanted = [format!("{source_name}.obj"), format!("{source_name}.o")];
+    let object = find(build_dir, &wanted, 0)?;
+    let compiler = toolchain_compiler(work)?;
+    let size = compiler.strip_suffix("gcc").map(|prefix| format!("{prefix}size")).or_else(|| compiler.strip_suffix("clang").map(|prefix| format!("{prefix}llvm-size")))?;
+    let out = Command::new(&size).arg(&object).output().ok()?;
+    let text = String::from_utf8_lossy(&out.stdout);
+    let numbers: Vec<u64> = text.lines().nth(1)?.split_whitespace().take(3).filter_map(|n| n.parse().ok()).collect();
+    if numbers.len() != 3 {
+        return None;
+    }
+    Some(Footprint { text: numbers[0], data: numbers[1], bss: numbers[2], tool: size })
+}
+
+/// The C compiler CMake chose for the build under `work`.
+fn toolchain_compiler(work: &Path) -> Option<String> {
+    std::fs::read_dir(work)
+        .ok()
+        .and_then(|entries| entries.flatten().map(|e| e.path().join("CMakeCache.txt")).find(|p| p.is_file()))
+        .and_then(|cache| std::fs::read_to_string(cache).ok())
+        .and_then(|text| text.lines().find_map(|l| l.strip_prefix("CMAKE_C_COMPILER:").and_then(|rest| rest.split_once('=')).map(|(_, path)| path.to_string())))
+}
+
 /// The images built, by (binding, period).
 struct Builds<'a> {
     package: &'a Package,
     work: PathBuf,
     images: HashMap<(Option<String>, u64), Built>,
+    /// Per build: the behavior's footprint, when measured.
+    footprints: HashMap<(Option<String>, u64), Option<Footprint>>,
 }
 
 impl Builds<'_> {
@@ -183,27 +237,83 @@ impl Builds<'_> {
             let app = super::zephyr::app(plan, binding, self.package)?;
             write_app(&app_dir, &app)?;
         }
-        let build = self.package.build.as_ref().expect("checked");
         let (main, period_define) = match binding {
             Some(_) => ("pil_io".to_string(), String::new()),
             None => ("pil_direct".to_string(), format!("-DARCLANG_PERIOD_US={period_us}")),
         };
-        let values = [
-            ("app", app_dir.display().to_string()),
-            ("build", build_dir.display().to_string()),
-            ("main", main),
-            ("period_define", period_define),
-        ];
-        run_command(&substitute(&build.command, &values), Some(&self.work), &[], &format!("building for {}", self.package.name))?;
-        let image = PathBuf::from(substitute(std::slice::from_ref(&build.image), &values)[0].clone());
-        if !image.is_file() {
-            return Err(format!("the build for {} made no {}", self.package.name, image.display()));
-        }
+        let image = build_app(self.package, &self.work, &app_dir, &build_dir, &main, &period_define)?;
         Ok((app_dir, image))
     }
 }
 
+    /// The application written in `app_dir` built by the package's command
+/// (its `main`, its period define) into `build_dir`: the image.
+pub(super) fn build_app(package: &Package, work: &Path, app_dir: &Path, build_dir: &Path, main: &str, period_define: &str) -> Result<PathBuf, String> {
+    let build = package.build.as_ref().ok_or_else(|| format!("target {} has no build command", package.name))?;
+    let values = [("app", app_dir.display().to_string()), ("build", build_dir.display().to_string()), ("main", main.to_string()), ("period_define", period_define.to_string())];
+    run_command(&substitute(&build.command, &values), Some(work), &[], &format!("building for {}", package.name))?;
+    let image = PathBuf::from(substitute(std::slice::from_ref(&build.image), &values)[0].clone());
+    if !image.is_file() {
+        return Err(format!("the build for {} made no {}", package.name, image.display()));
+    }
+    Ok(image)
+}
+
+impl Builds<'_> {
+    /// The footprint of the behavior in a build already made.
+    fn footprint(&mut self, plan: &Plan, binding: Option<&Binding>, period_us: u64) -> Option<Footprint> {
+        let key = (binding.map(|b| b.ident.clone()), period_us);
+        if !self.footprints.contains_key(&key) {
+            let name = binding.map(|b| b.ident.clone()).unwrap_or_else(|| "direct".to_string());
+            let build_dir = self.work.join(format!("build-{name}-{period_us}us"));
+            let source = super::cgen::generate(plan, period_us).source_name;
+            let measured = footprint(&build_dir, &source, &self.work);
+            self.footprints.insert(key.clone(), measured);
+        }
+        self.footprints.get(&key).cloned().flatten()
+    }
+}
+
 /// The bench's plan of a case.
+/// The head of a bench plan: the image, the platform, the emulator's channels.
+pub(super) fn plan_head(package: &Package, app: &Path, image: &Path, mode: &str) -> String {
+    let emulator = package.emulator.as_ref().expect("checked");
+    let mut out = String::new();
+    let _ = writeln!(out, "mode {mode}");
+    let _ = writeln!(out, "elf {}", image.display());
+    let _ = writeln!(out, "platform {}", app.join(&emulator.platform).display());
+    for p in &emulator.peripherals {
+        let _ = writeln!(out, "peripheral {}", app.join(p).display());
+    }
+    for (kind, value) in &emulator.channels {
+        match value {
+            serde_json::Value::String(name) => {
+                let _ = writeln!(out, "{kind} {name}");
+            }
+            serde_json::Value::Array(names) => {
+                for (k, name) in names.iter().enumerate() {
+                    if let Some(name) = name.as_str() {
+                        let _ = writeln!(out, "{kind} {k} {name}");
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+    out
+}
+
+pub(super) fn emulator_command(package: &Package, app: &Path) -> Vec<String> {
+    let emulator = package.emulator.as_ref().expect("checked");
+    let mut command = substitute(&emulator.command, &[("app", app.display().to_string())]);
+    if let Some(last) = command.last_mut() {
+        last.push_str("; quit");
+    }
+    command
+}
+
+pub(super) const BOOT_MICROS: u64 = BOOT_US;
+
 fn bench_plan(package: &Package, app: &Path, image: &Path, binding: Option<&Binding>, steps: &[Vec<String>], result: &Path, period_us: u64) -> String {
     let emulator = package.emulator.as_ref().expect("checked");
     let mut out = String::new();
@@ -259,44 +369,53 @@ fn bench_plan(package: &Package, app: &Path, image: &Path, binding: Option<&Bind
 }
 
 /// A row of the target's report: `R step,time,status,values...|io values`.
-struct Row {
-    time: u64,
-    values: Vec<f64>,
+pub(super) struct Row {
+    pub time: u64,
+    pub values: Vec<f64>,
 }
 
-fn parse_result(text: &str, width: usize, io: usize, steps: usize) -> Result<Vec<Row>, String> {
+pub(super) fn parse_result(text: &str, width: usize, io: usize, steps: usize) -> Result<Vec<Row>, String> {
     let mut rows = Vec::new();
     for line in text.lines() {
         if let Some(error) = line.strip_prefix("error ") {
             return Err(format!("on the target: {error}"));
         }
-        let Some(report) = line.strip_prefix("R ") else { continue };
-        let (target, channels) = report.split_once('|').unwrap_or((report, ""));
-        let fields: Vec<&str> = target.split(',').collect();
-        if fields.len() != 3 + width {
-            return Err(format!("the target reported {} values for {width} outputs: '{line}'", fields.len().saturating_sub(3)));
+        if !line.starts_with("R ") {
+            continue;
         }
-        let step: usize = fields[0].parse().map_err(|_| format!("a report without its step: '{line}'"))?;
+        let (step, row) = parse_report(line, width, io)?;
         if step != rows.len() {
             return Err(format!("the target reported step {step} where step {} was expected", rows.len()));
         }
-        let time: u64 = fields[1].parse().map_err(|_| format!("a report without its time: '{line}'"))?;
-        let status: i64 = fields[2].parse().map_err(|_| format!("a report without its status: '{line}'"))?;
-        if status != 0 {
-            return Err(format!("the cycle failed at step {step} on the target (status {status})"));
-        }
-        let mut values = fields[3..].iter().map(|t| super::zephyr::decode(t)).collect::<Result<Vec<f64>, String>>()?;
-        let channel_values: Vec<f64> = channels.split(',').filter(|v| !v.is_empty()).map(|v| v.trim().parse::<f64>().map_err(|_| format!("a channel value '{v}' is no number"))).collect::<Result<_, _>>()?;
-        if channel_values.len() != io {
-            return Err(format!("the bench read {} output channels for {io}", channel_values.len()));
-        }
-        values.extend(channel_values);
-        rows.push(Row { time, values });
+        rows.push(row);
     }
     if rows.len() != steps {
         return Err(format!("the target reported {} of {steps} steps", rows.len()));
     }
     Ok(rows)
+}
+
+/// One report `R <step>,<time>,<status>,<values...>[|<channels>]`: its step and its row.
+pub(super) fn parse_report(line: &str, width: usize, io: usize) -> Result<(usize, Row), String> {
+    let report = line.strip_prefix("R ").ok_or_else(|| format!("not a report: '{line}'"))?;
+    let (target, channels) = report.split_once('|').unwrap_or((report, ""));
+    let fields: Vec<&str> = target.split(',').collect();
+    if fields.len() != 3 + width {
+        return Err(format!("the target reported {} values for {width} outputs: '{line}'", fields.len().saturating_sub(3)));
+    }
+    let step: usize = fields[0].parse().map_err(|_| format!("a report without its step: '{line}'"))?;
+    let time: u64 = fields[1].parse().map_err(|_| format!("a report without its time: '{line}'"))?;
+    let status: i64 = fields[2].parse().map_err(|_| format!("a report without its status: '{line}'"))?;
+    if status != 0 {
+        return Err(format!("the cycle failed at step {step} on the target (status {status})"));
+    }
+    let mut values = fields[3..].iter().map(|t| super::zephyr::decode(t)).collect::<Result<Vec<f64>, String>>()?;
+    let channel_values: Vec<f64> = channels.split(',').filter(|v| !v.is_empty()).map(|v| v.trim().parse::<f64>().map_err(|_| format!("a channel value '{v}' is no number"))).collect::<Result<_, _>>()?;
+    if channel_values.len() != io {
+        return Err(format!("the bench read {} output channels for {io}", channel_values.len()));
+    }
+    values.extend(channel_values);
+    Ok((step, Row { time, values }))
 }
 
 fn timing(rows: &[Row], binding: Option<&Binding>, period_us: u64) -> String {
@@ -321,12 +440,7 @@ fn timing(rows: &[Row], binding: Option<&Binding>, period_us: u64) -> String {
 fn implementation(package: &Package, work: &Path) -> String {
     let mut parts = vec![package.name.clone()];
     if let Some(toolchain) = &package.toolchain {
-        let gcc = std::fs::read_dir(work)
-            .ok()
-            .and_then(|entries| entries.flatten().map(|e| e.path().join("CMakeCache.txt")).find(|p| p.is_file()))
-            .and_then(|cache| std::fs::read_to_string(cache).ok())
-            .and_then(|text| text.lines().find_map(|l| l.strip_prefix("CMAKE_C_COMPILER:").and_then(|rest| rest.split_once('=')).map(|(_, path)| path.to_string())));
-        let version = gcc.and_then(|g| sil::compiler_version(&g));
+        let version = toolchain_compiler(work).and_then(|g| sil::compiler_version(&g));
         parts.push(version.unwrap_or_else(|| toolchain.clone()));
     }
     if package.runtime == "zephyr" {
@@ -343,8 +457,8 @@ fn implementation(package: &Package, work: &Path) -> String {
     parts.join("; ")
 }
 
-fn run_case(test: &TestCase, plan: &Plan, bindings: &[Binding], builds: &mut Builds, label: &str) -> Outcome {
-    let mut prepared = match sil::prepare(test, plan, bindings, label) {
+fn run_case(test: &TestCase, plan: &Plan, bindings: &[Binding], builds: &mut Builds, label: &str, ast: &Model, plants: &mut super::plant::Plants) -> Outcome {
+    let mut prepared = match sil::prepare(test, plan, bindings, label, ast, plants) {
         Ok(p) => p,
         Err(outcome) => return *outcome,
     };
@@ -370,6 +484,7 @@ fn run_case(test: &TestCase, plan: &Plan, bindings: &[Binding], builds: &mut Bui
         Ok(built) => built,
         Err(e) => return fail(prepared, e),
     };
+    prepared.outcome.footprint = builds.footprint(plan, binding, period);
     let dir = builds.work.join(format!("case-{}", prepared.outcome.test_case.chars().map(|c| if c.is_ascii_alphanumeric() { c } else { '_' }).collect::<String>()));
     if let Err(e) = std::fs::create_dir_all(&dir) {
         return fail(prepared, format!("cannot make {}: {e}", dir.display()));
@@ -408,6 +523,12 @@ fn run_case(test: &TestCase, plan: &Plan, bindings: &[Binding], builds: &mut Bui
 
 /// Run every executed case of a compiled model (or `options.only`) on the target.
 pub fn run(ast: &Model, options: &Options) -> Result<(Package, Vec<Outcome>), String> {
+    run_with(ast, options, &mut super::plant::Plants::none())
+}
+
+/// As `run`; a case with a plant replays, on the target, the vectors of
+/// the model's loop around it (`plants` builds the plant).
+pub fn run_with(ast: &Model, options: &Options, plants: &mut super::plant::Plants) -> Result<(Package, Vec<Outcome>), String> {
     let plan = super::plan::plan(ast)?;
     let bindings = super::binding::resolve_all(ast, &plan)?;
     let package = choose_target(&bindings, options.target.as_deref())?;
@@ -420,7 +541,7 @@ pub fn run(ast: &Model, options: &Options) -> Result<(Package, Vec<Outcome>), St
     }
     std::fs::create_dir_all(&options.work).map_err(|e| format!("cannot make {}: {e}", options.work.display()))?;
     let work = options.work.canonicalize().unwrap_or_else(|_| options.work.clone());
-    let mut builds = Builds { package: &package, work: work.clone(), images: HashMap::new() };
+    let mut builds = Builds { package: &package, work: work.clone(), images: HashMap::new(), footprints: HashMap::new() };
     // Build first, so the outcomes name the compiler that built them.
     for test in &selected {
         if let Some(Ok(case)) = super::case::read(test, &plan, &bindings) {
@@ -431,6 +552,6 @@ pub fn run(ast: &Model, options: &Options) -> Result<(Package, Vec<Outcome>), St
         }
     }
     let label = implementation(&package, &work);
-    let outcomes = selected.into_iter().map(|t| run_case(t, &plan, &bindings, &mut builds, &label)).collect();
+    let outcomes = selected.into_iter().map(|t| run_case(t, &plan, &bindings, &mut builds, &label, ast, plants)).collect();
     Ok((package, outcomes))
 }

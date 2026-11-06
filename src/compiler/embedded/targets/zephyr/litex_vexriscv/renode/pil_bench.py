@@ -6,12 +6,16 @@
 # same image and the same plan give the same results, whatever the host.
 #
 # The plan (ARCLANG_PIL_PLAN, written by `arclang pil`) is a list of lines:
-#   mode io|direct, elf, platform, peripheral (C# model), channel names,
+#   mode io|direct|tasks, elf, platform, peripheral (C# model), channel names,
 #   output <kind> ..., quantum_us, boot_us, step_us, result, then per step
 #   `step`, its operations (g pin level, a channel raw, c id byte0,
 #   u port byte, line <text>) and `.`.
-# The result file: `ready <us>`, one line per step `R ...|io values`, or
-# `error <why>`.
+# In mode tasks (`arclang schedule --prove`: every io_binding a thread),
+# the operations are dated from the bench's go: `at <us> <operation>`, and
+# `until <us>` says how long to run after the last one; the target reports
+# each cycle of each task as `T <task>,<step>,<start us>,<end us>,<status>`.
+# The result file: `ready <us>`, one line per step `R ...|io values` (or in
+# mode tasks `go <us>` then every `T ...` line), or `error <why>`.
 import System
 from Antmicro.Renode.Core import EmulationManager
 from Antmicro.Renode.Time import TimeInterval
@@ -19,6 +23,7 @@ from Antmicro.Renode.Time import TimeInterval
 plan_path = System.Environment.GetEnvironmentVariable("ARCLANG_PIL_PLAN")
 config = {"peripheral": [], "output": [], "pwm": {}, "uart": {}}
 steps = []
+timed = []
 current = None
 for raw in open(plan_path).read().splitlines():
     if raw.strip() == "":
@@ -33,6 +38,9 @@ for raw in open(plan_path).read().splitlines():
     word, _, rest = raw.partition(" ")
     if word == "step":
         current = []
+    elif word == "at":
+        when, _, op = rest.partition(" ")
+        timed.append((int(when), op))
     elif word in ("peripheral", "output"):
         config[word].append(rest)
     elif word in ("pwm", "uart"):
@@ -160,6 +168,23 @@ try:
         if "watchdog" in config:
             kicks_at_start[0] = machine[config["watchdog"]].Feeds
         budget = int(config.get("step_us", "1000000"))
+        if config["mode"] == "tasks":
+            # Every task runs from the go; the operations go in at their time.
+            console.WriteChar(ord("G"))
+            t0 = now_us()
+            out("go %d" % t0)
+            for when, op in sorted(timed, key=lambda x: x[0]):
+                if not run_until(lambda: now_us() >= t0 + when, budget + when):
+                    out("error the emulation did not reach %d us" % when)
+                    break
+                apply(op)
+            run_until(lambda: now_us() >= t0 + int(config.get("until", "0")) or errors(), budget + int(config.get("until", "0")))
+            if errors():
+                out("error " + errors()[0][len("ARCLANG ERROR "):])
+            for l in lines:
+                if l.startswith("T "):
+                    out(l)
+            steps = []
         for k, ops in enumerate(steps):
             for op in ops:
                 apply(op)

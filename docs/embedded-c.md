@@ -19,6 +19,10 @@ reaches the hardware through one small I/O interface. Three layers:
    LiteX SoC with a VexRiscv RISC-V core, emulated in Renode, for processor
    in the loop (`arclang pil`). See [embedded-targets.md](embedded-targets.md).
 
+A machine the model allocates to programmable logic is generated as VHDL
+in fixed point instead, and called through registers: see
+[embedded-fpga.md](embedded-fpga.md) (`arclang export -f vhdl`, `arclang hdl`).
+
 ```text
 arclang export model.arc -f c -o build/c     # the files, for any target
 arclang sil    model.arc --cc gcc --cc clang # the C against the model
@@ -114,7 +118,10 @@ state_machine "Charger" {
 }
 ```
 
-**Variables**: `[in|out|const] name: Type [unit] = initial`.
+**Variables**: `[in|out|const] name: Type [unit] [range lo .. hi] [format Qi.f] = initial`.
+`range` and `format` give the fixed point of a machine the hardware
+computes ([embedded-fpga.md](embedded-fpga.md#fixed-point)); the C and the
+model ignore them (a range is not a clamp).
 
 | Type | C type | Arithmetic |
 |---|---|---|
@@ -214,6 +221,99 @@ expects: ["at(100 ms, \"Charger\".target) == 2 A", "max(\"Charger\".setpoint) <=
 
 `arclang sil` compares every variable, step by step, with the model's,
 bit for bit by default (`tolerance: 0`).
+
+## Data flow between machines
+
+A signal-processing chain, from a measurement to the machine that uses it,
+is written as machines too. No new block is needed: a machine with
+equations and no state is a **data-flow block**, and an input may read
+another machine's variable.
+
+```arclang
+// A data-flow block: its equations every step, no state.
+state_machine "Wheel speed filter" {
+    owner: "PC-SPD-FILTER"     // in the programmable logic: VHDL, fixed point
+    variables: [
+        "in raw: Real [km/h] range 0 km/h .. 300 km/h",
+        "filtered: Real [km/h] range 0 km/h .. 300 km/h = 0 km/h",
+        "out speed: Real [m/s] range 0 m/s .. 70 m/s = 0 m/s"
+    ]
+    equations: ["filtered = filtered + 0.25 * (raw - filtered)", "speed = saturate(filtered, 0 km/h, 250 km/h)"]
+}
+
+state_machine "Overspeed warning" {
+    variables: ["in speed: Real [km/h] from \"Wheel speed filter\".speed", "const on_above: Real [km/h] = 130 km/h", ...]
+    initial: "Normal"
+    ...
+}
+```
+
+(`examples/automotive/speed-monitor`.)
+
+**A block** is stepped as a machine with one state of its own, `Flow`,
+which is always active and is a column of the results. Everything a
+machine has works the same way for a block: the C, the fixed point and the
+VHDL when it is allocated to an FPGA node, SIL, PIL, HDL and the SoC. The
+blocks of the action language (`delay`, `integrator`, `pid`) are the
+library of the chain. A machine with neither a state nor an equation is
+still refused, because there is nothing to generate.
+
+**A wire.** `in x: ... from "Machine".variable` (or `from Id.variable`,
+with the machine's id) reads that variable every step.
+
+- **Order.** The machine that is read steps first in the model's step,
+  whatever order the machines are written in, so a wire reads the value of
+  the same step.
+- **Conversion.** The value is converted to the input's unit and type as an
+  assignment converts it: m/s into km/h above, a Real into a Float with
+  rounding. An Integer takes only an Integer, and the dimensions must match.
+- **Range.** An input with no `range` takes the range of what it reads, in
+  its own unit. The fixed point of the machine downstream follows from the
+  formats upstream: the same derivation, along the chain.
+- **Loops.** A loop of wires (A reads B, B reads A) is refused. It would
+  need each side to read the other in the same step. Close the loop inside
+  one machine instead, whose equations may read a `delay(...)`.
+
+**In the C**, a machine that reads others steps on a copy of its inputs,
+with the wired inputs set from the other machines' outputs. Those outputs
+are already written in the step, and the C prints the same typed
+conversion the model evaluates:
+
+```c
+speed_monitor_overspeed_warning_inputs wired = inputs->overspeed_warning;
+wired.v_speed = (outputs->wheel_speed_filter.v_speed * 3.5999999999999996); /* from state_machine "Wheel speed filter", speed */
+```
+
+**In a case**, the machine's own inputs are written as before. An input of
+a block upstream is named with its machine:
+`"0 s: \"Wheel speed filter\".raw = 140 km/h"`. An input that a wire sets
+is not set by a case. The expectations read any machine.
+
+**In the stages.** SIL and PIL run the whole model's step, the chain
+included: the C reproduces the model to 0 difference. HDL and the SoC run
+a block alone, in fixed point. Its wired inputs replay the values the model
+gave them, as a plant's loop is replayed. The block is then bit-exact with
+its fixed-point C on the same inputs, and the quantisation is measured on
+them. On the speed monitor, the filter in VHDL is bit-exact with its
+fixed-point C in GHDL and in the simulated SoC. It synthesises for the
+ECP5 in 740 LUT4 and 4 DSP, with an Fmax of 54.9 MHz for a 25 MHz clock.
+The warning reads it in C, on the processor.
+
+**On the target**, the task of an `io_binding` steps the blocks its machine
+reads, each after the blocks it reads, before the machine itself. Each
+such block runs in one task. A wire from a machine that another
+`io_binding` runs as a task of its own is refused: it would cross two
+tasks, and the rate transition that needs is not generated.
+
+Not done yet:
+
+- a fixed-point chain kept in words from one block to the next in the
+  logic (each block quantises its inputs from the values);
+- rate transitions between tasks;
+- delayed wires (a loop through a unit delay between two machines);
+- a case of a software machine run in the SoC while the block it reads
+  computes in the logic. The SoC stage runs the cases of the block; PIL
+  runs the whole chain in C on the processor.
 
 ## Regions and pseudo-states
 
@@ -474,6 +574,88 @@ for (;;) {
 The glue refuses to compile (`#error`) when the behavior was compiled for
 another period than the binding's.
 
+## Tasks and scheduling
+
+A processor runs several machines: one `io_binding` each, on the same
+`target:`, each with its `period:` and, if wanted, its `priority:` (1 the
+highest, up to 32). The exported application (`arclang export -f zephyr`)
+then runs **one task per binding** (`src/tasks.c`): a Zephyr thread with
+its own periodic clock (`arclang_io_task_wait_period`), its glue and its
+machine's step (`<model>_<machine>_step`), at its priority. Without
+`priority:` the priorities follow the periods, the shortest the highest
+(rate monotonic). The machines share the model's state and I/O structures
+but each task touches its own machine's members only; the watchdog is
+kicked by the bindings that ask for it. `--binding` still exports one
+binding alone (`src/main.c`); `arclang pil` runs the cases one binding at
+a time, as before.
+
+```arc
+io_binding "Wiper task" { machine: "Wiper" target: "zephyr/litex_vexriscv" period: 20 ms ... }
+io_binding "Light task" { machine: "Interior light" target: "zephyr/litex_vexriscv" period: 100 ms ... }
+```
+
+`arclang schedule model.arc` says whether every task meets its period,
+from the step times **measured** on the target (`arclang partition`:
+the longest a step took of the target's virtual time) — never a guess;
+`--wcet "Machine=25.5"` gives one instead:
+
+```text
+Schedule body_controller.arc — 2 task(s) on zephyr/litex_vexriscv, fixed priorities, preemptive (response-time analysis)
+  task "Wiper task" (Wiper)  period 20.00 ms  priority 1  step ≤ 9.0 us · response ≤ 9.0 us · meets its period (0.0 % of it) [measured under load (arclang schedule --prove)]
+  task "Light task" (Interior light)  period 100.00 ms  priority 2  step ≤ 5.0 us · response ≤ 14.0 us · meets its period (0.0 % of it) [measured under load (arclang schedule --prove)]
+  utilisation 0.1 % (rate-monotonic bound 82.8 %) · every task meets its period
+  note: priorities by the period (rate monotonic): the shortest period the highest; write priority: in a binding to choose
+```
+
+The analysis is the response-time analysis of fixed-priority preemptive
+scheduling (Joseph and Pandya): a task's worst response is its own time
+plus the interference of every task of higher (or equal) priority over
+that response, iterated to a fixed point; the task meets its period when
+the response fits in it. The set's utilisation is compared with Liu and
+Layland's bound for information: the periods are met by the response
+times, not by the bound. A task whose step time is unknown leaves the
+schedule unproved (the command fails and says what to run). The table
+kind `schedule` lays the same out per binding (`arclang table --kind
+schedule`), the measurement stale when the generated C changed since.
+
+**Proved on the target.** `arclang schedule model.arc --prove` runs every
+task of the target together first: the application as the firmware runs it
+(one thread per binding, `src/pil_tasks.c` reporting each cycle), in the
+target's emulator (Renode for the LiteX SoC; the command relays itself to
+the SoC image when the host has no Zephyr), each binding's channels driven
+by a case of its machine on the binding's own period grid, all at once,
+for `--cycles` cycles of the longest period. Per task it says whether every
+cycle came, one a period (within a twentieth of it), none failed — the
+period kept under the others' load — and the longest a cycle took, which
+is then the step time the analysis runs on (`measured under load`):
+
+```text
+Tasks on zephyr/litex_vexriscv together, in Renode (5 cycle(s) of the longest period):
+  ✓ task "Wiper task" (Wiper) every 20000 us at priority 1: 30 cycles, one every 20000 us (19993 to 20007); a cycle took at most 9.0 us, the channels quiet
+  ✓ task "Light task" (Interior light) every 100000 us at priority 2: 6 cycles, one every 100000 us (100000 to 100001); a cycle took at most 5.0 us, the channels of TC-BC-002 played
+  kept in examples/automotive/body-controller/.arclang/sim-cache/schedule.json
+```
+
+A task's channels are played from the first executed case of its machine
+whose stimuli all go through the binding's channels (TC-BC-002 for the
+light; the wiper's case sets a variable, which no channel can, so its
+channels stay quiet: its cycles still run, read and write). The bench
+runs a period past the horizon, so a cycle or two more than the count
+asked may come.
+
+The runs are kept beside the model (`schedule.json`), keyed by the
+application's files and the plan; the compiler reads them back for the
+table and the analysis, stale when the generated code or the cases
+changed. A task that slips a period fails the command and names it.
+
+What this proves and what it does not: the analysis covers the tasks'
+own steps, preempted by each other, and the proof sees them with the
+kernel, the drivers and the console between them on the target; neither
+counts interrupts the model does not know. The tasks do not exchange
+events yet. A machine reads the channels, and the blocks its own task
+steps before it ("Data flow between machines"), not another task's
+machine.
+
 ## Test cases executed at fixed step
 
 ```arclang
@@ -572,6 +754,122 @@ requirements), with its values as evidence; a case never run in SIL, or
 whose C or case changed since (stale, with a warning), is inconclusive and
 says what to run.
 
+## The plant in the loop
+
+A list of inputs says what the machine sees; it cannot say whether the
+machine does the right thing to what it controls. A case closes the loop
+on a **plant**, a model of the physics, with `plant:` inside `execute:`:
+
+```arc
+test_case "TC-CHG-HIL" {
+    verifies: ["SYS-CHG-004", "SYS-CHG-005"]
+    execute: {
+        machine: "Charger"
+        step: 10 ms
+        stop_time: 1.5 s
+        inputs: ["0 s: battery present", "20 ms: plug"]
+        plant: {
+            model: "ChargerPhysics.Battery"
+            sources: ["physics/ChargerPhysics.mo"]
+            inputs: ["i_set <- setpoint"]
+            outputs: ["voltage <- v_batt", "current <- i_batt"]
+        }
+    }
+    expects: ["SYS-CHG-005: at(1 s, \"Charger\".Charging.Absorption) == 1", ...]
+}
+```
+
+- `model:` a Modelica model, its `sources:` beside the `.arc` (as
+  `simulate:` names them); **or** `fmu:` a co-simulation FMU as a file,
+  FMI 2.0 or FMI 3.0 (from Simulink, Dymola, Amesim, OpenModelica, the
+  Reference FMUs, any exporter): see "An FMU from another tool" below.
+- `inputs:` the plant's `input` variables, each driven by a variable the
+  machine computes (`out` or internal); `outputs:` the machine's `in`
+  variables, each read from a variable of the plant. Values pass in SI,
+  as the machine stores them scaled to its units. The `in` variables not
+  wired stay driven by `inputs:` of the case.
+- `tolerance:` the solver's (CVODE), `1e-6` by default.
+
+At each step the machine reads the plant, steps, and the plant advances
+one period with the machine's outputs held (a zero-order hold, as a DAC
+holds). The first step reads the plant initialised on the machine's
+initial outputs. Nothing is real time: plant and device advance in lock
+step, and a run is reproducible to the bit.
+
+The loop runs around every implementation the same way:
+
+| Stage | How |
+|---|---|
+| the model | the reference interpreter in the loop: the reference of the others |
+| `arclang sil` | the C harness fed a step at a time, the plant on what it answers |
+| `arclang hdl` | the VHDL replays the model's loop; the fixed point is measured against the model on those same inputs |
+| `arclang pil` | the processor replays the model's loop (its C matches the model within tolerance) |
+| `arclang soc` | the simulated SoC, or the board through its port, in the loop: a line a step; bit-exact with the fixed-point C run in the loop too |
+
+### An FMU from another tool
+
+The FMU is stepped as it is. A small stepper, compiled where the FMU
+runs, reads the description:
+
+- `fmiVersion`, 2.0 or 3.0;
+- the co-simulation `modelIdentifier`, which names the library;
+- the variables named in `inputs:` and `outputs:`, which must be real
+  (`Real` in 2.0, `Float64` in 3.0).
+
+It loads the binary built for the platform it runs on. The 3.0 name of the
+platform is tried first, then the 2.0 one: `aarch64-darwin` then
+`darwin64`, and `x86_64-linux` or `aarch64-linux` then `linux64`. When
+the FMU has a binary for this computer, the computer's C compiler steps it.
+Otherwise the OpenModelica image steps it, which works for a Linux binary.
+
+Units come from the description: a variable's own `unit`, or the unit of
+its `declaredType`.
+
+Between two instants, an input can go along a slope. In the plant loop it
+does not: the loop holds the machine's outputs, so the slopes are zero. A
+live twin does use slopes. FMI 2.0 takes them through
+`fmi2SetRealInputDerivatives`. FMI 3.0 has no such call: the slope is set
+on the input the FMU declares as the derivative of the input
+(`derivative="<value reference>"`), and an input without one is held over
+the step.
+
+What is not taken:
+
+- a Model Exchange-only FMU (no `<CoSimulation>`);
+- a source-only FMU (no binary);
+- variables other than reals;
+- FMI 3.0 clocks, event mode and early return. The stepper instantiates
+  without them, so a step always ends where it was asked to.
+
+`tests/embedded_plant.rs` builds the same room as an FMI 2.0 FMU and as an
+FMI 3.0 FMU, both with the identifier `Room`, from
+`tests/fixtures/fmu/room.c`. In both versions the room follows a ramp of
+its input exactly, and closes the heater's loop as the same room written
+in Rust does. The Modelica Reference FMUs (VanDerPol, BouncingBall,
+Feedthrough) were also stepped in both versions, in the OpenModelica
+image. VanDerPol gives the same values in 2.0 and in 3.0.
+
+A plant written in Modelica is built once as an FMU by OpenModelica
+(local `omc` or its Docker image) and kept under `.arclang/plant/` beside
+the model, keyed by the model, its sources and the wires; a stage that runs
+in a Docker image (docs/realization.md) steps the FMU the host built. The
+stepper is `twin_stepper.c`, the twin's (docs/digital-twin.md): FMI 2.0
+co-simulation, one `fmi2DoStep` a period. A given FMU is stepped by this
+computer's C compiler when it holds a binary for this platform, else where
+OpenModelica runs.
+
+The verdict says `in the loop with the plant <model> (FMI 2.0
+co-simulation)` in its tools, and is cached and read as any other: the
+realization ladder climbs a case with a plant like any case. A case with a
+plant does not go through an `io_binding` yet: its channels are proved by
+the cases without one.
+
+On the charger (`examples/energy/battery-charger`, `physics/ChargerPhysics.mo`:
+the power stage as a first-order lag, the pack's voltage as its open-circuit
+voltage plus the drop on its resistance), TC-CHG-HIL is the only case that
+can prove SYS-CHG-005: precharge at 2 A, bulk at 16 A lifts the terminals
+past 54.6 V, the filtered voltage follows, absorption at 4 A.
+
 ## An FMU of the behavior
 
 ```text
@@ -610,8 +908,9 @@ and the charge integrator), the power window (2 cases) and the cruise
 control (2 cases), the largest difference is 0. `fmpy validate` finds no
 problem in the FMU.
 
-Not done: FMI 3.0 (another API and description; not cheap enough to add
-here), and a run in OpenModelica: 1.27's `importFMU` takes only FMI 2.0
+Not done: an FMI 3.0 export (an FMU from another tool is taken in 3.0 as
+in 2.0, see "An FMU from another tool"; no consumer asks for a 3.0 export
+yet), and a run in OpenModelica: 1.27's `importFMU` takes only FMI 2.0
 Model Exchange FMUs, and the `openmodelica/openmodelica:v1.27.1-minimal`
 image has no OMSimulator, which would run a co-simulation FMU. fmpy's
 `simulate_fmu` samples discrete inputs a step late at the breakpoints of an
@@ -680,8 +979,9 @@ a human reading) are not covered by these numbers.
 
 Said plainly:
 
-- **No fixed point, no continuous time.** Variables are `bool`,
-  `int32_t`, `float` or `double` as declared; the data flow is discrete
+- **No fixed point in this C, no continuous time.** Variables are `bool`,
+  `int32_t`, `float` or `double` as declared (the fixed-point C is the
+  reference of the hardware: [embedded-fpga.md](embedded-fpga.md)); the data flow is discrete
   (difference equations and the blocks above, at the step period).
   Continuous dynamics stay in the Modelica export. Variables are not bound
   to I/O channels yet (an `io_binding` binds events, conditions, states and

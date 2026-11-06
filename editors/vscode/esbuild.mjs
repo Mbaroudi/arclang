@@ -172,6 +172,16 @@ const impact = await esbuild.context({
   outfile: 'dist/impact.js',
 });
 
+// realization hook: the realization ladder's page.
+const realization = await esbuild.context({
+  ...common,
+  entryPoints: ['webview/realization/main.ts'],
+  format: 'iife',
+  platform: 'browser',
+  target: 'es2022',
+  outfile: 'dist/realization.js',
+});
+
 // The Modelica drawing's page.
 const modelicaPage = await esbuild.context({
   ...common,
@@ -213,10 +223,10 @@ const twinPage = await esbuild.context({
 
 if (watch) {
   copyPdfjs();
-  await Promise.all([host.watch(), web.watch(), chat.watch(), page.watch(), tables.watch(), impact.watch(), pdf.watch(), modelicaPage.watch(), twinPage.watch()]);
+  await Promise.all([host.watch(), web.watch(), chat.watch(), page.watch(), tables.watch(), impact.watch(), realization.watch(), pdf.watch(), modelicaPage.watch(), twinPage.watch()]);
 } else {
-  await Promise.all([host.rebuild(), web.rebuild(), chat.rebuild(), page.rebuild(), tables.rebuild(), impact.rebuild(), pdf.rebuild(), modelicaPage.rebuild(), twinPage.rebuild()]);
+  await Promise.all([host.rebuild(), web.rebuild(), chat.rebuild(), page.rebuild(), tables.rebuild(), impact.rebuild(), realization.rebuild(), pdf.rebuild(), modelicaPage.rebuild(), twinPage.rebuild()]);
   copyWasm();
   copyPdfjs();
-  await Promise.all([host.dispose(), web.dispose(), chat.dispose(), page.dispose(), tables.dispose(), impact.dispose(), pdf.dispose(), modelicaPage.dispose(), twinPage.dispose()]);
+  await Promise.all([host.dispose(), web.dispose(), chat.dispose(), page.dispose(), tables.dispose(), impact.dispose(), realization.dispose(), pdf.dispose(), modelicaPage.dispose(), twinPage.dispose()]);
 }

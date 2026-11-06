@@ -12,7 +12,7 @@ use arclang::{Compiler, CompilerConfig};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-const DEMO: &str = "examples/aerospace/drone-from-capella";
+const DEMO: &str = "tests/fixtures/capella-sim";
 
 fn root() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).to_path_buf()
@@ -32,27 +32,27 @@ fn compile(path: &Path) -> arclang::compiler::CompilationResult {
 #[test]
 fn capella_property_values_come_back_as_quantities() {
     let dir = work("import");
-    let out = dir.join("drone.arc");
-    let run = Command::new(env!("CARGO_BIN_EXE_arclang")).arg("import").arg(root().join(DEMO).join("capella/drone.capella")).args(["-f", "capella", "-o"]).arg(&out).output().unwrap();
+    let out = dir.join("hoist.arc");
+    let run = Command::new(env!("CARGO_BIN_EXE_arclang")).arg("import").arg(root().join(DEMO).join("capella/hoist.capella")).args(["-f", "capella", "-o"]).arg(&out).output().unwrap();
     assert!(run.status.success(), "{}", String::from_utf8_lossy(&run.stderr));
     let text = std::fs::read_to_string(&out).unwrap();
     for wanted in [
-        "energy: 666 Wh",
-        "mass: 2.6 kg",
-        "ambient: 20 °C",
-        "efficiency: 85 %",
+        "energy: 60 Wh",
+        "mass: 150 kg",
+        "max_force: 6000 N",
+        "efficiency: 80 %",
         // A requirement keeps the id the cases verify, and what satisfies it.
-        "req \"REQ-ENDURANCE\" \"Hover endurance\"",
-        "trace \"PN-BATT\" satisfies \"REQ-ENDURANCE\"",
+        "req \"REQ-HEAVY\" \"Heavy duty\"",
+        "trace \"PN-BATT\" satisfies \"REQ-HEAVY\"",
         // Links and exchanges keep their properties and their carrying link.
-        "protocol: \"I2C\"",
-        "via: \"Sensor bus\" frequency: 50 Hz message_type: \"Barometer\"",
+        "protocol: \"CAN\"",
+        "via: \"Sensor bus\" frequency: 50 Hz message_type: \"Height\"",
     ] {
         assert!(text.contains(wanted), "{wanted}");
     }
     assert!(!text.contains("pv_mass"), "a typed attribute keeps its name when its value is a quantity");
-    // The import of the demonstration is the file the demonstration uses.
-    assert_eq!(text, std::fs::read_to_string(root().join(DEMO).join("drone.arc")).unwrap(), "drone.arc is what the import writes");
+    // The import is the file the simulation refines.
+    assert_eq!(text, std::fs::read_to_string(root().join(DEMO).join("hoist.arc")).unwrap(), "hoist.arc is what the import writes");
 }
 
 #[test]
@@ -85,23 +85,20 @@ fn refine_adds_to_an_element_declared_in_another_file() {
 fn the_element_models_are_rolled_up_into_each_configuration() {
     let result = compile(&root().join(DEMO).join("simulation.arc"));
     let export = modelica::export(&result.ast).unwrap();
-    assert_eq!(export.executables.get("CFG-SURVEY").map(String::as_str), Some("DroneEndurance.Executable.Survey"));
+    assert_eq!(export.executables.get("CFG-LIGHT").map(String::as_str), Some("CargoHoist.Executable.LightDuty"));
     let text = &export.text;
     for wanted in [
-        "extends DroneEndurance.Systems.Survey(redeclare DronePhysics.Pack battery,",
-        "redeclare DronePhysics.Rotors propulsion(rho=airframe.rho, redeclare DronePhysics.MotorDrive motorDrive)",
-        "redeclare DronePhysics.Frame airframe(redeclare DronePhysics.Altimeter altimeter)",
-        "extends DroneEndurance.Physical.FlightController(redeclare DronePhysics.AltitudeLoop altitudeHold);",
-        "redeclare DroneEndurance.Executable.Parts.FlightController flightController",
+        "extends CargoHoist.Systems.LightDuty(redeclare HoistPhysics.Pack battery,",
+        "redeclare HoistPhysics.Winch winch(redeclare HoistPhysics.Drive winchDrive)",
+        "redeclare HoistPhysics.Cabin cabin(redeclare HoistPhysics.HeightSensor heightSensor)",
+        "extends CargoHoist.Physical.Controller(redeclare HoistPhysics.HeightHold heightHold);",
+        "redeclare CargoHoist.Executable.Parts.Controller controller",
     ] {
         assert!(text.contains(wanted), "{wanted}");
     }
     // An exchange between behavior components of two nodes goes through relays of the nodes.
-    assert!(text.contains("connect(altimeter.altitude, altimeter_altitude)"));
-    assert!(text.contains("connect(airframe.altimeter_altitude, flightController.altitudeHold_altitude)"));
-    // The system node, with nothing to simulate, is no part.
-    assert!(!text.contains("Physical.Drone "), "the empty root node is left out");
-    assert!(export.notes.iter().any(|n| n.contains("node 'Drone' has no port")), "{:?}", export.notes);
+    assert!(text.contains("connect(heightSensor.height, heightSensor_height)"));
+    assert!(text.contains("connect(cabin.heightSensor_height, controller.heightHold_height)"));
 }
 
 #[test]
@@ -111,11 +108,11 @@ fn a_mission_file_adds_its_values_to_the_sweep() {
     let test = result.ast.test_cases.iter().find(|t| t.id == "TC-ENVELOPE").unwrap();
     let spec = arclang::compiler::simulation::spec_of(&test.attributes).unwrap().unwrap();
     assert!(spec.model.is_empty() && spec.sweep.is_empty());
-    let spec = arclang::compiler::simulation::effective(spec, &root().join(DEMO), &export, Some("CFG-LONG".into())).unwrap();
-    assert_eq!(spec.model, "DroneEndurance.Executable.LongEndurance");
-    assert_eq!(spec.sweep, vec!["\"PN-FRAME\".payload = 0 kg .. 2 kg step 1 kg".to_string(), "\"PN-FRAME\".ambient = 0 °C, 20 °C, 35 °C".to_string()]);
+    let spec = arclang::compiler::simulation::effective(spec, &root().join(DEMO), &export, Some("CFG-HEAVY".into())).unwrap();
+    assert_eq!(spec.model, "CargoHoist.Executable.HeavyDuty");
+    assert_eq!(spec.sweep, vec!["\"PN-CABIN\".load = 0 kg .. 200 kg step 100 kg".to_string(), "\"PN-CABIN\".mass = 120 kg, 150 kg".to_string()]);
     let missing = arclang::compiler::simulation::spec_of(&test.attributes).unwrap().unwrap();
-    let error = arclang::compiler::simulation::effective(missing, Path::new("/nowhere"), &export, Some("CFG-LONG".into())).err().unwrap();
+    let error = arclang::compiler::simulation::effective(missing, Path::new("/nowhere"), &export, Some("CFG-HEAVY".into())).err().unwrap();
     assert!(error.contains("mission 'missions/envelope.mission': cannot read"), "{error}");
 }
 
@@ -142,7 +139,7 @@ fn a_copy_of_the_model_compiles_as_the_file_it_stands_for() {
     let dir = work("as");
     std::fs::copy(root().join(DEMO).join("simulation.arc"), dir.join("simulation.arc")).unwrap();
     let alone = Command::new(env!("CARGO_BIN_EXE_arclang")).arg("workbench").arg(dir.join("simulation.arc")).output().unwrap();
-    assert!(String::from_utf8_lossy(&alone.stdout).contains("imported file not found: drone.arc"), "a copy alone cannot resolve its imports");
+    assert!(String::from_utf8_lossy(&alone.stdout).contains("imported file not found: hoist.arc"), "a copy alone cannot resolve its imports");
     let run = Command::new(env!("CARGO_BIN_EXE_arclang")).arg("workbench").arg(dir.join("simulation.arc")).arg("--as").arg(root().join(DEMO).join("simulation.arc")).output().unwrap();
     let text = String::from_utf8_lossy(&run.stdout);
     let snapshot: serde_json::Value = serde_json::from_str(&text).unwrap();
@@ -152,15 +149,15 @@ fn a_copy_of_the_model_compiles_as_the_file_it_stands_for() {
 
 #[test]
 #[ignore = "needs Docker and the OpenModelica image (arclang verify)"]
-fn the_drone_from_capella_flies_its_missions_in_openmodelica() {
+fn the_hoist_from_capella_flies_its_missions_in_openmodelica() {
     let dir = work("verify");
     let copy = Command::new("cp").args(["-R"]).arg(root().join(DEMO)).arg(&dir).output().unwrap();
     assert!(copy.status.success());
-    let model = dir.join("drone-from-capella").join("simulation.arc");
+    let model = dir.join("capella-sim").join("simulation.arc");
     let run = Command::new(env!("CARGO_BIN_EXE_arclang")).arg("verify").arg(&model).output().unwrap();
     let text = String::from_utf8_lossy(&run.stdout);
     assert!(run.status.success(), "{text}{}", String::from_utf8_lossy(&run.stderr));
-    for wanted in ["TC-SURVEY \"Survey mission, standard pack\": PASS", "TC-ENDURANCE \"Hover endurance, extended pack\": PASS", "sweep: 9 points, 9 pass"] {
+    for wanted in ["TC-LIGHT \"Light duty, small pack\": PASS", "TC-HEAVY \"Heavy duty, large pack\": PASS", "sweep: 6 points, 6 pass"] {
         assert!(text.contains(wanted), "{wanted}\n{text}");
     }
 }

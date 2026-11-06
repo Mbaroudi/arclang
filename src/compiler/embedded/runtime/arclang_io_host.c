@@ -211,6 +211,16 @@ arclang_io_status arclang_io_clock_wait_period(uint32_t period_us)
     return ARCLANG_IO_OK;
 }
 
+/* On the host every task's clock is the one virtual time: a wait advances it. */
+arclang_io_status arclang_io_task_wait_period(uint8_t task, uint32_t period_us)
+{
+    if (task >= ARCLANG_IO_TASKS) {
+        return ARCLANG_IO_ERR_CHANNEL;
+    }
+    now_us += period_us;
+    return ARCLANG_IO_OK;
+}
+
 arclang_io_status arclang_io_watchdog_kick(void)
 {
     kicks++;

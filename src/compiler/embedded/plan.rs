@@ -106,7 +106,37 @@ pub struct MachinePlan {
     pub variables: Vec<Signal>,
     /// The budgets of its transitions, watched every step.
     pub budgets: Vec<Budget>,
+    /// Its code in fixed point, when it is generated so (the bit-exact
+    /// reference of a machine the hardware computes: `fxc`).
+    pub fixed: Option<Box<super::fixed::MachineFixed>>,
+    /// The block that computes it in programmable logic, when the software
+    /// calls it through its driver (`<block>_hw.h`) instead of stepping it.
+    pub hardware: Option<String>,
+    /// Its inputs read from other machines (`in x: ... from "M".y`): the
+    /// machines it reads come before it in the plan.
+    pub wires: Vec<Wire>,
+    /// A data-flow block: a machine written with equations and no state,
+    /// given one state of its own (`Flow`, always active) to be stepped as
+    /// any machine.
+    pub dataflow: bool,
 }
+
+/// An input of a machine read from a variable of another machine, every
+/// step, after that machine stepped.
+#[derive(Debug, Clone)]
+pub struct Wire {
+    /// The input (its index among the machine's variables).
+    pub input: usize,
+    /// The machine read (its index in the plan) and its variable.
+    pub machine: usize,
+    pub variable: usize,
+    /// The value read, converted to the input's unit and type, over the
+    /// other machine's variables.
+    pub value: crate::compiler::execution::expr::Expr,
+}
+
+/// The state a data-flow block is given.
+pub const FLOW_STATE: &str = "Flow";
 
 /// `budget: 1500 ms` on a transition: an output true in every step its
 /// source has been active longer than the budget (ceil(budget / period)
@@ -298,9 +328,38 @@ pub fn guard_of(machine: &Machine, conditions: &[Signal], guard: Option<&str>) -
     }
 }
 
+/// A machine with equations and no state: a data-flow block, given the one
+/// state it is stepped in.
+fn as_dataflow(source: &StateMachine) -> Option<StateMachine> {
+    let equations = matches!(source.attributes.get("equations"), Some(crate::compiler::ast::AttributeValue::List(list)) if !list.is_empty());
+    if !source.states.is_empty() || !source.regions.is_empty() || !equations {
+        return None;
+    }
+    let mut block = source.clone();
+    block.initial_state = FLOW_STATE.to_string();
+    block.states.push(crate::compiler::ast::State {
+        id: String::new(),
+        name: FLOW_STATE.to_string(),
+        kind: Default::default(),
+        entry_actions: Vec::new(),
+        exit_actions: Vec::new(),
+        internal_transitions: Vec::new(),
+        sub_states: Vec::new(),
+        transitions: Vec::new(),
+        color: None,
+        initial: String::new(),
+        attributes: Default::default(),
+        regions: Vec::new(),
+    });
+    Some(block)
+}
+
 pub fn plan_machine(source: &StateMachine, taken: &mut BTreeSet<String>) -> Result<MachinePlan, String> {
     // A mistake in the code of the machine is an error here, not a note.
     crate::compiler::execution::machine::compile(source)?;
+    let block = as_dataflow(source);
+    let dataflow = block.is_some();
+    let source = block.as_ref().unwrap_or(source);
     let machine = Machine::new(source);
     let what = format!("state_machine '{}'", source.name);
     let mut events = Vec::new();
@@ -428,13 +487,16 @@ pub fn plan_machine(source: &StateMachine, taken: &mut BTreeSet<String>) -> Resu
         .map(|v| Signal { text: v.name.clone(), ident: unique(&mut variable_names, format!("v_{}", c_ident(&v.name))), member: v.name.clone() })
         .collect();
     for v in &variables {
+        if dataflow && v.member == FLOW_STATE {
+            return Err(format!("{what}: variable '{FLOW_STATE}' has the name of the state a data-flow block is stepped in: rename it"));
+        }
         if states.iter().any(|s| s.member == v.member) {
             return Err(format!("{what}: variable '{}' has the name of a state: a result column reads either", v.text));
         }
     }
     let ident = unique(taken, bounded(&c_name(&source.name), 24));
     if machine.states.is_empty() {
-        return Err(format!("{what} has no state: nothing to generate"));
+        return Err(format!("{what} has no state and no equation: nothing to generate"));
     }
     if machine.states.len() > u16::MAX as usize - 1 {
         return Err(format!("{what} has more than {} states", u16::MAX - 1));
@@ -456,7 +518,27 @@ pub fn plan_machine(source: &StateMachine, taken: &mut BTreeSet<String>) -> Resu
         max_depth,
         variables,
         budgets,
+        fixed: None,
+        hardware: None,
+        wires: Vec::new(),
+        dataflow,
     })
+}
+
+/// The machines `machine` reads through its wires, directly or not, in the
+/// order of the plan (each after those it reads).
+pub fn upstream(plan: &Plan, machine: usize) -> Vec<usize> {
+    let mut seen = vec![false; plan.machines.len()];
+    let mut todo = vec![machine];
+    while let Some(m) = todo.pop() {
+        for w in &plan.machines[m].wires {
+            if !seen[w.machine] {
+                seen[w.machine] = true;
+                todo.push(w.machine);
+            }
+        }
+    }
+    (0..plan.machines.len()).filter(|&m| seen[m]).collect()
 }
 
 /// The name of the model, for the files and the functions.
@@ -471,5 +553,71 @@ pub fn plan(ast: &Model) -> Result<Plan, String> {
     let model = model_name(ast);
     let mut taken = BTreeSet::new();
     let machines = ast.state_machines.iter().map(|m| plan_machine(m, &mut taken)).collect::<Result<Vec<_>, _>>()?;
-    Ok(Plan { ident: bounded(&c_name(&model), 32), model, machines })
+    Ok(Plan { ident: bounded(&c_name(&model), 32), model, machines: wired(machines)? })
+}
+
+/// The machines with their wires resolved, each after the machines it
+/// reads (in the order written otherwise); a loop of wires is refused.
+fn wired(mut machines: Vec<MachinePlan>) -> Result<Vec<MachinePlan>, String> {
+    // (consumer, input, producer, variable)
+    let mut found: Vec<(usize, usize, usize, usize)> = Vec::new();
+    for (m, machine) in machines.iter().enumerate() {
+        for (i, v) in machine.program().variables.iter().enumerate() {
+            let Some((name, variable)) = &v.source else { continue };
+            let what = format!("state_machine '{}': input '{}'", machine.name, v.name);
+            let p = machines.iter().position(|o| o.is(name)).ok_or_else(|| format!("{what} reads from '{name}', which is no state_machine of the model"))?;
+            if p == m {
+                return Err(format!("{what} reads from its own machine: a machine reads its variables directly"));
+            }
+            let j = machines[p].variable(variable).ok_or_else(|| format!("{what} reads '{variable}', which is no variable of state_machine '{}'", machines[p].name))?;
+            found.push((m, i, p, j));
+        }
+    }
+    if found.is_empty() {
+        return Ok(machines);
+    }
+    for &(m, i, p, j) in &found {
+        let (from, to) = (machines[p].program().variables[j].clone(), machines[m].program().variables[i].clone());
+        let (from, to) = (&from, &to);
+        let value = crate::compiler::execution::expr::wire(from, j, to).map_err(|e| format!("state_machine '{}': input '{}' from '{}'.{}: {e}", machines[m].name, to.name, machines[p].name, from.name))?;
+        machines[m].wires.push(Wire { input: i, machine: p, variable: j, value });
+        // The fixed point follows the chain: an input without a range takes
+        // the range of what it reads, in its own unit.
+        if to.range.is_none() && to.ty != crate::compiler::execution::expr::Ty::Bool {
+            if let Some((lo, hi)) = from.range {
+                let factor = from.scale / to.scale;
+                let range = Some((lo * factor, hi * factor));
+                machines[m].machine.program.variables[i].range = range;
+            }
+        }
+    }
+    // Order: a machine after those it reads, the written order kept otherwise.
+    let n = machines.len();
+    let mut order: Vec<usize> = Vec::new();
+    let mut placed = vec![false; n];
+    while order.len() < n {
+        let next = (0..n).find(|&m| !placed[m] && machines[m].wires.iter().all(|w| placed[w.machine]));
+        match next {
+            Some(m) => {
+                placed[m] = true;
+                order.push(m);
+            }
+            None => {
+                let looped: Vec<String> = (0..n).filter(|&m| !placed[m]).map(|m| format!("'{}'", machines[m].name)).collect();
+                return Err(format!("the wires between state_machine {} make a loop: each would read the other in the same step. A loop of wires is not generated: close it inside one machine, whose equations may read a delay(...)", looped.join(", ")));
+            }
+        }
+    }
+    let mut position = vec![0; n];
+    for (k, &m) in order.iter().enumerate() {
+        position[m] = k;
+    }
+    let mut slots: Vec<Option<MachinePlan>> = machines.into_iter().map(Some).collect();
+    let mut out: Vec<MachinePlan> = order.iter().map(|&m| slots[m].take().expect("once")).collect();
+    for machine in &mut out {
+        for w in &mut machine.wires {
+            w.machine = position[w.machine];
+        }
+    }
+    Ok(out)
 }

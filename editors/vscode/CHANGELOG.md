@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+- **ArcLang Studio** (docs/studio.md): one image, `ghcr.io/mbaroudi/arclang-studio`, published for amd64 and arm64 at each release. It holds VS Code in the browser with this extension, the compiler, OpenModelica with the Modelica Standard Library, Zephyr and Renode, GHDL, Yosys, nextpnr, LiteX and Verilator. It runs on a laptop, on a server or in Codespaces, and `.devcontainer/devcontainer.json` attaches your own VS Code to it. The compiler on a computer without the tools now runs `pil`, `hdl` and `soc` in the Studio of its own version, pulled once, as your user. `ARCLANG_EMBEDDED_DOCKER=dev` keeps the images built from the sources.
+
+## 4.11.0
+
+- The compiler: data flow between machines. A `state_machine` with equations and no state is a data-flow block (a filter, a scaling, a limiter), generated as C, or as VHDL in fixed point when it is allocated to an FPGA node. `in speed: Real [km/h] from "Wheel speed filter".speed` reads another machine every step: the machine read steps first, the value is converted as an assignment converts it, and an input without a range takes the range of what it reads. A case sets an upstream block's input as `"0 s: \"Wheel speed filter\".raw = 140 km/h"`. A task steps the blocks its machine reads. New example `examples/automotive/speed-monitor`.
+- The compiler: a plant's `fmu:` may be an FMI 3.0 co-simulation FMU, as well as an FMI 2.0 one, from any tool. The stepper reads the version and the model identifier from the description, and loads the binary for the platform it runs on (`aarch64-darwin`, `x86_64-linux`, … then `darwin64`, `linux64`). Fixed: an FMI 2.0 FMU from another tool could not be stepped, because the stepper looked for a library named `arclang_twin` and took the first platform listed.
+
+## 4.10.0
+
+- **The realization ladder** (`ArcLang: Realization ladder`): a tab per model, one row per requirement, a chip per stage — the simulation, SIL, PIL, HDL, the SoC, the board, the twin — fresh pass, fail, stale (changed since) or never run, from the verdicts the commands cached beside the model (nothing runs to show it). The stage reached, the next command with **Run** (a terminal beside the model, the configured binary, the real file), and **Realize** (`arclang realize`: every missing or stale stage in order, a requirement's climb stopping at a failure). The view refreshes when a verdict is written. The table view offers the `realization` kind; the chat tool `arclang_realize` gives the assistant the plan and the gaps (a requirement nothing climbs), to propose the missing case with `arclang_edit`.
+- The table view offers the `schedule` kind: per `io_binding` of a target, its task's period and priority, the step time (measured by `arclang partition`, measured under load by `arclang schedule --prove`, or given), the worst response time and whether the task meets its period.
+- The compiler behind it (4.10.0): the plant in the loop of `sil`, `hdl` and `soc` (`execute: { plant: … }`, a Modelica model or an FMU), `pil`/`hdl`/`soc` run themselves in their Docker images when the tools are not on the computer, `arclang partition`, and one task per `io_binding` in the Zephyr application with `arclang schedule`. See arclang.fr/docs/embedded-c/ and /docs/realization/.
+- The table view offers the `partition` kind: per state machine, what `arclang partition` measured as C on the processor and as VHDL on the logic, what fits, what the model allocates today.
 - **A live twin whose model advances with the data**: `advance: "step"` in a live `data:` block.
   - The model is built once as an OpenModelica Co-Simulation FMU (FMI 2.0, CVODE), then stepped to each new instant, its inputs interpolated linearly between samples, its state kept.
   - Each refresh only judges what was computed: the model is no longer run again over the window.

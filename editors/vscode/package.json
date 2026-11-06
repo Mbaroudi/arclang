@@ -2,7 +2,7 @@
   "name": "arclang",
   "displayName": "ArcLang",
   "description": "Arcadia MBSE as code: diagnostics with rules, outline, completion from the metamodel, hover, go to definition, rename, formatting, the viewpoint diagrams beside the source, the production gate, Arcadia transitions, the @arclang chat participant and compiler tools for agent mode, the ArcLang MCP server. Everything comes from the ArcLang compiler.",
-  "version": "4.9.0",
+  "version": "4.11.0",
   "publisher": "arclang",
   "license": "MIT",
   "icon": "icon.png",
@@ -615,6 +615,18 @@
         "icon": "$(refresh)"
       },
       {
+        "command": "arclang.realization.open",
+        "title": "Realization ladder: what each stage says of each requirement",
+        "category": "ArcLang",
+        "icon": "$(list-tree)"
+      },
+      {
+        "command": "arclang.realization.refresh",
+        "title": "Realization ladder: refresh",
+        "category": "ArcLang",
+        "icon": "$(refresh)"
+      },
+      {
         "command": "arclang.import",
         "title": "Import a model (Capella, SysML v2, ReqIF, API server)…",
         "category": "ArcLang",
@@ -1019,6 +1031,11 @@
           "group": "arclang@1"
         },
         {
+          "command": "arclang.realization.open",
+          "when": "resourceLangId == arclang",
+          "group": "arclang@1"
+        },
+        {
           "command": "arclang.impact.whatIf",
           "when": "resourceLangId == arclang",
           "group": "arclang@1"
@@ -1312,6 +1329,14 @@
         {
           "command": "arclang.impact.refresh",
           "when": "activeWebviewPanelId == arclang.impact"
+        },
+        {
+          "command": "arclang.realization.open",
+          "when": "resourceLangId == arclang || resourceLangId == sysml"
+        },
+        {
+          "command": "arclang.realization.refresh",
+          "when": "activeWebviewPanelId == arclang.realization"
         },
         {
           "command": "arclang.import.sysmlFolder",
@@ -2093,6 +2118,34 @@
           "required": [
             "path"
           ]
+        }
+      },
+      {
+        "name": "arclang_realize",
+        "displayName": "ArcLang: realization ladder",
+        "toolReferenceName": "arclangRealize",
+        "canBeReferencedInPrompt": true,
+        "icon": "$(list-tree)",
+        "userDescription": "Plan the climb of the realization ladder of a .arc model: what each stage (simulation, SIL, PIL, HDL, SoC, board, twin) says of each requirement, what to run next, and the requirements nothing climbs.",
+        "modelDescription": "Runs `arclang realize --dry-run --json` on a .arc model: the realization ladder of each requirement (the state of each stage: pass, fail, error, stale, missing, n/a, with the cases and their reasons), the plan (the commands that produce the missing or stale stages, in order) and the gaps (requirements with no case that simulates or executes and no twin). Nothing runs. Use it to tell the engineer where the realization stands and to propose, with arclang_edit, the test_case (simulate: or execute:) or twin a gap needs; the engineer runs the climb.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string",
+              "description": "Absolute path of the .arc file."
+            },
+            "requirement": {
+              "type": "string",
+              "description": "Only this requirement (id or name)."
+            },
+            "up_to": {
+              "type": "string",
+              "enum": ["simulation", "sil", "pil", "hdl", "soc", "board", "twin"],
+              "description": "Plan up to this stage only."
+            }
+          },
+          "required": ["path"]
         }
       },
       {

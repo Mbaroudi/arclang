@@ -26,7 +26,10 @@ use crate::compiler::ast::{AttributeValue, IoBinding, Model};
 use crate::compiler::quantity::Dimension;
 use std::collections::BTreeMap;
 
-pub const KEYS: [&str; 8] = ["id", "description", "machine", "period", "inputs", "outputs", "watchdog", "target"];
+pub const KEYS: [&str; 9] = ["id", "description", "machine", "period", "inputs", "outputs", "watchdog", "target", "priority"];
+
+/// Priorities a binding may ask for: 1 is the highest.
+pub const PRIORITIES: std::ops::RangeInclusive<u32> = 1..=32;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Edge {
@@ -89,6 +92,8 @@ pub struct Binding {
     pub machine: usize,
     pub period_us: u64,
     pub watchdog: bool,
+    /// `priority:` as written (1 the highest); none: by the period (rate monotonic), see `priorities`.
+    pub priority: Option<u32>,
     /// The target package it is deployed on (`target:`, `host` by default).
     pub target: String,
     pub inputs: Vec<Input>,
@@ -308,6 +313,15 @@ pub fn resolve(binding: &IoBinding, plan: &Plan) -> Result<Binding, String> {
         Some(AttributeValue::String(s)) if s == "true" || s == "false" => s == "true",
         Some(other) => return Err(format!("{what}: watchdog is true or false, got '{}'", other.display())),
     };
+    let priority = match a.get("priority") {
+        None => None,
+        Some(v) => Some(
+            v.as_number()
+                .filter(|n| n.fract() == 0.0 && PRIORITIES.contains(&(*n as u32)))
+                .map(|n| n as u32)
+                .ok_or_else(|| format!("{what}: priority is a whole number from {} (the highest) to {}, got '{}'", PRIORITIES.start(), PRIORITIES.end(), v.display()))?,
+        ),
+    };
     let mut inputs = Vec::new();
     for written in strings(a, "inputs").map_err(|e| format!("{what}: {e}"))? {
         let (name, channel) = written.rsplit_once("<-").ok_or_else(|| format!("{what}: input '{written}' reads `event or condition <- channel` (`LF-022 <- gpio 4 rising`)"))?;
@@ -377,6 +391,7 @@ pub fn resolve(binding: &IoBinding, plan: &Plan) -> Result<Binding, String> {
         machine,
         period_us,
         watchdog,
+        priority,
         target,
         inputs,
         outputs,
@@ -388,6 +403,25 @@ pub fn resolve(binding: &IoBinding, plan: &Plan) -> Result<Binding, String> {
 }
 
 /// Every binding of the model, resolved; the first error stops.
+/// The priority each binding runs at (1 the highest), in the bindings'
+/// order: the one written, else by the period — the shortest period the
+/// highest (rate monotonic), equal periods equal, after the priorities
+/// written.
+pub fn priorities(bindings: &[Binding]) -> Vec<u32> {
+    let written: Vec<u32> = bindings.iter().filter_map(|b| b.priority).collect();
+    let next = written.iter().max().map(|p| p + 1).unwrap_or(1);
+    let mut periods: Vec<u64> = bindings.iter().filter(|b| b.priority.is_none()).map(|b| b.period_us).collect();
+    periods.sort_unstable();
+    periods.dedup();
+    bindings
+        .iter()
+        .map(|b| match b.priority {
+            Some(p) => p,
+            None => next + periods.iter().position(|p| *p == b.period_us).unwrap_or(0) as u32,
+        })
+        .collect()
+}
+
 pub fn resolve_all(ast: &Model, plan: &Plan) -> Result<Vec<Binding>, String> {
     let mut out: Vec<Binding> = Vec::new();
     for binding in &ast.io_bindings {
@@ -396,6 +430,24 @@ pub fn resolve_all(ast: &Model, plan: &Plan) -> Result<Vec<Binding>, String> {
             return Err(format!("io_binding '{}' is declared twice", binding.name));
         }
         out.push(resolved);
+    }
+    // A machine's task steps the blocks it reads that no binding runs:
+    // each such block in one task only; a wire from another task's machine
+    // would need a rate transition, which is not generated.
+    let mut stepped_by: Vec<Option<usize>> = vec![None; plan.machines.len()];
+    for (k, b) in out.iter().enumerate() {
+        for u in super::plan::upstream(plan, b.machine) {
+            let what = format!("io_binding '{}': state_machine '{}' reads state_machine '{}'", b.name, plan.machines[b.machine].name, plan.machines[u].name);
+            if let Some(other) = out.iter().find(|o| o.machine == u) {
+                return Err(format!("{what}, which io_binding '{}' runs as a task of its own: a wire between two tasks needs a rate transition, which is not generated (leave '{}' unbound: the task of '{}' steps it before it)", other.name, plan.machines[u].name, plan.machines[b.machine].name));
+            }
+            match stepped_by[u] {
+                Some(j) if out[j].machine != b.machine => {
+                    return Err(format!("{what}, which the task of io_binding '{}' steps too: a block is stepped by one task (give each task its own block)", out[j].name));
+                }
+                _ => stepped_by[u] = Some(k),
+            }
+        }
     }
     Ok(out)
 }

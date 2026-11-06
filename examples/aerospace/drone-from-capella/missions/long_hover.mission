@@ -1,3 +1,0 @@
-# Long hover: the 2 kg sensor on a mild day
-"PN-FRAME".payload = 2 kg
-"PN-FRAME".ambient = 20 °C

@@ -136,6 +136,11 @@ def check_value(expected: Dict[str, Any], value: Any, where: str) -> List[str]:
             problems.append(f"'{key}' must not be empty" + (f" in {where}" if where else ""))
     for key, item in value.items():
         child = properties.get(key)
+        extra = expected.get("additionalProperties")
+        if child is None and isinstance(extra, dict):
+            # A map (machine -> step time): every value checked against the one schema.
+            problems += check_value(extra, item, f"{where}.{key}" if where else f"'{key}'")
+            continue
         if child is None:
             if properties:
                 problems.append(f"'{key}' is not an argument of " + (where or "this tool"))

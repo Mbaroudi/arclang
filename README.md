@@ -13,7 +13,7 @@ review them in pull requests, compile them to JSON and diagrams.
 [playground](https://arclang.fr/playground/) runs this compiler in WebAssembly;
 nothing is uploaded.
 
-> **Version 4.9.0.** Upgrading from 3.0: see
+> **Version 4.11.0.** Upgrading from 3.0: see
 > [docs/MIGRATION_4.0.md](docs/MIGRATION_4.0.md).
 > This README only claims what the test suite verifies. Anything not listed under
 > *Works today* should be assumed absent. See the [Roadmap](#roadmap).
@@ -435,6 +435,17 @@ The built-in Rust `import` command reads a simplified XML — real Capella
 round-trip goes through `tools/capella_bridge/` (capellambse).
 
 ## Quick start
+
+Everything at once, VS Code included, in one image ([docs/studio.md](docs/studio.md)):
+
+```bash
+docker run --rm -p 127.0.0.1:3000:3000 -v "$PWD":/home/arclang/workspace ghcr.io/mbaroudi/arclang-studio:4.11.0
+```
+
+It holds the compiler, OpenModelica, Zephyr and Renode, GHDL, Yosys, LiteX
+and Verilator. It runs the same on a laptop, on a server or in Codespaces,
+and [`.devcontainer`](.devcontainer/devcontainer.json) attaches your own VS
+Code to it. Or build the compiler alone:
 
 ```bash
 # Build

@@ -39,8 +39,8 @@
 #define ARCLANG_IO_PWM_HZ 1000U
 #endif
 
-#define ALIAS_DEVICE(alias) COND_CODE_1(DT_NODE_EXISTS(DT_ALIAS(alias)), (DEVICE_DT_GET(DT_ALIAS(alias))), (NULL))
-#define ALIAS_LINES(alias) COND_CODE_1(DT_NODE_EXISTS(DT_ALIAS(alias)), (DT_PROP_OR(DT_ALIAS(alias), ngpios, 32)), (0))
+#define ALIAS_DEVICE(alias) COND_CODE_1(DT_NODE_HAS_STATUS_OKAY(DT_ALIAS(alias)), (DEVICE_DT_GET(DT_ALIAS(alias))), (NULL))
+#define ALIAS_LINES(alias) COND_CODE_1(DT_NODE_HAS_STATUS_OKAY(DT_ALIAS(alias)), (DT_PROP_OR(DT_ALIAS(alias), ngpios, 32)), (0))
 
 static const struct device *const gpio_in = ALIAS_DEVICE(arclang_gpio_in);
 static const struct device *const gpio_out = ALIAS_DEVICE(arclang_gpio_out);
@@ -95,6 +95,9 @@ static void can_received(const struct device *dev, struct can_frame *frame, void
 
 static struct k_timer period_timer;
 static uint32_t period_started_us;
+/* One periodic timer per task of several (arclang_io_task_wait_period). */
+static struct k_timer task_timers[ARCLANG_IO_TASKS];
+static uint32_t task_started_us[ARCLANG_IO_TASKS];
 
 static bool ready(const struct device *dev)
 {
@@ -346,6 +349,22 @@ arclang_io_status arclang_io_clock_wait_period(uint32_t period_us)
 		period_started_us = period_us;
 	}
 	(void)k_timer_status_sync(&period_timer);
+	return ARCLANG_IO_OK;
+}
+
+arclang_io_status arclang_io_task_wait_period(uint8_t task, uint32_t period_us)
+{
+	/* As the clock above, one timer per task: each keeps its own period
+	   whatever the others take; the kernel schedules them by priority. */
+	if (task >= ARCLANG_IO_TASKS) {
+		return ARCLANG_IO_ERR_CHANNEL;
+	}
+	if (task_started_us[task] != period_us) {
+		k_timer_init(&task_timers[task], NULL, NULL);
+		k_timer_start(&task_timers[task], K_USEC(period_us), K_USEC(period_us));
+		task_started_us[task] = period_us;
+	}
+	(void)k_timer_status_sync(&task_timers[task]);
 	return ARCLANG_IO_OK;
 }
 

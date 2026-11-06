@@ -1,0 +1,28 @@
+// ArcLang Studio as a dev container: VS Code on this computer (Dev Containers:
+// "Reopen in Container") or in GitHub Codespaces, every tool of the chain in
+// the container: the compiler, OpenModelica, Zephyr and Renode, GHDL, Yosys,
+// nextpnr, LiteX, Verilator. The same image runs VS Code in the browser
+// (docs/studio.md). For a project of your own, copy this file into its
+// .devcontainer/ directory.
+{
+    "name": "ArcLang Studio",
+    "image": "ghcr.io/mbaroudi/arclang-studio:4.11.0",
+    "remoteUser": "arclang",
+    "containerEnv": {
+        // Cargo writes in the user's home (the image's toolchain stays as built).
+        "CARGO_HOME": "/home/arclang/.cargo"
+    },
+    "customizations": {
+        "vscode": {
+            "extensions": ["arclang.arclang"],
+            "settings": {
+                "arclang.binary": "/usr/local/bin/arclang"
+            }
+        }
+    },
+    "hostRequirements": {
+        "cpus": 4,
+        "memory": "8gb",
+        "storage": "32gb"
+    }
+}
