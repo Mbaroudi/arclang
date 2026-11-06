@@ -1,18 +1,29 @@
 //! The embedded stages through Docker. `arclang pil`, `hdl` and `soc` need
 //! toolchains a host rarely has: Zephyr and Renode, GHDL and Yosys, LiteX
-//! and Verilator. The images under `tools/embedded` hold them. When this
-//! host lacks a stage's tools and Docker has the stage's image, the command
-//! runs itself in the image, the model's directory mounted at `/work`, and
-//! its verdict lands in the model's cache as if it had run here: `check`,
-//! the ladder and `realize` read it the same way. `ARCLANG_EMBEDDED_DOCKER`
-//! names another image (one for every stage), or `off` keeps everything on
-//! the host.
+//! and Verilator. ArcLang Studio (`tools/studio`, published as
+//! `ghcr.io/mbaroudi/arclang-studio:<version>`) holds them all, with the
+//! compiler of the same version. When this host lacks a stage's tools, the
+//! command runs itself in that image (pulled the first time), the model's
+//! directory mounted at `/work`, as this host's user, and its verdict lands
+//! in the model's cache as if it had run here: `check`, the ladder and
+//! `realize` read it the same way. `ARCLANG_EMBEDDED_DOCKER` names another
+//! image, `dev` the images `tools/embedded/*/run.sh` build with the compiler
+//! of their target volume (for work on the compiler itself), or `off` keeps
+//! everything on the host.
 
 use std::path::Path;
 use std::process::{Command, Stdio};
 
-/// The image of each stage, as `tools/embedded/*/run.sh` build them.
+/// The image of each stage, as `tools/embedded/*/run.sh` build them (`dev`).
 pub const IMAGES: [(&str, &str); 3] = [("pil", "arclang-embedded-soc:1"), ("hdl", "arclang-embedded-fpga:1"), ("soc", "arclang-embedded-system:1")];
+
+/// ArcLang Studio, published at each release.
+pub const STUDIO: &str = "ghcr.io/mbaroudi/arclang-studio";
+
+/// The Studio of this compiler's version: the same compiler in the image.
+pub fn studio_image() -> String {
+    format!("{STUDIO}:{}", env!("CARGO_PKG_VERSION"))
+}
 
 /// The tools a stage runs on the host, each with the arguments that say it runs.
 fn tools(stage: &str) -> Vec<(&'static str, &'static [&'static str])> {
@@ -40,13 +51,24 @@ pub fn missing_tools(stage: &str) -> Vec<&'static str> {
     missing
 }
 
-/// The image a stage runs in: the stage's own, or `ARCLANG_EMBEDDED_DOCKER`;
-/// none when that is `off`.
+fn setting() -> Option<String> {
+    std::env::var("ARCLANG_EMBEDDED_DOCKER").ok().map(|v| v.trim().to_string()).filter(|v| !v.is_empty())
+}
+
+/// Whether the stages run in the images built from the sources (`dev`).
+fn dev() -> bool {
+    setting().is_some_and(|v| v.eq_ignore_ascii_case("dev"))
+}
+
+/// The image a stage runs in: ArcLang Studio of this version, the stage's
+/// own with `dev`, or the image `ARCLANG_EMBEDDED_DOCKER` names; none when
+/// that is `off`.
 pub fn image_of(stage: &str) -> Option<String> {
-    match std::env::var("ARCLANG_EMBEDDED_DOCKER").ok().map(|v| v.trim().to_string()).filter(|v| !v.is_empty()) {
+    match setting() {
         Some(v) if v.eq_ignore_ascii_case("off") => None,
+        Some(v) if v.eq_ignore_ascii_case("dev") => IMAGES.iter().find(|(s, _)| *s == stage).map(|(_, image)| image.to_string()),
         Some(image) => Some(image),
-        None => IMAGES.iter().find(|(s, _)| *s == stage).map(|(_, image)| image.to_string()),
+        None => Some(studio_image()),
     }
 }
 
@@ -101,26 +123,45 @@ pub fn relay(stage: &str, input: &Path) -> Result<Option<i32>, String> {
         return Err(format!("{stage}: no {what} on this host, and no Docker daemon to run the image {image} (start Docker, or install the tools; ARCLANG_EMBEDDED_DOCKER=off keeps the command on the host)"));
     }
     if !image_present(&image) {
-        return Err(format!("{stage}: no {what} on this host, and the image {image} is not built: build it with tools/embedded/{}/run.sh (docs/embedded-targets.md), or ARCLANG_EMBEDDED_DOCKER names another", match stage { "pil" => "soc", "hdl" => "fpga", _ => "system" }));
+        if dev() {
+            return Err(format!("{stage}: no {what} on this host, and the image {image} is not built: build it with tools/embedded/{}/run.sh (docs/embedded-targets.md), or ARCLANG_EMBEDDED_DOCKER names another", match stage { "pil" => "soc", "hdl" => "fpga", _ => "system" }));
+        }
+        eprintln!("{stage}: no {what} on this host: pulling {image} once (several GB: every tool of the chain, docs/studio.md)");
+        let pulled = Command::new("docker").args(["pull", &image]).stdin(Stdio::null()).status().is_ok_and(|s| s.success());
+        if !pulled {
+            return Err(format!("{stage}: no {what} on this host, and the image {image} cannot be pulled (offline? build it with tools/studio/build.sh, docs/studio.md), or ARCLANG_EMBEDDED_DOCKER names another"));
+        }
     }
     let dir = input.parent().filter(|p| !p.as_os_str().is_empty()).map(Path::to_path_buf).unwrap_or_else(|| Path::new(".").to_path_buf());
     let dir = dir.canonicalize().map_err(|e| format!("{}: {e}", dir.display()))?;
     let args: Vec<String> = std::env::args().skip(1).collect();
     let args = container_args(&args, input)?;
     eprintln!("{stage}: no {what} on this host: running in the Docker image {image} ({} mounted at /work)", dir.display());
-    // The arclang of the image: the one its build loop left in the target volume, else one on its PATH.
-    let script = "if [ -x /target/release/arclang ]; then exec /target/release/arclang \"$@\"; elif command -v arclang >/dev/null 2>&1; then exec arclang \"$@\"; else echo 'no arclang in the image: build it with tools/embedded/<image>/run.sh cargo build --release' >&2; exit 2; fi";
-    let status = Command::new("docker")
-        .args(["run", "--rm", "-i"])
-        .arg("-v")
-        .arg(format!("{}:/work", dir.display()))
-        .args(["-v", "arclang-embedded-target:/target", "-w", "/work", "-e", "ARCLANG_LITEX_PYTHON=/opt/litex/bin/python"])
-        .arg(&image)
-        .args(["sh", "-c", script, "sh"])
-        .args(&args)
-        .status()
-        .map_err(|e| format!("docker run {image}: {e}"))?;
+    let mut command = Command::new("docker");
+    command.args(["run", "--rm", "-i"]).arg("-v").arg(format!("{}:/work", dir.display()));
+    command.args(["-w", "/work", "-e", "ARCLANG_LITEX_PYTHON=/opt/litex/bin/python", "-e", "ARCLANG_EMBEDDED_DOCKER=off"]);
+    // As this host's user: what the stage writes beside the model is the user's.
+    if let Some(user) = host_user() {
+        command.args(["--user", &user, "-e", "HOME=/tmp"]);
+    }
+    let script = if dev() {
+        // The compiler its build loop left in the target volume.
+        command.args(["-v", "arclang-embedded-target:/target"]);
+        "if [ -x /target/release/arclang ]; then exec /target/release/arclang \"$@\"; else echo 'no arclang in the target volume: build it with tools/embedded/<image>/run.sh cargo build --release' >&2; exit 2; fi"
+    } else {
+        "mkdir -p \"$HOME/.cache\"; if command -v arclang >/dev/null 2>&1; then exec arclang \"$@\"; else echo 'no arclang in the image' >&2; exit 2; fi"
+    };
+    let status = command.arg("--entrypoint").arg("sh").arg(&image).args(["-c", script, "sh"]).args(&args).status().map_err(|e| format!("docker run {image}: {e}"))?;
     Ok(Some(status.code().unwrap_or(1)))
+}
+
+/// `uid:gid` of this host's user, on a Unix host.
+fn host_user() -> Option<String> {
+    if cfg!(windows) {
+        return None;
+    }
+    let id = |flag: &str| Command::new("id").arg(flag).output().ok().filter(|o| o.status.success()).map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string()).filter(|v| !v.is_empty());
+    Some(format!("{}:{}", id("-u")?, id("-g")?))
 }
 
 #[cfg(test)]
@@ -144,7 +185,10 @@ mod tests {
         assert_eq!(image_of("pil"), None);
         std::env::set_var("ARCLANG_EMBEDDED_DOCKER", "my/image:2");
         assert_eq!(image_of("hdl").as_deref(), Some("my/image:2"));
-        std::env::remove_var("ARCLANG_EMBEDDED_DOCKER");
+        std::env::set_var("ARCLANG_EMBEDDED_DOCKER", "dev");
         assert_eq!(image_of("soc").as_deref(), Some("arclang-embedded-system:1"));
+        std::env::remove_var("ARCLANG_EMBEDDED_DOCKER");
+        assert_eq!(image_of("pil"), Some(format!("ghcr.io/mbaroudi/arclang-studio:{}", env!("CARGO_PKG_VERSION"))), "by default ArcLang Studio of this version, for every stage");
+        assert_eq!(image_of("soc"), image_of("hdl"));
     }
 }

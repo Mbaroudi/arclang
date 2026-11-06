@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- **ArcLang Studio** (docs/studio.md): one image, `ghcr.io/mbaroudi/arclang-studio`, published for amd64 and arm64 at each release. It holds VS Code in the browser with this extension, the compiler, OpenModelica with the Modelica Standard Library, Zephyr and Renode, GHDL, Yosys, nextpnr, LiteX and Verilator. It runs on a laptop, on a server or in Codespaces, and `.devcontainer/devcontainer.json` attaches your own VS Code to it. The compiler on a computer without the tools now runs `pil`, `hdl` and `soc` in the Studio of its own version, pulled once, as your user. `ARCLANG_EMBEDDED_DOCKER=dev` keeps the images built from the sources.
+
 ## 4.11.0
 
 - The compiler: data flow between machines. A `state_machine` with equations and no state is a data-flow block (a filter, a scaling, a limiter), generated as C, or as VHDL in fixed point when it is allocated to an FPGA node. `in speed: Real [km/h] from "Wheel speed filter".speed` reads another machine every step: the machine read steps first, the value is converted as an assignment converts it, and an input without a range takes the range of what it reads. A case sets an upstream block's input as `"0 s: \"Wheel speed filter\".raw = 140 km/h"`. A task steps the blocks its machine reads. New example `examples/automotive/speed-monitor`.
