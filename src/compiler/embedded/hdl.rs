@@ -458,6 +458,8 @@ pub(super) fn reference(test: &TestCase, plan: &Plan, bindings: &[super::binding
         let model = machine_columns(&reference::run(plan, &vectors, case.step_us), &m.ident);
         (vectors, model)
     };
+    // The block alone: its wired inputs replay what the model's run gave them.
+    let vectors = reference::wired(plan, &vectors, case.step_us);
     let aliases = reference::aliases(plan);
     let model_values = sil::judge(texts, &aliases, &model)?;
     for (j, v) in outcome.expectations.iter_mut().zip(&model_values) {

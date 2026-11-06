@@ -226,6 +226,52 @@ pub fn equation(access: &Access, fx: &MachineFixed, k: usize, indent: &str, h: &
     let _ = writeln!(out, "{indent}}}");
 }
 
+const ALIGN: &str = "/* An operand aligned: s > 0 left (exact: s <= 30), s < 0 rounding right. */
+static int64_t arc_fx_align(int32_t a, int s)
+{
+    int64_t r;
+    if (s >= 0) {
+        r = (int64_t)a * ((int64_t)1 << s);
+    } else {
+        r = arc_fx_rshr((int64_t)a, -s);
+    }
+    return r;
+}
+
+";
+
+const RESIZE: &str = "/* A result into a word: d > 0 rounding right, d < 0 saturating left; saturated. */
+static int32_t arc_fx_resize(int64_t x, int d)
+{
+    int64_t v = x;
+    if (d > 0) {
+        v = arc_fx_rshr(x, d);
+    } else if (d < 0) {
+        int l = -d;
+        if (l >= 32) {
+            v = (x > 0) ? (int64_t)INT32_MAX : ((x < 0) ? (int64_t)INT32_MIN : 0);
+        } else if (x > (((int64_t)1 << (31 - l)) - 1)) {
+            v = (int64_t)INT32_MAX;
+        } else if (x < -((int64_t)1 << (31 - l))) {
+            v = (int64_t)INT32_MIN;
+        } else {
+            v = x * ((int64_t)1 << l);
+        }
+    } else {
+        /* the same format */
+    }
+    if (v > (int64_t)INT32_MAX) {
+        v = (int64_t)INT32_MAX;
+    } else if (v < (int64_t)INT32_MIN) {
+        v = (int64_t)INT32_MIN;
+    } else {
+        /* within the word */
+    }
+    return (int32_t)v;
+}
+
+";
+
 /// The helpers of the fixed-point code that are used, in a fixed order.
 pub fn definitions(h: &Helpers) -> String {
     let used = |name: &str| h.used.contains(name);
@@ -257,50 +303,14 @@ static int64_t arc_fx_rshr(int64_t x, int n)
     return r;
 }
 
-/* An operand aligned: s > 0 left (exact: s <= 30), s < 0 rounding right. */
-static int64_t arc_fx_align(int32_t a, int s)
-{
-    int64_t r;
-    if (s >= 0) {
-        r = (int64_t)a * ((int64_t)1 << s);
-    } else {
-        r = arc_fx_rshr((int64_t)a, -s);
-    }
-    return r;
-}
-
-/* A result into a word: d > 0 rounding right, d < 0 saturating left; saturated. */
-static int32_t arc_fx_resize(int64_t x, int d)
-{
-    int64_t v = x;
-    if (d > 0) {
-        v = arc_fx_rshr(x, d);
-    } else if (d < 0) {
-        int l = -d;
-        if (l >= 32) {
-            v = (x > 0) ? (int64_t)INT32_MAX : ((x < 0) ? (int64_t)INT32_MIN : 0);
-        } else if (x > (((int64_t)1 << (31 - l)) - 1)) {
-            v = (int64_t)INT32_MAX;
-        } else if (x < -((int64_t)1 << (31 - l))) {
-            v = (int64_t)INT32_MIN;
-        } else {
-            v = x * ((int64_t)1 << l);
-        }
-    } else {
-        /* the same format */
-    }
-    if (v > (int64_t)INT32_MAX) {
-        v = (int64_t)INT32_MAX;
-    } else if (v < (int64_t)INT32_MIN) {
-        v = (int64_t)INT32_MIN;
-    } else {
-        /* within the word */
-    }
-    return (int32_t)v;
-}
-
 ",
     );
+    if used("fx_align") {
+        out.push_str(ALIGN);
+    }
+    if used("fx_resize") {
+        out.push_str(RESIZE);
+    }
     if used("fx_abs") {
         out.push_str("static int64_t arc_fx_abs(int32_t a)\n{\n    int64_t v = (int64_t)a;\n    return (v < 0) ? -v : v;\n}\n\n");
     }
@@ -326,6 +336,9 @@ pub fn plan(plan: &Plan, machines: &[usize], period_us: u64) -> Result<Plan, Str
     for &m in machines {
         let mut machine = plan.machines[m].clone();
         machine.fixed = Some(Box::new(super::fixed::machine(&machine, period_us)?));
+        // Each block alone: a wired input is fed as any input, with the
+        // values the model's run gave it (`case::wired`).
+        machine.wires.clear();
         out.machines.push(machine);
     }
     Ok(out)

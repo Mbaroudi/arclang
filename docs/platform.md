@@ -88,8 +88,10 @@ language.
    stepper runs) is FMI 2.0 or FMI 3.0 co-simulation, from any tool,
    stepped through the C API by the same stepper. The export stays FMI 2.0
    until a consumer needs 3.0.
-5. **Dataflow outside machines** — signal-processing blocks between
-   machines, in C and in VHDL, with the same fixed-point derivation.
+5. ~~**Dataflow outside machines**~~ — done: a machine with equations and
+   no state is a data-flow block, and `in x: ... from "M".y` wires machines.
+   The chain runs in the model, in the C (SIL, PIL), and in VHDL block by
+   block, with each input's range taken from what it reads.
 
 What is *not* planned: a general-purpose language, real-time HIL (the loops
 here run in lock step, reproducible to the bit), a dependency on any

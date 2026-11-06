@@ -85,7 +85,9 @@ pub fn generate(plan: &Plan, binding: &Binding) -> Glue {
     write_source(plan, binding, &mut source);
     // One exit (MISRA C 2012 rule 15.5).
     let machine = &plan.machines[binding.machine].ident;
-    let _ = writeln!(source, "arclang_io_status {b}_cycle({b}_glue *glue, {p}_state *state, {p}_inputs *inputs, {p}_outputs *outputs)\n{{\n    arclang_io_status status = {b}_read(glue, inputs);\n    if (status == ARCLANG_IO_OK) {{\n        {p}_{machine}_step(state, inputs, outputs);\n        status = {b}_write(outputs);");
+    // The blocks the machine reads through its wires first, each after those it reads.
+    let upstream: String = super::plan::upstream(plan, binding.machine).into_iter().map(|u| format!("        {p}_{}_step(state, inputs, outputs); /* read by the machine: state_machine \"{}\" */\n", plan.machines[u].ident, super::cgen::comment(&plan.machines[u].name))).collect();
+    let _ = writeln!(source, "arclang_io_status {b}_cycle({b}_glue *glue, {p}_state *state, {p}_inputs *inputs, {p}_outputs *outputs)\n{{\n    arclang_io_status status = {b}_read(glue, inputs);\n    if (status == ARCLANG_IO_OK) {{\n{upstream}        {p}_{machine}_step(state, inputs, outputs);\n        status = {b}_write(outputs);");
     if binding.watchdog {
         let _ = writeln!(source, "        if (status == ARCLANG_IO_OK) {{\n            status = arclang_io_watchdog_kick();\n        }}");
     }

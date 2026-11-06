@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- The compiler: data flow between machines. A `state_machine` with equations and no state is a data-flow block (a filter, a scaling, a limiter), generated as C, or as VHDL in fixed point when it is allocated to an FPGA node. `in speed: Real [km/h] from "Wheel speed filter".speed` reads another machine every step: the machine read steps first, the value is converted as an assignment converts it, and an input without a range takes the range of what it reads. A case sets an upstream block's input as `"0 s: \"Wheel speed filter\".raw = 140 km/h"`. A task steps the blocks its machine reads. New example `examples/automotive/speed-monitor`.
 - The compiler: a plant's `fmu:` may be an FMI 3.0 co-simulation FMU, as well as an FMI 2.0 one, from any tool. The stepper reads the version and the model identifier from the description, and loads the binary for the platform it runs on (`aarch64-darwin`, `x86_64-linux`, … then `darwin64`, `linux64`). Fixed: an FMI 2.0 FMU from another tool could not be stepped, because the stepper looked for a library named `arclang_twin` and took the first platform listed.
 
 ## 4.10.0

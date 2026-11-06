@@ -175,6 +175,10 @@ pub struct Variable {
     /// narrow as its range and those allow.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub resolution: Option<f64>,
+    /// `from "Machine".variable` on an input: the variable of another
+    /// machine (its name or id, the variable's name) it reads every step.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub source: Option<(String, String)>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -380,7 +384,25 @@ fn q_format(written: &str) -> Result<(i32, i32), String> {
     Ok((i, f))
 }
 
-/// `[in|out|const] name: Type [unit] [range lo .. hi] [resolution r | format Qi.f] = initial`.
+/// `"Machine".variable` or `Machine.variable` (an id, or a name without
+/// blanks): the machine and the variable.
+fn source_of(written: &str) -> Option<(String, String)> {
+    let written = written.trim();
+    let (machine, rest) = match written.strip_prefix('"') {
+        Some(quoted) => {
+            let (machine, rest) = quoted.split_once('"')?;
+            (machine.to_string(), rest.strip_prefix('.')?)
+        }
+        None => {
+            let (machine, rest) = written.rsplit_once('.')?;
+            (machine.to_string(), rest)
+        }
+    };
+    let variable = rest.trim();
+    (!machine.trim().is_empty() && valid_name(variable)).then(|| (machine.trim().to_string(), variable.to_string()))
+}
+
+/// `[in|out|const] name: Type [unit] [range lo .. hi] [resolution r | format Qi.f] [from "Machine".variable] = initial`.
 pub fn declaration(text: &str) -> Result<Variable, String> {
     let what = format!("variable \"{text}\"");
     let mut rest = text.trim();
@@ -399,6 +421,16 @@ pub fn declaration(text: &str) -> Result<Variable, String> {
     let (typed, initial) = match rest.split_once('=') {
         Some((t, i)) => (t.trim(), Some(i.trim())),
         None => (rest.trim(), None),
+    };
+    let (typed, source) = split_word(typed, "from");
+    let source = match source {
+        None => None,
+        Some(written) => {
+            if direction != Direction::In {
+                return Err(format!("{what}: only an input (in) reads another machine's variable (`in speed: Real [km/h] from \"Speed filter\".speed`)"));
+            }
+            Some(source_of(written).ok_or_else(|| format!("{what}: `from` names a machine and its variable: `from \"Speed filter\".speed` (or the machine's id: `from SF.speed`)"))?)
+        }
     };
     let (typed, format) = split_word(typed, "format");
     let (typed, resolution) = split_word(typed, "resolution");
@@ -480,7 +512,30 @@ pub fn declaration(text: &str) -> Result<Variable, String> {
         range,
         format,
         resolution,
+        source,
     })
+}
+
+/// What an input wired `from` another machine's variable reads: the
+/// variable `index` of the other machine (`from`), converted to the
+/// input's unit and type as an assignment converts (a value read, in the
+/// other machine's program).
+pub fn wire(from: &Variable, index: usize, to: &Variable) -> Result<Expr, String> {
+    let read = Typed { expr: Expr::Var(index), ty: from.ty, dim: from.dim, scale: from.scale, literal: None };
+    if to.ty == Ty::Bool || from.ty == Ty::Bool {
+        if to.ty != from.ty {
+            return Err(format!("a {} read into {} '{}'", from.ty.name(), to.ty.name(), to.name));
+        }
+        return Ok(read.expr);
+    }
+    if from.dim != to.dim {
+        return Err(format!("'{}' is a {}, '{}' a {}", from.name, dim_label(from.dim), to.name, dim_label(to.dim)));
+    }
+    let value = rescale(read, to.scale)?;
+    if to.ty == Ty::Int && value.ty != Ty::Int {
+        return Err(format!("a {} read into Integer '{}' (an Integer holds whole numbers: declare it Real)", value.ty.name(), to.name));
+    }
+    Ok(cast(value, to.ty)?.expr)
 }
 
 /// A value written in the model (`true`, `54.6 V`, `3`) for a variable of

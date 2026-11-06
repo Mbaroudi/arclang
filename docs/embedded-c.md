@@ -222,6 +222,99 @@ expects: ["at(100 ms, \"Charger\".target) == 2 A", "max(\"Charger\".setpoint) <=
 `arclang sil` compares every variable, step by step, with the model's,
 bit for bit by default (`tolerance: 0`).
 
+## Data flow between machines
+
+A signal-processing chain, from a measurement to the machine that uses it,
+is written as machines too. No new block is needed: a machine with
+equations and no state is a **data-flow block**, and an input may read
+another machine's variable.
+
+```arclang
+// A data-flow block: its equations every step, no state.
+state_machine "Wheel speed filter" {
+    owner: "PC-SPD-FILTER"     // in the programmable logic: VHDL, fixed point
+    variables: [
+        "in raw: Real [km/h] range 0 km/h .. 300 km/h",
+        "filtered: Real [km/h] range 0 km/h .. 300 km/h = 0 km/h",
+        "out speed: Real [m/s] range 0 m/s .. 70 m/s = 0 m/s"
+    ]
+    equations: ["filtered = filtered + 0.25 * (raw - filtered)", "speed = saturate(filtered, 0 km/h, 250 km/h)"]
+}
+
+state_machine "Overspeed warning" {
+    variables: ["in speed: Real [km/h] from \"Wheel speed filter\".speed", "const on_above: Real [km/h] = 130 km/h", ...]
+    initial: "Normal"
+    ...
+}
+```
+
+(`examples/automotive/speed-monitor`.)
+
+**A block** is stepped as a machine with one state of its own, `Flow`,
+which is always active and is a column of the results. Everything a
+machine has works the same way for a block: the C, the fixed point and the
+VHDL when it is allocated to an FPGA node, SIL, PIL, HDL and the SoC. The
+blocks of the action language (`delay`, `integrator`, `pid`) are the
+library of the chain. A machine with neither a state nor an equation is
+still refused, because there is nothing to generate.
+
+**A wire.** `in x: ... from "Machine".variable` (or `from Id.variable`,
+with the machine's id) reads that variable every step.
+
+- **Order.** The machine that is read steps first in the model's step,
+  whatever order the machines are written in, so a wire reads the value of
+  the same step.
+- **Conversion.** The value is converted to the input's unit and type as an
+  assignment converts it: m/s into km/h above, a Real into a Float with
+  rounding. An Integer takes only an Integer, and the dimensions must match.
+- **Range.** An input with no `range` takes the range of what it reads, in
+  its own unit. The fixed point of the machine downstream follows from the
+  formats upstream: the same derivation, along the chain.
+- **Loops.** A loop of wires (A reads B, B reads A) is refused. It would
+  need each side to read the other in the same step. Close the loop inside
+  one machine instead, whose equations may read a `delay(...)`.
+
+**In the C**, a machine that reads others steps on a copy of its inputs,
+with the wired inputs set from the other machines' outputs. Those outputs
+are already written in the step, and the C prints the same typed
+conversion the model evaluates:
+
+```c
+speed_monitor_overspeed_warning_inputs wired = inputs->overspeed_warning;
+wired.v_speed = (outputs->wheel_speed_filter.v_speed * 3.5999999999999996); /* from state_machine "Wheel speed filter", speed */
+```
+
+**In a case**, the machine's own inputs are written as before. An input of
+a block upstream is named with its machine:
+`"0 s: \"Wheel speed filter\".raw = 140 km/h"`. An input that a wire sets
+is not set by a case. The expectations read any machine.
+
+**In the stages.** SIL and PIL run the whole model's step, the chain
+included: the C reproduces the model to 0 difference. HDL and the SoC run
+a block alone, in fixed point. Its wired inputs replay the values the model
+gave them, as a plant's loop is replayed. The block is then bit-exact with
+its fixed-point C on the same inputs, and the quantisation is measured on
+them. On the speed monitor, the filter in VHDL is bit-exact with its
+fixed-point C in GHDL and in the simulated SoC. It synthesises for the
+ECP5 in 740 LUT4 and 4 DSP, with an Fmax of 54.9 MHz for a 25 MHz clock.
+The warning reads it in C, on the processor.
+
+**On the target**, the task of an `io_binding` steps the blocks its machine
+reads, each after the blocks it reads, before the machine itself. Each
+such block runs in one task. A wire from a machine that another
+`io_binding` runs as a task of its own is refused: it would cross two
+tasks, and the rate transition that needs is not generated.
+
+Not done yet:
+
+- a fixed-point chain kept in words from one block to the next in the
+  logic (each block quantises its inputs from the values);
+- rate transitions between tasks;
+- delayed wires (a loop through a unit delay between two machines);
+- a case of a software machine run in the SoC while the block it reads
+  computes in the logic. The SoC stage runs the cases of the block; PIL
+  runs the whole chain in C on the processor.
+
 ## Regions and pseudo-states
 
 A state may hold several orthogonal regions, written as `region` blocks
@@ -559,7 +652,9 @@ What this proves and what it does not: the analysis covers the tasks'
 own steps, preempted by each other, and the proof sees them with the
 kernel, the drivers and the console between them on the target; neither
 counts interrupts the model does not know. The tasks do not exchange
-events yet: a machine reads the channels, not another machine.
+events yet. A machine reads the channels, and the blocks its own task
+steps before it ("Data flow between machines"), not another task's
+machine.
 
 ## Test cases executed at fixed step
 

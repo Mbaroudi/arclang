@@ -431,5 +431,23 @@ pub fn resolve_all(ast: &Model, plan: &Plan) -> Result<Vec<Binding>, String> {
         }
         out.push(resolved);
     }
+    // A machine's task steps the blocks it reads that no binding runs:
+    // each such block in one task only; a wire from another task's machine
+    // would need a rate transition, which is not generated.
+    let mut stepped_by: Vec<Option<usize>> = vec![None; plan.machines.len()];
+    for (k, b) in out.iter().enumerate() {
+        for u in super::plan::upstream(plan, b.machine) {
+            let what = format!("io_binding '{}': state_machine '{}' reads state_machine '{}'", b.name, plan.machines[b.machine].name, plan.machines[u].name);
+            if let Some(other) = out.iter().find(|o| o.machine == u) {
+                return Err(format!("{what}, which io_binding '{}' runs as a task of its own: a wire between two tasks needs a rate transition, which is not generated (leave '{}' unbound: the task of '{}' steps it before it)", other.name, plan.machines[u].name, plan.machines[b.machine].name));
+            }
+            match stepped_by[u] {
+                Some(j) if out[j].machine != b.machine => {
+                    return Err(format!("{what}, which the task of io_binding '{}' steps too: a block is stepped by one task (give each task its own block)", out[j].name));
+                }
+                _ => stepped_by[u] = Some(k),
+            }
+        }
+    }
     Ok(out)
 }
