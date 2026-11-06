@@ -508,8 +508,8 @@ the longest a step took of the target's virtual time) — never a guess;
 
 ```text
 Schedule body_controller.arc — 2 task(s) on zephyr/litex_vexriscv, fixed priorities, preemptive (response-time analysis)
-  task "Wiper task" (Wiper)  period 20.00 ms  priority 1  step ≤ 18.4 us · response ≤ 18.4 us · meets its period (0.1 % of it) [measured]
-  task "Light task" (Interior light)  period 100.00 ms  priority 2  step ≤ 11.0 us · response ≤ 29.4 us · meets its period (0.0 % of it) [measured]
+  task "Wiper task" (Wiper)  period 20.00 ms  priority 1  step ≤ 9.0 us · response ≤ 9.0 us · meets its period (0.0 % of it) [measured under load (arclang schedule --prove)]
+  task "Light task" (Interior light)  period 100.00 ms  priority 2  step ≤ 5.0 us · response ≤ 14.0 us · meets its period (0.0 % of it) [measured under load (arclang schedule --prove)]
   utilisation 0.1 % (rate-monotonic bound 82.8 %) · every task meets its period
   note: priorities by the period (rate monotonic): the shortest period the highest; write priority: in a binding to choose
 ```
@@ -525,11 +525,41 @@ schedule unproved (the command fails and says what to run). The table
 kind `schedule` lays the same out per binding (`arclang table --kind
 schedule`), the measurement stale when the generated C changed since.
 
+**Proved on the target.** `arclang schedule model.arc --prove` runs every
+task of the target together first: the application as the firmware runs it
+(one thread per binding, `src/pil_tasks.c` reporting each cycle), in the
+target's emulator (Renode for the LiteX SoC; the command relays itself to
+the SoC image when the host has no Zephyr), each binding's channels driven
+by a case of its machine on the binding's own period grid, all at once,
+for `--cycles` cycles of the longest period. Per task it says whether every
+cycle came, one a period (within a twentieth of it), none failed — the
+period kept under the others' load — and the longest a cycle took, which
+is then the step time the analysis runs on (`measured under load`):
+
+```text
+Tasks on zephyr/litex_vexriscv together, in Renode (5 cycle(s) of the longest period):
+  ✓ task "Wiper task" (Wiper) every 20000 us at priority 1: 30 cycles, one every 20000 us (19993 to 20007); a cycle took at most 9.0 us, the channels quiet
+  ✓ task "Light task" (Interior light) every 100000 us at priority 2: 6 cycles, one every 100000 us (100000 to 100001); a cycle took at most 5.0 us, the channels of TC-BC-002 played
+  kept in examples/automotive/body-controller/.arclang/sim-cache/schedule.json
+```
+
+A task's channels are played from the first executed case of its machine
+whose stimuli all go through the binding's channels (TC-BC-002 for the
+light; the wiper's case sets a variable, which no channel can, so its
+channels stay quiet: its cycles still run, read and write). The bench
+runs a period past the horizon, so a cycle or two more than the count
+asked may come.
+
+The runs are kept beside the model (`schedule.json`), keyed by the
+application's files and the plan; the compiler reads them back for the
+table and the analysis, stale when the generated code or the cases
+changed. A task that slips a period fails the command and names it.
+
 What this proves and what it does not: the analysis covers the tasks'
-own steps, preempted by each other; it does not count the kernel's tick,
-the I/O drivers' time in the glue (measured inside the step on the
-target, as PIL reports it through the I/O) or interrupts. The tasks do not
-exchange events yet: a machine reads the channels, not another machine.
+own steps, preempted by each other, and the proof sees them with the
+kernel, the drivers and the console between them on the target; neither
+counts interrupts the model does not know. The tasks do not exchange
+events yet: a machine reads the channels, not another machine.
 
 ## Test cases executed at fixed step
 

@@ -49,7 +49,7 @@ pub fn compute(context: &Context, spec: &TableSpec) -> Result<(Vec<Column>, Vec<
     targets.dedup();
     let mut rows = Vec::new();
     for target in &targets {
-        let analysis = schedule::analyse(&p, &bindings, target, &context.result.partition, &[]);
+        let analysis = schedule::analyse(&p, &bindings, target, &context.result.partition, &context.result.schedule, &[]);
         for t in &analysis.tasks {
             let mut cells: BTreeMap<String, Cell> = BTreeMap::new();
             for key in &keys {
@@ -63,7 +63,7 @@ pub fn compute(context: &Context, spec: &TableSpec) -> Result<(Vec<Column>, Vec<
                     "wcet_source" => Cell::text(t.wcet_source.clone()),
                     "response_us" => number(t.response_us),
                     "meets" => match t.meets {
-                        Some(true) if t.wcet_source == "measured" || t.wcet_source == "given" => Cell::text("meets").with_status("ok"),
+                        Some(true) if !t.wcet_source.contains("stale") => Cell::text("meets").with_status("ok"),
                         Some(true) => Cell::text("meets (stale measurement)").with_status("warn"),
                         Some(false) => Cell::text("MISSES").with_status("fail"),
                         None => Cell::text(t.wcet_source.clone()).with_status("gap"),
@@ -73,7 +73,7 @@ pub fn compute(context: &Context, spec: &TableSpec) -> Result<(Vec<Column>, Vec<
                 cells.insert(key.clone(), cell);
             }
             let status = match t.meets {
-                Some(true) if t.wcet_source.starts_with("measured (stale") => "warn",
+                Some(true) if t.wcet_source.contains("stale") => "warn",
                 Some(true) => "ok",
                 Some(false) => "fail",
                 None => "gap",

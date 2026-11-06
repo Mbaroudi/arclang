@@ -505,6 +505,18 @@ pub enum Commands {
         #[clap(long, value_name = "MACHINE=US")]
         wcet: Vec<String>,
 
+        /// Run every task together on the target first (its emulator): each period proved kept, the step times under load
+        #[clap(long)]
+        prove: bool,
+
+        /// With --prove: cycles of the longest period to run
+        #[clap(long, default_value_t = 10)]
+        cycles: usize,
+
+        /// With --prove: keep the application, the build, the plan and the logs in this directory
+        #[clap(long)]
+        keep: Option<PathBuf>,
+
         /// The analysis as JSON
         #[clap(long)]
         json: bool,
@@ -1285,7 +1297,7 @@ impl CliRunner {
             Commands::Pil { input, test, target, keep, json } => self.run_pil(&input, test, target, keep, json),
             Commands::Hdl { input, test, synth, as_if, machine, keep, json } => self.run_hdl(&input, test, synth, as_if, machine, keep, json),
             Commands::Partition { input, target, device, clock, machine, dry_run, json } => partition::run(&input, partition::Options { target, device, clock_mhz: clock, machine, dry_run, json }),
-            Commands::Schedule { input, target, wcet, json } => schedule::run(&input, schedule::Options { target, wcet, json }),
+            Commands::Schedule { input, target, wcet, prove, cycles, keep, json } => schedule::run(&input, schedule::Options { target, wcet, prove, cycles, keep, json }),
             Commands::Soc { input, test, bitstream, board, no_sim, gate_level, port, keep, json } => self.run_soc(&input, test, bitstream || board.is_some(), board, !no_sim && port.is_none(), gate_level, port, keep, json),
             Commands::Realize { input, requirement, up_to, dry_run, keep_going, board, json } => realize::run(&input, realize::Options { requirement, up_to, dry_run, keep_going, board, json }),
             Commands::Twin { input, twin, json, list, live, for_seconds } => {

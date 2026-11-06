@@ -143,6 +143,8 @@ pub struct CompilationResult {
     pub warnings: Vec<String>,
     /// The HW/SW measurements `arclang partition` kept beside the model, each with whether it still holds.
     pub partition: Vec<(partition::Entry, bool)>,
+    /// The tasks run together on the target (`arclang schedule --prove`), each with whether it still holds.
+    pub schedule: Vec<(embedded::tasks::TaskRun, bool)>,
 }
 
 impl CompilationResult {
@@ -178,6 +180,7 @@ impl Compiler {
         // The cached verdicts of the simulated cases: nothing is simulated.
         simulation::run::attach(&mut result, path);
         result.partition = partition::fresh(&result.ast, path);
+        result.schedule = embedded::tasks::fresh(&result.ast, path);
         Ok(result)
     }
 
@@ -420,6 +423,7 @@ impl Compiler {
             output,
             warnings,
             partition: Vec::new(),
+            schedule: Vec::new(),
         })
     }
 }

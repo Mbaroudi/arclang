@@ -174,7 +174,8 @@ pub fn app_of(plan: &Plan, bindings: &[&Binding], package: &Package) -> Result<A
     files.push(("src/arclang_io_config.h".to_string(), io_config(bindings), false));
     files.push(("arclang_app.cmake".to_string(), app_cmake(plan, bindings, package), false));
     if bindings.len() > 1 {
-        files.push(("src/tasks.c".to_string(), tasks_main(plan, bindings), false));
+        files.push(("src/tasks.c".to_string(), tasks_main(plan, bindings, false), false));
+        files.push(("src/pil_tasks.c".to_string(), tasks_main(plan, bindings, true), false));
     }
     let (header, source) = pil_files(plan);
     files.push(("src/arclang_pil.h".to_string(), header, false));
@@ -206,19 +207,37 @@ pub fn app_of(plan: &Plan, bindings: &[&Binding], package: &Package) -> Result<A
 /// (`arclang_io_task_wait_period`) and its priority; the machines share
 /// the model's state and I/O structures but each thread touches its own
 /// machine's members only.
-fn tasks_main(plan: &Plan, bindings: &[&Binding]) -> String {
+/// With `report`, the same as the processor-in-the-loop bench runs it
+/// (`src/pil_tasks.c`): the tasks wait for the bench's `G`, and each cycle
+/// is reported on the console as `T <task>,<step>,<start us>,<end us>,<status>`.
+fn tasks_main(plan: &Plan, bindings: &[&Binding], report: bool) -> String {
     let owned: Vec<Binding> = bindings.iter().map(|b| (*b).clone()).collect();
     let priorities = super::binding::priorities(&owned);
-    let mut out = banner("The controller as tasks: one thread per io_binding, at its period and priority.", plan);
-    let _ = writeln!(out, "#include <zephyr/kernel.h>\n#include <zephyr/sys/printk.h>\n#include <string.h>\n\n#include \"arclang_app.h\"\n");
-    let _ = writeln!(out, "static arclang_state state;\nstatic arclang_inputs inputs;\nstatic arclang_outputs outputs;\nstatic bool io_up;\n");
+    let mut out = banner(if report { "The controller as tasks under the processor-in-the-loop bench: one thread per io_binding, each cycle reported." } else { "The controller as tasks: one thread per io_binding, at its period and priority." }, plan);
+    let _ = writeln!(out, "#include <zephyr/kernel.h>\n#include <zephyr/sys/printk.h>\n#include <stdio.h>\n#include <string.h>\n\n#include \"arclang_app.h\"{}\n", if report { "\n#include \"arclang_pil.h\"" } else { "" });
+    let _ = writeln!(out, "static arclang_state state;\nstatic arclang_inputs inputs;\nstatic arclang_outputs outputs;\nstatic bool io_up;");
+    if report {
+        let _ = writeln!(out, "/* The bench's go, given once it sent 'G'; the console shared by the reports. */\nstatic K_SEM_DEFINE(go, 0, 1);\nstatic K_MUTEX_DEFINE(console);\n\nstatic void report(uint32_t task, uint32_t step, uint64_t start, uint64_t end, int status)\n{{\n\tchar line[80];\n\t(void)snprintf(line, sizeof line, \"T %u,%u,%llu,%llu,%d\\n\", (unsigned)task, (unsigned)step, (unsigned long long)start, (unsigned long long)end, status);\n\tk_mutex_lock(&console, K_FOREVER);\n\tarclang_pil_puts(line);\n\tk_mutex_unlock(&console);\n}}");
+    }
+    let _ = writeln!(out);
     for (k, (b, p)) in bindings.iter().zip(&priorities).enumerate() {
         let g = &b.ident;
-        let _ = writeln!(out, "/* task {k}: io_binding \"{}\" on state_machine \"{}\", every {} us, priority {p} */\nstatic {g}_glue glue_{k};\n\nstatic void task_{k}(void *a, void *b, void *c)\n{{\n\t(void)a;\n\t(void)b;\n\t(void)c;\n\t{g}_glue_init(&glue_{k});\n\tfor (;;) {{\n\t\t(void)arclang_io_task_wait_period({k}U, {}UL);\n\t\tif (io_up) {{\n\t\t\t(void){g}_cycle(&glue_{k}, &state, &inputs, &outputs);\n\t\t}}\n\t}}\n}}\n", super::cgen::comment(&b.name), super::cgen::comment(&plan.machines[b.machine].name), b.period_us, b.period_us);
+        let cycle = if report {
+            format!("\t\tif (io_up) {{\n\t\t\tuint64_t start = k_cyc_to_us_floor64(k_cycle_get_64());\n\t\t\tarclang_io_status status = {g}_cycle(&glue_{k}, &state, &inputs, &outputs);\n\t\t\treport({k}U, step, start, k_cyc_to_us_floor64(k_cycle_get_64()), (int)status);\n\t\t\tstep++;\n\t\t}}")
+        } else {
+            format!("\t\tif (io_up) {{\n\t\t\t(void){g}_cycle(&glue_{k}, &state, &inputs, &outputs);\n\t\t}}")
+        };
+        let wait_go = if report { "\tk_sem_take(&go, K_FOREVER);\n\tk_sem_give(&go);\n" } else { "" };
+        let step_var = if report { "\tuint32_t step = 0U;\n" } else { "" };
+        let _ = writeln!(out, "/* task {k}: io_binding \"{}\" on state_machine \"{}\", every {} us, priority {p} */\nstatic {g}_glue glue_{k};\n\nstatic void task_{k}(void *a, void *b, void *c)\n{{\n{step_var}\t(void)a;\n\t(void)b;\n\t(void)c;\n\t{g}_glue_init(&glue_{k});\n{wait_go}\tfor (;;) {{\n\t\t(void)arclang_io_task_wait_period({k}U, {}UL);\n{cycle}\n\t}}\n}}\n", super::cgen::comment(&b.name), super::cgen::comment(&plan.machines[b.machine].name), b.period_us, b.period_us);
         // Zephyr: a lower number is a higher priority; the binding's 1 is the kernel's 0.
         let _ = writeln!(out, "K_THREAD_DEFINE(arclang_task_{k}, ARCLANG_TASK_STACK, task_{k}, NULL, NULL, NULL, {}, 0, 0);\n", p.saturating_sub(1));
     }
-    let _ = writeln!(out, "int main(void)\n{{\n\t(void)memset(&inputs, 0, sizeof inputs);\n\t(void)memset(&outputs, 0, sizeof outputs);\n\tarclang_model_init(&state);\n\tif (arclang_io_init() != ARCLANG_IO_OK) {{\n\t\tprintk(\"arclang: the I/O did not come up; no cycle runs\\n\");\n\t\treturn 0;\n\t}}\n\tio_up = true;\n\treturn 0;\n}}");
+    if report {
+        let _ = writeln!(out, "int main(void)\n{{\n\tarclang_io_status status;\n\t(void)memset(&inputs, 0, sizeof inputs);\n\t(void)memset(&outputs, 0, sizeof outputs);\n\tarclang_model_init(&state);\n\tstatus = arclang_io_init();\n\tio_up = (status == ARCLANG_IO_OK);\n\tarclang_pil_puts(io_up ? \"ARCLANG READY\\n\" : \"ARCLANG ERROR the I/O did not come up\\n\");\n\tfor (int c = arclang_pil_getc(); c != 'G'; c = arclang_pil_getc()) {{\n\t\tif (c == '?') {{\n\t\t\tarclang_pil_puts(io_up ? \"ARCLANG READY\\n\" : \"ARCLANG ERROR the I/O did not come up\\n\");\n\t\t}}\n\t}}\n\t/* The tasks start together on the bench's go. */\n\tk_sem_give(&go);\n\treturn 0;\n}}");
+    } else {
+        let _ = writeln!(out, "int main(void)\n{{\n\t(void)memset(&inputs, 0, sizeof inputs);\n\t(void)memset(&outputs, 0, sizeof outputs);\n\tarclang_model_init(&state);\n\tif (arclang_io_init() != ARCLANG_IO_OK) {{\n\t\tprintk(\"arclang: the I/O did not come up; no cycle runs\\n\");\n\t\treturn 0;\n\t}}\n\tio_up = true;\n\treturn 0;\n}}");
+    }
     out
 }
 

@@ -36,6 +36,7 @@ pub mod regmap;
 pub mod sil;
 pub mod system;
 pub mod target;
+pub mod tasks;
 pub mod vhdl;
 pub mod zephyr;
 

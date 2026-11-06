@@ -357,3 +357,41 @@ fn the_zephyr_application_calling_the_hardware_block_builds_for_the_soc() {
     assert!(dir.join("build/zephyr/zephyr.elf").is_file());
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+// ---- the tasks of a processor together, in the SoC image ----------------------------------
+
+/// The body controller's two io_bindings (the wiper every 20 ms, the
+/// interior light every 100 ms) as two threads on the LiteX VexRiscv SoC
+/// in Renode, their channels played at once: every task keeps its period,
+/// and the step times under load prove the schedule.
+#[test]
+#[ignore = "needs west, the Zephyr SDK and Renode: run in tools/embedded/soc (CI job Embedded SoC)"]
+fn the_tasks_of_the_body_controller_keep_their_periods_together_in_renode() {
+    use arclang::compiler::embedded::tasks;
+    let path = example("automotive/body-controller/body_controller.arc");
+    let result = compile_file(&path);
+    let runs = tasks::prove(&result.ast, &tasks::Options { work: work("tasks"), target: None, cycles: 5 }).unwrap();
+    assert_eq!(runs.iter().map(|r| (r.binding.as_str(), r.period_us, r.priority, r.expected)).collect::<Vec<_>>(), vec![("Wiper task", 20_000, 1, 25), ("Light task", 100_000, 2, 5)]);
+    for r in &runs {
+        assert!(r.kept, "{}: {}", r.binding, r.reason);
+        // The bench runs a period past the horizon: a cycle or two more than expected may come.
+        assert!(r.cycles >= r.expected && r.cycles <= r.expected + 2, "{}: {}", r.binding, r.reason);
+        assert!(r.worst_us > 0.0 && r.worst_us < r.period_us as f64, "{}: a cycle took {} us", r.binding, r.worst_us);
+        // The light's case goes through the channels; the wiper's sets a variable, which no channel can.
+        assert_eq!(r.case.is_some(), r.binding == "Light task", "{}: {:?}", r.binding, r.case);
+    }
+    // The command: proved on the target, then analysed on those times.
+    let dir = work("tasks-cli");
+    let model = dir.join("body_controller.arc");
+    std::fs::copy(&path, &model).unwrap();
+    let out = Command::new(env!("CARGO_BIN_EXE_arclang")).arg("schedule").arg(&model).args(["--prove", "--cycles", "5", "--json"]).output().unwrap();
+    let text = String::from_utf8_lossy(&out.stdout);
+    assert!(out.status.success(), "{text}{}", String::from_utf8_lossy(&out.stderr));
+    let json: serde_json::Value = serde_json::from_str(&text).unwrap();
+    assert_eq!(json["schedulable"], true, "{json}");
+    assert!(json["tasks"][0]["wcet_source"].as_str().unwrap().starts_with("measured under load"), "{json}");
+    assert_eq!(json["proved"].as_array().unwrap().len(), 2);
+    assert!(dir.join(".arclang/sim-cache/schedule.json").is_file());
+    let again = compile_file(&model);
+    assert!(again.schedule.iter().all(|(_, fresh)| *fresh), "the runs read back fresh");
+}

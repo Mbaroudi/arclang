@@ -12,6 +12,7 @@
 
 use crate::compiler::embedded::binding::{self, Binding};
 use crate::compiler::embedded::plan::Plan;
+use crate::compiler::embedded::tasks::TaskRun;
 use crate::compiler::partition::Entry;
 use serde::{Deserialize, Serialize};
 
@@ -81,9 +82,11 @@ pub fn response(tasks: &[(u64, u32, Option<f64>)], i: usize) -> Option<f64> {
 }
 
 /// The analysis of the bindings deployed on `target`, the step times from
-/// the partition's measurements (`(entry, fresh)`) and the `given`
-/// overrides (`machine`, microseconds).
-pub fn analyse(plan: &Plan, bindings: &[Binding], target: &str, measured: &[(Entry, bool)], given: &[(String, f64)]) -> Analysis {
+/// the tasks run together on the target (`proved`, `arclang schedule
+/// --prove`: the longest a cycle took under the others' load), else the
+/// partition's measurements (`(entry, fresh)`), else the `given` overrides
+/// (`machine`, microseconds) — a given time wins over both.
+pub fn analyse(plan: &Plan, bindings: &[Binding], target: &str, measured: &[(Entry, bool)], proved: &[(TaskRun, bool)], given: &[(String, f64)]) -> Analysis {
     let mine: Vec<&Binding> = bindings.iter().filter(|b| b.target == target).collect();
     let owned: Vec<Binding> = mine.iter().map(|b| (*b).clone()).collect();
     let priorities = binding::priorities(&owned);
@@ -95,6 +98,8 @@ pub fn analyse(plan: &Plan, bindings: &[Binding], target: &str, measured: &[(Ent
             let m = &plan.machines[b.machine];
             let (wcet_us, wcet_source) = if let Some((_, us)) = given.iter().find(|(name, _)| m.is(name)) {
                 (Some(*us), "given".to_string())
+            } else if let Some((r, fresh)) = proved.iter().find(|(r, _)| r.binding == b.name && r.target == target && r.cycles > 0) {
+                (Some(r.worst_us), if *fresh { "measured under load (arclang schedule --prove)".to_string() } else { "measured under load (stale: run arclang schedule --prove)".to_string() })
             } else if let Some((e, fresh)) = measured.iter().find(|(e, _)| e.machine == m.name) {
                 match &e.software {
                     Some(s) if s.target == target => (Some(s.step_us), if *fresh { "measured".to_string() } else { "measured (stale: run arclang partition)".to_string() }),

@@ -111,21 +111,25 @@ fn the_schedule_is_analysed_from_the_measured_steps() {
     let result = Compiler::new(CompilerConfig::default()).compile_file(&example(BODY)).unwrap();
     let p = plan::plan(&result.ast).unwrap();
     let bindings = binding::resolve_all(&result.ast, &p).unwrap();
-    let a = schedule::analyse(&p, &bindings, "zephyr/litex_vexriscv", &[measured("Wiper", 18.4), measured("Interior light", 11.0)], &[]);
+    let a = schedule::analyse(&p, &bindings, "zephyr/litex_vexriscv", &[measured("Wiper", 18.4), measured("Interior light", 11.0)], &[], &[]);
     assert_eq!(a.tasks.iter().map(|t| (t.priority, t.wcet_us, t.response_us, t.meets)).collect::<Vec<_>>(), vec![(1, Some(18.4), Some(18.4), Some(true)), (2, Some(11.0), Some(29.4), Some(true))]);
     assert_eq!(a.schedulable, Some(true));
     assert!((a.utilisation - (18.4 / 20_000.0 + 11.0 / 100_000.0)).abs() < 1e-12);
     // A step as long as its period: the task below misses.
-    let b = schedule::analyse(&p, &bindings, "zephyr/litex_vexriscv", &[measured("Wiper", 19_000.0), measured("Interior light", 6_000.0)], &[]);
+    let b = schedule::analyse(&p, &bindings, "zephyr/litex_vexriscv", &[measured("Wiper", 19_000.0), measured("Interior light", 6_000.0)], &[], &[]);
     assert_eq!(b.tasks[1].meets, Some(false), "{:?}", b.tasks[1]);
     assert_eq!(b.schedulable, Some(false));
     assert!(schedule::lines(&b).iter().any(|l| l.contains("MISSES ITS PERIOD")));
     // Unknown: unproved, and the line says what to run; a given time fills it.
-    let c = schedule::analyse(&p, &bindings, "zephyr/litex_vexriscv", &[measured("Wiper", 18.4)], &[]);
+    let c = schedule::analyse(&p, &bindings, "zephyr/litex_vexriscv", &[measured("Wiper", 18.4)], &[], &[]);
     assert_eq!(c.schedulable, None);
     assert!(c.tasks[1].wcet_source.contains("run arclang partition"), "{}", c.tasks[1].wcet_source);
-    let d = schedule::analyse(&p, &bindings, "zephyr/litex_vexriscv", &[measured("Wiper", 18.4)], &[("Interior light".into(), 12.5)]);
+    let d = schedule::analyse(&p, &bindings, "zephyr/litex_vexriscv", &[measured("Wiper", 18.4)], &[], &[("Interior light".into(), 12.5)]);
     assert_eq!((d.tasks[1].wcet_us, d.tasks[1].wcet_source.as_str(), d.schedulable), (Some(12.5), "given", Some(true)));
+    // The tasks run together on the target: their cycles' worst time is the step time under load.
+    let proved = arclang::compiler::embedded::tasks::TaskRun { binding: "Light task".into(), machine: "Interior light".into(), target: "zephyr/litex_vexriscv".into(), period_us: 100_000, priority: 2, case: Some("TC-BC-002".into()), cycles: 10, expected: 10, cycles_asked: 10, gap_min_us: 100_000, gap_max_us: 100_000, worst_us: 33.0, failed: 0, kept: true, reason: "10 cycles".into(), key: "k".into() };
+    let e = schedule::analyse(&p, &bindings, "zephyr/litex_vexriscv", &[measured("Wiper", 18.4), measured("Interior light", 11.0)], &[(proved, true)], &[]);
+    assert_eq!((e.tasks[1].wcet_us, e.tasks[1].wcet_source.as_str()), (Some(33.0), "measured under load (arclang schedule --prove)"));
 }
 
 #[test]

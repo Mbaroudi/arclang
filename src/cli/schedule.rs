@@ -11,6 +11,11 @@ pub struct Options {
     pub target: Option<String>,
     /// `MACHINE=MICROSECONDS`.
     pub wcet: Vec<String>,
+    /// Run every task together on the target first (Renode), the step times under load.
+    pub prove: bool,
+    /// Cycles of the longest period the proof runs.
+    pub cycles: usize,
+    pub keep: Option<std::path::PathBuf>,
     pub json: bool,
 }
 
@@ -25,7 +30,13 @@ fn given(wcet: &[String]) -> Result<Vec<(String, f64)>, CliError> {
 }
 
 pub fn run(input: &Path, options: Options) -> Result<(), CliError> {
-    let result = crate::Compiler::new(crate::CompilerConfig::default()).compile_file(input).map_err(|e| CliError::Compilation(e.to_string()))?;
+    // The proof needs the target's toolchain and emulator: in the SoC image when the host has none.
+    if options.prove {
+        if let Some(code) = crate::compiler::embedded::docker::relay("pil", input).map_err(CliError::Config)? {
+            std::process::exit(code);
+        }
+    }
+    let mut result = crate::Compiler::new(crate::CompilerConfig::default()).compile_file(input).map_err(|e| CliError::Compilation(e.to_string()))?;
     let p = plan::plan(&result.ast).map_err(CliError::Compilation)?;
     let bindings = binding::resolve_all(&result.ast, &p).map_err(CliError::Compilation)?;
     if bindings.is_empty() {
@@ -51,9 +62,39 @@ pub fn run(input: &Path, options: Options) -> Result<(), CliError> {
     if !targets.contains(&target) {
         return Err(CliError::Config(format!("no io_binding is deployed on {target} (targets: {})", targets.join(", "))));
     }
-    let analysis = schedule::analyse(&p, &bindings, &target, &result.partition, &given);
+    let mut proved: Vec<serde_json::Value> = Vec::new();
+    if options.prove {
+        use crate::compiler::embedded::tasks;
+        let scratch = options.keep.is_none();
+        let work = options.keep.clone().unwrap_or_else(|| std::env::temp_dir().join(format!("arclang-schedule-{}", std::process::id())));
+        let runs = tasks::prove(&result.ast, &tasks::Options { work: work.clone(), target: Some(target.clone()), cycles: options.cycles.max(1) }).map_err(CliError::Compilation)?;
+        if scratch {
+            let _ = std::fs::remove_dir_all(&work);
+        } else if !options.json {
+            println!("  Application, build, plan and logs kept in {}", work.display());
+        }
+        let path = tasks::write(input, &runs).map_err(CliError::Config)?;
+        if !options.json {
+            println!("Tasks on {target} together, in Renode ({} cycle(s) of the longest period):", options.cycles.max(1));
+            for r in &runs {
+                println!("  {} task \"{}\" ({}) every {} us at priority {}: {}; a cycle took at most {:.1} us{}", if r.kept { "✓" } else { "✗" }, r.binding, r.machine, r.period_us, r.priority, r.reason, r.worst_us, r.case.as_ref().map(|c| format!(", the channels of {c} played")).unwrap_or_else(|| ", the channels quiet".to_string()));
+            }
+            println!("  kept in {path}\n", path = path.display());
+        }
+        proved = runs.iter().map(|r| serde_json::to_value(r).unwrap_or_default()).collect();
+        result.schedule = runs.into_iter().map(|r| (r, true)).collect();
+        if result.schedule.iter().any(|(r, _)| !r.kept) {
+            let failed: Vec<String> = result.schedule.iter().filter(|(r, _)| !r.kept).map(|(r, _)| format!("'{}': {}", r.binding, r.reason)).collect();
+            return Err(CliError::CiFailed(format!("a task did not keep its period on the target: {}", failed.join("; "))));
+        }
+    }
+    let analysis = schedule::analyse(&p, &bindings, &target, &result.partition, &result.schedule, &given);
     if options.json {
-        println!("{}", serde_json::to_string_pretty(&analysis).unwrap_or_default());
+        let mut value = serde_json::to_value(&analysis).unwrap_or_default();
+        if options.prove {
+            value["proved"] = serde_json::Value::Array(proved);
+        }
+        println!("{}", serde_json::to_string_pretty(&value).unwrap_or_default());
     } else {
         println!("Schedule {} — {} task(s) on {target}, fixed priorities, preemptive (response-time analysis)", input.display(), analysis.tasks.len());
         for line in schedule::lines(&analysis) {

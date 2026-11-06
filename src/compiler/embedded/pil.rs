@@ -237,25 +237,29 @@ impl Builds<'_> {
             let app = super::zephyr::app(plan, binding, self.package)?;
             write_app(&app_dir, &app)?;
         }
-        let build = self.package.build.as_ref().expect("checked");
         let (main, period_define) = match binding {
             Some(_) => ("pil_io".to_string(), String::new()),
             None => ("pil_direct".to_string(), format!("-DARCLANG_PERIOD_US={period_us}")),
         };
-        let values = [
-            ("app", app_dir.display().to_string()),
-            ("build", build_dir.display().to_string()),
-            ("main", main),
-            ("period_define", period_define),
-        ];
-        run_command(&substitute(&build.command, &values), Some(&self.work), &[], &format!("building for {}", self.package.name))?;
-        let image = PathBuf::from(substitute(std::slice::from_ref(&build.image), &values)[0].clone());
-        if !image.is_file() {
-            return Err(format!("the build for {} made no {}", self.package.name, image.display()));
-        }
+        let image = build_app(self.package, &self.work, &app_dir, &build_dir, &main, &period_define)?;
         Ok((app_dir, image))
     }
+}
 
+    /// The application written in `app_dir` built by the package's command
+/// (its `main`, its period define) into `build_dir`: the image.
+pub(super) fn build_app(package: &Package, work: &Path, app_dir: &Path, build_dir: &Path, main: &str, period_define: &str) -> Result<PathBuf, String> {
+    let build = package.build.as_ref().ok_or_else(|| format!("target {} has no build command", package.name))?;
+    let values = [("app", app_dir.display().to_string()), ("build", build_dir.display().to_string()), ("main", main.to_string()), ("period_define", period_define.to_string())];
+    run_command(&substitute(&build.command, &values), Some(work), &[], &format!("building for {}", package.name))?;
+    let image = PathBuf::from(substitute(std::slice::from_ref(&build.image), &values)[0].clone());
+    if !image.is_file() {
+        return Err(format!("the build for {} made no {}", package.name, image.display()));
+    }
+    Ok(image)
+}
+
+impl Builds<'_> {
     /// The footprint of the behavior in a build already made.
     fn footprint(&mut self, plan: &Plan, binding: Option<&Binding>, period_us: u64) -> Option<Footprint> {
         let key = (binding.map(|b| b.ident.clone()), period_us);
@@ -271,6 +275,45 @@ impl Builds<'_> {
 }
 
 /// The bench's plan of a case.
+/// The head of a bench plan: the image, the platform, the emulator's channels.
+pub(super) fn plan_head(package: &Package, app: &Path, image: &Path, mode: &str) -> String {
+    let emulator = package.emulator.as_ref().expect("checked");
+    let mut out = String::new();
+    let _ = writeln!(out, "mode {mode}");
+    let _ = writeln!(out, "elf {}", image.display());
+    let _ = writeln!(out, "platform {}", app.join(&emulator.platform).display());
+    for p in &emulator.peripherals {
+        let _ = writeln!(out, "peripheral {}", app.join(p).display());
+    }
+    for (kind, value) in &emulator.channels {
+        match value {
+            serde_json::Value::String(name) => {
+                let _ = writeln!(out, "{kind} {name}");
+            }
+            serde_json::Value::Array(names) => {
+                for (k, name) in names.iter().enumerate() {
+                    if let Some(name) = name.as_str() {
+                        let _ = writeln!(out, "{kind} {k} {name}");
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+    out
+}
+
+pub(super) fn emulator_command(package: &Package, app: &Path) -> Vec<String> {
+    let emulator = package.emulator.as_ref().expect("checked");
+    let mut command = substitute(&emulator.command, &[("app", app.display().to_string())]);
+    if let Some(last) = command.last_mut() {
+        last.push_str("; quit");
+    }
+    command
+}
+
+pub(super) const BOOT_MICROS: u64 = BOOT_US;
+
 fn bench_plan(package: &Package, app: &Path, image: &Path, binding: Option<&Binding>, steps: &[Vec<String>], result: &Path, period_us: u64) -> String {
     let emulator = package.emulator.as_ref().expect("checked");
     let mut out = String::new();
