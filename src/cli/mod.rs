@@ -449,12 +449,6 @@ pub enum Commands {
         json: bool,
     },
 
-    /// Run the digital twins of a model: each `twin`'s physical model
-    /// Climb the realization ladder (docs/realization.md): for each
-    /// requirement, run in order what each stage is missing or stale
-    /// (verify, sil, pil, hdl, soc, twin), read the ladder back after each
-    /// step, stop a requirement's climb at a failure. --dry-run prints the
-    /// plan and the gaps (a requirement nothing climbs) without running.
     /// HW/SW partitioning: every machine measured as C on the processor
     /// (arclang pil: the step's time, the code's footprint) and as VHDL on
     /// the logic (arclang hdl --synth --as-if: resources, Fmax), what fits
@@ -522,6 +516,11 @@ pub enum Commands {
         json: bool,
     },
 
+    /// Climb the realization ladder (docs/realization.md): for each
+    /// requirement, run in order what each stage is missing or stale
+    /// (verify, sil, pil, hdl, soc, twin), read the ladder back after each
+    /// step, stop a requirement's climb at a failure. --dry-run prints the
+    /// plan and the gaps (a requirement nothing climbs) without running.
     Realize {
         #[clap(value_parser)]
         input: PathBuf,
@@ -551,6 +550,7 @@ pub enum Commands {
         json: bool,
     },
 
+    /// Run the digital twins of a model: each `twin`'s physical model
     /// driven by its measured data (drives:) in OpenModelica, compared to
     /// the measurements (compares:) and checked against its expects:
     Twin {

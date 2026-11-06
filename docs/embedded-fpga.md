@@ -1,8 +1,8 @@
 # Embedded FPGA: the parts of a model the programmable logic computes
 
-Lots 1 and 2 generate a model's behavior as C that knows no board
-([embedded-c.md](embedded-c.md)) and take it to a processor through target
-packages ([embedded-targets.md](embedded-targets.md)). Lot 3 adds the
+The C generation turns a model's behavior into C that knows no board
+([embedded-c.md](embedded-c.md)) and takes it to a processor through target
+packages ([embedded-targets.md](embedded-targets.md)). This part adds the
 hardware/software split: a state machine the model gives to the
 programmable logic of the system becomes a VHDL entity, computed in fixed
 point, and the software calls it through generated registers.
@@ -213,7 +213,7 @@ guard on a value at its threshold), and the case fails saying so.
 ## The bit-exact C reference
 
 `arclang export -f vhdl` writes, beside the VHDL, `c/<model>_fx.h/.c`: the
-same C generator as lot 1 (`cgen`), each allocated machine's code printed
+same C generator as the embedded C (`cgen`), each allocated machine's code printed
 from its fixed-point lowering, every operation a static helper
 (`arc_fx_align`, `arc_fx_resize`...) whose arithmetic is the VHDL
 package's. A `Real` is then an `int32_t`, its word (the header says its
@@ -261,7 +261,7 @@ entity battery_charger_charger is
   );
 ```
 
-It does what the C's `step()` does, as lot 1 defines it, the procedures of
+It does what the C's `step()` does, as the embedded C defines it, the procedures of
 one clocked process mirroring the C's functions (entry and exit actions,
 `exit_range`, histories, each compound transition, each trigger). On
 `step` it latches its inputs and runs the step in phases, one a clock: the
