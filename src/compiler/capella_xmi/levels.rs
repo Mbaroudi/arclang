@@ -440,8 +440,14 @@ pub(super) fn system(writer: &mut Writer, sa: &Node) {
     }
     functional_exchanges(writer, 1, sa, "functional_exchange", "FunctionalExchange", true);
 
+    let added_root = crate::compiler::capella_export::added_root_system(sa.id());
     for component in sa.find_all("ctx:SystemComponent") {
         let actor = component.attr("actor") == Some("true");
+        // The root the export adds when the model declares no component: nothing of the model.
+        let empty = component.tagged("ownedFeatures").next().is_none() && component.tagged("ownedFunctionalAllocation").next().is_none();
+        if component.id() == added_root && !actor && empty {
+            continue;
+        }
         let kind = if actor { "SystemActor" } else { "SystemComponent" };
         writer.count(if actor { "system actors" } else { "system components" });
         let id = writer.remember(component, kind);
