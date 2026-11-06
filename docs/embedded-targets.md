@@ -188,16 +188,13 @@ deterministic, not a worst-case execution time.
 
 ### The bitstream
 
-Not built for the SoC: lot 3 ([embedded-fpga.md](embedded-fpga.md)) adds
-the FPGA image (GHDL, Yosys, nextpnr-ecp5) and synthesises the blocks a
-model allocates to programmable logic, alone, for the ECP5; the SoC itself
-is still not built. The overlay and the Renode platform describe the SoC
-(addresses, interrupt lines); a LiteX SoC for an ECP5 board with those
-peripherals (two more UARTs, a second PWM, an SJA1000-compatible core, the
-ADC register bank) is to be written as a LiteX target script, and Yosys,
-nextpnr-ecp5 and the LiteX toolchain to be added to the image (in a stage of
-its own: they are large). On a board, `zephyr.bin` is loaded by the LiteX
-BIOS (`litex_term --kernel`) or written to the SPI flash.
+Not built by `arclang pil`: the overlay and the Renode platform describe
+the SoC (addresses, interrupt lines) for emulation. The SoC itself — the
+VexRiscv, its RAM holding the Zephyr application, and the blocks a model
+allocates to programmable logic on its bus — is built into a bitstream for
+the ULX3S by `arclang soc --board`
+([embedded-system.md](embedded-system.md)). Its peripherals are not all
+there yet (no CAN core, channels wired to no pin).
 
 ## Processor in the loop
 
@@ -319,9 +316,10 @@ Python 3.12 (Zephyr 4.4's minimum), Renode 1.17.0 (portable). The CI job
 - **Virtual time is not cycle timing.** Renode runs instructions at its CPU
   model's rate; the times reported are deterministic and comparable between
   runs, not the VexRiscv's worst-case execution time.
-- **No SoC bitstream** (above). The SoC described has not been
-  synthesised; the hardware blocks of lot 3 have, alone
-  ([embedded-fpga.md](embedded-fpga.md#synthesis)).
+- **The emulated SoC is not the built one.** Renode's platform has the
+  peripherals this target's channels use; the SoC `arclang soc --board`
+  builds has the processor and the logic blocks, not yet every peripheral
+  ([embedded-system.md](embedded-system.md#limits-said-plainly)).
 - **One target ships**, `zephyr/litex_vexriscv`, and one runtime besides the
   host, Zephyr. The image has been built and the tests run on Linux arm64
   (Docker on Apple silicon); the CI job builds it on x86_64 (the x86_64

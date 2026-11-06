@@ -1,6 +1,6 @@
 # Embedded system: the processor and the programmable logic together
 
-Lot 3 ([embedded-fpga.md](embedded-fpga.md)) turns a state machine the
+The FPGA generation ([embedded-fpga.md](embedded-fpga.md)) turns a state machine the
 model gives to programmable logic into VHDL in fixed point, proves it in
 GHDL against a bit-exact C reference, and synthesises it alone. This part
 puts it where it runs: **one SoC**, a VexRiscv processor running the Zephyr
@@ -105,7 +105,7 @@ application.
 board before its port is opened: the `ARCLANG READY` of the boot is
 missed. The PIL application now answers a line `?` with `ARCLANG READY`;
 the bench asks once a second until it is answered (the Renode bench of
-lot 2 never sends `?`: unchanged).
+processor in the loop never sends `?`: unchanged).
 
 ## In the loop with the plant
 
