@@ -35,6 +35,10 @@ fn link_id(link: &PhysicalLink, index: usize) -> String {
 /// Whether `Owner.port` names an oriented component port (a node's
 /// `port in|out`, or any port of a behavior component).
 fn is_component_port(pa: &PhysicalArchitecture, end: &str) -> bool {
+    let by_id = pa.nodes.iter().any(|n| n.component_ports.iter().any(|p| p.id == end) || n.behavior_components.iter().any(|b| b.ports.iter().any(|p| p.id == end)));
+    if by_id {
+        return true;
+    }
     let Some((owner, port)) = end.rsplit_once('.') else { return false };
     pa.nodes.iter().any(|n| {
         ((n.id == owner || n.name == owner) && n.component_ports.iter().any(|p| p.name == port))
@@ -42,8 +46,13 @@ fn is_component_port(pa: &PhysicalArchitecture, end: &str) -> bool {
     })
 }
 
+/// Whether a link's or an exchange's end names a port: `owner.port`, or a port's own id.
+fn names_a_port(context: &Context, end: &str) -> bool {
+    end.contains('.') || context.port_owners.contains_key(end)
+}
+
 fn link_end(context: &Context, link: &str, end: &str, side: &str) -> (Option<String>, Option<(String, String)>) {
-    if let Some(port) = context.resolve(end).filter(|_| end.contains('.')) {
+    if let Some(port) = context.resolve(end).filter(|_| names_a_port(context, end)) {
         return (Some(port.to_string()), None);
     }
     match context.resolve(end) {
@@ -59,7 +68,7 @@ fn link_end(context: &Context, link: &str, end: &str, side: &str) -> (Option<Str
 /// of the component written, since Capella ends an exchange on a port.
 fn exchange_end(context: &Context, exchange: &str, end: &str, side: &str) -> (Option<String>, Option<(String, El)>) {
     let Some(resolved) = context.resolve(end) else { return (None, None) };
-    if end.contains('.') {
+    if names_a_port(context, end) {
         return (Some(resolved.to_string()), None);
     }
     let id = derived(&format!("{exchange}:{side}:port"));
@@ -80,6 +89,15 @@ fn placed(pa: &PhysicalArchitecture) -> Vec<Placed<'_>> {
     placed
 }
 
+/// A port by its own id, as the compiler resolves a link's or an exchange's end.
+fn register_by_id(context: &mut Context, own: &str, id: &str, owner: &str) {
+    if own.is_empty() {
+        return;
+    }
+    context.register(own, id);
+    context.port_owners.insert(own.to_string(), owner.to_string());
+}
+
 pub(super) fn register(context: &mut Context, pa: &PhysicalArchitecture) {
     for node in &pa.nodes {
         context.register(&node.id, &node.id);
@@ -88,12 +106,16 @@ pub(super) fn register(context: &mut Context, pa: &PhysicalArchitecture) {
             let id = id_of(&port.attributes, &format!("port:{}.{}", node.id, port.name));
             context.register(&format!("{}.{}", node.id, port.name), &id);
             context.register(&format!("{}.{}", node.name, port.name), &id);
+            if let Some(own) = port.attributes.get("id").and_then(|v| v.as_string()) {
+                register_by_id(context, own, &id, &node.id);
+            }
         }
         // A node's oriented ports are component ports, as a behavior's are.
         for port in &node.component_ports {
             let id = port_id(&node.id, &port.name, &port.id);
             context.register(&format!("{}.{}", node.id, port.name), &id);
             context.register(&format!("{}.{}", node.name, port.name), &id);
+            register_by_id(context, &port.id, &id, &node.id);
         }
         for behavior in &node.behavior_components {
             context.register(&behavior.id, &behavior.id);
@@ -102,6 +124,7 @@ pub(super) fn register(context: &mut Context, pa: &PhysicalArchitecture) {
                 let id = port_id(&behavior.id, &port.name, &port.id);
                 context.register(&format!("{}.{}", behavior.id, port.name), &id);
                 context.register(&format!("{}.{}", behavior.name, port.name), &id);
+                register_by_id(context, &port.id, &id, &behavior.id);
             }
         }
     }
@@ -202,6 +225,9 @@ pub(super) fn write(context: &mut Context, pa: &PhysicalArchitecture, above_root
     let mut links: Vec<El> = Vec::new();
     let mut link_nodes: std::collections::HashMap<String, (String, String)> = std::collections::HashMap::new();
     let node_of = |context: &Context, end: &str| -> Option<String> {
+        if let Some(owner) = context.port_owners.get(end) {
+            return context.resolve(owner).map(str::to_string);
+        }
         let owner = if end.contains('.') && context.resolve(end).is_some() { end.rsplit_once('.').map(|(o, _)| o).unwrap_or(end) } else { end };
         context.resolve(owner).map(str::to_string)
     };

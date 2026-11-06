@@ -191,3 +191,36 @@ fn a_chain_without_involvement_is_a_warning_not_an_error() {
     let result = compile(&empty);
     assert!(result.warnings.iter().any(|w| w.contains("Warn path") && w.contains("involves nothing")), "{:?}", result.warnings);
 }
+
+/// A link or an exchange may designate a port by its id, which the compiler
+/// accepts: the export must keep it, not leave it out with a note.
+#[test]
+fn a_link_and_an_exchange_designating_ports_by_their_ids_are_exported() {
+    let source = r#"model "M" {}
+physical_architecture "PA" {
+    node "Cabin" {
+        id: "PN-CABIN"
+        port "bus" { id: "PN-CABIN.bus" }
+        behavior_component "Sensor" { id: "BC-S" port out "height" { id: "p-height" } }
+    }
+    node "Controller" {
+        id: "PN-CTRL"
+        port "sensor bus" { id: "PN-CTRL.sensor" }
+        port "spare bus" { id: "9b2f0c1e-0000-4000-8000-000000000001" }
+        behavior_component "Hold" { id: "BC-H" port in "height" { id: "p-in" } }
+    }
+    node "Logger" { id: "PN-LOG" port "tap" { id: "PN-LOG.tap" } }
+    physical_link "Sensor bus" { id: "PL-SENS" from: "PN-CABIN.bus" to: "PN-CTRL.sensor" }
+    physical_link "Spare bus" { id: "PL-SPARE" from: "PN-LOG.tap" to: "9b2f0c1e-0000-4000-8000-000000000001" }
+    physical_exchange "Height" { id: "PX-H" from: "p-height" to: "p-in" via: "Sensor bus" }
+}
+"#;
+    let result = Compiler::new(CompilerConfig::default()).compile_string(source).expect("the compiler accepts ports designated by id");
+    let exported = arclang::compiler::capella_export::export(&result.ast, "m");
+    let left_out: Vec<&String> = exported.notes.iter().filter(|n| n.contains("left out")).collect();
+    assert!(left_out.is_empty(), "{left_out:?}");
+    let capella = &exported.capella;
+    assert!(capella.contains(r##"id="PL-SENS" name="Sensor bus" linkEnds="#PN-CABIN.bus #PN-CTRL.sensor""##), "the link ends on the ports, by their ids");
+    assert!(capella.contains(r##"id="PL-SPARE" name="Spare bus" linkEnds="#PN-LOG.tap #9b2f0c1e-0000-4000-8000-000000000001""##), "a port id without a dot is a port too, not a node");
+    assert!(capella.contains(r#"id="PX-H""#), "the exchange between behavior ports given by id");
+}
