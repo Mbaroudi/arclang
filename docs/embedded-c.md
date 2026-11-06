@@ -685,8 +685,9 @@ test_case "TC-CHG-HIL" {
 ```
 
 - `model:` a Modelica model, its `sources:` beside the `.arc` (as
-  `simulate:` names them); **or** `fmu:` an FMI 2.0 co-simulation FMU as
-  a file (from Simulink, Dymola, Amesim, OpenModelica, any exporter).
+  `simulate:` names them); **or** `fmu:` a co-simulation FMU as a file,
+  FMI 2.0 or FMI 3.0 (from Simulink, Dymola, Amesim, OpenModelica, the
+  Reference FMUs, any exporter): see "An FMU from another tool" below.
 - `inputs:` the plant's `input` variables, each driven by a variable the
   machine computes (`out` or internal); `outputs:` the machine's `in`
   variables, each read from a variable of the plant. Values pass in SI,
@@ -709,6 +710,49 @@ The loop runs around every implementation the same way:
 | `arclang hdl` | the VHDL replays the model's loop; the fixed point is measured against the model on those same inputs |
 | `arclang pil` | the processor replays the model's loop (its C matches the model within tolerance) |
 | `arclang soc` | the simulated SoC, or the board through its port, in the loop: a line a step; bit-exact with the fixed-point C run in the loop too |
+
+### An FMU from another tool
+
+The FMU is stepped as it is. A small stepper, compiled where the FMU
+runs, reads the description:
+
+- `fmiVersion`, 2.0 or 3.0;
+- the co-simulation `modelIdentifier`, which names the library;
+- the variables named in `inputs:` and `outputs:`, which must be real
+  (`Real` in 2.0, `Float64` in 3.0).
+
+It loads the binary built for the platform it runs on. The 3.0 name of the
+platform is tried first, then the 2.0 one: `aarch64-darwin` then
+`darwin64`, and `x86_64-linux` or `aarch64-linux` then `linux64`. When
+the FMU has a binary for this computer, the computer's C compiler steps it.
+Otherwise the OpenModelica image steps it, which works for a Linux binary.
+
+Units come from the description: a variable's own `unit`, or the unit of
+its `declaredType`.
+
+Between two instants, an input can go along a slope. In the plant loop it
+does not: the loop holds the machine's outputs, so the slopes are zero. A
+live twin does use slopes. FMI 2.0 takes them through
+`fmi2SetRealInputDerivatives`. FMI 3.0 has no such call: the slope is set
+on the input the FMU declares as the derivative of the input
+(`derivative="<value reference>"`), and an input without one is held over
+the step.
+
+What is not taken:
+
+- a Model Exchange-only FMU (no `<CoSimulation>`);
+- a source-only FMU (no binary);
+- variables other than reals;
+- FMI 3.0 clocks, event mode and early return. The stepper instantiates
+  without them, so a step always ends where it was asked to.
+
+`tests/embedded_plant.rs` builds the same room as an FMI 2.0 FMU and as an
+FMI 3.0 FMU, both with the identifier `Room`, from
+`tests/fixtures/fmu/room.c`. In both versions the room follows a ramp of
+its input exactly, and closes the heater's loop as the same room written
+in Rust does. The Modelica Reference FMUs (VanDerPol, BouncingBall,
+Feedthrough) were also stepped in both versions, in the OpenModelica
+image. VanDerPol gives the same values in 2.0 and in 3.0.
 
 A plant written in Modelica is built once as an FMU by OpenModelica
 (local `omc` or its Docker image) and kept under `.arclang/plant/` beside
@@ -769,8 +813,9 @@ and the charge integrator), the power window (2 cases) and the cruise
 control (2 cases), the largest difference is 0. `fmpy validate` finds no
 problem in the FMU.
 
-Not done: FMI 3.0 (another API and description; not cheap enough to add
-here), and a run in OpenModelica: 1.27's `importFMU` takes only FMI 2.0
+Not done: an FMI 3.0 export (an FMU from another tool is taken in 3.0 as
+in 2.0, see "An FMU from another tool"; no consumer asks for a 3.0 export
+yet), and a run in OpenModelica: 1.27's `importFMU` takes only FMI 2.0
 Model Exchange FMUs, and the `openmodelica/openmodelica:v1.27.1-minimal`
 image has no OMSimulator, which would run a co-simulation FMU. fmpy's
 `simulate_fmu` samples discrete inputs a step late at the breakpoints of an

@@ -1,8 +1,9 @@
 //! A live twin that advances with the data (`advance: "step"`): the wrapper
 //! is built once as an OpenModelica Co-Simulation FMU (FMI 2.0, CVODE), and a
-//! small stepper (`twin_stepper.c`, compiled where the FMU was built: in the
+//! small stepper (`twin_stepper.c`, compiled where the FMU runs: in the
 //! OpenModelica image, or with the local compiler) advances it to each new
-//! instant of the data. The model keeps its state from one sample to the
+//! instant of the data. The same stepper runs a given FMU (a plant's
+//! `fmu:`), FMI 2.0 or FMI 3.0 co-simulation, from any tool. The model keeps its state from one sample to the
 //! next and is never run again from the start of a window.
 //!
 //! Between two instants each driven input goes linearly from one sample to
@@ -33,12 +34,30 @@ const FMU: &str = "arclang_twin";
 /// How long the stepper may take to start (compiling it included) or to make one step.
 const PATIENCE: Duration = Duration::from_secs(120);
 
-/// Extracts the FMU, compiles the stepper beside it and runs it.
+/// Extracts the FMU, compiles the stepper beside it and runs it: the
+/// stepper reads the version, the library's name and the variables from the
+/// description, and loads the binary of the platform it runs on.
 pub(crate) fn script(tolerance: f64) -> String {
     format!(
-        "set -e\nmkdir -p fmu\ncd fmu && unzip -qo ../{FMU}.fmu && cd ..\n${{CC:-cc}} -O2 -o stepper stepper.c -ldl 1>&2\nlibrary=$(ls \"$PWD\"/fmu/binaries/*/{FMU}.* | head -n 1)\nexec ./stepper \"$library\" {FMU} fmu/modelDescription.xml \"file://$PWD/fmu/resources\" {}\n",
+        "set -e\nrm -rf fmu\nmkdir -p fmu\ncd fmu && unzip -qo ../{FMU}.fmu && cd ..\n${{CC:-cc}} -O2 -o stepper stepper.c -ldl 1>&2\nexec ./stepper fmu {}\n",
         modelica::names::real(tolerance)
     )
+}
+
+/// The `binaries/` directories this computer's stepper loads, as the
+/// stepper tries them: the FMI 3.0 name, then the FMI 2.0 one.
+pub fn host_platforms() -> &'static [&'static str] {
+    if cfg!(all(target_os = "macos", target_arch = "aarch64")) {
+        &["aarch64-darwin", "darwin64"]
+    } else if cfg!(target_os = "macos") {
+        &["x86_64-darwin", "darwin64"]
+    } else if cfg!(all(target_os = "linux", target_arch = "aarch64")) {
+        &["aarch64-linux", "linux64"]
+    } else if cfg!(target_os = "linux") {
+        &["x86_64-linux", "linux64"]
+    } else {
+        &[]
+    }
 }
 
 /// The twin's model as an FMU, advanced by its stepper.
@@ -116,22 +135,22 @@ impl Model {
         Ok(model)
     }
 
-    /// The FMU of `path` as it is (an FMI 2.0 co-simulation FMU from any
-    /// tool), its `inputs` set before each step and its `variables` read
-    /// after. It is stepped by this computer's C compiler when the FMU holds
+    /// The FMU of `path` as it is (an FMI 2.0 or FMI 3.0 co-simulation FMU
+    /// from any tool), its `inputs` set before each step and its `variables`
+    /// read after (real variables: `Real` in 2.0, `Float64` in 3.0). It is stepped by this computer's C compiler when the FMU holds
     /// a binary for this platform, else where OpenModelica runs (the Docker
     /// image, for a linux64 binary).
     pub fn from_fmu(path: &Path, inputs: Vec<String>, variables: Vec<String>, tolerance: Option<f64>, config: &ToolConfig) -> Result<Model, String> {
         let bytes = std::fs::read(path).map_err(|e| format!("the FMU {} cannot be read: {e}", path.display()))?;
         let platforms = fmu_platforms(path);
-        let here = crate::compiler::embedded::fmu::platform();
-        let tool = if platforms.iter().any(|p| p == here) && cc_runs() {
+        let here = host_platforms();
+        let tool = if platforms.iter().any(|p| here.contains(&p.as_str())) && cc_runs() {
             Tool::Host
         } else {
             match tool::locate(config) {
                 Ok(tool) => tool,
                 Err(e) if platforms.is_empty() => return Err(format!("the FMU {} has no binary (a source FMU is not stepped); {e}", path.display())),
-                Err(e) => return Err(format!("the FMU {} has a binary for {} but not for this computer ({here}), and {e}", path.display(), platforms.join(", "))),
+                Err(e) => return Err(format!("the FMU {} has a binary for {} but not for this computer ({}), and {e}", path.display(), platforms.join(", "), here.join(" or "))),
             }
         };
         let dir = twin::work_dir()?;
@@ -400,8 +419,8 @@ mod tests {
         let text = script(1e-6);
         assert!(text.contains("unzip -qo ../arclang_twin.fmu"));
         assert!(text.contains("${CC:-cc} -O2 -o stepper stepper.c -ldl"));
-        assert!(text.contains("exec ./stepper \"$library\" arclang_twin fmu/modelDescription.xml \"file://$PWD/fmu/resources\""));
-        for word in ["@@ready", "@@ok", "@@error", "fmi2SetRealInputDerivatives", "fmi2DoStep"] {
+        assert!(text.contains("exec ./stepper fmu 1e-06") || text.contains("exec ./stepper fmu 1e-6"), "{text}");
+        for word in ["@@ready", "@@ok", "@@error", "fmi2SetRealInputDerivatives", "fmi2DoStep", "fmi3InstantiateCoSimulation", "fmi3DoStep", "modelIdentifier"] {
             assert!(STEPPER.contains(word), "{word}");
         }
     }

@@ -91,6 +91,118 @@ fn the_loop_leaves_vectors_a_batch_stage_replays() {
     assert_eq!(stdin.lines().count(), 22, "the steps, then one line a step");
 }
 
+// ---- an FMU from another tool, FMI 2.0 and FMI 3.0 -----------------------------------
+
+const ROOM_C: &str = include_str!("fixtures/fmu/room.c");
+
+/// The room of `tests/fixtures/fmu/room.c` as an FMU of `version` (2 or 3),
+/// its binary for this computer under the directory that version names it
+/// (FMI 3.0 `aarch64-darwin`, FMI 2.0 `darwin64`, ...): `<dir>/room.fmu`.
+fn room_fmu(version: u32, dir: &Path) -> PathBuf {
+    use arclang::compiler::simulation::twin_step::host_platforms;
+    let source = dir.join("room.c");
+    std::fs::write(&source, ROOM_C).unwrap();
+    let library = dir.join("Room.lib");
+    let out = std::process::Command::new(cc()).args(["-std=c99", "-O2", "-fPIC", "-shared", "-fvisibility=hidden", "-Wall", "-Wextra", "-Werror"]).arg(format!("-DFMI_VERSION={version}")).arg(&source).arg("-o").arg(&library).arg("-lm").output().unwrap();
+    assert!(out.status.success(), "{}", String::from_utf8_lossy(&out.stderr));
+    let platform = host_platforms()[if version == 3 { 0 } else { 1 }];
+    let extension = if cfg!(target_os = "macos") { "dylib" } else { "so" };
+    let description = if version == 3 {
+        r#"<?xml version="1.0" encoding="UTF-8"?>
+<fmiModelDescription fmiVersion="3.0" modelName="Room" instantiationToken="{room-3}" generationTool="tests/fixtures/fmu/room.c">
+  <CoSimulation modelIdentifier="Room" canHandleVariableCommunicationStepSize="true"/>
+  <TypeDefinitions>
+    <Float64Type name="Temperature" unit="K"/>
+  </TypeDefinitions>
+  <ModelVariables>
+    <Float64 name="time" valueReference="0" causality="independent" variability="continuous"/>
+    <Float64 name="heat" valueReference="1" causality="input" variability="continuous" start="0" unit="W"/>
+    <Float64 name="T" valueReference="2" causality="output" variability="continuous" declaredType="Temperature"/>
+    <Float64 name="der(heat)" valueReference="3" causality="input" variability="continuous" start="0" derivative="1"/>
+    <Int32 name="mode" valueReference="4" causality="parameter" variability="fixed" start="1"/>
+  </ModelVariables>
+  <ModelStructure>
+    <Output valueReference="2"/>
+  </ModelStructure>
+</fmiModelDescription>
+"#
+    } else {
+        r#"<?xml version="1.0" encoding="UTF-8"?>
+<fmiModelDescription fmiVersion="2.0" modelName="Room" guid="{room-2}" generationTool="tests/fixtures/fmu/room.c">
+  <CoSimulation modelIdentifier="Room" canHandleVariableCommunicationStepSize="true" canInterpolateInputs="true" maxOutputDerivativeOrder="0"/>
+  <ModelVariables>
+    <ScalarVariable name="heat" valueReference="1" causality="input" variability="continuous"><Real start="0" unit="W"/></ScalarVariable>
+    <ScalarVariable name="T" valueReference="2" causality="output" variability="continuous" initial="calculated"><Real unit="K"/></ScalarVariable>
+    <ScalarVariable name="mode" valueReference="4" causality="parameter" variability="fixed"><Integer start="1"/></ScalarVariable>
+  </ModelVariables>
+  <ModelStructure>
+    <Outputs><Unknown index="2"/></Outputs>
+  </ModelStructure>
+</fmiModelDescription>
+"#
+    };
+    let entries = vec![
+        ("modelDescription.xml".to_string(), description.as_bytes().to_vec()),
+        (format!("binaries/{platform}/Room.{extension}"), std::fs::read(&library).unwrap()),
+        ("sources/room.c".to_string(), ROOM_C.as_bytes().to_vec()),
+    ];
+    let fmu = dir.join("room.fmu");
+    std::fs::write(&fmu, arclang::compiler::tables::xlsx::zip(&entries)).unwrap();
+    fmu
+}
+
+#[test]
+fn an_fmu_of_another_tool_is_stepped_fmi_2_and_fmi_3_alike() {
+    use arclang::compiler::simulation::tool::ToolConfig;
+    use arclang::compiler::simulation::twin_step::Model;
+    for version in [2, 3] {
+        let dir = work(&format!("room-{version}"));
+        let fmu = room_fmu(version, &dir);
+        let mut room = Model::from_fmu(&fmu, vec!["heat".into()], vec!["T".into()], None, &ToolConfig::default()).unwrap_or_else(|e| panic!("FMI {version}: {e}"));
+        assert!(room.tool_text.contains("this computer's C compiler"), "FMI {version}: {}", room.tool_text);
+        assert_eq!(room.units.get("T").map(String::as_str), Some("K"), "FMI {version}: {:?}", room.units);
+        assert_eq!(room.init(0.0, &[0.0]).unwrap(), vec![0.0]);
+        // The heat goes from 0 along a slope of 2 W/s over the step: the
+        // room follows the ramp, not a held input (T = 1 + e^-2 at 1 s).
+        let t = room.step(1.0, &[0.0], &[2.0]).unwrap()[0];
+        assert!((t - (1.0 + (-2.0f64).exp())).abs() < 1e-12, "FMI {version}: {t}");
+        // Held from there: 2 W for 1 s.
+        let t2 = room.step(2.0, &[2.0], &[0.0]).unwrap()[0];
+        assert!((t2 - (2.0 + (t - 2.0) * (-2.0f64).exp())).abs() < 1e-12, "FMI {version}: {t2}");
+        // A variable that is not there, one that is not real: said.
+        let e = Model::from_fmu(&fmu, vec!["heat".into()], vec!["nope".into()], None, &ToolConfig::default()).err().unwrap();
+        assert!(e.contains("no such variable in the FMU: nope"), "FMI {version}: {e}");
+        let e = Model::from_fmu(&fmu, vec!["mode".into()], vec!["T".into()], None, &ToolConfig::default()).err().unwrap();
+        assert!(e.contains(if version == 3 { "not a Float64 variable: mode" } else { "not a Real variable: mode" }), "FMI {version}: {e}");
+    }
+}
+
+#[test]
+fn the_heater_closes_its_loop_on_an_fmi_3_room_as_on_the_same_room_in_rust() {
+    let ast = Compiler::new(CompilerConfig::default()).compile_string(HEATER).expect("compiles").ast;
+    let mut lag = Plants::none();
+    lag.inject("room.fmu", Box::new(Lag::new(0.5, 1)));
+    let p = plan::plan(&ast).unwrap();
+    let bindings = binding::resolve_all(&ast, &p).unwrap();
+    let case = arclang::compiler::embedded::case::read(&ast.test_cases[0], &p, &bindings).unwrap().unwrap();
+    let (_, in_rust) = plant::model_loop(&ast, &p, &case, &mut lag).unwrap();
+    for version in [2, 3] {
+        let dir = work(&format!("heater-room-{version}"));
+        room_fmu(version, &dir);
+        let mut plants = Plants::at(&dir);
+        let (_, table) = plant::model_loop(&ast, &p, &case, &mut plants).unwrap_or_else(|e| panic!("FMI {version}: {e}"));
+        assert_eq!(table.rows.len(), in_rust.rows.len());
+        for (k, (a, b)) in table.rows.iter().zip(&in_rust.rows).enumerate() {
+            // The same lag, written two ways: equal to the last bits.
+            assert!(a.iter().zip(b).all(|(x, y)| (x - y).abs() <= 1e-9 * (1.0 + y.abs())), "FMI {version}, step {k}: {a:?} against {b:?}");
+        }
+        let options = sil::Options { compiler: cc(), work: dir.join("sil"), only: Some("TC-LOOP".into()) };
+        let outcomes = sil::run_with(&ast, &options, &mut plants).unwrap();
+        assert_eq!(outcomes[0].verdict, "pass", "FMI {version}: {}", outcomes[0].reason);
+        assert_eq!(outcomes[0].back_to_back.as_ref().unwrap().first_mismatch, None);
+    }
+}
+
 // ---- with OpenModelica (Docker or a local omc) ----------------------------------------
 
 fn example(path: &str) -> PathBuf {
