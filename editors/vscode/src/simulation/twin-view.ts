@@ -27,6 +27,7 @@ class TwinView {
     private readonly panel: vscode.WebviewPanel,
     private file: string,
     private readonly rerun: () => void,
+    private readonly folder: vscode.Uri,
   ) {
     panel.webview.html = this.html();
     panel.onDidDispose(() => {
@@ -40,12 +41,13 @@ class TwinView {
       else if (message.type === 'log') log().show(true);
       else if (message.type === 'stop') stopLive();
       else if (message.type === 'data' && !path.isAbsolute(message.file) && !message.file.split(/[\\/]/).includes('..')) {
-        void vscode.commands.executeCommand('vscode.open', vscode.Uri.file(path.join(path.dirname(this.file), message.file)));
+        void vscode.commands.executeCommand('vscode.open', vscode.Uri.joinPath(this.folder, ...message.file.split(/[\\/]/)));
       }
     });
   }
 
-  static show(context: vscode.ExtensionContext, file: string, outcomes: TwinOutcome[], rerun: () => void): void {
+  /** `folder`: the model's folder, where the view opens a twin's data (on disk, or in the browser's workspace). */
+  static show(context: vscode.ExtensionContext, file: string, outcomes: TwinOutcome[], rerun: () => void, folder = vscode.Uri.file(path.dirname(file))): void {
     let view = TwinView.current;
     if (!view || view.file !== file) {
       view?.panel.dispose();
@@ -54,7 +56,7 @@ class TwinView {
         retainContextWhenHidden: true,
         localResourceRoots: [vscode.Uri.joinPath(context.extensionUri, 'dist'), vscode.Uri.joinPath(context.extensionUri, 'media')],
       });
-      view = new TwinView(context, panel, file, rerun);
+      view = new TwinView(context, panel, file, rerun, folder);
       TwinView.current = view;
     }
     view.outcomes = outcomes;
@@ -104,6 +106,16 @@ class TwinView {
 </body>
 </html>`;
   }
+}
+
+/** The twins of a run made elsewhere (online, in the browser build): the same view, its data opened in the model's folder. */
+export function showTwinOutcomes(context: vscode.ExtensionContext, model: vscode.Uri, outcomes: TwinOutcome[], rerun: () => void): void {
+  TwinView.show(context, model.fsPath, outcomes, rerun, vscode.Uri.joinPath(model, '..'));
+}
+
+/** Says, on the view if it is open, that a run is under way. */
+export function twinsBusy(text: string): void {
+  TwinView.busy(text);
 }
 
 /** The model a twin run is about: the argument, the active .arc editor, or the workbench's tab. */
