@@ -79,8 +79,10 @@ async function frameWith(win, selector, tries = 80) {
     report('each case draws a histogram per margin', (await touring.locator('svg.histogram').count()) === 2 && (await city.locator('svg.histogram').count()) === 2);
     report('the failing bins of the city case are red, below the bound', (await city.locator('rect.bin.failing').count()) > 0 && (await city.locator('line.bound').count()) > 0);
     report('the distance of the touring case does not vary (ends on its bound)', /does not vary/.test(await touring.locator('.margin').first().textContent()));
-    const speed = (await city.locator('.influences li', { hasText: 'target_speed' }).first().locator('.rho').textContent()).trim();
-    report('the cruising speed moves the charge left the most, downwards', Number(speed) < -0.5, speed);
+    // The cold costs the most (the cabin heater, the cells' resistance): a warmer day leaves more charge; a faster cruise, less.
+    const rho = async (name) => (await city.locator('.influences li', { hasText: name }).first().locator('.rho').textContent()).trim();
+    const [ambient, speed] = [await rho('ambient'), await rho('target_speed')];
+    report('the outside temperature moves the charge left the most, upwards; the speed downwards', Number(ambient) > 0 && Number(speed) < 0 && Math.abs(Number(ambient)) > Math.abs(Number(speed)), `ambient ${ambient}, speed ${speed}`);
     await page.evaluate(() => window.scrollTo(0, 0));
     await shot('montecarlo-01-page');
     await city.scrollIntoViewIfNeeded(); await win.waitForTimeout(300);
