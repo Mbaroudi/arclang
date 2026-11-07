@@ -31,7 +31,7 @@ The light battery holds {{value LC-BAT-25 capacity}}.
 | `{{model}}` | the name of the model |
 | `{{date}}` | the day the document is written |
 | `{{value ELEMENT ATTRIBUTE}}` | an attribute as the model writes it (`25 Ah`); the element by id or name |
-| `{{table KIND}}` | a table the compiler computes: `requirements_coverage`, `traceability_matrix`, `allocation_matrix`, `interface_n2`, `icd`, `elements`; or a table the model declares, by name or id |
+| `{{table KIND}}` | a table the compiler computes: `requirements_coverage`, `traceability_matrix`, `allocation_matrix`, `interface_n2`, `icd`, `elements`, `realization`, `partition`, `schedule`, `cesam_grid`; or a table the model declares, by name or id |
 | `{{elements KIND [where "PREDICATE"] [columns A, B]}}` | the elements of a kind (`*` for every kind) that hold a predicate, written as a rule's `where:` (`mass > 10 kg and has(voltage)`), with the columns asked |
 | `{{verdicts}}` | each test case, its method, what it verifies, its verdict and why |
 | `{{constraints}}` | each constraint, its two sides and whether it holds |

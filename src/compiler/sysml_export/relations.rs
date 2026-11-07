@@ -88,6 +88,16 @@ pub(super) fn requirement(e: &mut Exporter<'_>, requirement: &Requirement) {
 }
 
 /// A concern: its id as short name, its name as name, its text as doc.
+/// A stakeholder (CESAM stakeholder analysis): a part definition, its
+/// attributes kept by the header.
+pub(super) fn stakeholder(e: &mut Exporter<'_>, stakeholder: &Stakeholder) {
+    let id = id_of(&stakeholder.attributes, &stakeholder.id).to_string();
+    let name = stakeholder.attributes.get("name").and_then(|t| t.as_string()).unwrap_or(&stakeholder.id).to_string();
+    e.block(&format!("part def {}", text::declared(&id, &name)), |e| {
+        e.header("Stakeholder", &stakeholder.attributes, &[]);
+    });
+}
+
 pub(super) fn concern(e: &mut Exporter<'_>, concern: &Concern) {
     let id = id_of(&concern.attributes, &concern.id).to_string();
     let name = concern.attributes.get("name").and_then(|t| t.as_string()).unwrap_or(&concern.id).to_string();

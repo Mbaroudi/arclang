@@ -17,8 +17,11 @@
 //! - `interface_n2`: the N² chart of components, exchanges in the cells;
 //! - `icd`: one row per exchange: ends, ports, items, protocol, bandwidth,
 //!   latency;
-//! - `elements`: any kind, the columns picked among its attributes.
+//! - `elements`: any kind, the columns picked among its attributes;
+//! - `cesam_grid`: the CESAM framework's grid, visions x aspects, the
+//!   elements of each view and how mature it is.
 
+pub mod cesam_grid;
 mod context;
 mod coverage;
 mod elements_table;
@@ -39,7 +42,7 @@ use std::collections::{BTreeMap, HashMap};
 pub use context::Context;
 
 /// The kinds of table the compiler computes, as written in `kind:`.
-pub const KINDS: [&str; 9] = ["requirements_coverage", "traceability_matrix", "allocation_matrix", "interface_n2", "icd", "elements", "realization", "partition", "schedule"];
+pub const KINDS: [&str; 10] = ["requirements_coverage", "traceability_matrix", "allocation_matrix", "interface_n2", "icd", "elements", "realization", "partition", "schedule", "cesam_grid"];
 
 /// `table "Name" { kind: requirements_coverage scope: "SA" ... }` as written.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -167,6 +170,7 @@ pub fn default_title(kind: &str) -> &'static str {
         "realization" => "Realization ladder",
         "partition" => "HW/SW partition",
         "schedule" => "Tasks and schedule",
+        "cesam_grid" => "CESAM grid",
         _ => "Elements",
     }
 }
@@ -421,6 +425,10 @@ pub fn compute_in(context: &Context, spec: &TableSpec) -> Result<Table, String> 
         }
         "schedule" => {
             let (c, a, r) = schedule::compute(context, spec)?;
+            (c, a, r, None)
+        }
+        "cesam_grid" => {
+            let (c, a, r) = cesam_grid::compute(context, spec)?;
             (c, a, r, None)
         }
         "traceability_matrix" | "allocation_matrix" | "interface_n2" => {

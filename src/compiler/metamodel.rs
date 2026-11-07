@@ -122,6 +122,10 @@ pub struct KindSpec {
     pub arcadia: &'static str,
     /// SysML v2 construct the exporter maps this kind to.
     pub sysml: &'static str,
+    /// The CESAM view the kind sits in (vision and aspect), when CESAM
+    /// places it (`compiler::cesam`).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cesam: Option<String>,
     pub doc: &'static str,
     pub attributes: Vec<AttrSpec>,
 }
@@ -292,7 +296,7 @@ fn kind(
     doc: &'static str,
     attributes: Vec<AttrSpec>,
 ) -> KindSpec {
-    KindSpec { name, layer, arcadia, sysml, doc, attributes }
+    KindSpec { name, layer, arcadia, sysml, cesam: super::cesam::kind_note(name), doc, attributes }
 }
 
 impl Metamodel {
@@ -367,15 +371,22 @@ impl Metamodel {
                     attr("reqif_id", AttrType::Text, "Identifier the requirement has in the tool it came from (ReqIF IDENTIFIER), given back on export."),
                     attr("applies_to", list(AttrType::Reference("Configuration")), "The configurations of the product line the requirement holds for; every one when absent. A case verifying it runs in one of them, and the gate wants a case in each."),
                     attr("frames", list(AttrType::Reference("Concern")), "The concerns the requirement addresses (SysML v2 `frame`)."),
+                    attr("vision", AttrType::Enum("Vision"), "CESAM vision the requirement is placed in, overriding its block (`requirements stakeholder|functional|technical`) and what satisfies it."),
                     attr("subject", AttrType::Reference("Element"), "What the requirement is about: a component, a node, a function (SysML v2 `subject`). The element shows it in its requirements compartment."),
                     attr("require", list(AttrType::Text), "Constraints the subject must meet, as expressions (`\"mass <= 1200 kg\"`; SysML v2 `require constraint`)."),
                     attr("assume", list(AttrType::Text), "Constraints taken for granted for the requirement to hold (`\"ambient >= -20 °C\"`; SysML v2 `assume constraint`)."),
                 ], safety()])),
-            kind("Concern", Layer::System, "(none: carried as a requirement)", "concern", "What a stakeholder cares about, framed by the requirements that address it. Declared in a `requirements` block: `concern \"Resists to bullets\" { stakeholders: [\"Owner\"] }`.",
+            kind("Concern", Layer::System, "(none: carried as a requirement)", "concern", "What a stakeholder cares about, framed by the requirements that address it. Declared in a `requirements` block: `concern \"Resists to bullets\" { stakeholders: [\"Owner\"] }`. The CESAM need (besoin) of a stakeholder.",
                 concat(vec![common(), vec![
                     attr("stakeholders", list(AttrType::Text), "Who has the concern (SysML v2 `stakeholder`)."),
                     attr("rationale", AttrType::Text, "Why it matters."),
                     attr("parent", AttrType::Reference("Concern"), "Concern it sits under."),
+                ]])),
+            kind("Stakeholder", Layer::System, "(none: closest OperationalEntity / OperationalActor)", "part def (stakeholder)", "Someone the system matters to (CESAM stakeholder analysis): `stakeholder \"Owner\" { interest: \"...\" }` in a `requirements` block. The concerns naming it in `stakeholders:` are its needs; the requirements framing them, its stakeholder requirements.",
+                concat(vec![common(), vec![
+                    attr("category", AttrType::Text, "Kind of stakeholder (user, customer, operator, authority, maintainer...)."),
+                    attr("interest", AttrType::Text, "What the stakeholder expects of the system."),
+                    attr("influence", AttrType::Enum("Priority"), "How much the stakeholder weighs on the decisions."),
                 ]])),
             kind("Mission", Layer::System, "Mission", "use case def", "High-level goal the system contributes to.", common()),
             kind("Capability", Layer::System, "Capability", "use case def", "Expected ability of the system. May be declared inside another capability.",
@@ -524,6 +535,7 @@ impl Metamodel {
             kind("Model", Layer::Transverse, "Project / SystemEngineering", "package", "The model itself: root of the element graph, owner of every top-level element.", vec![
                     attr("name", AttrType::Text, "Model name."),
                     attr("version", AttrType::Text, "Model version."),
+                    attr("method", AttrType::Enum("Method"), "The method the model follows: `arcadia` (by default) or `cesam`, whose methodology rules every check then reports."),
                     attr("description", AttrType::Text, "Free-text description."),
                 ]),
             kind("Type", Layer::Transverse, "(extension — closest Capella notion: REC/RPL)", "abstract part / action / port / connection / allocation def, specialized with :>", "Reusable definition: `type Name extends Base { ... }`. Declares typed attributes, ports and the attributes instances must provide. Redefinitions must keep the dimension. Types have their own namespace. A type with ports typing a port is a port definition (its ports are the ports the port holds); typing an exchange, an interface definition; with `from_kind` and `to_kind`, typing an `allocates` trace, an allocation definition.",
@@ -550,10 +562,17 @@ impl Metamodel {
             kind("StateMachine", Layer::Transverse, "StateMachine", "state def", "Modes and states of an element.",
                 concat(vec![common(), vec![
                     attr("initial", AttrType::Reference("State"), "Initial state."),
+                    attr("kind", AttrType::Enum("MachineKind"), "CESAM role of the machine: `lifecycle` (its states are the lifecycle phases), `functional_modes` or `technical_configurations`. Without it, a machine named like a lifecycle or configurations is taken as one, else as functional modes."),
+                    attr("vision", AttrType::Enum("Vision"), "CESAM vision the machine is placed in, overriding its `kind:`."),
                     attr("variables", list(AttrType::Text), "Typed variables (SysML v2 attributes): `[in|out|const] name: Type [unit] [range lo .. hi] [resolution r | format Qi.f] = initial`, Type Boolean, Integer (int32_t), Real (double) or Float (float), the unit from the unit table (`\"in voltage: Real [V]\"`, `\"out count: Integer = 0\"`). `in`: set by the caller every step. `range`, `resolution` and `format` say how the hardware holds a value when the machine is allocated to programmable logic (fixed point: the range gives the integer bits, a resolution the narrowest word with that step, a format `Qi.f` the word of i + f + 1 bits); the model itself does not clamp. See docs/embedded-c.md and docs/embedded-fpga.md."),
                     attr("equations", list(AttrType::Text), "Difference equations evaluated every step in the order written, before the transitions: `target = expression` over the variables, with the blocks `delay`, `integrator`, `pid` and the functions `min`, `max`, `abs`, `saturate`, `gain`. Typed and unit-checked."),
                 ]])),
-            kind("State", Layer::Transverse, "State / Mode", "state", "State (undergone) or mode (chosen behavior).", common()),
+            kind("State", Layer::Transverse, "State / Mode", "state", "State (undergone) or mode (chosen behavior). In CESAM terms, a state of a `lifecycle` machine is a lifecycle phase, of a `functional_modes` machine a functional mode, of a `technical_configurations` machine a technical configuration.",
+                concat(vec![common(), vec![
+                    attr("realizes", list(AttrType::Reference("State")), "For a technical configuration: the functional modes it realizes (`Machine.Mode` or the mode's name)."),
+                    attr("during", list(AttrType::Reference("State")), "For a functional mode or a technical configuration: the lifecycle phases it is available in."),
+                    attr("context", list(AttrType::Reference("Element")), "For a lifecycle phase: its operational context, the actors, entities and stakeholders around the system then."),
+                ]])),
             kind("Transition", Layer::Transverse, "StateTransition", "transition", "Transition between states.",
                 vec![
                     attr("trigger", AttrType::Text, "Triggering event."),
@@ -588,7 +607,11 @@ impl Metamodel {
                     attr("description", AttrType::Text, "Free-text description."),
                 ]),
             kind("Scenario", Layer::Transverse, "Scenario", "interaction (sequence)", "Sequence of messages between participants.",
-                concat(vec![common(), vec![attr("participants", list(AttrType::Reference("Element")), "Lifelines.")]])),
+                concat(vec![common(), vec![
+                    attr("participants", list(AttrType::Reference("Element")), "Lifelines."),
+                    attr("capability", AttrType::Reference("Element"), "The use case (mission, capability or operational capability) the scenario illustrates."),
+                    attr("vision", AttrType::Enum("Vision"), "CESAM vision the scenario is placed in, overriding its participants (functions: functional; components: constructional; else operational)."),
+                ]])),
             kind("Fragment", Layer::Transverse, "CombinedFragment", "combined fragment", "A combined fragment of a scenario: `alt`, `opt`, `loop`, `par`, `seq` or `critical`, framing the messages it holds, with its operands. Fragments nest.",
                 vec![attr("label", AttrType::Text, "The guard or the condition shown in the frame's tag.")]),
             kind("StateFragment", Layer::Transverse, "StateFragment", "state invariant", "A state, mode or function asserted on a lifeline: `state \"Lifeline\" \"Armed\" { ... }` / `function \"Lifeline\" \"Sense\" { ... }`, spanning the messages of its body (an instant without any).", common()),
@@ -604,6 +627,9 @@ impl Metamodel {
             EnumSpec { name: "Dal", values: &["DAL-A", "DAL-B", "DAL-C", "DAL-D", "DAL-E"], doc: "DO-178C design assurance level." },
             EnumSpec { name: "Sil", values: &["SIL-1", "SIL-2", "SIL-3", "SIL-4"], doc: "IEC 61508 safety integrity level." },
             EnumSpec { name: "SafetyLevel", values: &["QM", "ASIL-A", "ASIL-B", "ASIL-C", "ASIL-D", "DAL-A", "DAL-B", "DAL-C", "DAL-D", "DAL-E", "SIL-1", "SIL-2", "SIL-3", "SIL-4"], doc: "Any integrity level: ASIL (ISO 26262), DAL (DO-178C) or SIL (IEC 61508)." },
+            EnumSpec { name: "Method", values: &["arcadia", "cesam"], doc: "Systems engineering method a model follows." },
+            EnumSpec { name: "Vision", values: &["operational", "functional", "constructional"], doc: "CESAM vision an element is placed in: operational (why), functional (what), constructional (how)." },
+            EnumSpec { name: "MachineKind", values: &["lifecycle", "functional_modes", "technical_configurations"], doc: "CESAM role of a state machine: the lifecycle of the system (operational), its functional modes, or its technical configurations (constructional)." },
             EnumSpec { name: "Priority", values: &["Critical", "High", "Medium", "Low"], doc: "Requirement priority." },
             EnumSpec { name: "HazardSeverity", values: &["S0", "S1", "S2", "S3", "Catastrophic", "Hazardous", "Major", "Minor", "No Effect"], doc: "ISO 26262 severity class or DO-178C failure condition." },
             EnumSpec { name: "Exposure", values: &["E0", "E1", "E2", "E3", "E4"], doc: "ISO 26262 exposure class." },
@@ -638,6 +664,7 @@ impl Metamodel {
             relationship("Verification", "TestCase", "Requirement", "`verifies:` of a test case."),
             relationship("Annotation", "Note", "element", "`about:` of a note."),
             relationship("Mitigation", "Requirement", "Hazard", "`mitigated_by:` of a hazard."),
+            relationship("Stakeholding", "Concern", "Stakeholder", "`stakeholders:` of a concern naming a declared stakeholder."),
             relationship("ThreatApplication", "Threat", "PrimaryAsset", "`applies_to:` of a threat."),
             relationship("ThreatInvolvement", "Threat", "component, entity or actor", "`involves:` of a threat."),
             relationship("AssetMember", "PrimaryAsset", "element", "`members:` of a primary asset."),
@@ -715,7 +742,11 @@ impl Metamodel {
             }
             out.push_str(&format!("#### {}\n\n", kind.name));
             out.push_str(&format!("{}\n\n", kind.doc));
-            out.push_str(&format!("- Arcadia: `{}`\n- SysML v2: `{}`\n\n", kind.arcadia, kind.sysml));
+            out.push_str(&format!("- Arcadia: `{}`\n- SysML v2: `{}`\n", kind.arcadia, kind.sysml));
+            if let Some(cesam) = &kind.cesam {
+                out.push_str(&format!("- CESAM: {}\n", cesam));
+            }
+            out.push('\n');
             out.push_str("| Attribute | Type | Meaning |\n|---|---|---|\n");
             for attribute in &kind.attributes {
                 out.push_str(&format!("| `{}` | `{}` | {} |\n", attribute.key, attribute.ty.notation(), attribute.doc));
@@ -723,6 +754,7 @@ impl Metamodel {
             out.push('\n');
         }
 
+        out.push_str(&super::cesam::grid_markdown());
         out.push_str("## Relationships\n\n");
         out.push_str("The element graph served by the Systems Modeling API (`/api/systems-modeling`) is made of the kinds above and of these relationship types. ");
         out.push_str("A relationship whose end does not resolve is reported in the commit, never dropped.\n\n");

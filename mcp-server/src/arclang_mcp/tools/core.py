@@ -197,6 +197,25 @@ TOOLS: List[Tool] = [
         ),
     ),
     Tool(
+        name="arclang_cesam",
+        description=(
+            "The model through the CESAM framework (`arclang table --kind cesam_grid` and "
+            "`arclang check --json --method cesam`): the operational, functional and "
+            "constructional visions x requirements, states, structure, interactions, "
+            "scenarios and interfaces, the elements of each view and its maturity (gap: "
+            "nothing modelled yet, with the Capella diagram that draws it), and the CESAM "
+            "methodology advisories (`cesam.*` rules). Optional `scope`: a level (OA, SA, "
+            "LA, PA, EPBS) or an element, the system of interest."
+        ),
+        inputSchema=schema(
+            {
+                "model_path": MODEL_PATH,
+                "scope": {"type": "string", "description": "A level (OA, SA, LA, PA, EPBS) or an element: the system of interest"},
+            },
+            "model_path",
+        ),
+    ),
+    Tool(
         name="arclang_schedule",
         description=(
             "Tasks and scheduling (`arclang schedule --json`): the io_bindings of a target as "
@@ -425,6 +444,7 @@ class CoreTools:
             "arclang_export_diagram": self._export,
             "arclang_metamodel": self._metamodel,
             "arclang_review": self._review,
+            "arclang_cesam": self._cesam,
         }
 
     async def execute(self, tool_name: str, arguments: Dict[str, Any]) -> str:
@@ -549,6 +569,36 @@ class CoreTools:
             return report(title, plan)
         measured = await self.compiler.run(["table", "--kind", "partition", "--format", "md", "--", str(model)])
         return f"{report(title, plan)}\n\nMeasured so far:\n\n{measured.output.rstrip()}"
+
+    async def _cesam(self, args: Dict[str, Any]) -> str:
+        model = self._model(args)
+        grid_arguments = ["table", "--kind", "cesam_grid", "-f", "json"]
+        if args.get("scope"):
+            grid_arguments += ["--scope", str(args["scope"])]
+        grid = await self.compiler.run([*grid_arguments, "--", str(model)])
+        if not grid.ok:
+            return report(f"CESAM grid of {model.name}", grid)
+        check = await self.compiler.run(["check", "--json", "--method", "cesam", "--", str(model)])
+        try:
+            table = json.loads(grid.stdout)
+            findings = json.loads(check.stdout).get("findings", []) if check.ok else []
+        except json.JSONDecodeError as failure:
+            return f"CESAM grid of {model.name}: the compiler printed no JSON ({failure})\n\n{grid.output}"
+        tables = table if isinstance(table, list) else [table]
+        rows = tables[0].get("rows", []) if tables else []
+        views = {
+            row["id"]: {
+                key: {"status": cell.get("status"), "elements": [link["name"] for link in cell.get("links", [])]}
+                for key, cell in row.get("cells", {}).items()
+                if key not in ("vision", "question")
+            }
+            for row in rows
+        }
+        gaps = [issue for row in rows for issue in row.get("issues", [])]
+        advisories = [f for f in findings if str(f.get("rule", "")).startswith("cesam.")]
+        verdict = "complete" if not gaps and not advisories else f"{len(gaps)} view issue(s), {len(advisories)} advisory(ies)"
+        body = json.dumps({"visions": views, "issues": gaps, "advisories": advisories}, indent=2)
+        return f"CESAM grid of {model.name}: {verdict}\n\n{body}"
 
     async def _schedule(self, args: Dict[str, Any]) -> str:
         model = self._model(args)

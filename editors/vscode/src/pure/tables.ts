@@ -122,6 +122,7 @@ export const TABLE_KINDS: { kind: string; label: string; detail: string }[] = [
   { kind: 'realization', label: 'Realization ladder', detail: 'per requirement: what the simulation, SIL, PIL, HDL, the SoC, the board and the twin say, and what to run next' },
   { kind: 'schedule', label: 'Tasks and schedule', detail: 'per io_binding of a target: the task, its period, its priority, the step time measured, the worst response, whether it meets its period' },
   { kind: 'partition', label: 'HW/SW partition', detail: 'per state machine: the C on the processor and the VHDL on the logic as arclang partition measured them, what fits, what the model allocates today' },
+  { kind: 'cesam_grid', label: 'CESAM grid', detail: 'the CESAM framework: operational, functional and constructional visions x requirements, states, structure, interactions, scenarios, interfaces; the elements of each view and how mature it is' },
 ];
 
 export function isMatrix(kind: string): boolean {

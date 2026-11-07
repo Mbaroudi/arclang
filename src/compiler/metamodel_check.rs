@@ -116,6 +116,9 @@ impl<'a> Checker<'a> {
             for concern in &sa.concerns {
                 self.check_attrs("Concern", &concern.id, &concern.attributes);
             }
+            for stakeholder in &sa.stakeholders {
+                self.check_attrs("Stakeholder", &stakeholder.id, &stakeholder.attributes);
+            }
             for function in &sa.functions {
                 self.walk_system_function(function);
             }

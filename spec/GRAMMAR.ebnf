@@ -69,10 +69,14 @@ RequirementsSubtype ::= "stakeholder" | "system" | "safety" | Identifier ;
 
 RequirementDecl ::= "req" Name String? AttributeBlock          (* req REQ-001 "Title" { ... } *)
                   | "requirement" Name AttributeBlock          (* requirement "REQ-001" { ... } *)
-                  | "concern" Name AttributeBlock ;            (* concern "Driver safety" { stakeholders: [...] } *)
+                  | "concern" Name AttributeBlock              (* concern "Driver safety" { stakeholders: [...] } *)
+                  | "stakeholder" Name AttributeBlock ;        (* stakeholder "Owner" { interest: "..." } (CESAM) *)
 (* A requirement frames concerns (frames: [...]), is about a subject (subject: "LC-1")
    and requires or assumes constraints written as comparisons (require: ["mass <= 1200 kg"]).
-   `concern` is also declared in a system_analysis block. *)
+   `concern` and `stakeholder` are also declared in a system_analysis block. A concern naming a
+   declared stakeholder in `stakeholders:` is its need (CESAM). The subtypes `stakeholder`,
+   `functional` and `technical` place the requirements in the CESAM operational, functional and
+   constructional visions. *)
 
 (* ---- Operational Analysis (OA) --------------------------------------------- *)
 
@@ -472,6 +476,11 @@ TableAttribute  ::= "kind" ":" ( "requirements_coverage" | "traceability_matrix"
 (* ---- Modes & States (Arcadia transverse) -------------------------------------------------- *)
 
 StateMachineDecl ::= "state_machine" Name "{" StateMachineElement* "}" ;
+(* CESAM: `kind: lifecycle | functional_modes | technical_configurations` gives the machine its
+   role (else its name does: "... lifecycle", "... configurations"); a configuration
+   `realizes: [modes]`, a mode or configuration is available `during: [phases]`, a lifecycle
+   phase has its operational `context: [elements]`. A reference to no state is an ERROR, to a
+   state of another role a warning. *)
 StateMachineElement ::= ( "state" | "mode" ) Name StateBody?
                       | "region" Name "{" ( Attribute | ( "state" | "mode" ) Name StateBody?
                                            | "transition" Name "->" Name AttributeBlock? )* "}"

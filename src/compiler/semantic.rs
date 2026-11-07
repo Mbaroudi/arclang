@@ -686,6 +686,11 @@ impl SemanticAnalyzer {
                 let name = concern.attributes.get("name").and_then(|v| v.as_string()).map(str::to_string).unwrap_or_else(|| concern.id.clone());
                 register_element(&mut all_elements, &mut duplicate_ids, concern_id.clone(), ElementInfo::new(concern_id, name, "Concern"));
             }
+            for stakeholder in &sa.stakeholders {
+                let stakeholder_id = stakeholder.attributes.get("id").and_then(|v| v.as_string()).map(str::to_string).unwrap_or_else(|| stakeholder.id.clone());
+                let name = stakeholder.attributes.get("name").and_then(|v| v.as_string()).map(str::to_string).unwrap_or_else(|| stakeholder.id.clone());
+                register_element(&mut all_elements, &mut duplicate_ids, stakeholder_id.clone(), ElementInfo::new(stakeholder_id, name, "Stakeholder"));
+            }
             
             // Collect system components
             for comp in &sa.components {

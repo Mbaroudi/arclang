@@ -587,3 +587,27 @@ def test_version_comparison_reads_the_compilers_line():
     assert not is_at_least("arclang 4.0.0", "4.0.1")
     assert not is_at_least("arclang 1.0.0", "4.0.1")
     assert not is_at_least("something else", "4.0.1")
+
+
+@pytest.fixture
+def smart_lock(workspace):
+    """The CESAM example: every view of the grid modelled, every rule held."""
+    source = REPOSITORY / "examples" / "cesam" / "smart-lock" / "smart_lock.arc"
+    target = workspace / "smart_lock.arc"
+    shutil.copy(source, target)
+    return target
+
+
+async def test_cesam_gives_the_grid_and_the_advisories(server, smart_lock, workspace):
+    answer = await server.call_tool("arclang_cesam", {"model_path": str(smart_lock)})
+    assert answer.startswith("CESAM grid of smart_lock.arc: complete"), answer.splitlines()[0]
+    body = json.loads(answer.split("\n\n", 1)[1])
+    assert set(body["visions"]) == {"operational", "functional", "constructional"}
+    assert "Lock lifecycle" in body["visions"]["operational"]["states"]["elements"]
+    assert body["advisories"] == []
+    sparse = workspace / "sparse.arc"
+    sparse.write_text('model Sparse { method: "cesam" }\nsystem_analysis "S" { mission "Mow" { id: "MIS-1" } }\n')
+    answer = await server.call_tool("arclang_cesam", {"model_path": str(sparse), "scope": "SA"})
+    assert "view issue(s)" in answer.splitlines()[0]
+    body = json.loads(answer.split("\n\n", 1)[1])
+    assert any(a["rule"] == "cesam.mission-use-case" for a in body["advisories"])

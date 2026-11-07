@@ -317,6 +317,10 @@ pub struct SystemAnalysis {
     /// Concerns declared beside the requirements (`concern "..." { }` in a `requirements` block).
     #[serde(default)]
     pub concerns: Vec<Concern>,
+    /// Stakeholders declared beside the requirements (`stakeholder "Owner" { }`):
+    /// who has the concerns (CESAM stakeholder analysis).
+    #[serde(default)]
+    pub stakeholders: Vec<Stakeholder>,
     pub functions: Vec<SystemFunction>,
     pub components: Vec<SystemComponent>,
     pub external_actors: Vec<ExternalActor>,
@@ -436,6 +440,14 @@ pub struct Requirement {
 /// (SysML v2 `concern`): `concern "Reduce the number of special parts" { stakeholders: ["Production"] }`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Concern {
+    pub id: String,
+    pub attributes: HashMap<String, AttributeValue>,
+}
+
+/// Someone the system matters to (CESAM stakeholder analysis): `stakeholder
+/// "Owner" { interest: "..." }`. A concern names its stakeholders.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Stakeholder {
     pub id: String,
     pub attributes: HashMap<String, AttributeValue>,
 }
