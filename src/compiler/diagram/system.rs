@@ -102,8 +102,13 @@ pub(super) fn build(model: &Model) -> Option<(Diagram, Vec<String>)> {
             builder.add_chain_graph(&chain.id, &chain.name, &chain.involves, &chain.controls, &chain.sequences);
         }
     }
+    // A `requirements` block is held as a system analysis too: the title is
+    // the first block that analyses the system, not the requirements' name.
+    let analyses = model.system_analysis.iter().filter(|sa| {
+        !(sa.functions.is_empty() && sa.components.is_empty() && sa.external_actors.is_empty() && sa.functional_exchanges.is_empty())
+    });
     builder.finish(view_title(
         ViewKind::Sab,
-        model.system_analysis.iter().map(|sa| sa.name.clone()),
+        analyses.map(|sa| sa.name.clone()).chain(model.system_analysis.iter().map(|sa| sa.name.clone())),
     ))
 }

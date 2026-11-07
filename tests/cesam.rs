@@ -300,7 +300,7 @@ fn a_cell_counts_its_elements_per_arcadia_level() {
     let table = grid(MODEL);
     let functional = table.rows.iter().find(|r| r.id == "functional").unwrap();
     let text = &functional.cells["structure"].text;
-    assert!(text.starts_with("4 (SA 2, LA 2) · "), "{text}");
+    assert_eq!(text, "4 (SA 2, LA 2)");
 }
 
 #[test]

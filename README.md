@@ -59,7 +59,9 @@ the long-term goal.
   phases, functional modes and technical configurations tied together; the
   method's rules (`arclang check --lint --method cesam`, the gate of a model
   declaring `method: cesam`); the CESAM diagram set (`arclang diagram --view
-  cesam`); a starter model (`arclang new <name> --template cesam`).
+  cesam`); a starter model (`arclang new <name> --template cesam`). The
+  [tutorial](docs/cesam-tutorial.md) fills a model with holes in nine
+  exercises, each checked by the compiler.
 - **VS Code extension** (`editors/vscode/`, on the
   [Marketplace](https://marketplace.visualstudio.com/items?itemName=arclang.arclang)
   and [Open VSX](https://open-vsx.org/extension/arclang/arclang)): a model

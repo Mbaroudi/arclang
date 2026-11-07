@@ -13,9 +13,6 @@ use super::{Cell, Column, Link, Row, TableSpec};
 use crate::compiler::cesam::{self, Aspect, Classifier, Placement, Vision, ASPECTS, VISIONS};
 use std::collections::{BTreeMap, HashMap};
 
-/// Names shown in a cell's text before `…`.
-const NAMES_SHOWN: usize = 6;
-
 fn column(key: &str) -> Column {
     let label = match key {
         "vision" => "Vision".to_string(),
@@ -97,13 +94,11 @@ fn cell_of(context: &Context, vision: Vision, aspect: Aspect, entries: &[(Link, 
         return Cell::text("—").with_status("gap");
     }
     let flagged: Vec<String> = entries.iter().filter_map(|(link, index)| index.filter(|&i| !context.blockers_of(i).is_empty()).map(|_| link.name.clone())).collect();
-    let mut names: Vec<String> = entries.iter().take(NAMES_SHOWN).map(|(l, _)| l.name.clone()).collect();
-    if entries.len() > NAMES_SHOWN {
-        names.push("…".to_string());
-    }
     let links: Vec<Link> = entries.iter().map(|(l, _)| l.clone()).collect();
     let mut cell = Cell::links(links);
-    cell.text = format!("{}{} · {}", entries.len(), levels_of(context, entries), names.join(", "));
+    // The cell's own text: how much the view holds and how deep it goes;
+    // the exports print it before the names.
+    cell.text = format!("{}{}", entries.len(), levels_of(context, entries));
     if flagged.is_empty() {
         cell.with_status("ok")
     } else {

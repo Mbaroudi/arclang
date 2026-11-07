@@ -37,6 +37,9 @@ compiler when the site is built.
   operational, functional and constructional views computed from the Arcadia
   layers, stakeholders, lifecycle, modes and configurations, the method's
   rules (`arclang table --kind cesam_grid`, `check --method cesam`).
+- [cesam-tutorial.md](cesam-tutorial.md): the CESAM tutorial, nine exercises
+  on a model with holes (`examples/cesam/exercises/`), each command run by a
+  test, with screenshots of the grid, the lint and the diagram set.
 - [MIGRATION_4.0.md](MIGRATION_4.0.md): moving a model from 3.x to 4.0.
 - [VERSIONING.md](VERSIONING.md): what a major, minor and patch release may change.
 - [qualification/](qualification/): tool-qualification support kit.
