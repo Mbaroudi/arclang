@@ -9,7 +9,7 @@ comments, declare the next Arcadia level from the current one, import SysML
 v2, Capella or ReqIF, and export (SysML v2, Capella, ReqIF, C headers,
 Protobuf).
 
-Version 4.11.0, for the `arclang` compiler built from this repository (4.3.0 or
+Version 4.12.0, for the `arclang` compiler built from this repository (4.3.0 or
 later: it needs `workbench` and `edit --request`, on top of `check --json`,
 `rules`, `transition` and `import -f sysml`; `arclang_partition` and
 `arclang_schedule` need 4.10.0 or later). Python 3.10 or later.

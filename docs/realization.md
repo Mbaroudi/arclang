@@ -129,7 +129,7 @@ cache as if it had run here: the ladder, `check` and `realize` read it the
 same way. The command says so first:
 
 ```text
-pil: no west, renode on this host: running in the Docker image ghcr.io/mbaroudi/arclang-studio:4.11.0 (/work/models/window mounted at /work)
+pil: no west, renode on this host: running in the Docker image ghcr.io/mbaroudi/arclang-studio:4.12.0 (/work/models/window mounted at /work)
 ```
 
 The container runs as this host's user, so what it writes beside the model

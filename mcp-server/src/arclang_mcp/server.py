@@ -50,7 +50,7 @@ REFERENCE_MODEL_URI = "arclang://reference-model"
 METAMODEL_URI = "arclang://metamodel"
 GRAMMAR_URI = "arclang://grammar"
 SERVER_NAME = "arclang-mcp"
-__version__ = "4.11.0"
+__version__ = "4.12.0"
 # The oldest `arclang --version` whose command line this server is written
 # for (`workbench` and `edit --request`, on top of `check --json`, `rules`,
 # `transition`, `import -f sysml`). An older binary accepts another language

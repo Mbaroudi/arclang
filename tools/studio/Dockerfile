@@ -1,12 +1,12 @@
 # ArcLang Studio: VS Code in the browser (openvscode-server) with the ArcLang
 # extension, the compiler and every tool it drives: OpenModelica with the
-# Modelica Standard Library, the C compilers, Zephyr and Renode (PIL), GHDL,
+# Modelica Standard Library and OMSimulator (FMI/SSP co-simulation), the C compilers, Zephyr and Renode (PIL), GHDL,
 # Yosys and nextpnr (HDL), LiteX and Verilator (the SoC). The same image is
 # the dev container (.devcontainer), the image the compiler relays the
 # embedded stages to when this computer lacks their tools, and what a
 # server runs for a remote team: one environment, local or remote.
 #
-#   docker run --rm -p 127.0.0.1:3000:3000 -v "$PWD":/home/arclang/workspace ghcr.io/mbaroudi/arclang-studio:4.11.0
+#   docker run --rm -p 127.0.0.1:3000:3000 -v "$PWD":/home/arclang/workspace ghcr.io/mbaroudi/arclang-studio:4.12.0
 #
 # Build (the chain's images first: tools/studio/build.sh does it all):
 #   docker build -f tools/studio/Dockerfile -t arclang-studio:dev .
@@ -40,12 +40,12 @@ ARG USER_UID=1000
 COPY --from=soc /opt/renode /opt/renode
 RUN ln -sf /opt/renode/renode /usr/local/bin/renode && renode --version >/dev/null
 
-# OpenModelica, from its Debian repository.
+# OpenModelica and OMSimulator (arclang cosim), from its Debian repository.
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends gnupg \
     && curl -fsSL https://build.openmodelica.org/apt/openmodelica.asc | gpg --dearmor -o /usr/share/keyrings/openmodelica.gpg \
     && echo "deb [signed-by=/usr/share/keyrings/openmodelica.gpg] https://build.openmodelica.org/omc/builds/linux/releases/${OPENMODELICA_VERSION}/ bookworm release" > /etc/apt/sources.list.d/openmodelica.list \
-    && apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends omc \
-    && rm -rf /var/lib/apt/lists/* && omc --version
+    && apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends omc omsimulator \
+    && rm -rf /var/lib/apt/lists/* && omc --version && OMSimulator --version
 
 # openvscode-server.
 RUN set -e; case "$(dpkg --print-architecture)" in amd64) a=x64;; arm64) a=arm64;; *) exit 1;; esac; \
