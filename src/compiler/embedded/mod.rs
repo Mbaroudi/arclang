@@ -22,6 +22,8 @@ pub mod binding;
 pub mod case;
 pub mod cexpr;
 pub mod cgen;
+#[cfg(feature = "native")]
+pub mod cosim;
 pub mod docker;
 pub mod fixed;
 pub mod fmu;

@@ -11,6 +11,7 @@
 //
 //   arclang sil speed_monitor.arc      the C of both, back to back with the model
 //   arclang hdl speed_monitor.arc      the block as VHDL, bit-exact with its fixed-point C
+//   arclang cosim speed_monitor.arc    both as one FMU in OMSimulator (docs/cosimulation.md)
 
 model SpeedMonitor {
     metadata {

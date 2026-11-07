@@ -910,9 +910,10 @@ problem in the FMU.
 
 Not done: an FMI 3.0 export (an FMU from another tool is taken in 3.0 as
 in 2.0, see "An FMU from another tool"; no consumer asks for a 3.0 export
-yet), and a run in OpenModelica: 1.27's `importFMU` takes only FMI 2.0
-Model Exchange FMUs, and the `openmodelica/openmodelica:v1.27.1-minimal`
-image has no OMSimulator, which would run a co-simulation FMU. fmpy's
+yet), and a run in OpenModelica's `importFMU`, which takes only FMI 2.0 Model
+Exchange FMUs. The FMU runs in OMSimulator, OpenModelica's FMI and SSP
+master, with its plant and its inputs: `arclang cosim`, see
+[cosimulation.md](cosimulation.md). fmpy's
 `simulate_fmu` samples discrete inputs a step late at the breakpoints of an
 input table, which is why the check drives `fmi2DoStep` itself.
 

@@ -12,6 +12,7 @@
 //   arclang export examples/energy/battery-charger/battery_charger.arc -f c -o build/charger
 //   arclang sil    examples/energy/battery-charger/battery_charger.arc
 //   arclang hdl    examples/energy/battery-charger/battery_charger.arc --synth
+//   arclang cosim  examples/energy/battery-charger/battery_charger.arc   (FMUs and SSP in OMSimulator, docs/cosimulation.md)
 // ============================================================================
 
 model BatteryCharger {

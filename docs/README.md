@@ -27,6 +27,9 @@ compiler when the site is built.
 - [embedded-c.md](embedded-c.md): the state machines as portable C99, the
   I/O interface and its bindings, software in the loop against the model
   (`arclang export -f c`, `arclang sil`).
+- [cosimulation.md](cosimulation.md): the executed cases as a standard FMI
+  co-simulation in OMSimulator, the behavior's FMU, its plant's and its
+  inputs in an SSP package, judged against the model (`arclang cosim`).
 - [realization.md](realization.md): the realization ladder, what each stage
   (simulation, SIL, PIL, HDL, SoC, board, twin) says of each requirement from
   the verdicts the runs cached, in `check`, the tables and the workbench.

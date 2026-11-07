@@ -83,7 +83,7 @@ pub fn variables(plan: &Plan) -> Vec<Variable> {
                 write: Some((format!("inst->inputs.{i}.{}", c.ident), "bool")),
             });
         }
-        for (n, v) in m.program().inputs() {
+        for (n, v) in m.program().inputs().filter(|(n, _)| !is_wired(m, *n)) {
             let field = format!("inst->inputs.{i}.{}", m.variables[n].ident);
             out.push(Variable {
                 name: format!("{i}.{}", m.variables[n].member),
@@ -105,14 +105,14 @@ pub fn variables(plan: &Plan) -> Vec<Variable> {
         for a in &m.actions {
             out.push(Variable { name: format!("{i}.{}", a.member), reference: 0, input: false, ty: "Integer", start: None, description: format!("action \"{}\": times run in the last step", a.text), read: format!("inst->outputs.{i}.{}", a.ident), write: None });
         }
-        for (n, v) in m.program().variables.iter().enumerate().filter(|(_, v)| v.direction != Direction::In) {
+        for (n, v) in m.program().variables.iter().enumerate().filter(|(n, v)| v.direction != Direction::In || is_wired(m, *n)) {
             out.push(Variable {
                 name: format!("{i}.{}", m.variables[n].member),
                 reference: 0,
                 input: false,
                 ty: fmi_type(v.ty),
                 start: None,
-                description: format!("variable {}", v.text),
+                description: if is_wired(m, n) { format!("in variable {}, read from another machine inside the FMU", v.text) } else { format!("variable {}", v.text) },
                 read: format!("inst->outputs.{i}.{}", m.variables[n].ident),
                 write: None,
             });
@@ -125,6 +125,12 @@ pub fn variables(plan: &Plan) -> Vec<Variable> {
         v.reference = k as u32;
     }
     out
+}
+
+/// An `in` variable read from another machine (`from "M".y`): the FMU
+/// computes it, so it is an output (its value after the step), not an input.
+fn is_wired(m: &super::plan::MachinePlan, variable: usize) -> bool {
+    m.wires.iter().any(|w| w.input == variable)
 }
 
 fn start_of(value: crate::compiler::execution::expr::Value) -> String {
@@ -241,6 +247,8 @@ pub fn wrapper(plan: &Plan, guid: &str) -> String {
     let _ = writeln!(out, "    inst->time = 0.0;\n    inst->next = 0UL;\n}}\n");
     // One step of the behavior, the events posted on the first.
     let _ = writeln!(out, "static void step(instance *inst, bool first)\n{{");
+    // A machine without events (a data-flow block) never reads `first`.
+    let _ = writeln!(out, "    (void)first;");
     let mut slot = 0usize;
     for m in &plan.machines {
         if m.events.is_empty() {
@@ -467,7 +475,7 @@ pub fn case_csv(plan: &Plan, vectors: &Vectors, table: &Table, machine: usize) -
             for c in 0..mp.conditions.len() {
                 let _ = write!(csv, ",{}", vectors.conditions[n][c][k] as u8);
             }
-            for (i, _) in mp.program().inputs() {
+            for (i, _) in mp.program().inputs().filter(|(i, _)| !is_wired(mp, *i)) {
                 let _ = write!(csv, ",{}", vectors.values[n][i][k].number());
             }
         }
