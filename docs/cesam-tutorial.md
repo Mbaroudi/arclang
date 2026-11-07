@@ -246,6 +246,8 @@ $ arclang check examples/cesam/exercises/solutions/after_ex4.arc --lint | sed -n
   [cesam.requirement-vision] requirement 'FUN-2' has no CESAM vision: declare it in `requirements stakeholder|functional|technical`, write `vision:`, or trace what satisfies it
 ```
 
+![The three state machines side by side, as the viewer draws them: the lifecycle (operational vision), the functional modes and the technical configurations, each realizing a state of the vision above](images/cesam-states.webp)
+
 **A tie to nothing is an error.** Write `realizes: ["Lock modes.Sleeping"]` on a
 configuration and the model no longer compiles; so does a `kind:` outside
 `lifecycle`, `functional_modes`, `technical_configurations` (and their French
@@ -384,6 +386,8 @@ four scenarios). The page needs no network.
 ![The stakeholders and use cases diagram: the mission, its two use cases, the actors each involves](images/cesam-use-cases.webp)
 
 ![The constructional interactions: the radio module, the controller and the motor drive with their allocated functions and the exchanges between them](images/cesam-constructional.webp)
+
+![One model, three visions: the stakeholders and use cases, the functional environment and the constructional interactions of the smart lock, drawn at the same scale](images/cesam-visions.webp)
 
 **What to look for.** Follow the credential across the visions: in the
 operational scenarios the resident approaches the door; in the functional
