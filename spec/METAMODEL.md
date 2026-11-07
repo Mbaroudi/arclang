@@ -14,6 +14,7 @@ Human or external system interacting with the system.
 
 - Arcadia: `OperationalActor`
 - SysML v2: `part def (actor)`
+- CESAM: Operational vision · Static elements (Stakeholders and use cases)
 
 | Attribute | Type | Meaning |
 |---|---|---|
@@ -34,6 +35,7 @@ Organization or system of the operational world.
 
 - Arcadia: `Entity`
 - SysML v2: `part def`
+- CESAM: Operational vision · Static elements (Stakeholders and use cases)
 
 | Attribute | Type | Meaning |
 |---|---|---|
@@ -63,6 +65,7 @@ Expected ability of the operational world. May be declared inside another operat
 
 - Arcadia: `OperationalCapability`
 - SysML v2: `use case def`
+- CESAM: Operational vision · Static elements (Stakeholders and use cases)
 
 | Attribute | Type | Meaning |
 |---|---|---|
@@ -82,6 +85,7 @@ Activity performed by an entity or actor.
 
 - Arcadia: `OperationalActivity`
 - SysML v2: `action def`
+- CESAM: Operational vision · Interactions (Environment diagram)
 
 | Attribute | Type | Meaning |
 |---|---|---|
@@ -109,6 +113,7 @@ Interaction between operational entities.
 
 - Arcadia: `CommunicationMean / OperationalExchange`
 - SysML v2: `connect`
+- CESAM: Operational vision · Interactions (Environment diagram)
 
 | Attribute | Type | Meaning |
 |---|---|---|
@@ -133,6 +138,7 @@ Ordered path of activities fulfilling a capability.
 
 - Arcadia: `OperationalProcess`
 - SysML v2: `action def (sequence)`
+- CESAM: Operational vision · Scenarios (Operational scenarios)
 
 | Attribute | Type | Meaning |
 |---|---|---|
@@ -153,6 +159,7 @@ Stakeholder, system or safety requirement.
 
 - Arcadia: `Requirement`
 - SysML v2: `requirement`
+- CESAM: Functional vision · Expected properties (Functional requirements) by default; placed by its `vision:`, else its block (`requirements stakeholder|functional|technical`), else what satisfies it
 
 | Attribute | Type | Meaning |
 |---|---|---|
@@ -184,6 +191,7 @@ What a stakeholder cares about, framed by the requirements that address it. Decl
 
 - Arcadia: `(none: carried as a requirement)`
 - SysML v2: `concern`
+- CESAM: Operational vision · Expected properties (Stakeholder requirements)
 
 | Attribute | Type | Meaning |
 |---|---|---|
@@ -202,6 +210,7 @@ High-level goal the system contributes to.
 
 - Arcadia: `Mission`
 - SysML v2: `use case def`
+- CESAM: Operational vision · Static elements (Stakeholders and use cases)
 
 | Attribute | Type | Meaning |
 |---|---|---|
@@ -217,6 +226,7 @@ Expected ability of the system. May be declared inside another capability.
 
 - Arcadia: `Capability`
 - SysML v2: `use case def`
+- CESAM: Operational vision · Static elements (Stakeholders and use cases)
 
 | Attribute | Type | Meaning |
 |---|---|---|
@@ -238,6 +248,7 @@ Function the system performs.
 
 - Arcadia: `SystemFunction`
 - SysML v2: `action def`
+- CESAM: Functional vision · Static elements (Functional breakdown)
 
 | Attribute | Type | Meaning |
 |---|---|---|
@@ -265,6 +276,7 @@ Oriented port of a function (strictly in XOR out).
 
 - Arcadia: `FunctionInputPort / FunctionOutputPort`
 - SysML v2: `in/out item`
+- CESAM: Functional vision · Interfaces (flows) (Functional interfaces)
 
 | Attribute | Type | Meaning |
 |---|---|---|
@@ -277,6 +289,7 @@ Data flow between function ports.
 
 - Arcadia: `FunctionalExchange`
 - SysML v2: `flow`
+- CESAM: Functional vision · Interactions (Functional interactions)
 
 | Attribute | Type | Meaning |
 |---|---|---|
@@ -301,6 +314,7 @@ External actor at system level.
 
 - Arcadia: `SystemActor`
 - SysML v2: `part def (actor)`
+- CESAM: Operational vision · Static elements (Stakeholders and use cases)
 
 | Attribute | Type | Meaning |
 |---|---|---|
@@ -320,6 +334,7 @@ The system or one of its external components.
 
 - Arcadia: `SystemComponent`
 - SysML v2: `part def`
+- CESAM: Operational vision · Interactions (Environment diagram)
 
 | Attribute | Type | Meaning |
 |---|---|---|
@@ -348,6 +363,7 @@ Ordered functions, exchanges and chains realizing one dataflow path; `control` n
 
 - Arcadia: `FunctionalChain`
 - SysML v2: `action def (sequence)`
+- CESAM: Functional vision · Scenarios (Functional scenarios)
 
 | Attribute | Type | Meaning |
 |---|---|---|
@@ -366,6 +382,7 @@ Control node of a functional chain: `control and|or|iterate "Name"`, joined to t
 
 - Arcadia: `ControlNode`
 - SysML v2: `fork / join / decision / loop node`
+- CESAM: Functional vision · Scenarios (Functional scenarios)
 
 | Attribute | Type | Meaning |
 |---|---|---|
@@ -382,6 +399,7 @@ Control node of a functional chain: `control and|or|iterate "Name"`, joined to t
 
 - Arcadia: `SequenceLink`
 - SysML v2: `succession`
+- CESAM: Functional vision · Scenarios (Functional scenarios)
 
 | Attribute | Type | Meaning |
 |---|---|---|
@@ -400,6 +418,7 @@ Behavioral building block, may be nested. In a product line, a component `variat
 
 - Arcadia: `LogicalComponent`
 - SysML v2: `part def + part`
+- CESAM: Constructional vision · Static elements (Product breakdown)
 
 | Attribute | Type | Meaning |
 |---|---|---|
@@ -431,6 +450,7 @@ Function of the logical level, declared inside the component that performs it (o
 
 - Arcadia: `LogicalFunction`
 - SysML v2: `action def (perform)`
+- CESAM: Functional vision · Static elements (Functional breakdown)
 
 | Attribute | Type | Meaning |
 |---|---|---|
@@ -458,6 +478,7 @@ Oriented port of a component (in, out, inout); it may hold ports, named `Owner.p
 
 - Arcadia: `ComponentPort`
 - SysML v2: `port`
+- CESAM: Constructional vision · Interfaces (flows) (Constructional interfaces)
 
 | Attribute | Type | Meaning |
 |---|---|---|
@@ -474,6 +495,7 @@ Contract between two components.
 
 - Arcadia: `Interface`
 - SysML v2: `interface def`
+- CESAM: Constructional vision · Interfaces (flows) (Constructional interfaces)
 
 | Attribute | Type | Meaning |
 |---|---|---|
@@ -498,6 +520,7 @@ Exchange between component ports; with `ends`, between more than two.
 
 - Arcadia: `ComponentExchange`
 - SysML v2: `connect`
+- CESAM: Constructional vision · Interactions (Constructional interactions)
 
 | Attribute | Type | Meaning |
 |---|---|---|
@@ -523,6 +546,7 @@ Realization of a system capability by components. May be declared inside another
 
 - Arcadia: `CapabilityRealization`
 - SysML v2: `use case def`
+- CESAM: Operational vision · Static elements (Stakeholders and use cases)
 
 | Attribute | Type | Meaning |
 |---|---|---|
@@ -545,6 +569,7 @@ Hardware node hosting behavior components.
 
 - Arcadia: `PhysicalComponent (NODE)`
 - SysML v2: `part def + part`
+- CESAM: Constructional vision · Static elements (Product breakdown)
 
 | Attribute | Type | Meaning |
 |---|---|---|
@@ -582,6 +607,7 @@ Unoriented physical connector.
 
 - Arcadia: `PhysicalPort`
 - SysML v2: `port`
+- CESAM: Constructional vision · Interfaces (flows) (Constructional interfaces)
 
 | Attribute | Type | Meaning |
 |---|---|---|
@@ -596,6 +622,7 @@ Software/behavior deployed on a node; declares the physical functions it perform
 
 - Arcadia: `PhysicalComponent (BEHAVIOR)`
 - SysML v2: `part`
+- CESAM: Constructional vision · Static elements (Product breakdown)
 
 | Attribute | Type | Meaning |
 |---|---|---|
@@ -619,6 +646,7 @@ Function of the physical level, declared inside the behavior component that perf
 
 - Arcadia: `PhysicalFunction`
 - SysML v2: `action def (perform)`
+- CESAM: Functional vision · Static elements (Functional breakdown)
 
 | Attribute | Type | Meaning |
 |---|---|---|
@@ -646,6 +674,7 @@ Hardware part of a node.
 
 - Arcadia: `PhysicalComponent (NODE, nested)`
 - SysML v2: `part`
+- CESAM: Constructional vision · Static elements (Product breakdown)
 
 | Attribute | Type | Meaning |
 |---|---|---|
@@ -669,6 +698,7 @@ Physical medium between nodes or ports.
 
 - Arcadia: `PhysicalLink`
 - SysML v2: `connect (binding)`
+- CESAM: Constructional vision · Interactions (Constructional interactions)
 
 | Attribute | Type | Meaning |
 |---|---|---|
@@ -696,6 +726,7 @@ Message routed over a link.
 
 - Arcadia: `ComponentExchange (physical)`
 - SysML v2: `flow`
+- CESAM: Constructional vision · Interactions (Constructional interactions)
 
 | Attribute | Type | Meaning |
 |---|---|---|
@@ -722,6 +753,7 @@ Allocation of a logical component to a node.
 
 - Arcadia: `ComponentDeploymentLink`
 - SysML v2: `allocate`
+- CESAM: Constructional vision · Interactions (Constructional interactions)
 
 | Attribute | Type | Meaning |
 |---|---|---|
@@ -737,6 +769,7 @@ Ordered links routing an exchange.
 
 - Arcadia: `PhysicalPath`
 - SysML v2: `connect (sequence)`
+- CESAM: Constructional vision · Interactions (Constructional interactions)
 
 | Attribute | Type | Meaning |
 |---|---|---|
@@ -755,6 +788,7 @@ Top configuration item.
 
 - Arcadia: `ConfigurationItem (SYSTEM)`
 - SysML v2: `part def`
+- CESAM: Constructional vision · Static elements (Product breakdown)
 
 | Attribute | Type | Meaning |
 |---|---|---|
@@ -774,6 +808,7 @@ Subsystem configuration item.
 
 - Arcadia: `ConfigurationItem (CS)`
 - SysML v2: `part def`
+- CESAM: Constructional vision · Static elements (Product breakdown)
 
 | Attribute | Type | Meaning |
 |---|---|---|
@@ -793,6 +828,7 @@ Leaf configuration item or assembly.
 
 - Arcadia: `ConfigurationItem (HW/SW)`
 - SysML v2: `part def`
+- CESAM: Constructional vision · Static elements (Product breakdown)
 
 | Attribute | Type | Meaning |
 |---|---|---|
@@ -824,6 +860,7 @@ Structured data element; every attribute but `id`, `description` and `extends` i
 
 - Arcadia: `Class`
 - SysML v2: `attribute def`
+- CESAM: Functional vision · Interfaces (flows) (Functional interfaces) by default; placed by its `vision:`, else the exchanges it types
 
 | Attribute | Type | Meaning |
 |---|---|---|
@@ -840,6 +877,7 @@ Association between two classes, as an element of its own; `from` owns the navig
 
 - Arcadia: `Association`
 - SysML v2: `connection def`
+- CESAM: Functional vision · Interfaces (flows) (Functional interfaces) by default; placed by its `vision:`, else the exchanges it types
 
 | Attribute | Type | Meaning |
 |---|---|---|
@@ -860,6 +898,7 @@ Enumerated data type.
 
 - Arcadia: `Enumeration`
 - SysML v2: `enum def`
+- CESAM: Functional vision · Interfaces (flows) (Functional interfaces) by default; placed by its `vision:`, else the exchanges it types
 
 | Attribute | Type | Meaning |
 |---|---|---|
@@ -876,6 +915,7 @@ Primitive data type.
 
 - Arcadia: `DataType`
 - SysML v2: `attribute def`
+- CESAM: Functional vision · Interfaces (flows) (Functional interfaces) by default; placed by its `vision:`, else the exchanges it types
 
 | Attribute | Type | Meaning |
 |---|---|---|
@@ -893,6 +933,7 @@ Set of data elements exchanged together.
 
 - Arcadia: `ExchangeItem`
 - SysML v2: `item def`
+- CESAM: Functional vision · Interfaces (flows) (Functional interfaces) by default; placed by its `vision:`, else the exchanges it types
 
 | Attribute | Type | Meaning |
 |---|---|---|
@@ -1166,6 +1207,7 @@ Modes and states of an element.
 
 - Arcadia: `StateMachine`
 - SysML v2: `state def`
+- CESAM: Functional vision · States (Functional modes) by default; placed by the machine's `kind:` (`lifecycle`, `functional_modes`, `technical_configurations`) or `vision:`
 
 | Attribute | Type | Meaning |
 |---|---|---|
@@ -1184,6 +1226,7 @@ State (undergone) or mode (chosen behavior).
 
 - Arcadia: `State / Mode`
 - SysML v2: `state`
+- CESAM: Functional vision · States (Functional modes) by default; placed by the machine's `kind:` (`lifecycle`, `functional_modes`, `technical_configurations`) or `vision:`
 
 | Attribute | Type | Meaning |
 |---|---|---|
@@ -1199,6 +1242,7 @@ Transition between states.
 
 - Arcadia: `StateTransition`
 - SysML v2: `transition`
+- CESAM: Functional vision · States (Functional modes) by default; placed by the machine's `kind:` (`lifecycle`, `functional_modes`, `technical_configurations`) or `vision:`
 
 | Attribute | Type | Meaning |
 |---|---|---|
@@ -1252,6 +1296,7 @@ Sequence of messages between participants.
 
 - Arcadia: `Scenario`
 - SysML v2: `interaction (sequence)`
+- CESAM: Operational vision · Scenarios (Operational scenarios) by default; placed by the scenario's `vision:`, else its participants (functions: functional; components: constructional)
 
 | Attribute | Type | Meaning |
 |---|---|---|
@@ -1268,6 +1313,7 @@ A combined fragment of a scenario: `alt`, `opt`, `loop`, `par`, `seq` or `critic
 
 - Arcadia: `CombinedFragment`
 - SysML v2: `combined fragment`
+- CESAM: Operational vision · Scenarios (Operational scenarios) by default; placed by the scenario's `vision:`, else its participants (functions: functional; components: constructional)
 
 | Attribute | Type | Meaning |
 |---|---|---|
@@ -1279,6 +1325,7 @@ A state, mode or function asserted on a lifeline: `state "Lifeline" "Armed" { ..
 
 - Arcadia: `StateFragment`
 - SysML v2: `state invariant`
+- CESAM: Operational vision · Scenarios (Operational scenarios) by default; placed by the scenario's `vision:`, else its participants (functions: functional; components: constructional)
 
 | Attribute | Type | Meaning |
 |---|---|---|
@@ -1294,11 +1341,37 @@ Message between two participants.
 
 - Arcadia: `SequenceMessage`
 - SysML v2: `message`
+- CESAM: Operational vision · Scenarios (Operational scenarios) by default; placed by the scenario's `vision:`, else its participants (functions: functional; components: constructional)
 
 | Attribute | Type | Meaning |
 |---|---|---|
 | `type` | `enum MessageKind` | sync | async. |
 | `timing` | `quantity<time>` | Timing constraint. |
+
+## CESAM views
+
+CESAM (CESAMES Systems Architecting Method) studies a system under three visions, each seen through six aspects. Every element and exchange of a model is placed in one cell (the `CESAM:` line of each kind above); `arclang table --kind cesam_grid` computes the grid of a model, the elements of each view and how mature it is.
+
+| Vision | Aspect | CESAM view | Capella diagrams |
+|---|---|---|---|
+| Operational vision | Expected properties | Stakeholder requirements | requirements (stakeholder) |
+| Operational vision | States | Lifecycle | [M&S] Mode State Machine |
+| Operational vision | Static elements | Stakeholders and use cases | [OEBD] Operational Entity Breakdown, [CSA] Contextual System Actors, [MCB] Mission Capabilities Blank |
+| Operational vision | Interactions | Environment diagram | [OAB] Operational Architecture Blank, [SAB] System Architecture Blank |
+| Operational vision | Scenarios | Operational scenarios | [ES] Exchange Scenario |
+| Operational vision | Interfaces (flows) | Operational interfaces | [CDB] Class Diagram Blank |
+| Functional vision | Expected properties | Functional requirements | requirements (system) |
+| Functional vision | States | Functional modes | [M&S] Mode State Machine |
+| Functional vision | Static elements | Functional breakdown | [SFBD] System, [LFBD] Logical, [PFBD] Physical Function Breakdown |
+| Functional vision | Interactions | Functional interactions | [SDFB] System, [LDFB] Logical, [PDFB] Physical Data Flow Blank |
+| Functional vision | Scenarios | Functional scenarios | [FS] Functional Scenario, functional chains |
+| Functional vision | Interfaces (flows) | Functional interfaces | [CDB] Class Diagram Blank |
+| Constructional vision | Expected properties | Technical requirements | requirements (technical) |
+| Constructional vision | States | Technical configurations | [M&S] Mode State Machine |
+| Constructional vision | Static elements | Product breakdown | [LCBD] Logical, [PCBD] Physical Component Breakdown, EPBS |
+| Constructional vision | Interactions | Constructional interactions | [LAB] Logical, [PAB] Physical Architecture Blank |
+| Constructional vision | Scenarios | Constructional scenarios | [ES] Exchange Scenario |
+| Constructional vision | Interfaces (flows) | Constructional interfaces | [CDB] Class Diagram Blank |
 
 ## Relationships
 

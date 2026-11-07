@@ -122,6 +122,10 @@ pub struct KindSpec {
     pub arcadia: &'static str,
     /// SysML v2 construct the exporter maps this kind to.
     pub sysml: &'static str,
+    /// The CESAM view the kind sits in (vision and aspect), when CESAM
+    /// places it (`compiler::cesam`).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cesam: Option<String>,
     pub doc: &'static str,
     pub attributes: Vec<AttrSpec>,
 }
@@ -292,7 +296,7 @@ fn kind(
     doc: &'static str,
     attributes: Vec<AttrSpec>,
 ) -> KindSpec {
-    KindSpec { name, layer, arcadia, sysml, doc, attributes }
+    KindSpec { name, layer, arcadia, sysml, cesam: super::cesam::kind_note(name), doc, attributes }
 }
 
 impl Metamodel {
@@ -715,7 +719,11 @@ impl Metamodel {
             }
             out.push_str(&format!("#### {}\n\n", kind.name));
             out.push_str(&format!("{}\n\n", kind.doc));
-            out.push_str(&format!("- Arcadia: `{}`\n- SysML v2: `{}`\n\n", kind.arcadia, kind.sysml));
+            out.push_str(&format!("- Arcadia: `{}`\n- SysML v2: `{}`\n", kind.arcadia, kind.sysml));
+            if let Some(cesam) = &kind.cesam {
+                out.push_str(&format!("- CESAM: {}\n", cesam));
+            }
+            out.push('\n');
             out.push_str("| Attribute | Type | Meaning |\n|---|---|---|\n");
             for attribute in &kind.attributes {
                 out.push_str(&format!("| `{}` | `{}` | {} |\n", attribute.key, attribute.ty.notation(), attribute.doc));
@@ -723,6 +731,7 @@ impl Metamodel {
             out.push('\n');
         }
 
+        out.push_str(&super::cesam::grid_markdown());
         out.push_str("## Relationships\n\n");
         out.push_str("The element graph served by the Systems Modeling API (`/api/systems-modeling`) is made of the kinds above and of these relationship types. ");
         out.push_str("A relationship whose end does not resolve is reported in the commit, never dropped.\n\n");

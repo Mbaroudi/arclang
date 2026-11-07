@@ -9,6 +9,7 @@ pub mod multiplicity;
 pub mod constraint;
 pub mod types;
 pub mod elements;
+pub mod cesam;
 pub mod metamodel;
 pub mod metamodel_check;
 pub mod spatial;

@@ -28,7 +28,7 @@ pub struct TableArgs {
 
     /// Compute a table the model does not declare: requirements_coverage,
     /// traceability_matrix, allocation_matrix, interface_n2, icd, elements, realization,
-    /// partition or schedule
+    /// partition, schedule or cesam_grid (the CESAM framework view)
     #[clap(long)]
     pub kind: Option<String>,
 
