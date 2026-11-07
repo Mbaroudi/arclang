@@ -1,4 +1,4 @@
-# ArcLang: the samples of a Monte Carlo case, analysed with R.
+# ArcLang: the samples of a Monte Carlo case, analyzed with R.
 #
 # Usage: Rscript analysis.R samples.csv statistics.json
 #
@@ -8,7 +8,7 @@
 #
 # For each margin: the share of samples that fail, a normal fit of the margin
 # and the failure probability it extrapolates, and the partial rank
-# correlation (PRCC) and standardised rank regression coefficient (SRRC) of
+# correlation (PRCC) and standardized rank regression coefficient (SRRC) of
 # each parameter, with 95 % bootstrap intervals. Base R only: no package to
 # install. The verdict of the case is not computed here: it is the compiler's.
 

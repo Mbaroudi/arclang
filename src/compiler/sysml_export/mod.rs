@@ -7,7 +7,7 @@
 
 mod architecture;
 mod attributes;
-mod behaviour;
+mod behavior;
 mod constraints;
 mod data;
 mod levels;
@@ -25,7 +25,7 @@ use std::collections::{BTreeSet, HashMap};
 /// The metadata definitions of the profile: the levels, then the kinds
 /// SysML cannot tell by itself.
 pub const PROFILE: &[&str] = &[
-    "OA", "SA", "LA", "PA", "EPBS", "Actor", "Entity", "Node", "Behaviour", "Hardware", "Mission", "Capability", "Chain", "Link", "Hazard", "Security", "PrimaryAsset", "Threat", "SecurityScales", "Configuration",
+    "OA", "SA", "LA", "PA", "EPBS", "Actor", "Entity", "Node", "Behavior", "Hardware", "Mission", "Capability", "Chain", "Link", "Hazard", "Security", "PrimaryAsset", "Threat", "SecurityScales", "Configuration",
     "Mode", "Class", "PhysicalPort", "ExchangeItem", "Path", "Fmea", "Interface", "Trace", "Association", "Iterate", "Invariant",
 ];
 
@@ -189,7 +189,7 @@ impl<'m> Exporter<'m> {
             e.header("Model", &model.attributes, &["name"]);
             data::write(e);
             levels::write(e);
-            behaviour::write(e);
+            behavior::write(e);
             types::write(e);
             relations::write(e);
             security::write(e);
@@ -212,7 +212,7 @@ impl<'m> Exporter<'m> {
         data::register(self);
         types::register(self);
         levels::register(self);
-        behaviour::register(self);
+        behavior::register(self);
         security::register(self);
     }
 
@@ -295,6 +295,7 @@ pub(crate) fn local_unit(symbol: &str) -> Option<&'static str> {
         "'kW/K'" => "attribute <'kW/K'> 'kilowatt per kelvin' : ThermalConductanceUnit { :>> unitConversion: ConversionByConvention { :>> referenceUnit = 'W/K'; :>> conversionFactor = 1000; } }",
         "'kJ/K'" => "attribute <'kJ/K'> 'kilojoule per kelvin' : HeatCapacityUnit { :>> unitConversion: ConversionByConvention { :>> referenceUnit = 'J/K'; :>> conversionFactor = 1000; } }",
         "'MJ/K'" => "attribute <'MJ/K'> 'megajoule per kelvin' : HeatCapacityUnit { :>> unitConversion: ConversionByConvention { :>> referenceUnit = 'J/K'; :>> conversionFactor = 1000000; } }",
+        "'g/s'" => "attribute <'g/s'> 'gram per second' : MassFlowRateUnit { :>> unitConversion: ConversionByConvention { :>> referenceUnit = 'kg⋅s⁻¹'; :>> conversionFactor = 0.001; } }",
         "'cm²'" => "attribute <'cm²'> 'square centimetre' : AreaUnit { :>> unitConversion: ConversionByConvention { :>> referenceUnit = 'm²'; :>> conversionFactor = 0.0001; } }",
         _ => return None,
     })

@@ -126,7 +126,7 @@ ${rows}
 
 /** The analysis of R or Python under a case; sent alone when it changes, so the page keeps its place. */
 export function statisticsBlock(c: MonteCarloCase, state: StatisticsState | undefined): string {
-  const buttons = `<div class="actions"><button data-statistics="${escapeHtml(c.id)}" data-engine="r" ${state?.state === 'running' ? 'disabled' : ''}>Analyse with R</button><button data-statistics="${escapeHtml(c.id)}" data-engine="python" ${state?.state === 'running' ? 'disabled' : ''}>Analyse with Python</button></div>`;
+  const buttons = `<div class="actions"><button data-statistics="${escapeHtml(c.id)}" data-engine="r" ${state?.state === 'running' ? 'disabled' : ''}>Analyze with R</button><button data-statistics="${escapeHtml(c.id)}" data-engine="python" ${state?.state === 'running' ? 'disabled' : ''}>Analyze with Python</button></div>`;
   const intro = '<p class="note">Reads the same samples again, without simulating: partial rank correlations with intervals, and the failure probability a normal fit of each margin extrapolates. The verdict stays the compiler\'s.</p>';
   let body = '';
   if (state?.state === 'running') body = `<p class="status" role="status">${escapeHtml(state.engine === 'r' ? 'R' : 'Python')} is reading the samples…</p>`;

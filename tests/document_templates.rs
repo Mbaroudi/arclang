@@ -54,7 +54,7 @@ fn a_table_is_computed_or_taken_from_the_model() {
 fn a_template_that_asks_for_what_the_model_does_not_hold_is_refused() {
     assert_eq!(render("ok\n{{unknown}}\n").unwrap_err(), "line 2: unknown directive 'unknown' (one of model, date, value, table, elements, verdicts, constraints, gate, suspects, rules)");
     assert_eq!(render("{{value PN-NONE mass}}").unwrap_err(), "line 1: no element 'PN-NONE' in the model");
-    assert_eq!(render("{{value PN-BATT colour}}").unwrap_err(), "line 1: 'PN-BATT' has no attribute 'colour'");
+    assert_eq!(render("{{value PN-BATT color}}").unwrap_err(), "line 1: 'PN-BATT' has no attribute 'color'");
     assert!(render("{{elements Gadget}}").unwrap_err().contains("'Gadget' is no kind of element"));
     assert!(render("{{table nonsense}}").is_err());
     assert!(render("{{model").unwrap_err().contains("is not closed"));

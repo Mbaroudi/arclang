@@ -152,7 +152,7 @@ fn every_example_gives_a_script_without_undefined_variables() {
     fn walk(dir: &std::path::Path, out: &mut Vec<std::path::PathBuf>) {
         for entry in std::fs::read_dir(dir).unwrap().flatten() {
             let path = entry.path();
-            if path.is_dir() && !path.ends_with("legacy") {
+            if path.is_dir() && !path.ends_with("archive") {
                 walk(&path, out);
             } else if path.extension().is_some_and(|e| e == "arc") {
                 out.push(path);

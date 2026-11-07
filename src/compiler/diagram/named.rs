@@ -116,7 +116,7 @@ fn cut_view(decl: &DiagramDecl, views: &[Diagram], whole_when_empty: bool, tagge
         wanted.extend(found);
     }
     if decl.context {
-        let neighbours: Vec<String> = source
+        let neighbors: Vec<String> = source
             .edges
             .iter()
             .filter_map(|edge| match (wanted.contains(&edge.source), wanted.contains(&edge.target)) {
@@ -125,7 +125,7 @@ fn cut_view(decl: &DiagramDecl, views: &[Diagram], whole_when_empty: bool, tagge
                 _ => None,
             })
             .collect();
-        wanted.extend(neighbours);
+        wanted.extend(neighbors);
     }
     if wanted.is_empty() {
         diagnostics.push(format!("{scope}nothing to draw: `shows` names no drawn element"));

@@ -5,7 +5,7 @@
 ### 1. Export a Diagram
 ```bash
 cd /Users/malek/Arclang
-arclang export examples/automotive/adaptive_cruise_control.arc \
+arclang export examples/automotive/adaptive-cruise/adaptive_cruise_control.arc \
   -o my_diagram.html \
   -f arc-viz-elk-advanced
 ```
@@ -153,7 +153,7 @@ open output.html
 - **Complete Guide**: `ELK_COMPLETE_GUIDE.md`
 - **Implementation**: `ELK_ADVANCED_IMPLEMENTATION_SUMMARY.md`
 - **Spacing Fix**: `ELK_SPACING_FIX.md`
-- **Examples**: `examples/automotive/adaptive_cruise_control.arc`
+- **Examples**: `examples/automotive/adaptive-cruise/adaptive_cruise_control.arc`
 
 ---
 

@@ -6,9 +6,9 @@ each simulation goes where every other verdict goes: the production gate
 (`requirements.verification`) and the `requirements_coverage` table.
 
 The worked example is
-[`examples/automotive/ev_range_simulation.arc`](../examples/automotive/ev_range_simulation.arc)
+[`examples/automotive/ev-range/ev_range_simulation.arc`](../examples/automotive/ev-range/ev_range_simulation.arc)
 with its physics in
-[`examples/automotive/physics/EVPhysics.mo`](../examples/automotive/physics/EVPhysics.mo):
+[`examples/automotive/ev-range/physics/EVPhysics.mo`](../examples/automotive/ev-range/physics/EVPhysics.mo):
 a winter-range requirement that the long range pack meets and the standard
 pack does not.
 
@@ -44,6 +44,23 @@ the first run installs MSL 4.1.0 into the `arclang-openmodelica-libraries`
 volume, later runs reuse it. A run is limited to 900 s (`ARCLANG_OMC_TIMEOUT`,
 in seconds); a container that outlives it is removed.
 
+Another Modelica library is used the Modelica way: the `.mo` file that needs
+it declares it, `annotation(uses(Modelica(version="4.1.0"),
+Buildings(version="14.0.0")))`, and OpenModelica loads it with the file, for
+the simulation and for the drawing (its classes' icons). On this machine it
+must be installed where OpenModelica looks (a local `omc`:
+`installPackage(Buildings, "14.0.0")`; with Docker, the same command in the
+`arclang-openmodelica-libraries` volume). Online, on arclang.fr, the server
+has the Standard Library and every library OpenModelica's package index marks
+as fully supported, at a pinned version: Buildings 14.0.0, BusinessSimulation
+2.2.0, DeltaRobot 1.0.2, ExternalMedia 4.1.1, HanserModelica 2.0.1, KeyWordIO
+0.9.0, MEV 1.1.1, MessagePack 0.2.0, ModelicaByExample 0.6.0, PNlib 3.0.0,
+Pharmacolibrary 25.9.0, PhotoVoltaics 3.2.1, PhotoVoltaics_TGM 3.2.1,
+PlanarMechanics 1.7.0, PowerGrids 1.0.3, StewartPlatform 1.0.2,
+SystemDynamics 2.1.2, ThermofluidStream 1.4.1, VehicleInterfaces 2.0.2 and
+iPSL 1.1.1. It also has OMSimulator, OpenModelica's FMI co-simulation, of the
+same release.
+
 When no tool is found the verdict is **inconclusive**, with the reason
 (`OpenModelica not available: ...`), and is not cached: a missing tool is
 never a pass.
@@ -65,7 +82,7 @@ for the menu (also *ArcLang: Simulation* in the command palette):
 
 - **Run simulations on this model** (also the play button in the editor
   title and *Simulate* in the workbench): runs `arclang verify`, with a
-  progress notification that can be cancelled; the result offers *Show the
+  progress notification that can be canceled; the result offers *Show the
   verdicts* (the requirement coverage table) and *Show the log*. The log is
   the **ArcLang Simulation** output channel: each run begins with its time,
   file and tool, then each case with its name, the requirements it
@@ -83,11 +100,16 @@ for the menu (also *ArcLang: Simulation* in the command palette):
   (`--split`), and offers to open the drawing; an earlier single-file export
   written by ArcLang beside it is removed, since OpenModelica would see the
   package twice.
-- **Open the Modelica drawing** asks which configuration and opens
-  `<Package>/Systems/<Configuration>.mo` in Modex, the model that holds the
-  whole architecture (the package itself has nothing to draw). The first
-  time, it offers to add the export folder to `modex.libraryRoots` for the
-  workspace, so that Modex draws each part from its class.
+- **Open the Modelica drawing** asks which simulated scenario or which
+  configuration to draw and draws it in VS Code as OMEdit does: the parts
+  with the icons of their classes (the Standard Library's included), where
+  they are placed, the connectors on them and the connection lines. A part
+  opens its own class's diagram; the path at the top goes back; the wheel,
+  `+`, `-` and `0` zoom, a drag moves the drawing. OpenModelica gives the
+  drawing (`arclang verify model.arc --drawings` lists what there is to
+  draw, `--drawing CLASS` prints OpenModelica's instance of a class as
+  JSON); on arclang.fr, signed in, it runs online. No other extension is
+  needed.
 - **Open the documentation**.
 
 When you run simulations and nothing is available, the checklist opens
@@ -100,7 +122,7 @@ that name a program): `arclang.simulation.image` (`ARCLANG_OMC_DOCKER`),
 `arclang.simulation.omc` (`ARCLANG_OMC`), `arclang.simulation.timeout`
 (`ARCLANG_OMC_TIMEOUT`, seconds). Nothing runs in an untrusted workspace; in
 the browser build the item is hidden and the commands say that simulation
-needs the desktop extension. Cancelling a run stops `arclang`; a Docker
+needs the desktop extension. Canceling a run stops `arclang`; a Docker
 container already started may finish on its own.
 
 ## Drawing the architecture in Modex and OMEdit
@@ -109,15 +131,15 @@ Graphical Modelica editors draw from annotations. Without them the canvas is
 blank, so the export writes them by default:
 
 - `Placement` on every component instance (a node in a system model, a
-  behaviour component in a node), on a layered layout: inputs and
+  behavior component in a node), on a layered layout: inputs and
   upstream parts on the left, outputs and downstream parts on the right,
   boxes that do not overlap, the same text every run;
-- a `Line` on every `connect`, in right angles and coloured by what it
+- a `Line` on every `connect`, in right angles and colored by what it
   carries: electrical blue `{0,0,255}`, signal dark blue `{0,0,127}`,
-  mechanical grey `{95,95,95}`, thermal red `{191,0,0}`;
+  mechanical gray `{95,95,95}`, thermal red `{191,0,0}`;
 - a `Diagram(coordinateSystem(extent=...))` on every model, sized to fit
   its boxes and wires;
-- on a model that is itself a component (every node and behaviour
+- on a model that is itself a component (every node and behavior
   component), an `Icon`: a rectangle with its name, over the same extent as
   its diagram, with its connectors placed on the left (inputs, positive
   pins, `_a` flanges) or the right (outputs, negative pins, `_b` flanges).
@@ -179,7 +201,7 @@ model opens as a diagram, not as a list of declarations.
 
 Known limits: the layout is layered and simple, so a model with many
 unconnected parts is wrapped into columns of four and a dense model has
-long wires routed round the outside; the colours cover the physics
+long wires routed round the outside; the colors cover the physics
 ArcLang exports (fluid ports are not exported); a long name is shrunk to
 the box by the editor; offsets from a layout file place boxes but their
 size changes (`dw`, `dh`) and bent edges are ignored.
@@ -193,9 +215,9 @@ never overwrites a line of it.
 
 ```text
 EVRangeSimulation                      generated, never edited
-├── Behaviour.<Node>.<Component>       partial model per behaviour component
+├── Behavior.<Node>.<Component>       partial model per behavior component
 ├── Physical.<Node>                    partial model per physical node
-│     connectors, parameters, `replaceable` behaviour components, connect(...)
+│     connectors, parameters, `replaceable` behavior components, connect(...)
 └── Systems.<Configuration>            partial model per configuration
       `replaceable` nodes, variant parameters in `constrainedby (...)`, connect(...)
 
@@ -235,6 +257,54 @@ so a sweep of `vehicleBody.ambient` reaches all three.
 - **Deterministic.** The same model gives the same text: ports and links in
   declaration order, parameters sorted by name, no date.
 
+## From an architecture authored elsewhere: refine, roll-up, missions
+
+When the architecture is authored in another tool (a Capella project read
+with `arclang import -f capella`), the imported file is never edited and
+simulation lives beside it. A small worked case is the test fixture
+[`tests/fixtures/capella-sim`](../tests/fixtures/capella-sim/simulation.arc), a hoist.
+
+- **Capella's parameters.** A property value whose text reads as a quantity
+  (`666 Wh`, `20 °C`, `85 %`) is imported as one, under its own name.
+- **`refine "<id>" { ... }`** adds to an element declared in another file:
+  attributes (overriding), ports (a port of the same name gets the
+  attributes written, any other is added), deployments and behavior
+  components. The target is a physical node, a behavior component or a
+  logical component, by id, else by a name only one element has.
+
+  ```arclang
+  import "hoist.arc"
+
+  refine "PN-BATT" {
+      model: "HoistPhysics.Pack"
+      deploys "LC-ENERGY"
+      port "p" { is: "Power plus" }
+  }
+  ```
+
+- **The roll-up.** `model:` on a node or a behavior component names its
+  executable model: a Modelica class extending the class the export
+  generates for it, with modifiers if needed (`"Physics.Rotors(rho=airframe.rho)"`).
+  The package then has `Executable.<Configuration>`: the system model of
+  the configuration with every element redeclared by its model (a node
+  with a model gets its behavior components' models as modifiers; a node
+  without one, whose behavior components have, a class of its own in
+  `Executable.Parts`). A case whose `simulate:` names no `model` runs the
+  roll-up of its configuration.
+- **Exchanges between behavior components of two nodes** (Arcadia's
+  form, which Capella's validation wants: no data port on a node) are
+  connected through a relay connector the export gives each node,
+  joined to the behavior component's port inside it: Modelica connects one
+  level down only.
+- **A node with nothing to simulate** (no port, no parameter, no behavior
+  component: the system itself, Capella's root component) is left out of
+  the package, with a note.
+- **Missions.** `simulate: { mission: "missions/envelope.mission" }` reads
+  the file (relative to the model file): one `"Element".parameter = value`
+  a line, `#` and `//` comments; the lines join the case's `sweep`, so a
+  range or a list sweeps. The verdict depends on them: changing the
+  mission makes it stale.
+
 ## Ports and connectors
 
 A port says what it carries with `physics:`, on the port, on a physical port,
@@ -261,11 +331,11 @@ nothing; `_a` otherwise. A port without `physics:` is not exported, and the
 export says so: ArcLang does not guess.
 
 `physical_link`s and `physical_exchange`s between ports become `connect(...)`:
-between nodes in the system models, between a node's ports and its behaviour
+between nodes in the system models, between a node's ports and its behavior
 components (or between those) in the node's model. Their ends must have the
 same physics, and a signal must go from an output to an input (a node port
-relaying a behaviour component's keeps its direction): otherwise the model
-does not compile, export or not. An exchange between behaviour components of
+relaying a behavior component's keeps its direction): otherwise the model
+does not compile, export or not. An exchange between behavior components of
 two different nodes is not exported (it is routed through ports of the nodes).
 
 ## Verification by simulation
@@ -526,11 +596,12 @@ gate.
 
 | System | Physics | Configurations | Sweep |
 |---|---|---|---|
-| `examples/automotive/ev_range_simulation.arc` | longitudinal dynamics, drag at the air density of the ambient, a cruise PI, a motor limited to 150 kW; a pack with its open-circuit voltage curve, an internal resistance that grows in the cold and heats the cells; a PTC heater keeping the cabin at 21 °C | standard pack **fail** (empty at 289.8 km), long range **pass** (21 % left after 300 km) | -20 to 20 °C × 90 to 110 km/h: 8 of 9 pass (-20 °C at 110 km/h: 7 % left) |
-| `examples/automotive/battery_fast_charge.arc` | open-circuit voltage, internal resistance heating the cells, a cold plate, thermal derating of the charge power | air cooled **fail** (34.5 min for 10 to 80 %), chilled **pass** | 25 to 40 °C × 100 and 150 kW: 8 of 8 pass |
-| `examples/aerospace/drone_endurance.arc` | momentum theory power, the pack's weight on the frame, an altitude PID | each configuration against its own mission (`applies_to`): survey **pass** (20 min with 1 kg), long endurance **pass** (25 min with 2 kg); the gate **passes** | payload 0 to 2 kg × 0 to 35 °C: 9 of 9 pass |
-| `examples/building/heat_pump_heating.arc` | a thermal mass, its envelope, a daily outdoor cycle, a heat pump whose capacity and COP fall in the cold, a PI thermostat | 6 kW **fail** (19 °C at night), 9 kW **pass** (36.6 kWh a day) | -10 to 0 °C × 300 and 900 W of gains: 6 of 6 pass |
-| `examples/aerospace/aircraft_electrical_network.arc` | a 28 V generator lost at 10 min, a battery whose voltage sags as it empties and in the cold, constant-power loads, load shedding | 25 Ah **fail** (23.7 V; its load shedding verified all the same), 40 Ah **pass** | -20 to 20 °C × 400 to 700 W: **fail**, 4 of 9 points, first at -20 °C and 550 W |
+| `examples/automotive/ev-range/ev_range_simulation.arc` | longitudinal dynamics, drag at the air density of the ambient, a cruise PI, a motor limited to 150 kW; a pack with its open-circuit voltage curve, an internal resistance that grows in the cold and heats the cells; a PTC heater keeping the cabin at 21 °C | standard pack **fail** (empty at 289.8 km), long range **pass** (21 % left after 300 km) | -20 to 20 °C × 90 to 110 km/h: 8 of 9 pass (-20 °C at 110 km/h: 7 % left) |
+| `examples/automotive/battery-fast-charge/battery_fast_charge.arc` | open-circuit voltage, internal resistance heating the cells, a cold plate, thermal derating of the charge power | air cooled **fail** (34.5 min for 10 to 80 %), chilled **pass** | 25 to 40 °C × 100 and 150 kW: 8 of 8 pass |
+| `examples/aerospace/drone-endurance/drone_endurance.arc` | momentum theory power, the pack's weight on the frame, an altitude PID | each configuration against its own mission (`applies_to`): survey **pass** (20 min with 1 kg), long endurance **pass** (25 min with 2 kg); the gate **passes** | payload 0 to 2 kg × 0 to 35 °C: 9 of 9 pass |
+| `examples/building/heat-pump/heat_pump_heating.arc` | a thermal mass, its envelope, a daily outdoor cycle, a heat pump whose capacity and COP fall in the cold, a PI thermostat | 6 kW **fail** (19 °C at night), 9 kW **pass** (36.6 kWh a day) | -10 to 0 °C × 300 and 900 W of gains: 6 of 6 pass |
+| `examples/datacenter/ai-liquid-cooling/ai_liquid_cooling.arc` | AI racks on cold plates, a CDU (coolant thermal mass, plate exchanger whose conductance follows the flow, pumps that can fail), facility water, dry coolers and a chiller trim that stop in a grid outage, a 35 °C design day, a PI on the supply and a PI capping the GPUs; a leaking rack isolated then powered off | N+1 **pass** (76 °C, partial PUE 1.077); pump lost: two pumps **fail** (capped to 69 %), N+1 **pass**; outage **pass**; 200 kW racks: current plant **fail** (73 %), upgraded plant **pass** | climate × rack power 9 of 12; late generator × buffer tank 5 of 6; rack power-off delay 2 of 4 (20 s at most); Monte Carlo 60 of 60 |
+| `examples/aerospace/electrical-network/aircraft_electrical_network.arc` | a 28 V generator lost at 10 min, a battery whose voltage sags as it empties and in the cold, constant-power loads, load shedding | 25 Ah **fail** (23.7 V; its load shedding verified all the same), 40 Ah **pass** | -20 to 20 °C × 400 to 700 W: **fail**, 4 of 9 points, first at -20 °C and 550 W |
 
 The last sweep fails on purpose: it finds where the 40 Ah battery is not
 enough, which the two single cases do not show. The gate test checks that
@@ -557,9 +628,9 @@ as its ArcLang text in a `String` attribute, which the importer reads back.
   medium, which ArcLang does not model yet.
 - **The logical architecture** is not exported as models: it gives the
   variants and their parameters only.
-- Nodes do not nest in ArcLang; behaviour components are one level inside
+- Nodes do not nest in ArcLang; behavior components are one level inside
   their node. A port holding ports (`Owner.port.sub`) is not exported.
-- A behaviour component a configuration leaves out stays in its node's model
+- A behavior component a configuration leaves out stays in its node's model
   (the node model is shared by all configurations).
 - Simulating compiles C code: about 20 s a case with Docker on a laptop.
 - With Docker on Linux, files the container writes in the working directory

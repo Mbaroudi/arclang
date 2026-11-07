@@ -1,0 +1,18 @@
+config CAN_ARCLANG_LITEX_SJA1000
+	bool "SJA1000-compatible CAN core on a LiteX bus"
+	default y
+	depends on DT_HAS_ARCLANG_LITEX_SJA1000_ENABLED
+	depends on CAN
+	select CAN_SJA1000
+	help
+	  The front end of Zephyr's SJA1000 driver for an SJA1000-compatible
+	  core on the SoC bus, one register per 32-bit word.
+
+config ADC_ARCLANG_LITEX
+	bool "ADC register bank of ArcLang's LiteX target"
+	default y
+	depends on DT_HAS_ARCLANG_LITEX_ADC_ENABLED
+	depends on ADC
+	help
+	  One 32-bit read-only register per channel holding the last raw
+	  conversion.

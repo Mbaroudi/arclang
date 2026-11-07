@@ -2,7 +2,7 @@
 Workbench tools: the compiler's workbench API, the one the VS Code extension
 and its agent use.
 
-`arclang workbench` prints everything a modelling workbench shows of one
+`arclang workbench` prints everything a modeling workbench shows of one
 model (the elements with their ids, the diagrams, the findings, the gate):
 `arclang_workbench` reduces it to what an assistant needs, the way the
 extension's `arclang_model` tool does (editors/vscode/src/ai/tools.ts,
@@ -392,7 +392,7 @@ def describe_model(document: Dict[str, Any], layers: Dict[str, str], selection: 
     if selection.element and not wanted:
         lines.append(f"No element has the id or name '{selection.element}'.")
     if selection.element and len(wanted) == 1:
-        incoming, outgoing = neighbours(wanted[0], records, relationships, links)
+        incoming, outgoing = neighbors(wanted[0], records, relationships, links)
         lines.append("Incoming: " + ("; ".join(incoming) or "none"))
         lines.append("Outgoing: " + ("; ".join(outgoing) or "none"))
     if not selection.element:
@@ -440,7 +440,7 @@ def finding_lines(findings: List[Dict[str, Any]]) -> List[str]:
     return lines
 
 
-def neighbours(
+def neighbors(
     element: Dict[str, Any],
     records: List[Dict[str, Any]],
     relationships: List[Dict[str, Any]],
@@ -494,7 +494,7 @@ def section_answer(
 ) -> str:
     """One section of the workbench document, as the compiler printed it.
 
-    The elements section honours the filter: the elements kept, and the
+    The elements section honors the filter: the elements kept, and the
     relationships with an end among them.
     """
     content = document.get(section)

@@ -140,8 +140,8 @@ test('a port dragged along its box stays on the border, follows a resize, and it
   const moved = now.rects.get('CTL').ports.find((p) => p.id === 'CTL::steer');
   assert.ok(moved.y + moved.height >= ctl.height - 0.5 && moved.x > 0 && moved.x + moved.width < ctl.width, `on the bottom side: ${JSON.stringify(moved)} (was ${JSON.stringify(port)})`);
   const steer = now.edges.get('steer');
-  const centre = { x: now.rects.get('CTL').x + moved.x + moved.width / 2, y: now.rects.get('CTL').y + moved.y + moved.height / 2 };
-  assert.ok(Math.abs(steer[0].x - centre.x) < 1 && Math.abs(steer[0].y - (now.rects.get('CTL').y + ctl.height)) < 1, `the exchange leaves from the moved port: ${JSON.stringify(steer[0])} ${JSON.stringify(centre)}`);
+  const center = { x: now.rects.get('CTL').x + moved.x + moved.width / 2, y: now.rects.get('CTL').y + moved.y + moved.height / 2 };
+  assert.ok(Math.abs(steer[0].x - center.x) < 1 && Math.abs(steer[0].y - (now.rects.get('CTL').y + ctl.height)) < 1, `the exchange leaves from the moved port: ${JSON.stringify(steer[0])} ${JSON.stringify(center)}`);
   const bigger = absolute(place(graph, { CTL: { dx: 0, dy: 0, dh: 60 } }, {}, { ports: { 'CTL::steer': { dx: -60, dy: 500 } } }));
   const after = bigger.rects.get('CTL');
   const seated = after.ports.find((p) => p.id === 'CTL::steer');

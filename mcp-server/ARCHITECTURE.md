@@ -44,7 +44,7 @@ arclang (4.3.0+)     check, rules, build, gate, trace, impact, diff, import,
 | `utils/config.py` | `.arclang-mcp.toml` and environment |
 
 Each tool group declares its tools (`TOOLS`) next to their handlers, so a
-tool's description and its behaviour are read and changed together.
+tool's description and its behavior are read and changed together.
 
 ## Rules the code holds to
 

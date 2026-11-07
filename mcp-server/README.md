@@ -9,9 +9,10 @@ comments, declare the next Arcadia level from the current one, import SysML
 v2, Capella or ReqIF, and export (SysML v2, Capella, ReqIF, C headers,
 Protobuf).
 
-Version 4.3.0, for the `arclang` compiler built from this repository (4.3.0 or
+Version 4.11.0, for the `arclang` compiler built from this repository (4.3.0 or
 later: it needs `workbench` and `edit --request`, on top of `check --json`,
-`rules`, `transition` and `import -f sysml`). Python 3.10 or later.
+`rules`, `transition` and `import -f sysml`; `arclang_partition` and
+`arclang_schedule` need 4.10.0 or later). Python 3.10 or later.
 
 ## What it guarantees
 
@@ -26,7 +27,7 @@ compiler's rule: it never says more than the compiler did.
   exit code (or from the JSON the compiler printed). A failure is reported as
   a failure, with the compiler's message.
 - The language reference a client reads is not a copy that can drift: the
-  metamodel and the rule catalogue are printed by the binary, the example
+  metamodel and the rule catalog are printed by the binary, the example
   model is compiled, formatted and gated by the test suite, and every
   construct the syntax rules teach is written in that model.
 - Generated ArcLang (requirements, components, skeletons) is compiled before it
@@ -123,14 +124,17 @@ model = "claude-opus-5-5"
 
 ## Tools
 
-### Check and analyse
+### Check and analyze
 
 | Tool | Command | Returns |
 |---|---|---|
 | `arclang_validate` | `check --lint [--json]` | Errors with line and column; counts of compilation warnings (typed attributes and constraints block the gate), traceability warnings, advisories. With `as_json: true`, each finding with its `rule`, `severity`, `element` and `fix` |
-| `arclang_rules` | `rules --format markdown\|json` | The catalogue of validation rules: meaning and remedy of each `rule` a finding names, or one `rule` alone |
+| `arclang_rules` | `rules --format markdown\|json` | The catalog of validation rules: meaning and remedy of each `rule` a finding names, or one `rule` alone |
 | `arclang_compile` | `build` | Counts of the compiled model |
 | `arclang_gate` | `gate --standard iso26262\|do178c\|iec61508` | PASS or FAIL and each blocker with its rule |
+| `arclang_realize` | `realize --dry-run --json` | The realization ladder: each requirement's verdict per stage (simulation, sil, pil, hdl, soc, board, twin), the steps that would fill the missing or stale ones, the gaps. Nothing runs |
+| `arclang_partition` | `partition --dry-run`, `table --kind partition` | The two runs that measure each machine as C (step time, footprint) and as VHDL (LUT4, Fmax), and what was measured already. Nothing runs |
+| `arclang_schedule` | `schedule --json [--wcet M=US]` | The bindings as tasks, the response time of each (fixed-priority analysis) from measured or given step times, whether each meets its period. FAILED when a step time is unknown, with how to measure it |
 | `arclang_trace_analysis` | `trace --validate` | Coverage, issues, the matrix with rationales |
 | `arclang_impact` | `impact` | What a change to one element reaches, by distance |
 | `arclang_diff` | `diff --json` | Semantic diff by stable identity |
@@ -220,7 +224,7 @@ The tests run the real binary (`ARCLANG_BINARY`, else `target/release/arclang`,
 else `target/debug/arclang`, else the `PATH`) and are skipped without one. They
 cover every tool, the resources against the compiler (the format lists and
 edit ops of the wrapper against the CLI's `--help`, the rule ids and constructs
-the syntax rules name against the catalogue and the reference model), the
+the syntax rules name against the catalog and the reference model), the
 workbench read and the scripted edits on the flagship example, and a session
 over stdio. They pass with the MCP Python SDK 1.x and 2.x.
 

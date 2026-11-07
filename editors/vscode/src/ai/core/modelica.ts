@@ -1,7 +1,7 @@
 // What the chat tells an AI about a Modelica file, and what it does with the
 // answer. No VS Code here: the unit tests run it. There is no Modelica
 // compiler in the browser (and none in the extension), so every answer about
-// Modelica is labelled as not verified.
+// Modelica is labeled as not verified.
 import type { ChatMessage } from '../providers/types';
 
 export const MODELICA_NOT_VERIFIED = 'Not verified: there is no Modelica compiler in the browser.';

@@ -13,7 +13,7 @@ import {
   graphContainerOf,
   lifelineElement,
   Metamodel,
-  neighbours,
+  neighbors,
   ownerOfPort,
   parseEditAnswer,
   parseSnapshot,
@@ -190,7 +190,7 @@ test('the semantic browser lists relationships and traces around an element', ()
     elements: { elements: [a, b, r], relationships: [{ uuid: 'x', kind: 'ComponentExchange', name: 'flow', source: 'a', target: 'b' }] },
     diagrams: { title: 't', graphs: [], diagnostics: [], links: [{ kind: 'satisfies', source: 'LC-A', target: 'REQ-1' }] },
   };
-  const around = neighbours(a, snapshot);
+  const around = neighbors(a, snapshot);
   assert.deepEqual(
     around.outgoing.map((e) => [e.kind, e.other?.id]),
     [
@@ -198,7 +198,7 @@ test('the semantic browser lists relationships and traces around an element', ()
       ['satisfies', 'REQ-1'],
     ],
   );
-  assert.deepEqual(neighbours(b, snapshot).incoming.map((e) => [e.kind, e.other?.id]), [['ComponentExchange', 'LC-A']]);
+  assert.deepEqual(neighbors(b, snapshot).incoming.map((e) => [e.kind, e.other?.id]), [['ComponentExchange', 'LC-A']]);
 });
 
 test('the next requirement id follows the highest one, keeping prefix and width', () => {

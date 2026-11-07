@@ -31,9 +31,9 @@ test:integration:
   image: rust:latest
   script:
     - cargo build --release
-    - ./target/release/arclang check examples/aerospace/flight_control_system.arc
-    - ./target/release/arclang check examples/automotive/adaptive_cruise_control.arc
-    - ./target/release/arclang check examples/defense/mission_computer.arc
+    - ./target/release/arclang check examples/aerospace/flight-control/flight_control_system.arc
+    - ./target/release/arclang check examples/automotive/adaptive-cruise/adaptive_cruise_control.arc
+    - ./target/release/arclang check examples/defense/mission-computer/mission_computer.arc
 
 lint:fmt:
   stage: test
@@ -87,7 +87,7 @@ safety:do178c:
   dependencies:
     - build:release
   script:
-    - ./target/release/arclang safety examples/aerospace/flight_control_system.arc --standard DO178C --report
+    - ./target/release/arclang safety examples/aerospace/flight-control/flight_control_system.arc --standard DO178C --report
   artifacts:
     paths:
       - "*_safety_report.pdf"
@@ -99,7 +99,7 @@ safety:iso26262:
   dependencies:
     - build:release
   script:
-    - ./target/release/arclang safety examples/automotive/adaptive_cruise_control.arc --standard ISO26262 --fmea --fta --report
+    - ./target/release/arclang safety examples/automotive/adaptive-cruise/adaptive_cruise_control.arc --standard ISO26262 --fmea --fta --report
   artifacts:
     paths:
       - "*_safety_report.pdf"

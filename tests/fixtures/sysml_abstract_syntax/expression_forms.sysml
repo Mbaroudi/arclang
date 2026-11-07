@@ -13,7 +13,7 @@ package ExpressionForms {
         metadata def Actor;
         metadata def Entity;
         metadata def Node;
-        metadata def Behaviour;
+        metadata def Behavior;
         metadata def Hardware;
         metadata def Mission;
         metadata def Capability;

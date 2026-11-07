@@ -191,3 +191,69 @@ fn a_chain_without_involvement_is_a_warning_not_an_error() {
     let result = compile(&empty);
     assert!(result.warnings.iter().any(|w| w.contains("Warn path") && w.contains("involves nothing")), "{:?}", result.warnings);
 }
+
+/// A link or an exchange may designate a port by its id, which the compiler
+/// accepts: the export must keep it, not leave it out with a note.
+#[test]
+fn a_link_and_an_exchange_designating_ports_by_their_ids_are_exported() {
+    let source = r#"model "M" {}
+physical_architecture "PA" {
+    node "Cabin" {
+        id: "PN-CABIN"
+        port "bus" { id: "PN-CABIN.bus" }
+        behavior_component "Sensor" { id: "BC-S" port out "height" { id: "p-height" } }
+    }
+    node "Controller" {
+        id: "PN-CTRL"
+        port "sensor bus" { id: "PN-CTRL.sensor" }
+        port "spare bus" { id: "9b2f0c1e-0000-4000-8000-000000000001" }
+        behavior_component "Hold" { id: "BC-H" port in "height" { id: "p-in" } }
+    }
+    node "Logger" { id: "PN-LOG" port "tap" { id: "PN-LOG.tap" } }
+    physical_link "Sensor bus" { id: "PL-SENS" from: "PN-CABIN.bus" to: "PN-CTRL.sensor" }
+    physical_link "Spare bus" { id: "PL-SPARE" from: "PN-LOG.tap" to: "9b2f0c1e-0000-4000-8000-000000000001" }
+    physical_exchange "Height" { id: "PX-H" from: "p-height" to: "p-in" via: "Sensor bus" }
+}
+"#;
+    let result = Compiler::new(CompilerConfig::default()).compile_string(source).expect("the compiler accepts ports designated by id");
+    let exported = arclang::compiler::capella_export::export(&result.ast, "m");
+    let left_out: Vec<&String> = exported.notes.iter().filter(|n| n.contains("left out")).collect();
+    assert!(left_out.is_empty(), "{left_out:?}");
+    let capella = &exported.capella;
+    assert!(capella.contains(r##"id="PL-SENS" name="Sensor bus" linkEnds="#PN-CABIN.bus #PN-CTRL.sensor""##), "the link ends on the ports, by their ids");
+    assert!(capella.contains(r##"id="PL-SPARE" name="Spare bus" linkEnds="#PN-LOG.tap #9b2f0c1e-0000-4000-8000-000000000001""##), "a port id without a dot is a port too, not a node");
+    assert!(capella.contains(r#"id="PX-H""#), "the exchange between behavior ports given by id");
+}
+
+/// Capella needs a root system: the export adds one to a system analysis that
+/// declares no component. Read back, that added root is not a component of
+/// the model, so the round trip changes nothing; one the model declares stays.
+#[test]
+fn the_root_system_the_export_adds_is_not_read_back_as_a_component() {
+    let round_trip = |source: &str| -> String {
+        let result = Compiler::new(CompilerConfig::default()).compile_string(source).expect("compiles");
+        let exported = arclang::compiler::capella_export::export(&result.ast, "m");
+        arclang::compiler::capella_xmi::import_strings(&exported.capella, Some(&exported.aird), "m.capella").expect("imports").source
+    };
+    let bare = round_trip("model \"M\" {}\nsystem_analysis \"Needs\" { id: \"SA-1\" function \"Command\" { id: \"SF-CMD\" } }\n");
+    assert!(!bare.contains("system_component"), "the added root is not read back:\n{bare}");
+    let declared = round_trip("model \"M\" {}\nsystem_analysis \"Needs\" { id: \"SA-1\" system_component \"System\" { id: \"SC-1\" } }\n");
+    assert!(declared.contains("system_component \"System\""), "a declared system stays:\n{declared}");
+}
+
+/// A link's property values come back in the order the export writes them
+/// (by key), whatever their order in the Capella file: a round trip of a
+/// project whose values are grouped otherwise (PVMT) changes nothing.
+#[test]
+fn the_property_values_of_a_link_are_read_in_key_order() {
+    let source = "model \"M\" {}\nphysical_architecture \"PA\" {\n    node \"A\" { id: \"PN-A\" port \"p\" { id: \"PN-A.p\" } }\n    node \"B\" { id: \"PN-B\" port \"p\" { id: \"PN-B.p\" } }\n    physical_link \"Cable\" { id: \"PL-1\" from: \"PN-A.p\" to: \"PN-B.p\" alpha: 1 zeta: \"z\" }\n}\n";
+    let result = Compiler::new(CompilerConfig::default()).compile_string(source).expect("compiles");
+    let exported = arclang::compiler::capella_export::export(&result.ast, "m");
+    assert!(exported.capella.contains(r#"name="alpha""#));
+    // In the file, the first value is now one whose key sorts last.
+    let capella = exported.capella.replace(r#"name="alpha""#, r#"name="zzz""#);
+    let imported = arclang::compiler::capella_xmi::import_strings(&capella, Some(&exported.aird), "m.capella").expect("imports").source;
+    let line = imported.lines().find(|l| l.contains("physical_link \"Cable\"")).expect("the link");
+    let (zeta, zzz) = (line.find("zeta:").expect("zeta"), line.find("zzz:").expect("zzz"));
+    assert!(zeta < zzz, "in key order: {line}");
+}

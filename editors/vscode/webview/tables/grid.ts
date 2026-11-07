@@ -12,6 +12,13 @@ export interface GridHost {
   reveal: (id: string, name: string, open: boolean) => void;
   edit: (edit: CellEdit, raw: string, label: string) => void;
   typing: (on: boolean) => void;
+  /** The rows are shown as their tree (not sorted): indented, folding. */
+  nested: () => boolean;
+  hasChildren: (id: string) => boolean;
+  isCollapsed: (id: string) => boolean;
+  toggle: (id: string) => void;
+  /** A new requirement under this one, its text asked first. */
+  addChild: (row: TableRow) => void;
 }
 
 export const ROW_HEIGHT = 30;
@@ -47,7 +54,7 @@ function linkChip(link: NonNullable<TableCell['links']>[number], host: GridHost)
   return chip;
 }
 
-/** The family a kind's colour comes from. */
+/** The family a kind's color comes from. */
 export function kindFamily(kind: string): string {
   if (kind.endsWith('Function') || kind === 'OperationalActivity') return 'function';
   if (kind.endsWith('Component') || kind === 'PhysicalNode' || kind === 'OperationalEntity') return 'component';
@@ -57,6 +64,25 @@ export function kindFamily(kind: string): string {
   if (kind.includes('Actor') || kind === 'Actor') return 'actor';
   if (kind === 'ExchangeItem' || kind === 'Class' || kind === 'DataType' || kind === 'Enumeration') return 'data';
   return 'other';
+}
+
+let firstColumn: TableColumn | null = null;
+
+/** The indentation of a row of the tree and, when rows sit under it, its fold toggle. */
+function treeHandle(row: TableRow, host: GridHost): HTMLElement {
+  const depth = row.depth ?? 0;
+  const handle = el('span', { class: 'tb-tree' });
+  handle.style.width = `${depth * 16 + 16}px`;
+  if (host.hasChildren(row.id)) {
+    const collapsed = host.isCollapsed(row.id);
+    const toggle = el('button', { class: 'tb-twisty', 'aria-expanded': String(!collapsed), title: collapsed ? 'Show the requirements under it' : 'Fold the requirements under it' }, collapsed ? '▸' : '▾');
+    toggle.addEventListener('click', (event) => {
+      event.stopPropagation();
+      host.toggle(row.id);
+    });
+    handle.append(toggle);
+  }
+  return handle;
 }
 
 function cellNode(row: TableRow, column: TableColumn, host: GridHost): HTMLElement {
@@ -83,6 +109,15 @@ function cellNode(row: TableRow, column: TableColumn, host: GridHost): HTMLEleme
   const tip = cell.links?.length ? cell.links.map((l) => `${l.name} (${l.id}${l.verdict ? `, ${l.verdict}` : ''})`).join('\n') : cell.text;
   if (tip) node.title = cell.edit ? `${tip}\n\nDouble-click or Enter edits` : tip;
   else if (cell.edit) node.title = 'Empty · double-click or Enter edits';
+  if (column === firstColumn && host.nested()) node.prepend(treeHandle(row, host));
+  if (column === firstColumn && row.kind === 'Requirement') {
+    const add = el('button', { class: 'tb-add-child', title: `New requirement under ${row.id}`, 'aria-label': `New requirement under ${row.id}` }, '+');
+    add.addEventListener('click', (event) => {
+      event.stopPropagation();
+      host.addChild(row);
+    });
+    node.append(add);
+  }
   if (cell.edit) {
     node.addEventListener('dblclick', () => startEdit(node, row, column, cell, host));
     node.addEventListener('keydown', (event) => {
@@ -140,10 +175,14 @@ function startEdit(node: HTMLElement, row: TableRow, column: TableColumn, cell: 
 }
 
 export function renderGrid(container: HTMLElement, table: TableData, rows: TableRow[], host: GridHost): { update: (rows: TableRow[]) => void } {
-  const template = table.columns.map(width).join(' ');
+  firstColumn = table.columns[0] ?? null;
+  // A tree's first column holds the indentation of its deepest row.
+  const deepest = Math.max(0, ...table.rows.map((row) => row.depth ?? 0));
+  const widthOf = (column: TableColumn, index: number) => (index === 0 && table.rows.some((row) => row.parent || row.kind === 'Requirement') ? `${152 + 16 * (deepest + 1) + 24}px` : width(column));
+  const template = table.columns.map(widthOf).join(' ');
   const scroll = el('div', { class: 'tb-scroll', role: 'grid', 'aria-rowcount': String(rows.length + 1), 'aria-colcount': String(table.columns.length) });
   scroll.style.setProperty('--tb-cols', `6px ${template}`);
-  const minimum = 6 + table.columns.map(width).reduce((sum, w) => sum + Number((/(\d+)px/.exec(w) ?? ['', '100'])[1]), 0);
+  const minimum = 6 + table.columns.map(widthOf).reduce((sum, w) => sum + Number((/(\d+)px/.exec(w) ?? ['', '100'])[1]), 0);
   scroll.style.setProperty('--tb-minw', `${minimum}px`);
   const head = el('div', { class: 'tb-header', role: 'row' }, [el('div', { class: 'tb-stripe-head' })]);
   const filters = el('div', { class: 'tb-header tb-filters', role: 'row' }, [el('div', { class: 'tb-stripe-head' })]);

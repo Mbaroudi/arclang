@@ -81,10 +81,10 @@ const rows = []; const report = (name, ok, detail) => { rows.push({ name, ok });
   report('the compiler\'s refusal shows on the field before anything is applied', /refused|Expected trace/.test(live) && (await posted('panes-validate')) > 0, live.slice(0, 90));
   await traceInput.fill(''); await page.keyboard.press('Escape');
 
-  // 9. Inherited from the type: greyed, Redefine, Reset to inherited
+  // 9. Inherited from the type: grayed, Redefine, Reset to inherited
   await select('SF-DET'); await unfold('inherited');
   const inherited = row('period');
-  report('a value of the type shows greyed with where it comes from', (await inherited.evaluate((r) => r.classList.contains('is-inherited'))) && /20 ms/.test(await inherited.textContent()) && /Periodic task/.test(await inherited.textContent()));
+  report('a value of the type shows grayed with where it comes from', (await inherited.evaluate((r) => r.classList.contains('is-inherited'))) && /20 ms/.test(await inherited.textContent()) && /Periodic task/.test(await inherited.textContent()));
   await inherited.locator('button', { hasText: 'Redefine' }).click(); await page.waitForTimeout(300);
   const own = row('period').locator('input.wb-quantity-value'); await own.fill('10'); n = await count(); await own.press('Enter'); r = await waitEdit(n); text = await source();
   report('Redefine writes the element\'s own value', !!r?.ok && /"SF-DET"[\s\S]*?period: 10 ms/.test(text), r?.ok ? '' : r?.error);

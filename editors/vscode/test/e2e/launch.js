@@ -16,9 +16,11 @@ function freePort() {
   });
 }
 
-/** The executable of a VS Code application: `Code` in recent builds, `Electron` in older ones. */
+/** The executable of a VS Code application: `Code` in recent builds, `Electron` in older ones
+    (macOS); on Linux, the `code` of the unpacked build, or the executable itself. */
 function executableOf(app) {
-  const found = ['Code', 'Electron'].map((name) => path.join(app, 'Contents/MacOS', name)).find((p) => fs.existsSync(p));
+  if (fs.existsSync(app) && fs.statSync(app).isFile()) return app;
+  const found = [...['Code', 'Electron'].map((name) => path.join(app, 'Contents/MacOS', name)), path.join(app, 'code')].find((p) => fs.existsSync(p));
   if (!found) throw new Error(`no VS Code executable in ${app}`);
   return found;
 }

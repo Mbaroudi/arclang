@@ -88,7 +88,7 @@ async function readReport(win, previous) {
   const dir = workspace();
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'arcimport-home-'));
   const served = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'arcserve-')), 'aeb.arc');
-  fs.copyFileSync(path.join(REPO, 'examples/complete_emergency_braking_simple.arc'), served);
+  fs.copyFileSync(path.join(REPO, 'examples/automotive/emergency-braking/complete_emergency_braking_simple.arc'), served);
   const { app, win, press, command, settings } = await launch(dir, home);
   const server = spawn(BIN, ['serve', '--port', String(PORT), served], { stdio: 'ignore' });
   try {

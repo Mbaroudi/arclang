@@ -22,7 +22,7 @@ page (static files)
 | | (a) monaco-vscode-api | (b) Code - OSS web build | (c) OpenVSCode Server's web client |
 |---|---|---|---|
 | What it is | npm packages built from the VS Code sources, one per service; MIT | `gulp vscode-web-min` of microsoft/vscode | the browser half of Gitpod's server build |
-| Licence | MIT (all `@codingame/monaco-vscode-*`; third-party parts MIT/BSD/ISC/MPL/Apache, see Licences) | MIT for Code - OSS (the product name and marketplace are not) | MIT |
+| License | MIT (all `@codingame/monaco-vscode-*`; third-party parts MIT/BSD/ISC/MPL/Apache, see Licenses) | MIT for Code - OSS (the product name and marketplace are not) | MIT |
 | Works without a server | yes: extension host in a worker, files service with our own provider | yes, with a vendor-supplied setup | no: its client talks to a remote agent (file system, extension host, terminal) over a WebSocket |
 | Custom editors and webviews | yes (tested) | yes | yes, through the server |
 | Extension host in a worker, virtual FS | yes (tested) | yes | not without rewriting the client |
@@ -43,7 +43,7 @@ downloads, and Microsoft's marketplace. The extension gallery is set to Open
 VSX (`productConfiguration.extensionsGallery`); it is only queried when the
 visitor opens the Extensions view.
 
-### Licences
+### Licenses
 
 Everything shipped to the page is MIT except: `jschardet` (LGPL-2.1+, text
 encoding detection of the workbench; kept in its own chunk, `assets/jschardet-*.js`,

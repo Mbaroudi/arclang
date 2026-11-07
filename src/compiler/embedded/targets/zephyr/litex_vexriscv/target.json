@@ -1,0 +1,64 @@
+{
+  "name": "zephyr/litex_vexriscv",
+  "summary": "Zephyr on a LiteX SoC with a VexRiscv RISC-V core (Lattice ECP5 and other FPGAs), emulated in Renode",
+  "runtime": "zephyr",
+  "board": "litex_vexriscv",
+  "toolchain": "riscv64-zephyr-elf",
+  "channels": {
+    "gpio_in": { "channels": "0-31", "note": "line N of the LiteX GPIO gpio_in" },
+    "gpio_out": { "channels": "0-31", "note": "line N of the LiteX GPIO gpio_out" },
+    "adc": { "channels": "0-7", "note": "a register bank of this target (arclang,litex-adc): LiteX has no ADC core" },
+    "pwm": { "channels": "0-1", "note": "two LiteX PWM cores (pwm0 of the board, pwm1 added)" },
+    "can_rx": { "identifiers": 16, "note": "an SJA1000-compatible core (arclang,litex-sja1000), filters in software" },
+    "can_tx": { "identifiers": 2048 },
+    "uart_rx": { "channels": "0-1", "note": "two LiteX UARTs beside the console" },
+    "uart_tx": { "channels": "0-1" },
+    "watchdog": { "note": "the LiteX watchdog core" }
+  },
+  "files": [
+    { "from": "../common/CMakeLists.txt", "to": "CMakeLists.txt" },
+    { "from": "../common/prj.conf", "to": "prj.conf" },
+    { "from": "../common/arclang_io_zephyr.c", "to": "src/arclang_io_zephyr.c" },
+    { "from": "../common/main.c", "to": "src/main.c" },
+    { "from": "../common/pil_io.c", "to": "src/pil_io.c" },
+    { "from": "../common/pil_direct.c", "to": "src/pil_direct.c" },
+    { "from": "../common/pil_link.c", "to": "src/pil_link.c" },
+    { "from": "litex_vexriscv.overlay", "to": "boards/litex_vexriscv.overlay" },
+    { "from": "litex_vexriscv.conf", "to": "boards/litex_vexriscv.conf" },
+    { "from": "arclang_module/zephyr/module.yml", "to": "arclang_module/zephyr/module.yml" },
+    { "from": "arclang_module/CMakeLists.txt", "to": "arclang_module/CMakeLists.txt" },
+    { "from": "arclang_module/Kconfig", "to": "arclang_module/Kconfig" },
+    { "from": "arclang_module/drivers/can_litex_sja1000.c", "to": "arclang_module/drivers/can_litex_sja1000.c" },
+    { "from": "arclang_module/drivers/adc_litex_regs.c", "to": "arclang_module/drivers/adc_litex_regs.c" },
+    { "from": "arclang_module/dts/bindings/arclang,litex-sja1000.yaml", "to": "arclang_module/dts/bindings/arclang,litex-sja1000.yaml" },
+    { "from": "arclang_module/dts/bindings/arclang,litex-adc.yaml", "to": "arclang_module/dts/bindings/arclang,litex-adc.yaml" },
+    { "from": "renode/arclang_litex_vexriscv.repl", "to": "renode/arclang_litex_vexriscv.repl" },
+    { "from": "renode/ArcLangSJA1000.cs", "to": "renode/ArcLangSJA1000.cs" },
+    { "from": "renode/RegisterADC.cs", "to": "renode/RegisterADC.cs" },
+    { "from": "renode/LiteXPWM.cs", "to": "renode/LiteXPWM.cs" },
+    { "from": "renode/LiteXWatchdog.cs", "to": "renode/LiteXWatchdog.cs" },
+    { "from": "renode/pil_bench.py", "to": "renode/pil_bench.py" },
+    { "from": "run.sh", "to": "run.sh", "executable": true }
+  ],
+  "build": {
+    "command": ["west", "build", "-p", "auto", "-b", "litex_vexriscv", "-d", "{build}", "{app}", "--", "-DARCLANG_MAIN={main}", "{period_define}"],
+    "image": "{build}/zephyr/zephyr.elf"
+  },
+  "emulator": {
+    "kind": "renode",
+    "command": ["renode", "--disable-gui", "--console", "--plain", "-e", "include @{app}/renode/pil_bench.py"],
+    "peripherals": ["renode/ArcLangSJA1000.cs", "renode/RegisterADC.cs", "renode/LiteXPWM.cs", "renode/LiteXWatchdog.cs"],
+    "platform": "renode/arclang_litex_vexriscv.repl",
+    "bench": "renode/pil_bench.py",
+    "channels": {
+      "gpio_in": "sysbus.gpio_in",
+      "gpio_out": "0xE0005800",
+      "adc": "sysbus.adc0",
+      "pwm": ["sysbus.pwm0", "sysbus.pwm1"],
+      "can": "sysbus.can0",
+      "uart": ["sysbus.uart_a0", "sysbus.uart_a1"],
+      "watchdog": "sysbus.wdt0",
+      "console": "sysbus.uart"
+    }
+  }
+}

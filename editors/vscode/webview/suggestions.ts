@@ -12,7 +12,7 @@ type SuggestionsMessage = Extract<ToPageAi, { type: 'ai-suggestions' }>;
 export interface SuggestionsPane {
   status(status: AiStatus): void;
   show(message: SuggestionsMessage): void;
-  /** Bring the tab forward (an explicit "Analyse impact"). */
+  /** Bring the tab forward (an explicit "Analyze impact"). */
   reveal(): void;
 }
 
@@ -67,10 +67,10 @@ export function createSuggestions(hooks: AiPageHooks): SuggestionsPane {
       el('p', { class: 'wb-ai-hint', text: `Proposals of an AI, each compiled on a copy before it is shown. Nothing changes until you apply one. After each edit: ${status.suggestOnEdit === 'afterEachEdit' ? 'the AI proposes' : status.suggestOnEdit === 'off' ? 'off' : 'the consequences are shown, the AI on request'}.` }),
     );
     pane.appendChild(
-      button(selection.length ? `Analyse the impact of ${selection.length === 1 ? selection[0].name || selection[0].id : `${selection.length} elements`}` : 'Select an element to analyse its impact', () => {
+      button(selection.length ? `Analyze the impact of ${selection.length === 1 ? selection[0].name || selection[0].id : `${selection.length} elements`}` : 'Select an element to analyze its impact', () => {
         const ids = hooks.selection().map((e) => e.id);
         if (ids.length) hooks.post({ type: 'ai-impact', ids });
-      }, { class: 'wb-ai-analyse', disabled: selection.length === 0 }),
+      }, { class: 'wb-ai-analyze', disabled: selection.length === 0 }),
     );
     const message = last;
     if (!message) {
@@ -84,7 +84,7 @@ export function createSuggestions(hooks: AiPageHooks): SuggestionsPane {
     }
     if (message.impact?.length) pane.appendChild(details(`arclang impact (${message.impact.length})`, message.impact));
     const state: Record<string, string> = {
-      analysing: 'Analysing the impact with the compiler…',
+      analyzing: 'Analyzing the impact with the compiler…',
       thinking: `Asking ${message.provider || 'the AI'} for proposals…`,
       none: message.consequences.length ? 'No proposal the compiler accepts.' : 'Nothing to resolve: the compiler finds no consequence.',
       off: message.error ?? 'The AI is off.',
@@ -93,7 +93,7 @@ export function createSuggestions(hooks: AiPageHooks): SuggestionsPane {
       ready: '',
     };
     const line = state[message.state];
-    if (line) pane.appendChild(el('p', { class: `wb-ai-state is-${message.state}`, role: 'status' }, [message.state === 'thinking' || message.state === 'analysing' ? el('span', { class: 'wb-ai-spinner', 'aria-hidden': 'true' }) : null, line]));
+    if (line) pane.appendChild(el('p', { class: `wb-ai-state is-${message.state}`, role: 'status' }, [message.state === 'thinking' || message.state === 'analyzing' ? el('span', { class: 'wb-ai-spinner', 'aria-hidden': 'true' }) : null, line]));
     if (message.canPropose && message.consequences.length && message.state !== 'thinking') {
       pane.appendChild(button('✦ Propose changes with AI', () => hooks.post({ type: 'ai-propose' }), { class: 'wb-primary wb-ai-propose' }));
     }
@@ -133,7 +133,7 @@ export function createSuggestions(hooks: AiPageHooks): SuggestionsPane {
     return el('details', { class: 'wb-ai-details' }, [el('summary', { text: title }), el('ul', {}, lines.map((l) => el('li', { text: l })))]);
   }
 
-  // The selection changes the "Analyse" button: re-rendered on clicks, cheaply.
+  // The selection changes the "Analyze" button: re-rendered on clicks, cheaply.
   hooks.host.addEventListener('click', () => setTimeout(() => isActive() && render(), 50));
   render();
 

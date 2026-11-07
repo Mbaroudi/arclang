@@ -1,5 +1,5 @@
 //! A minimal Office Open XML workbook (`.xlsx`) written by hand: one sheet
-//! per table, a frozen and filterable header, the status colours of the
+//! per table, a frozen and filterable header, the status colors of the
 //! cells, column widths from the content. The parts are stored in a zip
 //! without compression and with a fixed date, so the same tables always
 //! give the same bytes. No dependency.
@@ -184,7 +184,13 @@ fn sheet(table: &Table) -> String {
     }
     out.push_str("<sheetData>");
     for (r, line) in grid.iter().enumerate() {
-        out.push_str(&format!("<row r=\"{}\">", r + 1));
+        // A nested row is grouped under its parent (Excel's outline, at most 7 levels).
+        let depth = if r > 0 && table.matrix.is_none() { table.rows.get(r - 1).map(|row| row.depth.min(7)).unwrap_or(0) } else { 0 };
+        if depth > 0 {
+            out.push_str(&format!("<row r=\"{}\" outlineLevel=\"{depth}\">", r + 1));
+        } else {
+            out.push_str(&format!("<row r=\"{}\">", r + 1));
+        }
         for (c, text) in line.iter().enumerate() {
             let style = styles.get(r).and_then(|s| s.get(c)).copied().unwrap_or(0);
             let reference = format!("{}{}", column_name(c), r + 1);

@@ -59,6 +59,8 @@ pub enum Dimension {
     HeatCapacity,
     /// canonical: square metre (m²)
     Area,
+    /// canonical: kilogram per second (kg/s): coolant, fuel, air flows.
+    MassFlowRate,
 }
 
 impl Dimension {
@@ -86,6 +88,7 @@ impl Dimension {
             Dimension::ThermalConductance => "W/K",
             Dimension::HeatCapacity => "J/K",
             Dimension::Area => "m²",
+            Dimension::MassFlowRate => "kg/s",
         }
     }
 
@@ -113,6 +116,7 @@ impl Dimension {
             Dimension::ThermalConductance => "thermal conductance",
             Dimension::HeatCapacity => "heat capacity",
             Dimension::Area => "area",
+            Dimension::MassFlowRate => "mass flow rate",
         }
     }
 
@@ -140,6 +144,7 @@ impl Dimension {
             Dimension::ThermalConductance => "ThermalConductanceValue",
             Dimension::HeatCapacity => "HeatCapacityValue",
             Dimension::Area => "AreaValue",
+            Dimension::MassFlowRate => "MassFlowRateValue",
         }
     }
 }
@@ -245,7 +250,7 @@ impl DimVec {
     }
 }
 
-const ALL_DIMENSIONS: [Dimension; 21] = [
+const ALL_DIMENSIONS: [Dimension; 22] = [
     Dimension::Time,
     Dimension::Frequency,
     Dimension::DataRate,
@@ -267,6 +272,7 @@ const ALL_DIMENSIONS: [Dimension; 21] = [
     Dimension::ThermalConductance,
     Dimension::HeatCapacity,
     Dimension::Area,
+    Dimension::MassFlowRate,
 ];
 
 impl Dimension {
@@ -295,6 +301,7 @@ impl Dimension {
             Dimension::ThermalConductance => DimVec::new(-3, 2, 1, 0, -1, 0),
             Dimension::HeatCapacity => DimVec::new(-2, 2, 1, 0, -1, 0),
             Dimension::Area => DimVec::new(0, 2, 0, 0, 0, 0),
+            Dimension::MassFlowRate => DimVec::new(-1, 0, 1, 0, 0, 0),
         }
     }
 }
@@ -430,6 +437,10 @@ pub const UNITS: &[UnitSpec] = &[
     unit("cm²", Dimension::Area, 1e-4, "'cm²'"),
     unit("m²", Dimension::Area, 1.0, "'m²'"),
     unit("m2", Dimension::Area, 1.0, "'m²'"),
+    // Mass flow rate
+    // SysML v2's SI library writes it 'kg⋅s⁻¹'.
+    unit("kg/s", Dimension::MassFlowRate, 1.0, "'kg⋅s⁻¹'"),
+    unit("g/s", Dimension::MassFlowRate, 1e-3, "'g/s'"),
     // Speed
     unit("m/s", Dimension::Speed, 1.0, "'m/s'"),
     unit("km/h", Dimension::Speed, 1000.0 / 3600.0, "'km/h'"),
@@ -661,10 +672,14 @@ mod tests {
         assert_eq!(Quantity::new(200.0, "W/K").unwrap().dimension(), Dimension::ThermalConductance);
         assert_eq!(Quantity::new(15.0, "MJ/K").unwrap().canonical(), 1.5e7);
         assert_eq!(Quantity::new(0.23, "m²").unwrap().dimension(), Dimension::Area);
+        assert_eq!(Quantity::new(22.0, "kg/s").unwrap().dimension(), Dimension::MassFlowRate);
+        assert_eq!(Quantity::new(500.0, "g/s").unwrap().canonical(), 0.5);
         let v = |d: Dimension| d.vector();
         assert_eq!(v(Dimension::Current).multiply(v(Dimension::Time)).named(), Some(Dimension::Charge));
         assert_eq!(v(Dimension::Voltage).divide(v(Dimension::Current)).named(), Some(Dimension::Resistance));
         assert_eq!(v(Dimension::Power).divide(v(Dimension::Temperature)).named(), Some(Dimension::ThermalConductance));
+        // A mass over a time is a mass flow rate.
+        assert_eq!(v(Dimension::Mass).divide(v(Dimension::Time)).named(), Some(Dimension::MassFlowRate));
         assert_eq!(v(Dimension::Energy).divide(v(Dimension::Temperature)).named(), Some(Dimension::HeatCapacity));
         assert_eq!(v(Dimension::Length).multiply(v(Dimension::Length)).named(), Some(Dimension::Area));
     }

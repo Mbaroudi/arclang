@@ -50,7 +50,7 @@ fn a_rule_finds_the_elements_that_do_not_hold_it() {
     let blocker = report.findings.iter().find(|f| f.check == "rule.RULE-MASS").expect("a blocker of the gate");
     assert!(matches!(blocker.severity, production_gate::Severity::Blocker));
     assert!(blocker.message.contains("'PN-CABLE'"), "{}", blocker.message);
-    // The catalogue knows the line: SARIF, the workbench and VS Code place it on the element.
+    // The catalog knows the line: SARIF, the workbench and VS Code place it on the element.
     let finding = arclang::compiler::rules::classify_warning(rule_lines(&result)[0]);
     assert_eq!((finding.rule, finding.element.as_deref()), ("rule.user", Some("PN-CABLE")));
 }

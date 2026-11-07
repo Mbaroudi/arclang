@@ -1,6 +1,6 @@
 [project]
 name = "arclang-mcp"
-version = "4.3.0"
+version = "4.11.0"
 description = "MCP server for the ArcLang 4.3 compiler: check, gate, diff, read and edit through the workbench API, transition, import and export Arcadia models"
 authors = [
     {name = "Malek Baroudi", email = "malek@arclang.dev"},

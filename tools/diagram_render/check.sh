@@ -31,7 +31,7 @@ while IFS= read -r model; do
   echo "$model"
   node "$(dirname "$0")/render.mjs" "$graphs" --check | sed 's/^/  /' || status=1
   checked=$((checked + 1))
-done < <(find examples -name '*.arc' -not -path 'examples/legacy/*' | sort)
+done < <(find examples -name '*.arc' -not -path 'examples/archive/*' | sort)
 
 echo "$checked models checked"
 [ "$checked" -ge 10 ] || { echo "expected the example corpus, found only $checked models" >&2; exit 1; }

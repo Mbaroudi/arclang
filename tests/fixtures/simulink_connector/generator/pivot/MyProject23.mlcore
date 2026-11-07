@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="ASCII"?>
+<xmi:XMI xmi:version="2.0" xmlns:xmi="http://www.omg.org/XMI" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:org.eclipse.capella.simulink.core="http://www.eclipse.org/capella/simulink/core/1.0" xmlns:org.eclipse.capella.simulink.infra="http://www.eclipse.org/capella/simulink/infra/1.0">
+  <org.eclipse.capella.simulink.core:Project id="73a46b75-8797-4062-8900-555173ef8164" name="MyProject23" dictionaries="8c816098-a257-4c16-946d-fbecbce22146"/>
+  <org.eclipse.capella.simulink.core:Dictionary id="8c816098-a257-4c16-946d-fbecbce22146" name="Data">
+    <parameters id="afdea974-8295-48bb-a4ef-f5e82e3a35e1" key="capella.layer">
+      <value xsi:type="org.eclipse.capella.simulink.infra:PrimitiveValue" id="9f10d036-2342-448a-8e3c-d2366eb2b92f" specification="PA"/>
+    </parameters>
+    <datatypes xsi:type="org.eclipse.capella.simulink.core:Signal" id="ff9ea6c7-6ce1-41b4-9e65-c3cfe738740f" name="PhysicalQuantity 1" unit="m">
+      <datatype xsi:type="org.eclipse.capella.simulink.core:BuiltIntype" href="library:/model/builtInTypes.mlcore#af51b9eb-672c-4506-ac0a-3faefd6e01fc"/>
+    </datatypes>
+    <datatypes xsi:type="org.eclipse.capella.simulink.core:Bus" id="51958f33-18c2-49ed-b782-210331341a85" name="busClass_Class 1">
+      <busElements id="1f75b31f-123e-48a8-a841-9d81bb519267" name="Property 1" datatype="ff9ea6c7-6ce1-41b4-9e65-c3cfe738740f"/>
+    </datatypes>
+  </org.eclipse.capella.simulink.core:Dictionary>
+</xmi:XMI>

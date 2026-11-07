@@ -143,12 +143,20 @@ pub(super) fn write(context: &mut Context, oa: &OperationalAnalysis) -> El {
     for a in &oa.activities {
         root.push(activity(a));
     }
+    let mut entity_means = Vec::new();
     for (index, exchange) in oa.exchanges.iter().enumerate() {
         let xid = interaction_id(exchange, index, "interaction");
         let (Some(from), Some(to)) = (context.resolve(&exchange.from).map(str::to_string), context.resolve(&exchange.to).map(str::to_string)) else {
             context.note(format!("interaction '{}' left out: an end is not exported", exchange.label.as_deref().unwrap_or(&xid)));
             continue;
         };
+        // Capella's interaction links two activities; between entities it is a
+        // communication mean.
+        if !context.functions.contains(&from) || !context.functions.contains(&to) {
+            let el = El::new("ownedComponentExchanges", "oa:CommunicationMean", &xid).attr("name", exchange.label.as_deref().unwrap_or("")).attr("source", &format!("#{from}")).attr("target", &format!("#{to}"));
+            entity_means.push(relations::exchange(context, el, &exchange.attributes));
+            continue;
+        }
         ends.insert(xid.clone(), (from.clone(), to.clone()));
         let el = El::new("ownedFunctionalExchanges", "fa:FunctionalExchange", &xid).attr("name", exchange.label.as_deref().unwrap_or("")).attr("target", &format!("#{to}")).attr("source", &format!("#{from}"));
         root.push(relations::exchange(context, el, &exchange.attributes));
@@ -172,6 +180,9 @@ pub(super) fn write(context: &mut Context, oa: &OperationalAnalysis) -> El {
         let (Some(from), Some(to)) = (context.resolve(&mean.from).map(str::to_string), context.resolve(&mean.to).map(str::to_string)) else { continue };
         let el = El::new("ownedComponentExchanges", "oa:CommunicationMean", &mid).attr("name", mean.label.as_deref().unwrap_or("")).attr("source", &format!("#{from}")).attr("target", &format!("#{to}"));
         pkg.push(relations::exchange(context, el, &mean.attributes));
+    }
+    for mean in entity_means {
+        pkg.push(mean);
     }
     for entity in &tops {
         pkg.push(El::new("ownedParts", "cs:Part", &derived(&format!("{}:part", entity.id))).attr("name", entity.name).attr("abstractType", &format!("#{}", entity.id)));

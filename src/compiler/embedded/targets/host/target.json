@@ -1,0 +1,21 @@
+{
+  "name": "host",
+  "summary": "A PC: the simulated board of software in the loop (arclang sil), every channel kind",
+  "runtime": "host",
+  "channels": {
+    "gpio_in": { "channels": "0-255" },
+    "gpio_out": { "channels": "0-255" },
+    "adc": { "channels": "0-63" },
+    "dac": { "channels": "0-63" },
+    "pwm": { "channels": "0-63" },
+    "can_rx": { "identifiers": 64, "note": "64 mailboxes, standard and extended identifiers" },
+    "can_tx": { "identifiers": 64 },
+    "uart_rx": { "channels": "0-7" },
+    "uart_tx": { "channels": "0-7" },
+    "watchdog": {}
+  },
+  "files": [
+    { "from": "../runtime/arclang_io_host.h", "to": "host/arclang_io_host.h" },
+    { "from": "../runtime/arclang_io_host.c", "to": "host/arclang_io_host.c" }
+  ]
+}

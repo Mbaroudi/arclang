@@ -57,7 +57,7 @@ TOOLS: List[Tool] = [
             "Arcadia transition (`arclang transition`): declare on the next level what "
             "realizes the elements of this one. Steps: oa-to-sa (operational activities to "
             "system functions), sa-to-la (system functions to logical functions), la-to-pa "
-            "(logical components to behaviour components of a physical node). Without a "
+            "(logical components to behavior components of a physical node). Without a "
             "`step`, or with `plan: true`, the answer is the compiler's JSON plan: for each "
             "step, the candidates and what already realizes them; nothing changes. With a "
             "`step` the compiler prints the edited model: the answer is a diff, NOT written "

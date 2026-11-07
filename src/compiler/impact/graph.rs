@@ -19,7 +19,7 @@ use std::collections::{BTreeMap, BTreeSet, HashMap};
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, serde::Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum LinkKind {
-    /// `realizes`, `implements`, `refines` between layers; a behaviour
+    /// `realizes`, `implements`, `refines` between layers; a behavior
     /// component's `allocated_component`.
     Realization,
     /// A function performed by a component, an `allocates` trace.

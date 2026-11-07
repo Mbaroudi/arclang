@@ -58,11 +58,45 @@ fn typed_allocation(e: &mut Exporter<'_>, trace: &Trace) {
     }
 }
 
-/// A requirement: its id as short name, its title as name, its text as doc.
+/// A requirement: its id as short name, its title as name, its text as doc;
+/// what it is about as its `subject`, the concerns it addresses `frame`d,
+/// its constraints `require`d and `assume`d, each its expression as text.
 pub(super) fn requirement(e: &mut Exporter<'_>, requirement: &Requirement) {
-    let id = id_of(&requirement.attributes, &requirement.id).to_string();
-    let title = requirement.attributes.get("title").and_then(|t| t.as_string()).unwrap_or(&id).to_string();
-    e.block(&format!("requirement {}", text::declared(&id, &title)), |e| e.header("Requirement", &requirement.attributes, &["title"]));
+    let attributes = &requirement.attributes;
+    let id = id_of(attributes, &requirement.id).to_string();
+    let title = attributes.get("title").and_then(|t| t.as_string()).unwrap_or(&id).to_string();
+    e.block(&format!("requirement {}", text::declared(&id, &title)), |e| {
+        e.header("Requirement", attributes, &["title", "frames", "subject", "require", "assume"]);
+        if let Some(subject) = attributes.get("subject").and_then(|s| s.as_string()) {
+            match e.reference(subject) {
+                Some(target) => e.line(&format!("subject = {target};")),
+                None => e.line(&format!("// subject {subject}: not exported")),
+            }
+        }
+        for concern in list(attributes, "frames") {
+            match e.reference(&concern) {
+                Some(target) => e.line(&format!("frame {target};")),
+                None => e.line(&format!("// frame {concern}: not exported")),
+            }
+        }
+        for key in ["require", "assume"] {
+            for constraint in list(attributes, key) {
+                e.block(&format!("{key} constraint"), |e| e.line(&format!("attribute expression : String = {};", text::string(&constraint))));
+            }
+        }
+    });
+}
+
+/// A concern: its id as short name, its name as name, its text as doc.
+pub(super) fn concern(e: &mut Exporter<'_>, concern: &Concern) {
+    let id = id_of(&concern.attributes, &concern.id).to_string();
+    let name = concern.attributes.get("name").and_then(|t| t.as_string()).unwrap_or(&concern.id).to_string();
+    e.block(&format!("concern {}", text::declared(&id, &name)), |e| {
+        e.header("Concern", &concern.attributes, &["parent"]);
+        if let Some(parent) = concern.attributes.get("parent").and_then(|p| p.as_string()) {
+            dependency(e, "parent", &id, parent);
+        }
+    });
 }
 
 pub(super) fn register(e: &mut Exporter<'_>) {

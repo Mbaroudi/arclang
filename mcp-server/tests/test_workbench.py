@@ -11,7 +11,7 @@ from arclang_mcp.compiler.wrapper import EDIT_OPS, WORKBENCH_GATE_STANDARDS
 from arclang_mcp.tools.common import InvalidArguments
 
 REPOSITORY = Path(__file__).resolve().parents[2]
-EXAMPLE = REPOSITORY / "examples" / "complete_emergency_braking_simple.arc"
+EXAMPLE = REPOSITORY / "examples" / "automotive" / "emergency-braking" / "complete_emergency_braking_simple.arc"
 HEADLINE = (
     "Workbench of aeb.arc: compiles; 140 element(s), 0 finding(s), "
     "gate PASS, 7/7 requirements verified"
@@ -252,7 +252,7 @@ async def test_edit_arguments_are_checked_to_the_leaves(server, aeb):
     with pytest.raises(InvalidArguments, match="is not an argument of"):
         await server.call_tool(
             "arclang_edit",
-            {"path": str(aeb), "requests": [{"op": "remove", "element": "X", "colour": "red"}]},
+            {"path": str(aeb), "requests": [{"op": "remove", "element": "X", "color": "red"}]},
         )
     with pytest.raises(InvalidArguments, match="'write' must be a boolean"):
         await server.call_tool(

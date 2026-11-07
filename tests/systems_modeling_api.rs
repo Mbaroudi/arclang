@@ -326,7 +326,7 @@ async fn unknown_resources_are_404_with_an_error_body_and_writes_are_refused() {
 #[tokio::test]
 async fn the_flagship_model_is_served_with_nothing_unresolved() {
     let mut workspace = Workspace::default();
-    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("examples/automotive/timing_constraints.arc");
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("examples/features/timing-constraints/timing_constraints.arc");
     let project = workspace.add_file(&path).expect("example compiles");
     assert_eq!(project.head().unresolved, Vec::<String>::new());
     let (project_id, commit_id) = (project.id.clone(), project.head().id.clone());

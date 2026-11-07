@@ -2,7 +2,7 @@
   "name": "arclang",
   "displayName": "ArcLang",
   "description": "Arcadia MBSE as code: diagnostics with rules, outline, completion from the metamodel, hover, go to definition, rename, formatting, the viewpoint diagrams beside the source, the production gate, Arcadia transitions, the @arclang chat participant and compiler tools for agent mode, the ArcLang MCP server. Everything comes from the ArcLang compiler.",
-  "version": "4.9.0",
+  "version": "4.11.0",
   "publisher": "arclang",
   "license": "MIT",
   "icon": "icon.png",
@@ -63,6 +63,7 @@
     "onLanguage:modelica",
     "onView:arclangChat",
     "onCommand:arclang.chat.open",
+    "onCustomEditor:arclang.pdf",
     "workspaceContains:.github/workflows/arclang.yml",
     "workspaceContains:**/*.{arc,mo}"
   ],
@@ -226,7 +227,7 @@
       },
       {
         "command": "arclang.ai.analyseImpact",
-        "title": "Analyse impact with AI",
+        "title": "Analyze impact with AI",
         "category": "ArcLang",
         "icon": "$(lightbulb)"
       },
@@ -279,7 +280,7 @@
       },
       {
         "command": "arclang.showRules",
-        "title": "Show the catalogue of rules",
+        "title": "Show the catalog of rules",
         "category": "ArcLang"
       },
       {
@@ -558,18 +559,28 @@
         "category": "ArcLang"
       },
       {
+        "command": "arclang.simulation.exportReport",
+        "title": "Export the simulation report (PDF or PowerPoint)…",
+        "category": "ArcLang"
+      },
+      {
+        "command": "arclang.diagram.exportPdf",
+        "title": "Export the diagrams to PDF, one page each with its title and legend…",
+        "category": "ArcLang"
+      },
+      {
         "command": "arclang.diagram.chooseTheme",
-        "title": "Choose the diagram colour theme…",
+        "title": "Choose the diagram color theme…",
         "category": "ArcLang"
       },
       {
         "command": "arclang.diagram.editTheme",
-        "title": "Edit or create a diagram colour theme…",
+        "title": "Edit or create a diagram color theme…",
         "category": "ArcLang"
       },
       {
         "command": "arclang.impact.analyze",
-        "title": "Impact analysis: analyse an element…",
+        "title": "Impact analysis: analyze an element…",
         "category": "ArcLang",
         "icon": "$(pulse)"
       },
@@ -600,6 +611,18 @@
       {
         "command": "arclang.impact.refresh",
         "title": "Impact analysis: refresh",
+        "category": "ArcLang",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "arclang.realization.open",
+        "title": "Realization ladder: what each stage says of each requirement",
+        "category": "ArcLang",
+        "icon": "$(list-tree)"
+      },
+      {
+        "command": "arclang.realization.refresh",
+        "title": "Realization ladder: refresh",
         "category": "ArcLang",
         "icon": "$(refresh)"
       },
@@ -883,6 +906,37 @@
         "title": "Fire an event",
         "category": "ArcLang",
         "icon": "$(zap)"
+      },
+      {
+        "command": "arclang.view.fullScreen",
+        "title": "Full screen",
+        "category": "ArcLang",
+        "icon": "$(screen-full)",
+        "enablement": "!arclang.fullScreen"
+      },
+      {
+        "command": "arclang.view.exitFullScreen",
+        "title": "Exit full screen",
+        "category": "ArcLang",
+        "icon": "$(screen-normal)",
+        "enablement": "arclang.fullScreen"
+      },
+      {
+        "command": "arclang.view.toggleFullScreen",
+        "title": "Toggle full screen",
+        "category": "ArcLang"
+      },
+      {
+        "command": "arclang.twin.run",
+        "title": "Run the digital twins (the physics driven by measured data)",
+        "category": "ArcLang",
+        "icon": "$(pulse)"
+      },
+      {
+        "command": "arclang.twin.watch",
+        "title": "Watch a digital twin live (MQTT, OPC UA, Kafka, HTTP)",
+        "category": "ArcLang",
+        "icon": "$(broadcast)"
       }
     ],
     "menus": {
@@ -936,8 +990,18 @@
         },
         {
           "command": "arclang.simulation.run",
-          "when": "resourceLangId == arclang && arclang.simulatesHere && !isWeb",
+          "when": "resourceLangId == arclang && arclang.simulatesHere",
           "group": "navigation@3"
+        },
+        {
+          "command": "arclang.view.fullScreen",
+          "when": "!arclang.fullScreen && (resourceLangId == arclang || resourceLangId == sysml || resourceLangId == modelica || activeCustomEditorId == arclang.pdf || activeCustomEditorId == arclang.workbench || activeWebviewPanelId == arclang.table || activeWebviewPanelId == arclang.impact || activeWebviewPanelId == arclang.workbench.diagram || activeWebviewPanelId == arclang.monteCarlo || activeWebviewPanelId == arclang.importReport || activeWebviewPanelId == arclang.simulationSetup || activeWebviewPanelId == arclangDiagrams)",
+          "group": "navigation@99"
+        },
+        {
+          "command": "arclang.view.exitFullScreen",
+          "when": "arclang.fullScreen && (resourceLangId == arclang || resourceLangId == sysml || resourceLangId == modelica || activeCustomEditorId == arclang.pdf || activeCustomEditorId == arclang.workbench || activeWebviewPanelId == arclang.table || activeWebviewPanelId == arclang.impact || activeWebviewPanelId == arclang.workbench.diagram || activeWebviewPanelId == arclang.monteCarlo || activeWebviewPanelId == arclang.importReport || activeWebviewPanelId == arclang.simulationSetup || activeWebviewPanelId == arclangDiagrams)",
+          "group": "navigation@99"
         }
       ],
       "editor/context": [
@@ -963,6 +1027,11 @@
         },
         {
           "command": "arclang.impact.analyze",
+          "when": "resourceLangId == arclang",
+          "group": "arclang@1"
+        },
+        {
+          "command": "arclang.realization.open",
           "when": "resourceLangId == arclang",
           "group": "arclang@1"
         },
@@ -1226,6 +1295,10 @@
           "when": "activeCustomEditorId == arclang.workbench"
         },
         {
+          "command": "arclang.diagram.exportPdf",
+          "when": "activeCustomEditorId == arclang.workbench"
+        },
+        {
           "command": "arclang.diagram.chooseTheme",
           "when": "activeCustomEditorId == arclang.workbench"
         },
@@ -1256,6 +1329,14 @@
         {
           "command": "arclang.impact.refresh",
           "when": "activeWebviewPanelId == arclang.impact"
+        },
+        {
+          "command": "arclang.realization.open",
+          "when": "resourceLangId == arclang || resourceLangId == sysml"
+        },
+        {
+          "command": "arclang.realization.refresh",
+          "when": "activeWebviewPanelId == arclang.realization"
         },
         {
           "command": "arclang.import.sysmlFolder",
@@ -1629,6 +1710,11 @@
           "group": "export@3"
         },
         {
+          "command": "arclang.diagram.exportPdf",
+          "when": "webviewId == 'arclang.workbench'",
+          "group": "export@4"
+        },
+        {
           "command": "arclang.workbench.save",
           "when": "webviewId == 'arclang.workbench'",
           "group": "file@1"
@@ -1849,7 +1935,7 @@
           ],
           "enumDescriptions": [
             "No impact analysis after edits.",
-            "After an edit, the compiler's consequences (broken traces, new findings, gate blockers) show in the Suggestions pane; the AI is asked when you click \"Propose changes with AI\" or \"Analyse impact\".",
+            "After an edit, the compiler's consequences (broken traces, new findings, gate blockers) show in the Suggestions pane; the AI is asked when you click \"Propose changes with AI\" or \"Analyze impact\".",
             "After an edit with consequences, the AI proposes one to three changes in the Suggestions pane, each checked by the compiler. Nothing is applied without your click."
           ],
           "description": "Impact-driven AI suggestions while editing in the workbench."
@@ -1865,7 +1951,7 @@
           ],
           "enumDescriptions": [
             "The source of the selected elements, their relationships and findings.",
-            "Also the source of their neighbours (the other ends of their relationships, their owners).",
+            "Also the source of their neighbors (the other ends of their relationships, their owners).",
             "Also the whole model text (clipped to a size the model takes)."
           ],
           "description": "What the AI is shown around a selection, besides the metamodel of its kinds and the gate state."
@@ -1894,7 +1980,7 @@
         "arclang.diagram.theme": {
           "type": "string",
           "default": "arclang-default",
-          "markdownDescription": "The colour theme of every diagram, on every layer: a preset (`arclang-default`, `capella-classic`, `colorblind-safe`, `print-grayscale`, `high-contrast`, `monochrome-document`), the `id` of a team theme (`.arclang/themes/*.json` in the workspace, versioned with the model) or of one of yours (**ArcLang: Edit or create a diagram colour theme…**), or the path of an `arclang-theme.json` file. A theme that breaks a colour rule is refused and the default is drawn, with the reasons. In a dark VS Code theme, a colour theme with a dark variant draws it; any other is turned dark by inverting it."
+          "markdownDescription": "The color theme of every diagram, on every layer: a preset (`arclang-default`, `capella-classic`, `colorblind-safe`, `print-grayscale`, `high-contrast`, `monochrome-document`), the `id` of a team theme (`.arclang/themes/*.json` in the workspace, versioned with the model) or of one of yours (**ArcLang: Edit or create a diagram color theme…**), or the path of an `arclang-theme.json` file. A theme that breaks a color rule is refused and the default is drawn, with the reasons. In a dark VS Code theme, a color theme with a dark variant draws it; any other is turned dark by inverting it."
         },
         "arclang.diagram.copyBackground": {
           "type": "string",
@@ -1905,7 +1991,7 @@
           "default": "white",
           "enumDescriptions": [
             "The image keeps the sheet of its theme (white for every light theme): what a slide expects.",
-            "No sheet: the boxes and lines only, for a coloured slide."
+            "No sheet: the boxes and lines only, for a colored slide."
           ],
           "description": "The background of the diagram copied as an image (Copy as image, ⇧⌘C / Ctrl+Shift+C on the canvas)."
         },
@@ -2035,6 +2121,34 @@
         }
       },
       {
+        "name": "arclang_realize",
+        "displayName": "ArcLang: realization ladder",
+        "toolReferenceName": "arclangRealize",
+        "canBeReferencedInPrompt": true,
+        "icon": "$(list-tree)",
+        "userDescription": "Plan the climb of the realization ladder of a .arc model: what each stage (simulation, SIL, PIL, HDL, SoC, board, twin) says of each requirement, what to run next, and the requirements nothing climbs.",
+        "modelDescription": "Runs `arclang realize --dry-run --json` on a .arc model: the realization ladder of each requirement (the state of each stage: pass, fail, error, stale, missing, n/a, with the cases and their reasons), the plan (the commands that produce the missing or stale stages, in order) and the gaps (requirements with no case that simulates or executes and no twin). Nothing runs. Use it to tell the engineer where the realization stands and to propose, with arclang_edit, the test_case (simulate: or execute:) or twin a gap needs; the engineer runs the climb.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string",
+              "description": "Absolute path of the .arc file."
+            },
+            "requirement": {
+              "type": "string",
+              "description": "Only this requirement (id or name)."
+            },
+            "up_to": {
+              "type": "string",
+              "enum": ["simulation", "sil", "pil", "hdl", "soc", "board", "twin"],
+              "description": "Plan up to this stage only."
+            }
+          },
+          "required": ["path"]
+        }
+      },
+      {
         "name": "arclang_metamodel",
         "displayName": "ArcLang: language metamodel",
         "toolReferenceName": "arclangMetamodel",
@@ -2054,12 +2168,12 @@
       },
       {
         "name": "arclang_rules",
-        "displayName": "ArcLang: catalogue of rules",
+        "displayName": "ArcLang: catalog of rules",
         "toolReferenceName": "arclangRules",
         "canBeReferencedInPrompt": true,
         "icon": "$(law)",
-        "userDescription": "The catalogue of validation rules the compiler checks.",
-        "modelDescription": "Returns the catalogue of ArcLang validation rules (what arclang_check reports) as JSON: rule id, severity, what it checks and how to satisfy it.",
+        "userDescription": "The catalog of validation rules the compiler checks.",
+        "modelDescription": "Returns the catalog of ArcLang validation rules (what arclang_check reports) as JSON: rule id, severity, what it checks and how to satisfy it.",
         "inputSchema": {
           "type": "object",
           "properties": {}
@@ -2423,6 +2537,16 @@
           }
         ],
         "priority": "option"
+      },
+      {
+        "viewType": "arclang.pdf",
+        "displayName": "PDF",
+        "selector": [
+          {
+            "filenamePattern": "*.pdf"
+          }
+        ],
+        "priority": "default"
       }
     ],
     "keybindings": [
@@ -2843,6 +2967,17 @@
         "key": "ctrl+shift+a",
         "mac": "cmd+shift+a",
         "when": "activeWebviewPanelId == 'arclang.workbench.diagram' && focusedView == '' && !inputFocus && !arclang.workbenchTyping"
+      },
+      {
+        "command": "arclang.view.toggleFullScreen",
+        "key": "ctrl+alt+enter",
+        "mac": "cmd+alt+enter",
+        "when": "!findWidgetVisible && !inQuickOpen"
+      },
+      {
+        "command": "arclang.view.exitFullScreen",
+        "key": "escape",
+        "when": "arclang.fullScreen && activeCustomEditorId != arclang.workbench && !editorHasSelection && !editorHasMultipleSelections && !suggestWidgetVisible && !findWidgetVisible && !inSnippetMode && !parameterHintsVisible && !inQuickOpen && !notificationToastsVisible"
       }
     ],
     "breakpoints": [
@@ -2921,22 +3056,24 @@
     "typecheck:web": "tsc -p tsconfig.web.json"
   },
   "dependencies": {
+    "pako": "1.0.11",
+    "pdfjs-dist": "6.5.438",
     "vscode-languageclient": "^10.1.2"
   },
   "devDependencies": {
     "@types/mocha": "^10.0.10",
     "@types/node": "^22.0.0",
+    "@types/path-browserify": "^1.0.3",
     "@types/vscode": "^1.104.0",
     "@vscode/test-cli": "^0.0.15",
     "@vscode/test-electron": "^3.1.0",
     "@vscode/vsce": "^4.0.0",
+    "buffer": "^6.0.3",
     "esbuild": "^0.28.2",
     "mocha": "^11.0.0",
+    "path-browserify": "^1.0.1",
     "tsx": "^4.20.0",
-    "typescript": "^5.9.0",
-    "@types/path-browserify": "^1.0.3",
-    "buffer": "^6.0.3",
-    "path-browserify": "^1.0.1"
+    "typescript": "^5.9.0"
   },
   "browser": "./dist/web/extension.js"
 }

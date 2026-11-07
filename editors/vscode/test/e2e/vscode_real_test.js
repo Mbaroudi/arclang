@@ -439,7 +439,7 @@ async function looks() {
       if (!ctx.page) throw new Error('no workbench page');
       ctx.press = await azerty(win); const h = on(ctx);
       await h.layer('Logical');
-      // A dark theme: the colour theme's own dark variant, else the light drawing inverted.
+      // A dark theme: the color theme's own dark variant, else the light drawing inverted.
       const look = await ctx.page.evaluate(() => {
         const shape = document.querySelector('.arcviz-stage .av-node > .av-shape');
         const rgb = (getComputedStyle(shape).fill.match(/\d+(\.\d+)?/g) || ['255', '255', '255']).slice(0, 3).map(Number);

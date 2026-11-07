@@ -1,5 +1,5 @@
 // One icon per element kind, drawn as the diagram draws the kind: Capella's
-// colour code (blue structure, green functions, yellow hardware, orange
+// color code (blue structure, green functions, yellow hardware, orange
 // activities) and the viewer's glyphs (the stick figure of an actor, the
 // circled f of a function, the 3D box of a node). Pure data: the side bar
 // tree writes them as SVG files, the properties pane builds them as nodes.
@@ -45,6 +45,9 @@ const FAMILIES: Record<string, Omit<KindIcon, 'family'>> = {
   mission: { fill: '#FFE9B8', stroke: '#9A6400', shapes: [path('M3.5 14.5v-13', NONE), path('M3.5 2.5h9l-2.4 3 2.4 3h-9z')] },
   chain: { fill: '#FCE3D4', stroke: '#B4500F', shapes: [circle(3.5, 8, 2.2), circle(12.5, 8, 2.2), path('M5.7 8h4.6', NONE)] },
   requirement: { fill: '#EDE4F7', stroke: '#6A3FA6', shapes: [path('M3 1.5h7l3 3v10H3z'), path('M10 1.5v3h3M5.5 7.5h5M5.5 10h5M5.5 12.5h3', NONE)] },
+  concern: { fill: '#FBF3E4', stroke: '#8A5A1E', shapes: [path('M2 3h12v7.5H7.5L4.5 13.5v-3H2z'), path('M8 5v2.6M8 9v.3', NONE)] },
+  timeslice: { fill: '#E8EEF8', stroke: '#3B5B92', shapes: [box(1.5, 4.5, 13, 7, 1.5), path('M5.5 4.5v7M10.5 4.5v7', NONE)] },
+  snapshot: { fill: '#E8EEF8', stroke: '#3B5B92', shapes: [circle(8, 8, 5.5), path('M8 4.8V8l2.2 1.6', NONE)] },
   test_case: { fill: '#E1F2EC', stroke: '#2E7D5B', shapes: [box(2, 2, 12, 12, 2), path('M4.8 8.2l2.2 2.3 4.4-4.8', NONE)] },
   constraint: { fill: 'none', stroke: '#4A545E', shapes: [path('M6 2c-2 0-2 1-2 2.6S3 7.4 2 8c1 .6 2 1 2 3.4S4 14 6 14M10 2c2 0 2 1 2 2.6s1 2.8 2 3.4c-1 .6-2 1-2 3.4S12 14 10 14')] },
   hazard: { fill: '#FDE2E1', stroke: '#B42318', shapes: [path('M8 1.8l6.6 12H1.4z'), path('M8 6v3.8M8 11.6v.4', NONE)] },
@@ -126,6 +129,9 @@ const KIND_FAMILY: Record<string, string> = {
   Realization: 'trace',
   Verification: 'trace',
   Configuration: 'configuration',
+  Concern: 'concern',
+  Timeslice: 'timeslice',
+  Snapshot: 'snapshot',
   TestCase: 'test_case',
   Model: 'model',
   Type: 'type',

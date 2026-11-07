@@ -112,7 +112,7 @@
           "target": "OA-DetectThreat",
           "label": "ThreatDetection",
           "properties": {
-            "description": "Observations to analyse"
+            "description": "Observations to analyze"
           }
         },
         {

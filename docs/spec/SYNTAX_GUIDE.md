@@ -246,7 +246,7 @@ dashed line.
 expression, the value of each side (`50 ms against 100 ms`) and its verdict
 (`✓ holds`, `✗ violated`), bound to every value it reads: `mass = 450 kg`
 inside the battery, the `latency` of each function a `sum("FC-STOP", latency)`
-adds up, the line labelled `sum`.
+adds up, the line labeled `sum`.
 
 **The SysML v2 views** draw the same model in the vocabulary of SysML v2,
 from the text `arclang export -f sys-ml` writes: the **General View**
@@ -325,7 +325,7 @@ requirement to `verifies:` leaves the verifications already reviewed alone.
 
 **Quantities of physics**: `35 °C` (or `35 degC`, a temperature level:
 308.15 K; a difference of temperatures is written in K), `40 Ah`, `2500 mAh`,
-`25 mOhm` (or `mΩ`), `200 W/K`, `15 MJ/K`, `0.62 m²`. `arclang metamodel`
+`25 mOhm` (or `mΩ`), `200 W/K`, `15 MJ/K`, `0.62 m²`, `22 kg/s` (or `g/s`). `arclang metamodel`
 lists every unit.
 
 **Identifiers**:

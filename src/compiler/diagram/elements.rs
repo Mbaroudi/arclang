@@ -23,10 +23,10 @@ pub(super) fn kind_name(kind: NodeKind) -> String {
         .unwrap_or_else(|| "element".to_string())
 }
 
-/// Every structural or behavioural element a scenario participant or a
+/// Every structural or behavioral element a scenario participant or a
 /// capability involvement can name, by id and by name. When a reference
 /// matches several elements the first registered wins, and structure is
-/// registered before behaviour: a scenario between components is the
+/// registered before behavior: a scenario between components is the
 /// common case.
 pub(super) fn element_index(model: &Model) -> HashMap<&str, ElementRef<'_>> {
     let mut index = HashMap::new();
@@ -48,7 +48,7 @@ pub(super) fn is_operational(kind: NodeKind) -> bool {
     )
 }
 
-/// Every element another view can refer to, structure before behaviour.
+/// Every element another view can refer to, structure before behavior.
 pub(super) fn all_elements(model: &Model) -> Vec<ElementRef<'_>> {
     let mut found: Vec<ElementRef<'_>> = Vec::new();
 

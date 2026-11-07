@@ -6,7 +6,7 @@ export const MAX_RESPONSE_BYTES = 10 * 1024 * 1024;
 /** The most one line or one event of a stream may hold before its end comes. */
 export const MAX_EVENT_CHARS = 4 * 1024 * 1024;
 
-export type ErrorKind = 'http' | 'timeout' | 'cancelled' | 'network' | 'protocol' | 'config';
+export type ErrorKind = 'http' | 'timeout' | 'canceled' | 'network' | 'protocol' | 'config';
 
 export class ProviderError extends Error {
   constructor(
@@ -123,11 +123,11 @@ export async function* postStream(request: StreamRequest): AsyncGenerator<string
     }, request.timeoutMs);
   };
   const onAbort = () => controller.abort();
-  if (request.signal?.aborted) throw new ProviderError(`${request.label}: cancelled`, 'cancelled');
+  if (request.signal?.aborted) throw new ProviderError(`${request.label}: canceled`, 'canceled');
   request.signal?.addEventListener('abort', onAbort, { once: true });
   const fail = (error: unknown): ProviderError => {
     if (error instanceof ProviderError) return error;
-    if (request.signal?.aborted) return new ProviderError(`${request.label}: cancelled`, 'cancelled');
+    if (request.signal?.aborted) return new ProviderError(`${request.label}: canceled`, 'canceled');
     if (timedOut) return new ProviderError(`${request.label}: no answer within ${Math.round(request.timeoutMs / 1000)} s`, 'timeout');
     const message = error instanceof Error ? `${error.message}${error.cause instanceof Error ? ` (${error.cause.message})` : ''}` : String(error);
     return new ProviderError(`${request.label}: ${redact(message, request.secrets)}`, 'network');

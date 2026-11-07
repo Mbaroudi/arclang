@@ -1,6 +1,6 @@
-// Colour themes, Copy as image and the PowerPoint export in the real VS
+// Color themes, Copy as image and the PowerPoint export in the real VS
 // Code: every preset chosen from the toolbar's Theme menu and checked on
-// every layer, light and dark; a custom theme refused for a reserved colour
+// every layer, light and dark; a custom theme refused for a reserved color
 // then saved for the team; the image read back from the macOS clipboard;
 // the .pptx read back with python-pptx.
 //   VSCODE_APP=... PLAYWRIGHT=... ARCLANG_BINARY=... [SHOTS=/dir] [PPTX_PYTHON=/venv/bin/python] node vscode_theme_test.js
@@ -46,7 +46,7 @@ function workspace() {
   return { dir, work, model };
 }
 
-/** The fill of the first box of `kind` drawn on the stage, and the sheet's colour. */
+/** The fill of the first box of `kind` drawn on the stage, and the sheet's color. */
 const fills = (page) => page.evaluate(() => {
   const out = {};
   for (const g of document.querySelectorAll('.arcviz-stage .av-node')) {
@@ -71,7 +71,7 @@ async function chooseTheme(ctx, key) {
 
 const LAYERS = [['Operational', 'oab', 'operational_activity', 'operational_activity'], ['System', 'sab', 'function', 'system_function'], ['Logical', 'lab', 'function', 'logical_function'], ['Physical', 'pab', 'physical_node', 'physical_node']];
 
-/** Every preset from the Theme menu, every layer coloured by it; in light and dark VS Code. */
+/** Every preset from the Theme menu, every layer colored by it; in light and dark VS Code. */
 async function presets(colorTheme, slug) {
   const { dir, model } = workspace();
   const ctx = await launch(dir, model, { 'workbench.colorTheme': colorTheme });
@@ -101,7 +101,7 @@ async function presets(colorTheme, slug) {
         if (name === 'Logical' || name === 'Physical') await shot(win, `vscode-${slug}-${id}-${name.toLowerCase()}`);
         void want;
       }
-      report(`${slug} ${id}: chosen from the Theme menu, it colours every layer`, chosen && wrong.length === 0, wrong.join('; '));
+      report(`${slug} ${id}: chosen from the Theme menu, it colors every layer`, chosen && wrong.length === 0, wrong.join('; '));
       const setting = JSON.parse(fs.readFileSync(path.join(ctx.work, '.vscode', 'settings.json'), 'utf8'))['arclang.diagram.theme'];
       if (id === 'capella-classic') report(`${slug}: the choice is the workspace's setting`, setting === 'capella-classic', setting);
     }
@@ -146,18 +146,18 @@ async function editorAndExports() {
     await ctx.command('View: Close Primary Side Bar'); await ctx.command('View: Single Column Editor Layout'); await ctx.command('ArcLang: Open the workbench'); await ctx.win.waitForTimeout(2000);
     await layer(ctx, 'Logical');
 
-    // 1. The editor: a copy of Capella classic, a reserved colour refused, a good one saved for the team
+    // 1. The editor: a copy of Capella classic, a reserved color refused, a good one saved for the team
     await page.locator('#arcviz-theme-menu').click(); await win.waitForTimeout(300);
     await page.locator('.arcviz-menu-pop:not([hidden]) [data-action="theme-edit"]').click(); await win.waitForTimeout(800);
     const editor = page.locator('.wb-theme-editor');
     report('Theme > Edit or new theme opens the editor', await editor.isVisible());
     await page.locator('.wb-te-base').selectOption('preset:capella-classic');
     await page.locator('.wb-te-start button', { hasText: 'Duplicate' }).click(); await win.waitForTimeout(500);
-    await page.locator('.wb-te-name').fill('Programme Astra'); await win.waitForTimeout(400);
+    await page.locator('.wb-te-name').fill('Program Astra'); await win.waitForTimeout(400);
     const hex = (key, n) => page.locator(`.wb-te-line[data-key="${key}"] input.wb-te-hex`).nth(n);
     await hex('system_actor', 1).fill('#E51400'); await win.waitForTimeout(900);
     const refused = await page.evaluate(() => ({ text: document.querySelector('.wb-te-verdict').textContent, refused: document.querySelector('.wb-te-verdict').classList.contains('is-refused'), disabled: [...document.querySelectorAll('.wb-te-actions button')].every((b) => b.disabled) }));
-    report('a reserved colour is refused with the reason, and cannot be saved', refused.refused && /actor stroke #E51400 is the error red/.test(refused.text) && refused.disabled, refused.text.slice(0, 120));
+    report('a reserved color is refused with the reason, and cannot be saved', refused.refused && /actor stroke #E51400 is the error red/.test(refused.text) && refused.disabled, refused.text.slice(0, 120));
     const preview = await page.evaluate(() => { const g = document.querySelector('.arcviz-stage .av-node[data-kind="logical_component"] > .av-shape'); return g && g.getAttribute('fill'); });
     report('the draft is previewed on the diagram as it is edited', (preview || '').toUpperCase() === '#96B1DA', preview);
     await shot(win, 'vscode-theme-editor-refused');
@@ -166,14 +166,14 @@ async function editorAndExports() {
     await hex('system_component', 0).fill('#8DA8D6');
     await hex('behaviour_component', 0).fill('#8DA8D6'); await win.waitForTimeout(900);
     const passes = await page.evaluate(() => ({ text: document.querySelector('.wb-te-verdict').textContent, ok: !document.querySelector('.wb-te-verdict').classList.contains('is-refused') }));
-    report('with an allowed colour the theme passes every rule', passes.ok, passes.text.slice(0, 120));
+    report('with an allowed color the theme passes every rule', passes.ok, passes.text.slice(0, 120));
     await shot(win, 'vscode-theme-editor-passes');
     await page.locator('.wb-te-actions button', { hasText: 'Save as team theme' }).click(); await win.waitForTimeout(3000);
-    const file = path.join(work, '.arclang', 'themes', 'programme-astra.json');
+    const file = path.join(work, '.arclang', 'themes', 'program-astra.json');
     const saved = fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, 'utf8')) : null;
-    report('Save as team theme writes .arclang/themes/programme-astra.json', !!saved && saved.version === 1 && saved.name === 'Programme Astra' && saved.concepts.logical_component.fill === '#8DA8D6', file);
+    report('Save as team theme writes .arclang/themes/program-astra.json', !!saved && saved.version === 1 && saved.name === 'Program Astra' && saved.concepts.logical_component.fill === '#8DA8D6', file);
     const setting = JSON.parse(fs.readFileSync(path.join(work, '.vscode', 'settings.json'), 'utf8'))['arclang.diagram.theme'];
-    report('the team theme becomes the workspace\'s theme', setting === 'team:programme-astra', setting);
+    report('the team theme becomes the workspace\'s theme', setting === 'team:program-astra', setting);
     await page.locator('.wb-te-close').click(); await win.waitForTimeout(1500);
     const drawn = [];
     for (const [name, , kind, concept] of [LAYERS[1], LAYERS[2], LAYERS[3]]) {
@@ -183,7 +183,7 @@ async function editorAndExports() {
       drawn.push(`${name} ${seen[kind]}`);
       if ((seen[kind] || '').toUpperCase() !== want.toUpperCase()) drawn.push('WRONG');
     }
-    report('the saved team theme colours every layer', !drawn.includes('WRONG'), drawn.join(', '));
+    report('the saved team theme colors every layer', !drawn.includes('WRONG'), drawn.join(', '));
     await layer(ctx, 'Logical');
 
     // 2. Copy as image: the selection, then the whole view, as a PNG on the macOS clipboard
@@ -208,7 +208,7 @@ async function editorAndExports() {
     await openExport(page); await win.waitForTimeout(300);
     await page.locator('.arcviz-menu-pop:not([hidden]) [data-action="copy-svg"]').click(); await win.waitForTimeout(1500);
     const svgText = await ctx.app.evaluate(({ clipboard }) => clipboard.readText());
-    report('Copy as SVG puts the SVG markup on the clipboard, in the theme\'s colours', /^<svg /.test(svgText) && /#8DA8D6/i.test(svgText), svgText.slice(0, 40));
+    report('Copy as SVG puts the SVG markup on the clipboard, in the theme\'s colors', /^<svg /.test(svgText) && /#8DA8D6/i.test(svgText), svgText.slice(0, 40));
 
     // 4. Export PowerPoint: every diagram, one slide each
     const pptx = path.join(work, 'deck.pptx');

@@ -33,7 +33,7 @@ async function getJson(session: ApiSession, url: string, cancel?: vscode.Cancell
     try {
       response = await fetch(url, { headers, redirect: 'manual', signal: controller.signal });
     } catch (error) {
-      if (cancel?.isCancellationRequested) throw new ApiError('cancelled');
+      if (cancel?.isCancellationRequested) throw new ApiError('canceled');
       throw new ApiError(`${new URL(url).origin} did not answer: ${error instanceof Error ? (error.cause instanceof Error ? error.cause.message : error.message) : String(error)}`);
     }
     if (response.status >= 300 && response.status < 400) throw new ApiError(`the server redirects ${new URL(url).pathname} (HTTP ${response.status}): refused, give the address it redirects to`);
@@ -56,7 +56,7 @@ async function list(session: ApiSession, path: string, cancel?: vscode.Cancellat
   let url: string | null = withPageSize(`${session.base}${path}`, PAGE_SIZE);
   const seen = new Set<string>();
   while (url) {
-    if (cancel?.isCancellationRequested) throw new ApiError('cancelled');
+    if (cancel?.isCancellationRequested) throw new ApiError('canceled');
     if (seen.has(url)) throw new ApiError(`the server gave the same page twice (${url}): stopped`);
     seen.add(url);
     const { body, link } = await getJson(session, url, cancel);

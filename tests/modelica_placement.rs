@@ -79,7 +79,7 @@ fn the_drawing_keeps_every_arclang_id_and_every_connection() {
     assert!(text.contains("Line(points={{"));
     assert!(text.contains("color={0,0,255}"), "electrical wires are blue");
     assert!(text.contains("color={0,0,127}"), "signal wires are dark blue");
-    assert!(text.contains("color={95,95,95}"), "mechanical wires are grey");
+    assert!(text.contains("color={95,95,95}"), "mechanical wires are gray");
     assert!(text.contains("Diagram(coordinateSystem(extent={{"));
     assert!(text.contains("Icon(coordinateSystem(extent={{"));
 }
@@ -127,7 +127,7 @@ fn split_writes_one_file_per_class_in_a_library_folder() {
         "EVRangeSimulation/package.order",
         "EVRangeSimulation/Physical/package.mo",
         "EVRangeSimulation/Physical/BatteryPack.mo",
-        "EVRangeSimulation/Behaviour/VehicleControlUnit/SpeedController.mo",
+        "EVRangeSimulation/Behavior/VehicleControlUnit/SpeedController.mo",
         "EVRangeSimulation/Systems/Touring.mo",
     ] {
         assert!(paths.contains(&expected), "missing {expected} in {paths:?}");
@@ -180,7 +180,7 @@ fn every_example_with_physical_nodes_draws_without_overlap() {
             let path = entry.path();
             if path.is_dir() {
                 stack.push(path);
-            } else if path.extension().is_some_and(|e| e == "arc") && !path.to_string_lossy().contains("legacy") {
+            } else if path.extension().is_some_and(|e| e == "arc") && !path.to_string_lossy().contains("archive") {
                 let Ok(result) = Compiler::new(CompilerConfig::default()).compile_file(&path) else { continue };
                 let Ok(export) = modelica::export_with(&result.ast, &Options { placement: true, layout: None }) else { continue };
                 seen += 1;

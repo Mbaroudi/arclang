@@ -342,7 +342,7 @@ export function whatIfQuery(form: WhatIfForm, base: ImpactQuery): ImpactQuery {
   }
 }
 
-/** The title of the view: what is analysed. */
+/** The title of the view: what is analyzed. */
 export function queryTitle(query: ImpactQuery): string {
   if (query.label) return query.label;
   if (query.since) return `Impact of my changes since ${query.since}`;

@@ -14,6 +14,7 @@ import {
   ToTableView,
   ViewState,
   visibleRows,
+  parentIds,
 } from '../../src/pure/tables';
 import { renderGrid, GridHost } from './grid';
 import { renderMatrix, MatrixHost } from './matrix';
@@ -286,7 +287,43 @@ const gridHost: GridHost = {
     say(`Applying ${label}…`);
   },
   typing: (on) => post({ type: 'typing', on }),
+  nested: () => !view.sort && !!table?.rows.some((row) => row.parent),
+  hasChildren: (id) => !!table && parentIds(table).has(id),
+  isCollapsed: (id) => (view.collapsed ?? []).includes(id),
+  toggle: (id) => {
+    const collapsed = view.collapsed ?? [];
+    view = { ...view, collapsed: collapsed.includes(id) ? collapsed.filter((c) => c !== id) : [...collapsed, id] };
+    persist();
+    renderBody();
+  },
+  addChild: (row) => askChild(row),
 };
+
+/** The text of a new requirement under `row`, typed in a line under the toolbar. */
+function askChild(row: TableRow): void {
+  root.querySelector('.tb-ask')?.remove();
+  const input = el('input', { class: 'tb-ask-input', type: 'text', placeholder: 'What the new requirement says, then Enter', 'aria-label': `Text of a new requirement under ${row.id}`, spellcheck: 'false' }) as HTMLInputElement;
+  const ask = el('div', { class: 'tb-ask', role: 'dialog', 'aria-label': `New requirement under ${row.id}` }, [el('label', {}, `New requirement under ${row.name || row.id}`), input]);
+  body.before(ask);
+  post({ type: 'typing', on: true });
+  input.focus();
+  const close = () => {
+    ask.remove();
+    post({ type: 'typing', on: false });
+  };
+  input.addEventListener('keydown', (event) => {
+    event.stopPropagation();
+    if (event.key === 'Escape') close();
+    if (event.key === 'Enter' && input.value.trim()) {
+      post({ type: 'add-child', parent: row.id, text: input.value.trim() });
+      view = { ...view, collapsed: (view.collapsed ?? []).filter((c) => c !== row.id) };
+      persist();
+      say(`Adding a requirement under ${row.id}…`);
+      close();
+    }
+  });
+  input.addEventListener('blur', () => window.setTimeout(close, 150));
+}
 
 const matrixHost: MatrixHost = {
   reveal: (id, name, open) => post({ type: 'reveal', id, name, open }),

@@ -25,6 +25,7 @@ pub fn si_type(dimension: Dimension) -> String {
         Dimension::ThermalConductance => "ThermalConductance",
         Dimension::HeatCapacity => "HeatCapacity",
         Dimension::Area => "Area",
+        Dimension::MassFlowRate => "MassFlowRate",
         Dimension::Ratio => return "Real(unit=\"1\")".to_string(),
         Dimension::DataRate | Dimension::Information => return format!("Real(unit=\"{}\")", dimension.canonical_unit()),
     };

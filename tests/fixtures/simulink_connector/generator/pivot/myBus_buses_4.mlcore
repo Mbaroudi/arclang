@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<org.eclipse.capella.simulink.core:Dictionary xmi:version="2.0" xmlns:xmi="http://www.omg.org/XMI" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:org.eclipse.capella.simulink.core="http://www.eclipse.org/capella/simulink/core/1.0" xmlns:org.eclipse.capella.simulink.infra="http://www.eclipse.org/capella/simulink/infra/1.0" id="b1" name="bus (1)">
+  <datatypes xsi:type="org.eclipse.capella.simulink.core:CustomType" id="2dbbcf48-5329-4c6d-9619-ada485f8e5de" name="ID">
+    <parameters id="d283103f-c1aa-4178-abe1-40a2efba96f8" key="DataTypeMode">
+      <value xsi:type="org.eclipse.capella.simulink.infra:PrimitiveValue" id="47166b12-62dc-48f4-8be1-e81414da61e8" specification="Fixed-point: slope and bias scaling"/>
+    </parameters>
+    <parameters id="d1036c5f-a547-4659-a634-c937b1d2ca82" key="Bias">
+      <value xsi:type="org.eclipse.capella.simulink.infra:PrimitiveValue" id="ezre1" specification="0"/>
+    </parameters>
+    <parameters id="cf68d458-3c15-4818-a63c-61ec8971a383" key="Signedness">
+      <value xsi:type="org.eclipse.capella.simulink.infra:PrimitiveValue" id="3171b89d-4515-4075-bc8e-97aa5e8fd8e4" specification="Signed"/>
+    </parameters>
+    <parameters id="bab1ddb6-7be5-4e0f-8701-0ee571b7024c" key="WordLength">
+      <value xsi:type="org.eclipse.capella.simulink.infra:PrimitiveValue" id="ezre2" specification="64"/>
+    </parameters>
+    <parameters id="4eddc48c-d672-46d2-986f-f56c2a1bac03" key="IsAlias">
+      <value xsi:type="org.eclipse.capella.simulink.infra:PrimitiveValue" id="f7bbb6d9-0581-4d70-be8b-4502138b4476" specification="true"/>
+    </parameters>
+  </datatypes>
+  <datatypes xsi:type="org.eclipse.capella.simulink.core:Bus" id="53788a6a-3462-4b79-bdbc-093924700aa0" name="myBus">
+    <busElements id="1a54a092-e939-42ee-bed8-218db62f6497" name="Value">
+      <datatype xsi:type="org.eclipse.capella.simulink.core:BuiltIntype" href="library:/model/builtInTypes.mlcore#af51b9eb-672c-4506-ac0a-3faefd6e01fc"/>
+    </busElements>
+    <busElements id="915308fb-7814-49b8-ab4e-26c2abe1a6ba" name="Validity">
+      <datatype xsi:type="org.eclipse.capella.simulink.core:BuiltIntype" href="library:/model/builtInTypes.mlcore#895807ab-63ff-4779-8bed-8ff8180aa13e"/>
+    </busElements>
+    <busElements id="4f09e20e-d94f-45ff-86d6-2e75e940ac96" name="busId" datatype="ca440103-8b01-4c11-9ae7-886774f40a1c"/>
+  </datatypes>
+  <datatypes xsi:type="org.eclipse.capella.simulink.core:Bus" id="ca440103-8b01-4c11-9ae7-886774f40a1c" name="mySubBus">
+    <busElements id="00b8311a-7ceb-4725-9642-2c1f929795e0" name="Id" datatype="2dbbcf48-5329-4c6d-9619-ada485f8e5de"/>
+  </datatypes>
+</org.eclipse.capella.simulink.core:Dictionary>

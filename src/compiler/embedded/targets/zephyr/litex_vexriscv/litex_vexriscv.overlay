@@ -1,0 +1,126 @@
+/*
+ * ArcLang target zephyr/litex_vexriscv: the LiteX SoC of the board
+ * litex_vexriscv with what ArcLang's channels need, and the aliases
+ * arclang_io_zephyr.c finds them by. renode/arclang_litex_vexriscv.repl
+ * emulates this same SoC.
+ *
+ *   arclang gpio N (read)   line N of gpio_in  (LiteX GPIO, 32 lines)
+ *   arclang gpio N (write)  line N of gpio_out (LiteX GPIO, 32 lines)
+ *   arclang pwm 0, 1        pwm0, and a second LiteX PWM core pwm1
+ *   arclang uart 0, 1       two more LiteX UARTs (the console stays on uart0)
+ *   arclang can             an SJA1000-compatible CAN core (arclang,litex-sja1000)
+ *   arclang adc 0 to 7      a register bank (arclang,litex-adc): LiteX has no ADC core
+ *   watchdog                wdt0 (LiteX watchdog core)
+ *
+ * What ArcLang does not use is disabled, so the image boots without the
+ * clock generator, the Ethernet, the SD card, the I2S and the SPI flash;
+ * the SoC has 12 interrupt lines: the UARTs and the CAN core take those of
+ * the Ethernet (3), the SD card (5) and the I2S receiver (6).
+ */
+
+/ {
+	aliases {
+		arclang-gpio-in = &gpio_in;
+		arclang-gpio-out = &gpio_out;
+		arclang-pwm-0 = &pwm0;
+		arclang-pwm-1 = &arclang_pwm1;
+		arclang-uart-0 = &arclang_uart0;
+		arclang-uart-1 = &arclang_uart1;
+		arclang-can = &arclang_can;
+		arclang-adc = &arclang_adc;
+		watchdog0 = &wdt0;
+	};
+
+	chosen {
+		/delete-property/ zephyr,entropy;
+	};
+
+	soc {
+		arclang_uart0: serial@e000f000 {
+			compatible = "litex,uart";
+			interrupt-parent = <&intc0>;
+			interrupts = <3 10>;
+			reg = <0xe000f000 0x4>,
+			      <0xe000f004 0x4>,
+			      <0xe000f008 0x4>,
+			      <0xe000f00c 0x4>,
+			      <0xe000f010 0x4>,
+			      <0xe000f014 0x4>,
+			      <0xe000f018 0x4>,
+			      <0xe000f01c 0x4>;
+			reg-names = "rxtx", "txfull", "rxempty", "ev_status",
+				    "ev_pending", "ev_enable", "txempty", "rxfull";
+			current-speed = <115200>;
+			status = "okay";
+		};
+
+		arclang_uart1: serial@e000f800 {
+			compatible = "litex,uart";
+			interrupt-parent = <&intc0>;
+			interrupts = <5 10>;
+			reg = <0xe000f800 0x4>,
+			      <0xe000f804 0x4>,
+			      <0xe000f808 0x4>,
+			      <0xe000f80c 0x4>,
+			      <0xe000f810 0x4>,
+			      <0xe000f814 0x4>,
+			      <0xe000f818 0x4>,
+			      <0xe000f81c 0x4>;
+			reg-names = "rxtx", "txfull", "rxempty", "ev_status",
+				    "ev_pending", "ev_enable", "txempty", "rxfull";
+			current-speed = <115200>;
+			status = "okay";
+		};
+
+		arclang_pwm1: pwm@e0012000 {
+			compatible = "litex,pwm";
+			reg = <0xe0012000 0x4>,
+			      <0xe0012004 0x10>,
+			      <0xe0012014 0x10>;
+			reg-names = "enable", "width", "period";
+			#pwm-cells = <2>;
+			status = "okay";
+		};
+
+		arclang_can: can@e0010000 {
+			compatible = "arclang,litex-sja1000";
+			interrupt-parent = <&intc0>;
+			interrupts = <6 5>;
+			reg = <0xe0010000 0x80>;
+			clock-frequency = <16000000>;
+			bitrate = <500000>;
+			status = "okay";
+		};
+
+		arclang_adc: adc@e0011000 {
+			compatible = "arclang,litex-adc";
+			reg = <0xe0011000 0x20>;
+			channels = <8>;
+			#io-channel-cells = <1>;
+			status = "okay";
+		};
+	};
+};
+
+&gpio_in {
+	ngpios = <32>;
+};
+
+&gpio_out {
+	ngpios = <32>;
+};
+
+&eth0 { status = "disabled"; };
+&mdio0 { status = "disabled"; };
+&sdhc0 { status = "disabled"; };
+&spi0 { status = "disabled"; };
+&spi1 { status = "disabled"; };
+&i2s_rx { status = "disabled"; };
+&i2s_tx { status = "disabled"; };
+&clock0 { status = "disabled"; };
+&clk0 { status = "disabled"; };
+&clk1 { status = "disabled"; };
+&dna0 { status = "disabled"; };
+&i2c0 { status = "disabled"; };
+&i2c1 { status = "disabled"; };
+&prbs0 { status = "disabled"; };

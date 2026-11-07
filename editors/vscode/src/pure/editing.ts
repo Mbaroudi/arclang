@@ -196,14 +196,14 @@ export interface Move {
 
 const moved = (moves: Move[]): Move[] => moves.filter((m) => Math.abs(m.dx) > 0.01 || Math.abs(m.dy) > 0.01);
 
-/** The moves that line boxes up on the outermost edge (or the mean centre) of the selection. */
+/** The moves that line boxes up on the outermost edge (or the mean center) of the selection. */
 export function alignMoves(boxes: Box[], how: Alignment): Move[] {
   if (boxes.length < 2) return [];
   const left = Math.min(...boxes.map((b) => b.x));
   const right = Math.max(...boxes.map((b) => b.x + b.width));
   const top = Math.min(...boxes.map((b) => b.y));
   const bottom = Math.max(...boxes.map((b) => b.y + b.height));
-  const centre = (left + right) / 2;
+  const center = (left + right) / 2;
   const middle = (top + bottom) / 2;
   return moved(
     boxes.map((b) => {
@@ -217,7 +217,7 @@ export function alignMoves(boxes: Box[], how: Alignment): Move[] {
         case 'bottom':
           return { id: b.id, dx: 0, dy: bottom - b.y - b.height };
         case 'center':
-          return { id: b.id, dx: centre - b.x - b.width / 2, dy: 0 };
+          return { id: b.id, dx: center - b.x - b.width / 2, dy: 0 };
         default:
           return { id: b.id, dx: 0, dy: middle - b.y - b.height / 2 };
       }

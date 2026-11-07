@@ -11,8 +11,8 @@ use arclang::compiler::tables::{self, Options, TableSpec};
 use arclang::compiler::{production_gate, Compiler, CompilerConfig};
 use std::path::{Path, PathBuf};
 
-const DEMO: &str = "examples/automotive/ev_range_simulation.arc";
-const PHYSICS: &str = "examples/automotive/physics/EVPhysics.mo";
+const DEMO: &str = "examples/automotive/ev-range/ev_range_simulation.arc";
+const PHYSICS: &str = "examples/automotive/ev-range/physics/EVPhysics.mo";
 
 fn root() -> &'static Path {
     Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -75,7 +75,7 @@ fn ports_parameters_and_connections_become_modelica() {
     assert!(text.contains("constrainedby EVRangeSimulation.Physical.BatteryPack(energy=2.952e8)"), "82 kWh");
     assert!(text.contains("connect(batteryPack.hv_p, driveUnit.hv_p) annotation(__ArcLang(id=\"PL-HVP\"));"));
     assert!(text.contains("connect(speed, speedController.speed) annotation(__ArcLang(id=\"PL-SPEED-IN\"));"));
-    assert!(text.contains("replaceable EVRangeSimulation.Behaviour.VehicleControlUnit.SpeedController speedController constrainedby"));
+    assert!(text.contains("replaceable EVRangeSimulation.Behavior.VehicleControlUnit.SpeedController speedController constrainedby"));
 }
 
 const BASE: &str = r#"
@@ -176,7 +176,6 @@ fn simulate_blocks_are_checked_when_parsed() {
     let ok = "simulate: { model: \"P.M\" stop_time: 1 h configuration: \"CFG-1\" sources: [\"p.mo\"] } expects: [\"final(a.b) >= 2 km\"]";
     assert!(case(ok).is_ok(), "{:?}", case(ok).err());
     let errors = [
-        ("simulate: { stop_time: 1 h } expects: [\"final(x) > 1\"]", "model is required"),
         ("simulate: { model: \"P.M\" } expects: [\"final(x) > 1\"]", "stop_time is required"),
         ("simulate: { model: \"P.M\" stop_time: 3600 } expects: [\"final(x) > 1\"]", "stop_time has no unit"),
         ("simulate: { model: \"P.M\" stop_time: 1 km } expects: [\"final(x) > 1\"]", "not a time"),
@@ -193,6 +192,9 @@ fn simulate_blocks_are_checked_when_parsed() {
         ("simulate: { model: \"P.M\" stop_time: 1 s sweep: [\"a.b = 1 .. 300 step 1\"] } expects: [\"final(x) > 1\"]", "more than 200"),
         ("simulate: { model: \"P.M\" stop_time: 1 s sweep: 3 } expects: [\"final(x) > 1\"]", "sweep is a list"),
     ];
+    // Without model:, the case simulates the roll-up of its configuration
+    // (checked when it runs, against the elements' model: attributes).
+    assert!(case("simulate: { stop_time: 1 h } expects: [\"final(x) > 1\"]").is_ok());
     let swept = "simulate: { model: \"P.M\" stop_time: 1 h sweep: [\"body.mass = 1800 kg, 2100 kg\", \"\\\"PN-VCU\\\".pi.k = 100 .. 300 step 100\"] } expects: [\"final(a.b) >= 2 km\"]";
     assert!(case(swept).is_ok(), "a sweep, an ArcLang id in quotes: {:?}", case(swept).err());
     for (body, expected) in errors {
@@ -345,7 +347,7 @@ fn openmodelica_checks_the_package_and_verifies_the_demo() {
         export.file_name
     );
     let paths = [
-        "EVRangeSimulation.Behaviour.VehicleControlUnit.SpeedController",
+        "EVRangeSimulation.Behavior.VehicleControlUnit.SpeedController",
         "EVRangeSimulation.Physical.BatteryPack",
         "EVRangeSimulation.Physical.CabinHeater",
         "EVRangeSimulation.Physical.DriveUnit",
@@ -578,4 +580,35 @@ fn physics_units_reach_the_modelica_parameters() {
     assert!(export.text.contains("parameter Modelica.Units.SI.Temperature ambient = 263.15 \"-10 °C\";"), "{}", export.text);
     assert!(export.text.contains("parameter Modelica.Units.SI.Area drag_area = 0.62 \"0.62 m²\";"));
     assert!(export.text.contains("parameter Real efficiency(unit=\"1\") = 0.9 \"90 %\";"), "no conversion noise");
+}
+
+#[test]
+#[ignore = "runs OpenModelica (Docker or ARCLANG_OMC): cargo test --release --test modelica_simulation -- --ignored --nocapture"]
+fn openmodelica_checks_the_snapshots_a_case_names() {
+    let (_dir, model) = demo_copy();
+    let text = std::fs::read_to_string(&model).unwrap();
+    // The pack is full at the start; it is not still full an hour later.
+    let node = "        auxiliary_load: 2.5 kW\n";
+    assert!(text.contains(node));
+    let text = text.replacen(node, &format!("{node}        snapshot \"Charged\" {{ at: 0 s soc: 1 }}\n        snapshot \"Still full\" {{ at: 1 h soc: 1 }}\n"), 1);
+    let case = "    expects: [\"final(vehicleBody.distance) >= 300 km\", \"min(\\\"PN-BATT\\\".soc) >= 0.1\"]\n}";
+    assert!(text.contains(case));
+    let with = |snapshots: &str| text.replacen(case, &format!("    expects: [\"final(vehicleBody.distance) >= 300 km\", \"min(\\\"PN-BATT\\\".soc) >= 0.1\"]\n    snapshots: [{snapshots}]\n}}"), 1);
+    let config = ToolConfig::from_env();
+
+    std::fs::write(&model, with("\"PN-BATT.Charged\"")).unwrap();
+    let outcome = &run::verify(&compile_file(&model), &model, Some("TC-RANGE-STD"), &config).unwrap()[0];
+    for value in &outcome.values {
+        println!("{} {} ({})", if value.holds { "ok  " } else { "FAIL" }, value.value, value.margin);
+    }
+    assert!(outcome.values.iter().any(|v| v.value.starts_with("at(0 s, ") && v.holds), "{:?}", outcome.values);
+
+    std::fs::write(&model, with("\"PN-BATT\"")).unwrap();
+    let outcome = &run::verify(&compile_file(&model), &model, Some("TC-RANGE-STD"), &config).unwrap()[0];
+    for value in &outcome.values {
+        println!("{} {} ({})", if value.holds { "ok  " } else { "FAIL" }, value.value, value.margin);
+    }
+    println!("verdict {}: {} {:?}", outcome.verdict, outcome.reason, outcome.points.iter().map(|p| p.error.clone()).collect::<Vec<_>>());
+    assert_eq!(outcome.verdict, "fail", "{}", outcome.reason);
+    assert!(outcome.values.iter().any(|v| v.value.starts_with("at(1 h, ") && !v.holds), "{:?}", outcome.values);
 }
