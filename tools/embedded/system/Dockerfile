@@ -25,10 +25,10 @@ ARG MIGEN_COMMIT=e19524c963a8342952840983047557707fbe0b6a
 ARG OPENFPGALOADER_VERSION=v1.2.0
 
 # Zephyr's build (cmake, ninja, dtc) and LiteX's simulator (Verilator, libevent, json-c)
-# CVE-2026-109518: APT never retries a failed download, and apt itself is
-# upgraded before anything else is installed.
-RUN echo 'Acquire::Retries "0";' > /etc/apt/apt.conf.d/99-no-retries \
-    && apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends --only-upgrade apt \
+# CVE-2026-109518: apt upgrades itself first with retries off (the flaw
+# needs a retried download); the patched apt then installs the rest.
+RUN apt-get -o Acquire::Retries=0 update \
+    && DEBIAN_FRONTEND=noninteractive apt-get -o Acquire::Retries=0 install -y --no-install-recommends --only-upgrade apt \
     && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
         cmake ninja-build device-tree-compiler file wget bzip2 \
         verilator libevent-dev libjson-c-dev zlib1g-dev \

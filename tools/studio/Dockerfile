@@ -41,10 +41,10 @@ COPY --from=soc /opt/renode /opt/renode
 RUN ln -sf /opt/renode/renode /usr/local/bin/renode && renode --version >/dev/null
 
 # OpenModelica and OMSimulator (arclang cosim), from its Debian repository.
-# CVE-2026-109518: APT never retries a failed download, and apt itself is
-# upgraded before anything else is installed.
-RUN echo 'Acquire::Retries "0";' > /etc/apt/apt.conf.d/99-no-retries \
-    && apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends --only-upgrade apt \
+# CVE-2026-109518: apt upgrades itself first with retries off (the flaw
+# needs a retried download); the patched apt then installs the rest.
+RUN apt-get -o Acquire::Retries=0 update \
+    && DEBIAN_FRONTEND=noninteractive apt-get -o Acquire::Retries=0 install -y --no-install-recommends --only-upgrade apt \
     && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends gnupg \
     && curl -fsSL https://build.openmodelica.org/apt/openmodelica.asc | gpg --dearmor -o /usr/share/keyrings/openmodelica.gpg \
     && echo "deb [signed-by=/usr/share/keyrings/openmodelica.gpg] https://build.openmodelica.org/omc/builds/linux/releases/${OPENMODELICA_VERSION}/ bookworm release" > /etc/apt/sources.list.d/openmodelica.list \

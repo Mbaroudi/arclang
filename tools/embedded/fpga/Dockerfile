@@ -23,10 +23,10 @@ ARG BASE=arclang-embedded:1
 
 FROM ${BASE} AS ghdl
 ARG GHDL_COMMIT=c9043fcc4f8890acc62ae7db18ce236443ad115b
-# CVE-2026-109518: APT never retries a failed download, and apt itself is
-# upgraded before anything else is installed.
-RUN echo 'Acquire::Retries "0";' > /etc/apt/apt.conf.d/99-no-retries \
-    && apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends --only-upgrade apt \
+# CVE-2026-109518: apt upgrades itself first with retries off (the flaw
+# needs a retried download); the patched apt then installs the rest.
+RUN apt-get -o Acquire::Retries=0 update \
+    && DEBIAN_FRONTEND=noninteractive apt-get -o Acquire::Retries=0 install -y --no-install-recommends --only-upgrade apt \
     && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
         gnat-12 llvm-15-dev zlib1g-dev git make \
     && rm -rf /var/lib/apt/lists/*
@@ -41,10 +41,10 @@ FROM ${BASE}
 ARG OSS_CAD_SUITE_DATE=2026-11-01
 
 # GHDL's run-time: LLVM 15 and the GNAT library (GHDL is written in Ada)
-# CVE-2026-109518: APT never retries a failed download, and apt itself is
-# upgraded before anything else is installed.
-RUN echo 'Acquire::Retries "0";' > /etc/apt/apt.conf.d/99-no-retries \
-    && apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends --only-upgrade apt \
+# CVE-2026-109518: apt upgrades itself first with retries off (the flaw
+# needs a retried download); the patched apt then installs the rest.
+RUN apt-get -o Acquire::Retries=0 update \
+    && DEBIAN_FRONTEND=noninteractive apt-get -o Acquire::Retries=0 install -y --no-install-recommends --only-upgrade apt \
     && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
         libllvm15 libgnat-12 zlib1g git make \
     && rm -rf /var/lib/apt/lists/*
