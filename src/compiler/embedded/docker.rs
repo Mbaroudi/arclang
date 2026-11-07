@@ -31,6 +31,7 @@ fn tools(stage: &str) -> Vec<(&'static str, &'static [&'static str])> {
         "pil" => vec![("west", &["--version"]), ("renode", &["--version"])],
         "hdl" => vec![("ghdl", &["--version"])],
         "soc" => vec![("verilator", &["--version"]), ("ghdl", &["--version"])],
+        "cosim" => vec![("OMSimulator", &["--version"]), ("omc", &["--version"])],
         _ => Vec::new(),
     }
 }

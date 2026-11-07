@@ -6,7 +6,8 @@ ArcLang Studio is one Docker image with everything ArcLang drives:
   openvscode-server, or your own VS Code attached to the container;
 - the **compiler** (`arclang`), of the image's version;
 - **OpenModelica** 1.27.1 with the Modelica Standard Library 4.1.0, for
-  simulations, twins and plants;
+  simulations, twins and plants, and **OMSimulator**, its FMI and SSP
+  master, for co-simulation (`arclang cosim`, docs/cosimulation.md);
 - the **C compilers** (GCC, Clang) and cppcheck's MISRA addon, for SIL;
 - **Zephyr** and **Renode**, for PIL;
 - **GHDL**, **Yosys** and **nextpnr-ecp5**, for HDL and synthesis;

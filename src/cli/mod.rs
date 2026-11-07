@@ -324,6 +324,34 @@ pub enum Commands {
         drawing: Option<String>,
     },
 
+    /// Co-simulation in OMSimulator: each test case that `execute:`s, as a
+    /// standard FMI co-simulation. The behavior's FMU (`export -f fmu`), the
+    /// plant's (built by OpenModelica, or the FMU the case gives) and the
+    /// case's inputs are connected in an SSP package that OMSimulator runs;
+    /// the run is judged as SIL judges the C: the `expects:` on it, step by
+    /// step against the model's own loop. Without OMSimulator here, the
+    /// command runs in ArcLang Studio (Docker). See docs/cosimulation.md
+    Cosim {
+        #[clap(value_parser)]
+        input: PathBuf,
+
+        /// Only this test case (id or name)
+        #[clap(long)]
+        test: Option<String>,
+
+        /// The C compiler the behavior's FMU is built with. Default: $CC, else cc
+        #[clap(long = "cc")]
+        compiler: Option<String>,
+
+        /// Keep each case's SSP (cosim.ssp, the FMUs inside), result and logs in this directory
+        #[clap(long)]
+        keep: Option<PathBuf>,
+
+        /// Print the outcomes as JSON
+        #[clap(long)]
+        json: bool,
+    },
+
     /// Software in the loop: compile the C generated from the state machines
     /// (`export -f c`) on this computer, run each test case that `execute:`s
     /// with its input vectors, compare the outputs with the model-level run
@@ -1300,6 +1328,7 @@ impl CliRunner {
                 self.run_verify(input, test, json)
             }
             Commands::Sil { input, test, compilers, keep, json } => self.run_sil(&input, test, compilers, keep, json),
+            Commands::Cosim { input, test, compiler, keep, json } => self.run_cosim(&input, test, compiler, keep, json),
             Commands::Pil { input, test, target, keep, json } => self.run_pil(&input, test, target, keep, json),
             Commands::Hdl { input, test, synth, as_if, machine, keep, json } => self.run_hdl(&input, test, synth, as_if, machine, keep, json),
             Commands::Partition { input, target, device, clock, machine, dry_run, json } => partition::run(&input, partition::Options { target, device, clock_mhz: clock, machine, dry_run, json }),
@@ -2130,6 +2159,41 @@ impl CliRunner {
         }
     }
 
+    fn run_cosim(&self, input: &std::path::Path, test: Option<String>, compiler: Option<String>, keep: Option<PathBuf>, json: bool) -> Result<(), CliError> {
+        use crate::compiler::embedded::cosim;
+        // No OMSimulator here: the same command in ArcLang Studio, which has it with OpenModelica and gcc.
+        if let Some(code) = crate::compiler::embedded::docker::relay("cosim", input).map_err(CliError::Config)? {
+            std::process::exit(code);
+        }
+        let result = crate::Compiler::new(crate::CompilerConfig::default()).compile_file(input).map_err(|e| CliError::Compilation(e.to_string()))?;
+        let compiler = compiler.or_else(|| std::env::var("CC").ok().filter(|c| !c.trim().is_empty())).unwrap_or_else(|| "cc".to_string());
+        crate::compiler::embedded::sil::compiler_version(&compiler).ok_or_else(|| CliError::Config(format!("the C compiler '{compiler}' does not run (give one with --cc, or set CC)")))?;
+        let scratch = keep.is_none();
+        let work = keep.unwrap_or_else(|| std::env::temp_dir().join(format!("arclang-cosim-{}", std::process::id())));
+        let options = cosim::Options { compiler, work: work.clone(), only: test, base: crate::compiler::simulation::cache::model_dir(input) };
+        let outcomes = cosim::run_with(&result.ast, &options, &mut plants_of(input)).map_err(CliError::Compilation)?;
+        if json {
+            println!("{}", serde_json::to_string_pretty(&outcomes).unwrap_or_default());
+        } else {
+            println!("\nCo-simulation {} — {}", input.display(), cosim::version().unwrap_or_default());
+            for outcome in &outcomes {
+                self.print_stage(outcome, "OMSimulator");
+            }
+        }
+        if scratch {
+            let _ = std::fs::remove_dir_all(&work);
+        } else if !json {
+            println!("\n  Each case's SSP (cosim.ssp), result and logs kept in {}", work.display());
+        }
+        let failed = outcomes.iter().filter(|o| o.verdict != "pass" && o.verdict != "skipped").count();
+        let run = outcomes.iter().filter(|o| o.verdict != "skipped").count();
+        if failed == 0 {
+            Ok(())
+        } else {
+            Err(CliError::CiFailed(format!("{failed} of {run} co-simulation(s) do not pass")))
+        }
+    }
+
     fn run_pil(&self, input: &std::path::Path, test: Option<String>, target: Option<String>, keep: Option<PathBuf>, json: bool) -> Result<(), CliError> {
         use crate::compiler::embedded::pil;
         // No Zephyr or Renode here: the same command in the SoC image, its verdict in the model's cache.
@@ -2347,13 +2411,23 @@ impl CliRunner {
     }
 
     fn print_sil(&self, outcome: &crate::compiler::embedded::sil::Outcome) {
+        self.print_stage(outcome, "C");
+    }
+
+    /// A run of an implementation (`label`: C, OMSimulator) judged against the model.
+    fn print_stage(&self, outcome: &crate::compiler::embedded::sil::Outcome, label: &str) {
         let mark = match outcome.verdict.as_str() {
             "pass" => "✓ pass ",
             "fail" => "✗ FAIL ",
+            "skipped" => "– skip ",
             _ => "! ERROR",
         };
         let title = if outcome.name == outcome.test_case { outcome.name.clone() } else { format!("{} ({})", outcome.name, outcome.test_case) };
         println!("\n  {mark} {title}");
+        if outcome.verdict == "skipped" {
+            println!("    {}", outcome.reason);
+            return;
+        }
         let mut context = vec![format!("machine {}", outcome.machine)];
         if !outcome.verifies.is_empty() {
             context.insert(0, format!("verifies {}", outcome.verifies.join(", ")));
@@ -2362,7 +2436,11 @@ impl CliRunner {
             context.push(format!("through io_binding {binding}"));
         }
         println!("    {}", context.join(" · "));
-        println!("    model: {} · C: {} · {}", outcome.model_verdict, outcome.c_verdict, if outcome.agrees { "the C reproduces the model" } else { "the C does NOT reproduce the model" });
+        println!("    model: {} · {label}: {} · {}", outcome.model_verdict, outcome.c_verdict, {
+            // `sil` says "the C"; another stage names its run.
+            let what = if label == "C" { "the C".to_string() } else { format!("the {label} run") };
+            if outcome.agrees { format!("{what} reproduces the model") } else { format!("{what} does NOT reproduce the model") }
+        });
         if let Some(timing) = &outcome.timing {
             println!("    timing: {timing}");
         }
@@ -2378,7 +2456,7 @@ impl CliRunner {
                 None => "—".to_string(),
             };
             let holds = judged.c.as_ref().is_some_and(|v| v.holds);
-            println!("    {} {}   model {} · C {}", if holds { "ok  " } else { "FAIL" }, judged.expect, value(&judged.model), value(&judged.c));
+            println!("    {} {}   model {} · {label} {}", if holds { "ok  " } else { "FAIL" }, judged.expect, value(&judged.model), value(&judged.c));
         }
         if !outcome.reason.is_empty() {
             println!("    {}", outcome.reason);

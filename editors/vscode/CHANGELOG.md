@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- The compiler: `arclang cosim` runs the executed cases as a standard FMI co-simulation in OMSimulator, OpenModelica's FMI and SSP master. The behavior's FMU, the plant's FMU (OpenModelica's, or the one the case gives) and the case's inputs are connected in an SSP package (`--keep` keeps `cosim.ssp`), and the run is judged as `sil` judges the C. With a plant, OMSimulator gives the plant the controller's outputs a period late, and the run is compared with the model's loop held the same way. ArcLang Studio now holds OMSimulator, and the command runs there when this computer has none. See docs/cosimulation.md.
+- Fixed in `export -f fmu`: an `in` variable read from another machine (`from "M".y`) was an FMU input, set from outside and reported as set; it is now an output, the value the FMU computes. A model with a data-flow block no longer fails to compile as an FMU under `-Werror` (unused `first`).
+
 ## 4.12.0
 
 - **ArcLang Studio** (docs/studio.md): one image, `ghcr.io/mbaroudi/arclang-studio`, published for amd64 and arm64 at each release. It holds VS Code in the browser with this extension, the compiler, OpenModelica with the Modelica Standard Library, Zephyr and Renode, GHDL, Yosys, nextpnr, LiteX and Verilator. It runs on a laptop, on a server or in Codespaces, and `.devcontainer/devcontainer.json` attaches your own VS Code to it. The compiler on a computer without the tools now runs `pil`, `hdl` and `soc` in the Studio of its own version, pulled once, as your user. `ARCLANG_EMBEDDED_DOCKER=dev` keeps the images built from the sources.

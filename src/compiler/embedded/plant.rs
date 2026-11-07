@@ -78,6 +78,15 @@ fn value_of(ty: Ty, x: f64) -> Value {
 /// model's values, `Some(f)` for a device reporting words `f` turns into
 /// values (the fixed point).
 pub fn run(plan: &Plan, case: &Case, plant: &mut dyn Plant, device: &mut dyn Device, words: Option<&dyn Fn(usize, f64) -> f64>) -> Result<Run, String> {
+    run_held(plan, case, plant, device, words, false)
+}
+
+/// The loop of [`run`], or (`late`) with the machine's outputs reaching the
+/// plant one period late: over `[t_k, t_k+1]` the plant is driven by step
+/// `k - 1` (the initial outputs at first). That is the loop a fixed-step
+/// co-simulation master runs when every FMU steps from the same instant
+/// (OMSimulator's): a controller's outputs of a step are read at its end.
+pub fn run_held(plan: &Plan, case: &Case, plant: &mut dyn Plant, device: &mut dyn Device, words: Option<&dyn Fn(usize, f64) -> f64>, late: bool) -> Result<Run, String> {
     let spec = case.plant.as_ref().ok_or("the case has no plant")?;
     let m = &plan.machines[case.machine];
     let program = m.program();
@@ -96,6 +105,7 @@ pub fn run(plan: &Plan, case: &Case, plant: &mut dyn Plant, device: &mut dyn Dev
     // The plant starts on the machine's initial outputs.
     let initial: Vec<f64> = spec.inputs.iter().map(|(_, i)| program.variables[*i].initial.number() * program.variables[*i].scale).collect();
     let mut outputs = plant.init(&initial)?;
+    let mut held = initial.clone();
     let mut rows = Vec::with_capacity(case.steps);
     let mut plant_rows = Vec::with_capacity(case.steps);
     for k in 0..case.steps {
@@ -112,7 +122,9 @@ pub fn run(plan: &Plan, case: &Case, plant: &mut dyn Plant, device: &mut dyn Dev
         plant_rows.push(outputs.clone());
         let row = device.step(&vectors, k)?;
         let t = (k + 1) as f64 * case.step_us as f64 / 1e6;
-        outputs = plant.advance(t, &to_plant(&row))?;
+        let now = to_plant(&row);
+        outputs = plant.advance(t, if late { &held } else { &now })?;
+        held = now;
         rows.push(row);
     }
     Ok(Run { vectors, table: Table { names: reference::columns(plan), period_us: case.step_us, rows, units: reference::units(plan) }, plant: plant_rows })
@@ -262,9 +274,14 @@ impl Plants {
 /// plant filled them and the model's table — the reference of every
 /// implementation, what the batch stages replay.
 pub fn model_loop(ast: &crate::compiler::ast::Model, plan: &Plan, case: &Case, plants: &mut Plants) -> Result<(Vectors, Table), String> {
+    model_loop_held(ast, plan, case, plants, false)
+}
+
+/// The model in the loop, its outputs reaching the plant now or (`late`) one period late (see [`run_held`]).
+pub fn model_loop_held(ast: &crate::compiler::ast::Model, plan: &Plan, case: &Case, plants: &mut Plants, late: bool) -> Result<(Vectors, Table), String> {
     let plant = plants.get(ast, case)?;
     let mut runner = reference::Runner::new(plan, case.step_us);
-    let run = run(plan, case, plant, &mut runner, None)?;
+    let run = run_held(plan, case, plant, &mut runner, None, late)?;
     Ok((run.vectors, run.table))
 }
 
