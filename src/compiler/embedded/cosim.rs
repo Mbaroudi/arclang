@@ -39,6 +39,8 @@ const PLANT: &str = "plant";
 const STIMULI: &str = "stimuli";
 /// Two runs of a plant's CVODE agree to this many times its tolerance.
 const PLANT_AGREEMENT: f64 = 100.0;
+/// The tolerance an OpenModelica FMU integrates at, whatever a master asks below it.
+const PLANT_FLOOR: f64 = 1e-6;
 /// The Modelica class wrapping a plant for co-simulation.
 const WRAPPER: &str = "ArcLangCosimPlant";
 
@@ -569,11 +571,15 @@ pub fn run_with(ast: &Model, options: &Options, plants: &mut super::plant::Plant
                 // masters: each run is right to the plant's tolerance locally,
                 // their internal steps differ (most after a jump of an input),
                 // so the runs agree to a hundred times it.
-                let solver = prepared.case.plant.as_ref().map(|p| PLANT_AGREEMENT * p.tolerance.unwrap_or(1e-6));
+                // OpenModelica's FMU integrates at its own 1e-6 when asked for less.
+                let solver = prepared.case.plant.as_ref().map(|p| PLANT_AGREEMENT * p.tolerance.unwrap_or(PLANT_FLOOR).max(PLANT_FLOOR));
                 prepared.case.tolerance = prepared.case.tolerance.max(printed_tolerance(&prepared.model)).max(solver.map_or(0.0, |r| relative_tolerance(&prepared.model, r)));
                 let late = prepared.case.plant.is_some();
                 let mut outcome = sil::conclude(prepared, table);
-                outcome.reason = outcome.reason.replace("the C run departs from the model", if late { "the OMSimulator run departs from the model's loop with the plant a period late" } else { "the OMSimulator run departs from the model" });
+                if let Some(b2b) = outcome.back_to_back.as_mut() {
+                    b2b.first_mismatch = b2b.first_mismatch.take().map(|m| m.replace(", C ", ", OMSimulator ").replace("the C run", "the OMSimulator run"));
+                }
+                outcome.reason = outcome.reason.replace(", C ", ", OMSimulator ").replace("the C run departs from the model", if late { "the OMSimulator run departs from the model's loop with the plant a period late" } else { "the OMSimulator run departs from the model" }).replace("the C run", "the OMSimulator run");
                 outcome.compiler = text;
                 outcomes.push(outcome);
             }
