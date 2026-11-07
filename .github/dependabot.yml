@@ -1,4 +1,6 @@
-# Dependency updates, grouped per ecosystem, once a week.
+# Dependency updates once a week: minor and patch updates grouped per
+# ecosystem, each major update in a PR of its own (a major version changes an
+# API, and one breaking package would hold the whole group back).
 version: 2
 updates:
   - package-ecosystem: npm
@@ -8,6 +10,7 @@ updates:
     groups:
       vscode-extension:
         patterns: ["*"]
+        update-types: ["minor", "patch"]
   - package-ecosystem: pip
     directory: /mcp-server
     schedule:
@@ -19,6 +22,7 @@ updates:
     groups:
       cargo:
         patterns: ["*"]
+        update-types: ["minor", "patch"]
   - package-ecosystem: github-actions
     directory: /
     schedule:
