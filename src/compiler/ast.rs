@@ -45,6 +45,9 @@ pub struct Model {
     /// Verification cases tracing to requirements (V&V).
     #[serde(default)]
     pub test_cases: Vec<TestCase>,
+    /// Digital twins: a physical model driven by real data and compared to it.
+    #[serde(default)]
+    pub twins: Vec<Twin>,
     /// Product-line configurations: the variants each selects.
     #[serde(default)]
     pub configurations: Vec<Configuration>,
@@ -68,6 +71,24 @@ pub struct Model {
     /// views computed by the compiler (see `compiler::tables`). // tables hook
     #[serde(default)]
     pub tables: Vec<super::tables::TableDecl>, // tables hook
+    /// Bindings of state machines to I/O channels (`io_binding "ECU" { ... }`),
+    /// checked by `embedded::binding`, used by the generated C glue.
+    #[serde(default)]
+    pub io_bindings: Vec<IoBinding>,
+    /// `refine "<id>" { ... }`: what this model adds to elements declared
+    /// elsewhere (an imported file); applied once the files are merged.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub refinements: Vec<crate::compiler::refine::Refinement>,
+}
+
+/// `io_binding "ACC ECU" { machine: "ACC modes" period: 10 ms inputs: ["LF-022 <- gpio 4 rising"] outputs: ["Following -> gpio 10"] }`:
+/// the events and conditions of a machine read from I/O channels, and its
+/// states and actions written to them, once for every target.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct IoBinding {
+    pub id: String,
+    pub name: String,
+    pub attributes: HashMap<String, AttributeValue>,
 }
 
 /// `diagram "Name" { view: lab shows: [A, B] context: true }`.
@@ -106,6 +127,7 @@ impl Model {
             classes: Vec::new(),
             associations: Vec::new(),
             test_cases: Vec::new(),
+            twins: Vec::new(),
             configurations: Vec::new(),
             notes: Vec::new(),
             rules: Vec::new(),
@@ -113,6 +135,8 @@ impl Model {
             types: Vec::new(),
             diagrams: Vec::new(),
             tables: Vec::new(), // tables hook
+            io_bindings: Vec::new(),
+            refinements: Vec::new(),
         }
     }
     
@@ -142,10 +166,13 @@ impl Model {
         self.data_types.extend(other.data_types);
         self.classes.extend(other.classes);
         self.test_cases.extend(other.test_cases);
+        self.twins.extend(other.twins);
         self.configurations.extend(other.configurations);
         self.constraints.extend(other.constraints);
         self.types.extend(other.types);
         self.tables.extend(other.tables); // tables hook
+        self.io_bindings.extend(other.io_bindings);
+        self.refinements.extend(other.refinements);
     }
 
     /// Export the model to JSON string for diagram rendering
@@ -287,6 +314,9 @@ pub struct SystemAnalysis {
     #[serde(default)]
     pub attributes: HashMap<String, AttributeValue>,
     pub requirements: Vec<Requirement>,
+    /// Concerns declared beside the requirements (`concern "..." { }` in a `requirements` block).
+    #[serde(default)]
+    pub concerns: Vec<Concern>,
     pub functions: Vec<SystemFunction>,
     pub components: Vec<SystemComponent>,
     pub external_actors: Vec<ExternalActor>,
@@ -398,6 +428,14 @@ pub struct SequenceLink {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Requirement {
+    pub id: String,
+    pub attributes: HashMap<String, AttributeValue>,
+}
+
+/// What a stakeholder cares about, framed by the requirements that address it
+/// (SysML v2 `concern`): `concern "Reduce the number of special parts" { stakeholders: ["Production"] }`.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Concern {
     pub id: String,
     pub attributes: HashMap<String, AttributeValue>,
 }
@@ -520,6 +558,39 @@ pub struct LogicalComponent {
     pub interfaces_in: Vec<InterfaceDefinition>,
     pub interfaces_out: Vec<InterfaceDefinition>,
     pub attributes: HashMap<String, AttributeValue>,
+    /// Its timeslices and snapshots, in order.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub occurrences: Vec<Occurrence>,
+}
+
+/// A portion of an element's life (SysML v2 `timeslice`, `snapshot`): a
+/// stretch of time (`timeslice "Takeoff" { start: 0 s end: 40 s }`) holding
+/// the moments it goes through, or one moment (`snapshot "Landed" { at: 5 min
+/// altitude: 0 m }`); the other attributes are the values the element has then.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct Occurrence {
+    pub kind: OccurrenceKind,
+    pub name: String,
+    pub attributes: HashMap<String, AttributeValue>,
+    /// The snapshots of a timeslice, in order.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub snapshots: Vec<Occurrence>,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum OccurrenceKind {
+    Timeslice,
+    Snapshot,
+}
+
+impl OccurrenceKind {
+    pub fn keyword(self) -> &'static str {
+        match self {
+            OccurrenceKind::Timeslice => "timeslice",
+            OccurrenceKind::Snapshot => "snapshot",
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -593,7 +664,7 @@ pub struct PhysicalArchitecture {
     #[serde(default)]
     pub attributes: HashMap<String, AttributeValue>,
     pub nodes: Vec<PhysicalNode>,
-    /// Functions of the level that no behaviour component performs.
+    /// Functions of the level that no behavior component performs.
     #[serde(default)]
     pub functions: Vec<LogicalFunction>,
     pub links: Vec<PhysicalLink>,
@@ -607,7 +678,7 @@ pub struct PhysicalArchitecture {
     /// Realizations of the logical capability realizations by the physical components.
     #[serde(default)]
     pub capability_realizations: Vec<Capability>,
-    /// Ordered sets of physical links routing behavioural exchanges (Arcadia).
+    /// Ordered sets of physical links routing behavioral exchanges (Arcadia).
     #[serde(default)]
     pub paths: Vec<PhysicalPath>,
 }
@@ -645,6 +716,9 @@ pub struct PhysicalNode {
     #[serde(default)]
     pub ports: Vec<PhysicalPort>,
     pub attributes: HashMap<String, AttributeValue>,
+    /// Its timeslices and snapshots, in order.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub occurrences: Vec<Occurrence>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -664,7 +738,7 @@ pub enum NodeType {
 pub struct BehaviorComponent {
     pub id: String,
     pub name: String,
-    /// The logical component this behaviour realizes (`allocated_component:`).
+    /// The logical component this behavior realizes (`allocated_component:`).
     #[serde(default)]
     pub allocated_component: Option<String>,
     /// The functions it performs by name (`allocated_functions:`), the legacy
@@ -776,7 +850,7 @@ pub struct FmeaEntry {
 }
 
 /// `security_analysis { level: "sa" threat … asset … }`: the threats and
-/// primary assets analysed at one level. `level` names the architecture
+/// primary assets analyzed at one level. `level` names the architecture
 /// (`oa`, `sa`, `la`, `pa`) whose cybersecurity package holds them.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SecurityAnalysis {
@@ -1030,7 +1104,7 @@ pub struct State {
     #[serde(default)]
     pub id: String,
     pub name: String,
-    /// Arcadia distinguishes Mode (chosen behaviour) from State (undergone).
+    /// Arcadia distinguishes Mode (chosen behavior) from State (undergone).
     #[serde(default)]
     pub kind: StateKind,
     pub entry_actions: Vec<String>,
@@ -1048,6 +1122,12 @@ pub struct State {
     /// Every attribute written (`kind:` for a pseudo-state, property values...).
     #[serde(default)]
     pub attributes: HashMap<String, AttributeValue>,
+    /// The orthogonal regions the state opens, written as `region` blocks
+    /// inside it, each with its initial state; their states are in
+    /// `sub_states` too, their transitions in the machine's flat list. Empty
+    /// for a state holding one region (its sub-states).
+    #[serde(default)]
+    pub regions: Vec<Region>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
@@ -1285,6 +1365,18 @@ pub struct DataType {
     pub enumeration_values: Option<Vec<EnumValue>>,
     /// Every attribute written (status, unit_name, description...).
     #[serde(default)]
+    pub attributes: HashMap<String, AttributeValue>,
+}
+
+/// A digital twin: the physical model (`simulate:`) driven by measured data
+/// (`data:`, `drives:`) and compared to it (`compares:`), the requirements it
+/// `verifies` checked on the run (`expects:`). See `simulation::twin`.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Twin {
+    #[serde(default)]
+    pub id: String,
+    pub name: String,
+    pub verifies: Vec<String>,
     pub attributes: HashMap<String, AttributeValue>,
 }
 

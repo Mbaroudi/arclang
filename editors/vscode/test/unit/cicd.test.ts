@@ -79,7 +79,7 @@ test('the latest run becomes a status; only a success is shown as passing', () =
   assert.equal(view({ conclusion: 'timed_out' }).state, 'failed');
   assert.equal(view({ status: 'in_progress', conclusion: '' }).state, 'running');
   assert.equal(view({ status: 'queued', conclusion: '' }).state, 'running');
-  for (const c of ['cancelled', 'skipped', 'neutral', 'stale', '']) assert.equal(view({ conclusion: c }).state, 'unknown', c);
+  for (const c of ['canceled', 'skipped', 'neutral', 'stale', '']) assert.equal(view({ conclusion: c }).state, 'unknown', c);
   assert.ok(view({ conclusion: 'failure' }).tooltip.includes('abcdef0'));
 });
 

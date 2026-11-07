@@ -1,5 +1,5 @@
 // A trace drawn on a diagram, inside the real VS Code: a trace between two
-// elements the view draws is a dashed line labelled by its type; selected, it
+// elements the view draws is a dashed line labeled by its type; selected, it
 // is the trace; an end dragged onto another box reconnects it (the trace line
 // of the source changes, nothing else); Delete removes it, ⌘Z brings it back.
 //   VSCODE_APP="/Applications/Visual Studio Code.app" PLAYWRIGHT=/path/to/playwright ARCLANG_BINARY=/path/to/arclang node vscode_trace_test.js
@@ -51,7 +51,7 @@ async function launch(dir, model) {
     const middle = (locator) => locator.first().evaluate((g) => { const line = g.querySelector('.av-line'); const len = line.getTotalLength(); const p = line.getPointAtLength(len / 2); const m = line.getScreenCTM(); return { x: p.x * m.a + p.y * m.c + m.e, y: p.x * m.b + p.y * m.d + m.f }; });
     const shape = (id) => page.locator(`.arcviz-stage [data-id="${id}"] > .av-shape`).first().boundingBox();
 
-    // 1. Drawn: a dashed line from the camera to the controller, labelled by its type
+    // 1. Drawn: a dashed line from the camera to the controller, labeled by its type
     const drawn = await traceEdge().evaluateAll((gs) => gs.map((g) => ({ id: g.dataset.id, dash: getComputedStyle(g.querySelector('.av-line')).strokeDasharray, text: g.textContent.trim() })));
     report('the trace between two drawn components is a dashed line', drawn.length === 1 && drawn[0].id === 'trc:LC-CAM allocates LC-CTL' && drawn[0].dash !== 'none', JSON.stringify(drawn));
     report('its label is its type', drawn.length === 1 && /allocates/.test(drawn[0].text), drawn[0]?.text);

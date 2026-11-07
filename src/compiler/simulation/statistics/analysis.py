@@ -1,4 +1,4 @@
-"""ArcLang: the samples of a Monte Carlo case, analysed with Python.
+"""ArcLang: the samples of a Monte Carlo case, analyzed with Python.
 
 Usage: python3 analysis.py samples.csv statistics.json
 
@@ -103,8 +103,10 @@ def main(samples_path, output_path):
             bounds = [[float(xs[:, j].min()), float(xs[:, j].max())] for j in range(xs.shape[1])]
             problem = {"num_vars": len(names), "names": names, "bounds": bounds}
             result = delta.analyze(problem, xs, y, print_to_console=False, seed=1)
+            # SALib 1.6 names the estimator of earlier versions `delta_raw` (beside balanced and step variants).
+            key = "delta" if "delta" in result else "delta_raw"
             for j, name in enumerate(names):
-                influences.append({"parameter": name, "method": "delta", "value": round(float(result["delta"][j]), 4), "low": round(float(result["delta"][j] - result["delta_conf"][j]), 4), "high": round(float(result["delta"][j] + result["delta_conf"][j]), 4)})
+                influences.append({"parameter": name, "method": "delta", "value": round(float(result[key][j]), 4), "low": round(float(result[key][j] - result[key + "_conf"][j]), 4), "high": round(float(result[key][j] + result[key + "_conf"][j]), 4)})
                 influences.append({"parameter": name, "method": "S1", "value": round(float(result["S1"][j]), 4), "low": round(float(result["S1"][j] - result["S1_conf"][j]), 4), "high": round(float(result["S1"][j] + result["S1_conf"][j]), 4)})
         margins.append({
             "expect": header[column][len("margin: "):],

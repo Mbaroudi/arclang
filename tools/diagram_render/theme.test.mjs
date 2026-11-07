@@ -1,4 +1,4 @@
-// Unit tests of the themes: the colour science, the validator, the presets
+// Unit tests of the themes: the color science, the validator, the presets
 // and a theme applied by the renderer (run with `node --test`). The fixtures
 // of tests/fixtures/themes are shared with the Rust validator
 // (src/compiler/diagram/theme.rs): both must reach the same verdicts.
@@ -49,7 +49,7 @@ test('every built-in preset passes every rule, its dark variant too', () => {
   assert.ok(Theme.darkOf(Theme.preset('arclang-default')), 'the default theme has a dark variant');
 });
 
-test('every preset colours every concept and every exchange', () => {
+test('every preset colors every concept and every exchange', () => {
   for (const { id } of Theme.presets()) {
     const preset = Theme.preset(id);
     for (const concept of Theme.CONCEPTS) assert.ok(preset.concepts[concept.key]?.fill, `${id} ${concept.key}`);
@@ -57,7 +57,7 @@ test('every preset colours every concept and every exchange', () => {
   }
 });
 
-test('Capella classic keeps Capella colours where its code is', () => {
+test('Capella classic keeps Capella colors where its code is', () => {
   const capella = Theme.preset('capella-classic');
   assert.equal(capella.concepts.logical_component.fill, '#96B1DA'); // _CAP_Component_Blue
   assert.equal(capella.concepts.physical_node.fill, '#FFFCB7'); // _CAP_Node_Yellow
@@ -91,8 +91,8 @@ test('a refused theme is never turned into a palette', () => {
 });
 
 test('a duplicated preset is a complete theme of its own, with a new id', () => {
-  const copy = Theme.duplicate(Theme.preset('capella-classic'), 'Programme Astra');
-  assert.equal(copy.id, 'programme-astra');
+  const copy = Theme.duplicate(Theme.preset('capella-classic'), 'Program Astra');
+  assert.equal(copy.id, 'program-astra');
   assert.equal(copy.extends, undefined);
   assert.equal(Theme.validate(copy).ok, true);
 });
@@ -103,7 +103,7 @@ const view = (viewId, children, edges = []) => ({ id: viewId, width: 400, height
 const fillOf = (svg, id) => new RegExp(`data-id="${id}"[^]*?class="av-shape"[^>]*fill="([^"]+)"`).exec(svg)[1];
 const strokeOf = (svg, id) => new RegExp(`data-id="${id}"[^]*?class="av-shape"[^>]*stroke="([^"]+)"`).exec(svg)[1];
 
-test('a theme colours the boxes, the lines, the text and the sheet', () => {
+test('a theme colors the boxes, the lines, the text and the sheet', () => {
   const palette = Theme.palette(Theme.preset('capella-classic'));
   const edge = { id: 'E1', sources: ['A'], targets: ['B'], container: 'lab', labels: [{ text: 'data', x: 40, y: 40 }], sections: [{ startPoint: { x: 130, y: 30 }, endPoint: { x: 200, y: 30 } }], arc: { kind: 'functional_exchange', source_node: 'A', target_node: 'B', properties: {} } };
   const { svg } = Render.renderSvg(view('lab', [box('A', 'function'), box('B', 'logical_component', { x: 200 })], [edge]), { theme: palette });
@@ -116,7 +116,7 @@ test('a theme colours the boxes, the lines, the text and the sheet', () => {
   assert.match(svg, /fill="#000000">A</);
 });
 
-test('one theme colours every layer: a function has one colour in System, Logical and Physical', () => {
+test('one theme colors every layer: a function has one color in System, Logical and Physical', () => {
   const palette = Theme.palette(Theme.preset('colorblind-safe'));
   const fills = ['sab', 'lab', 'pab'].map((id) => fillOf(Render.renderSvg(view(id, [box('F', 'function')]), { theme: palette }).svg, 'F'));
   assert.equal(new Set(fills).size, 1);
@@ -125,7 +125,7 @@ test('one theme colours every layer: a function has one colour in System, Logica
   assert.notEqual(activity, fills[0]);
 });
 
-test('setTheme colours later drawings, the legend\'s styles too, and null puts the built-in colours back', () => {
+test('setTheme colors later drawings, the legend\'s styles too, and null puts the built-in colors back', () => {
   const graph = view('sab', [box('C', 'system_component')]);
   const before = fillOf(Render.renderSvg(graph).svg, 'C');
   Render.setTheme(Theme.palette(Theme.preset('high-contrast')));
@@ -133,7 +133,7 @@ test('setTheme colours later drawings, the legend\'s styles too, and null puts t
     assert.equal(fillOf(Render.renderSvg(graph).svg, 'C'), Theme.preset('high-contrast').concepts.system_component.fill);
     assert.equal(Render.nodeStyle('system_component').fill, Theme.preset('high-contrast').concepts.system_component.fill);
     assert.equal(Render.edgeStyle('physical_link').stroke, Theme.preset('high-contrast').exchanges.physical_link.line);
-    // An export asks for its own colours whatever the screen shows.
+    // An export asks for its own colors whatever the screen shows.
     assert.equal(fillOf(Render.renderSvg(graph, { theme: null }).svg, 'C'), before);
   } finally {
     Render.setTheme(null);

@@ -320,7 +320,7 @@ fn tables_go_to_sysml_v2_as_element_table_views_and_come_back() {
 
 #[test]
 fn the_flagship_with_its_tables_still_comes_back_whole_from_sysml() {
-    let flagship = std::fs::read_to_string(Path::new(env!("CARGO_MANIFEST_DIR")).join("examples/complete_emergency_braking_simple.arc")).unwrap();
+    let flagship = std::fs::read_to_string(Path::new(env!("CARGO_MANIFEST_DIR")).join("examples/automotive/emergency-braking/complete_emergency_braking_simple.arc")).unwrap();
     let source = format!("{flagship}\ntable \"Requirement coverage\" {{ kind: requirements_coverage scope: \"SA\" }}\ntable \"ICD\" {{ id: \"TBL-ICD\" kind: icd scope: \"LA\" columns: [\"name\", \"from\", \"to\", \"protocol\"] }}\n");
     let before = compile(&source);
     let text = sysmlv2_generator::generate_sysmlv2(&before.semantic_model, &before.ast);

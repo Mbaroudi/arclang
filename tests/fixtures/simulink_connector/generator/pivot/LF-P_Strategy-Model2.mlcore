@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="ASCII"?>
+<org.eclipse.capella.simulink.core:Project xmi:version="2.0" xmlns:xmi="http://www.omg.org/XMI" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:org.eclipse.capella.simulink.core="http://www.eclipse.org/capella/simulink/core/1.0" id="676bdac7-ba05-4d92-92a2-6d4195fb65ff" name="capella-mls-ref-project">
+  <systems id="397e2415-4362-4c4e-b030-323af42e636b" name="LF-P">
+    <ports id="aa21129f-53db-43e9-98e4-cc7e3553c314t" name="FIP 1 (LF-C-Sys)"/>
+    <blocks id="_XSbIQIykEeuQju2D_CcmTA" name="S1/1, S1/2, S1/3" description="S1/1, S1/2, S1/3" source="simulink/Ports &amp; Subsystems/Enable"/>
+    <blocks xsi:type="org.eclipse.capella.simulink.core:Subsystem" id="bec54430-c4d4-474d-8207-a3cab762e3d3" name="LF-C-Sub-Sys" source="CapellaElements/Subsystem/Function">
+      <ports id="aa21129f-53db-43e9-98e4-cc7e3553c314d" name="FIP 1 (LF-C-Sys)"/>
+      <blocks xsi:type="org.eclipse.capella.simulink.core:SystemReference" id="f1bf4134-02ee-438f-99ef-8dcd6f06dfbe" name="ref to LF-C-Sub-Sys" source="CapellaElements/ModelRef/Model_Function" system="0ec69bf0-125a-4ecd-b56b-b3fc23ca1779"/>
+      <lines id="d292bcfb-e4dd-45fa-8490-4161a8f7f0d7" name="a" source="aa21129f-53db-43e9-98e4-cc7e3553c314d" target="derived-f1bf4134-02ee-438f-99ef-8dcd6f06dfbe--f7a68e55-e235-4de2-8085-d57188dc5156"/>
+    </blocks>
+    <lines id="31ed9328-f5b8-4f19-bd7b-41b3d6ca3b7c" source="aa21129f-53db-43e9-98e4-cc7e3553c314t" target="aa21129f-53db-43e9-98e4-cc7e3553c314d"/>
+  </systems>
+  <systems id="0ec69bf0-125a-4ecd-b56b-b3fc23ca1779" name="LF-C-Sys">
+    <ports id="aa21129f-53db-43e9-98e4-cc7e3553c314u" name="FIP 1"/>
+    <ports id="f7a68e55-e235-4de2-8085-d57188dc5156" name="FIP 2" index="2"/>
+    <ports id="da07f706-5fae-4cd1-a98e-7ffbfe694558" name="FIP 3" index="3"/>
+  </systems>
+</org.eclipse.capella.simulink.core:Project>

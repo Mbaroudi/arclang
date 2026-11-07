@@ -20,6 +20,7 @@
 //! key no longer matches is stale, so inconclusive, as is a case never run.
 
 pub mod cache;
+pub mod drawing;
 pub mod expects;
 pub mod montecarlo;
 pub mod replay;
@@ -28,6 +29,19 @@ pub mod run;
 pub mod statistics;
 pub mod sweep;
 pub mod tool;
+pub mod twin;
+#[cfg(feature = "native")]
+pub mod twin_live;
+#[cfg(feature = "native")]
+pub mod twin_http;
+#[cfg(feature = "native")]
+pub mod twin_kafka;
+#[cfg(feature = "native")]
+pub mod twin_tls;
+#[cfg(feature = "native")]
+pub mod twin_opcua;
+#[cfg(feature = "native")]
+pub mod twin_step;
 
 use crate::compiler::ast::{AttributeValue, Model, TestCase};
 use crate::compiler::quantity::Dimension;
@@ -35,7 +49,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 /// The keys `simulate: { ... }` takes.
-pub const SIMULATE_KEYS: [&str; 14] = ["backend", "model", "configuration", "stop_time", "start_time", "sources", "tolerance", "intervals", "sweep", "uncertain", "samples", "seed", "probability", "confidence"];
+pub const SIMULATE_KEYS: [&str; 15] = ["backend", "model", "configuration", "stop_time", "start_time", "sources", "tolerance", "intervals", "sweep", "uncertain", "samples", "seed", "probability", "confidence", "mission"];
 
 /// What runs a simulation. Every backend ends in the same result (a table
 /// of time series) and the same `expects:` evaluation, so adding one
@@ -77,8 +91,14 @@ impl Backend {
 pub struct Spec {
     pub backend: Backend,
     /// The Modelica class simulated: the hand-written model extending a
-    /// system model of the generated package.
+    /// system model of the generated package; empty when not written: the
+    /// roll-up of the configuration (`Executable.<Configuration>`), when its
+    /// elements carry `model:`.
     pub model: String,
+    /// `mission:`: a file of parameter values (one `"Element".parameter =
+    /// value` a line, as in sweep:), relative to the model file: read with
+    /// the case, its lines added to the sweep.
+    pub mission: Option<String>,
     pub configuration: Option<String>,
     /// Seconds.
     pub start_time: f64,
@@ -111,11 +131,62 @@ pub struct Status {
     /// requirement is judged on the expectations naming it and those naming none.
     #[serde(skip_serializing_if = "HashMap::is_empty")]
     pub by_requirement: HashMap<String, Status>,
+    /// Each stage of the case's realization that has a verdict of its own
+    /// (the simulation, the C, the processor, the logic, the SoC, the
+    /// board, the twin), kept apart from the verdict above, which folds them.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub rungs: Vec<Rung>,
 }
 
 impl Status {
     pub fn new(verdict: impl Into<String>, reason: impl Into<String>, evidence: impl Into<String>) -> Status {
-        Status { verdict: verdict.into(), reason: reason.into(), evidence: evidence.into(), by_requirement: HashMap::new() }
+        Status { verdict: verdict.into(), reason: reason.into(), evidence: evidence.into(), by_requirement: HashMap::new(), rungs: Vec::new() }
+    }
+
+    /// The status with one more stage recorded.
+    pub fn with_rung(mut self, rung: Rung) -> Status {
+        self.rungs.push(rung);
+        self
+    }
+}
+
+/// One stage of the realization of a case, as a verdict of its own: what
+/// the simulation, the C (SIL), the processor (PIL), the logic (HDL), the
+/// SoC, the board or the twin said of the case, and whether that still
+/// holds for the model as it is.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Rung {
+    /// `simulation`, `sil`, `pil`, `hdl`, `soc`, `board` or `twin`.
+    pub stage: String,
+    /// `pass`, `fail`, `error` or `inconclusive`.
+    pub verdict: String,
+    /// `fresh` (its key still matches the model), `stale` (the model, its
+    /// sources, the case or the target changed since) or `missing` (never run).
+    pub state: String,
+    /// What ran it: the tool, the target package, the board.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub target: String,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub reason: String,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub evidence: String,
+}
+
+impl Rung {
+    pub fn new(stage: &str, verdict: impl Into<String>, state: &str, target: impl Into<String>, reason: impl Into<String>, evidence: impl Into<String>) -> Rung {
+        Rung { stage: stage.to_string(), verdict: verdict.into(), state: state.to_string(), target: target.into(), reason: reason.into(), evidence: evidence.into() }
+    }
+    /// A stage never run.
+    pub fn missing(stage: &str, reason: impl Into<String>) -> Rung {
+        Rung::new(stage, "inconclusive", "missing", "", reason, "")
+    }
+    /// A stage whose verdict no longer holds for the model.
+    pub fn stale(stage: &str, target: impl Into<String>, reason: impl Into<String>) -> Rung {
+        Rung::new(stage, "inconclusive", "stale", target, reason, "")
+    }
+    /// A stage whose verdict holds.
+    pub fn fresh(stage: &str, target: impl Into<String>, status: &Status) -> Rung {
+        Rung::new(stage, status.verdict.clone(), "fresh", target, status.reason.clone(), status.evidence.clone())
     }
 }
 
@@ -123,6 +194,13 @@ impl Status {
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 pub struct Outcome {
     pub test_case: String,
+    /// What ran: empty for a simulation, `sil` for software in the loop,
+    /// `pil` for processor in the loop (kept apart: `<case>.pil.json`).
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub kind: String,
+    /// The target package of a processor-in-the-loop run.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub target: String,
     /// The test case's name, the requirements it verifies and the name of
     /// its configuration: what a reader of the log looks for.
     #[serde(default)]
@@ -265,7 +343,7 @@ fn is_class_name(text: &str) -> bool {
     !text.is_empty() && text.split('.').all(|part| part.chars().next().is_some_and(|c| c.is_ascii_alphabetic() || c == '_') && part.chars().all(|c| c.is_ascii_alphanumeric() || c == '_'))
 }
 
-fn seconds(map: &HashMap<String, AttributeValue>, key: &str) -> Result<Option<f64>, String> {
+pub(crate) fn seconds(map: &HashMap<String, AttributeValue>, key: &str) -> Result<Option<f64>, String> {
     let Some(value) = map.get(key) else { return Ok(None) };
     match value.as_quantity() {
         Some(Ok(q)) if q.dimension() == Dimension::Time => Ok(Some(q.canonical())),
@@ -294,8 +372,9 @@ fn read_spec(map: &HashMap<String, AttributeValue>) -> Result<Spec, String> {
         None => Backend::default(),
         Some(name) => Backend::parse(&name).ok_or_else(|| format!("simulate: backend '{name}' is not one of {}", Backend::NAMES.join(", ")))?,
     };
-    let model = map.get("model").and_then(|v| v.as_string()).ok_or("simulate: model is required (the Modelica class to simulate)")?.to_string();
-    if !is_class_name(&model) {
+    let model = map.get("model").map(|v| v.as_string().map(str::to_string).ok_or("simulate: model is a Modelica class name (Package.Model)")).transpose()?.unwrap_or_default();
+    let mission = map.get("mission").map(|v| v.as_string().map(str::to_string).ok_or("simulate: mission is the path of a file of parameter values")).transpose()?;
+    if !model.is_empty() && !is_class_name(&model) {
         return Err(format!("simulate: model '{model}' is not a Modelica class name (Package.Model)"));
     }
     let stop_time = seconds(map, "stop_time").map_err(|e| format!("simulate: {e}"))?.ok_or("simulate: stop_time is required (e.g. stop_time: 3600 s)")?;
@@ -335,7 +414,7 @@ fn read_spec(map: &HashMap<String, AttributeValue>) -> Result<Spec, String> {
         .collect();
     sweep::parse(&unresolved, &Default::default())?;
     let (uncertain, samples, seed, required) = read_monte_carlo(map, &sweep)?;
-    Ok(Spec { backend, model, configuration, start_time, stop_time, sources, tolerance, intervals, sweep, uncertain, samples, seed, required })
+    Ok(Spec { backend, model, mission, configuration, start_time, stop_time, sources, tolerance, intervals, sweep, uncertain, samples, seed, required })
 }
 
 fn fraction(map: &HashMap<String, AttributeValue>, key: &str, low: f64) -> Result<Option<f64>, String> {
@@ -390,6 +469,42 @@ fn read_monte_carlo(map: &HashMap<String, AttributeValue>, sweep: &[String]) -> 
     Ok((uncertain, samples, seed, Some(required)))
 }
 
+/// The spec a case runs with: its mission's lines added to its sweep, its
+/// model the roll-up of its configuration when it names none.
+pub fn effective(mut spec: Spec, base: &std::path::Path, export: &crate::compiler::modelica::Export, configuration: Option<String>) -> Result<Spec, String> {
+    if let Some(mission) = &spec.mission {
+        let path = base.join(mission);
+        let text = std::fs::read_to_string(&path).map_err(|e| format!("simulate: mission '{mission}': cannot read {}: {e}", path.display()))?;
+        let lines: Vec<String> = text
+            .lines()
+            .map(str::trim)
+            .filter(|l| !l.is_empty() && !l.starts_with('#') && !l.starts_with("//"))
+            .map(str::to_string)
+            .collect();
+        if lines.is_empty() {
+            return Err(format!("simulate: mission '{mission}' sets no parameter (one \"Element\".parameter = value a line)"));
+        }
+        if !spec.uncertain.is_empty() {
+            return Err("simulate: a mission sets values, a Monte Carlo case samples them: give mission: or uncertain:, not both".to_string());
+        }
+        spec.sweep.extend(lines);
+    }
+    if spec.model.is_empty() {
+        let key = configuration.unwrap_or_default();
+        spec.model = match export.executables.get(&key).or_else(|| (export.executables.len() == 1).then(|| export.executables.values().next()).flatten()) {
+            Some(class) => class.clone(),
+            None => {
+                return Err(if export.executables.is_empty() {
+                    "simulate: model is required (the Modelica class to simulate), or give the elements their executable model (model: \"Package.Class\") and the roll-up is simulated".to_string()
+                } else {
+                    format!("simulate: no executable model for configuration '{key}'; name the model to simulate")
+                });
+            }
+        };
+    }
+    Ok(spec)
+}
+
 /// The `expects:` of a case.
 pub fn expects_of(attributes: &HashMap<String, AttributeValue>) -> Vec<String> {
     match attributes.get("expects") {
@@ -399,19 +514,47 @@ pub fn expects_of(attributes: &HashMap<String, AttributeValue>) -> Vec<String> {
     }
 }
 
+/// What a case expects of its simulation: its `expects:`, then the values of
+/// the snapshots it checks (`snapshots:`), each at its time.
+pub fn case_expects(model: &crate::compiler::ast::Model, test: &crate::compiler::ast::TestCase) -> Vec<String> {
+    let mut expects = expects_of(&test.attributes);
+    expects.extend(crate::compiler::occurrences::expectations(model, &test.attributes).unwrap_or_default());
+    expects
+}
+
 /// What the parser checks of a case's simulation: a well-formed block,
 /// expectations that parse, and no other source of verdict.
 pub fn validate(attributes: &HashMap<String, AttributeValue>) -> Result<(), String> {
-    let has_expects = attributes.contains_key("expects");
+    if attributes.contains_key("execute") {
+        if attributes.contains_key("simulate") {
+            return Err("a case either simulates (simulate:) or executes its state machine (execute:), not both".to_string());
+        }
+        crate::compiler::embedded::case::validate(attributes)?;
+        if attributes.contains_key("snapshots") {
+            return Err("snapshots: are checked on a simulation, not on an executed state machine".to_string());
+        }
+        if attributes.contains_key("asserts") || attributes.contains_key("verdict") {
+            return Err("its verdict comes from its run: it neither asserts constraints nor gives a verdict".to_string());
+        }
+        let expects = expects_of(attributes);
+        if expects.is_empty() {
+            return Err("execute: needs expects: [...], what the run must show (e.g. final(\"Modes\".Standby) == 1)".to_string());
+        }
+        return expects.iter().try_for_each(|e| expects::check_syntax(e));
+    }
     let Some(spec) = spec_of(attributes) else {
-        return if has_expects { Err("expects: needs simulate: { ... }, the simulation they are read on".to_string()) } else { Ok(()) };
+        return match (attributes.contains_key("expects"), attributes.contains_key("snapshots")) {
+            (true, _) => Err("expects: needs simulate: { ... }, the simulation they are read on".to_string()),
+            (false, true) => Err("snapshots: are checked on a simulation: give it simulate: { ... }".to_string()),
+            _ => Ok(()),
+        };
     };
     spec?;
     if attributes.contains_key("asserts") || attributes.contains_key("verdict") {
         return Err("its verdict comes from the simulation: it neither asserts constraints nor gives a verdict".to_string());
     }
     let expects = expects_of(attributes);
-    if expects.is_empty() {
+    if expects.is_empty() && !attributes.contains_key("snapshots") {
         return Err("simulate: needs expects: [\"final(x) >= 1\", ...], what the result must show".to_string());
     }
     expects.iter().try_for_each(|e| expects::check_syntax(e))

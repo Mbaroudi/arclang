@@ -20,7 +20,7 @@ MERGE_UNAVAILABLE = (
     "the result to read the outcome by stable identity, and arclang_validate on it."
 )
 PLM_UNAVAILABLE = (
-    "PLM synchronisation is not available: `arclang sync` is not implemented in the compiler."
+    "PLM synchronization is not available: `arclang sync` is not implemented in the compiler."
 )
 
 TOOLS: List[Tool] = [

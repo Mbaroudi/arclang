@@ -12,6 +12,7 @@ import { failureText, run } from '../cli';
 import { MonteCarloCase, monteCarloCases, parseStatistics } from '../pure/montecarlo';
 import { StatisticsState, monteCarloHtml, statisticsBlock } from '../pure/montecarlo-html';
 import { Outcome } from '../pure/simulation';
+import { onlineStatistics } from './online-results';
 import { replayCase } from './replay';
 
 export class MonteCarloPanel {
@@ -72,12 +73,18 @@ export class MonteCarloPanel {
       if (index >= total) return;
       return replayCase(vscode.Uri.file(this.file), { id: found.id, name: found.name }, index >= 0 ? index : undefined);
     }
-    if (type === 'statistics' && (engine === 'r' || engine === 'python')) return this.analyse(found, engine);
+    if (type === 'statistics' && (engine === 'r' || engine === 'python')) return this.analyze(found, engine);
   }
 
-  private async analyse(found: MonteCarloCase, engine: 'r' | 'python'): Promise<void> {
+  private async analyze(found: MonteCarloCase, engine: 'r' | 'python'): Promise<void> {
     if (this.statistics[found.id]?.state === 'running') return;
     this.setStatistics(found, { state: 'running', engine });
+    // In the browser, the online run has already analyzed the samples.
+    const online = onlineStatistics(this.file, found.id, engine);
+    if (online) {
+      const report = online.report ? parseStatistics(JSON.stringify(online.report)) : null;
+      return this.setStatistics(found, report ? { state: 'done', report } : { state: 'error', message: online.error ?? 'the analysis failed' });
+    }
     const result = await run(['verify', this.file, '--test', found.id, '--statistics', engine, '--json'], { cwd: path.dirname(this.file), env: this.env() });
     const report = result.code === 0 ? parseStatistics(result.stdout) : null;
     const state: StatisticsState = report ? { state: 'done', report } : { state: 'error', message: failureText(result).split('\n').filter((l) => l.trim()).pop() ?? 'the analysis failed' };

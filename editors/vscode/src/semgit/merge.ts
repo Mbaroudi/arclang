@@ -4,6 +4,7 @@
 // lists them by element with Accept ours, Accept theirs and Edit.
 import * as path from 'node:path';
 import * as vscode from 'vscode';
+import { findFiles } from '../files';
 import { run, output, failureText } from '../cli';
 import { Choice, Conflict, parseConflicts, resolveConflict } from '../pure/semgit';
 import { repoTop } from './git';
@@ -67,7 +68,7 @@ export class ConflictsView implements vscode.TreeDataProvider<Node> {
   /** Look for markers in every model file of the workspace (the open ones as they are in the editor). */
   async scan(): Promise<void> {
     const found: FileConflicts[] = [];
-    const uris = await vscode.workspace.findFiles('**/*.arc', '**/{node_modules,.git,target}/**', 500);
+    const uris = await findFiles('**/*.arc', '**/{node_modules,.git,target}/**', 500);
     for (const uri of uris) {
       const open = vscode.workspace.textDocuments.find((d) => d.uri.toString() === uri.toString());
       const text = open ? open.getText() : Buffer.from(await vscode.workspace.fs.readFile(uri)).toString('utf8');

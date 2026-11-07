@@ -2,7 +2,7 @@
 // native tree (Capella's semantic browser): owner, incoming, outgoing,
 // owned and traces, each entry a step to that element.
 import * as vscode from 'vscode';
-import { ElementRecord, neighbours, Snapshot } from '../pure/workbench';
+import { ElementRecord, neighbors, Snapshot } from '../pure/workbench';
 import { onDidChangeSnapshot, snapshotOf } from './snapshot';
 
 export type RelationItem =
@@ -82,7 +82,7 @@ export class RelationsProvider implements vscode.TreeDataProvider<RelationItem> 
     const records = snapshot.elements?.elements ?? [];
     const element = records.find((e) => e.uuid === this.element!.uuid) ?? this.element;
     const uri = this.document.uri;
-    const { incoming, outgoing } = neighbours(element, snapshot);
+    const { incoming, outgoing } = neighbors(element, snapshot);
     const owner = records.find((e) => e.uuid === element.owner) ?? null;
     const owned = records.filter((e) => e.owner === element.uuid);
     const entry = (kind: string, name: string, other: ElementRecord | null): RelationEntry => ({ kind, name, other, uri });

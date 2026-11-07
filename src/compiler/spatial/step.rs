@@ -3,7 +3,7 @@
 //! SOLIDWORKS, NX, Creo, Inventor, Fusion and FreeCAD read.
 //!
 //! The product structure is the system's: the model, each architecture
-//! level, its physical nodes and the behaviour components they hold, and
+//! level, its physical nodes and the behavior components they hold, and
 //! the EPBS breakdown (systems, subsystems, items). An element with a
 //! `shape` is a solid (a box or a cylinder, as a B-rep), placed by its
 //! `position` and `orientation` in its owner; an element whose children
@@ -398,7 +398,7 @@ pub struct Exported {
 pub fn export(ast: &Model, timestamp: &str) -> Result<Exported, String> {
     let mut levels = structure(ast);
     if levels.is_empty() {
-        return Err("no element has a `shape`: there is no geometry to export to CAD (give a node, a behaviour component or an EPBS item `shape: { box: [l, w, h] }`)".to_string());
+        return Err("no element has a `shape`: there is no geometry to export to CAD (give a node, a behavior component or an EPBS item `shape: { box: [l, w, h] }`)".to_string());
     }
     let mut notes = Vec::new();
     if let Some(origin) = place_sites(&mut levels) {

@@ -10,7 +10,7 @@ use arclang::compiler::{Compiler, CompilerConfig};
 use std::path::Path;
 
 fn corridor() -> arclang::CompilationResult {
-    let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("examples/spatial/charging_corridor.arc");
+    let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("examples/spatial/charging-corridor/charging_corridor.arc");
     Compiler::new(CompilerConfig::default()).compile_file(&path).expect("the corridor compiles")
 }
 

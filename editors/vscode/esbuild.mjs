@@ -35,7 +35,7 @@ const VIEWER_FILES = [
   'arcviz-viewer.css',
 ];
 
-/** The built-in colour themes (viewer/themes), in the order the viewer lists them. */
+/** The built-in color themes (viewer/themes), in the order the viewer lists them. */
 const THEME_PRESETS = ['arclang-default', 'capella-classic', 'colorblind-safe', 'print-grayscale', 'high-contrast', 'monochrome-document'];
 
 function copyViewer() {
@@ -172,10 +172,61 @@ const impact = await esbuild.context({
   outfile: 'dist/impact.js',
 });
 
+// realization hook: the realization ladder's page.
+const realization = await esbuild.context({
+  ...common,
+  entryPoints: ['webview/realization/main.ts'],
+  format: 'iife',
+  platform: 'browser',
+  target: 'es2022',
+  outfile: 'dist/realization.js',
+});
+
+// The Modelica drawing's page.
+const modelicaPage = await esbuild.context({
+  ...common,
+  entryPoints: ['webview/modelica/main.ts'],
+  format: 'iife',
+  platform: 'browser',
+  target: 'es2022',
+  outfile: 'dist/modelica.js',
+});
+
+
+// The PDF view's page (pdf.js); its worker and the standard fonts are copied beside it.
+const pdf = await esbuild.context({
+  ...common,
+  entryPoints: ['webview/pdf/main.ts'],
+  format: 'iife',
+  platform: 'browser',
+  target: 'es2022',
+  outfile: 'dist/pdf.js',
+});
+
+function copyPdfjs() {
+  const from = path.join(here, 'node_modules', 'pdfjs-dist');
+  const to = path.join(here, 'dist', 'pdfjs');
+  fs.mkdirSync(to, { recursive: true });
+  fs.copyFileSync(path.join(from, 'build', 'pdf.worker.min.mjs'), path.join(to, 'pdf.worker.min.mjs'));
+  fs.cpSync(path.join(from, 'standard_fonts'), path.join(to, 'standard_fonts'), { recursive: true });
+}
+
+// The digital twins' page.
+const twinPage = await esbuild.context({
+  ...common,
+  entryPoints: ['webview/twin/main.ts'],
+  format: 'iife',
+  platform: 'browser',
+  target: 'es2022',
+  outfile: 'dist/twin.js',
+});
+
 if (watch) {
-  await Promise.all([host.watch(), web.watch(), chat.watch(), page.watch(), tables.watch(), impact.watch()]);
+  copyPdfjs();
+  await Promise.all([host.watch(), web.watch(), chat.watch(), page.watch(), tables.watch(), impact.watch(), realization.watch(), pdf.watch(), modelicaPage.watch(), twinPage.watch()]);
 } else {
-  await Promise.all([host.rebuild(), web.rebuild(), chat.rebuild(), page.rebuild(), tables.rebuild(), impact.rebuild()]);
+  await Promise.all([host.rebuild(), web.rebuild(), chat.rebuild(), page.rebuild(), tables.rebuild(), impact.rebuild(), realization.rebuild(), pdf.rebuild(), modelicaPage.rebuild(), twinPage.rebuild()]);
   copyWasm();
-  await Promise.all([host.dispose(), web.dispose(), chat.dispose(), page.dispose(), tables.dispose(), impact.dispose()]);
+  copyPdfjs();
+  await Promise.all([host.dispose(), web.dispose(), chat.dispose(), page.dispose(), tables.dispose(), impact.dispose(), realization.dispose(), pdf.dispose(), modelicaPage.dispose(), twinPage.dispose()]);
 }

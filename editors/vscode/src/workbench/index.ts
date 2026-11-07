@@ -99,7 +99,7 @@ export function registerWorkbench(context: vscode.ExtensionContext): void {
   // zorder hook: Arrange's keys (front, back, forward, backward, group, ungroup, lock, layers, select).
   for (const command of ARRANGE_COMMANDS) register(`arclang.workbench.${ARRANGE_KEYS[command].name}`, () => WorkbenchPanel.activePanel()?.canvas(command));
 
-  // The diagram on screen as an image or SVG on the clipboard, as slides, and its colour theme.
+  // The diagram on screen as an image or SVG on the clipboard, as slides, and its color theme.
   const activeOr = (verb: string) => {
     const panel = WorkbenchPanel.activePanel();
     if (!panel) void vscode.window.showInformationMessage(`ArcLang: open a workbench to ${verb}.`);
@@ -108,13 +108,14 @@ export function registerWorkbench(context: vscode.ExtensionContext): void {
   register('arclang.diagram.copyImage', () => activeOr('copy its diagram')?.diagramAction('copy-image'));
   register('arclang.diagram.copySvg', () => activeOr('copy its diagram')?.diagramAction('copy-svg'));
   register('arclang.diagram.exportPowerPoint', (args?: unknown) => activeOr('export its diagrams')?.diagramAction('export-pptx', (args ?? undefined) as ExportArgs | undefined));
+  register('arclang.diagram.exportPdf', (args?: unknown) => activeOr('export its diagrams')?.diagramAction('export-pdf', (args ?? undefined) as ExportArgs | undefined));
   register('arclang.diagram.editTheme', () => activeOr('edit a theme on its diagram')?.diagramAction('edit-theme'));
   register('arclang.diagram.chooseTheme', async (key?: unknown) => {
     const store = themeStore(context);
     const entries = await store.list();
     const { entry: current } = await store.active(entries);
     const wanted = typeof key === 'string' ? entries.find((e) => e.key === key || e.id === key) : undefined;
-    const picked = wanted ? { entry: wanted } : await vscode.window.showQuickPick(pickerItems(entries, current.key), { placeHolder: 'Colour theme of every diagram, on every layer' });
+    const picked = wanted ? { entry: wanted } : await vscode.window.showQuickPick(pickerItems(entries, current.key), { placeHolder: 'Color theme of every diagram, on every layer' });
     if (!picked) return;
     if (!picked.entry.ok) {
       void vscode.window.showErrorMessage(`ArcLang: the theme "${picked.entry.name}" is refused: ${picked.entry.errors.join('; ')}`);

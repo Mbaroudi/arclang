@@ -1,0 +1,15 @@
+description: SJA1000-compatible CAN controller on a LiteX bus, one register per 32-bit word
+
+compatible: "arclang,litex-sja1000"
+
+include: [can-controller.yaml]
+
+properties:
+  reg:
+    required: true
+  interrupts:
+    required: true
+  clock-frequency:
+    type: int
+    required: true
+    description: The controller's oscillator frequency (its core clock is half of it).

@@ -6,10 +6,12 @@
 // untrusted workspace or in the browser build.
 import * as path from 'node:path';
 import * as vscode from 'vscode';
+import { findFiles } from '../files';
 import { UNTRUSTED_MESSAGE, currentBackend, failureText, report, run, workspaceTrusted } from '../cli';
 import {
   Checklist,
   Counts,
+  Outcome,
   DOCS_URL,
   MODEX_ID,
   SimModel,
@@ -33,6 +35,9 @@ import { checklistHtml } from '../pure/simulation-html';
 import { applyFix } from './fixes';
 import { MonteCarloPanel } from './montecarlo';
 import { replaySimulation } from './replay';
+import { openModelicaDrawing } from './modelica-view';
+import { runTwins, stopWatchingTwins, watchTwin } from './twin-view';
+import { desktopReplays, exportSimulationReport } from './report';
 
 const SKIP_DIRS = '**/{node_modules,.git,target,.arclang,dist,out}/**';
 const MAX_FILES = 300;
@@ -65,6 +70,8 @@ function activeModelUri(): vscode.Uri | null {
 class Simulation implements vscode.Disposable {
   private readonly item = vscode.window.createStatusBarItem('arclang.simulation', vscode.StatusBarAlignment.Left, 90);
   private model: SimModel = { relevant: false, checking: false, running: false, list: null, toolLabel: null, last: null };
+  /** The last run's outcomes, by model file: what Export the report writes. */
+  private readonly lastRun = new Map<string, Outcome[]>();
   /** .arc files that simulate, .mo files: by path. */
   private readonly simulating = new Set<string>();
   private readonly modelica = new Set<string>();
@@ -117,7 +124,7 @@ class Simulation implements vscode.Disposable {
     this.simulating.clear();
     this.modelica.clear();
     if (this.available()) {
-      const files = await vscode.workspace.findFiles('**/*.{arc,mo}', SKIP_DIRS, MAX_FILES);
+      const files = await findFiles('**/*.{arc,mo}', SKIP_DIRS, MAX_FILES);
       await Promise.all(files.map((uri) => this.scanFile(uri, false)));
     }
     this.render();
@@ -210,7 +217,7 @@ class Simulation implements vscode.Disposable {
       { id: 'check', label: '$(checklist) Check my setup', detail: 'What is installed, what is missing, and a button to fix each thing.' },
       { id: 'setup', label: '$(tools) Set up OpenModelica (guided)', detail: 'Step by step, from nothing to a first simulation.' },
       { id: 'export', label: '$(export) Export Modelica', detail: 'Write the physical architecture as a Modelica package.' },
-      { id: 'drawing', label: '$(symbol-structure) Open the Modelica drawing', detail: 'A .mo file as a diagram (needs the Modex extension).' },
+      { id: 'drawing', label: '$(symbol-structure) Open the Modelica drawing', detail: 'The scenarios and configurations drawn as OMEdit draws them; a part opens its own diagram.' },
       { id: 'docs', label: '$(book) Open the documentation', detail: 'How simulation works and how to write a test case.' },
     ];
     const picked = await vscode.window.showQuickPick(entries, { title: 'ArcLang: Simulation', placeHolder: state });
@@ -221,7 +228,7 @@ class Simulation implements vscode.Disposable {
       case 'check': return this.showSetup();
       case 'setup': return this.guidedSetup();
       case 'export': return this.exportModelica();
-      case 'drawing': return this.openDrawing();
+      case 'drawing': return void vscode.commands.executeCommand('arclang.simulation.drawing');
       case 'docs': return void vscode.env.openExternal(vscode.Uri.parse(DOCS_URL));
     }
   }
@@ -298,13 +305,14 @@ class Simulation implements vscode.Disposable {
       if (!outcomes) {
         if (/OpenModelica not available/i.test(result.stderr)) missingTool = true;
         else if (result.code === 127 || result.code === 126) vscode.window.showErrorMessage(`ArcLang: ${failureText(result)}`);
-        else if (result.code === null || result.code > 128) vscode.window.showInformationMessage('ArcLang: the simulation was cancelled.');
+        else if (result.code === null || result.code > 128) vscode.window.showInformationMessage('ArcLang: the simulation was canceled.');
         else {
           report(`arclang verify ${path.basename(file)}`, result);
           vscode.window.showErrorMessage('ArcLang: the model could not be simulated. See the ArcLang output.');
         }
       } else {
         counts = countOutcomes(outcomes);
+        this.lastRun.set(file, outcomes);
         missingTool = toolMissing(outcomes, result.stderr);
         simOutput().appendLine(runLog(path.basename(file), outcomes, new Date()));
         if (!missingTool && MonteCarloPanel.has(outcomes)) MonteCarloPanel.show(file, outcomes, () => simulationEnv(settings()));
@@ -321,9 +329,23 @@ class Simulation implements vscode.Disposable {
   private async announce(file: string, counts: Counts): Promise<void> {
     const text = `ArcLang: ${summaryText(counts)}`;
     const show = counts.fail || counts.other ? vscode.window.showWarningMessage : vscode.window.showInformationMessage;
-    const choice = await show(text, 'Show the verdicts', 'Show the log');
+    const choice = await show(text, 'Show the verdicts', 'Export the report', 'Show the log');
     if (choice === 'Show the verdicts') await vscode.commands.executeCommand('arclang.table.coverage', vscode.Uri.file(file));
+    else if (choice === 'Export the report') await this.exportReport(file);
     else if (choice === 'Show the log') simOutput().show(true);
+  }
+
+  /** The report of the last run of a model (run it first when there is none), as PDF or PowerPoint. */
+  async exportReport(arg?: unknown): Promise<void> {
+    const file = typeof arg === 'string' ? arg : await this.pickModel(arg);
+    if (!file) return;
+    const outcomes = this.lastRun.get(file);
+    if (!outcomes) {
+      const choice = await vscode.window.showInformationMessage('ArcLang: no simulation of this model was run in this window yet: run them, then export the report.', 'Run simulations');
+      if (choice === 'Run simulations') await this.runSimulations(vscode.Uri.file(file));
+      if (!this.lastRun.has(file)) return;
+    }
+    await exportSimulationReport(file, this.lastRun.get(file)!, desktopReplays(file, () => simulationEnv(settings())));
   }
 
   private vscodeProgress<T>(title: string, task: () => Promise<T>): Promise<T> {
@@ -424,12 +446,12 @@ class Simulation implements vscode.Disposable {
       `ArcLang: Modelica package written to ${vscode.workspace.asRelativePath(written ?? target)}${systems.length ? `, ${systems.length} configuration${systems.length > 1 ? 's' : ''} to draw` : ''}.`,
       ...(systems.length ? ['Open the drawing'] : []),
     );
-    if (choice === 'Open the drawing') await this.drawSystem(systems);
+    if (choice === 'Open the drawing') await vscode.commands.executeCommand('arclang.simulation.drawing', vscode.Uri.file(file));
   }
 
   private async systemsUnder(packageDir: string): Promise<{ label: string; file: string }[]> {
     const pattern = new vscode.RelativePattern(vscode.Uri.file(packageDir), 'Systems/*.mo');
-    const found = (await vscode.workspace.findFiles(pattern, null, 100)).map((u) => u.fsPath);
+    const found = (await findFiles(pattern, null, 100)).map((u) => u.fsPath);
     for (const f of found) this.modelica.add(f);
     return systemDrawings(found);
   }
@@ -499,13 +521,23 @@ export function registerSimulation(context: vscode.ExtensionContext): void {
   const simulation = new Simulation();
   const register = (command: string, callback: (...args: unknown[]) => unknown) => context.subscriptions.push(vscode.commands.registerCommand(command, callback));
   register('arclang.simulation.menu', () => simulation.menu());
+  // Digital twins: the physics driven by measured data, compared to it.
+  register('arclang.twin.run', (uri?: unknown) => runTwins(context, uri, () => simulationEnv(settings())));
+  register('arclang.twin.watch', (uri?: unknown) => watchTwin(context, uri, () => simulationEnv(settings())));
+  context.subscriptions.push({ dispose: stopWatchingTwins });
   register('arclang.simulation.run', (uri?: unknown) => simulation.runSimulations(uri));
   register('arclang.simulation.montecarlo', (uri?: unknown) => simulation.runSimulations(uri, true));
+  register('arclang.simulation.exportReport', (uri?: unknown) => simulation.exportReport(uri));
   register('arclang.simulation.replay', (uri?: unknown) => replaySimulation(uri instanceof vscode.Uri ? uri : activeModelUri()));
   register('arclang.simulation.check', () => simulation.showSetup());
   register('arclang.simulation.setup', () => simulation.guidedSetup());
   register('arclang.simulation.export', (uri?: unknown) => simulation.exportModelica(uri));
-  register('arclang.simulation.drawing', () => simulation.openDrawing());
+  // The drawing of the scenarios and configurations, in VS Code (OpenModelica gives their instance; Modex is no longer needed).
+  register('arclang.simulation.drawing', async (uri?: unknown) => {
+    const file = uri instanceof vscode.Uri && uri.scheme === 'file' ? uri.fsPath : activeModelUri()?.fsPath;
+    if (!file) return void vscode.window.showInformationMessage('ArcLang: open a .arc model with physics (a test case that simulates) to draw it.');
+    await openModelicaDrawing(context, file, typeof uri === 'string' ? uri : undefined);
+  });
   register('arclang.simulation.docs', () => vscode.env.openExternal(vscode.Uri.parse(DOCS_URL)));
   simulation.start(context);
 }

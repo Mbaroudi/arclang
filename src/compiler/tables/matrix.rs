@@ -50,7 +50,7 @@ fn rows_of(context: &Context, matrix: &Matrix) -> Vec<Row> {
             let summary = if count == 0 { "none".to_string() } else { format!("{count} ({})", kinds.into_iter().collect::<Vec<_>>().join(", ")) };
             cells.insert("links".to_string(), if empty { Cell::text(summary).with_status("gap") } else { Cell::text(summary) });
             let issues = if empty { vec![empty_reason(&context.element(context.index_of_uuid(&link.uuid).unwrap_or(0)).kind.to_string())] } else { Vec::new() };
-            Row { id: link.id.clone(), uuid: link.uuid.clone(), kind: link.kind.clone(), name: link.name.clone(), status: if empty { "gap".to_string() } else { "ok".to_string() }, issues, cells }
+            Row { id: link.id.clone(), uuid: link.uuid.clone(), kind: link.kind.clone(), name: link.name.clone(), status: if empty { "gap".to_string() } else { "ok".to_string() }, issues, cells, parent: None, depth: 0 }
         })
         .collect()
 }

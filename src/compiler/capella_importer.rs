@@ -87,6 +87,7 @@ impl CapellaImporter {
                 functional_chains: Vec::new(),
                 name: "Imported System".to_string(),
                 requirements,
+                concerns: Vec::new(),
                 functions: Vec::new(),
                 components: Vec::new(),
                 external_actors: Vec::new(),
@@ -124,9 +125,12 @@ impl CapellaImporter {
             id: String::new(),
             diagrams: Vec::new(),
             tables: Vec::new(), // tables hook
+            io_bindings: Vec::new(),
+            refinements: Vec::new(),
             classes: Vec::new(),
             associations: Vec::new(),
             test_cases: Vec::new(),
+            twins: Vec::new(),
             configurations: Vec::new(),
             notes: Vec::new(),
             rules: Vec::new(),
@@ -239,6 +243,7 @@ impl CapellaImporter {
             interfaces_in: Vec::new(),
             interfaces_out: Vec::new(),
             attributes,
+            occurrences: Vec::new(),
         }))
     }
     

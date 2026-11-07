@@ -8,6 +8,7 @@
 import { randomBytes } from 'node:crypto';
 import * as path from 'node:path';
 import * as vscode from 'vscode';
+import { deliver, reveal } from '../download';
 import { CanvasCommand, EditRequest, ElementRecord, FromWebview, isLayoutFile, layoutPathOf, reorganizeOf, Snapshot, ToWebview } from '../pure/workbench';
 import { looksLikeArcLang, selectionSource } from '../pure/clipboard';
 import { CanvasHistory } from './canvas-history';
@@ -24,6 +25,7 @@ import { applyCompare, compareActive, handleSemgitMessage, isSemgitMessage } fro
 import { DiagramExports, ExportArgs, themeStore } from './diagram-export';
 import type { DiagramAction } from '../pure/workbench';
 import { fileStateOf, saveModel, saveModelAs } from './model-file';
+import { onDidChangeFullScreen, setFullScreen } from '../fullscreen';
 import { droppedModelFiles } from '../pure/importing';
 
 export const VIEW_TYPE = 'arclang.workbench';
@@ -79,7 +81,7 @@ export class WorkbenchPanel {
   /** The arrangement the page shows: kept here, the layout file is written a moment later. */
   private layoutNow: unknown = undefined;
   private readonly history: CanvasHistory;
-  /** Copy as image, PowerPoint, the colour themes. */
+  /** Copy as image, PowerPoint, the color themes. */
   private readonly exports: DiagramExports;
   /** A diagram in a tab of its own (a webview panel, not the custom editor): its title shows the unsaved changes. */
   private ownTab = false;
@@ -183,13 +185,19 @@ export class WorkbenchPanel {
         else void vscode.commands.executeCommand('setContext', TYPING, false);
       }),
     );
+    // Full screen from VS Code's side (the title bar's button, Esc): the workbench in front takes it, any other gives it back.
+    this.disposables.push(
+      onDidChangeFullScreen((on) => {
+        const mine = on ? this.panel.active : this.maximized;
+        if (!mine || this.maximized === on) return;
+        this.maximized = on;
+        this.post({ type: 'full-screen', on });
+      }),
+    );
     this.panel.onDidDispose(() => {
       if (active === this) active = null;
       // Closed in full screen: the window comes back as it was.
-      if (this.maximized) {
-        void vscode.commands.executeCommand('workbench.action.toggleZenMode');
-        void vscode.commands.executeCommand('workbench.action.toggleMaximizeEditorGroup');
-      }
+      if (this.maximized) void setFullScreen(false);
       const key = document.uri.toString();
       const set = panels.get(key);
       set?.delete(this);
@@ -339,7 +347,7 @@ export class WorkbenchPanel {
     switch (message.type) {
       case 'ready':
         this.ready = true;
-        // The theme first: the first drawing is already in its colours.
+        // The theme first: the first drawing is already in its colors.
         await this.exports.pushThemes();
         this.postPreferences();
         this.lastFileState = '';
@@ -426,13 +434,7 @@ export class WorkbenchPanel {
         if (message.on !== this.maximized) {
           this.maximized = message.on;
           this.panel.reveal(undefined, false);
-          await vscode.commands.executeCommand('workbench.action.toggleMaximizeEditorGroup');
-          await vscode.commands.executeCommand('workbench.action.toggleZenMode');
-          // Zen mode centers the editor by default: the diagram wants the full width.
-          // Leaving Zen mode puts the centering back as it was.
-          if (message.on && vscode.workspace.getConfiguration('zenMode').get<boolean>('centerLayout', true)) {
-            await vscode.commands.executeCommand('workbench.action.toggleCenteredLayout');
-          }
+          await setFullScreen(message.on);
         }
         return;
       default:
@@ -558,9 +560,10 @@ export class WorkbenchPanel {
     const target = await vscode.window.showSaveDialog({ defaultUri: folder ? vscode.Uri.joinPath(folder, safe) : undefined, filters, saveLabel: 'Save' });
     if (!target) return;
     await vscode.workspace.fs.writeFile(target, Buffer.from(base64, 'base64'));
+    await deliver(target);
     const open = await vscode.window.showInformationMessage(`ArcLang: saved ${path.basename(target.fsPath)}`, 'Open', 'Reveal');
     if (open === 'Open') await vscode.commands.executeCommand('vscode.open', target);
-    if (open === 'Reveal') await vscode.commands.executeCommand('revealFileInOS', target);
+    if (open === 'Reveal') await reveal(target);
   }
 
   private async element(id: string): Promise<ElementRecord | null> {

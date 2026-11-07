@@ -113,6 +113,9 @@ impl<'a> Checker<'a> {
             for requirement in &sa.requirements {
                 self.check_attrs("Requirement", &requirement.id, &requirement.attributes);
             }
+            for concern in &sa.concerns {
+                self.check_attrs("Concern", &concern.id, &concern.attributes);
+            }
             for function in &sa.functions {
                 self.walk_system_function(function);
             }

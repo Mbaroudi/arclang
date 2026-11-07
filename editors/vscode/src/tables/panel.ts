@@ -7,10 +7,11 @@ import { randomBytes } from 'node:crypto';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as vscode from 'vscode';
-import { run, tempDir, withTempFile, workspaceTrusted, UNTRUSTED_MESSAGE } from '../cli';
+import { deliver } from '../download';
+import { asFile, run, tempDir, withTempFile, workspaceTrusted, UNTRUSTED_MESSAGE } from '../cli';
 import { History } from '../pure/history';
 import { FromTableView, parseTable, removalRequests, TableData, TableSpec, tableArgs, ToTableView, traceRequest } from '../pure/tables';
-import { EditRequest } from '../pure/workbench';
+import { childRequirementId, childRequirementRequests, EditRequest } from '../pure/workbench';
 import { applyRequests, EditQueue, refusalMessage } from '../workbench/edits';
 import { WorkbenchPanel } from '../workbench/panel';
 import { snapshotOf } from '../workbench/snapshot';
@@ -140,7 +141,7 @@ export class TablePanel implements vscode.Disposable {
     if (!source.ok) return this.post({ type: 'error', error: source.error, file });
     const started = Date.now();
     const name = file.replace(/\.sysml$/i, '.arc') || 'model.arc';
-    const answer = await withTempFile(source.text, name, async (temp) => run(tableArgs(temp, this.spec, this.declared, gateStandard()), { cwd: documentDir(this.document) }));
+    const answer = await withTempFile(source.text, name, async (temp) => run([...tableArgs(temp, this.spec, this.declared, gateStandard()), ...asFile(this.document)], { cwd: documentDir(this.document) }));
     const parsed = answer.code === 0 ? parseTable(answer.stdout) : { ok: false as const, error: (answer.stderr || answer.stdout).trim().replace(/^Error:\s*/, '') };
     if (!parsed.ok) {
       // A declared table renamed or removed: keep showing it by its spec.
@@ -239,6 +240,13 @@ export class TablePanel implements vscode.Disposable {
         await this.edit([request], `trace ${request.from} ${request.kind} ${request.to}`);
         return;
       }
+      case 'add-child': {
+        const ids = (this.table?.rows ?? []).map((row) => row.id);
+        const id = childRequirementId(message.parent, ids);
+        const hasBlock = /^\s*requirements\b/m.test(this.document.getText());
+        await this.edit(childRequirementRequests(id, message.text, message.parent, hasBlock), `requirement ${id} under ${message.parent}`);
+        return;
+      }
       case 'remove-trace':
         return this.removeTrace(message.row, message.column);
       case 'export':
@@ -291,6 +299,7 @@ export class TablePanel implements vscode.Disposable {
       const result = await run([...args, '-o', out], { cwd: documentDir(this.document) });
       if (result.code !== 0 || !fs.existsSync(out)) return this.post({ type: 'result', ok: false, message: (result.stderr || result.stdout).trim() || 'the export failed' });
       await vscode.workspace.fs.writeFile(target, fs.readFileSync(out));
+      await deliver(target);
       this.post({ type: 'result', ok: true, message: `Exported ${path.basename(target.fsPath)}` });
       vscode.window.setStatusBarMessage(`ArcLang: exported ${target.fsPath}`, 5000);
     } finally {

@@ -201,6 +201,24 @@
       ]
     },
     {
+      "qualifiedName": "ISQMechanics::MassFlowRateUnit",
+      "metaclass": "AttributeDefinition",
+      "name": "MassFlowRateUnit",
+      "shortName": null,
+      "roles": [
+        "type"
+      ]
+    },
+    {
+      "qualifiedName": "ISQMechanics::MassFlowRateValue",
+      "metaclass": "AttributeDefinition",
+      "name": "MassFlowRateValue",
+      "shortName": null,
+      "roles": [
+        "type"
+      ]
+    },
+    {
       "qualifiedName": "ISQMechanics::PowerUnit",
       "metaclass": "AttributeDefinition",
       "name": "PowerUnit",
@@ -439,6 +457,15 @@
       "metaclass": "AttributeUsage",
       "name": "joule per kelvin",
       "shortName": "J/K",
+      "roles": [
+        "value"
+      ]
+    },
+    {
+      "qualifiedName": "SI::'kilogram second to the power minus 1'",
+      "metaclass": "AttributeUsage",
+      "name": "kilogram second to the power minus 1",
+      "shortName": "kg⋅s⁻¹",
       "roles": [
         "value"
       ]

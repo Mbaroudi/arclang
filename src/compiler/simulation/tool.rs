@@ -18,6 +18,9 @@ const DEFAULT_TIMEOUT: Duration = Duration::from_secs(900);
 pub enum Tool {
     Local(PathBuf),
     Docker(String),
+    /// No OpenModelica: this computer's shell and C compiler only (a given
+    /// FMU with a binary for this platform, stepped here).
+    Host,
 }
 
 impl Tool {
@@ -25,6 +28,7 @@ impl Tool {
         match self {
             Tool::Local(path) => format!("omc ({})", path.display()),
             Tool::Docker(image) => format!("docker image {image}"),
+            Tool::Host => "this computer's C compiler".to_string(),
         }
     }
 }
@@ -153,6 +157,7 @@ pub fn diagnose(config: &ToolConfig) -> Diagnosis {
     let (tool, detail) = match &located {
         Ok(Tool::Local(_)) => (Some("local".to_string()), located.as_ref().unwrap().describe()),
         Ok(Tool::Docker(_)) => (Some("docker".to_string()), located.as_ref().unwrap().describe()),
+        Ok(Tool::Host) => (Some("host".to_string()), located.as_ref().unwrap().describe()),
         Err(error) => (None, error.clone()),
     };
     Diagnosis { tool, detail, docker_installed, docker_running, image, image_pulled, library_volume: LIBRARY_VOLUME.to_string(), msl_version: crate::compiler::modelica::MSL_VERSION.to_string(), library_installed, local_omc }
@@ -176,6 +181,7 @@ pub fn run(tool: &Tool, dir: &Path, script: &str, timeout: Option<Duration>) -> 
             command.arg(script).current_dir(&dir);
             command
         }
+        Tool::Host => return Err("OpenModelica not available: no omc on the PATH (ARCLANG_OMC), and no Docker daemon to run it (ARCLANG_OMC_DOCKER)".to_string()),
         Tool::Docker(image) => {
             let mut command = Command::new("docker");
             command
@@ -217,6 +223,30 @@ pub fn run(tool: &Tool, dir: &Path, script: &str, timeout: Option<Duration>) -> 
     };
     let output = std::fs::read_to_string(&log).unwrap_or_default();
     Ok(Run { success: status.success(), output })
+}
+
+/// A program of `dir` started where the tool runs (in the image, or here), talking on its
+/// stdin and stdout; its stderr goes to `log`. `sh script` is the only command: the script is
+/// a file of `dir`. The second value names the container to remove when the program is stopped.
+pub fn spawn(tool: &Tool, dir: &Path, script: &str, log: &Path) -> Result<(std::process::Child, Option<String>), String> {
+    let dir = dir.canonicalize().map_err(|e| format!("cannot use the working directory {}: {e}", dir.display()))?;
+    let nanos = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_nanos()).unwrap_or(0);
+    let (mut command, container) = match tool {
+        Tool::Local(_) | Tool::Host => {
+            let mut command = Command::new("sh");
+            command.arg(script).current_dir(&dir);
+            (command, None)
+        }
+        Tool::Docker(image) => {
+            let container = format!("arclang-twin-{}-{nanos}", std::process::id());
+            let mut command = Command::new("docker");
+            command.args(["run", "-i", "--rm", "--name", &container, "-v"]).arg(format!("{}:/work", dir.display())).args(["-w", "/work", image, "sh", script]);
+            (command, Some(container))
+        }
+    };
+    let err = std::fs::File::create(log).map_err(|e| format!("cannot write {}: {e}", log.display()))?;
+    let child = command.stdin(Stdio::piped()).stdout(Stdio::piped()).stderr(err).spawn().map_err(|e| format!("cannot start {}: {e}", tool.describe()))?;
+    Ok((child, container))
 }
 
 #[cfg(test)]

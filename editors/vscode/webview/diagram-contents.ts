@@ -2,7 +2,7 @@
 // hide elements from it, add what an element is connected to, a new
 // diagram around an element. A viewpoint view is drawn from the whole
 // model, so hiding there makes a named diagram without the element.
-import { EditRequest, ElementRecord, namedDiagramOf, neighbours, showsLiteral, Snapshot, topLevelIds, ViewerGraph } from '../src/pure/workbench';
+import { EditRequest, ElementRecord, namedDiagramOf, neighbors, showsLiteral, Snapshot, topLevelIds, ViewerGraph } from '../src/pure/workbench';
 
 export interface ContentsHost {
   graph: () => ViewerGraph | null;
@@ -48,7 +48,7 @@ export class DiagramContents {
   }
 
   private relatedOf(element: ElementRecord, snapshot: Snapshot): string[] {
-    const around = neighbours(element, snapshot);
+    const around = neighbors(element, snapshot);
     return [...around.incoming, ...around.outgoing].map((n) => n.other?.id).filter((id): id is string => !!id);
   }
 

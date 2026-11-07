@@ -181,6 +181,10 @@ fn common() -> Vec<AttrSpec> {
     ]
 }
 
+fn executable_model() -> AttrSpec {
+    attr("model", AttrType::Text, "The executable model of the element: a Modelica class extending the class `arclang export -f modelica` generates for it, with modifiers if needed (`\"DronePhysics.Rotors(rho=airframe.rho)\"`). The export rolls these up into `Executable.<Configuration>`, the model a simulated case without `model:` runs. Often written in a `refine` of an element imported from another tool.")
+}
+
 fn multiplicity() -> AttrSpec {
     attr(
         "multiplicity",
@@ -342,7 +346,7 @@ impl Metamodel {
             // ---- Operational Analysis ----
             kind("Actor", Layer::Operational, "OperationalActor", "part def (actor)", "Human or external system interacting with the system.",
                 concat(vec![common(), vec![attr("category", AttrType::Text, "Actor category.")], safety(), vec![located()]])),
-            kind("OperationalEntity", Layer::Operational, "Entity", "part def", "Organisation or system of the operational world.", concat(vec![component_attrs(), vec![located()]])),
+            kind("OperationalEntity", Layer::Operational, "Entity", "part def", "Organization or system of the operational world.", concat(vec![component_attrs(), vec![located()]])),
             kind("OperationalCapability", Layer::Operational, "OperationalCapability", "use case def", "Expected ability of the operational world. May be declared inside another operational capability.",
                 concat(vec![common(), vec![
                     attr("involves", list(AttrType::Reference("Element")), "Actors, entities, activities and processes involved."),
@@ -362,7 +366,17 @@ impl Metamodel {
                     attr("parent", AttrType::Reference("Requirement"), "Requirement it sits under in its document (ReqIF SPEC-HIERARCHY); structure, not refinement."),
                     attr("reqif_id", AttrType::Text, "Identifier the requirement has in the tool it came from (ReqIF IDENTIFIER), given back on export."),
                     attr("applies_to", list(AttrType::Reference("Configuration")), "The configurations of the product line the requirement holds for; every one when absent. A case verifying it runs in one of them, and the gate wants a case in each."),
+                    attr("frames", list(AttrType::Reference("Concern")), "The concerns the requirement addresses (SysML v2 `frame`)."),
+                    attr("subject", AttrType::Reference("Element"), "What the requirement is about: a component, a node, a function (SysML v2 `subject`). The element shows it in its requirements compartment."),
+                    attr("require", list(AttrType::Text), "Constraints the subject must meet, as expressions (`\"mass <= 1200 kg\"`; SysML v2 `require constraint`)."),
+                    attr("assume", list(AttrType::Text), "Constraints taken for granted for the requirement to hold (`\"ambient >= -20 °C\"`; SysML v2 `assume constraint`)."),
                 ], safety()])),
+            kind("Concern", Layer::System, "(none: carried as a requirement)", "concern", "What a stakeholder cares about, framed by the requirements that address it. Declared in a `requirements` block: `concern \"Resists to bullets\" { stakeholders: [\"Owner\"] }`.",
+                concat(vec![common(), vec![
+                    attr("stakeholders", list(AttrType::Text), "Who has the concern (SysML v2 `stakeholder`)."),
+                    attr("rationale", AttrType::Text, "Why it matters."),
+                    attr("parent", AttrType::Reference("Concern"), "Concern it sits under."),
+                ]])),
             kind("Mission", Layer::System, "Mission", "use case def", "High-level goal the system contributes to.", common()),
             kind("Capability", Layer::System, "Capability", "use case def", "Expected ability of the system. May be declared inside another capability.",
                 concat(vec![common(), vec![
@@ -382,7 +396,7 @@ impl Metamodel {
             kind("SequenceLink", Layer::System, "SequenceLink", "succession", "`sequence \"A\" -> \"B\" { condition: \"...\" }` inside a chain: each end a step of the chain or one of its control nodes.",
                 concat(vec![common(), vec![attr("condition", AttrType::Text, "Guard of the branch.")]])),
             // ---- Logical Architecture ----
-            kind("LogicalComponent", Layer::Logical, "LogicalComponent", "part def + part", "Behavioural building block, may be nested. In a product line, a component `variation: true` holds the components that are its variants (`variant: true`).",
+            kind("LogicalComponent", Layer::Logical, "LogicalComponent", "part def + part", "Behavioral building block, may be nested. In a product line, a component `variation: true` holds the components that are its variants (`variant: true`).",
                 concat(vec![component_attrs(), vec![
                     multiplicity(),
                     attr("variation", AttrType::Boolean, "A point of variation: the components it holds marked `variant` are the choices."),
@@ -404,11 +418,11 @@ impl Metamodel {
             kind("CapabilityRealization", Layer::Logical, "CapabilityRealization", "use case def", "Realization of a system capability by components. May be declared inside another realization.",
                 concat(vec![common(), vec![attr("realizes", AttrType::Reference("Capability"), "Capability realized."), attr("involves", list(AttrType::Reference("Element")), "Components and chains involved.")], capability_relations("CapabilityRealization")])),
             // ---- Physical Architecture ----
-            kind("PhysicalNode", Layer::Physical, "PhysicalComponent (NODE)", "part def + part", "Hardware node hosting behaviour components.",
-                concat(vec![component_attrs(), spatial(), vec![multiplicity(), attr("processor", AttrType::Text, "Processor."), attr("cpu", AttrType::Text, "CPU description."), attr("redundancy", AttrType::Text, "Redundancy scheme.")]])),
+            kind("PhysicalNode", Layer::Physical, "PhysicalComponent (NODE)", "part def + part", "Hardware node hosting behavior components.",
+                concat(vec![component_attrs(), spatial(), vec![multiplicity(), attr("processor", AttrType::Text, "Processor."), attr("cpu", AttrType::Text, "CPU description."), attr("redundancy", AttrType::Text, "Redundancy scheme."), executable_model()]])),
             kind("PhysicalPort", Layer::Physical, "PhysicalPort", "port", "Unoriented physical connector.", concat(vec![vec![attr("connector", AttrType::Text, "Connector type.")], physics()])),
-            kind("BehaviorComponent", Layer::Physical, "PhysicalComponent (BEHAVIOR)", "part", "Software/behaviour deployed on a node; declares the physical functions it performs.", concat(vec![common(), safety(), spatial()])),
-            kind("PhysicalFunction", Layer::Physical, "PhysicalFunction", "action def (perform)", "Function of the physical level, declared inside the behaviour component that performs it (or at the level, unallocated), with its ports and sub-functions; `realizes:` names the logical function it realizes.", function_attrs()),
+            kind("BehaviorComponent", Layer::Physical, "PhysicalComponent (BEHAVIOR)", "part", "Software/behavior deployed on a node; declares the physical functions it performs.", concat(vec![common(), safety(), spatial(), vec![executable_model()]])),
+            kind("PhysicalFunction", Layer::Physical, "PhysicalFunction", "action def (perform)", "Function of the physical level, declared inside the behavior component that performs it (or at the level, unallocated), with its ports and sub-functions; `realizes:` names the logical function it realizes.", function_attrs()),
             kind("HardwareComponent", Layer::Physical, "PhysicalComponent (NODE, nested)", "part", "Hardware part of a node.", concat(vec![common(), resources()])),
             kind("PhysicalLink", Layer::Physical, "PhysicalLink", "connect (binding)", "Physical medium between nodes or ports.", concat(vec![exchange_attrs(), routed()])),
             kind("PhysicalExchange", Layer::Physical, "ComponentExchange (physical)", "flow", "Message routed over a link.",
@@ -483,6 +497,16 @@ impl Metamodel {
                 vec![attr("from", AttrType::Reference("Element"), "Source."), attr("to", AttrType::Reference("Element"), "Target."), attr("type", AttrType::Enum("TraceKind"), "Link kind."), attr("rationale", AttrType::Text, "Justification.")]),
             kind("Configuration", Layer::Transverse, "(product line)", "part (#Configuration)", "One product of a product line: the variant it selects in each variation. Two variants of one variation are an error, a variation left open a warning.",
                 concat(vec![common(), vec![attr("selects", list(AttrType::Reference("LogicalComponent")), "The variants selected, one per variation.")]])),
+            kind("IoBinding", Layer::Transverse, "(embedded extension)", "(none: an allocation of a state machine's events, conditions, states and actions to I/O channels)", "`io_binding \"ECU\" { ... }`: the inputs and outputs of a state machine bound once to the channels of the I/O interface `arclang_io.h` (gpio, adc, dac, pwm, can, uart, with a clock and a watchdog). Checked by the compiler, against its target's channels too; `arclang export -f c` generates the glue that calls the channels, `arclang sil` runs it on the host board, `arclang pil` on the target's processor. See docs/embedded-c.md.",
+                vec![
+                    attr("machine", AttrType::Reference("StateMachine"), "The state machine bound (optional when the model has one)."),
+                    attr("period", AttrType::Quantity(Dimension::Time), "The step period on the target, a time (`10 ms`): the glue runs one cycle per period."),
+                    attr("watchdog", AttrType::Boolean, "Kick the watchdog after every cycle that read, stepped and wrote without error."),
+                    attr("target", AttrType::Text, "The target package it is deployed on (`zephyr/litex_vexriscv`; `host` by default): the compiler checks that the target has every channel bound. `arclang export -f zephyr` and `arclang pil` use it. See docs/embedded-targets.md."),
+                    attr("inputs", list(AttrType::Text), "`event or condition <- channel`: an event from an edge (`gpio 4 rising`), a frame (`can 0x120`) or a byte (`uart 0 0x41`); a condition from a level (`gpio 3`), a raw threshold (`adc 0 > 2048`) or the first byte of the last frame (`can 0x121`). An event bound to a level, a condition to an edge, or an input bound twice is an error; an input left unbound, a warning."),
+                    attr("outputs", list(AttrType::Text), "`state or action -> channel`: a state (1 while active) or an action (times run in the step) written to `gpio 10`, `pwm 2 750` (per mille while not zero), `dac 1 4095` (while not zero), `can 0x300` (first byte, every period) or `uart 1 0x45` (each step it is not zero). A channel written twice, or a pin both read and written, is an error."),
+                    attr("description", AttrType::Text, "Free-text description."),
+                ]),
             kind("TestCase", Layer::Transverse, "(V&V extension)", "verification def", "Verification case covering requirements.",
                 concat(vec![common(), vec![
                     attr("verifies", list(AttrType::Reference("Requirement")), "Requirements verified."),
@@ -491,8 +515,10 @@ impl Metamodel {
                     attr("expected", AttrType::Text, "Expected result."),
                     attr("asserts", list(AttrType::Reference("Constraint")), "An analysis: the constraints whose evaluation is its verdict (pass when they all hold)."),
                     attr("verdict", AttrType::Enum("Verdict"), "Outcome of a test run elsewhere; computed, not given, when the case `asserts:` constraints or `simulate:`s. A requirement with a failing case is not verified."),
-                    attr("simulate", AttrType::Record(&crate::compiler::simulation::SIMULATE_KEYS), "Verified by simulation: the `backend` (`openmodelica`, the default; `fmu` and `command` are declared, not built yet), the Modelica `model` to simulate (extending a system model of `arclang export -f modelica`), the `configuration` it is, `stop_time` (and `start_time`), the hand-written Modelica `sources` (paths from the model file), `tolerance`, `intervals`, and a `sweep` (`[\"body.mass = 1800 kg, 2100 kg\", \"vcu.target_speed = 80 km/h .. 130 km/h step 10 km/h\"]`: every combination is simulated, and the expectations must hold at each). Or `uncertain` parameters (`[\"body.mass ~ normal(1850 kg, 40 kg)\", \"cell.capacity ~ uniform(58 kWh, 62 kWh)\", \"drive.efficiency ~ normal(0.9, 0.03) in [0.8, 0.97]\"]`: `normal`, `uniform` or `triangular`, kept between bounds by `in [low, high]`) drawn in `samples` (10 to 1000, default 200) from a `seed`: the case passes when the probability that the expectations hold is shown, at `confidence` (default 0.95), to reach `probability` (the Clopper-Pearson lower bound). Run by `arclang verify`; the verdict is cached, and inconclusive when stale or never run."),
-                    attr("expects", list(AttrType::Text), "What the simulation result must show: comparisons over its variables read with `min`, `max`, `final`, `initial`, `mean` or `at(t, var)`, with units (`final(vehicle.distance) >= 300 km`). A comparison may name the requirement it checks (`\"REQ-SHED: at(40 min, cabin.drawn) <= 1 W\"`): each requirement is then judged on the comparisons naming it and those naming none."),
+                    attr("simulate", AttrType::Record(&crate::compiler::simulation::SIMULATE_KEYS), "Verified by simulation: the `backend` (`openmodelica`, the default; `fmu` and `command` are declared, not built yet), the Modelica `model` to simulate (extending a system model of `arclang export -f modelica`; without it, the roll-up of the configuration, `Executable.<Configuration>`, when its elements carry `model:`), the `configuration` it is, a `mission` (a file of parameter values, one `\"Element\".parameter = value` a line, relative to the model file, added to the sweep), `stop_time` (and `start_time`), the hand-written Modelica `sources` (paths from the model file), `tolerance`, `intervals`, and a `sweep` (`[\"body.mass = 1800 kg, 2100 kg\", \"vcu.target_speed = 80 km/h .. 130 km/h step 10 km/h\"]`: every combination is simulated, and the expectations must hold at each). Or `uncertain` parameters (`[\"body.mass ~ normal(1850 kg, 40 kg)\", \"cell.capacity ~ uniform(58 kWh, 62 kWh)\", \"drive.efficiency ~ normal(0.9, 0.03) in [0.8, 0.97]\"]`: `normal`, `uniform` or `triangular`, kept between bounds by `in [low, high]`) drawn in `samples` (10 to 1000, default 200) from a `seed`: the case passes when the probability that the expectations hold is shown, at `confidence` (default 0.95), to reach `probability` (the Clopper-Pearson lower bound). Run by `arclang verify`; the verdict is cached, and inconclusive when stale or never run."),
+                    attr("execute", AttrType::Record(&crate::compiler::embedded::case::EXECUTE_KEYS), "Verified by executing a state machine at fixed step: the `machine`, the `step` (default the binding's period, else 10 ms), `stop_time`, the `inputs` (`[\"0 s: main switch on\", \"10 ms: LF-022\", \"300 ms: main switch on = false\"]`: an event occurs in the step at its time, a condition holds or not from it on, an `in` variable takes a value from it on: `\"100 ms: speed = 50 km/h\"`), a `binding` (the run then goes through the I/O glue and the host board) and the `tolerance` of the comparison with the C (`quantisation`: of the fixed point of a machine allocated to programmable logic against the model, in `arclang hdl` and `arclang soc`). The expectations read the states (`\"Machine\".State`, 1 while active), the actions (`\"Machine\".action.close_contactors`, times run in the step) and the variables (`\"Machine\".speed`, in their unit). Compiling runs the model and reports a failing case; `arclang sil` runs the generated C against it."),
+                    attr("snapshots", list(AttrType::Text), "Snapshots the simulation must reach: a snapshot, a timeslice (its snapshots) or an element (all its snapshots), by id (`[\"LC-DRONE.Takeoff.At cruise\"]`). Each value of each one, at its `at:`, is an expectation within the snapshot's tolerance (`at(40 s, \"LC-DRONE\".altitude) == 120 m within 1 %`)."),
+                    attr("expects", list(AttrType::Text), "What the simulation result must show: comparisons over its variables read with `min`, `max`, `final`, `initial`, `mean` or `at(t, var)`, with units (`final(vehicle.distance) >= 300 km`); `==` and `!=` may say how far equal may be (`at(1 h, battery.soc) == 0.7 within 2 %`, or `within 0.05`). A comparison may name the requirement it checks (`\"REQ-SHED: at(40 min, cabin.drawn) <= 1 W\"`): each requirement is then judged on the comparisons naming it and those naming none."),
                     attr("reviewed", list(AttrType::Text), "The verifications reviewed: one entry per verified requirement, the requirement and the fingerprints of the case and of the requirement, written by `arclang trace --review`. A verification whose case or requirement changed since is suspect, and so is one the case verifies but does not name here."),
                 ]])),
             kind("Model", Layer::Transverse, "Project / SystemEngineering", "package", "The model itself: root of the element graph, owner of every top-level element.", vec![
@@ -511,15 +537,31 @@ impl Metamodel {
             kind("Note", Layer::Transverse, "Note (diagram annotation)", "comment about", "A text about elements, declared at the top of a file (`note \"Text\" { about: [\"LC-A\"] }`): drawn on every view that draws one of them, tied to each by a dashed line. An element it names that the model does not declare is an error.",
                 concat(vec![common(), vec![attr("about", list(AttrType::Reference("Element")), "The elements the note is about.")]])),
             kind("Constraint", Layer::Transverse, "Constraint", "assert constraint", "Dimension-checked comparison over typed attributes (`assert: <expression>`). Ill-formed is a compile error; violated is a warning and a gate blocker.", common()),
+            kind("Timeslice", Layer::Transverse, "(none: carried as a property)", "timeslice", "A stretch of an element's life, declared in it (`timeslice \"Takeoff\" { start: 0 s end: 40 s }`); holds the snapshots it goes through. Its other attributes are the values the element has during it.",
+                concat(vec![common(), vec![
+                    attr("start", AttrType::Quantity(Dimension::Time), "When it starts."),
+                    attr("end", AttrType::Quantity(Dimension::Time), "When it ends; not before it starts."),
+                ]])),
+            kind("Snapshot", Layer::Transverse, "(none: carried as a property)", "snapshot", "One moment of an element's life, declared in it or in one of its timeslices (`snapshot \"Landed\" { at: 5 min altitude: 0 m }`). Its other attributes are the values the element has then; a value the element declares as a quantity keeps its dimension.",
+                concat(vec![common(), vec![
+                    attr("at", AttrType::Quantity(Dimension::Time), "When it is; within its timeslice."),
+                    attr("tolerance", AttrType::Text, "How far a simulated value may be from the snapshot's and still reach it, when a test case checks it: a percentage of the value (`2 %`) or an amount (`0.5 m`). 1 % when absent."),
+                ]])),
             kind("StateMachine", Layer::Transverse, "StateMachine", "state def", "Modes and states of an element.",
-                concat(vec![common(), vec![attr("initial", AttrType::Reference("State"), "Initial state.")]])),
-            kind("State", Layer::Transverse, "State / Mode", "state", "State (undergone) or mode (chosen behaviour).", common()),
+                concat(vec![common(), vec![
+                    attr("initial", AttrType::Reference("State"), "Initial state."),
+                    attr("variables", list(AttrType::Text), "Typed variables (SysML v2 attributes): `[in|out|const] name: Type [unit] [range lo .. hi] [resolution r | format Qi.f] = initial`, Type Boolean, Integer (int32_t), Real (double) or Float (float), the unit from the unit table (`\"in voltage: Real [V]\"`, `\"out count: Integer = 0\"`). `in`: set by the caller every step. `range`, `resolution` and `format` say how the hardware holds a value when the machine is allocated to programmable logic (fixed point: the range gives the integer bits, a resolution the narrowest word with that step, a format `Qi.f` the word of i + f + 1 bits); the model itself does not clamp. See docs/embedded-c.md and docs/embedded-fpga.md."),
+                    attr("equations", list(AttrType::Text), "Difference equations evaluated every step in the order written, before the transitions: `target = expression` over the variables, with the blocks `delay`, `integrator`, `pid` and the functions `min`, `max`, `abs`, `saturate`, `gain`. Typed and unit-checked."),
+                ]])),
+            kind("State", Layer::Transverse, "State / Mode", "state", "State (undergone) or mode (chosen behavior).", common()),
             kind("Transition", Layer::Transverse, "StateTransition", "transition", "Transition between states.",
                 vec![
                     attr("trigger", AttrType::Text, "Triggering event."),
-                    attr("guard", AttrType::Text, "Guard condition."),
-                    attr("action", AttrType::Text, "Effect."),
-                    attr("timing", AttrType::Quantity(Dimension::Time), "Timing constraint."),
+                    attr("guard", AttrType::Text, "Guard condition: an expression over the machine's variables (`speed > 30 km/h and armed`), else prose (a condition the reader sets)."),
+                    attr("action", AttrType::Text, "Effect: assignments to the machine's variables (`count := count + 1; on := true`), else prose (reported, not executed)."),
+                    attr("timing", AttrType::Quantity(Dimension::Time), "Timing constraint: without a trigger, a timer (as `after:`); beside a trigger, a budget (as `budget:`)."),
+                    attr("after", AttrType::Quantity(Dimension::Time), "A timer: the transition fires when its source has been active this long (SysML v2 `accept after`). Not with a trigger."),
+                    attr("budget", AttrType::Quantity(Dimension::Time), "A budget: how long the source may stay active before the transition fires; watched every step, an overrun is an output (`\"Machine\".budget.<transition>`), never a timer."),
                     attr("priority", AttrType::Number, "Priority among concurrent transitions."),
                 ]),
             kind("Diagram", Layer::Transverse, "Diagram (DiagramRepresentation)", "view", "A declared diagram: a named view cut from one Arcadia level, drawing the elements it names, what holds them and the exchanges between them. `context: true` adds the elements an exchange ties to a named one.",

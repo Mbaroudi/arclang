@@ -1,7 +1,7 @@
 // The AI chat view inside the real VS Code (desktop), against the fake
 // provider: it opens in the secondary side bar, sees the model and the
 // selection, shows a compiler-checked proposal, Apply writes it as one
-// undoable edit; and on a .mo file the answer is labelled not verified.
+// undoable edit; and on a .mo file the answer is labeled not verified.
 //   VSCODE_APP="/Applications/Visual Studio Code.app" PLAYWRIGHT=... node vscode_chat_test.js
 const { _electron } = require(process.env.PLAYWRIGHT || 'playwright');
 const fs = require('fs'); const os = require('os'); const path = require('path'); const { spawnSync } = require('child_process');
@@ -71,7 +71,7 @@ const until = async (win, test, ms = 20000) => { const end = Date.now() + ms; wh
     await shot('chat-3a-before-modelica');
     await chat.locator('.chat-send').click();
     await chat.locator('.chat-unverified').waitFor({ timeout: 40000 });
-    report('the Modelica answer is labelled not verified', /Not verified: there is no Modelica compiler in the browser/.test(await chat.locator('.chat-unverified').innerText()));
+    report('the Modelica answer is labeled not verified', /Not verified: there is no Modelica compiler in the browser/.test(await chat.locator('.chat-unverified').innerText()));
     await shot('chat-3-modelica');
   } catch (error) {
     report('no error', false, String(error).slice(0, 300));

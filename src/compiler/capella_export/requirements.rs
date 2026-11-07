@@ -20,6 +20,13 @@ pub(super) fn all(model: &Model) -> Vec<&Requirement> {
     model.system_analysis.iter().flat_map(|sa| sa.requirements.iter()).filter(|r| !stpa.contains(&(*r as *const Requirement))).collect()
 }
 
+/// The identifier a requirement is referenced by: its `id` attribute when
+/// it has one (`requirement "Hover endurance" { id: "REQ-ENDURANCE" }`),
+/// else its name. Capella keeps it as the ReqIF identifier.
+fn identifier(r: &Requirement) -> &str {
+    text(&r.attributes, "id").unwrap_or(&r.id)
+}
+
 fn capella_id(r: &Requirement) -> String {
     text(&r.attributes, "capella_id").map(str::to_string).unwrap_or_else(|| derived(&format!("requirement:{}", r.id)))
 }
@@ -28,6 +35,7 @@ pub(super) fn register(context: &mut Context, model: &Model) {
     for r in all(model) {
         let id = capella_id(r);
         context.register(&r.id, &id);
+        context.register(identifier(r), &id);
         context.register(&id, &id);
         context.requirements.insert(id);
     }
@@ -141,9 +149,9 @@ pub(super) fn write(context: &Context, model: &Model, level: &str) -> Vec<El> {
     for r in &requirements {
         let id = capella_id(r);
         let title = text(&r.attributes, "title").unwrap_or(&r.id);
-        let mut el = El::new("ownedRequirements", "Requirements:Requirement", &id).attr("ReqIFIdentifier", &r.id).attr("ReqIFLongName", title);
+        let mut el = El::new("ownedRequirements", "Requirements:Requirement", &id).attr("ReqIFIdentifier", identifier(r)).attr("ReqIFLongName", title);
         if let Some(description) = text(&r.attributes, "description").filter(|d| *d != title) {
-            el.set("ReqIFText", description);
+            el.set("ReqIFText", &super::linked_text(description));
         }
         for (key, field) in FIELDS {
             if let Some(value) = text(&r.attributes, key) {

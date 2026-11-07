@@ -1,0 +1,152 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<org.polarsys.capella.core.data.capellamodeller:Project xmi:version="2.0" xmlns:xmi="http://www.omg.org/XMI" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:libraries="http://www.polarsys.org/capella/common/libraries/7.0.0" xmlns:org.polarsys.capella.core.data.capellacommon="http://www.polarsys.org/capella/core/common/7.0.0" xmlns:org.polarsys.capella.core.data.capellacore="http://www.polarsys.org/capella/core/core/7.0.0" xmlns:org.polarsys.capella.core.data.capellamodeller="http://www.polarsys.org/capella/core/modeller/7.0.0" xmlns:org.polarsys.capella.core.data.cs="http://www.polarsys.org/capella/core/cs/7.0.0" xmlns:org.polarsys.capella.core.data.ctx="http://www.polarsys.org/capella/core/ctx/7.0.0" xmlns:org.polarsys.capella.core.data.epbs="http://www.polarsys.org/capella/core/epbs/7.0.0" xmlns:org.polarsys.capella.core.data.fa="http://www.polarsys.org/capella/core/fa/7.0.0" xmlns:org.polarsys.capella.core.data.information="http://www.polarsys.org/capella/core/information/7.0.0" xmlns:org.polarsys.capella.core.data.information.datatype="http://www.polarsys.org/capella/core/information/datatype/7.0.0" xmlns:org.polarsys.capella.core.data.information.datavalue="http://www.polarsys.org/capella/core/information/datavalue/7.0.0" xmlns:org.polarsys.capella.core.data.interaction="http://www.polarsys.org/capella/core/interaction/7.0.0" xmlns:org.polarsys.capella.core.data.la="http://www.polarsys.org/capella/core/la/7.0.0" xmlns:org.polarsys.capella.core.data.oa="http://www.polarsys.org/capella/core/oa/7.0.0" xmlns:org.polarsys.capella.core.data.pa="http://www.polarsys.org/capella/core/pa/7.0.0" xmlns:org.polarsys.capella.core.data.pa.deployment="http://www.polarsys.org/capella/core/pa/deployment/7.0.0" xmlns:re="http://www.polarsys.org/capella/common/re/7.0.0" xmlns:CapellaRequirements="http://www.polarsys.org/capella/requirements" xmlns:Requirements="http://www.polarsys.org/kitalpha/requirements" id="57f9af1d-c30e-55c3-9047-d814d5dedbd9" name="Cargo hoist">
+  <ownedExtensions xsi:type="libraries:ModelInformation" id="b1b451b4-54a0-5b39-a478-8006ff51d8b9"/>
+  <ownedEnumerationPropertyTypes xsi:type="org.polarsys.capella.core.data.capellacore:EnumerationPropertyType" id="e0e2942c-a9bb-55a1-a0eb-e5a87e0bcd26" name="ProgressStatus">
+    <ownedLiterals xsi:type="org.polarsys.capella.core.data.capellacore:EnumerationPropertyLiteral" id="90357352-ec6d-561a-ad26-2910489bee23" name="DRAFT"/>
+    <ownedLiterals xsi:type="org.polarsys.capella.core.data.capellacore:EnumerationPropertyLiteral" id="e4ff738e-29ec-560b-94f6-f1a61be45382" name="TO_BE_REVIEWED"/>
+    <ownedLiterals xsi:type="org.polarsys.capella.core.data.capellacore:EnumerationPropertyLiteral" id="4163bd15-0032-5534-899a-24e47ec09ba1" name="TO_BE_DISCUSSED"/>
+    <ownedLiterals xsi:type="org.polarsys.capella.core.data.capellacore:EnumerationPropertyLiteral" id="ceb25282-3174-51df-92f1-76a19f9f8534" name="REWORK_NECESSARY"/>
+    <ownedLiterals xsi:type="org.polarsys.capella.core.data.capellacore:EnumerationPropertyLiteral" id="d11cb3fe-8303-507d-8d71-76a93f390d39" name="UNDER_REWORK"/>
+    <ownedLiterals xsi:type="org.polarsys.capella.core.data.capellacore:EnumerationPropertyLiteral" id="cb9a1975-4311-54a5-a3ee-e31fd6b2d29c" name="REVIEWED_OK"/>
+  </ownedEnumerationPropertyTypes>
+  <keyValuePairs xsi:type="org.polarsys.capella.core.data.capellacore:KeyValue" id="ee7cdeb1-1ba1-5791-9ca9-45e74d63b718" key="projectApproach" value="SingletonComponents"/>
+  <ownedModelRoots xsi:type="org.polarsys.capella.core.data.capellamodeller:SystemEngineering" id="65b8a2eb-5238-5f9f-9014-5d7ba736a33f" name="Cargo hoist">
+    <ownedArchitectures xsi:type="org.polarsys.capella.core.data.oa:OperationalAnalysis" id="6df5b210-4682-5015-a3fe-33fdca2ddd6f" name="Operational Analysis"/>
+    <ownedArchitectures xsi:type="org.polarsys.capella.core.data.ctx:SystemAnalysis" id="3e531fe0-c412-50c1-9f5b-1c3e4566a555" name="Hoist needs">
+      <ownedFunctionPkg xsi:type="org.polarsys.capella.core.data.ctx:SystemFunctionPkg" id="c7edf42a-d435-539f-9ad9-3702ce431c4b" name="System Functions">
+        <ownedSystemFunctions xsi:type="org.polarsys.capella.core.data.ctx:SystemFunction" id="bf03bf0d-004c-5413-ade8-55c90d754afc" name="Root System Function">
+          <ownedFunctions xsi:type="org.polarsys.capella.core.data.ctx:SystemFunction" id="SF-HEIGHT" name="Measure height">
+            <outputs xsi:type="org.polarsys.capella.core.data.fa:FunctionOutputPort" id="SF-HEIGHT.height" name="height"/>
+          </ownedFunctions>
+          <ownedFunctions xsi:type="org.polarsys.capella.core.data.ctx:SystemFunction" id="SF-HOLD" name="Hold the landing">
+            <inputs xsi:type="org.polarsys.capella.core.data.fa:FunctionInputPort" id="SF-HOLD.height" name="height"/>
+            <outputs xsi:type="org.polarsys.capella.core.data.fa:FunctionOutputPort" id="SF-HOLD.force" name="force"/>
+          </ownedFunctions>
+          <ownedFunctionalExchanges xsi:type="org.polarsys.capella.core.data.fa:FunctionalExchange" id="FE-HEIGHT" name="height" target="#SF-HOLD.height" source="#SF-HEIGHT.height"/>
+        </ownedSystemFunctions>
+      </ownedFunctionPkg>
+      <ownedSystemComponentPkg xsi:type="org.polarsys.capella.core.data.ctx:SystemComponentPkg" id="4208603c-13ce-5461-9b20-905bb04650d3" name="Structure">
+        <ownedSystemComponents xsi:type="org.polarsys.capella.core.data.ctx:SystemComponent" id="9f40e22a-0c08-50f4-8f58-0df6f771fa9d" name="System"/>
+        <ownedParts xsi:type="org.polarsys.capella.core.data.cs:Part" id="123e3ab6-3434-5c85-93ee-f2f1e7039808" name="System" abstractType="#9f40e22a-0c08-50f4-8f58-0df6f771fa9d"/>
+      </ownedSystemComponentPkg>
+      <ownedMissionPkg xsi:type="org.polarsys.capella.core.data.ctx:MissionPkg" id="d70c7f07-472b-5b92-bf8f-dfc11202d982" name="Missions"/>
+      <ownedAbstractCapabilityPkg xsi:type="org.polarsys.capella.core.data.ctx:CapabilityPkg" id="8c4b27f1-a184-5525-ab3b-1efe679dd6df" name="Capabilities"/>
+      <ownedExtensions xsi:type="CapellaRequirements:CapellaModule" id="f41d6df0-e2aa-53c2-8b6c-8fb99eafcd6f" ReqIFLongName="Requirements">
+        <ownedRequirements xsi:type="Requirements:Requirement" id="bf67226b-19db-52d0-bd6e-776a85fea33e" ReqIFIdentifier="REQ-LIGHT" ReqIFLongName="Light duty" ReqIFText="With 100 kg in the cabin, the hoist holds the landing for 10 minutes and keeps 20 % of its charge"/>
+        <ownedRequirements xsi:type="Requirements:Requirement" id="b108399d-009a-5c4b-9efa-7f2ac947e629" ReqIFIdentifier="REQ-HEAVY" ReqIFLongName="Heavy duty" ReqIFText="With 200 kg in the cabin, the hoist holds the landing for 10 minutes and keeps 20 % of its charge"/>
+        <ownedRequirements xsi:type="Requirements:Requirement" id="157b8f75-a4d4-5496-92dd-30817018e2dc" ReqIFIdentifier="REQ-HOLD" ReqIFLongName="Landing hold" ReqIFText="The cabin overshoots the 20 m landing by less than 2 m and is within 1 m of it at the end"/>
+      </ownedExtensions>
+      <ownedExtensions xsi:type="CapellaRequirements:CapellaTypesFolder" id="07a398d8-bd36-5cc4-a857-eaf0b3a598b7" ReqIFLongName="Types"/>
+      <ownedOperationalAnalysisRealizations xsi:type="org.polarsys.capella.core.data.ctx:OperationalAnalysisRealization" id="9995ffeb-c7dd-515a-af9f-8aba108ac0d4" targetElement="#6df5b210-4682-5015-a3fe-33fdca2ddd6f" sourceElement="#3e531fe0-c412-50c1-9f5b-1c3e4566a555"/>
+    </ownedArchitectures>
+    <ownedArchitectures xsi:type="org.polarsys.capella.core.data.la:LogicalArchitecture" id="bd265e9d-9857-5b96-a151-0e1c2e5d01ba" name="Hoist">
+      <ownedLogicalComponentPkg xsi:type="org.polarsys.capella.core.data.la:LogicalComponentPkg" id="e417dbab-9483-5746-a35e-3aa7cab1163c" name="Structure">
+        <ownedLogicalComponents xsi:type="org.polarsys.capella.core.data.la:LogicalComponent" id="LC-HOIST" name="Hoist">
+          <ownedFeatures xsi:type="org.polarsys.capella.core.data.cs:Part" id="90ab7b7c-a10d-5d89-b4c9-903fd1eaa353" name="Energy" abstractType="#LC-ENERGY"/>
+          <ownedFeatures xsi:type="org.polarsys.capella.core.data.cs:Part" id="79ad3858-677f-56e9-b74a-16ceb3b9b4c8" name="Lifting" abstractType="#LC-LIFT"/>
+          <ownedFeatures xsi:type="org.polarsys.capella.core.data.cs:Part" id="e8f9a391-8c16-5da7-ac86-46d79e54c724" name="Control" abstractType="#LC-CTRL"/>
+          <ownedLogicalComponents xsi:type="org.polarsys.capella.core.data.la:LogicalComponent" id="LC-ENERGY" name="Energy">
+            <ownedFeatures xsi:type="org.polarsys.capella.core.data.cs:Part" id="86964c4e-0943-50da-a50c-a11331105b8e" name="Small pack" abstractType="#LC-PACK-S"/>
+            <ownedFeatures xsi:type="org.polarsys.capella.core.data.cs:Part" id="14275504-a51c-5a0c-8941-b9feaf47fa6a" name="Large pack" abstractType="#LC-PACK-L"/>
+            <ownedLogicalComponents xsi:type="org.polarsys.capella.core.data.la:LogicalComponent" id="LC-PACK-S" name="Small pack">
+              <ownedPropertyValues xsi:type="org.polarsys.capella.core.data.capellacore:StringPropertyValue" id="3481aefb-7e57-59e4-8688-52fb834582af" name="energy" value="40 Wh"/>
+            </ownedLogicalComponents>
+            <ownedLogicalComponents xsi:type="org.polarsys.capella.core.data.la:LogicalComponent" id="LC-PACK-L" name="Large pack">
+              <ownedPropertyValues xsi:type="org.polarsys.capella.core.data.capellacore:StringPropertyValue" id="c34ed0e5-add1-5f2a-aed6-d3090524ad83" name="energy" value="60 Wh"/>
+            </ownedLogicalComponents>
+          </ownedLogicalComponents>
+          <ownedLogicalComponents xsi:type="org.polarsys.capella.core.data.la:LogicalComponent" id="LC-LIFT" name="Lifting"/>
+          <ownedLogicalComponents xsi:type="org.polarsys.capella.core.data.la:LogicalComponent" id="LC-CTRL" name="Control"/>
+        </ownedLogicalComponents>
+        <ownedParts xsi:type="org.polarsys.capella.core.data.cs:Part" id="7fc92db3-feb8-593d-88b5-1e23b9e4f0a2" name="Hoist" abstractType="#LC-HOIST"/>
+      </ownedLogicalComponentPkg>
+      <ownedAbstractCapabilityPkg xsi:type="org.polarsys.capella.core.data.la:CapabilityRealizationPkg" id="65c75770-3766-5643-b1af-7ace5da825df" name="Capabilities"/>
+      <ownedSystemAnalysisRealizations xsi:type="org.polarsys.capella.core.data.la:SystemAnalysisRealization" id="bf91c254-651e-5ea2-a07b-0719a4761195" targetElement="#3e531fe0-c412-50c1-9f5b-1c3e4566a555" sourceElement="#bd265e9d-9857-5b96-a151-0e1c2e5d01ba"/>
+    </ownedArchitectures>
+    <ownedArchitectures xsi:type="org.polarsys.capella.core.data.pa:PhysicalArchitecture" id="01b43765-3288-5211-81bf-c1ead2bf74f6" name="Hoist hardware">
+      <ownedPhysicalComponentPkg xsi:type="org.polarsys.capella.core.data.pa:PhysicalComponentPkg" id="e06acd4f-b6bf-5384-89ef-ba10c61a56ae" name="Structure">
+        <ownedPhysicalComponents xsi:type="org.polarsys.capella.core.data.pa:PhysicalComponent" id="PN-BATT" name="Battery">
+          <ownedPropertyValues xsi:type="org.polarsys.capella.core.data.capellacore:StringPropertyValue" id="ed07ac85-779e-5997-b968-f53c9aba143d" name="voltage" value="48 V"/>
+          <ownedFeatures xsi:type="org.polarsys.capella.core.data.cs:PhysicalPort" id="PN-BATT.p" name="p"/>
+          <ownedFeatures xsi:type="org.polarsys.capella.core.data.cs:PhysicalPort" id="PN-BATT.n" name="n"/>
+          <ownedFeatures xsi:type="org.polarsys.capella.core.data.cs:Part" id="47904110-1d16-5e94-9056-5e0e247ae602" name="Winch" abstractType="#PN-WINCH">
+            <ownedDeploymentLinks xsi:type="org.polarsys.capella.core.data.pa.deployment:PartDeploymentLink" id="cc256b4e-547a-5378-83b0-8d99a7247a68" deployedElement="#3f469bb7-d891-5ed6-b508-a9d181703fe0" location="#47904110-1d16-5e94-9056-5e0e247ae602"/>
+          </ownedFeatures>
+          <ownedFeatures xsi:type="org.polarsys.capella.core.data.cs:Part" id="3331d9b1-20cc-5910-8b50-b0d8c70b4c7b" name="Cabin" abstractType="#PN-CABIN">
+            <ownedDeploymentLinks xsi:type="org.polarsys.capella.core.data.pa.deployment:PartDeploymentLink" id="5d2870d5-d00f-556d-b228-738cdde52cf3" deployedElement="#06a1a91b-2fee-5fde-8a5a-9d4a5680cbd3" location="#3331d9b1-20cc-5910-8b50-b0d8c70b4c7b"/>
+          </ownedFeatures>
+          <ownedFeatures xsi:type="org.polarsys.capella.core.data.cs:Part" id="d3b4c28f-540d-50cb-b39c-e112a10031fa" name="Controller" abstractType="#PN-CTRL">
+            <ownedDeploymentLinks xsi:type="org.polarsys.capella.core.data.pa.deployment:PartDeploymentLink" id="48eddbe3-6b50-58c1-a072-64adf294b5ba" deployedElement="#d170617c-1207-505b-a0e4-4a4b9443a2c9" location="#d3b4c28f-540d-50cb-b39c-e112a10031fa"/>
+          </ownedFeatures>
+          <ownedFeatures xsi:type="org.polarsys.capella.core.data.cs:Part" id="3f469bb7-d891-5ed6-b508-a9d181703fe0" name="Winch drive" abstractType="#BC-DRIVE"/>
+          <ownedFeatures xsi:type="org.polarsys.capella.core.data.cs:Part" id="06a1a91b-2fee-5fde-8a5a-9d4a5680cbd3" name="Height sensor" abstractType="#BC-SENSE"/>
+          <ownedFeatures xsi:type="org.polarsys.capella.core.data.cs:Part" id="d170617c-1207-505b-a0e4-4a4b9443a2c9" name="Height hold" abstractType="#BC-HOLD"/>
+          <ownedPhysicalComponents xsi:type="org.polarsys.capella.core.data.pa:PhysicalComponent" id="PN-WINCH" name="Winch" nature="NODE">
+            <ownedPropertyValues xsi:type="org.polarsys.capella.core.data.capellacore:StringPropertyValue" id="c8e5266d-08e6-5445-9d9d-55f3d48e8a21" name="efficiency" value="80 %"/>
+            <ownedPropertyValues xsi:type="org.polarsys.capella.core.data.capellacore:StringPropertyValue" id="50521672-df2d-5b64-8ed6-a94362ae2986" name="max_force" value="6000 N"/>
+            <ownedPropertyValues xsi:type="org.polarsys.capella.core.data.capellacore:StringPropertyValue" id="95d92d4e-8513-5bf9-84d5-68a3016ca272" name="standby" value="50 W"/>
+            <ownedFeatures xsi:type="org.polarsys.capella.core.data.cs:PhysicalPort" id="PN-WINCH.p" name="p"/>
+            <ownedFeatures xsi:type="org.polarsys.capella.core.data.cs:PhysicalPort" id="PN-WINCH.n" name="n"/>
+            <ownedFeatures xsi:type="org.polarsys.capella.core.data.cs:PhysicalPort" id="PN-WINCH.cable" name="cable"/>
+            <ownedFeatures xsi:type="org.polarsys.capella.core.data.cs:PhysicalPort" id="PN-WINCH.bus" name="bus"/>
+          </ownedPhysicalComponents>
+          <ownedPhysicalComponents xsi:type="org.polarsys.capella.core.data.pa:PhysicalComponent" id="PN-CABIN" name="Cabin" nature="NODE">
+            <ownedPropertyValues xsi:type="org.polarsys.capella.core.data.capellacore:StringPropertyValue" id="e1140fe4-5207-5e67-b663-993441c5554a" name="load" value="200 kg"/>
+            <ownedPropertyValues xsi:type="org.polarsys.capella.core.data.capellacore:StringPropertyValue" id="d043e0df-0604-5444-ad8b-4362674b5297" name="mass" value="150 kg"/>
+            <ownedFeatures xsi:type="org.polarsys.capella.core.data.cs:PhysicalPort" id="PN-CABIN.cable" name="cable"/>
+            <ownedFeatures xsi:type="org.polarsys.capella.core.data.cs:PhysicalPort" id="PN-CABIN.bus" name="bus"/>
+          </ownedPhysicalComponents>
+          <ownedPhysicalComponents xsi:type="org.polarsys.capella.core.data.pa:PhysicalComponent" id="PN-CTRL" name="Controller" nature="NODE">
+            <ownedFeatures xsi:type="org.polarsys.capella.core.data.cs:PhysicalPort" id="PN-CTRL.sensor" name="sensor"/>
+            <ownedFeatures xsi:type="org.polarsys.capella.core.data.cs:PhysicalPort" id="PN-CTRL.drive" name="drive"/>
+          </ownedPhysicalComponents>
+          <ownedPhysicalComponents xsi:type="org.polarsys.capella.core.data.pa:PhysicalComponent" id="BC-DRIVE" name="Winch drive" nature="BEHAVIOR">
+            <ownedFeatures xsi:type="org.polarsys.capella.core.data.fa:ComponentPort" id="BC-DRIVE.force_cmd" name="force_cmd" orientation="IN" kind="FLOW"/>
+          </ownedPhysicalComponents>
+          <ownedPhysicalComponents xsi:type="org.polarsys.capella.core.data.pa:PhysicalComponent" id="BC-SENSE" name="Height sensor" nature="BEHAVIOR">
+            <ownedFeatures xsi:type="org.polarsys.capella.core.data.fa:ComponentPort" id="BC-SENSE.height" name="height" orientation="OUT" kind="FLOW"/>
+          </ownedPhysicalComponents>
+          <ownedPhysicalComponents xsi:type="org.polarsys.capella.core.data.pa:PhysicalComponent" id="BC-HOLD" name="Height hold" nature="BEHAVIOR">
+            <ownedPropertyValues xsi:type="org.polarsys.capella.core.data.capellacore:StringPropertyValue" id="459ad6e2-91da-5e69-a60f-9045146ae1ea" name="target_height" value="20 m"/>
+            <ownedFeatures xsi:type="org.polarsys.capella.core.data.fa:ComponentPort" id="BC-HOLD.height" name="height" orientation="IN" kind="FLOW"/>
+            <ownedFeatures xsi:type="org.polarsys.capella.core.data.fa:ComponentPort" id="BC-HOLD.force_cmd" name="force_cmd" orientation="OUT" kind="FLOW"/>
+            <ownedExtensions xsi:type="CapellaRequirements:CapellaOutgoingRelation" id="ef0be1d1-4871-58e9-adfa-7f2c039ded19" source="#BC-HOLD" target="#157b8f75-a4d4-5496-92dd-30817018e2dc"/>
+          </ownedPhysicalComponents>
+          <ownedPhysicalLinks xsi:type="org.polarsys.capella.core.data.cs:PhysicalLink" id="PL-PWR-P" name="Power plus" linkEnds="#PN-BATT.p #PN-WINCH.p">
+            <ownedPropertyValues xsi:type="org.polarsys.capella.core.data.capellacore:StringPropertyValue" id="900d513d-50d5-5dd4-a6cb-b95a066c41da" name="protocol" value="48 V DC"/>
+          </ownedPhysicalLinks>
+          <ownedPhysicalLinks xsi:type="org.polarsys.capella.core.data.cs:PhysicalLink" id="PL-PWR-N" name="Power minus" linkEnds="#PN-BATT.n #PN-WINCH.n">
+            <ownedPropertyValues xsi:type="org.polarsys.capella.core.data.capellacore:StringPropertyValue" id="8f6c36cf-2509-5b11-9088-11429b0c1224" name="protocol" value="48 V DC"/>
+          </ownedPhysicalLinks>
+          <ownedPhysicalLinks xsi:type="org.polarsys.capella.core.data.cs:PhysicalLink" id="PL-CABLE" name="Cable" linkEnds="#PN-WINCH.cable #PN-CABIN.cable">
+            <ownedPropertyValues xsi:type="org.polarsys.capella.core.data.capellacore:StringPropertyValue" id="10e07140-a68c-5345-b9a5-c0f0cec1eeef" name="protocol" value="Steel rope"/>
+          </ownedPhysicalLinks>
+          <ownedPhysicalLinks xsi:type="org.polarsys.capella.core.data.cs:PhysicalLink" id="PL-SENS" name="Sensor bus" linkEnds="#PN-CABIN.bus #PN-CTRL.sensor">
+            <ownedPropertyValues xsi:type="org.polarsys.capella.core.data.capellacore:StringPropertyValue" id="aee033de-e060-5542-88b5-a5d61044817e" name="protocol" value="CAN"/>
+            <ownedComponentExchangeAllocations xsi:type="org.polarsys.capella.core.data.fa:ComponentExchangeAllocation" id="24cd4824-8c65-56c1-987b-57af41f5d72e" targetElement="#PX-HEIGHT" sourceElement="#PL-SENS"/>
+          </ownedPhysicalLinks>
+          <ownedPhysicalLinks xsi:type="org.polarsys.capella.core.data.cs:PhysicalLink" id="PL-DRIVE" name="Drive bus" linkEnds="#PN-CTRL.drive #PN-WINCH.bus">
+            <ownedPropertyValues xsi:type="org.polarsys.capella.core.data.capellacore:StringPropertyValue" id="b3bd7c8e-771d-566f-a49f-1402350e0e82" name="protocol" value="CAN"/>
+            <ownedComponentExchangeAllocations xsi:type="org.polarsys.capella.core.data.fa:ComponentExchangeAllocation" id="13b60b72-44b8-5fd3-be3d-449957e07ce0" targetElement="#PX-FORCE" sourceElement="#PL-DRIVE"/>
+          </ownedPhysicalLinks>
+          <ownedComponentExchanges xsi:type="org.polarsys.capella.core.data.fa:ComponentExchange" id="PX-HEIGHT" name="Height" target="#BC-HOLD.height" source="#BC-SENSE.height" kind="FLOW">
+            <ownedPropertyValues xsi:type="org.polarsys.capella.core.data.capellacore:StringPropertyValue" id="72685164-8e7c-566a-b83b-3a7112b02a60" name="frequency" value="50 Hz"/>
+            <ownedPropertyValues xsi:type="org.polarsys.capella.core.data.capellacore:StringPropertyValue" id="95773961-8b66-5b6f-8200-c2819f14b026" name="message_type" value="Height"/>
+          </ownedComponentExchanges>
+          <ownedComponentExchanges xsi:type="org.polarsys.capella.core.data.fa:ComponentExchange" id="PX-FORCE" name="Force command" target="#BC-DRIVE.force_cmd" source="#BC-HOLD.force_cmd" kind="FLOW">
+            <ownedPropertyValues xsi:type="org.polarsys.capella.core.data.capellacore:StringPropertyValue" id="13dffb89-7c36-5f4b-ba03-3df9c866d25c" name="frequency" value="100 Hz"/>
+            <ownedPropertyValues xsi:type="org.polarsys.capella.core.data.capellacore:StringPropertyValue" id="55dc1412-0420-5fdc-ad7b-4b11d345fe78" name="message_type" value="Force"/>
+          </ownedComponentExchanges>
+          <ownedExtensions xsi:type="CapellaRequirements:CapellaOutgoingRelation" id="a319bc49-ff05-5ec5-a00d-b51f47aec308" source="#PN-BATT" target="#bf67226b-19db-52d0-bd6e-776a85fea33e"/>
+          <ownedExtensions xsi:type="CapellaRequirements:CapellaOutgoingRelation" id="cc7870ea-64f7-597a-aa18-42e362da14a9" source="#PN-BATT" target="#b108399d-009a-5c4b-9efa-7f2ac947e629"/>
+        </ownedPhysicalComponents>
+        <ownedParts xsi:type="org.polarsys.capella.core.data.cs:Part" id="ee445081-6682-5c47-a3af-b15bf3fa5701" name="Battery" abstractType="#PN-BATT"/>
+      </ownedPhysicalComponentPkg>
+      <ownedAbstractCapabilityPkg xsi:type="org.polarsys.capella.core.data.la:CapabilityRealizationPkg" id="0ea89283-fec9-5964-8b54-b58033630fec" name="Capabilities"/>
+      <ownedLogicalArchitectureRealizations xsi:type="org.polarsys.capella.core.data.pa:LogicalArchitectureRealization" id="a9176757-b291-5c01-9f26-0333242d7e75" targetElement="#bd265e9d-9857-5b96-a151-0e1c2e5d01ba" sourceElement="#01b43765-3288-5211-81bf-c1ead2bf74f6"/>
+    </ownedArchitectures>
+    <ownedArchitectures xsi:type="org.polarsys.capella.core.data.epbs:EPBSArchitecture" id="109d66d9-2fbf-59d0-a980-3c6b4b273070" name="EPBS Architecture">
+      <ownedPhysicalArchitectureRealizations xsi:type="org.polarsys.capella.core.data.epbs:PhysicalArchitectureRealization" id="4f382f89-5ea0-5f67-9556-de103c2ba956" targetElement="#01b43765-3288-5211-81bf-c1ead2bf74f6" sourceElement="#109d66d9-2fbf-59d0-a980-3c6b4b273070"/>
+    </ownedArchitectures>
+  </ownedModelRoots>
+</org.polarsys.capella.core.data.capellamodeller:Project>

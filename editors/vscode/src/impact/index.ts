@@ -1,4 +1,4 @@
-// The commands of the impact analysis: "Analyse impact" on a diagram
+// The commands of the impact analysis: "Analyze impact" on a diagram
 // selection, a model tree item, the element under the cursor or the
 // Properties pane; "What if…" (delete, change an attribute, retype, move),
 // computed without writing anything; "Impact of my changes" since HEAD or
@@ -122,7 +122,7 @@ async function mine(context: vscode.ExtensionContext, arg: unknown): Promise<voi
   await ImpactPanel.open(context, target.document, { ...defaultQuery([]), since: revision });
 }
 
-/** "Analyse impact" and "What if…" on the element under the cursor. */
+/** "Analyze impact" and "What if…" on the element under the cursor. */
 class ImpactActions implements vscode.CodeActionProvider {
   static readonly kinds = [vscode.CodeActionKind.Empty];
 
@@ -131,11 +131,11 @@ class ImpactActions implements vscode.CodeActionProvider {
     const element = await elementAt(document, range.start, (snapshot.elements?.elements ?? []).filter((e) => e.kind !== 'Model'));
     if (!element) return [];
     const label = element.name || element.id;
-    const analyse = new vscode.CodeAction(`Analyse impact of ${label}`, vscode.CodeActionKind.Empty);
-    analyse.command = { command: 'arclang.impact.analyze', title: 'Analyse impact', arguments: [{ uri: document.uri, id: element.id }] };
+    const analyze = new vscode.CodeAction(`Analyze impact of ${label}`, vscode.CodeActionKind.Empty);
+    analyze.command = { command: 'arclang.impact.analyze', title: 'Analyze impact', arguments: [{ uri: document.uri, id: element.id }] };
     const what = new vscode.CodeAction(`What if ${label}…`, vscode.CodeActionKind.Empty);
     what.command = { command: 'arclang.impact.whatIf', title: 'What if…', arguments: [{ uri: document.uri, id: element.id }] };
-    return [analyse, what];
+    return [analyze, what];
   }
 }
 

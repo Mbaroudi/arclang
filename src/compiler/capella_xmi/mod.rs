@@ -14,7 +14,7 @@
 //! declarations: the elements a Capella diagram shows are what the
 //! ArcLang diagram shows, as Capella users expect their diagrams back.
 
-mod behaviour;
+mod behavior;
 mod data;
 mod diagrams;
 mod fragments;
@@ -100,7 +100,8 @@ fn short_kind(xsi: &str) -> String {
 /// Parse an XMI document into a tree. Fails on malformed XML.
 pub fn parse(xml: &str) -> Result<Node, String> {
     let mut reader = Reader::from_str(xml);
-    reader.config_mut().trim_text(true);
+    // An element's text is trimmed once whole: quick-xml splits it at each entity reference.
+    reader.config_mut().trim_text(false);
     let mut stack: Vec<Node> = vec![Node { tag: "#document".to_string(), ..Default::default() }];
     let mut buffer = Vec::new();
     loop {
@@ -128,12 +129,33 @@ pub fn parse(xml: &str) -> Result<Node, String> {
                 let text = unescape(&String::from_utf8_lossy(&text));
                 stack.last_mut().expect("document").text.push_str(&text);
             }
+            // quick-xml reports `&lt;`, `&#xA;`… in a text apart from it.
+            Event::GeneralRef(reference) => {
+                let resolved = match reference.resolve_char_ref() {
+                    Ok(Some(c)) => Some(c),
+                    _ => match reference.decode().as_deref() {
+                        Ok("lt") => Some('<'),
+                        Ok("gt") => Some('>'),
+                        Ok("amp") => Some('&'),
+                        Ok("quot") => Some('"'),
+                        Ok("apos") => Some('\''),
+                        _ => None,
+                    },
+                };
+                if let Some(c) = resolved.filter(|&c| c != '\r') {
+                    stack.last_mut().expect("document").text.push(c);
+                }
+            }
             Event::CData(data) => {
                 let text = String::from_utf8_lossy(&data);
                 stack.last_mut().expect("document").text.push_str(&text);
             }
             Event::End(_) => {
-                let done = stack.pop().expect("an open element");
+                let mut done = stack.pop().expect("an open element");
+                let trimmed = done.text.trim_matches(|c: char| matches!(c, ' ' | '\t' | '\n' | '\r'));
+                if trimmed.len() != done.text.len() {
+                    done.text = trimmed.to_string();
+                }
                 stack.last_mut().expect("document").children.push(done);
             }
             Event::Eof => break,
@@ -287,6 +309,10 @@ impl Writer {
     fn is_typed(&self, kind: &str, key: &str) -> bool {
         self.metamodel.kind(kind).is_some_and(|spec| spec.attributes.iter().any(|a| a.key == key))
     }
+    /// Whether ArcLang types the attribute as free text, which any value fits.
+    fn is_text(&self, kind: &str, key: &str) -> bool {
+        self.metamodel.kind(kind).is_some_and(|spec| spec.attributes.iter().any(|a| a.key == key && matches!(a.ty, crate::compiler::metamodel::AttrType::Text)))
+    }
 }
 
 /// The architecture levels of a Capella project, by kind, as `capella_levels` names them.
@@ -318,7 +344,9 @@ fn plain(html: &str) -> String {
             _ => {}
         }
     }
-    out.replace("&nbsp;", " ").split_whitespace().collect::<Vec<_>>().join(" ")
+    // The characters linked text escapes, once its tags are gone.
+    let out = out.replace("&nbsp;", " ").replace("&lt;", "<").replace("&gt;", ">").replace("&quot;", "\"").replace("&#39;", "'").replace("&amp;", "&");
+    out.split_whitespace().collect::<Vec<_>>().join(" ")
 }
 
 /// A Capella name as an ArcLang attribute key: lowercase words joined by
@@ -489,8 +517,8 @@ fn import_document(document: &Node, aird: Option<Result<Node, String>>, file_nam
     }
     // Add-on viewpoints (STPA, Cybersecurity): their own elements.
     viewpoints::viewpoints(&mut writer, project);
-    behaviour::state_machines(&mut writer, engineering);
-    behaviour::scenarios(&mut writer, engineering);
+    behavior::state_machines(&mut writer, engineering);
+    behavior::scenarios(&mut writer, engineering);
     data::requirement_relations(&mut writer, project);
 
     // Allocations of functional exchanges to component exchanges, and of
@@ -569,7 +597,7 @@ mod tests {
         assert!(counts.get("requirements").copied().unwrap_or(0) >= 5, "{counts:?}");
         assert!(counts.get("component exchanges").copied().unwrap_or(0) >= 5, "{counts:?}");
         assert!(counts.get("diagrams").copied().unwrap_or(0) >= 3, "{counts:?} {:?}", imported.notes);
-        // The behaviour, the data and the reuse of the model come along.
+        // The behavior, the data and the reuse of the model come along.
         assert!(counts.get("scenarios").copied().unwrap_or(0) >= 3, "{counts:?}");
         assert!(counts.get("messages").copied().unwrap_or(0) >= 10, "{counts:?}");
         assert!(counts.get("states").copied().unwrap_or(0) >= 10, "{counts:?}");
@@ -622,7 +650,7 @@ mod tests {
         let text = &imported.source;
         let at = |needle: &str| text.find(needle).unwrap_or_else(|| panic!("{needle} missing in:\n{text}"));
         // The root comes first, as a node; the actor is a node flagged actor;
-        // the behaviour at package level belongs to the root.
+        // the behavior at package level belongs to the root.
         assert!(at("node \"IFE System\"") < at("node \"Passenger\""), "{text}");
         assert!(at("node \"IFE System\"") < at("behavior_component \"RTSoft\"") && at("behavior_component \"RTSoft\"") < at("node \"Passenger\""), "{text}");
         let passenger = &text[at("node \"Passenger\"")..];

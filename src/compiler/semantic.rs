@@ -353,7 +353,7 @@ pub fn arcadia_methodology_lints(ast: &Model) -> Vec<String> {
         }
     }
 
-    // Arcadia transport rule: a behavioural exchange between components
+    // Arcadia transport rule: a behavioral exchange between components
     // deployed on DIFFERENT nodes must be supported by a physical link or
     // physical path between those nodes (MetaModel p.16).
     let mut node_of_component: HashMap<&str, &str> = HashMap::new();
@@ -408,7 +408,7 @@ pub fn arcadia_methodology_lints(ast: &Model) -> Vec<String> {
                         pair.sort();
                         if !linked_pairs.contains(&(pair[0].clone(), pair[1].clone())) {
                             lints.push(format!(
-                                "component exchange '{}' crosses nodes '{}' and '{}' but no physical link or exchange connects them — behavioural exchanges must be transported (Arcadia)",
+                                "component exchange '{}' crosses nodes '{}' and '{}' but no physical link or exchange connects them — behavioral exchanges must be transported (Arcadia)",
                                 exchange.label.as_deref().unwrap_or(""),
                                 node_a, node_b
                             ));
@@ -680,6 +680,11 @@ impl SemanticAnalyzer {
                 });
                 
                 register_element(&mut all_elements, &mut duplicate_ids, req_id.clone(), ElementInfo::new(req_id.clone(), req_id.clone(), "Requirement"));
+            }
+            for concern in &sa.concerns {
+                let concern_id = concern.attributes.get("id").and_then(|v| v.as_string()).map(str::to_string).unwrap_or_else(|| concern.id.clone());
+                let name = concern.attributes.get("name").and_then(|v| v.as_string()).map(str::to_string).unwrap_or_else(|| concern.id.clone());
+                register_element(&mut all_elements, &mut duplicate_ids, concern_id.clone(), ElementInfo::new(concern_id, name, "Concern"));
             }
             
             // Collect system components
@@ -963,7 +968,7 @@ impl SemanticAnalyzer {
                 for func in &node.functions {
                     register_level_function(func, "Function", &mut functions, &mut all_elements, &mut duplicate_ids);
                 }
-                // Behaviour components and the physical functions they perform.
+                // Behavior components and the physical functions they perform.
                 for behavior in &node.behavior_components {
                     register_element(
                         &mut all_elements,
@@ -1483,6 +1488,34 @@ impl SemanticAnalyzer {
                     _ => errors.push(format!("{owner_kind} '{owner}': {role} '{reference}' is an ambiguous name, use an id")),
                 }
             };
+            // A requirement's concerns, subject and constraints (SysML v2 frame, subject, require, assume).
+            for sa in &ast.system_analysis {
+                for requirement in &sa.requirements {
+                    let attrs = &requirement.attributes;
+                    let id = attrs.get("id").and_then(|v| v.as_string()).unwrap_or(&requirement.id);
+                    if let Some(AttributeValue::List(items)) = attrs.get("frames") {
+                        for concern in items.iter().filter_map(|i| i.as_string()) {
+                            check_reference("requirement", id, "frames", concern, &["Concern"], &mut reference_errors);
+                        }
+                    }
+                    if let Some(subject) = attrs.get("subject").and_then(|v| v.as_string()) {
+                        check_reference("requirement", id, "subject", subject, &[], &mut reference_errors);
+                    }
+                    for key in ["require", "assume"] {
+                        let texts: Vec<&str> = match attrs.get(key) {
+                            Some(AttributeValue::List(items)) => items.iter().filter_map(|i| i.as_string()).collect(),
+                            Some(AttributeValue::String(one)) => vec![one.as_str()],
+                            _ => Vec::new(),
+                        };
+                        for text in texts {
+                            if let Err(error) = super::simulation::expects::check_constraint(text) {
+                                reference_errors.push(format!("requirement '{id}': {key} \"{text}\": {error}"));
+                            }
+                        }
+                    }
+                }
+            }
+            reference_errors.extend(super::occurrences::check(ast));
             let scales = ast.security_scales.as_ref();
             let threat_kinds = scales.and_then(|s| s.scale("threat_kinds"));
             for analysis in &ast.security_analysis {

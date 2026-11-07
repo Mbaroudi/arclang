@@ -34,13 +34,13 @@ function online() {
 // What each model must show: the files to open (relative to the workspace)
 // and how many boxes and wires its text declares.
 const CASES = [
-  { name: 'EV range: configuration (4 nodes, 5 wires)', model: 'examples/automotive/ev_range_simulation.arc', open: 'EVRangeSimulation/Systems/Touring.mo' },
-  { name: 'EV range: control unit node (own connectors, a controller)', model: 'examples/automotive/ev_range_simulation.arc', open: 'EVRangeSimulation/Physical/VehicleControlUnit.mo' },
+  { name: 'EV range: configuration (4 nodes, 5 wires)', model: 'examples/automotive/ev-range/ev_range_simulation.arc', open: 'EVRangeSimulation/Systems/Touring.mo' },
+  { name: 'EV range: control unit node (own connectors, a controller)', model: 'examples/automotive/ev-range/ev_range_simulation.arc', open: 'EVRangeSimulation/Physical/VehicleControlUnit.mo' },
   { name: 'Battery thermal loop: configuration (5 nodes, 8 wires)', model: 'tests/fixtures/modelica/thermal_loop.arc', open: 'BatteryThermalLoop/Systems/System.mo' },
-  { name: 'Battery thermal loop: controller node (2 behaviours, a cycle)', model: 'tests/fixtures/modelica/thermal_loop.arc', open: 'BatteryThermalLoop/Physical/ThermalController.mo' },
-  { name: 'EV product line: configuration', model: 'examples/automotive/ev_product_line.arc', open: 'EVProductLine/Systems/Touring.mo' },
-  { name: 'ISR drone: system', model: 'examples/defense/isr_drone.arc', open: 'TacticalISRUnmannedAircraftSystem/Systems/System.mo' },
-  { name: 'Flight control: system', model: 'examples/aerospace/flight_control_system.arc', open: 'PrimaryFlightControlSystem/Systems/System.mo' },
+  { name: 'Battery thermal loop: controller node (2 behaviors, a cycle)', model: 'tests/fixtures/modelica/thermal_loop.arc', open: 'BatteryThermalLoop/Physical/ThermalController.mo' },
+  { name: 'EV product line: configuration', model: 'examples/automotive/ev-product-line/ev_product_line.arc', open: 'EVProductLine/Systems/Touring.mo' },
+  { name: 'ISR drone: system', model: 'examples/defense/isr-drone/isr_drone.arc', open: 'TacticalISRUnmannedAircraftSystem/Systems/System.mo' },
+  { name: 'Flight control: system', model: 'examples/aerospace/flight-control/flight_control_system.arc', open: 'PrimaryFlightControlSystem/Systems/System.mo' },
 ];
 
 /** What the text of a model file declares: instance names, labels, connections. */
@@ -83,7 +83,7 @@ async function snapshot(frame) {
     report(`export ${path.basename(model)} (Modelica, one file per class)`, run.status === 0, run.status ? (run.stderr || run.stdout).slice(0, 160) : '');
   }
   const flat = path.join(dir, 'flat');
-  const plain = spawnSync(BINARY, ['export', path.join(ROOT, 'examples/automotive/ev_range_simulation.arc'), '-f', 'modelica', '-o', flat, '--no-placement'], { encoding: 'utf8' });
+  const plain = spawnSync(BINARY, ['export', path.join(ROOT, 'examples/automotive/ev-range/ev_range_simulation.arc'), '-f', 'modelica', '-o', flat, '--no-placement'], { encoding: 'utf8' });
   report('--no-placement writes the structure with no drawing', plain.status === 0 && !/Placement\(/.test(fs.readFileSync(path.join(flat, 'EVRangeSimulation.mo'), 'utf8')));
 
   // 2. The real VS Code with Modex, a fresh profile; the workspace is a library root.

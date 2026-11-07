@@ -11,7 +11,7 @@ use std::path::Path;
 #[test]
 fn flagship_sysmlv2_export_matches_golden() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR"));
-    let source = root.join("examples/complete_emergency_braking_simple.arc");
+    let source = root.join("examples/automotive/emergency-braking/complete_emergency_braking_simple.arc");
     let golden = root.join("tests/fixtures/sysmlv2/complete_emergency_braking_simple.sysml");
 
     let result = Compiler::new(CompilerConfig::default()).compile_file(&source).expect("flagship compiles");

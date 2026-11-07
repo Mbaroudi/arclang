@@ -1,8 +1,8 @@
 /*
- * ArcViz colour science — what the theme validator measures colours with.
+ * ArcViz color science — what the theme validator measures colors with.
  *
  * Pure functions on `#RRGGBB` strings: CIE L*a*b* (sRGB, D65), the CIEDE2000
- * colour difference, the WCAG 2.x contrast ratio, colour-vision-deficiency
+ * color difference, the WCAG 2.x contrast ratio, color-vision-deficiency
  * simulation (Machado, Oliveira and Fernandes 2009, severity 1) and the
  * lightness a grayscale print keeps (CIE L*). Kept in step with
  * `src/compiler/diagram/theme.rs`, which mirrors it for the CLI.
@@ -15,7 +15,7 @@
 
   const HEX = /^#([0-9a-f]{6})$/i;
 
-  /** `#RRGGBB` (or `#RGB`) to [r, g, b] in 0..255; null when not a colour. */
+  /** `#RRGGBB` (or `#RGB`) to [r, g, b] in 0..255; null when not a color. */
   function parse(text) {
     if (typeof text !== 'string') return null;
     const short = /^#([0-9a-f])([0-9a-f])([0-9a-f])$/i.exec(text.trim());
@@ -42,13 +42,13 @@
     return 0.2126 * r + 0.7152 * g + 0.0722 * b;
   }
 
-  /** WCAG contrast ratio of two colours, 1..21. */
+  /** WCAG contrast ratio of two colors, 1..21. */
   function contrast(a, b) {
     const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x);
     return (hi + 0.05) / (lo + 0.05);
   }
 
-  /** CIE L*a*b* (D65) of an sRGB colour. */
+  /** CIE L*a*b* (D65) of an sRGB color. */
   function lab(rgb) {
     const [r, g, b] = rgb.map(toLinear);
     const x = (0.4124564 * r + 0.3575761 * g + 0.1804375 * b) / 0.95047;
@@ -59,12 +59,12 @@
     return [116 * fy - 16, 500 * (fx - fy), 200 * (fy - fz)];
   }
 
-  /** CIE L* alone: what a grayscale print keeps of a colour. */
+  /** CIE L* alone: what a grayscale print keeps of a color. */
   function lightness(rgb) {
     return lab(rgb)[0];
   }
 
-  /** CIEDE2000 colour difference of two sRGB colours (Sharma, Wu, Dalal 2005). */
+  /** CIEDE2000 color difference of two sRGB colors (Sharma, Wu, Dalal 2005). */
   function deltaE(a, b) {
     return deltaELab(lab(a), lab(b));
   }
@@ -120,7 +120,7 @@
     deuteranopia: [0.367322, 0.860646, -0.227968, 0.280085, 0.672501, 0.047413, -0.01182, 0.04294, 0.968881],
   };
 
-  /** How a colour looks to a reader with protanopia or deuteranopia. */
+  /** How a color looks to a reader with protanopia or deuteranopia. */
   function simulate(rgb, kind) {
     const m = CVD[kind];
     const [r, g, b] = rgb.map(toLinear);

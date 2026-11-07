@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<org.eclipse.capella.simulink.core:Project xmi:version="2.0" xmlns:xmi="http://www.omg.org/XMI" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:org.eclipse.capella.simulink.core="http://www.eclipse.org/capella/simulink/core/1.0" xmlns:org.eclipse.capella.simulink.infra="http://www.eclipse.org/capella/simulink/infra/1.0" id="7b2b89b1-225d-4143-a96b-b346ff4de9aas" name="MyProject2">
+  <systems id="df88603b-35bc-4e36-9686-91d33cd1615f" name="MyModel2">
+    <blocks id="c025c537-fcd9-4f1c-a3d7-f021c342eb9c" name="MyCst1" source="simulink/Sources/Constant">
+      <parameters id="530453ae-5034-4004-afd4-f06f5c790bb5" key="value">
+        <value xsi:type="org.eclipse.capella.simulink.infra:PrimitiveValue" id="5e623b1e-d75a-4aa4-97d1-8f3e105b12a8" specification="2"/>
+      </parameters>
+      <ports id="e3a35356-8e48-43bd-8e5c-0cceada33282" kind="Outport" />
+    </blocks>
+    <blocks id="c12d6b6e-8248-4e91-b6bd-c6ae9a3640ee" name="MyCst2" source="simulink/Sources/Constant">
+      <parameters id="fac39473-a524-41bf-a6c2-6801b809c818" key="value">
+        <value xsi:type="org.eclipse.capella.simulink.infra:PrimitiveValue" id="103554d7-e75e-4587-985d-964d1399af6d" specification="5"/>
+      </parameters>
+      <ports id="c46443ba-862b-4a85-8293-133fa25cf43b" kind="Outport" />
+    </blocks>
+    <blocks id="82f83c36-2198-410d-a36a-6a5cb56595bd" name="Display" description="My block description" source="simulink/Sinks/Display">
+      <ports id="d76b5597-6961-4ac0-ba77-f23862f8b1f9" description="" />
+    </blocks>
+    <blocks xsi:type="org.eclipse.capella.simulink.core:Subsystem" id="967aee21-7d4e-4418-bdbd-5b531e2cab14" name="MySystem" description="MySystem description" source="simulink/Ports &amp; Subsystems/Subsystem">
+      <ports id="4e343b09-7455-4d33-b905-3aac6f87248f" name="in3" description="My port description" index="3" />
+      <ports id="32c36a08-f186-4b1d-941e-77a971b04689" name="in2" index="2" />
+      <ports id="b0fb2626-07f6-44ba-b532-8494b77acb06" name="in1"/>
+      <ports id="ba42867e-7e9c-4163-ab8a-3edc4355c2da" name="out1" kind="Outport" />
+    </blocks>
+    <lines id="b8c4be4e-d2c3-49cd-a0a2-677bcbe838d9" name="1 -> sys" description="My line description" source="e3a35356-8e48-43bd-8e5c-0cceada33282" target="32c36a08-f186-4b1d-941e-77a971b04689"/>
+    <lines id="4304a1aa-6cc4-4129-8b00-d9f20797e133" name="2 -> sys" source="c46443ba-862b-4a85-8293-133fa25cf43b" target="4e343b09-7455-4d33-b905-3aac6f87248f"/>
+    <lines id="a752cef0-5548-46ca-818f-c85ce2e0a256" name="sys -> display" source="ba42867e-7e9c-4163-ab8a-3edc4355c2da" target="d76b5597-6961-4ac0-ba77-f23862f8b1f9"/>
+  </systems>
+</org.eclipse.capella.simulink.core:Project>

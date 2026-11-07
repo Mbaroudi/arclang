@@ -2,12 +2,13 @@
 //! component is a `part` of its level, the components it holds `part`s
 //! inside it, so `'LC-1'.'LC-2'.radar` is a port a connection can end on;
 //! a function declared in a component is a `perform action` there. A
-//! physical node holds its behaviour and hardware components the same way,
+//! physical node holds its behavior and hardware components the same way,
 //! with its oriented ports and its `#PhysicalPort`s.
 
 use super::levels::{self, alias_held, component_ports, connection, flow, function, function_keys, performs, port_defs, ports_of, register_function, register_part};
 use super::{id_of, text, Exporter};
 use crate::compiler::ast::*;
+use std::collections::HashMap;
 
 pub(super) fn register(e: &mut Exporter<'_>) {
     let model = e.model;
@@ -41,12 +42,12 @@ pub(super) fn register(e: &mut Exporter<'_>) {
                 register_function(e, &package, &at, f);
             }
             levels::alias_held(e, &[id, &node.name], &node.functions);
-            for behaviour in &node.behavior_components {
-                let inside = register_part(e, &package, &at, &behaviour.id, &behaviour.name, &ports_of(&behaviour.ports));
-                for f in &behaviour.functions {
+            for behavior in &node.behavior_components {
+                let inside = register_part(e, &package, &at, &behavior.id, &behavior.name, &ports_of(&behavior.ports));
+                for f in &behavior.functions {
                     register_function(e, &package, &inside, f);
                 }
-                levels::alias_held(e, &[&behaviour.id, &behaviour.name], &behaviour.functions);
+                levels::alias_held(e, &[&behavior.id, &behavior.name], &behavior.functions);
             }
             for hardware in &node.hardware_components {
                 register_part(e, &package, &at, &hardware.id, &hardware.name, &[]);
@@ -200,6 +201,29 @@ fn logical_component(e: &mut Exporter<'_>, component: &LogicalComponent) {
     });
 }
 
+/// The timeslices and snapshots of an element: a value the element has
+/// redefined (`attribute :>> altitude = 120 [m];`), any other declared.
+fn occurrences(e: &mut Exporter<'_>, occurrences: &[Occurrence], owner: &HashMap<String, AttributeValue>) {
+    // Every key of the element is redefined, whatever its value.
+    let redefined: HashMap<String, AttributeValue> = owner.keys().map(|k| (k.clone(), AttributeValue::String("\u{0}".to_string()))).collect();
+    for occurrence in occurrences {
+        let kind = match occurrence.kind {
+            OccurrenceKind::Timeslice => "Timeslice",
+            OccurrenceKind::Snapshot => "Snapshot",
+        };
+        let id = occurrence.attributes.get("id").and_then(|v| v.as_string()).unwrap_or("");
+        e.block(&format!("{} {}", occurrence.kind.keyword(), text::declared(id, &occurrence.name)), |e| {
+            if let Some(description) = occurrence.attributes.get("description").and_then(|d| d.as_string()) {
+                e.line(&text::doc(description));
+            }
+            for line in super::attributes::lines(&e.metamodel, kind, &occurrence.attributes, &[], Some(&redefined), &mut e.units) {
+                e.line(&line);
+            }
+            self::occurrences(e, &occurrence.snapshots, owner);
+        });
+    }
+}
+
 /// Whether a component has more than its identity and its subcomponents.
 fn has_own_features(component: &LogicalComponent, skip: &[&str]) -> bool {
     let identity = ["id", "name", "is"];
@@ -221,6 +245,7 @@ fn own_features(e: &mut Exporter<'_>, component: &LogicalComponent, skip: &[&str
         e.line(&format!("attribute component_type : String = {};", text::string(&component.component_type)));
     }
     levels::owned_ports(e, &component.ports, &component.attributes);
+    occurrences(e, &component.occurrences, &component.attributes);
     // `interface_in` / `interface_out`: ports named by the interface they offer.
     for (direction, interfaces) in [("in", &component.interfaces_in), ("out", &component.interfaces_out)] {
         for interface in interfaces {
@@ -271,9 +296,9 @@ fn physical(e: &mut Exporter<'_>, pa: &PhysicalArchitecture) {
             for deployment in &node.deployments {
                 super::relations::allocation(e, &deployment.component, &node_id);
             }
-            for behaviour in &node.behavior_components {
-                if let Some(component) = &behaviour.allocated_component {
-                    super::relations::dependency(e, "allocated_component", &behaviour.id, component);
+            for behavior in &node.behavior_components {
+                if let Some(component) = &behavior.allocated_component {
+                    super::relations::dependency(e, "allocated_component", &behavior.id, component);
                 }
             }
         }
@@ -325,7 +350,7 @@ fn physical(e: &mut Exporter<'_>, pa: &PhysicalArchitecture) {
     }
 }
 
-/// A node with its ports, the functions it holds, and its behaviour and hardware components.
+/// A node with its ports, the functions it holds, and its behavior and hardware components.
 fn physical_node(e: &mut Exporter<'_>, node: &PhysicalNode) {
     let id = id_of(&node.attributes, &node.id).to_string();
     let actor = super::flag(&node.attributes, "actor");
@@ -340,6 +365,7 @@ fn physical_node(e: &mut Exporter<'_>, node: &PhysicalNode) {
             }
         }
         levels::owned_ports(e, &node.component_ports, &node.attributes);
+        occurrences(e, &node.occurrences, &node.attributes);
         for port in &node.ports {
             let short = id_of(&port.attributes, "");
             let short = if short.is_empty() { String::new() } else { format!("{} ", text::short(short)) };
@@ -348,14 +374,14 @@ fn physical_node(e: &mut Exporter<'_>, node: &PhysicalNode) {
         for f in &node.functions {
             function(e, "PhysicalFunction", f, "perform action");
         }
-        for behaviour in &node.behavior_components {
-            e.block(&format!("#Behaviour part {}", text::declared(&behaviour.id, &behaviour.name)), |e| {
-                e.header("BehaviorComponent", &behaviour.attributes, &[]);
-                component_ports(e, &behaviour.ports);
-                for f in &behaviour.functions {
+        for behavior in &node.behavior_components {
+            e.block(&format!("#Behavior part {}", text::declared(&behavior.id, &behavior.name)), |e| {
+                e.header("BehaviorComponent", &behavior.attributes, &[]);
+                component_ports(e, &behavior.ports);
+                for f in &behavior.functions {
                     function(e, "PhysicalFunction", f, "perform action");
                 }
-                performs(e, &behaviour.allocated_functions);
+                performs(e, &behavior.allocated_functions);
             });
         }
         for hardware in &node.hardware_components {

@@ -10,7 +10,7 @@ use std::path::Path;
 
 fn flagship() -> CompilationResult {
     let source = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("examples/complete_emergency_braking_simple.arc");
+        .join("examples/automotive/emergency-braking/complete_emergency_braking_simple.arc");
     Compiler::new(CompilerConfig::default())
         .compile_file(source)
         .expect("flagship compiles")

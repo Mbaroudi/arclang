@@ -6,55 +6,55 @@ const path = require('path')
 const EXAMPLES = [
   {
     name: 'Flight Control System',
-    path: '/Users/malek/Arclang/examples/aerospace/flight_control_system.arc',
+    path: '/Users/malek/Arclang/examples/aerospace/flight-control/flight_control_system.arc',
     minNodes: 3,
     minEdges: 2
   },
   {
     name: 'ACC Complete Architecture',
-    path: '/Users/malek/Arclang/examples/automotive/acc_complete_architecture.arc',
+    path: '/Users/malek/Arclang/examples/automotive/adaptive-cruise/acc_complete_architecture.arc',
     minNodes: 5,
     minEdges: 3
   },
   {
     name: 'ACC Minimal',
-    path: '/Users/malek/Arclang/examples/automotive/acc_minimal.arc',
+    path: '/Users/malek/Arclang/examples/01-getting-started/acc-minimal/acc_minimal.arc',
     minNodes: 2,
     minEdges: 1
   },
   {
     name: 'Adaptive Cruise Control',
-    path: '/Users/malek/Arclang/examples/automotive/adaptive_cruise_control.arc',
+    path: '/Users/malek/Arclang/examples/automotive/adaptive-cruise/adaptive_cruise_control.arc',
     minNodes: 3,
     minEdges: 2
   },
   {
     name: 'ACC from Capella',
-    path: '/Users/malek/Arclang/examples/automotive/acc_from_capella.arc',
+    path: '/Users/malek/Arclang/examples/capella/acc-from-capella/acc_from_capella.arc',
     minNodes: 2,
     minEdges: 1
   },
   {
     name: 'Remote Start Architecture',
-    path: '/Users/malek/Arclang/examples/automotive/remote_start/remote_start_architecture.arc',
+    path: '/Users/malek/Arclang/examples/automotive/remote-start/remote_start_architecture.arc',
     minNodes: 3,
     minEdges: 2
   },
   {
     name: 'Mission Computer',
-    path: '/Users/malek/Arclang/examples/defense/mission_computer.arc',
+    path: '/Users/malek/Arclang/examples/defense/mission-computer/mission_computer.arc',
     minNodes: 3,
     minEdges: 2
   },
   {
     name: 'EV charging station',
-    path: 'examples/energy/ev_charging_station.arc',
+    path: 'examples/energy/ev-charging-station/ev_charging_station.arc',
     minNodes: 2,
     minEdges: 1
   },
   {
     name: 'Data Platform Migration',
-    path: '/Users/malek/Arclang/examples/business/data_platform_migration/data_platform_migration.arc',
+    path: '/Users/malek/Arclang/examples/business/data-platform-migration/data_platform_migration.arc',
     minNodes: 2,
     minEdges: 1
   }

@@ -167,8 +167,8 @@ fn timed_elements(ast: &Model) -> Vec<Timed<'_>> {
             for function in &node.functions {
                 level_function(function, &mut out);
             }
-            for behaviour in &node.behavior_components {
-                for function in &behaviour.functions {
+            for behavior in &node.behavior_components {
+                for function in &behavior.functions {
                     level_function(function, &mut out);
                 }
             }

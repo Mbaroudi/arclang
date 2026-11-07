@@ -3,7 +3,7 @@
 // the model tree, the workbench panel, the assistant.
 import * as path from 'node:path';
 import * as vscode from 'vscode';
-import { run, withTempFile, workspaceTrusted, UNTRUSTED_MESSAGE } from '../cli';
+import { asFile, run, withTempFile, workspaceTrusted, UNTRUSTED_MESSAGE } from '../cli';
 import { Metamodel, parseSnapshot, Snapshot } from '../pure/workbench';
 import { arcTextOf, documentDir, isModelDocument } from './source';
 
@@ -36,7 +36,7 @@ async function compute(document: vscode.TextDocument): Promise<Snapshot> {
   const dir = documentDir(document);
   const name = path.basename(document.uri.fsPath).replace(/\.sysml$/i, '.arc') || 'model.arc';
   return withTempFile(source.text, name, async (file) => {
-    const result = await run(['workbench', file, '--gate-standard', gateStandard()], { cwd: dir });
+    const result = await run(['workbench', file, '--gate-standard', gateStandard(), ...asFile(document)], { cwd: dir });
     if (result.code !== 0 && !result.stdout.trim()) return failed(result.stderr.trim() || `arclang exited with ${result.code}`);
     return parseSnapshot(result.stdout);
   });

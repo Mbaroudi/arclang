@@ -68,7 +68,11 @@ RequirementsBlock ::= "requirements" RequirementsSubtype? "{" RequirementDecl* "
 RequirementsSubtype ::= "stakeholder" | "system" | "safety" | Identifier ;
 
 RequirementDecl ::= "req" Name String? AttributeBlock          (* req REQ-001 "Title" { ... } *)
-                  | "requirement" Name AttributeBlock ;        (* requirement "REQ-001" { ... } *)
+                  | "requirement" Name AttributeBlock          (* requirement "REQ-001" { ... } *)
+                  | "concern" Name AttributeBlock ;            (* concern "Driver safety" { stakeholders: [...] } *)
+(* A requirement frames concerns (frames: [...]), is about a subject (subject: "LC-1")
+   and requires or assumes constraints written as comparisons (require: ["mass <= 1200 kg"]).
+   `concern` is also declared in a system_analysis block. *)
 
 (* ---- Operational Analysis (OA) --------------------------------------------- *)
 
@@ -200,7 +204,15 @@ ComponentElement ::= Component                                  (* nested compon
                   | "interface_out" ":"? Name "{" InterfaceAttrs "}"
                   | "provides" "interface"? Name "{" InterfaceAttrs "}"
                   | "requires" "interface"? Name "{" InterfaceAttrs "}"
+                  | OccurrenceDecl
                   | Attribute ;
+
+(* A stretch or a moment of the element's life (SysML v2 timeslice, snapshot):
+   start:/end: (a timeslice) and at: (a snapshot) are times; the other
+   attributes are the values the element has then. *)
+OccurrenceDecl  ::= "timeslice" Name "{" ( Attribute | SnapshotDecl )* "}"
+                  | SnapshotDecl ;
+SnapshotDecl    ::= "snapshot" Name AttributeBlock ;
 
 InterfaceAttrs  ::= ( "protocol" ":" String | Attribute )* ;
 InterfaceBody   ::= ( "from" ":" Name | "to" ":" Name | Attribute )* ;
@@ -214,7 +226,7 @@ PhysicalArchitecture ::= "physical_architecture" Name "{" PaElement* "}"
                        | "architecture" "physical" Name? "{" PaElement* "}" ;
 
 PaElement       ::= "node" Name "{" NodeElement* "}"
-                  | LevelFunctionDecl                         (* a function no behaviour component performs *)
+                  | LevelFunctionDecl                         (* a function no behavior component performs *)
                   | FunctionalExchange                        (* between physical functions *)
                   | FunctionalChainDecl                       (* ordered physical functions *)
                   | CapabilityRealizationDecl                 (* realizes a logical capability realization *)
@@ -229,6 +241,7 @@ PaElement       ::= "node" Name "{" NodeElement* "}"
                   | Attribute ;
 
 NodeElement     ::= "deploys" Name AttributeBlock?
+                  | OccurrenceDecl
                   | "port" Name AttributeBlock?               (* physical ports are UNORIENTED *)
                   | ComponentPortDecl                         (* port in|out|inout: a component port of the node,
                                                                  end of a physical_exchange as `Node.port` *)
@@ -465,7 +478,7 @@ StateMachineElement ::= ( "state" | "mode" ) Name StateBody?
                         (* a top-level region of its own, with its initial: ; a
                            machine with several regions writes one block each.
                            Its states and transitions are the machine's too. *)
-                        (* mode = chosen behaviour, state = undergone (Arcadia) *)
+                        (* mode = chosen behavior, state = undergone (Arcadia) *)
 (* A state holds a region: states, modes and transitions of its own. A
    transition declared inside a state joins the machine's, and names any
    state of the machine, at any depth. *)

@@ -831,7 +831,7 @@ test_case "TC" { verifies: ["REQ-001"] method: "test" }
 #[test]
 fn test_production_gate_passes_on_complete_flagship() {
     let flagship = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("examples/complete_emergency_braking_simple.arc");
+        .join("examples/automotive/emergency-braking/complete_emergency_braking_simple.arc");
     let mut compiler = Compiler::new(CompilerConfig::default());
     let result = compiler.compile_file(&flagship).expect("compiles");
     let report = arclang::compiler::production_gate::run_gate(
@@ -846,7 +846,7 @@ fn test_production_gate_passes_on_complete_flagship() {
 #[test]
 fn test_simulink_export_covers_flagship_architecture() {
     let flagship = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("examples/complete_emergency_braking_simple.arc");
+        .join("examples/automotive/emergency-braking/complete_emergency_braking_simple.arc");
     let mut compiler = Compiler::new(CompilerConfig::default());
     let result = compiler.compile_file(&flagship).expect("compiles");
     let script = arclang::compiler::simulink_generator::generate_simulink_script(
@@ -879,7 +879,7 @@ fn test_simulink_export_covers_flagship_architecture() {
 #[test]
 fn test_fmi_export_generates_descriptor_per_ported_component() {
     let flagship = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("examples/complete_emergency_braking_simple.arc");
+        .join("examples/automotive/emergency-braking/complete_emergency_braking_simple.arc");
     let mut compiler = Compiler::new(CompilerConfig::default());
     let result = compiler.compile_file(&flagship).expect("compiles");
     let descriptors = arclang::compiler::fmi_generator::generate_fmi_descriptors(
@@ -905,7 +905,7 @@ fn test_fmi_export_generates_descriptor_per_ported_component() {
 #[test]
 fn test_reqif_round_trip_on_flagship() {
     let flagship = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("examples/complete_emergency_braking_simple.arc");
+        .join("examples/automotive/emergency-braking/complete_emergency_braking_simple.arc");
     let mut compiler = Compiler::new(CompilerConfig::default());
     let result = compiler.compile_file(&flagship).expect("compiles");
     let reqif = arclang::compiler::reqif::generate_reqif(&result.semantic_model, &result.ast);
@@ -935,7 +935,7 @@ fn test_reqif_round_trip_on_flagship() {
 #[test]
 fn test_multifile_import_merges_fragments() {
     let main = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("examples/multifile/main.arc");
+        .join("examples/01-getting-started/multifile/main.arc");
     let mut compiler = Compiler::new(CompilerConfig::default());
     let result = compiler.compile_file(&main).expect("multi-file model compiles");
 

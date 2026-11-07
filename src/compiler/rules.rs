@@ -1,4 +1,4 @@
-//! The catalogue of what the compiler checks, as a validation tool lists
+//! The catalog of what the compiler checks, as a validation tool lists
 //! its rules: an identifier, a severity, a title, what the rule means and
 //! how to answer it.
 //!
@@ -7,7 +7,7 @@
 //! the production gate) and print the lines they always printed. This
 //! module classifies those lines: each becomes a [`Finding`] that names its
 //! rule, the element concerned when the line names one, and a hint at the
-//! edit that answers it. A line the catalogue does not know is still a
+//! edit that answers it. A line the catalog does not know is still a
 //! finding, under a fallback rule, so nothing is lost on the way.
 
 use super::CompilationResult;
@@ -109,20 +109,20 @@ const RULES: &[Rule] = &[
         "Arcadia builds each level on the previous one: a physical architecture realizes a logical one, which allocates system functions, which answer operational needs.",
         "Add the missing level, or keep the model as a single-level study if that is what it is."),
     rule!("method.component-functions", Severity::Info, "Logical component without a function",
-        "Arcadia expects a logical component to realize behaviour: at least one function is allocated to it.",
+        "Arcadia expects a logical component to realize behavior: at least one function is allocated to it.",
         "Declare the functions the component performs inside it."),
     rule!("method.exchange-transport", Severity::Info, "Exchange between nodes without a physical link",
-        "A behavioural exchange between components deployed on different nodes must be carried by a physical link or exchange.",
+        "A behavioral exchange between components deployed on different nodes must be carried by a physical link or exchange.",
         "Declare the physical link (or physical exchange) between the two nodes."),
     rule!("method.other", Severity::Info, "Methodology advisory",
-        "An Arcadia advisory the catalogue does not classify further.", "Read the advisory."),
+        "An Arcadia advisory the catalog does not classify further.", "Read the advisory."),
     rule!("compile.other", Severity::Warning, "Compiler warning",
-        "A warning the catalogue does not classify further.", "Read the warning."),
+        "A warning the catalog does not classify further.", "Read the warning."),
 ];
 
-/// Every rule, in catalogue order. Gate checks are rules of their own,
+/// Every rule, in catalog order. Gate checks are rules of their own,
 /// named after the check (`requirements.satisfaction`, `timing.budget`...).
-pub fn catalogue() -> &'static [Rule] {
+pub fn catalog() -> &'static [Rule] {
     RULES
 }
 
@@ -241,7 +241,7 @@ pub fn findings(result: &CompilationResult) -> Vec<Finding> {
     all
 }
 
-/// The catalogue as Markdown, for the documentation and `arclang rules`.
+/// The catalog as Markdown, for the documentation and `arclang rules`.
 pub fn to_markdown() -> String {
     let mut out = String::from("# ArcLang validation rules\n\nWhat the compiler checks, as `arclang check --lint --json` reports it: each finding names its rule.\n\n| Rule | Severity | Title | Meaning | How to answer |\n|---|---|---|---|---|\n");
     for rule in RULES {

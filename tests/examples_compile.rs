@@ -1,6 +1,6 @@
 //! Golden corpus: every active example must compile with the strict parser.
 //!
-//! `examples/legacy/` is excluded on purpose — it holds files written for
+//! `examples/archive/` is excluded on purpose — it holds files written for
 //! unimplemented syntax versions and is documented as non-compiling.
 
 use arclang::compiler::{Compiler, CompilerConfig};
@@ -14,7 +14,7 @@ fn collect_arc_files(dir: &Path, out: &mut Vec<PathBuf>) {
     for entry in entries.flatten() {
         let path = entry.path();
         if path.is_dir() {
-            if path.file_name().map_or(false, |n| n == "legacy") {
+            if path.file_name().map_or(false, |n| n == "archive") {
                 continue;
             }
             collect_arc_files(&path, out);
@@ -59,7 +59,7 @@ fn flagship_example_extracts_real_elements() {
     // compiled "successfully" to zero elements because the parser silently
     // skipped everything it did not understand.
     let flagship = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("examples/complete_emergency_braking_simple.arc");
+        .join("examples/automotive/emergency-braking/complete_emergency_braking_simple.arc");
 
     let mut compiler = Compiler::new(CompilerConfig::default());
     let result = compiler.compile_file(&flagship).expect("flagship example must compile");

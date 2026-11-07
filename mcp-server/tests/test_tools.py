@@ -3,11 +3,15 @@
 import json
 import os
 import re
+import shutil
+from pathlib import Path
 
 import pytest
 
 from arclang_mcp.compiler.wrapper import DIAGRAM_TYPES, EXPORT_FORMATS, ArcLangCompiler
 from arclang_mcp.tools.common import InvalidArguments, input_schema
+
+REPOSITORY = Path(__file__).resolve().parents[2]
 
 
 async def test_every_listed_tool_has_a_handler_and_a_schema(server):
@@ -116,6 +120,59 @@ async def test_gate_fails_with_its_blockers(server, model):
     assert answer.splitlines()[0] == "Production gate of braking.arc: FAIL, 3 blocker(s)"
     assert "✗ 3 blocker(s):" in answer, "the count must be the compiler's"
     assert "[requirements.verification]" in answer
+
+
+async def test_realize_plans_the_ladder_and_names_the_gaps(server, model):
+    # The reference model's requirement is verified by a case that neither simulates nor executes: a gap, no step.
+    answer = await server.call_tool("arclang_realize", {"model_path": str(model)})
+    assert answer.startswith("Realization ladder of braking.arc: succeeded")
+    body = json.loads(answer.split("\n\n", 1)[1])
+    assert [s["stage"] for s in body["ladders"][0]["stages"]] == ["simulation", "sil", "pil", "hdl", "soc", "board", "twin"]
+    assert body["plan"]["steps"] == []
+    assert body["plan"]["gaps"][0]["requirement"] == "REQ-BRK-001"
+    assert "test_case" in body["plan"]["gaps"][0]["hint"]
+    with pytest.raises(InvalidArguments, match="'up_to' must be one of simulation, sil, pil, hdl, soc, board, twin"):
+        await server.call_tool("arclang_realize", {"model_path": str(model), "up_to": "orbit"})
+
+
+@pytest.fixture
+def body_controller(workspace):
+    """The two-task example: two machines bound to Zephyr, nothing measured yet."""
+    source = REPOSITORY / "examples" / "automotive" / "body-controller" / "body_controller.arc"
+    target = workspace / "body_controller.arc"
+    shutil.copy(source, target)
+    return target
+
+
+async def test_partition_names_the_two_runs_and_runs_neither(server, body_controller):
+    answer = await server.call_tool("arclang_partition", {"model_path": str(body_controller)})
+    assert answer.startswith("HW/SW partition of body_controller.arc: succeeded")
+    assert re.search(r"arclang pil \S*body_controller\.arc --json --target zephyr/litex_vexriscv", answer)
+    assert re.search(r"arclang hdl \S*body_controller\.arc --synth --json --as-if LFE5U-25F-6BG381C@25", answer)
+    assert "Measured so far" in answer
+    # Nothing ran: no cache beside the model.
+    assert not (body_controller.parent / ".arclang").exists()
+    answer = await server.call_tool(
+        "arclang_partition", {"model_path": str(body_controller), "device": "LFE5U-85F-8BG381C", "clock_mhz": 50}
+    )
+    assert "--as-if LFE5U-85F-8BG381C@50" in answer
+
+
+async def test_schedule_analyses_without_running_and_takes_given_step_times(server, body_controller):
+    answer = await server.call_tool("arclang_schedule", {"model_path": str(body_controller)})
+    first = answer.splitlines()[0]
+    assert first.startswith("Schedule of body_controller.arc: FAILED")
+    assert "not measured" in answer and "arclang partition" in answer
+    answer = await server.call_tool(
+        "arclang_schedule",
+        {"model_path": str(body_controller), "wcet": {"Wiper": 9, "Interior light": 5}},
+    )
+    assert answer.startswith("Schedule of body_controller.arc: succeeded")
+    body = json.loads(answer.split("\n\n", 1)[1])
+    assert len(body["tasks"]) == 2
+    assert all(task["meets"] for task in body["tasks"])
+    with pytest.raises(InvalidArguments):
+        await server.call_tool("arclang_schedule", {"model_path": str(body_controller), "wcet": {"Wiper": "fast"}})
 
 
 async def test_gate_on_a_model_that_does_not_compile_gives_no_verdict(server, broken):

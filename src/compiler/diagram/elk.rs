@@ -226,11 +226,13 @@ fn elk_node(node: &Node, wired: &HashSet<&str>) -> Value {
             (label_width + NODE_HORIZONTAL_PADDING)
                 .max(widest_line + 2.0 * COMPARTMENT_INSET)
                 .max(NODE_MIN_WIDTH),
-            COMPARTMENT_TOP
+            (COMPARTMENT_TOP
                 + node.compartment.len() as f64 * COMPARTMENT_LINE_HEIGHT
                 + COMPARTMENT_INSET
                 // The verdict of a requirement or a test case sits under its lines.
-                + if matches!(node.kind, NodeKind::Requirement | NodeKind::TestCase | NodeKind::Constraint) { VERDICT_ROOM } else { 0.0 },
+                + if matches!(node.kind, NodeKind::Requirement | NodeKind::TestCase | NodeKind::Constraint) { VERDICT_ROOM } else { 0.0 })
+                // Its ports still fit on its sides.
+                .max(if node.ports.is_empty() { 0.0 } else { LABEL_HEIGHT + 10.0 + busiest_side * PORT_PITCH }),
         )
     } else {
         (

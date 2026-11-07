@@ -2,7 +2,7 @@
 //!
 //! In Capella, the transition commands create, on the next level, the
 //! elements that realize those of the level above, with the realization
-//! links. ArcLang writes them into the source the way the modelling API
+//! links. ArcLang writes them into the source the way the modeling API
 //! writes anything: as declarations added to the text, each one verified by
 //! the compiler, nothing else touched.
 //!
@@ -25,7 +25,7 @@ pub enum Step {
     OaToSa,
     /// System functions -> logical functions, allocated to a logical component.
     SaToLa,
-    /// Logical components -> behaviour components deployed on a physical node.
+    /// Logical components -> behavior components deployed on a physical node.
     LaToPa,
 }
 
@@ -151,7 +151,7 @@ fn realizations(model: &Model) -> Vec<(String, String)> {
     for pa in &model.physical_architecture {
         for node in &pa.nodes {
             attribute(&node.id, &node.attributes, &mut found);
-            // A behaviour component realizes the logical component it is
+            // A behavior component realizes the logical component it is
             // allocated (`allocated_component`), kept by the parser in one
             // list with the functions it performs.
             walk_level_functions(&node.functions, &attribute, &mut found);
@@ -381,7 +381,7 @@ pub fn apply(step: Step, source: &str, into: Option<&str>) -> Result<Transition,
         let declare = |text: &str, name: &str| -> Result<String, String> {
             let mut next = add_into(text, layer, &container, keyword, name, &attributes)
                 .map_err(|e| format!("cannot declare {keyword} '{name}': {e}"))?;
-            // A behaviour component's realization is its `allocated_component`;
+            // A behavior component's realization is its `allocated_component`;
             // functions get a realization trace.
             if step != Step::LaToPa {
                 next = source_edit::add_trace(&next, &id, "realizes", &pending.id)

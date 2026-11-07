@@ -98,9 +98,12 @@ pub fn verdict_for(test: &TestCase, reference: &str, semantic: &SemanticModel) -
 }
 
 pub fn verdict(test: &TestCase, semantic: &SemanticModel) -> Verdict {
-    if super::simulation::is_simulated(test) {
+    let executed = super::embedded::case::is_executed(test);
+    if super::simulation::is_simulated(test) || executed {
         return match semantic.simulations.get(&test.id) {
+            None if executed => Verdict::Inconclusive("no SIL verdict: run `arclang sil` on the model file".to_string()),
             None => Verdict::Inconclusive("no simulation verdict: run `arclang verify` on the model file".to_string()),
+            Some(status) if executed && status.verdict == "error" => Verdict::Fail(format!("the SIL run is in error: {}", status.reason)),
             Some(status) => match status.verdict.as_str() {
                 "pass" => Verdict::Pass,
                 "fail" => Verdict::Fail(status.reason.clone()),
@@ -135,8 +138,8 @@ pub fn check(model: &Model, semantic: &SemanticModel) -> Result<Vec<String>, Str
         if let Some(unknown) = asserted(test).into_iter().find(|a| constraint(semantic, a).is_none()) {
             return Err(format!("test_case '{}' asserts '{unknown}', which is no constraint", test.name));
         }
-        // A simulated case is reported with its cached verdict, on the file.
-        if super::simulation::is_simulated(test) {
+        // A simulated or executed case is reported with its cached verdict, on the file.
+        if super::simulation::is_simulated(test) || super::embedded::case::is_executed(test) {
             continue;
         }
         if let Verdict::Fail(reason) = verdict(test, semantic) {
@@ -180,7 +183,7 @@ fn check_applicability(model: &Model) -> Result<(), String> {
         if !super::simulation::is_simulated(test) {
             continue;
         }
-        let expects = super::simulation::expects_of(&test.attributes);
+        let expects = super::simulation::case_expects(model, test);
         let named: Vec<Option<&str>> = expects.iter().map(|e| super::simulation::expects::split_requirement(e).0).collect();
         if named.iter().all(Option::is_none) {
             continue;

@@ -46,7 +46,7 @@ const rows = []; const report = (name, ok, detail) => { rows.push({ name, ok, de
   await page.evaluate((id) => window.postMessage({ type: 'show', view: id, select: null }, '*'), named.id); await page.waitForTimeout(1200);
   await click('LC-CTL'); n = await count(); await page.locator('.wb-actions button', { hasText: 'Show related' }).click();
   r = await waitEdit(n); text = await source();
-  report('Show related adds the neighbours to shows', !!r?.ok && /diagram "Lane keeping chain" \{[^}]*shows: \[[^\]]*"LC-ACT"/s.test(text), r?.ok ? '' : (r?.error || 'no edit'));
+  report('Show related adds the neighbors to shows', !!r?.ok && /diagram "Lane keeping chain" \{[^}]*shows: \[[^\]]*"LC-ACT"/s.test(text), r?.ok ? '' : (r?.error || 'no edit'));
   await reset(); await layer('Logical'); await click('LC-CTL'); n = await count(); await page.locator('.wb-actions button', { hasText: 'New diagram' }).click();
   r = await waitEdit(n); text = await source(); await page.waitForTimeout(800);
   report('New diagram around an element, shown', !!r?.ok && /diagram "LKA Controller context" \{[^}]*context: true/s.test(text) && String(await activeLayer()).startsWith('Logical'), r?.ok ? '' : r?.error);

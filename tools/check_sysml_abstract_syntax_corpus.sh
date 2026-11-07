@@ -12,7 +12,7 @@ bin="$root/target/debug/arclang"
 [ -x "$bin" ] || { echo "build first: cargo build" >&2; exit 2; }
 
 set --
-for model in $(find "$root/examples" -name '*.arc' -not -path '*/legacy/*' | sort); do
+for model in $(find "$root/examples" -name '*.arc' -not -path '*/archive/*' | sort); do
     case "$model" in
         */multifile/*) grep -q '^import ' "$model" || continue ;;  # fragments are checked through their root
     esac

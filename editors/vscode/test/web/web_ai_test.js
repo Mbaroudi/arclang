@@ -1,7 +1,7 @@
 // The AI chat in the web playground, against the fake LLM (an OpenAI-
 // compatible server, no network, no key): a question on an .arc selection
 // gives a compiler-checked proposal, Apply is one edit and Ctrl/Cmd+Z takes it
-// back; a question on a .mo file is labelled "not verified"; the key goes to
+// back; a question on a .mo file is labeled "not verified"; the key goes to
 // the secret storage and to no host but the provider's.
 //   BASE=http://127.0.0.1:8765/ FAKE_PORT=8799 PLAYWRIGHT=... node web_ai_test.js
 // The page must be served with a content security policy whose connect-src
@@ -101,7 +101,7 @@ async function frameWith(page, selector, timeout = 30000) {
   let undone = await api(() => window.arclangPlayground.modelText('/workspace/starter.arc'));
   report('the keyboard undo takes the applied proposal back in one step', undone === before, undone === before ? '' : `before ${before.length} chars, after undo ${undone.length}, has description: ${/Detects threats/.test(undone)}; focus: ${await api(() => document.activeElement && document.activeElement.className)}`);
 
-  // 2. A Modelica file: explained, labelled not verified.
+  // 2. A Modelica file: explained, labeled not verified.
   await api(() => { void window.arclangPlayground.vscode.commands.executeCommand('vscode.open', window.arclangPlayground.vscode.Uri.file('/workspace/battery.mo')); });
   await page.waitForTimeout(1500);
   const lang = await api(() => window.arclangPlayground.monaco.editor.getModels().find((m) => m.uri.path === '/workspace/battery.mo').getLanguageId());
@@ -112,7 +112,7 @@ async function frameWith(page, selector, timeout = 30000) {
   await chat.locator('.chat-send').click();
   await chat.locator('.chat-unverified').waitFor({ timeout: 40000 });
   const label = await chat.locator('.chat-unverified').innerText();
-  report('the Modelica answer is labelled not verified', /Not verified: there is no Modelica compiler in the browser/.test(label), label.slice(0, 120));
+  report('the Modelica answer is labeled not verified', /Not verified: there is no Modelica compiler in the browser/.test(label), label.slice(0, 120));
   report('the label says where verification would run', /full workspace tier/.test(label));
   report('the answer offers its code to the editor', (await chat.locator('.chat-code button', { hasText: 'Insert at cursor' }).count()) === 1);
   if (SHOTS) await page.screenshot({ path: `${SHOTS}/web-ai-3-modelica.png` });

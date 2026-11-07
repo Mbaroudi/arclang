@@ -1,0 +1,341 @@
+//! State machines: regions, states and modes (nested through their regions),
+//! the initial state, transitions with their trigger and guard. A machine
+//! belongs to a component in Capella: its `owner:`, else the one its name
+//! starts with (`Owner / Machine`, as the import names machines that share
+//! a name); a machine written without one goes where the export says
+//! (`super::unowned_machine`).
+
+use super::context::{derived, list, text, Context};
+use super::xml::El;
+use crate::compiler::ast::{State, StateKind, StateMachine};
+use std::collections::HashMap;
+
+/// The machine's owner (a component id) and its own name.
+pub(super) fn owner_and_name<'a>(context: &Context, machine: &'a StateMachine, fallback: Option<&str>) -> (Option<String>, &'a str) {
+    let declared = text(&machine.attributes, "owner").and_then(|o| context.resolve(o)).map(str::to_string);
+    if let Some(declared) = declared {
+        // The import prefixes the owner's name when machines share a name.
+        // The name keeps its prefix: the caller removes it with the import's numbering.
+        return (Some(declared), machine.name.as_str());
+    }
+    if let Some((owner, _)) = machine.name.split_once(" / ") {
+        if let Some(id) = context.resolve(owner) {
+            return (Some(id.to_string()), machine.name.as_str());
+        }
+    }
+    (fallback.map(str::to_string), machine.name.as_str())
+}
+
+/// The functions a machine names: what triggers its transitions and what
+/// they do, what its states do on entry, on exit and while in them.
+pub(super) fn named_functions(context: &Context, machine: &StateMachine) -> Vec<String> {
+    let mut names: Vec<String> = Vec::new();
+    for t in &machine.transitions {
+        names.push(t.trigger.clone());
+        match t.attributes.get("action") {
+            Some(crate::compiler::ast::AttributeValue::List(_)) => names.extend(list(&t.attributes, "action")),
+            _ => names.extend(t.action.as_deref().unwrap_or("").split(", ").map(str::to_string)),
+        }
+    }
+    fn activities(states: &[State], names: &mut Vec<String>) {
+        for s in states {
+            for key in ["entry", "exit", "do"] {
+                names.extend(list(&s.attributes, key));
+            }
+            activities(&s.sub_states, names);
+        }
+    }
+    activities(&machine.states, &mut names);
+    let mut found: Vec<String> = Vec::new();
+    for name in names.iter().map(|n| n.trim()).filter(|n| !n.is_empty()) {
+        if let Some(id) = context.resolve_function(name).filter(|id| context.functions.contains(*id)) {
+            if !found.iter().any(|f| f == id) {
+                found.push(id.to_string());
+            }
+        }
+    }
+    found
+}
+
+fn machine_id(machine: &StateMachine) -> String {
+    if !machine.id.is_empty() {
+        return machine.id.clone();
+    }
+    derived(&format!("state-machine:{}", machine.name))
+}
+
+/// A state's Capella id: its `id:`, else one made up in its machine.
+fn state_id(machine: &str, state: &State) -> String {
+    // The parser names an id after the state when none is written; an
+    // unnamed Capella state is named after its id, a uuid.
+    let looks_like_uuid = state.id.len() == 36 && state.id.matches('-').count() == 4;
+    if state.id.is_empty() || (state.id == state.name && !looks_like_uuid) {
+        derived(&format!("{machine}:state:{}", state.name))
+    } else {
+        state.id.clone()
+    }
+}
+
+fn states_by_name(machine: &str, states: &[State], into: &mut HashMap<String, String>) {
+    for state in states {
+        into.insert(state.name.clone(), state_id(machine, state));
+        into.insert(state.id.clone(), state_id(machine, state));
+        states_by_name(machine, &state.sub_states, into);
+    }
+}
+
+/// The names (and ids) of a state and every state nested in it.
+fn descendants(s: &State, into: &mut Vec<String>) {
+    for sub in &s.sub_states {
+        into.push(sub.name.clone());
+        into.push(sub.id.clone());
+        descendants(sub, into);
+    }
+}
+
+/// Whether a transition is declared in `state` or in a state under it.
+fn contains_transition(state: &State, t: &crate::compiler::ast::Transition) -> bool {
+    let same = |u: &crate::compiler::ast::Transition| u.from == t.from && u.to == t.to && u.id == t.id;
+    state.transitions.iter().any(same) || state.sub_states.iter().any(|s| contains_transition(s, t))
+}
+
+/// The innermost state holding both ends of a transition in its regions.
+fn holder<'a>(states: &'a [State], from: &str, to: &str) -> Option<&'a State> {
+    for s in states {
+        let mut inside = Vec::new();
+        descendants(s, &mut inside);
+        if inside.iter().any(|n| n == from) && inside.iter().any(|n| n == to) {
+            return holder(&s.sub_states, from, to).or(Some(s));
+        }
+    }
+    None
+}
+
+fn transition(context: &Context, id: &str, index: usize, t: &crate::compiler::ast::Transition, names: &HashMap<String, String>) -> Option<El> {
+    let (source, target) = (names.get(&t.from)?, names.get(&t.to)?);
+    let tid = if t.id.is_empty() { derived(&format!("{id}:transition:{index}")) } else { t.id.clone() };
+    let mut el = El::new("ownedTransitions", "capellacommon:StateTransition", &tid).attr("source", &format!("#{source}")).attr("target", &format!("#{target}"));
+    if !t.trigger.is_empty() {
+        el.set("triggerDescription", &t.trigger);
+    }
+    // The effect: the functions the action names.
+    // The action is a list of what it names; older sources join it as text.
+    let named: Vec<String> = match t.attributes.get("action") {
+        Some(crate::compiler::ast::AttributeValue::List(_)) => list(&t.attributes, "action"),
+        _ => t.action.as_deref().unwrap_or("").split(", ").map(str::to_string).collect(),
+    };
+    let effects: Vec<String> = named.iter().map(String::as_str).filter_map(|f| context.resolve_function(f.trim()).or_else(|| context.resolve_type(f.trim())).or_else(|| context.resolve(f.trim()))).map(|f| format!("#{f}")).collect();
+    if !effects.is_empty() {
+        el.set("effect", &effects.join(" "));
+    }
+    let triggers: Vec<String> = list(&t.attributes, "events").iter().map(|e| format!("#{}", event_id(e))).collect();
+    if !triggers.is_empty() {
+        el.set("triggers", &triggers.join(" "));
+    }
+    if let Some(guard) = t.guard.as_deref().filter(|g| !g.is_empty()) {
+        let constraint = derived(&format!("{tid}:guard"));
+        el.set("guard", &format!("#{constraint}"));
+        el.push(
+            El::new("ownedConstraints", "capellacore:Constraint", &constraint)
+                .with(El::new("ownedSpecification", "datavalue:OpaqueExpression", &derived(&format!("{tid}:guard:expression"))).with(El::text("bodies", &super::linked_text(guard))).with(El::text("languages", "capella:linkedText"))),
+        );
+    }
+    Some(el)
+}
+
+
+/// Record the states of a machine, by id and by name.
+pub(super) fn register(context: &mut Context, machine: &StateMachine) {
+    let id = machine_id(machine);
+    let mut names = HashMap::new();
+    states_by_name(&id, &machine.states, &mut names);
+    for (reference, state) in names {
+        context.register(&reference, &state);
+    }
+    context.register(&id, &id);
+    context.register(&machine.name, &id);
+    for t in machine.transitions.iter().filter(|t| !t.id.is_empty()) {
+        context.register(&t.id, &t.id);
+    }
+}
+
+/// The Capella kind of a state: its `kind:` (a pseudo-state), else state or mode.
+fn state_kind(s: &State) -> &'static str {
+    match text(&s.attributes, "kind") {
+        Some("final") => "capellacommon:FinalState",
+        // Capella has no junction: the closest pseudo-state is a choice.
+        Some("choice") | Some("junction") => "capellacommon:ChoicePseudoState",
+        Some("fork") => "capellacommon:ForkPseudoState",
+        Some("join") => "capellacommon:JoinPseudoState",
+        Some("terminate") => "capellacommon:TerminatePseudoState",
+        Some("deep_history") => "capellacommon:DeepHistoryPseudoState",
+        Some("shallow_history") => "capellacommon:ShallowHistoryPseudoState",
+        Some("entry_point") => "capellacommon:EntryPointPseudoState",
+        Some("exit_point") => "capellacommon:ExitPointPseudoState",
+        _ if s.kind == StateKind::Mode => "capellacommon:Mode",
+        _ => "capellacommon:State",
+    }
+}
+
+/// The id of a machine's event, by name.
+pub(super) fn event_id(name: &str) -> String {
+    derived(&format!("event:{name}"))
+}
+
+/// The events the transitions of the model name.
+pub(super) fn events(machines: &[StateMachine]) -> Vec<String> {
+    let mut names: Vec<String> = Vec::new();
+    for m in machines {
+        for t in &m.transitions {
+            for event in list(&t.attributes, "events") {
+                if !names.contains(&event) {
+                    names.push(event);
+                }
+            }
+        }
+    }
+    names
+}
+
+/// An initial pseudo-state and its transition to `target`, for a region.
+fn initial(region: &mut El, owner: &str, target: &str) {
+    let initial = derived(&format!("{owner}:initial"));
+    region.push(El::new("ownedStates", "capellacommon:InitialPseudoState", &initial).attr("name", "Initial"));
+    region.push(El::new("ownedTransitions", "capellacommon:StateTransition", &derived(&format!("{owner}:initial-transition"))).attr("source", &format!("#{initial}")).attr("target", &format!("#{target}")));
+}
+
+fn state(context: &Context, machine: &str, s: &State, inner: &HashMap<String, Vec<El>>, names: &HashMap<String, String>) -> El {
+    let kind = state_kind(s);
+    let id = state_id(machine, s);
+    let mut el = super::header::apply(El::new("ownedStates", kind, &id).attr("name", &s.name), &s.attributes, &["kind", "initial", "entry", "exit", "do", "owner"]);
+    // Entry, exit and do activities: the functions they name.
+    for (key, attribute) in [("entry", "entry"), ("exit", "exit"), ("do", "doActivity")] {
+        let functions: Vec<String> = list(&s.attributes, key).iter().filter_map(|f| context.resolve_function(f).or_else(|| context.resolve_type(f)).or_else(|| context.resolve(f))).map(|f| format!("#{f}")).collect();
+        if !functions.is_empty() {
+            el.set(attribute, &functions.join(" "));
+        }
+    }
+    if !s.regions.is_empty() {
+        // Orthogonal regions written as `region` blocks, each with its initial state.
+        for (n, r) in s.regions.iter().enumerate() {
+            let written = !r.id.is_empty() && r.id != format!("{}.{}", s.name, r.name);
+            let region_id = if written { r.id.clone() } else { derived(&format!("{id}:region:{}", r.name)) };
+            let mut region = El::new("ownedRegions", "capellacommon:Region", &region_id).attr("name", &r.name);
+            if let Some(target) = names.get(&r.initial).filter(|_| !r.initial.is_empty()) {
+                initial(&mut region, &region_id, target);
+            }
+            for sub in &r.states {
+                region.push(state(context, machine, sub, inner, names));
+            }
+            for t in inner.get(&format!("{id}#{n}")).into_iter().flatten() {
+                region.push(t.clone());
+            }
+            // A transition declared in the state, outside its regions (one
+            // between them): its first region.
+            if n == 0 {
+                for t in inner.get(&id).into_iter().flatten() {
+                    region.push(t.clone());
+                }
+            }
+            el.push(region);
+        }
+    } else if !s.sub_states.is_empty() {
+        let region_id = derived(&format!("{id}:region"));
+        let mut region = El::new("ownedRegions", "capellacommon:Region", &region_id).attr("name", "Default Region");
+        if let Some(target) = names.get(&s.initial).filter(|_| !s.initial.is_empty()) {
+            initial(&mut region, &region_id, target);
+        }
+        for sub in &s.sub_states {
+            region.push(state(context, machine, sub, inner, names));
+        }
+        for t in inner.get(&id).into_iter().flatten() {
+            region.push(t.clone());
+        }
+        let region = involving(region);
+        // A state names the states of its regions (`referencedStates`), as
+        // Capella keeps them, the same list as its regions' (DWF_SM_03).
+        if let Some(involved) = region.get("involvedStates").map(str::to_string) {
+            el.set("referencedStates", &involved);
+        }
+        el.push(region);
+    }
+    el
+}
+
+/// The machine element, to be owned by a component (`ownedStateMachines`).
+pub(super) fn state_machine(context: &Context, machine: &StateMachine, name: &str) -> El {
+    let id = machine_id(machine);
+    let mut names = HashMap::new();
+    states_by_name(&id, &machine.states, &mut names);
+    let mut el = El::new("ownedStateMachines", "capellacommon:StateMachine", &id).attr("name", name);
+    if machine.regions.is_empty() {
+        let region_id = derived(&format!("{id}:region"));
+        el.push(region(context, &id, (&region_id, "Default Region"), &machine.initial_state, &machine.states, &machine.transitions, &names));
+    } else {
+        // Several top-level regions, each with its states, transitions and initial state.
+        for r in &machine.regions {
+            let region_id = if r.id.is_empty() { derived(&format!("{id}:region:{}", r.name)) } else { r.id.clone() };
+            el.push(region(context, &id, (&region_id, &r.name), &r.initial, &r.states, &r.transitions, &names));
+        }
+    }
+    el
+}
+
+/// A top-level region: its initial state, its states (nested regions inside
+/// them), and the transitions declared in it or in its states.
+fn region(context: &Context, id: &str, (region_id, region_name): (&str, &str), initial_state: &str, states: &[State], transitions: &[crate::compiler::ast::Transition], names: &HashMap<String, String>) -> El {
+    let mut region = El::new("ownedRegions", "capellacommon:Region", region_id).attr("name", region_name);
+    if let Some(target) = names.get(initial_state) {
+        // The machine's single region keeps the initial ids it always had.
+        let owner = if region_name == "Default Region" { id.to_string() } else { region_id.to_string() };
+        initial(&mut region, &owner, target);
+    }
+    // A transition goes to the region it is declared in: a state's, else this one.
+    let mut declared_in: HashMap<String, String> = HashMap::new();
+    fn declared(machine: &str, states: &[State], into: &mut HashMap<String, String>) {
+        for s in states {
+            for t in &s.transitions {
+                into.insert(format!("{}->{}:{}", t.from, t.to, t.id), state_id(machine, s));
+            }
+            // A transition declared in a region of the state: that region.
+            for (n, r) in s.regions.iter().enumerate() {
+                let own: Vec<&crate::compiler::ast::Transition> = r.transitions.iter().filter(|t| !r.states.iter().any(|sub| contains_transition(sub, t))).collect();
+                for t in own {
+                    into.insert(format!("{}->{}:{}", t.from, t.to, t.id), format!("{}#{n}", state_id(machine, s)));
+                }
+            }
+            declared(machine, &s.sub_states, into);
+        }
+    }
+    declared(id, states, &mut declared_in);
+    let mut top: Vec<El> = Vec::new();
+    let mut inner: HashMap<String, Vec<El>> = HashMap::new();
+    for (index, t) in transitions.iter().enumerate() {
+        // The transitions of a machine's single region are numbered in the
+        // machine, those of one of its several regions in the region.
+        let seed = if region_name == "Default Region" && region_id == derived(&format!("{id}:region")) { id } else { region_id };
+        let Some(el) = transition(context, seed, index, t, names) else { continue };
+        let at = declared_in.get(&format!("{}->{}:{}", t.from, t.to, t.id)).cloned().or_else(|| if declared_in.is_empty() { holder(states, &t.from, &t.to).map(|s| state_id(id, s)) } else { None });
+        match at {
+            Some(state) => inner.entry(state).or_default().push(el),
+            None => top.push(el),
+        }
+    }
+    for s in states {
+        region.push(state(context, id, s, &inner, names));
+    }
+    for el in top {
+        region.push(el);
+    }
+    involving(region)
+}
+
+/// A region names the states it shows (`involvedStates`): its own, in order,
+/// as Capella writes them. A state machine diagram draws these.
+fn involving(mut region: El) -> El {
+    let states: Vec<String> = region.children().iter().filter(|c| c.tag() == "ownedStates").map(|c| format!("#{}", c.id())).collect();
+    if !states.is_empty() {
+        region.set("involvedStates", &states.join(" "));
+    }
+    region
+}
