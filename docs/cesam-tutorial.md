@@ -7,9 +7,10 @@ system of interest, draw the CESAM diagram set, and export the views to
 SysML v2. Every command on this page is run by a test of the repository
 (`tests/cesam_exercises.rs`): what it shows is what the compiler prints.
 
-It takes about an hour. You need the compiler (`cargo build --release`, or a
-[release](https://github.com/Mbaroudi/arclang/releases)) and the files of
-`examples/cesam/`:
+It takes about an hour. You need the compiler built from `main`
+(`cargo build --release`): CESAM ships with release 4.13, the
+[4.12.0 release](https://github.com/Mbaroudi/arclang/releases) does not have
+it. And you need the files of `examples/cesam/`:
 
 | File | What it is |
 |---|---|
