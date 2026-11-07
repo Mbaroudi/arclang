@@ -122,7 +122,7 @@ pub(super) fn log(root: &FsPath, revision: &str, depth: usize, files: &[String])
     // One record per commit, ended by a record separator: a note ends
     // with a line break of its own.
     let notes = format!("--notes={}", USER_NOTES);
-    let mut arguments: Vec<&str> = vec!["log", revision, "-n", &depth_text, "--full-history", "--parents", &notes, "--format=%H%x1f%P%x1f%cI%x1f%s%x1f%N%x1e", "--"];
+    let mut arguments: Vec<&str> = vec!["log", revision, "-n", &depth_text, "--full-history", "--parents", "--topo-order", &notes, "--format=%H%x1f%P%x1f%cI%x1f%s%x1f%N%x1e", "--"];
     arguments.extend(files.iter().map(String::as_str));
     let log = git(root, &arguments)?;
     let mut revisions = Vec::new();
@@ -220,8 +220,10 @@ pub(super) fn tags(root: &FsPath) -> Result<Vec<GitTag>, String> {
 
 /// The last commit at or before `revision` that touched the model: the
 /// state of the model a tag or a branch on an unrelated commit stands for.
+/// `--full-history`: a merge that brought a change in counts, even when it
+/// holds the same model as the branch merged (git would skip to that branch).
 pub(super) fn model_commit_at(root: &FsPath, revision: &str, files: &[String]) -> Result<Option<String>, String> {
-    let mut arguments: Vec<&str> = vec!["log", "-1", "--format=%H", revision, "--"];
+    let mut arguments: Vec<&str> = vec!["log", "-1", "--full-history", "--format=%H", revision, "--"];
     arguments.extend(files.iter().map(String::as_str));
     Ok(Some(git(root, &arguments)?.trim().to_string()).filter(|sha| !sha.is_empty()))
 }
